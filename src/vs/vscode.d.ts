@@ -5,7 +5,6 @@
 
 /*
 	- comments are marked like this '<<< comment >>>'
-	- I've fixed typos directly without comments
 
 	some global comments:
 	- I'm missing some structure/grouping in this file:
@@ -24,23 +23,8 @@
 				"To get an instance of a {{FileSystemWatcher}} use {{workspace.createFileSystemWatcher}}."
 	- lots of class or method comments are still missing. If we cannot create all of them in time, we should focus on comments for non-obvious cases.
 		I have added a "non-obvious" comment.
-	- unclear when we have functions in a namespace and when we have resolve function and a sub namespace / interface. Examples are:
-		o workspace.openTextDocument() => return ITextDocument which opens a separate namespace
-		o vscode.language.register* functions. Could have been workspace.getLanguage(selector) => ILangauge
-		In general I think that having separate namespaces will help with scalibility. Results in smaller proposals in code complete.
-		window.activeTextEditor.###, window.statusBar.###, window.quickPick.###
 
-	- async programming style, Promise return and method naming
-		o we should make a statement how the async programming style works. What happens if I call a method and the actual operation can not be executed
-		  in the main thread since the editor / model changed.
-		o would be good to have a naming theme that makes our model clear. We could for example use:
-		  setXXX/applyXXX => Thenable. The operation is either done or rejected. An example is applying edits which get rejected if the model version doesn't exist anymore.
-		  updateXXX => void. The operation is done but the result might never be observable. It could even be that the operation got dropped. Or we want to ensure the operation
-		  is not observable. Example updateSelection. Otherwise people might think updateSelection(xxx).then(() => selction is at position xxx which might not be the case).
 	- label, names, descriptions: would be great to indicate if they show up in the user interface and therefore must be human readable.
-	- usage of option bags. Most functions flatten all parameters other only take an option bag. We should be consistent here. If option bags they must be optional
-	- param: T | Thenable<T>: (e.g. showQuickPick). IMO we shouldn't pass Thenable as a param. It should be resolved outside> Otherwise we need to handle the error case
-	  inside and even need to communicate that back to the outside.
 */
 
 
@@ -77,49 +61,44 @@ declare namespace vscode {
 	}
 
 	/**
-	 * Represents a line of text such as a line of source code
-	 * <<< Is a textLine live. E.g. when updating the document will a text line update as well. If not
-	 *     I would suggest to remove TextLine and add the methods to text document. Otherwise the object might
-	 *     be misleading.
-	 * >>>
+	 * Represents a line of text such as a line of source code.
+	 *
+	 * TextLine objects are __immutable__. That means that when a [document](#TextDocument) changes
+	 * previsouly retrieved lines will not represent the latest state.
 	 */
 	export interface TextLine {
 
 		/**
-		 * The zero-offset line number   <<<better: 'zero-based' see https://en.wikipedia.org/wiki/Zero-based_numbering >>>
+		 * The zero-base line number.
 		 *
 		 * @readonly
 		 */
 		lineNumber: number;
 
 		/**
-		 * The text of this line without the
-		 * newline character <<< what's about CR/LF on Windows? better: 'line separator characters' >>>
+		 * The text of this line without the line separator characters.
 		 *
 		 * @readonly
 		 */
 		text: string;
 
 		/**
-		 * The range this line covers without the
-		 * newline character <<< what's about CR/LF on Windows? better: 'line separator characters' >>>
+		 * The range this line covers without the line separator characters.
 		 *
 		 * @readonly
 		 */
 		range: Range;
 
 		/**
-		 * The range this line covers with the
-		 * newline character <<< dito >>>
+		 * The range this line covers with the line separator characters.
 		 *
 		 * @readonly
 		 */
 		rangeIncludingLineBreak: Range;
 
 		/**
-		 * The offset of the first character which
-		 * isn't a whitespace character as defined
-		 * by a `\s`-RegExp
+		 * The offset of the first character which is not a whitespace character as defined
+		 * by `/\s/`.
 		 *
 		 * @readonly
 		 */
@@ -141,16 +120,17 @@ declare namespace vscode {
 	export interface TextDocument {
 
 		/**
-		 * Get the associated URI for this document. Most documents have the file://-scheme, indicating that they represent files on disk.
-		 * However, some documents may have other schemes indicating that they are not available on disk.
+		 * The associated URI for this document. Most documents have the __file__-scheme, indicating that they
+		 * represent files on disk. However, some documents may have other schemes indicating that they are not
+		 * available on disk.
 		 *
 		 * @readonly
 		 */
 		uri: Uri;
 
 		/**
-		 * Returns the file system path of the file associated with this document. Shorthand
-		 * notation for `#uri.fsPath` <<< what if uri is not a file? >>>
+		 * The file system path of the associated resource. Shorthand
+		 * notation for `#uri.fsPath`. Independent of the uri scheme.
 		 *
 		 * @readonly
 		 */
@@ -164,7 +144,7 @@ declare namespace vscode {
 		isUntitled: boolean;
 
 		/**
-		 * The language identifier associated with this document.
+		 * The identifier of the language associated with this document.
 		 *
 		 * @readonly
 		 */
@@ -232,25 +212,36 @@ declare namespace vscode {
 		positionAt(offset: number): Position;
 
 		/**
-		 * Get the text in this document. If a range is provided the text contained
-		 * by the range is returned. <<< if the range is larger than the TextDocument only the intersection is ... >>>
+		 * Get the text of this document. A substring can be retrieved by providing
+		 * a range. The range will be [adjusted](#TextDocument.validateRange).
+		 *
+		 * @param range Include only the text included by the range.
 		 */
 		getText(range?: Range): string;
 
 		/**
-		 * Get the word under a certain position. May return null if position is at whitespace, on empty line, etc.
-		 * <<< what is a 'word'? >>>
+		 * Get a word-range at the given position. By default words are defined by
+		 * common separators, like space, -, _, etc. In addition, per languge custom
+		 * [word definitions](#LanguageConfiguration.wordPattern) can be defined.
+		 *
+		 * @param position A position.
+		 * @return A range spanning a word, or `undefined`.
 		 */
 		getWordRangeAtPosition(position: Position): Range;
 
 		/**
-		 * Ensure a range sticks to the text.
-		 * <<< 'sticks'? better: ensure a range is completely contained in the TextDocument. >>>
+		 * Ensure a range is completely contained in this document.
+		 *
+		 * @param range A range.
+		 * @return The given range or a new, adjusted range.
 		 */
 		validateRange(range: Range): Range;
 
 		/**
-		 * Ensure a position sticks to the text.	// <<< dito >>>
+		 * Ensure a position is completely contained in this document.
+		 *
+		 * @param position A position.
+		 * @return The given position or a new, adjusted position.
 		 */
 		validatePosition(position: Position): Position;
 	}
@@ -362,16 +353,21 @@ declare namespace vscode {
 		 * Create a new range from two position. If `start` is not
 		 * before or equal to `end` the values will be swapped.
 		 *
-		 * @param start
-		 * @param end
+		 * @param start A position.
+		 * @param end A position.
 		 */
 		constructor(start: Position, end: Position);
 
 		/**
-		 * Create a new range from two (line,character)-pairs. The parameters
+		 * Create a new range from four number. The parameters
 		 * might be swapped so that start is before or equal to end.
+		 *
+		 * @param startLine A positive number or zero.
+		 * @param startCharacter A positive number or zero.
+		 * @param endLine A positive number or zero.
+		 * @param endCharacter A positive number or zero.
 		 */
-		constructor(startLine: number, startColumn: number, endLine: number, endColumn: number);  // <<< use 'character' instead of 'column' >>>
+		constructor(startLine: number, startCharacter: number, endLine: number, endCharacter: number);
 
 		/**
 		 * `true` iff `start` and `end` are equal.
@@ -437,8 +433,13 @@ declare namespace vscode {
 
 		/**
 		 * Create a selection from four points.
+		 *
+		 * @param anchorLine A positive number or zero.
+		 * @param anchorCharacter A positive number or zero.
+		 * @param activeLine A positive number or zero.
+		 * @param activeCharacter A positive number or zero.
 		 */
-		constructor(anchorLine: number, anchorColumn: number, activeLine: number, activeColumn: number);  // <<< 'column' -> 'character' >>>
+		constructor(anchorLine: number, anchorCharacter: number, activeLine: number, activeCharacter: number);
 		/**
 		 * A selection is reversed if the [anchor](#Selection.anchor)
 		 * is equal to [start](#Selection.start) and if [active](#Selection.active)
@@ -475,7 +476,7 @@ declare namespace vscode {
 
 	/**
 	 * A text editor decoration type is a handle to additional styles in
-	 * the editor. 
+	 * the editor.
 	 *
 	 * To get an instance of a `TextEditorDecorationType` use
 	 * [createTextEditorDecorationType](#window.createTextEditorDecorationType).
@@ -619,15 +620,12 @@ declare namespace vscode {
 		document: TextDocument;
 
 		/**
-		 * The primary selection on this text editor. In case the text editor has multiple selections this is the first selection as
-		 * in `TextEditor.selections[0]`.  <<< and in the single selection case this is not true? This should always be true! >>>
-		 * @see [updateSelection](#updateSelection)
+		 * The primary selection on this text editor. Shorthand for `TextEditor.selections[0]`.
 		 */
 		selection: Selection;
 
 		/**
-		 * The selections in this text editor.
-		 * @see [updateSelection](#updateSelection)
+		 * The selections in this text editor. The primary selection is always at index 0.
 		 */
 		selections: Selection[];
 
@@ -638,17 +636,24 @@ declare namespace vscode {
 
 		/**
 		 * Perform an edit on the document associated with this text editor.
-		 * The passed in {{editBuilder}} is available only for the duration of the callback.
-		 * <<< waht does 'available' mean? better: 'valid' >>>
+		 *
+		 * The given callback-function is invoked with an [edit-builder](#TextEditorEdit) which must
+		 * be used to make edits. Note that the the edit-builder is only valid while the
+		 * callback executes.
+		 *
+		 * @param callback A function which can make edits using an [edit-builder](#TextEditorEdit).
+		 * @return A promise that resolve when the edits could be applied.
 		 */
 		edit(callback: (editBuilder: TextEditorEdit) => void): Thenable<boolean>;
 
 		/**
-		 * Adds a set of decorations to the text editor.
-		 * You must first create a `TextEditorDecorationType`. <<< to create another object is probably true for 95% of all APIs; nuke this sentence! >>>
-		 * If a set of decorations already exists with the given type, they will be overwritten.
+		 * Adds a set of decorations to the text editor. If a set of decorations already exists with
+		 * the given [decoration type](#TextEditorDecorationType), they will be replaced.
+		 *
+		 * @param decorationType A decoration type.
+		 * @param rangesOrOptions Either [ranges](#Range) or more detailed [options](#DecorationOptions).
 		 */
-		setDecorations(decorationType: TextEditorDecorationType, ranges: Range[] | DecorationOptions[]): void;
+		setDecorations(decorationType: TextEditorDecorationType, rangesOrOptions: Range[] | DecorationOptions[]): void;
 
 		/**
 		 * Scroll as necessary in order to reveal the given range.
@@ -676,17 +681,6 @@ declare namespace vscode {
 		hide(): void;
 	}
 
-	/**
-	 * Denotes a column in the VS Code window. Columns used to show editors
-	 * side by side.
-	 * <<< another reason not to use the term 'column' for 'character' within a line >>>
-	 * <<< this definition seems to be misplaced: it is not TextEditor related >>>
-	 */
-	export enum ViewColumn {
-		One = 1,
-		Two = 2,
-		Three = 3
-	}
 
 	/**
 	 * A complex edit that will be applied on a TextEditor.
@@ -910,12 +904,12 @@ declare namespace vscode {
 	export interface QuickPickItem {
 
 		/**
-		 * The main label of this item   <<< is there another 'non-main' label? >>>
+		 * A label. Will be rendered prominent.
 		 */
 		label: string;
 
 		/**
-		 * A description <<< for what is this used? >>>
+		 * A description. Will be rendered less prominent.
 		 */
 		description: string;
 	}
@@ -936,7 +930,7 @@ declare namespace vscode {
 	}
 
 	/**
-	 * Represents an actional item that is shown with an information, warning, or  <<< what is an 'actional' item? >>>
+	 * Represents an action that is shown with an information, warning, or
 	 * error message
 	 *
 	 * @see #window.showInformationMessage
@@ -1522,6 +1516,16 @@ declare namespace vscode {
 		 * [clear](#DiagnosticCollection.clear).
 		 */
 		dispose(): void;
+	}
+
+	/**
+	 * Denotes a column in the VS Code window. Columns used to show editors
+	 * side by side.
+	 */
+	export enum ViewColumn {
+		One = 1,
+		Two = 2,
+		Three = 3
 	}
 
 	/**
