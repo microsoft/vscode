@@ -447,6 +447,16 @@ declare namespace vscode {
 		isReversed: boolean;
 	}
 
+	export interface TextEditorSelectionChangeEvent {
+		textEditor: TextEditor;
+		selections: Selection[];
+	}
+
+	export interface TextEditorOptionsChangeEvent {
+		textEditor: TextEditor;
+		options: TextEditorOptions;
+	}
+
 	/**
 	 *
 	 */
@@ -463,7 +473,13 @@ declare namespace vscode {
 		insertSpaces: boolean;
 	}
 
-	// <<< non-obvious >>>
+	/**
+	 * A text editor decoration type is a handle to additional styles in
+	 * the editor. 
+	 *
+	 * To get an instance of a `TextEditorDecorationType` use
+	 * [createTextEditorDecorationType](#window.createTextEditorDecorationType).
+	 */
 	export interface TextEditorDecorationType {
 
 		/**
@@ -848,8 +864,8 @@ declare namespace vscode {
 
 	/**
 	 * A file system watcher notifies about changes to files and folders
-	 * on disk. To get an instance of a {{FileSystemWatcher}} use
-	 * {{workspace.createFileSystemWatcher}}.
+	 * on disk. To get an instance of a `FileSystemWatcher` use
+	 * [createFileSystemWatcher](#workspace.createFileSystemWatcher).
 	 */
 	export interface FileSystemWatcher extends Disposable {
 
@@ -1380,16 +1396,6 @@ declare namespace vscode {
 	}
 
 	/**
-	 * Represents the severity of diagnostics.
-	 */
-	export enum DiagnosticSeverity {
-		Hint = 3,
-		Information = 2,
-		Warning = 1,
-		Error = 0
-	}
-
-	/**
 	 * Represents a location inside a resource, such as a line
 	 * inside a text file.
 	 */
@@ -1399,27 +1405,109 @@ declare namespace vscode {
 		range: Range;
 	}
 
+	/**
+	 * Represents the severity of diagnostics.
+	 */
+	export enum DiagnosticSeverity {
+
+		/**
+		 * Something not allowed by the rules of a languages or other means.
+		 */
+		Error = 0,
+
+		/**
+		 * Something suspicious but allowed.
+		 */
+		Warning = 1,
+
+		/**
+		 * Something to inform about but not a problem.
+		 */
+		Information = 2,
+
+		/**
+		 * Something to hint to a better way of doing something, like proposing
+		 * a refactoring.
+		 */
+		Hint = 3
+	}
+
+	/**
+	 * Represents a diagnostic, such as a compiler error or warning. Diagnostic objects
+	 * are only valid in the scope of a file.
+	 */
+	export class Diagnostic {
+
+		/**
+		 * The range to which this diagnostic applies.
+		 */
+		range: Range;
+
+		/**
+		 * The human-readable message.
+		 */
+		message: string;
+
+		/**
+		 * The severity, default is [error](#DiagnosticSeverity.Error).
+		 */
+		severity: DiagnosticSeverity;
+
+		/**
+		 * A code or identifier for this diagnostics. Will not surfaced
+		 * to the user, but should be used for later processing, e.g when
+		 * providing [code actions](#CodeActionContext).
+		 */
+		code: string | number;
+
+		/**
+		 * Creates a new diagnostic object
+		 *
+		 * @param range The range to which this diagnostic applies.
+		 * @param message The human-readable message.
+		 * @param severity The severity, default is [error](#DiagnosticSeverity.Error)
+		 */
+		constructor(range: Range, message: string, severity?: DiagnosticSeverity);
+	}
+
+	/**
+	 * A diagnostics collection is a container that manages a set of
+	 * [diagnostics](#Diagnostic). Diagnostics are always scopes to a
+	 * a diagnostics collection and a resource.
+	 *
+	 * To get an instance of a `DiagnosticCollection` use
+	 * [createDiagnosticCollection](#languages.createDiagnosticCollection).
+	 */
 	export interface DiagnosticCollection {
 
 		/**
-		 * <<< non-obvious: for what is the name used? >>>
+		 * The name of this diagnostic collection, for instance `typescript`. Every diagnostic
+		 * from this collection will be associated with this name. Also, the task framework uses this
+		 * name when defining [problem matchers](https://code.visualstudio.com/docs/editor/tasks#_defining-a-problem-matcher).
 		 */
 		name: string;
 
 		/**
 		 * Assign diagnostics for given resource. Will replace
-		 * existing diagnostics
+		 * existing diagnostics for that resource.
+		 *
+		 * @param uri A resource identifier.
+		 * @param diagnostics Array of diagnostics or `undefined`
 		 */
 		set(uri: Uri, diagnostics: Diagnostic[]): void;
 
 		/**
 		 * Remove all diagnostics from this collection that belong
-		 * to the provided `uri`. The same as `#set(uri, undefined)`
+		 * to the provided `uri`. The same as `#set(uri, undefined)`.
+		 *
+		 * @param uri A resource identifier.
 		 */
 		delete(uri: Uri): void;
 
 		/**
-		 * Replace all entries
+		 * Replace all entries in this collection
+		 *
+		 * @param entries An array of tuples, like [[file1, [d1, d2]], [file2, [d3, d4, d5]]], or `undefined`
 		 */
 		set(entries: [Uri, Diagnostic[]][]): void;
 
@@ -1429,60 +1517,79 @@ declare namespace vscode {
 		 */
 		clear(): void;
 
+		/**
+		 * Dispose and free associated resources. Calls
+		 * [clear](#DiagnosticCollection.clear).
+		 */
 		dispose(): void;
 	}
 
 	/**
-	 * Represents a diagnostic, such as a compiler error or warning, along with the location
-	 * in which they occurred.
+	 * An output channel is a container for readonly textual information.
+	 *
+	 * To get an instance of an `OutputChannel` use
+	 * [createOutputChannel](#window.createOutputChannel).
 	 */
-	export class Diagnostic {
-
-		range: Range;
-
-		message: string;
-
-		severity: DiagnosticSeverity;
-
-		code: string | number;		// <<< is this an ID? It does not appear in the constructor. >>>
-
-		/**
-		 * Creates a new diagnostic object
-		 *
-		 * @param range To what range this diagnostic relates
-		 * @param message Message to show the user
-		 * @param severity Diagnostic severity, by default [error](#DiagnosticSeverity.Error)
-		 */
-		constructor(range: Range, message: string, severity?: DiagnosticSeverity);
-	}
-
 	export interface OutputChannel {
 
 		/**
-		 *
+		 * The human-readable name of this output channel.
 		 * @readonly
 		 */
 		name: string;
 
+		/**
+		 * Append the given value to the channel.
+		 *
+		 * @param value A string, falsy values will not be printed.
+		 */
 		append(value: string): void;
 
+
+		/**
+		 * Append the given value and a line feed character
+		 * to the channel.
+		 *
+		 * @param value A string, falsy values will be printed.
+		 */
 		appendLine(value: string): void;
 
+		/**
+		 * Removes all output from the channel.
+		 */
 		clear(): void;
 
+		/**
+		 * Reveal this channel in the UI.
+		 *
+		 * @column The column in which to show the channel, default in [one](#ViewColumn.One).
+		 */
 		show(column?: ViewColumn): void;
 
+		/**
+		 * Hide this channel from the UI.
+		 */
 		hide(): void;
 
+		/**
+		 * Dispose and free associated resources.
+		 */
 		dispose(): void;
 	}
 
 	/**
-	 * Represents the alignment of status bar items,
-	 * either `Left` or `Right`
+	 * Represents the alignment of status bar items.
 	 */
 	export enum StatusBarAlignment {
+
+		/**
+		 * Aligned to the left side.
+		 */
 		Left,
+
+		/**
+		 * Aligned to the right side.
+		 */
 		Right
 	}
 
@@ -1493,42 +1600,44 @@ declare namespace vscode {
 	export interface StatusBarItem {
 
 		/**
-		 * The alignment of this item, either left or right		// <<< no need to mention left or right here because a specific enum exists. >>>
+		 * The alignment of this item.
+		 *
 		 * @readonly
 		 */
 		alignment: StatusBarAlignment;
 
 		/**
-		 * The priority of this item. It defined the sorting
-		 * when multi items share the same [alignment](#alignment)		// <<< I don't get this ? >>>
+		 * The priority of this item. Higher value means the item should
+		 * be shown more to the left.
+		 *
 		 * @readonly
 		 */
 		priority: number;
 
 		/**
-		* The text to show for the entry. You can embed icons in the text by leveraging the syntax:
-		*
-		* `My text $(icon name) contains icons like $(icon name) this one.`
-		*
-		* Where the icon name is taken from the octicon icon set (https://octicons.github.com/), e.g.
-		* light-bulb, thumbsup or zap.
-		*/
+		 * The text to show for the entry. You can embed icons in the text by leveraging the syntax:
+		 *
+		 * `My text $(icon name) contains icons like $(icon name) this one.`
+		 *
+		 * Where the icon name is taken from the (octicon)[https://octicons.github.com/] icon set, e.g.
+		 * light-bulb, thumbsup, zap etc.
+		 */
 		text: string;
 
 		/**
-		* An optional tooltip text to show when you hover over the entry
-		*/
+		 * The tooltip text when you hover over this entry.
+		 */
 		tooltip: string;
 
 		/**
-		* An optional color to use for the entry
-		*/
+		 * The foreground color for this entry.
+		 */
 		color: string;
 
 		/**
-		* An optional id of a command that is known to the workbench to execute on click. This can either
-		* be a built in workbench or editor command or a command contributed by an extension.
-		*/
+		 * The identifier of a command to run on click. The command must be
+		 * [known](#commands.getCommands).
+		 */
 		command: string;
 
 		/**
@@ -1537,35 +1646,32 @@ declare namespace vscode {
 		show(): void;
 
 		/**
-		 * Removes the entry from the status bar.
+		 * Hide the entry in the status bar.
 		 */
 		hide(): void;
 
 		/**
-		 * Disposes the status bar entry from the status bar
+		 * Dispose and free associated resources. Call
+		 * [hide](#StatusBarItem.hide).
 		 */
 		dispose(): void;
 	}
 
-	export interface TextEditorSelectionChangeEvent {
-		textEditor: TextEditor;
-		selections: Selection[];
-	}
-
-	export interface TextEditorOptionsChangeEvent {
-		textEditor: TextEditor;
-		options: TextEditorOptions;
-	}
-
+	/**
+	 * Represents an extension.
+	 *
+	 * To get an instance of an `Extension` use
+	 * [getExtension](#extensions.getExtension).
+	 */
 	export interface Extension<T> {
+
 		/**
-		 * The canonical extension identifier.
-		 * Computed via `publisher.name`
+		 * The canonical extension identifier in the form of: `publisher.name`.
 		 */
 		id: string;
 
 		/**
-		 * The absolute OS path to the directory containing the extension.
+		 * The absolute file path of the directory containing this extension.
 		 */
 		extensionPath: string;
 
@@ -1580,22 +1686,31 @@ declare namespace vscode {
 		packageJSON: any;
 
 		/**
-		 * The public API exported by this extension.
-		 * Accessing this field before the extension is activated will throw!
+		 * The public API exported by this extension. It is an invalid
+		 * to access this field before this extension has been activated.
 		 */
 		exports: T;
 
 		/**
 		 * Activates this extension and returns its public API.
+		 *
+		 * @return A promise that resolve when this extension has been activated.
 		 */
 		activate(): Thenable<T>;
 	}
 
+	/**
+	 * An extension context is a collection utilities private to an
+	 * extensions.
+	 *
+	 * An instance of an `ExtensionContext` is provided as first
+	 * parameter to the `activate`-call of an extension.
+	 */
 	export interface ExtensionContext {
 
 		/**
 		 * An array to which disposables can be added. When this
-		 * extension is deactivated the disposables will be invoked.
+		 * extension is deactivated the disposables will be disposed.
 		 */
 		subscriptions: { dispose(): any }[];
 
@@ -1612,7 +1727,7 @@ declare namespace vscode {
 		globalState: Memento;
 
 		/**
-		 * The absolute OS path to the directory containing the extension.
+		 * The absolute file path of the directory containing the extension.
 		 */
 		extensionPath: string;
 
@@ -1770,25 +1885,18 @@ declare namespace vscode {
 		/**
 		 * Shows a selection list.
 		 *
-		 * @param items an array of strings to pick from.
-		 * @param options configures the behavior of the selection list
-		 * @return a promise that resolves to the selected string or undefined.
-		 *
-		 * <<< why can items be a Thenable<T>. We should either support this always (for example showErrorMessage)
-		 *     or never. IMO there is no value gain in this. Devs can Promise.all(items => showQuickPick)
-		 *     What happens if a Theable is rejected. Does the whole showQuickPick gets rejected.
-		 * >>>
+		 * @param items An array of strings, or a promise that resolves to an array of strings.
+		 * @param options Configures the behavior of the selection list.
+		 * @return A promise that resolves to the selection or undefined.
 		 */
 		export function showQuickPick(items: string[] | Thenable<string[]>, options?: QuickPickOptions): Thenable<string>;
 
 		/**
 		 * Shows a selection list.
 		 *
-		 * @param items an array of items to pick from.
-		 * @param options configures the behavior of the selection list
-		 * @return a promise that resolves to the selected item or undefined.
-		 *
-		 * <<< same as above >>>
+		 * @param items An array of items, or a promise that resolves to an array of items.
+		 * @param options Configures the behavior of the selection list.
+		 * @return A promise that resolves to the selected item or undefined.
 		 */
 		export function showQuickPick<T extends QuickPickItem>(items: T[] | Thenable<T[]>, options?: QuickPickOptions): Thenable<T>;
 
@@ -1799,42 +1907,50 @@ declare namespace vscode {
 		 * have the user typed string or an empty string if the user did not type anything but dismissed the input
 		 * box with OK.
 		 *
-		 * <<< why is this an option bag and not parameters. We don't use options bags frequently >>>
+		 * @param options Configures the behavior of the input box.
+		 * @return A promise that resolves to a string the user provided or to `undefined` in case of dismissal.
 		 */
 		export function showInputBox(options?: InputBoxOptions): Thenable<string>;
 
 		/**
-		 * Returns a new [output channel](#OutputChannel) with the given name.
+		 * Create a new [output channel](#OutputChannel) with the given name.
+		 *
+		 * @param name Human-readable string which we will used to represent the channel in the UI.
 		 */
 		export function createOutputChannel(name: string): OutputChannel;
 
 		/**
-		 * Set a message to the status bar. This is a short hand for the more power full
+		 * Set a message to the status bar. This is a short hand for the more powerfull
 		 * status bar [items](#window.createStatusBarItem).
+		 *
 		 * @param text The message to show, support icons subtitution as in status bar [items](#StatusBarItem.text).
+		 * @return A disposable which hides the status bar message.
 		 */
 		export function setStatusBarMessage(text: string): Disposable;
 
 		/**
 		 * @see [[#window.setStatusBarMessage]]
+		 *
 		 * @param hideAfterTimeout Timeout in milliseconds after which the message will be disposed.
+		 * @return A disposable which hides the status bar message.
 		 */
 		export function setStatusBarMessage(text: string, hideAfterTimeout: number): Disposable;
 
 		/**
 		 * @see [[#window.setStatusBarMessage]]
+		 *
 		 * @param hideWhenDone Thenable on which completion (resolve or reject) the message will be disposed.
+		 * @return A disposable which hides the status bar message.
 		 */
 		export function setStatusBarMessage(text: string, hideWhenDone: Thenable<any>): Disposable;
 
-
 		/**
-		* Add a status bar entry. Can be left or right aligned, expresses ordering
-		* via priority.
-		*
-		* @param position either Left or Right
-		* @param priority the higher the number, the more the entry moves to the left of the status bar
-		*/
+		 * Creates a status bar [item](#StatusBarItem).
+		 *
+		 * @param position The alignment of the item.
+		 * @param priority The priority of the item. Higher value means the item should be shown more to the left.
+		 * @return A new status bar item.
+		 */
 		export function createStatusBarItem(alignment?: StatusBarAlignment, priority?: number): StatusBarItem;
 	}
 
@@ -1964,13 +2080,17 @@ declare namespace vscode {
 		export function getLanguages(): Thenable<string[]>;
 
 		/**
-		 * Compute the match between a document selector and a document. Values
+		 * Compute the match between a document [selector](#DocumentSelector) and a document. Values
 		 * greater zero mean the selector matches the document.
+		 *
+		 * @param selector A document selector.
+		 * @param document A text document.
+		 * @return Value > 0 when the selector matches, 0 when the selector does not match.
 		 */
 		export function match(selector: DocumentSelector, document: TextDocument): number;
 
 		/**
-		 *
+		 * Create a diagnostics collections with an optional name.
 		 */
 		export function createDiagnosticCollection(name?: string): DiagnosticCollection;
 
