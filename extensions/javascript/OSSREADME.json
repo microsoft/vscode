@@ -2,7 +2,7 @@
 
 [{
 	"name": "typescript-sublime-plugin",
-	"version": "0.1.5",
+	"version": "0.1.8",
 	"license": "Apache2",
 	"repositoryURL": "https://github.com/Microsoft/TypeScript-Sublime-Plugin",
 	"description": "The file syntaxes/JavaScriptReact.tmLanguage was derived from the TypeScript-Sublime-Plugin https://github.com/Microsoft/TypeScript-Sublime-Plugin.",
