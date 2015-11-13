@@ -40,7 +40,7 @@ var baseModules = [
 // Build
 
 var builtInExtensions = {
-	// 'jrieken.backspace-plusplus': '0.0.6',
+	// nothing yet
 };
 
 var vscodeEntryPoints = _.flatten([
