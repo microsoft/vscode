@@ -78,6 +78,7 @@ export const product: IProductConfiguration = productContents;
 product.nameShort = product.nameShort || 'Code [OSS Build]';
 product.nameLong = product.nameLong || 'Code [OSS Build]';
 product.dataFolderName = product.dataFolderName || (isBuilt ? '.code-oss-build' : '.code-oss-build-dev');
+delete product.extensionsGallery;
 
 export const updateInfo: IUpdateInfo = product.updateUrl ? { baseUrl: product.updateUrl } : void 0;
 
