@@ -240,7 +240,7 @@ function packageTask(platform, arch, opts) {
 		}
 
 		if (product.welcomePage) {
-			result = es.merge(result, gulp.src(product.welcomePage, { base: '.' }));
+			result = es.merge(result, gulp.src('resources/app/' + product.welcomePage, { base: '.' }));
 		}
 
 		if (platform === 'win32') {
