@@ -17,7 +17,7 @@
 	],
 	"main": "./out/omnisharpMain",
 	"scripts": {
-		"postinstall": "gulp omnisharp",
+		"postinstall": "node ./node_modules/gulp/bin/gulp.js omnisharp",
 		"vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../gulpfile.plugins.js compile-plugin:csharp-o ./tsconfig.json"
 	},
 	"dependencies": {
