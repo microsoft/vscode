@@ -1,0 +1,23 @@
+{
+	"name": "css",
+	"version": "0.1.0",
+	"publisher": "vscode",
+	"engines": { "vscode": "*" },
+	"contributes": {
+		"languages": [{
+			"id": "css",
+			"aliases": ["CSS", "css"],
+			"extensions": [".css"],
+			"mimetypes": ["text/css"]
+		}],
+		"grammars": [{
+			"language": "css",
+			"scopeName": "source.css",
+			"path": "./syntaxes/css.plist"
+		}],
+		"snippets": [{
+			"language": "css",
+			"path": "./snippets/css.json"
+		}]
+	}
+}

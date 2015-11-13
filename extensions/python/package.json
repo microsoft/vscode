@@ -1,0 +1,20 @@
+{
+	"name": "python",
+	"version": "0.1.0",
+	"publisher": "vscode",
+	"engines": { "vscode": "*" },
+	"contributes": {
+		"languages": [{
+			"id": "python",
+			"extensions": [ ".py", ".rpy", ".pyw", ".cpy", ".gyp", ".gypi" ],
+			"aliases": [ "Python", "py" ],
+			"firstLine": "^#!/.*\\bpython[0-9.-]*\\b",
+			"configuration": "./python.configuration.json"
+		}],
+		"grammars": [{
+			"language": "python",
+			"scopeName": "source.python",
+			"path": "./syntaxes/Python.tmLanguage"
+		}]
+	}
+}

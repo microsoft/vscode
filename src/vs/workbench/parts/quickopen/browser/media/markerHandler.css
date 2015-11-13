@@ -1,0 +1,52 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.quick-open-widget.marker-handler .inline {
+	display: inline-block;
+	vertical-align: top;
+}
+
+.quick-open-widget.marker-handler .severity {
+	display: inline-block;
+	width: 16px;
+	height: 24px;
+	margin-right: 4px;
+}
+
+.quick-open-widget.marker-handler .severity.warning {
+	background: url('status-warning.svg') center center no-repeat;
+}
+
+.quick-open-widget.marker-handler .severity.error {
+	background: url('status-error.svg') center center no-repeat;
+}
+
+.quick-open-widget.marker-handler .severity.info:before {
+	background: url('status-info.svg') center center no-repeat;
+}
+
+.vs-dark .quick-open-widget.marker-handler .severity.warning {
+	background: url('status-warning-inverse.svg') center center no-repeat;
+}
+
+.vs-dark .quick-open-widget.marker-handler .severity.error {
+	background: url('status-error-inverse.svg') center center no-repeat;
+}
+
+.vs-dark .quick-open-widget.marker-handler .severity.info:before {
+	background: url('status-info-inverse.svg') center center no-repeat;
+}
+
+.quick-open-widget.marker-handler .entry .path {
+	opacity: 0.7;
+}
+
+.quick-open-widget.marker-handler .entry .path .basename {
+	margin-right: 0.7em;
+}
+
+.quick-open-widget.marker-handler .entry .path .dirname {
+	opacity: 0.6;
+}

@@ -1,0 +1,37 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-workbench.vs .textdiff-editor-action.next {
+	background: url('next-diff.svg') center center no-repeat;
+}
+
+.monaco-workbench.vs .textdiff-editor-action.previous {
+	background: url('previous-diff.svg') center center no-repeat;
+}
+
+.monaco-workbench.vs-dark .textdiff-editor-action.next {
+	background: url('next-diff-inverse.svg') center center no-repeat;
+}
+
+.monaco-workbench.vs-dark .textdiff-editor-action.previous {
+	background: url('previous-diff-inverse.svg') center center no-repeat;
+}
+
+/* High Contrast Theming */
+.monaco-workbench.hc-black .textdiff-editor-action:before {
+	position: absolute;
+	top: 12px;
+	left: 8px;
+	height: 16px;
+	width: 16px;
+}
+
+.monaco-workbench.hc-black .textdiff-editor-action.next:before {
+	content: url('next-diff-inverse.svg');
+}
+
+.monaco-workbench.hc-black .textdiff-editor-action.previous:before {
+	content: url('previous-diff-inverse.svg');
+}

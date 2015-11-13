@@ -1,0 +1,30 @@
+{
+	"name": "perl",
+	"version": "0.1.0",
+	"publisher": "vscode",
+	"engines": { "vscode": "*" },
+	"contributes": {
+		"languages": [{
+			"id": "perl",
+			"aliases": ["Perl", "perl"],
+			"extensions": [".pl", ".pm", ".pod", ".t", ".PL", ".psgi"],
+			"firstLine": "^#!.*\\bperl\\b",
+			"configuration": "./perl.configuration.json"
+		}, {
+			"id": "perl6",
+			"aliases": ["Perl 6", "perl6"],
+			"extensions": [".p6", ".pl6", ".pm6", ".nqp"],
+			"firstLine": "(^#!.*\\bperl6\\b)|use\\s+v6",
+			"configuration": "./perl6.configuration.json"
+		}],
+		"grammars": [{
+			"language": "perl",
+			"scopeName": "source.perl",
+			"path": "./syntaxes/Perl.plist"
+		}, {
+			"language": "perl6",
+			"scopeName": "source.perl.6",
+			"path": "./syntaxes/Perl 6.tmLanguage"
+		}]
+	}
+}

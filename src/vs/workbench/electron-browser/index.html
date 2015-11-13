@@ -1,0 +1,193 @@
+<!-- Copyright (C) Microsoft Corporation. All rights reserved. -->
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+
+		<!-- Theming (do not remove, we want to early load it to avoid flashing background) -->
+		<style>
+			.monaco-shell.vs-dark { background-color: #1E1E1E; }
+		</style>
+
+		<!-- Helpers -->
+		<script type="text/javascript">
+			var path = require('path');
+			var remote = require('remote');
+			var ipc = require('ipc');
+
+			function onError(error, enableDeveloperTools) {
+				if (enableDeveloperTools) {
+					remote.getCurrentWindow().openDevTools();
+					remote.getCurrentWindow().show();
+				}
+
+				console.error('[uncaught exception]: ' + error);
+
+				if (error.stack) {
+					console.error(error.stack);
+				}
+			}
+
+			function parseURLQueryArgs() {
+				var result = {};
+				var search = window.location.search;
+				if (search) {
+					var params = search.split(/[?&]/);
+					for (var i = 0; i < params.length; i++) {
+						var param = params[i];
+						if (param) {
+							var keyValue = param.split('=');
+							if (keyValue.length === 2) {
+								result[keyValue[0]] = decodeURIComponent(keyValue[1]);
+							}
+						}
+					}
+				}
+
+				return result;
+			}
+
+			function createScript(src, onload) {
+				var script = document.createElement('script');
+				script.src = src;
+				script.addEventListener('load', onload);
+
+				var head = document.getElementsByTagName('head')[0];
+				head.insertBefore(script, head.lastChild);
+			}
+
+			function uriFromPath(_path) {
+				var pathName = path.resolve(_path).replace(/\\/g, '/');
+
+				if (pathName.length > 0 && pathName.charAt(0) !== '/') {
+					pathName = '/' + pathName;
+				}
+
+				return encodeURI('file://' + pathName);
+			}
+
+			function registerListeners(enableDeveloperTools) {
+
+				// Devtools & reload support
+				if (enableDeveloperTools) {
+					var extractKey = function(e) {
+						return [
+							e.ctrlKey ? 'ctrl-' : '',
+							e.metaKey ? 'meta-' : '',
+							e.altKey ? 'alt-' : '',
+							e.shiftKey ? 'shift-' : '',
+							e.keyCode
+						].join('');
+					};
+
+					var TOGGLE_DEV_TOOLS_KB = (process.platform === 'darwin' ? 'meta-alt-73' : 'ctrl-shift-73'); // mac: Cmd-Alt-I, rest: Ctrl-Shift-I
+					var RELOAD_KB = (process.platform === 'darwin' ? 'meta-82' : 'ctrl-82'); // mac: Cmd-R, rest: Ctrl-R
+
+					window.addEventListener('keydown', function(e) {
+						var key = extractKey(e);
+						if (key === TOGGLE_DEV_TOOLS_KB) {
+							remote.getCurrentWindow().toggleDevTools();
+						} else if (key === RELOAD_KB) {
+							ipc.send('vscode:reloadWindow', remote.getCurrentWindow().id);
+						}
+					});
+				}
+
+				process.on('uncaughtException', function(error) { onError(error, enableDeveloperTools) });
+			}
+		</script>
+
+		<!-- Startup Code -->
+		<script type="text/javascript">
+			var mainStarted = false;
+			var args = parseURLQueryArgs();
+			var configuration = JSON.parse(args['config']);
+			var enableDeveloperTools = !configuration.isBuilt || !!configuration.pluginDevelopmentPath;
+
+			process.env['VSCODE_SHARED_IPC_HOOK'] = configuration.sharedIPCHandle;
+
+			registerListeners(enableDeveloperTools);
+
+			// disable pinch zoom
+			require('web-frame').setZoomLevelLimits(1, 1);
+
+			var rootUrl = uriFromPath(configuration.appRoot) + '/out';
+			createScript(rootUrl + '/vs/loader.js', function() {
+				require.config({
+					baseUrl: rootUrl,
+					'vs/nls': {
+						availableLanguages: {}
+					},
+					recordStats: configuration.enablePerformance
+				});
+
+				var hasWorkspaceContext = configuration.workspacePath;
+
+				window.MonacoEnvironment = {
+					'platform': remote.process.platform,
+					'enableTasks': hasWorkspaceContext,
+					'enableJavaScriptRewriting': true,
+					'enableSendASmile' : !!configuration.sendASmile,
+					'enableTypeScriptServiceMode': true || !process.env['VSCODE_TSWORKER'],
+					'enableTypeScriptServiceModeForJS': !!process.env['CODE_TSJS']
+				};
+
+				var programStart = remote.getGlobal('programStart');
+				var vscodeStart = remote.getGlobal('vscodeStart');
+
+				var timers = window.MonacoEnvironment.timers = {
+					start: new Date(programStart || vscodeStart),
+				};
+
+				if (programStart) {
+					timers.beforeProgram = new Date(programStart);
+					timers.afterProgram = new Date(vscodeStart);
+				}
+
+				timers.vscodeStart = new Date(vscodeStart);
+				timers.beforeLoad = new Date();
+				require([
+					'vs/workbench/workbench.main',
+					'vs/nls!vs/workbench/workbench.main',
+					'vs/css!vs/workbench/workbench.main'
+				], function() {
+					timers.afterLoad = new Date();
+
+					// We get the global settings through a remote call from the browser
+					// because its value can change dynamically.
+					var globalSettings;
+					var globalSettingsValue = remote.getGlobal('globalSettingsValue');
+					if (globalSettingsValue) {
+						globalSettings = JSON.parse(globalSettingsValue);
+					} else {
+						globalSettings = {
+							settings: {},
+							keybindings: []
+						};
+					}
+
+					var main = require('vs/workbench/electron-browser/main');
+					main.startup(configuration, globalSettings).then(function() {
+						mainStarted = true;
+					}, function(error) { onError(error, enableDeveloperTools) });
+				});
+			});
+
+		</script>
+	</head>
+	<body class="monaco-shell vs-dark">
+		<script>
+			(function() {
+				try {
+					var defaultTheme = 'vs-dark';
+					var theme = window.localStorage.getItem('storage://global/workbench.theme');
+					if (theme && theme !== defaultTheme) {
+						window.document.body.className = 'monaco-shell'; // remove the default theme bit unless we are in default theme
+					}
+				} catch (error) {
+					console.error(error);
+				}
+			})();
+		</script>
+	</body>
+</html>

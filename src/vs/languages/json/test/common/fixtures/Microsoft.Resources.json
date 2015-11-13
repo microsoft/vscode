@@ -1,0 +1,179 @@
+﻿{
+    "id": "http://schema.management.azure.com/schemas/2015-01-01/Microsoft.Resources.json",
+    "$schema": "http://json-schema.org/draft-04/schema#",
+    "title": "Microsoft.Resources",
+    "description": "Microsoft Resources Resource Types",
+    "definitions": {
+        "deployments": {
+            "type": "object",
+            "properties": {
+                "type": {
+                    "enum": [
+                        "Microsoft.Resources/deployments"
+                    ]
+                },
+                "apiVersion": {
+                    "enum": [
+                        "2015-01-01"
+                    ]
+                },
+                "name": {
+                    "type": "string",
+                    "description": "Name of the deployment"
+                },
+                "dependsOn": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "description": "Collection of resources this deployment depends on"
+                },
+                "properties": {
+                    "allOf": [
+                        {
+                            "type": "object",
+                            "properties": {
+                                "mode": {
+                                    "enum": [ "Incremental" ],
+                                    "description": "Deployment mode"
+                                }
+                            },
+                            "required": [ "mode" ]
+                        },
+                        {
+                            "anyOf": [
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "templateLink": {
+                                            "$ref": "#/definitions/templateLink"
+                                        }
+                                    }
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "template": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        {
+                            "anyOf": [
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "parametersLink": {
+                                            "$ref": "#/definitions/parametersLink"
+                                        }
+                                    }
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "parameters": {
+                                            "type": "object",
+                                            "additionalProperties": {
+                                                "$ref": "http://schema.management.azure.com/schemas/2015-01-01/deploymentParameters.json#/definitions/parameter"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    ]
+                }
+            },
+            "required": [
+                "type",
+                "apiVersion",
+                "name",
+                "properties"
+            ]
+        },
+        "templateLink": {
+            "type": "object",
+            "properties": {
+                "uri": {
+                    "type": "string",
+                    "description": "URI referencing the deployment template"
+                },
+                "contentVersion": {
+                    "type": "string",
+                    "pattern": "(^[0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+$)",
+                    "description": "If included it must match the contentVersion in the template"
+                }
+            },
+            "required": [ "uri" ],
+            "description": "Template file reference in a deployment"
+        },
+        "parametersLink": {
+            "type": "object",
+            "properties": {
+                "uri": {
+                    "type": "string",
+                    "description": "URI referencing the deployment template parameters"
+                },
+                "contentVersion": {
+                    "type": "string",
+                    "pattern": "(^[0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+$)",
+                    "description": "If included it must match the contentVersion in the parameters file"
+                }
+            },
+            "required": [ "uri" ],
+            "description": "Parameter file reference in a deployment"
+        },
+        "links": {
+            "type": "object",
+            "properties": {
+                "type": {
+                    "enum": [
+                        "Microsoft.Resources/links"
+                    ]
+                },
+                "apiVersion": {
+                    "enum": [
+                        "2015-01-01"
+                    ]
+                },
+                "name": {
+                    "type": "string",
+                    "maxLength": 64,
+                    "description": "Name of the link"
+                },
+                "dependsOn": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "description": "Collection of resources this link depends on"
+                },
+                "properties": {
+                    "type": "object",
+                    "properties": {
+                        "targetId": {
+                            "type": "string",
+                            "description": "Target resource id to link to"
+                        },
+                        "notes": {
+                            "type": "string",
+                            "maxLength": 512,
+                            "description": "Notes for this link"
+                        }
+                    },
+                    "required": [ 
+                        "targetId"
+                    ]
+                }
+            },
+            "required": [
+                "type",
+                "apiVersion",
+                "name",
+                "properties"
+            ]
+        }
+    }
+}

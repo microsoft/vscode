@@ -1,0 +1,193 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-action-bar {
+	text-align: center;
+	overflow: hidden;
+	white-space: nowrap;
+}
+
+.monaco-action-bar .actions-container {
+	display: inline-block;
+	margin: 0 auto;
+	padding: 0;
+	width: 100%;
+}
+
+.monaco-action-bar .action-item {
+	cursor: pointer;
+	display: inline-block;
+	-ms-transition: -ms-transform 100ms ease;
+	-webkit-transition: -webkit-transform 100ms ease;
+	-moz-transition: -moz-transform 100ms ease;
+	-o-transition: -o-transform 100ms ease;
+	transition: transform 100ms ease;
+	position: relative;  /* DO NOT REMOVE - this is the key to preventing the ghosting icon bug in Chrome 42 */
+}
+
+.monaco-action-bar .action-item.disabled {
+	cursor: default;
+}
+
+.monaco-action-bar .action-item.active {
+	-ms-transform: translate(0, -3px);
+	-webkit-transform: translate(0, -3px);
+	-moz-transform: translate(0, -3px);
+	-o-transform: translate(0, -3px);
+	transform: translate(0, -3px);
+}
+
+.monaco-action-bar .action-item .icon {
+	display: inline-block;
+}
+
+.monaco-action-bar .action-label {
+	font-size: 12px;
+	margin-right: 0.3em;
+}
+
+.monaco-action-bar:focus {
+	outline: 0;
+}
+
+.monaco-action-bar .action-label:focus {
+	outline: 0;
+}
+
+.monaco-action-bar .action-item.disabled .action-label,
+.monaco-action-bar .action-item.disabled .action-label:hover {
+	opacity: 0.4;
+}
+
+/* Vertical actions */
+
+.monaco-action-bar.vertical {
+	text-align: left;
+}
+
+.monaco-action-bar.vertical .action-item {
+	padding-bottom: 0.1em;
+	display: block;
+}
+
+.monaco-action-bar.vertical .action-label.separator {
+	display: block;
+	border-bottom: 1px solid #bbb;
+	padding-top: 1px;
+	margin-left: .8em;
+	margin-right: .8em;
+}
+
+.monaco-action-bar.vertical .action-item.active {
+	-ms-transform: translate(5px, 0);
+	-webkit-transform: translate(5px, 0);
+	-moz-transform: translate(5px, 0);
+	-o-transform: translate(5px, 0);
+	transform: translate(5px, 0);
+}
+
+.secondary-actions .monaco-action-bar .action-label {
+	margin-left: 6px;
+}
+
+.monaco-action-bar .action-item .progress-item .label {
+	padding: 0.7em;
+	background-color: #1382CE;
+	display: inline-block;
+	vertical-align: top;
+	cursor: pointer;
+}
+
+.monaco-action-bar .action-item .progress-item .tag {
+	display: inline-block;
+	vertical-align: top;
+	padding: 0.7em 0;
+	color: white;
+	font-weight: bold;
+	text-align: center;
+	overflow: hidden;
+	width: 0;
+	transition: width 200ms;
+	-webkit-transition: width 200ms;
+	-o-transition: width 200ms;
+	-moz-transition: width 200ms;
+	-ms-transition: width 200ms;
+}
+
+.monaco-action-bar .action-item .progress-item .tag.active {
+	width: 1.5em;
+}
+
+.monaco-action-bar .action-item .progress-item .tag.progress {
+	background-color: gray;
+}
+
+.monaco-action-bar .action-item .progress-item .tag.done {
+	background-color: green;
+}
+
+.monaco-action-bar .progress-item .tag.error {
+	background-color: #C33;
+}
+
+/* Actions widget */
+
+.monaco-actions-widget {
+	position: relative;
+}
+
+.monaco-actions-widget .more {
+	position: absolute;
+	top: 0;
+	right: 1em;
+	font-weight: bold;
+	cursor: pointer;
+	display: none;
+}
+
+.monaco-actions-widget .more.active {
+	-ms-transform: translate(0, -3px);
+	-webkit-transform: translate(0, -3px);
+	-moz-transform: translate(0, -3px);
+	-o-transform: translate(0, -3px);
+	transform: translate(0, -3px);
+}
+
+.monaco-actions-widget .primary {
+	display: none;
+}
+
+.monaco-actions-widget.hasPrimary .primary {
+	display: inherit;
+}
+
+.monaco-actions-widget.hasSecondary .more {
+	display: inherit;
+}
+
+.monaco-actions-widget .secondary.monaco-action-bar {
+	display: none;
+}
+
+.monaco-actions-widget.more .secondary.monaco-action-bar {
+	display: inherit;
+}
+
+/* Action Items */
+.monaco-action-bar .action-item.select-container {
+	overflow: hidden; /* somehow the dropdown overflows its container, we prevent it here to not push */
+}
+
+.monaco-workbench .action-bar-select {
+	height: 20px;
+	margin: 5px 4px;
+	outline: none;
+}
+
+.vs-dark.monaco-workbench .action-bar-select {
+	background-color: #3C3C3C;
+	border-color: #3C3C3C;
+	color: rgb(204, 204, 204);
+}

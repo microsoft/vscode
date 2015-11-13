@@ -1,0 +1,15 @@
+{
+	"name": "vscode-api-tests",
+	"description": "",
+	"version": "0.0.1",
+	"publisher": "vscode",
+	"engines": {
+		"vscode": "*"
+	},
+	"scripts": {
+		"vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../gulpfile.plugins.js compile-plugin:vscode-api-tests ./tsconfig.json"
+	},
+	"devDependencies": {
+		"vscode": "next"
+	}
+}

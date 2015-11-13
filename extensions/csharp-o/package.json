@@ -1,0 +1,100 @@
+{
+	"name": "csharp-o",
+	"version": "0.1.0",
+	"publisher": "vscode",
+	"engines": {
+		"vscode": "*"
+	},
+	"activationEvents": [
+		"onLanguage:csharp",
+		"onCommand:o.restart",
+		"onCommand:o.pickProjectAndStart",
+		"onCommand:o.restore",
+		"onCommand:o.execute",
+		"onCommand:o.showOutput",
+		"onCommand:o.execute",
+		"onCommand:o.execute-last-command"
+	],
+	"main": "./out/omnisharpMain",
+	"scripts": {
+		"postinstall": "gulp omnisharp",
+		"vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../gulpfile.plugins.js compile-plugin:csharp-o ./tsconfig.json"
+	},
+	"dependencies": {
+		"applicationinsights": "0.15.6",
+		"run-in-terminal": "*",
+		"semver": "*"
+	},
+	"devDependencies": {
+		"del": "^2.0.2",
+		"gulp": "^3.8.9",
+		"gulp-decompress": "^1.2.0",
+		"gulp-download": "^0.0.1",
+		"typescript": "^1.6.2"
+	},
+	"extensionDependencies": [
+		"vscode.csharp"
+	],
+	"contributes": {
+		"commands": [
+			{
+				"command": "o.restart",
+				"title": "Restart OmniSharp",
+				"category": "OmniSharp"
+			},
+			{
+				"command": "o.pickProjectAndStart",
+				"title": "Select Project",
+				"category": "OmniSharp"
+			},
+			{
+				"command": "o.restore",
+				"title": "Restore Packages",
+				"category": "dnx"
+			},
+			{
+				"command": "o.execute",
+				"title": "Run Command",
+				"category": "dnx"
+			}
+		],
+		"keybindings": [
+			{
+				"command": "o.showOutput",
+				"key": "Ctrl+L L",
+				"mac": "Cmd+L L"
+			},
+			{
+				"command": "o.execute",
+				"key": "Ctrl+L Shift+R",
+				"mac": "Cmd+L Shift+R"
+			},
+			{
+				"command": "o.execute-last-command",
+				"key": "Ctrl+L R",
+				"mac": "Cmd+L R"
+			},
+			{
+				"key": "shift+0",
+				"command": "^acceptSelectedSuggestion",
+				"when": "editorTextFocus && suggestWidgetVisible && editorLangId == 'csharp' && suggestionSupportsAcceptOnKey"
+			},
+			{
+				"key": "shift+9",
+				"command": "^acceptSelectedSuggestion",
+				"when": "editorTextFocus && suggestWidgetVisible && editorLangId == 'csharp' && suggestionSupportsAcceptOnKey"
+			},
+			{
+				"key": ".",
+				"command": "^acceptSelectedSuggestion",
+				"when": "editorTextFocus && suggestWidgetVisible && editorLangId == 'csharp' && suggestionSupportsAcceptOnKey"
+			}
+		],
+		"snippets": [
+			{
+				"language": "csharp",
+				"path": "./snippets/csharp.json"
+			}
+		]
+	}
+}

@@ -1,0 +1,42 @@
+{
+	"name": "php",
+	"version": "0.1.0",
+	"publisher": "vscode",
+	"engines": { "vscode": "*" },
+	"activationEvents": ["onLanguage:php"],
+	"main": "./out/phpMain",
+	"contributes": {
+		"languages": [{
+			"id": "php",
+			"extensions": [ ".php", ".phtml", ".ctp" ],
+			"aliases": [ "PHP", "php" ],
+			"mimetypes": ["application/x-php"],
+			"configuration": "./php.configuration.json"
+		}],
+		"snippets": [{
+			"language": "php",
+			"path": "./snippets/php.json"
+		}],
+		"configuration": {
+			"title": "PHP Configuration options",
+			"type": "object",
+			"properties": {
+				"php.validate.executablePath": {
+					"type": "string",
+					"default": null,
+					"description": "Points to the php exectuable."
+				},
+				"php.validate.run": {
+					"type": "string",
+					"enum": ["onSave", "onType"],
+					"default": "onSave",
+					"description": "Whether the linter is run on save or on type."
+				}
+			}
+		}
+	},
+	"isAMD": true,
+	"scripts": {
+		"vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../gulpfile.plugins.js compile-plugin:php"
+	}
+}

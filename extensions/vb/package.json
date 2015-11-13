@@ -1,0 +1,23 @@
+{
+	"name": "vb",
+	"version": "0.1.0",
+	"publisher": "vscode",
+	"engines": { "vscode": "*" },
+	"contributes": {
+		"languages": [{
+			"id": "vb",
+			"extensions": [ ".vb" ],
+			"aliases": [ "Visual Basic", "vb" ],
+			"configuration": "./vb.configuration.json"
+		}],
+		"grammars": [{
+			"language": "vb",
+			"scopeName": "source.asp.vb.net",
+			"path": "./syntaxes/ASPVBnet.plist"
+		}],
+		"snippets": [{
+			"language": "vb",
+			"path": "./snippets/vb.json"
+		}]
+	}
+}

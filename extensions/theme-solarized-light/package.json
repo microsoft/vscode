@@ -1,0 +1,15 @@
+{
+	"name": "theme-solarized-light",
+	"version": "0.1.0",
+	"publisher": "vscode",
+	"engines": { "vscode": "*" },
+	"contributes": {
+		"themes": [
+			{
+				"label": "Solarized Light",
+				"uiTheme": "vs",
+				"path": "./themes/Solarized-light.tmTheme"
+			}
+		]
+	}
+}

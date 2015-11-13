@@ -1,0 +1,74 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-toolbar .dropdown > .dropdown-label:not(:empty):not(.tick) {
+	padding: 0;
+}
+
+.monaco-toolbar .toolbar-toggle-more {
+	display: inline-block;
+	padding: 0;
+	-ms-transition: -ms-transform 100ms ease;
+	-webkit-transition: -webkit-transform 100ms ease;
+	-moz-transition: -moz-transform 100ms ease;
+	-o-transition: -o-transform 100ms ease;
+	transition: transform 100ms ease;
+}
+
+.vs .monaco-toolbar .toolbar-toggle-more.active {
+	-ms-transform: translate(0, -3px);
+	-webkit-transform: translate(0, -3px);
+	-moz-transform: translate(0, -3px);
+	-o-transform: translate(0, -3px);
+	transform: translate(0, -3px);
+}
+
+.vs .monaco-toolbar .action-label.toolbar-toggle-more {
+	background-image: url('ellipsis.svg');
+}
+
+.vs-dark .monaco-toolbar .action-label.toolbar-toggle-more {
+	background-image: url('ellipsis-inverse.svg');
+}
+
+/*.monaco-toolbar .monaco-action-bar:focus:after {
+	content: "";
+	position: relative;
+	top: -5px;
+	height: 0;
+	width: 100%;
+	border-top: 2px solid #39F;
+	display: block;
+}
+
+.vs .monaco-toolbar .monaco-action-bar .action-label:focus {
+	background-color: #DCEBFC;
+}
+
+.vs-dark .monaco-toolbar .monaco-action-bar .action-label:focus {
+	background-color: #073655;
+}*/
+
+/* High Contrast Theming */
+.hc-black .monaco-toolbar .action-label.toolbar-toggle-more {
+	background: none;
+}
+
+.hc-black .monaco-toolbar .action-label.toolbar-toggle-more:before {
+	content: url('ellipsis-inverse.svg');
+	position: absolute;
+	top: 12px;
+	left: 8px;
+	height: 16px; 
+	width: 16px;
+}
+
+/*.hc-black .monaco-toolbar .monaco-action-bar:focus:after {
+	border-color: #DF740C;
+}
+
+.hc-black .monaco-toolbar .monaco-action-bar .action-label:focus {
+	border: 1px solid #DF740C;
+}*/

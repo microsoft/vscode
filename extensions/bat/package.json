@@ -1,0 +1,19 @@
+{
+	"name": "bat",
+	"version": "0.1.0",
+	"publisher": "vscode",
+	"engines": { "vscode": "*" },
+	"contributes": {
+		"languages": [{
+			"id": "bat",
+			"extensions": [ ".bat", ".cmd"],
+			"aliases": [ "Batch", "bat" ],
+			"configuration": "./bat.configuration.json"
+		}],
+		"grammars": [{
+			"language": "bat",
+			"scopeName": "source.dosbatch",
+			"path": "./syntaxes/Batch File.tmLanguage"
+		}]
+	}
+}

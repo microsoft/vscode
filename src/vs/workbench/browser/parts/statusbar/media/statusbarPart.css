@@ -1,0 +1,69 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-workbench > .part.statusbar {
+	-webkit-box-sizing: border-box;
+	box-sizing: border-box;
+	z-index: 25;
+	width: 100%;
+	height: 22px;
+	background: #007ACC;
+	color: white;
+	font-size: 12px;
+	padding: 0 10px;
+}
+
+.monaco-workbench.no-workspace > .part.statusbar {
+	background: #68217A;
+}
+
+.monaco-workbench > .part.statusbar > .statusbar-item {
+	display: inline-block;
+	line-height: 22px;
+	height: 100%;
+	vertical-align: top;
+}
+
+.monaco-workbench > .part.statusbar > .statusbar-item.left {
+	margin-right: 5px;
+}
+
+.monaco-workbench > .part.statusbar > .statusbar-item.right {
+	float: right;
+	margin-left: 5px;
+}
+
+.monaco-workbench > .part.statusbar > .statusbar-item a {
+	cursor: pointer;
+	display: inline-block;
+}
+
+.monaco-workbench > .part.statusbar > .statusbar-entry > span,
+.monaco-workbench > .part.statusbar > .statusbar-entry > a {
+	padding: 0 5px 0 5px;
+	white-space: pre; /* gives some degree of styling */
+}
+
+.monaco-workbench > .part.statusbar > .statusbar-entry span.octicon {
+	text-align: center;
+	font-size: 14px;
+}
+
+.monaco-workbench > .part.statusbar > .statusbar-item a:hover {
+	background-color: rgba(255, 255, 255, 0.12);
+	text-decoration: none;
+	color: inherit;
+}
+
+.monaco-workbench > .part.statusbar > .statusbar-item a:active {
+	background-color: rgba(255, 255, 255, 0.18);
+}
+
+/* High Contrast Black */
+
+.monaco-workbench.hc-black > .part.statusbar {
+	border-top: 1px solid #6FC3DF;
+	background-color: #000;
+}

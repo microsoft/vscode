@@ -1,0 +1,15 @@
+{
+	"name": "theme-kimbie-dark",
+	"version": "0.1.0",
+	"publisher": "vscode",
+	"engines": { "vscode": "*" },
+	"contributes": {
+		"themes": [
+			{
+				"label": "Kimbie Dark",
+				"uiTheme": "vs-dark",
+				"path": "./themes/Kimbie_dark.tmTheme"
+			}
+		]
+	}
+}

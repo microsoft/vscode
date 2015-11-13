@@ -1,0 +1,94 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+ 
+.monaco-workbench > .sidebar > .title {
+	display: block !important; /* Enable Title visibility */
+}
+
+.monaco-workbench > .sidebar > .title > .title-label span {
+	text-transform: uppercase;
+}
+
+.monaco-workbench.vs > .sidebar > .title > .title-label span {
+	color: #6f6f6f;
+}
+
+.monaco-workbench.vs-dark > .sidebar > .title > .title-label span {
+	color: #bbbbbb;
+}
+
+.monaco-workbench > .sidebar > .title > .title-actions {
+	background-color: rgb(243, 243, 243);
+}
+
+.monaco-workbench.vs-dark > .sidebar > .title > .title-actions {
+	background-color: rgb(37, 37, 38);
+}
+
+.monaco-workbench > .sidebar > .content {
+	overflow: hidden;
+}
+
+.monaco-workbench.nosidebar > .sidebar {
+	display: none !important;
+	visibility: hidden !important;
+}
+
+.monaco-workbench > .sidebar > .content > .viewlet {
+	height: 100%;
+}
+
+.monaco-workbench .viewlet .collapsible.header .title {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.monaco-workbench .viewlet .collapsible.header .actions {
+	float: right;
+	padding-right: 8px;
+	display: none;
+}
+
+.monaco-workbench .viewlet .collapsible.header:hover .actions {
+	display: block;
+}
+
+.monaco-workbench .viewlet .collapsible.header .actions .action-label {
+	width: 28px;
+	background-size: 16px;
+	background-position: center center;
+	background-repeat: no-repeat;
+	margin-right: 0;
+}
+
+.monaco-workbench .viewlet .collapsible.header .actions .action-label .label {
+	display: none;
+}
+
+.monaco-workbench .viewlet .collapsible.header.collapsed .actions {
+	display: none;
+}
+
+.monaco-workbench .viewlet .collapsible.header .action-label {
+	margin-right: 0.2em;
+	margin-top: 4px;
+	background-repeat: no-repeat;
+	width: 16px;
+	height: 16px;
+}
+
+/* High Contrast Theming */
+.monaco-workbench.hc-black > .sidebar.left {	
+	border-right: 1px solid #6FC3DF;
+}
+
+.monaco-workbench.hc-black > .sidebar.right {	
+	border-left: 1px solid #6FC3DF;
+}
+
+.monaco-workbench.hc-black > .sidebar > .title > .title-actions {
+	background-color: #000;
+}

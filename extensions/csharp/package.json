@@ -1,0 +1,18 @@
+{
+	"name": "csharp",
+	"version": "0.1.0",
+	"publisher": "vscode",
+	"engines": { "vscode": "*" },
+	"contributes": {
+		"languages": [{
+			"id": "csharp",
+			"extensions": [ ".cs", ".csx" ],
+			"aliases": [ "C#", "csharp" ]
+		}],
+		"grammars": [{
+			"language": "csharp",
+			"scopeName": "source.cs",
+			"path": "./syntaxes/csharp.json"
+		}]
+	}
+}

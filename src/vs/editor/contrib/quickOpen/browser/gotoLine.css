@@ -1,0 +1,9 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.quick-open-widget {
+	font-family: 'Segoe WPC', 'Segoe UI', "SFUIText-Light", HelveticaNeue-Light, sans-serif, "Droid Sans Fallback";
+	font-size: 13px;
+}

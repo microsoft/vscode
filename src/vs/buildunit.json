@@ -1,0 +1,13 @@
+{
+	"name": "vs",
+	"dependencies": [
+	],
+	"libs": [
+		"lib.core.d.ts"
+	],
+	"sources": [
+	],
+	"declares": [
+		"vs/nls.d.ts"
+	]
+}

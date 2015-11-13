@@ -1,0 +1,26 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-sash {
+	position: absolute;
+	z-index: 100;
+	touch-action: none;
+}
+
+.monaco-sash.vertical {
+	cursor: ew-resize;
+	height: 100%;
+	top: 0;
+}
+
+.monaco-sash.horizontal {
+	cursor: ns-resize;
+	width: 100%;
+	left: 0;
+}
+
+.monaco-sash.disabled {
+	cursor: default;
+}

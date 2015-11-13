@@ -1,0 +1,49 @@
+<!-- Copyright (C) Microsoft Corporation. All rights reserved. -->
+<html>
+<head>
+
+	<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+
+	<script type="text/javascript">
+		var beforeReadyMessages = [];
+		var beforeReadyListener = function (message) {
+			beforeReadyMessages.push(message.data);
+		};
+		if (window.attachEvent) {
+			window.attachEvent('onmessage', beforeReadyListener);
+		} else {
+			window.onmessage = beforeReadyListener;
+		}
+	</script>
+	<script type="text/javascript" src="../../loader.js"></script>
+	<script>
+	require.config({
+		baseUrl: '../../../',
+		catchError: true
+	});
+
+	require(['vs/base/common/worker/workerServer'], function(ws) {
+		var workerServer = ws.create(function (msg) {
+			window.parent.postMessage(msg, '*');
+		});
+		window.isEmulatedWorker = true;
+
+		var readyListener = function (ev) {
+			workerServer.onmessage(ev.data);
+		};
+		if (window.attachEvent) {
+			window.detachEvent('onmessage', beforeReadyListener);
+			window.attachEvent('onmessage', readyListener);
+		} else {
+			window.onmessage = readyListener;
+		}
+		while(beforeReadyMessages.length > 0) {
+			readyListener({ data: beforeReadyMessages.shift() });
+		}
+	});
+	</script>
+</head>
+<body>
+	<div>compatibility worker iframe</div>
+</body>
+</html>

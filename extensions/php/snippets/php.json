@@ -1,0 +1,229 @@
+{
+	"Class Variable": {
+		"prefix": "doc_v",
+		"body": [
+			"/**",
+			" * ${1:undocumented class variable}",
+			" *",
+			" * @var ${2:string}",
+			" **/",
+			"${3:var} $$2;$0"
+		],
+		"description": "Documented Class Variable"
+	},
+	"function __construct": {
+		"prefix": "con",
+		"body": [
+			"function __construct(${1:$${2:foo} ${3:= ${4:null}}}) {",
+			"\t${2:$this->$0 = $$0;}",
+			"}"
+		]
+	},
+	"class …": {
+		"prefix": "class",
+		"body": [
+			"/**",
+			" * $1",
+			" */",
+			"class ${2:ClassName} ${3:extends ${4:AnotherClass}}",
+			"{",
+			"\t$5",
+			"\tfunction ${6:__construct}(${7:argument})",
+			"\t{",
+			"\t\t${0:# code...}",
+			"\t}",
+			"}",
+			""
+		],
+		"description": "Class definition"
+	},
+	"PHPDoc function …": {
+		"prefix": "doc_f",
+		"body": [
+			"/**",
+			" * ${6:undocumented function summary}",
+			" *",
+			" * ${7:Undocumented function long description}",
+			" *",
+			" * @param ${8:type} ${9:var} ${10:Description}",
+			" **/",
+			"${1:public }function ${2:FunctionName}(${3:$${4:value}${5:=''}})",
+			"{",
+			"\t${0:# code...}",
+			"}"
+		],
+		"description": "Documented function"
+	},
+	"function …": {
+		"prefix": "fun",
+		"body": [
+			"${1:public }function ${2:FunctionName}(${3:$${4:value}${5:=''}})",
+			"{",
+			"\t${0:# code...}",
+			"}"
+		],
+		"description": "Function"
+	},
+	"trait …": {
+		"prefix": "trait",
+		"body": [
+			"/**",
+			" * $1",
+			" */",
+			"trait ${2:TraitName}",
+			"{",
+			"\tfunction ${3:functionName}(${4:argument})",
+			"\t{",
+			"\t\t${5:# code...}",
+			"\t}",
+			"}",
+			""
+		],
+		"description": "Trait"
+	},
+	"define(…, …)": {
+		"prefix": "def",
+		"body": [
+			"define('$1', ${2:'$3'});",
+			"$0"
+		],
+		"description": "Definition"
+	},
+	"do … while …": {
+		"prefix": "do",
+		"body": [
+			"do {",
+			"\t${0:# code...}",
+			"} while (${1:${2:$a} <= ${3:10}});"
+		],
+		"description": "Do-While loop"
+	},
+	"if … else …": {
+		"prefix": "ifelse",
+		"body": [
+			"if (${1:condition}) {",
+			"\t${2:# code...}",
+			"} else {",
+			"\t${3:# code...}",
+			"}",
+			"$0"
+		],
+		"description": "If Else block"
+	},
+	"if …": {
+		"prefix": "if",
+		"body": [
+			"if (${1:condition}) {",
+			"\t${0:# code...}",
+			"}"
+		],
+		"description": "If block"
+	},
+	"$… = ( … ) ? … : …": {
+		"prefix": "if?",
+		"body": "$${1:retVal} = (${2:condition}) ? ${3:a} : ${4:b} ;",
+		"description": "Ternary conditional assignment"
+	},
+	"else …": {
+		"prefix": "else",
+		"body": [
+			"else {",
+			"\t${0:# code...}",
+			"}"
+		],
+		"description": "Else block"
+	},
+	"elseif …": {
+		"prefix": "elseif",
+		"body": [
+			"elseif (${1:condition}) {",
+			"\t${0:# code...}",
+			"}"
+		],
+		"description": "Elseif block"
+	},
+	"for …": {
+		"prefix": "for",
+		"body": [
+			"for ($${1:i}=${2:0}; $${1:i} < $3; $${1:i}++) { ",
+			"\t${0:# code...}",
+			"}"
+		],
+		"description": "For-loop"
+	},
+	"foreach …": {
+		"prefix": "foreach",
+		"body": [
+			"foreach ($${1:variable} as $${2:key} ${3:=> $${4:value}}) {",
+			"\t${0:# code...}",
+			"}"
+		],
+		"description": "Foreach loop"
+	},
+	"$… = array (…)": {
+		"prefix": "array",
+		"body": "$${1:arrayName} = array('$2' => $3${4:,} $0);",
+		"description": "Array initializer"
+	},
+	"$… = […]": {
+		"prefix": "shorray",
+		"body": "$${1:arrayName} = ['$2' => $3${4:,} $0];",
+		"description": "Array initializer"
+	},
+	"… => …": {
+		"prefix": "keyval",
+		"body": "'$1' => $2${3:,} $0",
+		"description": "Key-Value initializer"
+	},
+	"switch …": {
+		"prefix": "switch",
+		"body": [
+			"switch (${1:variable}) {",
+			"\tcase '${2:value}':",
+			"\t\t${3:# code...}",
+			"\t\tbreak;",
+			"\t$0",
+			"\tdefault:",
+			"\t\t${4:# code...}",
+			"\t\tbreak;",
+			"}"
+		],
+		"description": "Switch block"
+	},
+	"case …": {
+		"prefix": "case",
+		"body": [
+			"case '${1:variable}':",
+			"\t${0:# code...}",
+			"\tbreak;"
+		],
+		"description": "Case Block"
+	},
+	"$this->…": {
+		"prefix": "this",
+		"body": "$this->$0",
+		"description": "$this->..."
+	},
+	"echo $this->…": {
+		"prefix": "ethis",
+		"body": "echo $this->$0",
+		"description": "Echo this"
+	},
+	"Throw Exception": {
+		"prefix": "throw",
+		"body": [
+			"throw new $1Exception(${2:\"${3:Error Processing Request}\"}${4:, ${5:1}});",
+			"$0"
+		],
+		"description": "Throw exception"
+	},
+	"while …": {
+		"prefix": "while",
+		"body": [
+			"while (${1:$a <= 10}) {",
+			"\t${0:# code...}",
+			"}"
+		],
+		"description": "While-loop"
+	}
+}

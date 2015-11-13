@@ -1,0 +1,59 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.dropdown {
+	height: 100%;
+}
+
+.dropdown, .dropdown-group {
+	display: inline-block;
+	padding: 0;
+}
+
+.dropdown > .dropdown-label, .dropdown > .dropdown-action {
+	display: inline-block;
+	cursor: pointer;
+	height: 100%;
+}
+
+.dropdown > .dropdown-action {
+	vertical-align: top;
+}
+
+.dropdown > .dropdown-action > .action-label {
+	outline: none;
+}
+
+.dropdown > .dropdown-action > .action-label:hover {
+	color: inherit;
+	text-decoration: none;
+}
+
+.dropdown > .dropdown-action, .dropdown > .dropdown-action > .action-label {
+	display: inline-block;
+}
+
+.dropdown > .dropdown-label:not(:empty):not(.tick) {
+	padding: 0 .5em;
+}
+
+.dropdown > .dropdown-label:empty.tick {
+	padding: 0 1em 0 0;
+}
+
+.dropdown > .dropdown-label.tick {
+	padding: 0 1em 0 .5em;
+}
+
+.dropdown > .dropdown-label.tick:after {
+	content: '';
+	width: 0;
+	height: 0;
+	position: relative;
+	top: 1em;
+	left: .5em;
+	border: 4px solid transparent;
+	border-top: 4px solid #fff;
+}

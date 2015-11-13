@@ -1,0 +1,20 @@
+{
+	"name": "yaml",
+	"version": "0.1.0",
+	"publisher": "vscode",
+	"engines": { "vscode": "*" },
+	"contributes": {
+		"languages": [{
+			"id": "yaml",
+			"aliases": ["YAML", "yaml"],
+			"extensions": [".eyaml", ".eyml", ".yaml", ".yml"],
+			"firstLine": "^#cloud-config",
+			"configuration": "./yaml.configuration.json"
+		}],
+		"grammars": [{
+			"language": "yaml",
+			"scopeName": "source.yaml",
+			"path": "./syntaxes/YAML.plist"
+		}]
+	}
+}

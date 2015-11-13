@@ -1,0 +1,19 @@
+{
+	"name": "less",
+	"version": "0.1.0",
+	"publisher": "vscode",
+	"engines": { "vscode": "*" },
+	"contributes": {
+		"languages": [{
+			"id": "less",
+			"aliases": ["Less", "less"],
+			"extensions": [".less"],
+			"mimetypes": ["text/x-less", "text/less"]
+		}],
+		"grammars": [{
+			"language": "less",
+			"scopeName": "source.css.less",
+			"path": "./syntaxes/LESS.tmLanguage"
+		}]
+	}
+}

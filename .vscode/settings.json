@@ -1,0 +1,15 @@
+{
+	"editor.insertSpaces": false,
+	"files.trimTrailingWhitespace": true,
+	"files.exclude": {
+		".git": true,
+		"**/.DS_Store": true,
+		"**/coverage": true
+	},
+	"search.exclude": {
+		"**/node_modules/**": true,
+		"**/bower_components": true,
+		"out*/**": true,
+		"extensions/**/out/**": true
+	}
+}

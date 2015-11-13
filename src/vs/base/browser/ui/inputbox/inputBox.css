@@ -1,0 +1,200 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-inputbox {
+	position: relative;
+	display: block;
+	padding: 0;
+	-webkit-box-sizing:	border-box;
+	-o-box-sizing:		border-box;
+	-moz-box-sizing:	border-box;
+	-ms-box-sizing:		border-box;
+	box-sizing:			border-box;
+	font-family: "Segoe UI", "SFUIText-Light", "HelveticaNeue-Light", sans-serif, "Droid Sans Fallback";
+	line-height: auto !important;
+
+	/* Customizable */
+	font-size: inherit;
+}
+
+.monaco-inputbox > .wrapper > .input,
+.monaco-inputbox > .wrapper > .mirror {
+
+	/* Customizable */
+	padding: 4px;
+}
+
+.monaco-inputbox > .wrapper {
+	position: relative;
+	width: 100%;
+	height: 100%;
+}
+
+.monaco-inputbox > .wrapper > .input {
+	display: inline-block;
+	-webkit-box-sizing:	border-box;
+	-o-box-sizing:		border-box;
+	-moz-box-sizing:	border-box;
+	-ms-box-sizing:		border-box;
+	box-sizing:			border-box;
+	width: 100%;
+	height: 100%;
+	line-height: inherit;
+	border: none;
+	font-family: inherit;
+	font-size: inherit;
+	resize: none;
+	color: inherit;
+}
+
+.monaco-inputbox > .wrapper > input {
+	text-overflow: ellipsis;
+}
+
+.monaco-inputbox > .wrapper > textarea.input {
+	display: block;
+	overflow: hidden;
+}
+
+.monaco-inputbox > .wrapper > .input:focus {
+	outline: none;
+}
+
+.monaco-inputbox > .wrapper > .mirror {
+	position: absolute;
+	display: inline-block;
+	width: 100%;
+	top: 0;
+	left: 0;
+	-webkit-box-sizing:	border-box;
+	-o-box-sizing:		border-box;
+	-moz-box-sizing:	border-box;
+	-ms-box-sizing:		border-box;
+	box-sizing:			border-box;
+	white-space: pre-wrap;
+	visibility: hidden;
+	min-height: 26px;
+	word-wrap: break-word;
+}
+
+/* Context view */
+
+.monaco-inputbox-container {
+	text-align: right;
+}
+
+.monaco-inputbox-container .monaco-inputbox-message {
+	display: inline-block;
+	overflow: hidden;
+	text-align: left;
+	width: 100%;
+	-webkit-box-sizing:	border-box;
+	-o-box-sizing:		border-box;
+	-moz-box-sizing:	border-box;
+	-ms-box-sizing:		border-box;
+	box-sizing:			border-box;
+	padding: 0.4em;
+	font-size: 12px;
+	line-height: 17px;
+	min-height: 34px;
+	margin-top: -1px;
+}
+
+/* Action bar support */
+.monaco-inputbox .monaco-action-bar {
+	position: absolute;
+	right: 0px;
+	top: 4px;
+}
+
+/* Theming */
+
+.monaco-inputbox.idle {
+	border: 1px solid transparent;
+}
+
+.monaco-inputbox.info {
+	border: 1px solid #009CCC;
+}
+
+.monaco-inputbox-container .monaco-inputbox-message.info {
+	background: #D6ECF2;
+	border: 1px solid #009CCC;
+}
+
+.monaco-inputbox.warning {
+	border: 1px solid #F2CB1D;
+}
+
+.monaco-inputbox-container .monaco-inputbox-message.warning {
+	background: #F6F5D2;
+	border: 1px solid #F2CB1D;
+}
+
+.monaco-inputbox.error {
+	border: 1px solid #E51400;
+}
+
+.monaco-inputbox-container .monaco-inputbox-message.error {
+	background: #f2dede;
+	border: 1px solid #E51400;
+}
+
+/* VS Dark */
+
+.vs-dark .monaco-inputbox.info {
+	border-color: #55AAFF;
+}
+
+.vs-dark .monaco-inputbox-container .monaco-inputbox-message.info {
+	background-color: #063B49;
+	border-color: #55AAFF;
+}
+
+.vs-dark .monaco-inputbox.warning {
+	border-color: #B89500;
+}
+
+.vs-dark .monaco-inputbox-container .monaco-inputbox-message.warning {
+	background-color: #352A05;
+	border-color: #B89500;
+}
+
+.vs-dark .monaco-inputbox.error {
+	border-color: #BE1100;
+}
+
+.vs-dark .monaco-inputbox-container .monaco-inputbox-message.error {
+	background-color: #5A1D1D;
+	border-color: #BE1100;
+}
+
+/* High Contrast Theming */
+.hc-black .monaco-inputbox.idle {
+	border: 1px solid #6FC3DF;
+}
+
+.hc-black .monaco-inputbox-container .monaco-inputbox-message.info {
+	background-color: #000;
+	border-color: #6FC3DF;
+}
+
+.hc-black .monaco-inputbox.warning {
+	border-color: #B89500;
+}
+
+.hc-black .monaco-inputbox-container .monaco-inputbox-message.warning {
+	background-color: #000;
+	border-color: #B89500;
+}
+
+.hc-black .monaco-inputbox.error {
+	border-color: #BE1100;
+}
+
+.hc-black .monaco-inputbox-container .monaco-inputbox-message.error {
+	background-color: #000;
+	border-color: #BE1100;
+}

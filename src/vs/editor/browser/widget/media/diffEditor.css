@@ -1,0 +1,62 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+/* ---------- DiffEditor ---------- */
+
+.monaco-diff-editor .diffOverview {
+	z-index: 9;
+}
+.monaco-diff-editor .diffViewport {
+	box-shadow: inset 0px 0px 1px 0px #B9B9B9;
+	background: rgba(148, 148, 148, 0.19);
+}
+.monaco-diff-editor.vs-dark {
+	background: #1E1E1E;
+}
+.monaco-scrollable-element.modified-in-monaco-diff-editor .scrollbar {
+	background: rgba(0,0,0,0);
+}
+.monaco-scrollable-element.modified-in-monaco-diff-editor .slider {
+	z-index: 10;
+}
+.modified-in-monaco-diff-editor .slider.active {
+	background: rgba(171, 171, 171, .4);
+}
+.monaco-diff-editor.side-by-side .editor.modified {
+	box-shadow: -6px 0 5px -5px #DDD;
+}
+.monaco-diff-editor.side-by-side.vs-dark .editor.modified {
+	box-shadow: -6px 0 5px -5px black;
+}
+
+/* ---------- Diff ---------- */
+
+.monaco-editor .line-delete, .monaco-editor .char-delete {
+	background: rgba(255, 0, 0, 0.2);
+}
+
+
+.monaco-editor .line-insert, .monaco-editor .char-insert {
+	background: rgba(155, 185, 85, 0.2);
+}
+
+
+.monaco-editor .diagonal-fill {
+	background: url('diagonal-fill.png');
+}
+
+.monaco-editor.vs-dark .diagonal-fill {
+	opacity: 0.2;
+}
+
+/* ---------- Inline Diff ---------- */
+
+.monaco-editor .view-zones .view-lines .view-line span {
+	display: inline-block;
+}
+
+/* High Contrast Theming */
+.monaco-diff-editor.hc-black {
+	background: #000;
+}

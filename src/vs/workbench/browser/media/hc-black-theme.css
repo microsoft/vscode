@@ -1,0 +1,26 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* General Theme Colors */
+.monaco-workbench.hc-black { color: #FFF; background-color: #000; }
+
+/* Sidebar */
+.monaco-workbench.hc-black .sidebar .separator 	{ background-color: #000; border: 1px solid #6FC3DF; }
+
+/* Input Fields */
+.monaco-workbench.hc-black input,
+.monaco-workbench.hc-black textarea {
+	background-color: #000;
+}
+
+/* Action Bar */
+.monaco-workbench.hc-black .monaco-action-bar .action-item.disabled .action-label.disabled,
+.monaco-workbench.hc-black .monaco-action-bar .action-item.disabled .action-label.disabled:hover {
+	opacity: 1;
+}
+
+.monaco-workbench.hc-black .monaco-action-bar .action-item.disabled .action-label.disabled:before {
+	opacity: .4;
+}

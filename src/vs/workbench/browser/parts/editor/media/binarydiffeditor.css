@@ -1,0 +1,65 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-workbench .binarydiff-left {
+	float: left;
+}
+
+.monaco-workbench .binarydiff-right {
+	box-shadow: -6px 0 5px -5px #DDD;
+}
+
+.monaco-workbench.vs-dark .binarydiff-right {
+	box-shadow: -6px 0 5px -5px black;
+}
+
+.monaco-workbench .binary-container {
+	padding-left: 20px;
+	-webkit-box-sizing:	border-box;
+	-o-box-sizing:		border-box;
+	-moz-box-sizing:	border-box;
+	-ms-box-sizing:		border-box;
+	box-sizing:			border-box;
+}
+
+.monaco-workbench .binary-container img {
+	background-position: 0 0, 8px 8px;
+	-webkit-background-size: 16px 16px;
+	-moz-background-size: 16px 16px;
+	background-size: 16px 16px;
+}
+
+/* CSS checkerbox pattern (learnt from http://lea.verou.me/2011/02/checkerboard-pattern-with-css3/*/
+.monaco-workbench.vs .binary-container img {
+	background-image: 
+		linear-gradient(45deg, rgb(220, 220, 220) 25%, transparent 25%, transparent 75%, rgb(220, 220, 220) 75%, rgb(220, 220, 220)), 
+		linear-gradient(45deg, rgb(220, 220, 220) 25%, transparent 25%, transparent 75%, rgb(220, 220, 220) 75%, rgb(220, 220, 220));
+}
+
+.monaco-workbench.vs-dark .binary-container img {
+	background-image: 
+		linear-gradient(45deg, rgb(80, 80, 80) 25%, transparent 25%, transparent 75%, rgb(80, 80, 80) 75%, rgb(80, 80, 80)), 
+		linear-gradient(45deg, rgb(80, 80, 80) 25%, transparent 25%, transparent 75%, rgb(80, 80, 80) 75%, rgb(80, 80, 80));
+}
+
+.monaco-workbench.vs .binary-container {
+	background-color: white;
+}
+
+.monaco-workbench.vs-dark .binary-container {
+	background-color: #1E1E1E;
+}
+
+.monaco-workbench.vs-dark .binary-container a {
+	color: #1C5DAF;
+}
+
+.monaco-workbench.vs-dark .binary-container a:hover {
+	color: #4080D0;
+}
+
+.monaco-workbench .binary-container:focus {
+	outline: 0;
+}

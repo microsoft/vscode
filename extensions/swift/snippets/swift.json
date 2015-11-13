@@ -1,0 +1,136 @@
+{
+	"println(\"...\")": {
+		"prefix": "pr",
+		"body": "println(\"$1\")$0"
+	},
+	"println(\"\\(...)\")": {
+		"prefix": "po",
+		"body": "println(\"\\($1)\")$0"
+	},
+
+	"do...while loop": {
+
+		"prefix": "do",
+		"body": [
+			"do {",
+			"	$0",
+			"} while ${true}"
+		],
+		"description": "do...while loop"
+	},
+
+	"While loop": {
+
+		"prefix": "while",
+		"body": [
+			"while ${true} {",
+			"	$0",
+			"}"
+		],
+		"description": "While loop"
+	},
+
+	"For-In statement": {
+
+		"prefix": "forin",
+		"body": [
+			"for ${item} in ${collection} {",
+			"	$0",
+			"}"
+		],
+		"description": "For-In statement"
+	},
+
+	"Reverse for loop": {
+
+		"prefix": "forr",
+		"body": [
+			"for var ${i} = ${length} - 1; ${i} >= 0; ${i}-- {",
+			"	$0",
+			"}"
+		],
+		"description": "Reverse for loop"
+	},
+
+	"for loop": {
+
+		"prefix": "for",
+		"body": [
+			"for var ${i} = 0; ${i} < ${length}; ${i}++ {",
+			"	$0",
+			"}"
+		],
+		"description": "for loop"
+	},
+
+	"if statement": {
+
+		"prefix": "if",
+		"body": [
+			"if ${true} {",
+			"	$0",
+			"}"
+		],
+		"description": "if statement"
+	},
+
+	"else-if statement": {
+
+		"prefix": "elif",
+		"body": [
+			"else if ${true} {",
+			"	$0",
+			"}"
+		],
+		"description": "if statement"
+	},
+
+	"Else statement": {
+
+		"prefix": "else",
+		"body": [
+			"else {",
+			"	$0",
+			"}"
+		],
+		"description": "Else statement"
+	},
+
+	"Switch statement": {
+
+		"prefix": "switch",
+		"body": [
+			"switch ${switch_on} {",
+			"case ${a}:",
+			"	$0",
+			"default:",
+			"	$1",
+			"}"
+		],
+		"description": "Switch statement"
+	},
+
+	"Do catch": {
+
+		"prefix": "docatch",
+		"body": [
+			"do {",
+			"	try ${function that throws}",
+			"} catch ${pattern} {",
+			"	$0",
+			"}"
+		],
+		"description": "Try catch"
+	},
+
+	"Enum": {
+
+		"prefix": "enum",
+		"body": [
+			"enum ${Name} {",
+			"	case $0",
+			"}"
+		],
+		"description": "Enum"
+	}
+}

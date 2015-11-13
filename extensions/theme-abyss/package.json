@@ -1,0 +1,15 @@
+{
+	"name": "theme-abyss",
+	"version": "0.1.0",
+	"publisher": "vscode",
+	"engines": { "vscode": "*" },
+	"contributes": {
+		"themes": [
+			{
+				"label": "Abyss",
+				"uiTheme": "vs-dark",
+				"path": "./themes/Abyss.tmTheme"
+			}
+		]
+	}
+}

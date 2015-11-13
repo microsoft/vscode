@@ -1,0 +1,45 @@
+{
+	"version": "0.1.0",
+	"configurations": [
+		{
+			"name": "Unit Tests",
+			"type": "node",
+			"request": "launch",
+			"program": "node_modules/mocha/bin/_mocha",
+			"stopOnEntry": false,
+			"args": [
+				"--timeout",
+				"999999",
+				"--colors"
+			],
+			"cwd": ".",
+			"runtimeExecutable": null,
+			"runtimeArgs": [],
+			"env": {},
+			"sourceMaps": true,
+			"outDir": "out"
+		},
+		{
+			"name": "Attach to Extension Host",
+			"type": "node",
+			"request": "attach",
+			"port": 5870,
+			"sourceMaps": true,
+			"outDir": "out"
+		},
+		{
+			"name": "VSCode API Tests",
+			"type": "extensionHost",
+			"request": "launch",
+			"runtimeExecutable": "${execPath}",
+			"args": [
+				"${workspaceRoot}/extensions/vscode-api-tests/testWorkspace",
+				"--extensionDevelopmentPath=${workspaceRoot}/extensions/vscode-api-tests",
+				"--extensionTestsPath=${workspaceRoot}/extensions/vscode-api-tests/out"
+			],
+			"stopOnEntry": false,
+			"sourceMaps": true,
+			"outDir": "out"
+		}
+	]
+}

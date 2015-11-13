@@ -1,0 +1,62 @@
+﻿{
+    "id": "http://schema.management.azure.com/schemas/2015-01-01/Microsoft.Authorization.json",
+    "$schema": "http://json-schema.org/draft-04/schema#",
+    "title": "Microsoft.Authorization",
+    "description": "Microsoft Microsoft.Authorization Resource Types",
+    "definitions": {
+        "locks": {
+            "type": "object",
+            "properties": {
+                "type": {
+                    "enum": [
+                        "Microsoft.Authorization/locks"
+                    ]
+                },
+                "apiVersion": {
+                    "enum": [
+                        "2015-01-01"
+                    ]
+                },
+                "name": {
+                    "type": "string",
+                    "maxLength": 64,
+                    "description": "Name of the lock"
+                },
+                "dependsOn": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "description": "Collection of resources this resource depends on"
+                },
+                "properties": {
+                    "type": "object",
+                    "properties": {
+                        "level": {
+                            "enum": [
+                                "CannotDelete",
+                                "ReadOnly"
+                            ],
+                            "description": "Microsoft.Authorization/locks: level - specifies the type of lock to apply to the scope.  CanNotDelete allows modification but prevents deletion, ReadOnly prevents modification or deletion."
+                        },
+                        "notes": {
+                            "type": "string",
+                            "maxLength": 512,
+                            "description": "Microsoft.Authorization/locks: notes - user defined notes for the lock"
+                        }
+                    },
+                    "required": [
+                        "level"
+                    ]
+                }
+            },
+            "required": [
+                "name",
+                "type",
+                "apiVersion",
+                "properties"
+            ],
+            "description": "Microsoft.Authorization/locks resource"
+        }
+    }
+}

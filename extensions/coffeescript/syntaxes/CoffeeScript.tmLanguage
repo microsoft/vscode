@@ -1,0 +1,1214 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>comment</key>
+	<string>CoffeeScript</string>
+	<key>fileTypes</key>
+	<array>
+		<string>coffee</string>
+		<string>Cakefile</string>
+		<string>coffee.erb</string>
+	</array>
+	<key>injections</key>
+	<dict>
+		<key>string.regexp.block.coffee</key>
+		<dict>
+			<key>patterns</key>
+			<array>
+				<dict>
+					<key>include</key>
+					<string>#interpolated_coffee</string>
+				</dict>
+				<dict>
+					<key>include</key>
+					<string>#embedded_comment</string>
+				</dict>
+			</array>
+		</dict>
+	</dict>
+	<key>keyEquivalent</key>
+	<string>^~C</string>
+	<key>name</key>
+	<string>CoffeeScript</string>
+	<key>patterns</key>
+	<array>
+		<dict>
+			<key>captures</key>
+			<dict>
+				<key>1</key>
+				<dict>
+					<key>name</key>
+					<string>punctuation.definition.parameters.begin.coffee</string>
+				</dict>
+				<key>2</key>
+				<dict>
+					<key>patterns</key>
+					<array>
+						<dict>
+							<key>captures</key>
+							<dict>
+								<key>1</key>
+								<dict>
+									<key>name</key>
+									<string>variable.parameter.function.coffee</string>
+								</dict>
+								<key>2</key>
+								<dict>
+									<key>name</key>
+									<string>punctuation.separator.key-value.coffee</string>
+								</dict>
+								<key>3</key>
+								<dict>
+									<key>name</key>
+									<string>string.quoted.double.coffee</string>
+								</dict>
+								<key>4</key>
+								<dict>
+									<key>name</key>
+									<string>punctuation.definition.string.begin.coffee</string>
+								</dict>
+								<key>5</key>
+								<dict>
+									<key>name</key>
+									<string>punctuation.definition.string.end.coffee</string>
+								</dict>
+								<key>6</key>
+								<dict>
+									<key>name</key>
+									<string>string.quoted.single.coffee</string>
+								</dict>
+								<key>7</key>
+								<dict>
+									<key>name</key>
+									<string>punctuation.definition.string.begin.coffee</string>
+								</dict>
+								<key>8</key>
+								<dict>
+									<key>name</key>
+									<string>punctuation.definition.string.end.coffee</string>
+								</dict>
+							</dict>
+							<key>match</key>
+							<string>(?x)
+								([^()\s,]+)
+								\s+(=)\s+
+								(?:
+									((")[^"]*("))
+								  | ((')[^']*('))
+								)</string>
+						</dict>
+						<dict>
+							<key>match</key>
+							<string>[^()\s,]+</string>
+							<key>name</key>
+							<string>variable.parameter.function.coffee</string>
+						</dict>
+						<dict>
+							<key>match</key>
+							<string>,</string>
+							<key>name</key>
+							<string>punctuation.separator.arguments.coffee</string>
+						</dict>
+					</array>
+				</dict>
+				<key>3</key>
+				<dict>
+					<key>name</key>
+					<string>punctuation.definition.parameters.begin.coffee</string>
+				</dict>
+				<key>4</key>
+				<dict>
+					<key>name</key>
+					<string>storage.type.function.coffee</string>
+				</dict>
+			</dict>
+			<key>comment</key>
+			<string>match stuff like: a -&gt; … </string>
+			<key>match</key>
+			<string>(\()([^()]*?)(\))\s*([=-]&gt;)</string>
+			<key>name</key>
+			<string>meta.inline.function.coffee</string>
+		</dict>
+		<dict>
+			<key>captures</key>
+			<dict>
+				<key>1</key>
+				<dict>
+					<key>name</key>
+					<string>keyword.operator.new.coffee</string>
+				</dict>
+				<key>2</key>
+				<dict>
+					<key>name</key>
+					<string>entity.name.type.instance.coffee</string>
+				</dict>
+			</dict>
+			<key>match</key>
+			<string>(new)\s+(\w+(?:\.\w*)*)</string>
+			<key>name</key>
+			<string>meta.class.instance.constructor</string>
+		</dict>
+		<dict>
+			<key>begin</key>
+			<string>'''</string>
+			<key>beginCaptures</key>
+			<dict>
+				<key>0</key>
+				<dict>
+					<key>name</key>
+					<string>punctuation.definition.string.begin.coffee</string>
+				</dict>
+			</dict>
+			<key>end</key>
+			<string>'''</string>
+			<key>endCaptures</key>
+			<dict>
+				<key>0</key>
+				<dict>
+					<key>name</key>
+					<string>punctuation.definition.string.end.coffee</string>
+				</dict>
+			</dict>
+			<key>name</key>
+			<string>string.unquoted.heredoc.coffee</string>
+		</dict>
+		<dict>
+			<key>begin</key>
+			<string>"""</string>
+			<key>beginCaptures</key>
+			<dict>
+				<key>0</key>
+				<dict>
+					<key>name</key>
+					<string>punctuation.definition.string.begin.coffee</string>
+				</dict>
+			</dict>
+			<key>end</key>
+			<string>"""</string>
+			<key>endCaptures</key>
+			<dict>
+				<key>0</key>
+				<dict>
+					<key>name</key>
+					<string>punctuation.definition.string.end.coffee</string>
+				</dict>
+			</dict>
+			<key>name</key>
+			<string>string.quoted.double.heredoc.coffee</string>
+			<key>patterns</key>
+			<array>
+				<dict>
+					<key>match</key>
+					<string>\\.</string>
+					<key>name</key>
+					<string>constant.character.escape.coffee</string>
+				</dict>
+				<dict>
+					<key>include</key>
+					<string>#interpolated_coffee</string>
+				</dict>
+			</array>
+		</dict>
+		<dict>
+			<key>begin</key>
+			<string>`</string>
+			<key>beginCaptures</key>
+			<dict>
+				<key>0</key>
+				<dict>
+					<key>name</key>
+					<string>punctuation.definition.string.begin.coffee</string>
+				</dict>
+			</dict>
+			<key>end</key>
+			<string>`</string>
+			<key>endCaptures</key>
+			<dict>
+				<key>0</key>
+				<dict>
+					<key>name</key>
+					<string>punctuation.definition.string.end.coffee</string>
+				</dict>
+			</dict>
+			<key>name</key>
+			<string>string.interpolated.javascript.coffee</string>
+			<key>patterns</key>
+			<array>
+				<dict>
+					<key>match</key>
+					<string>(?x)
+						\\
+						(
+							x\h{2}
+						  | [0-2][0-7]{0,2}
+						  | 3[0-6][0-7]
+						  | 37[0-7]?
+						  | [4-7][0-7]?
+						  | .
+						)</string>
+					<key>name</key>
+					<string>constant.character.escape.coffee</string>
+				</dict>
+			</array>
+		</dict>
+		<dict>
+			<key>begin</key>
+			<string>(?&lt;!#)###(?!#)</string>
+			<key>captures</key>
+			<dict>
+				<key>0</key>
+				<dict>
+					<key>name</key>
+					<string>punctuation.definition.comment.coffee</string>
+				</dict>
+			</dict>
+			<key>end</key>
+			<string>###(?:[ \t]*\n)</string>
+			<key>name</key>
+			<string>comment.block.coffee</string>
+			<key>patterns</key>
+			<array>
+				<dict>
+					<key>match</key>
+					<string>@\w*</string>
+					<key>name</key>
+					<string>storage.type.annotation.coffeescript</string>
+				</dict>
+			</array>
+		</dict>
+		<dict>
+			<key>begin</key>
+			<string>(#)(?!\{)</string>
+			<key>beginCaptures</key>
+			<dict>
+				<key>1</key>
+				<dict>
+					<key>name</key>
+					<string>punctuation.definition.comment.coffee</string>
+				</dict>
+			</dict>
+			<key>end</key>
+			<string>\n</string>
+			<key>name</key>
+			<string>comment.line.number-sign.coffee</string>
+		</dict>
+		<dict>
+			<key>begin</key>
+			<string>/{3}</string>
+			<key>beginCaptures</key>
+			<dict>
+				<key>0</key>
+				<dict>
+					<key>name</key>
+					<string>punctuation.definition.string.begin.coffee</string>
+				</dict>
+			</dict>
+			<key>end</key>
+			<string>(/{3})[imgy]{0,4}</string>
+			<key>endCaptures</key>
+			<dict>
+				<key>1</key>
+				<dict>
+					<key>name</key>
+					<string>punctuation.definition.string.end.coffee</string>
+				</dict>
+			</dict>
+			<key>name</key>
+			<string>string.regexp.block.coffee</string>
+			<key>patterns</key>
+			<array>
+				<dict>
+					<key>include</key>
+					<string>source.js.regexp</string>
+				</dict>
+			</array>
+		</dict>
+		<dict>
+			<key>begin</key>
+			<string>/(?![\s=/*+{}?])</string>
+			<key>beginCaptures</key>
+			<dict>
+				<key>0</key>
+				<dict>
+					<key>name</key>
+					<string>punctuation.definition.string.begin.coffee</string>
+				</dict>
+			</dict>
+			<key>end</key>
+			<string>(/)[igmy]{0,4}(?![a-zA-Z0-9])</string>
+			<key>endCaptures</key>
+			<dict>
+				<key>1</key>
+				<dict>
+					<key>name</key>
+					<string>punctuation.definition.string.end.coffee</string>
+				</dict>
+			</dict>
+			<key>name</key>
+			<string>string.regexp.coffee</string>
+			<key>patterns</key>
+			<array>
+				<dict>
+					<key>include</key>
+					<string>source.js.regexp</string>
+				</dict>
+			</array>
+		</dict>
+		<dict>
+			<key>match</key>
+			<string>(?x)
+				\b
+				(?&lt;![\.\$])
+				(
+					break
+				  | by
+				  | catch
+				  | continue
+				  | else
+				  | finally
+				  | for
+				  | in
+				  | of
+				  | if
+				  | return
+				  | switch
+				  | then
+				  | throw
+				  | try
+				  | unless
+				  | when
+				  | while
+				  | until
+				  | loop
+				  | do
+				  | (?&lt;=for)\s+own
+				)
+				(?!\s*:)
+				\b
+			</string>
+			<key>name</key>
+			<string>keyword.control.coffee</string>
+		</dict>
+		<dict>
+			<key>match</key>
+			<string>(?x)
+				and=
+			  | or=
+			  | !
+			  | %
+			  | &amp;
+			  | \^
+			  | \*
+			  | \/
+			  | (\-)?\-(?!&gt;)
+			  | \+\+
+			  | \+
+			  | ~
+			  | ==
+			  | =(?!&gt;)
+			  | !=
+			  | &lt;=
+			  | &gt;=
+			  | &lt;&lt;=
+			  | &gt;&gt;=
+			  | &gt;&gt;&gt;=
+			  | &lt;&gt;
+			  | &lt;
+			  | &gt;
+			  | !
+			  | &amp;&amp;
+			  | \.\.(\.)?
+			  | \?
+			  | \|
+			  | \|\|
+			  | \:
+			  | \*=
+			  | (?&lt;!\()/=
+			  | %=
+			  | \+=
+			  | \-=
+			  | &amp;=
+			  | \^=
+			  | \b(?&lt;![\.\$])(instanceof|new|delete|typeof|and|or|is|isnt|not|super)\b
+			</string>
+			<key>name</key>
+			<string>keyword.operator.coffee</string>
+		</dict>
+		<dict>
+			<key>captures</key>
+			<dict>
+				<key>1</key>
+				<dict>
+					<key>name</key>
+					<string>variable.other.assignment.coffee</string>
+				</dict>
+				<key>4</key>
+				<dict>
+					<key>name</key>
+					<string>punctuation.separator.key-value</string>
+				</dict>
+				<key>5</key>
+				<dict>
+					<key>name</key>
+					<string>keyword.operator.coffee</string>
+				</dict>
+			</dict>
+			<key>match</key>
+			<string>(?x)
+				(?:
+					([a-zA-Z\$_](\w|\$|\.)*)
+					\s*
+					(?!\::)
+					((:)|(=)(?!&gt;))
+					(?!
+						(
+							\s*\(.*\)
+						)?
+						\s*
+						([=-]&gt;)
+					)
+				)</string>
+		</dict>
+		<dict>
+			<key>begin</key>
+			<string>(?x)
+				(?&lt;=\s|^)
+				([\[\{])
+				(?=.*?[\]\}]\s+[:=])</string>
+			<key>beginCaptures</key>
+			<dict>
+				<key>0</key>
+				<dict>
+					<key>name</key>
+					<string>keyword.operator.coffee</string>
+				</dict>
+			</dict>
+			<key>end</key>
+			<string>([\]\}]\s*[:=])</string>
+			<key>endCaptures</key>
+			<dict>
+				<key>0</key>
+				<dict>
+					<key>name</key>
+					<string>keyword.operator.coffee</string>
+				</dict>
+			</dict>
+			<key>name</key>
+			<string>meta.variable.assignment.destructured.coffee</string>
+			<key>patterns</key>
+			<array>
+				<dict>
+					<key>include</key>
+					<string>#variable_name</string>
+				</dict>
+				<dict>
+					<key>include</key>
+					<string>#instance_variable</string>
+				</dict>
+				<dict>
+					<key>include</key>
+					<string>#single_quoted_string</string>
+				</dict>
+				<dict>
+					<key>include</key>
+					<string>#double_quoted_string</string>
+				</dict>
+				<dict>
+					<key>include</key>
+					<string>#numeric</string>
+				</dict>
+			</array>
+		</dict>
+		<dict>
+			<key>captures</key>
+			<dict>
+				<key>1</key>
+				<dict>
+					<key>name</key>
+					<string>entity.name.function.coffee</string>
+				</dict>
+				<key>2</key>
+				<dict>
+					<key>name</key>
+					<string>entity.name.function.coffee</string>
+				</dict>
+				<key>4</key>
+				<dict>
+					<key>name</key>
+					<string>punctuation.definition.parameters.begin.coffee</string>
+				</dict>
+				<key>5</key>
+				<dict>
+					<key>patterns</key>
+					<array>
+						<dict>
+							<key>captures</key>
+							<dict>
+								<key>1</key>
+								<dict>
+									<key>name</key>
+									<string>variable.parameter.function.coffee</string>
+								</dict>
+								<key>2</key>
+								<dict>
+									<key>name</key>
+									<string>punctuation.separator.key-value.coffee</string>
+								</dict>
+								<key>3</key>
+								<dict>
+									<key>name</key>
+									<string>string.quoted.double.coffee</string>
+								</dict>
+								<key>4</key>
+								<dict>
+									<key>name</key>
+									<string>punctuation.definition.string.begin.coffee</string>
+								</dict>
+								<key>5</key>
+								<dict>
+									<key>name</key>
+									<string>punctuation.definition.string.end.coffee</string>
+								</dict>
+								<key>6</key>
+								<dict>
+									<key>name</key>
+									<string>string.quoted.single.coffee</string>
+								</dict>
+								<key>7</key>
+								<dict>
+									<key>name</key>
+									<string>punctuation.definition.string.begin.coffee</string>
+								</dict>
+								<key>8</key>
+								<dict>
+									<key>name</key>
+									<string>punctuation.definition.string.end.coffee</string>
+								</dict>
+							</dict>
+							<key>match</key>
+							<string>(?x)
+								([^()\s,]+)
+								\s+(=)\s+
+								(?:
+									((")[^"]*("))
+								  | ((')[^']*('))
+								)</string>
+						</dict>
+						<dict>
+							<key>match</key>
+							<string>[^()\s,]+</string>
+							<key>name</key>
+							<string>variable.parameter.function.coffee</string>
+						</dict>
+						<dict>
+							<key>match</key>
+							<string>,</string>
+							<key>name</key>
+							<string>punctuation.separator.arguments.coffee</string>
+						</dict>
+					</array>
+				</dict>
+				<key>6</key>
+				<dict>
+					<key>name</key>
+					<string>punctuation.definition.parameters.begin.coffee</string>
+				</dict>
+				<key>7</key>
+				<dict>
+					<key>name</key>
+					<string>storage.type.function.coffee</string>
+				</dict>
+			</dict>
+			<key>match</key>
+			<string>(?x)
+				(?&lt;=^|\s)
+				(?=@?[a-zA-Z\$_])
+				(
+					@?[a-zA-Z\$_](\w|\$|:|\.)*
+					\s*
+					(?=
+						[:=]
+						(\s*(\()(.*)(\)))?
+						\s*
+						([=-]&gt;)
+					)
+				)
+			</string>
+			<key>name</key>
+			<string>meta.function.coffee</string>
+		</dict>
+		<dict>
+			<key>match</key>
+			<string>[=-]&gt;</string>
+			<key>name</key>
+			<string>storage.type.function.coffee</string>
+		</dict>
+		<dict>
+			<key>match</key>
+			<string>(?x)
+				\b
+				(?&lt;!\.)
+				(true|on|yes)
+				(?!\s*[:=])
+				\b</string>
+			<key>name</key>
+			<string>constant.language.boolean.true.coffee</string>
+		</dict>
+		<dict>
+			<key>match</key>
+			<string>(?x)
+				\b
+				(?&lt;!\.)
+				(false|off|no)
+				(?!\s*[:=])
+				\b</string>
+			<key>name</key>
+			<string>constant.language.boolean.false.coffee</string>
+		</dict>
+		<dict>
+			<key>match</key>
+			<string>(?x)
+				\b
+				(?&lt;!\.)
+				null
+				(?!\s*[:=])
+				\b</string>
+			<key>name</key>
+			<string>constant.language.null.coffee</string>
+		</dict>
+		<dict>
+			<key>match</key>
+			<string>(?x)
+				\b
+				(?&lt;!\.)
+				(this|extends)
+				(?!\s*[:=])
+				\b</string>
+			<key>name</key>
+			<string>variable.language.coffee</string>
+		</dict>
+		<dict>
+			<key>captures</key>
+			<dict>
+				<key>1</key>
+				<dict>
+					<key>name</key>
+					<string>storage.type.class.coffee</string>
+				</dict>
+				<key>2</key>
+				<dict>
+					<key>name</key>
+					<string>keyword.control.inheritance.coffee</string>
+				</dict>
+				<key>3</key>
+				<dict>
+					<key>name</key>
+					<string>entity.other.inherited-class.coffee</string>
+				</dict>
+			</dict>
+			<key>match</key>
+			<string>(?x)
+					(class\b)
+					(?:
+						\s+(extends)\s+
+						(@?[a-zA-Z\$\._][\w\.]*)
+					)</string>
+			<key>name</key>
+			<string>meta.class.coffee</string>
+		</dict>
+		<dict>
+			<key>captures</key>
+			<dict>
+				<key>1</key>
+				<dict>
+					<key>name</key>
+					<string>storage.type.class.coffee</string>
+				</dict>
+				<key>2</key>
+				<dict>
+					<key>name</key>
+					<string>entity.name.type.class.coffee</string>
+				</dict>
+				<key>3</key>
+				<dict>
+					<key>name</key>
+					<string>keyword.control.inheritance.coffee</string>
+				</dict>
+				<key>4</key>
+				<dict>
+					<key>name</key>
+					<string>entity.other.inherited-class.coffee</string>
+				</dict>
+			</dict>
+			<key>match</key>
+			<string>(?x)
+					(class\b)
+					\s+
+					(@?[a-zA-Z\$_][\w\.]*)?
+					(?:
+						\s+(extends)\s+
+						(@?[a-zA-Z\$\._][\w\.]*)
+					)?</string>
+			<key>name</key>
+			<string>meta.class.coffee</string>
+		</dict>
+		<dict>
+			<key>match</key>
+			<string>\b(debugger|\\)\b</string>
+			<key>name</key>
+			<string>keyword.other.coffee</string>
+		</dict>
+		<dict>
+			<key>match</key>
+			<string>(?x)
+				\b(
+					Array
+				  | ArrayBuffer
+				  | Blob
+				  | Boolean
+				  | Date
+				  | document
+				  | Function
+				  | Int(8|16|32|64)Array
+				  | Math
+				  | Map
+				  | Number
+				  | Object
+				  | Proxy
+				  | RegExp
+				  | Set
+				  | String
+				  | WeakMap
+				  | window
+				  | Uint(8|16|32|64)Array
+				  | XMLHttpRequest
+				)\b</string>
+			<key>name</key>
+			<string>support.class.coffee</string>
+		</dict>
+		<dict>
+			<key>match</key>
+			<string>\b(console)\b</string>
+			<key>name</key>
+			<string>entity.name.type.object.coffee</string>
+		</dict>
+		<dict>
+			<key>match</key>
+			<string>((?&lt;=console\.)(debug|warn|info|log|error|time|timeEnd|assert))\b</string>
+			<key>name</key>
+			<string>support.function.console.coffee</string>
+		</dict>
+		<dict>
+			<key>match</key>
+			<string>(?x)
+				\b(
+					decodeURI(Component)?
+				  | encodeURI(Component)?
+				  | eval
+				  | parse(Float|Int)
+				  | require
+				)\b</string>
+			<key>name</key>
+			<string>support.function.coffee</string>
+		</dict>
+		<dict>
+			<key>match</key>
+			<string>(?x)
+				(
+					(?&lt;=\.)
+					(
+						apply
+					  | call
+					  | concat
+					  | every
+					  | filter
+					  | forEach
+					  | from
+					  | hasOwnProperty
+					  | indexOf
+					  | isPrototypeOf
+					  | join
+					  | lastIndexOf
+					  | map
+					  | of
+					  | pop
+					  | propertyIsEnumerable
+					  | push
+					  | reduce(Right)?
+					  | reverse
+					  | shift
+					  | slice
+					  | some
+					  | sort
+					  | splice
+					  | to(Locale)?String
+					  | unshift
+					  | valueOf
+					)
+				)\b</string>
+			<key>name</key>
+			<string>support.function.method.array.coffee</string>
+		</dict>
+		<dict>
+			<key>match</key>
+			<string>((?&lt;=Array\.)(isArray))\b</string>
+			<key>name</key>
+			<string>support.function.static.array.coffee</string>
+		</dict>
+		<dict>
+			<key>match</key>
+			<string>(?x)
+				(
+					(?&lt;=Object\.)
+					(
+						create
+					  | definePropert(ies|y)
+					  | freeze
+					  | getOwnProperty(Descriptors?|Names)
+					  | getProperty(Descriptor|Names)
+					  | getPrototypeOf
+					  | is(Extensible|Frozen|Sealed)?
+					  | isnt
+					  | keys
+					  | preventExtensions
+					  | seal
+					)
+				)\b</string>
+			<key>name</key>
+			<string>support.function.static.object.coffee</string>
+		</dict>
+		<dict>
+			<key>match</key>
+			<string>(?x)
+				(
+					(?&lt;=Math\.)
+					(
+						abs
+					  | acos
+					  | acosh
+					  | asin
+					  | asinh
+					  | atan
+					  | atan2
+					  | atanh
+					  | ceil
+					  | cos
+					  | cosh
+					  | exp
+					  | expm1
+					  | floor
+					  | hypot
+					  | log
+					  | log10
+					  | log1p
+					  | log2
+					  | max
+					  | min
+					  | pow
+					  | random
+					  | round
+					  | sign
+					  | sin
+					  | sinh
+					  | sqrt
+					  | tan
+					  | tanh
+					  | trunc
+					)
+				)\b</string>
+			<key>name</key>
+			<string>support.function.static.math.coffee</string>
+		</dict>
+		<dict>
+			<key>match</key>
+			<string>(?x)
+				(
+					(?&lt;=Number\.)
+					(
+						is(Finite|Integer|NaN)
+					  | toInteger
+					)
+				)\b</string>
+			<key>name</key>
+			<string>support.function.static.number.coffee</string>
+		</dict>
+		<dict>
+			<key>match</key>
+			<string>\b(Infinity|NaN|undefined)\b</string>
+			<key>name</key>
+			<string>constant.language.coffee</string>
+		</dict>
+		<dict>
+			<key>match</key>
+			<string>\;</string>
+			<key>name</key>
+			<string>punctuation.terminator.statement.coffee</string>
+		</dict>
+		<dict>
+			<key>match</key>
+			<string>,[ |\t]*</string>
+			<key>name</key>
+			<string>meta.delimiter.object.comma.coffee</string>
+		</dict>
+		<dict>
+			<key>match</key>
+			<string>\.</string>
+			<key>name</key>
+			<string>meta.delimiter.method.period.coffee</string>
+		</dict>
+		<dict>
+			<key>match</key>
+			<string>\{|\}</string>
+			<key>name</key>
+			<string>meta.brace.curly.coffee</string>
+		</dict>
+		<dict>
+			<key>match</key>
+			<string>\(|\)</string>
+			<key>name</key>
+			<string>meta.brace.round.coffee</string>
+		</dict>
+		<dict>
+			<key>match</key>
+			<string>\[|\]\s*</string>
+			<key>name</key>
+			<string>meta.brace.square.coffee</string>
+		</dict>
+		<dict>
+			<key>include</key>
+			<string>#instance_variable</string>
+		</dict>
+		<dict>
+			<key>include</key>
+			<string>#single_quoted_string</string>
+		</dict>
+		<dict>
+			<key>include</key>
+			<string>#double_quoted_string</string>
+		</dict>
+		<dict>
+			<key>include</key>
+			<string>#numeric</string>
+		</dict>
+	</array>
+	<key>repository</key>
+	<dict>
+		<key>double_quoted_string</key>
+		<dict>
+			<key>patterns</key>
+			<array>
+				<dict>
+					<key>begin</key>
+					<string>"</string>
+					<key>beginCaptures</key>
+					<dict>
+						<key>0</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.string.begin.coffee</string>
+						</dict>
+					</dict>
+					<key>end</key>
+					<string>"</string>
+					<key>endCaptures</key>
+					<dict>
+						<key>0</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.string.end.coffee</string>
+						</dict>
+					</dict>
+					<key>name</key>
+					<string>string.quoted.double.coffee</string>
+					<key>patterns</key>
+					<array>
+						<dict>
+							<key>match</key>
+							<string>(?x)
+								\\(
+									x\h{2}
+								  | [0-2][0-7]{0,2}
+								  | 3[0-6][0-7]
+								  | 37[0-7]?
+								  | [4-7][0-7]?
+								  | .
+								)</string>
+							<key>name</key>
+							<string>constant.character.escape.coffee</string>
+						</dict>
+						<dict>
+							<key>include</key>
+							<string>#interpolated_coffee</string>
+						</dict>
+					</array>
+				</dict>
+			</array>
+		</dict>
+		<key>embedded_comment</key>
+		<dict>
+			<key>patterns</key>
+			<array>
+				<dict>
+					<key>captures</key>
+					<dict>
+						<key>1</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.comment.coffee</string>
+						</dict>
+					</dict>
+					<key>match</key>
+					<string>(?&lt;!\\)(#).*$\n?</string>
+					<key>name</key>
+					<string>comment.line.number-sign.coffee</string>
+				</dict>
+			</array>
+		</dict>
+		<key>instance_variable</key>
+		<dict>
+			<key>patterns</key>
+			<array>
+				<dict>
+					<key>captures</key>
+					<dict>
+						<key>1</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.variable.coffee</string>
+						</dict>
+					</dict>
+					<key>match</key>
+					<string>(@)([a-zA-Z_\$]\w*)?</string>
+					<key>name</key>
+					<string>variable.other.readwrite.instance.coffee</string>
+				</dict>
+			</array>
+		</dict>
+		<key>interpolated_coffee</key>
+		<dict>
+			<key>patterns</key>
+			<array>
+				<dict>
+					<key>begin</key>
+					<string>#\{</string>
+					<key>beginCaptures</key>
+					<dict>
+						<key>0</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.section.embedded.begin.coffee</string>
+						</dict>
+					</dict>
+					<key>contentName</key>
+					<string>source.coffee</string>
+					<key>end</key>
+					<string>(\})</string>
+					<key>endCaptures</key>
+					<dict>
+						<key>0</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.section.embedded.end.coffee</string>
+						</dict>
+						<key>1</key>
+						<dict>
+							<key>name</key>
+							<string>source.coffee</string>
+						</dict>
+					</dict>
+					<key>name</key>
+					<string>meta.embedded.line.coffee</string>
+					<key>patterns</key>
+					<array>
+						<dict>
+							<key>include</key>
+							<string>$self</string>
+						</dict>
+					</array>
+				</dict>
+			</array>
+		</dict>
+		<key>numeric</key>
+		<dict>
+			<key>patterns</key>
+			<array>
+				<dict>
+					<key>match</key>
+					<string>(?x)
+						(?&lt;!\$)\b
+						(
+							(0([box])[0-9a-fA-F]+)
+						  | ([0-9]+(\.[0-9]+)?(e[+\-]?[0-9]+)?)
+						)\b</string>
+					<key>name</key>
+					<string>constant.numeric.coffee</string>
+				</dict>
+			</array>
+		</dict>
+		<key>single_quoted_string</key>
+		<dict>
+			<key>patterns</key>
+			<array>
+				<dict>
+					<key>begin</key>
+					<string>'</string>
+					<key>beginCaptures</key>
+					<dict>
+						<key>0</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.string.begin.coffee</string>
+						</dict>
+					</dict>
+					<key>end</key>
+					<string>'</string>
+					<key>endCaptures</key>
+					<dict>
+						<key>0</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.string.end.coffee</string>
+						</dict>
+					</dict>
+					<key>name</key>
+					<string>string.quoted.single.coffee</string>
+					<key>patterns</key>
+					<array>
+						<dict>
+							<key>match</key>
+							<string>(?x)
+								\\(
+									x\h{2}
+								  | [0-2][0-7]{0,2}
+								  | 3[0-6][0-7]?
+								  | 37[0-7]?
+								  | [4-7][0-7]?
+								  | .
+								)</string>
+							<key>name</key>
+							<string>constant.character.escape.coffee</string>
+						</dict>
+					</array>
+				</dict>
+			</array>
+		</dict>
+		<key>variable_name</key>
+		<dict>
+			<key>patterns</key>
+			<array>
+				<dict>
+					<key>match</key>
+					<string>([a-zA-Z\$_]\w*(\.\w+)*)</string>
+					<key>name</key>
+					<string>variable.other.assignment.coffee</string>
+				</dict>
+			</array>
+		</dict>
+	</dict>
+	<key>scopeName</key>
+	<string>source.coffee</string>
+	<key>uuid</key>
+	<string>5B520980-A7D5-4E10-8582-1A4C889A8DE5</string>
+</dict>
+</plist>

@@ -1,0 +1,10 @@
+{
+	"name": "watch",
+	"version": "1.0.0",
+	"description": "",
+	"author": "Microsoft ",
+	"private": true,
+	"devDependencies": {
+		"gulp-watch": "^4.3.5"
+	}
+}

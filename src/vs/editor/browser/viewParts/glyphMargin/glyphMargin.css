@@ -1,0 +1,25 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+.monaco-editor .glyph-margin {
+	position: absolute;
+	top: 0;
+	background: #E6E7E8;
+	-webkit-box-sizing:	border-box;
+	-o-box-sizing: border-box;
+	-moz-box-sizing: border-box;
+	-ms-box-sizing: border-box;
+	box-sizing:	border-box;
+}
+.monaco-workbench-container .monaco-editor .glyph-margin {
+	background: white;
+}
+
+/*
+	Keeping name short for faster parsing.
+	cgmr = core glyph margin rendering (div)
+*/
+.monaco-editor .margin-view-overlays .cgmr {
+	position: absolute;
+}

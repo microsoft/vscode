@@ -1,0 +1,30 @@
+{
+	"name": "cpp",
+	"version": "0.1.0",
+	"publisher": "vscode",
+	"engines": { "vscode": "*" },
+	"contributes": {
+		"languages": [{
+			"id": "c",
+			"extensions": [ ".c", ".h" ],
+			"aliases": [ "C", "c" ],
+			"configuration": "./cpp.configuration.json"
+		},
+		{
+			"id": "cpp",
+			"extensions": [ ".cpp", ".cc", ".cxx", ".hpp", ".hh", ".hxx" ],
+			"aliases": [ "C++", "Cpp", "cpp"],
+			"configuration": "./cpp.configuration.json"
+		}],
+		"grammars": [{
+			"language": "c",
+			"scopeName": "source.c",
+			"path": "./syntaxes/c.plist"
+		},
+		{
+			"language": "cpp",
+			"scopeName": "source.c++",
+			"path": "./syntaxes/c++.plist"
+		}]
+	}
+}

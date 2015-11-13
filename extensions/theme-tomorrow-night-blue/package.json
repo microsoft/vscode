@@ -1,0 +1,15 @@
+{
+	"name": "theme-tomorrow-night-blue",
+	"version": "0.1.0",
+	"publisher": "vscode",
+	"engines": { "vscode": "*" },
+	"contributes": {
+		"themes": [
+			{
+				"label": "Tomorrow Night Blue",
+				"uiTheme": "vs-dark",
+				"path": "./themes/Tomorrow-Night-Blue.tmTheme"
+			}
+		]
+	}
+}

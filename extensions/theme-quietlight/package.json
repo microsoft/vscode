@@ -1,0 +1,15 @@
+{
+	"name": "theme-quietlight",
+	"version": "0.1.0",
+	"publisher": "vscode",
+	"engines": { "vscode": "*" },
+	"contributes": {
+		"themes": [
+			{
+				"label": "Quiet Light",
+				"uiTheme": "vs",
+				"path": "./themes/QuietLight.tmTheme"
+			}
+		]
+	}
+}

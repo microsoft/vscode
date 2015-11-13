@@ -1,0 +1,82 @@
+{
+
+	"Insert bold text": {
+		"prefix": "bold",
+		"body": "**${text}**${}",
+		"description": "Insert bold text"
+	},
+
+	"Insert italic text": {
+		"prefix": "italic",
+		"body": "*${text}*${}",
+		"description": "Insert italic text"
+	},
+
+	"Insert quoted text": {
+		"prefix": "quote",
+		"body": "> ${text}",
+		"description": "Insert quoted text"
+	},
+
+	"Insert code": {
+		"prefix": "code",
+		"body": "`${text}`${}",
+		"description": "Insert code"
+	},
+
+	"Insert fenced code block": {
+		"prefix": "fenced codeblock",
+		"body": [
+			"```${language}",
+			"$0",
+			"```"
+		],
+		"description": "Insert fenced code block"
+	},
+
+	"Insert heading": {
+		"prefix": "heading",
+		"body": "# ${text}",
+		"description": "Insert heading"
+	},
+
+	"Insert unordered list": {
+		"prefix": "unordered list",
+		"body": [
+			"- ${first}",
+			"- ${second}",
+			"- ${third}",
+			"$0"
+		],
+		"description": "Insert unordered list"
+	},
+
+	"Insert ordered list": {
+		"prefix": "ordered list",
+		"body": [
+			"1. ${first}",
+			"2. ${second}",
+			"3. ${third}",
+			"$0"
+		],
+		"description": "Insert ordered list"
+	},
+
+	"Insert horizontal rule": {
+		"prefix": "horizontal rule",
+		"body": "----------\n",
+		"description": "Insert horizontal rule"
+	},
+
+	"Insert link": {
+		"prefix": "link",
+		"body": "[${text}](http://${link})$0",
+		"description": "Insert link"
+	},
+
+	"Insert image" : {
+		"prefix": "image",
+		"body": "![${alt}](http://${link})$0",
+		"description": "Insert image"
+	}
+}

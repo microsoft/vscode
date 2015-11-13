@@ -1,0 +1,19 @@
+{
+	"name": "sql",
+	"version": "0.1.0",
+	"publisher": "vscode",
+	"engines": { "vscode": "*" },
+	"contributes": {
+		"languages": [{
+			"id": "sql",
+			"extensions": [ ".sql" ],
+			"aliases": [ "SQL" ],
+			"configuration": "./sql.configuration.json"
+		}],
+		"grammars": [{
+			"language": "sql",
+			"scopeName": "source.sql",
+			"path": "./syntaxes/SQL.plist"
+		}]
+	}
+}

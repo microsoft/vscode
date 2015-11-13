@@ -1,0 +1,240 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Debug viewlet */
+
+.debug-viewlet {
+	height: 100%;
+}
+
+.debug-viewlet .monaco-tree .monaco-tree-row > .content {
+	line-height: 24px;
+}
+
+.monaco-workbench .debug-select {
+	max-width: 115px;
+}
+
+.monaco-workbench .monaco-action-bar .action-item.select-container {
+	overflow: hidden;
+}
+
+.debug-viewlet .line-number {
+	background: rgba(136, 136, 136, 0.3);
+	border-radius: 2px;
+	font-size: 0.9em;
+	padding: 0 3px;
+	margin-left: 0.8em;
+}
+
+.debug-viewlet .monaco-tree .monaco-tree-row.selected .line-number	{ background-color: #ffffff; color: #666; }
+
+.debug-viewlet .monaco-tree .monaco-tree-row .content .monaco-action-bar {
+	float: right;
+	display: none;
+	margin-right: 12px;
+}
+
+.debug-viewlet .monaco-tree .monaco-tree-row .content .monaco-action-bar .action-item {
+	vertical-align: middle;
+}
+
+.debug-viewlet .monaco-tree .monaco-tree-row .content .monaco-action-bar .action-label {
+	width: 16px;
+	height: 16px;
+}
+
+.debug-viewlet .monaco-tree .monaco-tree-row:hover .content .monaco-action-bar {
+	display: block;
+}
+
+.debug-viewlet .disabled {
+	opacity: 0.35;
+}
+
+.vs-dark.monaco-workbench .debug-select {
+	background-color: #3C3C3C;
+  	border-color: #3C3C3C;
+	color: rgb(204, 204, 204);
+}
+
+/* Call stack */
+
+.debug-viewlet .debug-message-box {
+	border: 1px solid #F2CB1D;
+	border-style: solid none;
+	background: #F6F5D2;
+	padding: 0.4em 1em .3em 1.9em;
+	font-size: 8pt;
+
+	-webkit-user-select: text;
+	-moz-user-select: text;
+	-o-user-select: text;
+	-ms-user-select: text;
+}
+
+.debug-viewlet .debug-message-box.exception {
+	border-color: #E51400;
+	background: #f2dede;
+}
+
+.vs-dark .debug-viewlet .debug-message-box {
+	border-color: #B89500;
+	background: #352A05;
+}
+
+.vs-dark .debug-viewlet .debug-message-box.exception {
+	background-color: #5A1D1D;
+	border-color: #BE1100;
+}
+
+.debug-viewlet .debug-call-stack .stack-frame {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	padding-right: 0.8em;
+}
+
+.debug-viewlet .debug-call-stack .stack-frame > .file {
+	float: right;
+}
+
+.debug-viewlet .debug-call-stack > .monaco-tree-row:not(.selected) .stack-frame > .file {
+	color: rgba(108, 108, 108, 0.8);
+}
+
+.vs-dark .debug-viewlet .debug-call-stack > .monaco-tree-row:not(.selected) .stack-frame > .file {
+	color: rgba(204, 204, 204, 0.6);
+}
+
+.debug-viewlet .debug-call-stack .stack-frame > .file:not(:first-child) {
+	margin-left: 0.8em;
+}
+
+/* Variables & Expression view */
+
+.debug-viewlet .scope {
+	text-transform: capitalize;
+	font-weight: bold;
+	font-size: 11px;
+}
+
+.debug-viewlet .monaco-inputbox {
+	width: 100%;
+	line-height: normal;
+}
+
+.debug-viewlet .monaco-inputbox.idle {
+	border: 1px solid rgba(128, 128, 128, 0.5);
+}
+
+.debug-viewlet .monaco-inputbox > .wrapper > .input {
+	padding: 1px 2px;
+}
+
+.debug-viewlet .debug-action.add-watch-expression {
+	background: url('add.svg') center center no-repeat;
+}
+
+.debug-viewlet .focused .monaco-tree-row.selected:not(.highlighted) > .content.actions .debug-action.add-watch-expression {
+	background: url("add-focus.svg") center center no-repeat;
+}
+
+.vs-dark .debug-viewlet .debug-action.add-watch-expression {
+	background: url('add-inverse.svg') center center no-repeat;
+}
+
+/* Breakpoints */
+
+.debug-viewlet .debug-breakpoints .breakpoint {
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.debug-viewlet .debug-breakpoints .breakpoint > * {
+	vertical-align: middle;
+}
+
+.debug-viewlet .debug-breakpoints .breakpoint > .file-path {
+	opacity: 0.7;
+	font-size: 0.9em;
+	margin-left: 0.8em;
+}
+
+.debug-viewlet .debug-action.remove {
+	background: url('remove.svg') center center no-repeat;
+}
+
+.debug-viewlet .debug-action.breakpoints-activate {
+	background: url('breakpoints-activate.svg') center center no-repeat;
+}
+
+.debug-viewlet .debug-action.refresh {
+	background: url('refresh.svg') center center no-repeat;
+}
+
+.debug-viewlet .focused .monaco-tree-row.selected:not(.highlighted) > .content.actions .debug-action.remove {
+	background: url("remove-focus.svg") center center no-repeat;
+}
+
+.vs-dark .debug-viewlet .debug-action.remove {
+	background: url('remove-inverse.svg') center center no-repeat;
+}
+
+.vs-dark .debug-viewlet .focused .monaco-tree-row.selected:not(.highlighted) > .content.actions .debug-action.remove {
+	background: url("remove-focus.svg") center center no-repeat;
+}
+
+.vs-dark .debug-viewlet .debug-action.breakpoints-activate {
+	background: url('breakpoints-activate-inverse.svg') center center no-repeat;
+}
+
+.vs-dark .debug-viewlet .debug-action.refresh {
+	background: url('refresh-inverse.svg') center center no-repeat;
+}
+
+/* No workspace view */
+
+.debug-viewlet > .noworkspace-view {
+	padding: 0 20px 0 20px;
+}
+
+.debug-viewlet > .noworkspace-view > p {
+	line-height: 1.5em;
+}
+
+/* High Contrast Theming */
+
+.hc-black.monaco-workbench .debug-select {
+	background-color: #3C3C3C;
+	border-color: #3C3C3C;
+	color: rgb(204, 204, 204);
+}
+
+.hc-black.monaco-workbench .debug-message-box {
+	border: 1px solid #B89500;
+	border-style: solid none;
+	background: #352A05;
+}
+
+.hc-black .debug-viewlet .debug-message-box.exception {
+	background-color: #5A1D1D;
+	border-color: #BE1100;
+}
+
+.hc-black .debug-viewlet .debug-action.remove {
+	content: url('remove-inverse.svg');
+}
+
+.hc-black .debug-viewlet .debug-action.add-watch-expression {
+	background: url('add-inverse.svg') center center no-repeat;
+}
+
+.hc-black .debug-viewlet .debug-action.breakpoints-activate {
+	background: url('breakpoints-activate-inverse.svg') center center no-repeat;
+}
+
+.hc-black .debug-viewlet .debug-action.refresh {
+	background: url('refresh-inverse.svg') center center no-repeat;
+}

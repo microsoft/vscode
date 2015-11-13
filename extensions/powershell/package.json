@@ -1,0 +1,19 @@
+{
+	"name": "powershell",
+	"version": "0.1.0",
+	"publisher": "vscode",
+	"engines": { "vscode": "*" },
+	"contributes": {
+		"languages": [{
+			"id": "powershell",
+			"extensions": [ ".ps1", ".psm1", ".psd1" ],
+			"aliases": [ "PowerShell", "powershell", "ps", "ps1" ],
+			"configuration": "./powershell.configuration.json"
+		}],
+		"grammars": [{
+			"language": "powershell",
+			"scopeName": "source.powershell",
+			"path": "./syntaxes/PowershellSyntax.tmLanguage"
+		}]
+	}
+}

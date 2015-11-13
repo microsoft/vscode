@@ -1,0 +1,413 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+'use strict';
+
+import nls = require('vs/nls');
+import objects = require('vs/base/common/objects');
+import platform = require('vs/base/common/platform');
+import types = require('vs/base/common/types');
+import arrays = require('vs/base/common/arrays');
+import strings = require('vs/base/common/strings');
+import {IAction} from 'vs/base/common/actions';
+import {IXHRResponse} from 'vs/base/common/http';
+import Severity from 'vs/base/common/severity';
+
+export interface ErrorListenerCallback {
+	(error: any): void;
+}
+
+export interface ErrorListenerUnbind {
+	(): void;
+}
+
+// avoid circular dependency on EventEmitter by implementing a subset of the interface
+export class ErrorHandler {
+	private unexpectedErrorHandler: (e: any) => void;
+	private listeners: ErrorListenerCallback[];
+
+	constructor() {
+
+		this.listeners = [];
+
+		this.unexpectedErrorHandler = function(e: any) {
+			platform.setTimeout(() => {
+				if (e.stack) {
+					throw new Error(e.message + '\n\n' + e.stack);
+				}
+
+				throw e;
+			}, 0);
+		};
+	}
+
+	public addListener(listener: ErrorListenerCallback): ErrorListenerUnbind {
+		this.listeners.push(listener);
+
+		return () => {
+			this._removeListener(listener);
+		};
+	}
+
+	private emit(e: any): void {
+		this.listeners.forEach((listener) => {
+			listener(e);
+		});
+	}
+
+	private _removeListener(listener: ErrorListenerCallback): void {
+		this.listeners.splice(this.listeners.indexOf(listener), 1);
+	}
+
+	public setUnexpectedErrorHandler(newUnexpectedErrorHandler: (e: any) => void): void {
+		this.unexpectedErrorHandler = newUnexpectedErrorHandler;
+	}
+
+	public getUnexpectedErrorHandler(): (e: any) => void {
+		return this.unexpectedErrorHandler;
+	}
+
+	public onUnexpectedError(e: any): void {
+		this.unexpectedErrorHandler(e);
+		this.emit(e);
+	}
+}
+
+export var errorHandler = new ErrorHandler();
+
+export function setUnexpectedErrorHandler(newUnexpectedErrorHandler: (e: any) => void): void {
+	errorHandler.setUnexpectedErrorHandler(newUnexpectedErrorHandler);
+}
+
+export function onUnexpectedError(e: any): void {
+
+	// ignore errors from cancelled promises
+	if (!isPromiseCanceledError(e)) {
+		errorHandler.onUnexpectedError(e);
+	}
+}
+
+export interface IConnectionErrorData {
+	status: number;
+	statusText?: string;
+	responseText?: string;
+}
+
+export function transformErrorForSerialization(error: any): any {
+	if (!(error instanceof Error)) {
+		return error;
+	}
+	var data: any = {};
+	if (error.stacktrace) {
+		data.stack = error.stacktrace;
+	} else if (error.stack) {
+		data.stack = error.stack;
+	}
+	data.message = error.toString();
+	return data;
+}
+
+/**
+ * The base class for all connection errors originating from XHR requests.
+ */
+export class ConnectionError implements Error {
+	public status: number;
+	public statusText: string;
+	public responseText: string;
+	public errorMessage: string;
+	public errorCode: string;
+	public errorObject: any;
+	public name: string;
+
+	constructor(mixin: IConnectionErrorData);
+	constructor(request: IXHRResponse);
+	constructor(arg: any) {
+		this.status = arg.status;
+		this.statusText = arg.statusText;
+		this.name = 'ConnectionError';
+
+		try {
+			this.responseText = arg.responseText;
+		} catch (e) {
+			this.responseText = '';
+		}
+
+		this.errorMessage = null;
+		this.errorCode = null;
+		this.errorObject = null;
+
+		if (this.responseText) {
+			try {
+				var errorObj = JSON.parse(this.responseText);
+				this.errorMessage = errorObj.message;
+				this.errorCode = errorObj.code;
+				this.errorObject = errorObj;
+			} catch (error) {
+				// Ignore
+			}
+		}
+	}
+
+	public get message(): string {
+		return this.connectionErrorToMessage(this, false);
+	}
+
+	public get verboseMessage(): string {
+		return this.connectionErrorToMessage(this, true);
+	}
+
+	private connectionErrorDetailsToMessage(error: ConnectionError, verbose: boolean): string {
+		var errorCode = error.errorCode;
+		var errorMessage = error.errorMessage;
+
+		if (errorCode !== null && errorMessage !== null) {
+			return nls.localize(
+				{
+					key: 'message',
+					comment: [
+						'{0} represents the error message',
+						'{1} represents the error code'
+					]
+				},
+				"{0}. Error code: {1}",
+				strings.rtrim(errorMessage, '.'), errorCode);
+		}
+
+		if (errorMessage !== null) {
+			return errorMessage;
+		}
+
+		if (verbose && error.responseText !== null) {
+			return error.responseText;
+		}
+
+		return null;
+	}
+
+	private connectionErrorToMessage(error: ConnectionError, verbose: boolean): string {
+		var details = this.connectionErrorDetailsToMessage(error, verbose);
+
+		// Status Code based Error
+		if (error.status === 401) {
+			if (details !== null) {
+				return nls.localize(
+					{
+						key: 'error.permission.verbose',
+						comment: [
+							'{0} represents detailed information why the permission got denied'
+						]
+					},
+					"Permission Denied (HTTP {0})",
+					details);
+			}
+
+			return nls.localize('error.permission', "Permission Denied");
+		}
+
+		// Return error details if present
+		if (details) {
+			return details;
+		}
+
+		// Fallback to HTTP Status and Code
+		if (error.status > 0 && error.statusText !== null) {
+			if (verbose && error.responseText !== null && error.responseText.length > 0) {
+				return nls.localize('error.http.verbose', "{0} (HTTP {1}: {2})", error.statusText, error.status, error.responseText);
+			}
+
+			return nls.localize('error.http', "{0} (HTTP {1})", error.statusText, error.status);
+		}
+
+		// Finally its an Unknown Connection Error
+		if (verbose && error.responseText !== null && error.responseText.length > 0) {
+			return nls.localize('error.connection.unknown.verbose', "Unknown Connection Error ({0})", error.responseText);
+		}
+
+		return nls.localize('error.connection.unknown', "An unknown connection error occurred. Either you are no longer connected to the internet or the server you are connected to is offline.");
+	}
+}
+
+// Bug: Can not subclass a JS Type. Do it manually (as done in WinJS.Class.derive)
+objects.derive(Error, ConnectionError);
+
+function _xhrToErrorMessage(xhr: IConnectionErrorData, verbose: boolean): string {
+	var ce = new ConnectionError(xhr);
+	if (verbose) {
+		return ce.verboseMessage;
+	} else {
+		return ce.message;
+	}
+}
+
+function _exceptionToErrorMessage(exception: any, verbose: boolean): string {
+	if (verbose && exception.message && (exception.stack || exception.stacktrace)) {
+		return nls.localize('stackTrace.format', "{0}: {1}", exception.message, exception.stack || exception.stacktrace);
+	}
+
+	if (exception.message) {
+		return exception.message;
+	}
+
+	return nls.localize('error.defaultMessage', "An unknown error occurred. Please consult the log for more details.");
+}
+
+/**
+ * Tries to generate a human readable error message out of the error. If the verbose parameter
+ * is set to true, the error message will include stacktrace details if provided.
+ */
+export function toErrorMessage(error: any = null, verbose: boolean = false): string {
+	if (!error) {
+		return nls.localize('error.defaultMessage', "An unknown error occurred. Please consult the log for more details.");
+	}
+
+	if (Array.isArray(error)) {
+		var errors: any[] = arrays.coalesce(error);
+		var msg = toErrorMessage(errors[0], verbose);
+
+		if (errors.length > 1) {
+			return nls.localize('error.moreErrors', "{0} ({1} errors in total)", msg, errors.length);
+		}
+
+		return msg;
+	}
+
+	if (types.isString(error)) {
+		return error;
+	}
+
+	if (!types.isUndefinedOrNull(error.status)) {
+		return _xhrToErrorMessage(error, verbose);
+	}
+
+	if (error.detail) {
+		var detail = error.detail;
+
+		if (detail.error) {
+			if (detail.error && !types.isUndefinedOrNull(detail.error.status)) {
+				return _xhrToErrorMessage(detail.error, verbose);
+			}
+
+			if (types.isArray(detail.error)) {
+				for (var i = 0; i < detail.error.length; i++) {
+					if (detail.error[i] && !types.isUndefinedOrNull(detail.error[i].status)) {
+						return _xhrToErrorMessage(detail.error[i], verbose);
+					}
+				}
+			}
+
+			else {
+				return _exceptionToErrorMessage(detail.error, verbose);
+			}
+		}
+
+		if (detail.exception) {
+			if (!types.isUndefinedOrNull(detail.exception.status)) {
+				return _xhrToErrorMessage(detail.exception, verbose);
+			}
+
+			return _exceptionToErrorMessage(detail.exception, verbose);
+		}
+	}
+
+	if (error.stack) {
+		return _exceptionToErrorMessage(error, verbose);
+	}
+
+	if (error.message) {
+		return error.message;
+	}
+
+	return nls.localize('error.defaultMessage', "An unknown error occurred. Please consult the log for more details.");
+}
+
+/**
+ * Looks for an HTTP Status in the provided error parameter.
+ */
+export function getHttpStatus(error: any): number {
+	if (error) {
+		if (types.isArray(error)) {
+			for (var i = 0; i < error.length; i++) {
+				if (error[i] && error[i].status) {
+					return error[i].status;
+				}
+			}
+		} else if (error.status) {
+			return error.status;
+		}
+	}
+
+	return -1;
+}
+
+var canceledName = 'Canceled';
+
+/**
+ * Checks if the given error is a promise in canceled state
+ */
+export function isPromiseCanceledError(error: any): boolean {
+	return error instanceof Error && error.name === canceledName && error.message === canceledName;
+}
+
+/**
+ * Returns an error that signals cancelation.
+ */
+export function canceled(): Error {
+	var error = new Error(canceledName);
+	error.name = error.message;
+	return error;
+}
+
+/**
+ * Returns an error that signals something is not implemented.
+ */
+export function notImplemented(): Error {
+	return new Error(nls.localize('notImplementedError', "Not Implemented"));
+}
+
+export function illegalArgument(name?: string): Error {
+	if (name) {
+		return new Error(nls.localize('illegalArgumentError', "Illegal argument: {0}", name));
+	} else {
+		return new Error(nls.localize('illegalArgumentError2', "Illegal argument"));
+	}
+}
+
+export function illegalState(name?: string): Error {
+	if (name) {
+		return new Error(nls.localize('illegalStateError', "Illegal state: {0}", name));
+	} else {
+		return new Error(nls.localize('illegalStateError2', "Illegal state"));
+	}
+}
+
+export function readonly(): Error {
+	return new Error('readonly property cannot be changed');
+}
+
+export function loaderError(err: Error): Error {
+	if (platform.isWeb) {
+		return new Error(nls.localize('loaderError', "Failed to load a required file. Either you are no longer connected to the internet or the server you are connected to is offline. Please refresh the browser to try again."));
+	}
+
+	return new Error(nls.localize('loaderErrorNative', "Failed to load a required file. Please restart the application to try again. Details: {0}", JSON.stringify(err)));
+}
+
+export interface IErrorOptions {
+	severity?: Severity;
+	actions?: IAction[];
+}
+
+export function create(message: string, options: IErrorOptions = {}): Error {
+	var result = new Error(message);
+
+	if (types.isNumber(options.severity)) {
+		(<any>result).severity = options.severity;
+	}
+
+	if (options.actions) {
+		(<any>result).actions = options.actions;
+	}
+
+	return result;
+}

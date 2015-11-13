@@ -1,0 +1,20 @@
+{
+	"name": "ruby",
+	"version": "0.1.0",
+	"publisher": "vscode",
+	"engines": { "vscode": "*" },
+	"contributes": {
+		"languages": [{
+			"id": "ruby",
+			"extensions": [ ".rb", ".rbx", ".rjs", ".gemspec", ".pp" ],
+			"filenames": [ "rakefile" ],
+			"aliases": [ "Ruby", "rb" ],
+			"configuration": "./ruby.configuration.json"
+		}],
+		"grammars": [{
+			"language": "ruby",
+			"scopeName": "source.ruby",
+			"path": "./syntaxes/Ruby.plist"
+		}]
+	}
+}

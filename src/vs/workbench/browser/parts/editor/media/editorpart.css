@@ -1,0 +1,54 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-workbench.vs .monaco-editor-background {
+	background-color: white;
+}
+
+.monaco-workbench.vs-dark .monaco-editor-background {
+	background-color: #1E1E1E;
+}
+
+/* High Contrast Theming */
+.monaco-workbench.hc-black .monaco-editor-background {
+	background-color: #000;
+}
+
+.monaco-workbench .part.editor {
+	background-repeat: no-repeat;
+	background-position: 50% 50%;
+}
+
+.monaco-workbench .part.editor.empty {
+	background-image: url('./letterpress.png');
+}
+
+.monaco-workbench.vs-dark .part.editor.empty {
+	background-image: url('./letterpress-dark.png');
+}
+
+.monaco-workbench.hc-black .part.editor.empty {
+	background-image: url('./letterpress-dark.png');
+}
+
+@media
+(-webkit-min-device-pixel-ratio: 2),
+(min-resolution: 192dppx) {
+	.monaco-workbench .part.editor {
+		background-size: 256px 256px;
+	}
+
+	.monaco-workbench .part.editor.empty {
+		background-image: url('./letterpress@2x.png');
+	}
+
+	.monaco-workbench.vs-dark .part.editor.empty {
+		background-image: url('./letterpress-dark@2x.png');
+	}
+
+	.monaco-workbench.hc-black .part.editor.empty {
+		background-image: url('./letterpress-dark@2x.png');
+	}
+}

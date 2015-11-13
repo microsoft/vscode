@@ -1,0 +1,136 @@
+<!-- Copyright (C) Microsoft Corporation. All rights reserved. -->
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<style>
+			html, body {
+				margin: 0;
+				padding: 0;
+				height: 100%;
+				width: 100%;
+				overflow: hidden;
+				-webkit-touch-callout: none;
+				-webkit-user-select: none;
+				user-select: none;
+			}
+			body{
+				font-family: "Segoe WPC", "Segoe UI", "HelveticaNeue-Light", sans-serif, "Droid Sans Fallback";
+				background-color: #F3F3F3;
+			}
+			#main {
+				box-sizing: border-box;
+				padding: 10px;
+			}
+			h1 {
+				margin: 0;
+				padding: 10px 0;
+				font-size: 16px;
+				background-color: #555;
+				color: #f0f0f0;
+				text-align: center;
+			}
+			#host {
+				box-sizing: border-box;
+				border: 1px solid #FFC40B;
+				background-color: rgb(253, 255, 219);
+				padding: 10px 10px 10px 56px;
+				background-image: url('git.svg');
+				background-repeat: no-repeat;
+				background-size: 38px;
+				background-position: 10px center;
+				text-overflow: ellipsis;
+				overflow: hidden;
+				font-family: Consolas, Monaco, monospace, "Droid Sans Fallback";
+				font-size: 12px;
+				-webkit-touch-callout: initial;
+				-webkit-user-select: initial;
+				user-select: initial;
+			}
+			#username, #password {
+				padding: 6px 10px;
+				font-size: 12px;
+				box-sizing: border-box;
+				width: 100%;
+			}
+			#buttons {
+				text-align: center;
+			}
+			p {
+				margin: 6px 0;
+			}
+			footer {
+				font-size: 13px;
+				text-align: center;
+			}
+		</style>
+		<script>
+			var shell = require('shell');
+			var ipc = require('ipc');
+			var remote = require('remote');
+			var currentWindow = remote.getCurrentWindow();
+
+			function init(context) {
+				var $username = document.getElementById('username');
+				var $password = document.getElementById('password');
+				var $form = document.getElementById('form');
+				var $host = document.getElementById('host');
+				var $cancel = document.getElementById('cancel');
+				var $credentialHelper = document.getElementById('credentialhelper');
+
+				var submit = function () {
+					ipc.send('git:askpass', {
+						id: context.id,
+						credentials: {
+							username: $username.value,
+							password: $password.value
+						}
+					});
+					currentWindow.close();
+					return false;
+				};
+
+				var cancel = function () {
+					currentWindow.close();
+				};
+
+				$host.textContent = context.host;
+
+				$form.addEventListener('submit', submit);
+				$cancel.addEventListener('click', cancel);
+				$credentialHelper.addEventListener('click', function (e) {
+					e.preventDefault();
+					e.stopPropagation();
+					shell.openExternal('https://help.github.com/articles/caching-your-github-password-in-git/');
+				});
+
+				document.body.addEventListener('keydown', function (e) {
+					switch (e.keyCode) {
+						case 27: e.preventDefault(); e.stopPropagation(); return cancel();
+						case 13: e.preventDefault(); e.stopPropagation(); return submit();
+					}
+				});
+
+				$username.focus();
+			}
+		</script>
+	</head>
+	<body>
+		<h1>Authentication Required</h1>
+		<section id="main">
+			<p id="host"></p>
+			<form id="form">
+				<p><input type="text" id="username" placeholder="Username"/></p>
+				<p><input type="password" id="password" placeholder="Password"/></p>
+				<p id="buttons">
+					<input id="ok" type="submit" value="OK" />
+					<input id="cancel" type="button" value="Cancel" />
+				</p>
+			</form>
+			<hr>
+			<footer>
+				<a id="credentialhelper" href="#">How to set up a Credential Helper</a>
+			</footer>
+		</section>
+	</body>
+</html>

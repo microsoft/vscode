@@ -1,0 +1,17 @@
+// ATTENTION - THIS DIRECTORY CONTAINS THIRD PARTY OPEN SOURCE MATERIALS:
+[{
+	"name": "textmate/r.tmbundle",
+	"version": "0.0.0",
+	"license": "TextMate Bundle License",
+	"repositoryURL": "https://github.com/textmate/r.tmbundle",
+	"licenseDetail": [
+		"Copyright (c) textmate-r.tmbundle project authors",
+		"",
+		"If not otherwise specified (see below), files in this folder fall under the following license: ",
+		"",
+		"Permission to copy, use, modify, sell and distribute this",
+		"software is granted. This software is provided \"as is\" without",
+		"express or implied warranty, and with no claim as to its",
+		"suitability for any purpose."
+	]
+}]

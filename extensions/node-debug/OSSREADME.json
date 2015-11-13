@@ -1,0 +1,16 @@
+// These dependencies come in at build time
+
+[{
+	"name": "source-map",
+	"repositoryURL": "https://github.com/mozilla/source-map",
+	"version": "0.4.4",
+	"license": "BSD-3-Clause",
+	"isProd": true
+},
+{
+	"name": "amdefine",
+	"repositoryURL": "https://github.com/jrburke/amdefine",
+	"version": "1.0.0",
+	"license": "BSD-3-Clause and MIT",
+	"isProd": true
+}]

@@ -1,0 +1,23 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.git-viewlet > .gitless-view {
+	padding: 0 20px 0 20px;
+}
+
+.git-viewlet > .gitless-view > p {
+	line-height: 1.5em;
+}
+
+.git-viewlet > .gitless-view .code {
+	display: inline;
+}
+
+.git-viewlet > .gitless-view a
+{
+	color: inherit;
+	font-weight: bold;
+	text-decoration: underline;
+}

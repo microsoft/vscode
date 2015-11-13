@@ -1,0 +1,18 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+/* marker zone */
+
+.monaco-editor .exception-widget {
+	background-color: white;
+}
+
+.monaco-editor.vs-dark .exception-widget {
+	background-color: #2D2D30;
+}
+
+/* High Contrast Theming */
+.monaco-editor.hc-black .exception-widget {
+	background-color: #0C141F;
+}

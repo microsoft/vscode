@@ -1,0 +1,37 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+ 
+.monaco-button {
+	-moz-box-sizing: border-box;
+	box-sizing: border-box;
+	display: inline-block;
+	width: 100%;
+	padding: 4px;
+	text-align: center;
+	color: white;
+	background: #007ACC;
+}
+
+.monaco-button.disabled {
+	opacity: 0.4;
+	cursor: default;
+}
+
+.monaco-button:hover {
+	text-decoration: none !important;
+	color: white !important;
+}
+
+.monaco-button:not(.disabled):hover {
+	background: #006BB3;
+}
+
+.monaco-button:not(.disabled):active {
+	background: #005F9E;
+}
+
+.vs-dark .monaco-button {
+	background: #0E639C;
+}

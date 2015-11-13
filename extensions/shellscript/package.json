@@ -1,0 +1,20 @@
+{
+	"name": "shellscript",
+	"version": "0.1.0",
+	"publisher": "vscode",
+	"engines": { "vscode": "*" },
+	"contributes": {
+		"languages": [{
+			"id": "shellscript",
+			"aliases": ["Shell Script (Bash)", "shellscript"],
+			"extensions": [".sh", ".bash", ".zsh", ".bashrc", ".bash_profile", ".bash_login", ".profile", ".bash_logout"],
+			"firstLine": "^#!.*\\b(bash|zsh|sh|tcsh)|^#\\s*-\\*-[^*]*mode:\\s*shell-script[^*]*-\\*-",
+			"configuration": "./shellscript.configuration.json"
+		}],
+		"grammars": [{
+			"language": "shellscript",
+			"scopeName": "source.shell",
+			"path": "./syntaxes/Shell-Unix-Bash.tmLanguage"
+		}]
+	}
+}

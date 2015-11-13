@@ -1,0 +1,13 @@
+.DS_Store
+npm-debug.log
+Thumbs.db
+node_modules/
+out/
+out-build/
+out-editor/
+out-editor-min/
+out-editor-ossfree/
+out-editor-ossfree-min/
+out-vscode/
+out-vscode-min/
+build/node_modules

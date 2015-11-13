@@ -1,0 +1,28 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-worker-status .worker {
+	display: inline-block;
+	width: 1em;
+	height: 1em;
+}
+
+.monaco-worker-status .worker[status=unknown]:before {
+	content: '?';	
+}
+
+.monaco-worker-status .worker[status=idle]:before {
+	content: '\25CA';
+	color: rgb(130, 194, 130);
+}
+
+.monaco-worker-status .worker[status=busy]:before {
+	content: '\2666';
+}
+
+.monaco-worker-status .worker[status=flooded]:before {
+	content: '\2666';
+	color: red;
+}

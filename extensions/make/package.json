@@ -1,0 +1,19 @@
+{
+	"name": "make",
+	"version": "0.1.0",
+	"publisher": "vscode",
+	"engines": { "vscode": "*" },
+	"contributes": {
+		"languages": [{
+			"id": "makefile",
+			"aliases": ["Makefile", "makefile"],
+			"filenames": [ "Makefile", "makefile", "GNUmakefile", "OCamlMakefile" ],
+			"configuration": "./make.configuration.json"
+		}],
+		"grammars": [{
+			"language": "makefile",
+			"scopeName": "source.makefile",
+			"path": "./syntaxes/Makefile.plist"
+		}]
+	}
+}

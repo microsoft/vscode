@@ -1,0 +1,98 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-workbench > .activitybar .monaco-action-bar .output-action.runworkspace {
+	background-image: url('runworkspace-global.svg');
+}
+
+.monaco-workbench > .activitybar .monaco-action-bar .output-action.showoutput {
+	background-image: url('output-global.svg');
+}
+
+.monaco-workbench > .activitybar .monaco-action-bar .output-action.showoutput.active {
+	background-image: url('output-global-toggled.svg');	
+}
+
+.monaco-workbench > .activitybar .monaco-action-bar .badge.global-output-error .badge-content {
+	background-color: #E02020;
+}
+
+.monaco-workbench .output-action.clear-output {
+	background: url('Clearoutput.svg') center center no-repeat;
+}
+
+.monaco-workbench.vs-dark .output-action.clear-output {
+	background: url('Clearoutput_inverse.svg') center center no-repeat;
+}
+
+/* High Contrast Theming */
+.monaco-workbench.hc-black > .activitybar .monaco-action-bar .output-action.runworkspace:before {
+	content: url('runworkspace-global.svg');
+}
+
+.monaco-workbench.hc-black > .activitybar .monaco-action-bar .output-action.showoutput:before {
+	content: url('output-global.svg');
+}
+
+.monaco-workbench.hc-black > .activitybar .monaco-action-bar .output-action.showoutput.active:before {
+	content: url('output-global-toggled.svg');
+}
+
+.monaco-workbench.hc-black .output-action.clear-output {
+	background: none;
+}
+
+.monaco-workbench.hc-black .output-action.clear-output:before {
+	content: url('Clearoutput_inverse.svg');
+	position: absolute;
+	top: 12px;
+	left: 8px;
+	height: 16px;
+	width: 16px;
+}
+
+/* Switch Output Channel */
+
+.monaco-workbench .output-action.switch-to-output {
+	display: inline-block;
+	padding: 0;
+	-ms-transition: -ms-transform 100ms ease;
+	-webkit-transition: -webkit-transform 100ms ease;
+	-moz-transition: -moz-transform 100ms ease;
+	-o-transition: -o-transform 100ms ease;
+	transition: transform 100ms ease;
+}
+
+.monaco-workbench.vs .output-action.switch-to-output.active {
+	-ms-transform: translate(0, -3px);
+	-webkit-transform: translate(0, -3px);
+	-moz-transform: translate(0, -3px);
+	-o-transform: translate(0, -3px);
+	transform: translate(0, -3px);
+}
+
+.monaco-workbench.vs .output-action.switch-to-output {
+	background: url('switch-to-output.svg') center center no-repeat;
+}
+
+.monaco-workbench.vs-dark .output-action.switch-to-output {
+	background: url('switch-to-output-inverse.svg') center center no-repeat;
+}
+
+.monaco-workbench.hc-black .output-action.switch-to-output {
+	background: none;
+}
+
+.monaco-workbench.hc-black .output-action.switch-to-output:before {
+	position: absolute;
+	top: 12px;
+	left: 8px;
+	height: 16px;
+	width: 16px;
+}
+
+.monaco-workbench.hc-black .output-action.switch-to-output:before {
+	content: url('switch-to-output-inverse.svg');
+}

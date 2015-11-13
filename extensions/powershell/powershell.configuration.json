@@ -1,0 +1,24 @@
+{
+	"comments": {
+		"lineComment": "#",
+		"blockComment": [ "<#", "#>" ]
+	},
+	"brackets": [
+		["{", "}"],
+		["[", "]"],
+		["(", ")"]
+	]
+
+	/*
+	enhancedBrackets: [
+				{ tokenType:'string', openTrigger: '"', open: /@"$/, closeComplete: '"@' },
+				{ tokenType:'string', openTrigger: '\'', open: /@'$/, closeComplete: '\'@' },
+				{ tokenType:'string', openTrigger: '"', open: /"$/, closeComplete: '"' },
+				{ tokenType: 'string', openTrigger: '\'', open: /'$/, closeComplete: '\'' }
+	],
+
+	autoClosingPairs: [['{', '}'], ['[', ']'], ['(', ')']],	// Defined explicitly, to suppress the
+															// default auto-closing of ' and " which is
+															// override above by enhancedBrackets
+	*/
+}

@@ -1,0 +1,193 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+ 
+.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item {
+	display: block;
+	position: relative;
+	margin: 10px 0;
+}
+
+.monaco-workbench > .activitybar > .content .monaco-action-bar .action-label {
+	display: inline-block; /* this is for IE9 which will ignore the flex rules */
+	display: -ms-flexbox;
+	display: flex;
+	overflow: hidden;
+	height: 40px;
+	line-height: 40px;
+	margin-right: 0;
+	padding: 0 0 0 50px;
+	-moz-box-sizing: border-box;
+	-webkit-box-sizing: border-box;
+	box-sizing: border-box;
+	background-position: 9px center;
+	background-repeat: no-repeat;
+	opacity: 0.6;
+	font-size: 15px;
+	color: white;
+	text-shadow: 0 1px 0 rgba(0, 0, 0, 0.8);
+}
+
+.monaco-workbench > .activitybar > .content .monaco-action-bar .action-label > .label {
+	-ms-flex: 1 1 auto;
+	flex: 1 1 auto;
+	overflow: hidden;
+}
+
+.monaco-workbench > .activitybar > .content .monaco-action-bar .action-label > .keybinding {
+	overflow: hidden;
+	text-overflow: hidden;
+	-ms-flex: 2 1 auto;
+	flex: 2 1 auto;
+	text-align: right;
+	opacity: 0.5;
+	padding: 0 2em 0 1em;
+	font-size: 0.8em;
+}
+
+.monaco-workbench > .activitybar > .content .monaco-action-bar .action-label:hover {
+	text-decoration: none;
+}
+
+.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item.active {
+	-ms-transform: none;
+	-webkit-transform: none;
+	-moz-transform: none;
+	-o-transform: none;
+	transform: none;
+}
+
+.monaco-workbench > .activitybar > .content .monaco-action-bar .badge {
+	position: absolute;
+	top: 0;
+	left: 0;
+	overflow: hidden;
+	width: 50px;
+	height: 40px;
+}
+
+.monaco-workbench > .activitybar > .content .monaco-action-bar .badge .badge-content {
+	position: absolute;
+	top: 20px;
+	right: 8px;	
+	font-size: 11px;
+	min-width: 8px;
+	height: 18px;
+	line-height: 18px;
+	padding: 0 5px;	
+	border-radius: 20px;
+	text-align: center;
+	color: white;
+}
+
+.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item .action-label.active,
+.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item:hover .action-label,
+.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item .action-label:focus {
+	opacity: 1;
+}
+
+.monaco-workbench.vs > .activitybar.left:not(.help) > .content > .monaco-action-bar.position-top .action-label.active:after {
+	content: '';
+	position: absolute;
+	top: 15px;
+	right: 0;
+	width: 0; 
+	height: 0; 
+	border-top: 5px solid transparent;
+	border-bottom: 5px solid transparent;
+	border-right: 5px solid #F6F6F6;
+}
+
+.monaco-workbench.vs-dark > .activitybar.left:not(.help) > .content > .monaco-action-bar.position-top .action-label.active:after {
+	content: '';
+	position: absolute;
+	top: 15px;
+	right: 0;
+	width: 0; 
+	height: 0; 
+	border-top: 5px solid transparent;
+	border-bottom: 5px solid transparent;
+	border-right: 5px solid #252526;
+}
+
+.monaco-workbench.vs > .activitybar.right:not(.help) > .content > .monaco-action-bar.position-top .action-label.active:before {
+	content: '';
+	position: absolute;
+	top: 15px;
+	left: 0;
+	width: 0; 
+	height: 0; 
+	border-top: 5px solid transparent;
+	border-bottom: 5px solid transparent;
+	border-left: 5px solid #F6F6F6;
+}
+
+.monaco-workbench.vs-dark > .activitybar.right:not(.help) > .content > .monaco-action-bar.position-top .action-label.active:before {
+	content: '';
+	position: absolute;
+	top: 15px;
+	left: 0;
+	width: 0; 
+	height: 0; 
+	border-top: 5px solid transparent;
+	border-bottom: 5px solid transparent;
+	border-left: 5px solid #252526;
+}
+
+/* Right  aligned */
+
+.monaco-workbench > .activitybar.right > .content .monaco-action-bar .action-label {
+	margin-left: 0;
+	padding: 0 50px 0 0;
+	background-position: calc(100% - 9px) center;
+}
+
+.monaco-workbench > .activitybar.right > .content .monaco-action-bar .action-label .label {
+	padding-left: 1em;
+}
+
+.monaco-workbench > .activitybar.right > .content .monaco-action-bar .action-label > .keybinding {
+	text-align: right;
+	padding: 0 0 0 2em;
+}
+
+.monaco-workbench > .activitybar.right > .content .monaco-action-bar .badge {
+	left: auto;
+	right: 0;	
+}
+
+/* High Contrast Theming */
+.monaco-workbench.hc-black > .activitybar > .content .monaco-action-bar .action-label,
+.monaco-workbench.hc-black > .activitybar > .content .monaco-action-bar .action-label.active {
+	background: none;
+	opacity: 1;
+}
+
+.monaco-workbench.hc-black > .activitybar > .content .monaco-action-bar .action-label:before {
+	opacity: 0.6;
+	position: absolute;
+	top: 4px;
+	left: 9px;
+	height: 32px;
+	width: 32px;
+}
+
+.monaco-workbench.hc-black > .activitybar > .content .monaco-action-bar .action-item .action-label.active:before,
+.monaco-workbench.hc-black > .activitybar > .content .monaco-action-bar .action-item:hover .action-label:before {
+	opacity: 1;
+}
+
+.monaco-workbench.hc-black > .activitybar > .content .monaco-action-bar .action-item .action-label.active:before {
+	border: 1px solid #DF740C;
+}
+
+.monaco-workbench.hc-black > .activitybar > .content .monaco-action-bar.global .action-item .action-label.active:before {
+	border: none;
+}
+
+.monaco-workbench.hc-black > .activitybar > .content .monaco-action-bar .badge .badge-content {
+	background: none;
+	background-color: #000;
+	border: 1px solid #6FC3DF;
+}

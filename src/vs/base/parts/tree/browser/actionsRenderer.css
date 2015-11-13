@@ -1,0 +1,74 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+.monaco-tree .monaco-tree-row > .content.actions {
+	position: relative;
+}
+
+.monaco-tree .monaco-tree-row > .content.actions .action-item {
+	margin: 0;
+}
+
+/* Primary action bar */
+.monaco-tree .monaco-tree-row > .content.actions > .primary-action-bar {
+	line-height: 1em;
+}
+
+.monaco-tree .monaco-tree-row > .content.actions > .primary-action-bar {
+	display: none;
+	position: absolute;
+	right: 0;
+	top: 0;
+	padding: 0 1em 0 0.4em;
+}
+
+.monaco-tree .monaco-tree-row:hover:not(.highlighted) > .content.actions > .primary-action-bar,
+.monaco-tree .monaco-tree-row > .content.actions.more > .primary-action-bar {
+	display: inherit;
+}
+
+.monaco-tree .monaco-tree-row > .content.actions > .primary-action-bar .action-label {
+	margin-right: 0.2em;
+	margin-top: 4px;
+	background-repeat: no-repeat;
+	width: 16px;
+	height: 16px;
+}
+
+/* Bare Style */
+.monaco-tree.bare .monaco-tree-row > .content.actions > .primary-action-bar {
+	color: inherit !important;
+	background-color: inherit !important;
+}
+
+/* Default theme */
+.monaco-tree.focused .monaco-tree-row.focused:not(.highlighted) > .content.actions > .primary-action-bar 	{ background-color: #DCEBFC; }
+.monaco-tree.focused .monaco-tree-row.selected:not(.highlighted) > .content.actions > .primary-action-bar 	{ background-color: #4FA7FF; color: white; }
+.monaco-tree.focused .monaco-tree-row.focused.selected:not(.highlighted) > .content.actions > .primary-action-bar 	{ background-color: #3399FF; color: white; }
+.monaco-tree .monaco-tree-row.focused:not(.highlighted) > .content.actions > .primary-action-bar 			{ background-color: #eaeaea; }
+.monaco-tree .monaco-tree-row.selected:not(.highlighted) > .content.actions > .primary-action-bar  		{ background-color: #CCCEDB; }
+.monaco-tree .monaco-tree-row:hover:not(.highlighted):not(.selected):not(.focused) > .content.actions > .primary-action-bar  			{ background-color: #F0F0F0; }
+.monaco-tree .monaco-tree-row.drop-target > .content.actions > .primary-action-bar							{ background-color: #DDECFF; }
+.monaco-tree .monaco-tree-row > .content.actions.more > .primary-action-bar		  						{ background-color: #F6F6F6; } /* Ugly */
+
+/* VS Dark theme */
+.vs-dark .monaco-tree.focused .monaco-tree-row.focused:not(.highlighted) > .content.actions > .primary-action-bar 		{ background-color: #073655; }
+.vs-dark .monaco-tree.focused .monaco-tree-row.selected:not(.highlighted) > .content.actions > .primary-action-bar 	{ background-color: #0E639C; color: white; }
+.vs-dark .monaco-tree.focused .monaco-tree-row.focused.selected:not(.highlighted) > .content.actions > .primary-action-bar 	{ background-color: #094771; color: white; }
+.vs-dark .monaco-tree .monaco-tree-row.focused:not(.highlighted) > .content.actions > .primary-action-bar 				{ background-color: #2f3334; }
+.vs-dark .monaco-tree .monaco-tree-row.selected:not(.highlighted) > .content.actions > .primary-action-bar  			{ background-color: #3F3F46; }
+.vs-dark .monaco-tree .monaco-tree-row:hover:not(.highlighted):not(.selected):not(.focused) > .content.actions > .primary-action-bar  				{ background-color: #2A2D2E; }
+.vs-dark .monaco-tree .monaco-tree-row.drop-target > .content.actions > .primary-action-bar							{ background-color: #383B3D; }
+.vs-dark .monaco-tree .monaco-tree-row > .content.actions.more > .primary-action-bar		  							{ background-color: #252526; } /* Ugly */
+
+/* High Contrast Theming */
+.hc-black .monaco-tree.focused .monaco-tree-row.focused:not(.highlighted) > .content.actions > .primary-action-bar,
+.hc-black .monaco-tree.focused .monaco-tree-row.selected:not(.highlighted) > .content.actions > .primary-action-bar,
+.hc-black .monaco-tree .monaco-tree-row.focused:not(.highlighted) > .content.actions > .primary-action-bar,
+.hc-black .monaco-tree .monaco-tree-row.selected:not(.highlighted) > .content.actions > .primary-action-bar,
+.hc-black .monaco-tree .monaco-tree-row:hover:not(.highlighted):not(.selected):not(.focused) > .content.actions > .primary-action-bar,
+.hc-black .monaco-tree .monaco-tree-row.drop-target > .content.actions > .primary-action-bar,
+.hc-black .monaco-tree .monaco-tree-row > .content.actions.more > .primary-action-bar {
+	background-color: #000;
+}

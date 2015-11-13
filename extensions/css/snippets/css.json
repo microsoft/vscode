@@ -1,0 +1,19 @@
+{
+	"transition property": {
+		"prefix": "transition",
+		"body": [
+			"transition: ${property} ${duration} ${timing-function} ${delay};",
+			"-webkit-transition: ${property} ${duration} ${timing-function} ${delay};",
+			"-o-transition: ${property} ${duration} ${timing-function} ${delay};",
+			"-moz-transition: ${property} ${duration} ${timing-function} ${delay};"
+		],
+		"description": "The transition property across browsers"
+	},
+	"border": {
+		"prefix": "border",
+		"body": [
+			"border: ${width} ${border-style} ${color};$0"
+		],
+		"description": "[width] [border-style] [color]"
+	}
+}

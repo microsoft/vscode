@@ -1,0 +1,74 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* --- Explorer viewlet --- */
+.explorer-viewlet {
+	height: 100%;
+}
+
+.explorer-viewlet .explorer-item, .explorer-viewlet .working-files-item {
+	line-height: 24px;
+}
+
+.explorer-viewlet .explorer-item-label, .explorer-viewlet .working-files-item-label {
+	text-overflow: ellipsis;
+	overflow: hidden;
+}
+
+.explorer-viewlet .explorer-working-files .monaco-tree .monaco-tree-row > .content.actions > .primary-action-bar {
+	position: absolute;
+	left: 0;
+	right: auto;
+	top: 0;
+	padding: 0 0 0 0.4em;
+}
+
+.explorer-viewlet .explorer-working-files .monaco-tree .monaco-tree-row > .content.actions.working-file-dirty > .primary-action-bar {
+	display: block;
+}
+
+.explorer-viewlet .explorer-working-files .monaco-tree .monaco-tree-row > .content.actions > .sub-content {
+	margin-left: 24px;
+}
+
+.explorer-viewlet .monaco-count-badge {
+	padding: 0 6px;
+	display: inline-block;
+}
+
+.explorer-viewlet .explorer-empty-view {
+	padding: 0 20px 0 20px;
+}
+
+.explorer-viewlet .collapsible.header .action-close-all-files {
+	background: url("closeall.svg") center center no-repeat;
+}
+
+.explorer-viewlet .explorer-item .monaco-inputbox {
+	width: 100%;
+	line-height: normal;
+}
+
+.explorer-viewlet .explorer-item .monaco-inputbox.idle {
+	border: 1px solid rgba(128, 128, 128, 0.5);
+}
+
+.explorer-viewlet .explorer-item .monaco-inputbox > .wrapper > .input {
+	padding: 1px 2px;
+}
+
+.explorer-viewlet-label > .badge-content {
+	background-color: #007ACC;
+}
+
+/* Theming */
+.monaco-workbench.vs-dark .explorer-viewlet .collapsible.header .action-close-all-files {
+	background: url("closeall_inverse.svg") center center no-repeat;
+}
+
+/* High Contrast Theming */
+.monaco-workbench.hc-black .explorer-viewlet .explorer-item, .monaco-workbench.hc-black .explorer-viewlet .working-files-item {
+	line-height: 20px;
+}

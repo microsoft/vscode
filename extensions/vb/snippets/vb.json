@@ -1,0 +1,72 @@
+{
+    "For Next Loop": {
+        "prefix": "for",
+        "body": [
+			"For ${index} As ${ObjectType} = ${lower} To ${Upper}",
+			"\t$0",
+			"Next ${index}"
+		],
+		"description": "For Next Loop"
+    },
+    "For Each...Next": {
+        "prefix": "fore",
+        "body": [
+			"For Each ${Variable} As ${ObjectType} In ${Collection}",
+			"\t$0",
+			"Next"
+		],
+		"description": "For Each...Next"
+    },
+    "For i...Next i": {
+        "prefix": "fori",
+        "body": [
+			"For i As ${Integer} = ${Lower} To ${Upper}",
+			"\t$0",
+			"Next i"
+		],
+		"description": "For i...Next i"
+    },
+    "For j...Next j": {
+        "prefix": "forj",
+        "body": [
+			"For j As ${Integer} = ${Lower} To ${Upper}",
+			"\t$0",
+			"Next j"
+		],
+		"description": "For j...Next j"
+    },
+    "Public Function...": {
+        "prefix": "pf",
+        "body": [
+			"Public Function ${FunctionName}(${ParameterList}) As ${ReturnType}",
+			"\tTry",
+			"\t\t$0",
+			"\tCatch ex As Exception",
+			"\tEnd Try",
+			"\tReturn ${ReturnValue}",
+			"End Function"
+		],
+		"description": "Public Function..."
+    },
+    "Public Sub ...": {
+        "prefix": "ps",
+        "body": [
+			"Public Sub ${ProcedureName}(${ParameterList})",
+			"\tTry",
+			"\t\t$0",
+			"\tCatch ex As Exception",
+			"\tEnd Try",
+			"End Sub"
+		],
+		"description": "Public Sub ..."
+    },
+    "While ... End While": {
+        "prefix": "while",
+        "body": [
+			"While ${Boolean}",
+			"\t$0",
+			"End While"
+		],
+		"description": "While ... End While"
+    }
+}

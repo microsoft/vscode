@@ -1,0 +1,19 @@
+{
+	"name": "lua",
+	"version": "0.1.0",
+	"publisher": "vscode",
+	"engines": { "vscode": "*" },
+	"contributes": {
+		"languages": [{
+			"id": "lua",
+			"extensions": [ ".lua" ],
+			"aliases": [ "Lua", "lua" ],
+			"configuration": "./lua.configuration.json"
+		}],
+		"grammars": [{
+			"language": "lua",
+			"scopeName": "source.lua",
+			"path": "./syntaxes/Lua.plist"
+		}]
+	}
+}

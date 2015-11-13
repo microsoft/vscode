@@ -1,0 +1,186 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.quick-open-widget {
+	position: absolute;
+	width: 600px;
+	z-index: 2050;
+	padding-bottom: 6px;
+	left: 50%;
+	margin-left: -300px;
+}
+
+.quick-open-widget .progress-container {
+	position: absolute;
+	left: 0;
+	top: 38px;
+	z-index: 1;
+	height: 2px;
+}
+
+.quick-open-widget .progress-container .progress-bit {
+	height: 2px;
+}
+
+.quick-open-widget .quick-open-input {
+	width: 588px;
+	border: none;
+	margin: 6px;
+	outline: 0;
+}
+
+.quick-open-widget .quick-open-input .monaco-inputbox {
+	width: 100%;
+}
+
+.quick-open-widget .quick-open-tree {
+	line-height: 1.8em;
+	height: 0; /* need an initial height to trigger transition on first open */
+}
+
+.quick-open-widget .quick-open-tree.transition {
+	-webkit-transition:	height 100ms ease-in;
+	-ms-transition:		height 100ms ease-in;
+	-moz-transition:	height 100ms ease-in;
+	-khtml-transition:	height 100ms ease-in;
+	-o-transition:		height 100ms ease-in;
+	transition:			height 100ms ease-in;
+}
+
+.quick-open-widget .quick-open-tree .quick-open-entry {
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon {
+	overflow: hidden;
+	width: 16px;
+	height: 16px;
+	margin-right: 4px;
+	display: inline-block;
+	vertical-align: middle;
+}
+
+.quick-open-widget .quick-open-tree .quick-open-entry .quick-open-help-entry-label {
+	float: left;
+	min-width: 16px;
+	text-align: center;
+}
+
+.quick-open-widget .quick-open-tree .quick-open-entry .monaco-highlighted-label span {
+	opacity: 1;
+}
+
+.quick-open-widget .quick-open-tree .quick-open-entry-meta {
+	opacity: 0.7;
+	margin-left: 0.5em;
+}
+
+.quick-open-widget .quick-open-tree .quick-open-entry-description {
+	opacity: 0.7;
+	margin-left: 0.5em;
+	font-size: 0.9em;
+}
+
+.quick-open-widget .quick-open-tree .results-group {
+	float: right;
+	opacity: 0.6;
+	margin-right: 18px;
+}
+
+.quick-open-widget .quick-open-tree .results-group-separator {
+	border-top-width: 1px;
+	border-top-style: solid;
+	box-sizing: border-box;
+	margin-left: -11px;
+	padding-left: 11px;
+}
+
+/* Theming */
+
+.quick-open-widget {
+	background-color: #F6F6F6;
+	box-shadow: 0 2px 8px #A8A8A8;
+}
+
+.quick-open-widget.no-shadow {
+	box-shadow: none;
+	border: 1px solid #E6E6E6;
+}
+
+.vs-dark .quick-open-widget {
+	background-color: #252526;
+	box-shadow: 0 2px 8px #000;
+}
+
+.vs-dark .quick-open-widget.no-shadow {
+	box-shadow: none;
+	border: 1px solid #000;
+}
+
+.vs-dark .quick-open-widget input {
+	background-color: #3C3C3C;
+	color: inherit;
+}
+
+.hc-black .quick-open-widget input {
+	background-color: #000;
+	color: inherit;
+}
+
+.monaco .quick-open-widget {
+	background-color: #F9F9F9;
+}
+
+.quick-open-widget .quick-open-tree .quick-open-entry .quick-open-help-entry-label {
+	color: #007ACC;
+}
+
+.vs-dark .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-help-entry-label {
+	color: #0097FB;
+}
+
+.quick-open-widget .quick-open-tree .results-group {
+	color: #007ACC;
+}
+
+.vs-dark .quick-open-widget .quick-open-tree .results-group {
+	color: #0097FB;
+}
+
+.quick-open-widget .quick-open-tree .results-group-separator {
+	border-top-color: #CCCEDB;
+}
+
+.vs-dark .quick-open-widget .quick-open-tree .results-group-separator {
+	border-top-color: #3F3F46;
+}
+
+.quick-open-widget .quick-open-tree .monaco-highlighted-label .highlight {
+	color: #007ACC;
+	font-weight: bold;
+}
+
+.vs-dark .quick-open-widget .quick-open-tree .monaco-highlighted-label .highlight {
+	color: #0097FB;
+}
+
+/* High Contrast Theming */
+.hc-black .quick-open-widget {
+	border: 2px solid #6FC3DF;
+	background-color: #0C141F;
+	color: #fff;
+	box-shadow: none;
+}
+
+.hc-black .quick-open-widget .monaco-tree.focused .monaco-tree-row.focused:not(.highlighted) > .content.actions > .primary-action-bar,
+.hc-black .quick-open-widget .monaco-tree.focused .monaco-tree-row.selected:not(.highlighted) > .content.actions > .primary-action-bar,
+.hc-black .quick-open-widget .monaco-tree .monaco-tree-row.focused:not(.highlighted) > .content.actions > .primary-action-bar,
+.hc-black .quick-open-widget .monaco-tree .monaco-tree-row.selected:not(.highlighted) > .content.actions > .primary-action-bar,
+.hc-black .quick-open-widget .monaco-tree .monaco-tree-row:hover:not(.highlighted):not(.selected):not(.focused) > .content.actions > .primary-action-bar,
+.hc-black .quick-open-widget .monaco-tree .monaco-tree-row.drop-target > .content.actions > .primary-action-bar,
+.hc-black .quick-open-widget .monaco-tree .monaco-tree-row > .content.actions.more > .primary-action-bar {
+	background-color: #0C141F;
+}

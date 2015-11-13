@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   xmlns:dc="http://purl.org/dc/elements/1.1/"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   version="1.1"
+   width="20"
+   height="20"
+   id="svg2989"
+   inkscape:version="0.48.4 r9939"
+   sodipodi:docname="cancelSelectionFind.svg">
+  <sodipodi:namedview
+     pagecolor="#ffffff"
+     bordercolor="#666666"
+     borderopacity="1"
+     objecttolerance="10"
+     gridtolerance="10"
+     guidetolerance="10"
+     inkscape:pageopacity="0"
+     inkscape:pageshadow="2"
+     inkscape:window-width="1920"
+     inkscape:window-height="1017"
+     id="namedview3005"
+     showgrid="false"
+     inkscape:zoom="20.6"
+     inkscape:cx="10"
+     inkscape:cy="10"
+     inkscape:window-x="-8"
+     inkscape:window-y="-8"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="layer1" />
+  <defs
+     id="defs2991" />
+  <metadata
+     id="metadata2994">
+    <rdf:RDF>
+      <cc:Work
+         rdf:about="">
+        <dc:format>image/svg+xml</dc:format>
+        <dc:type
+           rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
+        <dc:title></dc:title>
+      </cc:Work>
+    </rdf:RDF>
+  </metadata>
+  <g
+     transform="translate(0,-1032.3622)"
+     id="layer1">
+    <rect
+       width="9"
+       height="2"
+       x="2"
+       y="1046.3622"
+       id="rect3013"
+       style="fill:#424242;fill-opacity:1;stroke:none" />
+    <rect
+       width="13"
+       height="2"
+       x="2"
+       y="1043.3622"
+       id="rect3013-1"
+       style="fill:#424242;fill-opacity:1;stroke:none" />
+    <rect
+       width="6"
+       height="2"
+       x="2"
+       y="1040.3622"
+       id="rect3013-7"
+       style="fill:#424242;fill-opacity:1;stroke:none" />
+    <rect
+       width="12"
+       height="2"
+       x="2"
+       y="1037.3622"
+       id="rect3013-1-4"
+       style="fill:#424242;fill-opacity:1;stroke:none" />
+  </g>
+</svg>

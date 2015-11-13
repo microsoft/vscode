@@ -1,0 +1,34 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+.monaco-editor .linked-editing-placeholder {
+}
+
+.monaco-editor .word-level-progress {
+	font-style: italic;
+}
+
+.monaco-editor .rename-box {
+	box-shadow: 0 2px 8px #A8A8A8;
+	color: inherit;
+}
+
+.monaco-editor.vs-dark .rename-box {
+	box-shadow: 0 2px 8px #000;
+}
+
+.monaco-editor .rename-box .rename-input {
+	border: 1px solid #39F;
+	font-size: 13px;
+	padding: 4px;
+}
+
+.monaco-editor.vs-dark .rename-box .rename-input {
+	border: 1px solid #0E639C;
+}
+
+.monaco-editor .rename-box .rename-input,
+.monaco-editor .rename-box .rename-input:focus {
+	outline: none;
+}

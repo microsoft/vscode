@@ -1,0 +1,133 @@
+{
+  "scopeName": "source.shaderlab",
+  "name": "ShaderLab",
+  "fileTypes": [
+    "shader"
+  ],
+  "patterns": [
+    {
+      "match": "\\b([0-9]+\\.?[0-9]*)\\b",
+      "name": "constant.numeric.shaderlab"
+    },
+    {
+      "match": "\\b(Shader|Properties|Category|SubShader|Tags|Pass)\\b",
+      "name": "support.class.shaderlab"
+    },
+    {
+      "match": "\\b(CGPROGRAM|ENDCG)\\b",
+      "name": "support.class.shaderlab"
+    },
+    {
+      "match": "\\b(Dependency|Fallback)\\b",
+      "name": "support.variable.shaderlab"
+    },
+    {
+      "match": "^\\s*\\[(HideInInspector)\\]",
+      "name": "keyword.shaderlab"
+    },
+    {
+      "match": "\\b(_\\w+)\\b",
+      "name": "support.variable.input.shaderlab"
+    },
+    {
+      "match": "\\b(uv(2)*_\\w+|viewDir|COLOR|screenPos|worldPos|worldRefl|worldNormal|worldRefl|worldNormal)\\b",
+      "name": "support.variable.input.shaderlab"
+    },
+    {
+      "match": "\\b(Albedo|Normal|Emission|Specular|Gloss|Alpha)\\b",
+      "name": "support.variable.output.shaderlab"
+    },
+    {
+      "match": "\\b(appdata_(base|tan|full|img)|SurfaceOutput)\\b",
+      "name": "support.variable.structure.shaderlab"
+    },
+    {
+      "match": "\\b(UNITY_MATRIX_(MVP|MV|V|P|VP|T_MV|IT_MV|TEXTURE0|TEXTURE1|TEXTURE2|TEXTURE3)|_Object2World|_World2Object|_WorldSpaceCameraPos|unity_Scale)\\b",
+      "name": "support.variable.transformation.shaderlab"
+    },
+    {
+      "match": "\\b(_ModelLightColor[0-9]|_SpecularLightColor[0-9]|_ObjectSpaceLightPos|_Light2World|_World2Light|_Object2Light)\\b",
+      "name": "support.variable.lighting.shaderlab"
+    },
+    {
+      "match": "\\b(_Time|_SinTime|_CosTime|unity_DeltaTime|_ProjectionParams|_ScreenParams)\\b",
+      "name": "support.variable.other.shaderlab"
+    },
+    {
+      "include": "#comments"
+    },
+    {
+      "include": "#strings"
+    },
+    {
+      "include": "#functions"
+    },
+    {
+      "include": "#cg"
+    }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "begin": "//",
+          "end": "$",
+          "name": "comment.line.double-slash.shaderlab"
+        },
+        {
+          "begin": "/\\*",
+          "end": "\\*/",
+          "name": "comment.line.block.shaderlab"
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "begin": "\"",
+          "end": "\"",
+          "name": "string.quoted.double.shaderlab"
+        }
+      ]
+    },
+    "functions": {
+      "patterns": [
+        {
+          "match": "(?x) (?: (?= \\s )  (?:(?<=else|new|return) | (?<!\\w)) (\\s+))?\n\t\t\t(\\b \n\t\t\t\t(?!(while|for|do|if|else|switch|catch|enumerate|return|sizeof|[cr]?iterate)\\s*\\()(?:(?!NS)[A-Za-z_][A-Za-z0-9_]*+\\b | :: )++\t\t\t\t  # actual name\n\t\t\t)\n\t\t\t \\s*(\\()",
+          "captures": {
+            "1": {
+              "name": "punctuation.whitespace.function-call.leading.shaderlab"
+            },
+            "2": {
+              "name": "support.function.any-method.shaderlab"
+            },
+            "3": {
+              "name": "punctuation.definition.parameters.shaderlab"
+            }
+          },
+          "name": "meta.function-call.shaderlab"
+        }
+      ]
+    },
+    "cg": {
+      "patterns": [
+        {
+          "match": "^\\s*#\\s*(define|defined|elif|else|if|ifdef|ifndef|line|pragma|undef)\\b",
+          "name": "keyword.control.shaderlab"
+        },
+        {
+          "match": "\\.([rgba]{1,4}|[xyzw]{1,4})\\b",
+          "name": "keyword.operator.shaderlab"
+        },
+        {
+          "match": "\\b(const|extern|in|inline|inout|static|out|uniform|varying|profile name)\\b",
+          "name": "storage.modifier.shaderlab"
+        },
+        {
+          "match": "\\b(void|struct|typedef|signed|unsigned|double([1-4])*(x[1-4])*|float([1-4])*(x[1-4])*|half([1-4])*(x[1-4])*|fixed([1-4])*(x[1-4])*|long([1-4])*(x[1-4])*|int([1-4])*(x[1-4])*|short([1-4])*(x[1-4])*|char([1-4])*(x[1-4])*|bool([1-4])*(x[1-4])*|sampler([1-3]D|RECT|CUBE)*)\\b",
+          "name": "storage.type.shaderlab"
+        }
+      ]
+    }
+  }
+}

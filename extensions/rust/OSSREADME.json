@@ -1,0 +1,9 @@
+// ATTENTION - THIS DIRECTORY CONTAINS THIRD PARTY OPEN SOURCE MATERIALS:
+
+[{
+	"name": "language-rust",
+	"version": "0.4.4",
+	"license": "MIT",
+	"repositoryURL": "https://github.com/zargony/atom-language-rust",
+	"description": "The files syntaxes/rust.json and snippets/rust.json were derived from the Atom package https://atom.io/packages/language-rust."
+}]

@@ -1,0 +1,20 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-workbench .editor-statusbar-item > a:not(:first-child) {
+	margin-left: 5px;
+}
+
+.monaco-workbench .editor-statusbar-item > .editor-status-mode,
+.monaco-workbench .editor-statusbar-item > .editor-status-encoding,
+.monaco-workbench .editor-statusbar-item > .editor-status-eol,
+.monaco-workbench .editor-statusbar-item > .editor-status-selection {
+	padding: 0 5px 0 5px;
+}
+
+.monaco-workbench .editor-statusbar-item > .editor-status-tabfocusmode {
+	padding: 0 5px 0 5px;
+	background-color: brown !important;
+}

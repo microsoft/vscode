@@ -1,0 +1,20 @@
+{
+	"name": "docker",
+	"version": "0.1.0",
+	"publisher": "vscode",
+	"engines": { "vscode": "*" },
+	"contributes": {
+		"languages": [{
+			"id": "dockerfile",
+			"extensions": [ ".dockerfile" ],
+			"filenames": [ "Dockerfile" ],
+			"aliases": [ "Dockerfile" ],
+			"configuration": "./dockerfile.configuration.json"
+		}],
+		"grammars": [{
+			"language": "dockerfile",
+			"scopeName": "source.dockerfile",
+			"path": "./syntaxes/Dockerfile.tmLanguage"
+		}]
+	}
+}

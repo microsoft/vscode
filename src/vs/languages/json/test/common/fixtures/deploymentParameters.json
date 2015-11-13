@@ -1,0 +1,47 @@
+{
+    "id": "http://schema.management.azure.com/schemas/2015-01-01/deploymentParameters#",
+    "$schema": "http://json-schema.org/draft-04/schema#",
+    "title": "Parameters",
+    "description": "An Azure deployment parameter file",
+    "type": "object",
+    "properties": {
+        "$schema": {
+            "type": "string"
+        },
+        "contentVersion": {
+            "type": "string",
+            "pattern": "(^[0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+$)",
+            "description": "A 4 number format for the version number of this parameter file. For example, 1.0.0.0"
+        },
+        "parameters": {
+            "type": "object",
+            "additionalProperties": {
+                "$ref": "#/definitions/parameter"
+            },
+            "description": "Collection of parameters to pass into a template"
+        }
+    },
+    "required": [
+        "$schema",
+        "contentVersion",
+        "parameters"
+    ],
+    "definitions": {
+        "parameter": {
+            "type": "object",
+            "properties": {
+                "value": {
+                    "$ref": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#/definitions/parameterValueTypes",
+                    "description": "Input value to template"
+                },
+                "metadata": {
+                    "type": "object",
+                    "description": "Client specific metadata"
+                }
+            },
+            "required": [
+                "value"
+            ]
+        }
+    }
+}

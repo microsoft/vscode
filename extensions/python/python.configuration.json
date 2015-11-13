@@ -1,0 +1,13 @@
+{
+	"comments": {
+		"lineComment": "#",
+		"blockComment": [ "''", "''" ]
+	},
+	"brackets": [
+		["{", "}"],
+		["[", "]"],
+		["(", ")"]
+	]
+
+	// enhancedBrackets: [ { open: /.*:\s*$/,  closeComplete: 'else:' } ],
+}

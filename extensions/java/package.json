@@ -1,0 +1,19 @@
+{
+	"name": "java",
+	"version": "0.1.0",
+	"publisher": "vscode",
+	"engines": { "vscode": "*" },
+	"contributes": {
+		"languages": [{
+			"id": "java",
+			"extensions": [ ".java", ".jav" ],
+			"aliases": [ "Java", "java" ],
+			"configuration": "./java.configuration.json"
+		}],
+		"grammars": [{
+			"language": "java",
+			"scopeName": "source.java",
+			"path": "./syntaxes/Java.plist"
+		}]
+	}
+}

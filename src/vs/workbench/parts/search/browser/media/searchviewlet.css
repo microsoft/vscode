@@ -1,0 +1,331 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.search-viewlet .highlight {
+	color: black;
+	background-color: rgba(234, 92, 0, 0.3);
+}
+
+.search-viewlet .query-box {
+	margin: 6px 17px 0 17px;
+}
+
+.search-viewlet .query-box .monaco-findInput {
+	display: inline-block;
+	vertical-align: middle;
+}
+
+.search-viewlet .query-clear {
+	width: 20px;
+	height: 20px;
+	position: absolute;
+	top: 3px;
+	right: 3px;
+	cursor: pointer;
+}
+
+.search-viewlet .query-details {
+	min-height: 1em;
+	position: relative;
+	margin: 0 17px 6px 17px;
+	padding: 0 4px;
+}
+
+.search-viewlet .query-details .more {
+	position: absolute;
+	top: -0.5em;
+	right: 0;
+	margin-right: 0.5em;
+	cursor: pointer;
+}
+
+.search-viewlet .query-details .file-types {
+	display: none;
+}
+
+.search-viewlet .query-details .file-types > .monaco-inputbox {
+	width: 100%;
+	height: 25px;
+}
+
+.search-viewlet .query-details.more .file-types {
+	display: inherit;
+}
+
+.search-viewlet .query-details.more .file-types:last-child {
+	padding-bottom: 4px;
+}
+
+.search-viewlet .query-details .search-pattern-info {
+	width: 16px;
+	height: 16px;
+}
+
+.search-viewlet .query-details .search-configure-exclusions {
+	width: 16px;
+	height: 16px;
+}
+
+.monaco-action-bar .action-label.search-configure-exclusions {
+	margin-right: 2px;
+}
+
+.monaco-workbench.vs-dark .search-configure-exclusions {
+	background: url('configure-inverse.svg') center center no-repeat;
+}
+
+.monaco-workbench.vs .search-configure-exclusions {
+	background: url('configure.svg') center center no-repeat;
+	opacity: 0.7;
+}
+
+.search-viewlet .query-details.more h4 {
+	text-overflow: ellipsis;
+	overflow: hidden;
+	white-space: nowrap;
+	padding: 4px 0 0;
+	margin: 0;
+	font-size: 11px;
+	font-weight: normal;
+}
+
+.search-viewlet .message {
+	padding-left: 22px;
+	padding-right: 22px;
+	padding-top: 2px;
+}
+
+.search-viewlet .filematch {
+	position: relative;
+	line-height: 24px;
+	padding: 0;
+}
+
+.search-viewlet .filematch .directory {
+	opacity: 0.7;
+	font-size: 0.9em;
+	margin-left: 0.8em;
+}
+
+.search-viewlet .linematch {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	position: relative;
+	line-height: 24px;
+}
+
+.search-viewlet .linematch.changedOrRemoved {
+	font-style: italic;
+}
+
+.search-viewlet .checkbox {
+	display: inline-block;
+	visibility: hidden;
+	border: 1px solid rgba(128, 128, 128, 0.5);
+	width: 0;
+	height: 12px;
+	margin-right: 0;
+	position: relative;
+	top: 2px;
+	-webkit-transition: width 150ms, margin-right 150ms ease-in;
+	-o-transition: 		width 150ms, margin-right 150ms ease-in;
+	-moz-transition: 	width 150ms, margin-right 150ms ease-in;
+	-ms-transition: 	width 150ms, margin-right 150ms ease-in;
+	transition:			width 150ms, margin-right 150ms ease-in;
+}
+
+.search-viewlet .linematch .checkbox.checked {
+	background-position: -66px -150px;
+}
+
+.search-viewlet .select .linematch .checkbox {
+	visibility: visible;
+	width: 12px;
+	margin-right: 4px;
+}
+
+.search-viewlet .query-clear {
+	background: url("action-query-clear.svg") center center no-repeat;
+}
+
+.search-viewlet .action-remove {
+	background: url("action-remove.svg") center center no-repeat;
+}
+
+.search-viewlet .label {
+	font-style: italic;
+}
+
+.vs .search-viewlet input.disabled,
+.vs .search-viewlet .file-types.disabled .monaco-inputbox {
+	background-color: #E1E1E1;
+}
+
+.vs-dark .search-viewlet input.disabled,
+.vs-dark .search-viewlet .file-types.disabled .monaco-inputbox {
+	background-color: #333;
+}
+
+.search-viewlet .focused .monaco-tree-row.selected:not(.highlighted) > .content.actions .action-remove {
+	background: url("action-remove-focus.svg") center center no-repeat;
+}
+
+.monaco-workbench .search-action.refresh {
+	background: url('Refresh.svg') center center no-repeat;
+}
+
+.monaco-workbench.vs-dark .search-action.refresh {
+	background: url('Refresh_inverse.svg') center center no-repeat;
+}
+
+.monaco-workbench .search-action.collapse {
+	background: url('CollapseAll.svg') center center no-repeat;
+}
+
+.monaco-workbench.vs-dark .search-action.collapse {
+	background: url('CollapseAll_inverse.svg') center center no-repeat;
+}
+
+.monaco-workbench .search-action.clear-search-results {
+	background: url('clear-search-results.svg') center center no-repeat;
+}
+
+.monaco-workbench.vs-dark .search-action.clear-search-results {
+	background: url('clear-search-results-dark.svg') center center no-repeat;
+}
+
+.monaco-workbench.vs-dark .search-viewlet .action-remove {
+	background: url("action-remove-dark.svg") center center no-repeat;
+}
+
+.monaco-workbench.vs-dark .search-viewlet .focused .monaco-tree-row.selected:not(.highlighted) > .content.actions .action-remove {
+	background: url("action-remove-focus.svg") center center no-repeat;
+}
+
+.monaco-workbench.vs .search-viewlet .query-details .file-types .controls > .custom-checkbox.pattern {
+	background: url('pattern.svg') center center no-repeat;
+}
+
+.monaco-workbench.vs-dark .search-viewlet .query-details .file-types .controls > .custom-checkbox.pattern {
+	background: url('pattern-dark.svg') center center no-repeat;
+}
+
+.monaco-workbench.hc-black .search-viewlet .query-details .file-types .controls > .custom-checkbox.pattern:before {
+	content: url('pattern-dark.svg');
+}
+
+.search-viewlet .findInFileMatch,
+.monaco-editor .findInFileMatch {
+	background-color: rgba(234, 92, 0, 0.3);
+	-webkit-animation-duration: 0;
+	-webkit-animation-name: inherit !important;
+	-moz-animation-duration: 0;
+	-moz-animation-name: inherit !important;
+	-ms-animation-duration: 0;
+	-ms-animation-name: inherit !important;
+	animation-duration: 0;
+	animation-name: inherit !important;
+}
+
+/* Theming */
+.vs .search-viewlet .query-box,
+.vs .search-viewlet .file-types .monaco-inputbox {
+	background-color: white;
+}
+
+.vs .search-viewlet .filematch .name {
+	color: #1E1E1E;
+}
+
+.vs .search-viewlet .monaco-tree.focused .monaco-tree-row.selected .filematch .name {
+	color: #FFF;
+}
+
+.vs-dark .search-viewlet .query-box,
+.vs-dark .search-viewlet .file-types .monaco-inputbox {
+	background-color: #3C3C3C;
+}
+
+.vs-dark .search-viewlet .monaco-tree .filematch .name {
+	color: #FFF;
+}
+
+.vs-dark .search-viewlet .query-clear {
+	background: url("action-query-clear-dark.svg") center center no-repeat;
+}
+
+.vs-dark .search-viewlet .action-remove {
+	background: url("action-remove-dark.svg") center center no-repeat;
+}
+
+.vs-dark .search-viewlet .message {
+	color: #FFF;
+}
+
+.vs-dark .search-viewlet .filematch {
+	padding: 0;
+}
+
+/* High Contrast Theming */
+.monaco-workbench.hc-black .search-viewlet .query-box,
+.monaco-workbench.hc-black .search-viewlet .file-types .monaco-inputbox {
+	background-color: #000;
+}
+
+.monaco-workbench.hc-black .search-action {
+	background: none;
+}
+
+.monaco-workbench.hc-black .search-action:before {
+	position: absolute;
+	top: 12px;
+	left: 8px;
+	height: 16px;
+	width: 16px;
+}
+
+.monaco-workbench.hc-black .search-action.refresh:before {
+	content: url('Refresh_inverse.svg');
+}
+
+.monaco-workbench.hc-black .search-action.collapse:before {
+	content: url('CollapseAll_inverse.svg');
+}
+
+.monaco-workbench.hc-black .search-action.clear-search-results:before {
+	content: url('clear-search-results-dark.svg');
+}
+
+.monaco-workbench.hc-black .search-viewlet .query-clear {
+	background: none;
+}
+
+.monaco-workbench.hc-black .search-viewlet .query-clear:before,
+.monaco-workbench.hc-black .search-viewlet .action-remove:before {
+	content: url('action-remove-dark.svg');
+	position: absolute;
+	top: 2px;
+	left: 5px;
+	height: 16px;
+	width: 16px;
+}
+
+.monaco-workbench.hc-black .query-box {
+	border: 1px solid #6FC3DF;
+}
+
+.monaco-workbench.hc-black .query-box .monaco-inputbox.idle {
+	border: none;
+}
+
+.monaco-workbench.hc-black .search-viewlet .action-remove,
+.monaco-workbench.hc-black .search-viewlet .focused .monaco-tree-row.selected:not(.highlighted) > .content.actions > .primary-action-bar .action-remove {
+	background: none !important;
+}
+
+.monaco-workbench.hc-black .search-viewlet .filematch,
+.monaco-workbench.hc-black .search-viewlet .linematch {
+	line-height: 20px;
+}

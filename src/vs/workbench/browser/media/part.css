@@ -1,0 +1,92 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-workbench > .part > .title {
+	display: none; /* Parts have to opt in to show title area */
+}
+
+/* title styles are defined for two classes because the editor puts the title into the content */
+
+.monaco-workbench > .part > .title,
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title {
+	height: 35px;
+	padding-left: 8px; /* use padding and not margin to avoid overflow issues */
+	padding-right: 8px;
+	-webkit-box-sizing:	border-box;
+	-o-box-sizing: border-box;
+	-moz-box-sizing: border-box;
+	-ms-box-sizing: border-box;
+	box-sizing:	border-box;
+	overflow: hidden;
+}
+
+.monaco-workbench > .part > .title > .title-label,
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-label {
+	padding: 12px 0 0 12px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-label {
+	position: relative;
+}
+
+.monaco-workbench > .part > .title > .title-label span,
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-label span {
+	line-height: normal;
+	font-size: 11px;
+	cursor: default;
+}
+
+.monaco-workbench > .part > .title > .title-label a,
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-label a {
+	text-decoration: none;
+	line-height: normal;
+	font-size: 13px;
+	cursor: pointer;
+}
+
+.monaco-workbench > .part > .title > .title-actions,
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-actions {
+	float: right;
+	height: 35px;
+}
+
+.monaco-workbench > .part > .title > .title-actions .action-label,
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-actions .action-label {
+	display: block;
+	margin: 4px 0 0;
+	width: 28px;
+	height: 30px;
+	background-size: 16px;
+	background-position: center center;
+	background-repeat: no-repeat;
+}
+
+.monaco-workbench > .part > .title > .title-actions .action-label .label,
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-actions .action-label .label {
+	display: none;
+}
+
+.monaco-workbench > .part > .content {
+	font-size: 13px;
+}
+
+.monaco-workbench > .part > .content  .progress-container {
+	position: absolute;
+	left: 0;
+	top: 33px; /* at the bottom of the 35px height title container */
+	z-index: 1;
+	height: 2px;
+}
+
+.monaco-workbench > .part > .content  .progress-container .progress-bit {
+	height: 2px;
+}
+
+.monaco-workbench > .part > .status {
+	display: none; /* Parts have to opt in to show title area */
+}

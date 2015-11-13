@@ -1,0 +1,524 @@
+{
+	"Attribute using recommended pattern": {
+
+		"prefix": "attribute",
+		"body": [
+			"[System.AttributeUsage(System.AttributeTargets.${All}, Inherited = ${false}, AllowMultiple = ${true})]",
+			"sealed class ${My}Attribute : System.Attribute",
+			"{",
+			"	// See the attribute guidelines at",
+			"	//  http://go.microsoft.com/fwlink/?LinkId=85236",
+			"	readonly string positionalString;",
+			"	",
+			"	// This is a positional argument",
+			"	public ${My}Attribute (string positionalString)",
+			"	{",
+			"		this.positionalString = positionalString;",
+			"		",
+			"		// TODO: Implement code here",
+			"		${throw new System.NotImplementedException();}",
+			"	}",
+			"	",
+			"	public string PositionalString",
+			"	{",
+			"		get { return positionalString; }",
+			"	}",
+			"	",
+			"	// This is a named argument",
+			"	public int NamedInt { get; set; }",
+			"}"
+		],
+		"description": "Attribute using recommended pattern"
+	},
+
+	"Checked block": {
+
+		"prefix": "checked",
+		"body": [
+			"checked",
+			"{",
+			"	$0",
+			"}"
+		],
+		"description": "Checked block"
+	},
+
+	"Class": {
+
+		"prefix": "class",
+		"body": [
+			"class ${Name}",
+			"{",
+			"	$0",
+			"}"
+		],
+		"description": "Class"
+	},
+
+	"Console.WriteLine": {
+
+		"prefix": "cw",
+		"body": [
+			"System.Console.WriteLine($0);"
+		],
+		"description": "Console.WriteLine"
+	},
+
+	"do...while loop": {
+
+		"prefix": "do",
+		"body": [
+			"do",
+			"{",
+			"	$0",
+			"} while (${true});"
+		],
+		"description": "do...while loop"
+	},
+
+	"Else statement": {
+
+		"prefix": "else",
+		"body": [
+			"else",
+			"{",
+			"	$0",
+			"}"
+		],
+		"description": "Else statement"
+	},
+
+	"Enum": {
+
+		"prefix": "enum",
+		"body": [
+			"enum ${Name}",
+			"{",
+			"	$0",
+			"}"
+		],
+		"description": "Enum"
+	},
+
+	"Implementing Equals() according to guidelines": {
+
+		"prefix": "equals",
+		"body": [
+			"// override object.Equals",
+			"public override bool Equals (object obj)",
+			"{",
+			"	//",
+			"	// See the full list of guidelines at",
+			"	//   http://go.microsoft.com/fwlink/?LinkID=85237",
+			"	// and also the guidance for operator== at",
+			"	//   http://go.microsoft.com/fwlink/?LinkId=85238",
+			"	//",
+			"	",
+			"	if (obj == null || GetType() != obj.GetType())",
+			"	{",
+			"		return false;",
+			"	}",
+			"	",
+			"	// TODO: write your implementation of Equals() here",
+			"	${1:throw new System.NotImplementedException();}",
+			"	return base.Equals (obj);",
+			"}",
+			"",
+			"// override object.GetHashCode",
+			"public override int GetHashCode()",
+			"{",
+			"	// TODO: write your implementation of GetHashCode() here",
+			"	${2:throw new System.NotImplementedException();}",
+			"	return base.GetHashCode();",
+			"}"
+		],
+		"description": "Implementing Equals() according to guidelines"
+	},
+
+	"Exception": {
+
+		"prefix": "exception",
+		"body": [
+			"[System.Serializable]",
+			"public class ${My}Exception : ${System.Exception}",
+			"{",
+			"	public ${My}Exception() { }",
+			"	public ${My}Exception( string message ) : base( message ) { }",
+			"	public ${My}Exception( string message, System.Exception inner ) : base( message, inner ) { }",
+			"	protected ${My}Exception(",
+			"		System.Runtime.Serialization.SerializationInfo info,",
+			"		System.Runtime.Serialization.StreamingContext context ) : base( info, context ) { }",
+			"}"
+		],
+		"description": "Exception"
+	},
+
+	"Foreach statement": {
+
+		"prefix": "foreach",
+		"body": [
+			"foreach (${var} ${item} in ${collection})",
+			"{",
+			"	$0",
+			"}"
+		],
+		"description": "Foreach statement"
+	},
+
+	"Reverse for loop": {
+
+		"prefix": "forr",
+		"body": [
+			"for (int ${i} = ${length} - 1; ${i} >= 0 ; ${i}--)",
+			"{",
+			"	$0",
+			"}"
+		],
+		"description": "Reverse for loop"
+	},
+
+	"for loop": {
+
+		"prefix": "for",
+		"body": [
+			"for (int ${i} = 0; ${i} < ${length}; ${i}++)",
+			"{",
+			"	$0",
+			"}"
+		],
+		"description": "for loop"
+	},
+
+	"if statement": {
+
+		"prefix": "if",
+		"body": [
+			"if (${true})",
+			"{",
+			"	$0",
+			"}"
+		],
+		"description": "if statement"
+	},
+
+	"Indexer": {
+
+		"prefix": "indexer",
+		"body": [
+			"${public} ${object} this[${int} index]",
+			"{",
+			"	get { $0 }",
+			"	set { $1 }",
+			"}"
+		],
+		"description": "Indexer"
+	},
+
+	"Interface": {
+
+		"prefix": "interface",
+		"body": [
+			"interface I${Name}",
+			"{",
+			"	$0",
+			"}"
+		],
+		"description": "Interface"
+	},
+
+	"Safely invoking an event": {
+
+		"prefix": "invoke",
+		"body": [
+			"${EventHandler} temp = ${MyEvent};",
+			"if (temp != null)",
+			"{",
+			"	temp($0);",
+			"}"
+		],
+		"description": "Safely invoking an event"
+	},
+
+	"Simple iterator": {
+
+		"prefix": "iterator",
+		"body": [
+			"public System.Collections.Generic.IEnumerator<${ElementType}> GetEnumerator()",
+			"{",
+			"	$0throw new System.NotImplementedException();",
+			"	yield return default(${ElementType});",
+			"}"
+		],
+		"description": "Simple iterator"
+	},
+	
+	"Named iterator/indexer pair using a nested class": {
+
+		"prefix": "iterindex",
+		"body": [
+			"public ${Name}Iterator ${Name}",
+			"{",
+			"	get",
+			"	{",
+			"		return new ${Name}Iterator(this);",
+			"	}",
+			"}",
+			"",
+			"public class ${Name}Iterator",
+			"{",
+			"	readonly ${ClassName} outer;",
+			"	",
+			"	internal ${Name}Iterator(${ClassName} outer)",
+			"	{",
+			"		this.outer = outer;",
+			"	}",
+			"	",
+			"	// TODO: provide an appropriate implementation here",
+			"	public int Length { get { return 1; } }",
+			"	",
+			"	public ${ElementType} this[int index]",
+			"	{",
+			"		get",
+			"		{",
+			"			//",
+			"			// TODO: implement indexer here",
+			"			//",
+			"			// you have full access to ${ClassName} privates",
+			"			//",
+			"			${throw new System.NotImplementedException();}",
+			"			return default(${ElementType});",
+			"		}",
+			"	}",
+			"	",
+			"	public System.Collections.Generic.IEnumerator<${ElementType}> GetEnumerator()",
+			"	{",
+			"		for (int i = 0; i < this.Length; i++)",
+			"		{",
+			"			yield return this[i];",
+			"		}",
+			"	}",
+			"}"
+		],
+		"description": "Named iterator/indexer pair using a nested class"
+	},
+
+	"Lock statement": {
+
+		"prefix": "lock",
+		"body": [
+			"lock (${this})",
+			"{",
+			"	$0",
+			"}"
+		],
+		"description": "Lock statement"
+	},
+
+	"MessageBox.Show": {
+
+		"prefix": "mbox",
+		"body": [
+			"System.Windows.Forms.MessageBox.Show(\"${Text}\");$0"
+		],
+		"description": "MessageBox.Show"
+	},
+
+	"Namespace": {
+
+		"prefix": "namespace",
+		"body": [
+			"namespace ${Name}",
+			"{",
+			"	$0",
+			"}"
+		],
+		"description": "Namespace"
+	},
+
+	"#if": {
+
+		"prefix": "ifd",
+		"body": [
+			"#if ${true}",
+			"	$0",
+			"#endif"
+		],
+		"description": "#if"
+	},
+
+	"#region": {
+
+		"prefix": "region",
+		"body": [
+			"#region ${Name}",
+			"	$0",
+			"#endregion"
+		],
+		"description": "#region"
+	},
+
+	"Property and backing field": {
+
+		"prefix": "propfull",
+		"body": [
+			"private ${int} ${myVar};",
+
+			"public ${int} ${MyProperty}",
+			"{",
+			"	get { return ${myVar};}",
+			"	set { ${myVar} = value;}",
+			"}",
+			"$0"
+		],
+		"description": "Property and backing field"
+	},
+
+	"propg": {
+
+		"prefix": "propg",
+		"body": [
+			"public ${int} ${MyProperty} { get; private set; }$0"
+		],
+		"description": "An automatically implemented property with a 'get' accessor and a private 'set' accessor. C# 3.0 or higher"
+	},
+
+	"prop": {
+
+		"prefix": "prop",
+		"body": [
+			"public ${int} ${MyProperty} { get; set; }$0"
+		],
+		"description": "An automatically implemented property. C# 3.0 or higher"
+	},
+
+	"sim": {
+
+		"prefix": "sim",
+		"body": [
+			"static int Main(string[] args)",
+			"{",
+			"	$0",
+			"	return 0;",
+			"}"
+		],
+		"description": "int Main()"
+	},
+
+	"Struct": {
+
+		"prefix": "struct",
+		"body": [
+			"struct ${Name}",
+			"{",
+			"	$0",
+			"}"
+		],
+		"description": "Struct"
+	},
+
+	"svm": {
+
+		"prefix": "svm",
+		"body": [
+			"static void Main(string[] args)",
+			"{",
+			"	$0",
+			"}"
+		],
+		"description": "void Main()"
+	},
+
+	"Switch statement": {
+
+		"prefix": "switch",
+		"body": [
+			"switch (${switch_on})",
+			"{",
+			"	$0",
+			"	default:",
+			"}"
+		],
+		"description": "Switch statement"
+	},
+
+	"Try finally": {
+
+		"prefix": "tryf",
+		"body": [
+			"try",
+			"{",
+			"	${_}",
+			"}",
+			"finally",
+			"{",
+			"	$0",
+			"}"
+		],
+		"description": "Try finally"
+	},
+
+	"Try catch": {
+
+		"prefix": "try",
+		"body": [
+			"try",
+			"{",
+			"	${_}",
+			"}",
+			"catch (${System.Exception})",
+			"{",
+			"	$0",
+			"	throw;",
+			"}"
+		],
+		"description": "Try catch"
+	},
+
+	"Unchecked block": {
+
+		"prefix": "unchecked",
+		"body": [
+			"unchecked",
+			"{",
+			"	$0",
+			"}"
+		],
+		"description": "Unchecked block"
+	},
+
+	"Unsafe statement": {
+
+		"prefix": "unsafe",
+		"body": [
+			"unsafe",
+			"{",
+			"	$0",
+			"}"
+		],
+		"description": "Unsafe statement"
+	},
+
+	"Using statement": {
+
+		"prefix": "using",
+		"body": [
+			"using(${resource})",
+			"{",
+			"	$0",
+			"}"
+		],
+		"description": "Using statement"
+	},
+
+	"While loop": {
+
+		"prefix": "while",
+		"body": [
+			"while (${true})",
+			"{",
+			"	$0",
+			"}"
+		],
+		"description": "While loop"
+	}
+}

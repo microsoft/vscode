@@ -1,0 +1,20 @@
+{
+	"name": "ini",
+	"version": "0.1.0",
+	"publisher": "vscode",
+	"engines": { "vscode": "*" },
+	"contributes": {
+		"languages": [{
+			"id": "ini",
+			"extensions": [ ".ini", ".properties", ".gitconfig" ],
+			"filenames": ["config", ".gitattributes", ".gitconfig", ".editorconfig"],
+			"aliases": [ "Ini", "ini" ],
+			"configuration": "./ini.configuration.json"
+		}],
+		"grammars": [{
+			"language": "ini",
+			"scopeName": "source.ini",
+			"path": "./syntaxes/Ini.plist"
+		}]
+	}
+}

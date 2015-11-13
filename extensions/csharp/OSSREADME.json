@@ -1,0 +1,7 @@
+// ATTENTION - THIS DIRECTORY CONTAINS THIRD PARTY OPEN SOURCE MATERIALS:
+[{
+	"name": "language-csharp",
+	"version": "0.11.0",
+	"license": "Dual-licensed under MIT and GPL",
+	"repositoryURL": "https://github.com/atom/language-csharp"
+}]

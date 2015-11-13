@@ -1,0 +1,8 @@
+// ATTENTION - THIS DIRECTORY CONTAINS THIRD PARTY OPEN SOURCE MATERIALS:
+[{
+	"name": "language-docker",
+	"version": "0.0.0",
+	"license": "Apache2",
+	"repositoryURL": "https://github.com/docker/docker",
+	"description": "The file syntaxes/Dockerfile.tmLanguage was included from https://github.com/docker/docker/blob/master/contrib/syntax/textmate/Docker.tmbundle/Syntaxes/Dockerfile.tmLanguage."
+}]

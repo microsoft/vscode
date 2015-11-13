@@ -1,0 +1,106 @@
+{
+	"name": "typescript",
+	"description": "Extension to add Typescript capabilities to VSCode.",
+	"displayName": "TypeScript support for VSCode",
+	"version": "0.10.1",
+	"author": "Microsoft Corporation",
+	"license": "MIT",
+	"publisher": "vscode",
+	"engines": {
+		"vscode": "*"
+	},
+	"scripts": {
+		"vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../gulpfile.plugins.js compile-plugin:typescript ./src/tsconfig.json"
+	},
+	"activationEvents": [
+		"onLanguage:typescript",
+		"onLanguage:typescriptreact"
+	],
+	"main": "./out/typescriptMain",
+	"contributes": {
+		"languages": [
+			{
+				"id": "typescript",
+				"aliases": [
+					"TypeScript",
+					"ts",
+					"typescript"
+				],
+				"extensions": [
+					".ts"
+				]
+			},
+			{
+				"id": "typescriptreact",
+				"aliases": [
+					"TypeScript React",
+					"tsx"
+				],
+				"extensions": [
+					".tsx"
+				]
+			}
+		],
+		"grammars": [
+			{
+				"language": "typescript",
+				"scopeName": "source.ts",
+				"path": "./syntaxes/TypeScript.tmLanguage"
+			},
+			{
+				"language": "typescriptreact",
+				"scopeName": "source.tsx",
+				"path": "./syntaxes/TypeScriptReact.tmLanguage"
+			}
+		],
+		"configuration": {
+			"type": "object",
+			"title": "TypeScript configuration",
+			"properties": {
+				"typescript.useCodeSnippetsOnMethodSuggest": {
+					"type": "boolean",
+					"default": false,
+					"description": "Complete functions with their parameter signature."
+				},
+				"typescript.tsdk": {
+					"type": "string",
+					"default": null,
+					"description": "Specifies the folder path containing the tsserver and lib*.d.ts files to use."
+				}
+			}
+		},
+		"keybindings": {
+			"key": ".",
+			"command": "^acceptSelectedSuggestion",
+			"when": "editorTextFocus && suggestWidgetVisible && editorLangId == 'typescript' && suggestionSupportsAcceptOnKey"
+		},
+		"debuggers": [
+			{
+				"type": "node",
+				"enableBreakpointsFor": {
+					"languageIds": [
+						"typescript"
+					]
+				}
+			},
+			{
+				"type": "extensionHost",
+				"enableBreakpointsFor": {
+					"languageIds": [
+						"typescript"
+					]
+				}
+			}
+		],
+		"snippets": [
+			{
+				"language": "typescript",
+				"path": "./snippets/typescript.json"
+			},
+			{
+				"language": "typescriptreact",
+				"path": "./snippets/typescriptreact.json"
+			}
+		]
+	}
+}

@@ -1,0 +1,21 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-workbench .iframe-container .iframe {
+	-webkit-box-sizing:	border-box;
+	-o-box-sizing:		border-box;
+	-moz-box-sizing:	border-box;
+	-ms-box-sizing:		border-box;
+	box-sizing:			border-box;
+}
+
+.monaco-workbench .iframe-container.ipad-touch-enabled {
+	-webkit-overflow-scrolling: touch;
+	overflow: auto;
+}
+
+.monaco-workbench .iframe-container:focus {
+	outline: 0;
+}
