@@ -51,7 +51,6 @@
 		"gulp-remote-src": "^0.4.0",
 		"gulp-rename": "^1.2.0",
 		"gulp-sourcemaps": "^1.6.0",
-		"gulp-symdest": "^1.0.0",
 		"gulp-tsb": "^1.7.3",
 		"gulp-uglify": "^1.4.1",
 		"gulp-util": "^3.0.6",
@@ -74,7 +73,8 @@
 		"source-map": "^0.4.4",
 		"uglify-js": "2.4.8",
 		"underscore": "^1.8.2",
-		"vinyl": "^0.4.5"
+		"vinyl": "^0.4.5",
+		"vinyl-fs": "^2.2.1"
 	},
 	"repository": {
 		"type": "git",

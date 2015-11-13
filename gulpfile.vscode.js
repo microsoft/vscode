@@ -11,10 +11,11 @@ var path = require('path');
 var es = require('event-stream');
 var azure = require('gulp-azure-storage');
 var electron = require('gulp-atom-electron');
+var mkdirp = require('mkdirp');
+var vfs = require('vinyl-fs');
 var rename = require('gulp-rename');
 var filter = require('gulp-filter');
 var json = require('gulp-json-editor');
-var symdest = require('gulp-symdest');
 var insert = require('gulp-insert');
 var remote = require('gulp-remote-src');
 var File = require('vinyl');
@@ -136,6 +137,33 @@ function mixinProduct() {
 		date: new Date().toISOString()
 	}));
 }
+
+// Writes to destination with support for symlinks as they can appear in Electron on Mac
+function symdest(out) {
+	var pass = es.through();
+
+	return es.duplex(pass,
+		pass.pipe(es.mapSync(function (f) {
+			if (!f.symlink) {
+				return f;
+			}
+
+			var dest = path.join(out, f.relative);
+			try {
+				mkdirp.sync(path.dirname(dest));
+			} catch (error) {
+				// Folder exists
+			}
+
+			try {
+				fs.symlinkSync(f.symlink, dest);
+			} catch (error) {
+				console.error('Problem writing symlink: ' + error);
+			}
+		}))
+		.pipe(vfs.dest(out))
+	);
+};
 
 function packageTask(platform, arch, opts) {
 	opts = opts || {};
