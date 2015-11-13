@@ -15,6 +15,9 @@
 			"language": "python",
 			"scopeName": "source.python",
 			"path": "./syntaxes/Python.tmLanguage"
+		},{
+			"scopeName": "source.regexp.python",
+			"path": "./syntaxes/Regular Expressions (Python).tmLanguage"
 		}]
 	}
 }
