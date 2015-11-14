@@ -220,6 +220,8 @@ function packageTask(platform, arch, opts) {
 				p.dirname = path.posix.join('extensions', p.dirname);
 			}));
 
+		var resources = gulp.src('resources/*', { base: '.' });
+
 		var all = es.merge(
 			api,
 			packageJson,
@@ -227,7 +229,8 @@ function packageTask(platform, arch, opts) {
 			license,
 			sources,
 			deps,
-			extraExtensions
+			extraExtensions,
+			resources
 		).pipe(util.skipDirectories());
 
 		var result = all
@@ -237,10 +240,6 @@ function packageTask(platform, arch, opts) {
 
 		if (platform === 'win32') {
 			result = es.merge(result, gulp.src('resources/win/bin/**', { base: 'resources/win' }));
-		}
-
-		if (product.welcomePage) {
-			result = es.merge(result, gulp.src('resources/app/' + product.welcomePage, { base: '.' }));
 		}
 
 		if (platform === 'win32') {
