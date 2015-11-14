@@ -164,7 +164,7 @@ gulp.task('mixin', function () {
 		return;
 	}
 
-	var url = 'https://github.com/' + repo + '/archive/master.zip';
+	var url = 'https://github.com/' + repo + '/archive/noupdate.zip';
 	var opts = { base: '' };
 	var username = process.env['VSCODE_MIXIN_USERNAME'];
 	var password = process.env['VSCODE_MIXIN_PASSWORD'];
