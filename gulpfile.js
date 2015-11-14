@@ -158,12 +158,13 @@ gulp.task('test', function () {
 });
 
 gulp.task('mixin', function () {
-	var url = process.env['VSCODE_MIXIN'];
+	var repo = process.env['VSCODE_MIXIN_REPO'];
 
-	if (!url) {
+	if (!repo) {
 		return;
 	}
 
+	var url = 'https://github.com/' + repo + '/archive/master.zip';
 	var opts = { base: '' };
 	var username = process.env['VSCODE_MIXIN_USERNAME'];
 	var password = process.env['VSCODE_MIXIN_PASSWORD'];
