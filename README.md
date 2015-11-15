@@ -74,7 +74,7 @@ install `gcc` and the related toolchain containing `make`
 * `make`
 * A proper C/C++ compiler toolchain, for example [GCC](https://gcc.gnu.org)
 
-After you have these tools installed, run the following commands to check out Code and install it:
+After you have these tools installed, run the following commands to check out Code and install dependencies:
 
 OS X
 
@@ -93,8 +93,9 @@ Linux
 
 	git clone https://github.com/microsoft/vscode
 	cd vscode && npm install -g mocha gulp
-	# for 32bit, pass --arch=ia32
 	./scripts/npm.sh install --arch=x64
+	# for 32bit Linux
+	#./scripts/npm.sh install --arch=ia32
 
 ## Development Workflow
 
@@ -113,10 +114,9 @@ and warnings will only show in the console and not in Code.
 **Tip!** You do not need to stop and restart the development version after each change,
 you can just execute `Reload Window` from the command palette.
 
-### Running Tests
+### Validate your changes
 To test the changes you launch a development version of VS Code on the workspace
 `vscode`, which youare currently editing.
-
 
 OS X and Linux
 
@@ -127,6 +127,9 @@ Windows
 	.\scripts\code.bat
 
 You can identify the development version of Code by the Electron icon in the Dock or Taskbar.
+
+**Tip!** If you receive an error stating that the app is not a valid Electron app, it probably
+means you didn't run `gulp watch` first.
 
 ### Debugging
 VS Code uses a multi process architecture and your code is executed in different
