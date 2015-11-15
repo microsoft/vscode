@@ -132,23 +132,15 @@ You can identify the development version of Code by the Electron icon in the Doc
 means you didn't run `gulp watch` first.
 
 ### Debugging
-VS Code uses a multi process architecture and your code is executed in different
-processes:
-* the render process runs the UI code inside the Shell window
-* the plugin host process runs code implemented by a plugin
+Code has a multi-process architecture and your code is executed in different processes:
+* The **render** process runs the UI code inside the Shell window. To debug code running in the **renderer** process, launch the Chrome Developers Tools
+using the `Developer: Toggle Developer Tools` command from the Command Palette.
 
-To debug code that runs in the renderer process you launch the Chrome Developers Tools using
-`Help | Toggle Developer Tools`.
-
-To debug code that runs inside the plugin host process you open another instance of the Chrome
-Developer Tools using `Developer: Reveal Plugin Host Process` from the command palette.
-
-**Tip!** When you are done debugging, use the 'Hide Window' button to close the Chrome Developer
-Tools on the Plugin Host Process, or use the command `Developer: Hide Plugin Host Process Window`.
-Do not close the window using the close button as this will also kill the plugin host process itself.
+* The **extension host** process runs code implemented by a plugin. To debug extensions (including those packaged with code) which run in the **extension host**
+process, you can use VS Code itself. Switch to the Debug viewlet, choose the
+`Attach to Extension Host` configuration, and press `F5`.
 
 ### Unit Testing
 Press `SHIFT+CMD+T` (`CTRL+SHIFT+T` on Windows) to start the unit tests or run the tests directly
-from a terminal using `gulp test`. The [test README.md](test/README.md) has complete details on
-how to run tests and coverage reports.
-
+from a terminal by running `mocha` from the `vscode` folder. The [/test README](test/README.md) has complete details on
+how to run and debug tests, as well as how to produce coverage reports.
