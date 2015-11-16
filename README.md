@@ -109,12 +109,13 @@ The **render** process runs the UI code inside the Shell window. To debug code r
 * Install the [Debugger for Chrome](https://marketplace.visualstudio.com/items/msjsdiag.debugger-for-chrome) extension. This extension will let you attach to and debug client side code running in Chrome.
 * Launch the development version of Code with the following command line option:
 
+OSX and Linux
 ``` bash
-		# OSX and Linux
-		./tools/run.sh --remote-debugging-port=9222
-
-		# Windows
-		tools\run --remote-debugging-port=9222
+./tools/run.sh --remote-debugging-port=9222
+```
+Windows
+``` bash
+tools\run --remote-debugging-port=9222
 ```
 
 * Choose the `Attach to VSCode` launch configuration from the launch dropdown in the Debug viewlet and press `F5`.
