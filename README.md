@@ -1,17 +1,17 @@
-# Visual Studio Code Open Source
+# Visual Studio Code - Open Source
 
 VS Code is a new choice of tool that combines the simplicity of a code editor with what developers need for their core edit-build-debug cycle. It is the first editor and first cross platform tool in the Visual Studio family of products.
 
 Code incorporates Visual Studio's world class editing and debugging experiences while integrating with your existing tool chain. A rich extensibility model and ecosystem provides support for a broad array of languages and tools that integrate seamlessly with Code.
 
-The [vscode](https://github.com/microsoft/vscode) repository is where the Code team does development. We encourage you to follow along, take part in the discussion, submit issues, suggest a feature, or create a pull request!
+The [`vscode`](https://github.com/microsoft/vscode) repository is where the Code team does development. We encourage you to follow along, take part in the discussion, submit issues, suggest a feature, or create a pull request!
 
 Follow us [@code](https://twitter.com/code).
 
 ## Installation and Documentation
 Download the latest build for your platform from the [Visual Studio Code](http://code.visualstudio.com) website. Once installed, Code will automatically update itself when we publish new releases.
 
-Everything you need to know about using and extending Code can be found in our online [documentation](http://code.visualstudio.com/docs). Found a typo? Want to clarify something? Clone the [vscode-docs](https://github.com/microsoft/vscode-docs) repository and make a pull request.
+Everything you need to know about using and extending Code can be found in our online [documentation](http://code.visualstudio.com/docs). Found a typo? Want to clarify something? Clone the [`vscode-docs`](https://github.com/microsoft/vscode-docs) repository and make a pull request.
 
 ## Contributing
 
