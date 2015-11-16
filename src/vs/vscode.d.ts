@@ -826,8 +826,9 @@ declare namespace vscode {
 		 * @param location The range this operation should remove.
 		 */
 		delete(location: Range | Selection): void;
-
 	}
+
+
 
 	/**
 	 * A universal resource identifier representing either a file on disk on
@@ -1072,8 +1073,9 @@ declare namespace vscode {
 	 *
 	 */
 	export interface InputBoxOptions {
+
 		/**
-		* the value to prefill in the input box
+		* The value to prefill in the input box.
 		*/
 		value?: string;
 
@@ -1083,12 +1085,12 @@ declare namespace vscode {
 		prompt?: string;
 
 		/**
-		* an optional string to show as place holder in the input box to guide the user what to type
+		* An optional string to show as place holder in the input box to guide the user what to type.
 		*/
 		placeHolder?: string;
 
 		/**
-		* set to true to show a password prompt that will not show the typed value
+		* Set to true to show a password prompt that will not show the typed value.
 		*/
 		password?: boolean;
 	}
@@ -1098,14 +1100,8 @@ declare namespace vscode {
 	 * the [language](#TextDocument.languageId), the [scheme](#Uri.scheme) of
 	 * it's resource, or a glob-pattern that is applied to the [path](#TextDocument.fileName)
 	 *
-	 * A language filter that applies to typescript files on disk would be this:
-	 * ```
-	 * { language: 'typescript', scheme: 'file' }
-	 * ```
-	 * a language filter that applies to all package.json files would be this:
-	 * ```
-	 * { language: 'json', pattern: '**\project.json' }
-	 * ```
+	 * @sample A language filter that applies to typescript files on disk: `{ language: 'typescript', scheme: 'file' }`
+	 * @sample A language filter that applies to all package.json paths: `{ language: 'json', pattern: '**\project.json' }`
 	 */
 	export interface DocumentFilter {
 
@@ -1115,42 +1111,53 @@ declare namespace vscode {
 		language?: string;
 
 		/**
-		 * A Uri scheme, like `file` or `untitled`
+		 * A Uri [scheme](#Uri.scheme), like `file` or `untitled`.
 		 */
 		scheme?: string;
 
 		/**
-		 * A glob pattern, like `*.{ts,js}`
+		 * A glob pattern, like `*.{ts,js}`.
 		 */
 		pattern?: string;
 	}
 
 	/**
 	 * A language selector is the combination of one or many language identifiers
-	 * and [language filters](#LanguageFilter). Samples are
-	 * `let sel:DocumentSelector = 'typescript`, or
-	 * `let sel:DocumentSelector = ['typescript', { language: 'json', pattern: '**\tsconfig.json' }]`
+	 * and [language filters](#LanguageFilter).
+	 *
+	 * @sample `let sel:DocumentSelector = 'typescript'`;
+	 * @sample `let sel:DocumentSelector = ['typescript', { language: 'json', pattern: '**\tsconfig.json' }]`;
 	 */
 	export type DocumentSelector = string | DocumentFilter | (string | DocumentFilter)[];
 
 	/**
 	 * Contains additional diagnostic information about the context in which
-	 * a [code action](#CodeActionProvider.provideCodeActions) is run
+	 * a [code action](#CodeActionProvider.provideCodeActions) is run.
 	 */
 	export interface CodeActionContext {
+
+		/**
+		 * An array of diagnostics.
+		 */
 		diagnostics: Diagnostic[];
 	}
 
 	/**
-	 * A code action provider can add [commands](#Command) to a piece of code. The availability of
-	 * commands will be shown as a 'light bulb'.
+	 * The code action interface defines the contract between extensions and
+	 * the [light bulb](https://code.visualstudio.com/docs/editor/editingevolved#_code-action) feature.
+	 *
+	 * A code action can be any command that is [known](#commands.getCommands) to the system.
 	 */
 	export interface CodeActionProvider {
 
 		/**
 		 * Provide commands for the given document and range.
 		 *
-		 * @return An array of commands or a thenable of such. It is OK to return undefined or null.
+		 * @param document The document in which the command was invoked.
+		 * @param range The range for which the command was invoked.
+		 * @param context
+		 * @return An array of commands or a thenable of such. The lack of a result can be
+		 * signaled by returing `undefined`, `null`, or an empty array.
 		 */
 		provideCodeActions(document: TextDocument, range: Range, context: CodeActionContext, token: CancellationToken): Command[] | Thenable<Command[]>;
 	}
@@ -1158,6 +1165,11 @@ declare namespace vscode {
 	/**
 	 * A code lens represents a [command](#Command) that should be shown along with
 	 * source text, like the number of references, a way to run tests, etc.
+	 *
+	 * A code lens is _unresolved_ when no command is associated to it. For performance
+	 * reasons the creation of a code lens and resolving should be done to two stages.
+	 * @see [[#CodeLensProvider.provideCodeLenses]]
+	 * @see [[#CodeLensProvider.resolveCodeLens]]
 	 */
 	export class CodeLens {
 
@@ -1167,16 +1179,22 @@ declare namespace vscode {
 		range: Range;
 
 		/**
-		 * The command this code lens represents
+		 * The command this code lens represents.
 		 */
 		command: Command;
 
-		constructor(range: Range, command?: Command);
-
 		/**
-		 * `true` when there is a command associated
+		 * `true` when there is a command associated.
 		 */
 		isResolved: boolean;
+
+		/**
+		 * Creates a new code lens object.
+		 *
+		 * @param range The range to which this code lens applies.
+		 * @param command The command associated to this code lens.
+		 */
+		constructor(range: Range, command?: Command);
 	}
 
 	/**
@@ -1200,13 +1218,29 @@ declare namespace vscode {
 	}
 
 	/**
-	 * The definition of a symbol is one or many [locations](#Location)
-	 * <<< I don't understand. What is a 'Definition'? Example? >>>
+	 * The definition of a symbol represented as one or many [locations](#Location).
+	 * For most programming languages there is only one location at which a symbol is
+	 * defined.
 	 */
 	export type Definition = Location | Location[];
 
+	/**
+	 * The definition provider interface defines the contract between extensions and
+	 * the [go to definition](https://code.visualstudio.com/docs/editor/editingevolved#_go-to-definition)
+	 * and peek definition features.
+	 */
 	export interface DefinitionProvider {
-		provideDefinition(document: TextDocument, where: Position, token: CancellationToken): Definition | Thenable<Definition>;
+
+		/**
+		 * Provide the definition of the symbol at the given position and document.
+		 *
+		 * @param document The document in which the command was invoked.
+		 * @param position The position at which the command was invoked.
+		 * @param token A cancellation token.
+		 * @return An definition or a thenable that resolves to such. The lack of a result can be
+		 * signaled by returing `undefined` or `null`.
+		 */
+		provideDefinition(document: TextDocument, position: Position, token: CancellationToken): Definition | Thenable<Definition>;
 	}
 
 	/**
@@ -1216,35 +1250,122 @@ declare namespace vscode {
 	 */
 	export type MarkedString = string | { language: string; value: string };
 
+	/**
+	 * A hover represents additional information for a symbol or word. Hovers are
+	 * rendered in a tooltip-like widget.
+	 */
 	export class Hover {
 
+		/**
+		 * The contents of this hover.
+		 */
 		contents: MarkedString[];
 
+		/**
+		 * The range to which this hover appiles. When missing, the
+		 * editor will use the range at the current position or the
+		 * current position.
+		 */
 		range: Range;
 
+		/**
+		 * Creates a new hover object.
+		 *
+		 * @param contents The contents of the hover.
+		 * @param range The range to which the hover appiles.
+		 */
 		constructor(contents: MarkedString | MarkedString[], range?: Range);
 	}
 
+	/**
+	 * The hover provider interface defines the contract between extensions and
+	 * the [hover](https://code.visualstudio.com/docs/editor/editingevolved#_hover)-feature.
+	 */
 	export interface HoverProvider {
+
+		/**
+		 * Provide a hover for the given position and document. Multiple hovers at the same
+		 * position will be merged by the editor. A hover can have a range to which defaults
+		 * to the word range at the position.
+		 *
+		 * @param document The document in which the command was invoked.
+		 * @param position The position at which the command was invoked.
+		 * @param token A cancellation token.
+		 * @return A hover or a thenable that resolves to such. The lack of a result can be
+		 * signaled by returing `undefined` or `null`.
+		 */
 		provideHover(document: TextDocument, position: Position, token: CancellationToken): Hover | Thenable<Hover>;
 	}
 
+	/**
+	 * A document highlight kind.
+	 */
 	export enum DocumentHighlightKind {
+
+		/**
+		 * A textual occurrance.
+		 */
 		Text,
+
+		/**
+		 * Read-access of a symbol, like reading a variable.
+		 */
 		Read,
+
+		/**
+		 * Write-access of a symbol, like writing to a variable.
+		 */
 		Write
 	}
 
+	/**
+	 * A document highlight is a range inside a text document which deserves
+	 * special attention. Usually a document highlight is visualized by changing
+	 * the background color of its range.
+	 */
 	export class DocumentHighlight {
-		constructor(range: Range, kind?: DocumentHighlightKind);
+
+		/**
+		 * The range this highlight applies to.
+		 */
 		range: Range;
+
+		/**
+		 * The highlight kind, default is [text](#DocumentHighlightKind.Text).
+		 */
 		kind: DocumentHighlightKind;
+
+		/**
+		 * Creates a new document highlight object.
+		 *
+		 * @param range The range the highlight applies to.
+		 * @param kind The highlight kind, default is [text](#DocumentHighlightKind.Text).
+		 */
+		constructor(range: Range, kind?: DocumentHighlightKind);
 	}
 
+	/**
+	 * The document highlight provider interface defines the contract between extensions and
+	 * the word-highlight-feature.
+	 */
 	export interface DocumentHighlightProvider {
+
+		/**
+		 * Provide a set of document highligts, like all occurrences of a variable or
+		 * all exit-points of a function.
+		 *
+		 * @param document The document in which the command was invoked.
+		 * @param position The position at which the command was invoked.
+		 * @param token A cancellation token.
+		 * @return An array of document highlights or a thenable that resolves to such. The lack of a result can be
+		 * signaled by returing `undefined`, `null`, or an empty array.
+		 */
 		provideDocumentHighlights(document: TextDocument, position: Position, token: CancellationToken): DocumentHighlight[] | Thenable<DocumentHighlight[]>;
 	}
 
+	/**
+	 * A symbol kind.
+	 */
 	export enum SymbolKind {
 		File,
 		Module,
@@ -1263,30 +1384,116 @@ declare namespace vscode {
 		String,
 		Number,
 		Boolean,
-		Array,
+		Array
 	}
 
+	/**
+	 * Represents information about programming constructs like variables, classes,
+	 * interfaces etc.
+	 */
 	export class SymbolInformation {
-		constructor(name: string, kind: SymbolKind, range: Range, uri?: Uri, containerName?: string);
+
+		/**
+		 * The name of this symbol.
+		 */
 		name: string;
+
+		/**
+		 * The name of the symbol containing this symbol.
+		 */
 		containerName: string;
+
+		/**
+		 * The kind of this symbol.
+		 */
 		kind: SymbolKind;
+
+		/**
+		 * The location of this symbol.
+		 */
 		location: Location;
+
+		/**
+		 * Creates a new symbol information object.
+		 *
+		 * @param name The name of the symbol.
+		 * @param kind The kind of the symbol.
+		 * @param range The range of the location of the symbol.
+		 * @param uri The resource of the location of symbol, defaults to the current document.
+		 * @param containerName The name of the symbol containg the symbol.
+		 */
+		constructor(name: string, kind: SymbolKind, range: Range, uri?: Uri, containerName?: string);
 	}
 
+	/**
+	 * The document symbol provider interface defines the contract between extensions and
+	 * the [go to symbol](https://code.visualstudio.com/docs/editor/editingevolved#_goto-symbol)-feature.
+	 */
 	export interface DocumentSymbolProvider {
+
+		/**
+		 * Provide symbol information for the given document.
+		 *
+		 * @param document The document in which the command was invoked.
+		 * @param token A cancellation token.
+		 * @return An array of document highlights or a thenable that resolves to such. The lack of a result can be
+		 * signaled by returing `undefined`, `null`, or an empty array.
+		 */
 		provideDocumentSymbols(document: TextDocument, token: CancellationToken): SymbolInformation[] | Thenable<SymbolInformation[]>;
 	}
 
+	/**
+	 * The workspace symbol provider interface defines the contract between extensions and
+	 * the [symbol search](https://code.visualstudio.com/docs/editor/editingevolved#_open-symbol-by-name)-feature.
+	 */
 	export interface WorkspaceSymbolProvider {
+
+		/**
+		 * Project-wide search for a symbol matching the given query string. It is up to the provider
+		 * how to search given the query string, like substring, indexOf etc.
+		 *
+		 * @param query A non-empty query string.
+		 * @param token A cancellation token.
+		 * @return An array of document highlights or a thenable that resolves to such. The lack of a result can be
+		 * signaled by returing `undefined`, `null`, or an empty array.
+		 */
 		provideWorkspaceSymbols(query: string, token: CancellationToken): SymbolInformation[] | Thenable<SymbolInformation[]>;
 	}
 
-	export interface ReferenceProvider {
-		provideReferences(document: TextDocument, position: Position, options: { includeDeclaration: boolean; }, token: CancellationToken): Location[] | Thenable<Location[]>;
+	/**
+	 * Value-object that contains additional information when
+	 * requesting references.
+	 */
+	export interface ReferenceContext {
+
+		/**
+		 * Include the declaration of the current symbol.
+		 */
+		includeDeclaration: boolean;
 	}
 
-	// <<< why is TextEdit miles away from TextEditorEdit? >>>
+	/**
+	 * The reference provider interface defines the contract between extensions and
+	 * the [find references](https://code.visualstudio.com/docs/editor/editingevolved#_peek)-feature.
+	 */
+	export interface ReferenceProvider {
+
+		/**
+		 * Provide a set of project-wide references for the given position and document.
+		 *
+		 * @param document The document in which the command was invoked.
+		 * @param position The position at which the command was invoked.
+		 * @param context
+		 * @param token A cancellation token.
+		 * @return An array of locations or a thenable that resolves to such. The lack of a result can be
+		 * signaled by returing `undefined`, `null`, or an empty array.
+		 */
+		provideReferences(document: TextDocument, position: Position, context: ReferenceContext, token: CancellationToken): Location[] | Thenable<Location[]>;
+	}
+
+	/**
+	 *
+	 */
 	export class TextEdit {
 		static replace(range: Range, newText: string): TextEdit;
 		static insert(position: Position, newText: string): TextEdit;
@@ -1297,9 +1504,9 @@ declare namespace vscode {
 	}
 
 	/**
-	 * A workspace edit represents text changes for many documents.
-	 * <<< How do we ensure that a WorkspaceEdit applied to a text document is still valid. Is this something the
-	 *     workspace edit does by first resolving the document based on the URI ? >>>
+	 * A workspace edit represents textual changes for many documents. When applying a workspace edit,
+	 * the editor implements an 'all-or-nothing'-strategy, that means failure to load one document or
+	 * make changes to one document will make this edit being ignored.
 	 */
 	export class WorkspaceEdit {
 
@@ -1310,28 +1517,83 @@ declare namespace vscode {
 		 */
 		size: number;
 
-		replace(resource: Uri, range: Range, newText: string): void;
+		/**
+		 * Replace the given range with given text for the given resource.
+		 *
+		 * @param uri A resource identifier.
+		 * @param range A range.
+		 * @param newText A string.
+		 */
+		replace(uri: Uri, range: Range, newText: string): void;
 
-		insert(resource: Uri, range: Position, newText: string): void;
+		/**
+		 * Insert the given text at the given position.
+		 *
+		 * @param uri A resource identifier.
+		 * @param position A position.
+		 * @param newText A string.
+		 */
+		insert(uri: Uri, position: Position, newText: string): void;
 
-		delete(resource: Uri, range: Range): void;
+		/**
+		 * Delete the text at the give range.
+		 */
+		delete(uri: Uri, range: Range): void;
 
+		/**
+		 * Check if this edit affects the given resource.
+		 * @param uri A resource identifier.
+		 * @return `true` if the given resource will be touched by this edit
+		 */
 		has(uri: Uri): boolean;
 
+		/**
+		 * Set (and replace) text edits for a resource.
+		 *
+		 * @param uri A resource identifier.
+		 * @param edits An array of text edits.
+		 */
 		set(uri: Uri, edits: TextEdit[]): void;
 
+		/**
+		 * Get the text edits for a resource.
+		 *
+		 * @param uri A resource identifier.
+		 * @return An array of text edits.
+		 */
 		get(uri: Uri): TextEdit[];
 
+		/**
+		 * Get all text edits grouped by resource.
+		 *
+		 * @return An array of `[Uri, TextEdit[]]`-tuples.
+		 */
 		entries(): [Uri, TextEdit[]][];
 	}
 
 	/**
-	 *
+	 * The rename provider interface defines the contract between extensions and
+	 * the [rename](https://code.visualstudio.com/docs/editor/editingevolved#_rename-symbol)-feature.
 	 */
 	export interface RenameProvider {
+
+		/**
+		 * Provide an edit that describes changes that have to be made to one
+		 * or many resources to rename a symbol to a different name.
+		 *
+		 * @param document The document in which the command was invoked.
+		 * @param position The position at which the command was invoked.
+		 * @param newName The new name of the symbol. If the given name is not valid, the provider must return a rejected promise.
+		 * @param token A cancellation token.
+		 * @return A workspace edit or a thenable that resolves to such. The lack of a result can be
+		 * signaled by returing `undefined` or `null`.
+		 */
 		provideRenameEdits(document: TextDocument, position: Position, newName: string, token: CancellationToken): WorkspaceEdit | Thenable<WorkspaceEdit>;
 	}
 
+	/**
+	 * Value-object describing what options formatting should use.
+	 */
 	export interface FormattingOptions {
 		tabSize: number;
 		insertSpaces: boolean;
@@ -1339,7 +1601,7 @@ declare namespace vscode {
 	}
 
 	/**
-	 *
+	 * 
 	 */
 	export interface DocumentFormattingEditProvider {
 		provideDocumentFormattingEdits(document: TextDocument, options: FormattingOptions, token: CancellationToken): TextEdit[] | Thenable<TextEdit[]>;
@@ -1519,9 +1781,24 @@ declare namespace vscode {
 	 * inside a text file.
 	 */
 	export class Location {
-		constructor(uri: Uri, range: Range | Position);
+
+		/**
+		 * The resource identifier of this location.
+		 */
 		uri: Uri;
+
+		/**
+		 * The document range of this locations.
+		 */
 		range: Range;
+
+		/**
+		 * Creates a new location object.
+		 *
+		 * @param uri The resource identifier.
+		 * @param rangeOrPosition The range or position. Positions will be converted to an empty range.
+		 */
+		constructor(uri: Uri, rangeOrPosition: Range | Position);
 	}
 
 	/**
@@ -2233,79 +2510,127 @@ declare namespace vscode {
 		export function match(selector: DocumentSelector, document: TextDocument): number;
 
 		/**
-		 * Create a diagnostics collections with an optional name.
+		 * Create a diagnostics collections.
+		 *
+		 * @param name The [name](#DiagnosticCollection.name) of the collection.
+		 * @return A new diagnostic collection.
 		 */
 		export function createDiagnosticCollection(name?: string): DiagnosticCollection;
 
 		/**
 		 *
+		 * @param selector A selector that defines the documents this provider is applicable to.
+		 * @param provider A completion provider.
+		 * @param triggerCharacters Trigger completion when the user types one of the characters, like `.` or `:`.
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
+		 */
+		export function registerCompletionItemProvider(selector: DocumentSelector, provider: CompletionItemProvider, ...triggerCharacters: string[]): Disposable;
+
+		/**
+		 *
+		 * @param selector A selector that defines the documents this provider is applicable to.
+		 * param provider A code action provider.
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
 		export function registerCodeActionsProvider(language: DocumentSelector, provider: CodeActionProvider): Disposable;
 
 		/**
 		 *
+		 * @param selector A selector that defines the documents this provider is applicable to.
+		 * @param provider A code lens provider.
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
 		export function registerCodeLensProvider(language: DocumentSelector, provider: CodeLensProvider): Disposable;
 
 		/**
 		 *
+		 * @param selector A selector that defines the documents this provider is applicable to.
+		 * @param provider A definition provider.
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
 		export function registerDefinitionProvider(selector: DocumentSelector, provider: DefinitionProvider): Disposable;
 
 		/**
 		 *
+		 * @param selector A selector that defines the documents this provider is applicable to.
+		 * @param provider A hover provider.
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
 		export function registerHoverProvider(selector: DocumentSelector, provider: HoverProvider): Disposable;
 
 		/**
 		 *
+		 * @param selector A selector that defines the documents this provider is applicable to.
+		 * @param provider A document highlight provider.
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
 		export function registerDocumentHighlightProvider(selector: DocumentSelector, provider: DocumentHighlightProvider): Disposable;
 
 		/**
 		 *
+		 * @param selector A selector that defines the documents this provider is applicable to.
+		 * @param provider A document symbol provider.
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
 		export function registerDocumentSymbolProvider(selector: DocumentSelector, provider: DocumentSymbolProvider): Disposable;
 
 		/**
 		 *
+		 * @param provider A workspace symbol provider.
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
 		export function registerWorkspaceSymbolProvider(provider: WorkspaceSymbolProvider): Disposable;
 
 		/**
 		 *
+		 * @param selector A selector that defines the documents this provider is applicable to.
+		 * @param provider A reference provider.
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
 		export function registerReferenceProvider(selector: DocumentSelector, provider: ReferenceProvider): Disposable;
 
 		/**
 		 *
+		 * @param selector A selector that defines the documents this provider is applicable to.
+		 * @param provider A rename provider.
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
 		export function registerRenameProvider(selector: DocumentSelector, provider: RenameProvider): Disposable;
 
 		/**
 		 *
+		 * @param selector A selector that defines the documents this provider is applicable to.
+		 * @param provider A document formatting edit provider.
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
 		export function registerDocumentFormattingEditProvider(selector: DocumentSelector, provider: DocumentFormattingEditProvider): Disposable;
 
 		/**
 		 *
+		 * @param selector A selector that defines the documents this provider is applicable to.
+		 * @param provider A document range formatting edit provider.
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
 		export function registerDocumentRangeFormattingEditProvider(selector: DocumentSelector, provider: DocumentRangeFormattingEditProvider): Disposable;
 
 		/**
 		 *
+		 * @param selector A selector that defines the documents this provider is applicable to.
+		 * @param provider An on type formatting edit provider.
+		 * @param firstTriggerCharacter A character on which formatting should be triggered, like `}`.
+		 * param moreTriggerCharacter More trigger characters.
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
 		export function registerOnTypeFormattingEditProvider(selector: DocumentSelector, provider: OnTypeFormattingEditProvider, firstTriggerCharacter: string, ...moreTriggerCharacter: string[]): Disposable;
 
 		/**
 		 *
+		 * @param selector A selector that defines the documents this provider is applicable to.
+		 * @param provider A signature help provider.
+		 * @param triggerCharacters Trigger signature help when the user types one of the characters, like `,` or `(`.
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
 		export function registerSignatureHelpProvider(selector: DocumentSelector, provider: SignatureHelpProvider, ...triggerCharacters: string[]): Disposable;
-
-		/**
-		 *
-		 */
-		export function registerCompletionItemProvider(selector: DocumentSelector, provider: CompletionItemProvider, ...triggerCharacters: string[]): Disposable;
 
 		/**
 		 *
