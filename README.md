@@ -1,4 +1,4 @@
-# Visual Studio Code
+# Visual Studio Code Open Source
 
 VS Code is a new choice of tool that combines the simplicity of a code editor with what developers need for their core edit-build-debug cycle. It is the first editor and first cross platform tool in the Visual Studio family of products.
 
