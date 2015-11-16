@@ -245,7 +245,7 @@ function packageTask(platform, arch, opts) {
 			.pipe(filter(['**', '!LICENSE', '!version']));
 
 		if (platform === 'win32') {
-			result = es.merge(result, gulp.src('resources/win/bin/**', { base: 'resources/win' }));
+			result = es.merge(result, gulp.src('resources/win32/bin/**', { base: 'resources/win32' }));
 		}
 
 		return result.pipe(opts.zip ? electron.zfsdest(destination + '.zip') : symdest(destination));
