@@ -11,8 +11,7 @@ var path = require('path');
 var es = require('event-stream');
 var azure = require('gulp-azure-storage');
 var electron = require('gulp-atom-electron');
-var mkdirp = require('mkdirp');
-var vfs = require('vinyl-fs');
+var symdest = require('gulp-symdest');
 var rename = require('gulp-rename');
 var filter = require('gulp-filter');
 var json = require('gulp-json-editor');
@@ -38,10 +37,6 @@ var baseModules = [
 ];
 
 // Build
-
-var builtInExtensions = {
-	// nothing yet
-};
 
 var vscodeEntryPoints = _.flatten([
 	buildfile.entrypoint('vs/workbench/workbench.main'),
@@ -138,33 +133,6 @@ function mixinProduct() {
 	}));
 }
 
-// Writes to destination with support for symlinks as they can appear in Electron on Mac
-function symdest(out) {
-	var pass = es.through();
-
-	return es.duplex(pass,
-		pass.pipe(es.mapSync(function (f) {
-			if (!f.symlink) {
-				return f;
-			}
-
-			var dest = path.join(out, f.relative);
-			try {
-				mkdirp.sync(path.dirname(dest));
-			} catch (error) {
-				// Folder exists
-			}
-
-			try {
-				fs.symlinkSync(f.symlink, dest);
-			} catch (error) {
-				console.error('Problem writing symlink: ' + error);
-			}
-		}))
-		.pipe(vfs.dest(out))
-	);
-};
-
 function packageTask(platform, arch, opts) {
 	opts = opts || {};
 
@@ -215,11 +183,6 @@ function packageTask(platform, arch, opts) {
 			.pipe(util.cleanNodeModule('fsevents', ['binding.gyp', 'fsevents.cc', 'build/**', 'src/**', 'test/**'], true))
 			.pipe(util.cleanNodeModule('oniguruma', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], true));
 
-		var extraExtensions = util.downloadExtensions(builtInExtensions)
-			.pipe(rename(function (p) {
-				p.dirname = path.posix.join('extensions', p.dirname);
-			}));
-
 		var resources = gulp.src('resources/*', { base: '.' });
 
 		if (platform === 'win32') {
@@ -235,7 +198,6 @@ function packageTask(platform, arch, opts) {
 			license,
 			sources,
 			deps,
-			extraExtensions,
 			resources
 		).pipe(util.skipDirectories());
 

@@ -54,6 +54,7 @@
 		"gulp-tsb": "^1.7.3",
 		"gulp-uglify": "^1.4.1",
 		"gulp-util": "^3.0.6",
+		"gulp-symdest": "^1.0.0",
 		"gulp-vinyl-zip": "^1.1.0",
 		"gulp-watch": "^4.2.4",
 		"innosetup-compiler": "^5.5.60",
@@ -73,8 +74,7 @@
 		"source-map": "^0.4.4",
 		"uglify-js": "2.4.8",
 		"underscore": "^1.8.2",
-		"vinyl": "^0.4.5",
-		"vinyl-fs": "^2.2.1"
+		"vinyl": "^0.4.5"
 	},
 	"repository": {
 		"type": "git",
