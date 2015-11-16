@@ -10,17 +10,17 @@
 		"role": "Editor",
 		"ostypes": ["TEXT", "utxt", "TUTX", "****"],
 		"extensions": ["ascx", "asp", "aspx", "bash", "bash_login", "bash_logout", "bash_profile", "bashrc", "bat", "bowerrc", "c", "cc", "clj", "cljs", "cljx", "clojure", "cmd", "coffee", "config", "cpp", "cs", "cshtml", "csproj", "css", "csx", "ctp", "cxx", "dockerfile", "dot", "dtd", "editorconfig", "edn", "eyaml", "eyml", "fs", "fsi", "fsscript", "fsx", "gemspec", "gitattributes", "gitconfig", "gitignore", "go", "h", "handlebars", "hbs", "hh", "hpp", "htm", "html", "hxx", "ini", "jade", "jav", "java", "js", "jscsrc", "jshintrc", "jshtm", "json", "jsp", "less", "lua", "m", "makefile", "markdown", "md", "mdoc", "mdown", "mdtext", "mdtxt", "mdwn", "mkd", "mkdn", "ml", "mli", "nqp", "p6", "php", "phtml", "pl", "pl6", "pm", "pm6", "pod", "pp", "profile", "properties", "ps1", "psd1", "psgi", "psm1", "py", "r", "rb", "rhistory", "rprofile", "rs", "rt", "scss", "sh", "shtml", "sql", "svg", "svgz", "t", "ts", "txt", "vb", "wxi", "wxl", "wxs", "xaml", "xml", "yaml", "yml", "zsh"],
-		"iconFile": "resources/mac/code_file.icns"
+		"iconFile": "resources/darwin/code_file.icns"
 	}],
 	"icons": {
 		"application": {
 			"png": "resources/linux/code.png",
-			"icns": "resources/mac/code.icns",
-			"ico": "resources/win/code.ico"
+			"icns": "resources/darwin/code.icns",
+			"ico": "resources/win32/code.ico"
 		},
 		"file": {
-			"icns": "resources/mac/code_file.icns",
-			"ico": "resources/win/code_file.ico"
+			"icns": "resources/darwin/code_file.icns",
+			"ico": "resources/win32/code_file.ico"
 		}
 	}
 }
