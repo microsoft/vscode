@@ -86,7 +86,7 @@ Errors and warnings are indicated in the status bar at the bottom left. You can 
 **Tip!** You do not need to stop and restart the development version after each change, you can just execute `Reload Window` from the command palette.
 
 ### Validate your changes
-To test the changes you launch a development version of VS Code on the workspace `vscode`, which youare currently editing.
+To test the changes you launch a development version of VS Code on the workspace `vscode`, which you are currently editing.
 
 OS X and Linux
 
@@ -102,9 +102,15 @@ You can identify the development version of Code by the Electron icon in the Doc
 
 ### Debugging
 Code has a multi-process architecture and your code is executed in different processes:
-* The **render** process runs the UI code inside the Shell window. To debug code running in the **renderer** process, launch the Chrome Developers Tools using the `Developer: Toggle Developer Tools` command from the Command Palette.
+The **render** process runs the UI code inside the Shell window. To debug code running in the **renderer** process you can:
 
-* The **extension host** process runs code implemented by a plugin. To debug extensions (including those packaged with code) which run in the **extension host** process, you can use VS Code itself. Switch to the Debug viewlet, choose the `Attach to Extension Host` configuration, and press `F5`.
+* Debug using VSCode:
+	* Install [Debugger for Chrome](https://marketplace.visualstudio.com/items/msjsdiag.debugger-for-chrome) extension
+	* Launch a development version of VS Code with `--remote-debugging-port=9222`
+	* Choose `Attach to VSCode` launch configuration from the launch dropdown and start debugging
+* Debug using Chrome Developers Tools, use the `Developer: Toggle Developer Tools` command from the Command Palette in your development VS Code.
+
+The **extension host** process runs code implemented by a plugin. To debug extensions (including those packaged with code) which run in the **extension host** process, you can use VS Code itself. Switch to the Debug viewlet, choose the `Attach to Extension Host` configuration, and press `F5`.
 
 ### Unit Testing
 Press `SHIFT+CMD+T` (`CTRL+SHIFT+T` on Windows) to start the unit tests or run the tests directly from a terminal by running `mocha` from the `vscode` folder. The [/test README](test/README.md) has complete details on how to run and debug tests, as well as how to produce coverage reports.
