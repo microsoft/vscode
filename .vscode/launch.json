@@ -40,6 +40,14 @@
 			"stopOnEntry": false,
 			"sourceMaps": true,
 			"outDir": "out"
+		},
+		{
+			"name": "Attach to VSCode",
+			"type": "chrome",
+			"request": "attach",
+			"port": 9222,
+			"sourceMaps": true,
+			"outDir": "out"
 		}
 	]
 }
