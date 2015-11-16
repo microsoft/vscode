@@ -1601,7 +1601,7 @@ declare namespace vscode {
 	}
 
 	/**
-	 * 
+	 *
 	 */
 	export interface DocumentFormattingEditProvider {
 		provideDocumentFormattingEdits(document: TextDocument, options: FormattingOptions, token: CancellationToken): TextEdit[] | Thenable<TextEdit[]>;
@@ -2638,10 +2638,22 @@ declare namespace vscode {
 		export function setLanguageConfiguration(language: string, configuration: LanguageConfiguration): Disposable;
 	}
 
+	/**
+	 * Namespace to retrieve installed extensions.
+	 */
 	export namespace extensions {
 
+		/**
+		 * Get an extension by id.
+		 *
+		 * @param extensionId An extension identifier in the form of: `publisher.name`.
+		 * @return An extension or `undefined`.
+		 */
 		export function getExtension(extensionId: string): Extension<any>;
 
+		/**
+		 * @see [[extensions.getExtension]]
+		 */
 		export function getExtension<T>(extensionId: string): Extension<T>;
 
 		/**
@@ -2650,6 +2662,14 @@ declare namespace vscode {
 		export let all: Extension<any>[];
 	}
 }
+
+// TS 1.6 & node_module
+export = vscode;
+
+// when used for JS*
+// declare module 'vscode' {
+// 	export = vscode;
+// }
 
 /**
  * Thenable is a common denominator between ES6 promises, Q, jquery.Deferred, WinJS.Promise,
@@ -2754,10 +2774,3 @@ interface PromiseConstructor {
 }
 
 declare var Promise: PromiseConstructor;
-
-// TS 1.6 & node_module
-// export = vscode;
-
-declare module 'vscode' {
-	export = vscode;
-}
