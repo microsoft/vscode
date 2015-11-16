@@ -8,7 +8,7 @@ else
 fi
 
 if [[ "$OSTYPE" == "darwin"* ]]; then
-	cd $ROOT ; ATOM_SHELL_INTERNAL_RUN_AS_NODE=1 \
+	cd $ROOT ; ulimit -n 4096 ; ATOM_SHELL_INTERNAL_RUN_AS_NODE=1 \
 		../Electron-Build/Electron.app/Contents/MacOS/Electron \
 		node_modules/mocha/bin/_mocha $*
 else
