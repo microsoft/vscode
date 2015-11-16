@@ -4,6 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 /*
+	This is the Type Definition file for VSCode version 0.10.1
+*/
+
+/*
 	- comments are marked like this '<<< comment >>>'
 
 	some global comments:
@@ -43,19 +47,19 @@ declare namespace vscode {
 	 */
 	export interface Command {
 		/**
-		 * Title of the command, like __save__
+		 * Title of the command, like __save__.
 		 */
 		title: string;
 
 		/**
-		 * The identifier of the actual command handler
-		 * @see commands.registerCommand
+		 * The identifier of the actual command handler.
+		 * @see [[#commands.registerCommand]].
 		 */
 		command: string;
 
 		/**
 		 * Arguments that the command-handler should be
-		 * invoked with
+		 * invoked with.
 		 */
 		arguments?: any[];
 	}
@@ -63,13 +67,13 @@ declare namespace vscode {
 	/**
 	 * Represents a line of text such as a line of source code.
 	 *
-	 * TextLine objects are __immutable__. That means that when a [document](#TextDocument) changes
+	 * TextLine objects are __immutable__. When a [document](#TextDocument) changes,
 	 * previsouly retrieved lines will not represent the latest state.
 	 */
 	export interface TextLine {
 
 		/**
-		 * The zero-base line number.
+		 * The zero-based line number.
 		 *
 		 * @readonly
 		 */
@@ -106,7 +110,7 @@ declare namespace vscode {
 
 		/**
 		 * Whether this line is whitespace only, shorthand
-		 * for `#firstNonWhitespaceCharacterIndex === #text.length`
+		 * for [[#TextLine.firstNonWhitespaceCharacterIndex]] === [[#TextLine.text.length]]
 		 *
 		 * @readonly
 		 */
@@ -130,7 +134,7 @@ declare namespace vscode {
 
 		/**
 		 * The file system path of the associated resource. Shorthand
-		 * notation for `#uri.fsPath`. Independent of the uri scheme.
+		 * notation for [[#TextDocument.uri.fsPath]]. Independent of the uri scheme.
 		 *
 		 * @readonly
 		 */
@@ -185,8 +189,8 @@ declare namespace vscode {
 		 * that the returned object is *not* live and changes to the
 		 * document are not reflected.
 		 *
-		 * @param line A line number in (0, lineCount[
-		 * @return A line.
+		 * @param line A line number in [0, lineCount).
+		 * @return A [line](#TextLine).
 		 */
 		lineAt(line: number): TextLine;
 
@@ -195,19 +199,29 @@ declare namespace vscode {
 		 * that the returned object is *not* live and changes to the
 		 * document are not reflected.
 		 *
-		 * @see ()[#lineAt]
-		 * @param position A position which line is in (0, lineCount[
-		 * @return A line.
+		 * The position will be [adjusted](#TextDocument.validatePosition).
+		 *
+		 * @see [[#TextDocument.lineAt]]
+		 * @param position A position.
+		 * @return A [line](#TextLine).
 		 */
 		lineAt(position: Position): TextLine;
 
 		/**
 		 * Converts the position to a zero-based offset.
+		 *
+		 * The position will be [adjusted](#TextDocument.validatePosition).
+		 *
+		 * @param position A position.
+		 * @return A valid zero-based offset.
 		 */
 		offsetAt(position: Position): number;
 
 		/**
 		 * Converts a zero-based offset to a position.
+		 *
+		 * @param offset A zero-based offset.
+		 * @return A valid [position](#Position).
 		 */
 		positionAt(offset: number): Position;
 
@@ -216,6 +230,7 @@ declare namespace vscode {
 		 * a range. The range will be [adjusted](#TextDocument.validateRange).
 		 *
 		 * @param range Include only the text included by the range.
+		 * @return The text inside the provided range or the entire text.
 		 */
 		getText(range?: Range): string;
 
@@ -223,6 +238,8 @@ declare namespace vscode {
 		 * Get a word-range at the given position. By default words are defined by
 		 * common separators, like space, -, _, etc. In addition, per languge custom
 		 * [word definitions](#LanguageConfiguration.wordPattern) can be defined.
+		 *
+		 * The position will be [adjusted](#TextDocument.validatePosition).
 		 *
 		 * @param position A position.
 		 * @return A range spanning a word, or `undefined`.
@@ -248,7 +265,7 @@ declare namespace vscode {
 
 	/**
 	 * Represents a line and character position, such as
-	 * the position of the caret.
+	 * the position of the cursor.
 	 *
 	 * Position objects are __immutable__. Use the [with](#Position.with) or
 	 * [translate](#Position.translate) methods to derive new positions
@@ -269,49 +286,68 @@ declare namespace vscode {
 		character: number;
 
 		/**
-		 * @param line
-		 * @param character
+		 * @param line A zero-based line value.
+		 * @param character A zero-based character value.
 		 */
 		constructor(line: number, character: number);
 
 		/**
+		 * Check if `other` is before this position.
+		 *
+		 * @param other A position.
 		 * @return `true` if position is on a smaller line
-		 * or smaller character.
+		 * or on the same line on a smaller character.
 		 */
 		isBefore(other: Position): boolean;
 
 		/**
-		 * @return `true` if position is on a smaller or equal line
-		 * or smaller or equal character.
+		 * Check if `other` is before or equal to this position.
+		 *
+		 * @param other A position.
+		 * @return `true` if position is on a smaller line
+		 * or on the same line on a smaller or equal character.
 		 */
 		isBeforeOrEqual(other: Position): boolean;
 
 		/**
+		 * Check if `other` is after this position.
+		 *
+		 * @param other A position.
 		 * @return `true` if position is on a greater line
-		 * or greater character.
+		 * or on the same line on a greater character.
 		 */
 		isAfter(other: Position): boolean;
 
 		/**
-		 * @return `true` if position is on a greater or equal line
-		 * or greater or equal character.
+		 * Check if `other` is after or equal to this position.
+		 *
+		 * @param other A position.
+		 * @return `true` if position is on a greater line
+		 * or on the same line on a greater or equal character.
 		 */
 		isAfterOrEqual(other: Position): boolean;
 
 		/**
+		 * Check if `other` equals this position.
+		 *
+		 * @param other A position.
 		 * @return `true` if the line and character of the given position are equal to
 		 * the line and character of this position.
 		 */
 		isEqual(other: Position): boolean;
 
 		/**
-		 * @return A number smaller zero if this position is before the given position,
-		 * a number greater zero if this position is after the given position, or zero when
+		 * Compare this to `other`.
+		 *
+		 * @param other A position.
+		 * @return A number smaller than zero if this position is before the given position,
+		 * a number greater than zero if this position is after the given position, or zero when
 		 * this and the given position are equal.
 		 */
 		compareTo(other: Position): number;
 
 		/**
+		 * Create a new position relative to this position.
 		 *
 		 * @param lineDelta Delta value for the line value, default is `0`.
 		 * @param characterDelta Delta value for the character value, default is `0`.
@@ -321,15 +357,18 @@ declare namespace vscode {
 		translate(lineDelta?: number, characterDelta?: number): Position;
 
 		/**
+		 * Create a new position derived from this position.
+		 *
 		 * @param line Value that should be used as line value, default is the [existing value](#Position.line)
 		 * @param character Value that should be used as character value, default is the [existing value](#Position.character)
-		 * @return A position which line and character are replaced by the given values.
+		 * @return A position where line and character are replaced by the given values.
 		 */
 		with(line?: number, character?: number): Position;
 	}
 
 	/**
 	 * A range represents an ordered pair of two positions.
+	 * It is guaranteed that [start](#Range.start).isBeforeOrEqual([end](#Range.end))
 	 *
 	 * Range objects are __immutable__. Use the [with](#Range.with),
 	 * [intersection](#Range.intersection), or [union](#Range.union) methods
@@ -338,20 +377,20 @@ declare namespace vscode {
 	export class Range {
 
 		/**
-		 * The start position is before or equal to end.
+		 * The start position. It is before or equal to [end](#Range.end).
 		 * @readonly
 		 */
 		start: Position;
 
 		/**
-		 * The end position which is after or equal to start.
+		 * The end position. it is after or equal to [start](#Range.start).
 		 * @readonly
 		 */
 		end: Position;
 
 		/**
 		 * Create a new range from two position. If `start` is not
-		 * before or equal to `end` the values will be swapped.
+		 * before or equal to `end`, the values will be swapped.
 		 *
 		 * @param start A position.
 		 * @param end A position.
@@ -359,13 +398,13 @@ declare namespace vscode {
 		constructor(start: Position, end: Position);
 
 		/**
-		 * Create a new range from four number. The parameters
-		 * might be swapped so that start is before or equal to end.
+		 * Create a new range from number coordinates. It is a shorter equivalent of
+		 * using `new Range(new Position(startLine, startCharacter), new Position(endLine, endCharacter))`
 		 *
-		 * @param startLine A positive number or zero.
-		 * @param startCharacter A positive number or zero.
-		 * @param endLine A positive number or zero.
-		 * @param endCharacter A positive number or zero.
+		 * @param startLine A zero-based line value.
+		 * @param startCharacter A zero-based character value.
+		 * @param endLine A zero-based line value.
+		 * @param endCharacter A zero-based character value.
 		 */
 		constructor(startLine: number, startCharacter: number, endLine: number, endCharacter: number);
 
@@ -375,34 +414,49 @@ declare namespace vscode {
 		isEmpty: boolean;
 
 		/**
-		 * `true` iff `start` and `end` are on the same line.
+		 * `true` iff `start.line` and `end.line` are equal.
 		 */
 		isSingleLine: boolean;
 
 		/**
+		 * Check if a position or a range is contained in this range.
+		 *
+		 * @param positionOrRange A position or a range.
 		 * @return `true` iff the position or range is inside or equal
 		 * to this range.
 		 */
 		contains(positionOrRange: Position | Range): boolean;
 
 		/**
+		 * Check if `other` equals this range.
+		 *
+		 * @param other A range.
 		 * @return `true` when start and end are [equal](#Position.isEqual) to
 		 * start and end of this range
 		 */
 		isEqual(other: Range): boolean;
 
 		/**
+		 * Intersect `range` with this range and returns a new range or `undefined`
+		 * if the ranges have no overlap.
+		 *
+		 * @param range A range.
 		 * @return A range of the greater start and smaller end positions. Will
 		 * return undefined when there is no overlap.
 		 */
 		intersection(range: Range): Range;
 
 		/**
+		 * Compute the union of `other` with this range.
+		 *
+		 * @param other A range.
 		 * @return A range of smaller start position and the greater end position.
 		 */
 		union(other: Range): Range;
 
 		/**
+		 * Create a new range derived from this range.
+		 *
 		 * @param start A position that should be used as start. The default value is the [current start](#Range.start).
 		 * @param end A position that should be used as end. The default value is the [current end](#Range.end).
 		 * @return A range derived from this range with the given start and end position.
@@ -418,13 +472,15 @@ declare namespace vscode {
 
 		/**
 		 * The position at which the selection starts.
+		 * This position might be before or after [active](#Selection.active)
 		 */
-		anchor: Position;	// <<< is anchor always start or end of the underlying range? if yes, why not just use a boolean 'reversed'? >>>
+		anchor: Position;
 
 		/**
 		 * The position of the cursor.
+		 * This position might be before or after [anchor](#Selection.anchor)
 		 */
-		active: Position;	//<<< why is the cursor position called 'active' and not 'cursor'? the comment should explain this >>>
+		active: Position;
 
 		/**
 		 * Create a selection from two postions.
@@ -432,39 +488,58 @@ declare namespace vscode {
 		constructor(anchor: Position, active: Position);
 
 		/**
-		 * Create a selection from four points.
+		 * Create a selection from four coordinates.
 		 *
-		 * @param anchorLine A positive number or zero.
-		 * @param anchorCharacter A positive number or zero.
-		 * @param activeLine A positive number or zero.
-		 * @param activeCharacter A positive number or zero.
+		 * @param anchorLine A zero-based line value.
+		 * @param anchorCharacter A zero-based character value.
+		 * @param activeLine A zero-based line value.
+		 * @param activeCharacter A zero-based character value.
 		 */
 		constructor(anchorLine: number, anchorCharacter: number, activeLine: number, activeCharacter: number);
+
 		/**
-		 * A selection is reversed if the [anchor](#Selection.anchor)
-		 * is equal to [start](#Selection.start) and if [active](#Selection.active)
-		 * is equal to [end](#Selection.end)
+		 * A selection is reversed if [active](#Selection.active).isBefore([anchor](#Selection.anchor))
 		 */
 		isReversed: boolean;
 	}
 
+	/**
+	 * Represents an event describing the change in a [text editor's selections](#TextEditor.selections).
+	 */
 	export interface TextEditorSelectionChangeEvent {
+		/**
+		 * The [text editor](#TextEditor) for which the selections have changed.
+		 */
 		textEditor: TextEditor;
+		/**
+		 * The new value for the [text editor's selections](#TextEditor.selections).
+		 */
 		selections: Selection[];
 	}
 
+	/**
+	 * Represents an event describing the change in a [text editor's options](#TextEditor.options).
+	 */
 	export interface TextEditorOptionsChangeEvent {
+		/**
+		 * The [text editor](#TextEditor) for which the options have changed.
+		 */
 		textEditor: TextEditor;
+		/**
+		 * The new value for the [text editor's options](#TextEditor.options).
+		 */
 		options: TextEditorOptions;
 	}
 
 	/**
-	 *
+	 * Represents a [text editor](#TextEditor)'s [options](#TextEditor.options).
 	 */
 	export interface TextEditorOptions {
 
 		/**
-		 * The size in spaces a tab takes
+		 * The size in spaces a tab takes. This is used for two purposes:
+		 *  - the rendering width of a tab character;
+		 *  - the number of spaces to insert when [insertSpaces](#TextEditorOptions.insertSpaces) is true.
 		 */
 		tabSize: number;
 
@@ -475,8 +550,8 @@ declare namespace vscode {
 	}
 
 	/**
-	 * A text editor decoration type is a handle to additional styles in
-	 * the editor.
+	 * Represents a handle to a set of decorations
+	 * sharing the same [styling options](#DecorationRenderOptions) in a [text editor](#TextEditor).
 	 *
 	 * To get an instance of a `TextEditorDecorationType` use
 	 * [createTextEditorDecorationType](#window.createTextEditorDecorationType).
@@ -484,19 +559,40 @@ declare namespace vscode {
 	export interface TextEditorDecorationType {
 
 		/**
+		 * Internal representation of the handle.
 		 * @readonly
 		 */
 		key: string;
 
+		/**
+		 * Remove this decoration type and all decorations on all text editors using it.
+		 */
 		dispose(): void;
 	}
 
+	/**
+	 * Represents different [reveal](#TextEditor.revealRange) strategies in a text editor.
+	 */
 	export enum TextEditorRevealType {
-		Default,	// <<< what is 'Default'? suggest to make 'Default' an alias for a self-describing value >>>
+		/**
+		 * The range will be revealed with as little scrolling as possible.
+		 */
+		Default,
+		/**
+		 * The range will always be revealed in the center of the viewport.
+		 */
 		InCenter,
+		/**
+		 * If the range is outside the viewport, it will be revealed in the center of the viewport.
+		 * Otherwise, it will be revealed with as little scrolling as possible.
+		 */
 		InCenterIfOutsideViewport
 	}
 
+	/**
+	 * Represents different positions for rendering a decoration in an (overview ruler)[#DecorationRenderOptions.overviewRulerLane].
+	 * The overview ruler supports three lanes.
+	 */
 	export enum OverviewRulerLane {
 		Left = 1,
 		Center = 2,
@@ -504,6 +600,9 @@ declare namespace vscode {
 		Full = 7
 	}
 
+	/**
+	 * Represents theme specific rendering styles for a [text editor decoration](#TextEditorDecorationType).
+	 */
 	export interface ThemableDecorationRenderOptions {
 		/**
 		 * Background color of the decoration. Use rgba() and define transparent background colors to play well with other decorations.
@@ -566,7 +665,7 @@ declare namespace vscode {
 		color?: string;
 
 		/**
-		 * A path to an image to be rendered in the gutterIconPath.
+		 * An **absolute path** to an image to be rendered in the gutterIconPath.
 		 */
 		gutterIconPath?: string;
 
@@ -576,6 +675,9 @@ declare namespace vscode {
 		overviewRulerColor?: string;
 	}
 
+	/**
+	 * Represents rendering styles for a [text editor decoration](#TextEditorDecorationType).
+	 */
 	export interface DecorationRenderOptions extends ThemableDecorationRenderOptions {
 		/**
 		 * Should the decoration be rendered also on the whitespace after the line text.
@@ -599,6 +701,9 @@ declare namespace vscode {
 		dark?: ThemableDecorationRenderOptions;
 	}
 
+	/**
+	 * Represents options for a specific decoration in a [decoration set](#TextEditorDecorationType).
+	 */
 	export interface DecorationOptions {
 
 		/**
@@ -612,6 +717,9 @@ declare namespace vscode {
 		hoverMessage: MarkedString | MarkedString[];
 	}
 
+	/**
+	 * Represents an editor that is attached to a [document](#TextDocument).
+	 */
 	export interface TextEditor {
 
 		/**
@@ -642,7 +750,7 @@ declare namespace vscode {
 		 * callback executes.
 		 *
 		 * @param callback A function which can make edits using an [edit-builder](#TextEditorEdit).
-		 * @return A promise that resolve when the edits could be applied.
+		 * @return A promise that resolves with a value indicating if the edits could be applied.
 		 */
 		edit(callback: (editBuilder: TextEditorEdit) => void): Thenable<boolean>;
 
@@ -650,13 +758,18 @@ declare namespace vscode {
 		 * Adds a set of decorations to the text editor. If a set of decorations already exists with
 		 * the given [decoration type](#TextEditorDecorationType), they will be replaced.
 		 *
+		 * See [createTextEditorDecorationType](#window.createTextEditorDecorationType).
+		 *
 		 * @param decorationType A decoration type.
 		 * @param rangesOrOptions Either [ranges](#Range) or more detailed [options](#DecorationOptions).
 		 */
 		setDecorations(decorationType: TextEditorDecorationType, rangesOrOptions: Range[] | DecorationOptions[]): void;
 
 		/**
-		 * Scroll as necessary in order to reveal the given range.
+		 * Scroll as indicated by `revealType` in order to reveal the given range.
+		 *
+		 * @param range A range.
+		 * @param revealType The scrolling strategy for revealing `range`.
 		 */
 		revealRange(range: Range, revealType?: TextEditorRevealType): void;
 
@@ -670,7 +783,6 @@ declare namespace vscode {
 		show(column?: ViewColumn): void;
 
 		/**
-		 *
 		 * **This method is deprecated.** Use the command 'workbench.action.closeActiveEditor' instead.
 		 * This method shows unexpected bahviour and will be removed in the next major update.
 		 *
@@ -683,24 +795,35 @@ declare namespace vscode {
 
 
 	/**
-	 * A complex edit that will be applied on a TextEditor.
-	 * This holds a description of the edits and if the edits are valid (i.e. no overlapping regions, etc.) they can be applied on a Document associated with a TextEditor.
+	 * A complex edit that will be applied in one transaction on a TextEditor.
+	 * This holds a description of the edits and if the edits are valid (i.e. no overlapping regions, document was not changed in the meantime, etc.)
+	 * they can be applied on a [document](#Document) associated with a [text editor](#TextEditor).
 	 *
-	 * <<< for transactionality would be great of the text editor edit would allow to set the selection at the end of the operation >>>
 	 */
 	export interface TextEditorEdit {
 		/**
-		 * Replace a certain text region with a new value.	<<< what's about line separators in the replacement string? do I have to care? >>>
+		 * Replace a certain text region with a new value.
+		 * You can use \r\n or \n in `value` and they will be normalized to the current [document](#Document).
+		 *
+		 * @param location The range this operation should remove.
+		 * @param value The new text this operation should insert after removing `location`.
 		 */
 		replace(location: Position | Range | Selection, value: string): void;
 
 		/**
-		 * Insert text at a location	<<< what's about line separators in the replacement string? do I have to care? >>>
+		 * Insert text at a location.
+		 * You can use \r\n or \n in `value` and they will be normalized to the current [document](#Document).
+		 * Although the equivalent text edit can be made with [replace](#TextEditorEdit.replace), `insert` will produce a different resulting selection (it will get moved).
+		 *
+		 * @param location The position where the new text should be inserted.
+		 * @param value The new text this operation should insert.
 		 */
 		insert(location: Position, value: string): void;
 
 		/**
 		 * Delete a certain text region.
+		 *
+		 * @param location The range this operation should remove.
 		 */
 		delete(location: Range | Selection): void;
 
@@ -771,7 +894,7 @@ declare namespace vscode {
 	 * operation to request cancellation, like cancelling a request
 	 * for completion items because the user continued to type.
 	 *
-	 * A cancallation token can only cancel once. That means it
+	 * A cancellation token can only cancel once. That means it
 	 * signaled cancellation it will do so forever   <<< don't understand this >>>
 	 */
 	export interface CancellationToken {
@@ -972,8 +1095,8 @@ declare namespace vscode {
 
 	/**
 	 * A document filter denotes a document by different properties like
-	 * the [language](#TextDocument.languageId), the (scheme)[#Uri.scheme] of
-	 * it's resource, or a glob-pattern that is applied to the (path)[#TextDocument.fileName]
+	 * the [language](#TextDocument.languageId), the [scheme](#Uri.scheme) of
+	 * it's resource, or a glob-pattern that is applied to the [path](#TextDocument.fileName)
 	 *
 	 * A language filter that applies to typescript files on disk would be this:
 	 * ```
@@ -1004,7 +1127,7 @@ declare namespace vscode {
 
 	/**
 	 * A language selector is the combination of one or many language identifiers
-	 * and (language filters)[#LanguageFilter]. Samples are
+	 * and [language filters](#LanguageFilter). Samples are
 	 * `let sel:DocumentSelector = 'typescript`, or
 	 * `let sel:DocumentSelector = ['typescript', { language: 'json', pattern: '**\tsconfig.json' }]`
 	 */
@@ -1339,7 +1462,8 @@ declare namespace vscode {
 		onEnterRules?: OnEnterRule[];
 
 		/**
-		 * Deprecated
+		 * **Deprecated**.
+		 * @deprecated
 		 */
 		__electricCharacterSupport?: {
 			brackets: {
@@ -1357,7 +1481,8 @@ declare namespace vscode {
 		};
 
 		/**
-		 * Deprecated
+		 * **Deprecated**.
+		 * @deprecated
 		 */
 		__characterPairSupport?: {
 			autoClosingPairs: {
@@ -1664,8 +1789,7 @@ declare namespace vscode {
 	/**
 	 * Represents an extension.
 	 *
-	 * To get an instance of an `Extension` use
-	 * [getExtension](#extensions.getExtension).
+	 * To get an instance of an `Extension` use [getExtension](#extensions.getExtension).
 	 */
 	export interface Extension<T> {
 
@@ -1690,7 +1814,7 @@ declare namespace vscode {
 		packageJSON: any;
 
 		/**
-		 * The public API exported by this extension. It is an invalid
+		 * The public API exported by this extension. It is an invalid action
 		 * to access this field before this extension has been activated.
 		 */
 		exports: T;
@@ -1736,7 +1860,10 @@ declare namespace vscode {
 		extensionPath: string;
 
 		/**
-		 * Get the absolute path of a resource contained inside the extension.
+		 * Get the absolute path of a resource contained in the extension.
+		 *
+		 * @param relativePath A relative path to a resource contained in the extension.
+		 * @return The absolute path of the resource.
 		 */
 		asAbsolutePath(relativePath: string): string;
 	}
@@ -1959,7 +2086,7 @@ declare namespace vscode {
 	}
 
 	/**
-	 * An event describing a change in the text of a model.
+	 * An event describing an individual change in the text of a [document](#TextDocument).
 	 */
 	export interface TextDocumentContentChangeEvent {
 		/**
@@ -1977,7 +2104,7 @@ declare namespace vscode {
 	}
 
 	/**
-	 * An event describing a document change event.
+	 * An event describing a transactional [document](#TextDocument) change.
 	 */
 	export interface TextDocumentChangeEvent {
 
@@ -2029,7 +2156,7 @@ declare namespace vscode {
 		export function saveAll(includeUntitled?: boolean): Thenable<boolean>;
 
 		/**
-		 * Apply the provided (workspace edit)[#WorkspaceEdit].
+		 * Apply the provided [workspace edit](#WorkspaceEdit).
 		 */
 		export function applyEdit(edit: WorkspaceEdit): Thenable<boolean>;
 
@@ -2058,12 +2185,24 @@ declare namespace vscode {
 		 */
 		export function openTextDocument(fileName: string): Thenable<TextDocument>;
 
+		/**
+		 * An event that is emitted when a [text document](#TextDocument) is created.
+		 */
 		export const onDidOpenTextDocument: Event<TextDocument>;
 
+		/**
+		 * An event that is emitted when a [text document](#TextDocument) is disposed.
+		 */
 		export const onDidCloseTextDocument: Event<TextDocument>;
 
+		/**
+		 * An event that is emitted when a [text document](#TextDocument) is changed.
+		 */
 		export const onDidChangeTextDocument: Event<TextDocumentChangeEvent>;
 
+		/**
+		 * An event that is emitted when a [text document](#TextDocument) is saved to disk.
+		 */
 		export const onDidSaveTextDocument: Event<TextDocument>;
 
 		/**
