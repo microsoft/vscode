@@ -67,7 +67,7 @@
 }
 
 .quick-open-widget .extension .actions .action-item {
-	line-height: 15px;
+	line-height: 12px;
 }
 
 .quick-open-widget .extension .actions .action-label {
@@ -85,6 +85,9 @@
 
 .quick-open-widget .extension .actions .action-label:not(.icon) {
 	padding: 1px 3px;
+	display: inline-block;
+	width: auto;
+	font-size: x-small;
 }
 
 .quick-open-widget .extension .actions .action-item.disabled .action-label {
