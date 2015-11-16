@@ -101,16 +101,30 @@ You can identify the development version of Code by the Electron icon in the Doc
 **Tip!** If you receive an error stating that the app is not a valid Electron app, it probably means you didn't run `gulp watch` first.
 
 ### Debugging
-Code has a multi-process architecture and your code is executed in different processes:
-The **render** process runs the UI code inside the Shell window. To debug code running in the **renderer** process you can:
+Code has a multi-process architecture and your code is executed in different processes.
 
-* Debug using VSCode:
-	* Install [Debugger for Chrome](https://marketplace.visualstudio.com/items/msjsdiag.debugger-for-chrome) extension
-	* Launch a development version of VS Code with `--remote-debugging-port=9222`
-	* Choose `Attach to VSCode` launch configuration from the launch dropdown and start debugging
-* Debug using Chrome Developers Tools, use the `Developer: Toggle Developer Tools` command from the Command Palette in your development VS Code.
+The **render** process runs the UI code inside the Shell window. To debug code running in the **renderer** you can either use VS Code or the Chrome Developer Tools.
 
-The **extension host** process runs code implemented by a plugin. To debug extensions (including those packaged with code) which run in the **extension host** process, you can use VS Code itself. Switch to the Debug viewlet, choose the `Attach to Extension Host` configuration, and press `F5`.
+#### Using VSCode
+* Install the [Debugger for Chrome](https://marketplace.visualstudio.com/items/msjsdiag.debugger-for-chrome) extension. This extension will let you attach to and debug client side code running in Chrome.
+* Launch the development version of Code with the following command line option:
+
+``` bash
+		# OSX and Linux
+		./tools/run.sh --remote-debugging-port=9222
+
+		# Windows
+		tools\run --remote-debugging-port=9222
+```
+
+* Choose the `Attach to VSCode` launch configuration from the launch dropdown in the Debug viewlet and press `F5`.
+
+
+#### Using the Chrome Developers Tools
+
+* Run the `Developer: Toggle Developer Tools` command from the Command Palette in your development instance of Code to launch the Chrom tools.
+
+The **extension host** process runs code implemented by a plugin. To debug extensions (including those packaged with Code) which run in the extension host process, you can use VS Code itself. Switch to the Debug viewlet, choose the `Attach to Extension Host` configuration, and press `F5`.
 
 ### Unit Testing
 Press `SHIFT+CMD+T` (`CTRL+SHIFT+T` on Windows) to start the unit tests or run the tests directly from a terminal by running `mocha` from the `vscode` folder. The [/test README](test/README.md) has complete details on how to run and debug tests, as well as how to produce coverage reports.
