@@ -52,8 +52,18 @@ export class ExtensionOutputHandler implements IWorkbenchContribution {
 			for (let i = 0; i < args.length; i++) {
 				let a = args[i];
 
+				// Undefined gets printed as 'undefined'
+				if (typeof a === 'undefined') {
+					simpleVals.push('undefined');
+				}
+
+				// Null gets printed as 'null'
+				else if (a === null) {
+					simpleVals.push('null');
+				}
+
 				// Objects & Arrays are special because we want to inspect them in the REPL
-				if (types.isObject(a) || Array.isArray(a)) {
+				else if (types.isObject(a) || Array.isArray(a)) {
 
 					// Flush any existing simple values logged
 					if (simpleVals.length) {
