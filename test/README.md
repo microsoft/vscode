@@ -22,4 +22,10 @@ You can use VS Code to debug your tests. Switch to the Debug viewlet, pick the `
 
 The following command will create a `coverage` folder at the root of the workspace:
 
-	mocha --coverage
+OSX and Linux
+
+	./test/run.sh --coverage
+
+Windows
+
+	test\run --coverage
