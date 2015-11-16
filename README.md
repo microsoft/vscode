@@ -111,11 +111,11 @@ The **render** process runs the UI code inside the Shell window. To debug code r
 
 OSX and Linux
 ``` bash
-./tools/run.sh --remote-debugging-port=9222
+./scripts/code.sh --remote-debugging-port=9222
 ```
 Windows
 ``` bash
-tools\run --remote-debugging-port=9222
+scripts\code --remote-debugging-port=9222
 ```
 
 * Choose the `Attach to VSCode` launch configuration from the launch dropdown in the Debug viewlet and press `F5`.
