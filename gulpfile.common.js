@@ -45,7 +45,7 @@ exports.loaderConfig = function (emptyPaths) {
 	return result;
 };
 
-var IS_OUR_COPYRIGHT_REGEXP = /Copyright \(C\) Microsoft Corporation/;
+var IS_OUR_COPYRIGHT_REGEXP = /Copyright \(C\) Microsoft Corporation/i;
 
 function loader() {
 	return gulp.src([
