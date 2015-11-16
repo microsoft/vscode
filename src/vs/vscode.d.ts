@@ -1662,20 +1662,94 @@ declare namespace vscode {
 		Reference
 	}
 
+	/**
+	 * A completion item represents a text snippet that is
+	 * proposed to complete text that is being typed.
+	 */
 	export class CompletionItem {
+
+		/**
+		 * The label of this completion item. By default
+		 * also the text that is inserted when selecting
+		 * this completion.
+		 */
 		label: string;
+
+		/**
+		 * The kind of this completion item. Based of the kind
+		 * an icon is chosen by the editor.
+		 */
 		kind: CompletionItemKind;
-		detail: string;			// <<< non-obvious >>>
-		documentation: string;	// <<< non-obvious: what is the supported format? >>>
-		sortText: string;		// <<< non-obvious: is this the 'sort key'? >>>
-		filterText: string;		// <<< non-obvious: is this the 'filter key'? >>>
+
+		/**
+		 * A human-readable string with additional information
+		 * about this item, like type or symbol information.
+		 */
+		detail: string;
+
+		/**
+		 * A human-readable string that represents a doc-comment.
+		 */
+		documentation: string;
+
+		/**
+		 * A string that shoud be used when comparing this item
+		 * with other items. When `falsy` the [label](#CompletionItem.label)
+		 * is used.
+		 */
+		sortText: string;
+
+		/**
+		 * A string that should be used when filtering a set of
+		 * completion items. When `falsy` the [label](#CompletionItem.label)
+		 * is used.
+		 */
+		filterText: string;
+
+		/**
+		 * A string that should be inserted a document when selecting
+		 * this completion. When `falsy` the [label](#CompletionItem.label)
+		 * is used.
+		 */
 		insertText: string;
-		textEdit: TextEdit;		// <<< non-obvious: what is the relation between insertText and textEdit? >>>
+
+		/**
+		 * An [edit](#TextEdit) which is applied to a document when selecting
+		 * this completion. When an edit is provided the value of
+		 * [insertText](#CompletionItem.insertText) is ignored.
+		 */
+		textEdit: TextEdit;
+
+		/**
+		 * Creates a new completion item.
+		 *
+		 * Completion items must have at least a [label](#CompletionItem.label) which then
+		 * will be used as insert text as well as for sorting and filtering.
+		 *
+		 * @param label The label of the completion.
+		 */
 		constructor(label: string);
 	}
 
+	/**
+	 * The completion item provider interface defines the contract between extensions and
+	 * the [IntelliSense](https://code.visualstudio.com/docs/editor/editingevolved#_intellisense).
+	 */
 	export interface CompletionItemProvider {
+
+		/**
+		 * 
+		 * @param document The document in which the command was invoked.
+		 * @param position The position at which the command was invoked.
+		 * @param token A cancellation token.
+		 * @return An array of completions or a thenable that resolves to such. The lack of a result can be
+		 * signaled by returing `undefined`, `null`, an empty array.
+		 */
 		provideCompletionItems(document: TextDocument, position: Position, token: CancellationToken): CompletionItem[] | Thenable<CompletionItem[]>;
+
+		/**
+		 *
+		 */
 		resolveCompletionItem?(item: CompletionItem, token: CancellationToken): CompletionItem | Thenable<CompletionItem>;
 	}
 
@@ -2591,7 +2665,7 @@ declare namespace vscode {
 		 * Register a completion provider.
 		 *
 		 * Multiple providers can be registered for a language. In that case providers are sorted
-		 * by their [score](#language.match) and groups of equal score are sequentially asked for
+		 * by their [score](#languages.match) and groups of equal score are sequentially asked for
 		 * completion items. The process stops when one or many providers of a group return a
 		 * result.
 		 *
