@@ -793,7 +793,6 @@ declare namespace vscode {
 		hide(): void;
 	}
 
-
 	/**
 	 * A complex edit that will be applied in one transaction on a TextEditor.
 	 * This holds a description of the edits and if the edits are valid (i.e. no overlapping regions, document was not changed in the meantime, etc.)
@@ -828,21 +827,27 @@ declare namespace vscode {
 		delete(location: Range | Selection): void;
 	}
 
-
-
 	/**
 	 * A universal resource identifier representing either a file on disk on
-	 * or another resource, e.g untitled.
+	 * or another resource, like untitled resources.
 	 */
 	export class Uri {
 
 		/**
-		 * Create URI for a file system path
+		 * Create an URI from a file system path. The [scheme](#Uri.scheme)
+		 * will be `file`.
+		 *
+		 * @param path A file system or UNC path.
+		 * @return A new Uri instance.
 		 */
 		static file(path: string): Uri;
 
 		/**
+		 * Create an URI from a string. Will throw if the given value is not
+		 * valid.
 		 *
+		 * @param The string value of an Uri.
+		 * @return A new Uri instance.
 		 */
 		static parse(value: string): Uri;
 
@@ -894,30 +899,27 @@ declare namespace vscode {
 	 * A cancellation token is passed to asynchronous or long running
 	 * operation to request cancellation, like cancelling a request
 	 * for completion items because the user continued to type.
-	 *
-	 * A cancellation token can only cancel once. That means it
-	 * signaled cancellation it will do so forever   <<< don't understand this >>>
 	 */
 	export interface CancellationToken {
 
 		/**
-		 * `true` when the token has been cancelled.
+		 * Is `true` when the token has been cancelled, `false` otherwise.
 		 */
 		isCancellationRequested: boolean;
 
 		/**
-		 * An [event](#Event) which fires upon cancellation
+		 * An [event](#Event) which fires upon cancellation.
 		 */
 		onCancellationRequested: Event<any>;
 	}
 
 	/**
-	 * A cancellation source creates [cancellation tokens](#CancellationToken).
+	 * A cancellation source creates and controls a [cancellation token](#CancellationToken).
 	 */
 	export class CancellationTokenSource {
 
 		/**
-		 * The current token
+		 * The cancellation token of this source.
 		 */
 		token: CancellationToken;
 
@@ -927,13 +929,10 @@ declare namespace vscode {
 		cancel(): void;
 
 		/**
-		 * Signal cancellation and free resources   <<< so this is like 'cancel()'? then the name is a bit harmless (or misleading) ... >>>
+		 * Dispose object and free resources. Will call [cancel](#CancellationTokenSource.cancel).
 		 */
 		dispose(): void;
 	}
-
-	// <<< Should we have an IDispose interface people can implement by themselves and then push into a subscriptions
-	//     instead of always creating an extra object and a function >>>
 
 	/**
 	 * Represents a type which can release resources, such
@@ -973,9 +972,9 @@ declare namespace vscode {
 		/**
 		 *
 		 * @param listener The listener function will be called when the event happens.
-		 * @param thisArgs The 'this' which will be used when calling the event listener.
-		 * @param disposables An array to which a {{IDisposable}} will be added. The
-		 * @return
+		 * @param thisArgs The `this`-argument which will be used when calling the event listener.
+		 * @param disposables An array to which a [disposeable](#Disposable) will be added.
+		 * @return A disposable which unsubscribes the event listener
 		 */
 		(listener: (e: T) => any, thisArgs?: any, disposables?: Disposable[]): Disposable;
 	}
@@ -1504,9 +1503,7 @@ declare namespace vscode {
 	}
 
 	/**
-	 * A workspace edit represents textual changes for many documents. When applying a workspace edit,
-	 * the editor implements an 'all-or-nothing'-strategy, that means failure to load one document or
-	 * make changes to one document will make this edit being ignored.
+	 * A workspace edit represents textual changes for many documents.
 	 */
 	export class WorkspaceEdit {
 
@@ -1755,15 +1752,24 @@ declare namespace vscode {
 		};
 	}
 
+	/**
+	 * Represents the workspace configuration. The workspace configuration
+	 * is always a merged view of the configuration of the current [workspace](#workspace.rootPath)
+	 * and the installation-wide configuration.
+	 */
 	export interface WorkspaceConfiguration {
 
 		/**
-		 * @param section configuration name, supports _dotted_ names
-		 * @return the value `section` denotes or the default
+		 * Return a value from this configuration.
+		 *
+		 * @param section Configuration name, supports _dotted_ names.
+		 * @return The value `section` denotes or the default.
 		 */
 		get<T>(section: string, defaultValue?: T): T;
 
 		/**
+		 * Check if this configuration has a certain value.
+		 *
 		 * @param section configuration name, supports _dotted_ names
 		 * @return `true` iff the section doesn't resolve to `undefined`
 		 */
@@ -1951,7 +1957,6 @@ declare namespace vscode {
 		 */
 		append(value: string): void;
 
-
 		/**
 		 * Append the given value and a line feed character
 		 * to the channel.
@@ -1968,7 +1973,7 @@ declare namespace vscode {
 		/**
 		 * Reveal this channel in the UI.
 		 *
-		 * @column The column in which to show the channel, default in [one](#ViewColumn.One).
+		 * @param column The column in which to show the channel, default in [one](#ViewColumn.One).
 		 */
 		show(column?: ViewColumn): void;
 
@@ -2172,29 +2177,43 @@ declare namespace vscode {
 		 * Registers a command that can be invoked via a keyboard shortcut,
 		 * an menu item, an action, or directly.
 		 *
-		 * @param command - The unique identifier of this command
-		 * @param callback - The command callback
-		 * @param thisArgs - (optional) The this context used when invoking {{callback}}
-		 * @return Disposable which unregisters this command on disposal
+		 * Registering a command with an existing command identifier twice
+		 * will cause an error.
+		 *
+		 * @param command A unique identifier for the command.
+		 * @param callback A command handler function.
+		 * @param thisArgs The `this` context used when invoking handler function.
+		 * @return Disposable which unregisters this command on disposal.
 		 */
 		export function registerCommand(command: string, callback: (...args: any[]) => any, thisArg?: any): Disposable;
 
 		/**
-		 * Register a text editor command that will make edits.
-		 * It can be invoked via a keyboard shortcut, a menu item, an action, or directly.
+		 * Registers a text editor command that can be invoked via a keyboard shortcut,
+		 * an menu item, an action, or directly.
 		 *
-		 * @param command - The unique identifier of this command
-		 * @param callback - The command callback. The {{textEditor}} and {{edit}} passed in are available only for the duration of the callback.
-		 * @param thisArgs - (optional) The `this` context used when invoking {{callback}}
-		 * @return Disposable which unregisters this command on disposal
+		 * Text editor commands are different from ordinary [commands](#commands.registerCommand) as
+		 * they only execute when there was an active editor when the command was called. Also, the
+		 * command handler of an editor command has access to the active editor and to an
+		 * [edit](#TextEditorEdit)-builder.
+		 *
+		 * @param command A unique identifier for the command.
+		 * @param callback A command handler function with access to an [editor](#TextEditor) and an [edit](#TextEditorEdit).
+		 * @param thisArgs The `this` context used when invoking handler function.
+		 * @return Disposable which unregisters this command on disposal.
 		 */
 		export function registerTextEditorCommand(command: string, callback: (textEditor: TextEditor, edit: TextEditorEdit) => void, thisArg?: any): Disposable;
 
 		/**
-		 * Executes a command
+		 * Executes the command denoted by the given command identifier.
 		 *
-		 * @param command - Identifier of the command to execute
-		 * @param ...rest - Parameter passed to the command function
+		 * When executing an editor command not all types are allowed to
+		 * be passed as arguments. Allows are the primitive types `string`, `boolean`,
+		 * `number`, `undefined`, and `null`, as well as classes defined in this API.
+		 * There are no restriction when executing commands that have been contributed
+		 * by extensions.
+		 *
+		 * @param command Identifier of the command to execute.
+		 * @param ...rest Parameter passed to the command function.
 		 * @return
 		 */
 		export function executeCommand<T>(command: string, ...rest: any[]): Thenable<T>;
@@ -2253,7 +2272,10 @@ declare namespace vscode {
 		export function showTextDocument(document: TextDocument, column?: ViewColumn): Thenable<TextEditor>;
 
 		/**
-		 * Create a `TextEditorDecorationType` that can be used to add decorations to text editors.
+		 * Create a TextEditorDecorationType that can be used to add decorations to text editors.
+		 *
+		 * @param options Rendering options for the decoration type.
+		 * @return A new decoration type instance.
 		 */
 		export function createTextEditorDecorationType(options: DecorationRenderOptions): TextEditorDecorationType;
 
@@ -2337,7 +2359,7 @@ declare namespace vscode {
 		export function setStatusBarMessage(text: string): Disposable;
 
 		/**
-		 * @see [[#window.setStatusBarMessage]]
+		 * @see [window.setStatusBarMessage](#window.setStatusBarMessage)
 		 *
 		 * @param hideAfterTimeout Timeout in milliseconds after which the message will be disposed.
 		 * @return A disposable which hides the status bar message.
@@ -2345,7 +2367,7 @@ declare namespace vscode {
 		export function setStatusBarMessage(text: string, hideAfterTimeout: number): Disposable;
 
 		/**
-		 * @see [[#window.setStatusBarMessage]]
+		 * @see [window.setStatusBarMessage](#window.setStatusBarMessage)
 		 *
 		 * @param hideWhenDone Thenable on which completion (resolve or reject) the message will be disposed.
 		 * @return A disposable which hides the status bar message.
@@ -2356,7 +2378,7 @@ declare namespace vscode {
 		 * Creates a status bar [item](#StatusBarItem).
 		 *
 		 * @param position The alignment of the item.
-		 * @param priority The priority of the item. Higher value means the item should be shown more to the left.
+		 * @param priority The priority of the item. Higher values mean the item should be shown more to the left.
 		 * @return A new status bar item.
 		 */
 		export function createStatusBarItem(alignment?: StatusBarAlignment, priority?: number): StatusBarItem;
@@ -2403,28 +2425,45 @@ declare namespace vscode {
 	export namespace workspace {
 
 		/**
-		 * Creates a file system watcher. A glob pattern that filters the
-		 * file events must be provided. Optionally, flags to ignore certain
-		 * kind of events can be provided.
+		 * Creates a file system watcher.
 		 *
-		 * @param globPattern - A glob pattern that is applied to the names of created, changed, and deleted files.
-		 * @param ignoreCreateEvents - Ignore when files have been created.
-		 * @param ignoreChangeEvents - Ignore when files have been changed.
-		 * @param ignoreDeleteEvents - Ignore when files have been deleted.
+		 * A glob pattern that filters the file events must be provided. Optionally, flags to ignore certain
+		 * kind of events can be provided. To stop listening to events the watcher must be disposed.
+		 *
+		 * @param globPattern  A glob pattern that is applied to the names of created, changed, and deleted files.
+		 * @param ignoreCreateEvents Ignore when files have been created.
+		 * @param ignoreChangeEvents Ignore when files have been changed.
+		 * @param ignoreDeleteEvents Ignore when files have been deleted.
+		 * @return A new file system watcher instance.
 		 */
 		export function createFileSystemWatcher(globPattern: string, ignoreCreateEvents?: boolean, ignoreChangeEvents?: boolean, ignoreDeleteEvents?: boolean): FileSystemWatcher;
 
 		/**
-		 * The folder that is open in VS Code if applicable
+		 * The folder that is open in VS Code. `undefined` when no folder
+		 * has been opened.
 		 */
 		export let rootPath: string;
 
 		/**
-		 * @return a path relative to the [root](#rootPath) of the workspace.
+		 * Returns a path that is relative to the workspace root.
+		 *
+		 * When there is no [workspace root](#workspace.rootPath) or when the path
+		 * is not a child of that folder, the input is returned.
+		 *
+		 * @param pathOrUri A path or uri. When a uri is given its [fsPath](#Uri.fsPath) is used.
+		 * @return A path relative to the root or the input.
 		 */
 		export function asRelativePath(pathOrUri: string | Uri): string;
 
-		// TODO@api - justify this being here
+		/**
+		 * Find files in the workspace.
+		 *
+		 * @sample findFiles('**\*.js', '**\node_modules\**', 10)
+		 * @param include A glob pattern that defines the files to search for.
+		 * @param exclude A glob pattern that defined files and folders to exclude.
+		 * @param maxResults An upper-bound for the result.
+		 * @return A thenable that resolves to an array of resource identifiers.
+		 */
 		export function findFiles(include: string, exclude: string, maxResults?: number): Thenable<Uri[]>;
 
 		/**
@@ -2433,12 +2472,22 @@ declare namespace vscode {
 		export function saveAll(includeUntitled?: boolean): Thenable<boolean>;
 
 		/**
-		 * Apply the provided [workspace edit](#WorkspaceEdit).
+		 * Make changes to one or many resources as defined by the given
+		 * [workspace edit](#WorkspaceEdit).
+		 *
+		 * When applying a workspace edit, the editor implements a 'all-or-nothing'-strategy,
+		 * that means failure to load one document or make changes to one document will make
+		 * the edit be rejected.
+		 *
+		 * @param edit A workspace edit.
+		 * @return A thenable that resolves when the edit could be applied.
 		 */
 		export function applyEdit(edit: WorkspaceEdit): Thenable<boolean>;
 
 		/**
 		 * All text documents currently known to the system.
+		 *
+		 * @readonly
 		 */
 		export let textDocuments: TextDocument[];
 
@@ -2448,8 +2497,11 @@ declare namespace vscode {
 		 * [open document](#workspace.onDidOpenTextDocument)-event fires.
 		 *
 		 * The document to open is denoted by the [uri](#Uri). Two schemes are supported:
-		 * * **file** a file on disk, will be rejected if the file does not exist or cannot be loaded, e.g. 'file:///Users/frodo/r.ini'.
-		 * * **untitled** a new file that should be saved on disk, e.g. 'untitled:/Users/frodo/new.js'. The language will be derived from the file name.
+		 * | Scheme | Description
+		 * | :----- | :----
+		 * | file | A file on disk, will be rejected if the file does not exist or cannot be loaded, e.g. 'file:///Users/frodo/r.ini'.
+		 * | untitled | A new file that should be saved on disk, e.g. 'untitled:/Users/frodo/new.js'. The language will be derived from the file name.
+		 *
 		 * Uris with other schemes will make this method returned a rejected promise.
 		 *
 		 * @param uri Identifies the resource to open.
@@ -2458,12 +2510,16 @@ declare namespace vscode {
 		export function openTextDocument(uri: Uri): Thenable<TextDocument>;
 
 		/**
-		 * Like `openTextDocument(Uri.file(fileName))`
+		 * A short-hand for `openTextDocument(Uri.file(fileName))`.
+		 *
+		 * @see [openTextDocument](#openTextDocument)
+		 * @param fileName A name of a file on disk
+		 * @return A promise that resolves to a [document](#TextDocument)
 		 */
 		export function openTextDocument(fileName: string): Thenable<TextDocument>;
 
 		/**
-		 * An event that is emitted when a [text document](#TextDocument) is created.
+		 * An event that is emitted when a [text document](#TextDocument) is opened.
 		 */
 		export const onDidOpenTextDocument: Event<TextDocument>;
 
@@ -2483,14 +2539,28 @@ declare namespace vscode {
 		export const onDidSaveTextDocument: Event<TextDocument>;
 
 		/**
+		 * Get a configuration object.
 		 *
+		 * When a section-identifier is provided only that part of the configuration
+		 * is returned. Dots in the section-identifiers are interpreted as child-access,
+		 * like `{ myExt: { setting: { doIt: true }}}` and `getConfiguration('myExt.setting.doIt') === true`.
+		 *
+		 *
+		 * @param section A dot-separated identifier.
+		 * @return The full workspace configuration or a subset.
 		 */
 		export function getConfiguration(section?: string): WorkspaceConfiguration;
 
-		// TODO: send out the new config?
+		/**
+		 * An event that is emitted when the [configuration](#WorkspaceConfiguration) changed.
+		 */
 		export const onDidChangeConfiguration: Event<void>;
 	}
 
+	/**
+	 * The languages namespace contains function to participate in language service features,
+	 * like IntelliSense or diagnostics.
+	 */
 	export namespace languages {
 
 		/**
@@ -2505,7 +2575,7 @@ declare namespace vscode {
 		 *
 		 * @param selector A document selector.
 		 * @param document A text document.
-		 * @return Value > 0 when the selector matches, 0 when the selector does not match.
+		 * @return A number `>0` when the selector matches and `0` when the selector does not match.
 		 */
 		export function match(selector: DocumentSelector, document: TextDocument): number;
 
@@ -2518,6 +2588,12 @@ declare namespace vscode {
 		export function createDiagnosticCollection(name?: string): DiagnosticCollection;
 
 		/**
+		 * Register a completion provider.
+		 *
+		 * Multiple providers can be registered for a language. In that case providers are sorted
+		 * by their [score](#language.match) and groups of equal score are sequentially asked for
+		 * completion items. The process stops when one or many providers of a group return a
+		 * result.
 		 *
 		 * @param selector A selector that defines the documents this provider is applicable to.
 		 * @param provider A completion provider.
