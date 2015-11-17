@@ -18,8 +18,8 @@ If you are interested in fixing issues and contributing directly to the code bas
 
 * How to build and run from source
 * The development workflow, including debugging and running tests
-* Coding guidelines
-* How to submit a pull request
+* [Coding guidelines](https://github.com/Microsoft/vscode/wiki/Coding-Guidelines)
+* Submitting pull requests
 
 ## Related Projects
 Many of the core components and extensions to Code live in their own repositories on GitHub. For example, the [loader](https://github.com/microsoft/vscode-loader), the [node debug adapter](https://github.com/microsoft/vscode-node-debug), the [mono debug adapter](https://github.com/microsoft/vscode-mono-debug), and many extensions such as the [JSCS Linter](https://github.com/microsoft/vscode-jscs).
