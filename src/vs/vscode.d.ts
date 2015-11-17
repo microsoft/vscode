@@ -1981,30 +1981,85 @@ declare namespace vscode {
 		blockComment?: CharacterPair;
 	}
 
+	/**
+	 * Describes indentation rules for a language.
+	 */
 	export interface IndentationRule {
+		/**
+		 * If a line matches this pattern, then all the lines after it should be unindendented once (until another rule matches).
+		 */
 		decreaseIndentPattern: RegExp;
+		/**
+		 * If a line matches this pattern, then all the lines after it should be indented once (until another rule matches).
+		 */
 		increaseIndentPattern: RegExp;
+		/**
+		 * If a line matches this pattern, then **only the next line** after it should be indented once.
+		 */
 		indentNextLinePattern?: RegExp;
+		/**
+		 * If a line matches this pattern, then its indentation should not be changed and it should not be evaluated against the other rules.
+		 */
 		unIndentedLinePattern?: RegExp;
 	}
 
-	// <<< this is not an 'action' but an 'indent type'
+	/**
+	 * Describes what to do with the indentation when pressing Enter.
+	 */
 	export enum IndentAction {
+		/**
+		 * Insert new line and copy the previous line's indentation.
+		 */
 		None,
+		/**
+		 * Insert new line and indent once (relative to the previous line's indentation).
+		 */
 		Indent,
+		/**
+		 * Insert two new lines:
+		 *  - the first one indented which will hold the cursor
+		 *  - the second one at the same indentation level
+		 */
 		IndentOutdent,
+		/**
+		 * Insert new line and outdent once (relative to the previous line's indentation).
+		 */
 		Outdent
 	}
 
+	/**
+	 * Describes what to do when pressing Enter.
+	 */
 	export interface EnterAction {
-		indentAction: IndentAction;		// <<< confusing: another reason not to use the name 'IndentAction' >>>
+		/**
+		 * Describe what to do with the indentation.
+		 */
+		indentAction: IndentAction;
+		/**
+		 * Describes text to be appended after the new line and after the indentation.
+		 */
 		appendText?: string;
-		removeText?: number;		// <<< non-obvious: the number of characters to remove? >>>
+		/**
+		 * Describes the number of characters to remove from the new line's indentation.
+		 */
+		removeText?: number;
 	}
 
+	/**
+	 * Describes a rule to be evaluated when pressing Enter.
+	 */
 	export interface OnEnterRule {
+		/**
+		 * This rule will only execute if the text before the cursor matches this regular expression.
+		 */
 		beforeText: RegExp;
+		/**
+		 * This rule will only execute if the text after the cursor matches this regular expression.
+		 */
 		afterText?: RegExp;
+		/**
+		 * The action to execute.
+		 */
 		action: EnterAction;
 	}
 
@@ -2013,13 +2068,34 @@ declare namespace vscode {
 	 * and various editor feature, like automatic bracket insertion, automatic indentation etc.
 	 */
 	export interface LanguageConfiguration {
+		/**
+		 * The language's comment settings.
+		 */
 		comments?: CommentRule;
+		/**
+		 * The language's brackets.
+		 * This configuration implicitly affects pressing Enter around these brackets.
+		 */
 		brackets?: CharacterPair[];
+		/**
+		 * The language's word definition.
+		 * If the language supports Unicode identifiers (e.g. JavaScript), it is preferable
+		 * to provide a word definition that uses exclusion of known separators.
+		 * e.g.: A regex that matches anything except known separators (and dot is allowed to occur in a floating point number):
+		 *   /(-?\d*\.\d\w*)|([^\`\~\!\@\#\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g
+		 */
 		wordPattern?: RegExp;
+		/**
+		 * The language's indentation settings.
+		 */
 		indentationRules?: IndentationRule;
+		/**
+		 * The language's rules to be evaluated when pressing Enter.
+		 */
 		onEnterRules?: OnEnterRule[];
 
 		/**
+		 * **Deprecated** Do not use.
 		 *
 		 * @deprecated Will be replaced by a better API soon.
 		 */
@@ -2031,14 +2107,15 @@ declare namespace vscode {
 				isElectric: boolean;
 			}[];
 			docComment?: {
-				scope: string; // What tokens should be used to detect a doc comment (e.g. 'comment.documentation').
-				open: string; // The string that starts a doc comment (e.g. '/**')
-				lineStart: string; // The string that appears at the start of each line, except the first and last (e.g. ' * ').
-				close?: string; // The string that appears on the last line and closes the doc comment (e.g. ' */').
+				scope: string;
+				open: string;
+				lineStart: string;
+				close?: string;
 			};
 		};
 
 		/**
+		 * **Deprecated** Do not use.
 		 *
 		 * @deprecated Will be replaced by a better API soon.
 		 */
