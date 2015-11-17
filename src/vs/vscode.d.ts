@@ -736,7 +736,7 @@ declare namespace vscode {
 		 * Adds a set of decorations to the text editor. If a set of decorations already exists with
 		 * the given [decoration type](#TextEditorDecorationType), they will be replaced.
 		 *
-		 * See [createTextEditorDecorationType](#window.createTextEditorDecorationType).
+		 * @see [createTextEditorDecorationType](#window.createTextEditorDecorationType).
 		 *
 		 * @param decorationType A decoration type.
 		 * @param rangesOrOptions Either [ranges](#Range) or more detailed [options](#DecorationOptions).
@@ -1050,9 +1050,9 @@ declare namespace vscode {
 	 * Represents an action that is shown with an information, warning, or
 	 * error message
 	 *
-	 * @see #window.showInformationMessage
-	 * @see #window.showWarningMessage
-	 * @see #window.showErrorMessage
+	 * @see [showInformationMessage](#window.showInformationMessage)
+	 * @see [showWarningMessage](#window.showWarningMessage)
+	 * @see [showErrorMessage](#window.showErrorMessage)
 	 */
 	export interface MessageItem {
 
