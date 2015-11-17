@@ -1738,7 +1738,7 @@ declare namespace vscode {
 	export interface CompletionItemProvider {
 
 		/**
-		 * 
+		 *
 		 * @param document The document in which the command was invoked.
 		 * @param position The position at which the command was invoked.
 		 * @param token A cancellation token.
@@ -2677,6 +2677,10 @@ declare namespace vscode {
 		export function registerCompletionItemProvider(selector: DocumentSelector, provider: CompletionItemProvider, ...triggerCharacters: string[]): Disposable;
 
 		/**
+		 * Register a code action provider.
+		 *
+		 * Multiple providers can be registered for a language. In that case providers are asked in
+		 * parallel and the results are merged.
 		 *
 		 * @param selector A selector that defines the documents this provider is applicable to.
 		 * param provider A code action provider.
@@ -2685,6 +2689,10 @@ declare namespace vscode {
 		export function registerCodeActionsProvider(language: DocumentSelector, provider: CodeActionProvider): Disposable;
 
 		/**
+		 * Register a code lens provider.
+		 *
+		 * Multiple providers can be registered for a language. In that case providers are asked in
+		 * parallel and the results are merged.
 		 *
 		 * @param selector A selector that defines the documents this provider is applicable to.
 		 * @param provider A code lens provider.
@@ -2693,6 +2701,10 @@ declare namespace vscode {
 		export function registerCodeLensProvider(language: DocumentSelector, provider: CodeLensProvider): Disposable;
 
 		/**
+		 * Register a definition provider.
+		 *
+		 * Multiple providers can be registered for a language. In that case providers are asked in
+		 * parallel and the results are merged.
 		 *
 		 * @param selector A selector that defines the documents this provider is applicable to.
 		 * @param provider A definition provider.
@@ -2701,6 +2713,10 @@ declare namespace vscode {
 		export function registerDefinitionProvider(selector: DocumentSelector, provider: DefinitionProvider): Disposable;
 
 		/**
+		 * Register a hover provider.
+		 *
+		 * Multiple providers can be registered for a language. In that case providers are asked in
+		 * parallel and the results are merged.
 		 *
 		 * @param selector A selector that defines the documents this provider is applicable to.
 		 * @param provider A hover provider.
@@ -2709,6 +2725,11 @@ declare namespace vscode {
 		export function registerHoverProvider(selector: DocumentSelector, provider: HoverProvider): Disposable;
 
 		/**
+		 * Register a document highlight provider.
+		 *
+		 * Multiple providers can be registered for a language. In that case providers are sorted
+		 * by their [score](#languages.match) and groups sequentially asked for document highlights.
+		 * The process stops when a provider returns a `non-falsy`-result.
 		 *
 		 * @param selector A selector that defines the documents this provider is applicable to.
 		 * @param provider A document highlight provider.
@@ -2717,6 +2738,10 @@ declare namespace vscode {
 		export function registerDocumentHighlightProvider(selector: DocumentSelector, provider: DocumentHighlightProvider): Disposable;
 
 		/**
+		 * Register a document symbol provider.
+		 *
+		 * Multiple providers can be registered for a language. In that case providers are asked in
+		 * parallel and the results are merged.
 		 *
 		 * @param selector A selector that defines the documents this provider is applicable to.
 		 * @param provider A document symbol provider.
@@ -2725,6 +2750,10 @@ declare namespace vscode {
 		export function registerDocumentSymbolProvider(selector: DocumentSelector, provider: DocumentSymbolProvider): Disposable;
 
 		/**
+		 * Register a workspace symbol provider.
+		 *
+		 * Multiple providers can be registered for a language. In that case providers are asked in
+		 * parallel and the results are merged.
 		 *
 		 * @param provider A workspace symbol provider.
 		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
@@ -2732,6 +2761,10 @@ declare namespace vscode {
 		export function registerWorkspaceSymbolProvider(provider: WorkspaceSymbolProvider): Disposable;
 
 		/**
+		 * Register a reference provider.
+		 *
+		 * Multiple providers can be registered for a language. In that case providers are asked in
+		 * parallel and the results are merged.
 		 *
 		 * @param selector A selector that defines the documents this provider is applicable to.
 		 * @param provider A reference provider.
@@ -2740,6 +2773,10 @@ declare namespace vscode {
 		export function registerReferenceProvider(selector: DocumentSelector, provider: ReferenceProvider): Disposable;
 
 		/**
+		 * Register a reference provider.
+		 *
+		 * Multiple providers can be registered for a language. In that case providers are sorted
+		 * by their [score](#languages.match) and the result of best-matching provider is used.
 		 *
 		 * @param selector A selector that defines the documents this provider is applicable to.
 		 * @param provider A rename provider.
@@ -2748,6 +2785,10 @@ declare namespace vscode {
 		export function registerRenameProvider(selector: DocumentSelector, provider: RenameProvider): Disposable;
 
 		/**
+		 * Register a formattings providers for a document.
+		 *
+		 * Multiple providers can be registered for a language. In that case providers are sorted
+		 * by their [score](#languages.match) and the result of best-matching provider is used.
 		 *
 		 * @param selector A selector that defines the documents this provider is applicable to.
 		 * @param provider A document formatting edit provider.
@@ -2756,6 +2797,10 @@ declare namespace vscode {
 		export function registerDocumentFormattingEditProvider(selector: DocumentSelector, provider: DocumentFormattingEditProvider): Disposable;
 
 		/**
+		 * Register a formatting provider for a document range.
+		 *
+		 * Multiple providers can be registered for a language. In that case providers are sorted
+		 * by their [score](#languages.match) and the result of best-matching provider is used.
 		 *
 		 * @param selector A selector that defines the documents this provider is applicable to.
 		 * @param provider A document range formatting edit provider.
@@ -2764,6 +2809,10 @@ declare namespace vscode {
 		export function registerDocumentRangeFormattingEditProvider(selector: DocumentSelector, provider: DocumentRangeFormattingEditProvider): Disposable;
 
 		/**
+		 * Register a formattring provider that works on type.
+		 *
+		 * Multiple providers can be registered for a language. In that case providers are sorted
+		 * by their [score](#languages.match) and the result of best-matching provider is used.
 		 *
 		 * @param selector A selector that defines the documents this provider is applicable to.
 		 * @param provider An on type formatting edit provider.
@@ -2774,6 +2823,10 @@ declare namespace vscode {
 		export function registerOnTypeFormattingEditProvider(selector: DocumentSelector, provider: OnTypeFormattingEditProvider, firstTriggerCharacter: string, ...moreTriggerCharacter: string[]): Disposable;
 
 		/**
+		 * Register a signature help provider.
+		 *
+		 * Multiple providers can be registered for a language. In that case providers are sorted
+		 * by their [score](#languages.match) and the result of best-matching provider is used.
 		 *
 		 * @param selector A selector that defines the documents this provider is applicable to.
 		 * @param provider A signature help provider.
@@ -2814,12 +2867,12 @@ declare namespace vscode {
 }
 
 // TS 1.6 & node_module
-export = vscode;
+// export = vscode;
 
 // when used for JS*
-// declare module 'vscode' {
-// 	export = vscode;
-// }
+declare module 'vscode' {
+	export = vscode;
+}
 
 /**
  * Thenable is a common denominator between ES6 promises, Q, jquery.Deferred, WinJS.Promise,
