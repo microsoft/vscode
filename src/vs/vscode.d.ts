@@ -53,7 +53,7 @@ declare namespace vscode {
 
 		/**
 		 * The identifier of the actual command handler.
-		 * @see [[#commands.registerCommand]].
+		 * @see [commands.registerCommand](#commands.registerCommand).
 		 */
 		command: string;
 
@@ -110,7 +110,7 @@ declare namespace vscode {
 
 		/**
 		 * Whether this line is whitespace only, shorthand
-		 * for [[#TextLine.firstNonWhitespaceCharacterIndex]] === [[#TextLine.text.length]]
+		 * for [TextLine.firstNonWhitespaceCharacterIndex](#TextLine.firstNonWhitespaceCharacterIndex]) === [TextLine.text.length](#TextLine.text.length).
 		 *
 		 * @readonly
 		 */
@@ -134,7 +134,7 @@ declare namespace vscode {
 
 		/**
 		 * The file system path of the associated resource. Shorthand
-		 * notation for [[#TextDocument.uri.fsPath]]. Independent of the uri scheme.
+		 * notation for [TextDocument.uri.fsPath](#TextDocument.uri.fsPath). Independent of the uri scheme.
 		 *
 		 * @readonly
 		 */
@@ -201,7 +201,7 @@ declare namespace vscode {
 		 *
 		 * The position will be [adjusted](#TextDocument.validatePosition).
 		 *
-		 * @see [[#TextDocument.lineAt]]
+		 * @see [TextDocument.lineAt](#TextDocument.lineAt)
 		 * @param position A position.
 		 * @return A [line](#TextLine).
 		 */
@@ -1177,8 +1177,9 @@ declare namespace vscode {
 	 *
 	 * A code lens is _unresolved_ when no command is associated to it. For performance
 	 * reasons the creation of a code lens and resolving should be done to two stages.
-	 * @see [[#CodeLensProvider.provideCodeLenses]]
-	 * @see [[#CodeLensProvider.resolveCodeLens]]
+	 *
+	 * @see [CodeLensProvider.provideCodeLenses](#CodeLensProvider.provideCodeLenses)
+	 * @see [CodeLensProvider.resolveCodeLens](#CodeLensProvider.resolveCodeLens)
 	 */
 	export class CodeLens {
 
@@ -1851,6 +1852,9 @@ declare namespace vscode {
 	/**
 	 * A completion item represents a text snippet that is
 	 * proposed to complete text that is being typed.
+	 *
+	 * @see [CompletionItemProvider.provideCompletionItems](#CompletionItemProvider.provideCompletionItems)
+	 * @see [CompletionItemProvider.resolveCompletionItem](#CompletionItemProvider.resolveCompletionItem)
 	 */
 	export class CompletionItem {
 
@@ -1924,7 +1928,7 @@ declare namespace vscode {
 	 * When computing *complete* completion items is expensive, providers can optionally implement
 	 * the `resolveCompletionItem`-function. In that case it is enough to return completion
 	 * items with a [label](#CompletionItem.label) from the
-	 * [provideCompletionItems]#(CompletionItemProvider.provideCompletionItems)-function. Subsequently,
+	 * [provideCompletionItems](#CompletionItemProvider.provideCompletionItems)-function. Subsequently,
 	 * when a completion item is shown in the UI and gains focus this provider being asked to resolve
 	 * the item, like adding [doc-comment](#CompletionItem.documentation) or [details](#CompletionItem.detail).
 	 */
@@ -2035,7 +2039,7 @@ declare namespace vscode {
 		};
 
 		/**
-		 * 
+		 *
 		 * @deprecated Will be replaced by a better API soon.
 		 */
 		__characterPairSupport?: {
@@ -3081,7 +3085,7 @@ declare namespace vscode {
 		export function getExtension(extensionId: string): Extension<any>;
 
 		/**
-		 * @see [[extensions.getExtension]]
+		 * @see [extensions.getExtension](#extensions.getExtension)
 		 */
 		export function getExtension<T>(extensionId: string): Extension<T>;
 
