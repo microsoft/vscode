@@ -7,31 +7,6 @@
 	This is the Type Definition file for VSCode version 0.10.1
 */
 
-/*
-	- comments are marked like this '<<< comment >>>'
-
-	some global comments:
-	- I'm missing some structure/grouping in this file:
-		- it is just a big soup of definitions
-		- entrypoints seem to be at the end so you have to read backwards
-		- the interface 'Extension' is on line 1384! (neither at the beginning, nor at the end)
-	- it would be much easier to grasp the gist of the API if:
-		- entrypoints would be at the beginning: start with namespaces and functions and 'Extension' because that is what devs are interested in.
-		- then continue with the different extensible areas, workspace first, then editors, commands etc.
-		- group the areas by some big separating comment that works like a section header with section overview.
-		- in the section header explain the fundamental concepts of that section in a few sentences with forward links to the types and interfaces.
-		- move auxiliary types/interfaces that are only used in the section towards the end of the section. So Range and Position would be at the end of the text section.
-		- move fundamental (shared) types (e.g. CancellationToken etc.) to the end of the d.ts (but again group related items and use separator comments in between).
-	- it would be helpful if the class or interface comment would explain how the class is used, i.e. how instances are created:
-			the FileSystemWatcher is a good example:
-				"To get an instance of a {{FileSystemWatcher}} use {{workspace.createFileSystemWatcher}}."
-	- lots of class or method comments are still missing. If we cannot create all of them in time, we should focus on comments for non-obvious cases.
-		I have added a "non-obvious" comment.
-
-	- label, names, descriptions: would be great to indicate if they show up in the user interface and therefore must be human readable.
-*/
-
-
 declare namespace vscode {
 
 	/**
@@ -47,7 +22,7 @@ declare namespace vscode {
 	 */
 	export interface Command {
 		/**
-		 * Title of the command, like __save__.
+		 * Title of the command, like `save`.
 		 */
 		title: string;
 
@@ -484,6 +459,9 @@ declare namespace vscode {
 
 		/**
 		 * Create a selection from two postions.
+		 *
+		 * @param anchor A position.
+		 * @param active A position.
 		 */
 		constructor(anchor: Position, active: Position);
 
@@ -774,21 +752,20 @@ declare namespace vscode {
 		revealRange(range: Range, revealType?: TextEditorRevealType): void;
 
 		/**
-		 * **This method is deprecated.** Use [window.showTextDocument](#window.showTextDocument)
+		 * Show the text editor.
+		 *
+		 * @deprecated **This method is deprecated.** Use [window.showTextDocument](#window.showTextDocument)
 		 * instead. This method shows unexpected bahviour and will be removed in the next major update.
 		 *
-		 * @deprecated
-		 * Show the text editor.
+		 * @param column The [column](#ViewColumn) in which to show this editor.
 		 */
 		show(column?: ViewColumn): void;
 
 		/**
-		 * **This method is deprecated.** Use the command 'workbench.action.closeActiveEditor' instead.
-		 * This method shows unexpected bahviour and will be removed in the next major update.
-		 *
-		 * @deprecated
-		 *
 		 * Hide the text editor.
+		 *
+		 * @deprecated **This method is deprecated.** Use the command 'workbench.action.closeActiveEditor' instead.
+		 * This method shows unexpected bahviour and will be removed in the next major update.
 		 */
 		hide(): void;
 	}
@@ -846,40 +823,41 @@ declare namespace vscode {
 		 * Create an URI from a string. Will throw if the given value is not
 		 * valid.
 		 *
-		 * @param The string value of an Uri.
+		 * @param value The string value of an Uri.
 		 * @return A new Uri instance.
 		 */
 		static parse(value: string): Uri;
 
 		/**
-		 * scheme is the 'http' part of 'http://www.msft.com/some/path?query#fragment'.
+		 * Scheme is the `http` part of `http://www.msft.com/some/path?query#fragment`.
 		 * The part before the first colon.
 		 */
 		scheme: string;
 
 		/**
-		 * authority is the 'www.msft.com' part of 'http://www.msft.com/some/path?query#fragment'.
+		 * Authority is the `www.msft.com` part of `http://www.msft.com/some/path?query#fragment`.
 		 * The part between the first double slashes and the next slash.
 		 */
 		authority: string;
 
 		/**
-		 * path is the '/some/path' part of 'http://www.msft.com/some/path?query#fragment'.
+		 * Path is the `/some/path` part of `http://www.msft.com/some/path?query#fragment`.
 		 */
 		path: string;
 
 		/**
-		 * query is the 'query' part of 'http://www.msft.com/some/path?query#fragment'.
+		 * Query is the `query` part of `http://www.msft.com/some/path?query#fragment`.
 		 */
 		query: string;
 
 		/**
-		 * fragment is the 'fragment' part of 'http://www.msft.com/some/path?query#fragment'.
+		 * Fragment is the `fragment` part of `http://www.msft.com/some/path?query#fragment`.
 		 */
 		fragment: string;
 
 		/**
-		 * Retuns a string representing the corresponding file system path of this URI.
+		 * The string representing the corresponding file system path of this URI.
+		 *
 		 * Will handle UNC paths and normalize windows drive letters to lower-case. Also
 		 * uses the platform specific path separator. Will *not* validate the path for
 		 * invalid characters and semantics. Will *not* look at the scheme of this URI.
@@ -889,9 +867,16 @@ declare namespace vscode {
 		/**
 		 * Returns a canonical representation of this URI. The representation and normalization
 		 * of a URI depends on the scheme.
+		 *
+		 * @returns A string that is the encoded version of this Uri.
 		 */
 		toString(): string;
 
+		/**
+		 * Returns a JSON representation of this Uri.
+		 *
+		 * @return An object.
+		 */
 		toJSON(): any;
 	}
 
@@ -945,6 +930,7 @@ declare namespace vscode {
 		 * when having objects with a dispose function which are not
 		 * instances of Disposable.
 		 *
+		 * @param disposableLikes Objects that has at least a `dispose`-function member.
 		 * @return Returns a new disposable which, upon dispose, will
 		 * dispose all provided disposables.
 		 */
@@ -1164,7 +1150,8 @@ declare namespace vscode {
 		 *
 		 * @param document The document in which the command was invoked.
 		 * @param range The range for which the command was invoked.
-		 * @param context
+		 * @param context Context carrying additional information.
+		 * @param token A cancellation token.
 		 * @return An array of commands or a thenable of such. The lack of a result can be
 		 * signaled by returing `undefined`, `null`, or an empty array.
 		 */
@@ -1215,14 +1202,23 @@ declare namespace vscode {
 
 		/**
 		 * Compute a list of [lenses](#CodeLens). This call should return as fast as possible and if
-		 * computing the command is expensive implementors should only return CodeLens-objects with the
+		 * computing the commands is expensive implementors should only return CodeLens-objects with the
 		 * range set and implement [resolve](#CodeLensProvider.resolveCodeLens).
+		 *
+		 * @param document The document in which the command was invoked.
+		 * @param token A cancellation token.
+		 * @return An array of code-lenses or a thenable that resolves to such. The lack of a result can be
+		 * signaled by returing `undefined`, `null`, or an empty array.
 		 */
 		provideCodeLenses(document: TextDocument, token: CancellationToken): CodeLens[] | Thenable<CodeLens[]>;
 
 		/**
 		 * This function will be called for each visible code lens, usually when scrolling and after
 		 * calls to [compute](#CodeLensProvider.provideCodeLenses)-lenses.
+		 *
+		 * @param codeLens Code-lens that must be resolved.
+		 * @param token A cancellation token.
+		 * @return The given, resolved code lene or thenable that resolves to such.
 		 */
 		resolveCodeLens?(codeLens: CodeLens, token: CancellationToken): CodeLens | Thenable<CodeLens>;
 	}
@@ -1528,7 +1524,7 @@ declare namespace vscode {
 		/**
 		 * Utility to create a delete edit.
 		 *
-		 * @param position A postion, will become  an empty range.
+		 * @param range A range.
 		 * @return A new text edit object.
 		 */
 		static delete(range: Range): TextEdit;
@@ -1584,6 +1580,9 @@ declare namespace vscode {
 
 		/**
 		 * Delete the text at the give range.
+		 *
+		 * @param uri A resource identifier.
+		 * @param range A range.
 		 */
 		delete(uri: Uri, range: Range): void;
 
@@ -1715,7 +1714,7 @@ declare namespace vscode {
 		 *
 		 * @param document The document in which the command was invoked.
 		 * @param position The position at which the command was invoked.
-		 * @oaram ch The character that has been typed.
+		 * @param ch The character that has been typed.
 		 * @param options Options controlling formatting.
 		 * @param token A cancellation token.
 		 * @return A set of text edits or a thenable that resolves to such. The lack of a result can be
@@ -1779,7 +1778,7 @@ declare namespace vscode {
 		 * Creates a new signature information object.
 		 *
 		 * @param label A label string.
-		 * @param document A doc string.
+		 * @param documentation A doc string.
 		 */
 		constructor(label: string, documentation?: string);
 	}
@@ -2139,6 +2138,7 @@ declare namespace vscode {
 		 * Return a value from this configuration.
 		 *
 		 * @param section Configuration name, supports _dotted_ names.
+		 * @param defaultValue A value should be returned when no value could be found, is `undefined`.
 		 * @return The value `section` denotes or the default.
 		 */
 		get<T>(section: string, defaultValue?: T): T;
@@ -2533,13 +2533,20 @@ declare namespace vscode {
 	export interface Memento {
 
 		/**
-		 * Return value
-		 * @return The store value or undefined or the defaultValue
+		 * Return a value.
+		 *
+		 * @param key A string.
+		 * @param defaultValue A value that should be returned when there is no
+		 * value (`undefined`) with the given key.
+		 * @return The store valued, `undefined`, or the defaultValue
 		 */
 		get<T>(key: string, defaultValue?: T): T;
 
 		/**
 		 * Store a value. The value must be JSON-stringfyable.
+		 *
+		 * @param key A string.
+		 * @param value A value. MUST not contain cyclic references.
 		 */
 		update(key: string, value: any): Thenable<void>;
 	}
@@ -2589,8 +2596,9 @@ declare namespace vscode {
 		 * by extensions.
 		 *
 		 * @param command Identifier of the command to execute.
-		 * @param ...rest Parameter passed to the command function.
-		 * @return
+		 * @param rest Parameters passed to the command function.
+		 * @return A thenable that resolves to the returned value of the given command. `undefined` when
+		 * the command handler function doesn't return anything.
 		 */
 		export function executeCommand<T>(command: string, ...rest: any[]): Thenable<T>;
 
@@ -2659,37 +2667,70 @@ declare namespace vscode {
 		 * Show an information message to users. Optionally provide an array of items which will be presented as
 		 * clickable buttons.
 		 *
-		 * @return a Promise that resolves when the message has been disposed. Returns the user-selected item if applicable.
+		 * @param message The message to show.
+		 * @param items A set of items that will be rendered as actions in the message.
+		 * @return A thenable that resolves to the  a selected item or `undefined`. The thenable will be rejected
+		 * when the message was dismissed.
 		 */
 		export function showInformationMessage(message: string, ...items: string[]): Thenable<string>;
 
 		/**
 		 * Show an information message.
+		 *
 		 * @see [showInformationMessage](#window.showInformationMessage)
+		 *
+		 * @param message The message to show.
+		 * @param items A set of items that will be rendered as actions in the message.
+		 * @return A thenable that resolves to the  a selected item or `undefined`. The thenable will be rejected
+		 * when the message was dismissed.
 		 */
 		export function showInformationMessage<T extends MessageItem>(message: string, ...items: T[]): Thenable<T>;
 
 		/**
 		 * Show a warning message.
+		 *
 		 * @see [showInformationMessage](#window.showInformationMessage)
+		 *
+		 * @param message The message to show.
+		 * @param items A set of items that will be rendered as actions in the message.
+		 * @return A thenable that resolves to the  a selected item or `undefined`. The thenable will be rejected
+		 * when the message was dismissed.
 		 */
 		export function showWarningMessage(message: string, ...items: string[]): Thenable<string>;
 
 		/**
 		 * Show a warning message.
+		 *
 		 * @see [showInformationMessage](#window.showInformationMessage)
+		 *
+		 * @param message The message to show.
+		 * @param items A set of items that will be rendered as actions in the message.
+		 * @return A thenable that resolves to the  a selected item or `undefined`. The thenable will be rejected
+		 * when the message was dismissed.
 		 */
 		export function showWarningMessage<T extends MessageItem>(message: string, ...items: T[]): Thenable<T>;
 
 		/**
 		 * Show an error message.
+		 *
 		 * @see [showInformationMessage](#window.showInformationMessage)
+		 *
+		 * @param message The message to show.
+		 * @param items A set of items that will be rendered as actions in the message.
+		 * @return A thenable that resolves to the  a selected item or `undefined`. The thenable will be rejected
+		 * when the message was dismissed.
 		 */
 		export function showErrorMessage(message: string, ...items: string[]): Thenable<string>;
 
 		/**
 		 * Show an error message.
+		 *
 		 * @see [showInformationMessage](#window.showInformationMessage)
+		 *
+		 * @param message The message to show.
+		 * @param items A set of items that will be rendered as actions in the message.
+		 * @return A thenable that resolves to the  a selected item or `undefined`. The thenable will be rejected
+		 * when the message was dismissed.
 		 */
 		export function showErrorMessage<T extends MessageItem>(message: string, ...items: T[]): Thenable<T>;
 
@@ -2740,16 +2781,20 @@ declare namespace vscode {
 		export function setStatusBarMessage(text: string): Disposable;
 
 		/**
-		 * @see [window.setStatusBarMessage](#window.setStatusBarMessage)
+		 * Set a message to the status bar. This is a short hand for the more powerfull
+		 * status bar [items](#window.createStatusBarItem).
 		 *
+		 * @param text The message to show, support icons subtitution as in status bar [items](#StatusBarItem.text).
 		 * @param hideAfterTimeout Timeout in milliseconds after which the message will be disposed.
 		 * @return A disposable which hides the status bar message.
 		 */
 		export function setStatusBarMessage(text: string, hideAfterTimeout: number): Disposable;
 
 		/**
-		 * @see [window.setStatusBarMessage](#window.setStatusBarMessage)
+		 * Set a message to the status bar. This is a short hand for the more powerfull
+		 * status bar [items](#window.createStatusBarItem).
 		 *
+		 * @param text The message to show, support icons subtitution as in status bar [items](#StatusBarItem.text).
 		 * @param hideWhenDone Thenable on which completion (resolve or reject) the message will be disposed.
 		 * @return A disposable which hides the status bar message.
 		 */
@@ -2758,7 +2803,7 @@ declare namespace vscode {
 		/**
 		 * Creates a status bar [item](#StatusBarItem).
 		 *
-		 * @param position The alignment of the item.
+		 * @param alignment The alignment of the item.
 		 * @param priority The priority of the item. Higher values mean the item should be shown more to the left.
 		 * @return A new status bar item.
 		 */
@@ -2848,7 +2893,10 @@ declare namespace vscode {
 		export function findFiles(include: string, exclude: string, maxResults?: number): Thenable<Uri[]>;
 
 		/**
-		 * Save all dirty files
+		 * Save all dirty files.
+		 *
+		 * @param includeUntitled Also save files that have been created during this session.
+		 * @return A thenable resolves when the files have been saved.
 		 */
 		export function saveAll(includeUntitled?: boolean): Thenable<boolean>;
 
@@ -2988,10 +3036,10 @@ declare namespace vscode {
 		 * parallel and the results are merged.
 		 *
 		 * @param selector A selector that defines the documents this provider is applicable to.
-		 * param provider A code action provider.
+		 * @param provider A code action provider.
 		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
-		export function registerCodeActionsProvider(language: DocumentSelector, provider: CodeActionProvider): Disposable;
+		export function registerCodeActionsProvider(selector: DocumentSelector, provider: CodeActionProvider): Disposable;
 
 		/**
 		 * Register a code lens provider.
@@ -3003,7 +3051,7 @@ declare namespace vscode {
 		 * @param provider A code lens provider.
 		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
-		export function registerCodeLensProvider(language: DocumentSelector, provider: CodeLensProvider): Disposable;
+		export function registerCodeLensProvider(selector: DocumentSelector, provider: CodeLensProvider): Disposable;
 
 		/**
 		 * Register a definition provider.
@@ -3122,7 +3170,7 @@ declare namespace vscode {
 		 * @param selector A selector that defines the documents this provider is applicable to.
 		 * @param provider An on type formatting edit provider.
 		 * @param firstTriggerCharacter A character on which formatting should be triggered, like `}`.
-		 * param moreTriggerCharacter More trigger characters.
+		 * @param moreTriggerCharacter More trigger characters.
 		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
 		export function registerOnTypeFormattingEditProvider(selector: DocumentSelector, provider: OnTypeFormattingEditProvider, firstTriggerCharacter: string, ...moreTriggerCharacter: string[]): Disposable;
@@ -3141,7 +3189,11 @@ declare namespace vscode {
 		export function registerSignatureHelpProvider(selector: DocumentSelector, provider: SignatureHelpProvider, ...triggerCharacters: string[]): Disposable;
 
 		/**
+		 * Set a [language configuration](#LanguageConfiguration) for a language.
 		 *
+		 * @param language A language identifier like `typescript`
+		 * @param configuration Language configuration.
+		 * @return A [disposable](#Disposable) that unsets this configuration.
 		 */
 		export function setLanguageConfiguration(language: string, configuration: LanguageConfiguration): Disposable;
 	}
@@ -3152,15 +3204,18 @@ declare namespace vscode {
 	export namespace extensions {
 
 		/**
-		 * Get an extension by id.
+		 * Get an extension its full identifier  in the form of: `publisher.name`.
 		 *
-		 * @param extensionId An extension identifier in the form of: `publisher.name`.
+		 * @param extensionId An extension identifier.
 		 * @return An extension or `undefined`.
 		 */
 		export function getExtension(extensionId: string): Extension<any>;
 
 		/**
-		 * @see [extensions.getExtension](#extensions.getExtension)
+		 * Get an extension its full identifier  in the form of: `publisher.name`.
+		 *
+		 * @param extensionId An extension identifier.
+		 * @return An extension or `undefined`.
 		 */
 		export function getExtension<T>(extensionId: string): Extension<T>;
 
