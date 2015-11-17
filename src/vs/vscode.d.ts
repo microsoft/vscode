@@ -2558,7 +2558,7 @@ declare namespace vscode {
 		 *
 		 * @param command A unique identifier for the command.
 		 * @param callback A command handler function.
-		 * @param thisArgs The `this` context used when invoking handler function.
+		 * @param thisArg The `this` context used when invoking the handler function.
 		 * @return Disposable which unregisters this command on disposal.
 		 */
 		export function registerCommand(command: string, callback: (...args: any[]) => any, thisArg?: any): Disposable;
@@ -2574,7 +2574,7 @@ declare namespace vscode {
 		 *
 		 * @param command A unique identifier for the command.
 		 * @param callback A command handler function with access to an [editor](#TextEditor) and an [edit](#TextEditorEdit).
-		 * @param thisArgs The `this` context used when invoking handler function.
+		 * @param thisArg The `this` context used when invoking the handler function.
 		 * @return Disposable which unregisters this command on disposal.
 		 */
 		export function registerTextEditorCommand(command: string, callback: (textEditor: TextEditor, edit: TextEditorEdit) => void, thisArg?: any): Disposable;
@@ -2839,7 +2839,7 @@ declare namespace vscode {
 		/**
 		 * Find files in the workspace.
 		 *
-		 * @sample findFiles('**\*.js', '**\node_modules\**', 10)
+		 * @sample `findFiles('**\*.js', '**\node_modules\**', 10)`
 		 * @param include A glob pattern that defines the files to search for.
 		 * @param exclude A glob pattern that defined files and folders to exclude.
 		 * @param maxResults An upper-bound for the result.
@@ -2876,12 +2876,10 @@ declare namespace vscode {
 		 * Opens the denoted document from disk. Will return early if the
 		 * document is already open, otherwise the document is loaded and the
 		 * [open document](#workspace.onDidOpenTextDocument)-event fires.
-		 *
 		 * The document to open is denoted by the [uri](#Uri). Two schemes are supported:
-		 * | Scheme | Description
-		 * | :----- | :----
-		 * | file | A file on disk, will be rejected if the file does not exist or cannot be loaded, e.g. 'file:///Users/frodo/r.ini'.
-		 * | untitled | A new file that should be saved on disk, e.g. 'untitled:/Users/frodo/new.js'. The language will be derived from the file name.
+		 *
+		 * file: A file on disk, will be rejected if the file does not exist or cannot be loaded, e.g. 'file:///Users/frodo/r.ini'.
+		 * untitled: A new file that should be saved on disk, e.g. 'untitled:/Users/frodo/new.js'. The language will be derived from the file name.
 		 *
 		 * Uris with other schemes will make this method returned a rejected promise.
 		 *
