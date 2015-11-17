@@ -965,11 +965,17 @@ declare namespace vscode {
 
 	/**
 	 * Represents a typed event.
-	 * <<< an example for how to use? >>>
+	 *
+	 * A function that represents an event to which you subscribe by calling it with
+	 * a listener function as argument.
+	 *
+	 * @sample `item.onDidChange(function(event) { console.log("Event happened: " + event); });`
 	 */
 	export interface Event<T> {
 
 		/**
+		 * A function that represents an event to which you subscribe by calling it with
+		 * a listener function as argument.
 		 *
 		 * @param listener The listener function will be called when the event happens.
 		 * @param thisArgs The `this`-argument which will be used when calling the event listener.
@@ -981,7 +987,9 @@ declare namespace vscode {
 
 	/**
 	 * A file system watcher notifies about changes to files and folders
-	 * on disk. To get an instance of a `FileSystemWatcher` use
+	 * on disk.
+	 *
+	 * To get an instance of a `FileSystemWatcher` use
 	 * [createFileSystemWatcher](#workspace.createFileSystemWatcher).
 	 */
 	export interface FileSystemWatcher extends Disposable {
@@ -1038,17 +1046,17 @@ declare namespace vscode {
 	}
 
 	/**
-	 *
+	 * Options to configure the behavior of the quick pick UI.
 	 */
 	export interface QuickPickOptions {
 		/**
-		* an optional flag to include the description when filtering the picks
-		*/
+		 * An optional flag to include the description when filtering the picks.
+		 */
 		matchOnDescription?: boolean;
 
 		/**
-		* an optional string to show as place holder in the input box to guide the user what she picks on
-		*/
+		 * An optional string to show as place holder in the input box to guide the user what she picks on.
+		 */
 		placeHolder?: string;
 	}
 
@@ -1069,28 +1077,28 @@ declare namespace vscode {
 	}
 
 	/**
-	 *
+	 * Options to configure the behavior of the input box UI.
 	 */
 	export interface InputBoxOptions {
 
 		/**
-		* The value to prefill in the input box.
-		*/
+		 * The value to prefill in the input box.
+		 */
 		value?: string;
 
 		/**
-		* The text to display underneath the input box.
-		*/
+		 * The text to display underneath the input box.
+		 */
 		prompt?: string;
 
 		/**
-		* An optional string to show as place holder in the input box to guide the user what to type.
-		*/
+		 * An optional string to show as place holder in the input box to guide the user what to type.
+		 */
 		placeHolder?: string;
 
 		/**
-		* Set to true to show a password prompt that will not show the typed value.
-		*/
+		 * Set to true to show a password prompt that will not show the typed value.
+		 */
 		password?: boolean;
 	}
 
@@ -1137,6 +1145,8 @@ declare namespace vscode {
 
 		/**
 		 * An array of diagnostics.
+		 *
+		 * @readonly
 		 */
 		diagnostics: Diagnostic[];
 	}
@@ -1491,15 +1501,54 @@ declare namespace vscode {
 	}
 
 	/**
-	 *
+	 * A text edit reprents edits that should be applied
+	 * to a document.
 	 */
 	export class TextEdit {
+
+		/**
+		 * Utility to create a replace edit.
+		 *
+		 * @param range A range.
+		 * @param newText A string.
+		 * @return A new text edit object.
+		 */
 		static replace(range: Range, newText: string): TextEdit;
+
+		/**
+		 * Utility to create an insert edit.
+		 *
+		 * @param position A postion, will become  an empty range.
+		 * @param newText A string.
+		 * @return A new text edit object.
+		 */
 		static insert(position: Position, newText: string): TextEdit;
+
+		/**
+		 * Utility to create a delete edit.
+		 *
+		 * @param position A postion, will become  an empty range.
+		 * @return A new text edit object.
+		 */
 		static delete(range: Range): TextEdit;
-		constructor(range: Range, newText: string);
+
+		/**
+		 * The range this edit applies to.
+		 */
 		range: Range;
+
+		/**
+		 * The string this edit will insert.
+		 */
 		newText: string;
+
+		/**
+		 * Create a new TextEdit.
+		 *
+		 * @param range A range.
+		 * @param newText A string.
+		 */
+		constructor(range: Range, newText: string);
 	}
 
 	/**
@@ -1592,55 +1641,192 @@ declare namespace vscode {
 	 * Value-object describing what options formatting should use.
 	 */
 	export interface FormattingOptions {
+
+		/**
+		 * Size of a tab in spaces.
+		 */
 		tabSize: number;
+
+		/**
+		 * Prefer spaces over tabs.
+		 */
 		insertSpaces: boolean;
-		[key: string]: boolean | number | string;	// <<< non-obvious >>>
+
+		/**
+		 * Signature for further properties.
+		 */
+		[key: string]: boolean | number | string;
 	}
 
 	/**
-	 *
+	 * The document formatting provider interface defines the contract between extensions and
+	 * the formatting-feature.
 	 */
 	export interface DocumentFormattingEditProvider {
+
+		/**
+		 * Provide formatting edits for a whole document.
+		 *
+		 * @param document The document in which the command was invoked.
+		 * @param options Options controlling formatting.
+		 * @param token A cancellation token.
+		 * @return A set of text edits or a thenable that resolves to such. The lack of a result can be
+		 * signaled by returing `undefined`, `null`, or an empty array.
+		 */
 		provideDocumentFormattingEdits(document: TextDocument, options: FormattingOptions, token: CancellationToken): TextEdit[] | Thenable<TextEdit[]>;
 	}
 
 	/**
-	 *
+	 * The document formatting provider interface defines the contract between extensions and
+	 * the formatting-feature.
 	 */
 	export interface DocumentRangeFormattingEditProvider {
+
+		/**
+		 * Provide formatting edits for a range in a document.
+		 *
+		 * The given range is a hint and providers can decide to format a smaller
+		 * or larger range. Often this is done by mapping the start and end of a
+		 * range to meaning full syntax-tree nodes.
+		 *
+		 * @param document The document in which the command was invoked.
+		 * @param range The range which should be formatted.
+		 * @param options Options controlling formatting.
+		 * @param token A cancellation token.
+		 * @return A set of text edits or a thenable that resolves to such. The lack of a result can be
+		 * signaled by returing `undefined`, `null`, or an empty array.
+		 */
 		provideDocumentRangeFormattingEdits(document: TextDocument, range: Range, options: FormattingOptions, token: CancellationToken): TextEdit[] | Thenable<TextEdit[]>;
 	}
 
 	/**
-	 *
+	 * The document formatting provider interface defines the contract between extensions and
+	 * the formatting-feature.
 	 */
 	export interface OnTypeFormattingEditProvider {
+
+		/**
+		 * Provide formatting edits after a character has been typed.
+		 *
+		 * The given position and character should hint to the provider
+		 * what range the position to expand to, like find the matching `{`
+		 * when `}` has been entered.
+		 *
+		 * @param document The document in which the command was invoked.
+		 * @param position The position at which the command was invoked.
+		 * @oaram ch The character that has been typed.
+		 * @param options Options controlling formatting.
+		 * @param token A cancellation token.
+		 * @return A set of text edits or a thenable that resolves to such. The lack of a result can be
+		 * signaled by returing `undefined`, `null`, or an empty array.
+		 */
 		provideOnTypeFormattingEdits(document: TextDocument, position: Position, ch: string, options: FormattingOptions, token: CancellationToken): TextEdit[] | Thenable<TextEdit[]>;
 	}
 
+	/**
+	 * Represents a parameter of a callable-signature. A parameter can
+	 * have a label and a doc-comment.
+	 */
 	export class ParameterInformation {
+
+		/**
+		 * The label of this signature. Will be shown in
+		 * the UI.
+		 */
 		label: string;
-		documentation: string;		// <<< non-obvious: what is the supported format? >>>
+
+		/**
+		 * The human-readable doc-comment of this signature. Will be shown
+		 * in the UI but can be omitted.
+		 */
+		documentation: string;
+
+		/**
+		 * Creates a new parameter information object.
+		 *
+		 * @param label A label string.
+		 * @param documentation A doc string.
+		 */
 		constructor(label: string, documentation?: string);
 	}
 
+	/**
+	 * Represents the signature of something callable. A signature
+	 * can have a label, like a function-name, a doc-comment, and
+	 * a set of parameters.
+	 */
 	export class SignatureInformation {
+
+		/**
+		 * The label of this signature. Will be shown in
+		 * the UI.
+		 */
 		label: string;
-		documentation: string;		// <<< non-obvious: what is the supported format? >>>
+
+		/**
+		 * The human-readable doc-comment of this signature. Will be shown
+		 * in the UI but can be omitted.
+		 */
+		documentation: string;
+
+		/**
+		 * The parameters of this signature.
+		 */
 		parameters: ParameterInformation[];
+
+		/**
+		 * Creates a new signature information object.
+		 *
+		 * @param label A label string.
+		 * @param document A doc string.
+		 */
 		constructor(label: string, documentation?: string);
 	}
 
+	/**
+	 * Signature help represents the signature of something
+	 * callable. There can be multiple signature but only one
+	 * active and only one active parameter.
+	 */
 	export class SignatureHelp {
+
+		/**
+		 * One or more signatures.
+		 */
 		signatures: SignatureInformation[];
+
+		/**
+		 * The active signature.
+		 */
 		activeSignature: number;
+
+		/**
+		 * The active parameter of the active signature.
+		 */
 		activeParameter: number;
 	}
 
+	/**
+	 * The signature help provider interface defines the contract between extensions and
+	 * the [parameter hints](https://code.visualstudio.com/docs/editor/editingevolved#_parameter-hints)-feature.
+	 */
 	export interface SignatureHelpProvider {
+
+		/**
+		 * Provide help for the signature at the given position and document.
+		 *
+		 * @param document The document in which the command was invoked.
+		 * @param position The position at which the command was invoked.
+		 * @param token A cancellation token.
+		 * @return Signature help or a thenable that resolves to such. The lack of a result can be
+		 * signaled by returing `undefined` or `null`.
+		 */
 		provideSignatureHelp(document: TextDocument, position: Position, token: CancellationToken): SignatureHelp | Thenable<SignatureHelp>;
 	}
 
+	/**
+	 * Completion item kinds.
+	 */
 	export enum CompletionItemKind {
 		Text,
 		Method,
@@ -1734,10 +1920,18 @@ declare namespace vscode {
 	/**
 	 * The completion item provider interface defines the contract between extensions and
 	 * the [IntelliSense](https://code.visualstudio.com/docs/editor/editingevolved#_intellisense).
+	 *
+	 * When computing *complete* completion items is expensive, providers can optionally implement
+	 * the `resolveCompletionItem`-function. In that case it is enough to return completion
+	 * items with a [label](#CompletionItem.label) from the
+	 * [provideCompletionItems]#(CompletionItemProvider.provideCompletionItems)-function. Subsequently,
+	 * when a completion item is shown in the UI and gains focus this provider being asked to resolve
+	 * the item, like adding [doc-comment](#CompletionItem.documentation) or [details](#CompletionItem.detail).
 	 */
 	export interface CompletionItemProvider {
 
 		/**
+		 * Provide completion items for the given position and document.
 		 *
 		 * @param document The document in which the command was invoked.
 		 * @param position The position at which the command was invoked.
@@ -1748,16 +1942,39 @@ declare namespace vscode {
 		provideCompletionItems(document: TextDocument, position: Position, token: CancellationToken): CompletionItem[] | Thenable<CompletionItem[]>;
 
 		/**
+		 * Given a completion item fill in more data, like [doc-comment](#CompletionItem.documentation)
+		 * or [details](#CompletionItem.detail).
 		 *
+		 * The editor will only resolve a completion item once.
+		 *
+		 * @param item A completion item currently active in the UI.
+		 * @param token A cancellation token.
+		 * @return The resolved completion item or a thenable that resolves to of such. It is OK to retrun the given
+		 * `item`. When no result is returned, the given `item` will be used.
 		 */
 		resolveCompletionItem?(item: CompletionItem, token: CancellationToken): CompletionItem | Thenable<CompletionItem>;
 	}
 
+	/**
+	 * A tuple of two characters, like a pair of
+	 * opening and closing brackets.
+	 */
 	export type CharacterPair = [string, string];
 
+	/**
+	 * Describes how comments for a language work.
+	 */
 	export interface CommentRule {
+
+		/**
+		 * The line comment token, like `// this is a comment`
+		 */
 		lineComment?: string;
-		blockComment?: CharacterPair;	// <<< non-obvious: is this the start/end characters of the comment?
+
+		/**
+		 * The block comment character pair, like `/* block comment *&#47;`
+		 */
+		blockComment?: CharacterPair;
 	}
 
 	export interface IndentationRule {
@@ -1787,6 +2004,10 @@ declare namespace vscode {
 		action: EnterAction;
 	}
 
+	/**
+	 * The languge configuration interfaces defines the contract between extensions
+	 * and various editor feature, like automatic bracket insertion, automatic indentation etc.
+	 */
 	export interface LanguageConfiguration {
 		comments?: CommentRule;
 		brackets?: CharacterPair[];
@@ -1795,8 +2016,8 @@ declare namespace vscode {
 		onEnterRules?: OnEnterRule[];
 
 		/**
-		 * **Deprecated**.
-		 * @deprecated
+		 *
+		 * @deprecated Will be replaced by a better API soon.
 		 */
 		__electricCharacterSupport?: {
 			brackets: {
@@ -1814,8 +2035,8 @@ declare namespace vscode {
 		};
 
 		/**
-		 * **Deprecated**.
-		 * @deprecated
+		 * 
+		 * @deprecated Will be replaced by a better API soon.
 		 */
 		__characterPairSupport?: {
 			autoClosingPairs: {
@@ -1983,7 +2204,7 @@ declare namespace vscode {
 		/**
 		 * Replace all entries in this collection
 		 *
-		 * @param entries An array of tuples, like [[file1, [d1, d2]], [file2, [d3, d4, d5]]], or `undefined`
+		 * @param entries An array of tuples, like `[[file1, [d1, d2]], [file2, [d3, d4, d5]]]`, or `undefined`
 		 */
 		set(entries: [Uri, Diagnostic[]][]): void;
 
@@ -2001,8 +2222,8 @@ declare namespace vscode {
 	}
 
 	/**
-	 * Denotes a column in the VS Code window. Columns used to show editors
-	 * side by side.
+	 * Denotes a column in the VS Code window. Columns are
+	 * used to show editors side by side.
 	 */
 	export enum ViewColumn {
 		One = 1,
@@ -2362,26 +2583,31 @@ declare namespace vscode {
 		export function showInformationMessage(message: string, ...items: string[]): Thenable<string>;
 
 		/**
+		 * Show an information message.
 		 * @see [showInformationMessage](#window.showInformationMessage)
 		 */
 		export function showInformationMessage<T extends MessageItem>(message: string, ...items: T[]): Thenable<T>;
 
 		/**
+		 * Show a warning message.
 		 * @see [showInformationMessage](#window.showInformationMessage)
 		 */
 		export function showWarningMessage(message: string, ...items: string[]): Thenable<string>;
 
 		/**
+		 * Show a warning message.
 		 * @see [showInformationMessage](#window.showInformationMessage)
 		 */
 		export function showWarningMessage<T extends MessageItem>(message: string, ...items: T[]): Thenable<T>;
 
 		/**
+		 * Show an error message.
 		 * @see [showInformationMessage](#window.showInformationMessage)
 		 */
 		export function showErrorMessage(message: string, ...items: string[]): Thenable<string>;
 
 		/**
+		 * Show an error message.
 		 * @see [showInformationMessage](#window.showInformationMessage)
 		 */
 		export function showErrorMessage<T extends MessageItem>(message: string, ...items: T[]): Thenable<T>;
