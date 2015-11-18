@@ -17,7 +17,7 @@ declare namespace vscode {
 	/**
 	 * Represents a reference to a command. Provides a title which
 	 * will be used to represent a command in the UI and, optionally,
-	 * an array of arguments which will be passed to command handler
+	 * an array of arguments which will be passed to the command handler
 	 * function when invoked.
 	 */
 	export interface Command {
@@ -364,7 +364,7 @@ declare namespace vscode {
 		end: Position;
 
 		/**
-		 * Create a new range from two position. If `start` is not
+		 * Create a new range from two positions. If `start` is not
 		 * before or equal to `end`, the values will be swapped.
 		 *
 		 * @param start A position.
@@ -755,7 +755,7 @@ declare namespace vscode {
 		 * Show the text editor.
 		 *
 		 * @deprecated **This method is deprecated.** Use [window.showTextDocument](#window.showTextDocument)
-		 * instead. This method shows unexpected bahviour and will be removed in the next major update.
+		 * instead. This method shows unexpected behavior and will be removed in the next major update.
 		 *
 		 * @param column The [column](#ViewColumn) in which to show this editor.
 		 */
@@ -765,7 +765,7 @@ declare namespace vscode {
 		 * Hide the text editor.
 		 *
 		 * @deprecated **This method is deprecated.** Use the command 'workbench.action.closeActiveEditor' instead.
-		 * This method shows unexpected bahviour and will be removed in the next major update.
+		 * This method shows unexpected behavior and will be removed in the next major update.
 		 */
 		hide(): void;
 	}
@@ -805,7 +805,7 @@ declare namespace vscode {
 	}
 
 	/**
-	 * A universal resource identifier representing either a file on disk on
+	 * A universal resource identifier representing either a file on disk
 	 * or another resource, like untitled resources.
 	 */
 	export class Uri {
@@ -881,7 +881,7 @@ declare namespace vscode {
 	}
 
 	/**
-	 * A cancellation token is passed to asynchronous or long running
+	 * A cancellation token is passed to an asynchronous or long running
 	 * operation to request cancellation, like cancelling a request
 	 * for completion items because the user continued to type.
 	 */
@@ -930,7 +930,7 @@ declare namespace vscode {
 		 * when having objects with a dispose function which are not
 		 * instances of Disposable.
 		 *
-		 * @param disposableLikes Objects that has at least a `dispose`-function member.
+		 * @param disposableLikes Objects that have at least a `dispose`-function member.
 		 * @return Returns a new disposable which, upon dispose, will
 		 * dispose all provided disposables.
 		 */
@@ -1041,7 +1041,7 @@ declare namespace vscode {
 		matchOnDescription?: boolean;
 
 		/**
-		 * An optional string to show as place holder in the input box to guide the user what she picks on.
+		 * An optional string to show as place holder in the input box to guide the user what to pick on.
 		 */
 		placeHolder?: string;
 	}
@@ -1218,7 +1218,7 @@ declare namespace vscode {
 		 *
 		 * @param codeLens Code-lens that must be resolved.
 		 * @param token A cancellation token.
-		 * @return The given, resolved code lene or thenable that resolves to such.
+		 * @return The given, resolved code lens or thenable that resolves to such.
 		 */
 		resolveCodeLens?(codeLens: CodeLens, token: CancellationToken): CodeLens | Thenable<CodeLens>;
 	}
@@ -1243,7 +1243,7 @@ declare namespace vscode {
 		 * @param document The document in which the command was invoked.
 		 * @param position The position at which the command was invoked.
 		 * @param token A cancellation token.
-		 * @return An definition or a thenable that resolves to such. The lack of a result can be
+		 * @return A definition or a thenable that resolves to such. The lack of a result can be
 		 * signaled by returing `undefined` or `null`.
 		 */
 		provideDefinition(document: TextDocument, position: Position, token: CancellationToken): Definition | Thenable<Definition>;
@@ -1357,7 +1357,7 @@ declare namespace vscode {
 	export interface DocumentHighlightProvider {
 
 		/**
-		 * Provide a set of document highligts, like all occurrences of a variable or
+		 * Provide a set of document highlights, like all occurrences of a variable or
 		 * all exit-points of a function.
 		 *
 		 * @param document The document in which the command was invoked.
@@ -1498,7 +1498,7 @@ declare namespace vscode {
 	}
 
 	/**
-	 * A text edit reprents edits that should be applied
+	 * A text edit represents edits that should be applied
 	 * to a document.
 	 */
 	export class TextEdit {
@@ -1515,7 +1515,7 @@ declare namespace vscode {
 		/**
 		 * Utility to create an insert edit.
 		 *
-		 * @param position A postion, will become  an empty range.
+		 * @param position A position, will become an empty range.
 		 * @param newText A string.
 		 * @return A new text edit object.
 		 */
@@ -1579,7 +1579,7 @@ declare namespace vscode {
 		insert(uri: Uri, position: Position, newText: string): void;
 
 		/**
-		 * Delete the text at the give range.
+		 * Delete the text at the given range.
 		 *
 		 * @param uri A resource identifier.
 		 * @param range A range.
@@ -1785,7 +1785,7 @@ declare namespace vscode {
 
 	/**
 	 * Signature help represents the signature of something
-	 * callable. There can be multiple signature but only one
+	 * callable. There can be multiple signatures but only one
 	 * active and only one active parameter.
 	 */
 	export class SignatureHelp {
@@ -1865,7 +1865,7 @@ declare namespace vscode {
 		label: string;
 
 		/**
-		 * The kind of this completion item. Based of the kind
+		 * The kind of this completion item. Based on the kind
 		 * an icon is chosen by the editor.
 		 */
 		kind: CompletionItemKind;
@@ -1896,7 +1896,7 @@ declare namespace vscode {
 		filterText: string;
 
 		/**
-		 * A string that should be inserted a document when selecting
+		 * A string that should be inserted in a document when selecting
 		 * this completion. When `falsy` the [label](#CompletionItem.label)
 		 * is used.
 		 */
@@ -1928,7 +1928,7 @@ declare namespace vscode {
 	 * the `resolveCompletionItem`-function. In that case it is enough to return completion
 	 * items with a [label](#CompletionItem.label) from the
 	 * [provideCompletionItems](#CompletionItemProvider.provideCompletionItems)-function. Subsequently,
-	 * when a completion item is shown in the UI and gains focus this provider being asked to resolve
+	 * when a completion item is shown in the UI and gains focus this provider is asked to resolve
 	 * the item, like adding [doc-comment](#CompletionItem.documentation) or [details](#CompletionItem.detail).
 	 */
 	export interface CompletionItemProvider {
@@ -1952,7 +1952,7 @@ declare namespace vscode {
 		 *
 		 * @param item A completion item currently active in the UI.
 		 * @param token A cancellation token.
-		 * @return The resolved completion item or a thenable that resolves to of such. It is OK to retrun the given
+		 * @return The resolved completion item or a thenable that resolves to of such. It is OK to return the given
 		 * `item`. When no result is returned, the given `item` will be used.
 		 */
 		resolveCompletionItem?(item: CompletionItem, token: CancellationToken): CompletionItem | Thenable<CompletionItem>;
@@ -2064,7 +2064,7 @@ declare namespace vscode {
 
 	/**
 	 * The languge configuration interfaces defines the contract between extensions
-	 * and various editor feature, like automatic bracket insertion, automatic indentation etc.
+	 * and various editor features, like automatic bracket insertion, automatic indentation etc.
 	 */
 	export interface LanguageConfiguration {
 		/**
@@ -2189,7 +2189,7 @@ declare namespace vscode {
 	export enum DiagnosticSeverity {
 
 		/**
-		 * Something not allowed by the rules of a languages or other means.
+		 * Something not allowed by the rules of a language or other means.
 		 */
 		Error = 0,
 
@@ -2232,7 +2232,7 @@ declare namespace vscode {
 		severity: DiagnosticSeverity;
 
 		/**
-		 * A code or identifier for this diagnostics. Will not surfaced
+		 * A code or identifier for this diagnostics. Will not be surfaced
 		 * to the user, but should be used for later processing, e.g when
 		 * providing [code actions](#CodeActionContext).
 		 */
@@ -2490,16 +2490,16 @@ declare namespace vscode {
 		/**
 		 * Activates this extension and returns its public API.
 		 *
-		 * @return A promise that resolve when this extension has been activated.
+		 * @return A promise that will resolve when this extension has been activated.
 		 */
 		activate(): Thenable<T>;
 	}
 
 	/**
-	 * An extension context is a collection utilities private to an
-	 * extensions.
+	 * An extension context is a collection of utilities private to an
+	 * extension.
 	 *
-	 * An instance of an `ExtensionContext` is provided as first
+	 * An instance of an `ExtensionContext` is provided as the first
 	 * parameter to the `activate`-call of an extension.
 	 */
 	export interface ExtensionContext {
@@ -2553,7 +2553,7 @@ declare namespace vscode {
 		get<T>(key: string, defaultValue?: T): T;
 
 		/**
-		 * Store a value. The value must be JSON-stringfyable.
+		 * Store a value. The value must be JSON-stringifyable.
 		 *
 		 * @param key A string.
 		 * @param value A value. MUST not contain cyclic references.
@@ -2575,7 +2575,7 @@ declare namespace vscode {
 	 * [keybindings](https://code.visualstudio.com/docs/customization/keybindings#_customizing-shortcuts)
 	 * for your extension.
 	 *
-	 * Commands from other extensions and from the editor itself are accessable to an extension. However,
+	 * Commands from other extensions and from the editor itself are accessible to an extension. However,
 	 * when invoking an editor command not all argument types are supported.
 	 *
 	 * This is a sample that registers a command handler and adds an entry for that command to the palette. First
@@ -2600,7 +2600,7 @@ declare namespace vscode {
 
 		/**
 		 * Registers a command that can be invoked via a keyboard shortcut,
-		 * an menu item, an action, or directly.
+		 * a menu item, an action, or directly.
 		 *
 		 * Registering a command with an existing command identifier twice
 		 * will cause an error.
@@ -2614,10 +2614,10 @@ declare namespace vscode {
 
 		/**
 		 * Registers a text editor command that can be invoked via a keyboard shortcut,
-		 * an menu item, an action, or directly.
+		 * a menu item, an action, or directly.
 		 *
 		 * Text editor commands are different from ordinary [commands](#commands.registerCommand) as
-		 * they only execute when there was an active editor when the command was called. Also, the
+		 * they only execute when there is an active editor when the command is called. Also, the
 		 * command handler of an editor command has access to the active editor and to an
 		 * [edit](#TextEditorEdit)-builder.
 		 *
@@ -2634,7 +2634,7 @@ declare namespace vscode {
 		 * When executing an editor command not all types are allowed to
 		 * be passed as arguments. Allowed are the primitive types `string`, `boolean`,
 		 * `number`, `undefined`, and `null`, as well as classes defined in this API.
-		 * There are no restriction when executing commands that have been contributed
+		 * There are no restrictions when executing commands that have been contributed
 		 * by extensions.
 		 *
 		 * @param command Identifier of the command to execute.
@@ -2661,7 +2661,7 @@ declare namespace vscode {
 
 		/**
 		 * The currently active editor or undefined. The active editor is the one
-		 * that currenty has focus or, when none has focus, the one that has changed
+		 * that currently has focus or, when none has focus, the one that has changed
 		 * input most recently.
 		 */
 		export let activeTextEditor: TextEditor;
@@ -2712,7 +2712,7 @@ declare namespace vscode {
 		 *
 		 * @param message The message to show.
 		 * @param items A set of items that will be rendered as actions in the message.
-		 * @return A thenable that resolves to the  a selected item or `undefined`. The thenable will be rejected
+		 * @return A thenable that resolves to the selected item or `undefined`. The thenable will be rejected
 		 * when the message was dismissed.
 		 */
 		export function showInformationMessage(message: string, ...items: string[]): Thenable<string>;
@@ -2724,7 +2724,7 @@ declare namespace vscode {
 		 *
 		 * @param message The message to show.
 		 * @param items A set of items that will be rendered as actions in the message.
-		 * @return A thenable that resolves to the  a selected item or `undefined`. The thenable will be rejected
+		 * @return A thenable that resolves to the selected item or `undefined`. The thenable will be rejected
 		 * when the message was dismissed.
 		 */
 		export function showInformationMessage<T extends MessageItem>(message: string, ...items: T[]): Thenable<T>;
@@ -2736,7 +2736,7 @@ declare namespace vscode {
 		 *
 		 * @param message The message to show.
 		 * @param items A set of items that will be rendered as actions in the message.
-		 * @return A thenable that resolves to the  a selected item or `undefined`. The thenable will be rejected
+		 * @return A thenable that resolves to the selected item or `undefined`. The thenable will be rejected
 		 * when the message was dismissed.
 		 */
 		export function showWarningMessage(message: string, ...items: string[]): Thenable<string>;
@@ -2748,7 +2748,7 @@ declare namespace vscode {
 		 *
 		 * @param message The message to show.
 		 * @param items A set of items that will be rendered as actions in the message.
-		 * @return A thenable that resolves to the  a selected item or `undefined`. The thenable will be rejected
+		 * @return A thenable that resolves to the selected item or `undefined`. The thenable will be rejected
 		 * when the message was dismissed.
 		 */
 		export function showWarningMessage<T extends MessageItem>(message: string, ...items: T[]): Thenable<T>;
@@ -2760,7 +2760,7 @@ declare namespace vscode {
 		 *
 		 * @param message The message to show.
 		 * @param items A set of items that will be rendered as actions in the message.
-		 * @return A thenable that resolves to the  a selected item or `undefined`. The thenable will be rejected
+		 * @return A thenable that resolves to the selected item or `undefined`. The thenable will be rejected
 		 * when the message was dismissed.
 		 */
 		export function showErrorMessage(message: string, ...items: string[]): Thenable<string>;
@@ -2772,7 +2772,7 @@ declare namespace vscode {
 		 *
 		 * @param message The message to show.
 		 * @param items A set of items that will be rendered as actions in the message.
-		 * @return A thenable that resolves to the  a selected item or `undefined`. The thenable will be rejected
+		 * @return A thenable that resolves to the selected item or `undefined`. The thenable will be rejected
 		 * when the message was dismissed.
 		 */
 		export function showErrorMessage<T extends MessageItem>(message: string, ...items: T[]): Thenable<T>;
@@ -2798,9 +2798,9 @@ declare namespace vscode {
 		/**
 		 * Opens an input box to ask the user for input.
 		 *
-		 * The returned value will be undefined if the input box was canceled (e.g. pressing ESC) and otherwise will
-		 * have the user typed string or an empty string if the user did not type anything but dismissed the input
-		 * box with OK.
+		 * The returned value will be undefined if the input box was canceled (e.g. pressing ESC). Otherwise the
+		 * returned value will be the string typed by the user or an empty string if the user did not type 
+		 * anything but dismissed the input box with OK.
 		 *
 		 * @param options Configures the behavior of the input box.
 		 * @return A promise that resolves to a string the user provided or to `undefined` in case of dismissal.
@@ -2810,12 +2810,12 @@ declare namespace vscode {
 		/**
 		 * Create a new [output channel](#OutputChannel) with the given name.
 		 *
-		 * @param name Human-readable string which we will used to represent the channel in the UI.
+		 * @param name Human-readable string which will be used to represent the channel in the UI.
 		 */
 		export function createOutputChannel(name: string): OutputChannel;
 
 		/**
-		 * Set a message to the status bar. This is a short hand for the more powerfull
+		 * Set a message to the status bar. This is a short hand for the more powerful
 		 * status bar [items](#window.createStatusBarItem).
 		 *
 		 * @param text The message to show, support icons subtitution as in status bar [items](#StatusBarItem.text).
@@ -2824,7 +2824,7 @@ declare namespace vscode {
 		export function setStatusBarMessage(text: string): Disposable;
 
 		/**
-		 * Set a message to the status bar. This is a short hand for the more powerfull
+		 * Set a message to the status bar. This is a short hand for the more powerful
 		 * status bar [items](#window.createStatusBarItem).
 		 *
 		 * @param text The message to show, support icons subtitution as in status bar [items](#StatusBarItem.text).
@@ -2834,7 +2834,7 @@ declare namespace vscode {
 		export function setStatusBarMessage(text: string, hideAfterTimeout: number): Disposable;
 
 		/**
-		 * Set a message to the status bar. This is a short hand for the more powerfull
+		 * Set a message to the status bar. This is a short hand for the more powerful
 		 * status bar [items](#window.createStatusBarItem).
 		 *
 		 * @param text The message to show, support icons subtitution as in status bar [items](#StatusBarItem.text).
@@ -2894,7 +2894,7 @@ declare namespace vscode {
 	 *
 	 * The workspace offers support for [listening](#workspace.createFileSystemWatcher) to fs
 	 * events and for [finding](#workspace#findFiles) files. Both perform well and run _outside_
-	 * the editor-process so that they should be always used instead of nodejs-equalivents.
+	 * the editor-process so that they should be always used instead of nodejs-equivalents.
 	 */
 	export namespace workspace {
 
@@ -2902,7 +2902,7 @@ declare namespace vscode {
 		 * Creates a file system watcher.
 		 *
 		 * A glob pattern that filters the file events must be provided. Optionally, flags to ignore certain
-		 * kind of events can be provided. To stop listening to events the watcher must be disposed.
+		 * kinds of events can be provided. To stop listening to events the watcher must be disposed.
 		 *
 		 * @param globPattern  A glob pattern that is applied to the names of created, changed, and deleted files.
 		 * @param ignoreCreateEvents Ignore when files have been created.
@@ -2934,7 +2934,7 @@ declare namespace vscode {
 		 *
 		 * @sample `findFiles('**\*.js', '**\node_modules\**', 10)`
 		 * @param include A glob pattern that defines the files to search for.
-		 * @param exclude A glob pattern that defined files and folders to exclude.
+		 * @param exclude A glob pattern that defines files and folders to exclude.
 		 * @param maxResults An upper-bound for the result.
 		 * @return A thenable that resolves to an array of resource identifiers.
 		 */
@@ -2944,7 +2944,7 @@ declare namespace vscode {
 		 * Save all dirty files.
 		 *
 		 * @param includeUntitled Also save files that have been created during this session.
-		 * @return A thenable resolves when the files have been saved.
+		 * @return A thenable that resolves when the files have been saved.
 		 */
 		export function saveAll(includeUntitled?: boolean): Thenable<boolean>;
 
@@ -2952,9 +2952,9 @@ declare namespace vscode {
 		 * Make changes to one or many resources as defined by the given
 		 * [workspace edit](#WorkspaceEdit).
 		 *
-		 * When applying a workspace edit, the editor implements a 'all-or-nothing'-strategy,
-		 * that means failure to load one document or make changes to one document will make
-		 * the edit be rejected.
+		 * When applying a workspace edit, the editor implements an 'all-or-nothing'-strategy,
+		 * that means failure to load one document or make changes to one document will cause
+		 * the edit to be rejected.
 		 *
 		 * @param edit A workspace edit.
 		 * @return A thenable that resolves when the edit could be applied.
@@ -3040,7 +3040,7 @@ declare namespace vscode {
 	 * like automatic word-completion, code navigation, or code checking have become popular across different tools for different
 	 * programming languages.
 	 *
-	 * The editor provides API that makes it simple to provide such common features by having all UI and actions already in place and
+	 * The editor provides an API that makes it simple to provide such common features by having all UI and actions already in place and
 	 * by allowing you to participate by providing data only. For instance, to contribute a hover all you have to do is provide a function
 	 * that can be called with a [TextDocument](#TextDocument) and a [Position](#Position) returning hover info. The rest, like tracking the
 	 * mouse, positioning the hover, keeping the hover stable etc. is taken care of by the editor.
@@ -3055,7 +3055,7 @@ declare namespace vscode {
 	 *
 	 * Registration is done using a [document selector](#DocumentSelector) which is either a language id, like `javascript` or
 	 * a more complex [filter](#DocumentFilter) like `{ language: 'typescript', scheme: 'file' }`. Matching a document against such
-	 * a selector will result in a [score](#languages.match) that is used to determine if and how to a provider shall be used. When
+	 * a selector will result in a [score](#languages.match) that is used to determine if and how a provider shall be used. When
 	 * scores are equal the provider that came last wins. For features that allow full arity, like [hover](#languages.registerHoverProvider),
 	 * the score is only checked to be `>0`, for other features, like [IntelliSense](#languages.registerCompletionItemProvider) the
 	 * score is used for determining the order in which providers are asked to participate.
@@ -3070,11 +3070,11 @@ declare namespace vscode {
 
 		/**
 		 * Compute the match between a document [selector](#DocumentSelector) and a document. Values
-		 * greater zero mean the selector matches the document. The more individual matches a selector
+		 * greater than zero mean the selector matches the document. The more individual matches a selector
 		 * and a document have, the higher the score is. These are the abstract rules given a `selector`:
 		 *
 		 * ```
-		 * (1) When selector is an array, return the maxium individual result.
+		 * (1) When selector is an array, return the maximum individual result.
 		 * (2) When selector is a string match that against the [languageId](#TextDocument.languageId).
 		 * 	(2.1) When both are equal score is `10`,
 		 * 	(2.2) When the selector is `*` score is `5`,
@@ -3095,7 +3095,7 @@ declare namespace vscode {
 		export function match(selector: DocumentSelector, document: TextDocument): number;
 
 		/**
-		 * Create a diagnostics collections.
+		 * Create a diagnostics collection.
 		 *
 		 * @param name The [name](#DiagnosticCollection.name) of the collection.
 		 * @return A new diagnostic collection.
@@ -3226,7 +3226,7 @@ declare namespace vscode {
 		export function registerRenameProvider(selector: DocumentSelector, provider: RenameProvider): Disposable;
 
 		/**
-		 * Register a formattings providers for a document.
+		 * Register a formattings provider for a document.
 		 *
 		 * Multiple providers can be registered for a language. In that case providers are sorted
 		 * by their [score](#languages.match) and the result of best-matching provider is used.
@@ -3290,7 +3290,7 @@ declare namespace vscode {
 	 * Namespace for dealing with installed extensions. Extensions are represented
 	 * by an [extension](#Extension)-interface which allows to reflect on them.
 	 *
-	 * Extension writers can provide APIs to other extensions by returing their API public
+	 * Extension writers can provide APIs to other extensions by returning their API public
 	 * surface from the `activate`-call.
 	 *
 	 * ```javascript
