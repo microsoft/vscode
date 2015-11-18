@@ -43,7 +43,7 @@ declare namespace vscode {
 	 * Represents a line of text, such as a line of source code.
 	 *
 	 * TextLine objects are __immutable__. When a [document](#TextDocument) changes,
-	 * previsouly retrieved lines will not represent the latest state.
+	 * previously retrieved lines will not represent the latest state.
 	 */
 	export interface TextLine {
 
