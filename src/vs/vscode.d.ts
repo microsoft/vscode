@@ -3052,6 +3052,13 @@ declare namespace vscode {
 	 * 		}
 	 * });
 	 * ```
+	 *
+	 * Registration is done using a [document selector](#DocumentSelector) which is either a language id, like `javascript` or
+	 * a more complex [filter](#DocumentFilter) like `{ language: 'typescript', scheme: 'file' }`. Matching a document against such
+	 * a selector will result in a [score](#languages.match) that is used to determine if and how to a provider shall be used. When
+	 * scores are equal the provider that came last wins. For features that allow full arity, like [hover](#languages.registerHoverProvider),
+	 * the score is only checked to be `>0`, for other features, like [IntelliSense](#languages.registerCompletionItemProvider) the
+	 * score is used for determining the order in which providers are asked to participate.
 	 */
 	export namespace languages {
 
@@ -3063,7 +3070,23 @@ declare namespace vscode {
 
 		/**
 		 * Compute the match between a document [selector](#DocumentSelector) and a document. Values
-		 * greater zero mean the selector matches the document.
+		 * greater zero mean the selector matches the document. The more individual matches a selector
+		 * and a document have, the higher the score is. These are the abstract rules given a `selector`:
+		 *
+		 * ```
+		 * (1) When selector is an array, return the maxium individual result.
+		 * (2) When selector is a string match that against the [languageId](#TextDocument.languageId).
+		 * 	(2.1) When both are equal score is `10`,
+		 * 	(2.2) When the selector is `*` score is `5`,
+		 * 	(2.3) Else score is `0`.
+		 * (3) When selector is a [filter](#DocumentFilter) every property must score higher `0`. Iff the score is the sum of the following:
+		 *	(3.1) When [language](#DocumentFilter.language) is set apply rules from #2, when `0` the total score is `0`.
+		 *	(3.2) When [scheme](#Document.scheme) is set and equals the [uri](#TextDocument.uri)-scheme add `10` to the score, else the total score is `0`.
+		 *	(3.3) When [pattern](#Document.pattern) is set
+		 * 		(3.3.1) pattern eqauls the [uri](#TextDocument.uri)-fsPath add `10` to the score,
+		 *		(3.3.1) if the pattern matches as glob-pattern add `5` to the score,
+		 *		(3.3.1) the total score is `0`
+		 * ```
 		 *
 		 * @param selector A document selector.
 		 * @param document A text document.
