@@ -1,6 +1,7 @@
 {
 	"nameShort": "Code [OSS Build]",
 	"nameLong": "Code [OSS Build]",
+	"win32ExeBasename": "CodeOSS",
 	"companyName": "Microsoft Corporation",
 	"copyright": "Copyright (C) 2015 Microsoft. All rights reserved",
 	"darwinBundleIdentifier": "code.visualstudio.com.Code",

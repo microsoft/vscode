@@ -8,5 +8,5 @@ set ELECTRON_ENABLE_STACK_DUMPING=1
 
 pushd %~dp0\..
 node .\node_modules\gulp\bin\gulp.js electron
-..\Electron-Build\Code.exe . %*
+..\Electron-Build\CodeOSS.exe . %*
 popd
