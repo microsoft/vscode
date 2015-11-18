@@ -63,20 +63,24 @@ class RegexpTaskMatcher implements TaskDetectorMatcher {
 class GruntTaskMatcher implements TaskDetectorMatcher {
 	private tasksStart: boolean;
 	private tasksEnd: boolean;
+	private descriptionOffset: number;
 
 	init() {
 		this.tasksStart = false;
 		this.tasksEnd = false;
+		this.descriptionOffset = null;
 	}
 
 	match(tasks: string[], line: string) {
-			// grunt lists tasks as follows:
+			// grunt lists tasks as follows (description is wrapped into a new line if too long):
 			// ...
 			// Available tasks
 			//         uglify  Minify files with UglifyJS. *
 			//         jshint  Validate files with JSHint. *
 			//           test  Alias for "jshint", "qunit" tasks.
 			//        default  Alias for "jshint", "qunit", "concat", "uglify" tasks.
+			//           long  Alias for "eslint", "qunit", "browserify", "sass",
+			//                 "autoprefixer", "uglify", tasks.
 			//
 			// Tasks run in the order specified
 			if (!this.tasksStart && !this.tasksEnd) {
@@ -85,11 +89,16 @@ class GruntTaskMatcher implements TaskDetectorMatcher {
 				}
 			}
 			else if (this.tasksStart && !this.tasksEnd) {
-				line = line.trim();
 				if (line.indexOf('Tasks run in the order specified') == 0) {
 					this.tasksEnd = true;
 				} else {
-					tasks.push(line.split(' ')[0]);
+					if (this.descriptionOffset === null) {
+						this.descriptionOffset = line.match(/\S  \S/).index + 1;
+					}
+					let taskName = line.substr(0,this.descriptionOffset).trim();
+					if (taskName.length > 0) {
+						tasks.push(taskName);
+					}
 				}
 			}
 	}
@@ -179,7 +188,7 @@ export class ProcessRunnerDetector {
 	}
 
 	private tryDetectGrunt(list:boolean):WinJS.TPromise<{ config: FileConfig.ExternalTaskRunnerConfiguration; stderr: string[]; }> {
-		return this.fileService.resolveFile(this.contextService.toResource('gruntfile.js')).then((stat) => {
+		return this.fileService.resolveFile(this.contextService.toResource('Gruntfile.js')).then((stat) => {
 			let config = ProcessRunnerDetector.detectorConfig('grunt');
 			let process = new LineProcess('grunt', [config.arg, '--no-color'], true, {cwd: this.variables.workspaceRoot});
 			return this.runDetection(process, 'grunt', true, config.matcher, ProcessRunnerDetector.DefaultProblemMatchers, list);
@@ -231,7 +240,7 @@ export class ProcessRunnerDetector {
 				} else if (command === 'jake') {
 					this._stderr.push(nls.localize('TaskSystemDetector.noJakeProgram', 'Jake is not installed on your system. Run npm install -g jake to install it.'));
 				} else if (command === 'grunt') {
-					this._stderr.push(nls.localize('TaskSystemDetector.noJakeProgram', 'Grunt is not installed on your system. Run npm install -g grunt to install it.'));
+					this._stderr.push(nls.localize('TaskSystemDetector.noGruntProgram', 'Grunt is not installed on your system. Run npm install -g grunt to install it.'));
 				}
 			} else {
 				this._stderr.push(nls.localize('TaskSystemDetector.noProgram', 'Program {0} was not found. Message is {1}', command, error.message));
