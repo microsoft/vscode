@@ -4,7 +4,9 @@ microsoft-vscode
 THIRD-PARTY SOFTWARE NOTICES AND INFORMATION
 Do Not Translate or Localize
 
-This project incorporates components from the projects listed below. The original copyright notices and the licenses under which Microsoft received such components are set forth below. Microsoft reserves all rights not expressly granted herein, whether by implication, estoppel or otherwise.
+This project incorporates components from the projects listed below. The original copyright notices and the licenses 
+under which Microsoft received such components are set forth below. Microsoft reserves all rights not expressly granted
+herein, whether by implication, estoppel or otherwise.
 
 1.	chjj-marked version 0.3.2 (https://github.com/npmcomponent/chjj-marked)
 2.	Colorsublime-Themes version 0.1.0 (https://github.com/Colorsublime/Colorsublime-Themes)

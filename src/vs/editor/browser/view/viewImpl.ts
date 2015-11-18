@@ -292,6 +292,10 @@ export class View extends ViewEventHandler implements EditorBrowser.IView, Lifec
 				this.focus();
 			},
 
+			isDirty: (): boolean => {
+				return (this.accumulatedModelEvents.length > 0);
+			},
+
 			getScrollTop: () => {
 				if (this._isDisposed) {
 					throw new Error('ViewImpl.pointerHandler.getScrollTop: View is disposed');

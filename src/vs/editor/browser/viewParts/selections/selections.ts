@@ -34,6 +34,15 @@ interface ILineVisibleRangesWithStyle extends EditorBrowser.ILineVisibleRanges {
 	ranges: IVisibleRangeWithStyle[];
 }
 
+// TODO@Alex: Remove this once IE11 fixes Bug #524217
+// The problem in IE11 is that it does some sort of auto-zooming to accomodate for displays with different pixel density.
+// Unfortunately, this auto-zooming is buggy around dealing with rounded borders
+const isIEWithZoomingIssuesNearRoundedBorders = (
+	(navigator.userAgent.indexOf('Trident/7.0') >= 0)
+	|| (navigator.userAgent.indexOf('Edge/12') >= 0)
+);
+
+
 export class SelectionsOverlay extends ViewEventHandler implements EditorBrowser.IDynamicViewOverlay {
 
 	private static SELECTION_CLASS_NAME = 'selected-text';
@@ -242,10 +251,6 @@ export class SelectionsOverlay extends ViewEventHandler implements EditorBrowser
 
 		var visibleRangesHaveGaps = this._visibleRangesHaveGaps(linesVisibleRanges);
 
-		// TODO@Alex: Remove this once IE11 fixes Bug #524217
-		// The problem in IE11 is that it does some sort of auto-zooming to accomodate for displays with different pixel density.
-		// Unfortunately, this auto-zooming is buggy around dealing with rounded borders
-		var isIEWithZoomingIssuesNearRoundedBorders = (navigator.userAgent.indexOf('Trident/7.0') >= 0);
 		if (!isIEWithZoomingIssuesNearRoundedBorders && !visibleRangesHaveGaps && this._context.configuration.editor.roundedSelection) {
 			this._enrichVisibleRangesWithStyle(linesVisibleRanges, previousFrame);
 		}

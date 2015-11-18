@@ -35,6 +35,56 @@ function createMouseMoveEventMerger(mouseTargetFactory:MouseTarget.MouseTargetFa
 	};
 }
 
+class EventGateKeeper<T> {
+
+	public handler: (value:T)=>void;
+
+	private _destination: (value:T)=>void;
+	private _condition: ()=>boolean;
+
+	private _retryTimer: number;
+	private _retryValue: T;
+
+	constructor(destination:(value:T)=>void, condition:()=>boolean) {
+		this._destination = destination;
+		this._condition = condition;
+		this._retryTimer = -1;
+		this.handler = (value:T) => this._handle(value);
+	}
+
+	public dispose(): void {
+		if (this._retryTimer !== -1) {
+			clearTimeout(this._retryTimer);
+			this._retryTimer = -1;
+			this._retryValue = null;
+		}
+	}
+
+	private _handle(value:T): void {
+		if (this._condition()) {
+
+			if (this._retryTimer !== -1) {
+				clearTimeout(this._retryTimer);
+				this._retryTimer = -1;
+				this._retryValue = null;
+			}
+
+			this._destination(value);
+
+		} else {
+			this._retryValue = value;
+			if (this._retryTimer === -1) {
+				this._retryTimer = setTimeout(() => {
+					this._retryTimer = -1;
+					let tmp = this._retryValue;
+					this._retryValue = null;
+					this._handle(tmp);
+				}, 10);
+			}
+		}
+	}
+}
+
 export class MouseHandler extends ViewEventHandler implements Lifecycle.IDisposable {
 
 	static CLEAR_MOUSE_DOWN_COUNT_TIME = 400; // ms
@@ -63,6 +113,9 @@ export class MouseHandler extends ViewEventHandler implements Lifecycle.IDisposa
 	private layoutHeight:number;
 
 	private lastMouseLeaveTime:number;
+
+	private _mouseMoveEventHandler: EventGateKeeper<Mouse.StandardMouseEvent>;
+	private _mouseDownThenMoveEventHandler: EventGateKeeper<Mouse.StandardMouseEvent>;
 
 	constructor(context:EditorBrowser.IViewContext, viewController:EditorBrowser.IViewController, viewHelper:EditorBrowser.IPointerHandlerHelper) {
 		super();
@@ -95,9 +148,14 @@ export class MouseHandler extends ViewEventHandler implements Lifecycle.IDisposa
 		this.listenersToRemove.push(DomUtils.addListener(this.viewHelper.viewDomNode, 'contextmenu',
 			(e: MouseEvent) => this._onContextMenu(e)));
 
+		this._mouseMoveEventHandler = new EventGateKeeper<Mouse.StandardMouseEvent>((e) => this._onMouseMove(e), () => !this.viewHelper.isDirty());
+		this.toDispose.push(this._mouseMoveEventHandler);
 		this.listenersToRemove.push(DomUtils.addThrottledListener(this.viewHelper.viewDomNode, 'mousemove',
-			(e: Mouse.StandardMouseEvent) => this._onMouseMove(e),
+			this._mouseMoveEventHandler.handler,
 			createMouseMoveEventMerger(this.mouseTargetFactory), MouseHandler.MOUSE_MOVE_MINIMUM_TIME));
+
+		this._mouseDownThenMoveEventHandler = new EventGateKeeper<Mouse.StandardMouseEvent>((e) => this._onMouseDownThenMove(e), () => !this.viewHelper.isDirty());
+		this.toDispose.push(this._mouseDownThenMoveEventHandler);
 
 		this.listenersToRemove.push(DomUtils.addListener(this.viewHelper.viewDomNode, 'mouseup',
 			(e: MouseEvent) => this._onMouseUp(e)));
@@ -267,13 +325,15 @@ export class MouseHandler extends ViewEventHandler implements Lifecycle.IDisposa
 
 		this.mouseMoveMonitor.startMonitoring(
 			createMouseMoveEventMerger(null),
-			(e:Mouse.StandardMouseEvent) => {
-				this._updateMouse(this.monitoringStartTargetType, e, true);
-			},
+			this._mouseDownThenMoveEventHandler.handler,
 			() => {
 				this._unhook();
 			}
 		);
+	}
+
+	private _onMouseDownThenMove(e:Mouse.StandardMouseEvent): void {
+		this._updateMouse(this.monitoringStartTargetType, e, true);
 	}
 
 	private _unhook(): void {
