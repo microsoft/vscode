@@ -188,7 +188,7 @@ export class ProcessRunnerDetector {
 	}
 
 	private tryDetectGrunt(list:boolean):WinJS.TPromise<{ config: FileConfig.ExternalTaskRunnerConfiguration; stderr: string[]; }> {
-		return this.fileService.resolveFile(this.contextService.toResource('gruntfile.js')).then((stat) => {
+		return this.fileService.resolveFile(this.contextService.toResource('Gruntfile.js')).then((stat) => {
 			let config = ProcessRunnerDetector.detectorConfig('grunt');
 			let process = new LineProcess('grunt', [config.arg, '--no-color'], true, {cwd: this.variables.workspaceRoot});
 			return this.runDetection(process, 'grunt', true, config.matcher, ProcessRunnerDetector.DefaultProblemMatchers, list);
