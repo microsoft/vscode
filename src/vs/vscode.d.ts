@@ -2404,10 +2404,10 @@ declare namespace vscode {
 		/**
 		 * The text to show for the entry. You can embed icons in the text by leveraging the syntax:
 		 *
-		 * `My text $(icon name) contains icons like $(icon name) this one.`
+		 * `My text $(icon-name) contains icons like $(icon'name) this one.`
 		 *
-		 * Where the icon name is taken from the (octicon)[https://octicons.github.com/] icon set, e.g.
-		 * light-bulb, thumbsup, zap etc.
+		 * Where the icon-name is taken from the [octicon](https://octicons.github.com) icon set, e.g.
+		 * `light-bulb`, `thumbsup`, `zap` etc.
 		 */
 		text: string;
 
@@ -2453,27 +2453,37 @@ declare namespace vscode {
 
 		/**
 		 * The canonical extension identifier in the form of: `publisher.name`.
+		 *
+		 * @readonly
 		 */
 		id: string;
 
 		/**
 		 * The absolute file path of the directory containing this extension.
+		 *
+		 * @readonly
 		 */
 		extensionPath: string;
 
 		/**
-		 * Returns if the extension has been activated.
+		 * `true` if the extension has been activated.
+		 *
+		 * @readonly
 		 */
 		isActive: boolean;
 
 		/**
 		 * The parsed contents of the extension's package.json.
+		 *
+		 * @readonly
 		 */
 		packageJSON: any;
 
 		/**
 		 * The public API exported by this extension. It is an invalid action
 		 * to access this field before this extension has been activated.
+		 *
+		 * @readonly
 		 */
 		exports: T;
 
@@ -2552,7 +2562,39 @@ declare namespace vscode {
 	}
 
 	/**
-	 * Namespace for commanding
+	 * Namespace for dealing with commands. In short, a command is a function with a
+	 * unique identifier. The function is sometimes also called _command handler_.
+	 *
+	 * Commands can be added to the editor using the [registerCommand](#commands.registerCommand)
+	 * and [registerTextEditorCommand](#commands.registerTextEditorCommand) functions. Commands
+	 * can be executed [manually](#commands.executeCommand) or from a UI gesture. Those are:
+	 *
+	 * * palette - Use the `commands`-section in `package.json` to make a command show in
+	 * the [command palette](https://code.visualstudio.com/docs/editor/codebasics#_command-palette).
+	 * * keybinding - Use the `keybindings`-section in `package.json` to enable
+	 * [keybindings](https://code.visualstudio.com/docs/customization/keybindings#_customizing-shortcuts)
+	 * for your extension.
+	 *
+	 * Commands from other extensions and from the editor itself are accessable to an extension. However,
+	 * when invoking an editor command not all argument types are supported.
+	 *
+	 * This is a sample that registers a command handler and adds an entry for that command to the palette. First
+	 * register a command handler with the identfier `extension.sayHello`.
+	 * ```javascript
+	 * commands.registerCommand('extension.sayHello', () => {
+	 * 		window.showInformationMessage('Hello World!');
+	 * });
+	 * ```
+	 * Second, bind the command identfier to a title under which it will show in the palette (`package.json`).
+	 * ```json
+	 * {
+	 * "contributes": {
+	 * 		"commands": [{
+	 * 		"command": "extension.sayHello",
+	 * 		"title": "Hello World"
+	 * 	}]
+	 * }
+	 * ```
 	 */
 	export namespace commands {
 
@@ -2590,7 +2632,7 @@ declare namespace vscode {
 		 * Executes the command denoted by the given command identifier.
 		 *
 		 * When executing an editor command not all types are allowed to
-		 * be passed as arguments. Allows are the primitive types `string`, `boolean`,
+		 * be passed as arguments. Allowed are the primitive types `string`, `boolean`,
 		 * `number`, `undefined`, and `null`, as well as classes defined in this API.
 		 * There are no restriction when executing commands that have been contributed
 		 * by extensions.
@@ -2611,8 +2653,9 @@ declare namespace vscode {
 	}
 
 	/**
-	 * The window namespace contains all functions to interact with
-	 * the visual window of VS Code.
+	 * Namespace for dealing with the current window of the editor. That is visible
+	 * and active editors, as well as, UI elements to show messages, selections, and
+	 * asking for user input.
 	 */
 	export namespace window {
 
@@ -2624,12 +2667,12 @@ declare namespace vscode {
 		export let activeTextEditor: TextEditor;
 
 		/**
-		 * The currently visible editors or empty array.
+		 * The currently visible editors or an empty array.
 		 */
 		export let visibleTextEditors: TextEditor[];
 
 		/**
-		 * An [event](#Event) which fires when the [active](#window.activeTextEditor)
+		 * An [event](#Event) which fires when the [active editor](#window.activeTextEditor)
 		 * has changed.
 		 */
 		export const onDidChangeActiveTextEditor: Event<TextEditor>;
@@ -2845,8 +2888,13 @@ declare namespace vscode {
 	}
 
 	/**
-	 * The workspace namespace contains functions that operate on the currently opened
-	 * folder.
+	 * Namespace for dealing with the current workspace. A workspace is the representation
+	 * of the folder that has been opened. There is no workspace when just a file but not a
+	 * folder has been opened.
+	 *
+	 * The workspace offers support for [listening](#workspace.createFileSystemWatcher) to fs
+	 * events and for [finding](#workspace#findFiles) files. Both perform well and run _outside_
+	 * the editor-process so that they should be always used instead of nodejs-equalivents.
 	 */
 	export namespace workspace {
 
@@ -2985,8 +3033,25 @@ declare namespace vscode {
 	}
 
 	/**
-	 * The languages namespace contains function to participate in language service features,
-	 * like IntelliSense or diagnostics.
+	 * Namespace for participating in language-specific editor [features](https://code.visualstudio.com/docs/editor/editingevolved),
+	 * like IntelliSense, code actions, diagnostics etc.
+	 *
+	 * Many programming languages exist and there is huge variety in syntaxes, semantics, and paradigms. Despite that, features
+	 * like automatic word-completion, code navigation, or code checking have become popular across different tools for different
+	 * programming languages.
+	 *
+	 * The editor provides API that makes it simple to provide such common features by having all UI and actions already in place and
+	 * by allowing you to participate by providing data only. For instance, to contribute a hover all you have to do is provide a function
+	 * that can be called with a [TextDocument](#TextDocument) and a [Position](#Position) returning hover info. The rest, like tracking the
+	 * mouse, positioning the hover, keeping the hover stable etc. is taken care of by the editor.
+	 *
+	 * ```javascript
+	 * languages.registerHoverProvider('javascript', {
+	 * 		provideHover(document, position, token) {
+	 * 			return new Hover('I am a hover!');
+	 * 		}
+	 * });
+	 * ```
 	 */
 	export namespace languages {
 
@@ -3199,12 +3264,43 @@ declare namespace vscode {
 	}
 
 	/**
-	 * Namespace to retrieve installed extensions.
+	 * Namespace for dealing with installed extensions. Extensions are represented
+	 * by an [extension](#Extension)-interface which allows to reflect on them.
+	 *
+	 * Extension writers can provide APIs to other extensions by returing their API public
+	 * surface from the `activate`-call.
+	 *
+	 * ```javascript
+	 * export function activate(context: vscode.ExtensionContext) {
+	 *
+	 * 		let api = {
+	 * 			sum(a, b) {
+	 * 				return a + b;
+	 * 			},
+	 * 			mul(a, b) {
+	 * 				return a * b;
+	 * 			}
+	 * 		};
+	 *
+	 * 		// 'export' public api-surface
+	 *		return api;
+	 * }
+	 * ```
+	 * When depending on the API of another extension add an `extensionDependency`-entry
+	 * to `package.json`, and use the [getExtension](#extensions.getExtension)-function
+	 * and the [exports](#Extension.exports)-property, like below:
+	 *
+	 * ```javascript
+	 * let mathExt = extensions.getExtension('genius.math');
+	 * let importedApi = mathExt.exports;
+	 *
+	 * console.log(importedApi.mul(42, 1));
+	 * ```
 	 */
 	export namespace extensions {
 
 		/**
-		 * Get an extension its full identifier  in the form of: `publisher.name`.
+		 * Get an extension by its full identifier in the form of: `publisher.name`.
 		 *
 		 * @param extensionId An extension identifier.
 		 * @return An extension or `undefined`.
