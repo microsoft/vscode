@@ -104,7 +104,7 @@ export function reportDocumentStatus(server: OmnisharpServer): vscode.Disposable
 
 	disposables.push(server.onServerStart(path => {
 
-		defaultStatus.text = '$(flame) Runnning';
+		defaultStatus.text = '$(flame) Running';
 		defaultStatus.command = 'o.pickProjectAndStart';
 		defaultStatus.color = '';
 		render();
