@@ -1713,7 +1713,7 @@ exports.data ={
 			},
 			{
 				"name": "border-image-width",
-				"desc": "The four values of 'border-image-width' specify offsets that are used to divide the border image area into nine parts. They represent inward distances from the the top, right, bottom, and left sides of the area, respectively.",
+				"desc": "The four values of 'border-image-width' specify offsets that are used to divide the border image area into nine parts. They represent inward distances from the top, right, bottom, and left sides of the area, respectively.",
 				"browsers": "FF13,IE11",
 				"restriction": "length, percentage, number",
 				"values": []
@@ -2616,7 +2616,7 @@ exports.data ={
 			},
 			{
 				"name": "counter-increment",
-				"desc": "Counters are used with the 'counter()' and 'counters()' functions of the the 'content' property.",
+				"desc": "Counters are used with the 'counter()' and 'counters()' functions of the 'content' property.",
 				"browsers": "C,FF1.5,IE8,O10.5,S3",
 				"restriction": "identifier, integer",
 				"values": []
@@ -5503,7 +5503,7 @@ exports.data ={
 				"values": [
 					{
 						"name": "center",
-						"desc": "Places the center of the Grid Item's margin box at the center of the the Grid Item's column."
+						"desc": "Places the center of the Grid Item's margin box at the center of the Grid Item's column."
 					},
 					{
 						"name": "end",
@@ -5561,7 +5561,7 @@ exports.data ={
 				"values": [
 					{
 						"name": "center",
-						"desc": "Places the center of the Grid Item's margin box at the center of the the Grid Item's row."
+						"desc": "Places the center of the Grid Item's margin box at the center of the Grid Item's row."
 					},
 					{
 						"name": "end",
