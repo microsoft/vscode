@@ -568,7 +568,7 @@ declare namespace vscode {
 	}
 
 	/**
-	 * Represents different positions for rendering a decoration in an (overview ruler)[#DecorationRenderOptions.overviewRulerLane].
+	 * Represents different positions for rendering a decoration in an [overview ruler](#DecorationRenderOptions.overviewRulerLane).
 	 * The overview ruler supports three lanes.
 	 */
 	export enum OverviewRulerLane {
