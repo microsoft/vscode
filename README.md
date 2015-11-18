@@ -4,7 +4,7 @@
 
 <img width="550" alt="vscodereadme" align="middle"  src="https://cloud.githubusercontent.com/assets/1487073/11243985/98562110-8e0b-11e5-9922-29a0b4884eab.png">
 
-The [`vscode`](https://github.com/microsoft/vscode) repository is where we do development and there are many ways you can particpate in the project, for example:
+The [`vscode`](https://github.com/microsoft/vscode) repository is where we do development and there are many ways you can participate in the project, for example:
 
 * [Submit bugs and feature requests](https://github.com/microsoft/vscode/issues) and help us verify as they are checked in
 * Review [source code changes](https://github.com/microsoft/vscode/pulls)
