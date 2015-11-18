@@ -52,6 +52,7 @@ export interface IPointerHandlerHelper {
 	linesContentDomNode:HTMLElement;
 
 	focusTextArea(): void;
+	isDirty(): boolean;
 
 	getScrollTop(): number;
 	setScrollTop(scrollTop:number): void;
