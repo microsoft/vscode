@@ -1906,6 +1906,9 @@ declare namespace vscode {
 		 * An [edit](#TextEdit) which is applied to a document when selecting
 		 * this completion. When an edit is provided the value of
 		 * [insertText](#CompletionItem.insertText) is ignored.
+		 *
+		 * The [range](#Range) of the edit must be single-line and one the same
+		 * line completions where [requested](#CompletionItemProvider.provideCompletionItems) at.
 		 */
 		textEdit: TextEdit;
 
