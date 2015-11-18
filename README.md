@@ -2,7 +2,7 @@
 
 [VS Code](http://code.visualstudio.com) is a new choice of tool that combines the simplicity of a code editor with what developers need for their core edit-build-debug cycle. Code provides comprehensive editing and debugging support, an extensibility model, and lightweight integration with existing tools.
 
-<img width="550" alt="vscodereadme" align="middle"  src="https://cloud.githubusercontent.com/assets/1487073/11242808/60b6f7f4-8e04-11e5-8c0d-de9b6a36b24f.png">
+<img width="550" alt="vscodereadme" align="middle"  src="https://cloud.githubusercontent.com/assets/1487073/11243985/98562110-8e0b-11e5-9922-29a0b4884eab.png">
 
 The [`vscode`](https://github.com/microsoft/vscode) repository is where we do development and there are many ways you can particpate in the project, for example:
 
