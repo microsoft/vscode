@@ -214,6 +214,12 @@ export class EditorOptions implements IEditorOptions {
 	public forceOpen: boolean;
 
 	/**
+	 * Ensures that the editor is being activated even if the input is already showing. This only applies
+	 * if there is more than one editor open already and preserveFocus is set to false.
+	 */
+	public forceActive: boolean;
+
+	/**
 	 * Returns true if this options is identical to the otherOptions.
 	 */
 	public matches(otherOptions: any): boolean {
@@ -258,9 +264,10 @@ export class TextEditorOptions extends EditorOptions {
 	/**
 	 * Helper to create TextEditorOptions inline.
 	 */
-	public static create(settings: { preserveFocus?: boolean; forceOpen?: boolean; selection?: IRange }): TextEditorOptions {
+	public static create(settings: { preserveFocus?: boolean; forceOpen?: boolean; forceActive?: boolean; selection?: IRange }): TextEditorOptions {
 		let options = new TextEditorOptions();
 		options.preserveFocus = settings.preserveFocus;
+		options.forceActive = settings.forceActive;
 		options.forceOpen = settings.forceOpen;
 
 		if (settings.selection) {

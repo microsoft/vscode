@@ -652,6 +652,11 @@ export class EditorPart extends Part implements IEditorPart {
 				editor.focus();
 			}
 
+			// Otherwise check if we want to activate
+			else if (options && options.forceActive) {
+				this.sideBySideControl.setActive(editor);
+			}
+
 			// Progress Done
 			this.sideBySideControl.getProgressBar(position).done().getContainer().hide();
 

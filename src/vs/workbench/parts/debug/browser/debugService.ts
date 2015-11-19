@@ -663,7 +663,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 					if (control) {
 						control.revealLineInCenterIfOutsideViewport(lineNumber);
 						control.setSelection({ startLineNumber: lineNumber, startColumn: 1, endLineNumber: lineNumber, endColumn: 1 });
-						return this.editorService.openEditor(visibleEditors[i].input, wbeditorcommon.TextEditorOptions.create({ preserveFocus: preserveFocus }), visibleEditors[i].position);
+						return this.editorService.openEditor(visibleEditors[i].input, wbeditorcommon.TextEditorOptions.create({ preserveFocus: preserveFocus, forceActive: true }), visibleEditors[i].position);
 					}
 
 					return Promise.as(null);
