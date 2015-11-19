@@ -23,7 +23,6 @@ import jsonContributionRegistry = require('vs/languages/json/common/jsonContribu
 import { IWindowService } from 'vs/workbench/services/window/electron-browser/windowService';
 import wbeditorcommon = require('vs/workbench/common/editor');
 import { SystemVariables } from 'vs/workbench/parts/lib/node/systemVariables';
-import files = require('vs/workbench/parts/files/browser/files');
 import debug = require('vs/workbench/parts/debug/common/debug');
 import session = require('vs/workbench/parts/debug/node/rawDebugSession');
 import model = require('vs/workbench/parts/debug/common/debugModel');
@@ -36,7 +35,7 @@ import { Position } from 'vs/platform/editor/common/editor';
 import { ITaskService , TaskEvent, TaskType, TaskServiceEvents} from 'vs/workbench/parts/tasks/common/taskService';
 import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
-import { ITextFileService } from 'vs/workbench/parts/files/common/files';
+import { ITextFileService, VIEWLET_ID as FILES_VIEWLET_ID } from 'vs/workbench/parts/files/common/files';
 import { IWorkspaceContextService } from 'vs/workbench/services/workspace/common/contextService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -631,6 +630,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		}
 		this.session = null;
 		this.partService.removeClass('debugging');
+		this.viewletService.openViewlet(FILES_VIEWLET_ID);
 		this.contextService.updateOptions('editor', {
 			hover: true
 		});
