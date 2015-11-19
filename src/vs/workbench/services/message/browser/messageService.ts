@@ -23,6 +23,7 @@ interface IBufferedMessage {
 }
 
 export class WorkbenchMessageService implements IMessageService {
+
 	public static GLOBAL_MESSAGES_SHOWING_CONTEXT = 'globalMessageVisible';
 
 	public serviceId = IMessageService;
@@ -74,10 +75,12 @@ export class WorkbenchMessageService implements IMessageService {
 
 	private onQuickOpenShowing(): void {
 		this.canShowMessages = false; // when quick open is open, dont show messages behind
+		this.handler.hide(); // hide messages when quick open is visible
 	}
 
 	private onQuickOpenHiding(): void {
 		this.canShowMessages = true;
+		this.handler.show(); // make sure the handler is visible
 
 		// Release messages from buffer
 		while (this.messageBuffer.length) {

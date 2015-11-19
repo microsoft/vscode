@@ -297,6 +297,18 @@ export class MessageList {
 		this.hideMessage();
 	}
 
+	public show(): void {
+		if (this.messageListContainer && this.messageListContainer.isHidden()) {
+			this.messageListContainer.show();
+		}
+	}
+
+	public hide(): void {
+		if (this.messageListContainer && !this.messageListContainer.isHidden()) {
+			this.messageListContainer.hide();
+		}
+	}
+
 	private hideMessage(messageText?: string): void;
 	private hideMessage(messageObj?: any): void {
 		let messageFound = false;
