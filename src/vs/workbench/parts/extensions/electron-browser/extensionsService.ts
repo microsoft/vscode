@@ -16,7 +16,7 @@ import { assign } from 'vs/base/common/objects';
 import { extract, buffer } from 'vs/base/node/zip';
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
 import { IExtensionsService, IExtension, IExtensionManifest, IGalleryInformation } from 'vs/workbench/parts/extensions/common/extensions';
-import { download } from 'vs/base/node/request';
+import { download, getProxyAgent, getSystemProxyAgent } from 'vs/base/node/request';
 import { IWorkspaceContextService } from 'vs/workbench/services/workspace/common/contextService';
 import { Limiter } from 'vs/base/common/async';
 import Event, { Emitter } from 'vs/base/common/event';
