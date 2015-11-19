@@ -207,7 +207,8 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 				{
 					onOk: () => { /* ignore, handle later */ },
 					onCancel: () => { /* ignore, handle later */ },
-					onType: (value: string) => { /* ignore, handle later */ }
+					onType: (value: string) => { /* ignore, handle later */ },
+					onShow: () => this._onShow.fire()
 				}, {
 					inputPlaceHolder: options.placeHolder || ''
 				},
