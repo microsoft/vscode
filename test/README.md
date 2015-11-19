@@ -6,11 +6,11 @@ The best way to run the Code tests is from within VS Code. Simply press `CMD+Shi
 
 If you wish to run the tests from a terminal, from the `vscode` folder run:
 
-OSX and Linux
+**OS X and Linux**
 
 	./test/run.sh
 
-Windows
+**Windows**
 
 	test\run
 
@@ -22,10 +22,10 @@ You can use VS Code to debug your tests. Switch to the Debug viewlet, pick the `
 
 The following command will create a `coverage` folder at the root of the workspace:
 
-OSX and Linux
+**OS X and Linux**
 
 	./test/run.sh --coverage
 
-Windows
+**Windows**
 
 	test\run --coverage
