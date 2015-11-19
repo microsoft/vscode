@@ -50,8 +50,9 @@ export class Storage extends EventEmitter implements IStorageService {
 		else {
 			this.globalStorage = window.localStorage;
 
-			if (!workspace && !contextService.getConfiguration().env.pluginDevelopmentPath) {
-				this.workspaceStorage = inMemoryLocalStorageInstance; // without workspace, we use inMemory storage unless we develop a plugin where we want to preserve state
+			const env = contextService.getConfiguration().env;
+			if (env.pluginTestsPath || (!workspace && !env.pluginDevelopmentPath)) {
+				this.workspaceStorage = inMemoryLocalStorageInstance; // without workspace or in any plugin test, we use inMemory storage unless we develop a plugin where we want to preserve state
 			} else {
 				this.workspaceStorage = window.localStorage;
 			}
