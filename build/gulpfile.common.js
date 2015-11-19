@@ -82,7 +82,7 @@ function toBundleStream(bundles) {
 	}));
 }
 
-exports.optimizeTask = function(entryPoints, resources, loaderConfig, out) {
+exports.optimizeTask = function(entryPoints, resources, loaderConfig, bundledFileHeader, out) {
 	return function() {
 		var bundles = es.through();
 
@@ -104,32 +104,12 @@ exports.optimizeTask = function(entryPoints, resources, loaderConfig, out) {
 				if (containsOurCopyright) {
 					b.sources.unshift({
 						path: null,
-						contents: [
-							'/*!--------------------------------------------------------',
-							' * Copyright (C) Microsoft Corporation. All rights reserved.',
-							' *--------------------------------------------------------*/'
-						].join('\r\n')
+						contents: bundledFileHeader
 					});
 				}
 			});
 
-			var bundleInformation = result.map(function (b) {
-				return {
-					dest: b.dest,
-					sources: b.sources.filter(function (s) {
-						return !!s.path;
-					}).map(function (s) {
-						return path.relative('out-build', s.path);
-					})
-				}
-			});
-
-			var info = es.readArray([new File({
-				path: 'bundles.json',
-				contents: new Buffer(JSON.stringify(bundleInformation), 'utf8')
-			})]);
-
-			es.merge(toBundleStream(result), info).pipe(bundles);
+			toBundleStream(result).pipe(bundles);
 		});
 
 		var result = es.merge(

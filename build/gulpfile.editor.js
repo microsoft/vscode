@@ -13,6 +13,9 @@ var buildfile = require('../src/buildfile');
 var util = require('./lib/util');
 var common = require('./gulpfile.common');
 
+var root = path.dirname(__dirname);
+var commit = process.env['BUILD_SOURCEVERSION'] || require('./lib/git').getVersion(root);
+
 // Build
 
 var editorEntryPoints = _.flatten([
@@ -36,6 +39,16 @@ var editorResources = [
 	'!**/test/**'
 ];
 
+var BUNDLED_FILE_HEADER = [
+	'/*!-----------------------------------------------------------',
+	' * Copyright (C) Microsoft Corporation. All rights reserved.',
+	' * Version: ' + commit,
+	' * Released under the MIT license',
+	' * https://github.com/Microsoft/vscode/blob/master/LICENSE.txt',
+	' *-----------------------------------------------------------*/',
+	''
+].join('\n');
+
 function editorLoaderConfig(removeAllOSS) {
 	var result = common.loaderConfig();
 
@@ -54,6 +67,7 @@ gulp.task('optimize-editor', ['clean-optimized-editor', 'compile-build'], common
 	editorEntryPoints,
 	editorResources,
 	editorLoaderConfig(false),
+	BUNDLED_FILE_HEADER,
 	'out-editor'
 ));
 
@@ -66,6 +80,7 @@ gulp.task('optimize-editor-ossfree', ['clean-optimized-editor-ossfree', 'compile
 	editorEntryPoints,
 	editorResources,
 	editorLoaderConfig(true),
+	BUNDLED_FILE_HEADER,
 	'out-editor-ossfree'
 ));
 
@@ -79,7 +94,7 @@ var root = path.dirname(__dirname);
 function editorTask(out, dest) {
 	return function () {
 		return gulp.src(out + '/**', { base: out })
-			.pipe(filter(['**', '!**/*.js.map', '!**/bundles.json']))
+			.pipe(filter(['**', '!**/*.js.map']))
 			.pipe(gulp.dest(dest));
 	};
 }

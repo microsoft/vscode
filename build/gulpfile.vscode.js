@@ -71,11 +71,18 @@ var vscodeResources = [
 	'!**/test/**'
 ];
 
+var BUNDLED_FILE_HEADER = [
+	'/*!--------------------------------------------------------',
+	' * Copyright (C) Microsoft Corporation. All rights reserved.',
+	' *--------------------------------------------------------*/'
+].join('\n');
+
 gulp.task('clean-optimized-vscode', util.rimraf('out-vscode'));
 gulp.task('optimize-vscode', ['clean-optimized-vscode', 'compile-build', 'compile-plugins'], common.optimizeTask(
 	vscodeEntryPoints,
 	vscodeResources,
 	common.loaderConfig(baseModules),
+	BUNDLED_FILE_HEADER,
 	'out-vscode'
 ));
 
