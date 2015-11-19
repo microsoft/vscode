@@ -205,6 +205,6 @@ gulp.task('mixin', function () {
 		.pipe(gulp.dest('.'));
 });
 
-require('./gulpfile.vscode');
-require('./gulpfile.editor');
-require('./gulpfile.plugins');
+require('./build/gulpfile.vscode');
+require('./build/gulpfile.editor');
+require('./build/gulpfile.plugins');

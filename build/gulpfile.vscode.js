@@ -20,11 +20,12 @@ var remote = require('gulp-remote-src');
 var File = require('vinyl');
 var rimraf = require('rimraf');
 var _ = require('underscore');
-var packagejson = require('./package.json');
-var util = require('./build/lib/util');
-var buildfile = require('./src/buildfile');
+var packagejson = require('../package.json');
+var util = require('./lib/util');
+var buildfile = require('../src/buildfile');
 var common = require('./gulpfile.common');
-var commit = process.env['BUILD_SOURCEVERSION'] || require('./build/lib/git').getVersion(__dirname);
+var root = path.dirname(__dirname);
+var commit = process.env['BUILD_SOURCEVERSION'] || require('./lib/git').getVersion(root);
 
 var baseModules = [
 	'app', 'applicationinsights', 'assert', 'auto-updater', 'browser-window',
@@ -82,12 +83,8 @@ gulp.task('clean-minified-vscode', util.rimraf('out-vscode-min'));
 gulp.task('minify-vscode', ['clean-minified-vscode', 'optimize-vscode'], common.minifyTask('out-vscode'));
 
 // Package
-var product = JSON.parse(fs.readFileSync(path.join(__dirname, 'product.json'), 'utf8'));
-
-var darwinCreditsTemplate;
-if (product.darwinCredits) {
-	darwinCreditsTemplate = _.template(fs.readFileSync(path.join(__dirname, product.darwinCredits), 'utf8'));
-}
+var product = JSON.parse(fs.readFileSync(path.join(root, 'product.json'), 'utf8'));
+var darwinCreditsTemplate = product.darwinCredits && _.template(fs.readFileSync(path.join(root, product.darwinCredits), 'utf8'));
 
 var config = {
 	version: packagejson.electronVersion,
@@ -106,7 +103,7 @@ var config = {
 gulp.task('electron', function () {
 	// Force windows to use ia32
 	var arch = (process.platform === 'win32' ? 'ia32' : process.arch);
-	return electron.dest('../Electron-Build', _.extend({}, config, { arch: arch }));
+	return electron.dest(path.join(path.dirname(root), 'Electron-Build'), _.extend({}, config, { arch: arch }));
 });
 
 function mixinProduct() {
@@ -136,7 +133,7 @@ function mixinProduct() {
 function packageTask(platform, arch, opts) {
 	opts = opts || {};
 
-	var destination = '../VSCode' + (platform ? '-' + platform : '') + (arch ? '-' + arch : '');
+	var destination = path.join(path.dirname(root), 'VSCode') + (platform ? '-' + platform : '') + (arch ? '-' + arch : '');
 	platform = platform || process.platform;
 	arch = platform === 'win32' ? 'ia32' : arch;
 
@@ -214,10 +211,10 @@ function packageTask(platform, arch, opts) {
 	};
 }
 
-gulp.task('clean-vscode-win32', util.rimraf('../VSCode-win32'));
-gulp.task('clean-vscode-darwin', util.rimraf('../VSCode-darwin'));
-gulp.task('clean-vscode-linux-ia32', util.rimraf('../VSCode-linux-ia32'));
-gulp.task('clean-vscode-linux-x64', util.rimraf('../VSCode-linux-x64'));
+gulp.task('clean-vscode-win32', util.rimraf(path.join(path.dirname(root), 'VSCode-win32')));
+gulp.task('clean-vscode-darwin', util.rimraf(path.join(path.dirname(root), 'VSCode-darwin')));
+gulp.task('clean-vscode-linux-ia32', util.rimraf(path.join(path.dirname(root), 'VSCode-linux-ia32')));
+gulp.task('clean-vscode-linux-x64', util.rimraf(path.join(path.dirname(root), 'VSCode-linux-x64')));
 
 gulp.task('vscode-win32', ['optimize-vscode', 'clean-vscode-win32'], packageTask('win32'));
 gulp.task('vscode-darwin', ['optimize-vscode', 'clean-vscode-darwin'], packageTask('darwin'));

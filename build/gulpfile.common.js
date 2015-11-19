@@ -13,8 +13,8 @@ var es = require('event-stream');
 var concat = require('gulp-concat');
 var File = require('vinyl');
 var underscore = require('underscore');
-var bundle = require('./build/lib/bundle');
-var util = require('./build/lib/util');
+var bundle = require('./lib/bundle');
+var util = require('./lib/util');
 
 var tsOptions = {
 	target: 'ES5',
@@ -23,7 +23,7 @@ var tsOptions = {
 	preserveConstEnums: true,
 	experimentalDecorators: true,
 	sourceMap: true,
-	rootDir: path.join(__dirname, 'src')
+	rootDir: path.join(path.dirname(__dirname), 'src')
 };
 
 exports.loaderConfig = function (emptyPaths) {
@@ -66,7 +66,7 @@ function toBundleStream(bundles) {
 	return es.merge(bundles.map(function(bundle) {
 		var useSourcemaps = /\.js$/.test(bundle.dest) && !/\.nls\.js$/.test(bundle.dest);
 		var sources = bundle.sources.map(function(source) {
-			var root = source.path ? __dirname.replace(/\\/g, '/') : '';
+			var root = source.path ? path.dirname(__dirname).replace(/\\/g, '/') : '';
 			var base = source.path ? root + '/out-build' : '';
 
 			return new File({

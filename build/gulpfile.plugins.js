@@ -14,12 +14,14 @@ var cp = require('child_process');
 var filter = require('gulp-filter');
 var rename = require('gulp-rename');
 var rimraf = require('rimraf');
-var util = require('./build/lib/util');
-var watcher = require('./build/lib/watch');
-var createReporter = require('./build/lib/reporter');
+var util = require('./lib/util');
+var watcher = require('./lib/watch');
+var createReporter = require('./lib/reporter');
 var glob = require('glob');
 var fs = require('fs');
 var JSONC = require('json-comments');
+
+var extensionsPath = path.join(path.dirname(__dirname), 'extensions');
 
 function getTSConfig(plugin) {
 	var script = (plugin.desc && plugin.desc.scripts && plugin.desc.scripts['vscode:prepublish']) || '';
@@ -29,7 +31,7 @@ function getTSConfig(plugin) {
 		return;
 	}
 
-	var pluginRoot = path.join(__dirname, 'extensions', plugin.desc.name);
+	var pluginRoot = path.join(extensionsPath, plugin.desc.name);
 
 	if (match[2]) {
 		return path.join(pluginRoot, match[2]);
@@ -49,7 +51,7 @@ function getTSConfig(plugin) {
 function noop() {}
 
 function readAllPlugins() {
-	var PLUGINS_FOLDER = path.join(__dirname, 'extensions');
+	var PLUGINS_FOLDER = path.join(extensionsPath);
 
 	var extensions = glob.sync('*/package.json', {
 		cwd: PLUGINS_FOLDER
@@ -75,7 +77,7 @@ function readAllPlugins() {
 var tasks = readAllPlugins()
 	.map(function (plugin) {
 		var name = plugin.desc.name;
-		var pluginRoot = path.join(__dirname, 'extensions', name);
+		var pluginRoot = path.join(extensionsPath, name);
 
 		var clean = 'clean-plugin:' + name;
 		var compile = 'compile-plugin:' + name;
@@ -91,8 +93,8 @@ var tasks = readAllPlugins()
 		}
 
 		var options = getTSConfig(plugin);
+		
 		if (options) {
-
 			var sources = 'extensions/' + name + '/src/**';
 			var deps = [
 				'src/vs/vscode.d.ts',
@@ -121,8 +123,8 @@ var tasks = readAllPlugins()
 			})();
 
 			var sourcesRoot = path.join(pluginRoot, 'src');
-			var sourcesOpts = { cwd: __dirname, base: sourcesRoot };
-			var depsOpts = { cwd: __dirname	};
+			var sourcesOpts = { cwd: path.dirname(__dirname), base: sourcesRoot };
+			var depsOpts = { cwd: path.dirname(__dirname)	};
 
 			gulp.task(clean, function (cb) {
 				rimraf(path.join(pluginRoot, 'out'), cb);

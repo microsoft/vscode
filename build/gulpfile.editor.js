@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 var gulp = require('gulp');
+var path = require('path');
 var rename = require('gulp-rename');
 var filter = require('gulp-filter');
 var _ = require('underscore');
 var es = require('event-stream');
-var buildfile = require('./src/buildfile');
-var util = require('./build/lib/util');
+var buildfile = require('../src/buildfile');
+var util = require('./lib/util');
 var common = require('./gulpfile.common');
 
 // Build
@@ -73,6 +74,8 @@ gulp.task('minify-editor-ossfree', ['clean-minified-editor-ossfree', 'optimize-e
 
 // Package
 
+var root = path.dirname(__dirname);
+
 function editorTask(out, dest) {
 	return function () {
 		return gulp.src(out + '/**', { base: out })
@@ -81,18 +84,18 @@ function editorTask(out, dest) {
 	};
 }
 
-gulp.task('clean-editor', util.rimraf('../Monaco-Editor-Build'));
+gulp.task('clean-editor', util.rimraf(path.join(path.dirname(root), 'Monaco-Editor-Build')));
 gulp.task('editor', ['clean-editor', 'optimize-editor'],
-	editorTask('out-editor', '../Monaco-Editor-Build'));
+	editorTask('out-editor', path.join(path.dirname(root), 'Monaco-Editor-Build')));
 
-gulp.task('clean-editor-min', util.rimraf('../Monaco-Editor-Build-Min'));
+gulp.task('clean-editor-min', util.rimraf(path.join(path.dirname(root), 'Monaco-Editor-Build-Min')));
 gulp.task('editor-min', ['clean-editor-min', 'minify-editor'],
-	editorTask('out-editor-min', '../Monaco-Editor-Build-Min'));
+	editorTask('out-editor-min', path.join(path.dirname(root), 'Monaco-Editor-Build-Min')));
 
-gulp.task('clean-editor-ossfree', util.rimraf('../Monaco-Editor-Build-OSS-Free'));
+gulp.task('clean-editor-ossfree', util.rimraf(path.join(path.dirname(root), 'Monaco-Editor-Build-OSS-Free')));
 gulp.task('editor-ossfree', ['clean-editor-ossfree', 'optimize-editor-ossfree'],
-	editorTask('out-editor-ossfree', '../Monaco-Editor-Build-OSS-Free'));
+	editorTask('out-editor-ossfree', path.join(path.dirname(root), 'Monaco-Editor-Build-OSS-Free')));
 
-gulp.task('clean-editor-ossfree-min', util.rimraf('../Monaco-Editor-Build-OSS-Free-Min'));
+gulp.task('clean-editor-ossfree-min', util.rimraf(path.join(path.dirname(root), 'Monaco-Editor-Build-OSS-Free-Min')));
 gulp.task('editor-ossfree-min', ['clean-editor-ossfree-min', 'minify-editor-ossfree'],
-	editorTask('out-editor-ossfree-min', '../Monaco-Editor-Build-OSS-Free-Min'));
+	editorTask('out-editor-ossfree-min', path.join(path.dirname(root), 'Monaco-Editor-Build-OSS-Free-Min')));
