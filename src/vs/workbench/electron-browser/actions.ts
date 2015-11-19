@@ -216,8 +216,15 @@ export class ShowStartupPerformance extends Action {
 	public static ID = 'workbench.action.appPerf';
 	public static LABEL = nls.localize('appPerf', "Startup Performance");
 
-	constructor(id: string, label: string, @IWindowService private windowService: IWindowService) {
+	constructor(
+		id: string,
+		label: string,
+		@IWindowService private windowService: IWindowService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService
+	) {
 		super(id, label);
+
+		this.enabled = contextService.getConfiguration().env.enablePerformance;
 	}
 
 	private _analyzeLoaderTimes(): any[] {
