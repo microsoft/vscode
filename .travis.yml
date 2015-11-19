@@ -1,0 +1,24 @@
+sudo: false
+language: node_js
+
+node_js:
+  - "0.12"
+
+addons:
+  apt:
+    sources:
+      - ubuntu-toolchain-r-test
+    packages:
+      - gcc-4.9
+      - g++-4.9
+      - gcc-4.9-multilib
+      - g++-4.9-multilib
+      - zip
+      - libgtk2.0-0
+
+before_install:
+  - export CXX="g++-4.9" CC="gcc-4.9"
+
+install:
+  - ./scripts/npm.sh install
+  - gulp electron compile

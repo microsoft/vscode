@@ -11,6 +11,7 @@
 		"node": ">= 0.10.0 < 0.11.0"
 	},
 	"scripts": {
+		"test": "node node_modules/mocha/bin/_mocha",
 		"postinstall": "npm --prefix extensions/csharp-o/ install extensions/csharp-o/"
 	},
 	"dependencies": {
