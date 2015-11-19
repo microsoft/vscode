@@ -218,7 +218,7 @@ export interface IRawDebugSession extends ee.EventEmitter {
 	attach(args: DebugProtocol.AttachRequestArguments): TPromise<DebugProtocol.AttachResponse>;
 	stop(restart?: boolean): TPromise<DebugProtocol.DisconnectResponse>;
 
-	stepOver(args: DebugProtocol.NextArguments): TPromise<DebugProtocol.NextResponse>;
+	next(args: DebugProtocol.NextArguments): TPromise<DebugProtocol.NextResponse>;
 	stepIn(args: DebugProtocol.StepInArguments): TPromise<DebugProtocol.StepInResponse>;
 	stepOut(args: DebugProtocol.StepOutArguments): TPromise<DebugProtocol.StepOutResponse>;
 	continue(args: DebugProtocol.ContinueArguments): TPromise<DebugProtocol.ContinueResponse>;
@@ -228,8 +228,8 @@ export interface IRawDebugSession extends ee.EventEmitter {
 	setExceptionBreakpoints(args: DebugProtocol.SetExceptionBreakpointsArguments): TPromise<DebugProtocol.SetExceptionBreakpointsResponse>;
 	stackTrace(args: DebugProtocol.StackTraceArguments): TPromise<DebugProtocol.StackTraceResponse>;
 	scopes(args: DebugProtocol.ScopesArguments): TPromise<DebugProtocol.ScopesResponse>;
-	resolveVariables(args: DebugProtocol.VariablesArguments): TPromise<DebugProtocol.VariablesResponse>;
-	resolveSource(args: DebugProtocol.SourceArguments): TPromise<DebugProtocol.SourceResponse>;
+	variables(args: DebugProtocol.VariablesArguments): TPromise<DebugProtocol.VariablesResponse>;
+	source(args: DebugProtocol.SourceArguments): TPromise<DebugProtocol.SourceResponse>;
 	threads(): TPromise<DebugProtocol.ThreadsResponse>;
 	evaluate(args: DebugProtocol.EvaluateArguments): TPromise<DebugProtocol.EvaluateResponse>;
 

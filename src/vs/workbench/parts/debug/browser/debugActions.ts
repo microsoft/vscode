@@ -155,7 +155,7 @@ export class StepOverDebugAction extends AbstractDebugAction {
 	}
 
 	public run(): Promise {
-		return this.debugService.getActiveSession().stepOver({ threadId: this.debugService.getViewModel().getFocusedThreadId() });
+		return this.debugService.getActiveSession().next({ threadId: this.debugService.getViewModel().getFocusedThreadId() });
 	}
 
 	protected isEnabled(): boolean {

@@ -667,7 +667,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		if (source.inMemory) {
 			// Internal module
 			if (source.reference !== 0 && this.session) {
-				return this.session.resolveSource({ sourceReference: source.reference }).then(response => {
+				return this.session.source({ sourceReference: source.reference }).then(response => {
 					const editorInput = this.getDebugStringEditorInput(source, response.body.content, mime.guessMimeTypes(source.name)[0]);
 					return this.editorService.openEditor(editorInput, wbeditorcommon.TextEditorOptions.create({
 						selection: {

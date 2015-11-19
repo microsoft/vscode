@@ -21,7 +21,7 @@ function resolveChildren(debugService: debug.IDebugService, parent: debug.IExpre
 		return TPromise.as([]);
 	}
 
-	return session.resolveVariables({ variablesReference: parent.reference }).then(response => {
+	return session.variables({ variablesReference: parent.reference }).then(response => {
 		return arrays.distinct(response.body.variables, v => v.name).map(
 			v => new Variable(parent, v.variablesReference, v.name, v.value)
 		);

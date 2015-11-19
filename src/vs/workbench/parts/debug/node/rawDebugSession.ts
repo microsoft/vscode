@@ -81,7 +81,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 		return this.sendAndLazyEmit('attach', args);
 	}
 
-	public stepOver(args: DebugProtocol.NextArguments): TPromise<DebugProtocol.NextResponse> {
+	public next(args: DebugProtocol.NextArguments): TPromise<DebugProtocol.NextResponse> {
 		return this.sendAndLazyEmit('next', args);
 	}
 
@@ -146,11 +146,11 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 		return this.send('scopes', args);
 	}
 
-	public resolveVariables(args: DebugProtocol.VariablesArguments): TPromise<DebugProtocol.VariablesResponse> {
+	public variables(args: DebugProtocol.VariablesArguments): TPromise<DebugProtocol.VariablesResponse> {
 		return this.send('variables', args);
 	}
 
-	public resolveSource(args: DebugProtocol.SourceArguments): TPromise<DebugProtocol.SourceResponse> {
+	public source(args: DebugProtocol.SourceArguments): TPromise<DebugProtocol.SourceResponse> {
 		return this.send('source', args);
 	}
 
