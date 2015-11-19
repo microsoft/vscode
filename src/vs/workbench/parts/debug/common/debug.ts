@@ -388,19 +388,6 @@ export var schema: IJSONSchema = {
 	type: 'object',
 	title: nls.localize('app.launch.json.title', "Launch configuration"),
 	required: ['version', 'configurations'],
-	default: {
-		version: '0.2.0',
-		configurations: [{
-			name: 'Launch',
-			type: 'node',
-			request: 'launch'
-		}, {
-			name: 'Attach',
-			type: 'node',
-			request: 'attach',
-			port: 5858
-		}]
-	},
 	properties: {
 		version: {
 			type: 'string',
