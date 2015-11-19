@@ -35,7 +35,7 @@ import { Position } from 'vs/platform/editor/common/editor';
 import { ITaskService , TaskEvent, TaskType, TaskServiceEvents} from 'vs/workbench/parts/tasks/common/taskService';
 import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
-import { ITextFileService, VIEWLET_ID as FILES_VIEWLET_ID } from 'vs/workbench/parts/files/common/files';
+import { ITextFileService } from 'vs/workbench/parts/files/common/files';
 import { IWorkspaceContextService } from 'vs/workbench/services/workspace/common/contextService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -623,7 +623,6 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		}
 		this.session = null;
 		this.partService.removeClass('debugging');
-		this.viewletService.openViewlet(FILES_VIEWLET_ID);
 		this.contextService.updateOptions('editor', {
 			hover: true
 		});
