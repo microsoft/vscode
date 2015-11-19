@@ -198,7 +198,7 @@ export var units : { [unitName:string]:string[] } = {
 	'angle': ['deg', 'rad', 'grad', 'turn'],
 	'time': ['ms', 's'],
 	'frequency': ['hz', 'khz'],
-	'resolution': ['dpi', 'dpcm'],
+	'resolution': ['dpi', 'dpcm', 'dppx'],
 	'percentage': ['%']
 };
 
