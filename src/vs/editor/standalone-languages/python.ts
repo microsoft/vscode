@@ -169,7 +169,7 @@ export var language = <ILanguage> {
 
 			[/@[a-zA-Z]\w*/, 'tag'],
 			[/[a-zA-Z]\w*/, { cases: { '@keywords': 'keyword',
-									   '@default': 'identifier' } }]
+										'@default': 'identifier' } }]
 	],
 
 	// Deal with white space, including single and multi-line comments

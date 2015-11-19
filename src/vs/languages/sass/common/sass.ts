@@ -75,7 +75,7 @@ export var language = <Types.ILanguage>{
 			['[@](extend)', { token: 'keyword.control.at-rule', next: '@extendbody'}], // sass: extend other selectors
 			['[@](return)', { token: 'keyword.control.at-rule', next: '@declarationbody'}],
 			['}', { token: 'punctuation.curly', bracket: '@close', next: '@pop'}],
-		 ],
+		],
 
 		selectorname: [
 			['#{', { token: 'support.function.interpolation', bracket: '@open', next: '@variableinterpolation' }], // sass: interpolation
@@ -125,7 +125,7 @@ export var language = <Types.ILanguage>{
 		],
 
 		variabledeclaration: [ // sass variables
-			 ['\\$@identifier@ws:', 'variable.decl', '@declarationbody'],
+			['\\$@identifier@ws:', 'variable.decl', '@declarationbody'],
 		],
 
 		urldeclaration: [
@@ -153,9 +153,9 @@ export var language = <Types.ILanguage>{
 		],
 
 		variablereference: [ // sass variable reference
-			 ['\\$@identifier', 'variable.ref'],
-			 ['\\.\\.\\.', 'keyword.operator'], // var args in reference
-			 ['#{', { token: 'support.function.interpolation', bracket: '@open', next: '@variableinterpolation' }], // sass var resolve
+			['\\$@identifier', 'variable.ref'],
+			['\\.\\.\\.', 'keyword.operator'], // var args in reference
+			['#{', { token: 'support.function.interpolation', bracket: '@open', next: '@variableinterpolation' }], // sass var resolve
 		],
 
 		variableinterpolation: [
@@ -227,7 +227,7 @@ export var language = <Types.ILanguage>{
 		],
 
 		controlstatement: [
-			 ['[@](if|else|for|while|each|media)', { token: 'keyword.flow.control.at-rule', next: '@controlstatementdeclaration'}],
+			['[@](if|else|for|while|each|media)', { token: 'keyword.flow.control.at-rule', next: '@controlstatementdeclaration'}],
 		],
 
 		controlstatementdeclaration: [

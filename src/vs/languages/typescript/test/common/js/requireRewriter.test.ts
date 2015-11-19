@@ -63,7 +63,7 @@ suite('JS* - Require Rewriter', () => {
 			'    (<typeof _$steroids$_45_48>require("a")).b',
 			'});',
 		]);
-	 });
+	});
 
 	test('require, strip .js-extname', function () {
 		assertTranslation([

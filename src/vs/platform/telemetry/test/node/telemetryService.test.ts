@@ -76,12 +76,12 @@ class ErrorTestingSettings {
 		'    at t.AllWorkers (a/path/that/doesnt/contain/code/names.js:6:8844)',
 		'    at e.(anonymous function) [as _modelEvents] (a/path/that/doesnt/contain/code/names.js:5:29552)',
 		'    at Function.<anonymous> (a/path/that/doesnt/contain/code/names.js:6:8272)',
-	    '    at e.dispatch (a/path/that/doesnt/contain/code/names.js:5:26931)',
-	    '    at e.request (a/path/that/doesnt/contain/code/names.js:14:1745)',
-	    '    at t._handleMessage (another/path/that/doesnt/contain/code/names.js:14:17447)',
-	    '    at t._onmessage (another/path/that/doesnt/contain/code/names.js:14:16976)',
-	    '    at t.onmessage (another/path/that/doesnt/contain/code/names.js:14:15854)',
-	    '    at DedicatedWorkerGlobalScope.self.onmessage',
+		'    at e.dispatch (a/path/that/doesnt/contain/code/names.js:5:26931)',
+		'    at e.request (a/path/that/doesnt/contain/code/names.js:14:1745)',
+		'    at t._handleMessage (another/path/that/doesnt/contain/code/names.js:14:17447)',
+		'    at t._onmessage (another/path/that/doesnt/contain/code/names.js:14:16976)',
+		'    at t.onmessage (another/path/that/doesnt/contain/code/names.js:14:15854)',
+		'    at DedicatedWorkerGlobalScope.self.onmessage',
 		this.dangerousPathWithImportantInfo,
 		this.dangerousPathWithoutImportantInfo,
 		this.missingModelMessage,
@@ -378,7 +378,7 @@ suite('TelemetryService', () => {
 		(<any>window.onerror)('Error Message', 'file.js', 2, 42, testError);
 		this.clock.tick(AbstractTelemetryService.AbstractTelemetryService.ERROR_FLUSH_TIMEOUT);
 
-	    assert.equal(errorStub.alwaysCalledWithExactly('Error Message', 'file.js', 2, 42, testError), true);
+		assert.equal(errorStub.alwaysCalledWithExactly('Error Message', 'file.js', 2, 42, testError), true);
 		assert.equal(errorStub.callCount, 1);
 
 		assert.equal(testAppender.getEventsCount(), 1);

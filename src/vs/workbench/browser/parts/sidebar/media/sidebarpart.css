@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
- 
+
 .monaco-workbench > .sidebar > .title {
 	display: block !important; /* Enable Title visibility */
 }
@@ -81,11 +81,11 @@
 }
 
 /* High Contrast Theming */
-.monaco-workbench.hc-black > .sidebar.left {	
+.monaco-workbench.hc-black > .sidebar.left {
 	border-right: 1px solid #6FC3DF;
 }
 
-.monaco-workbench.hc-black > .sidebar.right {	
+.monaco-workbench.hc-black > .sidebar.right {
 	border-left: 1px solid #6FC3DF;
 }
 

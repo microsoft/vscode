@@ -91,9 +91,9 @@
 }
 
 .quick-open-widget .extension .actions .action-item.disabled .action-label {
-  animation: move-background 0.5s linear infinite;
-  background-color: rgba(132, 132, 132, 0.5);
-  background-size: 8px;
+	animation: move-background 0.5s linear infinite;
+	background-color: rgba(132, 132, 132, 0.5);
+	background-size: 8px;
 	background-image: linear-gradient(-45deg, rgba(255, 255, 255, 0.5) 25%, transparent 25%, transparent 50%, rgba(255, 255, 255, 0.5) 50%, rgba(255, 255, 255, 0.5) 75%, transparent 75%, transparent);
 	color: rgb(0, 0, 0);
 	border-color: rgb(0, 0, 0);

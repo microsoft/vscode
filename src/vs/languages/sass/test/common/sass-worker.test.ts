@@ -30,7 +30,7 @@ suite('SASS - Worker', () => {
 		return { worker: worker, model: model };
 	};
 
- 	var testSuggestionsFor = function(value:string, stringBefore:string):WinJS.TPromise<Modes.ISuggestions> {
+	var testSuggestionsFor = function(value:string, stringBefore:string):WinJS.TPromise<Modes.ISuggestions> {
 		var url = new Network.URL('test://1');
 		var env = mockSASSWorkerEnv(url, value);
 
@@ -39,7 +39,7 @@ suite('SASS - Worker', () => {
 		return env.worker.suggest(url, position).then(result => result[0]);
 	};
 
- 	var testValueSetFor = function(value:string, selection:string, selectionLength: number, up: boolean):WinJS.TPromise<Modes.IInplaceReplaceSupportResult> {
+	var testValueSetFor = function(value:string, selection:string, selectionLength: number, up: boolean):WinJS.TPromise<Modes.IInplaceReplaceSupportResult> {
 		var url = new Network.URL('test://1');
 		var env = mockSASSWorkerEnv(url, value);
 
@@ -49,7 +49,7 @@ suite('SASS - Worker', () => {
 		return env.worker.inplaceReplaceSupport.navigateValueSet(url, range, up);
 	};
 
- 	var testOccurrences = function(value:string, tokenBefore:string):WinJS.TPromise<{ occurrences: Modes.IOccurence[]; model: mm.MirrorModel }> {
+	var testOccurrences = function(value:string, tokenBefore:string):WinJS.TPromise<{ occurrences: Modes.IOccurence[]; model: mm.MirrorModel }> {
 		var url = new Network.URL('test://1');
 		var env = mockSASSWorkerEnv(url, value);
 
@@ -63,7 +63,7 @@ suite('SASS - Worker', () => {
 			return suggestion.label === label && (!type || suggestion.type === type);
 		});
 		if (proposalsFound.length != 1) {
-		  assert.fail("Suggestion not found: " + label + ", has " + completion.suggestions.map(s => s.label).join(', '));
+			assert.fail("Suggestion not found: " + label + ", has " + completion.suggestions.map(s => s.label).join(', '));
 		}
 	};
 

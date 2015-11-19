@@ -15,7 +15,6 @@ module.exports = function (opts) {
 
 			if (opts.whitespace) {
 				var lines = contents.split(/\r\n|\r|\n/);
-				var hadErrorLineNumber = 0;
 				for (var i = 0, len = lines.length; i < len; i++) {
 					var line = lines[i];
 					if (line.length === 0) {
@@ -33,14 +32,8 @@ module.exports = function (opts) {
 						// empty line
 						continue;
 					} else {
-						// console.log(file.path + '(' + hadErrorLineNumber + ',1): Mixed whitespace indentation');
-						hadErrorLineNumber = i + 1;
-						break;
+						console.log(file.path + '(' + (i + 1) + ',1): Mixed whitespace indentation');
 					}
-				}
-
-				if (hadErrorLineNumber) {
-					console.log(file.path + '(' + hadErrorLineNumber + ',1): Mixed whitespace indentation');
 				}
 			}
 		} else {

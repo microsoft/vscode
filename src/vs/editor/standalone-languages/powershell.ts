@@ -56,7 +56,7 @@ export var language = <ILanguage> {
 		root: [
 
 			// commands and keywords
-	 		[/[a-zA-Z_][\w-]*/, { cases: { '@keywords': {token:'keyword.$0'},
+			[/[a-zA-Z_][\w-]*/, { cases: { '@keywords': {token:'keyword.$0'},
 											'@default': '' } }],
 
 			// whitespace
@@ -100,7 +100,7 @@ export var language = <ILanguage> {
 			[/\$[\w]+/, { cases: { '$S2=="': 'variable', '@default': 'string' }}],
 
 			[/["']/,     { cases: { '$#==$S2' : { token: 'string', next: '@pop' },
-			      '@default': { cases: { '@eos': {token:'string', next:'@popall'}, '@default': 'string' }} }} ],
+									'@default': { cases: { '@eos': {token:'string', next:'@popall'}, '@default': 'string' }} }} ],
 		],
 
 		herestring: [
@@ -111,7 +111,7 @@ export var language = <ILanguage> {
 			[/\$[\w]+/, { cases: { '$S2=="': 'variable', '@default': 'string' } }],
 		],
 
-	    comment: [
+		comment: [
 			[/[^#\.]+/, 'comment' ],
 			[/#>/, 'comment', '@pop'],
 			[/(\.)(@helpKeywords)(?!\w)/, { token: 'comment.keyword.$2' } ],

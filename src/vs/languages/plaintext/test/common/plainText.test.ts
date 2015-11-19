@@ -21,7 +21,7 @@ suite('Syntax Highlighting - Plain Text', () => {
 	});
 
 	test('', () => {
-	 	modesUtil.executeTests(tokenizationSupport, [
+		modesUtil.executeTests(tokenizationSupport, [
 			// One line text file
 			[{
 			line: 'a simple text file',

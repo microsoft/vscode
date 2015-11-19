@@ -69,7 +69,7 @@ suite('Validation - CSS', () => {
 		return { worker: worker, model: model, markers: markers };
 	};
 
- 	var testSuggestionsFor = function(value:string, stringBefore:string):WinJS.TPromise<Modes.ISuggestions> {
+	var testSuggestionsFor = function(value:string, stringBefore:string):WinJS.TPromise<Modes.ISuggestions> {
 		var url = new Network.URL('test://1');
 		var env = mockCSSWorkerEnv(url, value);
 
@@ -78,7 +78,7 @@ suite('Validation - CSS', () => {
 		return env.worker.suggest(url, position).then(result => result[0]);
 	};
 
- 	var testValueSetFor = function(value:string, selection:string, selectionLength: number, up: boolean):WinJS.TPromise<Modes.IInplaceReplaceSupportResult> {
+	var testValueSetFor = function(value:string, selection:string, selectionLength: number, up: boolean):WinJS.TPromise<Modes.IInplaceReplaceSupportResult> {
 		var url = new Network.URL('test://1');
 		var env = mockCSSWorkerEnv(url, value);
 
@@ -114,7 +114,7 @@ suite('Validation - CSS', () => {
 			return suggestion.label === label && (!type || suggestion.type === type);
 		});
 		if (proposalsFound.length != 1) {
-		  assert.fail("Suggestion not found: " + label + ", has " + completion.suggestions.map(s => s.label).join(', '));
+			assert.fail("Suggestion not found: " + label + ", has " + completion.suggestions.map(s => s.label).join(', '));
 		}
 	};
 

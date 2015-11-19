@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
- 
+
 /* General Theme Colors */
 .monaco-workbench.vs-dark		 	{ background-color: #252526; color: #CCC; }
 
@@ -19,7 +19,7 @@
 /* Input Fields */
 .monaco-workbench.vs-dark input,
 .monaco-workbench.vs-dark textarea {
-	background-color: #3C3C3C; 
+	background-color: #3C3C3C;
 }
 
 .monaco-workbench.vs-dark input:disabled {

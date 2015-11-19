@@ -99,7 +99,7 @@
 }
 
 /* Dark theme */
- .monaco-editor.vs-dark .quickfix-widget {
+.monaco-editor.vs-dark .quickfix-widget {
 	background-color: #2D2D30;
 	border: 1px solid rgb(69, 69, 69);
 }
@@ -110,7 +110,7 @@
 
 
 /* High Contrast Theming */
- .monaco-editor.hc-black .quickfix-widget {
+.monaco-editor.hc-black .quickfix-widget {
 	background-color: #0C141F;
 	border: 2px solid #6FC3DF;
 }

@@ -86,12 +86,12 @@ suite('Sass - Sass Parser', () => {
 
 	test('Sass Parser - SassOperator', function() {
 		var parser = new _parser.SassParser();
-	    assertNode('>=', parser, parser._parseOperator.bind(parser));
-	    assertNode('>', parser, parser._parseOperator.bind(parser));
-	    assertNode('<', parser, parser._parseOperator.bind(parser));
-	    assertNode('<=', parser, parser._parseOperator.bind(parser));
-	    assertNode('==', parser, parser._parseOperator.bind(parser));
-	    assertNode('!=', parser, parser._parseOperator.bind(parser));
+		assertNode('>=', parser, parser._parseOperator.bind(parser));
+		assertNode('>', parser, parser._parseOperator.bind(parser));
+		assertNode('<', parser, parser._parseOperator.bind(parser));
+		assertNode('<=', parser, parser._parseOperator.bind(parser));
+		assertNode('==', parser, parser._parseOperator.bind(parser));
+		assertNode('!=', parser, parser._parseOperator.bind(parser));
 		assertNode('and', parser, parser._parseOperator.bind(parser));
 		assertNode('+', parser, parser._parseOperator.bind(parser));
 		assertNode('-', parser, parser._parseOperator.bind(parser));

@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
- 
+
 .monaco-workbench > .activitybar > .content .monaco-action-bar .action-item {
 	display: block;
 	position: relative;
@@ -70,12 +70,12 @@
 .monaco-workbench > .activitybar > .content .monaco-action-bar .badge .badge-content {
 	position: absolute;
 	top: 20px;
-	right: 8px;	
+	right: 8px;
 	font-size: 11px;
 	min-width: 8px;
 	height: 18px;
 	line-height: 18px;
-	padding: 0 5px;	
+	padding: 0 5px;
 	border-radius: 20px;
 	text-align: center;
 	color: white;
@@ -92,8 +92,8 @@
 	position: absolute;
 	top: 15px;
 	right: 0;
-	width: 0; 
-	height: 0; 
+	width: 0;
+	height: 0;
 	border-top: 5px solid transparent;
 	border-bottom: 5px solid transparent;
 	border-right: 5px solid #F6F6F6;
@@ -104,8 +104,8 @@
 	position: absolute;
 	top: 15px;
 	right: 0;
-	width: 0; 
-	height: 0; 
+	width: 0;
+	height: 0;
 	border-top: 5px solid transparent;
 	border-bottom: 5px solid transparent;
 	border-right: 5px solid #252526;
@@ -116,8 +116,8 @@
 	position: absolute;
 	top: 15px;
 	left: 0;
-	width: 0; 
-	height: 0; 
+	width: 0;
+	height: 0;
 	border-top: 5px solid transparent;
 	border-bottom: 5px solid transparent;
 	border-left: 5px solid #F6F6F6;
@@ -128,8 +128,8 @@
 	position: absolute;
 	top: 15px;
 	left: 0;
-	width: 0; 
-	height: 0; 
+	width: 0;
+	height: 0;
 	border-top: 5px solid transparent;
 	border-bottom: 5px solid transparent;
 	border-left: 5px solid #252526;
@@ -154,7 +154,7 @@
 
 .monaco-workbench > .activitybar.right > .content .monaco-action-bar .badge {
 	left: auto;
-	right: 0;	
+	right: 0;
 }
 
 /* High Contrast Theming */

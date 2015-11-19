@@ -405,7 +405,7 @@ export function configureMode(modeId: string, options: any): void {
 
 export function registerWorkerParticipant(modeId:string, moduleName:string, ctorName:string): void {
 	var modeRegistry = <IEditorModesRegistry> Registry.as(Extensions.EditorModes);
- 	modeRegistry.registerWorkerParticipant(modeId, createAsyncDescriptor0<Modes.IWorkerParticipant>(moduleName, ctorName));
+	modeRegistry.registerWorkerParticipant(modeId, createAsyncDescriptor0<Modes.IWorkerParticipant>(moduleName, ctorName));
 }
 
 export function getAPI(): typeof vscode {

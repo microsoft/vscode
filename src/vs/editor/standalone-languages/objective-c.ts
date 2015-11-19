@@ -44,7 +44,7 @@ export var language = <ILanguage> {
 		'@selector',
 		'@synthesize',
 
- 		'__declspec',
+		'__declspec',
 
 		'assign',
 		'auto',
@@ -138,7 +138,7 @@ export var language = <ILanguage> {
 			[/[{}\[\]()<>]/, '@brackets'],
 
 			[/[a-zA-Z@#]\w*/, { cases: { '@keywords': 'keyword',
-									   '@default': 'identifier' } }],
+										'@default': 'identifier' } }],
 
 			[/[<>=\\+\\-\\*\\/\\^\\|\\~,]|and\\b|or\\b|not\\b]/, 'operator'],
 	],
@@ -158,11 +158,11 @@ export var language = <ILanguage> {
 		],
 
 	numbers: [
-		    [/0[xX][0-9a-fA-F]*(_?[0-9a-fA-F])*/, 'number.hex'],
+			[/0[xX][0-9a-fA-F]*(_?[0-9a-fA-F])*/, 'number.hex'],
 			[/@decimal((\.@decpart)?([eE][\-+]?@decpart)?)[fF]*/, {
 				cases: {  	'(\\d)*': 'number',
 							'$0':'number.float' }} ]
-	  	],
+		],
 
 	// Recognize strings, including those broken across lines with \ (but not without)
 	strings: [

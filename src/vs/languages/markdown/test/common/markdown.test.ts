@@ -22,7 +22,7 @@ suite('Markdown - tokenization', () => {
 	});
 
 	test('', () => {
-	 	modesUtil.executeTests(tokenizationSupport, [
+		modesUtil.executeTests(tokenizationSupport, [
 			// HTML and embedded content - bug 16912
 			[{
 			line: '<b>foo</b>*bar*',

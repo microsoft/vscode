@@ -23,60 +23,60 @@ export interface ISortedList<TKey, TValue> extends IIterable<KeyValue<TKey, TVal
 	 * Number of elements in a sorted list.
 	 * O(1)
 	 */
-	 count: number;
+	count: number;
 
 	/**
 	 * Gets the value associated with the specified key.
 	 * Returns null if there is no value asociated with the key.
 	 * O(log n)
 	 */
-	 getValue(key: TKey): TValue;
+	getValue(key: TKey): TValue;
 
-	 /**
+	/**
 	 * Gets an iterator over values.
 	 * O(1)
 	 */
-	 getValues(): IIterator<TValue>;
+	getValues(): IIterator<TValue>;
 
 	/**
 	 * Gets the value at the specified index.
 	 * Returns null if index is out of bounds.
 	 * O(1)
 	 */
-	 getValueByIndex(index: number): TValue;
+	getValueByIndex(index: number): TValue;
 
 	/**
 	 * Gets the key at the specified index.
 	 * Returns null if index is out of bounds.
 	 * O(1)
 	 */
-	 getKey(index: number): TKey;
+	getKey(index: number): TKey;
 
 	/**
 	 * Gets an iterator over keys.
 	 * O(1)
 	 */
-	 getKeys(): IIterator<TKey>;
+	getKeys(): IIterator<TKey>;
 
-	 /**
-	  * Returns the zero-based index of the specified key in a SortedList object.
-	  * Returns -1 if the key is not found.
-	  * O(log n)
-	  */
-	 indexOfKey(key: TKey): number;
+	/**
+	 * Returns the zero-based index of the specified key in a SortedList object.
+	 * Returns -1 if the key is not found.
+	 * O(log n)
+	 */
+	indexOfKey(key: TKey): number;
 
 	/**
 	 * Adds the specified key and value to the sorted list.
 	 * O(n)
 	 */
-	 add(key: TKey, value: TValue): void;
+	add(key: TKey, value: TValue): void;
 
 	/**
 	 * Removes a value from the sorted list.
 	 * Returns true if the value got removed, false otherwise.
 	 * O(n)
 	 */
-	 remove(key: TKey): boolean;
+	remove(key: TKey): boolean;
 }
 
 export interface KeyValue<TKey, TValue> {
@@ -130,7 +130,7 @@ export class SortedList<TKey, TValue> implements ISortedList<TKey, TValue> {
 		}
 		var indexOfKey = this.indexOfKey(key);
 		if (indexOfKey >= 0) {
-			 return this.values[indexOfKey];
+			return this.values[indexOfKey];
 		}
 
 		return null;
@@ -154,7 +154,7 @@ export class SortedList<TKey, TValue> implements ISortedList<TKey, TValue> {
 
 		var position = 0;
 		while (position < this.keys.length && this.comparator(key, this.keys[position]) > 0) {
-			 position++;
+			position++;
 		}
 
 		this.keys.splice(position, 0, key);
@@ -167,8 +167,8 @@ export class SortedList<TKey, TValue> implements ISortedList<TKey, TValue> {
 		}
 		var indexOfKey = this.indexOfKey(key);
 		if (indexOfKey >= 0) {
-			 this.values.splice(indexOfKey, 1);
-			 this.keys.splice(indexOfKey, 1);
+			this.values.splice(indexOfKey, 1);
+			this.keys.splice(indexOfKey, 1);
 		}
 
 		return indexOfKey >= 0;
@@ -210,7 +210,7 @@ class SortedListIterator<TKey, TValue> implements IIterator<KeyValue<TKey, TValu
 		return this.index + 1 < this.keys.length;
 	}
 
-	 public reset(): void {
+	public reset(): void {
 		this.index = -1;
 	}
 
@@ -246,7 +246,7 @@ class ListIterator<TValue> implements IIterator<TValue> {
 		return this.index + 1 < this.values.length;
 	}
 
-	 public reset(): void {
+	public reset(): void {
 		this.index = -1;
 	}
 

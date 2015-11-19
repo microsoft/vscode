@@ -26,7 +26,7 @@ suite('LESS-tokenization', () => {
 	});
 
 	test('', () => {
-	 	modesUtil.executeTests(tokenizationSupport, [
+		modesUtil.executeTests(tokenizationSupport, [
 			// Keywords
 			[{
 			line: 'isnumber(10);',

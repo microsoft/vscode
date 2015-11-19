@@ -32,7 +32,7 @@ suite('Syntax Highlighting - PHP', () => {
 	});
 
 	test('', () => {
-	 	modesUtil.executeTests(tokenizationSupport, [
+		modesUtil.executeTests(tokenizationSupport, [
 
 			// Bug 13596:[ErrorTelemetry] Stream did not advance while tokenizing. Mode id is php (stuck)
 			// We're testing the fact that tokenize does not throw
@@ -1916,7 +1916,7 @@ suite('Syntax Highlighting - PHP', () => {
 				{ startIndex:17, type: '' },
 				{ startIndex:18, type: 'metatag.php', bracket: Modes.Bracket.Close }
 			]}]
-		 ]);
+		]);
 	});
 
 	test('Word definition', function() {

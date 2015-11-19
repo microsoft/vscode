@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
- /* Editor Container Styles */
+/* Editor Container Styles */
 
 .monaco-workbench.vs .editor > .content.dragged {
 	background-color: #F3F3F3;
@@ -17,7 +17,7 @@
 	border-right: 1px solid #444;
 }
 
- .monaco-workbench .editor > .content > .one-editor-container {
+.monaco-workbench .editor > .content > .one-editor-container {
 	position: absolute;
 
 	/* use border box to be able to draw a border as separator between editors */

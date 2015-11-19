@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 /* Suggest */
- .monaco-editor .suggest-widget {
+.monaco-editor .suggest-widget {
 	background-color: #F3F3F3;
 	font-size: 12px;
 	border: 1px solid rgb(200, 200, 200);
@@ -145,7 +145,7 @@
 }
 
 /* Dark theme */
- .monaco-editor.vs-dark .suggest-widget {
+.monaco-editor.vs-dark .suggest-widget {
 	background-color: #2D2D30;
 	border: 1px solid rgb(69, 69, 69);
 }
@@ -190,7 +190,7 @@
 
 
 /* High Contrast Theming */
- .monaco-editor.hc-black .suggest-widget {
+.monaco-editor.hc-black .suggest-widget {
 	background-color: #0C141F;
 	border: 2px solid #6FC3DF;
 }

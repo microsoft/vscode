@@ -48,7 +48,7 @@ suite('LESS - Intellisense', () => {
 			return suggestion.label === label;
 		});
 		if (proposalsFound.length != 1) {
-		  assert.fail("Suggestion not found: " + label + ", has " + completion.suggestions.map(s => s.label).join(', '));
+			assert.fail("Suggestion not found: " + label + ", has " + completion.suggestions.map(s => s.label).join(', '));
 		}
 	};
 

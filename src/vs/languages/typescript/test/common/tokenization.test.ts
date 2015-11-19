@@ -55,7 +55,7 @@ suite('TS/JS - syntax highlighting', () => {
 	});
 
 	test('', () => {
-	 	modesUtil.executeTests(tokenizationSupport, [
+		modesUtil.executeTests(tokenizationSupport, [
 
 			// Keywords
 			[{

@@ -44,7 +44,7 @@ export class BowerJSONContribution implements JSONWorker.IJSONWorkerContribution
 
 	public collectPropertySuggestions(contributionId: string, currentWord: string, addValue: boolean, isLast:boolean, result: JSONWorker.ISuggestionsCollector) : WinJS.Promise {
 		if (contributionId === 'bower-packages') {
- 			if (currentWord.length > 0) {
+			if (currentWord.length > 0) {
 				var queryUrl = 'https://bower.herokuapp.com/packages/search/' + encodeURIComponent(currentWord);
 
 				return this.requestService.makeRequest({
@@ -80,7 +80,7 @@ export class BowerJSONContribution implements JSONWorker.IJSONWorkerContribution
 					result.error(nls.localize('json.bower.error.repoaccess', 'Request to the bower repository failed: {0}', error.responseText));
 					return 0;
 				});
-			 } else {
+			} else {
 				this.topRanked.forEach((name) => {
 					var codeSnippet = JSON.stringify(name);
 					if (addValue) {
@@ -90,9 +90,9 @@ export class BowerJSONContribution implements JSONWorker.IJSONWorkerContribution
 						}
 					}
 					result.add({ type: 'property', label: name, codeSnippet: codeSnippet, documentationLabel: '' });
-				 });
-				 result.setAsIncomplete();
-			 }
+				});
+				result.setAsIncomplete();
+			}
 		}
 		return WinJS.Promise.as(0);
 	}

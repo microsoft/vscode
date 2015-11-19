@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
- 
+
 .context-view {
 	position: absolute;
 	z-index: 1000;
@@ -15,7 +15,7 @@
 	margin-top: 4px;
 	margin-right: 4px;
 	max-width: 350px;
-	
+
 	-webkit-animation: fadeIn 0.15s linear;
 	-o-animation: fadeIn 0.15s linear;
 	-moz-animation: fadeIn 0.15s linear;
@@ -30,7 +30,7 @@
 	border-color: transparent;
 	border-style: solid;
 }
-	
+
 .context-view.bottom.right .tooltip:before {
 	top: -12px;
 	right: 12px;

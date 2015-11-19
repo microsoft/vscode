@@ -433,9 +433,9 @@ suite('Tasks Configuration parsing tests', () => {
 				showOutput(Platform.isWindows ? TaskSystem.ShowOutput.Always : TaskSystem.ShowOutput.Never).
 				suppressTaskName(true);
 		let external: ExternalTaskRunnerConfiguration = {
- 			version: '0.1.0',
- 			command: 'tsc',
- 			showOutput: 'never',
+			version: '0.1.0',
+			command: 'tsc',
+			showOutput: 'never',
 			windows: {
 				showOutput: 'always'
 			}
@@ -450,8 +450,8 @@ suite('Tasks Configuration parsing tests', () => {
 				echoCommand(Platform.isWindows ? false : true).
 				suppressTaskName(true);
 		let external: ExternalTaskRunnerConfiguration = {
- 			version: '0.1.0',
- 			command: 'tsc',
+			version: '0.1.0',
+			command: 'tsc',
 			echoCommand: true,
 			windows: {
 				echoCommand: false

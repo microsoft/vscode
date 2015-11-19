@@ -1321,18 +1321,18 @@ export class JSONSchemaService implements IJSONSchemaService {
 						'type': 'object',
 						'description': nls.localize('global.json.sdk', 'The runtime to use.'),
 						'properties': {
-							 'version': {
+							'version': {
 								'type': 'string',
 								'description': nls.localize('global.json.sdk.version', 'The runtime version to use.')
-							 },
-							 'runtime': {
+							},
+							'runtime': {
 								'type': 'string',
 								'description': nls.localize('global.json.sdk.runtime', 'The runtime to use, e.g. coreclr'),
-							 },
-							 'architecture': {
+							},
+							'architecture': {
 								'type': 'string',
 								'description': nls.localize('global.json.sdk.architecture', 'The runtime architecture to use, e.g. x64.')
-							 }
+							}
 						}
 					}
 				}
@@ -1479,11 +1479,11 @@ export class JSONSchemaService implements IJSONSchemaService {
 						'experimentalDecorators': {
 							'description': nls.localize('tsconfig.json.compilerOptions.experimentalDecorators', 'Enables experimental support for ES7 decorators.'),
 							'type': 'boolean'
-				        },
+						},
 						'experimentalAsyncFunctions': {
 							'description': nls.localize('tsconfig.json.compilerOptions.experimentalAsynFunctions', 'Enables experimental support for async functions (requires TypeScript 1.6).'),
 							'type': 'boolean'
-				        }
+						}
 					}
 				},
 				'files': {
