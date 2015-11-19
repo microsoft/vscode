@@ -16,11 +16,10 @@ import { assign } from 'vs/base/common/objects';
 import { extract, buffer } from 'vs/base/node/zip';
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
 import { IExtensionsService, IExtension, IExtensionManifest, IGalleryInformation } from 'vs/workbench/parts/extensions/common/extensions';
-import { download, getProxyAgent, getSystemProxyAgent } from 'vs/base/node/request';
+import { download } from 'vs/base/node/request';
 import { IWorkspaceContextService } from 'vs/workbench/services/workspace/common/contextService';
 import { Limiter } from 'vs/base/common/async';
 import Event, { Emitter } from 'vs/base/common/event';
-import { manager as Settings } from 'vs/workbench/electron-main/settings';
 
 function parseManifest(raw: string): TPromise<IExtensionManifest> {
 	return new Promise((c, e) => {
@@ -116,15 +115,12 @@ export class ExtensionsService implements IExtensionsService {
 			return TPromise.wrapError(new Error(nls.localize('missingGalleryInformation', "Gallery information is missing")));
 		}
 
-		const httpProxySettings = Settings.getValue('http.proxy');
-		const getAgent = url => httpProxySettings ? getProxyAgent(url, httpProxySettings) : getSystemProxyAgent(url);
-
 		const url = `${ galleryInformation.galleryApiUrl }/publisher/${ extension.publisher }/extension/${ extension.name }/latest/assetbyname/Microsoft.VisualStudio.Services.VSIXPackage?install=true`;
 		const zipPath = path.join(tmpdir(), galleryInformation.id);
 		const extensionPath = path.join(this.extensionsPath, `${ extension.publisher }.${ extension.name }`);
 		const manifestPath = path.join(extensionPath, 'package.json');
 
-		return download(zipPath, { url: url, agent: getAgent(url) })
+		return download(zipPath, { url })
 			.then(() => validate(zipPath, extension))
 			.then(manifest => { this._onInstallExtension.fire(manifest); return manifest; })
 			.then(manifest => extract(zipPath, extensionPath, { sourcePath: 'extension', overwrite: true }).then(() => manifest))
