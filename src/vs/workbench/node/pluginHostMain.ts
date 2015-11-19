@@ -233,13 +233,23 @@ export class PluginHostMain {
 						c(null);
 					}
 
-					setTimeout(() => process.exit(), 800 /* TODO@Ben need to wait to give the test output a chance to buffer */); // after tests have run, we shutdown the host
+					// after tests have run, we shutdown the host
+					this.gracefulExit();
 				});
 			});
 		}
 
-		setTimeout(() => process.exit(), 0); // we always want to shutdown, even in case of an error
+		// Otherwise make sure to shutdown anyway even in case of an error
+		else {
+			this.gracefulExit();
+		}
 
 		return TPromise.wrapError<void>(requireError ? requireError.toString() : nls.localize('pluginTestError', "Path {0} does not point to a valid extension test runner.", env.pluginTestsPath));
+	}
+
+	private gracefulExit(): void {
+		// to give the PH process a chance to flush any outstanding console
+		// messages to the main process, we delay the process.exit() by some time
+		setTimeout(() => process.exit(), 500);
 	}
 }
