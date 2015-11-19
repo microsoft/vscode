@@ -3,20 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.vs .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.checked {
-	background: url("check.svg") center center no-repeat;
-	width: 16px;
-	height: 16px;
-	vertical-align: text-bottom;
-}
-
-.vs-dark .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.checked {
-	background: url("check-inverse.svg") center center no-repeat;
-	width: 16px;
-	height: 16px;
-	vertical-align: text-bottom;
-}
-
 .vs .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.none,
 .vs-dark .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.none {
 	width: 16px;

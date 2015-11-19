@@ -13,7 +13,6 @@ import {IEditorInput} from 'vs/platform/editor/common/editor';
 
 export interface IPickOpenEntry {
 	id?: string;
-	checked?: boolean;
 	label: string;
 	description?: string;
 }
