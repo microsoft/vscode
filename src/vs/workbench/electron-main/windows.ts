@@ -90,8 +90,7 @@ export class WindowsManager {
 	public static autoSaveDelayStorageKey = 'autoSaveDelay';
 	public static openedPathsListStorageKey = 'openedPathsList';
 
-	private static workingDirFilePickerStorageKey = 'filePickerWorkingDir';
-	private static workingDirFolderPickerStorageKey = 'folderPickerWorkingDir';
+	private static workingDirPickerStorageKey = 'pickerWorkingDir';
 
 	private static windowsStateStorageKey = 'windowsState';
 	private static themeStorageKey = 'theme'; // TODO@Ben this key is only used to find out if a window can be shown instantly because of light theme, remove once we have support for bg color
@@ -777,8 +776,7 @@ export class WindowsManager {
 	}
 
 	private getFileOrFolderPaths(isFolder: boolean, clb: (paths: string[]) => void): void {
-		let storageKey = isFolder ? WindowsManager.workingDirFolderPickerStorageKey : WindowsManager.workingDirFilePickerStorageKey;
-		let workingDir = storage.getItem<string>(storageKey);
+		let workingDir = storage.getItem<string>(WindowsManager.workingDirPickerStorageKey);
 		let focussedWindow = this.getFocusedWindow();
 
 		let pickerProperties: string[];
@@ -795,8 +793,8 @@ export class WindowsManager {
 			if (paths && paths.length > 0) {
 
 				// Remember path in storage for next time
-				let selectedPath = paths[0];
-				storage.setItem(storageKey, isFolder ? path.dirname(selectedPath) : selectedPath);
+				let pathToRemember = isFolder ? paths[0] : path.dirname(paths[0]);
+				storage.setItem(WindowsManager.workingDirPickerStorageKey, pathToRemember);
 
 				// Return
 				clb(paths);
