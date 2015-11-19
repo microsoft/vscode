@@ -538,14 +538,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 					pathFormat: 'path'
 				}).then((result: DebugProtocol.InitializeResponse) => {
 					this.setStateAndEmit(debug.State.Initializing);
-					if (this.configuration.request === 'attach' || this.configuration.port) {
-						if (this.configuration.request !== 'attach') {
-							this.messageService.show(severity.Warning, nls.localize('debug.requestNeeded', "Please add an attribute \"request\": \"attach\" to your configuration."));
-						}
-						return this.session.attach(this.configuration);
-					} else {
-						return this.session.launch(this.configuration);
-					}
+					return this.configuration.request === 'attach' ? this.session.attach(this.configuration) : this.session.launch(this.configuration);
 				}).then((result: DebugProtocol.Response) => {
 					if (openViewlet) {
 						this.viewletService.openViewlet(debug.VIEWLET_ID);
