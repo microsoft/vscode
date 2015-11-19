@@ -167,7 +167,7 @@ export class TextFileService extends BrowserTextFileService {
 
 		if (resourcesToConfirm.length > 1) {
 			message.push('');
-			message.push(...resourcesToConfirm.map((r) => nls.localize('dirtyList', "- {0}", paths.basename(r.fsPath))));
+			message.push(...resourcesToConfirm.map((r) => paths.basename(r.fsPath)));
 			message.push('');
 		}
 
