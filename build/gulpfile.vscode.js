@@ -97,7 +97,8 @@ var config = {
 	darwinBundleDocumentTypes: product.darwinBundleDocumentTypes,
 	darwinCredits: darwinCreditsTemplate ? new Buffer(darwinCreditsTemplate({ commit: commit, date: new Date().toISOString() })) : void 0,
 	winIcon: product.icons.application.ico,
-	win32ExeBasename: product.win32ExeBasename
+	win32ExeBasename: product.win32ExeBasename,
+	token: process.env['GITHUB_TOKEN'] || void 0
 };
 
 gulp.task('electron', function () {
