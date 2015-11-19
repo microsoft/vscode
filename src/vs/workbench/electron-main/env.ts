@@ -31,6 +31,7 @@ export interface IProductConfiguration {
 			png: string;
 		}
 	},
+	win32AppUserModelId: string;
 	dataFolderName: string;
 	downloadUrl: string;
 	updateUrl: string;

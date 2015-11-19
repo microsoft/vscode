@@ -96,8 +96,8 @@ function main(ipcServer: Server, userEnv: IEnv): void {
 	// This will help Windows to associate the running program with
 	// any shortcut that is pinned to the taskbar and prevent showing
 	// two icons in the taskbar for the same app.
-	if (platform.isWindows) {
-		app.setAppUserModelId('Microsoft.VisualStudioCode');
+	if (platform.isWindows && env.product.win32AppUserModelId) {
+		app.setAppUserModelId(env.product.win32AppUserModelId);
 	}
 
 	// Set programStart in the global scope
