@@ -516,19 +516,12 @@ class WebKitViewLine extends ViewLine {
 		if (beforeEndVisibleRanges && beforeEndVisibleRanges.length > 0 && endVisibleRanges && endVisibleRanges.length > 0) {
 			var beforeEndVisibleRange = beforeEndVisibleRanges[0];
 			var endVisibleRange = endVisibleRanges[0];
-			var isLTR = true;
-			if (beforeEndVisibleRange.top === endVisibleRange.top) {
-				isLTR = (beforeEndVisibleRange.left <= endVisibleRange.left);
-			}
-
+			var isLTR = (beforeEndVisibleRange.left <= endVisibleRange.left);
 			var lastRange = output[output.length - 1];
 
-			if (isLTR && lastRange.top === endVisibleRange.top && lastRange.left < endVisibleRange.left) {
+			if (isLTR && lastRange.left < endVisibleRange.left) {
 				// Trim down the width of the last visible range to not go after the last column's position
 				lastRange.width = endVisibleRange.left - lastRange.left;
-			} else if (lastRange.top > endVisibleRange.top) {
-				// WebKit went over to next line with its expanded range
-				output.splice(output.length - 1, 1);
 			}
 		}
 
@@ -560,10 +553,7 @@ class RangeUtil {
 }
 
 function compareVisibleRanges(a: EditorBrowser.IVisibleRange, b: EditorBrowser.IVisibleRange): number {
-	if (a.top === b.top) {
-		return a.left - b.left;
-	}
-	return a.top - b.top;
+	return a.left - b.left;
 }
 
 function findIndexInArrayWithMax(lineParts:ILineParts, desiredIndex: number, maxResult:number): number {
