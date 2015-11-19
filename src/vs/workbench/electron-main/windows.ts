@@ -671,6 +671,7 @@ export class WindowsManager {
 				configuration.logPluginHostCommunication = currentWindowConfig.logPluginHostCommunication;
 				configuration.debugBrkPluginHost = currentWindowConfig.debugBrkPluginHost;
 				configuration.debugPluginHostPort = currentWindowConfig.debugPluginHostPort;
+				configuration.pluginHomePath = currentWindowConfig.pluginHomePath;
 			}
 		}
 

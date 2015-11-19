@@ -373,6 +373,7 @@ export class VSCodeWindow {
 			configuration.logPluginHostCommunication = cli.logPluginHostCommunication;
 			configuration.debugPluginHostPort = cli.debugPluginHostPort;
 			configuration.debugBrkPluginHost = cli.debugBrkPluginHost;
+			configuration.pluginHomePath = cli.pluginHomePath;
 		}
 
 		// Load config
