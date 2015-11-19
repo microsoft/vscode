@@ -188,8 +188,8 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 
 	private registerSessionListeners(): void {
 		this.toDispose.push(this.session.addListener2(debug.SessionEvents.INITIALIZED, (event: DebugProtocol.InitializedEvent) => {
-			this.sendAllBreakpoints();
-			this.sendExceptionBreakpoints();
+			this.sendAllBreakpoints().done(null, errors.onUnexpectedError);
+			this.sendExceptionBreakpoints().done(null, errors.onUnexpectedError);
 		}));
 
 		this.toDispose.push(this.session.addListener2(debug.SessionEvents.STOPPED, (event: DebugProtocol.StoppedEvent) => {
@@ -239,9 +239,9 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 			let extensionHostData = event.body ? event.body.extensionHost : undefined;
 
 			if (extensionHostData) {
-				this.restartSession(extensionHostData);
+				this.restartSession(extensionHostData).done(null, errors.onUnexpectedError);
 			} else if (this.session) {
-				this.session.stop();
+				this.session.stop().done(null, errors.onUnexpectedError);
 			}
 		}));
 
