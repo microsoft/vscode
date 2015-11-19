@@ -10,11 +10,36 @@ if (!!process.send && process.env.PIPE_LOGGING === 'true') {
 	var MAX_LENGTH = 100000;
 
 	// Prevent circular stringify
-	function safeStringify(obj) {
+	function safeStringify(args) {
 		var seen = [];
 		var res;
+
+		// Massage some arguments with special treatment
+		if (args.length) {
+			for (var i = 0; i < args.length; i++) {
+
+				// Any argument of type 'undefined' needs to be specially treated because
+				// JSON.stringify will simply ignore those. We replace them with the string
+				// 'undefined' which is not 100% right, but good enough to be logged to console
+				if (typeof args[i] === 'undefined') {
+					args[i] = 'undefined';
+				}
+
+				// Any argument that is an Error will be changed to be just the error stack/message
+				// itself because currently cannot serialize the error over entirely.
+				else if (args[i] instanceof Error) {
+					var errorObj = args[i];
+					if (errorObj.stack) {
+						args[i] = errorObj.stack;
+					} else {
+						args[i] = errorObj.toString();
+					}
+				}
+			}
+		}
+
 		try {
-			res = JSON.stringify(obj, function (key, value) {
+			res = JSON.stringify(args, function (key, value) {
 
 				// Objects get special treatment to prevent circles
 				if (value && Object.prototype.toString.call(value) === '[object Object]') {
@@ -46,7 +71,7 @@ if (!!process.send && process.env.PIPE_LOGGING === 'true') {
 		console.log = function () { /* ignore */ };
 		console.warn = function () { /* ignore */ };
 	}
-	
+
 	console.error = function () { process.send({ type: '__$console', severity: 'error', arguments: safeStringify(arguments) }); };
 
 	// Let stdout, stderr and stdin be no-op streams. This prevents an issue where we would get an EBADF
