@@ -3,6 +3,7 @@
 	"version": "0.1.0",
 	"publisher": "vscode",
 	"engines": {
+		"node": "^4.0.0",
 		"vscode": "*"
 	},
 	"activationEvents": [
