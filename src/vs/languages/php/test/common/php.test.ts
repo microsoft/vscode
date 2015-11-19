@@ -768,6 +768,16 @@ suite('Syntax Highlighting - PHP', () => {
 			]}],
 
 			[{
+			line: '<?php yield ?>',
+			tokens: [
+				{ startIndex:0, type: 'metatag.php' },
+				{ startIndex:5, type: '' },
+				{ startIndex:6, type: 'keyword.php' },
+				{ startIndex:11, type: '' },
+				{ startIndex:12, type: 'metatag.php' }
+			]}],
+
+			[{
 			line: '<?php die ?>',
 			tokens: [
 				{ startIndex:0, type: 'metatag.php' },

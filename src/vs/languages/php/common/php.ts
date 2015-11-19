@@ -77,7 +77,7 @@ var isKeyword = objects.createKeywordMatcher([
 	'if', 'implements', 'interface', 'instanceof', 'insteadof',
 	'namespace', 'new', 'null', 'object', 'old_function', 'or', 'private',
 	'protected', 'public', 'resource', 'static', 'switch', 'throw', 'trait',
-	'try', 'true', 'use', 'var', 'while', 'xor',
+	'try', 'true', 'use', 'var', 'while', 'xor', 'yield',
 	'die', 'echo', 'empty', 'exit', 'eval',
 	'include', 'include_once', 'isset', 'list', 'require',
 	'require_once', 'return', 'print', 'unset',
