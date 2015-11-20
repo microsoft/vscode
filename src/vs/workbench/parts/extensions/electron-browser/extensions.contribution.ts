@@ -6,7 +6,7 @@
 import platform = require('vs/platform/platform');
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IGalleryService } from 'vs/workbench/parts/extensions/common/extensions';
-import { GalleryService } from './vsoGalleryService';
+import { GalleryService } from 'vs/workbench/parts/extensions/node/vsoGalleryService';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { ExtensionsWorkbenchExtension } from 'vs/workbench/parts/extensions/electron-browser/extensionsWorkbenchExtension';
 

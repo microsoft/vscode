@@ -41,6 +41,6 @@ exports.collectModules= function(excludes) {
 
 		createModuleDescription('vs/workbench/node/pluginHostProcess', []),
 
-		createModuleDescription('vs/workbench/parts/sharedProcess/node/sharedProcessMain', [])
+		createModuleDescription('vs/workbench/electron-main/sharedProcessMain', [])
 	];
 };

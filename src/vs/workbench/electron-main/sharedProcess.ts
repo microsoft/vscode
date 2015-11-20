@@ -35,7 +35,7 @@ function getEnvironment(): IEnvironment {
 export function spawnSharedProcess(): cp.ChildProcess {
 	const result = cp.fork(boostrapPath, ['--type=SharedProcess'], {
 		env: assign(assign({}, process.env), {
-			AMD_ENTRYPOINT: 'vs/workbench/parts/sharedProcess/node/sharedProcessMain'
+			AMD_ENTRYPOINT: 'vs/workbench/electron-main/sharedProcessMain'
 		})
 	});
 

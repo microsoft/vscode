@@ -23,7 +23,7 @@ import {Server, serve, connect} from 'vs/base/node/service.net';
 import {getUserEnvironment, IEnv} from 'vs/base/node/env';
 import {Promise, TPromise} from 'vs/base/common/winjs.base';
 import {GitAskpassService} from 'vs/workbench/parts/git/electron-main/askpassService';
-import { spawnSharedProcess } from 'vs/workbench/parts/sharedProcess/node/sharedProcess';
+import { spawnSharedProcess } from 'vs/workbench/electron-main/sharedProcess';
 
 export class LaunchService {
 	public start(args: env.ICommandLineArguments): Promise {

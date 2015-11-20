@@ -96,7 +96,7 @@ import {IThemeService, ThemeService} from 'vs/workbench/services/themes/node/the
 import { IServiceCtor, isServiceEvent } from 'vs/base/common/service';
 import { connect, Client } from 'vs/base/node/service.net';
 import { IExtensionsService } from 'vs/workbench/parts/extensions/common/extensions';
-import { ExtensionsService } from 'vs/workbench/parts/extensions/electron-browser/extensionsService';
+import { ExtensionsService } from 'vs/workbench/parts/extensions/node/extensionsService';
 
 /**
  * This ugly beast is needed because at the point when we need shared services

@@ -13,7 +13,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IMessageService } from 'vs/platform/message/common/message';
 import Severity from 'vs/base/common/severity';
 import { IWorkspaceContextService } from 'vs/workbench/services/workspace/common/contextService';
-import { IPath } from 'vs/workbench/electron-main/window';
 import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
 import wbaregistry = require('vs/workbench/browser/actionRegistry');
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';

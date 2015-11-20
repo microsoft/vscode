@@ -23,7 +23,7 @@ import { ConfigurationService } from 'vs/workbench/services/configuration/common
 
 // Extra services
 import { IExtensionsService } from 'vs/workbench/parts/extensions/common/extensions';
-import { ExtensionsService } from 'vs/workbench/parts/extensions/electron-browser/extensionsService';
+import { ExtensionsService } from 'vs/workbench/parts/extensions/node/extensionsService';
 
 interface IInitData {
 	configuration: IConfiguration;
