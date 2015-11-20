@@ -24,14 +24,12 @@ import files = require('vs/workbench/parts/files/browser/files');
 import baseeditor = require('vs/workbench/browser/parts/editor/baseEditor');
 import filesCommon = require('vs/workbench/parts/files/common/files');
 import manager = require('vs/workbench/parts/debug/browser/debugEditorModelManager');
-import service = require('vs/workbench/parts/debug/browser/debugService');
 import * as debug from 'vs/workbench/parts/debug/common/debug';
 import dbgactions = require('vs/workbench/parts/debug/browser/debugActions');
 import editorinputs = require('vs/workbench/parts/debug/browser/debugEditorInputs');
 import repleditor = require('vs/workbench/parts/debug/browser/replEditor');
 import debugwidget = require('vs/workbench/parts/debug/browser/debugActionsWidget');
 import debughover = require('vs/workbench/parts/debug/browser/debugHoverWidget');
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IKeybindings } from 'vs/platform/keybinding/common/keybindingService';
 import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -203,9 +201,6 @@ CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(dbgactions.
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(dbgactions.SelectionToReplAction, dbgactions.SelectionToReplAction.ID, nls.localize('debugEvaluate', "Debug: Evaluate")));
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(dbgactions.SelectionToWatchExpressionsAction, dbgactions.SelectionToWatchExpressionsAction.ID, nls.localize('addToWatch', "Debug: Add to Watch")));
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(dbgactions.RunToCursorAction, dbgactions.RunToCursorAction.ID, nls.localize('runToCursor', "Debug: Run to Cursor")));
-
-// Register Service
-registerSingleton(IDebugService, service.DebugService);
 
 // Register Viewlet
 (<viewlet.IViewletRegistry>platform.Registry.as(viewlet.Extensions.Viewlets)).registerViewlet(new viewlet.ViewletDescriptor(

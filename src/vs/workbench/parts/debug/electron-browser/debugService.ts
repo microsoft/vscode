@@ -20,7 +20,6 @@ import platformplatform = require('vs/platform/platform');
 import editor = require('vs/editor/common/editorCommon');
 import editorbrowser = require('vs/editor/browser/editorBrowser');
 import jsonContributionRegistry = require('vs/languages/json/common/jsonContributionRegistry');
-import { IWindowService } from 'vs/workbench/services/window/electron-browser/windowService';
 import wbeditorcommon = require('vs/workbench/common/editor');
 import { SystemVariables } from 'vs/workbench/parts/lib/node/systemVariables';
 import debug = require('vs/workbench/parts/debug/common/debug');
@@ -50,6 +49,7 @@ import { IPluginService, IPluginDescription } from 'vs/platform/plugins/common/p
 import { IOutputService } from 'vs/workbench/parts/output/common/output';
 import { IKeybindingService, IKeybindingContextKey } from 'vs/platform/keybinding/common/keybindingService';
 import { IQuickOpenService } from 'vs/workbench/services/quickopen/browser/quickOpenService';
+import { IWindowService } from 'vs/workbench/services/window/electron-browser/windowService';
 
 var DEBUG_BREAKPOINTS_KEY = 'debug.breakpoint';
 var DEBUG_BREAKPOINTS_ACTIVATED_KEY = 'debug.breakpointactivated';
