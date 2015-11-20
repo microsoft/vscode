@@ -45,11 +45,13 @@ export class CommonKeybindingResolver {
 		// The value contains the keybinding or first part of a chord
 		[commandId: string]: number[];
 	};
+	private _shouldWarnOnConflict: boolean;
 
-	constructor(defaultKeybindings: IKeybindingItem[], overrides: IKeybindingItem[]) {
+	constructor(defaultKeybindings: IKeybindingItem[], overrides: IKeybindingItem[], shouldWarnOnConflict:boolean = true) {
 		defaultKeybindings = defaultKeybindings.slice(0).sort(sorter);
 
 		this._defaultKeybindings = defaultKeybindings;
+		this._shouldWarnOnConflict = shouldWarnOnConflict;
 
 		this._defaultBoundCommands = Object.create(null);
 		for (let i = 0, len = defaultKeybindings.length; i < len; i++) {
@@ -121,7 +123,7 @@ export class CommonKeybindingResolver {
 
 			if (CommonKeybindingResolver.contextIsEntirelyIncluded(true, conflict.context, item.context)) {
 				// `item` completely overwrites `conflict`
-				if (isDefault) {
+				if (this._shouldWarnOnConflict && isDefault) {
 					console.warn('Conflict detected, command `' + conflict.commandId + '` cannot be triggered by ' + Keybinding.toUserSettingsLabel(keypress));
 				}
 				this._lookupMapUnreachable[conflict.commandId] = this._lookupMapUnreachable[conflict.commandId] || [];

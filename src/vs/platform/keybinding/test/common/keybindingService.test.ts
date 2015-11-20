@@ -240,7 +240,7 @@ suite('Keybinding Service', () => {
 			}
 		];
 
-		var resolver = new CommonKeybindingResolver(items, []);
+		var resolver = new CommonKeybindingResolver(items, [], false);
 
 
 
