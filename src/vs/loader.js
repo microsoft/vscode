@@ -31,18 +31,16 @@ var AMDLoader;
         Utilities.fileUriToFilePath = function (uri) {
             uri = decodeURI(uri);
             if (isWindows) {
-                if (/^file:\/\/\//.test(uri)) {
+                if (Utilities.startsWith(uri, 'file:///')) {
                     // This is a URI without a hostname => return only the path segment
                     return uri.substr(8);
                 }
-                if (/^file:\/\//.test(uri)) {
+                if (Utilities.startsWith(uri, 'file://')) {
                     return uri.substr(5);
                 }
             }
-            else {
-                if (/^file:\/\//.test(uri)) {
-                    return uri.substr(7);
-                }
+            else if (Utilities.startsWith(uri, 'file://')) {
+                return uri.substr(7);
             }
             // Not sure...
             return uri;
