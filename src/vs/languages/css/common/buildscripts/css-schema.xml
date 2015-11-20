@@ -22,6 +22,9 @@
     <entry name="@counter" version="3.0" browsers="none" ref="http://www.w3.org/TR/css3-content/#counter0" syntax="@counter footnote { list-style-type: super-decimal; }">
       <desc>Authors may use @counter declaration blocks and the 'page-policy' property, which applies only to strings and counters.</desc>
     </entry>
+    <entry name="@counter-style" version="3.0" browsers="FF33" ref="http://www.w3.org/TR/css-counter-styles-3/#the-counter-style-rule" syntax="@counter-style &lt;counter-style-name> { &lt;declaration-list> }">
+      <desc>Defines a custom counter style.</desc>
+    </entry>
     <entry name="@font-face" version="3.0" browsers="all" ref="http://www.w3.org/TR/css3-fonts/#the-font-face-rule" syntax="@font-face { &lt;font-description&gt; }">
       <desc>Allows for linking to fonts that are automatically activated when needed. This permits authors to work around the limitation of 'web-safe' fonts, allowing for consistent rendering independent of the fonts available in a given user's environment.</desc>
     </entry>
@@ -31,7 +34,7 @@
     <entry name="@import" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-syntax/#at-import" syntax="@import url('file.css') tv, print;">
       <desc>Includes content of another file.</desc>
     </entry>
-    <entry name="@keyframes" version="3.0" browsers="FF16,IE10,O12.5" ref="http://www.w3.org/TR/css3-animations/#keyframes" syntax="@keyframes animation-name">
+    <entry name="@keyframes" version="3.0" browsers="C43,FF16,IE10,O12.5,S9" ref="http://www.w3.org/TR/css3-animations/#keyframes" syntax="@keyframes animation-name">
       <desc>Defines set of animation key frames.</desc>
     </entry>
     <entry name="@left-bottom" version="3" browsers="none" ref="http://www.w3.org/TR/css3-page/#page-box">
@@ -52,14 +55,13 @@
     <entry name="@-moz-keyframes" version="3.0" browsers="FF5" ref="https://developer.mozilla.org/en/CSS/@keyframes" syntax="@-moz-keyframes animation-name">
       <desc>Defines set of animation key frames.</desc>
     </entry>
-    <entry name="@-moz-viewport" version="3.0" browsers="FF" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh868813.aspx" syntax="@$(name) { width: device-width; }" />
-    <entry name="@-ms-viewport" version="3.0" browsers="IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh868813.aspx" syntax="@$(name) { width: device-width; }" />
+    <entry name="@-ms-viewport" version="3.0" browsers="IE10" ref="http://www.w3.org/TR/css-device-adapt/#the-viewport-rule" syntax="@$(name) { width: device-width; }" />
     <entry name="@namespace" version="3.0" browsers="C,FF1,IE9,O8,S1" ref="http://www.w3.org/TR/css3-namespace/#declaration" syntax="@namespace [prefix] string|url;">
       <desc>Declares a prefix and associates it with a namespace name.</desc>
     </entry>
     <entry name="@-o-keyframes" version="3.0" browsers="O12" ref="http://www.w3.org/TR/css3-animations/#keyframes" syntax="@-o-keyframes animation-name { }" />
     <entry name="@-o-viewport" version="3.0" browsers="O11" ref="http://dev.w3.org/csswg/css-device-adapt/#the-viewport-rule" syntax="@$(name) { width: 320px; zoom: 0.5; }">
-      <desc>Sets the viewport properties in Opera Mobile 11 and newer.</desc>
+      <desc>Sets the viewport properties in Opera Mobile 11 - 12.1.</desc>
     </entry>
     <entry name="@page" version="2.0" browsers="all" ref="http://www.w3.org/TR/css3-page/#page-box-page-rule" syntax="@page">
       <desc>Directive defines various page parameters.</desc>
@@ -76,7 +78,7 @@
     <entry name="@string" version="3.0" browsers="none" ref="http://www.w3.org/TR/css3-content/#string" syntax="@string chapter { page-policy: last; }">
       <desc>Authors may use @string declaration blocks and the 'page-policy' property, which applies only to strings and counters.</desc>
     </entry>
-    <entry name="@supports" version="3.0" browsers="C,FF,O" ref="http://www.w3.org/TR/css3-conditional/#at-supports" syntax="@supports (display: flexbox) { div { display: flexbox; } }">
+    <entry name="@supports" version="3.0" browsers="C,FF,O,S9" ref="http://www.w3.org/TR/css3-conditional/#at-supports" syntax="@supports (display: flexbox) { div { display: flexbox; } }">
       <desc>A conditional group rule whose condition tests whether the user agent supports CSS property:value pairs.</desc>
     </entry>
     <entry name="@top-center" version="3" browsers="none" ref="http://www.w3.org/TR/css3-page/#page-box">
@@ -94,11 +96,12 @@
     <entry name="@top-right-corner" version="3" browsers="none" ref="http://www.w3.org/TR/css3-page/#page-box">
       <desc>A box filling the area defined by the intersection of the top and right margins of the page box.</desc>
     </entry>
-    <entry name="@viewport" version="3.0" browsers="none" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh868813.aspx" syntax="@$(name) { width: device-width; }" />
+    <entry name="@viewport" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-device-adapt/#the-viewport-rule" syntax="@$(name) { width: device-width; }">
+      <desc>Specifies the size, zoom factor, and orientation of the viewport.</desc>
+    </entry>
     <entry name="@-webkit-keyframes" version="3.0" browsers="C,S4" ref="http://www.w3.org/TR/css3-animations/#keyframes" syntax="@-webkit-keyframes animation-name">
       <desc>Defines set of animation key frames.</desc>
     </entry>
-    <entry name="@-webkit-viewport" version="3.0" browsers="C,S" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh868813.aspx" syntax="@$(name) { width: device-width; }" />
   </atDirectives>
  <pseudoClasses>
     <entry name=":active" version="2.0" browsers="all" ref="http://www.w3.org/TR/css3-selectors/#the-user-action-pseudo-classes-hover-act" syntax="a:active { color: red; }">
@@ -1006,7 +1009,7 @@
         <value name="yellowgreen" version="3.0" browsers="all" />
       </values>
     </entry>
-		
+
     <entry name="background-image" restriction="url, enum" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#the-background-image" syntax="article { $(name): url(image.png); }">
       <desc>Image used for an element's background</desc>
       <values>
