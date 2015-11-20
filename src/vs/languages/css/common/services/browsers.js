@@ -12,6 +12,11 @@ exports.data ={
 				"desc": "Defines character set of the document."
 			},
 			{
+				"name": "@counter-style",
+				"desc": "Defines a custom counter style.",
+				"browsers": "FF33"
+			},
+			{
 				"name": "@font-face",
 				"desc": "Allows for linking to fonts that are automatically activated when needed. This permits authors to work around the limitation of 'web-safe' fonts, allowing for consistent rendering independent of the fonts available in a given user's environment."
 			},
@@ -27,7 +32,7 @@ exports.data ={
 			{
 				"name": "@keyframes",
 				"desc": "Defines set of animation key frames.",
-				"browsers": "FF16,IE10,O12.5"
+				"browsers": "C43,FF16,IE10,O12.5,S9"
 			},
 			{
 				"name": "@media",
@@ -44,10 +49,6 @@ exports.data ={
 				"browsers": "FF5"
 			},
 			{
-				"name": "@-moz-viewport",
-				"browsers": "FF"
-			},
-			{
 				"name": "@-ms-viewport",
 				"browsers": "IE10"
 			},
@@ -62,7 +63,7 @@ exports.data ={
 			},
 			{
 				"name": "@-o-viewport",
-				"desc": "Sets the viewport properties in Opera Mobile 11 and newer.",
+				"desc": "Sets the viewport properties in Opera Mobile 11 - 12.1.",
 				"browsers": "O11"
 			},
 			{
@@ -72,16 +73,12 @@ exports.data ={
 			{
 				"name": "@supports",
 				"desc": "A conditional group rule whose condition tests whether the user agent supports CSS property:value pairs.",
-				"browsers": "C,FF,O"
+				"browsers": "C,FF,O,S9"
 			},
 			{
 				"name": "@-webkit-keyframes",
 				"desc": "Defines set of animation key frames.",
 				"browsers": "C,S4"
-			},
-			{
-				"name": "@-webkit-viewport",
-				"browsers": "C,S"
 			}
 		],
 		"pseudoclasses": [

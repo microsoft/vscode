@@ -1847,7 +1847,7 @@
       </values>
     </entry>
     <entry name="border-image-width" restriction="length, percentage, number" version="3.0" browsers="FF13,IE11" ref="http://www.w3.org/TR/css3-background/#border-image-slice" syntax=".album { $(name): 4px; }">
-      <desc>The four values of 'border-image-width' specify offsets that are used to divide the border image area into nine parts. They represent inward distances from the the top, right, bottom, and left sides of the area, respectively.</desc>
+      <desc>The four values of 'border-image-width' specify offsets that are used to divide the border image area into nine parts. They represent inward distances from the top, right, bottom, and left sides of the area, respectively.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all">
           <desc>If 'auto' is specified then the border image width is the intrinsic width or height (whichever is applicable) of the corresponding image slice. If the image does not have the required intrinsic dimension then the corresponding border-width is used instead.</desc>
@@ -3839,7 +3839,7 @@
       </values>
     </entry>
     <entry name="counter-increment" restriction="identifier, integer" version="2.0" browsers="C,FF1.5,IE8,O10.5,S3" ref="http://www.w3.org/TR/css3-content/#counters" syntax="h1:before { $(name): section; }">
-      <desc>Counters are used with the 'counter()' and 'counters()' functions of the the 'content' property.</desc>
+      <desc>Counters are used with the 'counter()' and 'counters()' functions of the 'content' property.</desc>
       <values>
         <value name="none" version="2.0" browsers="all">
           <desc>The counter is not modified.</desc>
@@ -5266,7 +5266,7 @@
       <desc>Aligns the columns in a grid.</desc>
       <values>
         <value name="center" version="3.0" browsers="all">
-          <desc>Places the center of the Grid Item's margin box at the center of the the Grid Item's column.</desc>
+          <desc>Places the center of the Grid Item's margin box at the center of the Grid Item's column.</desc>
         </value>
         <value name="end" version="3.0" browsers="all">
           <desc>Aligns the end edge of the Grid Item's margin box to the end edge of the Grid Item's column.</desc>
@@ -5312,7 +5312,7 @@
       <desc>Aligns the rows in a grid.</desc>
       <values>
         <value name="center" version="3.0" browsers="all">
-          <desc>Places the center of the Grid Item's margin box at the center of the the Grid Item's row.</desc>
+          <desc>Places the center of the Grid Item's margin box at the center of the Grid Item's row.</desc>
         </value>
         <value name="end" version="3.0" browsers="all">
           <desc>Aligns the end edge of the Grid Item's margin box to the end edge of the Grid Item's row.</desc>
@@ -8473,7 +8473,7 @@
       <desc>Aligns the columns in a grid.</desc>
       <values>
         <value name="center" version="3.0" browsers="all">
-          <desc>Places the center of the Grid Item's margin box at the center of the the Grid Item's column.</desc>
+          <desc>Places the center of the Grid Item's margin box at the center of the Grid Item's column.</desc>
         </value>
         <value name="end" version="3.0" browsers="all">
           <desc>Aligns the end edge of the Grid Item's margin box to the end edge of the Grid Item's column.</desc>
@@ -8507,7 +8507,7 @@
       <desc>Aligns the rows in a grid.</desc>
       <values>
         <value name="center" version="3.0" browsers="all">
-          <desc>Places the center of the Grid Item's margin box at the center of the the Grid Item's row.</desc>
+          <desc>Places the center of the Grid Item's margin box at the center of the Grid Item's row.</desc>
         </value>
         <value name="end" version="3.0" browsers="all">
           <desc>Aligns the end edge of the Grid Item's margin box to the end edge of the Grid Item's row.</desc>
