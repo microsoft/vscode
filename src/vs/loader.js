@@ -48,10 +48,11 @@ var AMDLoader;
             return uri;
         };
         Utilities.startsWith = function (haystack, needle) {
-            return haystack.length >= needle.length && haystack.substr(0, needle.length) === needle;
+            return haystack.indexOf(needle) === 0;
         };
         Utilities.endsWith = function (haystack, needle) {
-            return haystack.length >= needle.length && haystack.substr(haystack.length - needle.length) === needle;
+            var ind = haystack.lastIndexOf(needle);
+            return ind >= 0 && ind + needle.length === haystack.length;
         };
         Utilities.containsQueryString = function (url) {
             return url.indexOf('?') >= 0;
