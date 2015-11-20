@@ -65,12 +65,9 @@ var AMDLoader;
                 || Utilities.startsWith(url, '/'));
         };
         Utilities.forEachProperty = function (obj, callback) {
-            if (obj) {
-                var key;
-                for (key in obj) {
-                    if (obj.hasOwnProperty(key)) {
-                        callback(key, obj[key]);
-                    }
+            for (var key in obj) {
+                if (obj.hasOwnProperty(key)) {
+                    callback(key, obj[key]);
                 }
             }
         };
