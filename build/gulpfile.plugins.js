@@ -33,19 +33,24 @@ function getTSConfig(plugin) {
 
 	var pluginRoot = path.join(extensionsPath, plugin.desc.name);
 
+	var options = null;
+
 	if (match[2]) {
-		return path.join(pluginRoot, match[2]);
+		options = require(path.join(pluginRoot, match[2])).compilerOptions;
+	} else {
+		options = {
+			noLib: true,
+			target: 'ES5',
+			module: 'amd',
+			declaration: false,
+			sourceMap: true,
+			rootDir: path.join(pluginRoot, 'src'),
+			sourceRoot: util.toFileUri(path.join(pluginRoot, 'src'))
+		};
 	}
 
-	return {
-		noLib: true,
-		target: 'ES5',
-		module: 'amd',
-		declaration: false,
-		sourceMap: true,
-		rootDir: path.join(pluginRoot, 'src'),
-		sourceRoot: util.toFileUri(path.join(pluginRoot, 'src'))
-	};
+	options.verbose = !process.env['VSCODE_BUILD_QUIET'];
+	return options;
 }
 
 function noop() {}
@@ -93,7 +98,7 @@ var tasks = readAllPlugins()
 		}
 
 		var options = getTSConfig(plugin);
-		
+
 		if (options) {
 			var sources = 'extensions/' + name + '/src/**';
 			var deps = [
@@ -106,7 +111,7 @@ var tasks = readAllPlugins()
 
 			var pipeline = (function () {
 				var reporter = createReporter();
-				var compilation = tsb.create(options, true, null, function (err) { reporter(err.toString()); });
+				var compilation = tsb.create(options, null, null, function (err) { reporter(err.toString()); });
 
 				return function () {
 					var input = es.through();
