@@ -60,3 +60,17 @@ configurationRegistry.registerConfiguration({
 		}
 	}
 });
+
+configurationRegistry.registerConfiguration({
+	'id': 'update',
+	'order': 10,
+	'title': nls.localize('updateConfigurationTitle', "Update configuration"),
+	'type': 'object',
+	'properties': {
+		'update.channel': {
+			'type': 'string',
+			'default': 'stable',
+			'description': nls.localize('updateChannel', "Configure the update channel to receive updates from.")
+		},
+	}
+});

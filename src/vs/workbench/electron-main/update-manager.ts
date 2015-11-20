@@ -11,6 +11,7 @@ import events = require('events');
 import platform = require('vs/base/common/platform');
 import env = require('vs/workbench/electron-main/env');
 import storage = require('vs/workbench/electron-main/storage');
+import settings = require('vs/workbench/electron-main/settings');
 import {Win32AutoUpdaterImpl} from 'vs/workbench/electron-main/win32/auto-updater.win32';
 import {manager as Lifecycle} from 'vs/workbench/electron-main/lifecycle';
 
@@ -42,6 +43,8 @@ interface IAutoUpdater extends IEventEmitter {
 }
 
 export class UpdateManager extends events.EventEmitter {
+
+	private static DEFAULT_UPDATE_CHANNEL = 'stable';
 
 	private _state: State;
 	private explicitState: ExplicitState;
@@ -181,11 +184,12 @@ export class UpdateManager extends events.EventEmitter {
 	}
 
 	private static getUpdateChannel(): string {
-		let channel = storage.getItem<string>('updateChannel');
-
+		let channel = settings.manager.getValue('update.channel');
 		if (!channel) {
-			channel = 'stable';
-			storage.setItem('updateChannel', channel);
+			channel = storage.getItem<string>('updateChannel'); // TODO@Ben this should be removed after a couple of versions
+			if (!channel) {
+				channel = UpdateManager.DEFAULT_UPDATE_CHANNEL;
+			}
 		}
 
 		return channel;
