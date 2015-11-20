@@ -1,22 +1,60 @@
 var gulp = require('gulp');
 var decompress = require('gulp-decompress');
-var download = require('gulp-download');
+var es = require('event-stream');
+var GitHub = require('github-releases');
+var tmp = require('tmp');
+var vfs = require('vinyl-fs');
 var del = require('del');
 var fs = require('fs');
-var join = require('path').join;
+var path = require('path');
 
+tmp.setGracefulCleanup();
+
+function downloadOmnisharp(version) {
+	var result = es.through();
+
+	function onError(err) {
+		result.emit('error', err);
+	}
+
+	var repo = new GitHub({
+		repo: 'OmniSharp/omnisharp-roslyn',
+		token: process.env['GITHUB_TOKEN']
+	});
+
+	repo.getReleases({ tag_name: version }, function (err, releases) {
+		if (err) { return onError(err); }
+		if (!releases.length) { return onError(new Error('Release not found')); }
+		if (!releases[0].assets.length) { return onError(new Error('Assets not found')); }
+
+		repo.downloadAsset(releases[0].assets[0], function (err, istream) {
+			if (err) { return onError(err); }
+
+			tmp.file(function (err, tmpPath, fd, cleanupCallback) {
+				if (err) { return onError(err); }
+
+				var ostream = fs.createWriteStream(null, { fd: fd });
+				ostream.once('error', onError);
+				istream.once('error', onError);
+				ostream.once('finish', function () {
+					vfs.src(tmpPath).pipe(result);
+				});
+				istream.pipe(ostream);
+			});
+		});
+	});
+
+	return result;
+}
 
 gulp.task('omnisharp:clean', function () {
 	return del('bin');
 });
 
 gulp.task('omnisharp:fetch', ['omnisharp:clean'], function () {
-
-	var release = 'https://github.com/OmniSharp/omnisharp-roslyn/releases/download/v1.5.6/omnisharp.tar.gz';
-
-	return download(release)
+	return downloadOmnisharp('v1.5.6')
 		.pipe(decompress({strip: 1}))
-		.pipe(gulp.dest('bin'))
+		.pipe(gulp.dest('bin'));
 });
 
 gulp.task('omnisharp:fixscripts', ['omnisharp:fetch'], function () {
@@ -38,7 +76,7 @@ exec "$DIR/packages/dnx-mono.1.0.0-beta4/bin/dnx" "$DNX_APPBASE" run "$@"\n\
 
 	var promises = Object.keys(_fixes).map(function (key) {
 		return new Promise(function(resolve, reject) {
-			fs.writeFile(join(__dirname, key), _fixes[key], function (err) {
+			fs.writeFile(path.join(__dirname, key), _fixes[key], function (err) {
 				if (err) {
 					reject(err);
 				} else {
