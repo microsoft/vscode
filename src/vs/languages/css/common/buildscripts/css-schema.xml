@@ -22,6 +22,9 @@
     <entry name="@counter" version="3.0" browsers="none" ref="http://www.w3.org/TR/css3-content/#counter0" syntax="@counter footnote { list-style-type: super-decimal; }">
       <desc>Authors may use @counter declaration blocks and the 'page-policy' property, which applies only to strings and counters.</desc>
     </entry>
+    <entry name="@counter-style" version="3.0" browsers="FF33" ref="http://www.w3.org/TR/css-counter-styles-3/#the-counter-style-rule" syntax="@counter-style &lt;counter-style-name> { &lt;declaration-list> }">
+      <desc>Defines a custom counter style.</desc>
+    </entry>
     <entry name="@font-face" version="3.0" browsers="all" ref="http://www.w3.org/TR/css3-fonts/#the-font-face-rule" syntax="@font-face { &lt;font-description&gt; }">
       <desc>Allows for linking to fonts that are automatically activated when needed. This permits authors to work around the limitation of 'web-safe' fonts, allowing for consistent rendering independent of the fonts available in a given user's environment.</desc>
     </entry>
