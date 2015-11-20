@@ -61,7 +61,7 @@
     </entry>
     <entry name="@-o-keyframes" version="3.0" browsers="O12" ref="http://www.w3.org/TR/css3-animations/#keyframes" syntax="@-o-keyframes animation-name { }" />
     <entry name="@-o-viewport" version="3.0" browsers="O11" ref="http://dev.w3.org/csswg/css-device-adapt/#the-viewport-rule" syntax="@$(name) { width: 320px; zoom: 0.5; }">
-      <desc>Sets the viewport properties in Opera Mobile 11 and newer.</desc>
+      <desc>Sets the viewport properties in Opera Mobile 11 - 12.1.</desc>
     </entry>
     <entry name="@page" version="2.0" browsers="all" ref="http://www.w3.org/TR/css3-page/#page-box-page-rule" syntax="@page">
       <desc>Directive defines various page parameters.</desc>
@@ -96,7 +96,9 @@
     <entry name="@top-right-corner" version="3" browsers="none" ref="http://www.w3.org/TR/css3-page/#page-box">
       <desc>A box filling the area defined by the intersection of the top and right margins of the page box.</desc>
     </entry>
-    <entry name="@viewport" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-device-adapt/#the-viewport-rule" syntax="@$(name) { width: device-width; }" />
+    <entry name="@viewport" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-device-adapt/#the-viewport-rule" syntax="@$(name) { width: device-width; }">
+      <desc>Specifies the size, zoom factor, and orientation of the viewport.</desc>
+    </entry>
     <entry name="@-webkit-keyframes" version="3.0" browsers="C,S4" ref="http://www.w3.org/TR/css3-animations/#keyframes" syntax="@-webkit-keyframes animation-name">
       <desc>Defines set of animation key frames.</desc>
     </entry>
