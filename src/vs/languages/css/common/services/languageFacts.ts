@@ -195,10 +195,10 @@ export var colorKeywords : { [name:string]:string } = {
 
 export var units : { [unitName:string]:string[] } = {
 	'length': ['em', 'rem', 'ex', 'px', 'cm', 'mm', 'in', 'pt', 'pc', 'cc'],
-	'angle': ['deg', 'rad', 'grad'],
+	'angle': ['deg', 'rad', 'grad', 'turn'],
 	'time': ['ms', 's'],
 	'frequency': ['Hz', 'kHz'],
-	'resolution': ['dpi', 'dpcm'],
+	'resolution': ['dpi', 'dpcm', 'dppx'],
 	'percentage': ['%']
 };
 
