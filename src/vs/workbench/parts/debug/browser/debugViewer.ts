@@ -257,7 +257,7 @@ export class CallStackRenderer implements tree.IRenderer {
 		} else {
 			data.fileName.textContent = labels.getPathLabel(paths.basename(stackFrame.source.uri.fsPath), this.contextService);
 		}
-		data.lineNumber.textContent = '' + stackFrame.lineNumber;
+		data.lineNumber.textContent = stackFrame.lineNumber !== undefined ? `${ stackFrame.lineNumber }` : '';
 	}
 
 	public disposeTemplate(tree: tree.ITree, templateId: string, templateData: any): void {
