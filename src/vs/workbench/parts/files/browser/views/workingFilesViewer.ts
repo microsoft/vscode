@@ -39,7 +39,7 @@ const ROOT_ID = '__WORKING_FILES_ROOT';
 
 export class WorkingFilesDataSource implements tree.IDataSource {
 
-	constructor(@INullService ns) {}
+	constructor( @INullService ns) { }
 
 	public getId(tree: tree.ITree, element: any): string {
 		if (element instanceof WorkingFileEntry) {
@@ -72,7 +72,7 @@ export class WorkingFilesDataSource implements tree.IDataSource {
 
 export class WorkingFilesSorter implements tree.ISorter {
 
-	constructor(@INullService ns) {}
+	constructor( @INullService ns) { }
 
 	public compare(tree: tree.ITree, element: any, otherElement: any): number {
 		return WorkingFilesModel.compare(element, otherElement);
@@ -330,6 +330,21 @@ export class WorkingFilesController extends DefaultController {
 		} else {
 			this.upKeyBindingDispatcher.set(CommonKeybindings.CTRLCMD_ENTER, this.onModifierEnterUp.bind(this)); // Mac: somehow Cmd+Enter does not work
 		}
+	}
+
+	/* protected */ public onClick(tree: tree.ITree, element: any, event: StandardMouseEvent): boolean {
+
+		// Close working file on middle mouse click
+		if (element instanceof WorkingFileEntry && event.browserEvent && event.browserEvent.button === 1 /* Middle Button */) {
+			const closeAction = this.instantiationService.createInstance(CloseWorkingFileAction, this.model, element);
+			closeAction.run().done(() => {
+				closeAction.dispose();
+			}, errors.onUnexpectedError);
+
+			return true;
+		}
+
+		return super.onClick(tree, element, event);
 	}
 
 	/* protected */ public onLeftClick(tree: tree.ITree, element: any, event: StandardMouseEvent, origin: string = 'mouse'): boolean {
