@@ -159,9 +159,9 @@ export class WindowsManager {
 			}, 100);
 		});
 
-		settings.onChange((newSettings) => {
+		settings.manager.onChange.add((newSettings) => {
 			this.sendToAll('vscode:optionsChange', JSON.stringify({ globalSettings: newSettings }));
-		});
+		}, this);
 
 		ipc.on('vscode:startCrashReporter', (event: any, config: any) => {
 			crashReporter.start(config);
