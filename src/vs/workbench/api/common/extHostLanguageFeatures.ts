@@ -179,15 +179,15 @@ export class ExtHostCodeLensSupport extends AbstractExtHostSupport<vscode.CodeLe
 	}
 }
 
-type LanguageSupport = ExtHostOutlineSupport | ExtHostCodeLensSupport;
+export type LanguageSupport = ExtHostOutlineSupport | ExtHostCodeLensSupport;
 
 @Remotable.PluginHostContext('ExtHostLanguageFeatures')
 export class ExtHostLanguageFeatures {
 
-	private _provider: { [handle: number]: LanguageSupport } = Object.create(null);
+	protected _provider: { [handle: number]: LanguageSupport } = Object.create(null);
+	protected _proxy: MainThreadLanguageFeatures;
+	protected _documents: PluginHostModelService;
 	private _handlePool = 0;
-	private _proxy: MainThreadLanguageFeatures;
-	private _documents: PluginHostModelService;
 
 	constructor( @IThreadService threadService: IThreadService) {
 		this._proxy = threadService.getRemotable(MainThreadLanguageFeatures);
@@ -260,8 +260,8 @@ export class ExtHostLanguageFeatures {
 @Remotable.MainContext('MainThreadLanguageFeatures')
 export class MainThreadLanguageFeatures {
 
-	private _disposables: { [handle: number]: IDisposable } = Object.create(null);
-	private _proxy: ExtHostLanguageFeatures;
+	protected _disposables: { [handle: number]: IDisposable } = Object.create(null);
+	protected _proxy: ExtHostLanguageFeatures;
 
 	constructor( @IThreadService threadService: IThreadService) {
 		this._proxy = threadService.getRemotable(ExtHostLanguageFeatures);
