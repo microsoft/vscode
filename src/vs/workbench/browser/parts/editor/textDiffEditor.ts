@@ -57,7 +57,7 @@ export class TextDiffEditor extends BaseTextEditor {
 		@IModeService modeService: IModeService
 	) {
 		super(TextDiffEditor.ID, telemetryService, instantiationService, contextService, storageService, messageService, configurationService, eventService, editorService, modeService);
-}
+	}
 
 	public getTitle(): string {
 		if (this.input) {
@@ -101,11 +101,11 @@ export class TextDiffEditor extends BaseTextEditor {
 		});
 
 		// Create a special child of instantiator that will delegate all calls to openEditor() to the same diff editor if the input matches with the modified one
-		let sideEditorInstantiator = this.instantiationService.createChild({
+		let diffEditorInstantiator = this.instantiationService.createChild({
 			editorService: delegatingService
 		});
 
-		return sideEditorInstantiator.createInstance(DiffEditorWidget, parent.getHTMLElement(), this.getCodeEditorOptions());
+		return diffEditorInstantiator.createInstance(DiffEditorWidget, parent.getHTMLElement(), this.getCodeEditorOptions());
 	}
 
 	public setInput(input: EditorInput, options: EditorOptions): TPromise<void> {
@@ -185,7 +185,7 @@ export class TextDiffEditor extends BaseTextEditor {
 	}
 
 	protected getCodeEditorOptions(): IEditorOptions {
-		let options:IDiffEditorOptions = super.getCodeEditorOptions();
+		let options: IDiffEditorOptions = super.getCodeEditorOptions();
 
 		let input = this.input;
 		if (input && types.isFunction((<DiffEditorInput>input).getModifiedInput)) {
@@ -232,6 +232,36 @@ export class TextDiffEditor extends BaseTextEditor {
 			this.previousDiffAction,
 			this.nextDiffAction
 		];
+	}
+
+	public getSecondaryActions(): IAction[] {
+		let actions = super.getSecondaryActions();
+
+		const control = this.getControl();
+
+		let inlineModeActive = control && !control.renderSideBySide;
+		let inlineLabel = nls.localize('inlineDiffLabel', "Switch to Inline View");
+		let sideBySideLabel = nls.localize('sideBySideDiffLabel', "Switch to Side by Side View");
+
+		// Action to toggle editor mode from inline to side by side
+		let toggleEditorModeAction = new Action('toggle.diff.editorMode', inlineModeActive ? sideBySideLabel : inlineLabel, null, true, () => {
+			this.getControl().updateOptions(<IDiffEditorOptions>{
+				renderSideBySide: inlineModeActive
+			});
+
+			inlineModeActive = !inlineModeActive;
+			toggleEditorModeAction.label = inlineModeActive ? sideBySideLabel : inlineLabel;
+
+			return Promise.as(true);
+		});
+
+		toggleEditorModeAction.order = 50; // Closer to the end
+
+		actions.push(...[
+			toggleEditorModeAction
+		]);
+
+		return actions;
 	}
 
 	public getControl(): IDiffEditor {

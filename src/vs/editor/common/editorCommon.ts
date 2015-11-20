@@ -3160,6 +3160,15 @@ export interface ICommonDiffEditor extends IEditor {
 	 * @see ICodeEditor.getValue
 	 */
 	getValue(options?:{ preserveBOM:boolean; lineEnding:string; }): string;
+
+	/**
+	 * Returns wether the diff editor is ignoring trim whitespace or not.
+	 */
+	ignoreTrimWhitespace: boolean;
+	/**
+	 * Returns wether the diff editor is rendering side by side or not.
+	 */
+	renderSideBySide: boolean;
 }
 
 export var EditorType = {

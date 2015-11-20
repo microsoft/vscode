@@ -255,6 +255,14 @@ export class DiffEditorWidget extends EventEmitter.EventEmitter implements Edito
 		}
 	}
 
+	public get ignoreTrimWhitespace(): boolean {
+		return this._ignoreTrimWhitespace;
+	}
+
+	public get renderSideBySide(): boolean {
+		return this._renderSideBySide;
+	}
+
 	private static _getClassName(theme:string, renderSideBySide:boolean): string {
 		var result = 'monaco-diff-editor monaco-editor-background ';
 		if (renderSideBySide) {
