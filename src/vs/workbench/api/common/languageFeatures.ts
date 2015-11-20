@@ -58,8 +58,8 @@ export abstract class AbstractMainThreadFeature<T> {
 
 	private _id: string;
 	protected _commands: PluginHostCommands;
-	protected _handlePool = 0;
-	protected _disposable: { [handle: number]: IDisposable } = Object.create(null);
+	protected _refCount = 0;
+	protected _disposable: IDisposable;
 	protected _registry: LanguageFeatureRegistry<T>;
 
 	constructor(id: string, registry: LanguageFeatureRegistry<T>, @IThreadService threadService: IThreadService) {
@@ -72,16 +72,16 @@ export abstract class AbstractMainThreadFeature<T> {
 		return TPromise.as(this._id);
 	}
 
-	_register(selector: vscode.DocumentSelector): TPromise<number> {
-		const handle = this._handlePool++;
-		this._disposable[handle] = this._registry.register(selector, <any> this);
-		return TPromise.as(handle);
+	_register(selector: vscode.DocumentSelector): TPromise<any> {
+		if (this._refCount++ === 0) {
+			this._disposable = this._registry.register(selector, <any> this);
+		}
+		return undefined;
 	}
 
-	_unregister(handle: number): TPromise<any> {
-		if (this._disposable[handle]) {
-			this._disposable[handle].dispose();
-			delete this._disposable[handle];
+	_unregister(): TPromise<any> {
+		if (--this._refCount === 0) {
+			this._disposable.dispose();
 		}
 		return undefined;
 	}
@@ -112,11 +112,11 @@ export abstract class AbstractExtensionHostFeature<T, P extends AbstractMainThre
 	register(selector: vscode.DocumentSelector, provider: T): vscode.Disposable {
 
 		let disposable = this._registry.register(selector, provider);
-		let handle = this._proxy._register(selector);
+		let registered = this._proxy._register(selector);
 
 		return new Disposable(() => {
 			disposable.dispose(); // remove locally
-			handle.then(value => this._proxy._unregister(value));
+			registered.then(() => this._proxy._unregister());
 		});
 	}
 
@@ -721,11 +721,11 @@ export class ExtHostFormatOnType extends AbstractExtensionHostFeature<FormatOnTy
 	register(selector: vscode.DocumentSelector, provider: FormatOnTypeEntry): vscode.Disposable {
 
 		let disposable = this._registry.register(selector, provider);
-		let handle = this._proxy._register(selector, provider.triggerCharacters);
+		let registered = this._proxy._register(selector, provider.triggerCharacters);
 
 		return new Disposable(() => {
 			disposable.dispose();
-			handle.then(value => this._proxy._unregister(value));
+			registered.then(() => this._proxy._unregister());
 		});
 	}
 
@@ -792,11 +792,11 @@ export class ExtHostSignatureHelp extends AbstractExtensionHostFeature<Signature
 	register(selector: vscode.DocumentSelector, entry: SignatureHelpEntry): vscode.Disposable {
 
 		let disposable = this._registry.register(selector, entry);
-		let handle = this._proxy._register(selector, entry.triggerCharacters);
+		let registered = this._proxy._register(selector, entry.triggerCharacters);
 
 		return new Disposable(() => {
 			disposable.dispose();
-			handle.then(value => this._proxy._unregister(value));
+			registered.then(() => this._proxy._unregister());
 		});
 	}
 
@@ -908,10 +908,10 @@ export class ExtHostCompletions extends AbstractExtensionHostFeature<CompletionI
 
 	register(selector: vscode.DocumentSelector, entry: CompletionItemEnty): vscode.Disposable {
 		let disposable = this._registry.register(selector, entry);
-		let handle = this._proxy._register(selector, entry.triggerCharacters);
+		let registered = this._proxy._register(selector, entry.triggerCharacters);
 		return new Disposable(() => {
 			disposable.dispose();
-			handle.then(value => this._proxy._unregister(value));
+			registered.then(() => this._proxy._unregister());
 		});
 	}
 
