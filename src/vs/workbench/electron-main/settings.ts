@@ -20,8 +20,8 @@ export class SettingsManager extends UserSettings {
 		});
 	}
 
-	public load(): boolean {
-		const settingsChanged = super.load();
+	public loadSync(): boolean {
+		const settingsChanged = super.loadSync();
 
 		// Store into global so that any renderer can access the value with remote.getGlobal()
 		if (settingsChanged) {

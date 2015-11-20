@@ -123,7 +123,7 @@ function main(ipcServer: Server, userEnv: IEnv): void {
 	lifecycle.manager.ready();
 
 	// Load settings
-	settings.manager.load();
+	settings.manager.loadSync();
 
 	// Propagate to clients
 	windows.manager.ready(userEnv);
