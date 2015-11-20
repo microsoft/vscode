@@ -214,7 +214,7 @@ export class StopDebugAction extends AbstractDebugAction {
 
 	public run(): Promise {
 		var session = this.debugService.getActiveSession();
-		return session ? session.stop() : Promise.as(null);
+		return session ? session.disconnect() : Promise.as(null);
 	}
 
 	protected isEnabled(): boolean {

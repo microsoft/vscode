@@ -213,10 +213,8 @@ export interface IRawAdapter extends IRawEnvAdapter {
 }
 
 export interface IRawDebugSession extends ee.EventEmitter {
-	initialize(args: DebugProtocol.InitializeRequestArguments): TPromise<DebugProtocol.InitializeResponse>;
-	launch(args: DebugProtocol.LaunchRequestArguments): TPromise<DebugProtocol.LaunchResponse>;
-	attach(args: DebugProtocol.AttachRequestArguments): TPromise<DebugProtocol.AttachResponse>;
-	stop(restart?: boolean): TPromise<DebugProtocol.DisconnectResponse>;
+	getType(): string;
+	disconnect(restart?: boolean): TPromise<DebugProtocol.DisconnectResponse>;
 
 	next(args: DebugProtocol.NextArguments): TPromise<DebugProtocol.NextResponse>;
 	stepIn(args: DebugProtocol.StepInArguments): TPromise<DebugProtocol.StepInResponse>;
@@ -224,18 +222,9 @@ export interface IRawDebugSession extends ee.EventEmitter {
 	continue(args: DebugProtocol.ContinueArguments): TPromise<DebugProtocol.ContinueResponse>;
 	pause(args: DebugProtocol.PauseArguments): TPromise<DebugProtocol.PauseResponse>;
 
-	setBreakpoints(args: DebugProtocol.SetBreakpointsArguments): TPromise<DebugProtocol.SetBreakpointsResponse>;
-	setExceptionBreakpoints(args: DebugProtocol.SetExceptionBreakpointsArguments): TPromise<DebugProtocol.SetExceptionBreakpointsResponse>;
-	stackTrace(args: DebugProtocol.StackTraceArguments): TPromise<DebugProtocol.StackTraceResponse>;
 	scopes(args: DebugProtocol.ScopesArguments): TPromise<DebugProtocol.ScopesResponse>;
 	variables(args: DebugProtocol.VariablesArguments): TPromise<DebugProtocol.VariablesResponse>;
-	source(args: DebugProtocol.SourceArguments): TPromise<DebugProtocol.SourceResponse>;
-	threads(): TPromise<DebugProtocol.ThreadsResponse>;
 	evaluate(args: DebugProtocol.EvaluateArguments): TPromise<DebugProtocol.EvaluateResponse>;
-
-	getLengthInSeconds(): number;
-	getType(): string;
-	emittedStopped: boolean;
 }
 
 export var IDebugService = createDecorator<IDebugService>(DEBUG_SERVICE_ID);

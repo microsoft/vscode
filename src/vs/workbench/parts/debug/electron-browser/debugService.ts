@@ -66,7 +66,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 
 	private taskService: ITaskService;
 	private state: debug.State;
-	private session: debug.IRawDebugSession;
+	private session: session.RawDebugSession;
 	private model: model.Model;
 	private viewModel: viewmodel.ViewModel;
 	private toDispose: lifecycle.IDisposable[];
@@ -241,7 +241,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 			if (extensionHostData) {
 				this.restartSession(extensionHostData).done(null, errors.onUnexpectedError);
 			} else if (this.session) {
-				this.session.stop().done(null, errors.onUnexpectedError);
+				this.session.disconnect().done(null, errors.onUnexpectedError);
 			}
 		}));
 
@@ -553,7 +553,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 				}).then(undefined, (error: Error) => {
 					this.telemetryService.publicLog('debugMisconfiguration', { type: this.configuration ? this.configuration.type : undefined });
 					if (this.session) {
-						this.session.stop();
+						this.session.disconnect();
 					}
 
 					return Promise.wrapError(errors.create(error.message, { actions: [CloseAction, this.instantiationService.createInstance(debugactions.ConfigureAction, debugactions.ConfigureAction.ID, debugactions.ConfigureAction.LABEL)] }));
@@ -597,7 +597,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 	}
 
 	public restartSession(extensionHostData?: any): Promise {
-		return this.session ? this.session.stop(true).then(() => {
+		return this.session ? this.session.disconnect(true).then(() => {
 			new Promise(c => {
 				setTimeout(() => {
 					this.createSession(extensionHostData, false).then(() => c(true));
@@ -814,7 +814,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 
 	public dispose(): void {
 		if (this.session) {
-			this.session.stop();
+			this.session.disconnect();
 			this.session = null;
 		}
 		this.model.dispose();
