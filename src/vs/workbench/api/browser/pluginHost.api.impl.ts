@@ -18,6 +18,7 @@ import {PluginHostStatusBar} from 'vs/workbench/api/browser/pluginHostStatusBar'
 import {PluginHostCommands} from 'vs/workbench/api/common/pluginHostCommands';
 import {ExtHostOutputService} from 'vs/workbench/api/browser/extHostOutputService';
 import {LanguageFeatures} from 'vs/workbench/api/common/languageFeatures';
+import {ExtHostLanguageFeatures} from 'vs/workbench/api/common/extHostLanguageFeatures';
 import {PluginHostMessageService} from 'vs/workbench/api/common/pluginHostMessageService';
 import {PluginHostTelemetryService} from 'vs/workbench/api/common/pluginHostTelemetry';
 import {PluginHostEditors} from 'vs/workbench/api/common/pluginHostEditors';
@@ -251,6 +252,7 @@ export class PluginHostAPIImplementation {
 		const languages = new ExtHostLanguages(this._threadService);
 		const pluginHostDiagnostics = new PluginHostDiagnostics(this._threadService);
 		const features = LanguageFeatures.createExtensionHostInstances(this._threadService);
+		const languageFeatures = this._threadService.getRemotable(ExtHostLanguageFeatures);
 
 		this.languages = {
 			createDiagnosticCollection(name?: string): vscode.DiagnosticCollection {
@@ -266,7 +268,7 @@ export class PluginHostAPIImplementation {
 				return features.codeActions.register(selector, provider);
 			},
 			registerCodeLensProvider(selector: vscode.DocumentSelector, provider: vscode.CodeLensProvider): vscode.Disposable {
-				return features.codeLens.register(selector, provider);
+				return languageFeatures.registerCodeLensProvider(selector, provider);
 			},
 			registerDefinitionProvider(selector: vscode.DocumentSelector, provider: vscode.DefinitionProvider): vscode.Disposable {
 				return features.definition.register(selector, provider);
@@ -284,7 +286,7 @@ export class PluginHostAPIImplementation {
 				return features.rename.register(selector, provider);
 			},
 			registerDocumentSymbolProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentSymbolProvider): vscode.Disposable {
-				return features.documentSymbols.register(selector, provider);
+				return languageFeatures.registerDocumentSymbolProvider(selector, provider);
 			},
 			registerWorkspaceSymbolProvider(provider: vscode.WorkspaceSymbolProvider): vscode.Disposable {
 				return features.workspaceSymbols.register(provider);
