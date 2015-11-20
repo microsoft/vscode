@@ -197,7 +197,7 @@ export var units : { [unitName:string]:string[] } = {
 	'length': ['em', 'rem', 'ex', 'px', 'cm', 'mm', 'in', 'pt', 'pc', 'cc'],
 	'angle': ['deg', 'rad', 'grad'],
 	'time': ['ms', 's'],
-	'frequency': ['hz', 'khz'],
+	'frequency': ['Hz', 'kHz'],
 	'resolution': ['dpi', 'dpcm'],
 	'percentage': ['%']
 };
@@ -480,4 +480,3 @@ export var browserNames = {
 	IE : 'IE',
 	O : 'Opera'
 };
-
