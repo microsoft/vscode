@@ -100,11 +100,11 @@ export class ReplExpressionsRenderer implements tree.IRenderer {
 	private static FILE_LOCATION_PATTERNS:RegExp[] = [
 		// group 0: the full thing :)
 		// group 1: absolute path
-		// group 2: drive letter on windows or leading slash
+		// group 2: drive letter on windows with trailing backslash or leading slash on mac/linux
 		// group 3: line number
 		// group 4: column number
 		// eg: at Context.<anonymous> (c:\Users\someone\Desktop\mocha-runner\test\test.js:26:11)
-		/((\/|[a-zA-Z]:)[^\(\)<>\'\"\[\]]+):(\d+):(\d+)/
+		/((\/|[a-zA-Z]:\\)[^\(\)<>\'\"\[\]]+):(\d+):(\d+)/
 	]
 
 	constructor(
