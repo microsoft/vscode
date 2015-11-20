@@ -152,7 +152,7 @@ export default class PHPValidationProvider {
 		let delayer = this.delayers[key];
 		if (!delayer) {
 			delayer = new ThrottledDelayer<void>(this.trigger === RunTrigger.onType ? 250 : 0);
-			this.delayers[key];
+			this.delayers[key] = delayer;
 		}
 		delayer.trigger(() => this.doValidate(textDocument) );
 	}
