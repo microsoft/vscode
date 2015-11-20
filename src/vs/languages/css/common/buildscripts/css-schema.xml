@@ -76,7 +76,7 @@
     <entry name="@string" version="3.0" browsers="none" ref="http://www.w3.org/TR/css3-content/#string" syntax="@string chapter { page-policy: last; }">
       <desc>Authors may use @string declaration blocks and the 'page-policy' property, which applies only to strings and counters.</desc>
     </entry>
-    <entry name="@supports" version="3.0" browsers="C,FF,O" ref="http://www.w3.org/TR/css3-conditional/#at-supports" syntax="@supports (display: flexbox) { div { display: flexbox; } }">
+    <entry name="@supports" version="3.0" browsers="C,FF,O,S9" ref="http://www.w3.org/TR/css3-conditional/#at-supports" syntax="@supports (display: flexbox) { div { display: flexbox; } }">
       <desc>A conditional group rule whose condition tests whether the user agent supports CSS property:value pairs.</desc>
     </entry>
     <entry name="@top-center" version="3" browsers="none" ref="http://www.w3.org/TR/css3-page/#page-box">
@@ -1006,7 +1006,7 @@
         <value name="yellowgreen" version="3.0" browsers="all" />
       </values>
     </entry>
-		
+
     <entry name="background-image" restriction="url, enum" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#the-background-image" syntax="article { $(name): url(image.png); }">
       <desc>Image used for an element's background</desc>
       <values>
