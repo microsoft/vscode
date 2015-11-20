@@ -6,6 +6,7 @@
 import assert = require('vs/base/common/assert');
 import types = require('vs/base/common/types');
 import URI from 'vs/base/common/uri';
+import {isLinux} from 'vs/base/common/platform';
 import paths = require('vs/base/common/paths');
 import {guessMimeTypes} from 'vs/base/common/mime';
 import {IFileStat} from 'vs/platform/files/common/files';
@@ -273,7 +274,7 @@ export class FileStat implements IFileStat {
 	public find(resource: URI): FileStat {
 
 		// Return if path found
-		if (resource.toString() === this.resource.toString()) {
+		if (this.fileResourceEquals(resource, this.resource)) {
 			return this;
 		}
 
@@ -285,7 +286,7 @@ export class FileStat implements IFileStat {
 		for (let i = 0; i < this.children.length; i++) {
 			let child = this.children[i];
 
-			if (resource.toString() === child.resource.toString()) {
+			if (this.fileResourceEquals(resource, child.resource)) {
 				return child;
 			}
 
@@ -295,6 +296,15 @@ export class FileStat implements IFileStat {
 		}
 
 		return null; //Unable to find
+	}
+
+	private fileResourceEquals(r1: URI, r2: URI) {
+		const identityEquals = (r1.toString() === r2.toString());
+		if (isLinux || identityEquals) {
+			return identityEquals;
+		}
+
+		return r1.toString().toLowerCase() === r2.toString().toLowerCase();
 	}
 }
 

@@ -636,6 +636,7 @@ export class StatResolver {
 			}
 
 			return new TPromise((c, e) => {
+
 				// Load children
 				this.resolveChildren(this.resource.fsPath, absoluteTargetPaths, options && options.resolveSingleChildDescendants, (children) => {
 					children = arrays.coalesce(children); // we dont want those null childs (could be permission denied when reading a child)
@@ -706,7 +707,7 @@ export class StatResolver {
 						let resolveFolderChildren = false;
 						if (files.length === 1 && resolveSingleChildDescendants) {
 							resolveFolderChildren = true;
-						} else if (childCount > 0 && absoluteTargetPaths && absoluteTargetPaths.some((targetPath) => targetPath.indexOf(fileResource.fsPath) === 0)) {
+						} else if (childCount > 0 && absoluteTargetPaths && absoluteTargetPaths.some((targetPath) => basePaths.isEqualOrParent(targetPath, fileResource.fsPath))) {
 							resolveFolderChildren = true;
 						}
 
