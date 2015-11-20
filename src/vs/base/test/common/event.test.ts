@@ -9,6 +9,7 @@ import Event, {Emitter, fromEventEmitter} from 'vs/base/common/event';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import {EventEmitter} from 'vs/base/common/eventEmitter';
 import {EventSource} from 'vs/base/common/eventSource';
+import Errors = require('vs/base/common/errors');
 
 namespace Samples {
 
@@ -161,15 +162,23 @@ suite('Event',function(){
 	});
 
 	test('throwingListener', function() {
-		let a = new Emitter();
-		let hit = false;
-		a.event(function() {
-			throw 9;
-		})
-		a.event(function() {
-			hit = true;
-		});
-		a.fire(undefined);
-		assert.equal(hit, true);
+		var origErrorHandler = Errors.errorHandler.getUnexpectedErrorHandler();
+		Errors.setUnexpectedErrorHandler(() => null);
+
+		try {
+			let a = new Emitter();
+			let hit = false;
+			a.event(function() {
+				throw 9;
+			})
+			a.event(function() {
+				hit = true;
+			});
+			a.fire(undefined);
+			assert.equal(hit, true);
+
+		} finally {
+			Errors.setUnexpectedErrorHandler(origErrorHandler);
+		}
 	});
 });
