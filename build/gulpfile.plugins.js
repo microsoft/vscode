@@ -21,6 +21,7 @@ var glob = require('glob');
 var fs = require('fs');
 var JSONC = require('json-comments');
 
+var quiet = !!process.env['VSCODE_BUILD_QUIET'];
 var extensionsPath = path.join(path.dirname(__dirname), 'extensions');
 
 function getTSConfig(plugin) {
@@ -49,7 +50,7 @@ function getTSConfig(plugin) {
 		};
 	}
 
-	options.verbose = !process.env['VSCODE_BUILD_QUIET'];
+	options.verbose = !quiet;
 	return options;
 }
 
@@ -110,8 +111,8 @@ var tasks = readAllPlugins()
 			];
 
 			var pipeline = (function () {
-				var reporter = createReporter();
-				var compilation = tsb.create(options, null, null, function (err) { reporter(err.toString()); });
+				var reporter = quiet ? null : createReporter();
+				var compilation = tsb.create(options, null, null, quiet ? null : function (err) { reporter(err.toString()); });
 
 				return function () {
 					var input = es.through();
@@ -121,7 +122,7 @@ var tasks = readAllPlugins()
 						.pipe(tsFilter)
 						.pipe(compilation())
 						.pipe(tsFilter.restore)
-						.pipe(reporter());
+						.pipe(quiet ? es.through() : reporter());
 
 					return es.duplex(input, output);
 				};

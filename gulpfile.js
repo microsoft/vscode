@@ -24,12 +24,13 @@ var path = require('path');
 var bom = require('gulp-bom');
 var sourcemaps = require('gulp-sourcemaps');
 var _ = require('underscore');
+var quiet = !!process.env['VSCODE_BUILD_QUIET'];
 
 var rootDir = path.join(__dirname, 'src');
 var tsOptions = {
 	target: 'ES5',
 	module: 'amd',
-	verbose: !process.env['VSCODE_BUILD_QUIET'],
+	verbose: !quiet,
 	preserveConstEnums: true,
 	experimentalDecorators: true,
 	sourceMap: true,
@@ -41,7 +42,7 @@ function createCompile(build) {
 	var opts = _.clone(tsOptions);
 	opts.inlineSources = !!build;
 
-	var ts = tsb.create(opts, null, null, function (err) { reporter(err.toString()); });
+	var ts = tsb.create(opts, null, null, quiet ? null : function (err) { reporter(err.toString()); });
 
 	return function (token) {
 		var utf8Filter = filter('**/test/**/*utf8*', { restore: true });
@@ -65,7 +66,7 @@ function createCompile(build) {
 				sourceRoot: tsOptions.sourceRoot
 			}))
 			.pipe(tsFilter.restore)
-			.pipe(reporter());
+			.pipe(quiet ? es.through() : reporter());
 
 		return es.duplex(input, output);
 	};
