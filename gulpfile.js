@@ -29,7 +29,7 @@ var rootDir = path.join(__dirname, 'src');
 var tsOptions = {
 	target: 'ES5',
 	module: 'amd',
-	verbose: true,
+	verbose: process.env['VSCODE_BUILD_QUIET'] ? false : true,
 	preserveConstEnums: true,
 	experimentalDecorators: true,
 	sourceMap: true,
