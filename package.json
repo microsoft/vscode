@@ -12,6 +12,7 @@
 	},
 	"scripts": {
 		"test": "node node_modules/mocha/bin/_mocha",
+		"postinstall": "npm --prefix extensions/csharp-o/ install extensions/csharp-o/",
 		"binary-dependencies": "npm --prefix extensions/csharp-o/ run omnisharp"
 	},
 	"dependencies": {
