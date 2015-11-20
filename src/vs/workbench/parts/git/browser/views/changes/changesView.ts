@@ -197,6 +197,7 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 
 		this.currentDimension = dimension;
 
+		this.commitInputBox.layout();
 		var statusViewHeight = dimension.height - (this.commitInputBox.height + 10 /* margin */);
 		this.$statusView.size(dimension.width, statusViewHeight);
 		this.tree.layout(statusViewHeight);

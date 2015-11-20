@@ -131,7 +131,7 @@ export class InputBox extends ee.EventEmitter {
 			}
 		}
 
-		setTimeout(() =>this.adjustHeight(), 0);
+		setTimeout(() =>this.layout(), 0);
 
 		// Support actions
 		if (this.options.actions) {
@@ -324,19 +324,22 @@ export class InputBox extends ee.EventEmitter {
 			var lastCharCode = this.value.charCodeAt(this.value.length - 1);
 			var suffix = lastCharCode === 10 ? ' ' : '';
 			this.mirror.textContent = this.value + suffix;
-			this.adjustHeight();
+			this.layout();
 		}
 	}
 
-	private adjustHeight(): void {
+	public layout(): void {
 		if (!this.mirror) {
 			return;
 		}
 
+		const previousHeight = this.cachedHeight;
 		this.cachedHeight = dom.getTotalHeight(this.mirror);
-		this.input.style.height = this.cachedHeight + 'px';
 
-		this.emit('heightchange', this.cachedHeight);
+		if (previousHeight !== this.cachedHeight) {
+			this.input.style.height = this.cachedHeight + 'px';
+			this.emit('heightchange', this.cachedHeight);
+		}
 	}
 
 	public dispose(): void {
