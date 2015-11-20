@@ -70,7 +70,7 @@ configurationRegistry.registerConfiguration({
 		'update.channel': {
 			'type': 'string',
 			'default': 'stable',
-			'description': nls.localize('updateChannel', "Configure the update channel to receive updates from.")
+			'description': nls.localize('updateChannel', "Configure the update channel to receive updates from. Requires a restart after change.")
 		},
 	}
 });
