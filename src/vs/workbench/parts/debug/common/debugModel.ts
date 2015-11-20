@@ -533,7 +533,14 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 	}
 
 	public sourceIsUnavailable(source: debug.Source): void {
-		source.available = false;
+		Object.keys(this.threads).forEach(key => {
+			this.threads[key].callStack.forEach(stackFrame => {
+				if (stackFrame.source.uri.toString() === source.uri.toString()) {
+					stackFrame.source.available = false;
+				}
+			});
+		});
+
 		this.emit(debug.ModelEvents.CALLSTACK_UPDATED);
 	}
 
