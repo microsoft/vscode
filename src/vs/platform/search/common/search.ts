@@ -73,7 +73,6 @@ export interface ISearchComplete {
 }
 
 
-
 // ---- very simple implementation of the search model --------------------
 
 export class FileMatch implements IFileMatch {

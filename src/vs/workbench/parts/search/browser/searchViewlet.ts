@@ -1148,6 +1148,7 @@ export class SearchViewlet extends Viewlet {
 		this.disposeModel();
 		this.showEmptyStage();
 
+		let handledMatches: {[id: string]: boolean} = Object.create(null);
 		let autoExpand = (alwaysExpandIfOneResult: boolean) => {
 			// Auto-expand / collapse based on number of matches:
 			// - alwaysExpandIfOneResult: expand file results if we have just one file result and less than 50 matches on a file
@@ -1155,6 +1156,12 @@ export class SearchViewlet extends Viewlet {
 			if (this.viewModel) {
 				let matches = this.viewModel.matches();
 				matches.forEach((match) => {
+					if (handledMatches[match.id()]) {
+						return; // if we once handled a result, do not do it again to keep results stable (the user might have expanded/collapsed meanwhile)
+					}
+
+					handledMatches[match.id()] = true;
+
 					let length = match.matches().length;
 					if (length < 10 || (alwaysExpandIfOneResult && matches.length === 1 && length < 50)) {
 						this.tree.expand(match).done(null, errors.onUnexpectedError);
@@ -1180,9 +1187,12 @@ export class SearchViewlet extends Viewlet {
 			}
 
 			// Show the final results
-			this.viewModel = this.viewModel || this.instantiationService.createInstance(SearchResult, query.contentPattern);
-			if (completed) {
-				this.viewModel.append(completed.results);
+			if (!this.viewModel) {
+				this.viewModel = this.instantiationService.createInstance(SearchResult, query.contentPattern);
+
+				if (completed) {
+					this.viewModel.append(completed.results);
+				}
 			}
 
 			this.tree.refresh().then(() => {
@@ -1308,7 +1318,7 @@ export class SearchViewlet extends Viewlet {
 					}).done(null, errors.onUnexpectedError);
 				}
 
-				this.viewModel.append(matches);
+				this.viewModel.append([p]);
 				progressTimer.stop();
 			}
 		};
@@ -1344,6 +1354,11 @@ export class SearchViewlet extends Viewlet {
 				this.tree.refresh().then(() => {
 					autoExpand(false);
 				}).done(null, errors.onUnexpectedError);
+
+				// since we have results now, enable some actions
+				if (!this.actionRegistry['collapseAll'].enabled) {
+					this.actionRegistry['collapseAll'].enabled = true;
+				}
 			}
 		}, 200);
 
