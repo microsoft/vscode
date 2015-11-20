@@ -230,6 +230,64 @@ suite('HTML - worker', () => {
 		});
 	});
 
+	test('Intellisense aria', function(testDone): any {
+		function assertAriaAttributes(completion) {
+			assertSuggestion(completion, 'aria-activedescendant');
+			assertSuggestion(completion, 'aria-atomic');
+			assertSuggestion(completion, 'aria-autocomplete');
+			assertSuggestion(completion, 'aria-busy');
+			assertSuggestion(completion, 'aria-checked');
+			assertSuggestion(completion, 'aria-controls');
+			assertSuggestion(completion, 'aria-describedby');
+			assertSuggestion(completion, 'aria-disabled');
+			assertSuggestion(completion, 'aria-dropeffect');
+			assertSuggestion(completion, 'aria-expanded');
+			assertSuggestion(completion, 'aria-flowto');
+			assertSuggestion(completion, 'aria-grabbed');
+			assertSuggestion(completion, 'aria-haspopup');
+			assertSuggestion(completion, 'aria-hidden');
+			assertSuggestion(completion, 'aria-invalid');
+			assertSuggestion(completion, 'aria-label');
+			assertSuggestion(completion, 'aria-labelledby');
+			assertSuggestion(completion, 'aria-level');
+			assertSuggestion(completion, 'aria-live');
+			assertSuggestion(completion, 'aria-multiline');
+			assertSuggestion(completion, 'aria-multiselectable');
+			assertSuggestion(completion, 'aria-orientation');
+			assertSuggestion(completion, 'aria-owns');
+			assertSuggestion(completion, 'aria-posinset');
+			assertSuggestion(completion, 'aria-pressed');
+			assertSuggestion(completion, 'aria-readonly');
+			assertSuggestion(completion, 'aria-relevant');
+			assertSuggestion(completion, 'aria-required');
+			assertSuggestion(completion, 'aria-selected');
+			assertSuggestion(completion, 'aria-setsize');
+			assertSuggestion(completion, 'aria-sort');
+			assertSuggestion(completion, 'aria-valuemax');
+			assertSuggestion(completion, 'aria-valuemin');
+			assertSuggestion(completion, 'aria-valuenow');
+			assertSuggestion(completion, 'aria-valuetext');
+		}
+		WinJS.Promise.join([
+			testSuggestionsFor('<div  |> </div >').then((completion) => {
+				assert.equal(completion.currentWord, '');
+				assertAriaAttributes(completion);
+			}),
+
+			testSuggestionsFor('<span  |> </span >').then((completion) => {
+				assert.equal(completion.currentWord, '');
+				assertAriaAttributes(completion);
+			}),
+
+			testSuggestionsFor('<input  |> </input >').then((completion) => {
+				assert.equal(completion.currentWord, '');
+				assertAriaAttributes(completion);
+			})
+		]).done(() => testDone(), (errors:any[]) => {
+			testDone(errors.reduce((e1, e2) => e1 || e2));
+		});
+	});
+
 	test('Intellisense Angular', function(testDone): any {
 		WinJS.Promise.join([
 			testSuggestionsFor('<body  |> </body >').then((completion) => {
