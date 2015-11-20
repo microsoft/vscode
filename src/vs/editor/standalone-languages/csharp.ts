@@ -51,7 +51,7 @@ export var language = <ILanguage> {
 		'internal', 'private', 'abstract', 'sealed', 'static', 'struct', 'readonly',
 		'volatile', 'virtual', 'override', 'params', 'get', 'set', 'add', 'remove',
 		'operator', 'true', 'false', 'implicit', 'explicit', 'interface', 'enum',
-		'null', 'async', 'await'
+		'null', 'async', 'await','fixed','sizeof','stackalloc','unsafe'
 		],
 
 	namespaceFollows: [

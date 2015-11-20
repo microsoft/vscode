@@ -7,6 +7,7 @@
 		<string>ps1</string>
 		<string>psm1</string>
 		<string>psd1</string>
+		<string>ps1xml</string>
 	</array>
 	<key>name</key>
 	<string>PowerShell</string>

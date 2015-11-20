@@ -8,13 +8,13 @@ define([
 	"vs/languages/html/common/html.contribution",
 	"vs/languages/javascript/common/javascript.contribution",
 	"vs/languages/json/common/json.contribution",
+	"vs/languages/less/common/less.contribution",
 	"vs/languages/markdown/common/markdown.contribution",
 	"vs/languages/php/common/php.contribution",
 	"vs/languages/plaintext/common/plaintext.contribution",
 	"vs/languages/razor/common/razor.contribution",
-	"vs/languages/typescript/common/typescript.contribution",
-	"vs/languages/less/common/less.contribution",
-	"vs/languages/sass/common/sass.contribution"
+	"vs/languages/sass/common/sass.contribution",
+	"vs/languages/typescript/common/typescript.contribution"
 ], function() {
 	"use strict";
 });
