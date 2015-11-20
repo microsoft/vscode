@@ -34,7 +34,7 @@ export abstract class DerivedFrameEditorInput extends IFrameEditorInput {
 		if (otherInput instanceof DerivedFrameEditorInput) {
 			let otherDerivedFrameEditorInput = <DerivedFrameEditorInput>otherInput;
 
-			// Otherwise compare by resource and mime
+			// Otherwise compare by resource
 			return otherDerivedFrameEditorInput.resource.toString() === this.resource.toString();
 		}
 

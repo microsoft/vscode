@@ -11,7 +11,6 @@ import URI from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
 import diagnostics = require('vs/base/common/diagnostics');
 import types = require('vs/base/common/types');
-import {isUnspecific} from 'vs/base/common/mime';
 import {IModelContentChangedEvent, EventType as EditorEventType} from 'vs/editor/common/editorCommon';
 import {IMode} from 'vs/editor/common/modes';
 import {EventType as WorkbenchEventType, ResourceEvent} from 'vs/workbench/browser/events';
@@ -89,7 +88,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 	private static saveErrorHandler: ISaveErrorHandler;
 
 	private resource: URI;
-	private mime: string;
 	private contentEncoding: string; 			// encoding as reported from disk
 	private preferredEncoding: string;			// encoding as chosen by the user
 	private textModelChangeListener: () => void;
@@ -110,7 +108,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 
 	constructor(
 		resource: URI,
-		mime: string,
 		preferredEncoding: string,
 		@IMessageService private messageService: IMessageService,
 		@IModeService modeService: IModeService,
@@ -128,7 +125,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 			throw new Error('TextFileEditorModel can only handle file:// resources.');
 		}
 
-		this.mime = mime;
 		this.preferredEncoding = preferredEncoding;
 		this.textModelChangeListener = null;
 		this.dirty = false;
@@ -322,7 +318,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 		});
 	}
 
-	protected getOrCreateMode(modeService: IModeService, mime: string, firstLineText?: string): TPromise<IMode> {
+	protected getOrCreateMode(modeService: IModeService, preferredModeIds: string, firstLineText?: string): TPromise<IMode> {
 		return modeService.getOrCreateModeByFilenameOrFirstLine(this.resource.fsPath, firstLineText);
 	}
 
@@ -729,13 +725,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 	 */
 	public getResource(): URI {
 		return this.resource;
-	}
-
-	/**
-	 * Returns the mime of the file this text file editor model is about.
-	 */
-	public getMime(): string {
-		return this.mime;
 	}
 
 	public dispose(): void {

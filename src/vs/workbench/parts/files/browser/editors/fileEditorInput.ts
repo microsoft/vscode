@@ -283,7 +283,7 @@ export class FileEditorInput extends CommonFileEditorInput {
 
 		// Otherwise use text model
 		else {
-			model = this.instantiationService.createInstance(TextFileEditorModel, this.resource, this.mime, this.preferredEncoding);
+			model = this.instantiationService.createInstance(TextFileEditorModel, this.resource, this.preferredEncoding);
 		}
 
 		return model;

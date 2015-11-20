@@ -9,6 +9,7 @@ import nls = require('vs/nls');
 import errors = require('vs/base/common/errors');
 import paths = require('vs/base/common/paths');
 import {Action} from 'vs/base/common/actions';
+import {guessMimeTypes} from 'vs/base/common/mime';
 import {EditorInputAction} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {ResourceEditorInput} from 'vs/workbench/browser/parts/editor/resourceEditorInput';
 import {TextResourceEditorModel} from 'vs/workbench/browser/parts/editor/resourceEditorModel';
@@ -160,8 +161,9 @@ class ResolveSaveConflictMessage implements IMessageWithAction {
 		this.actions = [
 			new Action('workbench.files.action.resolveConflict', nls.localize('compareChanges', "Compare"), null, true, () => {
 				if (!this.model.isDisposed()) {
-					let originalInput = this.instantiationService.createInstance(ResourceEditorInput, paths.basename(this.model.getResource().fsPath), this.model.getResource().fsPath, this.model.getResource().toString(), this.model.getMime(), void 0, void 0, void 0);
-					let modifiedInput = this.instantiationService.createInstance(FileEditorInput, this.model.getResource(), this.model.getMime(), void 0);
+					let mime = guessMimeTypes(this.model.getResource().fsPath).join(', ');
+					let originalInput = this.instantiationService.createInstance(ResourceEditorInput, paths.basename(this.model.getResource().fsPath), this.model.getResource().fsPath, this.model.getResource().toString(), mime, void 0, void 0, void 0);
+					let modifiedInput = this.instantiationService.createInstance(FileEditorInput, this.model.getResource(), mime, void 0);
 					let conflictInput = this.instantiationService.createInstance(ConflictResolutionDiffEditorInput, this.model, nls.localize('saveConflictDiffLabel', "{0} - on disk ↔ in {1}", modifiedInput.getName(), this.contextService.getConfiguration().env.appName), nls.localize('resolveSaveConflict', "{0} - Resolve save conflict", modifiedInput.getDescription()), originalInput, modifiedInput);
 
 					return this.editorService.openEditor(conflictInput).then(() => {
@@ -222,7 +224,7 @@ export class AcceptLocalChangesAction extends EditorInputAction {
 						}
 
 						// Reopen file input
-						let input = this.instantiationService.createInstance(FileEditorInput, model.getResource(), model.getMime(), void 0);
+						let input = this.instantiationService.createInstance(FileEditorInput, model.getResource(), guessMimeTypes(model.getResource().fsPath).join(', '), void 0);
 						return this.editorService.openEditor(input, null, this.position).then(() => {
 
 							// Dispose conflict input
@@ -268,7 +270,7 @@ export class RevertLocalChangesAction extends EditorInputAction {
 		return model.revert().then(() => {
 
 			// Reopen file input
-			let input = this.instantiationService.createInstance(FileEditorInput, model.getResource(), model.getMime(), void 0);
+			let input = this.instantiationService.createInstance(FileEditorInput, model.getResource(), guessMimeTypes(model.getResource().fsPath).join(', '), void 0);
 			return this.editorService.openEditor(input, null, this.position).then(() => {
 
 				// Dispose conflict input

@@ -88,7 +88,7 @@ suite('Files - TextFileEditorModel', () => {
 	});
 
 	test("Load does not trigger save", function(done) {
-		let m1 = baseInstantiationService.createInstance(TextFileEditorModel, toResource("/path/index.txt"), "text/plain", "utf8");
+		let m1 = baseInstantiationService.createInstance(TextFileEditorModel, toResource("/path/index.txt"), "utf8");
 
 		eventService.addListener('files:internalFileChanged', () => {
 			assert.ok(false);
@@ -112,7 +112,7 @@ suite('Files - TextFileEditorModel', () => {
 	});
 
 	test("Load returns dirty model as long as model is dirty", function(done) {
-		let m1 = baseInstantiationService.createInstance(TextFileEditorModel, toResource("/path/index_async.txt"), "text/plain", "utf8");
+		let m1 = baseInstantiationService.createInstance(TextFileEditorModel, toResource("/path/index_async.txt"), "utf8");
 
 		m1.load().then(() => {
 			m1.textEditorModel.setValue("foo");
@@ -135,7 +135,7 @@ suite('Files - TextFileEditorModel', () => {
 			eventCounter++;
 		});
 
-		let m1 = baseInstantiationService.createInstance(TextFileEditorModel, toResource("/path/index_async.txt"), "text/plain", "utf8");
+		let m1 = baseInstantiationService.createInstance(TextFileEditorModel, toResource("/path/index_async.txt"), "utf8");
 
 		m1.load().then(() => {
 			m1.textEditorModel.setValue("foo");
@@ -155,7 +155,7 @@ suite('Files - TextFileEditorModel', () => {
 	});
 
 	test("Conflict Resolution Mode", function(done) {
-		let m1 = baseInstantiationService.createInstance(TextFileEditorModel, toResource("/path/index_async.txt"), "text/plain", "utf8");
+		let m1 = baseInstantiationService.createInstance(TextFileEditorModel, toResource("/path/index_async.txt"), "utf8");
 
 		m1.load().then(() => {
 			m1.setConflictResolutionMode();
@@ -181,7 +181,7 @@ suite('Files - TextFileEditorModel', () => {
 
 	test("Auto Save triggered when model changes", function(done) {
 		let eventCounter = 0;
-		let m1 = baseInstantiationService.createInstance(TextFileEditorModel, toResource("/path/index.txt"), "text/plain", "utf8");
+		let m1 = baseInstantiationService.createInstance(TextFileEditorModel, toResource("/path/index.txt"), "utf8");
 
 		(<any>m1).autoSaveDelay = 10;
 		(<any>m1).autoSaveEnabled = true;
@@ -210,7 +210,7 @@ suite('Files - TextFileEditorModel', () => {
 
 	test("Change after auto save triggered will cause another autosave and twice the events", function(done) {
 		let eventCounter = 0;
-		let m1 = baseInstantiationService.createInstance(TextFileEditorModel, toResource("/path/index.txt"), "text/plain", "utf8");
+		let m1 = baseInstantiationService.createInstance(TextFileEditorModel, toResource("/path/index.txt"), "utf8");
 
 		(<any>m1).autoSaveDelay = 10;
 		(<any>m1).autoSaveEnabled = true;
@@ -301,7 +301,7 @@ suite('Files - TextFileEditorModel', () => {
 
 	test("Save Participant", function(done) {
 		let eventCounter = 0;
-		let m1 = baseInstantiationService.createInstance(TextFileEditorModel, toResource("/path/index_async.txt"), "text/plain", "utf8");
+		let m1 = baseInstantiationService.createInstance(TextFileEditorModel, toResource("/path/index_async.txt"), "utf8");
 
 		eventService.addListener(EventType.FILE_SAVED, (e) => {
 			assert.equal(m1.getValue(), "bar");
