@@ -400,10 +400,12 @@ declare module DebugProtocol {
 	}
 	/** Arguments for "evaluate" request. */
 	export interface EvaluateArguments {
-		/** The expression to evaluate */
+		/** The expression to evaluate. */
 		expression: string;
-		/** Evaluate the expression in the context of this stack frame. If not specified, the expression is evaluated in the global context. */
+		/** Evaluate the expression in the scope of this stack frame. If not specified, the expression is evaluated in the global scope. */
 		frameId?: number;
+		/** The context in which the evaluate request is run. Possible values are 'watch' if evaluate is run in a watch or 'repl' if run from the REPL console. */
+		context?: string;
 	}
 	/** Response to "evaluate" request. */
 	export interface EvaluateResponse extends Response {
