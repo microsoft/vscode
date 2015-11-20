@@ -40,6 +40,10 @@
 	display: inline-block;
 }
 
+.monaco-workbench > .part.statusbar > .statusbar-entry > span {
+	cursor: default;
+}
+
 .monaco-workbench > .part.statusbar > .statusbar-entry > span,
 .monaco-workbench > .part.statusbar > .statusbar-entry > a {
 	padding: 0 5px 0 5px;
