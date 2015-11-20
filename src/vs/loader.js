@@ -72,11 +72,10 @@ var AMDLoader;
             }
         };
         Utilities.isEmpty = function (obj) {
-            var isEmpty = true;
-            Utilities.forEachProperty(obj, function () {
-                isEmpty = false;
-            });
-            return isEmpty;
+            for (var key in obj) {
+                return false;
+            }
+            return true;
         };
         Utilities.isArray = function (obj) {
             if (Array.isArray) {
