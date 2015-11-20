@@ -644,22 +644,17 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 
 	public openOrRevealEditor(source: debug.Source, lineNumber: number, preserveFocus: boolean, sideBySide: boolean): Promise {
 		const visibleEditors = this.editorService.getVisibleEditors();
-		if (visibleEditors) {
-			for (var i = 0; i < visibleEditors.length; i++) {
-				const fileInput = wbeditorcommon.asFileEditorInput(visibleEditors[i].input);
-				if (fileInput && fileInput.getResource().toString() === source.uri.toString() ||
-					visibleEditors[i].input instanceof debuginputs.DebugStringEditorInput && (<debuginputs.DebugStringEditorInput> visibleEditors[i].input).getResource() &&
-					(<debuginputs.DebugStringEditorInput> visibleEditors[i].input).getResource().toString() === source.uri.toString()) {
-
-					const control = <editorbrowser.ICodeEditor>visibleEditors[i].getControl();
-					if (control) {
-						control.revealLineInCenterIfOutsideViewport(lineNumber);
-						control.setSelection({ startLineNumber: lineNumber, startColumn: 1, endLineNumber: lineNumber, endColumn: 1 });
-						return this.editorService.openEditor(visibleEditors[i].input, wbeditorcommon.TextEditorOptions.create({ preserveFocus: preserveFocus, forceActive: true }), visibleEditors[i].position);
-					}
-
-					return Promise.as(null);
+		for (var i = 0; i < visibleEditors.length; i++) {
+			const fileInput = wbeditorcommon.asFileEditorInput(visibleEditors[i].input);
+			if (fileInput && fileInput.getResource().toString() === source.uri.toString()) {
+				const control = <editorbrowser.ICodeEditor>visibleEditors[i].getControl();
+				if (control) {
+					control.revealLineInCenterIfOutsideViewport(lineNumber);
+					control.setSelection({ startLineNumber: lineNumber, startColumn: 1, endLineNumber: lineNumber, endColumn: 1 });
+					return this.editorService.openEditor(visibleEditors[i].input, wbeditorcommon.TextEditorOptions.create({ preserveFocus: preserveFocus, forceActive: true }), visibleEditors[i].position);
 				}
+
+				return Promise.as(null);
 			}
 		}
 
