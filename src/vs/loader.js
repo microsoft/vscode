@@ -93,12 +93,7 @@ var AMDLoader;
             }
             var result = Utilities.isArray(obj) ? [] : {};
             Utilities.forEachProperty(obj, function (key, value) {
-                if (value && typeof value === 'object') {
-                    result[key] = Utilities.recursiveClone(value);
-                }
-                else {
-                    result[key] = value;
-                }
+                result[key] = Utilities.recursiveClone(value);
             });
             return result;
         };
