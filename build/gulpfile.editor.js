@@ -27,16 +27,19 @@ var editorEntryPoints = _.flatten([
 ]);
 
 var editorResources = [
-	'out-build/vs/css.js',
-	'out-build/vs/nls.js',
-	'out-build/vs/text.js',
 	'out-build/vs/{base,editor}/**/*.{svg,png}',
-	'out-build/vs/editor/css/*.css',
 	'out-build/vs/base/worker/workerMainCompatibility.html',
 	'out-build/vs/base/worker/workerMain.{js,js.map}',
 	'out-build/vs/languages/typescript/common/lib/lib.{d.ts,es6.d.ts}',
 	'!out-build/vs/workbench/**',
 	'!**/test/**'
+];
+
+var editorOtherSources = [
+	'out-build/vs/css.js',
+	'out-build/vs/nls.js',
+	'out-build/vs/text.js',
+	'out-build/vs/editor/css/*.css'
 ];
 
 var BUNDLED_FILE_HEADER = [
@@ -63,54 +66,42 @@ function editorLoaderConfig(removeAllOSS) {
 }
 
 gulp.task('clean-optimized-editor', util.rimraf('out-editor'));
-gulp.task('optimize-editor', ['clean-optimized-editor', 'compile-build'], common.optimizeTask(
-	editorEntryPoints,
-	editorResources,
-	editorLoaderConfig(false),
-	BUNDLED_FILE_HEADER,
-	'out-editor'
-));
+gulp.task('optimize-editor', ['clean-optimized-editor', 'compile-build'], common.optimizeTask({
+	entryPoints: editorEntryPoints,
+	otherSources: editorOtherSources,
+	resources: editorResources,
+	loaderConfig: editorLoaderConfig(false),
+	header: BUNDLED_FILE_HEADER,
+	out: 'out-editor'
+}));
 
 gulp.task('clean-minified-editor', util.rimraf('out-editor-min'));
-gulp.task('minify-editor', ['clean-minified-editor', 'optimize-editor'], common.minifyTask('out-editor'));
-
-// OSS Free
-gulp.task('clean-optimized-editor-ossfree', util.rimraf('out-editor-ossfree'));
-gulp.task('optimize-editor-ossfree', ['clean-optimized-editor-ossfree', 'compile-build'], common.optimizeTask(
-	editorEntryPoints,
-	editorResources,
-	editorLoaderConfig(true),
-	BUNDLED_FILE_HEADER,
-	'out-editor-ossfree'
-));
-
-gulp.task('clean-minified-editor-ossfree', util.rimraf('out-editor-ossfree-min'));
-gulp.task('minify-editor-ossfree', ['clean-minified-editor-ossfree', 'optimize-editor-ossfree'], common.minifyTask('out-editor-ossfree'));
+gulp.task('minify-editor', ['clean-minified-editor', 'optimize-editor'], common.minifyTask('out-editor', true));
 
 // Package
 
 var root = path.dirname(__dirname);
 
-function editorTask(out, dest) {
+function copyTask(src, dest, FILTER) {
 	return function () {
-		return gulp.src(out + '/**', { base: out })
-			.pipe(filter(['**', '!**/*.js.map']))
-			.pipe(gulp.dest(dest));
+		return (
+			gulp.src(src + '/**', { base: src })
+			.pipe(FILTER ? filter(FILTER) : es.through())
+			.pipe(gulp.dest(dest))
+		);
 	};
 }
 
-gulp.task('clean-editor', util.rimraf(path.join(path.dirname(root), 'Monaco-Editor-Build')));
-gulp.task('editor', ['clean-editor', 'optimize-editor'],
-	editorTask('out-editor', path.join(path.dirname(root), 'Monaco-Editor-Build')));
+var DISTRO_DEV_FOLDER_PATH = path.join(path.dirname(root), 'Monaco-Editor');
+gulp.task('clean-editor-distro-dev', util.rimraf(DISTRO_DEV_FOLDER_PATH));
+gulp.task('editor-distro-dev', ['clean-editor-distro-dev', 'optimize-editor'], copyTask('out-editor', DISTRO_DEV_FOLDER_PATH));
 
-gulp.task('clean-editor-min', util.rimraf(path.join(path.dirname(root), 'Monaco-Editor-Build-Min')));
-gulp.task('editor-min', ['clean-editor-min', 'minify-editor'],
-	editorTask('out-editor-min', path.join(path.dirname(root), 'Monaco-Editor-Build-Min')));
+var DISTRO_MIN_FOLDER_PATH = path.join(path.dirname(root), 'Monaco-Editor-Min');
+gulp.task('clean-editor-distro-min', util.rimraf(DISTRO_MIN_FOLDER_PATH));
+gulp.task('editor-distro-min', ['clean-editor-distro-min', 'minify-editor'], copyTask('out-editor-min', DISTRO_MIN_FOLDER_PATH, ['**', '!**/*.js.map', '!nls.metadata.json']));
 
-gulp.task('clean-editor-ossfree', util.rimraf(path.join(path.dirname(root), 'Monaco-Editor-Build-OSS-Free')));
-gulp.task('editor-ossfree', ['clean-editor-ossfree', 'optimize-editor-ossfree'],
-	editorTask('out-editor-ossfree', path.join(path.dirname(root), 'Monaco-Editor-Build-OSS-Free')));
+var DISTRO_MIN_SOURCEMAPS_FOLDER_PATH = path.join(path.dirname(root), 'Monaco-Editor-Min-SourceMaps');
+gulp.task('clean-editor-distro-min-sourcemaps', util.rimraf(DISTRO_MIN_SOURCEMAPS_FOLDER_PATH));
+gulp.task('editor-distro-min-sourcemaps', ['clean-editor-distro-min-sourcemaps', 'minify-editor'], copyTask('out-editor-min', DISTRO_MIN_SOURCEMAPS_FOLDER_PATH, ['**/*.js.map']));
 
-gulp.task('clean-editor-ossfree-min', util.rimraf(path.join(path.dirname(root), 'Monaco-Editor-Build-OSS-Free-Min')));
-gulp.task('editor-ossfree-min', ['clean-editor-ossfree-min', 'minify-editor-ossfree'],
-	editorTask('out-editor-ossfree-min', path.join(path.dirname(root), 'Monaco-Editor-Build-OSS-Free-Min')));
+gulp.task('editor-distro', ['editor-distro-min', 'editor-distro-min-sourcemaps', 'editor-distro-dev']);

@@ -78,16 +78,17 @@ var BUNDLED_FILE_HEADER = [
 ].join('\n');
 
 gulp.task('clean-optimized-vscode', util.rimraf('out-vscode'));
-gulp.task('optimize-vscode', ['clean-optimized-vscode', 'compile-build', 'compile-plugins'], common.optimizeTask(
-	vscodeEntryPoints,
-	vscodeResources,
-	common.loaderConfig(baseModules),
-	BUNDLED_FILE_HEADER,
-	'out-vscode'
-));
+gulp.task('optimize-vscode', ['clean-optimized-vscode', 'compile-build', 'compile-plugins'], common.optimizeTask({
+	entryPoints: vscodeEntryPoints,
+	otherSources: [],
+	resources: vscodeResources,
+	loaderConfig: common.loaderConfig(baseModules),
+	header: BUNDLED_FILE_HEADER,
+	out: 'out-vscode'
+}));
 
 gulp.task('clean-minified-vscode', util.rimraf('out-vscode-min'));
-gulp.task('minify-vscode', ['clean-minified-vscode', 'optimize-vscode'], common.minifyTask('out-vscode'));
+gulp.task('minify-vscode', ['clean-minified-vscode', 'optimize-vscode'], common.minifyTask('out-vscode', false));
 
 // Package
 var product = JSON.parse(fs.readFileSync(path.join(root, 'product.json'), 'utf8'));
