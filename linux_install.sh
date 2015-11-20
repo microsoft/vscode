@@ -30,5 +30,3 @@ if [[ $cmd -eq 0 ]]; then
 else
 	echo "something went wrong with installing app"
 fi
-
-echo 'export PATH=$PATH:/usr/local/vscode' >> ~/.bashrc
