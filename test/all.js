@@ -157,6 +157,30 @@ function main() {
 			});
 		}
 
+		// report failing test for every unexpected error during any of the tests
+		var unexpectedErrors = [];
+		suite('Errors', function () {
+			test('should not have unexpected errors in tests', function () {
+				if (unexpectedErrors.length) {
+					unexpectedErrors.forEach(function (stack) {
+						console.error('');
+						console.error(stack);
+					});
+
+					assert.ok(false);
+				}
+			});
+		});
+
+		// replace the default unexpected error handler to be useful during tests
+		loader('vs/base/common/errors').setUnexpectedErrorHandler(function (err) {
+			try {
+				throw new Error('oops');
+			} catch (e) {
+				unexpectedErrors.push((err && err.message ? err.message : err) + '\n' + e.stack);
+			}
+		});
+
 		// fire up mocha
 		run();
 	});
