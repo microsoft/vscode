@@ -31,7 +31,7 @@
     <entry name="@import" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-syntax/#at-import" syntax="@import url('file.css') tv, print;">
       <desc>Includes content of another file.</desc>
     </entry>
-    <entry name="@keyframes" version="3.0" browsers="FF16,IE10,O12.5" ref="http://www.w3.org/TR/css3-animations/#keyframes" syntax="@keyframes animation-name">
+    <entry name="@keyframes" version="3.0" browsers="C43,FF16,IE10,O12.5,S9" ref="http://www.w3.org/TR/css3-animations/#keyframes" syntax="@keyframes animation-name">
       <desc>Defines set of animation key frames.</desc>
     </entry>
     <entry name="@left-bottom" version="3" browsers="none" ref="http://www.w3.org/TR/css3-page/#page-box">
