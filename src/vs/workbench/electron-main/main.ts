@@ -70,7 +70,11 @@ function quit(arg?: any) {
 	if (typeof arg === 'string') {
 		env.log(arg)
 	} else {
-		env.log('Startup error: ' + arg.toString());
+		if (arg.stack) {
+			console.error(arg.stack);
+		} else {
+			console.error('Startup error: ' + arg.toString());
+		}
 	}
 
 	process.exit();
