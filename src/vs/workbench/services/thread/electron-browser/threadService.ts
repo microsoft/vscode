@@ -166,7 +166,7 @@ class PluginHostProcessManager {
 					else if (msg && (<ILogEntry>msg).type === '__$console') {
 						let logEntry:ILogEntry = msg;
 
-						let args = ['%c[Plugin Host]', 'color: blue'];
+						let args = [];
 						try {
 							let parsed = JSON.parse(logEntry.arguments);
 							args.push(...Object.getOwnPropertyNames(parsed).map(o => parsed[o]));
@@ -174,8 +174,18 @@ class PluginHostProcessManager {
 							args.push(logEntry.arguments);
 						}
 
+						// If the first argument is a string, check for % which indicates that the message
+						// uses substitution for variables. In this case, we cannot just inject our colored
+						// [Plugin Host] to the front because it breaks substitution.
+						let consoleArgs = [];
+						if (typeof args[0] === 'string' && args[0].indexOf('%') >= 0) {
+							consoleArgs = [`%c[Plugin Host]%c ${args[0]}`, 'color: blue', 'color: black', ...args.slice(1)];
+						} else {
+							consoleArgs = ['%c[Plugin Host]', 'color: blue', ...args];
+						}
+
 						// Send to local console
-						console[logEntry.severity].apply(console, args);
+						console[logEntry.severity].apply(console, consoleArgs);
 
 						// Broadcast to other windows if we are in development mode
 						if (isDev) {
