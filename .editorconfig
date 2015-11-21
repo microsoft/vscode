@@ -1,0 +1,12 @@
+# EditorConfig is awesome: http://EditorConfig.org
+
+# top-most EditorConfig file
+root = true
+
+# Tab indentation (no size specified)
+[*]
+indent_style = tab
+
+[{.travis.yml,npm-shrinkwrap.json}]
+indent_style = space
+indent_size = 2
