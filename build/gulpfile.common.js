@@ -135,29 +135,33 @@ exports.optimizeTask = function(opts) {
 	var loaderConfig = opts.loaderConfig;
 	var bundledFileHeader = opts.header;
 	var out = opts.out;
+
 	return function() {
-		var bundles = es.through();
+		var bundlesStream = es.through();
 
 		bundle.bundle(entryPoints, loaderConfig, function(err, result) {
-			if (err) { return bundles.emit('error', JSON.stringify(err)); }
+			if (err) { return bundlesStream.emit('error', JSON.stringify(err)); }
 
-			toBundleStream(bundledFileHeader, result).pipe(bundles);
+			toBundleStream(bundledFileHeader, result).pipe(bundlesStream);
 		});
 
 		var otherSourcesStream = es.through();
-		(function() {
-			var otherSourcesStreamArr = [];
-			gulp.src(otherSources, { base: 'out-build' })
-				.pipe(es.through(function write(data) {
-					otherSourcesStreamArr.push(toConcatStream(bundledFileHeader, [data], data.relative));
-				}, function end() {
+		var otherSourcesStreamArr = [];
+
+		gulp.src(otherSources, { base: 'out-build' })
+			.pipe(es.through(function (data) {
+				otherSourcesStreamArr.push(toConcatStream(bundledFileHeader, [data], data.relative));
+			}, function () {
+				if (!otherSourcesStreamArr.length) {
+					setTimeout(function () { otherSourcesStream.emit('end'); }, 0);
+				} else {
 					es.merge(otherSourcesStreamArr).pipe(otherSourcesStream);
-				}))
-		})();
+				}
+			}));
 
 		var result = es.merge(
 			loader(bundledFileHeader),
-			bundles,
+			bundlesStream,
 			otherSourcesStream,
 			gulp.src(resources, { base: 'out-build' })
 		);

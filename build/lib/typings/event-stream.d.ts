@@ -2,7 +2,8 @@ declare module "event-stream" {
 	import { Stream } from 'stream';
 	import { ThroughStream } from 'through';
 
-	function merge(...stream: Stream[]): ThroughStream;
+	function merge(streams: Stream[]): ThroughStream;
+	function merge(...streams: Stream[]): ThroughStream;
 	function concat(...stream: Stream[]): ThroughStream;
 	function duplex(istream: Stream, ostream: Stream): ThroughStream;
 
