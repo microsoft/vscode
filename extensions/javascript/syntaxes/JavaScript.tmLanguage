@@ -639,7 +639,7 @@
 			<key>match</key>
 			<string>(?&lt;!\w)([\p{L}\p{Nl}$_][\p{L}\p{Nl}$\p{Mn}\p{Mc}\p{Nd}\p{Pc}\x{200C}\x{200D}]*)(?=\()</string>
 			<key>name</key>
-			<string>meta.function.js</string>
+			<string>meta.function-call.js</string>
 		</dict>
 	</array>
 	<key>repository</key>
