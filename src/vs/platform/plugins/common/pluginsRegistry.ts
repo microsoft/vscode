@@ -445,7 +445,6 @@ var schema : IJSONSchema = {
 		'main': '{{pathToMain}}',
 		'dependencies': {}
 	},
-	// default: { name: '{{}}', version: '0.0.1', engines: { 'vscode': '*'}, contributes: { }},
 	properties: {
 		// engines: {
 		// 	required: [ 'vscode' ],
@@ -456,19 +455,46 @@ var schema : IJSONSchema = {
 		// 		}
 		// 	}
 		// },
+		displayName: {
+			description: nls.localize('vscode.extension.displayName', 'The display name for the extension used in the VS Code gallery.'),
+			type: 'string'
+		},
+		categories : {
+			description: nls.localize('vscode.extension.categories', 'The categories used by the VS Code gallery to categorize the extension.'),
+			type: 'array',
+			items: {
+				type: 'string',
+				enum: ['Languages', 'Snippets', 'Linters', 'Themes', 'Debuggers', 'Other']
+			}
+		},
+		galleryBanner: {
+			type: 'object',
+			description: nls.localize('vscode.extension.galleryBanner', 'Banner used in the VS Code marketplace.'),
+			properties: {
+				color: {
+					description: nls.localize('vscode.extension.galleryBanner.color', 'The banner color on the VS Code marketplace page header.'),
+					type: 'string'
+				},
+				theme: {
+					description: nls.localize('vscode.extension.galleryBanner.theme', 'The color theme for the font used in the banner.'),
+					type: 'string',
+					enum: ['dark', 'light']
+				}
+			}
+		},
 		publisher: {
-			description: nls.localize('vscode.extension.publisher', 'The publisher of the VSCode extension.'),
+			description: nls.localize('vscode.extension.publisher', 'The publisher of the VS Code extension.'),
 			type: 'string'
 		},
 		activationEvents: {
-			description: nls.localize('vscode.extension.activationEvents', 'Activation events for the VSCode extension.'),
+			description: nls.localize('vscode.extension.activationEvents', 'Activation events for the VS Code extension.'),
 			type: 'array',
 			items: {
 				type: 'string'
 			}
 		},
 		extensionDependencies: {
-			description: nls.localize('vscode.extension.extensionDependencies', 'Dependencies to other extensions.'),
+			description: nls.localize('vscode.extension.extensionDependencies', 'Dependencies to other extensions. The id of an extension is always ${publisher}.${name}. For example: vscode.csharp.'),
 			type: 'array',
 			items: {
 				type: 'string'
@@ -478,295 +504,23 @@ var schema : IJSONSchema = {
 			type: 'object',
 			properties: {
 				'vscode:prepublish': {
-					description: nls.localize('vscode.extension.scripts.prepublish', 'Script executed before the package is published as a VSCode extension.'),
+					description: nls.localize('vscode.extension.scripts.prepublish', 'Script executed before the package is published as a VS Code extension.'),
 					type: 'string'
 				}
 			}
 		},
 		contributes: {
-			description: nls.localize('vscode.extension.contributes', 'All contributions of the VSCode extension represented by this package.'),
+			description: nls.localize('vscode.extension.contributes', 'All contributions of the VS Code extension represented by this package.'),
 			type: 'object',
-			default: { 'languages': [{ 'id': '', 'extensions': [] }] },
 			properties: {
-				// languages: {
-				// 	description: nls.localize('vscode.extension.contributes.languages', 'Contributes language declarations.'),
-				// 	type: 'array',
-				// 	default: [{ id: '', aliases: [], extensions: [] }],
-				// 	items: {
-				// 		type: 'object',
-				// 		default: { id: '', extensions: [] },
-				// 		properties: {
-				// 			id: {
-				// 				description: nls.localize('vscode.extension.contributes.languages.id', 'ID of the language.'),
-				// 				type: 'string'
-				// 			},
-				// 			aliases: {
-				// 				description: nls.localize('vscode.extension.contributes.languages.aliases', 'Name aliases for the language.'),
-				// 				type: 'array',
-				// 				items: {
-				// 					type: 'string'
-				// 				}
-				// 			},
-				// 			extensions: {
-				// 				description: nls.localize('vscode.extension.contributes.languages.extensions', 'File extensions associated to the language.'),
-				// 				default: ['.foo'],
-				// 				type: 'array',
-				// 				items: {
-				// 					type: 'string'
-				// 				}
-				// 			},
-				// 			filenames: {
-				// 				description: nls.localize('vscode.extension.contributes.languages.filenames', 'File names associated to the language.'),
-				// 				type: 'array',
-				// 				items: {
-				// 					type: 'string'
-				// 				}
-				// 			},
-				// 			mimetypes: {
-				// 				description: nls.localize('vscode.extension.contributes.languages.mimetypes', 'Mime types associated to the language.'),
-				// 				type: 'array',
-				// 				items: {
-				// 					type: 'string'
-				// 				}
-				// 			},
-				// 			firstLine: {
-				// 				description: nls.localize('vscode.extension.contributes.languages.firstLine', 'A regular expression matching the first line of a file of the language.'),
-				// 				type: 'string'
-				// 			},
-				// 		}
-				// 	}
-				// },
-				// grammars: {
-				// 	description: nls.localize('vscode.extension.contributes.grammars', 'Contributes textmate tokenizers.'),
-				// 	type: 'array',
-				// 	default: [{ id: '', extensions: [] }],
-				// 	items: {
-				// 		type: 'object',
-				// 		default: { language: '{{id}}', scopeName: 'source.{{id}}', path: './syntaxes/{{id}}.tmLanguage.'},
-				// 		properties: {
-				// 			language: {
-				// 				description: nls.localize('vscode.extension.contributes.grammars.language', 'Language id for which this syntax is contributed to.'),
-				// 				type: 'string'
-				// 			},
-				// 			scopeName: {
-				// 				description: nls.localize('vscode.extension.contributes.grammars.scopeName', 'Textmate scope name used by the tmLanguage file.'),
-				// 				type: 'string'
-				// 			},
-				// 			path: {
-				// 				description: nls.localize('vscode.extension.contributes.grammars.path', 'Path of the tmLanguage file. The path is relative to the extension folder and typically starts with \'./syntaxes/\'.'),
-				// 				type: 'string'
-				// 			}
-				// 		}
-				// 	}
-				// },
-				// themes: {
-				// 	description: nls.localize('vscode.extension.contributes.themes', 'Contributes textmate color themes.'),
-				// 	type: 'array',
-				// 	default: [{ label: '{{label}}', uiTheme: 'vs-dark', path: './themes/{{id}}.tmTheme.'}],
-				// 	items: {
-				// 		type: 'object',
-				// 		default: { label: '{{label}}', uiTheme: 'vs-dark', path: './themes/{{id}}.tmTheme.'},
-				// 		properties: {
-				// 			label: {
-				// 				description: nls.localize('vscode.extension.contributes.themes.label', 'Label of the color theme as shown in the UI.'),
-				// 				type: 'string'
-				// 			},
-				// 			uiTheme: {
-				// 				description: nls.localize('vscode.extension.contributes.themes.uiTheme', 'Base theme defining the colors around the editor: \'vs\' is the light color theme, \'vs-dark\' is the dark color theme.'),
-				// 				enum: [ 'vs', 'vs-dark']
-				// 			},
-				// 			path: {
-				// 				description: nls.localize('vscode.extension.contributes.themes.path', 'Path of the tmTheme file. The path is relative to the extension folder and is typically \'./themes/themeFile.tmTheme\'.'),
-				// 				type: 'string'
-				// 			}
-				// 		}
-				// 	}
-				// },
-				// debuggers: {
-				// 	description: nls.localize('vscode.extension.contributes.debuggers', 'Contributes debug adapters.'),
-				// 	type: 'array',
-				// 	default: [{ type: '', extensions: [] }],
-				// 	items: {
-				// 		type: 'object',
-				// 		default: { type: '', program: '', runtime: '', enableBreakpointsFor: { languageIds: [ '' ] } },
-				// 		properties: {
-				// 			type: {
-				// 				description: nls.localize('vscode.extension.contributes.debuggers.type', 'Unique identifier for this debug adapter.'),
-				// 				type: 'string'
-				// 			},
-				// 			enableBreakpointsFor: {
-				// 				description: nls.localize('vscode.extension.contributes.debuggers.enableBreakpointsFor', 'Allow breakpoints for these languages.'),
-				// 				type: 'object',
-				// 				properties: {
-				// 					languageIds : {
-				// 						description: nls.localize('vscode.extension.contributes.debuggers.enableBreakpointsFor.languageIds', 'List of languages.'),
-				// 						type: 'array',
-				// 						items: {
-				// 							type: 'string'
-				// 						}
-				// 					}
-				// 				}
-				// 			},
-				// 			program: {
-				// 				description: nls.localize('vscode.extension.contributes.debuggers.program', 'Path to the debug adapter program. Path is either absolute or relative to the extension folder.'),
-				// 				type: 'string'
-				// 			},
-				// 			runtime : {
-				// 				description: nls.localize('vscode.extension.contributes.debuggers.runtime', 'Optional runtime in case the program attribute is not an executable but requires a runtime. Supported runtimes are \'node\' or \'mono\'.'),
-				// 				type: 'string'
-				// 			},
-				// 			windows: {
-				// 				description: nls.localize('vscode.extension.contributes.debuggers.windows', 'Windows specific settings.'),
-				// 				type: 'object',
-				// 				properties: {
-				// 					runtime : {
-				// 						description: nls.localize('vscode.extension.contributes.debuggers.windows.runtime', 'Runtime used for Windows.'),
-				// 						type: 'string'
-				// 					}
-				// 				}
-				// 			},
-				// 			osx: {
-				// 				description: nls.localize('vscode.extension.contributes.debuggers.osx', 'OS X specific settings.'),
-				// 				type: 'object',
-				// 				properties: {
-				// 					runtime : {
-				// 						description: nls.localize('vscode.extension.contributes.debuggers.osx.runtime', 'Runtime used for OSX.'),
-				// 						type: 'string'
-				// 					}
-				// 				}
-				// 			},
-				// 			linux: {
-				// 				description: nls.localize('vscode.extension.contributes.debuggers.linux', 'Linux specific settings.'),
-				// 				type: 'object',
-				// 				properties: {
-				// 					runtime : {
-				// 						description: nls.localize('vscode.extension.contributes.debuggers.linux.runtime', 'Runtime used for Linux.'),
-				// 						type: 'string'
-				// 					}
-				// 				}
-				// 			}
-				// 		}
-				// 	}
-				// },
-				// configuration: {
-				// 	description: nls.localize('vscode.extension.contributes.configuration', 'Contributes configuration settings.'),
-				// 	type: 'object',
-				// 	default: { title: '', type: 'object', properties: {}},
-				// 	properties: {
-				// 		title: {
-				// 			description: nls.localize('vscode.extension.contributes.configuration.title', 'A summary of the settings. This label will be used in the settings file as separating comment.'),
-				// 			type: 'string'
-				// 		},
-				// 		type: {
-				// 			description: nls.localize('vscode.extension.contributes.configuration.type', 'Type of the configuration, needs to be \'object\''),
-				// 			enum: ['object'],
-				// 		},
-				// 		properties: {
-				// 			description: nls.localize('vscode.extension.contributes.configuration.properties', 'Description of the configuration properties.'),
-				// 			type: 'object'
-				// 		}
-				// 	}
-				// },
-				// keybindings: {
-				// 	description: nls.localize('vscode.extension.contributes.keybindings', "Contributes keybindings."),
-				// 	oneOf: [
-				// 		{
-				// 			$ref: '#/definitions/keybindingType'
-				// 		},
-				// 		{
-				// 			type: 'array',
-				// 			items: {
-				// 				$ref: '#/definitions/keybindingType'
-				// 			}
-				// 		}
-				// 	]
-				// },
-				// commands: {
-				// 	description: nls.localize('vscode.extension.contributes.commands', "Contributes commands to the command palette."),
-				// 	oneOf: [
-				// 		{
-				// 			$ref: '#/definitions/commandType'
-				// 		},
-				// 		{
-				// 			type: 'array',
-				// 			items: {
-				// 				$ref: '#/definitions/commandType'
-				// 			}
-				// 		}
-				// 	]
-				// },
-				outputChannels: {
-					description: nls.localize('vscode.extension.contributes.outputChannels', "Contributes output views."),
-					type: 'array',
-					items: {
-						type: 'string',
-						description: nls.localize('vscode.extension.contributes.outputChannels', "The label of the output view."),
-					}
-				}
-			}
+				// extensions will fill in
+			},
+			default: { }
+		},
+		isAMD: {
+			description: nls.localize('vscode.extension.isAMD', 'Indicated whether VS Code should load your code as AMD or CommonJS. Default: false.'),
+			type: 'boolean'
 		}
-	},
-	definitions: {
-		// stringOrStringArray: {
-		// 	oneOf:  [
-		// 		{
-		// 			type: 'string',
-		// 		},
-		// 		{
-		// 			type: 'array',
-		// 			items: {
-		// 				type: 'string'
-		// 			}
-		// 		}
-		// 	]
-		// },
-		// keybindingType: {
-		// 	type: 'object',
-		// 	default: { command: '', key: '' },
-		// 	properties: {
-		// 		command: {
-		// 			description: nls.localize('vscode.extension.contributes.keybindings.command', 'Identifier of the command to run when keybinding is triggered.'),
-		// 			type: 'string'
-		// 		},
-		// 		key: {
-		// 			description: nls.localize('vscode.extension.contributes.keybindings.key', 'Key or key sequence (separate keys with plus-sign and sequences with space, e.g Ctrl+O and Ctrl+L L for a chord'),
-		// 			type: 'string'
-		// 		},
-		// 		mac: {
-		// 			description: nls.localize('vscode.extension.contributes.keybindings.mac', 'Mac specific key or key sequence.'),
-		// 			type: 'string'
-		// 		},
-		// 		linux: {
-		// 			description: nls.localize('vscode.extension.contributes.keybindings.linux', 'Linux specific key or key sequence.'),
-		// 			type: 'string'
-		// 		},
-		// 		win: {
-		// 			description: nls.localize('vscode.extension.contributes.keybindings.win', 'Windows specific key or key sequence.'),
-		// 			type: 'string'
-		// 		},
-		// 		when: {
-		// 			description: nls.localize('vscode.extension.contributes.keybindings.when', 'Condition when the key is active.'),
-		// 			type: 'string'
-		// 		}
-		// 	}
-		// },
-		// commandType: {
-		// 	type: 'object',
-		// 	properties: {
-		// 		command: {
-		// 			description: nls.localize('vscode.extension.contributes.commandType.command', 'Identifier of the command to execute'),
-		// 			type: 'string'
-		// 		},
-		// 		title: {
-		// 			description: nls.localize('vscode.extension.contributes.commandType.title', 'Title by which the command is represented in the UI.'),
-		// 			type: 'string'
-		// 		},
-		// 		category: {
-		// 			description: nls.localize('vscode.extension.contributes.commandType.category', '(Optional) category string by the command is grouped in the UI'),
-		// 			type: 'string'
-		// 		}
-		// 	}
-		// }
 	}
 }
 
