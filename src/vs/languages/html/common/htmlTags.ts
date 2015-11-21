@@ -137,10 +137,13 @@ export function getHTML5TagProvider(): IHTMLTagProvider {
 		dialog: ['open:v']
 	};
 
-	var globalAttributes = ['accesskey', 'class', 'contenteditable:b', 'contextmenu', 'dir:d', 'draggable:a', 'dropzone', 'hidden:v', 'id', 'inert:v', 'itemid', 'itemprop', 'itemref', 'itemscope:v', 'itemtype',
-		'lang', 'role', 'spellcheck:b', 'style', 'tabindex', 'title', 'translate'];
-
-	// todo@Martin: aria
+	var globalAttributes = [
+		'aria-activedescendant', 'aria-atomic:b', 'aria-autocomplete:autocomplete', 'aria-busy:b', 'aria-checked:tristate', 'aria-controls', 'aria-describedby', 'aria-disabled:b',
+		'aria-dropeffect:dropeffect', 'aria-expanded:u', 'aria-flowto', 'aria-grabbed:u', 'aria-haspopup:b', 'aria-hidden:b', 'aria-invalid:invalid', 'aria-label', 'aria-labelledby',
+		'aria-level', 'aria-live:live', 'aria-multiline:b', 'aria-multiselectable:b', 'aria-orientation:orientation', 'aria-owns', 'aria-posinset', 'aria-pressed:tristate', 'aria-readonly:b',
+		'aria-relevant:relevant', 'aria-required:b', 'aria-selected:u', 'aria-setsize', 'aria-sort:sort', 'aria-valuemax', 'aria-valuemin', 'aria-valuenow', 'aria-valuetext', 'accesskey',
+		'class', 'contenteditable:b', 'contextmenu', 'dir:d', 'draggable:a', 'dropzone', 'hidden:v', 'id', 'inert:v', 'itemid', 'itemprop', 'itemref', 'itemscope:v', 'itemtype', 'lang', 'role',
+		'spellcheck:b', 'style', 'tabindex', 'title', 'translate'];
 
 	var eventHandlers = ['onabort', 'onblur', 'oncanplay', 'oncanplaythrough', 'onchange', 'onclick', 'oncontextmenu', 'ondblclick', 'ondrag', 'ondragend', 'ondragenter', 'ondragleave', 'ondragover', 'ondragstart',
 		'ondrop', 'ondurationchange', 'onemptied', 'onended', 'onerror', 'onfocus', 'onformchange', 'onforminput', 'oninput', 'oninvalid', 'onkeydown', 'onkeypress', 'onkeyup', 'onload', 'onloadeddata', 'onloadedmetadata',
@@ -150,12 +153,21 @@ export function getHTML5TagProvider(): IHTMLTagProvider {
 	var valueSets : { [tag:string]: string[]} = {
 		b: ['true', 'false'],
 		a: ['true', 'false', 'auto'],
+		u: ['true', 'false', 'undefined'],
 		d: ['ltr', 'rtl'],
 		m: ['get', 'post'],
 		o: ['on', 'off'],
 		t: ['hidden', 'text', 'search', 'tel', 'url', 'email', 'password', 'datetime', 'date', 'month', 'week', 'time', 'datetime-local', 'number', 'range', 'color', 'checkbox', 'radio', 'file', 'submit', 'image', 'reset', 'button'],
 		bt: ['button', 'submit', 'reset'],
-		xo: ['anonymous', 'use-credentials']
+		xo: ['anonymous', 'use-credentials'],
+		tristate: ['true', 'false', 'mixed', 'undefined'],
+		autocomplete: ['inline', 'list', 'both', 'none'],
+		dropeffect: ['copy', 'move', 'link', 'execute', 'popup', 'none'],
+		invalid: ['grammar', 'false', 'spelling', 'true'],
+		live: ['off', 'polite', 'assertive'],
+		orientation: ['vertical', 'horizontal'],
+		relevant: ['additions', 'removals', 'text', 'all', 'additions text'],
+		sort: ['ascending', 'descending', 'none', 'other']
 	};
 
 	return {
