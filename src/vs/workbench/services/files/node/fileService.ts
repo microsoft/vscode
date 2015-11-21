@@ -221,7 +221,14 @@ export class FileService implements files.IFileService {
 			if (exists) {
 				createParentsPromise = Promise.as(null);
 			} else {
-				createParentsPromise = pfs.mkdirp(paths.dirname(absolutePath));
+				//Do not try to make parent directory if saving to drive root
+                var dirName = paths.dirname(absolutePath);
+                if(dirName.slice(-2) != ':\\') {
+                    createParentsPromise = pfs.mkdirp(dirName);
+                } else {
+                    createParentsPromise = Promise.as(null);
+                }
+
 			}
 
 			// 2.) create parents as needed
