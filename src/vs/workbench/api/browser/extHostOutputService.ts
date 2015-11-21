@@ -79,7 +79,7 @@ export class MainThreadOutputService {
 	private _outputService: IOutputService;
 	private _editorService: IWorkbenchEditorService;
 
-	constructor(@IOutputService outputService: IOutputService, editorService: IWorkbenchEditorService) {
+	constructor(@IOutputService outputService: IOutputService,@IWorkbenchEditorService editorService: IWorkbenchEditorService) {
 		this._outputService = outputService;
 		this._editorService = editorService;
 	}
