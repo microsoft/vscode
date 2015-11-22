@@ -7,9 +7,6 @@
 		<string>clj</string>
 		<string>cljs</string>
 		<string>clojure</string>
-		<string>cljc</string>
-		<string>cljx</string>
-		<string>edn</string>
 	</array>
 	<key>foldingStartMarker</key>
 	<string>\(\s*$</string>
