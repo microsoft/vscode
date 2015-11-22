@@ -165,9 +165,7 @@ export class ZoomOutAction extends Action {
 	}
 
 	public run(): Promise {
-		if (webFrame.getZoomLevel() > 0) {
-			webFrame.setZoomLevel(webFrame.getZoomLevel() - 1); // prevent zoom out below 0 for now because it results in blurryness
-		}
+		webFrame.setZoomLevel(webFrame.getZoomLevel() - 1);
 
 		return Promise.as(true);
 	}
