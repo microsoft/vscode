@@ -201,6 +201,10 @@ export class QuickOpenWidget implements IModelProvider {
 					let quickNavKeys = this.quickNavigateConfiguration.keybindings;
 					let wasTriggerKeyPressed = keyCode === KeyCode.Enter || quickNavKeys.some((k) => {
 						if (k.hasShift() && keyCode === KeyCode.Shift) {
+							if (keyboardEvent.ctrlKey || keyboardEvent.altKey || keyboardEvent.metaKey) {
+								return false; // this is an optimistic check for the shift key being used to navigate back in quick open
+							}
+
 							return true;
 						}
 
