@@ -55,6 +55,12 @@ export interface IInitData {
 	};
 }
 
+const nativeExit = process.exit.bind(process);
+process.exit = function() { console.warn('An extension called process.exit() and this was prevented'); };
+export function exit(code?: number) {
+	nativeExit(code);
+}
+
 export function createServices(remoteCom: IPluginsIPC, initData: IInitData, sharedProcessClient: Client): IInstantiationService {
 	// the init data is not demarshalled
 	initData = marshalling.deserialize(initData);
@@ -233,12 +239,12 @@ export class PluginHostMain {
 						c(null);
 					}
 
-					setTimeout(() => process.exit(), 800 /* TODO@Ben need to wait to give the test output a chance to buffer */); // after tests have run, we shutdown the host
+					setTimeout(() => exit(), 800 /* TODO@Ben need to wait to give the test output a chance to buffer */); // after tests have run, we shutdown the host
 				});
 			});
 		}
 
-		setTimeout(() => process.exit(), 0); // we always want to shutdown, even in case of an error
+		setTimeout(() => exit(), 0); // we always want to shutdown, even in case of an error
 
 		return TPromise.wrapError<void>(requireError ? requireError.toString() : nls.localize('pluginTestError', "Path {0} does not point to a valid extension test runner.", env.pluginTestsPath));
 	}
