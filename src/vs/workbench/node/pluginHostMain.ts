@@ -55,6 +55,12 @@ export interface IInitData {
 	};
 }
 
+const nativeExit = process.exit;
+process.exit = () => { console.warn('An extension called process.exit() and this was prevented'); };
+export function exit(code?: number) {
+	nativeExit(code);
+}
+
 export function createServices(remoteCom: IPluginsIPC, initData: IInitData, sharedProcessClient: Client): IInstantiationService {
 	// the init data is not demarshalled
 	initData = marshalling.deserialize(initData);
@@ -249,7 +255,7 @@ export class PluginHostMain {
 
 	private gracefulExit(): void {
 		// to give the PH process a chance to flush any outstanding console
-		// messages to the main process, we delay the process.exit() by some time
-		setTimeout(() => process.exit(), 500);
+		// messages to the main process, we delay the exit() by some time
+		setTimeout(() => exit(), 500);
 	}
 }
