@@ -75,14 +75,10 @@ export class UntitledEditorInput extends EditorInput implements IResourceEditorI
 	}
 
 	public suggestFileName(): string {
-		if (!this.hasAssociatedFilePath) {
-			let mime = this.getMime();
-			if (mime) {
-				return suggestFilename(mime, this.getName());
-			}
-		}
-
-		return this.getName();
+		//Temporarily return empty name as electron appends *.* as extension.
+		//This is fixed in electron v0.34.2, where it should return name w/o extenstion (ex. "Untitled-1")
+		//return this.getName();
+		return '';
 	}
 
 	public getMime(): string {
