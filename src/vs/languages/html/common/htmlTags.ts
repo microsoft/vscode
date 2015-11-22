@@ -142,7 +142,7 @@ export function getHTML5TagProvider(): IHTMLTagProvider {
 		'aria-dropeffect:dropeffect', 'aria-expanded:u', 'aria-flowto', 'aria-grabbed:u', 'aria-haspopup:b', 'aria-hidden:b', 'aria-invalid:invalid', 'aria-label', 'aria-labelledby',
 		'aria-level', 'aria-live:live', 'aria-multiline:b', 'aria-multiselectable:b', 'aria-orientation:orientation', 'aria-owns', 'aria-posinset', 'aria-pressed:tristate', 'aria-readonly:b',
 		'aria-relevant:relevant', 'aria-required:b', 'aria-selected:u', 'aria-setsize', 'aria-sort:sort', 'aria-valuemax', 'aria-valuemin', 'aria-valuenow', 'aria-valuetext', 'accesskey',
-		'class', 'contenteditable:b', 'contextmenu', 'dir:d', 'draggable:a', 'dropzone', 'hidden:v', 'id', 'inert:v', 'itemid', 'itemprop', 'itemref', 'itemscope:v', 'itemtype', 'lang', 'role',
+		'class', 'contenteditable:b', 'contextmenu', 'dir:d', 'draggable:a', 'dropzone', 'hidden:v', 'id', 'inert:v', 'itemid', 'itemprop', 'itemref', 'itemscope:v', 'itemtype', 'lang', 'role:roles',
 		'spellcheck:b', 'style', 'tabindex', 'title', 'translate'];
 
 	var eventHandlers = ['onabort', 'onblur', 'oncanplay', 'oncanplaythrough', 'onchange', 'onclick', 'oncontextmenu', 'ondblclick', 'ondrag', 'ondragend', 'ondragenter', 'ondragleave', 'ondragover', 'ondragstart',
@@ -167,7 +167,9 @@ export function getHTML5TagProvider(): IHTMLTagProvider {
 		live: ['off', 'polite', 'assertive'],
 		orientation: ['vertical', 'horizontal'],
 		relevant: ['additions', 'removals', 'text', 'all', 'additions text'],
-		sort: ['ascending', 'descending', 'none', 'other']
+		sort: ['ascending', 'descending', 'none', 'other'],
+		roles: ['alert', 'alertdialog', 'button', 'checkbox', 'dialog', 'gridcell', 'link', 'log', 'marquee', 'menuitem', 'menuitemcheckbox', 'menuitemradio', 'option', 'progressbar', 'radio', 'scrollbar', 'searchbox', 'slider',
+			'spinbutton', 'status', 'switch', 'tab', 'tabpanel', 'textbox', 'timer', 'tooltip', 'treeitem']
 	};
 
 	return {
