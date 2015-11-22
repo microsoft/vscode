@@ -26,6 +26,7 @@ export function getHTML5TagProvider(): IHTMLTagProvider {
 		head: none,
 		title: none,
 		noscript: none,
+		main: none,
 		section: none,
 		nav: none,
 		article: none,
