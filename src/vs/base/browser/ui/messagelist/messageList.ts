@@ -130,8 +130,8 @@ export class MessageList {
 		// Trigger Auto-Purge of messages to keep list small
 		this.purgeMessages();
 
-		// Store in Memory
-		this.messages.push({
+		// Store in Memory (new messages come first so that they show up on top)
+		this.messages.unshift({
 			id: id,
 			text: message,
 			severity: severity,
