@@ -48,22 +48,21 @@ export class UserSettings {
 			const appSettingsPath = contextService.getConfiguration().env.appSettingsPath;
 
 			fs.readFile(appSettingsPath, (error /* ignore */, fileContents) => {
-				let root = {};
-				let content = fileContents && fileContents.toString();
-				if (!content) {
-					content = '{}';
-				}
+				let root = Object.create(null);
+				let content = fileContents ? fileContents.toString() : '{}';
 
+				let contents = Object.create(null);
 				try {
-					let contents = json.parse(content) || {};
-					for (let key in contents) {
-						UserSettings.setNode(root, key, contents[key]);
-					}
-
-					return c(UserSettings.doGetValue(root, key, fallback));
+					contents = json.parse(content);
 				} catch (error) {
-					return c(UserSettings.doGetValue(root, key, fallback)); // parse error
+					// ignore parse problem
 				}
+
+				for (let key in contents) {
+					UserSettings.setNode(root, key, contents[key]);
+				}
+
+				return c(UserSettings.doGetValue(root, key, fallback));
 			});
 		});
 	}
@@ -142,29 +141,32 @@ export class UserSettings {
 	}
 
 	private doLoadSettingsSync(): { contents: any; parseErrors?: string[]; } {
+		let root = Object.create(null);
+		let content = '{}';
 		try {
-			let root = {};
-			let content = '{}';
-			try {
-				content = fs.readFileSync(this.appSettingsPath).toString();
-			} catch (error) {
-				// ignore
-			}
+			content = fs.readFileSync(this.appSettingsPath).toString();
+		} catch (error) {
+			// ignore
+		}
 
-			let contents = json.parse(content) || {};
-			for (let key in contents) {
-				UserSettings.setNode(root, key, contents[key]);
-			}
-			return {
-				contents: root
-			};
+		let contents = Object.create(null);
+		try {
+			contents = json.parse(content);
 		} catch (error) {
 			// parse problem
 			return {
-				contents: {},
+				contents: Object.create(null),
 				parseErrors: [this.appSettingsPath]
 			};
 		}
+
+		for (let key in contents) {
+			UserSettings.setNode(root, key, contents[key]);
+		}
+
+		return {
+			contents: root
+		};
 	}
 
 	private static setNode(root: any, key: string, value: any): any {
