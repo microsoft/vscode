@@ -91,7 +91,7 @@ export default class URI {
 	private _fsPath: string;
 
 	/**
-	 * Retuns a string representing the corresponding file system path of this URI.
+	 * Returns a string representing the corresponding file system path of this URI.
 	 * Will handle UNC paths and normalize windows drive letters to lower-case. Also
 	 * uses the platform specific path separator. Will *not* validate the path for
 	 * invalid characters and semantics. Will *not* look at the scheme of this URI.

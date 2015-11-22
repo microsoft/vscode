@@ -28,7 +28,7 @@ function starsToRegExp(starCount: number): string {
 			return NO_PATH_REGEX + '*?'; // 1 star matches any number of characters except path separator (/ and \) - non greedy (?)
 		default:
 			// Matches:  (Path Sep    OR     Path Val followed by Path Sep     OR    Path Sep followed by Path Val) 0-many times
-			// Group is non capturing because we dont need to capture at all (?:...)
+			// Group is non capturing because we don't need to capture at all (?:...)
 			// Overall we use non-greedy matching because it could be that we match too much
 			return '(?:' + PATH_REGEX + '|' + NO_PATH_REGEX + '+' + PATH_REGEX + '|' + PATH_REGEX + NO_PATH_REGEX + '+)*?';
 	}

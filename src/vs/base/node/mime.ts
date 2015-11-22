@@ -111,7 +111,7 @@ function doDetectMimesFromContent(enc: string, buffer: NodeBuffer, bytesRead: nu
 		if (enc === encoding.UTF8) {
 			startpos = 3; // prepare for skipping BOM
 		} else {
-			return []; // we dont auto detect from other encodings yet
+			return []; // we don't auto detect from other encodings yet
 		}
 	}
 
@@ -156,7 +156,7 @@ export function detectMimesFromStream(instream: streams.Readable, nameHint: stri
 
 /**
  * Opens the given file to detect its mime type. Returns an array of mime types sorted from most specific to unspecific.
- * @param absolutePath the pabsolute ath of the file.
+ * @param absolutePath the absolute path of the file.
  */
 export function detectMimesFromFile(absolutePath: string, callback: (error: Error, result: IMimeAndEncoding) => void): void {
 	doDetectMimesFromFile(absolutePath, (error: Error, result: IMimeAndEncoding) => {

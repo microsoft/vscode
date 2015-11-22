@@ -12,7 +12,7 @@ import nls = require('vs/nls');
 export var empty = '';
 
 /**
- * Returns the provided number with the given number of preceeding zeros.
+ * Returns the provided number with the given number of preceding zeros.
  */
 export function pad(n: number, l: number, char: string = '0'): string {
 	var str = '' + n;
@@ -114,14 +114,14 @@ export function escapeRegExpCharacters(value: string): string {
 }
 
 /**
- * Searches for all occurances of needle in haystack and replaces them with replacement.
+ * Searches for all occurrences of needle in haystack and replaces them with replacement.
  */
 export function replaceAll(haystack: string, needle: string, replacement: string): string {
 	return haystack.replace(new RegExp(escapeRegExpCharacters(needle.toString()), 'g'), replacement);
 }
 
 /**
- * Removes all occurances of needle from the beginning and end of haystack.
+ * Removes all occurrences of needle from the beginning and end of haystack.
  * @param haystack string to trim
  * @param needle the thing to trim (default is a blank)
  */
@@ -131,7 +131,7 @@ export function trim(haystack: string, needle: string = ' '): string {
 }
 
 /**
- * Removes all occurances of needle from the beginning of haystack.
+ * Removes all occurrences of needle from the beginning of haystack.
  * @param haystack string to trim
  * @param needle the thing to trim
  */
@@ -155,7 +155,7 @@ export function ltrim(haystack?: string, needle?: string): string {
 }
 
 /**
- * Removes all occurances of needle from the end of haystack.
+ * Removes all occurrences of needle from the end of haystack.
  * @param haystack string to trim
  * @param needle the thing to trim
  */
@@ -189,7 +189,7 @@ export function rtrim(haystack?: string, needle?: string): string {
 }
 
 /**
- * Removes all occurances of whitespaces from the beginning and end of haystack.
+ * Removes all occurrences of whitespaces from the beginning and end of haystack.
  */
 export function trimWhitespace(haystack: string): string {
 	return haystack.replace(/(^\s+|\s+$)/g, '');
@@ -512,7 +512,7 @@ export function difference(first: string, second: string, maxLenDelta: number = 
 	if (lengthDifference > maxLenDelta) {
 		return 0;
 	}
-	// Initiliaze LCS (largest common subsequence) matrix.
+	// Initialize LCS (largest common subsequence) matrix.
 	var LCS: number[][] = [];
 	var zeroArray: number[] = [];
 	var i: number, j: number;

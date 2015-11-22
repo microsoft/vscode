@@ -455,7 +455,7 @@ export namespace schemas {
 
 	/**
 	 * A schema that is used for models that exist in memory
-	 * only and that have no correspondance on a server or such.
+	 * only and that have no correspondence on a server or such.
 	 */
 	export var inMemory:string = 'inmemory';
 

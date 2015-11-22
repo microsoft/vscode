@@ -98,7 +98,7 @@ export class QuickOpenEntry {
 	}
 
 	/**
-	 * Allows to set highlight ranges that should show up for the entry label and optinally description if set.
+	 * Allows to set highlight ranges that should show up for the entry label and optionally description if set.
 	 */
 	public setHighlights(labelHighlights: IHighlight[], descriptionHighlights?: IHighlight[]): void {
 		this.labelHighlights = labelHighlights;
@@ -114,7 +114,7 @@ export class QuickOpenEntry {
 
 	/**
 	 * Called when the entry is selected for opening. Returns a boolean value indicating if an action was performed or not.
-	 * The mode parameter gives an indication if the element is previewd (using arrow keys) or opened.
+	 * The mode parameter gives an indication if the element is previewed (using arrow keys) or opened.
 	 *
 	 * The context parameter provides additional context information how the run was triggered.
 	 */
@@ -165,7 +165,7 @@ export class QuickOpenEntryGroup extends QuickOpenEntry {
 	}
 
 	/**
-	 * Wether to show a border on top of the group entry or not.
+	 * Whether to show a border on top of the group entry or not.
 	 */
 	public showBorder(): boolean {
 		return this.withBorder;

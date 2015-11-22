@@ -45,7 +45,7 @@ class WebWorker implements IWorker {
 }
 
 /**
- * A worker that runs in an iframe and therfore does have its
+ * A worker that runs in an iframe and therefore does have its
  * own global scope, but no own thread.
  */
 class FrameWorker implements IWorker {
@@ -60,7 +60,7 @@ class FrameWorker implements IWorker {
 	constructor(id: number, onMessageCallback:IWorkerCallback) {
 		this.id = id;
 
-		// Collect all messeges sent to the worker until the iframe is loaded
+		// Collect all messages sent to the worker until the iframe is loaded
 		this.loaded = false;
 		this.beforeLoadMessages = [];
 

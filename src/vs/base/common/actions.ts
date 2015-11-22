@@ -34,7 +34,7 @@ export interface IActionItem extends IEventEmitter {
 }
 
 /**
- * Checks if the provided object is compatabile
+ * Checks if the provided object is compatible
  * with the IAction interface.
  * @param thing an object
  */

@@ -115,7 +115,7 @@ export abstract class EditorInput extends EventEmitter implements IEditorInput {
 	}
 
 	/**
-	 * Returns wether this input was disposed or not.
+	 * Returns whether this input was disposed or not.
 	 */
 	public isDisposed(): boolean {
 		return this.disposed;
@@ -389,7 +389,7 @@ export class TextDiffEditorOptions extends TextEditorOptions {
 	}
 
 	/**
-	 * Wether to auto reveal the first change when the text editor is opened or not. By default
+	 * Whether to auto reveal the first change when the text editor is opened or not. By default
 	 * the first change will not be revealed.
 	 */
 	public autoRevealFirstChange: boolean;

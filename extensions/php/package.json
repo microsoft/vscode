@@ -24,7 +24,7 @@
 				"php.validate.executablePath": {
 					"type": "string",
 					"default": null,
-					"description": "Points to the php exectuable."
+					"description": "Points to the php executable."
 				},
 				"php.validate.run": {
 					"type": "string",
