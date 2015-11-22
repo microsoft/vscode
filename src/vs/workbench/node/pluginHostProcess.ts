@@ -7,7 +7,7 @@
 
 import {onUnexpectedError} from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { PluginHostMain, createServices, IInitData } from 'vs/workbench/node/pluginHostMain';
+import { PluginHostMain, createServices, IInitData, exit } from 'vs/workbench/node/pluginHostMain';
 import { Client, connect } from 'vs/base/node/service.net';
 import { create as createIPC, IPluginsIPC } from 'vs/platform/plugins/common/ipcRemoteCom';
 
@@ -50,7 +50,7 @@ function connectToRenderer(): TPromise<IRendererConnection> {
 				try {
 					process.kill(msg.parentPid, 0); // throws an exception if the main process doesn't exist anymore.
 				} catch (e) {
-					process.exit();
+					exit();
 				}
 			}, 5000);
 

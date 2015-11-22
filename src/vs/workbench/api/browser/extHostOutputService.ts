@@ -5,8 +5,9 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
+import {onUnexpectedError} from 'vs/base/common/errors';
 import {Remotable, IThreadService} from 'vs/platform/thread/common/thread';
-import {IOutputService, OUTPUT_MODE_ID} from 'vs/workbench/parts/output/common/output';
+import {IOutputService, OUTPUT_EDITOR_INPUT_ID} from 'vs/workbench/parts/output/common/output';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {Position} from 'vs/platform/editor/common/editor';
 import * as TypeConverters from 'vs/workbench/api/common/pluginHostTypeConverters';
@@ -76,35 +77,33 @@ export class ExtHostOutputService {
 @Remotable.MainContext('MainThreadOutputService')
 export class MainThreadOutputService {
 
-	private _outputService: IOutputService;
-	private _editorService: IWorkbenchEditorService;
-
-	constructor(@IOutputService outputService: IOutputService, editorService: IWorkbenchEditorService) {
-		this._outputService = outputService;
-		this._editorService = editorService;
+	constructor(
+		@IOutputService private outputService: IOutputService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+	) {
 	}
 
 	public append(channel: string, value: string): TPromise<void> {
-		this._outputService.append(channel, value);
+		this.outputService.append(channel, value);
 		return undefined;
 	}
 
 	public clear(channel: string): TPromise<void> {
-		this._outputService.clearOutput(channel);
+		this.outputService.clearOutput(channel);
 		return undefined;
 	}
 
 	public reveal(channel: string, position: Position): TPromise<void> {
-		this._outputService.showOutput(channel, position);
+		this.outputService.showOutput(channel, position);
 		return undefined;
 	}
 
 	public close(channel: string): TPromise<void> {
-		let editors = this._editorService.getVisibleEditors();
+		let editors = this.editorService.getVisibleEditors();
 		for (let editor of editors) {
-			if (editor.input.getId() === OUTPUT_MODE_ID) {
-				this._editorService.closeEditor(editor);
-				return;
+			if (editor.input.getId() === OUTPUT_EDITOR_INPUT_ID) {
+				this.editorService.closeEditor(editor).done(null, onUnexpectedError);
+				return undefined;
 			}
 		}
 	}

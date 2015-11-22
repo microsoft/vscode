@@ -76,6 +76,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 	private previousActiveHandlerDescriptor: QuickOpenHandlerDescriptor;
 	private actionProvider = new ContributableActionProvider();
 	private previousValue = '';
+	private visibilityChangeTimeoutHandle: number;
 
 	constructor(
 		private eventService: IEventService,
@@ -208,7 +209,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 					onOk: () => { /* ignore, handle later */ },
 					onCancel: () => { /* ignore, handle later */ },
 					onType: (value: string) => { /* ignore, handle later */ },
-					onShow: () => this._onShow.fire()
+					onShow: () => this.emitQuickOpenVisibilityChange(true)
 				}, {
 					inputPlaceHolder: options.placeHolder || ''
 				},
@@ -348,11 +349,11 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 						this.pickOpenWidget.refresh(model, value ? { autoFocusFirstEntry: true } : autoFocus);
 					},
 					onShow: () => {
-						this._onShow.fire(); // event
+						this.emitQuickOpenVisibilityChange(true); // event
 					},
 					onHide: () => {
 						this.restoreFocus(); // focus back to editor or viewlet
-						this._onHide.fire(); // event
+						this.emitQuickOpenVisibilityChange(false); // event
 					}
 				});
 
@@ -376,6 +377,22 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 				this.pickOpenWidget.show(new QuickOpenModel());
 			}
 		});
+	}
+
+	private emitQuickOpenVisibilityChange(isVisible: boolean): void {
+		if (this.visibilityChangeTimeoutHandle) {
+			window.clearTimeout(this.visibilityChangeTimeoutHandle);
+		}
+
+		this.visibilityChangeTimeoutHandle = setTimeout(() => {
+			if (isVisible) {
+				this._onShow.fire();
+			} else {
+				this._onHide.fire();
+			}
+
+			this.visibilityChangeTimeoutHandle = void 0;
+		}, 100 /* to prevent flashing, we accumulate visibility changes over a timeout of 100ms */);
 	}
 
 	public refresh(input?: string): TPromise<void> {
@@ -421,7 +438,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 					onType: (value: string) => this.onType(value || ''),
 					onShow: () => {
 						this.inQuickOpenMode.set(true);
-						this._onShow.fire();
+						this.emitQuickOpenVisibilityChange(true);
 					},
 					onHide: () => {
 						this.inQuickOpenMode.reset();
@@ -432,7 +449,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 						}
 
 						this.restoreFocus(); // focus back to editor or viewlet
-						this._onHide.fire();
+						this.emitQuickOpenVisibilityChange(false);
 					}
 				}, {
 					inputPlaceHolder: this.hasHandler(HELP_PREFIX) ? nls.localize('quickOpenInput', "Type '?' to get help on the actions you can take from here") : ''
