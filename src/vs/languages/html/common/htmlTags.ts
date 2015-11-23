@@ -116,7 +116,7 @@ export function getHTML5TagProvider(): IHTMLTagProvider {
 		tfoot: none,
 		tr: none,
 		td: ['colspan', 'rowspan', 'headers'],
-		th: ['colspan', 'rowspan', 'headers', 'scope', 'abbr'],
+		th: ['colspan', 'rowspan', 'headers', 'scope', 'sorted', 'abbr'],
 		form: ['accept-charset', 'action', 'autocomplete:o', 'enctype', 'method:m', 'name', 'novalidate:v', 'target'],
 		fieldset: ['disabled:v', 'form', 'name'],
 		legend: none,
