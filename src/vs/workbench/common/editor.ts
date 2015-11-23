@@ -125,7 +125,7 @@ export abstract class EditorInput extends EventEmitter implements IEditorInput {
 /**
  * The base class of editor inputs that have an original and modified side.
  */
-export abstract class DiffEditorInput extends EditorInput {
+export abstract class BaseDiffEditorInput extends EditorInput {
 	private _originalInput: EditorInput;
 	private _modifiedInput: EditorInput;
 
@@ -477,8 +477,8 @@ export function asFileEditorInput(obj: any, supportDiff?: boolean): IFileEditorI
 	}
 
 	// Check for diff if we are asked to
-	if (supportDiff && types.isFunction((<DiffEditorInput>obj).getModifiedInput)) {
-		obj = (<DiffEditorInput>obj).getModifiedInput();
+	if (supportDiff && types.isFunction((<BaseDiffEditorInput>obj).getModifiedInput)) {
+		obj = (<BaseDiffEditorInput>obj).getModifiedInput();
 	}
 
 	let i = <IFileEditorInput>obj;

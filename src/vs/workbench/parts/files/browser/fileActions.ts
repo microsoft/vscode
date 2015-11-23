@@ -2068,8 +2068,8 @@ export class CloseFileAction extends Action {
 
 			// Otherwise just dispose
 			else {
-				if (input instanceof workbenchEditorCommon.DiffEditorInput) {
-					input = (<workbenchEditorCommon.DiffEditorInput>input).getModifiedInput();
+				if (input instanceof DiffEditorInput) {
+					input = (<DiffEditorInput>input).getModifiedInput();
 				}
 
 				// File Input
