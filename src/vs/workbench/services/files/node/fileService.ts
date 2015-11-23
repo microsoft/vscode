@@ -224,7 +224,7 @@ export class FileService implements files.IFileService {
 				//Do not try to make parent directory if exists
 				createParentsPromise = pfs.stat(paths.dirname(absolutePath)).then((stat) => {
 					//Directory already exists so do not create it
-					if(stat.isDirectory()) {
+					if (stat.isDirectory()) {
 						return Promise.as(null);
 					} else {
 						return pfs.mkdirp(paths.dirname(absolutePath));
