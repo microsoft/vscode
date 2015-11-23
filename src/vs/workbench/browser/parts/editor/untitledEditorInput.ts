@@ -77,13 +77,13 @@ export class UntitledEditorInput extends EditorInput implements IResourceEditorI
 	public suggestFileName(): string {
 		//If the mime type is specified and not text/plain, use that as type, otherwise use All Files
 		if (!this.hasAssociatedFilePath) {
-            let mime = this.getMime();
-            if (mime != 'text/plain') {
-                return suggestFilename(mime, this.getName());
-            }
-        }
+			let mime = this.getMime();
+			if (mime != 'text/plain') {
+				return suggestFilename(mime, this.getName());
+			}
+		}
 
-        return this.getName();
+		return this.getName();
 	}
 
 	public getMime(): string {
