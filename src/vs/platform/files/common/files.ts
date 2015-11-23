@@ -416,7 +416,8 @@ export enum FileOperationResult {
 	FILE_MODIFIED_SINCE,
 	FILE_MOVE_CONFLICT,
 	FILE_READ_ONLY,
-	FILE_TOO_LARGE
+	FILE_TOO_LARGE,
+	FILE_INVALID_PARENT
 }
 
 export interface IFilesConfiguration {

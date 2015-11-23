@@ -221,7 +221,26 @@ export class FileService implements files.IFileService {
 			if (exists) {
 				createParentsPromise = Promise.as(null);
 			} else {
-				createParentsPromise = pfs.mkdirp(paths.dirname(absolutePath));
+				//Do not try to make parent directory if exists
+				createParentsPromise = pfs.stat(paths.dirname(absolutePath)).then((stat) => {
+					//Directory already exists so do not create it
+					if (stat.isDirectory()) {
+						return Promise.as(null);
+					}
+
+					//Parent Directory is a file, throw FILE_INVALID_PARENT error
+					else if (stat.isFile()) {
+						return Promise.wrapError(<files.IFileOperationResult>{
+							message: nls.localize('fileInvalidParentError', "File has an invalid parent directory ({0})", paths.dirname(absolutePath)),
+							fileOperationResult: files.FileOperationResult.FILE_INVALID_PARENT
+						});
+					} else {
+						return pfs.mkdirp(paths.dirname(absolutePath));
+					}
+				}, () => {
+					//fs.stat threw exception so directory does not exist, create it.
+					return pfs.mkdirp(paths.dirname(absolutePath));
+				});
 			}
 
 			// 2.) create parents as needed

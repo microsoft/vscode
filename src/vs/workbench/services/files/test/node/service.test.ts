@@ -248,7 +248,7 @@ suite('FileService', () => {
 
 	test('resolveFile', function(done: () => void) {
 		service.resolveFile(uri.file(testDir), { resolveTo: [uri.file(path.join(testDir, 'deep'))]}).done(r => {
-			assert.equal(r.children.length, 5);
+			assert.equal(r.children.length, 6);
 
 			let deep = utils.getByName(r, 'deep');
 			assert.equal(deep.children.length, 4);
@@ -306,6 +306,16 @@ suite('FileService', () => {
 					done();
 				});
 			});
+		});
+	});
+
+	test('updateContent - FILE_INVALID_PARENT', function(done: () => void) {
+		let resource = uri.file(path.join(testDir, 'invalid_parent_path', 'invalid_path.txt'));
+
+		return service.updateContent(resource, 'Some updates').done(null, (e:IFileOperationResult) => {
+			assert.equal(e.fileOperationResult, FileOperationResult.FILE_INVALID_PARENT);
+
+			done();
 		});
 	});
 
