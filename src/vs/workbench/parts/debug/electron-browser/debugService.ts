@@ -588,11 +588,14 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 
 			// No task running, execute the preLaunchTask.
 			this.outputService.showOutput('Tasks', true, true);
-			this.taskService.run(filteredTasks[0].id).then(result => {
+
+			const taskPromise = this.taskService.run(filteredTasks[0].id).then(result => {
 				this.lastTaskEvent = null;
 			}, err => {
 				this.lastTaskEvent = null;
 			});
+
+			return filteredTasks[0].isWatching ? Promise.as(true) : taskPromise;
 		});
 	}
 
