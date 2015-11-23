@@ -4060,8 +4060,8 @@
         <value name="compact" version="3.0" browsers="none">
           <desc>Either block boxes or a marker box, depending on context. Properties apply to compact boxes based on their final status.</desc>
         </value>
-        <value name="flex" version="1.0" browsers="all" />
-        <value name="flexbox" version="1.0" browsers="IE11,O12.1" />
+        <value name="flex" version="1.0" browsers="E,C29,FF22,IE11,O12.1,S9" />
+        <value name="flexbox" version="1.0" browsers="O12.1" />
         <value name="grid" version="3.0" browsers="none" />
         <value name="inline" version="2.0" browsers="all">
           <desc>Inline boxes.</desc>
@@ -4069,8 +4069,8 @@
         <value name="inline-block" version="2.0" browsers="all">
           <desc>A block box, which itself is flowed as a single inline box, similar to a replaced element. The inside of an inline-block is formatted as a block box, and the box itself is formatted as an inline box.</desc>
         </value>
-        <value name="inline-flex" version="1.0" browsers="all" />
-        <value name="inline-flexbox" version="1.0" browsers="IE11,O12.1" />
+        <value name="inline-flex" version="1.0" browsers="E,C29,FF22,IE11,O12.1,S9" />
+        <value name="inline-flexbox" version="1.0" browsers="O12.1" />
         <value name="inline-grid" version="3.0" browsers="none" />
         <value name="inline-table" version="2.0" browsers="all" />
         <value name="list-item" version="2.0" browsers="all">
@@ -4121,7 +4121,9 @@
         <value name="table-row" version="2.0" browsers="all" />
         <value name="table-row-group" version="2.0" browsers="all" />
         <value name="-webkit-box" version="1.0" browsers="C,S1" />
+        <value name="-webkit-flex" version="1.0" browsers="C21,O15,S6.1" />
         <value name="-webkit-inline-box" version="1.0" browsers="C,S1" />
+        <value name="-webkit-inline-flex" version="1.0" browsers="C21,O15,S6.1" />
       </values>
     </entry>
     <entry name="elevation" restriction="angle" version="2.0" browsers="none" ref="http://www.w3.org/TR/2007/CR-CSS21-20070719/aural.html#propdef-azimuth" syntax="&lt;angle&gt; | below | level | above | higher | lower">
@@ -4492,6 +4494,7 @@
       <desc>The 'flex-basis' property sets the flex basis. Negative lengths are invalid.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all" />
+        <value name="content" version="3.0" browsers="E,IE11" />
       </values>
     </entry>
     <entry name="flex-direction" restriction="enum" version="3.0" browsers="E,C29,FF22,IE11,O12.1,S9" ref="http://www.w3.org/TR/css3-flexbox/#flex-direction" syntax="div { $(name): column; }">
@@ -5927,9 +5930,15 @@
     <entry name="max-zoom" restriction="number, percentage" version="" browsers="all" />
     <entry name="min-height" restriction="length, percentage" version="2.0" browsers="C,FF1,IE7,O7,S1" ref="http://www.w3.org/TR/css3-box/#min-height" syntax="footer { $(name): 300px; }">
       <desc>Allows authors to constrain content height to a certain range.</desc>
+			<values>
+        <value name="auto" version="3.0" browsers="E,IE11" />
+      </values>
     </entry>
     <entry name="min-width" restriction="length, percentage" version="2.0" browsers="C,FF1,IE7,O7,S1" ref="http://www.w3.org/TR/css3-box/#min-width" syntax="footer { $(name): 300px; }">
       <desc>Allows authors to constrain content width to a certain range.</desc>
+			<values>
+     		<value name="auto" version="3.0" browsers="E,IE11" />
+      </values>
     </entry>
     <entry name="min-zoom" restriction="number, percentage" version="" browsers="all" />
     <entry name="move-to" restriction="identifier" version="3.0" browsers="none" ref="http://www.w3.org/TR/css3-content/#moving" syntax="normal | here | &lt;identifier&gt;">
