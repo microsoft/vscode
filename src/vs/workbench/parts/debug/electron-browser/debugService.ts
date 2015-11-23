@@ -221,11 +221,11 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		this.toDispose.push(this.session.addListener2(debug.SessionEvents.THREAD, (event: DebugProtocol.ThreadEvent) => {
 			if (event.body.reason === 'started') {
 				this.session.threads().done((result) => {
-					var threads = result.body.threads.filter(thread => thread.id === event.body.threadId);
-					if (threads.length === 1) {
+					const thread = result.body.threads.filter(thread => thread.id === event.body.threadId).pop();
+					if (thread) {
 						this.model.rawUpdate({
-							threadId: threads[0].id,
-							thread: threads[0]
+							threadId: thread.id,
+							thread: thread
 						});
 					}
 				}, errors.onUnexpectedError);
@@ -266,14 +266,14 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 	private getThreadData(threadId: number): Promise {
 		return this.model.getThreads()[threadId] ? Promise.as(true) :
 			this.session.threads().then((response: DebugProtocol.ThreadsResponse) => {
-				var threads = response.body.threads.filter(t => t.id === threadId);
-				if (threads.length !== 1) {
-					throw new Error('Did not get exactly one thread from debug adapter with id ' + threadId);
+				const thread = response.body.threads.filter(t => t.id === threadId).pop();
+				if (!thread) {
+					throw new Error('Did not get a thread from debug adapter with id ' + threadId);
 				}
 
 				this.model.rawUpdate({
-					threadId: threads[0].id,
-					thread: threads[0]
+					threadId: thread.id,
+					thread: thread
 				});
 			});
 	}
