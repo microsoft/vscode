@@ -1,6 +1,10 @@
 sudo: false
 language: node_js
 
+os:
+  - linux
+  - osx
+
 node_js:
   - "0.12"
 
