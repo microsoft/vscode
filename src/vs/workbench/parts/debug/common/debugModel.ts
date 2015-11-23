@@ -217,7 +217,7 @@ export class StackFrame implements debug.IStackFrame {
 		if (!this.scopes) {
 			this.scopes = debugService.getActiveSession().scopes({ frameId: this.frameId }).then(response => {
 				return response.body.scopes.map(rs => new Scope(this.threadId, rs.name, rs.variablesReference, rs.expensive));
-			});
+			}, err => []);
 		}
 
 		return this.scopes;
