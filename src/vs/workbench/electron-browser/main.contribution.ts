@@ -47,10 +47,10 @@ configurationRegistry.registerConfiguration({
 	'title': nls.localize('windowConfigurationTitle', "Window configuration"),
 	'type': 'object',
 	'properties': {
-		'window.openInNewWindow': {
+		'window.openFilesInNewWindow': {
 			'type': 'boolean',
 			'default': true,
-			'description': nls.localize('openInNewWindow', "When enabled, will open files in a new window instead of reusing an existing instance.")
+			'description': nls.localize('openFilesInNewWindow', "When enabled, will open files in a new window instead of reusing an existing instance.")
 		},
 		'window.reopenFolders': {
 			'type': 'string',
