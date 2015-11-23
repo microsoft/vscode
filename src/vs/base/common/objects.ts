@@ -9,7 +9,7 @@ import * as Types from 'vs/base/common/types';
 /**
  * Equalable objects can compute a
  * hash-code and can also tell if they
- * are equal to other objects
+ * are equal to other objects.
  */
 export interface IEqualable {
 	hashCode(): number;

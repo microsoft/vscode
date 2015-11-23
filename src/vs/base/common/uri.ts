@@ -18,7 +18,7 @@ function fixedEncodeURIComponent(str: string): string {
  * (http://tools.ietf.org/html/rfc3986#section-3) with minimal validation
  * and encoding.
  *
- *     foo://example.com:8042/over/there?name=ferret#nose
+ *       foo://example.com:8042/over/there?name=ferret#nose
  *       \_/   \______________/\_________/ \_________/ \__/
  *        |           |            |            |        |
  *     scheme     authority       path        query   fragment

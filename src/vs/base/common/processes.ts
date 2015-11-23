@@ -15,7 +15,7 @@ import { ValidationStatus, ValidationState, ILogger, Parser, ISystemVariables } 
 
 
 /**
- * Options to be passed to the external program or shell
+ * Options to be passed to the external program or shell.
  */
 export interface CommandOptions {
 	/**
@@ -33,25 +33,25 @@ export interface CommandOptions {
 
 export interface Executable {
 	/**
-	* The command to be executed. Can be an external program or a shell
-	* command.
-	*/
+	 * The command to be executed. Can be an external program or a shell
+	 * command.
+	 */
 	command: string;
 
 	/**
-	* Specifies whether the command is a shell command and therefore must
-	* be executed in a shell interpreter (e.g. cmd.exe, bash, ...).
-	*/
+	 * Specifies whether the command is a shell command and therefore must
+	 * be executed in a shell interpreter (e.g. cmd.exe, bash, ...).
+	 */
 	isShellCommand: boolean;
 
 	/**
-	* The arguments passed to the command.
-	*/
+	 * The arguments passed to the command.
+	 */
 	args: string[];
 
 	/**
-	* The command options used when the command is executed. Can be omitted.
-	*/
+	 * The command options used when the command is executed. Can be omitted.
+	 */
 	options?: CommandOptions;
 }
 
@@ -90,68 +90,68 @@ export interface TerminateResponse {
 
 export namespace Config {
 	/**
-	* Options to be passed to the external program or shell
-	*/
+	 * Options to be passed to the external program or shell
+	 */
 	export interface CommandOptions {
 		/**
-		* The current working directory of the executed program or shell.
-		* If omitted VSCode's current workspace root is used.
-		*/
+		 * The current working directory of the executed program or shell.
+		 * If omitted VSCode's current workspace root is used.
+		 */
 		cwd?: string;
 
 		/**
-		* The additional environment of the executed program or shell. If omitted
-		* the parent process' environment is used.
-		*/
+		 * The additional environment of the executed program or shell. If omitted
+		 * the parent process' environment is used.
+		 */
 		env?: IStringDictionary<string>;
 
 		/**
-		* Index signature
-		*/
+		 * Index signature
+		 */
 		[key:string]: string | string[] | IStringDictionary<string>;
 	}
 
 	export interface BaseExecutable {
 		/**
-		* The command to be executed. Can be an external program or a shell
-		* command.
-		*/
+		 * The command to be executed. Can be an external program or a shell
+		 * command.
+		 */
 		command?: string;
 
 		/**
-		* Specifies whether the command is a shell command and therefore must
-		* be executed in a shell interpreter (e.g. cmd.exe, bash, ...).
-		*
-		* Defaults to false if omitted.
-		*/
+		 * Specifies whether the command is a shell command and therefore must
+		 * be executed in a shell interpreter (e.g. cmd.exe, bash, ...).
+		 *
+		 * Defaults to false if omitted.
+		 */
 		isShellCommand?: boolean;
 
 		/**
-		* The arguments passed to the command. Can be omitted.
-		*/
+		 * The arguments passed to the command. Can be omitted.
+		 */
 		args?: string[];
 
 		/**
-		* The command options used when the command is executed. Can be omitted.
-		*/
+		 * The command options used when the command is executed. Can be omitted.
+		 */
 		options?: CommandOptions;
 	}
 
 	export interface Executable extends BaseExecutable {
 
 		/**
-		* Windows specific executable configuration
-		*/
+		 * Windows specific executable configuration
+		 */
 		windows?: BaseExecutable;
 
 		/**
-		* Mac specific executable configuration
-		*/
+		 * Mac specific executable configuration
+		 */
 		osx?: BaseExecutable;
 
 		/**
-		* Linux specific executable configuration
-		*/
+		 * Linux specific executable configuration
+		 */
 		linux?: BaseExecutable;
 
 	}
