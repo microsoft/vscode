@@ -10,8 +10,11 @@ import extfs = require('vs/base/node/extfs');
 import paths = require('vs/base/common/paths');
 import { dirname, join } from 'path';
 import { nfcall } from 'vs/base/common/async';
-
 import fs = require('fs');
+
+export function isRoot(path: string): boolean {
+	return path === dirname(path);
+}
 
 export function readdir(path: string): TPromise<string[]> {
 	return nfcall(extfs.readdir, path);
@@ -37,6 +40,10 @@ export function mkdirp(path: string, mode?: number): TPromise<boolean> {
 
 			return TPromise.wrapError<boolean>(err);
 		});
+
+	if (isRoot(path)) {
+		return TPromise.as(true);
+	}
 
 	return mkdir().then(null, (err: NodeJS.ErrnoException) => {
 		if (err.code === 'ENOENT') {
