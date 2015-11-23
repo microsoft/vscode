@@ -22,6 +22,9 @@ export abstract class DerivedFrameEditorInput extends IFrameEditorInput {
 
 	public abstract createNew(resource: URI): DerivedFrameEditorInput;
 
+	/**
+	 * This is the resource that this input is derived from.
+	 */
 	public getResource(): URI {
 		return this.resource;
 	}

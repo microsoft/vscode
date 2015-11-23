@@ -16,7 +16,7 @@ import InputBox = require('vs/base/browser/ui/inputbox/inputBox');
 import Findinput = require('vs/base/browser/ui/findinput/findInput');
 import EditorBrowser = require('vs/editor/browser/editorBrowser');
 import EditorCommon = require('vs/editor/common/editorCommon');
-import FindModel = require('./findModel');
+import FindModel = require('vs/editor/contrib/find/common/findModel');
 import Lifecycle = require('vs/base/common/lifecycle');
 import {CommonKeybindings} from 'vs/base/common/keyCodes';
 

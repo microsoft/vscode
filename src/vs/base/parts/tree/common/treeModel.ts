@@ -45,17 +45,17 @@ export class Lock {
 		API-wise, there are two possibly-structure-changing: refresh(...),
 		expand(...) and collapse(...). All these calls must call Lock#run(...).
 
-		Any call to Lock#run(...) needs to provide the afecting item and a
+		Any call to Lock#run(...) needs to provide the affecting item and a
 		callback to execute when unlocked. It must also return a promise
 		which fulfills once the operation ends. Once it is called, there
 		are three possibilities:
 
-		- Nothing is currently running. The afecting item is remembered, and
+		- Nothing is currently running. The affecting item is remembered, and
 		the callback is executed.
 
 		- Or, there are on-going operations. There are two outcomes:
 
-			- The afecting item intersects with any other afecting items
+			- The affecting item intersects with any other affecting items
 			of on-going run calls. In such a case, the given callback should
 			be executed only when the on-going one completes.
 

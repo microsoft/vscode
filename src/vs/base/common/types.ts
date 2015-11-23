@@ -7,7 +7,7 @@
 import {TPromise} from 'vs/base/common/winjs.base';
 
 /**
- * Returns whether the provided parameter is a JavaScript Array or not.
+ * @returns whether the provided parameter is a JavaScript Array or not.
  */
 export function isArray(array: any): array is any[] {
 	if (Array.isArray) {
@@ -22,7 +22,7 @@ export function isArray(array: any): array is any[] {
 }
 
 /**
- * Returns whether the provided parameter is a JavaScript String or not.
+ * @returns whether the provided parameter is a JavaScript String or not.
  */
 export function isString(str: any): str is string {
 	if (typeof (str) === 'string' || str instanceof String) {
@@ -33,15 +33,14 @@ export function isString(str: any): str is string {
 }
 
 /**
- * Returns whether the provided parameter is a JavaScript Array and each element in the
- * array is a string.
+ * @returns whether the provided parameter is a JavaScript Array and each element in the array is a string.
  */
 export function isStringArray(value: any): value is string[] {
 	return isArray(value) && (<any[]>value).every(elem => isString(elem));
 }
 
 /**
- * Returns whether the provided parameter is a JavaScript Object or not.
+ * @returns whether the provided parameter is a JavaScript Object or not.
  */
 export function isObject(obj: any): obj is any {
 
@@ -54,7 +53,7 @@ export function isObject(obj: any): obj is any {
 }
 
 /**
- * Returns whether the provided parameter is a JavaScript Number or not.
+ * @returns whether the provided parameter is a JavaScript Number or not.
  */
 export function isNumber(obj: any): obj is number {
 	if ((typeof (obj) === 'number' || obj instanceof Number) && !isNaN(obj)) {
@@ -65,21 +64,21 @@ export function isNumber(obj: any): obj is number {
 }
 
 /**
- * Returns whether the provided parameter is a JavaScript Boolean or not.
+ * @returns whether the provided parameter is a JavaScript Boolean or not.
  */
 export function isBoolean(obj: any): obj is boolean {
 	return obj === true || obj === false;
 }
 
 /**
- * Returns whether the provided parameter is undefined.
+ * @returns whether the provided parameter is undefined.
  */
 export function isUndefined(obj: any): boolean {
 	return typeof (obj) === 'undefined';
 }
 
 /**
- * Returns whether the provided parameter is undefined or null.
+ * @returns whether the provided parameter is undefined or null.
  */
 export function isUndefinedOrNull(obj: any): boolean {
 	return isUndefined(obj) || obj === null;
@@ -89,7 +88,7 @@ export function isUndefinedOrNull(obj: any): boolean {
 var hasOwnProperty = Object.prototype.hasOwnProperty;
 
 /**
- * Returns whether the provided parameter is an empty JavaScript Object or not.
+ * @returns whether the provided parameter is an empty JavaScript Object or not.
  */
 export function isEmptyObject(obj: any): obj is any {
 	if (!isObject(obj)) {
@@ -106,14 +105,14 @@ export function isEmptyObject(obj: any): obj is any {
 }
 
 /**
- * Returns whether the provided parameter is a JavaScript Function or not.
+ * @returns whether the provided parameter is a JavaScript Function or not.
  */
 export function isFunction(obj: any): obj is Function {
 	return Object.prototype.toString.call(obj) === '[object Function]';
 }
 
 /**
- * Returns whether the provided parameters is are JavaScript Function or not.
+ * @returns whether the provided parameters is are JavaScript Function or not.
  */
 export function areFunctions(...objects: any[]): boolean {
 	return objects && objects.length > 0 && objects.every((object) => isFunction(object));

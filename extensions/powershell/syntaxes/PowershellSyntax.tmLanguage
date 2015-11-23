@@ -522,7 +522,7 @@
 		<key>function</key>
 		<dict>
 			<key>begin</key>
-			<string>((?i:function|filter|configuration|workflow))\s+((?:\p{L}|\d|_|-|\.)+)</string>
+			<string>(?&lt;!\S)(?i)(function|filter|configuration|workflow)\s+(?:(global|local|script|private):)?((?:\p{L}|\d|_|-|\.)+)</string>
 			<key>beginCaptures</key>
 			<dict>
 				<key>0</key>
@@ -538,7 +538,12 @@
 				<key>2</key>
 				<dict>
 					<key>name</key>
-					<string>entity.name.function</string>
+					<string>storage.modifier.scope.powershell</string>
+				</dict>
+				<key>3</key>
+				<dict>
+					<key>name</key>
+					<string>entity.name.function.powershell</string>
 				</dict>
 			</dict>
 			<key>end</key>

@@ -11,11 +11,11 @@ import Platform = require('vs/base/common/platform');
 /**
  * Virtual Key Codes, the value does not hold any inherent meaning.
  * Inspired somewhat from https://msdn.microsoft.com/en-us/library/windows/desktop/dd375731(v=vs.85).aspx
- * But these are "more general", as they should work across browsers & OS`s
+ * But these are "more general", as they should work across browsers & OS`s.
  */
 export enum KeyCode {
 	/**
-	 * Placed first to cover the 0 value of the enum
+	 * Placed first to cover the 0 value of the enum.
 	 */
 	Unknown,
 

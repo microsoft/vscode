@@ -201,6 +201,10 @@ export class QuickOpenWidget implements IModelProvider {
 					let quickNavKeys = this.quickNavigateConfiguration.keybindings;
 					let wasTriggerKeyPressed = keyCode === KeyCode.Enter || quickNavKeys.some((k) => {
 						if (k.hasShift() && keyCode === KeyCode.Shift) {
+							if (keyboardEvent.ctrlKey || keyboardEvent.altKey || keyboardEvent.metaKey) {
+								return false; // this is an optimistic check for the shift key being used to navigate back in quick open
+							}
+
 							return true;
 						}
 
@@ -404,7 +408,7 @@ export class QuickOpenWidget implements IModelProvider {
 			hide = this.model.runner.run(value, Mode.OPEN, context);
 		}
 
-		// add telemetry when an item is acceptted, logging the index of the item in the list and the length of the list
+		// add telemetry when an item is accepted, logging the index of the item in the list and the length of the list
 		// to measure the rate of the success and the relevance of the order
 		if (this.usageLogger) {
 			let indexOfAcceptedElement = this.model.entries.indexOf(value);
@@ -594,12 +598,12 @@ export class QuickOpenWidget implements IModelProvider {
 		// Apply
 		this.treeContainer.style({ height: newHeight });
 
-		// Return instantly if we dont CSS transition or the height is the same as old
+		// Return instantly if we don't CSS transition or the height is the same as old
 		if (!this.treeContainer.hasClass('transition') || oldHeight === newHeight) {
 			return Promise.as(null);
 		}
 
-		// Otherwise return promise that only fullfills when the CSS transition has ended
+		// Otherwise return promise that only fulfills when the CSS transition has ended
 		return new Promise((c, e) => {
 			let unbind: { (): void; }[] = [];
 			let complete = false;

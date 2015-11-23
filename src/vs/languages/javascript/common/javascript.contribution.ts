@@ -62,7 +62,7 @@ if (!env.enableTypeScriptServiceModeForJS) {
 					'javascript.validate.enable': {
 						'type': 'boolean',
 						'default': true,
-						'description': nls.localize('vsclint', "Controls VSCode's Javascript validation. If set to false both syntax and sematic validation is disabled"),
+						'description': nls.localize('vsclint', "Controls VSCode's JavaScript validation. If set to false both syntax and semantic validation is disabled"),
 					},
 					'javascript.validate.semanticValidation': {
 						'type': 'boolean',
@@ -141,7 +141,7 @@ if (!env.enableTypeScriptServiceModeForJS) {
 					'javascript.validate.lint.parametersDontMatchSignature': {
 						'enum': ['ignore', 'warning', 'error'],
 						'default': defaults.validate.lint.parametersDontMatchSignature,
-						'description': nls.localize('lint.parametersDontMatchSignature', "Parameter don't match a function signature"),
+						'description': nls.localize('lint.parametersDontMatchSignature', "Parameters don't match a function signature"),
 					},
 					'javascript.validate.lint.redeclaredVariables': {
 						'enum': ['ignore', 'warning', 'error'],

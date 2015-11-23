@@ -383,7 +383,7 @@ suite('Flow', () => {
 			);
 	});
 
-	test('tolerateBoolanResults', function(done: () => void) {
+	test('tolerateBooleanResults', function(done: () => void) {
 		var assertionCount = 0;
 		var errorCount = 0;
 
@@ -412,7 +412,7 @@ suite('Flow', () => {
 			);
 	});
 
-	test('loopTolerateBoolanResults', function(done: () => void) {
+	test('loopTolerateBooleanResults', function(done: () => void) {
 		var elements = ["1", "2", "3"];
 		loop(elements, function(element, callback) {
 			process.nextTick(function() {

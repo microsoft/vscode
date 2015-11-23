@@ -3162,11 +3162,11 @@ export interface ICommonDiffEditor extends IEditor {
 	getValue(options?:{ preserveBOM:boolean; lineEnding:string; }): string;
 
 	/**
-	 * Returns wether the diff editor is ignoring trim whitespace or not.
+	 * Returns whether the diff editor is ignoring trim whitespace or not.
 	 */
 	ignoreTrimWhitespace: boolean;
 	/**
-	 * Returns wether the diff editor is rendering side by side or not.
+	 * Returns whether the diff editor is rendering side by side or not.
 	 */
 	renderSideBySide: boolean;
 }

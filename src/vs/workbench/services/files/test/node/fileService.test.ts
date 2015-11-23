@@ -25,8 +25,6 @@ suite('FileService', () => {
 	let testDir: string;
 
 	setup(function (done) {
-		this.timeout(10000);
-
 		let id = uuid.generateUuid();
 		testDir = path.join(parentDir, id);
 		let sourceDir = require.toUrl('./fixtures/service');
@@ -59,6 +57,8 @@ suite('FileService', () => {
 	});
 
 	test('createFile', function(done: () => void) {
+		this.timeout(10000); // test tends to need longer?
+		
 		let contents = 'Hello World';
 		service.createFile(uri.file(path.join(testDir, 'test.txt')), contents).done(s => {
 			assert.equal(s.name, 'test.txt');

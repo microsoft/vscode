@@ -9,7 +9,7 @@ import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
 import {EditorAction, Behaviour} from 'vs/editor/common/editorAction';
 import FindWidget = require('./findWidget');
-import FindModel = require('./findModel');
+import FindModel = require('vs/editor/contrib/find/common/findModel');
 import nls = require('vs/nls');
 import EventEmitter = require('vs/base/common/eventEmitter');
 import EditorBrowser = require('vs/editor/browser/editorBrowser');

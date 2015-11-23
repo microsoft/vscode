@@ -119,7 +119,7 @@ export class Emitter<T> {
 
 /**
  * Creates an Event which is backed-up by the event emitter. This allows
- * to use the existing eventing pattern and is likely using less memeory.
+ * to use the existing eventing pattern and is likely using less memory.
  * Sample:
  *
  * 	class Document {

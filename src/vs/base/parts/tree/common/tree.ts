@@ -305,7 +305,7 @@ export interface ITree extends Events.IEventEmitter {
 
 	/**
 	 * Allows to render an invisible fake row, for measurement purposes.
-	 * Returns whathever fn(...) returns.
+	 * Returns whatever fn(...) returns.
 	 */
 	withFakeRow(fn:(container:HTMLElement)=>any):any;
 
@@ -354,7 +354,7 @@ export interface IRenderer {
 
 	/**
 	 * Renders the template in a DOM element. This method should render all the DOM
-	 * structure for an hipothetical element leaving its contents blank. It should
+	 * structure for an hypothetical element leaving its contents blank. It should
 	 * return an object bag which will be passed along to `renderElement` and used
 	 * to fill in those blanks.
 	 *
