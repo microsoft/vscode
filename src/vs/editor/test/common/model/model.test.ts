@@ -642,16 +642,18 @@ suite('Editor Model - Find', () => {
 			'',
 			'Again nothing interesting here'
 		];
-		thisModel = new Model.Model(text.join('\n'), null);
+		var model = new Model.Model(text.join('\n'), null);
 
 		var ranges = [
 			[2, 1, 2, 1],
 			[4, 1, 4, 1]
 		];
-		var matches = thisModel.findMatches('^$', false, true, false, false);
+		var matches = model.findMatches('^$', false, true, false, false);
 		assert.equal(matches.length, ranges.length);
 		for (var i = 0; i < matches.length; i++) {
 			rangeEqual(matches[i], ranges[i][0], ranges[i][1], ranges[i][2], ranges[i][3]);
 		}
+
+		model.dispose();
 	});
 });
