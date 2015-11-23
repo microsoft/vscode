@@ -104,6 +104,7 @@ export function getHTML5TagProvider(): IHTMLTagProvider {
 		meta: ['name', 'http-equiv', 'content', 'charset'],
 		style: ['media', 'nonce', 'type', 'scoped:v'],
 		script: ['src', 'type', 'charset', 'async:v', 'defer:v', 'crossorigin:xo', 'nonce'],
+		template: none,
 		body: ['onafterprint', 'onbeforeprint', 'onbeforeunload', 'onhashchange', 'onlanguagechange', 'onmessage', 'onoffline', 'ononline', 'onpagehide',
 			'onpageshow', 'onpopstate', 'onstorage', 'onunload'],
 		table: ['sortable:v', 'border'],
