@@ -22,3 +22,6 @@ before_install:
 install:
   - ./scripts/npm.sh install
   - gulp electron compile
+
+script:
+	- ./test/run.sh
