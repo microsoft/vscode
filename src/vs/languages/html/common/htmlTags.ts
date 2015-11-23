@@ -106,7 +106,7 @@ export function getHTML5TagProvider(): IHTMLTagProvider {
 		script: ['src', 'type', 'charset', 'async:v', 'defer:v', 'crossorigin:xo', 'nonce'],
 		body: ['onafterprint', 'onbeforeprint', 'onbeforeunload', 'onhashchange', 'onlanguagechange', 'onmessage', 'onoffline', 'ononline', 'onpagehide',
 			'onpageshow', 'onpopstate', 'onstorage', 'onunload'],
-		table: none,
+		table: ['sortable:v', 'border'],
 		caption: none,
 		colgroup: ['span'],
 		col: ['span'],
