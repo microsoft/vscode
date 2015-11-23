@@ -129,7 +129,7 @@ export function getHTML5TagProvider(): IHTMLTagProvider {
 		datalist: none,
 		optgroup: ['disabled:v', 'label'],
 		option: ['disabled:v', 'label', 'selected:v', 'value'],
-		textarea: ['autocomplete:o', 'autofocus:v', 'cols', 'dirname', 'disabled:v', 'form', 'inputmode', 'maxlength', 'name', 'placeholder', 'readonly:v', 'required:v', 'rows', 'wrap'],
+		textarea: ['autocomplete:o', 'autofocus:v', 'cols', 'dirname', 'disabled:v', 'form', 'inputmode', 'maxlength', 'minlength', 'name', 'placeholder', 'readonly:v', 'required:v', 'rows', 'wrap'],
 		keygen: ['autofocus:v', 'challenge', 'disabled:v', 'form', 'keytype', 'name'],
 		output: ['for', 'form', 'name'],
 		progress: ['value', 'max'],
