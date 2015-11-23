@@ -99,7 +99,7 @@ var MaxDifferencesHistory = 1447;
  * A utility class which helps to create the set of DiffChanges from
  * a difference operation. This class accepts original DiffElements and
  * modified DiffElements that are involved in a particular change. The
- * MarktNextChange() method can be called to mark the seration between
+ * MarktNextChange() method can be called to mark the separation between
  * distinct changes. At the end, the Changes property can be called to retrieve
  * the constructed changes.
  */
@@ -612,7 +612,7 @@ export class LcsDiff {
 
 				// STEP 3: If delta is odd (overlap first happens on forward when delta is odd)
 				// and diagonal is in the range of reverse diagonals computed for numDifferences-1
-				// (the previous iteration; we havent computed reverse diagonals for numDifferences yet)
+				// (the previous iteration; we haven't computed reverse diagonals for numDifferences yet)
 				// then check for overlap.
 				if (!deltaIsEven && Math.abs(diagonal - diagonalReverseBase) <= (numDifferences - 1)) {
 					if (originalIndex >= reversePoints[diagonal]) {
@@ -754,7 +754,7 @@ export class LcsDiff {
 	}
 
 	/**
-	 * Concatentates the two input DiffChange lists and returns the resulting
+	 * Concatenates the two input DiffChange lists and returns the resulting
 	 * list.
 	 * @param The left changes
 	 * @param The right changes

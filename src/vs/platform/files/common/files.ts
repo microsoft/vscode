@@ -378,7 +378,7 @@ export interface IUpdateContentOptions {
 	charset?: string;
 
 	/**
-	 * Wether to overwrite a file even if it is readonly.
+	 * Whether to overwrite a file even if it is readonly.
 	 */
 	overwriteReadonly?: boolean;
 

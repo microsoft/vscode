@@ -350,7 +350,7 @@ export function isPromiseCanceledError(error: any): boolean {
 }
 
 /**
- * Returns an error that signals cancelation.
+ * Returns an error that signals cancellation.
  */
 export function canceled(): Error {
 	var error = new Error(canceledName);

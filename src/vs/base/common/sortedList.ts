@@ -27,7 +27,7 @@ export interface ISortedList<TKey, TValue> extends IIterable<KeyValue<TKey, TVal
 
 	/**
 	 * Gets the value associated with the specified key.
-	 * Returns null if there is no value asociated with the key.
+	 * Returns null if there is no value associated with the key.
 	 * O(log n)
 	 */
 	getValue(key: TKey): TValue;

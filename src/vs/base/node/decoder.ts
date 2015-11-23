@@ -8,7 +8,7 @@
 import sd = require('string_decoder');
 
 /**
- * Convinient way to iterate over output line by line. This helper accomodates for the fact that
+ * Convenient way to iterate over output line by line. This helper accommodates for the fact that
  * a buffer might not end with new lines all the way.
  *
  * To use:

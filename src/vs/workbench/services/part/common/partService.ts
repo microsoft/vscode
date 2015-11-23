@@ -40,7 +40,7 @@ export interface IPartService {
 	joinCreation(): TPromise<boolean>;
 
 	/**
-	 * Returns wether the given part has the keyboard focus or not.
+	 * Returns whether the given part has the keyboard focus or not.
 	 */
 	hasFocus(part: Parts): boolean;
 

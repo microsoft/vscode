@@ -145,7 +145,7 @@ function Sequence(sequences: { (...param: any[]): void; }[]): void {
 				clb(error, null);
 			} else {
 				sequenceResult = result; //Remember result of sequence
-				clb(null, null); //Dont pass on result to Looper as we are not aggregating it
+				clb(null, null); //Don't pass on result to Looper as we are not aggregating it
 			}
 		};
 
@@ -166,7 +166,7 @@ function Sequence(sequences: { (...param: any[]): void; }[]): void {
 
 /**
  * Takes a variable list of functions to execute in sequence. The first function must be the error handler and the
- * following functions can do arbritrary work. "this" must be used as callback value for async functions to continue
+ * following functions can do arbitrary work. "this" must be used as callback value for async functions to continue
  * through the sequence:
  * 	sequence(
  * 		function errorHandler(error) {

@@ -122,11 +122,11 @@ export abstract class AbstractProcess<TProgressData> {
 			this.shell = false;
 			this.options = <ForkOptions>arg3;
 		} else {
-			let exectuable = <Executable>arg1;
-			this.cmd = exectuable.command;
-			this.shell = exectuable.isShellCommand;
-			this.args = exectuable.args.slice(0);
-			this.options = exectuable.options || {};
+			let executable = <Executable>arg1;
+			this.cmd = executable.command;
+			this.shell = executable.isShellCommand;
+			this.args = executable.args.slice(0);
+			this.options = executable.options || {};
 		}
 
 		this.childProcess = null;
