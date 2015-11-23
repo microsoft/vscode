@@ -603,5 +603,55 @@ suite('Editor Model - Find', () => {
 			rangeEqual(matches[i], ranges[i][0], ranges[i][1], ranges[i][2], ranges[i][3]);
 		}
 	});
-});
 
+	test('/^/ find', () => {
+		var ranges = [
+			[1, 1, 1, 1],
+			[2, 1, 2, 1],
+			[3, 1, 3, 1],
+			[4, 1, 4, 1],
+			[5, 1, 5, 1]
+		];
+		var matches = thisModel.findMatches('^', false, true, false, false);
+		assert.equal(matches.length, ranges.length);
+		for (var i = 0; i < matches.length; i++) {
+			rangeEqual(matches[i], ranges[i][0], ranges[i][1], ranges[i][2], ranges[i][3]);
+		}
+	});
+
+	test('/$/ find', () => {
+		var ranges = [
+			[1, 74, 1, 74],
+			[2, 69, 2, 69],
+			[3, 54, 3, 54],
+			[4, 65, 4, 65],
+			[5, 31, 5, 31]
+		];
+		var matches = thisModel.findMatches('$', false, true, false, false);
+		assert.equal(matches.length, ranges.length);
+		for (var i = 0; i < matches.length; i++) {
+			rangeEqual(matches[i], ranges[i][0], ranges[i][1], ranges[i][2], ranges[i][3]);
+		}
+	});
+
+	test('/^$/ find', () => {
+		var text = [
+			'This is some foo - bar text which contains foo and bar - as in Barcelona.',
+			'',
+			'And here\'s a dull line with nothing interesting in it',
+			'',
+			'Again nothing interesting here'
+		];
+		thisModel = new Model.Model(text.join('\n'), null);
+
+		var ranges = [
+			[2, 1, 2, 1],
+			[4, 1, 4, 1]
+		];
+		var matches = thisModel.findMatches('^$', false, true, false, false);
+		assert.equal(matches.length, ranges.length);
+		for (var i = 0; i < matches.length; i++) {
+			rangeEqual(matches[i], ranges[i][0], ranges[i][1], ranges[i][2], ranges[i][3]);
+		}
+	});
+});

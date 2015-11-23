@@ -979,10 +979,17 @@ export class TextModel extends OrderGuaranteeEventEmitter implements EditorCommo
 
 	private _findMatchesInLine(searchRegex:RegExp, text:string, lineNumber:number, deltaOffset:number, counter:number, result:EditorCommon.IEditorRange[], limitResultCount:number): number {
 		var m:RegExpExecArray;
+		// Reset regex to search from the beginning
+		searchRegex.lastIndex = 0;
 		do {
 			m = searchRegex.exec(text);
 			if (m) {
-				result.push(new Range(lineNumber, m.index + 1 + deltaOffset, lineNumber, m.index + 1 + m[0].length + deltaOffset));
+				var range = new Range(lineNumber, m.index + 1 + deltaOffset, lineNumber, m.index + 1 + m[0].length + deltaOffset);
+				// Exit early if the regex matches the same range
+				if (range.equalsRange(result[result.length - 1])) {
+					return counter;
+				}
+				result.push(range);
 				counter++;
 				if (counter >= limitResultCount) {
 					return counter;
