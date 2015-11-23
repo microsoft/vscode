@@ -289,7 +289,7 @@ export class URL extends URI implements objects.IEqualable {
 	/**
 	 * Creates a new URL from the provided value
 	 * by decoding it first.
-	 * @param value A encoded url value.
+	 * @param value An encoded url value.
 	 */
 	public static fromEncoded(value:string):URL {
 		return new URL(decodeURIComponent(value));
@@ -354,7 +354,7 @@ export class URL extends URI implements objects.IEqualable {
 	}
 
 	/**
-	 * Strip out the hash part of the URL
+	 * Strips out the hash part of the URL.
 	 * http://www.test.com:8000/this/that/theother.html?query=foo for http://www.test.com:8000/this/that/theother.html?query=foo#hash
 	 */
 	public toUnique():string {

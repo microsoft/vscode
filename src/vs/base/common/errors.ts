@@ -22,7 +22,7 @@ export interface ErrorListenerUnbind {
 	(): void;
 }
 
-// avoid circular dependency on EventEmitter by implementing a subset of the interface
+// Avoid circular dependency on EventEmitter by implementing a subset of the interface.
 export class ErrorHandler {
 	private unexpectedErrorHandler: (e: any) => void;
 	private listeners: ErrorListenerCallback[];
@@ -255,6 +255,7 @@ function _exceptionToErrorMessage(exception: any, verbose: boolean): string {
 /**
  * Tries to generate a human readable error message out of the error. If the verbose parameter
  * is set to true, the error message will include stacktrace details if provided.
+ * @returns A string containing the error message.
  */
 export function toErrorMessage(error: any = null, verbose: boolean = false): string {
 	if (!error) {

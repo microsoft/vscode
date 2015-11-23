@@ -97,7 +97,7 @@ export function dirnames(path: string): { next: () => { done: boolean; value: st
 }
 
 /**
- * Returns the directory name of a path.
+ * @returns the directory name of a path.
  */
 export function dirname(path: string): string {
 	var idx = ~path.lastIndexOf('/') || ~path.lastIndexOf('\\');
@@ -111,7 +111,7 @@ export function dirname(path: string): string {
 }
 
 /**
- * Returns the base name of a path.
+ * @returns the base name of a path.
  */
 export function basename(path: string): string {
 	var idx = ~path.lastIndexOf('/') || ~path.lastIndexOf('\\');
@@ -125,7 +125,7 @@ export function basename(path: string): string {
 }
 
 /**
- * Returns {{.far}} from boo.far or the empty string.
+ * @returns {{.far}} from boo.far or the empty string.
  */
 export function extname(path: string): string {
 	path = basename(path);

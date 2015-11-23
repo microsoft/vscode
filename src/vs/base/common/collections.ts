@@ -35,7 +35,7 @@ export function createNumberDictionary<V>():INumberDictionary<V> {
  * @param what The key.
  * @param from A native JavaScript object that stores items.
  * @param alternate A default value this is return in case an item with 
- * 	the key isn't found
+ * 	the key isn't found.
  */
 export function lookup<T>(from:IStringDictionary<T>, what:string, alternate?:T):T;
 export function lookup<T>(from:INumberDictionary<T>, what:number, alternate?:T):T;

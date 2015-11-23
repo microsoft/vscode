@@ -10,8 +10,7 @@
 export interface UUID {
 
 	/**
-	 * Returns the canonical representation in sets of
-	 * hexadecimal numbers separated by dashes.
+	 * @returns the canonical representation in sets of hexadecimal numbers separated by dashes.
 	 */
 	asHex():string;
 

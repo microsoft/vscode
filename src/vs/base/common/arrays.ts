@@ -15,7 +15,7 @@ export function tail<T>(array: T[], n: number = 0): T {
 
 /**
  * Iterates the provided array and allows to remove
- * element while iterating.
+ * elements while iterating.
  */
 export function forEach<T>(array: T[], callback: (element: T, remove: Function) => void): void {
 	for (var i = 0, len = array.length; i < len; i++) {
@@ -76,7 +76,7 @@ export function binarySearch(array: any[], key: any, comparator: (op1: any, op2:
 /**
  * Takes a sorted array and a function p. The array is sorted in such a way that all elements where p(x) is false
  * are located before all elements where p(x) is true.
- * Returns the least x for which p(x) is true or array.length if no element fullfills the given function
+ * @returns the least x for which p(x) is true or array.length if no element fullfills the given function.
  */
 export function findFirst<T>(array: T[], p: (x: T) => boolean): number {
 	var low = 0, high = array.length;
@@ -118,7 +118,7 @@ export function merge<T>(arrays: T[][], hashFn?: (element: T) => string): T[] {
 }
 
 /**
- * Returns a new array with all undefined or null values removed. The original array is not modified at all.
+ * @returns a new array with all undefined or null values removed. The original array is not modified at all.
  */
 export function coalesce<T>(array: T[]): T[] {
 	if (!array) {
@@ -129,7 +129,7 @@ export function coalesce<T>(array: T[]): T[] {
 }
 
 /**
- * Returns true if the given item is contained in the array
+ * @returns true if the given item is contained in the array.
  */
 export function contains<T>(array: T[], item: T): boolean {
 	return array.indexOf(item) >= 0;
@@ -154,7 +154,7 @@ export function move(array: any[], from: number, to: number): void {
 }
 
 /**
- * @returns false if the provided object is an array
+ * @returns {{false}} if the provided object is an array
  * 	and not empty.
  */
 export function isFalsyOrEmpty(obj: any): boolean {

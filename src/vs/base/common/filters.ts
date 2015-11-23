@@ -19,7 +19,7 @@ export interface IMatch {
 // Combined filters
 
 /**
- * Returns a filter which combines the provided set
+ * @returns A filter which combines the provided set
  * of filters with an or. The *first* filters that
  * matches defined the return value of the returned
  * filter.
@@ -37,7 +37,7 @@ export function or(...filter:IFilter[]):IFilter {
 }
 
 /**
- * Returns a filter which combines the provided set
+ * @returns A filter which combines the provided set
  * of filters with an and. The combines matches are
  * returned if *all* filters match.
  */
