@@ -15,7 +15,7 @@ import Event, {Emitter} from 'vs/base/common/event';
 
 var __space = ' '.charCodeAt(0);
 var __tab = '\t'.charCodeAt(0);
-var LIMIT_FIND_COUNT = 999;
+var LIMIT_FIND_COUNT = Number.MAX_VALUE;
 var DEFAULT_PLATFORM_EOL = (Platform.isLinux || Platform.isMacintosh) ? '\n' : '\r\n';
 
 export interface IIndentationFactors {
