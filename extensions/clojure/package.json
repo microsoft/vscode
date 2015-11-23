@@ -2,34 +2,18 @@
 	"name": "clojure",
 	"version": "0.1.0",
 	"publisher": "vscode",
-	"engines": {
-		"vscode": "*"
-	},
+	"engines": { "vscode": "*" },
 	"contributes": {
-		"languages": [
-			{
-				"id": "clojure",
-				"aliases": [
-					"Clojure",
-					"clojure"
-				],
-				"extensions": [
-					".clj",
-					".cljs",
-					".cljc",
-					".cljx",
-					".clojure",
-					".edn"
-				],
-				"configuration": "./clojure.configuration.json"
-			}
-		],
-		"grammars": [
-			{
-				"language": "clojure",
-				"scopeName": "source.clojure",
-				"path": "./syntaxes/Clojure.tmLanguage"
-			}
-		]
+		"languages": [{
+			"id": "clojure",
+			"aliases": ["Clojure", "clojure"],
+			"extensions": [".clj", ".cljs", ".cljx", ".clojure", ".edn"],
+			"configuration": "./clojure.configuration.json"
+		}],
+		"grammars": [{
+			"language": "clojure",
+			"scopeName": "source.clojure",
+			"path": "./syntaxes/Clojure.tmLanguage"
+		}]
 	}
 }
