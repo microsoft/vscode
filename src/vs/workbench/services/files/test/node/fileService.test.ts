@@ -24,9 +24,9 @@ suite('FileService', () => {
 	let parentDir = path.join(os.tmpdir(), 'vsctests', 'service');
 	let testDir: string;
 
-	setup(function (done) {
-		this.timeout(20000);
+	this.timeout(10000); // some tests tend to need longer?
 
+	setup(function (done) {
 		let id = uuid.generateUuid();
 		testDir = path.join(parentDir, id);
 		let sourceDir = require.toUrl('./fixtures/service');
