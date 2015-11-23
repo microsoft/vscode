@@ -124,7 +124,7 @@ export function getHTML5TagProvider(): IHTMLTagProvider {
 			'formmethod:m', 'formnovalidate:v', 'formtarget', 'height', 'inputmode', 'list', 'max', 'maxlength', 'min', 'minlength', 'multiple:v', 'name',
 			'pattern', 'placeholder', 'readonly:v', 'required:v', 'size', 'src', 'step', 'type:t', 'value', 'width'],
 		button: ['autofocus:v', 'disabled:v', 'form', 'formaction', 'formenctype', 'formmethod:m', 'formnovalidate:v', 'formtarget', 'name', 'type:bt', 'value'],
-		select: ['autofocus:v', 'disabled:v', 'form', 'multiple:v', 'name', 'required:v', 'size'],
+		select: ['autocomplete:o', 'autofocus:v', 'disabled:v', 'form', 'multiple:v', 'name', 'required:v', 'size'],
 		datalist: none,
 		optgroup: ['disabled:v', 'label'],
 		option: ['disabled:v', 'label', 'selected:v', 'value'],
