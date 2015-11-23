@@ -6,7 +6,7 @@
 import strings = require('vs/base/common/strings');
 import arrays = require('vs/base/common/arrays');
 
-var emptyElements:string[] = ['area', 'base', 'basefont', 'br', 'col', 'command', 'embed', 'frame', 'hr', 'img', 'input', 'isindex', 'keygen', 'link', 'meta', 'param', 'source', 'track', 'wbr'];
+var emptyElements:string[] = ['area', 'base', 'basefont', 'br', 'col', 'command', 'embed', 'frame', 'hr', 'img', 'input', 'isindex', 'keygen', 'link', 'menuitem', 'meta', 'param', 'source', 'track', 'wbr'];
 
 export function isEmptyElement(e: string) : boolean {
 	return arrays.binarySearch(emptyElements, e,(s1: string, s2: string) => s1.localeCompare(s2)) >= 0;
@@ -136,8 +136,8 @@ export function getHTML5TagProvider(): IHTMLTagProvider {
 		meter: ['value', 'min', 'max', 'low', 'high', 'optimum'],
 		details: ['open:v'],
 		summary: none,
-		command: ['type', 'label', 'icon', 'disabled:v', 'checked:v', 'radiogroup', 'command'],
-		menu: ['type', 'label'],
+		menu: ['type:mt', 'label'],
+		menuitem: ['type:mit', 'label', 'icon', 'disabled:v', 'checked:v', 'radiogroup', 'default:v', 'command'],
 		dialog: ['open:v']
 	};
 
@@ -162,8 +162,10 @@ export function getHTML5TagProvider(): IHTMLTagProvider {
 		m: ['get', 'post'],
 		o: ['on', 'off'],
 		t: ['hidden', 'text', 'search', 'tel', 'url', 'email', 'password', 'datetime', 'date', 'month', 'week', 'time', 'datetime-local', 'number', 'range', 'color', 'checkbox', 'radio', 'file', 'submit', 'image', 'reset', 'button'],
-		bt: ['button', 'submit', 'reset'],
+		bt: ['button', 'submit', 'reset', 'menu'],
 		lt: ['1', 'a', 'A', 'i', 'I'],
+		mt: ['context', 'toolbar'],
+		mit: ['command', 'checkbox', 'radio'],
 		tk: ['subtitles', 'captions', 'descriptions', 'chapters', 'metadata'],
 		pl: ['none', 'metadata', 'auto'],
 		xo: ['anonymous', 'use-credentials'],
