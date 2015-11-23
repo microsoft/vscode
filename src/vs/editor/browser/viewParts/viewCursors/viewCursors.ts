@@ -136,6 +136,7 @@ export class ViewCursors extends ViewPart {
 	}
 	public onConfigurationChanged(e:EditorCommon.IConfigurationChangedEvent): boolean {
 		this._primaryCursor.onConfigurationChanged(e);
+		this._updateBlinking();
 		for (var i = 0, len = this._secondaryCursors.length; i < len; i++) {
 			this._secondaryCursors[i].onConfigurationChanged(e);
 		}
