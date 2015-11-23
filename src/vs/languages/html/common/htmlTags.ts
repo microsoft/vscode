@@ -94,7 +94,7 @@ export function getHTML5TagProvider(): IHTMLTagProvider {
 		param: ['name', 'value'],
 		video: ['src', 'crossorigin:xo', 'poster', 'preload', 'autoplay:v', 'mediagroup', 'loop:v', 'muted:v', 'controls:v', 'width', 'height'],
 		audio: ['src', 'crossorigin:xo', 'preload', 'autoplay:v', 'mediagroup', 'loop:v', 'muted:v', 'controls:v'],
-		source: ['src', 'type', 'media'],
+		source: ['src', 'type'],
 		track: ['default:v', 'kind', 'label', 'src', 'srclang'],
 		canvas: ['width', 'height'],
 		map: ['name'],
