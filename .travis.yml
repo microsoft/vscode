@@ -1,8 +1,9 @@
 sudo: false
-language: node_js
+language: cpp
 
-node_js:
-  - "0.12"
+os:
+  - linux
+  - osx
 
 addons:
   apt:
@@ -17,7 +18,16 @@ addons:
       - libgtk2.0-0
 
 before_install:
-  - export CXX="g++-4.9" CC="gcc-4.9"
+  - git submodule update --init --recursive
+  - git clone https://github.com/creationix/nvm.git ./.nvm
+  - source ./.nvm/nvm.sh
+  - nvm install 0.12
+  - nvm use 0.12
+  - npm config set python `which python`
+  - npm install -g gulp
+  - if [ $TRAVIS_OS_NAME == "linux" ]; then
+      export CXX="g++-4.9" CC="gcc-4.9";
+    fi
 
 install:
   - ./scripts/npm.sh install
