@@ -417,7 +417,7 @@
     <entry name="::-webkit-validation-bubble-text-block" version="3.0" browsers="C,O,S6" />
   </pseudoElements>
   <properties>
-    <entry name="align-content" restriction="enum" version="3.0" browsers="IE11,O12.1" ref="http://www.w3.org/TR/css3-flexbox/#align-content" syntax="p { $(name): flex-start; }">
+    <entry name="align-content" restriction="enum" version="3.0" browsers="E,C29,FF22,IE11,O12.1,S9" ref="http://www.w3.org/TR/css3-flexbox/#align-content" syntax="p { $(name): flex-start; }">
       <desc>Aligns a flex container's lines within the flex container when there is extra space in the cross-axis, similar to how 'justify-content' aligns individual items within the main-axis.</desc>
       <values>
         <value name="center" version="3.0" browsers="all" />
@@ -428,7 +428,7 @@
         <value name="stretch" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="align-items" restriction="enum" version="3.0" browsers="IE11,O12.1" ref="http://www.w3.org/TR/css3-flexbox/#align-items" syntax="p { $(name): flex-start; }">
+    <entry name="align-items" restriction="enum" version="3.0" browsers="E,C29,FF22,IE11,O12.1,S9" ref="http://www.w3.org/TR/css3-flexbox/#align-items" syntax="p { $(name): flex-start; }">
       <desc>Flex items can be aligned in the cross axis of the current line of the flex container, similar to 'justify-content' but in the perpendicular direction.</desc>
       <values>
         <value name="baseline" version="3.0" browsers="all" />
@@ -438,7 +438,7 @@
         <value name="stretch" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="align-self" restriction="enum" version="3.0" browsers="IE11,O12.1" ref="http://www.w3.org/TR/css3-flexbox/#align-items" syntax="p { $(name): flex-start; }">
+    <entry name="align-self" restriction="enum" version="3.0" browsers="E,C29,FF22,IE11,O12.1,S9" ref="http://www.w3.org/TR/css3-flexbox/#align-items" syntax="p { $(name): flex-start; }">
       <desc>Flex items can be aligned in the cross axis of the current line of the flex container, similar to 'justify-content' but in the perpendicular direction.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all" />
@@ -4481,20 +4481,20 @@
         </value>
       </values>
     </entry>
-    <entry name="flex" restriction="length, number, percentage" version="3.0" browsers="IE11,O12.1" ref="http://www.w3.org/TR/css3-flexbox/#flex" syntax="p { $(name): 0 1 auto; }">
+    <entry name="flex" restriction="length, number, percentage" version="3.0" browsers="E,C29,FF22,IE11,O12.1,S9" ref="http://www.w3.org/TR/css3-flexbox/#flex" syntax="p { $(name): 0 1 auto; }">
       <desc>Specifies the components of a flexible length: the flex grow factor and flex shrink factor, and the flex basis.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all" />
         <value name="none" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="flex-basis" restriction="length, number, percentage" version="3.0" browsers="IE11,O12.1" ref="http://www.w3.org/TR/css3-flexbox/#flex-basis-propdef" syntax="p { $(name): 30%; }">
+    <entry name="flex-basis" restriction="length, number, percentage" version="3.0" browsers="E,C29,FF22,IE11,O12.1,S9" ref="http://www.w3.org/TR/css3-flexbox/#flex-basis-propdef" syntax="p { $(name): 30%; }">
       <desc>The 'flex-basis' property sets the flex basis. Negative lengths are invalid.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="flex-direction" restriction="enum" version="3.0" browsers="IE11,O12.1" ref="http://www.w3.org/TR/css3-flexbox/#flex-direction" syntax="div { $(name): column; }">
+    <entry name="flex-direction" restriction="enum" version="3.0" browsers="E,C29,FF22,IE11,O12.1,S9" ref="http://www.w3.org/TR/css3-flexbox/#flex-direction" syntax="div { $(name): column; }">
       <desc>Specifies how flexbox items are placed in the flexbox.</desc>
       <values>
         <value name="column" version="3.0" browsers="all" />
@@ -4503,7 +4503,7 @@
         <value name="row-reverse" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="flex-flow" restriction="enum" version="3.0" browsers="IE11,O12.1" ref="http://www.w3.org/TR/css3-flexbox/#flex-flow" syntax="div { $(name): column wrap; }">
+    <entry name="flex-flow" restriction="enum" version="3.0" browsers="E,C29,FF28,IE11,O12.1,S9" ref="http://www.w3.org/TR/css3-flexbox/#flex-flow" syntax="div { $(name): column wrap; }">
       <desc>Specifies how flexbox items are placed in the flexbox.</desc>
       <values>
         <value name="column" version="3.0" browsers="all" />
@@ -4521,13 +4521,13 @@
         </value>
       </values>
     </entry>
-    <entry name="flex-grow" restriction="number" version="3.0" browsers="IE11,O12.1" ref="http://www.w3.org/TR/css3-flexbox/#flex-grow" syntax="p { $(name): 4; }">
+    <entry name="flex-grow" restriction="number" version="3.0" browsers="E,C29,FF22,IE11,O12.1,S9" ref="http://www.w3.org/TR/css3-flexbox/#flex-grow" syntax="p { $(name): 4; }">
       <desc>The 'flex-grow' property sets the flex grow factor. Negative numbers are invalid.</desc>
     </entry>
-    <entry name="flex-shrink" restriction="number" version="3.0" browsers="IE11,O12.1" ref="http://www.w3.org/TR/css3-flexbox/#flex-shrink" syntax="p { $(name): 4; }">
+    <entry name="flex-shrink" restriction="number" version="3.0" browsers="E,C29,FF22,IE11,O12.1,S9" ref="http://www.w3.org/TR/css3-flexbox/#flex-shrink" syntax="p { $(name): 4; }">
       <desc>The 'flex-shrink' property sets the flex shrink factor. Negative numbers are invalid.</desc>
     </entry>
-    <entry name="flex-wrap" restriction="enum" version="3.0" browsers="IE11,O12.1" ref="http://www.w3.org/TR/css3-flexbox/#flex-wrap" syntax="div { $(name): nowrap; }">
+    <entry name="flex-wrap" restriction="enum" version="3.0" browsers="E,C29,FF28,IE11,O12.1,S9" ref="http://www.w3.org/TR/css3-flexbox/#flex-wrap" syntax="div { $(name): nowrap; }">
       <desc>controls whether the flexbox is single-line or multi-line, and the direction of the cross axis, which affects the direction new lines are stacked in and the meaning of the 'flex-align', 'flex-item-align', and 'flex-line-pack' properties.</desc>
       <values>
         <value name="nowrap" version="3.0" browsers="all">
@@ -5448,7 +5448,7 @@
         </value>
       </values>
     </entry>
-    <entry name="justify-content" restriction="enum" version="3.0" browsers="IE11,O12.1" ref="http://www.w3.org/TR/css3-flexbox/#align-content" syntax="p { $(name): flex-start; }">
+    <entry name="justify-content" restriction="enum" version="3.0" browsers="E,C29,FF22,IE11,O12.1,S9" ref="http://www.w3.org/TR/css3-flexbox/#align-content" syntax="p { $(name): flex-start; }">
       <desc>Aligns a flex container's lines within the flex container when there is extra space in the cross-axis, similar to how 'justify-content' aligns individual items within the main-axis.</desc>
       <values>
         <value name="center" version="3.0" browsers="all" />
@@ -11445,7 +11445,7 @@
     <entry name="opacity" restriction="number(0-1)" version="3.0" browsers="C,FF3.6,IE9,O9,S1.2" ref="http://www.w3.org/TR/css3-color/#opacity" syntax="article { $(name): opacity: 0.4; }">
       <desc>Opacity of an element's text, where 1 is opaque and 0 is entirely transparent.</desc>
     </entry>
-    <entry name="order" restriction="integer" version="3.0" browsers="IE11,O12.1" ref="http://www.w3.org/TR/css3-flexbox/#order" syntax="p { $(name): -1; }">
+    <entry name="order" restriction="integer" version="3.0" browsers="E,C29,FF22,IE11,O12.1,S9" ref="http://www.w3.org/TR/css3-flexbox/#order" syntax="p { $(name): -1; }">
       <desc>Controls the order in which flex items appear within their flex container, by assigning them to ordinal groups.</desc>
     </entry>
     <entry name="orientation" restriction="" version="" browsers="all" />
