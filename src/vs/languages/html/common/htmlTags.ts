@@ -6,7 +6,7 @@
 import strings = require('vs/base/common/strings');
 import arrays = require('vs/base/common/arrays');
 
-var emptyElements:string[] = ['area', 'base', 'basefont', 'br', 'col', 'command', 'embed', 'frame', 'hr', 'img', 'input', 'isindex', 'keygen', 'link', 'menuitem', 'meta', 'param', 'source', 'track', 'wbr'];
+var emptyElements:string[] = ['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'keygen', 'link', 'menuitem', 'meta', 'param', 'source', 'track', 'wbr'];
 
 export function isEmptyElement(e: string) : boolean {
 	return arrays.binarySearch(emptyElements, e,(s1: string, s2: string) => s1.localeCompare(s2)) >= 0;
