@@ -64,7 +64,7 @@ export function getHTML5TagProvider(): IHTMLTagProvider {
 		dfn: none,
 		abbr: none,
 		data: ['value'],
-		time: ['datetime', 'pubdate'],
+		time: ['datetime'],
 		code: none,
 		var: none,
 		samp: none,
