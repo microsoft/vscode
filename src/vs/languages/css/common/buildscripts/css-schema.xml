@@ -34,7 +34,7 @@
     <entry name="@import" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-syntax/#at-import" syntax="@import url('file.css') tv, print;">
       <desc>Includes content of another file.</desc>
     </entry>
-    <entry name="@keyframes" version="3.0" browsers="E,C43,FF16,IE10,O12.5,S9" ref="http://www.w3.org/TR/css3-animations/#keyframes" syntax="@keyframes animation-name">
+    <entry name="@keyframes" version="3.0" browsers="E,C43,FF16,IE10,O30,S9" ref="http://www.w3.org/TR/css3-animations/#keyframes" syntax="@keyframes animation-name">
       <desc>Defines set of animation key frames.</desc>
     </entry>
     <entry name="@left-bottom" version="3" browsers="none" ref="http://www.w3.org/TR/css3-page/#page-box">
@@ -78,7 +78,7 @@
     <entry name="@string" version="3.0" browsers="none" ref="http://www.w3.org/TR/css3-content/#string" syntax="@string chapter { page-policy: last; }">
       <desc>Authors may use @string declaration blocks and the 'page-policy' property, which applies only to strings and counters.</desc>
     </entry>
-    <entry name="@supports" version="3.0" browsers="E,C,FF,O,S9" ref="http://www.w3.org/TR/css3-conditional/#at-supports" syntax="@supports (display: flexbox) { div { display: flexbox; } }">
+    <entry name="@supports" version="3.0" browsers="E,C28,FF22,O12.1,S9" ref="http://www.w3.org/TR/css3-conditional/#at-supports" syntax="@supports (display: flexbox) { div { display: flexbox; } }">
       <desc>A conditional group rule whose condition tests whether the user agent supports CSS property:value pairs.</desc>
     </entry>
     <entry name="@top-center" version="3" browsers="none" ref="http://www.w3.org/TR/css3-page/#page-box">
