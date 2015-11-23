@@ -24,4 +24,4 @@ install:
   - gulp electron compile
 
 script:
-	- ./test/run.sh
+  - ./test/run.sh
