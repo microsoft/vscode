@@ -194,7 +194,7 @@ export var colorKeywords : { [name:string]:string } = {
 };
 
 export var units : { [unitName:string]:string[] } = {
-	'length': ['em', 'rem', 'ex', 'px', 'cm', 'mm', 'in', 'pt', 'pc', 'ch', 'vw', 'vh', 'vmin', 'vmax'], 
+	'length': ['em', 'rem', 'ex', 'px', 'cm', 'mm', 'in', 'pt', 'pc', 'ch', 'vw', 'vh', 'vmin', 'vmax'],
 	'angle': ['deg', 'rad', 'grad', 'turn'],
 	'time': ['ms', 's'],
 	'frequency': ['Hz', 'kHz'],
@@ -302,6 +302,7 @@ export function getBrowserLabel(b: Browsers): string {
 }
 
 export interface Browsers {
+	E:string;
 	FF:string;
 	IE:string;
 	O:string;
@@ -326,7 +327,7 @@ export interface IEntry {
 }
 
 function evalBrowserEntry(browsers: string) {
-	var browserEntry : Browsers = { all: false, FF: '', S: '', C: '', IE: '', O: '', count: 0};
+	var browserEntry : Browsers = { all: false, E: '', FF: '', S: '', C: '', IE: '', O: '', count: 0};
 	var count = 0;
 	if (browsers) {
 		browsers.split(',').forEach(
@@ -474,6 +475,7 @@ export function getPseudoClasses(): IEntry[]{
 }
 
 export var browserNames = {
+	E : 'Edge',
 	FF : 'Firefox',
 	S : 'Safari',
 	C : 'Chrome',
