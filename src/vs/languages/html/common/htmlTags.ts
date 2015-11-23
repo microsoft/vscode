@@ -158,7 +158,7 @@ export function getHTML5TagProvider(): IHTMLTagProvider {
 		b: ['true', 'false'],
 		a: ['true', 'false', 'auto'],
 		u: ['true', 'false', 'undefined'],
-		d: ['ltr', 'rtl'],
+		d: ['ltr', 'rtl', 'auto'],
 		m: ['get', 'post'],
 		o: ['on', 'off'],
 		t: ['hidden', 'text', 'search', 'tel', 'url', 'email', 'password', 'datetime', 'date', 'month', 'week', 'time', 'datetime-local', 'number', 'range', 'color', 'checkbox', 'radio', 'file', 'submit', 'image', 'reset', 'button'],
