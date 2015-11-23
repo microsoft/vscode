@@ -25,7 +25,7 @@ suite('FileService', () => {
 	let testDir: string;
 
 	setup(function (done) {
-		this.timeout(10000);
+		this.timeout(20000);
 
 		let id = uuid.generateUuid();
 		testDir = path.join(parentDir, id);
