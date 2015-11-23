@@ -334,6 +334,11 @@ export interface ICommonEditorOptions {
 	 */
 	overviewRulerLanes?:number;
 	/**
+	 * Control the cursor blinking animation.
+	 * Defaults to 'blink'.
+	 */
+	cursorBlinking?:string;
+	/**
 	 * Should the cursor be hidden in the overview ruler.
 	 * Defaults to false.
 	 */
@@ -577,6 +582,7 @@ export interface IInternalEditorOptions {
 	readOnly:boolean;
 	scrollbar:IInternalEditorScrollbarOptions;
 	overviewRulerLanes:number;
+	cursorBlinking:string;
 	hideCursorInOverviewRuler:boolean;
 	scrollBeyondLastLine:boolean;
 	wrappingIndent: string;
@@ -667,6 +673,7 @@ export interface IConfigurationChangedEvent {
 	readOnly:boolean;
 	scrollbar:boolean;
 	overviewRulerLanes:boolean;
+	cursorBlinking:boolean;
 	hideCursorInOverviewRuler:boolean;
 	scrollBeyondLastLine:boolean;
 	wrappingIndent:boolean;
