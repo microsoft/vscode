@@ -646,7 +646,7 @@
         </value>
       </values>
     </entry>
-    <entry name="backface-visibility" restriction="enum" version="3.0" browsers="FF16,IE10,O12.5" ref="http://www.w3.org/TR/css3-3d-transforms/#backface-visibility" syntax="div { $(name): hidden; }">
+    <entry name="backface-visibility" restriction="enum" version="3.0" browsers="E,C36,FF16,IE10,O23" ref="http://www.w3.org/TR/css3-3d-transforms/#backface-visibility" syntax="div { $(name): hidden; }">
       <desc>Determines whether or not the 'back' side of a transformed element is visible when facing the viewer. With an identity transform, the front side of an element faces the viewer.</desc>
       <values>
         <value name="hidden" version="3.0" browsers="all" />
@@ -8074,6 +8074,7 @@
           <desc>specifies a 3D transformation as a 4x4 homogeneous matrix of 16 values in column-major order.</desc>
         </value>
         <value name="none" version="3.0" browsers="all" />
+        <value name="perspective" version="3.0" browsers="all" />
         <value name="rotate()" version="3.0" browsers="all">
           <desc>Specifies a 2D rotation by the angle specified in the parameter about the origin of the element, as defined by the transform-origin property.</desc>
         </value>
@@ -12189,7 +12190,7 @@
         <value name="x-weak" version="2.0" browsers="all" />
       </values>
     </entry>
-    <entry name="perspective" restriction="length" version="3.0" browsers="FF16,IE10,O12.5" ref="http://www.w3.org/TR/css3-3d-transforms/#perspective" syntax="div { $(name): none; }">
+    <entry name="perspective" restriction="length, enum" version="3.0" browsers="E,C36,FF16,IE10,O23,S9" ref="http://www.w3.org/TR/css3-3d-transforms/#perspective" syntax="div { $(name): none; }">
       <desc>Applies the same transform as the perspective(&lt;number&gt;) transform function, except that it applies only to the positioned or transformed children of the element, not to the transform on the element itself.</desc>
       <values>
         <value name="none" version="3.0" browsers="all">
@@ -12197,7 +12198,7 @@
         </value>
       </values>
     </entry>
-    <entry name="perspective-origin" restriction="percentage, length" version="3.0" browsers="FF16,IE10,O12.5" ref="http://www.w3.org/TR/css3-3d-transforms/#perspective-origin" syntax="div { $(name): 10px; }">
+    <entry name="perspective-origin" restriction="percentage, length, enum" version="3.0" browsers="E,C36,FF16,IE10,O23,S9" ref="http://www.w3.org/TR/css3-3d-transforms/#perspective-origin" syntax="div { $(name): 10px; }">
       <desc>Establishes the origin for the perspective property. It effectively sets the X and Y position at which the viewer appears to be looking at the children of the element.</desc>
       <values>
         <value name="bottom" version="3.0" browsers="all" />
@@ -16028,7 +16029,7 @@
         <value name="pinch-zoom" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="transform" restriction="enum" version="3.0" browsers="FF16,IE10,O12.5" ref="http://www.w3.org/TR/css3-2d-transforms/#transform-property" syntax="div { $(name): rotate(-90deg); }">
+    <entry name="transform" restriction="enum" version="3.0" browsers="E,C36,FF16,IE10,O12.1,S9" ref="http://www.w3.org/TR/css3-transforms/#transform-property" syntax="div { $(name): rotate(-90deg); }">
       <desc>A two-dimensional transformation is applied to an element through the 'transform' property. This property contains a list of transform functions similar to those allowed by SVG.</desc>
       <values>
         <value name="matrix()" version="3.0" browsers="all">
@@ -16038,6 +16039,7 @@
           <desc>specifies a 3D transformation as a 4x4 homogeneous matrix of 16 values in column-major order.</desc>
         </value>
         <value name="none" version="3.0" browsers="all" />
+        <value name="perspective()" version="3.0" browsers="all" />
         <value name="rotate()" version="3.0" browsers="all">
           <desc>Specifies a 2D rotation by the angle specified in the parameter about the origin of the element, as defined by the transform-origin property.</desc>
         </value>
@@ -16094,7 +16096,7 @@
         </value>
       </values>
     </entry>
-    <entry name="transform-origin" restriction="length, percentage" version="3.0" browsers="FF16,IE10,O12.5" ref="http://www.w3.org/TR/css3-2d-transforms/#transform-origin" syntax=".album { $(name): 20% 40%; }">
+    <entry name="transform-origin" restriction="length, percentage, enum" version="3.0" browsers="E,C36,FF16,IE10,O12.1,S9" ref="http://www.w3.org/TR/css3-2d-transforms/#transform-origin" syntax=".album { $(name): 20% 40%; }">
       <desc>Establishes the origin of transformation for an element. This property is applied by first translating the element by the negated value of the property, then applying the element's transform, then translating by the property value.</desc>
       <values>
         <value name="bottom" version="3.0" browsers="all" />
@@ -16104,13 +16106,13 @@
         <value name="top" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="transform-style" restriction="enum" version="3.0" browsers="FF16,IE10,O12.5" ref="http://www.w3.org/TR/css3-3d-transforms/#transform-origin" syntax="div { $(name): flat; }">
+    <entry name="transform-style" restriction="enum" version="3.0" browsers="E,C36,FF16,IE10,O23,S9" ref="http://www.w3.org/TR/css3-transforms/#transform-style-property" syntax="div { $(name): flat; }">
       <desc>Defines how nested elements are rendered in 3D space.</desc>
       <values>
         <value name="flat" version="3.0" browsers="all">
           <desc>All children of this element are rendered flattened into the 2D plane of the element.</desc>
         </value>
-        <value name="preserve-3d" version="3.0" browsers="none">
+        <value name="preserve-3d" version="3.0" browsers="E,C36,FF16,O23,S9">
           <desc>Flattening is not performed, so children maintain their position in 3D space.</desc>
         </value>
       </values>
@@ -18276,6 +18278,7 @@
           <desc>specifies a 3D transformation as a 4x4 homogeneous matrix of 16 values in column-major order.</desc>
         </value>
         <value name="none" version="3.0" browsers="all" />
+        <value name="perspective()" version="3.0" browsers="all" />
         <value name="rotate()" version="3.0" browsers="all">
           <desc>Specifies a 2D rotation by the angle specified in the parameter about the origin of the element, as defined by the transform-origin property.</desc>
         </value>
@@ -18332,7 +18335,7 @@
         </value>
       </values>
     </entry>
-    <entry name="-webkit-transform-origin" restriction="length, percentage" version="3.0" browsers="C,O12,S3.1" ref="http://www.w3.org/TR/css3-2d-transforms/#transform-origin" syntax=".album { $(name): 20% 40%; }">
+    <entry name="-webkit-transform-origin" restriction="length, percentage" version="3.0" browsers="C,O15,S3.1" ref="http://www.w3.org/TR/css3-2d-transforms/#transform-origin" syntax=".album { $(name): 20% 40%; }">
       <desc>Establishes the origin of transformation for an element. This property is applied by first translating the element by the negated value of the property, then applying the element's transform, then translating by the property value.</desc>
       <values>
         <value name="bottom" version="3.0" browsers="all" />
