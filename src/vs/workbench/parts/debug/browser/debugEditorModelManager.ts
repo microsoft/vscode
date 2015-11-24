@@ -325,7 +325,7 @@ export class DebugEditorModelManager implements wbext.IWorkbenchContribution {
 
 	private static FOCUSED_STACK_FRAME_DECORATION: editorcommon.IModelDecorationOptions = {
 		isWholeLine: true,
-		className: 'debug-focussed-stack-frame-line',
+		className: 'debug-focused-stack-frame-line',
 		stickiness: editorcommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
 	};
 }
