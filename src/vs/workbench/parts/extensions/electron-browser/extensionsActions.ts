@@ -54,3 +54,26 @@ export class InstallExtensionAction extends Action {
 		return true;
 	}
 }
+
+export class ListExtensionsUpdatesAction extends Action {
+
+	static ID = 'workbench.extensions.action.listExtensionsUpdates';
+	static LABEL = nls.localize('showExtensionsUpdates', "Show Extensions Updates");
+
+	constructor(
+		id: string,
+		label: string,
+		@IExtensionsService private extensionsService: IExtensionsService,
+		@IQuickOpenService private quickOpenService: IQuickOpenService
+	) {
+		super(id, label, null, true);
+	}
+
+	public run(): Promise {
+		return this.quickOpenService.show('ext update ');
+	}
+
+	protected isEnabled(): boolean {
+		return true;
+	}
+}
