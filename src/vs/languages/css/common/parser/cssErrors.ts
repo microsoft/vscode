@@ -10,7 +10,7 @@ import nodes = require('./cssNodes');
 export class CSSIssueType implements nodes.IRule {
 	id: string;
 	message: string;
-	
+
 	public constructor(id:string, message: string) {
 		this.id = id;
 		this.message = message;

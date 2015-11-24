@@ -191,7 +191,7 @@ export class SwitchOutputActionItem extends SelectActionItem {
 		super(null, action, SwitchOutputActionItem.getChannels(outputService, input), SwitchOutputActionItem.getChannels(outputService, input).indexOf(input.getChannel()));
 
 		this.input = input;
-		
+
 		this.outputService.onOutputChannel.add(this.onOutputChannel, this);
 	}
 

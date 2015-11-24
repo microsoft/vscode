@@ -22,13 +22,13 @@ export function newNode<T>(data:T):Node<T> {
 }
 
 export class Graph<T> {
-	
+
 	private _nodes:{[key:string]:Node<T>} = Object.create(null);
-	
+
 	constructor(private _hashFn:(element:T)=>string) {
 		// empty
 	}
-	
+
 	public roots():Node<T>[] {
 		var ret:Node<T>[] = [];
 		collections.forEach(this._nodes, entry => {
@@ -38,7 +38,7 @@ export class Graph<T> {
 		});
 		return ret;
 	}
-	
+
 	public traverse(start:T, inwards:boolean, callback:(data:T)=>void):void {
 		var startNode = this.lookup(start);
 		if(!startNode) {
@@ -46,7 +46,7 @@ export class Graph<T> {
 		}
 		this._traverse(startNode, inwards, {}, callback);
 	}
-	
+
 	private _traverse(node:Node<T>, inwards:boolean, seen:{[key:string]:boolean}, callback:(data:T)=>void):void {
 		var key = this._hashFn(node.data);
 		if(collections.contains(seen, key)) {
@@ -57,15 +57,15 @@ export class Graph<T> {
 		var nodes = inwards ? node.outgoing : node.incoming;
 		collections.forEach(nodes, (entry) => this._traverse(entry.value, inwards, seen, callback));
 	}
-	
+
 	public insertEdge(from:T, to:T):void {
 		var fromNode = this.lookupOrInsertNode(from), 
 			toNode = this.lookupOrInsertNode(to);
-		
+
 		fromNode.outgoing[this._hashFn(to)] = toNode;
 		toNode.incoming[this._hashFn(from)] = fromNode;
 	}
-	
+
 	public removeNode(data:T):void {
 		var key = this._hashFn(data);
 		delete this._nodes[key];
@@ -74,23 +74,23 @@ export class Graph<T> {
 			delete entry.value.incoming[key];
 		});
 	}
-	
+
 	public lookupOrInsertNode(data:T):Node<T> {
 		var key = this._hashFn(data),
 			node = collections.lookup(this._nodes, key);
-		
+
 		if(!node) {
 			node = newNode(data);
 			this._nodes[key] = node;
 		}
-		
+
 		return node;
 	}
-	
+
 	public lookup(data:T):Node<T> {
 		return collections.lookup(this._nodes, this._hashFn(data));
 	}
-	
+
 	public get length():number {
 		return Object.keys(this._nodes).length;
 	}

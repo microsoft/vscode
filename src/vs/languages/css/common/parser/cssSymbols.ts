@@ -8,40 +8,40 @@ import nodes = require('./cssNodes');
 import arrays = require('vs/base/common/arrays');
 
 export class Scope {
-	
+
 	public parent:Scope;
 	public children:Scope[];
-	
+
 	public offset:number;
 	public length:number;
-	
+
 	private symbols:Symbol[];
-	
+
 	constructor(offset:number, length:number) {
 		this.offset = offset;
 		this.length = length;
 		this.symbols = [];
-		
+
 		this.parent = null;
 		this.children = [];
 	}
-	
+
 	public addChild(scope:Scope):void {
 		this.children.push(scope);
 		scope.setParent(this);
 	}
-	
+
 	public setParent(scope:Scope):void {
 		this.parent = scope;
 	}
-	
+
 	public findScope(offset:number, length:number=0):Scope {
 		if (this.offset <= offset && this.offset + this.length > offset + length || this.offset === offset && this.length === length) {
 			return this.findInScope(offset, length);
 		}
 		return null;
 	}	
-	
+
 	private findInScope(offset: number, length: number = 0): Scope {
 		// find the first scope child that has an offset larger than offset + length
 		var end = offset + length;
@@ -50,18 +50,18 @@ export class Scope {
 			// all scopes have offsets larger than our end
 			return this;
 		}
-				
+
 		var res = this.children[idx-1];
 		if (res.offset <= offset && res.offset + res.length >= offset + length) {
 			return res.findInScope(offset, length);
 		}
 		return this;
 	}
-	
+
 	public addSymbol(symbol:Symbol):void {
 		this.symbols.push(symbol);
 	}
-	
+
 	public getSymbol(name:string, type: nodes.ReferenceType):Symbol {
 		for (var index = 0; index < this.symbols.length; index++) {
 			var symbol = this.symbols[index];
@@ -71,14 +71,14 @@ export class Scope {
 		}
 		return null;
 	}
-	
+
 	public getSymbols():Symbol[] {
 		return this.symbols;
 	}
 }
 
 export class GlobalScope extends Scope {
-	
+
 	constructor() {
 		super(0, Number.MAX_VALUE);
 	}
@@ -87,11 +87,11 @@ export class GlobalScope extends Scope {
 
 
 export class Symbol {
-	
+
 	public name:string;
 	public type:nodes.ReferenceType;
 	public node:nodes.Node;
-	
+
 	constructor(name:string, node:nodes.Node, type: nodes.ReferenceType) {
 		this.name = name;
 		this.node = node;
@@ -102,18 +102,18 @@ export class Symbol {
 export class ScopeBuilder implements nodes.IVisitor {
 
 	public scope:Scope;
-	
+
 	constructor(scope:Scope) {
 		this.scope = scope;
 	}
-	
+
 	private addSymbol(node:nodes.Node, name:string, type: nodes.ReferenceType) : void {
 		if (node.offset !== -1) {
 			var current = this.scope.findScope(node.offset, node.length);
 			current.addSymbol(new Symbol(name, node, type));
 		}
 	}
-	
+
 	private addScope(node:nodes.Node) : Scope {
 		if (node.offset !== -1) {
 			var current = this.scope.findScope(node.offset, node.length);
@@ -126,14 +126,14 @@ export class ScopeBuilder implements nodes.IVisitor {
 		}
 		return null;
 	}
-	
+
 	private addSymbolToChildScope(scopeNode:nodes.Node, node:nodes.Node, name:string, type: nodes.ReferenceType): void {
 		if (scopeNode && scopeNode.offset !== -1 ) {
 			var current = this.addScope(scopeNode); // create the scope or gets the existing one
 			current.addSymbol(new Symbol(name, node, type));
 		}
 	}
-	
+
 	public visitNode(node:nodes.Node):boolean {
 		switch (node.type) {
 			case nodes.NodeType.Keyframe:
@@ -171,7 +171,7 @@ export class ScopeBuilder implements nodes.IVisitor {
 		}
 		return true;
 	}
-		
+
 	public visitRuleSet(node:nodes.RuleSet):boolean {
 		var current = this.scope.findScope(node.offset, node.length);
 		node.getSelectors().getChildren().forEach((node) => {
@@ -187,14 +187,14 @@ export class ScopeBuilder implements nodes.IVisitor {
 
 
 export class Symbols {
-	
+
 	private global:Scope;
-	
+
 	constructor(node:nodes.Node) {
 		this.global = new GlobalScope();
 		node.accept(new ScopeBuilder(this.global));
 	}
-	
+
 	public findSymbolsAtOffset(offset:number, referenceType: nodes.ReferenceType) : Symbol[] {
 		var scope = this.global.findScope(offset, 0);
 		var result : Symbol[] = [];
@@ -212,7 +212,7 @@ export class Symbols {
 		}
 		return result;
 	}
-	
+
 	private internalFindSymbol(node:nodes.Node, referenceTypes:nodes.ReferenceType[]): Symbol {
 		var scopeNode = node;
 		if (node.parent instanceof nodes.FunctionParameter && node.parent.getParent() instanceof nodes.BodyDeclaration) {
@@ -244,7 +244,7 @@ export class Symbols {
 		}
 		return null;
 	}
-	
+
 	private evaluateReferenceTypes(node: nodes.Node) : nodes.ReferenceType[] {	
 		if (node instanceof nodes.Identifier) {
 			var referenceTypes = (<nodes.Identifier> node).referenceTypes;
@@ -274,7 +274,7 @@ export class Symbols {
 		}
 		return null;
 	}
-	
+
 	public findSymbolFromNode(node: nodes.Node):Symbol {
 		if (!node) {
 			return null;
@@ -282,14 +282,14 @@ export class Symbols {
 		while (node.type === nodes.NodeType.Interpolation) {
 			node = node.getParent();
 		}
-		
+
 		var referenceTypes = this.evaluateReferenceTypes(node);
 		if (referenceTypes) {
 			return this.internalFindSymbol(node, referenceTypes); 
 		}
 		return null;
 	}
-	
+
 	public matchesSymbol(node: nodes.Node, symbol: Symbol):boolean {
 		if (!node) {
 			return null;
@@ -300,17 +300,17 @@ export class Symbols {
 		if (symbol.name.length !== node.length || symbol.name !== node.getText()) {
 			return false;
 		}		
-		
+
 		var referenceTypes = this.evaluateReferenceTypes(node);
 		if (!referenceTypes || referenceTypes.indexOf(symbol.type) === -1) {
 			return false;
 		}
-		
+
 		var nodeSymbol = this.internalFindSymbol(node, referenceTypes);
 		return nodeSymbol === symbol;
 	}
-	
-	
+
+
 	public findSymbol(name:string, type: nodes.ReferenceType, offset:number):Symbol {
 		var scope = this.global.findScope(offset);
 		while(scope) {

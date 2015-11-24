@@ -94,7 +94,7 @@ export function contains<T>(from:any, what:any):boolean {
 export function keys<T>(from:IStringDictionary<T>):IIterable<string>;
 export function keys<T>(from:INumberDictionary<T>):IIterable<number>;
 export function keys<T>(from:any):IIterable<any> {
-	
+
 	return {
 		every: function(callback:(element:any)=>boolean):boolean {
 			for (var key in from) {
@@ -174,7 +174,7 @@ export function groupBy<T>(data: T[], groupFn: (element: T) => string): IStringD
  * compatible with the JavaScript array.
  */
 export interface IIterable<E> {
-	
+
 	/**
 	 * Iterates over every element in the array
 	 * as long as the callback does not return some
@@ -273,33 +273,33 @@ interface ICacheRow<T> {
  * removes the older elements as new ones are inserted.
  */
 export class LimitedSizeCache<T> {
-	
+
 	private cache: { [id: string]: ICacheRow<T> };
 	private order: string[];
-	
+
 	constructor(private size: number) {
 		this.cache = Object.create(null);
 		this.order = [];
 	}
-	
+
 	public get(id: string): T {
 		var result = this.cache[id];
 		return result && result.element;
 	}
-	
+
 	public put(id: string, element: T, onRemove: ()=>void): void {
 		var existing = this.cache[id];
 		var row: ICacheRow<T> = { element: element, onRemove: onRemove };
-		
+
 		this.cache[id] = row;
-		
+
 		if (!existing) {
 			this.order.push(id);
 		}
-		
+
 		this.swipe();
 	}
-	
+
 	private swipe(): void {
 		while (this.order.length > this.size) {
 			var id = this.order.shift();
