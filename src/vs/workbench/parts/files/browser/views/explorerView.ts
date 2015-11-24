@@ -150,7 +150,7 @@ export class ExplorerView extends CollapsibleViewletView {
 
 		// During workbench startup, the editor area might restore more than one editor from a previous
 		// session. When this happens there might be editor input changing events for side editors that
-		// dont have focus. In these cases we do not adjust explorer selection for non-focussed editors
+		// don't have focus. In these cases we do not adjust explorer selection for non-focused editors
 		// because we only want to react for the editor that has focus.
 		if (!this.partService.isCreated() && e.editorOptions && e.editorOptions.preserveFocus) {
 			return;
@@ -198,10 +198,10 @@ export class ExplorerView extends CollapsibleViewletView {
 	public focus(): void {
 		super.focus();
 
-		// Open the focussed element in the editor if there is currently no file opened
+		// Open the focused element in the editor if there is currently no file opened
 		let input = this.editorService.getActiveEditorInput();
 		if (!input || !(input instanceof FileEditorInput)) {
-			this.openFocussedElement();
+			this.openFocusedElement();
 		}
 	}
 
@@ -247,13 +247,13 @@ export class ExplorerView extends CollapsibleViewletView {
 
 				// Otherwise restore last used file: By Explorer selection
 				return refreshPromise.then(() => {
-					this.openFocussedElement();
+					this.openFocusedElement();
 				});
 			}
 		});
 	}
 
-	private openFocussedElement(): boolean {
+	private openFocusedElement(): boolean {
 		let stat: FileStat = this.explorerViewer.getFocus();
 		if (stat && !stat.isDirectory) {
 			let editorInput = this.instantiationService.createInstance(FileEditorInput, stat.resource, stat.mime, void 0);

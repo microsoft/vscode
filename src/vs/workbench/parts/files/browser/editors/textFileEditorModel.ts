@@ -703,7 +703,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 		}
 
 		if (!this.preferredEncoding && this.contentEncoding === encoding) {
-			return false; // also return if we dont have a preferred encoding but the content encoding is already the same
+			return false; // also return if we don't have a preferred encoding but the content encoding is already the same
 		}
 
 		return true;

@@ -929,7 +929,7 @@ export class SearchViewlet extends Viewlet {
 			this.viewModel.toggleHighlights(visible);
 		}
 
-		// Open focussed element from results in case the editor area is otherwise empty
+		// Open focused element from results in case the editor area is otherwise empty
 		if (visible && !this.editorService.getActiveEditorInput()) {
 			let focus = this.tree.getFocus();
 			if (focus) {

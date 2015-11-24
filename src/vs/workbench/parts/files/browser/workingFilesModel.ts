@@ -87,7 +87,7 @@ export class WorkingFilesModel implements filesCommon.IWorkingFilesModel {
 
 	private onTextFileDirty(e: filesCommon.LocalFileChangeEvent): void {
 		if (!this.contextService.isAutoSaveEnabled()) {
-			this.updateDirtyState(e.getAfter().resource, true); // no indication needed when auto save is turned off and we didnt show dirty
+			this.updateDirtyState(e.getAfter().resource, true); // no indication needed when auto save is turned off and we didn't show dirty
 		} else {
 			this.addEntry(e.getAfter().resource);
 		}

@@ -1025,7 +1025,7 @@ if (Env.enableTasks) {
 						'isShellCommand': {
 							'type': 'boolean',
 							'default': true,
-							'description': nls.localize('JsonSchema.shell', 'Specifies whether the command is a shell command or an external programm. Defaults to false if omitted.')
+							'description': nls.localize('JsonSchema.shell', 'Specifies whether the command is a shell command or an external program. Defaults to false if omitted.')
 						},
 						'args': {
 							'type': 'array',
@@ -1053,7 +1053,7 @@ if (Env.enableTasks) {
 						},
 						'showOutput': {
 							'$ref': '#/definitions/showOutputType',
-							'description': nls.localize('JsonSchema.showOuput', 'Controls whether the output of the running task is shown or not. If omitted \'always\' is used.')
+							'description': nls.localize('JsonSchema.showOutput', 'Controls whether the output of the running task is shown or not. If omitted \'always\' is used.')
 						},
 						'isWatching': {
 							'type': 'boolean',
@@ -1111,7 +1111,7 @@ if (Env.enableTasks) {
 						},
 						'showOutput': {
 							'$ref': '#/definitions/showOutputType',
-							'description': nls.localize('JsonSchema.tasks.showOuput', 'Controls whether the output of the running task is shown or not. If omitted the globally defined value is used.')
+							'description': nls.localize('JsonSchema.tasks.showOutput', 'Controls whether the output of the running task is shown or not. If omitted the globally defined value is used.')
 						},
 						'echoCommand': {
 							'type': 'boolean',

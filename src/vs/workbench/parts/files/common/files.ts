@@ -294,7 +294,7 @@ export interface ITextFileService extends IDisposable {
 	isDirty(resource?: URI): boolean;
 
 	/**
-	 * Returs all resources that are currently dirty matching the provided resource or all dirty resources.
+	 * Returns all resources that are currently dirty matching the provided resource or all dirty resources.
 	 *
 	 * @param resource the resource to check for being dirty. If it is not specified, will check for
 	 * all dirty resources.
@@ -342,7 +342,7 @@ export interface ITextFileService extends IDisposable {
 	revertAll(resources?: URI[], force?: boolean): TPromise<ITextFileOperationResult>;
 
 	/**
-	 * Brings up the confirm dialog to either save, dont save or cancel.
+	 * Brings up the confirm dialog to either save, don't save or cancel.
 	 *
 	 * @param resource the resource of the file to ask for confirmation.
 	 */

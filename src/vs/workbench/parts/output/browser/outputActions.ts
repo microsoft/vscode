@@ -63,7 +63,7 @@ export class GlobalShowOutputAction extends Action {
 			channelToOpen = channels[0].getChannel();
 		}
 
-		// Fallback to any contributed channel otherwise if we dont have history
+		// Fallback to any contributed channel otherwise if we don't have history
 		else {
 			channelToOpen = (<IOutputChannelRegistry>Registry.as(Extensions.OutputChannels)).getChannels()[0];
 		}
@@ -191,7 +191,7 @@ export class SwitchOutputActionItem extends SelectActionItem {
 		super(null, action, SwitchOutputActionItem.getChannels(outputService, input), SwitchOutputActionItem.getChannels(outputService, input).indexOf(input.getChannel()));
 
 		this.input = input;
-		
+
 		this.outputService.onOutputChannel.add(this.onOutputChannel, this);
 	}
 

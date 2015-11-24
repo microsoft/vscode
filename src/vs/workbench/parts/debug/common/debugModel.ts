@@ -555,7 +555,7 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 			this.threads[data.threadId].callStack = data.callStack.map(
 				(rsf, level) => {
 					if (!rsf) {
-						return new StackFrame(data.threadId, 0, debug.Source.fromUri(uri.parse('unknown')), nls.localize('unkownStack', "Unknown stack location"), undefined, undefined);
+						return new StackFrame(data.threadId, 0, debug.Source.fromUri(uri.parse('unknown')), nls.localize('unknownStack', "Unknown stack location"), undefined, undefined);
 					}
 
 					return new StackFrame(data.threadId, rsf.id, rsf.source ? debug.Source.fromRawSource(rsf.source) : debug.Source.fromUri(uri.parse('unknown')), rsf.name, rsf.line, rsf.column);

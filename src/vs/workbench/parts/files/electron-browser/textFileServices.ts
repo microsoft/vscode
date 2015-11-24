@@ -233,7 +233,7 @@ export class TextFileService extends BrowserTextFileService {
 			if (untitled) {
 				let targetPath: string;
 
-				// Untitled with associated file path dont need to prompt
+				// Untitled with associated file path don't need to prompt
 				if (this.untitledEditorService.hasAssociatedFilePath(untitled.getResource())) {
 					targetPath = untitled.getResource().fsPath;
 				}

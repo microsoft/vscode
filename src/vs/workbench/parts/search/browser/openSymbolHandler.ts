@@ -90,7 +90,7 @@ class SymbolEntry extends EditorQuickOpenEntry {
 export class OpenSymbolHandler extends QuickOpenHandler {
 
 	private static SUPPORTED_OPEN_TYPES = ['class', 'interface', 'enum', 'function', 'method'];
-	private static SEARCH_DELAY = 500; // This delay acommodates for the user typing a word and then stops typing to start searching
+	private static SEARCH_DELAY = 500; // This delay accommodates for the user typing a word and then stops typing to start searching
 
 	private delayer: ThrottledDelayer;
 	private isStandalone: boolean;
