@@ -178,7 +178,7 @@ export class AbstractMode<W extends AbstractModeWorker> implements Modes.IMode {
 	}
 
 	public shouldAutotriggerSuggestImpl(context:Modes.ILineContext, offset:number, triggeredByCharacter:string):boolean {
-		return false;
+		return true;
 	}
 
 	public shouldShowEmptySuggestionList():boolean {
