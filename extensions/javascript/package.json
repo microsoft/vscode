@@ -7,7 +7,8 @@
 		"languages": [{
 			"id": "javascriptreact",
 			"aliases": ["JavaScript React","jsx"],
-			"extensions": [".jsx"]
+			"extensions": [".jsx"],
+			"configuration": "./javascript.configuration.json"
 		},
 		{
 			"id": "javascript",
