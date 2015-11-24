@@ -19,4 +19,9 @@ else
 fi
 
 # Integration Tests
+if [[ "$OSTYPE" == "linux" ]]; then
+  export DISPLAY=:99.0
+  sh -e /etc/init.d/xvfb start
+  sleep 3
+fi
 ./scripts/code.sh $ROOT/extensions/vscode-api-tests/testWorkspace --extensionDevelopmentPath=$ROOT/extensions/vscode-api-tests --extensionTestsPath=$ROOT/extensions/vscode-api-tests/out
