@@ -74,7 +74,7 @@ export class WorkbenchMessageService implements IMessageService {
 	}
 
 	private onQuickOpenShowing(): void {
-		this.canShowMessages = false; // when quick open is open, dont show messages behind
+		this.canShowMessages = false; // when quick open is open, don't show messages behind
 		this.handler.hide(); // hide messages when quick open is visible
 	}
 

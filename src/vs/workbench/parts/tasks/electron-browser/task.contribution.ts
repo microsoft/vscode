@@ -861,7 +861,7 @@ if (Env.enableTasks) {
 						},
 						'location': {
 							'type': 'integer',
-							'description': nls.localize('JsonSchema.pattern.location', 'The match group index of the problem\'s location. Valid location patterns are: (line), (line,column) and (startLine,startColumn,endLine,endColumn). If omitted line and colum is assumed.')
+							'description': nls.localize('JsonSchema.pattern.location', 'The match group index of the problem\'s location. Valid location patterns are: (line), (line,column) and (startLine,startColumn,endLine,endColumn). If omitted line and column is assumed.')
 						},
 						'line': {
 							'type': 'integer',

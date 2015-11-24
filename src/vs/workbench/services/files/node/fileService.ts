@@ -540,7 +540,7 @@ export class FileService implements files.IFileService {
 					path: fsPath
 				});
 
-				// handle emit through delayer to accomodate for bulk changes
+				// handle emit through delayer to accommodate for bulk changes
 				this.fileChangesWatchDelayer.trigger(() => {
 					let buffer = this.undeliveredRawFileChangesEvents;
 					this.undeliveredRawFileChangesEvents = [];
@@ -639,7 +639,7 @@ export class StatResolver {
 
 				// Load children
 				this.resolveChildren(this.resource.fsPath, absoluteTargetPaths, options && options.resolveSingleChildDescendants, (children) => {
-					children = arrays.coalesce(children); // we dont want those null childs (could be permission denied when reading a child)
+					children = arrays.coalesce(children); // we don't want those null children (could be permission denied when reading a child)
 					fileStat.hasChildren = children && children.length > 0;
 					fileStat.children = children || [];
 
@@ -714,7 +714,7 @@ export class StatResolver {
 						// Continue resolving children based on condition
 						if (resolveFolderChildren) {
 							$this.resolveChildren(fileResource.fsPath, absoluteTargetPaths, resolveSingleChildDescendants, (children) => {
-								children = arrays.coalesce(children);  // we dont want those null childs
+								children = arrays.coalesce(children);  // we don't want those null children
 								childStat.hasChildren = children && children.length > 0;
 								childStat.children = children || [];
 

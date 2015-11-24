@@ -55,7 +55,7 @@ export interface IWorkbenchEditorService extends IEditorService {
 	isVisible(input: IEditorInput, includeDiff: boolean): boolean;
 
 	/**
-	 * Opens an Editor on the given input with the provided options at the given position. If the input paramater
+	 * Opens an Editor on the given input with the provided options at the given position. If the input parameter
 	 * is null, will cause the currently opened editor at the position to close. If sideBySide parameter is provided,
 	 * causes the editor service to decide in what position to open the input.
 	 */
@@ -94,7 +94,7 @@ export interface IWorkbenchEditorService extends IEditorService {
 	closeEditors(othersOnly?: boolean): TPromise<void>;
 
 	/**
-	 * Focus the editor at the provided position. If position is not provided, the current active editor is focussed.
+	 * Focus the editor at the provided position. If position is not provided, the current active editor is focused.
 	 */
 	focusEditor(editor?: IEditor): TPromise<IEditor>;
 	focusEditor(position?: Position): TPromise<IEditor>;

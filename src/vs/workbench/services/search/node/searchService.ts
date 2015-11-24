@@ -86,7 +86,7 @@ export class SearchService implements ISearchService {
 
 						// Match
 						if (progress.resource) {
-							if (typeof localResults[progress.resource.toString()] === 'undefined') { // dont override local results
+							if (typeof localResults[progress.resource.toString()] === 'undefined') { // don't override local results
 								onProgress(progress);
 							}
 						}
@@ -118,7 +118,7 @@ export class SearchService implements ISearchService {
 					}
 				}
 
-				// Dont support other resource schemes than files for now
+				// Don't support other resource schemes than files for now
 				else if (resource.scheme !== 'file') {
 					return;
 				}

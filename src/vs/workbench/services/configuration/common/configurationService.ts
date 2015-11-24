@@ -63,7 +63,7 @@ export class ConfigurationService extends CommonConfigurationService {
 
 	protected resolveStat(resource: uri): TPromise<IStat> {
 		return new TPromise<IStat>((c, e) => {
-			extfs.readdir(resource.fsPath, (error, childs) => {
+			extfs.readdir(resource.fsPath, (error, children) => {
 				if (error) {
 					if ((<any>error).code === 'ENOTDIR') {
 						c({
@@ -77,7 +77,7 @@ export class ConfigurationService extends CommonConfigurationService {
 					c({
 						resource: resource,
 						isDirectory: true,
-						children: childs.map((child) => {
+						children: children.map((child) => {
 							if (platform.isMacintosh) {
 								child = strings.normalizeNFC(child); // Mac: uses NFD unicode form on disk, but we want NFC
 							}
@@ -109,7 +109,7 @@ export class ConfigurationService extends CommonConfigurationService {
 
 	protected loadWorkspaceConfiguration(section?: string): TPromise<{ [relativeWorkspacePath: string]: IConfigFile }> {
 
-		// Return early if we dont have a workspace
+		// Return early if we don't have a workspace
 		if (!this.contextService.getWorkspace()) {
 			return Promise.as({});
 		}
@@ -123,7 +123,7 @@ export class ConfigurationService extends CommonConfigurationService {
 			let globalSettings = this.contextService.getOptions().globalSettings;
 			return {
 				contents: objects.mixin(
-					objects.clone(defaults.contents),	// target: default values (but dont modify!)
+					objects.clone(defaults.contents),	// target: default values (but don't modify!)
 					globalSettings.settings,			// source: global configured values
 					true								// overwrite
 				),
