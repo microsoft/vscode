@@ -187,13 +187,17 @@ export class ModeServiceImpl implements IModeService {
 		if (this._activationPromises.hasOwnProperty(modeId)) {
 			return this._activationPromises[modeId];
 		}
-
-		this._activationPromises[modeId] = this._createMode(modeId).then((mode) => {
+		var c, e;
+		var promise = new TPromise((cc,ee,pp) => { c = cc; e = ee; });
+		this._activationPromises[modeId] = promise;
+		
+		this._createMode(modeId).then((mode) => {
 			this._instantiatedModes[modeId] = mode;
 			delete this._activationPromises[modeId];
 			return this._instantiatedModes[modeId];
-		});
-		return this._activationPromises[modeId];
+		}).then(c, e);
+
+		return promise;
 	}
 
 	protected _createMode(modeId:string): TPromise<Modes.IMode> {

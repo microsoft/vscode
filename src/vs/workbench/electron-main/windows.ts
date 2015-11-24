@@ -369,8 +369,12 @@ export class WindowsManager {
 
 			// Let the user settings override how files are open in a new window or same window
 			let openFilesInNewWindow = openConfig.forceNewWindow;
-			if (openFilesInNewWindow && !openConfig.cli.pluginDevelopmentPath) {
-				openFilesInNewWindow = settings.manager.getValue('window.openInNewWindow', openFilesInNewWindow); // can be overriden via settings (not for PDE though!)
+			if (openFilesInNewWindow && !openConfig.cli.pluginDevelopmentPath) { // can be overriden via settings (not for PDE though!)
+				if (settings.manager.getValue('window.openInNewWindow', null) !== null) {
+					openFilesInNewWindow = settings.manager.getValue('window.openInNewWindow', openFilesInNewWindow); // TODO@Ben remove legacy setting in a couple of versions
+				} else {
+					openFilesInNewWindow = settings.manager.getValue('window.openFilesInNewWindow', openFilesInNewWindow);
+				}
 			}
 
 			// Open Files in last instance if any and flag tells us so

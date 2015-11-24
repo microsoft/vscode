@@ -194,7 +194,7 @@ export var colorKeywords : { [name:string]:string } = {
 };
 
 export var units : { [unitName:string]:string[] } = {
-	'length': ['em', 'rem', 'ex', 'px', 'cm', 'mm', 'in', 'pt', 'pc', 'ch', 'vw', 'vh', 'vmin', 'vmax'], 
+	'length': ['em', 'rem', 'ex', 'px', 'cm', 'mm', 'in', 'pt', 'pc', 'ch', 'vw', 'vh', 'vmin', 'vmax'],
 	'angle': ['deg', 'rad', 'grad', 'turn'],
 	'time': ['ms', 's'],
 	'frequency': ['Hz', 'kHz'],
@@ -206,7 +206,7 @@ export var html5Tags = ['a', 'abbr', 'address', 'area', 'article', 'aside', 'aud
 	'cite', 'code', 'col', 'colgroup', 'data', 'datalist', 'dd', 'del', 'details', 'dfn', 'dialog', 'div', 'dl', 'dt', 'em', 'embed', 'fieldset', 'figcaption', 'figure', 'footer',
 	'form', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'head', 'header', 'hgroup', 'hr', 'html', 'i', 'iframe', 'img', 'input', 'ins', 'kbd', 'keygen', 'label', 'legend', 'li', 'link',
 	'main', 'map', 'mark', 'menu', 'menuitem', 'meta', 'meter', 'nav', 'noscript', 'object', 'ol', 'optgroup', 'option', 'output', 'p', 'param', 'pre', 'progress', 'q', 'rb',
-	'rp', 'rt', 'rtc', 'ruby', 's', 'samp', 'script', 'section', 'select', 'small', 'source', 'span', 'strong', 'style', 'sub', 'summary', 'sup', 'table', 'tbody', 'td', 'template',
+	'rp', 'rt', 'rtc', 'ruby', 's', 'samp', 'script', 'section', 'select', 'small', 'source', 'span', 'strong', 'style', 'sub', 'summary', 'sup', 'svg', 'table', 'tbody', 'td', 'template',
 	'textarea', 'tfoot', 'th', 'thead', 'time', 'title', 'tr', 'track', 'u', 'ul', 'var', 'video', 'wbr' ];
 
 export function isColorConstructor(node:nodes.Function): boolean {
@@ -302,6 +302,7 @@ export function getBrowserLabel(b: Browsers): string {
 }
 
 export interface Browsers {
+	E:string;
 	FF:string;
 	IE:string;
 	O:string;
@@ -326,7 +327,7 @@ export interface IEntry {
 }
 
 function evalBrowserEntry(browsers: string) {
-	var browserEntry : Browsers = { all: false, FF: '', S: '', C: '', IE: '', O: '', count: 0};
+	var browserEntry : Browsers = { all: false, E: '', FF: '', S: '', C: '', IE: '', O: '', count: 0};
 	var count = 0;
 	if (browsers) {
 		browsers.split(',').forEach(
@@ -474,6 +475,7 @@ export function getPseudoClasses(): IEntry[]{
 }
 
 export var browserNames = {
+	E : 'Edge',
 	FF : 'Firefox',
 	S : 'Safari',
 	C : 'Chrome',

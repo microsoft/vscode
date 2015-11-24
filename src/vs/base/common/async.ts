@@ -477,7 +477,7 @@ export class RunOnceScheduler {
 	}
 
 	/**
-	 * Cancel current scheduled runner (if any)
+	 * Cancel current scheduled runner (if any).
 	 */
 	public cancel(): void {
 		if (this.timeoutToken !== -1) {

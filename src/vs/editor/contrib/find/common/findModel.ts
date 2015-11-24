@@ -214,7 +214,7 @@ export class FindModelBoundToEditorModel extends Events.EventEmitter implements 
 				this.findScopeDecorationId = decorations[0];
 			}
 
-			this.addMatchesDecorations(changeAccessor, this.editor.getModel().findMatches(this.searchString, this._getSearchRange(), this.isRegex, this.matchCase, this.wholeWord));
+			this.addMatchesDecorations(changeAccessor, this._findMatches());
 		});
 		this.highlightedDecorationId = null;
 
@@ -326,7 +326,6 @@ export class FindModelBoundToEditorModel extends Events.EventEmitter implements 
 		}
 	}
 
-
 	private setSelectionToDecoration(decorationId:string): void {
 		this.editor.changeDecorations((changeAccessor: EditorCommon.IModelDecorationsChangeAccessor) => {
 			if (this.highlightedDecorationId !== null) {
@@ -346,8 +345,10 @@ export class FindModelBoundToEditorModel extends Events.EventEmitter implements 
 		if (!this.isRegex) {
 			return this.replaceString;
 		}
-		var regexp = Strings.createRegExp(this.searchString, this.isRegex, this.matchCase, this.wholeWord);
-		return matchedString.replace(regexp, this.replaceString);
+		let regexp = Strings.createRegExp(this.searchString, this.isRegex, this.matchCase, this.wholeWord);
+		// Parse the replace string to support that \t or \n mean the right thing
+		let parsedReplaceString = parseReplaceString(this.replaceString);
+		return matchedString.replace(regexp, parsedReplaceString);
 	}
 
 	public replace(): void {
@@ -379,6 +380,10 @@ export class FindModelBoundToEditorModel extends Events.EventEmitter implements 
 		}
 	}
 
+	private _findMatches(limitResultCount?:number): EditorCommon.IEditorRange[] {
+		return this.editor.getModel().findMatches(this.searchString, this._getSearchRange(), this.isRegex, this.matchCase, this.wholeWord, limitResultCount);
+	}
+
 	public replaceAll(): void {
 		if (this.decorations.length === 0) {
 			return;
@@ -387,7 +392,7 @@ export class FindModelBoundToEditorModel extends Events.EventEmitter implements 
 		let model = this.editor.getModel();
 
 		// Get all the ranges (even more than the highlighted ones)
-		let ranges = this.editor.getModel().findMatches(this.searchString, this._getSearchRange(), this.isRegex, this.matchCase, this.wholeWord, Number.MAX_VALUE);
+		let ranges = this._findMatches(Number.MAX_VALUE);
 
 		// Remove all decorations
 		this.editor.changeDecorations((changeAccessor:EditorCommon.IModelDecorationsChangeAccessor) => {
@@ -474,3 +479,64 @@ export class FindModelBoundToEditorModel extends Events.EventEmitter implements 
 
 }
 
+const BACKSLASH_CHAR_CODE = '\\'.charCodeAt(0);
+const n_CHAR_CODE = 'n'.charCodeAt(0);
+const t_CHAR_CODE = 't'.charCodeAt(0);
+
+/**
+ * \n => LF
+ * \t => TAB
+ * \\ => \
+ * everything else stays untouched
+ */
+export function parseReplaceString(input:string): string {
+	if (!input || input.length === 0) {
+		return input;
+	}
+
+	let substrFrom = 0, result = '';
+	for (let i = 0, len = input.length; i < len; i++) {
+		let chCode = input.charCodeAt(i);
+
+		if (chCode === BACKSLASH_CHAR_CODE) {
+
+			// move to next char
+			i++;
+
+			if (i >= len) {
+				// string ends with a \
+				break;
+			}
+
+			let nextChCode = input.charCodeAt(i);
+			let replaceWithCharacter: string = null;
+
+			switch (nextChCode) {
+				case BACKSLASH_CHAR_CODE:
+					// \\ => \
+					replaceWithCharacter = '\\';
+					break;
+				case n_CHAR_CODE:
+					// \n => LF
+					replaceWithCharacter = '\n';
+					break;
+				case t_CHAR_CODE:
+					// \t => TAB
+					replaceWithCharacter = '\t';
+					break;
+			}
+
+			if (replaceWithCharacter) {
+				result += input.substring(substrFrom, i - 1) + replaceWithCharacter;
+				substrFrom = i + 1;
+			}
+		}
+	}
+
+	if (substrFrom === 0) {
+		// no replacement occured
+		return input;
+	}
+
+	return result + input.substring(substrFrom);
+}

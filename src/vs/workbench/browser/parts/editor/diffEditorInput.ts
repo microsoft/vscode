@@ -8,7 +8,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import types = require('vs/base/common/types');
 import {isBinaryMime} from 'vs/base/common/mime';
 import {EventType} from 'vs/base/common/events';
-import {EditorModel, IFileEditorInput, EditorInput, IInputStatus, DiffEditorInput as CommonDiffEditorInput} from 'vs/workbench/common/editor';
+import {EditorModel, IFileEditorInput, EditorInput, IInputStatus, BaseDiffEditorInput} from 'vs/workbench/common/editor';
 import {BaseTextEditorModel} from 'vs/workbench/browser/parts/editor/textEditorModel';
 import {DiffEditorModel} from 'vs/workbench/browser/parts/editor/diffEditorModel';
 import {TextDiffEditor} from 'vs/workbench/browser/parts/editor/textDiffEditor';
@@ -20,7 +20,7 @@ import {BinaryResourceDiffEditor} from 'vs/workbench/browser/parts/editor/binary
  * The base editor input for the diff editor. It is made up of two editor inputs, the original version
  * and the modified version.
  */
-export class DiffEditorInput extends CommonDiffEditorInput {
+export class DiffEditorInput extends BaseDiffEditorInput {
 
 	public static ID = 'workbench.editors.diffEditorInput';
 

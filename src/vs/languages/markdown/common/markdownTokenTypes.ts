@@ -8,10 +8,10 @@ export const TOKEN_HEADER_LEAD = 'entity.name.type';
 export const TOKEN_HEADER = 'entity.name.type';
 export const TOKEN_EXT_HEADER = 'entity.other.atribute-name';
 export const TOKEN_SEPARATOR = 'meta.separator';
-export const TOKEN_QUOTE = 'meta.tag';
-export const TOKEN_LIST = 'punctuation.section.embedded';
+export const TOKEN_QUOTE = 'comment';
+export const TOKEN_LIST = 'keyword';
 export const TOKEN_BLOCK = 'string';
-export const TOKEN_BLOCK_CODE = 'string.source';
+export const TOKEN_BLOCK_CODE = 'variable.source';
 
 /*
 // old settings

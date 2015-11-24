@@ -3,6 +3,7 @@
 		"noLib": true,
 		"target": "ES5",
 		"module": "commonjs",
+		"sourceMap": true,
 		"outDir": "../out"
 	},
 	"exclude": [

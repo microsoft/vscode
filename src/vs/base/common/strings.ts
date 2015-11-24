@@ -12,7 +12,7 @@ import nls = require('vs/nls');
 export var empty = '';
 
 /**
- * Returns the provided number with the given number of preceding zeros.
+ * @returns the provided number with the given number of preceding zeros.
  */
 export function pad(n: number, l: number, char: string = '0'): string {
 	var str = '' + n;
@@ -262,9 +262,14 @@ export function createRegExp(searchString: string, isRegex: boolean, matchCase: 
 }
 
 export function regExpLeadsToEndlessLoop(regexp: RegExp): boolean {
+	// Exit early if it's one of these special cases which are meant to match
+	// against an empty string
+	if (regexp.source === "^" || regexp.source === "^$" || regexp.source === "$") {
+		return false;
+	}
+
 	// We check against an empty string. If the regular expression doesn't advance
 	// (e.g. ends in an endless loop) it will match an empty string.
-
 	var match = regexp.exec('');
 	return (match && <any>regexp.lastIndex === 0);
 }
@@ -273,7 +278,7 @@ export function regExpLeadsToEndlessLoop(regexp: RegExp): boolean {
  * The normalize() method returns the Unicode Normalization Form of a given string. The form will be
  * the Normalization Form Canonical Composition.
  *
- * See: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/normalize
+ * @see {@link https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/normalize}
  */
 export var canNormalize = typeof ((<any>'').normalize) === 'function';
 export function normalizeNFC(str: string, cache?:{[str: string]: string}): string {
@@ -435,7 +440,7 @@ export function equalsIgnoreCase(a: string, b: string): boolean {
 }
 
 /**
- * Returns the length of the common prefix of the two strings.
+ * @returns the length of the common prefix of the two strings.
  */
 export function commonPrefixLength(a: string, b: string): number {
 
@@ -452,7 +457,7 @@ export function commonPrefixLength(a: string, b: string): number {
 }
 
 /**
- * Returns the length of the common suffix of the two strings.
+ * @returns the length of the common suffix of the two strings.
  */
 export function commonSuffixLength(a: string, b: string): number {
 

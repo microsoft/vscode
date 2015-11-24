@@ -163,12 +163,21 @@ gulp.task('fix-whitespace-style', function() {
 	return gulp.src(WHITESPACE_FILES, { base: '.' }).pipe(style({whitespace:true})).pipe(gulp.dest('.'));
 });
 
+var COPYRIGHTS_FILES = WHITESPACE_FILES.concat([
+	'!**/*.json',
+	'!**/*.html',
+	'!**/test/**',
+	'!**/*.md',
+	'!**/*.sh',
+	'!**/*.txt',
+	'!src/vs/editor/standalone-languages/swift.ts',
+]);
 gulp.task('copyrights', function() {
-	return gulp.src(['src/vs/**/*.ts', 'src/vs/**/*.css', 'extensions/**/*.ts', 'extensions/**/*.css']).pipe(copyrights.copyrights());
+	return gulp.src(COPYRIGHTS_FILES, { base: '.' }).pipe(copyrights.copyrights());
 });
 
 gulp.task('insert-copyrights', function() {
-	return gulp.src(['src/vs/**/*.ts', 'src/vs/**/*.css', 'extensions/**/*.ts', 'extensions/**/*.css']).pipe(copyrights.insertCopyrights());
+	return gulp.src(COPYRIGHTS_FILES, { base: '.' }).pipe(copyrights.insertCopyrights());
 });
 
 gulp.task('test', function () {
