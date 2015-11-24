@@ -27,7 +27,7 @@ export function readdir(path: string, callback: (error: Error, files: string[]) 
 	// Mac: uses NFD unicode form on disk, but we want NFC
 	// See also https://github.com/nodejs/node/issues/2165
 	if (platform.isMacintosh) {
-		return fs.readdir(path, (error, children) => {
+		return readdirNormalize(path, (error, children) => {
 			if (error) {
 				return callback(error, null);
 			}
@@ -36,8 +36,22 @@ export function readdir(path: string, callback: (error: Error, files: string[]) 
 		});
 	}
 
-	return fs.readdir(path, callback);
+	return readdirNormalize(path, callback);
 };
+
+function readdirNormalize(path: string, callback: (error: Error, files: string[]) => void): void {
+	fs.readdir(path, (error, children) => {
+		if (error) {
+			return callback(error, null);
+		}
+
+		// In some environments we get "." and ".." as entries from the call to readdir().
+		// For example Sharepoint via WebDav on Windows includes them. We never want those
+		// entries in the result set though because they are not valid children of the folder
+		// for our concerns.
+		return callback(null, children.filter((c) => c !== '.' && c !== '..'));
+	})
+}
 
 export function mkdirp(path: string, mode: number, callback: (error: Error) => void): void {
 	fs.exists(path, (exists) => {
@@ -91,7 +105,7 @@ export function copy(source: string, target: string, callback: (error: Error) =>
 		}
 
 		mkdirp(target, stat.mode & 511, (err) => {
-			fs.readdir(source, (err, files) => {
+			readdir(source, (err, files) => {
 				loop(files, (file: string, clb: (error: Error) => void) => {
 					copy(paths.join(source, file), paths.join(target, file), clb, copiedSources);
 				}, callback);
@@ -204,7 +218,7 @@ function rmRecursive(path: string, callback: (error: Error) => void): void {
 						fs.unlink(path, callback);
 					}
 				} else {
-					fs.readdir(path, (err, children) => {
+					readdir(path, (err, children) => {
 						if (err || !children) {
 							callback(err);
 						} else if (children.length === 0) {
