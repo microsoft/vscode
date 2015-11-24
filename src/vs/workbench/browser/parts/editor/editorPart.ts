@@ -254,8 +254,8 @@ export class EditorPart extends Part implements IEditorPart {
 		assert.ok(editorDescriptor, strings.format('Can not find a registered editor for the input {0}', input));
 
 		// Progress Indication
-		let loadingPromise: TPromise<void> = TPromise.timeout(800).then(() => {
-			if (editorOpenToken === this.editorOpenToken[position] && this.partService.isCreated()) {
+		let loadingPromise: TPromise<void> = TPromise.timeout(this.partService.isCreated() ? 800 : 3200 /* less ugly initial startup */).then(() => {
+			if (editorOpenToken === this.editorOpenToken[position]) {
 				this.sideBySideControl.getProgressBar(position).infinite().getContainer().show();
 				this.sideBySideControl.setLoading(position, input);
 			}

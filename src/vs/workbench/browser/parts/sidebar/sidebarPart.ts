@@ -216,10 +216,8 @@ export class SidebarPart extends Part implements IViewletService {
 					return viewlet;
 				});
 
-				// Report progress for slow loading promises if workbench is already created and thus this is user initiated
-				if (this.partService.isCreated()) {
-					progressService.showWhile(loaderPromise, 800);
-				}
+				// Report progress for slow loading viewlets
+				progressService.showWhile(loaderPromise, this.partService.isCreated() ? 800 : 3200 /* less ugly initial startup */);
 
 				// Add to Promise Cache until Loaded
 				this.viewletLoaderPromises[id] = loaderPromise;
@@ -265,10 +263,10 @@ export class SidebarPart extends Part implements IViewletService {
 			createViewletPromise = TPromise.as(null);
 		}
 
-		// Report progress for slow loading promises (but only if we did not create the viewlet before already and only if this is user initiated)
+		// Report progress for slow loading viewlets (but only if we did not create the viewlet before already)
 		let progressService = this.mapProgressServiceToViewlet[viewlet.getId()];
-		if (progressService && !viewletContainer && this.partService.isCreated()) {
-			this.mapProgressServiceToViewlet[viewlet.getId()].showWhile(createViewletPromise, 800);
+		if (progressService && !viewletContainer) {
+			this.mapProgressServiceToViewlet[viewlet.getId()].showWhile(createViewletPromise, this.partService.isCreated() ? 800 : 3200 /* less ugly initial startup */);
 		}
 
 		// Fill Content and Actions

@@ -682,9 +682,7 @@ export class ExplorerView extends CollapsibleViewletView {
 			});
 		}, (e: any) => Promise.wrapError(e));
 
-		if (this.partService.isCreated()) {
-			this.progressService.showWhile(promise, instantProgress ? 0 : 800);
-		}
+		this.progressService.showWhile(promise, instantProgress ? 0 : this.partService.isCreated() ? 800 : 3200 /* less ugly initial startup */);
 
 		return promise;
 	}
