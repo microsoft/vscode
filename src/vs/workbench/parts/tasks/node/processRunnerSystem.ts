@@ -50,7 +50,7 @@ export class ProcessRunnerSystem extends EventEmitter implements ITaskSystem {
 	private childProcess: LineProcess;
 	private activeTaskIdentifier: string;
 
-	constructor(fileConfig:FileConfig.ExternalTaskRunnerConfiguration, variables:SystemVariables, markerService:IMarkerService, modelService: IModelService, telemetryService: ITelemetryService, outputService:IOutputService, outputChannel:string, clearOuput: boolean = true) {
+	constructor(fileConfig:FileConfig.ExternalTaskRunnerConfiguration, variables:SystemVariables, markerService:IMarkerService, modelService: IModelService, telemetryService: ITelemetryService, outputService:IOutputService, outputChannel:string, clearOutput: boolean = true) {
 		super();
 		this.fileConfig = fileConfig;
 		this.variables = variables;
@@ -65,7 +65,7 @@ export class ProcessRunnerSystem extends EventEmitter implements ITaskSystem {
 		this.childProcess = null;
 		this.activeTaskIdentifier = null;
 
-		if (clearOuput) {
+		if (clearOutput) {
 			this.clearOutput();
 		}
 		this.errorsShown = false;
