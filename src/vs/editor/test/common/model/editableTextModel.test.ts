@@ -1139,6 +1139,41 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 		);
 	});
 
+	test('issue #144', () => {
+		testApplyEdits(
+			[
+				'package caddy',
+				'',
+				'func main() {',
+				'\tfmt.Println("Hello World! :)")',
+				'}',
+				''
+			],
+			[
+				editOp(1, 1, 6, 1, [
+					'package caddy',
+					'',
+					'import "fmt"',
+					'',
+					'func main() {',
+					'\tfmt.Println("Hello World! :)")',
+					'}',
+					''
+				])
+			],
+			[
+				'package caddy',
+				'',
+				'import "fmt"',
+				'',
+				'func main() {',
+				'\tfmt.Println("Hello World! :)")',
+				'}',
+				''
+			]
+		);
+	});
+
 	function assertSyncedModels(text:string, callback:(model:EditableTextModel, assertMirrorModels:()=>void)=>void, setup:(model:EditableTextModel)=>void = null): void {
 		var model = new EditableTextModel([], TextModel.toRawText(text), null);
 		model.setEOL(EditorCommon.EndOfLineSequence.LF);
