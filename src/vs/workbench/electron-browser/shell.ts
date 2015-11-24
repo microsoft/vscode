@@ -36,7 +36,7 @@ import {IWindowService, WindowService} from 'vs/workbench/services/window/electr
 import {MessageService} from 'vs/workbench/services/message/electron-browser/messageService';
 import {RequestService} from 'vs/workbench/services/request/node/requestService';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {MigrationConfigurationService} from 'vs/workbench/services/configuration/node/configurationService';
+import {ConfigurationService} from 'vs/workbench/services/configuration/node/configurationService';
 import {FileService} from 'vs/workbench/services/files/electron-browser/fileService';
 import {SearchService} from 'vs/workbench/services/search/node/searchService';
 import {LifecycleService} from 'vs/workbench/services/lifecycle/electron-browser/lifecycleService';
@@ -249,10 +249,9 @@ export class WorkbenchShell {
 		this.messageServiceInstance = new MessageService(contextServiceInstance, this.windowServiceInstance, telemetryServiceInstance, keybindingServiceInstance);
 		keybindingServiceInstance.setMessageService(this.messageServiceInstance);
 
-		let configServiceInstance = new MigrationConfigurationService(
+		let configServiceInstance = new ConfigurationService(
 			contextServiceInstance,
-			eventServiceInstance,
-			this.messageServiceInstance
+			eventServiceInstance
 		);
 
 		let fileServiceInstance = new FileService(

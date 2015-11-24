@@ -100,9 +100,6 @@ export class WindowsManager {
 	private static windowsStateStorageKey = 'windowsState';
 	private static themeStorageKey = 'theme'; // TODO@Ben this key is only used to find out if a window can be shown instantly because of light theme, remove once we have support for bg color
 
-	private static legacyLastActiveOpenedFolderStorageKey = 'lastActiveOpenedPath';
-	private static legacyLastActiveWindowStateStorageKey = 'windowUIState';
-
 	private static WINDOWS: window.VSCodeWindow[] = [];
 
 	private userEnv: IEnv;
@@ -113,16 +110,6 @@ export class WindowsManager {
 
 		this.userEnv = userEnv;
 		this.windowsState = storage.getItem<IWindowsState>(WindowsManager.windowsStateStorageKey) || { openedFolders: [] };
-
-		// TODO@Ben migration: remove me in a couple of versions
-		if (!this.windowsState.lastActiveWindow) {
-			let lastActiveOpenedFolder = storage.getItem<string>(WindowsManager.legacyLastActiveOpenedFolderStorageKey);
-			let lastActiveWindowState = storage.getItem<window.IWindowState>(WindowsManager.legacyLastActiveWindowStateStorageKey);
-
-			if (lastActiveOpenedFolder || lastActiveWindowState) {
-				this.windowsState.lastActiveWindow = { workspacePath: lastActiveOpenedFolder, uiState: lastActiveWindowState || window.defaultWindowState() };
-			}
-		}
 	}
 
 	private registerListeners(): void {
