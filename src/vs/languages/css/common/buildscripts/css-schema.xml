@@ -744,7 +744,7 @@
         </value>
       </values>
     </entry>
-    <entry name="background-clip" restriction="enum" version="3.0" browsers="C,FF4,IE9,O10.5,S3" ref="http://www.w3.org/TR/css3-background/#the-background-clip" syntax="header { $(name): border-box; }">
+    <entry name="background-clip" restriction="enum" version="3.0" browsers="E,C,FF4,IE9,O10.5,S3" ref="http://www.w3.org/TR/css3-background/#the-background-clip" syntax="header { $(name): border-box; }">
       <desc>Determines the background painting area.</desc>
       <values>
         <value name="border-box" version="3.0" browsers="all">
@@ -1013,7 +1013,7 @@
     <entry name="background-image" restriction="url, enum" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#the-background-image" syntax="article { $(name): url(image.png); }">
       <desc>Image used for an element's background</desc>
       <values>
-        <value name="linear-gradient()" version="3.0" browsers="FF16,IE10,O12.5" />
+        <value name="linear-gradient()" version="3.0" browsers="E,C26,FF16,IE10,O12.1,S6.1" />
         <value name="-moz-image-rect()" version="3.0" browsers="FF3.6" />
         <value name="-moz-linear-gradient()" version="3.0" browsers="FF3.6" />
         <value name="-moz-radial-gradient()" version="3.0" browsers="FF3.6" />
@@ -1024,9 +1024,9 @@
         </value>
         <value name="-o-linear-gradient()" version="3.0" browsers="O11.1" />
         <value name="-o-repeating-linear-gradient()" version="3.0" browsers="O11.1-12" />
-        <value name="radial-gradient()" version="3.0" browsers="FF16,IE10,O12.5" />
-        <value name="repeating-linear-gradient()" version="3.0" browsers="FF16,IE10,O12.5" />
-        <value name="repeating-radial-gradient()" version="3.0" browsers="FF16,IE10,O12.5" />
+        <value name="radial-gradient()" version="3.0" browsers="E,FF16,IE10,O12.5" />
+        <value name="repeating-linear-gradient()" version="3.0" browsers="E,C26,FF16,IE10,O12.1,S6.1" />
+        <value name="repeating-radial-gradient()" version="3.0" browsers="E,C26,FF16,IE10,O12.1,S6.1" />
         <value name="url()" version="1.0" browsers="all" />
         <value name="-webkit-gradient()" version="3.0" browsers="C,S4" />
         <value name="-webkit-image-set()" version="3.0" browsers="C,S6" />
@@ -1036,7 +1036,7 @@
         <value name="-webkit-repeating-radial-gradient()" version="3.0" browsers="C,S5.1" />
       </values>
     </entry>
-    <entry name="background-origin" restriction="enum" version="3.0" browsers="C,FF4,IE9,O10.5,S3" ref="http://www.w3.org/TR/css3-background/#the-background-origin" syntax="header { $(name): border-box; }">
+    <entry name="background-origin" restriction="enum" version="3.0" browsers="E,C,FF4,IE9,O10.5,S3" ref="http://www.w3.org/TR/css3-background/#the-background-origin" syntax="header { $(name): border-box; }">
       <desc>For elements rendered as a single box, specifies the background positioning area. For elements rendered as multiple boxes (e.g., inline boxes on several lines, boxes on several pages) specifies which boxes 'box-decoration-break' operates on to determine the background positioning area(s).</desc>
       <values>
         <value name="border-box" version="3.0" browsers="all">
@@ -1133,7 +1133,7 @@
         </value>
       </values>
     </entry>
-    <entry name="background-size" restriction="length, percentage" version="3.0" browsers="C,FF4,IE9,O10,S4.1" ref="http://www.w3.org/TR/css3-background/#the-background-size" syntax="header { $(name): 20px; }">
+    <entry name="background-size" restriction="length, percentage" version="3.0" browsers="E,C,FF4,IE9,O10,S4.1" ref="http://www.w3.org/TR/css3-background/#the-background-size" syntax="header { $(name): 20px; }">
       <desc>Specifies the size of the background images.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all" />
@@ -1475,10 +1475,10 @@
         <value name="yellowgreen" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="border-bottom-left-radius" restriction="length, percentage" version="3.0" browsers="C,FF4,IE9,O10.5,S5" ref="http://www.w3.org/TR/css3-background/#border-radius" syntax="td { $(name): 4px; }">
+    <entry name="border-bottom-left-radius" restriction="length, percentage" version="3.0" browsers="E,C,FF4,IE9,O10.5,S5" ref="http://www.w3.org/TR/css3-background/#border-radius" syntax="td { $(name): 4px; }">
       <desc>The two length or percentage values of the 'border-*-radius' properties define the radii of a quarter ellipse that defines the shape of the corner of the outer border edge. The first value is the horizontal radius, the second the vertical radius. If the second value is omitted it is copied from the first. If either length is zero, the corner is square, not rounded. Percentages for the horizontal radius refer to the width of the border box, whereas percentages for the vertical radius refer to the height of the border box.</desc>
     </entry>
-    <entry name="border-bottom-right-radius" restriction="length, percentage" version="3.0" browsers="C,FF4,IE9,O10.5,S5" ref="http://www.w3.org/TR/css3-background/#border-radius" syntax="td { $(name): 4px; }">
+    <entry name="border-bottom-right-radius" restriction="length, percentage" version="3.0" browsers="E,C,FF4,IE9,O10.5,S5" ref="http://www.w3.org/TR/css3-background/#border-radius" syntax="td { $(name): 4px; }">
       <desc>The two length or percentage values of the 'border-*-radius' properties define the radii of a quarter ellipse that defines the shape of the corner of the outer border edge. The first value is the horizontal radius, the second the vertical radius. If the second value is omitted it is copied from the first. If either length is zero, the corner is square, not rounded. Percentages for the horizontal radius refer to the width of the border box, whereas percentages for the vertical radius refer to the height of the border box.</desc>
     </entry>
     <entry name="border-bottom-style" restriction="enum" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#border-style" syntax="td { $(name): solid; }">
@@ -1786,7 +1786,7 @@
         <value name="yellowgreen" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="border-image" restriction="length, percentage, number, url, enum" version="3.0" browsers="C,FF13,IE11" ref="http://www.w3.org/TR/css3-background/#border-image" syntax="td { $(name): url(border.png) 30 30 round;}">
+    <entry name="border-image" restriction="length, percentage, number, url, enum" version="3.0" browsers="E,C16,FF15,IE11,O15,S6" ref="http://www.w3.org/TR/css3-background/#border-image" syntax="td { $(name): url(border.png) 30 30 round;}">
       <desc>Shorthand property for setting 'border-image-source', 'border-image-slice', 'border-image-width', 'border-image-outset' and 'border-image-repeat'. Omitted values are set to their initial values.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all">
@@ -1811,10 +1811,10 @@
         <value name="url()" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="border-image-outset" restriction="length, number" version="3.0" browsers="FF13,IE11" ref="http://www.w3.org/TR/css3-background/#border-image-outset" syntax="div { $(name): 3px; }">
+    <entry name="border-image-outset" restriction="length, number" version="3.0" browsers="E,C16,FF15,IE11,O15,S6" ref="http://www.w3.org/TR/css3-background/#border-image-outset" syntax="div { $(name): 3px; }">
       <desc>The values specify the amount by which the border image area extends beyond the border box on the top, right, bottom, and left sides respectively. If the fourth value is absent, it is the same as the second. If the third one is also absent, it is the same as the first. If the second one is also absent, it is the same as the first. Numbers represent multiples of the corresponding border-width.</desc>
     </entry>
-    <entry name="border-image-repeat" restriction="enum" version="3.0" browsers="FF13,IE11" ref="http://www.w3.org/TR/css3-background/#the-border-image-repeat" syntax="td { $(name): stretch; }">
+    <entry name="border-image-repeat" restriction="enum" version="3.0" browsers="E,C16,FF15,IE11,O15,S6" ref="http://www.w3.org/TR/css3-background/#the-border-image-repeat" syntax="td { $(name): stretch; }">
       <desc>Specifies how the images for the sides and the middle part of the border image are scaled and tiled. If the second keyword is absent, it is assumed to be the same as the first.</desc>
       <values>
         <value name="repeat" version="3.0" browsers="all">
@@ -1831,7 +1831,7 @@
         </value>
       </values>
     </entry>
-    <entry name="border-image-slice" restriction="number, percentage" version="3.0" browsers="C,IE11,FF12" ref="http://www.w3.org/TR/css3-background/#border-image-slice" syntax="div { $(name): 10%; }">
+    <entry name="border-image-slice" restriction="number, percentage" version="3.0" browsers="E,C16,FF15,IE11,O15,S6" ref="http://www.w3.org/TR/css3-background/#border-image-slice" syntax="div { $(name): 10%; }">
       <desc>The four 'border-image-slice' values represent inward offsets from the top, right, bottom, and left edges of the image respectively, dividing it into nine regions: four corners, four edges and a middle. The middle image part is discarded (treated as fully transparent) unless the 'fill' keyword is present. (It is drawn over the background; see the border-image drawing process.) If the fourth number/percentage is absent, it is the same as the second. If the third one is also absent, it is the same as the first. If the second one is also absent, it is the same as the first.</desc>
       <values>
         <value name="fill" version="3.0" browsers="all">
@@ -1839,14 +1839,14 @@
         </value>
       </values>
     </entry>
-    <entry name="border-image-source" restriction="url" version="3.0" browsers="C,IE11,FF13" ref="http://www.w3.org/TR/css3-background/#the-border-image-source" syntax="aside { $(name): url(image.png); }">
+    <entry name="border-image-source" restriction="url" version="3.0" browsers="E,C16,FF15,IE11,O15,S6" ref="http://www.w3.org/TR/css3-background/#the-border-image-source" syntax="aside { $(name): url(image.png); }">
       <desc>Specifies an image to use instead of the border styles given by the 'border-style' properties and as an additional background layer for the element. If the value is 'none' or if the image cannot be displayed, the border styles will be used.</desc>
       <values>
         <value name="none" version="3.0" browsers="all" />
         <value name="url()" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="border-image-width" restriction="length, percentage, number" version="3.0" browsers="FF13,IE11" ref="http://www.w3.org/TR/css3-background/#border-image-slice" syntax=".album { $(name): 4px; }">
+    <entry name="border-image-width" restriction="length, percentage, number" version="3.0" browsers="E,C16,FF15,IE11,O15,S6" ref="http://www.w3.org/TR/css3-background/#border-image-slice" syntax=".album { $(name): 4px; }">
       <desc>The four values of 'border-image-width' specify offsets that are used to divide the border image area into nine parts. They represent inward distances from the top, right, bottom, and left sides of the area, respectively.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all">
@@ -2521,7 +2521,7 @@
         <value name="thin" version="1.0" browsers="all" />
       </values>
     </entry>
-    <entry name="border-spacing" restriction="length" version="2.0" browsers="C,FF1,IE8,O7,S1.2" ref="http://www.w3.org/TR/CSS2/tables.html#borders" syntax="table { $(name): 10px 50px; }">
+    <entry name="border-spacing" restriction="length" version="2.0" browsers="E,C,FF1,IE8,O7,S1.2" ref="http://www.w3.org/TR/CSS2/tables.html#borders" syntax="table { $(name): 10px 50px; }">
       <desc>The lengths specify the distance that separates adjoining cell borders. If one length is specified, it gives both the horizontal and vertical spacing. If two are specified, the first gives the horizontal spacing and the second the vertical spacing. Lengths may not be negative.</desc>
     </entry>
     <entry name="border-style" restriction="enum" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#border-style" syntax="td { $(name): solid; }">
@@ -2848,10 +2848,10 @@
         <value name="yellowgreen" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="border-top-left-radius" restriction="length, percentage" version="3.0" browsers="C,FF4,IE9,O10.5,S5" ref="http://www.w3.org/TR/css3-background/#border-radius" syntax="td { $(name): 4px; }">
+    <entry name="border-top-left-radius" restriction="length, percentage" version="3.0" browsers="E,C,FF4,IE9,O10.5,S5" ref="http://www.w3.org/TR/css3-background/#border-radius" syntax="td { $(name): 4px; }">
       <desc>The two length or percentage values of the 'border-*-radius' properties define the radii of a quarter ellipse that defines the shape of the corner of the outer border edge. The first value is the horizontal radius, the second the vertical radius. If the second value is omitted it is copied from the first. If either length is zero, the corner is square, not rounded. Percentages for the horizontal radius refer to the width of the border box, whereas percentages for the vertical radius refer to the height of the border box.</desc>
     </entry>
-    <entry name="border-top-right-radius" restriction="length, percentage" version="3.0" browsers="C,FF4,IE9,O10.5,S5" ref="http://www.w3.org/TR/css3-background/#border-radius" syntax="td { $(name): 4px; }">
+    <entry name="border-top-right-radius" restriction="length, percentage" version="3.0" browsers="E,C,FF4,IE9,O10.5,S5" ref="http://www.w3.org/TR/css3-background/#border-radius" syntax="td { $(name): 4px; }">
       <desc>The two length or percentage values of the 'border-*-radius' properties define the radii of a quarter ellipse that defines the shape of the corner of the outer border edge. The first value is the horizontal radius, the second the vertical radius. If the second value is omitted it is copied from the first. If either length is zero, the corner is square, not rounded. Percentages for the horizontal radius refer to the width of the border box, whereas percentages for the vertical radius refer to the height of the border box.</desc>
     </entry>
     <entry name="border-top-style" restriction="enum" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#border-style" syntax="td { $(name): solid; }">
@@ -2924,7 +2924,7 @@
         </value>
       </values>
     </entry>
-    <entry name="box-shadow" restriction="length, color, enum" version="3.0" browsers="C,FF9,IE9,O11.6,S5.1" ref="http://www.w3.org/TR/css3-background/#box-shadow" syntax="div { $(name): rgba(0,0,0,0.4) 10px 10px inset; }">
+    <entry name="box-shadow" restriction="length, color, enum" version="3.0" browsers="E,C,FF9,IE9,O11.6,S5.1" ref="http://www.w3.org/TR/css3-background/#box-shadow" syntax="div { $(name): rgba(0,0,0,0.4) 10px 10px inset; }">
       <desc>Attaches one or more drop-shadows to the box. The property is a comma-separated list of shadows, each specified by 2-4 length values, an optional color, and an optional 'inset' keyword. Omitted lengths are 0; omitted colors are a user agent chosen color.</desc>
       <values>
         <value name="inset" version="3.0" browsers="all">
@@ -2933,7 +2933,7 @@
         <value name="none" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="box-sizing" restriction="enum" version="3.0" browsers="C,IE8,O8,S5.1" ref="http://www.w3.org/TR/css3-ui/#box-sizing" syntax="div { $(name): content-box; }">
+    <entry name="box-sizing" restriction="enum" version="3.0" browsers="E,C,IE8,O8,S5.1" ref="http://www.w3.org/TR/css3-ui/#box-sizing" syntax="div { $(name): content-box; }">
       <desc>Box Model addition in CSS3.</desc>
       <values>
         <value name="border-box" version="3.0" browsers="all">
@@ -2947,7 +2947,7 @@
         </value>
       </values>
     </entry>
-    <entry name="break-after" restriction="enum" version="3.0" browsers="IE10,O11.1" ref="http://www.w3.org/TR/css3-multicol/#column-breaks" syntax="h2 { $(name): column; }">
+    <entry name="break-after" restriction="enum" version="3.0" browsers="E,IE10,O11.1" ref="http://www.w3.org/TR/css3-multicol/#column-breaks" syntax="h2 { $(name): column; }">
       <desc>Describes the page/column break behavior before the generated box.</desc>
       <values>
         <value name="always" version="3.0" browsers="all">
@@ -2981,7 +2981,7 @@
         </value>
       </values>
     </entry>
-    <entry name="break-before" restriction="enum" version="3.0" browsers="IE10,O11.6" ref="http://www.w3.org/TR/css3-multicol/#column-breaks" syntax="h2 { $(name): column; }">
+    <entry name="break-before" restriction="enum" version="3.0" browsers="E,IE10,O11.6" ref="http://www.w3.org/TR/css3-multicol/#column-breaks" syntax="h2 { $(name): column; }">
       <desc>Describes the page/column break behavior before the generated box.</desc>
       <values>
         <value name="always" version="3.0" browsers="all">
@@ -3015,7 +3015,7 @@
         </value>
       </values>
     </entry>
-    <entry name="break-inside" restriction="enum" version="3.0" browsers="IE10,O11.6" ref="http://www.w3.org/TR/css3-multicol/#column-breaks" syntax="h2 { $(name): avoid-column; }">
+    <entry name="break-inside" restriction="enum" version="3.0" browsers="E,IE10,O11.6" ref="http://www.w3.org/TR/css3-multicol/#column-breaks" syntax="h2 { $(name): avoid-column; }">
       <desc>Describes the page/column break behavior inside the generated box.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all">
@@ -3033,7 +3033,7 @@
         <value name="avoid-region" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="caption-side" restriction="enum" version="2.0" browsers="C,FF,IE8,O,S" ref="http://www.w3.org/TR/CSS2/tables.html#caption-position" syntax="caption { $(name): bottom; }">
+    <entry name="caption-side" restriction="enum" version="2.0" browsers="E,C,FF,IE8,O,S" ref="http://www.w3.org/TR/CSS2/tables.html#caption-position" syntax="caption { $(name): bottom; }">
       <desc>Specifies the position of the caption box with respect to the table box.</desc>
       <values>
         <value name="block-end" version="2.0" browsers="all" />
@@ -3362,7 +3362,7 @@
         <value name="optimizeSpeed" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="column-count" restriction="integer" version="3.0" browsers="IE10,O11.6" ref="http://www.w3.org/TR/css3-multicol/#column-count" syntax="div { $(name): 3; }">
+    <entry name="column-count" restriction="integer" version="3.0" browsers="E,IE10,O11.6" ref="http://www.w3.org/TR/css3-multicol/#column-count" syntax="div { $(name): 3; }">
       <desc>Describes the optimal number of columns into which the content of the element will be flowed.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all">
@@ -3370,7 +3370,7 @@
         </value>
       </values>
     </entry>
-    <entry name="column-fill" restriction="enum" version="3.0" browsers="IE10,O11.6" ref="http://www.w3.org/TR/css3-multicol/#filling-columns" syntax="article { $(name): balance; }">
+    <entry name="column-fill" restriction="enum" version="3.0" browsers="E,IE10,O11.6" ref="http://www.w3.org/TR/css3-multicol/#filling-columns" syntax="article { $(name): balance; }">
       <desc>In continuous media, this property will only be consulted if the length of columns has been constrained. Otherwise, columns will automatically be balanced.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all">
@@ -3381,7 +3381,7 @@
         </value>
       </values>
     </entry>
-    <entry name="column-gap" restriction="length" version="3.0" browsers="IE10,O11.6" ref="http://www.w3.org/TR/css3-multicol/#column-gap0" syntax="div { $(name): 10px; }">
+    <entry name="column-gap" restriction="length" version="3.0" browsers="E,IE10,O11.6" ref="http://www.w3.org/TR/css3-multicol/#column-gap0" syntax="div { $(name): 10px; }">
       <desc>Sets the gap between columns. If there is a column rule between columns, it will appear in the middle of the gap.</desc>
       <values>
         <value name="normal" version="3.0" browsers="all">
@@ -3389,7 +3389,7 @@
         </value>
       </values>
     </entry>
-    <entry name="column-rule" restriction="length, color, enum" version="3.0" browsers="IE10,O11.6" ref="http://www.w3.org/TR/css3-multicol/#column-rule0" syntax="header { $(name): 5px solid red;}">
+    <entry name="column-rule" restriction="length, color, enum" version="3.0" browsers="E,IE10,O11.6" ref="http://www.w3.org/TR/css3-multicol/#column-rule0" syntax="header { $(name): 5px solid red;}">
       <desc>This property is a shorthand for setting 'column-rule-width', 'column-rule-style', and 'column-rule-color' at the same place in the style sheet. Omitted values are set to their initial values.</desc>
       <values>
         <value name="dashed" version="1.0" browsers="all">
@@ -3427,7 +3427,7 @@
         <value name="thin" version="1.0" browsers="all" />
       </values>
     </entry>
-    <entry name="column-rule-color" restriction="color" version="3.0" browsers="IE10,O11.6" ref="http://www.w3.org/TR/css3-multicol/#column-rule-color" syntax="div { $(name): #ff0; }">
+    <entry name="column-rule-color" restriction="color" version="3.0" browsers="E,IE10,O11.6" ref="http://www.w3.org/TR/css3-multicol/#column-rule-color" syntax="div { $(name): #ff0; }">
       <desc>Sets the color of the column rule</desc>
       <values>
         <value name="ActiveBorder" version="2.0" browsers="all">
@@ -3678,7 +3678,7 @@
         <value name="yellowgreen" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="column-rule-style" restriction="enum" version="3.0" browsers="IE10,O11.6" ref="http://www.w3.org/TR/css3-multicol/#column-rule-style" syntax="div { $(name): solid; }">
+    <entry name="column-rule-style" restriction="enum" version="3.0" browsers="E,IE10,O11.6" ref="http://www.w3.org/TR/css3-multicol/#column-rule-style" syntax="div { $(name): solid; }">
       <desc>Sets the style of the rule between columns of an element.</desc>
       <values>
         <value name="dashed" version="1.0" browsers="all">
@@ -3713,7 +3713,7 @@
         </value>
       </values>
     </entry>
-    <entry name="column-rule-width" restriction="length" version="3.0" browsers="IE10,O11.6" ref="http://www.w3.org/TR/css3-multicol/#column-rule-width" syntax="div { $(name): 3px; }">
+    <entry name="column-rule-width" restriction="length" version="3.0" browsers="E,IE10,O11.6" ref="http://www.w3.org/TR/css3-multicol/#column-rule-width" syntax="div { $(name): 3px; }">
       <desc>Sets the width of the rule between columns. Negative values are not allowed.</desc>
       <values>
         <value name="medium" version="1.0" browsers="all" />
@@ -3721,7 +3721,7 @@
         <value name="thin" version="1.0" browsers="all" />
       </values>
     </entry>
-    <entry name="columns" restriction="length, integer" version="3.0" browsers="IE10,O11.6" ref="http://www.w3.org/TR/css3-multicol/#columns0" syntax="div { $(name): 100px 3; }">
+    <entry name="columns" restriction="length, integer" version="3.0" browsers="E,IE10,O11.6" ref="http://www.w3.org/TR/css3-multicol/#columns0" syntax="div { $(name): 100px 3; }">
       <desc>A shorthand property which sets both 'column-width' and 'column-count'.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all">
@@ -3729,7 +3729,7 @@
         </value>
       </values>
     </entry>
-    <entry name="column-span" restriction="enum" version="3.0" browsers="IE10,O11.6" ref="http://www.w3.org/TR/css3-multicol/#column-span0" syntax="article { $(name): all; }">
+    <entry name="column-span" restriction="enum" version="3.0" browsers="E,IE10,O11.6" ref="http://www.w3.org/TR/css3-multicol/#column-span0" syntax="article { $(name): all; }">
       <desc>Describes the page/column break behavior after the generated box.</desc>
       <values>
         <value name="all" version="3.0" browsers="all">
@@ -3740,7 +3740,7 @@
         </value>
       </values>
     </entry>
-    <entry name="column-width" restriction="length" version="3.0" browsers="IE10,O11.6" ref="http://www.w3.org/TR/css3-multicol/#column-width" syntax="div { $(name): 100px; }">
+    <entry name="column-width" restriction="length" version="3.0" browsers="E,IE10,O11.6" ref="http://www.w3.org/TR/css3-multicol/#column-width" syntax="div { $(name): 100px; }">
       <desc>This property describes the width of columns in multicol elements.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all">
@@ -3748,7 +3748,7 @@
         </value>
       </values>
     </entry>
-    <entry name="content" restriction="string, url" version="2.0" browsers="C,FF1,IE8,O4,S1" ref="http://www.w3.org/TR/css3-content/#content" syntax="a:after { $(name): ' ( attr(href))';}">
+    <entry name="content" restriction="string, url" version="2.0" browsers="E,C,FF1,IE8,O4,S1" ref="http://www.w3.org/TR/css3-content/#content" syntax="a:after { $(name): ' ( attr(href))';}">
       <desc>Determines which page-based occurrence of a given element is applied to a counter or string value.</desc>
       <values>
         <value name="attr()" version="2.0" browsers="all">
@@ -3838,7 +3838,7 @@
         <value name="url()" version="2.0" browsers="all" />
       </values>
     </entry>
-    <entry name="counter-increment" restriction="identifier, integer" version="2.0" browsers="C,FF1.5,IE8,O10.5,S3" ref="http://www.w3.org/TR/css3-content/#counters" syntax="h1:before { $(name): section; }">
+    <entry name="counter-increment" restriction="identifier, integer" version="2.0" browsers="E,C,FF1.5,IE8,O10.5,S3" ref="http://www.w3.org/TR/css3-content/#counters" syntax="h1:before { $(name): section; }">
       <desc>Counters are used with the 'counter()' and 'counters()' functions of the 'content' property.</desc>
       <values>
         <value name="none" version="2.0" browsers="all">
@@ -3846,7 +3846,7 @@
         </value>
       </values>
     </entry>
-    <entry name="counter-reset" restriction="identifier, integer" version="2.0" browsers="C,FF1.5,IE8,O10.5,S3" ref="http://www.w3.org/TR/css3-content/#counters" syntax="h1 { $(name): section; }">
+    <entry name="counter-reset" restriction="identifier, integer" version="2.0" browsers="E,C,FF1.5,IE8,O10.5,S3" ref="http://www.w3.org/TR/css3-content/#counters" syntax="h1 { $(name): section; }">
       <desc>Property accepts one or more names of counters (identifiers), each one optionally followed by an integer. The integer gives the value that the counter is set to on each occurrence of the element.</desc>
       <values>
         <value name="none" version="2.0" browsers="all">
@@ -4032,10 +4032,10 @@
         <value name="w-resize" version="2.0" browsers="all">
           <desc>Indicates that west edge is to be moved.</desc>
         </value>
-        <value name="zoom-in" version="3.0" browsers="none">
+        <value name="zoom-in" version="3.0" browsers="E,C37,FF24,O12.1,S9">
           <desc>Indicates that something can be zoomed (magnified) in or out, and often rendered as a magnifying glass with a '+' or '-' in the center of the glass, for 'zoom-in’ and 'zoom-out' respectively.</desc>
         </value>
-        <value name="zoom-out" version="3.0" browsers="none">
+        <value name="zoom-out" version="3.0" browsers="E,C37,FF24,O12.1,S9">
           <desc>Indicates that something can be zoomed (magnified) in or out, and often rendered as a magnifying glass with a '+' or '-' in the center of the glass, for 'zoom-in’ and 'zoom-out' respectively.</desc>
         </value>
       </values>
@@ -4090,11 +4090,11 @@
         <value name="-moz-popup" version="1.0" browsers="FF" />
         <value name="-moz-stack" version="1.0" browsers="FF" />
         <value name="-ms-flexbox" version="1.0" browsers="IE10" />
-        <value name="-ms-grid" version="3.0" browsers="IE10">
+        <value name="-ms-grid" version="3.0" browsers="E,IE10">
           <desc>A value of grid causes an element to display as a block-level Grid element</desc>
         </value>
         <value name="-ms-inline-flexbox" version="1.0" browsers="IE10" />
-        <value name="-ms-inline-grid" version="3.0" browsers="IE10">
+        <value name="-ms-inline-grid" version="3.0" browsers="E,IE10">
           <desc>A value of inline-grid causes an element to display as an inline-level Grid element.</desc>
         </value>
         <value name="none" version="1.0" browsers="all">
@@ -4146,7 +4146,7 @@
         </value>
       </values>
     </entry>
-    <entry name="empty-cells" restriction="enum" version="2.0" browsers="C,FF1,IE7,O4,S1.2" ref="http://www.w3.org/TR/CSS2/tables.html#empty-cells" syntax="table { $(name): hide; }">
+    <entry name="empty-cells" restriction="enum" version="2.0" browsers="E,C,FF1,IE7,O4,S1.2" ref="http://www.w3.org/TR/CSS2/tables.html#empty-cells" syntax="table { $(name): hide; }">
       <desc>In the separated borders model, this property controls the rendering of borders and backgrounds around cells that have no visible content.</desc>
       <values>
         <value name="hide" version="2.0" browsers="all">
@@ -4926,7 +4926,7 @@
         <value name="Verdana, Geneva, Tahoma, sans-serif" version="1.0" browsers="all" />
       </values>
     </entry>
-    <entry name="font-feature-settings" restriction="string, integer" version="3.0" browsers="IE10" ref="http://www.w3.org/TR/css3-fonts/#propdef-font-feature-settings" syntax="body { $(name): 'hwid'; }">
+    <entry name="font-feature-settings" restriction="string, integer" version="3.0" browsers="E,FF34,IE10" ref="http://www.w3.org/TR/css3-fonts/#propdef-font-feature-settings" syntax="body { $(name): 'hwid'; }">
       <desc>This property provides low-level control over OpenType font features. It is intended as a way of providing access to font features that are not widely used but are needed for a particular use case.</desc>
       <values>
         <value name="&quot;c2cs&quot;" version="3.0" browsers="all" />
@@ -4983,7 +4983,7 @@
         </value>
       </values>
     </entry>
-    <entry name="font-stretch" restriction="enum" version="3.0" browsers="FF9,IE9" ref="http://www.w3.org/TR/css3-fonts/#font-stretch0" syntax="div { $(name): expanded; }">
+    <entry name="font-stretch" restriction="enum" version="3.0" browsers="E,FF9,IE9" ref="http://www.w3.org/TR/css3-fonts/#font-stretch0" syntax="div { $(name): expanded; }">
       <desc>The font-stretch property is used to expand or contract the horizontal width of the font. The change is relative to the normal width of the font as displayed by the browser.</desc>
       <values>
         <value name="condensed" version="3.0" browsers="all" />
@@ -5905,7 +5905,7 @@
         <value name="url()" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="mask" restriction="url, enum" version="3.0" browsers="FF3.5,IE10,O9" ref="http://www.w3.org/TR/SVG/masking.html#ClipPathElement">
+    <entry name="mask" restriction="url, enum" version="3.0" browsers="E,FF3.5,IE10,O9" ref="http://www.w3.org/TR/SVG/masking.html#ClipPathElement">
       <desc>Allows authors to control under what circumstances (if any) a particular graphic element can become the target of mouse events.</desc>
       <values>
         <value name="none" version="3.0" browsers="all" />
@@ -5919,7 +5919,7 @@
         </value>
       </values>
     </entry>
-    <entry name="max-width" restriction="length, percentage" version="2.0" browsers="C,FF1,IE7,O7,S1" ref="http://www.w3.org/TR/css3-box/#max-width" syntax="footer { $(name): 300px; }">
+    <entry name="max-width" restriction="length, percentage" version="2.0" browsers="E,C,FF1,IE7,O7,S1" ref="http://www.w3.org/TR/css3-box/#max-width" syntax="footer { $(name): 300px; }">
       <desc>Allows authors to constrain content width to a certain range.</desc>
       <values>
         <value name="none" version="2.0" browsers="all">
@@ -5928,13 +5928,13 @@
       </values>
     </entry>
     <entry name="max-zoom" restriction="number, percentage" version="" browsers="all" />
-    <entry name="min-height" restriction="length, percentage" version="2.0" browsers="C,FF1,IE7,O7,S1" ref="http://www.w3.org/TR/css3-box/#min-height" syntax="footer { $(name): 300px; }">
+    <entry name="min-height" restriction="length, percentage" version="2.0" browsers="E,C,FF1,IE7,O7,S1" ref="http://www.w3.org/TR/css3-box/#min-height" syntax="footer { $(name): 300px; }">
       <desc>Allows authors to constrain content height to a certain range.</desc>
 			<values>
         <value name="auto" version="3.0" browsers="E,IE11" />
       </values>
     </entry>
-    <entry name="min-width" restriction="length, percentage" version="2.0" browsers="C,FF1,IE7,O7,S1" ref="http://www.w3.org/TR/css3-box/#min-width" syntax="footer { $(name): 300px; }">
+    <entry name="min-width" restriction="length, percentage" version="2.0" browsers="E,C,FF1,IE7,O7,S1" ref="http://www.w3.org/TR/css3-box/#min-width" syntax="footer { $(name): 300px; }">
       <desc>Allows authors to constrain content width to a certain range.</desc>
 			<values>
      		<value name="auto" version="3.0" browsers="E,IE11" />
@@ -8471,7 +8471,7 @@
         <value name="none" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="-ms-grid-column" restriction="integer, string, enum" version="3.0" browsers="IE10" ref="http://www.w3.org/TR/css3-grid-layout/#grid-column" syntax="#item1 { $(name): start end; }">
+    <entry name="-ms-grid-column" restriction="integer, string, enum" version="3.0" browsers="E,IE10" ref="http://www.w3.org/TR/css3-grid-layout/#grid-column" syntax="#item1 { $(name): start end; }">
       <desc>grid-column is used to place grid items and explicitly defined grid cells in the Grid.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all" />
@@ -8479,7 +8479,7 @@
         <value name="start" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="-ms-grid-column-align" restriction="enum" version="3.0" browsers="IE10" ref="http://www.w3.org/TR/css3-grid-layout/#grid-column-align" syntax="article { $(name): center; }">
+    <entry name="-ms-grid-column-align" restriction="enum" version="3.0" browsers="E,IE10" ref="http://www.w3.org/TR/css3-grid-layout/#grid-column-align" syntax="article { $(name): center; }">
       <desc>Aligns the columns in a grid.</desc>
       <values>
         <value name="center" version="3.0" browsers="all">
@@ -8496,16 +8496,16 @@
         </value>
       </values>
     </entry>
-    <entry name="-ms-grid-columns" restriction="" version="3.0" browsers="IE10" ref="http://www.w3.org/TR/css3-grid-layout/#grid-columns" syntax="div { $(name): 150px 1fr; }">
+    <entry name="-ms-grid-columns" restriction="" version="3.0" browsers="E,IE10" ref="http://www.w3.org/TR/css3-grid-layout/#grid-columns" syntax="div { $(name): 150px 1fr; }">
       <desc>Lays out the columns of the grid.</desc>
     </entry>
-    <entry name="-ms-grid-column-span" restriction="integer" version="3.0" browsers="IE10" ref="http://www.w3.org/TR/css3-grid-layout/#grid-row-span-and-grid-column-span" syntax="#item { $(name): 2; }.">
+    <entry name="-ms-grid-column-span" restriction="integer" version="3.0" browsers="E,IE10" ref="http://www.w3.org/TR/css3-grid-layout/#grid-row-span-and-grid-column-span" syntax="#item { $(name): 2; }.">
       <desc>Specifies the number of columns to span.</desc>
     </entry>
-    <entry name="-ms-grid-layer" restriction="integer" version="3.0" browsers="IE10" ref="http://www.w3.org/TR/2011/WD-css3-grid-layout-20110407/#grid-layer" syntax="div { $(name): 2; }">
+    <entry name="-ms-grid-layer" restriction="integer" version="3.0" browsers="E,IE10" ref="http://www.w3.org/TR/2011/WD-css3-grid-layout-20110407/#grid-layer" syntax="div { $(name): 2; }">
       <desc>Grid-layer is similar in concept to z-index, but avoids overloading the meaning of the z-index property, which is applicable only to positioned elements.</desc>
     </entry>
-    <entry name="-ms-grid-row" restriction="integer, string, enum" version="3.0" browsers="IE10" ref="http://www.w3.org/TR/css3-grid-layout/#grid-row" syntax="#item1 { $(name): start end; }">
+    <entry name="-ms-grid-row" restriction="integer, string, enum" version="3.0" browsers="E,IE10" ref="http://www.w3.org/TR/css3-grid-layout/#grid-row" syntax="#item1 { $(name): start end; }">
       <desc>grid-row is used to place grid items and explicitly defined grid cells in the Grid.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all" />
@@ -8513,7 +8513,7 @@
         <value name="start" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="-ms-grid-row-align" restriction="enum" version="3.0" browsers="IE10" ref="http://www.w3.org/TR/css3-grid-layout/#grid-row-align" syntax="div { $(name): stretch; }">
+    <entry name="-ms-grid-row-align" restriction="enum" version="3.0" browsers="E,IE10" ref="http://www.w3.org/TR/css3-grid-layout/#grid-row-align" syntax="div { $(name): stretch; }">
       <desc>Aligns the rows in a grid.</desc>
       <values>
         <value name="center" version="3.0" browsers="all">
@@ -8530,35 +8530,35 @@
         </value>
       </values>
     </entry>
-    <entry name="-ms-grid-rows" restriction="" version="3.0" browsers="IE10" ref="http://www.w3.org/TR/css3-grid-layout/#grid-rows" syntax="div { $(name): 50px 1fr 50px; }">
+    <entry name="-ms-grid-rows" restriction="" version="3.0" browsers="E,IE10" ref="http://www.w3.org/TR/css3-grid-layout/#grid-rows" syntax="div { $(name): 50px 1fr 50px; }">
       <desc>Lays out the columns of the grid.</desc>
     </entry>
-    <entry name="-ms-grid-row-span" restriction="integer" version="3.0" browsers="IE10" ref="http://www.w3.org/TR/css3-grid-layout/#grid-row-span-and-grid-column-span" syntax="#item { $(name): 2; }.">
+    <entry name="-ms-grid-row-span" restriction="integer" version="3.0" browsers="E,IE10" ref="http://www.w3.org/TR/css3-grid-layout/#grid-row-span-and-grid-column-span" syntax="#item { $(name): 2; }.">
       <desc>Specifies the number of rows to span.</desc>
     </entry>
-    <entry name="-ms-high-contrast-adjust" restriction="enum" version="3.0" browsers="IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh441137.aspx" syntax="section { $(name): auto; }">
+    <entry name="-ms-high-contrast-adjust" restriction="enum" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh441137.aspx" syntax="section { $(name): auto; }">
       <desc>Gets or sets a value that indicates whether to override any Cascading Style Sheets (CSS) properties that would have been set in high contrast mode.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all" />
         <value name="none" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="-ms-hyphenate-limit-chars" restriction="integer" version="3.0" browsers="IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh441147.aspx" syntax="div { $(name): 5 2 2; }">
+    <entry name="-ms-hyphenate-limit-chars" restriction="integer" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh441147.aspx" syntax="div { $(name): 5 2 2; }">
       <desc>Gets or sets one to three values that indicates the minimum number of characters in a hyphenated word.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="-ms-hyphenate-limit-lines" restriction="integer" version="3.0" browsers="IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh441157.aspx" syntax="div { $(name): 2; }">
+    <entry name="-ms-hyphenate-limit-lines" restriction="integer" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh441157.aspx" syntax="div { $(name): 2; }">
       <desc>Gets or sets a value that indicates the maximum number of consecutive lines in an element that may be ended with a hyphenated word.</desc>
       <values>
         <value name="no-limit" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="-ms-hyphenate-limit-zone" restriction="percentage, length" version="3.0" browsers="IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh441168.aspx" syntax="div { $(name): 25%; }">
+    <entry name="-ms-hyphenate-limit-zone" restriction="percentage, length" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh441168.aspx" syntax="div { $(name): 25%; }">
       <desc>Gets or sets a value that defines the width of the hyphenation zone.</desc>
     </entry>
-    <entry name="-ms-hyphens" restriction="enum" version="3.0" browsers="IE10" ref="http://www.w3.org/TR/css3-text/#hyphens0" syntax="div { $(name): manual; }">
+    <entry name="-ms-hyphens" restriction="enum" version="3.0" browsers="E,IE10" ref="http://www.w3.org/TR/css3-text/#hyphens0" syntax="div { $(name): manual; }">
       <desc>This property controls whether hyphenation is allowed to create more break opportunities within a line of text.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all">
@@ -8572,7 +8572,7 @@
         </value>
       </values>
     </entry>
-    <entry name="-ms-ime-mode" restriction="enum" version="3.0" browsers="IE10" ref="http://www.w3.org/TR/css3-ui/#ime-mode" syntax="body { $(name): active; }">
+    <entry name="-ms-ime-mode" restriction="enum" version="3.0" browsers="E,IE10" ref="http://www.w3.org/TR/css3-ui/#ime-mode" syntax="body { $(name): active; }">
       <desc>Controls the state of the input method editor for text fields.</desc>
       <values>
         <value name="active" version="3.0" browsers="all">
@@ -10759,59 +10759,59 @@
         <value name="yellowgreen" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="-ms-scroll-chaining" restriction="enum, length" version="3.0" browsers="IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh466007.aspx" syntax="div { $(name): chained; }">
+    <entry name="-ms-scroll-chaining" restriction="enum, length" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh466007.aspx" syntax="div { $(name): chained; }">
       <desc>Gets or sets a value that indicates the scrolling behavior that occurs when a user hits the content boundary during a manipulation.</desc>
       <values>
         <value name="chained" version="3.0" browsers="all" />
         <value name="none" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="-ms-scroll-limit" restriction="length" version="3.0" browsers="IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh996918.aspx">
+    <entry name="-ms-scroll-limit" restriction="length" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh996918.aspx">
       <desc>Gets or sets a shorthand value that sets values for the -ms-scroll-limit-x-min, -ms-scroll-limit-y-min, -ms-scroll-limit-x-max, and -ms-scroll-limit-y-max properties.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="-ms-scroll-limit-x-max" restriction="length" version="3.0" browsers="IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh996919.aspx" syntax="div { $(name): auto; }">
+    <entry name="-ms-scroll-limit-x-max" restriction="length" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh996919.aspx" syntax="div { $(name): auto; }">
       <desc>Gets or sets a value that specifies the maximum value for the scrollLeft property.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="-ms-scroll-limit-x-min" restriction="length" version="3.0" browsers="IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh996920.aspx" syntax="div { $(name): 5px; }">
+    <entry name="-ms-scroll-limit-x-min" restriction="length" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh996920.aspx" syntax="div { $(name): 5px; }">
       <desc>Gets or sets a value that specifies the minimum value for the scrollLeft property.</desc>
     </entry>
-    <entry name="-ms-scroll-limit-y-max" restriction="length" version="3.0" browsers="IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh996921.aspx" syntax="div { $(name): auto; }">
+    <entry name="-ms-scroll-limit-y-max" restriction="length" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh996921.aspx" syntax="div { $(name): auto; }">
       <desc>Gets or sets a value that specifies the maximum value for the scrollTop property.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="-ms-scroll-limit-y-min" restriction="length" version="3.0" browsers="IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh996922.aspx" syntax="div { $(name): 5px; }">
+    <entry name="-ms-scroll-limit-y-min" restriction="length" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh996922.aspx" syntax="div { $(name): 5px; }">
       <desc>Gets or sets a value that specifies the minimum value for the scrollTop property.</desc>
     </entry>
-    <entry name="-ms-scroll-rails" restriction="enum, length" version="3.0" browsers="IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh466018.aspx" syntax="div { $(name): railed; }">
+    <entry name="-ms-scroll-rails" restriction="enum, length" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh466018.aspx" syntax="div { $(name): railed; }">
       <desc>Gets or sets a value that indicates whether or not small motions perpendicular to the primary axis of motion will result in either changes to both the scrollTop and scrollLeft properties or a change to the primary axis (for instance, either the scrollTop or scrollLeft properties will change, but not both).</desc>
       <values>
         <value name="none" version="3.0" browsers="all" />
         <value name="railed" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="-ms-scroll-snap-points-x" restriction="enum" version="3.0" browsers="IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh466031.aspx" syntax="div { $(name): snapInterval(100%, 100%); }">
+    <entry name="-ms-scroll-snap-points-x" restriction="enum" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh466031.aspx" syntax="div { $(name): snapInterval(100%, 100%); }">
       <desc>Gets or sets a value that defines where snap-points will be located along the x-axis.</desc>
       <values>
         <value name="snapInterval(100%, 100%)" version="3.0" browsers="all" />
         <value name="snapList()" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="-ms-scroll-snap-points-y" restriction="enum" version="3.0" browsers="IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh466042.aspx" syntax="div { $(name): snapInterval(100%, 100%); }">
+    <entry name="-ms-scroll-snap-points-y" restriction="enum" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh466042.aspx" syntax="div { $(name): snapInterval(100%, 100%); }">
       <desc>Gets or sets a value that defines where snap-points will be located along the y-axis.</desc>
       <values>
         <value name="snapInterval(100%, 100%)" version="3.0" browsers="all" />
         <value name="snapList()" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="-ms-scroll-snap-type" restriction="enum" version="3.0" browsers="IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh466057.aspx" syntax="div { $(name): proximity; }">
+    <entry name="-ms-scroll-snap-type" restriction="enum" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh466057.aspx" syntax="div { $(name): proximity; }">
       <desc>Gets or sets a value that defines what type of snap-point should be used for the current element. There are two type of snap-points, with the primary difference being whether or not the user is guaranteed to always stop on a snap-point.</desc>
       <values>
         <value name="mandatory" version="3.0" browsers="all" />
@@ -10819,7 +10819,7 @@
         <value name="proximity" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="-ms-scroll-snap-x" restriction="enum" version="3.0" browsers="IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh466066.aspx" syntax="div { $(name): proximity snapInterval(100%, 100%); }">
+    <entry name="-ms-scroll-snap-x" restriction="enum" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh466066.aspx" syntax="div { $(name): proximity snapInterval(100%, 100%); }">
       <desc>Gets or sets a shorthand value that sets values for the -ms-scroll-snap-type and -ms-scroll-snap-points-x properties.</desc>
       <values>
         <value name="mandatory" version="3.0" browsers="all" />
@@ -10829,7 +10829,7 @@
         <value name="snapList()" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="-ms-scroll-snap-y" restriction="enum" version="3.0" browsers="IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh466078.aspx" syntax="div { $(name): proximity snapInterval(100%, 100%); }">
+    <entry name="-ms-scroll-snap-y" restriction="enum" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh466078.aspx" syntax="div { $(name): proximity snapInterval(100%, 100%); }">
       <desc>Gets or sets a shorthand value that sets values for the -ms-scroll-snap-type and -ms-scroll-snap-points-y properties.</desc>
       <values>
         <value name="mandatory" version="3.0" browsers="all" />
@@ -10839,14 +10839,14 @@
         <value name="snapList()" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="-ms-scroll-translation" restriction="enum" version="3.0" browsers="IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh996917.aspx" syntax="div { $(name): vertical-to-horizontal; }">
+    <entry name="-ms-scroll-translation" restriction="enum" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh996917.aspx" syntax="div { $(name): vertical-to-horizontal; }">
       <desc>Gets or sets a value that specifies whether vertical-to-horizontal scroll wheel translation occurs on the specified element.</desc>
       <values>
         <value name="none" version="3.0" browsers="all" />
         <value name="vertical-to-horizontal" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="-ms-text-align-last" restriction="enum" version="3.0" browsers="IE8" ref="http://www.w3.org/TR/css3-text/#text-align-last0" syntax="div { $(name): right; }">
+    <entry name="-ms-text-align-last" restriction="enum" version="3.0" browsers="E,IE8" ref="http://www.w3.org/TR/css3-text/#text-align-last0" syntax="div { $(name): right; }">
       <desc>Describes how the last line of a block or a line right before a forced line break is aligned when 'text-align' is set to 'justify'.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all" />
@@ -10893,7 +10893,7 @@
         </value>
       </values>
     </entry>
-    <entry name="-ms-text-justify" restriction="enum" version="3.0" browsers="IE8" ref="http://www.w3.org/TR/css3-text/#text-justify0" syntax="div { $(name): inter-word; }">
+    <entry name="-ms-text-justify" restriction="enum" version="3.0" browsers="E,IE8" ref="http://www.w3.org/TR/css3-text/#text-justify0" syntax="div { $(name): inter-word; }">
       <desc>Selects the justification algorithm used when 'text-align' is set to 'justify'. The property applies to block containers, but the UA may (but is not required to) also support it on inline elements.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all">
@@ -10922,7 +10922,7 @@
         </value>
       </values>
     </entry>
-    <entry name="-ms-text-kashida-space" restriction="percentage" version="3.0" browsers="IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh453798.aspx" syntax="article { $(name): 10%; }">
+    <entry name="-ms-text-kashida-space" restriction="percentage" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh453798.aspx" syntax="article { $(name): 10%; }">
       <desc>Sets or retrieves the ratio of kashida expansion to white space expansion when justifying lines of text in the object.</desc>
     </entry>
     <entry name="-ms-text-overflow" restriction="enum" version="3.0" browsers="IE10" ref="http://www.w3.org/TR/css3-ui/#text-overflow0" syntax="span { $(name): ellipsis; }">
@@ -10936,14 +10936,14 @@
         </value>
       </values>
     </entry>
-    <entry name="-ms-text-size-adjust" restriction="enum, percentage" version="3.0" browsers="IE10" ref="http://dev.w3.org/csswg/css-size-adjust/" syntax="body { $(name): 150%; }">
+    <entry name="-ms-text-size-adjust" restriction="enum, percentage" version="3.0" browsers="E,IE10" ref="http://dev.w3.org/csswg/css-size-adjust/" syntax="body { $(name): 150%; }">
       <desc>Specifies a size adjustment for displaying text content in mobile browsers.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all" />
         <value name="none" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="-ms-text-underline-position" restriction="enum" version="3.0" browsers="IE10" ref="http://www.w3.org/TR/css3-text/#text-underline-position0" syntax="div { $(name): auto; }">
+    <entry name="-ms-text-underline-position" restriction="enum" version="3.0" browsers="E,IE10" ref="http://www.w3.org/TR/css3-text/#text-underline-position0" syntax="div { $(name): auto; }">
       <desc>Sets the position of an underline specified on the same element: it does not affect underlines specified by ancestor elements.This property is typically used in vertical writing contexts such as in Japanese documents where it often desired to have the underline appear 'over' (to the right of) the affected run of text</desc>
       <values>
         <value name="alphabetic" version="3.0" browsers="all">
@@ -11642,7 +11642,7 @@
         </value>
       </values>
     </entry>
-    <entry name="outline" restriction="length, color, enum" version="2.0" browsers="C,FF1.5,IE8,O8,S1.2" ref="http://www.w3.org/TR/css3-ui/#outline0" syntax="header { $(name): 5px solid red;}">
+    <entry name="outline" restriction="length, color, enum" version="2.0" browsers="E,C,FF1.5,IE8,O8,S1.2" ref="http://www.w3.org/TR/css3-ui/#outline0" syntax="header { $(name): 5px solid red;}">
       <desc>Shorthand property, and sets all three of 'outline-style', 'outline-width', and 'outline-color'.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all" />
@@ -11684,7 +11684,7 @@
         <value name="thin" version="1.0" browsers="all" />
       </values>
     </entry>
-    <entry name="outline-color" restriction="color" version="2.0" browsers="C,FF1.5,IE8,O8,S1.2" ref="http://www.w3.org/TR/css3-ui/#outline-color0" syntax="body { $(name): red; }">
+    <entry name="outline-color" restriction="color" version="2.0" browsers="E,C,FF1.5,IE8,O8,S1.2" ref="http://www.w3.org/TR/css3-ui/#outline-color0" syntax="body { $(name): red; }">
       <desc>The color of the outline</desc>
       <values>
         <value name="ActiveBorder" version="2.0" browsers="all">
@@ -11941,7 +11941,7 @@
     <entry name="outline-offset" restriction="length" version="3.0" browsers="C,FF1.5,O9.5,S1.2" ref="http://www.w3.org/TR/css3-ui/#outline-offset0" syntax="article { $(name): 15px; }">
       <desc>Width of the outline</desc>
     </entry>
-    <entry name="outline-style" restriction="enum" version="2.0" browsers="C,FF1.5,IE8,O8,S1.2" ref="http://www.w3.org/TR/css3-ui/#outline-style0" syntax="td { $(name): solid; }">
+    <entry name="outline-style" restriction="enum" version="2.0" browsers="E,C,FF1.5,IE8,O8,S1.2" ref="http://www.w3.org/TR/css3-ui/#outline-style0" syntax="td { $(name): solid; }">
       <desc>Style of the outline</desc>
       <values>
         <value name="auto" version="3.0" browsers="all" />
@@ -11977,7 +11977,7 @@
         </value>
       </values>
     </entry>
-    <entry name="outline-width" restriction="length" version="2.0" browsers="C,FF1.5,IE8,O8,S1.2" ref="http://www.w3.org/TR/css3-ui/#outline-width0" syntax="td { $(name): 2px; }">
+    <entry name="outline-width" restriction="length" version="2.0" browsers="E,C,FF1.5,IE8,O8,S1.2" ref="http://www.w3.org/TR/css3-ui/#outline-width0" syntax="td { $(name): 2px; }">
       <desc>Width of the outline</desc>
       <values>
         <value name="medium" version="1.0" browsers="all" />
@@ -12016,7 +12016,7 @@
         <value name="normal" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="overflow-x" restriction="enum" version="3.0" browsers="C,FF1.5,IE5,O9.5,S3" ref="http://www.w3.org/TR/css3-box/#overflow-x" syntax="div { $(name): hidden; }">
+    <entry name="overflow-x" restriction="enum" version="3.0" browsers="E,C,FF1.5,IE5,O9.5,S3" ref="http://www.w3.org/TR/css3-box/#overflow-x" syntax="div { $(name): hidden; }">
       <desc>Specify whether content is clipped when it overflows the element's content area.</desc>
       <values>
         <value name="auto" version="2.0" browsers="all">
@@ -12039,7 +12039,7 @@
         </value>
       </values>
     </entry>
-    <entry name="overflow-y" restriction="enum" version="3.0" browsers="C,FF1.5,IE5,O9.5,S3" ref="http://www.w3.org/TR/css3-box/#overflow-x" syntax="div { $(name): hidden; }">
+    <entry name="overflow-y" restriction="enum" version="3.0" browsers="E,C,FF1.5,IE5,O9.5,S3" ref="http://www.w3.org/TR/css3-box/#overflow-x" syntax="div { $(name): hidden; }">
       <desc>Specify whether content is clipped when it overflows the element's content area.</desc>
       <values>
         <value name="auto" version="2.0" browsers="all">
@@ -12266,7 +12266,7 @@
         <value name="-webkit-sticky" version="2.0" browsers="C" />
       </values>
     </entry>
-    <entry name="quotes" restriction="string" version="2.0" browsers="C,FF1.5,IE8,O8,S5.1" ref="http://www.w3.org/TR/css3-content/#quotes" syntax="none | [ &lt;string&gt; &lt;string&gt; ]+">
+    <entry name="quotes" restriction="string" version="2.0" browsers="E,C,FF1.5,IE8,O8,S5.1" ref="http://www.w3.org/TR/css3-content/#quotes" syntax="none | [ &lt;string&gt; &lt;string&gt; ]+">
       <desc>Specifies quotation marks for any number of embedded quotations.</desc>
       <values>
         <value name="none" version="2.0" browsers="all">
@@ -15135,7 +15135,7 @@
         </value>
       </values>
     </entry>
-    <entry name="text-align-last" restriction="enum" version="3.0" browsers="FF12,IE5" ref="http://www.w3.org/TR/css3-text/#text-align-last0" syntax="div { $(name): right; }">
+    <entry name="text-align-last" restriction="enum" version="3.0" browsers="E,FF12,IE5" ref="http://www.w3.org/TR/css3-text/#text-align-last0" syntax="div { $(name): right; }">
       <desc>Describes how the last line of a block or a line right before a forced line break is aligned when 'text-align' is set to 'justify'.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all" />
@@ -15930,7 +15930,7 @@
         <value name="optimizeSpeed" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="text-shadow" restriction="length, color" version="3.0" browsers="C,FF3.6,IE10,O9.5,S1.1" ref="http://www.w3.org/TR/css3-text/#text-shadow0" syntax="h1 { $(name): 20px 12px 2px #333;}">
+    <entry name="text-shadow" restriction="length, color" version="3.0" browsers="E,C,FF3.6,IE10,O9.5,S1.1" ref="http://www.w3.org/TR/css3-text/#text-shadow0" syntax="h1 { $(name): 20px 12px 2px #333;}">
       <desc>Enables shadow effects to be applied to the text of the element.</desc>
       <values>
         <value name="none" version="3.0" browsers="all">
@@ -15976,7 +15976,7 @@
         </value>
       </values>
     </entry>
-    <entry name="text-underline-position" restriction="enum" version="3.0" browsers="IE10" ref="http://www.w3.org/TR/css3-text/#text-underline-position0" syntax="article { $(name): auto; }">
+    <entry name="text-underline-position" restriction="enum" version="3.0" browsers="E,IE10" ref="http://www.w3.org/TR/css3-text/#text-underline-position0" syntax="article { $(name): auto; }">
       <desc>Sets the position of an underline specified on the same element: it does not affect underlines specified by ancestor elements. This property is typically used in vertical writing contexts such as in Japanese documents where it often desired to have the underline appear 'over' (to the right of) the affected run of text</desc>
       <values>
         <value name="alphabetic" version="3.0" browsers="none">
@@ -16018,7 +16018,7 @@
         </value>
       </values>
     </entry>
-    <entry name="touch-action" restriction="enum" version="3.0" browsers="IE11" ref="http://msdn.microsoft.com/en-us/library/windows/apps/Hh767313.aspx" syntax="div { $(name): manipulation double-tap-zoom; }">
+    <entry name="touch-action" restriction="enum" version="3.0" browsers="E,IE11" ref="http://msdn.microsoft.com/en-us/library/windows/apps/Hh767313.aspx" syntax="div { $(name): manipulation double-tap-zoom; }">
       <values>
         <value name="auto" version="3.0" browsers="all" />
         <value name="double-tap-zoom" version="3.0" browsers="all" />
@@ -16117,7 +16117,7 @@
         </value>
       </values>
     </entry>
-    <entry name="transition" restriction="time, property, enum" version="3.0" browsers="FF16,IE10,O12.5" ref="http://www.w3.org/TR/css3-transitions/#transition" syntax="div { $(name): background-color linear 1s; }">
+    <entry name="transition" restriction="time, property, enum" version="3.0" browsers="E,FF16,IE10,O12.5" ref="http://www.w3.org/TR/css3-transitions/#transition" syntax="div { $(name): background-color linear 1s; }">
       <desc>Shorthand property combines four of the transition properties into a single property.</desc>
       <values>
         <value name="all" version="3.0" browsers="all">
@@ -16155,13 +16155,13 @@
         </value>
       </values>
     </entry>
-    <entry name="transition-delay" restriction="time" version="3.0" browsers="FF16,IE10,O12.5" ref="http://www.w3.org/TR/css3-transitions/#transition-delay" syntax="div { $(name): 1s; }">
+    <entry name="transition-delay" restriction="time" version="3.0" browsers="E,FF16,IE10,O12.5" ref="http://www.w3.org/TR/css3-transitions/#transition-delay" syntax="div { $(name): 1s; }">
       <desc>Defines when the transition will start. It allows a transition to begin execution some period of time from when it is applied.</desc>
     </entry>
-    <entry name="transition-duration" restriction="time" version="3.0" browsers="FF16,IE10,O12.5" ref="http://www.w3.org/TR/css3-transitions/#transition-duration" syntax="div { $(name): 1s; }">
+    <entry name="transition-duration" restriction="time" version="3.0" browsers="E,FF16,IE10,O12.5" ref="http://www.w3.org/TR/css3-transitions/#transition-duration" syntax="div { $(name): 1s; }">
       <desc>Specifies how long the transition from the old value to the new value should take.</desc>
     </entry>
-    <entry name="transition-property" restriction="property" version="3.0" browsers="FF16,IE10,O12.5" ref="http://www.w3.org/TR/css3-transitions/#transition-property" syntax="div { $(name): background-color; }">
+    <entry name="transition-property" restriction="property" version="3.0" browsers="E,FF16,IE10,O12.5" ref="http://www.w3.org/TR/css3-transitions/#transition-property" syntax="div { $(name): background-color; }">
       <desc>Specifies the name of the CSS property to which the transition is applied.</desc>
       <values>
         <value name="all" version="3.0" browsers="all">
@@ -16172,7 +16172,7 @@
         </value>
       </values>
     </entry>
-    <entry name="transition-timing-function" restriction="enum" version="3.0" browsers="FF16,IE10,O12.5" ref="http://www.w3.org/TR/css3-transitions/#transition-timing-function" syntax="div { $(name): linear; }">
+    <entry name="transition-timing-function" restriction="enum" version="3.0" browsers="E,FF16,IE10,O12.5" ref="http://www.w3.org/TR/css3-transitions/#transition-timing-function" syntax="div { $(name): linear; }">
       <desc>Describes how the intermediate values used during a transition will be calculated.</desc>
       <values>
         <value name="cubic-bezier()" version="3.0" browsers="all">
