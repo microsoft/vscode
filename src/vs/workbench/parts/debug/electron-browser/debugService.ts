@@ -338,11 +338,15 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		const resource = uri.file(paths.join(this.contextService.getWorkspace().resource.fsPath, '/.vscode/launch.json'));
 
 		return this.fileService.resolveContent(resource).then(content => {
-			const globalConfig = <debug.IGlobalConfig> JSON.parse(content.value);
+			let globalConfig = null;
+			try {
+				globalConfig = <debug.IGlobalConfig> JSON.parse(content.value);
+			} catch (e) { }
+
 			if (!globalConfig || !globalConfig.configurations || globalConfig.configurations.length === 0) {
-				return this.createInitialConfigFile(resource);
+				return this.createInitialConfigFile(resource, content.value);
 			}
-		}, err => this.createInitialConfigFile(resource))
+		}, err => this.createInitialConfigFile(resource, null))
 
 		.then(() => {
 			this.telemetryService.publicLog('debugConfigure');
@@ -395,15 +399,19 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		});
 	}
 
-	private createInitialConfigFile(resource: uri): Promise {
+	private createInitialConfigFile(resource: uri, previousContent: string): Promise {
 		return this.quickOpenService.pick(this.adapters, { placeHolder: nls.localize('selectDebug', "Select Debug Environment") })
 		.then(adapter =>
-			this.massageInitialConfigurations(adapter).then(() =>
-				JSON.stringify({
+			this.massageInitialConfigurations(adapter).then(() => {
+				if (previousContent && !adapter) {
+					return previousContent;
+				}
+
+				return JSON.stringify({
 					version: '0.2.0',
 					configurations: adapter && adapter.initialConfigurations ? adapter.initialConfigurations : []
 				}, null, '\t')
-			)
+			})
 		).then(content => this.fileService.updateContent(resource, content));
 	}
 
