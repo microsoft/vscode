@@ -67,7 +67,8 @@ export class Lifecycle {
 
 			// Windows/Linux: we quit when all windows have closed
 			// Mac: we only quit when quit was requested
-			if (this.quitRequested || process.platform !== 'darwin') {
+			// Tests: we always quit
+			if (this.quitRequested || process.platform !== 'darwin' || env.isTestingFromCli) {
 				app.quit();
 			}
 		});
