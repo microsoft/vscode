@@ -1,0 +1,12 @@
+environment:
+  ATOM_SHELL_INTERNAL_RUN_AS_NODE: 1
+
+install:
+  - npm install -g gulp mocha
+
+build_script:
+  - .\scripts\npm.bat install
+  - gulp electron compile
+
+test_script:
+  - mocha
