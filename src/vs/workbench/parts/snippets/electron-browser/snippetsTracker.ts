@@ -12,6 +12,7 @@ import async = require('vs/base/common/async');
 import Errors = require('vs/base/common/errors');
 import URI from 'vs/base/common/uri';
 import winjs = require('vs/base/common/winjs.base');
+import extfs = require('vs/base/node/extfs');
 import lifecycle = require('vs/base/common/lifecycle');
 import tmsnippets = require('vs/editor/node/textMate/TMSnippets');
 import {IFileService} from 'vs/platform/files/common/files';
@@ -100,7 +101,7 @@ export class SnippetsTracker implements workbenchExt.IWorkbenchContribution {
 
 function readDir(path: string): winjs.TPromise<string[]> {
 	return new winjs.TPromise<string[]>((c, e, p) => {
-		fs.readdir(path,(err, files) => {
+		extfs.readdir(path,(err, files) => {
 			if (err) {
 				return e(err);
 			}

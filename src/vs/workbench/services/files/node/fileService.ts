@@ -678,7 +678,7 @@ export class StatResolver {
 						fileStat = fsstat;
 
 						if (fileStat.isDirectory()) {
-							fs.readdir(fileResource.fsPath, (error, result) => {
+							extfs.readdir(fileResource.fsPath, (error, result) => {
 								this(null, result ? result.length : 0);
 							});
 						} else {

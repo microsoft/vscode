@@ -11,6 +11,7 @@ import uri from 'vs/base/common/uri';
 import strings = require('vs/base/common/strings');
 import platform = require('vs/base/common/platform');
 import paths = require('vs/base/common/paths');
+import extfs = require('vs/base/node/extfs');
 import {IConfigFile} from 'vs/platform/configuration/common/model';
 import objects = require('vs/base/common/objects');
 import {IStat, IContent, ConfigurationService as CommonConfigurationService} from 'vs/platform/configuration/common/configurationService';
@@ -62,9 +63,9 @@ export class ConfigurationService extends CommonConfigurationService {
 
 	protected resolveStat(resource: uri): TPromise<IStat> {
 		return new TPromise<IStat>((c, e) => {
-			fs.readdir(resource.fsPath, (error, childs) => {
+			extfs.readdir(resource.fsPath, (error, childs) => {
 				if (error) {
-					if (error.code === 'ENOTDIR') {
+					if ((<any>error).code === 'ENOTDIR') {
 						c({
 							resource: resource,
 							isDirectory: false
@@ -158,7 +159,7 @@ export class MigrationConfigurationService extends ConfigurationService {
 						return c(null); // we never migrate more than once
 					}
 
-					return fs.readdir(oldSettingsFolder, (error, children) => {
+					return extfs.readdir(oldSettingsFolder, (error, children) => {
 						if (error) {
 							return c(null); // old .settings folder does not exist or is a file
 						}
@@ -187,7 +188,7 @@ export class MigrationConfigurationService extends ConfigurationService {
 							}, () => {
 								this.messageService.show(severity.Info, nls.localize('settingsMigrated', "VSCode is now using a top level '.vscode' folder to store settings. We moved your existing settings files from the '.settings' folder."));
 
-								return fs.readdir(oldSettingsFolder, (error, children) => {
+								return extfs.readdir(oldSettingsFolder, (error, children) => {
 									if (error || children.length > 0) {
 										return c(null); // done
 									}
