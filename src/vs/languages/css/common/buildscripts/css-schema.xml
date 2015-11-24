@@ -449,7 +449,7 @@
         <value name="stretch" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="animation" restriction="time, enum, identifier, number" version="3.0" browsers="FF16,IE10,O12.5" ref="http://www.w3.org/TR/css3-animations/#animation" syntax="div { $(name): movearound 4s ease 3 normal; }">
+    <entry name="animation" restriction="time, enum, identifier, number" version="3.0" browsers="E,C43,FF16,IE10,O12.1,S9" ref="http://www.w3.org/TR/css3-animations/#animation" syntax="div { $(name): movearound 4s ease 3 normal; }">
       <desc>Shorthand property combines six of the animation properties into a single property.</desc>
       <values>
         <value name="alternate" version="3.0" browsers="all">
@@ -508,10 +508,10 @@
         </value>
       </values>
     </entry>
-    <entry name="animation-delay" restriction="time" version="3.0" browsers="FF16,IE10,O12.5" ref="http://www.w3.org/TR/css3-animations/#animation-delay" syntax="div { $(name): 4s; }">
+    <entry name="animation-delay" restriction="time" version="3.0" browsers="E,C43,FF16,IE10,O12.1,S9" ref="http://www.w3.org/TR/css3-animations/#animation-delay" syntax="div { $(name): 4s; }">
       <desc>Defines when the animation will start. An 'animation-delay' value of '0' means the animation will execute as soon as it is applied. Otherwise, the value specifies an offset from the moment the animation is applied, and the animation will delay execution by that offset.</desc>
     </entry>
-    <entry name="animation-direction" restriction="enum" version="3.0" browsers="FF16,IE10,O12.5" ref="http://www.w3.org/TR/css3-animations/#animation-direction" syntax="div { $(name): normal; }">
+    <entry name="animation-direction" restriction="enum" version="3.0" browsers="E,C43,FF16,IE10,O12.1,S9" ref="http://www.w3.org/TR/css3-animations/#animation-direction" syntax="div { $(name): normal; }">
       <desc>Defines whether or not the animation should play in reverse on alternate cycles.</desc>
       <values>
         <value name="alternate" version="3.0" browsers="all">
@@ -528,10 +528,10 @@
         </value>
       </values>
     </entry>
-    <entry name="animation-duration" restriction="time" version="3.0" browsers="FF16,IE10,O12.5" ref="http://www.w3.org/TR/css3-animations/#animation-duration" syntax="div { $(name): 4s; }">
+    <entry name="animation-duration" restriction="time" version="3.0" browsers="E,C43,FF16,IE10,O12.1,S9" ref="http://www.w3.org/TR/css3-animations/#animation-duration" syntax="div { $(name): 4s; }">
       <desc>Defines the length of time that an animation takes to complete one cycle.</desc>
     </entry>
-    <entry name="animation-fill-mode" restriction="enum" version="3.0" browsers="FF16,IE10,O12.5" ref="http://www.w3.org/TR/css3-animations/#animation-fill-mode-property" syntax="div { $(name): forwards; }">
+    <entry name="animation-fill-mode" restriction="enum" version="3.0" browsers="E,C43,FF16,IE10,O12.1,S9" ref="http://www.w3.org/TR/css3-animations/#animation-fill-mode-property" syntax="div { $(name): forwards; }">
       <desc>Defines what values are applied by the animation outside the time it is executing.</desc>
       <values>
         <value name="backwards" version="3.0" browsers="all">
@@ -548,7 +548,7 @@
         </value>
       </values>
     </entry>
-    <entry name="animation-iteration-count" restriction="number" version="3.0" browsers="FF16,IE10,O12.5" ref="http://www.w3.org/TR/css3-animations/#animation-iteration-count" syntax="div { $(name): 3; }">
+    <entry name="animation-iteration-count" restriction="number" version="3.0" browsers="E,C43,FF16,IE10,O12.1,S9" ref="http://www.w3.org/TR/css3-animations/#animation-iteration-count" syntax="div { $(name): 3; }">
       <desc>Defines the number of times an animation cycle is played. The default value is one, meaning the animation will play from beginning to end once.</desc>
       <values>
         <value name="infinite" version="3.0" browsers="all">
@@ -556,7 +556,7 @@
         </value>
       </values>
     </entry>
-    <entry name="animation-name" restriction="identifier" version="3.0" browsers="FF16,IE10,O12.5" ref="http://www.w3.org/TR/css3-animations/#the-animation-name-property-" syntax="div { $(name): movearound; }">
+    <entry name="animation-name" restriction="identifier" version="3.0" browsers="E,C43,FF16,IE10,O12.1,S9" ref="http://www.w3.org/TR/css3-animations/#the-animation-name-property-" syntax="div { $(name): movearound; }">
       <desc>Defines a list of animations that apply. Each name is used to select the keyframe at-rule that provides the property values for the animation.</desc>
       <values>
         <value name="none" version="3.0" browsers="all">
@@ -564,7 +564,7 @@
         </value>
       </values>
     </entry>
-    <entry name="animation-play-state" restriction="enum" version="3.0" browsers="FF16,IE10,O12.5" ref="http://www.w3.org/TR/css3-animations/#animation-play-state" syntax="div { $(name): running; }">
+    <entry name="animation-play-state" restriction="enum" version="3.0" browsers="E,C43,FF16,IE10,O12.1,S9" ref="http://www.w3.org/TR/css3-animations/#animation-play-state" syntax="div { $(name): running; }">
       <desc>Defines whether the animation is running or paused.</desc>
       <values>
         <value name="paused" version="3.0" browsers="all">
@@ -575,7 +575,7 @@
         </value>
       </values>
     </entry>
-    <entry name="animation-timing-function" restriction="enum" version="3.0" browsers="FF16,IE10,O12.5" ref="http://www.w3.org/TR/css3-animations/#animation-timing-function" syntax="div { $(name): ease; }">
+    <entry name="animation-timing-function" restriction="enum" version="3.0" browsers="E,C43,FF16,IE10,O12.1,S9" ref="http://www.w3.org/TR/css3-animations/#animation-timing-function" syntax="div { $(name): ease; }">
       <desc>Describes how the animation will progress over one cycle of its duration. See the 'transition-timing-function'.</desc>
       <values>
         <value name="cubic-bezier()" version="3.0" browsers="all">
