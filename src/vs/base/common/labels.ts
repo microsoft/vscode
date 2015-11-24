@@ -41,14 +41,14 @@ export function getPathLabel(arg1: uri|string, arg2?: uri|string|IWorkspaceProvi
 	var absolutePath = getPath(arg1);
 
 	if (basepath && paths.isEqualOrParent(absolutePath, basepath)) {
-		return paths.normalize(absolutePath.substr(basepath.length + 1 /* no leading slash/backslash */), platform.isNative);
+		return paths.normalize(strings.ltrim(absolutePath.substr(basepath.length), paths.nativeSep), true);
 	}
 
 	if (platform.isWindows && absolutePath[1] === ':') {
-		return paths.normalize(absolutePath.charAt(0).toUpperCase() + absolutePath.slice(1), platform.isNative);
+		return paths.normalize(absolutePath.charAt(0).toUpperCase() + absolutePath.slice(1), true);
 	}
 
-	return paths.normalize(absolutePath, platform.isNative);
+	return paths.normalize(absolutePath, true);
 }
 
 function getPath(arg1: uri|string|IWorkspaceProvider): string {
