@@ -1,0 +1,264 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple Computer//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>fileTypes</key>
+	<array>
+		<string>json</string>
+	</array>
+	<key>keyEquivalent</key>
+	<string>^~J</string>
+	<key>name</key>
+	<string>JSON</string>
+	<key>patterns</key>
+	<array>
+		<dict>
+			<key>include</key>
+			<string>#value</string>
+		</dict>
+	</array>
+	<key>repository</key>
+	<dict>
+		<key>array</key>
+		<dict>
+			<key>begin</key>
+			<string>\[</string>
+			<key>beginCaptures</key>
+			<dict>
+				<key>0</key>
+				<dict>
+					<key>name</key>
+					<string>punctuation.definition.array.begin.json</string>
+				</dict>
+			</dict>
+			<key>end</key>
+			<string>\]</string>
+			<key>endCaptures</key>
+			<dict>
+				<key>0</key>
+				<dict>
+					<key>name</key>
+					<string>punctuation.definition.array.end.json</string>
+				</dict>
+			</dict>
+			<key>name</key>
+			<string>meta.structure.array.json</string>
+			<key>patterns</key>
+			<array>
+				<dict>
+					<key>include</key>
+					<string>#value</string>
+				</dict>
+				<dict>
+					<key>match</key>
+					<string>,</string>
+					<key>name</key>
+					<string>punctuation.separator.array.json</string>
+				</dict>
+				<dict>
+					<key>match</key>
+					<string>[^\s\]]</string>
+					<key>name</key>
+					<string>invalid.illegal.expected-array-separator.json</string>
+				</dict>
+			</array>
+		</dict>
+		<key>constant</key>
+		<dict>
+			<key>match</key>
+			<string>\b(?:true|false|null)\b</string>
+			<key>name</key>
+			<string>constant.language.json</string>
+		</dict>
+		<key>number</key>
+		<dict>
+			<key>comment</key>
+			<string>handles integer and decimal numbers</string>
+			<key>match</key>
+			<string>(?x:         # turn on extended mode
+			             -?         # an optional minus
+			             (?:
+			               0        # a zero
+			               |        # ...or...
+			               [1-9]    # a 1-9 character
+			               \d*      # followed by zero or more digits
+			             )
+			             (?:
+			               (?:
+			                 \.     # a period
+			                 \d+    # followed by one or more digits
+			               )?
+			               (?:
+			                 [eE]   # an e character
+			                 [+-]?  # followed by an option +/-
+			                 \d+    # followed by one or more digits
+			               )?       # make exponent optional
+			             )?         # make decimal portion optional
+			           )</string>
+			<key>name</key>
+			<string>constant.numeric.json</string>
+		</dict>
+		<key>object</key>
+		<dict>
+			<key>begin</key>
+			<string>\{</string>
+			<key>beginCaptures</key>
+			<dict>
+				<key>0</key>
+				<dict>
+					<key>name</key>
+					<string>punctuation.definition.dictionary.begin.json</string>
+				</dict>
+			</dict>
+			<key>comment</key>
+			<string>a JSON object</string>
+			<key>end</key>
+			<string>\}</string>
+			<key>endCaptures</key>
+			<dict>
+				<key>0</key>
+				<dict>
+					<key>name</key>
+					<string>punctuation.definition.dictionary.end.json</string>
+				</dict>
+			</dict>
+			<key>name</key>
+			<string>meta.structure.dictionary.json</string>
+			<key>patterns</key>
+			<array>
+				<dict>
+					<key>comment</key>
+					<string>the JSON object key</string>
+					<key>include</key>
+					<string>#string</string>
+				</dict>
+				<dict>
+					<key>begin</key>
+					<string>:</string>
+					<key>beginCaptures</key>
+					<dict>
+						<key>0</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.separator.dictionary.key-value.json</string>
+						</dict>
+					</dict>
+					<key>end</key>
+					<string>(,)|(?=\})</string>
+					<key>endCaptures</key>
+					<dict>
+						<key>1</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.separator.dictionary.pair.json</string>
+						</dict>
+					</dict>
+					<key>name</key>
+					<string>meta.structure.dictionary.value.json</string>
+					<key>patterns</key>
+					<array>
+						<dict>
+							<key>comment</key>
+							<string>the JSON object value</string>
+							<key>include</key>
+							<string>#value</string>
+						</dict>
+						<dict>
+							<key>match</key>
+							<string>[^\s,]</string>
+							<key>name</key>
+							<string>invalid.illegal.expected-dictionary-separator.json</string>
+						</dict>
+					</array>
+				</dict>
+				<dict>
+					<key>match</key>
+					<string>[^\s\}]</string>
+					<key>name</key>
+					<string>invalid.illegal.expected-dictionary-separator.json</string>
+				</dict>
+			</array>
+		</dict>
+		<key>string</key>
+		<dict>
+			<key>begin</key>
+			<string>"</string>
+			<key>beginCaptures</key>
+			<dict>
+				<key>0</key>
+				<dict>
+					<key>name</key>
+					<string>punctuation.definition.string.begin.json</string>
+				</dict>
+			</dict>
+			<key>end</key>
+			<string>"</string>
+			<key>endCaptures</key>
+			<dict>
+				<key>0</key>
+				<dict>
+					<key>name</key>
+					<string>punctuation.definition.string.end.json</string>
+				</dict>
+			</dict>
+			<key>name</key>
+			<string>string.quoted.double.json</string>
+			<key>patterns</key>
+			<array>
+				<dict>
+					<key>match</key>
+					<string>(?x:                # turn on extended mode
+                     \\                # a literal backslash
+                     (?:               # ...followed by...
+                       ["\\/bfnrt]     # one of these characters
+                       |               # ...or...
+                       u               # a u
+                       [0-9a-fA-F]{4}  # and four hex digits
+                     )
+                   )</string>
+					<key>name</key>
+					<string>constant.character.escape.json</string>
+				</dict>
+				<dict>
+					<key>match</key>
+					<string>\\.</string>
+					<key>name</key>
+					<string>invalid.illegal.unrecognized-string-escape.json</string>
+				</dict>
+			</array>
+		</dict>
+		<key>value</key>
+		<dict>
+			<key>comment</key>
+			<string>the 'value' diagram at http://json.org</string>
+			<key>patterns</key>
+			<array>
+				<dict>
+					<key>include</key>
+					<string>#constant</string>
+				</dict>
+				<dict>
+					<key>include</key>
+					<string>#number</string>
+				</dict>
+				<dict>
+					<key>include</key>
+					<string>#string</string>
+				</dict>
+				<dict>
+					<key>include</key>
+					<string>#array</string>
+				</dict>
+				<dict>
+					<key>include</key>
+					<string>#object</string>
+				</dict>
+			</array>
+		</dict>
+	</dict>
+	<key>scopeName</key>
+	<string>source.json</string>
+	<key>uuid</key>
+	<string>0C3868E4-F96B-4E55-B204-1DCB5A20748B</string>
+</dict>
+</plist>
