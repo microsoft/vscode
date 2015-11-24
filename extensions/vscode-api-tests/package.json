@@ -7,6 +7,9 @@
 	"engines": {
 		"vscode": "*"
 	},
+	"scripts": {
+		"vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../gulpfile.plugins.js compile-plugin:vscode-api-tests ./tsconfig.json"
+	},
 	"devDependencies": {
 		"vscode": "next"
 	}
