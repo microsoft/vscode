@@ -85,6 +85,11 @@ export interface IOpenedPathsList {
 	files: string[];
 }
 
+interface ILogEntry {
+	severity: string;
+	arguments: any;
+}
+
 export class WindowsManager {
 
 	public static autoSaveDelayStorageKey = 'autoSaveDelay';
@@ -121,7 +126,7 @@ export class WindowsManager {
 	}
 
 	private registerListeners(): void {
-		app.on('activate', (event:Event, hasVisibleWindows:boolean) => {
+		app.on('activate', (event: Event, hasVisibleWindows: boolean) => {
 			env.log('App#activate');
 
 			// Mac only event: reopen last window when we get activated
@@ -247,7 +252,23 @@ export class WindowsManager {
 			if (broadcast.channel && broadcast.payload) {
 				this.sendToAll('vscode:broadcast', broadcast, [windowId]);
 			}
-		})
+		});
+
+		ipc.on('vscode:log', (event: Event, logEntry: ILogEntry) => {
+			let args = [];
+			try {
+				let parsed = JSON.parse(logEntry.arguments);
+				args.push(...Object.getOwnPropertyNames(parsed).map(o => parsed[o]));
+			} catch (error) {
+				args.push(logEntry.arguments);
+			}
+
+			console[logEntry.severity].apply(console, args);
+		});
+
+		ipc.on('vscode:exit', (event: Event, code: number) => {
+			process.exit(code);
+		});
 
 		UpdateManager.on('update-downloaded', (update: IUpdate) => {
 			this.sendToFocused('vscode:telemetry', { eventName: 'update:downloaded', data: { version: update.version } });

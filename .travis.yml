@@ -26,7 +26,9 @@ before_install:
   - npm config set python `which python`
   - npm install -g gulp
   - if [ $TRAVIS_OS_NAME == "linux" ]; then
-      export CXX="g++-4.9" CC="gcc-4.9";
+      export CXX="g++-4.9" CC="gcc-4.9" DISPLAY=:99.0;
+      sh -e /etc/init.d/xvfb start;
+      sleep 3;
     fi
 
 install:

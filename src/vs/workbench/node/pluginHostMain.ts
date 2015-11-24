@@ -99,7 +99,7 @@ export function createServices(remoteCom: IPluginsIPC, initData: IInitData, shar
 }
 
 interface ITestRunner {
-	run(testsRoot:string, clb: (error:Error) => void): void;
+	run(testsRoot:string, clb: (error:Error, failures?: number) => void): void;
 }
 
 export class PluginHostMain {
@@ -235,7 +235,7 @@ export class PluginHostMain {
 		// Execute the runner if it follows our spec
 		if (testRunner && typeof testRunner.run === 'function') {
 			return new TPromise<void>((c, e) => {
-				testRunner.run(env.pluginTestsPath, (error) => {
+				testRunner.run(env.pluginTestsPath, (error, failures) => {
 					if (error) {
 						e(error.toString());
 					} else {
@@ -243,22 +243,22 @@ export class PluginHostMain {
 					}
 
 					// after tests have run, we shutdown the host
-					this.gracefulExit();
+					this.gracefulExit(failures && failures > 0 ? 1 /* ERROR */ : 0 /* OK */);
 				});
 			});
 		}
 
 		// Otherwise make sure to shutdown anyway even in case of an error
 		else {
-			this.gracefulExit();
+			this.gracefulExit(1 /* ERROR */);
 		}
 
 		return TPromise.wrapError<void>(requireError ? requireError.toString() : nls.localize('pluginTestError', "Path {0} does not point to a valid extension test runner.", env.pluginTestsPath));
 	}
 
-	private gracefulExit(): void {
+	private gracefulExit(code: number): void {
 		// to give the PH process a chance to flush any outstanding console
 		// messages to the main process, we delay the exit() by some time
-		setTimeout(() => exit(), 500);
+		setTimeout(() => exit(code), 500);
 	}
 }

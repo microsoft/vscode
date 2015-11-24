@@ -107,6 +107,7 @@ class PluginHostProcessManager {
 	public startPluginHostProcess(onPluginHostMessage: (msg: any) => void): void {
 		let config = this.contextService.getConfiguration();
 		let isDev = !config.env.isBuilt || !!config.env.pluginDevelopmentPath;
+		let isTestingFromCli = !!config.env.pluginTestsPath && !config.env.debugBrkPluginHost;
 
 		let opts: any = {
 			env: objects.mixin(objects.clone(process.env), { AMD_ENTRYPOINT: 'vs/workbench/node/pluginHostProcess', PIPE_LOGGING: 'true', VERBOSE_LOGGING: true })
@@ -184,11 +185,18 @@ class PluginHostProcessManager {
 							consoleArgs = ['%c[Plugin Host]', 'color: blue', ...args];
 						}
 
-						// Send to local console
-						console[logEntry.severity].apply(console, consoleArgs);
+						// Send to local console unless we run tests from cli
+						if (!isTestingFromCli) {
+							console[logEntry.severity].apply(console, consoleArgs);
+						}
+
+						// Log on main side if running tests from cli
+						if (isTestingFromCli) {
+							ipc.send('vscode:log', logEntry);
+						}
 
 						// Broadcast to other windows if we are in development mode
-						if (isDev) {
+						else if (isDev) {
 							this.windowService.broadcast({
 								channel: PLUGIN_LOG_BROADCAST_CHANNEL,
 								payload: logEntry
@@ -229,8 +237,13 @@ class PluginHostProcessManager {
 						}
 
 						// Expected development plugin termination: When the plugin host goes down we also shutdown the window
-						else {
+						else if (!isTestingFromCli) {
 							this.windowService.getWindow().close();
+						}
+
+						// When CLI testing make sure to exit with proper exit code
+						else {
+							ipc.send('vscode:exit', code);
 						}
 					}
 				});

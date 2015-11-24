@@ -1,8 +1,9 @@
 {
 	"name": "vscode-api-tests",
-	"description": "",
+	"description": "API tests for VS Code",
 	"version": "0.0.1",
 	"publisher": "vscode",
+	"private": true,
 	"engines": {
 		"vscode": "*"
 	},

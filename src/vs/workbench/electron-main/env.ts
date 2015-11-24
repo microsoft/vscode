@@ -106,6 +106,9 @@ if (!fs.existsSync(userPluginsHome)) {
 	fs.mkdirSync(userPluginsHome);
 }
 
+// Helper to identify if we have plugin tests to run from the command line without debugger
+export const isTestingFromCli = cliArgs.pluginTestsPath && !cliArgs.debugBrkPluginHost;
+
 export function log(...a: any[]): void {
 	if (cliArgs.verboseLogging) {
 		console.log.apply(null, a);
