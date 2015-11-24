@@ -390,7 +390,7 @@
 	                                    ((device-)?(height|width|aspect-ratio))|
 	                                    (color(-index)?)|monochrome|resolution
 	                                )
-	                            )|grid|scan|orientation
+	                            )|grid|scan|orientation|((any-)?(pointer|hover))
 	                            \s*(?=[:)])</string>
 							<key>beginCaptures</key>
 							<dict>
