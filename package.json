@@ -31,7 +31,6 @@
 	},
 	"devDependencies": {
 		"async": "^1.4.0",
-		"atom-shell-installer-assets": "^0.2.0",
 		"azure-storage": "^0.3.1",
 		"clone": "^1.0.2",
 		"debounce": "^1.0.0",
