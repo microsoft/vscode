@@ -77,32 +77,34 @@ export class ExtHostOutputService {
 @Remotable.MainContext('MainThreadOutputService')
 export class MainThreadOutputService {
 
-	constructor(
-		@IOutputService private outputService: IOutputService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
-	) {
+	private _outputService: IOutputService;
+	private _editorService: IWorkbenchEditorService;
+
+	constructor( @IOutputService outputService: IOutputService, @IWorkbenchEditorService editorService: IWorkbenchEditorService) {
+		this._outputService = outputService;
+		this._editorService = editorService;
 	}
 
 	public append(channel: string, value: string): TPromise<void> {
-		this.outputService.append(channel, value);
+		this._outputService.append(channel, value);
 		return undefined;
 	}
 
 	public clear(channel: string): TPromise<void> {
-		this.outputService.clearOutput(channel);
+		this._outputService.clearOutput(channel);
 		return undefined;
 	}
 
 	public reveal(channel: string, position: Position): TPromise<void> {
-		this.outputService.showOutput(channel, position);
+		this._outputService.showOutput(channel, position);
 		return undefined;
 	}
 
 	public close(channel: string): TPromise<void> {
-		let editors = this.editorService.getVisibleEditors();
+		let editors = this._editorService.getVisibleEditors();
 		for (let editor of editors) {
 			if (editor.input.getId() === OUTPUT_EDITOR_INPUT_ID) {
-				this.editorService.closeEditor(editor).done(null, onUnexpectedError);
+				this._editorService.closeEditor(editor).done(null, onUnexpectedError);
 				return undefined;
 			}
 		}
