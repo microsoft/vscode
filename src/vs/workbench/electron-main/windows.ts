@@ -266,6 +266,10 @@ export class WindowsManager {
 			console[logEntry.severity].apply(console, args);
 		});
 
+		ipc.on('vscode:exit', (event: Event, code: number) => {
+			process.exit(code);
+		});
+
 		UpdateManager.on('update-downloaded', (update: IUpdate) => {
 			this.sendToFocused('vscode:telemetry', { eventName: 'update:downloaded', data: { version: update.version } });
 

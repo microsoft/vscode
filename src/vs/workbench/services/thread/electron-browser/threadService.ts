@@ -237,8 +237,13 @@ class PluginHostProcessManager {
 						}
 
 						// Expected development plugin termination: When the plugin host goes down we also shutdown the window
-						else {
+						else if (!isTestingFromCli) {
 							this.windowService.getWindow().close();
+						}
+
+						// When CLI testing make sure to exit with proper exit code
+						else {
+							ipc.send('vscode:exit', code);
 						}
 					}
 				});

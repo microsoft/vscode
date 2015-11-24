@@ -18,10 +18,12 @@ else
 		node_modules/mocha/bin/_mocha $*
 fi
 
-# Integration Tests
-if [[ "$OSTYPE" == "linux" ]]; then
-  export DISPLAY=:99.0
-  sh -e /etc/init.d/xvfb start
-  sleep 3
-fi
+# Integration Tests (currently not enabled for linux because of missing display)
+# if [[ "$OSTYPE" == "linux" ]]; then
+#   export DISPLAY=:99.0
+#   sh -e /etc/init.d/xvfb start
+#   sleep 3
+# fi
+if [[ "$OSTYPE" == "darwin"* ]]; then
 ./scripts/code.sh $ROOT/extensions/vscode-api-tests/testWorkspace --extensionDevelopmentPath=$ROOT/extensions/vscode-api-tests --extensionTestsPath=$ROOT/extensions/vscode-api-tests/out
+fi
