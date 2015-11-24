@@ -49,7 +49,7 @@ function readdirNormalize(path: string, callback: (error: Error, files: string[]
 		// For example Sharepoint via WebDav on Windows includes them. We never want those
 		// entries in the result set though because they are not valid children of the folder
 		// for our concerns.
-		return callback(null, children.filter((c) => c !== '.' && c !== '..'));
+		return callback(null, children.filter(c => c !== '.' && c !== '..'));
 	})
 }
 
