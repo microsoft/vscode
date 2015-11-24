@@ -55,7 +55,7 @@ export interface IInitData {
 	};
 }
 
-const nativeExit = process.exit.bin(process);
+const nativeExit = process.exit.bind(process);
 process.exit = function() {
 	const err = new Error('An extension called process.exit() and this was prevented.');
 	console.warn((<any>err).stack);
