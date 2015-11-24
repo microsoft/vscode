@@ -18,5 +18,5 @@ else
 		node_modules/mocha/bin/_mocha $*
 fi
 
-# Integration Tests (currently not enabled for linux because of missing display)
+# Integration Tests
 ./scripts/code.sh $ROOT/extensions/vscode-api-tests/testWorkspace --extensionDevelopmentPath=$ROOT/extensions/vscode-api-tests --extensionTestsPath=$ROOT/extensions/vscode-api-tests/out
