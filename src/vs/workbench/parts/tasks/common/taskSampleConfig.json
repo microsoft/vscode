@@ -156,7 +156,7 @@
 }
 */
 // A task runner example that defines a problemMatcher inline instead of using
-// a predfined one.
+// a predefined one.
 /*
 {
 	"version": "0.1.0",
