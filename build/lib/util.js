@@ -10,6 +10,7 @@ var _ = require('underscore');
 var path = require('path');
 var fs = require('fs');
 var rimraf = require('rimraf');
+var git = require('./git');
 
 var NoCancellationToken = {
 	isCancellationRequested: function () {
@@ -275,4 +276,14 @@ exports.downloadExtensions = function(extensions) {
 	});
 
 	return es.merge(streams);
+};
+
+exports.getVersion = function (root) {
+	var version = process.env['BUILD_SOURCEVERSION'];
+
+	if (!version || !/^[0-9a-f]{40}$/i.test(version)) {
+		version = git.getVersion(root);
+	}
+
+	return version;
 };
