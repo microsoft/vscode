@@ -23,7 +23,7 @@ import {CancellationTokenSource} from 'vs/base/common/cancellation';
 import {PluginHostModelService} from 'vs/workbench/api/common/pluginHostDocuments';
 import {IMarkerService, IMarker} from 'vs/platform/markers/common/markers';
 import {PluginHostCommands, MainThreadCommands} from 'vs/workbench/api/common/pluginHostCommands';
-import DeclarationRegistry from 'vs/editor/contrib/goToDeclaration/common/goToDeclaration';
+import {DeclarationRegistry} from 'vs/editor/contrib/goToDeclaration/common/goToDeclaration';
 import ExtraInfoRegistry from 'vs/editor/contrib/hover/common/hover';
 import DocumentHighlighterRegistry from 'vs/editor/contrib/wordHighlighter/common/wordHighlighter';
 import ReferenceSearchRegistry from 'vs/editor/contrib/referenceSearch/common/referenceSearch';
@@ -158,7 +158,44 @@ class CodeLensAdapter implements modes.ICodeLensSupport {
 	}
 }
 
-type Adapter = OutlineAdapter | CodeLensAdapter;
+class DeclarationAdapter implements modes.IDeclarationSupport {
+
+	private _documents: PluginHostModelService;
+	private _provider: vscode.DefinitionProvider;
+
+	constructor(documents: PluginHostModelService, provider: vscode.DefinitionProvider) {
+		this._documents = documents;
+		this._provider = provider;
+	}
+
+	canFindDeclaration() {
+		return true;
+	}
+
+	findDeclaration(resource: URI, position: IPosition): TPromise<modes.IReference[]> {
+		let doc = this._documents.getDocument(resource);
+		let pos = TypeConverters.toPosition(position);
+		return asWinJsPromise(token => this._provider.provideDefinition(doc, pos, token)).then(value => {
+			if (Array.isArray(value)) {
+				return value.map(DeclarationAdapter._convertLocation);
+			} else if (value) {
+				return DeclarationAdapter._convertLocation(value);
+			}
+		});
+	}
+
+	private static _convertLocation(location: vscode.Location): modes.IReference {
+		if (!location) {
+			return;
+		}
+		return <modes.IReference>{
+			resource: location.uri,
+			range: TypeConverters.fromRange(location.range)
+		};
+	}
+}
+
+type Adapter = OutlineAdapter | CodeLensAdapter | DeclarationAdapter;
 
 @Remotable.PluginHostContext('ExtHostLanguageFeatures')
 export class ExtHostLanguageFeatures {
@@ -185,8 +222,12 @@ export class ExtHostLanguageFeatures {
 		return ExtHostLanguageFeatures._handlePool++;
 	}
 
-	private _noAdapter() {
-		return TPromise.wrapError(new Error('no adapter found'));
+	private _withAdapter<A, R>(handle: number, ctor: { new (...args: any[]): A }, callback: (adapter: A) => TPromise<R>): TPromise<R> {
+		let adapter = this._adapter[handle];
+		if (!(adapter instanceof ctor)) {
+			return TPromise.wrapError(new Error('no adapter found'));
+		}
+		return callback(<any> adapter);
 	}
 
 	// --- outline
@@ -199,12 +240,7 @@ export class ExtHostLanguageFeatures {
 	}
 
 	$getOutline(handle: number, resource: URI): TPromise<IOutlineEntry[]>{
-		let adapter = this._adapter[handle];
-		if (adapter instanceof OutlineAdapter) {
-			return adapter.getOutline(resource);
-		} else {
-			return this._noAdapter();
-		}
+		return this._withAdapter(handle, OutlineAdapter, adapter => adapter.getOutline(resource));
 	}
 
 	// --- code lens
@@ -216,24 +252,26 @@ export class ExtHostLanguageFeatures {
 		return this._createDisposable(handle);
 	}
 
-	$findCodeLensSymbols(handle:number, resource: URI): TPromise<modes.ICodeLensSymbol[]> {
-		let adapter = this._adapter[handle];
-		if (adapter instanceof CodeLensAdapter) {
-			return adapter.findCodeLensSymbols(resource);
-		} else {
-			return this._noAdapter();
-		}
+	$findCodeLensSymbols(handle: number, resource: URI): TPromise<modes.ICodeLensSymbol[]> {
+		return this._withAdapter(handle, CodeLensAdapter, adapter => adapter.findCodeLensSymbols(resource));
 	}
 
 	$resolveCodeLensSymbol(handle:number, resource: URI, symbol: modes.ICodeLensSymbol): TPromise<modes.ICommand> {
-		let adapter = this._adapter[handle];
-		if (adapter instanceof CodeLensAdapter) {
-			return adapter.resolveCodeLensSymbol(resource, symbol);
-		} else {
-			return this._noAdapter();
-		}
+		return this._withAdapter(handle, CodeLensAdapter, adapter => adapter.resolveCodeLensSymbol(resource, symbol));
 	}
 
+	// --- declaration
+
+	registerDefinitionProvider(selector: vscode.DocumentSelector, provider: vscode.DefinitionProvider): vscode.Disposable {
+		const handle = this._nextHandle();
+		this._adapter[handle] = new DeclarationAdapter(this._documents, provider);
+		this._proxy.$registerDeclaractionSupport(handle, selector);
+		return this._createDisposable(handle);
+	}
+
+	$findDeclaration(handle: number, resource: URI, position: IPosition): TPromise<modes.IReference[]> {
+		return this._withAdapter(handle, DeclarationAdapter, adapter => adapter.findDeclaration(resource, position));
+	}
 }
 
 @Remotable.MainContext('MainThreadLanguageFeatures')
@@ -275,6 +313,20 @@ export class MainThreadLanguageFeatures {
 			},
 			resolveCodeLensSymbol: (resource: URI, symbol: modes.ICodeLensSymbol): TPromise<modes.ICommand> => {
 				return this._proxy.$resolveCodeLensSymbol(handle, resource, symbol);
+			}
+		});
+		return undefined;
+	}
+
+	// --- declaration
+
+	$registerDeclaractionSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any> {
+		this._registrations[handle] = DeclarationRegistry.register(selector, <modes.IDeclarationSupport>{
+			canFindDeclaration() {
+				return true;
+			},
+			findDeclaration: (resource: URI, position: IPosition): TPromise<modes.IReference[]> => {
+				return this._proxy.$findDeclaration(handle, resource, position);
 			}
 		});
 		return undefined;

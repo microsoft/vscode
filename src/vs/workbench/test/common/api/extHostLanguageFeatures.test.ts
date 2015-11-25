@@ -19,10 +19,10 @@ import {ExtHostLanguageFeatures, MainThreadLanguageFeatures} from 'vs/workbench/
 import {PluginHostCommands, MainThreadCommands} from 'vs/workbench/api/common/pluginHostCommands';
 import {PluginHostModelService} from 'vs/workbench/api/common/pluginHostDocuments';
 import {SyncDescriptor0} from 'vs/platform/instantiation/common/descriptors';
+import {LanguageSelector, ModelLike} from 'vs/editor/common/modes/languageSelector';
 import {OutlineRegistry, getOutlineEntries} from 'vs/editor/contrib/quickOpen/common/quickOpen';
 import {CodeLensRegistry, getCodeLensData} from 'vs/editor/contrib/codelens/common/codelens';
-import {LanguageSelector, ModelLike} from 'vs/editor/common/modes/languageSelector';
-
+import {DeclarationRegistry, getDeclarationsAtPosition} from 'vs/editor/contrib/goToDeclaration/common/goToDeclaration';
 
 let model: ModelLike;
 let extHost: ExtHostLanguageFeatures;
@@ -214,6 +214,110 @@ suite('ExtHostLanguageFeatures', function() {
 					assert.equal(command.title, '<<MISSING COMMAND>>');
 					done();
 				});
+			});
+		});
+	});
+
+	// --- definition
+
+	test('Definition, data conversion', function(done) {
+
+		disposables.push(extHost.registerDefinitionProvider('far', <vscode.DefinitionProvider>{
+			provideDefinition(): any {
+				return [new types.Location(model.uri, new types.Range(1, 2, 3, 4))];
+			}
+		}));
+
+		threadService.sync().then(() => {
+
+			getDeclarationsAtPosition(model.uri, 'far', { lineNumber: 1, column: 1 }).then(value => {
+				assert.equal(value.length, 1);
+				let [entry] = value;
+				assert.deepEqual(entry.range, { startLineNumber: 2, startColumn: 3, endLineNumber: 4, endColumn: 5 });
+				assert.equal(entry.resource.toString(), model.uri.toString());
+				done();
+			}, err => {
+				done(err);
+			});
+		});
+	});
+
+	test('Definition, one or many', function(done) {
+
+		disposables.push(extHost.registerDefinitionProvider('far', <vscode.DefinitionProvider>{
+			provideDefinition(): any {
+				return [new types.Location(model.uri, new types.Range(1, 1, 1, 1))];
+			}
+		}));
+		disposables.push(extHost.registerDefinitionProvider('far', <vscode.DefinitionProvider>{
+			provideDefinition(): any {
+				return new types.Location(model.uri, new types.Range(1, 1, 1, 1));
+			}
+		}));
+
+		threadService.sync().then(() => {
+
+			getDeclarationsAtPosition(model.uri, 'far', { lineNumber: 1, column: 1 }).then(value => {
+				assert.equal(value.length, 2);
+				done();
+			}, err => {
+				done(err);
+			});
+		});
+	});
+
+	test('Definition, registration order', function(done) {
+
+		disposables.push(extHost.registerDefinitionProvider('far', <vscode.DefinitionProvider>{
+			provideDefinition(): any {
+				return [new types.Location(URI.parse('far://first'), new types.Range(2, 3, 4, 5))];
+			}
+		}));
+
+		setTimeout(function() { // registration time matters
+			disposables.push(extHost.registerDefinitionProvider('far', <vscode.DefinitionProvider>{
+				provideDefinition(): any {
+					return new types.Location(URI.parse('far://second'), new types.Range(1, 2, 3, 4));
+				}
+			}));
+
+			threadService.sync().then(() => {
+
+				getDeclarationsAtPosition(model.uri, 'far', { lineNumber: 1, column: 1 }).then(value => {
+					assert.equal(value.length, 2);
+					// let [first, second] = value;
+
+					assert.equal(value[0].resource.authority, 'second');
+					assert.equal(value[1].resource.authority, 'first');
+					done();
+
+				}, err => {
+					done(err);
+				});
+			});
+		}, 10);
+	});
+
+	test('Definition, evil provider', function(done) {
+
+		disposables.push(extHost.registerDefinitionProvider('far', <vscode.DefinitionProvider>{
+			provideDefinition(): any {
+				throw new Error('evil provider')
+			}
+		}));
+		disposables.push(extHost.registerDefinitionProvider('far', <vscode.DefinitionProvider>{
+			provideDefinition(): any {
+				return new types.Location(model.uri, new types.Range(1, 1, 1, 1));
+			}
+		}));
+
+		threadService.sync().then(() => {
+
+			getDeclarationsAtPosition(model.uri, 'far', { lineNumber: 1, column: 1 }).then(value => {
+				assert.equal(value.length, 1);
+				done();
+			}, err => {
+				done(err);
 			});
 		});
 	});

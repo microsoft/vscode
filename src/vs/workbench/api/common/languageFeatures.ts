@@ -22,17 +22,14 @@ import {CancellationTokenSource} from 'vs/base/common/cancellation';
 import {PluginHostModelService} from 'vs/workbench/api/common/pluginHostDocuments';
 import {IMarkerService, IMarker} from 'vs/platform/markers/common/markers';
 import {PluginHostCommands, MainThreadCommands} from 'vs/workbench/api/common/pluginHostCommands';
-import DeclarationRegistry from 'vs/editor/contrib/goToDeclaration/common/goToDeclaration';
 import ExtraInfoRegistry from 'vs/editor/contrib/hover/common/hover';
 import DocumentHighlighterRegistry from 'vs/editor/contrib/wordHighlighter/common/wordHighlighter';
 import ReferenceSearchRegistry from 'vs/editor/contrib/referenceSearch/common/referenceSearch';
 import QuickFixRegistry from 'vs/editor/contrib/quickFix/common/quickFix';
-import {OutlineRegistry, IOutlineEntry, IOutlineSupport} from 'vs/editor/contrib/quickOpen/common/quickOpen';
 import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
 import {NavigateTypesSupportRegistry, INavigateTypesSupport, ITypeBearing} from 'vs/workbench/parts/search/common/search'
 import {RenameRegistry} from 'vs/editor/contrib/rename/common/rename';
 import {FormatRegistry, FormatOnTypeRegistry} from 'vs/editor/contrib/format/common/format';
-import {CodeLensRegistry} from 'vs/editor/contrib/codelens/common/codelens';
 import {ParameterHintsRegistry} from 'vs/editor/contrib/parameterHints/common/parameterHints';
 import {SuggestRegistry} from 'vs/editor/contrib/suggest/common/suggest';
 
@@ -134,64 +131,6 @@ export abstract class AbstractExtensionHostFeature<T, P extends AbstractMainThre
 			language: document.languageId,
 			uri: <any>document.uri
 		});
-	}
-}
-
-// ---- definition feature
-
-export class ExtensionHostDefinitionFeature extends AbstractExtensionHostFeature<vscode.DefinitionProvider, MainThreadDefinitionFeature> {
-
-	constructor(@IThreadService threadService: IThreadService) {
-		super(threadService.getRemotable(MainThreadDefinitionFeature), threadService);
-	}
-
-	_runAsCommand(resource: URI, position: IPosition): TPromise<modes.IReference[]> {
-
-		let document = this._models.getDocument(resource);
-		let pos = TypeConverters.toPosition(position);
-		let locations: vscode.Location[] = [];
-
-		let promises = this._registry.all({ language: document.languageId, uri: document.uri }).map(provider => {
-			return asWinJsPromise(token => provider.provideDefinition(document, pos, token)).then(result => {
-				if (Array.isArray(result)) {
-					locations.push(...result);
-				} else {
-					locations.push(<any> result);
-				}
-			}, err => {
-				console.error(err);
-			});
-		});
-
-		return TPromise.join(promises).then(() => {
-			return locations.map(ExtensionHostDefinitionFeature._convertLocation);
-		})
-	}
-
-	private static _convertLocation(location: vscode.Location): modes.IReference {
-		if (!location) {
-			return;
-		}
-		return <modes.IReference>{
-			resource: location.uri,
-			range: TypeConverters.fromRange(location.range)
-		};
-	}
-}
-
-@Remotable.MainContext('MainThreadDefinitionProvider')
-export class MainThreadDefinitionFeature extends AbstractMainThreadFeature<modes.IDeclarationSupport> implements modes.IDeclarationSupport {
-
-	constructor(@IThreadService threadService: IThreadService) {
-		super('vscode.executeDefinitionProvider', DeclarationRegistry, threadService);
-	}
-
-	canFindDeclaration() {
-		return true
-	}
-
-	findDeclaration(resource: URI, position: IPosition): TPromise<modes.IReference[]>{
-		return this._executeCommand(resource, position);
 	}
 }
 
@@ -1076,7 +1015,6 @@ export class MainThreadWorkspaceSymbols implements INavigateTypesSupport {
 export namespace LanguageFeatures {
 
 	export function createMainThreadInstances(threadService: IThreadService): void {
-		threadService.getRemotable(MainThreadDefinitionFeature);
 		threadService.getRemotable(MainThreadHoverFeature);
 		threadService.getRemotable(MainThreadOccurrencesFeature);
 		threadService.getRemotable(MainThreadReferenceSearch);
@@ -1092,7 +1030,6 @@ export namespace LanguageFeatures {
 
 	export function createExtensionHostInstances(threadService: IThreadService) {
 		return {
-			definition: new ExtensionHostDefinitionFeature(threadService),
 			hover: new ExtensionHostHoverFeature(threadService),
 			documentHighlight: new ExtensionHostOccurrencesFeature(threadService),
 			referenceSearch: new ExtensionHostReferenceSearch(threadService),

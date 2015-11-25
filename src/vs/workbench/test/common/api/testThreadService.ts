@@ -44,20 +44,25 @@ export class TestThreadService extends NullThreadService {
 
 	protected _registerAndInstantiateMainProcessActor<T>(id: string, descriptor: SyncDescriptor0<T>): T {
 
-		let instance: any;
+		let _calls:{path: string; args: any[] }[] = [];
+		let _instance: any;
 
 		return this._getOrCreateProxyInstance({
+
+
 			callOnRemote: (proxyId: string, path: string, args: any[]): TPromise<any> => {
 
 				this._callCount++;
+				_calls.push({path, args});
 
 				return TPromise.timeout(0).then(() => {
-					if (!instance) {
-						instance = create(descriptor.ctor, this);
+					if (!_instance) {
+						_instance = create(descriptor.ctor, this);
 					}
 					let p: TPromise<any>;
 					try {
-						let result = (<Function>instance[path]).apply(instance, args);
+						let {path, args} = _calls.shift();
+						let result = (<Function>_instance[path]).apply(_instance, args);
 						p = TPromise.is(result) ? result : TPromise.as(result);
 					} catch (err) {
 						p = TPromise.wrapError(err);

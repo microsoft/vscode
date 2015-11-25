@@ -566,7 +566,7 @@ export interface IReferenceSupport {
  */
 export interface IDeclarationSupport {
 	canFindDeclaration(context:ILineContext, offset:number):boolean;
-	findDeclaration(resource:URL, position:EditorCommon.IPosition):TPromise<IReference|IReference[]>;
+	findDeclaration(resource:URI, position:EditorCommon.IPosition):TPromise<IReference|IReference[]>;
 }
 
 export interface ITypeDeclarationSupport {

@@ -271,7 +271,7 @@ export class PluginHostAPIImplementation {
 				return languageFeatures.registerCodeLensProvider(selector, provider);
 			},
 			registerDefinitionProvider(selector: vscode.DocumentSelector, provider: vscode.DefinitionProvider): vscode.Disposable {
-				return features.definition.register(selector, provider);
+				return languageFeatures.registerDefinitionProvider(selector, provider);
 			},
 			registerHoverProvider(selector: vscode.DocumentSelector, provider: vscode.HoverProvider): vscode.Disposable {
 				return features.hover.register(selector, provider);
