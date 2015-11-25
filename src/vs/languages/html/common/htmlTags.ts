@@ -87,6 +87,7 @@ export function getHTML5TagProvider(): IHTMLTagProvider {
 		wbr: none,
 		ins: ['cite', 'datetime'],
 		del: ['cite', 'datetime'],
+		picture: none,
 		img: ['alt', 'src', 'srcset', 'crossorigin:xo', 'usemap', 'ismap:v', 'width', 'height'],
 		iframe: ['src', 'srcdoc', 'name', 'sandbox:sb', 'seamless:v', 'allowfullscreen:v', 'width', 'height'],
 		embed: ['src', 'type', 'width', 'height'],
