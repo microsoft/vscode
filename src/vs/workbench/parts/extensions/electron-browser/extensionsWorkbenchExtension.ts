@@ -51,7 +51,7 @@ export class ExtensionsWorkbenchExtension implements IWorkbenchContribution {
 				'vs/workbench/parts/extensions/electron-browser/extensionsQuickOpen',
 				'LocalExtensionsHandler',
 				'ext ',
-				nls.localize('localExtensionsCommands', "Local Extensions Commands")
+				nls.localize('localExtensionsCommands', "Show Local Extensions")
 			)
 		);
 
@@ -63,7 +63,7 @@ export class ExtensionsWorkbenchExtension implements IWorkbenchContribution {
 					'vs/workbench/parts/extensions/electron-browser/extensionsQuickOpen',
 					'GalleryExtensionsHandler',
 					'ext install ',
-					nls.localize('galleryExtensionsCommands', "Gallery Extensions Commands"),
+					nls.localize('galleryExtensionsCommands', "Install Gallery Extensions"),
 					true
 				)
 			);
@@ -75,7 +75,7 @@ export class ExtensionsWorkbenchExtension implements IWorkbenchContribution {
 					'vs/workbench/parts/extensions/electron-browser/extensionsQuickOpen',
 					'OutdatedExtensionsHandler',
 					'ext update ',
-					nls.localize('outdatedExtensionsCommands', "Outdated Extensions Commands"),
+					nls.localize('outdatedExtensionsCommands', "Update Outdated Extensions"),
 					true
 				)
 			);
