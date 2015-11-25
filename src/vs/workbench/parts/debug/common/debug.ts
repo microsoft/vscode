@@ -236,7 +236,7 @@ export interface IDebugService extends ee.IEventEmitter {
 
 	getConfiguration(): IConfig;
 	setConfiguration(name: string): Promise;
-	openConfigFile(sideBySide: boolean): Promise;
+	openConfigFile(sideBySide: boolean): TPromise<boolean>;
 	loadLaunchConfig(): TPromise<IGlobalConfig>;
 
 	setFocusedStackFrameAndEvaluate(focusedStackFrame: IStackFrame): void;
