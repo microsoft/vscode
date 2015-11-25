@@ -81,8 +81,8 @@ gulp.task('hygiene', function() {
 			.toString('utf8')
 			.split(/\r\n|\r|\n/)
 			.forEach(function(line, i) {
-				if (line.length === 0) {
-					// empty lines are OK
+				if (/^\s*$/.test(line)) {
+					// empty or whitespace lines are OK
 				} else if (/^[\t]*[^\s]/.test(line)) {
 					// good indent
 				} else if (/^[\t]* \*/.test(line)) {
@@ -101,7 +101,7 @@ gulp.task('hygiene', function() {
 			console.error(file.path + ': Missing or bad copyright statement');
 			errorCount++;
 		}
-		
+
 		this.emit('data', file);
 	});
 
