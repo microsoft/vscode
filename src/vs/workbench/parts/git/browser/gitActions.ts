@@ -941,9 +941,10 @@ export abstract class BaseSyncAction extends GitAction {
 export class SyncAction extends BaseSyncAction {
 
 	static ID = 'workbench.action.sync';
+	static LABEL = nls.localize('sync', "Sync");
 
-	constructor(@IGitService gitService: IGitService) {
-		super(SyncAction.ID, nls.localize('sync', "Sync"), 'git-action sync', gitService);
+	constructor(id: string, label: string, @IGitService gitService: IGitService) {
+		super(id, label, 'git-action sync', gitService);
 	}
 }
 
