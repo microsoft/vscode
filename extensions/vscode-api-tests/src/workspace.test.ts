@@ -14,9 +14,7 @@ import * as os from 'os';
 
 suite('workspace-namespace', () => {
 
-	teardown((done) => {
-		cleanUp().then(() => done(), (error) => done(error));
-	});
+	teardown(cleanUp);
 
 	test('textDocuments', () => {
 		assert.ok(Array.isArray(workspace.textDocuments));
@@ -28,12 +26,9 @@ suite('workspace-namespace', () => {
 		assert.throws(() => workspace.rootPath = 'farboo');
 	});
 
-	test('openTextDocument', done => {
-		workspace.openTextDocument(join(workspace.rootPath, './far.js')).then(doc => {
+	test('openTextDocument', () => {
+		return workspace.openTextDocument(join(workspace.rootPath, './far.js')).then(doc => {
 			assert.ok(doc);
-			done();
-		}, err => {
-			done(err);
 		});
 	});
 

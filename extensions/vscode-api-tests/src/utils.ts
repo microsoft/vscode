@@ -5,6 +5,7 @@
 
 'use strict';
 
+import * as assert from 'assert';
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as os from 'os';
@@ -39,8 +40,40 @@ export function deleteFile(file: vscode.Uri): Thenable<boolean> {
 	});
 }
 
-export function cleanUp(): Thenable<boolean> {
-	return vscode.commands.executeCommand('workbench.action.closeAllEditors').then(() => {
-		return vscode.commands.executeCommand('workbench.files.action.closeAllFiles');
+export function cleanUp(): Thenable<any> {
+	return new Promise((c, e) => {
+		if (vscode.window.visibleTextEditors.length === 0) {
+			return c();
+		}
+
+		// TODO: the visibleTextEditors variable doesn't seem to be
+		// up to date after a onDidChangeActiveTextEditor event, not
+		// even using a setTimeout 0... so we MUST poll :(
+		const interval = setInterval(() => {
+			if (vscode.window.visibleTextEditors.length > 0) {
+				return;
+			}
+
+			clearInterval(interval);
+			c();
+		}, 10);
+
+		vscode.commands.executeCommand('workbench.action.closeAllEditors')
+			.then(() => vscode.commands.executeCommand('workbench.files.action.closeAllFiles'))
+			.then(null, err => {
+				clearInterval(interval);
+				e(err);
+			});
+	}).then(() => {
+		assert.equal(vscode.window.visibleTextEditors.length, 0);
+		assert(!vscode.window.activeTextEditor);
+
+		// TODO: we can't yet make this assertion because when
+		// the phost creates a document and makes no changes to it,
+		// the main side doesn't know about it and the phost side
+		// assumes it exists. Calling closeAllFiles will not
+		// remove it from textDocuments array. :(
+
+		// assert.equal(vscode.workspace.textDocuments.length, 0);
 	});
 }
