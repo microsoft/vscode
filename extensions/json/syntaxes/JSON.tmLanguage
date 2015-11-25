@@ -206,7 +206,7 @@
 					<key>comment</key>
 					<string>the JSON object key</string>
 					<key>include</key>
-					<string>#string</string>
+					<string>#objectkey</string>
 				</dict>
 				<dict>
 					<key>include</key>
@@ -283,6 +283,48 @@
 			</dict>
 			<key>name</key>
 			<string>string.quoted.double.json</string>
+			<key>patterns</key>
+			<array>
+				<dict>
+					<key>include</key>
+					<string>#stringcontent</string>
+				</dict>
+			</array>
+		</dict>
+		<key>objectkey</key>
+		<dict>
+			<key>begin</key>
+			<string>"</string>
+			<key>beginCaptures</key>
+			<dict>
+				<key>0</key>
+				<dict>
+					<key>name</key>
+					<string>punctuation.support.type.property-name.begin.json</string>
+				</dict>
+			</dict>
+			<key>end</key>
+			<string>"</string>
+			<key>endCaptures</key>
+			<dict>
+				<key>0</key>
+				<dict>
+					<key>name</key>
+					<string>punctuation.support.type.property-name.end.json</string>
+				</dict>
+			</dict>
+			<key>name</key>
+			<string>support.type.property-name.json</string>
+			<key>patterns</key>
+			<array>
+				<dict>
+					<key>include</key>
+					<string>#stringcontent</string>
+				</dict>
+			</array>
+		</dict>
+		<key>stringcontent</key>
+		<dict>
 			<key>patterns</key>
 			<array>
 				<dict>

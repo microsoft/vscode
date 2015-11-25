@@ -11,7 +11,7 @@
 			"mimetypes": ["application/json"]
 		}],
 		"grammars": [{
-			// "language": "json" : commented out for now
+			"language": "json",
 			"scopeName": "source.json",
 			"path": "./syntaxes/JSON.tmLanguage"
 		}]
