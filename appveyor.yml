@@ -2,6 +2,7 @@ environment:
   ATOM_SHELL_INTERNAL_RUN_AS_NODE: 1
 
 install:
+	- ps: Install-Product node 4.1.1 x64
   - npm install -g gulp mocha
 
 build_script:
