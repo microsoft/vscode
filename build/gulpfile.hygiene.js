@@ -8,12 +8,16 @@ var filter = require('gulp-filter');
 var es = require('event-stream');
 var path = require('path');
 
-var eolFilter = [
+var all = [
 	'build/**/*',
 	'extensions/**/*',
 	'scripts/**/*',
 	'src/**/*',
-	'test/**/*',
+	'test/**/*'
+];
+
+var eolFilter = [
+	'**',
 	'!extensions/csharp-o/bin/**',
 	'!extensions/**/out/**',
 	'!**/node_modules/**',
@@ -64,12 +68,12 @@ var copyrightHeader = [
 	' *--------------------------------------------------------------------------------------------*/'
 ].join('\n');
 
-gulp.task('hygiene', function() {
+var hygiene = exports.hygiene = function (some) {
 	var errorCount = 0;
 
 	var eol = es.through(function (file) {
 		if (/\r\n?/g.test(file.contents.toString('utf8'))) {
-			console.error(file.path + ': Bad EOL found');
+			console.error(file.relative + ': Bad EOL found');
 			errorCount++;
 		}
 
@@ -88,7 +92,7 @@ gulp.task('hygiene', function() {
 				} else if (/^[\t]* \*/.test(line)) {
 					// block comment using an extra space
 				} else {
-					console.error(file.path + '(' + (i + 1) + ',1): Bad whitespace indentation');
+					console.error(file.relative + '(' + (i + 1) + ',1): Bad whitespace indentation');
 					errorCount++;
 				}
 			});
@@ -98,15 +102,16 @@ gulp.task('hygiene', function() {
 
 	var copyrights = es.through(function (file) {
 		if (file.contents.toString('utf8').indexOf(copyrightHeader) !== 0) {
-			console.error(file.path + ': Missing or bad copyright statement');
+			console.error(file.relative + ': Missing or bad copyright statement');
 			errorCount++;
 		}
 
 		this.emit('data', file);
 	});
 
-	return gulp.src(eolFilter, { base: '.' })
+	return gulp.src(some || all, { base: '.' })
 		.pipe(filter(function (f) { return !f.stat.isDirectory(); }))
+		.pipe(filter(eolFilter))
 		.pipe(eol)
 		.pipe(filter(indentationFilter))
 		.pipe(indentation)
@@ -119,4 +124,28 @@ gulp.task('hygiene', function() {
 				this.emit('end');
 			}
 		}));
+};
+
+gulp.task('hygiene', function () {
+	return hygiene();
 });
+
+// this allows us to run this as a git pre-commit hook
+if (require.main === module) {
+	var cp = require('child_process');
+	cp.exec('git diff --cached --name-only', function (err, out) {
+		if (err) {
+			console.log(err);
+			process.exit(1);
+		}
+
+		var some = out
+			.split(/\r?\n/)
+			.filter(function (l) { return !!l; });
+
+		hygiene(some).on('error', function (err) {
+			console.log(err);
+			process.exit(1);
+		});
+	});
+}
