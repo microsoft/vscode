@@ -8,8 +8,13 @@
 import * as assert from 'assert';
 import {workspace, window} from 'vscode';
 import {join} from 'path';
+import {cleanUp} from './utils';
 
 suite("window namespace tests", () => {
+
+	teardown((done) => {
+		cleanUp().then(() => done(), (error) => done(error));
+	});
 
 	test('active text editor', (done) => {
 		workspace.openTextDocument(join(workspace.rootPath, './far.js')).then(doc => {

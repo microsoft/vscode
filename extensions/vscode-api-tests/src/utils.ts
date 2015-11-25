@@ -38,3 +38,9 @@ export function deleteFile(file: vscode.Uri): Thenable<boolean> {
 		});
 	});
 }
+
+export function cleanUp(): Thenable<boolean> {
+	return vscode.commands.executeCommand('workbench.action.closeAllEditors').then(() => {
+		return vscode.commands.executeCommand('workbench.files.action.closeAllFiles');
+	});
+}

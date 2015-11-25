@@ -7,16 +7,16 @@
 
 import * as assert from 'assert';
 import {workspace, TextDocument, window, Position} from 'vscode';
-import {createRandomFile, deleteFile} from './utils';
+import {createRandomFile, deleteFile, cleanUp} from './utils';
 import {join} from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
 
-function rndName() {
-	return Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 10);
-}
-
 suite('workspace-namespace', () => {
+
+	teardown((done) => {
+		cleanUp().then(() => done(), (error) => done(error));
+	});
 
 	test('textDocuments', () => {
 		assert.ok(Array.isArray(workspace.textDocuments));
@@ -47,23 +47,25 @@ suite('workspace-namespace', () => {
 
 	test('events: onDidOpenTextDocument, onDidChangeTextDocument, onDidSaveTextDocument', (done) => {
 		createRandomFile().then(file => {
+			let disposables = [];
+
 			let onDidOpenTextDocument = false;
-			workspace.onDidOpenTextDocument(e => {
+			disposables.push(workspace.onDidOpenTextDocument(e => {
 				assert.equal(e.uri.fsPath, file.fsPath);
 				onDidOpenTextDocument = true;
-			});
+			}));
 
 			let onDidChangeTextDocument = false;
-			workspace.onDidChangeTextDocument(e => {
+			disposables.push(workspace.onDidChangeTextDocument(e => {
 				assert.equal(e.document.uri.fsPath, file.fsPath);
 				onDidChangeTextDocument = true;
-			});
+			}));
 
 			let onDidSaveTextDocument = false;
-			workspace.onDidSaveTextDocument(e => {
+			disposables.push(workspace.onDidSaveTextDocument(e => {
 				assert.equal(e.uri.fsPath, file.fsPath);
 				onDidSaveTextDocument = true;
-			});
+			}));
 
 			return workspace.openTextDocument(file).then(doc => {
 				return window.showTextDocument(doc).then((editor) => {
@@ -74,6 +76,10 @@ suite('workspace-namespace', () => {
 							assert.ok(onDidOpenTextDocument);
 							assert.ok(onDidChangeTextDocument);
 							assert.ok(onDidSaveTextDocument);
+
+							while (disposables.length) {
+								disposables.pop().dispose();
+							}
 
 							return deleteFile(file);
 						});

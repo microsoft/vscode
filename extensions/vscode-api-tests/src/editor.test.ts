@@ -9,10 +9,14 @@ import * as assert from 'assert';
 import * as fs from 'fs';
 import * as os from 'os';
 import {workspace, window, Position} from 'vscode';
-import {createRandomFile, deleteFile} from './utils';
+import {createRandomFile, deleteFile, cleanUp} from './utils';
 import {join} from 'path';
 
 suite("editor tests", () => {
+
+	teardown((done) => {
+		cleanUp().then(() => done(), (error) => done(error));
+	});
 
 	test('make edit', (done) => {
 		createRandomFile().then(file => {
