@@ -475,7 +475,7 @@ export class GalleryExtensionsHandler extends QuickOpenHandler {
 	}
 }
 
-class ExtensionsUpdateModel implements IModel<IExtensionEntry> {
+class OutdatedExtensionsModel implements IModel<IExtensionEntry> {
 
 	public dataSource = new DataSource();
 	public renderer: IRenderer<IExtensionEntry>;
@@ -499,20 +499,18 @@ class ExtensionsUpdateModel implements IModel<IExtensionEntry> {
 				const local = this.localExtensions.filter(local => extensionEquals(local, extension))[0];
 				return local && semver.lt(local.version, extension.version) && !!highlights;
 			})
-			.map(({ extension, highlights }: { extension: IExtension, highlights: IHighlights }) => {
-				return {
-					extension,
-					highlights,
-					state: ExtensionState.Outdated
-				};
-			})
+			.map(({ extension, highlights }: { extension: IExtension, highlights: IHighlights }) => ({
+				extension,
+				highlights,
+				state: ExtensionState.Outdated
+			}))
 			.sort((a, b) => a.extension.name.localeCompare(b.extension.name));
 	}
 }
 
-export class ExtensionsUpdateHandler extends QuickOpenHandler {
+export class OutdatedExtensionsHandler extends QuickOpenHandler {
 
-	private modelPromise: TPromise<ExtensionsUpdateModel>;
+	private modelPromise: TPromise<OutdatedExtensionsModel>;
 
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -527,7 +525,7 @@ export class ExtensionsUpdateHandler extends QuickOpenHandler {
 		if (!this.modelPromise) {
 			this.telemetryService.publicLog('extensionGallery:open');
 			this.modelPromise = TPromise.join<any>([this.galleryService.query(), this.extensionsService.getInstalled()])
-				.then(result => this.instantiationService.createInstance(ExtensionsUpdateModel, result[0], result[1]));
+				.then(result => this.instantiationService.createInstance(OutdatedExtensionsModel, result[0], result[1]));
 		}
 
 		return this.modelPromise.then(model => {

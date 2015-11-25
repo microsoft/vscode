@@ -55,10 +55,10 @@ export class InstallExtensionAction extends Action {
 	}
 }
 
-export class ListExtensionsUpdatesAction extends Action {
+export class ListOutdatedExtensionsAction extends Action {
 
-	static ID = 'workbench.extensions.action.listExtensionsUpdates';
-	static LABEL = nls.localize('showExtensionsUpdates', "Show Extensions Updates");
+	static ID = 'workbench.extensions.action.listOutdatedExtensions';
+	static LABEL = nls.localize('showOutdatedExtensions', "Show Outdated Extensions");
 
 	constructor(
 		id: string,
