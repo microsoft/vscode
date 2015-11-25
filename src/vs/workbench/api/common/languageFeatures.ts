@@ -27,7 +27,7 @@ import ExtraInfoRegistry from 'vs/editor/contrib/hover/common/hover';
 import DocumentHighlighterRegistry from 'vs/editor/contrib/wordHighlighter/common/wordHighlighter';
 import ReferenceSearchRegistry from 'vs/editor/contrib/referenceSearch/common/referenceSearch';
 import QuickFixRegistry from 'vs/editor/contrib/quickFix/common/quickFix';
-import QuickOutlineRegistry, {IOutlineEntry, IOutlineSupport} from 'vs/editor/contrib/quickOpen/common/quickOpen';
+import {OutlineRegistry, IOutlineEntry, IOutlineSupport} from 'vs/editor/contrib/quickOpen/common/quickOpen';
 import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
 import {NavigateTypesSupportRegistry, INavigateTypesSupport, ITypeBearing} from 'vs/workbench/parts/search/common/search'
 import {RenameRegistry} from 'vs/editor/contrib/rename/common/rename';
@@ -544,7 +544,7 @@ export class ExtensionHostDocumentSymbols extends AbstractExtensionHostFeature<v
 export class MainThreadDocumentSymbols extends AbstractMainThreadFeature<IOutlineSupport> implements IOutlineSupport {
 
 	constructor( @IThreadService threadService: IThreadService) {
-		super('vscode.executeDocumentSymbolProvider', QuickOutlineRegistry, threadService);
+		super('vscode.executeDocumentSymbolProvider', OutlineRegistry, threadService);
 	}
 
 	getOutline(resource: URI): TPromise<IOutlineEntry[]>{
@@ -1262,7 +1262,7 @@ export namespace LanguageFeatures {
 		threadService.getRemotable(MainThreadReferenceSearch);
 		threadService.getRemotable(MainThreadCodeActions);
 		threadService.getRemotable(MainThreadCodeLens);
-		threadService.getRemotable(MainThreadDocumentSymbols);
+		// threadService.getRemotable(MainThreadDocumentSymbols);
 		threadService.getRemotable(MainThreadWorkspaceSymbols);
 		threadService.getRemotable(MainThreadRename);
 		threadService.getRemotable(MainThreadFormatDocument);
@@ -1280,7 +1280,7 @@ export namespace LanguageFeatures {
 			referenceSearch: new ExtensionHostReferenceSearch(threadService),
 			codeActions: new ExtensionHostCodeActions(threadService),
 			codeLens: threadService.getRemotable(ExtensionHostCodeLens),
-			documentSymbols: new ExtensionHostDocumentSymbols(threadService),
+			// documentSymbols: new ExtensionHostDocumentSymbols(threadService),
 			workspaceSymbols: new ExtensionHostWorkspaceSymbols(threadService),
 			rename: new ExtensionHostRename(threadService),
 			formatDocument: new ExtHostFormatDocument(threadService),

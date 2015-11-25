@@ -18,7 +18,7 @@ import * as LF from 'vs/workbench/api/common/languageFeatures';
 import {PluginHostCommands, MainThreadCommands} from 'vs/workbench/api/common/pluginHostCommands';
 import {PluginHostModelService} from 'vs/workbench/api/common/pluginHostDocuments';
 import {SyncDescriptor0} from 'vs/platform/instantiation/common/descriptors';
-import QuickOutlineRegistry from 'vs/editor/contrib/quickOpen/common/quickOpen';
+import {OutlineRegistry} from 'vs/editor/contrib/quickOpen/common/quickOpen';
 import {LanguageSelector, ModelLike} from 'vs/editor/common/modes/languageSelector';
 
 class ThreadService extends NullThreadService {
@@ -85,17 +85,17 @@ suite('ExtHostLanguageFeatures', function() {
 
 
 		// register
-		assert.equal(QuickOutlineRegistry.all(model).length, 0);
+		assert.equal(OutlineRegistry.all(model).length, 0);
 		let disposable = extHost.register('far', {
 			provideDocumentSymbols() {
 				return [];
 			}
 		});
-		assert.equal(QuickOutlineRegistry.all(model).length, 1);
+		assert.equal(OutlineRegistry.all(model).length, 1);
 
 		// deregister
 		disposable.dispose();
-		assert.equal(QuickOutlineRegistry.all(model).length, 0);
+		assert.equal(OutlineRegistry.all(model).length, 0);
 
 		// all extension host provider appear as one
 		disposable = extHost.register('far', {
@@ -108,12 +108,12 @@ suite('ExtHostLanguageFeatures', function() {
 				return [];
 			}
 		});
-		assert.equal(QuickOutlineRegistry.all(model).length, 1);
+		assert.equal(OutlineRegistry.all(model).length, 1);
 
 		disposable.dispose();
-		assert.equal(QuickOutlineRegistry.all(model).length, 1);
+		assert.equal(OutlineRegistry.all(model).length, 1);
 		disposable2.dispose();
-		assert.equal(QuickOutlineRegistry.all(model).length, 0);
+		assert.equal(OutlineRegistry.all(model).length, 0);
 	});
 
 	test('DocumentSymbols, evil provider', function(done) {
