@@ -67,9 +67,11 @@ process.on('uncaughtException', (err: any) => {
 function quit(error?: Error);
 function quit(message?: string);
 function quit(arg?: any) {
+	let exitCode = 0;
 	if (typeof arg === 'string') {
 		env.log(arg)
 	} else {
+		exitCode = 1; // signal error to the outside
 		if (arg.stack) {
 			console.error(arg.stack);
 		} else {
@@ -77,7 +79,7 @@ function quit(arg?: any) {
 		}
 	}
 
-	process.exit();
+	process.exit(exitCode);
 }
 
 function main(ipcServer: Server, userEnv: env.IProcessEnvironment): void {
