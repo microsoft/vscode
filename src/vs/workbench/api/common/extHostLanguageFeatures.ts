@@ -8,6 +8,7 @@ import URI from 'vs/base/common/uri';
 import Event, {Emitter} from 'vs/base/common/event';
 import Severity from 'vs/base/common/severity';
 import {TPromise} from 'vs/base/common/winjs.base';
+import {onUnexpectedError} from 'vs/base/common/errors';
 import {sequence} from 'vs/base/common/async';
 import {Range as EditorRange} from 'vs/editor/common/core/range';
 import {IDisposable} from 'vs/base/common/lifecycle';
@@ -113,8 +114,8 @@ export class ExtHostLanguageFeatures {
 
 	registerDocumentSymbolProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentSymbolProvider): vscode.Disposable {
 		const handle = ExtHostLanguageFeatures._handlePool++;
-		this._proxy.$registerOutlineSupport(handle, selector);
 		this._adapter[handle] = new OutlineSupportAdapter(this._documents, provider);
+		this._proxy.$registerOutlineSupport(handle, selector);
 		return this._createDisposable(handle);
 	}
 
@@ -131,17 +132,17 @@ export class ExtHostLanguageFeatures {
 export class MainThreadLanguageFeatures {
 
 	private _proxy: ExtHostLanguageFeatures;
-	private _disposables: { [handle: number]: IDisposable; } = Object.create(null);
+	private _registrations: { [handle: number]: IDisposable; } = Object.create(null);
 
 	constructor( @IThreadService threadService: IThreadService) {
 		this._proxy = threadService.getRemotable(ExtHostLanguageFeatures);
 	}
 
 	$unregister(handle: number): TPromise<any> {
-		let d = this._disposables[handle];
-		if (d) {
-			d.dispose();
-			delete this._disposables[handle];
+		let registration = this._registrations[handle];
+		if (registration) {
+			registration.dispose();
+			delete this._registrations[handle];
 		}
 		return undefined;
 	}
@@ -154,7 +155,7 @@ export class MainThreadLanguageFeatures {
 				return this._proxy.$getOutline(handle, resource);
 			}
 		});
-		this._disposables[handle] = disposable;
+		this._registrations[handle] = disposable;
 		return undefined;
 	}
 }
