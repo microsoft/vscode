@@ -309,7 +309,7 @@ export class KeybindingService extends AbstractKeybindingService implements IKey
 			args.context = contextValue;
 		}
 
-		return this._invokeHandler(commandId, args).done(undefined, err => {
+		return this._invokeHandler(commandId, args).then(undefined, err => {
 			this._messageService.show(Severity.Warning, err);
 		});
 	}
