@@ -28,7 +28,6 @@ import objects = require('vs/base/common/objects');
 import storage = require('vs/workbench/electron-main/storage');
 import settings = require('vs/workbench/electron-main/settings');
 import {Instance as UpdateManager, IUpdate} from 'vs/workbench/electron-main/update-manager';
-import {IEnv} from 'vs/base/node/env';
 
 const eventEmitter = new events.EventEmitter();
 
@@ -63,6 +62,7 @@ enum WindowError {
 
 export interface IOpenConfiguration {
 	cli: env.ICommandLineArguments;
+	userEnv?: env.IProcessEnvironment;
 	pathsToOpen?: string[];
 	forceNewWindow?: boolean;
 	forceEmpty?: boolean;
@@ -102,13 +102,13 @@ export class WindowsManager {
 
 	private static WINDOWS: window.VSCodeWindow[] = [];
 
-	private userEnv: IEnv;
+	private initialUserEnv: env.IProcessEnvironment;
 	private windowsState: IWindowsState;
 
-	public ready(userEnv: IEnv): void {
+	public ready(initialUserEnv: env.IProcessEnvironment): void {
 		this.registerListeners();
 
-		this.userEnv = userEnv;
+		this.initialUserEnv = initialUserEnv;
 		this.windowsState = storage.getItem<IWindowsState>(WindowsManager.windowsStateStorageKey) || { openedFolders: [] };
 	}
 
@@ -403,7 +403,7 @@ export class WindowsManager {
 
 			// Otherwise open instance with files
 			else {
-				configuration = this.toConfiguration(openConfig.cli, null, filesToOpen, filesToCreate, extensionsToInstall);
+				configuration = this.toConfiguration(openConfig.userEnv || this.initialUserEnv, openConfig.cli, null, filesToOpen, filesToCreate, extensionsToInstall);
 				this.openInBrowserWindow(configuration, true /* new window */);
 
 				openConfig.forceNewWindow = true; // any other folders to open must open in new window then
@@ -442,7 +442,7 @@ export class WindowsManager {
 					return; // ignore folders that are already open
 				}
 
-				configuration = this.toConfiguration(openConfig.cli, folderToOpen.workspacePath, filesToOpen, filesToCreate, extensionsToInstall);
+				configuration = this.toConfiguration(openConfig.userEnv || this.initialUserEnv, openConfig.cli, folderToOpen.workspacePath, filesToOpen, filesToCreate, extensionsToInstall);
 				this.openInBrowserWindow(configuration, openConfig.forceNewWindow, openConfig.forceNewWindow ? void 0 : openConfig.windowToUse);
 
 				// Reset these because we handled them
@@ -457,7 +457,7 @@ export class WindowsManager {
 		// Handle empty
 		if (emptyToOpen.length > 0) {
 			emptyToOpen.forEach(() => {
-				let configuration = this.toConfiguration(openConfig.cli);
+				let configuration = this.toConfiguration(openConfig.userEnv || this.initialUserEnv, openConfig.cli);
 				this.openInBrowserWindow(configuration, openConfig.forceNewWindow, openConfig.forceNewWindow ? void 0 : openConfig.windowToUse);
 
 				openConfig.forceNewWindow = true; // any other folders to open must open in new window then
@@ -510,7 +510,7 @@ export class WindowsManager {
 		this.open({ cli: openConfig.cli, forceNewWindow: true, forceEmpty: openConfig.cli.pathArguments.length === 0 });
 	}
 
-	private toConfiguration(cli: env.ICommandLineArguments, workspacePath?: string, filesToOpen?: window.IPath[], filesToCreate?: window.IPath[], extensionsToInstall?: string[]): window.IWindowConfiguration {
+	private toConfiguration(userEnv: env.IProcessEnvironment, cli: env.ICommandLineArguments, workspacePath?: string, filesToOpen?: window.IPath[], filesToCreate?: window.IPath[], extensionsToInstall?: string[]): window.IWindowConfiguration {
 		let configuration: window.IWindowConfiguration = objects.mixin({}, cli); // inherit all properties from CLI
 		configuration.execPath = process.execPath;
 		configuration.workspacePath = workspacePath;
@@ -539,7 +539,7 @@ export class WindowsManager {
 		configuration.aiConfig = env.product.aiConfig;
 		configuration.sendASmile = env.product.sendASmile;
 		configuration.enableTelemetry = env.product.enableTelemetry;
-		configuration.userEnv = this.userEnv;
+		configuration.userEnv = userEnv;
 
 		return configuration;
 	}

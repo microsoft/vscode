@@ -20,24 +20,24 @@ import menu = require('vs/workbench/electron-main/menus');
 import settings = require('vs/workbench/electron-main/settings');
 import {Instance as UpdateManager} from 'vs/workbench/electron-main/update-manager';
 import {Server, serve, connect} from 'vs/base/node/service.net';
-import {getUserEnvironment, IEnv} from 'vs/base/node/env';
+import {getUserEnvironment} from 'vs/base/node/env';
 import {Promise, TPromise} from 'vs/base/common/winjs.base';
 import {GitAskpassService} from 'vs/workbench/parts/git/electron-main/askpassService';
-import { spawnSharedProcess } from 'vs/workbench/electron-main/sharedProcess';
+import {spawnSharedProcess} from 'vs/workbench/electron-main/sharedProcess';
 
 export class LaunchService {
-	public start(args: env.ICommandLineArguments): Promise {
+	public start(args: env.ICommandLineArguments, userEnv: env.IProcessEnvironment): Promise {
 		env.log('Received data from other instance', args);
 
 		// Otherwise handle in windows manager
 		if (!!args.pluginDevelopmentPath) {
-			windows.manager.openPluginDevelopmentHostWindow({ cli: args });
+			windows.manager.openPluginDevelopmentHostWindow({ cli: args, userEnv: userEnv });
 		} else if (args.pathArguments.length === 0 && args.openNewWindow) {
-			windows.manager.open({ cli: args, forceNewWindow: true, forceEmpty: true });
+			windows.manager.open({ cli: args, userEnv: userEnv, forceNewWindow: true, forceEmpty: true });
 		} else if (args.pathArguments.length === 0) {
 			windows.manager.focusLastActive(args);
 		} else {
-			windows.manager.open({ cli: args, forceNewWindow: !args.openInSameWindow });
+			windows.manager.open({ cli: args, userEnv: userEnv, forceNewWindow: !args.openInSameWindow });
 		}
 
 		return Promise.as(null);
@@ -80,7 +80,7 @@ function quit(arg?: any) {
 	process.exit();
 }
 
-function main(ipcServer: Server, userEnv: IEnv): void {
+function main(ipcServer: Server, userEnv: env.IProcessEnvironment): void {
 	env.log('### VSCode main.js ###');
 	env.log(env.appRoot, env.cliArgs);
 
@@ -203,7 +203,7 @@ function setupIPC(): TPromise<Server> {
 
 					const service = client.getService<LaunchService>('LaunchService', LaunchService);
 
-					return service.start(env.cliArgs)
+					return service.start(env.cliArgs, process.env)
 						.then(() => client.dispose())
 						.then(() => Promise.wrapError('Sent env to running instance. Terminating...'));
 				},
@@ -231,6 +231,8 @@ function setupIPC(): TPromise<Server> {
 	return setup(true);
 }
 
+// On some platforms we need to manually read from the global environment variables
+// and assign them to the process environment (e.g. when doubleclick app on Mac)
 getUserEnvironment()
 	.then(userEnv => {
 		assign(process.env, userEnv);
