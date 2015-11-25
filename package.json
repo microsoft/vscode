@@ -1,86 +1,92 @@
 {
-	"name": "Code",
-	"version": "0.10.1",
-	"electronVersion": "0.34.1",
-	"author": {
-		"name": "Microsoft Corporation"
-	},
-	"main": "./out/vs/workbench/electron-main/bootstrap",
-	"private": true,
-	"engines": {
-		"node": ">= 0.10.0 < 0.11.0"
-	},
-	"scripts": {
-		"test": "node node_modules/mocha/bin/_mocha",
-		"postinstall": "npm --prefix extensions/csharp-o/ install extensions/csharp-o/ && npm --prefix extensions/vscode-api-tests/ install extensions/vscode-api-tests/"
-	},
-	"dependencies": {
-		"applicationinsights": "0.15.6",
-		"chokidar": "1.0.5",
-		"emmet": "^1.3.0",
-		"getmac": "1.0.7",
-		"graceful-fs": "4.1.2",
-		"http-proxy-agent": "^0.2.6",
-		"https-proxy-agent": "^0.3.5",
-		"iconv-lite": "^0.4.13",
-		"sax": "^1.1.1",
-		"semver": "^4.2.0",
-		"vscode-textmate": "^1.0.7",
-		"winreg": "0.0.12",
-		"yauzl": "^2.3.1"
-	},
-	"devDependencies": {
-		"async": "^1.4.0",
-		"azure-storage": "^0.3.1",
-		"clone": "^1.0.2",
-		"debounce": "^1.0.0",
-		"event-stream": "^3.1.7",
-		"express": "^4.13.1",
-		"glob": "^5.0.13",
-		"gulp": "^3.8.9",
-		"gulp-atom-electron": "^0.17.2",
-		"gulp-azure-storage": "^0.3.0",
-		"gulp-bom": "^1.0.0",
-		"gulp-concat": "^2.6.0",
-		"gulp-filter": "^3.0.0",
-		"gulp-insert": "^0.5.0",
-		"gulp-json-editor": "^2.2.1",
-		"gulp-minify-css": "^1.2.1",
-		"clean-css": "3.4.6",
-		"gulp-mocha": "^2.1.3",
-		"gulp-remote-src": "^0.4.0",
-		"gulp-rename": "^1.2.0",
-		"gulp-sourcemaps": "^1.6.0",
-		"gulp-tsb": "^1.7.3",
-		"gulp-uglify": "^1.4.1",
-		"gulp-util": "^3.0.6",
-		"gulp-symdest": "^1.0.0",
-		"gulp-vinyl-zip": "^1.1.0",
-		"gulp-watch": "^4.2.4",
-		"innosetup-compiler": "^5.5.60",
-		"istanbul": "^0.3.17",
-		"jsdom-no-contextify": "^3.1.0",
-		"json-comments": "^0.2.1",
-		"lazy.js": "^0.4.2",
-		"mime": "1.2.11",
-		"minimatch": "^2.0.10",
-		"mkdirp": "^0.5.0",
-		"mocha": "^2.2.5",
-		"object-assign": "^4.0.1",
-		"optimist": "0.3.5",
-		"queue": "3.0.6",
-		"rimraf": "^2.2.8",
-		"sinon": "^1.17.2",
-		"source-map": "^0.4.4",
-		"uglify-js": "2.4.8",
-		"underscore": "^1.8.2",
-		"vinyl": "^0.4.5"
-	},
-	"repository": {
-		"type": "git",
-		"url": "https://github.com/Microsoft/vscode.git"
-	},
-	"bugs": {
-		"url": "https://github.com/Microsoft/vscode/issues"
-	}
+  "name": "Code",
+  "version": "0.10.1",
+  "electronVersion": "0.34.1",
+  "author": {
+    "name": "Microsoft Corporation"
+  },
+  "main": "./out/vs/workbench/electron-main/bootstrap",
+  "private": true,
+  "engines": {
+    "node": ">= 0.10.0 < 0.11.0"
+  },
+  "scripts": {
+    "test": "node node_modules/mocha/bin/_mocha",
+    "postinstall": "npm --prefix extensions/csharp-o/ install extensions/csharp-o/ && npm --prefix extensions/vscode-api-tests/ install extensions/vscode-api-tests/"
+  },
+  "dependencies": {
+    "applicationinsights": "0.15.6",
+    "chokidar": "1.0.5",
+    "emmet": "^1.3.0",
+    "getmac": "1.0.7",
+    "graceful-fs": "4.1.2",
+    "http-proxy-agent": "^0.2.6",
+    "https-proxy-agent": "^0.3.5",
+    "iconv-lite": "^0.4.13",
+    "sax": "^1.1.1",
+    "semver": "^4.2.0",
+    "vscode-textmate": "^1.0.7",
+    "winreg": "0.0.12",
+    "yauzl": "^2.3.1"
+  },
+  "devDependencies": {
+    "async": "^1.4.0",
+    "azure-storage": "^0.3.1",
+    "clean-css": "3.4.6",
+    "clone": "^1.0.2",
+    "debounce": "^1.0.0",
+    "event-stream": "^3.1.7",
+    "express": "^4.13.1",
+    "ghooks": "^1.0.1",
+    "glob": "^5.0.13",
+    "gulp": "^3.8.9",
+    "gulp-atom-electron": "^0.17.2",
+    "gulp-azure-storage": "^0.3.0",
+    "gulp-bom": "^1.0.0",
+    "gulp-concat": "^2.6.0",
+    "gulp-filter": "^3.0.0",
+    "gulp-insert": "^0.5.0",
+    "gulp-json-editor": "^2.2.1",
+    "gulp-minify-css": "^1.2.1",
+    "gulp-mocha": "^2.1.3",
+    "gulp-remote-src": "^0.4.0",
+    "gulp-rename": "^1.2.0",
+    "gulp-sourcemaps": "^1.6.0",
+    "gulp-symdest": "^1.0.0",
+    "gulp-tsb": "^1.7.3",
+    "gulp-uglify": "^1.4.1",
+    "gulp-util": "^3.0.6",
+    "gulp-vinyl-zip": "^1.1.0",
+    "gulp-watch": "^4.2.4",
+    "innosetup-compiler": "^5.5.60",
+    "istanbul": "^0.3.17",
+    "jsdom-no-contextify": "^3.1.0",
+    "json-comments": "^0.2.1",
+    "lazy.js": "^0.4.2",
+    "mime": "1.2.11",
+    "minimatch": "^2.0.10",
+    "mkdirp": "^0.5.0",
+    "mocha": "^2.2.5",
+    "object-assign": "^4.0.1",
+    "optimist": "0.3.5",
+    "queue": "3.0.6",
+    "rimraf": "^2.2.8",
+    "sinon": "^1.17.2",
+    "source-map": "^0.4.4",
+    "uglify-js": "2.4.8",
+    "underscore": "^1.8.2",
+    "vinyl": "^0.4.5"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Microsoft/vscode.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Microsoft/vscode/issues"
+  },
+  "config": {
+    "ghooks": {
+      "pre-commit": "node build/gulpfile.hygiene.js"
+    }
+  }
 }
