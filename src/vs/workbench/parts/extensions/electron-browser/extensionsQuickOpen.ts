@@ -26,6 +26,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { Action } from 'vs/base/common/actions';
+import * as semver from 'semver';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import remote = require('remote');
 const shell = remote.require('shell');
@@ -496,7 +497,7 @@ class ExtensionsUpdateModel implements IModel<IExtensionEntry> {
 			.map(extension => ({ extension, highlights: getHighlights(input, extension) }))
 			.filter(({ extension, highlights }) => {
 				const local = this.localExtensions.filter(local => extensionEquals(local, extension))[0];
-				return local && local.version < extension.version && !!highlights;
+				return local && semver.lt(local.version, extension.version) && !!highlights;
 			})
 			.map(({ extension, highlights }: { extension: IExtension, highlights: IHighlights }) => {
 				return {
