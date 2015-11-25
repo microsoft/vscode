@@ -8,11 +8,11 @@
 import { workspace } from 'vscode';
 
 export interface IConfiguration {
-	useCodeSnippetsOnMethodSuggest?: boolean;
+	useCodeSnippetsOnMethodSuggest?: string;
 }
 
 export var defaultConfiguration: IConfiguration = {
-	useCodeSnippetsOnMethodSuggest: false
+	useCodeSnippetsOnMethodSuggest: "lambda"
 }
 
 export function load(myPluginId: string): IConfiguration {
