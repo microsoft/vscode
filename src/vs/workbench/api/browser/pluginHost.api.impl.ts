@@ -280,7 +280,7 @@ export class PluginHostAPIImplementation {
 				return languageFeatures.registerDocumentHighlightProvider(selector, provider);
 			},
 			registerReferenceProvider(selector: vscode.DocumentSelector, provider: vscode.ReferenceProvider): vscode.Disposable {
-				return features.referenceSearch.register(selector, provider);
+				return languageFeatures.registerReferenceProvider(selector, provider);
 			},
 			registerRenameProvider(selector: vscode.DocumentSelector, provider: vscode.RenameProvider): vscode.Disposable {
 				return features.rename.register(selector, provider);

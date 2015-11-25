@@ -22,7 +22,6 @@ import {CancellationTokenSource} from 'vs/base/common/cancellation';
 import {PluginHostModelService} from 'vs/workbench/api/common/pluginHostDocuments';
 import {IMarkerService, IMarker} from 'vs/platform/markers/common/markers';
 import {PluginHostCommands, MainThreadCommands} from 'vs/workbench/api/common/pluginHostCommands';
-import ReferenceSearchRegistry from 'vs/editor/contrib/referenceSearch/common/referenceSearch';
 import QuickFixRegistry from 'vs/editor/contrib/quickFix/common/quickFix';
 import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
 import {NavigateTypesSupportRegistry, INavigateTypesSupport, ITypeBearing} from 'vs/workbench/parts/search/common/search'
@@ -129,63 +128,6 @@ export abstract class AbstractExtensionHostFeature<T, P extends AbstractMainThre
 			language: document.languageId,
 			uri: <any>document.uri
 		});
-	}
-}
-
-// --- reference search
-
-export class ExtensionHostReferenceSearch extends AbstractExtensionHostFeature<vscode.ReferenceProvider, MainThreadReferenceSearch> {
-
-	constructor(@IThreadService threadService: IThreadService) {
-		super(threadService.getRemotable(MainThreadReferenceSearch), threadService);
-	}
-
-	protected _runAsCommand(resource: URI, position: IPosition, includeDeclaration: boolean): TPromise<modes.IReference[]> {
-
-		if (!(resource instanceof URI)) {
-			return TPromise.wrapError('resource expected');
-		}
-
-		let document = this._models.getDocument(resource);
-		let pos = TypeConverters.toPosition(position);
-		let locations: vscode.Location[] = [];
-
-		let promises = this._registry.all({ language: document.languageId, uri: document.uri }).map(provider => {
-			return asWinJsPromise(token => provider.provideReferences(document, pos, { includeDeclaration }, token)).then(result => {
-				if (Array.isArray(result)) {
-					locations.push(...result);
-				}
-			}, err => {
-				console.error(err);
-			});
-		});
-
-		return TPromise.join(promises).then(() => {
-			return locations.map(ExtensionHostReferenceSearch._convertLocation);
-		});
-	}
-
-	private static _convertLocation(location: vscode.Location): modes.IReference {
-		return <modes.IReference>{
-			resource: location.uri,
-			range: TypeConverters.fromRange(location.range)
-		};
-	}
-}
-
-@Remotable.MainContext('MainThreadReferenceSearch')
-export class MainThreadReferenceSearch extends AbstractMainThreadFeature<modes.IReferenceSupport> implements modes.IReferenceSupport {
-
-	constructor(@IThreadService threadService: IThreadService) {
-		super('vscode.executeReferenceProvider', ReferenceSearchRegistry, threadService);
-	}
-
-	canFindReferences():boolean {
-		return true
-	}
-
-	findReferences(resource: URI, position: IPosition, includeDeclaration: boolean): TPromise<modes.IReference[]> {
-		return this._executeCommand(resource, position, includeDeclaration);
 	}
 }
 
@@ -884,7 +826,6 @@ export class MainThreadWorkspaceSymbols implements INavigateTypesSupport {
 export namespace LanguageFeatures {
 
 	export function createMainThreadInstances(threadService: IThreadService): void {
-		threadService.getRemotable(MainThreadReferenceSearch);
 		threadService.getRemotable(MainThreadCodeActions);
 		threadService.getRemotable(MainThreadWorkspaceSymbols);
 		threadService.getRemotable(MainThreadRename);
@@ -897,7 +838,6 @@ export namespace LanguageFeatures {
 
 	export function createExtensionHostInstances(threadService: IThreadService) {
 		return {
-			referenceSearch: new ExtensionHostReferenceSearch(threadService),
 			codeActions: new ExtensionHostCodeActions(threadService),
 			workspaceSymbols: new ExtensionHostWorkspaceSymbols(threadService),
 			rename: new ExtensionHostRename(threadService),

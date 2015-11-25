@@ -27,7 +27,7 @@ import {CodeLensRegistry, getCodeLensData} from 'vs/editor/contrib/codelens/comm
 import {DeclarationRegistry, getDeclarationsAtPosition} from 'vs/editor/contrib/goToDeclaration/common/goToDeclaration';
 import {ExtraInfoRegistry, getExtraInfoAtPosition} from 'vs/editor/contrib/hover/common/hover';
 import {OccurrencesRegistry, getOccurrencesAtPosition} from 'vs/editor/contrib/wordHighlighter/common/wordHighlighter';
-
+import {ReferenceRegistry, findReferences} from 'vs/editor/contrib/referenceSearch/common/referenceSearch';
 
 const defaultSelector = { scheme: 'far' };
 const model: EditorCommon.IModel = new EditorModel(
@@ -513,6 +513,82 @@ suite('ExtHostLanguageFeatures', function() {
 				assert.equal(value.length, 1);
 				done();
 			});
+		});
+	});
+
+	// --- references
+
+	test('References, registration order', function(done) {
+
+		disposables.push(extHost.registerReferenceProvider(defaultSelector, <vscode.ReferenceProvider>{
+			provideReferences(): any {
+				return [new types.Location(URI.parse('far://register/first'), new types.Range(0, 0, 0, 0))];
+			}
+		}));
+
+		setTimeout(function() {
+			disposables.push(extHost.registerReferenceProvider(defaultSelector, <vscode.ReferenceProvider>{
+				provideReferences(): any {
+					return [new types.Location(URI.parse('far://register/second'), new types.Range(0, 0, 0, 0))];
+				}
+			}));
+
+			threadService.sync().then(() => {
+
+				findReferences(model, { lineNumber: 1, column: 2 }).then(value => {
+					assert.equal(value.length, 2);
+
+					let [first, second] = value;
+					assert.equal(first.resource.path, '/second');
+					assert.equal(second.resource.path, '/first');
+					done();
+				});
+			});
+		}, 5);
+	});
+
+	test('References, data conversion', function(done) {
+
+		disposables.push(extHost.registerReferenceProvider(defaultSelector, <vscode.ReferenceProvider>{
+			provideReferences(): any {
+				return [new types.Location(model.getAssociatedResource(), new types.Position(0, 0))];
+			}
+		}));
+
+		threadService.sync().then(() => {
+
+			findReferences(model, { lineNumber: 1, column: 2 }).then(value => {
+				assert.equal(value.length, 1);
+
+				let [item] = value;
+				assert.deepEqual(item.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 });
+				assert.equal(item.resource.toString(), model.getAssociatedResource().toString());
+				done();
+			});
+
+		});
+	});
+
+	test('References, evil provider', function(done) {
+
+		disposables.push(extHost.registerReferenceProvider(defaultSelector, <vscode.ReferenceProvider>{
+			provideReferences(): any {
+				throw new Error('evil');
+			}
+		}));
+		disposables.push(extHost.registerReferenceProvider(defaultSelector, <vscode.ReferenceProvider>{
+			provideReferences(): any {
+				return [new types.Location(model.getAssociatedResource(), new types.Range(0, 0, 0, 0))];
+			}
+		}));
+
+		threadService.sync().then(() => {
+
+			findReferences(model, { lineNumber: 1, column: 2 }).then(value => {
+				assert.equal(value.length, 1);
+				done();
+			});
+
 		});
 	});
 });

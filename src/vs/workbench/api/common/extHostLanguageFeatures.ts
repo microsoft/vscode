@@ -26,7 +26,7 @@ import {PluginHostCommands, MainThreadCommands} from 'vs/workbench/api/common/pl
 import {DeclarationRegistry} from 'vs/editor/contrib/goToDeclaration/common/goToDeclaration';
 import {ExtraInfoRegistry} from 'vs/editor/contrib/hover/common/hover';
 import {OccurrencesRegistry} from 'vs/editor/contrib/wordHighlighter/common/wordHighlighter';
-import ReferenceSearchRegistry from 'vs/editor/contrib/referenceSearch/common/referenceSearch';
+import {ReferenceRegistry} from 'vs/editor/contrib/referenceSearch/common/referenceSearch';
 import QuickFixRegistry from 'vs/editor/contrib/quickFix/common/quickFix';
 import {OutlineRegistry, IOutlineEntry, IOutlineSupport} from 'vs/editor/contrib/quickOpen/common/quickOpen';
 import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
@@ -262,7 +262,40 @@ class OccurrencesAdapter implements modes.IOccurrencesSupport {
 	}
 }
 
-type Adapter = OutlineAdapter | CodeLensAdapter | DeclarationAdapter | ExtraInfoAdapter | OccurrencesAdapter;
+class ReferenceAdapter implements modes.IReferenceSupport {
+
+	private _documents: PluginHostModelService;
+	private _provider: vscode.ReferenceProvider;
+
+	constructor(documents: PluginHostModelService, provider: vscode.ReferenceProvider) {
+		this._documents = documents;
+		this._provider = provider;
+	}
+
+	canFindReferences():boolean {
+		return true
+	}
+
+	findReferences(resource: URI, position: IPosition, includeDeclaration: boolean): TPromise<modes.IReference[]> {
+		let doc = this._documents.getDocument(resource);
+		let pos = TypeConverters.toPosition(position);
+
+		return asWinJsPromise(token => this._provider.provideReferences(doc, pos, { includeDeclaration }, token)).then(value => {
+			if (Array.isArray(value)) {
+				return value.map(ReferenceAdapter._convertLocation);
+			}
+		});
+	}
+
+	private static _convertLocation(location: vscode.Location): modes.IReference {
+		return <modes.IReference>{
+			resource: location.uri,
+			range: TypeConverters.fromRange(location.range)
+		};
+	}
+}
+
+type Adapter = OutlineAdapter | CodeLensAdapter | DeclarationAdapter | ExtraInfoAdapter | OccurrencesAdapter | ReferenceAdapter;
 
 @Remotable.PluginHostContext('ExtHostLanguageFeatures')
 export class ExtHostLanguageFeatures {
@@ -353,7 +386,7 @@ export class ExtHostLanguageFeatures {
 		return this._withAdapter(handle, ExtraInfoAdapter, adpater => adpater.computeInfo(resource, position));
 	}
 
-	// --- occurrences adapter
+	// --- occurrences
 
 	registerDocumentHighlightProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentHighlightProvider): vscode.Disposable {
 		const handle = this._nextHandle();
@@ -365,6 +398,20 @@ export class ExtHostLanguageFeatures {
 	$findOccurrences(handle:number, resource: URI, position: IPosition): TPromise<modes.IOccurence[]> {
 		return this._withAdapter(handle, OccurrencesAdapter, adapter => adapter.findOccurrences(resource, position));
 	}
+
+	// --- references
+
+	registerReferenceProvider(selector: vscode.DocumentSelector, provider: vscode.ReferenceProvider): vscode.Disposable {
+		const handle = this._nextHandle();
+		this._adapter[handle] = new ReferenceAdapter(this._documents, provider);
+		this._proxy.$registerReferenceSupport(handle, selector);
+		return this._createDisposable(handle);
+	}
+
+	$findReferences(handle: number, resource: URI, position: IPosition, includeDeclaration: boolean): TPromise<modes.IReference[]> {
+		return this._withAdapter(handle, ReferenceAdapter, adapter => adapter.findReferences(resource, position, includeDeclaration));
+	}
+
 }
 
 @Remotable.MainContext('MainThreadLanguageFeatures')
@@ -442,6 +489,20 @@ export class MainThreadLanguageFeatures {
 		this._registrations[handle] = OccurrencesRegistry.register(selector, <modes.IOccurrencesSupport>{
 			findOccurrences: (resource: URI, position: IPosition): TPromise<modes.IOccurence[]> => {
 				return this._proxy.$findOccurrences(handle, resource, position);
+			}
+		});
+		return undefined;
+	}
+
+	// --- references
+
+	$registerReferenceSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any> {
+		this._registrations[handle] = ReferenceRegistry.register(selector, <modes.IReferenceSupport>{
+			canFindReferences() {
+				return true;
+			},
+			findReferences: (resource: URI, position: IPosition, includeDeclaration: boolean): TPromise<modes.IReference[]> => {
+				return this._proxy.$findReferences(handle, resource, position, includeDeclaration);
 			}
 		});
 		return undefined;
