@@ -22,6 +22,7 @@ import {PluginHostMessageService} from 'vs/workbench/api/common/pluginHostMessag
 import {PluginHostTelemetryService} from 'vs/workbench/api/common/pluginHostTelemetry';
 import {PluginHostEditors} from 'vs/workbench/api/common/pluginHostEditors';
 import {ExtHostLanguages} from 'vs/workbench/api/common/extHostLanguages';
+import {ExtHostLanguageFeatures} from 'vs/workbench/api/common/extHostLanguageFeatures';
 import * as extHostTypes from 'vs/workbench/api/common/pluginHostTypes';
 import 'vs/workbench/api/common/pluginHostTypes.marshalling';
 import {wrapAsWinJSPromise} from 'vs/base/common/async';
@@ -251,6 +252,7 @@ export class PluginHostAPIImplementation {
 		const languages = new ExtHostLanguages(this._threadService);
 		const pluginHostDiagnostics = new PluginHostDiagnostics(this._threadService);
 		const features = LanguageFeatures.createExtensionHostInstances(this._threadService);
+		const languageFeatures = threadService.getRemotable(ExtHostLanguageFeatures);
 
 		this.languages = {
 			createDiagnosticCollection(name?: string): vscode.DiagnosticCollection {
@@ -284,7 +286,7 @@ export class PluginHostAPIImplementation {
 				return features.rename.register(selector, provider);
 			},
 			registerDocumentSymbolProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentSymbolProvider): vscode.Disposable {
-				return features.documentSymbols.register(selector, provider);
+				return languageFeatures.registerDocumentSymbolProvider(selector, provider);
 			},
 			registerWorkspaceSymbolProvider(provider: vscode.WorkspaceSymbolProvider): vscode.Disposable {
 				return features.workspaceSymbols.register(provider);
