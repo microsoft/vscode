@@ -313,7 +313,7 @@ class GotoDefinitionWithMouseEditorContribution implements EditorCommon.IEditorC
 					startColumn: word.startColumn,
 					endLineNumber: position.lineNumber,
 					endColumn: word.endColumn
-				}, nls.localize('multipleResults', "Click to show the {0} definitions for '{1}'.", results.length, this.currentWordUnderMouse.word), false);
+				}, nls.localize('multipleResults', "Click to show the {0} definitions found.", results.length), false);
 			}
 
 			// Single result
