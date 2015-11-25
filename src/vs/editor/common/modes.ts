@@ -531,7 +531,7 @@ export interface IOccurence {
  * Interface used to find occurrences of a symbol
  */
 export interface IOccurrencesSupport {
-	findOccurrences(resource:URL, position:EditorCommon.IPosition, strict?:boolean):TPromise<IOccurence[]>;
+	findOccurrences(resource:URI, position:EditorCommon.IPosition, strict?:boolean):TPromise<IOccurence[]>;
 }
 
 

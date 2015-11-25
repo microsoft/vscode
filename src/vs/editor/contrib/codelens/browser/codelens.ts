@@ -424,8 +424,7 @@ export class CodeLensContribution implements EditorCommon.IEditorContribution {
 				this._currentFindCodeLensSymbolsPromise.cancel();
 			}
 
-			this._currentFindCodeLensSymbolsPromise = getCodeLensData(model.getAssociatedResource(),
-				model.getModeId());
+			this._currentFindCodeLensSymbolsPromise = getCodeLensData(model);
 
 			var counterValue = ++this._modelChangeCounter;
 			this._currentFindCodeLensSymbolsPromise.then((result) => {

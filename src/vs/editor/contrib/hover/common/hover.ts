@@ -11,13 +11,14 @@ import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegis
 import {TPromise} from 'vs/base/common/winjs.base';
 import {coalesce} from 'vs/base/common/arrays';
 import {onUnexpectedError} from 'vs/base/common/errors';
-import {IPosition} from 'vs/editor/common/editorCommon';
+import {IPosition, IModel} from 'vs/editor/common/editorCommon';
 
 export const ExtraInfoRegistry = new LanguageFeatureRegistry<IExtraInfoSupport>('extraInfoSupport');
 
-export function getExtraInfoAtPosition(resource: URI, modeId: string, position: IPosition): TPromise<IComputeExtraInfoResult[]> {
+export function getExtraInfoAtPosition(model: IModel, position: IPosition): TPromise<IComputeExtraInfoResult[]> {
 
-	const supports = ExtraInfoRegistry.ordered({uri: resource, language: modeId });
+	const resource = model.getAssociatedResource();
+	const supports = ExtraInfoRegistry.ordered(model);
 	const values: IComputeExtraInfoResult[] = [];
 
 	const promises = supports.map((support, idx) => {

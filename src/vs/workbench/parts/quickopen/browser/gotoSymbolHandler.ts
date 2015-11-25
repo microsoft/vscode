@@ -527,10 +527,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 					return TPromise.as(this.outlineToModelCache[modelId]);
 				}
 
-				return getOutlineEntries({
-					uri: (<IModel> model).getAssociatedResource(),
-					language: (<IModel>model).getModeId()
-				}).then(outline => {
+				return getOutlineEntries(<IModel> model).then(outline => {
 
 					let model = new OutlineModel(outline, this.toQuickOpenEntries(outline));
 

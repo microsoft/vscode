@@ -173,7 +173,7 @@ export class GoToDeclarationAction extends GoToTypeAction {
 	}
 
 	protected _resolve(resource: URI, position: EditorCommon.IPosition): TPromise<Modes.IReference[]> {
-		return getDeclarationsAtPosition(this.editor.getModel().getAssociatedResource(), this.editor.getModel().getModeId(), this.editor.getPosition());
+		return getDeclarationsAtPosition(this.editor.getModel(), this.editor.getPosition());
 	}
 }
 
@@ -437,7 +437,7 @@ class GotoDefinitionWithMouseEditorContribution implements EditorCommon.IEditorC
 			return TPromise.as(null);
 		}
 
-		return getDeclarationsAtPosition(this.editor.getModel().getAssociatedResource(), this.editor.getModel().getModeId(), target.position);
+		return getDeclarationsAtPosition(this.editor.getModel(), target.position);
 	}
 
 	private gotoDefinition(target:EditorBrowser.IMouseTarget, sideBySide:boolean):TPromise<any> {

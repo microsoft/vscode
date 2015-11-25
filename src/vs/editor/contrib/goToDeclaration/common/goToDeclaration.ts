@@ -8,17 +8,18 @@
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {onUnexpectedError} from 'vs/base/common/errors';
-import {IPosition} from 'vs/editor/common/editorCommon';
+import {IModel, IPosition} from 'vs/editor/common/editorCommon';
 import {IDeclarationSupport} from 'vs/editor/common/modes';
 import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
 import {IReference} from 'vs/editor/common/modes';
 
 export const DeclarationRegistry = new LanguageFeatureRegistry<IDeclarationSupport>('declarationSupport');
 
-export function getDeclarationsAtPosition(resource: URI, modeId:string, position: IPosition): TPromise<IReference[]> {
+export function getDeclarationsAtPosition(model: IModel, position: IPosition): TPromise<IReference[]> {
 
 	const promises: TPromise<any>[] = [];
-	const provider = DeclarationRegistry.ordered({ uri: resource, language: modeId });
+	const resource = model.getAssociatedResource();
+	const provider = DeclarationRegistry.ordered(model);
 	const references: (IReference[]| IReference)[] = Array<(IReference[]| IReference)>(provider.length);
 
 	// get results

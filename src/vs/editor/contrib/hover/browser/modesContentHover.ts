@@ -46,8 +46,10 @@ class ModesContentComputer implements HoverOperation.IHoverComputer<Modes.ICompu
 			return TPromise.as(null);
 		}
 
-		return getExtraInfoAtPosition(model.getAssociatedResource(), model.getModeId(),
-			{ lineNumber: this._range.startLineNumber, column: this._range.startColumn });
+		return getExtraInfoAtPosition(model, {
+			lineNumber: this._range.startLineNumber,
+			column: this._range.startColumn
+		});
 	}
 
 	public computeSync(): Modes.IComputeExtraInfoResult[] {

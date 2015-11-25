@@ -11,7 +11,6 @@ import {Range} from 'vs/editor/common/core/range';
 import {IModel} from 'vs/editor/common/editorCommon';
 import {IOutlineEntry, IOutlineSupport} from 'vs/editor/common/modes';
 import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
-import {ModelLike} from 'vs/editor/common/modes/languageSelector';
 
 const OutlineRegistry = new LanguageFeatureRegistry<IOutlineSupport>('outlineSupport');
 
@@ -21,7 +20,7 @@ export {
 	IOutlineSupport
 }
 
-export function getOutlineEntries(model: ModelLike): TPromise<{ entries: IOutlineEntry[], outlineGroupLabel: { [n: string]: string;} }> {
+export function getOutlineEntries(model: IModel): TPromise<{ entries: IOutlineEntry[], outlineGroupLabel: { [n: string]: string;} }> {
 
 	let groupLabels: { [n: string]: string } = Object.create(null);
 	let entries: IOutlineEntry[] = [];
@@ -36,7 +35,7 @@ export function getOutlineEntries(model: ModelLike): TPromise<{ entries: IOutlin
 			}
 		}
 
-		return support.getOutline(<any> model.uri).then(result => {
+		return support.getOutline(model.getAssociatedResource()).then(result => {
 			if (Array.isArray(result)) {
 				entries.push(...result);
 			}

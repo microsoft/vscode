@@ -9,7 +9,7 @@ import {onUnexpectedError} from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
 import {IAction, Action} from 'vs/base/common/actions';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {IRange, IPosition} from 'vs/editor/common/editorCommon';
+import {IModel, IRange, IPosition} from 'vs/editor/common/editorCommon';
 import {Range} from 'vs/editor/common/core/range';
 import {ICodeLensSupport, ICodeLensSymbol, ICommand} from 'vs/editor/common/modes';
 import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
@@ -21,11 +21,11 @@ export interface ICodeLensData {
 	support: ICodeLensSupport;
 }
 
-export function getCodeLensData(resource: URI, modeId: string) {
+export function getCodeLensData(model: IModel) {
 
 	const symbols: ICodeLensData[] = [];
-	const promises = CodeLensRegistry.all({ uri: resource, language: modeId }).map(support => {
-		return support.findCodeLensSymbols(resource).then(result => {
+	const promises = CodeLensRegistry.all(model).map(support => {
+		return support.findCodeLensSymbols(model.getAssociatedResource()).then(result => {
 			if (!Array.isArray(result)) {
 				return;
 			}

@@ -277,7 +277,7 @@ export class PluginHostAPIImplementation {
 				return languageFeatures.registerHoverProvider(selector, provider);
 			},
 			registerDocumentHighlightProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentHighlightProvider): vscode.Disposable {
-				return features.documentHighlight.register(selector, provider);
+				return languageFeatures.registerDocumentHighlightProvider(selector, provider);
 			},
 			registerReferenceProvider(selector: vscode.DocumentSelector, provider: vscode.ReferenceProvider): vscode.Disposable {
 				return features.referenceSearch.register(selector, provider);

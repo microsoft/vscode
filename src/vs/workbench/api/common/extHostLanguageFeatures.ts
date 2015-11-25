@@ -25,7 +25,7 @@ import {IMarkerService, IMarker} from 'vs/platform/markers/common/markers';
 import {PluginHostCommands, MainThreadCommands} from 'vs/workbench/api/common/pluginHostCommands';
 import {DeclarationRegistry} from 'vs/editor/contrib/goToDeclaration/common/goToDeclaration';
 import {ExtraInfoRegistry} from 'vs/editor/contrib/hover/common/hover';
-import DocumentHighlighterRegistry from 'vs/editor/contrib/wordHighlighter/common/wordHighlighter';
+import {OccurrencesRegistry} from 'vs/editor/contrib/wordHighlighter/common/wordHighlighter';
 import ReferenceSearchRegistry from 'vs/editor/contrib/referenceSearch/common/referenceSearch';
 import QuickFixRegistry from 'vs/editor/contrib/quickFix/common/quickFix';
 import {OutlineRegistry, IOutlineEntry, IOutlineSupport} from 'vs/editor/contrib/quickOpen/common/quickOpen';
@@ -232,7 +232,37 @@ class ExtraInfoAdapter implements modes.IExtraInfoSupport {
 	}
 }
 
-type Adapter = OutlineAdapter | CodeLensAdapter | DeclarationAdapter | ExtraInfoAdapter;
+class OccurrencesAdapter implements modes.IOccurrencesSupport {
+
+	private _documents: PluginHostModelService;
+	private _provider: vscode.DocumentHighlightProvider;
+
+	constructor(documents: PluginHostModelService, provider: vscode.DocumentHighlightProvider) {
+		this._documents = documents;
+		this._provider = provider;
+	}
+
+	findOccurrences(resource: URI, position: IPosition): TPromise<modes.IOccurence[]> {
+
+		let doc = this._documents.getDocument(resource);
+		let pos = TypeConverters.toPosition(position);
+
+		return asWinJsPromise(token => this._provider.provideDocumentHighlights(doc, pos, token)).then(value => {
+			if (Array.isArray(value)) {
+				return value.map(OccurrencesAdapter._convertDocumentHighlight);
+			}
+		});
+	}
+
+	private static _convertDocumentHighlight(documentHighlight: vscode.DocumentHighlight): modes.IOccurence {
+		return {
+			range: TypeConverters.fromRange(documentHighlight.range),
+			kind: DocumentHighlightKind[documentHighlight.kind].toString().toLowerCase()
+		}
+	}
+}
+
+type Adapter = OutlineAdapter | CodeLensAdapter | DeclarationAdapter | ExtraInfoAdapter | OccurrencesAdapter;
 
 @Remotable.PluginHostContext('ExtHostLanguageFeatures')
 export class ExtHostLanguageFeatures {
@@ -322,6 +352,19 @@ export class ExtHostLanguageFeatures {
 	$computeInfo(handle:number, resource: URI, position: IPosition): TPromise<modes.IComputeExtraInfoResult> {
 		return this._withAdapter(handle, ExtraInfoAdapter, adpater => adpater.computeInfo(resource, position));
 	}
+
+	// --- occurrences adapter
+
+	registerDocumentHighlightProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentHighlightProvider): vscode.Disposable {
+		const handle = this._nextHandle();
+		this._adapter[handle] = new OccurrencesAdapter(this._documents, provider);
+		this._proxy.$registerOccurrencesSupport(handle, selector);
+		return this._createDisposable(handle);
+	}
+
+	$findOccurrences(handle:number, resource: URI, position: IPosition): TPromise<modes.IOccurence[]> {
+		return this._withAdapter(handle, OccurrencesAdapter, adapter => adapter.findOccurrences(resource, position));
+	}
 }
 
 @Remotable.MainContext('MainThreadLanguageFeatures')
@@ -388,6 +431,17 @@ export class MainThreadLanguageFeatures {
 		this._registrations[handle] = ExtraInfoRegistry.register(selector, <modes.IExtraInfoSupport>{
 			computeInfo: (resource: URI, position: IPosition): TPromise<modes.IComputeExtraInfoResult> => {
 				return this._proxy.$computeInfo(handle, resource, position);
+			}
+		});
+		return undefined;
+	}
+
+	// --- occurrences
+
+	$registerOccurrencesSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any> {
+		this._registrations[handle] = OccurrencesRegistry.register(selector, <modes.IOccurrencesSupport>{
+			findOccurrences: (resource: URI, position: IPosition): TPromise<modes.IOccurence[]> => {
+				return this._proxy.$findOccurrences(handle, resource, position);
 			}
 		});
 		return undefined;

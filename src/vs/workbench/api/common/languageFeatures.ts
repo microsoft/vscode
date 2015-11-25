@@ -22,7 +22,6 @@ import {CancellationTokenSource} from 'vs/base/common/cancellation';
 import {PluginHostModelService} from 'vs/workbench/api/common/pluginHostDocuments';
 import {IMarkerService, IMarker} from 'vs/platform/markers/common/markers';
 import {PluginHostCommands, MainThreadCommands} from 'vs/workbench/api/common/pluginHostCommands';
-import DocumentHighlighterRegistry from 'vs/editor/contrib/wordHighlighter/common/wordHighlighter';
 import ReferenceSearchRegistry from 'vs/editor/contrib/referenceSearch/common/referenceSearch';
 import QuickFixRegistry from 'vs/editor/contrib/quickFix/common/quickFix';
 import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
@@ -130,62 +129,6 @@ export abstract class AbstractExtensionHostFeature<T, P extends AbstractMainThre
 			language: document.languageId,
 			uri: <any>document.uri
 		});
-	}
-}
-
-// --- occurrences
-
-
-export class ExtensionHostOccurrencesFeature extends AbstractExtensionHostFeature<vscode.DocumentHighlightProvider, MainThreadOccurrencesFeature> {
-
-	constructor(@IThreadService threadService: IThreadService) {
-		super(threadService.getRemotable(MainThreadOccurrencesFeature), threadService);
-	}
-
-	_runAsCommand(resource: URI, position: IPosition): TPromise<modes.IOccurence[]> {
-
-		let document = this._models.getDocument(resource);
-		let pos = TypeConverters.toPosition(position);
-		let highlights: vscode.DocumentHighlight[];
-
-		let factory = this._getOrderedFor(document).map(provider => {
-			return () => {
-				if (!highlights) {
-					return asWinJsPromise(token => provider.provideDocumentHighlights(document, pos, token)).then(result => {
-						if (Array.isArray(result) && result.length > 0) {
-							highlights = result;
-						}
-					}, err => {
-						console.error(err);
-					});
-				}
-			}
-		});
-
-		return sequence(factory).then(() => {
-			if (highlights) {
-				return highlights.map(ExtensionHostOccurrencesFeature._convertDocumentHighlight);
-			}
-		});
-	}
-
-	private static _convertDocumentHighlight(documentHighlight: vscode.DocumentHighlight): modes.IOccurence {
-		return {
-			range: TypeConverters.fromRange(documentHighlight.range),
-			kind: DocumentHighlightKind[documentHighlight.kind].toString().toLowerCase()
-		}
-	}
-}
-
-@Remotable.MainContext('MainThreadOccurrencesFeature')
-export class MainThreadOccurrencesFeature extends AbstractMainThreadFeature<modes.IOccurrencesSupport> {
-
-	constructor(@IThreadService threadService: IThreadService) {
-		super('vscode.executeDocumentHighlights', DocumentHighlighterRegistry, threadService);
-	}
-
-	findOccurrences(resource: URI, position: IPosition): TPromise<modes.IOccurence[]> {
-		return this._executeCommand(resource, position);
 	}
 }
 
@@ -941,7 +884,6 @@ export class MainThreadWorkspaceSymbols implements INavigateTypesSupport {
 export namespace LanguageFeatures {
 
 	export function createMainThreadInstances(threadService: IThreadService): void {
-		threadService.getRemotable(MainThreadOccurrencesFeature);
 		threadService.getRemotable(MainThreadReferenceSearch);
 		threadService.getRemotable(MainThreadCodeActions);
 		threadService.getRemotable(MainThreadWorkspaceSymbols);
@@ -955,7 +897,6 @@ export namespace LanguageFeatures {
 
 	export function createExtensionHostInstances(threadService: IThreadService) {
 		return {
-			documentHighlight: new ExtensionHostOccurrencesFeature(threadService),
 			referenceSearch: new ExtensionHostReferenceSearch(threadService),
 			codeActions: new ExtensionHostCodeActions(threadService),
 			workspaceSymbols: new ExtensionHostWorkspaceSymbols(threadService),
