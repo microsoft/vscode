@@ -101,6 +101,8 @@ gulp.task('hygiene', function() {
 			console.error(file.path + ': Missing or bad copyright statement');
 			errorCount++;
 		}
+		
+		this.emit('data', file);
 	});
 
 	return gulp.src(eolFilter, { base: '.' })
