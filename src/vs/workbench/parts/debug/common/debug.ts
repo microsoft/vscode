@@ -195,21 +195,21 @@ export interface IConfig {
 }
 
 export interface IRawEnvAdapter {
-	type: string;
-	label: string;
-	program: string;
-	args: string[];
-	runtime: string;
-	runtimeArgs: string[];
+	type?: string;
+	label?: string;
+	program?: string;
+	args?: string[];
+	runtime?: string;
+	runtimeArgs?: string[];
 }
 
 export interface IRawAdapter extends IRawEnvAdapter {
-	enableBreakpointsFor: { languageIds: string[] };
-	configurationAttributes: any;
-	initialConfigurations: any[];
-	win: IRawEnvAdapter;
-	osx: IRawEnvAdapter;
-	linux: IRawEnvAdapter;
+	enableBreakpointsFor?: { languageIds: string[] };
+	configurationAttributes?: any;
+	initialConfigurations?: any[];
+	win?: IRawEnvAdapter;
+	osx?: IRawEnvAdapter;
+	linux?: IRawEnvAdapter;
 }
 
 export interface IRawDebugSession extends ee.EventEmitter {
