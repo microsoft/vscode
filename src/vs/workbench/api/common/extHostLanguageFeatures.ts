@@ -57,7 +57,7 @@ function asWinJsPromise<T>(callback: (token: vscode.CancellationToken) => T | Th
 
 // --- adapter
 
-class OutlineSupportAdapter implements IOutlineSupport {
+class OutlineAdapter implements IOutlineSupport {
 
 	private _documents: PluginHostModelService;
 	private _provider: vscode.DocumentSymbolProvider;
@@ -71,7 +71,7 @@ class OutlineSupportAdapter implements IOutlineSupport {
 		let doc = this._documents.getDocument(resource);
 		return asWinJsPromise(token => this._provider.provideDocumentSymbols(doc, token)).then(value => {
 			if (Array.isArray(value)) {
-				return value.map(OutlineSupportAdapter._convertSymbolInfo);
+				return value.map(OutlineAdapter._convertSymbolInfo);
 			}
 		});
 	}
@@ -87,7 +87,78 @@ class OutlineSupportAdapter implements IOutlineSupport {
 	}
 }
 
-type Adapter = OutlineSupportAdapter;
+class CodeLensAdapter implements modes.ICodeLensSupport {
+
+	private _documents: PluginHostModelService;
+	private _provider: vscode.CodeLensProvider;
+
+	private _cache: { [uri: string]: vscode.CodeLens[] } = Object.create(null);
+
+	constructor(documents: PluginHostModelService, provider: vscode.CodeLensProvider) {
+		this._documents = documents;
+		this._provider = provider;
+	}
+
+	findCodeLensSymbols(resource: URI): TPromise<modes.ICodeLensSymbol[]> {
+		let doc = this._documents.getDocument(resource);
+		let key = resource.toString();
+
+		delete this._cache[key];
+
+		return asWinJsPromise(token => this._provider.provideCodeLenses(doc, token)).then(value => {
+			if (!Array.isArray(value)) {
+				return;
+			}
+
+			this._cache[key] = value;
+
+			return value.map((lens, i) => {
+				return <modes.ICodeLensSymbol>{
+					id: String(i),
+					range: TypeConverters.fromRange(lens.range)
+				}
+			});
+		});
+	}
+
+	resolveCodeLensSymbol(resource: URI, symbol: modes.ICodeLensSymbol): TPromise<modes.ICommand> {
+
+		let lenses = this._cache[resource.toString()];
+		if (!lenses) {
+			return;
+		}
+
+		let lens = lenses[Number(symbol.id)];
+		if (!lens) {
+			return;
+		}
+
+		let resolve: TPromise<vscode.CodeLens>;
+		if (typeof this._provider.resolveCodeLens !== 'function' || lens.isResolved) {
+			resolve = TPromise.as(lens);
+		} else {
+			resolve = asWinJsPromise(token => this._provider.resolveCodeLens(lens, token));
+		}
+
+		return resolve.then(newLens => {
+			lens = newLens || lens;
+			let command = lens.command;
+			if (!command) {
+				command = {
+					title: '<<MISSING COMMAND>>',
+					command: 'missing',
+				}
+			}
+			return {
+				id: command.command,
+				title: command.title,
+				arguments: command.arguments
+			}
+		});
+	}
+}
+
+type Adapter = OutlineAdapter | CodeLensAdapter;
 
 @Remotable.PluginHostContext('ExtHostLanguageFeatures')
 export class ExtHostLanguageFeatures {
@@ -110,22 +181,59 @@ export class ExtHostLanguageFeatures {
 		});
 	}
 
+	private _nextHandle(): number {
+		return ExtHostLanguageFeatures._handlePool++;
+	}
+
+	private _noAdapter() {
+		return TPromise.wrapError(new Error('no adapter found'));
+	}
+
 	// --- outline
 
 	registerDocumentSymbolProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentSymbolProvider): vscode.Disposable {
-		const handle = ExtHostLanguageFeatures._handlePool++;
-		this._adapter[handle] = new OutlineSupportAdapter(this._documents, provider);
+		const handle = this._nextHandle();
+		this._adapter[handle] = new OutlineAdapter(this._documents, provider);
 		this._proxy.$registerOutlineSupport(handle, selector);
 		return this._createDisposable(handle);
 	}
 
 	$getOutline(handle: number, resource: URI): TPromise<IOutlineEntry[]>{
 		let adapter = this._adapter[handle];
-		if (adapter instanceof OutlineSupportAdapter) {
+		if (adapter instanceof OutlineAdapter) {
 			return adapter.getOutline(resource);
+		} else {
+			return this._noAdapter();
 		}
-		return TPromise.wrapError(new Error('no adapter found'));
 	}
+
+	// --- code lens
+
+	registerCodeLensProvider(selector: vscode.DocumentSelector, provider: vscode.CodeLensProvider): vscode.Disposable {
+		const handle = this._nextHandle();
+		this._adapter[handle] = new CodeLensAdapter(this._documents, provider);
+		this._proxy.$registerCodeLensSupport(handle, selector);
+		return this._createDisposable(handle);
+	}
+
+	$findCodeLensSymbols(handle:number, resource: URI): TPromise<modes.ICodeLensSymbol[]> {
+		let adapter = this._adapter[handle];
+		if (adapter instanceof CodeLensAdapter) {
+			return adapter.findCodeLensSymbols(resource);
+		} else {
+			return this._noAdapter();
+		}
+	}
+
+	$resolveCodeLensSymbol(handle:number, resource: URI, symbol: modes.ICodeLensSymbol): TPromise<modes.ICommand> {
+		let adapter = this._adapter[handle];
+		if (adapter instanceof CodeLensAdapter) {
+			return adapter.resolveCodeLensSymbol(resource, symbol);
+		} else {
+			return this._noAdapter();
+		}
+	}
+
 }
 
 @Remotable.MainContext('MainThreadLanguageFeatures')
@@ -150,12 +258,25 @@ export class MainThreadLanguageFeatures {
 	// --- outline
 
 	$registerOutlineSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any> {
-		let disposable = OutlineRegistry.register(selector, <IOutlineSupport>{
+		this._registrations[handle] = OutlineRegistry.register(selector, <IOutlineSupport>{
 			getOutline: (resource: URI): TPromise<IOutlineEntry[]> => {
 				return this._proxy.$getOutline(handle, resource);
 			}
 		});
-		this._registrations[handle] = disposable;
+		return undefined;
+	}
+
+	// --- code lens
+
+	$registerCodeLensSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any> {
+		this._registrations[handle] = CodeLensRegistry.register(selector, <modes.ICodeLensSupport>{
+			findCodeLensSymbols: (resource: URI): TPromise<modes.ICodeLensSymbol[]> => {
+				return this._proxy.$findCodeLensSymbols(handle, resource);
+			},
+			resolveCodeLensSymbol: (resource: URI, symbol: modes.ICodeLensSymbol): TPromise<modes.ICommand> => {
+				return this._proxy.$resolveCodeLensSymbol(handle, resource, symbol);
+			}
+		});
 		return undefined;
 	}
 }

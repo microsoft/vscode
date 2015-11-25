@@ -480,78 +480,6 @@ export class MainThreadCodeActions extends AbstractMainThreadFeature<modes.IQuic
 	}
 }
 
-// ---- OutlineSupport aka DocumentSymbols
-
-export class ExtensionHostDocumentSymbols extends AbstractExtensionHostFeature<vscode.DocumentSymbolProvider, MainThreadDocumentSymbols> {
-
-	constructor( @IThreadService threadService: IThreadService) {
-		super(threadService.getRemotable(MainThreadDocumentSymbols), threadService);
-	}
-
-	protected _runAsCommand(resource: URI): TPromise<IOutlineEntry[]> {
-
-		if (!(resource instanceof URI)) {
-			return TPromise.wrapError('uri missing');
-		}
-
-		let symbols: vscode.SymbolInformation[] = [];
-		let document = this._models.getDocument(resource);
-		let candidate = {
-			language: document.languageId,
-			uri: document.uri
-		};
-		let promises = this._registry.all(candidate).map(provider => {
-			return asWinJsPromise(token => {
-				return provider.provideDocumentSymbols(document, token);
-			}).then(result => {
-				if (Array.isArray(result)) {
-					symbols.push(...result);
-				}
-			}, err => {
-				console.log(err);
-			});
-		});
-
-		return TPromise.join(promises).then(() => {
-			return symbols
-				.sort(ExtensionHostDocumentSymbols._compareByStart)
-				.map(ExtensionHostDocumentSymbols._convertSymbolInfo);
-		});
-	}
-
-	private static _compareByStart(a: vscode.SymbolInformation, b: vscode.SymbolInformation): number {
-		if (a.location.range.start.isBefore(b.location.range.start)) {
-			return -1;
-		} else if (b.location.range.start.isBefore(a.location.range.start)) {
-			return 1;
-		} else {
-			return 0;
-		}
-	}
-
-	private static _convertSymbolInfo(symbol: vscode.SymbolInformation): IOutlineEntry {
-		return <IOutlineEntry>{
-			type: TypeConverters.fromSymbolKind(symbol.kind),
-			range: TypeConverters.fromRange(symbol.location.range),
-			containerLabel: symbol.containerName,
-			label: symbol.name,
-			icon: undefined,
-		};
-	}
-}
-
-@Remotable.MainContext('MainThreadDocumentSymbols2')
-export class MainThreadDocumentSymbols extends AbstractMainThreadFeature<IOutlineSupport> implements IOutlineSupport {
-
-	constructor( @IThreadService threadService: IThreadService) {
-		super('vscode.executeDocumentSymbolProvider', OutlineRegistry, threadService);
-	}
-
-	getOutline(resource: URI): TPromise<IOutlineEntry[]>{
-		return this._executeCommand(resource);
-	}
-}
-
 // -- Rename provider
 
 export class ExtensionHostRename extends AbstractExtensionHostFeature<vscode.RenameProvider, MainThreadRename> {
@@ -1046,114 +974,6 @@ export class MainThreadCompletions extends AbstractMainThreadFeature<modes.ISugg
 	}
 }
 
-// ---- Code Lens
-
-@Remotable.PluginHostContext('ExtensionHostCodeLens')
-export class ExtensionHostCodeLens extends AbstractExtensionHostFeature<vscode.CodeLensProvider, MainThreadCodeLens> {
-
-	private static _idPool = 0;
-	private _lenses: { [id: string]: [string, vscode.CodeLensProvider, vscode.CodeLens] } = Object.create(null);
-
-	constructor(@IThreadService threadService: IThreadService) {
-		super(threadService.getRemotable(MainThreadCodeLens), threadService);
-		this._models.onDidRemoveDocument(event => this._clearCache(event.uri));
-	}
-
-	_clearCache(resource: URI): void {
-		for (let key in this._lenses) {
-			if (this._lenses[key][0] === resource.toString()) {
-				delete this._lenses[key];
-			}
-		}
-	}
-
-	_runAsCommand(resource: URI): TPromise<modes.ICodeLensSymbol[]> {
-
-		let document = this._models.getDocument(resource);
-		let result: modes.ICodeLensSymbol[] = [];
-		let promises = this._getAllFor(document).map(provider => {
-
-			let providerCanResolveLens = typeof provider.resolveCodeLens === 'function';
-
-			return asWinJsPromise(token => provider.provideCodeLenses(document, token)).then(lenses => {
-
-				// new commands
-				this._clearCache(resource);
-
-				if (!Array.isArray(lenses)) {
-					return;
-				}
-				for (let lens of lenses) {
-
-					if (!providerCanResolveLens && !lens.isResolved) {
-						throw new Error('illegal state - code lens must be resolved or provider must implement resolveCodeLens-function');
-					}
-
-					let id = 'code_lense_#' + ExtensionHostCodeLens._idPool++;
-					this._lenses[id] = [resource.toString(), provider, lens];
-
-					result.push({
-						id,
-						range: TypeConverters.fromRange(lens.range)
-					});
-				}
-			}, err => {
-				console.error(err);
-			});
-		});
-
-		return TPromise.join(promises).then(() => {
-			return result;
-		});
-	}
-
-	_resolveCodeLensSymbol(symbol: modes.ICodeLensSymbol): TPromise<modes.ICommand> {
-
-		if (!this._lenses[symbol.id]) {
-			return;
-		}
-
-		let [, provider, lens] = this._lenses[symbol.id];
-		let resolve: TPromise<vscode.CodeLens>;
-
-		if (typeof provider.resolveCodeLens !== 'function') {
-			resolve = TPromise.as(lens);
-		} else {
-			resolve = asWinJsPromise(token => provider.resolveCodeLens(lens, token));
-		}
-
-		return resolve.then(newLens => {
-			lens = newLens || lens;
-			if (lens.command) {
-				return {
-					id: <string>lens.command.command,
-					title: lens.command.title,
-					arguments: lens.command.arguments
-				}
-			}
-		});
-	}
-}
-
-@Remotable.MainContext('MainThreadCodeLens')
-export class MainThreadCodeLens extends AbstractMainThreadFeature<modes.ICodeLensSupport> implements modes.ICodeLensSupport {
-
-	private _proxy: ExtensionHostCodeLens;
-
-	constructor( @IThreadService threadService: IThreadService) {
-		super('vscode.executeCodeLensProvider', CodeLensRegistry, threadService);
-		this._proxy = threadService.getRemotable(ExtensionHostCodeLens);
-	}
-
-	findCodeLensSymbols(resource: URI): TPromise<modes.ICodeLensSymbol[]> {
-		return this._executeCommand(resource);
-	}
-
-	resolveCodeLensSymbol(resource: URI, symbol: modes.ICodeLensSymbol): TPromise<modes.ICommand> {
-		return this._proxy._resolveCodeLensSymbol(symbol);
-	}
-}
-
 // --- workspace symbols
 
 export class ExtensionHostWorkspaceSymbols {
@@ -1261,8 +1081,6 @@ export namespace LanguageFeatures {
 		threadService.getRemotable(MainThreadOccurrencesFeature);
 		threadService.getRemotable(MainThreadReferenceSearch);
 		threadService.getRemotable(MainThreadCodeActions);
-		threadService.getRemotable(MainThreadCodeLens);
-		// threadService.getRemotable(MainThreadDocumentSymbols);
 		threadService.getRemotable(MainThreadWorkspaceSymbols);
 		threadService.getRemotable(MainThreadRename);
 		threadService.getRemotable(MainThreadFormatDocument);
@@ -1279,8 +1097,6 @@ export namespace LanguageFeatures {
 			documentHighlight: new ExtensionHostOccurrencesFeature(threadService),
 			referenceSearch: new ExtensionHostReferenceSearch(threadService),
 			codeActions: new ExtensionHostCodeActions(threadService),
-			codeLens: threadService.getRemotable(ExtensionHostCodeLens),
-			// documentSymbols: new ExtensionHostDocumentSymbols(threadService),
 			workspaceSymbols: new ExtensionHostWorkspaceSymbols(threadService),
 			rename: new ExtensionHostRename(threadService),
 			formatDocument: new ExtHostFormatDocument(threadService),

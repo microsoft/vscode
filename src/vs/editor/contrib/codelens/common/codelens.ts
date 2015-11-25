@@ -5,6 +5,7 @@
 
 'use strict';
 
+import {onUnexpectedError} from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
 import {IAction, Action} from 'vs/base/common/actions';
 import {TPromise} from 'vs/base/common/winjs.base';
@@ -13,6 +14,28 @@ import {Range} from 'vs/editor/common/core/range';
 import {ICodeLensSupport, ICodeLensSymbol, ICommand} from 'vs/editor/common/modes';
 import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
 
-const _registry = new LanguageFeatureRegistry<ICodeLensSupport>('codeLensSupport');
+export const CodeLensRegistry = new LanguageFeatureRegistry<ICodeLensSupport>('codeLensSupport');
 
-export {_registry as CodeLensRegistry}
+export interface ICodeLensData {
+	symbol: ICodeLensSymbol;
+	support: ICodeLensSupport;
+}
+
+export function getCodeLensData(resource: URI, modeId: string) {
+
+	const symbols: ICodeLensData[] = [];
+	const promises = CodeLensRegistry.all({ uri: resource, language: modeId }).map(support => {
+		return support.findCodeLensSymbols(resource).then(result => {
+			if (!Array.isArray(result)) {
+				return;
+			}
+			for (let symbol of result) {
+				symbols.push({ symbol, support });
+			}
+		}, err => {
+			onUnexpectedError(err);
+		});
+	});
+
+	return TPromise.join(promises).then(() => symbols);
+}

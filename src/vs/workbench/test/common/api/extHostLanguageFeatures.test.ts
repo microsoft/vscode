@@ -11,7 +11,7 @@ import {create} from 'vs/base/common/types';
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {PluginHostDocument} from 'vs/workbench/api/common/pluginHostDocuments';
-import * as phTypes from 'vs/workbench/api/common/pluginHostTypes';
+import * as types from 'vs/workbench/api/common/pluginHostTypes';
 import {Range as CodeEditorRange} from 'vs/editor/common/core/range';
 import * as EditorCommon from 'vs/editor/common/editorCommon';
 import threadService from './testThreadService'
@@ -20,6 +20,7 @@ import {PluginHostCommands, MainThreadCommands} from 'vs/workbench/api/common/pl
 import {PluginHostModelService} from 'vs/workbench/api/common/pluginHostDocuments';
 import {SyncDescriptor0} from 'vs/platform/instantiation/common/descriptors';
 import {OutlineRegistry, getOutlineEntries} from 'vs/editor/contrib/quickOpen/common/quickOpen';
+import {CodeLensRegistry, getCodeLensData} from 'vs/editor/contrib/codelens/common/codelens';
 import {LanguageSelector, ModelLike} from 'vs/editor/common/modes/languageSelector';
 
 
@@ -76,6 +77,8 @@ suite('ExtHostLanguageFeatures', function() {
 			.then(() => done(), err => done(err));
 	});
 
+	// --- outline
+
 	test('DocumentSymbols, register/deregister', function(done) {
 		assert.equal(OutlineRegistry.all(model).length, 0);
 		let d1 = extHost.registerDocumentSymbolProvider('far', <vscode.DocumentSymbolProvider>{
@@ -102,7 +105,7 @@ suite('ExtHostLanguageFeatures', function() {
 		}));
 		disposables.push(extHost.registerDocumentSymbolProvider('far', <vscode.DocumentSymbolProvider>{
 			provideDocumentSymbols(): any {
-				return [new phTypes.SymbolInformation('test', phTypes.SymbolKind.Field, new phTypes.Range(0, 0, 0, 0))];
+				return [new types.SymbolInformation('test', types.SymbolKind.Field, new types.Range(0, 0, 0, 0))];
 			}
 		}));
 
@@ -120,7 +123,7 @@ suite('ExtHostLanguageFeatures', function() {
 	test('DocumentSymbols, data conversion', function(done) {
 		disposables.push(extHost.registerDocumentSymbolProvider('far', <vscode.DocumentSymbolProvider>{
 			provideDocumentSymbols(): any {
-				return [new phTypes.SymbolInformation('test', phTypes.SymbolKind.Field, new phTypes.Range(0, 0, 0, 0))];
+				return [new types.SymbolInformation('test', types.SymbolKind.Field, new types.Range(0, 0, 0, 0))];
 			}
 		}));
 
@@ -136,6 +139,81 @@ suite('ExtHostLanguageFeatures', function() {
 
 			}, err => {
 				done(err);
+			});
+		});
+	});
+
+	// --- code lens
+
+	test('CodeLens, evil provider', function(done) {
+
+		disposables.push(extHost.registerCodeLensProvider('far', <vscode.CodeLensProvider>{
+			provideCodeLenses():any {
+				throw new Error('evil')
+			}
+		}));
+		disposables.push(extHost.registerCodeLensProvider('far', <vscode.CodeLensProvider>{
+			provideCodeLenses() {
+				return [new types.CodeLens(new types.Range(0, 0, 0, 0))];
+			}
+		}));
+
+		threadService.sync().then(() => {
+			getCodeLensData(model.uri, model.language).then(value => {
+				assert.equal(value.length, 1);
+				done();
+			});
+		});
+	});
+
+	test('CodeLens, do not resolve a resolved lens', function(done) {
+
+		disposables.push(extHost.registerCodeLensProvider('far', <vscode.CodeLensProvider>{
+			provideCodeLenses():any {
+				return [new types.CodeLens(
+					new types.Range(0, 0, 0, 0),
+					{ command: 'id', title: 'Title' })];
+			},
+			resolveCodeLens():any {
+				assert.ok(false, 'do not resolve');
+			}
+		}));
+
+		threadService.sync().then(() => {
+
+			getCodeLensData(model.uri, model.language).then(value => {
+				assert.equal(value.length, 1);
+				let data = value[0];
+
+				data.support.resolveCodeLensSymbol(model.uri, data.symbol).then(command => {
+					assert.equal(command.id, 'id');
+					assert.equal(command.title, 'Title');
+					done();
+				});
+			});
+		});
+	});
+
+	test('CodeLens, missing command', function(done) {
+
+		disposables.push(extHost.registerCodeLensProvider('far', <vscode.CodeLensProvider>{
+			provideCodeLenses() {
+				return [new types.CodeLens(new types.Range(0, 0, 0, 0))];
+			}
+		}));
+
+		threadService.sync().then(() => {
+
+			getCodeLensData(model.uri, model.language).then(value => {
+				assert.equal(value.length, 1);
+
+				let data = value[0];
+				data.support.resolveCodeLensSymbol(model.uri, data.symbol).then(command => {
+
+					assert.equal(command.id, 'missing');
+					assert.equal(command.title, '<<MISSING COMMAND>>');
+					done();
+				});
 			});
 		});
 	});
