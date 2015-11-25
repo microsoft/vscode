@@ -33,9 +33,9 @@ before_install:
 
 install:
   - ./scripts/npm.sh install
+
+script:
   - gulp hygiene
   - gulp electron
   - gulp compile
-
-script:
   - ./test/run.sh
