@@ -138,7 +138,8 @@ export function getHTML5TagProvider(): IHTMLTagProvider {
 		summary: none,
 		menu: ['type:mt', 'label'],
 		menuitem: ['type:mit', 'label', 'icon', 'disabled:v', 'checked:v', 'radiogroup', 'default:v', 'command'],
-		dialog: ['open:v']
+		dialog: ['open:v'],
+		picture: none
 	};
 
 	var globalAttributes = [
