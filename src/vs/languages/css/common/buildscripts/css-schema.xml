@@ -156,7 +156,7 @@
     <entry name=":focus" version="2.0" browsers="all" ref="http://www.w3.org/TR/css3-selectors/#the-user-action-pseudo-classes-hover-act" syntax="a:focus { color: yellow; }">
       <desc>The :focus pseudo-class applies while an element has the focus (accepts keyboard or mouse events, or other forms of input).</desc>
     </entry>
-    <entry name=":fullscreen" version="3.0" browsers="E" ref="http://www.w3.org/TR/fullscreen/#:fullscreen-pseudo-class" syntax="iframe:fullscreen { border: none; }" />
+    <entry name=":fullscreen" version="3.0" browsers="E" ref="https://fullscreen.spec.whatwg.org/#:fullscreen-pseudo-class" syntax="iframe:fullscreen { border: none; }" />
     <entry name=":future" version="3.0" browsers="C,O16,S6" ref="https://dvcs.w3.org/hg/text-tracks/raw-file/default/webvtt/Overview.html#dfn-future-pseudo-class" syntax=":future { color: yellow; }" />
     <entry name=":horizontal" version="3.0" browsers="C,S5" />
     <entry name=":host" version="3.0" browsers="C,FF,O" syntax=":host { display: block; }" />
@@ -300,7 +300,7 @@
     <entry name="::alternate" version="3.0" browsers="none" ref="http://www.w3.org/TR/css3-content/#inserting1" syntax="span::after::alternate { content: 'alternate2'; move-to: example; }">
       <desc>This pseudo-element is created by setting its 'move-to' property to an identifier. It is rendered at the next occurrence of 'pending()' in a 'content' property.</desc>
     </entry>
-    <entry name="::backdrop" version="3.0" browsers="E" ref="http://www.w3.org/TR/fullscreen/#::backdrop-pseudo-element" syntax="*|*:fullscreen::backdrop { position: fixed; }" />
+    <entry name="::backdrop" version="3.0" browsers="E" ref="https://fullscreen.spec.whatwg.org/#::backdrop-pseudo-element" syntax="*|*:fullscreen::backdrop { position: fixed; }" />
     <entry name="::before" version="3.0" browsers="E,C,FF1.5,IE10,O8,S1" ref="http://www.w3.org/TR/css3-content/#inserting" syntax="div::before { content: 'abc'; }">
       <desc>Pseudo-element is used to insert content immediately before the content of an element (or other pseudo-element). The 'content' property is used to specify the content to insert.</desc>
     </entry>
