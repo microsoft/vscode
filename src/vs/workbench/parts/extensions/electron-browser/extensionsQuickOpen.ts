@@ -26,6 +26,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { Action } from 'vs/base/common/actions';
+import * as semver from 'semver';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import remote = require('remote');
 const shell = remote.require('shell');
@@ -467,6 +468,78 @@ export class GalleryExtensionsHandler extends QuickOpenHandler {
 
 	getEmptyLabel(input: string): string {
 		return nls.localize('noExtensionsToInstall', "No extensions found");
+	}
+
+	getAutoFocus(searchValue: string): IAutoFocus {
+		return { autoFocusFirstEntry: true };
+	}
+}
+
+class OutdatedExtensionsModel implements IModel<IExtensionEntry> {
+
+	public dataSource = new DataSource();
+	public renderer: IRenderer<IExtensionEntry>;
+	public runner: IRunner<IExtensionEntry>;
+	public entries: IExtensionEntry[];
+
+	constructor(
+		private galleryExtensions: IExtension[],
+		private localExtensions: IExtension[],
+		@IInstantiationService instantiationService: IInstantiationService
+	) {
+		this.renderer = instantiationService.createInstance(Renderer);
+		this.runner = instantiationService.createInstance(InstallRunner);
+		this.entries = [];
+	}
+
+	public set input(input: string) {
+		this.entries = this.galleryExtensions
+			.map(extension => ({ extension, highlights: getHighlights(input, extension) }))
+			.filter(({ extension, highlights }) => {
+				const local = this.localExtensions.filter(local => extensionEquals(local, extension))[0];
+				return local && semver.lt(local.version, extension.version) && !!highlights;
+			})
+			.map(({ extension, highlights }: { extension: IExtension, highlights: IHighlights }) => ({
+				extension,
+				highlights,
+				state: ExtensionState.Outdated
+			}))
+			.sort((a, b) => a.extension.name.localeCompare(b.extension.name));
+	}
+}
+
+export class OutdatedExtensionsHandler extends QuickOpenHandler {
+
+	private modelPromise: TPromise<OutdatedExtensionsModel>;
+
+	constructor(
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IExtensionsService private extensionsService: IExtensionsService,
+		@IGalleryService private galleryService: IGalleryService,
+		@ITelemetryService private telemetryService: ITelemetryService
+	) {
+		super();
+	}
+
+	getResults(input: string): TPromise<IModel<IExtensionEntry>> {
+		if (!this.modelPromise) {
+			this.telemetryService.publicLog('extensionGallery:open');
+			this.modelPromise = TPromise.join<any>([this.galleryService.query(), this.extensionsService.getInstalled()])
+				.then(result => this.instantiationService.createInstance(OutdatedExtensionsModel, result[0], result[1]));
+		}
+
+		return this.modelPromise.then(model => {
+			model.input = input;
+			return model;
+		});
+	}
+
+	onClose(canceled: boolean): void {
+		this.modelPromise = null;
+	}
+
+	getEmptyLabel(input: string): string {
+		return nls.localize('noOutdatedExtensions', "No outdated extensions found");
 	}
 
 	getAutoFocus(searchValue: string): IAutoFocus {

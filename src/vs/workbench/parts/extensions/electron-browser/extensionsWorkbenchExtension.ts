@@ -16,7 +16,7 @@ import { IWorkspaceContextService } from 'vs/workbench/services/workspace/common
 import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
 import wbaregistry = require('vs/workbench/browser/actionRegistry');
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { ListExtensionsAction, InstallExtensionAction } from './extensionsActions';
+import { ListExtensionsAction, InstallExtensionAction, ListOutdatedExtensionsAction } from './extensionsActions';
 import { IQuickOpenRegistry, Extensions, QuickOpenHandlerDescriptor } from 'vs/workbench/browser/quickopen';
 
 import ipc = require('ipc');
@@ -64,6 +64,18 @@ export class ExtensionsWorkbenchExtension implements IWorkbenchContribution {
 					'GalleryExtensionsHandler',
 					'ext install ',
 					nls.localize('galleryExtensionsCommands', "Gallery Extensions Commands"),
+					true
+				)
+			);
+
+			actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ListOutdatedExtensionsAction, ListOutdatedExtensionsAction.ID, ListOutdatedExtensionsAction.LABEL), extensionsCategory);
+
+			(<IQuickOpenRegistry>platform.Registry.as(Extensions.Quickopen)).registerQuickOpenHandler(
+				new QuickOpenHandlerDescriptor(
+					'vs/workbench/parts/extensions/electron-browser/extensionsQuickOpen',
+					'OutdatedExtensionsHandler',
+					'ext update ',
+					nls.localize('outdatedExtensionsCommands', "Outdated Extensions Commands"),
 					true
 				)
 			);
