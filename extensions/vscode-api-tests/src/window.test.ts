@@ -12,17 +12,15 @@ import {cleanUp} from './utils';
 
 suite("window namespace tests", () => {
 
-	teardown((done) => {
-		cleanUp().then(() => done(), (error) => done(error));
-	});
+	teardown(cleanUp);
 
-	test('active text editor', (done) => {
-		workspace.openTextDocument(join(workspace.rootPath, './far.js')).then(doc => {
+	test('active text editor', () => {
+		return workspace.openTextDocument(join(workspace.rootPath, './far.js')).then(doc => {
 			return window.showTextDocument(doc).then((editor) => {
 				const active = window.activeTextEditor;
 				assert.ok(active);
 				assert.equal(active.document.uri.fsPath, doc.uri.fsPath);
 			});
-		}).then(() => done(), (error) => done(error));
+		});
 	});
 });

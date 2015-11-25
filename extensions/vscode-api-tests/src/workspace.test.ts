@@ -40,8 +40,8 @@ suite('workspace-namespace', () => {
 		});
 	});
 
-	test('events: onDidOpenTextDocument, onDidChangeTextDocument, onDidSaveTextDocument', (done) => {
-		createRandomFile().then(file => {
+	test('events: onDidOpenTextDocument, onDidChangeTextDocument, onDidSaveTextDocument', () => {
+		return createRandomFile().then(file => {
 			let disposables = [];
 
 			let onDidOpenTextDocument = false;
@@ -81,17 +81,13 @@ suite('workspace-namespace', () => {
 					});
 				});
 			});
-		}).then(() => done(), (error) => done(error));
+		});
 	});
 
-	test('findFiles', done => {
-		workspace.findFiles('*.js', null).then((res) => {
+	test('findFiles', () => {
+		return workspace.findFiles('*.js', null).then((res) => {
 			assert.equal(res.length, 1);
 			assert.equal(workspace.asRelativePath(res[0]), '/far.js');
-
-			done();
-		}, err => {
-			done(err);
 		});
 	});
 });

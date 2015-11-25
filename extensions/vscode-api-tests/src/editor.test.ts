@@ -14,12 +14,10 @@ import {join} from 'path';
 
 suite("editor tests", () => {
 
-	teardown((done) => {
-		cleanUp().then(() => done(), (error) => done(error));
-	});
+	teardown(cleanUp);
 
-	test('make edit', (done) => {
-		createRandomFile().then(file => {
+	test('make edit', () => {
+		return createRandomFile().then(file => {
 			return workspace.openTextDocument(file).then(doc => {
 				return window.showTextDocument(doc).then((editor) => {
 					return editor.edit((builder) => {
@@ -38,6 +36,6 @@ suite("editor tests", () => {
 					});
 				});
 			});
-		}).then(() => done(), (error) => done(error));
+		});
 	});
 });
