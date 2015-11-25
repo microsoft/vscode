@@ -190,6 +190,15 @@ function setupIPC(): TPromise<Server> {
 			// there's a running instance, let's connect to it
 			return connect(env.mainIPCHandle).then(
 				client => {
+
+					// Tests from CLI require to be the only instance currently (TODO@Ben support multiple instances and output)
+					if (env.isTestingFromCli) {
+						const errorMsg = 'Running tests from the command line is currently only supported if no other instance of Code is running.';
+						console.error(errorMsg);
+
+						return Promise.wrapError(errorMsg);
+					}
+
 					env.log('Sending env to running instance...');
 
 					const service = client.getService<LaunchService>('LaunchService', LaunchService);
