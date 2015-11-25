@@ -6,12 +6,21 @@
 'use strict';
 
 import * as assert from 'assert';
-import {window, workspace} from 'vscode';
+import {workspace, window} from 'vscode';
+import {join} from 'path';
+import {cleanUp} from './utils';
 
-suite("window namespace texts", () => {
+suite("window namespace tests", () => {
 
-	// test('open document fires event', (done) => {
+	teardown(cleanUp);
 
-	// });
-
+	test('active text editor', () => {
+		return workspace.openTextDocument(join(workspace.rootPath, './far.js')).then(doc => {
+			return window.showTextDocument(doc).then((editor) => {
+				const active = window.activeTextEditor;
+				assert.ok(active);
+				assert.equal(active.document.uri.fsPath, doc.uri.fsPath);
+			});
+		});
+	});
 });

@@ -63,10 +63,6 @@ export class TextFileService extends BrowserTextFileService {
 	public beforeShutdown(): boolean | TPromise<boolean> {
 		super.beforeShutdown();
 
-		if (!!this.contextService.getConfiguration().env.pluginDevelopmentPath) {
-			return false; // no veto when we are in plugin dev mode because we want to reload often
-		}
-
 		// Dirty files need treatment on shutdown
 		if (this.getDirty().length) {
 			let confirm = this.confirmSave();
@@ -156,6 +152,10 @@ export class TextFileService extends BrowserTextFileService {
 	}
 
 	public confirmSave(resource?: URI): ConfirmResult {
+		if (!!this.contextService.getConfiguration().env.pluginDevelopmentPath) {
+			return ConfirmResult.DONT_SAVE; // no veto when we are in plugin dev mode because we cannot assum we run interactive (e.g. tests)
+		}
+
 		let resourcesToConfirm = this.getDirty(resource);
 		if (resourcesToConfirm.length === 0) {
 			return ConfirmResult.DONT_SAVE;

@@ -91,6 +91,10 @@ export class NullMode implements Modes.IMode {
 		return NullMode.ID;
 	}
 
+	public toSimplifiedMode(): Modes.IMode {
+		return this;
+	}
+
 	public getWordDefinition():RegExp {
 		return NullMode.DEFAULT_WORD_REGEXP;
 	}

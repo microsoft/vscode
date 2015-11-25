@@ -40,15 +40,15 @@ export class LineStream implements IStream {
 	}
 
 	private actualStringToArray(str:string):boolean[] {
-		var maxCharCode = 0;
-		for (var i = 0; i < str.length; i++) {
-			maxCharCode = str.charCodeAt(i);
+		let maxCharCode = 0;
+		for (let i = 0; i < str.length; i++) {
+			maxCharCode = Math.max(maxCharCode, str.charCodeAt(i));
 		}
-		var r = [];
-		for (i = 0; i < maxCharCode; i++) {
+		let r:boolean[] = [];
+		for (let i = 0; i <= maxCharCode; i++) {
 			r[i] = false;
 		}
-		for (i = 0; i < str.length; i++) {
+		for (let i = 0; i < str.length; i++) {
 			r[str.charCodeAt(i)] = true;
 		}
 		return r;

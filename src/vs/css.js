@@ -2,14 +2,24 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------------------------
+ *---------------------------------------------------------------------------------------------
+ *---------------------------------------------------------------------------------------------
+ *---------------------------------------------------------------------------------------------
+ *---------------------------------------------------------------------------------------------
+ * Please make sure to make edits in the .ts file at https://github.com/Microsoft/vscode-loader/
+ *---------------------------------------------------------------------------------------------
+ *---------------------------------------------------------------------------------------------
+ *---------------------------------------------------------------------------------------------
+ *---------------------------------------------------------------------------------------------
+ *--------------------------------------------------------------------------------------------*/
 /// <reference path="declares.ts" />
 /// <reference path="loader.ts" />
 'use strict';
 var __extends = (this && this.__extends) || function (d, b) {
     for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p];
     function __() { this.constructor = d; }
-    __.prototype = b.prototype;
-    d.prototype = new __();
+    d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
 };
 var _cssPluginGlobal = this;
 var CSSLoaderPlugin;
@@ -405,8 +415,8 @@ var CSSLoaderPlugin;
     CSSLoaderPlugin.Utilities = Utilities;
     (function () {
         var cssLoader = null;
-        var isAtomShell = (typeof process !== 'undefined' && typeof process.versions !== 'undefined' && typeof process.versions['electron'] !== 'undefined');
-        if (typeof process !== 'undefined' && process.versions && !!process.versions.node && !isAtomShell) {
+        var isElectron = (typeof process !== 'undefined' && typeof process.versions !== 'undefined' && typeof process.versions['electron'] !== 'undefined');
+        if (typeof process !== 'undefined' && process.versions && !!process.versions.node && !isElectron) {
             cssLoader = new NodeCSSLoader();
         }
         else if (typeof navigator !== 'undefined' && navigator.userAgent.indexOf('MSIE 9') >= 0) {

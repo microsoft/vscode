@@ -11,6 +11,7 @@
 		"typescript/src/lib",
 		"typescript/out/lib",
 		"jshint",
-		"csharp-o"
+		"csharp-o",
+		"vscode-api-tests/node_modules"
 	]
 }

@@ -49,6 +49,7 @@ export class AbstractMode<W extends AbstractModeWorker> implements Modes.IMode {
 	// adapters end
 
 	private _eventEmitter = new EventEmitter();
+	private _simplifiedMode: Modes.IMode;
 
 	constructor(
 		descriptor:Modes.IModeDescriptor,
@@ -73,6 +74,7 @@ export class AbstractMode<W extends AbstractModeWorker> implements Modes.IMode {
 		this.tokenTypeClassificationSupport = this;
 
 		this._workerPiecePromise = null;
+		this._simplifiedMode = null;
 	}
 
 	public getId(): string {
@@ -84,6 +86,13 @@ export class AbstractMode<W extends AbstractModeWorker> implements Modes.IMode {
 			// Pick a worker to do validation
 			this._pickAWorkerToValidate();
 		}
+	}
+
+	public toSimplifiedMode(): Modes.IMode {
+		if (!this._simplifiedMode) {
+			this._simplifiedMode = new SimplifiedMode(this);
+		}
+		return this._simplifiedMode;
 	}
 
 	private _getOrCreateWorker(): TPromise<W> {
@@ -236,7 +245,84 @@ export class AbstractMode<W extends AbstractModeWorker> implements Modes.IMode {
 	}
 }
 
+class SimplifiedMode implements Modes.IMode {
 
+	tokenizationSupport: Modes.ITokenizationSupport;
+	electricCharacterSupport: Modes.IElectricCharacterSupport;
+	commentsSupport: Modes.ICommentsSupport;
+	characterPairSupport: Modes.ICharacterPairSupport;
+	tokenTypeClassificationSupport: Modes.ITokenTypeClassificationSupport;
+	onEnterSupport: Modes.IOnEnterSupport;
+
+	private _sourceMode: Modes.IMode;
+	private _eventEmitter: EventEmitter;
+	private _id: string;
+
+	constructor(sourceMode: Modes.IMode) {
+		this._sourceMode = sourceMode;
+		this._eventEmitter = new EventEmitter();
+		this._id = 'vs.editor.modes.simplifiedMode:' + sourceMode.getId();
+		this._assignSupports();
+
+		if (this._sourceMode.addSupportChangedListener) {
+			this._sourceMode.addSupportChangedListener((e) => {
+				if (e.tokenizationSupport || e.electricCharacterSupport || e.commentsSupport || e.characterPairSupport || e.tokenTypeClassificationSupport || e.onEnterSupport) {
+					this._assignSupports();
+					let newEvent = SimplifiedMode._createModeSupportChangedEvent(e);
+					this._eventEmitter.emit('modeSupportChanged', newEvent);
+				}
+			})
+		}
+	}
+
+	public getId(): string {
+		return this._id;
+	}
+
+	public toSimplifiedMode(): Modes.IMode {
+		return this;
+	}
+
+	private _assignSupports(): void {
+		this.tokenizationSupport = this._sourceMode.tokenizationSupport;
+		this.electricCharacterSupport = this._sourceMode.electricCharacterSupport;
+		this.commentsSupport = this._sourceMode.commentsSupport;
+		this.characterPairSupport = this._sourceMode.characterPairSupport;
+		this.tokenTypeClassificationSupport = this._sourceMode.tokenTypeClassificationSupport;
+		this.onEnterSupport = this._sourceMode.onEnterSupport;
+	}
+
+	private static _createModeSupportChangedEvent(originalModeEvent:EditorCommon.IModeSupportChangedEvent): EditorCommon.IModeSupportChangedEvent {
+		var event = {
+			codeLensSupport: false,
+			tokenizationSupport: originalModeEvent.tokenizationSupport,
+			occurrencesSupport:false,
+			declarationSupport:false,
+			typeDeclarationSupport:false,
+			navigateTypesSupport:false,
+			referenceSupport:false,
+			suggestSupport:false,
+			parameterHintsSupport:false,
+			extraInfoSupport:false,
+			outlineSupport:false,
+			logicalSelectionSupport:false,
+			formattingSupport:false,
+			inplaceReplaceSupport:false,
+			diffSupport:false,
+			dirtyDiffSupport:false,
+			emitOutputSupport:false,
+			linkSupport:false,
+			configSupport:false,
+			electricCharacterSupport: originalModeEvent.electricCharacterSupport,
+			commentsSupport: originalModeEvent.commentsSupport,
+			characterPairSupport: originalModeEvent.characterPairSupport,
+			tokenTypeClassificationSupport: originalModeEvent.tokenTypeClassificationSupport,
+			quickFixSupport:false,
+			onEnterSupport: originalModeEvent.onEnterSupport
+		};
+		return event;
+	}
+}
 
 export var isDigit:(character:string, base:number)=>boolean = (function () {
 

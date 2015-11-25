@@ -87,11 +87,28 @@ export interface IOnEnterAsserter {
 	indentsOutdents(oneLineAboveText:string, beforeText:string, afterText:string): void;
 }
 
+class SimpleMode implements modes.IMode {
+
+	private _id:string;
+
+	constructor(id:string) {
+		this._id = id;
+	}
+
+	public getId(): string {
+		return this._id;
+	}
+
+	public toSimplifiedMode(): modes.IMode {
+		return this;
+	}
+}
+
 export function createOnEnterAsserter(modeId:string, onEnterSupport: modes.IOnEnterSupport): IOnEnterAsserter {
 	var assertOne = (oneLineAboveText:string, beforeText:string, afterText:string, expected: modes.IndentAction) => {
 		var model = new Model(
 			[ oneLineAboveText, beforeText + afterText ].join('\n'),
-			{ getId: () => modeId }
+			new SimpleMode(modeId)
 		);
 		var actual = onEnterSupport.onEnter(model, { lineNumber: 2, column: beforeText.length + 1 });
 		if (expected === modes.IndentAction.None) {
@@ -130,9 +147,7 @@ export function executeMonarchTokenizationTests(name:string, language:monarchTyp
 
 	var modeService = servicesUtil.createMockModeService();
 
-	var tokenizationSupport = monarchLexer.createTokenizationSupport(modeService, {
-		getId: () => 'mock.mode'
-	}, lexer);
+	var tokenizationSupport = monarchLexer.createTokenizationSupport(modeService, new SimpleMode('mock.mode'), lexer);
 
 	executeTests(tokenizationSupport, tests);
 }

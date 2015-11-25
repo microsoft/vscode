@@ -92,11 +92,6 @@ export class ConfigurationService extends CommonConfigurationService {
 		});
 	}
 
-	// TODO@Ben migration: remove this code after some versions
-	protected migrateSettingsOnce(): TPromise<void> {
-		return TPromise.as<void>(null);
-	}
-
 	private registerListeners(): void {
 		this.toDispose = this.eventService.addListener(EventType.WORKBENCH_OPTIONS_CHANGED, (e) => this.onOptionsChanged(e));
 	}
@@ -115,7 +110,7 @@ export class ConfigurationService extends CommonConfigurationService {
 		}
 
 		// Migrate as needed (.settings => .vscode)
-		return this.migrateSettingsOnce().then(() => super.loadWorkspaceConfiguration(section));
+		return super.loadWorkspaceConfiguration(section);
 	}
 
 	protected loadGlobalConfiguration(): TPromise<{ contents: any; parseErrors?: string[]; }> {
@@ -134,76 +129,5 @@ export class ConfigurationService extends CommonConfigurationService {
 
 	public dispose(): void {
 		this.toDispose();
-	}
-}
-
-export class MigrationConfigurationService extends ConfigurationService {
-
-	protected messageService: IMessageService;
-	private settingsMigrationPromise: TPromise<void>;
-
-	constructor(contextService: IWorkspaceContextService, eventService: IEventService, messageService: IMessageService) {
-		super(contextService, eventService);
-		this.messageService = messageService;
-	}
-
-	// TODO@Ben migration: remove this code after some versions
-	protected migrateSettingsOnce(): TPromise<void> {
-		if (!this.settingsMigrationPromise) {
-			this.settingsMigrationPromise = new TPromise<void>((c, e) => {
-				let newSettingsFolder = this.contextService.toResource(this.workspaceSettingsRootFolder).fsPath;
-				let oldSettingsFolder = this.contextService.toResource('.settings').fsPath;
-
-				return fs.exists(newSettingsFolder, (exists) => {
-					if (exists) {
-						return c(null); // we never migrate more than once
-					}
-
-					return extfs.readdir(oldSettingsFolder, (error, children) => {
-						if (error) {
-							return c(null); // old .settings folder does not exist or is a file
-						}
-
-						let knownSettingsFiles = ['team.settings.json', 'settings.json', 'tasks.json', 'launch.json', 'team.tasks.json', 'team.launch.json'];
-						let filesToMove: string[] = [];
-						children.forEach(child => {
-							if (knownSettingsFiles.some(f => child === f)) {
-								filesToMove.push(child);
-							}
-						});
-
-						if (filesToMove.length === 0) {
-							return c(null); // .settings folder does not contain files we expect
-						}
-
-						return fs.mkdir(newSettingsFolder, (error) => {
-							if (error) {
-								return c(null); // abort if we cannot create the new settings folder
-							}
-
-							return flow.loop(filesToMove, (fileToMove, callback) => {
-								return fs.rename(paths.join(oldSettingsFolder, fileToMove), paths.join(newSettingsFolder, fileToMove), (error) => {
-									callback(null, null); // ignore any errors
-								});
-							}, () => {
-								this.messageService.show(severity.Info, nls.localize('settingsMigrated', "VSCode is now using a top level '.vscode' folder to store settings. We moved your existing settings files from the '.settings' folder."));
-
-								return extfs.readdir(oldSettingsFolder, (error, children) => {
-									if (error || children.length > 0) {
-										return c(null); // done
-									}
-
-									return fs.rmdir(oldSettingsFolder, () => {
-										return c(null);
-									});
-								});
-							})
-						});
-					});
-				});
-			});
-		}
-
-		return this.settingsMigrationPromise;
 	}
 }

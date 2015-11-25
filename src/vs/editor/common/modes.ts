@@ -197,6 +197,11 @@ export interface IMode {
 
 	getId(): string;
 
+	/**
+	 * Return a mode "similar" to this one that strips any "smart" supports.
+	 */
+	toSimplifiedMode(): IMode;
+
 	addSupportChangedListener?(callback: (e: EditorCommon.IModeSupportChangedEvent) => void): IDisposable;
 
 	/**

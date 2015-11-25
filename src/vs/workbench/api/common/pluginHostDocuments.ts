@@ -532,6 +532,7 @@ export class MainThreadDocuments {
 	private _toDispose: IDisposable[];
 	private _modelToDisposeMap: {[modelUrl:string]:IDisposable;};
 	private _proxy: PluginHostModelService;
+	private _modelIsSynced: {[modelId:string]:boolean;};
 
 	constructor(
 		@IThreadService threadService: IThreadService,
@@ -547,6 +548,7 @@ export class MainThreadDocuments {
 		this._fileService = fileService;
 		this._untitledEditorService = untitledEditorService;
 		this._proxy = threadService.getRemotable(PluginHostModelService);
+		this._modelIsSynced = {};
 
 		this._toDispose = [];
 		modelService.onModelAdded.add(this._onModelAdded, this, this._toDispose);
@@ -575,7 +577,13 @@ export class MainThreadDocuments {
 	}
 
 	private _onModelAdded(model: EditorCommon.IModel): void {
+		// Same filter as in mainThreadEditors
+		if (model.isTooLargeForHavingARichMode()) {
+			// don't synchronize too large models
+			return null;
+		}
 		let modelUrl = model.getAssociatedResource();
+		this._modelIsSynced[modelUrl.toString()] = true;
 		this._modelToDisposeMap[modelUrl.toString()] = model.addBulkListener2((events) => this._onModelEvents(modelUrl, events));
 		this._proxy._acceptModelAdd({
 			url: model.getAssociatedResource(),
@@ -587,11 +595,19 @@ export class MainThreadDocuments {
 	}
 
 	private _onModelModeChanged(model: EditorCommon.IModel, oldModeId:string): void {
+		let modelUrl = model.getAssociatedResource();
+		if (!this._modelIsSynced[modelUrl.toString()]) {
+			return;
+		}
 		this._proxy._acceptModelModeChanged(model.getAssociatedResource(), oldModeId, model.getMode().getId());
 	}
 
 	private _onModelRemoved(model: EditorCommon.IModel): void {
 		let modelUrl = model.getAssociatedResource();
+		if (!this._modelIsSynced[modelUrl.toString()]) {
+			return;
+		}
+		delete this._modelIsSynced[modelUrl.toString()];
 		this._modelToDisposeMap[modelUrl.toString()].dispose();
 		delete this._modelToDisposeMap[modelUrl.toString()];
 		this._proxy._acceptModelRemoved(modelUrl);

@@ -13,7 +13,7 @@ import {TextModel} from 'vs/editor/common/model/textModel';
 import {LineMarker, TextModelWithMarkers} from 'vs/editor/common/model/textModelWithMarkers';
 import {ILineMarker} from 'vs/editor/common/model/modelLine';
 import {PluginHostDocument} from 'vs/workbench/api/common/pluginHostDocuments';
-import {MirrorModel} from 'vs/editor/common/model/mirrorModel';
+import {MirrorModel, IMirrorModelEvents} from 'vs/editor/common/model/mirrorModel';
 
 suite('EditorModel - EditableTextModel._getInverseEdits', () => {
 
@@ -1194,8 +1194,11 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 				console.warn('Model version id did not advance between edits (1)');
 			}
 			mirrorModel1PrevVersionId = versionId;
-			(<any>e).type = EditorCommon.EventType.ModelContentChanged;
-			mirrorModel1.onEvents(<any[]>[e]);
+			let mirrorModelEvents:IMirrorModelEvents = {
+				propertiesChanged: null,
+				contentChanged: [e]
+			};
+			mirrorModel1.onEvents(mirrorModelEvents);
 		});
 
 		model.addListener(EditorCommon.EventType.ModelContentChanged2, (e:EditorCommon.IModelContentChangedEvent2) => {
