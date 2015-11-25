@@ -1452,6 +1452,18 @@ export interface ITokenizedModel extends ITextModel {
 	 * @param position The position at which to look for a bracket.
 	 */
 	matchBracket(position:IPosition, inaccurateResultAcceptable?:boolean): IMatchBracketResult;
+
+	/**
+	 * No mode supports allowed on this model because it is simply too large.
+	 * (even tokenization would cause too much memory pressure)
+	 */
+	isTooLargeForHavingAMode(): boolean;
+
+	/**
+	 * Only basic mode supports allowed on this model because it is simply too large.
+	 * (tokenization is allowed and other basic supports)
+	 */
+	isTooLargeForHavingARichMode(): boolean;
 }
 
 /**

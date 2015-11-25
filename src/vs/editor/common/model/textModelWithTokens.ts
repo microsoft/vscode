@@ -185,7 +185,7 @@ export class TextModelWithTokens extends TextModel implements EditorCommon.IToke
 
 	private static MODE_TOKENIZATION_FAILED_MSG = nls.localize('mode.tokenizationSupportFailed', "The mode has failed while tokenizing the input.");
 	private static MODEL_SYNC_LIMIT = 5 * 1024 * 1024; // 5 MB
-	private static MODEL_TOKENIZATION_LIMIT = 50 * 1024 * 1024; // 50 MB
+	private static MODEL_TOKENIZATION_LIMIT = 20 * 1024 * 1024; // 20 MB
 
 	private _shouldAutoTokenize:boolean;
 	private _mode: Modes.IMode;
@@ -262,12 +262,20 @@ export class TextModelWithTokens extends TextModel implements EditorCommon.IToke
 		super.dispose();
 	}
 
+	public isTooLargeForHavingAMode(): boolean {
+		return this._shouldDenyMode;
+	}
+
+	public isTooLargeForHavingARichMode(): boolean {
+		return this._shouldSimplifyMode;
+	}
+
 	private _massageMode(mode: Modes.IMode): Modes.IMode {
-		if (this._shouldDenyMode) {
+		if (this.isTooLargeForHavingAMode()) {
 			return new NullMode();
 		}
-		if (this._shouldSimplifyMode) {
-			return new SimplifiedMode(mode);
+		if (this.isTooLargeForHavingARichMode()) {
+			return mode.toSimplifiedMode();
 		}
 		return mode;
 	}
@@ -854,29 +862,5 @@ export class TextModelWithTokens extends TextModel implements EditorCommon.IToke
 		}
 
 		return BracketsHelper.matchBracket(this, this.validatePosition(position), inaccurateResultAcceptable);
-	}
-}
-
-class SimplifiedMode implements Modes.IMode {
-
-	tokenizationSupport: Modes.ITokenizationSupport;
-	electricCharacterSupport: Modes.IElectricCharacterSupport;
-	commentsSupport: Modes.ICommentsSupport;
-	characterPairSupport: Modes.ICharacterPairSupport;
-	tokenTypeClassificationSupport: Modes.ITokenTypeClassificationSupport;
-
-	private _id: string;
-
-	constructor(sourceMode: Modes.IMode) {
-		this._id = 'vs.editor.modes.simplifiedMode:' + sourceMode.getId();
-		this.tokenizationSupport = sourceMode.tokenizationSupport;
-		this.electricCharacterSupport = sourceMode.electricCharacterSupport;
-		this.commentsSupport = sourceMode.commentsSupport;
-		this.characterPairSupport = sourceMode.characterPairSupport;
-		this.tokenTypeClassificationSupport = sourceMode.tokenTypeClassificationSupport;
-	}
-
-	public getId(): string {
-		return this._id;
 	}
 }

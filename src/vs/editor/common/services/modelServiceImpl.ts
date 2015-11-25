@@ -7,7 +7,7 @@
 import {IEmitterEvent} from 'vs/base/common/eventEmitter';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {IMarker, IMarkerService} from 'vs/platform/markers/common/markers';
-import {MirrorModel} from 'vs/editor/common/model/mirrorModel';
+import {IMirrorModelEvents, MirrorModel} from 'vs/editor/common/model/mirrorModel';
 import {Range} from 'vs/editor/common/core/range';
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
@@ -21,7 +21,7 @@ import URI from 'vs/base/common/uri';
 import {URL} from 'vs/base/common/network';
 import Severity from 'vs/base/common/severity';
 import {EventProvider} from 'vs/base/common/eventProvider';
-import {IDisposable} from 'vs/base/common/lifecycle';
+import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
 import Errors = require('vs/base/common/errors');
 import {anonymize} from 'vs/platform/telemetry/common/telemetry';
@@ -35,53 +35,69 @@ export interface IRawModelData {
 	modeId:string;
 }
 
-class BoundModel implements IDisposable {
+function MODEL_ID(resource:URI): string {
+	return resource.toString();
+}
 
-	model:EditorCommon.IModel;
-	toUnbind:Function;
-	private _decorationIds: string[];
+class ModelData implements IDisposable {
+	model: EditorCommon.IModel;
+	isSyncedToWorkers: boolean;
 
-	constructor(model:EditorCommon.IModel) {
+	private _markerDecorations: string[];
+	private _modelEventsListener: IDisposable;
+
+	constructor(model: EditorCommon.IModel, eventsHandler:(modelData:ModelData, events:IEmitterEvent[])=>void) {
 		this.model = model;
-		this.toUnbind = null;
+		this.isSyncedToWorkers = false;
+
+		this._markerDecorations = [];
+		this._modelEventsListener = model.addBulkListener2((events) => eventsHandler(this, events));
 	}
 
 	public dispose(): void {
-
-		this._decorationIds = this.model.deltaDecorations(this._decorationIds, []);
+		this._markerDecorations = this.model.deltaDecorations(this._markerDecorations, []);
+		this._modelEventsListener.dispose();
+		this._modelEventsListener = null;
 		this.model = null;
-
-		if (this.toUnbind) {
-			this.toUnbind();
-			this.toUnbind = null;
-		}
 	}
 
-	public deltaMarkers(markers:IMarker[]):void {
+	public getModelId(): string {
+		return MODEL_ID(this.model.getAssociatedResource());
+	}
+
+	public acceptMarkerDecorations(newDecorations:EditorCommon.IModelDeltaDecoration[]): void {
+		this._markerDecorations = this.model.deltaDecorations(this._markerDecorations, newDecorations);
+	}
+}
+
+class ModelMarkerHandler {
+
+	public static setMarkers(modelData:ModelData, markers:IMarker[]):void {
 
 		// Limit to the first 500 errors/warnings
 		markers = markers.slice(0, 500);
 
-		var newModelDecorations = markers.map(marker => {
-			return <EditorCommon.IModelDeltaDecoration> {
-				range: this._createDecorationRange(marker),
+		let newModelDecorations:EditorCommon.IModelDeltaDecoration[] = markers.map((marker) => {
+			return {
+				range: this._createDecorationRange(modelData.model, marker),
 				options: this._createDecorationOption(marker)
 			};
 		});
-		this._decorationIds = this.model.deltaDecorations(this._decorationIds, newModelDecorations);
+
+		modelData.acceptMarkerDecorations(newModelDecorations);
 	}
 
-	private _createDecorationRange(rawMarker: IMarker): EditorCommon.IRange {
-		var marker = this.model.validateRange(new Range(rawMarker.startLineNumber, rawMarker.startColumn, rawMarker.endLineNumber, rawMarker.endColumn));
-		var ret: EditorCommon.IEditorRange = new Range(marker.startLineNumber, marker.startColumn, marker.endLineNumber, marker.endColumn);
+	private static _createDecorationRange(model:EditorCommon.IModel, rawMarker: IMarker): EditorCommon.IRange {
+		let marker = model.validateRange(new Range(rawMarker.startLineNumber, rawMarker.startColumn, rawMarker.endLineNumber, rawMarker.endColumn));
+		let ret: EditorCommon.IEditorRange = new Range(marker.startLineNumber, marker.startColumn, marker.endLineNumber, marker.endColumn);
 		if (ret.isEmpty()) {
-			var word = this.model.getWordAtPosition(ret.getStartPosition());
+			let word = model.getWordAtPosition(ret.getStartPosition());
 			if (word) {
 				ret.startColumn = word.startColumn;
 				ret.endColumn = word.endColumn;
 			} else {
-				var maxColumn = this.model.getLineLastNonWhitespaceColumn(marker.startLineNumber) ||
-					this.model.getLineMaxColumn(marker.startLineNumber);
+				let maxColumn = model.getLineLastNonWhitespaceColumn(marker.startLineNumber) ||
+					model.getLineMaxColumn(marker.startLineNumber);
 
 				if (maxColumn === 1) {
 					// empty line
@@ -96,7 +112,7 @@ class BoundModel implements IDisposable {
 				}
 			}
 		} else if (rawMarker.endColumn === Number.MAX_VALUE && rawMarker.startColumn === 1 && ret.startLineNumber === ret.endLineNumber) {
-			var minColumn = this.model.getLineFirstNonWhitespaceColumn(rawMarker.startLineNumber);
+			let minColumn = model.getLineFirstNonWhitespaceColumn(rawMarker.startLineNumber);
 			if (minColumn < ret.endColumn) {
 				ret.startColumn = minColumn;
 				rawMarker.startColumn = minColumn;
@@ -105,7 +121,7 @@ class BoundModel implements IDisposable {
 		return ret;
 	}
 
-	private _createDecorationOption(marker:IMarker): EditorCommon.IModelDecorationOptions {
+	private static _createDecorationOption(marker:IMarker): EditorCommon.IModelDecorationOptions {
 
 		let className: string;
 		let color: string;
@@ -151,14 +167,9 @@ class BoundModel implements IDisposable {
 	}
 }
 
-export interface IModelsEvents {
-	[url:string]: any[];
-}
-
 export class ModelServiceImpl implements IModelService {
 	public serviceId = IModelService;
 
-	private _models: {[modelId:string]:BoundModel;};
 	private _markerService: IMarkerService;
 	private _markerServiceSubscription: IDisposable;
 	private _threadService: IThreadService;
@@ -167,9 +178,11 @@ export class ModelServiceImpl implements IModelService {
 	private _onModelAdded: EventSource<(model: EditorCommon.IModel) => void>;
 	private _onModelRemoved: EventSource<(model: EditorCommon.IModel) => void>;
 	private _onModelModeChanged: EventSource<(model: EditorCommon.IModel, oldModeId:string) => void>;
-	private _accumulatedModelEvents: IModelsEvents;
-	private _lastSentModelEventsTime: number;
-	private _sendModelEventsTimerId: number;
+
+	/**
+	 * All the models known in the system.
+	 */
+	private _models: {[modelId:string]:ModelData;};
 
 	constructor(threadService: IThreadService, markerService: IMarkerService) {
 		this._threadService = threadService;
@@ -185,137 +198,75 @@ export class ModelServiceImpl implements IModelService {
 		if(this._markerService) {
 			this._markerServiceSubscription = this._markerService.onMarkerChanged(this._handleMarkerChange, this);
 		}
-
-		this._accumulatedModelEvents = {};
-		this._lastSentModelEventsTime = -1;
-		this._sendModelEventsTimerId = -1;
 	}
 
 	public dispose(): void {
 		if(this._markerServiceSubscription) {
 			this._markerServiceSubscription.dispose();
 		}
-		if (this._sendModelEventsTimerId !== -1) {
-			clearTimeout(this._sendModelEventsTimerId);
-			this._sendModelEventsTimerId = -1;
-		}
-	}
-
-	private _sendModelEvents(url:URL, events:any[]): void {
-		let modelId = url.toString();
-		this._accumulatedModelEvents[modelId] = this._accumulatedModelEvents[modelId] || [];
-		this._accumulatedModelEvents[modelId] = this._accumulatedModelEvents[modelId].concat(events);
-
-		this._sendModelEventsNow();
-		// this._scheduleSendModelEvents();
-	}
-
-	// private _scheduleSendModelEvents(): void {
-	// 	if (this._sendModelEventsTimerId !== -1) {
-	// 		// sending model events already scheduled
-	// 		return;
-	// 	}
-
-	// 	let elapsed = Date.now() - this._lastSentModelEventsTime;
-	// 	if (elapsed >= 100) {
-	// 		// more than 100ms have passed since last model events have been sent => send events now
-	// 		this._sendModelEventsNow();
-	// 	} else {
-	// 		this._sendModelEventsTimerId = setTimeout(() => {
-	// 			this._sendModelEventsTimerId = -1;
-	// 			this._sendModelEventsNow();
-	// 		}, 100 - elapsed);
-	// 	}
-	// }
-
-	private _sendModelEventsNow(): void {
-		this._lastSentModelEventsTime = Date.now();
-
-		let sendingEvents = this._accumulatedModelEvents;
-		this._accumulatedModelEvents = {};
-		this._workerHelper.$onModelsEvents(sendingEvents);
 	}
 
 	private _handleMarkerChange(changedResources: URI[]): void {
-
-		changedResources.forEach(resource => {
-			var boundModel = this._models[resource.toString()];
-			if (!boundModel) {
+		changedResources.forEach((resource) => {
+			let modelId = MODEL_ID(resource);
+			let modelData = this._models[modelId];
+			if (!modelData) {
 				return;
 			}
-			boundModel.deltaMarkers(this._markerService.read({ resource: resource, take: 500 }));
+			ModelMarkerHandler.setMarkers(modelData, this._markerService.read({ resource: resource, take: 500 }));
 		});
 	}
 
 	// --- begin IModelService
 
-	public createModel(value:string, modeOrPromise:TPromise<Modes.IMode>|Modes.IMode, resource: URL): EditorCommon.IModel {
-		var model = new Model(value, modeOrPromise, resource);
-		this.addModel(model);
-		return model;
-	}
-
-	public addModel(model:EditorCommon.IModel): void {
-		var modelId = model.getAssociatedResource().toString();
+	private _createModelData(value:string, modeOrPromise:TPromise<Modes.IMode>|Modes.IMode, resource: URL): ModelData {
+		// create & save the model
+		let model = new Model(value, modeOrPromise, resource);
+		let modelId = MODEL_ID(model.getAssociatedResource());
 
 		if (this._models[modelId]) {
 			// There already exists a model with this id => this is a programmer error
-			throw new Error('BoundModels: Cannot add model ' + anonymize(modelId) + ' because it already exists!');
+			throw new Error('ModelService: Cannot add model ' + anonymize(modelId) + ' because it already exists!');
 		}
 
-		var boundModel = new BoundModel(model);
+		let modelData = new ModelData(model, (modelData, events) => this._onModelEvents(modelData, events));
+		this._models[modelId] = modelData;
 
-		boundModel.toUnbind = model.addBulkListener((events) => this._onModelEvents(modelId, events));
-		if(this._markerService) {
-			boundModel.deltaMarkers(this._markerService.read({ resource: model.getAssociatedResource() }));
-		}
-		this._models[modelId] = boundModel;
-
-		// Create model in workers
-		this._workerHelper.$createModel(ModelServiceImpl._getBoundModelData(model));
-		this._onModelAdded.fire(model);
+		return modelData;
 	}
 
-	public removeModel(model:EditorCommon.IModel): void {
-		var modelId = model.getAssociatedResource().toString();
+	public createModel(value:string, modeOrPromise:TPromise<Modes.IMode>|Modes.IMode, resource: URL): EditorCommon.IModel {
+		let modelData = this._createModelData(value, modeOrPromise, resource);
+		let modelId = modelData.getModelId();
 
-		if (this._accumulatedModelEvents[modelId]) {
-			delete this._accumulatedModelEvents[modelId];
-		}
-
-		if (!this._models[modelId]) {
-			// There is no model with this id => this is a programmer error
-			throw new Error('BoundModels: Cannot remove model ' + anonymize(modelId) + ' because it doesn\'t exist!');
-		}
-
-		// Dispose model in workers
-		this._workerHelper.$disposeModel(model.getAssociatedResource());
-		// this._modelDispose(model.getAssociatedResource());
-		this._models[modelId].dispose();
-
-		delete this._models[modelId];
-
+		// handle markers (marker service => model)
 		if (this._markerService) {
-			var markers = this._markerService.read({ resource: model.getAssociatedResource() }),
-				owners: { [o: string]: any } = Object.create(null);
-
-			markers.forEach(marker => owners[marker.owner] = this);
-			Object.keys(owners).forEach(owner => this._markerService.changeOne(owner, model.getAssociatedResource(), []));
+			ModelMarkerHandler.setMarkers(modelData, this._markerService.read({ resource: modelData.model.getAssociatedResource() }));
 		}
 
-		this._onModelRemoved.fire(model);
+		if (!modelData.model.isTooLargeForHavingARichMode()) {
+			// send this model to the workers
+			modelData.isSyncedToWorkers = true;
+			this._workerHelper.$_acceptNewModel(ModelServiceImpl._getBoundModelData(modelData.model));
+		}
+
+		this._onModelAdded.fire(modelData.model);
+
+		return modelData.model;
 	}
 
 	public destroyModel(resource: URL): void {
-		let model = this.getModel(resource);
-		if (model) {
-			model.destroy();
+		// We need to support that not all models get disposed through this service (i.e. model.dispose() should work!)
+		let modelData = this._models[MODEL_ID(resource)];
+		if (!modelData) {
+			return;
 		}
+		modelData.model.dispose();
 	}
 
 	public getModels(): EditorCommon.IModel[] {
-		var ret: EditorCommon.IModel[] = [];
-		for (var modelId in this._models) {
+		let ret: EditorCommon.IModel[] = [];
+		for (let modelId in this._models) {
 			if (this._models.hasOwnProperty(modelId)) {
 				ret.push(this._models[modelId].model);
 			}
@@ -324,11 +275,12 @@ export class ModelServiceImpl implements IModelService {
 	}
 
 	public getModel(resource: URL): EditorCommon.IModel {
-		var boundModel = this._models[resource.toString()];
-		if (boundModel) {
-			return boundModel.model;
+		let modelId = MODEL_ID(resource);
+		let modelData = this._models[modelId];
+		if (!modelData) {
+			return null;
 		}
-		return null;
+		return modelData.model;
 	}
 
 	public get onModelAdded(): EventProvider<(model:EditorCommon.IModel)=>void> {
@@ -345,6 +297,30 @@ export class ModelServiceImpl implements IModelService {
 
 	// --- end IModelService
 
+	private _onModelDisposing(model:EditorCommon.IModel): void {
+		let modelId = MODEL_ID(model.getAssociatedResource());
+		let modelData = this._models[modelId];
+
+		// TODO@Joh why are we removing markers here?
+		if (this._markerService) {
+			var markers = this._markerService.read({ resource: model.getAssociatedResource() }),
+				owners: { [o: string]: any } = Object.create(null);
+
+			markers.forEach(marker => owners[marker.owner] = this);
+			Object.keys(owners).forEach(owner => this._markerService.changeOne(owner, model.getAssociatedResource(), []));
+		}
+
+		if (modelData.isSyncedToWorkers) {
+			// Dispose model in workers
+			this._workerHelper.$_acceptDidDisposeModel(model.getAssociatedResource());
+		}
+
+		delete this._models[modelId];
+		modelData.dispose();
+
+		this._onModelRemoved.fire(model);
+	}
+
 	private static _getBoundModelData(model:EditorCommon.IModel): IRawModelData {
 		return {
 			url: model.getAssociatedResource(),
@@ -355,66 +331,46 @@ export class ModelServiceImpl implements IModelService {
 		};
 	}
 
-	private _onModelEvents(modelId:string, events:IEmitterEvent[]): void {
+	private _onModelEvents(modelData:ModelData, events:IEmitterEvent[]): void {
+		let eventsForWorkers: IMirrorModelEvents = { contentChanged: [], propertiesChanged: null };
 
-		var resultingEvents:any[] = [],
-			changed = false,
-			i:number,
-			len:number;
+		for (let i = 0, len = events.length; i < len; i++) {
+			let e = events[i];
+			let data = e.getData();
 
-		for (i = 0, len = events.length; i < len; i++) {
-			var e = events[i];
-			var data = e.getData();
 			switch (e.getType()) {
-
 				case EditorCommon.EventType.ModelDispose:
-					this.removeModel(this._models[modelId].model);
+					this._onModelDisposing(modelData.model);
+					// no more event processing
 					return;
 
 				case EditorCommon.EventType.ModelContentChanged:
-					switch (data.changeType) {
-						case EditorCommon.EventType.ModelContentChangedFlush:
-							resultingEvents.push(this._mixinProperties({ type: e.getType() }, data, ['changeType', 'detail', 'versionId']));
-							break;
-
-						case EditorCommon.EventType.ModelContentChangedLinesDeleted:
-							resultingEvents.push(this._mixinProperties({ type: e.getType() }, data, ['changeType', 'fromLineNumber', 'toLineNumber', 'versionId']));
-							break;
-
-						case EditorCommon.EventType.ModelContentChangedLinesInserted:
-							resultingEvents.push(this._mixinProperties({ type: e.getType() }, data, ['changeType', 'fromLineNumber', 'toLineNumber', 'detail', 'versionId']));
-							break;
-
-						case EditorCommon.EventType.ModelContentChangedLineChanged:
-							resultingEvents.push(this._mixinProperties({ type: e.getType() }, data, ['changeType', 'lineNumber', 'detail', 'versionId']));
-							break;
+					if (modelData.isSyncedToWorkers) {
+						eventsForWorkers.contentChanged.push(<EditorCommon.IModelContentChangedEvent>data);
 					}
-					changed = true;
 					break;
 
 				case EditorCommon.EventType.ModelPropertiesChanged:
-					resultingEvents.push(this._mixinProperties({ type: e.getType() }, data, ['properties']));
+					if (modelData.isSyncedToWorkers) {
+						eventsForWorkers.propertiesChanged = <EditorCommon.IModelPropertiesChangedEvent>data;
+					}
 					break;
 
 				case EditorCommon.EventType.ModelModeChanged:
 					let modeChangedEvent = <EditorCommon.IModelModeChangedEvent>data;
-					this._workerHelper.$onModelModeChanged(modelId, modeChangedEvent.oldMode.getId(), modeChangedEvent.newMode.getId());
-					this._onModelModeChanged.fire(this._models[modelId].model, modeChangedEvent.oldMode.getId());
+					if (modelData.isSyncedToWorkers) {
+						// Forward mode change to all the workers
+						this._workerHelper.$_acceptDidChangeModelMode(modelData.getModelId(), modeChangedEvent.oldMode.getId(), modeChangedEvent.newMode.getId());
+					}
+					this._onModelModeChanged.fire(modelData.model, modeChangedEvent.oldMode.getId());
 					break;
 			}
 		}
 
-		if (resultingEvents.length > 0) {
+		if (eventsForWorkers.contentChanged.length > 0 || eventsForWorkers.propertiesChanged) {
 			// Forward events to all the workers
-			this._sendModelEvents(this._models[modelId].model.getAssociatedResource(), resultingEvents);
+			this._workerHelper.$_acceptModelEvents(modelData.getModelId(), eventsForWorkers);
 		}
-	}
-
-	private _mixinProperties(dst:any, src:any, properties:string[]): any {
-		for (var i = 0; i < properties.length; i++) {
-			dst[properties[i]] = src[properties[i]];
-		}
-		return dst;
 	}
 }
 
@@ -432,9 +388,9 @@ export class ModelServiceWorkerHelper {
 		this._modeService = modeService;
 	}
 
-	public $createModel(data:IRawModelData): TPromise<void> {
+	public $_acceptNewModel(data:IRawModelData): TPromise<void> {
 		// Create & insert the mirror model eagerly in the resource service
-		var mirrorModel = new MirrorModel(this._resourceService, data.versionId, data.value, null, data.url, data.properties);
+		let mirrorModel = new MirrorModel(this._resourceService, data.versionId, data.value, null, data.url, data.properties);
 		this._resourceService.insert(mirrorModel.getAssociatedResource(), mirrorModel);
 
 		// Block worker execution until the mode is instantiated
@@ -452,8 +408,8 @@ export class ModelServiceWorkerHelper {
 		});
 	}
 
-	public $onModelModeChanged(modelId:string, oldModeId:string, newModeId:string): TPromise<void> {
-		var mirrorModel = this._resourceService.get(URI.parse(modelId));
+	public $_acceptDidChangeModelMode(modelId:string, oldModeId:string, newModeId:string): TPromise<void> {
+		let mirrorModel = this._resourceService.get(URI.parse(modelId));
 
 		// Block worker execution until the mode is instantiated
 		return this._modeService.getOrCreateMode(newModeId).then((mode) => {
@@ -470,31 +426,23 @@ export class ModelServiceWorkerHelper {
 		});
 	}
 
-	public $disposeModel(url:URL): void {
-		var model = <MirrorModel>this._resourceService.get(url);
+	public $_acceptDidDisposeModel(url:URL): void {
+		let model = <MirrorModel>this._resourceService.get(url);
 		this._resourceService.remove(url);
 		if (model) {
 			model.dispose();
 		}
 	}
 
-	public $onModelsEvents(events:IModelsEvents): void {
-		let missingModels: string[] = [];
-		Object.keys(events).forEach((strURL:string) => {
-			var model = <MirrorModel>this._resourceService.get(new URL(strURL));
-			if (!model) {
-				missingModels.push(strURL);
-				return;
-			}
-			try {
-				model.onEvents(events[strURL]);
-			} catch (err) {
-				Errors.onUnexpectedError(err);
-			}
-		});
-
-		if (missingModels.length > 0) {
-			throw new Error('Received model events for missing models ' + missingModels.map(anonymize).join(' AND '));
+	public $_acceptModelEvents(modelId: string, events:IMirrorModelEvents): void {
+		let model = <MirrorModel>this._resourceService.get(new URL(modelId));
+		if (!model) {
+			throw new Error('Received model events for missing model ' + anonymize(modelId));
+		}
+		try {
+			model.onEvents(events);
+		} catch (err) {
+			Errors.onUnexpectedError(err);
 		}
 	}
 }

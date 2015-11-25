@@ -21,8 +21,6 @@ export interface IModelService {
 
 	destroyModel(resource: URL): void;
 
-	removeModel(model: EditorCommon.IModel): void;
-
 	getModels(): EditorCommon.IModel[];
 
 	getModel(resource: URI): EditorCommon.IModel;
