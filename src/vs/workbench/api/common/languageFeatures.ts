@@ -22,7 +22,6 @@ import {CancellationTokenSource} from 'vs/base/common/cancellation';
 import {PluginHostModelService} from 'vs/workbench/api/common/pluginHostDocuments';
 import {IMarkerService, IMarker} from 'vs/platform/markers/common/markers';
 import {PluginHostCommands, MainThreadCommands} from 'vs/workbench/api/common/pluginHostCommands';
-import ExtraInfoRegistry from 'vs/editor/contrib/hover/common/hover';
 import DocumentHighlighterRegistry from 'vs/editor/contrib/wordHighlighter/common/wordHighlighter';
 import ReferenceSearchRegistry from 'vs/editor/contrib/referenceSearch/common/referenceSearch';
 import QuickFixRegistry from 'vs/editor/contrib/quickFix/common/quickFix';
@@ -131,79 +130,6 @@ export abstract class AbstractExtensionHostFeature<T, P extends AbstractMainThre
 			language: document.languageId,
 			uri: <any>document.uri
 		});
-	}
-}
-
-// ---- hover
-
-
-export class ExtensionHostHoverFeature extends AbstractExtensionHostFeature<vscode.HoverProvider, MainThreadHoverFeature> {
-
-	constructor( @IThreadService threadService: IThreadService) {
-		super(threadService.getRemotable(MainThreadHoverFeature), threadService);
-	}
-
-	_runAsCommand(resource: URI, position: IPosition): TPromise<modes.IComputeExtraInfoResult> {
-
-		let document = this._models.getDocument(resource);
-		let pos = TypeConverters.toPosition(position);
-
-		// incrementally building up the result
-		let contents: vscode.MarkedString[] = [];
-		let word = document.getWordRangeAtPosition(pos);
-		let start = word && word.start || pos;
-		let end = word && word.end || pos;
-
-		let promises = this._registry.all({ language: document.languageId, uri: document.uri }).map(provider => {
-
-			return asWinJsPromise(token => provider.provideHover(document, pos, token)).then(result => {
-
-				if (!result) {
-					return;
-				}
-
-				if (result.range) {
-					if (result.range.start.isBefore(start)) {
-						start = <any> result.range.start;
-					}
-					if (end.isBefore(<any>result.range.end)) {
-						end = <any> result.range.end;
-					}
-				}
-
-				for (let markedString of result.contents) {
-					if (markedString) {
-						contents.push(markedString);
-					}
-				}
-				contents.push('\n');
-
-			}, err => {
-				console.error(err);
-			});
-		});
-
-		return TPromise.join(promises).then(() => {
-
-			contents.pop(); // remove the last '\n' element we added
-
-			return {
-				range: TypeConverters.fromRange(new Range(start, end)),
-				htmlContent: contents.map(TypeConverters.fromFormattedString)
-			};
-		});
-	}
-}
-
-@Remotable.MainContext('MainThreadHoverFeature')
-export class MainThreadHoverFeature extends AbstractMainThreadFeature<modes.IExtraInfoSupport> implements modes.IExtraInfoSupport {
-
-	constructor(@IThreadService threadService: IThreadService) {
-		super('vscode.executeHoverProvider', ExtraInfoRegistry, threadService);
-	}
-
-	computeInfo(resource: URI, position: IPosition): TPromise<modes.IComputeExtraInfoResult> {
-		return this._executeCommand(resource, position);
 	}
 }
 
@@ -1015,7 +941,6 @@ export class MainThreadWorkspaceSymbols implements INavigateTypesSupport {
 export namespace LanguageFeatures {
 
 	export function createMainThreadInstances(threadService: IThreadService): void {
-		threadService.getRemotable(MainThreadHoverFeature);
 		threadService.getRemotable(MainThreadOccurrencesFeature);
 		threadService.getRemotable(MainThreadReferenceSearch);
 		threadService.getRemotable(MainThreadCodeActions);
@@ -1030,7 +955,6 @@ export namespace LanguageFeatures {
 
 	export function createExtensionHostInstances(threadService: IThreadService) {
 		return {
-			hover: new ExtensionHostHoverFeature(threadService),
 			documentHighlight: new ExtensionHostOccurrencesFeature(threadService),
 			referenceSearch: new ExtensionHostReferenceSearch(threadService),
 			codeActions: new ExtensionHostCodeActions(threadService),

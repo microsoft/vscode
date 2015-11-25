@@ -23,6 +23,7 @@ import {LanguageSelector, ModelLike} from 'vs/editor/common/modes/languageSelect
 import {OutlineRegistry, getOutlineEntries} from 'vs/editor/contrib/quickOpen/common/quickOpen';
 import {CodeLensRegistry, getCodeLensData} from 'vs/editor/contrib/codelens/common/codelens';
 import {DeclarationRegistry, getDeclarationsAtPosition} from 'vs/editor/contrib/goToDeclaration/common/goToDeclaration';
+import {ExtraInfoRegistry, getExtraInfoAtPosition} from 'vs/editor/contrib/hover/common/hover';
 
 let model: ModelLike;
 let extHost: ExtHostLanguageFeatures;
@@ -295,7 +296,7 @@ suite('ExtHostLanguageFeatures', function() {
 					done(err);
 				});
 			});
-		}, 10);
+		}, 5);
 	});
 
 	test('Definition, evil provider', function(done) {
@@ -320,5 +321,100 @@ suite('ExtHostLanguageFeatures', function() {
 				done(err);
 			});
 		});
+	});
+
+	// --- extra info
+
+	test('ExtraInfo, word range at pos', function(done) {
+
+		disposables.push(extHost.registerHoverProvider('far', <vscode.HoverProvider>{
+			provideHover(): any {
+				return new types.Hover('Hello')
+			}
+		}));
+
+		threadService.sync().then(() => {
+
+			getExtraInfoAtPosition(model.uri, 'far', { lineNumber: 1, column: 1 }).then(value => {
+
+				assert.equal(value.length, 1);
+				let [entry] = value;
+				assert.deepEqual(entry.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 5 });
+				done();
+			});
+		});
+	});
+
+	test('ExtraInfo, given range', function(done) {
+
+		disposables.push(extHost.registerHoverProvider('far', <vscode.HoverProvider>{
+			provideHover(): any {
+				return new types.Hover('Hello', new types.Range(3, 0, 8, 7));
+			}
+		}));
+
+		threadService.sync().then(() => {
+
+			getExtraInfoAtPosition(model.uri, 'far', { lineNumber: 1, column: 1 }).then(value => {
+				assert.equal(value.length, 1);
+				let [entry] = value;
+				assert.deepEqual(entry.range, { startLineNumber: 4, startColumn: 1, endLineNumber: 9, endColumn: 8 });
+				done();
+			});
+		});
+	});
+
+	test('ExtraInfo, registration order', function(done) {
+
+		disposables.push(extHost.registerHoverProvider('far', <vscode.HoverProvider>{
+			provideHover(): any {
+				return new types.Hover('registered first');
+			}
+		}));
+
+		setTimeout(function() {
+			disposables.push(extHost.registerHoverProvider('far', <vscode.HoverProvider>{
+				provideHover(): any {
+					return new types.Hover('registered second');
+				}
+			}));
+
+			threadService.sync().then(() => {
+
+				getExtraInfoAtPosition(model.uri, 'far', { lineNumber: 1, column: 1 }).then(value => {
+					assert.equal(value.length, 2);
+					let [first, second] = value;
+					assert.equal(first.htmlContent[0].formattedText, 'registered second');
+					assert.equal(second.htmlContent[0].formattedText, 'registered first');
+					done();
+				});
+			});
+
+		}, 5);
+
+	});
+
+	test('ExtraInfo, evil provider', function(done) {
+
+		disposables.push(extHost.registerHoverProvider('far', <vscode.HoverProvider>{
+			provideHover(): any {
+				throw new Error('evil')
+			}
+		}));
+		disposables.push(extHost.registerHoverProvider('far', <vscode.HoverProvider>{
+			provideHover(): any {
+				return new types.Hover('Hello')
+			}
+		}));
+
+		threadService.sync().then(() => {
+
+			getExtraInfoAtPosition(model.uri, 'far', { lineNumber: 1, column: 1 }).then(value => {
+
+				assert.equal(value.length, 1);
+				done();
+			});
+		});
+
 	});
 });

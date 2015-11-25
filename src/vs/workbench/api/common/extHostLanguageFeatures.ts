@@ -24,7 +24,7 @@ import {PluginHostModelService} from 'vs/workbench/api/common/pluginHostDocument
 import {IMarkerService, IMarker} from 'vs/platform/markers/common/markers';
 import {PluginHostCommands, MainThreadCommands} from 'vs/workbench/api/common/pluginHostCommands';
 import {DeclarationRegistry} from 'vs/editor/contrib/goToDeclaration/common/goToDeclaration';
-import ExtraInfoRegistry from 'vs/editor/contrib/hover/common/hover';
+import {ExtraInfoRegistry} from 'vs/editor/contrib/hover/common/hover';
 import DocumentHighlighterRegistry from 'vs/editor/contrib/wordHighlighter/common/wordHighlighter';
 import ReferenceSearchRegistry from 'vs/editor/contrib/referenceSearch/common/referenceSearch';
 import QuickFixRegistry from 'vs/editor/contrib/quickFix/common/quickFix';
@@ -195,7 +195,44 @@ class DeclarationAdapter implements modes.IDeclarationSupport {
 	}
 }
 
-type Adapter = OutlineAdapter | CodeLensAdapter | DeclarationAdapter;
+class ExtraInfoAdapter implements modes.IExtraInfoSupport {
+
+	private _documents: PluginHostModelService;
+	private _provider: vscode.HoverProvider;
+
+	constructor(documents: PluginHostModelService, provider: vscode.HoverProvider) {
+		this._documents = documents;
+		this._provider = provider;
+	}
+
+	computeInfo(resource: URI, position: IPosition): TPromise<modes.IComputeExtraInfoResult> {
+
+		let doc = this._documents.getDocument(resource);
+		let pos = TypeConverters.toPosition(position);
+
+		return asWinJsPromise(token => this._provider.provideHover(doc, pos, token)).then(value => {
+			if (!value) {
+				return;
+			}
+
+			let {range, contents} = value;
+
+			if (!range) {
+				range = doc.getWordRangeAtPosition(pos);
+			}
+			if (!range) {
+				range = new Range(pos, pos);
+			}
+
+			return <modes.IComputeExtraInfoResult>{
+				range: TypeConverters.fromRange(range),
+				htmlContent: contents && contents.map(TypeConverters.fromFormattedString)
+			}
+		});
+	}
+}
+
+type Adapter = OutlineAdapter | CodeLensAdapter | DeclarationAdapter | ExtraInfoAdapter;
 
 @Remotable.PluginHostContext('ExtHostLanguageFeatures')
 export class ExtHostLanguageFeatures {
@@ -272,6 +309,19 @@ export class ExtHostLanguageFeatures {
 	$findDeclaration(handle: number, resource: URI, position: IPosition): TPromise<modes.IReference[]> {
 		return this._withAdapter(handle, DeclarationAdapter, adapter => adapter.findDeclaration(resource, position));
 	}
+
+	// --- extra info
+
+	registerHoverProvider(selector: vscode.DocumentSelector, provider: vscode.HoverProvider): vscode.Disposable {
+		const handle = this._nextHandle();
+		this._adapter[handle] = new ExtraInfoAdapter(this._documents, provider);
+		this._proxy.$registerExtraInfoSupport(handle, selector);
+		return this._createDisposable(handle);
+	}
+
+	$computeInfo(handle:number, resource: URI, position: IPosition): TPromise<modes.IComputeExtraInfoResult> {
+		return this._withAdapter(handle, ExtraInfoAdapter, adpater => adpater.computeInfo(resource, position));
+	}
 }
 
 @Remotable.MainContext('MainThreadLanguageFeatures')
@@ -327,6 +377,17 @@ export class MainThreadLanguageFeatures {
 			},
 			findDeclaration: (resource: URI, position: IPosition): TPromise<modes.IReference[]> => {
 				return this._proxy.$findDeclaration(handle, resource, position);
+			}
+		});
+		return undefined;
+	}
+
+	// --- extra info
+
+	$registerExtraInfoSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any> {
+		this._registrations[handle] = ExtraInfoRegistry.register(selector, <modes.IExtraInfoSupport>{
+			computeInfo: (resource: URI, position: IPosition): TPromise<modes.IComputeExtraInfoResult> => {
+				return this._proxy.$computeInfo(handle, resource, position);
 			}
 		});
 		return undefined;

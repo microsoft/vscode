@@ -380,7 +380,7 @@ export interface IComputeExtraInfoResult {
 	className?: string;
 }
 export interface IExtraInfoSupport {
-	computeInfo(resource:URL, position:EditorCommon.IPosition):TPromise<IComputeExtraInfoResult>;
+	computeInfo(resource:URI, position:EditorCommon.IPosition):TPromise<IComputeExtraInfoResult>;
 }
 
 
