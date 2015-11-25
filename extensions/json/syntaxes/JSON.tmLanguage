@@ -1,15 +1,44 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple Computer//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
 	<key>fileTypes</key>
 	<array>
 		<string>json</string>
+		<string>sublime-settings</string>
+		<string>sublime-menu</string>
+		<string>sublime-keymap</string>
+		<string>sublime-mousemap</string>
+		<string>sublime-theme</string>
+		<string>sublime-build</string>
+		<string>sublime-project</string>
+		<string>sublime-completions</string>
 	</array>
+	<key>foldingStartMarker</key>
+	<string>(?x)       # turn on extended mode
+  ^        # a line beginning with
+  \s*      # some optional space
+  [{\[]    # the start of an object or array
+  (?!      # but not followed by
+    .*     # whatever
+    [}\]]  # and the close of an object or array
+    ,?     # an optional comma
+    \s*    # some optional space
+    $      # at the end of the line
+  )
+  |        # ...or...
+  [{\[]    # the start of an object or array
+  \s*      # some optional space
+  $        # at the end of the line</string>
+	<key>foldingStopMarker</key>
+	<string>(?x)     # turn on extended mode
+  ^      # a line beginning with
+  \s*    # some optional space
+  [}\]]  # and the close of an object or array</string>
 	<key>keyEquivalent</key>
 	<string>^~J</string>
 	<key>name</key>
-	<string>JSON</string>
+	<string>JSON (Javascript Next)</string>
 	<key>patterns</key>
 	<array>
 		<dict>
@@ -63,6 +92,58 @@
 				</dict>
 			</array>
 		</dict>
+		<key>comments</key>
+		<dict>
+			<key>patterns</key>
+			<array>
+				<dict>
+					<key>begin</key>
+					<string>/\*\*</string>
+					<key>captures</key>
+					<dict>
+						<key>0</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.comment.json</string>
+						</dict>
+					</dict>
+					<key>end</key>
+					<string>\*/</string>
+					<key>name</key>
+					<string>comment.block.documentation.json</string>
+				</dict>
+				<dict>
+					<key>begin</key>
+					<string>/\*</string>
+					<key>captures</key>
+					<dict>
+						<key>0</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.comment.json</string>
+						</dict>
+					</dict>
+					<key>end</key>
+					<string>\*/</string>
+					<key>name</key>
+					<string>comment.block.json</string>
+				</dict>
+				<dict>
+					<key>captures</key>
+					<dict>
+						<key>1</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.comment.json</string>
+						</dict>
+					</dict>
+					<key>match</key>
+					<string>(//).*$\n?</string>
+					<key>name</key>
+					<string>comment.line.double-slash.js</string>
+				</dict>
+			</array>
+		</dict>
 		<key>constant</key>
 		<dict>
 			<key>match</key>
@@ -72,29 +153,26 @@
 		</dict>
 		<key>number</key>
 		<dict>
-			<key>comment</key>
-			<string>handles integer and decimal numbers</string>
 			<key>match</key>
-			<string>(?x:         # turn on extended mode
-			             -?         # an optional minus
-			             (?:
-			               0        # a zero
-			               |        # ...or...
-			               [1-9]    # a 1-9 character
-			               \d*      # followed by zero or more digits
-			             )
-			             (?:
-			               (?:
-			                 \.     # a period
-			                 \d+    # followed by one or more digits
-			               )?
-			               (?:
-			                 [eE]   # an e character
-			                 [+-]?  # followed by an option +/-
-			                 \d+    # followed by one or more digits
-			               )?       # make exponent optional
-			             )?         # make decimal portion optional
-			           )</string>
+			<string>(?x)        # turn on extended mode
+  -?        # an optional minus
+  (?:
+    0       # a zero
+    |       # ...or...
+    [1-9]   # a 1-9 character
+    \d*     # followed by zero or more digits
+  )
+  (?:
+    (?:
+      \.    # a period
+      \d+   # followed by one or more digits
+    )?
+    (?:
+      [eE]  # an e character
+      [+-]? # followed by an option +/-
+      \d+   # followed by one or more digits
+    )?      # make exponent optional
+  )?        # make decimal portion optional</string>
 			<key>name</key>
 			<string>constant.numeric.json</string>
 		</dict>
@@ -110,8 +188,6 @@
 					<string>punctuation.definition.dictionary.begin.json</string>
 				</dict>
 			</dict>
-			<key>comment</key>
-			<string>a JSON object</string>
 			<key>end</key>
 			<string>\}</string>
 			<key>endCaptures</key>
@@ -131,6 +207,10 @@
 					<string>the JSON object key</string>
 					<key>include</key>
 					<string>#string</string>
+				</dict>
+				<dict>
+					<key>include</key>
+					<string>#comments</string>
 				</dict>
 				<dict>
 					<key>begin</key>
@@ -207,15 +287,13 @@
 			<array>
 				<dict>
 					<key>match</key>
-					<string>(?x:                # turn on extended mode
-                     \\                # a literal backslash
-                     (?:               # ...followed by...
-                       ["\\/bfnrt]     # one of these characters
-                       |               # ...or...
-                       u               # a u
-                       [0-9a-fA-F]{4}  # and four hex digits
-                     )
-                   )</string>
+					<string>(?x)                # turn on extended mode
+  \\                # a literal backslash
+  (?:               # ...followed by...
+    ["\\/bfnrt]     # one of these characters
+    |               # ...or...
+    u               # a u
+    [0-9a-fA-F]{4}) # and four hex digits</string>
 					<key>name</key>
 					<string>constant.character.escape.json</string>
 				</dict>
@@ -229,8 +307,6 @@
 		</dict>
 		<key>value</key>
 		<dict>
-			<key>comment</key>
-			<string>the 'value' diagram at http://json.org</string>
 			<key>patterns</key>
 			<array>
 				<dict>
@@ -253,12 +329,17 @@
 					<key>include</key>
 					<string>#object</string>
 				</dict>
+				<dict>
+					<key>include</key>
+					<string>#comments</string>
+				</dict>
 			</array>
 		</dict>
 	</dict>
 	<key>scopeName</key>
 	<string>source.json</string>
 	<key>uuid</key>
-	<string>0C3868E4-F96B-4E55-B204-1DCB5A20748B</string>
+	<string>8f97457b-516e-48ce-83c7-08ae12fb327a</string>
 </dict>
 </plist>
+
