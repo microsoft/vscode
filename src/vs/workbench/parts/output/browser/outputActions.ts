@@ -63,7 +63,7 @@ export class GlobalShowOutputAction extends Action {
 			channelToOpen = channels[0].getChannel();
 		}
 
-		// Fallback to any contributed channel otherwise if we dont have history
+		// Fallback to any contributed channel otherwise if we don't have history
 		else {
 			channelToOpen = (<IOutputChannelRegistry>Registry.as(Extensions.OutputChannels)).getChannels()[0];
 		}

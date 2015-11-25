@@ -84,7 +84,7 @@ export class FileEntry extends EditorQuickOpenEntry {
 
 export class OpenFileHandler extends QuickOpenHandler {
 
-	private static SEARCH_DELAY = 500; // This delay acommodates for the user typing a word and then stops typing to start searching
+	private static SEARCH_DELAY = 500; // This delay accommodates for the user typing a word and then stops typing to start searching
 
 	private queryBuilder: QueryBuilder;
 	private delayer: ThrottledDelayer;

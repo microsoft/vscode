@@ -288,7 +288,7 @@ export abstract class BaseRenameAction extends BaseFileAction {
 		name = getWellFormedFileName(name);
 		let existingName = getWellFormedFileName(this.element.name);
 
-		// Return early if name is invalid or didnt change
+		// Return early if name is invalid or didn't change
 		if (name === existingName || this.validateFileName(this.element.parent, name)) {
 			return Promise.as(null);
 		}

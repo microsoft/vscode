@@ -21,7 +21,7 @@
 	background: rgba(255, 255, 0, 0.7);
 }
 
-.monaco-editor .debug-focussed-stack-frame-line {
+.monaco-editor .debug-focused-stack-frame-line {
 	background: rgba(206, 231, 206, 0.45);
 }
 
@@ -247,7 +247,7 @@
 	color: #C586C0;
 }
 
-.monaco-editor.vs-dark .debug-focussed-stack-frame-line {
+.monaco-editor.vs-dark .debug-focused-stack-frame-line {
 	background: rgba(122, 189, 122, 0.3);
 }
 

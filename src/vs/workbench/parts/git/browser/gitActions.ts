@@ -406,7 +406,7 @@ export abstract class BaseUndoAction extends GitAction {
 				});
 			});
 		}).then(null, (errors: any[]): Promise => {
-			console.error('One or more errors occured', errors);
+			console.error('One or more errors occurred', errors);
 			return Promise.wrapError(errors[0]);
 		});
 	}

@@ -75,7 +75,7 @@ let openViewletKb: IKeybindings = {
 // Register file editors
 (<IEditorRegistry>Registry.as(EditorExtensions.Editors)).registerEditor(
 	new FileEditorDescriptor(
-		TextFileEditor.ID, // explicit dependency because we dont want these editors lazy loaded
+		TextFileEditor.ID, // explicit dependency because we don't want these editors lazy loaded
 		nls.localize('textFileEditor', "Text File Editor"),
 		'vs/workbench/parts/files/browser/editors/textFileEditor',
 		'TextFileEditor',
@@ -95,7 +95,7 @@ let openViewletKb: IKeybindings = {
 
 (<IEditorRegistry>Registry.as(EditorExtensions.Editors)).registerEditor(
 	new FileEditorDescriptor(
-		BinaryFileEditor.ID, // explicit dependency because we dont want these editors lazy loaded
+		BinaryFileEditor.ID, // explicit dependency because we don't want these editors lazy loaded
 		nls.localize('binaryFileEditor', "Binary File Editor"),
 		'vs/workbench/parts/files/browser/editors/binaryFileEditor',
 		'BinaryFileEditor',

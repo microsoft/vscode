@@ -47,8 +47,8 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 		const pos = range.getStartPosition();
 		const wordAtPosition = this.editor.getModel().getWordAtPosition(pos);
 		const hoveringOver = wordAtPosition ? wordAtPosition.word : null;
-		const focussedStackFrame = this.debugService.getViewModel().getFocusedStackFrame();
-		if (!hoveringOver || !focussedStackFrame || (this.isVisible && hoveringOver === this.lastHoveringOver)) {
+		const focusedStackFrame = this.debugService.getViewModel().getFocusedStackFrame();
+		if (!hoveringOver || !focusedStackFrame || (this.isVisible && hoveringOver === this.lastHoveringOver)) {
 			return;
 		}
 
@@ -60,7 +60,7 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 		namesToFind[0] = namesToFind[0].substring(namesToFind[0].lastIndexOf(' ') + 1);
 		const variables: debug.IExpression[] = [];
 
-		focussedStackFrame.getScopes(this.debugService).done(scopes => {
+		focusedStackFrame.getScopes(this.debugService).done(scopes => {
 
 			// flatten out scopes lists
 			return scopes.reduce((accum, scopes) => { return accum.concat(scopes); }, [])

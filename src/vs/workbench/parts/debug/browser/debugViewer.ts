@@ -857,15 +857,15 @@ export class BreakpointsController extends BaseDebugController {
 		return this.doNotFocusExceptionBreakpoint(tree, super.onPageUp(tree, event));
 	}
 
-	private doNotFocusExceptionBreakpoint(tree: tree.ITree, upSucceded: boolean) : boolean {
-		if (upSucceded) {
+	private doNotFocusExceptionBreakpoint(tree: tree.ITree, upSucceeded: boolean) : boolean {
+		if (upSucceeded) {
 			var focus = tree.getFocus();
 			if (focus instanceof model.ExceptionBreakpoint) {
 				tree.focusNth(2);
 			}
 		}
 
-		return upSucceded;
+		return upSucceeded;
 	}
 
 	protected onDelete(tree: tree.ITree, event: keyboard.StandardKeyboardEvent): boolean {
