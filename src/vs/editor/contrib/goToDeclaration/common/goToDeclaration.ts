@@ -17,31 +17,27 @@ export const DeclarationRegistry = new LanguageFeatureRegistry<IDeclarationSuppo
 
 export function getDeclarationsAtPosition(model: IModel, position: IPosition): TPromise<IReference[]> {
 
-	const promises: TPromise<any>[] = [];
 	const resource = model.getAssociatedResource();
 	const provider = DeclarationRegistry.ordered(model);
-	const references: (IReference[]| IReference)[] = Array<(IReference[]| IReference)>(provider.length);
 
 	// get results
-	provider.map((provider, idx) => {
-		let promise = provider.findDeclaration(resource, position);
-		promises.push(promise.then(result => {
-			references[idx] = result;
+	const promises = provider.map((provider, idx) => {
+		return provider.findDeclaration(resource, position).then(result => {
+			return result;
 		}, err => {
 			onUnexpectedError(err);
-		}));
+		});
 	});
 
-	return TPromise.join(promises).then(() => {
+	return TPromise.join(promises).then(allReferences => {
 		let result: IReference[] = [];
-		for (let item of references) {
-			if (Array.isArray(item)) {
-				result.push(...item)
-			} else if(item) {
-				result.push(item);
+		for (let references of allReferences) {
+			if (Array.isArray(references)) {
+				result.push(...references);
+			} else if (references) {
+				result.push(references);
 			}
 		}
-
 		return result;
 	});
 }
