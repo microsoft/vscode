@@ -29,6 +29,7 @@ suite('workspace-namespace', () => {
 	test('openTextDocument', () => {
 		return workspace.openTextDocument(join(workspace.rootPath, './far.js')).then(doc => {
 			assert.ok(doc);
+			assert.equal(workspace.textDocuments.length, 1);
 		});
 	});
 
