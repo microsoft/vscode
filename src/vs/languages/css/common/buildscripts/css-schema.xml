@@ -2955,7 +2955,7 @@
         </value>
       </values>
     </entry>
-    <entry name="break-after" restriction="enum" version="3.0" browsers="E,IE10,O11.1" ref="http://www.w3.org/TR/css3-multicol/#column-breaks" syntax="h2 { $(name): column; }">
+    <entry name="break-after" restriction="enum" version="3.0" browsers="E,IE10,O11.5" ref="http://www.w3.org/TR/css3-multicol/#column-breaks" syntax="h2 { $(name): column; }">
       <desc>Describes the page/column break behavior before the generated box.</desc>
       <values>
         <value name="always" version="3.0" browsers="all">
@@ -2973,7 +2973,7 @@
         <value name="avoid-page" version="3.0" browsers="all">
           <desc>Avoid a page break before/after the generated box.</desc>
         </value>
-        <value name="avoid-region" version="3.0" browsers="all" />
+        <value name="avoid-region" version="3.0" browsers="none" />
         <value name="column" version="3.0" browsers="all">
           <desc>Always force a column break before/after the generated box.</desc>
         </value>
@@ -2983,13 +2983,13 @@
         <value name="page" version="3.0" browsers="all">
           <desc>Always force a page break before/after the generated box.</desc>
         </value>
-        <value name="region" version="3.0" browsers="all" />
+        <value name="region" version="3.0" browsers="none" />
         <value name="right" version="3.0" browsers="all">
           <desc>Force one or two page breaks before/after the generated box so that the next page is formatted as a right page.</desc>
         </value>
       </values>
     </entry>
-    <entry name="break-before" restriction="enum" version="3.0" browsers="E,IE10,O11.6" ref="http://www.w3.org/TR/css3-multicol/#column-breaks" syntax="h2 { $(name): column; }">
+    <entry name="break-before" restriction="enum" version="3.0" browsers="E,IE10,O11.5" ref="http://www.w3.org/TR/css3-multicol/#column-breaks" syntax="h2 { $(name): column; }">
       <desc>Describes the page/column break behavior before the generated box.</desc>
       <values>
         <value name="always" version="3.0" browsers="all">
@@ -3007,7 +3007,7 @@
         <value name="avoid-page" version="3.0" browsers="all">
           <desc>Avoid a page break before/after the generated box.</desc>
         </value>
-        <value name="avoid-region" version="3.0" browsers="all" />
+        <value name="avoid-region" version="3.0" browsers="none" />
         <value name="column" version="3.0" browsers="all">
           <desc>Always force a column break before/after the generated box.</desc>
         </value>
@@ -3017,13 +3017,13 @@
         <value name="page" version="3.0" browsers="all">
           <desc>Always force a page break before/after the generated box.</desc>
         </value>
-        <value name="region" version="3.0" browsers="all" />
+        <value name="region" version="3.0" browsers="none" />
         <value name="right" version="3.0" browsers="all">
           <desc>Force one or two page breaks before/after the generated box so that the next page is formatted as a right page.</desc>
         </value>
       </values>
     </entry>
-    <entry name="break-inside" restriction="enum" version="3.0" browsers="E,IE10,O11.6" ref="http://www.w3.org/TR/css3-multicol/#column-breaks" syntax="h2 { $(name): avoid-column; }">
+    <entry name="break-inside" restriction="enum" version="3.0" browsers="E,IE10,O11.5" ref="http://www.w3.org/TR/css3-multicol/#column-breaks" syntax="h2 { $(name): avoid-column; }">
       <desc>Describes the page/column break behavior inside the generated box.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all">
@@ -3038,7 +3038,7 @@
         <value name="avoid-page" version="3.0" browsers="all">
           <desc>Avoid a page break inside the generated box.</desc>
         </value>
-        <value name="avoid-region" version="3.0" browsers="all" />
+        <value name="avoid-region" version="3.0" browsers="none" />
       </values>
     </entry>
     <entry name="caption-side" restriction="enum" version="2.0" browsers="E,C,FF,IE8,O,S" ref="http://www.w3.org/TR/CSS2/tables.html#caption-position" syntax="caption { $(name): bottom; }">
@@ -3370,7 +3370,7 @@
         <value name="optimizeSpeed" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="column-count" restriction="integer" version="3.0" browsers="E,IE10,O11.6" ref="http://www.w3.org/TR/css3-multicol/#column-count" syntax="div { $(name): 3; }">
+    <entry name="column-count" restriction="integer, enum" version="3.0" browsers="E,IE10,O11.5,S9" ref="http://www.w3.org/TR/css3-multicol/#column-count" syntax="div { $(name): 3; }">
       <desc>Describes the optimal number of columns into which the content of the element will be flowed.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all">
@@ -3378,7 +3378,7 @@
         </value>
       </values>
     </entry>
-    <entry name="column-fill" restriction="enum" version="3.0" browsers="E,IE10,O11.6" ref="http://www.w3.org/TR/css3-multicol/#filling-columns" syntax="article { $(name): balance; }">
+    <entry name="column-fill" restriction="enum" version="3.0" browsers="E,IE10,O11.5,S9" ref="http://www.w3.org/TR/css3-multicol/#filling-columns" syntax="article { $(name): balance; }">
       <desc>In continuous media, this property will only be consulted if the length of columns has been constrained. Otherwise, columns will automatically be balanced.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all">
@@ -3389,7 +3389,7 @@
         </value>
       </values>
     </entry>
-    <entry name="column-gap" restriction="length" version="3.0" browsers="E,IE10,O11.6" ref="http://www.w3.org/TR/css3-multicol/#column-gap0" syntax="div { $(name): 10px; }">
+    <entry name="column-gap" restriction="length, enum" version="3.0" browsers="E,IE10,O11.5,S9" ref="http://www.w3.org/TR/css3-multicol/#column-gap0" syntax="div { $(name): 10px; }">
       <desc>Sets the gap between columns. If there is a column rule between columns, it will appear in the middle of the gap.</desc>
       <values>
         <value name="normal" version="3.0" browsers="all">
@@ -3397,7 +3397,7 @@
         </value>
       </values>
     </entry>
-    <entry name="column-rule" restriction="length, color, enum" version="3.0" browsers="E,IE10,O11.6" ref="http://www.w3.org/TR/css3-multicol/#column-rule0" syntax="header { $(name): 5px solid red;}">
+    <entry name="column-rule" restriction="length, color, enum" version="3.0" browsers="E,IE10,O11.5,S9" ref="http://www.w3.org/TR/css3-multicol/#column-rule0" syntax="header { $(name): 5px solid red;}">
       <desc>This property is a shorthand for setting 'column-rule-width', 'column-rule-style', and 'column-rule-color' at the same place in the style sheet. Omitted values are set to their initial values.</desc>
       <values>
         <value name="dashed" version="1.0" browsers="all">
@@ -3686,7 +3686,7 @@
         <value name="yellowgreen" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="column-rule-style" restriction="enum" version="3.0" browsers="E,IE10,O11.6" ref="http://www.w3.org/TR/css3-multicol/#column-rule-style" syntax="div { $(name): solid; }">
+    <entry name="column-rule-style" restriction="enum" version="3.0" browsers="E,IE10,O11.5,S6" ref="http://www.w3.org/TR/css3-multicol/#column-rule-style" syntax="div { $(name): solid; }">
       <desc>Sets the style of the rule between columns of an element.</desc>
       <values>
         <value name="dashed" version="1.0" browsers="all">
@@ -3721,7 +3721,7 @@
         </value>
       </values>
     </entry>
-    <entry name="column-rule-width" restriction="length" version="3.0" browsers="E,IE10,O11.6" ref="http://www.w3.org/TR/css3-multicol/#column-rule-width" syntax="div { $(name): 3px; }">
+    <entry name="column-rule-width" restriction="length, enum" version="3.0" browsers="E,IE10,O11.5,S9" ref="http://www.w3.org/TR/css3-multicol/#column-rule-width" syntax="div { $(name): 3px; }">
       <desc>Sets the width of the rule between columns. Negative values are not allowed.</desc>
       <values>
         <value name="medium" version="1.0" browsers="all" />
@@ -3729,7 +3729,7 @@
         <value name="thin" version="1.0" browsers="all" />
       </values>
     </entry>
-    <entry name="columns" restriction="length, integer" version="3.0" browsers="E,IE10,O11.6" ref="http://www.w3.org/TR/css3-multicol/#columns0" syntax="div { $(name): 100px 3; }">
+    <entry name="columns" restriction="length, integer, enum" version="3.0" browsers="E,IE10,O11.5,S9" ref="http://www.w3.org/TR/css3-multicol/#columns0" syntax="div { $(name): 100px 3; }">
       <desc>A shorthand property which sets both 'column-width' and 'column-count'.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all">
@@ -3737,7 +3737,7 @@
         </value>
       </values>
     </entry>
-    <entry name="column-span" restriction="enum" version="3.0" browsers="E,IE10,O11.6" ref="http://www.w3.org/TR/css3-multicol/#column-span0" syntax="article { $(name): all; }">
+    <entry name="column-span" restriction="enum" version="3.0" browsers="E,IE10,O11.5,S9" ref="http://www.w3.org/TR/css3-multicol/#column-span0" syntax="article { $(name): all; }">
       <desc>Describes the page/column break behavior after the generated box.</desc>
       <values>
         <value name="all" version="3.0" browsers="all">
@@ -3748,7 +3748,7 @@
         </value>
       </values>
     </entry>
-    <entry name="column-width" restriction="length" version="3.0" browsers="E,IE10,O11.6" ref="http://www.w3.org/TR/css3-multicol/#column-width" syntax="div { $(name): 100px; }">
+    <entry name="column-width" restriction="length, enum" version="3.0" browsers="E,IE10,O11.5,S9" ref="http://www.w3.org/TR/css3-multicol/#column-width" syntax="div { $(name): 100px; }">
       <desc>This property describes the width of columns in multicol elements.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all">
