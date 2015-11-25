@@ -6,7 +6,8 @@ install:
 
 build_script:
   - .\scripts\npm.bat install
-  - gulp electron compile
+  - gulp electron
+  - gulp compile
 
 test_script:
   - mocha
