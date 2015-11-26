@@ -2,10 +2,8 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-
-import winjs = require('vs/base/common/winjs.base');
+import { Promise, TPromise } from 'vs/base/common/winjs.base';
 import extfs = require('vs/base/node/extfs');
 import { guessMimeTypes, isBinaryMime } from 'vs/base/common/mime';
 import objects = require('vs/base/common/objects');
@@ -15,8 +13,7 @@ import strings = require('vs/base/common/strings');
 import { IRawFileStatus, IHead, ITag, IBranch, GitErrorCodes } from 'vs/workbench/parts/git/common/git';
 import { detectMimesFromStream } from 'vs/base/node/mime'
 import files = require('vs/platform/files/common/files');
-
-import cp = require('child_process');
+import { spawn, ChildProcess } from 'child_process';
 import iconv = require('iconv-lite');
 
 export interface IExecutionResult {
@@ -62,7 +59,7 @@ export class GitError {
 	}
 
 	public toString(): string {
-		var result = this.message + ' ' + JSON.stringify({
+		let result = this.message + ' ' + JSON.stringify({
 			exitCode: this.exitCode,
 			gitErrorCode: this.gitErrorCode,
 			gitCommand: this.gitCommand,
@@ -97,19 +94,19 @@ export class Git {
 		this.gitPath = options.gitPath;
 		this.tmpPath = options.tmpPath;
 
-		var encoding = options.defaultEncoding || 'utf8';
+		const encoding = options.defaultEncoding || 'utf8';
 		this.defaultEncoding = iconv.encodingExists(encoding) ? encoding : 'utf8';
 
 		this.env = options.env || {};
 		this.outputListeners = [];
 	}
 
-	public run(cwd: string, args: string[], options: any = {}): winjs.TPromise<IExecutionResult> {
+	public run(cwd: string, args: string[], options: any = {}): TPromise<IExecutionResult> {
 		options = objects.assign({ cwd: cwd }, options || {});
 		return this.exec(args, options);
 	}
 
-	public stream(cwd: string, args: string[], options: any = {}): cp.ChildProcess {
+	public stream(cwd: string, args: string[], options: any = {}): ChildProcess {
 		options = objects.assign({ cwd: cwd }, options || {});
 		return this.spawn(args, options);
 	}
@@ -118,9 +115,9 @@ export class Git {
 		return new Repository(this, repository, this.defaultEncoding, env);
 	}
 
-	public clone(repository: string, repoURL: string): winjs.TPromise<boolean> {
+	public clone(repository: string, repoURL: string): TPromise<boolean> {
 		return this.exec(['clone', repoURL, repository]).then(() => true, (err) => {
-			return new winjs.TPromise<boolean>((c, e) => {
+			return new TPromise<boolean>((c, e) => {
 
 				// If there's any error, git will still leave the folder in the FS,
 				// so we need to remove it.
@@ -132,41 +129,41 @@ export class Git {
 		});
 	}
 
-	public config(name: string, value: string): winjs.Promise {
+	public config(name: string, value: string): Promise {
 		return this.exec(['config', '--global', name, value]);
 	}
 
-	private exec(args: string[], options: any = {}): winjs.TPromise<IExecutionResult> {
-		var child = this.spawn(args, options);
+	private exec(args: string[], options: any = {}): TPromise<IExecutionResult> {
+		const child = this.spawn(args, options);
 
 		if (options.input) {
 			child.stdin.end(options.input, 'utf8');
 		}
 
-		return winjs.TPromise.join<any>([
-			new winjs.TPromise<number>((c, e) => {
-				child.on('error', e);
-				child.on('exit', c);
+		return TPromise.join<any>([
+			new TPromise<number>((c, e) => {
+				child.once('error', e);
+				child.once('exit', c);
 			}),
-			new winjs.TPromise<string>((c) => {
-				var buffer:string = '';
+			new TPromise<string>(c => {
+				let buffer:string = '';
 				child.stdout.setEncoding('utf8');
 				child.stdout.on('data', (data: string) => buffer += data);
-				child.stdout.on('close', () => c(buffer));
+				child.stdout.once('close', () => c(buffer));
 			}),
-			new winjs.TPromise<string>((c) => {
-				var buffer:string = '';
+			new TPromise<string>(c => {
+				let buffer:string = '';
 				child.stderr.setEncoding('utf8');
 				child.stderr.on('data', (data: string) => buffer += data);
-				child.stderr.on('close', () => c(buffer));
+				child.stderr.once('close', () => c(buffer));
 			})
 		]).then<IExecutionResult>((values) => {
-			var exitCode = <number> values[0];
-			var stdout = <string> values[1];
-			var stderr = <string> values[2];
+			const exitCode = <number> values[0];
+			const stdout = <string> values[1];
+			const stderr = <string> values[2];
 
 			if (exitCode) {
-				var gitErrorCode: string = null;
+				let gitErrorCode: string = null;
 
 				if (/Authentication failed/.test(stderr)) {
 					gitErrorCode = GitErrorCodes.AuthenticationFailed;
@@ -184,7 +181,7 @@ export class Git {
 					this.log(stderr);
 				}
 
-				return winjs.TPromise.wrapError<IExecutionResult>(new GitError({
+				return TPromise.wrapError<IExecutionResult>(new GitError({
 					message: 'Failed to execute git',
 					stdout: stdout,
 					stderr: stderr,
@@ -194,7 +191,7 @@ export class Git {
 				}));
 			}
 
-			return winjs.TPromise.as<IExecutionResult>({
+			return TPromise.as<IExecutionResult>({
 				code: values[0],
 				stdout: values[1],
 				stderr: values[2]
@@ -202,7 +199,7 @@ export class Git {
 		});
 	}
 
-	public spawn(args: string[], options: any = {}): cp.ChildProcess {
+	public spawn(args: string[], options: any = {}): ChildProcess {
 		if (!this.gitPath) {
 			throw new Error('git could not be found in the system.');
 		}
@@ -227,7 +224,7 @@ export class Git {
 			this.log(strings.format('git {0}\n', args.join(' ')));
 		}
 
-		return cp.spawn(this.gitPath, args, options);
+		return spawn(this.gitPath, args, options);
 	}
 
 	public onOutput(listener: (output: string) => void): () => void {
@@ -258,33 +255,33 @@ export class Repository {
 		return this.repository;
 	}
 
-	public run(args: string[], options: any = {}): winjs.TPromise<IExecutionResult> {
+	public run(args: string[], options: any = {}): TPromise<IExecutionResult> {
 		options.env = objects.assign({}, options.env || {});
 		options.env = objects.assign(options.env, this.env);
 
 		return this.git.run(this.repository, args, options);
 	}
 
-	public stream(args: string[], options: any = {}): cp.ChildProcess {
+	public stream(args: string[], options: any = {}): ChildProcess {
 		options.env = objects.assign({}, options.env || {});
 		options.env = objects.assign(options.env, this.env);
 
 		return this.git.stream(this.repository, args, options);
 	}
 
-	public spawn(args: string[], options: any = {}): cp.ChildProcess {
+	public spawn(args: string[], options: any = {}): ChildProcess {
 		options.env = objects.assign({}, options.env || {});
 		options.env = objects.assign(options.env, this.env);
 
 		return this.git.spawn(args, options);
 	}
 
-	public init(): winjs.Promise {
+	public init(): Promise {
 		return this.run(['init']);
 	}
 
-	public config(scope: string, key:string, value:any, options:any): winjs.TPromise<string> {
-		var args = ['config'];
+	public config(scope: string, key:string, value:any, options:any): TPromise<string> {
+		const args = ['config'];
 
 		if (scope) {
 			args.push('--' + scope);
@@ -299,14 +296,14 @@ export class Repository {
 		return this.run(args, options).then((result) => result.stdout);
 	}
 
-	public show(object: string): cp.ChildProcess {
+	public show(object: string): ChildProcess {
 		return this.stream(['show', object]);
 	}
 
-	public buffer(object: string): winjs.TPromise<string> {
-		var child = this.show(object);
+	public buffer(object: string): TPromise<string> {
+		const child = this.show(object);
 
-		return new winjs.Promise((c, e) => {
+		return new Promise((c, e) => {
 			detectMimesFromStream(child.stdout, null, (err, result) => {
 				if (err) {
 					e(err);
@@ -322,40 +319,40 @@ export class Repository {
 		});
 	}
 
-	private doBuffer(object: string): winjs.TPromise<string> {
-		var child = this.show(object);
+	private doBuffer(object: string): TPromise<string> {
+		const child = this.show(object);
 
-		return winjs.TPromise.join<any>([
-			new winjs.TPromise<number>((c, e) => {
-				child.on('error', e);
-				child.on('exit', c);
+		return TPromise.join<any>([
+			new TPromise<number>((c, e) => {
+				child.once('error', e);
+				child.once('exit', c);
 			}),
-			new winjs.TPromise<string>((c) => {
-				var buffers: NodeBuffer[] = [];
+			new TPromise<string>(c => {
+				const buffers: NodeBuffer[] = [];
 				child.stdout.on('data', (b: NodeBuffer) => buffers.push(b));
-				child.stdout.on('close', () => c(iconv.decode(Buffer.concat(buffers), this.defaultEncoding)));
+				child.stdout.once('close', () => c(iconv.decode(Buffer.concat(buffers), this.defaultEncoding)));
 			}),
-			new winjs.Promise((c) => {
+			new Promise(c => {
 				child.stderr.on('data', (data:string) => { /* Read to free buffer but do not handle */ });
-				child.stderr.on('close', () => c(null));
+				child.stderr.once('close', () => c(null));
 			})
 		]).then((values) => {
-			var exitCode = <number> values[0];
-			var result = <string> values[1];
+			const exitCode = <number> values[0];
+			const result = <string> values[1];
 
 			if (exitCode) {
-				return winjs.TPromise.wrapError<string>(new GitError({
+				return TPromise.wrapError<string>(new GitError({
 					message: 'Could not buffer object.',
 					exitCode: exitCode
 				}));
 			}
 
-			return winjs.TPromise.as<string>(result);
+			return TPromise.as<string>(result);
 		});
 	}
 
-	public add(paths: string[]): winjs.Promise {
-		var args = ['add', '-A', '--'];
+	public add(paths: string[]): Promise {
+		const args = ['add', '-A', '--'];
 
 		if (paths && paths.length) {
 			args.push.apply(args, paths);
@@ -366,31 +363,31 @@ export class Repository {
 		return this.run(args);
 	}
 
-	public stage(path: string, data: string): winjs.Promise {
-		var child = this.stream(['hash-object', '--stdin', '-w'], { stdio: [null, null, null] });
+	public stage(path: string, data: string): Promise {
+		const child = this.stream(['hash-object', '--stdin', '-w'], { stdio: [null, null, null] });
 		child.stdin.end(data, 'utf8');
 
-		return winjs.TPromise.join<any>([
-			new winjs.TPromise<number>((c, e) => {
-				child.on('error', e);
-				child.on('exit', c);
+		return TPromise.join<any>([
+			new TPromise<number>((c, e) => {
+				child.once('error', e);
+				child.once('exit', c);
 			}),
-			new winjs.TPromise<string>((c) => {
-				var id = '';
+			new TPromise<string>(c => {
+				let id = '';
 				child.stdout.setEncoding('utf8');
 				child.stdout.on('data', (data:string) => id += data);
-				child.stdout.on('close', () => c(id));
+				child.stdout.once('close', () => c(id));
 			}),
-			new winjs.Promise((c) => {
+			new Promise(c => {
 				child.stderr.on('data', (data:string) => { /* Read to free buffer but do not handle */ });
-				child.stderr.on('close', () => c(null));
+				child.stderr.once('close', () => c(null));
 			})
 		]).then<IExecutionResult>((values) => {
-			var exitCode = <number> values[0];
-			var id = <string> values[1];
+			const exitCode = <number> values[0];
+			const id = <string> values[1];
 
 			if (exitCode) {
-				return winjs.TPromise.wrapError<IExecutionResult>(new GitError({
+				return TPromise.wrapError<IExecutionResult>(new GitError({
 					message: 'Could not hash object.',
 					exitCode: exitCode
 				}));
@@ -400,8 +397,8 @@ export class Repository {
 		});
 	}
 
-	public checkout(treeish: string, paths: string[]): winjs.Promise {
-		var args = [ 'checkout', '-q' ];
+	public checkout(treeish: string, paths: string[]): Promise {
+		const args = [ 'checkout', '-q' ];
 
 		if (treeish) {
 			args.push(treeish);
@@ -417,12 +414,12 @@ export class Repository {
 				err.gitErrorCode = GitErrorCodes.DirtyWorkTree;
 			}
 
-			return winjs.Promise.wrapError(err);
+			return Promise.wrapError(err);
 		});
 	}
 
-	public commit(message: string, all: boolean, amend: boolean): winjs.Promise {
-		var args = ['commit', '--quiet', '--allow-empty-message', '--file', '-'];
+	public commit(message: string, all: boolean, amend: boolean): Promise {
+		const args = ['commit', '--quiet', '--allow-empty-message', '--file', '-'];
 
 		if (all) {
 			args.push('--all');
@@ -435,47 +432,47 @@ export class Repository {
 		return this.run(args, { input: message || '' }).then(null, (commitErr: GitError) => {
 			if (/not possible because you have unmerged files/.test(commitErr.stderr)) {
 				commitErr.gitErrorCode = GitErrorCodes.UnmergedChanges;
-				return winjs.Promise.wrapError(commitErr);
+				return Promise.wrapError(commitErr);
 			}
 
 			return this.run(['config', '--get-all', 'user.name']).then(null, (err: GitError) => {
 				err.gitErrorCode = GitErrorCodes.NoUserNameConfigured;
-				return winjs.Promise.wrapError(err);
+				return Promise.wrapError(err);
 			}).then(() => {
 				return this.run(['config', '--get-all', 'user.email']).then(null, (err: GitError) => {
 					err.gitErrorCode = GitErrorCodes.NoUserEmailConfigured;
-					return winjs.Promise.wrapError(err);
+					return Promise.wrapError(err);
 				}).then(() => {
-					return winjs.Promise.wrapError(commitErr);
+					return Promise.wrapError(commitErr);
 				});
 			});
 		});
 	}
 
-	public branch(name: string, checkout: boolean): winjs.Promise {
-		var args = checkout ? ['checkout', '-q', '-b', name] : [ 'branch', '-q', name ];
+	public branch(name: string, checkout: boolean): Promise {
+		const args = checkout ? ['checkout', '-q', '-b', name] : [ 'branch', '-q', name ];
 		return this.run(args);
 	}
 
-	public clean(paths: string[]): winjs.Promise {
-		var args = [ 'clean', '-f', '-q', '--' ].concat(paths);
+	public clean(paths: string[]): Promise {
+		const args = [ 'clean', '-f', '-q', '--' ].concat(paths);
 		return this.run(args);
 	}
 
-	public undo(): winjs.Promise {
+	public undo(): Promise {
 		return this.run([ 'clean', '-fd' ]).then(() => {
 			return this.run([ 'checkout', '--', '.' ]).then(null, (err: GitError) => {
 				if (/did not match any file\(s\) known to git\./.test(err.stderr)) {
-					return winjs.Promise.as(null);
+					return Promise.as(null);
 				}
 
-				return winjs.Promise.wrapError(err);
+				return Promise.wrapError(err);
 			});
 		});
 	}
 
-	public reset(treeish: string, hard: boolean = false): winjs.Promise {
-		var args = ['reset'];
+	public reset(treeish: string, hard: boolean = false): Promise {
+		const args = ['reset'];
 
 		if (hard) {
 			args.push('--hard');
@@ -486,9 +483,9 @@ export class Repository {
 		return this.run(args);
 	}
 
-	public revertFiles(treeish: string, paths: string[]): winjs.Promise {
+	public revertFiles(treeish: string, paths: string[]): Promise {
 		return this.run([ 'branch' ]).then((result) => {
-			var args: string[];
+			let args: string[];
 
 			// In case there are no branches, we must use rm --cached
 			if (!result.stdout) {
@@ -507,15 +504,15 @@ export class Repository {
 				// In case there are merge conflicts to be resolved, git reset will output
 				// some "needs merge" data. We try to get around that.
 				if (/([^:]+: needs merge\n)+/m.test(err.stdout)) {
-					return winjs.Promise.as(null);
+					return Promise.as(null);
 				}
 
-				return winjs.Promise.wrapError(err);
+				return Promise.wrapError(err);
 			});
 		});
 	}
 
-	public fetch(): winjs.Promise {
+	public fetch(): Promise {
 		return this.run(['fetch']).then(null, (err: GitError) => {
 			if (/No remote repository specified\./.test(err.stderr)) {
 				err.gitErrorCode = GitErrorCodes.NoRemoteRepositorySpecified;
@@ -525,11 +522,11 @@ export class Repository {
 				err.gitErrorCode = GitErrorCodes.RemoteConnectionError;
 			}
 
-			return winjs.Promise.wrapError(err);
+			return Promise.wrapError(err);
 		});
 	}
 
-	public pull(): winjs.Promise {
+	public pull(): Promise {
 		return this.run(['pull']).then(null, (err: GitError) => {
 			if (/^CONFLICT \([^)]+\): \b/m.test(err.stdout)) {
 				err.gitErrorCode = GitErrorCodes.Conflict;
@@ -541,11 +538,11 @@ export class Repository {
 				err.gitErrorCode = GitErrorCodes.DirtyWorkTree;
 			}
 
-			return winjs.Promise.wrapError(err);
+			return Promise.wrapError(err);
 		});
 	}
 
-	public push(): winjs.Promise {
+	public push(): Promise {
 		return this.run(['push']).then(null, (err: GitError) => {
 			if (/^error: failed to push some refs to\b/m.test(err.stderr)) {
 				err.gitErrorCode = GitErrorCodes.PushRejected;
@@ -553,27 +550,28 @@ export class Repository {
 				err.gitErrorCode = GitErrorCodes.RemoteConnectionError;
 			}
 
-			return winjs.Promise.wrapError(err);
+			return Promise.wrapError(err);
 		});
 	}
 
-	public sync(): winjs.Promise {
+	public sync(): Promise {
 		return this.pull().then(() => this.push());
 	}
 
-	public getRoot(): winjs.TPromise<string> {
+	public getRoot(): TPromise<string> {
 		return this.run(['rev-parse', '--show-toplevel'], { log: false }).then(result => result.stdout.trim());
 	}
 
-	public getStatus(): winjs.TPromise<IRawFileStatus[]> {
+	public getStatus(): TPromise<IRawFileStatus[]> {
 		return this.run(['status', '-z', '-u'], { log: false }).then((executionResult) => {
-			var status = executionResult.stdout;
-			var result:IRawFileStatus[] = [];
-			var current:IRawFileStatus;
-			var i = 0;
+			const status = executionResult.stdout;
+			const result:IRawFileStatus[] = [];
+			let current:IRawFileStatus;
+			let i = 0;
 
 			function readName():string {
-				var start = i, c:string;
+				const start = i;
+				let c:string;
 				while ((c = status.charAt(i)) !== '\u0000') { i++; }
 				return status.substring(start, i++);
 			}
@@ -603,29 +601,29 @@ export class Repository {
 				result.push(current);
 			}
 
-			return winjs.TPromise.as<IRawFileStatus[]>(result);
+			return TPromise.as<IRawFileStatus[]>(result);
 		});
 	}
 
-	public getHEAD(): winjs.TPromise<IHead> {
+	public getHEAD(): TPromise<IHead> {
 		return this.run(['symbolic-ref', '--short', 'HEAD'], { log: false }).then((result) => {
 			if (!result.stdout) {
-				return winjs.TPromise.wrapError<IHead>(new Error('Not in a branch'));
+				return TPromise.wrapError<IHead>(new Error('Not in a branch'));
 			}
 
-			return winjs.TPromise.as<IHead>({ name: result.stdout.trim() });
+			return TPromise.as<IHead>({ name: result.stdout.trim() });
 		}, (err) => {
 			return this.run(['rev-parse', 'HEAD'], { log: false }).then((result) => {
 				if (!result.stdout) {
-					return winjs.TPromise.wrapError<IHead>(new Error('Error parsing HEAD'));
+					return TPromise.wrapError<IHead>(new Error('Error parsing HEAD'));
 				}
 
-				return winjs.TPromise.as<IHead>({ commit: result.stdout.trim() });
+				return TPromise.as<IHead>({ commit: result.stdout.trim() });
 			});
 		});
 	}
 
-	public getHeads(): winjs.TPromise<ITag[]> {
+	public getHeads(): TPromise<ITag[]> {
 		return this.run(['for-each-ref', '--format', '%(refname:short) %(objectname)', 'refs/heads/'], { log: false }).then((result) => {
 			return result.stdout.trim().split('\n')
 				.filter(b => !!b)
@@ -634,7 +632,7 @@ export class Repository {
 		});
 	}
 
-	public getTags(): winjs.TPromise<IHead[]> {
+	public getTags(): TPromise<IHead[]> {
 		return this.run(['for-each-ref', '--format', '%(refname:short) %(objectname)', 'refs/tags/'], { log: false }).then((result) => {
 			return result.stdout.trim().split('\n')
 				.filter(b => !!b)
@@ -643,24 +641,24 @@ export class Repository {
 		});
 	}
 
-	public getBranch(branch: string): winjs.TPromise<IBranch> {
+	public getBranch(branch: string): TPromise<IBranch> {
 		if (branch === 'HEAD') {
 			return this.getHEAD();
 		}
 
 		return this.run(['rev-parse', branch], { log: false }).then((result) => {
 			if (!result.stdout) {
-				return winjs.TPromise.wrapError<IBranch>(new Error('No such branch'));
+				return TPromise.wrapError<IBranch>(new Error('No such branch'));
 			}
 
-			var commit = result.stdout.trim();
+			const commit = result.stdout.trim();
 
 			return this.run(['rev-parse', '--symbolic-full-name', '--abbrev-ref', branch + '@{u}'], { log: false }).then((result: IExecutionResult) => {
-				var upstream = result.stdout.trim();
+				const upstream = result.stdout.trim();
 
 				return this.run(['rev-list', '--left-right', branch + '...' + upstream], { log: false }).then((result) => {
-					var ahead = 0, behind = 0;
-					var i = 0;
+					let ahead = 0, behind = 0;
+					let i = 0;
 
 					while (i < result.stdout.length) {
 						switch (result.stdout.charAt(i)) {
