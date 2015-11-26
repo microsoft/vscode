@@ -138,27 +138,40 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 				let openParentheses = 1;
 				let innerParameters = [];
 				while (openParentheses !== 0) {
-					if (displayParts[0].text === '(') openParentheses++
-					else if (displayParts[0].text === ')') openParentheses--
-					else innerParameters.push(displayParts.shift());
+					if (displayParts[0].text === '(') {
+						openParentheses++;
+					}
+					else if (displayParts[0].text === ')') {
+						openParentheses--;
+					}
+					else {
+						innerParameters.push(displayParts.shift());
+					}
 					if (openParentheses === 0) {
 						displayParts.shift();
-						if (mode === "lambda" ) {
-							result += innerParameters.length > 0 ? `${this.extractMethodParameters(innerParameters, mode, true) }` : '()';
-							result += ` => {\n\t\t{{}}\n\t}`
+						if (mode === "lambda") {
+							let comma = displayParts.length > 0 ? ', ' : ''
+							if (innerParameters.length === 0) {
+								result += `()`;
+							} else if (innerParameters.length === 1) {
+								result += innerParameters[0].text.substr(0, 3)
+							} else {
+								result += this.extractMethodParameters(innerParameters, mode, true)
+							}
+							result += ` => {\n\t\t{{}}\n\t}` + comma
+
 						} else {
 							result += `{{${currentFunctionName}}}`;
 						}
 					}
 				}
 			} else {
-				result += isNested ? displayParts.shift().text.substr(0,3) : `{{${displayParts.shift().text}}}`;
+				result += isNested ? displayParts.shift().text.substr(0, 3) : `{{${displayParts.shift().text}}}`;
 				result += displayParts.length > 0 ? ', ' : '';
 
 			}
 		}
-		return `(${result})`
-		.replace(/\}\s*\(/g,'},(');
+		return `(${result})`;
 
 	}
 
@@ -203,9 +216,7 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 					item.detail = Previewer.plain(detail.displayParts);
 				}
 
-				if (detail &&
-				(this.config.useCodeSnippetsOnMethodSuggest === "lambda" ||
-				this.config.useCodeSnippetsOnMethodSuggest === "func" ) && item.kind === CompletionItemKind.Function) {
+				if (detail && this.config.useCodeSnippetsOnMethodSuggest !== "none" && item.kind === CompletionItemKind.Function) {
 					let codeSnippet = detail.name;
 					codeSnippet += this.extractMethodParameters(this.simplifyItems(detail.displayParts),this.config.useCodeSnippetsOnMethodSuggest)
 
