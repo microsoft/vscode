@@ -7,6 +7,7 @@
 import URI from 'vs/base/common/uri';
 import Event, {Emitter} from 'vs/base/common/event';
 import Severity from 'vs/base/common/severity';
+import {DefaultFilter} from 'vs/editor/common/modes/modesFilters';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {onUnexpectedError} from 'vs/base/common/errors';
 import {sequence} from 'vs/base/common/async';
@@ -504,8 +505,122 @@ class RenameAdapter implements modes.IRenameSupport {
 	}
 }
 
-type Adapter = OutlineAdapter | CodeLensAdapter | DeclarationAdapter | ExtraInfoAdapter | OccurrencesAdapter | ReferenceAdapter | QuickFixAdapter
-	| DocumentFormattingAdapter | RangeFormattingAdapter | OnTypeFormattingAdapter | NavigateTypeAdapter | RenameAdapter;
+class SuggestAdapter implements modes.ISuggestSupport {
+
+	private _documents: PluginHostModelService;
+	private _provider: vscode.CompletionItemProvider;
+	private _cache: { [key: string]: vscode.CompletionItem[] } = Object.create(null);
+
+	constructor(documents: PluginHostModelService, provider: vscode.CompletionItemProvider) {
+		this._documents = documents;
+		this._provider = provider;
+	}
+
+	suggest(resource: URI, position: IPosition): TPromise<modes.ISuggestions[]> {
+
+		const doc = this._documents.getDocument(resource);
+		const pos = TypeConverters.toPosition(position);
+		const ran = doc.getWordRangeAtPosition(pos);
+
+		const key = resource.toString();
+		delete this._cache[key];
+
+		return asWinJsPromise(token => this._provider.provideCompletionItems(doc, pos, token)).then(value => {
+
+			let defaultSuggestions: modes.ISuggestions = {
+				suggestions: [],
+				currentWord: ran ? doc.getText(new Range(ran.start, pos)) : '',
+			};
+			let allSuggestions: modes.ISuggestions[] = [defaultSuggestions];
+
+
+			for (let i = 0; i < value.length; i++) {
+				const item = value[i];
+				const suggestion = SuggestAdapter._convertCompletionItem(item);
+
+				if (item.textEdit) {
+
+					let editRange = item.textEdit.range;
+
+					// invalid text edit
+					if (!editRange.isSingleLine || editRange.start.line !== pos.line) {
+						console.warn('INVALID text edit, must be single line and on the same line');
+						continue;
+					}
+
+					// insert the text of the edit and create a dedicated
+					// suggestion-container with overwrite[Before|After]
+					suggestion.codeSnippet = item.textEdit.newText;
+
+					allSuggestions.push({
+						currentWord: doc.getText(<any>editRange),
+						suggestions: [suggestion],
+						overwriteBefore: pos.character - editRange.start.character,
+						overwriteAfter: editRange.end.character - pos.character
+					});
+
+				} else {
+					defaultSuggestions.suggestions.push(suggestion);
+				}
+
+				// assign identifier to suggestion
+				suggestion.id = String(i);
+			}
+
+			// cache for details call
+			this._cache[key] = value;
+
+			return allSuggestions;
+		});
+	}
+
+	getSuggestionDetails(resource: URI, position: IPosition, suggestion: modes.ISuggestion): TPromise<modes.ISuggestion> {
+		if (typeof this._provider.resolveCompletionItem !== 'function') {
+			return TPromise.as(suggestion);
+		}
+		let items = this._cache[resource.toString()];
+		if (!items) {
+			return TPromise.as(suggestion);
+		}
+		let item = items[Number(suggestion.id)];
+		if (!item) {
+			return TPromise.as(suggestion);
+		}
+		return asWinJsPromise(token => this._provider.resolveCompletionItem(item, token)).then(resolvedItem => {
+			return SuggestAdapter._convertCompletionItem(resolvedItem || item);
+		});
+	}
+
+	private static _convertCompletionItem(item: vscode.CompletionItem): modes.ISuggestion {
+		return {
+			label: item.label,
+			codeSnippet: item.insertText || item.label,
+			type: CompletionItemKind[item.kind || CompletionItemKind.Text].toString().toLowerCase(),
+			typeLabel: item.detail,
+			documentationLabel: item.documentation,
+			sortText: item.sortText,
+			filterText: item.filterText
+		};
+	}
+
+	getFilter(): any{
+		throw new Error('illegal state');
+	}
+	getTriggerCharacters(): string[] {
+		throw new Error('illegal state');
+	}
+	shouldShowEmptySuggestionList(): boolean {
+		throw new Error('illegal state');
+	}
+	shouldAutotriggerSuggest(context: modes.ILineContext, offset: number, triggeredByCharacter: string): boolean {
+		throw new Error('illegal state');
+	}
+}
+
+type Adapter = OutlineAdapter | CodeLensAdapter | DeclarationAdapter | ExtraInfoAdapter
+	| OccurrencesAdapter | ReferenceAdapter | QuickFixAdapter | DocumentFormattingAdapter
+	| RangeFormattingAdapter | OnTypeFormattingAdapter | NavigateTypeAdapter | RenameAdapter
+	| SuggestAdapter;
 
 @Remotable.PluginHostContext('ExtHostLanguageFeatures')
 export class ExtHostLanguageFeatures {
@@ -701,6 +816,23 @@ export class ExtHostLanguageFeatures {
 	$rename(handle: number, resource: URI, position: IPosition, newName: string): TPromise<modes.IRenameResult> {
 		return this._withAdapter(handle, RenameAdapter, adapter => adapter.rename(resource, position, newName));
 	}
+
+	// --- suggestion
+
+	registerCompletionItemProvider(selector: vscode.DocumentSelector, provider: vscode.CompletionItemProvider, triggerCharacters: string[]): vscode.Disposable {
+		const handle = this._nextHandle();
+		this._adapter[handle] = new SuggestAdapter(this._documents, provider);
+		this._proxy.$registerSuggestSupport(handle, selector, triggerCharacters);
+		return this._createDisposable(handle);
+	}
+
+	$suggest(handle: number, resource: URI, position: IPosition): TPromise<modes.ISuggestions[]> {
+		return this._withAdapter(handle, SuggestAdapter, adapter => adapter.suggest(resource, position));
+	}
+
+	$getSuggestionDetails(handle: number, resource: URI, position: IPosition, suggestion: modes.ISuggestion): TPromise<modes.ISuggestion> {
+		return this._withAdapter(handle, SuggestAdapter, adapter => adapter.getSuggestionDetails(resource, position, suggestion));
+	}
 }
 
 @Remotable.MainContext('MainThreadLanguageFeatures')
@@ -868,6 +1000,32 @@ export class MainThreadLanguageFeatures {
 		this._registrations[handle] = RenameRegistry.register(selector, <modes.IRenameSupport>{
 			rename: (resource: URI, position: IPosition, newName: string): TPromise<modes.IRenameResult> => {
 				return this._proxy.$rename(handle, resource, position, newName);
+			}
+		});
+		return undefined;
+	}
+
+	// --- suggest
+
+	$registerSuggestSupport(handle: number, selector: vscode.DocumentSelector, triggerCharacters: string[]): TPromise<any> {
+		this._registrations[handle] = SuggestRegistry.register(selector, <modes.ISuggestSupport>{
+			suggest: (resource: URI, position: IPosition, triggerCharacter?: string): TPromise<modes.ISuggestions[]> => {
+				return this._proxy.$suggest(handle, resource, position);
+			},
+			getSuggestionDetails: (resource: URI, position: IPosition, suggestion: modes.ISuggestion): TPromise<modes.ISuggestion> => {
+				return this._proxy.$getSuggestionDetails(handle, resource, position, suggestion);
+			},
+			getFilter() {
+				return DefaultFilter;
+			},
+			getTriggerCharacters(): string[] {
+				return triggerCharacters;
+			},
+			shouldShowEmptySuggestionList(): boolean {
+				return true;
+			},
+			shouldAutotriggerSuggest(): boolean {
+				return true;
 			}
 		});
 		return undefined;

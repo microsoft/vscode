@@ -304,7 +304,7 @@ export class PluginHostAPIImplementation {
 				return features.signatureHelp.register(selector, { triggerCharacters, provider });
 			},
 			registerCompletionItemProvider(selector: vscode.DocumentSelector, provider: vscode.CompletionItemProvider, ...triggerCharacters: string[]): vscode.Disposable {
-				return features.completions.register(selector, { triggerCharacters, provider });
+				return languageFeatures.registerCompletionItemProvider(selector, provider, triggerCharacters);
 			},
 			setLanguageConfiguration: (language: string, configuration: vscode.LanguageConfiguration):vscode.Disposable => {
 				return this._setLanguageConfiguration(language, configuration);
