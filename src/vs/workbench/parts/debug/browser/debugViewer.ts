@@ -23,7 +23,7 @@ import renderer = require('vs/base/parts/tree/browser/actionsRenderer');
 import debug = require('vs/workbench/parts/debug/common/debug');
 import model = require('vs/workbench/parts/debug/common/debugModel');
 import viewmodel = require('vs/workbench/parts/debug/common/debugViewModel');
-import dbgactions = require('vs/workbench/parts/debug/browser/debugActions');
+import debugactions = require('vs/workbench/parts/debug/browser/debugActions');
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -287,9 +287,9 @@ export class VariablesActionProvider extends SimpleActionProvider {
 	public getSecondaryActions(tree: tree.ITree, element: any): Promise {
 		let actions: actions.Action[] = [];
 		const variable = <model.Variable> element;
-		actions.push(this.instantiationService.createInstance(dbgactions.AddToWatchExpressionsAction, dbgactions.AddToWatchExpressionsAction.ID, dbgactions.AddToWatchExpressionsAction.LABEL, variable));
+		actions.push(this.instantiationService.createInstance(debugactions.AddToWatchExpressionsAction, debugactions.AddToWatchExpressionsAction.ID, debugactions.AddToWatchExpressionsAction.LABEL, variable));
 		if (variable.reference === 0) {
-			actions.push(this.instantiationService.createInstance(dbgactions.CopyValueAction, dbgactions.CopyValueAction.ID, dbgactions.CopyValueAction.LABEL, variable));
+			actions.push(this.instantiationService.createInstance(debugactions.CopyValueAction, debugactions.CopyValueAction.ID, debugactions.CopyValueAction.LABEL, variable));
 		}
 
 		return Promise.as(actions);
@@ -421,32 +421,32 @@ export class WatchExpressionsActionProvider extends SimpleActionProvider {
 	}
 
 	public getExpressionActions(): actions.IAction[] {
-		return [this.instantiationService.createInstance(dbgactions.RemoveWatchExpressionAction, dbgactions.RemoveWatchExpressionAction.ID, dbgactions.RemoveWatchExpressionAction.LABEL)];
+		return [this.instantiationService.createInstance(debugactions.RemoveWatchExpressionAction, debugactions.RemoveWatchExpressionAction.ID, debugactions.RemoveWatchExpressionAction.LABEL)];
 	}
 
 	public getSecondaryActions(tree: tree.ITree, element: any): Promise {
 		var actions: actions.Action[] = [];
 		if (element instanceof model.Expression) {
 			const expression = <model.Expression> element;
-			actions.push(this.instantiationService.createInstance(dbgactions.AddWatchExpressionAction, dbgactions.AddWatchExpressionAction.ID, dbgactions.AddWatchExpressionAction.LABEL));
-			actions.push(this.instantiationService.createInstance(dbgactions.RenameWatchExpressionAction, dbgactions.RenameWatchExpressionAction.ID, dbgactions.RenameWatchExpressionAction.LABEL, expression));
+			actions.push(this.instantiationService.createInstance(debugactions.AddWatchExpressionAction, debugactions.AddWatchExpressionAction.ID, debugactions.AddWatchExpressionAction.LABEL));
+			actions.push(this.instantiationService.createInstance(debugactions.RenameWatchExpressionAction, debugactions.RenameWatchExpressionAction.ID, debugactions.RenameWatchExpressionAction.LABEL, expression));
 			if (expression.reference === 0) {
-				actions.push(this.instantiationService.createInstance(dbgactions.CopyValueAction, dbgactions.CopyValueAction.ID, dbgactions.CopyValueAction.LABEL, expression.value));
+				actions.push(this.instantiationService.createInstance(debugactions.CopyValueAction, debugactions.CopyValueAction.ID, debugactions.CopyValueAction.LABEL, expression.value));
 			}
 			actions.push(new actionbar.Separator());
 
-			actions.push(this.instantiationService.createInstance(dbgactions.RemoveWatchExpressionAction, dbgactions.RemoveWatchExpressionAction.ID, dbgactions.RemoveWatchExpressionAction.LABEL));
-			actions.push(this.instantiationService.createInstance(dbgactions.RemoveAllWatchExpressionsAction, dbgactions.RemoveAllWatchExpressionsAction.ID, dbgactions.RemoveAllWatchExpressionsAction.LABEL));
+			actions.push(this.instantiationService.createInstance(debugactions.RemoveWatchExpressionAction, debugactions.RemoveWatchExpressionAction.ID, debugactions.RemoveWatchExpressionAction.LABEL));
+			actions.push(this.instantiationService.createInstance(debugactions.RemoveAllWatchExpressionsAction, debugactions.RemoveAllWatchExpressionsAction.ID, debugactions.RemoveAllWatchExpressionsAction.LABEL));
 		} else {
-			actions.push(this.instantiationService.createInstance(dbgactions.AddWatchExpressionAction, dbgactions.AddWatchExpressionAction.ID, dbgactions.AddWatchExpressionAction.LABEL));
+			actions.push(this.instantiationService.createInstance(debugactions.AddWatchExpressionAction, debugactions.AddWatchExpressionAction.ID, debugactions.AddWatchExpressionAction.LABEL));
 			if (element instanceof model.Variable) {
 				const variable = <model.Variable> element;
 				if (variable.reference === 0) {
-					actions.push(this.instantiationService.createInstance(dbgactions.CopyValueAction, dbgactions.CopyValueAction.ID, dbgactions.CopyValueAction.LABEL, variable.value));
+					actions.push(this.instantiationService.createInstance(debugactions.CopyValueAction, debugactions.CopyValueAction.ID, debugactions.CopyValueAction.LABEL, variable.value));
 				}
 				actions.push(new actionbar.Separator());
 			}
-			actions.push(this.instantiationService.createInstance(dbgactions.RemoveAllWatchExpressionsAction, dbgactions.RemoveAllWatchExpressionsAction.ID, dbgactions.RemoveAllWatchExpressionsAction.LABEL));
+			actions.push(this.instantiationService.createInstance(debugactions.RemoveAllWatchExpressionsAction, debugactions.RemoveAllWatchExpressionsAction.ID, debugactions.RemoveAllWatchExpressionsAction.LABEL));
 		}
 
 		return Promise.as(actions);
@@ -685,25 +685,25 @@ export class BreakpointsActionProvider extends SimpleActionProvider {
 	}
 
 	public getBreakpointActions(): actions.IAction[] {
-		return [this.instantiationService.createInstance(dbgactions.RemoveBreakpointAction, dbgactions.RemoveBreakpointAction.ID, dbgactions.RemoveBreakpointAction.LABEL)];
+		return [this.instantiationService.createInstance(debugactions.RemoveBreakpointAction, debugactions.RemoveBreakpointAction.ID, debugactions.RemoveBreakpointAction.LABEL)];
 	}
 
 	public getSecondaryActions(tree: tree.ITree, element: any): TPromise<actions.IAction[]> {
-		var actions: actions.Action[] = [this.instantiationService.createInstance(dbgactions.ToggleEnablementAction, dbgactions.ToggleEnablementAction.ID, dbgactions.ToggleEnablementAction.LABEL)];
+		var actions: actions.Action[] = [this.instantiationService.createInstance(debugactions.ToggleEnablementAction, debugactions.ToggleEnablementAction.ID, debugactions.ToggleEnablementAction.LABEL)];
 		actions.push(new actionbar.Separator());
 
-		actions.push(this.instantiationService.createInstance(dbgactions.RemoveBreakpointAction, dbgactions.RemoveBreakpointAction.ID, dbgactions.RemoveBreakpointAction.LABEL));
-		actions.push(this.instantiationService.createInstance(dbgactions.RemoveAllBreakpointsAction, dbgactions.RemoveAllBreakpointsAction.ID, dbgactions.RemoveAllBreakpointsAction.LABEL));
+		actions.push(this.instantiationService.createInstance(debugactions.RemoveBreakpointAction, debugactions.RemoveBreakpointAction.ID, debugactions.RemoveBreakpointAction.LABEL));
+		actions.push(this.instantiationService.createInstance(debugactions.RemoveAllBreakpointsAction, debugactions.RemoveAllBreakpointsAction.ID, debugactions.RemoveAllBreakpointsAction.LABEL));
 		actions.push(new actionbar.Separator());
 
-		actions.push(this.instantiationService.createInstance(dbgactions.ToggleBreakpointsActivatedAction, dbgactions.ToggleBreakpointsActivatedAction.ID, dbgactions.ToggleBreakpointsActivatedAction.LABEL));
+		actions.push(this.instantiationService.createInstance(debugactions.ToggleBreakpointsActivatedAction, debugactions.ToggleBreakpointsActivatedAction.ID, debugactions.ToggleBreakpointsActivatedAction.LABEL));
 		actions.push(new actionbar.Separator());
 
-		actions.push(this.instantiationService.createInstance(dbgactions.EnableAllBreakpointsAction, dbgactions.EnableAllBreakpointsAction.ID, dbgactions.EnableAllBreakpointsAction.LABEL));
-		actions.push(this.instantiationService.createInstance(dbgactions.DisableAllBreakpointsAction, dbgactions.DisableAllBreakpointsAction.ID, dbgactions.DisableAllBreakpointsAction.LABEL));
+		actions.push(this.instantiationService.createInstance(debugactions.EnableAllBreakpointsAction, debugactions.EnableAllBreakpointsAction.ID, debugactions.EnableAllBreakpointsAction.LABEL));
+		actions.push(this.instantiationService.createInstance(debugactions.DisableAllBreakpointsAction, debugactions.DisableAllBreakpointsAction.ID, debugactions.DisableAllBreakpointsAction.LABEL));
 		actions.push(new actionbar.Separator());
 
-		actions.push(this.instantiationService.createInstance(dbgactions.ReapplyBreakpointsAction, dbgactions.ReapplyBreakpointsAction.ID, dbgactions.ReapplyBreakpointsAction.LABEL));
+		actions.push(this.instantiationService.createInstance(debugactions.ReapplyBreakpointsAction, debugactions.ReapplyBreakpointsAction.ID, debugactions.ReapplyBreakpointsAction.LABEL));
 
 		return Promise.as(actions);
 	}
