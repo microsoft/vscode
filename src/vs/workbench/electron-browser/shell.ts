@@ -68,7 +68,7 @@ import {MainThreadLanguages} from 'vs/workbench/api/common/extHostLanguages';
 import {MainThreadEditors} from 'vs/workbench/api/common/pluginHostEditors';
 import {MainThreadWorkspace} from 'vs/workbench/api/browser/pluginHostWorkspace';
 import {MainThreadConfiguration} from 'vs/workbench/api/common/pluginHostConfiguration';
-import {LanguageFeatures} from 'vs/workbench/api/common/languageFeatures';
+import {MainThreadLanguageFeatures} from 'vs/workbench/api/common/extHostLanguageFeatures';
 import {EventService} from 'vs/platform/event/common/eventService';
 import {IOptions} from 'vs/workbench/common/options';
 import themes = require('vs/platform/theme/common/themes');
@@ -367,7 +367,7 @@ export class WorkbenchShell {
 		this.threadService.getRemotable(MainThreadWorkspace);
 		this.threadService.getRemotable(MainThreadEditors);
 		this.threadService.getRemotable(MainThreadStorage);
-		LanguageFeatures.createMainThreadInstances(this.threadService);
+		this.threadService.getRemotable(MainThreadLanguageFeatures);
 	}
 
 	public open(): void {

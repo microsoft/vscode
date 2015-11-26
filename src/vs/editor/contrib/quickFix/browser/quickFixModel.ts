@@ -16,7 +16,7 @@ import schedulers = require('vs/base/common/async');
 import errors = require('vs/base/common/errors');
 import {Range} from 'vs/editor/common/core/range';
 import {IMarkerService, IMarker} from 'vs/platform/markers/common/markers';
-import QuickFixRegistry, {IQuickFix2} from '../common/quickFix';
+import {QuickFixRegistry, IQuickFix2, getQuickFixes} from '../common/quickFix';
 import LightBulpWidget = require('./lightBulpWidget');
 
 enum QuickFixSuggestState {
@@ -212,27 +212,7 @@ export class QuickFixModel extends events.EventEmitter {
 		}
 
 		this.quickFixRequestPromiseRange = range;
-		let quickFixes: IQuickFix2[] = [];
-		let promises = QuickFixRegistry.all(model).map(support => {
-			return support.getQuickFixes(model.getAssociatedResource(), range).then(result => {
-				if (!Array.isArray(result)) {
-					return
-				}
-				for (let fix of result) {
-					quickFixes.push({
-						id: fix.id,
-						label: fix.label,
-						documentation: fix.documentation,
-						score: fix.score,
-						support
-					});
-				}
-			}, err => {
-				errors.onUnexpectedError(err);
-			});
-		});
-
-		this.quickFixRequestPromise = TPromise.join(promises).then(() => quickFixes);
+		this.quickFixRequestPromise = getQuickFixes(model, range);
 		return this.quickFixRequestPromise;
 	}
 

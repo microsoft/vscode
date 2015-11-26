@@ -30,7 +30,7 @@ import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IKeybindingService, IKeybindingContextKey, ICommandHandler} from 'vs/platform/keybinding/common/keybindingService';
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
-import ReferenceSearchRegistry from '../common/referenceSearch';
+import {ReferenceRegistry, findReferences} from '../common/referenceSearch';
 import IPeekViewService = peekView.IPeekViewService;
 
 export class FindReferencesController implements EditorCommon.IEditorContribution {
@@ -265,7 +265,7 @@ export class ReferenceAction extends EditorAction {
 	}
 
 	public isSupported():boolean {
-		return ReferenceSearchRegistry.has(this.editor.getModel()) && super.isSupported();
+		return ReferenceRegistry.has(this.editor.getModel()) && super.isSupported();
 	}
 
 	public getEnablementState():boolean {
@@ -278,7 +278,7 @@ export class ReferenceAction extends EditorAction {
 		let context = model.getLineContext(position.lineNumber);
 		let offset = position.column - 1;
 
-		return ReferenceSearchRegistry.all(model).some(support => {
+		return ReferenceRegistry.all(model).some(support => {
 			return support.canFindReferences(context, offset);
 		});
 	}
@@ -292,22 +292,6 @@ export class ReferenceAction extends EditorAction {
 	}
 }
 
-function findReferences(model: EditorCommon.IModel, position: EditorCommon.IPosition): TPromise<Modes.IReference[]> {
-	let references: Modes.IReference[] = [];
-
-	// collect references from all providers
-	let promises = ReferenceSearchRegistry.all(model).map(provider => {
-		return provider.findReferences(model.getAssociatedResource(), position, true).then(result => {
-			if (Array.isArray(result)) {
-				references.push(...result);
-			}
-		}, err => {
-			errors.onUnexpectedError(err);
-		});
-	});
-
-	return TPromise.join(promises).then(() => references);
-}
 
 let findReferencesCommand: ICommandHandler = (accessor, args) => {
 

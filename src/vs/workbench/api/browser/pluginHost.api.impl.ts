@@ -17,11 +17,11 @@ import {PluginHostQuickOpen} from 'vs/workbench/api/browser/pluginHostQuickOpen'
 import {PluginHostStatusBar} from 'vs/workbench/api/browser/pluginHostStatusBar';
 import {PluginHostCommands} from 'vs/workbench/api/common/pluginHostCommands';
 import {ExtHostOutputService} from 'vs/workbench/api/browser/extHostOutputService';
-import {LanguageFeatures} from 'vs/workbench/api/common/languageFeatures';
 import {PluginHostMessageService} from 'vs/workbench/api/common/pluginHostMessageService';
 import {PluginHostTelemetryService} from 'vs/workbench/api/common/pluginHostTelemetry';
 import {PluginHostEditors} from 'vs/workbench/api/common/pluginHostEditors';
 import {ExtHostLanguages} from 'vs/workbench/api/common/extHostLanguages';
+import {ExtHostLanguageFeatures} from 'vs/workbench/api/common/extHostLanguageFeatures';
 import * as extHostTypes from 'vs/workbench/api/common/pluginHostTypes';
 import 'vs/workbench/api/common/pluginHostTypes.marshalling';
 import {wrapAsWinJSPromise} from 'vs/base/common/async';
@@ -250,7 +250,7 @@ export class PluginHostAPIImplementation {
 		//
 		const languages = new ExtHostLanguages(this._threadService);
 		const pluginHostDiagnostics = new PluginHostDiagnostics(this._threadService);
-		const features = LanguageFeatures.createExtensionHostInstances(this._threadService);
+		const languageFeatures = threadService.getRemotable(ExtHostLanguageFeatures);
 
 		this.languages = {
 			createDiagnosticCollection(name?: string): vscode.DiagnosticCollection {
@@ -263,46 +263,46 @@ export class PluginHostAPIImplementation {
 				return score(selector, { uri: <any> document.uri, language: document.languageId });
 			},
 			registerCodeActionsProvider(selector: vscode.DocumentSelector, provider: vscode.CodeActionProvider): vscode.Disposable {
-				return features.codeActions.register(selector, provider);
+				return languageFeatures.registerCodeActionProvider(selector, provider);
 			},
 			registerCodeLensProvider(selector: vscode.DocumentSelector, provider: vscode.CodeLensProvider): vscode.Disposable {
-				return features.codeLens.register(selector, provider);
+				return languageFeatures.registerCodeLensProvider(selector, provider);
 			},
 			registerDefinitionProvider(selector: vscode.DocumentSelector, provider: vscode.DefinitionProvider): vscode.Disposable {
-				return features.definition.register(selector, provider);
+				return languageFeatures.registerDefinitionProvider(selector, provider);
 			},
 			registerHoverProvider(selector: vscode.DocumentSelector, provider: vscode.HoverProvider): vscode.Disposable {
-				return features.hover.register(selector, provider);
+				return languageFeatures.registerHoverProvider(selector, provider);
 			},
 			registerDocumentHighlightProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentHighlightProvider): vscode.Disposable {
-				return features.documentHighlight.register(selector, provider);
+				return languageFeatures.registerDocumentHighlightProvider(selector, provider);
 			},
 			registerReferenceProvider(selector: vscode.DocumentSelector, provider: vscode.ReferenceProvider): vscode.Disposable {
-				return features.referenceSearch.register(selector, provider);
+				return languageFeatures.registerReferenceProvider(selector, provider);
 			},
 			registerRenameProvider(selector: vscode.DocumentSelector, provider: vscode.RenameProvider): vscode.Disposable {
-				return features.rename.register(selector, provider);
+				return languageFeatures.registerRenameProvider(selector, provider);
 			},
 			registerDocumentSymbolProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentSymbolProvider): vscode.Disposable {
-				return features.documentSymbols.register(selector, provider);
+				return languageFeatures.registerDocumentSymbolProvider(selector, provider);
 			},
 			registerWorkspaceSymbolProvider(provider: vscode.WorkspaceSymbolProvider): vscode.Disposable {
-				return features.workspaceSymbols.register(provider);
+				return languageFeatures.registerWorkspaceSymbolProvider(provider);
 			},
 			registerDocumentFormattingEditProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentFormattingEditProvider): vscode.Disposable {
-				return features.formatDocument.register(selector, provider);
+				return languageFeatures.registerDocumentFormattingEditProvider(selector, provider);
 			},
 			registerDocumentRangeFormattingEditProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentRangeFormattingEditProvider): vscode.Disposable {
-				return features.formatRange.register(selector, provider);
+				return languageFeatures.registerDocumentRangeFormattingEditProvider(selector, provider);
 			},
 			registerOnTypeFormattingEditProvider(selector: vscode.DocumentSelector, provider: vscode.OnTypeFormattingEditProvider, firstTriggerCharacter: string, ...moreTriggerCharacters: string[]): vscode.Disposable {
-				return features.formatOnType.register(selector, { triggerCharacters: [firstTriggerCharacter].concat(moreTriggerCharacters), provider });
+				return languageFeatures.registerOnTypeFormattingEditProvider(selector, provider, [firstTriggerCharacter].concat(moreTriggerCharacters));
 			},
 			registerSignatureHelpProvider(selector: vscode.DocumentSelector, provider: vscode.SignatureHelpProvider, ...triggerCharacters: string[]): vscode.Disposable {
-				return features.signatureHelp.register(selector, { triggerCharacters, provider });
+				return languageFeatures.registerSignatureHelpProvider(selector, provider, triggerCharacters);
 			},
 			registerCompletionItemProvider(selector: vscode.DocumentSelector, provider: vscode.CompletionItemProvider, ...triggerCharacters: string[]): vscode.Disposable {
-				return features.completions.register(selector, { triggerCharacters, provider });
+				return languageFeatures.registerCompletionItemProvider(selector, provider, triggerCharacters);
 			},
 			setLanguageConfiguration: (language: string, configuration: vscode.LanguageConfiguration):vscode.Disposable => {
 				return this._setLanguageConfiguration(language, configuration);

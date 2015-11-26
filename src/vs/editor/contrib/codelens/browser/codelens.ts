@@ -22,12 +22,8 @@ import {IModelService} from 'vs/editor/common/services/modelService';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {Range} from 'vs/editor/common/core/range';
-import {CodeLensRegistry} from '../common/codelens';
+import {CodeLensRegistry, ICodeLensData, getCodeLensData} from '../common/codelens';
 
-interface ICodeLensData {
-	symbol: Modes.ICodeLensSymbol;
-	support: Modes.ICodeLensSupport;
-}
 
 class CodeLensViewZone implements EditorBrowser.IViewZone {
 
@@ -428,22 +424,7 @@ export class CodeLensContribution implements EditorCommon.IEditorContribution {
 				this._currentFindCodeLensSymbolsPromise.cancel();
 			}
 
-			let resource = model.getAssociatedResource();
-			let symbols: ICodeLensData[] = [];
-			let promises = CodeLensRegistry.all(model).map(support => {
-				return support.findCodeLensSymbols(resource).then(result => {
-					if (!Array.isArray(result)) {
-						return;
-					}
-					for (let symbol of result) {
-						symbols.push({ symbol, support });
-					}
-				}, err => {
-					errors.onUnexpectedError(err);
-				});
-			});
-
-			this._currentFindCodeLensSymbolsPromise = TPromise.join(promises).then(() => symbols);
+			this._currentFindCodeLensSymbolsPromise = getCodeLensData(model);
 
 			var counterValue = ++this._modelChangeCounter;
 			this._currentFindCodeLensSymbolsPromise.then((result) => {

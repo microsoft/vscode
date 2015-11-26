@@ -11,7 +11,7 @@ import async = require('vs/base/common/async');
 import events = require('vs/base/common/eventEmitter');
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
-import {ParameterHintsRegistry} from '../common/parameterHints';
+import {ParameterHintsRegistry, getParameterHints} from '../common/parameterHints';
 import {sequence} from 'vs/base/common/async';
 
 function hashParameterHints(hints: Modes.IParameterHints): string {
@@ -96,15 +96,8 @@ export class ParameterHintsModel extends events.EventEmitter {
 	}
 
 	public doTrigger(triggerCharacter: string): TPromise<boolean> {
-		let model = this.editor.getModel();
-		let support = ParameterHintsRegistry.ordered(model)[0];
-		if (!support) {
-			return TPromise.as(false);
-		}
-
-		return support.getParameterHints(model.getAssociatedResource(), this.editor.getPosition(), triggerCharacter).then((result: Modes.IParameterHints) => {
+		return getParameterHints(this.editor.getModel(), this.editor.getPosition(), triggerCharacter).then(result => {
 			var hash = hashParameterHints(result);
-
 			if (!result || result.signatures.length === 0 || (this.hash && hash !== this.hash)) {
 				this.cancel();
 				this.emit('cancel');

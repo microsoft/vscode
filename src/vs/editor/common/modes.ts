@@ -380,7 +380,7 @@ export interface IComputeExtraInfoResult {
 	className?: string;
 }
 export interface IExtraInfoSupport {
-	computeInfo(resource:URL, position:EditorCommon.IPosition):TPromise<IComputeExtraInfoResult>;
+	computeInfo(resource:URI, position:EditorCommon.IPosition):TPromise<IComputeExtraInfoResult>;
 }
 
 
@@ -402,6 +402,7 @@ export interface ISuggestion {
 	filterText?: string;
 	sortText?: string;
 	noAutoAccept?: boolean;
+	id?: string;
 }
 
 /**
@@ -531,7 +532,7 @@ export interface IOccurence {
  * Interface used to find occurrences of a symbol
  */
 export interface IOccurrencesSupport {
-	findOccurrences(resource:URL, position:EditorCommon.IPosition, strict?:boolean):TPromise<IOccurence[]>;
+	findOccurrences(resource:URI, position:EditorCommon.IPosition, strict?:boolean):TPromise<IOccurence[]>;
 }
 
 
@@ -566,7 +567,7 @@ export interface IReferenceSupport {
  */
 export interface IDeclarationSupport {
 	canFindDeclaration(context:ILineContext, offset:number):boolean;
-	findDeclaration(resource:URL, position:EditorCommon.IPosition):TPromise<IReference|IReference[]>;
+	findDeclaration(resource:URI, position:EditorCommon.IPosition):TPromise<IReference|IReference[]>;
 }
 
 export interface ITypeDeclarationSupport {

@@ -34,35 +34,7 @@ import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IEditorService} from 'vs/platform/editor/common/editor';
 import {FindReferencesController} from 'vs/editor/contrib/referenceSearch/browser/referenceSearch';
 import {IKeybindingService, IKeybindingContextKey} from 'vs/platform/keybinding/common/keybindingService';
-import FeatureRegistry from 'vs/editor/contrib/goToDeclaration/common/goToDeclaration';
-
-function getDeclarationsAtPosition(editor: EditorCommon.ICommonCodeEditor, position = editor.getPosition()): TPromise<Modes.IReference[]> {
-
-	let references: Modes.IReference[] = [];
-	let promises: TPromise<any>[] = [];
-
-	let model = editor.getModel();
-
-	for (let provider of FeatureRegistry.all(model)) {
-
-		let promise = provider.findDeclaration(model.getAssociatedResource(),
-			position);
-
-		promises.push(promise.then(result => {
-			if (Array.isArray(result)) {
-				references.push(...result);
-			} else {
-				references.push(<Modes.IReference>result);
-			}
-		}, err => {
-			Errors.onUnexpectedError(err);
-		}));
-	}
-
-	return TPromise.join(promises).then(() => {
-		return coalesce(references);
-	});
-}
+import {DeclarationRegistry, getDeclarationsAtPosition} from 'vs/editor/contrib/goToDeclaration/common/goToDeclaration';
 
 export abstract class GoToTypeAction extends EditorAction {
 
@@ -182,7 +154,7 @@ export class GoToDeclarationAction extends GoToTypeAction {
 	}
 
 	public isSupported(): boolean {
-		return FeatureRegistry.has(this.editor.getModel()) && super.isSupported();
+		return DeclarationRegistry.has(this.editor.getModel()) && super.isSupported();
 	}
 
 	public getEnablementState():boolean {
@@ -193,7 +165,7 @@ export class GoToDeclarationAction extends GoToTypeAction {
 		var model = this.editor.getModel(),
 			position = this.editor.getSelection().getStartPosition();
 
-		return FeatureRegistry.all(model).some(provider => {
+		return DeclarationRegistry.all(model).some(provider => {
 			return provider.canFindDeclaration(
 				model.getLineContext(position.lineNumber),
 				position.column - 1);
@@ -201,7 +173,7 @@ export class GoToDeclarationAction extends GoToTypeAction {
 	}
 
 	protected _resolve(resource: URI, position: EditorCommon.IPosition): TPromise<Modes.IReference[]> {
-		return getDeclarationsAtPosition(this.editor);
+		return getDeclarationsAtPosition(this.editor.getModel(), this.editor.getPosition());
 	}
 }
 
@@ -456,7 +428,7 @@ class GotoDefinitionWithMouseEditorContribution implements EditorCommon.IEditorC
 			(Browser.isIE11orEarlier || mouseEvent.event.detail <= 1) && // IE does not support event.detail properly
 			mouseEvent.target.type === EditorCommon.MouseTargetType.CONTENT_TEXT &&
 			(mouseEvent.event[GotoDefinitionWithMouseEditorContribution.TRIGGER_MODIFIER] || (withKey && withKey.keyCode === GotoDefinitionWithMouseEditorContribution.TRIGGER_KEY_VALUE)) &&
-			FeatureRegistry.has(this.editor.getModel());
+			DeclarationRegistry.has(this.editor.getModel());
 	}
 
 	private findDefinition(target:EditorBrowser.IMouseTarget):TPromise<Modes.IReference[]> {
@@ -465,7 +437,7 @@ class GotoDefinitionWithMouseEditorContribution implements EditorCommon.IEditorC
 			return TPromise.as(null);
 		}
 
-		return getDeclarationsAtPosition(this.editor, target.position);
+		return getDeclarationsAtPosition(this.editor.getModel(), target.position);
 	}
 
 	private gotoDefinition(target:EditorBrowser.IMouseTarget, sideBySide:boolean):TPromise<any> {

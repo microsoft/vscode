@@ -23,7 +23,7 @@ import {IWorkbenchEditorService, IFileInput} from 'vs/workbench/services/editor/
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IModeService} from 'vs/editor/common/services/modeService';
-import {NavigateTypesSupportRegistry, ITypeBearing} from '../common/search';
+import {NavigateTypesSupportRegistry, ITypeBearing, getNavigateToItems} from '../common/search';
 
 class SymbolEntry extends EditorQuickOpenEntry {
 	private name: string;
@@ -135,21 +135,7 @@ export class OpenSymbolHandler extends QuickOpenHandler {
 
 	private doGetResults(searchValue: string): TPromise<QuickOpenEntry[]> {
 
-		let registry = <IEditorModesRegistry>Registry.as(Extensions.EditorModes);
-
-		// Find Types (and ignore error)
-		let bearings: ITypeBearing[] = [];
-		let promises = NavigateTypesSupportRegistry.getAll().map(support => {
-			return support.getNavigateToItems(searchValue).then(result => {
-				if (Array.isArray(result)) {
-					bearings.push(...result);
-				}
-			}, err => {
-				errors.onUnexpectedError(err);
-			});
-		});
-
-		return TPromise.join(promises).then(() => {
+		return getNavigateToItems(searchValue).then(bearings => {
 			return this.toQuickOpenEntries(bearings, searchValue);
 		});
 	}
