@@ -411,7 +411,7 @@ export class CopyValueAction extends AbstractDebugAction {
 		if (this.value instanceof model.Variable) {
 			const frameId = this.debugService.getViewModel().getFocusedStackFrame().frameId;
 			const session = this.debugService.getActiveSession();
-			return session.evaluate({ expression: getFullName(this.value, session.getType()), frameId }).then(result => {
+			return session.evaluate({ expression: model.getFullExpressionName(this.value, session.getType()), frameId }).then(result => {
 				clipboard.writeText(result.body.result);
 			}, err => clipboard.writeText(this.value.value));
 		}
@@ -539,7 +539,7 @@ export class AddToWatchExpressionsAction extends AbstractDebugAction {
 	}
 
 	public run(): Promise {
-		return this.debugService.addWatchExpression(getFullName(this.expression, this.debugService.getActiveSession().getType()));
+		return this.debugService.addWatchExpression(model.getFullExpressionName(this.expression, this.debugService.getActiveSession().getType()));
 	}
 }
 
@@ -616,31 +616,4 @@ export class ClearReplAction extends baseeditor.EditorInputAction {
 
 		return Promise.as(null);
 	}
-}
-
-function getFullName(expression: debug.IExpression, sessionType: string): string {
-	let names = [expression.name];
-	if (expression instanceof model.Variable) {
-		var v = (<model.Variable> expression).parent;
-		while (v instanceof model.Variable || v instanceof model.Expression) {
-			names.push((<model.Variable> v).name);
-			v = (<model.Variable> v).parent;
-		}
-	}
-	names = names.reverse();
-
-	let result = null;
-	const propertySyntax = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
-	names.forEach(name => {
-		if (!result) {
-			result = name;
-		} else if (sessionType === 'node' && !propertySyntax.test(name)) {
-			// Use safe way to access node properties a['property_name']. Also handles array elements.
-			result = name && name.indexOf('[') === 0 ? `${ result }${ name }` : `${ result }['${ name }']`;
-		} else {
-			result = `${ result }.${ name }`;
-		}
-	});
-
-	return result;
 }
