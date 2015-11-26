@@ -3,33 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import path = require('path');
 import nls = require('vs/nls');
 import lifecycle = require('vs/base/common/lifecycle');
 import mime = require('vs/base/common/mime');
-import paths = require('vs/base/common/paths');
 import ee = require('vs/base/common/eventEmitter');
 import uri from 'vs/base/common/uri';
 import arrays = require('vs/base/common/arrays');
-import actions = require('vs/base/common/actions');
-import json = require('vs/base/common/json');
 import types = require('vs/base/common/types');
 import errors = require('vs/base/common/errors');
 import severity from 'vs/base/common/severity';
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
-import platformplatform = require('vs/platform/platform');
 import editor = require('vs/editor/common/editorCommon');
 import editorbrowser = require('vs/editor/browser/editorBrowser');
-import jsonContributionRegistry = require('vs/languages/json/common/jsonContributionRegistry');
 import wbeditorcommon = require('vs/workbench/common/editor');
-import { SystemVariables } from 'vs/workbench/parts/lib/node/systemVariables';
 import debug = require('vs/workbench/parts/debug/common/debug');
 import session = require('vs/workbench/parts/debug/node/rawDebugSession');
 import model = require('vs/workbench/parts/debug/common/debugModel');
 import debuginputs = require('vs/workbench/parts/debug/browser/debugEditorInputs');
 import viewmodel = require('vs/workbench/parts/debug/common/debugViewModel');
 import debugactions = require('vs/workbench/parts/debug/browser/debugActions');
-import { Adapter } from 'vs/workbench/parts/debug/node/debugAdapter';
+import { ConfigurationManager } from 'vs/workbench/parts/debug/node/debugConfigurationManager';
 import { Repl } from 'vs/workbench/parts/debug/browser/replEditor';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 import { Position } from 'vs/platform/editor/common/editor';
@@ -50,7 +43,6 @@ import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IPluginService, IPluginDescription } from 'vs/platform/plugins/common/plugins';
 import { IOutputService } from 'vs/workbench/parts/output/common/output';
 import { IKeybindingService, IKeybindingContextKey } from 'vs/platform/keybinding/common/keybindingService';
-import { IQuickOpenService } from 'vs/workbench/services/quickopen/browser/quickOpenService';
 import { IWindowService, IBroadcast } from 'vs/workbench/services/window/electron-browser/windowService';
 import { ILogEntry, PLUGIN_LOG_BROADCAST_CHANNEL } from 'vs/workbench/services/thread/electron-browser/threadService';
 
@@ -60,10 +52,6 @@ var DEBUG_EXCEPTION_BREAKPOINTS_KEY = 'debug.exceptionbreakpoint';
 var DEBUG_WATCH_EXPRESSIONS_KEY = 'debug.watchexpressions';
 var DEBUG_SELECTED_CONFIG_NAME_KEY = 'debug.selectedconfigname';
 
-var jsonRegistry = <jsonContributionRegistry.IJSONContributionRegistry>platformplatform.Registry.as(jsonContributionRegistry.Extensions.JSONContribution);
-jsonRegistry.registerSchema(debug.schemaId, debug.schema);
-jsonRegistry.addSchemaFileAssociation('/.vscode/launch.json', debug.schemaId);
-
 export class DebugService extends ee.EventEmitter implements debug.IDebugService {
 	public serviceId = debug.IDebugService;
 
@@ -72,104 +60,55 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 	private session: session.RawDebugSession;
 	private model: model.Model;
 	private viewModel: viewmodel.ViewModel;
-	private toDispose: lifecycle.IDisposable[];
+	private configurationManager: ConfigurationManager;
 	private debugStringEditorInputs: debuginputs.DebugStringEditorInput[];
-	private systemVariables: SystemVariables;
-	private adapters: Adapter[];
-	private allModeIdsForBreakpoints: { [key: string]: boolean };
 	private lastTaskEvent: TaskEvent;
-	private configuration: debug.IConfig;
-
+	private toDispose: lifecycle.IDisposable[];
 	private inDebugMode: IKeybindingContextKey<boolean>;
 
 	constructor(
 		@IStorageService private storageService: IStorageService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@ITextFileService private textFileService:ITextFileService,
-		@IViewletService private viewletService:IViewletService,
+		@ITextFileService private textFileService: ITextFileService,
+		@IViewletService private viewletService: IViewletService,
 		@IFileService private fileService: IFileService,
 		@IMessageService private messageService: IMessageService,
 		@IPartService private partService: IPartService,
-		@IConfigurationService private configurationService: IConfigurationService,
 		@IWindowService private windowService: IWindowService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IKeybindingService private keybindingService: IKeybindingService,
-		@IEventService private eventService: IEventService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IEventService eventService: IEventService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IInstantiationService private instantiationService:IInstantiationService,
 		@IPluginService private pluginService: IPluginService,
-		@IOutputService private outputService: IOutputService,
-		@IQuickOpenService private quickOpenService: IQuickOpenService
+		@IOutputService private outputService: IOutputService
 	) {
 		super();
 
 		this.toDispose = [];
 		this.debugStringEditorInputs = [];
-		this.adapters = [];
-		this.allModeIdsForBreakpoints = {};
 		this.session = null;
 		this.state = debug.State.Inactive;
 		// There is a cycle if taskService gets injected, use a workaround.
 		this.taskService = this.instantiationService.getInstance(ITaskService);
 
-		if (this.contextService.getWorkspace()) {
-			this.systemVariables = new SystemVariables(this.editorService, this.contextService);
-		} else {
+		if (!this.contextService.getWorkspace()) {
 			this.state = debug.State.Disabled;
 		}
+		this.configurationManager = this.instantiationService.createInstance(ConfigurationManager, this.storageService.get(DEBUG_SELECTED_CONFIG_NAME_KEY, StorageScope.WORKSPACE, 'null'));
 		this.inDebugMode = keybindingService.createKey(debug.CONTEXT_IN_DEBUG_MODE, false);
 
 		this.model = new model.Model(this.loadBreakpoints(), this.storageService.getBoolean(DEBUG_BREAKPOINTS_ACTIVATED_KEY, StorageScope.WORKSPACE, true),
 			this.loadExceptionBreakpoints(), this.loadWatchExpressions());
 		this.viewModel = new viewmodel.ViewModel();
-		this.setConfiguration(this.storageService.get(DEBUG_SELECTED_CONFIG_NAME_KEY, StorageScope.WORKSPACE, 'null'));
+
 		this.registerListeners(eventService, lifecycleService);
 	}
 
 	private registerListeners(eventService: IEventService, lifecycleService: ILifecycleService): void {
 		this.toDispose.push(eventService.addListener2(EventType.FILE_CHANGES, (e: FileChangesEvent) => this.onFileChanges(e)));
-		debug.debuggersExtPoint.setHandler((extensions) => {
 
-			extensions.forEach(extension => {
-				extension.value.forEach(rawAdapter => {
-					const adapter = new Adapter(rawAdapter, this.systemVariables, extension.description.extensionFolderPath);
-					const duplicate = this.adapters.filter(a => a.type === adapter.type)[0];
-					if (!rawAdapter.type || (typeof rawAdapter.type !== 'string')) {
-						extension.collector.error(nls.localize('debugNoType', "Debug adapter 'type' can not be omitted and must be of type 'string'."));
-					}
-
-					if (duplicate) {
-						Object.keys(adapter).forEach(attribute => {
-							if (adapter[attribute]) {
-								if (attribute === 'enableBreakpointsFor') {
-									Object.keys(adapter.enableBreakpointsFor).forEach(languageId => duplicate.enableBreakpointsFor[languageId] = true);
-								} else if (duplicate[attribute] && attribute !== 'type') {
-									extension.collector.warn(nls.localize('duplicateDebuggerType', "Debug type '{0}' is already registered and has attribute '{1}', ignoring attribute '{1}'.", adapter.type, attribute));
-								} else {
-									duplicate[attribute] = adapter[attribute];
-								}
-							}
-						});
-					} else {
-						this.adapters.push(adapter);
-					}
-
-					adapter.enableBreakpointsFor.languageIds.forEach(modeId => {
-						this.allModeIdsForBreakpoints[modeId] = true;
-					});
-				});
-			});
-
-			// Update the schema to include all attributes and types from extensions.
-			// debug.schema.properties['configurations'].items.properties.type.enum = this.adapters.map(adapter => adapter.type);
-			this.adapters.forEach(adapter => {
-				const schemaAttributes = adapter.getSchemaAttributes();
-				if (schemaAttributes) {
-					debug.schema.properties['configurations'].items.oneOf.push(...schemaAttributes);
-				}
-			});
-		});
 
 		if (this.taskService) {
 			this.toDispose.push(this.taskService.addListener2(TaskServiceEvents.Active, (e: TaskEvent) => {
@@ -397,20 +336,6 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		}
 	}
 
-	public canSetBreakpointsIn(model: editor.IModel, lineNumber: number): boolean {
-		if (model.getLineLastNonWhitespaceColumn(lineNumber) === 0) {
-			return false;
-		}
-		if (model.getAssociatedResource().isInMemory()) {
-			return false;
-		}
-
-		var mode = model ? model.getMode() : null;
-		var modeId = mode ? mode.getId() : null;
-
-		return !!this.allModeIdsForBreakpoints[modeId];
-	}
-
 	public getState(): debug.State {
 		return this.state;
 	}
@@ -420,118 +345,8 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		this.emit(debug.ServiceEvents.STATE_CHANGED, data);
 	}
 
-	public openConfigFile(sideBySide: boolean): TPromise<boolean> {
-		const resource = uri.file(paths.join(this.contextService.getWorkspace().resource.fsPath, '/.vscode/launch.json'));
-
-		return this.fileService.resolveContent(resource).then(content => true, err =>
-			this.getInitialConfigFileContent().then(content => {
-				if (!content) {
-					return false;
-				}
-
-				return this.fileService.updateContent(resource, content).then(() => true);
-			}
-		)).then(configFileCreated => {
-			if (!configFileCreated) {
-				return false;
-			}
-			this.telemetryService.publicLog('debugConfigure');
-
-			return this.editorService.openEditor({
-				resource: resource,
-				options: {
-					forceOpen: true
-				}
-			}, sideBySide).then(() => true);
-		}, (error) => {
-			throw new Error(nls.localize('DebugConfig.failed', "Unable to create 'launch.json' file inside the '.vscode' folder ({0}).", error));
-		});
-	}
-
 	public get enabled(): boolean {
 		return !!this.contextService.getWorkspace();
-	}
-
-	public getConfiguration(): debug.IConfig {
-		return this.configuration;
-	}
-
-	public setConfiguration(name: string, extensionHostData: any = null): Promise {
-		return this.loadLaunchConfig().then(config => {
-			if (!config || !config.configurations) {
-				this.configuration = null;
-				return;
-			}
-
-			// If the configuration name is not set yet, take the first launch config (can happen if debug viewlet has not been opened yet).
-			const filtered = name ? config.configurations.filter(cfg => cfg.name === name) : [config.configurations[0]];
-
-			// Massage configuration attributes - append workspace path to relatvie paths, substitute variables in paths.
-			this.configuration = filtered.length === 1 ? filtered[0] : null;
-			if (this.configuration && this.systemVariables) {
-				this.configuration.debugServer = config.debugServer;
-				this.configuration.outDir = this.resolvePath(this.systemVariables.resolve(this.configuration.outDir));
-				this.configuration.address = this.configuration.address || 'localhost';
-				this.configuration.program = this.resolvePath(this.systemVariables.resolve(this.configuration.program));
-				this.configuration.stopOnEntry = this.configuration.stopOnEntry === undefined ? false : this.configuration.stopOnEntry;
-				this.configuration.args = this.configuration.args && this.configuration.args.length > 0 ? this.systemVariables.resolve(this.configuration.args) : null;
-				this.configuration.env = <{ [key: string]: string; }> this.systemVariables.resolve(this.configuration.env);
-				this.configuration.cwd = this.resolvePath(this.systemVariables.resolve(this.configuration.cwd) || '.', false);
-				this.configuration.runtimeExecutable = this.resolvePath(this.systemVariables.resolve(this.configuration.runtimeExecutable));
-				this.configuration.runtimeArgs = this.configuration.runtimeArgs && this.configuration.runtimeArgs.length > 0 ? this.systemVariables.resolve(this.configuration.runtimeArgs) : null;
-				this.configuration.outDir = this.resolvePath(this.configuration.outDir);
-				// send opaque data back as part of the (undocumented) arguments of the launch request.
-				this.configuration.extensionHostData = extensionHostData;
-			}
-		});
-	}
-
-	private getInitialConfigFileContent(): TPromise<string> {
-		return this.quickOpenService.pick(this.adapters, { placeHolder: nls.localize('selectDebug', "Select Debug Environment") })
-		.then(adapter => {
-			if (!adapter) {
-				return null;
-			}
-
-			return this.massageInitialConfigurations(adapter).then(() =>
-				JSON.stringify({
-					version: '0.2.0',
-					configurations: adapter.initialConfigurations ? adapter.initialConfigurations : []
-				}, null, '\t')
-			)
-		});
-	}
-
-	private massageInitialConfigurations(adapter: Adapter): Promise {
-		if (!adapter || !adapter.initialConfigurations || adapter.type !== 'node') {
-			return Promise.as(true);
-		}
-
-		// Check package.json for 'main' or 'scripts' so we generate a more pecise 'program' attribute in launch.json.
-		const packageJsonUri = uri.file(paths.join(this.contextService.getWorkspace().resource.fsPath, '/package.json'));
-		return this.fileService.resolveContent(packageJsonUri).then(jsonContent => {
-			try {
-				const jsonObject = JSON.parse(jsonContent.value);
-				if (jsonObject.main) {
-					return jsonObject.main;
-				} else if (jsonObject.scripts && typeof jsonObject.scripts.start === 'string') {
-					return (<string>jsonObject.scripts.start).split(' ').pop();
-				}
-
-			} catch (error) { }
-
-			return null;
-		}, err => null).then(program => {
-			adapter.initialConfigurations.forEach(config => {
-				if (program && config["program"]) {
-					config["program"] = program;
-				}
-			});
-		});
-	}
-
-	public loadLaunchConfig(): TPromise<debug.IGlobalConfig> {
-		return this.configurationService.loadConfiguration('launch');
 	}
 
 	public setFocusedStackFrameAndEvaluate(focusedStackFrame: debug.IStackFrame): void {
@@ -616,31 +431,32 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 			this.clearReplExpressions();
 		}
 
-		return this.pluginService.onReady().then(() => this.setConfiguration(this.configuration ? this.configuration.name : null, extensionHostData)).then(() => {
-			if (!this.configuration) {
-				return this.openConfigFile(false).then(openend => {
+		return this.pluginService.onReady().then(() => this.configurationManager.setConfiguration(this.configurationManager.getConfigurationName(), extensionHostData)).then(() => {
+			const configuration = this.configurationManager.getConfiguration();
+			if (!configuration) {
+				return this.configurationManager.openConfigFile(false).then(openend => {
 					if (openend) {
 						this.messageService.show(severity.Info, nls.localize('NewLaunchConfig', "Please set up the launch configuration file to debug your application."));
 					}
 				});
 			}
 
-			var adapter = this.adapters.filter(adapter => adapter.type === this.configuration.type).pop();
+			const adapter = this.configurationManager.getAdapter();
 			if (!adapter) {
-				return Promise.wrapError(new Error(`Configured debug type '${ this.configuration.type }' is not supported.`));
+				return Promise.wrapError(new Error(`Configured debug type '${ configuration.type }' is not supported.`));
 			}
 
-			return this.runPreLaunchTask(this.configuration).then(() => {
-				this.session = new session.RawDebugSession(this.messageService, this.telemetryService, this.configuration.debugServer, adapter);
+			return this.runPreLaunchTask(configuration).then(() => {
+				this.session = new session.RawDebugSession(this.messageService, this.telemetryService, configuration.debugServer, adapter);
 				this.registerSessionListeners();
 
 				return this.session.initialize({
-					adapterID: this.configuration.type,
+					adapterID: configuration.type,
 					linesStartAt1: true,
 					pathFormat: 'path'
 				}).then((result: DebugProtocol.InitializeResponse) => {
 					this.setStateAndEmit(debug.State.Initializing);
-					return this.configuration.request === 'attach' ? this.session.attach(this.configuration) : this.session.launch(this.configuration);
+					return configuration.request === 'attach' ? this.session.attach(configuration) : this.session.launch(configuration);
 				}).then((result: DebugProtocol.Response) => {
 					if (openViewlet) {
 						this.viewletService.openViewlet(debug.VIEWLET_ID);
@@ -651,9 +467,9 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 					});
 					this.inDebugMode.set(true);
 
-					this.telemetryService.publicLog('debugSessionStart', { type: this.configuration.type, breakpointCount: this.model.getBreakpoints().length, exceptionBreakpoints: this.model.getExceptionBreakpoints() });
+					this.telemetryService.publicLog('debugSessionStart', { type: configuration.type, breakpointCount: this.model.getBreakpoints().length, exceptionBreakpoints: this.model.getExceptionBreakpoints() });
 				}).then(undefined, (error: Error) => {
-					this.telemetryService.publicLog('debugMisconfiguration', { type: this.configuration ? this.configuration.type : undefined });
+					this.telemetryService.publicLog('debugMisconfiguration', { type: configuration ? configuration.type : undefined });
 					if (this.session) {
 						this.session.disconnect();
 					}
@@ -845,6 +661,26 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		});
 	}
 
+	public canSetBreakpointsIn(model: editor.IModel, lineNumber: number): boolean {
+		return this.configurationManager.canSetBreakpointsIn(model, lineNumber);
+	}
+
+	public getConfiguration(): debug.IConfig {
+		return this.configurationManager.getConfiguration();
+	}
+
+	public setConfiguration(name: string): Promise {
+		return this.configurationManager.setConfiguration(name);
+	}
+
+	public openConfigFile(sideBySide: boolean): TPromise<boolean> {
+		return this.configurationManager.openConfigFile(sideBySide);
+	}
+
+	public loadLaunchConfig(): TPromise<debug.IGlobalConfig> {
+		return this.configurationManager.loadLaunchConfig();
+	}
+
 	private getDebugStringEditorInput(source: Source, value: string, mtype: string): debuginputs.DebugStringEditorInput {
 		var filtered = this.debugStringEditorInputs.filter(input => input.getResource().toString() === source.uri.toString());
 
@@ -855,17 +691,6 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		} else {
 			return filtered[0];
 		}
-	}
-
-	private resolvePath(p: string, showError = true): string {
-		if (!p) {
-			return null;
-		}
-		if (path.isAbsolute(p)) {
-			return paths.normalize(p, true);
-		}
-
-		return paths.normalize(uri.file(paths.join(this.contextService.getWorkspace().resource.fsPath, p)).fsPath, true);
 	}
 
 	public sendAllBreakpoints(): Promise {
@@ -916,7 +741,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		this.storageService.store(DEBUG_BREAKPOINTS_KEY, JSON.stringify(this.model.getBreakpoints()), StorageScope.WORKSPACE);
 		this.storageService.store(DEBUG_BREAKPOINTS_ACTIVATED_KEY, this.model.areBreakpointsActivated() ? 'true' : 'false', StorageScope.WORKSPACE);
 		this.storageService.store(DEBUG_EXCEPTION_BREAKPOINTS_KEY, JSON.stringify(this.model.getExceptionBreakpoints()), StorageScope.WORKSPACE);
-		this.storageService.store(DEBUG_SELECTED_CONFIG_NAME_KEY, this.configuration ? this.configuration.name : null, StorageScope.WORKSPACE);
+		this.storageService.store(DEBUG_SELECTED_CONFIG_NAME_KEY, this.configurationManager.getConfigurationName(), StorageScope.WORKSPACE);
 		this.storageService.store(DEBUG_WATCH_EXPRESSIONS_KEY, JSON.stringify(this.model.getWatchExpressions()), StorageScope.WORKSPACE);
 	}
 

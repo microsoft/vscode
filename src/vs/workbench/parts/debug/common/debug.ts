@@ -8,9 +8,7 @@ import uri from 'vs/base/common/uri';
 import { TPromise, Promise } from 'vs/base/common/winjs.base';
 import ee = require('vs/base/common/eventEmitter');
 import severity from 'vs/base/common/severity';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
-import pluginsRegistry = require('vs/platform/plugins/common/pluginsRegistry');
 import editor = require('vs/editor/common/editorCommon');
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 
@@ -256,113 +254,4 @@ export function formatPII(value:string, excludePII: boolean, args: {[key: string
 			args[group] :
 			match;
 	})
-}
-
-// Debuggers extension point
-
-export var debuggersExtPoint = pluginsRegistry.PluginsRegistry.registerExtensionPoint<IRawAdapter[]>('debuggers', {
-	description: nls.localize('vscode.extension.contributes.debuggers', 'Contributes debug adapters.'),
-	type: 'array',
-	default: [{ type: '', extensions: [] }],
-	items: {
-		type: 'object',
-		default: { type: '', program: '', runtime: '', enableBreakpointsFor: { languageIds: [ '' ] } },
-		properties: {
-			type: {
-				description: nls.localize('vscode.extension.contributes.debuggers.type', "Unique identifier for this debug adapter."),
-				type: 'string'
-			},
-			label: {
-				description: nls.localize('vscode.extension.contributes.debuggers.label', "Display name for this debug adapter."),
-				type: 'string'
-			},
-			enableBreakpointsFor: {
-				description: nls.localize('vscode.extension.contributes.debuggers.enableBreakpointsFor', "Allow breakpoints for these languages."),
-				type: 'object',
-				properties: {
-					languageIds : {
-						description: nls.localize('vscode.extension.contributes.debuggers.enableBreakpointsFor.languageIds', "List of languages."),
-						type: 'array',
-						items: {
-							type: 'string'
-						}
-					}
-				}
-			},
-			program: {
-				description: nls.localize('vscode.extension.contributes.debuggers.program', "Path to the debug adapter program. Path is either absolute or relative to the extension folder."),
-				type: 'string'
-			},
-			runtime : {
-				description: nls.localize('vscode.extension.contributes.debuggers.runtime', "Optional runtime in case the program attribute is not an executable but requires a runtime."),
-				type: 'string'
-			},
-			runtimeArgs : {
-				description: nls.localize('vscode.extension.contributes.debuggers.runtimeArgs', "Optional runtime arguments."),
-				type: 'array'
-			},
-			initialConfigurations: {
-				description: nls.localize('vscode.extension.contributes.debuggers.initialConfigurations', "Configurations for generating the initial \'launch.json\'."),
-				type: 'array',
-			},
-			configurationAttributes: {
-				description: nls.localize('vscode.extension.contributes.debuggers.configurationAttributes', "JSON schema configurations for validating \'launch.json\'."),
-				type: 'object'
-			},
-			windows: {
-				description: nls.localize('vscode.extension.contributes.debuggers.windows', "Windows specific settings."),
-				type: 'object',
-				properties: {
-					runtime : {
-						description: nls.localize('vscode.extension.contributes.debuggers.windows.runtime', "Runtime used for Windows."),
-						type: 'string'
-					}
-				}
-			},
-			osx: {
-				description: nls.localize('vscode.extension.contributes.debuggers.osx', "OS X specific settings."),
-				type: 'object',
-				properties: {
-					runtime : {
-						description: nls.localize('vscode.extension.contributes.debuggers.osx.runtime', "Runtime used for OSX."),
-						type: 'string'
-					}
-				}
-			},
-			linux: {
-				description: nls.localize('vscode.extension.contributes.debuggers.linux', "Linux specific settings."),
-				type: 'object',
-				properties: {
-					runtime : {
-						description: nls.localize('vscode.extension.contributes.debuggers.linux.runtime', "Runtime used for Linux."),
-						type: 'string'
-					}
-				}
-			}
-		}
-	}
-});
-
-// Debug General Schema
-
-export var schemaId = 'local://schemas/launch';
-export var schema: IJSONSchema = {
-	id: schemaId,
-	type: 'object',
-	title: nls.localize('app.launch.json.title', "Launch configuration"),
-	required: ['version', 'configurations'],
-	properties: {
-		version: {
-			type: 'string',
-			description: nls.localize('app.launch.json.version', "Version of this file format."),
-			default: '0.2.0'
-		},
-		configurations: {
-			type: 'array',
-			description: nls.localize('app.launch.json.configurations', "List of configurations. Add new configurations or edit existing ones."),
-			items: {
-				oneOf: []
-			}
-		}
-	}
 }
