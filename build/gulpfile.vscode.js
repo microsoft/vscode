@@ -25,6 +25,7 @@ var util = require('./lib/util');
 var buildfile = require('../src/buildfile');
 var common = require('./gulpfile.common');
 var root = path.dirname(__dirname);
+var build = path.join(root, '.build');
 var commit = util.getVersion(root);
 
 var baseModules = [
@@ -112,7 +113,7 @@ var config = {
 gulp.task('electron', function () {
 	// Force windows to use ia32
 	var arch = (process.platform === 'win32' ? 'ia32' : process.arch);
-	return electron.dest(path.join(path.dirname(root), 'Electron-Build'), _.extend({}, config, { arch: arch }));
+	return electron.dest(path.join(build, 'electron'), _.extend({}, config, { arch: arch }));
 });
 
 function mixinProduct() {

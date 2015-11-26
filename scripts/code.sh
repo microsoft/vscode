@@ -17,7 +17,7 @@ export ELECTRON_ENABLE_STACK_DUMPING=1
 cd $ROOT ; node node_modules/gulp/bin/gulp.js electron
 
 if [[ "$OSTYPE" == "darwin"* ]]; then
-	cd $ROOT; ../Electron-Build/Electron.app/Contents/MacOS/Electron . $*
+	cd $ROOT; ./.build/electron/Electron.app/Contents/MacOS/Electron . $*
 else
-	cd $ROOT; ../Electron-Build/electron . $*
+	cd $ROOT; ./.build/electron/electron . $*
 fi
