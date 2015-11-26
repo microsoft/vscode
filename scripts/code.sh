@@ -16,6 +16,9 @@ function code() {
 	# Get electron
 	node node_modules/gulp/bin/gulp.js electron
 
+	# Build
+	test -d out || gulp compile
+
 	# Configuration
 	export NODE_ENV=development
 	export VSCODE_DEV=1
