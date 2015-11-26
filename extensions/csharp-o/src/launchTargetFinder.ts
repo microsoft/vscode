@@ -18,6 +18,11 @@ export interface LaunchTarget {
 
 
 export default function getLaunchTargets(): Thenable<LaunchTarget[]> {
+
+	if (!workspace.rootPath) {
+		return Promise.resolve([]);
+	}
+
 	return workspace.findFiles('{**/*.sln,**/*.csproj,**/project.json}', '{**/node_modules/**,**/.git/**,**/bower_components/**}', 100).then(resources => {
 		return select(resources, Uri.file(workspace.rootPath));
 	});
