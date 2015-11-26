@@ -102,6 +102,7 @@ suite('Debug - Model', () => {
 	}
 
 	test('watch expressions', () => {
+		assert.equal(model.getWatchExpressions().length, 0);
 		const stackFrame = new debugmodel.StackFrame(1, 1, null, 'app.js', 1, 1);
 		model.addWatchExpression(null, stackFrame, 'console').done();
 		model.addWatchExpression(null, stackFrame, 'console').done();
@@ -120,6 +121,7 @@ suite('Debug - Model', () => {
 	});
 
 	test('repl expressions', () => {
+		assert.equal(model.getReplElements().length, 0);
 		const stackFrame = new debugmodel.StackFrame(1, 1, null, 'app.js', 1, 1);
 		model.addReplExpression(null, stackFrame, 'myVariable').done();
 		model.addReplExpression(null, stackFrame, 'myVariable').done();
@@ -176,6 +178,14 @@ suite('Debug - Model', () => {
 	// Utils
 
 	test('full expression name', () => {
-		assert.equal(true, true);
+		const type = 'node';
+		assert.equal(debugmodel.getFullExpressionName(new debugmodel.Expression(null, false), type), null);
+		assert.equal(debugmodel.getFullExpressionName(new debugmodel.Expression('son', false), type), 'son');
+
+		const son = new debugmodel.Variable(new debugmodel.Variable(new debugmodel.Variable(null, 0, 'grandfather', '75'), 0, 'father', '45'), 0, 'son', '20');
+		assert.equal(debugmodel.getFullExpressionName(son, type), 'grandfather.father.son');
+
+		const grandson = new debugmodel.Variable(son, 0, '/weird_name', '1');
+		assert.equal(debugmodel.getFullExpressionName(grandson, type), 'grandfather.father.son[\'/weird_name\']');
 	});
 });
