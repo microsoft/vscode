@@ -124,7 +124,7 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 
 	/**
 	 * This method extract parameters and functions for completion
-	 * Mode: true or lambda will generate lambda for functions as parameter and
+	 * Mode: lambda will generate lambda expression for functions as parameter and
 	 * anything else will keep place holder for function name.
 	 * isNested: will keep track of nested functions in parameter
 	 */
@@ -154,11 +154,11 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 							if (innerParameters.length === 0) {
 								result += `()`;
 							} else if (innerParameters.length === 1) {
-								result += innerParameters[0].text.substr(0, 3)
+								result += innerParameters[0].text.substr(0, 3);
 							} else {
-								result += this.extractMethodParameters(innerParameters, mode, true)
+								result += this.extractMethodParameters(innerParameters, mode, true);
 							}
-							result += ` => {\n\t\t{{}}\n\t}` + comma
+							result += ` => {\n\t\t{{}}\n\t}${comma}`;
 
 						} else {
 							result += `{{${currentFunctionName}}}${comma} `;
