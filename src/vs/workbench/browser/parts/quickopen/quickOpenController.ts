@@ -363,7 +363,11 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 				} else {
 					this.pickOpenWidget.setInput(model, autoFocus);
 				}
-			}, error);
+			}, (err) => {
+				this.pickOpenWidget.hide();
+
+				error(err);
+			});
 
 			// Progress if task takes a long time
 			Promise.timeout(800).then(() => {
