@@ -34,7 +34,6 @@ import {WorkbenchLayout, LayoutOptions} from 'vs/workbench/browser/layout';
 import {IActionBarRegistry, Extensions as ActionBarExtensions} from 'vs/workbench/browser/actionBarRegistry';
 import {IViewletRegistry, Extensions as ViewletExtensions} from 'vs/workbench/browser/viewlet';
 import {QuickOpenController} from 'vs/workbench/browser/parts/quickopen/quickOpenController';
-import {WorkspaceStats} from 'vs/platform/telemetry/common/workspaceStats';
 import {getServices} from 'vs/platform/instantiation/common/extensions';
 import {AbstractKeybindingService} from 'vs/platform/keybinding/browser/keybindingServiceImpl';
 import {UntitledEditorService, IUntitledEditorService} from 'vs/workbench/services/untitled/browser/untitledEditorService';
@@ -71,6 +70,7 @@ interface WorkbenchParams {
 
 export interface IWorkbenchCallbacks {
 	onServicesCreated?: () => void;
+	onWorkbenchStarted?: () => void;
 }
 
 /**
@@ -247,26 +247,9 @@ export class Workbench implements IPartService {
 				this.eventService.emit(EventType.WORKBENCH_CREATED);
 				this.creationPromiseComplete(true);
 
-				// Log to telemetry service
-				let windowSize = {
-					innerHeight: window.innerHeight,
-					innerWidth: window.innerWidth,
-					outerHeight: window.outerHeight,
-					outerWidth: window.outerWidth
-				};
-
-				this.telemetryService.publicLog('workspaceLoad',
-					{
-						userAgent: navigator.userAgent,
-						windowSize: windowSize,
-						autoSaveEnabled: this.contextService.isAutoSaveEnabled && this.contextService.isAutoSaveEnabled(),
-						emptyWorkbench: !this.contextService.getWorkspace(),
-						customKeybindingsCount: this.keybindingService.customKeybindingsCount(),
-						theme: this.currentTheme
-					});
-
-				let workspaceStats: WorkspaceStats = <WorkspaceStats>this.instantiationService.createInstance(WorkspaceStats);
-				workspaceStats.reportWorkspaceTags();
+				if (this.callbacks && this.callbacks.onWorkbenchStarted) {
+					this.callbacks.onWorkbenchStarted();
+				}
 			}, errors.onUnexpectedError);
 		} catch (error) {
 
