@@ -45,10 +45,11 @@ function readdirNormalize(path: string, callback: (error: Error, files: string[]
 			return callback(error, null);
 		}
 
-		// In some environments we get "." and ".." as entries from the call to readdir().
+		// Bug in node: In some environments we get "." and ".." as entries from the call to readdir().
 		// For example Sharepoint via WebDav on Windows includes them. We never want those
 		// entries in the result set though because they are not valid children of the folder
 		// for our concerns.
+		// See https://github.com/nodejs/node/issues/4002
 		return callback(null, children.filter(c => c !== '.' && c !== '..'));
 	})
 }
@@ -73,7 +74,13 @@ export function mkdirp(path: string, mode: number, callback: (error: Error) => v
 			if (err) { callback(err); return; }
 
 			if (mode) {
-				fs.mkdir(path, mode, callback);
+				fs.mkdir(path, mode, (error) => {
+					if (error) {
+						return callback(error);
+					}
+
+					fs.chmod(path, mode, callback); // we need to explicitly chmod because of https://github.com/nodejs/node/issues/1104
+				});
 			} else {
 				fs.mkdir(path, null, callback);
 			}
@@ -96,7 +103,7 @@ export function copy(source: string, target: string, callback: (error: Error) =>
 
 	fs.stat(source, (error, stat) => {
 		if (error) { return callback(error); }
-		if (!stat.isDirectory()) { return pipeFs(source, target, callback); }
+		if (!stat.isDirectory()) { return pipeFs(source, target, stat.mode & 511, callback); }
 
 		if (copiedSources[source]) {
 			return callback(null); // escape when there are cycles (can happen with symlinks)
@@ -114,11 +121,11 @@ export function copy(source: string, target: string, callback: (error: Error) =>
 	});
 }
 
-function pipeFs(source: string, target: string, callback: (error: Error) => void): void {
+function pipeFs(source: string, target: string, mode: number, callback: (error: Error) => void): void {
 	var callbackHandled = false;
 
 	var readStream = fs.createReadStream(source);
-	var writeStream = fs.createWriteStream(target);
+	var writeStream = fs.createWriteStream(target, { mode: mode });
 
 	var onError = (error: Error) => {
 		if (!callbackHandled) {
@@ -134,7 +141,8 @@ function pipeFs(source: string, target: string, callback: (error: Error) => void
 		(<any>writeStream).end(() => { // In this case the write stream is known to have an end signature with callback
 			if (!callbackHandled) {
 				callbackHandled = true;
-				callback(null);
+
+				fs.chmod(target, mode, callback); // we need to explicitly chmod because of https://github.com/nodejs/node/issues/1104
 			}
 		});
 	});
@@ -151,7 +159,7 @@ function pipeFs(source: string, target: string, callback: (error: Error) => void
 // after the rename, the contents are out of the workspace although not yet deleted. The greater benefit however is that this operation
 // will fail in case any file is used by another process. fs.unlink() in node will not bail if a file unlinked is used by another process.
 // However, the consequences are bad as outlined in all the related bugs from https://github.com/joyent/node/issues/7164
-export function del(path: string, tmpFolder: string, callback: (error: Error) => void, done?: (error:Error) => void): void {
+export function del(path: string, tmpFolder: string, callback: (error: Error) => void, done?: (error: Error) => void): void {
 	fs.exists(path, (exists) => {
 		if (!exists) {
 			return callback(null);
