@@ -6,6 +6,7 @@
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
 import extfs = require('vs/base/node/extfs');
 import { guessMimeTypes, isBinaryMime } from 'vs/base/common/mime';
+import { IDisposable, toDisposable, disposeAll } from 'vs/base/common/lifecycle';
 import objects = require('vs/base/common/objects');
 import uuid = require('vs/base/common/uuid');
 import nls = require('vs/nls');
@@ -17,9 +18,48 @@ import { spawn, ChildProcess } from 'child_process';
 import iconv = require('iconv-lite');
 
 export interface IExecutionResult {
-	code: number;
+	exitCode: number;
 	stdout: string;
 	stderr: string;
+}
+
+function exec(child: ChildProcess, encoding = 'utf8'): TPromise<IExecutionResult> {
+	const disposables: IDisposable[] = [];
+
+	const once = (ee: EventEmitter, name: string, fn: Function) => {
+		ee.once(name, fn);
+		disposables.push(toDisposable(() => ee.removeListener(name, fn)));
+	};
+
+	const on = (ee: EventEmitter, name: string, fn: Function) => {
+		ee.on(name, fn);
+		disposables.push(toDisposable(() => ee.removeListener(name, fn)));
+	};
+
+	return TPromise.join<any>([
+		new TPromise<number>((c, e) => {
+			once(child, 'error', e);
+			once(child, 'exit', c);
+		}),
+		new TPromise<string>(c => {
+			let buffers: Buffer[] = [];
+			on(child.stdout, 'data', b => buffers.push(b));
+			once(child.stdout, 'close', () => c(Buffer.concat(buffers).toString(encoding)));
+		}),
+		new TPromise<string>(c => {
+			let buffers: Buffer[] = [];
+			on(child.stderr, 'data', b => buffers.push(b));
+			once(child.stderr, 'close', () => c(Buffer.concat(buffers).toString(encoding)));
+		})
+	]).then(values => {
+		disposeAll(disposables);
+
+		return {
+			exitCode: values[0],
+			stdout: values[1],
+			stderr: values[2]
+		};
+	});
 }
 
 export interface IGitErrorData {
@@ -140,62 +180,37 @@ export class Git {
 			child.stdin.end(options.input, 'utf8');
 		}
 
-		return TPromise.join<any>([
-			new TPromise<number>((c, e) => {
-				child.once('error', e);
-				child.once('exit', c);
-			}),
-			new TPromise<string>(c => {
-				let buffer:string = '';
-				child.stdout.setEncoding('utf8');
-				child.stdout.on('data', (data: string) => buffer += data);
-				child.stdout.once('close', () => c(buffer));
-			}),
-			new TPromise<string>(c => {
-				let buffer:string = '';
-				child.stderr.setEncoding('utf8');
-				child.stderr.on('data', (data: string) => buffer += data);
-				child.stderr.once('close', () => c(buffer));
-			})
-		]).then<IExecutionResult>((values) => {
-			const exitCode = <number> values[0];
-			const stdout = <string> values[1];
-			const stderr = <string> values[2];
-
-			if (exitCode) {
+		return exec(child).then(result => {
+			if (result.exitCode) {
 				let gitErrorCode: string = null;
 
-				if (/Authentication failed/.test(stderr)) {
+				if (/Authentication failed/.test(result.stderr)) {
 					gitErrorCode = GitErrorCodes.AuthenticationFailed;
-				} else if (/bad config file/.test(stderr)) {
+				} else if (/bad config file/.test(result.stderr)) {
 					gitErrorCode = GitErrorCodes.BadConfigFile;
-				} else if (/cannot make pipe for command substitution|cannot create standard input pipe/.test(stderr)) {
+				} else if (/cannot make pipe for command substitution|cannot create standard input pipe/.test(result.stderr)) {
 					gitErrorCode = GitErrorCodes.CantCreatePipe;
-				} else if (/Repository not found/.test(stderr)) {
+				} else if (/Repository not found/.test(result.stderr)) {
 					gitErrorCode = GitErrorCodes.RepositoryNotFound;
-				} else if (/unable to access/.test(stderr)) {
+				} else if (/unable to access/.test(result.stderr)) {
 					gitErrorCode = GitErrorCodes.CantAccessRemote;
 				}
 
 				if (options.log !== false) {
-					this.log(stderr);
+					this.log(result.stderr);
 				}
 
 				return TPromise.wrapError<IExecutionResult>(new GitError({
 					message: 'Failed to execute git',
-					stdout: stdout,
-					stderr: stderr,
-					exitCode: exitCode,
-					gitErrorCode: gitErrorCode,
+					stdout: result.stdout,
+					stderr: result.stderr,
+					exitCode: result.exitCode,
+					gitErrorCode,
 					gitCommand: args[0]
 				}));
 			}
 
-			return TPromise.as<IExecutionResult>({
-				code: values[0],
-				stdout: values[1],
-				stderr: values[2]
-			});
+			return result;
 		});
 	}
 
@@ -322,32 +337,15 @@ export class Repository {
 	private doBuffer(object: string): TPromise<string> {
 		const child = this.show(object);
 
-		return TPromise.join<any>([
-			new TPromise<number>((c, e) => {
-				child.once('error', e);
-				child.once('exit', c);
-			}),
-			new TPromise<string>(c => {
-				const buffers: NodeBuffer[] = [];
-				child.stdout.on('data', (b: NodeBuffer) => buffers.push(b));
-				child.stdout.once('close', () => c(iconv.decode(Buffer.concat(buffers), this.defaultEncoding)));
-			}),
-			new Promise(c => {
-				child.stderr.on('data', (data:string) => { /* Read to free buffer but do not handle */ });
-				child.stderr.once('close', () => c(null));
-			})
-		]).then((values) => {
-			const exitCode = <number> values[0];
-			const result = <string> values[1];
-
+		return exec(child, this.defaultEncoding).then(({ exitCode, stdout }) => {
 			if (exitCode) {
 				return TPromise.wrapError<string>(new GitError({
 					message: 'Could not buffer object.',
-					exitCode: exitCode
+					exitCode
 				}));
 			}
 
-			return TPromise.as<string>(result);
+			return TPromise.as<string>(stdout);
 		});
 	}
 
@@ -367,25 +365,7 @@ export class Repository {
 		const child = this.stream(['hash-object', '--stdin', '-w'], { stdio: [null, null, null] });
 		child.stdin.end(data, 'utf8');
 
-		return TPromise.join<any>([
-			new TPromise<number>((c, e) => {
-				child.once('error', e);
-				child.once('exit', c);
-			}),
-			new TPromise<string>(c => {
-				let id = '';
-				child.stdout.setEncoding('utf8');
-				child.stdout.on('data', (data:string) => id += data);
-				child.stdout.once('close', () => c(id));
-			}),
-			new Promise(c => {
-				child.stderr.on('data', (data:string) => { /* Read to free buffer but do not handle */ });
-				child.stderr.once('close', () => c(null));
-			})
-		]).then<IExecutionResult>((values) => {
-			const exitCode = <number> values[0];
-			const id = <string> values[1];
-
+		return exec(child).then(({ exitCode, stdout }) => {
 			if (exitCode) {
 				return TPromise.wrapError<IExecutionResult>(new GitError({
 					message: 'Could not hash object.',
@@ -393,7 +373,7 @@ export class Repository {
 				}));
 			}
 
-			return this.run(['update-index', '--cacheinfo', '100644', id, path]);
+			return this.run(['update-index', '--cacheinfo', '100644', stdout, path]);
 		});
 	}
 
