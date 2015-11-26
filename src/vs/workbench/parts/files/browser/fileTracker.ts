@@ -87,7 +87,7 @@ export class FileTracker implements IWorkbenchContribution {
 		this.emitInputStateChangeEvent(e.getAfter().resource);
 
 		if (!this.contextService.isAutoSaveEnabled()) {
-			this.updateActivityBadge(); // no indication needed when auto save is turned off and we didnt show dirty
+			this.updateActivityBadge(); // no indication needed when auto save is turned off and we didn't show dirty
 		}
 	}
 
@@ -182,7 +182,7 @@ export class FileTracker implements IWorkbenchContribution {
 			this.handleMovedFileInVisibleEditors(before ? before.resource : null, after ? after.resource : null, after ? after.mime : null);
 		}
 
-		// Dispose all known inputs pased on resource
+		// Dispose all known inputs passed on resource
 		let oldFile = e.getBefore();
 		if ((e.gotMoved() || e.gotDeleted())) {
 			this.disposeAll(oldFile.resource, this.quickOpenService.getEditorHistory());

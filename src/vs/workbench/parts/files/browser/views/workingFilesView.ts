@@ -150,7 +150,7 @@ export class WorkingFilesView extends AdaptiveCollapsibleViewletView {
 
 	private onTextFileDirty(e: LocalFileChangeEvent): void {
 		if (!this.contextService.isAutoSaveEnabled()) {
-			this.updateDirtyIndicator(); // no indication needed when auto save is turned off and we didnt show dirty
+			this.updateDirtyIndicator(); // no indication needed when auto save is turned off and we didn't show dirty
 		}
 	}
 

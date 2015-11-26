@@ -84,7 +84,7 @@ export class FileDataSource implements Tree.IDataSource {
 				// Convert to view model
 				let modelDirStat = FileStat.create(dirStat);
 
-				// Add childs to folder
+				// Add children to folder
 				for (let i = 0; i < modelDirStat.children.length; i++) {
 					stat.addChild(modelDirStat.children[i]);
 				}

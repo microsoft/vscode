@@ -294,7 +294,7 @@ export class DebugEditorModelManager implements wbext.IWorkbenchContribution {
 		stickiness: editorcommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
 	};
 
-	// We need a seperate decoration for glyph margin, since we do not want it on each line of a multi line statement.
+	// We need a separate decoration for glyph margin, since we do not want it on each line of a multi line statement.
 	private static TOP_STACK_FRAME_MARGIN: editorcommon.IModelDecorationOptions = {
 		glyphMarginClassName: 'debug-top-stack-frame-glyph',
 		stickiness: editorcommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
@@ -325,7 +325,7 @@ export class DebugEditorModelManager implements wbext.IWorkbenchContribution {
 
 	private static FOCUSED_STACK_FRAME_DECORATION: editorcommon.IModelDecorationOptions = {
 		isWholeLine: true,
-		className: 'debug-focussed-stack-frame-line',
+		className: 'debug-focused-stack-frame-line',
 		stickiness: editorcommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
 	};
 }

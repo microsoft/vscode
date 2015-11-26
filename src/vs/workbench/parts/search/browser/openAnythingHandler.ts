@@ -29,7 +29,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 
 	private static SYMBOL_SEARCH_INITIAL_TIMEOUT = 500; // Ignore symbol search after a timeout to not block search results
 	private static SYMBOL_SEARCH_SUBSEQUENT_TIMEOUT = 100;
-	private static SEARCH_DELAY = 100; // This delay acommodates for the user typing a word and then stops typing to start searching
+	private static SEARCH_DELAY = 100; // This delay accommodates for the user typing a word and then stops typing to start searching
 
 	private openSymbolHandler: _OpenSymbolHandler;
 	private openFileHandler: OpenFileHandler;

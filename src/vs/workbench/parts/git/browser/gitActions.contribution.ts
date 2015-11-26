@@ -31,7 +31,7 @@ import {IFileService, IFileStat} from 'vs/platform/files/common/files';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import wbar = require('vs/workbench/browser/actionRegistry');
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { OpenChangeAction } from './gitActions';
+import { OpenChangeAction, SyncAction } from './gitActions';
 import Severity from 'vs/base/common/severity';
 
 function getStatus(gitService: IGitService, contextService: IWorkspaceContextService, input: WorkbenchEditorCommon.IFileEditorInput): IFileStatus {
@@ -432,5 +432,7 @@ actionBarRegistry.registerActionBarContributor(abr.Scope.EDITOR, GitWorkingTreeD
 
 let workbenchActionRegistry = (<wbar.IWorkbenchActionRegistry> platform.Registry.as(wbar.Extensions.WorkbenchActions));
 
-// Register Action to Open Viewlet
-workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(GlobalOpenChangeAction, GlobalOpenChangeAction.ID, GlobalOpenChangeAction.LABEL), nls.localize('git', "Git"));
+// Register Actions
+const category = nls.localize('git', "Git");
+workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(GlobalOpenChangeAction, GlobalOpenChangeAction.ID, GlobalOpenChangeAction.LABEL), category);
+workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(SyncAction, SyncAction.ID, SyncAction.LABEL), category);

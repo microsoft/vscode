@@ -406,7 +406,7 @@ export abstract class BaseUndoAction extends GitAction {
 				});
 			});
 		}).then(null, (errors: any[]): Promise => {
-			console.error('One or more errors occured', errors);
+			console.error('One or more errors occurred', errors);
 			return Promise.wrapError(errors[0]);
 		});
 	}
@@ -941,9 +941,10 @@ export abstract class BaseSyncAction extends GitAction {
 export class SyncAction extends BaseSyncAction {
 
 	static ID = 'workbench.action.sync';
+	static LABEL = nls.localize('sync', "Sync");
 
-	constructor(@IGitService gitService: IGitService) {
-		super(SyncAction.ID, nls.localize('sync', "Sync"), 'git-action sync', gitService);
+	constructor(id: string, label: string, @IGitService gitService: IGitService) {
+		super(id, label, 'git-action sync', gitService);
 	}
 }
 

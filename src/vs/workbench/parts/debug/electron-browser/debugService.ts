@@ -334,28 +334,29 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		this.emit(debug.ServiceEvents.STATE_CHANGED, data);
 	}
 
-	public openConfigFile(sideBySide: boolean): Promise {
+	public openConfigFile(sideBySide: boolean): TPromise<boolean> {
 		const resource = uri.file(paths.join(this.contextService.getWorkspace().resource.fsPath, '/.vscode/launch.json'));
 
-		return this.fileService.resolveContent(resource).then(content => {
-			let globalConfig = null;
-			try {
-				globalConfig = <debug.IGlobalConfig> JSON.parse(content.value);
-			} catch (e) { }
+		return this.fileService.resolveContent(resource).then(content => true, err =>
+			this.getInitialConfigFileContent().then(content => {
+				if (!content) {
+					return false;
+				}
 
-			if (!globalConfig || !globalConfig.configurations || globalConfig.configurations.length === 0) {
-				return this.createInitialConfigFile(resource, content.value);
+				return this.fileService.updateContent(resource, content).then(() => true);
 			}
-		}, err => this.createInitialConfigFile(resource, null))
-
-		.then(() => {
+		)).then(configFileCreated => {
+			if (!configFileCreated) {
+				return false;
+			}
 			this.telemetryService.publicLog('debugConfigure');
+
 			return this.editorService.openEditor({
 				resource: resource,
 				options: {
 					forceOpen: true
 				}
-			}, sideBySide);
+			}, sideBySide).then(() => true);
 		}, (error) => {
 			throw new Error(nls.localize('DebugConfig.failed', "Unable to create 'launch.json' file inside the '.vscode' folder ({0}).", error));
 		});
@@ -399,20 +400,20 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		});
 	}
 
-	private createInitialConfigFile(resource: uri, previousContent: string): Promise {
+	private getInitialConfigFileContent(): TPromise<string> {
 		return this.quickOpenService.pick(this.adapters, { placeHolder: nls.localize('selectDebug', "Select Debug Environment") })
-		.then(adapter =>
-			this.massageInitialConfigurations(adapter).then(() => {
-				if (previousContent && !adapter) {
-					return previousContent;
-				}
+		.then(adapter => {
+			if (!adapter) {
+				return null;
+			}
 
-				return JSON.stringify({
+			return this.massageInitialConfigurations(adapter).then(() =>
+				JSON.stringify({
 					version: '0.2.0',
-					configurations: adapter && adapter.initialConfigurations ? adapter.initialConfigurations : []
+					configurations: adapter.initialConfigurations ? adapter.initialConfigurations : []
 				}, null, '\t')
-			})
-		).then(content => this.fileService.updateContent(resource, content));
+			)
+		});
 	}
 
 	private massageInitialConfigurations(adapter: Adapter): Promise {
@@ -531,8 +532,11 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 
 		return this.pluginService.onReady().then(() => this.setConfiguration(this.configuration ? this.configuration.name : null, extensionHostData)).then(() => {
 			if (!this.configuration) {
-				return this.openConfigFile(false).then(() =>
-					this.messageService.show(severity.Info, nls.localize('NewLaunchConfig', "Please set up the launch configuration file to debug your application. Make sure that configurations have unique names.")));
+				return this.openConfigFile(false).then(openend => {
+					if (openend) {
+						this.messageService.show(severity.Info, nls.localize('NewLaunchConfig', "Please set up the launch configuration file to debug your application."));
+					}
+				});
 			}
 
 			var adapter = this.adapters.filter(adapter => adapter.type === this.configuration.type).pop();

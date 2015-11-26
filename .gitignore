@@ -2,6 +2,7 @@
 npm-debug.log
 Thumbs.db
 node_modules/
+.build/
 out/
 out-build/
 out-editor/

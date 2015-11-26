@@ -16,7 +16,6 @@ import platform = require('vs/base/common/platform');
 import objects = require('vs/base/common/objects');
 import env = require('vs/workbench/electron-main/env');
 import storage = require('vs/workbench/electron-main/storage');
-import {IEnv} from 'vs/base/node/env';
 
 export interface IWindowState {
 	width?: number;
@@ -113,7 +112,7 @@ export interface IWindowConfiguration extends env.ICommandLineArguments {
 	releaseNotesUrl: string;
 	productDownloadUrl: string;
 	enableTelemetry: boolean;
-	userEnv: IEnv,
+	userEnv: env.IProcessEnvironment,
 	aiConfig: {
 		key: string;
 		asimovKey: string;

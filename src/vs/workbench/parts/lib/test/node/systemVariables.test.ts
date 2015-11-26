@@ -11,7 +11,7 @@ import * as Platform from 'vs/base/common/platform';
 import { SystemVariables } from 'vs/workbench/parts/lib/node/systemVariables';
 
 suite('SystemVariables tests', () => {
-	test('SytemVariables: subsitute one', () => {
+	test('SystemVariables: substitute one', () => {
 		let systemVariables: SystemVariables = new SystemVariables(null, null, URI.parse('file:///VSCode/workspaceLocation'));
 		if (Platform.isWindows) {
 			assert.strictEqual(systemVariables.resolve('abc ${workspaceRoot} xyz'), 'abc \\VSCode\\workspaceLocation xyz');
@@ -20,7 +20,7 @@ suite('SystemVariables tests', () => {
 		}
 	});
 
-	test('SytemVariables: subsitute many', () => {
+	test('SystemVariables: substitute many', () => {
 		let systemVariables: SystemVariables = new SystemVariables(null, null, URI.parse('file:///VSCode/workspaceLocation'));
 		if (Platform.isWindows) {
 			assert.strictEqual(systemVariables.resolve('${workspaceRoot} - ${workspaceRoot}'), '\\VSCode\\workspaceLocation - \\VSCode\\workspaceLocation');

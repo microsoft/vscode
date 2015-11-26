@@ -134,7 +134,7 @@ export class WorkingFilesActionProvider extends ContributableActionProvider {
 		return element instanceof WorkingFileEntry || super.hasActions(tree, element);
 	}
 
-	// we dont call into super here because we put only one primary action to the left (Remove/Dirty Indicator)
+	// we don't call into super here because we put only one primary action to the left (Remove/Dirty Indicator)
 	public getActions(tree: tree.ITree, element: WorkingFileEntry): TPromise<actions.IAction[]> {
 		let actions: actions.IAction[] = [];
 

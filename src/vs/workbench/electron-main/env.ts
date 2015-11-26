@@ -115,6 +115,10 @@ export function log(...a: any[]): void {
 	}
 }
 
+export interface IProcessEnvironment {
+	[key: string]: string;
+}
+
 export interface ICommandLineArguments {
 	verboseLogging: boolean;
 	debugPluginHostPort: number;

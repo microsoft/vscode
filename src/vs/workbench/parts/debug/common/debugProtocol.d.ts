@@ -65,7 +65,7 @@ declare module DebugProtocol {
 			reason: string;
 			/** The thread which was stopped. */
 			threadId?: number;
-			/** Additonal information. E.g. if reason is 'exception', text contains the exception name. */
+			/** Additional information. E.g. if reason is 'exception', text contains the exception name. */
 			text?: string;
 		};
 	}
