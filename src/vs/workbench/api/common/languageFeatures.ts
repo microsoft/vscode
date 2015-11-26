@@ -625,124 +625,17 @@ export class MainThreadCompletions extends AbstractMainThreadFeature<modes.ISugg
 	}
 }
 
-// --- workspace symbols
-
-export class ExtensionHostWorkspaceSymbols {
-
-	private _provider: vscode.WorkspaceSymbolProvider[] = [];
-	private _proxy: MainThreadWorkspaceSymbols;
-	private _threadService: IThreadService;
-	private _commands: PluginHostCommands;
-
-	constructor(@IThreadService threadService: IThreadService) {
-		this._threadService = threadService;
-		this._commands = threadService.getRemotable(PluginHostCommands);
-		this._proxy = threadService.getRemotable(MainThreadWorkspaceSymbols);
-		this._commands.registerCommand(MainThreadWorkspaceSymbols.CommandId, this._runAsCommand, this);
-	}
-
-	register(provider: vscode.WorkspaceSymbolProvider): vscode.Disposable {
-
-		this._provider.push(provider);
-
-		// is first, register commands, do stuff
-		if (this._provider.length === 1) {
-			this._proxy._enable(true);
-		}
-
-		return new Disposable(() => {
-			let idx = this._provider.indexOf(provider);
-			if (idx >= 0) {
-				this._provider.splice(idx, 1);
-				if (this._provider.length === 0) {
-					this._proxy._enable(false);
-				}
-			}
-		});
-	}
-
-	private _runAsCommand(query: string): TPromise<ITypeBearing[]> {
-
-		if (typeof query !== 'string') {
-			return TPromise.wrapError('query is not string');
-		}
-
-		let symbols: vscode.SymbolInformation[] = [];
-		let promises = this._provider.map(provider => {
-			return asWinJsPromise(token => {
-				return provider.provideWorkspaceSymbols(query, token)
-			}).then(value => {
-				if (Array.isArray(value)) {
-					symbols.push(...value);
-				}
-			}, err => {
-				console.error(err);
-			});
-		});
-
-		return TPromise.join(promises).then(() => {
-			return symbols.map(ExtensionHostWorkspaceSymbols._fromSymbolInformation);
-		});
-	}
-
-	private static _fromSymbolInformation(info: vscode.SymbolInformation): ITypeBearing {
-		return <ITypeBearing>{
-			name: info.name,
-			type: SymbolKind[info.kind || SymbolKind.Property].toLowerCase(),
-			range: TypeConverters.fromRange(info.location.range),
-			resourceUri: info.location.uri,
-			containerName: info.containerName,
-			parameters: '',
-		};
-	}
-}
-
-@Remotable.MainContext('MainThreadWorkspaceSymbols')
-export class MainThreadWorkspaceSymbols implements INavigateTypesSupport {
-
-	static CommandId = 'vscode.executeWorkspaceSymbolProvider';
-
-	private _commands: PluginHostCommands;
-	private _disposable: IDisposable;
-
-	constructor(@IThreadService threadService: IThreadService) {
-		this._commands = threadService.getRemotable(PluginHostCommands);
-	}
-
-	_enable(value: boolean): void {
-		if (value) {
-			this._disposable = NavigateTypesSupportRegistry.register(this);
-		} else if (this._disposable) {
-			this._disposable.dispose();
-			this._disposable = undefined;
-		}
-	}
-
-	getNavigateToItems(search: string): TPromise<ITypeBearing[]> {
-		let value = this._commands.executeCommand<ITypeBearing[]>(MainThreadWorkspaceSymbols.CommandId, search);
-		return TPromise.as(<any>value);
-	}
-}
-
 export namespace LanguageFeatures {
 
 	export function createMainThreadInstances(threadService: IThreadService): void {
-		threadService.getRemotable(MainThreadWorkspaceSymbols);
 		threadService.getRemotable(MainThreadRename);
-		threadService.getRemotable(MainThreadFormatDocument);
-		threadService.getRemotable(MainThreadFormatRange);
-		threadService.getRemotable(MainThreadFormatOnType);
 		threadService.getRemotable(MainThreadSignatureHelp);
 		threadService.getRemotable(MainThreadCompletions);
 	}
 
 	export function createExtensionHostInstances(threadService: IThreadService) {
 		return {
-			workspaceSymbols: new ExtensionHostWorkspaceSymbols(threadService),
 			rename: new ExtensionHostRename(threadService),
-			formatDocument: new ExtHostFormatDocument(threadService),
-			formatRange: new ExtHostFormatRange(threadService),
-			formatOnType: new ExtHostFormatOnType(threadService),
 			signatureHelp: new ExtHostSignatureHelp(threadService),
 			completions: threadService.getRemotable(ExtHostCompletions)
 		};

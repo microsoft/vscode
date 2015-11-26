@@ -426,8 +426,36 @@ class OnTypeFormattingAdapter implements modes.IFormattingSupport {
 	}
 }
 
+class NavigateTypeAdapter implements INavigateTypesSupport {
+
+	private _provider: vscode.WorkspaceSymbolProvider;
+
+	constructor(provider: vscode.WorkspaceSymbolProvider) {
+		this._provider = provider;
+	}
+
+	getNavigateToItems(search: string): TPromise<ITypeBearing[]> {
+		return asWinJsPromise(token => this._provider.provideWorkspaceSymbols(search, token)).then(value => {
+			if (Array.isArray(value)) {
+				return value.map(NavigateTypeAdapter._fromSymbolInformation);
+			}
+		});
+	}
+
+	private static _fromSymbolInformation(info: vscode.SymbolInformation): ITypeBearing {
+		return <ITypeBearing>{
+			name: info.name,
+			type: SymbolKind[info.kind || SymbolKind.Property].toLowerCase(),
+			range: TypeConverters.fromRange(info.location.range),
+			resourceUri: info.location.uri,
+			containerName: info.containerName,
+			parameters: '',
+		};
+	}
+}
+
 type Adapter = OutlineAdapter | CodeLensAdapter | DeclarationAdapter | ExtraInfoAdapter | OccurrencesAdapter | ReferenceAdapter | QuickFixAdapter
-	| DocumentFormattingAdapter | RangeFormattingAdapter | OnTypeFormattingAdapter;
+	| DocumentFormattingAdapter | RangeFormattingAdapter | OnTypeFormattingAdapter | NavigateTypeAdapter;
 
 @Remotable.PluginHostContext('ExtHostLanguageFeatures')
 export class ExtHostLanguageFeatures {
@@ -598,6 +626,18 @@ export class ExtHostLanguageFeatures {
 		return this._withAdapter(handle, OnTypeFormattingAdapter, adapter => adapter.formatAfterKeystroke(resource, position, ch, options));
 	}
 
+	// --- navigate types
+
+	registerWorkspaceSymbolProvider(provider: vscode.WorkspaceSymbolProvider): vscode.Disposable {
+		const handle = this._nextHandle();
+		this._adapter[handle] = new NavigateTypeAdapter(provider);
+		this._proxy.$registerNavigateTypeSupport(handle);
+		return this._createDisposable(handle);
+	}
+
+	$getNavigateToItems(handle: number, search: string): TPromise<ITypeBearing[]> {
+		return this._withAdapter(handle, NavigateTypeAdapter, adapter => adapter.getNavigateToItems(search));
+	}
 }
 
 @Remotable.MainContext('MainThreadLanguageFeatures')
@@ -743,6 +783,17 @@ export class MainThreadLanguageFeatures {
 
 			formatAfterKeystroke: (resource: URI, position: IPosition, ch: string, options: modes.IFormattingOptions): TPromise<ISingleEditOperation[]> => {
 				return this._proxy.$formatAfterKeystroke(handle, resource, position, ch, options);
+			}
+		});
+		return undefined;
+	}
+
+	// --- navigate type
+
+	$registerNavigateTypeSupport(handle: number): TPromise<any> {
+		this._registrations[handle] = NavigateTypesSupportRegistry.register(<INavigateTypesSupport>{
+			getNavigateToItems: (search: string): TPromise<ITypeBearing[]> => {
+				return this._proxy.$getNavigateToItems(handle, search);
 			}
 		});
 		return undefined;

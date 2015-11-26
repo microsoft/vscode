@@ -33,6 +33,7 @@ import {ExtraInfoRegistry, getExtraInfoAtPosition} from 'vs/editor/contrib/hover
 import {OccurrencesRegistry, getOccurrencesAtPosition} from 'vs/editor/contrib/wordHighlighter/common/wordHighlighter';
 import {ReferenceRegistry, findReferences} from 'vs/editor/contrib/referenceSearch/common/referenceSearch';
 import {getQuickFixes} from 'vs/editor/contrib/quickFix/common/quickFix';
+import {getNavigateToItems} from 'vs/workbench/parts/search/common/search';
 
 const defaultSelector = { scheme: 'far' };
 const model: EditorCommon.IModel = new EditorModel(
@@ -681,4 +682,29 @@ suite('ExtHostLanguageFeatures', function() {
 			});
 		});
 	});
+
+	// --- navigate types
+
+	test('Navigate types, evil provider', function(done) {
+
+		disposables.push(extHost.registerWorkspaceSymbolProvider(<vscode.WorkspaceSymbolProvider>{
+			provideWorkspaceSymbols(): any {
+				throw new Error('evil');
+			}
+		}));
+
+		disposables.push(extHost.registerWorkspaceSymbolProvider(<vscode.WorkspaceSymbolProvider>{
+			provideWorkspaceSymbols(): any {
+				return [new types.SymbolInformation('testing', types.SymbolKind.Array, new types.Range(0, 0, 1, 1))]
+			}
+		}));
+
+		threadService.sync().then(() => {
+
+			getNavigateToItems('').then(value => {
+				assert.equal(value.length, 1);
+				done();
+			});
+		});
+	})
 });

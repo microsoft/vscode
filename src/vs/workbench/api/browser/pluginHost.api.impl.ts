@@ -289,7 +289,7 @@ export class PluginHostAPIImplementation {
 				return languageFeatures.registerDocumentSymbolProvider(selector, provider);
 			},
 			registerWorkspaceSymbolProvider(provider: vscode.WorkspaceSymbolProvider): vscode.Disposable {
-				return features.workspaceSymbols.register(provider);
+				return languageFeatures.registerWorkspaceSymbolProvider(provider);
 			},
 			registerDocumentFormattingEditProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentFormattingEditProvider): vscode.Disposable {
 				return languageFeatures.registerDocumentFormattingEditProvider(selector, provider);
