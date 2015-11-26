@@ -209,7 +209,11 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 					onOk: () => { /* ignore, handle later */ },
 					onCancel: () => { /* ignore, handle later */ },
 					onType: (value: string) => { /* ignore, handle later */ },
-					onShow: () => this.emitQuickOpenVisibilityChange(true)
+					onShow: () => this.emitQuickOpenVisibilityChange(true),
+					onHide: () => {
+						this.restoreFocus(); // focus back to editor or viewlet
+						this.emitQuickOpenVisibilityChange(false); // event
+					}
 				}, {
 					inputPlaceHolder: options.placeHolder || ''
 				},
