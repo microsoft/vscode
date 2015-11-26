@@ -5,6 +5,7 @@
 
 import assert = require('assert');
 import uri from 'vs/base/common/uri';
+import severity from 'vs/base/common/severity';
 import debug = require('vs/workbench/parts/debug/common/debug');
 import debugmodel = require('vs/workbench/parts/debug/common/debugModel');
 
@@ -87,5 +88,94 @@ suite('Debug - Model', () => {
 
 		model.clearThreads(true);
 		assert.equal(model.getThreads[threadId], null);
+	});
+
+	// Expressions
+
+	function assertWatchExpressions(watchExpressions: debugmodel.Expression[], expectedName: string) {
+		assert.equal(watchExpressions.length, 2);
+		watchExpressions.forEach(we => {
+			assert.equal(we.available, false);
+			assert.equal(we.reference, 0);
+			assert.equal(we.name, expectedName);
+		});
+	}
+
+	test('watch expressions', () => {
+		const stackFrame = new debugmodel.StackFrame(1, 1, null, 'app.js', 1, 1);
+		model.addWatchExpression(null, stackFrame, 'console').done();
+		model.addWatchExpression(null, stackFrame, 'console').done();
+		const watchExpressions = model.getWatchExpressions();
+		assertWatchExpressions(watchExpressions, 'console');
+
+		model.renameWatchExpression(null, stackFrame, watchExpressions[0].getId(), 'new_name').done();
+		model.renameWatchExpression(null, stackFrame, watchExpressions[1].getId(), 'new_name').done();
+		assertWatchExpressions(model.getWatchExpressions(), 'new_name');
+
+		model.clearWatchExpressionValues();
+		assertWatchExpressions(model.getWatchExpressions(), 'new_name');
+
+		model.clearWatchExpressions();
+		assert.equal(model.getWatchExpressions().length, 0);
+	});
+
+	test('repl expressions', () => {
+		const stackFrame = new debugmodel.StackFrame(1, 1, null, 'app.js', 1, 1);
+		model.addReplExpression(null, stackFrame, 'myVariable').done();
+		model.addReplExpression(null, stackFrame, 'myVariable').done();
+		model.addReplExpression(null, stackFrame, 'myVariable').done();
+
+		assert.equal(model.getReplElements().length, 3);
+		model.getReplElements().forEach(re => {
+			assert.equal((<debugmodel.Expression> re).available, false);
+			assert.equal((<debugmodel.Expression> re).name, 'myVariable');
+			assert.equal((<debugmodel.Expression> re).reference, 0);
+		});
+
+		model.clearReplExpressions();
+		assert.equal(model.getReplElements().length, 0);
+	});
+
+	// Repl output
+
+	test('repl output', () => {
+		model.logToRepl('first line', severity.Error);
+		model.logToRepl('second line', severity.Warning);
+		model.logToRepl('second line', severity.Warning);
+		model.logToRepl('second line', severity.Error);
+
+		let elements = <debugmodel.ValueOutputElement[]> model.getReplElements();
+		assert.equal(elements.length, 3);
+		assert.equal(elements[0].value, 'first line');
+		assert.equal(elements[0].counter, 1);
+		assert.equal(elements[0].severity, severity.Error);
+		assert.equal(elements[0].grouped, false);
+		assert.equal(elements[1].value, 'second line');
+		assert.equal(elements[1].counter, 2);
+		assert.equal(elements[1].severity, severity.Warning);
+		assert.equal(elements[1].grouped, false);
+
+		model.appendReplOutput('1', severity.Error);
+		model.appendReplOutput('2', severity.Error);
+		model.appendReplOutput('3', severity.Error);
+		elements = <debugmodel.ValueOutputElement[]> model.getReplElements();
+		assert.equal(elements.length, 4);
+		assert.equal(elements[3].value, '123');
+		assert.equal(elements[3].severity, severity.Error);
+
+		const keyValueObject = { 'key1' : 2, 'key2': 'value' };
+		model.logToRepl(keyValueObject);
+		const element = <debugmodel.KeyValueOutputElement> model.getReplElements()[4];
+		assert.equal(element.value, 'Object');
+		assert.deepEqual(element.valueObj, keyValueObject);
+
+		model.clearReplExpressions();
+		assert.equal(model.getReplElements().length, 0);
+	});
+
+	// Utils
+
+	test('full expression name', () => {
+		assert.equal(true, true);
 	});
 });

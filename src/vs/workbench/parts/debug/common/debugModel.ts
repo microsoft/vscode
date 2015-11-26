@@ -100,7 +100,7 @@ export class KeyValueOutputElement extends OutputElement {
 	private children: debug.ITreeElement[];
 	private _valueName: string;
 
-	constructor(public key: string, public valueObj: any, public annotation?: string, grouped?) {
+	constructor(public key: string, public valueObj: any, public annotation?: string, grouped?: boolean) {
 		super(grouped);
 
 		this._valueName = null;
