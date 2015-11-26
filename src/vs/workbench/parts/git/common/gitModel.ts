@@ -349,6 +349,7 @@ export class Model extends EventEmitter.EventEmitter implements Git.IModel {
 	public update(status: Git.IRawStatus): void {
 		if (!status) {
 			status = {
+				repositoryRoot: null,
 				status: [],
 				HEAD: null,
 				heads: [],

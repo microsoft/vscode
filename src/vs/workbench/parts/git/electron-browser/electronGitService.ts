@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
-import { IRawGitService, IRawStatus, RawServiceState } from 'vs/workbench/parts/git/common/git';
+import { RawServiceState } from 'vs/workbench/parts/git/common/git';
 import { NoOpGitService } from 'vs/workbench/parts/git/common/noopGitService';
 import { GitService } from 'vs/workbench/parts/git/browser/gitServices';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
@@ -12,12 +12,11 @@ import { IOutputService } from 'vs/workbench/parts/output/common/output';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEventService } from 'vs/platform/event/common/event';
-import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { Client } from 'vs/base/node/service.cp';
-import { RawGitService, RawGitServiceWrapper } from 'vs/workbench/parts/git/node/rawGitService';
+import { RawGitService, DelayedRawGitService } from 'vs/workbench/parts/git/node/rawGitService';
 import URI from 'vs/base/common/uri';
 import { spawn, exec } from 'child_process';
 import { join } from 'path';
@@ -121,7 +120,7 @@ export function createNativeRawGitService(workspaceRoot: string, gitPath: string
 	}, () => new UnavailableRawGitService());
 }
 
-class ElectronRawGitService extends RawGitServiceWrapper {
+class ElectronRawGitService extends DelayedRawGitService {
 	constructor(workspaceRoot: string, @IConfigurationService configurationService: IConfigurationService) {
 		super(configurationService.loadConfiguration().then(conf => {
 			var enabled = conf.git ? conf.git.enabled : true;

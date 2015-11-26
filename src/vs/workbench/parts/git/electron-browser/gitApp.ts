@@ -4,21 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import { TPromise } from 'vs/base/common/winjs.base';
 import { Server } from 'vs/base/node/service.cp';
 import objects = require('vs/base/common/objects');
 import uri from 'vs/base/common/uri';
+import { IRawGitService } from 'vs/workbench/parts/git/common/git';
 import gitlib = require('vs/workbench/parts/git/node/git.lib');
-import rawgitservice = require('vs/workbench/parts/git/node/rawGitService');
-
+import { RawGitService, DelayedRawGitService } from 'vs/workbench/parts/git/node/rawGitService';
 import { join, dirname, normalize } from 'path';
 import { tmpdir } from 'os';
-import { writeFileSync } from 'fs';
+import { realpath } from 'vs/base/node/pfs';
 
-class IPCRawGitService extends rawgitservice.RawGitService {
+class IPCRawGitService extends DelayedRawGitService {
 
-	constructor(gitPath: string, basePath: string, defaultEncoding: string, exePath: string) {
+	constructor(gitPath: string, workspaceRoot: string, defaultEncoding: string, exePath: string) {
 		if (!gitPath) {
-			super(null);
+			super(TPromise.as(new RawGitService(null)));
 		} else {
 			const gitRootPath = uri.parse(require.toUrl('vs/workbench/parts/git/electron-main')).fsPath;
 			const bootstrapPath = `${ uri.parse(require.toUrl('bootstrap')).fsPath }.js`;
@@ -37,7 +38,13 @@ class IPCRawGitService extends rawgitservice.RawGitService {
 				env: env
 			});
 
-			super(git.open(normalize(basePath)));
+			const repo = git.open(normalize(workspaceRoot));
+			const promise = repo.getRoot()
+				.then(root => realpath(root))
+				.then(root => git.open(root))
+				.then(repo => new RawGitService(repo));
+
+			super(promise);
 		}
 	}
 }

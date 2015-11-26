@@ -23,11 +23,14 @@ function pathsAreEqual(p1: string, p2: string): boolean {
 export class RawGitService implements IRawGitService {
 
 	private repo: Repository;
-	private repoRealRootPath: TPromise<string>;
+	private _repositoryRoot: TPromise<string>;
 
 	constructor(repo: Repository) {
 		this.repo = repo;
-		this.repoRealRootPath = null;
+	}
+
+	private getRepositoryRoot(): TPromise<string> {
+		return this._repositoryRoot || (this._repositoryRoot = pfs.realpath(this.repo.path));
 	}
 
 	public serviceState(): TPromise<RawServiceState> {
@@ -38,8 +41,7 @@ export class RawGitService implements IRawGitService {
 	}
 
 	public status(): TPromise<IRawStatus> {
-		return this.checkRoot()
-			.then(() => this.repo.getStatus())
+		return this.repo.getStatus()
 			.then(status => this.repo.getHEAD()
 				.then(HEAD => {
 					if (HEAD.name) {
@@ -48,12 +50,13 @@ export class RawGitService implements IRawGitService {
 						return HEAD;
 					}
 				}, (): IHead => null)
-				.then(HEAD => Promise.join([this.repo.getHeads(), this.repo.getTags()]).then(r => {
+				.then(HEAD => Promise.join([this.getRepositoryRoot(), this.repo.getHeads(), this.repo.getTags()]).then(r => {
 					return {
+						repositoryRoot: r[0],
 						status: status,
 						HEAD: HEAD,
-						heads: r[0],
-						tags: r[1]
+						heads: r[1],
+						tags: r[2]
 					};
 				})))
 			.then(null, (err) => {
@@ -178,29 +181,9 @@ export class RawGitService implements IRawGitService {
 			cancel = this.repo.onOutput(p);
 		}, () => cancel());
 	}
-
-	private checkRoot(): Promise {
-		if (!this.repoRealRootPath) {
-			this.repoRealRootPath = pfs.realpath(this.repo.path);
-		}
-
-		return this.repo.getRoot().then(root => {
-			return Promise.join([
-				this.repoRealRootPath,
-				pfs.realpath(root)
-			]).then(paths => {
-				if (!pathsAreEqual(paths[0], paths[1])) {
-					return Promise.wrapError(new GitError({
-						message: 'Not at the repository root',
-						gitErrorCode: GitErrorCodes.NotAtRepositoryRoot
-					}));
-				}
-			});
-		});
-	}
 }
 
-export class RawGitServiceWrapper implements IRawGitService {
+export class DelayedRawGitService implements IRawGitService {
 
 	constructor(private raw: TPromise<IRawGitService>) { }
 
