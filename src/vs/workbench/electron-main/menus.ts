@@ -37,6 +37,8 @@ export class VSCodeMenu {
 
 	private static lastKnownKeybindingsMapStorageKey = 'lastKnownKeybindings';
 
+	private static MAX_RECENT_ENTRIES = 10;
+
 	private static AUTO_SAVE_DELAY_DEFAULT = 1000; // in ms
 	private static AUTO_SAVE_DISABLED = -1;
 
@@ -257,6 +259,10 @@ export class VSCodeMenu {
 			mru.folders = arrays.distinct(mru.folders);
 		}
 
+		// Make sure its bounded
+		mru.folders = mru.folders.slice(0, VSCodeMenu.MAX_RECENT_ENTRIES);
+		mru.files = mru.files.slice(0, VSCodeMenu.MAX_RECENT_ENTRIES);
+
 		storage.setItem(windows.WindowsManager.openedPathsListStorageKey, mru);
 	}
 
@@ -422,7 +428,7 @@ export class VSCodeMenu {
 
 		// Folders
 		recentList.folders.forEach((folder, index) => {
-			if (index < windows.WindowsManager.MAX_RECENT_ENTRIES) {
+			if (index < VSCodeMenu.MAX_RECENT_ENTRIES) {
 				openRecentMenu.append(this.createOpenRecentMenuItem(folder));
 			}
 		});
@@ -434,7 +440,7 @@ export class VSCodeMenu {
 			}
 
 			recentList.files.forEach((file, index) => {
-				if (index < windows.WindowsManager.MAX_RECENT_ENTRIES) {
+				if (index < VSCodeMenu.MAX_RECENT_ENTRIES) {
 					openRecentMenu.append(this.createOpenRecentMenuItem(file));
 				}
 			});
