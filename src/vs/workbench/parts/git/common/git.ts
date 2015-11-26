@@ -38,6 +38,7 @@ export interface ITag {
 }
 
 export interface IRawStatus {
+	repositoryRoot: string;
 	state?: ServiceState;
 	status: IRawFileStatus[];
 	HEAD: IBranch;
