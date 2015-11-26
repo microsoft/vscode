@@ -390,13 +390,13 @@ export class WindowsManager {
 			if (!openFilesInNewWindow && lastActiveWindow) {
 				lastActiveWindow.restore();
 				lastActiveWindow.ready().then((readyWindow) => {
-					readyWindow.win.webContents.send('vscode:openFiles', {
+					readyWindow.send('vscode:openFiles', {
 						filesToOpen: filesToOpen,
 						filesToCreate: filesToCreate
 					});
 
 					if (extensionsToInstall.length) {
-						readyWindow.win.webContents.send('vscode:installExtensions', { extensionsToInstall });
+						readyWindow.send('vscode:installExtensions', { extensionsToInstall });
 					}
 				});
 			}
@@ -418,13 +418,13 @@ export class WindowsManager {
 			if (windowsOnWorkspacePath.length > 0) {
 				windowsOnWorkspacePath[0].restore(); // just focus one of them
 				windowsOnWorkspacePath[0].ready().then((readyWindow) => {
-					readyWindow.win.webContents.send('vscode:openFiles', {
+					readyWindow.send('vscode:openFiles', {
 						filesToOpen: filesToOpen,
 						filesToCreate: filesToCreate
 					});
 
 					if (extensionsToInstall.length) {
-						readyWindow.win.webContents.send('vscode:installExtensions', { extensionsToInstall });
+						readyWindow.send('vscode:installExtensions', { extensionsToInstall });
 					}
 				});
 
@@ -889,9 +889,7 @@ export class WindowsManager {
 		const focusedWindow = this.getFocusedWindow() || this.getLastActiveWindow();
 
 		if (focusedWindow) {
-			focusedWindow.ready().then((readyWindow) => {
-				readyWindow.win.webContents.send(channel, ...args);
-			});
+			focusedWindow.sendWhenReady(channel, ...args);
 		}
 	}
 
@@ -901,9 +899,7 @@ export class WindowsManager {
 				return; // do not send if we are instructed to ignore it
 			}
 
-			w.ready().then((readyWindow) => {
-				readyWindow.win.webContents.send(channel, payload);
-			});
+			w.sendWhenReady(channel, payload);
 		});
 	}
 

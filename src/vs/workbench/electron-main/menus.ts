@@ -119,7 +119,7 @@ export class VSCodeMenu {
 
 		// Resolve keybindings when workbench window is up
 		if (this.actionIdKeybindingRequests.length) {
-			win.win.webContents.send('vscode:resolveKeybindings', JSON.stringify(this.actionIdKeybindingRequests));
+			win.send('vscode:resolveKeybindings', JSON.stringify(this.actionIdKeybindingRequests));
 		}
 	}
 

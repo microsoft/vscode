@@ -133,7 +133,7 @@ export class Lifecycle {
 				c(true); // veto
 			});
 
-			vscodeWindow.win.webContents.send('vscode:beforeUnload', { okChannel: oneTimeOkEvent, cancelChannel: oneTimeCancelEvent });
+			vscodeWindow.send('vscode:beforeUnload', { okChannel: oneTimeOkEvent, cancelChannel: oneTimeCancelEvent });
 		});
 	}
 

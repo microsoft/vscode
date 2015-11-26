@@ -294,9 +294,9 @@ export class VSCodeWindow {
 
 			// Support navigation via mouse buttons 4/5
 			if (cmd === 'browser-backward') {
-				this._win.webContents.send('vscode:runAction', 'workbench.action.navigateBack');
+				this.send('vscode:runAction', 'workbench.action.navigateBack');
 			} else if (cmd === 'browser-forward') {
-				this._win.webContents.send('vscode:runAction', 'workbench.action.navigateForward');
+				this.send('vscode:runAction', 'workbench.action.navigateForward');
 			}
 		});
 
@@ -530,6 +530,16 @@ export class VSCodeWindow {
 
 		this.win.setFullScreen(!isFullScreen);
 		this.win.setMenuBarVisibility(isFullScreen);
+	}
+
+	public sendWhenReady(channel: string, ...args: any[]): void {
+		this.ready().then(() => {
+			this.send(channel, ...args);
+		});
+	}
+
+	public send(channel: string, ...args: any[]): void {
+		this._win.webContents.send(channel, ...args);
 	}
 
 	public dispose(): void {
