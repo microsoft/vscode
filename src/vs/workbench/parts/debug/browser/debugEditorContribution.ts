@@ -3,15 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import nls = require('vs/nls');
+import { TPromise } from 'vs/base/common/winjs.base';
 import lifecycle = require('vs/base/common/lifecycle');
 import env = require('vs/base/common/platform');
+import uri from 'vs/base/common/uri';
+import { IAction, Action } from 'vs/base/common/actions';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import keyboard = require('vs/base/browser/keyboardEvent');
 import editorbrowser = require('vs/editor/browser/editorBrowser');
 import editorcommon = require('vs/editor/common/editorCommon');
 import { DebugHoverWidget } from 'vs/workbench/parts/debug/browser/debugHoverWidget';
+import debugactions = require('vs/workbench/parts/debug/browser/debugActions');
 import debug = require('vs/workbench/parts/debug/common/debug');
 import { IWorkspaceContextService } from 'vs/workbench/services/workspace/common/contextService';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 
 export class DebugEditorContribution implements editorcommon.IEditorContribution {
 
@@ -24,12 +31,32 @@ export class DebugEditorContribution implements editorcommon.IEditorContribution
 	constructor(
 		private editor: editorbrowser.ICodeEditor,
 		@debug.IDebugService private debugService: debug.IDebugService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IContextMenuService private contextMenuService: IContextMenuService,
+		@IInstantiationService private instantiationService:IInstantiationService
 	) {
 		this.breakpointHintDecoration = [];
 		this.toDispose = [];
 		this.hoverWidget = new DebugHoverWidget(this.editor, this.debugService);
 		this.registerListeners();
+	}
+
+	private getContextMenuActions(breakpoint: debug.IBreakpoint, uri: uri, lineNumber: number): TPromise<IAction[]> {
+		const actions = [];
+		if (breakpoint) {
+			actions.push(this.instantiationService.createInstance(debugactions.RemoveBreakpointAction, debugactions.RemoveBreakpointAction.ID, debugactions.RemoveBreakpointAction.LABEL));
+			actions.push(this.instantiationService.createInstance(debugactions.ToggleEnablementAction, debugactions.ToggleEnablementAction.ID, debugactions.ToggleEnablementAction.LABEL));
+		} else {
+			actions.push(new Action(
+				'addBreakpoint',
+				nls.localize('addBreakpoint', "Add Breakpoint"),
+				null,
+				true,
+				() =>  this.debugService.toggleBreakpoint(uri, lineNumber)
+			));
+		}
+
+		return TPromise.as(actions);
 	}
 
 	private registerListeners(): void {
@@ -41,9 +68,23 @@ export class DebugEditorContribution implements editorcommon.IEditorContribution
 				return;
 			}
 
-			var modelUrl = this.editor.getModel().getAssociatedResource();
-			this.debugService.toggleBreakpoint(modelUrl, e.target.position.lineNumber);
+			const lineNumber = e.target.position.lineNumber;
+			const uri = this.editor.getModel().getAssociatedResource();
+
+			if (e.event.rightButton) {
+				const anchor = { x: e.event.posx + 1, y: e.event.posy };
+				const breakpoint = this.debugService.getModel().getBreakpoints().filter(bp => bp.lineNumber === lineNumber && bp.source.uri.toString() === uri.toString()).pop();
+
+				this.contextMenuService.showContextMenu({
+					getAnchor: () => anchor,
+					getActions: () => this.getContextMenuActions(breakpoint, uri, lineNumber),
+					getActionsContext: () => breakpoint
+				});
+			} else {
+				this.debugService.toggleBreakpoint(uri, lineNumber);
+			}
 		}));
+
 		this.toDispose.push(this.editor.addListener2(editorcommon.EventType.MouseMove, (e: editorbrowser.IMouseEvent) => {
 			var showBreakpointHintAtLineNumber = -1;
 			if (e.target.type === editorcommon.MouseTargetType.GUTTER_GLYPH_MARGIN && this.debugService.canSetBreakpointsIn(this.editor.getModel(), e.target.position.lineNumber)) {
