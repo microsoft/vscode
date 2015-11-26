@@ -1,6 +1,6 @@
 # Visual Studio Code - Open Source
 
-[![Build Status](https://travis-ci.org/Microsoft/vscode.svg?branch=master)](https://travis-ci.org/Microsoft/vscode) [![Build status](https://ci.appveyor.com/api/projects/status/njqjjghtcsb3xhje?svg=true)](https://ci.appveyor.com/project/joaomoreno/vscode)
+[![Build Status](https://travis-ci.org/Microsoft/vscode.svg?branch=master)](https://travis-ci.org/Microsoft/vscode) [![Build status](https://ci.appveyor.com/api/projects/status/vuhlhg80tj3e2a0l?svg=true)](https://ci.appveyor.com/project/VSCode/vscode)
 
 [VS Code](http://code.visualstudio.com) is a new type of tool that combines the simplicity of a code editor with what developers need for their core edit-build-debug cycle. Code provides comprehensive editing and debugging support, an extensibility model, and lightweight integration with existing tools.
 
