@@ -32,7 +32,7 @@ suite('Debug - Source', () => {
 		assert.equal(source.name, rawSource.name);
 		assert.equal(source.inMemory, false);
 		assert.equal(source.reference, rawSource.sourceReference);
-		assert.equal(source.uri.fsPath, rawSource.path);
+		assert.equal(source.uri.toString(), uri.file(rawSource.path).toString());
 	});
 
 	test('from raw internal source', () => {
