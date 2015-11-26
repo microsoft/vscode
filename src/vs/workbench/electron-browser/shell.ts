@@ -367,7 +367,7 @@ export class WorkbenchShell {
 		this.threadService.getRemotable(MainThreadWorkspace);
 		this.threadService.getRemotable(MainThreadEditors);
 		this.threadService.getRemotable(MainThreadStorage);
-		this.threadServiceInstance.getRemotable(MainThreadLanguageFeatures);
+		this.threadService.getRemotable(MainThreadLanguageFeatures);
 	}
 
 	public open(): void {
