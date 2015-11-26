@@ -101,7 +101,7 @@ export class MainThreadWorkspace {
 		this._eventService = eventService;
 	}
 
-	findFiles(include: string, exclude: string, maxResults?: number): Thenable<Uri[]> {
+	findFiles(include: string, exclude: string, maxResults: number): Thenable<Uri[]> {
 
 		if (!this._workspace) {
 			return;
@@ -110,7 +110,7 @@ export class MainThreadWorkspace {
 		return this._searchService.search({
 			rootResources: [this._workspace.resource],
 			type: QueryType.File,
-			maxResults: 100,
+			maxResults,
 			includePattern: { [include]: true },
 			excludePattern: { [exclude]: true },
 		}).then(result => {
