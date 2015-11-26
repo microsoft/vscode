@@ -454,8 +454,58 @@ class NavigateTypeAdapter implements INavigateTypesSupport {
 	}
 }
 
+class RenameAdapter implements modes.IRenameSupport {
+
+	private _documents: PluginHostModelService;
+	private _provider: vscode.RenameProvider;
+
+	constructor(documents: PluginHostModelService, provider: vscode.RenameProvider) {
+		this._documents = documents;
+		this._provider = provider;
+	}
+
+	rename(resource: URI, position: IPosition, newName: string): TPromise<modes.IRenameResult> {
+
+		let doc = this._documents.getDocument(resource);
+		let pos = TypeConverters.toPosition(position);
+
+		return asWinJsPromise(token => this._provider.provideRenameEdits(doc, pos, newName, token)).then(value => {
+
+			if (!value) {
+				return;
+			}
+
+			let result = <modes.IRenameResult>{
+				currentName: undefined,
+				edits: []
+			};
+
+			for (let entry of value.entries()) {
+				let [uri, textEdits] = entry;
+				for (let textEdit of textEdits) {
+					result.edits.push({
+						resource: <URI>uri,
+						newText: textEdit.newText,
+						range: TypeConverters.fromRange(textEdit.range)
+					});
+				}
+			}
+			return result;
+		}, err => {
+			if (typeof err === 'string') {
+				return <modes.IRenameResult>{
+					currentName: undefined,
+					edits: undefined,
+					rejectReason: err
+				};
+			}
+			return TPromise.wrapError(err);
+		});
+	}
+}
+
 type Adapter = OutlineAdapter | CodeLensAdapter | DeclarationAdapter | ExtraInfoAdapter | OccurrencesAdapter | ReferenceAdapter | QuickFixAdapter
-	| DocumentFormattingAdapter | RangeFormattingAdapter | OnTypeFormattingAdapter | NavigateTypeAdapter;
+	| DocumentFormattingAdapter | RangeFormattingAdapter | OnTypeFormattingAdapter | NavigateTypeAdapter | RenameAdapter;
 
 @Remotable.PluginHostContext('ExtHostLanguageFeatures')
 export class ExtHostLanguageFeatures {
@@ -638,6 +688,19 @@ export class ExtHostLanguageFeatures {
 	$getNavigateToItems(handle: number, search: string): TPromise<ITypeBearing[]> {
 		return this._withAdapter(handle, NavigateTypeAdapter, adapter => adapter.getNavigateToItems(search));
 	}
+
+	// --- rename
+
+	registerRenameProvider(selector: vscode.DocumentSelector, provider: vscode.RenameProvider): vscode.Disposable {
+		const handle = this._nextHandle();
+		this._adapter[handle] = new RenameAdapter(this._documents, provider);
+		this._proxy.$registerRenameSupport(handle, selector);
+		return this._createDisposable(handle);
+	}
+
+	$rename(handle: number, resource: URI, position: IPosition, newName: string): TPromise<modes.IRenameResult> {
+		return this._withAdapter(handle, RenameAdapter, adapter => adapter.rename(resource, position, newName));
+	}
 }
 
 @Remotable.MainContext('MainThreadLanguageFeatures')
@@ -794,6 +857,17 @@ export class MainThreadLanguageFeatures {
 		this._registrations[handle] = NavigateTypesSupportRegistry.register(<INavigateTypesSupport>{
 			getNavigateToItems: (search: string): TPromise<ITypeBearing[]> => {
 				return this._proxy.$getNavigateToItems(handle, search);
+			}
+		});
+		return undefined;
+	}
+
+	// --- rename
+
+	$registerRenameSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any> {
+		this._registrations[handle] = RenameRegistry.register(selector, <modes.IRenameSupport>{
+			rename: (resource: URI, position: IPosition, newName: string): TPromise<modes.IRenameResult> => {
+				return this._proxy.$rename(handle, resource, position, newName);
 			}
 		});
 		return undefined;

@@ -34,6 +34,7 @@ import {OccurrencesRegistry, getOccurrencesAtPosition} from 'vs/editor/contrib/w
 import {ReferenceRegistry, findReferences} from 'vs/editor/contrib/referenceSearch/common/referenceSearch';
 import {getQuickFixes} from 'vs/editor/contrib/quickFix/common/quickFix';
 import {getNavigateToItems} from 'vs/workbench/parts/search/common/search';
+import {rename} from 'vs/editor/contrib/rename/common/rename';
 
 const defaultSelector = { scheme: 'far' };
 const model: EditorCommon.IModel = new EditorModel(
@@ -706,5 +707,76 @@ suite('ExtHostLanguageFeatures', function() {
 				done();
 			});
 		});
-	})
+	});
+
+	// --- rename
+
+	test('Rename, evil provider 1/2', function(done) {
+
+		disposables.push(extHost.registerRenameProvider(defaultSelector, <vscode.RenameProvider>{
+			provideRenameEdits(): any {
+				throw Error('evil');
+			}
+		}));
+
+		threadService.sync().then(() => {
+
+			rename(model, { lineNumber: 1, column: 1 }, 'newName').then(value => {
+				done(new Error(''));
+			}, err => {
+				done(); // expected
+			});
+		});
+	});
+
+	test('Rename, evil provider 2/2', function(done) {
+
+		disposables.push(extHost.registerRenameProvider('*', <vscode.RenameProvider>{
+			provideRenameEdits(): any {
+				throw Error('evil');
+			}
+		}));
+
+		disposables.push(extHost.registerRenameProvider(defaultSelector, <vscode.RenameProvider>{
+			provideRenameEdits(): any {
+				let edit = new types.WorkspaceEdit();
+				edit.replace(model.getAssociatedResource(), new types.Range(0, 0, 0, 0), 'testing');
+				return edit;
+			}
+		}));
+
+		threadService.sync().then(() => {
+
+			rename(model, { lineNumber: 1, column: 1 }, 'newName').then(value => {
+				assert.equal(value.edits.length, 1);
+				done();
+			});
+		});
+	});
+
+	test('Rename, ordering', function(done) {
+
+		disposables.push(extHost.registerRenameProvider('*', <vscode.RenameProvider>{
+			provideRenameEdits(): any {
+				let edit = new types.WorkspaceEdit();
+				edit.replace(model.getAssociatedResource(), new types.Range(0, 0, 0, 0), 'testing');
+				edit.replace(model.getAssociatedResource(), new types.Range(1, 0, 1, 0), 'testing');
+				return edit;
+			}
+		}));
+
+		disposables.push(extHost.registerRenameProvider(defaultSelector, <vscode.RenameProvider>{
+			provideRenameEdits(): any {
+				return;
+			}
+		}));
+
+		threadService.sync().then(() => {
+
+			rename(model, { lineNumber: 1, column: 1 }, 'newName').then(value => {
+				assert.equal(value.edits.length, 2); // least relevant renamer
+				done();
+			});
+		});
+	});
 });

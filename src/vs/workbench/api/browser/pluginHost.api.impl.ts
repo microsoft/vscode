@@ -283,7 +283,7 @@ export class PluginHostAPIImplementation {
 				return languageFeatures.registerReferenceProvider(selector, provider);
 			},
 			registerRenameProvider(selector: vscode.DocumentSelector, provider: vscode.RenameProvider): vscode.Disposable {
-				return features.rename.register(selector, provider);
+				return languageFeatures.registerRenameProvider(selector, provider);
 			},
 			registerDocumentSymbolProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentSymbolProvider): vscode.Disposable {
 				return languageFeatures.registerDocumentSymbolProvider(selector, provider);

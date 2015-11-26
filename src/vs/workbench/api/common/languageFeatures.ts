@@ -131,79 +131,6 @@ export abstract class AbstractExtensionHostFeature<T, P extends AbstractMainThre
 }
 
 
-// -- Rename provider
-
-export class ExtensionHostRename extends AbstractExtensionHostFeature<vscode.RenameProvider, MainThreadRename> {
-
-	constructor( @IThreadService threadService: IThreadService) {
-		super(threadService.getRemotable(MainThreadRename), threadService);
-	}
-
-	_runAsCommand(resource: URI, position: IPosition, newName: string): TPromise<modes.IRenameResult> {
-
-		let document = this._models.getDocument(resource);
-		let pos = TypeConverters.toPosition(position);
-
-		let hasResult = false;
-		let rejects: string[] = [];
-		let factory = this._getOrderedFor(document).map(provider => {
-			return () => {
-				if (!hasResult) {
-					return asWinJsPromise(token => provider.provideRenameEdits(document, pos, newName, token)).then(result => {
-						if (result && result.size > 0) {
-							hasResult = true;
-							return result;
-						}
-					}, err => {
-						if (typeof err === 'string') {
-							rejects.push(err);
-						}
-					});
-				}
-			};
-		});
-
-		return sequence(factory).then(results => {
-			let rename = results[0];
-			if (!rename) {
-				return <modes.IRenameResult>{
-					rejectReason: rejects.join('\n'),
-					edits: undefined,
-					currentName: undefined
-				};
-			}
-
-			let result = <modes.IRenameResult>{
-				currentName: undefined,
-				edits: []
-			};
-			for (let entry of rename.entries()) {
-				let [uri, textEdits] = entry;
-				for (let textEdit of textEdits) {
-					result.edits.push({
-						resource: <URI> uri,
-						newText: textEdit.newText,
-						range: TypeConverters.fromRange(textEdit.range)
-					});
-				}
-			}
-			return result;
-		});
-	}
-}
-
-@Remotable.MainContext('MainThreadRename')
-export class MainThreadRename extends AbstractMainThreadFeature<modes.IRenameSupport> implements modes.IRenameSupport {
-
-	constructor( @IThreadService threadService: IThreadService) {
-		super('vscode.executeDocumentRenameProvider', RenameRegistry, threadService);
-	}
-
-	rename(resource: URI, position: IPosition, newName: string): TPromise<modes.IRenameResult> {
-		return this._executeCommand(resource, position, newName);
-	}
-}
-
 // --- format
 
 export class ExtHostFormatDocument extends AbstractExtensionHostFeature<vscode.DocumentFormattingEditProvider, MainThreadFormatDocument> {
@@ -628,14 +555,12 @@ export class MainThreadCompletions extends AbstractMainThreadFeature<modes.ISugg
 export namespace LanguageFeatures {
 
 	export function createMainThreadInstances(threadService: IThreadService): void {
-		threadService.getRemotable(MainThreadRename);
 		threadService.getRemotable(MainThreadSignatureHelp);
 		threadService.getRemotable(MainThreadCompletions);
 	}
 
 	export function createExtensionHostInstances(threadService: IThreadService) {
 		return {
-			rename: new ExtensionHostRename(threadService),
 			signatureHelp: new ExtHostSignatureHelp(threadService),
 			completions: threadService.getRemotable(ExtHostCompletions)
 		};
