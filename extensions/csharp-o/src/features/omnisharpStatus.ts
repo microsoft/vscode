@@ -122,8 +122,10 @@ export function reportDocumentStatus(server: OmnisharpServer): vscode.Disposable
 
 					for (let project of info.MSBuild.Projects) {
 						fileNames.push({ pattern: project.Path });
-						for (let sourceFile of project.SourceFiles) {
-							fileNames.push({ pattern: sourceFile });
+						if (project.SourceFiles) {
+							for (let sourceFile of project.SourceFiles) {
+								fileNames.push({ pattern: sourceFile });
+							}
 						}
 					}
 				}
@@ -134,8 +136,10 @@ export function reportDocumentStatus(server: OmnisharpServer): vscode.Disposable
 					count += 1;
 
 					fileNames.push({ pattern: project.Path });
-					for (let sourceFile of project.SourceFiles) {
-						fileNames.push({ pattern: sourceFile });
+					if (project.SourceFiles) {
+						for (let sourceFile of project.SourceFiles) {
+							fileNames.push({ pattern: sourceFile });
+						}
 					}
 				}
 				if (label) {
