@@ -7,12 +7,12 @@ import nls = require('vs/nls');
 import uri from 'vs/base/common/uri';
 import { TPromise, Promise } from 'vs/base/common/winjs.base';
 import ee = require('vs/base/common/eventEmitter');
-import paths = require('vs/base/common/paths');
 import severity from 'vs/base/common/severity';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import pluginsRegistry = require('vs/platform/plugins/common/pluginsRegistry');
 import editor = require('vs/editor/common/editorCommon');
+import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 
 export var VIEWLET_ID = 'workbench.view.debug';
 export var DEBUG_SERVICE_ID = 'debugService';
@@ -77,36 +77,6 @@ export interface IBreakpoint extends IEnablement {
 
 export interface IExceptionBreakpoint extends IEnablement {
 	name: string;
-}
-
-export class Source {
-
-	public uri: uri;
-	public inMemory: boolean;
-	public available: boolean;
-
-	private static INTERNAL_URI_PREFIX = 'debug://internal/';
-
-	constructor(public name: string, uriStr: string, public reference = 0) {
-		this.uri = uri.parse(uriStr);
-		this.inMemory = uriStr.indexOf(Source.INTERNAL_URI_PREFIX) === 0;
-		this.available = true;
-	}
-
-	public toRawSource(): DebugProtocol.Source {
-		return this.inMemory ? { name: this.name } :
-			{ path: paths.normalize(this.uri.fsPath, true) };
-	}
-
-	public static fromRawSource(rawSource: DebugProtocol.Source): Source {
-		var uriStr = rawSource.path ? uri.file(rawSource.path).toString() : Source.INTERNAL_URI_PREFIX + rawSource.name;
-		return new Source(rawSource.name, uriStr, rawSource.sourceReference);
-	}
-
-	public static fromUri(uri: uri): Source {
-		var uriStr = uri.toString();
-		return new Source(uriStr.substr(uriStr.lastIndexOf('/') + 1), uriStr);
-	}
 }
 
 // Events

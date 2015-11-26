@@ -31,6 +31,7 @@ import viewmodel = require('vs/workbench/parts/debug/common/debugViewModel');
 import debugactions = require('vs/workbench/parts/debug/browser/debugActions');
 import { Adapter } from 'vs/workbench/parts/debug/node/debugAdapter';
 import { Repl } from 'vs/workbench/parts/debug/browser/replEditor';
+import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 import { Position } from 'vs/platform/editor/common/editor';
 import { ITaskService , TaskEvent, TaskType, TaskServiceEvents} from 'vs/workbench/parts/tasks/common/taskService';
 import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
@@ -366,7 +367,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 	private loadBreakpoints(): debug.IBreakpoint[] {
 		try {
 			return JSON.parse(this.storageService.get(DEBUG_BREAKPOINTS_KEY, StorageScope.WORKSPACE, '[]')).map((breakpoint: any) => {
-				return new model.Breakpoint(new debug.Source(breakpoint.source.name, breakpoint.source.uri, breakpoint.source.reference), breakpoint.desiredLineNumber || breakpoint.lineNumber, breakpoint.enabled);
+				return new model.Breakpoint(new Source(breakpoint.source.name, breakpoint.source.uri, breakpoint.source.reference), breakpoint.desiredLineNumber || breakpoint.lineNumber, breakpoint.enabled);
 			});
 		} catch (e) {
 			return [];
@@ -746,7 +747,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		return this.viewModel;
 	}
 
-	public openOrRevealEditor(source: debug.Source, lineNumber: number, preserveFocus: boolean, sideBySide: boolean): Promise {
+	public openOrRevealEditor(source: Source, lineNumber: number, preserveFocus: boolean, sideBySide: boolean): Promise {
 		const visibleEditors = this.editorService.getVisibleEditors();
 		for (var i = 0; i < visibleEditors.length; i++) {
 			const fileInput = wbeditorcommon.asFileEditorInput(visibleEditors[i].input);
@@ -798,7 +799,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		);
 	}
 
-	private sourceIsUnavailable(source: debug.Source, sideBySide: boolean): Promise {
+	private sourceIsUnavailable(source: Source, sideBySide: boolean): Promise {
 		this.model.sourceIsUnavailable(source);
 		const editorInput = this.getDebugStringEditorInput(source, 'Source is not available.', 'text/plain');
 
@@ -844,7 +845,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		});
 	}
 
-	private getDebugStringEditorInput(source: debug.Source, value: string, mtype: string): debuginputs.DebugStringEditorInput {
+	private getDebugStringEditorInput(source: Source, value: string, mtype: string): debuginputs.DebugStringEditorInput {
 		var filtered = this.debugStringEditorInputs.filter(input => input.getResource().toString() === source.uri.toString());
 
 		if (filtered.length === 0) {
@@ -880,7 +881,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 			this.model.getBreakpoints().filter(bp => this.model.areBreakpointsActivated() && bp.enabled && bp.source.uri.toString() === modelUri.toString()),
 			bp =>  `${ bp.desiredLineNumber }`
 		);
-		return this.session.setBreakpoints({ source: debug.Source.fromUri(modelUri).toRawSource(), lines: breakpointsToSend.map(bp => bp.desiredLineNumber) }).then(response => {
+		return this.session.setBreakpoints({ source: Source.fromUri(modelUri).toRawSource(), lines: breakpointsToSend.map(bp => bp.desiredLineNumber) }).then(response => {
 			let index = 0;
 			breakpointsToSend.forEach(bp => {
 				const lineNumber = response.body.breakpoints[index++].line;

@@ -13,6 +13,7 @@ import severity from 'vs/base/common/severity';
 import types = require('vs/base/common/types');
 import arrays = require('vs/base/common/arrays');
 import debug = require('vs/workbench/parts/debug/common/debug');
+import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 
 function resolveChildren(debugService: debug.IDebugService, parent: debug.IExpressionContainer): TPromise<Variable[]> {
 	var session = debugService.getActiveSession();
@@ -204,7 +205,7 @@ export class StackFrame implements debug.IStackFrame {
 	private internalId: string;
 	private scopes: TPromise<Scope[]>;
 
-	constructor(public threadId: number, public frameId: number, public source: debug.Source, public name: string, public lineNumber: number, public column: number) {
+	constructor(public threadId: number, public frameId: number, public source: Source, public name: string, public lineNumber: number, public column: number) {
 		this.internalId = uuid.generateUuid();
 		this.scopes = null;
 	}
@@ -229,7 +230,7 @@ export class Breakpoint implements debug.IBreakpoint {
 	public lineNumber: number;
 	private id: string;
 
-	constructor(public source: debug.Source, public desiredLineNumber: number, public enabled: boolean) {
+	constructor(public source: Source, public desiredLineNumber: number, public enabled: boolean) {
 		this.lineNumber = this.desiredLineNumber;
 		this.id = uuid.generateUuid();
 	}
@@ -326,7 +327,7 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 		}
 
 		if (!found) {
-			this.breakpoints.push(new Breakpoint(debug.Source.fromUri(modelUri), lineNumber, true));
+			this.breakpoints.push(new Breakpoint(Source.fromUri(modelUri), lineNumber, true));
 			this.breakpointsActivated = true;
 		}
 
@@ -370,7 +371,7 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 	public setBreakpointsForModel(modelUri: uri, data: { lineNumber: number; enabled: boolean; }[]): void {
 		this.clearBreakpoints(modelUri);
 		for (var i = 0, len = data.length; i < len; i++) {
-			this.breakpoints.push(new Breakpoint(debug.Source.fromUri(modelUri), data[i].lineNumber, data[i].enabled));
+			this.breakpoints.push(new Breakpoint(Source.fromUri(modelUri), data[i].lineNumber, data[i].enabled));
 		}
 		this.emit(debug.ModelEvents.BREAKPOINTS_UPDATED);
 	}
@@ -533,7 +534,7 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 		this.emit(debug.ModelEvents.WATCH_EXPRESSIONS_UPDATED);
 	}
 
-	public sourceIsUnavailable(source: debug.Source): void {
+	public sourceIsUnavailable(source: Source): void {
 		Object.keys(this.threads).forEach(key => {
 			this.threads[key].callStack.forEach(stackFrame => {
 				if (stackFrame.source.uri.toString() === source.uri.toString()) {
@@ -555,10 +556,10 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 			this.threads[data.threadId].callStack = data.callStack.map(
 				(rsf, level) => {
 					if (!rsf) {
-						return new StackFrame(data.threadId, 0, debug.Source.fromUri(uri.parse('unknown')), nls.localize('unknownStack', "Unknown stack location"), undefined, undefined);
+						return new StackFrame(data.threadId, 0, Source.fromUri(uri.parse('unknown')), nls.localize('unknownStack', "Unknown stack location"), undefined, undefined);
 					}
 
-					return new StackFrame(data.threadId, rsf.id, rsf.source ? debug.Source.fromRawSource(rsf.source) : debug.Source.fromUri(uri.parse('unknown')), rsf.name, rsf.line, rsf.column);
+					return new StackFrame(data.threadId, rsf.id, rsf.source ? Source.fromRawSource(rsf.source) : Source.fromUri(uri.parse('unknown')), rsf.name, rsf.line, rsf.column);
 				});
 
 			this.threads[data.threadId].exception = data.exception;
