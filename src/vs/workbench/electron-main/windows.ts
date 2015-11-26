@@ -95,8 +95,9 @@ export class WindowsManager {
 	public static autoSaveDelayStorageKey = 'autoSaveDelay';
 	public static openedPathsListStorageKey = 'openedPathsList';
 
-	private static workingDirPickerStorageKey = 'pickerWorkingDir';
+	public static MAX_RECENT_ENTRIES = 10;
 
+	private static workingDirPickerStorageKey = 'pickerWorkingDir';
 	private static windowsStateStorageKey = 'windowsState';
 	private static themeStorageKey = 'theme'; // TODO@Ben this key is only used to find out if a window can be shown instantly because of light theme, remove once we have support for bg color
 
@@ -567,7 +568,8 @@ export class WindowsManager {
 		// Clear those dupes
 		recentPaths = arrays.distinct(recentPaths);
 
-		return recentPaths;
+		// Make sure it is bounded
+		return recentPaths.slice(0, WindowsManager.MAX_RECENT_ENTRIES);
 	}
 
 	private toIPath(anyPath: string, ignoreFileNotFound?: boolean, gotoLineMode?: boolean): window.IPath {
