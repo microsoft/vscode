@@ -119,7 +119,7 @@ var hygiene = exports.hygiene = function (some) {
 		.pipe(copyrights)
 		.pipe(es.through(null, function () {
 			if (errorCount > 0) {
-				this.emit('error', 'Hygiene failed with ' + errorCount + ' errors.\nCheck build/gulpfile.hygiene.js for the hygiene rules.');
+				this.emit('error', 'Hygiene failed with ' + errorCount + ' errors. Check \'build/gulpfile.hygiene.js\'.');
 			} else {
 				this.emit('end');
 			}
@@ -135,7 +135,8 @@ if (require.main === module) {
 	var cp = require('child_process');
 	cp.exec('git diff --cached --name-only', function (err, out) {
 		if (err) {
-			console.log(err);
+			console.error();
+			console.error(err);
 			process.exit(1);
 		}
 
@@ -144,7 +145,8 @@ if (require.main === module) {
 			.filter(function (l) { return !!l; });
 
 		hygiene(some).on('error', function (err) {
-			console.log(err);
+			console.error();
+			console.error(err);
 			process.exit(1);
 		});
 	});
