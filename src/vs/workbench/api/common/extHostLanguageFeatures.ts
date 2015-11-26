@@ -617,10 +617,81 @@ class SuggestAdapter implements modes.ISuggestSupport {
 	}
 }
 
+class ParameterHintsAdapter implements modes.IParameterHintsSupport {
+
+	private _documents: PluginHostModelService;
+	private _provider: vscode.SignatureHelpProvider;
+
+	constructor(documents: PluginHostModelService, provider: vscode.SignatureHelpProvider) {
+		this._documents = documents;
+		this._provider = provider;
+	}
+
+	getParameterHints(resource: URI, position: IPosition, triggerCharacter?: string): TPromise<modes.IParameterHints> {
+
+		const doc = this._documents.getDocument(resource);
+		const pos = TypeConverters.toPosition(position);
+
+		return asWinJsPromise(token => this._provider.provideSignatureHelp(doc, pos, token)).then(value => {
+			if (value instanceof SignatureHelp) {
+				return ParameterHintsAdapter._convertSignatureHelp(value);
+			}
+		});
+	}
+
+	private static _convertSignatureHelp(signatureHelp: SignatureHelp): modes.IParameterHints {
+
+		let result: modes.IParameterHints = {
+			currentSignature: signatureHelp.activeSignature,
+			currentParameter: signatureHelp.activeParameter,
+			signatures: []
+		}
+
+		for (let signature of signatureHelp.signatures) {
+
+			let signatureItem: modes.ISignature = {
+				label: signature.label,
+				documentation: signature.documentation,
+				parameters: []
+			};
+
+			let idx = 0;
+			for (let parameter of signature.parameters) {
+
+				let parameterItem: modes.IParameter = {
+					label: parameter.label,
+					documentation: parameter.documentation,
+				};
+
+				signatureItem.parameters.push(parameterItem);
+				idx = signature.label.indexOf(parameter.label, idx);
+
+				if (idx >= 0) {
+					parameterItem.signatureLabelOffset = idx;
+					idx += parameter.label.length;
+					parameterItem.signatureLabelEnd = idx;
+				}
+			}
+
+			result.signatures.push(signatureItem);
+		}
+
+		return result;
+	}
+
+	getParameterHintsTriggerCharacters(): string[] {
+		throw new Error('illegal state');
+	}
+
+	shouldTriggerParameterHints(context: modes.ILineContext, offset: number): boolean {
+		throw new Error('illegal state');
+	}
+}
+
 type Adapter = OutlineAdapter | CodeLensAdapter | DeclarationAdapter | ExtraInfoAdapter
 	| OccurrencesAdapter | ReferenceAdapter | QuickFixAdapter | DocumentFormattingAdapter
 	| RangeFormattingAdapter | OnTypeFormattingAdapter | NavigateTypeAdapter | RenameAdapter
-	| SuggestAdapter;
+	| SuggestAdapter | ParameterHintsAdapter;
 
 @Remotable.PluginHostContext('ExtHostLanguageFeatures')
 export class ExtHostLanguageFeatures {
@@ -833,6 +904,19 @@ export class ExtHostLanguageFeatures {
 	$getSuggestionDetails(handle: number, resource: URI, position: IPosition, suggestion: modes.ISuggestion): TPromise<modes.ISuggestion> {
 		return this._withAdapter(handle, SuggestAdapter, adapter => adapter.getSuggestionDetails(resource, position, suggestion));
 	}
+
+	// --- parameter hints
+
+	registerSignatureHelpProvider(selector: vscode.DocumentSelector, provider: vscode.SignatureHelpProvider, triggerCharacters: string[]): vscode.Disposable {
+		const handle = this._nextHandle();
+		this._adapter[handle] = new ParameterHintsAdapter(this._documents, provider);
+		this._proxy.$registerParameterHintsSupport(handle, selector, triggerCharacters);
+		return this._createDisposable(handle);
+	}
+
+	$getParameterHints(handle: number, resource: URI, position: IPosition, triggerCharacter?: string): TPromise<modes.IParameterHints> {
+		return this._withAdapter(handle, ParameterHintsAdapter, adapter => adapter.getParameterHints(resource, position, triggerCharacter));
+	}
 }
 
 @Remotable.MainContext('MainThreadLanguageFeatures')
@@ -1025,6 +1109,23 @@ export class MainThreadLanguageFeatures {
 				return true;
 			},
 			shouldAutotriggerSuggest(): boolean {
+				return true;
+			}
+		});
+		return undefined;
+	}
+
+	// --- parameter hints
+
+	$registerParameterHintsSupport(handle: number, selector: vscode.DocumentSelector, triggerCharacter: string[]): TPromise<any> {
+		this._registrations[handle] = ParameterHintsRegistry.register(selector, <modes.IParameterHintsSupport>{
+			getParameterHints: (resource: URI, position: IPosition, triggerCharacter?: string): TPromise<modes.IParameterHints> => {
+				return this._proxy.$getParameterHints(handle, resource, position, triggerCharacter);
+			},
+			getParameterHintsTriggerCharacters(): string[] {
+				return triggerCharacter;
+			},
+			shouldTriggerParameterHints(context: modes.ILineContext, offset: number): boolean {
 				return true;
 			}
 		});

@@ -35,6 +35,7 @@ import {ReferenceRegistry, findReferences} from 'vs/editor/contrib/referenceSear
 import {getQuickFixes} from 'vs/editor/contrib/quickFix/common/quickFix';
 import {getNavigateToItems} from 'vs/workbench/parts/search/common/search';
 import {rename} from 'vs/editor/contrib/rename/common/rename';
+import {getParameterHints} from 'vs/editor/contrib/parameterHints/common/parameterHints';
 
 const defaultSelector = { scheme: 'far' };
 const model: EditorCommon.IModel = new EditorModel(
@@ -779,4 +780,25 @@ suite('ExtHostLanguageFeatures', function() {
 			});
 		});
 	});
+
+	// --- parameter hints
+
+	test('Parameter Hints, evil provider', function(done) {
+
+		disposables.push(extHost.registerSignatureHelpProvider(defaultSelector, <vscode.SignatureHelpProvider>{
+			provideSignatureHelp(): any {
+				throw new Error('evil');
+			}
+		}, []));
+
+		threadService.sync().then(() => {
+
+			getParameterHints(model, { lineNumber: 1, column: 1 }, '(').then(value => {
+				done(new Error('error expeted'));
+			}, err => {
+				assert.equal(err.message, 'evil');
+				done();
+			})
+		});
+	})
 });

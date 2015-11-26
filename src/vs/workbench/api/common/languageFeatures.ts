@@ -282,132 +282,14 @@ export class MainThreadFormatOnType extends AbstractMainThreadFeature<modes.IFor
 	}
 }
 
-// ---- signature help
-
-export interface SignatureHelpEntry {
-	provider: vscode.SignatureHelpProvider;
-	triggerCharacters: string[];
-}
-
-export class ExtHostSignatureHelp extends AbstractExtensionHostFeature<SignatureHelpEntry, MainThreadSignatureHelp> {
-
-	constructor( @IThreadService threadService: IThreadService) {
-		super(threadService.getRemotable(MainThreadSignatureHelp), threadService);
-	}
-
-	register(selector: vscode.DocumentSelector, entry: SignatureHelpEntry): vscode.Disposable {
-
-		let disposable = this._registry.register(selector, entry);
-		let registered = this._proxy._register(selector, entry.triggerCharacters);
-
-		return new Disposable(() => {
-			disposable.dispose();
-			registered.then(() => this._proxy._unregister());
-		});
-	}
-
-	_runAsCommand(resource: URI, position: IPosition, triggerCharacter?: string): TPromise<modes.IParameterHints> {
-
-		let document = this._models.getDocument(resource);
-		let pos = TypeConverters.toPosition(position);
-
-		let entry = this._getOrderedFor(document)[0];
-		if (entry) {
-
-			if (triggerCharacter) {
-				if (entry.triggerCharacters.indexOf(triggerCharacter) < 0) {
-					return;
-				}
-			}
-
-			return asWinJsPromise(token => entry.provider.provideSignatureHelp(document, pos, token)).then(result => {
-				if (result instanceof SignatureHelp) {
-					return ExtHostSignatureHelp._convertSignatureHelp(result);
-				}
-			});
-		}
-	}
-
-	private static _convertSignatureHelp(signatureHelp: SignatureHelp): modes.IParameterHints {
-
-		let result: modes.IParameterHints = {
-			currentSignature: signatureHelp.activeSignature,
-			currentParameter: signatureHelp.activeParameter,
-			signatures: []
-		}
-
-		for (let signature of signatureHelp.signatures) {
-
-			let signatureItem: modes.ISignature = {
-				label: signature.label,
-				documentation: signature.documentation,
-				parameters: []
-			};
-
-			let idx = 0;
-			for (let parameter of signature.parameters) {
-
-				let parameterItem: modes.IParameter = {
-					label: parameter.label,
-					documentation: parameter.documentation,
-				};
-
-				signatureItem.parameters.push(parameterItem);
-				idx = signature.label.indexOf(parameter.label, idx);
-
-				if (idx >= 0) {
-					parameterItem.signatureLabelOffset = idx;
-					idx += parameter.label.length;
-					parameterItem.signatureLabelEnd = idx;
-				}
-			}
-
-			result.signatures.push(signatureItem);
-		}
-
-		return result;
-	}
-}
-
-@Remotable.MainContext('MainThreadSignatureHelp')
-export class MainThreadSignatureHelp extends AbstractMainThreadFeature<modes.IParameterHintsSupport> implements modes.IParameterHintsSupport {
-
-	private _triggerCharacters: string[] = [];
-
-	constructor( @IThreadService threadService: IThreadService) {
-		super('vscode.executeSignatureHelpProvider', ParameterHintsRegistry, threadService);
-	}
-
-	_register(selector: vscode.DocumentSelector, triggerCharacters: string[] = []): TPromise<number> {
-		this._triggerCharacters.push(...triggerCharacters);
-		return super._register(selector);
-	}
-
-	getParameterHintsTriggerCharacters(): string[] {
-		return this._triggerCharacters;
-	}
-
-	shouldTriggerParameterHints(context: modes.ILineContext, offset: number): boolean {
-		return true;
-	}
-
-	getParameterHints(resource: URI, position: IPosition, triggerCharacter?: string): TPromise<modes.IParameterHints> {
-		return this._executeCommand(resource, position, triggerCharacter);
-	}
-}
-
-// ---- Completions
-
 
 export namespace LanguageFeatures {
 
 	export function createMainThreadInstances(threadService: IThreadService): void {
-		threadService.getRemotable(MainThreadSignatureHelp);
 	}
 
 	export function createExtensionHostInstances(threadService: IThreadService) {
 		return {
-			signatureHelp: new ExtHostSignatureHelp(threadService),
 		};
 	}
 }
