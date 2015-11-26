@@ -67,7 +67,6 @@ import {MainThreadLanguages} from 'vs/workbench/api/common/extHostLanguages';
 import {MainThreadEditors} from 'vs/workbench/api/common/pluginHostEditors';
 import {MainThreadWorkspace} from 'vs/workbench/api/browser/pluginHostWorkspace';
 import {MainThreadConfiguration} from 'vs/workbench/api/common/pluginHostConfiguration';
-import {LanguageFeatures} from 'vs/workbench/api/common/languageFeatures';
 import {MainThreadLanguageFeatures} from 'vs/workbench/api/common/extHostLanguageFeatures';
 import {EventService} from 'vs/platform/event/common/eventService';
 import {IOptions} from 'vs/workbench/common/options';
@@ -338,7 +337,6 @@ export class WorkbenchShell {
 		this.threadServiceInstance.getRemotable(MainThreadEditors);
 		this.threadServiceInstance.getRemotable(MainThreadStorage);
 		this.threadServiceInstance.getRemotable(MainThreadLanguageFeatures);
-		LanguageFeatures.createMainThreadInstances(this.threadServiceInstance);
 	}
 
 	public open(): void {

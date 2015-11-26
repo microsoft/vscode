@@ -17,7 +17,6 @@ import {PluginHostQuickOpen} from 'vs/workbench/api/browser/pluginHostQuickOpen'
 import {PluginHostStatusBar} from 'vs/workbench/api/browser/pluginHostStatusBar';
 import {PluginHostCommands} from 'vs/workbench/api/common/pluginHostCommands';
 import {ExtHostOutputService} from 'vs/workbench/api/browser/extHostOutputService';
-import {LanguageFeatures} from 'vs/workbench/api/common/languageFeatures';
 import {PluginHostMessageService} from 'vs/workbench/api/common/pluginHostMessageService';
 import {PluginHostTelemetryService} from 'vs/workbench/api/common/pluginHostTelemetry';
 import {PluginHostEditors} from 'vs/workbench/api/common/pluginHostEditors';
@@ -251,7 +250,6 @@ export class PluginHostAPIImplementation {
 		//
 		const languages = new ExtHostLanguages(this._threadService);
 		const pluginHostDiagnostics = new PluginHostDiagnostics(this._threadService);
-		const features = LanguageFeatures.createExtensionHostInstances(this._threadService);
 		const languageFeatures = threadService.getRemotable(ExtHostLanguageFeatures);
 
 		this.languages = {
