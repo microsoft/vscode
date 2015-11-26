@@ -8,7 +8,7 @@ import Severity from 'vs/base/common/severity';
 import * as objects from 'vs/base/common/objects';
 import {Position as EditorPosition} from 'vs/platform/editor/common/editor';
 import {Selection, Range, Position, SymbolKind, DiagnosticSeverity, ViewColumn} from './pluginHostTypes';
-import {IPosition, ISelection, IRange, IRangeWithMessage} from 'vs/editor/common/editorCommon';
+import {IPosition, ISelection, IRange, IRangeWithMessage, ISingleEditOperation} from 'vs/editor/common/editorCommon';
 import {IHTMLContentElement} from 'vs/base/common/htmlContent';
 
 export interface PositionLike {
@@ -187,5 +187,12 @@ export function fromRangeOrRangeWithMessage(ranges:vscode.Range[]|vscode.Decorat
 				range: fromRange(r)
 			}
 		});
+	}
+}
+
+export function fromTextEdit(edit: vscode.TextEdit) {
+	return <ISingleEditOperation>{
+		text: edit.newText,
+		range: fromRange(edit.range)
 	}
 }

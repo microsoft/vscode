@@ -292,13 +292,13 @@ export class PluginHostAPIImplementation {
 				return features.workspaceSymbols.register(provider);
 			},
 			registerDocumentFormattingEditProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentFormattingEditProvider): vscode.Disposable {
-				return features.formatDocument.register(selector, provider);
+				return languageFeatures.registerDocumentFormattingEditProvider(selector, provider);
 			},
 			registerDocumentRangeFormattingEditProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentRangeFormattingEditProvider): vscode.Disposable {
-				return features.formatRange.register(selector, provider);
+				return languageFeatures.registerDocumentRangeFormattingEditProvider(selector, provider);
 			},
 			registerOnTypeFormattingEditProvider(selector: vscode.DocumentSelector, provider: vscode.OnTypeFormattingEditProvider, firstTriggerCharacter: string, ...moreTriggerCharacters: string[]): vscode.Disposable {
-				return features.formatOnType.register(selector, { triggerCharacters: [firstTriggerCharacter].concat(moreTriggerCharacters), provider });
+				return languageFeatures.registerOnTypeFormattingEditProvider(selector, provider, [firstTriggerCharacter].concat(moreTriggerCharacters));
 			},
 			registerSignatureHelpProvider(selector: vscode.DocumentSelector, provider: vscode.SignatureHelpProvider, ...triggerCharacters: string[]): vscode.Disposable {
 				return features.signatureHelp.register(selector, { triggerCharacters, provider });

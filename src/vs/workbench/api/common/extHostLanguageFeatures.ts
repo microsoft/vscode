@@ -356,7 +356,78 @@ class QuickFixAdapter implements modes.IQuickFixSupport {
 	}
 }
 
-type Adapter = OutlineAdapter | CodeLensAdapter | DeclarationAdapter | ExtraInfoAdapter | OccurrencesAdapter | ReferenceAdapter | QuickFixAdapter;
+class DocumentFormattingAdapter implements modes.IFormattingSupport {
+
+	private _documents: PluginHostModelService;
+	private _provider: vscode.DocumentFormattingEditProvider;
+
+	constructor(documents: PluginHostModelService, provider: vscode.DocumentFormattingEditProvider) {
+		this._documents = documents;
+		this._provider = provider;
+	}
+
+	formatDocument(resource: URI, options: modes.IFormattingOptions): TPromise<ISingleEditOperation[]> {
+
+		let doc = this._documents.getDocument(resource);
+
+		return asWinJsPromise(token => this._provider.provideDocumentFormattingEdits(doc, <any>options, token)).then(value => {
+			if (Array.isArray(value)) {
+				return value.map(TypeConverters.fromTextEdit);
+			}
+		});
+	}
+}
+
+class RangeFormattingAdapter implements modes.IFormattingSupport {
+
+	private _documents: PluginHostModelService;
+	private _provider: vscode.DocumentRangeFormattingEditProvider;
+
+	constructor(documents: PluginHostModelService, provider: vscode.DocumentRangeFormattingEditProvider) {
+		this._documents = documents;
+		this._provider = provider;
+	}
+
+	formatRange(resource: URI, range: IRange, options: modes.IFormattingOptions): TPromise<ISingleEditOperation[]> {
+
+		let doc = this._documents.getDocument(resource);
+		let ran = TypeConverters.toRange(range);
+
+		return asWinJsPromise(token => this._provider.provideDocumentRangeFormattingEdits(doc, ran, <any>options, token)).then(value => {
+			if (Array.isArray(value)) {
+				return value.map(TypeConverters.fromTextEdit);
+			}
+		});
+	}
+}
+
+class OnTypeFormattingAdapter implements modes.IFormattingSupport {
+
+	private _documents: PluginHostModelService;
+	private _provider: vscode.OnTypeFormattingEditProvider;
+
+	constructor(documents: PluginHostModelService, provider: vscode.OnTypeFormattingEditProvider) {
+		this._documents = documents;
+		this._provider = provider;
+	}
+
+	autoFormatTriggerCharacters = []; // not here
+
+	formatAfterKeystroke(resource: URI, position: IPosition, ch: string, options: modes.IFormattingOptions): TPromise<ISingleEditOperation[]> {
+
+		let doc = this._documents.getDocument(resource);
+		let pos = TypeConverters.toPosition(position);
+
+		return asWinJsPromise(token => this._provider.provideOnTypeFormattingEdits(doc, pos, ch, <any> options, token)).then(value => {
+			if (Array.isArray(value)) {
+				return value.map(TypeConverters.fromTextEdit);
+			}
+		});
+	}
+}
+
+type Adapter = OutlineAdapter | CodeLensAdapter | DeclarationAdapter | ExtraInfoAdapter | OccurrencesAdapter | ReferenceAdapter | QuickFixAdapter
+	| DocumentFormattingAdapter | RangeFormattingAdapter | OnTypeFormattingAdapter;
 
 @Remotable.PluginHostContext('ExtHostLanguageFeatures')
 export class ExtHostLanguageFeatures {
@@ -491,6 +562,42 @@ export class ExtHostLanguageFeatures {
 	$runQuickFixAction(handle: number, resource: URI, range: IRange, id: string): any {
 		return this._withAdapter(handle, QuickFixAdapter, adapter => adapter.runQuickFixAction(resource, range, id));
 	}
+
+	// --- formatting
+
+	registerDocumentFormattingEditProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentFormattingEditProvider): vscode.Disposable {
+		const handle = this._nextHandle();
+		this._adapter[handle] = new DocumentFormattingAdapter(this._documents, provider);
+		this._proxy.$registerDocumentFormattingSupport(handle, selector);
+		return this._createDisposable(handle);
+	}
+
+	$formatDocument(handle: number, resource: URI, options: modes.IFormattingOptions): TPromise<ISingleEditOperation[]>{
+		return this._withAdapter(handle, DocumentFormattingAdapter, adapter => adapter.formatDocument(resource, options));
+	}
+
+	registerDocumentRangeFormattingEditProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentRangeFormattingEditProvider): vscode.Disposable {
+		const handle = this._nextHandle();
+		this._adapter[handle] = new RangeFormattingAdapter(this._documents, provider);
+		this._proxy.$registerRangeFormattingSupport(handle, selector);
+		return this._createDisposable(handle);
+	}
+
+	$formatRange(handle: number, resource: URI, range: IRange, options: modes.IFormattingOptions): TPromise<ISingleEditOperation[]>{
+		return this._withAdapter(handle, RangeFormattingAdapter, adapter => adapter.formatRange(resource, range, options));
+	}
+
+	registerOnTypeFormattingEditProvider(selector: vscode.DocumentSelector, provider: vscode.OnTypeFormattingEditProvider, triggerCharacters: string[]): vscode.Disposable {
+		const handle = this._nextHandle();
+		this._adapter[handle] = new OnTypeFormattingAdapter(this._documents, provider);
+		this._proxy.$registerOnTypeFormattingSupport(handle, selector, triggerCharacters);
+		return this._createDisposable(handle);
+	}
+
+	$formatAfterKeystroke(handle: number, resource: URI, position: IPosition, ch: string, options: modes.IFormattingOptions): TPromise<ISingleEditOperation[]>{
+		return this._withAdapter(handle, OnTypeFormattingAdapter, adapter => adapter.formatAfterKeystroke(resource, position, ch, options));
+	}
+
 }
 
 @Remotable.MainContext('MainThreadLanguageFeatures')
@@ -604,6 +711,38 @@ export class MainThreadLanguageFeatures {
 			},
 			runQuickFixAction: (resource: URI, range: IRange, id: string) => {
 				return this._proxy.$runQuickFixAction(handle, resource, range, id);
+			}
+		});
+		return undefined;
+	}
+
+	// --- formatting
+
+	$registerDocumentFormattingSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any> {
+		this._registrations[handle] = FormatRegistry.register(selector, <modes.IFormattingSupport>{
+			formatDocument: (resource: URI, options: modes.IFormattingOptions): TPromise <ISingleEditOperation[] > => {
+				return this._proxy.$formatDocument(handle, resource, options);
+			}
+		});
+		return undefined;
+	}
+
+	$registerRangeFormattingSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any> {
+		this._registrations[handle] = FormatRegistry.register(selector, <modes.IFormattingSupport>{
+			formatRange: (resource: URI, range: IRange, options: modes.IFormattingOptions): TPromise <ISingleEditOperation[] > => {
+				return this._proxy.$formatRange(handle, resource, range, options);
+			}
+		});
+		return undefined;
+	}
+
+	$registerOnTypeFormattingSupport(handle: number, selector: vscode.DocumentSelector, autoFormatTriggerCharacters: string[]): TPromise<any> {
+		this._registrations[handle] = FormatOnTypeRegistry.register(selector, <modes.IFormattingSupport>{
+
+			autoFormatTriggerCharacters,
+
+			formatAfterKeystroke: (resource: URI, position: IPosition, ch: string, options: modes.IFormattingOptions): TPromise<ISingleEditOperation[]> => {
+				return this._proxy.$formatAfterKeystroke(handle, resource, position, ch, options);
 			}
 		});
 		return undefined;
