@@ -5,8 +5,7 @@
 
 'use strict';
 
-import {IReferenceSupport} from 'vs/editor/common/modes';
-import {IReference} from 'vs/editor/common/modes';
+import {IReferenceSupport, IReference} from 'vs/editor/common/modes';
 import {IModel, IPosition} from 'vs/editor/common/editorCommon';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {onUnexpectedError} from 'vs/base/common/errors';

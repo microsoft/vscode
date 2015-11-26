@@ -9,6 +9,7 @@ import {NullThreadService} from 'vs/platform/test/common/nullThreadService';
 import {create} from 'vs/base/common/types';
 import {SyncDescriptor0} from 'vs/platform/instantiation/common/descriptors';
 import {TPromise} from 'vs/base/common/winjs.base';
+import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 
 export class TestThreadService extends NullThreadService {
 
@@ -57,7 +58,7 @@ export class TestThreadService extends NullThreadService {
 
 				return TPromise.timeout(0).then(() => {
 					if (!_instance) {
-						_instance = create(descriptor.ctor, this);
+						_instance = this._instantiationService.createInstance(descriptor.ctor);
 					}
 					let p: TPromise<any>;
 					try {

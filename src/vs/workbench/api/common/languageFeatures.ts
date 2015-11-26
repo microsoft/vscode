@@ -22,7 +22,6 @@ import {CancellationTokenSource} from 'vs/base/common/cancellation';
 import {PluginHostModelService} from 'vs/workbench/api/common/pluginHostDocuments';
 import {IMarkerService, IMarker} from 'vs/platform/markers/common/markers';
 import {PluginHostCommands, MainThreadCommands} from 'vs/workbench/api/common/pluginHostCommands';
-import QuickFixRegistry from 'vs/editor/contrib/quickFix/common/quickFix';
 import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
 import {NavigateTypesSupportRegistry, INavigateTypesSupport, ITypeBearing} from 'vs/workbench/parts/search/common/search'
 import {RenameRegistry} from 'vs/editor/contrib/rename/common/rename';
@@ -131,104 +130,6 @@ export abstract class AbstractExtensionHostFeature<T, P extends AbstractMainThre
 	}
 }
 
-// --- quick fix aka code actions
-
-export class ExtensionHostCodeActions extends AbstractExtensionHostFeature<vscode.CodeActionProvider, MainThreadCodeActions> {
-
-	private _disposable: Disposable;
-
-	constructor(@IThreadService threadService: IThreadService) {
-		super(threadService.getRemotable(MainThreadCodeActions), threadService);
-	}
-
-	_runAsCommand(resource: URI, range: IRange, marker:IMarker[]): TPromise<modes.IQuickFix[]> {
-
-		let document = this._models.getDocument(resource);
-		let _range = TypeConverters.toRange(range);
-		let commands: vscode.Command[] = [];
-
-		let diagnostics = <vscode.Diagnostic[]> <any> marker.map(marker => {
-			let diag = new Diagnostic(TypeConverters.toRange(marker), marker.message);
-			diag.code = marker.code;
-			diag.severity = TypeConverters.toDiagnosticSeverty(marker.severity);
-			return diag;
-		});
-
-		let promises = this._getAllFor(document).map(provider => {
-			return asWinJsPromise(token => provider.provideCodeActions(document, _range, { diagnostics }, token)).then(result => {
-				if (Array.isArray(result)) {
-					commands.push(...result);
-				}
-			}, err => {
-				console.error(err);
-			});
-		});
-
-		return TPromise.join(promises).then(() => {
-			if (this._disposable) {
-				this._disposable.dispose();
-			}
-
-			let disposables: IDisposable[] = [];
-			let quickFixes: modes.IQuickFix[] = [];
-
-			commands.forEach((command, i) => {
-
-				let id = '_code_action_action_wrapper_#' + i;
-
-				// create fake action such that the aruments don't
-				// have to be send between ext-host
-				disposables.push(this._commands.registerCommand(id, () => {
-					return this._commands.executeCommand(command.command, ...command.arguments);
-				}));
-
-				// create quick fix
-				quickFixes.push({
-					id,
-					label: command.title,
-					score: 1
-				});
-			});
-
-			// not very nice... we need
-			// some sort of event to tell us when
-			// quick fix is bored of our commands
-			this._disposable = Disposable.from(...disposables);
-			return quickFixes;
-		});
-	}
-}
-
-@Remotable.MainContext('MainThreadCodeAction')
-export class MainThreadCodeActions extends AbstractMainThreadFeature<modes.IQuickFixSupport> implements modes.IQuickFixSupport {
-
-	private _keybindingService: IKeybindingService;
-	private _markerService: IMarkerService;
-
-	constructor( @IThreadService threadService: IThreadService, @IKeybindingService keybindingService: IKeybindingService,
-		@IMarkerService markerService: IMarkerService) {
-
-		super('vscode.executeCodeActionProvider', QuickFixRegistry, threadService);
-		this._keybindingService = keybindingService;
-		this._markerService = markerService;
-	}
-
-	getQuickFixes(resource: URI, range: IRange): TPromise<modes.IQuickFix[]> {
-
-		let markers: IMarker[] = [];
-		this._markerService.read({ resource }).forEach(marker => {
-			if (EditorRange.lift(marker).intersectRanges(range)) {
-				markers.push(marker);
-			}
-		});
-
-		return this._executeCommand(resource, range, markers);
-	}
-
-	runQuickFixAction (resource:URI, range:IRange, id:string) {
-		return TPromise.as(this._keybindingService.executeCommand(id));
-	}
-}
 
 // -- Rename provider
 
@@ -826,7 +727,6 @@ export class MainThreadWorkspaceSymbols implements INavigateTypesSupport {
 export namespace LanguageFeatures {
 
 	export function createMainThreadInstances(threadService: IThreadService): void {
-		threadService.getRemotable(MainThreadCodeActions);
 		threadService.getRemotable(MainThreadWorkspaceSymbols);
 		threadService.getRemotable(MainThreadRename);
 		threadService.getRemotable(MainThreadFormatDocument);
@@ -838,7 +738,6 @@ export namespace LanguageFeatures {
 
 	export function createExtensionHostInstances(threadService: IThreadService) {
 		return {
-			codeActions: new ExtensionHostCodeActions(threadService),
 			workspaceSymbols: new ExtensionHostWorkspaceSymbols(threadService),
 			rename: new ExtensionHostRename(threadService),
 			formatDocument: new ExtHostFormatDocument(threadService),

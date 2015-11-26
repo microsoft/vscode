@@ -27,7 +27,7 @@ import {DeclarationRegistry} from 'vs/editor/contrib/goToDeclaration/common/goTo
 import {ExtraInfoRegistry} from 'vs/editor/contrib/hover/common/hover';
 import {OccurrencesRegistry} from 'vs/editor/contrib/wordHighlighter/common/wordHighlighter';
 import {ReferenceRegistry} from 'vs/editor/contrib/referenceSearch/common/referenceSearch';
-import QuickFixRegistry from 'vs/editor/contrib/quickFix/common/quickFix';
+import {QuickFixRegistry} from 'vs/editor/contrib/quickFix/common/quickFix';
 import {OutlineRegistry, IOutlineEntry, IOutlineSupport} from 'vs/editor/contrib/quickOpen/common/quickOpen';
 import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
 import {NavigateTypesSupportRegistry, INavigateTypesSupport, ITypeBearing} from 'vs/workbench/parts/search/common/search'
@@ -295,7 +295,68 @@ class ReferenceAdapter implements modes.IReferenceSupport {
 	}
 }
 
-type Adapter = OutlineAdapter | CodeLensAdapter | DeclarationAdapter | ExtraInfoAdapter | OccurrencesAdapter | ReferenceAdapter;
+class QuickFixAdapter implements modes.IQuickFixSupport {
+
+	private _documents: PluginHostModelService;
+	private _commands: PluginHostCommands;
+	private _provider: vscode.CodeActionProvider;
+	private _cache: { [key: string]: vscode.Command[] } = Object.create(null);
+
+	constructor(documents: PluginHostModelService, commands: PluginHostCommands, provider: vscode.CodeActionProvider) {
+		this._documents = documents;
+		this._commands = commands;
+		this._provider = provider;
+	}
+
+	getQuickFixes(resource: URI, range: IRange, marker?: IMarker[]): TPromise<modes.IQuickFix[]> {
+
+		// return this._executeCommand(resource, range, markers);
+		const key = resource.toString();
+		delete this._cache[key];
+
+		const doc = this._documents.getDocument(resource);
+		const ran = TypeConverters.toRange(range);
+		const diagnostics = marker.map(marker => {
+			const diag = new Diagnostic(TypeConverters.toRange(marker), marker.message);
+			diag.code = marker.code;
+			diag.severity = TypeConverters.toDiagnosticSeverty(marker.severity);
+			return diag;
+		});
+
+		return asWinJsPromise(token => this._provider.provideCodeActions(doc, ran, { diagnostics: <any>diagnostics }, token)).then(commands => {
+			if (!Array.isArray(commands)) {
+				return;
+			}
+
+			this._cache[key] = commands;
+
+			return commands.map((command, i) => {
+				return <modes.IQuickFix> {
+					id: String(i),
+					label: command.title,
+					score: 1
+				};
+			});
+		});
+	}
+
+	runQuickFixAction(resource: URI, range: IRange, id: string): any {
+
+		let commands = this._cache[resource.toString()];
+		if (!commands) {
+			return TPromise.wrapError('no command for ' + resource.toString());
+		}
+
+		let command = commands[Number(id)];
+		if (!command) {
+			return TPromise.wrapError('no command for ' + resource.toString());
+		}
+
+		return this._commands.executeCommand(command.command, ...command.arguments);
+	}
+}
+
+type Adapter = OutlineAdapter | CodeLensAdapter | DeclarationAdapter | ExtraInfoAdapter | OccurrencesAdapter | ReferenceAdapter | QuickFixAdapter;
 
 @Remotable.PluginHostContext('ExtHostLanguageFeatures')
 export class ExtHostLanguageFeatures {
@@ -304,11 +365,13 @@ export class ExtHostLanguageFeatures {
 
 	private _proxy: MainThreadLanguageFeatures;
 	private _documents: PluginHostModelService;
+	private _commands: PluginHostCommands;
 	private _adapter: { [handle: number]: Adapter } = Object.create(null);
 
 	constructor( @IThreadService threadService: IThreadService) {
 		this._proxy = threadService.getRemotable(MainThreadLanguageFeatures);
 		this._documents = threadService.getRemotable(PluginHostModelService);
+		this._commands = threadService.getRemotable(PluginHostCommands);
 	}
 
 	private _createDisposable(handle: number): Disposable {
@@ -412,16 +475,34 @@ export class ExtHostLanguageFeatures {
 		return this._withAdapter(handle, ReferenceAdapter, adapter => adapter.findReferences(resource, position, includeDeclaration));
 	}
 
+	// --- quick fix
+
+	registerCodeActionProvider(selector: vscode.DocumentSelector, provider: vscode.CodeActionProvider): vscode.Disposable {
+		const handle = this._nextHandle();
+		this._adapter[handle] = new QuickFixAdapter(this._documents, this._commands, provider);
+		this._proxy.$registerQuickFixSupport(handle, selector);
+		return this._createDisposable(handle);
+	}
+
+	$getQuickFixes(handle:number, resource: URI, range: IRange, marker: IMarker[]): TPromise<modes.IQuickFix[]> {
+		return this._withAdapter(handle, QuickFixAdapter, adapter => adapter.getQuickFixes(resource, range, marker));
+	}
+
+	$runQuickFixAction(handle: number, resource: URI, range: IRange, id: string): any {
+		return this._withAdapter(handle, QuickFixAdapter, adapter => adapter.runQuickFixAction(resource, range, id));
+	}
 }
 
 @Remotable.MainContext('MainThreadLanguageFeatures')
 export class MainThreadLanguageFeatures {
 
 	private _proxy: ExtHostLanguageFeatures;
+	private _markerService: IMarkerService;
 	private _registrations: { [handle: number]: IDisposable; } = Object.create(null);
 
-	constructor( @IThreadService threadService: IThreadService) {
+	constructor( @IThreadService threadService: IThreadService, @IMarkerService markerService: IMarkerService) {
 		this._proxy = threadService.getRemotable(ExtHostLanguageFeatures);
+		this._markerService = markerService;
 	}
 
 	$unregister(handle: number): TPromise<any> {
@@ -503,6 +584,26 @@ export class MainThreadLanguageFeatures {
 			},
 			findReferences: (resource: URI, position: IPosition, includeDeclaration: boolean): TPromise<modes.IReference[]> => {
 				return this._proxy.$findReferences(handle, resource, position, includeDeclaration);
+			}
+		});
+		return undefined;
+	}
+
+	// --- quick fix
+
+	$registerQuickFixSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any> {
+		this._registrations[handle] = QuickFixRegistry.register(selector, <modes.IQuickFixSupport>{
+			getQuickFixes: (resource: URI, range: IRange): TPromise<modes.IQuickFix[]> => {
+				let markers: IMarker[] = [];
+				this._markerService.read({ resource }).forEach(marker => {
+					if (EditorRange.lift(marker).intersectRanges(range)) {
+						markers.push(marker);
+					}
+				});
+				return this._proxy.$getQuickFixes(handle, resource, range, markers);
+			},
+			runQuickFixAction: (resource: URI, range: IRange, id: string) => {
+				return this._proxy.$runQuickFixAction(handle, resource, range, id);
 			}
 		});
 		return undefined;

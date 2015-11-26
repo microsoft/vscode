@@ -17,6 +17,10 @@ import {Range as CodeEditorRange} from 'vs/editor/common/core/range';
 import * as EditorCommon from 'vs/editor/common/editorCommon';
 import {Model as EditorModel} from 'vs/editor/common/model/model';
 import threadService from './testThreadService'
+import {create as createInstantiationService} from 'vs/platform/instantiation/common/instantiationService';
+import {MarkerService} from 'vs/platform/markers/common/markerService';
+import {IMarkerService} from 'vs/platform/markers/common/markers';
+import {IThreadService} from 'vs/platform/thread/common/thread';
 import {ExtHostLanguageFeatures, MainThreadLanguageFeatures} from 'vs/workbench/api/common/extHostLanguageFeatures';
 import {PluginHostCommands, MainThreadCommands} from 'vs/workbench/api/common/pluginHostCommands';
 import {PluginHostModelService} from 'vs/workbench/api/common/pluginHostDocuments';
@@ -28,6 +32,7 @@ import {DeclarationRegistry, getDeclarationsAtPosition} from 'vs/editor/contrib/
 import {ExtraInfoRegistry, getExtraInfoAtPosition} from 'vs/editor/contrib/hover/common/hover';
 import {OccurrencesRegistry, getOccurrencesAtPosition} from 'vs/editor/contrib/wordHighlighter/common/wordHighlighter';
 import {ReferenceRegistry, findReferences} from 'vs/editor/contrib/referenceSearch/common/referenceSearch';
+import {getQuickFixes} from 'vs/editor/contrib/quickFix/common/quickFix';
 
 const defaultSelector = { scheme: 'far' };
 const model: EditorCommon.IModel = new EditorModel(
@@ -47,6 +52,11 @@ let originalErrorHandler: (e: any) => any;
 suite('ExtHostLanguageFeatures', function() {
 
 	suiteSetup(() => {
+
+		let instantiationService = createInstantiationService();
+		threadService.setInstantiationService(instantiationService);
+		instantiationService.addSingleton(IMarkerService, new MarkerService(threadService));
+		instantiationService.addSingleton(IThreadService, threadService);
 
 		originalErrorHandler = errorHandler.getUnexpectedErrorHandler();
 		setUnexpectedErrorHandler(() => { });
@@ -589,6 +599,86 @@ suite('ExtHostLanguageFeatures', function() {
 				done();
 			});
 
+		});
+	});
+
+	// --- quick fix
+
+	test('Quick Fix, data conversion', function(done) {
+
+		disposables.push(extHost.registerCodeActionProvider(defaultSelector, <vscode.CodeActionProvider>{
+			provideCodeActions(): any {
+				return [
+					<vscode.Command>{ command: 'test', title: 'Testing1' },
+					<vscode.Command>{ command: 'test', title: 'Testing2' }
+				];
+			}
+		}));
+
+		threadService.sync().then(() => {
+			getQuickFixes(model, model.getFullModelRange()).then(value => {
+				assert.equal(value.length, 2);
+
+				let [first, second] = value;
+				assert.equal(first.label, 'Testing1');
+				assert.equal(first.id, String(0));
+				assert.equal(second.label, 'Testing2');
+				assert.equal(second.id, String(1));
+				done();
+			});
+		});
+	});
+
+	test('Quick Fix, invoke command+args', function(done) {
+		let actualArgs: any;
+		let commands = threadService.getRemotable(PluginHostCommands);
+		disposables.push(commands.registerCommand('test1', function(...args: any[]) {
+			actualArgs = args;
+		}));
+
+		disposables.push(extHost.registerCodeActionProvider(defaultSelector, <vscode.CodeActionProvider>{
+			provideCodeActions(): any {
+				return [<vscode.Command>{ command: 'test1', title: 'Testing', arguments: [true, 1, { bar: 'boo', foo: 'far' }, null] }];
+			}
+		}));
+
+		threadService.sync().then(() => {
+			getQuickFixes(model, model.getFullModelRange()).then(value => {
+				assert.equal(value.length, 1);
+
+				let [entry] = value;
+				entry.support.runQuickFixAction(model.getAssociatedResource(), model.getFullModelRange(), entry.id).then(value => {
+					assert.equal(value, undefined);
+
+					assert.equal(actualArgs.length, 4);
+					assert.equal(actualArgs[0], true)
+					assert.equal(actualArgs[1], 1)
+					assert.deepEqual(actualArgs[2], { bar: 'boo', foo: 'far' });
+					assert.equal(actualArgs[3], null)
+					done();
+				});
+			});
+		});
+	});
+
+	test('Quick Fix, evil provider', function(done) {
+
+		disposables.push(extHost.registerCodeActionProvider(defaultSelector, <vscode.CodeActionProvider>{
+			provideCodeActions(): any {
+				throw new Error('evil');
+			}
+		}));
+		disposables.push(extHost.registerCodeActionProvider(defaultSelector, <vscode.CodeActionProvider>{
+			provideCodeActions(): any {
+				return [<vscode.Command>{ command: 'test', title: 'Testing' }];
+			}
+		}));
+
+		threadService.sync().then(() => {
+			getQuickFixes(model, model.getFullModelRange()).then(value => {
+				assert.equal(value.length, 1);
+				done();
+			});
 		});
 	});
 });
