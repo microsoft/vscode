@@ -33,4 +33,4 @@ function code() {
 	fi
 }
 
-code
+code $*
