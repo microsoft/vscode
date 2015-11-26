@@ -189,7 +189,7 @@ export class PluginHostAPIImplementation {
 		};
 
 		//
-		const workspacePath = contextService.getWorkspace() && contextService.getWorkspace().resource.fsPath;
+		const workspacePath = contextService.getWorkspace() ? contextService.getWorkspace().resource.fsPath : undefined;
 		const pluginHostFileSystemEvent = threadService.getRemotable(PluginHostFileSystemEventService);
 		const pluginHostWorkspace = new PluginHostWorkspace(this._threadService, workspacePath);
 		const pluginHostDocuments = this._threadService.getRemotable(PluginHostModelService);
