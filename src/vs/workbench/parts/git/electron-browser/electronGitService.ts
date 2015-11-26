@@ -112,7 +112,6 @@ export function createNativeRawGitService(workspaceRoot: string, gitPath: string
 				args: [gitPath, workspaceRoot, defaultEncoding, remote.process.execPath],
 				env: {
 					ATOM_SHELL_INTERNAL_RUN_AS_NODE: 1,
-					PIPE_LOGGING: 'true',
 					AMD_ENTRYPOINT: 'vs/workbench/parts/git/electron-browser/gitApp'
 				}
 			}
