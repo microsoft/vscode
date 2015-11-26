@@ -174,7 +174,7 @@ export default class URI {
 
 		var ret = URI._parse(path);
 		if (ret.scheme || ret.fragment || ret.query) {
-			throw new Error(`Path ${ path } contains a scheme, fragment or a query. Can not convert it to a file uri.`);
+			throw new Error('Path contains a scheme, fragment or a query. Can not convert it to a file uri.');
 		}
 
 		ret = ret.with('file', undefined,
