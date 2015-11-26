@@ -6,16 +6,7 @@
 
 import { globals } from 'vs/base/common/platform';
 
-function getWorkersCount(): number {
-	var defaultValue = 2;
-	var url_matches = (globals.location ? globals.location.search : '').match(/monaco-workers=(\d+)/i);
-	if (url_matches) {
-		defaultValue = parseInt(url_matches[1], 10);
-	}
-	return environment('workersCount', defaultValue);
-}
-
-export const workersCount = getWorkersCount();
+export const workersCount = environment('workersCount', 2);
 export const enableTasks = environment('enableTasks');
 export const enableSendASmile = environment('enableSendASmile');
 export const enableJavaScriptRewriting = environment('enableJavaScriptRewriting');

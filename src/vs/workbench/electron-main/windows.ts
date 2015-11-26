@@ -95,8 +95,9 @@ export class WindowsManager {
 	public static autoSaveDelayStorageKey = 'autoSaveDelay';
 	public static openedPathsListStorageKey = 'openedPathsList';
 
-	private static workingDirPickerStorageKey = 'pickerWorkingDir';
+	public static MAX_RECENT_ENTRIES = 10;
 
+	private static workingDirPickerStorageKey = 'pickerWorkingDir';
 	private static windowsStateStorageKey = 'windowsState';
 	private static themeStorageKey = 'theme'; // TODO@Ben this key is only used to find out if a window can be shown instantly because of light theme, remove once we have support for bg color
 
@@ -390,13 +391,13 @@ export class WindowsManager {
 			if (!openFilesInNewWindow && lastActiveWindow) {
 				lastActiveWindow.restore();
 				lastActiveWindow.ready().then((readyWindow) => {
-					readyWindow.win.webContents.send('vscode:openFiles', {
+					readyWindow.send('vscode:openFiles', {
 						filesToOpen: filesToOpen,
 						filesToCreate: filesToCreate
 					});
 
 					if (extensionsToInstall.length) {
-						readyWindow.win.webContents.send('vscode:installExtensions', { extensionsToInstall });
+						readyWindow.send('vscode:installExtensions', { extensionsToInstall });
 					}
 				});
 			}
@@ -418,13 +419,13 @@ export class WindowsManager {
 			if (windowsOnWorkspacePath.length > 0) {
 				windowsOnWorkspacePath[0].restore(); // just focus one of them
 				windowsOnWorkspacePath[0].ready().then((readyWindow) => {
-					readyWindow.win.webContents.send('vscode:openFiles', {
+					readyWindow.send('vscode:openFiles', {
 						filesToOpen: filesToOpen,
 						filesToCreate: filesToCreate
 					});
 
 					if (extensionsToInstall.length) {
-						readyWindow.win.webContents.send('vscode:installExtensions', { extensionsToInstall });
+						readyWindow.send('vscode:installExtensions', { extensionsToInstall });
 					}
 				});
 
@@ -567,7 +568,8 @@ export class WindowsManager {
 		// Clear those dupes
 		recentPaths = arrays.distinct(recentPaths);
 
-		return recentPaths;
+		// Make sure it is bounded
+		return recentPaths.slice(0, WindowsManager.MAX_RECENT_ENTRIES);
 	}
 
 	private toIPath(anyPath: string, ignoreFileNotFound?: boolean, gotoLineMode?: boolean): window.IPath {
@@ -889,9 +891,7 @@ export class WindowsManager {
 		const focusedWindow = this.getFocusedWindow() || this.getLastActiveWindow();
 
 		if (focusedWindow) {
-			focusedWindow.ready().then((readyWindow) => {
-				readyWindow.win.webContents.send(channel, ...args);
-			});
+			focusedWindow.sendWhenReady(channel, ...args);
 		}
 	}
 
@@ -901,9 +901,7 @@ export class WindowsManager {
 				return; // do not send if we are instructed to ignore it
 			}
 
-			w.ready().then((readyWindow) => {
-				readyWindow.win.webContents.send(channel, payload);
-			});
+			w.sendWhenReady(channel, payload);
 		});
 	}
 

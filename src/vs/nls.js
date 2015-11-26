@@ -22,7 +22,7 @@ var NLSLoaderPlugin;
     var global = _nlsPluginGlobal;
     var Resources = global.Plugin && global.Plugin.Resources ? global.Plugin.Resources : undefined;
     var DEFAULT_TAG = 'i-default';
-    var IS_PSEUDO = (global && global.document && global.document.URL.match(/[^\?]*\?[^\#]*pseudo=true/));
+    var IS_PSEUDO = (global && global.document && global.document.location && global.document.location.hash.indexOf('pseudo=true') >= 0);
     var slice = Array.prototype.slice;
     function _format(message, args) {
         var result;
