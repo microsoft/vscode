@@ -1,0 +1,43 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-editor .defineKeybindingLauncher {
+	background: rgba(0,255,0,0.3);
+	padding: 10px;
+	border-radius: 5px;
+	cursor: pointer;
+}
+
+.monaco-editor .defineKeybindingWidget {
+	width: 340px;
+	height: 60px;
+	padding: 10px;
+}
+
+.monaco-editor .defineKeybindingWidget .message {
+	width: 320px;
+	text-align: center;
+}
+
+.monaco-editor .defineKeybindingWidget .input {
+	width: 320px;
+	display: block;
+}
+
+.monaco-editor .defineKeybindingWidget .output {
+	width: 320px;
+	text-align: center;
+}
+
+/* Theming */
+.monaco-editor .defineKeybindingWidget {
+	background-color: #EFEFF2;
+	box-shadow: 0 2px 8px #A8A8A8;
+}
+
+.monaco-editor.vs-dark .defineKeybindingWidget {
+	background-color: #2D2D30;
+	box-shadow: 0 2px 8px #000;
+}

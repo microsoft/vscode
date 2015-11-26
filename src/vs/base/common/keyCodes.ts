@@ -385,7 +385,16 @@ export class Keybinding {
 	 * Format the binding to a format appropiate for the user settings file.
 	 */
 	public static toUserSettingsLabel(value:number): string {
-		return _asString(value, UserSettingsKeyLabelProvider.INSTANCE);
+		let result = _asString(value, UserSettingsKeyLabelProvider.INSTANCE);
+		result = result.toLowerCase().replace(/arrow/g, '');
+
+		if (Platform.isMacintosh) {
+			result = result.replace(/meta/g, 'cmd');
+		} else if (Platform.isWindows) {
+			result = result.replace(/meta/g, 'win');
+		}
+
+		return result;
 	}
 
 	public value:number;

@@ -404,15 +404,7 @@ export class IOSupport {
 	}
 
 	private static writeKeybinding(input: number): string {
-		var r = Keybinding.toUserSettingsLabel(input).toLowerCase().replace(/arrow/g, '');
-
-		if (Platform.isMacintosh) {
-			r = r.replace(/meta/g, 'cmd');
-		} else if (Platform.isWindows) {
-			r = r.replace(/meta/g, 'win');
-		}
-
-		return r;
+		return Keybinding.toUserSettingsLabel(input);
 	}
 
 	public static readKeybinding(input: string): number {

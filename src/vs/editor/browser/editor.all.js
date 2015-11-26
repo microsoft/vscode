@@ -36,6 +36,7 @@ define([
 	'vs/editor/contrib/toggleTabFocusMode/common/toggleTabFocusMode',
 	'vs/editor/contrib/wordHighlighter/common/wordHighlighter',
 	'vs/editor/contrib/workerStatusReporter/browser/workerStatusReporter',
+	'vs/editor/contrib/defineKeybinding/browser/defineKeybinding',
 
 	// include these in the editor bundle because they are widely used by many languages
 	'vs/editor/common/languages.common'
