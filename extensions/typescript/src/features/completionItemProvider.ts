@@ -128,7 +128,7 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 	 * anything else will keep place holder for function name.
 	 * isNested: will keep track of nested functions in parameter
 	 */
-	private extractMethodParameters(displayParts:any, mode = "lambda", isNested = false) {
+	private extractMethodParameters(displayParts: any, mode = "lambda", isNested = false) {
 		let result = '';
 		while (displayParts.length > 0) {
 			let nextItem = displayParts.length > 1 ? displayParts[1].text : '';
@@ -149,8 +149,8 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 					}
 					if (openParentheses === 0) {
 						displayParts.shift();
+						let comma = displayParts.length > 0 ? ', ' : ''
 						if (mode === "lambda") {
-							let comma = displayParts.length > 0 ? ', ' : ''
 							if (innerParameters.length === 0) {
 								result += `()`;
 							} else if (innerParameters.length === 1) {
@@ -161,7 +161,7 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 							result += ` => {\n\t\t{{}}\n\t}` + comma
 
 						} else {
-							result += `{{${currentFunctionName}}}`;
+							result += `{{${currentFunctionName}}}${comma} `;
 						}
 					}
 				}
@@ -218,7 +218,7 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 
 				if (detail && this.config.useCodeSnippetsOnMethodSuggest !== "none" && item.kind === CompletionItemKind.Function) {
 					let codeSnippet = detail.name;
-					codeSnippet += this.extractMethodParameters(this.simplifyItems(detail.displayParts),this.config.useCodeSnippetsOnMethodSuggest)
+					codeSnippet += this.extractMethodParameters(this.simplifyItems(detail.displayParts), this.config.useCodeSnippetsOnMethodSuggest)
 
 					item.insertText = codeSnippet;
 				}
