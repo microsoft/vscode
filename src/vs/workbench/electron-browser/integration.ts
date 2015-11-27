@@ -8,8 +8,10 @@
 import {TPromise} from 'vs/base/common/winjs.base';
 import errors = require('vs/base/common/errors');
 import arrays = require('vs/base/common/arrays');
+import Severity from 'vs/base/common/severity';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
+import {IMessageService} from 'vs/platform/message/common/message';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
@@ -30,7 +32,8 @@ export class ElectronIntegration {
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IKeybindingService private keybindingService: IKeybindingService,
-		@IStorageService private storageService: IStorageService
+		@IStorageService private storageService: IStorageService,
+		@IMessageService private messageService: IMessageService
 	) {
 	}
 
@@ -42,7 +45,7 @@ export class ElectronIntegration {
 
 		// Support runAction event
 		ipc.on('vscode:runAction', (actionId: string) => {
-			this.keybindingService.executeCommand(actionId, { from: 'menu' });
+			this.keybindingService.executeCommand(actionId, { from: 'menu' }).done(undefined, err => this.messageService.show(Severity.Error, err));
 		});
 
 		// Support options change
