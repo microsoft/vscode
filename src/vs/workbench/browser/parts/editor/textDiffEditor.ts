@@ -17,7 +17,7 @@ import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
 import {TextEditorOptions, TextDiffEditorOptions, EditorModel, EditorInput, EditorOptions} from 'vs/workbench/common/editor';
 import {StringEditorInput} from 'vs/workbench/browser/parts/editor/stringEditorInput';
-import {ResourceEditorInput} from 'vs/workbench/browser/parts/editor/resourceEditorInput';
+import {ReadOnlyEditorInput} from 'vs/workbench/browser/parts/editor/readOnlyEditorInput';
 import {DiffEditorInput} from 'vs/workbench/browser/parts/editor/diffEditorInput';
 import {DiffNavigator} from 'vs/editor/contrib/diffNavigator/common/diffNavigator';
 import {DiffEditorWidget} from 'vs/editor/browser/widget/diffEditorWidget';
@@ -190,7 +190,7 @@ export class TextDiffEditor extends BaseTextEditor {
 		let input = this.input;
 		if (input && types.isFunction((<DiffEditorInput>input).getModifiedInput)) {
 			let modifiedInput = (<DiffEditorInput>input).getModifiedInput();
-			let readOnly = modifiedInput instanceof StringEditorInput || modifiedInput instanceof ResourceEditorInput;
+			let readOnly = modifiedInput instanceof StringEditorInput || modifiedInput instanceof ReadOnlyEditorInput;
 
 			options.readOnly = readOnly;
 		}

@@ -12,7 +12,6 @@ import URI from 'vs/base/common/uri';
 import {URL} from 'vs/base/common/network';
 import {StringEditorInput} from 'vs/workbench/browser/parts/editor/stringEditorInput';
 import {LogEditorInput} from 'vs/workbench/browser/parts/editor/logEditorInput';
-import {ResourceEditorInput} from 'vs/workbench/browser/parts/editor/resourceEditorInput';
 import {ReadOnlyEditorInput} from 'vs/workbench/browser/parts/editor/readOnlyEditorInput';
 import {ReadOnlyEditorModel} from 'vs/workbench/browser/parts/editor/readOnlyEditorModel';
 import {TestWorkspace, TestEditorService, MockRequestService} from 'vs/workbench/test/browser/servicesTestUtils';
@@ -98,10 +97,10 @@ suite("Workbench - StringEditorInput", () => {
 		let promise = Promise.as("value");
 
 		let stringEditorInput = inst.createInstance(StringEditorInput, "name", 'description', "value", "mime", false);
-		let promiseEditorInput = new ResourceEditorInput("name", "description", "url", "mime", void 0, void 0, void 0, void 0);
+		let promiseEditorInput = inst.createInstance(ReadOnlyEditorInput, "name", "description", URI.create('inMemory', null, 'thePath'));
 
 		let stringEditorInput2 = inst.createInstance(StringEditorInput, "name", 'description', "value", "mime", false);
-		let promiseEditorInput2 = new ResourceEditorInput("name", "description", "url", "mime", void 0, void 0, void 0, void 0);
+		let promiseEditorInput2 = inst.createInstance(ReadOnlyEditorInput, "name", "description", URI.create('inMemory', null, 'thePath'));
 
 		assert.strictEqual(stringEditorInput.matches(null), false);
 		assert.strictEqual(promiseEditorInput.matches(null), false);

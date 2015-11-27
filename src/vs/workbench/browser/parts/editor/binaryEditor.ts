@@ -106,7 +106,7 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 }
 
 /**
- * An implementation of editor for binary files like images or videos leveraging the ResourceEditorInput.
+ * An implementation of editor for binary files like images or videos.
  */
 export class BinaryResourceEditor extends BaseBinaryResourceEditor {
 

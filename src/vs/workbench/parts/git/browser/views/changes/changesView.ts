@@ -395,10 +395,6 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 			return (<GitEditorInputs.GitDiffEditorInput> input).getFileStatus();
 		}
 
-		if (input instanceof GitEditorInputs.GitIndexEditorInput) {
-			return (<GitEditorInputs.GitIndexEditorInput> input).getFileStatus() || null;
-		}
-
 		if (input instanceof GitEditorInputs.NativeGitIndexStringEditorInput) {
 			return (<GitEditorInputs.NativeGitIndexStringEditorInput> input).getFileStatus() || null;
 		}

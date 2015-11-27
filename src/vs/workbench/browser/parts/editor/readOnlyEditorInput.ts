@@ -21,17 +21,17 @@ export class ReadOnlyEditorInput extends EditorInput {
 	public static ID = 'workbench.editors.readOnlyEditorInput';
 
 	protected cachedModel: ReadOnlyEditorModel;
+	protected resource: URI;
 
 	private name: string;
 	private description: string;
-	private resource: URI;
 
 	constructor(
 		name: string,
 		description: string,
 		resource: URI,
-		@IModelService private modelService: IModelService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IModelService protected modelService: IModelService,
+		@IInstantiationService protected instantiationService: IInstantiationService
 	) {
 		super();
 

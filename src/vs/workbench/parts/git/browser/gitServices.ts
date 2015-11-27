@@ -686,13 +686,13 @@ export class GitService extends ee.EventEmitter
 				mimetypes = mime.guessMimeTypes(path); // guess from path if our detection did not yield results
 			}
 
-			// Binary: our story is weak here for binary files on the index. Since we run nativelyx, we do not have a way currently
+			// Binary: our story is weak here for binary files on the index. Since we run natively, we do not have a way currently
 			// to e.g. show images as binary inside the renderer because images need to be served through a URL to show. We could revisit this by
 			// allowing to use data URLs for resource inputs to render them. However, this would mean potentially loading a large file into memory
 			//
 			// Our solution now is to detect binary files and immediately return an input that is flagged as binary unknown mime type.
 			if (mime.isBinaryMime(mime.guessMimeTypes(path)) || mimetypes.indexOf(mime.MIME_BINARY) >= 0) {
-				return winjs.Promise.as(this.instantiationService.createInstance(giteditorinputs.GitIndexEditorInput, fileSegment, description, null /* no URL */, mime.MIME_BINARY, status));
+				return winjs.Promise.wrapError(new Error('The resource seems to be binary and cannot be displayed'));
 			}
 
 			// Text
