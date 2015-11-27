@@ -41,8 +41,8 @@ import {SuggestRegistry} from 'vs/editor/contrib/suggest/common/suggest';
 // vscode.executeWorkspaceSymbolProvider
 // vscode.executeDefinitionProvider
 // vscode.executeHoverProvider
-
 // vscode.executeDocumentHighlights
+
 // vscode.executeReferenceProvider
 // vscode.executeCodeActionProvider
 // vscode.executeCodeLensProvider
@@ -65,6 +65,7 @@ export class ExtHostLanguageFeatureCommands {
 		this._register('vscode.executeWorkspaceSymbolProvider', this._executeWorkspaceSymbolProvider);
 		this._register('vscode.executeDefinitionProvider', this._executeDefinitionProvider);
 		this._register('vscode.executeHoverProvider', this._executeHoverProvider);
+		this._register('vscode.executeDocumentHighlights', this._executeDocumentHighlights);
 	}
 
 	private _register(id: string, callback: (...args: any[]) => any): void {
@@ -101,6 +102,18 @@ export class ExtHostLanguageFeatureCommands {
 		return this._commands.executeCommand<modes.IComputeExtraInfoResult[]>('_executeHoverProvider', args).then(value => {
 			if (Array.isArray(value)) {
 				return value.map(typeConverters.toHover)
+			}
+		});
+	}
+
+	private _executeDocumentHighlights(resource: URI, position: types.Position): Thenable<types.DocumentHighlight[]> {
+		const args = {
+			resource,
+			position: position && typeConverters.fromPosition(position)
+		};
+		return this._commands.executeCommand<modes.IOccurence[]>('_executeDocumentHighlights', args).then(value => {
+			if (Array.isArray(value)) {
+				return value.map(typeConverters.toDocumentHighlight)
 			}
 		});
 	}

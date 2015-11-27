@@ -9,9 +9,9 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {onUnexpectedError, illegalArgument} from 'vs/base/common/errors';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
+import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {IRange} from 'vs/editor/common/editorCommon';
 import URI from 'vs/base/common/uri';
-import {registerCommand} from 'vs/platform/keybinding/common/commandsUtils';
 
 /**
  * Interface used to navigate to types by value.
@@ -75,7 +75,7 @@ export function getNavigateToItems(query: string): TPromise<ITypeBearing[]> {
 	});
 }
 
-registerCommand('_executeWorkspaceSymbolProvider', function(accessor, args: { query: string;}) {
+CommonEditorRegistry.registerLanguageCommand('_executeWorkspaceSymbolProvider', function(accessor, args: { query: string;}) {
 	let {query} = args;
 	if (typeof query !== 'string') {
 		throw illegalArgument();

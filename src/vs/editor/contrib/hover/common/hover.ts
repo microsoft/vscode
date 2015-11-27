@@ -5,15 +5,13 @@
 
 'use strict';
 
-import URI from 'vs/base/common/uri';
 import {IExtraInfoSupport, IComputeExtraInfoResult} from 'vs/editor/common/modes';
 import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {coalesce} from 'vs/base/common/arrays';
-import {onUnexpectedError, illegalArgument} from 'vs/base/common/errors';
+import {onUnexpectedError} from 'vs/base/common/errors';
 import {IPosition, IModel} from 'vs/editor/common/editorCommon';
-import {IModelService} from 'vs/editor/common/services/modelService';
-import {registerCommand} from 'vs/platform/keybinding/common/commandsUtils';
+import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 
 export const ExtraInfoRegistry = new LanguageFeatureRegistry<IExtraInfoSupport>('extraInfoSupport');
 
@@ -41,16 +39,4 @@ export function getExtraInfoAtPosition(model: IModel, position: IPosition): TPro
 	return TPromise.join(promises).then(() => coalesce(values));
 }
 
-registerCommand('_executeHoverProvider', function(accessor, args) {
-
-	let {resource, position} = args;
-	if (!URI.isURI(resource)) {
-		throw illegalArgument();
-	}
-	let model = accessor.get(IModelService).getModel(resource);
-	if (!model) {
-		throw illegalArgument(resource + ' not found');
-	}
-
-	return getExtraInfoAtPosition(model, position);
-});
+CommonEditorRegistry.registerDefaultLanguageCommand('_executeHoverProvider', getExtraInfoAtPosition);

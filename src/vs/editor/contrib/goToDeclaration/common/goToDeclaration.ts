@@ -7,13 +7,12 @@
 
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {onUnexpectedError, illegalArgument} from 'vs/base/common/errors';
+import {onUnexpectedError} from 'vs/base/common/errors';
 import {IModel, IPosition} from 'vs/editor/common/editorCommon';
 import {IDeclarationSupport} from 'vs/editor/common/modes';
 import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
 import {IReference} from 'vs/editor/common/modes';
-import {IModelService} from 'vs/editor/common/services/modelService';
-import {registerCommand} from 'vs/platform/keybinding/common/commandsUtils';
+import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 
 export const DeclarationRegistry = new LanguageFeatureRegistry<IDeclarationSupport>('declarationSupport');
 
@@ -44,17 +43,4 @@ export function getDeclarationsAtPosition(model: IModel, position: IPosition): T
 	});
 }
 
-registerCommand('_executeDefinitionProvider', function(accessor, args) {
-
-	let {resource, position} = args;
-	if (!URI.isURI(resource)) {
-		throw illegalArgument();
-	}
-
-	let model = accessor.get(IModelService).getModel(resource);
-	if (!model) {
-		throw illegalArgument(resource + ' not found');
-	}
-
-	return getDeclarationsAtPosition(model, position);
-});
+CommonEditorRegistry.registerDefaultLanguageCommand('_executeDefinitionProvider', getDeclarationsAtPosition)

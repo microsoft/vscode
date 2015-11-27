@@ -54,7 +54,7 @@ export class Position implements EditorCommon.IEditorPosition {
 		return new Position(pos.lineNumber, pos.column);
 	}
 
-	public static isIPosition(obj: any): boolean {
+	public static isIPosition(obj: any): obj is EditorCommon.IPosition {
 		return (
 			obj
 			&& (typeof obj.lineNumber === 'number')
