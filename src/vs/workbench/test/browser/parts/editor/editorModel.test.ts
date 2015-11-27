@@ -35,7 +35,7 @@ suite("Workbench - EditorModel", () => {
 		let m = new MyTextEditorModel(modelService, modeService);
 		m.load().then(function(model: any) {
 			assert(model === m);
-			return model.createTextEditorModel("foo", "text/plain").then(function() {
+			return model.createTextEditorModel("foo", null, "text/plain").then(function() {
 				assert.strictEqual(m.isResolved(), true);
 			});
 		}).done(() => {

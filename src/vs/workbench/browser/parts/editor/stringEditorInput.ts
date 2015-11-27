@@ -44,7 +44,7 @@ export class StringEditorInput extends EditorInput {
 	}
 
 	protected getResource(): URI {
-		// Subclasses can implement to associate a resource URL with the input
+		// Subclasses can implement to associate a resource with the input
 		return null;
 	}
 

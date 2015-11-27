@@ -33,17 +33,17 @@ import wbar = require('vs/workbench/browser/actionRegistry');
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { OpenChangeAction, SyncAction } from './gitActions';
 import Severity from 'vs/base/common/severity';
+import paths = require('vs/base/common/paths');
+import URI from 'vs/base/common/uri';
 
 function getStatus(gitService: IGitService, contextService: IWorkspaceContextService, input: WorkbenchEditorCommon.IFileEditorInput): IFileStatus {
-	var statusModel = gitService.getModel().getStatus();
+	const model = gitService.getModel();
+	const repositoryRoot = model.getRepositoryRoot();
+	const statusModel = model.getStatus();
+	const repositoryRelativePath = paths.normalize(paths.relative(repositoryRoot, input.getResource().fsPath));
 
-	var workspaceRelativePath = contextService.toWorkspaceRelativePath(input.getResource());
-	if (!workspaceRelativePath) {
-		return null; // out of workspace not yet supported
-	}
-
-	return statusModel.getWorkingTreeStatus().find(workspaceRelativePath) ||
-			statusModel.getIndexStatus().find(workspaceRelativePath);
+	return statusModel.getWorkingTreeStatus().find(repositoryRelativePath) ||
+			statusModel.getIndexStatus().find(repositoryRelativePath);
 }
 
 class OpenInDiffAction extends baseeditor.EditorInputAction {
@@ -75,6 +75,10 @@ class OpenInDiffAction extends baseeditor.EditorInputAction {
 
 	public isEnabled():boolean {
 		if (!super.isEnabled()) {
+			return false;
+		}
+
+		if (!(typeof this.gitService.getModel().getRepositoryRoot() === 'string')) {
 			return false;
 		}
 
@@ -164,6 +168,10 @@ class OpenInEditorAction extends baseeditor.EditorInputAction {
 			return false;
 		}
 
+		if (!(typeof this.gitService.getModel().getRepositoryRoot() === 'string')) {
+			return false;
+		}
+
 		var status:IFileStatus = (<any>this.input).getFileStatus();
 		if (OpenInEditorAction.DELETED_STATES.indexOf(status.getStatus()) > -1) {
 			return false;
@@ -173,18 +181,19 @@ class OpenInEditorAction extends baseeditor.EditorInputAction {
 	}
 
 	public run(event?: any): Promise {
-		var sideBySide = !!(event && (event.ctrlKey || event.metaKey));
-		var modifiedViewState = this.saveTextViewState();
-		var path = this.getPath();
+		const model = this.gitService.getModel();
+		const resource = URI.file(paths.join(model.getRepositoryRoot(), this.getRepositoryRelativePath()));
+		const sideBySide = !!(event && (event.ctrlKey || event.metaKey));
+		const modifiedViewState = this.saveTextViewState();
 
-		return this.fileService.resolveFile(this.contextService.toResource(path)).then((stat: IFileStat) => {
+		return this.fileService.resolveFile(resource).then(stat => {
 			return this.editorService.openEditor({
 				resource: stat.resource,
 				mime: stat.mime,
 				options: {
 					forceOpen: true
 				}
-			}, sideBySide).then((editor)=> {
+			}, sideBySide).then(editor => {
 				this.restoreTextViewState(modifiedViewState);
 
 				if (this.partService.isVisible(Parts.SIDEBAR_PART)) {
@@ -222,7 +231,7 @@ class OpenInEditorAction extends baseeditor.EditorInputAction {
 		return null;
 	}
 
-	private getPath():string {
+	private getRepositoryRelativePath():string {
 		var status: IFileStatus = (<any> this.input).getFileStatus();
 
 		if (status.getStatus() === Status.INDEX_RENAMED) {

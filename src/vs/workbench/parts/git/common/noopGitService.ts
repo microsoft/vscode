@@ -9,6 +9,7 @@ import winjs = require('vs/base/common/winjs.base');
 
 export class NoOpGitService implements git.IRawGitService {
 	private static STATUS:git.IRawStatus = {
+		repositoryRoot: null,
 		state: git.ServiceState.NotAWorkspace,
 		status: [],
 		HEAD: null,

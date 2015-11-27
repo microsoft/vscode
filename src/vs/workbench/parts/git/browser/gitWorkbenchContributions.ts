@@ -9,6 +9,7 @@ import 'vs/css!./media/git.contribution';
 import nls = require('vs/nls');
 import async = require('vs/base/common/async');
 import errors = require('vs/base/common/errors');
+import paths = require('vs/base/common/paths');
 import actions = require('vs/base/common/actions');
 import lifecycle = require('vs/base/common/lifecycle');
 import Severity from 'vs/base/common/severity';
@@ -335,7 +336,19 @@ export class DirtyDiffDecorator implements ext.IWorkbenchContribution {
 		// HACK: This is the best current way of figuring out whether to draw these decorations
 		// or not. Needs context from the editor, to know whether it is a diff editor, in place editor
 		// etc.
-		var models = this.editorService.getVisibleEditors()
+
+		const repositoryRoot = this.gitService.getModel().getRepositoryRoot();
+
+		// If there is no repository root, just wait until that changes
+		if (typeof repositoryRoot !== 'string') {
+			this.gitService.addOneTimeListener(git.ServiceEvents.STATE_CHANGED, () => this.onEditorInputChange());
+
+			this.models.forEach(m => this.onModelInvisible(m));
+			this.models = [];
+			return;
+		}
+
+		const models = this.editorService.getVisibleEditors()
 
 			// map to the editor controls
 			.map(e => e.getControl())
@@ -354,12 +367,12 @@ export class DirtyDiffDecorator implements ext.IWorkbenchContribution {
 
 			// remove nulls
 			.filter(p => !!p.resource &&
-				// and ivalid resources
-				(p.resource.scheme === 'file' && !!this.contextService.isInsideWorkspace(p.resource))
+				// and invalid resources
+				(p.resource.scheme === 'file' && paths.isEqualOrParent(p.resource.fsPath, repositoryRoot))
 			)
 
 			// get paths
-			.map(p => ({ model: p.model, path: this.contextService.toWorkspaceRelativePath(p.resource) }))
+			.map(p => ({ model: p.model, path: paths.normalize(paths.relative(repositoryRoot, p.resource.fsPath)) }))
 
 			// remove nulls and inside .git files
 			.filter(p => !!p.path && p.path.indexOf('.git/') === -1);

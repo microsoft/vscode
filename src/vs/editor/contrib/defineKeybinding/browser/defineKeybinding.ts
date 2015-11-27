@@ -21,6 +21,10 @@ import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/edito
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 
+const NLS_LAUNCH_MESSAGE = nls.localize('defineKeybinding.start', "Define Keybinding");
+const NLS_DEFINE_MESSAGE = nls.localize('defineKeybinding.initial', "Press desired key combination and ENTER");
+const NLS_DEFINE_ACTION_LABEL = nls.localize('DefineKeybindingAction',"Define Keybinding");
+
 export class DefineKeybindingController implements EditorCommon.IEditorContribution {
 
 	static ID = 'editor.contrib.defineKeybinding';
@@ -102,7 +106,7 @@ class DefineKeybindingLauncherWidget implements EditorBrowser.IOverlayWidget {
 		if (keybinding.length > 0) {
 			extra += ' ('+keybinding[0].toLabel()+')';
 		}
-		this._domNode.appendChild(document.createTextNode(nls.localize('defineKeybinding.start', "Define Keybinding" + extra)));
+		this._domNode.appendChild(document.createTextNode(NLS_LAUNCH_MESSAGE + extra));
 
 		this._toDispose = [];
 		this._toDispose.push(DomUtils.addDisposableListener(this._domNode, 'click', (e) => {
@@ -171,7 +175,7 @@ class DefineKeybindingWidget implements EditorBrowser.IContentWidget {
 
 		this._messageNode = document.createElement('div');
 		this._messageNode.className = 'message';
-		this._messageNode.innerText = nls.localize('defineKeybinding.initial', "Press desired key combination and ENTER");
+		this._messageNode.innerText = NLS_DEFINE_MESSAGE;
 		this._domNode.appendChild(this._messageNode);
 
 		this._inputNode = document.createElement('input');
@@ -290,7 +294,7 @@ function isInterestingEditorModel(editor:EditorCommon.ICommonCodeEditor): boolea
 }
 
 EditorBrowserRegistry.registerEditorContribution(DefineKeybindingController);
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(DefineKeybindingAction, DefineKeybindingAction.ID, nls.localize('DefineKeybindingAction',"Define Keybinding"), {
+CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(DefineKeybindingAction, DefineKeybindingAction.ID, NLS_DEFINE_ACTION_LABEL, {
 	context: ContextKey.EditorFocus,
 	primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_K)
 }));

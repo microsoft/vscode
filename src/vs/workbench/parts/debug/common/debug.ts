@@ -71,6 +71,7 @@ export interface IBreakpoint extends IEnablement {
 	source: Source;
 	lineNumber: number;
 	desiredLineNumber: number;
+	condition: string;
 }
 
 export interface IExceptionBreakpoint extends IEnablement {
@@ -209,8 +210,8 @@ export interface IDebugService extends ee.IEventEmitter {
 
 	setFocusedStackFrameAndEvaluate(focusedStackFrame: IStackFrame): void;
 
-	setBreakpointsForModel(modelUri: uri, data: { lineNumber: number; enabled: boolean; }[]): Promise;
-	toggleBreakpoint(modelUri: uri, lineNumber: number): Promise;
+	setBreakpointsForModel(modelUri: uri, data: { lineNumber: number; enabled: boolean; condition: string }[]): Promise;
+	toggleBreakpoint(modelUri: uri, lineNumber: number, condition?: string): Promise;
 	enableOrDisableAllBreakpoints(enabled: boolean): Promise;
 	toggleEnablement(element: IEnablement): Promise;
 	clearBreakpoints(modelUri?: uri): Promise;

@@ -124,6 +124,7 @@
 .debug-viewlet .monaco-inputbox {
 	width: 100%;
 	line-height: normal;
+	font-family: Monaco, Menlo, Consolas, "Droid Sans Mono", "Inconsolata", "Courier New", monospace, "Droid Sans Fallback";
 }
 
 .debug-viewlet .monaco-inputbox.idle {

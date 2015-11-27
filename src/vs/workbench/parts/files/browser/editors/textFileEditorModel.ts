@@ -289,7 +289,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 			else {
 				diag('load() - created text editor model', this.resource, new Date());
 
-				this.createTextEditorModelPromise = this.createTextEditorModel(content.value, null, content.resource).then(() => {
+				this.createTextEditorModelPromise = this.createTextEditorModel(content.value, content.resource).then(() => {
 					this.createTextEditorModelPromise = null;
 
 					this.setDirty(false); // Ensure we are not tracking a stale state

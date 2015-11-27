@@ -38,6 +38,7 @@ export interface ITag {
 }
 
 export interface IRawStatus {
+	repositoryRoot: string;
 	state?: ServiceState;
 	status: IRawFileStatus[];
 	HEAD: IBranch;
@@ -113,7 +114,7 @@ export interface IStatusSummary {
 
 export interface IStatusModel extends EventEmitter.IEventEmitter {
 	getSummary(): IStatusSummary;
-	update(rawStatuses: IRawFileStatus[]): void;
+	update(status: IRawFileStatus[]): void;
 	getIndexStatus(): IStatusGroup;
 	getWorkingTreeStatus(): IStatusGroup;
 	getMergeStatus(): IStatusGroup;
@@ -122,6 +123,7 @@ export interface IStatusModel extends EventEmitter.IEventEmitter {
 }
 
 export interface IModel extends EventEmitter.IEventEmitter {
+	getRepositoryRoot(): string;
 	getStatus(): IStatusModel;
 	getHEAD(): IBranch;
 	getHeads(): IBranch[];

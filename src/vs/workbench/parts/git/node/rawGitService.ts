@@ -5,7 +5,7 @@
 'use strict';
 
 import path = require('path');
-import winjs = require('vs/base/common/winjs.base');
+import { TPromise, Promise } from 'vs/base/common/winjs.base';
 import mime = require('vs/base/node/mime');
 import pfs = require('vs/base/node/pfs');
 import { Repository, GitError } from 'vs/workbench/parts/git/node/git.lib';
@@ -23,23 +23,25 @@ function pathsAreEqual(p1: string, p2: string): boolean {
 export class RawGitService implements IRawGitService {
 
 	private repo: Repository;
-	private repoRealRootPath: winjs.TPromise<string>;
+	private _repositoryRoot: TPromise<string>;
 
 	constructor(repo: Repository) {
 		this.repo = repo;
-		this.repoRealRootPath = null;
 	}
 
-	public serviceState(): winjs.TPromise<RawServiceState> {
-		return winjs.TPromise.as<RawServiceState>(this.repo
+	private getRepositoryRoot(): TPromise<string> {
+		return this._repositoryRoot || (this._repositoryRoot = pfs.realpath(this.repo.path));
+	}
+
+	public serviceState(): TPromise<RawServiceState> {
+		return TPromise.as<RawServiceState>(this.repo
 			? RawServiceState.OK
 			: RawServiceState.GitNotFound
 		);
 	}
 
-	public status(): winjs.TPromise<IRawStatus> {
-		return this.checkRoot()
-			.then(() => this.repo.getStatus())
+	public status(): TPromise<IRawStatus> {
+		return this.repo.getStatus()
 			.then(status => this.repo.getHEAD()
 				.then(HEAD => {
 					if (HEAD.name) {
@@ -48,85 +50,86 @@ export class RawGitService implements IRawGitService {
 						return HEAD;
 					}
 				}, (): IHead => null)
-				.then(HEAD => winjs.Promise.join([this.repo.getHeads(), this.repo.getTags()]).then(r => {
+				.then(HEAD => Promise.join([this.getRepositoryRoot(), this.repo.getHeads(), this.repo.getTags()]).then(r => {
 					return {
+						repositoryRoot: r[0],
 						status: status,
 						HEAD: HEAD,
-						heads: r[0],
-						tags: r[1]
+						heads: r[1],
+						tags: r[2]
 					};
 				})))
 			.then(null, (err) => {
 				if (err.gitErrorCode === GitErrorCodes.BadConfigFile) {
-					return winjs.Promise.wrapError(err);
+					return Promise.wrapError(err);
 				} else if (err.gitErrorCode === GitErrorCodes.NotAtRepositoryRoot) {
-					return winjs.Promise.wrapError(err);
+					return Promise.wrapError(err);
 				}
 
 				return null;
 			});
 	}
 
-	public init(): winjs.TPromise<IRawStatus> {
+	public init(): TPromise<IRawStatus> {
 		return this.repo.init().then(() => this.status());
 	}
 
-	public add(filePaths?: string[]): winjs.TPromise<IRawStatus> {
+	public add(filePaths?: string[]): TPromise<IRawStatus> {
 		return this.repo.add(filePaths).then(() => this.status());
 	}
 
-	public stage(filePath: string, content: string): winjs.TPromise<IRawStatus> {
+	public stage(filePath: string, content: string): TPromise<IRawStatus> {
 		return this.repo.stage(filePath, content).then(() => this.status());
 	}
 
-	public branch(name: string, checkout?: boolean): winjs.TPromise<IRawStatus> {
+	public branch(name: string, checkout?: boolean): TPromise<IRawStatus> {
 		return this.repo.branch(name, checkout).then(() => this.status());
 	}
 
-	public checkout(treeish?: string, filePaths?: string[]): winjs.TPromise<IRawStatus> {
+	public checkout(treeish?: string, filePaths?: string[]): TPromise<IRawStatus> {
 		return this.repo.checkout(treeish, filePaths).then(() => this.status());
 	}
 
-	public clean(filePaths: string[]): winjs.TPromise<IRawStatus> {
+	public clean(filePaths: string[]): TPromise<IRawStatus> {
 		return this.repo.clean(filePaths).then(() => this.status());
 	}
 
-	public undo(): winjs.TPromise<IRawStatus> {
+	public undo(): TPromise<IRawStatus> {
 		return this.repo.undo().then(() => this.status());
 	}
 
-	public reset(treeish: string, hard?: boolean): winjs.TPromise<IRawStatus> {
+	public reset(treeish: string, hard?: boolean): TPromise<IRawStatus> {
 		return this.repo.reset(treeish, hard).then(() => this.status());
 	}
 
-	public revertFiles(treeish: string, filePaths?: string[]): winjs.TPromise<IRawStatus> {
+	public revertFiles(treeish: string, filePaths?: string[]): TPromise<IRawStatus> {
 		return this.repo.revertFiles(treeish, filePaths).then(() => this.status());
 	}
 
-	public fetch(): winjs.TPromise<IRawStatus> {
+	public fetch(): TPromise<IRawStatus> {
 		return this.repo.fetch().then(null, (err) => {
 			if (err.gitErrorCode === GitErrorCodes.NoRemoteRepositorySpecified) {
-				return winjs.Promise.as(null);
+				return Promise.as(null);
 			}
 
-			return winjs.Promise.wrapError(err);
+			return Promise.wrapError(err);
 		}).then(() => this.status());
 	}
 
-	public pull(): winjs.TPromise<IRawStatus> {
+	public pull(): TPromise<IRawStatus> {
 		return this.repo.pull().then(() => this.status());
 	}
 
-	public push(): winjs.TPromise<IRawStatus> {
+	public push(): TPromise<IRawStatus> {
 		return this.repo.push().then(() => this.status());
 	}
 
-	public sync(): winjs.TPromise<IRawStatus> {
+	public sync(): TPromise<IRawStatus> {
 		return this.repo.sync().then(() => this.status());
 	}
 
-	public commit(message:string, amend?: boolean, stage?: boolean): winjs.TPromise<IRawStatus> {
-		var promise: winjs.Promise = winjs.Promise.as(null);
+	public commit(message:string, amend?: boolean, stage?: boolean): TPromise<IRawStatus> {
+		var promise: Promise = Promise.as(null);
 
 		if (stage) {
 			promise = this.repo.add(null);
@@ -137,10 +140,10 @@ export class RawGitService implements IRawGitService {
 			.then(() => this.status());
 	}
 
-	public detectMimetypes(filePath: string, treeish?: string): winjs.TPromise<string[]> {
+	public detectMimetypes(filePath: string, treeish?: string): TPromise<string[]> {
 		return pfs.exists(path.join(this.repo.path, filePath)).then((exists) => {
 			if (exists) {
-				return new winjs.TPromise<string[]>((c, e) => {
+				return new TPromise<string[]>((c, e) => {
 					mime.detectMimesFromFile(path.join(this.repo.path, filePath), (err, result) => {
 						if (err) { e(err); }
 						else { c(result.mimes); }
@@ -150,7 +153,7 @@ export class RawGitService implements IRawGitService {
 
 			var child = this.repo.show(treeish + ':' + filePath);
 
-			return new winjs.TPromise<string[]>((c, e) => {
+			return new TPromise<string[]>((c, e) => {
 				mime.detectMimesFromStream(child.stdout, filePath, (err, result) => {
 					if (err) { e(err); }
 					else { c(result.mimes); }
@@ -160,42 +163,103 @@ export class RawGitService implements IRawGitService {
 	}
 
 	// careful, this buffers the whole object into memory
-	public show(filePath: string, treeish?: string): winjs.TPromise<string> {
+	public show(filePath: string, treeish?: string): TPromise<string> {
 		treeish = treeish === '~' ? '' : treeish;
 		return this.repo.buffer(treeish + ':' + filePath).then(null, e => {
 			if (e instanceof GitError) {
 				return ''; // mostly untracked files end up in a git error
 			}
 
-			return winjs.TPromise.wrapError<string>(e);
+			return TPromise.wrapError<string>(e);
 		});
 	}
 
-	public onOutput(): winjs.Promise {
+	public onOutput(): Promise {
 		var cancel: () => void;
 
-		return new winjs.Promise((c, e, p) => {
+		return new Promise((c, e, p) => {
 			cancel = this.repo.onOutput(p);
 		}, () => cancel());
 	}
+}
 
-	private checkRoot(): winjs.Promise {
-		if (!this.repoRealRootPath) {
-			this.repoRealRootPath = pfs.realpath(this.repo.path);
-		}
+export class DelayedRawGitService implements IRawGitService {
 
-		return this.repo.getRoot().then(root => {
-			return winjs.Promise.join([
-				this.repoRealRootPath,
-				pfs.realpath(root)
-			]).then(paths => {
-				if (!pathsAreEqual(paths[0], paths[1])) {
-					return winjs.Promise.wrapError(new GitError({
-						message: 'Not at the repository root',
-						gitErrorCode: GitErrorCodes.NotAtRepositoryRoot
-					}));
-				}
-			});
-		});
+	constructor(private raw: TPromise<IRawGitService>) { }
+
+	public serviceState(): TPromise<RawServiceState> {
+		return this.raw.then(raw => raw.serviceState());
+	}
+
+	public status(): TPromise<IRawStatus> {
+		return this.raw.then(raw => raw.status());
+	}
+
+	public init(): TPromise<IRawStatus> {
+		return this.raw.then(raw => raw.init());
+	}
+
+	public add(filesPaths?: string[]): TPromise<IRawStatus> {
+		return this.raw.then(raw => raw.add(filesPaths));
+	}
+
+	public stage(filePath: string, content: string): TPromise<IRawStatus> {
+		return this.raw.then(raw => raw.stage(filePath, content));
+	}
+
+	public branch(name: string, checkout?: boolean): TPromise<IRawStatus> {
+		return this.raw.then(raw => raw.branch(name, checkout));
+	}
+
+	public checkout(treeish?: string, filePaths?: string[]): TPromise<IRawStatus> {
+		return this.raw.then(raw => raw.checkout(treeish, filePaths));
+	}
+
+	public clean(filePaths: string[]): TPromise<IRawStatus> {
+		return this.raw.then(raw => raw.clean(filePaths));
+	}
+
+	public undo(): TPromise<IRawStatus> {
+		return this.raw.then(raw => raw.undo());
+	}
+
+	public reset(treeish: string, hard?: boolean): TPromise<IRawStatus> {
+		return this.raw.then(raw => raw.reset(treeish, hard));
+	}
+
+	public revertFiles(treeish: string, filePaths?: string[]): TPromise<IRawStatus> {
+		return this.raw.then(raw => raw.revertFiles(treeish, filePaths));
+	}
+
+	public fetch(): TPromise<IRawStatus> {
+		return this.raw.then(raw => raw.fetch());
+	}
+
+	public pull(): TPromise<IRawStatus> {
+		return this.raw.then(raw => raw.pull());
+	}
+
+	public push(): TPromise<IRawStatus> {
+		return this.raw.then(raw => raw.push());
+	}
+
+	public sync(): TPromise<IRawStatus> {
+		return this.raw.then(raw => raw.sync());
+	}
+
+	public commit(message: string, amend?: boolean, stage?: boolean): TPromise<IRawStatus> {
+		return this.raw.then(raw => raw.commit(message, amend, stage));
+	}
+
+	public detectMimetypes(path: string, treeish?: string): TPromise<string[]> {
+		return this.raw.then(raw => raw.detectMimetypes(path, treeish));
+	}
+
+	public show(path: string, treeish?: string): TPromise<string> {
+		return this.raw.then(raw => raw.show(path, treeish));
+	}
+
+	public onOutput(): Promise {
+		return this.raw.then(raw => raw.onOutput());
 	}
 }

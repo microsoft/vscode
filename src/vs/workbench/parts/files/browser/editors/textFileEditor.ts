@@ -17,7 +17,7 @@ import {SaveErrorHandler} from 'vs/workbench/parts/files/browser/saveErrorHandle
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
 import {EditorInput, EditorOptions, TextEditorOptions, EditorModel} from 'vs/workbench/common/editor';
 import {TextFileEditorModel} from 'vs/workbench/parts/files/browser/editors/textFileEditorModel';
-import {BinaryResourceEditorModel} from 'vs/workbench/browser/parts/editor/resourceEditorModel';
+import {BinaryEditorModel} from 'vs/workbench/browser/parts/editor/binaryEditorModel';
 import {FileEditorInput} from 'vs/workbench/parts/files/browser/editors/fileEditorInput';
 import {ExplorerViewlet} from 'vs/workbench/parts/files/browser/explorerViewlet';
 import {IQuickOpenService} from 'vs/workbench/services/quickopen/browser/quickOpenService';
@@ -102,9 +102,9 @@ export class TextFileEditor extends BaseTextEditor {
 		return this.editorService.resolveEditorModel(input, true /* Reload */).then((resolvedModel: EditorModel) => {
 
 			// There is a special case where the text editor has to handle binary file editor input: if a file with application/unknown
-			// mime has been resolved and cached before, it maybe an actual instance of BinaryResourceEditorModel. In this case our text
+			// mime has been resolved and cached before, it maybe an actual instance of BinaryEditorModel. In this case our text
 			// editor has to open this model using the binary editor. We return early in this case.
-			if (resolvedModel instanceof BinaryResourceEditorModel && this.openAsBinary(input, options)) {
+			if (resolvedModel instanceof BinaryEditorModel && this.openAsBinary(input, options)) {
 				return null;
 			}
 

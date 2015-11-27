@@ -48,7 +48,7 @@ export class QuickFixMainActions {
 		var dtsFileResource = this._contextService.toResource(dtsFile);
 		var jsConfigResource = this._contextService.toResource('jsconfig.json');
 		if (!dtsFileResource || !jsConfigResource) {
-			return;
+			return winjs.Promise.as(null);
 		}
 
 		var resourcePath = this._contextService.toWorkspaceRelativePath(resource);

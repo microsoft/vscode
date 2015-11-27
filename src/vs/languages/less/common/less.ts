@@ -12,6 +12,7 @@ import Monarch = require('vs/editor/common/modes/monarch/monarch');
 import Types = require('vs/editor/common/modes/monarch/monarchTypes');
 import Compile = require('vs/editor/common/modes/monarch/monarchCompile');
 import lessWorker = require('vs/languages/less/common/lessWorker');
+import {cssTokenTypes} from 'vs/languages/css/common/css';
 import supports = require('vs/editor/common/modes/supports');
 import {AbstractMode} from 'vs/editor/common/modes/abstractMode';
 import {OneWorkerAttr} from 'vs/platform/thread/common/threadService';
@@ -54,20 +55,20 @@ export var language: Types.ILanguage = <Types.ILanguage> {
 			{ include: '@keyword' },
 			{ include: '@strings' },
 			{ include: '@numbers' },
-			['[*_]?[a-zA-Z\\-\\s]+(?=:.*(;|(\\\\$)))', 'support.type.property-name', '@attribute'],
+			['[*_]?[a-zA-Z\\-\\s]+(?=:.*(;|(\\\\$)))', cssTokenTypes.TOKEN_PROPERTY, '@attribute'],
 
 			['url(\\-prefix)?\\(', { token: 'function', bracket: '@open', next: '@urldeclaration'}],
 
 			['[{}()\\[\\]]', '@brackets'],
 			['[,:;]', 'punctuation'],
 
-			['#@identifierPlus', 'entity.other.attribute-name.id'],
-			['&', 'entity.other.attribute-name.placeholder-selector'],
+			['#@identifierPlus', cssTokenTypes.TOKEN_SELECTOR + '.id'],
+			['&', cssTokenTypes.TOKEN_SELECTOR_TAG],
 
-			['\\.@identifierPlus(?=\\()', 'entity.other.attribute-name.class', '@attribute'],
-			['\\.@identifierPlus', 'entity.other.attribute-name.class'],
+			['\\.@identifierPlus(?=\\()', cssTokenTypes.TOKEN_SELECTOR + '.class', '@attribute'],
+			['\\.@identifierPlus', cssTokenTypes.TOKEN_SELECTOR + '.class'],
 
-			['@identifierPlus', 'entity.name.tag'],
+			['@identifierPlus', cssTokenTypes.TOKEN_SELECTOR_TAG],
 			{ include: '@operators' },
 
 			['@(@identifier(?=[:,\\)]))', 'variable', '@attribute'],
@@ -111,9 +112,9 @@ export var language: Types.ILanguage = <Types.ILanguage> {
 
 			{ include: '@keyword' },
 
-			['[a-zA-Z\\-]+(?=\\()', 'meta.property-value', '@attribute'],
+			['[a-zA-Z\\-]+(?=\\()', cssTokenTypes.TOKEN_VALUE, '@attribute'],
 			['>', 'operator', '@pop'],
-			['@identifier', 'meta.property-value'],
+			['@identifier', cssTokenTypes.TOKEN_VALUE],
 			{ include: '@operators' },
 			['@(@identifier)', 'variable'],
 
@@ -124,7 +125,7 @@ export var language: Types.ILanguage = <Types.ILanguage> {
 			['[,=:]', 'punctuation'],
 
 			['\\s', ''],
-			['.', 'meta.property-value']
+			['.', cssTokenTypes.TOKEN_VALUE]
 		],
 
 		comments: [
@@ -138,12 +139,12 @@ export var language: Types.ILanguage = <Types.ILanguage> {
 		],
 
 		numbers: [
-			<any[]>['(\\d*\\.)?\\d+([eE][\\-+]?\\d+)?', { token: 'meta.property-value.numeric', next: '@units' }],
-			['#[0-9a-fA-F_]+(?!\\w)', 'meta.property-value.rgb-value']
+			<any[]>['(\\d*\\.)?\\d+([eE][\\-+]?\\d+)?', { token: cssTokenTypes.TOKEN_VALUE + '.numeric', next: '@units' }],
+			['#[0-9a-fA-F_]+(?!\\w)', cssTokenTypes.TOKEN_VALUE + '.rgb-value']
 		],
 
 		units: [
-			['((em|ex|ch|rem|vw|vh|vm|cm|mm|in|px|pt|pc|deg|grad|rad|turn|s|ms|Hz|kHz|%)\\b)?', 'meta.property-value.unit', '@pop']
+			['((em|ex|ch|rem|vw|vh|vm|cm|mm|in|px|pt|pc|deg|grad|rad|turn|s|ms|Hz|kHz|%)\\b)?', cssTokenTypes.TOKEN_VALUE + '.unit', '@pop']
 		],
 
 		strings: [
@@ -197,11 +198,11 @@ export class LESSMode extends Monarch.MonarchMode<lessWorker.LessWorker> impleme
 
 		this.extraInfoSupport = this;
 		this.referenceSupport = new supports.ReferenceSupport(this, {
-			tokens: ['support.type.property-name.less', 'meta.property-value.less', 'variable.less', 'entity.other.attribute-name.class.less', 'entity.other.attribute-name.id.less', 'selector.less'],
+			tokens: [cssTokenTypes.TOKEN_PROPERTY + '.less', cssTokenTypes.TOKEN_VALUE + '.less', 'variable.less', cssTokenTypes.TOKEN_SELECTOR + '.class.less', cssTokenTypes.TOKEN_SELECTOR + '.id.less', 'selector.less'],
 			findReferences: (resource, position, /*unused*/includeDeclaration) => this.findReferences(resource, position)});
 		this.logicalSelectionSupport = this;
 		this.declarationSupport = new supports.DeclarationSupport(this, {
-			tokens: ['variable.less', 'entity.other.attribute-name.class.less', 'entity.other.attribute-name.id.less', 'selector.less'],
+			tokens: ['variable.less', cssTokenTypes.TOKEN_SELECTOR + '.class.less', cssTokenTypes.TOKEN_SELECTOR + '.id.less', 'selector.less'],
 			findDeclaration: (resource, position) => this.findDeclaration(resource, position)});
 		this.outlineSupport = this;
 
