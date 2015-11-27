@@ -257,7 +257,7 @@ export class Breakpoint implements debug.IBreakpoint {
 	public lineNumber: number;
 	private id: string;
 
-	constructor(public source: Source, public desiredLineNumber: number, public enabled: boolean) {
+	constructor(public source: Source, public desiredLineNumber: number, public enabled: boolean, public condition: string) {
 		this.lineNumber = this.desiredLineNumber;
 		this.id = uuid.generateUuid();
 	}
@@ -344,7 +344,7 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 		this.emit(debug.ModelEvents.BREAKPOINTS_UPDATED);
 	}
 
-	public toggleBreakpoint(modelUri: uri, lineNumber: number): void {
+	public toggleBreakpoint(modelUri: uri, lineNumber: number, condition?: string): void {
 		var found = false;
 		for (var i = 0, len = this.breakpoints.length; i < len && !found; i++) {
 			if (this.breakpoints[i].lineNumber === lineNumber && this.breakpoints[i].source.uri.toString() === modelUri.toString()) {
@@ -354,7 +354,7 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 		}
 
 		if (!found) {
-			this.breakpoints.push(new Breakpoint(Source.fromUri(modelUri), lineNumber, true));
+			this.breakpoints.push(new Breakpoint(Source.fromUri(modelUri), lineNumber, true, condition));
 			this.breakpointsActivated = true;
 		}
 
@@ -389,16 +389,16 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 		breakpoint.lineNumber = actualLineNumber;
 		var duplicates = this.breakpoints.filter(bp => bp.lineNumber === breakpoint.lineNumber && bp.desiredLineNumber === breakpoint.desiredLineNumber);
 		if (duplicates.length > 1) {
-			this.toggleBreakpoint(breakpoint.source.uri, breakpoint.lineNumber);
+			this.toggleBreakpoint(breakpoint.source.uri, breakpoint.lineNumber, breakpoint.condition);
 		} else {
 			this.emit(debug.ModelEvents.BREAKPOINTS_UPDATED);
 		}
 	}
 
-	public setBreakpointsForModel(modelUri: uri, data: { lineNumber: number; enabled: boolean; }[]): void {
+	public setBreakpointsForModel(modelUri: uri, data: { lineNumber: number; enabled: boolean; condition?: string; }[]): void {
 		this.clearBreakpoints(modelUri);
 		for (var i = 0, len = data.length; i < len; i++) {
-			this.breakpoints.push(new Breakpoint(Source.fromUri(modelUri), data[i].lineNumber, data[i].enabled));
+			this.breakpoints.push(new Breakpoint(Source.fromUri(modelUri), data[i].lineNumber, data[i].enabled, data[i].condition));
 		}
 		this.emit(debug.ModelEvents.BREAKPOINTS_UPDATED);
 	}

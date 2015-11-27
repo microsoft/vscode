@@ -304,7 +304,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 	private loadBreakpoints(): debug.IBreakpoint[] {
 		try {
 			return JSON.parse(this.storageService.get(DEBUG_BREAKPOINTS_KEY, StorageScope.WORKSPACE, '[]')).map((breakpoint: any) => {
-				return new model.Breakpoint(new Source(breakpoint.source.name, breakpoint.source.uri, breakpoint.source.reference), breakpoint.desiredLineNumber || breakpoint.lineNumber, breakpoint.enabled);
+				return new model.Breakpoint(new Source(breakpoint.source.name, breakpoint.source.uri, breakpoint.source.reference), breakpoint.desiredLineNumber || breakpoint.lineNumber, breakpoint.enabled, breakpoint.condition);
 			});
 		} catch (e) {
 			return [];
@@ -356,13 +356,13 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		}
 	}
 
-	public setBreakpointsForModel(modelUri: uri, data: { lineNumber: number; enabled: boolean; }[]): Promise {
+	public setBreakpointsForModel(modelUri: uri, data: { lineNumber: number; enabled: boolean; condition: string; }[]): Promise {
 		this.model.setBreakpointsForModel(modelUri, data);
 		return this.sendBreakpoints(modelUri);
 	}
 
-	public toggleBreakpoint(modelUri: uri, lineNumber: number): Promise {
-		this.model.toggleBreakpoint(modelUri, lineNumber);
+	public toggleBreakpoint(modelUri: uri, lineNumber: number, condition: string = null): Promise {
+		this.model.toggleBreakpoint(modelUri, lineNumber, condition);
 		return this.sendBreakpoints(modelUri);
 	}
 

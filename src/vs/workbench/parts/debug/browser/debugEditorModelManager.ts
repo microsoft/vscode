@@ -196,14 +196,16 @@ export class DebugEditorModelManager implements wbext.IWorkbenchContribution {
 			return;
 		}
 
-		var model = modelData.model,
-			modelUrl = model.getAssociatedResource(),
-			data: { lineNumber: number; enabled: boolean; }[] = [];
+		const model = modelData.model;
+		const data: { lineNumber: number; enabled: boolean; condition: string }[] = [];
 
-		var breakpoints = this.debugService.getModel().getBreakpoints().filter(bp => bp.source.uri.toString() === modelUrlStr);
-		var enabled: { [key: number]: boolean } = {};
+		const breakpoints = this.debugService.getModel().getBreakpoints().filter(bp => bp.source.uri.toString() === modelUrlStr);
+		const enabledAndConditions: { [key: number]: { enabled: boolean, condition: string } } = {};
 		for (var i = 0; i < breakpoints.length; i++) {
-			enabled[breakpoints[i].lineNumber] = breakpoints[i].enabled;
+			enabledAndConditions[breakpoints[i].lineNumber] = {
+				enabled: breakpoints[i].enabled,
+				condition: breakpoints[i].condition
+			};
 		}
 
 		for (var i = 0, len = modelData.breakpointDecorationIds.length; i < len; i++) {
@@ -211,11 +213,15 @@ export class DebugEditorModelManager implements wbext.IWorkbenchContribution {
 			// Check if the line got deleted.
 			if (decorationRange.endColumn - decorationRange.startColumn > 0) {
 				// Since we know it is collapsed, it cannot grow to multiple lines
-				data.push({ lineNumber: decorationRange.startLineNumber, enabled: enabled[modelData.breakpointLines[i]] });
+				data.push({
+					lineNumber: decorationRange.startLineNumber,
+					enabled: enabledAndConditions[modelData.breakpointLines[i]].enabled,
+					condition: enabledAndConditions[modelData.breakpointLines[i]].condition
+				});
 			}
 		}
 
-		this.debugService.setBreakpointsForModel(modelUrl, data);
+		this.debugService.setBreakpointsForModel(model.getAssociatedResource(), data);
 	}
 
 	private onModelRemoved(model: editorcommon.IModel): void {
