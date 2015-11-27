@@ -796,7 +796,7 @@ export class BreakpointsRenderer implements tree.IRenderer {
 
 	public renderTemplate(tree: tree.ITree, templateId: string, container: HTMLElement): any {
 		var data: IBreakpointTemplateData = Object.create(null);
-		if (templateId === BreakpointsRenderer.BREAKPOINT_TEMPLATE_ID) {
+		if (templateId === BreakpointsRenderer.BREAKPOINT_TEMPLATE_ID || templateId === BreakpointsRenderer.FUNCTION_BREAKPOINT_TEMPLATE_ID) {
 			data.actionBar = new actionbar.ActionBar(container, { actionRunner: this.actionRunner });
 			data.actionBar.push(this.actionProvider.getBreakpointActions(), { icon: true, label: false });
 		}
@@ -848,6 +848,7 @@ export class BreakpointsRenderer implements tree.IRenderer {
 			data.name.textContent = functionBreakpoint.name;
 			data.checkbox.checked = functionBreakpoint.enabled;
 		}
+		data.actionBar.context = functionBreakpoint;
 	}
 
 	private renderBreakpoint(tree: tree.ITree, breakpoint: debug.IBreakpoint, data: IBreakpointTemplateData): void {

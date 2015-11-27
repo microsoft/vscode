@@ -389,6 +389,8 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		if (element instanceof model.Breakpoint) {
 			var breakpoint = <model.Breakpoint> element;
 			return this.sendBreakpoints(breakpoint.source.uri);
+		} else if (element instanceof model.FunctionBreakpoint) {
+			// TODO@Isidor send function breakpoints and return
 		}
 
 		return this.sendExceptionBreakpoints();
