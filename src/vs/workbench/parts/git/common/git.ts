@@ -114,7 +114,7 @@ export interface IStatusSummary {
 
 export interface IStatusModel extends EventEmitter.IEventEmitter {
 	getSummary(): IStatusSummary;
-	update(rawStatuses: IRawFileStatus[]): void;
+	update(status: IRawFileStatus[]): void;
 	getIndexStatus(): IStatusGroup;
 	getWorkingTreeStatus(): IStatusGroup;
 	getMergeStatus(): IStatusGroup;
