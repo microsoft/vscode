@@ -5,6 +5,7 @@
 
 'use strict';
 
+import { TPromise } from 'vs/base/common/winjs.base';
 import severity from 'vs/base/common/severity';
 import actions = require('vs/base/common/actions');
 import {Separator} from 'vs/base/browser/ui/actionbar/actionbar';
@@ -31,24 +32,25 @@ export class ContextMenuService implements IContextMenuService {
 	}
 
 	public showContextMenu(delegate: IContextMenuDelegate): void {
-		let menu = new Menu();
-		let actionToRun: actions.IAction = null;
+		delegate.getActions().then(actions => {
+			if (!actions.length) {
+				return TPromise.as(null);
+			}
 
-		delegate.getActions().done((actions: actions.IAction[]) => {
+			let menu = new Menu();
+			let actionToRun: actions.IAction = null;
+
 			actions.forEach(a => {
 				if (a instanceof Separator) {
 					menu.append(new MenuItem({ type: 'separator' }));
 				} else {
-					let keybinding = !!delegate.getKeyBinding ? delegate.getKeyBinding(a) : undefined;
-					let accelerator: string;
-					if (keybinding) {
-						accelerator = keybinding.toElectronAccelerator();
-					}
+					const keybinding = !!delegate.getKeyBinding ? delegate.getKeyBinding(a) : undefined;
+					const accelerator = keybinding && keybinding.toElectronAccelerator();
 
-					let item = new MenuItem({
+					const item = new MenuItem({
 						label: a.label,
 						checked: a.checked,
-						accelerator: accelerator,
+						accelerator,
 						click: () => {
 							actionToRun = a;
 						}
@@ -58,39 +60,38 @@ export class ContextMenuService implements IContextMenuService {
 					menu.append(item);
 				}
 			});
-		});
 
-		let anchor = delegate.getAnchor();
-		let x: number, y: number;
+			const anchor = delegate.getAnchor();
+			let x: number, y: number;
 
-		if (dom.isHTMLElement(anchor)) {
-			let $anchor = $(<HTMLElement> anchor);
-			let elementPosition = $anchor.getPosition();
-			let elementSize = $anchor.getTotalSize();
+			if (dom.isHTMLElement(anchor)) {
+				const $anchor = $(<HTMLElement> anchor);
+				const elementPosition = $anchor.getPosition();
+				const elementSize = $anchor.getTotalSize();
 
-			x = elementPosition.left;
-			y = elementPosition.top + elementSize.height;
-		} else {
-			let pos = <{ x: number; y: number; }> anchor;
-			x = pos.x;
-			y = pos.y;
-		}
+				x = elementPosition.left;
+				y = elementPosition.top + elementSize.height;
+			} else {
+				const pos = <{ x: number; y: number; }> anchor;
+				x = pos.x;
+				y = pos.y;
+			}
 
-		menu.popup(remote.getCurrentWindow(), Math.floor(x), Math.floor(y));
+			menu.popup(remote.getCurrentWindow(), Math.floor(x), Math.floor(y));
 
-		if (delegate.onHide) {
-			delegate.onHide(false);
-		}
+			if (delegate.onHide) {
+				delegate.onHide(false);
+			}
 
-		if (!actionToRun) {
-			return;
-		}
+			if (!actionToRun) {
+				return;
+			}
 
-		this.telemetryService.publicLog('workbenchActionExecuted', { id: actionToRun.id, from: 'contextMenu' });
-		let result = actionToRun.run(delegate.getActionsContext ? delegate.getActionsContext() : null);
+			this.telemetryService.publicLog('workbenchActionExecuted', { id: actionToRun.id, from: 'contextMenu' });
 
-		if (result) {
-			result.done(null, e => this.messageService.show(severity.Error, e));
-		}
+			const context = delegate.getActionsContext ? delegate.getActionsContext() : null;
+			return actionToRun.run(context) || TPromise.as(null);
+		})
+		.done(null, e => this.messageService.show(severity.Error, e));
 	}
 }
