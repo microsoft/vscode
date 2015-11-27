@@ -7,7 +7,7 @@
 import {TPromise} from 'vs/base/common/winjs.base';
 import {MIME_TEXT} from 'vs/base/common/mime';
 import {EditorModel, EditorInput} from 'vs/workbench/common/editor';
-import {ReadOnlyEditorModel} from 'vs/workbench/browser/parts/editor/readOnlyEditorModel';
+import {ResourceEditorModel} from 'vs/workbench/browser/parts/editor/resourceEditorModel';
 import URI from 'vs/base/common/uri';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IModelService} from 'vs/editor/common/services/modelService';
@@ -16,11 +16,11 @@ import {IModelService} from 'vs/editor/common/services/modelService';
  * A read-only text editor input whos contents are made of the provided resource that points to an existing
  * code editor model.
  */
-export class ReadOnlyEditorInput extends EditorInput {
+export class ResourceEditorInput extends EditorInput {
 
-	public static ID = 'workbench.editors.readOnlyEditorInput';
+	public static ID = 'workbench.editors.resourceEditorInput';
 
-	protected cachedModel: ReadOnlyEditorModel;
+	protected cachedModel: ResourceEditorModel;
 	protected resource: URI;
 
 	private name: string;
@@ -41,7 +41,7 @@ export class ReadOnlyEditorInput extends EditorInput {
 	}
 
 	public getId(): string {
-		return ReadOnlyEditorInput.ID;
+		return ResourceEditorInput.ID;
 	}
 
 	public getName(): string {
@@ -65,8 +65,8 @@ export class ReadOnlyEditorInput extends EditorInput {
 		}
 
 		//Otherwise Create Model and Load
-		let model = this.instantiationService.createInstance(ReadOnlyEditorModel, this.resource);
-		return model.load().then((resolvedModel: ReadOnlyEditorModel) => {
+		let model = this.instantiationService.createInstance(ResourceEditorModel, this.resource);
+		return model.load().then((resolvedModel: ResourceEditorModel) => {
 			this.cachedModel = resolvedModel;
 
 			return this.cachedModel;
@@ -78,11 +78,11 @@ export class ReadOnlyEditorInput extends EditorInput {
 			return true;
 		}
 
-		if (otherInput instanceof ReadOnlyEditorInput) {
-			let otherReadOnlyEditorInput = <ReadOnlyEditorInput>otherInput;
+		if (otherInput instanceof ResourceEditorInput) {
+			let otherResourceEditorInput = <ResourceEditorInput>otherInput;
 
 			// Compare by properties
-			return otherReadOnlyEditorInput.resource.toString() === this.resource.toString();
+			return otherResourceEditorInput.resource.toString() === this.resource.toString();
 		}
 
 		return false;

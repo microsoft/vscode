@@ -14,7 +14,7 @@ import {URL} from 'vs/base/common/network';
 import {EditorModel, EditorInput} from 'vs/workbench/common/editor';
 import {guessMimeTypes} from 'vs/base/common/mime';
 import {EditorInputAction} from 'vs/workbench/browser/parts/editor/baseEditor';
-import {ReadOnlyEditorInput} from 'vs/workbench/browser/parts/editor/readOnlyEditorInput';
+import {ResourceEditorInput} from 'vs/workbench/browser/parts/editor/resourceEditorInput';
 import {DiffEditorInput} from 'vs/workbench/browser/parts/editor/diffEditorInput';
 import {DiffEditorModel} from 'vs/workbench/browser/parts/editor/diffEditorModel';
 import {FileEditorInput} from 'vs/workbench/parts/files/browser/editors/fileEditorInput';
@@ -139,7 +139,7 @@ export class ConflictResolutionDiffEditorInput extends DiffEditorInput {
 	}
 }
 
-class FileOnDiskEditorInput extends ReadOnlyEditorInput {
+export class FileOnDiskEditorInput extends ResourceEditorInput {
 	private fileResource: URI;
 	private lastModified: number;
 	private mime: string;

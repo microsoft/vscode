@@ -12,7 +12,7 @@ import {StringEditorInput} from 'vs/workbench/browser/parts/editor/stringEditorI
 import {StringEditor} from 'vs/workbench/browser/parts/editor/stringEditor';
 import {DiffEditorInput} from 'vs/workbench/browser/parts/editor/diffEditorInput';
 import {UntitledEditorInput} from 'vs/workbench/browser/parts/editor/untitledEditorInput';
-import {ReadOnlyEditorInput} from 'vs/workbench/browser/parts/editor/readOnlyEditorInput';
+import {ResourceEditorInput} from 'vs/workbench/browser/parts/editor/resourceEditorInput';
 import {TextDiffEditor} from 'vs/workbench/browser/parts/editor/textDiffEditor';
 import {BinaryResourceDiffEditor} from 'vs/workbench/browser/parts/editor/binaryDiffEditor';
 import {BinaryResourceEditor} from 'vs/workbench/browser/parts/editor/binaryEditor';
@@ -35,7 +35,7 @@ import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 	[
 		new SyncDescriptor(StringEditorInput),
 		new SyncDescriptor(UntitledEditorInput),
-		new SyncDescriptor(ReadOnlyEditorInput)
+		new SyncDescriptor(ResourceEditorInput)
 	]
 );
 

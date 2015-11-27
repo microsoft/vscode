@@ -19,7 +19,7 @@ import {EditOperation} from 'vs/editor/common/core/editOperation';
 /**
  * An editor model whith an in-memory, readonly content that is backed by an existing editor model.
  */
-export class ReadOnlyEditorModel extends BaseTextEditorModel {
+export class ResourceEditorModel extends BaseTextEditorModel {
 	private resource: URI;
 
 	constructor(
