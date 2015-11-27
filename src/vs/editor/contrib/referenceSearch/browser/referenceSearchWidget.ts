@@ -602,9 +602,12 @@ export class ReferenceWidget extends peekViewWidget.PeekViewWidget {
 		}, errors.onUnexpectedError);
 
 		// show in tree
-		this.tree.reveal(reference);
-		this.tree.setSelection([reference]);
-		this.tree.setFocus(reference);
+		this.tree.reveal(reference)
+			.then(() => {
+				this.tree.setSelection([reference]);
+				this.tree.setFocus(reference);
+			})
+			.done(null, errors.onUnexpectedError);
 	}
 
 	public dispose(): void {
