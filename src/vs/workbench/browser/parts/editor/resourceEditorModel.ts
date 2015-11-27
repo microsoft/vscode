@@ -136,32 +136,3 @@ export class TextResourceEditorModel extends BaseTextEditorModel {
 		});
 	}
 }
-
-/**
- * An editor model that just represents a URL and mime for a resource that can be loaded.
- */
-export class BinaryResourceEditorModel extends EditorModel {
-	private name: string;
-	private url: string;
-
-	constructor(name: string, url: string) {
-		super();
-
-		this.name = name;
-		this.url = url;
-	}
-
-	/**
-	 * The name of the binary resource.
-	 */
-	public getName(): string {
-		return this.name;
-	}
-
-	/**
-	 * The url of the binary resource.
-	 */
-	public getUrl(): string {
-		return this.url;
-	}
-}

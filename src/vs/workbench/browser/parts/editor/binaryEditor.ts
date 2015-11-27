@@ -13,7 +13,7 @@ import {Dimension, Builder, $} from 'vs/base/browser/builder';
 import {ResourceViewer} from 'vs/base/browser/ui/resourceviewer/resourceViewer';
 import {EditorModel, EditorInput, EditorOptions} from 'vs/workbench/common/editor';
 import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
-import {BinaryResourceEditorModel} from 'vs/workbench/browser/parts/editor/resourceEditorModel';
+import {BinaryEditorModel} from 'vs/workbench/browser/parts/editor/binaryEditorModel';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 
@@ -61,8 +61,8 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 		return this._editorService.resolveEditorModel(input, true /* Reload */).then((resolvedModel: EditorModel) => {
 
 			// Assert Model instance
-			if (!(resolvedModel instanceof BinaryResourceEditorModel)) {
-				return TPromise.wrapError<void>('Invalid editor input. Binary resource editor requires a model instance of BinaryResourceEditorModel.');
+			if (!(resolvedModel instanceof BinaryEditorModel)) {
+				return TPromise.wrapError<void>('Invalid editor input. Binary resource editor requires a model instance of BinaryEditorModel.');
 			}
 
 			// Assert that the current input is still the one we expect. This prevents a race condition when loading takes long and another input was set meanwhile
@@ -71,8 +71,8 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 			}
 
 			// Render Input
-			let binaryResourceModel = <BinaryResourceEditorModel>resolvedModel;
-			ResourceViewer.show(binaryResourceModel.getName(), binaryResourceModel.getUrl(), this.binaryContainer);
+			let binaryResourceModel = <BinaryEditorModel>resolvedModel;
+			ResourceViewer.show(binaryResourceModel.getName(), binaryResourceModel.getResource(), this.binaryContainer);
 
 			return TPromise.as<void>(null);
 		});

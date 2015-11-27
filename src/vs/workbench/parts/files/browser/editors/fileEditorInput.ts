@@ -16,7 +16,7 @@ import strings = require('vs/base/common/strings');
 import assert = require('vs/base/common/assert');
 import {EditorModel, IInputStatus, EncodingMode} from 'vs/workbench/common/editor';
 import {IEditorRegistry, Extensions, EditorDescriptor} from 'vs/workbench/browser/parts/editor/baseEditor';
-import {BinaryResourceEditorModel} from 'vs/workbench/browser/parts/editor/resourceEditorModel';
+import {BinaryEditorModel} from 'vs/workbench/browser/parts/editor/binaryEditorModel';
 import {FileEditorDescriptor} from 'vs/workbench/parts/files/browser/files';
 import {BINARY_FILE_EDITOR_ID, FILE_EDITOR_INPUT_ID, FileEditorInput as CommonFileEditorInput} from 'vs/workbench/parts/files/common/files';
 import {CACHE, TextFileEditorModel, State} from 'vs/workbench/parts/files/browser/editors/textFileEditorModel';
@@ -242,7 +242,7 @@ export class FileEditorInput extends CommonFileEditorInput {
 			FileEditorInput.FILE_EDITOR_MODEL_LOADERS[this.resource.toString()] = modelPromise;
 		}
 
-		return modelPromise.then((resolvedModel: TextFileEditorModel | BinaryResourceEditorModel) => {
+		return modelPromise.then((resolvedModel: TextFileEditorModel | BinaryEditorModel) => {
 			if (resolvedModel instanceof TextFileEditorModel) {
 				CACHE.add(this.resource, resolvedModel); // Store into the text model cache unless this file is binary
 			}
@@ -278,7 +278,7 @@ export class FileEditorInput extends CommonFileEditorInput {
 		// Binary model if editor is binary editor
 		let model: EditorModel;
 		if (descriptor.getId() === BINARY_FILE_EDITOR_ID) {
-			model = new BinaryResourceEditorModel(this.getName(), this.resource.toString());
+			model = new BinaryEditorModel(this.resource, this.getName());
 		}
 
 		// Otherwise use text model

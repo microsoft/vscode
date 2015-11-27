@@ -10,7 +10,8 @@ import {isBinaryMime} from 'vs/base/common/mime';
 import objects = require('vs/base/common/objects');
 import {IEditorRegistry, Extensions} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {EditorModel, EditorInput} from 'vs/workbench/common/editor';
-import {TextResourceEditorModel, BinaryResourceEditorModel} from 'vs/workbench/browser/parts/editor/resourceEditorModel';
+import {TextResourceEditorModel} from 'vs/workbench/browser/parts/editor/resourceEditorModel';
+import {BinaryEditorModel} from 'vs/workbench/browser/parts/editor/binaryEditorModel';
 import URI from 'vs/base/common/uri';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 
@@ -141,7 +142,7 @@ export class ResourceEditorInput extends EditorInput {
 		// Binary model if editor is binary editor
 		let model: EditorModel;
 		if (descriptor.getId() === BINARY_EDITOR_ID) {
-			model = new BinaryResourceEditorModel(this.name, this.url);
+			model = new BinaryEditorModel(URI.parse(this.url), this.name);
 		}
 
 		// Otherwise use text model

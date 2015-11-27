@@ -8,7 +8,7 @@
 import * as assert from 'assert';
 import {create} from 'vs/platform/instantiation/common/instantiationService';
 import {ResourceEditorInput} from 'vs/workbench/browser/parts/editor/resourceEditorInput';
-import {BinaryResourceEditorModel} from 'vs/workbench/browser/parts/editor/resourceEditorModel';
+import {BinaryEditorModel} from 'vs/workbench/browser/parts/editor/binaryEditorModel';
 import {BaseTextEditorModel} from 'vs/workbench/browser/parts/editor/textEditorModel';
 import {MockRequestService, TestWorkspace, TestEditorService, TestContextService, TestMessageService, TestEventService} from 'vs/workbench/test/browser/servicesTestUtils';
 import Severity from 'vs/base/common/severity';
@@ -106,7 +106,7 @@ suite('Workbench - ResourceEditorInput', () => {
 
 		return c1.resolve().then((m1) => {
 			assert(m1.isResolved());
-			assert(m1 instanceof BinaryResourceEditorModel);
+			assert(m1 instanceof BinaryEditorModel);
 			done();
 		});
 	});
