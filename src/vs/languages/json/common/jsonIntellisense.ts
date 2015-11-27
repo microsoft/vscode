@@ -67,6 +67,7 @@ export class JSONIntellisense {
 			var node = doc.getNodeFromOffsetEndInclusive(offset);
 			var addValue = true;
 			var currentKey = currentWord;
+			var currentProperty : Parser.PropertyASTNode = null;
 			if (node) {
 
 				if (node.type === 'string') {
@@ -76,6 +77,7 @@ export class JSONIntellisense {
 						result.overwriteBefore = position.column - nodeRange.startColumn;
 						result.overwriteAfter = nodeRange.endColumn - position.column;
 						addValue = !(node.parent && ((<Parser.PropertyASTNode> node.parent).value));
+						currentProperty = node.parent ? <Parser.PropertyASTNode> node.parent : null;
 						currentKey = modelMirror.getValueInRange({ startColumn: nodeRange.startColumn + 1, startLineNumber: nodeRange.startLineNumber, endColumn: position.column, endLineNumber: position.lineNumber });
 						if (node.parent) {
 							node = node.parent.parent;
@@ -91,10 +93,16 @@ export class JSONIntellisense {
 				if (node.start === offset) {
 					return result;
 				}
+				// don't suggest properties that are already present
+				var properties = (<Parser.ObjectASTNode> node).properties;
+				properties.forEach(p => {
+					if (!currentProperty || currentProperty !== p) {
+						proposed[p.key.value] = true;
+					}
+				});
 
 				if (schema) {
 					// property proposals with schema
-					var properties = (<Parser.ObjectASTNode> node).properties;
 					var isLast = properties.length === 0 || offset >= properties[properties.length - 1].start;
 
 					collectionPromises.push(this.getPropertySuggestions(schema, doc, node, currentKey, addValue, isLast, collector));
