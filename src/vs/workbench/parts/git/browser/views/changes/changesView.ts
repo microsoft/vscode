@@ -12,6 +12,7 @@ import Lifecycle = require('vs/base/common/lifecycle');
 import EventEmitter = require('vs/base/common/eventEmitter');
 import Strings = require('vs/base/common/strings');
 import Errors = require('vs/base/common/errors');
+import * as paths from 'vs/base/common/paths';
 import WinJS = require('vs/base/common/winjs.base');
 import Builder = require('vs/base/browser/builder');
 import Keyboard = require('vs/base/browser/keyboardEvent');
@@ -400,19 +401,27 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 		}
 
 		if (input instanceof Files.FileEditorInput) {
-			var fileInput = <Files.FileEditorInput> input;
+			const fileInput = <Files.FileEditorInput> input;
+			const resource = fileInput.getResource();
 
-			var workspaceRelativePath = this.contextService.toWorkspaceRelativePath(fileInput.getResource());
-			if (!workspaceRelativePath) {
+			const workspaceRoot = this.contextService.getWorkspace().resource.fsPath;
+			if (!paths.isEqualOrParent(resource.fsPath, workspaceRoot)) {
 				return null; // out of workspace not yet supported
 			}
 
-			var status = this.gitService.getModel().getStatus().getWorkingTreeStatus().find(workspaceRelativePath);
+			const repositoryRoot = this.gitService.getModel().getRepositoryRoot();
+			if (!paths.isEqualOrParent(resource.fsPath, repositoryRoot)) {
+				return null; // out of repository not supported
+			}
+
+			const repositoryRelativePath = paths.normalize(paths.relative(repositoryRoot, resource.fsPath));
+
+			var status = this.gitService.getModel().getStatus().getWorkingTreeStatus().find(repositoryRelativePath);
 			if (status && (status.getStatus() === git.Status.UNTRACKED || status.getStatus() === git.Status.IGNORED)) {
 				return status;
 			}
 
-			status = this.gitService.getModel().getStatus().getMergeStatus().find(workspaceRelativePath);
+			status = this.gitService.getModel().getStatus().getMergeStatus().find(repositoryRelativePath);
 			if (status) {
 				return status;
 			}

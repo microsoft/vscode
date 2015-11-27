@@ -32,6 +32,7 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {IMessageService} from 'vs/platform/message/common/message';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
+import URI from 'vs/base/common/uri';
 
 function toReadablePath(path: string): string {
 	if (!platform.isWindows) {
@@ -158,9 +159,9 @@ class EditorInputCache
 	}
 
 	private createRightInput(status: git.IFileStatus): winjs.Promise {
-		var path = status.getPath();
-		var resource = this.contextService.toResource(path);
-		var model = this.gitService.getModel();
+		const model = this.gitService.getModel();
+		const path = status.getPath();
+		let resource = URI.file(paths.join(model.getRepositoryRoot(), path));
 
 		switch (status.getStatus()) {
 			case git.Status.INDEX_MODIFIED:
@@ -181,13 +182,13 @@ class EditorInputCache
 				var indexStatus = model.getStatus().find(path, git.StatusType.INDEX);
 
 				if (indexStatus && indexStatus.getStatus() === git.Status.INDEX_RENAMED) {
-					return this.editorService.inputToType({ resource: this.contextService.toResource(indexStatus.getRename()) });
+					resource = URI.file(paths.join(model.getRepositoryRoot(), indexStatus.getRename()));
 				}
 
-				return this.editorService.inputToType({ resource: resource });
+				return this.editorService.inputToType({ resource });
 
 			case git.Status.BOTH_MODIFIED:
-				return this.editorService.inputToType({ resource: resource });
+				return this.editorService.inputToType({ resource });
 
 			default:
 				return winjs.Promise.as(null);
@@ -391,7 +392,16 @@ export class GitService extends ee.EventEmitter
 	private refreshDelayer: async.ThrottledDelayer;
 	private autoFetcher: AutoFetcher;
 
-	constructor(raw: git.IRawGitService, @IInstantiationService instantiationService: IInstantiationService, @IEventService eventService: IEventService, @IMessageService messageService: IMessageService, @IWorkbenchEditorService editorService: IWorkbenchEditorService, @IOutputService outputService: IOutputService, @IWorkspaceContextService contextService: IWorkspaceContextService, @ILifecycleService lifecycleService: ILifecycleService) {
+	constructor(
+		raw: git.IRawGitService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IEventService eventService: IEventService,
+		@IMessageService messageService: IMessageService,
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
+		@IOutputService outputService: IOutputService,
+		@IWorkspaceContextService contextService: IWorkspaceContextService,
+		@ILifecycleService lifecycleService: ILifecycleService
+	) {
 		super();
 
 		this.instantiationService = instantiationService;
