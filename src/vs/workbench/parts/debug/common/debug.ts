@@ -219,7 +219,7 @@ export interface IDebugService extends ee.IEventEmitter {
 	toggleBreakpoint(modelUri: uri, lineNumber: number, condition?: string): Promise;
 	enableOrDisableAllBreakpoints(enabled: boolean): Promise;
 	toggleEnablement(element: IEnablement): Promise;
-	clearBreakpoints(modelUri?: uri): Promise;
+	removeBreakpoints(modelUri?: uri): Promise;
 	toggleBreakpointsActivated(): Promise;
 	sendAllBreakpoints(): Promise;
 

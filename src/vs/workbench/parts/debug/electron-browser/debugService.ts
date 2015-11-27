@@ -394,9 +394,9 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		return this.sendExceptionBreakpoints();
 	}
 
-	public clearBreakpoints(modelUri: uri = null): Promise {
+	public removeBreakpoints(modelUri: uri = null): Promise {
 		var urisToClear = modelUri ? [modelUri] : arrays.distinct(this.model.getBreakpoints(), bp => bp.source.uri.toString()).map(bp => bp.source.uri);
-		this.model.clearBreakpoints(modelUri);
+		this.model.removeBreakpoints(modelUri);
 
 		return Promise.join(urisToClear.map(uri => this.sendBreakpoints(uri)));
 	}
@@ -760,7 +760,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 			var uri = breakpoints[i].source.uri;
 			var uriStr = uri.toString();
 			if (!clearedUris[uriStr] && fileChangesEvent.contains(uri, FileChangeType.DELETED)) {
-				this.clearBreakpoints(uri);
+				this.removeBreakpoints(uri);
 				clearedUris[uriStr] = true;
 			}
 		}

@@ -280,7 +280,7 @@ export class RemoveAllBreakpointsAction extends AbstractDebugAction {
 	}
 
 	public run(): Promise {
-		return this.debugService.clearBreakpoints();
+		return this.debugService.removeBreakpoints();
 	}
 
 	protected isEnabled(): boolean {

@@ -412,14 +412,14 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 	}
 
 	public setBreakpointsForModel(modelUri: uri, data: { lineNumber: number; enabled: boolean; condition?: string; }[]): void {
-		this.clearBreakpoints(modelUri);
+		this.removeBreakpoints(modelUri);
 		for (var i = 0, len = data.length; i < len; i++) {
 			this.breakpoints.push(new Breakpoint(Source.fromUri(modelUri), data[i].lineNumber, data[i].enabled, data[i].condition));
 		}
 		this.emit(debug.ModelEvents.BREAKPOINTS_UPDATED);
 	}
 
-	public clearBreakpoints(modelUri: uri): void {
+	public removeBreakpoints(modelUri: uri): void {
 		this.breakpoints = this.breakpoints.filter(bp => modelUri && modelUri.toString() !== bp.source.uri.toString());
 		this.emit(debug.ModelEvents.BREAKPOINTS_UPDATED);
 	}
