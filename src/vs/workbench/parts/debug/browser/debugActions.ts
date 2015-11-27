@@ -266,7 +266,8 @@ export class RemoveBreakpointAction extends AbstractDebugAction {
 	}
 
 	public run(breakpoint: debug.IBreakpoint): Promise {
-		return this.debugService.toggleBreakpoint(breakpoint.source.uri, breakpoint.lineNumber);
+		return breakpoint instanceof model.Breakpoint ? this.debugService.toggleBreakpoint(breakpoint.source.uri, breakpoint.lineNumber)
+			: this.debugService.removeFunctionBreakpoints(breakpoint.getId());
 	}
 }
 

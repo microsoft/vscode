@@ -681,7 +681,7 @@ export class BreakpointsActionProvider extends SimpleActionProvider {
 	}
 
 	public hasSecondaryActions(tree: tree.ITree, element: any): boolean {
-		return element instanceof model.Breakpoint || element instanceof model.ExceptionBreakpoint;
+		return element instanceof model.Breakpoint || element instanceof model.ExceptionBreakpoint || element instanceof model.FunctionBreakpoint;
 	}
 
 	public getActions(tree: tree.ITree, element: any): TPromise<actions.IAction[]> {

@@ -325,11 +325,14 @@ class BreakpointsView extends viewlet.AdaptiveCollapsibleViewletView {
 					if (first instanceof model.ExceptionBreakpoint) {
 						return -1;
 					}
-					if (second instanceof model.ExceptionBreakpoint || second instanceof model.FunctionBreakpoint) {
+					if (second instanceof model.ExceptionBreakpoint) {
 						return 1;
 					}
 					if (first instanceof model.FunctionBreakpoint) {
 						return -1;
+					}
+					if(second instanceof model.FunctionBreakpoint) {
+						return 1;
 					}
 
 					if (first.source.uri.toString() !== second.source.uri.toString()) {
