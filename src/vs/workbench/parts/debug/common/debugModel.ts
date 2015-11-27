@@ -437,8 +437,8 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 		}
 	}
 
-	public removeFunctionBreakpoint(id: string): void {
-		this.functionBreakpoints = this.functionBreakpoints.filter(fbp => fbp.getId() != id);
+	public removeFunctionBreakpoints(id?: string): void {
+		this.functionBreakpoints = id ? this.functionBreakpoints.filter(fbp => fbp.getId() != id) : [];
 		this.emit(debug.ModelEvents.BREAKPOINTS_UPDATED);
 	}
 

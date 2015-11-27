@@ -93,7 +93,7 @@ function renderRenameBox(debugService: debug.IDebugService, contextViewService: 
 			} else if (element instanceof model.FunctionBreakpoint && renamed && inputBox.value) {
 				debugService.renameFunctionBreakpoint(element.getId(), inputBox.value).done(null, errors.onUnexpectedError);
 			} else if (element instanceof model.FunctionBreakpoint && !element.name) {
-				debugService.removeFunctionBreakpoint(element.getId()).done(null, errors.onUnexpectedError);
+				debugService.removeFunctionBreakpoints(element.getId()).done(null, errors.onUnexpectedError);
 			}
 
 			tree.clearHighlight();
@@ -905,7 +905,7 @@ export class BreakpointsController extends BaseDebugController {
 			return true;
 		} else if (element instanceof model.FunctionBreakpoint) {
 			const fbp = <model.FunctionBreakpoint> element;
-			this.debugService.removeFunctionBreakpoint(fbp.getId()).done(null, errors.onUnexpectedError);
+			this.debugService.removeFunctionBreakpoints(fbp.getId()).done(null, errors.onUnexpectedError);
 
 			return true;
 		}

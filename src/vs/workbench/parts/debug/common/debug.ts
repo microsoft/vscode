@@ -225,7 +225,7 @@ export interface IDebugService extends ee.IEventEmitter {
 
 	addFunctionBreakpoint(functionName?: string): Promise;
 	renameFunctionBreakpoint(id: string, newFunctionName: string): Promise;
-	removeFunctionBreakpoint(id: string): Promise;
+	removeFunctionBreakpoints(id?: string): Promise;
 
 	addReplExpression(name: string): Promise;
 	clearReplExpressions(): void;
