@@ -152,7 +152,7 @@ export class ConfigurationManager {
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IQuickOpenService private quickOpenService: IQuickOpenService
 	) {
-		this.systemVariables = new SystemVariables(this.editorService, this.contextService);
+		this.systemVariables = this.contextService.getWorkspace() ? new SystemVariables(this.editorService, this.contextService) : null;
 		this.setConfiguration(configName);
 		this.adapters = [];
 		this.registerListeners();
