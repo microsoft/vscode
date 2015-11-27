@@ -36,7 +36,7 @@ function connectToRenderer(): TPromise<IRendererConnection> {
 			process.on('unhandledRejection', function(reason, promise) {
 				// 'promise' seems to be undefined all the time and
 				// that's why we cannot use the rejectionhandled event
-				console.error('unhandled rejected promise', promise);
+				console.error('potentially unhandled rejected promise', promise);
 				onUnexpectedError(reason);
 			});
 
