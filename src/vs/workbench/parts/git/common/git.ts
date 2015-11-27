@@ -123,6 +123,7 @@ export interface IStatusModel extends EventEmitter.IEventEmitter {
 }
 
 export interface IModel extends EventEmitter.IEventEmitter {
+	getRepositoryRoot(): string;
 	getStatus(): IStatusModel;
 	getHEAD(): IBranch;
 	getHeads(): IBranch[];

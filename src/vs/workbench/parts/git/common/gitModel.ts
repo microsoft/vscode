@@ -311,6 +311,7 @@ export class StatusModel extends EventEmitter.EventEmitter implements Git.IStatu
 
 export class Model extends EventEmitter.EventEmitter implements Git.IModel {
 
+	private repositoryRoot: string;
 	private status: Git.IStatusModel;
 	private HEAD: Git.IBranch;
 	private heads: Git.IBranch[];
@@ -322,12 +323,17 @@ export class Model extends EventEmitter.EventEmitter implements Git.IModel {
 
 		this.toDispose = [];
 
+		this.repositoryRoot = null;
 		this.status = new StatusModel();
 		this.toDispose.push(this.addEmitter2(this.status));
 
 		this.HEAD = null;
 		this.heads = [];
 		this.tags = [];
+	}
+
+	public getRepositoryRoot(): string {
+		return this.repositoryRoot;
 	}
 
 	public getStatus(): Git.IStatusModel {
@@ -357,6 +363,7 @@ export class Model extends EventEmitter.EventEmitter implements Git.IModel {
 			};
 		}
 
+		this.repositoryRoot = status.repositoryRoot;
 		this.status.update(status.status);
 
 		this.HEAD = status.HEAD;
