@@ -242,12 +242,12 @@ CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(TrimTrailin
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(MoveLinesDownAction, MoveLinesDownAction.ID, nls.localize('lines.moveDown', "Move Line Down"), {
 	context: ContextKey.EditorTextFocus,
 	primary: KeyMod.Alt | KeyCode.DownArrow,
-	linux: { primary: KeyMod.CtrlCmd | KeyCode.DownArrow }
+	linux: { primary: KeyMod.Alt | KeyCode.DownArrow }
 }));
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(MoveLinesUpAction, MoveLinesUpAction.ID, nls.localize('lines.moveUp', "Move Line Up"), {
 	context: ContextKey.EditorTextFocus,
 	primary: KeyMod.Alt | KeyCode.UpArrow,
-	linux: { primary: KeyMod.CtrlCmd | KeyCode.UpArrow }
+	linux: { primary: KeyMod.Alt | KeyCode.UpArrow }
 }));
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(CopyLinesDownAction, CopyLinesDownAction.ID, nls.localize('lines.copyDown', "Copy Line Down"), {
 	context: ContextKey.EditorTextFocus,
