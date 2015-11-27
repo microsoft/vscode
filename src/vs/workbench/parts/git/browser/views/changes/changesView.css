@@ -60,7 +60,7 @@
 
 .git-viewlet > .changes-view > .status-view > .monaco-tree .monaco-tree-row .status-group {
 	font-size: 11px;
-	font-weight: bold;	
+	font-weight: bold;
 	text-transform: uppercase;
 	cursor: default;
 }
@@ -84,6 +84,10 @@
 	color: inherit;
 }
 
+.git-viewlet > .changes-view > .status-view > .monaco-tree .monaco-tree-row .file-status.out-of-workspace {
+	opacity: 0.5;
+}
+
 .git-viewlet > .changes-view > .status-view > .monaco-tree .monaco-tree-row .file-status .status {
 	position: absolute;
 	top: 4px;
@@ -99,7 +103,7 @@
 }
 
 .git-viewlet > .changes-view > .status-view > .monaco-tree .monaco-tree-row .file-status .name {
-	margin-left: 20px;	
+	margin-left: 20px;
 }
 
 .git-viewlet > .changes-view > .status-view > .monaco-tree .monaco-tree-row .file-status.modified .status	{ background-color: #007ACC; }
@@ -123,7 +127,7 @@
 .git-viewlet > .changes-view > .status-view > .monaco-tree .monaco-tree-row .file-status.both-deleted .name,
 .git-viewlet > .changes-view > .status-view > .monaco-tree .monaco-tree-row .file-status.deleted-by-them .name,
 .git-viewlet > .changes-view > .status-view > .monaco-tree .monaco-tree-row .file-status.deleted-by-us .name {
-	text-decoration: line-through; 
+	text-decoration: line-through;
 }
 
 .git-viewlet > .changes-view > .status-view > .monaco-tree .monaco-tree-row .file-status:not(.renamed) > .rename {
@@ -159,8 +163,8 @@
 .hc-black .git-viewlet > .changes-view > .status-view > .monaco-tree .monaco-tree-row .file-status.untracked .status,
 .hc-black .git-viewlet > .changes-view > .status-view > .monaco-tree .monaco-tree-row .file-status.ignored .status,
 .hc-black .git-viewlet > .changes-view > .status-view > .monaco-tree .monaco-tree-row .file-status.conflict .status,
-.hc-black .git-viewlet > .changes-view > .status-view > .monaco-tree .monaco-tree-row.selected .file-status .status { 
-	background-color: #000; 
+.hc-black .git-viewlet > .changes-view > .status-view > .monaco-tree .monaco-tree-row.selected .file-status .status {
+	background-color: #000;
 	color: #fff;
 	border: 1px solid #6FC3DF;
 }
