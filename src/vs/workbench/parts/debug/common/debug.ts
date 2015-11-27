@@ -75,7 +75,7 @@ export interface IBreakpoint extends IEnablement {
 }
 
 export interface IFunctionBreakpoint extends IEnablement {
-	functionName: string;
+	name: string;
 }
 
 export interface IExceptionBreakpoint extends IEnablement {

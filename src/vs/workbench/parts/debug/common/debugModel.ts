@@ -271,7 +271,7 @@ export class FunctionBreakpoint implements debug.IFunctionBreakpoint {
 
 	private id: string;
 
-	constructor(public functionName: string, public enabled: boolean) {
+	constructor(public name: string, public enabled: boolean) {
 		this.id = uuid.generateUuid();
 	}
 

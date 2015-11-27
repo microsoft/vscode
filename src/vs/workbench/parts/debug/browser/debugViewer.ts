@@ -833,7 +833,7 @@ export class BreakpointsRenderer implements tree.IRenderer {
 
 	private renderFunctionBreakpoint(tree: tree.ITree, functionBreakpoint: debug.IFunctionBreakpoint, data: IFunctionBreakpointTemplateData): void {
 		this.debugService.getModel().areBreakpointsActivated() ? tree.removeTraits('disabled', [functionBreakpoint]) : tree.addTraits('disabled', [functionBreakpoint]);
-		data.name.textContent = functionBreakpoint.functionName;
+		data.name.textContent = functionBreakpoint.name;
 		data.checkbox.checked = functionBreakpoint.enabled;
 	}
 
