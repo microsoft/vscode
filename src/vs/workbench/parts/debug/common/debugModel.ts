@@ -429,6 +429,14 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 		this.emit(debug.ModelEvents.BREAKPOINTS_UPDATED);
 	}
 
+	public renameFunctionBreakpoint(id: string, newFunctionName: string): void {
+		const fbp = this.functionBreakpoints.filter(bp => bp.getId() === id).pop();
+		if (fbp) {
+			fbp.name = newFunctionName;
+			this.emit(debug.ModelEvents.BREAKPOINTS_UPDATED);
+		}
+	}
+
 	public removeFunctionBreakpoint(id: string): void {
 		this.functionBreakpoints = this.functionBreakpoints.filter(fbp => fbp.getId() != id);
 		this.emit(debug.ModelEvents.BREAKPOINTS_UPDATED);

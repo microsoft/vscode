@@ -412,6 +412,12 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		return Promise.as(true);
 	}
 
+	public renameFunctionBreakpoint(id: string, newFunctionName: string): Promise {
+		this.model.renameFunctionBreakpoint(id, newFunctionName);
+		// TODO@Isidor send updated function breakpoints
+		return Promise.as(true);
+	}
+
 	public removeFunctionBreakpoint(id: string): Promise {
 		this.model.removeFunctionBreakpoint(id);
 		// TODO@Isidor send updated function breakpoints
