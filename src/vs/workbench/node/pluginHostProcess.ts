@@ -40,11 +40,6 @@ function connectToRenderer(): TPromise<IRendererConnection> {
 				onUnexpectedError(reason);
 			});
 
-			// Print a console message when an exception isn't handled.
-			process.on('uncaughtException', function(err) {
-				onUnexpectedError(err);
-			});
-
 			// Kill oneself if one's parent dies. Much drama.
 			setInterval(function () {
 				try {
