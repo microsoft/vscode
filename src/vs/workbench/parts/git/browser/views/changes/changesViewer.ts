@@ -354,7 +354,10 @@ export class Renderer implements tree.IRenderer {
 			isInWorkspace = paths.isEqualOrParent(resource.fsPath, workspaceRoot)
 		}
 
-		if (!isInWorkspace) {
+		if (isInWorkspace) {
+			data.root.title = '';
+		} else {
+			data.root.title = nls.localize('outsideOfWorkspace', "This file is located outside the current workspace.");
 			data.root.className += ' out-of-workspace';
 		}
 
