@@ -267,6 +267,19 @@ export class Breakpoint implements debug.IBreakpoint {
 	}
 }
 
+export class FunctionBreakpoint implements debug.IFunctionBreakpoint {
+
+	private id: string;
+
+	constructor(public functionName: string, public enabled: boolean) {
+		this.id = uuid.generateUuid();
+	}
+
+	public getId(): string {
+		return this.id;
+	}
+}
+
 export class ExceptionBreakpoint implements debug.IExceptionBreakpoint {
 
 	private id: string;
@@ -286,7 +299,7 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 	private toDispose: lifecycle.IDisposable[];
 	private replElements: debug.ITreeElement[];
 
-	constructor(private breakpoints: debug.IBreakpoint[], private breakpointsActivated: boolean,
+	constructor(private breakpoints: debug.IBreakpoint[], private breakpointsActivated: boolean, private functionBreakpoints: debug.IFunctionBreakpoint[],
 		private exceptionBreakpoints: debug.IExceptionBreakpoint[], private watchExpressions: Expression[]) {
 
 		super();
@@ -329,6 +342,10 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 
 	public getBreakpoints(): debug.IBreakpoint[] {
 		return this.breakpoints;
+	}
+
+	public getFunctionBreakpoints(): debug.IFunctionBreakpoint[] {
+		return this.functionBreakpoints;
 	}
 
 	public getExceptionBreakpoints(): debug.IExceptionBreakpoint[] {
@@ -378,9 +395,8 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 				bp.lineNumber = bp.desiredLineNumber;
 			}
 		});
-		this.exceptionBreakpoints.forEach(ebp => {
-			ebp.enabled = enabled;
-		});
+		this.exceptionBreakpoints.forEach(ebp => ebp.enabled = enabled);
+		this.functionBreakpoints.forEach(fbp => fbp.enabled = enabled);
 
 		this.emit(debug.ModelEvents.BREAKPOINTS_UPDATED);
 	}
@@ -600,6 +616,7 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 		this.threads = null;
 		this.breakpoints = null;
 		this.exceptionBreakpoints = null;
+		this.functionBreakpoints = null;
 		this.watchExpressions = null;
 		this.replElements = null;
 		this.toDispose = lifecycle.disposeAll(this.toDispose);

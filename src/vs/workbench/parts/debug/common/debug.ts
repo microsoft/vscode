@@ -74,6 +74,10 @@ export interface IBreakpoint extends IEnablement {
 	condition: string;
 }
 
+export interface IFunctionBreakpoint extends IEnablement {
+	functionName: string;
+}
+
 export interface IExceptionBreakpoint extends IEnablement {
 	name: string;
 }
@@ -119,6 +123,7 @@ export interface IModel extends ee.IEventEmitter, ITreeElement {
 	getThreads(): { [reference: number]: IThread; };
 	getBreakpoints(): IBreakpoint[];
 	areBreakpointsActivated(): boolean;
+	getFunctionBreakpoints(): IFunctionBreakpoint[];
 	getExceptionBreakpoints(): IExceptionBreakpoint[];
 	getWatchExpressions(): IExpression[];
 	getReplElements(): ITreeElement[];
