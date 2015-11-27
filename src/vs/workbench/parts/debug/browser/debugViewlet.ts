@@ -297,7 +297,8 @@ class BreakpointsView extends viewlet.AdaptiveCollapsibleViewletView {
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super(actionRunner, BreakpointsView.getExpandedBodySize(
-			debugService.getModel().getBreakpoints().length + debugService.getModel().getExceptionBreakpoints().length), !!settings[BreakpointsView.MEMENTO], 'breakpointsView', messageService, contextMenuService);
+			debugService.getModel().getBreakpoints().length + debugService.getModel().getFunctionBreakpoints().length + debugService.getModel().getExceptionBreakpoints().length),
+			!!settings[BreakpointsView.MEMENTO], 'breakpointsView', messageService, contextMenuService);
 
 		this.toDispose.push(this.debugService.getModel().addListener2(debug.ModelEvents.BREAKPOINTS_UPDATED,() => this.onBreakpointsChange()));
 	}

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import nls = require('vs/nls');
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
 import lifecycle = require('vs/base/common/lifecycle');
 import paths = require('vs/base/common/paths');
@@ -66,16 +67,17 @@ export function renderVariable(tree: tree.ITree, variable: model.Variable, data:
 	}
 }
 
-function renderRenameBox(debugService: debug.IDebugService, contextViewService: IContextViewService, tree: tree.ITree, expression: debug.IExpression, container: HTMLElement): void {
+function renderRenameBox(debugService: debug.IDebugService, contextViewService: IContextViewService, tree: tree.ITree, element: any, container: HTMLElement, placeholder: string): void {
 	let inputBoxContainer = dom.append(container, $('.inputBoxContainer'));
 	let inputBox = new inputbox.InputBox(inputBoxContainer, contextViewService, {
 		validationOptions: {
 			validation: null,
 			showMessage: false
-		}
+		},
+		placeholder: placeholder
 	});
 
-	inputBox.value = expression.name ? expression.name : '';
+	inputBox.value = element.name ? element.name : '';
 	inputBox.focus();
 
 	var disposed = false;
@@ -84,11 +86,16 @@ function renderRenameBox(debugService: debug.IDebugService, contextViewService: 
 	var wrapUp = async.once<any, void>((renamed: boolean) => {
 		if (!disposed) {
 			disposed = true;
-			if (renamed && inputBox.value) {
-				debugService.renameWatchExpression(expression.getId(), inputBox.value);
-			} else if (!expression.name) {
-				debugService.clearWatchExpressions(expression.getId());
+			if (element instanceof model.Expression && renamed && inputBox.value) {
+				debugService.renameWatchExpression(element.getId(), inputBox.value).done(null, errors.onUnexpectedError);
+			} else if (element instanceof model.Expression && !element.name) {
+				debugService.clearWatchExpressions(element.getId());
+			} else if (element instanceof model.FunctionBreakpoint && renamed && inputBox.value) {
+				debugService.renameFunctionBreakpoint(element.getId(), inputBox.value).done(null, errors.onUnexpectedError);
+			} else if (element instanceof model.FunctionBreakpoint && !element.name) {
+				debugService.removeFunctionBreakpoint(element.getId()).done(null, errors.onUnexpectedError);
 			}
+
 			tree.clearHighlight();
 			tree.DOMFocus();
 			// Need to remove the input box since this template will be reused.
@@ -587,7 +594,7 @@ export class WatchExpressionsRenderer implements tree.IRenderer {
 	private renderWatchExpression(tree: tree.ITree, watchExpression: debug.IExpression, data: IWatchExpressionTemplateData): void {
 		let selectedExpression = this.debugService.getViewModel().getSelectedExpression();
 		if ((selectedExpression instanceof model.Expression && selectedExpression.getId() === watchExpression.getId()) || (watchExpression instanceof model.Expression && !watchExpression.name)) {
-			renderRenameBox(this.debugService, this.contextViewService, tree, watchExpression, data.expression);
+			renderRenameBox(this.debugService, this.contextViewService, tree, watchExpression, data.expression, nls.localize('watchExpressionPlaceholder', "Expression to watch"));
 		}
 		data.actionBar.context = watchExpression;
 
@@ -736,6 +743,7 @@ export class BreakpointsDataSource implements tree.IDataSource {
 }
 
 interface IExceptionBreakpointTemplateData {
+	breakpoint: HTMLElement;
 	name: HTMLElement;
 	checkbox: HTMLInputElement;
 	toDisposeBeforeRender: lifecycle.IDisposable[];
@@ -762,7 +770,8 @@ export class BreakpointsRenderer implements tree.IRenderer {
 		private actionRunner: actions.IActionRunner,
 		@IMessageService private messageService: IMessageService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@debug.IDebugService private debugService: debug.IDebugService
+		@debug.IDebugService private debugService: debug.IDebugService,
+		@IContextViewService private contextViewService: IContextViewService
 	) {
 		// noop
 	}
@@ -792,19 +801,19 @@ export class BreakpointsRenderer implements tree.IRenderer {
 			data.actionBar.push(this.actionProvider.getBreakpointActions(), { icon: true, label: false });
 		}
 
-		var el = dom.append(container, $('.breakpoint'));
+		data.breakpoint = dom.append(container, $('.breakpoint'));
 		data.toDisposeBeforeRender = [];
 
 		data.checkbox = <HTMLInputElement> $('input');
 		data.checkbox.type = 'checkbox';
 		data.checkbox.className = 'checkbox';
-		dom.append(el, data.checkbox);
+		dom.append(data.breakpoint, data.checkbox);
 
-		data.name = dom.append(el, $('span.name'));
+		data.name = dom.append(data.breakpoint, $('span.name'));
 
 		if (templateId === BreakpointsRenderer.BREAKPOINT_TEMPLATE_ID) {
-			data.lineNumber = dom.append(el, $('span.line-number'));
-			data.filePath = dom.append(el, $('span.file-path'));
+			data.lineNumber = dom.append(data.breakpoint, $('span.line-number'));
+			data.filePath = dom.append(data.breakpoint, $('span.file-path'));
 		}
 
 		return data;
@@ -832,9 +841,13 @@ export class BreakpointsRenderer implements tree.IRenderer {
 	}
 
 	private renderFunctionBreakpoint(tree: tree.ITree, functionBreakpoint: debug.IFunctionBreakpoint, data: IFunctionBreakpointTemplateData): void {
-		this.debugService.getModel().areBreakpointsActivated() ? tree.removeTraits('disabled', [functionBreakpoint]) : tree.addTraits('disabled', [functionBreakpoint]);
-		data.name.textContent = functionBreakpoint.name;
-		data.checkbox.checked = functionBreakpoint.enabled;
+		if (!functionBreakpoint.name) {
+			renderRenameBox(this.debugService, this.contextViewService, tree, functionBreakpoint, data.breakpoint, nls.localize('functionBreakpointPlaceholder', "Function to break on"));
+		} else {
+			this.debugService.getModel().areBreakpointsActivated() ? tree.removeTraits('disabled', [functionBreakpoint]) : tree.addTraits('disabled', [functionBreakpoint]);
+			data.name.textContent = functionBreakpoint.name;
+			data.checkbox.checked = functionBreakpoint.enabled;
+		}
 	}
 
 	private renderBreakpoint(tree: tree.ITree, breakpoint: debug.IBreakpoint, data: IBreakpointTemplateData): void {
