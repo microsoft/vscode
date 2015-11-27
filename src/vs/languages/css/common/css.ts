@@ -12,6 +12,7 @@ import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
 import {OneWorkerAttr} from 'vs/platform/thread/common/threadService';
 import cssWorker = require('vs/languages/css/common/cssWorker');
+import cssTokenTypes = require('vs/languages/css/common/cssTokenTypes');
 import {AbstractMode} from 'vs/editor/common/modes/abstractMode';
 import {AbstractState} from 'vs/editor/common/modes/abstractState';
 import {AsyncDescriptor2, createAsyncDescriptor2} from 'vs/platform/instantiation/common/descriptors';
@@ -31,6 +32,8 @@ export enum States {
 	MetaPostUrl,
 	MetaInUrlFunction,
 }
+
+export { cssTokenTypes };
 
 var identRegEx = /^-?-?([a-zA-Z]|(\\(([0-9a-fA-F]{1,6}\s?)|[^[0-9a-fA-F])))([\w\-]|(\\(([0-9a-fA-F]{1,6}\s?)|[^[0-9a-fA-F])))*/;
 
@@ -131,13 +134,13 @@ export class State extends AbstractState {
 		switch (this.kind) {
 			case States.ValuePostUrl:
 				if (ch === '(') {
-					return this.nextState(States.ValueInUrlFunction, { type:'punctuation.parenthesis.css', bracket: Modes.Bracket.Open });
+					return this.nextState(States.ValueInUrlFunction, { type: 'punctuation.parenthesis.css', bracket: Modes.Bracket.Open });
 				}
 				this.kind = States.Value;
 				break;
 			case States.MetaPostUrl:
 				if (ch === '(') {
-					return this.nextState(States.MetaInUrlFunction, { type:'punctuation.parenthesis.css', bracket: Modes.Bracket.Open });
+					return this.nextState(States.MetaInUrlFunction, { type: 'punctuation.parenthesis.css', bracket: Modes.Bracket.Open });
 				}
 				this.kind = States.Meta;
 				break;
@@ -155,32 +158,32 @@ export class State extends AbstractState {
 		switch (this.kind) {
 			case States.Selector:
 				if (ch === '{') {
-					return this.nextState(States.Rule, { type:'punctuation.bracket.css', bracket: Modes.Bracket.Open });
+					return this.nextState(States.Rule, { type: 'punctuation.bracket.css', bracket: Modes.Bracket.Open });
 				}
 				if (ch === '(' || ch === ')') {
-					return { type:'punctuation.parenthesis.css', bracket: ch === '(' ? Modes.Bracket.Open : Modes.Bracket.Close };
+					return { type: 'punctuation.parenthesis.css', bracket: ch === '(' ? Modes.Bracket.Open : Modes.Bracket.Close };
 				}
 				if (ch === '@' && !this.inMeta) {  //@import, @media, @key-word-animation
 					stream.advanceIfRegExp2(identRegEx);
-					return this.nextState(States.Meta, { type:'keyword.css' });
+					return this.nextState(States.Meta, { type: cssTokenTypes.TOKEN_AT_KEYWORD + '.css' });
 				}
 				if (ch === '}' && this.inMeta) {  //@import, @media, @key-word-animation
 					this.inMeta = false;
-					return this.nextState(States.Selector, { type:'punctuation.bracket.css', bracket: Modes.Bracket.Close });
+					return this.nextState(States.Selector, { type: 'punctuation.bracket.css', bracket: Modes.Bracket.Close });
 				}
 				if (/[\*\(\)\[\]\+>=\~\|;]/.test(ch)) {
-					return { type:'punctuation.css' };
+					return { type: 'punctuation.css' };
 				}
 				if (ch === '#') {
 					stream.advanceIfRegExp2(identRegEx);
-					return { type:'entity.other.attribute-name.id.css' };
+					return { type: cssTokenTypes.TOKEN_SELECTOR + '.id.css' };
 				}
 				if (ch === '.') {
 					stream.advanceIfRegExp2(identRegEx);
-					return { type:'entity.other.attribute-name.class.css' };
+					return { type: cssTokenTypes.TOKEN_SELECTOR + '.class.css' };
 				}
 				this.consumeIdent(stream);
-				return { type:'entity.name.tag.css' };
+				return { type: cssTokenTypes.TOKEN_SELECTOR_TAG + '.css' };
 
 			case States.Meta:
 				if (ch === '{') {
@@ -188,74 +191,74 @@ export class State extends AbstractState {
 					if (this.inMeta) {
 						nextState = States.Selector;
 					}
-					return this.nextState(nextState, { type:'punctuation.bracket.css', bracket: Modes.Bracket.Open });
+					return this.nextState(nextState, { type: 'punctuation.bracket.css', bracket: Modes.Bracket.Open });
 				}
 				if (ch === '(' || ch === ')') {
-					return { type:'punctuation.parenthesis.css', bracket: ch === '(' ? Modes.Bracket.Open : Modes.Bracket.Close };
+					return { type: 'punctuation.parenthesis.css', bracket: ch === '(' ? Modes.Bracket.Open : Modes.Bracket.Close };
 				}
 				if (ch === ';') {
 					if (this.metaBraceCount === 0) {
 						this.inMeta = false;
 					}
-					return this.nextState(States.Selector, { type:'punctuation.css' });
+					return this.nextState(States.Selector, { type: 'punctuation.css' });
 				}
 				if ((ch === 'u' || ch === 'U') && stream.advanceIfStringCaseInsensitive2('rl')) {
 					stream.advanceIfStringCaseInsensitive2('-prefix'); // support 'url-prefix' (part of @-mox-document)
-					return this.nextState(States.MetaPostUrl, { type:'meta.property-value.css' });
+					return this.nextState(States.MetaPostUrl, { type: cssTokenTypes.TOKEN_VALUE + '.css' });
 				}
 				if (/[\*\(\)\[\]\+>=\~\|]/.test(ch)) {
-					return { type:'punctuation.css' };
+					return { type: 'punctuation.css' };
 				}
 				this.inMeta = true;
 				this.consumeIdent(stream);
-				return { type:'meta.property-value.css' };
+				return { type: cssTokenTypes.TOKEN_VALUE + '.css' };
 
 			case States.Rule:
 				if (ch === '}') {
-					return this.nextState(States.Selector, { type:'punctuation.bracket.css', bracket: Modes.Bracket.Close });
+					return this.nextState(States.Selector, { type: 'punctuation.bracket.css', bracket: Modes.Bracket.Close });
 				}
 				if (ch === ':') {
-					return this.nextState(States.Value, { type:'punctuation.css' });
+					return this.nextState(States.Value, { type: 'punctuation.css' });
 				}
 				if (ch === '(' || ch === ')') {
-					return { type:'punctuation.parenthesis.css', bracket: ch === '(' ? Modes.Bracket.Open : Modes.Bracket.Close };
+					return { type: 'punctuation.parenthesis.css', bracket: ch === '(' ? Modes.Bracket.Open : Modes.Bracket.Close };
 				}
 				this.consumeIdent(stream);
-				return { type:'support.type.property-name.css' };
+				return { type: cssTokenTypes.TOKEN_PROPERTY + '.css' };
 
 			case States.Value:
 				if (ch === '}') {
-					return this.nextState(States.Selector, { type:'punctuation.bracket.css', bracket: Modes.Bracket.Close });
+					return this.nextState(States.Selector, { type: 'punctuation.bracket.css', bracket: Modes.Bracket.Close });
 				}
 				if (ch === ';') {
-					return this.nextState(States.Rule, { type:'punctuation.css' });
+					return this.nextState(States.Rule, { type: 'punctuation.css' });
 				}
 				if ((ch === 'u' || ch === 'U') && stream.advanceIfStringCaseInsensitive2('rl')) {
-					return this.nextState(States.ValuePostUrl, { type:'meta.property-value.css' });
+					return this.nextState(States.ValuePostUrl, { type: cssTokenTypes.TOKEN_VALUE + '.css' });
 				}
 
 				if (ch === '(' || ch === ')') {
-					return { type:'punctuation.parenthesis.css', bracket: ch === '(' ? Modes.Bracket.Open : Modes.Bracket.Close };
+					return { type: 'punctuation.parenthesis.css', bracket: ch === '(' ? Modes.Bracket.Open : Modes.Bracket.Close };
 				}
 				if (ch === ',') {
-					return { type:'punctuation.css' };
+					return { type: 'punctuation.css' };
 				}
 				if (ch === '#') {
 					stream.advanceIfRegExp2(/^[\w]*/);
-					return { type:'meta.property-value.hex.css' };
+					return { type: cssTokenTypes.TOKEN_VALUE + '.hex.css' };
 				}
 				if (/\d/.test(ch) || (/-|\+/.test(ch) && !stream.eos() && /\d/.test(stream.peek()))) {
 					stream.advanceIfRegExp2(/^[\d\.]*/);
-					return this.nextState(States.Unit, { type:'meta.property-value.numeric.css' });
+					return this.nextState(States.Unit, { type: cssTokenTypes.TOKEN_VALUE + '.numeric.css' });
 				}
 				if (ch === '!') {
-					return { type:'meta.property-value.keyword.css' };  // !
+					return { type: cssTokenTypes.TOKEN_VALUE + '.keyword.css' };  // !
 				}
 				if ((ch === 'i' || ch === 'I') && stream.advanceIfStringCaseInsensitive2('mportant')) {
-					return { type:'meta.property-value.keyword.css' };  // important
+					return { type: cssTokenTypes.TOKEN_VALUE + '.keyword.css' };  // important
 				}
 				if (this.consumeIdent(stream)) {
-					return { type:'meta.property-value.css' };
+					return { type: cssTokenTypes.TOKEN_VALUE + '.css' };
 				}
 				break;
 
@@ -263,7 +266,7 @@ export class State extends AbstractState {
 				// css units - see: http://www.w3.org/TR/css3-values/#font-relative-lengths
 				stream.goBack(1);
 				if(stream.advanceIfRegExp2(/^(em|ex|ch|rem|vw|vh|vm|cm|mm|in|px|pt|pc|deg|grad|rad|turn|s|ms|Hz|kHz|%)/)) {
-					return { type:'meta.property-value.unit.css' };
+					return { type: cssTokenTypes.TOKEN_VALUE + '.unit.css' };
 				}
 				// no unit, back to value state
 				this.nextState(States.Value, null);
@@ -299,17 +302,17 @@ export class CSSMode extends AbstractMode<cssWorker.CSSWorker> {
 			getInitialState: () => new State(this, States.Selector, false, null, false, 0)
 		}, false, false);
 		this.electricCharacterSupport = new supports.BracketElectricCharacterSupport(this, { brackets: [
-			{ tokenType:'punctuation.bracket.css', open: '{', close: '}', isElectric: true }
+			{ tokenType: 'punctuation.bracket.css', open: '{', close: '}', isElectric: true }
 		] });
 
 		this.extraInfoSupport = this;
 		this.referenceSupport = new supports.ReferenceSupport(this, {
-			tokens: ['support.type.property-name.css', 'meta.property-value.css', 'entity.name.tag.css'],
+			tokens: [cssTokenTypes.TOKEN_PROPERTY + '.css', cssTokenTypes.TOKEN_VALUE + '.css', cssTokenTypes.TOKEN_SELECTOR_TAG + '.css'],
 			findReferences: (resource, position, /*unused*/includeDeclaration) => this.findReferences(resource, position)});
 		this.logicalSelectionSupport = this;
 		this.outlineSupport = this;
 		this.declarationSupport = new supports.DeclarationSupport(this, {
-			tokens: ['meta.property-value.css'],
+			tokens: [cssTokenTypes.TOKEN_VALUE + '.css'],
 			findDeclaration: (resource, position) => this.findDeclaration(resource, position)});
 
 		this.characterPairSupport = new supports.CharacterPairSupport(this, {

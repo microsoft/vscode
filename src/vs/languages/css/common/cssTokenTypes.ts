@@ -4,5 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-export const TOKEN_VALUE = 'support.property-value.constant.other.json';
-export const TOKEN_KEY = 'support.type.property-name.json';
+export const TOKEN_SELECTOR = 'entity.name.selector';
+export const TOKEN_SELECTOR_TAG = 'entity.name.tag';
+export const TOKEN_PROPERTY =  'support.type.property-name';
+export const TOKEN_VALUE =  'support.property-value';
+export const TOKEN_AT_KEYWORD = 'keyword.control.at-rule';
