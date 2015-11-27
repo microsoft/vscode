@@ -29,7 +29,7 @@ import {ExtraInfoRegistry} from 'vs/editor/contrib/hover/common/hover';
 import {OccurrencesRegistry} from 'vs/editor/contrib/wordHighlighter/common/wordHighlighter';
 import {ReferenceRegistry} from 'vs/editor/contrib/referenceSearch/common/referenceSearch';
 import {QuickFixRegistry} from 'vs/editor/contrib/quickFix/common/quickFix';
-import {OutlineRegistry, IOutlineEntry, IOutlineSupport} from 'vs/editor/contrib/quickOpen/common/quickOpen';
+import {IOutline} from 'vs/editor/contrib/quickOpen/common/quickOpen';
 import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
 import {NavigateTypesSupportRegistry, INavigateTypesSupport, ITypeBearing} from 'vs/workbench/parts/search/common/search'
 import {RenameRegistry} from 'vs/editor/contrib/rename/common/rename';
@@ -45,10 +45,10 @@ import {SuggestRegistry} from 'vs/editor/contrib/suggest/common/suggest';
 // vscode.executeReferenceProvider
 // vscode.executeDocumentRenameProvider
 // vscode.executeSignatureHelpProvider
+// vscode.executeDocumentSymbolProvider
 
 // vscode.executeCodeActionProvider
 // vscode.executeCodeLensProvider
-// vscode.executeDocumentSymbolProvider
 // vscode.executeFormatDocumentProvider
 // vscode.executeFormatRangeProvider
 // vscode.executeFormatOnTypeProvider
@@ -69,6 +69,7 @@ export class ExtHostLanguageFeatureCommands {
 		this._register('vscode.executeReferenceProvider', this._executeReferenceProvider);
 		this._register('vscode.executeDocumentRenameProvider', this._executeDocumentRenameProvider);
 		this._register('vscode.executeSignatureHelpProvider', this._executeSignatureHelpProvider);
+		this._register('vscode.executeDocumentSymbolProvider', this._executeDocumentSymbolProvider);
 	}
 
 	private _register(id: string, callback: (...args: any[]) => any): void {
@@ -163,6 +164,17 @@ export class ExtHostLanguageFeatureCommands {
 		return this._commands.executeCommand<modes.IParameterHints>('_executeSignatureHelpProvider', args).then(value => {
 			if (value) {
 				return typeConverters.SignatureHelp.to(value);
+			}
+		});
+	}
+
+	private _executeDocumentSymbolProvider(resource: URI): Thenable<types.SymbolInformation[]> {
+		const args = {
+			resource
+		};
+		return this._commands.executeCommand<IOutline>('_executeDocumentSymbolProvider', args).then(value => {
+			if (value && Array.isArray(value.entries)) {
+				return value.entries.map(typeConverters.SymbolInformation.fromOutlineEntry);
 			}
 		});
 	}

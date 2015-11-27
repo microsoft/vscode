@@ -72,19 +72,9 @@ class OutlineAdapter implements IOutlineSupport {
 		let doc = this._documents.getDocument(resource);
 		return asWinJsPromise(token => this._provider.provideDocumentSymbols(doc, token)).then(value => {
 			if (Array.isArray(value)) {
-				return value.map(OutlineAdapter._convertSymbolInfo);
+				return value.map(TypeConverters.SymbolInformation.toOutlineEntry);
 			}
 		});
-	}
-
-	private static _convertSymbolInfo(symbol: vscode.SymbolInformation): IOutlineEntry {
-		return <IOutlineEntry>{
-			type: TypeConverters.fromSymbolKind(symbol.kind),
-			range: TypeConverters.fromRange(symbol.location.range),
-			containerLabel: symbol.containerName,
-			label: symbol.name,
-			icon: undefined,
-		};
 	}
 }
 

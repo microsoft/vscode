@@ -68,43 +68,6 @@ export function fromPosition(position: types.Position):IPosition {
 	return { lineNumber: position.line + 1, column: position.character + 1};
 }
 
-export function fromSymbolKind(kind: number | types.SymbolKind): string {
-	switch (kind) {
-		case types.SymbolKind.Method:
-			return 'method';
-		case types.SymbolKind.Function:
-			return 'function';
-		case types.SymbolKind.Constructor:
-			return 'constructor';
-		case types.SymbolKind.Variable:
-			return 'variable';
-		case types.SymbolKind.Class:
-			return 'class';
-		case types.SymbolKind.Interface:
-			return 'interface';
-		case types.SymbolKind.Module:
-		case types.SymbolKind.Namespace:
-		case types.SymbolKind.Package:
-			return 'module';
-		case types.SymbolKind.Property:
-			return 'property';
-		case types.SymbolKind.Enum:
-			return 'enum';
-		case types.SymbolKind.String:
-			return 'string';
-		case types.SymbolKind.File:
-			return 'file';
-		case types.SymbolKind.Array:
-			return 'array';
-		case types.SymbolKind.Number:
-			return 'number';
-		case types.SymbolKind.Boolean:
-			return 'boolean';
-	}
-
-	return 'property';
-}
-
 export function fromDiagnosticSeverity(value: number): Severity {
 	switch (value) {
 		case types.DiagnosticSeverity.Error:
@@ -209,6 +172,103 @@ export function fromTextEdit(edit: vscode.TextEdit) {
 		text: edit.newText,
 		range: fromRange(edit.range)
 	}
+}
+
+export namespace SymbolKind {
+
+	export function from(kind: number | types.SymbolKind): string {
+		switch (kind) {
+			case types.SymbolKind.Method:
+				return 'method';
+			case types.SymbolKind.Function:
+				return 'function';
+			case types.SymbolKind.Constructor:
+				return 'constructor';
+			case types.SymbolKind.Variable:
+				return 'variable';
+			case types.SymbolKind.Class:
+				return 'class';
+			case types.SymbolKind.Interface:
+				return 'interface';
+			case types.SymbolKind.Module:
+			case types.SymbolKind.Namespace:
+			case types.SymbolKind.Package:
+				return 'module';
+			case types.SymbolKind.Property:
+				return 'property';
+			case types.SymbolKind.Enum:
+				return 'enum';
+			case types.SymbolKind.String:
+				return 'string';
+			case types.SymbolKind.File:
+				return 'file';
+			case types.SymbolKind.Array:
+				return 'array';
+			case types.SymbolKind.Number:
+				return 'number';
+			case types.SymbolKind.Boolean:
+				return 'boolean';
+		}
+		return 'property';
+	}
+
+	export function to(type: string): types.SymbolKind {
+		switch (type) {
+			case 'method':
+				return types.SymbolKind.Method;
+			case 'function':
+				return types.SymbolKind.Function;
+			case 'constructor':
+				return types.SymbolKind.Constructor;
+			case 'variable':
+				return types.SymbolKind.Variable;
+			case 'class':
+				return types.SymbolKind.Class;
+			case 'interface':
+				return types.SymbolKind.Interface;
+			case 'module':
+			// case types.SymbolKind.Namespace:
+			// case types.SymbolKind.Package:
+				return types.SymbolKind.Module;
+			case 'property':
+				return types.SymbolKind.Property;
+			case 'enum':
+				return types.SymbolKind.Enum;
+			case 'string':
+				return types.SymbolKind.String;
+			case 'file':
+				return types.SymbolKind.File;
+			case 'array':
+				return types.SymbolKind.Array;
+			case 'number':
+				return types.SymbolKind.Number;
+			case 'boolean':
+				return types.SymbolKind.Boolean;
+		}
+		return types.SymbolKind.Property
+	}
+}
+
+export namespace SymbolInformation {
+
+	export function fromOutlineEntry(entry: modes.IOutlineEntry): types.SymbolInformation {
+		return new types.SymbolInformation(entry.label,
+			SymbolKind.to(entry.type),
+			toRange(entry.range),
+			undefined,
+			entry.containerLabel)
+	}
+
+	export function toOutlineEntry(symbol: vscode.SymbolInformation): modes.IOutlineEntry {
+		return <modes.IOutlineEntry>{
+			type: SymbolKind.from(symbol.kind),
+			range: fromRange(symbol.location.range),
+			containerLabel: symbol.containerName,
+			label: symbol.name,
+			icon: undefined,
+		};
+	}
+
 }
 
 export function fromSymbolInformation(info: vscode.SymbolInformation): ITypeBearing {

@@ -188,7 +188,7 @@ suite('ExtHostLanguageFeatureCommands', function() {
 	test('Definition, ⇔ back and forth', function(done) {
 
 		disposables.push(extHost.registerDefinitionProvider(defaultSelector, <vscode.DefinitionProvider>{
-			provideDefinition(doc:any): any {
+			provideDefinition(doc: any): any {
 				return new types.Location(doc.uri, new types.Range(0, 0, 0, 0));
 			}
 		}));
@@ -208,5 +208,28 @@ suite('ExtHostLanguageFeatureCommands', function() {
 				done();
 			});
 		});
-	})
+	});
+
+	// --- outline
+
+	test('Outline, back and forth', function(done) {
+		disposables.push(extHost.registerDocumentSymbolProvider(defaultSelector, <vscode.DocumentSymbolProvider>{
+			provideDocumentSymbols(): any {
+				return [
+					new types.SymbolInformation('testing1', types.SymbolKind.Enum, new types.Range(1, 0, 1, 0)),
+					new types.SymbolInformation('testing2', types.SymbolKind.Enum, new types.Range(0, 1, 0, 3)),
+				]
+			}
+		}));
+
+		threadService.sync().then(() => {
+			commands.executeCommand<vscode.SymbolInformation[]>('vscode.executeDocumentSymbolProvider', model.getAssociatedResource()).then(values => {
+				assert.equal(values.length, 2);
+				let [first, second] = values;
+				assert.equal(first.name, 'testing2');
+				assert.equal(second.name, 'testing1');
+				done();
+			});
+		});
+	});
 });
