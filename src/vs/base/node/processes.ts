@@ -75,6 +75,10 @@ export function terminateProcess(process: ChildProcess, cwd?: string): Terminate
 	return { success: true };
 }
 
+export function getWindowsShell(): string {
+	return process.env['comspec'] || 'cmd.exe';
+}
+
 export abstract class AbstractProcess<TProgressData> {
 	private cmd: string;
 	private module: string;
@@ -245,7 +249,7 @@ export abstract class AbstractProcess<TProgressData> {
 					} else {
 						args.push(commandLine.join(' '));
 					}
-					childProcess = spawn('cmd.exe', args, options);
+					childProcess = spawn(getWindowsShell(), args, options);
 				} else {
 					if (this.cmd) {
 						childProcess = spawn(this.cmd, this.args, this.options);
@@ -338,7 +342,7 @@ export abstract class AbstractProcess<TProgressData> {
 			if (!this.shell || !Platform.isWindows) {
 				c(false);
 			}
-			let cmdShell = spawn('cmd.exe', ['/s', '/c']);
+			let cmdShell = spawn(getWindowsShell(), ['/s', '/c']);
 			cmdShell.on('error', (error:Error) => {
 				c(true);
 			});
