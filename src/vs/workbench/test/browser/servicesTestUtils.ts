@@ -153,7 +153,7 @@ export class TestKeybindingService implements IKeybindingService {
 	public setInstantiationService(instantiationService: IInstantiationService): void { }
 	public setContext(key: string, value: any): void { }
 	public removeContext(key: string): void { }
-	public executeCommand(commandId: string, args: any): void { }
+	public executeCommand(commandId: string, args: any): TPromise<any> { return; }
 
 	public createKey<T>(key: string, defaultValue: T): IKeybindingContextKey<T> {
 		return null;

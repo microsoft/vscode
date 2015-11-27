@@ -148,7 +148,7 @@ export class MainThreadCommands {
 	}
 
 	_executeCommand<T>(id: string, args: any[]): Thenable<T> {
-		return TPromise.as(this._keybindingService.executeCommand(id, args));
+		return this._keybindingService.executeCommand(id, args);
 	}
 
 	_getCommands(): Thenable<string[]> {
