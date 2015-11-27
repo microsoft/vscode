@@ -324,8 +324,11 @@ class BreakpointsView extends viewlet.AdaptiveCollapsibleViewletView {
 					if (first instanceof model.ExceptionBreakpoint) {
 						return -1;
 					}
-					if (second instanceof model.ExceptionBreakpoint) {
+					if (second instanceof model.ExceptionBreakpoint || second instanceof model.FunctionBreakpoint) {
 						return 1;
+					}
+					if (first instanceof model.FunctionBreakpoint) {
+						return -1;
 					}
 
 					if (first.source.uri.toString() !== second.source.uri.toString()) {
@@ -377,7 +380,9 @@ class BreakpointsView extends viewlet.AdaptiveCollapsibleViewletView {
 	}
 
 	private onBreakpointsChange(): void {
-		this.expandedBodySize = BreakpointsView.getExpandedBodySize(this.debugService.getModel().getBreakpoints().length + this.debugService.getModel().getExceptionBreakpoints().length);
+		const model = this.debugService.getModel();
+		this.expandedBodySize = BreakpointsView.getExpandedBodySize(
+			model.getBreakpoints().length + model.getExceptionBreakpoints().length + model.getFunctionBreakpoints().length);
 
 		if (this.tree) {
 			this.tree.refresh();

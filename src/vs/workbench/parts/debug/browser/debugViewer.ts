@@ -7,6 +7,7 @@ import { Promise, TPromise } from 'vs/base/common/winjs.base';
 import lifecycle = require('vs/base/common/lifecycle');
 import paths = require('vs/base/common/paths');
 import async = require('vs/base/common/async');
+import errors = require('vs/base/common/errors');
 import severity from 'vs/base/common/severity';
 import strings = require('vs/base/common/strings');
 import { isMacintosh } from 'vs/base/common/platform';
@@ -726,7 +727,7 @@ export class BreakpointsDataSource implements tree.IDataSource {
 		var model = <model.Model> element;
 		var exBreakpoints = <debug.IEnablement[]> model.getExceptionBreakpoints();
 
-		return Promise.as(exBreakpoints.concat(model.getBreakpoints()));
+		return Promise.as(exBreakpoints.concat(model.getFunctionBreakpoints()).concat(model.getBreakpoints()));
 	}
 
 	public getParent(tree: tree.ITree, element: any): Promise {
@@ -746,9 +747,14 @@ interface IBreakpointTemplateData extends IExceptionBreakpointTemplateData {
 	filePath: HTMLElement;
 }
 
+interface IFunctionBreakpointTemplateData extends IExceptionBreakpointTemplateData {
+	actionBar: actionbar.ActionBar;
+}
+
 export class BreakpointsRenderer implements tree.IRenderer {
 
 	private static EXCEPTION_BREAKPOINT_TEMPLATE_ID = 'exceptionBreakpoint';
+	private static FUNCTION_BREAKPOINT_TEMPLATE_ID = 'functionBreakpoint';
 	private static BREAKPOINT_TEMPLATE_ID = 'breakpoint';
 
 	constructor(
@@ -768,6 +774,9 @@ export class BreakpointsRenderer implements tree.IRenderer {
 	public getTemplateId(tree: tree.ITree, element: any): string {
 		if (element instanceof model.Breakpoint) {
 			return BreakpointsRenderer.BREAKPOINT_TEMPLATE_ID;
+		}
+		if (element instanceof model.FunctionBreakpoint) {
+			return BreakpointsRenderer.FUNCTION_BREAKPOINT_TEMPLATE_ID;
 		}
 		if (element instanceof model.ExceptionBreakpoint) {
 			return BreakpointsRenderer.EXCEPTION_BREAKPOINT_TEMPLATE_ID;
@@ -802,41 +811,44 @@ export class BreakpointsRenderer implements tree.IRenderer {
 	}
 
 	public renderElement(tree: tree.ITree, element: any, templateId: string, templateData: any): void {
+		templateData.toDisposeBeforeRender = lifecycle.disposeAll(templateData.toDisposeBeforeRender);
+		templateData.toDisposeBeforeRender.push(dom.addStandardDisposableListener(templateData.checkbox, 'change', (e) => {
+			this.debugService.toggleEnablement(element);
+		}));
+
 		if (templateId === BreakpointsRenderer.EXCEPTION_BREAKPOINT_TEMPLATE_ID) {
 			this.renderExceptionBreakpoint(element, templateData);
+		} else if (templateId === BreakpointsRenderer.FUNCTION_BREAKPOINT_TEMPLATE_ID) {
+			this.renderFunctionBreakpoint(tree, element, templateData);
 		} else {
 			this.renderBreakpoint(tree, element, templateData);
 		}
 	}
 
 	private renderExceptionBreakpoint(exceptionBreakpoint: debug.IExceptionBreakpoint, data: IExceptionBreakpointTemplateData): void {
-		data.toDisposeBeforeRender = lifecycle.disposeAll(data.toDisposeBeforeRender);
 		var namePascalCase = exceptionBreakpoint.name.charAt(0).toUpperCase() + exceptionBreakpoint.name.slice(1);
 		data.name.textContent = `${ namePascalCase} exceptions`;
 		data.checkbox.checked = exceptionBreakpoint.enabled;
+	}
 
-		data.toDisposeBeforeRender.push(dom.addStandardDisposableListener(data.checkbox, 'change', (e) => {
-			this.debugService.toggleEnablement(exceptionBreakpoint);
-		}));
+	private renderFunctionBreakpoint(tree: tree.ITree, functionBreakpoint: debug.IFunctionBreakpoint, data: IFunctionBreakpointTemplateData): void {
+		this.debugService.getModel().areBreakpointsActivated() ? tree.removeTraits('disabled', [functionBreakpoint]) : tree.addTraits('disabled', [functionBreakpoint]);
+		data.name.textContent = functionBreakpoint.functionName;
+		data.checkbox.checked = functionBreakpoint.enabled;
 	}
 
 	private renderBreakpoint(tree: tree.ITree, breakpoint: debug.IBreakpoint, data: IBreakpointTemplateData): void {
 		this.debugService.getModel().areBreakpointsActivated() ? tree.removeTraits('disabled', [breakpoint]) : tree.addTraits('disabled', [breakpoint]);
 
-		data.toDisposeBeforeRender = lifecycle.disposeAll(data.toDisposeBeforeRender);
 		data.name.textContent = labels.getPathLabel(paths.basename(breakpoint.source.uri.fsPath), this.contextService);
 		data.lineNumber.textContent = breakpoint.desiredLineNumber !== breakpoint.lineNumber ? breakpoint.desiredLineNumber + ' \u2192 ' + breakpoint.lineNumber : '' + breakpoint.lineNumber;
 		data.filePath.textContent = labels.getPathLabel(paths.dirname(breakpoint.source.uri.fsPath), this.contextService);
 		data.checkbox.checked = breakpoint.enabled;
 		data.actionBar.context = breakpoint;
-
-		data.toDisposeBeforeRender.push(dom.addStandardDisposableListener(data.checkbox, 'change', (e) => {
-			this.debugService.toggleEnablement(breakpoint);
-		}));
 	}
 
 	public disposeTemplate(tree: tree.ITree, templateId: string, templateData: any): void {
-		if (templateId === BreakpointsRenderer.BREAKPOINT_TEMPLATE_ID) {
+		if (templateId === BreakpointsRenderer.BREAKPOINT_TEMPLATE_ID || templateId === BreakpointsRenderer.FUNCTION_BREAKPOINT_TEMPLATE_ID) {
 			templateData.actionBar.dispose();
 		}
 	}
@@ -872,10 +884,15 @@ export class BreakpointsController extends BaseDebugController {
 	}
 
 	protected onDelete(tree: tree.ITree, event: keyboard.StandardKeyboardEvent): boolean {
-		var element = tree.getFocus();
+		const element = tree.getFocus();
 		if (element instanceof model.Breakpoint) {
-			var bp = <model.Breakpoint> element;
-			this.debugService.toggleBreakpoint(bp.source.uri, bp.lineNumber);
+			const bp = <model.Breakpoint> element;
+			this.debugService.toggleBreakpoint(bp.source.uri, bp.lineNumber).done(null, errors.onUnexpectedError);
+
+			return true;
+		} else if (element instanceof model.FunctionBreakpoint) {
+			const fbp = <model.FunctionBreakpoint> element;
+			this.debugService.removeFunctionBreakpoint(fbp.getId()).done(null, errors.onUnexpectedError);
 
 			return true;
 		}
