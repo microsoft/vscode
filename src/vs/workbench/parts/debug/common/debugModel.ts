@@ -424,6 +424,11 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 		this.emit(debug.ModelEvents.BREAKPOINTS_UPDATED);
 	}
 
+	public addFunctionBreakpoint(functionName: string): void {
+		this.functionBreakpoints.push(new FunctionBreakpoint(functionName, true));
+		this.emit(debug.ModelEvents.BREAKPOINTS_UPDATED);
+	}
+
 	public getReplElements(): debug.ITreeElement[] {
 		return this.replElements;
 	}

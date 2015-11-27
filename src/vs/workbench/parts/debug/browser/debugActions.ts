@@ -379,6 +379,20 @@ export class ReapplyBreakpointsAction extends AbstractDebugAction {
 	}
 }
 
+export class AddFunctionBreakpointAction extends AbstractDebugAction {
+	static ID = 'workbench.debug.viewlet.action.addFunctionBreakpointAction';
+	static LABEL = nls.localize('addFunctionBreakpoint', "Add Function Breakpoint");
+
+	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
+		super(id, label, 'debug-action add-function-breakpoint', debugService, keybindingService);
+	}
+
+	public run(): Promise {
+		this.debugService.addFunctionBreakpoint();
+		return Promise.as(null);
+	}
+}
+
 export class ToggleBreakpointAction extends EditorAction {
 	static ID = 'editor.debug.action.toggleBreakpoint';
 

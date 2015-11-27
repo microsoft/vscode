@@ -13,7 +13,7 @@ suite('Debug - Model', () => {
 	var model: debugmodel.Model;
 
 	setup(() => {
-		model = new debugmodel.Model([], true, [], []);
+		model = new debugmodel.Model([], true, [], [], []);
 	});
 
 	teardown(() => {

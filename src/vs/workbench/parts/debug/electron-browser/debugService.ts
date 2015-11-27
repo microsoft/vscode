@@ -48,6 +48,7 @@ import { ILogEntry, PLUGIN_LOG_BROADCAST_CHANNEL } from 'vs/workbench/services/t
 
 var DEBUG_BREAKPOINTS_KEY = 'debug.breakpoint';
 var DEBUG_BREAKPOINTS_ACTIVATED_KEY = 'debug.breakpointactivated';
+var DEBUG_FUNCTION_BREAKPOINTS_KEY = 'debug.functionbreakpoint';
 var DEBUG_EXCEPTION_BREAKPOINTS_KEY = 'debug.exceptionbreakpoint';
 var DEBUG_WATCH_EXPRESSIONS_KEY = 'debug.watchexpressions';
 var DEBUG_SELECTED_CONFIG_NAME_KEY = 'debug.selectedconfigname';
@@ -99,7 +100,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		this.configurationManager = this.instantiationService.createInstance(ConfigurationManager, this.storageService.get(DEBUG_SELECTED_CONFIG_NAME_KEY, StorageScope.WORKSPACE, 'null'));
 		this.inDebugMode = keybindingService.createKey(debug.CONTEXT_IN_DEBUG_MODE, false);
 
-		this.model = new model.Model(this.loadBreakpoints(), this.storageService.getBoolean(DEBUG_BREAKPOINTS_ACTIVATED_KEY, StorageScope.WORKSPACE, true),
+		this.model = new model.Model(this.loadBreakpoints(), this.storageService.getBoolean(DEBUG_BREAKPOINTS_ACTIVATED_KEY, StorageScope.WORKSPACE, true), this.loadFunctionBreakpoints(),
 			this.loadExceptionBreakpoints(), this.loadWatchExpressions());
 		this.viewModel = new viewmodel.ViewModel();
 
@@ -313,6 +314,16 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		}
 	}
 
+	private loadFunctionBreakpoints(): debug.IFunctionBreakpoint[] {
+		try {
+			return JSON.parse(this.storageService.get(DEBUG_FUNCTION_BREAKPOINTS_KEY, StorageScope.WORKSPACE, '[]')).map((fb: any) => {
+				return new model.FunctionBreakpoint(fb.functionName, fb.enabled);
+			});
+		} catch (e) {
+			return [];
+		}
+	}
+
 	private loadExceptionBreakpoints(): debug.IExceptionBreakpoint[] {
 		var result: debug.IExceptionBreakpoint[] = null;
 		try {
@@ -393,6 +404,10 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 	public toggleBreakpointsActivated(): Promise {
 		this.model.toggleBreakpointsActivated();
 		return this.sendAllBreakpoints();
+	}
+
+	public addFunctionBreakpoint(functionName?: string): void {
+		this.model.addFunctionBreakpoint(functionName);
 	}
 
 	public addReplExpression(name: string): Promise {
