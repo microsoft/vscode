@@ -8,7 +8,7 @@ import {EditorModel} from 'vs/workbench/common/editor';
 import URI from 'vs/base/common/uri';
 
 /**
- * An editor model that just represents a URL and mime for a resource that can be loaded.
+ * An editor model that just represents a resource and mime for a resource that can be loaded.
  */
 export class BinaryEditorModel extends EditorModel {
 	private name: string;
