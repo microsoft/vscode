@@ -11,9 +11,7 @@ import {EventType} from 'vs/base/common/events';
 import {EditorModel, IFileEditorInput, EditorInput, IInputStatus, BaseDiffEditorInput} from 'vs/workbench/common/editor';
 import {BaseTextEditorModel} from 'vs/workbench/browser/parts/editor/textEditorModel';
 import {DiffEditorModel} from 'vs/workbench/browser/parts/editor/diffEditorModel';
-import {TextDiffEditor} from 'vs/workbench/browser/parts/editor/textDiffEditor';
 import {TextDiffEditorModel} from 'vs/workbench/browser/parts/editor/textDiffEditorModel';
-import {BinaryResourceDiffEditor} from 'vs/workbench/browser/parts/editor/binaryDiffEditor';
 
 /**
  * The base editor input for the diff editor. It is made up of two editor inputs, the original version
@@ -27,12 +25,14 @@ export class DiffEditorInput extends BaseDiffEditorInput {
 	private name: string;
 	private description: string;
 	private cachedModel: DiffEditorModel;
+	private forceOpenAsBinary: boolean;
 
-	constructor(name: string, description: string, originalInput: EditorInput, modifiedInput: EditorInput) {
+	constructor(name: string, description: string, originalInput: EditorInput, modifiedInput: EditorInput, forceOpenAsBinary?: boolean) {
 		super(originalInput, modifiedInput);
 
 		this.name = name;
 		this.description = description;
+		this.forceOpenAsBinary = forceOpenAsBinary;
 
 		this._toUnbind = [];
 
@@ -129,9 +129,9 @@ export class DiffEditorInput extends BaseDiffEditorInput {
 	public getPreferredEditorId(candidates: string[]): string {
 
 		// Find the right diff editor for the given isBinary/isText state
-		let useBinaryEditor = this.isBinary(this.originalInput) || this.isBinary(this.modifiedInput);
+		let useBinaryEditor = this.forceOpenAsBinary || this.isBinary(this.originalInput) || this.isBinary(this.modifiedInput);
 
-		return !useBinaryEditor ? TextDiffEditor.ID : BinaryResourceDiffEditor.ID;
+		return !useBinaryEditor ? 'workbench.editors.textDiffEditor' : 'workbench.editors.binaryResourceDiffEditor';
 	}
 
 	private isBinary(input: EditorInput): boolean {

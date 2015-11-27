@@ -17,6 +17,7 @@ import assert = require('vs/base/common/assert');
 import {EditorModel, IInputStatus, EncodingMode} from 'vs/workbench/common/editor';
 import {IEditorRegistry, Extensions, EditorDescriptor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {BinaryEditorModel} from 'vs/workbench/browser/parts/editor/binaryEditorModel';
+import {IFileOperationResult, FileOperationResult} from 'vs/platform/files/common/files';
 import {FileEditorDescriptor} from 'vs/workbench/parts/files/browser/files';
 import {BINARY_FILE_EDITOR_ID, FILE_EDITOR_INPUT_ID, FileEditorInput as CommonFileEditorInput} from 'vs/workbench/parts/files/common/files';
 import {CACHE, TextFileEditorModel, State} from 'vs/workbench/parts/files/browser/editors/textFileEditorModel';
@@ -238,7 +239,7 @@ export class FileEditorInput extends CommonFileEditorInput {
 
 		// Otherwise Create Model and Load
 		else {
-			modelPromise = this.createModel().load();
+			modelPromise = this.createAndLoadModel();
 			FileEditorInput.FILE_EDITOR_MODEL_LOADERS[this.resource.toString()] = modelPromise;
 		}
 
@@ -269,24 +270,27 @@ export class FileEditorInput extends CommonFileEditorInput {
 		return -1;
 	}
 
-	private createModel(): EditorModel {
+	private createAndLoadModel(): TPromise<EditorModel> {
 		let descriptor = (<IEditorRegistry>Registry.as(Extensions.Editors)).getEditor(this);
 		if (!descriptor) {
 			throw new Error('Unable to find an editor in the registry for this input.');
 		}
 
-		// Binary model if editor is binary editor
-		let model: EditorModel;
-		if (descriptor.getId() === BINARY_FILE_EDITOR_ID) {
-			model = new BinaryEditorModel(this.resource, this.getName());
-		}
+		// Optimistically create a text model assuming that the file is not binary
+		let textModel = this.instantiationService.createInstance(TextFileEditorModel, this.resource, this.preferredEncoding);
+		return textModel.load().then(() => textModel, (error) => {
 
-		// Otherwise use text model
-		else {
-			model = this.instantiationService.createInstance(TextFileEditorModel, this.resource, this.preferredEncoding);
-		}
+			// In case of an error that indicates that the file is binary, just return with the binary editor model
+			if ((<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_IS_BINARY) {
+				textModel.dispose();
 
-		return model;
+				let binaryModel = new BinaryEditorModel(this.resource, this.getName());
+				return binaryModel.load();
+			}
+
+			// Bubble any other error up
+			return Promise.wrapError(error);
+		});
 	}
 
 	public dispose(force?: boolean): void {
