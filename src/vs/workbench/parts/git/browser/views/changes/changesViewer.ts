@@ -337,7 +337,7 @@ export class Renderer implements tree.IRenderer {
 		data.status.title = Renderer.statusToTitle(status);
 
 		const resource = URI.file(paths.normalize(paths.join(repositoryRoot, path)));
-		let isInWorkspace = paths.isEqualOrParent(resource.fsPath, workspaceRoot)
+		let isInWorkspace = paths.isEqualOrParent(resource.fsPath, workspaceRoot);
 
 		let rename = '';
 		let renameFolder = '';
