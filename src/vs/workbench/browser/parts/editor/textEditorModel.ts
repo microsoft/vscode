@@ -41,7 +41,7 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 	/**
 	 * Creates the text editor model with the provided value, mime (can be comma separated for multiple values) and optional resource URL.
 	 */
-	protected createTextEditorModel(value: string, mime?: string, resource?: URI): TPromise<EditorModel> {
+	protected createTextEditorModel(value: string, resource?: URI, mime?: string): TPromise<EditorModel> {
 		let firstLineText = this.getFirstLineText(value);
 
 		// To avoid flickering, give the mode at most 50ms to load. If the mode doesn't load in 50ms, proceed creating the model with a mode promise

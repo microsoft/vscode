@@ -100,10 +100,6 @@ export class StringEditorModel extends BaseTextEditorModel {
 		return null;
 	}
 
-	public setMime(mime: string): void {
-		this.mime = mime;
-	}
-
 	public getMime(): string {
 		return this.mime;
 	}
@@ -112,12 +108,12 @@ export class StringEditorModel extends BaseTextEditorModel {
 
 		// Create text editor model if not yet done
 		if (!this.textEditorModel) {
-			return this.createTextEditorModel(this.value, this.mime, this.resource);
+			return this.createTextEditorModel(this.value, this.resource, this.mime);
 		}
 
 		// Otherwise update
 		else {
-			this.updateTextEditorModel(this.value, this.mime);
+			this.updateTextEditorModel(this.value);
 		}
 
 		return TPromise.as<EditorModel>(this);
