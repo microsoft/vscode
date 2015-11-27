@@ -6,11 +6,12 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
-import {onUnexpectedError} from 'vs/base/common/errors';
+import {onUnexpectedError, illegalArgument} from 'vs/base/common/errors';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
 import {IRange} from 'vs/editor/common/editorCommon';
 import URI from 'vs/base/common/uri';
+import {registerCommand} from 'vs/platform/keybinding/common/commandsUtils';
 
 /**
  * Interface used to navigate to types by value.
@@ -73,3 +74,11 @@ export function getNavigateToItems(query: string): TPromise<ITypeBearing[]> {
 		return result;
 	});
 }
+
+registerCommand('_executeWorkspaceSymbolProvider', function(accessor, args: { query: string;}) {
+	let {query} = args;
+	if (typeof query !== 'string') {
+		throw illegalArgument();
+	}
+	return getNavigateToItems(query);
+});

@@ -85,6 +85,7 @@ suite('ExtHostLanguageFeatures', function() {
 
 	suiteTeardown(() => {
 		setUnexpectedErrorHandler(originalErrorHandler);
+		model.dispose();
 	});
 
 	teardown(function(done) {

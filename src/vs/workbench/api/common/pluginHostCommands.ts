@@ -78,13 +78,13 @@ export class PluginHostCommands {
 			return this._executeContributedCommand(id, ...args);
 
 		} else {
-			// check that we can get all parameters over to
-			// the other side
-			for (let i = 0; i < args.length; i++) {
-				if (typeof args[i] === 'object' && !canSerialize(args[i])) {
-					throw new Error('illegal argument - can not serialize argument number: ' + i)
-				}
-			}
+			// // check that we can get all parameters over to
+			// // the other side
+			// for (let i = 0; i < args.length; i++) {
+			// 	if (args[i] !== null && typeof args[i] === 'object' && !canSerialize(args[i])) {
+			// 		throw new Error('illegal argument - can not serialize argument number: ' + i)
+			// 	}
+			// }
 
 			return this._proxy._executeCommand(id, args);
 		}

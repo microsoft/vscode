@@ -29,7 +29,7 @@ var currentDynamicContrib:IMarshallingContribution = null;
 
 export function canSerialize(obj: any): boolean {
 	for (let contrib of marshallingContributions) {
-		if (contrib.canDeserialize(obj)) {
+		if (contrib.canSerialize(obj)) {
 			return true;
 		}
 	}

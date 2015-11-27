@@ -6,10 +6,12 @@
 
 import Severity from 'vs/base/common/severity';
 import * as objects from 'vs/base/common/objects';
+import * as modes from 'vs/editor/common/modes';
+import * as types from './pluginHostTypes';
 import {Position as EditorPosition} from 'vs/platform/editor/common/editor';
-import {Selection, Range, Position, SymbolKind, DiagnosticSeverity, ViewColumn} from './pluginHostTypes';
 import {IPosition, ISelection, IRange, IRangeWithMessage, ISingleEditOperation} from 'vs/editor/common/editorCommon';
 import {IHTMLContentElement} from 'vs/base/common/htmlContent';
+import {ITypeBearing} from 'vs/workbench/parts/search/common/search'
 
 export interface PositionLike {
 	line: number;
@@ -26,11 +28,11 @@ export interface SelectionLike extends RangeLike {
 	active: PositionLike;
 }
 
-export function toSelection(selection: ISelection): Selection {
+export function toSelection(selection: ISelection): types.Selection {
 	let {selectionStartLineNumber, selectionStartColumn, positionLineNumber, positionColumn} = selection;
-	let start = new Position(selectionStartLineNumber - 1, selectionStartColumn - 1);
-	let end = new Position(positionLineNumber - 1, positionColumn - 1);
-	return new Selection(start, end);
+	let start = new types.Position(selectionStartLineNumber - 1, selectionStartColumn - 1);
+	let end = new types.Position(positionLineNumber - 1, positionColumn - 1);
+	return new types.Selection(start, end);
 }
 
 export function fromSelection(selection: SelectionLike): ISelection {
@@ -53,46 +55,50 @@ export function fromRange(range: RangeLike): IRange {
 	};
 }
 
-export function toRange(range: IRange): Range {
+export function toRange(range: IRange): types.Range {
 	let {startLineNumber, startColumn, endLineNumber, endColumn} = range;
-	return new Range(startLineNumber - 1, startColumn - 1, endLineNumber - 1, endColumn - 1);
+	return new types.Range(startLineNumber - 1, startColumn - 1, endLineNumber - 1, endColumn - 1);
 }
 
-export function toPosition(position: IPosition): Position {
-	return new Position(position.lineNumber - 1, position.column - 1);
+export function toPosition(position: IPosition): types.Position {
+	return new types.Position(position.lineNumber - 1, position.column - 1);
 }
 
-export function fromSymbolKind(kind: number | SymbolKind): string {
+export function fromPosition(position: types.Position):IPosition {
+	return { lineNumber: position.line + 1, column: position.character + 1};
+}
+
+export function fromSymbolKind(kind: number | types.SymbolKind): string {
 	switch (kind) {
-		case SymbolKind.Method:
+		case types.SymbolKind.Method:
 			return 'method';
-		case SymbolKind.Function:
+		case types.SymbolKind.Function:
 			return 'function';
-		case SymbolKind.Constructor:
+		case types.SymbolKind.Constructor:
 			return 'constructor';
-		case SymbolKind.Variable:
+		case types.SymbolKind.Variable:
 			return 'variable';
-		case SymbolKind.Class:
+		case types.SymbolKind.Class:
 			return 'class';
-		case SymbolKind.Interface:
+		case types.SymbolKind.Interface:
 			return 'interface';
-		case SymbolKind.Module:
-		case SymbolKind.Namespace:
-		case SymbolKind.Package:
+		case types.SymbolKind.Module:
+		case types.SymbolKind.Namespace:
+		case types.SymbolKind.Package:
 			return 'module';
-		case SymbolKind.Property:
+		case types.SymbolKind.Property:
 			return 'property';
-		case SymbolKind.Enum:
+		case types.SymbolKind.Enum:
 			return 'enum';
-		case SymbolKind.String:
+		case types.SymbolKind.String:
 			return 'string';
-		case SymbolKind.File:
+		case types.SymbolKind.File:
 			return 'file';
-		case SymbolKind.Array:
+		case types.SymbolKind.Array:
 			return 'array';
-		case SymbolKind.Number:
+		case types.SymbolKind.Number:
 			return 'number';
-		case SymbolKind.Boolean:
+		case types.SymbolKind.Boolean:
 			return 'boolean';
 	}
 
@@ -101,39 +107,39 @@ export function fromSymbolKind(kind: number | SymbolKind): string {
 
 export function fromDiagnosticSeverity(value: number): Severity {
 	switch (value) {
-		case DiagnosticSeverity.Error:
+		case types.DiagnosticSeverity.Error:
 			return Severity.Error;
-		case DiagnosticSeverity.Warning:
+		case types.DiagnosticSeverity.Warning:
 			return Severity.Warning;
-		case DiagnosticSeverity.Information:
+		case types.DiagnosticSeverity.Information:
 			return Severity.Info;
-		case DiagnosticSeverity.Hint:
+		case types.DiagnosticSeverity.Hint:
 			return Severity.Ignore;
 	}
 	return Severity.Error;
 }
 
-export function toDiagnosticSeverty(value: Severity): DiagnosticSeverity {
+export function toDiagnosticSeverty(value: Severity): types.DiagnosticSeverity {
 	switch (value) {
 		case Severity.Info:
-			return DiagnosticSeverity.Information;
+			return types.DiagnosticSeverity.Information;
 		case Severity.Warning:
-			return DiagnosticSeverity.Warning;
+			return types.DiagnosticSeverity.Warning;
 		case Severity.Error:
-			return DiagnosticSeverity.Error;
+			return types.DiagnosticSeverity.Error;
 		case Severity.Ignore:
-			return DiagnosticSeverity.Hint;
+			return types.DiagnosticSeverity.Hint;
 	}
-	return DiagnosticSeverity.Error;
+	return types.DiagnosticSeverity.Error;
 }
 
 export function fromViewColumn(column?: vscode.ViewColumn): EditorPosition {
 	let editorColumn = EditorPosition.LEFT;
 	if (typeof column !== 'number') {
 		// stick with LEFT
-	} else if (column === <number>ViewColumn.Two) {
+	} else if (column === <number>types.ViewColumn.Two) {
 		editorColumn = EditorPosition.CENTER;
-	} else if (column === <number>ViewColumn.Three) {
+	} else if (column === <number>types.ViewColumn.Three) {
 		editorColumn = EditorPosition.RIGHT;
 	}
 	return editorColumn;
@@ -146,6 +152,14 @@ export function fromFormattedString(value: vscode.MarkedString): IHTMLContentEle
 	} else if (typeof value === 'object') {
 		return { code: value };
 	}
+}
+
+export function toFormattedString(value: IHTMLContentElement): vscode.MarkedString {
+	if (typeof value.code === 'string') {
+		return value.code;
+	}
+	let {formattedText, text} = value;
+	return formattedText || text || '<???>';
 }
 
 function isMarkedStringArr(something: vscode.MarkedString | vscode.MarkedString[]): something is vscode.MarkedString[] {
@@ -195,4 +209,40 @@ export function fromTextEdit(edit: vscode.TextEdit) {
 		text: edit.newText,
 		range: fromRange(edit.range)
 	}
+}
+
+export function fromSymbolInformation(info: vscode.SymbolInformation): ITypeBearing {
+	return <ITypeBearing>{
+		name: info.name,
+		type: types.SymbolKind[info.kind || types.SymbolKind.Property].toLowerCase(),
+		range: fromRange(info.location.range),
+		resourceUri: info.location.uri,
+		containerName: info.containerName,
+		parameters: '',
+	};
+}
+
+export function toSymbolInformation(bearing: ITypeBearing): types.SymbolInformation {
+	return new types.SymbolInformation(bearing.name,
+		types.SymbolKind[bearing.type.charAt(0).toUpperCase() + bearing.type.substr(1)],
+		toRange(bearing.range),
+		bearing.resourceUri,
+		bearing.containerName);
+}
+
+
+export function toLocation(reference: modes.IReference): types.Location {
+	return new types.Location(reference.resource, toRange(reference.range));
+}
+
+
+export function fromHover(hover: vscode.Hover): modes.IComputeExtraInfoResult {
+	return <modes.IComputeExtraInfoResult>{
+		range: fromRange(hover.range),
+		htmlContent: hover.contents.map(fromFormattedString)
+	}
+}
+
+export function toHover(info: modes.IComputeExtraInfoResult): types.Hover {
+	return new types.Hover(info.htmlContent.map(toFormattedString), toRange(info.range));
 }

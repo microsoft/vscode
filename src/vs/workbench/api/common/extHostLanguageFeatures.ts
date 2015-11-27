@@ -215,20 +215,14 @@ class ExtraInfoAdapter implements modes.IExtraInfoSupport {
 			if (!value) {
 				return;
 			}
-
-			let {range, contents} = value;
-
-			if (!range) {
-				range = doc.getWordRangeAtPosition(pos);
+			if (!value.range) {
+				value.range = doc.getWordRangeAtPosition(pos);
 			}
-			if (!range) {
-				range = new Range(pos, pos);
+			if (!value.range) {
+				value.range = new Range(pos, pos);
 			}
 
-			return <modes.IComputeExtraInfoResult>{
-				range: TypeConverters.fromRange(range),
-				htmlContent: contents && contents.map(TypeConverters.fromFormattedString)
-			}
+			return TypeConverters.fromHover(value);
 		});
 	}
 }
@@ -438,20 +432,9 @@ class NavigateTypeAdapter implements INavigateTypesSupport {
 	getNavigateToItems(search: string): TPromise<ITypeBearing[]> {
 		return asWinJsPromise(token => this._provider.provideWorkspaceSymbols(search, token)).then(value => {
 			if (Array.isArray(value)) {
-				return value.map(NavigateTypeAdapter._fromSymbolInformation);
+				return value.map(TypeConverters.fromSymbolInformation);
 			}
 		});
-	}
-
-	private static _fromSymbolInformation(info: vscode.SymbolInformation): ITypeBearing {
-		return <ITypeBearing>{
-			name: info.name,
-			type: SymbolKind[info.kind || SymbolKind.Property].toLowerCase(),
-			range: TypeConverters.fromRange(info.location.range),
-			resourceUri: info.location.uri,
-			containerName: info.containerName,
-			parameters: '',
-		};
 	}
 }
 
