@@ -66,6 +66,49 @@ export function renderVariable(tree: tree.ITree, variable: model.Variable, data:
 	}
 }
 
+function renderRenameBox(debugService: debug.IDebugService, contextViewService: IContextViewService, tree: tree.ITree, expression: debug.IExpression, container: HTMLElement): void {
+	let inputBoxContainer = dom.append(container, $('.inputBoxContainer'));
+	let inputBox = new inputbox.InputBox(inputBoxContainer, contextViewService, {
+		validationOptions: {
+			validation: null,
+			showMessage: false
+		}
+	});
+
+	inputBox.value = expression.name ? expression.name : '';
+	inputBox.focus();
+
+	var disposed = false;
+	var toDispose: [lifecycle.IDisposable] = [inputBox];
+
+	var wrapUp = async.once<any, void>((renamed: boolean) => {
+		if (!disposed) {
+			disposed = true;
+			if (renamed && inputBox.value) {
+				debugService.renameWatchExpression(expression.getId(), inputBox.value);
+			} else if (!expression.name) {
+				debugService.clearWatchExpressions(expression.getId());
+			}
+			tree.clearHighlight();
+			tree.DOMFocus();
+			// Need to remove the input box since this template will be reused.
+			container.removeChild(inputBoxContainer);
+			lifecycle.disposeAll(toDispose);
+		}
+	});
+
+	toDispose.push(dom.addStandardDisposableListener(inputBox.inputElement, 'keydown', (e: dom.IKeyboardEvent) => {
+		let isEscape = e.equals(CommonKeybindings.ESCAPE);
+		let isEnter = e.equals(CommonKeybindings.ENTER);
+		if (isEscape || isEnter) {
+			wrapUp(isEnter);
+		}
+	}));
+	toDispose.push(dom.addDisposableListener(inputBox.inputElement, 'blur', () => {
+		wrapUp(true);
+	}));
+}
+
 export class SimpleActionProvider implements renderer.IActionProvider {
 
 	constructor() {
@@ -544,7 +587,7 @@ export class WatchExpressionsRenderer implements tree.IRenderer {
 	private renderWatchExpression(tree: tree.ITree, watchExpression: debug.IExpression, data: IWatchExpressionTemplateData): void {
 		let selectedExpression = this.debugService.getViewModel().getSelectedExpression();
 		if ((selectedExpression instanceof model.Expression && selectedExpression.getId() === watchExpression.getId()) || (watchExpression instanceof model.Expression && !watchExpression.name)) {
-			this.renderRenameBox(tree, watchExpression, data);
+			renderRenameBox(this.debugService, this.contextViewService, tree, watchExpression, data.expression);
 		}
 		data.actionBar.context = watchExpression;
 
@@ -556,49 +599,6 @@ export class WatchExpressionsRenderer implements tree.IRenderer {
 		if (expression.value) {
 			renderExpressionValue(tree, expression, this.debugService.getState() === debug.State.Inactive, data.value);
 		}
-	}
-
-	private renderRenameBox(tree: tree.ITree, expression: debug.IExpression, data: IWatchExpressionTemplateData): void {
-		let inputBoxContainer = dom.append(data.expression, $('.inputBoxContainer'));
-		let inputBox = new inputbox.InputBox(inputBoxContainer, this.contextViewService, {
-			validationOptions: {
-				validation: null,
-				showMessage: false
-			}
-		});
-
-		inputBox.value = expression.name ? expression.name : '';
-		inputBox.focus();
-
-		var disposed = false;
-		var toDispose: [lifecycle.IDisposable] = [inputBox];
-
-		var wrapUp = async.once<any, void>((renamed: boolean) => {
-			if (!disposed) {
-				disposed = true;
-				if (renamed && inputBox.value) {
-					this.debugService.renameWatchExpression(expression.getId(), inputBox.value);
-				} else if (!expression.name) {
-					this.debugService.clearWatchExpressions(expression.getId());
-				}
-				tree.clearHighlight();
-				tree.DOMFocus();
-				// Need to remove the input box since this template will be reused.
-				data.expression.removeChild(inputBoxContainer);
-				lifecycle.disposeAll(toDispose);
-			}
-		});
-
-		toDispose.push(dom.addStandardDisposableListener(inputBox.inputElement, 'keydown', (e: dom.IKeyboardEvent) => {
-			let isEscape = e.equals(CommonKeybindings.ESCAPE);
-			let isEnter = e.equals(CommonKeybindings.ENTER);
-			if (isEscape || isEnter) {
-				wrapUp(isEnter);
-			}
-		}));
-		toDispose.push(dom.addDisposableListener(inputBox.inputElement, 'blur', () => {
-			wrapUp(true);
-		}));
 	}
 
 	public disposeTemplate(tree: tree.ITree, templateId: string, templateData: any): void {
