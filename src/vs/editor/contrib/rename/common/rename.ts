@@ -10,8 +10,9 @@ import {IModel, IPosition} from 'vs/editor/common/editorCommon';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {localize} from 'vs/nls';
 import {sequence} from 'vs/base/common/async';
-import {onUnexpectedError} from 'vs/base/common/errors';
+import {onUnexpectedError, illegalArgument} from 'vs/base/common/errors';
 import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
+import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 
 export const RenameRegistry = new LanguageFeatureRegistry<IRenameSupport>('renameSupport');
 
@@ -58,3 +59,11 @@ export function rename(model: IModel, position: IPosition, newName: string): TPr
 		}
 	});
 }
+
+CommonEditorRegistry.registerDefaultLanguageCommand('_executeDocumentRenameProvider', function(model, position, args) {
+	let {newName} = args;
+	if (typeof newName !== 'string') {
+		throw illegalArgument('newName');
+	}
+	return rename(model, position, newName);
+});

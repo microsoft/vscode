@@ -103,7 +103,7 @@ export module CommonEditorRegistry {
 		});
 	}
 
-	export function registerDefaultLanguageCommand(id: string, handler: (model: EditorCommon.IModel, position: EditorCommon.IPosition) => any) {
+	export function registerDefaultLanguageCommand(id: string, handler: (model: EditorCommon.IModel, position: EditorCommon.IPosition, args: { [n: string]: any }) => any) {
 		registerLanguageCommand(id, function(accessor, args) {
 
 			const {resource, position} = args;
@@ -116,7 +116,7 @@ export module CommonEditorRegistry {
 				throw illegalArgument();
 			}
 
-			return handler(model, position);
+			return handler(model, position, args);
 		});
 	}
 }

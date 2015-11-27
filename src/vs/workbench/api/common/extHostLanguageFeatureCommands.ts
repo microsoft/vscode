@@ -43,15 +43,15 @@ import {SuggestRegistry} from 'vs/editor/contrib/suggest/common/suggest';
 // vscode.executeHoverProvider
 // vscode.executeDocumentHighlights
 // vscode.executeReferenceProvider
+// vscode.executeDocumentRenameProvider
+// vscode.executeSignatureHelpProvider
 
 // vscode.executeCodeActionProvider
 // vscode.executeCodeLensProvider
 // vscode.executeDocumentSymbolProvider
-// vscode.executeDocumentRenameProvider
 // vscode.executeFormatDocumentProvider
 // vscode.executeFormatRangeProvider
 // vscode.executeFormatOnTypeProvider
-// vscode.executeSignatureHelpProvider
 // vscode.executeCompletionItemProvider
 
 export class ExtHostLanguageFeatureCommands {
@@ -67,6 +67,8 @@ export class ExtHostLanguageFeatureCommands {
 		this._register('vscode.executeHoverProvider', this._executeHoverProvider);
 		this._register('vscode.executeDocumentHighlights', this._executeDocumentHighlights);
 		this._register('vscode.executeReferenceProvider', this._executeReferenceProvider);
+		this._register('vscode.executeDocumentRenameProvider', this._executeDocumentRenameProvider);
+		this._register('vscode.executeSignatureHelpProvider', this._executeSignatureHelpProvider);
 	}
 
 	private _register(id: string, callback: (...args: any[]) => any): void {
@@ -127,6 +129,40 @@ export class ExtHostLanguageFeatureCommands {
 		return this._commands.executeCommand<modes.IReference[]>('_executeDocumentHighlights', args).then(value => {
 			if (Array.isArray(value)) {
 				return value.map(typeConverters.toLocation)
+			}
+		});
+	}
+
+	private _executeDocumentRenameProvider(resource: URI, position: types.Position, newName: string): Thenable<types.WorkspaceEdit> {
+		const args = {
+			resource,
+			position: position && typeConverters.fromPosition(position),
+			newName
+		};
+		return this._commands.executeCommand<modes.IRenameResult>('_executeDocumentRenameProvider', args).then(value => {
+			if (!value) {
+				return;
+			}
+			if (value.rejectReason) {
+				return TPromise.wrapError(value.rejectReason);
+			}
+			let workspaceEdit = new types.WorkspaceEdit();
+			for (let edit of value.edits) {
+				workspaceEdit.replace(edit.resource, typeConverters.toRange(edit.range), edit.newText);
+			}
+			return workspaceEdit;
+		});
+	}
+
+	private _executeSignatureHelpProvider(resource: URI, position: types.Position, triggerCharacter: string): Thenable<types.SignatureHelp> {
+		const args = {
+			resource,
+			position: position && typeConverters.fromPosition(position),
+			triggerCharacter
+		};
+		return this._commands.executeCommand<modes.IParameterHints>('_executeSignatureHelpProvider', args).then(value => {
+			if (value) {
+				return typeConverters.SignatureHelp.to(value);
 			}
 		});
 	}

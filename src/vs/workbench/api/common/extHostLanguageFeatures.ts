@@ -617,49 +617,9 @@ class ParameterHintsAdapter implements modes.IParameterHintsSupport {
 
 		return asWinJsPromise(token => this._provider.provideSignatureHelp(doc, pos, token)).then(value => {
 			if (value instanceof SignatureHelp) {
-				return ParameterHintsAdapter._convertSignatureHelp(value);
+				return TypeConverters.SignatureHelp.from(value);
 			}
 		});
-	}
-
-	private static _convertSignatureHelp(signatureHelp: SignatureHelp): modes.IParameterHints {
-
-		let result: modes.IParameterHints = {
-			currentSignature: signatureHelp.activeSignature,
-			currentParameter: signatureHelp.activeParameter,
-			signatures: []
-		}
-
-		for (let signature of signatureHelp.signatures) {
-
-			let signatureItem: modes.ISignature = {
-				label: signature.label,
-				documentation: signature.documentation,
-				parameters: []
-			};
-
-			let idx = 0;
-			for (let parameter of signature.parameters) {
-
-				let parameterItem: modes.IParameter = {
-					label: parameter.label,
-					documentation: parameter.documentation,
-				};
-
-				signatureItem.parameters.push(parameterItem);
-				idx = signature.label.indexOf(parameter.label, idx);
-
-				if (idx >= 0) {
-					parameterItem.signatureLabelOffset = idx;
-					idx += parameter.label.length;
-					parameterItem.signatureLabelEnd = idx;
-				}
-			}
-
-			result.signatures.push(signatureItem);
-		}
-
-		return result;
 	}
 
 	getParameterHintsTriggerCharacters(): string[] {
