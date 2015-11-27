@@ -48,6 +48,7 @@ import { ILogEntry, PLUGIN_LOG_BROADCAST_CHANNEL } from 'vs/workbench/services/t
 
 var DEBUG_BREAKPOINTS_KEY = 'debug.breakpoint';
 var DEBUG_BREAKPOINTS_ACTIVATED_KEY = 'debug.breakpointactivated';
+var DEBUG_FUNCTION_BREAKPOINTS_KEY = 'debug.functionbreakpoint';
 var DEBUG_EXCEPTION_BREAKPOINTS_KEY = 'debug.exceptionbreakpoint';
 var DEBUG_WATCH_EXPRESSIONS_KEY = 'debug.watchexpressions';
 var DEBUG_SELECTED_CONFIG_NAME_KEY = 'debug.selectedconfigname';
@@ -99,7 +100,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		this.configurationManager = this.instantiationService.createInstance(ConfigurationManager, this.storageService.get(DEBUG_SELECTED_CONFIG_NAME_KEY, StorageScope.WORKSPACE, 'null'));
 		this.inDebugMode = keybindingService.createKey(debug.CONTEXT_IN_DEBUG_MODE, false);
 
-		this.model = new model.Model(this.loadBreakpoints(), this.storageService.getBoolean(DEBUG_BREAKPOINTS_ACTIVATED_KEY, StorageScope.WORKSPACE, true),
+		this.model = new model.Model(this.loadBreakpoints(), this.storageService.getBoolean(DEBUG_BREAKPOINTS_ACTIVATED_KEY, StorageScope.WORKSPACE, true), this.loadFunctionBreakpoints(),
 			this.loadExceptionBreakpoints(), this.loadWatchExpressions());
 		this.viewModel = new viewmodel.ViewModel();
 
@@ -313,6 +314,16 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		}
 	}
 
+	private loadFunctionBreakpoints(): debug.IFunctionBreakpoint[] {
+		try {
+			return JSON.parse(this.storageService.get(DEBUG_FUNCTION_BREAKPOINTS_KEY, StorageScope.WORKSPACE, '[]')).map((fb: any) => {
+				return new model.FunctionBreakpoint(fb.name, fb.enabled);
+			});
+		} catch (e) {
+			return [];
+		}
+	}
+
 	private loadExceptionBreakpoints(): debug.IExceptionBreakpoint[] {
 		var result: debug.IExceptionBreakpoint[] = null;
 		try {
@@ -378,14 +389,16 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		if (element instanceof model.Breakpoint) {
 			var breakpoint = <model.Breakpoint> element;
 			return this.sendBreakpoints(breakpoint.source.uri);
+		} else if (element instanceof model.FunctionBreakpoint) {
+			// TODO@Isidor send function breakpoints and return
 		}
 
 		return this.sendExceptionBreakpoints();
 	}
 
-	public clearBreakpoints(modelUri: uri = null): Promise {
+	public removeBreakpoints(modelUri: uri = null): Promise {
 		var urisToClear = modelUri ? [modelUri] : arrays.distinct(this.model.getBreakpoints(), bp => bp.source.uri.toString()).map(bp => bp.source.uri);
-		this.model.clearBreakpoints(modelUri);
+		this.model.removeBreakpoints(modelUri);
 
 		return Promise.join(urisToClear.map(uri => this.sendBreakpoints(uri)));
 	}
@@ -393,6 +406,24 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 	public toggleBreakpointsActivated(): Promise {
 		this.model.toggleBreakpointsActivated();
 		return this.sendAllBreakpoints();
+	}
+
+	public addFunctionBreakpoint(functionName?: string): Promise {
+		this.model.addFunctionBreakpoint(functionName);
+		// TODO@Isidor send updated function breakpoints
+		return Promise.as(true);
+	}
+
+	public renameFunctionBreakpoint(id: string, newFunctionName: string): Promise {
+		this.model.renameFunctionBreakpoint(id, newFunctionName);
+		// TODO@Isidor send updated function breakpoints
+		return Promise.as(true);
+	}
+
+	public removeFunctionBreakpoints(id?: string): Promise {
+		this.model.removeFunctionBreakpoints(id);
+		// TODO@Isidor send updated function breakpoints
+		return Promise.as(true);
 	}
 
 	public addReplExpression(name: string): Promise {
@@ -731,7 +762,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 			var uri = breakpoints[i].source.uri;
 			var uriStr = uri.toString();
 			if (!clearedUris[uriStr] && fileChangesEvent.contains(uri, FileChangeType.DELETED)) {
-				this.clearBreakpoints(uri);
+				this.removeBreakpoints(uri);
 				clearedUris[uriStr] = true;
 			}
 		}
@@ -740,6 +771,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 	private store(): void {
 		this.storageService.store(DEBUG_BREAKPOINTS_KEY, JSON.stringify(this.model.getBreakpoints()), StorageScope.WORKSPACE);
 		this.storageService.store(DEBUG_BREAKPOINTS_ACTIVATED_KEY, this.model.areBreakpointsActivated() ? 'true' : 'false', StorageScope.WORKSPACE);
+		this.storageService.store(DEBUG_FUNCTION_BREAKPOINTS_KEY, JSON.stringify(this.model.getFunctionBreakpoints()), StorageScope.WORKSPACE);
 		this.storageService.store(DEBUG_EXCEPTION_BREAKPOINTS_KEY, JSON.stringify(this.model.getExceptionBreakpoints()), StorageScope.WORKSPACE);
 		this.storageService.store(DEBUG_SELECTED_CONFIG_NAME_KEY, this.configurationManager.getConfigurationName(), StorageScope.WORKSPACE);
 		this.storageService.store(DEBUG_WATCH_EXPRESSIONS_KEY, JSON.stringify(this.model.getWatchExpressions()), StorageScope.WORKSPACE);

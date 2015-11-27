@@ -266,7 +266,8 @@ export class RemoveBreakpointAction extends AbstractDebugAction {
 	}
 
 	public run(breakpoint: debug.IBreakpoint): Promise {
-		return this.debugService.toggleBreakpoint(breakpoint.source.uri, breakpoint.lineNumber);
+		return breakpoint instanceof model.Breakpoint ? this.debugService.toggleBreakpoint(breakpoint.source.uri, breakpoint.lineNumber)
+			: this.debugService.removeFunctionBreakpoints(breakpoint.getId());
 	}
 }
 
@@ -280,7 +281,7 @@ export class RemoveAllBreakpointsAction extends AbstractDebugAction {
 	}
 
 	public run(): Promise {
-		return this.debugService.clearBreakpoints();
+		return Promise.join([this.debugService.removeBreakpoints(), this.debugService.removeFunctionBreakpoints()]);
 	}
 
 	protected isEnabled(): boolean {
@@ -376,6 +377,20 @@ export class ReapplyBreakpointsAction extends AbstractDebugAction {
 
 	protected isEnabled(): boolean {
 		return super.isEnabled() && !!this.debugService.getActiveSession() && this.debugService.getModel().getBreakpoints().length > 0;
+	}
+}
+
+export class AddFunctionBreakpointAction extends AbstractDebugAction {
+	static ID = 'workbench.debug.viewlet.action.addFunctionBreakpointAction';
+	static LABEL = nls.localize('addFunctionBreakpoint', "Add Function Breakpoint");
+
+	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
+		super(id, label, 'debug-action add-function-breakpoint', debugService, keybindingService);
+	}
+
+	public run(): Promise {
+		this.debugService.addFunctionBreakpoint();
+		return Promise.as(null);
 	}
 }
 

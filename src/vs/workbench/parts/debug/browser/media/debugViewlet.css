@@ -124,6 +124,9 @@
 .debug-viewlet .monaco-inputbox {
 	width: 100%;
 	line-height: normal;
+}
+
+.debug-viewlet .debug-watch .monaco-inputbox {
 	font-family: Monaco, Menlo, Consolas, "Droid Sans Mono", "Inconsolata", "Courier New", monospace, "Droid Sans Fallback";
 }
 
@@ -135,7 +138,8 @@
 	padding: 1px 2px;
 }
 
-.debug-viewlet .debug-action.add-watch-expression {
+.debug-viewlet .debug-action.add-watch-expression,
+.debug-viewlet .debug-action.add-function-breakpoint {
 	background: url('add.svg') center center no-repeat;
 }
 
@@ -152,10 +156,6 @@
 .debug-viewlet .debug-breakpoints .breakpoint {
 	overflow: hidden;
 	text-overflow: ellipsis;
-}
-
-.debug-viewlet .debug-breakpoints .breakpoint > * {
-	vertical-align: middle;
 }
 
 .debug-viewlet .debug-breakpoints .breakpoint > .file-path {
