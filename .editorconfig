@@ -3,7 +3,7 @@
 # top-most EditorConfig file
 root = true
 
-# Tab indentation (no size specified)
+# Tab indentation
 [*]
 indent_style = tab
 indent_size = 4
