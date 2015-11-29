@@ -83,6 +83,7 @@ export interface IView extends Lifecycle.IDisposable {
 	getCodeEditorHelper(): ICodeEditorHelper;
 
 	getCenteredRangeInViewport(): EditorCommon.IEditorRange;
+	getEditablerangeInViewport() : EditorCommon.IEditorRange;
 
 	change(callback:(changeAccessor:IViewZoneChangeAccessor) => any): boolean;
 	getWhitespaces(): EditorCommon.IEditorWhitespace[];

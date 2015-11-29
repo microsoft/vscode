@@ -15,7 +15,7 @@ import Event from 'vs/base/common/event';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
-
+import EditorBrowser = require('vs/editor/browser/editorBrowser');
 export type KeyCode = KeyCode;
 export type KeyMod = KeyMod;
 
@@ -1452,6 +1452,18 @@ export interface ITokenizedModel extends ITextModel {
 	 * @param position The position at which to look for a bracket.
 	 */
 	matchBracket(position:IPosition, inaccurateResultAcceptable?:boolean): IMatchBracketResult;
+
+	/**
+	 * No mode supports allowed on this model because it is simply too large.
+	 * (even tokenization would cause too much memory pressure)
+	 */
+	isTooLargeForHavingAMode(): boolean;
+
+	/**
+	 * Only basic mode supports allowed on this model because it is simply too large.
+	 * (tokenization is allowed and other basic supports)
+	 */
+	isTooLargeForHavingARichMode(): boolean;
 }
 
 /**
@@ -2965,7 +2977,7 @@ export interface ICommonCodeEditor extends IEditor {
 	 * Type the getModel() of IEditor.
 	 */
 	getModel(): IModel;
-
+	getView(): EditorBrowser.IView;
 	/**
 	 * Returns the current editor's configuration
 	 */

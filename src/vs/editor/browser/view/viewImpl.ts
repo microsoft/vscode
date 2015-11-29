@@ -597,6 +597,11 @@ export class View extends ViewEventHandler implements EditorBrowser.IView, Lifec
 		return viewModel.convertViewRangeToModelRange(currentCenteredViewRange);
 	}
 
+	public getEditablerangeInViewport() : EditorCommon.IEditorRange {
+		var viewLineNumber = this.layoutProvider.getCenteredViewLineNumberInViewport();
+		return new Range(this.viewLines._rendLineNumberStart, 1, this.viewLines._rendLineNumberStart + this.viewLines._lines.length, this.context.model.getLineMaxColumn(viewLineNumber));
+	}
+
 //	public getLineInfoProvider():view.ILineInfoProvider {
 //		return this.viewLines;
 //	}

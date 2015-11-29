@@ -733,7 +733,7 @@ export class SearchViewlet extends Viewlet {
 					}
 				}
 			};
-			this.findInput = new FindInput(div.getHTMLElement(), this.contextViewService, options)
+			this.findInput = new FindInput(div.getHTMLElement(), this.contextViewService, null, options)
 				.on(dom.EventType.KEY_UP, onKeyUp)
 				.on(dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 					let keyboardEvent = new StandardKeyboardEvent(e);
@@ -929,7 +929,7 @@ export class SearchViewlet extends Viewlet {
 			this.viewModel.toggleHighlights(visible);
 		}
 
-		// Open focussed element from results in case the editor area is otherwise empty
+		// Open focused element from results in case the editor area is otherwise empty
 		if (visible && !this.editorService.getActiveEditorInput()) {
 			let focus = this.tree.getFocus();
 			if (focus) {

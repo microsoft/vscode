@@ -12,6 +12,7 @@ import keyboard = require('vs/base/browser/keyboardEvent');
 import InputBox = require('vs/base/browser/ui/inputbox/inputBox');
 import Checkbox = require('vs/base/browser/ui/checkbox/checkbox');
 import ContextView = require('vs/base/browser/ui/contextview/contextview');
+import EditorBrowser = require('vs/editor/browser/editorBrowser');
 
 var $ = Builder.$;
 
@@ -32,6 +33,7 @@ export class FindInput {
 	private placeholder:string;
 	private validation:InputBox.IInputValidator;
 	private label:string;
+	private editor:EditorBrowser.ICodeEditor;
 
 	private listenersToRemove:{():void;}[];
 	private regex:Checkbox.Checkbox;
@@ -42,8 +44,9 @@ export class FindInput {
 	private inputNode:HTMLInputElement;
 	private inputBox:InputBox.InputBox;
 
-	constructor(parent:HTMLElement, contextViewProvider: ContextView.IContextViewProvider, options?:IOptions) {
+	constructor(parent:HTMLElement, contextViewProvider: ContextView.IContextViewProvider, codeEditor:EditorBrowser.ICodeEditor, options?:IOptions) {
 		this.contextViewProvider = contextViewProvider;
+		this.editor = codeEditor;
 		this.onOptionChange = null;
 		this.width = options.width || 100;
 		this.placeholder = options.placeholder || '';

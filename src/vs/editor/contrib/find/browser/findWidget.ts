@@ -16,7 +16,7 @@ import InputBox = require('vs/base/browser/ui/inputbox/inputBox');
 import Findinput = require('vs/base/browser/ui/findinput/findInput');
 import EditorBrowser = require('vs/editor/browser/editorBrowser');
 import EditorCommon = require('vs/editor/common/editorCommon');
-import FindModel = require('./findModel');
+import FindModel = require('vs/editor/contrib/find/common/findModel');
 import Lifecycle = require('vs/base/common/lifecycle');
 import {CommonKeybindings} from 'vs/base/common/keyCodes';
 
@@ -302,7 +302,7 @@ export class FindWidget extends EventEmitter.EventEmitter implements EditorBrows
 
 	private _buildFindPart(): HTMLElement {
 		// Find input
-		this._findInput = new Findinput.FindInput(null, this._contextViewProvider, {
+		this._findInput = new Findinput.FindInput(null, this._contextViewProvider, this._codeEditor, {
 			width: FindWidget.FIND_INPUT_AREA_WIDTH,
 			label: nls.localize('label.find', "Find"),
 			placeholder: nls.localize('placeholder.find', "Find"),
