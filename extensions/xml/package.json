@@ -6,13 +6,28 @@
 	"contributes": {
 		"languages": [{
 			"id": "xml",
-			"extensions": [ ".xml", ".dtd", ".ascx", ".csproj", ".config", ".wxi", ".wxl", ".wxs", ".xaml", ".svg", ".svgz" ],
+			"extensions": [
+				".xml",
+				".dtd",
+				".ascx",
+				".csproj",
+				".config",
+				".wxi",
+				".wxl",
+				".wxs",
+				".xaml",
+				".svg",
+				".svgz"
+			],
 			"firstLine" : "(\\<\\?xml.*)|(\\<svg)|(\\<\\!doctype\\s+svg)",
 			"aliases": [ "XML", "xml" ],
 			"configuration": "./xml.configuration.json"
 		}, {
 			"id": "xsl",
-			"extensions": [ ".xsl", ".xslt" ],
+			"extensions": [
+				".xsl",
+				".xslt"
+			],
 			"aliases": [ "XSL", "xsl" ],
 			"configuration": "./xsl.configuration.json"
 		}],
