@@ -79,7 +79,7 @@ export class ResourceViewer {
 		let mime: string;
 		const ext = paths.extname(resource.toString());
 		if (ext) {
-			mime = mapExtToMediaMimes[ext];
+			mime = mapExtToMediaMimes[ext.toLowerCase()];
 		}
 
 		if (!mime) {
