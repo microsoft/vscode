@@ -301,7 +301,7 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode<W> i
 				brackets: [],
 				regexBrackets:[
 					{	tokenType: htmlTokenTypes.getTag('$1'),
-						open: new RegExp(`<(?!(?:${EMPTY_ELEMENTS.join("|")}))(\w[\w\d]*)([^\/>]*(?!\/)>)[^<]*$`, 'i'),
+						open: new RegExp(`<(?!(?:${EMPTY_ELEMENTS.join("|")}))(\\w[\\w\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
 						closeComplete: '</$1>',
 						close: /<\/(\w[\w\d]*)\s*>$/i }],
 				caseInsensitive:true,
