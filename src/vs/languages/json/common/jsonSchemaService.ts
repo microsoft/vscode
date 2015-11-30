@@ -351,23 +351,23 @@ export class JSONSchemaService implements IJSONSchemaService {
 				schemaURL: url
 			});
 		}
-
+		
 		return this.requestService.makeRequest({ url: url }).then(
 			request => {
 				var content = request.responseText;
 				if (!content) {
-					var errorMessage = nls.localize('json.schema.nocontent', 'Unable to load schema from \'{0}\': No content.', url) ;
+					var errorMessage = nls.localize('json.schema.nocontent', 'Unable to load schema from \'{0}\': No content.', toDisplayString(url));
 					return new UnresolvedSchema(<IJSONSchema> {}, [ errorMessage ]);
 				}
 
 				var schemaContent: IJSONSchema = {};
 				var jsonErrors = [];
 				schemaContent = Json.parse(content, errors);
-				var errors = jsonErrors.length ? [ nls.localize('json.schema.invalidFormat', 'Unable to parse content from \'{0}\': {1}.', url, jsonErrors[0])] : [];
+				var errors = jsonErrors.length ? [ nls.localize('json.schema.invalidFormat', 'Unable to parse content from \'{0}\': {1}.', toDisplayString(url), jsonErrors[0])] : [];
 				return new UnresolvedSchema(schemaContent, errors);
 			},
 			error => {
-				var errorMessage = nls.localize('json.schema.unabletoload', 'Unable to load schema from \'{0}\': {1}.', url, error.statusText || error.toString());
+				var errorMessage = nls.localize('json.schema.unabletoload', 'Unable to load schema from \'{0}\': {1}', toDisplayString(url), error.responseText || error.toString());
 				return new UnresolvedSchema(<IJSONSchema> {}, [ errorMessage ]);
 			}
 		);
@@ -1562,4 +1562,16 @@ export class JSONSchemaService implements IJSONSchemaService {
 		});
 	}
 
+}
+
+function toDisplayString(url:string) {
+	try {
+		var uri = URI.parse(url);
+		if (uri.scheme === 'file') {
+			return uri.fsPath;
+		}
+	} catch (e) {
+		// ignore
+	}
+	return url;
 }
