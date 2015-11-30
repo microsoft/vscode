@@ -9,7 +9,9 @@ import Platform = require('vs/base/common/platform');
 import Browser = require('vs/base/browser/browser');
 import {KeyMod, KeyCode, BinaryKeybindings} from 'vs/base/common/keyCodes';
 
-let KEY_CODE_MAP: {[keyCode:number]:KeyCode} = {};
+let KEY_CODE_MAP: { [keyCode: number]: KeyCode } = {};
+let KEY_IDENTIFIER_MAP: { [keyIdentifier: string]: IKeyIdentifierCode } = {};
+
 (function() {
 	KEY_CODE_MAP[8] = KeyCode.Backspace;
 	KEY_CODE_MAP[9] = KeyCode.Tab;
@@ -118,14 +120,191 @@ let KEY_CODE_MAP: {[keyCode:number]:KeyCode} = {};
 			KEY_CODE_MAP[92] = KeyCode.Meta;
 		}
 	}
+
+	if (Browser.isChrome) {
+		KEY_IDENTIFIER_MAP["U+0021"] = {
+			keyCode: KeyCode.KEY_1,
+			isShift: true
+		};
+		KEY_IDENTIFIER_MAP["U+0022"] = {
+			keyCode: KeyCode.US_QUOTE,
+			isShift: true
+		};
+		KEY_IDENTIFIER_MAP["U+0023"] = {
+			keyCode: KeyCode.KEY_3,
+			isShift: true
+		};
+		KEY_IDENTIFIER_MAP["U+0024"] = {
+			keyCode: KeyCode.KEY_4,
+			isShift: true
+		};
+		KEY_IDENTIFIER_MAP["U+0025"] = {
+			keyCode: KeyCode.KEY_5,
+			isShift: true
+		};
+		KEY_IDENTIFIER_MAP["U+0026"] = {
+			keyCode: KeyCode.KEY_7,
+			isShift: true
+		};
+		KEY_IDENTIFIER_MAP["U+0027"] = {
+			keyCode: KeyCode.US_QUOTE,
+			isShift: false
+		};
+		KEY_IDENTIFIER_MAP["U+0028"] = {
+			keyCode: KeyCode.KEY_9,
+			isShift: true
+		};
+		KEY_IDENTIFIER_MAP["U+0029"] = {
+			keyCode: KeyCode.KEY_0,
+			isShift: true
+		};
+		KEY_IDENTIFIER_MAP["U+002A"] = {
+			keyCode: KeyCode.KEY_8,
+			isShift: true
+		};
+		KEY_IDENTIFIER_MAP["U+002B"] = {
+			keyCode: KeyCode.US_EQUAL,
+			isShift: true
+		};
+		KEY_IDENTIFIER_MAP["U+002C"] = {
+			keyCode: KeyCode.US_COMMA,
+			isShift: false
+		};
+		KEY_IDENTIFIER_MAP["U+002D"] = {
+			keyCode: KeyCode.US_MINUS,
+			isShift: false
+		};
+		KEY_IDENTIFIER_MAP["U+002E"] = {
+			keyCode: KeyCode.US_DOT,
+			isShift: false
+		};
+		KEY_IDENTIFIER_MAP["U+002F"] = {
+			keyCode: KeyCode.US_SLASH,
+			isShift: false
+		};
+		KEY_IDENTIFIER_MAP["U+0030"] = {
+			keyCode: KeyCode.KEY_0,
+			isShift: false
+		};
+		KEY_IDENTIFIER_MAP["U+0031"] = {
+			keyCode: KeyCode.KEY_1,
+			isShift: false
+		};
+		KEY_IDENTIFIER_MAP["U+0032"] = {
+			keyCode: KeyCode.KEY_2,
+			isShift: false
+		};
+		KEY_IDENTIFIER_MAP["U+0033"] = {
+			keyCode: KeyCode.KEY_3,
+			isShift: false
+		};
+		KEY_IDENTIFIER_MAP["U+0034"] = {
+			keyCode: KeyCode.KEY_4,
+			isShift: false
+		};
+		KEY_IDENTIFIER_MAP["U+0035"] = {
+			keyCode: KeyCode.KEY_5,
+			isShift: false
+		};
+		KEY_IDENTIFIER_MAP["U+0036"] = {
+			keyCode: KeyCode.KEY_6,
+			isShift: false
+		};
+		KEY_IDENTIFIER_MAP["U+0037"] = {
+			keyCode: KeyCode.KEY_7,
+			isShift: false
+		};
+		KEY_IDENTIFIER_MAP["U+0038"] = {
+			keyCode: KeyCode.KEY_8,
+			isShift: false
+		};
+		KEY_IDENTIFIER_MAP["U+0039"] = {
+			keyCode: KeyCode.KEY_9,
+			isShift: false
+		};
+		KEY_IDENTIFIER_MAP["U+003A"] = {
+			keyCode: KeyCode.US_SEMICOLON,
+			isShift: true
+		};
+		KEY_IDENTIFIER_MAP["U+003B"] = {
+			keyCode: KeyCode.US_SEMICOLON,
+			isShift: false
+		};
+		KEY_IDENTIFIER_MAP["U+003C"] = {
+			keyCode: KeyCode.US_COMMA,
+			isShift: true
+		};
+		KEY_IDENTIFIER_MAP["U+003D"] = {
+			keyCode: KeyCode.US_EQUAL,
+			isShift: false
+		};
+		KEY_IDENTIFIER_MAP["U+003E"] = {
+			keyCode: KeyCode.US_DOT,
+			isShift: true
+		};
+		KEY_IDENTIFIER_MAP["U+003F"] = {
+			keyCode: KeyCode.US_SLASH,
+			isShift: true
+		};
+		KEY_IDENTIFIER_MAP["U+0040"] = {
+			keyCode: KeyCode.KEY_2,
+			isShift: true
+		};
+		KEY_IDENTIFIER_MAP["U+005B"] = {
+			keyCode: KeyCode.US_OPEN_SQUARE_BRACKET,
+			isShift: false
+		};
+		KEY_IDENTIFIER_MAP["U+005C"] = {
+			keyCode: KeyCode.US_BACKSLASH,
+			isShift: false
+		};
+		KEY_IDENTIFIER_MAP["U+005D"] = {
+			keyCode: KeyCode.US_CLOSE_SQUARE_BRACKET,
+			isShift: false
+		};
+		KEY_IDENTIFIER_MAP["U+005E"] = {
+			keyCode: KeyCode.KEY_6,
+			isShift: true
+		};
+		KEY_IDENTIFIER_MAP["U+005F"] = {
+			keyCode: KeyCode.US_MINUS,
+			isShift: true
+		};
+		KEY_IDENTIFIER_MAP["U+0060"] = {
+			keyCode: KeyCode.US_BACKTICK,
+			isShift: false
+		};
+		KEY_IDENTIFIER_MAP["U+007B"] = {
+			keyCode: KeyCode.US_OPEN_SQUARE_BRACKET,
+			isShift: true
+		};
+		KEY_IDENTIFIER_MAP["U+007C"] = {
+			keyCode: KeyCode.US_BACKSLASH,
+			isShift: true
+		};
+		KEY_IDENTIFIER_MAP["U+007D"] = {
+			keyCode: KeyCode.US_CLOSE_SQUARE_BRACKET,
+			isShift: true
+		};
+		KEY_IDENTIFIER_MAP["U+007E"] = {
+			keyCode: KeyCode.US_BACKTICK,
+			isShift: true
+		};
+	}
 })();
+
+interface IKeyIdentifierCode {
+	keyCode: KeyCode;
+	isShift: boolean;
+}
 
 interface INormalizedKeyCode {
 	keyCode: KeyCode;
 	key: string;
+	isShift?: boolean;
 }
 
-function extractKeyCode(e:KeyboardEvent): INormalizedKeyCode {
+function extractKeyCode(e: KeyboardEvent): INormalizedKeyCode {
 	if (e.charCode) {
 		// "keypress" events mostly
 		let char = String.fromCharCode(e.charCode).toUpperCase();
@@ -133,6 +312,16 @@ function extractKeyCode(e:KeyboardEvent): INormalizedKeyCode {
 			keyCode: KeyCode.fromString(char),
 			key: char
 		};
+	}
+	if (Platform.isMacintosh && Browser.isChrome) {
+		let keyIdentifier = KEY_IDENTIFIER_MAP[e.keyIdentifier];
+		if (keyIdentifier) {
+			return {
+				keyCode: keyIdentifier.keyCode,
+				key: KeyCode.toString(keyIdentifier.keyCode),
+				isShift: keyIdentifier.isShift
+			};
+		}
 	}
 	let keyCode = KEY_CODE_MAP[e.keyCode] || KeyCode.Unknown;
 	return {
@@ -142,8 +331,8 @@ function extractKeyCode(e:KeyboardEvent): INormalizedKeyCode {
 }
 
 export interface IKeyboardEvent {
-	browserEvent:Event;
-	target:HTMLElement;
+	browserEvent: Event;
+	target: HTMLElement;
 
 	ctrlKey: boolean;
 	shiftKey: boolean;
@@ -151,9 +340,9 @@ export interface IKeyboardEvent {
 	metaKey: boolean;
 	keyCode: KeyCode;
 
-	clone():IKeyboardEvent;
+	clone(): IKeyboardEvent;
 	asKeybinding(): number;
-	equals(keybinding:number): boolean;
+	equals(keybinding: number): boolean;
 
 	preventDefault(): void;
 	stopPropagation(): void;
@@ -173,7 +362,7 @@ export class StandardKeyboardEvent implements IKeyboardEvent {
 	private key: string;
 	private __asKeybinding: number;
 
-	constructor(source:StandardKeyboardEvent|KeyboardEvent) {
+	constructor(source: StandardKeyboardEvent | KeyboardEvent) {
 		if (source instanceof StandardKeyboardEvent) {
 			let e = <StandardKeyboardEvent>source;
 
@@ -204,7 +393,11 @@ export class StandardKeyboardEvent implements IKeyboardEvent {
 
 			this.ctrlKey = this.ctrlKey || this.key === 'Ctrl';
 			this.altKey = this.altKey || this.key === 'Alt';
-			this.shiftKey = this.shiftKey || this.key === 'Shift';
+			if (standardKeyCode.isShift != undefined) {
+				this.shiftKey = standardKeyCode.isShift;
+			} else {
+				this.shiftKey = this.shiftKey || this.key === 'Shift';
+			}
 			this.metaKey = this.metaKey || this.key === 'Meta';
 
 			this.__asKeybinding = this._asKeybinding();
@@ -231,7 +424,7 @@ export class StandardKeyboardEvent implements IKeyboardEvent {
 		return this.__asKeybinding;
 	}
 
-	public equals(other:number): boolean {
+	public equals(other: number): boolean {
 		return (this.__asKeybinding === other);
 	}
 
