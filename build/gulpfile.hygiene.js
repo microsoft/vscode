@@ -32,6 +32,7 @@ var indentationFilter = [
 	'!extensions/typescript/server/**',
 	'!test/assert.js',
 	'!**/package.json',
+	'!**/npm-shrinkwrap.json',
 	'!**/octicons/**',
 	'!**/vs/languages/sass/test/common/example.scss',
 	'!**/vs/languages/less/common/parser/less.grammar.txt',

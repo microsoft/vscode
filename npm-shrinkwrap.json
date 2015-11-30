@@ -416,9 +416,9 @@
       "resolved": "https://registry.npmjs.org/semver/-/semver-4.3.6.tgz"
     },
     "vscode-textmate": {
-      "version": "1.0.7",
-      "from": "vscode-textmate@1.0.7",
-      "resolved": "https://registry.npmjs.org/vscode-textmate/-/vscode-textmate-1.0.7.tgz",
+      "version": "1.0.8",
+      "from": "vscode-textmate@1.0.8",
+      "resolved": "https://registry.npmjs.org/vscode-textmate/-/vscode-textmate-1.0.8.tgz",
       "dependencies": {
         "oniguruma": {
           "version": "5.1.1",
