@@ -400,13 +400,14 @@ export const HTML_TAGS : { [tag:string]: HTMLTagSpecification } = {
 	summary: new HTMLTagSpecification(
 		'summary',
 		'The summary element represents a summary, caption, or legend for the rest of the contents of the summary element\'s parent details element, if any.'),
-	menu: new HTMLTagSpecification(
-		'menu',
-		'The menu element represents a list of commands.',
-		['type:mt', 'label']),
-	menuitem: new HTMLTagSpecification(
-		'menuitem',
-		'The menuitem element represents a command that the user can invoke from a popup menu (either a context menu or the menu of a menu button).'),
+	// <menu> and <menuitem> are not yet supported by 2+ browsers
+	//menu: new HTMLTagSpecification(
+	//	'menu',
+	//	'The menu element represents a list of commands.',
+	//	['type:mt', 'label']),
+	//menuitem: new HTMLTagSpecification(
+	//	'menuitem',
+	//	'The menuitem element represents a command that the user can invoke from a popup menu (either a context menu or the menu of a menu button).'),
 	dialog: new HTMLTagSpecification(
 		'dialog',
 		'The dialog element represents a part of an application that a user interacts with to perform a task, for example a dialog box, inspector, or window.'),
