@@ -61,7 +61,8 @@ export interface IProductConfiguration {
 	requestFeatureUrl: string,
 	reportIssueUrl: string,
 	licenseUrl: string,
-	privacyStatementUrl: string
+	privacyStatementUrl: string,
+	customDataDirectory: string
 }
 
 export const isBuilt = !process.env.VSCODE_DEV;
@@ -87,7 +88,7 @@ export const sharedIPCHandle = getSharedIPCHandle();
 export const version = app.getVersion();
 export const cliArgs = parseCli();
 
-export const appHome = app.getPath('userData');
+export const appHome = product.customDataDirectory || app.getPath('userData');
 
 export const appSettingsHome = path.join(appHome, 'User');
 if (!fs.existsSync(appSettingsHome)) {
@@ -96,7 +97,7 @@ if (!fs.existsSync(appSettingsHome)) {
 export const appSettingsPath = path.join(appSettingsHome, 'settings.json');
 export const appKeybindingsPath = path.join(appSettingsHome, 'keybindings.json');
 
-export const userHome = path.join(app.getPath('home'), product.dataFolderName);
+export const userHome = product.customDataDirectory || path.join(app.getPath('home'), product.dataFolderName);
 if (!fs.existsSync(userHome)) {
 	fs.mkdirSync(userHome);
 }
