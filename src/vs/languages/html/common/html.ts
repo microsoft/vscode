@@ -38,7 +38,7 @@ export enum States {
 	AttributeValue
 }
 
-// list of element that embedd other content
+// list of elements that embed other content
 var tagsEmbeddingContent:string[] = ['script', 'style'];
 
 
