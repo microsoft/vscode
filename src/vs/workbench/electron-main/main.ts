@@ -9,7 +9,6 @@ import app = require('app');
 import fs = require('fs');
 import dialog = require('dialog');
 import shell = require('shell');
-
 import nls = require('vs/nls');
 import {assign} from 'vs/base/common/objects';
 import platform = require('vs/base/common/platform');
@@ -233,6 +232,15 @@ function setupIPC(): TPromise<Server> {
 	return setup(true);
 }
 
+function setupMutex() {
+	try {
+		var Mutex = (<any> require.__$__nodeRequire('windows-mutex')).Mutex;
+		new Mutex('vscode');
+	} catch (e) {
+		// noop
+	}
+}
+
 // On some platforms we need to manually read from the global environment variables
 // and assign them to the process environment (e.g. when doubleclick app on Mac)
 getUserEnvironment()
@@ -241,6 +249,7 @@ getUserEnvironment()
 
 		return timebomb()
 			.then(setupIPC)
+			.then(ipcServer => { setupMutex(); return ipcServer; })
 			.then(ipcServer => main(ipcServer, userEnv));
 	})
 	.done(null, quit);

@@ -460,6 +460,22 @@
           "resolved": "https://registry.npmjs.org/pend/-/pend-1.2.0.tgz"
         }
       }
+    },
+    "windows-mutex": {
+      "version": "0.1.3",
+      "from": "windows-mutex@0.1.3",
+      "dependencies": {
+        "bindings": {
+          "version": "1.2.1",
+          "from": "bindings@>=1.2.1 <2.0.0",
+          "resolved": "https://registry.npmjs.org/bindings/-/bindings-1.2.1.tgz"
+        },
+        "nan": {
+          "version": "2.1.0",
+          "from": "nan@>=2.1.0 <3.0.0",
+          "resolved": "https://registry.npmjs.org/nan/-/nan-2.1.0.tgz"
+        }
+      }
     }
   }
 }

@@ -12,7 +12,7 @@
   },
   "scripts": {
     "test": "node node_modules/mocha/bin/_mocha",
-		"preinstall": "node build/npm/preinstall.js",
+    "preinstall": "node build/npm/preinstall.js",
     "postinstall": "npm --prefix extensions/csharp-o/ install extensions/csharp-o/ && npm --prefix extensions/vscode-api-tests/ install extensions/vscode-api-tests/"
   },
   "dependencies": {
@@ -89,5 +89,8 @@
     "ghooks": {
       "pre-commit": "node build/gulpfile.hygiene.js"
     }
+  },
+  "optionalDependencies": {
+    "windows-mutex": "^0.1.3"
   }
 }
