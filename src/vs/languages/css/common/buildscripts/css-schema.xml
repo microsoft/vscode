@@ -3088,7 +3088,7 @@
       </values>
     </entry>
     <entry name="clip-path" restriction="url, enum" version="3.0" browsers="all" ref="http://www.w3.org/TR/css-masking/#the-clip-path">
-      <desc>Allows authors to control under what circumstances (if any) a particular graphic element can become the target of mouse events.</desc>
+      <desc>Specifies a clipping path where everything inside the path is visable and everything outside is clipped out.</desc>
       <values>
         <value name="none" version="3.0" browsers="all" />
         <value name="inset()" version="3.0" browsers="none" />
