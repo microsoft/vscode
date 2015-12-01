@@ -26,6 +26,14 @@ import ipc = require('ipc');
 const Shell = remote.require('shell');
 const Dialog = remote.require('dialog');
 
+export interface IWindowConfiguration {
+	window: {
+		openFilesInNewWindow: boolean;
+		reopenFolders: string;
+		zoomLevel: number;
+	}
+}
+
 export class ElectronWindow {
 	private win: remote.BrowserWindow;
 
