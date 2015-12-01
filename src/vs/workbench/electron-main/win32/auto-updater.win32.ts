@@ -17,7 +17,8 @@ import {ClientRequest} from 'http';
 import {mkdirp} from 'vs/base/node/extfs';
 import {isString} from 'vs/base/common/types';
 import {Promise, TPromise} from 'vs/base/common/winjs.base';
-import {IRequestOptions, download, json, getProxyAgent, getSystemProxyAgent} from 'vs/base/node/request';
+import {IRequestOptions, download, json } from 'vs/base/node/request';
+import { getProxyAgent } from 'vs/workbench/node/proxy';
 import {manager as Settings} from 'vs/workbench/electron-main/settings';
 import {manager as Lifecycle} from 'vs/workbench/electron-main/lifecycle';
 
@@ -53,11 +54,11 @@ export class Win32AutoUpdaterImpl extends events.EventEmitter implements IAutoUp
 
 		this.emit('checking-for-update');
 
-		const httpProxySettings = Settings.getValue('http.proxy');
-		const getAgent = url => httpProxySettings ? getProxyAgent(url, httpProxySettings) : getSystemProxyAgent(url);
+		const proxyUrl = Settings.getValue('http.proxy');
+		const strictSSL = Settings.getValue('http.proxy.strictSSL', true);
+		const agent = getProxyAgent(this.url, { proxyUrl, strictSSL });
 
-		this.currentRequest =
-		json<IUpdate>({ url: this.url, agent: getAgent(this.url) })
+		this.currentRequest = json<IUpdate>({ url: this.url, agent })
 			.then(update => {
 				if (!update || !update.url || !update.version) {
 					this.emit('update-not-available');
@@ -73,9 +74,10 @@ export class Win32AutoUpdaterImpl extends events.EventEmitter implements IAutoUp
 								return TPromise.as(updatePackagePath);
 							}
 
-							let downloadPath = `${updatePackagePath}.tmp`;
+							const downloadPath = `${updatePackagePath}.tmp`;
+							const agent = getProxyAgent(update.url, { proxyUrl, strictSSL });
 
-							return download(downloadPath, { url: update.url, agent: getAgent(update.url) })
+							return download(downloadPath, { url: update.url, agent })
 								.then(() => pfs.rename(downloadPath, updatePackagePath))
 								.then(() => updatePackagePath);
 						});

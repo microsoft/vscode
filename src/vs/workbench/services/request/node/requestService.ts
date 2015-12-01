@@ -125,6 +125,11 @@ confRegistry.registerConfiguration({
 		'http.proxy': {
 			'type': 'string',
 			'description': nls.localize('proxy', "The proxy setting to use. If not set will be taken from the http_proxy and https_proxy environment variables")
+		},
+		'http.proxyStrictSSL': {
+			'type': 'boolean',
+			'default': true,
+			'description': nls.localize('strictSSL', "Whether the proxy server certificate should be verified against the list of supplied CAs.")
 		}
 	}
 });

@@ -11,8 +11,6 @@ import http = require('http');
 import { Url, parse as parseUrl } from 'url';
 import { createWriteStream } from 'fs';
 import { assign } from 'vs/base/common/objects';
-import HttpProxyAgent = require('http-proxy-agent');
-import HttpsProxyAgent = require('https-proxy-agent');
 
 export interface IRequestOptions {
 	type?: string;
@@ -100,36 +98,4 @@ export function json<T>(opts: IRequestOptions): TPromise<T> {
 		pair.res.on('end', () => c(JSON.parse(buffer.join(''))));
 		pair.res.on('error', e);
 	}));
-}
-
-function getSystemProxyURI(requestURL: Url): string {
-	if (requestURL.protocol === 'http:') {
-		return process.env.HTTP_PROXY || process.env.http_proxy || null;
-	} else if (requestURL.protocol === 'https:') {
-		return process.env.HTTPS_PROXY || process.env.https_proxy || process.env.HTTP_PROXY || process.env.http_proxy || null;
-	}
-
-	return null;
-}
-
-export function getProxyAgent(rawRequestURL: string, proxyURL: string): any {
-	let requestURL = parseUrl(rawRequestURL);
-	let proxyEndpoint = parseUrl(proxyURL);
-
-	if (!/^https?:$/.test(proxyEndpoint.protocol)) {
-		return null;
-	}
-
-	return requestURL.protocol === 'http:' ? new HttpProxyAgent(proxyURL) : new HttpsProxyAgent(proxyURL);
-}
-
-export function getSystemProxyAgent(rawRequestURL: string): any {
-	let requestURL = parseUrl(rawRequestURL);
-	let proxyURL = getSystemProxyURI(requestURL);
-
-	if (!proxyURL) {
-		return null;
-	}
-
-	return getProxyAgent(rawRequestURL, proxyURL);
 }
