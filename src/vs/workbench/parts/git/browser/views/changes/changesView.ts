@@ -185,7 +185,7 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 	public focus():void {
 		var selection = this.tree.getSelection();
 		if (selection.length > 0) {
-			this.tree.reveal(selection[0], 0.5);
+			this.tree.reveal(selection[0], 0.5).done(null, Errors.onUnexpectedError);
 		}
 
 		this.commitInputBox.focus();

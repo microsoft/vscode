@@ -179,9 +179,8 @@ suite('JSON - Worker', () => {
 				assertSuggestion(result, 'name');
 			}),
 			testSuggestionsFor('[ { "name": "John", "address": { "street" : "MH Road", "number" : 5 } }, { "name": "Jack", "address": { "street" : "100 Feet Road", /**/ }', '/**/').then((result) => {
-				assert.strictEqual(result.suggestions.length, 2);
+				assert.strictEqual(result.suggestions.length, 1);
 				assertSuggestion(result, 'number');
-				assertSuggestion(result, 'street');
 			})
 		]).done(() => testDone(), (errors:any[]) => {
 			testDone(errors.reduce((e1, e2) => e1 || e2));
@@ -216,8 +215,7 @@ suite('JSON - Worker', () => {
 				assertSuggestion(result, '"xoo"');
 			}),
 			testSuggestionsFor('[ { "data": "foo" }, { "data": "bar" }, { "data": "xoo"  /**/ } ]', '/**/').then((result) => {
-				assert.strictEqual(result.suggestions.length, 1);
-				assertSuggestion(result, 'data');
+				assert.strictEqual(result.suggestions.length, 0);
 			})
 		]).done(() => testDone(), (errors:any[]) => {
 			testDone(errors.reduce((e1, e2) => e1 || e2));
@@ -260,8 +258,7 @@ suite('JSON - Worker', () => {
 				assertSuggestion(result, 'a', 'A');
 			}),
 			testSuggestionsFor('{ "a" = 1;/**/}', '/**/', schema).then((result) => {
-				assert.strictEqual(result.suggestions.length, 3);
-				assertSuggestion(result, 'a', 'A');
+				assert.strictEqual(result.suggestions.length, 2);
 				assertSuggestion(result, 'b', 'B');
 				assertSuggestion(result, 'c', 'C');
 			})
@@ -375,8 +372,7 @@ suite('JSON - Worker', () => {
 				assertSuggestion(result, 'd', 'D');
 			}),
 			testSuggestionsFor('{ "a": "", /**/}', '/**/', schema).then((result) => {
-				assert.strictEqual(result.suggestions.length, 2);
-				assertSuggestion(result, 'a', 'A');
+				assert.strictEqual(result.suggestions.length, 1);
 				assertSuggestion(result, 'b', 'B');
 			})
 		]).done(() => testDone(), (errors:any[]) => {
@@ -417,8 +413,7 @@ suite('JSON - Worker', () => {
 				assertSuggestion(result, 'c');
 			}),
 			testSuggestionsFor('{ "type": "appartment", /**/}', '/**/', schema).then((result) => {
-				assert.strictEqual(result.suggestions.length, 2);
-				assertSuggestion(result, 'type');
+				assert.strictEqual(result.suggestions.length, 1);
 				assertSuggestion(result, 'c');
 			})
 		]).done(() => testDone(), (errors:any[]) => {
@@ -480,9 +475,8 @@ suite('JSON - Worker', () => {
 				assertSuggestion(result, 'd', 'D');
 			}),
 			testSuggestionsFor('{ "b1": "", /**/}', '/**/', schema).then((result) => {
-				assert.strictEqual(result.suggestions.length, 3);
+				assert.strictEqual(result.suggestions.length, 2);
 				assertSuggestion(result, 'a', 'A');
-				assertSuggestion(result, 'b1', 'B1');
 				assertSuggestion(result, 'b2', 'B2');
 			})
 		]).done(() => testDone(), (errors:any[]) => {

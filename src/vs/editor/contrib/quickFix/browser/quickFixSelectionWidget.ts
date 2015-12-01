@@ -281,7 +281,7 @@ export class QuickFixSelectionWidget implements EditorBrowser.IContentWidget {
 				this.updateWidgetHeight();
 
 				if (focus) {
-					this.tree.reveal(focus, (payload && payload.firstSuggestion) ? 0 : null);
+					return this.tree.reveal(focus, (payload && payload.firstSuggestion) ? 0 : null);
 				}
 			}, Errors.onUnexpectedError);
 		}));

@@ -491,7 +491,7 @@ export class SuggestModel extends EventEmitter {
 	private onEditorConfigurationChange(): void {
 		this.autoSuggestDelay = this.editor.getConfiguration().quickSuggestionsDelay;
 
-		if (isNaN(this.autoSuggestDelay) || (!this.autoSuggestDelay && this.autoSuggestDelay !== 0) || this.autoSuggestDelay > 2000 || this.autoSuggestDelay < 0) {
+		if (isNaN(this.autoSuggestDelay) || (!this.autoSuggestDelay && this.autoSuggestDelay !== 0) || this.autoSuggestDelay < 0) {
 			this.autoSuggestDelay = 10;
 		}
 	}

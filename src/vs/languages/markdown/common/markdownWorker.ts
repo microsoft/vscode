@@ -7,6 +7,7 @@
 import WinJS = require('vs/base/common/winjs.base');
 import {AbstractModeWorker} from 'vs/editor/common/modes/abstractModeWorker';
 import Network = require('vs/base/common/network');
+import URI from 'vs/base/common/uri';
 import Types = require('vs/base/common/types');
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
@@ -101,7 +102,7 @@ export class MarkdownWorker extends AbstractModeWorker {
 	private modeService: IModeService;
 
 	constructor(mode: Modes.IMode, participants: Modes.IWorkerParticipant[], @IResourceService resourceService: IResourceService,
-		@IMarkerService markerService: IMarkerService, @IModeService modeService:IModeService) {
+		@IMarkerService markerService: IMarkerService, @IModeService modeService: IModeService) {
 		super(mode, participants, resourceService, markerService);
 
 		this.modeService = modeService;
@@ -119,15 +120,15 @@ export class MarkdownWorker extends AbstractModeWorker {
 		return WinJS.TPromise.as(false);
 	}
 
-	public getEmitOutput(resource: Network.URL, baseUrl: string, absoluteWorkersResourcePath: string): WinJS.TPromise<Modes.IEmitOutput> { // TODO@Ben technical debt: worker cannot resolve paths absolute
-		let model = this.resourceService.get(resource);
+	public getEmitOutput(resource: URI, absoluteWorkersResourcePath: string): WinJS.TPromise<Modes.IEmitOutput> { // TODO@Ben technical debt: worker cannot resolve paths absolute
+		let model = this.resourceService.get(Network.URL.fromUri(resource));
 		let cssLinks: string[] = this.cssLinks || [];
 
 		// Custom Renderer to fix href in images
 		let renderer = new Marked.marked.Renderer();
 		let $this = this;
 		renderer.image = function(href: string, title: string, text: string): string {
-			let out = '<img src="' + $this.fixHref(resource, href, baseUrl) + '" alt="' + text + '"';
+			let out = '<img src="' + $this.fixHref(resource, href) + '" alt="' + text + '"';
 			if (title) {
 				out += ' title="' + title + '"';
 			}
@@ -182,10 +183,9 @@ export class MarkdownWorker extends AbstractModeWorker {
 					'<meta http-equiv="Content-type" content="text/html;charset=UTF-8">',
 					(cssLinks.length === 0) ? '<link rel="stylesheet" href="' + absoluteWorkersResourcePath + '/markdown.css" type="text/css" media="screen">' : '',
 					(cssLinks.length === 0) ? '<link rel="stylesheet" href="' + absoluteWorkersResourcePath + '/tokens.css" type="text/css" media="screen">' : '',
-					'<base href="' + baseUrl + '" />',
 					(this.theme === Theme.LIGHT) ? MarkdownWorker.LIGHT_SCROLLBAR_CSS : (this.theme === Theme.DARK) ? MarkdownWorker.DARK_SCROLLBAR_CSS : MarkdownWorker.HC_BLACK_SCROLLBAR_CSS,
 					cssLinks.map((style) => {
-						return '<link rel="stylesheet" href="' + this.fixHref(resource, style, baseUrl) + '" type="text/css" media="screen">';
+						return '<link rel="stylesheet" href="' + this.fixHref(resource, style) + '" type="text/css" media="screen">';
 					}).join('\n'),
 					'</head>',
 					isMacintosh ? '<body class="mac">' : '<body>'
@@ -213,26 +213,16 @@ export class MarkdownWorker extends AbstractModeWorker {
 		});
 	}
 
-	private fixHref(resource: Network.URL, href: string, baseUrl: string): string {
+	private fixHref(resource: URI, href: string): string {
 		if (href) {
-			let url = new Network.URL(href);
 
-			// URL is actually a path
-			if (!url.getScheme()) {
-				let path = href;
-
-				// the user might have used windows backslash, but we only support slashes in URLs, so fix up
-				path = Strings.replaceAll(path, '\\', '/');
-
-				// Absolute path: resolve against base URL
-				if (path[0] === '/') {
-					return Paths.join(baseUrl, path);
-				}
-
-				// Relative path: resolve against resource URL
-				let resourcePath = resource.getPath();
-				return Paths.join(Paths.dirname(resourcePath), path);
+			// Return early if href is already a URL
+			if (new Network.URL(href).getScheme()) {
+				return href;
 			}
+
+			// Otherwise convert to a file URI by joining the href with the resource location
+			return URI.file(Paths.join(Paths.dirname(resource.fsPath), href)).toString();
 		}
 
 		return href;

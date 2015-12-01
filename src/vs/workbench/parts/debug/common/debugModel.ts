@@ -267,6 +267,19 @@ export class Breakpoint implements debug.IBreakpoint {
 	}
 }
 
+export class FunctionBreakpoint implements debug.IFunctionBreakpoint {
+
+	private id: string;
+
+	constructor(public name: string, public enabled: boolean) {
+		this.id = uuid.generateUuid();
+	}
+
+	public getId(): string {
+		return this.id;
+	}
+}
+
 export class ExceptionBreakpoint implements debug.IExceptionBreakpoint {
 
 	private id: string;
@@ -286,7 +299,7 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 	private toDispose: lifecycle.IDisposable[];
 	private replElements: debug.ITreeElement[];
 
-	constructor(private breakpoints: debug.IBreakpoint[], private breakpointsActivated: boolean,
+	constructor(private breakpoints: debug.IBreakpoint[], private breakpointsActivated: boolean, private functionBreakpoints: debug.IFunctionBreakpoint[],
 		private exceptionBreakpoints: debug.IExceptionBreakpoint[], private watchExpressions: Expression[]) {
 
 		super();
@@ -329,6 +342,10 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 
 	public getBreakpoints(): debug.IBreakpoint[] {
 		return this.breakpoints;
+	}
+
+	public getFunctionBreakpoints(): debug.IFunctionBreakpoint[] {
+		return this.functionBreakpoints;
 	}
 
 	public getExceptionBreakpoints(): debug.IExceptionBreakpoint[] {
@@ -378,9 +395,8 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 				bp.lineNumber = bp.desiredLineNumber;
 			}
 		});
-		this.exceptionBreakpoints.forEach(ebp => {
-			ebp.enabled = enabled;
-		});
+		this.exceptionBreakpoints.forEach(ebp => ebp.enabled = enabled);
+		this.functionBreakpoints.forEach(fbp => fbp.enabled = enabled);
 
 		this.emit(debug.ModelEvents.BREAKPOINTS_UPDATED);
 	}
@@ -396,15 +412,33 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 	}
 
 	public setBreakpointsForModel(modelUri: uri, data: { lineNumber: number; enabled: boolean; condition?: string; }[]): void {
-		this.clearBreakpoints(modelUri);
+		this.removeBreakpoints(modelUri);
 		for (var i = 0, len = data.length; i < len; i++) {
 			this.breakpoints.push(new Breakpoint(Source.fromUri(modelUri), data[i].lineNumber, data[i].enabled, data[i].condition));
 		}
 		this.emit(debug.ModelEvents.BREAKPOINTS_UPDATED);
 	}
 
-	public clearBreakpoints(modelUri: uri): void {
+	public removeBreakpoints(modelUri: uri): void {
 		this.breakpoints = this.breakpoints.filter(bp => modelUri && modelUri.toString() !== bp.source.uri.toString());
+		this.emit(debug.ModelEvents.BREAKPOINTS_UPDATED);
+	}
+
+	public addFunctionBreakpoint(functionName: string): void {
+		this.functionBreakpoints.push(new FunctionBreakpoint(functionName, true));
+		this.emit(debug.ModelEvents.BREAKPOINTS_UPDATED);
+	}
+
+	public renameFunctionBreakpoint(id: string, newFunctionName: string): void {
+		const fbp = this.functionBreakpoints.filter(bp => bp.getId() === id).pop();
+		if (fbp) {
+			fbp.name = newFunctionName;
+			this.emit(debug.ModelEvents.BREAKPOINTS_UPDATED);
+		}
+	}
+
+	public removeFunctionBreakpoints(id?: string): void {
+		this.functionBreakpoints = id ? this.functionBreakpoints.filter(fbp => fbp.getId() != id) : [];
 		this.emit(debug.ModelEvents.BREAKPOINTS_UPDATED);
 	}
 
@@ -600,6 +634,7 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 		this.threads = null;
 		this.breakpoints = null;
 		this.exceptionBreakpoints = null;
+		this.functionBreakpoints = null;
 		this.watchExpressions = null;
 		this.replElements = null;
 		this.toDispose = lifecycle.disposeAll(this.toDispose);

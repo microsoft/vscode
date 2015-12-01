@@ -65,7 +65,7 @@ export class MarkdownEditorModel extends IFrameEditorModel {
 					let mode = model.getMode();
 					let absoluteWorkerResourcesPath = require.toUrl('vs/languages/markdown/common'); // TODO@Ben technical debt: worker cannot resolve path absolute
 					if (mode && !!mode.emitOutputSupport && mode.getId() === MARKDOWN_MODE_ID) {
-						(<any>mode).emitOutputSupport.getEmitOutput(model.getAssociatedResource(), absoluteWorkerResourcesPath).then((output: IMarkdownWorkerOutput) => {
+						(<any>mode).emitOutputSupport.getEmitOutput(this.resource, absoluteWorkerResourcesPath).then((output: IMarkdownWorkerOutput) => {
 							this.setContents(output.head, output.body, output.tail);
 
 							c(this);

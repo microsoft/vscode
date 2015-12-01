@@ -80,7 +80,7 @@ export class RequestService extends BaseRequestService implements IThreadSynchro
 	public makeRequest(options: http.IXHROptions): TPromise<http.IXHRResponse> {
 		let url = options.url;
 		if (!url) {
-			throw new Error('IRequestService.makeRequest: Url is required');
+			throw new Error('IRequestService.makeRequest: Url is required.');
 		}
 
 		// Support file:// in native environment through XHR
@@ -90,7 +90,7 @@ export class RequestService extends BaseRequestService implements IThreadSynchro
 					return xhr; // loading resources locally returns a status of 0 which in WinJS is an error so we need to handle it here
 				}
 
-				return <any>Promise.wrapError(new Error(nls.localize('localFileNotFound', "File not found")));
+				return <any>Promise.wrapError({ status: 404, responseText: nls.localize('localFileNotFound', "File not found.")});
 			});
 		}
 

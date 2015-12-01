@@ -57,7 +57,7 @@ suite('FileService', () => {
 	});
 
 	test('createFile', function(done: () => void) {
-		this.timeout(10000); // test tends to need longer?
+		this.timeout(10000); // TODO@Ben test tends to need longer?
 
 		let contents = 'Hello World';
 		service.createFile(uri.file(path.join(testDir, 'test.txt')), contents).done(s => {

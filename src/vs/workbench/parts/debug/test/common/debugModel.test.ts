@@ -13,7 +13,7 @@ suite('Debug - Model', () => {
 	var model: debugmodel.Model;
 
 	setup(() => {
-		model = new debugmodel.Model([], true, [], []);
+		model = new debugmodel.Model([], true, [], [], []);
 	});
 
 	teardown(() => {
@@ -28,7 +28,7 @@ suite('Debug - Model', () => {
 		assert.equal(model.areBreakpointsActivated(), true);
 		assert.equal(model.getBreakpoints().length, 2);
 
-		model.clearBreakpoints(modelUri);
+		model.removeBreakpoints(modelUri);
 		assert.equal(model.getBreakpoints().length, 0);
 	});
 
@@ -66,7 +66,7 @@ suite('Debug - Model', () => {
 		model.toggleEnablement(bp);
 		assert.equal(bp.enabled, true);
 
-		model.clearBreakpoints(modelUri1);
+		model.removeBreakpoints(modelUri1);
 		assert.equal(model.getBreakpoints().length, 3);
 	});
 

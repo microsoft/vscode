@@ -828,7 +828,7 @@ export class Controller extends treedefaults.DefaultController {
 	}
 
 	private canSelect(tree: tree.ITree, ...elements: any[]): boolean {
-		if (elements.some(e => e instanceof gitmodel.StatusGroup)) {
+		if (elements.some(e => e instanceof gitmodel.StatusGroup || e instanceof gitmodel.StatusModel)) {
 			return false;
 		}
 
