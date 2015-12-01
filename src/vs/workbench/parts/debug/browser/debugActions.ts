@@ -285,7 +285,7 @@ export class RemoveAllBreakpointsAction extends AbstractDebugAction {
 	}
 
 	protected isEnabled(): boolean {
-		return super.isEnabled() && this.debugService.getModel().getBreakpoints().length > 0;
+		return super.isEnabled() && (this.debugService.getModel().getBreakpoints().length > 0 || this.debugService.getModel().getFunctionBreakpoints().length > 0);
 	}
 }
 
@@ -316,8 +316,8 @@ export class EnableAllBreakpointsAction extends AbstractDebugAction {
 	}
 
 	protected isEnabled(): boolean {
-		return super.isEnabled() && this.debugService.getModel().getBreakpoints().filter(bp => !bp.enabled).length > 0 ||
-			this.debugService.getModel().getExceptionBreakpoints().filter(bp => !bp.enabled).length > 0;
+		const model = this.debugService.getModel();
+		return super.isEnabled() && (<debug.IEnablement[]> model.getBreakpoints()).concat(model.getFunctionBreakpoints()).concat(model.getExceptionBreakpoints()).some(bp => !bp.enabled);
 	}
 }
 
@@ -335,8 +335,8 @@ export class DisableAllBreakpointsAction extends AbstractDebugAction {
 	}
 
 	protected isEnabled(): boolean {
-		return super.isEnabled() && this.debugService.getModel().getBreakpoints().filter(bp => bp.enabled).length > 0 ||
-			this.debugService.getModel().getExceptionBreakpoints().filter(bp => bp.enabled).length > 0;
+		const model = this.debugService.getModel();
+		return super.isEnabled() && (<debug.IEnablement[]> model.getBreakpoints()).concat(model.getFunctionBreakpoints()).concat(model.getExceptionBreakpoints()).some(bp => bp.enabled);
 	}
 }
 
