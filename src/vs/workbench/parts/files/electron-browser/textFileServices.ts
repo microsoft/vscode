@@ -348,22 +348,13 @@ export class TextFileService extends BrowserTextFileService {
 	private promptForPathAsync(defaultPath?: string): TPromise<string> {
 		return new TPromise<string>((c, e) => {
 			Dialog.showSaveDialog(remote.getCurrentWindow(), this.getSaveDialogOptions(defaultPath ? paths.normalize(defaultPath, true) : void 0), (path) => {
-				if (path && isWindows) {
-					path = strings.rtrim(path, '.*'); // Bug on Windows: When "All Files" is picked, the path gets an extra ".*"
-				}
-
 				c(path);
 			});
 		});
 	}
 
 	private promptForPathSync(defaultPath?: string): string {
-		let path = Dialog.showSaveDialog(remote.getCurrentWindow(), this.getSaveDialogOptions(defaultPath ? paths.normalize(defaultPath, true) : void 0));
-		if (path && isWindows) {
-			path = strings.rtrim(path, '.*'); // Bug on Windows: When "All Files" is picked, the path gets an extra ".*"
-		}
-
-		return path;
+		return Dialog.showSaveDialog(remote.getCurrentWindow(), this.getSaveDialogOptions(defaultPath ? paths.normalize(defaultPath, true) : void 0));
 	}
 
 	private getSaveDialogOptions(defaultPath?: string): remote.ISaveDialogOptions {
@@ -375,6 +366,7 @@ export class TextFileService extends BrowserTextFileService {
 		// somewhat but we see issues:
 		// - https://github.com/atom/electron/issues/3556
 		// - https://github.com/Microsoft/vscode/issues/451
+		// - Bug on Windows: When "All Files" is picked, the path gets an extra ".*"
 		// Until these issues are resolved, we disable the dialog file extension filtering.
 		if (true) {
 			return options;
