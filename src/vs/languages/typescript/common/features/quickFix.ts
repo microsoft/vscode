@@ -168,7 +168,8 @@ var sinonDD = 'sinon/sinon.d.ts';
 var jasmineDD = 'jasmine/jasmine.d.ts';
 var handlebarsDD = 'handlebars/handlebars.d.ts';
 
-var typingsMap: { [key: string]: string | string[] } = {
+// exported for tests
+export var typingsMap: { [key: string]: string | string[] } = {
 	'angular': angularDD,
 	'$': jqueryDD, 'jquery': jqueryDD, 'jQuery': jqueryDD,
 	'process': nodejsDD, '__dirname': nodejsDD,
@@ -195,13 +196,13 @@ function computeAddTypeDefinitionProposals(languageService: ts.LanguageService, 
 		offset = converter.getOffset(sourceFile, { lineNumber: range.endLineNumber, column: range.endColumn }),
 		token = ts.findTokenOnLeftOfPosition(sourceFile, offset);
 
-	if (!token || token.getWidth() === 0) {
+	if (!token || token.getWidth() === 0 || (network.schemas.inMemory === resource.scheme)) {
 		return;
 	}
 
 	var currentWord = ts.getTextOfNode(token);
-	var mapping = typingsMap[currentWord];
-	if (mapping && (network.schemas.inMemory !== resource.scheme)) {
+	if (typingsMap.hasOwnProperty(currentWord)) {
+		var mapping = typingsMap[currentWord];
 		var dtsRefs: string[] = Array.isArray(mapping) ? <string[]> mapping : [ <string> mapping ];
 		dtsRefs.forEach((dtsRef) => {
 			result.push({
@@ -212,7 +213,7 @@ function computeAddTypeDefinitionProposals(languageService: ts.LanguageService, 
 		});
 	}
 
-	if (strings.endsWith(resource.fsPath, '.js')) {
+	if (strings.endsWith(resource.path, '.js')) {
 		result.push({
 			label: nls.localize('typescript.quickfix.addAsGlobal', "Mark '{0}' as global", currentWord),
 			id: JSON.stringify({ type: 'addglobal', name: currentWord }),
