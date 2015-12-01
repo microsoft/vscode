@@ -2950,9 +2950,6 @@
         <value name="content-box" version="3.0" browsers="all">
           <desc>Behavior of width and height as specified by CSS2.1. The specified width and height (and respective min/max properties) apply to the width and height respectively of the content box of the element.</desc>
         </value>
-        <value name="padding-box" version="3.0" browsers="none">
-          <desc>The specified width and height (and respective min/max properties) on this element determine the padding box of the element.</desc>
-        </value>
       </values>
     </entry>
     <entry name="break-after" restriction="enum" version="3.0" browsers="E,IE10,O11.5" ref="http://www.w3.org/TR/css3-multicol/#column-breaks" syntax="h2 { $(name): column; }">
