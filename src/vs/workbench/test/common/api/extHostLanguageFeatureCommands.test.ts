@@ -255,4 +255,25 @@ suite('ExtHostLanguageFeatureCommands', function() {
 			});
 		});
 	});
+
+	// --- quickfix
+
+	test('QuickFix, back and forth', function(done) {
+		disposables.push(extHost.registerCodeActionProvider(defaultSelector, <vscode.CodeActionProvider>{
+			provideCodeActions(): any {
+				return [{ command: 'testing', title: 'Title', arguments: [1, 2, true] }];
+			}
+		}));
+
+		threadService.sync().then(() => {
+			commands.executeCommand<vscode.Command[]>('vscode.executeCodeActionProvider', model.getAssociatedResource(), new types.Range(0, 0, 1, 1)).then(value => {
+				assert.equal(value.length, 1);
+				let [first] = value;
+				assert.equal(first.title, 'Title');
+				// assert.equal(first.command, 'testing');
+				// assert.deepEqual(first.arguments, [1, 2, true]);
+				done();
+			});
+		});
+	});
 });

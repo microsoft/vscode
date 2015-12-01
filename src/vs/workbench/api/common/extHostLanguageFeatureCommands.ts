@@ -28,7 +28,7 @@ import {DeclarationRegistry} from 'vs/editor/contrib/goToDeclaration/common/goTo
 import {ExtraInfoRegistry} from 'vs/editor/contrib/hover/common/hover';
 import {OccurrencesRegistry} from 'vs/editor/contrib/wordHighlighter/common/wordHighlighter';
 import {ReferenceRegistry} from 'vs/editor/contrib/referenceSearch/common/referenceSearch';
-import {QuickFixRegistry} from 'vs/editor/contrib/quickFix/common/quickFix';
+import {IQuickFix2, QuickFixRegistry, getQuickFixes} from 'vs/editor/contrib/quickFix/common/quickFix';
 import {IOutline} from 'vs/editor/contrib/quickOpen/common/quickOpen';
 import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
 import {NavigateTypesSupportRegistry, INavigateTypesSupport, ITypeBearing} from 'vs/workbench/parts/search/common/search'
@@ -47,8 +47,8 @@ import {SuggestRegistry} from 'vs/editor/contrib/suggest/common/suggest';
 // vscode.executeSignatureHelpProvider
 // vscode.executeDocumentSymbolProvider
 // vscode.executeCompletionItemProvider
-
 // vscode.executeCodeActionProvider
+
 // vscode.executeCodeLensProvider
 // vscode.executeFormatDocumentProvider
 // vscode.executeFormatRangeProvider
@@ -71,6 +71,7 @@ export class ExtHostLanguageFeatureCommands {
 		this._register('vscode.executeSignatureHelpProvider', this._executeSignatureHelpProvider);
 		this._register('vscode.executeDocumentSymbolProvider', this._executeDocumentSymbolProvider);
 		this._register('vscode.executeCompletionItemProvider', this._executeCompletionItemProvider);
+		this._register('vscode.executeCodeActionProvider', this._executeCodeActionProvider);
 	}
 
 	private _register(id: string, callback: (...args: any[]) => any): void {
@@ -198,6 +199,19 @@ export class ExtHostLanguageFeatureCommands {
 		return this._commands.executeCommand<IOutline>('_executeDocumentSymbolProvider', args).then(value => {
 			if (value && Array.isArray(value.entries)) {
 				return value.entries.map(typeConverters.SymbolInformation.fromOutlineEntry);
+			}
+		});
+	}
+
+	private _executeCodeActionProvider(resource: URI, range: types.Range): Thenable<vscode.Command[]> {
+		const args = {
+			resource,
+			range: typeConverters.fromRange(range)
+		};
+		return this._commands.executeCommand<IQuickFix2[]>('_executeCodeActionProvider', args).then(value => {
+			if (Array.isArray(value)) {
+				// TODO@joh this isn't proper!
+				return value.map(quickFix => ({ title: quickFix.label }));
 			}
 		});
 	}
