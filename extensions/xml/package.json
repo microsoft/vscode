@@ -59,7 +59,8 @@
 				".xml",
 				".xpdl",
 				".xsd",
-				".xul"
+				".xul",
+				".xoml"
 			],
 			"firstLine" : "(\\<\\?xml.*)|(\\<svg)|(\\<\\!doctype\\s+svg)",
 			"aliases": [ "XML", "xml" ],
