@@ -8,7 +8,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { Server } from 'vs/base/node/service.cp';
 import objects = require('vs/base/common/objects');
 import uri from 'vs/base/common/uri';
-import { IRawGitService } from 'vs/workbench/parts/git/common/git';
+import { IRawGitService, GitErrorCodes } from 'vs/workbench/parts/git/common/git';
 import gitlib = require('vs/workbench/parts/git/node/git.lib');
 import { RawGitService, DelayedRawGitService } from 'vs/workbench/parts/git/node/rawGitService';
 import { join, dirname, normalize } from 'path';
@@ -23,6 +23,7 @@ class IPCRawGitService extends DelayedRawGitService {
 		} else {
 			const gitRootPath = uri.parse(require.toUrl('vs/workbench/parts/git/electron-main')).fsPath;
 			const bootstrapPath = `${ uri.parse(require.toUrl('bootstrap')).fsPath }.js`;
+			workspaceRoot = normalize(workspaceRoot);
 
 			const env = objects.assign({}, process.env, {
 				GIT_ASKPASS: join(gitRootPath, 'askpass.sh'),
@@ -38,8 +39,15 @@ class IPCRawGitService extends DelayedRawGitService {
 				env: env
 			});
 
-			const repo = git.open(normalize(workspaceRoot));
+			const repo = git.open(workspaceRoot);
 			const promise = repo.getRoot()
+				.then<string>(null, (err: gitlib.GitError) => {
+					if (err instanceof gitlib.GitError && err.gitErrorCode === GitErrorCodes.NotAGitRepository) {
+						return workspaceRoot;
+					}
+
+					return TPromise.wrapError(err);
+				})
 				.then(root => realpath(root))
 				.then(root => git.open(root))
 				.then(repo => new RawGitService(repo));
