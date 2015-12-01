@@ -3105,7 +3105,7 @@
       </values>
     </entry>
     <entry name="clip-rule" restriction="enum" version="3.0" browsers="all" ref="http://www.w3.org/TR/SVG/masking.html#ClipPathElement">
-      <desc>Allows authors to control under what circumstances (if any) a particular graphic element can become the target of mouse events.</desc>
+      <desc>Indicates the algorithm which is to be used to determine what parts of the canvas are included inside the shape.</desc>
       <values>
         <value name="evenodd" version="3.0" browsers="all">
           <desc>This rule determines the 'insideness' of a point on the canvas by drawing a ray from that point to infinity in any direction and counting the number of path segments from the given shape that the ray crosses.</desc>
