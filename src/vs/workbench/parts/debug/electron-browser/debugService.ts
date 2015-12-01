@@ -749,9 +749,9 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		return this.session.setBreakpoints({ source: Source.fromUri(modelUri).toRawSource(), lines: breakpointsToSend.map(bp => bp.desiredLineNumber) }).then(response => {
 			let index = 0;
 			breakpointsToSend.forEach(bp => {
-				const lineNumber = response.body.breakpoints[index++].line;
-				if (bp.lineNumber != lineNumber) {
-					this.model.updateBreakpoint(bp.getId(), lineNumber);
+				const rawBreakpointData = response.body.breakpoints[index++];
+				if (bp.lineNumber !== rawBreakpointData.line || !rawBreakpointData.verified !== bp.error) {
+					this.model.updateBreakpoint(bp.getId(), rawBreakpointData.line, !rawBreakpointData.verified);
 				}
 			});
 		});

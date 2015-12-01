@@ -255,6 +255,7 @@ export class StackFrame implements debug.IStackFrame {
 export class Breakpoint implements debug.IBreakpoint {
 
 	public lineNumber: number;
+	public error: boolean;
 	private id: string;
 
 	constructor(public source: Source, public desiredLineNumber: number, public enabled: boolean, public condition: string) {
@@ -262,6 +263,7 @@ export class Breakpoint implements debug.IBreakpoint {
 			this.enabled = true;
 		}
 		this.lineNumber = this.desiredLineNumber;
+		this.error = false;
 		this.id = uuid.generateUuid();
 	}
 
@@ -273,8 +275,10 @@ export class Breakpoint implements debug.IBreakpoint {
 export class FunctionBreakpoint implements debug.IFunctionBreakpoint {
 
 	private id: string;
+	public error: boolean;
 
 	constructor(public name: string, public enabled: boolean) {
+		this.error = false;
 		this.id = uuid.generateUuid();
 	}
 
@@ -375,10 +379,11 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 		this.emit(debug.ModelEvents.BREAKPOINTS_UPDATED);
 	}
 
-	public updateBreakpoint(id: string, lineNumber: number): void {
+	public updateBreakpoint(id: string, lineNumber: number, error: boolean): void {
 		const breakpoint = this.breakpoints.filter(bp => bp.getId() === id).pop();
 		if (breakpoint) {
 			breakpoint.lineNumber = lineNumber;
+			breakpoint.error = error;
 			this.emit(debug.ModelEvents.BREAKPOINTS_UPDATED);
 		}
 	}
