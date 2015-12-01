@@ -375,7 +375,13 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 	}
 
 	public toggleBreakpoint(modelUri: uri, lineNumber: number, condition: string = null): Promise {
-		this.model.toggleBreakpoint(modelUri, lineNumber, condition);
+		const breakpoint = this.model.getBreakpoints().filter(bp => bp.lineNumber === lineNumber && bp.source.uri.toString() === modelUri.toString()).pop();
+		if (breakpoint) {
+			this.model.removeBreakpoint(breakpoint.getId());
+		} else {
+			this.model.addBreakpoint(modelUri, lineNumber, condition);
+		}
+
 		return this.sendBreakpoints(modelUri);
 	}
 
@@ -742,7 +748,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 			breakpointsToSend.forEach(bp => {
 				const lineNumber = response.body.breakpoints[index++].line;
 				if (bp.lineNumber != lineNumber) {
-					this.model.setBreakpointLineNumber(bp, lineNumber);
+					this.model.updateBreakpoint(bp.getId(), lineNumber);
 				}
 			});
 		});

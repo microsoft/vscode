@@ -35,9 +35,9 @@ suite('Debug - Model', () => {
 	test('breakpoints toggling', () => {
 		var modelUri = uri.file('/myfolder/myfile.js');
 		model.setBreakpointsForModel(modelUri, [{ lineNumber: 5, enabled: true }, { lineNumber: 10, enabled: false }]);
-		model.toggleBreakpoint(modelUri, 12);
+		model.addBreakpoint(modelUri, 12, 'fake condition');
 		assert.equal(model.getBreakpoints().length, 3);
-		model.toggleBreakpoint(modelUri, 10);
+		model.removeBreakpoint(model.getBreakpoints().pop().getId());
 		assert.equal(model.getBreakpoints().length, 2);
 
 		model.toggleBreakpointsActivated();
@@ -55,7 +55,7 @@ suite('Debug - Model', () => {
 		assert.equal(model.getBreakpoints().length, 5);
 		var bp = model.getBreakpoints()[0];
 		var originalLineLumber = bp.lineNumber;
-		model.setBreakpointLineNumber(bp, 100);
+		model.updateBreakpoint(bp.getId(), 100);
 		assert.equal(bp.lineNumber, 100);
 		assert.equal(bp.desiredLineNumber, originalLineLumber);
 

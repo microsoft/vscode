@@ -361,21 +361,23 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 		this.emit(debug.ModelEvents.BREAKPOINTS_UPDATED);
 	}
 
-	public toggleBreakpoint(modelUri: uri, lineNumber: number, condition?: string): void {
-		var found = false;
-		for (var i = 0, len = this.breakpoints.length; i < len && !found; i++) {
-			if (this.breakpoints[i].lineNumber === lineNumber && this.breakpoints[i].source.uri.toString() === modelUri.toString()) {
-				this.breakpoints.splice(i, 1);
-				found = true;
-			}
-		}
-
-		if (!found) {
-			this.breakpoints.push(new Breakpoint(Source.fromUri(modelUri), lineNumber, true, condition));
-			this.breakpointsActivated = true;
-		}
-
+	public addBreakpoint(modelUri: uri, lineNumber: number, condition: string): void {
+		this.breakpoints.push(new Breakpoint(Source.fromUri(modelUri), lineNumber, true, condition));
+		this.breakpointsActivated = true;
 		this.emit(debug.ModelEvents.BREAKPOINTS_UPDATED);
+	}
+
+	public removeBreakpoint(id: string): void {
+		this.breakpoints = this.breakpoints.filter(bp => bp.getId() !== id);
+		this.emit(debug.ModelEvents.BREAKPOINTS_UPDATED);
+	}
+
+	public updateBreakpoint(id: string, lineNumber: number): void {
+		const breakpoint = this.breakpoints.filter(bp => bp.getId() === id).pop();
+		if (breakpoint) {
+			breakpoint.lineNumber = lineNumber;
+			this.emit(debug.ModelEvents.BREAKPOINTS_UPDATED);
+		}
 	}
 
 	public toggleEnablement(element: debug.IEnablement): void {
@@ -399,16 +401,6 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 		this.functionBreakpoints.forEach(fbp => fbp.enabled = enabled);
 
 		this.emit(debug.ModelEvents.BREAKPOINTS_UPDATED);
-	}
-
-	public setBreakpointLineNumber(breakpoint: debug.IBreakpoint, actualLineNumber: number) {
-		breakpoint.lineNumber = actualLineNumber;
-		var duplicates = this.breakpoints.filter(bp => bp.lineNumber === breakpoint.lineNumber && bp.desiredLineNumber === breakpoint.desiredLineNumber);
-		if (duplicates.length > 1) {
-			this.toggleBreakpoint(breakpoint.source.uri, breakpoint.lineNumber, breakpoint.condition);
-		} else {
-			this.emit(debug.ModelEvents.BREAKPOINTS_UPDATED);
-		}
 	}
 
 	public setBreakpointsForModel(modelUri: uri, data: { lineNumber: number; enabled: boolean; condition?: string; }[]): void {
