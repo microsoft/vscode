@@ -11,7 +11,8 @@ import * as types from './pluginHostTypes';
 import {Position as EditorPosition} from 'vs/platform/editor/common/editor';
 import {IPosition, ISelection, IRange, IRangeWithMessage, ISingleEditOperation} from 'vs/editor/common/editorCommon';
 import {IHTMLContentElement} from 'vs/base/common/htmlContent';
-import {ITypeBearing} from 'vs/workbench/parts/search/common/search'
+import {ITypeBearing} from 'vs/workbench/parts/search/common/search';
+import * as vscode from 'vscode';
 
 export interface PositionLike {
 	line: number;
@@ -406,5 +407,27 @@ export namespace SignatureHelp {
 		}
 
 		return result;
+	}
+}
+
+export const Command = {
+	from(command: vscode.Command): modes.ICommand {
+		if (command) {
+			return <modes.ICommand>{
+				id: command.command,
+				title: command.title,
+				arguments: command.arguments
+			};
+		}
+	},
+
+	to(command: modes.ICommand): vscode.Command {
+		if (command) {
+			return <vscode.Command>{
+				command: command.id,
+				title: command.title,
+				arguments: command.arguments
+			};
+		}
 	}
 }

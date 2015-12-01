@@ -220,9 +220,13 @@ export class ExtHostLanguageFeatureCommands {
 		const args = {
 			resource
 		};
-		return this._commands._executeContributedCommand<ICodeLensData[]>('_executeCodeLensProvider', args).then(value => {
+
+		return this._commands.executeCommand<ICodeLensData[]>('_executeCodeLensProvider', args).then(value => {
 			if (Array.isArray(value)) {
-				return value.map(item => new types.CodeLens(typeConverters.toRange(item.symbol.range)));
+				return value.map(item => {
+					return new types.CodeLens(typeConverters.toRange(item.symbol.range),
+						typeConverters.Command.to(item.symbol.command));
+				});
 			}
 		});
 	}

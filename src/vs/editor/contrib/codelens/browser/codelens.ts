@@ -103,16 +103,16 @@ class CodeLensContentWidget implements EditorBrowser.IContentWidget {
 		}
 	}
 
-	public withCommands(commands: Modes.ICommand[]): void {
+	public withCommands(symbols: Modes.ICodeLensSymbol[]): void {
 		this._commands = Object.create(null);
-		if (!commands || !commands.length) {
+		if (!symbols || !symbols.length) {
 			this._domNode.innerHTML = 'no commands';
 			return;
 		}
 
 		let html: string[] = [];
-		for (let i = 0; i < commands.length; i++) {
-			let command = commands[i];
+		for (let i = 0; i < symbols.length; i++) {
+			let command = symbols[i].command;
 			let part: string;
 			if (command.id) {
 				part = format('<a id={0}>{1}</a>', i, command.title);
@@ -303,8 +303,8 @@ class CodeLens {
 		return this._data;
 	}
 
-	public updateCommands(commands: Modes.ICommand[], currentModelsVersionId: number): void {
-		this._contentWidget.withCommands(commands);
+	public updateCommands(symbols: Modes.ICodeLensSymbol[], currentModelsVersionId: number): void {
+		this._contentWidget.withCommands(symbols);
 		this._lastUpdateModelsVersionId = currentModelsVersionId;
 	}
 
@@ -616,17 +616,15 @@ export class CodeLensContribution implements EditorCommon.IEditorContribution {
 		var resource = model.getAssociatedResource();
 		var promises = toResolve.map((request, i) => {
 
-			let commands = new Array<Modes.ICommand>(request.length);
+			let resolvedSymbols = new Array<Modes.ICodeLensSymbol>(request.length);
 			let promises = request.map((request, i) => {
-				return request.support.resolveCodeLensSymbol(resource, request.symbol).then(command => {
-					if (command) {
-						commands[i] = command;
-					}
+				return request.support.resolveCodeLensSymbol(resource, request.symbol).then(symbol => {
+					resolvedSymbols[i] = symbol;
 				});
 			});
 
 			return TPromise.join(promises).then(() => {
-				lenses[i].updateCommands(commands, currentModelsVersionId);
+				lenses[i].updateCommands(resolvedSymbols, currentModelsVersionId);
 			})
 		});
 

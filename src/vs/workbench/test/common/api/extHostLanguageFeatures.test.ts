@@ -205,9 +205,9 @@ suite('ExtHostLanguageFeatures', function() {
 				assert.equal(value.length, 1);
 				let data = value[0];
 
-				data.support.resolveCodeLensSymbol(model.getAssociatedResource(), data.symbol).then(command => {
-					assert.equal(command.id, 'id');
-					assert.equal(command.title, 'Title');
+				data.support.resolveCodeLensSymbol(model.getAssociatedResource(), data.symbol).then(symbol => {
+					assert.equal(symbol.command.id, 'id');
+					assert.equal(symbol.command.title, 'Title');
 					done();
 				});
 			});
@@ -228,10 +228,10 @@ suite('ExtHostLanguageFeatures', function() {
 				assert.equal(value.length, 1);
 
 				let data = value[0];
-				data.support.resolveCodeLensSymbol(model.getAssociatedResource(), data.symbol).then(command => {
+				data.support.resolveCodeLensSymbol(model.getAssociatedResource(), data.symbol).then(symbol => {
 
-					assert.equal(command.id, 'missing');
-					assert.equal(command.title, '<<MISSING COMMAND>>');
+					assert.equal(symbol.command.id, 'missing');
+					assert.equal(symbol.command.title, '<<MISSING COMMAND>>');
 					done();
 				});
 			});

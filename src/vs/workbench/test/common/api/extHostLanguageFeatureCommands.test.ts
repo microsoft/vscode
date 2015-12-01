@@ -276,4 +276,26 @@ suite('ExtHostLanguageFeatureCommands', function() {
 			});
 		});
 	});
+
+	// --- code lens
+
+	test('CodeLens, back and forth', function(done) {
+		disposables.push(extHost.registerCodeLensProvider(defaultSelector, <vscode.CodeLensProvider>{
+			provideCodeLenses(): any {
+				return [new types.CodeLens(new types.Range(0, 0, 1, 1), { title: 'Title', command: 'cmd', arguments: [1, 2, true] })];
+			}
+		}));
+
+		threadService.sync().then(() => {
+			commands.executeCommand<vscode.CodeLens[]>('vscode.executeCodeLensProvider', model.getAssociatedResource()).then(value => {
+				assert.equal(value.length, 1);
+				let [first] = value;
+
+				assert.equal(first.command.title, 'Title');
+				assert.equal(first.command.command, 'cmd');
+				assert.deepEqual(first.command.arguments, [1, 2, true]);
+				done();
+			});
+		});
+	});
 });

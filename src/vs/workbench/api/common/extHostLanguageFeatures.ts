@@ -106,13 +106,14 @@ class CodeLensAdapter implements modes.ICodeLensSupport {
 			return value.map((lens, i) => {
 				return <modes.ICodeLensSymbol>{
 					id: String(i),
-					range: TypeConverters.fromRange(lens.range)
+					range: TypeConverters.fromRange(lens.range),
+					command: TypeConverters.Command.from(lens.command)
 				}
 			});
 		});
 	}
 
-	resolveCodeLensSymbol(resource: URI, symbol: modes.ICodeLensSymbol): TPromise<modes.ICommand> {
+	resolveCodeLensSymbol(resource: URI, symbol: modes.ICodeLensSymbol): TPromise<modes.ICodeLensSymbol> {
 
 		let lenses = this._cache[resource.toString()];
 		if (!lenses) {
@@ -140,11 +141,9 @@ class CodeLensAdapter implements modes.ICodeLensSupport {
 					command: 'missing',
 				}
 			}
-			return {
-				id: command.command,
-				title: command.title,
-				arguments: command.arguments
-			}
+
+			symbol.command = TypeConverters.Command.from(command);
+			return symbol;
 		});
 	}
 }
@@ -687,7 +686,7 @@ export class ExtHostLanguageFeatures {
 		return this._withAdapter(handle, CodeLensAdapter, adapter => adapter.findCodeLensSymbols(resource));
 	}
 
-	$resolveCodeLensSymbol(handle:number, resource: URI, symbol: modes.ICodeLensSymbol): TPromise<modes.ICommand> {
+	$resolveCodeLensSymbol(handle:number, resource: URI, symbol: modes.ICodeLensSymbol): TPromise<modes.ICodeLensSymbol> {
 		return this._withAdapter(handle, CodeLensAdapter, adapter => adapter.resolveCodeLensSymbol(resource, symbol));
 	}
 
@@ -891,7 +890,7 @@ export class MainThreadLanguageFeatures {
 			findCodeLensSymbols: (resource: URI): TPromise<modes.ICodeLensSymbol[]> => {
 				return this._proxy.$findCodeLensSymbols(handle, resource);
 			},
-			resolveCodeLensSymbol: (resource: URI, symbol: modes.ICodeLensSymbol): TPromise<modes.ICommand> => {
+			resolveCodeLensSymbol: (resource: URI, symbol: modes.ICodeLensSymbol): TPromise<modes.ICodeLensSymbol> => {
 				return this._proxy.$resolveCodeLensSymbol(handle, resource, symbol);
 			}
 		});
