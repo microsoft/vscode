@@ -135,12 +135,14 @@ export const HTML_TAGS : { [tag:string]: HTMLTagSpecification } = {
 		nls.localize('tags.rb', 'The rb element marks the base text component of a ruby annotation. When it is the child of a ruby element, it doesn\'t represent anything itself, but its parent ruby element uses it as part of determining what it represents.')),
 	rt: new HTMLTagSpecification(
 		nls.localize('tags.rt', 'The rt element marks the ruby text component of a ruby annotation. When it is the child of a ruby element or of an rtc element that is itself the child of a ruby element, it doesn\'t represent anything itself, but its ancestor ruby element uses it as part of determining what it represents.')),
-	rtc: new HTMLTagSpecification(
-		nls.localize('tags.rtc', 'The rtc element marks a ruby text container for ruby text components in a ruby annotation. When it is the child of a ruby element it doesn\'t represent anything itself, but its parent ruby element uses it as part of determining what it represents.')),
+	// <rtc> is not yet supported by 2+ browsers
+	//rtc: new HTMLTagSpecification(
+	//	nls.localize('tags.rtc', 'The rtc element marks a ruby text container for ruby text components in a ruby annotation. When it is the child of a ruby element it doesn\'t represent anything itself, but its parent ruby element uses it as part of determining what it represents.')),
 	rp: new HTMLTagSpecification(
 		nls.localize('tags.rp', 'The rp element is used to provide fallback text to be shown by user agents that don\'t support ruby annotations. One widespread convention is to provide parentheses around the ruby text component of a ruby annotation.')),
-	data: new HTMLTagSpecification(
-		nls.localize('tags.data', 'The data element represents its contents, along with a machine-readable form of those contents in the value attribute.')),
+	// <data> is not yet supported by 2+ browsers
+	//data: new HTMLTagSpecification(
+	//	nls.localize('tags.data', 'The data element represents its contents, along with a machine-readable form of those contents in the value attribute.')),
 	time: new HTMLTagSpecification(
 		nls.localize('tags.time', 'The time element represents its contents, along with a machine-readable form of those contents in the datetime attribute. The kind of content is limited to various kinds of dates, times, time-zone offsets, and durations, as described below.'),
 		['datetime']),
