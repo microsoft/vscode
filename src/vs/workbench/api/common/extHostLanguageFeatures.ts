@@ -509,7 +509,7 @@ class SuggestAdapter implements modes.ISuggestSupport {
 
 			for (let i = 0; i < value.length; i++) {
 				const item = value[i];
-				const suggestion = SuggestAdapter._convertCompletionItem(item);
+				const [suggestion] = TypeConverters.Suggest.from(item, defaultSuggestions); SuggestAdapter._convertCompletionItem(item);
 
 				if (item.textEdit) {
 

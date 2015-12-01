@@ -36,6 +36,7 @@ import {getQuickFixes} from 'vs/editor/contrib/quickFix/common/quickFix';
 import {getNavigateToItems} from 'vs/workbench/parts/search/common/search';
 import {rename} from 'vs/editor/contrib/rename/common/rename';
 import {getParameterHints} from 'vs/editor/contrib/parameterHints/common/parameterHints';
+import {suggest} from 'vs/editor/contrib/suggest/common/suggest';
 
 const defaultSelector = { scheme: 'far' };
 const model: EditorCommon.IModel = new EditorModel(
@@ -801,5 +802,109 @@ suite('ExtHostLanguageFeatures', function() {
 				done();
 			})
 		});
+	});
+
+	// --- suggestions
+
+	test('Suggest, order 1/3', function(done) {
+
+		disposables.push(extHost.registerCompletionItemProvider('*', <vscode.CompletionItemProvider>{
+			provideCompletionItems(): any {
+				return [new types.CompletionItem('testing1')];
+			}
+		}, []));
+
+		disposables.push(extHost.registerCompletionItemProvider(defaultSelector, <vscode.CompletionItemProvider>{
+			provideCompletionItems(): any {
+				return [new types.CompletionItem('testing2')];
+			}
+		}, []));
+
+		threadService.sync().then(() => {
+			suggest(model, { lineNumber: 1, column: 1 }, ',').then(value => {
+				assert.equal(value.length, 1);
+				let [[first]] = value;
+				assert.equal(first.suggestions.length, 1)
+				assert.equal(first.suggestions[0].codeSnippet, 'testing2')
+				done();
+			});
+		});
+	});
+
+	test('Suggest, order 2/3', function(done) {
+
+		disposables.push(extHost.registerCompletionItemProvider('*', <vscode.CompletionItemProvider>{
+			provideCompletionItems(): any {
+				return [new types.CompletionItem('weak-selector')]; // weaker selector but result
+			}
+		}, []));
+
+		disposables.push(extHost.registerCompletionItemProvider(defaultSelector, <vscode.CompletionItemProvider>{
+			provideCompletionItems(): any {
+				return []; // stronger selector but not a good result;
+			}
+		}, []));
+
+		threadService.sync().then(() => {
+			suggest(model, { lineNumber: 1, column: 1 }, ',').then(value => {
+				assert.equal(value.length, 1);
+				let [[first]] = value;
+				assert.equal(first.suggestions.length, 1)
+				assert.equal(first.suggestions[0].codeSnippet, 'weak-selector')
+				done();
+			});
+		});
 	})
+
+	test('Suggest, order 2/3', function(done) {
+
+		disposables.push(extHost.registerCompletionItemProvider(defaultSelector, <vscode.CompletionItemProvider>{
+			provideCompletionItems(): any {
+				return [new types.CompletionItem('strong-1')];
+			}
+		}, []));
+
+		setTimeout(function() {
+			disposables.push(extHost.registerCompletionItemProvider(defaultSelector, <vscode.CompletionItemProvider>{
+				provideCompletionItems(): any {
+					return [new types.CompletionItem('strong-2')];
+				}
+			}, []));
+
+			threadService.sync().then(() => {
+				suggest(model, { lineNumber: 1, column: 1 }, ',').then(value => {
+					assert.equal(value.length, 2);
+					let [[first], [second]] = value;
+					assert.equal(first.suggestions.length, 1)
+					assert.equal(first.suggestions[0].codeSnippet, 'strong-2') // last wins
+					assert.equal(second.suggestions[0].codeSnippet, 'strong-1')
+					done();
+				});
+			});
+		}, 5);
+	})
+
+	test('Suggest, evil provider', function(done) {
+
+		disposables.push(extHost.registerCompletionItemProvider(defaultSelector, <vscode.CompletionItemProvider>{
+			provideCompletionItems(): any {
+				throw new Error('evil');
+			}
+		}, []));
+
+		disposables.push(extHost.registerCompletionItemProvider(defaultSelector, <vscode.CompletionItemProvider>{
+			provideCompletionItems(): any {
+				return [new types.CompletionItem('testing')];
+			}
+		}, []));
+
+
+		threadService.sync().then(() => {
+
+			suggest(model, { lineNumber: 1, column: 1 }, ',').then(value => {
+				assert.equal(value.length, 1);
+				done();
+			});
+		});
+	});
 });

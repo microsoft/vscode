@@ -46,13 +46,13 @@ import {SuggestRegistry} from 'vs/editor/contrib/suggest/common/suggest';
 // vscode.executeDocumentRenameProvider
 // vscode.executeSignatureHelpProvider
 // vscode.executeDocumentSymbolProvider
+// vscode.executeCompletionItemProvider
 
 // vscode.executeCodeActionProvider
 // vscode.executeCodeLensProvider
 // vscode.executeFormatDocumentProvider
 // vscode.executeFormatRangeProvider
 // vscode.executeFormatOnTypeProvider
-// vscode.executeCompletionItemProvider
 
 export class ExtHostLanguageFeatureCommands {
 
@@ -70,6 +70,7 @@ export class ExtHostLanguageFeatureCommands {
 		this._register('vscode.executeDocumentRenameProvider', this._executeDocumentRenameProvider);
 		this._register('vscode.executeSignatureHelpProvider', this._executeSignatureHelpProvider);
 		this._register('vscode.executeDocumentSymbolProvider', this._executeDocumentSymbolProvider);
+		this._register('vscode.executeCompletionItemProvider', this._executeCompletionItemProvider);
 	}
 
 	private _register(id: string, callback: (...args: any[]) => any): void {
@@ -164,6 +165,28 @@ export class ExtHostLanguageFeatureCommands {
 		return this._commands.executeCommand<modes.IParameterHints>('_executeSignatureHelpProvider', args).then(value => {
 			if (value) {
 				return typeConverters.SignatureHelp.to(value);
+			}
+		});
+	}
+
+	private _executeCompletionItemProvider(resource: URI, position: types.Position, triggerCharacter: string): Thenable<types.CompletionItem[]> {
+		const args = {
+			resource,
+			position: position && typeConverters.fromPosition(position),
+			triggerCharacter
+		};
+		return this._commands.executeCommand<modes.ISuggestions[][]>('_executeCompletionItemProvider', args).then(value => {
+			if (value) {
+				let items: types.CompletionItem[] = [];
+				for (let group of value) {
+					for (let suggestions of group) {
+						for (let suggestion of suggestions.suggestions) {
+							const item = typeConverters.Suggest.to(suggestion, suggestions);
+							items.push(item);
+						}
+					}
+				}
+				return items;
 			}
 		});
 	}

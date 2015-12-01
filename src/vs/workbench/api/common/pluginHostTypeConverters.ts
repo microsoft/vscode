@@ -312,6 +312,39 @@ export function toDocumentHighlight(occurrence: modes.IOccurence): types.Documen
 		types.DocumentHighlightKind[occurrence.kind.charAt(0).toUpperCase() + occurrence.kind.substr(1)]);
 }
 
+export const Suggest = {
+
+	from(item: vscode.CompletionItem, defaultContainer: modes.ISuggestions): [modes.ISuggestion, modes.ISuggestions] {
+		const suggestion: modes.ISuggestion = {
+			label: item.label,
+			codeSnippet: item.insertText || item.label,
+			type: types.CompletionItemKind[item.kind || types.CompletionItemKind.Text].toString().toLowerCase(),
+			typeLabel: item.detail,
+			documentationLabel: item.documentation,
+			sortText: item.sortText,
+			filterText: item.filterText
+		};
+
+		if (item.textEdit) {
+			// TODO@joh
+		}
+
+		return [suggestion, defaultContainer];
+	},
+
+	to(suggestion: modes.ISuggestion, container: modes.ISuggestions): types.CompletionItem {
+		const result = new types.CompletionItem(suggestion.label);
+		result.insertText = suggestion.codeSnippet;
+		result.kind = types.CompletionItemKind[suggestion.type.charAt(0).toUpperCase() + suggestion.type.substr(1)];
+		result.detail = suggestion.typeLabel;
+		result.documentation = suggestion.documentationLabel;
+		result.sortText = suggestion.sortText;
+		result.filterText = suggestion.filterText;
+		// todo@joh edit range!
+		return result;
+	}
+}
+
 export namespace SignatureHelp {
 
 	export function from(signatureHelp: types.SignatureHelp): modes.IParameterHints {

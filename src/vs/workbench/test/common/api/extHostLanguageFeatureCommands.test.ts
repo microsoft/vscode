@@ -232,4 +232,27 @@ suite('ExtHostLanguageFeatureCommands', function() {
 			});
 		});
 	});
+
+	// --- suggest
+
+	test('Suggest, back and forth', function(done) {
+		disposables.push(extHost.registerCompletionItemProvider(defaultSelector, <vscode.CompletionItemProvider>{
+			provideCompletionItems(): any {
+				return [
+					new types.CompletionItem('item1'),
+					new types.CompletionItem('item2')
+				];
+			}
+		}, []));
+
+		threadService.sync().then(() => {
+			commands.executeCommand<vscode.CompletionItem[]>('vscode.executeCompletionItemProvider', model.getAssociatedResource(), new types.Position(0, 0)).then(values => {
+				assert.equal(values.length, 2);
+				let [first, second] = values;
+				assert.equal(first.label, 'item1');
+				assert.equal(second.label, 'item2');
+				done();
+			});
+		});
+	});
 });
