@@ -20,6 +20,7 @@ import {IMarkerService} from 'vs/platform/markers/common/markers';
 import {IResourceService} from 'vs/editor/common/services/resourceService';
 import {getScanner, IHTMLScanner} from 'vs/languages/html/common/htmlScanner';
 import {isTag, DELIM_END, DELIM_START, DELIM_ASSIGN, ATTRIB_NAME, ATTRIB_VALUE} from 'vs/languages/html/common/htmlTokenTypes';
+import {isEmptyElement} from 'vs/languages/html/common/htmlEmptyTagsShared';
 
 enum LinkDetectionState {
 	LOOKING_FOR_HREF_OR_SRC = 1,
@@ -174,7 +175,7 @@ export class HTMLWorker extends AbstractModeWorker {
 				scanner.scanBack();
 				if (scanner.getTokenType() === DELIM_END) {
 					closedTags[tag] = (closedTags[tag] || 0) + 1;
-				} else if (!htmlTags.isEmptyElement(tag)) {
+				} else if (!isEmptyElement(tag)) {
 					if (closedTags[tag]) {
 						closedTags[tag]--;
 					} else {
@@ -401,7 +402,7 @@ export class HTMLWorker extends AbstractModeWorker {
 	}
 
 	private findMatchingBracket(tagname: string, scanner: IHTMLScanner) : EditorCommon.IRange {
-		if (htmlTags.isEmptyElement(tagname)) {
+		if (isEmptyElement(tagname)) {
 			return null;
 		}
 		var tagCount = 0;
@@ -704,4 +705,3 @@ export class HTMLWorker extends AbstractModeWorker {
 function isWhiteSpace(s:string) : boolean {
 	return /^\s*$/.test(s);
 }
-

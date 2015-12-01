@@ -5,12 +5,7 @@
 
 import strings = require('vs/base/common/strings');
 import arrays = require('vs/base/common/arrays');
-
-export const EMPTY_ELEMENTS:string[] = ['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'keygen', 'link', 'menuitem', 'meta', 'param', 'source', 'track', 'wbr'];
-
-export function isEmptyElement(e: string) : boolean {
-	return arrays.binarySearch(EMPTY_ELEMENTS, e,(s1: string, s2: string) => s1.localeCompare(s2)) >= 0;
-}
+import {isEmptyElement} from 'vs/languages/html/common/htmlEmptyTagsShared';
 
 export interface IHTMLTagProvider {
 	collectTags(collector: (tag:string) => void): void;

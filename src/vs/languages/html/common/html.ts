@@ -23,7 +23,7 @@ import {OnEnterSupport} from 'vs/editor/common/modes/supports/onEnter';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IThreadService } from 'vs/platform/thread/common/thread';
 import * as htmlTokenTypes from 'vs/languages/html/common/htmlTokenTypes';
-import {EMPTY_ELEMENTS} from 'vs/languages/html/common/htmlTags';
+import {EMPTY_ELEMENTS} from 'vs/languages/html/common/htmlEmptyTagsShared';
 
 export { htmlTokenTypes }; // export to be used by Razor. We are the main module, so Razor should get ot from use.
 
