@@ -2932,7 +2932,7 @@
         </value>
       </values>
     </entry>
-    <entry name="box-shadow" restriction="length, color, enum" version="3.0" browsers="E,C,FF9,IE9,O11.6,S5.1" ref="http://www.w3.org/TR/css3-background/#box-shadow" syntax="div { $(name): rgba(0,0,0,0.4) 10px 10px inset; }">
+    <entry name="box-shadow" restriction="length, color, enum" version="3.0" browsers="E,C,FF4,IE9,O11.5,S5.1" ref="http://www.w3.org/TR/css3-background/#box-shadow" syntax="div { $(name): rgba(0,0,0,0.4) 10px 10px inset; }">
       <desc>Attaches one or more drop-shadows to the box. The property is a comma-separated list of shadows, each specified by 2-4 length values, an optional color, and an optional 'inset' keyword. Omitted lengths are 0; omitted colors are a user agent chosen color.</desc>
       <values>
         <value name="inset" version="3.0" browsers="all">
