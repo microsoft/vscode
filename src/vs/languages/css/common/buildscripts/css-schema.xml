@@ -2921,7 +2921,7 @@
         </value>
       </values>
     </entry>
-    <entry name="box-decoration-break" restriction="enum" version="3.0" browsers="O11" ref="http://www.w3.org/TR/css3-background/#the-box-decoration-break" syntax="div { $(name): clone; }">
+    <entry name="box-decoration-break" restriction="enum" version="3.0" browsers="FF32,O11" ref="http://www.w3.org/TR/css3-break/#break-decoration" syntax="div { $(name): clone; }">
       <desc>Specifies whether individual boxes are treated as broken pieces of one continuous box, or whether each box is individually wrapped with the border and padding.</desc>
       <values>
         <value name="clone" version="3.0" browsers="all">
