@@ -77,7 +77,7 @@ export class UntitledEditorInput extends EditorInput implements IResourceEditorI
 	public suggestFileName(): string {
 		if (!this.hasAssociatedFilePath) {
 			let mime = this.getMime();
-			if (mime) {
+			if (mime && mime !== MIME_TEXT /* do not suggest when the mime type is simple plain text */) {
 				return suggestFilename(mime, this.getName());
 			}
 		}

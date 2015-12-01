@@ -371,8 +371,12 @@ export class TextFileService extends BrowserTextFileService {
 			defaultPath: defaultPath
 		};
 
-		// Filters are only working well on Windows it seems
-		if (!isWindows) {
+		// Filters are working flaky in Electron and there are bugs. On Windows they are working
+		// somewhat but we see issues:
+		// - https://github.com/atom/electron/issues/3556
+		// - https://github.com/Microsoft/vscode/issues/451
+		// Until these issues are resolved, we disable the dialog file extension filtering.
+		if (true) {
 			return options;
 		}
 
