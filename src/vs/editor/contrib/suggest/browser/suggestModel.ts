@@ -18,7 +18,7 @@ import { ISuggestSupport, ISuggestions, ISuggestion, ISorter } from 'vs/editor/c
 import {DefaultFilter} from 'vs/editor/common/modes/modesFilters';
 import { CodeSnippet } from 'vs/editor/contrib/snippet/common/snippet';
 import { IDisposable, disposeAll } from 'vs/base/common/lifecycle';
-import {SuggestRegistry} from '../common/suggest';
+import {SuggestRegistry, ISuggestions2, suggest} from '../common/suggest';
 
 enum SuggestState {
 	NOT_ACTIVE = 0,
@@ -77,13 +77,13 @@ class RawModel {
 	public size: number = 0;
 	public incomplete: boolean = false;
 
-	insertSuggestions(rank: number, suggestions: ISuggestions[], support: ISuggestSupport): boolean {
+	insertSuggestions(rank: number, suggestions: ISuggestions2[]): boolean {
 		if (suggestions) {
 			let items: CompletionItem[] = [];
 			for (let _suggestions of suggestions) {
 
 				for (let suggestionItem of _suggestions.suggestions) {
-					items.push(new CompletionItem(support, suggestionItem, _suggestions));
+					items.push(new CompletionItem(_suggestions.support, suggestionItem, _suggestions));
 				}
 
 				this.size += _suggestions.suggestions.length;
@@ -385,34 +385,16 @@ export class SuggestModel extends EventEmitter {
 		// Send mode request
 		var $tRequest = timer.start(timer.Topic.EDITOR, 'suggest/REQUEST');
 		var position = this.editor.getPosition();
-		var resource = model.getAssociatedResource();
 
 		let raw = new RawModel();
 		let rank = 0;
-		let factory = groups.map((supports, index) => {
-			return () => {
-
-				// stop as soon as a group produced a result
-				if (raw.size !== 0) {
-					return;
+		this.requestPromise = suggest(model, position, triggerCharacter, groups).then(all => {
+			for (let suggestions of all) {
+				if (raw.insertSuggestions(rank, suggestions)) {
+					rank++;
 				}
-
-				// for each support in the group as for suggestions
-				let promises = supports.map(support => {
-					return support.suggest(resource, position, triggerCharacter).then(value => {
-						if (raw.insertSuggestions(rank, value, support)) {
-							rank++;
-						}
-					}, err => {
-						onUnexpectedError(err);
-					});
-				});
-
-				return TPromise.join(promises);
-			};
+			}
 		});
-
-		this.requestPromise = sequence(factory).then(() => { });
 
 		this.requestPromise.then(() => {
 			$tRequest.stop();
@@ -424,7 +406,7 @@ export class SuggestModel extends EventEmitter {
 
 			var snippets = getSnippets(model, position);
 			if (snippets && snippets.suggestions && snippets.suggestions.length > 0) {
-				raw.insertSuggestions(rank, [snippets], undefined);
+				raw.insertSuggestions(rank, [snippets]);
 			}
 
 			if(raw.size > 0) {

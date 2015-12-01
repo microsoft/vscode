@@ -72,19 +72,9 @@ class OutlineAdapter implements IOutlineSupport {
 		let doc = this._documents.getDocument(resource);
 		return asWinJsPromise(token => this._provider.provideDocumentSymbols(doc, token)).then(value => {
 			if (Array.isArray(value)) {
-				return value.map(OutlineAdapter._convertSymbolInfo);
+				return value.map(TypeConverters.SymbolInformation.toOutlineEntry);
 			}
 		});
-	}
-
-	private static _convertSymbolInfo(symbol: vscode.SymbolInformation): IOutlineEntry {
-		return <IOutlineEntry>{
-			type: TypeConverters.fromSymbolKind(symbol.kind),
-			range: TypeConverters.fromRange(symbol.location.range),
-			containerLabel: symbol.containerName,
-			label: symbol.name,
-			icon: undefined,
-		};
 	}
 }
 
@@ -116,13 +106,14 @@ class CodeLensAdapter implements modes.ICodeLensSupport {
 			return value.map((lens, i) => {
 				return <modes.ICodeLensSymbol>{
 					id: String(i),
-					range: TypeConverters.fromRange(lens.range)
+					range: TypeConverters.fromRange(lens.range),
+					command: TypeConverters.Command.from(lens.command)
 				}
 			});
 		});
 	}
 
-	resolveCodeLensSymbol(resource: URI, symbol: modes.ICodeLensSymbol): TPromise<modes.ICommand> {
+	resolveCodeLensSymbol(resource: URI, symbol: modes.ICodeLensSymbol): TPromise<modes.ICodeLensSymbol> {
 
 		let lenses = this._cache[resource.toString()];
 		if (!lenses) {
@@ -150,11 +141,9 @@ class CodeLensAdapter implements modes.ICodeLensSupport {
 					command: 'missing',
 				}
 			}
-			return {
-				id: command.command,
-				title: command.title,
-				arguments: command.arguments
-			}
+
+			symbol.command = TypeConverters.Command.from(command);
+			return symbol;
 		});
 	}
 }
@@ -215,20 +204,14 @@ class ExtraInfoAdapter implements modes.IExtraInfoSupport {
 			if (!value) {
 				return;
 			}
-
-			let {range, contents} = value;
-
-			if (!range) {
-				range = doc.getWordRangeAtPosition(pos);
+			if (!value.range) {
+				value.range = doc.getWordRangeAtPosition(pos);
 			}
-			if (!range) {
-				range = new Range(pos, pos);
+			if (!value.range) {
+				value.range = new Range(pos, pos);
 			}
 
-			return <modes.IComputeExtraInfoResult>{
-				range: TypeConverters.fromRange(range),
-				htmlContent: contents && contents.map(TypeConverters.fromFormattedString)
-			}
+			return TypeConverters.fromHover(value);
 		});
 	}
 }
@@ -438,20 +421,9 @@ class NavigateTypeAdapter implements INavigateTypesSupport {
 	getNavigateToItems(search: string): TPromise<ITypeBearing[]> {
 		return asWinJsPromise(token => this._provider.provideWorkspaceSymbols(search, token)).then(value => {
 			if (Array.isArray(value)) {
-				return value.map(NavigateTypeAdapter._fromSymbolInformation);
+				return value.map(TypeConverters.fromSymbolInformation);
 			}
 		});
-	}
-
-	private static _fromSymbolInformation(info: vscode.SymbolInformation): ITypeBearing {
-		return <ITypeBearing>{
-			name: info.name,
-			type: SymbolKind[info.kind || SymbolKind.Property].toLowerCase(),
-			range: TypeConverters.fromRange(info.location.range),
-			resourceUri: info.location.uri,
-			containerName: info.containerName,
-			parameters: '',
-		};
 	}
 }
 
@@ -536,7 +508,7 @@ class SuggestAdapter implements modes.ISuggestSupport {
 
 			for (let i = 0; i < value.length; i++) {
 				const item = value[i];
-				const suggestion = SuggestAdapter._convertCompletionItem(item);
+				const [suggestion] = TypeConverters.Suggest.from(item, defaultSuggestions); SuggestAdapter._convertCompletionItem(item);
 
 				if (item.textEdit) {
 
@@ -634,49 +606,9 @@ class ParameterHintsAdapter implements modes.IParameterHintsSupport {
 
 		return asWinJsPromise(token => this._provider.provideSignatureHelp(doc, pos, token)).then(value => {
 			if (value instanceof SignatureHelp) {
-				return ParameterHintsAdapter._convertSignatureHelp(value);
+				return TypeConverters.SignatureHelp.from(value);
 			}
 		});
-	}
-
-	private static _convertSignatureHelp(signatureHelp: SignatureHelp): modes.IParameterHints {
-
-		let result: modes.IParameterHints = {
-			currentSignature: signatureHelp.activeSignature,
-			currentParameter: signatureHelp.activeParameter,
-			signatures: []
-		}
-
-		for (let signature of signatureHelp.signatures) {
-
-			let signatureItem: modes.ISignature = {
-				label: signature.label,
-				documentation: signature.documentation,
-				parameters: []
-			};
-
-			let idx = 0;
-			for (let parameter of signature.parameters) {
-
-				let parameterItem: modes.IParameter = {
-					label: parameter.label,
-					documentation: parameter.documentation,
-				};
-
-				signatureItem.parameters.push(parameterItem);
-				idx = signature.label.indexOf(parameter.label, idx);
-
-				if (idx >= 0) {
-					parameterItem.signatureLabelOffset = idx;
-					idx += parameter.label.length;
-					parameterItem.signatureLabelEnd = idx;
-				}
-			}
-
-			result.signatures.push(signatureItem);
-		}
-
-		return result;
 	}
 
 	getParameterHintsTriggerCharacters(): string[] {
@@ -754,7 +686,7 @@ export class ExtHostLanguageFeatures {
 		return this._withAdapter(handle, CodeLensAdapter, adapter => adapter.findCodeLensSymbols(resource));
 	}
 
-	$resolveCodeLensSymbol(handle:number, resource: URI, symbol: modes.ICodeLensSymbol): TPromise<modes.ICommand> {
+	$resolveCodeLensSymbol(handle:number, resource: URI, symbol: modes.ICodeLensSymbol): TPromise<modes.ICodeLensSymbol> {
 		return this._withAdapter(handle, CodeLensAdapter, adapter => adapter.resolveCodeLensSymbol(resource, symbol));
 	}
 
@@ -958,7 +890,7 @@ export class MainThreadLanguageFeatures {
 			findCodeLensSymbols: (resource: URI): TPromise<modes.ICodeLensSymbol[]> => {
 				return this._proxy.$findCodeLensSymbols(handle, resource);
 			},
-			resolveCodeLensSymbol: (resource: URI, symbol: modes.ICodeLensSymbol): TPromise<modes.ICommand> => {
+			resolveCodeLensSymbol: (resource: URI, symbol: modes.ICodeLensSymbol): TPromise<modes.ICodeLensSymbol> => {
 				return this._proxy.$resolveCodeLensSymbol(handle, resource, symbol);
 			}
 		});

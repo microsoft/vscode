@@ -808,8 +808,7 @@ export interface ICommand {
 export interface ICodeLensSymbol {
 	range: EditorCommon.IRange;
 	id?: string;
-	kind?: string;
-	name?: string;
+	command?: ICommand;
 }
 
 /**
@@ -817,7 +816,7 @@ export interface ICodeLensSymbol {
  */
 export interface ICodeLensSupport {
 	findCodeLensSymbols(resource: URI): TPromise<ICodeLensSymbol[]>;
-	resolveCodeLensSymbol(resource: URI, symbol: ICodeLensSymbol): TPromise<ICommand>;
+	resolveCodeLensSymbol(resource: URI, symbol: ICodeLensSymbol): TPromise<ICodeLensSymbol>;
 }
 
 export interface ITaskSummary {
