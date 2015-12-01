@@ -744,7 +744,7 @@
         <value name="fixed" version="1.0" browsers="all">
           <desc>The background is fixed with regard to the viewport. In paged media where there is no viewport, a 'fixed' background is fixed with respect to the page box and therefore replicated on every page.</desc>
         </value>
-        <value name="local" version="3.0" browsers="all">
+        <value name="local" version="3.0" browsers="E,C,FF25,IE9,O11.5,S5">
           <desc>The background is fixed with regard to the element's contents: if the element has a scrolling mechanism, the background scrolls with the element's contents.</desc>
         </value>
         <value name="scroll" version="1.0" browsers="all">
