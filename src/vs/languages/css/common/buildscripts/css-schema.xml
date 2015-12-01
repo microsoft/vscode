@@ -2984,6 +2984,12 @@
         <value name="right" version="3.0" browsers="all">
           <desc>Force one or two page breaks before/after the generated box so that the next page is formatted as a right page.</desc>
         </value>
+        <value name="recto" version="3.0" browsers="none">
+          <desc>Forces a page break so that the next page is formatted as the right page in ltr langages or the left page for rtl.</desc>
+        </value>
+        <value name="verso" version="3.0" browsers="none">
+          <desc>Forces a page break so that the next page is formatted as the left page in ltr langages or the right page for rtl.</desc>
+        </value>
       </values>
     </entry>
     <entry name="break-before" restriction="enum" version="3.0" browsers="E,IE10,O11.5" ref="http://www.w3.org/TR/css3-break/#break-between" syntax="h2 { $(name): column; }">
@@ -3017,6 +3023,12 @@
         <value name="region" version="3.0" browsers="none" />
         <value name="right" version="3.0" browsers="all">
           <desc>Force one or two page breaks before/after the generated box so that the next page is formatted as a right page.</desc>
+        </value>
+        <value name="recto" version="3.0" browsers="none">
+          <desc>Forces a page break so that the next page is formatted as the right page in ltr langages or the left page for rtl.</desc>
+        </value>
+        <value name="verso" version="3.0" browsers="none">
+          <desc>Forces a page break so that the next page is formatted as the left page in ltr langages or the right page for rtl.</desc>
         </value>
       </values>
     </entry>
