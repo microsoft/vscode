@@ -209,6 +209,8 @@ suite('Files - TextFileEditorModel', () => {
 	});
 
 	test("Change after auto save triggered will cause another autosave and twice the events", function(done) {
+		this.timeout(10000); // TODO@Ben test tends to need longer?
+
 		let eventCounter = 0;
 		let m1 = baseInstantiationService.createInstance(TextFileEditorModel, toResource("/path/index.txt"), "utf8");
 
