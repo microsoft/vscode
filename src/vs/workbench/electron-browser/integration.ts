@@ -17,11 +17,13 @@ import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {IWorkspaceContextService}from 'vs/workbench/services/workspace/common/contextService';
 import {IWindowService}from 'vs/workbench/services/window/electron-browser/windowService';
+import {IConfigurationService, IConfigurationServiceEvent, ConfigurationServiceEventTypes} from 'vs/platform/configuration/common/configuration';
 
 import win = require('vs/workbench/electron-browser/window');
 
 import remote = require('remote');
 import ipc = require('ipc');
+import webFrame = require('web-frame');
 
 export class ElectronIntegration {
 
@@ -31,6 +33,7 @@ export class ElectronIntegration {
 		@IPartService private partService: IPartService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@ITelemetryService private telemetryService: ITelemetryService,
+		@IConfigurationService private configurationService: IConfigurationService,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IStorageService private storageService: IStorageService,
 		@IMessageService private messageService: IMessageService
@@ -96,6 +99,12 @@ export class ElectronIntegration {
 		// Theme changes
 		ipc.on('vscode:changeTheme', (theme:string) => {
 			this.storageService.store('workbench.theme', theme, StorageScope.GLOBAL);
+		});
+
+		// Configuration changes
+		this.configurationService.addListener(ConfigurationServiceEventTypes.UPDATED, (e: IConfigurationServiceEvent) => {
+			let zoomLevel = e.config && e.config.window && e.config.window.zoomLevel;
+			webFrame.setZoomLevel(zoomLevel);
 		});
 	}
 

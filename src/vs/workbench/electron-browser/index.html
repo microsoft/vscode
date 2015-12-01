@@ -99,6 +99,8 @@
 
 		<!-- Startup Code -->
 		<script type="text/javascript">
+			var webFrame = require('web-frame');
+
 			var mainStarted = false;
 			var args = parseURLQueryArgs();
 			var configuration = JSON.parse(args['config']);
@@ -108,8 +110,24 @@
 
 			registerListeners(enableDeveloperTools);
 
+			// We get the global settings through a remote call from the browser
+			// because its value can change dynamically.
+			var globalSettings;
+			var globalSettingsValue = remote.getGlobal('globalSettingsValue');
+			if (globalSettingsValue) {
+				globalSettings = JSON.parse(globalSettingsValue);
+			} else {
+				globalSettings = {
+					settings: {},
+					keybindings: []
+				};
+			}
+
 			// disable pinch zoom
-			require('web-frame').setZoomLevelLimits(1, 1);
+			webFrame.setZoomLevelLimits(1, 1);
+
+			// apply zoom level very early to avoid glitches
+			webFrame.setZoomLevel(globalSettings.settings.window.zoomLevel);
 
 			var rootUrl = uriFromPath(configuration.appRoot) + '/out';
 			createScript(rootUrl + '/vs/loader.js', function() {
@@ -152,19 +170,6 @@
 					'vs/css!vs/workbench/workbench.main'
 				], function() {
 					timers.afterLoad = new Date();
-
-					// We get the global settings through a remote call from the browser
-					// because its value can change dynamically.
-					var globalSettings;
-					var globalSettingsValue = remote.getGlobal('globalSettingsValue');
-					if (globalSettingsValue) {
-						globalSettings = JSON.parse(globalSettingsValue);
-					} else {
-						globalSettings = {
-							settings: {},
-							keybindings: []
-						};
-					}
 
 					var main = require('vs/workbench/electron-browser/main');
 					main.startup(configuration, globalSettings).then(function() {
