@@ -53,7 +53,7 @@ function registerSupports(modeID: string, host: TypeScriptServiceClientHost, cli
 	languages.registerDocumentHighlightProvider(modeID, new DocumentHighlightProvider(client));
 	languages.registerReferenceProvider(modeID, new ReferenceProvider(client));
 	languages.registerDocumentSymbolProvider(modeID, new DocumentSymbolProvider(client));
-	languages.registerSignatureHelpProvider(modeID, new SignatureHelpProvider(client), '(', ';');
+	languages.registerSignatureHelpProvider(modeID, new SignatureHelpProvider(client), '(', ',');
 	languages.registerRenameProvider(modeID, new RenameProvider(client));
 	languages.registerDocumentRangeFormattingEditProvider(modeID, new FormattingProvider(client));
 	languages.registerOnTypeFormattingEditProvider(modeID, new FormattingProvider(client), ';', '}', '\n');
