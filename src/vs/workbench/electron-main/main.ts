@@ -23,6 +23,7 @@ import {getUserEnvironment} from 'vs/base/node/env';
 import {Promise, TPromise} from 'vs/base/common/winjs.base';
 import {GitAskpassService} from 'vs/workbench/parts/git/electron-main/askpassService';
 import {spawnSharedProcess} from 'vs/workbench/electron-main/sharedProcess';
+import { Mutex } from 'windows-mutex';
 
 export class LaunchService {
 	public start(args: env.ICommandLineArguments, userEnv: env.IProcessEnvironment): Promise {
@@ -81,9 +82,19 @@ function quit(arg?: any) {
 	process.exit(exitCode);
 }
 
+
 function main(ipcServer: Server, userEnv: env.IProcessEnvironment): void {
 	env.log('### VSCode main.js ###');
 	env.log(env.appRoot, env.cliArgs);
+
+	// Setup Windows mutex
+	let windowsMutex: Mutex = null;
+	try {
+		var Mutex = (<any> require.__$__nodeRequire('windows-mutex')).Mutex;
+		windowsMutex = new Mutex('vscode');
+	} catch (e) {
+		// noop
+	}
 
 	// Register IPC services
 	ipcServer.registerService('LaunchService', new LaunchService());
@@ -118,6 +129,7 @@ function main(ipcServer: Server, userEnv: env.IProcessEnvironment): void {
 		}
 
 		sharedProcess.kill();
+		windowsMutex && windowsMutex.release();
 	});
 
 	// Lifecycle
@@ -233,12 +245,6 @@ function setupIPC(): TPromise<Server> {
 }
 
 function setupMutex() {
-	try {
-		var Mutex = (<any> require.__$__nodeRequire('windows-mutex')).Mutex;
-		new Mutex('vscode');
-	} catch (e) {
-		// noop
-	}
 }
 
 // On some platforms we need to manually read from the global environment variables
