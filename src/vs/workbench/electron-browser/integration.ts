@@ -17,6 +17,7 @@ import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {IWorkspaceContextService}from 'vs/workbench/services/workspace/common/contextService';
 import {IWindowService}from 'vs/workbench/services/window/electron-browser/windowService';
+import {IWindowConfiguration} from 'vs/workbench/electron-browser/window';
 import {IConfigurationService, IConfigurationServiceEvent, ConfigurationServiceEventTypes} from 'vs/platform/configuration/common/configuration';
 
 import win = require('vs/workbench/electron-browser/window');
@@ -103,8 +104,16 @@ export class ElectronIntegration {
 
 		// Configuration changes
 		this.configurationService.addListener(ConfigurationServiceEventTypes.UPDATED, (e: IConfigurationServiceEvent) => {
-			let zoomLevel = e.config && e.config.window && e.config.window.zoomLevel;
-			webFrame.setZoomLevel(zoomLevel);
+			let windowConfig: IWindowConfiguration = e.config;
+
+			let newZoomLevel = 0;
+			if (windowConfig.window && typeof windowConfig.window.zoomLevel === 'number') {
+				newZoomLevel = windowConfig.window.zoomLevel;
+			}
+
+			if (webFrame.getZoomLevel() !== newZoomLevel) {
+				webFrame.setZoomLevel(newZoomLevel);
+			}
 		});
 	}
 

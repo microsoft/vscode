@@ -60,8 +60,8 @@ configurationRegistry.registerConfiguration({
 		},
 		'window.zoomLevel': {
 			'type': 'number',
-			'default': '0',
-			'description': nls.localize('zoomLevel', "Zoom level todo")
+			'default': 0,
+			'description': nls.localize('zoomLevel', "Adjust the zoom level of the window. The original size is 0 and each increment above or below represents zooming 20% larger or smaller.")
 		}
 	}
 });

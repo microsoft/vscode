@@ -123,12 +123,14 @@
 				};
 			}
 
-			// disable pinch zoom
+			// disable pinch zoom & apply zoom level early to avoid glitches
+			var windowConfiguration = globalSettings.settings && globalSettings.settings.window;
 			webFrame.setZoomLevelLimits(1, 1);
+			if (windowConfiguration && typeof windowConfiguration.zoomLevel === 'number' && windowConfiguration.zoomLevel !== 0) {
+				webFrame.setZoomLevel(windowConfiguration.zoomLevel);
+			}
 
-			// apply zoom level very early to avoid glitches
-			webFrame.setZoomLevel(globalSettings.settings.window.zoomLevel);
-
+			// Load the loader and start loading the workbench
 			var rootUrl = uriFromPath(configuration.appRoot) + '/out';
 			createScript(rootUrl + '/vs/loader.js', function() {
 				require.config({
