@@ -26,7 +26,7 @@
 }
 
 .monaco-editor .debug-breakpoint-glyph-hint {
-	background: url('breakpoint-hover.svg') center center no-repeat;
+	background: url('breakpoint-disabled.svg') center center no-repeat;
 }
 
 .monaco-editor .debug-breakpoint-glyph-disabled {
@@ -264,7 +264,7 @@
 }
 
 .monaco-editor.vs-dark .debug-breakpoint-glyph-hint {
-	background: url('breakpoint-hover-dark.svg') center center no-repeat;
+	background: url('breakpoint-disabled-dark.svg') center center no-repeat;
 }
 
 .monaco-editor.vs-dark .debug-breakpoint-glyph-disabled {
