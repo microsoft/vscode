@@ -189,6 +189,7 @@ export interface IRawAdapter extends IRawEnvAdapter {
 export interface IRawDebugSession extends ee.EventEmitter {
 	getType(): string;
 	disconnect(restart?: boolean): TPromise<DebugProtocol.DisconnectResponse>;
+	attach(args: DebugProtocol.AttachRequestArguments): TPromise<DebugProtocol.AttachResponse>;
 
 	next(args: DebugProtocol.NextArguments): TPromise<DebugProtocol.NextResponse>;
 	stepIn(args: DebugProtocol.StepInArguments): TPromise<DebugProtocol.StepInResponse>;
