@@ -67,6 +67,13 @@ export interface IEnablement extends ITreeElement {
 	enabled: boolean;
 }
 
+export interface IRawBreakpoint {
+	uri: uri;
+	lineNumber: number;
+	enabled: boolean;
+	condition?: string;
+}
+
 export interface IBreakpoint extends IEnablement {
 	source: Source;
 	lineNumber: number;
@@ -216,12 +223,12 @@ export interface IDebugService extends ee.IEventEmitter {
 
 	setFocusedStackFrameAndEvaluate(focusedStackFrame: IStackFrame): void;
 
-	setBreakpointsForModel(modelUri: uri, data: { lineNumber: number; enabled: boolean; condition: string }[]): Promise;
-	toggleBreakpoint(modelUri: uri, lineNumber: number, condition?: string): Promise;
+	setBreakpointsForModel(modelUri: uri, data: IRawBreakpoint[]): Promise;
+	toggleBreakpoint(IRawBreakpoint): Promise;
 	enableOrDisableAllBreakpoints(enabled: boolean): Promise;
 	toggleEnablement(element: IEnablement): Promise;
-	removeBreakpoints(modelUri?: uri): Promise;
 	toggleBreakpointsActivated(): Promise;
+	removeAllBreakpoints(): Promise;
 	sendAllBreakpoints(): Promise;
 
 	addFunctionBreakpoint(functionName?: string): Promise;

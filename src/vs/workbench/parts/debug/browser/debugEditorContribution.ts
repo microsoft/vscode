@@ -52,7 +52,7 @@ export class DebugEditorContribution implements editorcommon.IEditorContribution
 				nls.localize('addBreakpoint', "Add Breakpoint"),
 				null,
 				true,
-				() =>  this.debugService.toggleBreakpoint(uri, lineNumber)
+				() =>  this.debugService.toggleBreakpoint({ uri, lineNumber })
 			));
 		}
 
@@ -81,7 +81,7 @@ export class DebugEditorContribution implements editorcommon.IEditorContribution
 					getActionsContext: () => breakpoint
 				});
 			} else {
-				this.debugService.toggleBreakpoint(uri, lineNumber);
+				this.debugService.toggleBreakpoint({ uri, lineNumber });
 			}
 		}));
 

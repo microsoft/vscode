@@ -6,7 +6,7 @@
 import lifecycle = require('vs/base/common/lifecycle');
 import editorcommon = require('vs/editor/common/editorCommon');
 import wbext = require('vs/workbench/common/contributions');
-import { IDebugService, ModelEvents, ViewModelEvents, IBreakpoint } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugService, ModelEvents, ViewModelEvents, IBreakpoint, IRawBreakpoint } from 'vs/workbench/parts/debug/common/debug';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 
@@ -197,7 +197,7 @@ export class DebugEditorModelManager implements wbext.IWorkbenchContribution {
 		}
 
 		const model = modelData.model;
-		const data: { lineNumber: number; enabled: boolean; condition: string }[] = [];
+		const data: IRawBreakpoint[] = [];
 
 		const breakpoints = this.debugService.getModel().getBreakpoints().filter(bp => bp.source.uri.toString() === modelUrlStr);
 		const enabledAndConditions: { [key: number]: { enabled: boolean, condition: string } } = {};
@@ -208,12 +208,15 @@ export class DebugEditorModelManager implements wbext.IWorkbenchContribution {
 			};
 		}
 
+		const modelUrl = model.getAssociatedResource();
+		
 		for (var i = 0, len = modelData.breakpointDecorationIds.length; i < len; i++) {
 			var decorationRange = model.getDecorationRange(modelData.breakpointDecorationIds[i]);
 			// Check if the line got deleted.
 			if (decorationRange.endColumn - decorationRange.startColumn > 0) {
 				// Since we know it is collapsed, it cannot grow to multiple lines
 				data.push({
+					uri: modelUrl,
 					lineNumber: decorationRange.startLineNumber,
 					enabled: enabledAndConditions[modelData.breakpointLines[i]].enabled,
 					condition: enabledAndConditions[modelData.breakpointLines[i]].condition
@@ -221,7 +224,7 @@ export class DebugEditorModelManager implements wbext.IWorkbenchContribution {
 			}
 		}
 
-		this.debugService.setBreakpointsForModel(model.getAssociatedResource(), data);
+		this.debugService.setBreakpointsForModel(modelUrl, data);
 	}
 
 	private onModelRemoved(model: editorcommon.IModel): void {

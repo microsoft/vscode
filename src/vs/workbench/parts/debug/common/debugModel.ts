@@ -258,6 +258,9 @@ export class Breakpoint implements debug.IBreakpoint {
 	private id: string;
 
 	constructor(public source: Source, public desiredLineNumber: number, public enabled: boolean, public condition: string) {
+		if (enabled === undefined) {
+			this.enabled = true;
+		}
 		this.lineNumber = this.desiredLineNumber;
 		this.id = uuid.generateUuid();
 	}
@@ -361,14 +364,14 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 		this.emit(debug.ModelEvents.BREAKPOINTS_UPDATED);
 	}
 
-	public addBreakpoint(modelUri: uri, lineNumber: number, condition: string): void {
-		this.breakpoints.push(new Breakpoint(Source.fromUri(modelUri), lineNumber, true, condition));
+	public addBreakpoints(rawData: debug.IRawBreakpoint[]): void {
+		this.breakpoints = this.breakpoints.concat(rawData.map(rawBp => new Breakpoint(Source.fromUri(rawBp.uri), rawBp.lineNumber, rawBp.enabled, rawBp.condition)));
 		this.breakpointsActivated = true;
 		this.emit(debug.ModelEvents.BREAKPOINTS_UPDATED);
 	}
 
-	public removeBreakpoint(id: string): void {
-		this.breakpoints = this.breakpoints.filter(bp => bp.getId() !== id);
+	public removeBreakpoints(toRemove: debug.IBreakpoint[]): void {
+		this.breakpoints = this.breakpoints.filter(bp => !toRemove.some(toRemove => toRemove.getId() === bp.getId()));
 		this.emit(debug.ModelEvents.BREAKPOINTS_UPDATED);
 	}
 
@@ -400,19 +403,6 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 		this.exceptionBreakpoints.forEach(ebp => ebp.enabled = enabled);
 		this.functionBreakpoints.forEach(fbp => fbp.enabled = enabled);
 
-		this.emit(debug.ModelEvents.BREAKPOINTS_UPDATED);
-	}
-
-	public setBreakpointsForModel(modelUri: uri, data: { lineNumber: number; enabled: boolean; condition?: string; }[]): void {
-		this.removeBreakpoints(modelUri);
-		for (var i = 0, len = data.length; i < len; i++) {
-			this.breakpoints.push(new Breakpoint(Source.fromUri(modelUri), data[i].lineNumber, data[i].enabled, data[i].condition));
-		}
-		this.emit(debug.ModelEvents.BREAKPOINTS_UPDATED);
-	}
-
-	public removeBreakpoints(modelUri: uri): void {
-		this.breakpoints = this.breakpoints.filter(bp => modelUri && modelUri.toString() !== bp.source.uri.toString());
 		this.emit(debug.ModelEvents.BREAKPOINTS_UPDATED);
 	}
 
@@ -578,12 +568,7 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 	}
 
 	public clearWatchExpressions(id: string = null): void {
-		if (id) {
-			this.watchExpressions = this.watchExpressions.filter(we => we.getId() !== id);
-		} else {
-			this.watchExpressions = [];
-		}
-
+		this.watchExpressions = id ? this.watchExpressions.filter(we => we.getId() !== id) : [];
 		this.emit(debug.ModelEvents.WATCH_EXPRESSIONS_UPDATED);
 	}
 

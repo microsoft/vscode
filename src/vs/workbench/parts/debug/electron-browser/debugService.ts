@@ -369,20 +369,23 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		}
 	}
 
-	public setBreakpointsForModel(modelUri: uri, data: { lineNumber: number; enabled: boolean; condition: string; }[]): Promise {
-		this.model.setBreakpointsForModel(modelUri, data);
+	public setBreakpointsForModel(modelUri: uri, rawData: debug.IRawBreakpoint[]): Promise {
+		this.model.removeBreakpoints(
+			this.model.getBreakpoints().filter(bp => bp.source.uri.toString() === modelUri.toString()));
+		this.model.addBreakpoints(rawData);
+
 		return this.sendBreakpoints(modelUri);
 	}
 
-	public toggleBreakpoint(modelUri: uri, lineNumber: number, condition: string = null): Promise {
-		const breakpoint = this.model.getBreakpoints().filter(bp => bp.lineNumber === lineNumber && bp.source.uri.toString() === modelUri.toString()).pop();
+	public toggleBreakpoint(rawBreakpoint: debug.IRawBreakpoint): Promise {
+		const breakpoint = this.model.getBreakpoints().filter(bp => bp.lineNumber === rawBreakpoint.lineNumber && bp.source.uri.toString() === rawBreakpoint.uri.toString()).pop();
 		if (breakpoint) {
-			this.model.removeBreakpoint(breakpoint.getId());
+			this.model.removeBreakpoints([breakpoint]);
 		} else {
-			this.model.addBreakpoint(modelUri, lineNumber, condition);
+			this.model.addBreakpoints([rawBreakpoint]);
 		}
 
-		return this.sendBreakpoints(modelUri);
+		return this.sendBreakpoints(rawBreakpoint.uri);
 	}
 
 	public enableOrDisableAllBreakpoints(enabled: boolean): Promise {
@@ -402,9 +405,9 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		return this.sendExceptionBreakpoints();
 	}
 
-	public removeBreakpoints(modelUri: uri = null): Promise {
-		var urisToClear = modelUri ? [modelUri] : arrays.distinct(this.model.getBreakpoints(), bp => bp.source.uri.toString()).map(bp => bp.source.uri);
-		this.model.removeBreakpoints(modelUri);
+	public removeAllBreakpoints(): Promise {
+		const urisToClear = arrays.distinct(this.model.getBreakpoints(), bp => bp.source.uri.toString()).map(bp => bp.source.uri);
+		this.model.removeBreakpoints(this.model.getBreakpoints());
 
 		return Promise.join(urisToClear.map(uri => this.sendBreakpoints(uri)));
 	}
@@ -762,16 +765,8 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 	}
 
 	private onFileChanges(fileChangesEvent: FileChangesEvent): void {
-		var breakpoints = this.model.getBreakpoints();
-		var clearedUris: { [key: string]: boolean } = {};
-		for (var i = 0; i < breakpoints.length; i++) {
-			var uri = breakpoints[i].source.uri;
-			var uriStr = uri.toString();
-			if (!clearedUris[uriStr] && fileChangesEvent.contains(uri, FileChangeType.DELETED)) {
-				this.removeBreakpoints(uri);
-				clearedUris[uriStr] = true;
-			}
-		}
+		this.model.removeBreakpoints(this.model.getBreakpoints().filter(bp =>
+			fileChangesEvent.contains(bp.source.uri, FileChangeType.DELETED)));
 	}
 
 	private store(): void {
