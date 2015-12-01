@@ -462,8 +462,8 @@
       }
     },
     "windows-mutex": {
-      "version": "0.1.3",
-      "from": "windows-mutex@0.1.3",
+      "version": "0.2.0",
+      "from": "windows-mutex@0.2.0",
       "dependencies": {
         "bindings": {
           "version": "1.2.1",
