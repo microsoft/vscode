@@ -36,23 +36,6 @@ import {RenameRegistry} from 'vs/editor/contrib/rename/common/rename';
 import {FormatRegistry, FormatOnTypeRegistry} from 'vs/editor/contrib/format/common/format';
 import {ICodeLensData} from 'vs/editor/contrib/codelens/common/codelens';
 
-
-// vscode.executeWorkspaceSymbolProvider
-// vscode.executeDefinitionProvider
-// vscode.executeHoverProvider
-// vscode.executeDocumentHighlights
-// vscode.executeReferenceProvider
-// vscode.executeDocumentRenameProvider
-// vscode.executeSignatureHelpProvider
-// vscode.executeDocumentSymbolProvider
-// vscode.executeCompletionItemProvider
-// vscode.executeCodeActionProvider
-// vscode.executeCodeLensProvider
-// vscode.executeFormatDocumentProvider
-// vscode.executeFormatRangeProvider
-
-// vscode.executeFormatOnTypeProvider
-
 export class ExtHostLanguageFeatureCommands {
 
 	private _commands: PluginHostCommands;
@@ -74,6 +57,7 @@ export class ExtHostLanguageFeatureCommands {
 		this._register('vscode.executeCodeLensProvider', this._executeCodeLensProvider);
 		this._register('vscode.executeFormatDocumentProvider', this._executeFormatDocumentProvider);
 		this._register('vscode.executeFormatRangeProvider', this._executeFormatRangeProvider);
+		this._register('vscode.executeFormatOnTypeProvider', this._executeFormatOnTypeProvider);
 	}
 
 	private _register(id: string, callback: (...args: any[]) => any): void {
@@ -249,6 +233,20 @@ export class ExtHostLanguageFeatureCommands {
 			options
 		};
 		return this._commands.executeCommand<ISingleEditOperation[]>('_executeFormatRangeProvider', args).then(value => {
+			if (Array.isArray(value)) {
+				return value.map(edit => new types.TextEdit(typeConverters.toRange(edit.range), edit.text));
+			}
+		});
+	}
+
+	private _executeFormatOnTypeProvider(resource: URI, position: types.Position, ch:string, options: vscode.FormattingOptions): Thenable<vscode.TextEdit[]> {
+		const args = {
+			resource,
+			position: typeConverters.fromPosition(position),
+			ch,
+			options
+		};
+		return this._commands.executeCommand<ISingleEditOperation[]>('_executeFormatOnTypeProvider', args).then(value => {
 			if (Array.isArray(value)) {
 				return value.map(edit => new types.TextEdit(typeConverters.toRange(edit.range), edit.text));
 			}

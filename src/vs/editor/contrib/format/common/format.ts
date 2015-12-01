@@ -22,27 +22,38 @@ export const FormatOnTypeRegistry = new LanguageFeatureRegistry<IFormattingSuppo
 export {IFormattingSupport};
 
 export function formatRange(model: IModel, range: IRange, options: IFormattingOptions): TPromise<ISingleEditOperation[]> {
-	const support = FormatRegistry.ordered(model)[0];
+	const [support] = FormatRegistry.ordered(model);
 	if (!support) {
-		return;
+		return TPromise.as(undefined);
 	}
 	return support.formatRange(model.getAssociatedResource(), range, options);
 }
 
 export function formatDocument(model: IModel, options: IFormattingOptions): TPromise<ISingleEditOperation[]> {
-	const support = FormatRegistry.ordered(model)[0];
+	const [support] = FormatRegistry.ordered(model);
 	if (!support) {
-		return;
+		return TPromise.as(undefined);
 	}
 	if (typeof support.formatDocument !== 'function') {
 		if (typeof support.formatRange === 'function') {
 			return formatRange(model, model.getFullModelRange(), options);
 		} else {
-			return;
+			return TPromise.as(undefined);
 		}
 	}
 
 	return support.formatDocument(model.getAssociatedResource(), options);
+}
+
+export function formatAfterKeystroke(model: IModel, position: IPosition, ch: string, options: IFormattingOptions): TPromise<ISingleEditOperation[]> {
+	const [support] = FormatOnTypeRegistry.ordered(model);
+	if (!support) {
+		return TPromise.as(undefined);
+	}
+	if (support.autoFormatTriggerCharacters.indexOf(ch) < 0) {
+		return TPromise.as(undefined);
+	}
+	return support.formatAfterKeystroke(model.getAssociatedResource(), position, ch, options);
 }
 
 CommonEditorRegistry.registerLanguageCommand('_executeFormatRangeProvider', function(accessor, args) {
@@ -68,4 +79,12 @@ CommonEditorRegistry.registerLanguageCommand('_executeFormatDocumentProvider', f
 	}
 
 	return formatDocument(model, options)
+});
+
+CommonEditorRegistry.registerDefaultLanguageCommand('_executeFormatOnTypeProvider', function(model, position, args) {
+	const {ch, options } = args;
+	if (typeof ch !== 'string') {
+		throw illegalArgument('ch');
+	}
+	return formatAfterKeystroke(model, position, ch, options);
 });

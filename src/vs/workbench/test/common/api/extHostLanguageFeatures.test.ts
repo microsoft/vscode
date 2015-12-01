@@ -37,7 +37,7 @@ import {getNavigateToItems} from 'vs/workbench/parts/search/common/search';
 import {rename} from 'vs/editor/contrib/rename/common/rename';
 import {getParameterHints} from 'vs/editor/contrib/parameterHints/common/parameterHints';
 import {suggest} from 'vs/editor/contrib/suggest/common/suggest';
-import {formatDocument, formatRange} from 'vs/editor/contrib/format/common/format';
+import {formatDocument, formatRange, formatAfterKeystroke} from 'vs/editor/contrib/format/common/format';
 
 const defaultSelector = { scheme: 'far' };
 const model: EditorCommon.IModel = new EditorModel(
@@ -970,4 +970,24 @@ suite('ExtHostLanguageFeatures', function() {
 			formatRange(model, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 }, { insertSpaces: true, tabSize: 4 }).then(undefined, err => done());
 		});
 	})
+
+	test('Format on Type, data conversion', function(done) {
+
+		disposables.push(extHost.registerOnTypeFormattingEditProvider(defaultSelector, <vscode.OnTypeFormattingEditProvider>{
+			provideOnTypeFormattingEdits(): any {
+				return [new types.TextEdit(new types.Range(0, 0, 0, 0), arguments[2])];
+			}
+		}, [';']));
+
+		threadService.sync().then(() => {
+			formatAfterKeystroke(model, { lineNumber: 1, column: 1 }, ';', { insertSpaces: true, tabSize: 2 }).then(value => {
+				assert.equal(value.length, 1);
+				let [first] = value;
+
+				assert.equal(first.text, ';');
+				assert.deepEqual(first.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 });
+				done();
+			});
+		});
+	});
 });
