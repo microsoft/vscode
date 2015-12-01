@@ -2952,7 +2952,7 @@
         </value>
       </values>
     </entry>
-    <entry name="break-after" restriction="enum" version="3.0" browsers="E,IE10,O11.5" ref="http://www.w3.org/TR/css3-multicol/#column-breaks" syntax="h2 { $(name): column; }">
+    <entry name="break-after" restriction="enum" version="3.0" browsers="E,IE10,O11.5" ref="http://www.w3.org/TR/css3-break/#break-between" syntax="h2 { $(name): column; }">
       <desc>Describes the page/column break behavior before the generated box.</desc>
       <values>
         <value name="always" version="3.0" browsers="all">
@@ -2986,7 +2986,7 @@
         </value>
       </values>
     </entry>
-    <entry name="break-before" restriction="enum" version="3.0" browsers="E,IE10,O11.5" ref="http://www.w3.org/TR/css3-multicol/#column-breaks" syntax="h2 { $(name): column; }">
+    <entry name="break-before" restriction="enum" version="3.0" browsers="E,IE10,O11.5" ref="http://www.w3.org/TR/css3-break/#break-between" syntax="h2 { $(name): column; }">
       <desc>Describes the page/column break behavior before the generated box.</desc>
       <values>
         <value name="always" version="3.0" browsers="all">
@@ -3020,7 +3020,7 @@
         </value>
       </values>
     </entry>
-    <entry name="break-inside" restriction="enum" version="3.0" browsers="E,IE10,O11.5" ref="http://www.w3.org/TR/css3-multicol/#column-breaks" syntax="h2 { $(name): avoid-column; }">
+    <entry name="break-inside" restriction="enum" version="3.0" browsers="E,IE10,O11.5" ref="http://www.w3.org/TR/css3-break/#break-within" syntax="h2 { $(name): avoid-column; }">
       <desc>Describes the page/column break behavior inside the generated box.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all">
@@ -11464,7 +11464,7 @@
       <desc>Controls the order in which flex items appear within their flex container, by assigning them to ordinal groups.</desc>
     </entry>
     <entry name="orientation" restriction="" version="" browsers="all" />
-    <entry name="orphans" restriction="integer" version="2.0" browsers="C,IE8,O7,S1.3" ref="http://www.w3.org/TR/CSS2/page.html#propdef-orphans" syntax="&lt;integer&gt;">
+    <entry name="orphans" restriction="integer" version="2.0" browsers="C,IE8,O7,S1.3" ref="http://www.w3.org/TR/css3-break/#widows-orphans" syntax="&lt;integer&gt;">
       <desc>Specifies the minimum number of lines in a block element that must be left at the bottom of a page.</desc>
     </entry>
     <entry name="-o-table-baseline" restriction="integer" version="3.0" browsers="O9.6" ref="http://www.w3.org/TR/mathml-for-css/" syntax="td { $(name): 2; }">
@@ -12088,7 +12088,7 @@
         <value name="auto" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="page-break-after" restriction="enum" version="2.0" browsers="all" ref="http://www.w3.org/TR/CSS2/page.html#propdef-page-break-after" syntax="table { $(name): always; }">
+    <entry name="page-break-after" restriction="enum" version="2.0" browsers="all" ref="http://www.w3.org/TR/css3-break/#page-break-properties" syntax="table { $(name): always; }">
       <desc>Defines rules for page breaks after an element.</desc>
       <values>
         <value name="always" version="2.0" browsers="all">
@@ -12108,7 +12108,7 @@
         </value>
       </values>
     </entry>
-    <entry name="page-break-before" restriction="enum" version="2.0" browsers="all" ref="http://www.w3.org/TR/CSS2/page.html#propdef-page-break-before" syntax="table { $(name): always; }">
+    <entry name="page-break-before" restriction="enum" version="2.0" browsers="all" ref="http://www.w3.org/TR/css3-break/#page-break-properties" syntax="table { $(name): always; }">
       <desc>Defines rules for page breaks before an element.</desc>
       <values>
         <value name="always" version="2.0" browsers="all">
@@ -12128,7 +12128,7 @@
         </value>
       </values>
     </entry>
-    <entry name="page-break-inside" restriction="enum" version="2.0" browsers="C,IE8,O7,S1.3" ref="http://www.w3.org/TR/CSS2/page.html#propdef-page-break-inside" syntax="table { $(name): avoid; }">
+    <entry name="page-break-inside" restriction="enum" version="2.0" browsers="C,IE8,O7,S1.3" ref="http://www.w3.org/TR/css3-break/#page-break-properties" syntax="table { $(name): avoid; }">
       <desc>Defines rules for page breaks inside an element.</desc>
       <values>
         <value name="auto" version="2.0" browsers="all">
@@ -18500,7 +18500,7 @@
         </value>
       </values>
     </entry>
-    <entry name="widows" restriction="integer" version="2.0" browsers="C,IE8,O9.5,S1" ref="http://www.w3.org/TR/CSS2/page.html#propdef-widows" syntax="&lt;integer&gt;">
+    <entry name="widows" restriction="integer" version="2.0" browsers="C,IE8,O9.5,S1" ref="http://www.w3.org/TR/css3-break/#widows-orphans" syntax="&lt;integer&gt;">
       <desc>Specifies the minimum number of lines in a block element that must be left at the top of a page.</desc>
     </entry>
     <entry name="width" restriction="length, percentage" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-box/#width" syntax="header { $(name): 200px; }">
