@@ -48,9 +48,9 @@ import {ICodeLensData} from 'vs/editor/contrib/codelens/common/codelens';
 // vscode.executeCompletionItemProvider
 // vscode.executeCodeActionProvider
 // vscode.executeCodeLensProvider
-
 // vscode.executeFormatDocumentProvider
 // vscode.executeFormatRangeProvider
+
 // vscode.executeFormatOnTypeProvider
 
 export class ExtHostLanguageFeatureCommands {
@@ -72,6 +72,8 @@ export class ExtHostLanguageFeatureCommands {
 		this._register('vscode.executeCompletionItemProvider', this._executeCompletionItemProvider);
 		this._register('vscode.executeCodeActionProvider', this._executeCodeActionProvider);
 		this._register('vscode.executeCodeLensProvider', this._executeCodeLensProvider);
+		this._register('vscode.executeFormatDocumentProvider', this._executeFormatDocumentProvider);
+		this._register('vscode.executeFormatRangeProvider', this._executeFormatRangeProvider);
 	}
 
 	private _register(id: string, callback: (...args: any[]) => any): void {
@@ -217,16 +219,38 @@ export class ExtHostLanguageFeatureCommands {
 	}
 
 	private _executeCodeLensProvider(resource: URI): Thenable<vscode.CodeLens[]>{
-		const args = {
-			resource
-		};
-
+		const args = { resource };
 		return this._commands.executeCommand<ICodeLensData[]>('_executeCodeLensProvider', args).then(value => {
 			if (Array.isArray(value)) {
 				return value.map(item => {
 					return new types.CodeLens(typeConverters.toRange(item.symbol.range),
 						typeConverters.Command.to(item.symbol.command));
 				});
+			}
+		});
+	}
+
+	private _executeFormatDocumentProvider(resource: URI, options: vscode.FormattingOptions): Thenable<vscode.TextEdit[]> {
+		const args = {
+			resource,
+			options
+		};
+		return this._commands.executeCommand<ISingleEditOperation[]>('_executeFormatDocumentProvider', args).then(value => {
+			if (Array.isArray(value)) {
+				return value.map(edit => new types.TextEdit(typeConverters.toRange(edit.range), edit.text));
+			}
+		});
+	}
+
+	private _executeFormatRangeProvider(resource: URI, range: types.Range, options: vscode.FormattingOptions): Thenable<vscode.TextEdit[]> {
+		const args = {
+			resource,
+			range: typeConverters.fromRange(range),
+			options
+		};
+		return this._commands.executeCommand<ISingleEditOperation[]>('_executeFormatRangeProvider', args).then(value => {
+			if (Array.isArray(value)) {
+				return value.map(edit => new types.TextEdit(typeConverters.toRange(edit.range), edit.text));
 			}
 		});
 	}

@@ -15,7 +15,7 @@ import formatCommand = require('./formatCommand');
 import {Range} from 'vs/editor/common/core/range';
 import {INullService} from 'vs/platform/instantiation/common/instantiation';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
-import {FormatOnTypeRegistry, FormatRegistry, IFormattingSupport} from '../common/format';
+import {FormatOnTypeRegistry, FormatRegistry, IFormattingSupport, formatRange, formatDocument} from '../common/format';
 
 interface IFormatOnTypeResult {
 	range: EditorCommon.IEditorRange;
@@ -170,31 +170,19 @@ export class FormatAction extends EditorAction {
 
 	public run(): TPromise<boolean> {
 
-		var model = this.editor.getModel(),
-			formattingSupport = FormatRegistry.ordered(model)[0],
-			canFormatRange = typeof formattingSupport.formatRange === 'function',
-			canFormatDocument = typeof formattingSupport.formatDocument === 'function',
-			editorSelection = this.editor.getSelection();
+		const model = this.editor.getModel(),
+			editorSelection = this.editor.getSelection(),
+			options = this.editor.getIndentationOptions();
 
-		var options = this.editor.getIndentationOptions(),
-			formattingPromise: TPromise<EditorCommon.ISingleEditOperation[]>;
+		let formattingPromise: TPromise<EditorCommon.ISingleEditOperation[]>;
 
-		if(canFormatRange) {
-			// format a selection/range
-			var formatRange: EditorCommon.IEditorRange = editorSelection;
-			if(!formatRange.isEmpty()) {
-				// Fix the selection to include the entire line to improve formatting results
-				formatRange.startColumn = 1;
-			} else {
-				formatRange = model.getFullModelRange();
-			}
-			formattingPromise = formattingSupport.formatRange(model.getAssociatedResource(), formatRange, options);
-
-		} else if(canFormatDocument) {
-			// format the whole document
-			formattingPromise = formattingSupport.formatDocument(model.getAssociatedResource(), options);
+		if (editorSelection.isEmpty()) {
+			formattingPromise = formatDocument(model, options);
 		} else {
-			// broken support?
+			formattingPromise = formatRange(model, editorSelection, options);
+		}
+
+		if (!formattingPromise) {
 			return TPromise.as(false);
 		}
 
