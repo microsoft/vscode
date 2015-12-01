@@ -3087,10 +3087,21 @@
         <value name="rect()" version="2.0" browsers="all" />
       </values>
     </entry>
-    <entry name="clip-path" restriction="url, enum" version="3.0" browsers="all" ref="http://www.w3.org/TR/SVG/masking.html#ClipPathElement">
+    <entry name="clip-path" restriction="url, enum" version="3.0" browsers="all" ref="http://www.w3.org/TR/css-masking/#the-clip-path">
       <desc>Allows authors to control under what circumstances (if any) a particular graphic element can become the target of mouse events.</desc>
       <values>
         <value name="none" version="3.0" browsers="all" />
+        <value name="inset()" version="3.0" browsers="none" />
+        <value name="circle()" version="3.0" browsers="none" />
+        <value name="ellipse()" version="3.0" browsers="none" />
+        <value name="polygon()" version="3.0" browsers="none" />
+        <value name="border-box" version="3.0" browsers="none" />
+        <value name="padding-box" version="3.0" browsers="none" />
+        <value name="content-box" version="3.0" browsers="none" />
+        <value name="margin-box" version="3.0" browsers="none" />
+        <value name="fill-box" version="3.0" browsers="none" />
+        <value name="stroke-box" version="3.0" browsers="none" />
+        <value name="view-box" version="3.0" browsers="none" />
       </values>
     </entry>
     <entry name="clip-rule" restriction="enum" version="3.0" browsers="all" ref="http://www.w3.org/TR/SVG/masking.html#ClipPathElement">
