@@ -118,7 +118,7 @@ export class PluginHostMain {
 		let collector = new PluginsMessageCollector();
 		let env = this.contextService.getConfiguration().env;
 
-		return PluginHostMain.scanPlugins(collector, BUILTIN_PLUGINS_PATH, env.userPluginsHome, env.pluginDevelopmentPath, env.version)
+		return PluginHostMain.scanPlugins(collector, BUILTIN_PLUGINS_PATH, !env.disablePlugins ? env.userPluginsHome : void 0, !env.disablePlugins ? env.pluginDevelopmentPath : void 0, env.version)
 			.then(null, err => {
 				collector.error('', err);
 				return [];

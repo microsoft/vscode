@@ -124,6 +124,7 @@ export interface ICommandLineArguments {
 	debugPluginHostPort: number;
 	debugBrkPluginHost: boolean;
 	logPluginHostCommunication: boolean;
+	disablePlugins: boolean;
 
 	pluginHomePath: string;
 	pluginDevelopmentPath: string;
@@ -202,7 +203,8 @@ function parseCli(): ICommandLineArguments {
 		gotoLineMode: gotoLineMode,
 		pluginHomePath: normalizePath(parseString(args, '--extensionHomePath')),
 		pluginDevelopmentPath: normalizePath(parseString(args, '--extensionDevelopmentPath')),
-		pluginTestsPath: normalizePath(parseString(args, '--extensionTestsPath'))
+		pluginTestsPath: normalizePath(parseString(args, '--extensionTestsPath')),
+		disablePlugins: !!opts['disableExtensions'] || !!opts['disable-extensions']
 	};
 }
 
