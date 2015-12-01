@@ -6,6 +6,7 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import {sequence} from 'vs/base/common/async';
+import { assign } from 'vs/base/common/objects';
 import { EventEmitter, ListenerUnbind } from 'vs/base/common/eventEmitter';
 import {onUnexpectedError, isPromiseCanceledError} from 'vs/base/common/errors';
 import strings = require('vs/base/common/strings');
@@ -53,7 +54,7 @@ export class CompletionItem {
 				this._resolveDetails = TPromise.as(this);
 			} else {
 				this._resolveDetails = this.support.getSuggestionDetails(<any>resource, position, this.suggestion).then(value => {
-					this.suggestion = value;
+					this.suggestion = assign(this.suggestion, value);
 					return this;
 				}, err => {
 					if (isPromiseCanceledError(err)) {
