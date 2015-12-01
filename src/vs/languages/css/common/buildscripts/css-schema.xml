@@ -2941,7 +2941,7 @@
         <value name="none" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="box-sizing" restriction="enum" version="3.0" browsers="E,C,IE8,O8,S5.1" ref="http://www.w3.org/TR/css3-ui/#box-sizing" syntax="div { $(name): content-box; }">
+    <entry name="box-sizing" restriction="enum" version="3.0" browsers="E,C10,FF29,IE8,O8,S5.1" ref="http://www.w3.org/TR/css3-ui/#box-sizing" syntax="div { $(name): content-box; }">
       <desc>Box Model addition in CSS3.</desc>
       <values>
         <value name="border-box" version="3.0" browsers="all">
