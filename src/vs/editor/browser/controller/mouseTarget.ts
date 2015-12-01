@@ -121,7 +121,7 @@ var REGEX = (function() {
 		IS_CHILD_OF_SCROLLABLE_ELEMENT: createRegExp(nodeWithClass(EditorBrowser.ClassNames.SCROLLABLE_ELEMENT)),
 		IS_CHILD_OF_CONTENT_WIDGETS: createRegExp(anyNode(), anyNode(), EditorBrowser.ClassNames.CONTENT_WIDGETS),
 		IS_CHILD_OF_OVERLAY_WIDGETS: createRegExp(EditorBrowser.ClassNames.OVERLAY_WIDGETS),
-		IS_CHILD_OF_VIEW_OVERLAYS: createRegExp('margin-view-overlays'),
+		IS_CHILD_OF_VIEW_OVERLAYS: createRegExp(EditorBrowser.ClassNames.MARGIN_VIEW_OVERLAYS),
 		IS_CHILD_OF_VIEW_ZONES: createRegExp(anyNode(), anyNode(), EditorBrowser.ClassNames.VIEW_ZONES),
 	};
 })();
