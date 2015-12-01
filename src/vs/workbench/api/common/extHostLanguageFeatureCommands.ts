@@ -34,9 +34,8 @@ import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegis
 import {NavigateTypesSupportRegistry, INavigateTypesSupport, ITypeBearing} from 'vs/workbench/parts/search/common/search'
 import {RenameRegistry} from 'vs/editor/contrib/rename/common/rename';
 import {FormatRegistry, FormatOnTypeRegistry} from 'vs/editor/contrib/format/common/format';
-import {CodeLensRegistry} from 'vs/editor/contrib/codelens/common/codelens';
-import {ParameterHintsRegistry} from 'vs/editor/contrib/parameterHints/common/parameterHints';
-import {SuggestRegistry} from 'vs/editor/contrib/suggest/common/suggest';
+import {ICodeLensData} from 'vs/editor/contrib/codelens/common/codelens';
+
 
 // vscode.executeWorkspaceSymbolProvider
 // vscode.executeDefinitionProvider
@@ -48,8 +47,8 @@ import {SuggestRegistry} from 'vs/editor/contrib/suggest/common/suggest';
 // vscode.executeDocumentSymbolProvider
 // vscode.executeCompletionItemProvider
 // vscode.executeCodeActionProvider
-
 // vscode.executeCodeLensProvider
+
 // vscode.executeFormatDocumentProvider
 // vscode.executeFormatRangeProvider
 // vscode.executeFormatOnTypeProvider
@@ -72,6 +71,7 @@ export class ExtHostLanguageFeatureCommands {
 		this._register('vscode.executeDocumentSymbolProvider', this._executeDocumentSymbolProvider);
 		this._register('vscode.executeCompletionItemProvider', this._executeCompletionItemProvider);
 		this._register('vscode.executeCodeActionProvider', this._executeCodeActionProvider);
+		this._register('vscode.executeCodeLensProvider', this._executeCodeLensProvider);
 	}
 
 	private _register(id: string, callback: (...args: any[]) => any): void {
@@ -212,6 +212,17 @@ export class ExtHostLanguageFeatureCommands {
 			if (Array.isArray(value)) {
 				// TODO@joh this isn't proper!
 				return value.map(quickFix => ({ title: quickFix.label }));
+			}
+		});
+	}
+
+	private _executeCodeLensProvider(resource: URI): Thenable<vscode.CodeLens[]>{
+		const args = {
+			resource
+		};
+		return this._commands._executeContributedCommand<ICodeLensData[]>('_executeCodeLensProvider', args).then(value => {
+			if (Array.isArray(value)) {
+				return value.map(item => new types.CodeLens(typeConverters.toRange(item.symbol.range)));
 			}
 		});
 	}
