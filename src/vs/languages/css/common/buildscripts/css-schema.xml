@@ -3080,8 +3080,8 @@
         </value>
       </values>
     </entry>
-    <entry name="clip" restriction="enum" version="2.0" browsers="all" ref="http://www.w3.org/TR/CSS2/visufx.html#propdef-clip" syntax="span { $(name): rect(0px, 60px, 200px, 0px); }">
-      <desc>Defines the visible portion of an element's box.</desc>
+    <entry name="clip" restriction="enum" version="2.0" browsers="all" ref="http://www.w3.org/TR/css-masking/#clip-property" syntax="span { $(name): rect(0px, 60px, 200px, 0px); }">
+      <desc>Deprecated. Use the 'clip-path' property instead. Defines the visible portion of an element's box.</desc>
       <values>
         <value name="auto" version="2.0" browsers="all" />
         <value name="rect()" version="2.0" browsers="all" />
