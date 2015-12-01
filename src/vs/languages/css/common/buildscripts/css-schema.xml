@@ -2194,7 +2194,7 @@
         <value name="thin" version="1.0" browsers="all" />
       </values>
     </entry>
-    <entry name="border-radius" restriction="length, percentage" version="3.0" browsers="C,FF4,IE9,O10.5,S5" ref="http://www.w3.org/TR/css3-background/#border-radius" syntax="td { $(name): 3px 4px; }">
+    <entry name="border-radius" restriction="length, percentage" version="3.0" browsers="E,C,FF4,IE9,O10.5,S5" ref="http://www.w3.org/TR/css3-background/#border-radius" syntax="td { $(name): 3px 4px; }">
       <desc>The two length or percentage values of the 'border-*-radius' properties define the radii of a quarter ellipse that defines the shape of the corner of the outer border edge. The first value is the horizontal radius, the second the vertical radius. If the second value is omitted it is copied from the first. If either length is zero, the corner is square, not rounded. Percentages for the horizontal radius refer to the width of the border box, whereas percentages for the vertical radius refer to the height of the border box.</desc>
     </entry>
     <entry name="border-right" restriction="length, color, enum" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#borders" syntax="header { $(name): 5px solid red;}">
