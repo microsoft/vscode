@@ -387,7 +387,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 
 		// Support to save without delay if configured as such
 		if (this.autoSaveDelay === 0) {
-			return this.doSave(versionId);
+			return this.doSave(versionId, true);
 		}
 
 		// Otherwise create new save promise and keep it
@@ -395,7 +395,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 
 			// Only trigger save if the version id has not changed meanwhile
 			if (versionId === this.versionId) {
-				this.doSave(versionId); // Very important here to not return the promise because if the timeout promise is canceled it will bubble up the error otherwise - do not change
+				this.doSave(versionId, true); // Very important here to not return the promise because if the timeout promise is canceled it will bubble up the error otherwise - do not change
 			}
 		});
 
@@ -423,10 +423,10 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 		// Cancel any currently running auto saves to make this the one that succeeds
 		this.cancelAutoSavePromises();
 
-		return this.doSave(this.versionId, overwriteReadonly);
+		return this.doSave(this.versionId, false, overwriteReadonly);
 	}
 
-	private doSave(versionId: number, overwriteReadonly?: boolean): TPromise<void> {
+	private doSave(versionId: number, isAutoSave: boolean, overwriteReadonly?: boolean): TPromise<void> {
 		diag('doSave(' + versionId + ') - enter with versionId ' + versionId, this.resource, new Date());
 
 		// Lookup any running pending save for this versionId and return it if found
@@ -467,7 +467,9 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 		let versionOnDiskStatClone = this.cloneStat(this.versionOnDiskStat);
 		this.blockModelContentChange = true;
 		try {
-			this.emitEvent(FileEventType.FILE_SAVING, new TextFileChangeEvent(this.textEditorModel, versionOnDiskStatClone));
+			const saveEvent = new TextFileChangeEvent(this.textEditorModel, versionOnDiskStatClone);
+			saveEvent.setAutoSaved(isAutoSave);
+			this.emitEvent(FileEventType.FILE_SAVING, saveEvent);
 		} finally {
 			this.blockModelContentChange = false;
 		}

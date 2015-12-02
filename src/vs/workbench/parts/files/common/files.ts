@@ -250,6 +250,7 @@ export class LocalFileChangeEvent extends PropertyChangeEvent {
  */
 export class TextFileChangeEvent extends LocalFileChangeEvent {
 	private _model: IModel;
+	private _isAutoSaved: boolean;
 
 	constructor(model: IModel, before: IFileStat, after: IFileStat = before, originalEvent?: Event) {
 		super(before, after, originalEvent);
@@ -259,6 +260,14 @@ export class TextFileChangeEvent extends LocalFileChangeEvent {
 
 	public get model(): IModel {
 		return this._model;
+	}
+
+	public setAutoSaved(autoSaved: boolean): void {
+		this._isAutoSaved = autoSaved;
+	}
+
+	public get isAutoSaved(): boolean {
+		return this._isAutoSaved;
 	}
 }
 
