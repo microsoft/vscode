@@ -38,17 +38,9 @@ function loadSingleTest(test) {
 	var moduleId = path.relative(src, path.resolve(test)).replace(/\.js$/, '');
 
 	return function (cb) {
-		var onExit = function () {
-			console.error('Failed to load test.');
-			process.exit(1);
-		};
-
-		process.once('exit', onExit);
-
 		define([moduleId], function () {
-			process.removeListener('exit', onExit);
 			cb(null);
-		});
+		}, cb);
 	};
 }
 
@@ -58,18 +50,10 @@ function loadClientTests(cb) {
 			return file.replace(/\.js$/, '');
 		});
 
-		var onExit = function () {
-			console.error('Failed to load all client tests.');
-			process.exit(1);
-		};
-
-		process.once('exit', onExit);
-
 		// load all modules
 		define(modules, function () {
-			process.removeListener('exit', onExit);
 			cb(null);
-		});
+		}, cb);
 	});
 }
 
@@ -81,17 +65,9 @@ function loadPluginTests(cb) {
 			return 'extensions/' + file.replace(/\.js$/, '');
 		});
 
-		var onExit = function () {
-			console.error('Failed to load plugin tests.');
-			process.exit(1);
-		};
-
-		process.once('exit', onExit);
-
 		define(modules, function() {
-			process.removeListener('exit', onExit);
-			cb();
-		});
+			cb(null);
+		}, cb);
 	});
 }
 
@@ -169,7 +145,12 @@ function main() {
 		loadTasks.push(loadPluginTests);
 	}
 
-	async.parallel(loadTasks, function () {
+	async.parallel(loadTasks, function (err) {
+		if (err) {
+			console.error(err);
+			return process.exit(1);
+		}
+
 		process.stderr.write = write;
 
 		if (!argv.run) {
