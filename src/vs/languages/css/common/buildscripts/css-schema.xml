@@ -15915,25 +15915,25 @@
         </value>
       </values>
     </entry>
-    <entry name="text-orientation" restriction="enum" version="3.0" browsers="all" ref="http://www.w3.org/TR/css-writing-modes-3/#text-orientation" syntax="span { $(name): mixed; }">
+    <entry name="text-orientation" restriction="enum" version="3.0" browsers="C,O15,S5.1" ref="http://www.w3.org/TR/css-writing-modes-3/#text-orientation" syntax="span { $(name): mixed; }">
       <desc>This property specifies the orientation of text within a line</desc>
       <values>
-        <value name="mixed" version="3.0" browsers="all">
+        <value name="mixed" version="3.0" browsers="none">
           <desc>In vertical writing modes, characters from horizontal-only scripts are set sideways, i.e. 90° clockwise from their standard orientation in horizontal text.</desc>
         </value>
-        <value name="sideways" version="3.0" browsers="all">
+        <value name="sideways" version="3.0" browsers="C25,O15,S6.1">
           <desc>This value is equivalent to 'sideways-right' in 'vertical-rl' writing mode and equivalent to 'sideways-left' in 'vertical-lr' writing mode.</desc>
         </value>
-        <value name="sideways-left" version="3.0" browsers="all">
+        <value name="sideways-left" version="3.0" browsers="none">
           <desc>In vertical writing modes, this causes text to be set as if in a horizontal layout, but rotated 90° counter-clockwise.</desc>
         </value>
-        <value name="sideways-right" version="3.0" browsers="all">
+        <value name="sideways-right" version="3.0" browsers="C25,O15,S6.1">
           <desc>In vertical writing modes, this causes text to be set as if in a horizontal layout, but rotated 90° clockwise.</desc>
         </value>
         <value name="upright" version="3.0" browsers="all">
           <desc>In vertical writing modes, characters from horizontal-only scripts are rendered upright, i.e. in their standard horizontal orientation.</desc>
         </value>
-        <value name="use-glyph-orientation" version="3.0" browsers="all">
+        <value name="use-glyph-orientation" version="3.0" browsers="none">
           <desc>This value deprecated and only applies to SVG.</desc>
         </value>
       </values>
