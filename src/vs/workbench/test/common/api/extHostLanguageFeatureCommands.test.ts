@@ -28,7 +28,7 @@ import {ExtHostLanguageFeatureCommands} from 'vs/workbench/api/common/extHostLan
 import {PluginHostCommands, MainThreadCommands} from 'vs/workbench/api/common/pluginHostCommands';
 import {PluginHostModelService} from 'vs/workbench/api/common/pluginHostDocuments';
 import {SyncDescriptor0} from 'vs/platform/instantiation/common/descriptors';
-import {LanguageSelector, ModelLike} from 'vs/editor/common/modes/languageSelector';
+import {LanguageSelector} from 'vs/editor/common/modes/languageSelector';
 import {OutlineRegistry, getOutlineEntries} from 'vs/editor/contrib/quickOpen/common/quickOpen';
 import {CodeLensRegistry, getCodeLensData} from 'vs/editor/contrib/codelens/common/codelens';
 import {DeclarationRegistry, getDeclarationsAtPosition} from 'vs/editor/contrib/goToDeclaration/common/goToDeclaration';

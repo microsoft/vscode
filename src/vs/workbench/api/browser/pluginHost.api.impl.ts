@@ -262,7 +262,7 @@ export class PluginHostAPIImplementation {
 				return languages.getLanguages();
 			},
 			match(selector: vscode.DocumentSelector, document: vscode.TextDocument): number {
-				return score(selector, { uri: <any> document.uri, language: document.languageId });
+				return score(selector, <any> document.uri, document.languageId);
 			},
 			registerCodeActionsProvider(selector: vscode.DocumentSelector, provider: vscode.CodeActionProvider): vscode.Disposable {
 				return languageFeatures.registerCodeActionProvider(selector, provider);
