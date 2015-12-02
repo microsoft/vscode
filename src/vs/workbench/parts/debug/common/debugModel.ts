@@ -255,7 +255,7 @@ export class StackFrame implements debug.IStackFrame {
 export class Breakpoint implements debug.IBreakpoint {
 
 	public lineNumber: number;
-	public error: boolean;
+	public verified: boolean;
 	private id: string;
 
 	constructor(public source: Source, public desiredLineNumber: number, public enabled: boolean, public condition: string) {
@@ -263,7 +263,7 @@ export class Breakpoint implements debug.IBreakpoint {
 			this.enabled = true;
 		}
 		this.lineNumber = this.desiredLineNumber;
-		this.error = false;
+		this.verified = false;
 		this.id = uuid.generateUuid();
 	}
 
@@ -379,13 +379,15 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 		this.emit(debug.ModelEvents.BREAKPOINTS_UPDATED);
 	}
 
-	public updateBreakpoint(id: string, lineNumber: number, error: boolean): void {
-		const breakpoint = this.breakpoints.filter(bp => bp.getId() === id).pop();
-		if (breakpoint) {
-			breakpoint.lineNumber = lineNumber;
-			breakpoint.error = error;
-			this.emit(debug.ModelEvents.BREAKPOINTS_UPDATED);
-		}
+	public updateBreakpoints(data: { [id: string]: { line: number, verified: boolean } }): void {
+		this.breakpoints.forEach(bp => {
+			const bpData = data[bp.getId()];
+			if (bpData) {
+				bp.lineNumber = bpData.line;
+				bp.verified = bpData.verified;
+			}
+		});
+		this.emit(debug.ModelEvents.BREAKPOINTS_UPDATED);
 	}
 
 	public toggleEnablement(element: debug.IEnablement): void {
@@ -393,7 +395,7 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 		if (element instanceof Breakpoint && !element.enabled) {
 			var breakpoint = <Breakpoint> element;
 			breakpoint.lineNumber = breakpoint.desiredLineNumber;
-			breakpoint.error = false;
+			breakpoint.verified = false;
 		}
 
 		this.emit(debug.ModelEvents.BREAKPOINTS_UPDATED);
@@ -404,7 +406,7 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 			bp.enabled = enabled;
 			if (!enabled) {
 				bp.lineNumber = bp.desiredLineNumber;
-				bp.error = false;
+				bp.verified = false;
 			}
 		});
 		this.exceptionBreakpoints.forEach(ebp => ebp.enabled = enabled);
