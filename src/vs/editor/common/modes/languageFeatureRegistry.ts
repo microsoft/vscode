@@ -45,7 +45,7 @@ export default class LanguageFeatureRegistry<T> {
 		};
 
 		this._entries.push(entry);
-		this._candidate = undefined;
+		this._lastCandidate = undefined;
 		this._onDidChange.fire(this._entries.length);
 
 		return {
@@ -54,7 +54,7 @@ export default class LanguageFeatureRegistry<T> {
 					let idx = this._entries.indexOf(entry);
 					if (idx >= 0) {
 						this._entries.splice(idx, 1);
-						this._candidate = undefined;
+						this._lastCandidate = undefined;
 						this._onDidChange.fire(this._entries.length);
 						entry = undefined;
 					}
@@ -67,21 +67,25 @@ export default class LanguageFeatureRegistry<T> {
 		return this.all(model).length > 0;
 	}
 
-	all(model: IModel): T[]{
-		let result: T[] = [];
-		if (model) {
-			this._updateScores(model);
-			// from registry
-			for (let entry of this._entries) {
-				if (entry._score > 0) {
-					result.push(entry.provider);
-				}
-			}
-			// from mode
-			if (model.getMode() && model.getMode()[this._supportName]) {
-				result.push(model.getMode()[this._supportName]);
+	all(model: IModel): T[] {
+		if (!model || model.isTooLargeForHavingAMode()) {
+			return [];
+		}
+
+		this._updateScores(model);
+		const result: T[] = [];
+
+		// (1) from registry
+		for (let entry of this._entries) {
+			if (entry._score > 0) {
+				result.push(entry.provider);
 			}
 		}
+		// (2) from mode
+		if (model.getMode() && model.getMode()[this._supportName]) {
+			result.push(model.getMode()[this._supportName]);
+		}
+
 		return result;
 	}
 
@@ -110,37 +114,39 @@ export default class LanguageFeatureRegistry<T> {
 	}
 
 	private _orderedEntries(model: IModel): Entry<T>[] {
-		let result: Entry<T>[] = [];
-		if (model) {
-			if (this._updateScores(model)) {
-				this._sortByScore();
+		if (!model || model.isTooLargeForHavingAMode()) {
+			return [];
+		}
+		const result: Entry<T>[] = [];
+
+		if (this._updateScores(model)) {
+			this._sortByScore();
+		}
+
+		// (1) from registry
+		for (let entry of this._entries) {
+			if (entry._score > 0) {
+				result.push(entry);
 			}
+		}
 
-			// from registry
-			for (let entry of this._entries) {
-				if (entry._score > 0) {
-					result.push(entry);
-				}
-			}
+		// (2) from mode
+		if (model.getMode() && model.getMode()[this._supportName]) {
 
-			// from mode
-			if (model.getMode() && model.getMode()[this._supportName]) {
+			let entry: Entry<T> = {
+				selector: undefined,
+				provider: model.getMode()[this._supportName],
+				_score: .5,
+				_time: 0
+			};
 
-				let entry: Entry<T> = {
-					selector: undefined,
-					provider: model.getMode()[this._supportName],
-					_score: .5,
-					_time: 0
-				};
-
-				let idx = binarySearch(result, entry, LanguageFeatureRegistry._compareByScoreAndTime);
-				result.splice(idx < 0 ? ~idx : idx, 0, entry);
-			}
+			let idx = binarySearch(result, entry, LanguageFeatureRegistry._compareByScoreAndTime);
+			result.splice(idx < 0 ? ~idx : idx, 0, entry);
 		}
 		return result;
 	}
 
-	private _candidate: { uri: string; language: string; };
+	private _lastCandidate: { uri: string; language: string; };
 
 	private _updateScores(model: IModel): boolean {
 
@@ -149,15 +155,15 @@ export default class LanguageFeatureRegistry<T> {
 			language: model.getModeId()
 		};
 
-		if (this._candidate
-			&& this._candidate.language === candidate.language
-			&& this._candidate.uri === candidate.uri) {
+		if (this._lastCandidate
+			&& this._lastCandidate.language === candidate.language
+			&& this._lastCandidate.uri === candidate.uri) {
 
 			// nothing has changed
 			return;
 		}
 
-		this._candidate = candidate;
+		this._lastCandidate = candidate;
 
 		for (let entry of this._entries) {
 			entry._score = score(entry.selector, model.getAssociatedResource(), model.getModeId());
