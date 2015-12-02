@@ -752,7 +752,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 			breakpointsToSend.forEach(bp => {
 				const rawBreakpointData = response.body.breakpoints[index++];
 				if (bp.lineNumber !== rawBreakpointData.line || !rawBreakpointData.verified !== bp.error) {
-					this.model.updateBreakpoint(bp.getId(), rawBreakpointData.line, !rawBreakpointData.verified);
+					this.model.updateBreakpoint(bp.getId(), rawBreakpointData.line, rawBreakpointData.verified);
 				}
 			});
 		});

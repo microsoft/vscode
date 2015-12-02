@@ -393,6 +393,7 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 		if (element instanceof Breakpoint && !element.enabled) {
 			var breakpoint = <Breakpoint> element;
 			breakpoint.lineNumber = breakpoint.desiredLineNumber;
+			breakpoint.error = false;
 		}
 
 		this.emit(debug.ModelEvents.BREAKPOINTS_UPDATED);
@@ -403,6 +404,7 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 			bp.enabled = enabled;
 			if (!enabled) {
 				bp.lineNumber = bp.desiredLineNumber;
+				bp.error = false;
 			}
 		});
 		this.exceptionBreakpoints.forEach(ebp => ebp.enabled = enabled);
