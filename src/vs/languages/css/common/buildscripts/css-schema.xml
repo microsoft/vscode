@@ -8275,7 +8275,7 @@
         <value name="toggle" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="-ms-accelerator" restriction="enum" version="3.0" browsers="IE10" ref="http://www.css3.com/css-accelerator/" syntax="u { $(name): true; }">
+    <entry name="-ms-accelerator" restriction="enum" version="3.0" browsers="E,IE10" ref="http://www.css3.com/css-accelerator/" syntax="u { $(name): true; }">
       <desc>IE only. Has the ability to turn off its system underlines for accelerator keys until the ALT key is pressed</desc>
       <values>
         <value name="false" version="3.0" browsers="all">
@@ -8300,30 +8300,30 @@
         <value name="tb" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="-ms-content-zoom-chaining" restriction="" version="3.0" browsers="IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh441243.aspx" syntax="div { $(name): chained; }">
+    <entry name="-ms-content-zoom-chaining" restriction="" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh441243.aspx" syntax="div { $(name): chained; }">
       <desc>Gets or sets a value that indicates the zoom behavior that occurs when a user hits the content boundary during a manipulation.</desc>
       <values>
         <value name="chained" version="3.0" browsers="all" />
         <value name="none" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="-ms-content-zooming" restriction="enum" version="3.0" browsers="IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh441251.aspx" syntax="div { $(name): zoom; }">
+    <entry name="-ms-content-zooming" restriction="enum" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh441251.aspx" syntax="div { $(name): zoom; }">
       <desc>Gets or sets a value that indicates whether zooming is enabled.</desc>
       <values>
         <value name="none" version="3.0" browsers="all" />
         <value name="zoom" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="-ms-content-zoom-limit" restriction="percentage" version="3.0" browsers="IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh996912.aspx" syntax="div { $(name): 10%; }">
+    <entry name="-ms-content-zoom-limit" restriction="percentage" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh996912.aspx" syntax="div { $(name): 10%; }">
       <desc>Gets or sets a shorthand value that sets values for the -ms-content-zoom-limit-min and the -ms-content-zoom-limit-max properties.</desc>
     </entry>
-    <entry name="-ms-content-zoom-limit-max" restriction="percentage" version="3.0" browsers="IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh996913.aspx" syntax="div { $(name): 10%; }">
+    <entry name="-ms-content-zoom-limit-max" restriction="percentage" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh996913.aspx" syntax="div { $(name): 10%; }">
       <desc>Gets or sets a value that specifies the maximum value for the msContentZoomFactor property.</desc>
     </entry>
-    <entry name="-ms-content-zoom-limit-min" restriction="percentage" version="3.0" browsers="IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh996914.aspx" syntax="div { $(name): 10%; }">
+    <entry name="-ms-content-zoom-limit-min" restriction="percentage" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh996914.aspx" syntax="div { $(name): 10%; }">
       <desc>Gets or sets a value that specifies the minimum value for the msContentZoomFactor property.</desc>
     </entry>
-    <entry name="-ms-content-zoom-snap" restriction="" version="3.0" browsers="IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh441255.aspx" syntax="header { $(name): proximity; }">
+    <entry name="-ms-content-zoom-snap" restriction="" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh441255.aspx" syntax="header { $(name): proximity; }">
       <desc>Gets or sets a shorthand value that sets values for the -ms-content-zoom-snap-type and the -ms-content-zoom-snap-points properties.</desc>
       <values>
         <value name="mandatory" version="3.0" browsers="all" />
@@ -8333,14 +8333,14 @@
         <value name="snapList()" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="-ms-content-zoom-snap-points" restriction="" version="3.0" browsers="IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh441259.aspx">
+    <entry name="-ms-content-zoom-snap-points" restriction="" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh441259.aspx">
       <desc>Gets or sets a value that defines where zoom snap-points are located.</desc>
       <values>
         <value name="snapInterval(100%, 100%)" version="3.0" browsers="all" />
         <value name="snapList()" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="-ms-content-zoom-snap-type" restriction="enum" version="3.0" browsers="IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh441264.aspx" syntax="header { $(name): proximity; }">
+    <entry name="-ms-content-zoom-snap-type" restriction="enum" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh441264.aspx" syntax="header { $(name): proximity; }">
       <desc>Gets or sets a value that indicates how zooming is affected by defined snap-points.</desc>
       <values>
         <value name="mandatory" version="3.0" browsers="all" />
@@ -8626,7 +8626,7 @@
         <value name="nearest-neighbor" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="-ms-layout-grid" restriction="" version="3.0" browsers="IE10" ref="http://msdn.microsoft.com/en-us/library/ie/ms530771(v=vs.85).aspx" syntax="div { $(name): both fixed 12px 12px}">
+    <entry name="-ms-layout-grid" restriction="" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/ie/ms530771(v=vs.85).aspx" syntax="div { $(name): both fixed 12px 12px}">
       <desc>Sets or retrieves the composite document grid properties that specify the layout of text characters.</desc>
       <values>
         <value name="char" version="3.0" browsers="all">
@@ -8643,7 +8643,7 @@
         </value>
       </values>
     </entry>
-    <entry name="-ms-layout-grid-char" restriction="enum, length, percentage" version="3.0" browsers="IE10" ref="http://msdn.microsoft.com/en-us/library/ie/ms530772(v=vs.85).aspx" syntax="div { $(name): auto; }">
+    <entry name="-ms-layout-grid-char" restriction="enum, length, percentage" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/ie/ms530772(v=vs.85).aspx" syntax="div { $(name): auto; }">
       <desc>Sets or retrieves the size of the character grid used for rendering the text content of an element.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all">
@@ -8654,7 +8654,7 @@
         </value>
       </values>
     </entry>
-    <entry name="-ms-layout-grid-line" restriction="length" version="3.0" browsers="IE10" ref="http://msdn.microsoft.com/en-us/library/ie/ms530773(v=vs.85).aspx" syntax="div { $(name): auto; }">
+    <entry name="-ms-layout-grid-line" restriction="length" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/ie/ms530773(v=vs.85).aspx" syntax="div { $(name): auto; }">
       <desc>Sets or retrieves the gridline value used for rendering the text content of an element.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all">
@@ -8665,7 +8665,7 @@
         </value>
       </values>
     </entry>
-    <entry name="-ms-layout-grid-mode" restriction="enum" version="3.0" browsers="IE10" ref="http://msdn.microsoft.com/en-us/library/ie/ms530774(v=vs.85).aspx" syntax="div { $(name): line; }">
+    <entry name="-ms-layout-grid-mode" restriction="enum" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/ie/ms530774(v=vs.85).aspx" syntax="div { $(name): line; }">
       <desc>Gets or sets whether the text layout grid uses two dimensions.</desc>
       <values>
         <value name="both" version="3.0" browsers="all">
@@ -8682,7 +8682,7 @@
         </value>
       </values>
     </entry>
-    <entry name="-ms-layout-grid-type" restriction="enum" version="3.0" browsers="IE10" ref="http://msdn.microsoft.com/en-us/library/ie/ms530775(v=vs.85).aspx" syntax="div { $(name): strict; }">
+    <entry name="-ms-layout-grid-type" restriction="enum" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/ie/ms530775(v=vs.85).aspx" syntax="div { $(name): strict; }">
       <desc>Sets or retrieves the type of grid used for rendering the text content of an element.</desc>
       <values>
         <value name="fixed" version="3.0" browsers="all">
@@ -8696,7 +8696,7 @@
         </value>
       </values>
     </entry>
-    <entry name="-ms-line-break" restriction="enum" version="3.0" browsers="IE10" ref="http://www.w3.org/TR/css3-text/#line-break0" syntax="p { $(name): strict; }">
+    <entry name="-ms-line-break" restriction="enum" version="3.0" browsers="E,IE10" ref="http://www.w3.org/TR/css3-text/#line-break0" syntax="p { $(name): strict; }">
       <desc>Specifies what set of line breaking restrictions are in effect within the element.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all">
@@ -8716,7 +8716,7 @@
         </value>
       </values>
     </entry>
-    <entry name="-ms-overflow-style" restriction="enum" version="3.0" browsers="IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh441298.aspx" syntax="p { $(name): scrollbar; }">
+    <entry name="-ms-overflow-style" restriction="enum" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh441298.aspx" syntax="p { $(name): scrollbar; }">
       <desc>Specify whether content is clipped when it overflows the element's content area.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all">
@@ -10897,7 +10897,7 @@
         </value>
       </values>
     </entry>
-    <entry name="-ms-text-autospace" restriction="enum" version="3.0" browsers="IE8" ref="http://www.w3.org/TR/css3-text/#text-autospace" syntax="div { $(name): ideograph-numeric; }">
+    <entry name="-ms-text-autospace" restriction="enum" version="3.0" browsers="E,IE8" ref="http://www.w3.org/TR/css3-text/#text-autospace" syntax="div { $(name): ideograph-numeric; }">
       <desc>Determines whether or not a full-width punctuation mark character should be trimmed if it appears at the beginning of a line, so that its 'ink' lines up with the first glyph in the line above and below.</desc>
       <values>
         <value name="ideograph-alpha" version="3.0" browsers="all">
@@ -11027,7 +11027,7 @@
         </value>
       </values>
     </entry>
-    <entry name="-ms-touch-select" restriction="enum" version="3.0" browsers="IE10" ref="http://msdn.microsoft.com/en-us/library/ie/hh975292(v=vs.85).aspx" syntax="div::selection { $(name): grippers; }">
+    <entry name="-ms-touch-select" restriction="enum" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/ie/hh975292(v=vs.85).aspx" syntax="div::selection { $(name): grippers; }">
       <desc>Gets or sets a value that toggles the 'gripper' visual elements that enable touch text selection.</desc>
       <values>
         <value name="grippers" version="3.0" browsers="all">
@@ -11123,7 +11123,7 @@
     <entry name="-ms-transform-origin-z" restriction="length, percentage" version="3.0" browsers="IE10" ref="http://www.w3.org/TR/css3-3d-transforms/#transform-origin">
       <desc>The z coordinate of the origin for transforms applied to an element with respect to its border box.</desc>
     </entry>
-    <entry name="-ms-user-select" restriction="enum" version="3.0" browsers="IE10" ref="http://ie.microsoft.com/testdrive/HTML5/msUserSelect/" syntax="div { $(name): none; }">
+    <entry name="-ms-user-select" restriction="enum" version="3.0" browsers="E,IE10" ref="http://ie.microsoft.com/testdrive/HTML5/msUserSelect/" syntax="div { $(name): none; }">
       <desc>Controls the appearance of selection.</desc>
       <values>
         <value name="element" version="3.0" browsers="all" />
@@ -11159,7 +11159,7 @@
         </value>
       </values>
     </entry>
-    <entry name="-ms-wrap-flow" restriction="enum" version="3.0" browsers="IE10" ref="http://www.w3.org/TR/css3-exclusions/#wrap-flow-property" syntax="div { $(name): maximum; }">
+    <entry name="-ms-wrap-flow" restriction="enum" version="3.0" browsers="E,IE10" ref="http://www.w3.org/TR/css3-exclusions/#wrap-flow-property" syntax="div { $(name): maximum; }">
       <desc>An element becomes an exclusion when its 'wrap-flow' property has a computed value other than 'auto'.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all">
@@ -11182,10 +11182,10 @@
         </value>
       </values>
     </entry>
-    <entry name="-ms-wrap-margin" restriction="length, percentage" version="3.0" browsers="IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh466103.aspx" syntax="div { $(name): 20px; }">
+    <entry name="-ms-wrap-margin" restriction="length, percentage" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh466103.aspx" syntax="div { $(name): 20px; }">
       <desc>Gets or sets a value that is used to offset the inner wrap shape from other shapes.</desc>
     </entry>
-    <entry name="-ms-wrap-through" restriction="enum" version="3.0" browsers="IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh441290.aspx" syntax="div { $(name): wrap; }">
+    <entry name="-ms-wrap-through" restriction="enum" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh441290.aspx" syntax="div { $(name): wrap; }">
       <desc>Gets or sets a value that specifies how content should wrap around an exclusion element.</desc>
       <values>
         <value name="none" version="3.0" browsers="all">
