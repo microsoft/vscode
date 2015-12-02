@@ -10,7 +10,6 @@ import * as Objects from 'vs/base/common/objects';
 import * as Strings from 'vs/base/common/strings';
 import * as Assert from 'vs/base/common/assert';
 import * as Paths from 'vs/base/common/paths';
-import * as NetWork from 'vs/base/common/network';
 import * as Types from 'vs/base/common/types';
 import Severity from 'vs/base/common/severity';
 import URI from 'vs/base/common/uri';
@@ -171,7 +170,7 @@ export function getResource(filename: string, matcher: ProblemMatcher): URI {
 	if (fullPath[0] !== '/') {
 		fullPath = '/' + fullPath;
 	}
-	return NetWork.URL.fromValue('file://' + fullPath);
+	return URI.parse('file://' + fullPath);
 }
 
 export interface ILineMatcher {

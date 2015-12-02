@@ -18,7 +18,6 @@ import {AllWorkersAttr} from 'vs/platform/thread/common/threadService';
 import {IHTMLContentElement} from 'vs/base/common/htmlContent';
 import {EventSource} from 'vs/base/common/eventSource';
 import URI from 'vs/base/common/uri';
-import {URL} from 'vs/base/common/network';
 import Severity from 'vs/base/common/severity';
 import {EventProvider} from 'vs/base/common/eventProvider';
 import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
@@ -221,7 +220,7 @@ export class ModelServiceImpl implements IModelService {
 
 	private _createModelData(value:string, modeOrPromise:TPromise<Modes.IMode>|Modes.IMode, resource: URI): ModelData {
 		// create & save the model
-		let model = new Model(value, modeOrPromise, resource && URL.fromUri(resource));
+		let model = new Model(value, modeOrPromise, resource);
 		let modelId = MODEL_ID(model.getAssociatedResource());
 
 		if (this._models[modelId]) {
@@ -390,7 +389,7 @@ export class ModelServiceWorkerHelper {
 
 	public $_acceptNewModel(data:IRawModelData): TPromise<void> {
 		// Create & insert the mirror model eagerly in the resource service
-		let mirrorModel = new MirrorModel(this._resourceService, data.versionId, data.value, null, URL.fromUri(data.url), data.properties);
+		let mirrorModel = new MirrorModel(this._resourceService, data.versionId, data.value, null, data.url, data.properties);
 		this._resourceService.insert(mirrorModel.getAssociatedResource(), mirrorModel);
 
 		// Block worker execution until the mode is instantiated

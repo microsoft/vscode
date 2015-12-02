@@ -36,7 +36,7 @@ export class AbstractMirrorModel extends TextModelWithTokens implements EditorCo
 		}
 
 		this._setVersionId(versionId);
-		this._associatedResource = associatedResource && URL.fromUri(associatedResource);
+		this._associatedResource = URL.fromUri(associatedResource);
 		this._extraProperties = properties;
 	}
 

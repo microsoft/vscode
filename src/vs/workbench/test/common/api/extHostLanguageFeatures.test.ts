@@ -9,7 +9,6 @@ import * as assert from 'assert';
 import {setUnexpectedErrorHandler, errorHandler} from 'vs/base/common/errors';
 import {create} from 'vs/base/common/types';
 import URI from 'vs/base/common/uri';
-import {URL} from 'vs/base/common/network';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {PluginHostDocument} from 'vs/workbench/api/common/pluginHostDocuments';
 import * as types from 'vs/workbench/api/common/pluginHostTypes';
@@ -47,7 +46,7 @@ const model: EditorCommon.IModel = new EditorModel(
 		'This is the third line',
 	].join('\n'),
 	undefined,
-	URL.fromUri(URI.parse('far://testing/file.a')));
+	URI.parse('far://testing/file.a'));
 
 let extHost: ExtHostLanguageFeatures;
 let mainThread: MainThreadLanguageFeatures;

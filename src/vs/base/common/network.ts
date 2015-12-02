@@ -300,7 +300,13 @@ export class URL extends URI implements objects.IEqualable {
 	}
 
 	public static fromUri(value: URI): URL {
-		return value && new URL(value);
+		if (!value) {
+			return <any>value;
+		} else if (value instanceof URL) {
+			return value;
+		} else {
+			return new URL(value);
+		}
 	}
 
 	private _spec:string;
@@ -309,7 +315,7 @@ export class URL extends URI implements objects.IEqualable {
 
 	constructor(spec: string);
 	constructor(spec: URI);
-	constructor(stringOrURI: any) {
+	constructor(stringOrURI: string|URI) {
 		super();
 		assert.ok(!!stringOrURI, 'spec must not be null');
 		if(typeof stringOrURI === 'string') {
