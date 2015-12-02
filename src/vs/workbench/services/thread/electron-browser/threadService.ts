@@ -27,6 +27,7 @@ import cp = require('child_process');
 import ipc = require('ipc');
 
 export const PLUGIN_LOG_BROADCAST_CHANNEL = 'vscode:pluginLog';
+export const PLUGIN_ATTACH_BROADCAST_CHANNEL = 'vscode:pluginAttach';
 
 // Enable to see detailed message communication between window and plugin host
 const logPluginHostCommunication = false;
@@ -126,13 +127,23 @@ class PluginHostProcessManager {
 		this.initializePluginHostProcess = new TPromise<cp.ChildProcess>((c, e) => {
 
 			// Resolve additional execution args (e.g. debug)
-			return this.resolveExecArgv(config, (execArgv) => {
-				if (execArgv) {
-					opts.execArgv = execArgv;
+			return this.resolveDebugPort(config, (port) => {
+				if (port) {
+					opts.execArgv = ['--nolazy', (config.env.debugBrkPluginHost ? '--debug-brk=' : '--debug=') + port];
 				}
 
 				// Run Plugin Host as fork of current process
 				this.pluginHostProcessHandle = cp.fork(uri.parse(require.toUrl('bootstrap')).fsPath, ['--type=pluginHost'], opts);
+
+				// Notify debugger that we are ready to attach to the process if we run a development plugin
+				if (config.env.pluginDevelopmentPath && port) {
+					this.windowService.broadcast({
+						channel: PLUGIN_ATTACH_BROADCAST_CHANNEL,
+						payload: {
+							port: port
+						}
+					});
+				}
 
 				// Messages from Plugin host
 				this.pluginHostProcessHandle.on('message', (msg) => {
@@ -251,7 +262,7 @@ class PluginHostProcessManager {
 		}, () => this.terminate());
 	}
 
-	private resolveExecArgv(config: IConfiguration, clb: (execArgv: any) => void): void {
+	private resolveDebugPort(config: IConfiguration, clb: (port: number) => void): void {
 
 		// Check for a free debugging port
 		if (typeof config.env.debugPluginHostPort === 'number') {
@@ -272,7 +283,7 @@ class PluginHostProcessManager {
 					console.info('%c[Plugin Host] %cdebugger listening on port ' + port, 'color: blue', 'color: black');
 				}
 
-				return clb(['--nolazy', (config.env.debugBrkPluginHost ? '--debug-brk=' : '--debug=') + port]);
+				return clb(port);
 			});
 		}
 

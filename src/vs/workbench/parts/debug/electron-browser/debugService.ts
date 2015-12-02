@@ -44,7 +44,7 @@ import { IPluginService, IPluginDescription } from 'vs/platform/plugins/common/p
 import { IOutputService } from 'vs/workbench/parts/output/common/output';
 import { IKeybindingService, IKeybindingContextKey } from 'vs/platform/keybinding/common/keybindingService';
 import { IWindowService, IBroadcast } from 'vs/workbench/services/window/electron-browser/windowService';
-import { ILogEntry, PLUGIN_LOG_BROADCAST_CHANNEL } from 'vs/workbench/services/thread/electron-browser/threadService';
+import { ILogEntry, PLUGIN_LOG_BROADCAST_CHANNEL, PLUGIN_ATTACH_BROADCAST_CHANNEL } from 'vs/workbench/services/thread/electron-browser/threadService';
 
 var DEBUG_BREAKPOINTS_KEY = 'debug.breakpoint';
 var DEBUG_BREAKPOINTS_ACTIVATED_KEY = 'debug.breakpointactivated';
@@ -132,6 +132,15 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 	}
 
 	private onBroadcast(broadcast: IBroadcast): void {
+
+		// Attach: PH is ready to be attached to
+		if (broadcast.channel === PLUGIN_ATTACH_BROADCAST_CHANNEL) {
+			this.rawAttach('extensionHost', broadcast.payload.port);
+
+			return;
+		}
+
+		// From this point on we require an active session
 		let session = this.getActiveSession();
 		if (!session || session.getType() !== 'extensionHost') {
 			return; // we are only intersted if we have an active debug session for extensionHost
