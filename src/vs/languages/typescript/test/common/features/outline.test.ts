@@ -7,7 +7,7 @@
 import assert = require('assert');
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
-import network = require('vs/base/common/network');
+import URI from 'vs/base/common/uri';
 import outline = require('vs/languages/typescript/common/features/outline');
 import ts = require('vs/languages/typescript/common/lib/typescriptServices');
 import utils = require('vs/languages/typescript/test/common/features/utils');
@@ -17,7 +17,7 @@ suite('TS - outline', () => {
 	function assertOutline(code:string, callback:(outline:Modes.IOutlineEntry[])=>any):void {
 
 		var host = new utils.LanguageServiceHost().add('a', code);
-		var elements = outline.compute(ts.createLanguageService(host, ts.createDocumentRegistry()), network.URL.fromValue('a'));
+		var elements = outline.compute(ts.createLanguageService(host, ts.createDocumentRegistry()), URI.parse('a'));
 
 		try {
 			callback(elements);

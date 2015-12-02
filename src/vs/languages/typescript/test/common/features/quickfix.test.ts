@@ -7,7 +7,7 @@
 import assert = require('assert');
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
-import network = require('vs/base/common/network');
+import URI from 'vs/base/common/uri';
 import quickfix = require('vs/languages/typescript/common/features/quickFix');
 import diagnostics = require('vs/languages/typescript/common/features/diagnostics');
 import ts = require('vs/languages/typescript/common/lib/typescriptServices');
@@ -18,7 +18,7 @@ suite('TS - quick fix', () => {
 
 	function assertQuickFix(code: string, fileName: string, callback: (outline: Modes.IQuickFix[]) => any): void {
 		var filePath = 'file://test/' + fileName;
-		var fileURL = network.URL.parse(filePath);
+		var fileURL = URI.parse(filePath);
 		var host = new utils.LanguageServiceHost().add(filePath, code);
 		var service = ts.createLanguageService(host, ts.createDocumentRegistry());
 		var markers = diagnostics.getSemanticDiagnostics(service, fileURL, Options.typeScriptOptions).markers;

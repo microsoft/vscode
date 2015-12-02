@@ -7,7 +7,7 @@
 import assert = require('assert');
 import mm = require('vs/editor/common/model/mirrorModel');
 import cssWorker = require('vs/languages/css/common/cssWorker');
-import Network = require('vs/base/common/network');
+import URI from 'vs/base/common/uri';
 import ResourceService = require('vs/editor/common/services/resourceServiceImpl');
 import MarkerService = require('vs/platform/markers/common/markerService');
 import EditorCommon = require('vs/editor/common/editorCommon');
@@ -19,7 +19,7 @@ import modesUtil = require('vs/editor/test/common/modesTestUtils');
 import {NULL_THREAD_SERVICE} from 'vs/platform/test/common/nullThreadService';
 import {IMarker} from 'vs/platform/markers/common/markers';
 
-export function mockMirrorModel(content:string, url:Network.URL = null) : mm.MirrorModel {
+export function mockMirrorModel(content:string, url:URI = null) : mm.MirrorModel {
 	return mm.createMirrorModelFromString(null, 0, content, modesUtil.createMockMode('mock.mode.id', /(#?-?\d*\.\d\w*%?)|([@#.:!]?[\w-?]+%?)|[@#.!]/g), url);
 }
 
@@ -29,7 +29,7 @@ suite('Validation - CSS', () => {
 
 		var source = '    #navigation a;';
 		var message = cssErrors.ParseError.LeftCurlyExpected.message;
-		var url = new Network.URL(Network.schemas.inMemory + '://localhost/vs/editor/common/model/mirrorModel/1');
+		var url = URI.parse('inmemory://localhost/vs/editor/common/model/mirrorModel/1');
 		var mirrorModel:any= mockMirrorModel(source, url);
 
 		var markerService = new MarkerService.MarkerService(NULL_THREAD_SERVICE);
@@ -50,7 +50,7 @@ suite('Validation - CSS', () => {
 		assert.equal(marker.message, message);
 	});
 
-	var mockCSSWorkerEnv = function (url: Network.URL, content: string): { worker: cssWorker.CSSWorker; model: mm.MirrorModel; markers: IMarker[]; } {
+	var mockCSSWorkerEnv = function (url: URI, content: string): { worker: cssWorker.CSSWorker; model: mm.MirrorModel; markers: IMarker[]; } {
 		var resourceService = new ResourceService.ResourceService();
 		var model = mockMirrorModel(content, url);
 		resourceService.insert(url, model);
@@ -70,7 +70,7 @@ suite('Validation - CSS', () => {
 	};
 
 	var testSuggestionsFor = function(value:string, stringBefore:string):WinJS.TPromise<Modes.ISuggestions> {
-		var url = new Network.URL('test://1');
+		var url = URI.parse('test://1');
 		var env = mockCSSWorkerEnv(url, value);
 
 		var idx = stringBefore ? value.indexOf(stringBefore) + stringBefore.length : 0;
@@ -79,7 +79,7 @@ suite('Validation - CSS', () => {
 	};
 
 	var testValueSetFor = function(value:string, selection:string, selectionLength: number, up: boolean):WinJS.TPromise<Modes.IInplaceReplaceSupportResult> {
-		var url = new Network.URL('test://1');
+		var url = URI.parse('test://1');
 		var env = mockCSSWorkerEnv(url, value);
 
 		var pos = env.model.getPositionFromOffset(value.indexOf(selection));
@@ -89,7 +89,7 @@ suite('Validation - CSS', () => {
 	};
 
 	var testOccurrences = function (value: string, tokenBefore: string): WinJS.TPromise<{ occurrences: Modes.IOccurence[]; model: mm.MirrorModel; }> {
-		var url = new Network.URL('test://1');
+		var url = URI.parse('test://1');
 		var env = mockCSSWorkerEnv(url, value);
 
 		var pos = env.model.getPositionFromOffset(value.indexOf(tokenBefore) + tokenBefore.length);
@@ -98,7 +98,7 @@ suite('Validation - CSS', () => {
 	};
 
 	var testQuickFixes = function (value: string, tokenBefore: string): WinJS.TPromise<{ fixes: Modes.IQuickFix[]; model: mm.MirrorModel; }> {
-		var url = new Network.URL('test://1');
+		var url = URI.parse('test://1');
 		var env = mockCSSWorkerEnv(url, value);
 
 		var pos = env.model.getPositionFromOffset(value.indexOf(tokenBefore) + tokenBefore.length);

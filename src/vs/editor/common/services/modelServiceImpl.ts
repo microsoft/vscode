@@ -28,7 +28,7 @@ import {anonymize} from 'vs/platform/telemetry/common/telemetry';
 import {Model} from 'vs/editor/common/model/model';
 
 export interface IRawModelData {
-	url:URL;
+	url:URI;
 	versionId:number;
 	value:EditorCommon.IRawText;
 	properties:any;
@@ -219,9 +219,9 @@ export class ModelServiceImpl implements IModelService {
 
 	// --- begin IModelService
 
-	private _createModelData(value:string, modeOrPromise:TPromise<Modes.IMode>|Modes.IMode, resource: URL): ModelData {
+	private _createModelData(value:string, modeOrPromise:TPromise<Modes.IMode>|Modes.IMode, resource: URI): ModelData {
 		// create & save the model
-		let model = new Model(value, modeOrPromise, resource);
+		let model = new Model(value, modeOrPromise, resource && URL.fromUri(resource));
 		let modelId = MODEL_ID(model.getAssociatedResource());
 
 		if (this._models[modelId]) {
@@ -235,7 +235,7 @@ export class ModelServiceImpl implements IModelService {
 		return modelData;
 	}
 
-	public createModel(value:string, modeOrPromise:TPromise<Modes.IMode>|Modes.IMode, resource: URL): EditorCommon.IModel {
+	public createModel(value:string, modeOrPromise:TPromise<Modes.IMode>|Modes.IMode, resource: URI): EditorCommon.IModel {
 		let modelData = this._createModelData(value, modeOrPromise, resource);
 		let modelId = modelData.getModelId();
 
@@ -255,7 +255,7 @@ export class ModelServiceImpl implements IModelService {
 		return modelData.model;
 	}
 
-	public destroyModel(resource: URL): void {
+	public destroyModel(resource: URI): void {
 		// We need to support that not all models get disposed through this service (i.e. model.dispose() should work!)
 		let modelData = this._models[MODEL_ID(resource)];
 		if (!modelData) {
@@ -274,7 +274,7 @@ export class ModelServiceImpl implements IModelService {
 		return ret;
 	}
 
-	public getModel(resource: URL): EditorCommon.IModel {
+	public getModel(resource: URI): EditorCommon.IModel {
 		let modelId = MODEL_ID(resource);
 		let modelData = this._models[modelId];
 		if (!modelData) {
@@ -390,7 +390,7 @@ export class ModelServiceWorkerHelper {
 
 	public $_acceptNewModel(data:IRawModelData): TPromise<void> {
 		// Create & insert the mirror model eagerly in the resource service
-		let mirrorModel = new MirrorModel(this._resourceService, data.versionId, data.value, null, data.url, data.properties);
+		let mirrorModel = new MirrorModel(this._resourceService, data.versionId, data.value, null, URL.fromUri(data.url), data.properties);
 		this._resourceService.insert(mirrorModel.getAssociatedResource(), mirrorModel);
 
 		// Block worker execution until the mode is instantiated
@@ -426,7 +426,7 @@ export class ModelServiceWorkerHelper {
 		});
 	}
 
-	public $_acceptDidDisposeModel(url:URL): void {
+	public $_acceptDidDisposeModel(url:URI): void {
 		let model = <MirrorModel>this._resourceService.get(url);
 		this._resourceService.remove(url);
 		if (model) {
@@ -435,7 +435,7 @@ export class ModelServiceWorkerHelper {
 	}
 
 	public $_acceptModelEvents(modelId: string, events:IMirrorModelEvents): void {
-		let model = <MirrorModel>this._resourceService.get(new URL(modelId));
+		let model = <MirrorModel>this._resourceService.get(URI.parse(modelId));
 		if (!model) {
 			throw new Error('Received model events for missing model ' + anonymize(modelId));
 		}

@@ -6,7 +6,6 @@
 
 import {BaseTextEditorModel} from 'vs/workbench/browser/parts/editor/textEditorModel';
 import URI from 'vs/base/common/uri';
-import {URL} from 'vs/base/common/network';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {IModelService} from 'vs/editor/common/services/modelService';
 
@@ -21,6 +20,6 @@ export class ResourceEditorModel extends BaseTextEditorModel {
 		@IModeService modeService: IModeService,
 		@IModelService modelService: IModelService
 	) {
-		super(modelService, modeService, URL.fromUri(resource));
+		super(modelService, modeService, resource);
 	}
 }

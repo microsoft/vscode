@@ -300,7 +300,7 @@ export class URL extends URI implements objects.IEqualable {
 	}
 
 	public static fromUri(value: URI): URL {
-		return new URL(value);
+		return value && new URL(value);
 	}
 
 	private _spec:string;

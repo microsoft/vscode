@@ -11,7 +11,7 @@ import resourceService = require('vs/editor/common/services/resourceServiceImpl'
 import {IResourceService} from 'vs/editor/common/services/resourceService';
 import instantiationService = require('vs/platform/instantiation/common/instantiationService');
 import mirrorModel = require('vs/editor/common/model/mirrorModel');
-import network = require('vs/base/common/network');
+import URI from 'vs/base/common/uri';
 import SchemaService = require('vs/languages/json/common/jsonSchemaService');
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
@@ -32,7 +32,7 @@ suite('JSON - Worker', () => {
 		}
 	};
 
-	function mockWorkerEnv(url: network.URL, content: string): { worker: jsonworker.JSONWorker; model: EditorCommon.IMirrorModel; } {
+	function mockWorkerEnv(url: URI, content: string): { worker: jsonworker.JSONWorker; model: EditorCommon.IMirrorModel; } {
 		var mm = mirrorModel.createMirrorModelFromString(null, 1, content, modesUtil.createMockMode('mock.mode.id'), url);
 
 		var resourceModelMock: IResourceService = new resourceService.ResourceService();
@@ -56,7 +56,7 @@ suite('JSON - Worker', () => {
 	}
 
 	var testSuggestionsFor = function(value:string, stringAfter:string, schema?:jsonSchema.IJSONSchema):WinJS.TPromise<Modes.ISuggestions> {
-		var url = new network.URL('test://test.json');
+		var url = URI.parse('test://test.json');
 		var env = mockWorkerEnv(url, value);
 		prepareSchemaServer(schema, env.worker);
 
@@ -66,14 +66,14 @@ suite('JSON - Worker', () => {
 	};
 
 	function testComputeInfo(content:string, schema:jsonSchema.IJSONSchema, position:EditorCommon.IPosition):WinJS.TPromise<Modes.IComputeExtraInfoResult> {
-		var url = new network.URL('test://test.json');
+		var url = URI.parse('test://test.json');
 		var env = mockWorkerEnv(url, content);
 		prepareSchemaServer(schema, env.worker);
 		return env.worker.computeInfo(url, position);
 	}
 
 	var testValueSetFor = function(value:string, schema:jsonSchema.IJSONSchema, selection:string, selectionLength: number, up: boolean):WinJS.TPromise<Modes.IInplaceReplaceSupportResult> {
-		var url = new network.URL('test://test.json');
+		var url = URI.parse('test://test.json');
 		var env = mockWorkerEnv(url, value);
 		prepareSchemaServer(schema, env.worker);
 
@@ -84,7 +84,7 @@ suite('JSON - Worker', () => {
 	};
 
 	function getOutline(content: string):WinJS.TPromise<Modes.IOutlineEntry[]> {
-		var url = new network.URL('test');
+		var url = URI.parse('test');
 		var workerEnv = mockWorkerEnv(url, content);
 		return workerEnv.worker.getOutline(url);
 	};

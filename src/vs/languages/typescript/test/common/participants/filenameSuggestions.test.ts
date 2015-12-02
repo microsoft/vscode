@@ -5,7 +5,7 @@
 'use strict';
 
 import assert = require('assert');
-import network = require('vs/base/common/network');
+import URI from 'vs/base/common/uri';
 import uri from 'vs/base/common/uri';
 import filenameSuggestions = require('vs/languages/typescript/common/participants/filenameSuggestions');
 import modelMirror = require('vs/editor/common/model/mirrorModel');
@@ -14,8 +14,8 @@ import modesUtil = require('vs/editor/test/common/modesTestUtils');
 
 suite('TS/JS* - Filename Suggest', () => {
 
-	var jsModel = modelMirror.createMirrorModelFromString(null, 1, 'var a = require("module/path");', modesUtil.createMockMode('mock.mode.id'), network.URL.fromValue('http://test/async.js'));
-	var tsModel = modelMirror.createMirrorModelFromString(null, 1, 'import a = require("module/path");', modesUtil.createMockMode('mock.mode.id'), network.URL.fromValue('http://test/async.ts'));
+	var jsModel = modelMirror.createMirrorModelFromString(null, 1, 'var a = require("module/path");', modesUtil.createMockMode('mock.mode.id'), URI.parse('http://test/async.js'));
+	var tsModel = modelMirror.createMirrorModelFromString(null, 1, 'import a = require("module/path");', modesUtil.createMockMode('mock.mode.id'), URI.parse('http://test/async.ts'));
 
 	var _resourceService = new resourceService.ResourceService();
 	_resourceService.insert(jsModel.getAssociatedResource(), jsModel);

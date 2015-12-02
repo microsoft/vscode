@@ -14,6 +14,7 @@ import {ModelLine} from 'vs/editor/common/model/modelLine';
 import EditorCommon = require('vs/editor/common/editorCommon');
 import {IResourceService} from 'vs/editor/common/services/resourceService';
 import {URL} from 'vs/base/common/network';
+import URI from 'vs/base/common/uri';
 import {disposeAll} from 'vs/base/common/lifecycle';
 
 export interface IMirrorModelEvents {
@@ -27,7 +28,7 @@ export class AbstractMirrorModel extends TextModelWithTokens implements EditorCo
 	_associatedResource:URL;
 	_extraProperties:{[key:string]:any;};
 
-	constructor(allowedEventTypes:string[], versionId:number, value:EditorCommon.IRawText, mode:IMode|TPromise<IMode>, associatedResource?:URL, properties?:{[key:string]:any;}) {
+	constructor(allowedEventTypes:string[], versionId:number, value:EditorCommon.IRawText, mode:IMode|TPromise<IMode>, associatedResource?:URI, properties?:{[key:string]:any;}) {
 		super(allowedEventTypes.concat([EditorCommon.EventType.ModelDispose]), value, false, mode);
 
 		if(!properties) {
@@ -35,7 +36,7 @@ export class AbstractMirrorModel extends TextModelWithTokens implements EditorCo
 		}
 
 		this._setVersionId(versionId);
-		this._associatedResource = associatedResource;
+		this._associatedResource = associatedResource && URL.fromUri(associatedResource);
 		this._extraProperties = properties;
 	}
 
@@ -315,7 +316,7 @@ class EmbeddedModeRange {
 	}
 }
 
-export function createMirrorModelFromString(resourceService:IResourceService, versionId:number, value:string, mode:IMode, associatedResource?:URL, properties?:{[key:string]:any;}): MirrorModel {
+export function createMirrorModelFromString(resourceService:IResourceService, versionId:number, value:string, mode:IMode, associatedResource?:URI, properties?:{[key:string]:any;}): MirrorModel {
 	return new MirrorModel(resourceService, versionId, TextModel.toRawText(value), mode, associatedResource, properties);
 }
 
@@ -324,7 +325,7 @@ export class MirrorModel extends AbstractMirrorModel implements EditorCommon.IMi
 	private _resourceService: IResourceService;
 	private _embeddedModels: {[modeId:string]:MirrorModelEmbedded;};
 
-	constructor(resourceService:IResourceService, versionId:number, value:EditorCommon.IRawText, mode:IMode|TPromise<IMode>, associatedResource?:URL, properties?:{[key:string]:any;}) {
+	constructor(resourceService:IResourceService, versionId:number, value:EditorCommon.IRawText, mode:IMode|TPromise<IMode>, associatedResource?:URI, properties?:{[key:string]:any;}) {
 		super(['changed'], versionId, value, mode, associatedResource, properties);
 
 		this._resourceService = resourceService;

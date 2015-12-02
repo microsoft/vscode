@@ -10,7 +10,6 @@ import errors = require('vs/base/common/errors');
 import paths = require('vs/base/common/paths');
 import {Action} from 'vs/base/common/actions';
 import URI from 'vs/base/common/uri';
-import {URL} from 'vs/base/common/network';
 import {EditorModel, EditorInput} from 'vs/workbench/common/editor';
 import {guessMimeTypes} from 'vs/base/common/mime';
 import {EditorInputAction} from 'vs/workbench/browser/parts/editor/baseEditor';
@@ -175,7 +174,7 @@ export class FileOnDiskEditorInput extends ResourceEditorInput {
 
 			let codeEditorModel = this.modelService.getModel(this.resource);
 			if (!codeEditorModel) {
-				this.modelService.createModel(content.value, this.modeService.getOrCreateMode(this.mime), URL.fromUri(this.resource));
+				this.modelService.createModel(content.value, this.modeService.getOrCreateMode(this.mime), this.resource);
 			} else {
 				codeEditorModel.setValue(content.value);
 			}

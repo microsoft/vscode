@@ -5,9 +5,9 @@
 'use strict';
 
 import assert = require('assert');
+import URI from 'vs/base/common/uri';
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
-import network = require('vs/base/common/network');
 import logicalSelection = require('vs/languages/typescript/common/features/logicalSelection');
 import ts = require('vs/languages/typescript/common/lib/typescriptServices');
 import utils = require('vs/languages/typescript/test/common/features/utils');
@@ -19,7 +19,7 @@ suite('TS - logical selection', () => {
 		var host = new utils.LanguageServiceHost().add('a', code),
 			languageService = ts.createLanguageService(host, ts.createDocumentRegistry());
 
-		var elements = logicalSelection.compute(languageService, network.URL.fromValue('a'), { lineNumber: line, column: position });
+		var elements = logicalSelection.compute(languageService, URI.parse('a'), { lineNumber: line, column: position });
 
 		try {
 			callback(elements);

@@ -8,7 +8,6 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
 import {IResourceService} from 'vs/editor/common/services/resourceService';
 import {AbstractModeWorker} from 'vs/editor/common/modes/abstractModeWorker';
-import {URL} from 'vs/base/common/network';
 import URI from 'vs/base/common/uri';
 import strings = require('vs/base/common/strings');
 import arrays = require('vs/base/common/arrays');
@@ -38,7 +37,7 @@ export class TextEditorWorker extends AbstractModeWorker {
 		return this._contextService;
 	}
 
-	public computeLinks(resource: URL): TPromise<ILink[]> {
+	public computeLinks(resource: URI): TPromise<ILink[]> {
 		return super.computeLinks(resource).then((links) => {
 			if (!this.patterns.length) {
 				return links;
