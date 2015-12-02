@@ -5066,7 +5066,7 @@
         </value>
       </values>
     </entry>
-    <entry name="font-variant-alternates" restriction="enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css3-fonts/#propdef-font-variant-alternates" syntax="h2 { $(name): styleset(3,5); }">
+    <entry name="font-variant-alternates" restriction="enum" version="3.0" browsers="FF26" ref="http://www.w3.org/TR/css3-fonts/#propdef-font-variant-alternates" syntax="h2 { $(name): styleset(3,5); }">
       <desc>For any given character, fonts can provide a variety of alternate glyphs in addition to the default glyph for that character. This property provides control over the selection of these alternate glyphs.</desc>
       <values>
         <value name="annotation()" version="3.0" browsers="all">
@@ -5075,21 +5075,12 @@
         <value name="character-variant()" version="3.0" browsers="all">
           <desc>Enables display of specific character variants.</desc>
         </value>
-        <value name="contextual" version="3.0" browsers="all">
-          <desc>Enables display of contextual alternates.</desc>
-        </value>
         <value name="historical-forms" version="3.0" browsers="all">
           <desc>Enables display of historical forms.</desc>
-        </value>
-        <value name="no-contextual" version="3.0" browsers="all">
-          <desc>Disables display of contextual alternates.</desc>
         </value>
         <value name="normal" version="3.0" browsers="all" />
         <value name="ornaments()" version="3.0" browsers="all">
           <desc>Enables replacement of default glyphs with ornaments, if provided in the font.</desc>
-        </value>
-        <value name="ruby" version="3.0" browsers="all">
-          <desc>Enables display of ruby glyphs. This value only selects a glyph for use in ruby text, it does not affect font scaling.</desc>
         </value>
         <value name="styleset()" version="3.0" browsers="all">
           <desc>Enables display with stylistic sets.</desc>
