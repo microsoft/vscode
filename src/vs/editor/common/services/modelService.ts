@@ -10,16 +10,15 @@ import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
 import {EventProvider} from 'vs/base/common/eventProvider';
 import URI from 'vs/base/common/uri';
-import {URL} from 'vs/base/common/network';
 
 export var IModelService = createDecorator<IModelService>('modelService');
 
 export interface IModelService {
 	serviceId: ServiceIdentifier<any>;
 
-	createModel(value:string, modeOrPromise:TPromise<Modes.IMode>|Modes.IMode, resource: URL): EditorCommon.IModel;
+	createModel(value:string, modeOrPromise:TPromise<Modes.IMode>|Modes.IMode, resource: URI): EditorCommon.IModel;
 
-	destroyModel(resource: URL): void;
+	destroyModel(resource: URI): void;
 
 	getModels(): EditorCommon.IModel[];
 

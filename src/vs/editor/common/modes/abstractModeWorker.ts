@@ -5,7 +5,7 @@
 'use strict';
 
 import {IEventEmitter} from 'vs/base/common/eventEmitter';
-import {URL} from 'vs/base/common/network';
+import URI from 'vs/base/common/uri';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
 import {IResourceService} from 'vs/editor/common/services/resourceService';
 import {computeLinks} from 'vs/editor/common/modes/linkComputer';
@@ -88,18 +88,18 @@ export class AbstractModeWorker {
 		return TPromise.as(null);
 	}
 
-	private _newValidate(changed:URL[], notChanged:URL[], dueToConfigurationChange:boolean): void {
+	private _newValidate(changed:URI[], notChanged:URI[], dueToConfigurationChange:boolean): void {
 		this.doValidateOnChange(changed, notChanged, dueToConfigurationChange);
 		for (var i = 0; i < changed.length; i++) {
 			this.triggerValidateParticipation(changed[i], this._getContextForValidationParticipants(changed[i]));
 		}
 	}
 
-	public _getContextForValidationParticipants(resource:URL):any {
+	public _getContextForValidationParticipants(resource:URI):any {
 		return null;
 	}
 
-	public doValidateOnChange(changed:URL[], notChanged:URL[], dueToConfigurationChange:boolean): void {
+	public doValidateOnChange(changed:URI[], notChanged:URI[], dueToConfigurationChange:boolean): void {
 		if (dueToConfigurationChange) {
 			for (var i = 0; i < changed.length; i++) {
 				this.doValidate(changed[i]);
@@ -114,7 +114,7 @@ export class AbstractModeWorker {
 		}
 	}
 
-	public triggerValidateParticipation(resource:URL, context:any=null):void {
+	public triggerValidateParticipation(resource:URI, context:any=null):void {
 
 		var model = this.resourceService.get(resource);
 		this._validationParticipants.forEach(participant => {
@@ -127,13 +127,13 @@ export class AbstractModeWorker {
 		});
 	}
 
-	public doValidate(resource:URL): void {
+	public doValidate(resource:URI): void {
 		return null;
 	}
 
 	// ---- suggestion ---------------------------------------------------------------------------------------
 
-	public suggest(resource:URL, position:EditorCommon.IPosition):TPromise<Modes.ISuggestions[]> {
+	public suggest(resource:URI, position:EditorCommon.IPosition):TPromise<Modes.ISuggestions[]> {
 
 		return this._getSuggestContext(resource).then((context) => {
 			var promises = [ this.doSuggest(resource, position) ];
@@ -168,7 +168,7 @@ export class AbstractModeWorker {
 		});
 	}
 
-	public _participantSuggests(resource:URL, position:EditorCommon.IPosition, context:any):TPromise<Modes.ISuggestions>[] {
+	public _participantSuggests(resource:URI, position:EditorCommon.IPosition, context:any):TPromise<Modes.ISuggestions>[] {
 		return this._suggestParticipants.map((participant) => {
 			try {
 				return participant.suggest(resource, position, context);
@@ -179,11 +179,11 @@ export class AbstractModeWorker {
 		});
 	}
 
-	public _getSuggestContext(resource:URL):TPromise<any> {
+	public _getSuggestContext(resource:URI):TPromise<any> {
 		return TPromise.as(undefined);
 	}
 
-	public doSuggest(resource:URL, position:EditorCommon.IPosition):TPromise<Modes.ISuggestions> {
+	public doSuggest(resource:URI, position:EditorCommon.IPosition):TPromise<Modes.ISuggestions> {
 
 		var model = this.resourceService.get(resource),
 			currentWord = model.getWordUntilPosition(position).word;
@@ -198,7 +198,7 @@ export class AbstractModeWorker {
 		return TPromise.as(result);
 	}
 
-	public suggestWords(resource:URL, position:EditorCommon.IPosition, mustHaveCurrentWord:boolean):Modes.ISuggestion[] {
+	public suggestWords(resource:URI, position:EditorCommon.IPosition, mustHaveCurrentWord:boolean):Modes.ISuggestion[] {
 		var modelMirror = this.resourceService.get(resource);
 		var currentWord = modelMirror.getWordUntilPosition(position).word;
 		var allWords = modelMirror.getAllUniqueWords(currentWord);
@@ -219,7 +219,7 @@ export class AbstractModeWorker {
 		});
 	}
 
-	public suggestSnippets(resource:URL, position:EditorCommon.IPosition):Modes.ISuggestion[] {
+	public suggestSnippets(resource:URI, position:EditorCommon.IPosition):Modes.ISuggestion[] {
 		return [];
 	}
 
@@ -242,7 +242,7 @@ export class AbstractModeWorker {
 
 	// ---- occurrences ---------------------------------------------------------------
 
-	public findOccurrences(resource:URL, position:EditorCommon.IPosition, strict?:boolean):TPromise<Modes.IOccurence[]> {
+	public findOccurrences(resource:URI, position:EditorCommon.IPosition, strict?:boolean):TPromise<Modes.IOccurence[]> {
 
 		var model = this.resourceService.get(resource),
 			wordAtPosition = model.getWordAtPosition(position),
@@ -266,7 +266,7 @@ export class AbstractModeWorker {
 
 	// ---- diff --------------------------------------------------------------------------
 
-	public computeDiff(original:URL, modified:URL, ignoreTrimWhitespace:boolean):TPromise<EditorCommon.ILineChange[]> {
+	public computeDiff(original:URI, modified:URI, ignoreTrimWhitespace:boolean):TPromise<EditorCommon.ILineChange[]> {
 		var originalModel = this.resourceService.get(original);
 		var modifiedModel = this.resourceService.get(modified);
 		if (originalModel !== null && modifiedModel !== null) {
@@ -284,7 +284,7 @@ export class AbstractModeWorker {
 
 	// ---- dirty diff --------------------------------------------------------------------
 
-	public computeDirtyDiff(resource:URL, ignoreTrimWhitespace:boolean):TPromise<EditorCommon.IChange[]> {
+	public computeDirtyDiff(resource:URI, ignoreTrimWhitespace:boolean):TPromise<EditorCommon.IChange[]> {
 		var model = this.resourceService.get(resource);
 		var original = <string> model.getProperty('original');
 
@@ -305,7 +305,7 @@ export class AbstractModeWorker {
 
 	// ---- link detection ------------------------------------------------------------------
 
-	public computeLinks(resource:URL):TPromise<Modes.ILink[]> {
+	public computeLinks(resource:URI):TPromise<Modes.ILink[]> {
 		var model = this.resourceService.get(resource),
 			links = computeLinks(model);
 

@@ -266,7 +266,7 @@ export class RemoveBreakpointAction extends AbstractDebugAction {
 	}
 
 	public run(breakpoint: debug.IBreakpoint): Promise {
-		return breakpoint instanceof model.Breakpoint ? this.debugService.toggleBreakpoint(breakpoint.source.uri, breakpoint.lineNumber)
+		return breakpoint instanceof model.Breakpoint ? this.debugService.toggleBreakpoint({ uri: breakpoint.source.uri, lineNumber: breakpoint.lineNumber })
 			: this.debugService.removeFunctionBreakpoints(breakpoint.getId());
 	}
 }
@@ -281,11 +281,11 @@ export class RemoveAllBreakpointsAction extends AbstractDebugAction {
 	}
 
 	public run(): Promise {
-		return Promise.join([this.debugService.removeBreakpoints(), this.debugService.removeFunctionBreakpoints()]);
+		return Promise.join([this.debugService.removeAllBreakpoints(), this.debugService.removeFunctionBreakpoints()]);
 	}
 
 	protected isEnabled(): boolean {
-		return super.isEnabled() && this.debugService.getModel().getBreakpoints().length > 0;
+		return super.isEnabled() && (this.debugService.getModel().getBreakpoints().length > 0 || this.debugService.getModel().getFunctionBreakpoints().length > 0);
 	}
 }
 
@@ -316,8 +316,8 @@ export class EnableAllBreakpointsAction extends AbstractDebugAction {
 	}
 
 	protected isEnabled(): boolean {
-		return super.isEnabled() && this.debugService.getModel().getBreakpoints().filter(bp => !bp.enabled).length > 0 ||
-			this.debugService.getModel().getExceptionBreakpoints().filter(bp => !bp.enabled).length > 0;
+		const model = this.debugService.getModel();
+		return super.isEnabled() && (<debug.IEnablement[]> model.getBreakpoints()).concat(model.getFunctionBreakpoints()).concat(model.getExceptionBreakpoints()).some(bp => !bp.enabled);
 	}
 }
 
@@ -335,8 +335,8 @@ export class DisableAllBreakpointsAction extends AbstractDebugAction {
 	}
 
 	protected isEnabled(): boolean {
-		return super.isEnabled() && this.debugService.getModel().getBreakpoints().filter(bp => bp.enabled).length > 0 ||
-			this.debugService.getModel().getExceptionBreakpoints().filter(bp => bp.enabled).length > 0;
+		const model = this.debugService.getModel();
+		return super.isEnabled() && (<debug.IEnablement[]> model.getBreakpoints()).concat(model.getFunctionBreakpoints()).concat(model.getExceptionBreakpoints()).some(bp => bp.enabled);
 	}
 }
 
@@ -406,7 +406,7 @@ export class ToggleBreakpointAction extends EditorAction {
 			var lineNumber = this.editor.getPosition().lineNumber;
 			var modelUrl = this.editor.getModel().getAssociatedResource();
 			if (this.debugService.canSetBreakpointsIn(this.editor.getModel(), lineNumber)) {
-				return this.debugService.toggleBreakpoint(modelUrl, lineNumber);
+				return this.debugService.toggleBreakpoint({ uri: modelUrl, lineNumber: lineNumber });
 			}
 		}
 
@@ -451,10 +451,10 @@ export class RunToCursorAction extends EditorAction {
 		var uri = this.editor.getModel().getAssociatedResource();
 
 		this.debugService.getActiveSession().addOneTimeListener(debug.SessionEvents.STOPPED, () => {
-			this.debugService.toggleBreakpoint(uri, lineNumber);
+			this.debugService.toggleBreakpoint({ uri, lineNumber });
 		});
 
-		return this.debugService.toggleBreakpoint(uri, lineNumber).then(() => {
+		return this.debugService.toggleBreakpoint({ uri, lineNumber }).then(() => {
 			return this.debugService.getActiveSession().continue({ threadId: this.debugService.getViewModel().getFocusedThreadId() }).then(response => {
 				return response.success;
 			});

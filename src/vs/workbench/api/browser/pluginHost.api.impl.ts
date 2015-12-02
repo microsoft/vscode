@@ -22,6 +22,7 @@ import {PluginHostTelemetryService} from 'vs/workbench/api/common/pluginHostTele
 import {PluginHostEditors} from 'vs/workbench/api/common/pluginHostEditors';
 import {ExtHostLanguages} from 'vs/workbench/api/common/extHostLanguages';
 import {ExtHostLanguageFeatures} from 'vs/workbench/api/common/extHostLanguageFeatures';
+import {ExtHostLanguageFeatureCommands} from 'vs/workbench/api/common/extHostLanguageFeatureCommands';
 import * as extHostTypes from 'vs/workbench/api/common/pluginHostTypes';
 import 'vs/workbench/api/common/pluginHostTypes.marshalling';
 import {wrapAsWinJSPromise} from 'vs/base/common/async';
@@ -251,6 +252,7 @@ export class PluginHostAPIImplementation {
 		const languages = new ExtHostLanguages(this._threadService);
 		const pluginHostDiagnostics = new PluginHostDiagnostics(this._threadService);
 		const languageFeatures = threadService.getRemotable(ExtHostLanguageFeatures);
+		const languageFeatureCommand = new ExtHostLanguageFeatureCommands(threadService.getRemotable(PluginHostCommands));
 
 		this.languages = {
 			createDiagnosticCollection(name?: string): vscode.DiagnosticCollection {
@@ -260,7 +262,7 @@ export class PluginHostAPIImplementation {
 				return languages.getLanguages();
 			},
 			match(selector: vscode.DocumentSelector, document: vscode.TextDocument): number {
-				return score(selector, { uri: <any> document.uri, language: document.languageId });
+				return score(selector, <any> document.uri, document.languageId);
 			},
 			registerCodeActionsProvider(selector: vscode.DocumentSelector, provider: vscode.CodeActionProvider): vscode.Disposable {
 				return languageFeatures.registerCodeActionProvider(selector, provider);

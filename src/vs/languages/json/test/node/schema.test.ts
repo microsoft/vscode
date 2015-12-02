@@ -335,6 +335,55 @@ suite('JSON - schema', () => {
 		});
 	});
 
+	test('Schema contributions', function(testDone) {
+		var service = new SchemaService.JSONSchemaService(requestServiceMock);
+
+		service.setSchemaContributions({ schemas: {
+			"http://myschemastore/myschemabar" : {
+				id: 'main',
+				type: 'object',
+				properties: {
+					foo: {
+						type: 'string'
+					}
+				}
+			}
+		}, schemaAssociations: {
+			'*.bar': ['http://myschemastore/myschemabar', 'http://myschemastore/myschemafoo']
+		}});
+
+		var id2 = 'http://myschemastore/myschemafoo';
+		var schema2:JsonSchema.IJSONSchema = {
+			type: 'object',
+			properties: {
+				child: {
+					type: 'string'
+				}
+			}
+		};
+
+		service.registerExternalSchema(id2, null, schema2);
+
+		service.getSchemaForResource('main.bar', null).then(resolvedSchema => {
+			assert.deepEqual(resolvedSchema.errors, []);
+			assert.equal(2, resolvedSchema.schema.allOf.length);
+
+			service.clearExternalSchemas();
+			return service.getSchemaForResource('main.bar', null).then(resolvedSchema => {
+				assert.equal(resolvedSchema.errors.length, 1);
+				assert.ok(resolvedSchema.errors[0].indexOf("Problems loading reference 'http://myschemastore/myschemafoo'") === 0);
+
+				service.clearExternalSchemas();
+				service.registerExternalSchema(id2, null, schema2);
+				return service.getSchemaForResource('main.bar', null).then(resolvedSchema => {
+					assert.equal(resolvedSchema.errors.length, 0);
+				});
+			});
+		}).done(() => testDone(), (error) => {
+			testDone(error);
+		});
+	});
+
 	test('Resolving circular $refs', function(testDone) {
 
 		var service : SchemaService.IJSONSchemaService = new SchemaService.JSONSchemaService(requestServiceMock);

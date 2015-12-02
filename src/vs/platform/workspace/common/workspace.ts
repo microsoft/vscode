@@ -120,6 +120,7 @@ export interface IEnvironment {
 
 	debugPluginHostPort: number;
 	debugBrkPluginHost: boolean;
+	disablePlugins: boolean;
 
 	logPluginHostCommunication: boolean;
 	verboseLogging: boolean;

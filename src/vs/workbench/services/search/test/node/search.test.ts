@@ -32,7 +32,7 @@ suite('Search', () => {
 	test('Files: *.js', function(done: () => void) {
 		let engine = new FileSearchEngine({
 			rootPaths: [require.toUrl('./fixtures')],
-			filePatterns: [{ pattern: '*.js' }]
+			filePattern: '*.js'
 		});
 
 		let count = 0;
@@ -50,7 +50,7 @@ suite('Search', () => {
 	test('Files: *.js (Files as roots)', function(done: () => void) {
 		let engine = new FileSearchEngine({
 			rootPaths: [require.toUrl('./fixtures/examples/company.js'), require.toUrl('./fixtures/examples/small.js')],
-			filePatterns: [{ pattern: '*.js' }]
+			filePattern: '*.js'
 		});
 
 		let count = 0;
@@ -68,7 +68,7 @@ suite('Search', () => {
 	test('Files: NPE (CamelCase)', function(done: () => void) {
 		let engine = new FileSearchEngine({
 			rootPaths: [require.toUrl('./fixtures')],
-			filePatterns: [{ pattern: 'NullPE' }]
+			filePattern: 'NullPE'
 		});
 
 		let count = 0;
@@ -86,7 +86,7 @@ suite('Search', () => {
 	test('Files: *.*', function(done: () => void) {
 		let engine = new FileSearchEngine({
 			rootPaths: [require.toUrl('./fixtures')],
-			filePatterns: [{ pattern: '*.*', isCaseSensitive: true }]
+			filePattern: '*.*'
 		});
 
 		let count = 0;
@@ -104,7 +104,7 @@ suite('Search', () => {
 	test('Files: *.as', function(done: () => void) {
 		let engine = new FileSearchEngine({
 			rootPaths: [require.toUrl('./fixtures')],
-			filePatterns: [{ pattern: '*.as' }]
+			filePattern: '*.as'
 		});
 
 		let count = 0;
@@ -123,7 +123,7 @@ suite('Search', () => {
 		let c = 0;
 		let config = {
 			rootPaths: [require.toUrl('./fixtures')],
-			filePatterns: [{ pattern: '*.js', modifiers: 'i' }],
+			filePattern: '*.js',
 			contentPattern: { pattern: 'GameOfLife', modifiers: 'i' }
 		};
 
@@ -144,7 +144,7 @@ suite('Search', () => {
 		let c = 0;
 		let config = {
 			rootPaths: [require.toUrl('./fixtures')],
-			filePatterns: [{ pattern: '*.js', modifiers: 'i' }],
+			filePattern: '*.js',
 			contentPattern: { pattern: 'Game.?fL\\w?fe', isRegExp: true }
 		};
 
@@ -165,7 +165,7 @@ suite('Search', () => {
 		let c = 0;
 		let config = {
 			rootPaths: [require.toUrl('./fixtures')],
-			filePatterns: [{ pattern: '*.js', modifiers: 'i' }],
+			filePattern: '*.js',
 			contentPattern: { pattern: 'GameOfLife', isWordMatch: true, isCaseSensitive: true }
 		};
 
@@ -186,7 +186,7 @@ suite('Search', () => {
 		let c = 0;
 		let config = {
 			rootPaths: [require.toUrl('./fixtures')],
-			filePatterns: [{ pattern: '*.css', modifiers: 'i' }],
+			filePattern: '*.css',
 			contentPattern: { pattern: 'Helvetica', modifiers: 'i' }
 		};
 
@@ -207,7 +207,7 @@ suite('Search', () => {
 		let c = 0;
 		let config = {
 			rootPaths: [require.toUrl('./fixtures')],
-			filePatterns: [{ pattern: '*.*', modifiers: 'i' }],
+			filePattern: '*.*',
 			contentPattern: { pattern: 'e', modifiers: 'i' }
 		};
 
@@ -228,7 +228,7 @@ suite('Search', () => {
 		let c = 0;
 		let config:any = {
 			rootPaths: [require.toUrl('./fixtures')],
-			filePatterns: [{ pattern: '*.*', modifiers: 'i' }],
+			filePattern: '*.*',
 			contentPattern: { pattern: 'e', modifiers: 'i' },
 			excludePattern: { '**/examples': true }
 		};
@@ -250,7 +250,7 @@ suite('Search', () => {
 		let c = 0;
 		let config:any = {
 			rootPaths: [require.toUrl('./fixtures')],
-			filePatterns: [{ pattern: '*.*', modifiers: 'i' }],
+			filePattern: '*.*',
 			contentPattern: { pattern: 'e', modifiers: 'i' },
 			includePattern: { '**/examples/**': true }
 		};
@@ -272,7 +272,7 @@ suite('Search', () => {
 		let c = 0;
 		let config:any = {
 			rootPaths: [require.toUrl('./fixtures')],
-			filePatterns: [{ pattern: '*.*', modifiers: 'i' }],
+			filePattern: '*.*',
 			contentPattern: { pattern: 'e', modifiers: 'i' },
 			includePattern: { '**/examples/**': true },
 			excludePattern: { '**/examples/small.js': true }
@@ -295,7 +295,7 @@ suite('Search', () => {
 		let c = 0;
 		let config = {
 			rootPaths: [require.toUrl('./fixtures')],
-			filePatterns: [{ pattern: '*.*', modifiers: 'i' }],
+			filePattern: '*.*',
 			contentPattern: { pattern: 'a', modifiers: 'i' },
 			maxResults: 520
 		};
@@ -317,7 +317,7 @@ suite('Search', () => {
 		let c = 0;
 		let config = {
 			rootPaths: [require.toUrl('./fixtures')],
-			filePatterns: [{ pattern: '*.*', modifiers: 'i' }],
+			filePattern: '*.*',
 			contentPattern: { pattern: 'ahsogehtdas', modifiers: 'i' }
 		};
 

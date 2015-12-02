@@ -5,10 +5,13 @@
 'use strict';
 
 import EditorCommon = require('vs/editor/common/editorCommon');
+import {onUnexpectedError, illegalArgument} from 'vs/base/common/errors';
+import URI from 'vs/base/common/uri';
+import {Position} from 'vs/editor/common/core/position';
 import {ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
+import {IModelService} from 'vs/editor/common/services/modelService';
 import {Registry} from 'vs/platform/platform';
-import Errors = require('vs/base/common/errors');
 import {KeybindingsRegistry,ICommandDescriptor} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import config = require('vs/editor/common/config/config');
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
@@ -83,6 +86,38 @@ export module CommonEditorRegistry {
 		};
 
 		KeybindingsRegistry.registerCommandDesc(commandDesc);
+	}
+
+	export function registerLanguageCommand(id: string, handler: (accessor: ServicesAccessor, args: { [n: string]: any }) => any) {
+		KeybindingsRegistry.registerCommandDesc({
+			id,
+			handler(accessor, args: any[]) {
+				if (args && args.length > 1 || typeof args[0] !== 'object') {
+					throw illegalArgument();
+				}
+				return handler(accessor, args && args[0]);
+			},
+			weight: KeybindingsRegistry.WEIGHT.editorContrib(),
+			primary: undefined,
+			context: undefined,
+		});
+	}
+
+	export function registerDefaultLanguageCommand(id: string, handler: (model: EditorCommon.IModel, position: EditorCommon.IPosition, args: { [n: string]: any }) => any) {
+		registerLanguageCommand(id, function(accessor, args) {
+
+			const {resource, position} = args;
+			if (!URI.isURI(resource) || !Position.isIPosition(position)) {
+				throw illegalArgument();
+			}
+
+			const model = accessor.get(IModelService).getModel(resource);
+			if (!model) {
+				throw illegalArgument();
+			}
+
+			return handler(model, position, args);
+		});
 	}
 }
 
@@ -193,7 +228,7 @@ function triggerEditorActionGlobal(actionId: string, accessor: ServicesAccessor,
 		var action = activeEditor.getAction(actionId);
 		if (action) {
 			accessor.get(ITelemetryService).publicLog('editorActionInvoked', {name: action.label} );
-			action.run().done(null, Errors.onUnexpectedError);
+			action.run().done(null, onUnexpectedError);
 		}
 		return;
 	}

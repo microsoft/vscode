@@ -1766,7 +1766,6 @@ export interface IModel extends IEditableTextModel, ITextModelWithMarkers, IToke
 
 	onBeforeDetached(): void;
 
-	getURL(): URL;
 	getModeId(): string;
 
 	/**

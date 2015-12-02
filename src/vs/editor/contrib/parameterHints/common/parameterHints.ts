@@ -8,8 +8,9 @@
 import {IParameterHintsSupport, IParameterHints} from 'vs/editor/common/modes';
 import {IModel, IPosition} from 'vs/editor/common/editorCommon';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {onUnexpectedError} from 'vs/base/common/errors';
+import {onUnexpectedError, illegalArgument} from 'vs/base/common/errors';
 import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
+import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 
 export const ParameterHintsRegistry = new LanguageFeatureRegistry<IParameterHintsSupport>('parameterHintsSupport');
 
@@ -22,3 +23,11 @@ export function getParameterHints(model:IModel, position:IPosition, triggerChara
 
 	return support.getParameterHints(model.getAssociatedResource(), position, triggerCharacter);
 }
+
+CommonEditorRegistry.registerDefaultLanguageCommand('_executeSignatureHelpProvider', function(model, position, args) {
+	let {triggerCharacter} = args;
+	if (triggerCharacter && typeof triggerCharacter !== 'string') {
+		throw illegalArgument('triggerCharacter');
+	}
+	return getParameterHints(model, position, triggerCharacter);
+});

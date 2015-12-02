@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-editor .defineKeybindingLauncher {
+	font-family: 'Segoe WPC', 'Segoe UI', "SFUIText-Light", HelveticaNeue-Light, sans-serif, "Droid Sans Fallback";
 	background: rgba(0,255,0,0.3);
 	padding: 10px;
 	border-radius: 5px;
@@ -11,6 +12,7 @@
 }
 
 .monaco-editor .defineKeybindingWidget {
+	font-family: 'Segoe WPC', 'Segoe UI', "SFUIText-Light", HelveticaNeue-Light, sans-serif, "Droid Sans Fallback";
 	width: 340px;
 	height: 60px;
 	padding: 10px;
@@ -22,12 +24,9 @@
 }
 
 .monaco-editor .defineKeybindingWidget .input {
+	margin-top:10px;
 	width: 320px;
 	display: block;
-}
-
-.monaco-editor .defineKeybindingWidget .output {
-	width: 320px;
 	text-align: center;
 }
 

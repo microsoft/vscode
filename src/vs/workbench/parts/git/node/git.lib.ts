@@ -186,6 +186,8 @@ export class Git {
 
 				if (/Authentication failed/.test(result.stderr)) {
 					gitErrorCode = GitErrorCodes.AuthenticationFailed;
+				} else if (/Not a git repository/.test(result.stderr)) {
+					gitErrorCode = GitErrorCodes.NotAGitRepository;
 				} else if (/bad config file/.test(result.stderr)) {
 					gitErrorCode = GitErrorCodes.BadConfigFile;
 				} else if (/cannot make pipe for command substitution|cannot create standard input pipe/.test(result.stderr)) {
@@ -496,8 +498,6 @@ export class Repository {
 		return this.run(['fetch']).then(null, (err: GitError) => {
 			if (/No remote repository specified\./.test(err.stderr)) {
 				err.gitErrorCode = GitErrorCodes.NoRemoteRepositorySpecified;
-			} else if (/Not a git repository/.test(err.stderr)) {
-				err.gitErrorCode = GitErrorCodes.NotAGitRepository;
 			} else if (/Could not read from remote repository/.test(err.stderr)) {
 				err.gitErrorCode = GitErrorCodes.RemoteConnectionError;
 			}

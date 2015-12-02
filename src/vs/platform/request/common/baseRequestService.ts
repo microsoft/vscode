@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import network = require('vs/base/common/network');
+import URI from 'vs/base/common/uri';
 import strings = require('vs/base/common/strings');
 import Timer = require('vs/base/common/timer');
 import Async = require('vs/base/common/async');
@@ -46,7 +46,7 @@ export class BaseRequestService implements IRequestService {
 
 			// Find root server URL from configuration
 			this._origin = workspaceUri;
-			var urlPath = new network.URL(this._origin).getPath();
+			var urlPath = URI.parse(this._origin).path;
 			if (urlPath && urlPath.length > 0) {
 				this._origin = this._origin.substring(0, this._origin.length - urlPath.length + 1);
 			}
@@ -57,44 +57,6 @@ export class BaseRequestService implements IRequestService {
 		} else {
 			this._origin = '/'; // Configuration not provided, fallback to default
 		}
-	}
-
-	public getRequestUrl(service:string, path?:string, absolute?:boolean):string {
-		if (this._serviceMap[service]) {
-			var serviceUrl = this._serviceMap[service] + strings.normalizePath(path);
-
-			var fullUrl = new network.URL(serviceUrl);
-			if (fullUrl.getScheme()) {
-				return serviceUrl;
-			}
-
-			// request URL relative to server
-			if (!absolute) {
-				return serviceUrl;
-			}
-
-			// absolute request URL
-			return this._origin + strings.ltrim(serviceUrl, '/');
-		}
-
-		return null;
-	}
-
-	public getPath(service:string, requestUrl:network.URL):string {
-
-		// Find service root
-		var serviceRoot = this.getRequestUrl(service, '/', true);
-		if (!serviceRoot) {
-			return null;
-		}
-
-		// Substr path
-		var index = requestUrl.toString().indexOf(serviceRoot);
-		if (index === 0) {
-			return requestUrl.toString().substr(serviceRoot.length - 1); // Keep leading slash
-		}
-
-		return null;
 	}
 
 	protected makeCrossOriginRequest(options:http.IXHROptions): winjs.TPromise<http.IXHRResponse> {

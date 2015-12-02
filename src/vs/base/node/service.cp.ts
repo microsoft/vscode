@@ -13,7 +13,7 @@ import { IServiceCtor, Server as IPCServer, Client as IPCClient, IServiceMap } f
 export class Server extends IPCServer {
 	constructor() {
 		super({
-			send: r => process.send(r),
+			send: r => { try { process.send(r); } catch (e) { /* not much to do */ } },
 			onMessage: cb => process.on('message', cb)
 		});
 

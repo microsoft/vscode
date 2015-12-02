@@ -8,7 +8,7 @@ import nodes = require('vs/languages/css/common/parser/cssNodes');
 import cssSymbols = require('vs/languages/css/common/parser/cssSymbols');
 import languageFacts = require('vs/languages/css/common/services/languageFacts');
 import service = require('vs/languages/css/common/services/cssLanguageService');
-import network = require('vs/base/common/network');
+import URI from 'vs/base/common/uri';
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
 import nls = require('vs/nls');
@@ -45,7 +45,7 @@ export class CSSIntellisense {
 	}
 
 
-	public getCompletionsAtPosition(languageService:service.ILanguageService, model: EditorCommon.IMirrorModel, resource:network.URL, position:EditorCommon.IPosition):Modes.ISuggestions {
+	public getCompletionsAtPosition(languageService:service.ILanguageService, model: EditorCommon.IMirrorModel, resource:URI, position:EditorCommon.IPosition):Modes.ISuggestions {
 		this.offset = model.getOffsetFromPosition(position);
 		this.position = position;
 		this.currentWord = model.getWordUntilPosition(position).word;

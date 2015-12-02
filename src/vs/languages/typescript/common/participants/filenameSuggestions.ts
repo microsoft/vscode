@@ -9,7 +9,6 @@ import strings = require('vs/base/common/strings');
 import paths = require('vs/base/common/paths');
 import collections = require('vs/base/common/collections');
 import winjs = require('vs/base/common/winjs.base');
-import network = require('vs/base/common/network');
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
 import ts = require('vs/languages/typescript/common/lib/typescriptServices');
@@ -59,7 +58,7 @@ export class FilenameSuggestions implements Modes.ISuggestParticipant {
 		this._resourceServices = resourceService;
 	}
 
-	public suggest(resource: network.URL, position: EditorCommon.IPosition, context?: projectService.ProjectService): winjs.TPromise<Modes.ISuggestions> {
+	public suggest(resource: URI, position: EditorCommon.IPosition, context?: projectService.ProjectService): winjs.TPromise<Modes.ISuggestions> {
 
 		if(!(context instanceof projectService.ProjectService)) {
 			return winjs.TPromise.as(null);
@@ -114,7 +113,7 @@ export class FilenameSuggestions implements Modes.ISuggestParticipant {
 		return winjs.TPromise.as(result);
 	}
 
-	private _findCurrentWord(resource:network.URL, position:EditorCommon.IPosition, sourceFile:ts.SourceFile):IPathInfo {
+	private _findCurrentWord(resource:URI, position:EditorCommon.IPosition, sourceFile:ts.SourceFile):IPathInfo {
 
 		var mirrorModel = <EditorCommon.IMirrorModel> this._resourceServices.get(resource),
 			offset = mirrorModel.getOffsetFromPosition(position),

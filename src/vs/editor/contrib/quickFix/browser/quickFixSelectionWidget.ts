@@ -24,8 +24,10 @@ import {IQuickFix2} from '../common/quickFix';
 
 var $ = dom.emmet;
 
-function isQuickFix(quickfix: any) : boolean {
-	return quickfix && quickfix.id && quickfix.label;
+function isQuickFix(quickfix: any): quickfix is IQuickFix2 {
+	return quickfix
+		&& typeof (<IQuickFix2>quickfix).command === 'object'
+		&& typeof (<IQuickFix2> quickfix).command.title === 'string';
 }
 
 // To be used as a tree element when we want to show a message
@@ -119,9 +121,9 @@ class Controller extends TreeDefaults.DefaultController {
 function getHeight(tree:Tree.ITree, element:any): number {
 	var fix = <IQuickFix2>element;
 
-	if (!(element instanceof Message) && !!fix.documentation && tree.isFocused(fix)) {
-		return 35;
-	}
+	// if (!(element instanceof Message) && !!fix.documentation && tree.isFocused(fix)) {
+	// 	return 35;
+	// }
 
 	return 19;
 }
@@ -159,8 +161,8 @@ class Renderer implements Tree.IRenderer {
 		}
 
 		var quickFix = <IQuickFix2> element;
-		templateData.main.textContent = quickFix.label;
-		templateData.documentationLabel.textContent = quickFix.documentation || '';
+		templateData.main.textContent = quickFix.command.title;
+		templateData.documentationLabel.textContent = /*quickFix.documentation ||*/ '';
 	}
 
 	public disposeTemplate(tree: Tree.ITree, templateId: string, templateData: any): void {

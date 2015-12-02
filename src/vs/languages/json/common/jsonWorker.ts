@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import URI from 'vs/base/common/uri';
 import Severity from 'vs/base/common/severity';
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
@@ -137,7 +138,7 @@ export class JSONWorker extends AbstractModeWorker implements Modes.IExtraInfoSu
 		return WinJS.TPromise.as(true);
 	}
 
-	public doValidate(resource:Network.URL):void {
+	public doValidate(resource:URI):void {
 		var modelMirror = this.resourceService.get(resource);
 		var parser = new Parser.JSONParser();
 		var content = modelMirror.getValue();
@@ -182,13 +183,13 @@ export class JSONWorker extends AbstractModeWorker implements Modes.IExtraInfoSu
 	}
 
 
-	public doSuggest(resource:Network.URL, position:EditorCommon.IPosition):WinJS.TPromise<Modes.ISuggestions> {
+	public doSuggest(resource:URI, position:EditorCommon.IPosition):WinJS.TPromise<Modes.ISuggestions> {
 		var modelMirror = this.resourceService.get(resource);
 
 		return this.jsonIntellisense.doSuggest(resource, modelMirror, position);
 	}
 
-	public computeInfo(resource:Network.URL, position:EditorCommon.IPosition): WinJS.TPromise<Modes.IComputeExtraInfoResult> {
+	public computeInfo(resource:URI, position:EditorCommon.IPosition): WinJS.TPromise<Modes.IComputeExtraInfoResult> {
 
 		var modelMirror = this.resourceService.get(resource);
 
@@ -260,7 +261,7 @@ export class JSONWorker extends AbstractModeWorker implements Modes.IExtraInfoSu
 	}
 
 
-	public getOutline(resource:Network.URL):WinJS.TPromise<Modes.IOutlineEntry[]> {
+	public getOutline(resource:URI):WinJS.TPromise<Modes.IOutlineEntry[]> {
 		var modelMirror = this.resourceService.get(resource);
 
 		var parser = new Parser.JSONParser();
@@ -316,12 +317,12 @@ export class JSONWorker extends AbstractModeWorker implements Modes.IExtraInfoSu
 		return supports.ReplaceSupport.valueSetReplace(['true', 'false'], value, up);
 	}
 
-	public format(resource: Network.URL, range: EditorCommon.IRange, options: Modes.IFormattingOptions): WinJS.TPromise<EditorCommon.ISingleEditOperation[]> {
+	public format(resource: URI, range: EditorCommon.IRange, options: Modes.IFormattingOptions): WinJS.TPromise<EditorCommon.ISingleEditOperation[]> {
 		var model = this.resourceService.get(resource);
 		return WinJS.TPromise.as(JSONFormatter.format(model, range, options));
 	}
 
-	public navigateValueSetFallback(resource:Network.URL, range:EditorCommon.IRange, up:boolean):WinJS.TPromise<Modes.IInplaceReplaceSupportResult> {
+	public navigateValueSetFallback(resource:URI, range:EditorCommon.IRange, up:boolean):WinJS.TPromise<Modes.IInplaceReplaceSupportResult> {
 		var modelMirror = this.resourceService.get(resource);
 		var offset = modelMirror.getOffsetFromPosition({ lineNumber: range.startLineNumber, column: range.startColumn });
 

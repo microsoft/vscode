@@ -5,6 +5,7 @@
 import nls = require('vs/nls');
 import Objects = require('vs/base/common/objects');
 import Json = require('vs/base/common/json');
+import http = require('vs/base/common/http');
 import {IJSONSchema} from 'vs/base/common/jsonSchema';
 import Strings = require('vs/base/common/strings');
 import URI from 'vs/base/common/uri';
@@ -332,6 +333,7 @@ export class JSONSchemaService implements IJSONSchemaService {
 		}
 		for (var pattern in this.contributionAssociations) {
 			var fpa = this.getOrAddFilePatternAssociation(pattern);
+
 			this.contributionAssociations[pattern].forEach(schemaId => fpa.addSchema(schemaId));
 		}
 	}
@@ -356,18 +358,18 @@ export class JSONSchemaService implements IJSONSchemaService {
 			request => {
 				var content = request.responseText;
 				if (!content) {
-					var errorMessage = nls.localize('json.schema.nocontent', 'Unable to load schema from \'{0}\': No content.', url) ;
+					var errorMessage = nls.localize('json.schema.nocontent', 'Unable to load schema from \'{0}\': No content.', toDisplayString(url));
 					return new UnresolvedSchema(<IJSONSchema> {}, [ errorMessage ]);
 				}
 
 				var schemaContent: IJSONSchema = {};
 				var jsonErrors = [];
 				schemaContent = Json.parse(content, errors);
-				var errors = jsonErrors.length ? [ nls.localize('json.schema.invalidFormat', 'Unable to parse content from \'{0}\': {1}.', url, jsonErrors[0])] : [];
+				var errors = jsonErrors.length ? [ nls.localize('json.schema.invalidFormat', 'Unable to parse content from \'{0}\': {1}.', toDisplayString(url), jsonErrors[0])] : [];
 				return new UnresolvedSchema(schemaContent, errors);
 			},
-			error => {
-				var errorMessage = nls.localize('json.schema.unabletoload', 'Unable to load schema from \'{0}\': {1}.', url, error.statusText || error.toString());
+			(error : http.IXHRResponse) => {
+				var errorMessage = nls.localize('json.schema.unabletoload', 'Unable to load schema from \'{0}\': {1}', toDisplayString(url), error.responseText || http.getErrorStatusDescription(error.status) || error.toString());
 				return new UnresolvedSchema(<IJSONSchema> {}, [ errorMessage ]);
 			}
 		);
@@ -403,7 +405,8 @@ export class JSONSchemaService implements IJSONSchemaService {
 		var resolveExternalLink = (node: any, uri: string, linkPath: string): WinJS.Promise => {
 			return this.getOrAddSchemaHandle(uri).getUnresolvedSchema().then(unresolvedSchema => {
 				if (unresolvedSchema.errors.length) {
-					resolveErrors.push(nls.localize('json.schema.problemloadingref', 'Problems loading reference \'{0}\': {1}.', uri + '#' + linkPath, unresolvedSchema.errors[0]));
+					var loc = linkPath ? uri + '#' + linkPath : uri;
+					resolveErrors.push(nls.localize('json.schema.problemloadingref', 'Problems loading reference \'{0}\': {1}', loc, unresolvedSchema.errors[0]));
 				}
 				resolveLink(node, unresolvedSchema.schema, linkPath);
 				return resolveRefs(node, unresolvedSchema.schema);
@@ -479,7 +482,7 @@ export class JSONSchemaService implements IJSONSchemaService {
 
 	public createCombinedSchema(combinedSchemaId: string, schemaIds: string[]) : ISchemaHandle {
 		if (schemaIds.length === 1) {
-			return this.schemasById[schemaIds[0]];
+			return this.getOrAddSchemaHandle(schemaIds[0]);
 		} else {
 			var combinedSchema: IJSONSchema = {
 				allOf: schemaIds.map(schemaId => ({ $ref: schemaId }))
@@ -1562,4 +1565,16 @@ export class JSONSchemaService implements IJSONSchemaService {
 		});
 	}
 
+}
+
+function toDisplayString(url:string) {
+	try {
+		var uri = URI.parse(url);
+		if (uri.scheme === 'file') {
+			return uri.fsPath;
+		}
+	} catch (e) {
+		// ignore
+	}
+	return url;
 }

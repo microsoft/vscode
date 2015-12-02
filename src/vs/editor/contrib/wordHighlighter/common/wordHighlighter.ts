@@ -10,9 +10,10 @@ import * as EditorCommon from 'vs/editor/common/editorCommon';
 import {IOccurrencesSupport, IOccurence} from 'vs/editor/common/modes';
 import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {Range} from 'vs/editor/common/core/range';
-import {onUnexpectedError} from 'vs/base/common/errors';
+import {onUnexpectedError, illegalArgument} from 'vs/base/common/errors';
 import {INullService} from 'vs/platform/instantiation/common/instantiation';
 import {sequence} from 'vs/base/common/async';
+import {IModelService} from 'vs/editor/common/services/modelService';
 import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
 
 export const OccurrencesRegistry = new LanguageFeatureRegistry<IOccurrencesSupport>('occurrencesSupport');
@@ -43,6 +44,8 @@ export function getOccurrencesAtPosition(model: EditorCommon.IModel, position: E
 		return values[0]
 	});
 }
+
+CommonEditorRegistry.registerDefaultLanguageCommand('_executeDocumentHighlights', getOccurrencesAtPosition);
 
 class WordHighlighter {
 

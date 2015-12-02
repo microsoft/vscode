@@ -5,12 +5,15 @@
 
 'use strict';
 
-import {onUnexpectedError} from 'vs/base/common/errors';
+import URI from 'vs/base/common/uri';
+import {onUnexpectedError, illegalArgument} from 'vs/base/common/errors';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {Range} from 'vs/editor/common/core/range';
 import {IModel} from 'vs/editor/common/editorCommon';
 import {IOutlineEntry, IOutlineSupport} from 'vs/editor/common/modes';
 import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
+import {IModelService} from 'vs/editor/common/services/modelService';
+import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 
 const OutlineRegistry = new LanguageFeatureRegistry<IOutlineSupport>('outlineSupport');
 
@@ -20,7 +23,12 @@ export {
 	IOutlineSupport
 }
 
-export function getOutlineEntries(model: IModel): TPromise<{ entries: IOutlineEntry[], outlineGroupLabel: { [n: string]: string;} }> {
+export interface IOutline {
+	entries: IOutlineEntry[];
+	outlineGroupLabel: { [n: string]: string; };
+}
+
+export function getOutlineEntries(model: IModel): TPromise<IOutline> {
 
 	let groupLabels: { [n: string]: string } = Object.create(null);
 	let entries: IOutlineEntry[] = [];
@@ -74,3 +82,16 @@ function flatten(bucket: IOutlineEntry[], entries: IOutlineEntry[], overrideCont
 		}
 	}
 }
+
+
+CommonEditorRegistry.registerLanguageCommand('_executeDocumentSymbolProvider', function(accessor, args) {
+	const {resource} = args;
+	if (!URI.isURI(resource)) {
+		throw illegalArgument('resource');
+	}
+	const model = accessor.get(IModelService).getModel(resource);
+	if (!model) {
+		throw illegalArgument('resource');
+	}
+	return getOutlineEntries(model);
+});

@@ -90,7 +90,7 @@ export class Range implements EditorCommon.IEditorRange {
 		return new Range(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn);
 	}
 
-	public static isIRange(obj: any): boolean {
+	public static isIRange(obj: any): obj is EditorCommon.IRange {
 		return (
 			obj
 			&& (typeof obj.startLineNumber === 'number')

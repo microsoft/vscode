@@ -47,7 +47,12 @@ export default class OmnisharpCodeActionProvider extends AbstractProvider implem
 				return {
 					title: ca.Name,
 					command: this._commandId,
-					arguments: [ca.Identifier, document, range]
+					arguments: [<V2.RunCodeActionRequest>{
+						Filename: document.fileName,
+						Selection: OmnisharpCodeActionProvider._asRange(range),
+						Identifier: ca.Identifier,
+						WantsTextChanges: true
+					}]
 				};
 			});
 		}, (error) => {
@@ -55,14 +60,7 @@ export default class OmnisharpCodeActionProvider extends AbstractProvider implem
 		});
 	}
 
-	private _runCodeAction(id: string, document: TextDocument, range: Range): Promise<any> {
-
-		let req: V2.RunCodeActionRequest = {
-			Filename: document.fileName,
-			Selection: OmnisharpCodeActionProvider._asRange(range),
-			Identifier: id,
-			WantsTextChanges: true
-		};
+	private _runCodeAction(req: V2.RunCodeActionRequest): Promise<any> {
 
 		return this._server.makeRequest<V2.RunCodeActionResponse>(V2.RunCodeAction, req).then(response => {
 

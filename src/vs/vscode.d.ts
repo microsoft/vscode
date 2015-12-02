@@ -1094,7 +1094,7 @@ declare namespace vscode {
 	 * its resource, or a glob-pattern that is applied to the [path](#TextDocument.fileName).
 	 *
 	 * @sample A language filter that applies to typescript files on disk: `{ language: 'typescript', scheme: 'file' }`
-	 * @sample A language filter that applies to all package.json paths: `{ language: 'json', pattern: '**\project.json' }`
+	 * @sample A language filter that applies to all package.json paths: `{ language: 'json', pattern: '**∕project.json' }`
 	 */
 	export interface DocumentFilter {
 
@@ -1119,7 +1119,7 @@ declare namespace vscode {
 	 * and [language filters](#LanguageFilter).
 	 *
 	 * @sample `let sel:DocumentSelector = 'typescript'`;
-	 * @sample `let sel:DocumentSelector = ['typescript', { language: 'json', pattern: '**\tsconfig.json' }]`;
+	 * @sample `let sel:DocumentSelector = ['typescript', { language: 'json', pattern: '**∕tsconfig.json' }]`;
 	 */
 	export type DocumentSelector = string | DocumentFilter | (string | DocumentFilter)[];
 
@@ -2935,7 +2935,7 @@ declare namespace vscode {
 		/**
 		 * Find files in the workspace.
 		 *
-		 * @sample `findFiles('**\*.js', '**\node_modules\**', 10)`
+		 * @sample `findFiles('**∕*.js', '**∕node_modules∕**', 10)`
 		 * @param include A glob pattern that defines the files to search for.
 		 * @param exclude A glob pattern that defines files and folders to exclude.
 		 * @param maxResults An upper-bound for the result.

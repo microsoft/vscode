@@ -7,6 +7,7 @@
 import {TPromise} from 'vs/base/common/winjs.base';
 import Errors = require('vs/base/common/errors');
 import Network = require('vs/base/common/network');
+import URI from 'vs/base/common/uri';
 import EventEmitter = require('vs/base/common/eventEmitter');
 import EditorBrowser = require('vs/editor/browser/editorBrowser');
 import EditorCommon = require('vs/editor/common/editorCommon');
@@ -206,10 +207,6 @@ export class SimpleEditorRequestService extends BaseRequestService {
 
 	constructor(contextService: IWorkspaceContextService, telemetryService?: ITelemetryService) {
 		super(contextService, telemetryService);
-	}
-
-	public getPath(service:string, requestUrl:Network.URL):string {
-		return requestUrl.toString(); // Standalone Editor talks about  URLs that never have a path
 	}
 }
 

@@ -6,7 +6,7 @@
 
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
-import Network = require('vs/base/common/network');
+import URI from 'vs/base/common/uri';
 import WinJS = require('vs/base/common/winjs.base');
 import supports = require('vs/editor/common/modes/supports');
 import Platform = require('vs/platform/platform');
@@ -124,22 +124,22 @@ export class JSONMode extends AbstractMode<jsonWorker.JSONWorker> implements Mod
 	}
 
 	static $computeInfo = OneWorkerAttr(JSONMode, JSONMode.prototype.computeInfo);
-	public computeInfo(resource:Network.URL, position:EditorCommon.IPosition): WinJS.TPromise<Modes.IComputeExtraInfoResult> {
+	public computeInfo(resource:URI, position:EditorCommon.IPosition): WinJS.TPromise<Modes.IComputeExtraInfoResult> {
 		return this._worker((w) => w.computeInfo(resource, position));
 	}
 
 	static $getOutline = OneWorkerAttr(JSONMode, JSONMode.prototype.getOutline);
-	public getOutline(resource:Network.URL):WinJS.TPromise<Modes.IOutlineEntry[]> {
+	public getOutline(resource:URI):WinJS.TPromise<Modes.IOutlineEntry[]> {
 		return this._worker((w) => w.getOutline(resource));
 	}
 
 	static $formatDocument = OneWorkerAttr(JSONMode, JSONMode.prototype.formatDocument);
-	public formatDocument(resource:Network.URL, options:Modes.IFormattingOptions):WinJS.TPromise<EditorCommon.ISingleEditOperation[]> {
+	public formatDocument(resource:URI, options:Modes.IFormattingOptions):WinJS.TPromise<EditorCommon.ISingleEditOperation[]> {
 		return this._worker((w) => w.format(resource, null, options));
 	}
 
 	static $formatRange = OneWorkerAttr(JSONMode, JSONMode.prototype.formatRange);
-	public formatRange(resource:Network.URL, range:EditorCommon.IRange, options:Modes.IFormattingOptions):WinJS.TPromise<EditorCommon.ISingleEditOperation[]> {
+	public formatRange(resource:URI, range:EditorCommon.IRange, options:Modes.IFormattingOptions):WinJS.TPromise<EditorCommon.ISingleEditOperation[]> {
 		return this._worker((w) => w.format(resource, range, options));
 	}
 

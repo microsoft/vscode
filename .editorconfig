@@ -3,10 +3,13 @@
 # top-most EditorConfig file
 root = true
 
-# Tab indentation (no size specified)
+# Tab indentation
 [*]
 indent_style = tab
+indent_size = 4
 
-[{.travis.yml,npm-shrinkwrap.json}]
+# The indent size used in the `package.json` file cannot be changed
+# https://github.com/npm/npm/pull/3180#issuecomment-16336516
+[{.travis.yml,npm-shrinkwrap.json,package.json}]
 indent_style = space
 indent_size = 2

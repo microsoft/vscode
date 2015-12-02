@@ -5,7 +5,7 @@
 
 'use strict';
 
-import {Promise} from 'vs/base/common/winjs.base';
+import {Promise, TPromise} from 'vs/base/common/winjs.base';
 import timer = require('vs/base/common/timer');
 import paths = require('vs/base/common/paths');
 import {Action} from 'vs/base/common/actions';
@@ -15,10 +15,12 @@ import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/edito
 import nls = require('vs/nls');
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {IThreadService} from 'vs/platform/thread/common/thread';
+import {IWindowConfiguration} from 'vs/workbench/electron-browser/window';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IQuickOpenService} from 'vs/workbench/services/quickopen/browser/quickOpenService';
 import {INullService} from 'vs/platform/instantiation/common/instantiation';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
+import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 
 import ipc = require('ipc');
 import remote = require('remote');
@@ -155,37 +157,73 @@ export class ZoomInAction extends Action {
 	}
 }
 
-export class ZoomOutAction extends Action {
+export abstract class BaseZoomAction extends Action {
+
+	constructor(
+		id: string,
+		label: string,
+		@IConfigurationService private configurationService: IConfigurationService
+	) {
+		super(id, label);
+	}
+
+	public run(): Promise {
+		return Promise.as(false); // Subclass to implement
+	}
+
+	protected loadConfiguredZoomLevel(): TPromise<number> {
+		return this.configurationService.loadConfiguration().then((windowConfig: IWindowConfiguration) => {
+			if (windowConfig.window && typeof windowConfig.window.zoomLevel === 'number') {
+				return windowConfig.window.zoomLevel;
+			}
+
+			return 0; // default
+		});
+	}
+}
+
+export class ZoomOutAction extends BaseZoomAction {
 
 	public static ID = 'workbench.action.zoomOut';
 	public static LABEL = nls.localize('zoomOut', "Zoom out");
 
-	constructor(id: string, label: string, @INullService ns) {
-		super(id, label);
+	constructor(
+		id: string,
+		label: string,
+		@IConfigurationService configurationService: IConfigurationService
+	) {
+		super(id, label, configurationService);
 	}
 
 	public run(): Promise {
-		if (webFrame.getZoomLevel() > 0) {
-			webFrame.setZoomLevel(webFrame.getZoomLevel() - 1); // prevent zoom out below 0 for now because it results in blurryness
-		}
+		return this.loadConfiguredZoomLevel().then(level => {
+			let newZoomLevelCandiate = webFrame.getZoomLevel() - 1;
+			if (newZoomLevelCandiate < level) {
+				newZoomLevelCandiate = level; // do not allow to zoom below the configured level
+			}
 
-		return Promise.as(true);
+			webFrame.setZoomLevel(newZoomLevelCandiate);
+		});
 	}
 }
 
-export class ZoomResetAction extends Action {
+export class ZoomResetAction extends BaseZoomAction {
 
 	public static ID = 'workbench.action.zoomReset';
 	public static LABEL = nls.localize('zoomReset', "Reset Zoom");
 
-	constructor(id: string, label: string, @INullService ns) {
-		super(id, label);
+	constructor(
+		id: string,
+		label: string,
+		@IConfigurationService configurationService: IConfigurationService
+	) {
+		super(id, label, configurationService);
 	}
 
 	public run(): Promise {
-		webFrame.setZoomLevel(0);
-
-		return Promise.as(true);
+		return this.loadConfiguredZoomLevel().then(level => {
+			webFrame.setZoomLevel(level);
+		});
 	}
 }
 

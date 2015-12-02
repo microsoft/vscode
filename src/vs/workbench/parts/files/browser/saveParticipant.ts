@@ -18,7 +18,6 @@ import {IEventService} from 'vs/platform/event/common/event';
 // The save participant can change a model before its saved to support various scenarios like trimming trailing whitespace
 export class SaveParticipant implements IWorkbenchContribution {
 	private trimTrailingWhitespace: boolean;
-
 	private toUnbind: { (): void; }[];
 
 	constructor(
@@ -56,31 +55,30 @@ export class SaveParticipant implements IWorkbenchContribution {
 
 		// Trim Trailing Whitespace if enabled
 		if (this.trimTrailingWhitespace) {
-			this.doTrimTrailingWhitespace(e.model);
+			this.doTrimTrailingWhitespace(e.model, e.isAutoSaved);
 		}
 	}
 
 	/**
-	 * Trim trailing whitespace on a model and ignore lines on which cursors are sitting.
+	 * Trim trailing whitespace on a model and ignore lines on which cursors are sitting if triggered via auto save.
 	 */
-	private doTrimTrailingWhitespace(model: IModel): void {
-		let prevSelection: IEditorSelection[] = [Selection.createSelection(1, 1, 1, 1)],
-			cursors: IPosition[] = [];
+	private doTrimTrailingWhitespace(model: IModel, isAutoSaved: boolean): void {
+		let prevSelection: IEditorSelection[] = [Selection.createSelection(1, 1, 1, 1)];
+		let cursors: IPosition[] = [];
 
-		if (model.isAttachedToEditor()) {
-			// Try to find all editors the current model is attached to
+		// If this is auto save, try to find active cursors to prevent removing
+		// whitespace automatically while the user is typing at the end of a line
+		if (isAutoSaved && model.isAttachedToEditor()) {
 			let allEditors = this.codeEditorService.listCodeEditors();
 			for (let i = 0, len = allEditors.length; i < len; i++) {
 				let editor = allEditors[i];
 				let editorModel = editor.getModel();
 
 				if (!editorModel) {
-					// empty editor
-					continue;
+					continue; // empty editor
 				}
 
 				if (model === editorModel) {
-					// bingo!
 					prevSelection = editor.getSelections();
 					cursors.push(...prevSelection.map(s => {
 						return {
@@ -94,8 +92,7 @@ export class SaveParticipant implements IWorkbenchContribution {
 
 		let ops = trimTrailingWhitespace(model, cursors);
 		if (!ops.length) {
-			// Nothing to do
-			return;
+			return; // Nothing to do
 		}
 
 		model.pushEditOperations(prevSelection, ops, (edits) => prevSelection);

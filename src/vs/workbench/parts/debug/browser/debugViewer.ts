@@ -901,7 +901,7 @@ export class BreakpointsController extends BaseDebugController {
 		const element = tree.getFocus();
 		if (element instanceof model.Breakpoint) {
 			const bp = <model.Breakpoint> element;
-			this.debugService.toggleBreakpoint(bp.source.uri, bp.lineNumber).done(null, errors.onUnexpectedError);
+			this.debugService.toggleBreakpoint({ uri: bp.source.uri, lineNumber: bp.lineNumber }).done(null, errors.onUnexpectedError);
 
 			return true;
 		} else if (element instanceof model.FunctionBreakpoint) {

@@ -12,7 +12,6 @@ import {EditorModel} from 'vs/workbench/common/editor';
 import {Registry} from 'vs/platform/platform';
 import {IEditorModesRegistry, Extensions} from 'vs/editor/common/modes/modesRegistry';
 import URI from 'vs/base/common/uri';
-import {URL} from 'vs/base/common/network';
 import {NullMode} from 'vs/editor/common/modes/nullMode';
 import {ITextEditorModel} from 'vs/platform/editor/common/editor';
 import {IModeService} from 'vs/editor/common/services/modeService';
@@ -22,12 +21,12 @@ import {IModelService} from 'vs/editor/common/services/modelService';
  * The base text editor model leverages the monaco code editor model. This class is only intended to be subclassed and not instantiated.
  */
 export abstract class BaseTextEditorModel extends EditorModel implements ITextEditorModel {
-	private textEditorModelHandle: URL;
+	private textEditorModelHandle: URI;
 
 	constructor(
 		@IModelService private modelService: IModelService,
 		@IModeService private modeService: IModeService,
-		textEditorModelHandle?: URL
+		textEditorModelHandle?: URI
 	) {
 		super();
 
@@ -46,7 +45,7 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 
 		// To avoid flickering, give the mode at most 50ms to load. If the mode doesn't load in 50ms, proceed creating the model with a mode promise
 		return Promise.any([Promise.timeout(50), this.getOrCreateMode(this.modeService, mime, firstLineText)]).then(() => {
-			let model = this.modelService.createModel(value, this.getOrCreateMode(this.modeService, mime, firstLineText), resource ? URL.fromUri(resource) : null);
+			let model = this.modelService.createModel(value, this.getOrCreateMode(this.modeService, mime, firstLineText), resource);
 
 			this.textEditorModelHandle = model.getAssociatedResource();
 

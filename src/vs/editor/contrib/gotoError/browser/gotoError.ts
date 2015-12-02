@@ -276,9 +276,9 @@ class MarkerNavigationWidget extends ZoneWidget.ZoneWidget {
 							}
 							container.span({
 								class: 'quickfixentry',
-								text: fix.label
+								text: fix.command.title
 							}).on(DOM.EventType.CLICK,() => {
-								mode.quickFixSupport.runQuickFixAction(this.editor.getModel().getAssociatedResource(), marker, fix.id).then(result => {
+								mode.quickFixSupport.runQuickFixAction(this.editor.getModel().getAssociatedResource(), marker, fix).then(result => {
 									return bulkEdit(this._eventService, this._editorService, this.editor, result.edits);
 								});
 								return true;

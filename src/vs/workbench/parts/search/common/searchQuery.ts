@@ -58,7 +58,7 @@ export class QueryBuilder {
 			return {
 				type: type,
 				rootResources: options.rootResources,
-				filePatterns: options.filePatterns || [],
+				filePattern: options.filePattern,
 				excludePattern: options.excludePattern,
 				includePattern: options.includePattern,
 				maxResults: options.maxResults,

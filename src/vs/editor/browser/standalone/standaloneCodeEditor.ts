@@ -13,7 +13,7 @@ import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
 import standaloneServices = require('vs/editor/browser/standalone/standaloneServices');
 import Platform = require('vs/platform/platform');
-import Network = require('vs/base/common/network');
+import URI from 'vs/base/common/uri';
 import Model = require('vs/editor/common/model/model');
 import Lifecycle = require('vs/base/common/lifecycle');
 import MonarchTypes = require('vs/editor/common/modes/monarch/monarchTypes');
@@ -346,7 +346,7 @@ function prepareServices(domElement: HTMLElement, services: standaloneServices.I
 	};
 }
 
-function createModelWithRegistryMode(modelService:IModelService, modeService:IModeService, value:string, modeName:string, associatedResource?:Network.URL): EditorCommon.IModel {
+function createModelWithRegistryMode(modelService:IModelService, modeService:IModeService, value:string, modeName:string, associatedResource?:URI): EditorCommon.IModel {
 	var modeInformation = modeService.lookup(modeName);
 	if (modeInformation.length > 0) {
 		// Force usage of the first existing mode
@@ -362,13 +362,13 @@ function createModelWithRegistryMode(modelService:IModelService, modeService:IMo
 	return modelService.createModel(value, modeService.getOrCreateMode(modeName), associatedResource);
 }
 
-export function createModel(value:string, mode:string|MonarchTypes.ILanguage|Modes.IMode, associatedResource?:Network.URL|string): EditorCommon.IModel {
+export function createModel(value:string, mode:string|MonarchTypes.ILanguage|Modes.IMode, associatedResource?:URI|string): EditorCommon.IModel {
 	startup.initStaticServicesIfNecessary();
 	var modelService = standaloneServices.ensureStaticPlatformServices(null).modelService;
 
-	var resource:Network.URL;
+	var resource:URI;
 	if (typeof associatedResource === 'string') {
-		resource = new Network.URL(associatedResource);
+		resource = URI.parse(associatedResource);
 	} else {
 		// must be a URL
 		resource = associatedResource;

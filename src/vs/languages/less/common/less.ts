@@ -5,7 +5,7 @@
 'use strict';
 
 import winjs = require('vs/base/common/winjs.base');
-import network = require('vs/base/common/network');
+import URI from 'vs/base/common/uri';
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
 import Monarch = require('vs/editor/common/modes/monarch/monarch');
@@ -226,32 +226,32 @@ export class LESSMode extends Monarch.MonarchMode<lessWorker.LessWorker> impleme
 	}
 
 	static $findReferences = OneWorkerAttr(LESSMode, LESSMode.prototype.findReferences);
-	public findReferences(resource:network.URL, position:EditorCommon.IPosition):winjs.TPromise<Modes.IReference[]> {
+	public findReferences(resource:URI, position:EditorCommon.IPosition):winjs.TPromise<Modes.IReference[]> {
 		return this._worker((w) => w.findReferences(resource, position));
 	}
 
 	static $getRangesToPosition = OneWorkerAttr(LESSMode, LESSMode.prototype.getRangesToPosition);
-	public getRangesToPosition(resource:network.URL, position:EditorCommon.IPosition):winjs.TPromise<Modes.ILogicalSelectionEntry[]> {
+	public getRangesToPosition(resource:URI, position:EditorCommon.IPosition):winjs.TPromise<Modes.ILogicalSelectionEntry[]> {
 		return this._worker((w) => w.getRangesToPosition(resource, position));
 	}
 
 	static $computeInfo = OneWorkerAttr(LESSMode, LESSMode.prototype.computeInfo);
-	public computeInfo(resource:network.URL, position:EditorCommon.IPosition): winjs.TPromise<Modes.IComputeExtraInfoResult> {
+	public computeInfo(resource:URI, position:EditorCommon.IPosition): winjs.TPromise<Modes.IComputeExtraInfoResult> {
 		return this._worker((w) => w.computeInfo(resource, position));
 	}
 
 	static $getOutline = OneWorkerAttr(LESSMode, LESSMode.prototype.getOutline);
-	public getOutline(resource:network.URL):winjs.TPromise<Modes.IOutlineEntry[]> {
+	public getOutline(resource:URI):winjs.TPromise<Modes.IOutlineEntry[]> {
 		return this._worker((w) => w.getOutline(resource));
 	}
 
 	static $findDeclaration = OneWorkerAttr(LESSMode, LESSMode.prototype.findDeclaration);
-	public findDeclaration(resource:network.URL, position:EditorCommon.IPosition):winjs.TPromise<Modes.IReference> {
+	public findDeclaration(resource:URI, position:EditorCommon.IPosition):winjs.TPromise<Modes.IReference> {
 		return this._worker((w) => w.findDeclaration(resource, position));
 	}
 
 	static $findColorDeclarations = OneWorkerAttr(LESSMode, LESSMode.prototype.findColorDeclarations);
-	public findColorDeclarations(resource:network.URL):winjs.TPromise<{range:EditorCommon.IRange; value:string; }[]> {
+	public findColorDeclarations(resource:URI):winjs.TPromise<{range:EditorCommon.IRange; value:string; }[]> {
 		return this._worker((w) => w.findColorDeclarations(resource));
 	}
 }

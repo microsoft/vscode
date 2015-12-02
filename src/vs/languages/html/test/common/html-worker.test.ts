@@ -9,6 +9,7 @@ import mm = require('vs/editor/common/model/mirrorModel');
 import html = require('vs/languages/html/common/html');
 import htmlWorker = require('vs/languages/html/common/htmlWorker');
 import Network = require('vs/base/common/network');
+import URI from 'vs/base/common/uri';
 import ResourceService = require('vs/editor/common/services/resourceServiceImpl');
 import MarkerService = require('vs/platform/markers/common/markerService');
 import EditorCommon = require('vs/editor/common/editorCommon');

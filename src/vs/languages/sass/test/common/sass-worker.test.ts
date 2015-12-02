@@ -7,7 +7,7 @@
 import assert = require('assert');
 import mm = require('vs/editor/common/model/mirrorModel');
 import sassWorker = require('vs/languages/sass/common/sassWorker');
-import Network = require('vs/base/common/network');
+import URI from 'vs/base/common/uri';
 import ResourceService = require('vs/editor/common/services/resourceServiceImpl');
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
@@ -17,7 +17,7 @@ import modesUtil = require('vs/editor/test/common/modesTestUtils');
 
 suite('SASS - Worker', () => {
 
-	var mockSASSWorkerEnv = function (url:Network.URL, content: string) : { worker: sassWorker.SassWorker; model: mm.MirrorModel } {
+	var mockSASSWorkerEnv = function (url:URI, content: string) : { worker: sassWorker.SassWorker; model: mm.MirrorModel } {
 		var resourceService = new ResourceService.ResourceService();
 		var model = mm.createMirrorModelFromString(null, 0, content, modesUtil.createMockMode('mock.mode.id', /(#?-?\d*\.\d\w*%?)|([$@#!]?[\w-?]+%?)|[$@#!]/g), url);
 		resourceService.insert(url, model);
@@ -31,7 +31,7 @@ suite('SASS - Worker', () => {
 	};
 
 	var testSuggestionsFor = function(value:string, stringBefore:string):WinJS.TPromise<Modes.ISuggestions> {
-		var url = new Network.URL('test://1');
+		var url = URI.parse('test://1');
 		var env = mockSASSWorkerEnv(url, value);
 
 		var idx = stringBefore ? value.indexOf(stringBefore) + stringBefore.length : 0;
@@ -40,7 +40,7 @@ suite('SASS - Worker', () => {
 	};
 
 	var testValueSetFor = function(value:string, selection:string, selectionLength: number, up: boolean):WinJS.TPromise<Modes.IInplaceReplaceSupportResult> {
-		var url = new Network.URL('test://1');
+		var url = URI.parse('test://1');
 		var env = mockSASSWorkerEnv(url, value);
 
 		var pos = env.model.getPositionFromOffset(value.indexOf(selection));
@@ -50,7 +50,7 @@ suite('SASS - Worker', () => {
 	};
 
 	var testOccurrences = function(value:string, tokenBefore:string):WinJS.TPromise<{ occurrences: Modes.IOccurence[]; model: mm.MirrorModel }> {
-		var url = new Network.URL('test://1');
+		var url = URI.parse('test://1');
 		var env = mockSASSWorkerEnv(url, value);
 
 		var pos = env.model.getPositionFromOffset(value.indexOf(tokenBefore) + tokenBefore.length);

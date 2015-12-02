@@ -7,7 +7,7 @@
 import assert = require('assert');
 import mm = require('vs/editor/common/model/mirrorModel');
 import lessWorker = require('vs/languages/less/common/lessWorker');
-import Network = require('vs/base/common/network');
+import URI from 'vs/base/common/uri';
 import ResourceService = require('vs/editor/common/services/resourceServiceImpl');
 import WinJS = require('vs/base/common/winjs.base');
 import EditorCommon = require('vs/editor/common/editorCommon');
@@ -22,7 +22,7 @@ suite('LESS - Intellisense', () => {
 
 	var testSuggestionsFor = function(value:string, stringBefore:string):WinJS.TPromise<Modes.ISuggestions> {
 		var resourceService = new ResourceService.ResourceService();
-		var url = new Network.URL('test://1');
+		var url = URI.parse('test://1');
 		resourceService.insert(url,  mm.createMirrorModelFromString(null, 0, value, modesUtil.createMockMode('mock.mode.id', /(-?\d*\.\d+)|([\w-]+)/g), url));
 
 		let services = servicesUtil2.createMockEditorWorkerServices({

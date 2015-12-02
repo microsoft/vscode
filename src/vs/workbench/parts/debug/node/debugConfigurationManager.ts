@@ -176,6 +176,8 @@ export class ConfigurationManager {
 								if (attribute === 'enableBreakpointsFor') {
 									Object.keys(adapter.enableBreakpointsFor).forEach(languageId => duplicate.enableBreakpointsFor[languageId] = true);
 								} else if (duplicate[attribute] && attribute !== 'type') {
+									// Give priority to the later registered extension.
+									duplicate[attribute] = adapter[attribute];
 									extension.collector.warn(nls.localize('duplicateDebuggerType', "Debug type '{0}' is already registered and has attribute '{1}', ignoring attribute '{1}'.", adapter.type, attribute));
 								} else {
 									duplicate[attribute] = adapter[attribute];

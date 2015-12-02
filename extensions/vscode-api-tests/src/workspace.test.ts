@@ -6,7 +6,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import {workspace, TextDocument, window, Position} from 'vscode';
+import {workspace, TextDocument, window, Position, Uri} from 'vscode';
 import {createRandomFile, deleteFile, cleanUp} from './utils';
 import {join} from 'path';
 import * as fs from 'fs';
@@ -40,6 +40,37 @@ suite('workspace-namespace', () => {
 			done();
 		});
 	});
+
+	test('openTextDocument, untitled is dirty', function(done) {
+		workspace.openTextDocument(Uri.parse('untitled://' + join(workspace.rootPath, './newfile.txt'))).then(doc => {
+			assert.equal(doc.uri.scheme, 'untitled');
+			assert.ok(doc.isDirty);
+			done();
+		});
+	});
+
+	// test('openTextDocument, untitled closes on save', function(done) {
+	// 	workspace.openTextDocument(Uri.parse('untitled://' + join(workspace.rootPath, './newfile2.txt'))).then(doc => {
+	// 		assert.equal(doc.uri.scheme, 'untitled');
+	// 		assert.ok(doc.isDirty);
+
+	// 		let closed: TextDocument, opened: TextDocument;
+	// 		let d0 = workspace.onDidCloseTextDocument(e => closed = e);
+	// 		let d1 = workspace.onDidOpenTextDocument(e => opened = e);
+
+	// 		function donedone() {
+	// 			assert.ok(closed === doc);
+	// 			assert.equal(opened.uri.scheme, 'file');
+	// 			assert.equal(opened.uri.toString(), 'file:///' + join(workspace.rootPath, './newfile2.txt'))
+	// 			d0.dispose();
+	// 			d1.dispose();
+
+	// 			deleteFile(opened.uri).then(done, done);
+	// 		}
+
+	// 		doc.save().then(donedone, done);
+	// 	});
+	// })
 
 	test('events: onDidOpenTextDocument, onDidChangeTextDocument, onDidSaveTextDocument', () => {
 		return createRandomFile().then(file => {

@@ -10,11 +10,11 @@ import {IModel, IPosition} from 'vs/editor/common/editorCommon';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {onUnexpectedError} from 'vs/base/common/errors';
 import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
+import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 
 export const ReferenceRegistry = new LanguageFeatureRegistry<IReferenceSupport>('referenceSupport');
 
 export function findReferences(model: IModel, position: IPosition): TPromise<IReference[]> {
-
 
 	// collect references from all providers
 	const promises = ReferenceRegistry.ordered(model).map(provider => {
@@ -37,3 +37,5 @@ export function findReferences(model: IModel, position: IPosition): TPromise<IRe
 		return result;
 	});
 }
+
+CommonEditorRegistry.registerDefaultLanguageCommand('_executeReferenceProvider', findReferences);

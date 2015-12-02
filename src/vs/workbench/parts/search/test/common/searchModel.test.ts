@@ -7,17 +7,16 @@
 import * as assert from 'assert';
 import {Match, FileMatch, SearchResult} from 'vs/workbench/parts/search/common/searchModel';
 import model = require('vs/editor/common/model/model');
-import {URL} from 'vs/base/common/network';
 import {EventSource} from 'vs/base/common/eventSource';
 import {IModel} from 'vs/editor/common/editorCommon';
-import uri from 'vs/base/common/uri';
+import URI from 'vs/base/common/uri';
 import {create} from 'vs/platform/instantiation/common/instantiationService';
 import {TestContextService} from 'vs/workbench/test/browser/servicesTestUtils';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IFileMatch} from 'vs/platform/search/common/search';
 
-function toUri(path: string): uri {
-	return uri.file('C:\\' + path);
+function toUri(path: string): URI {
+	return URI.file('C:\\' + path);
 }
 
 suite('Search - Model', () => {
@@ -27,7 +26,7 @@ suite('Search - Model', () => {
 	setup(() => {
 		let event = new EventSource<any>();
 
-		oneModel = new model.Model('line1\nline2\nline3', null, URL.fromValue('file:///folder/file.txt'));
+		oneModel = new model.Model('line1\nline2\nline3', null, URI.parse('file:///folder/file.txt'));
 		instantiation = create({
 			modelService: {
 				getModel: () => oneModel,
@@ -85,7 +84,7 @@ suite('Search - Model', () => {
 		let raw: IFileMatch[] = [];
 		for (let i = 0; i < 10; i++) {
 			raw.push({
-				resource: uri.parse('file://c:/' + i),
+				resource: URI.parse('file://c:/' + i),
 				lineMatches: [{
 					preview: String(i),
 					lineNumber: 1,

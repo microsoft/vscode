@@ -32,6 +32,12 @@ export interface IPath {
 	columnNumber?: number;
 }
 
+export interface IMainConfiguration {
+	window: {
+
+	}
+}
+
 export interface IMainEnvironment extends IEnvironment {
 	workspacePath?: string;
 	autoSaveDelay?: number;

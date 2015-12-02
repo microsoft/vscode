@@ -158,7 +158,6 @@ class DefineKeybindingWidget implements EditorBrowser.IContentWidget {
 
 	private _messageNode: HTMLElement;
 	private _inputNode: HTMLInputElement;
-	private _outputNode: HTMLElement;
 
 	private _lastKeybinding: Keybinding;
 	private _onAccepted: (keybinding:string) => void;
@@ -182,10 +181,6 @@ class DefineKeybindingWidget implements EditorBrowser.IContentWidget {
 		this._inputNode.className = 'input';
 		this._domNode.appendChild(this._inputNode);
 
-		this._outputNode = document.createElement('div');
-		this._outputNode.className = 'output';
-		this._domNode.appendChild(this._outputNode);
-
 		this._toDispose.push(DomUtils.addDisposableListener(this._inputNode, 'keydown', (e) => {
 			let keyEvent = new StandardKeyboardEvent(e);
 			keyEvent.preventDefault();
@@ -207,8 +202,8 @@ class DefineKeybindingWidget implements EditorBrowser.IContentWidget {
 
 			this._lastKeybinding = kb;
 
-			this._outputNode.innerText = this._lastKeybinding.toUserSettingsLabel().toLowerCase();
-			this._outputNode.title = 'keyCode: ' + keyEvent.browserEvent.keyCode;
+			this._inputNode.value = this._lastKeybinding.toUserSettingsLabel().toLowerCase();
+			this._inputNode.title = 'keyCode: ' + keyEvent.browserEvent.keyCode;
 		}));
 
 		this._toDispose.push(DomUtils.addDisposableListener(this._inputNode, 'blur', (e) => this._stop()));
@@ -248,8 +243,7 @@ class DefineKeybindingWidget implements EditorBrowser.IContentWidget {
 		this._editor.getOffsetForColumn(this._position.lineNumber, this._position.column);
 
 		this._lastKeybinding = null;
-		this._outputNode.innerText = '';
-		this._outputNode.title = '';
+		this._inputNode.value = '';
 		this._inputNode.focus();
 	}
 
@@ -285,6 +279,9 @@ export class DefineKeybindingAction extends EditorAction {
 
 const INTERESTING_FILE = /keybindings\.json$/;
 function isInterestingEditorModel(editor:EditorCommon.ICommonCodeEditor): boolean {
+	if (editor.getConfiguration().readOnly) {
+		return false;
+	}
 	let model = editor.getModel();
 	if (!model) {
 		return false;

@@ -302,6 +302,17 @@ export class WindowsManager {
 		app.on('will-quit', () => {
 			storage.setItem(WindowsManager.windowsStateStorageKey, this.windowsState);
 		});
+
+		let loggedStartupTimes = false;
+		onReady(window => {
+			if (loggedStartupTimes) {
+				return; // only for the first window
+			}
+
+			loggedStartupTimes = true;
+
+			window.send('vscode:telemetry', { eventName: 'startupTime', data: { ellapsed: Date.now() - global.vscodeStart } });
+		});
 	}
 
 	public reload(win: window.VSCodeWindow, cli?: env.ICommandLineArguments): void {

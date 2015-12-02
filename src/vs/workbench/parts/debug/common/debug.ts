@@ -67,11 +67,19 @@ export interface IEnablement extends ITreeElement {
 	enabled: boolean;
 }
 
+export interface IRawBreakpoint {
+	uri: uri;
+	lineNumber: number;
+	enabled: boolean;
+	condition?: string;
+}
+
 export interface IBreakpoint extends IEnablement {
 	source: Source;
 	lineNumber: number;
 	desiredLineNumber: number;
 	condition: string;
+	verified: boolean;
 }
 
 export interface IFunctionBreakpoint extends IEnablement {
@@ -143,29 +151,29 @@ export enum State {
 
 export interface IGlobalConfig {
 	version: string;
-	debugServer: number;
+	debugServer?: number;
 	configurations: IConfig[];
 }
 
 export interface IConfig {
-	name: string;
+	name?: string;
 	type: string;
 	request: string;
-	program: string;
-	stopOnEntry: boolean;
-	args: string[];
-	cwd: string;
-	runtimeExecutable: string;
-	runtimeArgs: string[];
-	env: { [key: string]: string; };
-	sourceMaps: boolean;
-	outDir: string;
-	address: string;
-	port: number;
-	preLaunchTask: string;
-	externalConsole: boolean;
-	debugServer: number;
-	extensionHostData: any;
+	program?: string;
+	stopOnEntry?: boolean;
+	args?: string[];
+	cwd?: string;
+	runtimeExecutable?: string;
+	runtimeArgs?: string[];
+	env?: { [key: string]: string; };
+	sourceMaps?: boolean;
+	outDir?: string;
+	address?: string;
+	port?: number;
+	preLaunchTask?: string;
+	externalConsole?: boolean;
+	debugServer?: number;
+	extensionHostData?: any;
 }
 
 export interface IRawEnvAdapter {
@@ -215,12 +223,12 @@ export interface IDebugService extends ee.IEventEmitter {
 
 	setFocusedStackFrameAndEvaluate(focusedStackFrame: IStackFrame): void;
 
-	setBreakpointsForModel(modelUri: uri, data: { lineNumber: number; enabled: boolean; condition: string }[]): Promise;
-	toggleBreakpoint(modelUri: uri, lineNumber: number, condition?: string): Promise;
+	setBreakpointsForModel(modelUri: uri, data: IRawBreakpoint[]): Promise;
+	toggleBreakpoint(IRawBreakpoint): Promise;
 	enableOrDisableAllBreakpoints(enabled: boolean): Promise;
 	toggleEnablement(element: IEnablement): Promise;
-	removeBreakpoints(modelUri?: uri): Promise;
 	toggleBreakpointsActivated(): Promise;
+	removeAllBreakpoints(): Promise;
 	sendAllBreakpoints(): Promise;
 
 	addFunctionBreakpoint(functionName?: string): Promise;
@@ -241,6 +249,7 @@ export interface IDebugService extends ee.IEventEmitter {
 
 	createSession(): Promise;
 	restartSession(): Promise;
+	rawAttach(type: string, port: number): Promise;
 	getActiveSession(): IRawDebugSession;
 
 	getModel(): IModel;

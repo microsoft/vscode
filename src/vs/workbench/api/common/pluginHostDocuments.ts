@@ -630,7 +630,7 @@ export class MainThreadDocuments {
 
 	// --- from plugin host process
 
-	_trySaveDocument(uri:URI): TPromise<boolean> {
+	_trySaveDocument(uri: URI): TPromise<boolean> {
 		return this._textFileService.save(uri);
 	}
 
@@ -679,6 +679,8 @@ export class MainThreadDocuments {
 				if (input.getResource().toString() !== uri.toString()) {
 					throw new Error(`expected URI ${uri.toString() } BUT GOT ${input.getResource().toString() }`);
 				}
+				return this._proxy._acceptModelDirty(uri); // mark as dirty
+			}).then(() => {
 				return true;
 			});
 		});
