@@ -5419,15 +5419,6 @@
         </value>
       </values>
     </entry>
-    <entry name="icon" restriction="url" version="3.0" browsers="none" ref="http://www.w3.org/TR/css3-ui/#icon" syntax="auto | 'uri' [, 'uri']*">
-      <desc>Provides the author the ability to style any arbitrary element with an iconic equivalent. An element's icon is not used/rendered unless the 'content' property is set to the value 'icon'.</desc>
-      <values>
-        <value name="auto" version="3.0" browsers="all">
-          <desc>Use a default generic icon provided by the user agent.</desc>
-        </value>
-        <value name="url()" version="3.0" browsers="all" />
-      </values>
-    </entry>
     <entry name="image-orientation" restriction="angle" version="3.0" browsers="none" ref="http://www.w3.org/TR/css4-images/#image-orientation" syntax="img.ninety { $(name): 90deg; }">
       <desc>This property specifies an orthogonal rotation to be applied to an image before it is laid out.</desc>
       <values>
