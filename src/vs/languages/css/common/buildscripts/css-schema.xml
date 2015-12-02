@@ -5045,7 +5045,7 @@
         </value>
       </values>
     </entry>
-    <entry name="font-synthesis" restriction="enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css3-fonts/#propdef-font-synthesis" syntax="html:lang(ar) { $(name): none; }">
+    <entry name="font-synthesis" restriction="enum" version="3.0" browsers="FF26,S9" ref="http://www.w3.org/TR/css3-fonts/#propdef-font-synthesis" syntax="html:lang(ar) { $(name): none; }">
       <desc>This property controls whether user agents are allowed to synthesize bold or oblique font faces when a font family lacks bold or italic faces.</desc>
       <values>
         <value name="none" version="3.0" browsers="all">
