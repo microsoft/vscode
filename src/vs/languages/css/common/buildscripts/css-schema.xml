@@ -5189,6 +5189,9 @@
         <value name="oldstyle-nums" version="3.0" browsers="all">
           <desc>Enables display of old-style numerals.</desc>
         </value>
+        <value name="ordinal" version="3.0" browsers="all">
+          <desc>Enables display of letter forms used with ordinal numbers.</desc>
+        </value>
         <value name="proportional-nums" version="3.0" browsers="all">
           <desc>Enables display of proportional numerals.</desc>
         </value>
