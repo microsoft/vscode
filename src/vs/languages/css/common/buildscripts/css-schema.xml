@@ -18578,7 +18578,7 @@
         </value>
       </values>
     </entry>
-    <entry name="writing-mode" restriction="enum" version="3.0" browsers="all" ref="http://www.w3.org/TR/css-writing-modes-3/#writing-mode" syntax="span { $(name): lr-tb; }">
+    <entry name="writing-mode" restriction="enum" version="3.0" browsers="E,FF41" ref="http://www.w3.org/TR/css-writing-modes-3/#writing-mode" syntax="span { $(name): lr-tb; }">
       <desc>This is a shorthand property for both 'direction' and 'block-progression'.</desc>
       <values>
         <value name="horizontal-tb" version="3.0" browsers="all">
