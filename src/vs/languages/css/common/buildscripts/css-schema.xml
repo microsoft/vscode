@@ -5455,7 +5455,7 @@
         </value>
       </values>
     </entry>
-    <entry name="ime-mode" restriction="enum" version="3.0" browsers="FF3,IE5" ref="http://www.w3.org/TR/css3-ui/#ime-mode" syntax="body { $(name): active; }">
+    <entry name="ime-mode" restriction="enum" version="3.0" browsers="E,FF3,IE5" ref="http://www.w3.org/TR/css3-ui/#ime-mode" syntax="body { $(name): active; }">
       <desc>Controls the state of the input method editor for text fields.</desc>
       <values>
         <value name="active" version="3.0" browsers="all">
@@ -8596,7 +8596,7 @@
         </value>
       </values>
     </entry>
-    <entry name="-ms-ime-mode" restriction="enum" version="3.0" browsers="E,IE10" ref="http://www.w3.org/TR/css3-ui/#ime-mode" syntax="body { $(name): active; }">
+    <entry name="-ms-ime-mode" restriction="enum" version="3.0" browsers="IE10" ref="http://www.w3.org/TR/css3-ui/#ime-mode" syntax="body { $(name): active; }">
       <desc>Controls the state of the input method editor for text fields.</desc>
       <values>
         <value name="active" version="3.0" browsers="all">
