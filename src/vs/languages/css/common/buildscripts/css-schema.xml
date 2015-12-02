@@ -16241,16 +16241,16 @@
         <value name="embed" version="2.0" browsers="all">
           <desc>If the element is inline-level, this value opens an additional level of embedding with respect to the bidirectional algorithm. The direction of this embedding level is given by the 'direction' property.</desc>
         </value>
-        <value name="isolate" version="3.0" browsers="none">
+        <value name="isolate" version="3.0" browsers="C,FF10,O15,S5.1">
           <desc>The contents of the element are considered to be inside a separate, independent paragraph.</desc>
         </value>
-        <value name="isolate-override" version="2.0" browsers="all">
+        <value name="isolate-override" version="3.0" browsers="C,FF17,O15,S6.1">
           <desc>This combines the isolation behavior of 'isolate' with the directional override behavior of 'bidi-override'</desc>
         </value>
         <value name="normal" version="2.0" browsers="all">
           <desc>The element does not open an additional level of embedding with respect to the bidirectional algorithm. For inline-level elements, implicit reordering works across element boundaries.</desc>
         </value>
-        <value name="plaintext" version="3.0" browsers="none">
+        <value name="plaintext" version="3.0" browsers="C,FF10,O15,S6">
           <desc>For the purposes of the Unicode bidirectional algorithm, the base directionality of each bidi paragraph for which the element forms the containing block is determined not by the element's computed 'direction'.</desc>
         </value>
       </values>
