@@ -90,17 +90,17 @@ export default class LanguageFeatureRegistry<T> {
 	}
 
 	ordered(model: IModel): T[] {
-		let entries = this._orderedEntries(model);
-		return entries.map(item => item.provider);
+		const result: T[] = [];
+		this._orderedForEach(model, entry => result.push(entry.provider));
+		return result;
 	}
 
 	orderedGroups(model: IModel): T[][] {
-		let entries = this._orderedEntries(model);
-		let result: T[][] = [];
+		const result: T[][] = [];
 		let lastBucket: T[];
 		let lastBucketScore: number;
 
-		for (let entry of entries) {
+		this._orderedForEach(model, entry => {
 			if (lastBucket && lastBucketScore === entry._score) {
 				lastBucket.push(entry.provider);
 			} else {
@@ -108,42 +108,45 @@ export default class LanguageFeatureRegistry<T> {
 				lastBucket = [entry.provider];
 				result.push(lastBucket);
 			}
-		}
+		});
 
 		return result;
 	}
 
-	private _orderedEntries(model: IModel): Entry<T>[] {
+	private _orderedForEach(model: IModel, callback: (provider: Entry<T>) => any): void {
+
 		if (!model || model.isTooLargeForHavingAMode()) {
-			return [];
+			return;
 		}
-		const result: Entry<T>[] = [];
 
 		if (this._updateScores(model)) {
 			this._sortByScore();
 		}
 
-		// (1) from registry
-		for (let entry of this._entries) {
-			if (entry._score > 0) {
-				result.push(entry);
-			}
-		}
+		let supportIndex: number = -1;
+		let supportEntry: Entry<T>;
 
-		// (2) from mode
 		if (model.getMode() && model.getMode()[this._supportName]) {
-
-			let entry: Entry<T> = {
+			supportEntry = {
 				selector: undefined,
 				provider: model.getMode()[this._supportName],
 				_score: .5,
 				_time: 0
 			};
-
-			let idx = binarySearch(result, entry, LanguageFeatureRegistry._compareByScoreAndTime);
-			result.splice(idx < 0 ? ~idx : idx, 0, entry);
+			supportIndex = ~binarySearch(this._entries, supportEntry, LanguageFeatureRegistry._compareByScoreAndTime);
 		}
-		return result;
+
+		const to = Math.max(supportIndex + 1, this._entries.length);
+		for (let from = 0; from < to; from++) {
+			if (from === supportIndex) {
+				callback(supportEntry);
+			} else {
+				let entry = this._entries[from];
+				if (entry._score > 0) {
+					callback(entry);
+				}
+			}
+		}
 	}
 
 	private _lastCandidate: { uri: string; language: string; };
