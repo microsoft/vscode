@@ -480,43 +480,43 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 					}
 				});
 			}
-
-			const adapter = this.configurationManager.getAdapter();
-			if (!adapter) {
+			if (!this.configurationManager.getAdapter()) {
 				return Promise.wrapError(new Error(`Configured debug type '${ configuration.type }' is not supported.`));
 			}
 
-			return this.runPreLaunchTask(configuration).then(() => {
-				this.session = new session.RawDebugSession(this.messageService, this.telemetryService, configuration.debugServer, adapter);
-				this.registerSessionListeners();
+			return this.runPreLaunchTask(configuration).then(() => this.doCreateSession(configuration, openViewlet));
+		});
+	}
 
-				return this.session.initialize({
-					adapterID: configuration.type,
-					linesStartAt1: true,
-					pathFormat: 'path'
-				}).then((result: DebugProtocol.InitializeResponse) => {
-					this.setStateAndEmit(debug.State.Initializing);
-					return configuration.request === 'attach' ? this.session.attach(configuration) : this.session.launch(configuration);
-				}).then((result: DebugProtocol.Response) => {
-					if (openViewlet) {
-						this.viewletService.openViewlet(debug.VIEWLET_ID);
-					}
-					this.partService.addClass('debugging');
-					this.contextService.updateOptions('editor', {
-						glyphMargin: true
-					});
-					this.inDebugMode.set(true);
+	private doCreateSession(configuration: debug.IConfig, openViewlet: boolean): Promise {
+		this.session = new session.RawDebugSession(this.messageService, this.telemetryService, configuration.debugServer, this.configurationManager.getAdapter());
+		this.registerSessionListeners();
 
-					this.telemetryService.publicLog('debugSessionStart', { type: configuration.type, breakpointCount: this.model.getBreakpoints().length, exceptionBreakpoints: this.model.getExceptionBreakpoints() });
-				}).then(undefined, (error: Error) => {
-					this.telemetryService.publicLog('debugMisconfiguration', { type: configuration ? configuration.type : undefined });
-					if (this.session) {
-						this.session.disconnect();
-					}
-
-					return Promise.wrapError(errors.create(error.message, { actions: [CloseAction, this.instantiationService.createInstance(debugactions.ConfigureAction, debugactions.ConfigureAction.ID, debugactions.ConfigureAction.LABEL)] }));
-				});
+		return this.session.initialize({
+			adapterID: configuration.type,
+			linesStartAt1: true,
+			pathFormat: 'path'
+		}).then((result: DebugProtocol.InitializeResponse) => {
+			this.setStateAndEmit(debug.State.Initializing);
+			return configuration.request === 'attach' ? this.session.attach(configuration) : this.session.launch(configuration);
+		}).then((result: DebugProtocol.Response) => {
+			if (openViewlet) {
+				this.viewletService.openViewlet(debug.VIEWLET_ID);
+			}
+			this.partService.addClass('debugging');
+			this.contextService.updateOptions('editor', {
+				glyphMargin: true
 			});
+			this.inDebugMode.set(true);
+
+			this.telemetryService.publicLog('debugSessionStart', { type: configuration.type, breakpointCount: this.model.getBreakpoints().length, exceptionBreakpoints: this.model.getExceptionBreakpoints() });
+		}).then(undefined, (error: Error) => {
+			this.telemetryService.publicLog('debugMisconfiguration', { type: configuration ? configuration.type : undefined });
+			if (this.session) {
+				this.session.disconnect();
+			}
+
+			return Promise.wrapError(errors.create(error.message, { actions: [CloseAction, this.instantiationService.createInstance(debugactions.ConfigureAction, debugactions.ConfigureAction.ID, debugactions.ConfigureAction.LABEL)] }));
 		});
 	}
 
@@ -555,6 +555,18 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 
 			return filteredTasks[0].isWatching ? Promise.as(true) : taskPromise;
 		});
+	}
+
+	public rawAttach(type: string, port: number): Promise {
+		if (this.session) {
+			return this.session.attach({ port });
+		}
+
+		return this.doCreateSession({
+			type,
+			request: 'attach',
+			port
+		}, true);
 	}
 
 	public restartSession(extensionHostData?: any): Promise {

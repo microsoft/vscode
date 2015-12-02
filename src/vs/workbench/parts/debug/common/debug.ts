@@ -250,6 +250,7 @@ export interface IDebugService extends ee.IEventEmitter {
 
 	createSession(): Promise;
 	restartSession(): Promise;
+	rawAttach(type: string, port: number): Promise;
 	getActiveSession(): IRawDebugSession;
 
 	getModel(): IModel;
