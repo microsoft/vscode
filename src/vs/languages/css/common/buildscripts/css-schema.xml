@@ -4969,8 +4969,8 @@
         <value name="normal" version="3.0" browsers="all">
           <desc>No change in glyph substitution or positioning occurs.</desc>
         </value>
-        <value name="off" version="3.0" browsers="none" />
-        <value name="on" version="3.0" browsers="none" />
+        <value name="off" version="3.0" browsers="all" />
+        <value name="on" version="3.0" browsers="all" />
       </values>
     </entry>
     <entry name="font-kerning" restriction="enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css3-fonts/#propdef-font-kerning" syntax="body { $(name): normal; }">
@@ -7734,8 +7734,8 @@
         <value name="normal" version="3.0" browsers="all">
           <desc>No change in glyph substitution or positioning occurs.</desc>
         </value>
-        <value name="off" version="3.0" browsers="none" />
-        <value name="on" version="3.0" browsers="none" />
+        <value name="off" version="3.0" browsers="FF15" />
+        <value name="on" version="3.0" browsers="FF15" />
       </values>
     </entry>
     <entry name="-moz-hyphens" restriction="enum" version="3.0" browsers="FF9" ref="http://www.w3.org/TR/css3-text/#hyphens0" syntax="div { $(name): manual; }">
@@ -17424,7 +17424,7 @@
         <value name="none" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="-webkit-font-feature-settings" restriction="string, integer" version="3.0" browsers="C,S5.2" ref="http://www.w3.org/TR/css3-fonts/#propdef-font-feature-settings" syntax="body { $(name): 'hwid'; }">
+    <entry name="-webkit-font-feature-settings" restriction="string, integer" version="3.0" browsers="C16" ref="http://www.w3.org/TR/css3-fonts/#propdef-font-feature-settings" syntax="body { $(name): 'hwid'; }">
       <desc>This property provides low-level control over OpenType font features. It is intended as a way of providing access to font features that are not widely used but are needed for a particular use case.</desc>
       <values>
         <value name="&quot;c2cs&quot;" version="3.0" browsers="all" />
@@ -17439,8 +17439,8 @@
         <value name="normal" version="3.0" browsers="all">
           <desc>No change in glyph substitution or positioning occurs.</desc>
         </value>
-        <value name="off" version="3.0" browsers="none" />
-        <value name="on" version="3.0" browsers="none" />
+        <value name="off" version="3.0" browsers="all" />
+        <value name="on" version="3.0" browsers="all" />
       </values>
     </entry>
     <entry name="-webkit-hyphens" restriction="enum" version="3.0" browsers="S5.1" ref="http://www.w3.org/TR/css3-text/#hyphens0" syntax="div { $(name): manual; }">
