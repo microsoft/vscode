@@ -15916,7 +15916,7 @@
       </values>
     </entry>
     <entry name="text-orientation" restriction="enum" version="3.0" browsers="C,O15,S5.1" ref="http://www.w3.org/TR/css-writing-modes-3/#text-orientation" syntax="span { $(name): mixed; }">
-      <desc>This property specifies the orientation of text within a line</desc>
+      <desc>Specifies the orientation of text within a line.</desc>
       <values>
         <value name="mixed" version="3.0" browsers="none">
           <desc>In vertical writing modes, characters from horizontal-only scripts are set sideways, i.e. 90° clockwise from their standard orientation in horizontal text.</desc>
