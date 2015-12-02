@@ -12323,7 +12323,7 @@
         </value>
       </values>
     </entry>
-    <entry name="resize" restriction="enum" version="3.0" browsers="C,FF4,S3" ref="http://www.w3.org/TR/css3-ui/#resize0" syntax="div { $(name): both; }">
+    <entry name="resize" restriction="enum" version="3.0" browsers="C,FF4,O15,S3" ref="http://www.w3.org/TR/css3-ui/#resize0" syntax="div { $(name): both; }">
       <desc>Allows control over the appearance and function of the resizing mechanism (e.g. a resize box or widget) on the element. Applies to elements with 'overflow' other than 'visible'.</desc>
       <values>
         <value name="both" version="3.0" browsers="all">
