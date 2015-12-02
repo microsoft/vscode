@@ -77,7 +77,7 @@ export class QuickFixController implements EditorCommon.IEditorContribution {
 			return;
 		}
 
-		fix.support.runQuickFixAction(this.editor.getModel().getAssociatedResource(), range, fix.id).then(result => {
+		fix.support.runQuickFixAction(this.editor.getModel().getAssociatedResource(), range, { command: fix.command, score: fix.score }).then(result => {
 			if (result) {
 				if (result.message) {
 					this.messageService.show(Severity.Info, result.message);

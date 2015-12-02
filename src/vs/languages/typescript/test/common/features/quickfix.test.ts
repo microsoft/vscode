@@ -35,35 +35,35 @@ suite('TS - quick fix', () => {
 
 		assertQuickFix('class C { private hello = 0; private world = this.hell0; }', 'a.ts', (elements) => {
 			assert.equal(elements.length, 1);
-			assert.equal(elements[0].label, "Rename to 'hello'");
+			assert.equal(elements[0].command.title, "Rename to 'hello'");
 		});
 
 		assertQuickFix('_.foo();', 'a.ts', (elements) => {
 			assert.equal(elements.length, 2);
-			assert.equal(elements[0].label, "Download type definition underscore.d.ts");
-			assert.equal(elements[1].label, "Download type definition lodash.d.ts");
+			assert.equal(elements[0].command.title, "Download type definition underscore.d.ts");
+			assert.equal(elements[1].command.title, "Download type definition lodash.d.ts");
 		});
 
 		assertQuickFix('describe("x");', 'a.js', (elements) => {
 			assert.equal(elements.length, 3);
-			assert.equal(elements[0].label, "Download type definition mocha.d.ts");
-			assert.equal(elements[1].label, "Download type definition jasmine.d.ts");
-			assert.equal(elements[2].label, "Mark 'describe' as global");
+			assert.equal(elements[0].command.title, "Download type definition mocha.d.ts");
+			assert.equal(elements[1].command.title, "Download type definition jasmine.d.ts");
+			assert.equal(elements[2].command.title, "Mark 'describe' as global");
 		});
 
 		assertQuickFix('angular.foo = 1;', 'a.ts', (elements) => {
 			assert.equal(elements.length, 1);
-			assert.equal(elements[0].label, "Download type definition angular.d.ts");
+			assert.equal(elements[0].command.title, "Download type definition angular.d.ts");
 		});
 
 		assertQuickFix('var x = __dirname;', 'a.ts', (elements) => {
 			assert.equal(elements.length, 1);
-			assert.equal(elements[0].label, "Download type definition node.d.ts");
+			assert.equal(elements[0].command.title, "Download type definition node.d.ts");
 		});
 
 		assertQuickFix('ko.observable(null);', 'a.ts', (elements) => {
 			assert.equal(elements.length, 1);
-			assert.equal(elements[0].label, "Download type definition knockout.d.ts");
+			assert.equal(elements[0].command.title, "Download type definition knockout.d.ts");
 		});
 
 		for (var id in quickfix.typingsMap) {
@@ -76,12 +76,12 @@ suite('TS - quick fix', () => {
 
 		assertQuickFix('foo.observable(null);', 'a.js', (elements) => {
 			assert.equal(elements.length, 1);
-			assert.equal(elements[0].label, "Mark 'foo' as global");
+			assert.equal(elements[0].command.title, "Mark 'foo' as global");
 		});
 
 		assertQuickFix('toString();', 'a.js', (elements) => {
 			assert.equal(elements.length, 1);
-			assert.equal(elements[0].label, "Mark 'toString' as global");
+			assert.equal(elements[0].command.title, "Mark 'toString' as global");
 		});
 
 	});

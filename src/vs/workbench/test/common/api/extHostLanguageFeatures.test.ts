@@ -615,8 +615,8 @@ suite('ExtHostLanguageFeatures', function() {
 		disposables.push(extHost.registerCodeActionProvider(defaultSelector, <vscode.CodeActionProvider>{
 			provideCodeActions(): any {
 				return [
-					<vscode.Command>{ command: 'test', title: 'Testing1' },
-					<vscode.Command>{ command: 'test', title: 'Testing2' }
+					<vscode.Command>{ command: 'test1', title: 'Testing1' },
+					<vscode.Command>{ command: 'test2', title: 'Testing2' }
 				];
 			}
 		}));
@@ -626,10 +626,10 @@ suite('ExtHostLanguageFeatures', function() {
 				assert.equal(value.length, 2);
 
 				let [first, second] = value;
-				assert.equal(first.label, 'Testing1');
-				assert.equal(first.id, String(0));
-				assert.equal(second.label, 'Testing2');
-				assert.equal(second.id, String(1));
+				assert.equal(first.command.title, 'Testing1');
+				assert.equal(first.command.id, 'test1');
+				assert.equal(second.command.title, 'Testing2');
+				assert.equal(second.command.id, 'test2');
 				done();
 			});
 		});
@@ -653,7 +653,7 @@ suite('ExtHostLanguageFeatures', function() {
 				assert.equal(value.length, 1);
 
 				let [entry] = value;
-				entry.support.runQuickFixAction(model.getAssociatedResource(), model.getFullModelRange(), entry.id).then(value => {
+				entry.support.runQuickFixAction(model.getAssociatedResource(), model.getFullModelRange(), entry).then(value => {
 					assert.equal(value, undefined);
 
 					assert.equal(actualArgs.length, 4);

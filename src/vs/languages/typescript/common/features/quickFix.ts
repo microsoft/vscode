@@ -15,7 +15,7 @@ import nls = require('vs/nls');
 import arrays = require('vs/base/common/arrays');
 import {IMarker} from 'vs/platform/markers/common/markers';
 
-export function evaluate(languageService: ts.LanguageService, resource: URI, range: EditorCommon.IRange, id: any): Modes.IQuickFixResult {
+export function evaluate(languageService: ts.LanguageService, resource: URI, range: EditorCommon.IRange, quickFix: Modes.IQuickFix): Modes.IQuickFixResult {
 
 	var filename = resource.toString(),
 		sourceFile = languageService.getSourceFile(filename),
@@ -26,7 +26,7 @@ export function evaluate(languageService: ts.LanguageService, resource: URI, ran
 		return null;
 	}
 
-	var command = JSON.parse(id);
+	var [command] = quickFix.command.arguments;
 	switch (command.type) {
 		case 'rename': {
 			var start = sourceFile.getLineAndCharacterOfPosition(token.getStart());
@@ -129,9 +129,12 @@ function computeRenameProposals(languageService:ts.LanguageService, resource:URI
 				}
 
 				fixes.push({
-					label: nls.localize('typescript.quickfix.rename', "Rename to '{0}'", entry.name),
-					id: JSON.stringify({ type: 'rename', name: entry.name }),
-					score: score
+					command: {
+						id: 'ts.renameTo',
+						title: nls.localize('typescript.quickfix.rename', "Rename to '{0}'", entry.name),
+						arguments: [{ type: 'rename', name: entry.name }]
+					},
+					score
 				});
 		}
 	});
@@ -204,19 +207,25 @@ function computeAddTypeDefinitionProposals(languageService: ts.LanguageService, 
 	if (typingsMap.hasOwnProperty(currentWord)) {
 		var mapping = typingsMap[currentWord];
 		var dtsRefs: string[] = Array.isArray(mapping) ? <string[]> mapping : [ <string> mapping ];
-		dtsRefs.forEach((dtsRef) => {
+		dtsRefs.forEach((dtsRef, idx) => {
 			result.push({
-				label: nls.localize('typescript.quickfix.typeDefinitions', "Download type definition {0}", dtsRef.split('/')[1]),
-				id: JSON.stringify({ type: 'typedefinitions', name: dtsRef }),
-				score: 1
+				command: {
+					id: 'ts.downloadDts',
+					title: nls.localize('typescript.quickfix.typeDefinitions', "Download type definition {0}", dtsRef.split('/')[1]),
+					arguments: [{ type: 'typedefinitions', name: dtsRef }]
+				},
+				score: idx
 			});
 		});
 	}
 
 	if (strings.endsWith(resource.path, '.js')) {
 		result.push({
-			label: nls.localize('typescript.quickfix.addAsGlobal', "Mark '{0}' as global", currentWord),
-			id: JSON.stringify({ type: 'addglobal', name: currentWord }),
+			command: {
+				id: 'ts.addAsGlobal',
+				title: nls.localize('typescript.quickfix.addAsGlobal', "Mark '{0}' as global", currentWord),
+				arguments: [{ type: 'addglobal', name: currentWord }]
+			},
 			score: 1
 		});
 	}

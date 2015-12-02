@@ -130,7 +130,7 @@ suite('Validation - CSS', () => {
 	};
 
 	var assertQuickFix= function(fixes: Modes.IQuickFix[], model: mm.MirrorModel, expectedContent:string[]) {
-		var labels = fixes.map(f => f.label);
+		var labels = fixes.map(f => f.command.title);
 
 		for (var index = 0; index < expectedContent.length; index++) {
 			assert.ok(labels.indexOf(expectedContent[index]) !== -1, 'Quick fix not found: ' + expectedContent[index]);

@@ -195,10 +195,10 @@ export class ExtHostLanguageFeatureCommands {
 			range: typeConverters.fromRange(range)
 		};
 		return this._commands.executeCommand<IQuickFix2[]>('_executeCodeActionProvider', args).then(value => {
-			if (Array.isArray(value)) {
-				// TODO@joh this isn't proper!
-				return value.map(quickFix => ({ title: quickFix.label }));
+			if (!Array.isArray(value)) {
+				return;
 			}
+			return value.map(quickFix => typeConverters.Command.to(quickFix.command));
 		});
 	}
 

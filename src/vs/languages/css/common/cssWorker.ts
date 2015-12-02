@@ -386,9 +386,12 @@ export class CSSWorker extends AbstractModeWorker {
 			var score = strings.difference(propertyName, p);
 			if (score >= propertyName.length / 2 /*score_lim*/) {
 				result.push({
-					label: nls.localize('css.quickfix.rename', "Rename to '{0}'", p),
-					id: JSON.stringify({ type: 'rename', name: p }),
-					score: score
+					command: {
+						id: 'css.renameProptery',
+						title: nls.localize('css.quickfix.rename', "Rename to '{0}'", p),
+						arguments: [{ type: 'rename', name: p }]
+					},
+					score
 				});
 			}
 		}
@@ -426,12 +429,12 @@ export class CSSWorker extends AbstractModeWorker {
 		});
 	}
 
-	public runQuickFixAction(resource:URI, range:EditorCommon.IRange, id: any):winjs.TPromise<Modes.IQuickFixResult>{
-		var command = JSON.parse(id);
-		switch (command.type) {
+	public runQuickFixAction(resource: URI, range: EditorCommon.IRange, quickFix: Modes.IQuickFix): winjs.TPromise<Modes.IQuickFixResult>{
+		let [{type, name}] = quickFix.command.arguments;
+		switch (type) {
 			case 'rename': {
 				return winjs.TPromise.as({
-					edits: [{ resource, range, newText: command.name }]
+					edits: [{ resource, range, newText: name }]
 				});
 			}
 		}

@@ -284,7 +284,6 @@ class QuickFixAdapter implements modes.IQuickFixSupport {
 	private _documents: PluginHostModelService;
 	private _commands: PluginHostCommands;
 	private _provider: vscode.CodeActionProvider;
-	private _cache: { [key: string]: vscode.Command[] } = Object.create(null);
 
 	constructor(documents: PluginHostModelService, commands: PluginHostCommands, provider: vscode.CodeActionProvider) {
 		this._documents = documents;
@@ -293,10 +292,6 @@ class QuickFixAdapter implements modes.IQuickFixSupport {
 	}
 
 	getQuickFixes(resource: URI, range: IRange, marker?: IMarker[]): TPromise<modes.IQuickFix[]> {
-
-		// return this._executeCommand(resource, range, markers);
-		const key = resource.toString();
-		delete this._cache[key];
 
 		const doc = this._documents.getDocument(resource);
 		const ran = TypeConverters.toRange(range);
@@ -311,32 +306,18 @@ class QuickFixAdapter implements modes.IQuickFixSupport {
 			if (!Array.isArray(commands)) {
 				return;
 			}
-
-			this._cache[key] = commands;
-
 			return commands.map((command, i) => {
 				return <modes.IQuickFix> {
-					id: String(i),
-					label: command.title,
-					score: 1
+					command: TypeConverters.Command.from(command),
+					score: i
 				};
 			});
 		});
 	}
 
-	runQuickFixAction(resource: URI, range: IRange, id: string): any {
-
-		let commands = this._cache[resource.toString()];
-		if (!commands) {
-			return TPromise.wrapError('no command for ' + resource.toString());
-		}
-
-		let command = commands[Number(id)];
-		if (!command) {
-			return TPromise.wrapError('no command for ' + resource.toString());
-		}
-
-		return this._commands.executeCommand(command.command, ...command.arguments);
+	runQuickFixAction(resource: URI, range: IRange, quickFix: modes.IQuickFix): any {
+		let {command} = quickFix;
+		return this._commands.executeCommand(command.id, ...command.arguments);
 	}
 }
 
@@ -755,8 +736,8 @@ export class ExtHostLanguageFeatures {
 		return this._withAdapter(handle, QuickFixAdapter, adapter => adapter.getQuickFixes(resource, range, marker));
 	}
 
-	$runQuickFixAction(handle: number, resource: URI, range: IRange, id: string): any {
-		return this._withAdapter(handle, QuickFixAdapter, adapter => adapter.runQuickFixAction(resource, range, id));
+	$runQuickFixAction(handle: number, resource: URI, range: IRange, quickFix: modes.IQuickFix): any {
+		return this._withAdapter(handle, QuickFixAdapter, adapter => adapter.runQuickFixAction(resource, range, quickFix));
 	}
 
 	// --- formatting
@@ -960,8 +941,8 @@ export class MainThreadLanguageFeatures {
 				});
 				return this._proxy.$getQuickFixes(handle, resource, range, markers);
 			},
-			runQuickFixAction: (resource: URI, range: IRange, id: string) => {
-				return this._proxy.$runQuickFixAction(handle, resource, range, id);
+			runQuickFixAction: (resource: URI, range: IRange, quickFix: modes.IQuickFix) => {
+				return this._proxy.$runQuickFixAction(handle, resource, range, quickFix);
 			}
 		});
 		return undefined;

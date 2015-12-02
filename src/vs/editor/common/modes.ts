@@ -471,10 +471,8 @@ export interface ISuggestSupport {
  * Interface used to quick fix typing errors while accesing member fields.
  */
 export interface IQuickFix {
-	label: string;
-	id: any;
+	command: ICommand;
 	score: number;
-	documentation?: string;
 }
 
 export interface IQuickFixResult {
@@ -484,7 +482,8 @@ export interface IQuickFixResult {
 
 export interface IQuickFixSupport {
 	getQuickFixes(resource: URI, range: IMarker | EditorCommon.IRange): TPromise<IQuickFix[]>;
-	runQuickFixAction(resource: URI, range: EditorCommon.IRange, id: any):TPromise<IQuickFixResult>;
+	//TODO@joh this should be removed in the furture such that we can trust the command and it's args
+	runQuickFixAction(resource: URI, range: EditorCommon.IRange, quickFix: IQuickFix):TPromise<IQuickFixResult>;
 }
 
 export interface IParameter {

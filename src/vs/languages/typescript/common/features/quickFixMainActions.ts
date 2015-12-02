@@ -34,8 +34,8 @@ export class QuickFixMainActions {
 		this._contextService = contextService;
 	}
 
-	public evaluate(resource: URI, range: EditorCommon.IRange, id: any) : winjs.TPromise<Modes.IQuickFixResult> {
-		var command = JSON.parse(id);
+	public evaluate(resource: URI, range: EditorCommon.IRange, quickFix: Modes.IQuickFix) : winjs.TPromise<Modes.IQuickFixResult> {
+		var [command] = quickFix.command.arguments;
 		switch (command.type) {
 			case 'typedefinitions': {
 				return this.evaluateAddTypeDefinitionProposal(command.name, resource);

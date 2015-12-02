@@ -270,8 +270,8 @@ suite('ExtHostLanguageFeatureCommands', function() {
 				assert.equal(value.length, 1);
 				let [first] = value;
 				assert.equal(first.title, 'Title');
-				// assert.equal(first.command, 'testing');
-				// assert.deepEqual(first.arguments, [1, 2, true]);
+				assert.equal(first.command, 'testing');
+				assert.deepEqual(first.arguments, [1, 2, true]);
 				done();
 			});
 		});

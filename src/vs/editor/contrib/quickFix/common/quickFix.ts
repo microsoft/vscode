@@ -19,6 +19,7 @@ export const QuickFixRegistry = new LanguageFeatureRegistry<IQuickFixSupport>('q
 
 export interface IQuickFix2 extends IQuickFix {
 	support: IQuickFixSupport;
+	id: string;
 }
 
 export function getQuickFixes(model: IModel, range: IRange): TPromise<IQuickFix2[]> {
@@ -29,12 +30,12 @@ export function getQuickFixes(model: IModel, range: IRange): TPromise<IQuickFix2
 			if (!Array.isArray(result)) {
 				return
 			}
+			let c = 0;
 			for (let fix of result) {
 				quickFixes.push({
-					id: fix.id,
-					label: fix.label,
-					documentation: fix.documentation,
+					command: fix.command,
 					score: fix.score,
+					id: `quickfix_#${c++}`,
 					support
 				});
 			}
