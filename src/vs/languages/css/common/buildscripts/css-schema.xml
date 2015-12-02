@@ -14490,7 +14490,7 @@
     <entry name="shape-margin" restriction="length, percentage" version="3.0" browsers="C37,O24" ref="http://www.w3.org/TR/css-shapes-1/#propdef-shape-margin" syntax="div { $(name): 10px; }">
       <desc>Adds a margin to a 'shape-outside'. This defines a new shape that is the smallest contour that includes all the points that are the 'shape-margin' distance outward in the perpendicular direction from a point on the underlying shape.</desc>
     </entry>
-    <entry name="shape-outside" restriction="" version="3.0" browsers="C37,O24" ref="http://www.w3.org/TR/css-shapes-1/#shape-outside-property" syntax="div { $(name): margin-box; }">
+    <entry name="shape-outside" restriction="enum" version="3.0" browsers="C37,O24" ref="http://www.w3.org/TR/css-shapes-1/#shape-outside-property" syntax="div { $(name): margin-box; }">
       <desc>This property specifies an orthogonal rotation to be applied to an image before it is laid out.</desc>
       <values>
         <value name="border-box" version="3.0" browsers="all">
@@ -14503,12 +14503,16 @@
         <value name="ellipse()" version="3.0" browsers="all" />
         <value name="image()" version="3.0" browsers="all" />
         <value name="inset()" version="3.0" browsers="all" />
+        <value name="linear-gradient()" version="3.0" browsers="all" />
         <value name="margin-box" version="3.0" browsers="all" />
         <value name="none" version="3.0" browsers="all" />
         <value name="padding-box" version="3.0" browsers="all">
           <desc>The background is painted within (clipped to) the padding box</desc>
         </value>
         <value name="polygon()" version="3.0" browsers="all" />
+        <value name="radial-gradient()" version="3.0" browsers="all" />
+        <value name="repeating-linear-gradient()" version="3.0" browsers="all" />
+        <value name="repeating-radial-gradient()" version="3.0" browsers="all" />
         <value name="url()" version="3.0" browsers="all" />
       </values>
     </entry>
