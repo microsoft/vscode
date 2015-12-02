@@ -232,11 +232,12 @@ export class HTMLWorker extends AbstractModeWorker {
 
 
 				this._tagProviders.forEach((provider) => {
-					provider.collectTags((tag) => {
+					provider.collectTags((tag, label) => {
 						suggestions.suggestions.push({
 							label: '/' + tag,
 							codeSnippet: '/' + tag + closeTag,
-							type: 'property'
+							type: 'property',
+							documentationLabel: label
 						});
 					});
 				});
@@ -245,11 +246,12 @@ export class HTMLWorker extends AbstractModeWorker {
 			collectClosingTagSuggestion(false);
 
 			this._tagProviders.forEach((provider) => {
-				provider.collectTags((tag) => {
+				provider.collectTags((tag, label) => {
 					suggestions.suggestions.push({
 						label: tag,
 						codeSnippet: tag,
-						type: 'property'
+						type: 'property',
+						documentationLabel: label
 					});
 				});
 			});
