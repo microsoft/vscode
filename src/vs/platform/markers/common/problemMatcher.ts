@@ -1089,8 +1089,8 @@ let matcher = {
 	pattern: defaultPattern('tsc'),
 	watching: {
 		activeOnStart: true,
-		beginsPattern: { regexp: /^\s*message TS6032: File change detected. Starting incremental compilation.../ },
-		endsPattern: { regexp: /^\s*message TS6042: Compilation complete. Watching for file changes./ }
+		beginsPattern: { regexp: /^\s*(?:message TS6032:|\d\d:\d\d:\d\d (?:AM|PM) -) File change detected\. Starting incremental compilation\.\.\./ },
+		endsPattern: { regexp: /^\s*(?:message TS6042:|\d\d:\d\d:\d\d (?:AM|PM) -) Compilation complete\. Watching for file changes\./ }
 	}
 };
 (<any>matcher).tscWatch = true;
