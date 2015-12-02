@@ -114,7 +114,7 @@ export class Win32AutoUpdaterImpl extends events.EventEmitter implements IAutoUp
 				return;
 			}
 
-			cp.spawn(updatePackagePath, ['/silent', '/mergetasks=!desktopicon,!quicklaunchicon'], {
+			cp.spawn(updatePackagePath, ['/silent', '/mergetasks=runcode,!desktopicon,!quicklaunchicon'], {
 				detached: true,
 				stdio: ['ignore', 'ignore', 'ignore']
 			});
