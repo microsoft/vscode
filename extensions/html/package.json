@@ -2,5 +2,10 @@
 	"name": "html",
 	"version": "0.1.0",
 	"publisher": "vscode",
-	"engines": { "vscode": "*" }
+	"engines": { "vscode": "*" },
+	"grammars": [{
+		// not used yet
+		"scopeName": "text.html.basic",
+		"path": "./syntaxes/LESS.tmLanguage"
+	}]
 }
