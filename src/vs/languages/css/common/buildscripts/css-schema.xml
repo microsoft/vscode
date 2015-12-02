@@ -4973,7 +4973,7 @@
         <value name="on" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="font-kerning" restriction="enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css3-fonts/#propdef-font-kerning" syntax="body { $(name): normal; }">
+    <entry name="font-kerning" restriction="enum" version="3.0" browsers="C33,FF34,O20" ref="http://www.w3.org/TR/css3-fonts/#propdef-font-kerning" syntax="body { $(name): normal; }">
       <desc>Kerning is the contextual adjustment of inter-glyph spacing. This property controls metric kerning, kerning that utilizes adjustment data contained in the font.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all" />
