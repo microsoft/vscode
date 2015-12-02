@@ -15952,7 +15952,7 @@
         </value>
       </values>
     </entry>
-    <entry name="text-overflow" restriction="enum" version="3.0" browsers="C,FF9,IE5.5,O11.6,S2" ref="http://www.w3.org/TR/css3-ui/#text-overflow0" syntax="span { $(name): ellipsis; }">
+    <entry name="text-overflow" restriction="enum" version="3.0" browsers="E,C,FF9,IE5.5,O11.6,S2" ref="http://www.w3.org/TR/css3-ui/#text-overflow0" syntax="span { $(name): ellipsis; }">
       <desc>Text can overflow for example when it is prevented from wrapping</desc>
       <values>
         <value name="clip" version="3.0" browsers="all">
