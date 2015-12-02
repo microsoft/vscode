@@ -5419,9 +5419,12 @@
         </value>
       </values>
     </entry>
-    <entry name="image-orientation" restriction="angle" version="3.0" browsers="none" ref="http://www.w3.org/TR/css4-images/#image-orientation" syntax="img.ninety { $(name): 90deg; }">
+    <entry name="image-orientation" restriction="angle" version="3.0" browsers="FF26" ref="http://www.w3.org/TR/css4-images/#image-orientation" syntax="img.ninety { $(name): 90deg; }">
       <desc>This property specifies an orthogonal rotation to be applied to an image before it is laid out.</desc>
       <values>
+        <value name="flip" version="3.0" browsers="all">
+          <desc>After rotating by the precededing angle, the image is flipped horizontally. Defaults to 0deg if the angle is ommitted.</desc>
+        </value>
         <value name="from-image" version="3.0" browsers="all">
           <desc>If the image has an orientation specified in its metadata, such as EXIF, this value computes to the angle that the metadata specifies is necessary to correctly orient the image.</desc>
         </value>
