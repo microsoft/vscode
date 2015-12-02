@@ -244,9 +244,6 @@ function setupIPC(): TPromise<Server> {
 	return setup(true);
 }
 
-function setupMutex() {
-}
-
 // On some platforms we need to manually read from the global environment variables
 // and assign them to the process environment (e.g. when doubleclick app on Mac)
 getUserEnvironment()
@@ -255,7 +252,6 @@ getUserEnvironment()
 
 		return timebomb()
 			.then(setupIPC)
-			.then(ipcServer => { setupMutex(); return ipcServer; })
 			.then(ipcServer => main(ipcServer, userEnv));
 	})
 	.done(null, quit);
