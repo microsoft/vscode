@@ -5207,7 +5207,6 @@
       <desc>Specifies the vertical position</desc>
       <values>
         <value name="normal" version="3.0" browsers="all" />
-        <value name="ordinal" version="3.0" browsers="all" />
         <value name="sub" version="3.0" browsers="all" />
         <value name="super" version="3.0" browsers="all" />
       </values>
