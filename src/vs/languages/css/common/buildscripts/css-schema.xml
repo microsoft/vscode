@@ -4981,7 +4981,7 @@
         <value name="normal" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="font-language-override" restriction="string" version="3.0" browsers="none" ref="http://www.w3.org/TR/css3-fonts/#font-language-override-prop" syntax="body { $(name): 'SRB'; }">
+    <entry name="font-language-override" restriction="string" version="3.0" browsers="FF4" ref="http://www.w3.org/TR/css3-fonts/#font-language-override-prop" syntax="body { $(name): 'SRB'; }">
       <desc>The value of 'normal' implies that when rendering with OpenType fonts the language of the document is used to infer the OpenType language system, used to select language specific features when rendering.</desc>
       <values>
         <value name="normal" version="3.0" browsers="all">
