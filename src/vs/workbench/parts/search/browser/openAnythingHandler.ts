@@ -50,7 +50,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 		this.openSymbolHandler.setStandalone(false);
 		this.openFileHandler.setStandalone(false);
 
-		this.resultsToSearchCache = {};
+		this.resultsToSearchCache = Object.create(null);
 		this.delayer = new ThrottledDelayer(OpenAnythingHandler.SEARCH_DELAY);
 	}
 
@@ -201,7 +201,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 		// Find cache entries by prefix of search value
 		let cachedEntries: QuickOpenEntry[];
 		for (let previousSearch in this.resultsToSearchCache) {
-			if (this.resultsToSearchCache.hasOwnProperty(previousSearch) && searchValue.indexOf(previousSearch) === 0) {
+			if (searchValue.indexOf(previousSearch) === 0) {
 				cachedEntries = this.resultsToSearchCache[previousSearch];
 				break;
 			}
@@ -257,7 +257,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 		this.isClosed = true;
 
 		// Clear Cache
-		this.resultsToSearchCache = {};
+		this.resultsToSearchCache = Object.create(null);
 
 		// Propagate
 		this.openSymbolHandler.onClose(canceled);

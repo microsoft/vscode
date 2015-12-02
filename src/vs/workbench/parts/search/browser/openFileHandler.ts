@@ -138,7 +138,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 			rootResources.push(this.contextService.getWorkspace().resource);
 		}
 
-		let query: IQueryOptions = { filePatterns: [{ pattern: searchValue }], rootResources: rootResources };
+		let query: IQueryOptions = { filePattern: searchValue, rootResources: rootResources };
 
 		return this.queryBuilder.file(query).then((query) => {
 			this.pendingSearch = this.searchService.search(query);

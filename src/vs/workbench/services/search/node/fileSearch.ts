@@ -9,6 +9,7 @@ import fs = require('fs');
 import paths = require('path');
 
 import types = require('vs/base/common/types');
+import filters = require('vs/base/common/filters');
 import arrays = require('vs/base/common/arrays');
 import strings = require('vs/base/common/strings');
 import glob = require('vs/base/common/glob');
@@ -18,159 +19,12 @@ import extfs = require('vs/base/node/extfs');
 import flow = require('vs/base/node/flow');
 import {ISerializedFileMatch, IRawSearch, ISearchEngine} from 'vs/workbench/services/search/node/rawSearchService';
 
-export class CamelCaseExp implements IExpression {
-	private pattern: string;
-
-	constructor(pattern: string) {
-		this.pattern = pattern.toLowerCase();
-	}
-
-	public test(value: string): boolean {
-		if (value.length === 0) {
-			return false;
-		}
-
-		let pattern = this.pattern.toLowerCase();
-		let result: boolean;
-		let i = 0;
-
-		while (i < value.length && !(result = matches(pattern, value, 0, i))) {
-			i = nextAnchor(value, i + 1);
-		}
-
-		return result;
-	}
-}
-
-function isUpper(c: string): boolean {
-	let code = c.charCodeAt(0);
-
-	return 65 <= code && code <= 90;
-}
-
-function isNumber(c: string): boolean {
-	let code = c.charCodeAt(0);
-
-	return 48 <= code && code <= 57;
-}
-
-function nextAnchor(value: string, start: number): number {
-	let c: string;
-	for (let i = start; i < value.length; i++) {
-		c = value[i];
-		if (isUpper(c) || isNumber(c)) {
-			return i;
-		}
-	}
-
-	return value.length;
-}
-
-function matches(pattern: string, value: string, patternIndex: number, valueIndex: number): boolean {
-	if (patternIndex === pattern.length) {
-		return true;
-	}
-
-	if (valueIndex === value.length) {
-		return false;
-	}
-
-	if (pattern[patternIndex] !== value[valueIndex].toLowerCase()) {
-		return false;
-	}
-
-	let nextUpperIndex = valueIndex + 1;
-	let result = matches(pattern, value, patternIndex + 1, valueIndex + 1);
-	while (!result && (nextUpperIndex = nextAnchor(value, nextUpperIndex)) < value.length) {
-		result = matches(pattern, value, patternIndex + 1, nextUpperIndex);
-		nextUpperIndex++;
-	}
-
-	return result;
-}
-
-function isCamelCasePattern(pattern: string): boolean {
-	return (/^\w[\w.]*$/).test(pattern);
-}
-
-export interface IExpression {
-	test: (value: string) => boolean;
-}
-
-export class FilePatterns {
-
-	private static DOT = '.'.charCodeAt(0);
-
-	private expressions: IExpression[];
-
-	constructor(expressions: IPatternInfo[]) {
-		this.expressions = [];
-
-		for (let i = 0; i < expressions.length; i++) {
-			let expression = expressions[i];
-			let exp: IExpression;
-
-			// Match all
-			if (!expression.pattern) {
-				exp = { test: () => true };
-			}
-
-			// RegExp
-			else if (expression.isRegExp) {
-				try {
-					exp = new RegExp(expression.pattern, 'i');
-				} catch (e) {
-					if (e instanceof SyntaxError) {
-						exp = { test: () => true };
-					} else {
-						throw e;
-					}
-				}
-			}
-
-			// Camelcase
-			else if (isCamelCasePattern(expression.pattern)) {
-				exp = new CamelCaseExp(expression.pattern);
-			}
-
-			// String
-			else {
-				if (expression.pattern.charCodeAt(0) === FilePatterns.DOT) {
-					expression.pattern = '*' + expression.pattern; // convert a .<something> to a *.<something> query
-				}
-
-				// escape to regular expressions
-				expression.pattern = strings.anchorPattern(strings.convertSimple2RegExpPattern(expression.pattern), true, false);
-
-				exp = new RegExp(expression.pattern, 'i');
-			}
-
-			this.expressions.push(exp);
-		}
-	}
-
-	public static hasPatterns(expressions: IPatternInfo[]): boolean {
-		return expressions && expressions.length > 0 && expressions.some(e => !!e.pattern);
-	}
-
-	public test(value: string): IExpression {
-		for (let i = 0; i < this.expressions.length; i++) {
-			let exp = this.expressions[i];
-			if (exp.test(value)) {
-				return exp;
-			}
-		}
-
-		return null;
-	}
-}
-
 export class FileWalker {
 
 	private static ENOTDIR = 'ENOTDIR';
 
 	private config: IRawSearch;
-	private patterns: FilePatterns;
+	private filePattern: string;
 	private excludePattern: glob.IExpression;
 	private includePattern: glob.IExpression;
 	private maxResults: number;
@@ -182,7 +36,7 @@ export class FileWalker {
 
 	constructor(config: IRawSearch) {
 		this.config = config;
-		this.patterns = FilePatterns.hasPatterns(config.filePatterns) && new FilePatterns(config.filePatterns);
+		this.filePattern = config.filePattern;
 		this.excludePattern = config.excludePattern;
 		this.includePattern = config.includePattern;
 		this.maxResults = config.maxResults || null;
@@ -227,7 +81,7 @@ export class FileWalker {
 					}
 
 					// Check for match on file pattern and include pattern
-					if ((!this.patterns || this.patterns.test(paths.basename(absolutePath))) && (!this.includePattern || glob.match(this.includePattern, absolutePath))) {
+					if (this.isFilePatternMatch(paths.basename(absolutePath)) && (!this.includePattern || glob.match(this.includePattern, absolutePath))) {
 						this.resultCount++;
 
 						if (this.maxResults && this.resultCount > this.maxResults) {
@@ -264,7 +118,7 @@ export class FileWalker {
 			// to ignore filtering by siblings because the user seems to know what she
 			// is searching for and we want to include the result in that case anyway
 			let siblings = files;
-			if (this.config.filePatterns && this.config.filePatterns.length === 1 && this.config.filePatterns[0].pattern === file) {
+			if (this.config.filePattern === file) {
 				siblings = [];
 			}
 
@@ -302,7 +156,7 @@ export class FileWalker {
 				if ((<any>error).code === FileWalker.ENOTDIR && !this.isCanceled && !this.isLimitHit) {
 
 					// Check for match on file pattern and include pattern
-					if ((!this.patterns || this.patterns.test(file)) && (!this.includePattern || glob.match(this.includePattern, relativeFilePath, children))) {
+					if (this.isFilePatternMatch(file) && (!this.includePattern || glob.match(this.includePattern, relativeFilePath, children))) {
 						this.resultCount++;
 
 						if (this.maxResults && this.resultCount > this.maxResults) {
@@ -327,6 +181,19 @@ export class FileWalker {
 
 			return done(error && error.length > 0 ? error[0] : null, null);
 		});
+	}
+
+	private isFilePatternMatch(path: string): boolean {
+
+		// Check for search pattern
+		if (this.filePattern) {
+			const res = filters.matchesFuzzy(this.filePattern, path);
+
+			return !!res && res.length > 0;
+		}
+
+		// No patterns means we match all
+		return true;
 	}
 
 	private realPathLink(path: string, clb: (error: Error, realpath?: string) => void): void {
