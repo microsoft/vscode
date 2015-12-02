@@ -5159,6 +5159,12 @@
         <value name="common-ligatures" version="3.0" browsers="all">
           <desc>Enables display of common ligatures.</desc>
         </value>
+        <value name="contextual" version="3.0" browsers="all">
+          <desc>Enables display of contextual alternates.</desc>
+        </value>
+        <value name="discretionary-ligatures" version="3.0" browsers="all">
+          <desc>Enables display of discretionary ligatures.</desc>
+        </value>
         <value name="historical-ligatures" version="3.0" browsers="all">
           <desc>Enables display of historical ligatures.</desc>
         </value>
@@ -5168,8 +5174,17 @@
         <value name="no-common-ligatures" version="3.0" browsers="all">
           <desc>Disables display of common ligatures.</desc>
         </value>
+        <value name="no-contextual" version="3.0" browsers="all">
+          <desc>Disables display of contextual alternates.</desc>
+        </value>
+        <value name="no-discretionary-ligatures" version="3.0" browsers="all">
+          <desc>Disables display of discretionary ligatures.</desc>
+        </value>
         <value name="no-historical-ligatures" version="3.0" browsers="all">
           <desc>Disables display of historical ligatures.</desc>
+        </value>
+        <value name="none" version="3.0" browsers="all">
+          <desc>Disables all ligatures.</desc>
         </value>
         <value name="normal" version="3.0" browsers="all">
           <desc>Implies that the defaults set by the font are used.</desc>
