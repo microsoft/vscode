@@ -5003,7 +5003,7 @@
         <value name="xx-small" version="1.0" browsers="all" />
       </values>
     </entry>
-    <entry name="font-size-adjust" restriction="number" version="3.0" browsers="FF3.5,IE10" ref="http://www.w3.org/TR/css3-fonts/#font-size-adjust" syntax="div { $(name): 0.58; }">
+    <entry name="font-size-adjust" restriction="number" version="3.0" browsers="E,FF3,IE10" ref="http://www.w3.org/TR/css3-fonts/#font-size-adjust" syntax="div { $(name): 0.58; }">
       <desc>This property is a way to preserve the readability of text when font fallback occurs. It does this by adjusting the font-size so that the x-height is the same irregardless of the font used.</desc>
       <values>
         <value name="none" version="3.0" browsers="all">
@@ -5018,7 +5018,7 @@
         <value name="expanded" version="3.0" browsers="all" />
         <value name="extra-condensed" version="3.0" browsers="all" />
         <value name="extra-expanded" version="3.0" browsers="all" />
-        <value name="narrower" version="3.0" browsers="IE10">
+        <value name="narrower" version="3.0" browsers="E,IE10">
           <desc>Indicates a narrower value relative to the width of the parent element.</desc>
         </value>
         <value name="normal" version="3.0" browsers="all" />
@@ -5026,7 +5026,7 @@
         <value name="semi-expanded" version="3.0" browsers="all" />
         <value name="ultra-condensed" version="3.0" browsers="all" />
         <value name="ultra-expanded" version="3.0" browsers="all" />
-        <value name="wider" version="3.0" browsers="IE10">
+        <value name="wider" version="3.0" browsers="E,IE10">
           <desc>Indicates a wider value relative to the width of the parent element.</desc>
         </value>
       </values>
