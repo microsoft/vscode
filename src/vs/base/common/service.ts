@@ -155,7 +155,7 @@ export class Server {
 				this.protocol.send(<IRawResponse> { id, data: {
 					message: data.message,
 					name: data.name,
-					stack: data.stack.split('\n')
+					stack: data.stack ? data.stack.split('\n') : void 0
 				}, type: ResponseType.Error });
 			} else {
 				this.protocol.send(<IRawResponse> { id, data, type: ResponseType.ErrorObj });
