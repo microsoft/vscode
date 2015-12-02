@@ -5093,7 +5093,7 @@
         </value>
       </values>
     </entry>
-    <entry name="font-variant-caps" restriction="enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css3-fonts/#font-variant-caps-prop" syntax="p { $(name): titling-caps; }">
+    <entry name="font-variant-caps" restriction="enum" version="3.0" browsers="FF26" ref="http://www.w3.org/TR/css3-fonts/#font-variant-caps-prop" syntax="p { $(name): titling-caps; }">
       <desc>Specifies control over capitalized forms.</desc>
       <values>
         <value name="all-petite-caps" version="3.0" browsers="all">
