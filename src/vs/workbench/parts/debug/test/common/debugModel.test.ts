@@ -55,7 +55,9 @@ suite('Debug - Model', () => {
 		assert.equal(model.getBreakpoints().length, 5);
 		var bp = model.getBreakpoints()[0];
 		var originalLineLumber = bp.lineNumber;
-		model.updateBreakpoint(bp.getId(), 100, false);
+		const update:any = {};
+		update[bp.getId()] = { line: 100, verified: false };
+		model.updateBreakpoints(update);
 		assert.equal(bp.lineNumber, 100);
 		assert.equal(bp.desiredLineNumber, originalLineLumber);
 

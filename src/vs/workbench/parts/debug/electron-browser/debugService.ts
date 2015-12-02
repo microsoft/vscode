@@ -589,8 +589,12 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		});
 		this.editorService.focusEditor();
 
+		// Set breakpoints back to unverified since the session ended.
+		const data: {[id: string]: { line: number, verified: boolean } } = { };
+		this.model.getBreakpoints().forEach(bp => data[bp.getId()] = { line: bp.lineNumber, verified: false });
+		this.model.updateBreakpoints(data);
+
 		this.model.clearThreads(true);
-		this.model.getBreakpoints().forEach(bp => this.model.updateBreakpoint(bp.getId(), bp.lineNumber, false));
 		this.setFocusedStackFrameAndEvaluate(null);
 		this.setStateAndEmit(debug.State.Inactive);
 		this.inDebugMode.reset();
@@ -747,14 +751,14 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 			this.model.getBreakpoints().filter(bp => this.model.areBreakpointsActivated() && bp.enabled && bp.source.uri.toString() === modelUri.toString()),
 			bp =>  `${ bp.desiredLineNumber }`
 		);
+
 		return this.session.setBreakpoints({ source: Source.fromUri(modelUri).toRawSource(), lines: breakpointsToSend.map(bp => bp.desiredLineNumber) }).then(response => {
-			let index = 0;
-			breakpointsToSend.forEach(bp => {
-				const rawBreakpointData = response.body.breakpoints[index++];
-				if (bp.lineNumber !== rawBreakpointData.line || !rawBreakpointData.verified !== bp.error) {
-					this.model.updateBreakpoint(bp.getId(), rawBreakpointData.line, !rawBreakpointData.verified);
-				}
-			});
+			const data: {[id: string]: { line: number, verified: boolean } } = { };
+			for (let i = 0; i < breakpointsToSend.length; i++) {
+				data[breakpointsToSend[i].getId()] = response.body.breakpoints[i];
+			}
+
+			this.model.updateBreakpoints(data);
 		});
 	}
 
