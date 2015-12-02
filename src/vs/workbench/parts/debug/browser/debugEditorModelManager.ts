@@ -109,11 +109,12 @@ export class DebugEditorModelManager implements wbext.IWorkbenchContribution {
 
 	private createBreakpointDecorations(breakpoints: IBreakpoint[]): editorcommon.IModelDeltaDecoration[] {
 		// Add decorations for the breakpoints
-		var breakpointsActivated = this.debugService.getModel().areBreakpointsActivated();
+		const activated = this.debugService.getModel().areBreakpointsActivated();
 		return breakpoints.map((breakpoint) => {
 			return {
-				options: breakpoint.enabled && breakpointsActivated ? DebugEditorModelManager.BREAKPOINT_DECORATION : DebugEditorModelManager.BREAKPOINT_DISABLED_DECORATION,
-				range: DebugEditorModelManager.createRange(breakpoint.lineNumber, 1, breakpoint.lineNumber, 2)
+				options: (!breakpoint.enabled || !activated) ? DebugEditorModelManager.BREAKPOINT_DISABLED_DECORATION :
+					breakpoint.error ? DebugEditorModelManager.BREAKPOINT_ERROR_DECORATION : DebugEditorModelManager.BREAKPOINT_DECORATION,
+				range: createRange(breakpoint.lineNumber, 1, breakpoint.lineNumber, 2)
 			};
 		});
 	}
@@ -300,6 +301,11 @@ export class DebugEditorModelManager implements wbext.IWorkbenchContribution {
 
 	private static BREAKPOINT_DISABLED_DECORATION: editorcommon.IModelDecorationOptions = {
 		glyphMarginClassName: 'debug-breakpoint-glyph-disabled',
+		stickiness: editorcommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
+	};
+
+	private static BREAKPOINT_ERROR_DECORATION: editorcommon.IModelDecorationOptions = {
+		glyphMarginClassName: 'debug-breakpoint-glyph-error',
 		stickiness: editorcommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
 	};
 
