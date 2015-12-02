@@ -151,29 +151,29 @@ export enum State {
 
 export interface IGlobalConfig {
 	version: string;
-	debugServer: number;
+	debugServer?: number;
 	configurations: IConfig[];
 }
 
 export interface IConfig {
-	name: string;
+	name?: string;
 	type: string;
 	request: string;
-	program: string;
-	stopOnEntry: boolean;
-	args: string[];
-	cwd: string;
-	runtimeExecutable: string;
-	runtimeArgs: string[];
-	env: { [key: string]: string; };
-	sourceMaps: boolean;
-	outDir: string;
-	address: string;
-	port: number;
-	preLaunchTask: string;
-	externalConsole: boolean;
-	debugServer: number;
-	extensionHostData: any;
+	program?: string;
+	stopOnEntry?: boolean;
+	args?: string[];
+	cwd?: string;
+	runtimeExecutable?: string;
+	runtimeArgs?: string[];
+	env?: { [key: string]: string; };
+	sourceMaps?: boolean;
+	outDir?: string;
+	address?: string;
+	port?: number;
+	preLaunchTask?: string;
+	externalConsole?: boolean;
+	debugServer?: number;
+	extensionHostData?: any;
 }
 
 export interface IRawEnvAdapter {
