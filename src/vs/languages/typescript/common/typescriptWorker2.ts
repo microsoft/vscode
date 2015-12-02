@@ -7,7 +7,6 @@
 import winjs = require('vs/base/common/winjs.base');
 import paths = require('vs/base/common/paths');
 import URI from 'vs/base/common/uri';
-import network = require('vs/base/common/network');
 import lifecycle = require('vs/base/common/lifecycle');
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
@@ -154,7 +153,7 @@ export class TypeScriptWorker2 extends AbstractModeWorker {
 		return new supports.WorkerInplaceReplaceSupport(this.resourceService, this);
 	}
 
-	public doValidate(resource: network.URL): void {
+	public doValidate(resource: URI): void {
 		var project = this._projectService.getProject(resource);
 		var markers: IMarker[] = [];
 		markers.push.apply(markers, diagnostics.getSyntacticDiagnostics(project.languageService, resource, project.host.getCompilationSettings(),
@@ -227,7 +226,7 @@ export class TypeScriptWorker2 extends AbstractModeWorker {
 		return winjs.TPromise.as(result);
 	}
 
-	public findDeclaration(resource:network.URL, position:EditorCommon.IPosition):winjs.TPromise<Modes.IReference> {
+	public findDeclaration(resource: URI, position:EditorCommon.IPosition):winjs.TPromise<Modes.IReference> {
 		// return winjs.TPromise.join([
 		// 	this._findLinkTarget(resource, position),
 		// 	this._findTypeScriptDeclaration(resource, position)

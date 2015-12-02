@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import URI from 'vs/base/common/uri';
 import winjs = require('vs/base/common/winjs.base');
 import {AbstractModeWorker} from 'vs/editor/common/modes/abstractModeWorker';
 import beautifyHTML = require('vs/languages/lib/common/beautify-html');
@@ -53,7 +54,7 @@ export class HTMLWorker extends AbstractModeWorker {
 		providers.push(htmlTags.getAngularTagProvider());
 	}
 
-	public format(resource: network.URL, range: EditorCommon.IRange, options: Modes.IFormattingOptions): winjs.TPromise<EditorCommon.ISingleEditOperation[]> {
+	public format(resource: URI, range: EditorCommon.IRange, options: Modes.IFormattingOptions): winjs.TPromise<EditorCommon.ISingleEditOperation[]> {
 		return this._delegateToModeAtPosition(resource, Position.startPosition(range), (isEmbeddedMode, model) => {
 			if (isEmbeddedMode && model.getMode().formattingSupport) {
 				return model.getMode().formattingSupport.formatRange(model.getAssociatedResource(), range, options);
@@ -63,7 +64,7 @@ export class HTMLWorker extends AbstractModeWorker {
 		});
 	}
 
-	private formatHTML(resource: network.URL, range: EditorCommon.IRange, options: Modes.IFormattingOptions): winjs.TPromise<EditorCommon.ISingleEditOperation[]> {
+	private formatHTML(resource: URI, range: EditorCommon.IRange, options: Modes.IFormattingOptions): winjs.TPromise<EditorCommon.ISingleEditOperation[]> {
 		var model = this.resourceService.get(resource);
 		var value = range ? model.getValueInRange(range) : model.getValue();
 
@@ -79,7 +80,7 @@ export class HTMLWorker extends AbstractModeWorker {
 		}]);
 	}
 
-	_delegateToModeAtPosition<T>(resource:network.URL, position:EditorCommon.IPosition, callback:(isEmbeddedMode:boolean, model:EditorCommon.IMirrorModel) => T): T {
+	_delegateToModeAtPosition<T>(resource:URI, position:EditorCommon.IPosition, callback:(isEmbeddedMode:boolean, model:EditorCommon.IMirrorModel) => T): T {
 		var model = this.resourceService.get(resource);
 
 		if (!model) {
@@ -97,7 +98,7 @@ export class HTMLWorker extends AbstractModeWorker {
 		return callback(modeAtPosition.getId() !== this._getMode().getId(), modelAtPosition);
 	}
 
-	_delegateToAllModes<T>(resource:network.URL, callback:(models:EditorCommon.IMirrorModel[]) => T): T {
+	_delegateToAllModes<T>(resource:URI, callback:(models:EditorCommon.IMirrorModel[]) => T): T {
 		var model = this.resourceService.get(resource);
 
 		if (!model) {
@@ -107,7 +108,7 @@ export class HTMLWorker extends AbstractModeWorker {
 		return callback(model.getAllEmbedded());
 	}
 
-	public computeInfo(resource:network.URL, position:EditorCommon.IPosition): winjs.TPromise<Modes.IComputeExtraInfoResult> {
+	public computeInfo(resource:URI, position:EditorCommon.IPosition): winjs.TPromise<Modes.IComputeExtraInfoResult> {
 		return this._delegateToModeAtPosition(resource, position, (isEmbeddedMode, model) => {
 			if (isEmbeddedMode && model.getMode().extraInfoSupport) {
 				return model.getMode().extraInfoSupport.computeInfo(model.getAssociatedResource(), position);
@@ -115,7 +116,7 @@ export class HTMLWorker extends AbstractModeWorker {
 		});
 	}
 
-	public findReferences(resource:network.URL, position:EditorCommon.IPosition, includeDeclaration:boolean): winjs.TPromise<Modes.IReference[]> {
+	public findReferences(resource:URI, position:EditorCommon.IPosition, includeDeclaration:boolean): winjs.TPromise<Modes.IReference[]> {
 		return this._delegateToModeAtPosition(resource, position, (isEmbeddedMode, model) => {
 			if (isEmbeddedMode && model.getMode().referenceSupport) {
 				return model.getMode().referenceSupport.findReferences(model.getAssociatedResource(), position, includeDeclaration);
@@ -123,7 +124,7 @@ export class HTMLWorker extends AbstractModeWorker {
 		});
 	}
 
-	public getRangesToPosition(resource:network.URL, position:EditorCommon.IPosition):winjs.TPromise<Modes.ILogicalSelectionEntry[]> {
+	public getRangesToPosition(resource:URI, position:EditorCommon.IPosition):winjs.TPromise<Modes.ILogicalSelectionEntry[]> {
 		return this._delegateToModeAtPosition(resource, position, (isEmbeddedMode, model) => {
 			if (isEmbeddedMode && model.getMode().logicalSelectionSupport) {
 				return model.getMode().logicalSelectionSupport.getRangesToPosition(model.getAssociatedResource(), position);
@@ -131,7 +132,7 @@ export class HTMLWorker extends AbstractModeWorker {
 		});
 	}
 
-	public findDeclaration(resource:network.URL, position:EditorCommon.IPosition):winjs.TPromise<Modes.IReference> {
+	public findDeclaration(resource:URI, position:EditorCommon.IPosition):winjs.TPromise<Modes.IReference> {
 		return this._delegateToModeAtPosition(resource, position, (isEmbeddedMode, model) => {
 			if (isEmbeddedMode && model.getMode().declarationSupport) {
 				return model.getMode().declarationSupport.findDeclaration(model.getAssociatedResource(), position);
@@ -139,7 +140,7 @@ export class HTMLWorker extends AbstractModeWorker {
 		});
 	}
 
-	public findColorDeclarations(resource:network.URL):winjs.TPromise<{range:EditorCommon.IRange; value:string; }[]> {
+	public findColorDeclarations(resource:URI):winjs.TPromise<{range:EditorCommon.IRange; value:string; }[]> {
 		return this._delegateToAllModes(resource, (models) => {
 			var allPromises: winjs.TPromise<IColorRange[]>[] = [];
 
@@ -157,7 +158,7 @@ export class HTMLWorker extends AbstractModeWorker {
 		});
 	}
 
-	public getParameterHints(resource:network.URL, position:EditorCommon.IPosition):winjs.TPromise<Modes.IParameterHints> {
+	public getParameterHints(resource:URI, position:EditorCommon.IPosition):winjs.TPromise<Modes.IParameterHints> {
 		return this._delegateToModeAtPosition(resource, position, (isEmbeddedMode, model) => {
 			if (isEmbeddedMode && model.getMode().parameterHintsSupport) {
 				return model.getMode().parameterHintsSupport.getParameterHints(model.getAssociatedResource(), position);
@@ -319,7 +320,7 @@ export class HTMLWorker extends AbstractModeWorker {
 		});
 	}
 
-	public suggest(resource:network.URL, position:EditorCommon.IPosition, triggerCharacter?:string):winjs.TPromise<Modes.ISuggestions[]> {
+	public suggest(resource:URI, position:EditorCommon.IPosition, triggerCharacter?:string):winjs.TPromise<Modes.ISuggestions[]> {
 		return this._delegateToModeAtPosition(resource, position, (isEmbeddedMode, model) => {
 			if (isEmbeddedMode && model.getMode().suggestSupport) {
 				return model.getMode().suggestSupport.suggest(model.getAssociatedResource(), position, triggerCharacter);
@@ -329,11 +330,11 @@ export class HTMLWorker extends AbstractModeWorker {
 		});
 	}
 
-	public suggestHTML(resource:network.URL, position:EditorCommon.IPosition):winjs.TPromise<Modes.ISuggestions[]> {
+	public suggestHTML(resource:URI, position:EditorCommon.IPosition):winjs.TPromise<Modes.ISuggestions[]> {
 		return super.suggest(resource, position);
 	}
 
-	public doSuggest(resource: network.URL, position: EditorCommon.IPosition): winjs.TPromise<Modes.ISuggestions> {
+	public doSuggest(resource: URI, position: EditorCommon.IPosition): winjs.TPromise<Modes.ISuggestions> {
 
 		var model = this.resourceService.get(resource),
 			currentWord = model.getWordUntilPosition(position).word;
@@ -456,7 +457,7 @@ export class HTMLWorker extends AbstractModeWorker {
 
 	}
 
-	public findOccurrences(resource:network.URL, position:EditorCommon.IPosition, strict:boolean = false): winjs.TPromise<Modes.IOccurence[]> {
+	public findOccurrences(resource:URI, position:EditorCommon.IPosition, strict:boolean = false): winjs.TPromise<Modes.IOccurence[]> {
 		return this._delegateToModeAtPosition(resource, position, (isEmbeddedMode, model) => {
 			if (isEmbeddedMode && model.getMode().occurrencesSupport) {
 				return model.getMode().occurrencesSupport.findOccurrences(model.getAssociatedResource(), position, strict);
@@ -466,7 +467,7 @@ export class HTMLWorker extends AbstractModeWorker {
 		});
 	}
 
-	public findOccurrencesHTML(resource:network.URL, position:EditorCommon.IPosition, strict?:boolean):winjs.TPromise<Modes.IOccurence[]> {
+	public findOccurrencesHTML(resource:URI, position:EditorCommon.IPosition, strict?:boolean):winjs.TPromise<Modes.IOccurence[]> {
 
 		var model = this.resourceService.get(resource),
 			wordAtPosition = model.getWordAtPosition(position),
@@ -648,7 +649,7 @@ export class HTMLWorker extends AbstractModeWorker {
 		return newLinks;
 	}
 
-	public computeLinks(resource: network.URL): winjs.TPromise<Modes.ILink[]> {
+	public computeLinks(resource: URI): winjs.TPromise<Modes.ILink[]> {
 
 		return super.computeLinks(resource).then((oldLinks) => {
 

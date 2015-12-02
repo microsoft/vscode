@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import network = require('vs/base/common/network');
 import arrays = require('vs/base/common/arrays');
+import network = require('vs/base/common/network');
 import strings = require('vs/base/common/strings');
 import collections = require('vs/base/common/collections');
 import URI from 'vs/base/common/uri';
@@ -18,7 +18,7 @@ import {IMarkerService, IMarkerData, MarkerType, IResourceMarker, IMarker, Marke
 
 interface Key {
 	owner: string;
-	resource: network.URL;
+	resource: URI;
 }
 
 module Key {
@@ -27,7 +27,7 @@ module Key {
 		var regexp = /^(.*)→(.*)$/.exec(value);
 		return {
 			owner: regexp[1],
-			resource: network.URL.fromValue(regexp[2])
+			resource: URI.parse(regexp[2])
 		};
 	}
 
@@ -92,7 +92,7 @@ export class MarkerService implements IMarkerService, IThreadSynchronizableObjec
 		return this._onMarkerChanged ? this._onMarkerChanged.event : null;
 	}
 
-	public changeOne(owner: string, resource: network.URL, markers: IMarkerData[]): void {
+	public changeOne(owner: string, resource: URI, markers: IMarkerData[]): void {
 		if (this._doChangeOne(owner, resource, markers)) {
 			this._onMarkerChanged.fire([resource]);
 		}

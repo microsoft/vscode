@@ -7,7 +7,7 @@
 import WinJS = require('vs/base/common/winjs.base');
 import supports = require('vs/editor/common/modes/supports');
 import objects = require('vs/base/common/objects');
-import Network = require('vs/base/common/network');
+import URI from 'vs/base/common/uri';
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
 import {OneWorkerAttr} from 'vs/platform/thread/common/threadService';
@@ -345,27 +345,27 @@ export class CSSMode extends AbstractMode<cssWorker.CSSWorker> {
 	}
 
 	static $findDeclaration = OneWorkerAttr(CSSMode, CSSMode.prototype.findDeclaration);
-	public findDeclaration(resource:Network.URL, position:EditorCommon.IPosition):WinJS.TPromise<Modes.IReference> {
+	public findDeclaration(resource:URI, position:EditorCommon.IPosition):WinJS.TPromise<Modes.IReference> {
 		return this._worker((w) => w.findDeclaration(resource, position));
 	}
 
 	static $computeInfo = OneWorkerAttr(CSSMode, CSSMode.prototype.computeInfo);
-	public computeInfo(resource:Network.URL, position:EditorCommon.IPosition): WinJS.TPromise<Modes.IComputeExtraInfoResult> {
+	public computeInfo(resource:URI, position:EditorCommon.IPosition): WinJS.TPromise<Modes.IComputeExtraInfoResult> {
 		return this._worker((w) => w.computeInfo(resource, position));
 	}
 
 	static $findReferences = OneWorkerAttr(CSSMode, CSSMode.prototype.findReferences);
-	public findReferences(resource:Network.URL, position:EditorCommon.IPosition):WinJS.TPromise<Modes.IReference[]> {
+	public findReferences(resource:URI, position:EditorCommon.IPosition):WinJS.TPromise<Modes.IReference[]> {
 		return this._worker((w) => w.findReferences(resource, position));
 	}
 
 	static $getRangesToPosition = OneWorkerAttr(CSSMode, CSSMode.prototype.getRangesToPosition);
-	public getRangesToPosition(resource:Network.URL, position:EditorCommon.IPosition):WinJS.TPromise<Modes.ILogicalSelectionEntry[]> {
+	public getRangesToPosition(resource:URI, position:EditorCommon.IPosition):WinJS.TPromise<Modes.ILogicalSelectionEntry[]> {
 		return this._worker((w) => w.getRangesToPosition(resource, position));
 	}
 
 	static $getOutline = OneWorkerAttr(CSSMode, CSSMode.prototype.getOutline);
-	public getOutline(resource:Network.URL):WinJS.TPromise<Modes.IOutlineEntry[]> {
+	public getOutline(resource:URI):WinJS.TPromise<Modes.IOutlineEntry[]> {
 		return this._worker((w) => w.getOutline(resource));
 	}
 
@@ -379,17 +379,17 @@ export class CSSMode extends AbstractMode<cssWorker.CSSWorker> {
 	}
 
 	static $findColorDeclarations = OneWorkerAttr(CSSMode, CSSMode.prototype.findColorDeclarations);
-	public findColorDeclarations(resource:Network.URL):WinJS.TPromise<{range:EditorCommon.IRange; value:string; }[]> {
+	public findColorDeclarations(resource:URI):WinJS.TPromise<{range:EditorCommon.IRange; value:string; }[]> {
 		return this._worker((w) => w.findColorDeclarations(resource));
 	}
 
 	static getQuickFixes = OneWorkerAttr(CSSMode, CSSMode.prototype.getQuickFixes);
-	public getQuickFixes(resource: Network.URL, marker: IMarker | EditorCommon.IRange): WinJS.TPromise<Modes.IQuickFix[]>{
+	public getQuickFixes(resource: URI, marker: IMarker | EditorCommon.IRange): WinJS.TPromise<Modes.IQuickFix[]>{
 		return this._worker((w) => w.getQuickFixes(resource, marker));
 	}
 
 	static runQuickFixAction = OneWorkerAttr(CSSMode, CSSMode.prototype.runQuickFixAction);
-	public runQuickFixAction(resource:Network.URL, range:EditorCommon.IRange, id: any):WinJS.TPromise<Modes.IQuickFixResult>{
+	public runQuickFixAction(resource:URI, range:EditorCommon.IRange, id: any):WinJS.TPromise<Modes.IQuickFixResult>{
 		return this._worker((w) => w.runQuickFixAction(resource, range, id));
 	}
 }

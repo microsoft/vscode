@@ -11,7 +11,7 @@ import {handleEvent} from 'vs/editor/common/modes/supports';
 import {AbstractModeWorker} from 'vs/editor/common/modes/abstractModeWorker';
 import Modes = require('vs/editor/common/modes');
 import EditorCommon = require('vs/editor/common/editorCommon');
-import {URL} from 'vs/base/common/network';
+import URI from 'vs/base/common/uri';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
@@ -162,7 +162,7 @@ export class AbstractMode<W extends AbstractModeWorker> implements Modes.IMode {
 	}
 
 	static $suggest = OneWorkerAttr(AbstractMode, AbstractMode.prototype.suggest);
-	public suggest(resource:URL, position:EditorCommon.IPosition):TPromise<Modes.ISuggestions[]> {
+	public suggest(resource:URI, position:EditorCommon.IPosition):TPromise<Modes.ISuggestions[]> {
 		return this._worker((w) => w.suggest(resource, position));
 	}
 
@@ -195,27 +195,27 @@ export class AbstractMode<W extends AbstractModeWorker> implements Modes.IMode {
 	}
 
 	static $findOccurrences = OneWorkerAttr(AbstractMode, AbstractMode.prototype.findOccurrences);
-	public findOccurrences(resource:URL, position:EditorCommon.IPosition, strict:boolean = false): TPromise<Modes.IOccurence[]> {
+	public findOccurrences(resource:URI, position:EditorCommon.IPosition, strict:boolean = false): TPromise<Modes.IOccurence[]> {
 		return this._worker((w) => w.findOccurrences(resource, position, strict));
 	}
 
 	static $navigateValueSet = OneWorkerAttr(AbstractMode, AbstractMode.prototype.navigateValueSet);
-	public navigateValueSet(resource:URL, position:EditorCommon.IRange, up:boolean):TPromise<Modes.IInplaceReplaceSupportResult> {
+	public navigateValueSet(resource:URI, position:EditorCommon.IRange, up:boolean):TPromise<Modes.IInplaceReplaceSupportResult> {
 		return this._worker((w) => w.inplaceReplaceSupport.navigateValueSet(resource, position, up));
 	}
 
 	static $computeDiff = OneWorkerAttr(AbstractMode, AbstractMode.prototype.computeDiff);
-	public computeDiff(original:URL, modified:URL, ignoreTrimWhitespace:boolean):TPromise<EditorCommon.ILineChange[]> {
+	public computeDiff(original:URI, modified:URI, ignoreTrimWhitespace:boolean):TPromise<EditorCommon.ILineChange[]> {
 		return this._worker((w) => w.computeDiff(original, modified, ignoreTrimWhitespace));
 	}
 
 	static $computeDirtyDiff = OneWorkerAttr(AbstractMode, AbstractMode.prototype.computeDirtyDiff);
-	public computeDirtyDiff(resource:URL, ignoreTrimWhitespace:boolean):TPromise<EditorCommon.IChange[]> {
+	public computeDirtyDiff(resource:URI, ignoreTrimWhitespace:boolean):TPromise<EditorCommon.IChange[]> {
 		return this._worker((w) => w.computeDirtyDiff(resource, ignoreTrimWhitespace));
 	}
 
 	static $computeLinks = OneWorkerAttr(AbstractMode, AbstractMode.prototype.computeLinks);
-	public computeLinks(resource:URL):TPromise<Modes.ILink[]> {
+	public computeLinks(resource:URI):TPromise<Modes.ILink[]> {
 		return this._worker((w) => w.computeLinks(resource));
 	}
 

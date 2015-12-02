@@ -7,7 +7,6 @@
 import * as nls from 'vs/nls';
 import WinJS = require('vs/base/common/winjs.base');
 import URI from 'vs/base/common/uri';
-import Network = require('vs/base/common/network');
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
 import lifecycle = require('vs/base/common/lifecycle');
@@ -406,32 +405,32 @@ export class TypeScriptMode<W extends typescriptWorker.TypeScriptWorker2> extend
 	}
 
 	static $getOutline = OneWorkerAttr(TypeScriptMode, TypeScriptMode.prototype.getOutline, TypeScriptMode.prototype._syncProjects, ThreadAffinity.Group1);
-	public getOutline(resource:Network.URL):WinJS.TPromise<Modes.IOutlineEntry[]> {
+	public getOutline(resource:URI):WinJS.TPromise<Modes.IOutlineEntry[]> {
 		return this._worker((w) => w.getOutline(resource));
 	}
 
 	static $findOccurrences = OneWorkerAttr(TypeScriptMode, TypeScriptMode.prototype.findOccurrences, TypeScriptMode.prototype._syncProjects, ThreadAffinity.Group2);
-	public findOccurrences(resource:Network.URL, position:EditorCommon.IPosition, strict:boolean = false): WinJS.TPromise<Modes.IOccurence[]> {
+	public findOccurrences(resource:URI, position:EditorCommon.IPosition, strict:boolean = false): WinJS.TPromise<Modes.IOccurence[]> {
 		return this._worker((w) => w.findOccurrences(resource, position, strict));
 	}
 
 	static $suggest = OneWorkerAttr(TypeScriptMode, TypeScriptMode.prototype.suggest, TypeScriptMode.prototype._syncProjects, ThreadAffinity.Group2);
-	public suggest(resource:Network.URL, position:EditorCommon.IPosition):WinJS.TPromise<Modes.ISuggestions[]> {
+	public suggest(resource:URI, position:EditorCommon.IPosition):WinJS.TPromise<Modes.ISuggestions[]> {
 		return this._worker((w) => w.suggest(resource, position));
 	}
 
 	static $getSuggestionDetails = OneWorkerAttr(TypeScriptMode, TypeScriptMode.prototype.getSuggestionDetails, TypeScriptMode.prototype._syncProjects, ThreadAffinity.Group2);
-	public getSuggestionDetails(resource:Network.URL, position:EditorCommon.IPosition, suggestion:Modes.ISuggestion):WinJS.TPromise<Modes.ISuggestion> {
+	public getSuggestionDetails(resource:URI, position:EditorCommon.IPosition, suggestion:Modes.ISuggestion):WinJS.TPromise<Modes.ISuggestion> {
 		return this._worker((w) => w.getSuggestionDetails(resource, position, suggestion));
 	}
 
 	static $getParameterHints = OneWorkerAttr(TypeScriptMode, TypeScriptMode.prototype.getParameterHints, TypeScriptMode.prototype._syncProjects, ThreadAffinity.Group2);
-	public getParameterHints(resource:Network.URL, position:EditorCommon.IPosition):WinJS.TPromise<Modes.IParameterHints> {
+	public getParameterHints(resource:URI, position:EditorCommon.IPosition):WinJS.TPromise<Modes.IParameterHints> {
 		return this._worker((w) => w.getParameterHints(resource, position));
 	}
 
 	static $getEmitOutput = OneWorkerAttr(TypeScriptMode, TypeScriptMode.prototype.getEmitOutput, TypeScriptMode.prototype._syncProjects, ThreadAffinity.Group3);
-	public getEmitOutput(resource:Network.URL, type:string = undefined):WinJS.Promise {
+	public getEmitOutput(resource:URI, type:string = undefined):WinJS.Promise {
 		return this._worker((w) => w.getEmitOutput(resource, type));
 	}
 
@@ -441,7 +440,7 @@ export class TypeScriptMode<W extends typescriptWorker.TypeScriptWorker2> extend
 	}
 
 	static $findReferences = OneWorkerAttr(TypeScriptMode, TypeScriptMode.prototype.findReferences, TypeScriptMode.prototype._syncProjects, ThreadAffinity.Group3);
-	public findReferences(resource:Network.URL, position:EditorCommon.IPosition, includeDeclaration:boolean):WinJS.TPromise<Modes.IReference[]> {
+	public findReferences(resource:URI, position:EditorCommon.IPosition, includeDeclaration:boolean):WinJS.TPromise<Modes.IReference[]> {
 		return this._worker((w) => w.findReferences(resource, position, includeDeclaration));
 	}
 
@@ -454,7 +453,7 @@ export class TypeScriptMode<W extends typescriptWorker.TypeScriptWorker2> extend
 		return this._worker(w => w.rename(resource, position, newName));
 	}
 
-	public runQuickFixAction(resource: Network.URL, range: EditorCommon.IRange, id: any): WinJS.TPromise<Modes.IQuickFixResult> {
+	public runQuickFixAction(resource:  URI, range: EditorCommon.IRange, id: any): WinJS.TPromise<Modes.IQuickFixResult> {
 		var quickFixMainSupport = this._instantiationService.createInstance(quickFixMainActions.QuickFixMainActions);
 		return quickFixMainSupport.evaluate(resource, range, id).then((action) => {
 			if (action) {
@@ -465,27 +464,27 @@ export class TypeScriptMode<W extends typescriptWorker.TypeScriptWorker2> extend
 	}
 
 	static $runQuickFixActionInWorker = OneWorkerAttr(TypeScriptMode, TypeScriptMode.prototype.runQuickFixActionInWorker, TypeScriptMode.prototype._syncProjects, ThreadAffinity.Group2);
-	public runQuickFixActionInWorker(resource: Network.URL, range: EditorCommon.IRange, id: any): WinJS.TPromise<Modes.IQuickFixResult> {
+	public runQuickFixActionInWorker(resource:  URI, range: EditorCommon.IRange, id: any): WinJS.TPromise<Modes.IQuickFixResult> {
 		return this._worker((w) => w.runQuickFixAction(resource, range, id));
 	}
 
 	static $getQuickFixes = OneWorkerAttr(TypeScriptMode, TypeScriptMode.prototype.getQuickFixes, TypeScriptMode.prototype._syncProjects, ThreadAffinity.Group2);
-	public getQuickFixes(resource:Network.URL, range: IMarker | EditorCommon.IRange):WinJS.TPromise<Modes.IQuickFix[]> {
+	public getQuickFixes(resource: URI, range: IMarker | EditorCommon.IRange):WinJS.TPromise<Modes.IQuickFix[]> {
 		return this._worker((w) => w.getQuickFixes(resource, range));
 	}
 
 	static $getRangesToPosition = OneWorkerAttr(TypeScriptMode, TypeScriptMode.prototype.getRangesToPosition, TypeScriptMode.prototype._syncProjects, ThreadAffinity.Group1);
-	public getRangesToPosition(resource:Network.URL, position:EditorCommon.IPosition):WinJS.TPromise<Modes.ILogicalSelectionEntry[]> {
+	public getRangesToPosition(resource: URI, position:EditorCommon.IPosition):WinJS.TPromise<Modes.ILogicalSelectionEntry[]> {
 		return this._worker((w) => w.getRangesToPosition(resource, position));
 	}
 
 	static $findDeclaration = OneWorkerAttr(TypeScriptMode, TypeScriptMode.prototype.findDeclaration, TypeScriptMode.prototype._syncProjects, ThreadAffinity.Group2);
-	public findDeclaration(resource:Network.URL, position:any):WinJS.TPromise<Modes.IReference> {
+	public findDeclaration(resource: URI, position:any):WinJS.TPromise<Modes.IReference> {
 		return this._worker((w) => w.findDeclaration(resource, position));
 	}
 
 	static $computeInfo = OneWorkerAttr(TypeScriptMode, TypeScriptMode.prototype.computeInfo, TypeScriptMode.prototype._syncProjects, ThreadAffinity.Group2);
-	public computeInfo(resource:Network.URL, position:EditorCommon.IPosition): WinJS.TPromise<Modes.IComputeExtraInfoResult> {
+	public computeInfo(resource: URI, position:EditorCommon.IPosition): WinJS.TPromise<Modes.IComputeExtraInfoResult> {
 		return this._worker((w) => w.computeInfo(resource, position));
 	}
 
@@ -494,17 +493,17 @@ export class TypeScriptMode<W extends typescriptWorker.TypeScriptWorker2> extend
 	}
 
 	static $formatDocument = OneWorkerAttr(TypeScriptMode, TypeScriptMode.prototype.formatDocument, TypeScriptMode.prototype._syncProjects, ThreadAffinity.Group1);
-	public formatDocument(resource:Network.URL, options:Modes.IFormattingOptions):WinJS.TPromise<EditorCommon.ISingleEditOperation[]> {
+	public formatDocument(resource: URI, options:Modes.IFormattingOptions):WinJS.TPromise<EditorCommon.ISingleEditOperation[]> {
 		return this._worker((w) => w.formatDocument(resource, options));
 	}
 
 	static $formatRange = OneWorkerAttr(TypeScriptMode, TypeScriptMode.prototype.formatRange, TypeScriptMode.prototype._syncProjects, ThreadAffinity.Group1);
-	public formatRange(resource:Network.URL, range:EditorCommon.IRange, options:Modes.IFormattingOptions):WinJS.TPromise<EditorCommon.ISingleEditOperation[]> {
+	public formatRange(resource: URI, range:EditorCommon.IRange, options:Modes.IFormattingOptions):WinJS.TPromise<EditorCommon.ISingleEditOperation[]> {
 		return this._worker((w) => w.formatRange(resource, range, options));
 	}
 
 	static $formatAfterKeystroke = OneWorkerAttr(TypeScriptMode, TypeScriptMode.prototype.formatAfterKeystroke, TypeScriptMode.prototype._syncProjects, ThreadAffinity.Group1);
-	public formatAfterKeystroke(resource:Network.URL, position:EditorCommon.IPosition, ch: string, options:Modes.IFormattingOptions):WinJS.TPromise<EditorCommon.ISingleEditOperation[]> {
+	public formatAfterKeystroke(resource: URI, position:EditorCommon.IPosition, ch: string, options:Modes.IFormattingOptions):WinJS.TPromise<EditorCommon.ISingleEditOperation[]> {
 		return this._worker((w) => w.formatAfterKeystroke(resource, position, ch, options));
 	}
 }

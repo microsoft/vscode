@@ -9,7 +9,6 @@ import {IMarker, IMarkerService} from 'vs/platform/markers/common/markers';
 import EditorCommon = require('vs/editor/common/editorCommon');
 import {IHTMLContentElement} from 'vs/base/common/htmlContent';
 import URI from 'vs/base/common/uri';
-import {URL} from 'vs/base/common/network';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import {AsyncDescriptor0} from 'vs/platform/instantiation/common/descriptors';
 
@@ -31,7 +30,7 @@ export interface IValidateParticipant extends IWorkerParticipant {
 
 export interface ISuggestParticipant extends IWorkerParticipant {
 	filter?:(word:string, suggestion:ISuggestion) => boolean;
-	suggest?:(resource:URL, position:EditorCommon.IPosition, context?:any) => TPromise<ISuggestions>;
+	suggest?:(resource:URI, position:EditorCommon.IPosition, context?:any) => TPromise<ISuggestions>;
 }
 
 export enum Bracket {
@@ -454,12 +453,12 @@ export interface ISuggestSupport {
 	/**
 	 * Compute all completions for the given resource at the given position.
 	 */
-	suggest(resource: URL, position: EditorCommon.IPosition, triggerCharacter?: string): TPromise<ISuggestions[]>;
+	suggest(resource: URI, position: EditorCommon.IPosition, triggerCharacter?: string): TPromise<ISuggestions[]>;
 
 	/**
 	 * Compute more details for the given suggestion.
 	 */
-	getSuggestionDetails?:(resource:URL, position:EditorCommon.IPosition, suggestion:ISuggestion)=>TPromise<ISuggestion>;
+	getSuggestionDetails?:(resource:URI, position:EditorCommon.IPosition, suggestion:ISuggestion)=>TPromise<ISuggestion>;
 
 	getFilter():IFilter;
 	getSorter?():ISorter;
@@ -510,7 +509,7 @@ export interface IParameterHints {
 export interface IParameterHintsContribution {
 	triggerCharacters: string[];
 	excludeTokens: string[];
-	getParameterHints: (resource: URL, position: EditorCommon.IPosition) => TPromise<IParameterHints>;
+	getParameterHints: (resource: URI, position: EditorCommon.IPosition) => TPromise<IParameterHints>;
 }
 
 /**
@@ -519,7 +518,7 @@ export interface IParameterHintsContribution {
 export interface IParameterHintsSupport {
 	getParameterHintsTriggerCharacters(): string[];
 	shouldTriggerParameterHints(context: ILineContext, offset: number): boolean;
-	getParameterHints(resource: URL, position: EditorCommon.IPosition, triggerCharacter?: string): TPromise<IParameterHints>;
+	getParameterHints(resource: URI, position: EditorCommon.IPosition, triggerCharacter?: string): TPromise<IParameterHints>;
 }
 
 
@@ -559,7 +558,7 @@ export interface IReferenceSupport {
 	 * @returns a list of reference of the symbol at the position in the
 	 * 	given resource.
 	 */
-	findReferences(resource:URL, position:EditorCommon.IPosition, includeDeclaration:boolean):TPromise<IReference[]>;
+	findReferences(resource:URI, position:EditorCommon.IPosition, includeDeclaration:boolean):TPromise<IReference[]>;
 }
 
 /**
@@ -572,7 +571,7 @@ export interface IDeclarationSupport {
 
 export interface ITypeDeclarationSupport {
 	canFindTypeDeclaration(context:ILineContext, offset:number):boolean;
-	findTypeDeclaration(resource:URL, position:EditorCommon.IPosition):TPromise<IReference>;
+	findTypeDeclaration(resource:URI, position:EditorCommon.IPosition):TPromise<IReference>;
 }
 
 /**
@@ -588,7 +587,7 @@ export interface IOutlineEntry {
 }
 
 export interface IOutlineSupport {
-	getOutline(resource:URL):TPromise<IOutlineEntry[]>;
+	getOutline(resource:URI):TPromise<IOutlineEntry[]>;
 	outlineGroupLabel?: { [name: string]: string; };
 }
 
@@ -600,7 +599,7 @@ export interface ILogicalSelectionEntry {
 	range:EditorCommon.IRange;
 }
 export interface ILogicalSelectionSupport {
-	getRangesToPosition(resource:URL, position:EditorCommon.IPosition):TPromise<ILogicalSelectionEntry[]>;
+	getRangesToPosition(resource:URI, position:EditorCommon.IPosition):TPromise<ILogicalSelectionEntry[]>;
 }
 
 /**
@@ -620,13 +619,13 @@ export interface IFormattingOptions {
  */
 export interface IFormattingSupport {
 
-	formatDocument?: (resource: URL, options: IFormattingOptions) => TPromise<EditorCommon.ISingleEditOperation[]>;
+	formatDocument?: (resource: URI, options: IFormattingOptions) => TPromise<EditorCommon.ISingleEditOperation[]>;
 
-	formatRange?: (resource: URL, range: EditorCommon.IRange, options: IFormattingOptions) => TPromise<EditorCommon.ISingleEditOperation[]>;
+	formatRange?: (resource: URI, range: EditorCommon.IRange, options: IFormattingOptions) => TPromise<EditorCommon.ISingleEditOperation[]>;
 
 	autoFormatTriggerCharacters?: string[];
 
-	formatAfterKeystroke?: (resource: URL, position: EditorCommon.IPosition, ch: string, options: IFormattingOptions) => TPromise<EditorCommon.ISingleEditOperation[]>;
+	formatAfterKeystroke?: (resource: URI, position: EditorCommon.IPosition, ch: string, options: IFormattingOptions) => TPromise<EditorCommon.ISingleEditOperation[]>;
 }
 
 export interface IInplaceReplaceSupportResult {
@@ -638,7 +637,7 @@ export interface IInplaceReplaceSupportResult {
  * Interface used to navigate with a value-set.
  */
 export interface IInplaceReplaceSupport {
-	navigateValueSet(resource:URL, range:EditorCommon.IRange, up:boolean):TPromise<IInplaceReplaceSupportResult>;
+	navigateValueSet(resource:URI, range:EditorCommon.IRange, up:boolean):TPromise<IInplaceReplaceSupportResult>;
 }
 
 
@@ -646,7 +645,7 @@ export interface IInplaceReplaceSupport {
  * Interface used to compute the diff between two models.
  */
 export interface IDiffSupport {
-	computeDiff(original:URL, modified:URL, ignoreTrimWhitespace:boolean):TPromise<EditorCommon.ILineChange[]>;
+	computeDiff(original:URI, modified:URI, ignoreTrimWhitespace:boolean):TPromise<EditorCommon.ILineChange[]>;
 }
 
 
@@ -654,14 +653,14 @@ export interface IDiffSupport {
  * Interface used to compute the diff between a model and its original version.
  */
 export interface IDirtyDiffSupport {
-	computeDirtyDiff(resource:URL, ignoreTrimWhitespace:boolean):TPromise<EditorCommon.IChange[]>;
+	computeDirtyDiff(resource:URI, ignoreTrimWhitespace:boolean):TPromise<EditorCommon.IChange[]>;
 }
 
 /**
  * Interface used to get output for a language that supports transformation (e.g. markdown -> html)
  */
 export interface IEmitOutputSupport {
-	getEmitOutput(resource:URL):TPromise<IEmitOutput>;
+	getEmitOutput(resource:URI):TPromise<IEmitOutput>;
 }
 
 export interface IEmitOutput {
@@ -686,7 +685,7 @@ export interface ILink {
 }
 
 export interface ILinkSupport {
-	computeLinks(resource:URL):TPromise<ILink[]>;
+	computeLinks(resource:URI):TPromise<ILink[]>;
 }
 
 /**

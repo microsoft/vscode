@@ -16,7 +16,7 @@ import Modes = require('vs/editor/common/modes');
 import EditorCommon = require('vs/editor/common/editorCommon');
 import {IResourceService} from 'vs/editor/common/services/resourceService';
 import {Arrays} from 'vs/editor/common/core/arrays';
-import {URL} from 'vs/base/common/network';
+import URI from 'vs/base/common/uri';
 import {IDisposable} from 'vs/base/common/lifecycle';
 
 export class Token implements Modes.IToken {
@@ -566,7 +566,7 @@ export class BracketElectricCharacterSupport extends AbstractSupport implements 
 
 export interface IDeclarationContribution {
 	tokens?: string[];
-	findDeclaration: (resource: URL, position: EditorCommon.IPosition) => TPromise<Modes.IReference>;
+	findDeclaration: (resource: URI, position: EditorCommon.IPosition) => TPromise<Modes.IReference>;
 }
 export class DeclarationSupport extends AbstractSupport implements Modes.IDeclarationSupport {
 
@@ -594,14 +594,14 @@ export class DeclarationSupport extends AbstractSupport implements Modes.IDeclar
 		});
 	}
 
-	public findDeclaration(resource: URL, position: EditorCommon.IPosition): TPromise<Modes.IReference>{
+	public findDeclaration(resource: URI, position: EditorCommon.IPosition): TPromise<Modes.IReference>{
 		return this.contribution.findDeclaration(resource, position);
 	}
 }
 
 export interface ITypeDeclarationContribution {
 	tokens: string[];
-	findTypeDeclaration: (resource: URL, position: EditorCommon.IPosition) => TPromise<Modes.IReference>;
+	findTypeDeclaration: (resource: URI, position: EditorCommon.IPosition) => TPromise<Modes.IReference>;
 }
 export class TypeDeclarationSupport extends AbstractSupport implements Modes.ITypeDeclarationSupport {
 
@@ -629,14 +629,14 @@ export class TypeDeclarationSupport extends AbstractSupport implements Modes.ITy
 		});
 	}
 
-	public findTypeDeclaration(resource: URL, position: EditorCommon.IPosition): TPromise<Modes.IReference> {
+	public findTypeDeclaration(resource: URI, position: EditorCommon.IPosition): TPromise<Modes.IReference> {
 		return this.contribution.findTypeDeclaration(resource, position);
 	}
 }
 
 export interface IReferenceContribution {
 	tokens: string[];
-	findReferences: (resource: URL, position: EditorCommon.IPosition, includeDeclaration: boolean) => TPromise<Modes.IReference[]>;
+	findReferences: (resource: URI, position: EditorCommon.IPosition, includeDeclaration: boolean) => TPromise<Modes.IReference[]>;
 }
 
 export class ReferenceSupport extends AbstractSupport implements Modes.IReferenceSupport {
@@ -665,7 +665,7 @@ export class ReferenceSupport extends AbstractSupport implements Modes.IReferenc
 		});
 	}
 
-	public findReferences(resource: URL, position: EditorCommon.IPosition, includeDeclaration: boolean): TPromise<Modes.IReference[]> {
+	public findReferences(resource: URI, position: EditorCommon.IPosition, includeDeclaration: boolean): TPromise<Modes.IReference[]> {
 		return this.contribution.findReferences(resource, position, includeDeclaration);
 	}
 }
@@ -702,7 +702,7 @@ export class ParameterHintsSupport extends AbstractSupport implements Modes.IPar
 			}
 		});
 	}
-	public getParameterHints(resource: URL, position: EditorCommon.IPosition): TPromise<Modes.IParameterHints> {
+	public getParameterHints(resource: URI, position: EditorCommon.IPosition): TPromise<Modes.IParameterHints> {
 		return this.contribution.getParameterHints(resource, position);
 	}
 }
@@ -714,8 +714,8 @@ export interface ISuggestContribution {
 
 	sortBy?: ISortingTypeAndSeparator[];
 
-	suggest: (resource: URL, position: EditorCommon.IPosition) => TPromise<Modes.ISuggestions[]>;
-	getSuggestionDetails? : (resource:URL, position:EditorCommon.IPosition, suggestion:Modes.ISuggestion) => TPromise<Modes.ISuggestion>;
+	suggest: (resource: URI, position: EditorCommon.IPosition) => TPromise<Modes.ISuggestions[]>;
+	getSuggestionDetails? : (resource:URI, position:EditorCommon.IPosition, suggestion:Modes.ISuggestion) => TPromise<Modes.ISuggestion>;
 }
 
 export interface ISortingTypeAndSeparator {
@@ -729,8 +729,8 @@ export class SuggestSupport extends AbstractSupport implements Modes.ISuggestSup
 	private sortByType: string[];
 	private separatorForType: string[]; // Must have identical size to the above
 
-	public suggest : (resource:URL, position:EditorCommon.IPosition) => TPromise<Modes.ISuggestions[]>;
-	public getSuggestionDetails : (resource:URL, position:EditorCommon.IPosition, suggestion:Modes.ISuggestion) => TPromise<Modes.ISuggestion>;
+	public suggest : (resource:URI, position:EditorCommon.IPosition) => TPromise<Modes.ISuggestions[]>;
+	public getSuggestionDetails : (resource:URI, position:EditorCommon.IPosition, suggestion:Modes.ISuggestion) => TPromise<Modes.ISuggestion>;
 
 	constructor(mode: Modes.IMode, contribution : ISuggestContribution){
 		super(mode);
@@ -842,7 +842,7 @@ export class SuggestSupport extends AbstractSupport implements Modes.ISuggestSup
 }
 
 export interface IComposableSuggestContribution extends ISuggestContribution {
-	composeSuggest(resource:URL, position:EditorCommon.IPosition, superSuggestions:Modes.ISuggestions[]): TPromise<Modes.ISuggestions[]>;
+	composeSuggest(resource:URI, position:EditorCommon.IPosition, superSuggestions:Modes.ISuggestions[]): TPromise<Modes.ISuggestions[]>;
 }
 
 export class ComposableSuggestSupport extends SuggestSupport {
@@ -949,7 +949,7 @@ export var ReplaceSupport: IReplaceSupportHelper = new ReplaceSupportHelperImpl(
 
 export interface IInplaceReplaceSupportCustomization {
 	textReplace?: (value: string, up: boolean) => string;
-	navigateValueSetFallback?: (resource: URL, range: EditorCommon.IRange, up: boolean) => TPromise<Modes.IInplaceReplaceSupportResult>;
+	navigateValueSetFallback?: (resource: URI, range: EditorCommon.IRange, up: boolean) => TPromise<Modes.IInplaceReplaceSupportResult>;
 }
 
 export class AbstractInplaceReplaceSupport implements Modes.IInplaceReplaceSupport {
@@ -968,7 +968,7 @@ export class AbstractInplaceReplaceSupport implements Modes.IInplaceReplaceSuppo
 		this.customization = customization;
 	}
 
-	public navigateValueSet(resource:URL, range:EditorCommon.IRange, up:boolean):TPromise<Modes.IInplaceReplaceSupportResult> {
+	public navigateValueSet(resource:URI, range:EditorCommon.IRange, up:boolean):TPromise<Modes.IInplaceReplaceSupportResult> {
 		var result = this.doNavigateValueSet(resource, range, up, true);
 		if (result && result.value && result.range) {
 			return TPromise.as(result);
@@ -979,7 +979,7 @@ export class AbstractInplaceReplaceSupport implements Modes.IInplaceReplaceSuppo
 		return this.customization.navigateValueSetFallback(resource, range, up);
 	}
 
-	private doNavigateValueSet(resource:URL, range:EditorCommon.IRange, up:boolean, selection:boolean):Modes.IInplaceReplaceSupportResult {
+	private doNavigateValueSet(resource:URI, range:EditorCommon.IRange, up:boolean, selection:boolean):Modes.IInplaceReplaceSupportResult {
 
 		var model = this.getModel(resource),
 			result:Modes.IInplaceReplaceSupportResult = { range:null, value: null },
@@ -1055,7 +1055,7 @@ export class AbstractInplaceReplaceSupport implements Modes.IInplaceReplaceSuppo
 			|| ReplaceSupport.valueSetsReplace(this._defaultValueSet, value, up);
 	}
 
-	protected getModel(resource:URL): EditorCommon.ITokenizedModel {
+	protected getModel(resource:URI): EditorCommon.ITokenizedModel {
 		throw new Error('Not implemented');
 	}
 }
@@ -1069,7 +1069,7 @@ export class WorkerInplaceReplaceSupport extends AbstractInplaceReplaceSupport {
 		this.resourceService = resourceService;
 	}
 
-	protected getModel(resource:URL): EditorCommon.ITokenizedModel {
+	protected getModel(resource:URI): EditorCommon.ITokenizedModel {
 		return this.resourceService.get(resource);
 	}
 }
@@ -1082,7 +1082,7 @@ export class MainInplaceReplaceSupport extends AbstractInplaceReplaceSupport {
 		this.modelService = modelService;
 	}
 
-	protected getModel(resource:URL): EditorCommon.ITokenizedModel {
+	protected getModel(resource:URI): EditorCommon.ITokenizedModel {
 		return this.modelService.getModel(resource);
 	}
 }

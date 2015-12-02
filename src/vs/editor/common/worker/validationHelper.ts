@@ -8,7 +8,7 @@ import {IEmitterEvent} from 'vs/base/common/eventEmitter';
 import EditorCommon = require('vs/editor/common/editorCommon');
 import {IResourceService, ResourceEvents, IResourceAddedEvent, IResourceRemovedEvent} from 'vs/editor/common/services/resourceService';
 import {RunOnceScheduler} from 'vs/base/common/async';
-import {URL} from 'vs/base/common/network';
+import URI from 'vs/base/common/uri';
 import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
 
 export interface IValidationHelperFilter {
@@ -16,7 +16,7 @@ export interface IValidationHelperFilter {
 }
 
 export interface IValidationHelperCallback {
-	(changed:URL[], notChanged:URL[], isDueToConfigurationChange:boolean): void;
+	(changed:URI[], notChanged:URI[], isDueToConfigurationChange:boolean): void;
 }
 
 class ValidationModel implements IDisposable {
@@ -163,8 +163,8 @@ export class ValidationHelper implements IDisposable {
 			return;
 		}
 
-		var dirtyModels: URL[] = [];
-		var cleanModels: URL[] = [];
+		var dirtyModels: URI[] = [];
+		var cleanModels: URI[] = [];
 
 		Object.keys(this._models)
 			.map((modelUrl) => this._models[modelUrl])

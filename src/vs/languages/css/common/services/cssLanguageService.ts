@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import network = require('vs/base/common/network');
+import URI from 'vs/base/common/uri';
 import winjs = require('vs/base/common/winjs.base');
 import nodes = require('vs/languages/css/common/parser/cssNodes');
 import parser = require('vs/languages/css/common/parser/cssParser');
@@ -19,7 +19,7 @@ interface Entry {
 
 export interface ILanguageService {
 	join():winjs.TPromise<void>;
-	getStylesheet(resource:network.URL):nodes.Stylesheet;
+	getStylesheet(resource:URI):nodes.Stylesheet;
 }
 
 class PromiseWithTrigger<T> extends winjs.TPromise<T> {
@@ -117,7 +117,7 @@ export class CSSLanguageService implements ILanguageService {
 		return resource.getMode().getId() === this._cssModeId;
 	}
 
-	private _isMyModel(url:network.URL): boolean {
+	private _isMyModel(url:URI): boolean {
 		return this._isMyMirrorModel(this.resourceService.get(url));
 	}
 
@@ -149,7 +149,7 @@ export class CSSLanguageService implements ILanguageService {
 //		console.info('[less] updating ' + n + ' resources took ms' + (new Date().getTime() - t1));
 	}
 
-	public getStylesheet(resource:network.URL):nodes.Stylesheet {
+	public getStylesheet(resource:URI):nodes.Stylesheet {
 		if(this.entries.hasOwnProperty(resource.toString())) {
 			return this.entries[resource.toString()].node;
 		}

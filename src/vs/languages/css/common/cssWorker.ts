@@ -5,6 +5,7 @@
 'use strict';
 
 import nls = require('vs/nls');
+import URI from 'vs/base/common/uri';
 import _severity from 'vs/base/common/severity';
 import strings = require('vs/base/common/strings');
 import winjs = require('vs/base/common/winjs.base');
@@ -71,7 +72,7 @@ export class CSSWorker extends AbstractModeWorker {
 		return winjs.TPromise.as(false);
 	}
 
-	public doValidate(resource: network.URL):void {
+	public doValidate(resource: URI):void {
 		if (!this.validationEnabled) {
 			this.markerService.changeOne(this._getMode().getId(), resource, []);
 			return;
@@ -115,7 +116,7 @@ export class CSSWorker extends AbstractModeWorker {
 		return new cssIntellisense.CSSIntellisense();
 	}
 
-	public doSuggest(resource:network.URL, position:EditorCommon.IPosition):winjs.TPromise<Modes.ISuggestions> {
+	public doSuggest(resource:URI, position:EditorCommon.IPosition):winjs.TPromise<Modes.ISuggestions> {
 
 		return this.languageService.join().then(() => {
 
@@ -126,7 +127,7 @@ export class CSSWorker extends AbstractModeWorker {
 
 	}
 
-	public getRangesToPosition(resource:network.URL, position:EditorCommon.IPosition):winjs.TPromise<Modes.ILogicalSelectionEntry[]> {
+	public getRangesToPosition(resource:URI, position:EditorCommon.IPosition):winjs.TPromise<Modes.ILogicalSelectionEntry[]> {
 
 		return this.languageService.join().then(() => {
 
@@ -154,7 +155,7 @@ export class CSSWorker extends AbstractModeWorker {
 		});
 	}
 
-	public getOutline(resource:network.URL):winjs.TPromise<Modes.IOutlineEntry[]> {
+	public getOutline(resource:URI):winjs.TPromise<Modes.IOutlineEntry[]> {
 
 		return this.languageService.join().then(() => {
 
@@ -200,7 +201,7 @@ export class CSSWorker extends AbstractModeWorker {
 		});
 	}
 
-	public computeInfo(resource:network.URL, position:EditorCommon.IPosition): winjs.TPromise<Modes.IComputeExtraInfoResult> {
+	public computeInfo(resource:URI, position:EditorCommon.IPosition): winjs.TPromise<Modes.IComputeExtraInfoResult> {
 
 		return this.languageService.join().then(() => {
 
@@ -229,7 +230,7 @@ export class CSSWorker extends AbstractModeWorker {
 		});
 	}
 
-	public findDeclaration(resource:network.URL, position:EditorCommon.IPosition):winjs.TPromise<Modes.IReference> {
+	public findDeclaration(resource:URI, position:EditorCommon.IPosition):winjs.TPromise<Modes.IReference> {
 
 		return this.languageService.join().then(() => {
 
@@ -248,7 +249,7 @@ export class CSSWorker extends AbstractModeWorker {
 		});
 	}
 
-	public findOccurrences(resource:network.URL, position:EditorCommon.IPosition, strict?:boolean):winjs.TPromise<Modes.IOccurence[]> {
+	public findOccurrences(resource:URI, position:EditorCommon.IPosition, strict?:boolean):winjs.TPromise<Modes.IOccurence[]> {
 
 		return this.languageService.join().then(() => {
 
@@ -265,7 +266,7 @@ export class CSSWorker extends AbstractModeWorker {
 		});
 	}
 
-	public findReferences(resource:network.URL, position:EditorCommon.IPosition):winjs.TPromise<Modes.IReference[]> {
+	public findReferences(resource:URI, position:EditorCommon.IPosition):winjs.TPromise<Modes.IReference[]> {
 
 		return this.languageService.join().then(() => {
 			var model = this.resourceService.get(resource),
@@ -281,7 +282,7 @@ export class CSSWorker extends AbstractModeWorker {
 		});
 	}
 
-	public navigateValueSetFallback(resource:network.URL, range:EditorCommon.IRange, up:boolean):winjs.TPromise<Modes.IInplaceReplaceSupportResult> {
+	public navigateValueSetFallback(resource:URI, range:EditorCommon.IRange, up:boolean):winjs.TPromise<Modes.IInplaceReplaceSupportResult> {
 		return this.languageService.join().then(() => {
 
 			var model = this.resourceService.get(resource);
@@ -341,7 +342,7 @@ export class CSSWorker extends AbstractModeWorker {
 		});
 	}
 
-	public findColorDeclarations(resource:network.URL):winjs.Promise {
+	public findColorDeclarations(resource:URI):winjs.Promise {
 
 		return this.languageService.join().then(() => {
 
@@ -400,7 +401,7 @@ export class CSSWorker extends AbstractModeWorker {
 		return result.slice(0, 3 /*max_result*/);
 	}
 
-	public getQuickFixes(resource: network.URL, marker: IMarker | EditorCommon.IRange): winjs.TPromise<Modes.IQuickFix[]> {
+	public getQuickFixes(resource: URI, marker: IMarker | EditorCommon.IRange): winjs.TPromise<Modes.IQuickFix[]> {
 		if ((<IMarker> marker).code !== lintRules.Rules.UnknownProperty.id) {
 			return winjs.TPromise.as([]);
 		}
@@ -425,7 +426,7 @@ export class CSSWorker extends AbstractModeWorker {
 		});
 	}
 
-	public runQuickFixAction(resource:network.URL, range:EditorCommon.IRange, id: any):winjs.TPromise<Modes.IQuickFixResult>{
+	public runQuickFixAction(resource:URI, range:EditorCommon.IRange, id: any):winjs.TPromise<Modes.IQuickFixResult>{
 		var command = JSON.parse(id);
 		switch (command.type) {
 			case 'rename': {

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Network = require('vs/base/common/network');
+import URI from 'vs/base/common/uri';
 import http = require('vs/base/common/http');
 import winjs = require('vs/base/common/winjs.base');
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
@@ -26,7 +26,7 @@ export interface IRequestService {
 	 * the path that was passed in to IRequestService#getRequestUrl() or null if it can not be identified. Path
 	 * always begins with a leading slash.
 	 */
-	getPath(service:string, requestUrl:Network.URL):string;
+	getPath(service:string, requestUrl:URI):string;
 
 	/**
 	 * Wraps the call into WinJS.XHR to allow for mocking and telemetry. Use this instead

@@ -6,7 +6,6 @@
 
 import WinJS = require('vs/base/common/winjs.base');
 import {AbstractModeWorker} from 'vs/editor/common/modes/abstractModeWorker';
-import Network = require('vs/base/common/network');
 import URI from 'vs/base/common/uri';
 import Types = require('vs/base/common/types');
 import EditorCommon = require('vs/editor/common/editorCommon');
@@ -121,7 +120,7 @@ export class MarkdownWorker extends AbstractModeWorker {
 	}
 
 	public getEmitOutput(resource: URI, absoluteWorkersResourcePath: string): WinJS.TPromise<Modes.IEmitOutput> { // TODO@Ben technical debt: worker cannot resolve paths absolute
-		let model = this.resourceService.get(Network.URL.fromUri(resource));
+		let model = this.resourceService.get(resource);
 		let cssLinks: string[] = this.cssLinks || [];
 
 		// Custom Renderer to fix href in images
@@ -217,7 +216,7 @@ export class MarkdownWorker extends AbstractModeWorker {
 		if (href) {
 
 			// Return early if href is already a URL
-			if (new Network.URL(href).getScheme()) {
+			if (URI.parse(href).scheme) {
 				return href;
 			}
 

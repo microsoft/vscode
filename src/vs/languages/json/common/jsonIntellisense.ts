@@ -6,7 +6,7 @@
 
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
-import Network = require('vs/base/common/network');
+import URI from 'vs/base/common/uri';
 import Parser = require('./parser/jsonParser');
 import SchemaService = require('./jsonSchemaService');
 import Types = require('vs/base/common/types');
@@ -29,7 +29,7 @@ export class JSONIntellisense {
 		this.contributions = contributions;
 	}
 
-	public doSuggest(resource: Network.URL, modelMirror: EditorCommon.IMirrorModel, position: EditorCommon.IPosition): WinJS.TPromise<Modes.ISuggestions> {
+	public doSuggest(resource: URI, modelMirror: EditorCommon.IMirrorModel, position: EditorCommon.IPosition): WinJS.TPromise<Modes.ISuggestions> {
 		var currentWord = modelMirror.getWordUntilPosition(position).word;
 
 		var parser = new Parser.JSONParser();
