@@ -5117,14 +5117,11 @@
         </value>
       </values>
     </entry>
-    <entry name="font-variant-east-asian" restriction="enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css3-fonts/#font-variant-east-asian-prop" syntax="mark { $(name): normal; }">
+    <entry name="font-variant-east-asian" restriction="enum" version="3.0" browsers="FF26" ref="http://www.w3.org/TR/css3-fonts/#font-variant-east-asian-prop" syntax="mark { $(name): normal; }">
       <desc>Allows control of glyph substitute and positioning in East Asian text.</desc>
       <values>
         <value name="full-width" version="3.0" browsers="all">
           <desc>Enables rendering of full-width variants.</desc>
-        </value>
-        <value name="hojo-kanji" version="3.0" browsers="all">
-          <desc>Enables rendering of Hojo Kanji forms.</desc>
         </value>
         <value name="jis04" version="3.0" browsers="all">
           <desc>Enables rendering of JIS04 forms.</desc>
@@ -5138,12 +5135,12 @@
         <value name="jis90" version="3.0" browsers="all">
           <desc>Enables rendering of JIS90 forms.</desc>
         </value>
-        <value name="nlckanji" version="3.0" browsers="all">
-          <desc>Enables rendering of NLC Kanji forms.</desc>
-        </value>
         <value name="normal" version="3.0" browsers="all" />
         <value name="proportional-width" version="3.0" browsers="all">
           <desc>Enables rendering of proportionally-spaced variants.</desc>
+        </value>
+        <value name="ruby" version="3.0" browsers="all">
+          <desc>Enables display of ruby variant glyphs.</desc>
         </value>
         <value name="simplified" version="3.0" browsers="all">
           <desc>Enables rendering of simplified forms.</desc>
