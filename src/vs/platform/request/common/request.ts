@@ -15,20 +15,6 @@ export interface IRequestService {
 	serviceId : ServiceIdentifier<any>;
 
 	/**
-	 * Returns the URL that can be used to access the provided service. The optional second argument can
-	 * be provided to narrow down the request URL to a specific file system resource. The third argument
-	 * allows to specify to return a fully absolute server URL.
-	 */
-	getRequestUrl(service:string, path?:string, absolute?:boolean):string;
-
-	/**
-	 * Returns the path from the given requestUrl using the provided service identifier. The path will match
-	 * the path that was passed in to IRequestService#getRequestUrl() or null if it can not be identified. Path
-	 * always begins with a leading slash.
-	 */
-	getPath(service:string, requestUrl:URI):string;
-
-	/**
 	 * Wraps the call into WinJS.XHR to allow for mocking and telemetry. Use this instead
 	 * of calling WinJS.XHR directly.
 	 */

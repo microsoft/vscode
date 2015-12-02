@@ -208,10 +208,6 @@ export class SimpleEditorRequestService extends BaseRequestService {
 	constructor(contextService: IWorkspaceContextService, telemetryService?: ITelemetryService) {
 		super(contextService, telemetryService);
 	}
-
-	public getPath(service:string, requestUrl:URI):string {
-		return requestUrl.toString(); // Standalone Editor talks about  URLs that never have a path
-	}
 }
 
 export class StandaloneKeybindingService extends KeybindingService.KeybindingService {

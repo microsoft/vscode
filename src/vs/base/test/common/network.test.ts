@@ -5,6 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
+import URI from 'vs/base/common/uri';
 import { URL, ParsedUrl } from 'vs/base/common/network';
 import { serialize, deserialize } from 'vs/base/common/marshalling';
 
@@ -20,6 +21,14 @@ function assertUrl(raw:string, scheme:string, domain:string, port:string, path:s
 	assert.equal(url.getPath(), path, 'getPath ok for ' + raw);
 	assert.equal(url.getQueryString(), queryString, 'getQueryString ok for ' + raw);
 	assert.equal(url.getFragmentId(), fragmentId, 'getFragmentId ok for ' + raw);
+
+	// check for equivalent behaviour
+	var uri = URI.parse(raw);
+	assert.equal(uri.scheme, scheme);
+	assert.equal(uri.authority, port ? domain + ':' + port : domain);
+	assert.equal(uri.path, path);
+	assert.equal(uri.query, queryString);
+	assert.equal(uri.fragment, fragmentId);
 }
 
 function assertCombine(base:string, relativeUrl:string, expectedUrl:string): void {
