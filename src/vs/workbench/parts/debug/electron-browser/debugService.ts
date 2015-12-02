@@ -590,6 +590,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		this.editorService.focusEditor();
 
 		this.model.clearThreads(true);
+		this.model.getBreakpoints().forEach(bp => this.model.updateBreakpoint(bp.getId(), bp.lineNumber, false));
 		this.setFocusedStackFrameAndEvaluate(null);
 		this.setStateAndEmit(debug.State.Inactive);
 		this.inDebugMode.reset();
