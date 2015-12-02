@@ -14484,13 +14484,13 @@
         <value name="yellowgreen" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="shape-image-threshold" restriction="number" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-shapes-1/#propdef-shape-image-threshold" syntax="div { $(name): 0.5; }">
+    <entry name="shape-image-threshold" restriction="number" version="3.0" browsers="C37,O24" ref="http://www.w3.org/TR/css-shapes-1/#propdef-shape-image-threshold" syntax="div { $(name): 0.5; }">
       <desc>Defines the alpha channel threshold used to extract the shape using an image. A value of 0.5 means that the shape will enclose all the pixels that are more than 50% opaque.</desc>
     </entry>
-    <entry name="shape-margin" restriction="length, percentage" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-shapes-1/#propdef-shape-margin" syntax="div { $(name): 10px; }">
+    <entry name="shape-margin" restriction="length, percentage" version="3.0" browsers="C37,O24" ref="http://www.w3.org/TR/css-shapes-1/#propdef-shape-margin" syntax="div { $(name): 10px; }">
       <desc>Adds a margin to a 'shape-outside'. This defines a new shape that is the smallest contour that includes all the points that are the 'shape-margin' distance outward in the perpendicular direction from a point on the underlying shape.</desc>
     </entry>
-    <entry name="shape-outside" restriction="" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-shapes-1/#shape-outside-property" syntax="div { $(name): margin-box; }">
+    <entry name="shape-outside" restriction="" version="3.0" browsers="C37,O24" ref="http://www.w3.org/TR/css-shapes-1/#shape-outside-property" syntax="div { $(name): margin-box; }">
       <desc>This property specifies an orthogonal rotation to be applied to an image before it is laid out.</desc>
       <values>
         <value name="border-box" version="3.0" browsers="all">
