@@ -11428,7 +11428,7 @@
         </value>
       </values>
     </entry>
-    <entry name="object-fit" restriction="enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css4-images/#object-fit" syntax="p { $(name): cover; }">
+    <entry name="object-fit" restriction="enum" version="3.0" browsers="C32,FF36,O19,S7.1" ref="http://www.w3.org/TR/css4-images/#object-fit" syntax="p { $(name): cover; }">
       <desc>The object-fit property specifies how the contents of a replaced element should be scaled relative to the box established by its used height and width.</desc>
       <values>
         <value name="contain" version="3.0" browsers="all" />
@@ -11438,7 +11438,7 @@
         <value name="scale-down" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="object-position" restriction="enum, length, percentage" version="3.0" browsers="O10.6" ref="http://www.w3.org/TR/css4-images/#object-position" syntax="img { $(name): left top; }">
+    <entry name="object-position" restriction="enum, length, percentage" version="3.0" browsers="C32,FF36,O19" ref="http://www.w3.org/TR/css4-images/#object-position" syntax="img { $(name): left top; }">
       <desc>Determines the alignment of the replaced element inside its box.</desc>
       <values>
         <value name="bottom" version="3.0" browsers="all" />
