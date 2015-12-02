@@ -10921,6 +10921,20 @@
         </value>
       </values>
     </entry>
+    <entry name="-ms-text-combine-horizontal" restriction="enum, integer" version="3.0" browsers="E,IE11" ref="http://www.w3.org/TR/css-writing-modes-3/#text-combine-upright" syntax="span { $(name): all; }">
+      <desc>This property specifies the combination of multiple characters into the space of a single character.</desc>
+      <values>
+        <value name="all" version="3.0" browsers="all">
+          <desc>Attempt to typeset horizontally all consecutive characters within the box such that they take up the space of a single character within the vertical line box.</desc>
+        </value>
+        <value name="digits" version="3.0" browsers="all">
+          <desc>Attempt to typeset horizontally each maximal sequence of consecutive ASCII digits (U+0030–U+0039) that has as many or fewer characters than the specified integer such that it takes up the space of a single character within the vertical line box.</desc>
+        </value>
+        <value name="none" version="3.0" browsers="all">
+          <desc>No special processing.</desc>
+        </value>
+      </values>
+    </entry>
     <entry name="-ms-text-justify" restriction="enum" version="3.0" browsers="E,IE8" ref="http://www.w3.org/TR/css3-text/#text-justify0" syntax="div { $(name): inter-word; }">
       <desc>Selects the justification algorithm used when 'text-align' is set to 'justify'. The property applies to block containers, but the UA may (but is not required to) also support it on inline elements.</desc>
       <values>
@@ -15195,7 +15209,7 @@
         <value name="start" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="text-combine-upright" restriction="enum, integer" version="3.0" browsers="all" ref="http://www.w3.org/TR/css-writing-modes-3/#text-combine-upright" syntax="span { $(name): all; }">
+    <entry name="text-combine-upright" restriction="enum, integer" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-writing-modes-3/#text-combine-upright" syntax="span { $(name): all; }">
       <desc>This property specifies the combination of multiple characters into the space of a single character.</desc>
       <values>
         <value name="all" version="3.0" browsers="all">
