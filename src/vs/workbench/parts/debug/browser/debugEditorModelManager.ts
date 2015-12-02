@@ -5,17 +5,27 @@
 
 import lifecycle = require('vs/base/common/lifecycle');
 import editorcommon = require('vs/editor/common/editorCommon');
-import wbext = require('vs/workbench/common/contributions');
+import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IDebugService, ModelEvents, ViewModelEvents, IBreakpoint, IRawBreakpoint } from 'vs/workbench/parts/debug/common/debug';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 
 function toMap(arr: string[]): { [key: string]: boolean; } {
-	var r: { [key: string]: boolean; } = {};
+	const result: { [key: string]: boolean; } = {};
 	for (var i = 0, len = arr.length; i < len; i++) {
-		r[arr[i]] = true;
+		result[arr[i]] = true;
 	}
-	return r;
+
+	return result;
+}
+
+function createRange(startLineNUmber: number, startColumn: number, endLineNumber: number, endColumn: number): editorcommon.IRange {
+	return {
+		startLineNumber: startLineNUmber,
+		startColumn: startColumn,
+		endLineNumber: endLineNumber,
+		endColumn: endColumn
+	};
 }
 
 interface IDebugEditorModelData {
@@ -28,7 +38,7 @@ interface IDebugEditorModelData {
 	topStackFrameRange: editorcommon.IRange;
 }
 
-export class DebugEditorModelManager implements wbext.IWorkbenchContribution {
+export class DebugEditorModelManager implements IWorkbenchContribution {
 	static ID = 'breakpointManager';
 
 	private modelData: {
@@ -70,32 +80,24 @@ export class DebugEditorModelManager implements wbext.IWorkbenchContribution {
 
 	private registerListeners(): void {
 		this.modelService.onModelAdded.add(this.onModelAdded, this);
+		this.modelService.getModels().forEach(model => this.onModelAdded(model));
 		this.modelService.onModelRemoved.add(this.onModelRemoved, this);
-		this.toDispose.push(this.debugService.getModel().addListener2(ModelEvents.BREAKPOINTS_UPDATED, () => this.onBreakpointChanged()));
-		this.toDispose.push(this.debugService.getViewModel().addListener2(ViewModelEvents.FOCUSED_STACK_FRAME_UPDATED, () => this.updateCallStack()));
 
-		var allModels = this.modelService.getModels();
-		for (var i = 0, len = allModels.length; i < len; i++) {
-			this.onModelAdded(allModels[i]);
-		}
+		this.toDispose.push(this.debugService.getModel().addListener2(ModelEvents.BREAKPOINTS_UPDATED, () => this.onBreakpointsChanged()));
+		this.toDispose.push(this.debugService.getViewModel().addListener2(ViewModelEvents.FOCUSED_STACK_FRAME_UPDATED, () => this.onFocusedStackFrameUpdated()));
 	}
 
 	private onModelAdded(model: editorcommon.IModel): void {
-		var modelUrl = model.getAssociatedResource();
-		var modelUrlStr = modelUrl.toString();
-
-		var breakpoints = this.debugService.getModel().getBreakpoints().filter(bp => bp.source.uri.toString() === modelUrl.toString());
+		const modelUrlStr = model.getAssociatedResource().toString();
+		const breakpoints = this.debugService.getModel().getBreakpoints().filter(bp => bp.source.uri.toString() === modelUrlStr);
 
 		var currentStackDecorations = model.deltaDecorations([], this.createCallStackDecorations(modelUrlStr));
 		var breakPointDecorations = model.deltaDecorations([], this.createBreakpointDecorations(breakpoints));
 
-		var toDispose: lifecycle.IDisposable[] = [];
+		const toDispose: lifecycle.IDisposable[] = [model.addListener2(editorcommon.EventType.ModelDecorationsChanged, (e: editorcommon.IModelDecorationsChangedEvent) =>
+			this.onModelDecorationsChanged(modelUrlStr, e))];
 
-		toDispose.push(model.addListener2(editorcommon.EventType.ModelDecorationsChanged, (e: editorcommon.IModelDecorationsChangedEvent) => {
-			this.onModelDecorationsChanged(modelUrlStr, e);
-		}));
-
-		var modelData: IDebugEditorModelData = {
+		this.modelData[modelUrlStr] = {
 			model: model,
 			toDispose: toDispose,
 			breakpointDecorationIds: breakPointDecorations,
@@ -104,44 +106,49 @@ export class DebugEditorModelManager implements wbext.IWorkbenchContribution {
 			currentStackDecorations: currentStackDecorations,
 			topStackFrameRange: null
 		};
-		this.modelData[modelUrlStr] = modelData;
 	}
 
-	private createBreakpointDecorations(breakpoints: IBreakpoint[]): editorcommon.IModelDeltaDecoration[] {
-		// Add decorations for the breakpoints
-		const activated = this.debugService.getModel().areBreakpointsActivated();
-		return breakpoints.map((breakpoint) => {
-			return {
-				options: (!breakpoint.enabled || !activated) ? DebugEditorModelManager.BREAKPOINT_DISABLED_DECORATION :
-					breakpoint.error ? DebugEditorModelManager.BREAKPOINT_ERROR_DECORATION : DebugEditorModelManager.BREAKPOINT_DECORATION,
-				range: createRange(breakpoint.lineNumber, 1, breakpoint.lineNumber, 2)
-			};
+	private onModelRemoved(model: editorcommon.IModel): void {
+		const modelUrlStr = model.getAssociatedResource().toString();
+		if (this.modelData.hasOwnProperty(modelUrlStr)) {
+			const modelData = this.modelData[modelUrlStr];
+			delete this.modelData[modelUrlStr];
+
+			lifecycle.disposeAll(modelData.toDispose);
+		}
+	}
+
+	// Call stack management. Represent data coming from the debug service.
+
+	private onFocusedStackFrameUpdated(): void {
+		Object.keys(this.modelData).forEach(modelUrlStr => {
+			const modelData = this.modelData[modelUrlStr];
+			modelData.currentStackDecorations = modelData.model.deltaDecorations(modelData.currentStackDecorations, this.createCallStackDecorations(modelUrlStr));
 		});
 	}
 
 	private createCallStackDecorations(modelUrlStr: string): editorcommon.IModelDeltaDecoration[] {
-		var result: editorcommon.IModelDeltaDecoration[] = [];
-		var focusedStackFrame = this.debugService.getViewModel().getFocusedStackFrame();
-		var threads = this.debugService.getModel().getThreads();
-		if (!focusedStackFrame || !threads[focusedStackFrame.threadId] || !threads[focusedStackFrame.threadId].callStack) {
+		const result: editorcommon.IModelDeltaDecoration[] = [];
+		const focusedStackFrame = this.debugService.getViewModel().getFocusedStackFrame();
+		const allThreads = this.debugService.getModel().getThreads();
+		if (!focusedStackFrame || !allThreads[focusedStackFrame.threadId] || !allThreads[focusedStackFrame.threadId].callStack) {
 			return result;
 		}
 
-		const threadId = focusedStackFrame.threadId;
-		var topStackFrame = threads[threadId].callStack.length > 0 ? threads[threadId].callStack[0] : null;
-		var modelCallStack = threads[threadId].callStack.filter(sf => sf.source.uri.toString() === modelUrlStr);
+		// Only show decorations for the currently focussed thread.
+		const thread = allThreads[focusedStackFrame.threadId];
+		thread.callStack.filter(sf => sf.source.uri.toString() === modelUrlStr).forEach(sf => {
+			const wholeLineRange = createRange(sf.lineNumber, sf.column, sf.lineNumber, Number.MAX_VALUE);
 
-		for (var i = 0, len = modelCallStack.length; i < len; i++) {
-			var el = modelCallStack[i];
-			var wholeLineRange = DebugEditorModelManager.createRange(el.lineNumber, el.column, el.lineNumber, Number.MAX_VALUE);
-
-			if (el === topStackFrame) {
+			// Compute how to decorate the editor. Different decorations are used if this is a top stack frame, focussed stack frame,
+			// an exception or a stack frame that did not change the line number (we only decorate the columns, not the whole line).
+			if (sf === thread.callStack[0]) {
 				result.push({
 					options: DebugEditorModelManager.TOP_STACK_FRAME_MARGIN,
-					range: DebugEditorModelManager.createRange(el.lineNumber, el.column, el.lineNumber, el.column + 1)
+					range: createRange(sf.lineNumber, sf.column, sf.lineNumber, sf.column + 1)
 				});
 
-				if (threads[threadId].exception) {
+				if (thread.exception) {
 					result.push({
 						options: DebugEditorModelManager.TOP_STACK_FRAME_EXCEPTION_DECORATION,
 						range: wholeLineRange
@@ -151,6 +158,7 @@ export class DebugEditorModelManager implements wbext.IWorkbenchContribution {
 						options: DebugEditorModelManager.TOP_STACK_FRAME_DECORATION,
 						range: wholeLineRange
 					});
+
 					if (this.modelData[modelUrlStr]) {
 						if (this.modelData[modelUrlStr].topStackFrameRange && this.modelData[modelUrlStr].topStackFrameRange.startLineNumber === wholeLineRange.startLineNumber &&
 							this.modelData[modelUrlStr].topStackFrameRange.startColumn !== wholeLineRange.startColumn) {
@@ -162,10 +170,10 @@ export class DebugEditorModelManager implements wbext.IWorkbenchContribution {
 						this.modelData[modelUrlStr].topStackFrameRange = wholeLineRange;
 					}
 				}
-			} else if (el === focusedStackFrame) {
+			} else if (sf === focusedStackFrame) {
 				result.push({
 					options: DebugEditorModelManager.FOCUSED_STACK_FRAME_MARGIN,
-					range: DebugEditorModelManager.createRange(el.lineNumber, el.column, el.lineNumber, el.column + 1)
+					range: createRange(sf.lineNumber, sf.column, sf.lineNumber, sf.column + 1)
 				});
 
 				result.push({
@@ -173,46 +181,33 @@ export class DebugEditorModelManager implements wbext.IWorkbenchContribution {
 					range: wholeLineRange
 				});
 			}
-		}
+		});
 
 		return result;
 	}
 
+	// Breakpoints management. Represent data coming from the debug service and also send data back.
+
 	private onModelDecorationsChanged(modelUrlStr: string, e: editorcommon.IModelDecorationsChangedEvent): void {
-		var modelData = this.modelData[modelUrlStr];
-		var myDecorationsAsMap = modelData.breakpointDecorationsAsMap;
-		var mineWereChanged: boolean;
-
-		for (var i = 0, len = e.addedOrChangedDecorations.length; i < len; i++) {
-			var d = e.addedOrChangedDecorations[i];
-			if (myDecorationsAsMap.hasOwnProperty(d.id)) {
-				// One of my decorations
-				mineWereChanged = true;
-				break;
-			}
-		}
-
-		if (!mineWereChanged) {
-			// Nothing to do, my decorations had no changes...
+		const modelData = this.modelData[modelUrlStr];
+		if (!e.addedOrChangedDecorations.some(d => modelData.breakpointDecorationsAsMap.hasOwnProperty(d.id))) {
+			// Nothing to do, my decorations did not change.
 			return;
 		}
 
-		const model = modelData.model;
 		const data: IRawBreakpoint[] = [];
 
-		const breakpoints = this.debugService.getModel().getBreakpoints().filter(bp => bp.source.uri.toString() === modelUrlStr);
 		const enabledAndConditions: { [key: number]: { enabled: boolean, condition: string } } = {};
-		for (var i = 0; i < breakpoints.length; i++) {
-			enabledAndConditions[breakpoints[i].lineNumber] = {
-				enabled: breakpoints[i].enabled,
-				condition: breakpoints[i].condition
+		this.debugService.getModel().getBreakpoints().filter(bp => bp.source.uri.toString() === modelUrlStr).forEach(bp => {
+			enabledAndConditions[bp.lineNumber] = {
+				enabled: bp.enabled,
+				condition: bp.condition
 			};
-		}
+		});
 
-		const modelUrl = model.getAssociatedResource();
-		
-		for (var i = 0, len = modelData.breakpointDecorationIds.length; i < len; i++) {
-			var decorationRange = model.getDecorationRange(modelData.breakpointDecorationIds[i]);
+		const modelUrl = modelData.model.getAssociatedResource();
+		for (let i = 0, len = modelData.breakpointDecorationIds.length; i < len; i++) {
+			const decorationRange = modelData.model.getDecorationRange(modelData.breakpointDecorationIds[i]);
 			// Check if the line got deleted.
 			if (decorationRange.endColumn - decorationRange.startColumn > 0) {
 				// Since we know it is collapsed, it cannot grow to multiple lines
@@ -228,71 +223,47 @@ export class DebugEditorModelManager implements wbext.IWorkbenchContribution {
 		this.debugService.setBreakpointsForModel(modelUrl, data);
 	}
 
-	private onModelRemoved(model: editorcommon.IModel): void {
-		var modelUrl = model.getAssociatedResource();
-		if (!this.modelData.hasOwnProperty(modelUrl.toString())) {
-			// Nothing to clean up
-			return;
-		}
+	private onBreakpointsChanged(): void {
+		const breakpointsMap: { [key: string]: IBreakpoint[] } = {};
+		this.debugService.getModel().getBreakpoints().forEach(bp => {
+			const uriStr = bp.source.uri.toString();
+			if (breakpointsMap[uriStr]) {
+				breakpointsMap[uriStr].push(bp);
+			} else {
+				breakpointsMap[uriStr] = [bp];
+			}
+		});
 
-		var modelData = this.modelData[modelUrl.toString()];
-		delete this.modelData[modelUrl.toString()];
-
-		lifecycle.disposeAll(modelData.toDispose);
+		Object.keys(breakpointsMap).forEach(modelUriStr => {
+			if (this.modelData.hasOwnProperty(modelUriStr)) {
+				this.updateBreakpoints(this.modelData[modelUriStr], breakpointsMap[modelUriStr]);
+			}
+		});
+		Object.keys(this.modelData).forEach(modelUriStr => {
+			if (!breakpointsMap.hasOwnProperty(modelUriStr)) {
+				this.updateBreakpoints(this.modelData[modelUriStr], []);
+			}
+		});
 	}
 
 	private updateBreakpoints(modelData: IDebugEditorModelData, newBreakpoints: IBreakpoint[]): void {
-		var model = modelData.model;
-		modelData.breakpointDecorationIds = model.deltaDecorations(modelData.breakpointDecorationIds, this.createBreakpointDecorations(newBreakpoints));
+		modelData.breakpointDecorationIds = modelData.model.deltaDecorations(modelData.breakpointDecorationIds, this.createBreakpointDecorations(newBreakpoints));
 		modelData.breakpointDecorationsAsMap = toMap(modelData.breakpointDecorationIds);
 		modelData.breakpointLines = newBreakpoints.map(bp => bp.lineNumber);
 	}
 
-	private updateCallStack(): void {
-		var modelUrlStr: string;
-		for (modelUrlStr in this.modelData) {
-			if (this.modelData.hasOwnProperty(modelUrlStr)) {
-				var modelData = this.modelData[modelUrlStr];
-				var model = modelData.model;
-				modelData.currentStackDecorations = model.deltaDecorations(modelData.currentStackDecorations, this.createCallStackDecorations(modelUrlStr));
-			}
-		}
+	private createBreakpointDecorations(breakpoints: IBreakpoint[]): editorcommon.IModelDeltaDecoration[] {
+		const activated = this.debugService.getModel().areBreakpointsActivated();
+		return breakpoints.map((breakpoint) => {
+			return {
+				options: (!breakpoint.enabled || !activated) ? DebugEditorModelManager.BREAKPOINT_DISABLED_DECORATION :
+					breakpoint.error ? DebugEditorModelManager.BREAKPOINT_ERROR_DECORATION : DebugEditorModelManager.BREAKPOINT_DECORATION,
+				range: createRange(breakpoint.lineNumber, 1, breakpoint.lineNumber, 2)
+			};
+		});
 	}
 
-	private onBreakpointChanged(): void {
-		var breakpoints = this.debugService.getModel().getBreakpoints();
-		var breakpointsMap: { [key: string]: IBreakpoint[] } = {};
-		for (var i = 0; i < breakpoints.length; i++) {
-			var uriStr = breakpoints[i].source.uri.toString();
-			if (breakpointsMap[uriStr]) {
-				breakpointsMap[uriStr].push(breakpoints[i]);
-			} else {
-				breakpointsMap[uriStr] = [breakpoints[i]];
-			}
-		}
-
-		for (var modelUriStr in breakpointsMap) {
-			if (breakpointsMap.hasOwnProperty(modelUriStr)) {
-				if (this.modelData.hasOwnProperty(modelUriStr)) {
-					this.updateBreakpoints(this.modelData[modelUriStr], breakpointsMap[modelUriStr]);
-				}
-			}
-		}
-		for (var modelUriStr in this.modelData) {
-			if (this.modelData.hasOwnProperty(modelUriStr) && !breakpointsMap.hasOwnProperty(modelUriStr)) {
-				this.updateBreakpoints(this.modelData[modelUriStr], []);
-			}
-		}
-	}
-
-	private static createRange(startLineNUmber: number, startColumn: number, endLineNumber: number, endColumn: number): editorcommon.IRange {
-		return {
-			startLineNumber: startLineNUmber,
-			startColumn: startColumn,
-			endLineNumber: endLineNumber,
-			endColumn: endColumn
-		};
-	}
+	// Editor decorations
 
 	private static BREAKPOINT_DECORATION: editorcommon.IModelDecorationOptions = {
 		glyphMarginClassName: 'debug-breakpoint-glyph',
