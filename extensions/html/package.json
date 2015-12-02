@@ -6,6 +6,6 @@
 	"grammars": [{
 		// not used yet
 		"scopeName": "text.html.basic",
-		"path": "./syntaxes/LESS.tmLanguage"
+		"path": "./syntaxes/HTML.plist"
 	}]
 }
