@@ -105,7 +105,10 @@ export class CSSIntellisense {
 	}
 
 	public getCompletionsForDeclarationProperty(result:Modes.ISuggestion[]):Modes.ISuggestion[] {
+		return this.getPropertyProposals(result);
+	}
 
+	private getPropertyProposals(result:Modes.ISuggestion[]):Modes.ISuggestion[] {
 		var properties = languageFacts.getProperties();
 
 		for (var key in properties) {
@@ -341,7 +344,7 @@ export class CSSIntellisense {
 		if (ruleSet && ruleSet.isNested()) {
 			var selector = ruleSet.getSelectors().findFirstChildBeforeOffset(this.offset);
 			if (selector && ruleSet.getSelectors().getChildren().indexOf(selector) === 0) {
-				this.getCompletionsForDeclarationProperty(result);
+				this.getPropertyProposals(result);
 			}
 		}
 		return result;

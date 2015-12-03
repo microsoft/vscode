@@ -112,6 +112,11 @@ suite('SASS - Worker', () => {
 			testSuggestionsFor('.foo { .', '{ .').then((completion) => {
 				assert.equal(completion.currentWord, '');
 				assertSuggestion(completion, '.foo');
+			}),
+			// issue #250 
+			testSuggestionsFor('.foo { display: block;', 'block;').then((completion) => {
+				assert.equal(completion.currentWord, '');
+				assert.equal(0, completion.suggestions.length);
 			})
 		]).done(() => testDone(), (errors:any[]) => {
 			testDone(errors.reduce((e1, e2) => e1 || e2));
