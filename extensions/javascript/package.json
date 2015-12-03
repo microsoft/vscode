@@ -9,8 +9,7 @@
 			"aliases": ["JavaScript React","jsx"],
 			"extensions": [".jsx"],
 			"configuration": "./javascript.configuration.json"
-		},
-		{
+		},{
 			"id": "javascript",
 			"aliases": ["JavaScript", "javascript", "js"],
 			"extensions": [".js", ".es6"],
@@ -27,6 +26,7 @@
 			"scopeName": "source.js",
 			"path": "./syntaxes/JavaScript.tmLanguage"
 		},{
+			// referenced by other grammars
 			"scopeName": "source.js.regexp",
 			"path": "./syntaxes/Regular Expressions (JavaScript).tmLanguage"
 		}],
