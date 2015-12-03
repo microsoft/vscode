@@ -737,6 +737,21 @@ export class OneCursorOp {
 		return true;
 	}
 
+	public static expandLineSelection(cursor:OneCursor, ctx: IOneCursorOperationContext): boolean {
+		ctx.cursorPositionChangeReason = 'explicit';
+		var current = cursor.getSelection();
+		var lastColumn = cursor.getColumnAtEndOfViewLine(current.endLineNumber, current.endColumn);
+		var r = new Selection(current.startLineNumber,1,current.endLineNumber,lastColumn);
+		if (current.equalsSelection(r)){
+			lastColumn = cursor.getColumnAtEndOfViewLine(current.endLineNumber+1, current.endColumn+1);
+			r = new Selection(current.startLineNumber,1,current.endLineNumber+1,lastColumn);
+			cursor.setSelection(r);
+		} else {
+			cursor.setSelection(r);
+		}
+		return true;
+	}
+
 	public static moveToBeginningOfBuffer(cursor:OneCursor, inSelectionMode: boolean, ctx: IOneCursorOperationContext): boolean {
 		ctx.cursorPositionChangeReason = 'explicit';
 		cursor.moveModelPosition(inSelectionMode, 1, 1, 0, true);
