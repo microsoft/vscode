@@ -33,7 +33,7 @@ export interface IWindowService {
 
 	registerWindow(win: ElectronWindow): void;
 
-	broadcast(b: IBroadcast): void;
+	broadcast(b: IBroadcast, target?: string): void;
 
 	onBroadcast: EventProvider<(b: IBroadcast) => void>;
 }
@@ -72,8 +72,8 @@ export class WindowService implements IWindowService {
 		this.win = win;
 	}
 
-	public broadcast(b: IBroadcast): void {
-		ipc.send('vscode:broadcast', this.getWindowId(), {
+	public broadcast(b: IBroadcast, target?: string): void {
+		ipc.send('vscode:broadcast', this.getWindowId(), target, {
 			channel: b.channel,
 			payload: b.payload
 		});

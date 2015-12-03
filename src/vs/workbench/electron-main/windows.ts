@@ -234,9 +234,16 @@ export class WindowsManager {
 			storage.setItem(WindowsManager.themeStorageKey, theme);
 		});
 
-		ipc.on('vscode:broadcast', (event: Event, windowId: number, broadcast: { channel: string; payload: any; }) => {
+		ipc.on('vscode:broadcast', (event: Event, windowId: number, target: string, broadcast: { channel: string; payload: any; }) => {
 			if (broadcast.channel && broadcast.payload) {
-				this.sendToAll('vscode:broadcast', broadcast, [windowId]);
+				if (target) {
+					let targetWindow = this.findWindow(target);
+					if (targetWindow && targetWindow.win.id !== windowId) {
+						targetWindow.send('vscode:broadcast', broadcast);
+					}
+				} else {
+					this.sendToAll('vscode:broadcast', broadcast, [windowId]);
+				}
 			}
 		});
 

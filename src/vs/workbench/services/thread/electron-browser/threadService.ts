@@ -142,7 +142,7 @@ class PluginHostProcessManager {
 						payload: {
 							port: port
 						}
-					});
+					}, config.env.pluginDevelopmentPath /* target */);
 				}
 
 				// Messages from Plugin host
@@ -211,7 +211,7 @@ class PluginHostProcessManager {
 							this.windowService.broadcast({
 								channel: PLUGIN_LOG_BROADCAST_CHANNEL,
 								payload: logEntry
-							});
+							}, config.env.pluginDevelopmentPath /* target */);
 						}
 					}
 
