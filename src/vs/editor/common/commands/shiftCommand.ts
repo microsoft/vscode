@@ -49,7 +49,7 @@ export class ShiftCommand implements EditorCommon.ICommand {
 		this._useLastEditRangeForCursorEndPosition = false;
 	}
 
-public getEditOperations(model: EditorCommon.ITokenizedModel, builder: EditorCommon.IEditOperationBuilder): void {
+	public getEditOperations(model: EditorCommon.ITokenizedModel, builder: EditorCommon.IEditOperationBuilder): void {
 		var startLine = this._selection.startLineNumber,
 			endLine = this._selection.endLineNumber;
 
