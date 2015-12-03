@@ -12,7 +12,6 @@ import * as EditorCommon from 'vs/editor/common/editorCommon';
 import {Remotable, IThreadService} from 'vs/platform/thread/common/thread';
 import Event, {Emitter} from 'vs/base/common/event';
 import URI from 'vs/base/common/uri';
-import 'vs/base/common/network'; // just to register the URL serialize/deserialize
 import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
 import {Range, Position} from 'vs/workbench/api/common/pluginHostTypes';
 import {IEventService} from 'vs/platform/event/common/event';

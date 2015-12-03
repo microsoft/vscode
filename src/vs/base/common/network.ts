@@ -8,34 +8,8 @@ import assert = require('vs/base/common/assert');
 import objects = require('vs/base/common/objects');
 import strings = require('vs/base/common/strings');
 import hash = require('vs/base/common/hash');
-import marshalling = require('vs/base/common/marshalling');
 import paths = require('vs/base/common/paths');
 import URI from 'vs/base/common/uri';
-
-interface ISerializedURL {
-	$isURL: boolean;
-	$value: string;
-}
-
-marshalling.registerMarshallingContribution({
-
-	canSerialize: (obj:any): boolean => {
-		return obj instanceof URL;
-	},
-
-	serialize: (url:URL, serialize:(obj:any)=>any): ISerializedURL => {
-		return url._toSerialized();
-	},
-
-	canDeserialize: (obj:ISerializedURL): boolean => {
-		return obj.$isURL;
-	},
-
-	deserialize: (obj:ISerializedURL, deserialize:(obj:any)=>any): any => {
-		return new URL(obj.$value);
-	}
-});
-
 
 var _colon = ':'.charCodeAt(0),
 	_slash = '/'.charCodeAt(0),
@@ -446,14 +420,6 @@ export class URL extends URI implements objects.IEqualable {
 
 	public toJSON(): any {
 		return this.toString();
-	}
-
-	public _toSerialized(): any {
-		return {
-			$isURL: true,
-			// TODO@Alex: implement derived resources (embedded mirror models) better
-			$value: this.toString().replace(/URL_MARSHAL_REMOVE.*$/, '')
-		};
 	}
 }
 

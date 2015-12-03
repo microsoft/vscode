@@ -219,7 +219,7 @@ suite('Network', () => {
 	});
 
 	test('Bug 16793:# in folder name => mirror models get out of sync', function () {
-		var url = new URL('file:///C:/model/1#css');
-		assert.equal(deserialize(serialize(url)).toString(), url.toString());
+		var uri = URI.parse('file:///C:/model/1#css');
+		assert.equal(deserialize(serialize(uri)).toString(), uri.toString());
 	});
 });
