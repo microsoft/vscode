@@ -270,12 +270,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		}));
 
 		this.toDispose.push(this.session.addListener2(debug.SessionEvents.DEBUGEE_TERMINATED, (event: DebugProtocol.TerminatedEvent) => {
-			// if there is some opaque data in the body of the terminate event, just pass it to the next launch request
-			let extensionHostData = event.body ? event.body.extensionHost : undefined;
-
-			if (extensionHostData) {
-				this.restartSession(extensionHostData).done(null, errors.onUnexpectedError);
-			} else if (this.session) {
+			if (this.session) {
 				this.session.disconnect().done(null, errors.onUnexpectedError);
 			}
 		}));
@@ -474,13 +469,11 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		this.model.clearWatchExpressions(id);
 	}
 
-	public createSession(extensionHostData?: any, openViewlet = true): Promise {
+	public createSession(openViewlet = true): Promise {
 		this.textFileService.saveAll().done(null, errors.onUnexpectedError);
-		if (!extensionHostData) {
-			this.clearReplExpressions();
-		}
+		this.clearReplExpressions();
 
-		return this.pluginService.onReady().then(() => this.configurationManager.setConfiguration(this.configurationManager.getConfigurationName(), extensionHostData)).then(() => {
+		return this.pluginService.onReady().then(() => this.configurationManager.setConfiguration(this.configurationManager.getConfigurationName())).then(() => {
 			const configuration = this.configurationManager.getConfiguration();
 			if (!configuration) {
 				return this.configurationManager.openConfigFile(false).then(openend => {
@@ -530,8 +523,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 	}
 
 	private runPreLaunchTask(config: debug.IConfig): Promise {
-		// Only run the task if we are not reattaching (extensionHostData is defined).
-		if (!config.preLaunchTask || config.extensionHostData) {
+		if (!config.preLaunchTask) {
 			return Promise.as(true);
 		}
 
@@ -582,14 +574,14 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		}, true);
 	}
 
-	public restartSession(extensionHostData?: any): Promise {
-		return this.session ? this.session.disconnect(true).then(() => {
+	public restartSession(): Promise {
+		return this.session ? this.session.disconnect().then(() => {
 			new Promise(c => {
 				setTimeout(() => {
-					this.createSession(extensionHostData, false).then(() => c(true));
+					this.createSession(false).then(() => c(true));
 				}, 300);
 			});
-		}) : this.createSession(extensionHostData, false);
+		}) : this.createSession(false);
 	}
 
 	public getActiveSession(): debug.IRawDebugSession {

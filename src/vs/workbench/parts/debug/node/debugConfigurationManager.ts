@@ -218,7 +218,7 @@ export class ConfigurationManager {
 		return this.adapters.filter(adapter => adapter.type === this.configuration.type).pop();
 	}
 
-	public setConfiguration(name: string, extensionHostData: any = null): Promise {
+	public setConfiguration(name: string): Promise {
 		return this.loadLaunchConfig().then(config => {
 			if (!config || !config.configurations) {
 				this.configuration = null;
@@ -242,8 +242,6 @@ export class ConfigurationManager {
 				this.configuration.runtimeExecutable = this.resolvePath(this.systemVariables.resolve(this.configuration.runtimeExecutable));
 				this.configuration.runtimeArgs = this.configuration.runtimeArgs && this.configuration.runtimeArgs.length > 0 ? this.systemVariables.resolve(this.configuration.runtimeArgs) : null;
 				this.configuration.outDir = this.resolvePath(this.configuration.outDir);
-				// send opaque data back as part of the (undocumented) arguments of the launch request.
-				this.configuration.extensionHostData = extensionHostData;
 			}
 		});
 	}

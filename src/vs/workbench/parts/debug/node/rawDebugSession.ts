@@ -116,14 +116,11 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 		return this.send('pause', args);
 	}
 
-	public disconnect(restart = false): TPromise<DebugProtocol.DisconnectResponse> {
+	public disconnect(): TPromise<DebugProtocol.DisconnectResponse> {
 		if ((this.serverProcess || this.socket) && !this.stopServerPending) {
-			this.stopServerPending = true; // point of no return: from now on don't report any errors
-			return this.send('disconnect', { extensionHostData: { restart: restart } }).then(() => {
-				return this.stopServer();
-			}, () => {
-				return this.stopServer();
-			});
+			// point of no return: from now on don't report any errors
+			this.stopServerPending = true;
+			return this.stopServer();
 		}
 
 		return Promise.as(null);

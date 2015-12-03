@@ -173,7 +173,6 @@ export interface IConfig {
 	preLaunchTask?: string;
 	externalConsole?: boolean;
 	debugServer?: number;
-	extensionHostData?: any;
 }
 
 export interface IRawEnvAdapter {
