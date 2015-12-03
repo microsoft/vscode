@@ -10,7 +10,7 @@
 declare namespace vscode {
 
 	/**
-	 * Visual Studio Code's version.
+	 * The version of the editor.
 	 */
 	export var version: string;
 
