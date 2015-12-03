@@ -282,17 +282,24 @@ export class Client {
 	}
 
 	private bufferRequest(request: IRequest): Promise {
+		let flushedRequest: Promise = null;
+
 		return new Promise((c, e, p) => {
 			this.bufferedRequests.push(request);
 
 			request.flush = () => {
 				request.flush = null;
-				this.doRequest(request).done(c, e, p);
+				flushedRequest = this.doRequest(request).then(c, e, p);
 			};
 		}, () => {
 			request.flush = null;
 
 			if (this.state !== ServiceState.Uninitialized) {
+				if (flushedRequest) {
+					flushedRequest.cancel();
+					flushedRequest = null;
+				}
+
 				return;
 			}
 
