@@ -130,9 +130,9 @@ export class RestartDebugAction extends AbstractDebugAction {
 		super(id, label, 'debug-action restart', debugService, keybindingService);
 		this.updateEnablement();
 		this.toDispose.push(this.debugService.addListener2(debug.ServiceEvents.STATE_CHANGED, () => {
-			const configuration = this.debugService.getConfiguration();
-			if (configuration) {
-				this.label = configuration.port ? RestartDebugAction.RECONNECT_LABEL : RestartDebugAction.LABEL;
+			const session = this.debugService.getActiveSession();
+			if (session) {
+				this.label = session.isAttach ? RestartDebugAction.RECONNECT_LABEL : RestartDebugAction.LABEL;
 			}
 		}));
 	}
@@ -205,9 +205,9 @@ export class StopDebugAction extends AbstractDebugAction {
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
 		super(id, label, 'debug-action stop', debugService, keybindingService);
 		this.toDispose.push(this.debugService.addListener2(debug.ServiceEvents.STATE_CHANGED, () => {
-			const configuration = this.debugService.getConfiguration();
-			if (configuration) {
-				this.label = configuration.port ? StopDebugAction.DISCONNECT_LABEL : StopDebugAction.LABEL;
+			const session = this.debugService.getActiveSession();
+			if (session) {
+				this.label = session.isAttach ? StopDebugAction.DISCONNECT_LABEL : StopDebugAction.LABEL;
 			}
 		}));
 	}

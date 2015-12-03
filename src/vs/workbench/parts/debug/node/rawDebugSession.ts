@@ -26,6 +26,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 	private cachedInitServer: Promise;
 	private startTime: number;
 	private stopServerPending: boolean;
+	public isAttach: boolean;
 
 	constructor(
 		private messageService: IMessageService,
@@ -70,10 +71,12 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 	}
 
 	public launch(args: DebugProtocol.LaunchRequestArguments): TPromise<DebugProtocol.LaunchResponse> {
+		this.isAttach = false;
 		return this.sendAndLazyEmit('launch', args);
 	}
 
 	public attach(args: DebugProtocol.AttachRequestArguments): TPromise<DebugProtocol.AttachResponse> {
+		this.isAttach = true;
 		return this.sendAndLazyEmit('attach', args);
 	}
 

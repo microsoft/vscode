@@ -196,6 +196,7 @@ export interface IRawAdapter extends IRawEnvAdapter {
 
 export interface IRawDebugSession extends ee.EventEmitter {
 	getType(): string;
+	isAttach: boolean;
 	disconnect(restart?: boolean): TPromise<DebugProtocol.DisconnectResponse>;
 
 	next(args: DebugProtocol.NextArguments): TPromise<DebugProtocol.NextResponse>;
@@ -216,7 +217,7 @@ export interface IDebugService extends ee.IEventEmitter {
 	getState(): State;
 	canSetBreakpointsIn(model: editor.IModel, lineNumber: number): boolean;
 
-	getConfiguration(): IConfig;
+	getConfigurationName(): string;
 	setConfiguration(name: string): Promise;
 	openConfigFile(sideBySide: boolean): TPromise<boolean>;
 	loadLaunchConfig(): TPromise<IGlobalConfig>;

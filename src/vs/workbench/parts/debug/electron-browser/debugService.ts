@@ -734,8 +734,8 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		return this.configurationManager.canSetBreakpointsIn(model, lineNumber);
 	}
 
-	public getConfiguration(): debug.IConfig {
-		return this.configurationManager.getConfiguration();
+	public getConfigurationName(): string {
+		return this.configurationManager.getConfigurationName();
 	}
 
 	public setConfiguration(name: string): Promise {
