@@ -739,15 +739,15 @@ export class OneCursorOp {
 
 	public static expandLineSelection(cursor:OneCursor, ctx: IOneCursorOperationContext): boolean {
 		ctx.cursorPositionChangeReason = 'explicit';
-		var current = cursor.getSelection();
-		var lastColumn = cursor.getColumnAtEndOfViewLine(current.endLineNumber, current.endColumn);
-		var r = new Selection(current.startLineNumber,1,current.endLineNumber,lastColumn);
-		if (current.equalsSelection(r)){
-			lastColumn = cursor.getColumnAtEndOfViewLine(current.endLineNumber+1, current.endColumn+1);
-			r = new Selection(current.startLineNumber,1,current.endLineNumber+1,lastColumn);
-			cursor.setSelection(r);
+		var currentSelection = cursor.getSelection();
+		var lastColumn = cursor.getColumnAtEndOfViewLine(currentSelection.endLineNumber, currentSelection.endColumn);
+		var expandedSelection = new Selection(currentSelection.startLineNumber,1,currentSelection.endLineNumber,lastColumn);
+		if (currentSelection.equalsSelection(expandedSelection)){
+			lastColumn = cursor.getColumnAtEndOfViewLine(currentSelection.endLineNumber+1, currentSelection.endColumn+1);
+			expandedSelection = new Selection(currentSelection.startLineNumber,1,currentSelection.endLineNumber+1,lastColumn);
+			cursor.setSelection(expandedSelection);
 		} else {
-			cursor.setSelection(r);
+			cursor.setSelection(expandedSelection);
 		}
 		return true;
 	}
