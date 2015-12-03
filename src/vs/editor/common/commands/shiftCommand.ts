@@ -49,7 +49,7 @@ export class ShiftCommand implements EditorCommon.ICommand {
 		this._useLastEditRangeForCursorEndPosition = false;
 	}
 
-	public getEditOperations(model: EditorCommon.ITokenizedModel, builder: EditorCommon.IEditOperationBuilder): void {
+public getEditOperations(model: EditorCommon.ITokenizedModel, builder: EditorCommon.IEditOperationBuilder): void {
 		var startLine = this._selection.startLineNumber,
 			endLine = this._selection.endLineNumber;
 
@@ -71,6 +71,8 @@ export class ShiftCommand implements EditorCommon.ICommand {
 			}
 		}
 
+		var isMultilineComment = false;
+
 		for (lineNumber = startLine; lineNumber <= endLine; lineNumber++) {
 			var lineText = model.getLineContent(lineNumber);
 			var indentationEndIndex = Strings.firstNonWhitespaceIndex(lineText);
@@ -89,7 +91,11 @@ export class ShiftCommand implements EditorCommon.ICommand {
 
 			var desiredIndentCount: number;
 			if (this._opts.isUnshift) {
-				desiredIndentCount = ShiftCommand.unshiftIndentCount(lineText, indentationEndIndex + 1, tabSize);
+				if (isMultilineComment) {
+					desiredIndentCount = ShiftCommand.unshiftIndentCount(lineText, indentationEndIndex, tabSize);
+				} else {
+					desiredIndentCount = ShiftCommand.unshiftIndentCount(lineText, indentationEndIndex + 1, tabSize);
+				}
 			} else {
 				desiredIndentCount = ShiftCommand.shiftIndentCount(lineText, indentationEndIndex + 1, tabSize);
 			}
@@ -99,7 +105,23 @@ export class ShiftCommand implements EditorCommon.ICommand {
 				indents[j] = indents[j-1] + oneIndent;
 			}
 
-			builder.addEditOperation(new Range(lineNumber, 1, lineNumber, indentationEndIndex + 1), indents[desiredIndentCount]);
+			var desiredIndent = indents[desiredIndentCount];
+			if (isMultilineComment) {
+				// Add space to align the multiline comment
+				desiredIndent += " ";
+			}
+
+			// Check whether we're in a multiline comment or not
+			if (lineText.length >= 2 + indentationEndIndex) {
+				if (lineText.indexOf("/*") === indentationEndIndex) {
+					isMultilineComment = true;
+				}
+				if (lineText.indexOf("*/") !== -1) {
+					isMultilineComment = false;
+				}
+			}
+
+			builder.addEditOperation(new Range(lineNumber, 1, lineNumber, indentationEndIndex + 1), desiredIndent);
 		}
 
 		this._selectionId = builder.trackSelection(this._selection);
