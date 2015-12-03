@@ -29,7 +29,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 
 	private static SYMBOL_SEARCH_INITIAL_TIMEOUT = 500; // Ignore symbol search after a timeout to not block search results
 	private static SYMBOL_SEARCH_SUBSEQUENT_TIMEOUT = 100;
-	private static SEARCH_DELAY = 100; // This delay accommodates for the user typing a word and then stops typing to start searching
+	private static SEARCH_DELAY = 300; // This delay accommodates for the user typing a word and then stops typing to start searching
 
 	private static MAX_DISPLAYED_FILE_RESULTS = 2048;
 
@@ -127,7 +127,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 			}));
 
 			// Join and sort unified
-			return TPromise.join(resultPromises).then((results: QuickOpenModel[]) => {
+			this.pendingSearch = TPromise.join(resultPromises).then((results: QuickOpenModel[]) => {
 				this.pendingSearch = null;
 
 				// If the quick open widget has been closed meanwhile, ignore the result
@@ -160,12 +160,12 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 				this.pendingSearch = null;
 				this.messageService.show(Severity.Error, error);
 			});
+
+			return this.pendingSearch;
 		};
 
 		// Trigger through delayer to prevent accumulation while the user is typing
-		this.pendingSearch = this.delayer.trigger(promiseFactory);
-
-		return this.pendingSearch;
+		return this.delayer.trigger(promiseFactory);
 	}
 
 	private findRange(value: string): IRange {
