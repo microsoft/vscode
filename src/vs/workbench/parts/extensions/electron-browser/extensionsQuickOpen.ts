@@ -83,7 +83,9 @@ function extensionEquals(one: IExtension, other: IExtension): boolean {
 class OpenInGalleryAction extends Action {
 
 	constructor(
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
+		@IMessageService protected messageService: IMessageService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IInstantiationService protected instantiationService: IInstantiationService
 	) {
 		super('extensions.open-in-gallery', 'Readme', '', true);
 	}
@@ -91,6 +93,28 @@ class OpenInGalleryAction extends Action {
 	public run(extension: IExtension): TPromise<any> {
 		const url = `${this.contextService.getConfiguration().env.extensionsGallery.itemUrl}/${ extension.publisher }.${ extension.name }`;
 		shell.openExternal(url);
+
+		const hideMessage = this.messageService.show(Severity.Info, {
+			message: nls.localize('installPrompt', "Would you like to install '{0}'?", extension.displayName),
+			actions: [
+				new Action('cancelaction', nls.localize('cancel', 'Cancel')),
+				new Action('installNow', nls.localize('installNow', 'Install Now'), null, true, () => {
+					hideMessage();
+
+					const hideInstallMessage = this.messageService.show(Severity.Info, nls.localize('nowInstalling', "'{0}' is being installed...", extension.displayName));
+
+					const action = this.instantiationService.createInstance(InstallAction, '');
+					return action.run(extension).then(r => {
+						hideInstallMessage();
+						return TPromise.as(r);
+					}, e => {
+						hideInstallMessage();
+						return TPromise.wrapError(e);
+					});
+				})
+			]
+		});
+
 		return TPromise.as(null);
 	}
 }
