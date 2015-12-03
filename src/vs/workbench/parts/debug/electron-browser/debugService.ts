@@ -575,7 +575,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 	}
 
 	public restartSession(): Promise {
-		return this.session ? this.session.disconnect().then(() => {
+		return this.session ? this.session.disconnect(true).then(() => {
 			new Promise(c => {
 				setTimeout(() => {
 					this.createSession(false).then(() => c(true));
