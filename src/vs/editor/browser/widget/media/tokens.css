@@ -330,6 +330,7 @@
 
 .monaco-editor.vs .token.constant								{ color: #dd0000; }
 .monaco-editor.vs .token.constant.language						{ color: #0000FF; }
+.monaco-editor.vs .token.constant.entity						{ color: #A31515; }
 .monaco-editor.vs .token.constant.numeric						{ color: #09885A; }
 .monaco-editor.vs .token.constant.numeric.hex					{ color: #3030c0; }
 .monaco-editor.vs .token.constant.numeric.octal					{ color: #204070; }
@@ -467,6 +468,7 @@
 
 .monaco-editor.vs-dark .token.constant							{ color: #569CD6; }
 .monaco-editor.vs-dark .token.constant.language					{ color: #569CD6; }
+.monaco-editor.vs-dark .token.constant.entity					{ color: #CE9178; }
 .monaco-editor.vs-dark .token.constant.numeric					{ color: #B5CEA8; }
 .monaco-editor.vs-dark .token.constant.numeric.hex				{ color: #5BB498; }
 .monaco-editor.vs-dark .token.constant.numeric.octal			{ color: #204070; }
@@ -606,6 +608,7 @@
 
 .monaco-editor.hc-black .token.constant							{ color: #569CD6; }
 .monaco-editor.hc-black .token.constant.language				{ color: #569CD6; }
+.monaco-editor.hc-black .token.constant.entity					{ color: #CE9178; }
 .monaco-editor.hc-black .token.constant.numeric					{ color: #B5CEA8; }
 .monaco-editor.hc-black .token.constant.numeric.hex				{ color: #5BB498; }
 .monaco-editor.hc-black .token.constant.numeric.octal			{ color: #204070; }
