@@ -458,6 +458,10 @@ class RenameAdapter implements modes.IRenameSupport {
 	}
 }
 
+interface ISuggestion2 extends modes.ISuggestion {
+	id: string;
+}
+
 class SuggestAdapter implements modes.ISuggestSupport {
 
 	private _documents: PluginHostModelService;
@@ -489,7 +493,7 @@ class SuggestAdapter implements modes.ISuggestSupport {
 
 			for (let i = 0; i < value.length; i++) {
 				const item = value[i];
-				const suggestion = TypeConverters.Suggest.from(item);
+				const suggestion = <ISuggestion2> TypeConverters.Suggest.from(item);
 
 				if (item.textEdit) {
 
@@ -535,7 +539,7 @@ class SuggestAdapter implements modes.ISuggestSupport {
 		if (!items) {
 			return TPromise.as(suggestion);
 		}
-		let item = items[Number(suggestion.id)];
+		let item = items[Number((<ISuggestion2> suggestion).id)];
 		if (!item) {
 			return TPromise.as(suggestion);
 		}

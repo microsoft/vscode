@@ -18,7 +18,7 @@ import { ISuggestSupport, ISuggestResult, ISuggestion, ISorter } from 'vs/editor
 import {DefaultFilter} from 'vs/editor/common/modes/modesFilters';
 import { CodeSnippet } from 'vs/editor/contrib/snippet/common/snippet';
 import { IDisposable, disposeAll } from 'vs/base/common/lifecycle';
-import {SuggestRegistry, ISuggestions2, suggest} from '../common/suggest';
+import {SuggestRegistry, ISuggestResult2, suggest} from '../common/suggest';
 
 enum SuggestState {
 	NOT_ACTIVE = 0,
@@ -77,7 +77,7 @@ class RawModel {
 	public size: number = 0;
 	public incomplete: boolean = false;
 
-	insertSuggestions(rank: number, suggestions: ISuggestions2[]): boolean {
+	insertSuggestions(rank: number, suggestions: ISuggestResult2[]): boolean {
 		if (suggestions) {
 			let items: CompletionItem[] = [];
 			for (let _suggestions of suggestions) {

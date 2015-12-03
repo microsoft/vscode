@@ -19,11 +19,11 @@ export var ACCEPT_SELECTED_SUGGESTION_CMD = 'acceptSelectedSuggestion';
 
 export var SuggestRegistry = new LanguageFeatureRegistry<ISuggestSupport>('suggestSupport');
 
-export interface ISuggestions2 extends ISuggestResult {
+export interface ISuggestResult2 extends ISuggestResult {
 	support?: ISuggestSupport;
 }
 
-export function suggest(model: IModel, position: IPosition, triggerCharacter: string, groups?: ISuggestSupport[][]): TPromise<ISuggestions2[][]> {
+export function suggest(model: IModel, position: IPosition, triggerCharacter: string, groups?: ISuggestSupport[][]): TPromise<ISuggestResult2[][]> {
 
 	if (!groups) {
 		groups = SuggestRegistry.orderedGroups(model);
@@ -44,7 +44,7 @@ export function suggest(model: IModel, position: IPosition, triggerCharacter: st
 			let promises = supports.map(support => {
 				return support.suggest(resource, position, triggerCharacter).then(values => {
 
-					let result: ISuggestions2[] = [];
+					let result: ISuggestResult2[] = [];
 					for (let suggestResult of values) {
 
 						if (!suggestResult
@@ -54,7 +54,7 @@ export function suggest(model: IModel, position: IPosition, triggerCharacter: st
 							continue;
 						}
 
-						const suggestions2: ISuggestions2 = {
+						const suggestions2: ISuggestResult2 = {
 							support,
 							currentWord: suggestResult.currentWord,
 							incomplete: suggestResult.incomplete,

@@ -402,7 +402,6 @@ export interface ISuggestion {
 	filterText?: string;
 	sortText?: string;
 	noAutoAccept?: boolean;
-	id?: string;
 }
 
 /**
