@@ -511,8 +511,11 @@ export class HTMLWorker extends AbstractModeWorker {
 			.replace(/^"([^"]+)"$/,(substr, match1) => match1);
 	}
 
-	public static _getWorkspaceUrl(modelAbsoluteUrl: network.URL, rootAbsoluteUrl: network.URL, tokenContent: string): string {
+	public static _getWorkspaceUrl(modelAbsoluteUri: URI, rootAbsoluteUri: URI, tokenContent: string): string {
+		var modelAbsoluteUrl = network.URL.fromUri(modelAbsoluteUri);
+		var rootAbsoluteUrl = network.URL.fromUri(rootAbsoluteUri);
 		tokenContent = HTMLWorker._stripQuotes(tokenContent);
+
 
 		if (/^\s*javascript\:/i.test(tokenContent) || /^\s*\#/i.test(tokenContent)) {
 			return null;
@@ -555,7 +558,7 @@ export class HTMLWorker extends AbstractModeWorker {
 		return potentialResult;
 	}
 
-	private createLink(modelAbsoluteUrl: network.URL, rootAbsoluteUrl: network.URL, tokenContent: string, lineNumber: number, startColumn: number, endColumn: number): Modes.ILink {
+	private createLink(modelAbsoluteUrl: URI, rootAbsoluteUrl: network.URL, tokenContent: string, lineNumber: number, startColumn: number, endColumn: number): Modes.ILink {
 		var workspaceUrl = HTMLWorker._getWorkspaceUrl(modelAbsoluteUrl, rootAbsoluteUrl, tokenContent);
 		if (!workspaceUrl) {
 			return null;

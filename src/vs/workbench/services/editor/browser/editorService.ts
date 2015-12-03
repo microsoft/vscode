@@ -312,7 +312,7 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 			return null;
 		}
 
-		return model.getAssociatedResource().equals(input.resource) ? model : null;
+		return model.getAssociatedResource().toString() === input.resource.toString() ? model : null;
 	}
 }
 

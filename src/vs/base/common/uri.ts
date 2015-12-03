@@ -296,9 +296,9 @@ export default class URI {
 			_authority: this._authority,
 			_path: this._path,
 			_query: this._query,
-			_fragment: this._fragment,
+			_fragment: this._fragment.replace(/URL_MARSHAL_REMOVE.*$/, ''), // TODO@Alex: implement derived resources (embedded mirror models) better
 			_fsPath: this._fsPath,
-			_formatted: this._formatted
+			_formatted: this._formatted && this._formatted.replace(/URL_MARSHAL_REMOVE.*$/, ''), // TODO@Alex: implement derived resources (embedded mirror models) better
 		};
 	}
 

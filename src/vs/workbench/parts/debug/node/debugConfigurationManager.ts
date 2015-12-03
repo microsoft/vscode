@@ -7,6 +7,7 @@ import path = require('path');
 import nls = require('vs/nls');
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
 import uri from 'vs/base/common/uri';
+import { schemas } from 'vs/base/common/network';
 import paths = require('vs/base/common/paths');
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import platform = require('vs/platform/platform');
@@ -323,7 +324,7 @@ export class ConfigurationManager {
 		if (model.getLineLastNonWhitespaceColumn(lineNumber) === 0) {
 			return false;
 		}
-		if (model.getAssociatedResource().isInMemory()) {
+		if (model.getAssociatedResource().scheme === schemas.inMemory) {
 			return false;
 		}
 

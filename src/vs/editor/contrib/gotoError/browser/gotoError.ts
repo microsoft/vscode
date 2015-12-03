@@ -399,7 +399,7 @@ class MarkerController implements EditorCommon.IEditorContribution {
 	}
 
 	private _onMarkerChanged(changedResources: URI[]): void {
-		if(!changedResources.some(r => this.editor.getModel().getAssociatedResource().equals(r))) {
+		if(!changedResources.some(r => this.editor.getModel().getAssociatedResource().toString() === r.toString())) {
 			return;
 		}
 		this._model.setMarkers(this._getMarkers());

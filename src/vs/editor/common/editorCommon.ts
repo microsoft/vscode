@@ -10,7 +10,7 @@ import TokensBinaryEncoding = require('vs/editor/common/model/tokensBinaryEncodi
 import {IInstantiationService, INewConstructorSignature1, IConstructorSignature2, INewConstructorSignature2} from 'vs/platform/instantiation/common/instantiation';
 import {IAction} from 'vs/base/common/actions';
 import {IHTMLContentElement} from 'vs/base/common/htmlContent';
-import {URL} from 'vs/base/common/network';
+import URI from 'vs/base/common/uri';
 import Event from 'vs/base/common/event';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
@@ -1715,7 +1715,7 @@ export interface IModel extends IEditableTextModel, ITextModelWithMarkers, IToke
 	/**
 	 * Gets the resource associated with this editor model.
 	 */
-	getAssociatedResource(): URL;
+	getAssociatedResource(): URI;
 
 	/**
 	 * Search the model.
@@ -1783,7 +1783,7 @@ export interface IMirrorModel extends IEventEmitter, ITokenizedModel {
 	getEmbeddedAtPosition(position:IPosition): IMirrorModel;
 	getAllEmbedded(): IMirrorModel[];
 
-	getAssociatedResource(): URL;
+	getAssociatedResource(): URI;
 	getProperty(key:string): any;
 
 	getOffsetFromPosition(position:IPosition): number;

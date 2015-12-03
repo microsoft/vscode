@@ -31,7 +31,7 @@ suite('HTML - worker', () => {
 		});
 	});
 
-	var mockHtmlWorkerEnv = function (url: Network.URL, content: string): { worker: htmlWorker.HTMLWorker; model: mm.MirrorModel; markers: IMarker[]; } {
+	var mockHtmlWorkerEnv = function (url: URI, content: string): { worker: htmlWorker.HTMLWorker; model: mm.MirrorModel; markers: IMarker[]; } {
 		var resourceService = new ResourceService.ResourceService();
 
 		var model = mm.createMirrorModelFromString(null, 0, content, mode, url);
@@ -56,7 +56,7 @@ suite('HTML - worker', () => {
 		var idx = value.indexOf('|');
 		var content = value.substr(0, idx) + value.substr(idx + 1);
 
-		var url = new Network.URL('test://1');
+		var url = URI.parse('test://1');
 		var env = mockHtmlWorkerEnv(url, content);
 
 		var position = env.model.getPositionFromOffset(idx);
@@ -327,11 +327,11 @@ suite('HTML - worker', () => {
 	});
 
 	function testLinkCreation(modelUrl:string, rootUrl:string, tokenContent:string, expected:string): void {
-		var _modelUrl = new Network.URL(modelUrl);
-		var _rootUrl = rootUrl === null ? null : new Network.URL(rootUrl);
+		var _modelUrl = URI.parse(modelUrl);
+		var _rootUrl = rootUrl === null ? null : URI.parse(rootUrl);
 		var actual = htmlWorker.HTMLWorker._getWorkspaceUrl(_modelUrl, _rootUrl, tokenContent);
-		var _actual = actual === null ? null : new Network.URL(actual);
-		var _expected = expected === null ? null : new Network.URL(expected);
+		var _actual = actual === null ? null : URI.parse(actual);
+		var _expected = expected === null ? null : URI.parse(expected);
 		assert.equal(String(_actual), String(_expected));
 	}
 

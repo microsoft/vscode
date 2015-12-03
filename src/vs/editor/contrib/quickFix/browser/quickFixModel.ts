@@ -124,7 +124,7 @@ export class QuickFixModel extends events.EventEmitter {
 			return;
 		}
 		var associatedResource = model.getAssociatedResource();
-		if (!changedResources.some(r => associatedResource.equals(r))) {
+		if (!changedResources.some(r => associatedResource.toString() === r.toString())) {
 			return;
 		}
 

@@ -9,7 +9,6 @@ import {IMode} from 'vs/editor/common/modes';
 import {TextModel} from 'vs/editor/common/model/textModel';
 import {EditableTextModel} from 'vs/editor/common/model/editableTextModel';
 import EditorCommon = require('vs/editor/common/editorCommon');
-import {URL} from 'vs/base/common/network';
 import URI from 'vs/base/common/uri';
 import Objects = require('vs/base/common/objects');
 import {IDisposable} from 'vs/base/common/lifecycle';
@@ -40,7 +39,7 @@ export class Model extends EditableTextModel implements EditorCommon.IModel {
 
 	public id:string;
 
-	private _associatedResource:URL;
+	private _associatedResource:URI;
 	private _extraProperties:IPropertiesMap;
 	private _attachedEditorCount:number;
 
@@ -68,9 +67,9 @@ export class Model extends EditableTextModel implements EditorCommon.IModel {
 		this.id = '$model' + MODEL_ID;
 
 		if (typeof associatedResource === 'undefined' || associatedResource === null) {
-			this._associatedResource = new URL('inmemory://model/' + MODEL_ID);
+			this._associatedResource = URI.parse('inmemory://model/' + MODEL_ID);
 		} else {
-			this._associatedResource = URL.fromUri(associatedResource);
+			this._associatedResource = associatedResource;
 		}
 
 
@@ -127,7 +126,7 @@ export class Model extends EditableTextModel implements EditorCommon.IModel {
 		return this._attachedEditorCount > 0;
 	}
 
-	public getAssociatedResource(): URL {
+	public getAssociatedResource(): URI {
 		if (this._isDisposed) {
 			throw new Error('Model.getAssociatedResource: Model is disposed');
 		}

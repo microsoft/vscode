@@ -13,7 +13,6 @@ import {TextModelWithTokens} from 'vs/editor/common/model/textModelWithTokens';
 import {ModelLine} from 'vs/editor/common/model/modelLine';
 import EditorCommon = require('vs/editor/common/editorCommon');
 import {IResourceService} from 'vs/editor/common/services/resourceService';
-import {URL} from 'vs/base/common/network';
 import URI from 'vs/base/common/uri';
 import {disposeAll} from 'vs/base/common/lifecycle';
 
@@ -25,7 +24,7 @@ export interface IMirrorModelEvents {
 export class AbstractMirrorModel extends TextModelWithTokens implements EditorCommon.IMirrorModel {
 
 	_lineStarts:PrefixSumComputer;
-	_associatedResource:URL;
+	_associatedResource:URI;
 	_extraProperties:{[key:string]:any;};
 
 	constructor(allowedEventTypes:string[], versionId:number, value:EditorCommon.IRawText, mode:IMode|TPromise<IMode>, associatedResource?:URI, properties?:{[key:string]:any;}) {
@@ -36,7 +35,7 @@ export class AbstractMirrorModel extends TextModelWithTokens implements EditorCo
 		}
 
 		this._setVersionId(versionId);
-		this._associatedResource = URL.fromUri(associatedResource);
+		this._associatedResource = associatedResource;
 		this._extraProperties = properties;
 	}
 
@@ -71,7 +70,7 @@ export class AbstractMirrorModel extends TextModelWithTokens implements EditorCo
 		super.dispose();
 	}
 
-	public getAssociatedResource(): URL {
+	public getAssociatedResource(): URI {
 		if (this._isDisposed) {
 			throw new Error('AbstractMirrorModel.getAssociatedResource: Model is disposed');
 		}
@@ -250,7 +249,7 @@ export class MirrorModelEmbedded extends AbstractMirrorModel implements EditorCo
 
 	private _actualModel:MirrorModel;
 
-	constructor(actualModel:MirrorModel, includeRanges:EditorCommon.IRange[], mode:IMode, url:URL) {
+	constructor(actualModel:MirrorModel, includeRanges:EditorCommon.IRange[], mode:IMode, url:URI) {
 		super(['changed'], actualModel.getVersionId(), MirrorModelEmbedded._getMirrorValueWithinRanges(actualModel, includeRanges), mode, url);
 		this._actualModel = actualModel;
 	}
@@ -450,7 +449,7 @@ export class MirrorModel extends AbstractMirrorModel implements EditorCommon.IMi
 				this._embeddedModels[newNestedModeId].setIncludedRanges(newModesRanges[newNestedModeId].ranges);
 			} else {
 				// TODO@Alex: implement derived resources (embedded mirror models) better
-				var embeddedModelUrl = new URL(this.getAssociatedResource().toString() + 'URL_MARSHAL_REMOVE' + newNestedModeId);
+				var embeddedModelUrl = this.getAssociatedResource().withFragment(this.getAssociatedResource().fragment + 'URL_MARSHAL_REMOVE' + newNestedModeId);
 				this._embeddedModels[newNestedModeId] = new MirrorModelEmbedded(this, newModesRanges[newNestedModeId].ranges, newModesRanges[newNestedModeId].mode, embeddedModelUrl);
 				this._resourceService.insert(this._embeddedModels[newNestedModeId].getAssociatedResource(), this._embeddedModels[newNestedModeId]);
 			}

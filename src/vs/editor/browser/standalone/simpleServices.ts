@@ -138,7 +138,7 @@ export class SimpleEditorService implements IEditorService {
 
 	private findModel(editor:EditorCommon.ICommonCodeEditor, data:IResourceInput): EditorCommon.IModel {
 		var model = editor.getModel();
-		if(!model.getAssociatedResource().equals(data.resource)) {
+		if(model.getAssociatedResource().toString() !== data.resource.toString()) {
 			return null;
 		}
 
