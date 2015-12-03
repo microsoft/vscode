@@ -33,10 +33,9 @@ export function activate(context: ExtensionContext): any {
 	};
 
 	const server = new StdioOmnisharpServer();
-	let advisor = new Advisor(server);
-
-	let disposables: Disposable[] = [];
-	let localDisposables: Disposable[] = [];
+	const advisor = new Advisor(server); // create before server is started
+	const disposables: Disposable[] = [];
+	const localDisposables: Disposable[] = [];
 
 	disposables.push(server.onServerStart(() => {
 		// register language feature provider on start
@@ -52,7 +51,7 @@ export function activate(context: ExtensionContext): any {
 		localDisposables.push(languages.registerCompletionItemProvider(_selector, new CompletionItemProvider(server), '.', '<'));
 		localDisposables.push(languages.registerWorkspaceSymbolProvider(new WorkspaceSymbolProvider(server)));
 		localDisposables.push(languages.registerSignatureHelpProvider(_selector, new SignatureHelpProvider(server), '(', ','));
-		let codeActionProvider = new CodeActionProvider(server);
+		const codeActionProvider = new CodeActionProvider(server);
 		localDisposables.push(codeActionProvider);
 		localDisposables.push(languages.registerCodeActionsProvider(_selector, codeActionProvider));
 		localDisposables.push(reportDiagnostics(server, advisor));

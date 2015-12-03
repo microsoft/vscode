@@ -71,6 +71,8 @@ export abstract class OmnisharpServer {
 		return this._channel;
 	}
 
+	// --- eventing
+
 	public onStdout(listener: (e: string) => any, thisArg?: any) {
 		return this._addListener('stdout', listener, thisArg);
 	}
@@ -144,6 +146,8 @@ export abstract class OmnisharpServer {
 	protected _fireEvent(event: string, args: any): void {
 		this._eventBus.emit(event, args);
 	}
+
+	// --- start, stop, and connect
 
 	public start(solutionPath: string): Promise<void> {
 		if (!this._start) {
@@ -254,6 +258,8 @@ export abstract class OmnisharpServer {
 			return this.restart(targets[0].target.fsPath);
 		});
 	}
+
+	// --- requests et al
 
 	public makeRequest<R>(path: string, data?: any, token?: CancellationToken): Promise<R> {
 
