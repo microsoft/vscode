@@ -24,6 +24,7 @@ import {OnEnterSupport} from 'vs/editor/common/modes/supports/onEnter';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IThreadService } from 'vs/platform/thread/common/thread';
 import * as htmlTokenTypes from 'vs/languages/html/common/htmlTokenTypes';
+import {EMPTY_ELEMENTS} from 'vs/languages/html/common/htmlEmptyTagsShared';
 
 export { htmlTokenTypes }; // export to be used by Razor. We are the main module, so Razor should get ot from use.
 
@@ -39,15 +40,8 @@ export enum States {
 	AttributeValue
 }
 
-// list of empty elements - for performance reasons we won't open a bracket for them
-var emptyElements:string[] = ['area', 'base', 'basefont', 'br', 'col', 'command', 'embed', 'frame', 'hr', 'img', 'input', 'isindex', 'keygen', 'link', 'meta', 'param', 'source', 'track', 'wbr'];
-
-function isEmptyElement(e: string) : boolean {
-	return arrays.binarySearch(emptyElements, e,(s1: string, s2: string) => s1.localeCompare(s2)) >= 0;
-}
-
-// list of element that embedd other content
-var tagsEmbeddingContent:any = ['script', 'style'];
+// list of elements that embed other content
+var tagsEmbeddingContent:string[] = ['script', 'style'];
 
 
 
@@ -308,7 +302,7 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode<W> i
 				brackets: [],
 				regexBrackets:[
 					{	tokenType: htmlTokenTypes.getTag('$1'),
-						open: /<(?!(?:area|base|basefont|br|col|command|embed|frame|hr|img|input|link|meta|param|source|track|wbr))(\w[\w\d]*)([^\/>]*(?!\/)>)[^<]*$/i,
+						open: new RegExp(`<(?!(?:${EMPTY_ELEMENTS.join("|")}))(\\w[\\w\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
 						closeComplete: '</$1>',
 						close: /<\/(\w[\w\d]*)\s*>$/i }],
 				caseInsensitive:true,
