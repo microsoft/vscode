@@ -4,6 +4,7 @@
 	"win32ExeBasename": "CodeOSS",
 	"companyName": "Microsoft Corporation",
 	"copyright": "Copyright (C) 2015 Microsoft. All rights reserved",
+	"licenseUrl": "https://github.com/Microsoft/vscode/blob/master/LICENSE.txt",
 	"darwinBundleIdentifier": "code.visualstudio.com.Code",
 	"darwinApplicationCategoryType": "public.app-category.developer-tools",
 	"darwinBundleDocumentTypes": [{
