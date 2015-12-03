@@ -82,7 +82,7 @@ export class FileService implements files.IFileService {
 	private workspaceWatcherToDispose: () => void;
 
 	private activeFileChangesWatchers: { [resource: string]: fs.FSWatcher; };
-	private fileChangesWatchDelayer: ThrottledDelayer;
+	private fileChangesWatchDelayer: ThrottledDelayer<void>;
 	private undeliveredRawFileChangesEvents: IRawFileChange[];
 
 	constructor(basePath: string, eventEmitter: IEventService, options: IFileServiceOptions) {
@@ -117,7 +117,7 @@ export class FileService implements files.IFileService {
 		}
 
 		this.activeFileChangesWatchers = Object.create(null);
-		this.fileChangesWatchDelayer = new ThrottledDelayer(FileService.FS_EVENT_DELAY);
+		this.fileChangesWatchDelayer = new ThrottledDelayer<void>(FileService.FS_EVENT_DELAY);
 		this.undeliveredRawFileChangesEvents = [];
 	}
 

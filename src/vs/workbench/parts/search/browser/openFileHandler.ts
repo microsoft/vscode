@@ -87,7 +87,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 	private static SEARCH_DELAY = 500; // This delay accommodates for the user typing a word and then stops typing to start searching
 
 	private queryBuilder: QueryBuilder;
-	private delayer: ThrottledDelayer;
+	private delayer: ThrottledDelayer<QuickOpenEntry[]>;
 	private isStandalone: boolean;
 
 	constructor(
@@ -102,12 +102,12 @@ export class OpenFileHandler extends QuickOpenHandler {
 		super();
 
 		this.queryBuilder = this.instantiationService.createInstance(QueryBuilder);
-		this.delayer = new ThrottledDelayer(OpenFileHandler.SEARCH_DELAY);
+		this.delayer = new ThrottledDelayer<QuickOpenEntry[]>(OpenFileHandler.SEARCH_DELAY);
 		this.isStandalone = true;
 	}
 
 	public setStandalone(standalone: boolean) {
-		this.delayer = standalone ? new ThrottledDelayer(OpenFileHandler.SEARCH_DELAY) : null;
+		this.delayer = standalone ? new ThrottledDelayer<QuickOpenEntry[]>(OpenFileHandler.SEARCH_DELAY) : null;
 		this.isStandalone = standalone;
 	}
 

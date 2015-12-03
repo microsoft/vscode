@@ -50,7 +50,7 @@ export class ParameterHintsModel extends events.EventEmitter {
 
 	private active: boolean;
 	private hash: string;
-	private throttledDelayer: async.ThrottledDelayer;
+	private throttledDelayer: async.ThrottledDelayer<boolean>;
 
 	constructor(editor:EditorCommon.ICommonCodeEditor) {
 		super(['cancel', 'hint', 'destroy']);
@@ -59,7 +59,7 @@ export class ParameterHintsModel extends events.EventEmitter {
 		this.toDispose = [];
 		this.triggerCharactersListeners = [];
 
-		this.throttledDelayer = new async.ThrottledDelayer(ParameterHintsModel.DELAY);
+		this.throttledDelayer = new async.ThrottledDelayer<boolean>(ParameterHintsModel.DELAY);
 
 		this.active = false;
 		this.hash = null;

@@ -389,7 +389,7 @@ export class GitService extends ee.EventEmitter
 	private remoteListenerUnbind:ee.ListenerUnbind;
 	private toDispose: lifecycle.IDisposable[];
 	private needsRefresh: boolean;
-	private refreshDelayer: async.ThrottledDelayer;
+	private refreshDelayer: async.ThrottledDelayer<void>;
 	private autoFetcher: AutoFetcher;
 
 	constructor(
@@ -419,7 +419,7 @@ export class GitService extends ee.EventEmitter
 		this.toDispose = [];
 
 		this.needsRefresh = false;
-		this.refreshDelayer = new async.PeriodThrottledDelayer(500, 10000);
+		this.refreshDelayer = new async.PeriodThrottledDelayer<void>(500, 10000);
 		this.autoFetcher = this.instantiationService.createInstance(AutoFetcher, this);
 
 		this.registerListeners();

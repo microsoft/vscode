@@ -101,7 +101,7 @@ export class NativeGitIndexStringEditorInput
 	private status: git.IFileStatus;
 	private path: string;
 	private treeish: string;
-	private delayer: async.ThrottledDelayer;
+	private delayer: async.ThrottledDelayer<WorkbenchEditorCommon.EditorModel>;
 	private toDispose: lifecycle.IDisposable[];
 
 	constructor(name: any, description: string, mime: string, status: git.IFileStatus, path: string, treeish: string,
@@ -116,7 +116,7 @@ export class NativeGitIndexStringEditorInput
 		this.status = status;
 		this.path = path;
 		this.treeish = treeish;
-		this.delayer = new async.ThrottledDelayer(1000);
+		this.delayer = new async.ThrottledDelayer<WorkbenchEditorCommon.EditorModel>(1000);
 
 		this.toDispose = [];
 		this.toDispose.push(this.gitService.addListener2(git.ServiceEvents.STATE_CHANGED, () => this.onGitServiceStateChange()));

@@ -92,7 +92,7 @@ export class OpenSymbolHandler extends QuickOpenHandler {
 	private static SUPPORTED_OPEN_TYPES = ['class', 'interface', 'enum', 'function', 'method'];
 	private static SEARCH_DELAY = 500; // This delay accommodates for the user typing a word and then stops typing to start searching
 
-	private delayer: ThrottledDelayer;
+	private delayer: ThrottledDelayer<QuickOpenEntry[]>;
 	private isStandalone: boolean;
 
 	constructor(
@@ -103,12 +103,12 @@ export class OpenSymbolHandler extends QuickOpenHandler {
 	) {
 		super();
 
-		this.delayer = new ThrottledDelayer(OpenSymbolHandler.SEARCH_DELAY);
+		this.delayer = new ThrottledDelayer<QuickOpenEntry[]>(OpenSymbolHandler.SEARCH_DELAY);
 		this.isStandalone = true;
 	}
 
 	public setStandalone(standalone: boolean) {
-		this.delayer = standalone ? new ThrottledDelayer(OpenSymbolHandler.SEARCH_DELAY) : null;
+		this.delayer = standalone ? new ThrottledDelayer<QuickOpenEntry[]>(OpenSymbolHandler.SEARCH_DELAY) : null;
 		this.isStandalone = standalone;
 	}
 

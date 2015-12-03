@@ -36,7 +36,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 	private openSymbolHandler: _OpenSymbolHandler;
 	private openFileHandler: OpenFileHandler;
 	private resultsToSearchCache: { [searchValue: string]: QuickOpenEntry[]; };
-	private delayer: ThrottledDelayer;
+	private delayer: ThrottledDelayer<QuickOpenModel>;
 	private pendingSearch: TPromise<QuickOpenModel>;
 	private isClosed: boolean;
 
@@ -54,7 +54,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 		this.openFileHandler.setStandalone(false);
 
 		this.resultsToSearchCache = Object.create(null);
-		this.delayer = new ThrottledDelayer(OpenAnythingHandler.SEARCH_DELAY);
+		this.delayer = new ThrottledDelayer<QuickOpenModel>(OpenAnythingHandler.SEARCH_DELAY);
 	}
 
 	public getResults(searchValue: string): TPromise<QuickOpenModel> {

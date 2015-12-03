@@ -144,8 +144,8 @@ class DirtyDiffModelDecorator {
 	private decorations: string[];
 	private firstRun: boolean;
 
-	private delayer: async.ThrottledDelayer;
-	private diffDelayer: async.ThrottledDelayer;
+	private delayer: async.ThrottledDelayer<void>;
+	private diffDelayer: async.ThrottledDelayer<void>;
 	private toDispose: lifecycle.IDisposable[];
 
 	constructor(model: common.IModel, path: string,
@@ -162,8 +162,8 @@ class DirtyDiffModelDecorator {
 		this.decorations = [];
 		this.firstRun = true;
 
-		this.delayer = new async.ThrottledDelayer(500);
-		this.diffDelayer = new async.ThrottledDelayer(200);
+		this.delayer = new async.ThrottledDelayer<void>(500);
+		this.diffDelayer = new async.ThrottledDelayer<void>(200);
 
 		this.toDispose = [];
 		this.toDispose.push(model.addListener2(common.EventType.ModelContentChanged, () => this.triggerDiff()));
@@ -196,7 +196,7 @@ class DirtyDiffModelDecorator {
 			.done(null, errors.onUnexpectedError);
 	}
 
-	private diffOriginalContents(): winjs.Promise {
+	private diffOriginalContents(): winjs.TPromise<void> {
 		return this.getOriginalContents()
 			.then(contents => {
 				if (!this.model || this.model.isDisposed()) {

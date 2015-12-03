@@ -51,8 +51,8 @@ export class ExplorerView extends CollapsibleViewletView {
 	private filter: FileFilter;
 	private viewletState: FileViewletState;
 
-	private explorerRefreshDelayer: ThrottledDelayer;
-	private explorerImportDelayer: ThrottledDelayer;
+	private explorerRefreshDelayer: ThrottledDelayer<void>;
+	private explorerImportDelayer: ThrottledDelayer<void>;
 
 	private shouldRefresh: boolean;
 
@@ -82,8 +82,8 @@ export class ExplorerView extends CollapsibleViewletView {
 		this.viewletState = viewletState;
 		this.actionRunner = actionRunner;
 
-		this.explorerRefreshDelayer = new ThrottledDelayer(ExplorerView.EXPLORER_FILE_CHANGES_REFRESH_DELAY);
-		this.explorerImportDelayer = new ThrottledDelayer(ExplorerView.EXPLORER_IMPORT_REFRESH_DELAY);
+		this.explorerRefreshDelayer = new ThrottledDelayer<void>(ExplorerView.EXPLORER_FILE_CHANGES_REFRESH_DELAY);
+		this.explorerImportDelayer = new ThrottledDelayer<void>(ExplorerView.EXPLORER_IMPORT_REFRESH_DELAY);
 	}
 
 	public renderHeader(container: HTMLElement): void {

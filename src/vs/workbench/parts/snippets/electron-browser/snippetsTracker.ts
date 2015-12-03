@@ -29,7 +29,7 @@ export class SnippetsTracker implements workbenchExt.IWorkbenchContribution {
 	private snippetFolder: string;
 	private toDispose: lifecycle.IDisposable[];
 	private watcher: fs.FSWatcher;
-	private fileWatchDelayer:async.ThrottledDelayer;
+	private fileWatchDelayer:async.ThrottledDelayer<void>;
 
 	constructor(
 		@IFileService private fileService: IFileService,
@@ -39,7 +39,7 @@ export class SnippetsTracker implements workbenchExt.IWorkbenchContribution {
 		this.snippetFolder = paths.join(contextService.getConfiguration().env.appSettingsHome, 'snippets');
 
 		this.toDispose = [];
-		this.fileWatchDelayer = new async.ThrottledDelayer(SnippetsTracker.FILE_WATCH_DELAY);
+		this.fileWatchDelayer = new async.ThrottledDelayer<void>(SnippetsTracker.FILE_WATCH_DELAY);
 
 		if (!fs.existsSync(this.snippetFolder)) {
 			fs.mkdirSync(this.snippetFolder);

@@ -224,7 +224,7 @@ export class Delayer<T> {
  * Simply combine the two mail man strategies from the Throttler and Delayer
  * helpers, for an analogy.
  */
-export class ThrottledDelayer extends Delayer<Promise> {
+export class ThrottledDelayer<T> extends Delayer<TPromise<T>> {
 
 	private throttler: Throttler;
 
@@ -234,7 +234,7 @@ export class ThrottledDelayer extends Delayer<Promise> {
 		this.throttler = new Throttler();
 	}
 
-	public trigger(promiseFactory: ITask<Promise>, delay?: number): Promise {
+	public trigger(promiseFactory: ITask<TPromise<T>>, delay?: number): Promise {
 		return super.trigger(() => this.throttler.queue(promiseFactory), delay);
 	}
 }
@@ -243,7 +243,7 @@ export class ThrottledDelayer extends Delayer<Promise> {
  * Similar to the ThrottledDelayer, except it also guarantees that the promise
  * factory doesn't get called more often than every `minimumPeriod` milliseconds.
  */
-export class PeriodThrottledDelayer extends ThrottledDelayer {
+export class PeriodThrottledDelayer<T> extends ThrottledDelayer<T> {
 
 	private minimumPeriod: number;
 	private periodThrottler: Throttler;
@@ -255,7 +255,7 @@ export class PeriodThrottledDelayer extends ThrottledDelayer {
 		this.periodThrottler = new Throttler();
 	}
 
-	public trigger(promiseFactory: ITask<Promise>, delay?: number): Promise {
+	public trigger(promiseFactory: ITask<TPromise<T>>, delay?: number): Promise {
 		return super.trigger(() => {
 			return this.periodThrottler.queue(() => {
 				return Promise.join([
