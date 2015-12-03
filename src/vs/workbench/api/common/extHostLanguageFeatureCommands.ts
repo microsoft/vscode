@@ -162,7 +162,7 @@ export class ExtHostLanguageFeatureCommands {
 			position: position && typeConverters.fromPosition(position),
 			triggerCharacter
 		};
-		return this._commands.executeCommand<modes.ISuggestions[][]>('_executeCompletionItemProvider', args).then(value => {
+		return this._commands.executeCommand<modes.ISuggestResult[][]>('_executeCompletionItemProvider', args).then(value => {
 			if (value) {
 				let items: types.CompletionItem[] = [];
 				for (let group of value) {

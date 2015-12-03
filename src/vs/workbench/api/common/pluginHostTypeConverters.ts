@@ -315,7 +315,7 @@ export function toDocumentHighlight(occurrence: modes.IOccurence): types.Documen
 
 export const Suggest = {
 
-	from(item: vscode.CompletionItem, defaultContainer: modes.ISuggestions): [modes.ISuggestion, modes.ISuggestions] {
+	from(item: vscode.CompletionItem, defaultContainer: modes.ISuggestResult): [modes.ISuggestion, modes.ISuggestResult] {
 		const suggestion: modes.ISuggestion = {
 			label: item.label,
 			codeSnippet: item.insertText || item.label,
@@ -333,7 +333,7 @@ export const Suggest = {
 		return [suggestion, defaultContainer];
 	},
 
-	to(suggestion: modes.ISuggestion, container: modes.ISuggestions): types.CompletionItem {
+	to(suggestion: modes.ISuggestion, container: modes.ISuggestResult): types.CompletionItem {
 		const result = new types.CompletionItem(suggestion.label);
 		result.insertText = suggestion.codeSnippet;
 		result.kind = types.CompletionItemKind[suggestion.type.charAt(0).toUpperCase() + suggestion.type.substr(1)];

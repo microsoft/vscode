@@ -14,7 +14,7 @@ import URI from 'vs/base/common/uri';
 import timer = require('vs/base/common/timer');
 import { getSnippets } from 'vs/editor/common/modes/modesRegistry';
 import EditorCommon = require('vs/editor/common/editorCommon');
-import { ISuggestSupport, ISuggestions, ISuggestion, ISorter } from 'vs/editor/common/modes';
+import { ISuggestSupport, ISuggestResult, ISuggestion, ISorter } from 'vs/editor/common/modes';
 import {DefaultFilter} from 'vs/editor/common/modes/modesFilters';
 import { CodeSnippet } from 'vs/editor/contrib/snippet/common/snippet';
 import { IDisposable, disposeAll } from 'vs/base/common/lifecycle';
@@ -38,10 +38,10 @@ export class CompletionItem {
 	public id: string;
 	public support: ISuggestSupport;
 	public suggestion: ISuggestion;
-	public container: ISuggestions;
+	public container: ISuggestResult;
 	private _resolveDetails:TPromise<CompletionItem>
 
-	constructor(support: ISuggestSupport, suggestion: ISuggestion, container:ISuggestions) {
+	constructor(support: ISuggestSupport, suggestion: ISuggestion, container:ISuggestResult) {
 		this.id = '_completion_item_#' + CompletionItem._idPool++;
 		this.support = support;
 		this.suggestion = suggestion;

@@ -469,7 +469,7 @@ class SuggestAdapter implements modes.ISuggestSupport {
 		this._provider = provider;
 	}
 
-	suggest(resource: URI, position: IPosition): TPromise<modes.ISuggestions[]> {
+	suggest(resource: URI, position: IPosition): TPromise<modes.ISuggestResult[]> {
 
 		const doc = this._documents.getDocument(resource);
 		const pos = TypeConverters.toPosition(position);
@@ -480,11 +480,11 @@ class SuggestAdapter implements modes.ISuggestSupport {
 
 		return asWinJsPromise(token => this._provider.provideCompletionItems(doc, pos, token)).then(value => {
 
-			let defaultSuggestions: modes.ISuggestions = {
+			let defaultSuggestions: modes.ISuggestResult = {
 				suggestions: [],
 				currentWord: ran ? doc.getText(new Range(ran.start, pos)) : '',
 			};
-			let allSuggestions: modes.ISuggestions[] = [defaultSuggestions];
+			let allSuggestions: modes.ISuggestResult[] = [defaultSuggestions];
 
 
 			for (let i = 0; i < value.length; i++) {
@@ -810,7 +810,7 @@ export class ExtHostLanguageFeatures {
 		return this._createDisposable(handle);
 	}
 
-	$suggest(handle: number, resource: URI, position: IPosition): TPromise<modes.ISuggestions[]> {
+	$suggest(handle: number, resource: URI, position: IPosition): TPromise<modes.ISuggestResult[]> {
 		return this._withAdapter(handle, SuggestAdapter, adapter => adapter.suggest(resource, position));
 	}
 
@@ -1006,7 +1006,7 @@ export class MainThreadLanguageFeatures {
 
 	$registerSuggestSupport(handle: number, selector: vscode.DocumentSelector, triggerCharacters: string[]): TPromise<any> {
 		this._registrations[handle] = SuggestRegistry.register(selector, <modes.ISuggestSupport>{
-			suggest: (resource: URI, position: IPosition, triggerCharacter?: string): TPromise<modes.ISuggestions[]> => {
+			suggest: (resource: URI, position: IPosition, triggerCharacter?: string): TPromise<modes.ISuggestResult[]> => {
 				return this._proxy.$suggest(handle, resource, position);
 			},
 			getSuggestionDetails: (resource: URI, position: IPosition, suggestion: modes.ISuggestion): TPromise<modes.ISuggestion> => {

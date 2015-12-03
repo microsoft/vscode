@@ -9,7 +9,7 @@ import {IModel, IPosition} from 'vs/editor/common/editorCommon';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {mixin} from 'vs/base/common/objects';
 import {onUnexpectedError, illegalArgument} from 'vs/base/common/errors';
-import {ISuggestSupport, ISuggestions} from 'vs/editor/common/modes';
+import {ISuggestSupport, ISuggestResult} from 'vs/editor/common/modes';
 import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
 import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 
@@ -19,7 +19,7 @@ export var ACCEPT_SELECTED_SUGGESTION_CMD = 'acceptSelectedSuggestion';
 
 export var SuggestRegistry = new LanguageFeatureRegistry<ISuggestSupport>('suggestSupport');
 
-export interface ISuggestions2 extends ISuggestions {
+export interface ISuggestions2 extends ISuggestResult {
 	support?: ISuggestSupport;
 }
 
@@ -30,7 +30,7 @@ export function suggest(model: IModel, position: IPosition, triggerCharacter: st
 	}
 
 	const resource = model.getAssociatedResource();
-	const suggestions: ISuggestions[][] = [];
+	const suggestions: ISuggestResult[][] = [];
 
 	const factory = groups.map((supports, index) => {
 		return () => {

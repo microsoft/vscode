@@ -30,7 +30,7 @@ suite('SASS - Worker', () => {
 		return { worker: worker, model: model };
 	};
 
-	var testSuggestionsFor = function(value:string, stringBefore:string):WinJS.TPromise<Modes.ISuggestions> {
+	var testSuggestionsFor = function(value:string, stringBefore:string):WinJS.TPromise<Modes.ISuggestResult> {
 		var url = URI.parse('test://1');
 		var env = mockSASSWorkerEnv(url, value);
 
@@ -58,7 +58,7 @@ suite('SASS - Worker', () => {
 		return env.worker.findOccurrences(url, pos).then((occurrences) => { return { occurrences: occurrences, model: env.model}; });
 	};
 
-	var assertSuggestion= function(completion:Modes.ISuggestions, label:string, type?:string) {
+	var assertSuggestion= function(completion:Modes.ISuggestResult, label:string, type?:string) {
 		var proposalsFound = completion.suggestions.filter(function(suggestion: Modes.ISuggestion) {
 			return suggestion.label === label && (!type || suggestion.type === type);
 		});
@@ -113,7 +113,7 @@ suite('SASS - Worker', () => {
 				assert.equal(completion.currentWord, '');
 				assertSuggestion(completion, '.foo');
 			}),
-			// issue #250 
+			// issue #250
 			testSuggestionsFor('.foo { display: block;', 'block;').then((completion) => {
 				assert.equal(completion.currentWord, '');
 				assert.equal(0, completion.suggestions.length);

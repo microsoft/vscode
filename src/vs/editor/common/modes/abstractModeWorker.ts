@@ -133,7 +133,7 @@ export class AbstractModeWorker {
 
 	// ---- suggestion ---------------------------------------------------------------------------------------
 
-	public suggest(resource:URI, position:EditorCommon.IPosition):TPromise<Modes.ISuggestions[]> {
+	public suggest(resource:URI, position:EditorCommon.IPosition):TPromise<Modes.ISuggestResult[]> {
 
 		return this._getSuggestContext(resource).then((context) => {
 			var promises = [ this.doSuggest(resource, position) ];
@@ -143,14 +143,14 @@ export class AbstractModeWorker {
 		}).then((values) => {
 			// filter suggestions
 			var accept = this.getSuggestionFilterMain(),
-				result:Modes.ISuggestions[] = [];
+				result:Modes.ISuggestResult[] = [];
 
 			for (var i = 0, len = values.length; i < len; i++) {
 				var value = values[i];
 				if(!value) {
 					continue;
 				}
-				result.push(<Modes.ISuggestions> {
+				result.push(<Modes.ISuggestResult> {
 					currentWord: value.currentWord,
 					suggestions: value.suggestions.filter((element) => accept(values[i].currentWord, element)),
 					incomplete: value.incomplete,
@@ -161,14 +161,14 @@ export class AbstractModeWorker {
 			return result;
 
 		}, (error) => {
-			return <Modes.ISuggestions[]> [{
+			return <Modes.ISuggestResult[]> [{
 				currentWord: '',
 				suggestions: []
 			}];
 		});
 	}
 
-	public _participantSuggests(resource:URI, position:EditorCommon.IPosition, context:any):TPromise<Modes.ISuggestions>[] {
+	public _participantSuggests(resource:URI, position:EditorCommon.IPosition, context:any):TPromise<Modes.ISuggestResult>[] {
 		return this._suggestParticipants.map((participant) => {
 			try {
 				return participant.suggest(resource, position, context);
@@ -183,12 +183,12 @@ export class AbstractModeWorker {
 		return TPromise.as(undefined);
 	}
 
-	public doSuggest(resource:URI, position:EditorCommon.IPosition):TPromise<Modes.ISuggestions> {
+	public doSuggest(resource:URI, position:EditorCommon.IPosition):TPromise<Modes.ISuggestResult> {
 
 		var model = this.resourceService.get(resource),
 			currentWord = model.getWordUntilPosition(position).word;
 
-		var result:Modes.ISuggestions = {
+		var result:Modes.ISuggestResult = {
 			currentWord: currentWord,
 			suggestions: []
 		};

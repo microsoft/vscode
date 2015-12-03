@@ -415,7 +415,7 @@ export class TypeScriptMode<W extends typescriptWorker.TypeScriptWorker2> extend
 	}
 
 	static $suggest = OneWorkerAttr(TypeScriptMode, TypeScriptMode.prototype.suggest, TypeScriptMode.prototype._syncProjects, ThreadAffinity.Group2);
-	public suggest(resource:URI, position:EditorCommon.IPosition):WinJS.TPromise<Modes.ISuggestions[]> {
+	public suggest(resource:URI, position:EditorCommon.IPosition):WinJS.TPromise<Modes.ISuggestResult[]> {
 		return this._worker((w) => w.suggest(resource, position));
 	}
 

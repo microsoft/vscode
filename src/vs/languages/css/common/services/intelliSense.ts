@@ -45,7 +45,7 @@ export class CSSIntellisense {
 	}
 
 
-	public getCompletionsAtPosition(languageService:service.ILanguageService, model: EditorCommon.IMirrorModel, resource:URI, position:EditorCommon.IPosition):Modes.ISuggestions {
+	public getCompletionsAtPosition(languageService:service.ILanguageService, model: EditorCommon.IMirrorModel, resource:URI, position:EditorCommon.IPosition):Modes.ISuggestResult {
 		this.offset = model.getOffsetFromPosition(position);
 		this.position = position;
 		this.currentWord = model.getWordUntilPosition(position).word;

@@ -58,7 +58,7 @@ export class FilenameSuggestions implements Modes.ISuggestParticipant {
 		this._resourceServices = resourceService;
 	}
 
-	public suggest(resource: URI, position: EditorCommon.IPosition, context?: projectService.ProjectService): winjs.TPromise<Modes.ISuggestions> {
+	public suggest(resource: URI, position: EditorCommon.IPosition, context?: projectService.ProjectService): winjs.TPromise<Modes.ISuggestResult> {
 
 		if(!(context instanceof projectService.ProjectService)) {
 			return winjs.TPromise.as(null);
@@ -75,7 +75,7 @@ export class FilenameSuggestions implements Modes.ISuggestParticipant {
 		var pathMaker = new PathMaker(),
 			quoteCharacter = /^['"]/.test(wordInfo.wordUntilPosition) ? wordInfo.wordUntilPosition[0] : '"';
 
-		var result:Modes.ISuggestions = {
+		var result:Modes.ISuggestResult = {
 			currentWord: wordInfo.wordUntilPosition,
 			suggestions: [],
 		};

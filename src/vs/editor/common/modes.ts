@@ -30,7 +30,7 @@ export interface IValidateParticipant extends IWorkerParticipant {
 
 export interface ISuggestParticipant extends IWorkerParticipant {
 	filter?:(word:string, suggestion:ISuggestion) => boolean;
-	suggest?:(resource:URI, position:EditorCommon.IPosition, context?:any) => TPromise<ISuggestions>;
+	suggest?:(resource:URI, position:EditorCommon.IPosition, context?:any) => TPromise<ISuggestResult>;
 }
 
 export enum Bracket {
@@ -428,7 +428,7 @@ export function isISuggestion(obj:any):boolean {
 	return true;
 }
 
-export interface ISuggestions {
+export interface ISuggestResult {
 	currentWord: string;
 	suggestions:ISuggestion[];
 	incomplete?: boolean;
@@ -453,7 +453,7 @@ export interface ISuggestSupport {
 	/**
 	 * Compute all completions for the given resource at the given position.
 	 */
-	suggest(resource: URI, position: EditorCommon.IPosition, triggerCharacter?: string): TPromise<ISuggestions[]>;
+	suggest(resource: URI, position: EditorCommon.IPosition, triggerCharacter?: string): TPromise<ISuggestResult[]>;
 
 	/**
 	 * Compute more details for the given suggestion.

@@ -29,7 +29,7 @@ export class JSONIntellisense {
 		this.contributions = contributions;
 	}
 
-	public doSuggest(resource: URI, modelMirror: EditorCommon.IMirrorModel, position: EditorCommon.IPosition): WinJS.TPromise<Modes.ISuggestions> {
+	public doSuggest(resource: URI, modelMirror: EditorCommon.IMirrorModel, position: EditorCommon.IPosition): WinJS.TPromise<Modes.ISuggestResult> {
 		var currentWord = modelMirror.getWordUntilPosition(position).word;
 
 		var parser = new Parser.JSONParser();
@@ -39,7 +39,7 @@ export class JSONIntellisense {
 
 		var doc = parser.parse(modelMirror.getValue(), config);
 
-		var result: Modes.ISuggestions = {
+		var result: Modes.ISuggestResult = {
 			currentWord: currentWord,
 			incomplete: false,
 			suggestions: []

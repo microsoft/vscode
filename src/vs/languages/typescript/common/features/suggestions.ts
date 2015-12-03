@@ -26,7 +26,7 @@ function suggestionHashFn(suggestion:Modes.ISuggestion):string {
 }
 
 export function computeSuggestions(languageService: ts.LanguageService, resource: URI,
-	position: EditorCommon.IPosition, options: Options): Modes.ISuggestions {
+	position: EditorCommon.IPosition, options: Options): Modes.ISuggestResult {
 
 	var filename = resource.toString(),
 		sourceFile = languageService.getSourceFile(filename),

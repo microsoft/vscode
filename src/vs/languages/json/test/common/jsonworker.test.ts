@@ -55,7 +55,7 @@ suite('JSON - Worker', () => {
 		}
 	}
 
-	var testSuggestionsFor = function(value:string, stringAfter:string, schema?:jsonSchema.IJSONSchema):WinJS.TPromise<Modes.ISuggestions> {
+	var testSuggestionsFor = function(value:string, stringAfter:string, schema?:jsonSchema.IJSONSchema):WinJS.TPromise<Modes.ISuggestResult> {
 		var url = URI.parse('test://test.json');
 		var env = mockWorkerEnv(url, value);
 		prepareSchemaServer(schema, env.worker);
@@ -89,7 +89,7 @@ suite('JSON - Worker', () => {
 		return workerEnv.worker.getOutline(url);
 	};
 
-	var assertSuggestion= function(completion:Modes.ISuggestions, label:string, documentationLabel?: string) {
+	var assertSuggestion= function(completion:Modes.ISuggestResult, label:string, documentationLabel?: string) {
 		var matches = completion.suggestions.filter(function(suggestion: Modes.ISuggestion) {
 			return suggestion.label === label && (!documentationLabel || suggestion.documentationLabel === documentationLabel);
 		}).length;

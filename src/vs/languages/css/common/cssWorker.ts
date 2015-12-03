@@ -116,7 +116,7 @@ export class CSSWorker extends AbstractModeWorker {
 		return new cssIntellisense.CSSIntellisense();
 	}
 
-	public doSuggest(resource:URI, position:EditorCommon.IPosition):winjs.TPromise<Modes.ISuggestions> {
+	public doSuggest(resource:URI, position:EditorCommon.IPosition):winjs.TPromise<Modes.ISuggestResult> {
 
 		return this.languageService.join().then(() => {
 

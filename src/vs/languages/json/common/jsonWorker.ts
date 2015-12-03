@@ -183,7 +183,7 @@ export class JSONWorker extends AbstractModeWorker implements Modes.IExtraInfoSu
 	}
 
 
-	public doSuggest(resource:URI, position:EditorCommon.IPosition):WinJS.TPromise<Modes.ISuggestions> {
+	public doSuggest(resource:URI, position:EditorCommon.IPosition):WinJS.TPromise<Modes.ISuggestResult> {
 		var modelMirror = this.resourceService.get(resource);
 
 		return this.jsonIntellisense.doSuggest(resource, modelMirror, position);

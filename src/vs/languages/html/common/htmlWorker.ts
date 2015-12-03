@@ -190,7 +190,7 @@ export class HTMLWorker extends AbstractModeWorker {
 		return null;
 	}
 
-	private collectTagSuggestions(scanner: IHTMLScanner, position: EditorCommon.IPosition, suggestions: Modes.ISuggestions): void {
+	private collectTagSuggestions(scanner: IHTMLScanner, position: EditorCommon.IPosition, suggestions: Modes.ISuggestResult): void {
 		var model = scanner.getModel();
 		var contentAfter = model.getLineContent(position.lineNumber).substr(position.column - 1);
 		var closeTag = isWhiteSpace(contentAfter) || strings.startsWith(contentAfter, '<') ? '>' : '';
@@ -260,11 +260,11 @@ export class HTMLWorker extends AbstractModeWorker {
 
 	}
 
-	private collectContentSuggestions(suggestions: Modes.ISuggestions): void {
+	private collectContentSuggestions(suggestions: Modes.ISuggestResult): void {
 		// disable the simple snippets in favor of the emmet templates
 	}
 
-	private collectAttributeSuggestions(scanner: IHTMLScanner, suggestions: Modes.ISuggestions): void {
+	private collectAttributeSuggestions(scanner: IHTMLScanner, suggestions: Modes.ISuggestResult): void {
 		var parentTag: string = null;
 		do {
 			if (isTag(scanner.getTokenType())) {
@@ -291,7 +291,7 @@ export class HTMLWorker extends AbstractModeWorker {
 		});
 	}
 
-	private collectAttributeValueSuggestions(scanner: IHTMLScanner, suggestions:  Modes.ISuggestions): void {
+	private collectAttributeValueSuggestions(scanner: IHTMLScanner, suggestions:  Modes.ISuggestResult): void {
 		var needsQuotes = scanner.getTokenType() === DELIM_ASSIGN;
 
 		var attribute: string = null;
@@ -323,7 +323,7 @@ export class HTMLWorker extends AbstractModeWorker {
 		});
 	}
 
-	public suggest(resource:URI, position:EditorCommon.IPosition, triggerCharacter?:string):winjs.TPromise<Modes.ISuggestions[]> {
+	public suggest(resource:URI, position:EditorCommon.IPosition, triggerCharacter?:string):winjs.TPromise<Modes.ISuggestResult[]> {
 		return this._delegateToModeAtPosition(resource, position, (isEmbeddedMode, model) => {
 			if (isEmbeddedMode && model.getMode().suggestSupport) {
 				return model.getMode().suggestSupport.suggest(model.getAssociatedResource(), position, triggerCharacter);
@@ -333,16 +333,16 @@ export class HTMLWorker extends AbstractModeWorker {
 		});
 	}
 
-	public suggestHTML(resource:URI, position:EditorCommon.IPosition):winjs.TPromise<Modes.ISuggestions[]> {
+	public suggestHTML(resource:URI, position:EditorCommon.IPosition):winjs.TPromise<Modes.ISuggestResult[]> {
 		return super.suggest(resource, position);
 	}
 
-	public doSuggest(resource: URI, position: EditorCommon.IPosition): winjs.TPromise<Modes.ISuggestions> {
+	public doSuggest(resource: URI, position: EditorCommon.IPosition): winjs.TPromise<Modes.ISuggestResult> {
 
 		var model = this.resourceService.get(resource),
 			currentWord = model.getWordUntilPosition(position).word;
 
-		var suggestions: Modes.ISuggestions = {
+		var suggestions: Modes.ISuggestResult = {
 			currentWord: currentWord,
 			suggestions: [],
 		};

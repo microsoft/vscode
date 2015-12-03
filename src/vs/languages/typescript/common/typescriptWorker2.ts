@@ -182,7 +182,7 @@ export class TypeScriptWorker2 extends AbstractModeWorker {
 		return null;
 	}
 
-	public doSuggest(resource: URI, position: EditorCommon.IPosition): winjs.TPromise<Modes.ISuggestions> {
+	public doSuggest(resource: URI, position: EditorCommon.IPosition): winjs.TPromise<Modes.ISuggestResult> {
 		var project = this._projectService.getProject(resource);
 		var result = suggestions.computeSuggestions(project.languageService,
 			resource, position, this._options);

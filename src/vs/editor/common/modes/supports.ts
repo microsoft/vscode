@@ -714,7 +714,7 @@ export interface ISuggestContribution {
 
 	sortBy?: ISortingTypeAndSeparator[];
 
-	suggest: (resource: URI, position: EditorCommon.IPosition) => TPromise<Modes.ISuggestions[]>;
+	suggest: (resource: URI, position: EditorCommon.IPosition) => TPromise<Modes.ISuggestResult[]>;
 	getSuggestionDetails? : (resource:URI, position:EditorCommon.IPosition, suggestion:Modes.ISuggestion) => TPromise<Modes.ISuggestion>;
 }
 
@@ -729,7 +729,7 @@ export class SuggestSupport extends AbstractSupport implements Modes.ISuggestSup
 	private sortByType: string[];
 	private separatorForType: string[]; // Must have identical size to the above
 
-	public suggest : (resource:URI, position:EditorCommon.IPosition) => TPromise<Modes.ISuggestions[]>;
+	public suggest : (resource:URI, position:EditorCommon.IPosition) => TPromise<Modes.ISuggestResult[]>;
 	public getSuggestionDetails : (resource:URI, position:EditorCommon.IPosition, suggestion:Modes.ISuggestion) => TPromise<Modes.ISuggestion>;
 
 	constructor(mode: Modes.IMode, contribution : ISuggestContribution){
@@ -842,7 +842,7 @@ export class SuggestSupport extends AbstractSupport implements Modes.ISuggestSup
 }
 
 export interface IComposableSuggestContribution extends ISuggestContribution {
-	composeSuggest(resource:URI, position:EditorCommon.IPosition, superSuggestions:Modes.ISuggestions[]): TPromise<Modes.ISuggestions[]>;
+	composeSuggest(resource:URI, position:EditorCommon.IPosition, superSuggestions:Modes.ISuggestResult[]): TPromise<Modes.ISuggestResult[]>;
 }
 
 export class ComposableSuggestSupport extends SuggestSupport {

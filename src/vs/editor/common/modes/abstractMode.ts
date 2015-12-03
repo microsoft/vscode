@@ -162,7 +162,7 @@ export class AbstractMode<W extends AbstractModeWorker> implements Modes.IMode {
 	}
 
 	static $suggest = OneWorkerAttr(AbstractMode, AbstractMode.prototype.suggest);
-	public suggest(resource:URI, position:EditorCommon.IPosition):TPromise<Modes.ISuggestions[]> {
+	public suggest(resource:URI, position:EditorCommon.IPosition):TPromise<Modes.ISuggestResult[]> {
 		return this._worker((w) => w.suggest(resource, position));
 	}
 
