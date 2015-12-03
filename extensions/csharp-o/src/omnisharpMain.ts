@@ -68,8 +68,8 @@ export function activate(context: ExtensionContext): any {
 	disposables.push(reportStatus(server));
 
 	// read and store last solution or folder path
+	disposables.push(server.onBeforeServerStart(path => context.workspaceState.update('lastSolutionPathOrFolder', path)));
 	server.autoStart(context.workspaceState.get<string>('lastSolutionPathOrFolder'));
-	server.onBeforeServerStart(path => context.workspaceState.update('lastSolutionPathOrFolder', path));
 
 	// stop server on deactivate
 	disposables.push(new Disposable(() => {
