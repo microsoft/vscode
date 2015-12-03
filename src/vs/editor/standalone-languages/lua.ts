@@ -18,7 +18,7 @@ export var language = <ILanguage> {
 
 	keywords: [
 		'and', 'break', 'do', 'else', 'elseif',
-	'end', 'false', 'for', 'function', 'if',
+	'end', 'false', 'for', 'function', 'goto', 'if',
 	'in', 'local', 'nil', 'not', 'or',
 	'repeat', 'return', 'then', 'true', 'until',
 	'while'
