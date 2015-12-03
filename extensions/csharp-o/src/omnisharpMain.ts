@@ -23,11 +23,11 @@ import {StdioOmnisharpServer} from './omnisharpServer';
 import forwardChanges from './features/changeForwarding';
 import reportStatus from './features/omnisharpStatus';
 import findLaunchTargets from './launchTargetFinder';
-import {Disposable, ExtensionContext, languages, extensions} from 'vscode';
+import {Disposable, ExtensionContext, DocumentSelector, languages, extensions} from 'vscode';
 
 export function activate(context: ExtensionContext): any {
 
-	const _selector: vscode.DocumentSelector = {
+	const _selector: DocumentSelector = {
 		language: 'csharp',
 		scheme: 'file' // only files from disk
 	};

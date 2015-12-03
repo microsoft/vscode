@@ -9,7 +9,7 @@ import {OmnisharpServer} from '../omnisharpServer';
 import AbstractSupport from './abstractProvider';
 import * as proto from '../protocol';
 import {createRequest, toRange} from '../typeConvertion';
-import {Disposable, Uri, CancellationTokenSource, TextDocument, TextDocumentChangeEvent, Range, Diagnostic, DiagnosticSeverity, Location, workspace, languages} from 'vscode';
+import {Disposable, Uri, CancellationTokenSource, TextDocument, TextDocumentChangeEvent, Range, Diagnostic, DiagnosticCollection, DiagnosticSeverity, Location, workspace, languages} from 'vscode';
 
 export class Advisor {
 
@@ -88,7 +88,7 @@ class DiagnosticsProvider extends AbstractSupport {
 	private _disposable: Disposable;
 	private _documentValidations: { [uri: string]: CancellationTokenSource } = Object.create(null);
 	private _projectValidation: CancellationTokenSource;
-	private _diagnostics: vscode.DiagnosticCollection;
+	private _diagnostics: DiagnosticCollection;
 
 	constructor(server: OmnisharpServer, validationAdvisor: Advisor) {
 		super(server);

@@ -67,7 +67,7 @@ export abstract class OmnisharpServer {
 		return this._solutionPath;
 	}
 
-	public getChannel(): vscode.OutputChannel {
+	public getChannel(): OutputChannel {
 		return this._channel;
 	}
 

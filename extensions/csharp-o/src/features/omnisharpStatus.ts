@@ -228,7 +228,7 @@ export function reportServerStatus(server: OmnisharpServer): vscode.Disposable{
 }
 
 // show user message
-let _messageHandle: number;
+let _messageHandle: NodeJS.Timer;
 function showMessageSoon() {
 	clearTimeout(_messageHandle);
 	_messageHandle = setTimeout(function() {

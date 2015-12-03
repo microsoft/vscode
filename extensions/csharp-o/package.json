@@ -3,8 +3,7 @@
   "version": "0.1.0",
   "publisher": "vscode",
   "engines": {
-    "node": "^4.0.0",
-    "vscode": "*"
+    "vscode": "^0.10.1"
   },
   "activationEvents": [
     "onLanguage:csharp",
@@ -18,10 +17,10 @@
   ],
   "main": "./out/omnisharpMain",
   "scripts": {
-    "postinstall": "node ./node_modules/gulp/bin/gulp.js omnisharp",
-    "vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../gulpfile.plugins.js compile-plugin:csharp-o ./tsconfig.json"
+    "postinstall": "node ./node_modules/gulp/bin/gulp.js omnisharp"
   },
   "dependencies": {
+    "vscode": "^0.10.1",
     "run-in-terminal": "*",
     "semver": "*"
   },
