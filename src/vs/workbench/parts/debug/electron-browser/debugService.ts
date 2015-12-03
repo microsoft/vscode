@@ -577,7 +577,8 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 			request: 'attach',
 			port,
 			sourceMaps: configuration.sourceMaps,
-			outDir: configuration.outDir
+			outDir: configuration.outDir,
+			debugServer: configuration.debugServer
 		}, true);
 	}
 
