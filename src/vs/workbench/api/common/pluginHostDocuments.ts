@@ -139,18 +139,24 @@ export class PluginHostModelService {
 
 	public _acceptModelSaved(url: URI): void {
 		let document = this._documents[url.toString()];
-		document._acceptIsDirty(false);
-		this._onDidSaveDocumentEventEmitter.fire(document);
+		if (document) {
+			document._acceptIsDirty(false);
+			this._onDidSaveDocumentEventEmitter.fire(document);
+		}
 	}
 
 	public _acceptModelDirty(url: URI): void {
 		let document = this._documents[url.toString()];
-		document._acceptIsDirty(true);
+		if (document) {
+			document._acceptIsDirty(true);
+		}
 	}
 
 	public _acceptModelReverted(url: URI): void {
 		let document = this._documents[url.toString()];
-		document._acceptIsDirty(false);
+		if (document) {
+			document._acceptIsDirty(false);
+		}
 	}
 
 	public _acceptModelRemoved(url: URI): void {
