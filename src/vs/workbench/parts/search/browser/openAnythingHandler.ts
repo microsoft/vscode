@@ -35,6 +35,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 	private openFileHandler: OpenFileHandler;
 	private resultsToSearchCache: { [searchValue: string]: QuickOpenEntry[]; };
 	private delayer: ThrottledDelayer;
+	private pendingSearch: TPromise<QuickOpenModel>;
 	private isClosed: boolean;
 
 	constructor(
@@ -56,6 +57,9 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 
 	public getResults(searchValue: string): TPromise<QuickOpenModel> {
 		searchValue = searchValue.trim();
+
+		// Cancel any pending search
+		this.cancelPendingSearch();
 
 		// Treat this call as the handler being in use
 		this.isClosed = false;
@@ -122,6 +126,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 
 			// Join and sort unified
 			return TPromise.join(resultPromises).then((results: QuickOpenModel[]) => {
+				this.pendingSearch = null;
 
 				// If the quick open widget has been closed meanwhile, ignore the result
 				if (this.isClosed) {
@@ -147,12 +152,15 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 
 				return TPromise.as<QuickOpenModel>(new QuickOpenModel(result));
 			}, (error: Error) => {
+				this.pendingSearch = null;
 				this.messageService.show(Severity.Error, error);
 			});
 		};
 
 		// Trigger through delayer to prevent accumulation while the user is typing
-		return this.delayer.trigger(promiseFactory);
+		this.pendingSearch = this.delayer.trigger(promiseFactory);
+
+		return this.pendingSearch;
 	}
 
 	private findRange(value: string): IRange {
@@ -256,11 +264,21 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 	public onClose(canceled: boolean): void {
 		this.isClosed = true;
 
+		// Cancel any pending search
+		this.cancelPendingSearch();
+
 		// Clear Cache
 		this.resultsToSearchCache = Object.create(null);
 
 		// Propagate
 		this.openSymbolHandler.onClose(canceled);
 		this.openFileHandler.onClose(canceled);
+	}
+
+	private cancelPendingSearch(): void {
+		if (this.pendingSearch) {
+			this.pendingSearch.cancel();
+			this.pendingSearch = null;
+		}
 	}
 }

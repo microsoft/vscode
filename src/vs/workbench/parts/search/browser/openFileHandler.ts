@@ -89,7 +89,6 @@ export class OpenFileHandler extends QuickOpenHandler {
 	private queryBuilder: QueryBuilder;
 	private delayer: ThrottledDelayer;
 	private isStandalone: boolean;
-	private pendingSearch: PPromise<ISearchComplete, ISearchProgressItem>
 
 	constructor(
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
@@ -129,10 +128,6 @@ export class OpenFileHandler extends QuickOpenHandler {
 	}
 
 	private doFindResults(searchValue: string): TPromise<QuickOpenEntry[]> {
-
-		// clear previous searches if still running
-		this.cancelPendingSearch();
-
 		let rootResources = this.textFileService.getWorkingFilesModel().getOutOfWorkspaceContextEntries().map((e) => e.resource);
 		if (this.contextService.getWorkspace()) {
 			rootResources.push(this.contextService.getWorkspace().resource);
@@ -140,17 +135,9 @@ export class OpenFileHandler extends QuickOpenHandler {
 
 		let query: IQueryOptions = { filePattern: searchValue, rootResources: rootResources };
 
-		return this.queryBuilder.file(query).then((query) => {
-			this.pendingSearch = this.searchService.search(query);
-
-			return this.pendingSearch;
-		}).then((complete) => {
-			this.pendingSearch = null;
-
+		return this.queryBuilder.file(query).then((query) => this.searchService.search(query)).then((complete) => {
 			let searchResult = this.instantiationService.createInstance(SearchResult, null);
 			searchResult.append(complete.results);
-
-			let results: QuickOpenEntry[] = [];
 
 			// Sort (standalone only)
 			let matches = searchResult.matches();
@@ -159,6 +146,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 			}
 
 			// Highlight
+			let results: QuickOpenEntry[] = [];
 			for (let i = 0; i < matches.length; i++) {
 				let fileMatch = matches[i];
 				let highlights = filters.matchesFuzzy(searchValue, fileMatch.name());
@@ -200,16 +188,5 @@ export class OpenFileHandler extends QuickOpenHandler {
 		return {
 			autoFocusFirstEntry: true
 		};
-	}
-
-	private cancelPendingSearch(): void {
-		if (this.pendingSearch) {
-			this.pendingSearch.cancel();
-			this.pendingSearch = null;
-		}
-	}
-
-	public onClose(canceled: boolean): void {
-		this.cancelPendingSearch();
 	}
 }

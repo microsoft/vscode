@@ -619,6 +619,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 	}
 
 	private handleDefaultHandlers(defaultHandlers: QuickOpenHandlerDescriptor[], value: string, currentResultToken: string): TPromise<void> {
+
 		// Fill in history results if matching
 		let matchingHistoryEntries = this.editorHistoryModel.getResults(value);
 		if (matchingHistoryEntries.length > 0) {
