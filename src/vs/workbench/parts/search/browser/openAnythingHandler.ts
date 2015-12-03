@@ -31,6 +31,8 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 	private static SYMBOL_SEARCH_SUBSEQUENT_TIMEOUT = 100;
 	private static SEARCH_DELAY = 100; // This delay accommodates for the user typing a word and then stops typing to start searching
 
+	private static MAX_DISPLAYED_FILE_RESULTS = 2048;
+
 	private openSymbolHandler: _OpenSymbolHandler;
 	private openFileHandler: OpenFileHandler;
 	private resultsToSearchCache: { [searchValue: string]: QuickOpenEntry[]; };
@@ -150,7 +152,10 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 				// Cache for fast lookup
 				this.resultsToSearchCache[searchValue] = result;
 
-				return TPromise.as<QuickOpenModel>(new QuickOpenModel(result));
+				// Cap the number of results to make the view snappy
+				const viewResults = result.slice(0, OpenAnythingHandler.MAX_DISPLAYED_FILE_RESULTS);
+
+				return TPromise.as<QuickOpenModel>(new QuickOpenModel(viewResults));
 			}, (error: Error) => {
 				this.pendingSearch = null;
 				this.messageService.show(Severity.Error, error);

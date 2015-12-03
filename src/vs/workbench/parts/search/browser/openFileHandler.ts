@@ -170,7 +170,6 @@ export class OpenFileHandler extends QuickOpenHandler {
 		}
 
 		// Compare by name
-
 		let r = comparers.compareFileNames(elementAName, elementBName);
 		if (r !== 0) {
 			return r;
