@@ -267,16 +267,8 @@
 	background: rgba(255, 255, 0, 0.15);
 }
 
-.monaco-editor.vs-dark .debug-breakpoint-glyph-hint {
-	background: url('breakpoint-dark.svg') center center no-repeat;
-}
-
 .monaco-editor.vs-dark .debug-breakpoint-glyph-disabled {
 	background: url('breakpoint-disabled-dark.svg') center center no-repeat;
-}
-
-.monaco-editor.vs-dark .debug-breakpoint-glyph-verified {
-	background: url('breakpoint-verified-dark.svg') center center no-repeat;
 }
 
 .monaco-editor.vs-dark .debug-top-stack-frame-glyph {
@@ -285,10 +277,6 @@
 
 .monaco-editor.vs-dark .debug-focused-stack-frame-glyph {
 	background: url('stackframe-arrow-dark.svg') center center no-repeat;
-}
-
-.monaco-editor.vs-dark .debug-breakpoint-glyph {
-	background: url('breakpoint-dark.svg') center center no-repeat;
 }
 
 .monaco-editor.vs-dark .debug-top-stack-frame-glyph.debug-breakpoint-glyph-verified {
