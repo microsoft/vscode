@@ -117,7 +117,7 @@ export class ExtensionsService implements IExtensionsService {
 			return TPromise.wrapError(new Error(nls.localize('missingGalleryInformation', "Gallery information is missing")));
 		}
 
-		const url = `${ galleryInformation.galleryApiUrl }/publisher/${ extension.publisher }/extension/${ extension.name }/latest/assetbyname/Microsoft.VisualStudio.Services.VSIXPackage?install=true`;
+		const url = galleryInformation.downloadUrl;
 		const zipPath = path.join(tmpdir(), galleryInformation.id);
 		const extensionPath = path.join(this.extensionsPath, `${ extension.publisher }.${ extension.name }`);
 		const manifestPath = path.join(extensionPath, 'package.json');
