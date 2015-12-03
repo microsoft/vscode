@@ -3,9 +3,18 @@
 	"version": "0.1.0",
 	"publisher": "vscode",
 	"engines": { "vscode": "*" },
-	"grammars": [{
-		// not used yet
-		"scopeName": "text.html.basic",
-		"path": "./syntaxes/HTML.plist"
-	}]
+	"contributes": {
+		"languages": [{
+			"id": "html",
+			"extensions": [ ".html", ".htm", ".shtml", ".mdoc", ".jsp", ".asp", ".aspx", ".jshtm" ],
+			"aliases": [ "HTML", "htm", "html", "xhtml" ],
+			"mimetypes": ["text/html", "text/x-jshtm", "text/template", "text/ng-template"]
+		}],
+		"grammars": [{
+			/* "language": "html", not yet enabled*/
+			"scopeName": "text.html.basic",
+			"path": "./syntaxes/HTML.plist"
+		}]
+	}
+
 }
