@@ -3965,7 +3965,34 @@ interface ObjectConstructor {
       * Copy the values of all of the enumerable own properties from one or more source objects to a 
       * target object. Returns the target object.
       * @param target The target object to copy to.
-      * @param sources One or more source objects to copy properties from.
+      * @param source The source object from which to copy properties.
+      */
+    assign<T, U>(target: T, source: U): T & U;
+
+    /**
+      * Copy the values of all of the enumerable own properties from one or more source objects to a 
+      * target object. Returns the target object.
+      * @param target The target object to copy to.
+      * @param source1 The first source object from which to copy properties.
+      * @param source2 The second source object from which to copy properties.
+      */
+    assign<T, U, V>(target: T, source1: U, source2: V): T & U & V;
+
+    /**
+      * Copy the values of all of the enumerable own properties from one or more source objects to a 
+      * target object. Returns the target object.
+      * @param target The target object to copy to.
+      * @param source1 The first source object from which to copy properties.
+      * @param source2 The second source object from which to copy properties.
+      * @param source3 The third source object from which to copy properties.
+      */
+    assign<T, U, V, W>(target: T, source1: U, source2: V, source3: W): T & U & V & W;
+
+    /**
+      * Copy the values of all of the enumerable own properties from one or more source objects to a 
+      * target object. Returns the target object.
+      * @param target The target object to copy to.
+      * @param sources One or more source objects from which to copy properties
       */
     assign(target: any, ...sources: any[]): any;
 
@@ -5169,7 +5196,7 @@ declare module Intl {
         currency?: string;
         currencyDisplay?: string;
         useGrouping?: boolean;
-        minimumintegerDigits?: number;
+        minimumIntegerDigits?: number;
         minimumFractionDigits?: number;
         maximumFractionDigits?: number;
         minimumSignificantDigits?: number;
@@ -5182,7 +5209,7 @@ declare module Intl {
         style: string;
         currency?: string;
         currencyDisplay?: string;
-        minimumintegerDigits: number;
+        minimumIntegerDigits: number;
         minimumFractionDigits: number;
         maximumFractionDigits: number;
         minimumSignificantDigits?: number;
@@ -5531,8 +5558,8 @@ interface AnalyserNode extends AudioNode {
     smoothingTimeConstant: number;
     getByteFrequencyData(array: Uint8Array): void;
     getByteTimeDomainData(array: Uint8Array): void;
-    getFloatFrequencyData(array: any): void;
-    getFloatTimeDomainData(array: any): void;
+    getFloatFrequencyData(array: Float32Array): void;
+    getFloatTimeDomainData(array: Float32Array): void;
 }
 
 declare var AnalyserNode: {
@@ -5619,7 +5646,7 @@ interface AudioBuffer {
     length: number;
     numberOfChannels: number;
     sampleRate: number;
-    getChannelData(channel: number): any;
+    getChannelData(channel: number): Float32Array;
 }
 
 declare var AudioBuffer: {
@@ -5663,7 +5690,7 @@ interface AudioContext extends EventTarget {
     createMediaElementSource(mediaElement: HTMLMediaElement): MediaElementAudioSourceNode;
     createOscillator(): OscillatorNode;
     createPanner(): PannerNode;
-    createPeriodicWave(real: any, imag: any): PeriodicWave;
+    createPeriodicWave(real: Float32Array, imag: Float32Array): PeriodicWave;
     createScriptProcessor(bufferSize?: number, numberOfInputChannels?: number, numberOfOutputChannels?: number): ScriptProcessorNode;
     createStereoPanner(): StereoPannerNode;
     createWaveShaper(): WaveShaperNode;
@@ -5721,7 +5748,7 @@ interface AudioParam {
     linearRampToValueAtTime(value: number, endTime: number): void;
     setTargetAtTime(target: number, startTime: number, timeConstant: number): void;
     setValueAtTime(value: number, startTime: number): void;
-    setValueCurveAtTime(values: any, startTime: number, duration: number): void;
+    setValueCurveAtTime(values: Float32Array, startTime: number, duration: number): void;
 }
 
 declare var AudioParam: {
@@ -5797,7 +5824,7 @@ interface BiquadFilterNode extends AudioNode {
     frequency: AudioParam;
     gain: AudioParam;
     type: string;
-    getFrequencyResponse(frequencyHz: any, magResponse: any, phaseResponse: any): void;
+    getFrequencyResponse(frequencyHz: Float32Array, magResponse: Float32Array, phaseResponse: Float32Array): void;
 }
 
 declare var BiquadFilterNode: {
@@ -6396,7 +6423,7 @@ declare var CanvasPattern: {
 
 interface CanvasRenderingContext2D {
     canvas: HTMLCanvasElement;
-    fillStyle: any;
+    fillStyle: string | CanvasGradient | CanvasPattern;
     font: string;
     globalAlpha: number;
     globalCompositeOperation: string;
@@ -6411,7 +6438,7 @@ interface CanvasRenderingContext2D {
     shadowColor: string;
     shadowOffsetX: number;
     shadowOffsetY: number;
-    strokeStyle: any;
+    strokeStyle: string | CanvasGradient | CanvasPattern;
     textAlign: string;
     textBaseline: string;
     arc(x: number, y: number, radius: number, startAngle: number, endAngle: number, anticlockwise?: boolean): void;
@@ -7779,8 +7806,6 @@ interface Document extends Node, GlobalEventHandlers, NodeSelector, DocumentEven
     importNode(importedNode: Node, deep: boolean): Node;
     msElementsFromPoint(x: number, y: number): NodeList;
     msElementsFromRect(left: number, top: number, width: number, height: number): NodeList;
-    msGetPrintDocumentForNamedFlow(flowName: string): Document;
-    msSetPrintDocumentUriForNamedFlow(flowName: string, uri: string): void;
     /**
       * Opens a new window and loads a document specified by a given URL. Also, opens a new window that uses the url parameter and the name parameter to collect the output of the write method and the writeln method.
       * @param url Specifies a MIME type for the document.
@@ -12602,27 +12627,6 @@ declare var MSHTMLWebViewElement: {
     new(): MSHTMLWebViewElement;
 }
 
-interface MSHeaderFooter {
-    URL: string;
-    dateLong: string;
-    dateShort: string;
-    font: string;
-    htmlFoot: string;
-    htmlHead: string;
-    page: number;
-    pageTotal: number;
-    textFoot: string;
-    textHead: string;
-    timeLong: string;
-    timeShort: string;
-    title: string;
-}
-
-declare var MSHeaderFooter: {
-    prototype: MSHeaderFooter;
-    new(): MSHeaderFooter;
-}
-
 interface MSInputMethodContext extends EventTarget {
     compositionEndOffset: number;
     compositionStartOffset: number;
@@ -12781,24 +12785,6 @@ declare var MSPointerEvent: {
     new(typeArg: string, eventInitDict?: PointerEventInit): MSPointerEvent;
 }
 
-interface MSPrintManagerTemplatePrinter extends MSTemplatePrinter, EventTarget {
-    percentScale: number;
-    showHeaderFooter: boolean;
-    shrinkToFit: boolean;
-    drawPreviewPage(element: HTMLElement, pageNumber: number): void;
-    endPrint(): void;
-    getPrintTaskOptionValue(key: string): any;
-    invalidatePreview(): void;
-    setPageCount(pageCount: number): void;
-    startPrint(): void;
-    addEventListener(type: string, listener: EventListenerOrEventListenerObject, useCapture?: boolean): void;
-}
-
-declare var MSPrintManagerTemplatePrinter: {
-    prototype: MSPrintManagerTemplatePrinter;
-    new(): MSPrintManagerTemplatePrinter;
-}
-
 interface MSRangeCollection {
     length: number;
     item(index: number): Range;
@@ -12844,63 +12830,6 @@ interface MSStreamReader extends EventTarget, MSBaseReader {
 declare var MSStreamReader: {
     prototype: MSStreamReader;
     new(): MSStreamReader;
-}
-
-interface MSTemplatePrinter {
-    collate: boolean;
-    copies: number;
-    currentPage: boolean;
-    currentPageAvail: boolean;
-    duplex: boolean;
-    footer: string;
-    frameActive: boolean;
-    frameActiveEnabled: boolean;
-    frameAsShown: boolean;
-    framesetDocument: boolean;
-    header: string;
-    headerFooterFont: string;
-    marginBottom: number;
-    marginLeft: number;
-    marginRight: number;
-    marginTop: number;
-    orientation: string;
-    pageFrom: number;
-    pageHeight: number;
-    pageTo: number;
-    pageWidth: number;
-    selectedPages: boolean;
-    selection: boolean;
-    selectionEnabled: boolean;
-    unprintableBottom: number;
-    unprintableLeft: number;
-    unprintableRight: number;
-    unprintableTop: number;
-    usePrinterCopyCollate: boolean;
-    createHeaderFooter(): MSHeaderFooter;
-    deviceSupports(property: string): any;
-    ensurePrintDialogDefaults(): boolean;
-    getPageMarginBottom(pageRule: CSSPageRule, pageWidth: number, pageHeight: number): any;
-    getPageMarginBottomImportant(pageRule: CSSPageRule): boolean;
-    getPageMarginLeft(pageRule: CSSPageRule, pageWidth: number, pageHeight: number): any;
-    getPageMarginLeftImportant(pageRule: CSSPageRule): boolean;
-    getPageMarginRight(pageRule: CSSPageRule, pageWidth: number, pageHeight: number): any;
-    getPageMarginRightImportant(pageRule: CSSPageRule): boolean;
-    getPageMarginTop(pageRule: CSSPageRule, pageWidth: number, pageHeight: number): any;
-    getPageMarginTopImportant(pageRule: CSSPageRule): boolean;
-    printBlankPage(): void;
-    printNonNative(document: any): boolean;
-    printNonNativeFrames(document: any, activeFrame: boolean): void;
-    printPage(element: HTMLElement): void;
-    showPageSetupDialog(): boolean;
-    showPrintDialog(): boolean;
-    startDoc(title: string): boolean;
-    stopDoc(): void;
-    updatePageStatus(status: number): void;
-}
-
-declare var MSTemplatePrinter: {
-    prototype: MSTemplatePrinter;
-    new(): MSTemplatePrinter;
 }
 
 interface MSWebViewAsyncOperation extends EventTarget {
@@ -13320,6 +13249,10 @@ declare var Node: {
 }
 
 interface NodeFilter {
+    acceptNode(n: Node): number;
+}
+
+declare var NodeFilter: {
     FILTER_ACCEPT: number;
     FILTER_REJECT: number;
     FILTER_SKIP: number;
@@ -13337,7 +13270,6 @@ interface NodeFilter {
     SHOW_PROCESSING_INSTRUCTION: number;
     SHOW_TEXT: number;
 }
-declare var NodeFilter: NodeFilter;
 
 interface NodeIterator {
     expandEntityReferences: boolean;
@@ -14047,7 +13979,6 @@ declare var SVGDescElement: {
 
 interface SVGElement extends Element {
     id: string;
-    className: any;
     onclick: (ev: MouseEvent) => any;
     ondblclick: (ev: MouseEvent) => any;
     onfocusin: (ev: FocusEvent) => any;
@@ -14061,6 +13992,7 @@ interface SVGElement extends Element {
     ownerSVGElement: SVGSVGElement;
     viewportElement: SVGElement;
     xmlbase: string;
+    className: any;
     addEventListener(type: "MSGestureChange", listener: (ev: MSGestureEvent) => any, useCapture?: boolean): void;
     addEventListener(type: "MSGestureDoubleTap", listener: (ev: MSGestureEvent) => any, useCapture?: boolean): void;
     addEventListener(type: "MSGestureEnd", listener: (ev: MSGestureEvent) => any, useCapture?: boolean): void;
@@ -16222,7 +16154,7 @@ declare var WEBGL_depth_texture: {
 }
 
 interface WaveShaperNode extends AudioNode {
-    curve: any;
+    curve: Float32Array;
     oversample: string;
 }
 
@@ -16409,34 +16341,34 @@ interface WebGLRenderingContext {
     texSubImage2D(target: number, level: number, xoffset: number, yoffset: number, format: number, type: number, video: HTMLVideoElement): void;
     texSubImage2D(target: number, level: number, xoffset: number, yoffset: number, format: number, type: number, pixels: ImageData): void;
     uniform1f(location: WebGLUniformLocation, x: number): void;
-    uniform1fv(location: WebGLUniformLocation, v: any): void;
+    uniform1fv(location: WebGLUniformLocation, v: Float32Array): void;
     uniform1i(location: WebGLUniformLocation, x: number): void;
     uniform1iv(location: WebGLUniformLocation, v: Int32Array): void;
     uniform2f(location: WebGLUniformLocation, x: number, y: number): void;
-    uniform2fv(location: WebGLUniformLocation, v: any): void;
+    uniform2fv(location: WebGLUniformLocation, v: Float32Array): void;
     uniform2i(location: WebGLUniformLocation, x: number, y: number): void;
     uniform2iv(location: WebGLUniformLocation, v: Int32Array): void;
     uniform3f(location: WebGLUniformLocation, x: number, y: number, z: number): void;
-    uniform3fv(location: WebGLUniformLocation, v: any): void;
+    uniform3fv(location: WebGLUniformLocation, v: Float32Array): void;
     uniform3i(location: WebGLUniformLocation, x: number, y: number, z: number): void;
     uniform3iv(location: WebGLUniformLocation, v: Int32Array): void;
     uniform4f(location: WebGLUniformLocation, x: number, y: number, z: number, w: number): void;
-    uniform4fv(location: WebGLUniformLocation, v: any): void;
+    uniform4fv(location: WebGLUniformLocation, v: Float32Array): void;
     uniform4i(location: WebGLUniformLocation, x: number, y: number, z: number, w: number): void;
     uniform4iv(location: WebGLUniformLocation, v: Int32Array): void;
-    uniformMatrix2fv(location: WebGLUniformLocation, transpose: boolean, value: any): void;
-    uniformMatrix3fv(location: WebGLUniformLocation, transpose: boolean, value: any): void;
-    uniformMatrix4fv(location: WebGLUniformLocation, transpose: boolean, value: any): void;
+    uniformMatrix2fv(location: WebGLUniformLocation, transpose: boolean, value: Float32Array): void;
+    uniformMatrix3fv(location: WebGLUniformLocation, transpose: boolean, value: Float32Array): void;
+    uniformMatrix4fv(location: WebGLUniformLocation, transpose: boolean, value: Float32Array): void;
     useProgram(program: WebGLProgram): void;
     validateProgram(program: WebGLProgram): void;
     vertexAttrib1f(indx: number, x: number): void;
-    vertexAttrib1fv(indx: number, values: any): void;
+    vertexAttrib1fv(indx: number, values: Float32Array): void;
     vertexAttrib2f(indx: number, x: number, y: number): void;
-    vertexAttrib2fv(indx: number, values: any): void;
+    vertexAttrib2fv(indx: number, values: Float32Array): void;
     vertexAttrib3f(indx: number, x: number, y: number, z: number): void;
-    vertexAttrib3fv(indx: number, values: any): void;
+    vertexAttrib3fv(indx: number, values: Float32Array): void;
     vertexAttrib4f(indx: number, x: number, y: number, z: number, w: number): void;
-    vertexAttrib4fv(indx: number, values: any): void;
+    vertexAttrib4fv(indx: number, values: Float32Array): void;
     vertexAttribPointer(indx: number, size: number, type: number, normalized: boolean, stride: number, offset: number): void;
     viewport(x: number, y: number, width: number, height: number): void;
     ACTIVE_ATTRIBUTES: number;
@@ -17200,7 +17132,6 @@ interface Window extends EventTarget, WindowTimers, WindowSessionStorage, Window
     locationbar: BarProp;
     menubar: BarProp;
     msAnimationStartTime: number;
-    msTemplatePrinter: MSTemplatePrinter;
     name: string;
     navigator: Navigator;
     offscreenBuffering: string | boolean;
@@ -17937,7 +17868,6 @@ interface XMLHttpRequestEventTarget {
     addEventListener(type: string, listener: EventListenerOrEventListenerObject, useCapture?: boolean): void;
 }
 
-
 interface NodeListOf<TNode extends Node> extends NodeList {
     length: number;
     item(index: number): TNode;
@@ -17958,8 +17888,6 @@ interface EventListenerObject {
     handleEvent(evt: Event): void;
 }
 
-declare type EventListenerOrEventListenerObject = EventListener | EventListenerObject;
-
 interface MessageEventInit extends EventInit {
     data?: any;
     origin?: string;
@@ -17974,6 +17902,8 @@ interface ProgressEventInit extends EventInit {
     loaded?: number;
     total?: number;
 }
+
+declare type EventListenerOrEventListenerObject = EventListener | EventListenerObject;
 
 interface ErrorEventHandler {
     (message: string, filename?: string, lineno?: number, colno?: number, error?:Error): void;
@@ -18035,7 +17965,6 @@ declare var location: Location;
 declare var locationbar: BarProp;
 declare var menubar: BarProp;
 declare var msAnimationStartTime: number;
-declare var msTemplatePrinter: MSTemplatePrinter;
 declare var name: string;
 declare var navigator: Navigator;
 declare var offscreenBuffering: string | boolean;
