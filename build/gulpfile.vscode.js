@@ -40,6 +40,10 @@ var baseModules = [
 
 // Build
 
+var builtInExtensions = {
+	'jrieken.vscode-omnisharp': '0.1.0',
+};
+
 var vscodeEntryPoints = _.flatten([
 	buildfile.entrypoint('vs/workbench/workbench.main'),
 	buildfile.base,
@@ -162,12 +166,7 @@ function packageTask(platform, arch, opts) {
 			'extensions/**',
 			'!extensions/*/src/**',
 			'!extensions/*/out/**/test/**',
-			'!extensions/typescript/bin/**',
-			'!extensions/csharp-o/node_modules/del/**',
-			'!extensions/csharp-o/node_modules/gulp/**',
-			'!extensions/csharp-o/node_modules/gulp-decompress/**',
-			'!extensions/csharp-o/node_modules/gulp-download/**',
-			'!extensions/csharp-o/node_modules/typescript/**'
+			'!extensions/typescript/bin/**'
 		], { base: '.' });
 
 		var pluginHostSourceMap = gulp.src(out + '/vs/workbench/node/pluginHostProcess.js.map', { base: '.' })
@@ -199,6 +198,11 @@ function packageTask(platform, arch, opts) {
 			resources = es.merge(resources, gulp.src(product.icons.application.png, { base: '.' }));
 		}
 
+		var extraExtensions = util.downloadExtensions(builtInExtensions)
+			.pipe(rename(function (p) {
+				p.dirname = path.posix.join('extensions', p.dirname);
+			}));
+
 		var all = es.merge(
 			api,
 			packageJson,
@@ -206,6 +210,7 @@ function packageTask(platform, arch, opts) {
 			license,
 			sources,
 			deps,
+			extraExtensions,
 			resources
 		).pipe(util.skipDirectories());
 
