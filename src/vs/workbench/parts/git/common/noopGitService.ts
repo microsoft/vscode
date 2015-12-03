@@ -65,7 +65,7 @@ export class NoOpGitService implements git.IRawGitService {
 		return winjs.Promise.as(NoOpGitService.STATUS);
 	}
 
-	public pull(): winjs.TPromise<git.IRawStatus> {
+	public pull(rebase?: boolean): winjs.TPromise<git.IRawStatus> {
 		return winjs.Promise.as(NoOpGitService.STATUS);
 	}
 

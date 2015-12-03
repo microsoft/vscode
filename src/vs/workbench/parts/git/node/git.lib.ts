@@ -506,8 +506,11 @@ export class Repository {
 		});
 	}
 
-	public pull(): Promise {
-		return this.run(['pull']).then(null, (err: GitError) => {
+	public pull(rebase?: boolean): Promise {
+		const args = ['pull'];
+		rebase && args.push('-r');
+
+		return this.run(args).then(null, (err: GitError) => {
 			if (/^CONFLICT \([^)]+\): \b/m.test(err.stdout)) {
 				err.gitErrorCode = GitErrorCodes.Conflict;
 			} else if (/Please tell me who you are\./.test(err.stderr)) {

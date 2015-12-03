@@ -819,9 +819,14 @@ export class SmartCommitAction extends BaseCommitAction {
 export class PullAction extends GitAction {
 
 	static ID = 'workbench.action.pull';
+	static LABEL = nls.localize('pull', "Pull");
 
-	constructor(@IGitService gitService: IGitService) {
-		super(PullAction.ID, nls.localize('pull', "Pull"), 'git-action pull', gitService);
+	constructor(
+		id = PullAction.ID,
+		label = PullAction.LABEL,
+		@IGitService gitService: IGitService
+	) {
+		super(id, label, 'git-action pull', gitService);
 	}
 
 	protected isEnabled():boolean {
@@ -844,7 +849,11 @@ export class PullAction extends GitAction {
 	}
 
 	public run(context?: any):Promise {
-		return this.gitService.pull().then(null, (err) => {
+		return this.pull();
+	}
+
+	protected pull(rebase = false): Promise {
+		return this.gitService.pull(rebase).then(null, (err) => {
 			if (err.gitErrorCode === GitErrorCodes.DirtyWorkTree) {
 				return Promise.wrapError(errors.create(nls.localize('dirtyTreePull', "Can't pull. Please commit or stage your work first."), { severity: Severity.Warning }));
 			} else if (err.gitErrorCode === GitErrorCodes.AuthenticationFailed) {
@@ -853,6 +862,20 @@ export class PullAction extends GitAction {
 
 			return Promise.wrapError(err);
 		});
+	}
+}
+
+export class PullWithRebaseAction extends PullAction {
+
+	static ID = 'workbench.action.pull.rebase';
+	static LABEL = nls.localize('pullWithRebase', "Pull (Rebase)");
+
+	constructor(@IGitService gitService: IGitService) {
+		super(PullWithRebaseAction.ID, PullWithRebaseAction.LABEL, gitService);
+	}
+
+	public run(context?: any):Promise {
+		return this.pull(true);
 	}
 }
 

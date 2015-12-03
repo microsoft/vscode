@@ -259,7 +259,7 @@ export interface IRawGitService {
 	reset(treeish:string, hard?: boolean): WinJS.TPromise<IRawStatus>;
 	revertFiles(treeish:string, filePaths?: string[]): WinJS.TPromise<IRawStatus>;
 	fetch(): WinJS.TPromise<IRawStatus>;
-	pull(): WinJS.TPromise<IRawStatus>;
+	pull(rebase?: boolean): WinJS.TPromise<IRawStatus>;
 	push(): WinJS.TPromise<IRawStatus>;
 	sync(): WinJS.TPromise<IRawStatus>;
 	commit(message:string, amend?: boolean, stage?: boolean): WinJS.TPromise<IRawStatus>;
@@ -285,7 +285,7 @@ export interface IGitService extends EventEmitter.IEventEmitter {
 	reset(treeish:string, hard?: boolean): WinJS.TPromise<IModel>;
 	revertFiles(treeish:string, files?: IFileStatus[]): WinJS.TPromise<IModel>;
 	fetch(): WinJS.TPromise<IModel>;
-	pull(): WinJS.TPromise<IModel>;
+	pull(rebase?: boolean): WinJS.TPromise<IModel>;
 	push(): WinJS.TPromise<IModel>;
 	sync(): WinJS.TPromise<IModel>;
 	commit(message:string, amend?: boolean, stage?: boolean): WinJS.TPromise<IModel>;

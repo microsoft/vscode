@@ -116,8 +116,8 @@ export class RawGitService implements IRawGitService {
 		}).then(() => this.status());
 	}
 
-	public pull(): TPromise<IRawStatus> {
-		return this.repo.pull().then(() => this.status());
+	public pull(rebase?: boolean): TPromise<IRawStatus> {
+		return this.repo.pull(rebase).then(() => this.status());
 	}
 
 	public push(): TPromise<IRawStatus> {
@@ -235,8 +235,8 @@ export class DelayedRawGitService implements IRawGitService {
 		return this.raw.then(raw => raw.fetch());
 	}
 
-	public pull(): TPromise<IRawStatus> {
-		return this.raw.then(raw => raw.pull());
+	public pull(rebase?: boolean): TPromise<IRawStatus> {
+		return this.raw.then(raw => raw.pull(rebase));
 	}
 
 	public push(): TPromise<IRawStatus> {
