@@ -135,7 +135,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 
 		// Attach: PH is ready to be attached to
 		if (broadcast.channel === PLUGIN_ATTACH_BROADCAST_CHANNEL) {
-			this.rawAttach('extensionHost', broadcast.payload.port);
+			this.rawAttach(broadcast.payload.port);
 
 			return;
 		}
@@ -566,15 +566,18 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		});
 	}
 
-	public rawAttach(type: string, port: number): Promise {
+	public rawAttach(port: number): Promise {
 		if (this.session) {
 			return this.session.attach({ port });
 		}
+		const configuration = this.configurationManager.getConfiguration();
 
 		return this.doCreateSession({
-			type,
+			type: configuration.type,
 			request: 'attach',
-			port
+			port,
+			sourceMaps: configuration.sourceMaps,
+			outDir: configuration.outDir
 		}, true);
 	}
 
