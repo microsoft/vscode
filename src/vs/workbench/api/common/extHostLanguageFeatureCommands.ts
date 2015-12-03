@@ -168,7 +168,7 @@ export class ExtHostLanguageFeatureCommands {
 				for (let group of value) {
 					for (let suggestions of group) {
 						for (let suggestion of suggestions.suggestions) {
-							const item = typeConverters.Suggest.to(suggestion, suggestions);
+							const item = typeConverters.Suggest.to(suggestion);
 							items.push(item);
 						}
 					}

@@ -337,7 +337,7 @@ class DocumentFormattingAdapter implements modes.IFormattingSupport {
 
 		return asWinJsPromise(token => this._provider.provideDocumentFormattingEdits(doc, <any>options, token)).then(value => {
 			if (Array.isArray(value)) {
-				return value.map(TypeConverters.fromTextEdit);
+				return value.map(TypeConverters.TextEdit.from);
 			}
 		});
 	}
@@ -360,7 +360,7 @@ class RangeFormattingAdapter implements modes.IFormattingSupport {
 
 		return asWinJsPromise(token => this._provider.provideDocumentRangeFormattingEdits(doc, ran, <any>options, token)).then(value => {
 			if (Array.isArray(value)) {
-				return value.map(TypeConverters.fromTextEdit);
+				return value.map(TypeConverters.TextEdit.from);
 			}
 		});
 	}
@@ -385,7 +385,7 @@ class OnTypeFormattingAdapter implements modes.IFormattingSupport {
 
 		return asWinJsPromise(token => this._provider.provideOnTypeFormattingEdits(doc, pos, ch, <any> options, token)).then(value => {
 			if (Array.isArray(value)) {
-				return value.map(TypeConverters.fromTextEdit);
+				return value.map(TypeConverters.TextEdit.from);
 			}
 		});
 	}
@@ -489,7 +489,7 @@ class SuggestAdapter implements modes.ISuggestSupport {
 
 			for (let i = 0; i < value.length; i++) {
 				const item = value[i];
-				const [suggestion] = TypeConverters.Suggest.from(item, defaultSuggestions); SuggestAdapter._convertCompletionItem(item);
+				const suggestion = TypeConverters.Suggest.from(item);
 
 				if (item.textEdit) {
 
@@ -540,20 +540,8 @@ class SuggestAdapter implements modes.ISuggestSupport {
 			return TPromise.as(suggestion);
 		}
 		return asWinJsPromise(token => this._provider.resolveCompletionItem(item, token)).then(resolvedItem => {
-			return SuggestAdapter._convertCompletionItem(resolvedItem || item);
+			return TypeConverters.Suggest.from(resolvedItem || item);
 		});
-	}
-
-	private static _convertCompletionItem(item: vscode.CompletionItem): modes.ISuggestion {
-		return {
-			label: item.label,
-			codeSnippet: item.insertText || item.label,
-			type: CompletionItemKind[item.kind || CompletionItemKind.Text].toString().toLowerCase(),
-			typeLabel: item.detail,
-			documentationLabel: item.documentation,
-			sortText: item.sortText,
-			filterText: item.filterText
-		};
 	}
 
 	getFilter(): any{

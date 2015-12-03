@@ -168,10 +168,15 @@ export function fromRangeOrRangeWithMessage(ranges:vscode.Range[]|vscode.Decorat
 	}
 }
 
-export function fromTextEdit(edit: vscode.TextEdit) {
-	return <ISingleEditOperation>{
-		text: edit.newText,
-		range: fromRange(edit.range)
+export const TextEdit = {
+	from(edit: vscode.TextEdit): ISingleEditOperation{
+		return <ISingleEditOperation>{
+			text: edit.newText,
+			range: fromRange(edit.range)
+		}
+	},
+	to(edit: ISingleEditOperation): vscode.TextEdit {
+		return new types.TextEdit(toRange(edit.range), edit.text);
 	}
 }
 
@@ -315,25 +320,21 @@ export function toDocumentHighlight(occurrence: modes.IOccurence): types.Documen
 
 export const Suggest = {
 
-	from(item: vscode.CompletionItem, defaultContainer: modes.ISuggestResult): [modes.ISuggestion, modes.ISuggestResult] {
+	from(item: vscode.CompletionItem): modes.ISuggestion {
 		const suggestion: modes.ISuggestion = {
 			label: item.label,
 			codeSnippet: item.insertText || item.label,
 			type: types.CompletionItemKind[item.kind || types.CompletionItemKind.Text].toString().toLowerCase(),
 			typeLabel: item.detail,
+			textEdit: item.textEdit && TextEdit.from(item.textEdit),
 			documentationLabel: item.documentation,
 			sortText: item.sortText,
 			filterText: item.filterText
 		};
-
-		if (item.textEdit) {
-			// TODO@joh
-		}
-
-		return [suggestion, defaultContainer];
+		return suggestion;
 	},
 
-	to(suggestion: modes.ISuggestion, container: modes.ISuggestResult): types.CompletionItem {
+	to(suggestion: modes.ISuggestion): types.CompletionItem {
 		const result = new types.CompletionItem(suggestion.label);
 		result.insertText = suggestion.codeSnippet;
 		result.kind = types.CompletionItemKind[suggestion.type.charAt(0).toUpperCase() + suggestion.type.substr(1)];
@@ -341,7 +342,7 @@ export const Suggest = {
 		result.documentation = suggestion.documentationLabel;
 		result.sortText = suggestion.sortText;
 		result.filterText = suggestion.filterText;
-		// todo@joh edit range!
+		result.textEdit = suggestion.textEdit && <any> TextEdit.to(suggestion.textEdit);
 		return result;
 	}
 }

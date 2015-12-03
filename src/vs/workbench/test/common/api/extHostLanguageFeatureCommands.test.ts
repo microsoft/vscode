@@ -236,11 +236,11 @@ suite('ExtHostLanguageFeatureCommands', function() {
 
 	test('Suggest, back and forth', function(done) {
 		disposables.push(extHost.registerCompletionItemProvider(defaultSelector, <vscode.CompletionItemProvider>{
-			provideCompletionItems(): any {
-				return [
-					new types.CompletionItem('item1'),
-					new types.CompletionItem('item2')
-				];
+			provideCompletionItems(doc, pos): any {
+				let a = new types.CompletionItem('item1');
+				let b = new types.CompletionItem('item2');
+				b.textEdit = types.TextEdit.replace(new types.Range(0, 0, 0, 4), 'foo');
+				return [a, b];
 			}
 		}, []));
 
@@ -249,7 +249,18 @@ suite('ExtHostLanguageFeatureCommands', function() {
 				assert.equal(values.length, 2);
 				let [first, second] = values;
 				assert.equal(first.label, 'item1');
+				assert.equal(first.textEdit.newText, 'item1');
+				assert.equal(first.textEdit.range.start.line, 0);
+				assert.equal(first.textEdit.range.start.character, 0);
+				assert.equal(first.textEdit.range.end.line, 0);
+				assert.equal(first.textEdit.range.end.character, 0);
+
 				assert.equal(second.label, 'item2');
+				assert.equal(second.textEdit.newText, 'foo');
+				assert.equal(second.textEdit.range.start.line, 0);
+				assert.equal(second.textEdit.range.start.character, 0);
+				assert.equal(second.textEdit.range.end.line, 0);
+				assert.equal(second.textEdit.range.end.character, 4);
 				done();
 			});
 		});

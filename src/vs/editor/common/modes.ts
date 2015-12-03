@@ -395,6 +395,7 @@ export interface ISuggestion {
 	label: string;
 	codeSnippet: string;
 	type: string;
+	textEdit?: EditorCommon.ISingleEditOperation;
 	highlights?: IHighlight[];
 	typeLabel?: string;
 	documentationLabel?: string;
