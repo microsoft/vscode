@@ -455,7 +455,7 @@ export class WindowsManager {
 
 			// Open remaining ones
 			foldersToOpen.forEach((folderToOpen) => {
-				if (windowsOnWorkspacePath.some((win) => win.openedWorkspacePath === folderToOpen.workspacePath)) {
+				if (windowsOnWorkspacePath.some((win) => this.isPathEqual(win.openedWorkspacePath, folderToOpen.workspacePath))) {
 					return; // ignore folders that are already open
 				}
 
@@ -499,7 +499,7 @@ export class WindowsManager {
 		// Reload an existing plugin development host window on the same path
 		// We currently do not allow more than one extension development window
 		// on the same plugin path.
-		let res = WindowsManager.WINDOWS.filter((w) => w.config && w.config.pluginDevelopmentPath === openConfig.cli.pluginDevelopmentPath);
+		let res = WindowsManager.WINDOWS.filter((w) => w.config && this.isPathEqual(w.config.pluginDevelopmentPath, openConfig.cli.pluginDevelopmentPath));
 		if (res && res.length === 1) {
 			this.reload(res[0], openConfig.cli);
 			res[0].restore(); // make sure it gets focus and is restored
@@ -723,7 +723,7 @@ export class WindowsManager {
 
 		// Known Folder - load from stored settings if any
 		if (configuration.workspacePath) {
-			let stateForWorkspace = this.windowsState.openedFolders.filter(o => o.workspacePath === configuration.workspacePath).map(o => o.uiState);
+			let stateForWorkspace = this.windowsState.openedFolders.filter(o => this.isPathEqual(o.workspacePath, configuration.workspacePath)).map(o => o.uiState);
 			if (stateForWorkspace.length) {
 				return stateForWorkspace[0];
 			}
@@ -874,12 +874,12 @@ export class WindowsManager {
 			let res = windowsToTest.filter((w) => {
 
 				// match on workspace
-				if (typeof w.openedWorkspacePath === 'string' && w.openedWorkspacePath === workspacePath) {
+				if (typeof w.openedWorkspacePath === 'string' && this.isPathEqual(w.openedWorkspacePath, workspacePath)) {
 					return true;
 				}
 
 				// match on file
-				if (typeof w.openedFilePath === 'string' && w.openedFilePath === filePath) {
+				if (typeof w.openedFilePath === 'string' && this.isPathEqual(w.openedFilePath, filePath)) {
 					return true;
 				}
 
@@ -996,7 +996,7 @@ export class WindowsManager {
 			this.windowsState.lastActiveWindow = state;
 
 			this.windowsState.openedFolders.forEach(o => {
-				if (o.workspacePath === win.openedWorkspacePath) {
+				if (this.isPathEqual(o.workspacePath, win.openedWorkspacePath)) {
 					o.uiState = state.uiState;
 				}
 			});
@@ -1014,6 +1014,30 @@ export class WindowsManager {
 
 		// Emit
 		eventEmitter.emit(EventTypes.CLOSE, WindowsManager.WINDOWS.length);
+	}
+
+	private isPathEqual(pathA: string, pathB: string): boolean {
+		if (pathA === pathB) {
+			return true;
+		}
+
+		if (!pathA || !pathB) {
+			return false;
+		}
+
+		pathA = path.normalize(pathA);
+		pathB = path.normalize(pathB);
+
+		if (pathA === pathB) {
+			return true;
+		}
+
+		if (!platform.isLinux) {
+			pathA = pathA.toLowerCase();
+			pathB = pathB.toLowerCase();
+		}
+
+		return pathA === pathB;
 	}
 }
 
