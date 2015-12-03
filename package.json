@@ -13,7 +13,7 @@
   "scripts": {
     "test": "node node_modules/mocha/bin/_mocha",
     "preinstall": "node build/npm/preinstall.js",
-    "postinstall": "npm --prefix extensions/csharp-o/ install extensions/csharp-o/ && npm --prefix extensions/vscode-api-tests/ install extensions/vscode-api-tests/"
+    "postinstall": "npm --prefix extensions/vscode-api-tests/ install extensions/vscode-api-tests/"
   },
   "dependencies": {
     "applicationinsights": "0.15.6",

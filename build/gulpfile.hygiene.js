@@ -18,7 +18,6 @@ var all = [
 
 var eolFilter = [
 	'**',
-	'!extensions/csharp-o/bin/**',
 	'!extensions/**/out/**',
 	'!**/node_modules/**',
 	'!**/fixtures/**',
@@ -40,7 +39,6 @@ var indentationFilter = [
 	'!**/vs/languages/markdown/common/raw.marked.js',
 	'!**/vs/base/common/winjs.base.raw.js',
 	'!**/vs/base/node/terminateProcess.sh',
-	'!extensions/csharp-o/gulpfile.js',
 	'!**/vs/base/node/terminateProcess.sh',
 	'!**/vs/text.js',
 	'!**/vs/nls.js',
