@@ -484,6 +484,92 @@ suite('JSON - Worker', () => {
 		});
 	});
 
+	test('JSON suggest with oneOf and enums', function(testDone) {
+
+		var schema:jsonSchema.IJSONSchema = {
+			oneOf: [{
+				type: 'object',
+				properties: {
+					'type' : {
+						type: 'string',
+						enum: [ '1', '2' ]
+					},
+					'a' : {
+						type: 'object',
+						properties: {
+							'x': {
+								type: 'string'
+							},
+							'y': {
+								type: 'string'
+							}
+						},
+						"required" : [ 'x', 'y']
+					},
+					'b': {}
+				},
+			}, {
+				type: 'object',
+				properties: {
+					'type' : {
+						type: 'string',
+						enum: [ '3' ]
+					},
+					'a' : {
+						type: 'object',
+						properties: {
+							'x': {
+								type: 'string'
+							},
+							'z': {
+								type: 'string'
+							}
+						},
+						"required" : [ 'x', 'z']
+					},
+					'c': {}
+				},
+			}]
+		};
+		WinJS.Promise.join([
+			testSuggestionsFor('{/**/}', '/**/', schema).then((result) => {
+				assert.strictEqual(result.suggestions.length, 4);
+				assertSuggestion(result, 'type');
+				assertSuggestion(result, 'a');
+				assertSuggestion(result, 'b');
+				assertSuggestion(result, 'c');
+			}),
+			testSuggestionsFor('{ "type": /**/}', '/**/', schema).then((result) => {
+				assert.strictEqual(result.suggestions.length, 3);
+				assertSuggestion(result, '"1"');
+				assertSuggestion(result, '"2"');
+				assertSuggestion(result, '"3"');
+			}),
+			testSuggestionsFor('{ "a": { "x": "", "y": "" }, "type": /**/}', '/**/', schema).then((result) => {
+				assert.strictEqual(result.suggestions.length, 2);
+				assertSuggestion(result, '"1"');
+				assertSuggestion(result, '"2"');
+			}),
+			testSuggestionsFor('{ "type": "1", "a" : { /**/ }', '/**/', schema).then((result) => {
+				assert.strictEqual(result.suggestions.length, 2);
+				assertSuggestion(result, 'x');
+				assertSuggestion(result, 'y');
+			}),
+			testSuggestionsFor('{ "type": "1", "a" : { "x": "", "z":"" }, /**/', '/**/', schema).then((result) => {
+				// both alternatives have errors: intellisense proposes all options
+				assert.strictEqual(result.suggestions.length, 2);
+				assertSuggestion(result, 'b');
+				assertSuggestion(result, 'c');
+			}),
+			testSuggestionsFor('{ "a" : { "x": "", "z":"" }, /**/', '/**/', schema).then((result) => {
+				assert.strictEqual(result.suggestions.length, 2);
+				assertSuggestion(result, 'type');
+				assertSuggestion(result, 'c');
+			}),
+		]).done(() => testDone(), (errors:any[]) => {
+			testDone(errors.reduce((e1, e2) => e1 || e2));
+		});
+	});
 
 	test('JSON Compute Info', function(testDone) {
 
