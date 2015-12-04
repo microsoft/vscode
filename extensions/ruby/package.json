@@ -7,7 +7,7 @@
 		"languages": [{
 			"id": "ruby",
 			"extensions": [ ".rb", ".rbx", ".rjs", ".gemspec", ".pp" ],
-			"filenames": [ "rakefile" ],
+			"filenames": [ "rakefile", "gemfile" ],
 			"aliases": [ "Ruby", "rb" ],
 			"configuration": "./ruby.configuration.json"
 		}],
