@@ -28,6 +28,15 @@ export function createRandomFile(contents = ''): Thenable<vscode.Uri> {
 	});
 }
 
+export function pathEquals(path1: string, path2: string): boolean {
+	if (process.platform !== 'linux') {
+		path1 = path1.toLowerCase();
+		path2 = path2.toLowerCase();
+	}
+
+	return path1 === path2;
+}
+
 export function deleteFile(file: vscode.Uri): Thenable<boolean> {
 	return new Promise((resolve, reject) => {
 		fs.unlink(file.fsPath, (err) => {

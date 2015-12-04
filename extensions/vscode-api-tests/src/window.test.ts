@@ -8,7 +8,7 @@
 import * as assert from 'assert';
 import {workspace, window} from 'vscode';
 import {join} from 'path';
-import {cleanUp} from './utils';
+import {cleanUp, pathEquals} from './utils';
 
 suite("window namespace tests", () => {
 
@@ -19,7 +19,7 @@ suite("window namespace tests", () => {
 			return window.showTextDocument(doc).then((editor) => {
 				const active = window.activeTextEditor;
 				assert.ok(active);
-				assert.equal(active.document.uri.fsPath, doc.uri.fsPath);
+				assert.ok(pathEquals(active.document.uri.fsPath, doc.uri.fsPath));
 			});
 		});
 	});
