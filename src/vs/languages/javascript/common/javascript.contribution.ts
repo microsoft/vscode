@@ -103,7 +103,7 @@ if (!env.enableTypeScriptServiceModeForJS) {
 					'javascript.validate.lint.unknownTypeOfResults': {
 						'enum': ['ignore', 'warning', 'error'],
 						'default': defaults.validate.lint.unknownTypeOfResults,
-						'description': nls.localize('lint.unknownTypeOfResults', "Unexpected output of the 'typeof'-operator."),
+						'description': nls.localize('lint.unknownTypeOfResults', "Unexpected output of the 'typeof' operator."),
 					},
 					'javascript.validate.lint.semicolonsInsteadOfBlocks': {
 						'enum': ['ignore', 'warning', 'error'],
@@ -171,7 +171,7 @@ if (!env.enableTypeScriptServiceModeForJS) {
 					'javascript.validate.lint.mixedTypesArithmetics': {
 						'enum': ['ignore', 'warning', 'error'],
 						'default': defaults.validate.lint.mixedTypesArithmetics,
-						'description': nls.localize('lint.mixedTypesArithmetics', "Only use numbers for arthimetic operations."),
+						'description': nls.localize('lint.mixedTypesArithmetics', "Only use numbers for arithmetic operations."),
 					},
 					'javascript.validate.lint.primitivesInInstanceOf': {
 						'enum': ['ignore', 'warning', 'error'],
@@ -181,7 +181,7 @@ if (!env.enableTypeScriptServiceModeForJS) {
 					'javascript.validate.lint.newOnReturningFunctions': {
 						'enum': ['ignore', 'warning', 'error'],
 						'default': defaults.validate.lint.newOnReturningFunctions,
-						'description': nls.localize('lint.newOnReturningFunctions', "Function with return-statement used as constructor."),
+						'description': nls.localize('lint.newOnReturningFunctions', "Function with return statement used as constructor."),
 					}
 				}
 			}
