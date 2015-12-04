@@ -132,7 +132,7 @@ export class ActivitybarPart extends Part implements IActivityService {
 				let action = this.instantiationService.createInstance(ViewletActivityAction, viewlet.id + '.activity-bar-action', viewlet);
 
 				let keybinding: string = null;
-				let keys = this.keybindingService.lookupKeybindings(viewlet.id).map(k => k.toLabel());
+				let keys = this.keybindingService.lookupKeybindings(viewlet.id).map(k => this.keybindingService.getLabelFor(k));
 				if (keys && keys.length) {
 					keybinding = keys[0];
 				}
@@ -202,7 +202,7 @@ export class ActivitybarPart extends Part implements IActivityService {
 		return actions.map((action: Action) => {
 			if (primary) {
 				let keybinding: string = null;
-				let keys = this.keybindingService.lookupKeybindings(action.id).map(k => k.toLabel());
+				let keys = this.keybindingService.lookupKeybindings(action.id).map(k => this.keybindingService.getLabelFor(k));
 				if (keys && keys.length) {
 					keybinding = keys[0];
 				}

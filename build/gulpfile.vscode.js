@@ -35,7 +35,7 @@ var baseModules = [
 	'https', 'https-proxy-agent', 'iconv-lite', 'ipc', 'menu', 'menu-item', 'net',
 	'original-fs', 'os', 'path', 'readline', 'remote', 'sax', 'screen', 'semver',
 	'shell', 'stream', 'string_decoder', 'url', 'vscode-textmate', 'web-frame', 'winreg',
-	'yauzl'
+	'yauzl', 'native-keymap'
 ];
 
 // Build

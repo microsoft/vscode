@@ -159,6 +159,10 @@ export class TestKeybindingService implements IKeybindingService {
 		return null;
 	}
 
+	public getLabelFor(keybinding:Keybinding): string {
+		return keybinding._toUSLabel();
+	}
+
 	public createScoped(domNode: HTMLElement): IKeybindingService {
 		return this;
 	}
