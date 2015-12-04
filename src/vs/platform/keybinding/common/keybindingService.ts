@@ -83,6 +83,8 @@ export interface IKeybindingService {
 	lookupKeybindings(commandId: string): Keybinding[];
 	customKeybindingsCount(): number;
 
+	getLabelFor(keybinding:Keybinding): string;
+
 	executeCommand<T>(commandId: string, args?: any): TPromise<T>;
 	executeCommand(commandId: string, args?: any): TPromise<any>;
 }

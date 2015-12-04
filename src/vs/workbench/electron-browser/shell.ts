@@ -41,7 +41,7 @@ import {ConfigurationService} from 'vs/workbench/services/configuration/node/con
 import {FileService} from 'vs/workbench/services/files/electron-browser/fileService';
 import {SearchService} from 'vs/workbench/services/search/node/searchService';
 import {LifecycleService} from 'vs/workbench/services/lifecycle/electron-browser/lifecycleService';
-import PluginWorkbenchKeybindingService from 'vs/workbench/services/keybinding/browser/pluginKeybindingService';
+import PluginWorkbenchKeybindingService from 'vs/workbench/services/keybinding/electron-browser/pluginKeybindingService';
 import {MainThreadService} from 'vs/workbench/services/thread/electron-browser/threadService';
 import {MarkerService} from 'vs/platform/markers/common/markerService';
 import {IActionsService} from 'vs/platform/actions/common/actions';

@@ -140,7 +140,12 @@ export enum KeyCode {
 	/**
 	 * For the US standard keyboard, the ''"' key
 	 */
-	US_QUOTE
+	US_QUOTE,
+
+	/**
+	 * Placed last to cover the length of the enum.
+	 */
+	MAX_VALUE
 }
 
 let TO_STRING_MAP: string[] = [];
@@ -365,15 +370,22 @@ export class Keybinding {
 	/**
 	 * Format the binding to a format appropiate for rendering in the UI
 	 */
-	public static toLabel(value:number): string {
+	private static _toUSLabel(value:number): string {
 		return _asString(value, (Platform.isMacintosh ? MacUIKeyLabelProvider.INSTANCE : ClassicUIKeyLabelProvider.INSTANCE));
+	}
+
+	/**
+	 * Format the binding to a format appropiate for rendering in the UI
+	 */
+	private static _toCustomLabel(value:number, labelProvider:IKeyBindingLabelProvider): string {
+		return _asString(value, labelProvider);
 	}
 
 	/**
 	 * This prints the binding in a format suitable for electron's accelerators.
 	 * See https://github.com/atom/electron/blob/master/docs/api/accelerator.md
 	 */
-	public static toElectronAccelerator(value:number): string {
+	private static _toElectronAccelerator(value:number): string {
 		if (BinaryKeybindings.hasChord(value)) {
 			// Electron cannot handle chords
 			return null;
@@ -426,8 +438,15 @@ export class Keybinding {
 	/**
 	 * Format the binding to a format appropiate for rendering in the UI
 	 */
-	public toLabel(): string {
-		return Keybinding.toLabel(this.value);
+	public _toUSLabel(): string {
+		return Keybinding._toUSLabel(this.value);
+	}
+
+	/**
+	 * Format the binding to a format appropiate for rendering in the UI
+	 */
+	public toCustomLabel(labelProvider:IKeyBindingLabelProvider): string {
+		return Keybinding._toCustomLabel(this.value, labelProvider);
 	}
 
 	/**
@@ -435,7 +454,7 @@ export class Keybinding {
 	 * See https://github.com/atom/electron/blob/master/docs/api/accelerator.md
 	 */
 	public toElectronAccelerator(): string {
-		return Keybinding.toElectronAccelerator(this.value);
+		return Keybinding._toElectronAccelerator(this.value);
 	}
 
 	/**
@@ -447,7 +466,7 @@ export class Keybinding {
 
 }
 
-interface IKeyBindingLabelProvider {
+export interface IKeyBindingLabelProvider {
 	ctrlKeyLabel:string;
 	shiftKeyLabel:string;
 	altKeyLabel:string;
@@ -489,7 +508,7 @@ class ElectronAcceleratorLabelProvider implements IKeyBindingLabelProvider {
 /**
  * Print for Mac UI
  */
-class MacUIKeyLabelProvider implements IKeyBindingLabelProvider {
+export class MacUIKeyLabelProvider implements IKeyBindingLabelProvider {
 	public static INSTANCE = new MacUIKeyLabelProvider();
 
 	private static leftArrowUnicodeLabel = String.fromCharCode(8592);
@@ -523,7 +542,7 @@ class MacUIKeyLabelProvider implements IKeyBindingLabelProvider {
 /**
  * Print for Windows, Linux UI
  */
-class ClassicUIKeyLabelProvider implements IKeyBindingLabelProvider {
+export class ClassicUIKeyLabelProvider implements IKeyBindingLabelProvider {
 	public static INSTANCE = new ClassicUIKeyLabelProvider();
 
 	public ctrlKeyLabel = nls.localize('ctrlKey', "Ctrl");

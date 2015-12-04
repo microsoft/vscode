@@ -205,7 +205,7 @@ class ContextMenuController implements EditorCommon.IEditorContribution {
 			getActionItem: (action) => {
 				var keybinding = this._keybindingFor(action);
 				if (keybinding) {
-					return new ActionBar.ActionItem(action, action, { label: true, keybinding: keybinding.toLabel() });
+					return new ActionBar.ActionItem(action, action, { label: true, keybinding: this.keybindingService.getLabelFor(keybinding) });
 				}
 
 				var customActionItem = <any>action;

@@ -104,7 +104,7 @@ class DefineKeybindingLauncherWidget implements EditorBrowser.IOverlayWidget {
 		let keybinding = keybindingService.lookupKeybindings(DefineKeybindingAction.ID);
 		let extra = '';
 		if (keybinding.length > 0) {
-			extra += ' ('+keybinding[0].toLabel()+')';
+			extra += ' ('+keybindingService.getLabelFor(keybinding[0])+')';
 		}
 		this._domNode.appendChild(document.createTextNode(NLS_LAUNCH_MESSAGE + extra));
 

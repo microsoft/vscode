@@ -38,7 +38,7 @@ export class AbstractDebugAction extends actions.Action {
 		this.toDispose.push(this.debugService.addListener2(debug.ServiceEvents.STATE_CHANGED, () => this.updateEnablement()));
 
 		var keybinding: string = null;
-		var keys = this.keybindingService.lookupKeybindings(id).map(k => k.toLabel());
+		var keys = this.keybindingService.lookupKeybindings(id).map(k => this.keybindingService.getLabelFor(k));
 		if (keys && keys.length) {
 			keybinding = keys[0];
 		}

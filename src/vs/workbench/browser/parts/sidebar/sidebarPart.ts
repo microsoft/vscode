@@ -367,7 +367,7 @@ export class SidebarPart extends Part implements IViewletService {
 		}
 
 		let keybinding: string = null;
-		let keys = this.keybindingService.lookupKeybindings(viewletId).map(k => k.toLabel());
+		let keys = this.keybindingService.lookupKeybindings(viewletId).map(k => this.keybindingService.getLabelFor(k));
 		if (keys && keys.length) {
 			keybinding = keys[0];
 		}

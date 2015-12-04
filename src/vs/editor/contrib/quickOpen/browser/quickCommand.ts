@@ -113,7 +113,7 @@ export class QuickCommandAction extends EditorQuickOpen.BaseEditorQuickOpenActio
 				continue; // do not show actions that are not supported in this context
 			}
 
-			var keys = this._keybindingService.lookupKeybindings(editorAction.id).map(k => k.toLabel());
+			var keys = this._keybindingService.lookupKeybindings(editorAction.id).map(k => this._keybindingService.getLabelFor(k));
 
 			if (action.label) {
 				var highlights = Filters.matchesFuzzy(searchValue, action.label);

@@ -27,6 +27,7 @@
     "sax": "^1.1.1",
     "semver": "^4.2.0",
     "vscode-textmate": "^1.0.8",
+    "native-keymap": "^0.0.2",
     "winreg": "0.0.12",
     "yauzl": "^2.3.1"
   },

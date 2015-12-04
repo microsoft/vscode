@@ -16,7 +16,7 @@ import {IOSupport} from 'vs/platform/keybinding/common/commonKeybindingResolver'
 import * as JSONContributionRegistry from 'vs/languages/json/common/jsonContributionRegistry';
 import {IJSONSchema} from 'vs/base/common/jsonSchema';
 
-export class WorkbenchKeybindingService extends KeybindingService {
+export abstract class WorkbenchKeybindingService extends KeybindingService {
 	private contextService: IWorkspaceContextService;
 	private eventService: IEventService;
 	private telemetryService: ITelemetryService;
