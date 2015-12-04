@@ -574,7 +574,7 @@ namespace glob2 {
 			return glob.match(pattern, path);
 		}
 		let suffix = pattern.substring(offset);
-		if (suffix.match(/[.\\\/]/)) {
+		if (suffix.match(/[.\\\/*]/)) {
 			return glob.match(pattern, path);
 		}
 
