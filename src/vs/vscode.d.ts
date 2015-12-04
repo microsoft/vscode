@@ -3111,7 +3111,8 @@ declare namespace vscode {
 		 * Multiple providers can be registered for a language. In that case providers are sorted
 		 * by their [score](#languages.match) and groups of equal score are sequentially asked for
 		 * completion items. The process stops when one or many providers of a group return a
-		 * result.
+		 * result. A failing provider (rejected promise or exception) will not fail the whole
+		 * operation.
 		 *
 		 * @param selector A selector that defines the documents this provider is applicable to.
 		 * @param provider A completion provider.
@@ -3124,7 +3125,8 @@ declare namespace vscode {
 		 * Register a code action provider.
 		 *
 		 * Multiple providers can be registered for a language. In that case providers are asked in
-		 * parallel and the results are merged.
+		 * parallel and the results are merged. A failing provider (rejected promise or exception) will
+		 * not cause a failure of the whole operation.
 		 *
 		 * @param selector A selector that defines the documents this provider is applicable to.
 		 * @param provider A code action provider.
@@ -3136,7 +3138,8 @@ declare namespace vscode {
 		 * Register a code lens provider.
 		 *
 		 * Multiple providers can be registered for a language. In that case providers are asked in
-		 * parallel and the results are merged.
+		 * parallel and the results are merged. A failing provider (rejected promise or exception) will
+		 * not cause a failure of the whole operation.
 		 *
 		 * @param selector A selector that defines the documents this provider is applicable to.
 		 * @param provider A code lens provider.
@@ -3148,7 +3151,8 @@ declare namespace vscode {
 		 * Register a definition provider.
 		 *
 		 * Multiple providers can be registered for a language. In that case providers are asked in
-		 * parallel and the results are merged.
+		 * parallel and the results are merged. A failing provider (rejected promise or exception) will
+		 * not cause a failure of the whole operation.
 		 *
 		 * @param selector A selector that defines the documents this provider is applicable to.
 		 * @param provider A definition provider.
@@ -3160,7 +3164,8 @@ declare namespace vscode {
 		 * Register a hover provider.
 		 *
 		 * Multiple providers can be registered for a language. In that case providers are asked in
-		 * parallel and the results are merged.
+		 * parallel and the results are merged. A failing provider (rejected promise or exception) will
+		 * not cause a failure of the whole operation.
 		 *
 		 * @param selector A selector that defines the documents this provider is applicable to.
 		 * @param provider A hover provider.
@@ -3173,7 +3178,7 @@ declare namespace vscode {
 		 *
 		 * Multiple providers can be registered for a language. In that case providers are sorted
 		 * by their [score](#languages.match) and groups sequentially asked for document highlights.
-		 * The process stops when a provider returns a `non-falsy`-result.
+		 * The process stops when a provider returns a `non-falsy` or `non-failure` result.
 		 *
 		 * @param selector A selector that defines the documents this provider is applicable to.
 		 * @param provider A document highlight provider.
@@ -3185,7 +3190,8 @@ declare namespace vscode {
 		 * Register a document symbol provider.
 		 *
 		 * Multiple providers can be registered for a language. In that case providers are asked in
-		 * parallel and the results are merged.
+		 * parallel and the results are merged. A failing provider (rejected promise or exception) will
+		 * not cause a failure of the whole operation.
 		 *
 		 * @param selector A selector that defines the documents this provider is applicable to.
 		 * @param provider A document symbol provider.
@@ -3197,7 +3203,8 @@ declare namespace vscode {
 		 * Register a workspace symbol provider.
 		 *
 		 * Multiple providers can be registered for a language. In that case providers are asked in
-		 * parallel and the results are merged.
+		 * parallel and the results are merged. A failing provider (rejected promise or exception) will
+		 * not cause a failure of the whole operation.
 		 *
 		 * @param provider A workspace symbol provider.
 		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
@@ -3208,7 +3215,8 @@ declare namespace vscode {
 		 * Register a reference provider.
 		 *
 		 * Multiple providers can be registered for a language. In that case providers are asked in
-		 * parallel and the results are merged.
+		 * parallel and the results are merged. A failing provider (rejected promise or exception) will
+		 * not cause a failure of the whole operation.
 		 *
 		 * @param selector A selector that defines the documents this provider is applicable to.
 		 * @param provider A reference provider.
@@ -3220,7 +3228,8 @@ declare namespace vscode {
 		 * Register a reference provider.
 		 *
 		 * Multiple providers can be registered for a language. In that case providers are sorted
-		 * by their [score](#languages.match) and the result of best-matching provider is used.
+		 * by their [score](#languages.match) and the result of best-matching provider is used. Failure
+		 * of the selected provider will cause a failure of the whole operation.
 		 *
 		 * @param selector A selector that defines the documents this provider is applicable to.
 		 * @param provider A rename provider.
@@ -3232,7 +3241,8 @@ declare namespace vscode {
 		 * Register a formatting provider for a document.
 		 *
 		 * Multiple providers can be registered for a language. In that case providers are sorted
-		 * by their [score](#languages.match) and the result of best-matching provider is used.
+		 * by their [score](#languages.match) and the result of best-matching provider is used. Failure
+		 * of the selected provider will cause a failure of the whole operation.
 		 *
 		 * @param selector A selector that defines the documents this provider is applicable to.
 		 * @param provider A document formatting edit provider.
@@ -3244,7 +3254,8 @@ declare namespace vscode {
 		 * Register a formatting provider for a document range.
 		 *
 		 * Multiple providers can be registered for a language. In that case providers are sorted
-		 * by their [score](#languages.match) and the result of best-matching provider is used.
+		 * by their [score](#languages.match) and the result of best-matching provider is used. Failure
+		 * of the selected provider will cause a failure of the whole operation.
 		 *
 		 * @param selector A selector that defines the documents this provider is applicable to.
 		 * @param provider A document range formatting edit provider.
@@ -3256,7 +3267,8 @@ declare namespace vscode {
 		 * Register a formatting provider that works on type.
 		 *
 		 * Multiple providers can be registered for a language. In that case providers are sorted
-		 * by their [score](#languages.match) and the result of best-matching provider is used.
+		 * by their [score](#languages.match) and the result of best-matching provider is used. Failure
+		 * of the selected provider will cause a failure of the whole operation.
 		 *
 		 * @param selector A selector that defines the documents this provider is applicable to.
 		 * @param provider An on type formatting edit provider.
@@ -3270,7 +3282,8 @@ declare namespace vscode {
 		 * Register a signature help provider.
 		 *
 		 * Multiple providers can be registered for a language. In that case providers are sorted
-		 * by their [score](#languages.match) and the result of best-matching provider is used.
+		 * by their [score](#languages.match) and the result of best-matching provider is used. Failure
+		 * of the selected provider will cause a failure of the whole operation.
 		 *
 		 * @param selector A selector that defines the documents this provider is applicable to.
 		 * @param provider A signature help provider.
