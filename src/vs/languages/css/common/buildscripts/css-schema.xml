@@ -18609,7 +18609,7 @@
         </value>
       </values>
     </entry>
-    <entry name="z-index" restriction="integer" version="2.0" browsers="all" ref="http://www.w3.org/TR/CSS2/visuren.html#propdef-z-index" syntax="img { $(name): 3; }">
+    <entry name="z-index" restriction="integer" version="2.0" browsers="all" ref="http://www.w3.org/TR/css3-positioning/#propdef-z-index" syntax="img { $(name): 3; }">
       <desc>For a positioned box, the 'z-index' property specifies the stack level of the box in the current stacking context and whether the box establishes a local stacking context.</desc>
       <values>
         <value name="auto" version="2.0" browsers="all">
