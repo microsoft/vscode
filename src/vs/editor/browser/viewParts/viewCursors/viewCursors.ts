@@ -136,6 +136,7 @@ export class ViewCursors extends ViewPart {
 	}
 	public onConfigurationChanged(e:EditorCommon.IConfigurationChangedEvent): boolean {
 		this._primaryCursor.onConfigurationChanged(e);
+		this._updateBlinking();
 		for (var i = 0, len = this._secondaryCursors.length; i < len; i++) {
 			this._secondaryCursors[i].onConfigurationChanged(e);
 		}
@@ -172,7 +173,16 @@ export class ViewCursors extends ViewPart {
 	private _getRenderType(): RenderType {
 		if (this._editorHasFocus) {
 			if (this._primaryCursor.getIsInEditableRange() && !this._context.configuration.editor.readOnly) {
-				return RenderType.Blink;
+				switch (this._context.configuration.editor.cursorBlinking) {
+					case ("blink"):
+						return RenderType.Blink;
+					case ("visible"):
+						return RenderType.Visible;
+					case ("hidden"):
+						return RenderType.Hidden;
+					default:
+						return RenderType.Blink;
+				}
 			}
 			return RenderType.Visible;
 		}
