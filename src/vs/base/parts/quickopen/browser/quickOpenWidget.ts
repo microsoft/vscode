@@ -15,7 +15,7 @@ import uuid = require('vs/base/common/uuid');
 import {IQuickNavigateConfiguration, IAutoFocus, IContext, IModel, Mode} from 'vs/base/parts/quickopen/browser/quickOpen';
 import {Filter, Renderer, DataSource, IModelProvider} from 'vs/base/parts/quickopen/browser/quickOpenViewer';
 import {Dimension, Builder, $} from 'vs/base/browser/builder';
-import {ISelectionEvent, IFocusEvent, ITree} from 'vs/base/parts/tree/common/tree';
+import {ISelectionEvent, IFocusEvent, ITree, ContextMenuEvent} from 'vs/base/parts/tree/common/tree';
 import {InputBox} from 'vs/base/browser/ui/inputbox/inputBox';
 import {Tree} from 'vs/base/parts/tree/browser/treeImpl';
 import {ProgressBar} from 'vs/base/browser/ui/progressbar/progressbar';
@@ -45,6 +45,17 @@ export interface IQuickOpenOptions {
 
 export interface IQuickOpenUsageLogger {
 	publicLog(eventName: string, data?: any): void;
+}
+
+export class QuickOpenController extends DefaultController {
+
+	public onContextMenu(tree:ITree, element: any, event:ContextMenuEvent):boolean {
+		if (platform.isMacintosh) {
+			return this.onLeftClick(tree, element, event); // https://github.com/Microsoft/vscode/issues/1011
+		}
+
+		return super.onContextMenu(tree, element, event);
+	}
 }
 
 export class QuickOpenWidget implements IModelProvider {
@@ -152,7 +163,7 @@ export class QuickOpenWidget implements IModelProvider {
 			}, (div: Builder) => {
 				this.tree = new Tree(div.getHTMLElement(), {
 					dataSource: new DataSource(this),
-					controller: new DefaultController({ clickBehavior: ClickBehavior.ON_MOUSE_UP }),
+					controller: new QuickOpenController({ clickBehavior: ClickBehavior.ON_MOUSE_UP }),
 					renderer: new Renderer(this),
 					filter: new Filter(this)
 				}, {
