@@ -460,8 +460,6 @@ export class SuggestWidget implements EditorBrowser.IContentWidget {
 			this.updateWidgetHeight();
 			this.show();
 
-			this.resolveDetails(bestSuggestion);
-
 			this.telemetryData = this.telemetryData || {};
 			this.telemetryData.suggestionCount = suggestions.length;
 			this.telemetryData.suggestedIndex = bestSuggestionIndex;
