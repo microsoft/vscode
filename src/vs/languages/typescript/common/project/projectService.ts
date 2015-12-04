@@ -369,6 +369,9 @@ export class ProjectService {
 	}
 
 	_syncProject(kind: typescript.ChangeKind, resource: URI, files: URI[], options: ts.CompilerOptions): void {
+
+		// console.log('SYNC project ', typescript.ChangeKind[kind], resource.fsPath, files.map(f => f.fsPath), options);
+
 		var projectFolderName = paths.dirname(resource.fsPath);
 		if (kind === typescript.ChangeKind.Added || kind === typescript.ChangeKind.Changed) {
 			// replace/update the project when it was added/changed
