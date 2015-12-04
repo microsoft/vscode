@@ -122,9 +122,6 @@ function processDefaultValues(withConfig: (config: configurationRegistry.IConfig
 
 	var configurations = (<configurationRegistry.IConfigurationRegistry>platform.Registry.as(configurationRegistry.Extensions.Configuration)).getConfigurations();
 
-	// filter out workspace only settings (e.g. debug, tasks)
-	configurations = configurations.filter((config) => !config.workspace && !config.container);
-
 	var visit = (config: configurationRegistry.IConfigurationNode, isFirst: boolean) => {
 		withConfig(config, isFirst);
 
