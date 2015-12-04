@@ -67,29 +67,26 @@ export abstract class AbstractTelemetryService implements ITelemetryService {
 
 	private onErrorEvent(e:any):void {
 
-		// work around behavior in workerServer.ts that breaks up Error.stack
-		if(Array.isArray(e.stack)) {
-			e.stack = e.stack.join('\n');
-		}
+		let error = Object.create(null);
 
 		// unwrap nested errors from loader
 		if(e.detail && e.detail.stack) {
 			e = e.detail;
 		}
 
+		// work around behavior in workerServer.ts that breaks up Error.stack
+		let stack = Array.isArray(e.stack) ? e.stack.join('\n') : e.stack;
+		let message = e.message ? e.message : this._safeStringify(e);
+
 		// errors without a stack are not useful telemetry
-		if(!e.stack) {
+		if(!stack) {
 			return;
 		}
 
-		if (!e.message) {
-			e.message = this._safeStringify(e);
-		}
+		error['message'] = this.cleanupInfo(message);
+		error['stack'] = this.cleanupInfo(stack);
 
-		e.message = this.cleanupInfo(e.message);
-		e.stack = this.cleanupInfo(e.stack);
-
-		this.addErrortoBuffer(e);
+		this.addErrortoBuffer(error);
 	}
 
 	private addErrortoBuffer(e:any): void {
