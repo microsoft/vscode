@@ -162,19 +162,25 @@ export class JSONWorker extends AbstractModeWorker implements Modes.IExtraInfoSu
 					result.validate(schema.schema);
 				}
 			}
+			var added : { [signature:string]: boolean} = {};
+			var markerData: IMarkerData[] = [];
 
-			var markerData = result.errors.concat(result.warnings).map((error, idx) => {
-
-				var startPosition = modelMirror.getPositionFromOffset(error.location.start);
-				var endPosition = modelMirror.getPositionFromOffset(error.location.end);
-				return < IMarkerData> {
-					message: error.message,
-					severity: idx >= result.errors.length ? Severity.Warning : Severity.Error,
-					startLineNumber: startPosition.lineNumber,
-					startColumn: startPosition.column,
-					endLineNumber: endPosition.lineNumber,
-					endColumn: endPosition.column
-				};
+			result.errors.concat(result.warnings).forEach((error, idx) => {
+				// remove duplicated messages
+				var signature = error.location.start + ' ' + error.location.end + ' ' + error.message;
+				if (!added[signature]) {
+					added[signature] = true;
+					var startPosition = modelMirror.getPositionFromOffset(error.location.start);
+					var endPosition = modelMirror.getPositionFromOffset(error.location.end);
+					markerData.push({
+						message: error.message,
+						severity: idx >= result.errors.length ? Severity.Warning : Severity.Error,
+						startLineNumber: startPosition.lineNumber,
+						startColumn: startPosition.column,
+						endLineNumber: endPosition.lineNumber,
+						endColumn: endPosition.column
+					});
+				}
 			});
 
 			this.markerService.changeOne(this._getMode().getId(), resource, markerData);
