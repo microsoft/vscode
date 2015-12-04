@@ -1527,9 +1527,8 @@ export abstract class BaseSaveFileAction extends BaseActionWithErrorReporting {
 					encodingOfSource = textModel && textModel.getEncoding(); // text model can be null e.g. if this is a binary file!
 				}
 
-				let savePromise: TPromise<URI>;
-
 				// Special case: an untitled file with associated path gets saved directly unless "saveAs" is true
+				let savePromise: TPromise<URI>;
 				if (!this.isSaveAs() && source.scheme === 'untitled' && this.untitledEditorService.hasAssociatedFilePath(source)) {
 					savePromise = this.textFileService.save(source).then((result) => {
 						if (result) {
@@ -1550,9 +1549,6 @@ export abstract class BaseSaveFileAction extends BaseActionWithErrorReporting {
 						return;
 					}
 
-					// Add to working files
-					this.textFileService.getWorkingFilesModel().addEntry(target);
-
 					// Reopen editors for the resource based on the positions
 					let reopenPromise = Promise.as(null);
 					if (target.toString() !== source.toString() && positionsOfSource.length) {
@@ -1569,11 +1565,7 @@ export abstract class BaseSaveFileAction extends BaseActionWithErrorReporting {
 						});
 					}
 
-					return reopenPromise.then(() => {
-
-						// Revert source
-						this.textFileService.revert(source);
-					});
+					return reopenPromise;
 				});
 			}
 
@@ -1653,15 +1645,16 @@ export abstract class BaseSaveAllAction extends BaseActionWithErrorReporting {
 
 	protected doRun(): TPromise<boolean> {
 
+		// Store mimes per untitled file to restore later
+		const mapUntitledToProperties: {[resource:string]: { mime: string; encoding: string; }} = Object.create(null);
+		this.textFileService.getDirty()
+			.filter(r => r.scheme === 'untitled')			// All untitled resources^
+			.map(r => this.untitledEditorService.get(r))	// Mapped to their inputs
+			.filter(i => !!i)								// If possible :)
+			.forEach(i => mapUntitledToProperties[i.getResource().toString()] = { mime: i.getMime(), encoding: i.getEncoding() });
+
 		// Save all
 		return this.textFileService.saveAll(this.includeUntitled()).then((result) => {
-
-			// add all targets to working files
-			result.results.forEach((res) => {
-				if (res.success && res.target) {
-					this.textFileService.getWorkingFilesModel().addEntry(res.target);
-				}
-			});
 
 			// all saved - now try to reopen saved untitled ones
 			if (this.includeUntitled()) {
@@ -1674,12 +1667,12 @@ export abstract class BaseSaveAllAction extends BaseActionWithErrorReporting {
 						let positions = findSaveAsPositions(this.editorService, res.source);
 
 						let mimeOfSource: string;
-						let selectedMime = this.untitledEditorService.get(res.source).getMime();
+						let selectedMime = mapUntitledToProperties[res.source.toString()] && mapUntitledToProperties[res.source.toString()].mime;
 						if (!isUnspecific(selectedMime)) {
 							mimeOfSource = [selectedMime, MIME_TEXT].join(', ');
 						}
 
-						let encodingOfSource: string = this.untitledEditorService.get(res.source).getEncoding();
+						let encodingOfSource: string = mapUntitledToProperties[res.source.toString()] && mapUntitledToProperties[res.source.toString()].encoding;
 
 						let targetInput = this.instantiationService.createInstance(FileEditorInput, res.target, mimeOfSource, encodingOfSource);
 
@@ -1708,17 +1701,7 @@ export abstract class BaseSaveAllAction extends BaseActionWithErrorReporting {
 					});
 				}
 
-				// After reopen, revert untitled ones
-				return reopenPromise.then(() => {
-					return Promise.join(untitledResults.map((res) => {
-						let revertPromise = Promise.as(null);
-						if (res.success) {
-							revertPromise = this.textFileService.revert(res.source);
-						}
-
-						return revertPromise;
-					}));
-				});
+				return reopenPromise;
 			}
 		});
 	}

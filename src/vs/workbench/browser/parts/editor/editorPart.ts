@@ -209,7 +209,15 @@ export class EditorPart extends Part implements IEditorPart {
 		// Close editor when input provided and input gets disposed
 		if (input) {
 			this.visibleInputListeners[position] = input.addListener(EventType.DISPOSE, () => {
-				this.closeEditors(false, input).done(null, errors.onUnexpectedError);
+
+				// To prevent race conditions, we call the close in a timeout because it can well be
+				// that an input is being disposed with the intent to replace it with some other input
+				// right after. 
+				setTimeout(() => {
+					if (input === this.visibleInputs[position]) {
+						this.closeEditors(false, input).done(null, errors.onUnexpectedError);
+					}
+				}, 0);
 			});
 		}
 

@@ -70,17 +70,6 @@ export class TextFileService extends BrowserTextFileService {
 			// Save
 			if (confirm === ConfirmResult.SAVE) {
 				return this.saveAll(true /* includeUntitled */).then((result) => {
-
-					// Dispose saved untitled ones to not leave them around as dirty
-					result.results.forEach((res) => {
-						if (res.success && res.source.scheme === 'untitled') {
-							let input = this.untitledEditorService.get(res.source);
-							if (input) {
-								input.dispose();
-							}
-						}
-					});
-
 					if (result.results.some((r) => !r.success)) {
 						return true; // veto if some saves failed
 					}
@@ -326,13 +315,22 @@ export class TextFileService extends BrowserTextFileService {
 
 			// We have a model: Use it (can be null e.g. if this file is binary and not a text file or was never opened before)
 			if (model) {
-				return this.fileService.updateContent(target, model.getValue(), { charset: model.getEncoding() }).then(() => {
-					return target;
-				});
+				return this.fileService.updateContent(target, model.getValue(), { charset: model.getEncoding() });
 			}
 
 			// Otherwise we can only copy
-			return this.fileService.copyFile(resource, target).then(() => target);
+			return this.fileService.copyFile(resource, target);
+		}).then(() => {
+
+			// Add target to working files because this is an operation that indicates activity
+			this.getWorkingFilesModel().addEntry(target);
+
+			// Revert the source
+			return this.revert(resource).then(() => {
+
+				// Done: return target
+				return target;
+			});
 		});
 	}
 
