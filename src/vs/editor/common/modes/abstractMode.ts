@@ -138,7 +138,7 @@ export class AbstractMode<W extends AbstractModeWorker> implements Modes.IMode {
 		return this._worker((w) => w.enableValidator());
 	}
 
-	public getFilter(): Modes.IFilter {
+	public getFilter(): Modes.ISuggestionFilter {
 		return StrictPrefix;
 	}
 

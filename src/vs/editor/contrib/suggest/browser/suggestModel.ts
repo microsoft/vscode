@@ -11,11 +11,12 @@ import { EventEmitter, ListenerUnbind } from 'vs/base/common/eventEmitter';
 import {onUnexpectedError, isPromiseCanceledError} from 'vs/base/common/errors';
 import strings = require('vs/base/common/strings');
 import URI from 'vs/base/common/uri';
+import {isFalsyOrEmpty} from 'vs/base/common/arrays';
 import timer = require('vs/base/common/timer');
 import { getSnippets } from 'vs/editor/common/modes/modesRegistry';
 import EditorCommon = require('vs/editor/common/editorCommon');
 import { ISuggestSupport, ISuggestResult, ISuggestion, ISorter } from 'vs/editor/common/modes';
-import {DefaultFilter} from 'vs/editor/common/modes/modesFilters';
+import {DefaultFilter, IMatch} from 'vs/editor/common/modes/modesFilters';
 import { CodeSnippet } from 'vs/editor/contrib/snippet/common/snippet';
 import { IDisposable, disposeAll } from 'vs/base/common/lifecycle';
 import {SuggestRegistry, ISuggestResult2, suggest} from '../common/suggest';
@@ -36,9 +37,11 @@ export class CompletionItem {
 	private static _idPool = 0;
 
 	public id: string;
-	public support: ISuggestSupport;
 	public suggestion: ISuggestion;
+	public highlights: IMatch[];
+	public support: ISuggestSupport;
 	public container: ISuggestResult;
+
 	private _resolveDetails:TPromise<CompletionItem>
 
 	constructor(support: ISuggestSupport, suggestion: ISuggestion, container:ISuggestResult) {
@@ -96,36 +99,37 @@ class RawModel {
 
 	select(ctx: SuggestionContext): CompletionItem[] {
 		let result: CompletionItem[] = [];
-		let seen: { [codeSnippet: string]: boolean } = Object.create(null);
 		for (let item of this._items) {
-			RawModel._sortAndFilter(ctx, result, seen, item);
+			RawModel._sortAndFilter(item, ctx, result);
 		}
 		return result;
 	}
 
-	private static _sortAndFilter(ctx: SuggestionContext, bucket: CompletionItem[], seen: { [codeSnippet: string]: boolean }, items: CompletionItem[]): void {
-		if (items && items.length) {
-			let compare = RawModel._compare;
-			let filter = DefaultFilter;
-			let [item] = items;
-			if (item.support) {
-				compare = item.support.getSorter && item.support.getSorter() || compare;
-				filter = item.support.getFilter && item.support.getFilter() || DefaultFilter;
-			}
-
-			items = items
-				.filter(item => {
-					if (!seen[item.suggestion.codeSnippet]) {
-						seen[item.suggestion.codeSnippet] = true;
-						return filter(ctx.wordBefore, item.suggestion)
-					}
-				})
-				.sort((a, b) => {
-					return compare(a.suggestion, b.suggestion)
-				});
-
-			bucket.push(...items);
+	private static _sortAndFilter(items: CompletionItem[], ctx: SuggestionContext, bucket: CompletionItem[]): void {
+		if (isFalsyOrEmpty(items)) {
+			return;
 		}
+
+		// all items have the same (origin) support. derive sorter and filter
+		// from first
+		const [first] = items;
+		let compare = RawModel._compare;
+		let filter = DefaultFilter;
+		if (first.support) {
+			compare = first.support.getSorter && first.support.getSorter() || compare;
+			filter = first.support.getFilter && first.support.getFilter() || filter;
+		}
+
+		items = items.filter(item => {
+			// set hightlight and filter those that have none
+			item.highlights = filter(ctx.wordBefore, item.suggestion);
+			return !isFalsyOrEmpty(item.highlights);
+		}).sort((a, b) => {
+			// sort suggestions by custom strategy
+			return compare(a.suggestion, b.suggestion)
+		});
+
+		bucket.push(...items);
 	}
 
 	private static _compare(a: ISuggestion, b: ISuggestion):number {

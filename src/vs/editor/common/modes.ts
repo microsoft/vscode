@@ -5,6 +5,7 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
+import {IMatch} from 'vs/base/common/filters';
 import {IMarker, IMarkerService} from 'vs/platform/markers/common/markers';
 import EditorCommon = require('vs/editor/common/editorCommon');
 import {IHTMLContentElement} from 'vs/base/common/htmlContent';
@@ -29,7 +30,7 @@ export interface IValidateParticipant extends IWorkerParticipant {
 }
 
 export interface ISuggestParticipant extends IWorkerParticipant {
-	filter?:(word:string, suggestion:ISuggestion) => boolean;
+	filter?:(word:string, suggestion:ISuggestion) => IMatch[];
 	suggest?:(resource:URI, position:EditorCommon.IPosition, context?:any) => TPromise<ISuggestResult>;
 }
 
@@ -396,36 +397,11 @@ export interface ISuggestion {
 	codeSnippet: string;
 	type: string;
 	textEdit?: EditorCommon.ISingleEditOperation;
-	highlights?: IHighlight[];
 	typeLabel?: string;
 	documentationLabel?: string;
 	filterText?: string;
 	sortText?: string;
 	noAutoAccept?: boolean;
-}
-
-/**
- * Returns true if the provided object looks like
- * an ISuggestion. That means they are structural
- * compatible.
- */
-export function isISuggestion(obj:any):boolean {
-	if(obj === null || typeof obj !== 'object') {
-		return false;
-	}
-	if(typeof obj.label !== 'string' || typeof obj.codeSnippet !== 'string' || typeof obj.type !== 'string') {
-		return false;
-	}
-	if(obj.highlights && !Array.isArray(obj.highlights)) {
-		return false;
-	}
-	if(obj.typeLabel && typeof obj.typeLabel !== 'string') {
-		return false;
-	}
-	if(obj.documentationLabel && typeof obj.documentationLabel !== 'string') {
-		return false;
-	}
-	return true;
 }
 
 export interface ISuggestResult {
@@ -436,9 +412,9 @@ export interface ISuggestResult {
 	overwriteAfter?: number;
 }
 
-export interface IFilter {
+export interface ISuggestionFilter {
 	// Should return whether `suggestion` is a good suggestion for `word`
-	(word:string, suggestion:ISuggestion):boolean;
+	(word: string, suggestion: ISuggestion): IMatch[];
 }
 
 export interface ISorter {
@@ -460,7 +436,7 @@ export interface ISuggestSupport {
 	 */
 	getSuggestionDetails?:(resource:URI, position:EditorCommon.IPosition, suggestion:ISuggestion)=>TPromise<ISuggestion>;
 
-	getFilter():IFilter;
+	getFilter():ISuggestionFilter;
 	getSorter?():ISorter;
 	getTriggerCharacters():string[];
 	shouldShowEmptySuggestionList():boolean;

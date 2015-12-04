@@ -28,7 +28,7 @@ function isISuggestParticipant(thing:any):boolean {
 
 export class AbstractModeWorker {
 
-	static filter: Modes.IFilter = DefaultFilter;
+	static filter: Modes.ISuggestionFilter = DefaultFilter;
 
 	private _validationParticipants:Modes.IValidateParticipant[] = [];
 	private _suggestParticipants:Modes.ISuggestParticipant[] = [];
@@ -152,7 +152,7 @@ export class AbstractModeWorker {
 				}
 				result.push(<Modes.ISuggestResult> {
 					currentWord: value.currentWord,
-					suggestions: value.suggestions.filter((element) => accept(values[i].currentWord, element)),
+					suggestions: value.suggestions.filter((element) => !!accept(values[i].currentWord, element)),
 					incomplete: value.incomplete,
 					overwriteBefore: value.overwriteBefore,
 					overwriteAfter: value.overwriteAfter
@@ -223,7 +223,7 @@ export class AbstractModeWorker {
 		return [];
 	}
 
-	private getSuggestionFilterMain():Modes.IFilter {
+	private getSuggestionFilterMain():Modes.ISuggestionFilter {
 		var filter = this.getSuggestionFilter();
 
 		// Collect Suggestion Participants
@@ -236,7 +236,7 @@ export class AbstractModeWorker {
 		return filter;
 	}
 
-	public getSuggestionFilter():Modes.IFilter {
+	public getSuggestionFilter():Modes.ISuggestionFilter {
 		return AbstractModeWorker.filter;
 	}
 

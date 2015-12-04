@@ -203,7 +203,7 @@ class Renderer implements Tree.IRenderer {
 			data.colorspan.style.backgroundColor = '';
 		}
 
-		data.highlightedLabel.set(suggestion.label, suggestion.highlights);
+		data.highlightedLabel.set(suggestion.label, (<CompletionItem> element).highlights);
 		data.typeLabel.textContent = suggestion.typeLabel || '';
 		data.documentationLabel.textContent = suggestion.documentationLabel || '';
 	}

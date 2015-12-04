@@ -772,7 +772,7 @@ export class SuggestSupport extends AbstractSupport implements Modes.ISuggestSup
 		});
 	}
 
-	public getFilter(): Modes.IFilter {
+	public getFilter(): Modes.ISuggestionFilter {
 		return DefaultFilter;
 	}
 
