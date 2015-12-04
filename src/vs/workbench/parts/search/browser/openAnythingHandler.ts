@@ -31,7 +31,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 	private static SYMBOL_SEARCH_SUBSEQUENT_TIMEOUT = 100;
 	private static SEARCH_DELAY = 300; // This delay accommodates for the user typing a word and then stops typing to start searching
 
-	private static MAX_DISPLAYED_FILE_RESULTS = 2048;
+	private static MAX_DISPLAYED_RESULTS = 2048;
 
 	private openSymbolHandler: _OpenSymbolHandler;
 	private openFileHandler: OpenFileHandler;
@@ -140,7 +140,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 
 				// Sort
 				let normalizedSearchValue = strings.stripWildcards(searchValue.toLowerCase());
-				result.sort((elementA, elementB) => compareAnything(elementA.getLabel(), elementB.getLabel(), normalizedSearchValue));
+				result.sort((elementA, elementB) => this.compareResults(elementA, elementB, normalizedSearchValue));
 
 				// Apply Range
 				result.forEach((element) => {
@@ -153,7 +153,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 				this.resultsToSearchCache[searchValue] = result;
 
 				// Cap the number of results to make the view snappy
-				const viewResults = result.slice(0, OpenAnythingHandler.MAX_DISPLAYED_FILE_RESULTS);
+				const viewResults = result.length > OpenAnythingHandler.MAX_DISPLAYED_RESULTS ? result.slice(0, OpenAnythingHandler.MAX_DISPLAYED_RESULTS) : result;
 
 				return TPromise.as<QuickOpenModel>(new QuickOpenModel(viewResults));
 			}, (error: Error) => {
@@ -244,7 +244,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 
 		// Sort
 		let normalizedSearchValue = strings.stripWildcards(searchValue.toLowerCase());
-		results.sort((elementA, elementB) => compareAnything(elementA.getLabel(), elementB.getLabel(), normalizedSearchValue));
+		results.sort((elementA, elementB) => this.compareResults(elementA, elementB, normalizedSearchValue));
 
 		// Apply Range
 		results.forEach((element) => {
@@ -254,6 +254,23 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 		});
 
 		return results;
+	}
+
+	private compareResults(elementA:QuickOpenEntry, elementB:QuickOpenEntry, searchValue: string): number {
+		let nameA = elementA.getLabel();
+		let nameB = elementB.getLabel();
+
+		if (nameA === nameB) {
+			let resourceA = elementA.getResource();
+			let resourceB = elementB.getResource();
+
+			if (resourceA && resourceB) {
+				nameA = elementA.getResource().fsPath;
+				nameB = elementB.getResource().fsPath;
+			}
+		}
+
+		return compareAnything(nameA, nameB, searchValue);
 	}
 
 	public getGroupLabel(): string {

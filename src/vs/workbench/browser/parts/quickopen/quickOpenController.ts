@@ -687,7 +687,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 		// Show additional handler results below any existing results
 		if (additionalHandlerResults.length > 0) {
 			let useTopBorder = quickOpenModel.getEntries().length > 0;
-			additionalHandlerResults[0] = new QuickOpenEntryGroup(additionalHandlerResults[0], nls.localize('additionalResultsGroupLabel', "{0}", groupLabel), useTopBorder);
+			additionalHandlerResults[0] = new QuickOpenEntryGroup(additionalHandlerResults[0], groupLabel, useTopBorder);
 			quickOpenModel.addEntries(additionalHandlerResults);
 			this.quickOpenWidget.refresh(quickOpenModel, { autoFocusFirstEntry: true });
 		}
