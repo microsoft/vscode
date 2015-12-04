@@ -18617,8 +18617,8 @@
         </value>
       </values>
     </entry>
-    <entry name="zoom" restriction="enum, integer, number, percentage" version="3.0" browsers="IE6,S4" ref="http://msdn.microsoft.com/en-us/ie/gg192966.aspx" syntax=".example { $(name): 1; }">
-      <desc>Sets or retrieves the magnification scale of the object.</desc>
+    <entry name="zoom" restriction="enum, integer, number, percentage" version="3.0" browsers="E,C,IE6,O15,S4" ref="https://msdn.microsoft.com/en-us/library/ms531189(v=vs.85).aspx" syntax=".example { $(name): 1; }">
+      <desc>Non-standard. Specifies the magnification scale of the object. See 'transform: scale()' for a standards-based alternative.</desc>
       <values>
         <value name="normal" version="3.0" browsers="all" />
       </values>
