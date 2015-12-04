@@ -291,7 +291,7 @@ class ProjectResolver implements typescript.IProjectResolver2 {
 		includePattern[globPattern] = true;
 
 		let excludePattern: glob.IExpression = Object.create(null);
-		excludePattern['{**/node_modules/**,**/.git/**,**/bower_components/**,**/tmp/**,**/temp**}'] = true;
+		excludePattern['{**/node_modules/**,**/.git/**,**/bower_components/**,**/tmp/**,**/temp/**}'] = true;
 
 		// add custom exclude patterns
 		if(Array.isArray(excludes)) {
