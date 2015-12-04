@@ -384,14 +384,6 @@ export interface IExtraInfoSupport {
 }
 
 
-/**
- * Interface used to suggest words
- */
-export interface IHighlight {
-	start:number;
-	end:number;
-}
-
 export interface ISuggestion {
 	label: string;
 	codeSnippet: string;
@@ -417,8 +409,8 @@ export interface ISuggestionFilter {
 	(word: string, suggestion: ISuggestion): IMatch[];
 }
 
-export interface ISorter {
-	(one: ISuggestion, other: ISuggestion):number;
+export interface ISuggestionSorter {
+	(one: ISuggestion, other: ISuggestion): number;
 }
 
 /**
@@ -437,7 +429,7 @@ export interface ISuggestSupport {
 	getSuggestionDetails?:(resource:URI, position:EditorCommon.IPosition, suggestion:ISuggestion)=>TPromise<ISuggestion>;
 
 	getFilter():ISuggestionFilter;
-	getSorter?():ISorter;
+	getSorter?():ISuggestionSorter;
 	getTriggerCharacters():string[];
 	shouldShowEmptySuggestionList():boolean;
 	shouldAutotriggerSuggest(context:ILineContext, offset:number, triggeredByCharacter:string):boolean;

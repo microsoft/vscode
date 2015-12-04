@@ -15,7 +15,7 @@ import {isFalsyOrEmpty} from 'vs/base/common/arrays';
 import timer = require('vs/base/common/timer');
 import { getSnippets } from 'vs/editor/common/modes/modesRegistry';
 import EditorCommon = require('vs/editor/common/editorCommon');
-import { ISuggestSupport, ISuggestResult, ISuggestion, ISorter } from 'vs/editor/common/modes';
+import { ISuggestSupport, ISuggestResult, ISuggestion, ISuggestionSorter } from 'vs/editor/common/modes';
 import {DefaultFilter, IMatch} from 'vs/editor/common/modes/modesFilters';
 import { CodeSnippet } from 'vs/editor/contrib/snippet/common/snippet';
 import { IDisposable, disposeAll } from 'vs/base/common/lifecycle';
