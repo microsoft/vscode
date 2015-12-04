@@ -120,3 +120,8 @@
 	-o-transform: none;
 	transform: none;
 }
+
+/* Status bar */
+.monaco-shell .extensions-statusbar {
+	cursor: pointer;
+}
