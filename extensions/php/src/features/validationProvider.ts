@@ -84,6 +84,7 @@ export default class PHPValidationProvider {
 	private static BufferArgs: string[] = ['-l', '-n', '-d', 'display_errors=On', '-d', 'log_errors=Off'];
 	private static FileArgs: string[] = ['-l', '-n', '-d', 'display_errors=On', '-d', 'log_errors=Off', '-f'];
 
+	private validationEnabled: boolean;
 	private executable: string;
 	private trigger: RunTrigger;
 	private executableNotFound: boolean;
@@ -94,6 +95,7 @@ export default class PHPValidationProvider {
 
 	constructor() {
 		this.executable = null;
+		this.validationEnabled = true;
 		this.trigger = RunTrigger.onSave;
 		this.executableNotFound = false;
 	}
@@ -109,9 +111,6 @@ export default class PHPValidationProvider {
 			this.diagnosticCollection.delete(textDocument.uri);
 			delete this.delayers[textDocument.uri.toString()];
 		}, null, subscriptions);
-
-		// Validate all open php documents
-		vscode.workspace.textDocuments.forEach(this.triggerValidate, this);
 	}
 
 	public dispose(): void {
@@ -123,6 +122,7 @@ export default class PHPValidationProvider {
 		let section = vscode.workspace.getConfiguration('php');
 		let oldExecutable = this.executable;
 		if (section) {
+			this.validationEnabled = section.get<boolean>('validate.enable', true);
 			this.executable = section.get<string>('validate.executablePath', null);
 			this.trigger = RunTrigger.from(section.get<string>('validate.run', RunTrigger.strings.onSave));
 		}
@@ -133,19 +133,22 @@ export default class PHPValidationProvider {
 		if (this.documentListener) {
 			this.documentListener.dispose();
 		}
-		if (this.trigger === RunTrigger.onType) {
-			this.documentListener = vscode.workspace.onDidChangeTextDocument((e) => {
-				this.triggerValidate(e.document);
-			});
-		} else {
-			this.documentListener = vscode.workspace.onDidSaveTextDocument(this.triggerValidate, this);
+		this.diagnosticCollection.clear();
+		if (this.validationEnabled) {
+			if (this.trigger === RunTrigger.onType) {
+				this.documentListener = vscode.workspace.onDidChangeTextDocument((e) => {
+					this.triggerValidate(e.document);
+				});
+			} else {
+				this.documentListener = vscode.workspace.onDidSaveTextDocument(this.triggerValidate, this);
+			}
+			// Configuration has changed. Reevaluate all documents.
+			vscode.workspace.textDocuments.forEach(this.triggerValidate, this);
 		}
-		// Configuration has changed. Reevaluate all documents.
-		vscode.workspace.textDocuments.forEach(this.triggerValidate, this);
 	}
 
 	private triggerValidate(textDocument: vscode.TextDocument): void {
-		if (textDocument.languageId !== 'php' || this.executableNotFound) {
+		if (textDocument.languageId !== 'php' || this.executableNotFound || !this.validationEnabled) {
 			return;
 		}
 		let key = textDocument.uri.toString();
