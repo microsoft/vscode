@@ -58,12 +58,16 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 		return new EditorHistoryEntry(this.editorService, this.contextService, this.input, labelHighlights, descriptionHighlights, this.model);
 	}
 
-	public getLabel(): string {
+	public getPrefix(): string {
 		let status = this.input.getStatus();
 		if (status && status.decoration) {
-			return status.decoration + ' ' + this.input.getName();
+			return `${status.decoration} `;
 		}
 
+		return void 0;
+	}
+
+	public getLabel(): string {
 		return this.input.getName();
 	}
 

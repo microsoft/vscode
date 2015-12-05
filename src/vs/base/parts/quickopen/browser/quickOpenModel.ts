@@ -49,6 +49,13 @@ export class QuickOpenEntry {
 	}
 
 	/**
+	 * The prefix to show in front of the label if any
+	 */
+	public getPrefix(): string {
+		return null;
+	}
+
+	/**
 	 * The label of the entry to identify it from others in the list
 	 */
 	public getLabel(): string {
@@ -209,6 +216,10 @@ export class QuickOpenEntryGroup extends QuickOpenEntry {
 		this.withBorder = showBorder;
 	}
 
+	public getPrefix(): string {
+		return this.entry ? this.entry.getPrefix() : super.getPrefix();
+	}
+
 	public getLabel(): string {
 		return this.entry ? this.entry.getLabel() : super.getLabel();
 	}
@@ -299,6 +310,7 @@ class NoActionProvider implements ActionsRenderer.IActionProvider {
 export interface IQuickOpenEntryTemplateData {
 	container: HTMLElement;
 	icon: HTMLSpanElement;
+	prefix: HTMLSpanElement;
 	label: HighlightedLabel.HighlightedLabel;
 	meta: HTMLSpanElement;
 	description: HighlightedLabel.HighlightedLabel;
@@ -380,6 +392,10 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 		let icon = document.createElement('span');
 		entry.appendChild(icon);
 
+		// Prefix
+		let prefix = document.createElement('span');
+		entry.appendChild(prefix);
+
 		// Label
 		let label = new HighlightedLabel.HighlightedLabel(entry);
 
@@ -397,6 +413,7 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 		return {
 			container: container,
 			icon: icon,
+			prefix: prefix,
 			label: label,
 			meta: meta,
 			description: description,
@@ -458,7 +475,10 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 			let iconClass = entry.getIcon() ? ('quick-open-entry-icon ' + entry.getIcon()) : '';
 			data.icon.className = iconClass;
 
-			// Label
+			// Prefix
+			let prefix = entry.getPrefix() || '';
+			data.prefix.textContent = prefix;
+
 			let labelHighlights = highlights[0];
 			data.label.set(entry.getLabel() || '', labelHighlights || []);
 
