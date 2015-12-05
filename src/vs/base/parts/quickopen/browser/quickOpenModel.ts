@@ -8,9 +8,10 @@ import WinJS = require('vs/base/common/winjs.base');
 import Types = require('vs/base/common/types');
 import URI from 'vs/base/common/uri';
 import Tree = require('vs/base/parts/tree/common/tree');
-import { IQuickNavigateConfiguration, IModel, IDataSource, IFilter, IRenderer, IRunner, Mode } from './quickOpen';
+import {IQuickNavigateConfiguration, IModel, IDataSource, IFilter, IRenderer, IRunner, Mode} from './quickOpen';
 import ActionsRenderer = require('vs/base/parts/tree/browser/actionsRenderer');
 import Actions = require('vs/base/common/actions');
+import {compareAnything} from 'vs/base/common/comparers';
 import ActionBar = require('vs/base/browser/ui/actionbar/actionbar');
 import TreeDefaults = require('vs/base/parts/tree/browser/treeDefaults');
 import HighlightedLabel = require('vs/base/browser/ui/highlightedlabel/highlightedLabel');
@@ -120,6 +121,39 @@ export class QuickOpenEntry {
 	 */
 	public run(mode: Mode, context: IContext): boolean {
 		return false;
+	}
+
+	/**
+	 * A good default sort implementation for quick open entries
+	 */
+	public static compare(elementA: QuickOpenEntry, elementB: QuickOpenEntry, lookFor: string): number {
+
+		// Give matches with label highlights higher priority over
+		// those with only description highlights
+		const labelHighlightsA = elementA.getHighlights()[0] || [];
+		const labelHighlightsB = elementB.getHighlights()[0] || [];
+
+		if (labelHighlightsA.length && !labelHighlightsB.length) {
+			return -1;
+		} else if (!labelHighlightsA.length && labelHighlightsB.length) {
+			return 1;
+		}
+
+		// Sort by name/path
+		let nameA = elementA.getLabel();
+		let nameB = elementB.getLabel();
+
+		if (nameA === nameB) {
+			let resourceA = elementA.getResource();
+			let resourceB = elementB.getResource();
+
+			if (resourceA && resourceB) {
+				nameA = elementA.getResource().fsPath;
+				nameB = elementB.getResource().fsPath;
+			}
+		}
+
+		return compareAnything(nameA, nameB, lookFor);
 	}
 }
 

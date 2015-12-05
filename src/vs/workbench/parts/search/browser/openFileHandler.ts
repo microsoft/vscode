@@ -144,11 +144,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 			let searchResult = this.instantiationService.createInstance(SearchResult, null);
 			searchResult.append(complete.results);
 
-			// Sort (standalone only)
 			let matches = searchResult.matches();
-			if (this.isStandalone) {
-				matches = matches.sort((elementA, elementB) => this.sort(elementA, elementB, searchValue.toLowerCase()));
-			}
 
 			// Highlight
 			let results: QuickOpenEntry[] = [];
@@ -178,29 +174,13 @@ export class OpenFileHandler extends QuickOpenHandler {
 				results.push(this.instantiationService.createInstance(FileEntry, fileMatch.name(), description, fileMatch.resource(), labelHighlights, descriptionHighlights));
 			}
 
+			// Sort (standalone only)
+			if (this.isStandalone) {
+				results = results.sort((elementA, elementB) => QuickOpenEntry.compare(elementA, elementB, searchValue.toLowerCase()));
+			}
+
 			return results;
 		});
-	}
-
-	private sort(elementA: FileMatch, elementB: FileMatch, searchValue: string): number {
-		let elementAName = elementA.name().toLowerCase();
-		let elementBName = elementB.name().toLowerCase();
-
-		// Sort matches that have search value in beginning to the top
-		let elementAPrefixMatch = elementAName.indexOf(searchValue) === 0;
-		let elementBPrefixMatch = elementBName.indexOf(searchValue) === 0;
-		if (elementAPrefixMatch !== elementBPrefixMatch) {
-			return elementAPrefixMatch ? -1 : 1;
-		}
-
-		// Compare by name
-		let r = comparers.compareFileNames(elementAName, elementBName);
-		if (r !== 0) {
-			return r;
-		}
-
-		// Otherwise do full compare with path info
-		return strings.localeCompare(elementA.resource().fsPath, elementB.resource().fsPath);
 	}
 
 	public getGroupLabel(): string {

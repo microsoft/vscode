@@ -141,7 +141,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 
 				// Sort
 				let normalizedSearchValue = strings.stripWildcards(searchValue.toLowerCase());
-				result.sort((elementA, elementB) => this.compareResults(elementA, elementB, normalizedSearchValue));
+				result.sort((elementA, elementB) => QuickOpenEntry.compare(elementA, elementB, normalizedSearchValue));
 
 				// Apply Range
 				result.forEach((element) => {
@@ -248,7 +248,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 
 		// Sort
 		let normalizedSearchValue = strings.stripWildcards(searchValue.toLowerCase());
-		results.sort((elementA, elementB) => this.compareResults(elementA, elementB, normalizedSearchValue));
+		results.sort((elementA, elementB) => QuickOpenEntry.compare(elementA, elementB, normalizedSearchValue));
 
 		// Apply Range
 		results.forEach((element) => {
@@ -258,36 +258,6 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 		});
 
 		return results;
-	}
-
-	private compareResults(elementA:QuickOpenEntry, elementB:QuickOpenEntry, searchValue: string): number {
-
-		// Give matches with label highlights higher priority over
-		// those with only description highlights
-		const labelHighlightsA = elementA.getHighlights()[0] || [];
-		const labelHighlightsB = elementB.getHighlights()[0] || [];
-
-		if (labelHighlightsA.length && !labelHighlightsB.length) {
-			return -1;
-		} else if (!labelHighlightsA.length && labelHighlightsB.length) {
-			return 1;
-		}
-
-		// Sort by name/path
-		let nameA = elementA.getLabel();
-		let nameB = elementB.getLabel();
-
-		if (nameA === nameB) {
-			let resourceA = elementA.getResource();
-			let resourceB = elementB.getResource();
-
-			if (resourceA && resourceB) {
-				nameA = elementA.getResource().fsPath;
-				nameB = elementB.getResource().fsPath;
-			}
-		}
-
-		return compareAnything(nameA, nameB, searchValue);
 	}
 
 	public getGroupLabel(): string {
