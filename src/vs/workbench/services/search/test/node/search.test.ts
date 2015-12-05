@@ -47,6 +47,24 @@ suite('Search', () => {
 		});
 	});
 
+	test('Files: examples/com*', function(done: () => void) {
+		let engine = new FileSearchEngine({
+			rootPaths: [require.toUrl('./fixtures')],
+			filePattern: 'examples' + path.sep + 'com*'
+		});
+
+		let count = 0;
+		engine.search((result) => {
+			if (result) {
+				count++;
+			}
+		}, () => { }, (error) => {
+			assert.ok(!error);
+			assert.equal(count, 1);
+			done();
+		});
+	});
+
 	test('Files: *.js (Files as roots)', function(done: () => void) {
 		let engine = new FileSearchEngine({
 			rootPaths: [require.toUrl('./fixtures/examples/company.js'), require.toUrl('./fixtures/examples/small.js')],

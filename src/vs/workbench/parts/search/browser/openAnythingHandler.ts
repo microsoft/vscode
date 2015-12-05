@@ -10,6 +10,7 @@ import nls = require('vs/nls');
 import {ThrottledDelayer} from 'vs/base/common/async';
 import types = require('vs/base/common/types');
 import strings = require('vs/base/common/strings');
+import paths = require('vs/base/common/paths');
 import filters = require('vs/base/common/filters');
 import {IRange} from 'vs/editor/common/editorCommon';
 import {compareAnything} from 'vs/base/common/comparers';
@@ -210,6 +211,9 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 	}
 
 	public getResultsFromCache(searchValue: string, range: IRange = null): QuickOpenEntry[] {
+		if (searchValue.indexOf(paths.nativeSep) >= 0) {
+			return null; // TODO@Ben implement caching for path search
+		}
 
 		// Find cache entries by prefix of search value
 		let cachedEntries: QuickOpenEntry[];
@@ -257,6 +261,19 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 	}
 
 	private compareResults(elementA:QuickOpenEntry, elementB:QuickOpenEntry, searchValue: string): number {
+
+		// Give matches with label highlights higher priority over
+		// those with only description highlights
+		const labelHighlightsA = elementA.getHighlights()[0] || [];
+		const labelHighlightsB = elementB.getHighlights()[0] || [];
+
+		if (labelHighlightsA.length && !labelHighlightsB.length) {
+			return -1;
+		} else if (!labelHighlightsA.length && labelHighlightsB.length) {
+			return 1;
+		}
+
+		// Sort by name/path
 		let nameA = elementA.getLabel();
 		let nameB = elementB.getLabel();
 

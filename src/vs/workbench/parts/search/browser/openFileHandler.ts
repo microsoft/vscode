@@ -34,7 +34,12 @@ export class FileEntry extends EditorQuickOpenEntry {
 	private resource: URI;
 	private range: IRange;
 
-	constructor(name: string, resource: URI, highlights: IHighlight[],
+	constructor(
+		name: string,
+		description: string,
+		resource: URI,
+		labelHighlights: IHighlight[],
+		descriptionHighlights: IHighlight[],
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService
@@ -43,8 +48,8 @@ export class FileEntry extends EditorQuickOpenEntry {
 
 		this.resource = resource;
 		this.name = name;
-		this.description = labels.getPathLabel(paths.dirname(this.resource.fsPath), contextService);
-		this.setHighlights(highlights);
+		this.description = description;
+		this.setHighlights(labelHighlights, descriptionHighlights);
 	}
 
 	public getLabel(): string {
@@ -149,9 +154,28 @@ export class OpenFileHandler extends QuickOpenHandler {
 			let results: QuickOpenEntry[] = [];
 			for (let i = 0; i < matches.length; i++) {
 				let fileMatch = matches[i];
-				let highlights = filters.matchesFuzzy(searchValue, fileMatch.name());
+				let description = labels.getPathLabel(paths.dirname(fileMatch.resource().fsPath), this.contextService);
 
-				results.push(this.instantiationService.createInstance(FileEntry, fileMatch.name(), fileMatch.resource(), highlights));
+				let labelHighlights: IHighlight[] = [];
+				let descriptionHighlights: IHighlight[] = [];
+
+				// Search inside filename
+				if (searchValue.indexOf(paths.nativeSep) < 0) {
+					labelHighlights = filters.matchesFuzzy(searchValue, fileMatch.name());
+				}
+
+				// Search in full path
+				else {
+					descriptionHighlights = filters.matchesFuzzy(strings.trim(searchValue, paths.nativeSep), description);
+
+					// If we have no highlights, assume that the match is split among name and parent folder
+					if (!descriptionHighlights || !descriptionHighlights.length) {
+						labelHighlights = filters.matchesFuzzy(paths.basename(searchValue), fileMatch.name());
+						descriptionHighlights = filters.matchesFuzzy(strings.trim(paths.dirname(searchValue), paths.nativeSep), description);
+					}
+				}
+
+				results.push(this.instantiationService.createInstance(FileEntry, fileMatch.name(), description, fileMatch.resource(), labelHighlights, descriptionHighlights));
 			}
 
 			return results;

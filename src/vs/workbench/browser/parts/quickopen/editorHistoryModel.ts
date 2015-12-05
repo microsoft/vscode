@@ -8,6 +8,7 @@ import {Registry} from 'vs/platform/platform';
 import filters = require('vs/base/common/filters');
 import strings = require('vs/base/common/strings');
 import types = require('vs/base/common/types');
+import paths = require('vs/base/common/paths');
 import URI from 'vs/base/common/uri';
 import {EventType} from 'vs/base/common/events';
 import comparers = require('vs/base/common/comparers');
@@ -31,7 +32,8 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 		editorService: IWorkbenchEditorService,
 		private contextService: IWorkspaceContextService,
 		input: EditorInput,
-		highlights: IHighlight[],
+		labelHighlights: IHighlight[],
+		descriptionHighlights: IHighlight[],
 		model: EditorHistoryModel
 	) {
 		super(editorService);
@@ -49,11 +51,11 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 			}
 		}
 
-		this.setHighlights(highlights);
+		this.setHighlights(labelHighlights, descriptionHighlights);
 	}
 
-	public clone(highlights: IHighlight[]): EditorHistoryEntry {
-		return new EditorHistoryEntry(this.editorService, this.contextService, this.input, highlights, this.model);
+	public clone(labelHighlights: IHighlight[], descriptionHighlights?: IHighlight[]): EditorHistoryEntry {
+		return new EditorHistoryEntry(this.editorService, this.contextService, this.input, labelHighlights, descriptionHighlights, this.model);
 	}
 
 	public getLabel(): string {
@@ -130,7 +132,7 @@ export class EditorHistoryModel extends QuickOpenModel {
 
 		// Remove any existing entry and add to the beginning
 		this.remove(entry);
-		this.entries.unshift(new EditorHistoryEntry(this.editorService, this.contextService, entry, null, this));
+		this.entries.unshift(new EditorHistoryEntry(this.editorService, this.contextService, entry, null, null, this));
 
 		// Respect max entries setting
 		if (this.entries.length > MAX_ENTRIES) {
@@ -207,14 +209,35 @@ export class EditorHistoryModel extends QuickOpenModel {
 
 		let results: QuickOpenEntry[] = [];
 		for (let i = 0; i < this.entries.length; i++) {
-			let entry = this.entries[i];
+			let entry = <EditorHistoryEntry>this.entries[i];
 			if (!entry.getResource()) {
 				continue; //For now, only support to match on inputs that provide resource information
 			}
 
-			let highlights = filters.matchesFuzzy(searchValue, (<EditorHistoryEntry>entry).getInput().getName());
-			if (highlights) {
-				results.push((<EditorHistoryEntry>entry).clone(highlights));
+			let label = entry.getInput().getName();
+			let description = entry.getInput().getDescription();
+
+			let labelHighlights: IHighlight[] = [];
+			let descriptionHighlights: IHighlight[] = [];
+
+			// Search inside filename
+			if (searchValue.indexOf(paths.nativeSep) < 0) {
+				labelHighlights = filters.matchesFuzzy(searchValue, label);
+			}
+
+			// Search in full path
+			else {
+				descriptionHighlights = filters.matchesFuzzy(strings.trim(searchValue, paths.nativeSep), description);
+
+				// If we have no highlights, assume that the match is split among name and parent folder
+				if (!descriptionHighlights || !descriptionHighlights.length) {
+					labelHighlights = filters.matchesFuzzy(paths.basename(searchValue), label);
+					descriptionHighlights = filters.matchesFuzzy(strings.trim(paths.dirname(searchValue), paths.nativeSep), description);
+				}
+			}
+
+			if ((labelHighlights && labelHighlights.length) || (descriptionHighlights && descriptionHighlights.length)) {
+				results.push(entry.clone(labelHighlights, descriptionHighlights));
 			}
 		}
 
@@ -222,7 +245,20 @@ export class EditorHistoryModel extends QuickOpenModel {
 		if (searchValue) {
 			let normalizedSearchValue = strings.stripWildcards(searchValue.toLowerCase());
 
-			return results.sort((elementA:EditorHistoryEntry, elementB:EditorHistoryEntry) => {
+			return results.sort((elementA: EditorHistoryEntry, elementB: EditorHistoryEntry) => {
+
+				// Give matches with label highlights higher priority over
+				// those with only description highlights
+				const labelHighlightsA = elementA.getHighlights()[0] || [];
+				const labelHighlightsB = elementB.getHighlights()[0] || [];
+
+				if (labelHighlightsA.length && !labelHighlightsB.length) {
+					return -1;
+				} else if (!labelHighlightsA.length && labelHighlightsB.length) {
+					return 1;
+				}
+
+				// Sort by name/path
 				let nameA = elementA.getInput().getName();
 				let nameB = elementB.getInput().getName();
 
