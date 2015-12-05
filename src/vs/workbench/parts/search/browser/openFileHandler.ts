@@ -17,7 +17,6 @@ import {QuickOpenEntry, QuickOpenModel, IHighlight} from 'vs/base/parts/quickope
 import filters = require('vs/base/common/filters');
 import comparers = require('vs/base/common/comparers');
 import {QuickOpenHandler, EditorQuickOpenEntry} from 'vs/workbench/browser/quickopen';
-import {FileMatch, SearchResult} from 'vs/workbench/parts/search/common/searchModel';
 import {QueryBuilder} from 'vs/workbench/parts/search/common/searchQuery';
 import {ITextFileService} from 'vs/workbench/parts/files/common/files';
 import {EditorInput} from 'vs/workbench/common/editor';
@@ -141,23 +140,21 @@ export class OpenFileHandler extends QuickOpenHandler {
 		let query: IQueryOptions = { filePattern: searchValue, rootResources: rootResources };
 
 		return this.queryBuilder.file(query).then((query) => this.searchService.search(query)).then((complete) => {
-			let searchResult = this.instantiationService.createInstance(SearchResult, null);
-			searchResult.append(complete.results);
-
-			let matches = searchResult.matches();
 
 			// Highlight
 			let results: QuickOpenEntry[] = [];
-			for (let i = 0; i < matches.length; i++) {
-				let fileMatch = matches[i];
-				let description = labels.getPathLabel(paths.dirname(fileMatch.resource().fsPath), this.contextService);
+			for (let i = 0; i < complete.results.length; i++) {
+				let fileMatch = complete.results[i];
+
+				let label = paths.basename(fileMatch.resource.fsPath);
+				let description = labels.getPathLabel(paths.dirname(fileMatch.resource.fsPath), this.contextService);
 
 				let labelHighlights: IHighlight[] = [];
 				let descriptionHighlights: IHighlight[] = [];
 
 				// Search inside filename
 				if (searchValue.indexOf(paths.nativeSep) < 0) {
-					labelHighlights = filters.matchesFuzzy(searchValue, fileMatch.name());
+					labelHighlights = filters.matchesFuzzy(searchValue, label);
 				}
 
 				// Search in full path
@@ -166,12 +163,12 @@ export class OpenFileHandler extends QuickOpenHandler {
 
 					// If we have no highlights, assume that the match is split among name and parent folder
 					if (!descriptionHighlights || !descriptionHighlights.length) {
-						labelHighlights = filters.matchesFuzzy(paths.basename(searchValue), fileMatch.name());
+						labelHighlights = filters.matchesFuzzy(paths.basename(searchValue), label);
 						descriptionHighlights = filters.matchesFuzzy(strings.trim(paths.dirname(searchValue), paths.nativeSep), description);
 					}
 				}
 
-				results.push(this.instantiationService.createInstance(FileEntry, fileMatch.name(), description, fileMatch.resource(), labelHighlights, descriptionHighlights));
+				results.push(this.instantiationService.createInstance(FileEntry, label, description, fileMatch.resource, labelHighlights, descriptionHighlights));
 			}
 
 			// Sort (standalone only)
