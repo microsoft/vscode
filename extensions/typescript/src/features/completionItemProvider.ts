@@ -223,7 +223,7 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 					item.detail = Previewer.plain(detail.displayParts);
 				}
 
-				if (detail && this.config.useCodeSnippetsOnMethodSuggest !== "none" && item.kind === CompletionItemKind.Function) {
+				if (detail && ( this.config.useCodeSnippetsOnMethodSuggest === "lambda" ||  this.config.useCodeSnippetsOnMethodSuggest === "func" )  && item.kind === CompletionItemKind.Function) {
 					let codeSnippet = detail.name;
 
 					let args = this.extractArguments(detail.displayParts);
