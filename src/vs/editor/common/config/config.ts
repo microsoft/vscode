@@ -197,6 +197,13 @@ registerCoreCommand(H.CursorEndSelect, {
 	mac: { primary: KeyMod.Shift | KeyCode.End, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.RightArrow] }
 });
 
+registerCoreCommand(H.ScrollLineUp, {
+	primary: KeyMod.CtrlCmd | KeyCode.UpArrow
+});
+registerCoreCommand(H.ScrollLineDown, {
+	primary: KeyMod.CtrlCmd | KeyCode.DownArrow
+});
+
 registerCoreCommand(H.Tab, {
 	primary: KeyCode.Tab
 }, KeybindingsRegistry.WEIGHT.editorCore(), [

@@ -235,6 +235,10 @@ export class ViewModel extends EventEmitter implements EditorCommon.IViewModel {
 						this.onCursorRevealRange(<EditorCommon.ICursorRevealRangeEvent>data);
 						break;
 
+					case EditorCommon.EventType.CursorLineScroll:
+						this.onCursorLineScroll(<EditorCommon.ICursorLineScrollEvent>data);
+						break;
+
 					case EditorCommon.EventType.ConfigurationChanged:
 						revealPreviousCenteredModelRange = this._onTabSizeChange(this.configuration.getIndentationOptions().tabSize) || revealPreviousCenteredModelRange;
 						revealPreviousCenteredModelRange = this._onWrappingIndentChange(this.configuration.editor.wrappingIndent) || revealPreviousCenteredModelRange;
@@ -338,6 +342,9 @@ export class ViewModel extends EventEmitter implements EditorCommon.IViewModel {
 	}
 	private onCursorRevealRange(e:EditorCommon.ICursorRevealRangeEvent): void {
 		this.cursors.onCursorRevealRange(e, (eventType:string, payload:any) => this.emit(eventType, payload));
+	}
+	private onCursorLineScroll(e:EditorCommon.ICursorLineScrollEvent): void {
+		this.cursors.onCursorLineScroll(e, (eventType:string, payload:any) => this.emit(eventType, payload));
 	}
 	// --- end inbound event conversion
 
