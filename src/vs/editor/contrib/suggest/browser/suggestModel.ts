@@ -78,31 +78,15 @@ export class CompletionItem {
 
 class RawModel {
 
-	private _items: CompletionItem[][] = [];
+	public size: number;
 
-	public size: number = 0;
-	public incomplete: boolean = false;
-
-	insertSuggestions(rank: number, suggestions: ISuggestResult2[]): boolean {
-		if (suggestions) {
-			let items: CompletionItem[] = [];
-			for (let _suggestions of suggestions) {
-
-				for (let suggestionItem of _suggestions.suggestions) {
-					items.push(new CompletionItem(_suggestions.support, suggestionItem, _suggestions));
-				}
-
-				this.size += _suggestions.suggestions.length;
-				this.incomplete = this.incomplete || _suggestions.incomplete;
-			}
-			this._items[rank] = items;
-			return true;
-		}
+	constructor(private items: CompletionItem[][], public incomplete: boolean) {
+		this.size = items.reduce((size, items) => size + items.length, 0);
 	}
 
 	select(ctx: Context): CompletionItem[] {
 		let result: CompletionItem[] = [];
-		for (let item of this._items) {
+		for (let item of this.items) {
 			RawModel._sortAndFilter(item, ctx, result);
 		}
 		return result;
@@ -418,31 +402,35 @@ export class SuggestModel implements IDisposable {
 		this.context = ctx;
 
 		var position = this.editor.getPosition();
-		let raw = new RawModel();
-		let rank = 0;
 
 		this.requestPromise = suggest(model, position, triggerCharacter, groups).then(all => {
-			for (let suggestions of all) {
-				if (raw.insertSuggestions(rank, suggestions)) {
-					rank++;
-				}
-			}
 			this.requestPromise = null;
 
 			if (this.state === State.Idle) {
 				return;
 			}
 
-			var snippets = getSnippets(model, position);
-			if (snippets && snippets.suggestions && snippets.suggestions.length > 0) {
-				raw.insertSuggestions(rank, [snippets]);
-			}
+			let incomplete = false;
+			const snippets = getSnippets(model, position);
 
-			const ctx = new Context(this.editor, auto);
+			const items = all
+				.filter(s => !!s)
+				.map(suggestResults => {
+					return suggestResults.reduce<CompletionItem[]>((items, suggestResult) => {
+						incomplete = incomplete || suggestResult.incomplete;
+
+						return items.concat(suggestResult.suggestions.map(suggestion => {
+							return new CompletionItem(suggestResult.support, suggestion, suggestResult);
+						}));
+					}, []);
+				})
+				.concat([snippets.suggestions.map(suggestion => new CompletionItem(null, suggestion, snippets))]);
+
+			const raw = new RawModel(items, incomplete);
 
 			if(raw.size > 0) {
 				this.raw = raw;
-				this.onNewContext(ctx);
+				this.onNewContext(new Context(this.editor, auto));
 			} else {
 				this._onDidSuggest.fire({ suggestions: null, auto: this.isAutoSuggest() });
 			}
