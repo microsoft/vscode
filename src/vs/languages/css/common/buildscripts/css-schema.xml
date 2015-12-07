@@ -3074,6 +3074,19 @@
         </value>
       </values>
     </entry>
+    <entry name="box-suppress" restriction="enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-display-3/#propdef-box-suppress" syntax="div { $(name): discard; }">
+      <desc>Toggles whether or not an element appears in the formatting tree without affecting its display type when it is displayed.</desc>
+      <values>
+        <value name="show" version="3.0" browsers="all">
+          <desc>The element generates boxes as normal, per its 'display-*' properties.</desc>
+        </value>
+        <value name="discard" version="3.0" browsers="all">
+          <desc>The element generates no boxes at all.</desc>
+        </value>
+        <value name="hide" version="3.0" browsers="all">
+          <desc>The element generates boxes as normal, but those boxes do not participate in layout in any way.</desc>
+        </value>
+    </entry>
     <entry name="break-after" restriction="enum" version="3.0" browsers="E,IE10,O11.5" ref="http://www.w3.org/TR/css3-break/#break-between" syntax="h2 { $(name): column; }">
       <desc>Describes the page/column break behavior before the generated box.</desc>
       <values>
