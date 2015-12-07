@@ -4636,8 +4636,41 @@
         <value name="nonzero" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="filter" restriction="" version="3.0" browsers="IE6-9" ref="http://msdn.microsoft.com/en-us/ie/gg192966.aspx" syntax="div { $(name): alpha(opacity = 50); }">
-      <desc>IE only. Used to produce visual effects.</desc>
+    <entry name="filter" restriction="enum, url" version="3.0" browsers="E13,FF35" ref="https://drafts.fxtf.org/filters-1/#propdef-filter" syntax="div { $(name): opacity(50%); }">
+      <desc>Processes an element’s rendering before it is displayed in the document, by applying one or more filter effects.</desc>
+      <values>
+        <value name="none" version="3.0" browsers="all" />
+        <value name="blur()" version="3.0" browsers="all">
+          <desc>Applies a Gaussian blur to the input image.</desc>
+        </value>
+        <value name="brightness()" version="3.0" browsers="all">
+          <desc>Applies a linear multiplier to input image, making it appear more or less bright.</desc>
+        </value>
+        <value name="contrast()" version="3.0" browsers="all">
+          <desc>Adjusts the contrast of the input.</desc>
+        </value>
+        <value name="drop-shadow()" version="3.0" browsers="all">
+          <desc>Applies a drop shadow effect to the input image.</desc>
+        </value>
+        <value name="grayscale()" version="3.0" browsers="all">
+          <desc>Converts the input image to grayscale.</desc>
+        </value>
+        <value name="hue-rotate()" version="3.0" browsers="all">
+          <desc>Applies a hue rotation on the input image. </desc>
+        </value>
+        <value name="invert()" version="3.0" browsers="all">
+          <desc>Inverts the samples in the input image.</desc>
+        </value>
+        <value name="opacity()" version="3.0" browsers="all">
+          <desc>Applies transparency to the samples in the input image.</desc>
+        </value>
+        <value name="saturate()" version="3.0" browsers="all">
+          <desc>Saturates the input image.</desc>
+        </value>
+        <value name="sepia()" version="3.0" browsers="all">
+          <desc>Converts the input image to sepia.</desc>
+        </value>
+      </values>
     </entry>
     <entry name="fit" restriction="enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css3-page/#fit" syntax="Comma-separated list of 'fit' keywords where 'fit' = fill | hidden | meet | slice">
       <desc>Gives a hint for how to scale a replaced element if neither its 'width' nor its 'height' property is 'auto'.</desc>
