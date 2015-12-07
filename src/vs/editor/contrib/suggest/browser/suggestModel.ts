@@ -7,7 +7,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import {sequence} from 'vs/base/common/async';
 import { assign } from 'vs/base/common/objects';
-import { EventEmitter, ListenerUnbind } from 'vs/base/common/eventEmitter';
+import Event, { Emitter } from 'vs/base/common/event';
 import { onUnexpectedError, isPromiseCanceledError } from 'vs/base/common/errors';
 import strings = require('vs/base/common/strings');
 import URI from 'vs/base/common/uri';
@@ -243,7 +243,25 @@ class SuggestionContext {
 	}
 }
 
-export class SuggestModel extends EventEmitter {
+export interface ICancelEvent {
+	retrigger: boolean;
+}
+
+export interface ITriggerEvent {
+	auto: boolean;
+	characterTriggered: boolean;
+	retrigger: boolean;
+}
+
+export interface ISuggestEvent {
+	suggestions: {
+		completionItems: CompletionItem[];
+		currentWord: string;
+	};
+	auto: boolean;
+}
+
+export class SuggestModel {
 
 	private editor: EditorCommon.ICommonCodeEditor;
 	private onAccept:(snippet: CodeSnippet, overwriteBefore:number, overwriteAfter:number)=>void;
@@ -258,8 +276,16 @@ export class SuggestModel extends EventEmitter {
 	private requestContext:SuggestionContext;
 	private raw:RawModel;
 
+	private _onDidCancel: Emitter<ICancelEvent> = new Emitter();
+	public get onDidCancel(): Event<ICancelEvent> { return this._onDidCancel.event; }
+
+	private _onDidTrigger: Emitter<ITriggerEvent> = new Emitter();
+	public get onDidTrigger(): Event<ITriggerEvent> { return this._onDidTrigger.event; }
+
+	private _onDidSuggest: Emitter<ISuggestEvent> = new Emitter();
+	public get onDidSuggest(): Event<ISuggestEvent> { return this._onDidSuggest.event; }
+
 	constructor(editor:EditorCommon.ICommonCodeEditor, onAccept:(snippet: CodeSnippet, overwriteBefore:number, overwriteAfter:number)=>void) {
-		super();
 		this.editor = editor;
 		this.onAccept = onAccept;
 		this.toDispose = [];
@@ -310,7 +336,7 @@ export class SuggestModel extends EventEmitter {
 		this.requestContext = null;
 
 		if (!silent) {
-			this.emit('cancel', { retrigger: retrigger });
+			this._onDidCancel.fire({ retrigger });
 		}
 
 		return actuallyCanceled;
@@ -381,7 +407,7 @@ export class SuggestModel extends EventEmitter {
 		// Cancel previous requests, change state & update UI
 		this.cancel(false, retrigger);
 		this.state = (auto || characterTriggered) ? SuggestState.AUTO_TRIGGER : SuggestState.MANUAL_TRIGGER;
-		this.emit('loading', { auto: this.isAutoSuggest(), characterTriggered: characterTriggered, retrigger: retrigger });
+		this._onDidTrigger.fire({ auto: this.isAutoSuggest(), characterTriggered, retrigger });
 
 		// Capture context when request was sent
 		this.requestContext = ctx;
@@ -413,11 +439,13 @@ export class SuggestModel extends EventEmitter {
 				raw.insertSuggestions(rank, [snippets]);
 			}
 
+			const ctx = new SuggestionContext(this.editor, auto);
+
 			if(raw.size > 0) {
 				this.raw = raw;
-				this.onNewContext(new SuggestionContext(this.editor, auto));
+				this.onNewContext(ctx);
 			} else {
-				this.emit('empty', { auto: this.isAutoSuggest() });
+				this._onDidSuggest.fire({ suggestions: null, auto: this.isAutoSuggest() });
 			}
 		}, () => {
 			$tRequest.stop();
@@ -436,19 +464,12 @@ export class SuggestModel extends EventEmitter {
 		}
 
 		if (this.raw) {
+			const suggestions = this.raw.select(ctx);
 
-			let completionItems = this.raw.select(ctx);
-
-			if (completionItems.length > 0) {
-				this.emit('suggest', <SuggestDataEvent> {
-					suggestions: {
-						completionItems,
-						currentWord: ctx.wordBefore
-					},
-					auto: this.isAutoSuggest()
-				});
+			if (suggestions.length > 0) {
+				this._onDidSuggest.fire({ suggestions: { completionItems: suggestions, currentWord: ctx.wordBefore }, auto: this.isAutoSuggest() });
 			} else {
-				this.emit('empty', { auto: this.isAutoSuggest() });
+				this._onDidSuggest.fire({ suggestions: null, auto: this.isAutoSuggest() });
 			}
 		}
 	}
@@ -486,6 +507,5 @@ export class SuggestModel extends EventEmitter {
 	public destroy():void {
 		this.cancel(true);
 		this.toDispose = disposeAll(this.toDispose);
-		this.emit('destroy', null);
 	}
 }

@@ -7,22 +7,23 @@
 
 import 'vs/css!./suggest';
 import nls = require('vs/nls');
-import {TPromise} from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IDisposable, disposeAll } from 'vs/base/common/lifecycle';
 import Errors = require('vs/base/common/errors');
 import dom = require('vs/base/browser/dom');
 import Tree = require('vs/base/parts/tree/common/tree');
 import TreeImpl = require('vs/base/parts/tree/browser/treeImpl');
 import TreeDefaults = require('vs/base/parts/tree/browser/treeDefaults');
 import HighlightedLabel = require('vs/base/browser/ui/highlightedlabel/highlightedLabel');
-import {SuggestModel, SuggestDataEvent, CompletionItem} from './suggestModel';
+import { SuggestModel, SuggestDataEvent, CompletionItem } from './suggestModel';
 import Mouse = require('vs/base/browser/mouseEvent');
 import EditorBrowser = require('vs/editor/browser/editorBrowser');
 import EditorCommon = require('vs/editor/common/editorCommon');
 import EventEmitter = require('vs/base/common/eventEmitter');
 import Timer = require('vs/base/common/timer');
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {SuggestRegistry, CONTEXT_SUGGESTION_SUPPORTS_ACCEPT_ON_KEY} from '../common/suggest';
-import {IKeybindingService, IKeybindingContextKey} from 'vs/platform/keybinding/common/keybindingService';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { SuggestRegistry, CONTEXT_SUGGESTION_SUPPORTS_ACCEPT_ON_KEY } from '../common/suggest';
+import { IKeybindingService, IKeybindingContextKey } from 'vs/platform/keybinding/common/keybindingService';
 
 var $ = dom.emmet;
 
@@ -257,7 +258,7 @@ export class SuggestWidget implements EditorBrowser.IContentWidget {
 	private isLoading: boolean;
 	private isAuto: boolean;
 	private listenersToRemove: EventEmitter.ListenerUnbind[];
-	private modelListenersToRemove: EventEmitter.ListenerUnbind[];
+	private modelListenersToRemove: IDisposable[];
 	private model: SuggestModel;
 	private suggestionSupportsAutoAccept: IKeybindingContextKey<boolean>;
 
@@ -404,10 +405,9 @@ export class SuggestWidget implements EditorBrowser.IContentWidget {
 		this.releaseModel();
 		this.model = newModel;
 
-		var timer : Timer.ITimerEvent = null,
-			loadingHandle:number;
+		var timer : Timer.ITimerEvent = null, loadingHandle:number;
 
-		this.modelListenersToRemove.push(this.model.addListener('loading', (e: any) => {
+		this.modelListenersToRemove.push(this.model.onDidTrigger(e => {
 			if (!this.isActive) {
 				timer = this.telemetryService.start('suggestWidgetLoadingTime');
 				this.isLoading = true;
@@ -430,7 +430,39 @@ export class SuggestWidget implements EditorBrowser.IContentWidget {
 			}
 		}));
 
-		this.modelListenersToRemove.push(this.model.addListener('suggest', (e: SuggestDataEvent) => {
+		this.modelListenersToRemove.push(this.model.onDidSuggest(e => {
+			if (!e.suggestions) { // empty
+				const wasLoading = this.isLoading;
+				this.isLoading = false;
+
+				if(typeof loadingHandle !== 'undefined') {
+					clearTimeout(loadingHandle);
+				}
+
+				if (e.auto) {
+					this.hide();
+				} else if (wasLoading) {
+					if (this.shouldShowEmptySuggestionList) {
+						dom.removeClass(this.element, 'empty');
+						this.tree.setInput(SuggestWidget.NO_SUGGESTIONS_MESSAGE).done(null, Errors.onUnexpectedError);
+						this.updateWidgetHeight();
+						this.show();
+					} else {
+						this.hide();
+					}
+				} else {
+					dom.addClass(this.element, 'empty');
+				}
+
+				if(timer) {
+					timer.data = { reason: 'empty'};
+					timer.stop();
+					timer = null;
+				}
+
+				return;
+			}
+
 			this.isLoading = false;
 
 			if(typeof loadingHandle !== 'undefined') {
@@ -442,7 +474,7 @@ export class SuggestWidget implements EditorBrowser.IContentWidget {
 			var suggestions = e.suggestions.completionItems;
 
 			var bestSuggestionIndex = -1;
-			var bestSuggestion = e.suggestions.completionItems[0];
+			var bestSuggestion = suggestions[0];
 			var bestScore = -1;
 
 			for (var i = 0, len = suggestions.length; i < len; i++) {
@@ -472,37 +504,7 @@ export class SuggestWidget implements EditorBrowser.IContentWidget {
 			}
 		}));
 
-		this.modelListenersToRemove.push(this.model.addListener('empty', (e: { auto:boolean; }) => {
-			var wasLoading = this.isLoading;
-			this.isLoading = false;
-
-			if(typeof loadingHandle !== 'undefined') {
-				clearTimeout(loadingHandle);
-			}
-
-			if (e.auto) {
-				this.hide();
-			} else if (wasLoading) {
-				if (this.shouldShowEmptySuggestionList) {
-					dom.removeClass(this.element, 'empty');
-					this.tree.setInput(SuggestWidget.NO_SUGGESTIONS_MESSAGE).done(null, Errors.onUnexpectedError);
-					this.updateWidgetHeight();
-					this.show();
-				} else {
-					this.hide();
-				}
-			} else {
-				dom.addClass(this.element, 'empty');
-			}
-
-			if(timer) {
-				timer.data = { reason: 'empty'};
-				timer.stop();
-				timer = null;
-			}
-		}));
-
-		this.modelListenersToRemove.push(this.model.addListener('cancel', (e:any) => {
+		this.modelListenersToRemove.push(this.model.onDidCancel(e => {
 			this.isLoading = false;
 
 			if (!e.retrigger) {
@@ -612,10 +614,7 @@ export class SuggestWidget implements EditorBrowser.IContentWidget {
 	}
 
 	private releaseModel() : void {
-		var listener:()=>void;
-		while (listener = this.modelListenersToRemove.pop()) {
-			listener();
-		}
+		this.modelListenersToRemove = disposeAll(this.modelListenersToRemove);
 		this.model = null;
 	}
 
