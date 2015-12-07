@@ -739,16 +739,26 @@ export class OneCursorOp {
 
 	public static expandLineSelection(cursor:OneCursor, ctx: IOneCursorOperationContext): boolean {
 		ctx.cursorPositionChangeReason = 'explicit';
-		var currentSelection = cursor.getSelection();
-		var lastColumn = cursor.getColumnAtEndOfViewLine(currentSelection.endLineNumber, currentSelection.endColumn);
-		var expandedSelection = new Selection(currentSelection.startLineNumber,1,currentSelection.endLineNumber,lastColumn);
-		if (currentSelection.equalsSelection(expandedSelection)){
-			lastColumn = cursor.getColumnAtEndOfViewLine(currentSelection.endLineNumber+1, currentSelection.endColumn+1);
-			expandedSelection = new Selection(currentSelection.startLineNumber,1,currentSelection.endLineNumber+1,lastColumn);
-			cursor.setSelection(expandedSelection);
+		let viewSel = cursor.getViewSelection();
+
+		let viewStartLineNumber = viewSel.startLineNumber;
+		let viewStartColumn = viewSel.startColumn;
+		let viewEndLineNumber = viewSel.endLineNumber;
+		let viewEndColumn = viewSel.endColumn;
+
+		let viewEndMaxColumn = cursor.getViewLineMaxColumn(viewEndLineNumber);
+		if (viewStartColumn !== 1 || viewEndColumn !== viewEndMaxColumn) {
+			viewStartColumn = 1;
+			viewEndColumn = viewEndMaxColumn;
 		} else {
-			cursor.setSelection(expandedSelection);
+			// Expand selection with one more line down
+			let moveResult = cursor.getViewPositionDown(viewEndLineNumber, viewEndColumn, 0, 1);
+			viewEndLineNumber = moveResult.lineNumber;
+			viewEndColumn = cursor.getViewLineMaxColumn(viewEndLineNumber);
 		}
+
+		cursor.moveViewPosition(false, viewStartLineNumber, viewStartColumn, 0, true);
+		cursor.moveViewPosition(true, viewEndLineNumber, viewEndColumn, 0, true);
 		return true;
 	}
 

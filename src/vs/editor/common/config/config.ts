@@ -198,8 +198,7 @@ registerCoreCommand(H.CursorEndSelect, {
 	mac: { primary: KeyMod.Shift | KeyCode.End, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.RightArrow] }
 });
 registerCoreCommand(H.ExpandLineSelection, {
-	primary: KeyMod.CtrlCmd | KeyCode.KEY_I,
-	mac: { primary: KeyMod.CtrlCmd | KeyCode.KEY_I}
+	primary: KeyMod.CtrlCmd | KeyCode.KEY_I
 });
 
 registerCoreCommand(H.Tab, {
