@@ -469,6 +469,7 @@
       <values>
         <value name="initial" version="3.0" browsers="all" />
         <value name="inherit" version="3.0" browsers="all" />
+        <value name="revert" version="4.0" browsers="none" />
         <value name="unset" version="3.0" browsers="all" />
       </values>
     </entry>
