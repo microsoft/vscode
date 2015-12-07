@@ -4331,7 +4331,7 @@
         <value name="text-top" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="elevation" restriction="angle" version="2.0" browsers="none" ref="http://www.w3.org/TR/2007/CR-CSS21-20070719/aural.html#propdef-azimuth" syntax="&lt;angle&gt; | below | level | above | higher | lower">
+    <entry name="elevation" restriction="angle" version="2.0" browsers="none" ref="https://drafts.csswg.org/css2/aural.html#propdef-elevation" syntax="h1 { $(name): above'; }">
       <desc>Sound spatial information</desc>
       <values>
         <value name="above" version="2.0" browsers="all">
