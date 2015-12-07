@@ -473,6 +473,12 @@
         <value name="unset" version="3.0" browsers="all" />
       </values>
     </entry>
+    <entry name="alt" restriction="string, enum" version="3.0" browsers="S9" ref="https://drafts.csswg.org/css-content-3/#propdef-alt" syntax="label::before { $(name): 'alt text'; }">
+      <desc>Provides alternative text for assistive technology to replace the genenerated content of a ::before or ::after element.</desc>
+      <values>
+        <value name="none" version="3.0" browsers="none" />
+      </values>
+    </entry>
     <entry name="animation" restriction="time, enum, identifier, number" version="3.0" browsers="E,C43,FF16,IE10,O12.1,S9" ref="http://www.w3.org/TR/css3-animations/#animation" syntax="div { $(name): movearound 4s ease 3 normal; }">
       <desc>Shorthand property combines six of the animation properties into a single property.</desc>
       <values>
