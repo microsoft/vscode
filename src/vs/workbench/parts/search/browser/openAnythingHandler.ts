@@ -12,6 +12,7 @@ import types = require('vs/base/common/types');
 import strings = require('vs/base/common/strings');
 import paths = require('vs/base/common/paths');
 import filters = require('vs/base/common/filters');
+import labels = require('vs/base/common/labels');
 import {IRange} from 'vs/editor/common/editorCommon';
 import {compareAnything} from 'vs/base/common/comparers';
 import {IAutoFocus} from 'vs/base/parts/quickopen/browser/quickOpen';
@@ -21,6 +22,7 @@ import {FileEntry, OpenFileHandler} from 'vs/workbench/parts/search/browser/open
 import {OpenSymbolHandler as _OpenSymbolHandler} from 'vs/workbench/parts/search/browser/openSymbolHandler';
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 
 // OpenSymbolHandler is used from an extension and must be in the main bundle file so it can load
 export const OpenSymbolHandler = _OpenSymbolHandler
@@ -43,6 +45,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 
 	constructor(
 		@IMessageService private messageService: IMessageService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		super();
@@ -238,6 +241,12 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 
 			// Check for file entries if range is used
 			if (range && !(entry instanceof FileEntry)) {
+				continue;
+			}
+
+			// Check if this entry is a match for the search value
+			let targetToMatch = searchValue.indexOf(paths.nativeSep) < 0 ? entry.getLabel() : labels.getPathLabel(entry.getResource(), this.contextService);
+			if (!filters.matchesFuzzy(searchValue, targetToMatch)) {
 				continue;
 			}
 

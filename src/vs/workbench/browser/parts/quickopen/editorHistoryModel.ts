@@ -219,7 +219,7 @@ export class EditorHistoryModel extends QuickOpenModel {
 				continue; //For now, only support to match on inputs that provide resource information
 			}
 
-			// Check if this entry is a match fo rthe search value
+			// Check if this entry is a match for the search value
 			let targetToMatch = searchValue.indexOf(paths.nativeSep) < 0 ? entry.getLabel() : labels.getPathLabel(entry.getResource(), this.contextService);
 			if (!filters.matchesFuzzy(searchValue, targetToMatch)) {
 				continue;
