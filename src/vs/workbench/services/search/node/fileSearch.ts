@@ -42,7 +42,12 @@ export class FileWalker {
 		this.includePattern = config.includePattern;
 		this.maxResults = config.maxResults || null;
 		this.walkedPaths = Object.create(null);
-		this.searchInPath = this.filePattern && this.filePattern.indexOf(paths.sep) >= 0;
+
+		// Normalize file patterns to forward slashs
+		if (this.filePattern.indexOf(paths.sep) >= 0) {
+			this.filePattern = strings.replaceAll(this.filePattern, '\\', '/');
+			this.searchInPath = true;
+		}
 	}
 
 	private resetState(): void {
