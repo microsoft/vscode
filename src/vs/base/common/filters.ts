@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Strings = require('vs/base/common/strings');
+import strings = require('vs/base/common/strings');
 
 export interface IFilter {
 	// Returns null if word doesn't match.
-	(word:string, wordToMatchAgainst:string):IMatch[];
+	(word: string, wordToMatchAgainst: string): IMatch[];
 }
 
 export interface IMatch {
-	start:number;
-	end:number;
+	start: number;
+	end: number;
 }
 
 // Combined filters
@@ -24,11 +24,11 @@ export interface IMatch {
  * matches defined the return value of the returned
  * filter.
  */
-export function or(...filter:IFilter[]):IFilter {
-	return function (word:string, wordToMatchAgainst:string):IMatch[] {
-		for(var i = 0, len = filter.length; i < len; i++) {
-			var match = filter[i](word, wordToMatchAgainst);
-			if(match) {
+export function or(...filter: IFilter[]): IFilter {
+	return function(word: string, wordToMatchAgainst: string): IMatch[] {
+		for (let i = 0, len = filter.length; i < len; i++) {
+			let match = filter[i](word, wordToMatchAgainst);
+			if (match) {
 				return match;
 			}
 		}
@@ -41,12 +41,12 @@ export function or(...filter:IFilter[]):IFilter {
  * of filters with an and. The combines matches are
  * returned if *all* filters match.
  */
-export function and(...filter:IFilter[]):IFilter {
-	return function (word:string, wordToMatchAgainst:string):IMatch[] {
-		var result:IMatch[] = [];
-		for(var i = 0, len = filter.length; i < len; i++) {
-			var match = filter[i](word, wordToMatchAgainst);
-			if(!match) {
+export function and(...filter: IFilter[]): IFilter {
+	return function(word: string, wordToMatchAgainst: string): IMatch[] {
+		let result: IMatch[] = [];
+		for (let i = 0, len = filter.length; i < len; i++) {
+			let match = filter[i](word, wordToMatchAgainst);
+			if (!match) {
 				return null;
 			}
 			result = result.concat(match);
@@ -57,10 +57,10 @@ export function and(...filter:IFilter[]):IFilter {
 
 // Prefix
 
-export var matchesStrictPrefix:IFilter = (word:string, wordToMatchAgainst:string):IMatch[] => { return _matchesPrefix(false, word, wordToMatchAgainst); };
-export var matchesPrefix:IFilter = (word:string, wordToMatchAgainst:string):IMatch[] => { return _matchesPrefix(true, word, wordToMatchAgainst); };
+export let matchesStrictPrefix: IFilter = (word: string, wordToMatchAgainst: string): IMatch[] => { return _matchesPrefix(false, word, wordToMatchAgainst); };
+export let matchesPrefix: IFilter = (word: string, wordToMatchAgainst: string): IMatch[] => { return _matchesPrefix(true, word, wordToMatchAgainst); };
 
-function _matchesPrefix(ignoreCase:boolean, word:string, wordToMatchAgainst:string):IMatch[] {
+function _matchesPrefix(ignoreCase: boolean, word: string, wordToMatchAgainst: string): IMatch[] {
 	if (wordToMatchAgainst.length === 0 || wordToMatchAgainst.length < word.length) {
 		return null;
 	}
@@ -68,7 +68,7 @@ function _matchesPrefix(ignoreCase:boolean, word:string, wordToMatchAgainst:stri
 		word = word.toLowerCase();
 		wordToMatchAgainst = wordToMatchAgainst.toLowerCase();
 	}
-	for (var i = 0; i < word.length; i++) {
+	for (let i = 0; i < word.length; i++) {
 		if (word[i] !== wordToMatchAgainst[i]) {
 			return null;
 		}
@@ -78,8 +78,8 @@ function _matchesPrefix(ignoreCase:boolean, word:string, wordToMatchAgainst:stri
 
 // Contiguous Substring
 
-export function matchesContiguousSubString(word:string, wordToMatchAgainst:string):IMatch[] {
-	var index = wordToMatchAgainst.toLowerCase().indexOf(word.toLowerCase());
+export function matchesContiguousSubString(word: string, wordToMatchAgainst: string): IMatch[] {
+	let index = wordToMatchAgainst.toLowerCase().indexOf(word.toLowerCase());
 
 	if (index === -1) {
 		return null;
@@ -90,18 +90,18 @@ export function matchesContiguousSubString(word:string, wordToMatchAgainst:strin
 
 // Substring
 
-export function matchesSubString(word:string, wordToMatchAgainst:string):IMatch[] {
+export function matchesSubString(word: string, wordToMatchAgainst: string): IMatch[] {
 	return _matchesSubString(word.toLowerCase(), wordToMatchAgainst.toLowerCase(), 0, 0);
 }
 
-function _matchesSubString(word:string, wordToMatchAgainst:string, i:number, j:number):IMatch[] {
+function _matchesSubString(word: string, wordToMatchAgainst: string, i: number, j: number): IMatch[] {
 	if (i === word.length) {
 		return [];
 	} else if (j === wordToMatchAgainst.length) {
 		return null;
 	} else {
 		if (word[i] === wordToMatchAgainst[j]) {
-			var result: IMatch[] = null;
+			let result: IMatch[] = null;
 			if (result = _matchesSubString(word, wordToMatchAgainst, i + 1, j + 1)) {
 				return join({ start: j, end: j + 1 }, result);
 			}
@@ -113,27 +113,27 @@ function _matchesSubString(word:string, wordToMatchAgainst:string, i:number, j:n
 
 // CamelCase
 
-function isLower(code:number):boolean {
+function isLower(code: number): boolean {
 	return 97 <= code && code <= 122;
 }
 
-function isUpper(code:number):boolean {
+function isUpper(code: number): boolean {
 	return 65 <= code && code <= 90;
 }
 
-function isNumber(code:number):boolean {
+function isNumber(code: number): boolean {
 	return 48 <= code && code <= 57;
 }
 
-function isWhitespace(code:number):boolean {
+function isWhitespace(code: number): boolean {
 	return [32, 9, 10, 13].indexOf(code) > -1;
 }
 
-function isAlphanumeric(code:number):boolean {
+function isAlphanumeric(code: number): boolean {
 	return isLower(code) || isUpper(code) || isNumber(code);
 }
 
-function join(head:IMatch, tail:IMatch[]):IMatch[] {
+function join(head: IMatch, tail: IMatch[]): IMatch[] {
 	if (tail.length === 0) {
 		tail = [head];
 	} else if (head.end === tail[0].start) {
@@ -145,16 +145,16 @@ function join(head:IMatch, tail:IMatch[]):IMatch[] {
 }
 
 function nextAnchor(camelCaseWord: string, start: number): number {
-	for (var i = start; i < camelCaseWord.length; i++) {
-		var c = camelCaseWord.charCodeAt(i);
-		if (isUpper(c) || isNumber(c) || (i>0 && !isAlphanumeric(camelCaseWord.charCodeAt(i-1)))) {
+	for (let i = start; i < camelCaseWord.length; i++) {
+		let c = camelCaseWord.charCodeAt(i);
+		if (isUpper(c) || isNumber(c) || (i > 0 && !isAlphanumeric(camelCaseWord.charCodeAt(i - 1)))) {
 			return i;
 		}
 	}
 	return camelCaseWord.length;
 }
 
-function _matchesCamelCase(word:string, camelCaseWord:string, i:number, j:number):IMatch[] {
+function _matchesCamelCase(word: string, camelCaseWord: string, i: number, j: number): IMatch[] {
 	if (i === word.length) {
 		return [];
 	} else if (j === camelCaseWord.length) {
@@ -162,8 +162,8 @@ function _matchesCamelCase(word:string, camelCaseWord:string, i:number, j:number
 	} else if (word[i] !== camelCaseWord[j].toLowerCase()) {
 		return null;
 	} else {
-		var result = null;
-		var nextUpperIndex = j + 1;
+		let result = null;
+		let nextUpperIndex = j + 1;
 		result = _matchesCamelCase(word, camelCaseWord, i + 1, j + 1);
 		while (!result && (nextUpperIndex = nextAnchor(camelCaseWord, nextUpperIndex)) < camelCaseWord.length) {
 			result = _matchesCamelCase(word, camelCaseWord, i + 1, nextUpperIndex);
@@ -180,9 +180,9 @@ function isCamelCaseWord(word: string): boolean {
 		return false;
 	}
 
-	var upper = 0, lower = 0, alpha = 0, code = 0;
+	let upper = 0, lower = 0, alpha = 0, code = 0;
 
-	for (var i = 0; i < word.length; i++) {
+	for (let i = 0; i < word.length; i++) {
 		code = word.charCodeAt(i);
 
 		isUpper(code) && upper++;
@@ -190,9 +190,9 @@ function isCamelCaseWord(word: string): boolean {
 		isAlphanumeric(code) && alpha++;
 	}
 
-	var upperPercent = upper / word.length;
-	var lowerPercent = lower / word.length;
-	var alphaPercent = alpha / word.length;
+	let upperPercent = upper / word.length;
+	let lowerPercent = lower / word.length;
+	let alphaPercent = alpha / word.length;
 
 	return lowerPercent > 0.2 && upperPercent < 0.8 && alphaPercent > 0.6;
 }
@@ -200,9 +200,9 @@ function isCamelCaseWord(word: string): boolean {
 // Heuristic to avoid computing camel case matcher for words that don't
 // look like camel case patterns.
 function isCamelCasePattern(word: string): boolean {
-	var upper = 0, lower = 0, code = 0, whitespace = 0;
+	let upper = 0, lower = 0, code = 0, whitespace = 0;
 
-	for (var i = 0; i < word.length; i++) {
+	for (let i = 0; i < word.length; i++) {
 		code = word.charCodeAt(i);
 
 		isUpper(code) && upper++;
@@ -217,7 +217,7 @@ function isCamelCasePattern(word: string): boolean {
 	}
 }
 
-export function matchesCamelCase(word:string, camelCaseWord:string):IMatch[] {
+export function matchesCamelCase(word: string, camelCaseWord: string): IMatch[] {
 	if (camelCaseWord.length === 0) {
 		return null;
 	}
@@ -230,8 +230,8 @@ export function matchesCamelCase(word:string, camelCaseWord:string):IMatch[] {
 		return null;
 	}
 
-	var result: IMatch[] = null;
-	var i = 0;
+	let result: IMatch[] = null;
+	let i = 0;
 
 	while (i < camelCaseWord.length && (result = _matchesCamelCase(word.toLowerCase(), camelCaseWord, 0, i)) === null) {
 		i = nextAnchor(camelCaseWord, i + 1);
@@ -242,23 +242,35 @@ export function matchesCamelCase(word:string, camelCaseWord:string):IMatch[] {
 
 // Fuzzy
 
-var fuzzyDefaultFilter = or(matchesPrefix, matchesCamelCase, matchesContiguousSubString);
-var fuzzyRegExpCache:{[key:string]:RegExp;} = {};
+export enum SubstringMatching {
+	Contiguous,
+	Separate
+}
 
-export function matchesFuzzy(word:string, wordToMatchAgainst:string):IMatch[] {
+const fuzzyContiguousFilter = or(matchesPrefix, matchesCamelCase, matchesContiguousSubString);
+const fuzzySeparateFilter = or(matchesPrefix, matchesCamelCase, matchesSubString);
+const fuzzyRegExpCache: { [key: string]: RegExp; } = {};
+
+let defaultFuzzyMatching = SubstringMatching.Contiguous;
+export function setDefaultFuzzyMatching(matcher: SubstringMatching): void {
+	defaultFuzzyMatching = matcher;
+}
+
+export function matchesFuzzy(word: string, wordToMatchAgainst: string, matcher = defaultFuzzyMatching): IMatch[] {
+
 	// Form RegExp for wildcard matches
-	var regexp = fuzzyRegExpCache[word];
+	let regexp = fuzzyRegExpCache[word];
 	if (!regexp) {
-		regexp = new RegExp(Strings.convertSimple2RegExpPattern(word), 'i');
+		regexp = new RegExp(strings.convertSimple2RegExpPattern(word), 'i');
 		fuzzyRegExpCache[word] = regexp;
 	}
 
 	// RegExp Filter
-	var match:RegExpExecArray = regexp.exec(wordToMatchAgainst);
+	let match: RegExpExecArray = regexp.exec(wordToMatchAgainst);
 	if (match) {
-		return [ { start: match.index , end: match.index + match[0].length } ];
+		return [{ start: match.index, end: match.index + match[0].length }];
 	}
 
 	// Default Filter
-	return fuzzyDefaultFilter(word, wordToMatchAgainst);
+	return matcher === SubstringMatching.Contiguous ? fuzzyContiguousFilter(word, wordToMatchAgainst) : fuzzySeparateFilter(word, wordToMatchAgainst);
 }

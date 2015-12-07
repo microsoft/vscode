@@ -45,7 +45,7 @@ suite('workspace-namespace', () => {
 		if (process.platform === 'win32') {
 			return done(); // TODO@Joh this test fails on windows
 		}
-		
+
 		workspace.openTextDocument(Uri.parse('untitled://' + join(workspace.rootPath, './newfile.txt'))).then(doc => {
 			assert.equal(doc.uri.scheme, 'untitled');
 			assert.ok(doc.isDirty);
@@ -53,28 +53,26 @@ suite('workspace-namespace', () => {
 		});
 	});
 
-	// test('openTextDocument, untitled closes on save', function(done) {
-	// 	workspace.openTextDocument(Uri.parse('untitled://' + join(workspace.rootPath, './newfile2.txt'))).then(doc => {
-	// 		assert.equal(doc.uri.scheme, 'untitled');
-	// 		assert.ok(doc.isDirty);
+	test('openTextDocument, untitled closes on save', function() {
+		const path = join(workspace.rootPath, './newfile.txt');
 
-	// 		let closed: TextDocument, opened: TextDocument;
-	// 		let d0 = workspace.onDidCloseTextDocument(e => closed = e);
-	// 		let d1 = workspace.onDidOpenTextDocument(e => opened = e);
+		return workspace.openTextDocument(Uri.parse('untitled://' + path)).then(doc => {
+			assert.equal(doc.uri.scheme, 'untitled');
+			assert.ok(doc.isDirty);
 
-	// 		function donedone() {
-	// 			assert.ok(closed === doc);
-	// 			assert.equal(opened.uri.scheme, 'file');
-	// 			assert.equal(opened.uri.toString(), 'file:///' + join(workspace.rootPath, './newfile2.txt'))
-	// 			d0.dispose();
-	// 			d1.dispose();
+			let closed: TextDocument;
+			let d0 = workspace.onDidCloseTextDocument(e => closed = e);
 
-	// 			deleteFile(opened.uri).then(done, done);
-	// 		}
+			return doc.save().then(() => {
+				assert.ok(closed === doc);
+				assert.ok(fs.existsSync(path));
 
-	// 		doc.save().then(donedone, done);
-	// 	});
-	// })
+				d0.dispose();
+
+				return deleteFile(Uri.file(join(workspace.rootPath, './newfile.txt')));
+			});
+		});
+	});
 
 	test('events: onDidOpenTextDocument, onDidChangeTextDocument, onDidSaveTextDocument', () => {
 		return createRandomFile().then(file => {

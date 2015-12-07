@@ -8,9 +8,13 @@ import WinJS = require('vs/base/common/winjs.base');
 import Types = require('vs/base/common/types');
 import URI from 'vs/base/common/uri';
 import Tree = require('vs/base/parts/tree/common/tree');
-import { IQuickNavigateConfiguration, IModel, IDataSource, IFilter, IRenderer, IRunner, Mode } from './quickOpen';
+import Filters = require('vs/base/common/filters');
+import Strings = require('vs/base/common/strings');
+import Paths = require('vs/base/common/paths');
+import {IQuickNavigateConfiguration, IModel, IDataSource, IFilter, IRenderer, IRunner, Mode} from './quickOpen';
 import ActionsRenderer = require('vs/base/parts/tree/browser/actionsRenderer');
 import Actions = require('vs/base/common/actions');
+import {compareAnything} from 'vs/base/common/comparers';
 import ActionBar = require('vs/base/browser/ui/actionbar/actionbar');
 import TreeDefaults = require('vs/base/parts/tree/browser/treeDefaults');
 import HighlightedLabel = require('vs/base/browser/ui/highlightedlabel/highlightedLabel');
@@ -45,6 +49,13 @@ export class QuickOpenEntry {
 	 */
 	public getId(): string {
 		return this.id;
+	}
+
+	/**
+	 * The prefix to show in front of the label if any
+	 */
+	public getPrefix(): string {
+		return null;
 	}
 
 	/**
@@ -121,6 +132,74 @@ export class QuickOpenEntry {
 	public run(mode: Mode, context: IContext): boolean {
 		return false;
 	}
+
+	/**
+	 * A good default sort implementation for quick open entries
+	 */
+	public static compare(elementA: QuickOpenEntry, elementB: QuickOpenEntry, lookFor: string): number {
+
+		// Normalize
+		if (lookFor) {
+			lookFor = Strings.stripWildcards(lookFor).toLowerCase();
+		}
+
+		// Give matches with label highlights higher priority over
+		// those with only description highlights
+		const labelHighlightsA = elementA.getHighlights()[0] || [];
+		const labelHighlightsB = elementB.getHighlights()[0] || [];
+		if (labelHighlightsA.length && !labelHighlightsB.length) {
+			return -1;
+		} else if (!labelHighlightsA.length && labelHighlightsB.length) {
+			return 1;
+		}
+
+		// Sort by name/path
+		let nameA = elementA.getLabel();
+		let nameB = elementB.getLabel();
+		if (nameA === nameB) {
+			let resourceA = elementA.getResource();
+			let resourceB = elementB.getResource();
+
+			if (resourceA && resourceB) {
+				nameA = elementA.getResource().fsPath;
+				nameB = elementB.getResource().fsPath;
+			}
+		}
+
+		return compareAnything(nameA, nameB, lookFor);
+	}
+
+	public static highlight(entry: QuickOpenEntry, lookFor: string): { labelHighlights: IHighlight[], descriptionHighlights: IHighlight[] } {
+		let labelHighlights: IHighlight[] = [];
+		let descriptionHighlights: IHighlight[] = [];
+
+		// Highlight file aware
+		if (entry.getResource()) {
+
+			// Highlight only inside label
+			if (lookFor.indexOf(Paths.nativeSep) < 0) {
+				labelHighlights = Filters.matchesFuzzy(lookFor, entry.getLabel());
+			}
+
+			// Highlight in label and description
+			else {
+				descriptionHighlights = Filters.matchesFuzzy(Strings.trim(lookFor, Paths.nativeSep), entry.getDescription());
+
+				// If we have no highlights, assume that the match is split among name and parent folder
+				if (!descriptionHighlights || !descriptionHighlights.length) {
+					labelHighlights = Filters.matchesFuzzy(Paths.basename(lookFor), entry.getLabel());
+					descriptionHighlights = Filters.matchesFuzzy(Strings.trim(Paths.dirname(lookFor), Paths.nativeSep), entry.getDescription());
+				}
+			}
+		}
+
+		// Highlight by label otherwise
+		else {
+			labelHighlights = Filters.matchesFuzzy(lookFor, entry.getLabel());
+		}
+
+		return { labelHighlights, descriptionHighlights };
+	}
 }
 
 export class QuickOpenEntryItem extends QuickOpenEntry {
@@ -173,6 +252,10 @@ export class QuickOpenEntryGroup extends QuickOpenEntry {
 
 	public setShowBorder(showBorder: boolean): void {
 		this.withBorder = showBorder;
+	}
+
+	public getPrefix(): string {
+		return this.entry ? this.entry.getPrefix() : super.getPrefix();
 	}
 
 	public getLabel(): string {
@@ -265,6 +348,7 @@ class NoActionProvider implements ActionsRenderer.IActionProvider {
 export interface IQuickOpenEntryTemplateData {
 	container: HTMLElement;
 	icon: HTMLSpanElement;
+	prefix: HTMLSpanElement;
 	label: HighlightedLabel.HighlightedLabel;
 	meta: HTMLSpanElement;
 	description: HighlightedLabel.HighlightedLabel;
@@ -346,6 +430,10 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 		let icon = document.createElement('span');
 		entry.appendChild(icon);
 
+		// Prefix
+		let prefix = document.createElement('span');
+		entry.appendChild(prefix);
+
 		// Label
 		let label = new HighlightedLabel.HighlightedLabel(entry);
 
@@ -363,6 +451,7 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 		return {
 			container: container,
 			icon: icon,
+			prefix: prefix,
 			label: label,
 			meta: meta,
 			description: description,
@@ -424,7 +513,10 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 			let iconClass = entry.getIcon() ? ('quick-open-entry-icon ' + entry.getIcon()) : '';
 			data.icon.className = iconClass;
 
-			// Label
+			// Prefix
+			let prefix = entry.getPrefix() || '';
+			data.prefix.textContent = prefix;
+
 			let labelHighlights = highlights[0];
 			data.label.set(entry.getLabel() || '', labelHighlights || []);
 

@@ -649,6 +649,45 @@ suite('Editor Controller - Cursor', () => {
 		cursorEqual(thisCursor, 5, LINE5.length + 1, 1, 1);
 	});
 
+	test('expandLineSelection', () => {
+		//              0          1         2
+		//              01234 56789012345678 0
+		// var LINE1 = '    \tMy First Line\t ';
+		moveTo(thisCursor, 1, 1);
+		cursorCommand(thisCursor, H.ExpandLineSelection);
+		cursorEqual(thisCursor, 1, LINE1.length + 1, 1, 1);
+
+		moveTo(thisCursor, 1, 2);
+		cursorCommand(thisCursor, H.ExpandLineSelection);
+		cursorEqual(thisCursor, 1, LINE1.length + 1, 1, 1);
+
+		moveTo(thisCursor, 1, 5);
+		cursorCommand(thisCursor, H.ExpandLineSelection);
+		cursorEqual(thisCursor, 1, LINE1.length + 1, 1, 1);
+
+		moveTo(thisCursor, 1, 19);
+		cursorCommand(thisCursor, H.ExpandLineSelection);
+		cursorEqual(thisCursor, 1, LINE1.length + 1, 1, 1);
+
+		moveTo(thisCursor, 1, 20);
+		cursorCommand(thisCursor, H.ExpandLineSelection);
+		cursorEqual(thisCursor, 1, LINE1.length + 1, 1, 1);
+
+		moveTo(thisCursor, 1, 21);
+		cursorCommand(thisCursor, H.ExpandLineSelection);
+		cursorEqual(thisCursor, 1, LINE1.length + 1, 1, 1);
+		cursorCommand(thisCursor, H.ExpandLineSelection);
+		cursorEqual(thisCursor, 2, LINE2.length + 1, 1, 1);
+		cursorCommand(thisCursor, H.ExpandLineSelection);
+		cursorEqual(thisCursor, 3, LINE3.length + 1, 1, 1);
+		cursorCommand(thisCursor, H.ExpandLineSelection);
+		cursorEqual(thisCursor, 4, LINE4.length + 1, 1, 1);
+		cursorCommand(thisCursor, H.ExpandLineSelection);
+		cursorEqual(thisCursor, 5, LINE5.length + 1, 1, 1);
+		cursorCommand(thisCursor, H.ExpandLineSelection);
+		cursorEqual(thisCursor, 5, LINE5.length + 1, 1, 1);
+	});
+
 	// --------- eventing
 
 	test('no move doesn\'t trigger event', () => {
