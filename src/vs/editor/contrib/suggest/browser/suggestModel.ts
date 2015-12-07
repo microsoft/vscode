@@ -21,10 +21,10 @@ import { CodeSnippet } from 'vs/editor/contrib/snippet/common/snippet';
 import { IDisposable, disposeAll } from 'vs/base/common/lifecycle';
 import { SuggestRegistry, ISuggestResult2, suggest } from '../common/suggest';
 
-enum SuggestState {
-	NOT_ACTIVE = 0,
-	MANUAL_TRIGGER = 1,
-	AUTO_TRIGGER = 2
+enum State {
+	Idle = 0,
+	Manual = 1,
+	Auto = 2
 }
 
 export interface SuggestDataEvent {
@@ -261,17 +261,21 @@ export interface ISuggestEvent {
 	auto: boolean;
 }
 
-export class SuggestModel {
+export interface IAcceptEvent {
+	snippet: CodeSnippet;
+	overwriteBefore: number;
+	overwriteAfter: number;
+}
 
-	private editor: EditorCommon.ICommonCodeEditor;
-	private onAccept:(snippet: CodeSnippet, overwriteBefore:number, overwriteAfter:number)=>void;
+
+export class SuggestModel implements IDisposable {
+
 	private toDispose: IDisposable[];
 	private autoSuggestDelay:number;
 
 	private triggerAutoSuggestPromise:TPromise<void>;
-	private state:SuggestState;
+	private state:State;
 
-	// Members which make sense when state is active
 	private requestPromise:TPromise<void>;
 	private requestContext:SuggestionContext;
 	private raw:RawModel;
@@ -285,41 +289,26 @@ export class SuggestModel {
 	private _onDidSuggest: Emitter<ISuggestEvent> = new Emitter();
 	public get onDidSuggest(): Event<ISuggestEvent> { return this._onDidSuggest.event; }
 
-	constructor(editor:EditorCommon.ICommonCodeEditor, onAccept:(snippet: CodeSnippet, overwriteBefore:number, overwriteAfter:number)=>void) {
-		this.editor = editor;
-		this.onAccept = onAccept;
-		this.toDispose = [];
+	// TODO@joao: remove
+	private _onDidAccept: Emitter<IAcceptEvent> = new Emitter();
+	public get onDidAccept(): Event<IAcceptEvent> { return this._onDidAccept.event; }
 
-		this.toDispose.push(this.editor.addListener2(EditorCommon.EventType.ConfigurationChanged, () => this.onEditorConfigurationChange()));
-		this.onEditorConfigurationChange();
-
+	constructor(private editor: EditorCommon.ICommonCodeEditor) {
+		this.state = State.Idle;
 		this.triggerAutoSuggestPromise = null;
-		this.state = SuggestState.NOT_ACTIVE;
-
 		this.requestPromise = null;
 		this.raw = null;
 		this.requestContext = null;
 
-		this.toDispose.push(this.editor.addListener2(EditorCommon.EventType.CursorSelectionChanged, (e: EditorCommon.ICursorSelectionChangedEvent) => {
-			if (!e.selection.isEmpty()) {
-				this.cancel();
-				return;
-			}
-
-			if (e.source !== 'keyboard' || e.reason !== '') {
-				this.cancel();
-				return;
-			}
-
-			this.onCursorChange();
-		}));
-		this.toDispose.push(this.editor.addListener2(EditorCommon.EventType.ModelChanged, (e) => {
-			this.cancel();
-		}));
+		this.toDispose = [];
+		this.toDispose.push(this.editor.addListener2(EditorCommon.EventType.ConfigurationChanged, () => this.onEditorConfigurationChange()));
+		this.toDispose.push(this.editor.addListener2(EditorCommon.EventType.CursorSelectionChanged, e => this.onCursorChange(e)));
+		this.toDispose.push(this.editor.addListener2(EditorCommon.EventType.ModelChanged, () => this.cancel()));
+		this.onEditorConfigurationChange();
 	}
 
 	public cancel(silent:boolean = false, retrigger:boolean = false):boolean {
-		var actuallyCanceled = (this.state !== SuggestState.NOT_ACTIVE);
+		var actuallyCanceled = this.state !== State.Idle;
 
 		if (this.triggerAutoSuggestPromise) {
 			this.triggerAutoSuggestPromise.cancel();
@@ -331,7 +320,7 @@ export class SuggestModel {
 			this.requestPromise = null;
 		}
 
-		this.state = SuggestState.NOT_ACTIVE;
+		this.state = State.Idle;
 		this.raw = null;
 		this.requestContext = null;
 
@@ -346,6 +335,7 @@ export class SuggestModel {
 		if(!this.requestContext) {
 			return null;
 		}
+
 		return {
 			lineNumber: this.requestContext.lineNumber,
 			column: this.requestContext.column
@@ -353,15 +343,25 @@ export class SuggestModel {
 	}
 
 	private isAutoSuggest():boolean {
-		return this.state === SuggestState.AUTO_TRIGGER;
+		return this.state === State.Auto;
 	}
 
-	private onCursorChange():void {
+	private onCursorChange(e: EditorCommon.ICursorSelectionChangedEvent):void {
+	if (!e.selection.isEmpty()) {
+			this.cancel();
+			return;
+		}
+
+		if (e.source !== 'keyboard' || e.reason !== '') {
+			this.cancel();
+			return;
+		}
+
 		if (!SuggestRegistry.has(this.editor.getModel())) {
 			return;
 		}
 
-		var isInactive = this.state === SuggestState.NOT_ACTIVE;
+		var isInactive = this.state === State.Idle;
 
 		if (isInactive && !this.editor.getConfiguration().quickSuggestions) {
 			return;
@@ -382,7 +382,7 @@ export class SuggestModel {
 			}
 
 		} else if (this.raw && this.raw.incomplete) {
-			this.trigger(this.state === SuggestState.AUTO_TRIGGER, undefined, true);
+			this.trigger(this.state === State.Auto, undefined, true);
 		} else {
 			this.onNewContext(ctx);
 		}
@@ -402,35 +402,27 @@ export class SuggestModel {
 			return;
 		}
 
-		var $tTrigger = timer.start(timer.Topic.EDITOR, 'suggest/TRIGGER');
-
 		// Cancel previous requests, change state & update UI
 		this.cancel(false, retrigger);
-		this.state = (auto || characterTriggered) ? SuggestState.AUTO_TRIGGER : SuggestState.MANUAL_TRIGGER;
+		this.state = (auto || characterTriggered) ? State.Auto : State.Manual;
 		this._onDidTrigger.fire({ auto: this.isAutoSuggest(), characterTriggered, retrigger });
 
 		// Capture context when request was sent
 		this.requestContext = ctx;
 
-		// Send mode request
-		var $tRequest = timer.start(timer.Topic.EDITOR, 'suggest/REQUEST');
 		var position = this.editor.getPosition();
-
 		let raw = new RawModel();
 		let rank = 0;
+
 		this.requestPromise = suggest(model, position, triggerCharacter, groups).then(all => {
 			for (let suggestions of all) {
 				if (raw.insertSuggestions(rank, suggestions)) {
 					rank++;
 				}
 			}
-		});
-
-		this.requestPromise.then(() => {
-			$tRequest.stop();
 			this.requestPromise = null;
 
-			if (this.state === SuggestState.NOT_ACTIVE) {
+			if (this.state === State.Idle) {
 				return;
 			}
 
@@ -447,15 +439,13 @@ export class SuggestModel {
 			} else {
 				this._onDidSuggest.fire({ suggestions: null, auto: this.isAutoSuggest() });
 			}
-		}, () => {
-			$tRequest.stop();
-		}).done(() => $tTrigger.stop());
+		}).then(null, onUnexpectedError);
 	}
 
 	private onNewContext(ctx:SuggestionContext):void {
 		if (this.requestContext && !this.requestContext.isValidForNewContext(ctx)) {
 			if (this.requestContext.isValidForRetrigger(ctx)) {
-				this.trigger(this.state === SuggestState.AUTO_TRIGGER, undefined, true);
+				this.trigger(this.state === State.Auto, undefined, true);
 			} else {
 				this.cancel();
 			}
@@ -491,7 +481,10 @@ export class SuggestModel {
 			: Math.max(0, parentSuggestions.overwriteAfter);
 
 		this.cancel();
-		this.onAccept(new CodeSnippet(item.suggestion.codeSnippet), overwriteBefore, overwriteAfter);
+		this._onDidAccept.fire({
+			snippet: new CodeSnippet(item.suggestion.codeSnippet),
+			overwriteBefore, overwriteAfter
+		});
 
 		return true;
 	}
@@ -504,7 +497,7 @@ export class SuggestModel {
 		}
 	}
 
-	public destroy():void {
+	public dispose():void {
 		this.cancel(true);
 		this.toDispose = disposeAll(this.toDispose);
 	}

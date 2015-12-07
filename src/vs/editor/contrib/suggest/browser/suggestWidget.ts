@@ -10,6 +10,7 @@ import nls = require('vs/nls');
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, disposeAll } from 'vs/base/common/lifecycle';
 import Errors = require('vs/base/common/errors');
+import Event, { Emitter } from 'vs/base/common/event';
 import dom = require('vs/base/browser/dom');
 import Tree = require('vs/base/parts/tree/common/tree');
 import TreeImpl = require('vs/base/parts/tree/browser/treeImpl');
@@ -138,12 +139,6 @@ interface ISuggestionTemplateData {
 
 class Renderer implements Tree.IRenderer {
 
-	private editor: EditorBrowser.ICodeEditor;
-
-	constructor(editor: EditorBrowser.ICodeEditor) {
-		this.editor = editor;
-	}
-
 	public getHeight(tree:Tree.ITree, element:any):number {
 		// var suggestion = <Modes.ISuggestion>element;
 
@@ -245,14 +240,13 @@ interface ITelemetryData {
 	wasAutomaticallyTriggered?: boolean;
 }
 
-export class SuggestWidget implements EditorBrowser.IContentWidget {
+export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable {
 	static ID = 'editor.widget.suggestWidget';
 	static WIDTH = 438;
 
 	static LOADING_MESSAGE = new MessageRoot(nls.localize('suggestWidget.loading', "Loading..."));
 	static NO_SUGGESTIONS_MESSAGE = new MessageRoot(nls.localize('suggestWidget.noSuggestions', "No suggestions."));
 
-	private editor: EditorBrowser.ICodeEditor;
 	private shouldShowEmptySuggestionList: boolean;
 	private isActive: boolean;
 	private isLoading: boolean;
@@ -273,21 +267,15 @@ export class SuggestWidget implements EditorBrowser.IContentWidget {
 	// Editor.IContentWidget.allowEditorOverflow
 	public allowEditorOverflow = true;
 
-	private _onShown: () => void;
-	private _onHidden: () => void;
+	private _onDidVisibilityChange: Emitter<boolean> = new Emitter();
+	public get onDidVisibilityChange(): Event<boolean> { return this._onDidVisibilityChange.event; }
 
 	constructor(
-		editor: EditorBrowser.ICodeEditor,
+		private editor: EditorBrowser.ICodeEditor,
 		private model: SuggestModel,
-		telemetryService:ITelemetryService,
-		keybindingService:IKeybindingService,
-		onShown: () => void,
-		onHidden: () => void
+		@IKeybindingService keybindingService: IKeybindingService,
+		@ITelemetryService telemetryService: ITelemetryService
 	) {
-		this.editor = editor;
-		this._onShown = onShown;
-		this._onHidden = onHidden;
-
 		this.isActive = false;
 		this.isLoading = false;
 		this.isAuto = false;
@@ -324,14 +312,12 @@ export class SuggestWidget implements EditorBrowser.IContentWidget {
 			dom.addClass(this.element, 'no-icons');
 		}
 
-		var dataSource = new DataSource();
-		this.renderer = new Renderer(this.editor);
+		this.renderer = new Renderer();
+		const dataSource = new DataSource();
+		const controller = new Controller();
+		const configuration = { renderer: this.renderer, dataSource, controller };
 
-		this.tree = new TreeImpl.Tree(this.element, {
-			dataSource: dataSource,
-			renderer: this.renderer,
-			controller: new Controller()
-		}, {
+		this.tree = new TreeImpl.Tree(this.element, configuration, {
 			twistiePixels: 0,
 			alwaysFocused: true,
 			verticalScrollMode: 'visible',
@@ -612,7 +598,7 @@ export class SuggestWidget implements EditorBrowser.IContentWidget {
 	}
 
 	public show(): void {
-		this._onShown();
+		this._onDidVisibilityChange.fire(true);
 		this.isActive = true;
 		this.tree.layout();
 		this.editor.layoutContentWidget(this);
@@ -626,8 +612,7 @@ export class SuggestWidget implements EditorBrowser.IContentWidget {
 	}
 
 	public hide(): void {
-		this._onHidden();
-
+		this._onDidVisibilityChange.fire(false);
 		this.isActive = false;
 		dom.removeClass(this.element, 'visible');
 		this.editor.layoutContentWidget(this);
@@ -679,7 +664,7 @@ export class SuggestWidget implements EditorBrowser.IContentWidget {
 		this.editor.layoutContentWidget(this);
 	}
 
-	public destroy() : void {
+	public dispose() : void {
 		this.modelListenersToRemove = disposeAll(this.modelListenersToRemove);
 		this.model = null;
 		this.tree.dispose();
