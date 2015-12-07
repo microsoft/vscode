@@ -438,6 +438,21 @@
         <value name="stretch" version="3.0" browsers="all" />
       </values>
     </entry>
+    <entry name="alignment-baseline" restriction="enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-inline/#propdef-alignment-baseline" syntax="img { $(name): middle; }">
+      <desc>Specifies what point of an inline-level box is aligned to what point in the parent.</desc>
+      <values>
+        <value name="alphabetic" version="3.0" browsers="all" />
+        <value name="baseline" version="3.0" browsers="all" />
+        <value name="bottom" version="3.0" browsers="all" />
+        <value name="center" version="3.0" browsers="all" />
+        <value name="central" version="3.0" browsers="all" />
+        <value name="mathematical" version="3.0" browsers="all" />
+        <value name="middle" version="3.0" browsers="all" />
+        <value name="text-bottom" version="3.0" browsers="all" />
+        <value name="text-top" version="3.0" browsers="all" />
+        <value name="top" version="3.0" browsers="all" />
+      </values>
+    </entry>
     <entry name="align-self" restriction="enum" version="3.0" browsers="E,C29,FF22,IE11,O12.1,S9" ref="http://www.w3.org/TR/css3-flexbox/#align-items" syntax="p { $(name): flex-start; }">
       <desc>Flex items can be aligned in the cross axis of the current line of the flex container, similar to 'justify-content' but in the perpendicular direction.</desc>
       <values>
