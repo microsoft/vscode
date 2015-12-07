@@ -4234,7 +4234,7 @@
       <desc>Describes the vertical center coordinate of the position of the element.</desc>
     </entry>
     <entry name="direction" restriction="enum" version="2.0" browsers="all" ref="http://www.w3.org/TR/css-writing-modes-3/#direction" syntax="div { $(name): rtl; }">
-      <desc>Specifies the base directionality of text and elements on a line, and the directionality of embeddings and overrides for the Unicode bidirectional algorithm.</desc>
+      <desc>Specifies the inline base direction or directionality of any bidi paragraph, embedding, isolate, or override established by the box. Note: for HTML content use the 'dir' attribute and 'bdo' element rather than this property.</desc>
       <values>
         <value name="ltr" version="2.0" browsers="all">
           <desc>Left-to-right direction.</desc>
