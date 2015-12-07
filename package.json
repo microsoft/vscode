@@ -55,7 +55,7 @@
     "gulp-rename": "^1.2.0",
     "gulp-sourcemaps": "^1.6.0",
     "gulp-symdest": "^1.0.0",
-    "gulp-tsb": "1.7.*",
+    "gulp-tsb": "~1.7.3",
     "gulp-uglify": "^1.4.1",
     "gulp-util": "^3.0.6",
     "gulp-vinyl-zip": "^1.1.0",
