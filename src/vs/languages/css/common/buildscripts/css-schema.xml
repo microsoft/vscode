@@ -3051,6 +3051,29 @@
         </value>
       </values>
     </entry>
+    <entry name="box-snap" restriction="enum" version="3.0" browsers="none" ref="https://drafts.csswg.org/css-line-grid-1/#propdef-box-snap" syntax="div { $(name): center; }">
+      <desc>Specifies how the block is snapped to the baseline grid.</desc>
+      <values>
+        <value name="none" version="3.0" browsers="all">
+          <desc>The block is not snapped to any grid.</desc>
+        </value>
+        <value name="block-start" version="3.0" browsers="all">
+          <desc>The block-start edge is snapped to the nearest grid line.</desc>
+        </value>
+        <value name="block-end" version="3.0" browsers="all">
+          <desc>The block-end edge is snapped to the nearest grid line.</desc>
+        </value>
+        <value name="center" version="3.0" browsers="all">
+          <desc>The block is centered centered between one of the baseline grid’s text-over baselines and a subsequent (but not necessarily consecutive) text-under baseline.</desc>
+        </value>
+        <value name="baseline" version="3.0" browsers="all">
+          <desc>The first line box’s dominant baseline is snapped to the nearest grid line.</desc>
+        </value>
+        <value name="last-baseline" version="3.0" browsers="all">
+          <desc>The last line box’s dominant baseline is snapped to the nearest grid line.</desc>
+        </value>
+      </values>
+    </entry>
     <entry name="break-after" restriction="enum" version="3.0" browsers="E,IE10,O11.5" ref="http://www.w3.org/TR/css3-break/#break-between" syntax="h2 { $(name): column; }">
       <desc>Describes the page/column break behavior before the generated box.</desc>
       <values>
