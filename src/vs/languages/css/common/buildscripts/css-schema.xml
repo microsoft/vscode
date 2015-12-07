@@ -4227,6 +4227,12 @@
         </value>
       </values>
     </entry>
+    <entry name="cx" restriction="length, percentage" version="2.0" browsers="none" ref="https://svgwg.org/svg2-draft/geometry.html#CxProperty" syntax="circle { $(name): 10%; }">
+      <desc>Describes the horizontal center coordinate of the position of the element.</desc>
+    </entry>
+    <entry name="cy" restriction="length, percentage" version="2.0" browsers="none" ref="https://svgwg.org/svg2-draft/geometry.html#CyProperty" syntax="circle { $(name): 10%; }">
+      <desc>Describes the vertical center coordinate of the position of the element.</desc>
+    </entry>
     <entry name="direction" restriction="enum" version="2.0" browsers="all" ref="http://www.w3.org/TR/css-writing-modes-3/#direction" syntax="div { $(name): rtl; }">
       <desc>Specifies the base directionality of text and elements on a line, and the directionality of embeddings and overrides for the Unicode bidirectional algorithm.</desc>
       <values>
