@@ -5165,7 +5165,7 @@
       </values>
     </entry>
     <entry name="font-size-adjust" restriction="number" version="3.0" browsers="E,FF3,IE10" ref="http://www.w3.org/TR/css3-fonts/#font-size-adjust" syntax="div { $(name): 0.58; }">
-      <desc>This property is a way to preserve the readability of text when font fallback occurs. It does this by adjusting the font-size so that the x-height is the same irregardless of the font used.</desc>
+      <desc>Preserves the readability of text when font fallback occurs by adjusting the font-size so that the x-height is the same irregardless of the font used.</desc>
       <values>
         <value name="none" version="3.0" browsers="all">
           <desc>Do not preserve the font's x-height.</desc>
