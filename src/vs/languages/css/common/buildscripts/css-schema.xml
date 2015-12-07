@@ -644,7 +644,7 @@
         </value>
       </values>
     </entry>
-    <entry name="azimuth" restriction="angle" version="2.0" browsers="none" ref="http://www.w3.org/TR/2007/CR-CSS21-20070719/aural.html#propdef-azimuth" syntax="&lt;angle&gt; | [[ left-side | far-left | left | center-left | center | center-right | right | far-right | right-side ] || behind ] | leftwards | rightwards">
+    <entry name="azimuth" restriction="angle" version="2.0" browsers="none" ref="http://www.w3.org/TR/CSS2/aural.html#propdef-azimuth" syntax="&lt;angle&gt; | [[ left-side | far-left | left | center-left | center | center-right | right | far-right | right-side ] || behind ] | leftwards | rightwards">
       <desc>Sound spatial information</desc>
       <values>
         <value name="behind" version="2.0" browsers="all" />
