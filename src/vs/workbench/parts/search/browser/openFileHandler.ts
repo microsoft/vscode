@@ -14,7 +14,6 @@ import URI from 'vs/base/common/uri';
 import {IRange} from 'vs/editor/common/editorCommon';
 import {IAutoFocus} from 'vs/base/parts/quickopen/browser/quickOpen';
 import {QuickOpenEntry, QuickOpenModel, IHighlight} from 'vs/base/parts/quickopen/browser/quickOpenModel';
-import filters = require('vs/base/common/filters');
 import comparers = require('vs/base/common/comparers');
 import {QuickOpenHandler, EditorQuickOpenEntry} from 'vs/workbench/browser/quickopen';
 import {QueryBuilder} from 'vs/workbench/parts/search/common/searchQuery';

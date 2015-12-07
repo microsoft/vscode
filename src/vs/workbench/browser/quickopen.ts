@@ -334,7 +334,7 @@ export abstract class CommandQuickOpenHandler extends QuickOpenHandler {
 
 	private getCommands(input: string): TPromise<QuickOpenEntry[]> {
 		var entries: QuickOpenEntry[] = this.commands
-			.map(c => ({ command: c.command, highlights: filters.matchesContiguousSubString(input, c.command.aliases[0]) }))
+			.map(c => ({ command: c.command, highlights: filters.matchesFuzzy(input, c.command.aliases[0]) }))
 			.filter(({ command, highlights }) => !!highlights || command.aliases.some(a => input === a))
 			.map(({ command, highlights }) => new CommandEntry(this.quickOpenService, this.prefix, command, highlights));
 
