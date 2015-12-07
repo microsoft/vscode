@@ -3501,6 +3501,13 @@
         <value name="yellowgreen" version="3.0" browsers="all" />
       </values>
     </entry>
+    <entry name="color-adjust" restriction="enum" version="4.0" browsers="none" ref="https://drafts.csswg.org/css-color-4/#propdef-color-adjust" syntax="image { $(name): exact; }">
+      <desc>Provides a hint to the user-agent about how it should treat color and style choices that might be expensive or generally unwise on a given device.</desc>
+      <values>
+        <value name="economy" version="4.0" browsers="all" />
+        <value name="exact" version="4.0" browsers="all" />
+      </values>
+    </entry>
     <entry name="color-interpolation" restriction="enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/SVG11/painting.html#ColorInterpolationProperty">
       <desc>Specifies the color space for gradient interpolations, color animations and alpha compositing.</desc>
       <values>
@@ -3509,7 +3516,7 @@
         <value name="sRGB" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="color-interpolation-filters" restriction="enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/SVG11/painting.html#ColorInterpolationFiltersProperty">
+    <entry name="color-interpolation-filters" restriction="enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/filter-effects/#ColorInterpolationFiltersProperty">
       <desc>Specifies the color space for imaging operations performed via filter effects.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all" />
