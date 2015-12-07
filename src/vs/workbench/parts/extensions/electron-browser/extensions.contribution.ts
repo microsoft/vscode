@@ -8,14 +8,14 @@ import toolbar = require('vs/base/browser/ui/toolbar/toolbar');
 import actionbar = require('vs/base/browser/ui/actionbar/actionbar');
 import platform = require('vs/platform/platform');
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { IPluginService } from 'vs/platform/plugins/common/plugins';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import actionbarregistry = require('vs/workbench/browser/actionBarRegistry');
-import { ExtensionsStatusbarItem } from 'vs/workbench/parts/extensions/electron-browser/extensionsWidgets';
 import { IGalleryService } from 'vs/workbench/parts/extensions/common/extensions';
-import { GlobalExtensionsAction } from './extensionsActions';
+import { GlobalExtensionsAction, GlobalExtensionsActionItem } from './extensionsActions';
 import { GalleryService } from 'vs/workbench/parts/extensions/node/vsoGalleryService';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { ExtensionsWorkbenchExtension } from 'vs/workbench/parts/extensions/electron-browser/extensionsWorkbenchExtension';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 // Register Gallery Service
 registerSingleton(IGalleryService, GalleryService);
@@ -28,12 +28,13 @@ registerSingleton(IGalleryService, GalleryService);
 class GlobalExtensionsActionContributor extends actionbarregistry.ActionBarContributor {
 
 	constructor(
-		@IInstantiationService private instantiationService:IInstantiationService
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IPluginService private pluginService: IPluginService
 	) {
 		super();
 	}
 
-	public hasActions(context:any):boolean {
+	public hasActions(context:any): boolean {
 		return context === toolbar.CONTEXT;
 	}
 
@@ -43,13 +44,13 @@ class GlobalExtensionsActionContributor extends actionbarregistry.ActionBarContr
 		];
 	}
 
-	// public getActionItem(context: any, action: actions.Action): actionbar.BaseActionItem {
-	// 	if (action.id === GlobalExtensionsAction.ID) {
-	// 		return this.instantiationService.createInstance(GlobalExtensionsActionItem, action);
-	// 	}
+	public getActionItem(context: any, action: actions.Action): actionbar.BaseActionItem {
+		if (action.id === GlobalExtensionsAction.ID) {
+			return new GlobalExtensionsActionItem(this.pluginService, action);
+		}
 
-	// 	return null;
-	// }
+		return null;
+	}
 }
 
 // Register Global Extensions Action

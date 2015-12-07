@@ -4,8 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import nls = require('vs/nls');
+import Severity from 'vs/base/common/severity';
 import { Promise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
+import { IPluginService, IPluginStatus } from 'vs/platform/plugins/common/plugins';
+import { NumberBadge } from 'vs/workbench/services/activity/common/activityService';
 import { ActivityActionItem } from 'vs/workbench/browser/parts/activityBar/activityAction';
 import { IExtensionsService } from 'vs/workbench/parts/extensions/common/extensions';
 import { IQuickOpenService } from 'vs/workbench/services/quickopen/browser/quickOpenService';
@@ -98,5 +101,32 @@ export class GlobalExtensionsAction extends Action {
 
 	protected isEnabled(): boolean {
 		return true;
+	}
+}
+
+export class GlobalExtensionsActionItem extends ActivityActionItem {
+	private status: { [id: string]: IPluginStatus };
+	private severity: Severity;
+	private messageCount: number;
+
+	constructor(
+		private pluginService: IPluginService,
+		action: Action
+	) {
+		super(action);
+		this.severity = Severity.Ignore;
+		this.messageCount = 0;
+
+		this.pluginService.onReady().then(() => {
+			this.status = this.pluginService.getPluginsStatus();
+			Object.keys(this.status).forEach(key => {
+				this.severity = this.status[key].messages.reduce((maxSeverity, message) => Math.max(maxSeverity, message.type), this.severity);
+				this.messageCount += this.status[key].messages.length;
+			});
+
+			if (this.severity > Severity.Info) {
+				this.setBadge(new NumberBadge(this.messageCount, () => nls.localize('extensionsMessages', "There are extensions messages")));
+			}
+		});
 	}
 }
