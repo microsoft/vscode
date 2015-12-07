@@ -1111,6 +1111,20 @@
         <value name="-webkit-repeating-radial-gradient()" version="3.0" browsers="C,S5.1" />
       </values>
     </entry>
+    <entry name="background-image-transform" restriction="enum" version="3.0" browsers="none" ref="https://drafts.csswg.org/css-logical-props-1/#propdef-background-image-transform" syntax="div { $(name): logical; }">
+      <desc>Defines whether background images are transformed to match to the value of 'writing-mode' property, and whether 'background-size' widths and heights are logical or physical.</desc>
+      <values>
+        <value name="logical" version="3.0" browsers="all">
+          <desc>The values for the 'background-size' property are logical. The background images are transformed to match to the logical axis.</desc>
+        </value>
+        <value name="physical" version="3.0" browsers="all">
+          <desc>The values for the 'background-size' property are physical. The background images remain unchanged.</desc>
+        </value>
+        <value name="rotate" version="3.0" browsers="all">
+          <desc>Similar to logical, except that the inline direction is ignored.</desc>
+        </value>
+      </values>
+    </entry>
     <entry name="background-origin" restriction="enum" version="3.0" browsers="E,C,FF4,IE9,O10.5,S3" ref="http://www.w3.org/TR/css3-background/#the-background-origin" syntax="header { $(name): border-box; }">
       <desc>For elements rendered as a single box, specifies the background positioning area. For elements rendered as multiple boxes (e.g., inline boxes on several lines, boxes on several pages) specifies which boxes 'box-decoration-break' operates on to determine the background positioning area(s).</desc>
       <values>
