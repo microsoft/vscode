@@ -4733,7 +4733,7 @@
         </value>
       </values>
     </entry>
-    <entry name="float" restriction="enum" version="1.0" browsers="all" ref="http://www.w3.org/TR/2006/WD-CSS21-20060411/visuren.html#propdef-float" syntax="img { $(name): right; }">
+    <entry name="float" restriction="enum" version="1.0" browsers="all" ref="http://www.w3.org/TR/CSS21/visuren.html#propdef-float" syntax="img { $(name): right; }">
       <desc>Specifies how a box should be floated. It may be set for any element, but only applies to elements that generate boxes that are not absolutely positioned.</desc>
       <values>
         <value name="left" version="1.0" browsers="all">
