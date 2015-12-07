@@ -5173,7 +5173,7 @@
       </values>
     </entry>
     <entry name="font-stretch" restriction="enum" version="3.0" browsers="E,FF9,IE9" ref="http://www.w3.org/TR/css3-fonts/#font-stretch0" syntax="div { $(name): expanded; }">
-      <desc>The font-stretch property is used to expand or contract the horizontal width of the font. The change is relative to the normal width of the font as displayed by the browser.</desc>
+      <desc>Selects a normal, condensed, or expanded face from a font family.</desc>
       <values>
         <value name="condensed" version="3.0" browsers="all" />
         <value name="expanded" version="3.0" browsers="all" />
