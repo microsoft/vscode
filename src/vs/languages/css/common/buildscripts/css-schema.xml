@@ -3925,6 +3925,16 @@
         </value>
       </values>
     </entry>
+    <entry name="contain" restriction="enum" version="3.0" browsers="none" ref="https://drafts.csswg.org/css-containment-3/#propdef-contain" syntax="div { $(name): strict; }">
+      <desc>Indicates that an element and its contents are, as much as possible, independent of the rest of the document tree.</desc>
+      <values>
+        <value name="none" version="3.0" browsers="all" />
+        <value name="strict" version="3.0" browsers="all" />
+        <value name="layout" version="3.0" browsers="all" />
+        <value name="style" version="3.0" browsers="all" />
+        <value name="paint" version="3.0" browsers="all" />
+      </values>
+    </entry>
     <entry name="content" restriction="string, url" version="2.0" browsers="E,C,FF1,IE8,O4,S1" ref="http://www.w3.org/TR/css3-content/#content" syntax="a:after { $(name): ' ( attr(href))';}">
       <desc>Determines which page-based occurrence of a given element is applied to a counter or string value.</desc>
       <values>
