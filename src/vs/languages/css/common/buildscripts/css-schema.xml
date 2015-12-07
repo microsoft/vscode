@@ -4672,55 +4672,6 @@
         </value>
       </values>
     </entry>
-    <entry name="fit" restriction="enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css3-page/#fit" syntax="Comma-separated list of 'fit' keywords where 'fit' = fill | hidden | meet | slice">
-      <desc>Gives a hint for how to scale a replaced element if neither its 'width' nor its 'height' property is 'auto'.</desc>
-      <values>
-        <value name="fill" version="3.0" browsers="all">
-          <desc>Scale the object's height and width independently so that the content just touches all edges of the containing box.</desc>
-        </value>
-        <value name="hidden" version="3.0" browsers="all">
-          <desc>Do not scale the object.</desc>
-        </value>
-        <value name="meet" version="3.0" browsers="all">
-          <desc>Make the object as large as possible with its width &lt;= 'width' and height &lt;= 'height', while preserving its aspect ratio. Position the object as for the 'hidden' value.</desc>
-        </value>
-        <value name="slice" version="3.0" browsers="all">
-          <desc>Make the object as small as possible with its width &gt;= 'width' and height &gt;= 'height', while preserving its aspect ratio. Position the object as for the 'hidden' value.</desc>
-        </value>
-      </values>
-    </entry>
-    <entry name="fit-position" restriction="percentage, length" version="3.0" browsers="none" ref="http://www.w3.org/TR/css3-page/#fit" syntax="[ [&lt;percentage&gt; | &lt;length&gt; ]{1,2} | [ [top | center | bottom] || [left | center | right] ] ] | auto">
-      <desc>Gives a hint for how to scale a replaced element if neither its 'width' nor its 'height' property is 'auto'.</desc>
-      <values>
-        <value name="bottom" version="3.0" browsers="all">
-          <desc>Equivalent to '100%' for the vertical position if one or two values are given, otherwise specifies the bottom edge as the origin for the next offset.</desc>
-        </value>
-        <value name="center" version="3.0" browsers="all">
-          <desc>Equivalent to '50%' ('left 50%') for the horizontal position if the horizontal position is not otherwise specified, or '50%' ('top 50%') for the vertical position if it is.</desc>
-        </value>
-        <value name="fill" version="3.0" browsers="all">
-          <desc>Scale the object's height and width independently so that the content just touches all edges of the containing box.</desc>
-        </value>
-        <value name="hidden" version="3.0" browsers="all">
-          <desc>Do not scale the object.</desc>
-        </value>
-        <value name="left" version="3.0" browsers="all">
-          <desc>Equivalent to '0%' for the horizontal position if one or two values are given, otherwise specifies the left edge as the origin for the next offset.</desc>
-        </value>
-        <value name="meet" version="3.0" browsers="all">
-          <desc>Make the object as large as possible with its width &lt;= 'width' and height &lt;= 'height', while preserving its aspect ratio. Position the object as for the 'hidden' value.</desc>
-        </value>
-        <value name="right" version="3.0" browsers="all">
-          <desc>Equivalent to '100%' for the horizontal position if one or two values are given, otherwise specifies the right edge as the origin for the next offset.</desc>
-        </value>
-        <value name="slice" version="3.0" browsers="all">
-          <desc>Make the object as small as possible with its width &gt;= 'width' and height &gt;= 'height', while preserving its aspect ratio. Position the object as for the 'hidden' value.</desc>
-        </value>
-        <value name="top" version="3.0" browsers="all">
-          <desc>Equivalent to '0%' for the vertical position if one or two values are given, otherwise specifies the top edge as the origin for the next offset.</desc>
-        </value>
-      </values>
-    </entry>
     <entry name="flex" restriction="length, number, percentage" version="3.0" browsers="E,C29,FF22,IE11,O12.1,S9" ref="http://www.w3.org/TR/css3-flexbox/#flex" syntax="p { $(name): 0 1 auto; }">
       <desc>Specifies the components of a flexible length: the flex grow factor and flex shrink factor, and the flex basis.</desc>
       <values>
