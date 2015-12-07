@@ -35,16 +35,18 @@ interface $ProjectPerf {
 	projects: number;
 }
 
+const defaultExcludeSegments: string[] = [
+	'/.git/',
+	'/node_modules/',
+	'/bower_components/',
+	'/jspm_packages/',
+	'/tmp/',
+	'/temp/',
+]
+
 class ProjectFileEventListener {
 
-	private static _ignores = [
-		paths.normalize('/node_modules/', true),
-		paths.normalize('/.git/', true),
-		paths.normalize('/bower_components/', true),
-		paths.normalize('/jspm_packages/', true),
-		paths.normalize('/tmp/', true),
-		paths.normalize('/temp/', true),
-	];
+	private static _ignores = defaultExcludeSegments.map(s => paths.normalize(s, true));
 
 	private _excludes: string[];
 	private _includes: string[];
@@ -106,6 +108,9 @@ class VirtualProjectFileEventListener extends ProjectFileEventListener {
 }
 
 class ProjectResolver implements typescript.IProjectResolver2 {
+
+	private static _defaultExcludePattern = `{${defaultExcludeSegments.map(s => `**${s}**`).join(',')}}`;
+	private static _defaultExcludePatternForVirtualProject = `{**/lib*.d.ts,${defaultExcludeSegments.map(s => `**${s}**`).join(',')}}`;
 
 	private _fileService: Files.IFileService;
 	private _searchService: ISearchService;
@@ -292,12 +297,13 @@ class ProjectResolver implements typescript.IProjectResolver2 {
 		includePattern[globPattern] = true;
 
 		let excludePattern: glob.IExpression = Object.create(null);
-		excludePattern['{**/node_modules/**,**/.git/**,**/bower_components/**,**/jspm_packages/**,**/tmp/**,**/temp/**}'] = true;
+		excludePattern[ProjectResolver._defaultExcludePattern] = true;
 
 		// add custom exclude patterns
 		if(Array.isArray(excludes)) {
-			for(let exclude of excludes) {
-				excludePattern[`/${exclude}/**`] = true;
+			for (let exclude of excludes) {
+				exclude = exclude.replace(/^[\\\/]/, '').replace(/[\\\/]$/, '');
+				excludePattern[`${exclude}/**`] = true;
 			}
 		}
 
@@ -433,12 +439,15 @@ class ProjectResolver implements typescript.IProjectResolver2 {
 		this._projectFileEventListener[typescript.virtualProjectResource.toString()] =
 			new VirtualProjectFileEventListener(undefined, undefined, undefined);
 
+		let excludePattern: glob.IExpression = Object.create(null);
+		excludePattern[ProjectResolver._defaultExcludePatternForVirtualProject] = true;
+
 		return this._searchService.search({
 			rootResources: [this._workspace],
 			type: QueryType.File,
 			maxResults: 50,
 			includePattern: { '**/*.d.ts': true },
-			excludePattern: { '{**/lib*.d.ts,**/node_modules/**,**/.git/**,**/bower_components/**,**/tmp/**,**/temp/**}': true },
+			excludePattern
 		}).then(result => {
 
 			let files: URI[] = [];
