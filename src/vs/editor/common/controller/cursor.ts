@@ -966,6 +966,8 @@ export class Cursor extends EventEmitter {
 		handlersMap[H.DeleteAllRight] =				(ctx:IMultipleCursorOperationContext) => this._deleteAllRight(ctx);
 		handlersMap[H.Cut] =						(ctx:IMultipleCursorOperationContext) => this._cut(ctx);
 
+		handlersMap[H.ExpandLineSelection] =		(ctx:IMultipleCursorOperationContext) => this._expandLineSelection(ctx);
+
 		handlersMap[H.Undo] =						(ctx:IMultipleCursorOperationContext) => this._undo(ctx);
 		handlersMap[H.CursorUndo] =					(ctx:IMultipleCursorOperationContext) => this._cursorUndo(ctx);
 		handlersMap[H.Redo] =						(ctx:IMultipleCursorOperationContext) => this._redo(ctx);
@@ -1185,6 +1187,10 @@ export class Cursor extends EventEmitter {
 		ctx.shouldRevealHorizontal = false;
 
 		return true;
+	}
+
+	private _expandLineSelection(ctx: IMultipleCursorOperationContext): boolean {
+		return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.expandLineSelection(oneCursor, oneCtx));
 	}
 
 	private _lineInsertBefore(ctx: IMultipleCursorOperationContext): boolean {
