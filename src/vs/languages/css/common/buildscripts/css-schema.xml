@@ -2913,7 +2913,7 @@
         <value name="thin" version="1.0" browsers="all" />
       </values>
     </entry>
-    <entry name="bottom" restriction="length, percentage" version="2.0" browsers="all" ref="http://www.w3.org/TR/CSS2/visuren.html#propdef-bottom" syntax="article { $(name): 50px; }">
+    <entry name="bottom" restriction="length, percentage" version="2.0" browsers="all" ref="http://www.w3.org/TR/css3-positioning/#propdef-bottom" syntax="article { $(name): 50px; }">
       <desc>Specifies how far an absolutely positioned box's bottom margin edge is offset above the bottom edge of the box's 'containing block'.</desc>
       <values>
         <value name="auto" version="2.0" browsers="all">
@@ -5496,7 +5496,7 @@
         </value>
       </values>
     </entry>
-    <entry name="left" restriction="length, percentage" version="2.0" browsers="all" ref="http://www.w3.org/TR/CSS2/visuren.html#propdef-left" syntax="article { $(name): 50px; }">
+    <entry name="left" restriction="length, percentage" version="2.0" browsers="all" ref="http://www.w3.org/TR/css3-positioning/#propdef-left" syntax="article { $(name): 50px; }">
       <desc>Specifies how far an absolutely positioned box's left margin edge is offset to the right of the left edge of the box's 'containing block'.</desc>
       <values>
         <value name="auto" version="2.0" browsers="all">
@@ -12379,7 +12379,7 @@
     <entry name="richness" restriction="number(0-100)" version="2.0" browsers="none" ref="http://www.w3.org/TR/CSS2/aural.html#propdef-richness" syntax="A value between '0' and '100'. The higher the value, the more the voice will carry. A lower value will produce a soft, mellifluous voice.">
       <desc>Specifies the richness, or brightness, of the speaking voice. A rich voice will 'carry' in a large room, a smooth voice will not.</desc>
     </entry>
-    <entry name="right" restriction="length, percentage" version="2.0" browsers="all" ref="http://www.w3.org/TR/CSS2/visuren.html#propdef-right" syntax="article { $(name): 50px; }">
+    <entry name="right" restriction="length, percentage" version="2.0" browsers="all" ref="http://www.w3.org/TR/css3-positioning/#propdef-right" syntax="article { $(name): 50px; }">
       <desc>Specifies how far an absolutely positioned box's right margin edge is offset to the left of the right edge of the box's 'containing block'.</desc>
       <values>
         <value name="auto" version="2.0" browsers="all">
@@ -16055,7 +16055,7 @@
         </value>
       </values>
     </entry>
-    <entry name="top" restriction="length, percentage" version="2.0" browsers="all" ref="http://www.w3.org/TR/CSS2/visuren.html#propdef-top" syntax="article { $(name): 50px; }">
+    <entry name="top" restriction="length, percentage" version="2.0" browsers="all" ref="http://www.w3.org/TR/css3-positioning/#propdef-top" syntax="article { $(name): 50px; }">
       <desc>Specifies how far an absolutely positioned box's top margin edge is offset below the top edge of the box's 'containing block'.</desc>
       <values>
         <value name="auto" version="2.0" browsers="all">
