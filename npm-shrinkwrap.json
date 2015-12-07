@@ -421,9 +421,9 @@
       "resolved": "https://registry.npmjs.org/vscode-textmate/-/vscode-textmate-1.0.9.tgz",
       "dependencies": {
         "alexandrudima-oniguruma": {
-          "version": "6.0.0",
+          "version": "6.0.1",
           "from": "alexandrudima-oniguruma@>=6.0.0 <7.0.0",
-          "resolved": "https://registry.npmjs.org/alexandrudima-oniguruma/-/alexandrudima-oniguruma-6.0.0.tgz",
+          "resolved": "https://registry.npmjs.org/alexandrudima-oniguruma/-/alexandrudima-oniguruma-6.0.1.tgz",
           "dependencies": {
             "nan": {
               "version": "2.0.9",
