@@ -6,6 +6,7 @@
 import nls = require('vs/nls');
 import { Promise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
+import { ActivityActionItem } from 'vs/workbench/browser/parts/activityBar/activityAction';
 import { IExtensionsService } from 'vs/workbench/parts/extensions/common/extensions';
 import { IQuickOpenService } from 'vs/workbench/services/quickopen/browser/quickOpenService';
 
@@ -71,6 +72,28 @@ export class ListOutdatedExtensionsAction extends Action {
 
 	public run(): Promise {
 		return this.quickOpenService.show('ext update ');
+	}
+
+	protected isEnabled(): boolean {
+		return true;
+	}
+}
+
+export class GlobalExtensionsAction extends Action {
+	static ID = 'workbench.extensions.action.globalExtensions';
+	static LABEL = nls.localize('extensions', "Extensions");
+
+	constructor(
+		id: string,
+		label: string,
+		@IExtensionsService private extensionsService: IExtensionsService,
+		@IQuickOpenService private quickOpenService: IQuickOpenService
+	) {
+		super(id, label, 'extensions', true);
+	}
+
+	public run(): Promise {
+		return this.quickOpenService.show('ext install ');
 	}
 
 	protected isEnabled(): boolean {
