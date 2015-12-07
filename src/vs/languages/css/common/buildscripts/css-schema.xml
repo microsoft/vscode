@@ -4319,6 +4319,18 @@
         <value name="-webkit-inline-flex" version="1.0" browsers="C21,O15,S6.1" />
       </values>
     </entry>
+    <entry name="dominant-baseline" restriction="enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-inline/#propdef-dominant-baseline" syntax="span { $(name): alphabetic; }">
+      <desc>Specifies the dominant baseline, which is the baseline used to align the box’s text and inline-level contents.</desc>
+      <values>
+        <value name="auto" version="3.0" browsers="all" />
+        <value name="text-bottom" version="3.0" browsers="all" />
+        <value name="alphabetic" version="3.0" browsers="all" />
+        <value name="central" version="3.0" browsers="all" />
+        <value name="mathematical" version="3.0" browsers="all" />
+        <value name="hanging" version="3.0" browsers="all" />
+        <value name="text-top" version="3.0" browsers="all" />
+      </values>
+    </entry>
     <entry name="elevation" restriction="angle" version="2.0" browsers="none" ref="http://www.w3.org/TR/2007/CR-CSS21-20070719/aural.html#propdef-azimuth" syntax="&lt;angle&gt; | below | level | above | higher | lower">
       <desc>Sound spatial information</desc>
       <values>
