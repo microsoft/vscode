@@ -12278,21 +12278,21 @@
         <value name="visibleStroke" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="position" restriction="enum" version="2.0" browsers="all" ref="http://www.w3.org/TR/CSS2/visuren.html#propdef-position" syntax="div { $(name): absolute; }">
+    <entry name="position" restriction="enum" version="2.0" browsers="all" ref="http://www.w3.org/TR/css3-positioning/#propdef-position" syntax="div { $(name): absolute; }">
       <values>
         <value name="absolute" version="2.0" browsers="all">
           <desc>The box's position (and possibly size) is specified with the 'top', 'right', 'bottom', and 'left' properties. These properties specify offsets with respect to the box's 'containing block'.</desc>
         </value>
-        <value name="center" version="2.0" browsers="all">
+        <value name="center" version="3.0" browsers="none">
           <desc>Center positioned boxes are taken out of the normal flow. This means they have no impact on the layout of later siblings.</desc>
         </value>
         <value name="fixed" version="2.0" browsers="all">
           <desc>The box's position is calculated according to the 'absolute' model, but in addition, the box is fixed with respect to some reference. As with the 'absolute' model, the box's margins do not collapse with any other margins.</desc>
         </value>
-        <value name="-ms-page" version="3.0" browsers="IE10">
+        <value name="-ms-page" version="3.0" browsers="E,IE10">
           <desc>The box's position is calculated according to the 'absolute' model.</desc>
         </value>
-        <value name="page" version="2.0" browsers="all">
+        <value name="page" version="3.0" browsers="none">
           <desc>The box's position is calculated according to the 'absolute' model.</desc>
         </value>
         <value name="relative" version="2.0" browsers="all">
@@ -12301,7 +12301,7 @@
         <value name="static" version="2.0" browsers="all">
           <desc>The box is a normal box, laid out according to the normal flow. The 'top', 'right', 'bottom', and 'left' properties do not apply.</desc>
         </value>
-        <value name="sticky" version="2.0" browsers="all">
+        <value name="sticky" version="3.0" browsers="FF32">
           <desc>The box's position is calculated according to the normal flow. Then the box is offset relative to its flow root and containing block and in all cases, including table elements, does not affect the position of any following boxes.</desc>
         </value>
         <value name="-webkit-sticky" version="2.0" browsers="C" />
