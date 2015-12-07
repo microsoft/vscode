@@ -737,6 +737,31 @@ export class OneCursorOp {
 		return true;
 	}
 
+	public static expandLineSelection(cursor:OneCursor, ctx: IOneCursorOperationContext): boolean {
+		ctx.cursorPositionChangeReason = 'explicit';
+		let viewSel = cursor.getViewSelection();
+
+		let viewStartLineNumber = viewSel.startLineNumber;
+		let viewStartColumn = viewSel.startColumn;
+		let viewEndLineNumber = viewSel.endLineNumber;
+		let viewEndColumn = viewSel.endColumn;
+
+		let viewEndMaxColumn = cursor.getViewLineMaxColumn(viewEndLineNumber);
+		if (viewStartColumn !== 1 || viewEndColumn !== viewEndMaxColumn) {
+			viewStartColumn = 1;
+			viewEndColumn = viewEndMaxColumn;
+		} else {
+			// Expand selection with one more line down
+			let moveResult = cursor.getViewPositionDown(viewEndLineNumber, viewEndColumn, 0, 1);
+			viewEndLineNumber = moveResult.lineNumber;
+			viewEndColumn = cursor.getViewLineMaxColumn(viewEndLineNumber);
+		}
+
+		cursor.moveViewPosition(false, viewStartLineNumber, viewStartColumn, 0, true);
+		cursor.moveViewPosition(true, viewEndLineNumber, viewEndColumn, 0, true);
+		return true;
+	}
+
 	public static moveToBeginningOfBuffer(cursor:OneCursor, inSelectionMode: boolean, ctx: IOneCursorOperationContext): boolean {
 		ctx.cursorPositionChangeReason = 'explicit';
 		cursor.moveModelPosition(inSelectionMode, 1, 1, 0, true);

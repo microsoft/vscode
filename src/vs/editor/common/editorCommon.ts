@@ -3283,6 +3283,8 @@ export var Handler = {
 	CursorEnd:					'cursorEnd',
 	CursorEndSelect:			'cursorEndSelect',
 
+	ExpandLineSelection:		'expandLineSelection',
+
 	CursorTop:					'cursorTop',
 	CursorTopSelect:			'cursorTopSelect',
 	CursorBottom:				'cursorBottom',

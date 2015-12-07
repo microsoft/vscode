@@ -12,11 +12,11 @@ import {PluginHostFileSystemEventService} from 'vs/workbench/api/common/pluginHo
 import {PluginHostModelService, setWordDefinitionFor} from 'vs/workbench/api/common/pluginHostDocuments';
 import {PluginHostConfiguration} from 'vs/workbench/api/common/pluginHostConfiguration';
 import {PluginHostDiagnostics} from 'vs/workbench/api/common/pluginHostDiagnostics';
-import {PluginHostWorkspace} from 'vs/workbench/api/browser/pluginHostWorkspace';
+import {PluginHostWorkspace} from 'vs/workbench/api/common/pluginHostWorkspace';
 import {PluginHostQuickOpen} from 'vs/workbench/api/browser/pluginHostQuickOpen';
 import {PluginHostStatusBar} from 'vs/workbench/api/browser/pluginHostStatusBar';
 import {PluginHostCommands} from 'vs/workbench/api/common/pluginHostCommands';
-import {ExtHostOutputService} from 'vs/workbench/api/browser/extHostOutputService';
+import {ExtHostOutputService} from 'vs/workbench/api/common/extHostOutputService';
 import {PluginHostMessageService} from 'vs/workbench/api/common/pluginHostMessageService';
 import {PluginHostTelemetryService} from 'vs/workbench/api/common/pluginHostTelemetry';
 import {PluginHostEditors} from 'vs/workbench/api/common/pluginHostEditors';

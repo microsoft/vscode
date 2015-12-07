@@ -48,7 +48,6 @@ define([
 	'vs/workbench/parts/git/browser/gitQuickOpen',
 	'vs/workbench/parts/git/browser/gitActions.contribution',
 
-	'vs/workbench/parts/debug/browser/debug.contribution',
 	'vs/workbench/parts/debug/electron-browser/debug.contribution',
 
 	'vs/workbench/parts/extensions/electron-browser/extensions.contribution',

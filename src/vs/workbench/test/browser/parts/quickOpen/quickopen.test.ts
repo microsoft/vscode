@@ -43,7 +43,7 @@ suite('Workbench QuickOpen', () => {
 		let model = new EditorHistoryModel(editorService, null, contextService);
 
 		let input1 = inst.createInstance(StringEditorInput, "name1", 'description', "value1", "text/plain", false);
-		let entry1 = new EditorHistoryEntry(editorService, contextService, input1, null, model);
+		let entry1 = new EditorHistoryEntry(editorService, contextService, input1, null, null, model);
 
 		assert.equal(input1.getName(), entry1.getLabel());
 		assert.equal(input1.getDescription(), entry1.getDescription());
@@ -63,7 +63,7 @@ suite('Workbench QuickOpen', () => {
 
 		let input2 = inst.createInstance(StringEditorInput, "name2", 'description', "value2", "text/plain", false);
 		(<any>input2).getResource = () => "path";
-		let entry2 = new EditorHistoryEntry(editorService, contextService, input2, null, model);
+		let entry2 = new EditorHistoryEntry(editorService, contextService, input2, null, null, model);
 		assert.equal(entry2.getResource(), "path");
 
 		assert(!entry1.matches(entry2.getInput()));

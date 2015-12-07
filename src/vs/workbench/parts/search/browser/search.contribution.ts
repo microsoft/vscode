@@ -140,9 +140,30 @@ actionBarRegistry.registerActionBarContributor(Scope.VIEWER, ExplorerViewerActio
 		'vs/workbench/parts/search/browser/openAnythingHandler',
 		'OpenAnythingHandler',
 		'',
-		env.isMacintosh ? nls.localize('openAnythingHandlerDescriptionMac', "Open Files and Symbols by Name") : nls.localize('openAnythingHandlerDescriptionWin', "Open Files and Symbols by Name")
+		nls.localize('openAnythingHandlerDescription', "Open Files and Symbols by Name")
 	)
 );
+
+(<IQuickOpenRegistry>Registry.as(QuickOpenExtensions.Quickopen)).registerQuickOpenHandler(
+	new QuickOpenHandlerDescriptor(
+		'vs/workbench/parts/search/browser/openAnythingHandler',
+		'OpenSymbolHandler',
+		ALL_SYMBOLS_PREFIX,
+		[
+			{
+				prefix: ALL_SYMBOLS_PREFIX,
+				needsEditor: false,
+				description: nls.localize('openSymbolDescriptionNormal', "Open Symbol By Name")
+			}
+		]
+	)
+);
+
+// Actions
+const registry = <IWorkbenchActionRegistry>Registry.as(ActionExtensions.WorkbenchActions);
+registry.registerWorkbenchAction(new SyncActionDescriptor(ShowAllSymbolsAction, ACTION_ID, ACTION_LABEL, {
+	primary: KeyMod.CtrlCmd | KeyCode.KEY_T
+}));
 
 // Configuration
 const configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigurationExtensions.Configuration);
@@ -179,23 +200,3 @@ configurationRegistry.registerConfiguration({
 		}
 	}
 });
-
-const registry = <IWorkbenchActionRegistry>Registry.as(ActionExtensions.WorkbenchActions);
-registry.registerWorkbenchAction(new SyncActionDescriptor(ShowAllSymbolsAction, ACTION_ID, ACTION_LABEL, {
-	primary: KeyMod.CtrlCmd | KeyCode.KEY_T
-}));
-
-(<IQuickOpenRegistry>Registry.as(QuickOpenExtensions.Quickopen)).registerQuickOpenHandler(
-	new QuickOpenHandlerDescriptor(
-		'vs/workbench/parts/search/browser/openAnythingHandler',
-		'OpenSymbolHandler',
-		ALL_SYMBOLS_PREFIX,
-		[
-			{
-				prefix: ALL_SYMBOLS_PREFIX,
-				needsEditor: false,
-				description: env.isMacintosh ? nls.localize('openSymbolDescriptionNormalMac', "Open Symbol By Name") : nls.localize('openSymbolDescriptionNormalWin', "Open Symbol By Name")
-			}
-		]
-	)
-);

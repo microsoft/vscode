@@ -21,7 +21,6 @@ import remote = require('remote');
 import IDebugService = debug.IDebugService;
 
 var clipboard = remote.require('clipboard');
-
 var registry = <wbaregistry.IWorkbenchActionRegistry> platform.Registry.as(wbaregistry.Extensions.WorkbenchActions);
 
 export class AbstractDebugAction extends actions.Action {

@@ -23,7 +23,7 @@ import viewlet = require('vs/workbench/browser/viewlet');
 import debug = require('vs/workbench/parts/debug/common/debug');
 import model = require('vs/workbench/parts/debug/common/debugModel');
 import viewer = require('vs/workbench/parts/debug/browser/debugViewer');
-import dbgactions = require('vs/workbench/parts/debug/browser/debugActions');
+import dbgactions = require('vs/workbench/parts/debug/electron-browser/debugActions');
 import dbgactionitems = require('vs/workbench/parts/debug/browser/debugActionItems');
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';

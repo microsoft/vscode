@@ -93,6 +93,8 @@ export function createDiagnosticClassifier(options: Options): DiagnosticClassifi
 	map[2403] = Severity.fromValue(options.validate.lint.redeclaredVariables);
 	map[2304] = Severity.fromValue(options.validate.lint.undeclaredVariables);
 	map[2339] = Severity.fromValue(options.validate.lint.unknownProperty);
+	map[2459] = Severity.fromValue(options.validate.lint.unknownProperty);
+	map[2460] = Severity.fromValue(options.validate.lint.unknownProperty);
 	map[2306] = Severity.fromValue(options.validate.lint.unknownModule);
 	map[2307] = Severity.fromValue(options.validate.lint.unknownModule);
 	map[2322] = Severity.fromValue(options.validate.lint.forcedTypeConversion);
