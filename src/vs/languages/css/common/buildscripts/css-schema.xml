@@ -1939,6 +1939,20 @@
         <value name="url()" version="3.0" browsers="all" />
       </values>
     </entry>
+    <entry name="border-image-transform" restriction="enum" version="3.0" browsers="none" ref="https://drafts.csswg.org/css-logical-props-1/#propdef-border-image-transform" syntax="div { $(name): logical; }">
+      <desc>Defines whether border images are transformed to match to the value of 'writing-mode' property.</desc>
+      <values>
+        <value name="logical" version="3.0" browsers="all">
+          <desc>The values for the 'border-image' properties are logical. The border images are transformed to match to the logical axis.</desc>
+        </value>
+        <value name="physical" version="3.0" browsers="all">
+          <desc>The values for the 'border-image' properties are physical. The border images remain unchanged.</desc>
+        </value>
+        <value name="rotate" version="3.0" browsers="all">
+          <desc>Similar to logical, except that the inline direction is ignored.</desc>
+        </value>
+      </values>
+    </entry>
     <entry name="border-image-width" restriction="length, percentage, number" version="3.0" browsers="E,C16,FF15,IE11,O15,S6" ref="http://www.w3.org/TR/css3-background/#border-image-slice" syntax=".album { $(name): 4px; }">
       <desc>The four values of 'border-image-width' specify offsets that are used to divide the border image area into nine parts. They represent inward distances from the top, right, bottom, and left sides of the area, respectively.</desc>
       <values>
