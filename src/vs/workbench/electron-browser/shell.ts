@@ -62,11 +62,11 @@ import {MainThreadStatusBar} from 'vs/workbench/api/browser/pluginHostStatusBar'
 import {MainThreadCommands} from 'vs/workbench/api/common/pluginHostCommands';
 import {RemoteTelemetryServiceHelper} from 'vs/platform/telemetry/common/abstractRemoteTelemetryService';
 import {MainThreadDiagnostics} from 'vs/workbench/api/common/pluginHostDiagnostics';
-import {MainThreadOutputService} from 'vs/workbench/api/browser/extHostOutputService';
+import {MainThreadOutputService} from 'vs/workbench/api/common/extHostOutputService';
 import {MainThreadMessageService} from 'vs/workbench/api/common/pluginHostMessageService';
 import {MainThreadLanguages} from 'vs/workbench/api/common/extHostLanguages';
 import {MainThreadEditors} from 'vs/workbench/api/common/pluginHostEditors';
-import {MainThreadWorkspace} from 'vs/workbench/api/browser/pluginHostWorkspace';
+import {MainThreadWorkspace} from 'vs/workbench/api/common/pluginHostWorkspace';
 import {MainThreadConfiguration} from 'vs/workbench/api/common/pluginHostConfiguration';
 import {MainThreadLanguageFeatures} from 'vs/workbench/api/common/extHostLanguageFeatures';
 import {EventService} from 'vs/platform/event/common/eventService';

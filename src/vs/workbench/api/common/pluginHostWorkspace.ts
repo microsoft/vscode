@@ -13,7 +13,7 @@ import {IEventService} from 'vs/platform/event/common/event';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {ITextFileService, ITextFileOperationResult} from 'vs/workbench/parts/files/common/files';
 import {Uri, FileSystemWatcher} from 'vscode';
-import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
+import {ICommonCodeEditor} from 'vs/editor/common/editorCommon';
 import {bulkEdit, IResourceEdit} from 'vs/editor/common/services/bulkEdit';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {fromRange} from 'vs/workbench/api/common/pluginHostTypeConverters';
@@ -126,10 +126,10 @@ export class MainThreadWorkspace {
 
 	applyWorkspaceEdit(edits: IResourceEdit[]): TPromise<boolean> {
 
-		let codeEditor: ICodeEditor;
+		let codeEditor: ICommonCodeEditor;
 		let editor = this._editorService.getActiveEditor();
 		if (editor) {
-			let candidate = <ICodeEditor> editor.getControl();
+			let candidate = <ICommonCodeEditor> editor.getControl();
 			if (typeof candidate.getEditorType === 'function') {
 				// enough proof
 				codeEditor = candidate;
