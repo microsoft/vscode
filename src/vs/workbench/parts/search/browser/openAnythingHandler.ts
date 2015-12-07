@@ -211,14 +211,17 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 	}
 
 	public getResultsFromCache(searchValue: string, range: IRange = null): QuickOpenEntry[] {
-		if (searchValue.indexOf(paths.nativeSep) >= 0) {
-			return null; // TODO@Ben implement caching for path search
-		}
 
 		// Find cache entries by prefix of search value
 		let cachedEntries: QuickOpenEntry[];
 		for (let previousSearch in this.resultsToSearchCache) {
+
+			// If we narrow down, we might be able to reuse the cached results
 			if (searchValue.indexOf(previousSearch) === 0) {
+				if (searchValue.indexOf(paths.nativeSep) >= 0 && previousSearch.indexOf(paths.nativeSep) < 0) {
+					continue; // since a path character widens the search for potential more matches, require it in previous search too
+				}
+
 				cachedEntries = this.resultsToSearchCache[previousSearch];
 				break;
 			}
@@ -239,11 +242,9 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 			}
 
 			// Check for pattern match
-			let highlights = filters.matchesFuzzy(searchValue, entry.getLabel());
-			if (highlights) {
-				entry.setHighlights(highlights);
-				results.push(entry);
-			}
+			let {labelHighlights, descriptionHighlights} = QuickOpenEntry.highlight(entry, searchValue);
+			entry.setHighlights(labelHighlights, descriptionHighlights);
+			results.push(entry);
 		}
 
 		// Sort

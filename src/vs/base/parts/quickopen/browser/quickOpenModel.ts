@@ -8,6 +8,9 @@ import WinJS = require('vs/base/common/winjs.base');
 import Types = require('vs/base/common/types');
 import URI from 'vs/base/common/uri';
 import Tree = require('vs/base/parts/tree/common/tree');
+import Filters = require('vs/base/common/filters');
+import Strings = require('vs/base/common/strings');
+import Paths = require('vs/base/common/paths');
 import {IQuickNavigateConfiguration, IModel, IDataSource, IFilter, IRenderer, IRunner, Mode} from './quickOpen';
 import ActionsRenderer = require('vs/base/parts/tree/browser/actionsRenderer');
 import Actions = require('vs/base/common/actions');
@@ -161,6 +164,38 @@ export class QuickOpenEntry {
 		}
 
 		return compareAnything(nameA, nameB, lookFor);
+	}
+
+	public static highlight(entry: QuickOpenEntry, lookFor: string): { labelHighlights: IHighlight[], descriptionHighlights: IHighlight[] } {
+		let labelHighlights: IHighlight[] = [];
+		let descriptionHighlights: IHighlight[] = [];
+
+		// Highlight file aware
+		if (entry.getResource()) {
+
+			// Highlight only inside label
+			if (lookFor.indexOf(Paths.nativeSep) < 0) {
+				labelHighlights = Filters.matchesFuzzy(lookFor, entry.getLabel());
+			}
+
+			// Highlight in label and description
+			else {
+				descriptionHighlights = Filters.matchesFuzzy(Strings.trim(lookFor, Paths.nativeSep), entry.getDescription());
+
+				// If we have no highlights, assume that the match is split among name and parent folder
+				if (!descriptionHighlights || !descriptionHighlights.length) {
+					labelHighlights = Filters.matchesFuzzy(Paths.basename(lookFor), entry.getLabel());
+					descriptionHighlights = Filters.matchesFuzzy(Strings.trim(Paths.dirname(lookFor), Paths.nativeSep), entry.getDescription());
+				}
+			}
+		}
+
+		// Highlight by label otherwise
+		else {
+			labelHighlights = Filters.matchesFuzzy(lookFor, entry.getLabel());
+		}
+
+		return { labelHighlights, descriptionHighlights };
 	}
 }
 

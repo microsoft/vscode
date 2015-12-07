@@ -37,8 +37,6 @@ export class FileEntry extends EditorQuickOpenEntry {
 		name: string,
 		description: string,
 		resource: URI,
-		labelHighlights: IHighlight[],
-		descriptionHighlights: IHighlight[],
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService
@@ -48,7 +46,6 @@ export class FileEntry extends EditorQuickOpenEntry {
 		this.resource = resource;
 		this.name = name;
 		this.description = description;
-		this.setHighlights(labelHighlights, descriptionHighlights);
 	}
 
 	public getLabel(): string {
@@ -149,26 +146,11 @@ export class OpenFileHandler extends QuickOpenHandler {
 				let label = paths.basename(fileMatch.resource.fsPath);
 				let description = labels.getPathLabel(paths.dirname(fileMatch.resource.fsPath), this.contextService);
 
-				let labelHighlights: IHighlight[] = [];
-				let descriptionHighlights: IHighlight[] = [];
+				let entry = this.instantiationService.createInstance(FileEntry, label, description, fileMatch.resource);
+				let {labelHighlights, descriptionHighlights} = QuickOpenEntry.highlight(entry, searchValue);
+				entry.setHighlights(labelHighlights, descriptionHighlights);
 
-				// Search inside filename
-				if (searchValue.indexOf(paths.nativeSep) < 0) {
-					labelHighlights = filters.matchesFuzzy(searchValue, label);
-				}
-
-				// Search in full path
-				else {
-					descriptionHighlights = filters.matchesFuzzy(strings.trim(searchValue, paths.nativeSep), description);
-
-					// If we have no highlights, assume that the match is split among name and parent folder
-					if (!descriptionHighlights || !descriptionHighlights.length) {
-						labelHighlights = filters.matchesFuzzy(paths.basename(searchValue), label);
-						descriptionHighlights = filters.matchesFuzzy(strings.trim(paths.dirname(searchValue), paths.nativeSep), description);
-					}
-				}
-
-				results.push(this.instantiationService.createInstance(FileEntry, label, description, fileMatch.resource, labelHighlights, descriptionHighlights));
+				results.push(entry);
 			}
 
 			// Sort (standalone only)

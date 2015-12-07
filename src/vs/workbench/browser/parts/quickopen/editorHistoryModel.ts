@@ -10,6 +10,7 @@ import strings = require('vs/base/common/strings');
 import types = require('vs/base/common/types');
 import paths = require('vs/base/common/paths');
 import URI from 'vs/base/common/uri';
+import labels = require('vs/base/common/labels');
 import {EventType} from 'vs/base/common/events';
 import comparers = require('vs/base/common/comparers');
 import {Mode, IContext} from 'vs/base/parts/quickopen/browser/quickOpen';
@@ -218,28 +219,14 @@ export class EditorHistoryModel extends QuickOpenModel {
 				continue; //For now, only support to match on inputs that provide resource information
 			}
 
-			let label = entry.getInput().getName();
-			let description = entry.getInput().getDescription();
-
-			let labelHighlights: IHighlight[] = [];
-			let descriptionHighlights: IHighlight[] = [];
-
-			// Search inside filename
-			if (searchValue.indexOf(paths.nativeSep) < 0) {
-				labelHighlights = filters.matchesFuzzy(searchValue, label);
+			// Check if this entry is a match fo rthe search value
+			let targetToMatch = searchValue.indexOf(paths.nativeSep) < 0 ? entry.getLabel() : labels.getPathLabel(entry.getResource(), this.contextService);
+			if (!filters.matchesFuzzy(searchValue, targetToMatch)) {
+				continue;
 			}
 
-			// Search in full path
-			else {
-				descriptionHighlights = filters.matchesFuzzy(strings.trim(searchValue, paths.nativeSep), description);
-
-				// If we have no highlights, assume that the match is split among name and parent folder
-				if (!descriptionHighlights || !descriptionHighlights.length) {
-					labelHighlights = filters.matchesFuzzy(paths.basename(searchValue), label);
-					descriptionHighlights = filters.matchesFuzzy(strings.trim(paths.dirname(searchValue), paths.nativeSep), description);
-				}
-			}
-
+			// Apply highlights
+			const {labelHighlights, descriptionHighlights} = QuickOpenEntry.highlight(entry, searchValue);
 			if ((labelHighlights && labelHighlights.length) || (descriptionHighlights && descriptionHighlights.length)) {
 				results.push(entry.clone(labelHighlights, descriptionHighlights));
 			}
