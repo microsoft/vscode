@@ -52,24 +52,27 @@ export class CompletionItem {
 	}
 
 	resolveDetails(resource:URI, position:EditorCommon.IPosition): TPromise<CompletionItem> {
-		if (!this._resolveDetails) {
-			if (!this.support || typeof this.support.getSuggestionDetails !== 'function') {
-				this._resolveDetails = TPromise.as(this);
-			} else {
-				this._resolveDetails = this.support.getSuggestionDetails(<any>resource, position, this.suggestion).then(value => {
-					this.suggestion = assign(this.suggestion, value);
-					return this;
-				}, err => {
-					if (isPromiseCanceledError(err)) {
-						this._resolveDetails = undefined;
-					} else {
-						onUnexpectedError(err);
-					}
-					return this;
-				});
-			}
+		if (this._resolveDetails) {
+			return this._resolveDetails;
 		}
-		return this._resolveDetails;
+
+		if (!this.support || typeof this.support.getSuggestionDetails !== 'function') {
+			return this._resolveDetails = TPromise.as(this);
+		}
+
+		return this._resolveDetails = this.support
+			.getSuggestionDetails(resource, position, this.suggestion)
+			.then(value => {
+				this.suggestion = assign(this.suggestion, value);
+				return this;
+			}, err => {
+				if (isPromiseCanceledError(err)) {
+					this._resolveDetails = null;
+				} else {
+					onUnexpectedError(err);
+				}
+				return this;
+			});
 	}
 }
 
@@ -97,7 +100,7 @@ class RawModel {
 		}
 	}
 
-	select(ctx: SuggestionContext): CompletionItem[] {
+	select(ctx: Context): CompletionItem[] {
 		let result: CompletionItem[] = [];
 		for (let item of this._items) {
 			RawModel._sortAndFilter(item, ctx, result);
@@ -105,7 +108,7 @@ class RawModel {
 		return result;
 	}
 
-	private static _sortAndFilter(items: CompletionItem[], ctx: SuggestionContext, bucket: CompletionItem[]): void {
+	private static _sortAndFilter(items: CompletionItem[], ctx: Context, bucket: CompletionItem[]): void {
 		if (isFalsyOrEmpty(items)) {
 			return;
 		}
@@ -137,34 +140,31 @@ class RawModel {
 	}
 }
 
-class SuggestionContext {
+class Context {
 
 	public lineNumber:number;
 	public column:number;
 	public isInEditableRange:boolean;
 
-	private auto: boolean;
-	private shouldAuto: boolean;
+	private isAutoTriggerEnabled: boolean;
 	private lineContentBefore:string;
 	private lineContentAfter:string;
 
 	public wordBefore:string;
 	public wordAfter:string;
 
-	constructor(editor:EditorCommon.ICommonCodeEditor, auto: boolean) {
-		this.auto = auto;
-
-		var model = editor.getModel();
-		var position = editor.getPosition();
-
-		var lineContent = model.getLineContent(position.lineNumber);
-		this.wordBefore = '';
-		this.wordAfter = '';
-		var wordUnderCursor = model.getWordAtPosition(position);
+	constructor(editor:EditorCommon.ICommonCodeEditor, private auto: boolean) {
+		const model = editor.getModel();
+		const position = editor.getPosition();
+		const lineContent = model.getLineContent(position.lineNumber);
+		const wordUnderCursor = model.getWordAtPosition(position);
 
 		if (wordUnderCursor) {
 			this.wordBefore = lineContent.substring(wordUnderCursor.startColumn - 1, position.column - 1);
 			this.wordAfter = lineContent.substring(position.column - 1, wordUnderCursor.endColumn - 1);
+		} else {
+			this.wordBefore = '';
+			this.wordAfter = '';
 		}
 
 		this.lineNumber = position.lineNumber;
@@ -173,69 +173,77 @@ class SuggestionContext {
 		this.lineContentAfter = lineContent.substr(position.column - 1);
 
 		this.isInEditableRange = true;
+
 		if (model.hasEditableRange()) {
-			var editableRange = model.getEditableRange();
+			const editableRange = model.getEditableRange();
+
 			if (!editableRange.containsPosition(position)) {
 				this.isInEditableRange = false;
 			}
 		}
 
-		var lineContext = model.getLineContext(position.lineNumber);
-		var character = model.getLineContent(position.lineNumber).charAt(position.column - 1);
-		this.shouldAuto = SuggestRegistry.all(model)
-			.some(support => support.shouldAutotriggerSuggest(lineContext, position.column - 1, character));
+		const lineContext = model.getLineContext(position.lineNumber);
+		const character = model.getLineContent(position.lineNumber).charAt(position.column - 1);
+		const supports = SuggestRegistry.all(model);
+		this.isAutoTriggerEnabled = supports.some(s => s.shouldAutotriggerSuggest(lineContext, position.column - 1, character));
 	}
 
-	public isValidForAutoSuggest(): boolean {
+	public shouldAutoTrigger(): boolean {
+		if (!this.isAutoTriggerEnabled) {
+			// Support disallows it
+			return false;
+		}
+
 		if (this.wordBefore.length === 0) {
 			// Word before position is empty
 			return false;
 		}
+
 		if (this.wordAfter.length > 0) {
 			// Word after position is non empty
 			return false;
 		}
-		if (!this.shouldAuto) {
-			// ISuggestSupport#shouldAutotriggerSuggest is againt this
-			return false;
-		}
+
 		return true;
 	}
 
-	public isValidForNewContext(newCtx:SuggestionContext):boolean {
-		if (this.lineNumber !== newCtx.lineNumber) {
+	public isDifferentContext(context: Context):boolean {
+		if (this.lineNumber !== context.lineNumber) {
 			// Line number has changed
-			return false;
+			return true;
 		}
 
-		if (newCtx.column < this.column - this.wordBefore.length) {
+		if (context.column < this.column - this.wordBefore.length) {
 			// column went before word start
-			return false;
+			return true;
 		}
 
-		if (!strings.startsWith(newCtx.lineContentBefore, this.lineContentBefore) || this.lineContentAfter !== newCtx.lineContentAfter) {
+		if (!strings.startsWith(context.lineContentBefore, this.lineContentBefore) || this.lineContentAfter !== context.lineContentAfter) {
 			// Line has changed before position
-			return false;
+			return true;
 		}
 
-		if (newCtx.wordBefore === '' && newCtx.lineContentBefore !== this.lineContentBefore) {
+		if (context.wordBefore === '' && context.lineContentBefore !== this.lineContentBefore) {
 			// Most likely a space has been typed
-			return false;
+			return true;
 		}
 
-		return true;
+		return false;
 	}
 
-	public isValidForRetrigger(newCtx:SuggestionContext):boolean {
-		if (!strings.startsWith(this.lineContentBefore, newCtx.lineContentBefore) || this.lineContentAfter !== newCtx.lineContentAfter) {
+	public shouldRetrigger(context: Context):boolean {
+		if (!strings.startsWith(this.lineContentBefore, context.lineContentBefore) || this.lineContentAfter !== context.lineContentAfter) {
+			// Doesn't look like the same line
 			return false;
 		}
 
-		if (this.lineContentBefore.length > newCtx.lineContentBefore.length && this.wordBefore.length === 0) {
+		if (this.lineContentBefore.length > context.lineContentBefore.length && this.wordBefore.length === 0) {
+			// Text was deleted and previous current word was empty
 			return false;
 		}
 
-		if (this.auto && newCtx.wordBefore.length === 0) {
+		if (this.auto && context.wordBefore.length === 0) {
+			// Currently in auto mode and new current word is empty
 			return false;
 		}
 
@@ -267,7 +275,6 @@ export interface IAcceptEvent {
 	overwriteAfter: number;
 }
 
-
 export class SuggestModel implements IDisposable {
 
 	private toDispose: IDisposable[];
@@ -277,7 +284,7 @@ export class SuggestModel implements IDisposable {
 	private state:State;
 
 	private requestPromise:TPromise<void>;
-	private requestContext:SuggestionContext;
+	private context:Context;
 	private raw:RawModel;
 
 	private _onDidCancel: Emitter<ICancelEvent> = new Emitter();
@@ -298,7 +305,7 @@ export class SuggestModel implements IDisposable {
 		this.triggerAutoSuggestPromise = null;
 		this.requestPromise = null;
 		this.raw = null;
-		this.requestContext = null;
+		this.context = null;
 
 		this.toDispose = [];
 		this.toDispose.push(this.editor.addListener2(EditorCommon.EventType.ConfigurationChanged, () => this.onEditorConfigurationChange()));
@@ -322,7 +329,7 @@ export class SuggestModel implements IDisposable {
 
 		this.state = State.Idle;
 		this.raw = null;
-		this.requestContext = null;
+		this.context = null;
 
 		if (!silent) {
 			this._onDidCancel.fire({ retrigger });
@@ -332,13 +339,13 @@ export class SuggestModel implements IDisposable {
 	}
 
 	public getRequestPosition():EditorCommon.IPosition {
-		if(!this.requestContext) {
+		if(!this.context) {
 			return null;
 		}
 
 		return {
-			lineNumber: this.requestContext.lineNumber,
-			column: this.requestContext.column
+			lineNumber: this.context.lineNumber,
+			column: this.context.column
 		};
 	}
 
@@ -367,13 +374,13 @@ export class SuggestModel implements IDisposable {
 			return;
 		}
 
-		var ctx = new SuggestionContext(this.editor, false);
+		var ctx = new Context(this.editor, false);
 
 		if (isInactive) {
 			// trigger was not called or it was canceled
 			this.cancel();
 
-			if (ctx.isValidForAutoSuggest()) {
+			if (ctx.shouldAutoTrigger()) {
 				this.triggerAutoSuggestPromise = TPromise.timeout(this.autoSuggestDelay);
 				this.triggerAutoSuggestPromise.then(() => {
 					this.triggerAutoSuggestPromise = null;
@@ -397,7 +404,7 @@ export class SuggestModel implements IDisposable {
 		if (groups.length === 0) {
 			return;
 		}
-		var ctx = new SuggestionContext(this.editor, auto);
+		var ctx = new Context(this.editor, auto);
 		if (!ctx.isInEditableRange) {
 			return;
 		}
@@ -408,7 +415,7 @@ export class SuggestModel implements IDisposable {
 		this._onDidTrigger.fire({ auto: this.isAutoSuggest(), characterTriggered, retrigger });
 
 		// Capture context when request was sent
-		this.requestContext = ctx;
+		this.context = ctx;
 
 		var position = this.editor.getPosition();
 		let raw = new RawModel();
@@ -431,7 +438,7 @@ export class SuggestModel implements IDisposable {
 				raw.insertSuggestions(rank, [snippets]);
 			}
 
-			const ctx = new SuggestionContext(this.editor, auto);
+			const ctx = new Context(this.editor, auto);
 
 			if(raw.size > 0) {
 				this.raw = raw;
@@ -442,9 +449,9 @@ export class SuggestModel implements IDisposable {
 		}).then(null, onUnexpectedError);
 	}
 
-	private onNewContext(ctx:SuggestionContext):void {
-		if (this.requestContext && !this.requestContext.isValidForNewContext(ctx)) {
-			if (this.requestContext.isValidForRetrigger(ctx)) {
+	private onNewContext(context: Context):void {
+		if (this.context && this.context.isDifferentContext(context)) {
+			if (this.context.shouldRetrigger(context)) {
 				this.trigger(this.state === State.Auto, undefined, true);
 			} else {
 				this.cancel();
@@ -454,10 +461,10 @@ export class SuggestModel implements IDisposable {
 		}
 
 		if (this.raw) {
-			const suggestions = this.raw.select(ctx);
+			const suggestions = this.raw.select(context);
 
 			if (suggestions.length > 0) {
-				this._onDidSuggest.fire({ suggestions: { completionItems: suggestions, currentWord: ctx.wordBefore }, auto: this.isAutoSuggest() });
+				this._onDidSuggest.fire({ suggestions: { completionItems: suggestions, currentWord: context.wordBefore }, auto: this.isAutoSuggest() });
 			} else {
 				this._onDidSuggest.fire({ suggestions: null, auto: this.isAutoSuggest() });
 			}
@@ -470,7 +477,7 @@ export class SuggestModel implements IDisposable {
 		}
 
 		var parentSuggestions = item.container;
-		var offsetFromInvocation = this.editor.getPosition().column - this.requestContext.column;
+		var offsetFromInvocation = this.editor.getPosition().column - this.context.column;
 
 		var overwriteBefore = ((typeof parentSuggestions.overwriteBefore === 'undefined')
 			? parentSuggestions.currentWord.length
