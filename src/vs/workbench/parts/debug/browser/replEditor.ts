@@ -19,7 +19,7 @@ import editorinputs = require('vs/workbench/parts/debug/browser/debugEditorInput
 import viewer = require('vs/workbench/parts/debug/browser/replViewer');
 import debug = require('vs/workbench/parts/debug/common/debug');
 import model = require('vs/workbench/parts/debug/common/debugModel');
-import debugactions = require('vs/workbench/parts/debug/browser/debugActions');
+import debugactions = require('vs/workbench/parts/debug/electron-browser/debugActions');
 import replhistory = require('vs/workbench/parts/debug/common/replHistory');
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';

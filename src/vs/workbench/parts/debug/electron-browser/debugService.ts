@@ -21,7 +21,7 @@ import session = require('vs/workbench/parts/debug/node/rawDebugSession');
 import model = require('vs/workbench/parts/debug/common/debugModel');
 import debuginputs = require('vs/workbench/parts/debug/browser/debugEditorInputs');
 import viewmodel = require('vs/workbench/parts/debug/common/debugViewModel');
-import debugactions = require('vs/workbench/parts/debug/browser/debugActions');
+import debugactions = require('vs/workbench/parts/debug/electron-browser/debugActions');
 import { ConfigurationManager } from 'vs/workbench/parts/debug/node/debugConfigurationManager';
 import { Repl } from 'vs/workbench/parts/debug/browser/replEditor';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';

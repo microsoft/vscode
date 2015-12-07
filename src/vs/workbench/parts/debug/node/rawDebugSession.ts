@@ -6,7 +6,6 @@
 import cp = require('child_process');
 import fs = require('fs');
 import net = require('net');
-import remote = require('remote');
 import platform = require('vs/base/common/platform');
 import errors = require('vs/base/common/errors');
 import { Promise, TPromise} from 'vs/base/common/winjs.base';
@@ -17,8 +16,6 @@ import v8 = require('vs/workbench/parts/debug/node/v8Protocol');
 import stdfork = require('vs/base/node/stdFork');
 import { IMessageService } from 'vs/platform/message/common/message';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-
-var shell = remote.require('shell');
 
 export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSession {
 	private serverProcess: cp.ChildProcess;

@@ -20,7 +20,7 @@ import wbext = require('vs/workbench/common/contributions');
 import baseeditor = require('vs/workbench/browser/parts/editor/baseEditor');
 import * as debug from 'vs/workbench/parts/debug/common/debug';
 import { DebugEditorModelManager } from 'vs/workbench/parts/debug/browser/debugEditorModelManager'
-import dbgactions = require('vs/workbench/parts/debug/browser/debugActions');
+import dbgactions = require('vs/workbench/parts/debug/electron-browser/debugActions');
 import editorinputs = require('vs/workbench/parts/debug/browser/debugEditorInputs');
 import repleditor = require('vs/workbench/parts/debug/browser/replEditor');
 import debugwidget = require('vs/workbench/parts/debug/browser/debugActionsWidget');
