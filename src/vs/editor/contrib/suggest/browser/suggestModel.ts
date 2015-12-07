@@ -15,11 +15,13 @@ import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import timer = require('vs/base/common/timer');
 import { getSnippets } from 'vs/editor/common/modes/modesRegistry';
 import EditorCommon = require('vs/editor/common/editorCommon');
-import { ISuggestSupport, ISuggestResult, ISuggestion, ISuggestionSorter } from 'vs/editor/common/modes';
+import { ISuggestSupport, ISuggestResult, ISuggestion, ISuggestionCompare, ISuggestionFilter } from 'vs/editor/common/modes';
 import { DefaultFilter, IMatch } from 'vs/editor/common/modes/modesFilters';
 import { CodeSnippet } from 'vs/editor/contrib/snippet/common/snippet';
 import { IDisposable, disposeAll } from 'vs/base/common/lifecycle';
 import { SuggestRegistry, ISuggestResult2, suggest } from '../common/suggest';
+
+const DefaultCompare: ISuggestionCompare = (a, b) => a.label.localeCompare(b.label);
 
 enum State {
 	Idle = 0,
@@ -76,51 +78,44 @@ export class CompletionItem {
 	}
 }
 
-class RawModel {
+class CompletionItemGroup {
 
-	public size: number;
+	private compare: ISuggestionCompare;
+	private filter: ISuggestionFilter;
+	public get size(): number { return this.items.length; }
 
-	constructor(private items: CompletionItem[][], public incomplete: boolean) {
-		this.size = items.reduce((size, items) => size + items.length, 0);
+	constructor(private items: CompletionItem[]) {
+		this.compare = DefaultCompare;
+		this.filter = DefaultFilter;
+
+		if (!isFalsyOrEmpty(items)) {
+			const [first] = items;
+
+			if (first.support) {
+				this.compare = first.support.getSorter && first.support.getSorter() || this.compare;
+				this.filter = first.support.getFilter && first.support.getFilter() || this.filter;
+			}
+		}
 	}
 
 	select(ctx: Context): CompletionItem[] {
-		let result: CompletionItem[] = [];
-		for (let item of this.items) {
-			RawModel._sortAndFilter(item, ctx, result);
-		}
-		return result;
+		return this.items
+			.map(item => assign(item, { highlights: this.filter(ctx.wordBefore, item.suggestion) }))
+			.filter(item => !isFalsyOrEmpty(item.highlights))
+			.sort((a, b) => this.compare(a.suggestion, b.suggestion));
+	}
+}
+
+class CompletionModel {
+
+	public size: number;
+
+	constructor(private groups: CompletionItemGroup[], public incomplete: boolean) {
+		this.size = groups.reduce((size, groups) => size + groups.size, 0);
 	}
 
-	private static _sortAndFilter(items: CompletionItem[], ctx: Context, bucket: CompletionItem[]): void {
-		if (isFalsyOrEmpty(items)) {
-			return;
-		}
-
-		// all items have the same (origin) support. derive sorter and filter
-		// from first
-		const [first] = items;
-		let compare = RawModel._compare;
-		let filter = DefaultFilter;
-		if (first.support) {
-			compare = first.support.getSorter && first.support.getSorter() || compare;
-			filter = first.support.getFilter && first.support.getFilter() || filter;
-		}
-
-		items = items.filter(item => {
-			// set hightlight and filter those that have none
-			item.highlights = filter(ctx.wordBefore, item.suggestion);
-			return !isFalsyOrEmpty(item.highlights);
-		}).sort((a, b) => {
-			// sort suggestions by custom strategy
-			return compare(a.suggestion, b.suggestion)
-		});
-
-		bucket.push(...items);
-	}
-
-	private static _compare(a: ISuggestion, b: ISuggestion):number {
-		return a.label.localeCompare(b.label);
+	select(ctx: Context): CompletionItem[] {
+		return this.groups.reduce((r, groups) => r.concat(groups.select(ctx)), []);
 	}
 }
 
@@ -269,7 +264,7 @@ export class SuggestModel implements IDisposable {
 
 	private requestPromise:TPromise<void>;
 	private context:Context;
-	private raw:RawModel;
+	private raw:CompletionModel;
 
 	private _onDidCancel: Emitter<ICancelEvent> = new Emitter();
 	public get onDidCancel(): Event<ICancelEvent> { return this._onDidCancel.event; }
@@ -413,20 +408,20 @@ export class SuggestModel implements IDisposable {
 			let incomplete = false;
 			const snippets = getSnippets(model, position);
 
-			const items = all
+			const groups = all
 				.filter(s => !!s)
 				.map(suggestResults => {
-					return suggestResults.reduce<CompletionItem[]>((items, suggestResult) => {
+					return new CompletionItemGroup(suggestResults.reduce<CompletionItem[]>((items, suggestResult) => {
 						incomplete = incomplete || suggestResult.incomplete;
 
 						return items.concat(suggestResult.suggestions.map(suggestion => {
 							return new CompletionItem(suggestResult.support, suggestion, suggestResult);
 						}));
-					}, []);
+					}, []));
 				})
-				.concat([snippets.suggestions.map(suggestion => new CompletionItem(null, suggestion, snippets))]);
+				.concat(new CompletionItemGroup(snippets.suggestions.map(suggestion => new CompletionItem(null, suggestion, snippets))));
 
-			const raw = new RawModel(items, incomplete);
+			const raw = new CompletionModel(groups, incomplete);
 
 			if(raw.size > 0) {
 				this.raw = raw;
