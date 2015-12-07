@@ -3524,6 +3524,13 @@
         <value name="sRGB" version="3.0" browsers="all" />
       </values>
     </entry>
+    <entry name="color-profile" restriction="identifier, url, enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/SVG/color.html#ColorProfileProperty">
+      <desc>Specifies the color profile to be used.</desc>
+      <values>
+        <value name="auto" version="3.0" browsers="all" />
+        <value name="sRGB" version="3.0" browsers="all" />
+      </values>
+    </entry>
     <entry name="color-rendering" restriction="enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/SVG11/painting.html#ColorRenderingProperty">
       <desc>The creator of SVG content might want to provide a hint to the implementation about how to make speed vs. quality tradeoffs as it performs color interpolation and compositing. The ‘color-rendering’ property provides a hint to the SVG user agent about how to optimize its color interpolation and compositing operations.</desc>
       <values>
