@@ -15,7 +15,7 @@ import Tree = require('vs/base/parts/tree/common/tree');
 import TreeImpl = require('vs/base/parts/tree/browser/treeImpl');
 import TreeDefaults = require('vs/base/parts/tree/browser/treeDefaults');
 import HighlightedLabel = require('vs/base/browser/ui/highlightedlabel/highlightedLabel');
-import { SuggestModel, SuggestDataEvent, CompletionItem } from './suggestModel';
+import { SuggestModel, SuggestDataEvent, CompletionItem, ICancelEvent, ISuggestEvent, ITriggerEvent } from './suggestModel';
 import Mouse = require('vs/base/browser/mouseEvent');
 import EditorBrowser = require('vs/editor/browser/editorBrowser');
 import EditorCommon = require('vs/editor/common/editorCommon');
@@ -259,11 +259,12 @@ export class SuggestWidget implements EditorBrowser.IContentWidget {
 	private isAuto: boolean;
 	private listenersToRemove: EventEmitter.ListenerUnbind[];
 	private modelListenersToRemove: IDisposable[];
-	private model: SuggestModel;
 	private suggestionSupportsAutoAccept: IKeybindingContextKey<boolean>;
+	private loadingTimeout: number;
 
 	private telemetryData: ITelemetryData;
 	private telemetryService: ITelemetryService;
+	private telemetryTimer: Timer.ITimerEvent;
 
 	private element: HTMLElement;
 	private tree: Tree.ITree;
@@ -275,7 +276,14 @@ export class SuggestWidget implements EditorBrowser.IContentWidget {
 	private _onShown: () => void;
 	private _onHidden: () => void;
 
-	constructor(editor: EditorBrowser.ICodeEditor, telemetryService:ITelemetryService, keybindingService:IKeybindingService, onShown: () => void, onHidden: () => void) {
+	constructor(
+		editor: EditorBrowser.ICodeEditor,
+		private model: SuggestModel,
+		telemetryService:ITelemetryService,
+		keybindingService:IKeybindingService,
+		onShown: () => void,
+		onHidden: () => void
+	) {
 		this.editor = editor;
 		this._onShown = onShown;
 		this._onHidden = onHidden;
@@ -284,7 +292,6 @@ export class SuggestWidget implements EditorBrowser.IContentWidget {
 		this.isLoading = false;
 		this.isAuto = false;
 		this.modelListenersToRemove = [];
-		this.model = null;
 		this.suggestionSupportsAutoAccept = keybindingService.createKey<boolean>(CONTEXT_SUGGESTION_SUPPORTS_ACCEPT_ON_KEY, true);
 
 		this.telemetryData = null;
@@ -399,130 +406,121 @@ export class SuggestWidget implements EditorBrowser.IContentWidget {
 		}));
 
 		this.hide();
-	}
-
-	public setModel(newModel: SuggestModel) : void {
-		this.releaseModel();
-		this.model = newModel;
 
 		var timer : Timer.ITimerEvent = null, loadingHandle:number;
+		this.modelListenersToRemove.push(this.model.onDidTrigger(e => this.onDidTrigger(e)));
+		this.modelListenersToRemove.push(this.model.onDidSuggest(e => this.onDidSuggest(e)));
+		this.modelListenersToRemove.push(this.model.onDidCancel(e => this.onDidCancel(e)));
+	}
 
-		this.modelListenersToRemove.push(this.model.onDidTrigger(e => {
-			if (!this.isActive) {
-				timer = this.telemetryService.start('suggestWidgetLoadingTime');
-				this.isLoading = true;
-				this.isAuto = !!e.auto;
+	private onDidTrigger(e: ITriggerEvent) {
+		if (!this.isActive) {
+			this.telemetryTimer = this.telemetryService.start('suggestWidgetLoadingTime');
+			this.isLoading = true;
+			this.isAuto = !!e.auto;
 
-				if (!this.isAuto) {
-					loadingHandle = setTimeout(() => {
-						dom.removeClass(this.element, 'empty');
-						this.tree.setInput(SuggestWidget.LOADING_MESSAGE).done(null, Errors.onUnexpectedError);
-						this.updateWidgetHeight();
-						this.show();
-					}, 50);
-				}
-
-				if (!e.retrigger) {
-					this.telemetryData = {
-						wasAutomaticallyTriggered: e.characterTriggered
-					};
-				}
+			if (!this.isAuto) {
+				this.loadingTimeout = setTimeout(() => {
+					this.loadingTimeout = null;
+					dom.removeClass(this.element, 'empty');
+					this.tree.setInput(SuggestWidget.LOADING_MESSAGE).done(null, Errors.onUnexpectedError);
+					this.updateWidgetHeight();
+					this.show();
+				}, 50);
 			}
-		}));
-
-		this.modelListenersToRemove.push(this.model.onDidSuggest(e => {
-			if (!e.suggestions) { // empty
-				const wasLoading = this.isLoading;
-				this.isLoading = false;
-
-				if(typeof loadingHandle !== 'undefined') {
-					clearTimeout(loadingHandle);
-				}
-
-				if (e.auto) {
-					this.hide();
-				} else if (wasLoading) {
-					if (this.shouldShowEmptySuggestionList) {
-						dom.removeClass(this.element, 'empty');
-						this.tree.setInput(SuggestWidget.NO_SUGGESTIONS_MESSAGE).done(null, Errors.onUnexpectedError);
-						this.updateWidgetHeight();
-						this.show();
-					} else {
-						this.hide();
-					}
-				} else {
-					dom.addClass(this.element, 'empty');
-				}
-
-				if(timer) {
-					timer.data = { reason: 'empty'};
-					timer.stop();
-					timer = null;
-				}
-
-				return;
-			}
-
-			this.isLoading = false;
-
-			if(typeof loadingHandle !== 'undefined') {
-				clearTimeout(loadingHandle);
-			}
-
-			var currentWord = e.suggestions.currentWord;
-			var currentWordLowerCase = currentWord.toLowerCase();
-			var suggestions = e.suggestions.completionItems;
-
-			var bestSuggestionIndex = -1;
-			var bestSuggestion = suggestions[0];
-			var bestScore = -1;
-
-			for (var i = 0, len = suggestions.length; i < len; i++) {
-				var score = computeScore(suggestions[i].suggestion.label, currentWord, currentWordLowerCase);
-				if (score > bestScore) {
-					bestScore = score;
-					bestSuggestion = suggestions[i];
-					bestSuggestionIndex = i;
-				}
-			}
-
-			dom.removeClass(this.element, 'empty');
-			this.tree.setInput(e).done(null, Errors.onUnexpectedError);
-			this.tree.setFocus(bestSuggestion, { firstSuggestion: true });
-			this.updateWidgetHeight();
-			this.show();
-
-			this.telemetryData = this.telemetryData || {};
-			this.telemetryData.suggestionCount = suggestions.length;
-			this.telemetryData.suggestedIndex = bestSuggestionIndex;
-			this.telemetryData.hintLength = currentWord.length;
-
-			if(timer) {
-				timer.data = { reason: 'results'};
-				timer.stop();
-				timer = null;
-			}
-		}));
-
-		this.modelListenersToRemove.push(this.model.onDidCancel(e => {
-			this.isLoading = false;
 
 			if (!e.retrigger) {
+				this.telemetryData = {
+					wasAutomaticallyTriggered: e.characterTriggered
+				};
+			}
+		}
+	}
+
+	private onDidSuggest(e: ISuggestEvent) {
+		const wasLoading = this.isLoading;
+		this.isLoading = false;
+		clearTimeout(this.loadingTimeout);
+
+		if (!e.suggestions) { // empty
+
+			if (e.auto) {
 				this.hide();
-
-				if (this.telemetryData) {
-					this.telemetryData.selectedIndex = -1;
-					this.telemetryData.wasCancelled = true;
-					this.submitTelemetryData();
+			} else if (wasLoading) {
+				if (this.shouldShowEmptySuggestionList) {
+					dom.removeClass(this.element, 'empty');
+					this.tree.setInput(SuggestWidget.NO_SUGGESTIONS_MESSAGE).done(null, Errors.onUnexpectedError);
+					this.updateWidgetHeight();
+					this.show();
+				} else {
+					this.hide();
 				}
+			} else {
+				dom.addClass(this.element, 'empty');
 			}
 
-			if (timer) {
-				timer.data = { reason: 'cancel' };
-				timer.stop();
-				timer = null;
+			if(this.telemetryTimer) {
+				this.telemetryTimer.data = { reason: 'empty'};
+				this.telemetryTimer.stop();
+				this.telemetryTimer = null;
 			}
-		}));
+
+			return;
+		}
+
+		const currentWord = e.suggestions.currentWord;
+		const currentWordLowerCase = currentWord.toLowerCase();
+		const suggestions = e.suggestions.completionItems;
+
+		let bestSuggestionIndex = -1;
+		let bestSuggestion = suggestions[0];
+		let bestScore = -1;
+
+		for (var i = 0, len = suggestions.length; i < len; i++) {
+			var score = computeScore(suggestions[i].suggestion.label, currentWord, currentWordLowerCase);
+			if (score > bestScore) {
+				bestScore = score;
+				bestSuggestion = suggestions[i];
+				bestSuggestionIndex = i;
+			}
+		}
+
+		dom.removeClass(this.element, 'empty');
+		this.tree.setInput(e).done(null, Errors.onUnexpectedError);
+		this.tree.setFocus(bestSuggestion, { firstSuggestion: true });
+		this.updateWidgetHeight();
+		this.show();
+
+		this.telemetryData = this.telemetryData || {};
+		this.telemetryData.suggestionCount = suggestions.length;
+		this.telemetryData.suggestedIndex = bestSuggestionIndex;
+		this.telemetryData.hintLength = currentWord.length;
+
+		if(this.telemetryTimer) {
+			this.telemetryTimer.data = { reason: 'results'};
+			this.telemetryTimer.stop();
+			this.telemetryTimer = null;
+		}
+	}
+
+	private onDidCancel(e: ICancelEvent) {
+		this.isLoading = false;
+
+		if (!e.retrigger) {
+			this.hide();
+
+			if (this.telemetryData) {
+				this.telemetryData.selectedIndex = -1;
+				this.telemetryData.wasCancelled = true;
+				this.submitTelemetryData();
+			}
+		}
+
+		if (this.telemetryTimer) {
+			this.telemetryTimer.data = { reason: 'cancel' };
+			this.telemetryTimer.stop();
+			this.telemetryTimer = null;
+		}
 	}
 
 	private currentSuggestionDetails:TPromise<CompletionItem>;
@@ -613,11 +611,6 @@ export class SuggestWidget implements EditorBrowser.IContentWidget {
 		return false;
 	}
 
-	private releaseModel() : void {
-		this.modelListenersToRemove = disposeAll(this.modelListenersToRemove);
-		this.model = null;
-	}
-
 	public show(): void {
 		this._onShown();
 		this.isActive = true;
@@ -687,7 +680,8 @@ export class SuggestWidget implements EditorBrowser.IContentWidget {
 	}
 
 	public destroy() : void {
-		this.releaseModel();
+		this.modelListenersToRemove = disposeAll(this.modelListenersToRemove);
+		this.model = null;
 		this.tree.dispose();
 		this.tree = null;
 		this.element = null;

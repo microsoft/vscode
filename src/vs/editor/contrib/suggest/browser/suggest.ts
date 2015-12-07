@@ -39,20 +39,27 @@ export class SuggestController implements EditorCommon.IEditorContribution {
 	private triggerCharacterListeners: Function[];
 	private suggestWidgetVisible: IKeybindingContextKey<boolean>;
 
-	constructor(editor:EditorBrowser.ICodeEditor, @IKeybindingService keybindingService: IKeybindingService, @ITelemetryService telemetryService: ITelemetryService) {
+	constructor(
+		editor:EditorBrowser.ICodeEditor,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@ITelemetryService telemetryService: ITelemetryService
+	) {
 		this.editor = editor;
 		this.suggestWidgetVisible = keybindingService.createKey(CONTEXT_SUGGEST_WIDGET_VISIBLE, false);
 
-		this.model = new SuggestModel.SuggestModel(this.editor, (snippet:Snippet.CodeSnippet, overwriteBefore:number, overwriteAfter:number) => {
-			Snippet.get(this.editor).run(snippet, overwriteBefore, overwriteAfter);
-		});
+		this.model = new SuggestModel.SuggestModel(
+			this.editor,
+			(snippet:Snippet.CodeSnippet, overwriteBefore:number, overwriteAfter:number) => Snippet.get(this.editor).run(snippet, overwriteBefore, overwriteAfter)
+		);
 
-		this.suggestWidget = new SuggestWidget.SuggestWidget(this.editor, telemetryService, keybindingService, () => {
-			this.suggestWidgetVisible.set(true);
-		}, () => {
-			this.suggestWidgetVisible.reset();
-		});
-		this.suggestWidget.setModel(this.model);
+		this.suggestWidget = new SuggestWidget.SuggestWidget(
+			this.editor,
+			this.model,
+			telemetryService,
+			keybindingService,
+			() => this.suggestWidgetVisible.set(true),
+			() => this.suggestWidgetVisible.reset()
+		);
 
 		this.triggerCharacterListeners = [];
 
