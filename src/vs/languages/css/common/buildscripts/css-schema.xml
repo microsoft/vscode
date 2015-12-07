@@ -5445,6 +5445,13 @@
         </value>
       </values>
     </entry>
+    <entry name="grid-area" restriction="identifier, integer" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-grid-1/#propdef-grid-area" syntax="div { $(name): span 3; }">
+      <desc>Determine a grid item’s size and location within the grid by contributing a line, a span, or nothing (automatic) to its grid placement. Shorthand for 'grid-row-start', 'grid-column-start', 'grid-row-end', and 'grid-column-end'.</desc>
+      <values>
+        <value name="auto" version="3.0" browsers="all" />
+        <value name="span" version="3.0" browsers="all" />
+      </values>
+    </entry>
     <entry name="grid-cell" restriction="string, enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css3-grid-layout/#grid-cell" syntax="#item1 { $(name): 'n'; }">
       <desc>The grid-cell is valid on grid items and places the grid item inside the explicitly named grid cell.</desc>
       <values>
