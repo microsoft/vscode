@@ -138,11 +138,15 @@ export class QuickOpenEntry {
 	 */
 	public static compare(elementA: QuickOpenEntry, elementB: QuickOpenEntry, lookFor: string): number {
 
+		// Normalize
+		if (lookFor) {
+			lookFor = Strings.stripWildcards(lookFor).toLowerCase();
+		}
+
 		// Give matches with label highlights higher priority over
 		// those with only description highlights
 		const labelHighlightsA = elementA.getHighlights()[0] || [];
 		const labelHighlightsB = elementB.getHighlights()[0] || [];
-
 		if (labelHighlightsA.length && !labelHighlightsB.length) {
 			return -1;
 		} else if (!labelHighlightsA.length && labelHighlightsB.length) {
@@ -152,7 +156,6 @@ export class QuickOpenEntry {
 		// Sort by name/path
 		let nameA = elementA.getLabel();
 		let nameB = elementB.getLabel();
-
 		if (nameA === nameB) {
 			let resourceA = elementA.getResource();
 			let resourceB = elementB.getResource();

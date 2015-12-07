@@ -157,7 +157,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 
 			// Sort (standalone only)
 			if (this.isStandalone) {
-				results = results.sort((elementA, elementB) => QuickOpenEntry.compare(elementA, elementB, searchValue.toLowerCase()));
+				results = results.sort((elementA, elementB) => QuickOpenEntry.compare(elementA, elementB, searchValue));
 			}
 
 			return results;

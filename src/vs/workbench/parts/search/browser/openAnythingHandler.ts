@@ -143,8 +143,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 				let result = [...results[0].entries, ...results[1].entries];
 
 				// Sort
-				let normalizedSearchValue = strings.stripWildcards(searchValue.toLowerCase());
-				result.sort((elementA, elementB) => QuickOpenEntry.compare(elementA, elementB, normalizedSearchValue));
+				result.sort((elementA, elementB) => QuickOpenEntry.compare(elementA, elementB, searchValue));
 
 				// Apply Range
 				result.forEach((element) => {
@@ -236,6 +235,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 
 		// Pattern match on results and adjust highlights
 		let results: QuickOpenEntry[] = [];
+		const searchInPath = searchValue.indexOf(paths.nativeSep) >= 0;
 		for (let i = 0; i < cachedEntries.length; i++) {
 			let entry = cachedEntries[i];
 
@@ -245,7 +245,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 			}
 
 			// Check if this entry is a match for the search value
-			let targetToMatch = searchValue.indexOf(paths.nativeSep) < 0 ? entry.getLabel() : labels.getPathLabel(entry.getResource(), this.contextService);
+			let targetToMatch = searchInPath ? labels.getPathLabel(entry.getResource(), this.contextService) : entry.getLabel();
 			if (!filters.matchesFuzzy(searchValue, targetToMatch)) {
 				continue;
 			}
@@ -258,8 +258,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 		}
 
 		// Sort
-		let normalizedSearchValue = strings.stripWildcards(searchValue.toLowerCase());
-		results.sort((elementA, elementB) => QuickOpenEntry.compare(elementA, elementB, normalizedSearchValue));
+		results.sort((elementA, elementB) => QuickOpenEntry.compare(elementA, elementB, searchValue));
 
 		// Apply Range
 		results.forEach((element) => {
