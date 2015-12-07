@@ -538,6 +538,13 @@
         </value>
       </values>
     </entry>
+    <entry name="animation-composition" restriction="enum" version="4.0" browsers="none" ref="https://drafts.csswg.org/css-animations-2/#propdef-animation-composition" syntax="div { $(name): add; }">
+      <desc>Defines the composite operation used when multiple animations affect the same property simultaneously.</desc>
+      <values>
+        <value name="accumulate" version="4.0" browsers="all" />
+        <value name="add" version="4.0" browsers="all" />
+        <value name="replace" version="4.0" browsers="all" />
+    </entry>
     <entry name="animation-delay" restriction="time" version="3.0" browsers="E,C43,FF16,IE10,O12.1,S9" ref="http://www.w3.org/TR/css3-animations/#animation-delay" syntax="div { $(name): 4s; }">
       <desc>Defines when the animation will start. An 'animation-delay' value of '0' means the animation will execute as soon as it is applied. Otherwise, the value specifies an offset from the moment the animation is applied, and the animation will delay execution by that offset.</desc>
     </entry>
