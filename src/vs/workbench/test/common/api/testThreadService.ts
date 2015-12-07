@@ -30,17 +30,21 @@ export class TestThreadService extends NullThreadService {
 	}
 
 	sync(): TPromise<any> {
-		if (this._callCount === 0) {
-			return TPromise.as(undefined);
-		}
-		if (!this._idle) {
-			this._idle = new TPromise<any>((c, e) => {
-				this._completeIdle = c;
-			}, function() {
-				// no cancel
-			});
-		}
-		return this._idle;
+		return new TPromise<any>((c) => {
+			setTimeout(c, 0);
+		}).then(() => {
+			if (this._callCount === 0) {
+				return;
+			}
+			if (!this._idle) {
+				this._idle = new TPromise<any>((c, e) => {
+					this._completeIdle = c;
+				}, function() {
+					// no cancel
+				});
+			}
+			return this._idle;
+		});
 	}
 
 	protected _registerAndInstantiateMainProcessActor<T>(id: string, descriptor: SyncDescriptor0<T>): T {
