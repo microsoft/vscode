@@ -335,33 +335,3 @@ KeybindingsRegistry.registerCommandDesc({
 	context: null,
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_A
 });
-
-function scrollUp(accessor: ServicesAccessor, args: any) : void {
-	var editor = getActiveEditor(accessor);
-	if(args.context[EditorCommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS]) {
-		editor.setScrollTop(editor.getScrollTop()-30);
-	}
-}
-
-KeybindingsRegistry.registerCommandDesc({
-	id: 'scrollUp',
-	handler: scrollUp,
-	weight: KeybindingsRegistry.WEIGHT.editorCore(),
-	context: null,
-	primary: KeyMod.CtrlCmd | KeyCode.F11
-});
-
-function scrollDown(accessor: ServicesAccessor, args: any) : void {
-	var editor = getActiveEditor(accessor);
-	if(args.context[EditorCommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS]) {
-		editor.setScrollTop(editor.getScrollTop()+30);
-	}
-}
-
-KeybindingsRegistry.registerCommandDesc({
-	id: 'scrollDown',
-	handler: scrollDown,
-	weight: KeybindingsRegistry.WEIGHT.editorCore(),
-	context: null,
-	primary: KeyMod.CtrlCmd | KeyCode.F10
-});
