@@ -252,10 +252,9 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 
 			// Apply highlights
 			const {labelHighlights, descriptionHighlights} = QuickOpenEntry.highlight(entry, searchValue);
-			if ((labelHighlights && labelHighlights.length) || (descriptionHighlights && descriptionHighlights.length)) {
-				entry.setHighlights(labelHighlights, descriptionHighlights);
-				results.push(entry);
-			}
+			entry.setHighlights(labelHighlights, descriptionHighlights);
+
+			results.push(entry);
 		}
 
 		// Sort

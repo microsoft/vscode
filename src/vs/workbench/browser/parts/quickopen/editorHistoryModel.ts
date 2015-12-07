@@ -227,19 +227,10 @@ export class EditorHistoryModel extends QuickOpenModel {
 
 			// Apply highlights
 			const {labelHighlights, descriptionHighlights} = QuickOpenEntry.highlight(entry, searchValue);
-			if ((labelHighlights && labelHighlights.length) || (descriptionHighlights && descriptionHighlights.length)) {
-				results.push(entry.clone(labelHighlights, descriptionHighlights));
-			}
+			results.push(entry.clone(labelHighlights, descriptionHighlights));
 		}
 
-		// If user is searching, use the same sorting that is used for other quick open handlers
-		if (searchValue) {
-			let normalizedSearchValue = strings.stripWildcards(searchValue.toLowerCase());
-
-			return results.sort((elementA: EditorHistoryEntry, elementB: EditorHistoryEntry) => QuickOpenEntry.compare(elementA, elementB, normalizedSearchValue));
-		}
-
-		// Leave default "most recently used" order if user is not actually searching
-		return results;
+		// Sort
+		return results.sort((elementA: EditorHistoryEntry, elementB: EditorHistoryEntry) => QuickOpenEntry.compare(elementA, elementB, strings.stripWildcards(searchValue.toLowerCase())));
 	}
 }

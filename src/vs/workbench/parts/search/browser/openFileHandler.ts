@@ -147,6 +147,8 @@ export class OpenFileHandler extends QuickOpenHandler {
 				let description = labels.getPathLabel(paths.dirname(fileMatch.resource.fsPath), this.contextService);
 
 				let entry = this.instantiationService.createInstance(FileEntry, label, description, fileMatch.resource);
+
+				// Apply highlights
 				let {labelHighlights, descriptionHighlights} = QuickOpenEntry.highlight(entry, searchValue);
 				entry.setHighlights(labelHighlights, descriptionHighlights);
 
