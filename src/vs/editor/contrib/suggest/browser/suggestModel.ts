@@ -8,18 +8,18 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import {sequence} from 'vs/base/common/async';
 import { assign } from 'vs/base/common/objects';
 import { EventEmitter, ListenerUnbind } from 'vs/base/common/eventEmitter';
-import {onUnexpectedError, isPromiseCanceledError} from 'vs/base/common/errors';
+import { onUnexpectedError, isPromiseCanceledError } from 'vs/base/common/errors';
 import strings = require('vs/base/common/strings');
 import URI from 'vs/base/common/uri';
-import {isFalsyOrEmpty} from 'vs/base/common/arrays';
+import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import timer = require('vs/base/common/timer');
 import { getSnippets } from 'vs/editor/common/modes/modesRegistry';
 import EditorCommon = require('vs/editor/common/editorCommon');
 import { ISuggestSupport, ISuggestResult, ISuggestion, ISuggestionSorter } from 'vs/editor/common/modes';
-import {DefaultFilter, IMatch} from 'vs/editor/common/modes/modesFilters';
+import { DefaultFilter, IMatch } from 'vs/editor/common/modes/modesFilters';
 import { CodeSnippet } from 'vs/editor/contrib/snippet/common/snippet';
 import { IDisposable, disposeAll } from 'vs/base/common/lifecycle';
-import {SuggestRegistry, ISuggestResult2, suggest} from '../common/suggest';
+import { SuggestRegistry, ISuggestResult2, suggest } from '../common/suggest';
 
 enum SuggestState {
 	NOT_ACTIVE = 0,
