@@ -31,6 +31,7 @@ export class FileWalker {
 	private isLimitHit: boolean;
 	private resultCount: number;
 	private isCanceled: boolean;
+	private searchInPath: boolean;
 
 	private walkedPaths: { [path: string]: boolean; };
 
@@ -41,6 +42,12 @@ export class FileWalker {
 		this.includePattern = config.includePattern;
 		this.maxResults = config.maxResults || null;
 		this.walkedPaths = Object.create(null);
+
+		// Normalize file patterns to forward slashs
+		if (this.filePattern.indexOf(paths.sep) >= 0) {
+			this.filePattern = strings.replaceAll(this.filePattern, '\\', '/');
+			this.searchInPath = true;
+		}
 	}
 
 	private resetState(): void {
@@ -81,7 +88,7 @@ export class FileWalker {
 					}
 
 					// Check for match on file pattern and include pattern
-					if (this.isFilePatternMatch(paths.basename(absolutePath)) && (!this.includePattern || glob.match(this.includePattern, absolutePath))) {
+					if (this.isFilePatternMatch(paths.basename(absolutePath), absolutePath) && (!this.includePattern || glob.match(this.includePattern, absolutePath))) {
 						this.resultCount++;
 
 						if (this.maxResults && this.resultCount > this.maxResults) {
@@ -156,7 +163,7 @@ export class FileWalker {
 				if ((<any>error).code === FileWalker.ENOTDIR && !this.isCanceled && !this.isLimitHit) {
 
 					// Check for match on file pattern and include pattern
-					if (this.isFilePatternMatch(file) && (!this.includePattern || glob.match(this.includePattern, relativeFilePath, children))) {
+					if (this.isFilePatternMatch(file, relativeFilePath) && (!this.includePattern || glob.match(this.includePattern, relativeFilePath, children))) {
 						this.resultCount++;
 
 						if (this.maxResults && this.resultCount > this.maxResults) {
@@ -183,11 +190,11 @@ export class FileWalker {
 		});
 	}
 
-	private isFilePatternMatch(path: string): boolean {
+	private isFilePatternMatch(name: string, path: string): boolean {
 
 		// Check for search pattern
 		if (this.filePattern) {
-			const res = filters.matchesFuzzy(this.filePattern, path);
+			const res = filters.matchesFuzzy(this.filePattern, this.searchInPath ? path : name);
 
 			return !!res && res.length > 0;
 		}

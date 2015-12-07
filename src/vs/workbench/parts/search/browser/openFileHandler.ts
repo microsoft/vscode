@@ -17,7 +17,6 @@ import {QuickOpenEntry, QuickOpenModel, IHighlight} from 'vs/base/parts/quickope
 import filters = require('vs/base/common/filters');
 import comparers = require('vs/base/common/comparers');
 import {QuickOpenHandler, EditorQuickOpenEntry} from 'vs/workbench/browser/quickopen';
-import {FileMatch, SearchResult} from 'vs/workbench/parts/search/common/searchModel';
 import {QueryBuilder} from 'vs/workbench/parts/search/common/searchQuery';
 import {ITextFileService} from 'vs/workbench/parts/files/common/files';
 import {EditorInput} from 'vs/workbench/common/editor';
@@ -34,7 +33,10 @@ export class FileEntry extends EditorQuickOpenEntry {
 	private resource: URI;
 	private range: IRange;
 
-	constructor(name: string, resource: URI, highlights: IHighlight[],
+	constructor(
+		name: string,
+		description: string,
+		resource: URI,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService
@@ -43,8 +45,7 @@ export class FileEntry extends EditorQuickOpenEntry {
 
 		this.resource = resource;
 		this.name = name;
-		this.description = labels.getPathLabel(paths.dirname(this.resource.fsPath), contextService);
-		this.setHighlights(highlights);
+		this.description = description;
 	}
 
 	public getLabel(): string {
@@ -136,47 +137,31 @@ export class OpenFileHandler extends QuickOpenHandler {
 		let query: IQueryOptions = { filePattern: searchValue, rootResources: rootResources };
 
 		return this.queryBuilder.file(query).then((query) => this.searchService.search(query)).then((complete) => {
-			let searchResult = this.instantiationService.createInstance(SearchResult, null);
-			searchResult.append(complete.results);
-
-			// Sort (standalone only)
-			let matches = searchResult.matches();
-			if (this.isStandalone) {
-				matches = matches.sort((elementA, elementB) => this.sort(elementA, elementB, searchValue.toLowerCase()));
-			}
 
 			// Highlight
 			let results: QuickOpenEntry[] = [];
-			for (let i = 0; i < matches.length; i++) {
-				let fileMatch = matches[i];
-				let highlights = filters.matchesFuzzy(searchValue, fileMatch.name());
+			for (let i = 0; i < complete.results.length; i++) {
+				let fileMatch = complete.results[i];
 
-				results.push(this.instantiationService.createInstance(FileEntry, fileMatch.name(), fileMatch.resource(), highlights));
+				let label = paths.basename(fileMatch.resource.fsPath);
+				let description = labels.getPathLabel(paths.dirname(fileMatch.resource.fsPath), this.contextService);
+
+				let entry = this.instantiationService.createInstance(FileEntry, label, description, fileMatch.resource);
+
+				// Apply highlights
+				let {labelHighlights, descriptionHighlights} = QuickOpenEntry.highlight(entry, searchValue);
+				entry.setHighlights(labelHighlights, descriptionHighlights);
+
+				results.push(entry);
+			}
+
+			// Sort (standalone only)
+			if (this.isStandalone) {
+				results = results.sort((elementA, elementB) => QuickOpenEntry.compare(elementA, elementB, searchValue));
 			}
 
 			return results;
 		});
-	}
-
-	private sort(elementA: FileMatch, elementB: FileMatch, searchValue: string): number {
-		let elementAName = elementA.name().toLowerCase();
-		let elementBName = elementB.name().toLowerCase();
-
-		// Sort matches that have search value in beginning to the top
-		let elementAPrefixMatch = elementAName.indexOf(searchValue) === 0;
-		let elementBPrefixMatch = elementBName.indexOf(searchValue) === 0;
-		if (elementAPrefixMatch !== elementBPrefixMatch) {
-			return elementAPrefixMatch ? -1 : 1;
-		}
-
-		// Compare by name
-		let r = comparers.compareFileNames(elementAName, elementBName);
-		if (r !== 0) {
-			return r;
-		}
-
-		// Otherwise do full compare with path info
-		return strings.localeCompare(elementA.resource().fsPath, elementB.resource().fsPath);
 	}
 
 	public getGroupLabel(): string {

@@ -9,6 +9,7 @@ import path = require('path');
 import assert = require('assert');
 
 import uri from 'vs/base/common/uri';
+import {join, normalize} from 'vs/base/common/paths';
 import {LineMatch} from 'vs/platform/search/common/search';
 
 import {FileWalker, Engine as FileSearchEngine} from 'vs/workbench/services/search/node/fileSearch';
@@ -43,6 +44,24 @@ suite('Search', () => {
 		}, () => { }, (error) => {
 			assert.ok(!error);
 			assert.equal(count, 4);
+			done();
+		});
+	});
+
+	test('Files: examples/com*', function(done: () => void) {
+		let engine = new FileSearchEngine({
+			rootPaths: [require.toUrl('./fixtures')],
+			filePattern: normalize(join('examples', 'com*'), true)
+		});
+
+		let count = 0;
+		engine.search((result) => {
+			if (result) {
+				count++;
+			}
+		}, () => { }, (error) => {
+			assert.ok(!error);
+			assert.equal(count, 1);
 			done();
 		});
 	});

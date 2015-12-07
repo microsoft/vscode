@@ -10,7 +10,9 @@ import nls = require('vs/nls');
 import {ThrottledDelayer} from 'vs/base/common/async';
 import types = require('vs/base/common/types');
 import strings = require('vs/base/common/strings');
+import paths = require('vs/base/common/paths');
 import filters = require('vs/base/common/filters');
+import labels = require('vs/base/common/labels');
 import {IRange} from 'vs/editor/common/editorCommon';
 import {compareAnything} from 'vs/base/common/comparers';
 import {IAutoFocus} from 'vs/base/parts/quickopen/browser/quickOpen';
@@ -20,6 +22,7 @@ import {FileEntry, OpenFileHandler} from 'vs/workbench/parts/search/browser/open
 import {OpenSymbolHandler as _OpenSymbolHandler} from 'vs/workbench/parts/search/browser/openSymbolHandler';
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 
 // OpenSymbolHandler is used from an extension and must be in the main bundle file so it can load
 export const OpenSymbolHandler = _OpenSymbolHandler
@@ -42,6 +45,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 
 	constructor(
 		@IMessageService private messageService: IMessageService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		super();
@@ -139,8 +143,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 				let result = [...results[0].entries, ...results[1].entries];
 
 				// Sort
-				let normalizedSearchValue = strings.stripWildcards(searchValue.toLowerCase());
-				result.sort((elementA, elementB) => this.compareResults(elementA, elementB, normalizedSearchValue));
+				result.sort((elementA, elementB) => QuickOpenEntry.compare(elementA, elementB, searchValue));
 
 				// Apply Range
 				result.forEach((element) => {
@@ -214,7 +217,13 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 		// Find cache entries by prefix of search value
 		let cachedEntries: QuickOpenEntry[];
 		for (let previousSearch in this.resultsToSearchCache) {
+
+			// If we narrow down, we might be able to reuse the cached results
 			if (searchValue.indexOf(previousSearch) === 0) {
+				if (searchValue.indexOf(paths.nativeSep) >= 0 && previousSearch.indexOf(paths.nativeSep) < 0) {
+					continue; // since a path character widens the search for potential more matches, require it in previous search too
+				}
+
 				cachedEntries = this.resultsToSearchCache[previousSearch];
 				break;
 			}
@@ -226,6 +235,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 
 		// Pattern match on results and adjust highlights
 		let results: QuickOpenEntry[] = [];
+		const searchInPath = searchValue.indexOf(paths.nativeSep) >= 0;
 		for (let i = 0; i < cachedEntries.length; i++) {
 			let entry = cachedEntries[i];
 
@@ -234,17 +244,21 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 				continue;
 			}
 
-			// Check for pattern match
-			let highlights = filters.matchesFuzzy(searchValue, entry.getLabel());
-			if (highlights) {
-				entry.setHighlights(highlights);
-				results.push(entry);
+			// Check if this entry is a match for the search value
+			let targetToMatch = searchInPath ? labels.getPathLabel(entry.getResource(), this.contextService) : entry.getLabel();
+			if (!filters.matchesFuzzy(searchValue, targetToMatch)) {
+				continue;
 			}
+
+			// Apply highlights
+			const {labelHighlights, descriptionHighlights} = QuickOpenEntry.highlight(entry, searchValue);
+			entry.setHighlights(labelHighlights, descriptionHighlights);
+
+			results.push(entry);
 		}
 
 		// Sort
-		let normalizedSearchValue = strings.stripWildcards(searchValue.toLowerCase());
-		results.sort((elementA, elementB) => this.compareResults(elementA, elementB, normalizedSearchValue));
+		results.sort((elementA, elementB) => QuickOpenEntry.compare(elementA, elementB, searchValue));
 
 		// Apply Range
 		results.forEach((element) => {
@@ -254,23 +268,6 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 		});
 
 		return results;
-	}
-
-	private compareResults(elementA:QuickOpenEntry, elementB:QuickOpenEntry, searchValue: string): number {
-		let nameA = elementA.getLabel();
-		let nameB = elementB.getLabel();
-
-		if (nameA === nameB) {
-			let resourceA = elementA.getResource();
-			let resourceB = elementB.getResource();
-
-			if (resourceA && resourceB) {
-				nameA = elementA.getResource().fsPath;
-				nameB = elementB.getResource().fsPath;
-			}
-		}
-
-		return compareAnything(nameA, nameB, searchValue);
 	}
 
 	public getGroupLabel(): string {
