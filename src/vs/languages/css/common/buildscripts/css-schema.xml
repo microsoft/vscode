@@ -1159,44 +1159,48 @@
         </value>
       </values>
     </entry>
-    <entry name="background-position-x" restriction="length, percentage" version="3.0" browsers="IE6" ref="http://www.w3.org/TR/css3-background/#the-background-position" syntax="body { $(name): center; }">
+    <entry name="background-position-x" restriction="length, percentage" version="4.0" browsers="E,IE6" ref="https://drafts.csswg.org/css-backgrounds-4/#propdef-background-position-x" syntax="body { $(name): center; }">
       <desc>If background images have been specified, this property specifies their initial position (after any resizing) within their corresponding background positioning area.</desc>
       <values>
-        <value name="bottom" version="3.0" browsers="all">
+        <value name="bottom" version="4.0" browsers="all">
           <desc>Equivalent to '100%' for the vertical position if one or two values are given, otherwise specifies the bottom edge as the origin for the next offset.</desc>
         </value>
-        <value name="center" version="3.0" browsers="all">
+        <value name="center" version="4.0" browsers="all">
           <desc>Equivalent to '50%' ('left 50%') for the horizontal position if the horizontal position is not otherwise specified, or '50%' ('top 50%') for the vertical position if it is.</desc>
         </value>
-        <value name="left" version="3.0" browsers="all">
+        <value name="left" version="4.0" browsers="all">
           <desc>Equivalent to '0%' for the horizontal position if one or two values are given, otherwise specifies the left edge as the origin for the next offset.</desc>
         </value>
-        <value name="right" version="3.0" browsers="all">
+        <value name="right" version="4.0" browsers="all">
           <desc>Equivalent to '100%' for the horizontal position if one or two values are given, otherwise specifies the right edge as the origin for the next offset.</desc>
         </value>
-        <value name="top" version="3.0" browsers="all">
+        <value name="top" version="4.0" browsers="all">
           <desc>Equivalent to '0%' for the vertical position if one or two values are given, otherwise specifies the top edge as the origin for the next offset.</desc>
         </value>
+        <value name="x-end" version="4.0" browsers="none" />
+        <value name="x-start" version="4.0" browsers="none" />
       </values>
     </entry>
-    <entry name="background-position-y" restriction="length, percentage" version="3.0" browsers="IE6" ref="http://www.w3.org/TR/css3-background/#the-background-position" syntax="body { $(name): center; }">
+    <entry name="background-position-y" restriction="length, percentage" version="4.0" browsers="E,IE6" ref="https://drafts.csswg.org/css-backgrounds-4/#propdef-background-position-y" syntax="body { $(name): center; }">
       <desc>If background images have been specified, this property specifies their initial position (after any resizing) within their corresponding background positioning area.</desc>
       <values>
-        <value name="bottom" version="3.0" browsers="all">
+        <value name="bottom" version="4.0" browsers="all">
           <desc>Equivalent to '100%' for the vertical position if one or two values are given, otherwise specifies the bottom edge as the origin for the next offset.</desc>
         </value>
-        <value name="center" version="3.0" browsers="all">
+        <value name="center" version="4.0" browsers="all">
           <desc>Equivalent to '50%' ('left 50%') for the horizontal position if the horizontal position is not otherwise specified, or '50%' ('top 50%') for the vertical position if it is.</desc>
         </value>
-        <value name="left" version="3.0" browsers="all">
+        <value name="left" version="4.0" browsers="all">
           <desc>Equivalent to '0%' for the horizontal position if one or two values are given, otherwise specifies the left edge as the origin for the next offset.</desc>
         </value>
-        <value name="right" version="3.0" browsers="all">
+        <value name="right" version="4.0" browsers="all">
           <desc>Equivalent to '100%' for the horizontal position if one or two values are given, otherwise specifies the right edge as the origin for the next offset.</desc>
         </value>
-        <value name="top" version="3.0" browsers="all">
+        <value name="top" version="4.0" browsers="all">
           <desc>Equivalent to '0%' for the vertical position if one or two values are given, otherwise specifies the top edge as the origin for the next offset.</desc>
         </value>
+        <value name="y-end" version="4.0" browsers="none" />
+        <value name="y-start" version="4.0" browsers="none" />
       </values>
     </entry>
     <entry name="background-repeat" restriction="enum" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#the-background-repeat" syntax="article { $(name): no-repeat; }">
