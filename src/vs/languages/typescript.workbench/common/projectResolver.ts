@@ -41,6 +41,7 @@ class ProjectFileEventListener {
 		paths.normalize('/node_modules/', true),
 		paths.normalize('/.git/', true),
 		paths.normalize('/bower_components/', true),
+		paths.normalize('/jspm_packages/', true),
 		paths.normalize('/tmp/', true),
 		paths.normalize('/temp/', true),
 	];
@@ -291,7 +292,7 @@ class ProjectResolver implements typescript.IProjectResolver2 {
 		includePattern[globPattern] = true;
 
 		let excludePattern: glob.IExpression = Object.create(null);
-		excludePattern['{**/node_modules/**,**/.git/**,**/bower_components/**,**/tmp/**,**/temp/**}'] = true;
+		excludePattern['{**/node_modules/**,**/.git/**,**/bower_components/**,**/jspm_packages/**,**/tmp/**,**/temp/**}'] = true;
 
 		// add custom exclude patterns
 		if(Array.isArray(excludes)) {
