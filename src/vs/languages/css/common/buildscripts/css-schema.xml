@@ -798,6 +798,27 @@
         </value>
       </values>
     </entry>
+    <entry name="background-blend-mode" restriction="enum" version="3.0" browsers="C35,FF30,O22,S7.1" ref="http://www.w3.org/TR/compositing-1/#propdef-background-blend-mode" syntax="div { $(name): saturation; }">
+      <desc>Defines the blending mode of each background layer.</desc>
+      <values>
+        <value name="normal" version="3.0" browsers="all" />
+        <value name="multiply" version="3.0" browsers="all" />
+        <value name="screen" version="3.0" browsers="all" />
+        <value name="overlay" version="3.0" browsers="all" />
+        <value name="darken" version="3.0" browsers="all" />
+        <value name="lighten" version="3.0" browsers="all" />
+        <value name="color-dodge" version="3.0" browsers="all" />
+        <value name="color-burn" version="3.0" browsers="all" />
+        <value name="hard-light" version="3.0" browsers="all" />
+        <value name="soft-light" version="3.0" browsers="all" />
+        <value name="difference" version="3.0" browsers="all" />
+        <value name="exclusion" version="3.0" browsers="all" />
+        <value name="hue" version="3.0" browsers="C35,FF30,O22" />
+        <value name="saturation" version="3.0" browsers="C35,FF30,O22" />
+        <value name="color" version="3.0" browsers="C35,FF30,O22" />
+        <value name="luminosity" version="3.0" browsers="C35,FF30,O22" />
+      </values>
+    </entry>
     <entry name="background-clip" restriction="enum" version="3.0" browsers="E,C,FF4,IE9,O10.5,S3" ref="http://www.w3.org/TR/css3-background/#the-background-clip" syntax="header { $(name): border-box; }">
       <desc>Determines the background painting area.</desc>
       <values>
