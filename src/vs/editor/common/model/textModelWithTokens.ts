@@ -1,4 +1,4 @@
-/*---------------------------------------------------------------------------------------------
+﻿/*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
@@ -835,6 +835,17 @@ export class TextModelWithTokens extends TextModel implements EditorCommon.IToke
 		}
 
 		return WordHelper.getWords(this, this.validateLineNumber(lineNumber));
+	}
+
+	public getSubWords(lineNumber:number): EditorCommon.IWordRangeSubWords[] {
+		if (this._isDisposed) {
+			throw new Error('TextModelWithTokens.getWords: Model is disposed');
+		}
+		if (lineNumber < 1 || lineNumber > this.getLineCount()) {
+			throw new Error('Illegal value ' + lineNumber + ' for `lineNumber`');
+		}
+
+		return WordHelper.getSubWords(this, this.validateLineNumber(lineNumber));
 	}
 
 	public tokenIterator(position:EditorCommon.IPosition, callback:(it:TokenIterator)=>any): any {
