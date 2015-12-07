@@ -44,7 +44,7 @@ export class FileWalker {
 		this.walkedPaths = Object.create(null);
 
 		// Normalize file patterns to forward slashs
-		if (this.filePattern.indexOf(paths.sep) >= 0) {
+		if (this.filePattern && this.filePattern.indexOf(paths.sep) >= 0) {
 			this.filePattern = strings.replaceAll(this.filePattern, '\\', '/');
 			this.searchInPath = true;
 		}
