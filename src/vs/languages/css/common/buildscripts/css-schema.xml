@@ -683,6 +683,23 @@
         </value>
       </values>
     </entry>
+    <entry name="backdrop-filter" restriction="enum" version="4.0" browsers="none" ref="https://drafts.fxtf.org/filters-2/#propdef-backdrop-filter" syntax="div { $(name): blur(2px); }">
+      <desc>Applies a filter effect where the first filter in the list takes the element's background image as the input image.</desc>
+      <values>
+        <value name="none" version="4.0" browsers="all" />
+        <value name="blur()" version="4.0" browsers="all" />
+        <value name="brightness()" version="4.0" browsers="all" />
+        <value name="contrast()" version="4.0" browsers="all" />
+        <value name="drop-shadow()" version="4.0" browsers="all" />
+        <value name="grayscale()" version="4.0" browsers="all" />
+        <value name="hue-rotate()" version="4.0" browsers="all" />
+        <value name="invert()" version="4.0" browsers="all" />
+        <value name="opacity()" version="4.0" browsers="all" />
+        <value name="saturate()" version="4.0" browsers="all" />
+        <value name="sepia()" version="4.0" browsers="all" />
+        <value name="url()" version="4.0" browsers="all" />
+      </values>
+    </entry>
     <entry name="backface-visibility" restriction="enum" version="3.0" browsers="E,C36,FF16,IE10,O23" ref="http://www.w3.org/TR/css3-3d-transforms/#backface-visibility" syntax="div { $(name): hidden; }">
       <desc>Determines whether or not the 'back' side of a transformed element is visible when facing the viewer. With an identity transform, the front side of an element faces the viewer.</desc>
       <values>
