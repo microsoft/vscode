@@ -42,6 +42,7 @@
 	cursor: pointer;
 	overflow: hidden;
 	width: 100%;
+	height: inherit !important;
 	touch-action: none;
 }
 
