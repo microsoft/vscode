@@ -3359,5 +3359,8 @@ export var Handler = {
 	LineInsertAfter:			'lineInsertAfter',
 	LineBreakInsert:			'lineBreakInsert',
 
-	SelectAll:					'selectAll'
+	SelectAll:					'selectAll',
+
+	ScrollUp:					'scrollUp',
+	ScrollDown:					'scrollDown'
 };
