@@ -6048,9 +6048,6 @@
     <entry name="line-height" restriction="number, length, percentage" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-linebox/#line-height" syntax="#menu { $(name): 22px; }">
       <desc>Determines the block-progression dimension of the text content area of an inline box.</desc>
       <values>
-        <value name="none" version="1.0" browsers="all">
-          <desc>The computed value of the property is the ancestor block element font-size.</desc>
-        </value>
         <value name="normal" version="1.0" browsers="all">
           <desc>Tells user agents to set the computed value to a 'reasonable' value based on the font size of the element.</desc>
         </value>
