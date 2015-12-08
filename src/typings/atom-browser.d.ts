@@ -190,6 +190,8 @@ declare class BrowserWindow extends EventEmitter {
 	getPosition(): number[];
 	setPosition(x: number, y: number): void;
 	setMenuBarVisibility(visible: boolean): void;
+	isMenuBarAutoHide(): boolean;
+	setAutoHideMenuBar(hide: boolean): void;
 	maximize(): void;
 	setRepresentedFilename(path: string): void;
 	setTitle(title: string): void;

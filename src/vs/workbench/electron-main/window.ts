@@ -540,27 +540,7 @@ export class VSCodeWindow {
 	}
 
 	public toggleMenuBarVisibility(): void {
-		if (this.isMenubarVisible == true) {
-			this.win.setMenuBarVisibility(false);
-			this.isMenubarVisible = false;
-			this.enableMenubarHiding = true;
-		} else {
-			this.win.setMenuBarVisibility(true);
-			this.isMenubarVisible = true;
-			this.enableMenubarHiding = false;
-		}
-	}
-
-	public toggleMenuBarByKeyPress(): void {
-		if (this.enableMenubarHiding == true) {
-			if (this.isMenubarVisible == true) {
-				this.win.setMenuBarVisibility(false);
-				this.isMenubarVisible = false;
-			} else {
-				this.win.setMenuBarVisibility(true);
-				this.isMenubarVisible = true;
-			}
-		}
+		this.win.setAutoHideMenuBar(!this.win.isMenuBarAutoHide());
 	}
 
 	public dispose(): void {

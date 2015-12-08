@@ -234,11 +234,7 @@ export class WindowsManager {
 
 			let vscodeWindow = this.getWindowById(windowId);
 			if (vscodeWindow) {
-				if (isByKeyPress == true) {
-					vscodeWindow.toggleMenuBarByKeyPress();
-				} else {
-					vscodeWindow.toggleMenuBarVisibility();
-				}
+				vscodeWindow.toggleMenuBarVisibility();
 			}
 		});
 
