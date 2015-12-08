@@ -12670,7 +12670,7 @@
       <desc>Describes the radius of the ‘circle’ element.</desc>
     </entry>
     <entry name="region-fragment" restriction="enum" version="3.0" browsers="none" ref="http://dev.w3.org/csswg/css-regions/#region-fragment" syntax="article { $(name): break; }">
-      <desc>The 'region-fragment' property controls the behavior of the last region associated with a named flow.</desc>
+      <desc>Controls the behavior of the last region associated with a named flow.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all">
           <desc>Content flows as it would in a regular content box.</desc>
