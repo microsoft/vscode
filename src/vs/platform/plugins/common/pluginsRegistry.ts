@@ -8,7 +8,7 @@ import {IPluginDescription, IPointListener, IActivationEventListener, IMessage} 
 import {Registry} from 'vs/platform/platform';
 import Errors = require('vs/base/common/errors');
 import env = require('vs/base/common/flags');
-import * as JSONContributionRegistry from 'vs/languages/json/common/jsonContributionRegistry';
+import * as JSONContributionRegistry from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import {IJSONSchema} from 'vs/base/common/jsonSchema';
 import nls = require('vs/nls');
 import paths = require('vs/base/common/paths');

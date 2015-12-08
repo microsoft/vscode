@@ -17,7 +17,7 @@ import EventEmitter = require('vs/base/common/eventEmitter');
 import {IResourceService, ResourceEvents, IResourceChangedEvent} from 'vs/editor/common/services/resourceService';
 import {IRequestService} from 'vs/platform/request/common/request';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {ISchemaContributions} from 'vs/languages/json/common/jsonContributionRegistry';
+import {ISchemaContributions} from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 
 'use strict';
