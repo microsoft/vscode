@@ -48,6 +48,7 @@ export class Repl extends baseeditor.BaseEditor {
 
 	private toDispose: lifecycle.IDisposable[];
 	private tree: tree.ITree;
+	private renderer: viewer.ReplExpressionsRenderer;
 	private treeContainer: HTMLElement;
 	private replInput: HTMLInputElement;
 	private refreshTimeoutHandle: number;
@@ -121,9 +122,10 @@ export class Repl extends baseeditor.BaseEditor {
 			}
 		});
 
+		this.renderer = this.instantiationService.createInstance(viewer.ReplExpressionsRenderer);
 		this.tree = new treeimpl.Tree(this.treeContainer, {
 			dataSource: new viewer.ReplExpressionsDataSource(this.debugService),
-			renderer: this.instantiationService.createInstance(viewer.ReplExpressionsRenderer),
+			renderer: this.renderer,
 			controller: new viewer.ReplExpressionsController(this.debugService, this.contextMenuService, new viewer.ReplExpressionsActionProvider(this.instantiationService), this.replInput, false)
 		}, replTreeOptions);
 
@@ -146,7 +148,9 @@ export class Repl extends baseeditor.BaseEditor {
 
 	public layout(dimension: builder.Dimension): void {
 		if (this.tree) {
+			this.renderer.setWidth(dimension.width - 20);
 			this.tree.layout(this.treeContainer.clientHeight);
+			this.tree.refresh().done(null, errors.onUnexpectedError);
 		}
 	}
 

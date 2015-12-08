@@ -107,6 +107,8 @@ export class ReplExpressionsRenderer implements tree.IRenderer {
 		/((\/|[a-zA-Z]:\\)[^\(\)<>\'\"\[\]]+):(\d+):(\d+)/
 	]
 
+	private width: number;
+
 	constructor(
 		@debug.IDebugService private debugService: debug.IDebugService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
@@ -116,7 +118,19 @@ export class ReplExpressionsRenderer implements tree.IRenderer {
 	}
 
 	public getHeight(tree:tree.ITree, element:any): number {
-		return element instanceof model.Expression ? 48 : 24;
+		return this.getHeightForString(element.value) + (element instanceof model.Expression ? this.getHeightForString(element.name) : 0);
+	}
+
+	private getHeightForString(s: string): number {
+		if (!s || !s.length || this.width <= 0) {
+			return 24;
+		}
+
+		return 24 * Math.ceil(s.length * 8 / this.width);
+	}
+
+	public setWidth(width: number): void {
+		this.width = width;
 	}
 
 	public getTemplateId(tree: tree.ITree, element: any): string {
