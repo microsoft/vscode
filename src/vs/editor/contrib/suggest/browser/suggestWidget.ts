@@ -341,7 +341,12 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 					this.telemetryData.wasCancelled = false;
 					this.submitTelemetryData();
 
-					this.model.accept(element);
+					const item: CompletionItem = element;
+					const container = item.container;
+					const overwriteBefore = (typeof container.overwriteBefore === 'undefined') ? container.currentWord.length : container.overwriteBefore;
+					const overwriteAfter = (typeof container.overwriteAfter === 'undefined') ? 0 : Math.max(0, container.overwriteAfter);
+					this.model.accept(item.suggestion, overwriteBefore, overwriteAfter);
+
 					this.editor.focus();
 				}
 			}

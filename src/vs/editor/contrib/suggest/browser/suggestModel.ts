@@ -37,18 +37,16 @@ export interface SuggestDataEvent {
 export class CompletionItem {
 
 	private static _idPool = 0;
-
 	public id: string;
 	public suggestion: ISuggestion;
 	public highlights: IMatch[];
 	public support: ISuggestSupport;
 	public container: ISuggestResult;
-
 	private _resolveDetails:TPromise<CompletionItem>
 
-	constructor(support: ISuggestSupport, suggestion: ISuggestion, container:ISuggestResult) {
+	constructor(private group: CompletionGroup, suggestion: ISuggestion, container:ISuggestResult2) {
 		this.id = '_completion_item_#' + CompletionItem._idPool++;
-		this.support = support;
+		this.support = container.support;
 		this.suggestion = suggestion;
 		this.container = container;
 	}
@@ -78,18 +76,38 @@ export class CompletionItem {
 	}
 }
 
-class CompletionItemGroup {
+export class CompletionGroup {
+
+	private items: CompletionItem[];
+
+	private _incomplete: boolean;
+	public get incomplete(): boolean { return this._incomplete; }
+
+	private _size: number;
+	public get size(): number { return this._size; }
 
 	private compare: ISuggestionCompare;
 	private filter: ISuggestionFilter;
-	public get size(): number { return this.items.length; }
 
-	constructor(private items: CompletionItem[]) {
+	constructor(private model: CompletionModel, private index: number, raw: ISuggestResult2[]) {
+		this._incomplete = false;
+		this._size = 0;
+
+		this.items = raw.reduce<CompletionItem[]>((items, result) => {
+			this._incomplete = this._incomplete || result.incomplete;
+			this._size += result.suggestions.length;
+
+			return items.concat(
+				result.suggestions
+					.map(suggestion => new CompletionItem(this, suggestion, result))
+			);
+		}, []);
+
 		this.compare = DefaultCompare;
 		this.filter = DefaultFilter;
 
-		if (!isFalsyOrEmpty(items)) {
-			const [first] = items;
+		if (this.items.length > 0) {
+			const [first] = this.items;
 
 			if (first.support) {
 				this.compare = first.support.getSorter && first.support.getSorter() || this.compare;
@@ -106,12 +124,30 @@ class CompletionItemGroup {
 	}
 }
 
-class CompletionModel {
+export class CompletionModel {
 
-	public size: number;
+	private groups: CompletionGroup[];
 
-	constructor(private groups: CompletionItemGroup[], public incomplete: boolean) {
-		this.size = groups.reduce((size, groups) => size + groups.size, 0);
+	private _incomplete: boolean;
+	public get incomplete(): boolean { return this._incomplete; }
+
+	private _size: number;
+	public get size(): number { return this._size; }
+
+	constructor(raw: ISuggestResult2[][]) {
+		this._incomplete = false;
+		this._size = 0;
+
+		this.groups = raw
+			.filter(s => !!s)
+			.map((suggestResults, index) => {
+				const group = new CompletionGroup(this, index, suggestResults);
+
+				this._incomplete = this._incomplete || group.incomplete;
+				this._size += group.size;
+
+				return group;
+			});
 	}
 
 	select(ctx: Context): CompletionItem[] {
@@ -119,7 +155,7 @@ class CompletionModel {
 	}
 }
 
-class Context {
+export class Context {
 
 	public lineNumber:number;
 	public column:number;
@@ -405,25 +441,12 @@ export class SuggestModel implements IDisposable {
 
 			let incomplete = false;
 			const snippets = getSnippets(model, position);
-
-			const groups = all
-				.filter(s => !!s)
-				.map(suggestResults => {
-					return new CompletionItemGroup(suggestResults.reduce<CompletionItem[]>((items, suggestResult) => {
-						incomplete = incomplete || suggestResult.incomplete;
-
-						return items.concat(suggestResult.suggestions.map(suggestion => {
-							return new CompletionItem(suggestResult.support, suggestion, suggestResult);
-						}));
-					}, []));
-				})
-				.concat(new CompletionItemGroup(snippets.suggestions.map(suggestion => new CompletionItem(null, suggestion, snippets))));
-
-			const raw = new CompletionModel(groups, incomplete);
+			const raw = all.concat([[snippets]]);
+			const completionModel = new CompletionModel(raw);
 			const ctx = new Context(this.editor, auto);
 
-			if(raw.size > 0) {
-				this.raw = raw;
+			if(completionModel.size > 0) {
+				this.raw = completionModel;
 				this.onNewContext(ctx);
 			} else {
 				this._onDidSuggest.fire({ completionItems: null, currentWord: ctx.wordBefore, auto: this.isAutoSuggest() });
@@ -453,26 +476,18 @@ export class SuggestModel implements IDisposable {
 		}
 	}
 
-	public accept(item: CompletionItem): boolean {
+	public accept(suggestion: ISuggestion, overwriteBefore: number, overwriteAfter: number): boolean {
 		if (this.raw === null) {
 			return false;
 		}
 
-		var parentSuggestions = item.container;
 		var offsetFromInvocation = this.editor.getPosition().column - this.context.column;
-
-		var overwriteBefore = ((typeof parentSuggestions.overwriteBefore === 'undefined')
-			? parentSuggestions.currentWord.length
-			: parentSuggestions.overwriteBefore) + offsetFromInvocation;
-
-		var overwriteAfter = (typeof parentSuggestions.overwriteAfter === 'undefined')
-			? 0
-			: Math.max(0, parentSuggestions.overwriteAfter);
 
 		this.cancel();
 		this._onDidAccept.fire({
-			snippet: new CodeSnippet(item.suggestion.codeSnippet),
-			overwriteBefore, overwriteAfter
+			snippet: new CodeSnippet(suggestion.codeSnippet),
+			overwriteBefore: overwriteBefore + offsetFromInvocation,
+			overwriteAfter
 		});
 
 		return true;
