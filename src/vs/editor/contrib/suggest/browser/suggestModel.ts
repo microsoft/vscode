@@ -241,10 +241,8 @@ export interface ITriggerEvent {
 }
 
 export interface ISuggestEvent {
-	suggestions: {
-		completionItems: CompletionItem[];
-		currentWord: string;
-	};
+	completionItems: CompletionItem[];
+	currentWord: string;
 	auto: boolean;
 }
 
@@ -422,12 +420,13 @@ export class SuggestModel implements IDisposable {
 				.concat(new CompletionItemGroup(snippets.suggestions.map(suggestion => new CompletionItem(null, suggestion, snippets))));
 
 			const raw = new CompletionModel(groups, incomplete);
+			const ctx = new Context(this.editor, auto);
 
 			if(raw.size > 0) {
 				this.raw = raw;
-				this.onNewContext(new Context(this.editor, auto));
+				this.onNewContext(ctx);
 			} else {
-				this._onDidSuggest.fire({ suggestions: null, auto: this.isAutoSuggest() });
+				this._onDidSuggest.fire({ completionItems: null, currentWord: ctx.wordBefore, auto: this.isAutoSuggest() });
 			}
 		}).then(null, onUnexpectedError);
 	}
@@ -447,9 +446,9 @@ export class SuggestModel implements IDisposable {
 			const suggestions = this.raw.select(context);
 
 			if (suggestions.length > 0) {
-				this._onDidSuggest.fire({ suggestions: { completionItems: suggestions, currentWord: context.wordBefore }, auto: this.isAutoSuggest() });
+				this._onDidSuggest.fire({ completionItems: suggestions, currentWord: context.wordBefore, auto: this.isAutoSuggest() });
 			} else {
-				this._onDidSuggest.fire({ suggestions: null, auto: this.isAutoSuggest() });
+				this._onDidSuggest.fire({ completionItems: null, currentWord: context.wordBefore, auto: this.isAutoSuggest() });
 			}
 		}
 	}

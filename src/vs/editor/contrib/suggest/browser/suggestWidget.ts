@@ -16,7 +16,7 @@ import Tree = require('vs/base/parts/tree/common/tree');
 import TreeImpl = require('vs/base/parts/tree/browser/treeImpl');
 import TreeDefaults = require('vs/base/parts/tree/browser/treeDefaults');
 import HighlightedLabel = require('vs/base/browser/ui/highlightedlabel/highlightedLabel');
-import { SuggestModel, SuggestDataEvent, CompletionItem, ICancelEvent, ISuggestEvent, ITriggerEvent } from './suggestModel';
+import { SuggestModel, CompletionItem, ICancelEvent, ISuggestEvent, ITriggerEvent } from './suggestModel';
 import Mouse = require('vs/base/browser/mouseEvent');
 import EditorBrowser = require('vs/editor/browser/editorBrowser');
 import EditorCommon = require('vs/editor/common/editorCommon');
@@ -47,7 +47,7 @@ export class MessageRoot {
 class DataSource implements Tree.IDataSource {
 
 	private static _IdPool:number = 0;
-	private root: SuggestDataEvent;
+	private root: ISuggestEvent;
 
 	constructor() {
 		this.root = null;
@@ -60,7 +60,7 @@ class DataSource implements Tree.IDataSource {
 			return false;
 		} else if (element instanceof CompletionItem) {
 			return false;
-		} else if (Array.isArray((<SuggestDataEvent>element).suggestions.completionItems)) {
+		} else if (typeof element.currentWord === 'string') {
 			this.root = element;
 			return true;
 		} else {
@@ -73,7 +73,7 @@ class DataSource implements Tree.IDataSource {
 			return 'messageroot';
 		} else if (element instanceof Message) {
 			return 'message' + element.message;
-		} else if (!!element.suggestions) {
+		} else if (typeof element.currentWord === 'string') {
 			return 'root';
 		} else if (element instanceof CompletionItem) {
 			return (<CompletionItem>element).id;
@@ -101,7 +101,7 @@ class DataSource implements Tree.IDataSource {
 		}
 
 		return TPromise.as(this.isRoot(element)
-			? this.root.suggestions.completionItems
+			? this.root.completionItems
 			: []);
 	}
 
@@ -337,7 +337,7 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 				var element = e.selection[0];
 				if (!element.hasOwnProperty('suggestions') && !(element instanceof MessageRoot) && !(element instanceof Message)) {
 
-					this.telemetryData.selectedIndex = (<SuggestDataEvent> this.tree.getInput()).suggestions.completionItems.indexOf(element);
+					this.telemetryData.selectedIndex = (<ISuggestEvent> this.tree.getInput()).completionItems.indexOf(element);
 					this.telemetryData.wasCancelled = false;
 					this.submitTelemetryData();
 
@@ -428,7 +428,7 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 		this.isLoading = false;
 		clearTimeout(this.loadingTimeout);
 
-		if (!e.suggestions) { // empty
+		if (!e.completionItems) { // empty
 
 			if (e.auto) {
 				this.hide();
@@ -454,9 +454,9 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 			return;
 		}
 
-		const currentWord = e.suggestions.currentWord;
+		const currentWord = e.currentWord;
 		const currentWordLowerCase = currentWord.toLowerCase();
-		const suggestions = e.suggestions.completionItems;
+		const suggestions = e.completionItems;
 
 		let bestSuggestionIndex = -1;
 		let bestSuggestion = suggestions[0];
@@ -654,8 +654,8 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 			height += focusHeight;
 
 			var maxSuggestions = Math.floor((maxHeight - focusHeight) / 19);
-			var data = <SuggestDataEvent>input;
-			height += Math.min(data.suggestions.completionItems.length - 1, 11, maxSuggestions) * 19;
+			var data = <ISuggestEvent>input;
+			height += Math.min(data.completionItems.length - 1, 11, maxSuggestions) * 19;
 		}
 
 		this.element.style.height = height + 'px';
