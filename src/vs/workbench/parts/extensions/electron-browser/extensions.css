@@ -125,3 +125,11 @@
 .monaco-shell .extensions-statusbar {
 	cursor: pointer;
 }
+
+.monaco-shell .extensions-statusbar.warning::before {
+	color: yellow;
+}
+
+.monaco-shell .extensions-statusbar.error::before {
+	color: #FF9D00;
+}
