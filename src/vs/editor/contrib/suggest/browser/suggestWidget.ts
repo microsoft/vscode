@@ -38,11 +38,13 @@ var $ = dom.emmet;
 class CompletionItem {
 
 	private static _idPool = 0;
-	public id: string;
-	public suggestion: ISuggestion;
-	public highlights: IMatch[];
-	public support: ISuggestSupport;
-	public container: ISuggestResult;
+
+	id: string;
+	suggestion: ISuggestion;
+	highlights: IMatch[];
+	support: ISuggestSupport;
+	container: ISuggestResult;
+
 	private _resolveDetails:TPromise<CompletionItem>
 
 	constructor(public group: CompletionGroup, suggestion: ISuggestion, container:ISuggestResult2) {
@@ -73,24 +75,19 @@ class CompletionItem {
 
 class CompletionGroup {
 
-	private _items: CompletionItem[];
+	incomplete: boolean;
+	items: CompletionItem[];
+	size: number;
+	compare: ISuggestionCompare;
+	filter: ISuggestionFilter;
 
-	private _incomplete: boolean;
-	public get incomplete(): boolean { return this._incomplete; }
+	constructor(public model: CompletionModel, public index: number, raw: ISuggestResult2[]) {
+		this.incomplete = false;
+		this.size = 0;
 
-	private _size: number;
-	public get size(): number { return this._size; }
-
-	public compare: ISuggestionCompare;
-	public filter: ISuggestionFilter;
-
-	constructor(public model: CompletionModel, private index: number, raw: ISuggestResult2[]) {
-		this._incomplete = false;
-		this._size = 0;
-
-		this._items = raw.reduce<CompletionItem[]>((items, result) => {
-			this._incomplete = this._incomplete || result.incomplete;
-			this._size += result.suggestions.length;
+		this.items = raw.reduce<CompletionItem[]>((items, result) => {
+			this.incomplete = result.incomplete || this.incomplete;
+			this.size += result.suggestions.length;
 
 			return items.concat(
 				result.suggestions
@@ -101,8 +98,8 @@ class CompletionGroup {
 		this.compare = DefaultCompare;
 		this.filter = DefaultFilter;
 
-		if (this._items.length > 0) {
-			const [first] = this._items;
+		if (this.items.length > 0) {
+			const [first] = this.items;
 
 			if (first.support) {
 				this.compare = first.support.getSorter && first.support.getSorter() || this.compare;
@@ -110,36 +107,26 @@ class CompletionGroup {
 			}
 		}
 	}
-
-	get items(): CompletionItem[] {
-		return this._items;
-			// .map(item => assign(item, { highlights: this.filter(wordBefore, item.suggestion) }))
-			// .filter(item => !isFalsyOrEmpty(item.highlights))
-			// .sort((a, b) => this.compare(a.suggestion, b.suggestion));
-	}
 }
 
 class CompletionModel {
 
+	incomplete: boolean;
+	size: number;
+
 	private groups: CompletionGroup[];
 
-	private _incomplete: boolean;
-	public get incomplete(): boolean { return this._incomplete; }
-
-	private _size: number;
-	public get size(): number { return this._size; }
-
 	constructor(raw: ISuggestResult2[][], public currentWord: string) {
-		this._incomplete = false;
-		this._size = 0;
+		this.incomplete = false;
+		this.size = 0;
 
 		this.groups = raw
 			.filter(s => !!s)
 			.map((suggestResults, index) => {
 				const group = new CompletionGroup(this, index, suggestResults);
 
-				this._incomplete = this._incomplete || group.incomplete;
-				this._size += group.size;
+				this.incomplete = group.incomplete || this.incomplete;
+				this.size += group.size;
 
 				return group;
 			});
@@ -238,6 +225,21 @@ class Filter implements Tree.IFilter {
 		const currentWord = item.group.model.currentWord;
 		item.highlights = filter(currentWord, item.suggestion);
 		return !isFalsyOrEmpty(item.highlights);
+	}
+}
+
+class Sorter implements Tree.ISorter {
+
+	compare(tree: Tree.ITree, item: CompletionItem, otherItem: CompletionItem): number {
+		const group = item.group;
+		const otherGroup = otherItem.group;
+		const result = group.index - otherGroup.index
+
+		if (result !== 0) {
+			return result;
+		}
+
+		return group.compare(item.suggestion, otherItem.suggestion);
 	}
 }
 
@@ -435,7 +437,8 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 			renderer: this.renderer = new Renderer(),
 			dataSource: new DataSource(),
 			controller: new Controller(),
-			filter: new Filter()
+			filter: new Filter(),
+			sorter: new Sorter()
 		};
 
 		this.tree = new TreeImpl.Tree(this.element, configuration, {
