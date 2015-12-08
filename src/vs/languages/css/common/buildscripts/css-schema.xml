@@ -5478,12 +5478,11 @@
         <value name="minmax()" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="grid-column" restriction="integer, string, enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css3-grid-layout/#grid-column" syntax="#item1 { $(name): start end; }">
-      <desc>grid-column is used to place grid items and explicitly defined grid cells in the Grid.</desc>
+    <entry name="grid-column" restriction="identifier, integer, enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-grid-1/#propdef-grid-column" syntax="#item1 { $(name): span 2 / auto; }">
+      <desc>Shorthand for 'grid-column-start' and 'grid-column-end'.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all" />
-        <value name="end" version="3.0" browsers="all" />
-        <value name="start" version="3.0" browsers="all" />
+        <value name="span" version="3.0" browsers="all" />
       </values>
     </entry>
     <entry name="grid-column-align" restriction="enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css3-grid-layout/#grid-column-align" syntax="article { $(name): center; }">
@@ -5524,12 +5523,11 @@
         <value name="rows" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="grid-row" restriction="integer, string, enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css3-grid-layout/#grid-row" syntax="#item1 { $(name): start end; }">
-      <desc>grid-row is used to place grid items and explicitly defined grid cells in the Grid.</desc>
+    <entry name="grid-row" restriction="identifier, integer, enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-grid-1/#propdef-grid-row" syntax="#item1 { $(name): span 2 / auto; }">
+      <desc>Shorthand for 'grid-row-start' and 'grid-row-end'.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all" />
-        <value name="end" version="3.0" browsers="all" />
-        <value name="start" version="3.0" browsers="all" />
+        <value name="span" version="3.0" browsers="all" />
       </values>
     </entry>
     <entry name="grid-row-align" restriction="enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css3-grid-layout/#grid-row-align" syntax="div { $(name): stretch; }">
