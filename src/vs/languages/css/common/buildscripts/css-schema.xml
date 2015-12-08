@@ -5502,44 +5502,6 @@
         <value name="span" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="grid-column-align" restriction="enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css3-grid-layout/#grid-column-align" syntax="article { $(name): center; }">
-      <desc>Aligns the columns in a grid.</desc>
-      <values>
-        <value name="center" version="3.0" browsers="all">
-          <desc>Places the center of the Grid Item's margin box at the center of the Grid Item's column.</desc>
-        </value>
-        <value name="end" version="3.0" browsers="all">
-          <desc>Aligns the end edge of the Grid Item's margin box to the end edge of the Grid Item's column.</desc>
-        </value>
-        <value name="start" version="3.0" browsers="all">
-          <desc>Aligns the starting edge of the Grid Item's margin box to the starting edge of the Grid Item's column.</desc>
-        </value>
-        <value name="stretch" version="3.0" browsers="all">
-          <desc>Ensures that the Grid Item's margin box is equal to the size of the Grid Item's column.</desc>
-        </value>
-      </values>
-    </entry>
-    <entry name="grid-columns" restriction="" version="3.0" browsers="none" ref="http://www.w3.org/TR/css3-grid-layout/#grid-columns" syntax="div { $(name): 150px 1fr; }">
-      <desc>Lays out the columns of the grid.</desc>
-    </entry>
-    <entry name="grid-column-sizing" restriction="" version="3.0" browsers="none" ref="http://www.w3.org/TR/css3-grid-layout/#grid-column-sizing">
-      <desc>By default, any implicit columns or rows created are auto sized to content. The default size can be changed using the grid-column-sizing and grid-row-sizing properties.</desc>
-      <values>
-        <value name="auto" version="3.0" browsers="all" />
-        <value name="minmax()" version="3.0" browsers="all" />
-      </values>
-    </entry>
-    <entry name="grid-column-span" restriction="integer" version="3.0" browsers="none" ref="http://www.w3.org/TR/css3-grid-layout/#grid-row-span-and-grid-column-span" syntax="#item { $(name): 2; }.">
-      <desc>Specifies the number of columns to span.</desc>
-    </entry>
-    <entry name="grid-flow" restriction="enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css3-grid-layout/#grid-flow" syntax="#item { $(name): rows; }">
-      <desc>Grid items can be automatically placed into an unoccupied space of the grid. The grid-flow property controls the direction in which the search for unoccupied space takes place.</desc>
-      <values>
-        <value name="columns" version="3.0" browsers="all" />
-        <value name="none" version="3.0" browsers="all" />
-        <value name="rows" version="3.0" browsers="all" />
-      </values>
-    </entry>
     <entry name="grid-gap" restriction="length" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-grid-1/#propdef-grid-gap" syntax="#item1 { $(name): 2em 1em; }">
       <desc>Shorthand that specifies the gutters between grid columns and grid rows in one declaration.</desc>
     </entry>
@@ -5566,36 +5528,6 @@
         <value name="auto" version="3.0" browsers="all" />
         <value name="span" version="3.0" browsers="all" />
       </values>
-    </entry>
-    <entry name="grid-row-align" restriction="enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css3-grid-layout/#grid-row-align" syntax="div { $(name): stretch; }">
-      <desc>Aligns the rows in a grid.</desc>
-      <values>
-        <value name="center" version="3.0" browsers="all">
-          <desc>Places the center of the Grid Item's margin box at the center of the Grid Item's row.</desc>
-        </value>
-        <value name="end" version="3.0" browsers="all">
-          <desc>Aligns the end edge of the Grid Item's margin box to the end edge of the Grid Item's row.</desc>
-        </value>
-        <value name="start" version="3.0" browsers="all">
-          <desc>Aligns the starting edge of the Grid Item's margin box to the starting edge of the Grid Item's row.</desc>
-        </value>
-        <value name="stretch" version="3.0" browsers="all">
-          <desc>Ensures that the Grid Item's margin box is equal to the size of the Grid Item's row.</desc>
-        </value>
-      </values>
-    </entry>
-    <entry name="grid-rows" restriction="" version="3.0" browsers="none" ref="http://www.w3.org/TR/css3-grid-layout/#grid-rows" syntax="div { $(name): 50px 1fr 50px; }">
-      <desc>Lays out the columns of the grid.</desc>
-    </entry>
-    <entry name="grid-row-sizing" restriction="" version="3.0" browsers="none" ref="http://www.w3.org/TR/css3-grid-layout/#grid-row-sizing">
-      <desc>By default, any implicit columns or rows created are auto sized to content. The default size can be changed using the grid-column-sizing and grid-row-sizing properties.</desc>
-      <values>
-        <value name="auto" version="3.0" browsers="all" />
-        <value name="minmax()" version="3.0" browsers="all" />
-      </values>
-    </entry>
-    <entry name="grid-row-span" restriction="integer" version="3.0" browsers="none" ref="http://www.w3.org/TR/css3-grid-layout/#grid-row-span-and-grid-column-span" syntax="#item { $(name): 2; }.">
-      <desc>Specifies the number of rows to span.</desc>
     </entry>
     <entry name="grid-template" restriction="string, enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css3-grid-layout/#grid-template" syntax="#item1 { $(name): 'hh' 'nm' 'ff'; }">
       <desc>The grid-template property provides a visualization of the grid element's structure while simultaneously defining the grid cells which can be used to layer or stack the child elements of the grid.</desc>
