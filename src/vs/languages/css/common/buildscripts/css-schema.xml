@@ -6038,6 +6038,13 @@
         </value>
       </values>
     </entry>
+    <entry name="line-grid" restriction="enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-line-grid-1/#propdef-line-grid" syntax="div { $(name): create; }">
+      <desc>Specifies whether this box creates a new baseline grid for its descendants or uses the same baseline grid as its parent.</desc>
+      <values>
+        <value name="match-parent" version="3.0" browsers="all" />
+        <value name="create" version="3.0" browsers="all" />
+      </values>
+    </entry>
     <entry name="line-height" restriction="number, length, percentage" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-linebox/#line-height" syntax="#menu { $(name): 22px; }">
       <desc>Determines the block-progression dimension of the text content area of an inline box.</desc>
       <values>
