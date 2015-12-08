@@ -3012,6 +3012,11 @@ declare namespace vscode {
 		export const onDidChangeTextDocument: Event<TextDocumentChangeEvent>;
 
 		/**
+		 * An event that is emitted when a [text document](#TextDocument) is saving to disk (save may fail).
+		 */
+		export const onSavingTextDocument: Event<TextDocument>;
+
+		/**
 		 * An event that is emitted when a [text document](#TextDocument) is saved to disk.
 		 */
 		export const onDidSaveTextDocument: Event<TextDocument>;

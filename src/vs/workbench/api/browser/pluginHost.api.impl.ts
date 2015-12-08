@@ -237,6 +237,9 @@ export class PluginHostAPIImplementation {
 			onDidChangeTextDocument: (listener, thisArgs?, disposables?) => {
 				return pluginHostDocuments.onDidChangeDocument(listener, thisArgs, disposables);
 			},
+			onSavingTextDocument: (listener, thisArgs?, disposables?) => {
+				return pluginHostDocuments.onSavingDocument(listener, thisArgs, disposables);
+			},
 			onDidSaveTextDocument: (listener, thisArgs?, disposables?) => {
 				return pluginHostDocuments.onDidSaveDocument(listener, thisArgs, disposables);
 			},

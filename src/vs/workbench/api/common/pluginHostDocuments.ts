@@ -57,6 +57,9 @@ export class PluginHostModelService {
 	private _onDidChangeDocumentEventEmitter: Emitter<vscode.TextDocumentChangeEvent>;
 	public onDidChangeDocument: Event<vscode.TextDocumentChangeEvent>;
 
+	private _onSavingDocumentEventEmitter: Emitter<BaseTextDocument>;
+	public onSavingDocument: Event<BaseTextDocument>;
+
 	private _onDidSaveDocumentEventEmitter: Emitter<BaseTextDocument>;
 	public onDidSaveDocument: Event<BaseTextDocument>;
 
@@ -75,6 +78,9 @@ export class PluginHostModelService {
 
 		this._onDidChangeDocumentEventEmitter = new Emitter<vscode.TextDocumentChangeEvent>();
 		this.onDidChangeDocument = this._onDidChangeDocumentEventEmitter.event;
+
+		this._onSavingDocumentEventEmitter = new Emitter<BaseTextDocument>();
+		this.onSavingDocument = this._onSavingDocumentEventEmitter.event;
 
 		this._onDidSaveDocumentEventEmitter = new Emitter<BaseTextDocument>();
 		this.onDidSaveDocument = this._onDidSaveDocumentEventEmitter.event;
@@ -135,6 +141,11 @@ export class PluginHostModelService {
 		this._onDidRemoveDocumentEventEmitter.fire(document);
 		document._acceptLanguageId(newModeId);
 		this._onDidAddDocumentEventEmitter.fire(document);
+	}
+
+	public _acceptModelSaving(url: URI): void {
+		let document = this._documents[url.toString()];
+		this._onSavingDocumentEventEmitter.fire(document);
 	}
 
 	public _acceptModelSaved(url: URI): void {
@@ -555,6 +566,9 @@ export class MainThreadDocuments {
 		modelService.onModelRemoved.add(this._onModelRemoved, this, this._toDispose);
 		modelService.onModelModeChanged.add(this._onModelModeChanged, this, this._toDispose);
 
+		this._toDispose.push(eventService.addListener2(FileEventType.FILE_SAVING, (e: LocalFileChangeEvent) => {
+			this._proxy._acceptModelSaving(e.getAfter().resource);
+		}));
 		this._toDispose.push(eventService.addListener2(FileEventType.FILE_SAVED, (e: LocalFileChangeEvent) => {
 			this._proxy._acceptModelSaved(e.getAfter().resource);
 		}));
