@@ -14897,7 +14897,29 @@
     <entry name="shape-image-threshold" restriction="number" version="3.0" browsers="C37,O24" ref="http://www.w3.org/TR/css-shapes-1/#propdef-shape-image-threshold" syntax="div { $(name): 0.5; }">
       <desc>Defines the alpha channel threshold used to extract the shape using an image. A value of 0.5 means that the shape will enclose all the pixels that are more than 50% opaque.</desc>
     </entry>
-    <entry name="shape-margin" restriction="length, percentage" version="3.0" browsers="C37,O24" ref="http://www.w3.org/TR/css-shapes-1/#propdef-shape-margin" syntax="div { $(name): 10px; }">
+    <entry name="shape-insider" restriction="url, enum" version="4.0" browsers="none" ref="https://drafts.csswg.org/css-shapes-2/#propdef-shape-inside" syntax="div { $(name): outside-shape; }">
+      <desc>Adds one or more exclusion areas to the element’s wrapping context.</desc>
+      <values>
+        <value name="auto" version="4.0" browsers="all" />
+        <value name="circle()" version="4.0" browsers="all" />
+        <value name="cross-fade()" version="4.0" browsers="all" />
+        <value name="display" version="4.0" browsers="all" />
+        <value name="ellipse()" version="4.0" browsers="all" />
+        <value name="image()" version="4.0" browsers="all" />
+        <value name="image-set()" version="4.0" browsers="all" />
+        <value name="inset()" version="4.0" browsers="all" />
+        <value name="linear-gradient()" version="4.0" browsers="all" />
+        <value name="margin-box" version="4.0" browsers="all" />
+        <value name="none" version="4.0" browsers="all" />
+        <value name="outside-shape" version="4.0" browsers="all" />
+        <value name="polygon()" version="4.0" browsers="all" />
+        <value name="radial-gradient()" version="4.0" browsers="all" />
+        <value name="repeating-linear-gradient()" version="4.0" browsers="all" />
+        <value name="repeating-radial-gradient()" version="4.0" browsers="all" />
+        <value name="shape-box" version="4.0" browsers="all" />
+      </values>
+    </entry>
+    <entry name="shape-margin" restriction="url, length, percentage" version="3.0" browsers="C37,O24" ref="http://www.w3.org/TR/css-shapes-1/#propdef-shape-margin" syntax="div { $(name): 10px; }">
       <desc>Adds a margin to a 'shape-outside'. This defines a new shape that is the smallest contour that includes all the points that are the 'shape-margin' distance outward in the perpendicular direction from a point on the underlying shape.</desc>
     </entry>
     <entry name="shape-outside" restriction="enum" version="3.0" browsers="C37,O24" ref="http://www.w3.org/TR/css-shapes-1/#shape-outside-property" syntax="div { $(name): margin-box; }">
@@ -14923,8 +14945,10 @@
         <value name="radial-gradient()" version="3.0" browsers="all" />
         <value name="repeating-linear-gradient()" version="3.0" browsers="all" />
         <value name="repeating-radial-gradient()" version="3.0" browsers="all" />
-        <value name="url()" version="3.0" browsers="all" />
       </values>
+    </entry>
+    <entry name="shape-padding" restriction="length" version="4.0" browsers="none" ref="https://drafts.csswg.org/css-shapes-2/#propdef-shape-padding" syntax="div { $(name): 10px; }">
+      <desc>Adds padding to a 'shape-inside'.</desc>
     </entry>
     <entry name="shape-rendering" restriction="enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/SVG11/painting.html#ShapeRenderingProperty">
       <desc>The creator of SVG content might want to provide a hint to the implementation about what tradeoffs to make as it renders vector graphics elements such as ‘path’ elements and basic shapes such as circles and rectangles.</desc>
