@@ -11851,7 +11851,6 @@
     <entry name="order" restriction="integer" version="3.0" browsers="E,C29,FF22,IE11,O12.1,S9" ref="http://www.w3.org/TR/css3-flexbox/#order" syntax="p { $(name): -1; }">
       <desc>Controls the order in which flex items appear within their flex container, by assigning them to ordinal groups.</desc>
     </entry>
-    <entry name="orientation" restriction="" version="" browsers="all" />
     <entry name="orphans" restriction="integer" version="2.0" browsers="C,IE8,O7,S1.3" ref="http://www.w3.org/TR/css3-break/#widows-orphans" syntax="&lt;integer&gt;">
       <desc>Specifies the minimum number of lines in a block element that must be left at the bottom of a page.</desc>
     </entry>
