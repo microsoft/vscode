@@ -281,15 +281,16 @@ export class SuggestModel implements IDisposable {
 	}
 
 	public trigger(auto: boolean, triggerCharacter?: string, retrigger: boolean = false, groups?: ISuggestSupport[][]): void {
-		var model = this.editor.getModel();
-		var characterTriggered = !!triggerCharacter;
-		if (!groups) {
-			groups = SuggestRegistry.orderedGroups(model);
-		}
+		const model = this.editor.getModel();
+		const characterTriggered = !!triggerCharacter;
+		groups = groups || SuggestRegistry.orderedGroups(model);
+
 		if (groups.length === 0) {
 			return;
 		}
-		var ctx = new Context(this.editor, auto);
+
+		const ctx = new Context(this.editor, auto);
+
 		if (!ctx.isInEditableRange) {
 			return;
 		}
@@ -302,7 +303,7 @@ export class SuggestModel implements IDisposable {
 		// Capture context when request was sent
 		this.context = ctx;
 
-		var position = this.editor.getPosition();
+		const position = this.editor.getPosition();
 
 		this.requestPromise = suggest(model, position, triggerCharacter, groups).then(all => {
 			this.requestPromise = null;
@@ -329,7 +330,7 @@ export class SuggestModel implements IDisposable {
 			return;
 		}
 
-		if (this.raw) { // TODO@Joao: is this ever false?
+		if (this.raw) {
 			this._onDidSuggest.fire({ suggestions: this.raw, currentWord: ctx.wordBefore, auto: this.isAutoSuggest() });
 		}
 	}

@@ -114,7 +114,7 @@ class CompletionModel {
 
 	private groups: CompletionGroup[];
 
-	constructor(raw: ISuggestResult2[][], public currentWord: string) {
+	constructor(public raw: ISuggestResult2[][], public currentWord: string) {
 		this.incomplete = false;
 		this.size = 0;
 
@@ -597,13 +597,22 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 		}
 	}
 
-	private onDidSuggest(e: ISuggestEvent) {
+	private onDidSuggest(e: ISuggestEvent): void {
 		this.isLoading = false;
 		clearTimeout(this.loadingTimeout);
 
-		const model = new CompletionModel(e.suggestions, e.currentWord);
+		let model: CompletionModel = this.tree.getInput();
+		let promise: TPromise<void>;
 
-		this.tree.setInput(model).done(() => {
+		if (model && model.raw === e.suggestions) {
+			model.currentWord = e.currentWord;
+			promise = this.tree.refresh();
+		} else {
+			model = new CompletionModel(e.suggestions, e.currentWord);
+			promise = this.tree.setInput(model);
+		}
+
+		promise.done(() => {
 			const navigator = this.tree.getNavigator();
 			const currentWord = e.currentWord;
 			const currentWordLowerCase = currentWord.toLowerCase();
