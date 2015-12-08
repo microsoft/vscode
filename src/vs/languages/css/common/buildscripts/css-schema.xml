@@ -16605,6 +16605,14 @@
         </value>
       </values>
     </entry>
+    <entry name="transform-box" restriction="enum" version="3.0" browsers="none" ref="https://drafts.csswg.org/css-transforms-1/#propdef-transform-box" syntax="div { $(name): border-box; }">
+      <desc>All transformations defined by the 'transform' and 'transform-origin' property are relative to the position and dimension of the specified reference box.</desc>
+      <values>
+        <value name="border-box" version="3.0" browsers="all" />
+        <value name="fill-box" version="3.0" browsers="all" />
+        <value name="view-box" version="3.0" browsers="all" />
+      </values>
+    </entry>
     <entry name="transform-origin" restriction="length, percentage, enum" version="3.0" browsers="E,C36,FF16,IE10,O12.1,S9" ref="http://www.w3.org/TR/css3-2d-transforms/#transform-origin" syntax=".album { $(name): 20% 40%; }">
       <desc>Establishes the origin of transformation for an element. This property is applied by first translating the element by the negated value of the property, then applying the element's transform, then translating by the property value.</desc>
       <values>
