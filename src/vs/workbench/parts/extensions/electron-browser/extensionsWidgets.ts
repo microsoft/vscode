@@ -9,7 +9,7 @@ import errors = require('vs/base/common/errors');
 import dom = require('vs/base/browser/dom');
 import lifecycle = require('vs/base/common/lifecycle');
 import statusbar = require('vs/workbench/browser/parts/statusbar/statusbar');
-import { IPluginService, IPluginStatus } from 'vs/platform/plugins/common/plugins';
+import { IPluginService } from 'vs/platform/plugins/common/plugins';
 import { IQuickOpenService } from 'vs/workbench/services/quickopen/browser/quickOpenService';
 
 var $ = dom.emmet;
@@ -20,13 +20,13 @@ export class ExtensionsStatusbarItem implements statusbar.IStatusbarItem {
 	private domNode: HTMLElement;
 
 	constructor(
-		@IPluginService private pluginService: IPluginService,
+		@IPluginService pluginService: IPluginService,
 		@IQuickOpenService private quickOpenService: IQuickOpenService
 	) {
 		this.toDispose = [];
 
-		this.pluginService.onReady().then(() => {
-			const pluginsStatus = this.pluginService.getPluginsStatus();
+		pluginService.onReady().then(() => {
+			const pluginsStatus = pluginService.getPluginsStatus();
 			Object.keys(pluginsStatus).forEach(key => {
 				const severity = pluginsStatus[key].messages.reduce((maxSeverity, message) => Math.max(maxSeverity, message.type), Severity.Ignore);
 				this.domNode.classList.add(Severity[severity].toLowerCase());
