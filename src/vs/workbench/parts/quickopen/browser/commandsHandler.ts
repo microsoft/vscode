@@ -230,7 +230,7 @@ export class CommandsHandler extends QuickOpenHandler {
 		entries = arrays.distinct(entries, (entry) => entry.getLabel() + entry.getGroupLabel());
 
 		// Sort by name
-		entries = entries.sort(this.sort);
+		entries = entries.sort((entryA, entryB) => QuickOpenEntry.compare(entryA, entryB, searchValue));
 
 		return TPromise.as(new QuickOpenModel(entries));
 	}
@@ -297,13 +297,6 @@ export class CommandsHandler extends QuickOpenHandler {
 		}
 
 		return entries;
-	}
-
-	private sort(elementA: QuickOpenEntryGroup, elementB: QuickOpenEntryGroup): number {
-		let elementAName = elementA.getLabel().toLowerCase();
-		let elementBName = elementB.getLabel().toLowerCase();
-
-		return strings.localeCompare(elementAName, elementBName);
 	}
 
 	public getAutoFocus(searchValue: string): IAutoFocus {

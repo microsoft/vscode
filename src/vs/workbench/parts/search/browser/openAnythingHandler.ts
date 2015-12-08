@@ -14,7 +14,6 @@ import paths = require('vs/base/common/paths');
 import filters = require('vs/base/common/filters');
 import labels = require('vs/base/common/labels');
 import {IRange} from 'vs/editor/common/editorCommon';
-import {compareAnything} from 'vs/base/common/comparers';
 import {IAutoFocus} from 'vs/base/parts/quickopen/browser/quickOpen';
 import {QuickOpenEntry, QuickOpenModel} from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import {QuickOpenHandler} from 'vs/workbench/browser/quickopen';

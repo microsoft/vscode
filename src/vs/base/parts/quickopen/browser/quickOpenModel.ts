@@ -134,7 +134,8 @@ export class QuickOpenEntry {
 	}
 
 	/**
-	 * A good default sort implementation for quick open entries
+	 * A good default sort implementation for quick open entries respecting highlight information
+	 * as well as associated resources.
 	 */
 	public static compare(elementA: QuickOpenEntry, elementB: QuickOpenEntry, lookFor: string): number {
 
@@ -153,7 +154,7 @@ export class QuickOpenEntry {
 			return 1;
 		}
 
-		// Sort by name/path
+		// Fallback to the full path if labels are identical and we have associated resources
 		let nameA = elementA.getLabel();
 		let nameB = elementB.getLabel();
 		if (nameA === nameB) {
