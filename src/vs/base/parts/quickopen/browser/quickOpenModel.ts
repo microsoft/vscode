@@ -136,12 +136,31 @@ export class QuickOpenEntry {
 	/**
 	 * A good default sort implementation for quick open entries respecting highlight information
 	 * as well as associated resources.
+	 *
+	 * Supports fuzzy scoring when the option is enabled.
 	 */
-	public static compare(elementA: QuickOpenEntry, elementB: QuickOpenEntry, lookFor: string): number {
+	public static compare(elementA: QuickOpenEntry, elementB: QuickOpenEntry, lookFor: string, enableFuzzyScoring = false): number {
 
 		// Normalize
 		if (lookFor) {
-			lookFor = Strings.stripWildcards(lookFor).toLowerCase();
+			lookFor = Strings.stripWildcards(lookFor);
+		}
+
+		// Fuzzy scoring is special
+		if (enableFuzzyScoring) {
+			const labelAScore = Strings.score(elementA.getLabel(), lookFor);
+			const labelBScore = Strings.score(elementB.getLabel(), lookFor);
+
+			if (labelAScore !== labelBScore) {
+				return labelAScore > labelBScore ? -1 : 1;
+			}
+
+			const descriptionAScore = Strings.score(elementA.getDescription(), lookFor);
+			const descriptionBScore = Strings.score(elementB.getDescription(), lookFor);
+
+			if (descriptionAScore !== descriptionBScore) {
+				return descriptionAScore > descriptionBScore ? -1 : 1;
+			}
 		}
 
 		// Give matches with label highlights higher priority over
@@ -167,36 +186,42 @@ export class QuickOpenEntry {
 			}
 		}
 
-		return compareAnything(nameA, nameB, lookFor);
+		return compareAnything(nameA, nameB, lookFor.toLowerCase());
 	}
 
-	public static highlight(entry: QuickOpenEntry, lookFor: string): { labelHighlights: IHighlight[], descriptionHighlights: IHighlight[] } {
+	/**
+	 * A good default highlight implementation for an entry with label and description.
+	 *
+	 * Supports fuzzy matching when the option is enabled.
+	 */
+	public static highlight(entry: QuickOpenEntry, lookFor: string, enableFuzzyMatching = false): { labelHighlights: IHighlight[], descriptionHighlights: IHighlight[] } {
 		let labelHighlights: IHighlight[] = [];
 		let descriptionHighlights: IHighlight[] = [];
+		let matcher = enableFuzzyMatching ? Filters.SubstringMatching.Separate : Filters.SubstringMatching.Contiguous;
 
 		// Highlight file aware
 		if (entry.getResource()) {
 
 			// Highlight only inside label
 			if (lookFor.indexOf(Paths.nativeSep) < 0) {
-				labelHighlights = Filters.matchesFuzzy(lookFor, entry.getLabel());
+				labelHighlights = Filters.matchesFuzzy(lookFor, entry.getLabel(), matcher);
 			}
 
 			// Highlight in label and description
 			else {
-				descriptionHighlights = Filters.matchesFuzzy(Strings.trim(lookFor, Paths.nativeSep), entry.getDescription());
+				descriptionHighlights = Filters.matchesFuzzy(Strings.trim(lookFor, Paths.nativeSep), entry.getDescription(), matcher);
 
 				// If we have no highlights, assume that the match is split among name and parent folder
 				if (!descriptionHighlights || !descriptionHighlights.length) {
-					labelHighlights = Filters.matchesFuzzy(Paths.basename(lookFor), entry.getLabel());
-					descriptionHighlights = Filters.matchesFuzzy(Strings.trim(Paths.dirname(lookFor), Paths.nativeSep), entry.getDescription());
+					labelHighlights = Filters.matchesFuzzy(Paths.basename(lookFor), entry.getLabel(), matcher);
+					descriptionHighlights = Filters.matchesFuzzy(Strings.trim(Paths.dirname(lookFor), Paths.nativeSep), entry.getDescription(), matcher);
 				}
 			}
 		}
 
 		// Highlight by label otherwise
 		else {
-			labelHighlights = Filters.matchesFuzzy(lookFor, entry.getLabel());
+			labelHighlights = Filters.matchesFuzzy(lookFor, entry.getLabel(), matcher);
 		}
 
 		return { labelHighlights, descriptionHighlights };
