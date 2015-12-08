@@ -460,13 +460,18 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 			if (e.selection && e.selection.length > 0) {
 				var element = e.selection[0];
 				if (!element.hasOwnProperty('suggestions') && !(element instanceof MessageRoot) && !(element instanceof Message)) {
+					const item: CompletionItem = element;
+					const navigator = this.tree.getNavigator();
 
-					// TODO@joao bring back
-					// this.telemetryData.selectedIndex = (<ISuggestEvent> this.tree.getInput()).completionItems.indexOf(element);
+					this.telemetryData.selectedIndex = 0;
 					this.telemetryData.wasCancelled = false;
+
+					while (navigator.next() !== item) {
+						this.telemetryData.selectedIndex++;
+					}
+
 					this.submitTelemetryData();
 
-					const item: CompletionItem = element;
 					const container = item.container;
 					const overwriteBefore = (typeof container.overwriteBefore === 'undefined') ? container.currentWord.length : container.overwriteBefore;
 					const overwriteAfter = (typeof container.overwriteAfter === 'undefined') ? 0 : Math.max(0, container.overwriteAfter);
@@ -586,7 +591,7 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 		}
 
 		dom.removeClass(this.element, 'empty');
-		
+
 		this.telemetryData = this.telemetryData || {};
 
 		this.tree.setInput(model).done(() => {
