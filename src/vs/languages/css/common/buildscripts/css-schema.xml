@@ -16613,7 +16613,7 @@
         <value name="view-box" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="transform-origin" restriction="length, percentage, enum" version="3.0" browsers="E,C36,FF16,IE10,O12.1,S9" ref="http://www.w3.org/TR/css3-2d-transforms/#transform-origin" syntax=".album { $(name): 20% 40%; }">
+    <entry name="transform-origin" restriction="length, percentage, enum" version="3.0" browsers="E,C36,FF16,IE10,O12.1,S9" ref="http://www.w3.org/TR/css3-transforms/#propdef-transform-origin" syntax=".album { $(name): 20% 40%; }">
       <desc>Establishes the origin of transformation for an element. This property is applied by first translating the element by the negated value of the property, then applying the element's transform, then translating by the property value.</desc>
       <values>
         <value name="bottom" version="3.0" browsers="all" />
@@ -16623,7 +16623,7 @@
         <value name="top" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="transform-style" restriction="enum" version="3.0" browsers="E,C36,FF16,IE10,O23,S9" ref="http://www.w3.org/TR/css3-transforms/#transform-style-property" syntax="div { $(name): flat; }">
+    <entry name="transform-style" restriction="enum" version="3.0" browsers="E,C36,FF16,IE10,O23,S9" ref="http://www.w3.org/TR/css3-transforms/#propdef-transform-style" syntax="div { $(name): flat; }">
       <desc>Defines how nested elements are rendered in 3D space.</desc>
       <values>
         <value name="flat" version="3.0" browsers="all">
