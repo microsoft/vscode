@@ -180,4 +180,27 @@ suite('Strings', () => {
 		assert.strictEqual(strings.localeCompare('A', 'a'), 'A'.localeCompare('a'));
 		assert.strictEqual(strings.localeCompare('a', 'A'), 'a'.localeCompare('A'));
 	});
+
+	test("scorer", function() {
+		const target = 'HelLo-World';
+
+		const scores = [];
+		scores.push(strings.score(target, 'HelLo-World')); // direct case match
+		scores.push(strings.score(target, 'hello-world')); // direct mix-case match
+		scores.push(strings.score(target, 'HW')); // direct case prefix (multiple)
+		scores.push(strings.score(target, 'H')); // direct case prefix
+		scores.push(strings.score(target, 'hw')); // direct mix-case prefix (multiple)
+		scores.push(strings.score(target, 'h')); // direct mix-case prefix
+		scores.push(strings.score(target, 'W')); // direct case word prefix
+		scores.push(strings.score(target, 'w')); // direct mix-case word prefix
+		scores.push(strings.score(target, 'Ld')); // in-string case match (multiple)
+		scores.push(strings.score(target, 'L')); // in-string case match
+		scores.push(strings.score(target, 'ld')); // in-string mix-case match
+		scores.push(strings.score(target, 'l')); // in-string mix-case match
+		scores.push(strings.score(target, '4')); // no match
+
+		// Assert scoring order
+		let sortedScores = scores.sort();
+		assert.deepEqual(scores.reverse(), sortedScores);
+	});
 });

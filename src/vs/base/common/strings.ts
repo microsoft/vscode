@@ -605,3 +605,65 @@ export var UTF8_BOM_CHARACTER = String.fromCharCode(__utf8_bom);
 export function startsWithUTF8BOM(str: string): boolean {
 	return (str && str.length > 0 && str.charCodeAt(0) === __utf8_bom);
 }
+
+
+/**
+ * Compute a score for the given string and the given query. Inspired by String Scoring Algorithm:
+ * http://joshaven.com/string_score
+ * https://github.com/joshaven/string_score
+ *
+ * Rules:
+ * Character score: 1
+ * Same case bonus: 1
+ * Upper case bonus: 1
+ * Start of word/path bonus: 7
+ * Start of string bonus: 8
+ */
+export function score(target: string, query: string): number {
+	let score = 0;
+
+	const queryLen = query.length;
+	const targetLower = target.toLowerCase();
+	const queryLower = query.toLowerCase();
+	const wordPathBoundary = ['-', '_', ' ', '/', '\\'];
+
+	let index = 0;
+	while (index < queryLen) {
+		var indexOf = targetLower.indexOf(queryLower[index]);
+		if (indexOf < 0) {
+			index++;
+			continue; // no match
+		}
+
+		// Character Match Bonus
+		score += 1;
+
+		// Same Case Bonous
+		if (target[indexOf] === query[indexOf]) {
+			score += 1;
+		}
+
+		// Upper Case Bonus
+		if (isUpper(target.charCodeAt(indexOf))) {
+			score += 1;
+		}
+
+		// Prefix Bonus
+		if (indexOf === index) {
+			score += 8;
+		}
+
+		// Start of Word/Path Bonous
+		if (wordPathBoundary.some(w => w === target[indexOf - 1])) {
+			score += 7;
+		}
+
+		index++;
+	}
+
+	return score;
+}
+
+function isUpper(code: number): boolean {
+	return 65 <= code && code <= 90;
+}
