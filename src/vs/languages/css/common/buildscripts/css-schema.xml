@@ -5485,6 +5485,20 @@
         <value name="span" version="3.0" browsers="all" />
       </values>
     </entry>
+    <entry name="grid-column-end" restriction="identifier, integer, enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-grid-1/#propdef-grid-column-end" syntax="#item1 { $(name): span 2; }">
+      <desc>Determine a grid item’s size and location within the grid by contributing a line, a span, or nothing (automatic) to its grid placement.</desc>
+      <values>
+        <value name="auto" version="3.0" browsers="all" />
+        <value name="span" version="3.0" browsers="all" />
+      </values>
+    </entry>
+    <entry name="grid-column-start" restriction="identifier, integer, enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-grid-1/#propdef-grid-column-start" syntax="#item1 { $(name): span 2; }">
+      <desc>Determine a grid item’s size and location within the grid by contributing a line, a span, or nothing (automatic) to its grid placement.</desc>
+      <values>
+        <value name="auto" version="3.0" browsers="all" />
+        <value name="span" version="3.0" browsers="all" />
+      </values>
+    </entry>
     <entry name="grid-column-align" restriction="enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css3-grid-layout/#grid-column-align" syntax="article { $(name): center; }">
       <desc>Aligns the columns in a grid.</desc>
       <values>
@@ -5525,6 +5539,20 @@
     </entry>
     <entry name="grid-row" restriction="identifier, integer, enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-grid-1/#propdef-grid-row" syntax="#item1 { $(name): span 2 / auto; }">
       <desc>Shorthand for 'grid-row-start' and 'grid-row-end'.</desc>
+      <values>
+        <value name="auto" version="3.0" browsers="all" />
+        <value name="span" version="3.0" browsers="all" />
+      </values>
+    </entry>
+    <entry name="grid-row-end" restriction="identifier, integer, enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-grid-1/#propdef-grid-row-end" syntax="#item1 { $(name): span 2; }">
+      <desc>Determine a grid item’s size and location within the grid by contributing a line, a span, or nothing (automatic) to its grid placement.</desc>
+      <values>
+        <value name="auto" version="3.0" browsers="all" />
+        <value name="span" version="3.0" browsers="all" />
+      </values>
+    </entry>
+    <entry name="grid-row-start" restriction="identifier, integer, enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-grid-1/#propdef-grid-row-start" syntax="#item1 { $(name): span 2; }">
+      <desc>Determine a grid item’s size and location within the grid by contributing a line, a span, or nothing (automatic) to its grid placement.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all" />
         <value name="span" version="3.0" browsers="all" />
