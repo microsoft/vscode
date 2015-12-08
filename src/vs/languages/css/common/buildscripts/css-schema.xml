@@ -16747,15 +16747,14 @@
     <entry name="unicode-range" restriction="unicode-range" version="3.0" browsers="all" ref="http://www.w3.org/TR/css3-fonts/#unicode-range" syntax="'urange' [, 'urange']*">
       <desc>Range of Unicode characters supported by a given font. Initial value is U+0-10FFFF</desc>
     </entry>
-    <entry name="user-select" restriction="enum" version="3.0" browsers="none" ref="http://css-infos.net/property/-webkit-user-select" syntax="div { $(name): text; }">
+    <entry name="user-select" restriction="enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-ui-4/#propdef-user-select" syntax="div { $(name): text; }">
       <desc>Controls the appearance of selection.</desc>
       <values>
         <value name="all" version="3.0" browsers="all" />
-        <value name="element" version="3.0" browsers="all" />
-        <value name="elements" version="3.0" browsers="all" />
+        <value name="auto" version="3.0" browsers="all" />
+        <value name="contain" version="3.0" browsers="all" />
         <value name="none" version="3.0" browsers="all" />
         <value name="text" version="3.0" browsers="all" />
-        <value name="toggle" version="3.0" browsers="all" />
       </values>
     </entry>
     <entry name="user-zoom" restriction="" version="" browsers="all" />
