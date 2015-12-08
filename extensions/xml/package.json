@@ -8,6 +8,7 @@
 			"id": "xml",
 			"extensions": [
 				".ascx",
+				".atom",
 				".axml",
 				".bpmn",
 				".config",
