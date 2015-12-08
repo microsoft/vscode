@@ -6102,6 +6102,11 @@
       <values>
         <value name="none" version="1.0" browsers="all" />
         <value name="url()" version="1.0" browsers="all" />
+        <value name="linear-gradient()" version="3.0" browsers="all" />
+        <value name="radial-gradient()" version="3.0" browsers="all" />
+        <value name="repeating-linear-gradient()" version="3.0" browsers="all" />
+        <value name="repeating-radial-gradient()" version="3.0" browsers="all" />
+        <value name="image()" version="3.0" browsers="none" />
       </values>
     </entry>
     <entry name="list-style-position" restriction="enum" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-lists/#list-style-position" syntax="ul { $(name): inside; }">
