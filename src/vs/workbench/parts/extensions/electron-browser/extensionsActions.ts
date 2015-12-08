@@ -93,7 +93,7 @@ export class GlobalExtensionsAction extends Action {
 	}
 
 	public run(): Promise {
-		return this.quickOpenService.show('>extensions: ');
+		return this.quickOpenService.show('ext install ');
 	}
 
 	protected isEnabled(): boolean {
