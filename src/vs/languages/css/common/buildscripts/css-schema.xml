@@ -5704,6 +5704,31 @@
         </value>
       </values>
     </entry>
+    <entry name="initial-letter" restriction="number, integer, enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-inline/#propdef-initial-letter" syntax="body { $(name): 3; }">
+      <desc>Specifies styling for dropped, raised, and sunken initial letters.</desc>
+      <values>
+        <value name="normal" version="3.0" browsers="all" />
+      </values>
+    </entry>
+    <entry name="initial-letter-align" restriction="enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-inline/#propdef-initial-letter-align" syntax="body { $(name): ideographic; }">
+      <desc>Specifies the alignment points used to size and position an initial letter.</desc>
+      <values>
+        <value name="alphabetic" version="3.0" browsers="all" />
+        <value name="ideographic" version="3.0" browsers="all" />
+        <value name="hebrew" version="3.0" browsers="all" />
+        <value name="hanging" version="3.0" browsers="all" />
+        <value name="border-box" version="3.0" browsers="all" />
+      </values>
+    </entry>
+    <entry name="initial-letter-wrap" restriction="length, percentage, enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-inline/#propdef-initial-letter-wrap" syntax="body { $(name): first; }">
+      <desc>Specifies whether lines impacted by an initial letter are shortened to fit the rectangular shape of the initial letter box or follow the contour of its end-edge glyph outline.</desc>
+      <values>
+        <value name="none" version="3.0" browsers="all" />
+        <value name="first" version="3.0" browsers="all" />
+        <value name="all" version="3.0" browsers="all" />
+        <value name="grid" version="3.0" browsers="all" />
+      </values>
+    </entry>
     <entry name="justify-content" restriction="enum" version="3.0" browsers="E,C29,FF22,IE11,O12.1,S9" ref="http://www.w3.org/TR/css3-flexbox/#align-content" syntax="p { $(name): flex-start; }">
       <desc>Aligns a flex container's lines within the flex container when there is extra space in the cross-axis, similar to how 'justify-content' aligns individual items within the main-axis.</desc>
       <values>
