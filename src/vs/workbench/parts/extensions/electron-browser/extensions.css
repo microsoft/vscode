@@ -3,12 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* Activity Bar */
-.monaco-workbench > .activitybar .monaco-action-bar .action-label.extensions {
-	/*TODO@Isidor inline icon needed */
-	background-image: url('extensions-global-action.svg')
-}
-
 .quick-open-widget .extension {
 	padding: 0 14px 0 0;
 	height: 48px;
@@ -125,4 +119,9 @@
 	-moz-transform: none;
 	-o-transform: none;
 	transform: none;
+}
+
+/* Status bar */
+.monaco-shell .extensions-statusbar {
+	cursor: pointer;
 }
