@@ -822,8 +822,7 @@ export class WindowsManager {
 			if (paths && paths.length > 0) {
 
 				// Remember path in storage for next time
-				let pathToRemember = isFolder ? paths[0] : path.dirname(paths[0]);
-				storage.setItem(WindowsManager.workingDirPickerStorageKey, pathToRemember);
+				storage.setItem(WindowsManager.workingDirPickerStorageKey, path.dirname(paths[0]));
 
 				// Return
 				clb(paths);
