@@ -108,6 +108,7 @@ export class ReplExpressionsRenderer implements tree.IRenderer {
 	]
 
 	private width: number;
+	private characterWidth: number;
 
 	constructor(
 		@debug.IDebugService private debugService: debug.IDebugService,
@@ -122,15 +123,16 @@ export class ReplExpressionsRenderer implements tree.IRenderer {
 	}
 
 	private getHeightForString(s: string): number {
-		if (!s || !s.length || this.width <= 0) {
+		if (!s || !s.length || this.width <= 0 || this.characterWidth <= 0) {
 			return 24;
 		}
 
-		return 24 * Math.ceil(s.length * 8 / this.width);
+		return 24 * Math.ceil(s.length * this.characterWidth / this.width);
 	}
 
-	public setWidth(width: number): void {
-		this.width = width;
+	public setWidth(fullWidth: number, characterWidth: number): void {
+		this.width = fullWidth;
+		this.characterWidth = characterWidth;
 	}
 
 	public getTemplateId(tree: tree.ITree, element: any): string {

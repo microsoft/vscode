@@ -49,6 +49,7 @@ export class Repl extends baseeditor.BaseEditor {
 	private toDispose: lifecycle.IDisposable[];
 	private tree: tree.ITree;
 	private renderer: viewer.ReplExpressionsRenderer;
+	private characterWidthSurveyor: HTMLElement;
 	private treeContainer: HTMLElement;
 	private replInput: HTMLInputElement;
 	private refreshTimeoutHandle: number;
@@ -122,6 +123,13 @@ export class Repl extends baseeditor.BaseEditor {
 			}
 		});
 
+		this.characterWidthSurveyor = dom.append(container, $('.surveyor'));
+		this.characterWidthSurveyor.textContent = 'a';
+		for (let i = 0; i < 10; i++) {
+			this.characterWidthSurveyor.textContent += this.characterWidthSurveyor.textContent;
+		}
+		this.characterWidthSurveyor.style.fontSize = platform.isMacintosh ? '12px' : '14px';
+
 		this.renderer = this.instantiationService.createInstance(viewer.ReplExpressionsRenderer);
 		this.tree = new treeimpl.Tree(this.treeContainer, {
 			dataSource: new viewer.ReplExpressionsDataSource(this.debugService),
@@ -148,7 +156,7 @@ export class Repl extends baseeditor.BaseEditor {
 
 	public layout(dimension: builder.Dimension): void {
 		if (this.tree) {
-			this.renderer.setWidth(dimension.width - 20);
+			this.renderer.setWidth(dimension.width - 20, this.characterWidthSurveyor.clientWidth / this.characterWidthSurveyor.textContent.length);
 			this.tree.layout(this.treeContainer.clientHeight);
 			this.tree.refresh().done(null, errors.onUnexpectedError);
 		}
