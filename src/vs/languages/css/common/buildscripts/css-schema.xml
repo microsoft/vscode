@@ -5461,6 +5461,14 @@
         <value name="minmax()" version="3.0" browsers="all" />
       </values>
     </entry>
+    <entry name="grid-auto-flow" restriction="enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-grid-1/#propdef-grid-auto-flow" syntax="div { $(name): column; }">
+      <desc>Controls how the auto-placement algorithm works, specifying exactly how auto-placed items get flowed into the grid.</desc>
+      <values>
+        <value name="row" version="3.0" browsers="all" />
+        <value name="column" version="3.0" browsers="all" />
+        <value name="dense" version="3.0" browsers="all" />
+      </values>
+    </entry>
     <entry name="grid-auto-rows" restriction="length, percentage" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-grid-1/#propdef-grid-auto-rows" syntax="div { $(name): 100px; }">
       <desc>Specifies the size of implicitly created rows.</desc>
       <values>
