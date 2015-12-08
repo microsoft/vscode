@@ -96,7 +96,7 @@ export class GlobalExtensionsAction extends Action {
 	}
 
 	public run(): Promise {
-		return this.quickOpenService.show('ext install ');
+		return this.quickOpenService.show('>extensions: ');
 	}
 
 	protected isEnabled(): boolean {
