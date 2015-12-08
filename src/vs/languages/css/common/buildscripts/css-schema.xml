@@ -5762,7 +5762,7 @@
         </value>
       </values>
     </entry>
-    <entry name="letter-spacing" restriction="length, percentage" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-text/#letter-spacing0" syntax="h2 { $(name): 2px; }">
+    <entry name="letter-spacing" restriction="length" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-text/#letter-spacing0" syntax="h2 { $(name): 2px; }">
       <desc>Specifies the minimum, maximum, and optimal spacing between grapheme clusters.</desc>
       <values>
         <value name="normal" version="1.0" browsers="all">
