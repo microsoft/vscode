@@ -5642,7 +5642,7 @@
       </values>
     </entry>
     <entry name="image-orientation" restriction="angle" version="3.0" browsers="FF26" ref="http://www.w3.org/TR/css4-images/#image-orientation" syntax="img.ninety { $(name): 90deg; }">
-      <desc>This property specifies an orthogonal rotation to be applied to an image before it is laid out.</desc>
+      <desc>Specifies an orthogonal rotation to be applied to an image before it is laid out.</desc>
       <values>
         <value name="flip" version="3.0" browsers="all">
           <desc>After rotating by the precededing angle, the image is flipped horizontally. Defaults to 0deg if the angle is ommitted.</desc>
@@ -5652,8 +5652,8 @@
         </value>
       </values>
     </entry>
-    <entry name="image-rendering" restriction="enum" version="3.0" browsers="C,FF3.6,O11.6,S" ref="http://www.w3.org/TR/SVG11/painting.html#ImageRenderingProperty">
-      <desc>The creator of SVG content might want to provide a hint to the implementation about how to make speed vs. quality tradeoffs as it performs image processing. The ‘image-rendering’ property provides a hint to the SVG user agent about how to optimize its image rendering.</desc>
+    <entry name="image-rendering" restriction="enum" version="3.0" browsers="C,FF3.6,O11.6,S" ref="https://drafts.csswg.org/css-images-3/#the-image-rendering">
+      <desc>Provides a hint to the user-agent about what aspects of an image are most important to preserve when the image is scaled, to aid the user-agent in the choice of an appropriate scaling algorithm.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all">
           <desc>The image should be scaled with an algorithm that maximizes the appearance of the image.</desc>
@@ -5662,15 +5662,19 @@
           <desc>The image must be scaled with an algorithm that preserves contrast and edges in the image, and which does not smooth colors or introduce blur to the image in the process.</desc>
         </value>
         <value name="-moz-crisp-edges" version="3.0" browsers="FF" />
-        <value name="optimizeQuality" version="3.0" browsers="all" />
-        <value name="optimizeSpeed" version="3.0" browsers="all" />
+        <value name="optimizeQuality" version="3.0" browsers="all">
+				  <desc>Deprecated.</desc>
+				</value>
+        <value name="optimizeSpeed" version="3.0" browsers="all">
+				  <desc>Deprecated.</desc>
+				</value>
         <value name="pixelated" version="3.0" browsers="all">
           <desc>When scaling the image up, the 'nearest neighbor' or similar algorithm must be used, so that the image appears to be simply composed of very large pixels.</desc>
         </value>
       </values>
     </entry>
     <entry name="image-resolution" restriction="resolution" version="3.0" browsers="none" ref="http://www.w3.org/TR/css4-images/#image-resolution" syntax="img.high-res { $(name): 300dpi; }">
-      <desc>The 'image-resolution' property specifies the intrinsic resolution of all raster images used in or on the element.</desc>
+      <desc>Specifies the intrinsic resolution of all raster images used in or on the element.</desc>
       <values>
         <value name="from-image" version="3.0" browsers="all">
           <desc>The image's intrinsic resolution is taken as that specified by the image format. If the image does not specify its own resolution, the explicitly specified resolution is used (if given), else it defaults to '1dppx'.</desc>
