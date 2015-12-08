@@ -73,7 +73,7 @@ class CompletionItem {
 
 class CompletionGroup {
 
-	private items: CompletionItem[];
+	private _items: CompletionItem[];
 
 	private _incomplete: boolean;
 	public get incomplete(): boolean { return this._incomplete; }
@@ -81,14 +81,14 @@ class CompletionGroup {
 	private _size: number;
 	public get size(): number { return this._size; }
 
-	private compare: ISuggestionCompare;
-	private filter: ISuggestionFilter;
+	public compare: ISuggestionCompare;
+	public filter: ISuggestionFilter;
 
 	constructor(public model: CompletionModel, private index: number, raw: ISuggestResult2[]) {
 		this._incomplete = false;
 		this._size = 0;
 
-		this.items = raw.reduce<CompletionItem[]>((items, result) => {
+		this._items = raw.reduce<CompletionItem[]>((items, result) => {
 			this._incomplete = this._incomplete || result.incomplete;
 			this._size += result.suggestions.length;
 
@@ -101,8 +101,8 @@ class CompletionGroup {
 		this.compare = DefaultCompare;
 		this.filter = DefaultFilter;
 
-		if (this.items.length > 0) {
-			const [first] = this.items;
+		if (this._items.length > 0) {
+			const [first] = this._items;
 
 			if (first.support) {
 				this.compare = first.support.getSorter && first.support.getSorter() || this.compare;
@@ -111,11 +111,11 @@ class CompletionGroup {
 		}
 	}
 
-	select(wordBefore: string): CompletionItem[] {
-		return this.items
-			.map(item => assign(item, { highlights: this.filter(wordBefore, item.suggestion) }))
-			.filter(item => !isFalsyOrEmpty(item.highlights))
-			.sort((a, b) => this.compare(a.suggestion, b.suggestion));
+	get items(): CompletionItem[] {
+		return this._items;
+			// .map(item => assign(item, { highlights: this.filter(wordBefore, item.suggestion) }))
+			// .filter(item => !isFalsyOrEmpty(item.highlights))
+			// .sort((a, b) => this.compare(a.suggestion, b.suggestion));
 	}
 }
 
@@ -145,8 +145,8 @@ class CompletionModel {
 			});
 	}
 
-	select(): CompletionItem[] {
-		return this.groups.reduce((r, groups) => r.concat(groups.select(this.currentWord)), []);
+	get items(): CompletionItem[] {
+		return this.groups.reduce((r, groups) => r.concat(groups.items), []);
 	}
 }
 
@@ -165,11 +165,11 @@ export class MessageRoot {
 	}
 }
 
-class DataSource implements Tree.IDataSource {
+function isRoot(element: any) : boolean {
+	return element instanceof MessageRoot || element instanceof CompletionModel;
+}
 
-	private static isRoot(element: any) : boolean {
-		return element instanceof MessageRoot || element instanceof CompletionModel;
-	}
+class DataSource implements Tree.IDataSource {
 
 	public getId(tree: Tree.ITree, element: any): string {
 		if (element instanceof MessageRoot) {
@@ -186,7 +186,7 @@ class DataSource implements Tree.IDataSource {
 	}
 
 	public getParent(tree: Tree.ITree, element: any): TPromise<any> {
-		if (DataSource.isRoot(element)) {
+		if (isRoot(element)) {
 			return TPromise.as(null);
 		} else if (element instanceof Message) {
 			return TPromise.as(element.parent);
@@ -199,14 +199,14 @@ class DataSource implements Tree.IDataSource {
 		if (element instanceof MessageRoot) {
 			return TPromise.as([element.child]);
 		} else if (element instanceof CompletionModel) {
-			return TPromise.as((<CompletionModel>element).select());
+			return TPromise.as((<CompletionModel>element).items);
 		}
 
 		return TPromise.as([]);
 	}
 
 	public hasChildren(tree: Tree.ITree, element: any): boolean {
-		return DataSource.isRoot(element);
+		return isRoot(element);
 	}
 }
 
@@ -221,6 +221,23 @@ class Controller extends TreeDefaults.DefaultController {
 		}
 
 		return true;
+	}
+}
+
+class Filter implements Tree.IFilter {
+
+	isVisible(tree: Tree.ITree, element: any): boolean {
+		if (isRoot(element)) {
+			return false;
+		} else if (element instanceof Message) {
+			return true;
+		}
+
+		const item: CompletionItem = element;
+		const filter = item.group.filter;
+		const currentWord = item.group.model.currentWord;
+		item.highlights = filter(currentWord, item.suggestion);
+		return !isFalsyOrEmpty(item.highlights);
 	}
 }
 
@@ -414,10 +431,12 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 			dom.addClass(this.element, 'no-icons');
 		}
 
-		this.renderer = new Renderer();
-		const dataSource = new DataSource();
-		const controller = new Controller();
-		const configuration = { renderer: this.renderer, dataSource, controller };
+		const configuration = {
+			renderer: this.renderer = new Renderer(),
+			dataSource: new DataSource(),
+			controller: new Controller(),
+			filter: new Filter()
+		};
 
 		this.tree = new TreeImpl.Tree(this.element, configuration, {
 			twistiePixels: 0,
@@ -566,7 +585,7 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 		// TODO@Joao: improve this, it is expensive
 		const currentWord = e.currentWord;
 		const currentWordLowerCase = currentWord.toLowerCase();
-		const suggestions = model.select();
+		const suggestions = model.items;
 
 		let bestSuggestionIndex = -1;
 		let bestSuggestion = suggestions[0];
@@ -764,7 +783,7 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 			var model = <CompletionModel>input;
 
 			// TODO@Joao: improve this, it is expensive
-			height += Math.min(model.select().length - 1, 11, maxSuggestions) * 19;
+			height += Math.min(model.items.length - 1, 11, maxSuggestions) * 19;
 		}
 
 		this.element.style.height = height + 'px';
