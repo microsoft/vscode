@@ -72,10 +72,6 @@
 	color: #186B9E;
 }
 
-.monaco-editor .suggest-widget.empty .monaco-tree .monaco-tree-row > .content .monaco-highlighted-label .highlight {
-	background-color: inherit;
-}
-
 .monaco-editor .suggest-widget .monaco-tree .monaco-tree-row > .content .type-label {
 	display: none;
 	margin-left: 0.8em;
@@ -144,10 +140,6 @@
 	color: #219AE4;
 }
 
-.monaco-editor.vs-dark .suggest-widget.empty .monaco-tree .monaco-tree-row > .content .monaco-highlighted-label .highlight {
-	color: inherit;
-}
-
 .monaco-editor.vs-dark .suggest-widget .monaco-tree .monaco-tree-row > .content .docs {
 	color: #C07A7A;
 }
@@ -187,10 +179,6 @@
 
 .monaco-editor.hc-black .suggest-widget .monaco-tree .monaco-tree-row > .content .monaco-highlighted-label .highlight {
 	color: #219AE4;
-}
-
-.monaco-editor.hc-black .suggest-widget.empty .monaco-tree .monaco-tree-row > .content .monaco-highlighted-label .highlight {
-	color: inherit;
 }
 
 .monaco-editor.hc-black .suggest-widget .monaco-tree .monaco-tree-row > .content .docs {

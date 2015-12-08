@@ -211,6 +211,8 @@ class Controller extends TreeDefaults.DefaultController {
 
 class Filter implements Tree.IFilter {
 
+	constructor(private getState: () => State) {}
+
 	isVisible(tree: Tree.ITree, element: any): boolean {
 		if (isRoot(element)) {
 			return false;
@@ -355,13 +357,22 @@ interface ITelemetryData {
 	wasAutomaticallyTriggered?: boolean;
 }
 
+enum State {
+	Hidden,
+	Loading,
+	Empty,
+	Open
+}
+
 export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable {
+
 	static ID = 'editor.widget.suggestWidget';
 	static WIDTH = 438;
 
-	static LOADING_MESSAGE = new MessageRoot(nls.localize('suggestWidget.loading', "Loading..."));
-	static NO_SUGGESTIONS_MESSAGE = new MessageRoot(nls.localize('suggestWidget.noSuggestions', "No suggestions."));
+	static LOADING_MESSAGE = nls.localize('suggestWidget.loading', "Loading...");
+	static NO_SUGGESTIONS_MESSAGE = nls.localize('suggestWidget.noSuggestions', "No suggestions.");
 
+	private state: State;
 	private shouldShowEmptySuggestionList: boolean;
 	private isActive: boolean;
 	private isLoading: boolean;
@@ -377,6 +388,7 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 
 	private element: HTMLElement;
 	private messageElement: HTMLElement;
+	private treeElement: HTMLElement;
 	private tree: Tree.ITree;
 	private renderer: Renderer;
 
@@ -426,10 +438,8 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 		this.element.style.top = '0';
 		this.element.style.left = '0';
 
-		// this.messageElement = append(this.element, $('.message'));
-		// this.messageElement.textContent = 'hello world';
-
-		const treeElement = append(this.element, $('.tree'));
+		this.messageElement = append(this.element, $('.message'));
+		this.messageElement.style.display = 'none';
 
 		if (!this.editor.getConfiguration().iconsInSuggestions) {
 			addClass(this.element, 'no-icons');
@@ -439,11 +449,12 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 			renderer: this.renderer = new Renderer(),
 			dataSource: new DataSource(),
 			controller: new Controller(),
-			filter: new Filter(),
+			filter: new Filter(() => this.state),
 			sorter: new Sorter()
 		};
 
-		this.tree = new TreeImpl.Tree(treeElement, configuration, {
+		this.treeElement = append(this.element, $('.tree'));
+		this.tree = new TreeImpl.Tree(this.treeElement, configuration, {
 			twistiePixels: 0,
 			alwaysFocused: true,
 			verticalScrollMode: 'visible',
@@ -453,6 +464,7 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 		this.listenersToRemove.push(editor.addListener(EditorCommon.EventType.EditorTextBlur, () => {
 			TPromise.timeout(150).done(() => {
 				if (this.tree && !this.tree.isDOMFocused()) {
+					// TODO@joao uncomment
 					// this.hide();
 				}
 			});
@@ -528,12 +540,41 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 			}
 		}));
 
-		this.hide();
-
 		var timer : Timer.ITimerEvent = null, loadingHandle:number;
 		this.modelListenersToRemove.push(this.model.onDidTrigger(e => this.onDidTrigger(e)));
 		this.modelListenersToRemove.push(this.model.onDidSuggest(e => this.onDidSuggest(e)));
 		this.modelListenersToRemove.push(this.model.onDidCancel(e => this.onDidCancel(e)));
+
+		this.setState(State.Hidden);
+	}
+
+	private setState(state: State): void {
+		this.state = state;
+
+		switch (state) {
+			case State.Hidden:
+				this.messageElement.style.display = 'none';
+				this.treeElement.style.display = 'block';
+				this.hide();
+				return;
+			case State.Loading:
+				this.messageElement.innerText = SuggestWidget.LOADING_MESSAGE;
+				this.messageElement.style.display = 'block';
+				this.treeElement.style.display = 'none';
+				break;
+			case State.Empty:
+				this.messageElement.innerText = SuggestWidget.NO_SUGGESTIONS_MESSAGE;
+				this.messageElement.style.display = 'block';
+				this.treeElement.style.display = 'none';
+				break;
+			case State.Open:
+				this.messageElement.style.display = 'none';
+				this.treeElement.style.display = 'block';
+				break;
+		}
+
+		this.updateWidgetHeight();
+		this.show();
 	}
 
 	private onDidTrigger(e: ITriggerEvent) {
@@ -545,10 +586,7 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 			if (!this.isAuto) {
 				this.loadingTimeout = setTimeout(() => {
 					this.loadingTimeout = null;
-					removeClass(this.element, 'empty');
-					this.tree.setInput(SuggestWidget.LOADING_MESSAGE).done(null, onUnexpectedError);
-					this.updateWidgetHeight();
-					this.show();
+					this.setState(State.Loading);
 				}, 50);
 			}
 
@@ -561,40 +599,10 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 	}
 
 	private onDidSuggest(e: ISuggestEvent) {
-		const wasLoading = this.isLoading;
 		this.isLoading = false;
 		clearTimeout(this.loadingTimeout);
 
 		const model = new CompletionModel(e.suggestions, e.currentWord);
-
-		if (model.size === 0) { // empty
-			if (e.auto) {
-				this.hide();
-			} else if (wasLoading) {
-				if (this.shouldShowEmptySuggestionList) {
-					removeClass(this.element, 'empty');
-					this.tree.setInput(SuggestWidget.NO_SUGGESTIONS_MESSAGE).done(null, onUnexpectedError);
-					this.updateWidgetHeight();
-					this.show();
-				} else {
-					this.hide();
-				}
-			} else {
-				addClass(this.element, 'empty');
-			}
-
-			if(this.telemetryTimer) {
-				this.telemetryTimer.data = { reason: 'empty'};
-				this.telemetryTimer.stop();
-				this.telemetryTimer = null;
-			}
-
-			return;
-		}
-
-		removeClass(this.element, 'empty');
-
-		this.telemetryData = this.telemetryData || {};
 
 		this.tree.setInput(model).done(() => {
 			const navigator = this.tree.getNavigator();
@@ -618,21 +626,38 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 				index++;
 			}
 
-			this.tree.setFocus(bestSuggestion, { firstSuggestion: true });
+			this.telemetryData = this.telemetryData || {};
+			let reason: string;
 
-			this.telemetryData.suggestionCount = suggestions.length;
-			this.telemetryData.suggestedIndex = bestSuggestionIndex;
-			this.telemetryData.hintLength = currentWord.length;
+			if (index === 0) { // no suggestions
+				if (e.auto) {
+					this.setState(State.Hidden);
+				} else {
+					if (this.shouldShowEmptySuggestionList) {
+						this.setState(State.Empty);
+					} else {
+						this.setState(State.Hidden);
+					}
+				}
+
+				reason = 'empty';
+			} else {
+				this.tree.setFocus(bestSuggestion, { firstSuggestion: true });
+
+				this.telemetryData.suggestionCount = suggestions.length;
+				this.telemetryData.suggestedIndex = bestSuggestionIndex;
+				this.telemetryData.hintLength = currentWord.length;
+				reason = 'results';
+
+				this.setState(State.Open);
+			}
 
 			if(this.telemetryTimer) {
-				this.telemetryTimer.data = { reason: 'results'};
+				this.telemetryTimer.data = { reason };
 				this.telemetryTimer.stop();
 				this.telemetryTimer = null;
 			}
 		}, onUnexpectedError);
-
-		this.updateWidgetHeight();
-		this.show();
 	}
 
 	private onDidCancel(e: ICancelEvent) {
@@ -789,7 +814,7 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 		var maxHeight = 1000;
 		var height = 0;
 
-		if (input === SuggestWidget.LOADING_MESSAGE || input === SuggestWidget.NO_SUGGESTIONS_MESSAGE) {
+		if (this.state === State.Empty || this.state === State.Loading) {
 			height = 19;
 		} else {
 			var focus = this.tree.getFocus();
@@ -802,7 +827,6 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 		}
 
 		this.element.style.height = height + 'px';
-
 		this.tree.layout(height);
 		this.editor.layoutContentWidget(this);
 	}
