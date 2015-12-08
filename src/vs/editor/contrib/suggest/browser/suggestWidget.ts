@@ -11,7 +11,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, disposeAll } from 'vs/base/common/lifecycle';
 import { assign } from 'vs/base/common/objects';
 import Event, { Emitter } from 'vs/base/common/event';
-import dom = require('vs/base/browser/dom');
+import { append, addClass, removeClass, emmet as $ } from 'vs/base/browser/dom';
 import Tree = require('vs/base/parts/tree/common/tree');
 import TreeImpl = require('vs/base/parts/tree/browser/treeImpl');
 import TreeDefaults = require('vs/base/parts/tree/browser/treeDefaults');
@@ -32,8 +32,6 @@ import URI from 'vs/base/common/uri';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { onUnexpectedError, isPromiseCanceledError, illegalArgument } from 'vs/base/common/errors';
 const DefaultCompare: ISuggestionCompare = (a, b) => a.label.localeCompare(b.label);
-
-var $ = dom.emmet;
 
 class CompletionItem {
 
@@ -253,7 +251,7 @@ interface ISuggestionTemplateData {
 	colorspan: HTMLElement;
 	highlightedLabel: HighlightedLabel.HighlightedLabel;
 	typeLabel: HTMLElement;
-	documentationLabel: HTMLElement;
+	documentation: HTMLElement;
 }
 
 class Renderer implements Tree.IRenderer {
@@ -278,7 +276,6 @@ class Renderer implements Tree.IRenderer {
 		if (templateId === 'message') {
 			var span = $('span');
 			span.style.opacity = '0.7';
-			span.style.paddingLeft = '12px';
 			container.appendChild(span);
 			return <IMessageTemplateData> { element: span };
 		}
@@ -286,15 +283,14 @@ class Renderer implements Tree.IRenderer {
 		var data = <ISuggestionTemplateData> Object.create(null);
 		data.root = container;
 
-		data.icon = dom.append(container, $('.icon'));
-		data.colorspan = dom.append(data.icon, $('span.colorspan'));
+		data.icon = append(container, $('.icon'));
+		data.colorspan = append(data.icon, $('span.colorspan'));
 
-		var text = dom.append(container, $('.text'));
-		var main = dom.append(text, $('.main'));
+		var text = append(container, $('.text'));
+		var main = append(text, $('.main'));
 		data.highlightedLabel = new HighlightedLabel.HighlightedLabel(main);
-		data.typeLabel = dom.append(main, $('span.type-label'));
-		var documentation = dom.append(text, $('.docs'));
-		data.documentationLabel = dom.append(documentation, $('.docs-label'));
+		data.typeLabel = append(main, $('span.type-label'));
+		data.documentation = append(text, $('.docs'));
 
 		return data;
 	}
@@ -320,7 +316,7 @@ class Renderer implements Tree.IRenderer {
 
 		data.highlightedLabel.set(suggestion.label, (<CompletionItem> element).highlights);
 		data.typeLabel.textContent = suggestion.typeLabel || '';
-		data.documentationLabel.textContent = suggestion.documentationLabel || '';
+		data.documentation.textContent = suggestion.documentationLabel || '';
 	}
 
 	public disposeTemplate(tree: Tree.ITree, templateId: string, templateData: any): void {
@@ -380,6 +376,7 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 	private telemetryTimer: Timer.ITimerEvent;
 
 	private element: HTMLElement;
+	private messageElement: HTMLElement;
 	private tree: Tree.ITree;
 	private renderer: Renderer;
 
@@ -429,8 +426,13 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 		this.element.style.top = '0';
 		this.element.style.left = '0';
 
+		// this.messageElement = append(this.element, $('.message'));
+		// this.messageElement.textContent = 'hello world';
+
+		const treeElement = append(this.element, $('.tree'));
+
 		if (!this.editor.getConfiguration().iconsInSuggestions) {
-			dom.addClass(this.element, 'no-icons');
+			addClass(this.element, 'no-icons');
 		}
 
 		const configuration = {
@@ -441,7 +443,7 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 			sorter: new Sorter()
 		};
 
-		this.tree = new TreeImpl.Tree(this.element, configuration, {
+		this.tree = new TreeImpl.Tree(treeElement, configuration, {
 			twistiePixels: 0,
 			alwaysFocused: true,
 			verticalScrollMode: 'visible',
@@ -451,7 +453,7 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 		this.listenersToRemove.push(editor.addListener(EditorCommon.EventType.EditorTextBlur, () => {
 			TPromise.timeout(150).done(() => {
 				if (this.tree && !this.tree.isDOMFocused()) {
-					this.hide();
+					// this.hide();
 				}
 			});
 		}));
@@ -543,7 +545,7 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 			if (!this.isAuto) {
 				this.loadingTimeout = setTimeout(() => {
 					this.loadingTimeout = null;
-					dom.removeClass(this.element, 'empty');
+					removeClass(this.element, 'empty');
 					this.tree.setInput(SuggestWidget.LOADING_MESSAGE).done(null, onUnexpectedError);
 					this.updateWidgetHeight();
 					this.show();
@@ -570,7 +572,7 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 				this.hide();
 			} else if (wasLoading) {
 				if (this.shouldShowEmptySuggestionList) {
-					dom.removeClass(this.element, 'empty');
+					removeClass(this.element, 'empty');
 					this.tree.setInput(SuggestWidget.NO_SUGGESTIONS_MESSAGE).done(null, onUnexpectedError);
 					this.updateWidgetHeight();
 					this.show();
@@ -578,7 +580,7 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 					this.hide();
 				}
 			} else {
-				dom.addClass(this.element, 'empty');
+				addClass(this.element, 'empty');
 			}
 
 			if(this.telemetryTimer) {
@@ -590,7 +592,7 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 			return;
 		}
 
-		dom.removeClass(this.element, 'empty');
+		removeClass(this.element, 'empty');
 
 		this.telemetryData = this.telemetryData || {};
 
@@ -744,7 +746,7 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 		this.tree.layout();
 		this.editor.layoutContentWidget(this);
 		TPromise.timeout(100).done(() => {
-			dom.addClass(this.element, 'visible');
+			addClass(this.element, 'visible');
 		});
 	}
 
@@ -755,7 +757,7 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 	public hide(): void {
 		this._onDidVisibilityChange.fire(false);
 		this.isActive = false;
-		dom.removeClass(this.element, 'visible');
+		removeClass(this.element, 'visible');
 		this.editor.layoutContentWidget(this);
 	}
 
@@ -794,9 +796,9 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 			var focusHeight = focus ? this.renderer.getHeight(this.tree, focus) : 19;
 			height += focusHeight;
 
-			const suggestionCount = this.tree.getContentHeight() / 19;
+			const suggestionCount = (this.tree.getContentHeight() - focusHeight) / 19;
 			const maxSuggestions = Math.floor((maxHeight - focusHeight) / 19);
-			height += Math.min(suggestionCount - 1, 11, maxSuggestions) * 19;
+			height += Math.min(suggestionCount, 11, maxSuggestions) * 19;
 		}
 
 		this.element.style.height = height + 'px';
