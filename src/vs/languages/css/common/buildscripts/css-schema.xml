@@ -16525,15 +16525,17 @@
         </value>
       </values>
     </entry>
-    <entry name="touch-action" restriction="enum" version="3.0" browsers="E,IE11" ref="http://msdn.microsoft.com/en-us/library/windows/apps/Hh767313.aspx" syntax="div { $(name): manipulation double-tap-zoom; }">
+    <entry name="touch-action" restriction="enum" version="3.0" browsers="E,C36,IE11,O23" ref="http://msdn.microsoft.com/en-us/library/windows/apps/Hh767313.aspx" syntax="div { $(name): manipulation double-tap-zoom; }">
       <values>
         <value name="auto" version="3.0" browsers="all" />
-        <value name="double-tap-zoom" version="3.0" browsers="all" />
+        <value name="cross-slide-x" version="3.0" browsers="E,IE11" />
+        <value name="cross-slide-y" version="3.0" browsers="E,IE11" />
+        <value name="double-tap-zoom" version="3.0" browsers="E,IE11" />
         <value name="manipulation" version="3.0" browsers="all" />
         <value name="none" version="3.0" browsers="all" />
         <value name="pan-x" version="3.0" browsers="all" />
         <value name="pan-y" version="3.0" browsers="all" />
-        <value name="pinch-zoom" version="3.0" browsers="all" />
+        <value name="pinch-zoom" version="3.0" browsers="E,IE11" />
       </values>
     </entry>
     <entry name="transform" restriction="enum" version="3.0" browsers="E,C36,FF16,IE10,O12.1,S9" ref="http://www.w3.org/TR/css3-transforms/#transform-property" syntax="div { $(name): rotate(-90deg); }">
