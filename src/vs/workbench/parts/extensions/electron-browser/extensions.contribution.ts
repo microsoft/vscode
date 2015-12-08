@@ -24,5 +24,5 @@ registerSingleton(IGalleryService, GalleryService);
 (<statusbar.IStatusbarRegistry>platform.Registry.as(statusbar.Extensions.Statusbar)).registerStatusbarItem(new statusbar.StatusbarItemDescriptor(
 	ExtensionsStatusbarItem,
 	statusbar.StatusbarAlignment.LEFT,
-	150 /* Very High Priority */
+	10 /* Low Priority */
 ));
