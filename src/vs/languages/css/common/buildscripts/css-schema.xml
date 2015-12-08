@@ -12035,7 +12035,7 @@
       </values>
     </entry>
     <entry name="outline" restriction="length, color, enum" version="2.0" browsers="E,C,FF1.5,IE8,O8,S1.2" ref="http://www.w3.org/TR/css3-ui/#outline0" syntax="header { $(name): 5px solid red;}">
-      <desc>Shorthand property, and sets all three of 'outline-style', 'outline-width', and 'outline-color'.</desc>
+      <desc>Shorthand property for 'outline-style', 'outline-width', and 'outline-color'.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all" />
         <value name="dashed" version="1.0" browsers="all">
