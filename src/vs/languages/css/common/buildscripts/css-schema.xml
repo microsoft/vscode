@@ -5529,10 +5529,46 @@
         <value name="span" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="grid-template" restriction="string, enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css3-grid-layout/#grid-template" syntax="#item1 { $(name): 'hh' 'nm' 'ff'; }">
-      <desc>The grid-template property provides a visualization of the grid element's structure while simultaneously defining the grid cells which can be used to layer or stack the child elements of the grid.</desc>
+    <entry name="grid-template" restriction="identifier, length, percentage, string, enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-grid-1/#propdef-grid-template" syntax="#item1 { $(name): auto 1fr auto / auto 1fr; }">
+      <desc>Shorthand for setting grid-template-columns, grid-template-rows, and grid-template-areas in a single declaration.</desc>
       <values>
         <value name="none" version="3.0" browsers="all" />
+        <value name="min-content" version="3.0" browsers="all" />
+        <value name="max-content" version="3.0" browsers="all" />
+        <value name="auto" version="3.0" browsers="all" />
+        <value name="subgrid" version="3.0" browsers="all" />
+        <value name="minmax()" version="3.0" browsers="all" />
+        <value name="repeat()" version="3.0" browsers="all" />
+      </values>
+    </entry>
+    <entry name="grid-template-areas" restriction="string" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-grid-1/#propdef-grid-template-areas" syntax="#item1 { $(name): 'head head' 'nav main' 'foot foot'; }">
+      <desc>Specifies named grid areas, which are not associated with any particular grid item, but can be referenced from the grid-placement properties.</desc>
+      <values>
+        <value name="none" version="3.0" browsers="all" />
+      </values>
+    </entry>
+    <entry name="grid-template-columns" restriction="identifier, length, percentage, enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-grid-1/#propdef-grid-template-columns" syntax="#item1 { $(name): 100px 1fr max-content minmax(min-content, 1fr); }">
+      <desc>specifies, as a space-separated track list, the line names and track sizing functions of the grid.</desc>
+      <values>
+        <value name="none" version="3.0" browsers="all" />
+        <value name="min-content" version="3.0" browsers="all" />
+        <value name="max-content" version="3.0" browsers="all" />
+        <value name="auto" version="3.0" browsers="all" />
+        <value name="subgrid" version="3.0" browsers="all" />
+        <value name="minmax()" version="3.0" browsers="all" />
+        <value name="repeat()" version="3.0" browsers="all" />
+      </values>
+    </entry>
+    <entry name="grid-template-rows" restriction="identifier, length, percentage, string, enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-grid-1/#propdef-grid-template-rows" syntax="#item1 { $(name): 100px 1fr max-content minmax(min-content, 1fr); }">
+      <desc>specifies, as a space-separated track list, the line names and track sizing functions of the grid.</desc>
+      <values>
+        <value name="none" version="3.0" browsers="all" />
+        <value name="min-content" version="3.0" browsers="all" />
+        <value name="max-content" version="3.0" browsers="all" />
+        <value name="auto" version="3.0" browsers="all" />
+        <value name="subgrid" version="3.0" browsers="all" />
+        <value name="minmax()" version="3.0" browsers="all" />
+        <value name="repeat()" version="3.0" browsers="all" />
       </values>
     </entry>
     <entry name="hanging-punctuation" restriction="enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css3-text/#hanging-punctuation0" syntax="p { $(name): first; }">
