@@ -5729,6 +5729,13 @@
         <value name="grid" version="3.0" browsers="all" />
       </values>
     </entry>
+    <entry name="isolation" restriction="enum" version="3.0" browsers="C,FF,O,S" ref="http://www.w3.org/TR/compositing-1/#isolation" syntax="div { $(name): isolate; }">
+      <desc>In CSS setting to 'isolate' will turn the element into a stacking context. In SVG, it defines whether an element is isolated or not.</desc>
+      <values>
+        <value name="auto" version="3.0" browsers="all" />
+        <value name="isolate" version="3.0" browsers="all" />
+      </values>
+    </entry>
     <entry name="justify-content" restriction="enum" version="3.0" browsers="E,C29,FF22,IE11,O12.1,S9" ref="http://www.w3.org/TR/css3-flexbox/#align-content" syntax="p { $(name): flex-start; }">
       <desc>Aligns a flex container's lines within the flex container when there is extra space in the cross-axis, similar to how 'justify-content' aligns individual items within the main-axis.</desc>
       <values>
