@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
- 
+
 'use strict';
 
 import env = require('vs/base/common/platform');
@@ -108,19 +108,3 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(GotoSymbolAction, Goto
 		nls.localize('helpDescription', "Show Help")
 	)
 );
-
-// Configuration
-const configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigurationExtensions.Configuration);
-configurationRegistry.registerConfiguration({
-	'id': 'filter',
-	'order': 11,
-	'title': nls.localize('filterConfigurationTitle', "Filter configuration"),
-	'type': 'object',
-	'properties': {
-		'filter.enableFuzzy': {
-			'type': 'boolean',
-			'default': false,
-			'description': nls.localize('enableFuzzy', "Enable or disable fuzzy matching in controls that narrow down while typing.")
-		}
-	}
-});

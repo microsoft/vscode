@@ -27,6 +27,7 @@ import Severity from 'vs/base/common/severity';
 import Arrays = require('vs/base/common/arrays');
 import Errors = require('vs/base/common/errors');
 import http = require('vs/base/common/http');
+import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
 import UntitledEditorService = require('vs/workbench/services/untitled/browser/untitledEditorService');
 import WorkbenchEditorService = require('vs/workbench/services/editor/common/editorService');
@@ -71,7 +72,11 @@ export class TestContextService implements WorkspaceContextService.IWorkspaceCon
 	constructor(workspace: any = TestWorkspace, configuration: any = TestConfiguration, options: any = null) {
 		this.workspace = workspace;
 		this.configuration = configuration;
-		this.options = options;
+		this.options = options || {
+			globalSettings: {
+				settings: {}
+			}
+		};
 	}
 
 	public getWorkspace(): IWorkspace {
@@ -500,6 +505,10 @@ export class TestQuickOpenService implements QuickOpenService.IQuickOpenService 
 		return null;
 	}
 
+	public isFuzzyMatchingEnabled(): boolean {
+		return false;
+	}
+
 	public removeEditorHistoryEntry(input: WorkbenchEditorCommon.EditorInput): void {}
 	public dispose() {}
 	public quickNavigate(): void {}
@@ -529,5 +538,17 @@ export const TestFileService = {
 				name: Paths.basename(res.fsPath)
 			};
 		});
+	}
+}
+
+export class TestConfigurationService extends EventEmitter.EventEmitter implements IConfigurationService {
+	public serviceId = IConfigurationService;
+
+	public loadConfiguration(section?:string):TPromise<any> {
+		return TPromise.as({});
+	}
+
+	public hasWorkspaceConfiguration():boolean {
+		return false;
 	}
 }

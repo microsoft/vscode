@@ -125,4 +125,9 @@ export interface IQuickOpenService {
 	 * Allows to register on the event that quick open is hiding
 	 */
 	onHide: EventProvider<() => void>;
+
+	/**
+	 * A boolean to indicate if fuzzy matching is enabled or not.
+	 */
+	isFuzzyMatchingEnabled(): boolean;
 }

@@ -29,6 +29,7 @@ import {HistoryService} from 'vs/workbench/services/history/browser/history';
 import {ActivitybarPart} from 'vs/workbench/browser/parts/activitybar/activitybarPart';
 import {EditorPart} from 'vs/workbench/browser/parts/editor/editorPart';
 import {SidebarPart} from 'vs/workbench/browser/parts/sidebar/sidebarPart';
+import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {StatusbarPart} from 'vs/workbench/browser/parts/statusbar/statusbarPart';
 import {WorkbenchLayout, LayoutOptions} from 'vs/workbench/browser/layout';
 import {IActionBarRegistry, Extensions as ActionBarExtensions} from 'vs/workbench/browser/actionBarRegistry';
@@ -270,6 +271,7 @@ export class Workbench implements IPartService {
 		this.keybindingService = this.instantiationService.getInstance(IKeybindingService);
 		this.contextService = this.instantiationService.getInstance(IWorkbenchWorkspaceContextService);
 		this.telemetryService = this.instantiationService.getInstance(ITelemetryService);
+		let configurationService = this.instantiationService.getInstance(IConfigurationService);
 		let messageService = this.instantiationService.getInstance(IMessageService);
 		if (this.keybindingService instanceof AbstractKeybindingService) {
 			(<AbstractKeybindingService><any>this.keybindingService).setMessageService(messageService);
@@ -339,6 +341,7 @@ export class Workbench implements IPartService {
 			messageService,
 			this.telemetryService,
 			this.contextService,
+			configurationService,
 			this.keybindingService
 		);
 		this.toDispose.push(this.quickOpen);
