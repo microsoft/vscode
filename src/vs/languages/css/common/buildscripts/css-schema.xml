@@ -12757,33 +12757,32 @@
     <entry name="ruby-align" restriction="enum" version="3.0" browsers="FF10,IE5" ref="http://www.w3.org/TR/css3-ruby/#rubyalign" syntax="auto | start | left | center | end | right | distribute-letter | distribute-space | line-edge">
       <desc>This property can be used on any element to control the text alignment of the ruby text and ruby base contents relative to each other.</desc>
       <values>
-        <value name="auto" version="3.0" browsers="all">
+        <value name="auto" version="3.0" browsers="E,IE5">
           <desc>The user agent determines how the ruby contents are aligned. This is the initial value.</desc>
         </value>
         <value name="center" version="3.0" browsers="all">
           <desc>The ruby text content is centered within the width of the base. If the length of the base is smaller than the length of the ruby text, then the base is centered within the width of the ruby text.</desc>
         </value>
-        <value name="distribute-letter" version="3.0" browsers="all">
+        <value name="distribute-letter" version="3.0" browsers="E,IE5">
           <desc>If the width of the ruby text is smaller than that of the base, then the ruby text contents are evenly distributed across the width of the base, with the first and last ruby text glyphs lining up with the corresponding first and last base glyphs. If the width of the ruby text is at least the width of the base, then the letters of the base are evenly distributed across the width of the ruby text.</desc>
         </value>
-        <value name="distribute-space" version="3.0" browsers="all">
+        <value name="distribute-space" version="3.0" browsers="E,IE5">
           <desc>If the width of the ruby text is smaller than that of the base, then the ruby text contents are evenly distributed across the width of the base, with a certain amount of white space preceding the first and following the last character in the ruby text. That amount of white space is normally equal to half the amount of inter-character space of the ruby text.</desc>
-        </value>
-        <value name="end" version="3.0" browsers="all">
-          <desc>The ruby text content is aligned with the end edge of the base.</desc>
         </value>
         <value name="left" version="3.0" browsers="all">
           <desc>The ruby text content is aligned with the start edge of the base.</desc>
         </value>
-        <value name="line-edge" version="3.0" browsers="all">
+        <value name="line-edge" version="3.0" browsers="E,IE5">
           <desc>If the ruby text is not adjacent to a line edge, it is aligned as in 'auto'. If it is adjacent to a line edge, then it is still aligned as in auto, but the side of the ruby text that touches the end of the line is lined up with the corresponding edge of the base.</desc>
         </value>
-        <value name="right" version="3.0" browsers="all">
+        <value name="right" version="3.0" browsers="E,IE5">
           <desc>The ruby text content is aligned with the end edge of the base.</desc>
         </value>
-        <value name="start" version="3.0" browsers="all">
+        <value name="start" version="3.0" browsers="FF10">
           <desc>The ruby text content is aligned with the start edge of the base.</desc>
         </value>
+        <value name="space-between" version="3.0" browsers="FF10" />
+        <value name="space-around" version="3.0" browsers="FF10" />
       </values>
     </entry>
     <entry name="ruby-overhang" restriction="enum" version="3.0" browsers="FF10,IE5" ref="http://www.w3.org/TR/css3-ruby/#rubyover" syntax="auto | start | end | none">
