@@ -15030,9 +15030,6 @@
         </value>
       </values>
     </entry>
-    <entry name="src" restriction="enum, string, url, identifier" version="3.0" browsers="all" ref="http://www.w3.org/TR/css3-fonts/#src-desc" syntax="src: url(font.woff) format('woff');">
-      <desc>specifies the resource containing font data. It is required, whether the font is downloadable or locally installed. It's value is a prioritized, comma-separated list of external references or locally installed font face names.</desc>
-    </entry>
     <entry name="stop-color" restriction="color" version="3.0" browsers="all" ref="http://www.w3.org/TR/SVG11/pservers.html#StopColorProperty">
       <desc>The 'stop-color' property indicates what color to use at that gradient stop.</desc>
       <values>
@@ -15586,8 +15583,8 @@
         </value>
       </values>
     </entry>
-    <entry name="tab-size" restriction="integer, length" version="3.0" browsers="none" ref="http://www.w3.org/TR/css3-text/#tab-size" syntax="div { $(name): 4; }">
-      <desc>This property determines the width of the tab character (U+0009), in space characters (U+0020), when rendered</desc>
+    <entry name="tab-size" restriction="integer, length" version="3.0" browsers="C42,O29,S6.1" ref="http://www.w3.org/TR/css3-text/#tab-size" syntax="div { $(name): 4; }">
+      <desc>Determines the width of the tab character (U+0009), in space characters (U+0020), when rendered</desc>
     </entry>
     <entry name="text-align" restriction="string" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-text/#text-align0" syntax="h2 { $(name): center; }">
       <desc>Describes how inline contents of a block are horizontally aligned if the contents do not completely fill the line box.</desc>
