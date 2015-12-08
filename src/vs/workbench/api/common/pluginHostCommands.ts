@@ -15,7 +15,6 @@ import {PluginHostEditors} from 'vs/workbench/api/common/pluginHostEditors';
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {canSerialize} from 'vs/base/common/marshalling';
 import {toErrorMessage} from 'vs/base/common/errors';
-import {ApiCommands} from 'vs/platform/keybinding/common/commands';
 import * as vscode from 'vscode';
 
 @Remotable.PluginHostContext('PluginHostCommands')
@@ -28,11 +27,6 @@ export class PluginHostCommands {
 	constructor(@IThreadService threadService: IThreadService) {
 		this._pluginHostEditors = threadService.getRemotable(PluginHostEditors);
 		this._proxy = threadService.getRemotable(MainThreadCommands);
-
-		ApiCommands.Instance.track(event => {
-			let {id, handler, thisArg} = event;
-			this.registerCommand(id, handler, thisArg);
-		});
 	}
 
 	registerCommand(id: string, command: <T>(...args: any[]) => T | Thenable<T>, thisArgs?: any): vscode.Disposable {
