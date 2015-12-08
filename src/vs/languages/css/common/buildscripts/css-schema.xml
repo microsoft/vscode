@@ -5452,6 +5452,24 @@
         <value name="span" version="3.0" browsers="all" />
       </values>
     </entry>
+    <entry name="grid-auto-columns" restriction="length, percentage" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-grid-1/#propdef-grid-auto-columns" syntax="div { $(name): 100px; }">
+      <desc>Specifies the size of implicitly created columns.</desc>
+      <values>
+        <value name="min-content" version="3.0" browsers="all" />
+        <value name="max-content" version="3.0" browsers="all" />
+        <value name="auto" version="3.0" browsers="all" />
+        <value name="minmax()" version="3.0" browsers="all" />
+      </values>
+    </entry>
+    <entry name="grid-auto-rows" restriction="length, percentage" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-grid-1/#propdef-grid-auto-rows" syntax="div { $(name): 100px; }">
+      <desc>Specifies the size of implicitly created rows.</desc>
+      <values>
+        <value name="min-content" version="3.0" browsers="all" />
+        <value name="max-content" version="3.0" browsers="all" />
+        <value name="auto" version="3.0" browsers="all" />
+        <value name="minmax()" version="3.0" browsers="all" />
+      </values>
+    </entry>
     <entry name="grid-cell" restriction="string, enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css3-grid-layout/#grid-cell" syntax="#item1 { $(name): 'n'; }">
       <desc>The grid-cell is valid on grid items and places the grid item inside the explicitly named grid cell.</desc>
       <values>
