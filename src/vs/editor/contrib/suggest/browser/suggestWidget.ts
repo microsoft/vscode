@@ -585,40 +585,47 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 			return;
 		}
 
-		// TODO@Joao: improve this, it is expensive
-		const currentWord = e.currentWord;
-		const currentWordLowerCase = currentWord.toLowerCase();
-		const suggestions = model.items;
-
-		let bestSuggestionIndex = -1;
-		let bestSuggestion = suggestions[0];
-		let bestScore = -1;
-
-		for (var i = 0, len = suggestions.length; i < len; i++) {
-			var score = computeScore(suggestions[i].suggestion.label, currentWord, currentWordLowerCase);
-			if (score > bestScore) {
-				bestScore = score;
-				bestSuggestion = suggestions[i];
-				bestSuggestionIndex = i;
-			}
-		}
-
 		dom.removeClass(this.element, 'empty');
-		this.tree.setInput(model).done(null, onUnexpectedError);
-		this.tree.setFocus(bestSuggestion, { firstSuggestion: true });
+		
+		this.telemetryData = this.telemetryData || {};
+
+		this.tree.setInput(model).done(() => {
+			const navigator = this.tree.getNavigator();
+			const currentWord = e.currentWord;
+			const currentWordLowerCase = currentWord.toLowerCase();
+			const suggestions = model.items;
+
+			let index = 0;
+			let bestSuggestionIndex = -1;
+			let bestSuggestion = suggestions[0];
+			let bestScore = -1;
+			let item: CompletionItem;
+
+			while (item = navigator.next()) {
+				var score = computeScore(item.suggestion.label, currentWord, currentWordLowerCase);
+				if (score > bestScore) {
+					bestScore = score;
+					bestSuggestion = item;
+					bestSuggestionIndex = index;
+				}
+				index++;
+			}
+
+			this.tree.setFocus(bestSuggestion, { firstSuggestion: true });
+
+			this.telemetryData.suggestionCount = suggestions.length;
+			this.telemetryData.suggestedIndex = bestSuggestionIndex;
+			this.telemetryData.hintLength = currentWord.length;
+
+			if(this.telemetryTimer) {
+				this.telemetryTimer.data = { reason: 'results'};
+				this.telemetryTimer.stop();
+				this.telemetryTimer = null;
+			}
+		}, onUnexpectedError);
+
 		this.updateWidgetHeight();
 		this.show();
-
-		this.telemetryData = this.telemetryData || {};
-		this.telemetryData.suggestionCount = suggestions.length;
-		this.telemetryData.suggestedIndex = bestSuggestionIndex;
-		this.telemetryData.hintLength = currentWord.length;
-
-		if(this.telemetryTimer) {
-			this.telemetryTimer.data = { reason: 'results'};
-			this.telemetryTimer.stop();
-			this.telemetryTimer = null;
-		}
 	}
 
 	private onDidCancel(e: ICancelEvent) {
