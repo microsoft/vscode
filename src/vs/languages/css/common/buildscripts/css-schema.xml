@@ -16338,7 +16338,7 @@
         </value>
       </values>
     </entry>
-    <entry name="text-justify" restriction="enum" version="3.0" browsers="IE5.5" ref="http://www.w3.org/TR/css3-text/#text-justify0" syntax="div { $(name): inter-word; }">
+    <entry name="text-justify" restriction="enum" version="3.0" browsers="E,IE5.5" ref="http://www.w3.org/TR/css3-text/#text-justify0" syntax="div { $(name): inter-word; }">
       <desc>Selects the justification algorithm used when 'text-align' is set to 'justify'. The property applies to block containers, but the UA may (but is not required to) also support it on inline elements.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all">
@@ -16347,6 +16347,8 @@
         <value name="distribute" version="3.0" browsers="all">
           <desc>Justification primarily changes spacing both at word separators and at grapheme cluster boundaries in all scripts except those in the connected and cursive groups. This value is sometimes used in e.g. Japanese, often with the 'text-align-last' property.</desc>
         </value>
+        <value name="distribute-all-lines" version="3.0" browsers="all" />
+        <value name="inter-character" version="3.0" browsers="none" />
         <value name="inter-cluster" version="3.0" browsers="all">
           <desc>Justification primarily changes spacing at word separators and at grapheme cluster boundaries in clustered scripts. This value is typically used for Southeast Asian scripts such as Thai.</desc>
         </value>
@@ -16359,11 +16361,9 @@
         <value name="kashida" version="3.0" browsers="all">
           <desc>Justification primarily stretches Arabic and related scripts through the use of kashida or other calligraphic elongation.</desc>
         </value>
+        <value name="newspaper" version="3.0" browsers="all" />
         <value name="none" version="3.0" browsers="none">
           <desc>Justification is disabled.</desc>
-        </value>
-        <value name="trim" version="3.0" browsers="none">
-          <desc>Specifies that compression is preferred to expansion and enables the trimming of blank space in glyphs where allowed by typographic tradition.</desc>
         </value>
       </values>
     </entry>
@@ -16390,7 +16390,7 @@
         </value>
       </values>
     </entry>
-    <entry name="text-overflow" restriction="enum" version="3.0" browsers="E,C,FF9,IE5.5,O11.6,S2" ref="http://www.w3.org/TR/css3-ui/#text-overflow0" syntax="span { $(name): ellipsis; }">
+    <entry name="text-overflow" restriction="enum, string" version="3.0" browsers="E,C,FF9,IE5.5,O11.6,S2" ref="http://www.w3.org/TR/css3-ui/#text-overflow0" syntax="span { $(name): ellipsis; }">
       <desc>Text can overflow for example when it is prevented from wrapping</desc>
       <values>
         <value name="clip" version="3.0" browsers="all">
@@ -16429,8 +16429,39 @@
       <desc>This property declares whether and how white space inside the element is collapsed. Values have the following meanings, which must be interpreted according to the white space processing rules.</desc>
       <values>
         <value name="collapse" version="3.0" browsers="all" />
+        <value name="discard" version="3.0" browsers="all" />
         <value name="preserve" version="3.0" browsers="all" />
+        <value name="preserve-auto" version="3.0" browsers="all" />
+        <value name="preserve-trim" version="3.0" browsers="all" />
         <value name="preserve-breaks" version="3.0" browsers="all" />
+        <value name="preserve-spaces" version="3.0" browsers="all" />
+      </values>
+    </entry>
+    <entry name="text-space-trim" restriction="enum" version="3.0" browsers="none" ref="https://drafts.csswg.org/css-text-4/#propdef-text-space-trim" syntax="div { $(name): trim-inner; }">
+      <desc>Specifies trimming behavior at the beginning and end of a box.</desc>
+      <values>
+        <value name="none" version="3.0" browsers="all" />
+        <value name="trim-inner" version="3.0" browsers="all" />
+        <value name="discard-before" version="3.0" browsers="all" />
+        <value name="discard-after" version="3.0" browsers="all" />
+      </values>
+    </entry>
+    <entry name="text-spacing" restriction="enum" version="3.0" browsers="none" ref="https://drafts.csswg.org/css-text-4/#propdef-text-spacing" syntax="div { $(name): none; }">
+      <desc>Controls spacing between adjacent characters on the same line within the same inline formatting context using a set of character-class-based rules.</desc>
+      <values>
+        <value name="normal" version="3.0" browsers="all" />
+        <value name="none" version="3.0" browsers="all" />
+        <value name="trim-start" version="3.0" browsers="all" />
+        <value name="space-start" version="3.0" browsers="all" />
+        <value name="trim-end" version="3.0" browsers="all" />
+        <value name="space-end" version="3.0" browsers="all" />
+        <value name="allow-end" version="3.0" browsers="all" />
+        <value name="trim-adjacent" version="3.0" browsers="all" />
+        <value name="space-adjacent" version="3.0" browsers="all" />
+        <value name="no-compress" version="3.0" browsers="all" />
+        <value name="ideograph-alpha" version="3.0" browsers="all" />
+        <value name="ideograph-numeric" version="3.0" browsers="all" />
+        <value name="punctuation" version="3.0" browsers="all" />
       </values>
     </entry>
     <entry name="text-transform" restriction="enum" version="" browsers="all" ref="http://www.w3.org/TR/css3-text/#text-transform0" syntax="h1 { $(name): capitalize; }">
@@ -16439,10 +16470,7 @@
         <value name="capitalize" version="" browsers="all">
           <desc>Puts all words in titlecase.</desc>
         </value>
-        <value name="fullsize-kana" version="3.0" browsers="none">
-          <desc>Converts all small Kana characters to normal Kana. This value is typically used for ruby annotation text.</desc>
-        </value>
-        <value name="fullwidth" version="3.0" browsers="none">
+        <value name="full-width" version="3.0" browsers="none">
           <desc>Puts all characters in fullwidth form. If the character does not have corresponding fullwidth form, it is left as is.</desc>
         </value>
         <value name="lowercase" version="" browsers="all">
@@ -16459,9 +16487,7 @@
     <entry name="text-underline-position" restriction="enum" version="3.0" browsers="E,IE10" ref="http://www.w3.org/TR/css3-text/#text-underline-position0" syntax="article { $(name): auto; }">
       <desc>Sets the position of an underline specified on the same element: it does not affect underlines specified by ancestor elements. This property is typically used in vertical writing contexts such as in Japanese documents where it often desired to have the underline appear 'over' (to the right of) the affected run of text</desc>
       <values>
-        <value name="alphabetic" version="3.0" browsers="none">
-          <desc>The underline is aligned with the alphabetic baseline. In this case the underline is likely to cross some descenders.</desc>
-        </value>
+        <value name="above" version="3.0" browsers="all" />
         <value name="auto" version="3.0" browsers="all">
           <desc>The user agent may use any algorithm to determine the underline's position. In horizontal line layout, the underline should be aligned as for alphabetic. In vertical line layout, if the language is set to Japanese or Korean, the underline should be aligned as for over.</desc>
         </value>
@@ -16474,19 +16500,20 @@
         <value name="right" version="3.0" browsers="none">
           <desc>In vertical typographic modes, the underline is aligned as for 'below;, except it is aligned to the right edge of the text</desc>
         </value>
+        <value name="under" version="3.0" browsers="none">
       </values>
     </entry>
     <entry name="text-wrap" restriction="enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css3-text/#word-break0" syntax="p.test { $(name): none; }">
       <desc>Specifies mode for text wrapping.</desc>
       <values>
-        <value name="avoid" version="3.0" browsers="all">
-          <desc>Line breaking is suppressed within the element: the UA may only break within the element if there are no other valid break points in the line.</desc>
-        </value>
-        <value name="none" version="3.0" browsers="all">
-          <desc>Lines may not break; text that does not fit within the block container overflows it.</desc>
+        <value name="balance" version="3.0" browsers="all">
+          <desc>Same as normal for inline-level elements. For block-level elements that contain line boxes as direct children, line breaks are chosen to balance the inline-size those line boxes consume, if better balance than normal is possible.</desc>
         </value>
         <value name="normal" version="3.0" browsers="all">
           <desc>Lines may break at allowed break points, as determined by the line-breaking rules in effect. Honors rules specified in Unicode Standard Annex #14 for the WJ, ZW, and GL line-breaking classes.</desc>
+        </value>
+        <value name="nowrap" version="3.0" browsers="all">
+          <desc>Lines may not break; text that does not fit within the block container overflows it.</desc>
         </value>
       </values>
     </entry>
