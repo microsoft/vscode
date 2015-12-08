@@ -12401,7 +12401,7 @@
         </value>
       </values>
     </entry>
-    <entry name="overflow-wrap" restriction="enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css3-text/#overflow-wrap0" syntax="div { $(name): break-word; }">
+    <entry name="overflow-wrap" restriction="enum" version="3.0" browsers="C23,O12.1,S6.1" ref="http://www.w3.org/TR/css3-text/#overflow-wrap0" syntax="div { $(name): break-word; }">
       <desc>This property specifies whether the UA may break within a word to prevent overflow when an otherwise-unbreakable string is too long to fit within the line box.</desc>
       <values>
         <value name="break-word" version="3.0" browsers="all" />
