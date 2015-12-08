@@ -14842,6 +14842,58 @@
         <value name="yellowgreen" version="3.0" browsers="all" />
       </values>
     </entry>
+    <entry name="scroll-behavior" restriction="enum" version="3.0" browsers="36" ref="http://www.w3.org/TR/cssom-view/#scroll-behavior">
+      <desc>Specifies the scrolling behavior for a scrolling box, when scrolling happens due to navigation or CSSOM scrolling APIs.</desc>
+      <values>
+        <value name="instant" version="3.0" browsers="all" />
+        <value name="smooth" version="3.0" browsers="all" />
+      </values>
+    </entry>
+    <entry name="scroll-snap-coordinate" restriction="length, percentage, enum" version="3.0" browsers="FF39" ref="http://www.w3.org/TR/css-snappoints-1/#propdef-scroll-snap-coordinate">
+      <desc>Defines the x and y coordinate within the element which will align with the nearest ancestor scroll container’s snap-destination for the respective axis.</desc>
+      <values>
+        <value name="none" version="3.0" browsers="all" />
+        <value name="top" version="3.0" browsers="all" />
+        <value name="right" version="3.0" browsers="all" />
+        <value name="bottom" version="3.0" browsers="all" />
+        <value name="left" version="3.0" browsers="all" />
+        <value name="center" version="3.0" browsers="all" />
+        <value name="border-box" version="3.0" browsers="none" />
+        <value name="margin-box" version="3.0" browsers="none" />
+      </values>
+    </entry>
+    <entry name="scroll-snap-destination" restriction="length, percentage, enum" version="3.0" browsers="FF39" ref="http://www.w3.org/TR/css-snappoints-1/#propdef-scroll-snap-destination">
+      <desc>Define the x and y coordinate within the scroll container’s visual viewport which element snap points will align with.</desc>
+      <values>
+        <value name="top" version="3.0" browsers="all" />
+        <value name="right" version="3.0" browsers="all" />
+        <value name="bottom" version="3.0" browsers="all" />
+        <value name="left" version="3.0" browsers="all" />
+        <value name="center" version="3.0" browsers="all" />
+      </values>
+    </entry>
+    <entry name="scroll-snap-points-x" restriction="enum" version="3.0" browsers="FF39" ref="http://www.w3.org/TR/css-snappoints-1/#propdef-scroll-snap-points-x">
+      <desc>Defines the positioning of snap points along the x axis of the scroll container it is applied to.</desc>
+      <values>
+        <value name="none" version="3.0" browsers="all" />
+        <value name="repeat()" version="3.0" browsers="all" />
+      </values>
+    </entry>
+    <entry name="scroll-snap-points-y" restriction="enum" version="3.0" browsers="FF39" ref="http://www.w3.org/TR/css-snappoints-1/#propdef-scroll-snap-points-y">
+      <desc>Defines the positioning of snap points alobg the y axis of the scroll container it is applied to.</desc>
+      <values>
+        <value name="none" version="3.0" browsers="all" />
+        <value name="repeat()" version="3.0" browsers="all" />
+      </values>
+    </entry>
+    <entry name="scroll-snap-type" restriction="enum" version="3.0" browsers="FF39" ref="http://www.w3.org/TR/css-snappoints-1/#propdef-scroll-snap-type">
+      <desc>Defines how strictly snap points are enforced on the scroll container.</desc>
+      <values>
+        <value name="none" version="3.0" browsers="all" />
+        <value name="mandatory" version="3.0" browsers="all" />
+        <value name="proximity" version="3.0" browsers="all" />
+      </values>
+    </entry>
     <entry name="shape-image-threshold" restriction="number" version="3.0" browsers="C37,O24" ref="http://www.w3.org/TR/css-shapes-1/#propdef-shape-image-threshold" syntax="div { $(name): 0.5; }">
       <desc>Defines the alpha channel threshold used to extract the shape using an image. A value of 0.5 means that the shape will enclose all the pixels that are more than 50% opaque.</desc>
     </entry>
