@@ -166,6 +166,10 @@ export class Tree extends Events.EventEmitter implements _.ITree {
 		this.view.setScrollPosition(pos);
 	}
 
+	getContentHeight(): number {
+		return this.view.getTotalHeight();
+	}
+
 	public setHighlight(element?:any, eventPayload?:any):void {
 		this.model.setHighlight(element, eventPayload);
 	}

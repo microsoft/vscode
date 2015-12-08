@@ -794,11 +794,9 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 			var focusHeight = focus ? this.renderer.getHeight(this.tree, focus) : 19;
 			height += focusHeight;
 
-			var maxSuggestions = Math.floor((maxHeight - focusHeight) / 19);
-			var model = <CompletionModel>input;
-
-			// TODO@Joao: improve this, it is expensive
-			height += Math.min(model.items.length - 1, 11, maxSuggestions) * 19;
+			const suggestionCount = this.tree.getContentHeight() / 19;
+			const maxSuggestions = Math.floor((maxHeight - focusHeight) / 19);
+			height += Math.min(suggestionCount - 1, 11, maxSuggestions) * 19;
 		}
 
 		this.element.style.height = height + 'px';

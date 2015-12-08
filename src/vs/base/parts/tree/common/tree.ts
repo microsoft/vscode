@@ -134,6 +134,11 @@ export interface ITree extends Events.IEventEmitter {
 	setScrollPosition(pos: number): void;
 
 	/**
+	 * Returns the total height of the tree's content.
+	 */
+	getContentHeight(): number;
+
+	/**
 	 * Sets the tree's highlight to be the given element.
 	 * Provide no arguments and it clears the tree's highlight.
 	 */
