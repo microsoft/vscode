@@ -8,154 +8,39 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import {sequence} from 'vs/base/common/async';
 import { assign } from 'vs/base/common/objects';
 import Event, { Emitter } from 'vs/base/common/event';
-import { onUnexpectedError, isPromiseCanceledError } from 'vs/base/common/errors';
+import { onUnexpectedError } from 'vs/base/common/errors';
 import strings = require('vs/base/common/strings');
-import URI from 'vs/base/common/uri';
-import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import timer = require('vs/base/common/timer');
 import { getSnippets } from 'vs/editor/common/modes/modesRegistry';
 import EditorCommon = require('vs/editor/common/editorCommon');
 import { ISuggestSupport, ISuggestResult, ISuggestion, ISuggestionCompare, ISuggestionFilter } from 'vs/editor/common/modes';
-import { DefaultFilter, IMatch } from 'vs/editor/common/modes/modesFilters';
 import { CodeSnippet } from 'vs/editor/contrib/snippet/common/snippet';
 import { IDisposable, disposeAll } from 'vs/base/common/lifecycle';
 import { SuggestRegistry, ISuggestResult2, suggest } from '../common/suggest';
 
-const DefaultCompare: ISuggestionCompare = (a, b) => a.label.localeCompare(b.label);
-
-enum State {
-	Idle = 0,
-	Manual = 1,
-	Auto = 2
+export interface ICancelEvent {
+	retrigger: boolean;
 }
 
-export interface SuggestDataEvent {
-	suggestions: { completionItems: CompletionItem[]; currentWord: string; };
+export interface ITriggerEvent {
+	auto: boolean;
+	characterTriggered: boolean;
+	retrigger: boolean;
+}
+
+export interface ISuggestEvent {
+	suggestions: ISuggestResult2[][];
+	currentWord: string;
 	auto: boolean;
 }
 
-export class CompletionItem {
-
-	private static _idPool = 0;
-	public id: string;
-	public suggestion: ISuggestion;
-	public highlights: IMatch[];
-	public support: ISuggestSupport;
-	public container: ISuggestResult;
-	private _resolveDetails:TPromise<CompletionItem>
-
-	constructor(private group: CompletionGroup, suggestion: ISuggestion, container:ISuggestResult2) {
-		this.id = '_completion_item_#' + CompletionItem._idPool++;
-		this.support = container.support;
-		this.suggestion = suggestion;
-		this.container = container;
-	}
-
-	resolveDetails(resource:URI, position:EditorCommon.IPosition): TPromise<CompletionItem> {
-		if (this._resolveDetails) {
-			return this._resolveDetails;
-		}
-
-		if (!this.support || typeof this.support.getSuggestionDetails !== 'function') {
-			return this._resolveDetails = TPromise.as(this);
-		}
-
-		return this._resolveDetails = this.support
-			.getSuggestionDetails(resource, position, this.suggestion)
-			.then(value => {
-				this.suggestion = assign(this.suggestion, value);
-				return this;
-			}, err => {
-				if (isPromiseCanceledError(err)) {
-					this._resolveDetails = null;
-				} else {
-					onUnexpectedError(err);
-				}
-				return this;
-			});
-	}
+export interface IAcceptEvent {
+	snippet: CodeSnippet;
+	overwriteBefore: number;
+	overwriteAfter: number;
 }
 
-export class CompletionGroup {
-
-	private items: CompletionItem[];
-
-	private _incomplete: boolean;
-	public get incomplete(): boolean { return this._incomplete; }
-
-	private _size: number;
-	public get size(): number { return this._size; }
-
-	private compare: ISuggestionCompare;
-	private filter: ISuggestionFilter;
-
-	constructor(private model: CompletionModel, private index: number, raw: ISuggestResult2[]) {
-		this._incomplete = false;
-		this._size = 0;
-
-		this.items = raw.reduce<CompletionItem[]>((items, result) => {
-			this._incomplete = this._incomplete || result.incomplete;
-			this._size += result.suggestions.length;
-
-			return items.concat(
-				result.suggestions
-					.map(suggestion => new CompletionItem(this, suggestion, result))
-			);
-		}, []);
-
-		this.compare = DefaultCompare;
-		this.filter = DefaultFilter;
-
-		if (this.items.length > 0) {
-			const [first] = this.items;
-
-			if (first.support) {
-				this.compare = first.support.getSorter && first.support.getSorter() || this.compare;
-				this.filter = first.support.getFilter && first.support.getFilter() || this.filter;
-			}
-		}
-	}
-
-	select(ctx: Context): CompletionItem[] {
-		return this.items
-			.map(item => assign(item, { highlights: this.filter(ctx.wordBefore, item.suggestion) }))
-			.filter(item => !isFalsyOrEmpty(item.highlights))
-			.sort((a, b) => this.compare(a.suggestion, b.suggestion));
-	}
-}
-
-export class CompletionModel {
-
-	private groups: CompletionGroup[];
-
-	private _incomplete: boolean;
-	public get incomplete(): boolean { return this._incomplete; }
-
-	private _size: number;
-	public get size(): number { return this._size; }
-
-	constructor(raw: ISuggestResult2[][]) {
-		this._incomplete = false;
-		this._size = 0;
-
-		this.groups = raw
-			.filter(s => !!s)
-			.map((suggestResults, index) => {
-				const group = new CompletionGroup(this, index, suggestResults);
-
-				this._incomplete = this._incomplete || group.incomplete;
-				this._size += group.size;
-
-				return group;
-			});
-	}
-
-	select(ctx: Context): CompletionItem[] {
-		return this.groups.reduce((r, groups) => r.concat(groups.select(ctx)), []);
-	}
-}
-
-export class Context {
+class Context {
 
 	public lineNumber:number;
 	public column:number;
@@ -266,26 +151,10 @@ export class Context {
 	}
 }
 
-export interface ICancelEvent {
-	retrigger: boolean;
-}
-
-export interface ITriggerEvent {
-	auto: boolean;
-	characterTriggered: boolean;
-	retrigger: boolean;
-}
-
-export interface ISuggestEvent {
-	completionItems: CompletionItem[];
-	currentWord: string;
-	auto: boolean;
-}
-
-export interface IAcceptEvent {
-	snippet: CodeSnippet;
-	overwriteBefore: number;
-	overwriteAfter: number;
+enum State {
+	Idle = 0,
+	Manual = 1,
+	Auto = 2
 }
 
 export class SuggestModel implements IDisposable {
@@ -298,7 +167,9 @@ export class SuggestModel implements IDisposable {
 
 	private requestPromise:TPromise<void>;
 	private context:Context;
-	private raw:CompletionModel;
+
+	private raw: ISuggestResult2[][];
+	private incomplete: boolean;
 
 	private _onDidCancel: Emitter<ICancelEvent> = new Emitter();
 	public get onDidCancel(): Event<ICancelEvent> { return this._onDidCancel.event; }
@@ -318,6 +189,7 @@ export class SuggestModel implements IDisposable {
 		this.triggerAutoSuggestPromise = null;
 		this.requestPromise = null;
 		this.raw = null;
+		this.incomplete = false;
 		this.context = null;
 
 		this.toDispose = [];
@@ -342,6 +214,7 @@ export class SuggestModel implements IDisposable {
 
 		this.state = State.Idle;
 		this.raw = null;
+		this.incomplete = false;
 		this.context = null;
 
 		if (!silent) {
@@ -401,7 +274,7 @@ export class SuggestModel implements IDisposable {
 				});
 			}
 
-		} else if (this.raw && this.raw.incomplete) {
+		} else if (this.raw && this.incomplete) {
 			this.trigger(this.state === State.Auto, undefined, true);
 		} else {
 			this.onNewContext(ctx);
@@ -439,24 +312,16 @@ export class SuggestModel implements IDisposable {
 				return;
 			}
 
-			let incomplete = false;
-			const snippets = getSnippets(model, position);
-			const raw = all.concat([[snippets]]);
-			const completionModel = new CompletionModel(raw);
-			const ctx = new Context(this.editor, auto);
+			this.raw = all.concat([[getSnippets(model, position)]]);
+			this.incomplete = all.reduce((r, s) => r || s.reduce((r, s) => r || s.incomplete, false), false);
 
-			if(completionModel.size > 0) {
-				this.raw = completionModel;
-				this.onNewContext(ctx);
-			} else {
-				this._onDidSuggest.fire({ completionItems: null, currentWord: ctx.wordBefore, auto: this.isAutoSuggest() });
-			}
+			this.onNewContext(new Context(this.editor, auto));
 		}).then(null, onUnexpectedError);
 	}
 
-	private onNewContext(context: Context):void {
-		if (this.context && this.context.isDifferentContext(context)) {
-			if (this.context.shouldRetrigger(context)) {
+	private onNewContext(ctx: Context):void {
+		if (this.context && this.context.isDifferentContext(ctx)) {
+			if (this.context.shouldRetrigger(ctx)) {
 				this.trigger(this.state === State.Auto, undefined, true);
 			} else {
 				this.cancel();
@@ -465,14 +330,8 @@ export class SuggestModel implements IDisposable {
 			return;
 		}
 
-		if (this.raw) {
-			const suggestions = this.raw.select(context);
-
-			if (suggestions.length > 0) {
-				this._onDidSuggest.fire({ completionItems: suggestions, currentWord: context.wordBefore, auto: this.isAutoSuggest() });
-			} else {
-				this._onDidSuggest.fire({ completionItems: null, currentWord: context.wordBefore, auto: this.isAutoSuggest() });
-			}
+		if (this.raw) { // TODO@Joao: is this ever false?
+			this._onDidSuggest.fire({ suggestions: this.raw, currentWord: ctx.wordBefore, auto: this.isAutoSuggest() });
 		}
 	}
 

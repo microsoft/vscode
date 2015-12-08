@@ -9,14 +9,14 @@ import 'vs/css!./suggest';
 import nls = require('vs/nls');
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, disposeAll } from 'vs/base/common/lifecycle';
-import Errors = require('vs/base/common/errors');
+import { assign } from 'vs/base/common/objects';
 import Event, { Emitter } from 'vs/base/common/event';
 import dom = require('vs/base/browser/dom');
 import Tree = require('vs/base/parts/tree/common/tree');
 import TreeImpl = require('vs/base/parts/tree/browser/treeImpl');
 import TreeDefaults = require('vs/base/parts/tree/browser/treeDefaults');
 import HighlightedLabel = require('vs/base/browser/ui/highlightedlabel/highlightedLabel');
-import { SuggestModel, CompletionItem, ICancelEvent, ISuggestEvent, ITriggerEvent } from './suggestModel';
+import { SuggestModel, ICancelEvent, ISuggestEvent, ITriggerEvent } from './suggestModel';
 import Mouse = require('vs/base/browser/mouseEvent');
 import EditorBrowser = require('vs/editor/browser/editorBrowser');
 import EditorCommon = require('vs/editor/common/editorCommon');
@@ -25,9 +25,130 @@ import Timer = require('vs/base/common/timer');
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { SuggestRegistry, CONTEXT_SUGGESTION_SUPPORTS_ACCEPT_ON_KEY } from '../common/suggest';
 import { IKeybindingService, IKeybindingContextKey } from 'vs/platform/keybinding/common/keybindingService';
+import { ISuggestSupport, ISuggestResult, ISuggestion, ISuggestionCompare, ISuggestionFilter } from 'vs/editor/common/modes';
+import { DefaultFilter, IMatch } from 'vs/editor/common/modes/modesFilters';
+import { ISuggestResult2 } from '../common/suggest';
+import URI from 'vs/base/common/uri';
+import { isFalsyOrEmpty } from 'vs/base/common/arrays';
+import { onUnexpectedError, isPromiseCanceledError, illegalArgument } from 'vs/base/common/errors';
+const DefaultCompare: ISuggestionCompare = (a, b) => a.label.localeCompare(b.label);
 
 var $ = dom.emmet;
 
+class CompletionItem {
+
+	private static _idPool = 0;
+	public id: string;
+	public suggestion: ISuggestion;
+	public highlights: IMatch[];
+	public support: ISuggestSupport;
+	public container: ISuggestResult;
+	private _resolveDetails:TPromise<CompletionItem>
+
+	constructor(public group: CompletionGroup, suggestion: ISuggestion, container:ISuggestResult2) {
+		this.id = '_completion_item_#' + CompletionItem._idPool++;
+		this.support = container.support;
+		this.suggestion = suggestion;
+		this.container = container;
+	}
+
+	resolveDetails(resource:URI, position:EditorCommon.IPosition): TPromise<CompletionItem> {
+		if (this._resolveDetails) {
+			return this._resolveDetails;
+		}
+
+		if (!this.support || typeof this.support.getSuggestionDetails !== 'function') {
+			return this._resolveDetails = TPromise.as(this);
+		}
+
+		return this._resolveDetails = this.support
+			.getSuggestionDetails(resource, position, this.suggestion)
+			.then(
+				value => this.suggestion = assign(this.suggestion, value),
+				err => isPromiseCanceledError(err) ? this._resolveDetails = null : onUnexpectedError(err)
+			)
+			.then(() => this);
+	}
+}
+
+class CompletionGroup {
+
+	private items: CompletionItem[];
+
+	private _incomplete: boolean;
+	public get incomplete(): boolean { return this._incomplete; }
+
+	private _size: number;
+	public get size(): number { return this._size; }
+
+	private compare: ISuggestionCompare;
+	private filter: ISuggestionFilter;
+
+	constructor(public model: CompletionModel, private index: number, raw: ISuggestResult2[]) {
+		this._incomplete = false;
+		this._size = 0;
+
+		this.items = raw.reduce<CompletionItem[]>((items, result) => {
+			this._incomplete = this._incomplete || result.incomplete;
+			this._size += result.suggestions.length;
+
+			return items.concat(
+				result.suggestions
+					.map(suggestion => new CompletionItem(this, suggestion, result))
+			);
+		}, []);
+
+		this.compare = DefaultCompare;
+		this.filter = DefaultFilter;
+
+		if (this.items.length > 0) {
+			const [first] = this.items;
+
+			if (first.support) {
+				this.compare = first.support.getSorter && first.support.getSorter() || this.compare;
+				this.filter = first.support.getFilter && first.support.getFilter() || this.filter;
+			}
+		}
+	}
+
+	select(wordBefore: string): CompletionItem[] {
+		return this.items
+			.map(item => assign(item, { highlights: this.filter(wordBefore, item.suggestion) }))
+			.filter(item => !isFalsyOrEmpty(item.highlights))
+			.sort((a, b) => this.compare(a.suggestion, b.suggestion));
+	}
+}
+
+class CompletionModel {
+
+	private groups: CompletionGroup[];
+
+	private _incomplete: boolean;
+	public get incomplete(): boolean { return this._incomplete; }
+
+	private _size: number;
+	public get size(): number { return this._size; }
+
+	constructor(raw: ISuggestResult2[][], public currentWord: string) {
+		this._incomplete = false;
+		this._size = 0;
+
+		this.groups = raw
+			.filter(s => !!s)
+			.map((suggestResults, index) => {
+				const group = new CompletionGroup(this, index, suggestResults);
+
+				this._incomplete = this._incomplete || group.incomplete;
+				this._size += group.size;
+
+				return group;
+			});
+	}
+
+	select(): CompletionItem[] {
+		return this.groups.reduce((r, groups) => r.concat(groups.select(this.currentWord)), []);
+	}
+}
 
 // To be used as a tree element when we want to show a message
 export class Message {
@@ -46,26 +167,8 @@ export class MessageRoot {
 
 class DataSource implements Tree.IDataSource {
 
-	private static _IdPool:number = 0;
-	private root: ISuggestEvent;
-
-	constructor() {
-		this.root = null;
-	}
-
-	private isRoot(element: any) : boolean {
-		if (element instanceof MessageRoot) {
-			return true;
-		} else if (element instanceof Message) {
-			return false;
-		} else if (element instanceof CompletionItem) {
-			return false;
-		} else if (typeof element.currentWord === 'string') {
-			this.root = element;
-			return true;
-		} else {
-			return false;
-		}
+	private static isRoot(element: any) : boolean {
+		return element instanceof MessageRoot || element instanceof CompletionModel;
 	}
 
 	public getId(tree: Tree.ITree, element: any): string {
@@ -73,40 +176,37 @@ class DataSource implements Tree.IDataSource {
 			return 'messageroot';
 		} else if (element instanceof Message) {
 			return 'message' + element.message;
-		} else if (typeof element.currentWord === 'string') {
+		} else if (element instanceof CompletionModel) {
 			return 'root';
 		} else if (element instanceof CompletionItem) {
 			return (<CompletionItem>element).id;
-		} else {
-			throw Errors.illegalArgument('element');
 		}
+
+		throw illegalArgument('element');
 	}
 
 	public getParent(tree: Tree.ITree, element: any): TPromise<any> {
-		if (element instanceof MessageRoot) {
+		if (DataSource.isRoot(element)) {
 			return TPromise.as(null);
 		} else if (element instanceof Message) {
 			return TPromise.as(element.parent);
 		}
-		return TPromise.as(this.isRoot(element)
-			? null
-			: this.root);
+
+		return TPromise.as((<CompletionItem>element).group.model);
 	}
 
 	public getChildren(tree: Tree.ITree, element: any): TPromise<any[]> {
 		if (element instanceof MessageRoot) {
 			return TPromise.as([element.child]);
-		} else if (element instanceof Message) {
-			return TPromise.as([]);
+		} else if (element instanceof CompletionModel) {
+			return TPromise.as((<CompletionModel>element).select());
 		}
 
-		return TPromise.as(this.isRoot(element)
-			? this.root.completionItems
-			: []);
+		return TPromise.as([]);
 	}
 
 	public hasChildren(tree: Tree.ITree, element: any): boolean {
-		return this.isRoot(element);
+		return DataSource.isRoot(element);
 	}
 }
 
@@ -267,6 +367,8 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 	// Editor.IContentWidget.allowEditorOverflow
 	public allowEditorOverflow = true;
 
+	private currentSuggestionDetails:TPromise<CompletionItem>;
+
 	private _onDidVisibilityChange: Emitter<boolean> = new Emitter();
 	public get onDidVisibilityChange(): Event<boolean> { return this._onDidVisibilityChange.event; }
 
@@ -337,7 +439,8 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 				var element = e.selection[0];
 				if (!element.hasOwnProperty('suggestions') && !(element instanceof MessageRoot) && !(element instanceof Message)) {
 
-					this.telemetryData.selectedIndex = (<ISuggestEvent> this.tree.getInput()).completionItems.indexOf(element);
+					// TODO@joao bring back
+					// this.telemetryData.selectedIndex = (<ISuggestEvent> this.tree.getInput()).completionItems.indexOf(element);
 					this.telemetryData.wasCancelled = false;
 					this.submitTelemetryData();
 
@@ -385,7 +488,7 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 				if (focus) {
 					return this.tree.reveal(focus, (payload && payload.firstSuggestion) ? 0 : null);
 				}
-			}, Errors.onUnexpectedError);
+			}, onUnexpectedError);
 		}));
 
 		this.editor.addContentWidget(this);
@@ -414,7 +517,7 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 				this.loadingTimeout = setTimeout(() => {
 					this.loadingTimeout = null;
 					dom.removeClass(this.element, 'empty');
-					this.tree.setInput(SuggestWidget.LOADING_MESSAGE).done(null, Errors.onUnexpectedError);
+					this.tree.setInput(SuggestWidget.LOADING_MESSAGE).done(null, onUnexpectedError);
 					this.updateWidgetHeight();
 					this.show();
 				}, 50);
@@ -433,14 +536,15 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 		this.isLoading = false;
 		clearTimeout(this.loadingTimeout);
 
-		if (!e.completionItems) { // empty
+		const model = new CompletionModel(e.suggestions, e.currentWord);
 
+		if (model.size === 0) { // empty
 			if (e.auto) {
 				this.hide();
 			} else if (wasLoading) {
 				if (this.shouldShowEmptySuggestionList) {
 					dom.removeClass(this.element, 'empty');
-					this.tree.setInput(SuggestWidget.NO_SUGGESTIONS_MESSAGE).done(null, Errors.onUnexpectedError);
+					this.tree.setInput(SuggestWidget.NO_SUGGESTIONS_MESSAGE).done(null, onUnexpectedError);
 					this.updateWidgetHeight();
 					this.show();
 				} else {
@@ -459,9 +563,10 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 			return;
 		}
 
+		// TODO@Joao: improve this, it is expensive
 		const currentWord = e.currentWord;
 		const currentWordLowerCase = currentWord.toLowerCase();
-		const suggestions = e.completionItems;
+		const suggestions = model.select();
 
 		let bestSuggestionIndex = -1;
 		let bestSuggestion = suggestions[0];
@@ -477,7 +582,7 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 		}
 
 		dom.removeClass(this.element, 'empty');
-		this.tree.setInput(e).done(null, Errors.onUnexpectedError);
+		this.tree.setInput(model).done(null, onUnexpectedError);
 		this.tree.setFocus(bestSuggestion, { firstSuggestion: true });
 		this.updateWidgetHeight();
 		this.show();
@@ -514,8 +619,6 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 		}
 	}
 
-	private currentSuggestionDetails:TPromise<CompletionItem>;
-
 	private resolveDetails(item: CompletionItem): void {
 		if (item) {
 			if(this.currentSuggestionDetails) {
@@ -528,9 +631,8 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 			this.currentSuggestionDetails.then(() => {
 				this.currentSuggestionDetails = undefined;
 				return this.tree.refresh(item).then(() => this.updateWidgetHeight());
-			}, (err) => {
-				return Errors.isPromiseCanceledError(err) ? null : err;
-			}).done(undefined, Errors.onUnexpectedError);
+			})
+			.done(null, err => !isPromiseCanceledError(err) && onUnexpectedError(err));
 		}
 	}
 
@@ -659,8 +761,10 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 			height += focusHeight;
 
 			var maxSuggestions = Math.floor((maxHeight - focusHeight) / 19);
-			var data = <ISuggestEvent>input;
-			height += Math.min(data.completionItems.length - 1, 11, maxSuggestions) * 19;
+			var model = <CompletionModel>input;
+
+			// TODO@Joao: improve this, it is expensive
+			height += Math.min(model.select().length - 1, 11, maxSuggestions) * 19;
 		}
 
 		this.element.style.height = height + 'px';
