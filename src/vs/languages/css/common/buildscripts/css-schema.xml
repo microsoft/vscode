@@ -5478,12 +5478,6 @@
         <value name="minmax()" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="grid-cell" restriction="string, enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css3-grid-layout/#grid-cell" syntax="#item1 { $(name): 'n'; }">
-      <desc>The grid-cell is valid on grid items and places the grid item inside the explicitly named grid cell.</desc>
-      <values>
-        <value name="none" version="3.0" browsers="all" />
-      </values>
-    </entry>
     <entry name="grid-column" restriction="integer, string, enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css3-grid-layout/#grid-column" syntax="#item1 { $(name): start end; }">
       <desc>grid-column is used to place grid items and explicitly defined grid cells in the Grid.</desc>
       <values>
