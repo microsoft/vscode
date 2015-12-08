@@ -6112,9 +6112,6 @@
     <entry name="list-style-position" restriction="enum" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-lists/#list-style-position" syntax="ul { $(name): inside; }">
       <desc>Specifies the position of the '::marker' pseudo-element's box in the list item.</desc>
       <values>
-        <value name="hanging" version="1.0" browsers="none">
-          <desc>As 'inside', except the marker is instead placed immediately before the first text or significant whitespace in the list item or its children</desc>
-        </value>
         <value name="inside" version="1.0" browsers="all">
           <desc>The marker box is outside the principal block box, as described in the section on the ::marker pseudo-element below.</desc>
         </value>
