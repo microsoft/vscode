@@ -6239,7 +6239,6 @@
         <value name="none" version="2.0" browsers="all" />
       </values>
     </entry>
-    <entry name="max-zoom" restriction="number, percentage" version="" browsers="all" />
     <entry name="min-height" restriction="length, percentage" version="2.0" browsers="E,C,FF1,IE7,O7,S1" ref="http://www.w3.org/TR/css3-box/#min-height" syntax="footer { $(name): 300px; }">
       <desc>Allows authors to constrain content height to a certain range.</desc>
 			<values>
@@ -6252,7 +6251,6 @@
      		<value name="auto" version="3.0" browsers="E,IE11" />
       </values>
     </entry>
-    <entry name="min-zoom" restriction="number, percentage" version="" browsers="all" />
     <entry name="move-to" restriction="identifier" version="3.0" browsers="none" ref="http://www.w3.org/TR/css3-content/#moving" syntax="normal | here | &lt;identifier&gt;">
       <desc>Property causes the element or pseudo-element to be removed from the flow and reinserted at a later point in the document.</desc>
       <values>
