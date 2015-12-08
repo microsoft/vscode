@@ -55,7 +55,7 @@ class OutlineModel extends QuickOpenModel {
 		this.outline = outline;
 	}
 
-	public dofilter(searchValue: string): void {
+	public dofilter(searchValue: string, enableFuzzy: boolean): void {
 
 		// Normalize search
 		let normalizedSearchValue = searchValue;
@@ -74,7 +74,7 @@ class OutlineModel extends QuickOpenModel {
 
 			// Filter by search
 			if (normalizedSearchValue) {
-				let highlights = filters.matchesFuzzy(normalizedSearchValue, entry.getLabel());
+				let highlights = filters.matchesFuzzy(normalizedSearchValue, entry.getLabel(), enableFuzzy);
 				if (highlights) {
 					entry.setHighlights(highlights);
 					entry.setHidden(false);
@@ -386,7 +386,8 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 
 	constructor(
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IQuickOpenService private quickOpenService: IQuickOpenService
 	) {
 		super();
 
@@ -406,7 +407,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 		return this.getActiveOutline().then((outline) => {
 
 			// Filter by search
-			outline.dofilter(searchValue);
+			outline.dofilter(searchValue, this.quickOpenService.isFuzzyMatchingEnabled());
 
 			return outline;
 		});

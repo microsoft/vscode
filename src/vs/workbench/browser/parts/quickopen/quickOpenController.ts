@@ -147,7 +147,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 		this.toUnbind.push(this.eventService.addListener(EventType.EDITOR_SET_INPUT_ERROR, (e: EditorEvent) => this.onEditorInputSetError(e)));
 
 		// Editor History Model
-		this.editorHistoryModel = new EditorHistoryModel(this.editorService, this.instantiationService, this.contextService);
+		this.editorHistoryModel = new EditorHistoryModel(this.editorService, this.instantiationService, this.contextService, this);
 		this.memento = this.getMemento(this.storageService, Scope.WORKSPACE);
 		if (this.memento[EDITOR_HISTORY_STORAGE_KEY]) {
 			this.editorHistoryModel.loadFrom(this.memento[EDITOR_HISTORY_STORAGE_KEY]);
@@ -357,10 +357,10 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 						// Filter by value
 						else {
 							entries.forEach((entry) => {
-								let labelHighlights = filters.matchesFuzzy(value, entry.getLabel());
+								let labelHighlights = filters.matchesFuzzy(value, entry.getLabel(), this.isFuzzyMatchingEnabled());
 								let descriptionHighlights: filters.IMatch[] = null;
 								if (options.matchOnDescription) {
-									descriptionHighlights = filters.matchesFuzzy(value, entry.getDescription());
+									descriptionHighlights = filters.matchesFuzzy(value, entry.getDescription(), this.isFuzzyMatchingEnabled());
 								}
 
 								if (labelHighlights || descriptionHighlights) {

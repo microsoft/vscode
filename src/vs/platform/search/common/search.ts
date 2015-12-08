@@ -28,6 +28,7 @@ export interface IQueryOptions {
 	includePattern?: glob.IExpression;
 	maxResults?: number;
 	fileEncoding?: string;
+	matchFuzzy?: boolean;
 }
 
 export interface ISearchQuery extends IQueryOptions {

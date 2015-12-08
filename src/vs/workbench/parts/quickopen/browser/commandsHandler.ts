@@ -190,7 +190,8 @@ export class CommandsHandler extends QuickOpenHandler {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IMessageService private messageService: IMessageService,
 		@IKeybindingService private keybindingService: IKeybindingService,
-		@IActionsService private actionsService: IActionsService
+		@IActionsService private actionsService: IActionsService,
+		@IQuickOpenService private quickOpenService: IQuickOpenService
 	) {
 		super();
 	}
@@ -231,7 +232,7 @@ export class CommandsHandler extends QuickOpenHandler {
 		entries = arrays.distinct(entries, (entry) => entry.getLabel() + entry.getGroupLabel());
 
 		// Sort by name
-		entries = entries.sort((entryA, entryB) => QuickOpenEntry.compare(entryA, entryB, searchValue));
+		entries = entries.sort((entryA, entryB) => QuickOpenEntry.compare(entryA, entryB, searchValue, this.quickOpenService.isFuzzyMatchingEnabled()));
 
 		return TPromise.as(new QuickOpenModel(entries));
 	}
@@ -251,7 +252,7 @@ export class CommandsHandler extends QuickOpenHandler {
 					label = nls.localize('commandLabel', "{0}: {1}", category, label);
 				}
 
-				let highlights = filters.matchesFuzzy(searchValue, label);
+				let highlights = filters.matchesFuzzy(searchValue, label, this.quickOpenService.isFuzzyMatchingEnabled());
 				if (highlights) {
 					entries.push(this.instantiationService.createInstance(CommandEntry, keys.length > 0 ? keys.join(', ') : '', label, highlights, actionDescriptor));
 				}
@@ -276,7 +277,7 @@ export class CommandsHandler extends QuickOpenHandler {
 			let keys = this.keybindingService.lookupKeybindings(editorAction.id).map(k => this.keybindingService.getLabelFor(k));
 
 			if (action.label) {
-				let highlights = filters.matchesFuzzy(searchValue, action.label);
+				let highlights = filters.matchesFuzzy(searchValue, action.label, this.quickOpenService.isFuzzyMatchingEnabled());
 				if (highlights) {
 					entries.push(this.instantiationService.createInstance(EditorActionCommandEntry, keys.length > 0 ? keys.join(', ') : '', action.label, highlights, action));
 				}
@@ -291,7 +292,7 @@ export class CommandsHandler extends QuickOpenHandler {
 
 		for (let action of actions) {
 			let keys = this.keybindingService.lookupKeybindings(action.id).map(k => this.keybindingService.getLabelFor(k));
-			let highlights = filters.matchesFuzzy(searchValue, action.label);
+			let highlights = filters.matchesFuzzy(searchValue, action.label, this.quickOpenService.isFuzzyMatchingEnabled());
 			if (highlights) {
 				entries.push(this.instantiationService.createInstance(ActionCommandEntry, keys.join(', '), action.label, highlights, action));
 			}

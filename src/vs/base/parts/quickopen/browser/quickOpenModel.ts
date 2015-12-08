@@ -197,31 +197,30 @@ export class QuickOpenEntry {
 	public static highlight(entry: QuickOpenEntry, lookFor: string, enableFuzzyMatching = false): { labelHighlights: IHighlight[], descriptionHighlights: IHighlight[] } {
 		let labelHighlights: IHighlight[] = [];
 		let descriptionHighlights: IHighlight[] = [];
-		let matcher = enableFuzzyMatching ? Filters.SubstringMatching.Separate : Filters.SubstringMatching.Contiguous;
 
 		// Highlight file aware
 		if (entry.getResource()) {
 
 			// Highlight only inside label
 			if (lookFor.indexOf(Paths.nativeSep) < 0) {
-				labelHighlights = Filters.matchesFuzzy(lookFor, entry.getLabel(), matcher);
+				labelHighlights = Filters.matchesFuzzy(lookFor, entry.getLabel(), enableFuzzyMatching);
 			}
 
 			// Highlight in label and description
 			else {
-				descriptionHighlights = Filters.matchesFuzzy(Strings.trim(lookFor, Paths.nativeSep), entry.getDescription(), matcher);
+				descriptionHighlights = Filters.matchesFuzzy(Strings.trim(lookFor, Paths.nativeSep), entry.getDescription(), enableFuzzyMatching);
 
 				// If we have no highlights, assume that the match is split among name and parent folder
 				if (!descriptionHighlights || !descriptionHighlights.length) {
-					labelHighlights = Filters.matchesFuzzy(Paths.basename(lookFor), entry.getLabel(), matcher);
-					descriptionHighlights = Filters.matchesFuzzy(Strings.trim(Paths.dirname(lookFor), Paths.nativeSep), entry.getDescription(), matcher);
+					labelHighlights = Filters.matchesFuzzy(Paths.basename(lookFor), entry.getLabel(), enableFuzzyMatching);
+					descriptionHighlights = Filters.matchesFuzzy(Strings.trim(Paths.dirname(lookFor), Paths.nativeSep), entry.getDescription(), enableFuzzyMatching);
 				}
 			}
 		}
 
 		// Highlight by label otherwise
 		else {
-			labelHighlights = Filters.matchesFuzzy(lookFor, entry.getLabel(), matcher);
+			labelHighlights = Filters.matchesFuzzy(lookFor, entry.getLabel(), enableFuzzyMatching);
 		}
 
 		return { labelHighlights, descriptionHighlights };

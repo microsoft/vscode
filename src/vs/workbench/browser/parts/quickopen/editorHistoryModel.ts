@@ -19,6 +19,7 @@ import {EditorInput, getUntitledOrFileResource} from 'vs/workbench/common/editor
 import {IEditorRegistry, Extensions} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {EditorQuickOpenEntry} from 'vs/workbench/browser/quickopen';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
+import {IQuickOpenService} from 'vs/workbench/services/quickopen/browser/quickOpenService';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 
@@ -117,7 +118,8 @@ export class EditorHistoryModel extends QuickOpenModel {
 	constructor(
 		private editorService: IWorkbenchEditorService,
 		private instantiationService: IInstantiationService,
-		private contextService: IWorkspaceContextService
+		private contextService: IWorkspaceContextService,
+		private quickOpenService: IQuickOpenService
 	) {
 		super();
 	}
@@ -212,6 +214,7 @@ export class EditorHistoryModel extends QuickOpenModel {
 	public getResults(searchValue: string): QuickOpenEntry[] {
 		searchValue = searchValue.trim();
 		const searchInPath = searchValue.indexOf(paths.nativeSep) >= 0;
+		const enableFuzzy = this.quickOpenService.isFuzzyMatchingEnabled();
 
 		let results: QuickOpenEntry[] = [];
 		for (let i = 0; i < this.entries.length; i++) {
@@ -222,16 +225,16 @@ export class EditorHistoryModel extends QuickOpenModel {
 
 			// Check if this entry is a match for the search value
 			let targetToMatch = searchInPath ? labels.getPathLabel(entry.getResource(), this.contextService) : entry.getLabel();
-			if (!filters.matchesFuzzy(searchValue, targetToMatch)) {
+			if (!filters.matchesFuzzy(searchValue, targetToMatch, enableFuzzy)) {
 				continue;
 			}
 
 			// Apply highlights
-			const {labelHighlights, descriptionHighlights} = QuickOpenEntry.highlight(entry, searchValue);
+			const {labelHighlights, descriptionHighlights} = QuickOpenEntry.highlight(entry, searchValue, enableFuzzy);
 			results.push(entry.clone(labelHighlights, descriptionHighlights));
 		}
 
 		// Sort
-		return results.sort((elementA: EditorHistoryEntry, elementB: EditorHistoryEntry) => QuickOpenEntry.compare(elementA, elementB, searchValue));
+		return results.sort((elementA: EditorHistoryEntry, elementB: EditorHistoryEntry) => QuickOpenEntry.compare(elementA, elementB, searchValue, enableFuzzy));
 	}
 }

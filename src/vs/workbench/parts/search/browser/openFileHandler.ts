@@ -25,6 +25,7 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {IMessageService} from 'vs/platform/message/common/message';
 import {IQueryOptions, ISearchService, ISearchComplete, ISearchProgressItem} from 'vs/platform/search/common/search';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
+import {IQuickOpenService} from 'vs/workbench/services/quickopen/browser/quickOpenService';
 
 export class FileEntry extends EditorQuickOpenEntry {
 	private name: string;
@@ -97,7 +98,8 @@ export class OpenFileHandler extends QuickOpenHandler {
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@ITextFileService private textFileService: ITextFileService,
-		@ISearchService private searchService: ISearchService
+		@ISearchService private searchService: ISearchService,
+		@IQuickOpenService private quickOpenService: IQuickOpenService
 	) {
 		super();
 
@@ -133,7 +135,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 			rootResources.push(this.contextService.getWorkspace().resource);
 		}
 
-		let query: IQueryOptions = { filePattern: searchValue, rootResources: rootResources };
+		let query: IQueryOptions = { filePattern: searchValue, matchFuzzy: this.quickOpenService.isFuzzyMatchingEnabled(), rootResources: rootResources };
 
 		return this.queryBuilder.file(query).then((query) => this.searchService.search(query)).then((complete) => {
 
@@ -148,7 +150,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 				let entry = this.instantiationService.createInstance(FileEntry, label, description, fileMatch.resource);
 
 				// Apply highlights
-				let {labelHighlights, descriptionHighlights} = QuickOpenEntry.highlight(entry, searchValue);
+				let {labelHighlights, descriptionHighlights} = QuickOpenEntry.highlight(entry, searchValue, this.quickOpenService.isFuzzyMatchingEnabled());
 				entry.setHighlights(labelHighlights, descriptionHighlights);
 
 				results.push(entry);
@@ -156,7 +158,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 
 			// Sort (standalone only)
 			if (this.isStandalone) {
-				results = results.sort((elementA, elementB) => QuickOpenEntry.compare(elementA, elementB, searchValue));
+				results = results.sort((elementA, elementB) => QuickOpenEntry.compare(elementA, elementB, searchValue, this.quickOpenService.isFuzzyMatchingEnabled()));
 			}
 
 			return results;

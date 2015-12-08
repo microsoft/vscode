@@ -22,6 +22,7 @@ import {OpenSymbolHandler as _OpenSymbolHandler} from 'vs/workbench/parts/search
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
+import {IQuickOpenService} from 'vs/workbench/services/quickopen/browser/quickOpenService';
 
 // OpenSymbolHandler is used from an extension and must be in the main bundle file so it can load
 export const OpenSymbolHandler = _OpenSymbolHandler
@@ -45,7 +46,8 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 	constructor(
 		@IMessageService private messageService: IMessageService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IInstantiationService instantiationService: IInstantiationService
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IQuickOpenService private quickOpenService: IQuickOpenService
 	) {
 		super();
 
@@ -142,7 +144,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 				let result = [...results[0].entries, ...results[1].entries];
 
 				// Sort
-				result.sort((elementA, elementB) => QuickOpenEntry.compare(elementA, elementB, searchValue));
+				result.sort((elementA, elementB) => QuickOpenEntry.compare(elementA, elementB, searchValue, this.quickOpenService.isFuzzyMatchingEnabled()));
 
 				// Apply Range
 				result.forEach((element) => {
@@ -235,6 +237,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 		// Pattern match on results and adjust highlights
 		let results: QuickOpenEntry[] = [];
 		const searchInPath = searchValue.indexOf(paths.nativeSep) >= 0;
+		const enableFuzzy = this.quickOpenService.isFuzzyMatchingEnabled();
 		for (let i = 0; i < cachedEntries.length; i++) {
 			let entry = cachedEntries[i];
 
@@ -245,19 +248,19 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 
 			// Check if this entry is a match for the search value
 			let targetToMatch = searchInPath ? labels.getPathLabel(entry.getResource(), this.contextService) : entry.getLabel();
-			if (!filters.matchesFuzzy(searchValue, targetToMatch)) {
+			if (!filters.matchesFuzzy(searchValue, targetToMatch, enableFuzzy)) {
 				continue;
 			}
 
 			// Apply highlights
-			const {labelHighlights, descriptionHighlights} = QuickOpenEntry.highlight(entry, searchValue);
+			const {labelHighlights, descriptionHighlights} = QuickOpenEntry.highlight(entry, searchValue, enableFuzzy);
 			entry.setHighlights(labelHighlights, descriptionHighlights);
 
 			results.push(entry);
 		}
 
 		// Sort
-		results.sort((elementA, elementB) => QuickOpenEntry.compare(elementA, elementB, searchValue));
+		results.sort((elementA, elementB) => QuickOpenEntry.compare(elementA, elementB, searchValue, enableFuzzy));
 
 		// Apply Range
 		results.forEach((element) => {

@@ -471,7 +471,7 @@ export class TestQuickOpenService implements QuickOpenService.IQuickOpenService 
 
 	private callback: (prefix: string) => void;
 
-	constructor(callback: (prefix: string) => void) {
+	constructor(callback?: (prefix: string) => void) {
 		this.callback = callback;
 	}
 
@@ -488,7 +488,7 @@ export class TestQuickOpenService implements QuickOpenService.IQuickOpenService 
 	}
 
 	show(prefix?: string, quickNavigateConfiguration?: any): Promise {
-		this.callback(prefix);
+		this.callback && this.callback(prefix);
 
 		return Promise.as(true);
 	}

@@ -40,7 +40,7 @@ suite('Workbench QuickOpen', () => {
 		let contextService = new TestContextService();
 		let inst = create({});
 
-		let model = new EditorHistoryModel(editorService, null, contextService);
+		let model = new EditorHistoryModel(editorService, null, contextService, new TestQuickOpenService());
 
 		let input1 = inst.createInstance(StringEditorInput, "name1", 'description', "value1", "text/plain", false);
 		let entry1 = new EditorHistoryEntry(editorService, contextService, input1, null, null, model);
@@ -78,7 +78,7 @@ suite('Workbench QuickOpen', () => {
 		let contextService = new TestContextService();
 		let inst = create({});
 
-		let model = new EditorHistoryModel(editorService, null, contextService);
+		let model = new EditorHistoryModel(editorService, null, contextService, new TestQuickOpenService());
 
 		let input1 = inst.createInstance(StringEditorInput, "name1", 'description', "value1", "text/plain", false);
 
@@ -96,10 +96,11 @@ suite('Workbench QuickOpen', () => {
 
 		let editorService = new TestEditorService();
 		let contextService = new TestContextService();
+		let quickOpenService = new TestQuickOpenService();
 
 		let inst = create({ editorService: editorService });
 
-		let model = new EditorHistoryModel(editorService, inst, contextService);
+		let model = new EditorHistoryModel(editorService, inst, contextService, quickOpenService);
 
 		let input1 = inst.createInstance(StringEditorInput, "name1", 'description', "value1", "text/plain", false);
 		let input2 = inst.createInstance(StringEditorInput, "name2", 'description', "value2", "text/plain", false);
@@ -134,14 +135,14 @@ suite('Workbench QuickOpen', () => {
 		model.saveTo(memento);
 		assert(!isEmptyObject(memento));
 
-		model = new EditorHistoryModel(editorService, inst, contextService);
+		model = new EditorHistoryModel(editorService, inst, contextService, quickOpenService);
 		model.loadFrom(memento);
 
 		assert.equal(2, model.getEntries().length);
 		assert(model.getEntries()[0].matches(saveInput2));
 		assert(model.getEntries()[1].matches(saveInput1));
 
-		model = new EditorHistoryModel(editorService, inst, contextService);
+		model = new EditorHistoryModel(editorService, inst, contextService, quickOpenService);
 
 		let cinput1 = <EditorInput>inst.createInstance(fileInputCtor, toResource("Hello World"), "text/plain", void 0);
 		let cinput2 = <EditorInput>inst.createInstance(fileInputCtor, toResource("Yes World"), "text/plain", void 0);
@@ -157,7 +158,7 @@ suite('Workbench QuickOpen', () => {
 
 		assert.equal(1, model.getResults("*")[0].getHighlights()[0].length);
 
-		model = new EditorHistoryModel(editorService, inst, contextService);
+		model = new EditorHistoryModel(editorService, inst, contextService, quickOpenService);
 
 		let cinput4 = <EditorInput>inst.createInstance(fileInputCtor, toResource("foo.ts"), "text/plain", void 0);
 		let cinput5 = <EditorInput>inst.createInstance(fileInputCtor, toResource("bar.js"), "text/plain", void 0);
