@@ -12,7 +12,7 @@ import {IConfigurationRegistry, Extensions as ConfigurationExtensions} from 'vs/
 import {IWorkbenchActionRegistry, Extensions} from 'vs/workbench/browser/actionRegistry';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 import {WorkbenchMessageService} from 'vs/workbench/services/message/browser/messageService';
-import {CloseEditorAction, ReloadWindowAction, ShowStartupPerformance, ZoomResetAction, ZoomOutAction, ZoomInAction, ToggleDevToolsAction, ToggleFullScreenAction, OpenRecentAction, CloseFolderAction, CloseWindowAction, NewWindowAction, CloseMessagesAction} from 'vs/workbench/electron-browser/actions';
+import {CloseEditorAction, ReloadWindowAction, ShowStartupPerformance, ZoomResetAction, ZoomOutAction, ZoomInAction, ToggleDevToolsAction, ToggleFullScreenAction, OpenRecentAction, CloseFolderAction, CloseWindowAction, NewWindowAction, CloseMessagesAction, ToggleMenuBarAction} from 'vs/workbench/electron-browser/actions';
 
 // Contribute Global Actions
 const viewCategory = nls.localize('view', "View");
@@ -37,7 +37,7 @@ workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(Toggle
 	primary: KeyCode.F11,
 	mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KEY_F }
 }), viewCategory);
-
+workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleMenuBarAction, ToggleMenuBarAction.ID, ToggleMenuBarAction.LABEL));
 // Configuration
 const configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigurationExtensions.Configuration);
 

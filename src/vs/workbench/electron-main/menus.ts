@@ -527,6 +527,7 @@ export class VSCodeMenu {
 		let splitEditor = this.createMenuItem(nls.localize('miSplitEditor', "Split &&Editor"), 'workbench.action.splitEditor');
 		let toggleSidebar = this.createMenuItem(nls.localize('miToggleSidebar', "&&Toggle Side Bar"), 'workbench.action.toggleSidebarVisibility');
 		let moveSidebar = this.createMenuItem(nls.localize('miMoveSidebar', "&&Move Side Bar"), 'workbench.action.toggleSidebarPosition');
+		let toggleMenubar = this.createMenuItem(nls.localize('miToggleMenuBar', '&&Toggle Menu Bar'),'workbench.action.toggleMenubar');
 
 		let zoomIn = this.createMenuItem(nls.localize('miZoomIn', "&&Zoom in"), 'workbench.action.zoomIn');
 		let zoomOut = this.createMenuItem(nls.localize('miZoomOut', "Zoom o&&ut"), 'workbench.action.zoomOut');
@@ -540,6 +541,7 @@ export class VSCodeMenu {
 			splitEditor,
 			toggleSidebar,
 			moveSidebar,
+			toggleMenubar,
 			__separator__(),
 			zoomIn,
 			zoomOut

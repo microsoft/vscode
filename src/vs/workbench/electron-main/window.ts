@@ -133,6 +133,8 @@ export class VSCodeWindow {
 	private _isPluginDevelopmentHost: boolean;
 	private windowState: IWindowState;
 	private currentWindowMode: WindowMode;
+	private isMenubarVisible = true;
+	private enableMenubarHiding = false;
 
 	private whenReadyCallbacks: TValueCallback<VSCodeWindow>[];
 
@@ -535,6 +537,30 @@ export class VSCodeWindow {
 
 	public send(channel: string, ...args: any[]): void {
 		this._win.webContents.send(channel, ...args);
+	}
+
+	public toggleMenuBarVisibility(): void {
+		if (this.isMenubarVisible == true) {
+			this.win.setMenuBarVisibility(false);
+			this.isMenubarVisible = false;
+			this.enableMenubarHiding = true;
+		} else {
+			this.win.setMenuBarVisibility(true);
+			this.isMenubarVisible = true;
+			this.enableMenubarHiding = false;
+		}
+	}
+
+	public toggleMenuBarByKeyPress(): void {
+		if (this.enableMenubarHiding == true) {
+			if (this.isMenubarVisible == true) {
+				this.win.setMenuBarVisibility(false);
+				this.isMenubarVisible = false;
+			} else {
+				this.win.setMenuBarVisibility(true);
+				this.isMenubarVisible = true;
+			}
+		}
 	}
 
 	public dispose(): void {

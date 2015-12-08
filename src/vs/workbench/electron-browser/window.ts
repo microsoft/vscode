@@ -36,6 +36,7 @@ export interface IWindowConfiguration {
 
 export class ElectronWindow {
 	private win: remote.BrowserWindow;
+	private menuBarVisibility: boolean;
 
 	constructor(
 		win: remote.BrowserWindow,
@@ -69,6 +70,12 @@ export class ElectronWindow {
 
 			});
 		}
+
+		window.document.body.addEventListener('keydown', (e: KeyboardEvent) => {
+			if (e.altKey == true) {
+				ipc.send("vscode:toggleMenuBar", this.win.id, true);
+			}
+		});
 
 		// Prevent a dropped file from opening as nw application
 		window.document.body.addEventListener('dragover', (e: DragEvent) => {

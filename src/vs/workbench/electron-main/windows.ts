@@ -229,6 +229,19 @@ export class WindowsManager {
 			}
 		});
 
+		ipc.on('vscode:toggleMenuBar', (event: Event, windowId: number, isByKeyPress: boolean) => {
+			env.log("IPC#vscode:toggleMenuBar");
+
+			let vscodeWindow = this.getWindowById(windowId);
+			if (vscodeWindow) {
+				if (isByKeyPress == true) {
+					vscodeWindow.toggleMenuBarByKeyPress();
+				} else {
+					vscodeWindow.toggleMenuBarVisibility();
+				}
+			}
+		});
+
 		ipc.on('vscode:changeTheme', (event, theme: string) => {
 			this.sendToAll('vscode:changeTheme', theme);
 			storage.setItem(WindowsManager.themeStorageKey, theme);
