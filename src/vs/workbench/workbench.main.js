@@ -30,6 +30,7 @@ define([
 	'vs/workbench/browser/actions/triggerEditorActions',
 	'vs/workbench/browser/actions/triggerNavigation',
 	'vs/workbench/browser/actions/showPerformanceBox',
+	'vs/workbench/browser/actions/openSettings',
 
 	'vs/workbench/parts/quickopen/browser/quickopen.contribution',
 
@@ -56,7 +57,6 @@ define([
 	'vs/workbench/parts/markdown/browser/markdownActions.contribution',
 
 	'vs/workbench/browser/workbench',
-	'vs/workbench/browser/actions/openSettings',
 
 	'vs/workbench/parts/tasks/electron-browser/task.contribution',
 

@@ -21,8 +21,8 @@ class SyncedBuffer {
 	private diagnosticRequestor: IDiagnosticRequestor;
 	private client: ITypescriptServiceClient;
 
-	constructor(model: TextDocument, filepath: string, diagnosticRequestor: IDiagnosticRequestor, client: ITypescriptServiceClient) {
-		this.document = model;
+	constructor(document: TextDocument, filepath: string, diagnosticRequestor: IDiagnosticRequestor, client: ITypescriptServiceClient) {
+		this.document = document;
 		this.filepath = filepath;
 		this.diagnosticRequestor = diagnosticRequestor;
 		this.client = client;
@@ -30,26 +30,10 @@ class SyncedBuffer {
 
 	public open(): void {
 		let args: Proto.OpenRequestArgs = {
-			file: this.filepath
+			file: this.filepath,
+			fileContent: this.document.getText()
 		};
 		this.client.execute('open', args, false);
-		// The last line never has a new line character at the end. So we use range.
-		// Sending a replace doesn't work if the buffer is newer then on disk and
-		// if changes are on the last line. In this case the tsserver has less characters
-		// which makes the tsserver bail since the range is invalid
-		/*
-		let lastLineRange = this.document.lineAt(this.document.lineCount - 1).range;
-		let text = this.document.getText();
-		let changeArgs: Proto.ChangeRequestArgs = {
-			file: this.filepath,
-			line: 1,
-			offset: 1,
-			endLine: lastLineRange.end.line + 1,
-			endOffset: lastLineRange.end.character + 1,
-			insertString: text
-		}
-		this.client.execute('change', changeArgs, false);
-		*/
 	}
 
 	public close(): void {

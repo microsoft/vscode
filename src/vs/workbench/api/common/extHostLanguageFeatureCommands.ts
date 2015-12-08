@@ -35,6 +35,7 @@ import {NavigateTypesSupportRegistry, INavigateTypesSupport, ITypeBearing} from 
 import {RenameRegistry} from 'vs/editor/contrib/rename/common/rename';
 import {FormatRegistry, FormatOnTypeRegistry} from 'vs/editor/contrib/format/common/format';
 import {ICodeLensData} from 'vs/editor/contrib/codelens/common/codelens';
+import {addApiCommand} from 'vs/platform/keybinding/common/commands';
 
 export class ExtHostLanguageFeatureCommands {
 
@@ -44,28 +45,30 @@ export class ExtHostLanguageFeatureCommands {
 	constructor(commands: PluginHostCommands) {
 		this._commands = commands;
 
-		this._register('vscode.executeWorkspaceSymbolProvider', this._executeWorkspaceSymbolProvider);
-		this._register('vscode.executeDefinitionProvider', this._executeDefinitionProvider);
-		this._register('vscode.executeHoverProvider', this._executeHoverProvider);
-		this._register('vscode.executeDocumentHighlights', this._executeDocumentHighlights);
-		this._register('vscode.executeReferenceProvider', this._executeReferenceProvider);
-		this._register('vscode.executeDocumentRenameProvider', this._executeDocumentRenameProvider);
-		this._register('vscode.executeSignatureHelpProvider', this._executeSignatureHelpProvider);
-		this._register('vscode.executeDocumentSymbolProvider', this._executeDocumentSymbolProvider);
-		this._register('vscode.executeCompletionItemProvider', this._executeCompletionItemProvider);
-		this._register('vscode.executeCodeActionProvider', this._executeCodeActionProvider);
-		this._register('vscode.executeCodeLensProvider', this._executeCodeLensProvider);
-		this._register('vscode.executeFormatDocumentProvider', this._executeFormatDocumentProvider);
-		this._register('vscode.executeFormatRangeProvider', this._executeFormatRangeProvider);
-		this._register('vscode.executeFormatOnTypeProvider', this._executeFormatOnTypeProvider);
-	}
-
-	private _register(id: string, callback: (...args: any[]) => any): void {
-		this._disposables.push(this._commands.registerCommand(id, callback, this));
+		addApiCommand('vscode.executeWorkspaceSymbolProvider', this._executeWorkspaceSymbolProvider, this);
+		addApiCommand('vscode.executeDefinitionProvider', this._executeDefinitionProvider, this);
+		addApiCommand('vscode.executeHoverProvider', this._executeHoverProvider, this);
+		addApiCommand('vscode.executeDocumentHighlights', this._executeDocumentHighlights, this);
+		addApiCommand('vscode.executeReferenceProvider', this._executeReferenceProvider, this);
+		addApiCommand('vscode.executeDocumentRenameProvider', this._executeDocumentRenameProvider, this);
+		addApiCommand('vscode.executeSignatureHelpProvider', this._executeSignatureHelpProvider, this);
+		addApiCommand('vscode.executeDocumentSymbolProvider', this._executeDocumentSymbolProvider, this);
+		addApiCommand('vscode.executeCompletionItemProvider', this._executeCompletionItemProvider, this);
+		addApiCommand('vscode.executeCodeActionProvider', this._executeCodeActionProvider, this);
+		addApiCommand('vscode.executeCodeLensProvider', this._executeCodeLensProvider, this);
+		addApiCommand('vscode.executeFormatDocumentProvider', this._executeFormatDocumentProvider, this);
+		addApiCommand('vscode.executeFormatRangeProvider', this._executeFormatRangeProvider, this);
+		addApiCommand('vscode.executeFormatOnTypeProvider', this._executeFormatOnTypeProvider, this);
 	}
 
 	// --- command impl
 
+	/**
+	 * Execute workspace symbol provider.
+	 *
+	 * @param query Search string to match query symbol names
+	 * @return A promise that resolves to an array of symbol information.
+	 */
 	private _executeWorkspaceSymbolProvider(query: string): Thenable<types.SymbolInformation[]> {
 		return this._commands.executeCommand<ITypeBearing[]>('_executeWorkspaceSymbolProvider', { query }).then(value => {
 			if (Array.isArray(value)) {

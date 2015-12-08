@@ -40,7 +40,7 @@ interface RequestItem {
 
 export default class TypeScriptServiceClient implements ITypescriptServiceClient {
 
-	public static Trace: boolean = false;
+	public static Trace: boolean = process.env.TSS_TRACE || false;
 
 	private host: ITypescriptServiceClientHost;
 	private pathSeparator: string;
