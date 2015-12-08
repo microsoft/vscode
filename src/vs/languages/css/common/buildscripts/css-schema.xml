@@ -6233,6 +6233,12 @@
         </value>
       </values>
     </entry>
+    <entry name="max-lines" restriction="integer, enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-overflow-3/#max-lines0" syntax="div::nth-fragment(1) { $(name): 3; }">
+      <desc>Forces a fragment to break after the specified number of lines.</desc>
+      <values>
+        <value name="none" version="2.0" browsers="all" />
+      </values>
+    </entry>
     <entry name="max-zoom" restriction="number, percentage" version="" browsers="all" />
     <entry name="min-height" restriction="length, percentage" version="2.0" browsers="E,C,FF1,IE7,O7,S1" ref="http://www.w3.org/TR/css3-box/#min-height" syntax="footer { $(name): 300px; }">
       <desc>Allows authors to constrain content height to a certain range.</desc>
