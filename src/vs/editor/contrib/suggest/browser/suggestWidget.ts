@@ -464,8 +464,7 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 		this.listenersToRemove.push(editor.addListener(EditorCommon.EventType.EditorTextBlur, () => {
 			TPromise.timeout(150).done(() => {
 				if (this.tree && !this.tree.isDOMFocused()) {
-					// TODO@joao uncomment
-					// this.hide();
+					this.hide();
 				}
 			});
 		}));

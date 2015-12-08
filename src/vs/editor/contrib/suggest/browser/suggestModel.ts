@@ -180,7 +180,6 @@ export class SuggestModel implements IDisposable {
 	private _onDidSuggest: Emitter<ISuggestEvent> = new Emitter();
 	public get onDidSuggest(): Event<ISuggestEvent> { return this._onDidSuggest.event; }
 
-	// TODO@joao: remove
 	private _onDidAccept: Emitter<IAcceptEvent> = new Emitter();
 	public get onDidAccept(): Event<IAcceptEvent> { return this._onDidAccept.event; }
 
