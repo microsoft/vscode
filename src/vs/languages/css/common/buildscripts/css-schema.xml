@@ -5596,7 +5596,38 @@
         </value>
       </values>
     </entry>
-    <entry name="hyphens" restriction="enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css3-text/#hyphens0" syntax="div { $(name): manual; }">
+    <entry name="hyphenate-character" restriction="integer, enum" version="3.0" browsers="none" ref="https://drafts.csswg.org/css-text-4/#propdef-hyphenate-character" syntax="div { $(name):'~'; }">
+      <desc>Specifies strings that are shown between parts of hyphenated words.</desc>
+      <values>
+        <value name="auto" version="3.0" browsers="all" />
+      </values>
+    </entry>
+    <entry name="hyphenate-limit-chars" restriction="integer, enum" version="3.0" browsers="none" ref="https://drafts.csswg.org/css-text-4/#propdef-hyphenate-limit-chars" syntax="div { $(name): 5 2 2; }">
+      <desc>Specifies the minimum number of characters in a hyphenated word.</desc>
+      <values>
+        <value name="auto" version="3.0" browsers="all" />
+      </values>
+    </entry>
+    <entry name="hyphenate-limit-last" restriction="enum" version="3.0" browsers="none" ref="https://drafts.csswg.org/css-text-4/#propdef-hyphenate-limit-last" syntax="div { $(name): 2; }">
+      <desc>Indicates hyphenation behavior at the end of elements, column, pages and spreads.</desc>
+      <values>
+        <value name="none" version="3.0" browsers="all" />
+        <value name="always" version="3.0" browsers="all" />
+        <value name="column" version="3.0" browsers="all" />
+        <value name="page" version="3.0" browsers="all" />
+        <value name="spread" version="3.0" browsers="all" />
+      </values>
+    </entry>
+    <entry name="hyphenate-limit-lines" restriction="integer" version="3.0" browsers="none" ref="https://drafts.csswg.org/css-text-4/#propdef-hyphenate-limit-lines" syntax="div { $(name): 2; }">
+      <desc>Indicates the maximum number of successive hyphenated lines in an element.</desc>
+      <values>
+        <value name="no-limit" version="3.0" browsers="all" />
+      </values>
+    </entry>
+    <entry name="hyphenate-limit-zone" restriction="percentage, length" version="3.0" browsers="none" ref="https://drafts.csswg.org/css-text-4/#propdef-hyphenate-limit-zone" syntax="div { $(name): 25%; }">
+      <desc>Specifies the maximum amount of unfilled space (before justification) that may be left in the line box before hyphenation is triggered to pull part of a word from the next line back up into the current line.</desc>
+    </entry>
+    <entry name="hyphens" restriction="enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-text-3/#hyphens-property" syntax="div { $(name): manual; }">
       <desc>This property controls whether hyphenation is allowed to create more break opportunities within a line of text.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all">
@@ -8761,19 +8792,19 @@
         <value name="none" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="-ms-hyphenate-limit-chars" restriction="integer" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh441147.aspx" syntax="div { $(name): 5 2 2; }">
+    <entry name="-ms-hyphenate-limit-chars" restriction="integer" version="3.0" browsers="E,IE10" ref="https://drafts.csswg.org/css-text-4/#propdef-hyphenate-limit-chars" syntax="div { $(name): 5 2 2; }">
       <desc>Gets or sets one to three values that indicates the minimum number of characters in a hyphenated word.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="-ms-hyphenate-limit-lines" restriction="integer" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh441157.aspx" syntax="div { $(name): 2; }">
+    <entry name="-ms-hyphenate-limit-lines" restriction="integer" version="3.0" browsers="E,IE10" ref="https://drafts.csswg.org/css-text-4/#propdef-hyphenate-limit-lines" syntax="div { $(name): 2; }">
       <desc>Gets or sets a value that indicates the maximum number of consecutive lines in an element that may be ended with a hyphenated word.</desc>
       <values>
         <value name="no-limit" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="-ms-hyphenate-limit-zone" restriction="percentage, length" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh441168.aspx" syntax="div { $(name): 25%; }">
+    <entry name="-ms-hyphenate-limit-zone" restriction="percentage, length" version="3.0" browsers="E,IE10" ref="https://drafts.csswg.org/css-text-4/#propdef-hyphenate-limit-zone" syntax="div { $(name): 25%; }">
       <desc>Gets or sets a value that defines the width of the hyphenation zone.</desc>
     </entry>
     <entry name="-ms-hyphens" restriction="enum" version="3.0" browsers="E,IE10" ref="http://www.w3.org/TR/css3-text/#hyphens0" syntax="div { $(name): manual; }">
