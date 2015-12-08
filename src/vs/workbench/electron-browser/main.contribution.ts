@@ -38,9 +38,9 @@ workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(Toggle
 	mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KEY_F }
 }), viewCategory);
 
-// Configuration
 const configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigurationExtensions.Configuration);
 
+// Window Configuration
 configurationRegistry.registerConfiguration({
 	'id': 'window',
 	'order': 6,
@@ -66,6 +66,7 @@ configurationRegistry.registerConfiguration({
 	}
 });
 
+// Update Configuration
 configurationRegistry.registerConfiguration({
 	'id': 'update',
 	'order': 10,

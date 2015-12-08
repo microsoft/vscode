@@ -24,11 +24,13 @@ import {Position} from 'vs/platform/editor/common/editor';
 import {IQuickOpenService} from 'vs/workbench/services/quickopen/browser/quickOpenService';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 
-const ACTION_ID = 'workbench.action.gotoLine';
-const ACTION_LABEL = nls.localize('gotoLine', "Go to Line...");
-const GOTO_LINE_PREFIX = ':';
+export const GOTO_LINE_PREFIX = ':';
 
 export class GotoLineAction extends QuickOpenAction {
+
+	public static ID = 'workbench.action.gotoLine';
+	public static LABEL = nls.localize('gotoLine', "Go to Line...");
+
 	constructor(actionId: string, actionLabel: string, @IQuickOpenService quickOpenService: IQuickOpenService) {
 		super(actionId, actionLabel, GOTO_LINE_PREFIX, quickOpenService);
 	}
@@ -282,26 +284,3 @@ export class GotoLineHandler extends QuickOpenHandler {
 		};
 	}
 }
-
-// Register Action
-let registry = <IWorkbenchActionRegistry>Registry.as(ActionExtensions.WorkbenchActions);
-registry.registerWorkbenchAction(new SyncActionDescriptor(GotoLineAction, ACTION_ID, ACTION_LABEL, {
-	primary: KeyMod.CtrlCmd | KeyCode.KEY_G,
-	mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_G }
-}));
-
-// Register Quick Open Handler
-(<IQuickOpenRegistry>Registry.as(QuickOpenExtensions.Quickopen)).registerQuickOpenHandler(
-	new QuickOpenHandlerDescriptor(
-		'vs/workbench/parts/quickopen/browser/gotoLineHandler',
-		'GotoLineHandler',
-		GOTO_LINE_PREFIX,
-		[
-			{
-				prefix: GOTO_LINE_PREFIX,
-				needsEditor: true,
-				description: env.isMacintosh ? nls.localize('gotoLineDescriptionMac', "Go to Line") : nls.localize('gotoLineDescriptionWin', "Go to Line")
-			},
-		]
-	)
-);
