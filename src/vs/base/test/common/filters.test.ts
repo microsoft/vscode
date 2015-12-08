@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { IFilter, or, matchesPrefix, matchesStrictPrefix, matchesCamelCase } from 'vs/base/common/filters';
+import { IFilter, or, matchesPrefix, matchesStrictPrefix, matchesCamelCase, matchesSubString, matchesContiguousSubString } from 'vs/base/common/filters';
 
 function filterOk(filter: IFilter, word: string, wordToMatchAgainst: string, highlights?: { start: number; end: number; }[]) {
 	var r = filter(word, wordToMatchAgainst);
@@ -145,5 +145,19 @@ suite("Filters", () => {
 		assert(matchesCamelCase('Debug Console', 'Open: Debug Console'));
 		assert(matchesCamelCase('Debug console', 'Open: Debug Console'));
 		assert(matchesCamelCase('debug console', 'Open: Debug Console'));
+	});
+
+	test("matchesContiguousSubString", function () {
+		filterOk(matchesContiguousSubString, "cela", "cancelAnimationFrame()", [
+			{ start: 3, end: 7 }
+		]);
+	});
+
+	test("matchesSubString", function () {
+		filterOk(matchesSubString, "cmm", "cancelAnimationFrame()", [
+			{ start: 0, end: 1 },
+			{ start: 9, end: 10 },
+			{ start: 18, end: 19 }
+		]);
 	});
 });
