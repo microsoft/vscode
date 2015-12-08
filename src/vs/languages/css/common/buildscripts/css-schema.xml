@@ -12666,6 +12666,9 @@
         </value>
       </values>
     </entry>
+    <entry name="r" restriction="length, percentage" version="3.0" browsers="none" ref="https://svgwg.org/svg2-draft/geometry.html#RProperty" syntax="circle { $(name): 100px;">
+      <desc>Describes the radius of the ‘circle’ element.</desc>
+    </entry>
     <entry name="region-fragment" restriction="enum" version="3.0" browsers="none" ref="http://dev.w3.org/csswg/css-regions/#region-fragment" syntax="article { $(name): break; }">
       <desc>The 'region-fragment' property controls the behavior of the last region associated with a named flow.</desc>
       <values>
@@ -12825,6 +12828,12 @@
           <desc>No spanning. The computed value is '1'.</desc>
         </value>
       </values>
+    </entry>
+    <entry name="rx" restriction="length, percentage" version="3.0" browsers="none" ref="https://svgwg.org/svg2-draft/geometry.html#RxProperty" syntax="circle { $(name): 100px;">
+      <desc>Describes the horizontal radius of the ‘ellipse’ element, and the curve radius of the 'rect' element.</desc>
+    </entry>
+    <entry name="ry" restriction="length, percentage" version="3.0" browsers="none" ref="https://svgwg.org/svg2-draft/geometry.html#RyProperty" syntax="circle { $(name): 100px;">
+      <desc>Describes the vertical radius of the ‘ellipse’ element, and the curve radius of the 'rect' element.</desc>
     </entry>
     <entry name="scrollbar-3dlight-color" restriction="color" version="3.0" browsers="IE6" ref="http://msdn.microsoft.com/en-us/library/ms531153(VS.85).aspx" syntax="textarea { $(name): #00ffff; }">
       <desc>Determines the color of the top and left edges of the scroll box and scroll arrows of a scroll bar.</desc>
