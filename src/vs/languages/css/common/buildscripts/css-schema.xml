@@ -6217,7 +6217,7 @@
         <value name="none" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="max-height" restriction="length, percentage" version="2.0" browsers="C,FF1,IE7,O7,S1" ref="http://www.w3.org/TR/css3-box/#max-height" syntax="footer { $(name): 300px; }">
+    <entry name="max-height" restriction="length, percentage" version="2.0" browsers="E,C,FF1,IE7,O7,S1" ref="http://www.w3.org/TR/css3-box/#max-height" syntax="footer { $(name): 300px; }">
       <desc>Allows authors to constrain content height to a certain range.</desc>
       <values>
         <value name="none" version="2.0" browsers="all">
