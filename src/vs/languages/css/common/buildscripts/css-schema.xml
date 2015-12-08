@@ -6251,6 +6251,27 @@
      		<value name="auto" version="3.0" browsers="E,IE11" />
       </values>
     </entry>
+    <entry name="mix-blend-mode" restriction="enum" version="3.0" browsers="C41,FF32,O29,S7.1" ref="http://www.w3.org/TR/compositing-1/#propdef-mix-blend-mode" syntax="div { $(name): saturation; }">
+      <desc>Defines the formula that must be used to mix the colors with the backdrop.</desc>
+      <values>
+        <value name="normal" version="3.0" browsers="all" />
+        <value name="multiply" version="3.0" browsers="all" />
+        <value name="screen" version="3.0" browsers="all" />
+        <value name="overlay" version="3.0" browsers="all" />
+        <value name="darken" version="3.0" browsers="all" />
+        <value name="lighten" version="3.0" browsers="all" />
+        <value name="color-dodge" version="3.0" browsers="all" />
+        <value name="color-burn" version="3.0" browsers="all" />
+        <value name="hard-light" version="3.0" browsers="all" />
+        <value name="soft-light" version="3.0" browsers="all" />
+        <value name="difference" version="3.0" browsers="all" />
+        <value name="exclusion" version="3.0" browsers="all" />
+        <value name="hue" version="3.0" browsers="C41,FF32,O29" />
+        <value name="saturation" version="3.0" browsers="C41,FF32,O29" />
+        <value name="color" version="3.0" browsers="C41,FF32,O29" />
+        <value name="luminosity" version="3.0" browsers="C41,FF32,O29" />
+      </values>
+    </entry>
     <entry name="move-to" restriction="identifier" version="3.0" browsers="none" ref="http://www.w3.org/TR/css3-content/#moving" syntax="normal | here | &lt;identifier&gt;">
       <desc>Property causes the element or pseudo-element to be removed from the flow and reinserted at a later point in the document.</desc>
       <values>
