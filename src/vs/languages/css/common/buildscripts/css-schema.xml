@@ -6197,6 +6197,13 @@
         <value name="url()" version="3.0" browsers="all" />
       </values>
     </entry>
+    <entry name="marker-side" restriction="enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css3-lists/#propdef-marker-side">
+      <desc>Specifies if list item markers position themselves relative to the list item or the list container’s directionality.</desc>
+      <values>
+        <value name="list-item" version="3.0" browsers="all" />
+        <value name="list-container" version="3.0" browsers="all" />
+      </values>
+    </entry>
     <entry name="marker-start" restriction="url" version="3.0" browsers="all" ref="http://www.w3.org/TR/SVG11/painting.html#MarkerStartProperty">
       <desc>Defines the arrowhead or polymarker that shall be drawn at the first vertex of the given ‘path’ element or basic shape.</desc>
       <values>
