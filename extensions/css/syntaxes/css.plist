@@ -784,7 +784,7 @@
 						</dict>
 					</dict>
 					<key>match</key>
-					<string>(:)(checked|enabled|default|disabled|indeterminate|invalid|optional|required|valid)\b</string>
+					<string>(:)(checked|enabled|default|disabled|indeterminate|in-range|invalid|optional|out-of-range|read-only|read-write|required|valid)\b</string>
 					<key>name</key>
 					<string>entity.other.attribute-name.pseudo-class.ui-state.css</string>
 				</dict>
