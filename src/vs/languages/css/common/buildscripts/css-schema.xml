@@ -19188,6 +19188,12 @@
         </value>
       </values>
     </entry>
+    <entry name="x" restriction="length, percentage" version="4.0" browsers="none" ref="https://svgwg.org/svg2-draft/geometry.html#XProperty" syntax="rect { $(name): 42em; }">
+      <desc>Describes the horizontal coordinate of the position of the element.</desc>
+    </entry>
+    <entry name="y" restriction="length, percentage" version="4.0" browsers="none" ref="https://svgwg.org/svg2-draft/geometry.html#YProperty" syntax="rect { $(name): 42em; }">
+      <desc>Describes the vertical coordinate of the position of the element.</desc>
+    </entry>
     <entry name="z-index" restriction="integer" version="2.0" browsers="all" ref="http://www.w3.org/TR/css3-positioning/#propdef-z-index" syntax="img { $(name): 3; }">
       <desc>For a positioned box, the 'z-index' property specifies the stack level of the box in the current stacking context and whether the box establishes a local stacking context.</desc>
       <values>
