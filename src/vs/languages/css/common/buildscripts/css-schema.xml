@@ -11529,6 +11529,9 @@
         <value name="maximum" version="3.0" browsers="all">
           <desc>Inline flow content can wrap on the side of the exclusion with the largest available space for the given line, and must leave the other side of the exclusion empty.</desc>
         </value>
+        <value name="minimum" version="3.0" browsers="all">
+          <desc>Inline flow content can flow around the edge of the exclusion with the smallest available space within the flow content’s containing block, and must leave the other edge of the exclusion empty.</desc>
+        </value>
         <value name="start" version="3.0" browsers="all">
           <desc>Inline flow content can wrap on the start edge of the exclusion area but must leave the area to end edge of the exclusion area empty.</desc>
         </value>
@@ -11537,7 +11540,7 @@
     <entry name="-ms-wrap-margin" restriction="length, percentage" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh466103.aspx" syntax="div { $(name): 20px; }">
       <desc>Gets or sets a value that is used to offset the inner wrap shape from other shapes.</desc>
     </entry>
-    <entry name="-ms-wrap-through" restriction="enum" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh441290.aspx" syntax="div { $(name): wrap; }">
+    <entry name="-ms-wrap-through" restriction="enum" version="3.0" browsers="E,IE10" ref="http://www.w3.org/TR/css3-exclusions/#propdef-wrap-through" syntax="div { $(name): wrap; }">
       <desc>Gets or sets a value that specifies how content should wrap around an exclusion element.</desc>
       <values>
         <value name="none" version="3.0" browsers="all">
@@ -19068,6 +19071,100 @@
         </value>
         <value name="normal" version="2.0" browsers="all">
           <desc>Lines may break only at allowed break points.</desc>
+        </value>
+      </values>
+    </entry>
+    <entry name="wrap-after" restriction="enum" version="4.0" browsers="none" ref="https://drafts.csswg.org/css-text-4/#propdef-wrap-after" syntax="span { $(name): avoid-line; }">
+      <desc>Specifies modifications to break opportunities in line breaking (and flex line breaking.)</desc>
+      <values>
+        <value name="auto" version="4.0" browsers="all">
+          <desc>Lines may break at allowed break points before and after the box, as determined by the line-breaking rules in effect.</desc>
+        </value>
+        <value name="avoid" version="4.0" browsers="all">
+          <desc>Line breaking is suppressed immediately before/after the box: the UA may only break there if there are no other valid break points in the line. If the text breaks, line-breaking restrictions are honored as for 'auto'.</desc>
+        </value>
+        <value name="avoid-line" version="4.0" browsers="all">
+          <desc>Same as 'avoid', but only for line breaks.</desc>
+        </value>
+        <value name="avoid-flex" version="4.0" browsers="all">
+          <desc>Same as 'avoid', but only for flex line breaks.</desc>
+        </value>
+        <value name="line" version="4.0" browsers="all">
+          <desc>Force a line break immediately before/after the box if box is an inline-level box.</desc>
+        </value>
+        <value name="flex" version="4.0" browsers="all">
+          <desc>Force a flex line break immediately before/after the box if the box is a flex item in a multi-line flex container.</desc>
+        </value>
+      </values>
+    </entry>
+    <entry name="wrap-before" restriction="enum" version="4.0" browsers="none" ref="https://drafts.csswg.org/css-text-4/#propdef-wrap-after" syntax="span { $(name): avoid-line; }">
+      <desc>Specifies modifications to break opportunities in line breaking (and flex line breaking.)</desc>
+      <values>
+        <value name="auto" version="4.0" browsers="all">
+          <desc>Lines may break at allowed break points before and after the box, as determined by the line-breaking rules in effect.</desc>
+        </value>
+        <value name="avoid" version="4.0" browsers="all">
+          <desc>Line breaking is suppressed immediately before/after the box: the UA may only break there if there are no other valid break points in the line. If the text breaks, line-breaking restrictions are honored as for 'auto'.</desc>
+        </value>
+        <value name="avoid-line" version="4.0" browsers="all">
+          <desc>Same as 'avoid', but only for line breaks.</desc>
+        </value>
+        <value name="avoid-flex" version="4.0" browsers="all">
+          <desc>Same as 'avoid', but only for flex line breaks.</desc>
+        </value>
+        <value name="line" version="4.0" browsers="all">
+          <desc>Force a line break immediately before/after the box if box is an inline-level box.</desc>
+        </value>
+        <value name="flex" version="4.0" browsers="all">
+          <desc>Force a flex line break immediately before/after the box if the box is a flex item in a multi-line flex container.</desc>
+        </value>
+      </values>
+    </entry>
+    <entry name="wrap-flow" restriction="enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css3-exclusions/#wrap-flow-property" syntax="div { $(name): maximum; }">
+      <desc>An element becomes an exclusion when its 'wrap-flow' property has a computed value other than 'auto'.</desc>
+      <values>
+        <value name="auto" version="3.0" browsers="all">
+          <desc>For floats an exclusion is created, for all other elements an exclusion is not created.</desc>
+        </value>
+        <value name="both" version="3.0" browsers="all">
+          <desc>Inline flow content can flow on all sides of the exclusion.</desc>
+        </value>
+        <value name="clear" version="3.0" browsers="all">
+          <desc>Inline flow content can only wrap on top and bottom of the exclusion and must leave the areas to the start and end edges of the exclusion box empty.</desc>
+        </value>
+        <value name="end" version="3.0" browsers="all">
+          <desc>Inline flow content can wrap on the end side of the exclusion area but must leave the area to the start edge of the exclusion area empty.</desc>
+        </value>
+        <value name="maximum" version="3.0" browsers="all">
+          <desc>Inline flow content can wrap on the side of the exclusion with the largest available space for the given line, and must leave the other side of the exclusion empty.</desc>
+        </value>
+        <value name="minimum" version="3.0" browsers="all">
+          <desc>Inline flow content can flow around the edge of the exclusion with the smallest available space within the flow content’s containing block, and must leave the other edge of the exclusion empty.</desc>
+        </value>
+        <value name="start" version="3.0" browsers="all">
+          <desc>Inline flow content can wrap on the start edge of the exclusion area but must leave the area to end edge of the exclusion area empty.</desc>
+        </value>
+      </values>
+    </entry>
+    <entry name="wrap-inside" restriction="enum" version="4.0" browsers="none" ref="https://drafts.csswg.org/css-text-4/#propdef-wrap-inside" syntax="span { $(name): avoid; }">
+      <desc>Specifies line breaking within boxes.</desc>
+      <values>
+        <value name="auto" version="4.0" browsers="all">
+          <desc>Lines may break at allowed break points within the box, as determined by the line-breaking rules in effect.</desc>
+        </value>
+        <value name="avoid" version="4.0" browsers="all">
+          <desc>Line breaking is suppressed within the box: the UA may only break within the box if there are no other valid break points in the line. If the text breaks, line-breaking restrictions are honored as for 'auto'.</desc>
+        </value>
+      </values>
+    </entry>
+    <entry name="wrap-through" restriction="enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css3-exclusions/#propdef-wrap-through" syntax="div { $(name): wrap; }">
+      <desc>Specifies if an element inherits its parent wrapping context. In other words if it is subject to the exclusions defined outside the element.</desc>
+      <values>
+        <value name="none" version="3.0" browsers="all">
+          <desc>The exclusion element does not inherit its parent node's wrapping context. Its descendants are only subject to exclusion shapes defined inside the element.</desc>
+        </value>
+        <value name="wrap" version="3.0" browsers="all">
+          <desc>The exclusion element inherits its parent node's wrapping context. Its descendant inline content wraps around exclusions defined outside the element.</desc>
         </value>
       </values>
     </entry>
