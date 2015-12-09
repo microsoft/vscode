@@ -5,7 +5,7 @@
 'use strict';
 
 import nls = require('vs/nls');
-import {IPluginDescription, IPluginService, IMessage, IPointListener, IActivationEventListener } from 'vs/platform/plugins/common/plugins';
+import {IPluginDescription, IPluginService, IMessage, IPointListener, IActivationEventListener, IPluginStatus } from 'vs/platform/plugins/common/plugins';
 import WinJS = require('vs/base/common/winjs.base');
 import {IDisposable} from 'vs/base/common/lifecycle';
 import Errors = require('vs/base/common/errors');
@@ -109,6 +109,10 @@ export abstract class AbstractPluginService implements IPluginService {
 			throw new Error('Plugin `' + pluginId + '` is not known or not activated');
 		}
 		return this.activatedPlugins[pluginId].exports;
+	}
+
+	public getPluginsStatus(): { [id: string]: IPluginStatus } {
+		return null;
 	}
 
 	public isActivated(pluginId:string): boolean {
