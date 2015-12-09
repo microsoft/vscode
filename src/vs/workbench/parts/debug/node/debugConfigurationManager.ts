@@ -179,7 +179,7 @@ export class ConfigurationManager {
 								} else if (duplicate[attribute] && attribute !== 'type') {
 									// Give priority to the later registered extension.
 									duplicate[attribute] = adapter[attribute];
-									extension.collector.warn(nls.localize('duplicateDebuggerType', "Debug type '{0}' is already registered and has attribute '{1}', ignoring attribute '{1}'.", adapter.type, attribute));
+									extension.collector.error(nls.localize('duplicateDebuggerType', "Debug type '{0}' is already registered and has attribute '{1}', ignoring attribute '{1}'.", adapter.type, attribute));
 								} else {
 									duplicate[attribute] = adapter[attribute];
 								}
