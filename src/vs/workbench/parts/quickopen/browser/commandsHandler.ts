@@ -232,7 +232,7 @@ export class CommandsHandler extends QuickOpenHandler {
 		entries = arrays.distinct(entries, (entry) => entry.getLabel() + entry.getGroupLabel());
 
 		// Sort by name
-		entries = entries.sort((entryA, entryB) => QuickOpenEntry.compare(entryA, entryB, searchValue, this.quickOpenService.isFuzzyMatchingEnabled()));
+		entries = entries.sort(this.sort);
 
 		return TPromise.as(new QuickOpenModel(entries));
 	}
@@ -252,7 +252,7 @@ export class CommandsHandler extends QuickOpenHandler {
 					label = nls.localize('commandLabel', "{0}: {1}", category, label);
 				}
 
-				let highlights = filters.matchesFuzzy(searchValue, label, this.quickOpenService.isFuzzyMatchingEnabled());
+				let highlights = filters.matchesFuzzy(searchValue, label);
 				if (highlights) {
 					entries.push(this.instantiationService.createInstance(CommandEntry, keys.length > 0 ? keys.join(', ') : '', label, highlights, actionDescriptor));
 				}
@@ -277,7 +277,7 @@ export class CommandsHandler extends QuickOpenHandler {
 			let keys = this.keybindingService.lookupKeybindings(editorAction.id).map(k => this.keybindingService.getLabelFor(k));
 
 			if (action.label) {
-				let highlights = filters.matchesFuzzy(searchValue, action.label, this.quickOpenService.isFuzzyMatchingEnabled());
+				let highlights = filters.matchesFuzzy(searchValue, action.label);
 				if (highlights) {
 					entries.push(this.instantiationService.createInstance(EditorActionCommandEntry, keys.length > 0 ? keys.join(', ') : '', action.label, highlights, action));
 				}
@@ -292,13 +292,20 @@ export class CommandsHandler extends QuickOpenHandler {
 
 		for (let action of actions) {
 			let keys = this.keybindingService.lookupKeybindings(action.id).map(k => this.keybindingService.getLabelFor(k));
-			let highlights = filters.matchesFuzzy(searchValue, action.label, this.quickOpenService.isFuzzyMatchingEnabled());
+			let highlights = filters.matchesFuzzy(searchValue, action.label);
 			if (highlights) {
 				entries.push(this.instantiationService.createInstance(ActionCommandEntry, keys.join(', '), action.label, highlights, action));
 			}
 		}
 
 		return entries;
+	}
+
+	private sort(elementA: QuickOpenEntryGroup, elementB: QuickOpenEntryGroup): number {
+		let elementAName = elementA.getLabel().toLowerCase();
+		let elementBName = elementB.getLabel().toLowerCase();
+
+		return strings.localeCompare(elementAName, elementBName);
 	}
 
 	public getAutoFocus(searchValue: string): IAutoFocus {
@@ -315,7 +322,6 @@ export class CommandsHandler extends QuickOpenHandler {
 	public getEmptyLabel(searchString: string): string {
 		return nls.localize('noCommandsMatching', "No commands matching");
 	}
-
 }
 
 export class EditorCommandsHandler extends CommandsHandler {
