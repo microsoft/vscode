@@ -19066,9 +19066,6 @@
         <value name="break-word" version="2.0" browsers="all">
           <desc>An unbreakable 'word' may be broken at an arbitrary point if there are no otherwise-acceptable break points in the line.</desc>
         </value>
-        <value name="hyphenate" version="2.0" browsers="none">
-          <desc>An unbreakable 'word' may be hyphenated if there are no otherwise-acceptable break points in the line even if hyphenation is turned off.</desc>
-        </value>
         <value name="normal" version="2.0" browsers="all">
           <desc>Lines may break only at allowed break points.</desc>
         </value>
