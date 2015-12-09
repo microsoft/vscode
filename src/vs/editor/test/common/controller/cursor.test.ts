@@ -756,7 +756,10 @@ suite('Editor Controller - Cursor', () => {
 
 	test('Bug 9121: Auto indent + undo + redo is funky', () => {
 		var model = new Model.Model('', thisHighlighter);
-		var cursor = new Cursor.Cursor(1, new MockConfiguration(null), model, null, false);
+		var cursor = new Cursor.Cursor(1, new MockConfiguration({
+			tabSize: 4,
+			insertSpaces: false
+		}), model, null, false);
 		cursorCommand(cursor, H.Type, { text: '\n' }, null, 'keyboard');
 		assert.equal(model.getValue(EditorCommon.EndOfLinePreference.LF), '\n', 'assert1');
 

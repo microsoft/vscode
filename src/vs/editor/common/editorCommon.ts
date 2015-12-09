@@ -490,12 +490,14 @@ export interface ICommonEditorOptions {
 export interface IEditorOptions extends ICommonEditorOptions {
 	/**
 	 * Tab size in spaces. This is used for rendering and for editing.
-	 * Defaults to 'auto', meaning the model attached to the editor will be scanned and this property will be guessed.
+	 * 'auto' means the model attached to the editor will be scanned and this property will be guessed.
+	 * Defaults to 4.
 	 */
 	tabSize?:any;
 	/**
 	 * Insert spaces instead of tabs when indenting or when auto-indenting.
-	 * Defaults to 'auto', meaning the model attached to the editor will be scanned and this property will be guessed.
+	 * 'auto' means the model attached to the editor will be scanned and this property will be guessed.
+	 * Defaults to true.
 	 */
 	insertSpaces?:any;
 	/**
