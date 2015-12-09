@@ -133,8 +133,6 @@ export class VSCodeWindow {
 	private _isPluginDevelopmentHost: boolean;
 	private windowState: IWindowState;
 	private currentWindowMode: WindowMode;
-	private isMenubarVisible = true;
-	private enableMenubarHiding = false;
 
 	private whenReadyCallbacks: TValueCallback<VSCodeWindow>[];
 
@@ -541,6 +539,7 @@ export class VSCodeWindow {
 
 	public toggleMenuBarVisibility(): void {
 		this.win.setAutoHideMenuBar(!this.win.isMenuBarAutoHide());
+		this.sendWhenReady('vscode:saveMenuBarState', this.win.isMenuBarAutoHide());
 	}
 
 	public dispose(): void {

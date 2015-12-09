@@ -438,7 +438,7 @@ export class ToggleMenuBarAction extends Action {
 	}
 
 	public run(): Promise {
-		ipc.send('vscode:toggleMenuBar', this.windowService.getWindowId(), false);
+		ipc.send('vscode:toggleMenuBar', this.windowService.getWindowId());
 
 		return Promise.as(true);
 	}
