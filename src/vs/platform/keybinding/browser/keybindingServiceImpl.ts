@@ -215,7 +215,7 @@ export class KeybindingService extends AbstractKeybindingService implements IKey
 
 	private _getAllCommandsAsComment(): string {
 		var boundCommands = this._resolver.getDefaultBoundCommands();
-		var unboundCommands = Object.keys(KeybindingsRegistry.getCommands()).filter((commandId) => !boundCommands[commandId]);
+		var unboundCommands = Object.keys(KeybindingsRegistry.getCommands()).filter(commandId => commandId[0] !== '_' && !boundCommands[commandId]);
 		var pretty = unboundCommands.join('\n// - ');
 
 		return '// ' + nls.localize('unboundCommands', "Here are other available commands: ") + '\n// - ' + pretty;

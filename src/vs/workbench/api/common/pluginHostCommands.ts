@@ -110,8 +110,13 @@ export class PluginHostCommands {
 		}
 	}
 
-	getCommands(): Thenable<string[]> {
-		return this._proxy._getCommands();
+	getCommands(filterUnderscoreCommands: boolean = false): Thenable<string[]> {
+		return this._proxy._getCommands().then(result => {
+			if (filterUnderscoreCommands) {
+				result = result.filter(command => command[0] !== '_');
+			}
+			return result;
+		});
 	}
 }
 
