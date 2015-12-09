@@ -61,7 +61,8 @@ export class ShiftCommand implements EditorCommon.ICommand {
 
 		let lineNumber:number,
 			tabSize = this._opts.tabSize,
-			oneIndent = this._opts.oneIndent;
+			oneIndent = this._opts.oneIndent,
+			shouldIndentEmptyLines = (startLine === endLine);
 
 		// indents[i] represents i * oneIndent
 		let indents: string[] = ['', oneIndent];
@@ -82,6 +83,11 @@ export class ShiftCommand implements EditorCommon.ICommand {
 
 			if (this._opts.isUnshift && (lineText.length === 0 || indentationEndIndex === 0)) {
 				// empty line or line with no leading whitespace => nothing to do
+				continue;
+			}
+
+			if (!shouldIndentEmptyLines && !this._opts.isUnshift && lineText.length === 0) {
+				// do not indent empty lines => nothing to do
 				continue;
 			}
 

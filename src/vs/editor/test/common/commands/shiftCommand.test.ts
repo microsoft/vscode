@@ -277,10 +277,50 @@ suite('Editor Commands - ShiftCommand', () => {
 				'My First Line',
 				'\t\tMy Second Line',
 				'    Third Line',
-				'\t',
+				'',
 				'\t123'
 			],
-			new Selection(4, 2, 5, 3)
+			new Selection(4, 1, 5, 3)
+		);
+	});
+
+	test('issue #1120 TAB should not indent empty lines in a multi-line selection', () => {
+		testShiftCommand(
+			[
+				'My First Line',
+				'\t\tMy Second Line',
+				'    Third Line',
+				'',
+				'123'
+			],
+			new Selection(1, 1, 5, 2),
+			[
+				'\tMy First Line',
+				'\t\t\tMy Second Line',
+				'\t\tThird Line',
+				'',
+				'\t123'
+			],
+			new Selection(1, 2, 5, 3)
+		);
+
+		testShiftCommand(
+			[
+				'My First Line',
+				'\t\tMy Second Line',
+				'    Third Line',
+				'',
+				'123'
+			],
+			new Selection(4, 1, 5, 1),
+			[
+				'My First Line',
+				'\t\tMy Second Line',
+				'    Third Line',
+				'\t',
+				'123'
+			],
+			new Selection(4, 2, 5, 1)
 		);
 	});
 
@@ -464,7 +504,7 @@ suite('Editor Commands - ShiftCommand', () => {
 				'\tMy First Line',
 				'\tMy Second Line',
 				'\tThird Line',
-				'\t',
+				'',
 				'\t123'
 			],
 			new Selection(1, 2, 5, 5)
@@ -503,13 +543,13 @@ suite('Editor Commands - ShiftCommand', () => {
 			],
 			new Selection(1,1,5,20),
 			[
-				'\t',
+				'',
 				'\t/**',
 				'\t * a doc comment',
 				'\t */',
 				'\tfunction hello() {}'
 			],
-			new Selection(1,2,5,21)
+			new Selection(1,1,5,21)
 		);
 
 		testUnshiftCommandInDocBlockCommentMode(
