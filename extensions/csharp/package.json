@@ -14,6 +14,10 @@
 			"language": "csharp",
 			"scopeName": "source.cs",
 			"path": "./syntaxes/csharp.json"
+		}],
+		"jsonValidation": [{
+			"fileMatch": "project.json",
+			"url": "http://json.schemastore.org/project"
 		}]
 	}
 }
