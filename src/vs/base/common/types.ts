@@ -118,6 +118,33 @@ export function areFunctions(...objects: any[]): boolean {
 	return objects && objects.length > 0 && objects.every((object) => isFunction(object));
 }
 
+export type TypeConstraint = string | Function;
+
+export function validateConstraints(args: any[], constraints: TypeConstraint[]): void {
+	const len = Math.min(args.length, constraints.length);
+	for (let i = 0; i < len; i++) {
+		const arg = args[i];
+		const constraint = constraints[i];
+
+		if (typeof constraint === 'string') {
+			if (typeof arg !== constraint) {
+				throw new Error(`argument #${i} does not match constraint: typeof ${constraint}`);
+			}
+		} else if (typeof constraint === 'function') {
+			if (arg instanceof constraint) {
+				continue;
+			}
+			if (arg && arg.constructor === constraint) {
+				continue;
+			}
+			if (constraint.length === 1 && constraint.call(undefined, arg) === true) {
+				continue;
+			}
+			throw new Error(`argument #${i} does not match one of these constraints: arg instanceof constraint, arg.constructor === constraint, nor constraint(arg) === true`);
+		}
+	}
+}
+
 /**
  * Creates a new object of the provided class and will call the constructor with
  * any additional argument supplied.
