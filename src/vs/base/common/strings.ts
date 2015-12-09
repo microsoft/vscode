@@ -653,7 +653,7 @@ export function score(target: string, query: string): number {
 		}
 
 		// Prefix Bonus
-		if (indexOf === index) {
+		if (indexOf === 0) {
 			score += 8;
 		}
 
