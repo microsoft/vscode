@@ -199,7 +199,7 @@ export class SuggestModel implements IDisposable {
 	}
 
 	public cancel(silent:boolean = false, retrigger:boolean = false):boolean {
-		var actuallyCanceled = this.state !== State.Idle;
+		const actuallyCanceled = this.state !== State.Idle;
 
 		if (this.triggerAutoSuggestPromise) {
 			this.triggerAutoSuggestPromise.cancel();
@@ -253,13 +253,13 @@ export class SuggestModel implements IDisposable {
 			return;
 		}
 
-		var isInactive = this.state === State.Idle;
+		const isInactive = this.state === State.Idle;
 
 		if (isInactive && !this.editor.getConfiguration().quickSuggestions) {
 			return;
 		}
 
-		var ctx = new Context(this.editor, false);
+		const ctx = new Context(this.editor, false);
 
 		if (isInactive) {
 			// trigger was not called or it was canceled
@@ -340,15 +340,13 @@ export class SuggestModel implements IDisposable {
 			return false;
 		}
 
-		var offsetFromInvocation = this.editor.getPosition().column - this.context.column;
-
-		this.cancel();
 		this._onDidAccept.fire({
 			snippet: new CodeSnippet(suggestion.codeSnippet),
-			overwriteBefore: overwriteBefore + offsetFromInvocation,
+			overwriteBefore: overwriteBefore + (this.editor.getPosition().column - this.context.column),
 			overwriteAfter
 		});
 
+		this.cancel();
 		return true;
 	}
 
