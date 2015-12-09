@@ -814,6 +814,31 @@ suite('Editor Controller - Cursor Configuration', () => {
 
 	var thisHighlighter = new ModelModes.CursorMode();
 
+	test('issue #183: jump to matching bracket position', () => {
+		let mode = new ModelModes.BracketMode();
+		let model = new Model.Model([
+			'var x = (3 + (5-7));'
+		].join('\n'), mode);
+		let cursor = new Cursor.Cursor(1, new MockConfiguration(null), model, null, false);
+
+		// ensure is tokenized
+		model.getLineContext(1);
+
+		moveTo(cursor, 1, 20);
+
+		cursorCommand(cursor, H.JumpToBracket, null, null, 'keyboard');
+		cursorEqual(cursor, 1, 10);
+
+		cursorCommand(cursor, H.JumpToBracket, null, null, 'keyboard');
+		cursorEqual(cursor, 1, 20);
+
+		cursorCommand(cursor, H.JumpToBracket, null, null, 'keyboard');
+		cursorEqual(cursor, 1, 10);
+
+		cursor.dispose();
+		model.dispose();
+	});
+
 	test('Cursor honors insertSpaces configuration on new line', () => {
 		var text = '    \tMy First Line\t \n' + '\tMy Second Line\n' + '    Third Line\n' + '\n' + '1';
 		var model = new Model.Model(text, thisHighlighter);

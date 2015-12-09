@@ -492,23 +492,25 @@ export class OneCursorOp {
 
 	// -------------------- START handlers that simply change cursor state
 	public static jumpToBracket(cursor:OneCursor, ctx: IOneCursorOperationContext): boolean {
-		var bracketDecorations = cursor.getBracketsDecorations();
-		var len = bracketDecorations.length;
+		let bracketDecorations = cursor.getBracketsDecorations();
 
-		if (len !== 2) {
+		if (bracketDecorations.length !== 2) {
 			return false;
 		}
 
-		var position = cursor.getPosition();
+		let firstBracket = cursor.model.getDecorationRange(bracketDecorations[0]);
+		let secondBracket = cursor.model.getDecorationRange(bracketDecorations[1]);
 
-		for (var i = 0; i < 2; i++) {
-			var range = cursor.model.getDecorationRange(bracketDecorations[i]);
-			var otherRange = cursor.model.getDecorationRange(bracketDecorations[1 - i]);
+		let position = cursor.getPosition();
 
-			if (Utils.isPositionAtRangeEdges(position, range) || Utils.isPositionInsideRange(position, range)) {
-				cursor.moveModelPosition(false, otherRange.startLineNumber, otherRange.startColumn, 0, false);
-				return true;
-			}
+		if (Utils.isPositionAtRangeEdges(position, firstBracket) || Utils.isPositionInsideRange(position, firstBracket)) {
+			cursor.moveModelPosition(false, secondBracket.endLineNumber, secondBracket.endColumn, 0, false);
+			return true;
+		}
+
+		if (Utils.isPositionAtRangeEdges(position, secondBracket) || Utils.isPositionInsideRange(position, secondBracket)) {
+			cursor.moveModelPosition(false, firstBracket.endLineNumber, firstBracket.endColumn, 0, false);
+			return true;
 		}
 
 		return false;
