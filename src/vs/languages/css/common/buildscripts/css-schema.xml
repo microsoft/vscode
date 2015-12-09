@@ -19038,7 +19038,7 @@
         <value name="scroll-position" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="word-break" restriction="enum" version="3.0" browsers="C,FF15,IE5,S3" ref="http://www.w3.org/TR/css3-text/#word-break0" syntax="p.album { $(name): break-all; }">
+    <entry name="word-break" restriction="enum" version="3.0" browsers="E,C,FF15,IE5,S3" ref="http://www.w3.org/TR/css3-text/#word-break0" syntax="p.album { $(name): break-all; }">
       <desc>Specifies line break opportunities for non-CJK scripts.</desc>
       <values>
         <value name="break-all" version="3.0" browsers="all">
