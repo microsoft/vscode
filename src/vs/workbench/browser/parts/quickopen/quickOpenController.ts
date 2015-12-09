@@ -357,10 +357,10 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 						// Filter by value
 						else {
 							entries.forEach((entry) => {
-								let labelHighlights = filters.matchesFuzzy(value, entry.getLabel(), this.isFuzzyMatchingEnabled());
+								let labelHighlights = filters.matchesFuzzy(value, entry.getLabel());
 								let descriptionHighlights: filters.IMatch[] = null;
 								if (options.matchOnDescription) {
-									descriptionHighlights = filters.matchesFuzzy(value, entry.getDescription(), this.isFuzzyMatchingEnabled());
+									descriptionHighlights = filters.matchesFuzzy(value, entry.getDescription());
 								}
 
 								if (labelHighlights || descriptionHighlights) {

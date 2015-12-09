@@ -214,7 +214,6 @@ export class EditorHistoryModel extends QuickOpenModel {
 	public getResults(searchValue: string): QuickOpenEntry[] {
 		searchValue = searchValue.trim();
 		const searchInPath = searchValue.indexOf(paths.nativeSep) >= 0;
-		const enableFuzzy = this.quickOpenService.isFuzzyMatchingEnabled();
 
 		let results: QuickOpenEntry[] = [];
 		for (let i = 0; i < this.entries.length; i++) {
@@ -225,16 +224,16 @@ export class EditorHistoryModel extends QuickOpenModel {
 
 			// Check if this entry is a match for the search value
 			let targetToMatch = searchInPath ? labels.getPathLabel(entry.getResource(), this.contextService) : entry.getLabel();
-			if (!filters.matchesFuzzy(searchValue, targetToMatch, enableFuzzy)) {
+			if (!filters.matchesFuzzy(searchValue, targetToMatch)) {
 				continue;
 			}
 
 			// Apply highlights
-			const {labelHighlights, descriptionHighlights} = QuickOpenEntry.highlight(entry, searchValue, enableFuzzy);
+			const {labelHighlights, descriptionHighlights} = QuickOpenEntry.highlight(entry, searchValue);
 			results.push(entry.clone(labelHighlights, descriptionHighlights));
 		}
 
 		// Sort
-		return results.sort((elementA: EditorHistoryEntry, elementB: EditorHistoryEntry) => QuickOpenEntry.compare(elementA, elementB, searchValue, enableFuzzy));
+		return results.sort((elementA: EditorHistoryEntry, elementB: EditorHistoryEntry) => QuickOpenEntry.compare(elementA, elementB, searchValue));
 	}
 }
