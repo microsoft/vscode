@@ -1015,7 +1015,7 @@ MonacoEditorSchemas['http://json.schemastore.org/tsconfig'] = {
 MonacoEditorSchemas['http://opentools.azurewebsites.net/jsconfig'] = {
 	'title': nls.localize('jsconfig.json.title', "JSON schema for the JavaScript configuration file"),
 	'type': 'object',
-	'default': { 'compilerOptions': { 'target': 'ES5' } },
+	'default': { 'compilerOptions': { 'target': 'ES6' } },
 	'properties': {
 		'compilerOptions': {
 			'type': 'object',
