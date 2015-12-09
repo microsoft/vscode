@@ -13,6 +13,7 @@ import severity from 'vs/base/common/severity';
 import types = require('vs/base/common/types');
 import arrays = require('vs/base/common/arrays');
 import debug = require('vs/workbench/parts/debug/common/debug');
+import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 
 function resolveChildren(debugService: debug.IDebugService, parent: debug.IExpressionContainer): TPromise<Variable[]> {
 	var session = debugService.getActiveSession();
@@ -30,6 +31,33 @@ function resolveChildren(debugService: debug.IDebugService, parent: debug.IExpre
 
 function massageValue(value: string): string {
 	return value ? value.replace(/\n/g, '\\n').replace(/\r/g, '\\r').replace(/\t/g, '\\t') : value;
+}
+
+export function getFullExpressionName(expression: debug.IExpression, sessionType: string): string {
+	let names = [expression.name];
+	if (expression instanceof Variable) {
+		var v = (<Variable> expression).parent;
+		while (v instanceof Variable || v instanceof Expression) {
+			names.push((<Variable> v).name);
+			v = (<Variable> v).parent;
+		}
+	}
+	names = names.reverse();
+
+	let result = null;
+	const propertySyntax = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
+	names.forEach(name => {
+		if (!result) {
+			result = name;
+		} else if (sessionType === 'node' && !propertySyntax.test(name)) {
+			// Use safe way to access node properties a['property_name']. Also handles array elements.
+			result = name && name.indexOf('[') === 0 ? `${ result }${ name }` : `${ result }['${ name }']`;
+		} else {
+			result = `${ result }.${ name }`;
+		}
+	});
+
+	return result;
 }
 
 export class Thread implements debug.IThread {
@@ -72,7 +100,7 @@ export class KeyValueOutputElement extends OutputElement {
 	private children: debug.ITreeElement[];
 	private _valueName: string;
 
-	constructor(public key: string, public valueObj: any, public annotation?: string, grouped?) {
+	constructor(public key: string, public valueObj: any, public annotation?: string, grouped?: boolean) {
 		super(grouped);
 
 		this._valueName = null;
@@ -204,7 +232,7 @@ export class StackFrame implements debug.IStackFrame {
 	private internalId: string;
 	private scopes: TPromise<Scope[]>;
 
-	constructor(public threadId: number, public frameId: number, public source: debug.Source, public name: string, public lineNumber: number, public column: number) {
+	constructor(public threadId: number, public frameId: number, public source: Source, public name: string, public lineNumber: number, public column: number) {
 		this.internalId = uuid.generateUuid();
 		this.scopes = null;
 	}
@@ -227,10 +255,30 @@ export class StackFrame implements debug.IStackFrame {
 export class Breakpoint implements debug.IBreakpoint {
 
 	public lineNumber: number;
+	public verified: boolean;
 	private id: string;
 
-	constructor(public source: debug.Source, public desiredLineNumber: number, public enabled: boolean) {
+	constructor(public source: Source, public desiredLineNumber: number, public enabled: boolean, public condition: string) {
+		if (enabled === undefined) {
+			this.enabled = true;
+		}
 		this.lineNumber = this.desiredLineNumber;
+		this.verified = false;
+		this.id = uuid.generateUuid();
+	}
+
+	public getId(): string {
+		return this.id;
+	}
+}
+
+export class FunctionBreakpoint implements debug.IFunctionBreakpoint {
+
+	private id: string;
+	public error: boolean;
+
+	constructor(public name: string, public enabled: boolean) {
+		this.error = false;
 		this.id = uuid.generateUuid();
 	}
 
@@ -258,7 +306,7 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 	private toDispose: lifecycle.IDisposable[];
 	private replElements: debug.ITreeElement[];
 
-	constructor(private breakpoints: debug.IBreakpoint[], private breakpointsActivated: boolean,
+	constructor(private breakpoints: debug.IBreakpoint[], private breakpointsActivated: boolean, private functionBreakpoints: debug.IFunctionBreakpoint[],
 		private exceptionBreakpoints: debug.IExceptionBreakpoint[], private watchExpressions: Expression[]) {
 
 		super();
@@ -303,6 +351,10 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 		return this.breakpoints;
 	}
 
+	public getFunctionBreakpoints(): debug.IFunctionBreakpoint[] {
+		return this.functionBreakpoints;
+	}
+
 	public getExceptionBreakpoints(): debug.IExceptionBreakpoint[] {
 		return this.exceptionBreakpoints;
 	}
@@ -316,20 +368,25 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 		this.emit(debug.ModelEvents.BREAKPOINTS_UPDATED);
 	}
 
-	public toggleBreakpoint(modelUri: uri, lineNumber: number): void {
-		var found = false;
-		for (var i = 0, len = this.breakpoints.length; i < len && !found; i++) {
-			if (this.breakpoints[i].lineNumber === lineNumber && this.breakpoints[i].source.uri.toString() === modelUri.toString()) {
-				this.breakpoints.splice(i, 1);
-				found = true;
+	public addBreakpoints(rawData: debug.IRawBreakpoint[]): void {
+		this.breakpoints = this.breakpoints.concat(rawData.map(rawBp => new Breakpoint(Source.fromUri(rawBp.uri), rawBp.lineNumber, rawBp.enabled, rawBp.condition)));
+		this.breakpointsActivated = true;
+		this.emit(debug.ModelEvents.BREAKPOINTS_UPDATED);
+	}
+
+	public removeBreakpoints(toRemove: debug.IBreakpoint[]): void {
+		this.breakpoints = this.breakpoints.filter(bp => !toRemove.some(toRemove => toRemove.getId() === bp.getId()));
+		this.emit(debug.ModelEvents.BREAKPOINTS_UPDATED);
+	}
+
+	public updateBreakpoints(data: { [id: string]: { line: number, verified: boolean } }): void {
+		this.breakpoints.forEach(bp => {
+			const bpData = data[bp.getId()];
+			if (bpData) {
+				bp.lineNumber = bpData.line;
+				bp.verified = bpData.verified;
 			}
-		}
-
-		if (!found) {
-			this.breakpoints.push(new Breakpoint(debug.Source.fromUri(modelUri), lineNumber, true));
-			this.breakpointsActivated = true;
-		}
-
+		});
 		this.emit(debug.ModelEvents.BREAKPOINTS_UPDATED);
 	}
 
@@ -338,6 +395,7 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 		if (element instanceof Breakpoint && !element.enabled) {
 			var breakpoint = <Breakpoint> element;
 			breakpoint.lineNumber = breakpoint.desiredLineNumber;
+			breakpoint.verified = false;
 		}
 
 		this.emit(debug.ModelEvents.BREAKPOINTS_UPDATED);
@@ -348,35 +406,30 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 			bp.enabled = enabled;
 			if (!enabled) {
 				bp.lineNumber = bp.desiredLineNumber;
+				bp.verified = false;
 			}
 		});
-		this.exceptionBreakpoints.forEach(ebp => {
-			ebp.enabled = enabled;
-		});
+		this.exceptionBreakpoints.forEach(ebp => ebp.enabled = enabled);
+		this.functionBreakpoints.forEach(fbp => fbp.enabled = enabled);
 
 		this.emit(debug.ModelEvents.BREAKPOINTS_UPDATED);
 	}
 
-	public setBreakpointLineNumber(breakpoint: debug.IBreakpoint, actualLineNumber: number) {
-		breakpoint.lineNumber = actualLineNumber;
-		var duplicates = this.breakpoints.filter(bp => bp.lineNumber === breakpoint.lineNumber && bp.desiredLineNumber === breakpoint.desiredLineNumber);
-		if (duplicates.length > 1) {
-			this.toggleBreakpoint(breakpoint.source.uri, breakpoint.lineNumber);
-		} else {
+	public addFunctionBreakpoint(functionName: string): void {
+		this.functionBreakpoints.push(new FunctionBreakpoint(functionName, true));
+		this.emit(debug.ModelEvents.BREAKPOINTS_UPDATED);
+	}
+
+	public renameFunctionBreakpoint(id: string, newFunctionName: string): void {
+		const fbp = this.functionBreakpoints.filter(bp => bp.getId() === id).pop();
+		if (fbp) {
+			fbp.name = newFunctionName;
 			this.emit(debug.ModelEvents.BREAKPOINTS_UPDATED);
 		}
 	}
 
-	public setBreakpointsForModel(modelUri: uri, data: { lineNumber: number; enabled: boolean; }[]): void {
-		this.clearBreakpoints(modelUri);
-		for (var i = 0, len = data.length; i < len; i++) {
-			this.breakpoints.push(new Breakpoint(debug.Source.fromUri(modelUri), data[i].lineNumber, data[i].enabled));
-		}
-		this.emit(debug.ModelEvents.BREAKPOINTS_UPDATED);
-	}
-
-	public clearBreakpoints(modelUri: uri): void {
-		this.breakpoints = this.breakpoints.filter(bp => modelUri && modelUri.toString() !== bp.source.uri.toString());
+	public removeFunctionBreakpoints(id?: string): void {
+		this.functionBreakpoints = id ? this.functionBreakpoints.filter(fbp => fbp.getId() != id) : [];
 		this.emit(debug.ModelEvents.BREAKPOINTS_UPDATED);
 	}
 
@@ -524,16 +577,11 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 	}
 
 	public clearWatchExpressions(id: string = null): void {
-		if (id) {
-			this.watchExpressions = this.watchExpressions.filter(we => we.getId() !== id);
-		} else {
-			this.watchExpressions = [];
-		}
-
+		this.watchExpressions = id ? this.watchExpressions.filter(we => we.getId() !== id) : [];
 		this.emit(debug.ModelEvents.WATCH_EXPRESSIONS_UPDATED);
 	}
 
-	public sourceIsUnavailable(source: debug.Source): void {
+	public sourceIsUnavailable(source: Source): void {
 		Object.keys(this.threads).forEach(key => {
 			this.threads[key].callStack.forEach(stackFrame => {
 				if (stackFrame.source.uri.toString() === source.uri.toString()) {
@@ -555,10 +603,10 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 			this.threads[data.threadId].callStack = data.callStack.map(
 				(rsf, level) => {
 					if (!rsf) {
-						return new StackFrame(data.threadId, 0, debug.Source.fromUri(uri.parse('unknown')), nls.localize('unkownStack', "Unknown stack location"), undefined, undefined);
+						return new StackFrame(data.threadId, 0, Source.fromUri(uri.parse('unknown')), nls.localize('unknownStack', "Unknown stack location"), undefined, undefined);
 					}
 
-					return new StackFrame(data.threadId, rsf.id, rsf.source ? debug.Source.fromRawSource(rsf.source) : debug.Source.fromUri(uri.parse('unknown')), rsf.name, rsf.line, rsf.column);
+					return new StackFrame(data.threadId, rsf.id, rsf.source ? Source.fromRawSource(rsf.source) : Source.fromUri(uri.parse('unknown')), rsf.name, rsf.line, rsf.column);
 				});
 
 			this.threads[data.threadId].exception = data.exception;
@@ -572,6 +620,7 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 		this.threads = null;
 		this.breakpoints = null;
 		this.exceptionBreakpoints = null;
+		this.functionBreakpoints = null;
 		this.watchExpressions = null;
 		this.replElements = null;
 		this.toDispose = lifecycle.disposeAll(this.toDispose);

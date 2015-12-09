@@ -15,7 +15,7 @@ import uuid = require('vs/base/common/uuid');
 import {IQuickNavigateConfiguration, IAutoFocus, IContext, IModel, Mode} from 'vs/base/parts/quickopen/browser/quickOpen';
 import {Filter, Renderer, DataSource, IModelProvider} from 'vs/base/parts/quickopen/browser/quickOpenViewer';
 import {Dimension, Builder, $} from 'vs/base/browser/builder';
-import {ISelectionEvent, IFocusEvent, ITree} from 'vs/base/parts/tree/common/tree';
+import {ISelectionEvent, IFocusEvent, ITree, ContextMenuEvent} from 'vs/base/parts/tree/common/tree';
 import {InputBox} from 'vs/base/browser/ui/inputbox/inputBox';
 import {Tree} from 'vs/base/parts/tree/browser/treeImpl';
 import {ProgressBar} from 'vs/base/browser/ui/progressbar/progressbar';
@@ -45,6 +45,17 @@ export interface IQuickOpenOptions {
 
 export interface IQuickOpenUsageLogger {
 	publicLog(eventName: string, data?: any): void;
+}
+
+export class QuickOpenController extends DefaultController {
+
+	public onContextMenu(tree:ITree, element: any, event:ContextMenuEvent):boolean {
+		if (platform.isMacintosh) {
+			return this.onLeftClick(tree, element, event); // https://github.com/Microsoft/vscode/issues/1011
+		}
+
+		return super.onContextMenu(tree, element, event);
+	}
 }
 
 export class QuickOpenWidget implements IModelProvider {
@@ -152,7 +163,7 @@ export class QuickOpenWidget implements IModelProvider {
 			}, (div: Builder) => {
 				this.tree = new Tree(div.getHTMLElement(), {
 					dataSource: new DataSource(this),
-					controller: new DefaultController({ clickBehavior: ClickBehavior.ON_MOUSE_UP }),
+					controller: new QuickOpenController({ clickBehavior: ClickBehavior.ON_MOUSE_UP }),
 					renderer: new Renderer(this),
 					filter: new Filter(this)
 				}, {
@@ -343,7 +354,7 @@ export class QuickOpenWidget implements IModelProvider {
 		// Reveal
 		focus = this.tree.getFocus();
 		if (focus) {
-			revealToTop ? this.tree.reveal(focus, 0) : this.tree.reveal(focus);
+			revealToTop ? this.tree.reveal(focus, 0).done(null, errors.onUnexpectedError) : this.tree.reveal(focus).done(null, errors.onUnexpectedError);
 		}
 	}
 
@@ -543,7 +554,7 @@ export class QuickOpenWidget implements IModelProvider {
 			let entryToFocus = caseSensitiveMatch || caseInsensitiveMatch;
 			if (entryToFocus) {
 				this.tree.setFocus(entryToFocus);
-				this.tree.reveal(entryToFocus, 0);
+				this.tree.reveal(entryToFocus, 0).done(null, errors.onUnexpectedError);
 
 				return;
 			}
@@ -552,14 +563,14 @@ export class QuickOpenWidget implements IModelProvider {
 		// Second check for auto focus of first entry
 		if (autoFocus.autoFocusFirstEntry) {
 			this.tree.focusFirst();
-			this.tree.reveal(this.tree.getFocus(), 0);
+			this.tree.reveal(this.tree.getFocus(), 0).done(null, errors.onUnexpectedError);
 		}
 
 		// Third check for specific index option
 		else if (typeof autoFocus.autoFocusIndex === 'number') {
 			if (entries.length > autoFocus.autoFocusIndex) {
 				this.tree.focusNth(autoFocus.autoFocusIndex);
-				this.tree.reveal(this.tree.getFocus());
+				this.tree.reveal(this.tree.getFocus()).done(null, errors.onUnexpectedError);
 			}
 		}
 

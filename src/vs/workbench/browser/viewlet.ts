@@ -7,6 +7,7 @@
 import nls = require('vs/nls');
 import {Promise, TPromise} from 'vs/base/common/winjs.base';
 import DOM = require('vs/base/browser/dom');
+import errors = require('vs/base/common/errors');
 import {IEventEmitter} from 'vs/base/common/eventEmitter';
 import {Registry} from 'vs/platform/platform';
 import {Dimension, Builder, $} from 'vs/base/browser/builder';
@@ -283,7 +284,7 @@ export abstract class ViewerViewlet extends Viewlet {
 		// Make sure the current selected element is revealed
 		let selection = this.viewer.getSelection();
 		if (selection.length > 0) {
-			this.reveal(selection[0], 0.5);
+			this.reveal(selection[0], 0.5).done(null, errors.onUnexpectedError);
 		}
 
 		// Pass Focus to Viewer

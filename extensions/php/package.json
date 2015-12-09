@@ -21,6 +21,11 @@
 			"title": "PHP Configuration options",
 			"type": "object",
 			"properties": {
+				"php.validate.enable": {
+					"type": "boolean",
+					"default": true,
+					"description": "Whether php validation is enabled or not."
+				},
 				"php.validate.executablePath": {
 					"type": "string",
 					"default": null,

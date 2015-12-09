@@ -21,6 +21,7 @@ export interface IGalleryExtensionFile {
 export interface IGalleryExtensionVersion {
 	version: string;
 	lastUpdated: string;
+	assetUri: string;
 	files: IGalleryExtensionFile[];
 }
 
@@ -68,7 +69,7 @@ export class GalleryService implements IGalleryService {
 					value: 'vscode'
 				}]
 			}],
-			flags: 0x1 | 0x2 | 0x4 | 0x8 | 0x10
+			flags: 0x1 | 0x4 | 0x80
 		});
 
 		const request = {
@@ -94,6 +95,7 @@ export class GalleryService implements IGalleryService {
 					galleryInformation: {
 						galleryApiUrl: this.extensionsGalleryUrl,
 						id: extension.extensionId,
+						downloadUrl: `${ extension.versions[0].assetUri }/Microsoft.VisualStudio.Services.VSIXPackage?install=true`,
 						publisherId: extension.publisher.publisherId,
 						publisherDisplayName: extension.publisher.displayName,
 						date: extension.versions[0].lastUpdated

@@ -12,6 +12,7 @@ import Lifecycle = require('vs/base/common/lifecycle');
 import EventEmitter = require('vs/base/common/eventEmitter');
 import Strings = require('vs/base/common/strings');
 import Errors = require('vs/base/common/errors');
+import * as paths from 'vs/base/common/paths';
 import WinJS = require('vs/base/common/winjs.base');
 import Builder = require('vs/base/browser/builder');
 import Keyboard = require('vs/base/browser/keyboardEvent');
@@ -184,7 +185,7 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 	public focus():void {
 		var selection = this.tree.getSelection();
 		if (selection.length > 0) {
-			this.tree.reveal(selection[0], 0.5);
+			this.tree.reveal(selection[0], 0.5).done(null, Errors.onUnexpectedError);
 		}
 
 		this.commitInputBox.focus();
@@ -246,8 +247,9 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 	public getSecondaryActions(): Actions.IAction[] {
 		if (!this.secondaryActions) {
 			this.secondaryActions = [
-				this.instantiationService.createInstance(GitActions.SyncAction),
-				this.instantiationService.createInstance(GitActions.PullAction),
+				this.instantiationService.createInstance(GitActions.SyncAction, GitActions.SyncAction.ID, GitActions.SyncAction.LABEL),
+				this.instantiationService.createInstance(GitActions.PullAction, GitActions.PullAction.ID, GitActions.PullAction.LABEL),
+				this.instantiationService.createInstance(GitActions.PullWithRebaseAction),
 				this.instantiationService.createInstance(GitActions.PushAction),
 				new ActionBar.Separator(),
 				this.instantiationService.createInstance(GitActions.CommitAction, this),
@@ -395,28 +397,32 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 			return (<GitEditorInputs.GitDiffEditorInput> input).getFileStatus();
 		}
 
-		if (input instanceof GitEditorInputs.GitIndexEditorInput) {
-			return (<GitEditorInputs.GitIndexEditorInput> input).getFileStatus() || null;
-		}
-
 		if (input instanceof GitEditorInputs.NativeGitIndexStringEditorInput) {
 			return (<GitEditorInputs.NativeGitIndexStringEditorInput> input).getFileStatus() || null;
 		}
 
 		if (input instanceof Files.FileEditorInput) {
-			var fileInput = <Files.FileEditorInput> input;
+			const fileInput = <Files.FileEditorInput> input;
+			const resource = fileInput.getResource();
 
-			var workspaceRelativePath = this.contextService.toWorkspaceRelativePath(fileInput.getResource());
-			if (!workspaceRelativePath) {
+			const workspaceRoot = this.contextService.getWorkspace().resource.fsPath;
+			if (!paths.isEqualOrParent(resource.fsPath, workspaceRoot)) {
 				return null; // out of workspace not yet supported
 			}
 
-			var status = this.gitService.getModel().getStatus().getWorkingTreeStatus().find(workspaceRelativePath);
+			const repositoryRoot = this.gitService.getModel().getRepositoryRoot();
+			if (!paths.isEqualOrParent(resource.fsPath, repositoryRoot)) {
+				return null; // out of repository not supported
+			}
+
+			const repositoryRelativePath = paths.normalize(paths.relative(repositoryRoot, resource.fsPath));
+
+			var status = this.gitService.getModel().getStatus().getWorkingTreeStatus().find(repositoryRelativePath);
 			if (status && (status.getStatus() === git.Status.UNTRACKED || status.getStatus() === git.Status.IGNORED)) {
 				return status;
 			}
 
-			status = this.gitService.getModel().getStatus().getMergeStatus().find(workspaceRelativePath);
+			status = this.gitService.getModel().getStatus().getMergeStatus().find(repositoryRelativePath);
 			if (status) {
 				return status;
 			}

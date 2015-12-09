@@ -9,7 +9,6 @@ import app = require('app');
 import fs = require('fs');
 import dialog = require('dialog');
 import shell = require('shell');
-
 import nls = require('vs/nls');
 import {assign} from 'vs/base/common/objects';
 import platform = require('vs/base/common/platform');
@@ -20,24 +19,25 @@ import menu = require('vs/workbench/electron-main/menus');
 import settings = require('vs/workbench/electron-main/settings');
 import {Instance as UpdateManager} from 'vs/workbench/electron-main/update-manager';
 import {Server, serve, connect} from 'vs/base/node/service.net';
-import {getUserEnvironment, IEnv} from 'vs/base/node/env';
+import {getUserEnvironment} from 'vs/base/node/env';
 import {Promise, TPromise} from 'vs/base/common/winjs.base';
 import {GitAskpassService} from 'vs/workbench/parts/git/electron-main/askpassService';
-import { spawnSharedProcess } from 'vs/workbench/electron-main/sharedProcess';
+import {spawnSharedProcess} from 'vs/workbench/electron-main/sharedProcess';
+import { Mutex } from 'windows-mutex';
 
 export class LaunchService {
-	public start(args: env.ICommandLineArguments): Promise {
+	public start(args: env.ICommandLineArguments, userEnv: env.IProcessEnvironment): Promise {
 		env.log('Received data from other instance', args);
 
 		// Otherwise handle in windows manager
 		if (!!args.pluginDevelopmentPath) {
-			windows.manager.openPluginDevelopmentHostWindow({ cli: args });
+			windows.manager.openPluginDevelopmentHostWindow({ cli: args, userEnv: userEnv });
 		} else if (args.pathArguments.length === 0 && args.openNewWindow) {
-			windows.manager.open({ cli: args, forceNewWindow: true, forceEmpty: true });
+			windows.manager.open({ cli: args, userEnv: userEnv, forceNewWindow: true, forceEmpty: true });
 		} else if (args.pathArguments.length === 0) {
 			windows.manager.focusLastActive(args);
 		} else {
-			windows.manager.open({ cli: args, forceNewWindow: !args.openInSameWindow });
+			windows.manager.open({ cli: args, userEnv: userEnv, forceNewWindow: !args.openInSameWindow });
 		}
 
 		return Promise.as(null);
@@ -67,9 +67,11 @@ process.on('uncaughtException', (err: any) => {
 function quit(error?: Error);
 function quit(message?: string);
 function quit(arg?: any) {
+	let exitCode = 0;
 	if (typeof arg === 'string') {
 		env.log(arg)
 	} else {
+		exitCode = 1; // signal error to the outside
 		if (arg.stack) {
 			console.error(arg.stack);
 		} else {
@@ -77,12 +79,22 @@ function quit(arg?: any) {
 		}
 	}
 
-	process.exit();
+	process.exit(exitCode);
 }
 
-function main(ipcServer: Server, userEnv: IEnv): void {
+
+function main(ipcServer: Server, userEnv: env.IProcessEnvironment): void {
 	env.log('### VSCode main.js ###');
 	env.log(env.appRoot, env.cliArgs);
+
+	// Setup Windows mutex
+	let windowsMutex: Mutex = null;
+	try {
+		var Mutex = (<any> require.__$__nodeRequire('windows-mutex')).Mutex;
+		windowsMutex = new Mutex('vscode');
+	} catch (e) {
+		// noop
+	}
 
 	// Register IPC services
 	ipcServer.registerService('LaunchService', new LaunchService());
@@ -117,6 +129,7 @@ function main(ipcServer: Server, userEnv: IEnv): void {
 		}
 
 		sharedProcess.kill();
+		windowsMutex && windowsMutex.release();
 	});
 
 	// Lifecycle
@@ -190,11 +203,20 @@ function setupIPC(): TPromise<Server> {
 			// there's a running instance, let's connect to it
 			return connect(env.mainIPCHandle).then(
 				client => {
+
+					// Tests from CLI require to be the only instance currently (TODO@Ben support multiple instances and output)
+					if (env.isTestingFromCli) {
+						const errorMsg = 'Running extension tests from the command line is currently only supported if no other instance of Code is running.';
+						console.error(errorMsg);
+
+						return Promise.wrapError(errorMsg);
+					}
+
 					env.log('Sending env to running instance...');
 
 					const service = client.getService<LaunchService>('LaunchService', LaunchService);
 
-					return service.start(env.cliArgs)
+					return service.start(env.cliArgs, process.env)
 						.then(() => client.dispose())
 						.then(() => Promise.wrapError('Sent env to running instance. Terminating...'));
 				},
@@ -222,6 +244,8 @@ function setupIPC(): TPromise<Server> {
 	return setup(true);
 }
 
+// On some platforms we need to manually read from the global environment variables
+// and assign them to the process environment (e.g. when doubleclick app on Mac)
 getUserEnvironment()
 	.then(userEnv => {
 		assign(process.env, userEnv);

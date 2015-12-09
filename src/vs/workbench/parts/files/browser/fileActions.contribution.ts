@@ -19,6 +19,7 @@ import {DerivedFrameEditorInput} from 'vs/workbench/parts/files/browser/editors/
 import {KeybindingsUtils} from 'vs/platform/keybinding/common/keybindingsUtils';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
+import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {FileStat} from 'vs/workbench/parts/files/browser/views/explorerViewModel';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 
@@ -28,7 +29,8 @@ class FilesViewerActionContributor extends ActionBarContributor {
 
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IKeybindingService private keybindingService: IKeybindingService
 	) {
 		super();
 	}
@@ -130,7 +132,7 @@ class FilesViewerActionContributor extends ActionBarContributor {
 			// Any other item with keybinding
 			let keybinding = keybindingForAction(action.id);
 			if (keybinding) {
-				return new ActionItem(context, action, { label: true, keybinding: keybinding.toLabel() });
+				return new ActionItem(context, action, { label: true, keybinding: this.keybindingService.getLabelFor(keybinding) });
 			}
 		}
 

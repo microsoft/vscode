@@ -944,7 +944,7 @@ export class TreeModel extends Events.EventEmitter {
 			var item = this.getItem(element);
 
 			if (item) {
-				item.reveal(relativeTop);
+				return item.reveal(relativeTop);
 			}
 		});
 	}

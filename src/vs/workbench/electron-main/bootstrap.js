@@ -6,7 +6,7 @@
 /* global __filename, __dirname, global, process */
 
 // Perf measurements
-global.vscodeStart = new Date().getTime();
+global.vscodeStart = Date.now();
 
 var app = require('app');
 var path = require('path');

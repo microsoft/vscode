@@ -137,7 +137,7 @@ class ProjectResolver implements typescript.IProjectResolver2 {
 		this._consumer = consumer;
 		this._configuration = configuration;
 
-		this._fileChangesHandler = new async.RunOnceScheduler(this._processFileChangesEvents.bind(this), 1500);
+		this._fileChangesHandler = new async.RunOnceScheduler(this._processFileChangesEvents.bind(this), 1000);
 		this._unbindListener = this._eventService.addListener(Files.EventType.FILE_CHANGES,
 			this._onFileChangesEvent.bind(this));
 	}
@@ -291,7 +291,7 @@ class ProjectResolver implements typescript.IProjectResolver2 {
 		includePattern[globPattern] = true;
 
 		let excludePattern: glob.IExpression = Object.create(null);
-		excludePattern['{**/node_modules/**,**/.git/**,**/bower_components/**,**/tmp/**,**/temp**}'] = true;
+		excludePattern['{**/node_modules/**,**/.git/**,**/bower_components/**,**/tmp/**,**/temp/**}'] = true;
 
 		// add custom exclude patterns
 		if(Array.isArray(excludes)) {
@@ -554,7 +554,6 @@ class ProjectResolver implements typescript.IProjectResolver2 {
 namespace glob2 {
 
 	const prefix1 = '**/*.';
-	const prefix2 = '**/';
 
 	export function match(pattern: string, path: string): boolean {
 		if (pattern[0] === '{' && pattern[pattern.length - 1] === '}') {
@@ -570,19 +569,17 @@ namespace glob2 {
 		let offset = -1;
 		if (pattern.indexOf(prefix1) === 0) {
 			offset = prefix1.length;
-		} else if (pattern.indexOf(prefix2) === 0) {
-			offset = prefix2.length;
 		}
 		if (offset === -1) {
 			return glob.match(pattern, path);
 		}
 		let suffix = pattern.substring(offset);
-		if (suffix.indexOf('*') !== -1) {
+		if (suffix.match(/[.\\\/*]/)) {
 			return glob.match(pattern, path);
 		}
 
 		// endWith check
-		offset = path.indexOf(suffix);
+		offset = path.lastIndexOf(suffix);
 		if (offset === -1) {
 			return false;
 		} else {

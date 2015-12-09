@@ -49,7 +49,7 @@ export function createCharacterPairContribution(lexer: MonarchCommonTypes.ILexer
 	};
 }
 
-function _addSuggestionsAtPosition(model: EditorCommon.IModel, position:EditorCommon.IPosition, lexer: MonarchCommonTypes.ILexer, superSuggestions:Modes.ISuggestions[]): Modes.ISuggestions[] {
+function _addSuggestionsAtPosition(model: EditorCommon.IModel, position:EditorCommon.IPosition, lexer: MonarchCommonTypes.ILexer, superSuggestions:Modes.ISuggestResult[]): Modes.ISuggestResult[] {
 	var extra = lexer.suggestSupport.snippets;
 	if (!extra || extra.length === 0) {
 		return superSuggestions;

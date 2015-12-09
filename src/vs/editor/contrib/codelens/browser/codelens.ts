@@ -11,6 +11,7 @@ import nls = require('vs/nls');
 import {format} from 'vs/base/common/strings';
 import lifecycle = require('vs/base/common/lifecycle');
 import schedulers = require('vs/base/common/async');
+import Severity from 'vs/base/common/severity';
 import dom = require('vs/base/browser/dom');
 import errors = require('vs/base/common/errors');
 import EditorBrowser = require('vs/editor/browser/editorBrowser');
@@ -21,13 +22,10 @@ import referenceSearch = require('vs/editor/contrib/referenceSearch/browser/refe
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
+import {IMessageService} from 'vs/platform/message/common/message';
 import {Range} from 'vs/editor/common/core/range';
-import {CodeLensRegistry} from '../common/codelens';
+import {CodeLensRegistry, ICodeLensData, getCodeLensData} from '../common/codelens';
 
-interface ICodeLensData {
-	symbol: Modes.ICodeLensSymbol;
-	support: Modes.ICodeLensSupport;
-}
 
 class CodeLensViewZone implements EditorBrowser.IViewZone {
 
@@ -65,7 +63,7 @@ class CodeLensContentWidget implements EditorBrowser.IContentWidget {
 	private _commands: { [id: string]: Modes.ICommand } = Object.create(null);
 
 	public constructor(editor: EditorBrowser.ICodeEditor, symbolRange: EditorCommon.IEditorRange,
-		keybindingService: IKeybindingService) {
+		keybindingService: IKeybindingService, messageService: IMessageService) {
 
 		this._id = 'codeLensWidget' + (++CodeLensContentWidget.ID);
 		this._editor = editor;
@@ -83,7 +81,9 @@ class CodeLensContentWidget implements EditorBrowser.IContentWidget {
 				let command = this._commands[element.id];
 				if (command) {
 					editor.focus();
-					keybindingService.executeCommand(command.id, command.arguments);
+					keybindingService.executeCommand(command.id, command.arguments).done(undefined, err => {
+						messageService.show(Severity.Error, err);
+					});
 				}
 			}
 		});
@@ -103,16 +103,16 @@ class CodeLensContentWidget implements EditorBrowser.IContentWidget {
 		}
 	}
 
-	public withCommands(commands: Modes.ICommand[]): void {
+	public withCommands(symbols: Modes.ICodeLensSymbol[]): void {
 		this._commands = Object.create(null);
-		if (!commands || !commands.length) {
+		if (!symbols || !symbols.length) {
 			this._domNode.innerHTML = 'no commands';
 			return;
 		}
 
 		let html: string[] = [];
-		for (let i = 0; i < commands.length; i++) {
-			let command = commands[i];
+		for (let i = 0; i < symbols.length; i++) {
+			let command = symbols[i].command;
 			let part: string;
 			if (command.id) {
 				part = format('<a id={0}>{1}</a>', i, command.title);
@@ -230,7 +230,7 @@ class CodeLens {
 	public constructor(data: ICodeLensData[], editor: EditorBrowser.ICodeEditor,
 		helper: CodeLensHelper,
 		viewZoneChangeAccessor: EditorBrowser.IViewZoneChangeAccessor,
-		keybindingService: IKeybindingService) {
+		keybindingService: IKeybindingService, messageService: IMessageService) {
 
 		this._editor = editor;
 		this._data = data;
@@ -255,7 +255,7 @@ class CodeLens {
 		});
 
 		this._viewZone = new CodeLensViewZone(range.startLineNumber - 1);
-		this._contentWidget = new CodeLensContentWidget(editor, Range.lift(range), keybindingService);
+		this._contentWidget = new CodeLensContentWidget(editor, Range.lift(range), keybindingService, messageService);
 
 		this._viewZoneId = viewZoneChangeAccessor.addZone(this._viewZone);
 		this._editor.addContentWidget(this._contentWidget);
@@ -303,8 +303,8 @@ class CodeLens {
 		return this._data;
 	}
 
-	public updateCommands(commands: Modes.ICommand[], currentModelsVersionId: number): void {
-		this._contentWidget.withCommands(commands);
+	public updateCommands(symbols: Modes.ICodeLensSymbol[], currentModelsVersionId: number): void {
+		this._contentWidget.withCommands(symbols);
 		this._lastUpdateModelsVersionId = currentModelsVersionId;
 	}
 
@@ -347,19 +347,22 @@ export class CodeLensContribution implements EditorCommon.IEditorContribution {
 	private _modelChangeCounter: number;
 	private _configurationService: IConfigurationService;
 	private _keybindingService: IKeybindingService;
+	private _messageService: IMessageService;
 	private _codeLenseDisabledByMode: boolean;
 
 	private _currentFindOccPromise:TPromise<any>;
 
 	constructor(editor: EditorBrowser.ICodeEditor, @IModelService modelService: IModelService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IKeybindingService keybindingService: IKeybindingService) {
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IMessageService messageService: IMessageService) {
 
 		this._instanceCount = (++CodeLensContribution.INSTANCE_COUNT);
 		this._editor = editor;
 		this._modelService = modelService;
 		this._configurationService = configurationService;
 		this._keybindingService = keybindingService;
+		this._messageService = messageService;
 
 		this._globalToDispose = [];
 		this._localToDispose = [];
@@ -428,22 +431,7 @@ export class CodeLensContribution implements EditorCommon.IEditorContribution {
 				this._currentFindCodeLensSymbolsPromise.cancel();
 			}
 
-			let resource = model.getAssociatedResource();
-			let symbols: ICodeLensData[] = [];
-			let promises = CodeLensRegistry.all(model).map(support => {
-				return support.findCodeLensSymbols(resource).then(result => {
-					if (!Array.isArray(result)) {
-						return;
-					}
-					for (let symbol of result) {
-						symbols.push({ symbol, support });
-					}
-				}, err => {
-					errors.onUnexpectedError(err);
-				});
-			});
-
-			this._currentFindCodeLensSymbolsPromise = TPromise.join(promises).then(() => symbols);
+			this._currentFindCodeLensSymbolsPromise = getCodeLensData(model);
 
 			var counterValue = ++this._modelChangeCounter;
 			this._currentFindCodeLensSymbolsPromise.then((result) => {
@@ -572,7 +560,7 @@ export class CodeLensContribution implements EditorCommon.IEditorContribution {
 						groupsIndex++;
 						codeLensIndex++;
 					} else {
-						this._lenses.splice(codeLensIndex, 0, new CodeLens(groups[groupsIndex], this._editor, helper, accessor, this._keybindingService));
+						this._lenses.splice(codeLensIndex, 0, new CodeLens(groups[groupsIndex], this._editor, helper, accessor, this._keybindingService, this._messageService));
 						codeLensIndex++;
 						groupsIndex++;
 					}
@@ -586,7 +574,7 @@ export class CodeLensContribution implements EditorCommon.IEditorContribution {
 
 				// Create extra symbols
 				while (groupsIndex < groups.length) {
-					this._lenses.push(new CodeLens(groups[groupsIndex], this._editor, helper, accessor, this._keybindingService));
+					this._lenses.push(new CodeLens(groups[groupsIndex], this._editor, helper, accessor, this._keybindingService, this._messageService));
 					groupsIndex++;
 				}
 
@@ -628,17 +616,15 @@ export class CodeLensContribution implements EditorCommon.IEditorContribution {
 		var resource = model.getAssociatedResource();
 		var promises = toResolve.map((request, i) => {
 
-			let commands = new Array<Modes.ICommand>(request.length);
+			let resolvedSymbols = new Array<Modes.ICodeLensSymbol>(request.length);
 			let promises = request.map((request, i) => {
-				return request.support.resolveCodeLensSymbol(resource, request.symbol).then(command => {
-					if (command) {
-						commands[i] = command;
-					}
+				return request.support.resolveCodeLensSymbol(resource, request.symbol).then(symbol => {
+					resolvedSymbols[i] = symbol;
 				});
 			});
 
 			return TPromise.join(promises).then(() => {
-				lenses[i].updateCommands(commands, currentModelsVersionId);
+				lenses[i].updateCommands(resolvedSymbols, currentModelsVersionId);
 			})
 		});
 

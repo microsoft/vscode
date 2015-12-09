@@ -13,8 +13,6 @@ var mocha = require('gulp-mocha');
 var es = require('event-stream');
 var watch = require('./build/lib/watch');
 var nls = require('./build/lib/nls');
-var style = require('./build/lib/style');
-var copyrights = require('./build/lib/copyrights');
 var util = require('./build/lib/util');
 var reporter = require('./build/lib/reporter')();
 var remote = require('gulp-remote-src');
@@ -115,71 +113,6 @@ gulp.task('clean', ['clean-client', 'clean-plugins']);
 gulp.task('compile', ['compile-client', 'compile-plugins']);
 gulp.task('watch', ['watch-client', 'watch-plugins']);
 
-var LINE_FEED_FILES = [
-	'build/**/*',
-	'extensions/**/*',
-	'scripts/**/*',
-	'src/**/*',
-	'test/**/*',
-	'!extensions/csharp-o/bin/**',
-	'!extensions/**/out/**',
-	'!**/node_modules/**',
-	'!**/fixtures/**',
-	'!**/*.{svg,exe,png,scpt,bat,cur,ttf,woff,eot}',
-];
-
-gulp.task('eol-style', function() {
-	return gulp.src(LINE_FEED_FILES).pipe(style({complain:true}));
-});
-gulp.task('fix-eol-style', function() {
-	return gulp.src(LINE_FEED_FILES, { base: '.' }).pipe(style({})).pipe(gulp.dest('.'));
-});
-var WHITESPACE_FILES = LINE_FEED_FILES.concat([
-	'!**/lib/**',
-	'!**/*.d.ts',
-	'!extensions/typescript/server/**',
-	'!test/assert.js',
-	'!**/octicons/**',
-	'!**/vs/languages/sass/test/common/example.scss',
-	'!**/vs/languages/less/common/parser/less.grammar.txt',
-	'!**/vs/languages/css/common/buildscripts/css-schema.xml',
-	'!**/vs/languages/markdown/common/raw.marked.js',
-	'!**/vs/base/common/winjs.base.raw.js',
-	'!**/vs/base/node/terminateProcess.sh',
-	'!extensions/csharp-o/gulpfile.js',
-	'!**/vs/base/node/terminateProcess.sh',
-	'!**/vs/text.js',
-	'!**/vs/nls.js',
-	'!**/vs/css.js',
-	'!**/vs/loader.js',
-	'!extensions/**/snippets/**',
-	'!extensions/**/syntaxes/**',
-	'!extensions/**/themes/**',
-]);
-gulp.task('whitespace-style', function() {
-	return gulp.src(WHITESPACE_FILES).pipe(style({complain:true, whitespace:true}));
-});
-gulp.task('fix-whitespace-style', function() {
-	return gulp.src(WHITESPACE_FILES, { base: '.' }).pipe(style({whitespace:true})).pipe(gulp.dest('.'));
-});
-
-var COPYRIGHTS_FILES = WHITESPACE_FILES.concat([
-	'!**/*.json',
-	'!**/*.html',
-	'!**/test/**',
-	'!**/*.md',
-	'!**/*.sh',
-	'!**/*.txt',
-	'!src/vs/editor/standalone-languages/swift.ts',
-]);
-gulp.task('copyrights', function() {
-	return gulp.src(COPYRIGHTS_FILES, { base: '.' }).pipe(copyrights.copyrights());
-});
-
-gulp.task('insert-copyrights', function() {
-	return gulp.src(COPYRIGHTS_FILES, { base: '.' }).pipe(copyrights.insertCopyrights());
-});
-
 gulp.task('test', function () {
 	return gulp.src('test/all.js')
 		.pipe(mocha({ ui: 'tdd', delay: true }))
@@ -215,6 +148,7 @@ gulp.task('mixin', function () {
 		.pipe(gulp.dest('.'));
 });
 
+require('./build/gulpfile.hygiene');
 require('./build/gulpfile.vscode');
 require('./build/gulpfile.editor');
 require('./build/gulpfile.plugins');

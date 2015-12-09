@@ -23,7 +23,7 @@ import {IWorkbenchEditorService, IFileInput} from 'vs/workbench/services/editor/
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IModeService} from 'vs/editor/common/services/modeService';
-import {NavigateTypesSupportRegistry, ITypeBearing} from '../common/search';
+import {NavigateTypesSupportRegistry, ITypeBearing, getNavigateToItems} from '../common/search';
 
 class SymbolEntry extends EditorQuickOpenEntry {
 	private name: string;
@@ -90,9 +90,9 @@ class SymbolEntry extends EditorQuickOpenEntry {
 export class OpenSymbolHandler extends QuickOpenHandler {
 
 	private static SUPPORTED_OPEN_TYPES = ['class', 'interface', 'enum', 'function', 'method'];
-	private static SEARCH_DELAY = 500; // This delay acommodates for the user typing a word and then stops typing to start searching
+	private static SEARCH_DELAY = 500; // This delay accommodates for the user typing a word and then stops typing to start searching
 
-	private delayer: ThrottledDelayer;
+	private delayer: ThrottledDelayer<QuickOpenEntry[]>;
 	private isStandalone: boolean;
 
 	constructor(
@@ -103,12 +103,12 @@ export class OpenSymbolHandler extends QuickOpenHandler {
 	) {
 		super();
 
-		this.delayer = new ThrottledDelayer(OpenSymbolHandler.SEARCH_DELAY);
+		this.delayer = new ThrottledDelayer<QuickOpenEntry[]>(OpenSymbolHandler.SEARCH_DELAY);
 		this.isStandalone = true;
 	}
 
 	public setStandalone(standalone: boolean) {
-		this.delayer = standalone ? new ThrottledDelayer(OpenSymbolHandler.SEARCH_DELAY) : null;
+		this.delayer = standalone ? new ThrottledDelayer<QuickOpenEntry[]>(OpenSymbolHandler.SEARCH_DELAY) : null;
 		this.isStandalone = standalone;
 	}
 
@@ -135,21 +135,7 @@ export class OpenSymbolHandler extends QuickOpenHandler {
 
 	private doGetResults(searchValue: string): TPromise<QuickOpenEntry[]> {
 
-		let registry = <IEditorModesRegistry>Registry.as(Extensions.EditorModes);
-
-		// Find Types (and ignore error)
-		let bearings: ITypeBearing[] = [];
-		let promises = NavigateTypesSupportRegistry.getAll().map(support => {
-			return support.getNavigateToItems(searchValue).then(result => {
-				if (Array.isArray(result)) {
-					bearings.push(...result);
-				}
-			}, err => {
-				errors.onUnexpectedError(err);
-			});
-		});
-
-		return TPromise.join(promises).then(() => {
+		return getNavigateToItems(searchValue).then(bearings => {
 			return this.toQuickOpenEntries(bearings, searchValue);
 		});
 	}

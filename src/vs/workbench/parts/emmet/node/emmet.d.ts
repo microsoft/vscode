@@ -25,7 +25,7 @@ declare module 'emmet' {
 		
 		/**
 		 * Creates selection from <code>start</code> to <code>end</code> character
-		 * indexes. If <code>end</code> is ommited, this method should place caret 
+		 * indexes. If <code>end</code> is omitted, this method should place caret 
 		 * and <code>start</code> index
 		 * @param {Number} start
 		 * @param {Number} [end]

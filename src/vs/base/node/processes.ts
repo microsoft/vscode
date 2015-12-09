@@ -329,7 +329,7 @@ export abstract class AbstractProcess<TProgressData> {
 			}
 			return result;
 		}, (err) => {
-			return { sucess: true };
+			return { success: true };
 		});
 	}
 

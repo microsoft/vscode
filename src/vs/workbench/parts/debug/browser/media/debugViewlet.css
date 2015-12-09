@@ -110,6 +110,7 @@
 
 .debug-viewlet .debug-call-stack .stack-frame > .file:not(:first-child) {
 	margin-left: 0.8em;
+	margin-right: 0.15em;
 }
 
 /* Variables & Expression view */
@@ -125,6 +126,10 @@
 	line-height: normal;
 }
 
+.debug-viewlet .debug-watch .monaco-inputbox {
+	font-family: Monaco, Menlo, Consolas, "Droid Sans Mono", "Inconsolata", "Courier New", monospace, "Droid Sans Fallback";
+}
+
 .debug-viewlet .monaco-inputbox.idle {
 	border: 1px solid rgba(128, 128, 128, 0.5);
 }
@@ -133,7 +138,8 @@
 	padding: 1px 2px;
 }
 
-.debug-viewlet .debug-action.add-watch-expression {
+.debug-viewlet .debug-action.add-watch-expression,
+.debug-viewlet .debug-action.add-function-breakpoint {
 	background: url('add.svg') center center no-repeat;
 }
 
@@ -150,10 +156,6 @@
 .debug-viewlet .debug-breakpoints .breakpoint {
 	overflow: hidden;
 	text-overflow: ellipsis;
-}
-
-.debug-viewlet .debug-breakpoints .breakpoint > * {
-	vertical-align: middle;
 }
 
 .debug-viewlet .debug-breakpoints .breakpoint > .file-path {

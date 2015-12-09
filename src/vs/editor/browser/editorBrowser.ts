@@ -150,6 +150,7 @@ export var ClassNames = {
 	SCROLLABLE_ELEMENT: 'editor-scrollable',
 	CONTENT_WIDGETS: 'contentWidgets',
 	OVERLAY_WIDGETS: 'overlayWidgets',
+	MARGIN_VIEW_OVERLAYS: 'margin-view-overlays',
 	LINE_NUMBERS: 'line-numbers',
 	GLYPH_MARGIN: 'glyph-margin',
 	SCROLL_DECORATION: 'scroll-decoration',

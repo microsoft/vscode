@@ -14,7 +14,7 @@ var util = require('./lib/util');
 var common = require('./gulpfile.common');
 
 var root = path.dirname(__dirname);
-var commit = process.env['BUILD_SOURCEVERSION'] || require('./lib/git').getVersion(root);
+var commit = util.getVersion(root);
 
 // Build
 

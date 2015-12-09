@@ -34,35 +34,7 @@ import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IEditorService} from 'vs/platform/editor/common/editor';
 import {FindReferencesController} from 'vs/editor/contrib/referenceSearch/browser/referenceSearch';
 import {IKeybindingService, IKeybindingContextKey} from 'vs/platform/keybinding/common/keybindingService';
-import FeatureRegistry from 'vs/editor/contrib/goToDeclaration/common/goToDeclaration';
-
-function getDeclarationsAtPosition(editor: EditorCommon.ICommonCodeEditor, position = editor.getPosition()): TPromise<Modes.IReference[]> {
-
-	let references: Modes.IReference[] = [];
-	let promises: TPromise<any>[] = [];
-
-	let model = editor.getModel();
-
-	for (let provider of FeatureRegistry.all(model)) {
-
-		let promise = provider.findDeclaration(model.getAssociatedResource(),
-			position);
-
-		promises.push(promise.then(result => {
-			if (Array.isArray(result)) {
-				references.push(...result);
-			} else {
-				references.push(<Modes.IReference>result);
-			}
-		}, err => {
-			Errors.onUnexpectedError(err);
-		}));
-	}
-
-	return TPromise.join(promises).then(() => {
-		return coalesce(references);
-	});
-}
+import {DeclarationRegistry, getDeclarationsAtPosition} from 'vs/editor/contrib/goToDeclaration/common/goToDeclaration';
 
 export abstract class GoToTypeAction extends EditorAction {
 
@@ -182,7 +154,7 @@ export class GoToDeclarationAction extends GoToTypeAction {
 	}
 
 	public isSupported(): boolean {
-		return FeatureRegistry.has(this.editor.getModel()) && super.isSupported();
+		return DeclarationRegistry.has(this.editor.getModel()) && super.isSupported();
 	}
 
 	public getEnablementState():boolean {
@@ -193,7 +165,7 @@ export class GoToDeclarationAction extends GoToTypeAction {
 		var model = this.editor.getModel(),
 			position = this.editor.getSelection().getStartPosition();
 
-		return FeatureRegistry.all(model).some(provider => {
+		return DeclarationRegistry.all(model).some(provider => {
 			return provider.canFindDeclaration(
 				model.getLineContext(position.lineNumber),
 				position.column - 1);
@@ -201,7 +173,7 @@ export class GoToDeclarationAction extends GoToTypeAction {
 	}
 
 	protected _resolve(resource: URI, position: EditorCommon.IPosition): TPromise<Modes.IReference[]> {
-		return getDeclarationsAtPosition(this.editor);
+		return getDeclarationsAtPosition(this.editor.getModel(), this.editor.getPosition());
 	}
 }
 
@@ -239,7 +211,8 @@ class GotoDefinitionWithMouseEditorContribution implements EditorCommon.IEditorC
 	private decorations:string[];
 	private currentWordUnderMouse:EditorCommon.IWordAtPosition;
 	private throttler:Async.Throttler;
-	private lastMouseEvent:EditorBrowser.IMouseEvent;
+	private lastMouseMoveEvent:EditorBrowser.IMouseEvent;
+	private hasTriggerKeyOnMouseDown:boolean;
 
 	constructor(editor: EditorBrowser.ICodeEditor, @IRequestService requestService: IRequestService, @IMessageService messageService: IMessageService, @IEditorService editorService: IEditorService) {
 		this.editorService = editorService;
@@ -252,6 +225,7 @@ class GotoDefinitionWithMouseEditorContribution implements EditorCommon.IEditorC
 		this.editor = editor;
 		this.throttler = new Async.Throttler();
 
+		this.toUnhook.push(this.editor.addListener(EditorCommon.EventType.MouseDown, (e:EditorBrowser.IMouseEvent) => this.onEditorMouseDown(e)));
 		this.toUnhook.push(this.editor.addListener(EditorCommon.EventType.MouseUp, (e:EditorBrowser.IMouseEvent) => this.onEditorMouseUp(e)));
 		this.toUnhook.push(this.editor.addListener(EditorCommon.EventType.MouseMove, (e:EditorBrowser.IMouseEvent) => this.onEditorMouseMove(e)));
 		this.toUnhook.push(this.editor.addListener(EditorCommon.EventType.KeyDown, (e:Keyboard.StandardKeyboardEvent) => this.onEditorKeyDown(e)));
@@ -263,7 +237,7 @@ class GotoDefinitionWithMouseEditorContribution implements EditorCommon.IEditorC
 	}
 
 	private onEditorMouseMove(mouseEvent: EditorBrowser.IMouseEvent, withKey?:Keyboard.StandardKeyboardEvent):void {
-		this.lastMouseEvent = mouseEvent;
+		this.lastMouseMoveEvent = mouseEvent;
 
 		this.startFindDefinition(mouseEvent, withKey);
 	}
@@ -311,7 +285,7 @@ class GotoDefinitionWithMouseEditorContribution implements EditorCommon.IEditorC
 					startColumn: word.startColumn,
 					endLineNumber: position.lineNumber,
 					endColumn: word.endColumn
-				}, nls.localize('multipleResults', "Click to show the {0} definitions for '{1}'.", results.length, this.currentWordUnderMouse.word), false);
+				}, nls.localize('multipleResults', "Click to show the {0} definitions found.", results.length), false);
 			}
 
 			// Single result
@@ -410,20 +384,28 @@ class GotoDefinitionWithMouseEditorContribution implements EditorCommon.IEditorC
 	}
 
 	private onEditorKeyDown(e:Keyboard.StandardKeyboardEvent):void {
-		if (e.keyCode === GotoDefinitionWithMouseEditorContribution.TRIGGER_KEY_VALUE && this.lastMouseEvent) {
-			this.startFindDefinition(this.lastMouseEvent, e);
+		if (e.keyCode === GotoDefinitionWithMouseEditorContribution.TRIGGER_KEY_VALUE && this.lastMouseMoveEvent) {
+			this.startFindDefinition(this.lastMouseMoveEvent, e);
 		} else if (e[GotoDefinitionWithMouseEditorContribution.TRIGGER_MODIFIER]) {
 			this.removeDecorations(); // remove decorations if user holds another key with ctrl/cmd to prevent accident goto declaration
 		}
 	}
 
 	private resetHandler():void {
-		this.lastMouseEvent = null;
+		this.lastMouseMoveEvent = null;
 		this.removeDecorations();
 	}
 
+	private onEditorMouseDown(mouseEvent: EditorBrowser.IMouseEvent):void {
+		// We need to record if we had the trigger key on mouse down because someone might select something in the editor
+		// holding the mouse down and then while mouse is down start to press Ctrl/Cmd to start a copy operation and then
+		// release the mouse button without wanting to do the navigation.
+		// With this flag we prevent goto definition if the mouse was down before the trigger key was pressed.
+		this.hasTriggerKeyOnMouseDown = !!mouseEvent.event[GotoDefinitionWithMouseEditorContribution.TRIGGER_MODIFIER];
+	}
+
 	private onEditorMouseUp(mouseEvent: EditorBrowser.IMouseEvent):void {
-		if (this.isEnabled(mouseEvent)) {
+		if (this.isEnabled(mouseEvent) && this.hasTriggerKeyOnMouseDown) {
 			this.gotoDefinition(mouseEvent.target, mouseEvent.event.altKey).done(()=>{
 				this.removeDecorations();
 			}, (error:Error)=>{
@@ -446,7 +428,7 @@ class GotoDefinitionWithMouseEditorContribution implements EditorCommon.IEditorC
 			(Browser.isIE11orEarlier || mouseEvent.event.detail <= 1) && // IE does not support event.detail properly
 			mouseEvent.target.type === EditorCommon.MouseTargetType.CONTENT_TEXT &&
 			(mouseEvent.event[GotoDefinitionWithMouseEditorContribution.TRIGGER_MODIFIER] || (withKey && withKey.keyCode === GotoDefinitionWithMouseEditorContribution.TRIGGER_KEY_VALUE)) &&
-			FeatureRegistry.has(this.editor.getModel());
+			DeclarationRegistry.has(this.editor.getModel());
 	}
 
 	private findDefinition(target:EditorBrowser.IMouseTarget):TPromise<Modes.IReference[]> {
@@ -455,7 +437,7 @@ class GotoDefinitionWithMouseEditorContribution implements EditorCommon.IEditorC
 			return TPromise.as(null);
 		}
 
-		return getDeclarationsAtPosition(this.editor, target.position);
+		return getDeclarationsAtPosition(this.editor.getModel(), target.position);
 	}
 
 	private gotoDefinition(target:EditorBrowser.IMouseTarget, sideBySide:boolean):TPromise<any> {

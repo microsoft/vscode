@@ -31,7 +31,7 @@ import {IQuickOpenService} from 'vs/workbench/services/quickopen/browser/quickOp
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {Position} from 'vs/platform/editor/common/editor';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
-import QuickOpenRegistry from 'vs/editor/contrib/quickOpen/common/quickOpen';
+import {OutlineRegistry, getOutlineEntries} from 'vs/editor/contrib/quickOpen/common/quickOpen';
 
 const ACTION_ID = 'workbench.action.gotoSymbol';
 const ACTION_LABEL = nls.localize('gotoSymbol', "Go to Symbol...");
@@ -432,7 +432,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 
 
 			if (model && types.isFunction((<ITokenizedModel>model).getMode)) {
-				canRun = QuickOpenRegistry.has(<IModel> model);
+				canRun = OutlineRegistry.has(<IModel> model);
 			}
 		}
 
@@ -527,34 +527,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 					return TPromise.as(this.outlineToModelCache[modelId]);
 				}
 
-				let groupLabels: { [n: string]: string } = Object.create(null);
-				let entries: IOutlineEntry[] = [];
-				let resource = (<IModel>model).getAssociatedResource();
-				let promises = QuickOpenRegistry.all(<IModel>model).map(support => {
-
-					if (support.outlineGroupLabel) {
-						for (var key in support.outlineGroupLabel) {
-							if (Object.prototype.hasOwnProperty.call(support.outlineGroupLabel, key)) {
-								groupLabels[key] = support.outlineGroupLabel[key];
-							}
-						}
-					}
-
-					return support.getOutline(resource).then(result => {
-						if (Array.isArray(result)) {
-							entries.push(...result);
-						}
-					}, err => {
-						errors.onUnexpectedError(err);
-					});
-				});
-
-				return TPromise.join(promises).then(() => {
-
-					let outline = {
-						entries,
-						outlineGroupLabel: groupLabels
-					};
+				return getOutlineEntries(<IModel> model).then(outline => {
 
 					let model = new OutlineModel(outline, this.toQuickOpenEntries(outline));
 

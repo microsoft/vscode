@@ -104,7 +104,7 @@ export class LineCommentCommand implements EditorCommon.ICommand {
 
 	/**
 	 * Analyze lines and decide which lines are relevant and what the toggle should do.
-	 * Also, build up several offsets and lengths usefull in the generation of editor operations.
+	 * Also, build up several offsets and lengths useful in the generation of editor operations.
 	 */
 	public static _analyzeLines(type:Type, model:ISimpleModel, lines:ILinePreflightData[], startLineNumber:number): IPreflightData {
 		var lineData: ILinePreflightData,
@@ -206,7 +206,7 @@ export class LineCommentCommand implements EditorCommon.ICommand {
 	}
 
 	/**
-	 * Given a succesfull analysis, execute either insert line comments, either remove line comments
+	 * Given a successful analysis, execute either insert line comments, either remove line comments
 	 */
 	private _executeLineComments(model:ISimpleModel, builder:EditorCommon.IEditOperationBuilder, data:IPreflightData, s:EditorCommon.IEditorSelection): void {
 
@@ -267,7 +267,7 @@ export class LineCommentCommand implements EditorCommon.ICommand {
 	}
 
 	/**
-	 * Given an unsuccesfull analysis, delegate to the block comment command
+	 * Given an unsuccessful analysis, delegate to the block comment command
 	 */
 	private _executeBlockComment(model:EditorCommon.ITokenizedModel, builder:EditorCommon.IEditOperationBuilder, s:EditorCommon.IEditorSelection): void {
 		var commentsSupport = model.getModeAtPosition(s.startLineNumber, s.startColumn).commentsSupport;

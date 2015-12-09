@@ -6,18 +6,20 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import {sequence} from 'vs/base/common/async';
+import { assign } from 'vs/base/common/objects';
 import { EventEmitter, ListenerUnbind } from 'vs/base/common/eventEmitter';
 import {onUnexpectedError, isPromiseCanceledError} from 'vs/base/common/errors';
 import strings = require('vs/base/common/strings');
 import URI from 'vs/base/common/uri';
+import {isFalsyOrEmpty} from 'vs/base/common/arrays';
 import timer = require('vs/base/common/timer');
 import { getSnippets } from 'vs/editor/common/modes/modesRegistry';
 import EditorCommon = require('vs/editor/common/editorCommon');
-import { ISuggestSupport, ISuggestions, ISuggestion, ISorter } from 'vs/editor/common/modes';
-import {DefaultFilter} from 'vs/editor/common/modes/modesFilters';
+import { ISuggestSupport, ISuggestResult, ISuggestion, ISuggestionSorter } from 'vs/editor/common/modes';
+import {DefaultFilter, IMatch} from 'vs/editor/common/modes/modesFilters';
 import { CodeSnippet } from 'vs/editor/contrib/snippet/common/snippet';
 import { IDisposable, disposeAll } from 'vs/base/common/lifecycle';
-import {SuggestRegistry} from '../common/suggest';
+import {SuggestRegistry, ISuggestResult2, suggest} from '../common/suggest';
 
 enum SuggestState {
 	NOT_ACTIVE = 0,
@@ -35,12 +37,14 @@ export class CompletionItem {
 	private static _idPool = 0;
 
 	public id: string;
-	public support: ISuggestSupport;
 	public suggestion: ISuggestion;
-	public container: ISuggestions;
+	public highlights: IMatch[];
+	public support: ISuggestSupport;
+	public container: ISuggestResult;
+
 	private _resolveDetails:TPromise<CompletionItem>
 
-	constructor(support: ISuggestSupport, suggestion: ISuggestion, container:ISuggestions) {
+	constructor(support: ISuggestSupport, suggestion: ISuggestion, container:ISuggestResult) {
 		this.id = '_completion_item_#' + CompletionItem._idPool++;
 		this.support = support;
 		this.suggestion = suggestion;
@@ -53,7 +57,7 @@ export class CompletionItem {
 				this._resolveDetails = TPromise.as(this);
 			} else {
 				this._resolveDetails = this.support.getSuggestionDetails(<any>resource, position, this.suggestion).then(value => {
-					this.suggestion = value;
+					this.suggestion = assign(this.suggestion, value);
 					return this;
 				}, err => {
 					if (isPromiseCanceledError(err)) {
@@ -76,13 +80,13 @@ class RawModel {
 	public size: number = 0;
 	public incomplete: boolean = false;
 
-	insertSuggestions(rank: number, suggestions: ISuggestions[], support: ISuggestSupport): boolean {
+	insertSuggestions(rank: number, suggestions: ISuggestResult2[]): boolean {
 		if (suggestions) {
 			let items: CompletionItem[] = [];
 			for (let _suggestions of suggestions) {
 
 				for (let suggestionItem of _suggestions.suggestions) {
-					items.push(new CompletionItem(support, suggestionItem, _suggestions));
+					items.push(new CompletionItem(_suggestions.support, suggestionItem, _suggestions));
 				}
 
 				this.size += _suggestions.suggestions.length;
@@ -95,36 +99,37 @@ class RawModel {
 
 	select(ctx: SuggestionContext): CompletionItem[] {
 		let result: CompletionItem[] = [];
-		let seen: { [codeSnippet: string]: boolean } = Object.create(null);
 		for (let item of this._items) {
-			RawModel._sortAndFilter(ctx, result, seen, item);
+			RawModel._sortAndFilter(item, ctx, result);
 		}
 		return result;
 	}
 
-	private static _sortAndFilter(ctx: SuggestionContext, bucket: CompletionItem[], seen: { [codeSnippet: string]: boolean }, items: CompletionItem[]): void {
-		if (items && items.length) {
-			let compare = RawModel._compare;
-			let filter = DefaultFilter;
-			let [item] = items;
-			if (item.support) {
-				compare = item.support.getSorter && item.support.getSorter() || compare;
-				filter = item.support.getFilter && item.support.getFilter() || DefaultFilter;
-			}
-
-			items = items
-				.filter(item => {
-					if (!seen[item.suggestion.codeSnippet]) {
-						seen[item.suggestion.codeSnippet] = true;
-						return filter(ctx.wordBefore, item.suggestion)
-					}
-				})
-				.sort((a, b) => {
-					return compare(a.suggestion, b.suggestion)
-				});
-
-			bucket.push(...items);
+	private static _sortAndFilter(items: CompletionItem[], ctx: SuggestionContext, bucket: CompletionItem[]): void {
+		if (isFalsyOrEmpty(items)) {
+			return;
 		}
+
+		// all items have the same (origin) support. derive sorter and filter
+		// from first
+		const [first] = items;
+		let compare = RawModel._compare;
+		let filter = DefaultFilter;
+		if (first.support) {
+			compare = first.support.getSorter && first.support.getSorter() || compare;
+			filter = first.support.getFilter && first.support.getFilter() || filter;
+		}
+
+		items = items.filter(item => {
+			// set hightlight and filter those that have none
+			item.highlights = filter(ctx.wordBefore, item.suggestion);
+			return !isFalsyOrEmpty(item.highlights);
+		}).sort((a, b) => {
+			// sort suggestions by custom strategy
+			return compare(a.suggestion, b.suggestion)
+		});
+
+		bucket.push(...items);
 	}
 
 	private static _compare(a: ISuggestion, b: ISuggestion):number {
@@ -384,34 +389,16 @@ export class SuggestModel extends EventEmitter {
 		// Send mode request
 		var $tRequest = timer.start(timer.Topic.EDITOR, 'suggest/REQUEST');
 		var position = this.editor.getPosition();
-		var resource = model.getAssociatedResource();
 
 		let raw = new RawModel();
 		let rank = 0;
-		let factory = groups.map((supports, index) => {
-			return () => {
-
-				// stop as soon as a group produced a result
-				if (raw.size !== 0) {
-					return;
+		this.requestPromise = suggest(model, position, triggerCharacter, groups).then(all => {
+			for (let suggestions of all) {
+				if (raw.insertSuggestions(rank, suggestions)) {
+					rank++;
 				}
-
-				// for each support in the group as for suggestions
-				let promises = supports.map(support => {
-					return support.suggest(resource, position, triggerCharacter).then(value => {
-						if (raw.insertSuggestions(rank, value, support)) {
-							rank++;
-						}
-					}, err => {
-						onUnexpectedError(err);
-					});
-				});
-
-				return TPromise.join(promises);
-			};
+			}
 		});
-
-		this.requestPromise = sequence(factory).then(() => { });
 
 		this.requestPromise.then(() => {
 			$tRequest.stop();
@@ -423,7 +410,7 @@ export class SuggestModel extends EventEmitter {
 
 			var snippets = getSnippets(model, position);
 			if (snippets && snippets.suggestions && snippets.suggestions.length > 0) {
-				raw.insertSuggestions(rank, [snippets], undefined);
+				raw.insertSuggestions(rank, [snippets]);
 			}
 
 			if(raw.size > 0) {
@@ -491,7 +478,7 @@ export class SuggestModel extends EventEmitter {
 	private onEditorConfigurationChange(): void {
 		this.autoSuggestDelay = this.editor.getConfiguration().quickSuggestionsDelay;
 
-		if (isNaN(this.autoSuggestDelay) || (!this.autoSuggestDelay && this.autoSuggestDelay !== 0) || this.autoSuggestDelay > 2000 || this.autoSuggestDelay < 0) {
+		if (isNaN(this.autoSuggestDelay) || (!this.autoSuggestDelay && this.autoSuggestDelay !== 0) || this.autoSuggestDelay < 0) {
 			this.autoSuggestDelay = 10;
 		}
 	}

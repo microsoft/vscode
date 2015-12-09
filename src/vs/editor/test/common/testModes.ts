@@ -76,6 +76,10 @@ export class TestingMode implements modes.IMode {
 	public getId():string {
 		return 'testing';
 	}
+
+	public toSimplifiedMode(): modes.IMode {
+		return this;
+	}
 }
 
 export class AbstractIndentingMode extends TestingMode {

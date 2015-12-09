@@ -83,7 +83,7 @@ export class EditorAccessor implements emmet.Editor {
 			}
 		}
 
-		// shift colum by +1 since they are 1 based
+		// shift column by +1 since they are 1 based
 		let range = new Range(startPosition.lineNumber, startPosition.column + 1, endPosition.lineNumber, endPosition.column + 1);
 		let deletePreviousChars = 0;
 

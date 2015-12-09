@@ -63,10 +63,6 @@ export class TextFileService extends BrowserTextFileService {
 	public beforeShutdown(): boolean | TPromise<boolean> {
 		super.beforeShutdown();
 
-		if (!!this.contextService.getConfiguration().env.pluginDevelopmentPath) {
-			return false; // no veto when we are in plugin dev mode because we want to reload often
-		}
-
 		// Dirty files need treatment on shutdown
 		if (this.getDirty().length) {
 			let confirm = this.confirmSave();
@@ -74,17 +70,6 @@ export class TextFileService extends BrowserTextFileService {
 			// Save
 			if (confirm === ConfirmResult.SAVE) {
 				return this.saveAll(true /* includeUntitled */).then((result) => {
-
-					// Dispose saved untitled ones to not leave them around as dirty
-					result.results.forEach((res) => {
-						if (res.success && res.source.scheme === 'untitled') {
-							let input = this.untitledEditorService.get(res.source);
-							if (input) {
-								input.dispose();
-							}
-						}
-					});
-
 					if (result.results.some((r) => !r.success)) {
 						return true; // veto if some saves failed
 					}
@@ -156,6 +141,10 @@ export class TextFileService extends BrowserTextFileService {
 	}
 
 	public confirmSave(resource?: URI): ConfirmResult {
+		if (!!this.contextService.getConfiguration().env.pluginDevelopmentPath) {
+			return ConfirmResult.DONT_SAVE; // no veto when we are in plugin dev mode because we cannot assum we run interactive (e.g. tests)
+		}
+
 		let resourcesToConfirm = this.getDirty(resource);
 		if (resourcesToConfirm.length === 0) {
 			return ConfirmResult.DONT_SAVE;
@@ -233,7 +222,7 @@ export class TextFileService extends BrowserTextFileService {
 			if (untitled) {
 				let targetPath: string;
 
-				// Untitled with associated file path dont need to prompt
+				// Untitled with associated file path don't need to prompt
 				if (this.untitledEditorService.hasAssociatedFilePath(untitled.getResource())) {
 					targetPath = untitled.getResource().fsPath;
 				}
@@ -326,13 +315,22 @@ export class TextFileService extends BrowserTextFileService {
 
 			// We have a model: Use it (can be null e.g. if this file is binary and not a text file or was never opened before)
 			if (model) {
-				return this.fileService.updateContent(target, model.getValue(), { charset: model.getEncoding() }).then(() => {
-					return target;
-				});
+				return this.fileService.updateContent(target, model.getValue(), { charset: model.getEncoding() });
 			}
 
 			// Otherwise we can only copy
-			return this.fileService.copyFile(resource, target).then(() => target);
+			return this.fileService.copyFile(resource, target);
+		}).then(() => {
+
+			// Add target to working files because this is an operation that indicates activity
+			this.getWorkingFilesModel().addEntry(target);
+
+			// Revert the source
+			return this.revert(resource).then(() => {
+
+				// Done: return target
+				return target;
+			});
 		});
 	}
 
@@ -348,22 +346,13 @@ export class TextFileService extends BrowserTextFileService {
 	private promptForPathAsync(defaultPath?: string): TPromise<string> {
 		return new TPromise<string>((c, e) => {
 			Dialog.showSaveDialog(remote.getCurrentWindow(), this.getSaveDialogOptions(defaultPath ? paths.normalize(defaultPath, true) : void 0), (path) => {
-				if (path && isWindows) {
-					path = strings.rtrim(path, '.*'); // Bug on Windows: When "All Files" is picked, the path gets an extra ".*"
-				}
-
 				c(path);
 			});
 		});
 	}
 
 	private promptForPathSync(defaultPath?: string): string {
-		let path = Dialog.showSaveDialog(remote.getCurrentWindow(), this.getSaveDialogOptions(defaultPath ? paths.normalize(defaultPath, true) : void 0));
-		if (path && isWindows) {
-			path = strings.rtrim(path, '.*'); // Bug on Windows: When "All Files" is picked, the path gets an extra ".*"
-		}
-
-		return path;
+		return Dialog.showSaveDialog(remote.getCurrentWindow(), this.getSaveDialogOptions(defaultPath ? paths.normalize(defaultPath, true) : void 0));
 	}
 
 	private getSaveDialogOptions(defaultPath?: string): remote.ISaveDialogOptions {
@@ -371,8 +360,13 @@ export class TextFileService extends BrowserTextFileService {
 			defaultPath: defaultPath
 		};
 
-		// Filters are only working well on Windows it seems
-		if (!isWindows) {
+		// Filters are working flaky in Electron and there are bugs. On Windows they are working
+		// somewhat but we see issues:
+		// - https://github.com/atom/electron/issues/3556
+		// - https://github.com/Microsoft/vscode/issues/451
+		// - Bug on Windows: When "All Files" is picked, the path gets an extra ".*"
+		// Until these issues are resolved, we disable the dialog file extension filtering.
+		if (true) {
 			return options;
 		}
 

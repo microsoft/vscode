@@ -11,7 +11,7 @@ import {handleEvent} from 'vs/editor/common/modes/supports';
 import {AbstractModeWorker} from 'vs/editor/common/modes/abstractModeWorker';
 import Modes = require('vs/editor/common/modes');
 import EditorCommon = require('vs/editor/common/editorCommon');
-import {URL} from 'vs/base/common/network';
+import URI from 'vs/base/common/uri';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
@@ -49,6 +49,7 @@ export class AbstractMode<W extends AbstractModeWorker> implements Modes.IMode {
 	// adapters end
 
 	private _eventEmitter = new EventEmitter();
+	private _simplifiedMode: Modes.IMode;
 
 	constructor(
 		descriptor:Modes.IModeDescriptor,
@@ -73,6 +74,7 @@ export class AbstractMode<W extends AbstractModeWorker> implements Modes.IMode {
 		this.tokenTypeClassificationSupport = this;
 
 		this._workerPiecePromise = null;
+		this._simplifiedMode = null;
 	}
 
 	public getId(): string {
@@ -84,6 +86,13 @@ export class AbstractMode<W extends AbstractModeWorker> implements Modes.IMode {
 			// Pick a worker to do validation
 			this._pickAWorkerToValidate();
 		}
+	}
+
+	public toSimplifiedMode(): Modes.IMode {
+		if (!this._simplifiedMode) {
+			this._simplifiedMode = new SimplifiedMode(this);
+		}
+		return this._simplifiedMode;
 	}
 
 	private _getOrCreateWorker(): TPromise<W> {
@@ -129,7 +138,7 @@ export class AbstractMode<W extends AbstractModeWorker> implements Modes.IMode {
 		return this._worker((w) => w.enableValidator());
 	}
 
-	public getFilter(): Modes.IFilter {
+	public getFilter(): Modes.ISuggestionFilter {
 		return StrictPrefix;
 	}
 
@@ -153,7 +162,7 @@ export class AbstractMode<W extends AbstractModeWorker> implements Modes.IMode {
 	}
 
 	static $suggest = OneWorkerAttr(AbstractMode, AbstractMode.prototype.suggest);
-	public suggest(resource:URL, position:EditorCommon.IPosition):TPromise<Modes.ISuggestions[]> {
+	public suggest(resource:URI, position:EditorCommon.IPosition):TPromise<Modes.ISuggestResult[]> {
 		return this._worker((w) => w.suggest(resource, position));
 	}
 
@@ -178,7 +187,7 @@ export class AbstractMode<W extends AbstractModeWorker> implements Modes.IMode {
 	}
 
 	public shouldAutotriggerSuggestImpl(context:Modes.ILineContext, offset:number, triggeredByCharacter:string):boolean {
-		return false;
+		return true;
 	}
 
 	public shouldShowEmptySuggestionList():boolean {
@@ -186,27 +195,27 @@ export class AbstractMode<W extends AbstractModeWorker> implements Modes.IMode {
 	}
 
 	static $findOccurrences = OneWorkerAttr(AbstractMode, AbstractMode.prototype.findOccurrences);
-	public findOccurrences(resource:URL, position:EditorCommon.IPosition, strict:boolean = false): TPromise<Modes.IOccurence[]> {
+	public findOccurrences(resource:URI, position:EditorCommon.IPosition, strict:boolean = false): TPromise<Modes.IOccurence[]> {
 		return this._worker((w) => w.findOccurrences(resource, position, strict));
 	}
 
 	static $navigateValueSet = OneWorkerAttr(AbstractMode, AbstractMode.prototype.navigateValueSet);
-	public navigateValueSet(resource:URL, position:EditorCommon.IRange, up:boolean):TPromise<Modes.IInplaceReplaceSupportResult> {
+	public navigateValueSet(resource:URI, position:EditorCommon.IRange, up:boolean):TPromise<Modes.IInplaceReplaceSupportResult> {
 		return this._worker((w) => w.inplaceReplaceSupport.navigateValueSet(resource, position, up));
 	}
 
 	static $computeDiff = OneWorkerAttr(AbstractMode, AbstractMode.prototype.computeDiff);
-	public computeDiff(original:URL, modified:URL, ignoreTrimWhitespace:boolean):TPromise<EditorCommon.ILineChange[]> {
+	public computeDiff(original:URI, modified:URI, ignoreTrimWhitespace:boolean):TPromise<EditorCommon.ILineChange[]> {
 		return this._worker((w) => w.computeDiff(original, modified, ignoreTrimWhitespace));
 	}
 
 	static $computeDirtyDiff = OneWorkerAttr(AbstractMode, AbstractMode.prototype.computeDirtyDiff);
-	public computeDirtyDiff(resource:URL, ignoreTrimWhitespace:boolean):TPromise<EditorCommon.IChange[]> {
+	public computeDirtyDiff(resource:URI, ignoreTrimWhitespace:boolean):TPromise<EditorCommon.IChange[]> {
 		return this._worker((w) => w.computeDirtyDiff(resource, ignoreTrimWhitespace));
 	}
 
 	static $computeLinks = OneWorkerAttr(AbstractMode, AbstractMode.prototype.computeLinks);
-	public computeLinks(resource:URL):TPromise<Modes.ILink[]> {
+	public computeLinks(resource:URI):TPromise<Modes.ILink[]> {
 		return this._worker((w) => w.computeLinks(resource));
 	}
 
@@ -236,7 +245,84 @@ export class AbstractMode<W extends AbstractModeWorker> implements Modes.IMode {
 	}
 }
 
+class SimplifiedMode implements Modes.IMode {
 
+	tokenizationSupport: Modes.ITokenizationSupport;
+	electricCharacterSupport: Modes.IElectricCharacterSupport;
+	commentsSupport: Modes.ICommentsSupport;
+	characterPairSupport: Modes.ICharacterPairSupport;
+	tokenTypeClassificationSupport: Modes.ITokenTypeClassificationSupport;
+	onEnterSupport: Modes.IOnEnterSupport;
+
+	private _sourceMode: Modes.IMode;
+	private _eventEmitter: EventEmitter;
+	private _id: string;
+
+	constructor(sourceMode: Modes.IMode) {
+		this._sourceMode = sourceMode;
+		this._eventEmitter = new EventEmitter();
+		this._id = 'vs.editor.modes.simplifiedMode:' + sourceMode.getId();
+		this._assignSupports();
+
+		if (this._sourceMode.addSupportChangedListener) {
+			this._sourceMode.addSupportChangedListener((e) => {
+				if (e.tokenizationSupport || e.electricCharacterSupport || e.commentsSupport || e.characterPairSupport || e.tokenTypeClassificationSupport || e.onEnterSupport) {
+					this._assignSupports();
+					let newEvent = SimplifiedMode._createModeSupportChangedEvent(e);
+					this._eventEmitter.emit('modeSupportChanged', newEvent);
+				}
+			})
+		}
+	}
+
+	public getId(): string {
+		return this._id;
+	}
+
+	public toSimplifiedMode(): Modes.IMode {
+		return this;
+	}
+
+	private _assignSupports(): void {
+		this.tokenizationSupport = this._sourceMode.tokenizationSupport;
+		this.electricCharacterSupport = this._sourceMode.electricCharacterSupport;
+		this.commentsSupport = this._sourceMode.commentsSupport;
+		this.characterPairSupport = this._sourceMode.characterPairSupport;
+		this.tokenTypeClassificationSupport = this._sourceMode.tokenTypeClassificationSupport;
+		this.onEnterSupport = this._sourceMode.onEnterSupport;
+	}
+
+	private static _createModeSupportChangedEvent(originalModeEvent:EditorCommon.IModeSupportChangedEvent): EditorCommon.IModeSupportChangedEvent {
+		var event = {
+			codeLensSupport: false,
+			tokenizationSupport: originalModeEvent.tokenizationSupport,
+			occurrencesSupport:false,
+			declarationSupport:false,
+			typeDeclarationSupport:false,
+			navigateTypesSupport:false,
+			referenceSupport:false,
+			suggestSupport:false,
+			parameterHintsSupport:false,
+			extraInfoSupport:false,
+			outlineSupport:false,
+			logicalSelectionSupport:false,
+			formattingSupport:false,
+			inplaceReplaceSupport:false,
+			diffSupport:false,
+			dirtyDiffSupport:false,
+			emitOutputSupport:false,
+			linkSupport:false,
+			configSupport:false,
+			electricCharacterSupport: originalModeEvent.electricCharacterSupport,
+			commentsSupport: originalModeEvent.commentsSupport,
+			characterPairSupport: originalModeEvent.characterPairSupport,
+			tokenTypeClassificationSupport: originalModeEvent.tokenTypeClassificationSupport,
+			quickFixSupport:false,
+			onEnterSupport: originalModeEvent.onEnterSupport
+		};
+		return event;
+	}
+}
 
 export var isDigit:(character:string, base:number)=>boolean = (function () {
 

@@ -27,6 +27,7 @@ import cp = require('child_process');
 import ipc = require('ipc');
 
 export const PLUGIN_LOG_BROADCAST_CHANNEL = 'vscode:pluginLog';
+export const PLUGIN_ATTACH_BROADCAST_CHANNEL = 'vscode:pluginAttach';
 
 // Enable to see detailed message communication between window and plugin host
 const logPluginHostCommunication = false;
@@ -107,6 +108,7 @@ class PluginHostProcessManager {
 	public startPluginHostProcess(onPluginHostMessage: (msg: any) => void): void {
 		let config = this.contextService.getConfiguration();
 		let isDev = !config.env.isBuilt || !!config.env.pluginDevelopmentPath;
+		let isTestingFromCli = !!config.env.pluginTestsPath && !config.env.debugBrkPluginHost;
 
 		let opts: any = {
 			env: objects.mixin(objects.clone(process.env), { AMD_ENTRYPOINT: 'vs/workbench/node/pluginHostProcess', PIPE_LOGGING: 'true', VERBOSE_LOGGING: true })
@@ -125,13 +127,23 @@ class PluginHostProcessManager {
 		this.initializePluginHostProcess = new TPromise<cp.ChildProcess>((c, e) => {
 
 			// Resolve additional execution args (e.g. debug)
-			return this.resolveExecArgv(config, (execArgv) => {
-				if (execArgv) {
-					opts.execArgv = execArgv;
+			return this.resolveDebugPort(config, (port) => {
+				if (port) {
+					opts.execArgv = ['--nolazy', (config.env.debugBrkPluginHost ? '--debug-brk=' : '--debug=') + port];
 				}
 
 				// Run Plugin Host as fork of current process
 				this.pluginHostProcessHandle = cp.fork(uri.parse(require.toUrl('bootstrap')).fsPath, ['--type=pluginHost'], opts);
+
+				// Notify debugger that we are ready to attach to the process if we run a development plugin
+				if (config.env.pluginDevelopmentPath && port) {
+					this.windowService.broadcast({
+						channel: PLUGIN_ATTACH_BROADCAST_CHANNEL,
+						payload: {
+							port: port
+						}
+					}, config.env.pluginDevelopmentPath /* target */);
+				}
 
 				// Messages from Plugin host
 				this.pluginHostProcessHandle.on('message', (msg) => {
@@ -184,15 +196,22 @@ class PluginHostProcessManager {
 							consoleArgs = ['%c[Plugin Host]', 'color: blue', ...args];
 						}
 
-						// Send to local console
-						console[logEntry.severity].apply(console, consoleArgs);
+						// Send to local console unless we run tests from cli
+						if (!isTestingFromCli) {
+							console[logEntry.severity].apply(console, consoleArgs);
+						}
+
+						// Log on main side if running tests from cli
+						if (isTestingFromCli) {
+							ipc.send('vscode:log', logEntry);
+						}
 
 						// Broadcast to other windows if we are in development mode
-						if (isDev) {
+						else if (isDev) {
 							this.windowService.broadcast({
 								channel: PLUGIN_LOG_BROADCAST_CHANNEL,
 								payload: logEntry
-							});
+							}, config.env.pluginDevelopmentPath /* target */);
 						}
 					}
 
@@ -229,8 +248,13 @@ class PluginHostProcessManager {
 						}
 
 						// Expected development plugin termination: When the plugin host goes down we also shutdown the window
-						else {
+						else if (!isTestingFromCli) {
 							this.windowService.getWindow().close();
+						}
+
+						// When CLI testing make sure to exit with proper exit code
+						else {
+							ipc.send('vscode:exit', code);
 						}
 					}
 				});
@@ -238,7 +262,7 @@ class PluginHostProcessManager {
 		}, () => this.terminate());
 	}
 
-	private resolveExecArgv(config: IConfiguration, clb: (execArgv: any) => void): void {
+	private resolveDebugPort(config: IConfiguration, clb: (port: number) => void): void {
 
 		// Check for a free debugging port
 		if (typeof config.env.debugPluginHostPort === 'number') {
@@ -259,7 +283,7 @@ class PluginHostProcessManager {
 					console.info('%c[Plugin Host] %cdebugger listening on port ' + port, 'color: blue', 'color: black');
 				}
 
-				return clb(['--nolazy', (config.env.debugBrkPluginHost ? '--debug-brk=' : '--debug=') + port]);
+				return clb(port);
 			});
 		}
 

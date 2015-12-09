@@ -7,12 +7,18 @@ else
 	ROOT=$(dirname $(dirname $(readlink -f $0)))
 fi
 
+# Unit Tests
 if [[ "$OSTYPE" == "darwin"* ]]; then
 	cd $ROOT ; ulimit -n 4096 ; ATOM_SHELL_INTERNAL_RUN_AS_NODE=1 \
-		../Electron-Build/Electron.app/Contents/MacOS/Electron \
+		./.build/electron/Electron.app/Contents/MacOS/Electron \
 		node_modules/mocha/bin/_mocha $*
 else
 	cd $ROOT ; ATOM_SHELL_INTERNAL_RUN_AS_NODE=1 \
-		../Electron-Build/electron \
+		./.build/electron/electron \
 		node_modules/mocha/bin/_mocha $*
+fi
+
+# Integration Tests
+if [[ "$SKIP_INTEGRATION_TESTS" == "" ]]; then
+	./scripts/code.sh $ROOT/extensions/vscode-api-tests/testWorkspace --extensionDevelopmentPath=$ROOT/extensions/vscode-api-tests --extensionTestsPath=$ROOT/extensions/vscode-api-tests/out
 fi

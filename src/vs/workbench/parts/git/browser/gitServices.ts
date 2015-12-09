@@ -32,6 +32,7 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {IMessageService} from 'vs/platform/message/common/message';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
+import URI from 'vs/base/common/uri';
 
 function toReadablePath(path: string): string {
 	if (!platform.isWindows) {
@@ -158,9 +159,9 @@ class EditorInputCache
 	}
 
 	private createRightInput(status: git.IFileStatus): winjs.Promise {
-		var path = status.getPath();
-		var resource = this.contextService.toResource(path);
-		var model = this.gitService.getModel();
+		const model = this.gitService.getModel();
+		const path = status.getPath();
+		let resource = URI.file(paths.join(model.getRepositoryRoot(), path));
 
 		switch (status.getStatus()) {
 			case git.Status.INDEX_MODIFIED:
@@ -181,13 +182,13 @@ class EditorInputCache
 				var indexStatus = model.getStatus().find(path, git.StatusType.INDEX);
 
 				if (indexStatus && indexStatus.getStatus() === git.Status.INDEX_RENAMED) {
-					return this.editorService.inputToType({ resource: this.contextService.toResource(indexStatus.getRename()) });
+					resource = URI.file(paths.join(model.getRepositoryRoot(), indexStatus.getRename()));
 				}
 
-				return this.editorService.inputToType({ resource: resource });
+				return this.editorService.inputToType({ resource });
 
 			case git.Status.BOTH_MODIFIED:
-				return this.editorService.inputToType({ resource: resource });
+				return this.editorService.inputToType({ resource });
 
 			default:
 				return winjs.Promise.as(null);
@@ -388,10 +389,19 @@ export class GitService extends ee.EventEmitter
 	private remoteListenerUnbind:ee.ListenerUnbind;
 	private toDispose: lifecycle.IDisposable[];
 	private needsRefresh: boolean;
-	private refreshDelayer: async.ThrottledDelayer;
+	private refreshDelayer: async.ThrottledDelayer<void>;
 	private autoFetcher: AutoFetcher;
 
-	constructor(raw: git.IRawGitService, @IInstantiationService instantiationService: IInstantiationService, @IEventService eventService: IEventService, @IMessageService messageService: IMessageService, @IWorkbenchEditorService editorService: IWorkbenchEditorService, @IOutputService outputService: IOutputService, @IWorkspaceContextService contextService: IWorkspaceContextService, @ILifecycleService lifecycleService: ILifecycleService) {
+	constructor(
+		raw: git.IRawGitService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IEventService eventService: IEventService,
+		@IMessageService messageService: IMessageService,
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
+		@IOutputService outputService: IOutputService,
+		@IWorkspaceContextService contextService: IWorkspaceContextService,
+		@ILifecycleService lifecycleService: ILifecycleService
+	) {
 		super();
 
 		this.instantiationService = instantiationService;
@@ -409,7 +419,7 @@ export class GitService extends ee.EventEmitter
 		this.toDispose = [];
 
 		this.needsRefresh = false;
-		this.refreshDelayer = new async.PeriodThrottledDelayer(500, 10000);
+		this.refreshDelayer = new async.PeriodThrottledDelayer<void>(500, 10000);
 		this.autoFetcher = this.instantiationService.createInstance(AutoFetcher, this);
 
 		this.registerListeners();
@@ -543,8 +553,8 @@ export class GitService extends ee.EventEmitter
 		return this.run(git.ServiceOperations.BACKGROUND_FETCH, () => this.raw.fetch());
 	}
 
-	public pull(): winjs.Promise {
-		return this.run(git.ServiceOperations.PULL, () => this.raw.pull());
+	public pull(rebase?: boolean): winjs.Promise {
+		return this.run(git.ServiceOperations.PULL, () => this.raw.pull(rebase));
 	}
 
 	public push(): winjs.Promise {
@@ -686,13 +696,13 @@ export class GitService extends ee.EventEmitter
 				mimetypes = mime.guessMimeTypes(path); // guess from path if our detection did not yield results
 			}
 
-			// Binary: our story is weak here for binary files on the index. Since we run nativelyx, we do not have a way currently
+			// Binary: our story is weak here for binary files on the index. Since we run natively, we do not have a way currently
 			// to e.g. show images as binary inside the renderer because images need to be served through a URL to show. We could revisit this by
 			// allowing to use data URLs for resource inputs to render them. However, this would mean potentially loading a large file into memory
 			//
 			// Our solution now is to detect binary files and immediately return an input that is flagged as binary unknown mime type.
 			if (mime.isBinaryMime(mime.guessMimeTypes(path)) || mimetypes.indexOf(mime.MIME_BINARY) >= 0) {
-				return winjs.Promise.as(this.instantiationService.createInstance(giteditorinputs.GitIndexEditorInput, fileSegment, description, null /* no URL */, mime.MIME_BINARY, status));
+				return winjs.Promise.wrapError(new Error('The resource seems to be binary and cannot be displayed'));
 			}
 
 			// Text

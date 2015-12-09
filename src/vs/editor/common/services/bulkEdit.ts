@@ -212,7 +212,7 @@ class BulkEditModel {
 				var textEditorModel = <IModel>model.textEditorModel,
 					task: EditTask;
 
-				if (textEditorModel.getAssociatedResource().equals(this._sourceModel)) {
+				if (textEditorModel.getAssociatedResource().toString() ===  this._sourceModel.toString()) {
 					this._sourceModelTask = new SourceModelEditTask(textEditorModel, this._sourceSelections);
 					task = this._sourceModelTask;
 				} else {

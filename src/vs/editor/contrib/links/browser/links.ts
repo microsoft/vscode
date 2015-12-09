@@ -10,7 +10,7 @@ import nls = require('vs/nls');
 import {TPromise} from 'vs/base/common/winjs.base';
 import Platform = require('vs/base/common/platform');
 import Errors = require('vs/base/common/errors');
-import Network = require('vs/base/common/network');
+import URI from 'vs/base/common/uri';
 import Keyboard = require('vs/base/browser/keyboardEvent');
 import {CommonEditorRegistry, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
 import {EditorAction, Behaviour} from 'vs/editor/common/editorAction';
@@ -267,9 +267,9 @@ class LinkDetector {
 			}
 		}
 
-		var url: Network.URL;
+		var url: URI;
 		try {
-			url = new Network.URL(absoluteUrl);
+			url = URI.parse(absoluteUrl);
 		} catch (err) {
 			// invalid url
 			this.messageService.show(Severity.Warning, nls.localize('invalid.url', 'Invalid URI: cannot open {0}', absoluteUrl));

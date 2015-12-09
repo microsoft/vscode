@@ -16,7 +16,6 @@ import platform = require('vs/base/common/platform');
 import objects = require('vs/base/common/objects');
 import env = require('vs/workbench/electron-main/env');
 import storage = require('vs/workbench/electron-main/storage');
-import {IEnv} from 'vs/base/node/env';
 
 export interface IWindowState {
 	width?: number;
@@ -113,15 +112,10 @@ export interface IWindowConfiguration extends env.ICommandLineArguments {
 	releaseNotesUrl: string;
 	productDownloadUrl: string;
 	enableTelemetry: boolean;
-	userEnv: IEnv,
+	userEnv: env.IProcessEnvironment,
 	aiConfig: {
 		key: string;
 		asimovKey: string;
-	},
-	sendASmile: {
-		submitUrl: string,
-		reportIssueUrl: string,
-		requestFeatureUrl: string
 	}
 }
 
@@ -295,9 +289,9 @@ export class VSCodeWindow {
 
 			// Support navigation via mouse buttons 4/5
 			if (cmd === 'browser-backward') {
-				this._win.webContents.send('vscode:runAction', 'workbench.action.navigateBack');
+				this.send('vscode:runAction', 'workbench.action.navigateBack');
 			} else if (cmd === 'browser-forward') {
-				this._win.webContents.send('vscode:runAction', 'workbench.action.navigateForward');
+				this.send('vscode:runAction', 'workbench.action.navigateForward');
 			}
 		});
 
@@ -531,6 +525,16 @@ export class VSCodeWindow {
 
 		this.win.setFullScreen(!isFullScreen);
 		this.win.setMenuBarVisibility(isFullScreen);
+	}
+
+	public sendWhenReady(channel: string, ...args: any[]): void {
+		this.ready().then(() => {
+			this.send(channel, ...args);
+		});
+	}
+
+	public send(channel: string, ...args: any[]): void {
+		this._win.webContents.send(channel, ...args);
 	}
 
 	public dispose(): void {

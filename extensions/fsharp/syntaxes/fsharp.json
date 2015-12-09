@@ -96,7 +96,7 @@
             "patterns": [
                 {
                     "name": "comment.block.fsharp",
-                    "begin": "(\\(\\*)",
+                    "begin": "(\\(\\*(?!\\)))",
                     "end": "(\\*\\))",
                     "beginCaptures": {
                         "1": {

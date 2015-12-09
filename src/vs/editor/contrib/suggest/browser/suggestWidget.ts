@@ -203,7 +203,7 @@ class Renderer implements Tree.IRenderer {
 			data.colorspan.style.backgroundColor = '';
 		}
 
-		data.highlightedLabel.set(suggestion.label, suggestion.highlights);
+		data.highlightedLabel.set(suggestion.label, (<CompletionItem> element).highlights);
 		data.typeLabel.textContent = suggestion.typeLabel || '';
 		data.documentationLabel.textContent = suggestion.documentationLabel || '';
 	}
@@ -384,7 +384,7 @@ export class SuggestWidget implements EditorBrowser.IContentWidget {
 				this.updateWidgetHeight();
 
 				if (focus) {
-					this.tree.reveal(focus, (payload && payload.firstSuggestion) ? 0 : null);
+					return this.tree.reveal(focus, (payload && payload.firstSuggestion) ? 0 : null);
 				}
 			}, Errors.onUnexpectedError);
 		}));
@@ -459,8 +459,6 @@ export class SuggestWidget implements EditorBrowser.IContentWidget {
 			this.tree.setFocus(bestSuggestion, { firstSuggestion: true });
 			this.updateWidgetHeight();
 			this.show();
-
-			this.resolveDetails(bestSuggestion);
 
 			this.telemetryData = this.telemetryData || {};
 			this.telemetryData.suggestionCount = suggestions.length;

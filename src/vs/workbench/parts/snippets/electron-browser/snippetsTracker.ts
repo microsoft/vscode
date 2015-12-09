@@ -12,6 +12,7 @@ import async = require('vs/base/common/async');
 import Errors = require('vs/base/common/errors');
 import URI from 'vs/base/common/uri';
 import winjs = require('vs/base/common/winjs.base');
+import extfs = require('vs/base/node/extfs');
 import lifecycle = require('vs/base/common/lifecycle');
 import tmsnippets = require('vs/editor/node/textMate/TMSnippets');
 import {IFileService} from 'vs/platform/files/common/files';
@@ -28,7 +29,7 @@ export class SnippetsTracker implements workbenchExt.IWorkbenchContribution {
 	private snippetFolder: string;
 	private toDispose: lifecycle.IDisposable[];
 	private watcher: fs.FSWatcher;
-	private fileWatchDelayer:async.ThrottledDelayer;
+	private fileWatchDelayer:async.ThrottledDelayer<void>;
 
 	constructor(
 		@IFileService private fileService: IFileService,
@@ -38,7 +39,7 @@ export class SnippetsTracker implements workbenchExt.IWorkbenchContribution {
 		this.snippetFolder = paths.join(contextService.getConfiguration().env.appSettingsHome, 'snippets');
 
 		this.toDispose = [];
-		this.fileWatchDelayer = new async.ThrottledDelayer(SnippetsTracker.FILE_WATCH_DELAY);
+		this.fileWatchDelayer = new async.ThrottledDelayer<void>(SnippetsTracker.FILE_WATCH_DELAY);
 
 		if (!fs.existsSync(this.snippetFolder)) {
 			fs.mkdirSync(this.snippetFolder);
@@ -100,7 +101,7 @@ export class SnippetsTracker implements workbenchExt.IWorkbenchContribution {
 
 function readDir(path: string): winjs.TPromise<string[]> {
 	return new winjs.TPromise<string[]>((c, e, p) => {
-		fs.readdir(path,(err, files) => {
+		extfs.readdir(path,(err, files) => {
 			if (err) {
 				return e(err);
 			}

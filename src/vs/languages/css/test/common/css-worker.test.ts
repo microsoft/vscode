@@ -7,7 +7,7 @@
 import assert = require('assert');
 import mm = require('vs/editor/common/model/mirrorModel');
 import cssWorker = require('vs/languages/css/common/cssWorker');
-import Network = require('vs/base/common/network');
+import URI from 'vs/base/common/uri';
 import ResourceService = require('vs/editor/common/services/resourceServiceImpl');
 import MarkerService = require('vs/platform/markers/common/markerService');
 import EditorCommon = require('vs/editor/common/editorCommon');
@@ -19,7 +19,7 @@ import modesUtil = require('vs/editor/test/common/modesTestUtils');
 import {NULL_THREAD_SERVICE} from 'vs/platform/test/common/nullThreadService';
 import {IMarker} from 'vs/platform/markers/common/markers';
 
-export function mockMirrorModel(content:string, url:Network.URL = null) : mm.MirrorModel {
+export function mockMirrorModel(content:string, url:URI = null) : mm.MirrorModel {
 	return mm.createMirrorModelFromString(null, 0, content, modesUtil.createMockMode('mock.mode.id', /(#?-?\d*\.\d\w*%?)|([@#.:!]?[\w-?]+%?)|[@#.!]/g), url);
 }
 
@@ -29,7 +29,7 @@ suite('Validation - CSS', () => {
 
 		var source = '    #navigation a;';
 		var message = cssErrors.ParseError.LeftCurlyExpected.message;
-		var url = new Network.URL(Network.schemas.inMemory + '://localhost/vs/editor/common/model/mirrorModel/1');
+		var url = URI.parse('inmemory://localhost/vs/editor/common/model/mirrorModel/1');
 		var mirrorModel:any= mockMirrorModel(source, url);
 
 		var markerService = new MarkerService.MarkerService(NULL_THREAD_SERVICE);
@@ -50,7 +50,7 @@ suite('Validation - CSS', () => {
 		assert.equal(marker.message, message);
 	});
 
-	var mockCSSWorkerEnv = function (url: Network.URL, content: string): { worker: cssWorker.CSSWorker; model: mm.MirrorModel; markers: IMarker[]; } {
+	var mockCSSWorkerEnv = function (url: URI, content: string): { worker: cssWorker.CSSWorker; model: mm.MirrorModel; markers: IMarker[]; } {
 		var resourceService = new ResourceService.ResourceService();
 		var model = mockMirrorModel(content, url);
 		resourceService.insert(url, model);
@@ -69,8 +69,8 @@ suite('Validation - CSS', () => {
 		return { worker: worker, model: model, markers: markers };
 	};
 
-	var testSuggestionsFor = function(value:string, stringBefore:string):WinJS.TPromise<Modes.ISuggestions> {
-		var url = new Network.URL('test://1');
+	var testSuggestionsFor = function(value:string, stringBefore:string):WinJS.TPromise<Modes.ISuggestResult> {
+		var url = URI.parse('test://1');
 		var env = mockCSSWorkerEnv(url, value);
 
 		var idx = stringBefore ? value.indexOf(stringBefore) + stringBefore.length : 0;
@@ -79,7 +79,7 @@ suite('Validation - CSS', () => {
 	};
 
 	var testValueSetFor = function(value:string, selection:string, selectionLength: number, up: boolean):WinJS.TPromise<Modes.IInplaceReplaceSupportResult> {
-		var url = new Network.URL('test://1');
+		var url = URI.parse('test://1');
 		var env = mockCSSWorkerEnv(url, value);
 
 		var pos = env.model.getPositionFromOffset(value.indexOf(selection));
@@ -89,7 +89,7 @@ suite('Validation - CSS', () => {
 	};
 
 	var testOccurrences = function (value: string, tokenBefore: string): WinJS.TPromise<{ occurrences: Modes.IOccurence[]; model: mm.MirrorModel; }> {
-		var url = new Network.URL('test://1');
+		var url = URI.parse('test://1');
 		var env = mockCSSWorkerEnv(url, value);
 
 		var pos = env.model.getPositionFromOffset(value.indexOf(tokenBefore) + tokenBefore.length);
@@ -98,7 +98,7 @@ suite('Validation - CSS', () => {
 	};
 
 	var testQuickFixes = function (value: string, tokenBefore: string): WinJS.TPromise<{ fixes: Modes.IQuickFix[]; model: mm.MirrorModel; }> {
-		var url = new Network.URL('test://1');
+		var url = URI.parse('test://1');
 		var env = mockCSSWorkerEnv(url, value);
 
 		var pos = env.model.getPositionFromOffset(value.indexOf(tokenBefore) + tokenBefore.length);
@@ -109,7 +109,7 @@ suite('Validation - CSS', () => {
 		return env.worker.getQuickFixes(url, markers[0]).then((fixes) => { return { fixes: fixes, model: env.model}; });
 	};
 
-	var assertSuggestion= function(completion:Modes.ISuggestions, label:string, type?:string) {
+	var assertSuggestion= function(completion:Modes.ISuggestResult, label:string, type?:string) {
 		var proposalsFound = completion.suggestions.filter(function(suggestion: Modes.ISuggestion) {
 			return suggestion.label === label && (!type || suggestion.type === type);
 		});
@@ -130,7 +130,7 @@ suite('Validation - CSS', () => {
 	};
 
 	var assertQuickFix= function(fixes: Modes.IQuickFix[], model: mm.MirrorModel, expectedContent:string[]) {
-		var labels = fixes.map(f => f.label);
+		var labels = fixes.map(f => f.command.title);
 
 		for (var index = 0; index < expectedContent.length; index++) {
 			assert.ok(labels.indexOf(expectedContent[index]) !== -1, 'Quick fix not found: ' + expectedContent[index]);
@@ -139,128 +139,128 @@ suite('Validation - CSS', () => {
 
 	test('Intellisense', function(testDone): any {
 		WinJS.Promise.join([
-			testSuggestionsFor(' ', null).then(function(completion: Modes.ISuggestions): void {
+			testSuggestionsFor(' ', null).then(function(completion: Modes.ISuggestResult): void {
 				assert.equal(completion.currentWord, '');
 				assertSuggestion(completion, '@import');
 				assertSuggestion(completion, '@keyframes');
 				assertSuggestion(completion, 'div');
 			}),
 
-			testSuggestionsFor(' body {', null).then(function(completion: Modes.ISuggestions): void {
+			testSuggestionsFor(' body {', null).then(function(completion: Modes.ISuggestResult): void {
 				assert.equal(completion.currentWord, '');
 				assertSuggestion(completion, '@import');
 				assertSuggestion(completion, '@keyframes');
 				assertSuggestion(completion, 'html');
 			}),
 
-			testSuggestionsFor('body {', '{').then(function(completion: Modes.ISuggestions): void {
+			testSuggestionsFor('body {', '{').then(function(completion: Modes.ISuggestResult): void {
 				assert.equal(completion.currentWord, '');
 				assertSuggestion(completion, 'display');
 				assertSuggestion(completion, 'background');
 			}),
-			testSuggestionsFor('body { ver', 'ver').then(function(completion: Modes.ISuggestions): void {
+			testSuggestionsFor('body { ver', 'ver').then(function(completion: Modes.ISuggestResult): void {
 				assert.equal(completion.currentWord, 'ver');
 				assertSuggestion(completion, 'vertical-align');
 			}),
-			testSuggestionsFor('body { vertical-align', 'vertical-ali').then(function(completion: Modes.ISuggestions): void {
+			testSuggestionsFor('body { vertical-align', 'vertical-ali').then(function(completion: Modes.ISuggestResult): void {
 				assert.equal(completion.currentWord, 'vertical-ali');
 				assertSuggestion(completion, 'vertical-align');
 			}),
 
-			testSuggestionsFor('body { vertical-align', 'vertical-align').then(function(completion: Modes.ISuggestions): void {
+			testSuggestionsFor('body { vertical-align', 'vertical-align').then(function(completion: Modes.ISuggestResult): void {
 				assert.equal(completion.currentWord, 'vertical-align');
 				assertSuggestion(completion, 'vertical-align');
 			}),
-			testSuggestionsFor('body { vertical-align: bottom;}', 'vertical-align').then(function(completion: Modes.ISuggestions): void {
+			testSuggestionsFor('body { vertical-align: bottom;}', 'vertical-align').then(function(completion: Modes.ISuggestResult): void {
 				assert.equal(completion.currentWord, 'vertical-align');
 				assertSuggestion(completion, 'vertical-align');
 			}),
-			testSuggestionsFor('body { vertical-align: bottom;}', 'vertical-align:').then(function(completion: Modes.ISuggestions): void {
+			testSuggestionsFor('body { vertical-align: bottom;}', 'vertical-align:').then(function(completion: Modes.ISuggestResult): void {
 				assert.equal(completion.currentWord, '');
 				assertSuggestion(completion, 'bottom');
 				assertSuggestion(completion, '0cm');
 			}),
-			testSuggestionsFor('body { vertical-align: bottom;}', 'vertical-align: ').then(function(completion: Modes.ISuggestions): void {
+			testSuggestionsFor('body { vertical-align: bottom;}', 'vertical-align: ').then(function(completion: Modes.ISuggestResult): void {
 				assert.equal(completion.currentWord, '');
 				assertSuggestion(completion, 'bottom');
 				assertSuggestion(completion, '0cm');
 			}),
-			testSuggestionsFor('body { vertical-align: bott', 'bott').then(function(completion: Modes.ISuggestions): void {
+			testSuggestionsFor('body { vertical-align: bott', 'bott').then(function(completion: Modes.ISuggestResult): void {
 				assert.equal(completion.currentWord, 'bott');
 				assertSuggestion(completion, 'bottom');
 			}),
-			testSuggestionsFor('body { vertical-align: bottom }', 'bott').then(function(completion: Modes.ISuggestions): void {
+			testSuggestionsFor('body { vertical-align: bottom }', 'bott').then(function(completion: Modes.ISuggestResult): void {
 				assert.equal(completion.currentWord, 'bott');
 				assertSuggestion(completion, 'bottom');
 			}),
-			testSuggestionsFor('body { vertical-align: bottom }', 'bottom').then(function(completion: Modes.ISuggestions): void {
+			testSuggestionsFor('body { vertical-align: bottom }', 'bottom').then(function(completion: Modes.ISuggestResult): void {
 				assert.equal(completion.currentWord, 'bottom');
 				assertSuggestion(completion, 'bottom');
 			}),
-			testSuggestionsFor('body { vertical-align: bottom; }', 'bottom').then(function(completion: Modes.ISuggestions): void {
+			testSuggestionsFor('body { vertical-align: bottom; }', 'bottom').then(function(completion: Modes.ISuggestResult): void {
 				assert.equal(completion.currentWord, 'bottom');
 				assertSuggestion(completion, 'bottom');
 			}),
-			testSuggestionsFor('body { vertical-align: bottom; }', 'bottom;').then(function(completion: Modes.ISuggestions): void {
+			testSuggestionsFor('body { vertical-align: bottom; }', 'bottom;').then(function(completion: Modes.ISuggestResult): void {
 				assert.equal(completion.currentWord, '');
 				assert.equal(completion.suggestions.length, 0);
 			}),
-			testSuggestionsFor('body { vertical-align: bottom; }', 'bottom; ').then(function(completion: Modes.ISuggestions): void {
+			testSuggestionsFor('body { vertical-align: bottom; }', 'bottom; ').then(function(completion: Modes.ISuggestResult): void {
 				assert.equal(completion.currentWord, '');
 				assertSuggestion(completion, 'display');
 			}),
-			testSuggestionsFor('body { vertical-align: 9 }', '9').then(function(completion: Modes.ISuggestions): void {
+			testSuggestionsFor('body { vertical-align: 9 }', '9').then(function(completion: Modes.ISuggestResult): void {
 				assert.equal(completion.currentWord, '9');
 				assertSuggestion(completion, '9cm');
 			}),
-			testSuggestionsFor('body { vertical-align: 1.2 }', '1.2').then(function(completion: Modes.ISuggestions): void {
+			testSuggestionsFor('body { vertical-align: 1.2 }', '1.2').then(function(completion: Modes.ISuggestResult): void {
 				assert.equal(completion.currentWord, '1.2');
 				assertSuggestion(completion, '1.2em');
 			}),
-			testSuggestionsFor('body { vertical-align: 10 }', '1').then(function(completion: Modes.ISuggestions): void {
+			testSuggestionsFor('body { vertical-align: 10 }', '1').then(function(completion: Modes.ISuggestResult): void {
 				assert.equal(completion.currentWord, '1');
 				assertSuggestion(completion, '1cm');
 			}),
-			testSuggestionsFor('body { vertical-align: 10c }', '10c').then(function(completion: Modes.ISuggestions): void {
+			testSuggestionsFor('body { vertical-align: 10c }', '10c').then(function(completion: Modes.ISuggestResult): void {
 				assert.equal(completion.currentWord, '10c');
 				assertSuggestion(completion, '10cm');
 			}),
-			testSuggestionsFor('body { notexisting: ;}', 'notexisting: ').then(function(completion: Modes.ISuggestions): void {
+			testSuggestionsFor('body { notexisting: ;}', 'notexisting: ').then(function(completion: Modes.ISuggestResult): void {
 				assert.equal(completion.currentWord, '');
 				assert.equal(completion.suggestions.length, 0); // no matches
 			}),
-			testSuggestionsFor('@import url("something.css");', '@').then(function(completion: Modes.ISuggestions): void {
+			testSuggestionsFor('@import url("something.css");', '@').then(function(completion: Modes.ISuggestResult): void {
 				assert.equal(completion.currentWord, '@');
 				assert.equal(completion.suggestions.length, 0); // to be improved
 			}),
-			testSuggestionsFor('body { border-right: ', 'right: ').then(function(completion: Modes.ISuggestions): void {
+			testSuggestionsFor('body { border-right: ', 'right: ').then(function(completion: Modes.ISuggestResult): void {
 				assert.equal(completion.currentWord, '');
 				assertSuggestion(completion, 'cyan');
 				assertSuggestion(completion, 'dotted');
 				assertSuggestion(completion, '0em');
 			}),
-			testSuggestionsFor('body { border-right: cyan dotted 2em ', 'cyan').then(function(completion: Modes.ISuggestions): void {
+			testSuggestionsFor('body { border-right: cyan dotted 2em ', 'cyan').then(function(completion: Modes.ISuggestResult): void {
 				assert.equal(completion.currentWord, 'cyan');
 				assertSuggestion(completion, 'cyan');
 				assertSuggestion(completion, 'darkcyan');
 			}),
-			testSuggestionsFor('body { border-right: dotted 2em ', '2em ').then(function(completion: Modes.ISuggestions): void {
+			testSuggestionsFor('body { border-right: dotted 2em ', '2em ').then(function(completion: Modes.ISuggestResult): void {
 				assert.equal(completion.currentWord, '');
 				assertSuggestion(completion, 'cyan');
 			}),
-			testSuggestionsFor('body { trans ', 'trans').then(function(completion: Modes.ISuggestions): void {
+			testSuggestionsFor('body { trans ', 'trans').then(function(completion: Modes.ISuggestResult): void {
 				assert.equal(completion.currentWord, 'trans');
 				assertSuggestion(completion, 'transition');
 			}),
-			testSuggestionsFor('.foo { background-color: #123456; } .bar { background-color: }', '.bar { background-color:').then(function(completion: Modes.ISuggestions): void {
+			testSuggestionsFor('.foo { background-color: #123456; } .bar { background-color: }', '.bar { background-color:').then(function(completion: Modes.ISuggestResult): void {
 				assert.equal(completion.currentWord, '');
 				assertSuggestion(completion, '#123456', '##123456');
 			}),
-			testSuggestionsFor('.foo { unknown: foo; } .bar { unknown: }', '.bar { unknown:').then(function(completion: Modes.ISuggestions): void {
+			testSuggestionsFor('.foo { unknown: foo; } .bar { unknown: }', '.bar { unknown:').then(function(completion: Modes.ISuggestResult): void {
 				assert.equal(completion.currentWord, '');
 				assertSuggestion(completion, 'foo', 'value');
 			}),
-			testSuggestionsFor('.foo { background-color: r', 'background-color: r').then(function(completion: Modes.ISuggestions): void {
+			testSuggestionsFor('.foo { background-color: r', 'background-color: r').then(function(completion: Modes.ISuggestResult): void {
 				assert.equal(completion.currentWord, 'r');
 				assertSuggestion(completion, 'rgb', 'function');
 				assertSuggestion(completion, 'rgba', 'function');

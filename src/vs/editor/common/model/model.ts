@@ -9,7 +9,7 @@ import {IMode} from 'vs/editor/common/modes';
 import {TextModel} from 'vs/editor/common/model/textModel';
 import {EditableTextModel} from 'vs/editor/common/model/editableTextModel';
 import EditorCommon = require('vs/editor/common/editorCommon');
-import {URL} from 'vs/base/common/network';
+import URI from 'vs/base/common/uri';
 import Objects = require('vs/base/common/objects');
 import {IDisposable} from 'vs/base/common/lifecycle';
 
@@ -39,7 +39,7 @@ export class Model extends EditableTextModel implements EditorCommon.IModel {
 
 	public id:string;
 
-	private _associatedResource:URL;
+	private _associatedResource:URI;
 	private _extraProperties:IPropertiesMap;
 	private _attachedEditorCount:number;
 
@@ -56,7 +56,7 @@ export class Model extends EditableTextModel implements EditorCommon.IModel {
 	 *   The resource associated with this model. If the value is not provided an
 	 *   unique in memory URL is constructed as the associated resource.
 	 */
-	constructor(rawText:string, modeOrPromise:IMode|TPromise<IMode>, associatedResource:URL=null) {
+	constructor(rawText:string, modeOrPromise:IMode|TPromise<IMode>, associatedResource:URI=null) {
 		super([
 			EditorCommon.EventType.ModelPropertiesChanged,
 			EditorCommon.EventType.ModelDispose
@@ -67,10 +67,11 @@ export class Model extends EditableTextModel implements EditorCommon.IModel {
 		this.id = '$model' + MODEL_ID;
 
 		if (typeof associatedResource === 'undefined' || associatedResource === null) {
-			associatedResource = new URL('inmemory://model/' + MODEL_ID);
+			this._associatedResource = URI.parse('inmemory://model/' + MODEL_ID);
+		} else {
+			this._associatedResource = associatedResource;
 		}
 
-		this._associatedResource = associatedResource;
 
 		if (aliveModels[String(this._associatedResource)]) {
 			throw new Error('Cannot instantiate a second Model with the same URI!');
@@ -81,10 +82,6 @@ export class Model extends EditableTextModel implements EditorCommon.IModel {
 
 		aliveModels[String(this._associatedResource)] = true;
 		// console.log('ALIVE MODELS: ' + Object.keys(aliveModels).join('\n'));
-	}
-
-	public getURL(): URL {
-		return this._associatedResource;
 	}
 
 	public getModeId(): string {
@@ -129,7 +126,7 @@ export class Model extends EditableTextModel implements EditorCommon.IModel {
 		return this._attachedEditorCount > 0;
 	}
 
-	public getAssociatedResource(): URL {
+	public getAssociatedResource(): URI {
 		if (this._isDisposed) {
 			throw new Error('Model.getAssociatedResource: Model is disposed');
 		}

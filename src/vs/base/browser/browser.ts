@@ -55,7 +55,6 @@ var globals = <IGlobalScope><any> (typeof self === 'object' ? self : global);
 
 var userAgent = globals.navigator ? globals.navigator.userAgent : '';
 var isTest = !!globals.isTest;
-var isPseudo = globals.document && globals.document.URL.match(/[^\?]*\?[^\#]*pseudo=true/);
 
 // DOCUMENTED FOR FUTURE REFERENCE:
 // When running IE11 in IE10 document mode, the code below will identify the browser as being IE10,

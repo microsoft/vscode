@@ -14,7 +14,7 @@ import 'vs/css!vs/workbench/browser/media/vs-theme';
 import 'vs/css!vs/workbench/browser/media/vs-dark-theme';
 import 'vs/css!vs/workbench/browser/media/hc-black-theme';
 
-import {Promise,TPromise} from 'vs/base/common/winjs.base';
+import {Promise, TPromise} from 'vs/base/common/winjs.base';
 import {Dimension, Builder, $} from 'vs/base/browser/builder';
 import objects = require('vs/base/common/objects');
 import env = require('vs/base/common/flags');
@@ -32,15 +32,16 @@ import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {ElectronTelemetryService} from  'vs/platform/telemetry/electron-browser/electronTelemetryService';
 import {ElectronIntegration} from 'vs/workbench/electron-browser/integration';
 import {Update} from 'vs/workbench/electron-browser/update';
+import {WorkspaceStats} from 'vs/platform/telemetry/common/workspaceStats';
 import {IWindowService, WindowService} from 'vs/workbench/services/window/electron-browser/windowService';
 import {MessageService} from 'vs/workbench/services/message/electron-browser/messageService';
 import {RequestService} from 'vs/workbench/services/request/node/requestService';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {MigrationConfigurationService} from 'vs/workbench/services/configuration/common/configurationService';
+import {ConfigurationService} from 'vs/workbench/services/configuration/node/configurationService';
 import {FileService} from 'vs/workbench/services/files/electron-browser/fileService';
 import {SearchService} from 'vs/workbench/services/search/node/searchService';
 import {LifecycleService} from 'vs/workbench/services/lifecycle/electron-browser/lifecycleService';
-import PluginWorkbenchKeybindingService from 'vs/workbench/services/keybinding/browser/pluginKeybindingService';
+import PluginWorkbenchKeybindingService from 'vs/workbench/services/keybinding/electron-browser/pluginKeybindingService';
 import {MainThreadService} from 'vs/workbench/services/thread/electron-browser/threadService';
 import {MarkerService} from 'vs/platform/markers/common/markerService';
 import {IActionsService} from 'vs/platform/actions/common/actions';
@@ -67,7 +68,7 @@ import {MainThreadLanguages} from 'vs/workbench/api/common/extHostLanguages';
 import {MainThreadEditors} from 'vs/workbench/api/common/pluginHostEditors';
 import {MainThreadWorkspace} from 'vs/workbench/api/browser/pluginHostWorkspace';
 import {MainThreadConfiguration} from 'vs/workbench/api/common/pluginHostConfiguration';
-import {LanguageFeatures} from 'vs/workbench/api/common/languageFeatures';
+import {MainThreadLanguageFeatures} from 'vs/workbench/api/common/extHostLanguageFeatures';
 import {EventService} from 'vs/platform/event/common/eventService';
 import {IOptions} from 'vs/workbench/common/options';
 import themes = require('vs/platform/theme/common/themes');
@@ -97,6 +98,7 @@ import { IServiceCtor, isServiceEvent } from 'vs/base/common/service';
 import { connect, Client } from 'vs/base/node/service.net';
 import { IExtensionsService } from 'vs/workbench/parts/extensions/common/extensions';
 import { ExtensionsService } from 'vs/workbench/parts/extensions/node/extensionsService';
+import webFrame = require('web-frame');
 
 /**
  * This ugly beast is needed because at the point when we need shared services
@@ -146,7 +148,7 @@ export function getDelayedService<TService>(clientPromise: TPromise<Client>, ser
 					return servicePromise().then(service => service[key](...args));
 				}
 			});
-		}, <TService> {});
+		}, <TService>{});
 }
 
 /**
@@ -154,12 +156,15 @@ export function getDelayedService<TService>(clientPromise: TPromise<Client>, ser
  * With the Shell being the top level element in the page, it is also responsible for driving the layouting.
  */
 export class WorkbenchShell {
-	private storageServiceInstance: IStorageService;
-	private messageServiceInstance: IMessageService;
-	private contextViewServiceInstance: ContextViewService;
-	private windowServiceInstance: IWindowService;
-	private threadServiceInstance: MainThreadService;
+	private storageService: IStorageService;
+	private messageService: IMessageService;
+	private contextViewService: ContextViewService;
+	private windowService: IWindowService;
+	private threadService: MainThreadService;
 	private themeService: IThemeService;
+	private contextService: WorkspaceContextService;
+	private telemetryService: ElectronTelemetryService;
+	private keybindingService: PluginWorkbenchKeybindingService;
 
 	private container: HTMLElement;
 	private toUnbind: { (): void; }[];
@@ -208,6 +213,9 @@ export class WorkbenchShell {
 		this.workbench.startup({
 			onServicesCreated: () => {
 				this.initPluginSystem();
+			},
+			onWorkbenchStarted: () => {
+				this.onWorkbenchStarted();
 			}
 		});
 
@@ -229,89 +237,112 @@ export class WorkbenchShell {
 		return workbenchContainer;
 	}
 
-	private initInstantiationService(): IInstantiationService {
-		let eventServiceInstance = new EventService();
+	private onWorkbenchStarted(): void {
 
-		let contextServiceInstance = new WorkspaceContextService(eventServiceInstance, this.workspace, this.configuration, this.options);
-		contextServiceInstance.getConfiguration().additionalWorkerServices = [
+		// Log to telemetry service
+		let windowSize = {
+			innerHeight: window.innerHeight,
+			innerWidth: window.innerWidth,
+			outerHeight: window.outerHeight,
+			outerWidth: window.outerWidth
+		};
+
+		this.telemetryService.publicLog('workspaceLoad',
+			{
+				userAgent: navigator.userAgent,
+				windowSize: windowSize,
+				autoSaveEnabled: this.contextService.isAutoSaveEnabled && this.contextService.isAutoSaveEnabled(),
+				emptyWorkbench: !this.contextService.getWorkspace(),
+				customKeybindingsCount: this.keybindingService.customKeybindingsCount(),
+				theme: this.currentTheme
+			});
+
+		let workspaceStats: WorkspaceStats = <WorkspaceStats>this.workbench.getInstantiationService().createInstance(WorkspaceStats);
+		workspaceStats.reportWorkspaceTags();
+	}
+
+	private initInstantiationService(): IInstantiationService {
+		let eventService = new EventService();
+
+		this.contextService = new WorkspaceContextService(eventService, this.workspace, this.configuration, this.options);
+		this.contextService.getConfiguration().additionalWorkerServices = [
 			{ serviceId: 'requestService', moduleName: 'vs/workbench/services/request/common/requestService', ctorName: 'WorkerRequestService' }
 		];
 
-		this.windowServiceInstance = new WindowService();
-		this.storageServiceInstance = new Storage(contextServiceInstance);
+		this.windowService = new WindowService();
+		this.storageService = new Storage(this.contextService);
 
 		// no telemetry in a window for plugin development!
 		let enableTelemetry = this.configuration.env.isBuilt && !this.configuration.env.pluginDevelopmentPath ? !!this.configuration.env.enableTelemetry : false;
-		let telemetryServiceInstance = new ElectronTelemetryService(this.storageServiceInstance, { enableTelemetry: enableTelemetry, version: this.configuration.env.version, commitHash: this.configuration.env.commitHash });
+		this.telemetryService = new ElectronTelemetryService(this.storageService, { enableTelemetry: enableTelemetry, version: this.configuration.env.version, commitHash: this.configuration.env.commitHash });
 
-		let keybindingServiceInstance = new PluginWorkbenchKeybindingService(contextServiceInstance, eventServiceInstance, telemetryServiceInstance, <any>window);
+		this.keybindingService = new PluginWorkbenchKeybindingService(this.contextService, eventService, this.telemetryService, <any>window);
 
-		this.messageServiceInstance = new MessageService(contextServiceInstance, this.windowServiceInstance, telemetryServiceInstance, keybindingServiceInstance);
-		keybindingServiceInstance.setMessageService(this.messageServiceInstance);
+		this.messageService = new MessageService(this.contextService, this.windowService, this.telemetryService, this.keybindingService);
+		this.keybindingService.setMessageService(this.messageService);
 
-		let configServiceInstance = new MigrationConfigurationService(
-			contextServiceInstance,
-			eventServiceInstance,
-			this.messageServiceInstance
+		let configService = new ConfigurationService(
+			this.contextService,
+			eventService
 		);
 
-		let fileServiceInstance = new FileService(
-			configServiceInstance,
-			eventServiceInstance,
-			contextServiceInstance
+		let fileService = new FileService(
+			configService,
+			eventService,
+			this.contextService
 		);
 
-		this.contextViewServiceInstance = new ContextViewService(this.container, telemetryServiceInstance, this.messageServiceInstance);
+		this.contextViewService = new ContextViewService(this.container, this.telemetryService, this.messageService);
 
-		let lifecycleServiceInstance = new LifecycleService(this.messageServiceInstance, this.windowServiceInstance);
-		lifecycleServiceInstance.onShutdown.add(() => fileServiceInstance.dispose());
+		let lifecycleService = new LifecycleService(this.messageService, this.windowService);
+		lifecycleService.onShutdown.add(() => fileService.dispose());
 
-		this.threadServiceInstance = new MainThreadService(contextServiceInstance, this.messageServiceInstance, this.windowServiceInstance);
-		lifecycleServiceInstance.onShutdown.add(() => this.threadServiceInstance.dispose());
+		this.threadService = new MainThreadService(this.contextService, this.messageService, this.windowService);
+		lifecycleService.onShutdown.add(() => this.threadService.dispose());
 
-		let requestServiceInstance = new RequestService(
-			contextServiceInstance,
-			configServiceInstance,
-			telemetryServiceInstance
+		let requestService = new RequestService(
+			this.contextService,
+			configService,
+			this.telemetryService
 		);
-		this.threadServiceInstance.registerInstance(requestServiceInstance);
-		lifecycleServiceInstance.onShutdown.add(() => requestServiceInstance.dispose());
+		this.threadService.registerInstance(requestService);
+		lifecycleService.onShutdown.add(() => requestService.dispose());
 
-		let markerServiceInstance = new MarkerService(this.threadServiceInstance);
+		let markerService = new MarkerService(this.threadService);
 
-		let pluginService = new MainProcessPluginService(contextServiceInstance, this.threadServiceInstance, this.messageServiceInstance, telemetryServiceInstance);
-		keybindingServiceInstance.setPluginService(pluginService);
+		let pluginService = new MainProcessPluginService(this.contextService, this.threadService, this.messageService, this.telemetryService);
+		this.keybindingService.setPluginService(pluginService);
 
-		let modelServiceInstance = new ModelServiceImpl(this.threadServiceInstance, markerServiceInstance);
-		let modeService = new MainThreadModeServiceImpl(this.threadServiceInstance, pluginService, modelServiceInstance);
+		let modelService = new ModelServiceImpl(this.threadService, markerService);
+		let modeService = new MainThreadModeServiceImpl(this.threadService, pluginService, modelService);
 
 		let untitledEditorService = new UntitledEditorService();
 		this.themeService = new ThemeService(pluginService);
 
 		let result = createInstantiationService();
-		result.addSingleton(ITelemetryService, telemetryServiceInstance);
-		result.addSingleton(IEventService, eventServiceInstance);
-		result.addSingleton(IRequestService, requestServiceInstance);
-		result.addSingleton(IWorkspaceContextService, contextServiceInstance);
-		result.addSingleton(IContextViewService, this.contextViewServiceInstance);
-		result.addSingleton(IContextMenuService, new ContextMenuService(this.messageServiceInstance, telemetryServiceInstance));
-		result.addSingleton(IMessageService, this.messageServiceInstance);
-		result.addSingleton(IStorageService, this.storageServiceInstance);
-		result.addSingleton(ILifecycleService, lifecycleServiceInstance);
-		result.addSingleton(IThreadService, this.threadServiceInstance);
+		result.addSingleton(ITelemetryService, this.telemetryService);
+		result.addSingleton(IEventService, eventService);
+		result.addSingleton(IRequestService, requestService);
+		result.addSingleton(IWorkspaceContextService, this.contextService);
+		result.addSingleton(IContextViewService, this.contextViewService);
+		result.addSingleton(IContextMenuService, new ContextMenuService(this.messageService, this.telemetryService));
+		result.addSingleton(IMessageService, this.messageService);
+		result.addSingleton(IStorageService, this.storageService);
+		result.addSingleton(ILifecycleService, lifecycleService);
+		result.addSingleton(IThreadService, this.threadService);
 		result.addSingleton(IPluginService, pluginService);
 		result.addSingleton(IModeService, modeService);
-		result.addSingleton(IFileService, fileServiceInstance);
+		result.addSingleton(IFileService, fileService);
 		result.addSingleton(IUntitledEditorService, untitledEditorService);
-		result.addSingleton(ISearchService, new SearchService(modelServiceInstance, untitledEditorService, contextServiceInstance, configServiceInstance));
-		result.addSingleton(IWindowService, this.windowServiceInstance);
-		result.addSingleton(IConfigurationService, configServiceInstance);
-		result.addSingleton(IKeybindingService, keybindingServiceInstance);
-		result.addSingleton(IMarkerService, markerServiceInstance);
-		result.addSingleton(IModelService, modelServiceInstance);
+		result.addSingleton(ISearchService, new SearchService(modelService, untitledEditorService, this.contextService, configService));
+		result.addSingleton(IWindowService, this.windowService);
+		result.addSingleton(IConfigurationService, configService);
+		result.addSingleton(IKeybindingService, this.keybindingService);
+		result.addSingleton(IMarkerService, markerService);
+		result.addSingleton(IModelService, modelService);
 		result.addSingleton(ICodeEditorService, new CodeEditorServiceImpl());
 		result.addSingleton(IThemeService, this.themeService);
-		result.addSingleton(IActionsService, new ActionsService(pluginService, keybindingServiceInstance));
+		result.addSingleton(IActionsService, new ActionsService(pluginService, this.keybindingService));
 
 
 		return result;
@@ -319,25 +350,25 @@ export class WorkbenchShell {
 
 	// TODO@Alex, TODO@Joh move this out of here?
 	private initPluginSystem(): void {
-		this.threadServiceInstance.getRemotable(MainProcessVSCodeAPIHelper);
-		this.threadServiceInstance.getRemotable(MainThreadDocuments);
-		this.threadServiceInstance.getRemotable(RemoteTelemetryServiceHelper);
+		this.threadService.getRemotable(MainProcessVSCodeAPIHelper);
+		this.threadService.getRemotable(MainThreadDocuments);
+		this.threadService.getRemotable(RemoteTelemetryServiceHelper);
 		this.workbench.getInstantiationService().createInstance(MainProcessTextMateSyntax);
 		this.workbench.getInstantiationService().createInstance(MainProcessTextMateSnippet);
 		this.workbench.getInstantiationService().createInstance(LanguageConfigurationFileHandler);
-		this.threadServiceInstance.getRemotable(MainThreadConfiguration);
-		this.threadServiceInstance.getRemotable(MainThreadQuickOpen);
-		this.threadServiceInstance.getRemotable(MainThreadStatusBar);
+		this.threadService.getRemotable(MainThreadConfiguration);
+		this.threadService.getRemotable(MainThreadQuickOpen);
+		this.threadService.getRemotable(MainThreadStatusBar);
 		this.workbench.getInstantiationService().createInstance(MainThreadFileSystemEventService);
-		this.threadServiceInstance.getRemotable(MainThreadCommands);
-		this.threadServiceInstance.getRemotable(MainThreadOutputService);
-		this.threadServiceInstance.getRemotable(MainThreadDiagnostics);
-		this.threadServiceInstance.getRemotable(MainThreadMessageService);
-		this.threadServiceInstance.getRemotable(MainThreadLanguages);
-		this.threadServiceInstance.getRemotable(MainThreadWorkspace);
-		this.threadServiceInstance.getRemotable(MainThreadEditors);
-		this.threadServiceInstance.getRemotable(MainThreadStorage);
-		LanguageFeatures.createMainThreadInstances(this.threadServiceInstance);
+		this.threadService.getRemotable(MainThreadCommands);
+		this.threadService.getRemotable(MainThreadOutputService);
+		this.threadService.getRemotable(MainThreadDiagnostics);
+		this.threadService.getRemotable(MainThreadMessageService);
+		this.threadService.getRemotable(MainThreadLanguages);
+		this.threadService.getRemotable(MainThreadWorkspace);
+		this.threadService.getRemotable(MainThreadEditors);
+		this.threadService.getRemotable(MainThreadStorage);
+		this.threadService.getRemotable(MainThreadLanguageFeatures);
 	}
 
 	public open(): void {
@@ -366,15 +397,15 @@ export class WorkbenchShell {
 		this.registerListeners();
 
 		// Enable theme support
-		let themeId = this.storageServiceInstance.get(Preferences.THEME, StorageScope.GLOBAL, null);
+		let themeId = this.storageService.get(Preferences.THEME, StorageScope.GLOBAL, null);
 		if (!themeId) {
 			themeId = themes.toId(themes.BaseTheme.VS_DARK);
-			this.storageServiceInstance.store(Preferences.THEME, themeId, StorageScope.GLOBAL);
+			this.storageService.store(Preferences.THEME, themeId, StorageScope.GLOBAL);
 		}
 
 		this.setTheme(themeId, false);
 
-		this.toUnbind.push(this.storageServiceInstance.addListener(StorageEventType.STORAGE, (e: StorageEvent) => {
+		this.toUnbind.push(this.storageService.addListener(StorageEventType.STORAGE, (e: StorageEvent) => {
 			if (e.key === Preferences.THEME) {
 				this.setTheme(e.newValue);
 			}
@@ -488,8 +519,8 @@ export class WorkbenchShell {
 		console.error(errorMsg);
 
 		// Show to user if friendly message provided
-		if (error.friendlyMessage && this.messageServiceInstance) {
-			this.messageServiceInstance.show(Severity.Error, error.friendlyMessage);
+		if (error.friendlyMessage && this.messageService) {
+			this.messageService.show(Severity.Error, error.friendlyMessage);
 		}
 	}
 
@@ -499,7 +530,7 @@ export class WorkbenchShell {
 		let contentsSize = new Dimension(clArea.width, clArea.height);
 		this.contentsContainer.size(contentsSize.width, contentsSize.height);
 
-		this.contextViewServiceInstance.layout();
+		this.contextViewService.layout();
 		this.workbench.layout();
 	}
 
@@ -519,8 +550,8 @@ export class WorkbenchShell {
 			}
 		}
 
-		this.contextViewServiceInstance.dispose();
-		this.storageServiceInstance.dispose();
+		this.contextViewService.dispose();
+		this.storageService.dispose();
 
 		// Listeners
 		while (this.toUnbind.length) {

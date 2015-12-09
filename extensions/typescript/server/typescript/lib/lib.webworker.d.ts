@@ -1,21 +1,21 @@
 /*! *****************************************************************************
-Copyright (c) Microsoft Corporation. All rights reserved. 
+Copyright (c) Microsoft Corporation. All rights reserved.
 Licensed under the Apache License, Version 2.0 (the "License"); you may not use
 this file except in compliance with the License. You may obtain a copy of the
-License at http://www.apache.org/licenses/LICENSE-2.0  
- 
+License at http://www.apache.org/licenses/LICENSE-2.0
+
 THIS CODE IS PROVIDED ON AN *AS IS* BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
 KIND, EITHER EXPRESS OR IMPLIED, INCLUDING WITHOUT LIMITATION ANY IMPLIED
-WARRANTIES OR CONDITIONS OF TITLE, FITNESS FOR A PARTICULAR PURPOSE, 
-MERCHANTABLITY OR NON-INFRINGEMENT. 
- 
+WARRANTIES OR CONDITIONS OF TITLE, FITNESS FOR A PARTICULAR PURPOSE,
+MERCHANTABLITY OR NON-INFRINGEMENT.
+
 See the Apache Version 2.0 License for specific language governing permissions
 and limitations under the License.
 ***************************************************************************** */
 
 /// <reference path="lib.core.d.ts" />
 /////////////////////////////
-/// ECMAScript Internationalization API 
+/// ECMAScript Internationalization API
 /////////////////////////////
 
 declare module Intl {
@@ -57,7 +57,7 @@ declare module Intl {
         currency?: string;
         currencyDisplay?: string;
         useGrouping?: boolean;
-        minimumintegerDigits?: number;
+        minimumIntegerDigits?: number;
         minimumFractionDigits?: number;
         maximumFractionDigits?: number;
         minimumSignificantDigits?: number;
@@ -70,7 +70,7 @@ declare module Intl {
         style: string;
         currency?: string;
         currencyDisplay?: string;
-        minimumintegerDigits: number;
+        minimumIntegerDigits: number;
         minimumFractionDigits: number;
         maximumFractionDigits: number;
         minimumSignificantDigits?: number;
@@ -158,14 +158,14 @@ interface String {
 
 interface Number {
     /**
-      * Converts a number to a string by using the current or specified locale. 
+      * Converts a number to a string by using the current or specified locale.
       * @param locales An array of locale strings that contain one or more language or locale tags. If you include more than one locale string, list them in descending order of priority so that the first entry is the preferred locale. If you omit this parameter, the default locale of the JavaScript runtime is used.
       * @param options An object that contains one or more properties that specify comparison options.
       */
     toLocaleString(locales?: string[], options?: Intl.NumberFormatOptions): string;
 
     /**
-      * Converts a number to a string by using the current or specified locale. 
+      * Converts a number to a string by using the current or specified locale.
       * @param locale Locale tag. If you omit this parameter, the default locale of the JavaScript runtime is used.
       * @param options An object that contains one or more properties that specify comparison options.
       */
@@ -174,41 +174,41 @@ interface Number {
 
 interface Date {
     /**
-      * Converts a date and time to a string by using the current or specified locale.  
+      * Converts a date and time to a string by using the current or specified locale.
       * @param locales An array of locale strings that contain one or more language or locale tags. If you include more than one locale string, list them in descending order of priority so that the first entry is the preferred locale. If you omit this parameter, the default locale of the JavaScript runtime is used.
       * @param options An object that contains one or more properties that specify comparison options.
       */
     toLocaleString(locales?: string[], options?: Intl.DateTimeFormatOptions): string;
     /**
-      * Converts a date to a string by using the current or specified locale.  
+      * Converts a date to a string by using the current or specified locale.
       * @param locales An array of locale strings that contain one or more language or locale tags. If you include more than one locale string, list them in descending order of priority so that the first entry is the preferred locale. If you omit this parameter, the default locale of the JavaScript runtime is used.
       * @param options An object that contains one or more properties that specify comparison options.
       */
     toLocaleDateString(locales?: string[], options?: Intl.DateTimeFormatOptions): string;
 
     /**
-      * Converts a time to a string by using the current or specified locale.  
+      * Converts a time to a string by using the current or specified locale.
       * @param locale Locale tag. If you omit this parameter, the default locale of the JavaScript runtime is used.
       * @param options An object that contains one or more properties that specify comparison options.
       */
     toLocaleTimeString(locale?: string[], options?: Intl.DateTimeFormatOptions): string;
-    
+
     /**
-      * Converts a date and time to a string by using the current or specified locale.  
+      * Converts a date and time to a string by using the current or specified locale.
       * @param locale Locale tag. If you omit this parameter, the default locale of the JavaScript runtime is used.
       * @param options An object that contains one or more properties that specify comparison options.
       */
     toLocaleString(locale?: string, options?: Intl.DateTimeFormatOptions): string;
-    
+
     /**
-      * Converts a date to a string by using the current or specified locale.  
+      * Converts a date to a string by using the current or specified locale.
       * @param locale Locale tag. If you omit this parameter, the default locale of the JavaScript runtime is used.
       * @param options An object that contains one or more properties that specify comparison options.
       */
     toLocaleDateString(locale?: string, options?: Intl.DateTimeFormatOptions): string;
 
     /**
-      * Converts a time to a string by using the current or specified locale.  
+      * Converts a time to a string by using the current or specified locale.
       * @param locale Locale tag. If you omit this parameter, the default locale of the JavaScript runtime is used.
       * @param options An object that contains one or more properties that specify comparison options.
       */
@@ -234,7 +234,7 @@ interface AudioBuffer {
     length: number;
     numberOfChannels: number;
     sampleRate: number;
-    getChannelData(channel: number): any;
+    getChannelData(channel: number): Float32Array;
 }
 
 declare var AudioBuffer: {
@@ -688,7 +688,7 @@ interface ImageDataConstructor {
     new(array: Uint8ClampedArray, width: number, height: number): ImageData;
 }
 
-declare var ImageData: ImageDataConstructor; 
+declare var ImageData: ImageDataConstructor;
 
 interface MSApp {
     clearTemporaryWebDataAsync(): MSAppAsyncOperation;
@@ -1111,7 +1111,6 @@ interface WorkerUtils extends Object, WindowBase64 {
     setTimeout(handler: any, timeout?: any, ...args: any[]): number;
 }
 
-
 interface BlobPropertyBag {
     type?: string;
     endings?: string;
@@ -1125,8 +1124,6 @@ interface FilePropertyBag {
 interface EventListenerObject {
     handleEvent(evt: Event): void;
 }
-
-declare type EventListenerOrEventListenerObject = EventListener | EventListenerObject;
 
 interface MessageEventInit extends EventInit {
     data?: any;
@@ -1142,6 +1139,8 @@ interface ProgressEventInit extends EventInit {
     loaded?: number;
     total?: number;
 }
+
+declare type EventListenerOrEventListenerObject = EventListener | EventListenerObject;
 
 interface ErrorEventHandler {
     (message: string, filename?: string, lineno?: number, colno?: number, error?:Error): void;

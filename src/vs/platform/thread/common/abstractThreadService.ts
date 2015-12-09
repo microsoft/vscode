@@ -45,7 +45,8 @@ export abstract class AbstractThreadService implements remote.IManyHandler {
 
 	public isInMainThread:boolean;
 
-	private _instantiationService:instantiation.IInstantiationService;
+	protected _instantiationService: instantiation.IInstantiationService;
+	
 	_boundObjects:{[id:string]:IThreadSynchronizableObject<any>;};
 	_pendingObjects:winjs.Promise[];
 	private _localObjMap: { [id:string]: any; };

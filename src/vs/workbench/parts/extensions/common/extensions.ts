@@ -20,6 +20,7 @@ export interface IExtensionManifest {
 export interface IGalleryInformation {
 	galleryApiUrl: string;
 	id: string;
+	downloadUrl: string;
 	publisherId: string;
 	publisherDisplayName: string;
 	date: string;

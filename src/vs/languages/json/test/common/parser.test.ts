@@ -227,7 +227,8 @@ suite('JSON - Parsing', () => {
 	test('Validate types', function() {
 
 		var parser = new Parser.JSONParser();
-		var result = parser.parse('{"number": 3.4, "integer": 42, "string": "some string", "boolean":true, "null":null, "object":{}, "array":[1, 2]}');
+		var str = '{"number": 3.4, "integer": 42, "string": "some string", "boolean":true, "null":null, "object":{}, "array":[1, 2]}';
+		var result = parser.parse(str);
 
 		assert.strictEqual(result.errors.length, 0);
 
@@ -237,13 +238,14 @@ suite('JSON - Parsing', () => {
 
 		assert.strictEqual(result.warnings.length, 0);
 
+		result = parser.parse(str);
 		result.validate({
 			type: 'array'
 		});
 
 		assert.strictEqual(result.warnings.length, 1);
 
-		result.warnings = [];
+		result = parser.parse(str);
 
 		result.validate({
 			type: 'object',
@@ -274,6 +276,7 @@ suite('JSON - Parsing', () => {
 
 		assert.strictEqual(result.warnings.length, 0);
 
+		result = parser.parse(str);
 		result.validate({
 			type: 'object',
 			properties: {
@@ -302,8 +305,8 @@ suite('JSON - Parsing', () => {
 		});
 
 		assert.strictEqual(result.warnings.length, 7);
-		result.warnings = [];
 
+		result = parser.parse(str);
 		result.validate({
 			type: 'object',
 			properties: {
@@ -314,8 +317,8 @@ suite('JSON - Parsing', () => {
 		});
 
 		assert.strictEqual(result.warnings.length, 1);
-		result.warnings = [];
 
+		result = parser.parse(str);
 		result.validate({
 			type: 'object',
 			properties: {
@@ -327,6 +330,7 @@ suite('JSON - Parsing', () => {
 
 		assert.strictEqual(result.warnings.length, 0);
 
+		result = parser.parse(str);
 		result.validate({
 			type: 'object',
 			properties: {
@@ -341,6 +345,7 @@ suite('JSON - Parsing', () => {
 
 		assert.strictEqual(result.warnings.length, 0);
 
+		result = parser.parse(str);
 		result.validate({
 			type: 'object',
 			properties: {
@@ -370,6 +375,7 @@ suite('JSON - Parsing', () => {
 
 		assert.strictEqual(result.warnings.length, 0);
 
+		result = parser.parse('{"integer": 42, "string": "some string", "boolean":true}');
 		result.validate({
 			type: 'object',
 			required: ['notpresent']
@@ -396,6 +402,7 @@ suite('JSON - Parsing', () => {
 
 		assert.strictEqual(result.warnings.length, 0);
 
+		result = parser.parse('[1, 2, 3]');
 		result.validate({
 			type: 'array',
 			items: {
@@ -405,8 +412,8 @@ suite('JSON - Parsing', () => {
 		});
 
 		assert.strictEqual(result.warnings.length, 1);
-		result.warnings = [];
 
+		result = parser.parse('[1, 2, 3]');
 		result.validate({
 			type: 'array',
 			items: {
@@ -439,6 +446,7 @@ suite('JSON - Parsing', () => {
 
 		assert.strictEqual(result.warnings.length, 0);
 
+		result = parser.parse('{"one":"test"}');
 		result.validate({
 			type: 'object',
 			properties: {
@@ -450,8 +458,8 @@ suite('JSON - Parsing', () => {
 		});
 
 		assert.strictEqual(result.warnings.length, 1);
-		result.warnings = [];
 
+		result = parser.parse('{"one":"test"}');
 		result.validate({
 			type: 'object',
 			properties: {
@@ -463,8 +471,8 @@ suite('JSON - Parsing', () => {
 		});
 
 		assert.strictEqual(result.warnings.length, 1);
-		result.warnings = [];
 
+		result = parser.parse('{"one":"test"}');
 		result.validate({
 			type: 'object',
 			properties: {
@@ -477,6 +485,7 @@ suite('JSON - Parsing', () => {
 
 		assert.strictEqual(result.warnings.length, 0);
 
+		result = parser.parse('{"one":"test"}');
 		result.validate({
 			type: 'object',
 			properties: {
@@ -511,6 +520,8 @@ suite('JSON - Parsing', () => {
 
 		assert.strictEqual(result.warnings.length, 0);
 
+		result = parser.parse('{"one": 13.45e+1}');
+
 		result.validate({
 			type: 'object',
 			properties: {
@@ -522,8 +533,8 @@ suite('JSON - Parsing', () => {
 		});
 
 		assert.strictEqual(result.warnings.length, 1, 'below minimum');
-		result.warnings = [];
 
+		result = parser.parse('{"one": 13.45e+1}');
 		result.validate({
 			type: 'object',
 			properties: {
@@ -535,8 +546,8 @@ suite('JSON - Parsing', () => {
 		});
 
 		assert.strictEqual(result.warnings.length, 1, 'above maximum');
-		result.warnings = [];
 
+		result = parser.parse('{"one": 13.45e+1}');
 		result.validate({
 			type: 'object',
 			properties: {
@@ -549,8 +560,8 @@ suite('JSON - Parsing', () => {
 		});
 
 		assert.strictEqual(result.warnings.length, 1, 'at exclusive mininum');
-		result.warnings = [];
 
+		result = parser.parse('{"one": 13.45e+1}');
 		result.validate({
 			type: 'object',
 			properties: {
@@ -563,8 +574,8 @@ suite('JSON - Parsing', () => {
 		});
 
 		assert.strictEqual(result.warnings.length, 1, 'at exclusive maximum');
-		result.warnings = [];
 
+		result = parser.parse('{"one": 13.45e+1}');
 		result.validate({
 			type: 'object',
 			properties: {

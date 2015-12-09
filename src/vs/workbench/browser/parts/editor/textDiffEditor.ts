@@ -10,6 +10,7 @@ import {Promise, TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import {Builder} from 'vs/base/browser/builder';
 import {Action, IAction} from 'vs/base/common/actions';
+import {onUnexpectedError} from 'vs/base/common/errors';
 import types = require('vs/base/common/types');
 import {IDiffEditor} from 'vs/editor/browser/editorBrowser';
 import {IDiffEditorOptions, IEditorOptions} from 'vs/editor/common/editorCommon';
@@ -136,8 +137,8 @@ export class TextDiffEditor extends BaseTextEditor {
 		return this.editorService.resolveEditorModel(input, true /* Reload */).then((resolvedModel: EditorModel) => {
 
 			// Assert Model Instance
-			if (!(resolvedModel instanceof TextDiffEditorModel)) {
-				return TPromise.wrapError<void>(nls.localize('cannotDiffBinary', "At least one of the resources to compare seems to be binary and this is currently not supported"));
+			if (!(resolvedModel instanceof TextDiffEditorModel) && this.openAsBinary(input, options)) {
+				return null;
 			}
 
 			// Assert that the current input is still the one we expect. This prevents a race condition when loading a diff takes long and another input was set meanwhile
@@ -174,14 +175,29 @@ export class TextDiffEditor extends BaseTextEditor {
 			diffEditor.updateOptions(this.getCodeEditorOptions());
 		}, (error) => {
 
-			// In case we tried to open a file and the response indicates that this is not a text file, bail out to the user.
-			if (this.isFileBinaryError(error)) {
-				return Promise.wrapError(nls.localize('cannotDiffBinary', "At least one of the resources to compare seems to be binary and this is currently not supported"));
+			// In case we tried to open a file and the response indicates that this is not a text file, fallback to binary diff.
+			if (this.isFileBinaryError(error) && this.openAsBinary(input, options)) {
+				return null;
 			}
 
 			// Otherwise make sure the error bubbles up
 			return Promise.wrapError(error);
 		});
+	}
+
+	private openAsBinary(input: EditorInput, options: EditorOptions): boolean {
+		if (input instanceof DiffEditorInput) {
+			let originalInput = input.originalInput;
+			let modifiedInput = input.modifiedInput;
+
+			let binaryDiffInput = new DiffEditorInput(input.getName(), input.getDescription(), originalInput, modifiedInput, true);
+
+			this.editorService.openEditor(binaryDiffInput, options, this.position).done(null, onUnexpectedError);
+
+			return true;
+		}
+
+		return false;
 	}
 
 	protected getCodeEditorOptions(): IEditorOptions {

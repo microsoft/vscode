@@ -8,7 +8,7 @@ import nodes = require('vs/languages/css/common/parser/cssNodes');
 import cssSymbols = require('vs/languages/css/common/parser/cssSymbols');
 import languageFacts = require('vs/languages/css/common/services/languageFacts');
 import service = require('vs/languages/css/common/services/cssLanguageService');
-import network = require('vs/base/common/network');
+import URI from 'vs/base/common/uri';
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
 import nls = require('vs/nls');
@@ -45,7 +45,7 @@ export class CSSIntellisense {
 	}
 
 
-	public getCompletionsAtPosition(languageService:service.ILanguageService, model: EditorCommon.IMirrorModel, resource:network.URL, position:EditorCommon.IPosition):Modes.ISuggestions {
+	public getCompletionsAtPosition(languageService:service.ILanguageService, model: EditorCommon.IMirrorModel, resource:URI, position:EditorCommon.IPosition):Modes.ISuggestResult {
 		this.offset = model.getOffsetFromPosition(position);
 		this.position = position;
 		this.currentWord = model.getWordUntilPosition(position).word;
@@ -105,7 +105,10 @@ export class CSSIntellisense {
 	}
 
 	public getCompletionsForDeclarationProperty(result:Modes.ISuggestion[]):Modes.ISuggestion[] {
+		return this.getPropertyProposals(result);
+	}
 
+	private getPropertyProposals(result:Modes.ISuggestion[]):Modes.ISuggestion[] {
 		var properties = languageFacts.getProperties();
 
 		for (var key in properties) {
@@ -341,7 +344,7 @@ export class CSSIntellisense {
 		if (ruleSet && ruleSet.isNested()) {
 			var selector = ruleSet.getSelectors().findFirstChildBeforeOffset(this.offset);
 			if (selector && ruleSet.getSelectors().getChildren().indexOf(selector) === 0) {
-				this.getCompletionsForDeclarationProperty(result);
+				this.getPropertyProposals(result);
 			}
 		}
 		return result;

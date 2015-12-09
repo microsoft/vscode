@@ -241,7 +241,7 @@ export class CommandsHandler extends QuickOpenHandler {
 
 		for (let i = 0; i < actionDescriptors.length; i++) {
 			let actionDescriptor = actionDescriptors[i];
-			let keys = this.keybindingService.lookupKeybindings(actionDescriptor.id).map(k => k.toLabel());
+			let keys = this.keybindingService.lookupKeybindings(actionDescriptor.id).map(k => this.keybindingService.getLabelFor(k));
 
 			if (actionDescriptor.label) {
 				let label = actionDescriptor.label;
@@ -272,7 +272,7 @@ export class CommandsHandler extends QuickOpenHandler {
 				continue; // do not show actions that are not supported in this context
 			}
 
-			let keys = this.keybindingService.lookupKeybindings(editorAction.id).map(k => k.toLabel());
+			let keys = this.keybindingService.lookupKeybindings(editorAction.id).map(k => this.keybindingService.getLabelFor(k));
 
 			if (action.label) {
 				let highlights = filters.matchesFuzzy(searchValue, action.label);
@@ -289,7 +289,7 @@ export class CommandsHandler extends QuickOpenHandler {
 		let entries: ActionCommandEntry[] = [];
 
 		for (let action of actions) {
-			let keys = this.keybindingService.lookupKeybindings(action.id).map(k => k.toLabel());
+			let keys = this.keybindingService.lookupKeybindings(action.id).map(k => this.keybindingService.getLabelFor(k));
 			let highlights = filters.matchesFuzzy(searchValue, action.label);
 			if (highlights) {
 				entries.push(this.instantiationService.createInstance(ActionCommandEntry, keys.join(', '), action.label, highlights, action));

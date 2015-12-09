@@ -250,6 +250,7 @@ export class LocalFileChangeEvent extends PropertyChangeEvent {
  */
 export class TextFileChangeEvent extends LocalFileChangeEvent {
 	private _model: IModel;
+	private _isAutoSaved: boolean;
 
 	constructor(model: IModel, before: IFileStat, after: IFileStat = before, originalEvent?: Event) {
 		super(before, after, originalEvent);
@@ -259,6 +260,14 @@ export class TextFileChangeEvent extends LocalFileChangeEvent {
 
 	public get model(): IModel {
 		return this._model;
+	}
+
+	public setAutoSaved(autoSaved: boolean): void {
+		this._isAutoSaved = autoSaved;
+	}
+
+	public get isAutoSaved(): boolean {
+		return this._isAutoSaved;
 	}
 }
 
@@ -294,7 +303,7 @@ export interface ITextFileService extends IDisposable {
 	isDirty(resource?: URI): boolean;
 
 	/**
-	 * Returs all resources that are currently dirty matching the provided resource or all dirty resources.
+	 * Returns all resources that are currently dirty matching the provided resource or all dirty resources.
 	 *
 	 * @param resource the resource to check for being dirty. If it is not specified, will check for
 	 * all dirty resources.
@@ -342,7 +351,7 @@ export interface ITextFileService extends IDisposable {
 	revertAll(resources?: URI[], force?: boolean): TPromise<ITextFileOperationResult>;
 
 	/**
-	 * Brings up the confirm dialog to either save, dont save or cancel.
+	 * Brings up the confirm dialog to either save, don't save or cancel.
 	 *
 	 * @param resource the resource of the file to ask for confirmation.
 	 */

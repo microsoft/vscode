@@ -209,7 +209,11 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 					onOk: () => { /* ignore, handle later */ },
 					onCancel: () => { /* ignore, handle later */ },
 					onType: (value: string) => { /* ignore, handle later */ },
-					onShow: () => this.emitQuickOpenVisibilityChange(true)
+					onShow: () => this.emitQuickOpenVisibilityChange(true),
+					onHide: () => {
+						this.restoreFocus(); // focus back to editor or viewlet
+						this.emitQuickOpenVisibilityChange(false); // event
+					}
 				}, {
 					inputPlaceHolder: options.placeHolder || ''
 				},
@@ -363,7 +367,11 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 				} else {
 					this.pickOpenWidget.setInput(model, autoFocus);
 				}
-			}, error);
+			}, (err) => {
+				this.pickOpenWidget.hide();
+
+				error(err);
+			});
 
 			// Progress if task takes a long time
 			Promise.timeout(800).then(() => {
@@ -504,7 +512,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 
 		// Apply label to first entry
 		if (entries.length > 0) {
-			entries[0] = new QuickOpenEntryGroup(entries[0], nls.localize('historyMatches', "recently opened ({0})", entries.length), false);
+			entries[0] = new QuickOpenEntryGroup(entries[0], nls.localize('historyMatches', "recently opened"), false);
 		}
 
 		return new QuickOpenModel(entries, this.actionProvider);
@@ -611,10 +619,11 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 	}
 
 	private handleDefaultHandlers(defaultHandlers: QuickOpenHandlerDescriptor[], value: string, currentResultToken: string): TPromise<void> {
+
 		// Fill in history results if matching
 		let matchingHistoryEntries = this.editorHistoryModel.getResults(value);
 		if (matchingHistoryEntries.length > 0) {
-			matchingHistoryEntries[0] = new QuickOpenEntryGroup(matchingHistoryEntries[0], nls.localize('historyMatches', "recently opened ({0})", matchingHistoryEntries.length), false);
+			matchingHistoryEntries[0] = new QuickOpenEntryGroup(matchingHistoryEntries[0], nls.localize('historyMatches', "recently opened"), false);
 		}
 
 		let quickOpenModel = new QuickOpenModel(matchingHistoryEntries, this.actionProvider);
@@ -678,7 +687,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 		// Show additional handler results below any existing results
 		if (additionalHandlerResults.length > 0) {
 			let useTopBorder = quickOpenModel.getEntries().length > 0;
-			additionalHandlerResults[0] = new QuickOpenEntryGroup(additionalHandlerResults[0], nls.localize('additionalResultsGroupLabel', "{0} ({1})", groupLabel, additionalHandlerResults.length), useTopBorder);
+			additionalHandlerResults[0] = new QuickOpenEntryGroup(additionalHandlerResults[0], groupLabel, useTopBorder);
 			quickOpenModel.addEntries(additionalHandlerResults);
 			this.quickOpenWidget.refresh(quickOpenModel, { autoFocusFirstEntry: true });
 		}

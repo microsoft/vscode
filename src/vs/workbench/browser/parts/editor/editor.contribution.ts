@@ -12,10 +12,9 @@ import {StringEditorInput} from 'vs/workbench/browser/parts/editor/stringEditorI
 import {StringEditor} from 'vs/workbench/browser/parts/editor/stringEditor';
 import {DiffEditorInput} from 'vs/workbench/browser/parts/editor/diffEditorInput';
 import {UntitledEditorInput} from 'vs/workbench/browser/parts/editor/untitledEditorInput';
-import {ReadOnlyEditorInput} from 'vs/workbench/browser/parts/editor/readOnlyEditorInput';
+import {ResourceEditorInput} from 'vs/workbench/browser/parts/editor/resourceEditorInput';
 import {TextDiffEditor} from 'vs/workbench/browser/parts/editor/textDiffEditor';
 import {BinaryResourceDiffEditor} from 'vs/workbench/browser/parts/editor/binaryDiffEditor';
-import {ResourceEditorInput} from 'vs/workbench/browser/parts/editor/resourceEditorInput';
 import {BinaryResourceEditor} from 'vs/workbench/browser/parts/editor/binaryEditor';
 import {IFrameEditor} from 'vs/workbench/browser/parts/editor/iframeEditor';
 import {IFrameEditorInput} from 'vs/workbench/browser/parts/editor/iframeEditorInput';
@@ -32,12 +31,11 @@ import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 		nls.localize('textEditor', "Text Editor"),
 		'vs/workbench/browser/parts/editor/stringEditor',
 		'StringEditor'
-		),
+	),
 	[
 		new SyncDescriptor(StringEditorInput),
-		new SyncDescriptor(ResourceEditorInput),
 		new SyncDescriptor(UntitledEditorInput),
-		new SyncDescriptor(ReadOnlyEditorInput)
+		new SyncDescriptor(ResourceEditorInput)
 	]
 );
 
@@ -48,7 +46,7 @@ import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 		nls.localize('textDiffEditor', "Text Diff Editor"),
 		'vs/workbench/browser/parts/editor/textDiffEditor',
 		'TextDiffEditor'
-		),
+	),
 	[
 		new SyncDescriptor(DiffEditorInput)
 	]
@@ -61,22 +59,9 @@ import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 		nls.localize('binaryDiffEditor', "Binary Diff Editor"),
 		'vs/workbench/browser/parts/editor/binaryDiffEditor',
 		'BinaryResourceDiffEditor'
-		),
+	),
 	[
 		new SyncDescriptor(DiffEditorInput)
-	]
-);
-
-// Register Binary Resource Editor
-(<IEditorRegistry>Registry.as(EditorExtensions.Editors)).registerEditor(
-	new EditorDescriptor(
-		BinaryResourceEditor.ID,
-		nls.localize('binaryEditor', "Binary Resource Editor"),
-		'vs/workbench/browser/parts/editor/binaryEditor',
-		'BinaryResourceEditor'
-		),
-	[
-		new SyncDescriptor(ResourceEditorInput)
 	]
 );
 
@@ -87,18 +72,18 @@ import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 		nls.localize('iframeEditor', "IFrame Editor"),
 		'vs/workbench/browser/parts/editor/iframeEditor',
 		'IFrameEditor'
-		),
+	),
 	[
 		new SyncDescriptor(IFrameEditorInput)
 	]
 );
 
 // Register Editor Status
-let statusBar = (<IStatusbarRegistry> Registry.as(StatusExtensions.Statusbar));
+let statusBar = (<IStatusbarRegistry>Registry.as(StatusExtensions.Statusbar));
 statusBar.registerStatusbarItem(new StatusbarItemDescriptor(EditorStatus, StatusbarAlignment.RIGHT, 100 /* High Priority */));
 
 // Register Actions
-let registry = <IWorkbenchActionRegistry> Registry.as(ActionExtensions.WorkbenchActions);
+let registry = <IWorkbenchActionRegistry>Registry.as(ActionExtensions.WorkbenchActions);
 registry.registerWorkbenchAction(new SyncActionDescriptor(ChangeModeAction, ChangeModeAction.ID, ChangeModeAction.LABEL, { primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_M) }));
 registry.registerWorkbenchAction(new SyncActionDescriptor(ChangeEOLAction, ChangeEOLAction.ID, ChangeEOLAction.LABEL));
 registry.registerWorkbenchAction(new SyncActionDescriptor(ChangeEncodingAction, ChangeEncodingAction.ID, ChangeEncodingAction.LABEL));

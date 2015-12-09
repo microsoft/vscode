@@ -343,6 +343,9 @@ export class InputBox extends ee.EventEmitter {
 	}
 
 	public dispose(): void {
+
+		this.toDispose = lifecycle.disposeAll(this.toDispose);
+
 		this._hideMessage();
 
 		this.element = null;

@@ -85,7 +85,7 @@ export class JavaScriptWorker extends typeScriptWorker.TypeScriptWorker2 {
 		}
 	}
 
-	public doSuggest(resource: URI, position: EditorCommon.IPosition): winjs.TPromise<Modes.ISuggestions> {
+	public doSuggest(resource: URI, position: EditorCommon.IPosition): winjs.TPromise<Modes.ISuggestResult> {
 
 		var project = this._projectService.getProject(resource, this._fancyRewriters);
 		position = project.translations.getTranslator(resource).to(position);

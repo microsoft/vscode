@@ -61,7 +61,17 @@ export default class PHPCompletionItemProvider implements CompletionItemProvider
 		while (match = variableMatch.exec(text)) {
 			var word = match[0];
 			if (!added[word]) {
-				result.push(createNewProposal(CompletionItemKind.Variable, name, null));
+				added[word] = true;
+				result.push(createNewProposal(CompletionItemKind.Variable, word, null));
+			}
+		}
+		var functionMatch = /function\s+([a-zA-Z_\x7f-\xff][a-zA-Z0-9_\x7f-\xff]*)\s*\(/g;
+		var match : RegExpExecArray = null;
+		while (match = functionMatch.exec(text)) {
+			var word = match[1];
+			if (!added[word]) {
+				added[word] = true;
+				result.push(createNewProposal(CompletionItemKind.Function, word, null));
 			}
 		}
 		return Promise.resolve(result);

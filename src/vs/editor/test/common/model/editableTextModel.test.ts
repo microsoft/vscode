@@ -13,7 +13,7 @@ import {TextModel} from 'vs/editor/common/model/textModel';
 import {LineMarker, TextModelWithMarkers} from 'vs/editor/common/model/textModelWithMarkers';
 import {ILineMarker} from 'vs/editor/common/model/modelLine';
 import {PluginHostDocument} from 'vs/workbench/api/common/pluginHostDocuments';
-import {MirrorModel} from 'vs/editor/common/model/mirrorModel';
+import {MirrorModel, IMirrorModelEvents} from 'vs/editor/common/model/mirrorModel';
 
 suite('EditorModel - EditableTextModel._getInverseEdits', () => {
 
@@ -1139,6 +1139,41 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 		);
 	});
 
+	test('issue #144', () => {
+		testApplyEdits(
+			[
+				'package caddy',
+				'',
+				'func main() {',
+				'\tfmt.Println("Hello World! :)")',
+				'}',
+				''
+			],
+			[
+				editOp(1, 1, 6, 1, [
+					'package caddy',
+					'',
+					'import "fmt"',
+					'',
+					'func main() {',
+					'\tfmt.Println("Hello World! :)")',
+					'}',
+					''
+				])
+			],
+			[
+				'package caddy',
+				'',
+				'import "fmt"',
+				'',
+				'func main() {',
+				'\tfmt.Println("Hello World! :)")',
+				'}',
+				''
+			]
+		);
+	});
+
 	function assertSyncedModels(text:string, callback:(model:EditableTextModel, assertMirrorModels:()=>void)=>void, setup:(model:EditableTextModel)=>void = null): void {
 		var model = new EditableTextModel([], TextModel.toRawText(text), null);
 		model.setEOL(EditorCommon.EndOfLineSequence.LF);
@@ -1159,8 +1194,11 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 				console.warn('Model version id did not advance between edits (1)');
 			}
 			mirrorModel1PrevVersionId = versionId;
-			(<any>e).type = EditorCommon.EventType.ModelContentChanged;
-			mirrorModel1.onEvents(<any[]>[e]);
+			let mirrorModelEvents:IMirrorModelEvents = {
+				propertiesChanged: null,
+				contentChanged: [e]
+			};
+			mirrorModel1.onEvents(mirrorModelEvents);
 		});
 
 		model.addListener(EditorCommon.EventType.ModelContentChanged2, (e:EditorCommon.IModelContentChangedEvent2) => {

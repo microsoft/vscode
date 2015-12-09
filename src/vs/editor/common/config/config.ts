@@ -155,7 +155,8 @@ registerCoreCommand(H.CursorUp, {
 registerCoreCommand(H.CursorUpSelect, {
 	primary: KeyMod.Shift | KeyCode.UpArrow,
 	secondary: [getWordNavigationKB(true, KeyCode.UpArrow)],
-	mac: { primary: KeyMod.Shift | KeyCode.UpArrow }
+	mac: { primary: KeyMod.Shift | KeyCode.UpArrow },
+	linux: { primary: KeyMod.Shift | KeyCode.UpArrow }
 });
 registerCoreCommand(H.CursorDown, {
 	primary: KeyCode.DownArrow,
@@ -164,7 +165,8 @@ registerCoreCommand(H.CursorDown, {
 registerCoreCommand(H.CursorDownSelect, {
 	primary: KeyMod.Shift | KeyCode.DownArrow,
 	secondary: [getWordNavigationKB(true, KeyCode.DownArrow)],
-	mac: { primary: KeyMod.Shift | KeyCode.DownArrow }
+	mac: { primary: KeyMod.Shift | KeyCode.DownArrow },
+	linux: { primary: KeyMod.Shift | KeyCode.DownArrow }
 });
 registerCoreCommand(H.CursorPageUp, {
 	primary: KeyCode.PageUp

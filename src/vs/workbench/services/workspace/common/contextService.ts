@@ -28,7 +28,7 @@ export interface IWorkspaceContextService extends IBaseWorkspaceContextService {
 	updateOptions(key: string, value: any): void;
 
 	/**
-	 * Convinient way to check if auto save is enabled or not.
+	 * Convenient way to check if auto save is enabled or not.
 	 */
 	isAutoSaveEnabled(): boolean;
 }

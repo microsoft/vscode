@@ -113,8 +113,6 @@ export class ASTNode {
 					location: { start: this.start, end: this.end },
 					message: nls.localize('typeArrayMismatchWarning', 'Incorrect type. Expected one of {0}', schema.type.join())
 				});
-			} else if (schema.type.length > 0) {
-				validationResult.typeMatch = true;
 			}
 		}
 		else if (schema.type) {
@@ -123,8 +121,6 @@ export class ASTNode {
 					location: { start: this.start, end: this.end },
 					message: nls.localize('typeMismatchWarning', 'Incorrect type. Expected "{0}"', schema.type)
 				});
-			} else {
-				validationResult.typeMatch = true;
 			}
 		}
 		if (Array.isArray(schema.allOf)) {
@@ -212,6 +208,8 @@ export class ASTNode {
 					location: { start: this.start, end: this.end },
 					message: nls.localize('enumWarning', 'Value is not an accepted value. Valid values: {0}', JSON.stringify(schema.enum))
 				});
+			} else {
+				validationResult.enumValueMatch = true;
 			}
 		}
 
@@ -717,14 +715,14 @@ export class ValidationResult {
 
 	public propertiesMatches: number;
 	public propertiesValueMatches: number;
-	public typeMatch: boolean;
+	public enumValueMatch: boolean;
 
 	constructor() {
 		this.errors = [];
 		this.warnings = [];
 		this.propertiesMatches = 0;
 		this.propertiesValueMatches = 0;
-		this.typeMatch = false;
+		this.enumValueMatch = false;
 	}
 
 	public hasErrors():boolean {
@@ -745,7 +743,7 @@ export class ValidationResult {
 	public mergePropertyMatch(propertyValidationResult: ValidationResult) : void {
 		this.merge(propertyValidationResult);
 		this.propertiesMatches++;
-		if (!propertyValidationResult.hasErrors()) {
+		if (propertyValidationResult.enumValueMatch || !propertyValidationResult.hasErrors() && propertyValidationResult.propertiesMatches) {
 			this.propertiesValueMatches++;
 		}
 	}
@@ -755,8 +753,8 @@ export class ValidationResult {
 		if (hasErrors !== other.hasErrors()) {
 			return hasErrors ? -1 : 1;
 		}
-		if (this.typeMatch !== other.typeMatch) {
-			return other.typeMatch ? -1 : 1;
+		if (this.enumValueMatch !== other.enumValueMatch) {
+			return other.enumValueMatch ? -1 : 1;
 		}
 		if (this.propertiesValueMatches !== other.propertiesValueMatches) {
 			return this.propertiesValueMatches - other.propertiesValueMatches;
@@ -781,16 +779,8 @@ export class JSONDocument {
 		return this.validationResult.errors;
 	}
 
-	public set errors(errors:IError[]) {
-		this.validationResult.errors = errors;
-	}
-
 	public get warnings():IError[] {
 		return this.validationResult.warnings;
-	}
-
-	public set warnings(warnings:IError[]) {
-		this.validationResult.warnings = warnings;
 	}
 
 	public getNodeFromOffset(offset:number):ASTNode {

@@ -159,7 +159,7 @@ suite('Telemetry - AppInsightsTelemetryAppender', () => {
 
 		assert.equal(appInsightsMock.events.length, 2);
 		assert.equal(appInsightsMock.events[0].eventName, NodeAppInsightsTelemetryAppender.EVENT_NAME_PREFIX+'testEvent');
-		
+
 		// test vortex
 		assert.equal(appInsightsMock.events[1].eventName, NodeAppInsightsTelemetryAppender.EVENT_NAME_PREFIX+'testEvent');
 	});

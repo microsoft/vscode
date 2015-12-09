@@ -50,11 +50,6 @@ export interface IProductConfiguration {
 		key: string;
 		asimovKey: string;
 	},
-	sendASmile: {
-		submitUrl: string,
-		reportIssueUrl: string,
-		requestFeatureUrl: string
-	},
 	documentationUrl: string,
 	releaseNotesUrl: string,
 	twitterUrl: string,
@@ -106,10 +101,17 @@ if (!fs.existsSync(userPluginsHome)) {
 	fs.mkdirSync(userPluginsHome);
 }
 
+// Helper to identify if we have plugin tests to run from the command line without debugger
+export const isTestingFromCli = cliArgs.pluginTestsPath && !cliArgs.debugBrkPluginHost;
+
 export function log(...a: any[]): void {
 	if (cliArgs.verboseLogging) {
 		console.log.apply(null, a);
 	}
+}
+
+export interface IProcessEnvironment {
+	[key: string]: string;
 }
 
 export interface ICommandLineArguments {
@@ -117,6 +119,7 @@ export interface ICommandLineArguments {
 	debugPluginHostPort: number;
 	debugBrkPluginHost: boolean;
 	logPluginHostCommunication: boolean;
+	disablePlugins: boolean;
 
 	pluginHomePath: string;
 	pluginDevelopmentPath: string;
@@ -195,7 +198,8 @@ function parseCli(): ICommandLineArguments {
 		gotoLineMode: gotoLineMode,
 		pluginHomePath: normalizePath(parseString(args, '--extensionHomePath')),
 		pluginDevelopmentPath: normalizePath(parseString(args, '--extensionDevelopmentPath')),
-		pluginTestsPath: normalizePath(parseString(args, '--extensionTestsPath'))
+		pluginTestsPath: normalizePath(parseString(args, '--extensionTestsPath')),
+		disablePlugins: !!opts['disableExtensions'] || !!opts['disable-extensions']
 	};
 }
 

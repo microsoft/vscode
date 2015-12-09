@@ -8,8 +8,9 @@ import {PPromise} from 'vs/base/common/winjs.base';
 import uri from 'vs/base/common/uri';
 import glob = require('vs/base/common/glob');
 import objects = require('vs/base/common/objects');
+import filters = require('vs/base/common/filters');
 import strings = require('vs/base/common/strings');
-import { Client } from 'vs/base/node/service.cp';
+import {Client} from 'vs/base/node/service.cp';
 import {IProgress, LineMatch, FileMatch, ISearchComplete, ISearchProgressItem, QueryType, IFileMatch, ISearchQuery, ISearchConfiguration, ISearchService} from 'vs/platform/search/common/search';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/browser/untitledEditorService';
 import {IModelService} from 'vs/editor/common/services/modelService';
@@ -86,7 +87,7 @@ export class SearchService implements ISearchService {
 
 						// Match
 						if (progress.resource) {
-							if (typeof localResults[progress.resource.toString()] === 'undefined') { // dont override local results
+							if (typeof localResults[progress.resource.toString()] === 'undefined') { // don't override local results
 								onProgress(progress);
 							}
 						}
@@ -118,12 +119,12 @@ export class SearchService implements ISearchService {
 					}
 				}
 
-				// Dont support other resource schemes than files for now
+				// Don't support other resource schemes than files for now
 				else if (resource.scheme !== 'file') {
 					return;
 				}
 
-				if (!this.matches(resource, query.filePatterns.map((p) => this.patternToRegExp(p.pattern)), query.includePattern, query.excludePattern)) {
+				if (!this.matches(resource, query.filePattern, query.includePattern, query.excludePattern)) {
 					return; // respect user filters
 				}
 
@@ -145,27 +146,17 @@ export class SearchService implements ISearchService {
 		return localResults;
 	}
 
-	private patternToRegExp(pattern: string): RegExp {
-		if (pattern[0] === '.') {
-			pattern = '*' + pattern; // convert a .<something> to a *.<something> query
-		}
-
-		// escape to regular expressions
-		pattern = strings.anchorPattern(strings.convertSimple2RegExpPattern(pattern), true, false);
-
-		return new RegExp(pattern, 'i');
-	}
-
-	private matches(resource: uri, filePatterns: RegExp[], includePattern: glob.IExpression, excludePattern: glob.IExpression): boolean {
+	private matches(resource: uri, filePattern: string, includePattern: glob.IExpression, excludePattern: glob.IExpression): boolean {
 		let workspaceRelativePath = this.contextService.toWorkspaceRelativePath(resource);
 
-		// file patterns
-		if (filePatterns && filePatterns.length) {
+		// file pattern
+		if (filePattern) {
 			if (resource.scheme !== 'file') {
 				return false; // if we match on file pattern, we have to ignore non file resources
 			}
 
-			if (!filePatterns.some((pattern) => pattern.test(resource.fsPath))) {
+			const res = filters.matchesFuzzy(filePattern, resource.fsPath);
+			if (!res || res.length === 0) {
 				return false;
 			}
 		}
@@ -229,7 +220,7 @@ class DiskSearch {
 
 		let rawSearch: IRawSearch = {
 			rootPaths: rootResources.map(r => r.fsPath),
-			filePatterns: query.filePatterns,
+			filePattern: query.filePattern,
 			excludePattern: query.excludePattern,
 			includePattern: query.includePattern,
 			maxResults: query.maxResults

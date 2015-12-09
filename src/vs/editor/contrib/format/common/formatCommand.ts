@@ -23,8 +23,7 @@ export class EditOperationsCommand implements EditorCommon.ICommand {
 	public getEditOperations(model: EditorCommon.ITokenizedModel, builder: EditorCommon.IEditOperationBuilder): void {
 		this._edits
 			// We know that this edit.range comes from the mirror model, so it should only contain \n and no \r's
-			.map((edit) => this.fixLineTerminators(edit, model) )
-			.map((edit) => this.trimEdit(edit, model))
+			.map((edit) => EditOperationsCommand.trimEdit(edit, model))
 			.filter((edit) => edit !== null) // produced above in case the edit.text is identical to the existing text
 			.forEach((edit) => builder.addEditOperation(Range.lift(edit.range), edit.text));
 
@@ -50,9 +49,8 @@ export class EditOperationsCommand implements EditorCommon.ICommand {
 		return helper.getTrackedSelection(this._selectionId);
 	}
 
-	private fixLineTerminators(edit: EditorCommon.ISingleEditOperation, model: EditorCommon.ITokenizedModel) : EditorCommon.ISingleEditOperation {
+	static fixLineTerminators(edit: EditorCommon.ISingleEditOperation, model: EditorCommon.ITokenizedModel): void {
 		edit.text = edit.text.replace(/\r\n|\r|\n/g, model.getEOL());
-		return edit;
 	}
 
 	/**
@@ -63,42 +61,48 @@ export class EditOperationsCommand implements EditorCommon.ICommand {
 	 * bug #15108. There the cursor was jumping since the tracked selection was in the middle of the range edit
 	 * and was lost.
 	 */
-	private trimEdit(edit:EditorCommon.ISingleEditOperation, model: EditorCommon.ITokenizedModel): EditorCommon.ISingleEditOperation {
+	static trimEdit(edit:EditorCommon.ISingleEditOperation, model: EditorCommon.ITokenizedModel): EditorCommon.ISingleEditOperation {
 
-		var currentText = model.getValueInRange(edit.range);
+		this.fixLineTerminators(edit, model);
+
+		return this._trimEdit(model.validateRange(edit.range), edit.text, edit.forceMoveMarkers, model);
+	}
+
+	static _trimEdit(editRange:Range, editText:string, editForceMoveMarkers:boolean, model: EditorCommon.ITokenizedModel): EditorCommon.ISingleEditOperation {
+
+		let currentText = model.getValueInRange(editRange);
 
 		// Find the equal characters in the front
-		var commonPrefixLength = Strings.commonPrefixLength(edit.text, currentText);
+		let commonPrefixLength = Strings.commonPrefixLength(editText, currentText);
 
-		// If the two strings are identical, return no edit
-		if (commonPrefixLength === currentText.length && commonPrefixLength === edit.text.length) {
+		// If the two strings are identical, return no edit (no-op)
+		if (commonPrefixLength === currentText.length && commonPrefixLength === editText.length) {
 			return null;
 		}
 
-		// Only compute a common suffix if none of the strings is already fully contained in the prefix
-		var commonSuffixLength = 0;
-		if (commonPrefixLength !== currentText.length && commonPrefixLength !== edit.text.length) {
-			commonSuffixLength = Strings.commonSuffixLength(edit.text, currentText);
+		if (commonPrefixLength > 0) {
+			// Apply front trimming
+			let newStartPosition = model.modifyPosition(editRange.getStartPosition(), commonPrefixLength);
+			editRange = new Range(newStartPosition.lineNumber, newStartPosition.column, editRange.endLineNumber, editRange.endColumn);
+			editText = editText.substring(commonPrefixLength);
+			currentText = currentText.substr(commonPrefixLength);
 		}
 
-		// Adjust start position
-		var newStartPosition = new Position(edit.range.startLineNumber, edit.range.startColumn);
-		newStartPosition = model.modifyPosition(newStartPosition, commonPrefixLength);
+		// Find the equal characters in the rear
+		let commonSuffixLength = Strings.commonSuffixLength(editText, currentText);
 
-		// Adjust end position
-		var newEndPosition = new Position(edit.range.endLineNumber, edit.range.endColumn);
-		newEndPosition = model.modifyPosition(newEndPosition, -commonSuffixLength);
-
-		//Trim the text
-		var newText = edit.text.slice(commonPrefixLength, edit.text.length - commonSuffixLength);
+		if (commonSuffixLength > 0) {
+			// Apply rear trimming
+			let newEndPosition = model.modifyPosition(editRange.getEndPosition(), -commonSuffixLength);
+			editRange = new Range(editRange.startLineNumber, editRange.startColumn, newEndPosition.lineNumber, newEndPosition.column);
+			editText = editText.substring(0, editText.length - commonSuffixLength);
+			currentText = currentText.substring(0, currentText.length - commonSuffixLength);
+		}
 
 		return {
-			text: newText,
-				range: {
-					startLineNumber:newStartPosition.lineNumber,
-					startColumn:newStartPosition.column,
-					endLineNumber:newEndPosition.lineNumber,
-					endColumn: newEndPosition.column
-			}};
+			text: editText,
+			range: editRange,
+			forceMoveMarkers: editForceMoveMarkers
+		};
 	}
 }

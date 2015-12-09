@@ -28,7 +28,7 @@ export function toFileChangesEvent(changes: IRawFileChange[]): FileChangesEvent 
 }
 
 /**
- * Given events that occured, applies some rules to normalize the events
+ * Given events that occurred, applies some rules to normalize the events
  */
 export function normalize(changes: IRawFileChange[]): IRawFileChange[] {
 

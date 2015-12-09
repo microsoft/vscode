@@ -18,14 +18,14 @@
 	-ms-animation-name: fadeIn;
 	animation-duration: 0.15s;
 	animation-name: fadeIn;
-	
+
 	-webkit-user-select: text;
 	-ms-user-select: text;
 	-khtml-user-select: text;
 	-moz-user-select: text;
 	-o-user-select: text;
 	user-select: text;
-	
+
 	overflow: hidden;
 }
 

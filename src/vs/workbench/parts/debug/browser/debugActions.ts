@@ -38,7 +38,7 @@ export class AbstractDebugAction extends actions.Action {
 		this.toDispose.push(this.debugService.addListener2(debug.ServiceEvents.STATE_CHANGED, () => this.updateEnablement()));
 
 		var keybinding: string = null;
-		var keys = this.keybindingService.lookupKeybindings(id).map(k => k.toLabel());
+		var keys = this.keybindingService.lookupKeybindings(id).map(k => this.keybindingService.getLabelFor(k));
 		if (keys && keys.length) {
 			keybinding = keys[0];
 		}
@@ -130,9 +130,9 @@ export class RestartDebugAction extends AbstractDebugAction {
 		super(id, label, 'debug-action restart', debugService, keybindingService);
 		this.updateEnablement();
 		this.toDispose.push(this.debugService.addListener2(debug.ServiceEvents.STATE_CHANGED, () => {
-			const configuration = this.debugService.getConfiguration();
-			if (configuration) {
-				this.label = configuration.port ? RestartDebugAction.RECONNECT_LABEL : RestartDebugAction.LABEL;
+			const session = this.debugService.getActiveSession();
+			if (session) {
+				this.label = session.isAttach ? RestartDebugAction.RECONNECT_LABEL : RestartDebugAction.LABEL;
 			}
 		}));
 	}
@@ -205,9 +205,9 @@ export class StopDebugAction extends AbstractDebugAction {
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
 		super(id, label, 'debug-action stop', debugService, keybindingService);
 		this.toDispose.push(this.debugService.addListener2(debug.ServiceEvents.STATE_CHANGED, () => {
-			const configuration = this.debugService.getConfiguration();
-			if (configuration) {
-				this.label = configuration.port ? StopDebugAction.DISCONNECT_LABEL : StopDebugAction.LABEL;
+			const session = this.debugService.getActiveSession();
+			if (session) {
+				this.label = session.isAttach ? StopDebugAction.DISCONNECT_LABEL : StopDebugAction.LABEL;
 			}
 		}));
 	}
@@ -266,7 +266,8 @@ export class RemoveBreakpointAction extends AbstractDebugAction {
 	}
 
 	public run(breakpoint: debug.IBreakpoint): Promise {
-		return this.debugService.toggleBreakpoint(breakpoint.source.uri, breakpoint.lineNumber);
+		return breakpoint instanceof model.Breakpoint ? this.debugService.toggleBreakpoint({ uri: breakpoint.source.uri, lineNumber: breakpoint.lineNumber })
+			: this.debugService.removeFunctionBreakpoints(breakpoint.getId());
 	}
 }
 
@@ -280,11 +281,11 @@ export class RemoveAllBreakpointsAction extends AbstractDebugAction {
 	}
 
 	public run(): Promise {
-		return this.debugService.clearBreakpoints();
+		return Promise.join([this.debugService.removeAllBreakpoints(), this.debugService.removeFunctionBreakpoints()]);
 	}
 
 	protected isEnabled(): boolean {
-		return super.isEnabled() && this.debugService.getModel().getBreakpoints().length > 0;
+		return super.isEnabled() && (this.debugService.getModel().getBreakpoints().length > 0 || this.debugService.getModel().getFunctionBreakpoints().length > 0);
 	}
 }
 
@@ -315,8 +316,8 @@ export class EnableAllBreakpointsAction extends AbstractDebugAction {
 	}
 
 	protected isEnabled(): boolean {
-		return super.isEnabled() && this.debugService.getModel().getBreakpoints().filter(bp => !bp.enabled).length > 0 ||
-			this.debugService.getModel().getExceptionBreakpoints().filter(bp => !bp.enabled).length > 0;
+		const model = this.debugService.getModel();
+		return super.isEnabled() && (<debug.IEnablement[]> model.getBreakpoints()).concat(model.getFunctionBreakpoints()).concat(model.getExceptionBreakpoints()).some(bp => !bp.enabled);
 	}
 }
 
@@ -334,8 +335,8 @@ export class DisableAllBreakpointsAction extends AbstractDebugAction {
 	}
 
 	protected isEnabled(): boolean {
-		return super.isEnabled() && this.debugService.getModel().getBreakpoints().filter(bp => bp.enabled).length > 0 ||
-			this.debugService.getModel().getExceptionBreakpoints().filter(bp => bp.enabled).length > 0;
+		const model = this.debugService.getModel();
+		return super.isEnabled() && (<debug.IEnablement[]> model.getBreakpoints()).concat(model.getFunctionBreakpoints()).concat(model.getExceptionBreakpoints()).some(bp => bp.enabled);
 	}
 }
 
@@ -379,6 +380,20 @@ export class ReapplyBreakpointsAction extends AbstractDebugAction {
 	}
 }
 
+export class AddFunctionBreakpointAction extends AbstractDebugAction {
+	static ID = 'workbench.debug.viewlet.action.addFunctionBreakpointAction';
+	static LABEL = nls.localize('addFunctionBreakpoint', "Add Function Breakpoint");
+
+	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
+		super(id, label, 'debug-action add-function-breakpoint', debugService, keybindingService);
+	}
+
+	public run(): Promise {
+		this.debugService.addFunctionBreakpoint();
+		return Promise.as(null);
+	}
+}
+
 export class ToggleBreakpointAction extends EditorAction {
 	static ID = 'editor.debug.action.toggleBreakpoint';
 
@@ -391,7 +406,7 @@ export class ToggleBreakpointAction extends EditorAction {
 			var lineNumber = this.editor.getPosition().lineNumber;
 			var modelUrl = this.editor.getModel().getAssociatedResource();
 			if (this.debugService.canSetBreakpointsIn(this.editor.getModel(), lineNumber)) {
-				return this.debugService.toggleBreakpoint(modelUrl, lineNumber);
+				return this.debugService.toggleBreakpoint({ uri: modelUrl, lineNumber: lineNumber });
 			}
 		}
 
@@ -411,7 +426,7 @@ export class CopyValueAction extends AbstractDebugAction {
 		if (this.value instanceof model.Variable) {
 			const frameId = this.debugService.getViewModel().getFocusedStackFrame().frameId;
 			const session = this.debugService.getActiveSession();
-			return session.evaluate({ expression: getFullName(this.value, session.getType()), frameId }).then(result => {
+			return session.evaluate({ expression: model.getFullExpressionName(this.value, session.getType()), frameId }).then(result => {
 				clipboard.writeText(result.body.result);
 			}, err => clipboard.writeText(this.value.value));
 		}
@@ -436,10 +451,10 @@ export class RunToCursorAction extends EditorAction {
 		var uri = this.editor.getModel().getAssociatedResource();
 
 		this.debugService.getActiveSession().addOneTimeListener(debug.SessionEvents.STOPPED, () => {
-			this.debugService.toggleBreakpoint(uri, lineNumber);
+			this.debugService.toggleBreakpoint({ uri, lineNumber });
 		});
 
-		return this.debugService.toggleBreakpoint(uri, lineNumber).then(() => {
+		return this.debugService.toggleBreakpoint({ uri, lineNumber }).then(() => {
 			return this.debugService.getActiveSession().continue({ threadId: this.debugService.getViewModel().getFocusedThreadId() }).then(response => {
 				return response.success;
 			});
@@ -539,7 +554,7 @@ export class AddToWatchExpressionsAction extends AbstractDebugAction {
 	}
 
 	public run(): Promise {
-		return this.debugService.addWatchExpression(getFullName(this.expression, this.debugService.getActiveSession().getType()));
+		return this.debugService.addWatchExpression(model.getFullExpressionName(this.expression, this.debugService.getActiveSession().getType()));
 	}
 }
 
@@ -616,31 +631,4 @@ export class ClearReplAction extends baseeditor.EditorInputAction {
 
 		return Promise.as(null);
 	}
-}
-
-function getFullName(expression: debug.IExpression, sessionType: string): string {
-	let names = [expression.name];
-	if (expression instanceof model.Variable) {
-		var v = (<model.Variable> expression).parent;
-		while (v instanceof model.Variable || v instanceof model.Expression) {
-			names.push((<model.Variable> v).name);
-			v = (<model.Variable> v).parent;
-		}
-	}
-	names = names.reverse();
-
-	let result = null;
-	const propertySyntax = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
-	names.forEach(name => {
-		if (!result) {
-			result = name;
-		} else if (sessionType === 'node' && !propertySyntax.test(name)) {
-			// Use safe way to access node properties a['property_name']. Also handles array elements.
-			result = name && name.indexOf('[') === 0 ? `${ result }${ name }` : `${ result }['${ name }']`;
-		} else {
-			result = `${ result }.${ name }`;
-		}
-	});
-
-	return result;
 }

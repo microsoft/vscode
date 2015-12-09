@@ -74,7 +74,7 @@ class MarkerEntry extends QuickOpenEntryItem {
 		}
 
 		this._editorService.openEditor({
-			resource: network.URL.fromUri(this._marker.resource),
+			resource: this._marker.resource,
 			options: {
 				selection: {
 					startLineNumber: this._marker.startLineNumber,

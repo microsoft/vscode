@@ -67,6 +67,10 @@ export class PluginHostQuickOpen {
 					return items[handle];
 				}
 			});
+		}, (err) => {
+			this._proxy._setError(err);
+
+			return TPromise.wrapError(err);
 		});
 	}
 
@@ -80,6 +84,7 @@ export class MainThreadQuickOpen {
 
 	private _quickOpenService: IQuickOpenService;
 	private _doSetItems: (items: MyQuickPickItems[]) => any;
+	private _doSetError: (error: Error) => any;
 	private _contents: TPromise<MyQuickPickItems[]>;
 	private _token = 0;
 
@@ -97,6 +102,12 @@ export class MainThreadQuickOpen {
 					c(items);
 				}
 			};
+
+			this._doSetError = (error) => {
+				if (myToken === this._token) {
+					e(error);
+				}
+			};
 		});
 
 		return this._quickOpenService.pick(this._contents, options).then(item => {
@@ -109,6 +120,13 @@ export class MainThreadQuickOpen {
 	_setItems(items: MyQuickPickItems[]): Thenable<any> {
 		if (this._doSetItems) {
 			this._doSetItems(items);
+			return;
+		}
+	}
+
+	_setError(error: Error): Thenable<any> {
+		if (this._doSetError) {
+			this._doSetError(error);
 			return;
 		}
 	}

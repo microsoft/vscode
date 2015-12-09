@@ -82,7 +82,7 @@ export class FileService implements files.IFileService {
 	private workspaceWatcherToDispose: () => void;
 
 	private activeFileChangesWatchers: { [resource: string]: fs.FSWatcher; };
-	private fileChangesWatchDelayer: ThrottledDelayer;
+	private fileChangesWatchDelayer: ThrottledDelayer<void>;
 	private undeliveredRawFileChangesEvents: IRawFileChange[];
 
 	constructor(basePath: string, eventEmitter: IEventService, options: IFileServiceOptions) {
@@ -117,7 +117,7 @@ export class FileService implements files.IFileService {
 		}
 
 		this.activeFileChangesWatchers = Object.create(null);
-		this.fileChangesWatchDelayer = new ThrottledDelayer(FileService.FS_EVENT_DELAY);
+		this.fileChangesWatchDelayer = new ThrottledDelayer<void>(FileService.FS_EVENT_DELAY);
 		this.undeliveredRawFileChangesEvents = [];
 	}
 
@@ -540,7 +540,7 @@ export class FileService implements files.IFileService {
 					path: fsPath
 				});
 
-				// handle emit through delayer to accomodate for bulk changes
+				// handle emit through delayer to accommodate for bulk changes
 				this.fileChangesWatchDelayer.trigger(() => {
 					let buffer = this.undeliveredRawFileChangesEvents;
 					this.undeliveredRawFileChangesEvents = [];
@@ -639,7 +639,7 @@ export class StatResolver {
 
 				// Load children
 				this.resolveChildren(this.resource.fsPath, absoluteTargetPaths, options && options.resolveSingleChildDescendants, (children) => {
-					children = arrays.coalesce(children); // we dont want those null childs (could be permission denied when reading a child)
+					children = arrays.coalesce(children); // we don't want those null children (could be permission denied when reading a child)
 					fileStat.hasChildren = children && children.length > 0;
 					fileStat.children = children || [];
 
@@ -678,7 +678,7 @@ export class StatResolver {
 						fileStat = fsstat;
 
 						if (fileStat.isDirectory()) {
-							fs.readdir(fileResource.fsPath, (error, result) => {
+							extfs.readdir(fileResource.fsPath, (error, result) => {
 								this(null, result ? result.length : 0);
 							});
 						} else {
@@ -714,7 +714,7 @@ export class StatResolver {
 						// Continue resolving children based on condition
 						if (resolveFolderChildren) {
 							$this.resolveChildren(fileResource.fsPath, absoluteTargetPaths, resolveSingleChildDescendants, (children) => {
-								children = arrays.coalesce(children);  // we dont want those null childs
+								children = arrays.coalesce(children);  // we don't want those null children
 								childStat.hasChildren = children && children.length > 0;
 								childStat.children = children || [];
 

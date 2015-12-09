@@ -174,7 +174,7 @@ export default class URI {
 
 		var ret = URI._parse(path);
 		if (ret.scheme || ret.fragment || ret.query) {
-			throw new Error();
+			throw new Error('Path contains a scheme, fragment or a query. Can not convert it to a file uri.');
 		}
 
 		ret = ret.with('file', undefined,
@@ -296,9 +296,9 @@ export default class URI {
 			_authority: this._authority,
 			_path: this._path,
 			_query: this._query,
-			_fragment: this._fragment,
+			_fragment: this._fragment.replace(/URL_MARSHAL_REMOVE.*$/, ''), // TODO@Alex: implement derived resources (embedded mirror models) better
 			_fsPath: this._fsPath,
-			_formatted: this._formatted
+			_formatted: this._formatted && this._formatted.replace(/#?URL_MARSHAL_REMOVE.*$/, ''), // TODO@Alex: implement derived resources (embedded mirror models) better
 		};
 	}
 

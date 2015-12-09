@@ -28,7 +28,6 @@ import objects = require('vs/base/common/objects');
 import storage = require('vs/workbench/electron-main/storage');
 import settings = require('vs/workbench/electron-main/settings');
 import {Instance as UpdateManager, IUpdate} from 'vs/workbench/electron-main/update-manager';
-import {IEnv} from 'vs/base/node/env';
 
 const eventEmitter = new events.EventEmitter();
 
@@ -63,6 +62,7 @@ enum WindowError {
 
 export interface IOpenConfiguration {
 	cli: env.ICommandLineArguments;
+	userEnv?: env.IProcessEnvironment;
 	pathsToOpen?: string[];
 	forceNewWindow?: boolean;
 	forceEmpty?: boolean;
@@ -85,43 +85,34 @@ export interface IOpenedPathsList {
 	files: string[];
 }
 
+interface ILogEntry {
+	severity: string;
+	arguments: any;
+}
+
 export class WindowsManager {
 
 	public static autoSaveDelayStorageKey = 'autoSaveDelay';
 	public static openedPathsListStorageKey = 'openedPathsList';
 
 	private static workingDirPickerStorageKey = 'pickerWorkingDir';
-
 	private static windowsStateStorageKey = 'windowsState';
 	private static themeStorageKey = 'theme'; // TODO@Ben this key is only used to find out if a window can be shown instantly because of light theme, remove once we have support for bg color
 
-	private static legacyLastActiveOpenedFolderStorageKey = 'lastActiveOpenedPath';
-	private static legacyLastActiveWindowStateStorageKey = 'windowUIState';
-
 	private static WINDOWS: window.VSCodeWindow[] = [];
 
-	private userEnv: IEnv;
+	private initialUserEnv: env.IProcessEnvironment;
 	private windowsState: IWindowsState;
 
-	public ready(userEnv: IEnv): void {
+	public ready(initialUserEnv: env.IProcessEnvironment): void {
 		this.registerListeners();
 
-		this.userEnv = userEnv;
+		this.initialUserEnv = initialUserEnv;
 		this.windowsState = storage.getItem<IWindowsState>(WindowsManager.windowsStateStorageKey) || { openedFolders: [] };
-
-		// TODO@Ben migration: remove me in a couple of versions
-		if (!this.windowsState.lastActiveWindow) {
-			let lastActiveOpenedFolder = storage.getItem<string>(WindowsManager.legacyLastActiveOpenedFolderStorageKey);
-			let lastActiveWindowState = storage.getItem<window.IWindowState>(WindowsManager.legacyLastActiveWindowStateStorageKey);
-
-			if (lastActiveOpenedFolder || lastActiveWindowState) {
-				this.windowsState.lastActiveWindow = { workspacePath: lastActiveOpenedFolder, uiState: lastActiveWindowState || window.defaultWindowState() };
-			}
-		}
 	}
 
 	private registerListeners(): void {
-		app.on('activate', (event:Event, hasVisibleWindows:boolean) => {
+		app.on('activate', (event: Event, hasVisibleWindows: boolean) => {
 			env.log('App#activate');
 
 			// Mac only event: reopen last window when we get activated
@@ -243,11 +234,34 @@ export class WindowsManager {
 			storage.setItem(WindowsManager.themeStorageKey, theme);
 		});
 
-		ipc.on('vscode:broadcast', (event: Event, windowId: number, broadcast: { channel: string; payload: any; }) => {
+		ipc.on('vscode:broadcast', (event: Event, windowId: number, target: string, broadcast: { channel: string; payload: any; }) => {
 			if (broadcast.channel && broadcast.payload) {
-				this.sendToAll('vscode:broadcast', broadcast, [windowId]);
+				if (target) {
+					let targetWindow = this.findWindow(target);
+					if (targetWindow && targetWindow.win.id !== windowId) {
+						targetWindow.send('vscode:broadcast', broadcast);
+					}
+				} else {
+					this.sendToAll('vscode:broadcast', broadcast, [windowId]);
+				}
 			}
-		})
+		});
+
+		ipc.on('vscode:log', (event: Event, logEntry: ILogEntry) => {
+			let args = [];
+			try {
+				let parsed = JSON.parse(logEntry.arguments);
+				args.push(...Object.getOwnPropertyNames(parsed).map(o => parsed[o]));
+			} catch (error) {
+				args.push(logEntry.arguments);
+			}
+
+			console[logEntry.severity].apply(console, args);
+		});
+
+		ipc.on('vscode:exit', (event: Event, code: number) => {
+			process.exit(code);
+		});
 
 		UpdateManager.on('update-downloaded', (update: IUpdate) => {
 			this.sendToFocused('vscode:telemetry', { eventName: 'update:downloaded', data: { version: update.version } });
@@ -294,6 +308,17 @@ export class WindowsManager {
 
 		app.on('will-quit', () => {
 			storage.setItem(WindowsManager.windowsStateStorageKey, this.windowsState);
+		});
+
+		let loggedStartupTimes = false;
+		onReady(window => {
+			if (loggedStartupTimes) {
+				return; // only for the first window
+			}
+
+			loggedStartupTimes = true;
+
+			window.send('vscode:telemetry', { eventName: 'startupTime', data: { ellapsed: Date.now() - global.vscodeStart } });
 		});
 	}
 
@@ -382,20 +407,20 @@ export class WindowsManager {
 			if (!openFilesInNewWindow && lastActiveWindow) {
 				lastActiveWindow.restore();
 				lastActiveWindow.ready().then((readyWindow) => {
-					readyWindow.win.webContents.send('vscode:openFiles', {
+					readyWindow.send('vscode:openFiles', {
 						filesToOpen: filesToOpen,
 						filesToCreate: filesToCreate
 					});
 
 					if (extensionsToInstall.length) {
-						readyWindow.win.webContents.send('vscode:installExtensions', { extensionsToInstall });
+						readyWindow.send('vscode:installExtensions', { extensionsToInstall });
 					}
 				});
 			}
 
 			// Otherwise open instance with files
 			else {
-				configuration = this.toConfiguration(openConfig.cli, null, filesToOpen, filesToCreate, extensionsToInstall);
+				configuration = this.toConfiguration(openConfig.userEnv || this.initialUserEnv, openConfig.cli, null, filesToOpen, filesToCreate, extensionsToInstall);
 				this.openInBrowserWindow(configuration, true /* new window */);
 
 				openConfig.forceNewWindow = true; // any other folders to open must open in new window then
@@ -410,13 +435,13 @@ export class WindowsManager {
 			if (windowsOnWorkspacePath.length > 0) {
 				windowsOnWorkspacePath[0].restore(); // just focus one of them
 				windowsOnWorkspacePath[0].ready().then((readyWindow) => {
-					readyWindow.win.webContents.send('vscode:openFiles', {
+					readyWindow.send('vscode:openFiles', {
 						filesToOpen: filesToOpen,
 						filesToCreate: filesToCreate
 					});
 
 					if (extensionsToInstall.length) {
-						readyWindow.win.webContents.send('vscode:installExtensions', { extensionsToInstall });
+						readyWindow.send('vscode:installExtensions', { extensionsToInstall });
 					}
 				});
 
@@ -430,11 +455,11 @@ export class WindowsManager {
 
 			// Open remaining ones
 			foldersToOpen.forEach((folderToOpen) => {
-				if (windowsOnWorkspacePath.some((win) => win.openedWorkspacePath === folderToOpen.workspacePath)) {
+				if (windowsOnWorkspacePath.some((win) => this.isPathEqual(win.openedWorkspacePath, folderToOpen.workspacePath))) {
 					return; // ignore folders that are already open
 				}
 
-				configuration = this.toConfiguration(openConfig.cli, folderToOpen.workspacePath, filesToOpen, filesToCreate, extensionsToInstall);
+				configuration = this.toConfiguration(openConfig.userEnv || this.initialUserEnv, openConfig.cli, folderToOpen.workspacePath, filesToOpen, filesToCreate, extensionsToInstall);
 				this.openInBrowserWindow(configuration, openConfig.forceNewWindow, openConfig.forceNewWindow ? void 0 : openConfig.windowToUse);
 
 				// Reset these because we handled them
@@ -449,7 +474,7 @@ export class WindowsManager {
 		// Handle empty
 		if (emptyToOpen.length > 0) {
 			emptyToOpen.forEach(() => {
-				let configuration = this.toConfiguration(openConfig.cli);
+				let configuration = this.toConfiguration(openConfig.userEnv || this.initialUserEnv, openConfig.cli);
 				this.openInBrowserWindow(configuration, openConfig.forceNewWindow, openConfig.forceNewWindow ? void 0 : openConfig.windowToUse);
 
 				openConfig.forceNewWindow = true; // any other folders to open must open in new window then
@@ -474,7 +499,7 @@ export class WindowsManager {
 		// Reload an existing plugin development host window on the same path
 		// We currently do not allow more than one extension development window
 		// on the same plugin path.
-		let res = WindowsManager.WINDOWS.filter((w) => w.config && w.config.pluginDevelopmentPath === openConfig.cli.pluginDevelopmentPath);
+		let res = WindowsManager.WINDOWS.filter((w) => w.config && this.isPathEqual(w.config.pluginDevelopmentPath, openConfig.cli.pluginDevelopmentPath));
 		if (res && res.length === 1) {
 			this.reload(res[0], openConfig.cli);
 			res[0].restore(); // make sure it gets focus and is restored
@@ -502,7 +527,7 @@ export class WindowsManager {
 		this.open({ cli: openConfig.cli, forceNewWindow: true, forceEmpty: openConfig.cli.pathArguments.length === 0 });
 	}
 
-	private toConfiguration(cli: env.ICommandLineArguments, workspacePath?: string, filesToOpen?: window.IPath[], filesToCreate?: window.IPath[], extensionsToInstall?: string[]): window.IWindowConfiguration {
+	private toConfiguration(userEnv: env.IProcessEnvironment, cli: env.ICommandLineArguments, workspacePath?: string, filesToOpen?: window.IPath[], filesToCreate?: window.IPath[], extensionsToInstall?: string[]): window.IWindowConfiguration {
 		let configuration: window.IWindowConfiguration = objects.mixin({}, cli); // inherit all properties from CLI
 		configuration.execPath = process.execPath;
 		configuration.workspacePath = workspacePath;
@@ -529,9 +554,8 @@ export class WindowsManager {
 		configuration.updateChannel = UpdateManager.channel;
 		configuration.recentPaths = this.getRecentlyOpenedPaths(workspacePath, filesToOpen);
 		configuration.aiConfig = env.product.aiConfig;
-		configuration.sendASmile = env.product.sendASmile;
 		configuration.enableTelemetry = env.product.enableTelemetry;
-		configuration.userEnv = this.userEnv;
+		configuration.userEnv = userEnv;
 
 		return configuration;
 	}
@@ -556,10 +580,11 @@ export class WindowsManager {
 			recentPaths.unshift(workspacePath);
 		}
 
-		// Clear those dupes
+				// Clear those dupes
 		recentPaths = arrays.distinct(recentPaths);
 
-		return recentPaths;
+		// Make sure it is bounded
+		return recentPaths.slice(0, 10); // TODO@Ben remove in a couple of versions, it should  be ok then because we limited storage
 	}
 
 	private toIPath(anyPath: string, ignoreFileNotFound?: boolean, gotoLineMode?: boolean): window.IPath {
@@ -697,7 +722,7 @@ export class WindowsManager {
 
 		// Known Folder - load from stored settings if any
 		if (configuration.workspacePath) {
-			let stateForWorkspace = this.windowsState.openedFolders.filter(o => o.workspacePath === configuration.workspacePath).map(o => o.uiState);
+			let stateForWorkspace = this.windowsState.openedFolders.filter(o => this.isPathEqual(o.workspacePath, configuration.workspacePath)).map(o => o.uiState);
 			if (stateForWorkspace.length) {
 				return stateForWorkspace[0];
 			}
@@ -848,12 +873,12 @@ export class WindowsManager {
 			let res = windowsToTest.filter((w) => {
 
 				// match on workspace
-				if (typeof w.openedWorkspacePath === 'string' && w.openedWorkspacePath === workspacePath) {
+				if (typeof w.openedWorkspacePath === 'string' && this.isPathEqual(w.openedWorkspacePath, workspacePath)) {
 					return true;
 				}
 
 				// match on file
-				if (typeof w.openedFilePath === 'string' && w.openedFilePath === filePath) {
+				if (typeof w.openedFilePath === 'string' && this.isPathEqual(w.openedFilePath, filePath)) {
 					return true;
 				}
 
@@ -881,9 +906,7 @@ export class WindowsManager {
 		const focusedWindow = this.getFocusedWindow() || this.getLastActiveWindow();
 
 		if (focusedWindow) {
-			focusedWindow.ready().then((readyWindow) => {
-				readyWindow.win.webContents.send(channel, ...args);
-			});
+			focusedWindow.sendWhenReady(channel, ...args);
 		}
 	}
 
@@ -893,9 +916,7 @@ export class WindowsManager {
 				return; // do not send if we are instructed to ignore it
 			}
 
-			w.ready().then((readyWindow) => {
-				readyWindow.win.webContents.send(channel, payload);
-			});
+			w.sendWhenReady(channel, payload);
 		});
 	}
 
@@ -974,7 +995,7 @@ export class WindowsManager {
 			this.windowsState.lastActiveWindow = state;
 
 			this.windowsState.openedFolders.forEach(o => {
-				if (o.workspacePath === win.openedWorkspacePath) {
+				if (this.isPathEqual(o.workspacePath, win.openedWorkspacePath)) {
 					o.uiState = state.uiState;
 				}
 			});
@@ -992,6 +1013,30 @@ export class WindowsManager {
 
 		// Emit
 		eventEmitter.emit(EventTypes.CLOSE, WindowsManager.WINDOWS.length);
+	}
+
+	private isPathEqual(pathA: string, pathB: string): boolean {
+		if (pathA === pathB) {
+			return true;
+		}
+
+		if (!pathA || !pathB) {
+			return false;
+		}
+
+		pathA = path.normalize(pathA);
+		pathB = path.normalize(pathB);
+
+		if (pathA === pathB) {
+			return true;
+		}
+
+		if (!platform.isLinux) {
+			pathA = pathA.toLowerCase();
+			pathB = pathB.toLowerCase();
+		}
+
+		return pathA === pathB;
 	}
 }
 

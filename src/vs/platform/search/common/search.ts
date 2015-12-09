@@ -23,7 +23,7 @@ export interface ISearchService {
 
 export interface IQueryOptions {
 	rootResources?: uri[];
-	filePatterns?: IPatternInfo[];
+	filePattern?: string;
 	excludePattern?: glob.IExpression;
 	includePattern?: glob.IExpression;
 	maxResults?: number;

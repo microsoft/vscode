@@ -1,0 +1,835 @@
+{
+  "id": "http://schema.management.azure.com/schemas/2015-08-01/Microsoft.Compute.json#",
+  "$schema": "http://json-schema.org/draft-04/schema#",
+  "title": "Microsoft.Compute",
+  "description": "Microsoft Compute Resource Types",
+  "resourceDefinitions": {
+    "availabilitySets": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "enum": [
+            "Microsoft.Compute/availabilitySets"
+          ]
+        },
+        "apiVersion": {
+          "enum": [
+            "2015-05-01-preview",
+            "2015-06-15"
+          ]
+        },
+        "properties": {
+          "type": "object",
+          "properties": {
+            "platformUpdateDomainCount": {
+              "type": "number"
+            },
+            "platformFaultDomainCount": {
+              "type": "number"
+            }
+          }
+        }
+      },
+      "required": [
+        "type",
+        "apiVersion",
+        "properties"
+      ]
+    },
+    "virtualMachines": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "enum": [
+            "Microsoft.Compute/virtualMachines"
+          ]
+        },
+        "apiVersion": {
+          "enum": [
+            "2015-05-01-preview",
+            "2015-06-15"
+          ]
+        },
+        "properties": {
+          "properties": {
+            "availabilitySet": {
+              "$ref": "#/definitions/id"
+            },
+            "hardwareProfile": {
+              "$ref": "#/definitions/hardwareProfile"
+            },
+            "storageProfile": {
+              "$ref": "#/definitions/storageProfile"
+            },
+            "osProfile": {
+              "$ref": "#/definitions/osProfile"
+            },
+            "networkProfile": {
+              "$ref": "#/definitions/networkProfile"
+            }
+          },
+          "type": "object",
+          "required": [
+            "hardwareProfile",
+            "storageProfile",
+            "networkProfile"
+          ]
+        },
+        "resources": {
+          "type": "array",
+          "items": {
+            "allOf": [
+              {
+                "$ref": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#/definitions/resourceBase"
+              },
+              {
+                "oneOf": [
+                  {
+                    "$ref": "http://schema.management.azure.com/schemas/2015-01-01/Microsoft.Authorization.json#/definitions/locks"
+                  },
+                  {
+                    "$ref": "http://schema.management.azure.com/schemas/2015-01-01/Microsoft.Resources.json#/definitions/links"
+                  },
+                  {
+                    "$ref": "#/resourceDefinitions/extensionsChild"
+                  }
+                ]
+              }
+            ]
+          },
+          "description": "Microsoft.Compute/virtualMachines: Resource Definition for Virtual Machines."
+        }
+      },
+      "required": [
+        "type",
+        "apiVersion",
+        "properties"
+      ]
+    },
+    "virtualMachineScaleSets": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "enum": [
+            "Microsoft.Compute/virtualMachineScaleSets"
+          ]
+        },
+        "apiVersion": {
+          "enum": [
+            "2015-05-01-preview",
+            "2015-06-15"
+          ]
+        },
+        "sku": {
+          "$ref": "#/definitions/sku"
+        },
+        "properties": {
+          "properties": {
+            "upgradePolicy": {
+              "$ref": "#/definitions/upgradePolicy"
+            },
+            "virtualMachineProfile": {
+              "$ref": "#/definitions/virtualMachineProfile"
+            }
+          },
+          "type": "object",
+          "required": [
+            "upgradePolicy",
+            "virtualMachineProfile"
+          ]
+        }
+      },
+      "required": [
+        "sku",
+        "properties"
+      ]
+    },
+    "extensions": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "enum": [
+            "Microsoft.Compute/virtualMachines/extensions"
+          ]
+        },
+        "apiVersion": {
+          "enum": [
+            "2015-05-01-preview",
+            "2015-06-15"
+          ]
+        },
+        "properties": {
+          "properties": {
+            "publisher": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string"
+            },
+            "typeHandlerVersion": {
+              "type": "string"
+            },
+            "settings": {
+              "type": "object"
+            }
+          },
+          "type": "object",
+          "required": [
+            "publisher",
+            "type",
+            "typeHandlerVersion",
+            "settings"
+          ]
+        }
+      },
+      "required": [
+        "type",
+        "apiVersion",
+        "properties"
+      ]
+    },
+    "extensionsChild": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "enum": [
+            "extensions"
+          ]
+        },
+        "apiVersion": {
+          "enum": [
+            "2015-05-01-preview",
+            "2015-06-15"
+          ]
+        },
+        "properties": {
+          "properties": {
+            "publisher": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string"
+            },
+            "typeHandlerVersion": {
+              "type": "string"
+            },
+            "settings": {
+              "type": "object"
+            }
+          },
+          "type": "object",
+          "required": [
+            "publisher",
+            "type",
+            "typeHandlerVersion",
+            "settings"
+          ]
+        }
+      },
+      "required": [
+        "type",
+        "apiVersion",
+        "properties"
+      ]
+    }
+  },
+  "definitions": {
+    "id": {
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "type": "object",
+      "required": [
+        "id"
+      ]
+    },
+    "networkInterfaces": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "properties": {
+          "properties": {
+            "primary": {
+              "type": "boolean"
+            }
+          },
+          "type": "object",
+          "required": [
+            "primary"
+          ]
+        }
+      },
+      "type": "object",
+      "required": [
+        "id"
+      ]
+    },
+    "hardwareProfile": {
+      "properties": {
+        "vmSize": {
+          "type": "string"
+        }
+      },
+      "type": "object",
+      "required": [
+        "vmSize"
+      ]
+    },
+    "imageReference": {
+      "properties": {
+        "publisher": {
+          "type": "string"
+        },
+        "offer": {
+          "type": "string"
+        },
+        "sku": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string",
+          "default": "latest"
+        }
+      },
+      "type": "object",
+      "required": [
+        "publisher",
+        "offer",
+        "sku",
+        "version"
+      ]
+    },
+    "vhd": {
+      "properties": {
+        "uri": {
+          "type": "string"
+        }
+      },
+      "type": "object",
+      "required": [
+        "uri"
+      ]
+    },
+    "osDisk": {
+      "properties": {
+        "osType": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "vhd": {
+          "$ref": "#/definitions/vhd"
+        },
+        "image": {
+          "$ref": "#/definitions/vhd"
+        },
+        "caching": {
+          "type": "string"
+        },
+        "createOption": {
+          "type": "string"
+        }
+      },
+      "type": "object",
+      "required": [
+        "name",
+        "vhd",
+        "createOption"
+      ]
+    },
+    "vhdUri": {
+      "properties": {
+        "uri": {
+          "type": "string"
+        }
+      },
+      "type": "object",
+      "required": [
+        "uri"
+      ]
+    },
+    "dataDisk": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "diskSizeGB": {
+          "type": "string"
+        },
+        "lun": {
+          "type": "number"
+        },
+        "vhd": {
+          "$ref": "#/definitions/vhdUri"
+        },
+        "caching": {
+          "type": "string"
+        },
+        "createOption": {
+          "type": "string"
+        }
+      },
+      "type": "object",
+      "required": [
+        "name",
+        "lun",
+        "vhd",
+        "createOption"
+      ]
+    },
+    "storageProfile": {
+      "properties": {
+        "imageReference": {
+          "$ref": "#/definitions/imageReference"
+        },
+        "osDisk": {
+          "$ref": "#/definitions/osDisk"
+        },
+        "dataDisks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/dataDisk"
+          }
+        }
+      },
+      "type": "object",
+      "required": [
+        "osDisk"
+      ]
+    },
+    "winRMListener": {
+      "properties": {
+        "protocol": {
+          "oneOf": [
+            {
+              "enum": [
+                "http",
+                "https"
+              ]
+            },
+            {
+              "$ref": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#/definitions/expression"
+            }
+          ]
+        },
+        "certificateUrl": {
+          "type": "string"
+        }
+      },
+      "type": "object",
+      "required": [
+        "protocol",
+        "certificateUrl"
+      ]
+    },
+    "winRM": {
+      "properties": {
+        "listeners": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/winRMListener"
+          }
+        }
+      },
+      "type": "object",
+      "required": [
+        "listeners"
+      ]
+    },
+    "additionalUnattendContent": {
+      "properties": {
+        "pass": {
+          "type": "string"
+        },
+        "component": {
+          "type": "string"
+        },
+        "settingName": {
+          "type": "string"
+        },
+        "content": {
+          "type": "string"
+        }
+      },
+      "type": "object",
+      "required": [
+        "pass",
+        "component",
+        "settingName",
+        "content"
+      ]
+    },
+    "windowsConfiguration": {
+      "properties": {
+        "provisionVMAgent": {
+          "type": "boolean"
+        },
+        "winRM": {
+          "$ref": "#/definitions/winRM"
+        },
+        "additionalUnattendContent": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/additionalUnattendContent"
+          }
+        },
+        "enableAutomaticUpdates": {
+          "type": "boolean"
+        }
+      },
+      "type": "object"
+    },
+    "publicKey": {
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "keyData": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "ssh": {
+      "properties": {
+        "publicKeys": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/publicKey"
+          }
+        }
+      },
+      "type": "object"
+    },
+    "linuxConfiguration": {
+      "properties": {
+        "disablePasswordAuthentication": {
+          "type": "string"
+        },
+        "ssh": {
+          "$ref": "#/definitions/ssh"
+        }
+      },
+      "type": "object"
+    },
+    "vaultCertificateUrl": {
+      "properties": {
+        "certificateUrl": {
+          "type": "string"
+        }
+      },
+      "type": "object",
+      "required": [
+        "certificateUrl"
+      ]
+    },
+    "secret": {
+      "properties": {
+        "sourceVault": {
+          "$ref": "#/definitions/id"
+        },
+        "vaultCertificates": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/vaultCertificateUrl"
+          }
+        }
+      },
+      "type": "object",
+      "required": [
+        "sourceVault",
+        "vaultCertificates"
+      ]
+    },
+    "osProfile": {
+      "properties": {
+        "computerName": {
+          "type": "string"
+        },
+        "adminUsername": {
+          "type": "string"
+        },
+        "adminPassword": {
+          "type": "string"
+        },
+        "customData": {
+          "type": "string"
+        },
+        "windowsConfiguration": {
+          "$ref": "#/definitions/windowsConfiguration"
+        },
+        "linuxConfiguration": {
+          "$ref": "#/definitions/linuxConfiguration"
+        },
+        "secrets": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/secret"
+          }
+        }
+      },
+      "type": "object",
+      "required": [
+        "computerName",
+        "adminUsername",
+        "adminPassword"
+      ]
+    },
+    "networkProfile": {
+      "properties": {
+        "networkInterfaces": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/networkInterfaces"
+          }
+        }
+      },
+      "type": "object",
+      "required": [
+        "networkInterfaces"
+      ]
+    },
+    "sku": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "tier": {
+          "type": "string"
+        },
+        "capacity": {
+          "type": "integer"
+        }
+      },
+      "type": "object",
+      "required": [
+        "name",
+        "capacity"
+      ]
+    },
+    "upgradePolicy": {
+      "properties": {
+        "mode": {
+          "type": "string"
+        }
+      },
+      "type": "object",
+      "required": [
+        "mode"
+      ]
+    },
+    "virtualMachineScaleSetOsProfile": {
+      "properties": {
+        "computerNamePrefix": {
+          "type": "string"
+        },
+        "adminUsername": {
+          "type": "string"
+        },
+        "adminPassword": {
+          "type": "string"
+        },
+        "customData": {
+          "type": "string"
+        },
+        "windowsConfiguration": {
+          "$ref": "#/definitions/windowsConfiguration"
+        },
+        "linuxConfiguration": {
+          "$ref": "#/definitions/linuxConfiguration"
+        },
+        "secrets": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/secret"
+          }
+        }
+      },
+      "type": "object",
+      "required": [
+        "computerNamePrefix",
+        "adminUsername",
+        "adminPassword"
+      ]
+    },
+    "virtualMachineScaleSetOSDisk": {
+      "properties": {
+        "osType": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "vhdContainers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "caching": {
+          "type": "string"
+        },
+        "createOption": {
+          "type": "string"
+        }
+      },
+      "type": "object",
+      "required": [
+        "name",
+        "createOption"
+      ]
+    },
+    "virtualMachineScaleSetStorageProfile": {
+      "properties": {
+        "imageReference": {
+          "oneOf": [
+            {
+              "$ref": "#/definitions/imageReference"
+            },
+            {
+              "$ref": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#/definitions/expression"
+            }
+          ]
+        },
+        "osDisk": {
+          "$ref": "#/definitions/virtualMachineScaleSetOSDisk"
+        }
+      },
+      "type": "object",
+      "required": [
+        "osDisk"
+      ]
+    },
+    "virtualMachineScaleSetExtension": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "properties": {
+          "properties": {
+            "publisher": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string"
+            },
+            "typeHandlerVersion": {
+              "type": "string"
+            },
+            "settings": {
+              "type": "object"
+            }
+          },
+          "type": "object",
+          "required": [
+            "publisher",
+            "type",
+            "typeHandlerVersion"
+          ]
+        }
+      }
+    },
+    "virtualMachineScaleSetExtensionProfile": {
+      "properties": {
+        "extensions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/virtualMachineScaleSetExtension"
+          }
+        }
+      },
+      "type": "object"
+    },
+    "ipConfiguration": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "subnet": {
+          "$ref": "#/definitions/id"
+        },
+        "loadBalancerBackendAddressPools": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/id"
+          }
+        }
+      },
+      "type": "object",
+      "required": [
+        "name",
+        "properties"
+      ]
+    },
+    "networkInterfaceConfiguration": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "properties": {
+          "type": "object",
+          "properties": {
+            "primary": {
+              "type": "boolean"
+            },
+            "ipConfigurations": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/ipConfiguration"
+              }
+            }
+          },
+          "required": [
+            "primary",
+            "ipConfigurations"
+          ]
+        }
+      },
+      "type": "object",
+      "required": [
+        "name",
+        "properties"
+      ]
+    },
+    "virtualMachineScaleSetNetworkProfile": {
+      "properties": {
+        "networkInterfaceConfigurations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/networkInterfaceConfiguration"
+          }
+        }
+      },
+      "type": "object",
+      "required": [
+        "networkInterfaceConfigurations"
+      ]
+    },
+    "virtualMachineProfile": {
+      "properties": {
+        "osProfile": {
+          "$ref": "#/definitions/virtualMachineScaleSetOsProfile"
+        },
+        "storageProfile": {
+          "$ref": "#/definitions/virtualMachineScaleSetStorageProfile"
+        },
+        "extensionProfile": {
+          "$ref": "#/definitions/virtualMachineScaleSetExtensionProfile"
+        },
+        "networkProfile": {
+          "$ref": "#/definitions/virtualMachineScaleSetNetworkProfile"
+        }
+      },
+      "type": "object",
+      "required": [
+        "osProfile",
+        "storageProfile",
+        "networkProfile"
+      ]
+    }
+  }
+}

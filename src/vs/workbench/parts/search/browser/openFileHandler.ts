@@ -84,12 +84,11 @@ export class FileEntry extends EditorQuickOpenEntry {
 
 export class OpenFileHandler extends QuickOpenHandler {
 
-	private static SEARCH_DELAY = 500; // This delay acommodates for the user typing a word and then stops typing to start searching
+	private static SEARCH_DELAY = 500; // This delay accommodates for the user typing a word and then stops typing to start searching
 
 	private queryBuilder: QueryBuilder;
-	private delayer: ThrottledDelayer;
+	private delayer: ThrottledDelayer<QuickOpenEntry[]>;
 	private isStandalone: boolean;
-	private pendingSearch: PPromise<ISearchComplete, ISearchProgressItem>
 
 	constructor(
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
@@ -103,12 +102,12 @@ export class OpenFileHandler extends QuickOpenHandler {
 		super();
 
 		this.queryBuilder = this.instantiationService.createInstance(QueryBuilder);
-		this.delayer = new ThrottledDelayer(OpenFileHandler.SEARCH_DELAY);
+		this.delayer = new ThrottledDelayer<QuickOpenEntry[]>(OpenFileHandler.SEARCH_DELAY);
 		this.isStandalone = true;
 	}
 
 	public setStandalone(standalone: boolean) {
-		this.delayer = standalone ? new ThrottledDelayer(OpenFileHandler.SEARCH_DELAY) : null;
+		this.delayer = standalone ? new ThrottledDelayer<QuickOpenEntry[]>(OpenFileHandler.SEARCH_DELAY) : null;
 		this.isStandalone = standalone;
 	}
 
@@ -129,28 +128,16 @@ export class OpenFileHandler extends QuickOpenHandler {
 	}
 
 	private doFindResults(searchValue: string): TPromise<QuickOpenEntry[]> {
-
-		// clear previous searches if still running
-		this.cancelPendingSearch();
-
 		let rootResources = this.textFileService.getWorkingFilesModel().getOutOfWorkspaceContextEntries().map((e) => e.resource);
 		if (this.contextService.getWorkspace()) {
 			rootResources.push(this.contextService.getWorkspace().resource);
 		}
 
-		let query: IQueryOptions = { filePatterns: [{ pattern: searchValue }], rootResources: rootResources };
+		let query: IQueryOptions = { filePattern: searchValue, rootResources: rootResources };
 
-		return this.queryBuilder.file(query).then((query) => {
-			this.pendingSearch = this.searchService.search(query);
-
-			return this.pendingSearch;
-		}).then((complete) => {
-			this.pendingSearch = null;
-
+		return this.queryBuilder.file(query).then((query) => this.searchService.search(query)).then((complete) => {
 			let searchResult = this.instantiationService.createInstance(SearchResult, null);
 			searchResult.append(complete.results);
-
-			let results: QuickOpenEntry[] = [];
 
 			// Sort (standalone only)
 			let matches = searchResult.matches();
@@ -159,6 +146,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 			}
 
 			// Highlight
+			let results: QuickOpenEntry[] = [];
 			for (let i = 0; i < matches.length; i++) {
 				let fileMatch = matches[i];
 				let highlights = filters.matchesFuzzy(searchValue, fileMatch.name());
@@ -182,7 +170,6 @@ export class OpenFileHandler extends QuickOpenHandler {
 		}
 
 		// Compare by name
-
 		let r = comparers.compareFileNames(elementAName, elementBName);
 		if (r !== 0) {
 			return r;
@@ -200,16 +187,5 @@ export class OpenFileHandler extends QuickOpenHandler {
 		return {
 			autoFocusFirstEntry: true
 		};
-	}
-
-	private cancelPendingSearch(): void {
-		if (this.pendingSearch) {
-			this.pendingSearch.cancel();
-			this.pendingSearch = null;
-		}
-	}
-
-	public onClose(canceled: boolean): void {
-		this.cancelPendingSearch();
 	}
 }

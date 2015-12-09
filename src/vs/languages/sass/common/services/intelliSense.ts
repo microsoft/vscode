@@ -148,9 +148,9 @@ export class SASSIntellisense extends cssIntellisense.CSSIntellisense {
 		return super.getColorProposals(entry, result);
 	}
 
-	public getCompletionsForDeclarations(declarations: nodes.Declarations, result: Modes.ISuggestion[]): Modes.ISuggestion[]{
+	public getCompletionsForDeclarationProperty(result: Modes.ISuggestion[]): Modes.ISuggestion[]{
 		this.getCompletionsForSelector(null, result);
-		return super.getCompletionsForDeclarations(declarations, result);
+		return super.getCompletionsForDeclarationProperty(result);
 	}
 
 }

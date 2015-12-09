@@ -63,16 +63,24 @@ if (!!process.send && process.env.PIPE_LOGGING === 'true') {
 		return res;
 	}
 
+	function safeSend(arg) {
+		try {
+			process.send(arg);
+		} catch (error) {
+			// Can happen if the parent channel is closed meanwhile
+		}
+	}
+
 	// Pass console logging to the outside so that we have it in the main side if told so
 	if (process.env.VERBOSE_LOGGING === 'true') {
-		console.log = function () { process.send({ type: '__$console', severity: 'log', arguments: safeStringify(arguments) }); };
-		console.warn = function () { process.send({ type: '__$console', severity: 'warn', arguments: safeStringify(arguments) }); };
+		console.log = function () { safeSend({ type: '__$console', severity: 'log', arguments: safeStringify(arguments) }); };
+		console.warn = function () { safeSend({ type: '__$console', severity: 'warn', arguments: safeStringify(arguments) }); };
 	} else {
 		console.log = function () { /* ignore */ };
 		console.warn = function () { /* ignore */ };
 	}
 
-	console.error = function () { process.send({ type: '__$console', severity: 'error', arguments: safeStringify(arguments) }); };
+	console.error = function () { safeSend({ type: '__$console', severity: 'error', arguments: safeStringify(arguments) }); };
 
 	// Let stdout, stderr and stdin be no-op streams. This prevents an issue where we would get an EBADF
 	// error when we are inside a forked process and this process tries to access those channels.

@@ -29,12 +29,15 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 
 	private static SYMBOL_SEARCH_INITIAL_TIMEOUT = 500; // Ignore symbol search after a timeout to not block search results
 	private static SYMBOL_SEARCH_SUBSEQUENT_TIMEOUT = 100;
-	private static SEARCH_DELAY = 100; // This delay acommodates for the user typing a word and then stops typing to start searching
+	private static SEARCH_DELAY = 300; // This delay accommodates for the user typing a word and then stops typing to start searching
+
+	private static MAX_DISPLAYED_RESULTS = 2048;
 
 	private openSymbolHandler: _OpenSymbolHandler;
 	private openFileHandler: OpenFileHandler;
 	private resultsToSearchCache: { [searchValue: string]: QuickOpenEntry[]; };
-	private delayer: ThrottledDelayer;
+	private delayer: ThrottledDelayer<QuickOpenModel>;
+	private pendingSearch: TPromise<QuickOpenModel>;
 	private isClosed: boolean;
 
 	constructor(
@@ -50,12 +53,15 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 		this.openSymbolHandler.setStandalone(false);
 		this.openFileHandler.setStandalone(false);
 
-		this.resultsToSearchCache = {};
-		this.delayer = new ThrottledDelayer(OpenAnythingHandler.SEARCH_DELAY);
+		this.resultsToSearchCache = Object.create(null);
+		this.delayer = new ThrottledDelayer<QuickOpenModel>(OpenAnythingHandler.SEARCH_DELAY);
 	}
 
 	public getResults(searchValue: string): TPromise<QuickOpenModel> {
 		searchValue = searchValue.trim();
+
+		// Cancel any pending search
+		this.cancelPendingSearch();
 
 		// Treat this call as the handler being in use
 		this.isClosed = false;
@@ -121,7 +127,8 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 			}));
 
 			// Join and sort unified
-			return TPromise.join(resultPromises).then((results: QuickOpenModel[]) => {
+			this.pendingSearch = TPromise.join(resultPromises).then((results: QuickOpenModel[]) => {
+				this.pendingSearch = null;
 
 				// If the quick open widget has been closed meanwhile, ignore the result
 				if (this.isClosed) {
@@ -133,7 +140,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 
 				// Sort
 				let normalizedSearchValue = strings.stripWildcards(searchValue.toLowerCase());
-				result.sort((elementA, elementB) => compareAnything(elementA.getLabel(), elementB.getLabel(), normalizedSearchValue));
+				result.sort((elementA, elementB) => this.compareResults(elementA, elementB, normalizedSearchValue));
 
 				// Apply Range
 				result.forEach((element) => {
@@ -145,10 +152,16 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 				// Cache for fast lookup
 				this.resultsToSearchCache[searchValue] = result;
 
-				return TPromise.as<QuickOpenModel>(new QuickOpenModel(result));
+				// Cap the number of results to make the view snappy
+				const viewResults = result.length > OpenAnythingHandler.MAX_DISPLAYED_RESULTS ? result.slice(0, OpenAnythingHandler.MAX_DISPLAYED_RESULTS) : result;
+
+				return TPromise.as<QuickOpenModel>(new QuickOpenModel(viewResults));
 			}, (error: Error) => {
+				this.pendingSearch = null;
 				this.messageService.show(Severity.Error, error);
 			});
+
+			return this.pendingSearch;
 		};
 
 		// Trigger through delayer to prevent accumulation while the user is typing
@@ -201,7 +214,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 		// Find cache entries by prefix of search value
 		let cachedEntries: QuickOpenEntry[];
 		for (let previousSearch in this.resultsToSearchCache) {
-			if (this.resultsToSearchCache.hasOwnProperty(previousSearch) && searchValue.indexOf(previousSearch) === 0) {
+			if (searchValue.indexOf(previousSearch) === 0) {
 				cachedEntries = this.resultsToSearchCache[previousSearch];
 				break;
 			}
@@ -231,7 +244,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 
 		// Sort
 		let normalizedSearchValue = strings.stripWildcards(searchValue.toLowerCase());
-		results.sort((elementA, elementB) => compareAnything(elementA.getLabel(), elementB.getLabel(), normalizedSearchValue));
+		results.sort((elementA, elementB) => this.compareResults(elementA, elementB, normalizedSearchValue));
 
 		// Apply Range
 		results.forEach((element) => {
@@ -241,6 +254,23 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 		});
 
 		return results;
+	}
+
+	private compareResults(elementA:QuickOpenEntry, elementB:QuickOpenEntry, searchValue: string): number {
+		let nameA = elementA.getLabel();
+		let nameB = elementB.getLabel();
+
+		if (nameA === nameB) {
+			let resourceA = elementA.getResource();
+			let resourceB = elementB.getResource();
+
+			if (resourceA && resourceB) {
+				nameA = elementA.getResource().fsPath;
+				nameB = elementB.getResource().fsPath;
+			}
+		}
+
+		return compareAnything(nameA, nameB, searchValue);
 	}
 
 	public getGroupLabel(): string {
@@ -256,11 +286,21 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 	public onClose(canceled: boolean): void {
 		this.isClosed = true;
 
+		// Cancel any pending search
+		this.cancelPendingSearch();
+
 		// Clear Cache
-		this.resultsToSearchCache = {};
+		this.resultsToSearchCache = Object.create(null);
 
 		// Propagate
 		this.openSymbolHandler.onClose(canceled);
 		this.openFileHandler.onClose(canceled);
+	}
+
+	private cancelPendingSearch(): void {
+		if (this.pendingSearch) {
+			this.pendingSearch.cancel();
+			this.pendingSearch = null;
+		}
 	}
 }

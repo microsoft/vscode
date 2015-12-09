@@ -38,7 +38,7 @@ export interface IConfigurationRegistry {
 	getConfigurations(): IConfigurationNode[];
 }
 
-export interface IConfigurationNode extends IJSONSchema {
+export interface IConfigurationNode {
 	id?: string;
 	order?: number;
 	type?: string;
@@ -47,8 +47,6 @@ export interface IConfigurationNode extends IJSONSchema {
 	default?: any;
 	properties?: { [path: string]: IJSONSchema; };
 	allOf?: IJSONSchema[];
-	workspace?: boolean;
-	container?: boolean;
 	definitions?: { [path: string]: IJSONSchema; };
 }
 
@@ -99,26 +97,41 @@ platform.Registry.add(Extensions.Configuration, configurationRegistry);
 let configurationExtPoint = PluginsRegistry.registerExtensionPoint<IConfigurationNode>('configuration', {
 	description: nls.localize('vscode.extension.contributes.configuration', 'Contributes configuration settings.'),
 	type: 'object',
-	default: { title: '', type: 'object', properties: {}},
+	default: { title: '', properties: {}},
 	properties: {
 		title: {
 			description: nls.localize('vscode.extension.contributes.configuration.title', 'A summary of the settings. This label will be used in the settings file as separating comment.'),
 			type: 'string'
 		},
-		type: {
-			description: nls.localize('vscode.extension.contributes.configuration.type', 'Type of the configuration, needs to be \'object\''),
-			enum: ['object'],
-		},
 		properties: {
 			description: nls.localize('vscode.extension.contributes.configuration.properties', 'Description of the configuration properties.'),
-			type: 'object'
+			type: 'object',
+			additionalProperties: {
+				$ref: 'http://json-schema.org/draft-04/schema#'
+			}
 		}
 	}
 });
 
 configurationExtPoint.setHandler((extensions) => {
 	for (var i = 0; i < extensions.length; i++) {
-		var configuration = extensions[i].value;
+		var configuration = <IConfigurationNode> extensions[i].value;
+		var collector = extensions[i].collector;
+
+		if (configuration.type && configuration.type !== 'object') {
+			collector.warn(nls.localize('invalid.type', "if set, 'configuration.type' must be set to 'object"));
+		} else {
+			configuration.type = 'object';
+		}
+
+		if (configuration.title && (typeof configuration.title !== 'string')) {
+			collector.error(nls.localize('invalid.title', "'configuration.title' must be a string"));
+		}
+
+		if (configuration.properties && (typeof configuration.properties !== 'object') ) {
+			collector.error(nls.localize('invalid.properties', "'configuration.properties' must be an object"));
+			return;
+		}
 		var clonedConfiguration = objects.clone(configuration);
 		clonedConfiguration.id = extensions[i].description.id;
 		configurationRegistry.registerConfiguration(clonedConfiguration);

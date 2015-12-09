@@ -87,7 +87,7 @@ suite('Git - Stage ranges', () => {
 		changesEqual(result, expected);
 	});
 
-	test('Get selected changes test - mulitple changes selected with one selection', () => {
+	test('Get selected changes test - multiple changes selected with one selection', () => {
 		var selections: IEditorSelection[] = [];
 		selections.push(Selection.createSelection(2, 7, 7, 1));
 		var changes: IChange[] = [];
@@ -119,7 +119,7 @@ suite('Git - Stage ranges', () => {
 		changesEqual(result, expected);
 	});
 
-	test('Get selected changes test - mulitple changes partially selected with multiple selections', () => {
+	test('Get selected changes test - multiple changes partially selected with multiple selections', () => {
 		var selections: IEditorSelection[] = [];
 		selections.push(Selection.createSelection(3, 1, 9, 5),  Selection.createSelection(115, 2, 129, 1));
 		var changes: IChange[] = [];
@@ -130,7 +130,7 @@ suite('Git - Stage ranges', () => {
 		changesEqual(result, expected);
 	});
 
-	test('Get selected changes test - mulitple changes selected with multiple selections. Multiple changes not selected', () => {
+	test('Get selected changes test - multiple changes selected with multiple selections. Multiple changes not selected', () => {
 		var selections: IEditorSelection[] = [];
 		selections.push(Selection.createSelection(33, 11, 79, 15),  Selection.createSelection(155, 21, 189, 11));
 		var changes: IChange[] = [];

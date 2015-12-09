@@ -95,7 +95,7 @@ export interface IQuickOpenService {
 	removeEditorHistoryEntry(input: IEditorInput): void;
 
 	/**
-	 * A convinient way to bring up quick open as a picker with custom elements. This bypasses the quick open handler
+	 * A convenient way to bring up quick open as a picker with custom elements. This bypasses the quick open handler
 	 * registry and just leverages the quick open widget to select any kind of entries.
 	 *
 	 * Passing in a promise will allow you to resolve the elements in the background while quick open will show a

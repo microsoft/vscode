@@ -48,7 +48,7 @@ export class FileService implements files.IFileService {
 				encodingOverride.push({ resource: uri.file(paths.join(this.contextService.getWorkspace().resource.fsPath, '.vscode')), encoding: encoding.UTF8 });
 			}
 
-			let doNotWatch = ['**/.git/objects/**']; 	// this folder does the heavy duty for git and we dont need to watch it
+			let doNotWatch = ['**/.git/objects/**']; 	// this folder does the heavy duty for git and we don't need to watch it
 			if (platform.isLinux) {
 				doNotWatch.push('**/node_modules/**'); 	// Linux does not have a good watching implementation, so we exclude more
 			}

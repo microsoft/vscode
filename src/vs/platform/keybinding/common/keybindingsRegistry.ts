@@ -103,11 +103,6 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 				}
 			}
 		}
-		if (Platform.isLinux) {
-			if (!BinaryKeybindings.hasCtrlCmd(keybinding) && !BinaryKeybindings.hasShift(keybinding) && BinaryKeybindings.hasAlt(keybinding) && !BinaryKeybindings.hasWinCtrl(keybinding)) {
-				console.warn('Alt+ keybindings should not be used by default under Linux. Offender: ', keybinding, ' for ', commandId);
-			}
-		}
 		this._keybindings.push({
 			keybinding: keybinding,
 			command: commandId,

@@ -19,7 +19,7 @@ import { WorkspaceContextService } from 'vs/workbench/services/workspace/common/
 import { IEventService } from 'vs/platform/event/common/event';
 import { EventService } from 'vs/platform/event/common/eventService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ConfigurationService } from 'vs/workbench/services/configuration/common/configurationService';
+import { ConfigurationService } from 'vs/workbench/services/configuration/node/configurationService';
 
 // Extra services
 import { IExtensionsService } from 'vs/workbench/parts/extensions/common/extensions';

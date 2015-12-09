@@ -6,7 +6,6 @@
 
 import errors = require('vs/base/common/errors');
 import types = require('vs/base/common/types');
-import {URL} from 'vs/base/common/network';
 import URI from 'vs/base/common/uri';
 import {EventType} from 'vs/base/common/events';
 import {FileChangeType, FileChangesEvent, EventType as FileEventType} from 'vs/platform/files/common/files';
@@ -93,7 +92,7 @@ export class MarkdownFileTracker implements IWorkbenchContribution {
 		let input = e.editorInput;
 		if (input instanceof MarkdownEditorInput) {
 			let markdownResource = input.getResource();
-			let editorModel = this.modelService.getModel(URL.fromUri(markdownResource));
+			let editorModel = this.modelService.getModel(markdownResource);
 			if (editorModel && !this.hasModelListenerOnResourcePath[markdownResource.toString()]) {
 				let toUnbind: Function[] = [];
 				let unbind = () => {

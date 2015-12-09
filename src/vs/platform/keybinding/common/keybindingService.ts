@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import {TPromise} from 'vs/base/common/winjs.base';
 import {createDecorator, IInstantiationService, ServiceIdentifier, ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
 import {Keybinding} from 'vs/base/common/keyCodes';
 
@@ -82,5 +83,8 @@ export interface IKeybindingService {
 	lookupKeybindings(commandId: string): Keybinding[];
 	customKeybindingsCount(): number;
 
-	executeCommand(commandId: string, args?: any): any;
+	getLabelFor(keybinding:Keybinding): string;
+
+	executeCommand<T>(commandId: string, args?: any): TPromise<T>;
+	executeCommand(commandId: string, args?: any): TPromise<any>;
 }

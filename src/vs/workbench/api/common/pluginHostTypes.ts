@@ -509,7 +509,7 @@ export class CodeLens {
 
 	constructor(range: Range, command?: vscode.Command) {
 		this.range = range;
-		this.command;
+		this.command = command;
 	}
 
 	get isResolved(): boolean {

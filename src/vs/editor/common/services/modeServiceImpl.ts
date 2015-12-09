@@ -190,7 +190,7 @@ export class ModeServiceImpl implements IModeService {
 		var c, e;
 		var promise = new TPromise((cc,ee,pp) => { c = cc; e = ee; });
 		this._activationPromises[modeId] = promise;
-		
+
 		this._createMode(modeId).then((mode) => {
 			this._instantiatedModes[modeId] = mode;
 			delete this._activationPromises[modeId];

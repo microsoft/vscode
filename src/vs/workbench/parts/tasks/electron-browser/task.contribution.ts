@@ -861,7 +861,7 @@ if (Env.enableTasks) {
 						},
 						'location': {
 							'type': 'integer',
-							'description': nls.localize('JsonSchema.pattern.location', 'The match group index of the problem\'s location. Valid location patterns are: (line), (line,column) and (startLine,startColumn,endLine,endColumn). If omitted line and colum is assumed.')
+							'description': nls.localize('JsonSchema.pattern.location', 'The match group index of the problem\'s location. Valid location patterns are: (line), (line,column) and (startLine,startColumn,endLine,endColumn). If omitted line and column is assumed.')
 						},
 						'line': {
 							'type': 'integer',
@@ -947,7 +947,7 @@ if (Env.enableTasks) {
 						},
 						'owner': {
 							'type': 'string',
-							'description': nls.localize('JsonSchema.problemMatcher.owner', 'The owner of the problem inside Visual Studio Code. Can be omitted if base is specified. Defaults to \'external\' if omitted and base is not specified.')
+							'description': nls.localize('JsonSchema.problemMatcher.owner', 'The owner of the problem inside Code. Can be omitted if base is specified. Defaults to \'external\' if omitted and base is not specified.')
 						},
 						'severity': {
 							'type': 'string',
@@ -1025,7 +1025,7 @@ if (Env.enableTasks) {
 						'isShellCommand': {
 							'type': 'boolean',
 							'default': true,
-							'description': nls.localize('JsonSchema.shell', 'Specifies whether the command is a shell command or an external programm. Defaults to false if omitted.')
+							'description': nls.localize('JsonSchema.shell', 'Specifies whether the command is a shell command or an external program. Defaults to false if omitted.')
 						},
 						'args': {
 							'type': 'array',
@@ -1040,7 +1040,7 @@ if (Env.enableTasks) {
 							'properties': {
 								'cwd': {
 									'type': 'string',
-									'description': nls.localize('JsonSchema.options.cwd', 'The current working directory of the executed program or script. If omitted Visual Studio Code\'s current workspace root is used.')
+									'description': nls.localize('JsonSchema.options.cwd', 'The current working directory of the executed program or script. If omitted Code\'s current workspace root is used.')
 								},
 								'env': {
 									'type': 'object',
@@ -1053,7 +1053,7 @@ if (Env.enableTasks) {
 						},
 						'showOutput': {
 							'$ref': '#/definitions/showOutputType',
-							'description': nls.localize('JsonSchema.showOuput', 'Controls whether the output of the running task is shown or not. If omitted \'always\' is used.')
+							'description': nls.localize('JsonSchema.showOutput', 'Controls whether the output of the running task is shown or not. If omitted \'always\' is used.')
 						},
 						'isWatching': {
 							'type': 'boolean',
@@ -1111,7 +1111,7 @@ if (Env.enableTasks) {
 						},
 						'showOutput': {
 							'$ref': '#/definitions/showOutputType',
-							'description': nls.localize('JsonSchema.tasks.showOuput', 'Controls whether the output of the running task is shown or not. If omitted the globally defined value is used.')
+							'description': nls.localize('JsonSchema.tasks.showOutput', 'Controls whether the output of the running task is shown or not. If omitted the globally defined value is used.')
 						},
 						'echoCommand': {
 							'type': 'boolean',
@@ -1125,12 +1125,12 @@ if (Env.enableTasks) {
 						},
 						'isBuildCommand': {
 							'type': 'boolean',
-							'description': nls.localize('JsonSchema.tasks.build', 'Maps this task to Visual Studio Code\'s default build command.'),
+							'description': nls.localize('JsonSchema.tasks.build', 'Maps this task to Code\'s default build command.'),
 							'default': true
 						},
 						'isTestCommand': {
 							'type': 'boolean',
-							'description': nls.localize('JsonSchema.tasks.test', 'Maps this task to Visual Studio Code\'s default test command.'),
+							'description': nls.localize('JsonSchema.tasks.test', 'Maps this task to Code\'s default test command.'),
 							'default': true
 						},
 						'problemMatcher': {

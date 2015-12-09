@@ -118,6 +118,10 @@ export class AbstractKeybindingService {
 		this.getContext(this._myContextId).removeValue(key);
 	}
 
+	public getLabelFor(keybinding:Keybinding): string {
+		throw new Error('Not implemented');
+	}
+
 	public customKeybindingsCount(): number {
 		throw new Error('Not implemented');
 	}
@@ -142,7 +146,7 @@ export class AbstractKeybindingService {
 		throw new Error('Not implemented');
 	}
 
-	public executeCommand(commandId: string, args:any): void {
+	public executeCommand(commandId: string, args:any): TPromise<any> {
 		throw new Error('Not implemented');
 	}
 }
@@ -179,6 +183,10 @@ export class KeybindingService extends AbstractKeybindingService implements IKey
 	public dispose(): void {
 		this._toDispose.dispose();
 		this._toDispose = null;
+	}
+
+	public getLabelFor(keybinding:Keybinding): string {
+		return keybinding._toUSLabel();
 	}
 
 	protected updateResolver(): void {
@@ -234,7 +242,7 @@ export class KeybindingService extends AbstractKeybindingService implements IKey
 			e.preventDefault();
 			this._currentChord = resolveResult.enterChord;
 			if (this._messageService) {
-				let firstPartLabel = Keybinding.toLabel(this._currentChord);
+				let firstPartLabel = this.getLabelFor(new Keybinding(this._currentChord));
 				this._currentChordStatusMessage = this._messageService.setStatusMessage(nls.localize('first.chord', "({0}) was pressed. Waiting for second key of chord...", firstPartLabel));
 			}
 			return;
@@ -242,8 +250,8 @@ export class KeybindingService extends AbstractKeybindingService implements IKey
 
 		if (this._messageService && this._currentChord) {
 			if (!resolveResult || !resolveResult.commandId) {
-				let firstPartLabel = Keybinding.toLabel(this._currentChord);
-				let chordPartLabel = Keybinding.toLabel(e.asKeybinding());
+				let firstPartLabel = this.getLabelFor(new Keybinding(this._currentChord));
+				let chordPartLabel = this.getLabelFor(new Keybinding(e.asKeybinding()));
 				this._messageService.setStatusMessage(nls.localize('missing.chord', "The key combination ({0}, {1}) is not a command.", firstPartLabel, chordPartLabel), 10 * 1000 /* 10s */);
 				e.preventDefault();
 			}
@@ -300,7 +308,7 @@ export class KeybindingService extends AbstractKeybindingService implements IKey
 		delete this._contexts[String(contextId)];
 	}
 
-	public executeCommand(commandId: string, args:any = {}): any {
+	public executeCommand(commandId: string, args:any = {}): TPromise<any> {
 		if (!args.context) {
 			var contextId = this._findContextAttr(<HTMLElement>document.activeElement);
 			var context = this.getContext(contextId);
@@ -309,9 +317,7 @@ export class KeybindingService extends AbstractKeybindingService implements IKey
 			args.context = contextValue;
 		}
 
-		return this._invokeHandler(commandId, args).done(undefined, err => {
-			this._messageService.show(Severity.Warning, err);
-		});
+		return this._invokeHandler(commandId, args);
 	}
 }
 
@@ -330,6 +336,10 @@ class ScopedKeybindingService extends AbstractKeybindingService {
 	public dispose(): void {
 		this._parent.disposeContext(this._myContextId);
 		this._domNode.removeAttribute(KEYBINDING_CONTEXT_ATTR);
+	}
+
+	public getLabelFor(keybinding:Keybinding): string {
+		return this._parent.getLabelFor(keybinding);
 	}
 
 	public getDefaultKeybindings(): string {
@@ -356,8 +366,8 @@ class ScopedKeybindingService extends AbstractKeybindingService {
 		this._parent.disposeContext(contextId);
 	}
 
-	public executeCommand(commandId: string, args:any): void {
-		this._parent.executeCommand(commandId, args);
+	public executeCommand(commandId: string, args:any): TPromise<any> {
+		return this._parent.executeCommand(commandId, args);
 	}
 }
 

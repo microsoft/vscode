@@ -222,7 +222,17 @@ export class EditorHistoryModel extends QuickOpenModel {
 		if (searchValue) {
 			let normalizedSearchValue = strings.stripWildcards(searchValue.toLowerCase());
 
-			return results.sort((elementA, elementB) => comparers.compareAnything((<EditorHistoryEntry>elementA).getInput().getName(), (<EditorHistoryEntry>elementB).getInput().getName(), normalizedSearchValue));
+			return results.sort((elementA:EditorHistoryEntry, elementB:EditorHistoryEntry) => {
+				let nameA = elementA.getInput().getName();
+				let nameB = elementB.getInput().getName();
+
+				if (nameA === nameB) {
+					nameA = elementA.getResource().fsPath;
+					nameB = elementB.getResource().fsPath;
+				}
+
+				return comparers.compareAnything(nameA, nameB, normalizedSearchValue);
+			});
 		}
 
 		// Leave default "most recently used" order if user is not actually searching

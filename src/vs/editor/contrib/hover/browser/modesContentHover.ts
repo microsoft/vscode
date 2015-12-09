@@ -15,8 +15,8 @@ import HoverWidget = require('./hoverWidgets');
 import HtmlContent = require('vs/base/common/htmlContent');
 import {renderHtml} from 'vs/base/browser/htmlContentRenderer';
 import {tokenizeToHtmlContent} from 'vs/editor/common/modes/textToHtmlTokenizer';
-import ExtraInfoRegistry from '../common/hover';
 import {Range} from 'vs/editor/common/core/range';
+import {ExtraInfoRegistry, getExtraInfoAtPosition} from '../common/hover';
 
 
 class ModesContentComputer implements HoverOperation.IHoverComputer<Modes.IComputeExtraInfoResult[]> {
@@ -46,27 +46,10 @@ class ModesContentComputer implements HoverOperation.IHoverComputer<Modes.ICompu
 			return TPromise.as(null);
 		}
 
-		let supports = ExtraInfoRegistry.all(model);
-		let values: Modes.IComputeExtraInfoResult[] = [];
-		let promises: TPromise<any>[] = [];
-
-		for (let support of supports) {
-			promises.push(support.computeInfo(this._editor.getModel().getAssociatedResource(), {
-				lineNumber: this._range.startLineNumber,
-				column: this._range.startColumn,
-			}).then((result: Modes.IComputeExtraInfoResult) => {
-				if (result) {
-					let hasRange = (typeof result.range !== 'undefined');
-					let hasValue = (typeof result.value !== 'undefined');
-					let hasHtmlContent = (typeof result.htmlContent !== 'undefined' && result.htmlContent && result.htmlContent.length > 0);
-					if (hasRange && (hasValue || hasHtmlContent)) {
-						values.push(result);
-					}
-				}
-			}));
-		}
-
-		return TPromise.join(promises).then(() => values);
+		return getExtraInfoAtPosition(model, {
+			lineNumber: this._range.startLineNumber,
+			column: this._range.startColumn
+		});
 	}
 
 	public computeSync(): Modes.IComputeExtraInfoResult[] {

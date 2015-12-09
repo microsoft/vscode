@@ -204,12 +204,12 @@ export class StartStopProblemCollector extends AbstractProblemCollector implemen
 				this.currentResource = resource;
 				this.currentResourceAsString = resourceAsString;
 			}
-			let markerDatas = this.markers[owner];
-			if (!markerDatas) {
-				markerDatas = [];
-				this.markers[owner] = markerDatas;
+			let markerData = this.markers[owner];
+			if (!markerData) {
+				markerData = [];
+				this.markers[owner] = markerData;
 			}
-			markerDatas.push(markerMatch.marker);
+			markerData.push(markerMatch.marker);
 		} else {
 			this.reportedResourcesWithMarkers[owner][resourceAsString] = resource;
 		}
@@ -316,12 +316,12 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 				this.currentResource = resource;
 				this.currentResourceAsString = resourceAsString;
 			}
-			let markerDatas = this.markers[owner];
-			if (!markerDatas) {
-				markerDatas = [];
-				this.markers[owner] = markerDatas;
+			let markerData = this.markers[owner];
+			if (!markerData) {
+				markerData = [];
+				this.markers[owner] = markerData;
 			}
-			markerDatas.push(markerMatch.marker);
+			markerData.push(markerMatch.marker);
 		} else {
 			this.removeResourceToClean(owner, resourceAsString);
 		}

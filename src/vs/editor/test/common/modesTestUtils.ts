@@ -7,6 +7,25 @@
 import modes = require('vs/editor/common/modes');
 import {Arrays} from 'vs/editor/common/core/arrays';
 
+class SimpleTokenTypeClassificationMode implements modes.IMode {
+
+	private _id:string;
+	public tokenTypeClassificationSupport: modes.ITokenTypeClassificationSupport;
+
+	constructor(id:string, tokenTypeClassificationSupport: modes.ITokenTypeClassificationSupport) {
+		this._id = id;
+		this.tokenTypeClassificationSupport = tokenTypeClassificationSupport;
+	}
+
+	public getId(): string {
+		return this._id;
+	}
+
+	public toSimplifiedMode(): modes.IMode {
+		return this;
+	}
+}
+
 export function createMockMode(id:string, wordRegExp:RegExp = null):modes.IMode {
 	var tokenTypeClassificationSupport: modes.ITokenTypeClassificationSupport;
 	if (wordRegExp) {
@@ -14,10 +33,7 @@ export function createMockMode(id:string, wordRegExp:RegExp = null):modes.IMode 
 			getWordDefinition: () => wordRegExp
 		};
 	}
-	return {
-		getId: () => id,
-		tokenTypeClassificationSupport: tokenTypeClassificationSupport
-	};
+	return new SimpleTokenTypeClassificationMode(id, tokenTypeClassificationSupport);
 }
 
 export interface TokenText {

@@ -285,7 +285,7 @@ class StatusBarEntryItem implements IStatusbarItem {
 
 		// Fallback to the keybinding service for any other case
 		else {
-			this.keybindingService.executeCommand(id);
+			this.keybindingService.executeCommand(id).done(undefined, err => this.messageService.show(Severity.Error, toErrorMessage(err)));
 		}
 	}
 }

@@ -141,6 +141,7 @@ class InternalEditorOptionsHelper {
 			readOnly: toBoolean(opts.readOnly),
 			scrollbar: scrollbar,
 			overviewRulerLanes: toInteger(opts.overviewRulerLanes, 0, 3),
+			cursorBlinking: opts.cursorBlinking,
 			hideCursorInOverviewRuler: toBoolean(opts.hideCursorInOverviewRuler),
 			scrollBeyondLastLine: toBoolean(opts.scrollBeyondLastLine),
 			wrappingIndent: opts.wrappingIndent,
@@ -236,6 +237,7 @@ class InternalEditorOptionsHelper {
 			readOnly:						(prevOpts.readOnly !== newOpts.readOnly),
 			scrollbar:						(!this._scrollbarOptsEqual(prevOpts.scrollbar, newOpts.scrollbar)),
 			overviewRulerLanes:				(prevOpts.overviewRulerLanes !== newOpts.overviewRulerLanes),
+			cursorBlinking:					(prevOpts.cursorBlinking !== newOpts.cursorBlinking),
 			hideCursorInOverviewRuler:		(prevOpts.hideCursorInOverviewRuler !== newOpts.hideCursorInOverviewRuler),
 			scrollBeyondLastLine:			(prevOpts.scrollBeyondLastLine !== newOpts.scrollBeyondLastLine),
 			wrappingIndent:					(prevOpts.wrappingIndent !== newOpts.wrappingIndent),
@@ -793,6 +795,12 @@ configurationRegistry.registerConfiguration({
 			'type': 'integer',
 			'default': 3,
 			'description': nls.localize('overviewRulerLanes', "Controls the number of decorations that can show up at the same position in the overview ruler")
+		},
+		'editor.cursorBlinking' : {
+			'type': 'string',
+			'enum': ['blink', 'visible', 'hidden'],
+			'default': DefaultConfig.editor.cursorBlinking,
+			'description': nls.localize('cursorBlinking', "Controls the cursor blinking animation.")
 		},
 		'editor.hideCursorInOverviewRuler' : {
 			'type': 'boolean',

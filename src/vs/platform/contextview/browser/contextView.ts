@@ -5,9 +5,9 @@
 'use strict';
 
 import Lifecycle = require('vs/base/common/lifecycle');
-import Actions = require('vs/base/common/actions');
+import { IAction } from 'vs/base/common/actions';
 import ActionBar = require('vs/base/browser/ui/actionbar/actionbar');
-import winjs = require('vs/base/common/winjs.base');
+import { TPromise } from 'vs/base/common/winjs.base';
 import {Keybinding} from 'vs/base/common/keyCodes';
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
 
@@ -37,10 +37,10 @@ export interface IContextMenuService {
 
 export interface IContextMenuDelegate {
 	getAnchor():HTMLElement|{x: number; y: number; }
-	getActions(): winjs.Promise;
-	getActionItem?(action: Actions.IAction): ActionBar.IActionItem;
+	getActions(): TPromise<IAction[]>;
+	getActionItem?(action: IAction): ActionBar.IActionItem;
 	getActionsContext?():any;
-	getKeyBinding?(action: Actions.IAction): Keybinding;
+	getKeyBinding?(action: IAction): Keybinding;
 	getMenuClassName?():string;
 	onHide?(didCancel: boolean): void;
 }

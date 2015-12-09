@@ -84,7 +84,7 @@ export class FileDataSource implements Tree.IDataSource {
 				// Convert to view model
 				let modelDirStat = FileStat.create(dirStat);
 
-				// Add childs to folder
+				// Add children to folder
 				for (let i = 0; i < modelDirStat.children.length; i++) {
 					stat.addChild(modelDirStat.children[i]);
 				}
@@ -98,9 +98,7 @@ export class FileDataSource implements Tree.IDataSource {
 				return []; // we could not resolve any children because of an error
 			});
 
-			if (this.partService.isCreated()) {
-				this.progressService.showWhile(promise, 800);
-			}
+			this.progressService.showWhile(promise, this.partService.isCreated() ? 800 : 3200 /* less ugly initial startup */);
 
 			return promise;
 		}

@@ -25,7 +25,8 @@ var util = require('./lib/util');
 var buildfile = require('../src/buildfile');
 var common = require('./gulpfile.common');
 var root = path.dirname(__dirname);
-var commit = process.env['BUILD_SOURCEVERSION'] || require('./lib/git').getVersion(root);
+var build = path.join(root, '.build');
+var commit = util.getVersion(root);
 
 var baseModules = [
 	'app', 'applicationinsights', 'assert', 'auto-updater', 'browser-window',
@@ -34,10 +35,14 @@ var baseModules = [
 	'https', 'https-proxy-agent', 'iconv-lite', 'ipc', 'menu', 'menu-item', 'net',
 	'original-fs', 'os', 'path', 'readline', 'remote', 'sax', 'screen', 'semver',
 	'shell', 'stream', 'string_decoder', 'url', 'vscode-textmate', 'web-frame', 'winreg',
-	'yauzl'
+	'yauzl', 'native-keymap'
 ];
 
 // Build
+
+var builtInExtensions = {
+	'jrieken.vscode-omnisharp': '0.1.0',
+};
 
 var vscodeEntryPoints = _.flatten([
 	buildfile.entrypoint('vs/workbench/workbench.main'),
@@ -112,7 +117,7 @@ var config = {
 gulp.task('electron', function () {
 	// Force windows to use ia32
 	var arch = (process.platform === 'win32' ? 'ia32' : process.arch);
-	return electron.dest(path.join(path.dirname(root), 'Electron-Build'), _.extend({}, config, { arch: arch }));
+	return electron.dest(path.join(build, 'electron'), _.extend({}, config, { arch: arch }));
 });
 
 function mixinProduct() {
@@ -161,12 +166,7 @@ function packageTask(platform, arch, opts) {
 			'extensions/**',
 			'!extensions/*/src/**',
 			'!extensions/*/out/**/test/**',
-			'!extensions/typescript/bin/**',
-			'!extensions/csharp-o/node_modules/del/**',
-			'!extensions/csharp-o/node_modules/gulp/**',
-			'!extensions/csharp-o/node_modules/gulp-decompress/**',
-			'!extensions/csharp-o/node_modules/gulp-download/**',
-			'!extensions/csharp-o/node_modules/typescript/**'
+			'!extensions/typescript/bin/**'
 		], { base: '.' });
 
 		var pluginHostSourceMap = gulp.src(out + '/vs/workbench/node/pluginHostProcess.js.map', { base: '.' })
@@ -182,8 +182,9 @@ function packageTask(platform, arch, opts) {
 		var license = gulp.src(['Credits_*', 'LICENSE.txt', 'ThirdPartyNotices.txt'], { base: '.' });
 		var api = gulp.src('src/vs/vscode.d.ts').pipe(rename('out/vs/vscode.d.ts'));
 
-		var depsSrc = _.flatten(Object.keys(packagejson.dependencies)
-			.map(function (d) { return ['node_modules/' + d + '/**', '!node_modules/' + d + '/**/{test,tests}/**']; }));
+		var depsSrc = _.flatten(Object.keys(packagejson.dependencies).concat(Object.keys(packagejson.optionalDependencies))
+			.map(function (d) { return ['node_modules/' + d + '/**', '!node_modules/' + d + '/**/{test,tests}/**']; })
+		);
 
 		var deps = gulp.src(depsSrc, { base: '.', dot: true })
 			.pipe(util.cleanNodeModule('fsevents', ['binding.gyp', 'fsevents.cc', 'build/**', 'src/**', 'test/**'], true))
@@ -197,6 +198,11 @@ function packageTask(platform, arch, opts) {
 			resources = es.merge(resources, gulp.src(product.icons.application.png, { base: '.' }));
 		}
 
+		var extraExtensions = util.downloadExtensions(builtInExtensions)
+			.pipe(rename(function (p) {
+				p.dirname = path.posix.join('extensions', p.dirname);
+			}));
+
 		var all = es.merge(
 			api,
 			packageJson,
@@ -204,6 +210,7 @@ function packageTask(platform, arch, opts) {
 			license,
 			sources,
 			deps,
+			extraExtensions,
 			resources
 		).pipe(util.skipDirectories());
 

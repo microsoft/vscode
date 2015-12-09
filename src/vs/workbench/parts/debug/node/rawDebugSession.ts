@@ -5,21 +5,17 @@
 
 import cp = require('child_process');
 import fs = require('fs');
-import path = require('path');
 import net = require('net');
 import remote = require('remote');
-import nls = require('vs/nls');
-import uri from 'vs/base/common/uri';
 import platform = require('vs/base/common/platform');
 import errors = require('vs/base/common/errors');
 import { Promise, TPromise} from 'vs/base/common/winjs.base';
 import severity from 'vs/base/common/severity';
-import actions = require('vs/base/common/actions');
 import debug = require('vs/workbench/parts/debug/common/debug');
 import { Adapter } from 'vs/workbench/parts/debug/node/debugAdapter';
 import v8 = require('vs/workbench/parts/debug/node/v8Protocol');
 import stdfork = require('vs/base/node/stdFork');
-import { IMessageService, CloseAction } from 'vs/platform/message/common/message';
+import { IMessageService } from 'vs/platform/message/common/message';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 var shell = remote.require('shell');
@@ -30,6 +26,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 	private cachedInitServer: Promise;
 	private startTime: number;
 	private stopServerPending: boolean;
+	public isAttach: boolean;
 
 	constructor(
 		private messageService: IMessageService,
@@ -74,10 +71,12 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 	}
 
 	public launch(args: DebugProtocol.LaunchRequestArguments): TPromise<DebugProtocol.LaunchResponse> {
+		this.isAttach = false;
 		return this.sendAndLazyEmit('launch', args);
 	}
 
 	public attach(args: DebugProtocol.AttachRequestArguments): TPromise<DebugProtocol.AttachResponse> {
+		this.isAttach = true;
 		return this.sendAndLazyEmit('attach', args);
 	}
 
@@ -119,12 +118,9 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 
 	public disconnect(restart = false): TPromise<DebugProtocol.DisconnectResponse> {
 		if ((this.serverProcess || this.socket) && !this.stopServerPending) {
-			this.stopServerPending = true; // point of no return: from now on don't report any errors
-			return this.send('disconnect', { extensionHostData: { restart: restart } }).then(() => {
-				return this.stopServer();
-			}, () => {
-				return this.stopServer();
-			});
+			// point of no return: from now on don't report any errors
+			this.stopServerPending = true;
+			return this.send('disconnect', { restart: restart }).then(() => this.stopServer(), () => this.stopServer());
 		}
 
 		return Promise.as(null);

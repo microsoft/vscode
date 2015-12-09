@@ -40,7 +40,7 @@ function loadSingleTest(test) {
 	return function (cb) {
 		define([moduleId], function () {
 			cb(null);
-		});
+		}, cb);
 	};
 }
 
@@ -53,7 +53,7 @@ function loadClientTests(cb) {
 		// load all modules
 		define(modules, function () {
 			cb(null);
-		});
+		}, cb);
 	});
 }
 
@@ -66,8 +66,8 @@ function loadPluginTests(cb) {
 		});
 
 		define(modules, function() {
-			cb();
-		});
+			cb(null);
+		}, cb);
 	});
 }
 
@@ -145,7 +145,12 @@ function main() {
 		loadTasks.push(loadPluginTests);
 	}
 
-	async.parallel(loadTasks, function () {
+	async.parallel(loadTasks, function (err) {
+		if (err) {
+			console.error(err);
+			return process.exit(1);
+		}
+
 		process.stderr.write = write;
 
 		if (!argv.run) {
