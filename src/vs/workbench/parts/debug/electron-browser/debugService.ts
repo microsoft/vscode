@@ -601,11 +601,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		}
 		this.session = null;
 		this.partService.removeClass('debugging');
-		this.contextService.updateOptions('editor', {
-			hover: true
-		});
 		this.editorService.focusEditor();
-
 
 		this.model.clearThreads(true);
 		this.setFocusedStackFrameAndEvaluate(null);
