@@ -13,7 +13,6 @@ import strings = require('vs/base/common/strings');
 import filters = require('vs/base/common/filters');
 import uuid = require('vs/base/common/uuid');
 import types = require('vs/base/common/types');
-import {ListenerUnbind} from 'vs/base/common/eventEmitter';
 import {Mode, IContext, IAutoFocus, IQuickNavigateConfiguration, IModel} from 'vs/base/parts/quickopen/browser/quickOpen';
 import {QuickOpenEntryItem, QuickOpenEntry, QuickOpenModel, QuickOpenEntryGroup} from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import {QuickOpenWidget} from 'vs/base/parts/quickopen/browser/quickOpenWidget';
@@ -79,8 +78,6 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 	private actionProvider = new ContributableActionProvider();
 	private previousValue = '';
 	private visibilityChangeTimeoutHandle: number;
-	private fuzzyMatchingEnabled: boolean;
-	private configurationListenerUnbind: ListenerUnbind;
 
 	constructor(
 		private eventService: IEventService,
@@ -102,22 +99,8 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 
 		this.inQuickOpenMode = keybindingService.createKey(QUICK_OPEN_MODE, false);
 
-		this.updateFuzzyMatching(contextService.getOptions().globalSettings.settings);
-
 		this._onShow = new EventSource<() => void>();
 		this._onHide = new EventSource<() => void>();
-
-		this.registerListeners();
-	}
-
-	private registerListeners(): void {
-
-		// Listen to configuration changes
-		this.configurationListenerUnbind = this.configurationService.addListener(ConfigurationServiceEventTypes.UPDATED, (e: IConfigurationServiceEvent) => this.updateFuzzyMatching(e.config));
-	}
-
-	private updateFuzzyMatching(configuration: any): void {
-		this.fuzzyMatchingEnabled = configuration.picker && configuration.picker.enableFuzzy;
 	}
 
 	public get onShow(): EventProvider<() => void> {
@@ -134,10 +117,6 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 
 	public getEditorHistoryModel(): EditorHistoryModel {
 		return this.editorHistoryModel;
-	}
-
-	public isFuzzyMatchingEnabled(): boolean {
-		return this.fuzzyMatchingEnabled;
 	}
 
 	public create(): void {
@@ -850,10 +829,6 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 
 		if (this.pickOpenWidget) {
 			this.pickOpenWidget.dispose();
-		}
-
-		if (this.configurationListenerUnbind) {
-			this.configurationListenerUnbind();
 		}
 
 		super.dispose();

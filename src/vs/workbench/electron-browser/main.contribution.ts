@@ -74,18 +74,3 @@ configurationRegistry.registerConfiguration({
 		}
 	}
 });
-
-// Picker Configuration
-configurationRegistry.registerConfiguration({
-	'id': 'picker',
-	'order': 11,
-	'title': nls.localize('filterConfigurationTitle', "Picker configuration"),
-	'type': 'object',
-	'properties': {
-		'picker.enableFuzzy': {
-			'type': 'boolean',
-			'default': false,
-			'description': nls.localize('enableFuzzy', "Enable or disable fuzzy matching and sorting in the picker.")
-		}
-	}
-});

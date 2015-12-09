@@ -505,10 +505,6 @@ export class TestQuickOpenService implements QuickOpenService.IQuickOpenService 
 		return null;
 	}
 
-	public isFuzzyMatchingEnabled(): boolean {
-		return false;
-	}
-
 	public removeEditorHistoryEntry(input: WorkbenchEditorCommon.EditorInput): void {}
 	public dispose() {}
 	public quickNavigate(): void {}
