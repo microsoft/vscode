@@ -409,7 +409,7 @@ export interface ISuggestionFilter {
 	(word: string, suggestion: ISuggestion): IMatch[];
 }
 
-export interface ISuggestionSorter {
+export interface ISuggestionCompare {
 	(one: ISuggestion, other: ISuggestion): number;
 }
 
@@ -429,7 +429,7 @@ export interface ISuggestSupport {
 	getSuggestionDetails?:(resource:URI, position:EditorCommon.IPosition, suggestion:ISuggestion)=>TPromise<ISuggestion>;
 
 	getFilter():ISuggestionFilter;
-	getSorter?():ISuggestionSorter;
+	getSorter?():ISuggestionCompare;
 	getTriggerCharacters():string[];
 	shouldShowEmptySuggestionList():boolean;
 	shouldAutotriggerSuggest(context:ILineContext, offset:number, triggeredByCharacter:string):boolean;

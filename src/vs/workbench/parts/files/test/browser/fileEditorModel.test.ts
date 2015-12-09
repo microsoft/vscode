@@ -208,40 +208,6 @@ suite('Files - TextFileEditorModel', () => {
 		});
 	});
 
-	test("Change after auto save triggered will cause another autosave and twice the events", function(done) {
-		this.timeout(10000); // TODO@Ben test tends to need longer?
-
-		let eventCounter = 0;
-		let m1 = baseInstantiationService.createInstance(TextFileEditorModel, toResource("/path/index.txt"), "utf8");
-
-		(<any>m1).autoSaveDelay = 10;
-		(<any>m1).autoSaveEnabled = true;
-
-		eventService.addListener(EventType.FILE_DIRTY, (e: LocalFileChangeEvent) => {
-			eventCounter++;
-		});
-
-		eventService.addListener(EventType.FILE_SAVED, (e: LocalFileChangeEvent) => {
-			eventCounter++;
-		});
-
-		m1.load().then(() => {
-			m1.textEditorModel.setValue("foo");
-
-			return Promise.timeout(50).then(() => {
-				m1.textEditorModel.setValue("bar");
-
-				return Promise.timeout(20).then(() => {
-					m1.dispose();
-					assert.ok(!m1.isDirty());
-					assert.equal(eventCounter, 4);
-
-					done();
-				});
-			});
-		});
-	});
-
 	test("Dirty tracking", function(done) {
 		let resource = toResource("/path/index_async.txt");
 		let i1 = baseInstantiationService.createInstance(FileEditorInput, resource, "text/plain", "utf8");

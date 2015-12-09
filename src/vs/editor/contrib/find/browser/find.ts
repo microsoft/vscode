@@ -516,6 +516,16 @@ export class SelectionHighlighter implements EditorCommon.IEditorContribution {
 
 		var matches = this.editor.getModel().findMatches(r.searchText, true, r.isRegex, r.matchCase, r.wholeWord);
 
+		// do not overlap with selection (issue #64)
+		let editorSelection = this.editor.getSelection();
+
+		matches = matches.filter((m) => {
+			if (editorSelection.equalsRange(m)) {
+				return false;
+			}
+			return true;
+		});
+
 		var decorations = matches.map(r => {
 			return {
 				range: r,

@@ -5,7 +5,7 @@
 'use strict';
 
 import nls = require('vs/nls');
-import {IPluginDescription, IPluginService, IMessage, IPointListener, IActivationEventListener } from 'vs/platform/plugins/common/plugins';
+import {IPluginDescription, IPluginService, IMessage, IPointListener, IActivationEventListener, IPluginStatus } from 'vs/platform/plugins/common/plugins';
 import WinJS = require('vs/base/common/winjs.base');
 import {IDisposable} from 'vs/base/common/lifecycle';
 import Errors = require('vs/base/common/errors');
@@ -21,8 +21,8 @@ export interface IPluginExports {
 }
 
 export interface IPluginModule {
-	activate(subscriptions: IDisposable[]): WinJS.TPromise<IPluginExports>;
-	deactivate(callback:(err:any, success:boolean)=>void): void;
+	activate(ctx: IPluginContext): WinJS.TPromise<IPluginExports>;
+	deactivate(): void;
 }
 
 export interface IPluginContext {
@@ -83,6 +83,7 @@ export abstract class AbstractPluginService implements IPluginService {
 		this.activatedPlugins = {};
 	}
 
+	public abstract deactivate(pluginId:string): void;
 	protected abstract _showMessage(severity:Severity, message:string): void;
 
 	protected showMessage(severity:Severity, source:string, message:string): void {
@@ -109,6 +110,10 @@ export abstract class AbstractPluginService implements IPluginService {
 			throw new Error('Plugin `' + pluginId + '` is not known or not activated');
 		}
 		return this.activatedPlugins[pluginId].exports;
+	}
+
+	public getPluginsStatus(): { [id: string]: IPluginStatus } {
+		return null;
 	}
 
 	public isActivated(pluginId:string): boolean {

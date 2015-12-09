@@ -36,13 +36,11 @@ export class ArrayIterator<T> implements IIterator<T> {
 
 export class MappedIterator<T, R> implements IIterator<R> {
 
-	constructor(private iterator: IIterator<T>, private fn: (item:T)=>R) {
+	constructor(protected iterator: IIterator<T>, protected fn: (item:T)=>R) {
 		// noop
 	}
 
-	public next(): R {
-		return this.fn(this.iterator.next());
-	}
+	next() { return this.fn(this.iterator.next()); }
 }
 
 export interface INavigator<T> extends IIterator<T> {
@@ -51,4 +49,17 @@ export interface INavigator<T> extends IIterator<T> {
 	parent(): T;
 	first(): T;
 	last(): T;
+}
+
+export class MappedNavigator<T, R> extends MappedIterator<T, R> implements INavigator<R> {
+
+	constructor(protected navigator: INavigator<T>, fn: (item:T)=>R) {
+		super(navigator, fn);
+	}
+
+	current() { return this.fn(this.navigator.current()); }
+	previous() { return this.fn(this.navigator.previous()); }
+	parent() { return this.fn(this.navigator.parent()); }
+	first() { return this.fn(this.navigator.first()); }
+	last() { return this.fn(this.navigator.last()); }
 }

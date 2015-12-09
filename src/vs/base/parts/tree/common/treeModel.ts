@@ -458,7 +458,7 @@ export class Item extends Events.EventEmitter {
 
 	public getHierarchy(): Item[] {
 		var result: Item[] = [];
-		var node = this;
+		var node: Item = this;
 
 		do {
 			result.push(node);

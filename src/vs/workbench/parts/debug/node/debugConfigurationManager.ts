@@ -13,7 +13,7 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import platform = require('vs/platform/platform');
 import pluginsRegistry = require('vs/platform/plugins/common/pluginsRegistry');
 import editor = require('vs/editor/common/editorCommon');
-import jsonContributionRegistry = require('vs/languages/json/common/jsonContributionRegistry');
+import jsonContributionRegistry = require('vs/platform/jsonschemas/common/jsonContributionRegistry');
 import debug = require('vs/workbench/parts/debug/common/debug');
 import { SystemVariables } from 'vs/workbench/parts/lib/node/systemVariables';
 import { Adapter } from 'vs/workbench/parts/debug/node/debugAdapter';
@@ -179,7 +179,7 @@ export class ConfigurationManager {
 								} else if (duplicate[attribute] && attribute !== 'type') {
 									// Give priority to the later registered extension.
 									duplicate[attribute] = adapter[attribute];
-									extension.collector.warn(nls.localize('duplicateDebuggerType', "Debug type '{0}' is already registered and has attribute '{1}', ignoring attribute '{1}'.", adapter.type, attribute));
+									extension.collector.error(nls.localize('duplicateDebuggerType', "Debug type '{0}' is already registered and has attribute '{1}', ignoring attribute '{1}'.", adapter.type, attribute));
 								} else {
 									duplicate[attribute] = adapter[attribute];
 								}

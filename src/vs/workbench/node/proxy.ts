@@ -55,8 +55,6 @@ export interface IOptions {
 }
 
 export function getProxyAgent(rawRequestURL: string, options: IOptions = {}): any {
-	console.log(rawRequestURL, options);
-
 	if (!options.proxyUrl) {
 		return getSystemProxyAgent(rawRequestURL);
 	}

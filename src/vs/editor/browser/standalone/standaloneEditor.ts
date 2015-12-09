@@ -5,12 +5,14 @@
 'use strict';
 
 import 'vs/editor/standalone-languages/all';
+import './standaloneSchemas';
 
 import Colorizer = require('vs/editor/browser/standalone/colorizer');
 import standaloneCodeEditor = require('vs/editor/browser/standalone/standaloneCodeEditor');
 import EditorCommon = require('vs/editor/common/editorCommon');
 import EditorBrowser = require('vs/editor/browser/editorBrowser');
 import {ILanguageDef} from 'vs/editor/standalone-languages/types';
+import {IJSONSchema} from 'vs/base/common/jsonSchema';
 
 var global:any = self;
 if (!global.Monaco) {
@@ -68,3 +70,9 @@ let MonacoEditorLanguages: ILanguageDef[] = this.MonacoEditorLanguages || [];
 MonacoEditorLanguages.forEach((language) => {
 	standaloneCodeEditor.registerStandaloneLanguage(language, language.defModule);
 });
+
+// Register all built-in standalone JSON schemas
+let MonacoEditorSchemas: { [url:string]: IJSONSchema } = this.MonacoEditorSchemas || {};
+for (var uri in MonacoEditorSchemas) {
+	standaloneCodeEditor.registerStandaloneSchema(uri, MonacoEditorSchemas[uri]);
+};
