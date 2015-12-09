@@ -756,7 +756,7 @@
 						</dict>
 					</dict>
 					<key>match</key>
-					<string>(:+)(after|before|first-letter|first-line|placeholder|selection)\b</string>
+					<string>(:+)(after|backdrop|before|first-letter|first-line|placeholder|selection)\b</string>
 					<key>name</key>
 					<string>entity.other.attribute-name.pseudo-element.css</string>
 				</dict>
@@ -770,7 +770,7 @@
 						</dict>
 					</dict>
 					<key>match</key>
-					<string>(:)((first|last)-child|(first|last|only)-of-type|empty|root|target|first|left|right)\b</string>
+					<string>(:)((first|last)-child|(first|last|only)-of-type|empty|root|target|fullscreen|first|left|right)\b</string>
 					<key>name</key>
 					<string>entity.other.attribute-name.pseudo-class.css</string>
 				</dict>
