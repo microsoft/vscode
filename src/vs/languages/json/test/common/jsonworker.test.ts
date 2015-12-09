@@ -50,8 +50,7 @@ suite('JSON - Worker', () => {
 		if (schema) {
 			var id = "http://myschemastore/test1";
 			var schemaService = <SchemaService.JSONSchemaService> (<any>worker).schemaService;
-			schemaService.addPreloadedFileSchema(id, schema);
-			schemaService.registerExternalSchema(id, [ "*.json" ]);
+			schemaService.registerExternalSchema(id, [ "*.json" ], schema);
 		}
 	}
 
