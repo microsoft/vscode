@@ -105,6 +105,10 @@ class CompletionGroup {
 			}
 		}
 	}
+
+	get visibleCount(): number {
+		return this.items.reduce((r, i) => r + (isFalsyOrEmpty(this.filter(this.model.currentWord, i.suggestion)) ? 0 : 1), 0);
+	}
 }
 
 class CompletionModel {
@@ -132,6 +136,10 @@ class CompletionModel {
 
 	get items(): CompletionItem[] {
 		return this.groups.reduce((r, groups) => r.concat(groups.items), []);
+	}
+
+	get visibleCount(): number {
+		return this.groups.reduce((r, g) => r + g.visibleCount, 0);
 	}
 }
 
@@ -613,6 +621,26 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 			promise = this.tree.setInput(model);
 		}
 
+		if (model.visibleCount === 0) {
+			if (e.auto) {
+				this.setState(State.Hidden);
+			} else {
+				if (this.shouldShowEmptySuggestionList) {
+					this.setState(State.Empty);
+				} else {
+					this.setState(State.Hidden);
+				}
+			}
+
+			if(this.telemetryTimer) {
+				this.telemetryTimer.data = { reason: 'empty' };
+				this.telemetryTimer.stop();
+				this.telemetryTimer = null;
+			}
+
+			return;
+		}
+
 		promise.done(() => {
 			const navigator = this.tree.getNavigator();
 			const currentWord = e.currentWord;
@@ -633,38 +661,19 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 					bestSuggestion = item;
 					bestSuggestionIndex = index;
 				}
-
-				index++;
 			}
+
+			this.tree.setFocus(bestSuggestion, { firstSuggestion: true });
 
 			this.telemetryData = this.telemetryData || {};
-			let reason: string;
+			this.telemetryData.suggestionCount = suggestions.length;
+			this.telemetryData.suggestedIndex = bestSuggestionIndex;
+			this.telemetryData.hintLength = currentWord.length;
 
-			if (index === 0) { // no suggestions
-				if (e.auto) {
-					this.setState(State.Hidden);
-				} else {
-					if (this.shouldShowEmptySuggestionList) {
-						this.setState(State.Empty);
-					} else {
-						this.setState(State.Hidden);
-					}
-				}
-
-				reason = 'empty';
-			} else {
-				this.tree.setFocus(bestSuggestion, { firstSuggestion: true });
-
-				this.telemetryData.suggestionCount = suggestions.length;
-				this.telemetryData.suggestedIndex = bestSuggestionIndex;
-				this.telemetryData.hintLength = currentWord.length;
-				reason = 'results';
-
-				this.setState(State.Open);
-			}
+			this.setState(State.Open);
 
 			if(this.telemetryTimer) {
-				this.telemetryTimer.data = { reason };
+				this.telemetryTimer.data = { reason: 'results' };
 				this.telemetryTimer.stop();
 				this.telemetryTimer = null;
 			}
