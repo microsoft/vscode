@@ -19030,7 +19030,7 @@
         </value>
       </values>
     </entry>
-    <entry name="will-change" restriction="enum, identifier" version="3.0" browsers="C,FF" ref="http://www.w3.org/TR/css-will-change/" syntax="body { $(name): scroll-position; }">
+    <entry name="will-change" restriction="enum, identifier" version="3.0" browsers="C36,FF36,O24" ref="http://www.w3.org/TR/css-will-change/" syntax="body { $(name): scroll-position; }">
       <desc>Provides a rendering hint to the user agent, stating what kinds of changes the author expects to perform on the element.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all" />
