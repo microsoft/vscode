@@ -25,15 +25,11 @@ export var ContiguousSubString: ISuggestionFilter = wrapBaseFilter(Filters.match
 // Combined Filters
 
 export function or(first: ISuggestionFilter, second: ISuggestionFilter): ISuggestionFilter {
-	return (word: string, suggestion: ISuggestion): Filters.IMatch[] => {
-		return first(word, suggestion) || second(word, suggestion);
-	};
+	return (word, suggestion) => first(word, suggestion) || second(word, suggestion);
 }
 
 export function and(first: ISuggestionFilter, second: ISuggestionFilter): ISuggestionFilter {
-	return (word: string, suggestion: ISuggestion): Filters.IMatch[] => {
-		return first(word, suggestion) && second(word, suggestion);
-	};
+	return (word, suggestion) => first(word, suggestion) && second(word, suggestion);
 }
 
 export var DefaultFilter = or(or(Prefix, CamelCase), ContiguousSubString);

@@ -7,22 +7,22 @@
 import nls = require('vs/nls');
 import Lifecycle = require('vs/base/common/lifecycle');
 import Snippet = require('vs/editor/contrib/snippet/common/snippet');
-import SuggestWidget = require('./suggestWidget');
-import SuggestModel = require('./suggestModel');
+import { SuggestWidget } from './suggestWidget';
+import { SuggestModel } from './suggestModel';
 import Errors = require('vs/base/common/errors');
-import {TPromise} from 'vs/base/common/winjs.base';
-import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
-import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
-import {EditorAction, Behaviour} from 'vs/editor/common/editorAction';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { EditorBrowserRegistry } from 'vs/editor/browser/editorBrowserExtensions';
+import { CommonEditorRegistry, ContextKey, EditorActionDescriptor } from 'vs/editor/common/editorCommonExtensions';
+import { EditorAction, Behaviour } from 'vs/editor/common/editorAction';
 import EditorBrowser = require('vs/editor/browser/editorBrowser');
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
 import EventEmitter = require('vs/base/common/eventEmitter');
-import {IKeybindingService, IKeybindingContextKey} from 'vs/platform/keybinding/common/keybindingService';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {SuggestRegistry, ACCEPT_SELECTED_SUGGESTION_CMD, CONTEXT_SUGGEST_WIDGET_VISIBLE} from 'vs/editor/contrib/suggest/common/suggest';
-import {INullService} from 'vs/platform/instantiation/common/instantiation';
-import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
+import { IKeybindingService, IKeybindingContextKey } from 'vs/platform/keybinding/common/keybindingService';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { SuggestRegistry, ACCEPT_SELECTED_SUGGESTION_CMD, CONTEXT_SUGGEST_WIDGET_VISIBLE } from 'vs/editor/contrib/suggest/common/suggest';
+import { IInstantiationService, INullService } from 'vs/platform/instantiation/common/instantiation';
+import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 
 export class SuggestController implements EditorCommon.IEditorContribution {
 	static ID = 'editor.contrib.suggestController';
@@ -31,32 +31,25 @@ export class SuggestController implements EditorCommon.IEditorContribution {
 		return <SuggestController>editor.getContribution(SuggestController.ID);
 	}
 
-	private editor:EditorBrowser.ICodeEditor;
-	private model:SuggestModel.SuggestModel;
-	private suggestWidget: SuggestWidget.SuggestWidget;
-	private toDispose: Lifecycle.IDisposable[];
-
+	private model: SuggestModel;
+	private widget: SuggestWidget;
 	private triggerCharacterListeners: Function[];
 	private suggestWidgetVisible: IKeybindingContextKey<boolean>;
+	private toDispose: Lifecycle.IDisposable[];
 
-	constructor(editor:EditorBrowser.ICodeEditor, @IKeybindingService keybindingService: IKeybindingService, @ITelemetryService telemetryService: ITelemetryService) {
-		this.editor = editor;
+	constructor(
+		private editor:EditorBrowser.ICodeEditor,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IInstantiationService instantiationService: IInstantiationService
+	) {
 		this.suggestWidgetVisible = keybindingService.createKey(CONTEXT_SUGGEST_WIDGET_VISIBLE, false);
-
-		this.model = new SuggestModel.SuggestModel(this.editor, (snippet:Snippet.CodeSnippet, overwriteBefore:number, overwriteAfter:number) => {
-			Snippet.get(this.editor).run(snippet, overwriteBefore, overwriteAfter);
-		});
-
-		this.suggestWidget = new SuggestWidget.SuggestWidget(this.editor, telemetryService, keybindingService, () => {
-			this.suggestWidgetVisible.set(true);
-		}, () => {
-			this.suggestWidgetVisible.reset();
-		});
-		this.suggestWidget.setModel(this.model);
+		this.model = new SuggestModel(this.editor);
+		this.widget = instantiationService.createInstance(SuggestWidget, this.editor, this.model);
 
 		this.triggerCharacterListeners = [];
 
 		this.toDispose = [];
+		this.toDispose.push(this.widget.onDidVisibilityChange(visible => visible ? this.suggestWidgetVisible.set(true) : this.suggestWidgetVisible.reset()));
 		this.toDispose.push(editor.addListener2(EditorCommon.EventType.ConfigurationChanged, () => this.update()));
 		this.toDispose.push(editor.addListener2(EditorCommon.EventType.ModelChanged, () => this.update()));
 		this.toDispose.push(editor.addListener2(EditorCommon.EventType.ModelModeChanged, () => this.update()));
@@ -66,6 +59,9 @@ export class SuggestController implements EditorCommon.IEditorContribution {
 			}
 		}));
 		this.toDispose.push(SuggestRegistry.onDidChange(this.update, this));
+
+		// TODO@Joao: what is this?
+		this.toDispose.push(this.model.onDidAccept(e => Snippet.get(this.editor).run(e.snippet, e.overwriteBefore, e.overwriteAfter)));
 
 		this.update();
 	}
@@ -78,12 +74,12 @@ export class SuggestController implements EditorCommon.IEditorContribution {
 		this.toDispose = Lifecycle.disposeAll(this.toDispose);
 		this.triggerCharacterListeners = Lifecycle.cAll(this.triggerCharacterListeners);
 
-		if (this.suggestWidget) {
-			this.suggestWidget.destroy();
-			this.suggestWidget = null;
+		if (this.widget) {
+			this.widget.dispose();
+			this.widget = null;
 		}
 		if (this.model) {
-			this.model.destroy();
+			this.model.dispose();
 			this.model = null;
 		}
 	}
@@ -160,38 +156,38 @@ export class SuggestController implements EditorCommon.IEditorContribution {
 	}
 
 	public acceptSelectedSuggestion(): void {
-		if (this.suggestWidget) {
-			this.suggestWidget.acceptSelectedSuggestion();
+		if (this.widget) {
+			this.widget.acceptSelectedSuggestion();
 		}
 	}
 
 	public hideSuggestWidget(): void {
-		if (this.suggestWidget) {
-			this.suggestWidget.cancel();
+		if (this.widget) {
+			this.widget.cancel();
 		}
 	}
 
 	public selectNextSuggestion(): void {
-		if (this.suggestWidget) {
-			this.suggestWidget.selectNext();
+		if (this.widget) {
+			this.widget.selectNext();
 		}
 	}
 
 	public selectNextPageSuggestion(): void {
-		if (this.suggestWidget) {
-			this.suggestWidget.selectNextPage();
+		if (this.widget) {
+			this.widget.selectNextPage();
 		}
 	}
 
 	public selectPrevSuggestion(): void {
-		if (this.suggestWidget) {
-			this.suggestWidget.selectPrevious();
+		if (this.widget) {
+			this.widget.selectPrevious();
 		}
 	}
 
 	public selectPrevPageSuggestion(): void {
-		if (this.suggestWidget) {
-			this.suggestWidget.selectPreviousPage();
+		if (this.widget) {
+			this.widget.selectPreviousPage();
 		}
 	}
 }
