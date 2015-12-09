@@ -606,14 +606,16 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		});
 		this.editorService.focusEditor();
 
+
+		this.model.clearThreads(true);
+		this.setFocusedStackFrameAndEvaluate(null);
+		this.setStateAndEmit(debug.State.Inactive);
+
 		// Set breakpoints back to unverified since the session ended.
 		const data: {[id: string]: { line: number, verified: boolean } } = { };
 		this.model.getBreakpoints().forEach(bp => data[bp.getId()] = { line: bp.lineNumber, verified: false });
 		this.model.updateBreakpoints(data);
 
-		this.model.clearThreads(true);
-		this.setFocusedStackFrameAndEvaluate(null);
-		this.setStateAndEmit(debug.State.Inactive);
 		this.inDebugMode.reset();
 	}
 
