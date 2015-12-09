@@ -21,8 +21,8 @@ export interface IPluginExports {
 }
 
 export interface IPluginModule {
-	activate(subscriptions: IDisposable[]): WinJS.TPromise<IPluginExports>;
-	deactivate(callback:(err:any, success:boolean)=>void): void;
+	activate(ctx: IPluginContext): WinJS.TPromise<IPluginExports>;
+	deactivate(): void;
 }
 
 export interface IPluginContext {
@@ -83,6 +83,7 @@ export abstract class AbstractPluginService implements IPluginService {
 		this.activatedPlugins = {};
 	}
 
+	public abstract deactivate(pluginId:string): void;
 	protected abstract _showMessage(severity:Severity, message:string): void;
 
 	protected showMessage(severity:Severity, source:string, message:string): void {

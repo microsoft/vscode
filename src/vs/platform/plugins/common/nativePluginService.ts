@@ -15,6 +15,7 @@ import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {PluginHostStorage} from 'vs/platform/storage/common/remotable.storage';
 import * as paths from 'vs/base/common/paths';
 import {IWorkspaceContextService, IConfiguration} from 'vs/platform/workspace/common/workspace';
+import {disposeAll} from 'vs/base/common/lifecycle';
 
 class PluginMemento implements IPluginMemento {
 
@@ -168,6 +169,10 @@ export class MainProcessPluginService extends AbstractPluginService {
 		return this._pluginsStatus;
 	}
 
+	public deactivate(pluginId:string): void {
+		this._proxy.deactivate(pluginId);
+	}
+
 	// -- overwriting AbstractPluginService
 
 	protected _actualActivatePlugin(pluginDescription: IPluginDescription): WinJS.TPromise<ActivatedPlugin> {
@@ -232,6 +237,28 @@ export class PluginHostPluginService extends AbstractPluginService {
 		}
 	}
 
+	public deactivate(pluginId:string): void {
+		let plugin = this.activatedPlugins[pluginId];
+		if (!plugin) {
+			return;
+		}
+
+		// call deactivate if available
+		try {
+			if (typeof plugin.module.deactivate === 'function') {
+				plugin.module.deactivate();
+			}
+		} catch(err) {
+			// TODO: Do something with err if this is not the shutdown case
+		}
+
+		// clean up subscriptions
+		try {
+			disposeAll(plugin.subscriptions)
+		} catch(err) {
+			// TODO: Do something with err if this is not the shutdown case
+		}
+	}
 
 	// -- overwriting AbstractPluginService
 
