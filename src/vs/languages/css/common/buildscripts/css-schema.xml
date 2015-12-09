@@ -19174,6 +19174,12 @@
         <value name="horizontal-tb" version="3.0" browsers="all">
           <desc>Top-to-bottom block flow direction. The writing mode is horizontal.</desc>
         </value>
+        <value name="sideways-lr" version="3.0" browsers="none">
+          <desc>Left-to-right block flow direction. The writing mode is vertical, while the typographic mode is horizontal.</desc>
+        </value>
+        <value name="sideways-rl" version="3.0" browsers="none">
+          <desc>Right-to-left block flow direction. The writing mode is vertical, while the typographic mode is horizontal.</desc>
+        </value>
         <value name="vertical-lr" version="3.0" browsers="all">
           <desc>Left-to-right block flow direction. The writing mode is vertical.</desc>
         </value>
