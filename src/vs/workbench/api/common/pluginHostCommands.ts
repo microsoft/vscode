@@ -9,7 +9,8 @@ import {IEventService} from 'vs/platform/event/common/event';
 import {PluginsRegistry} from 'vs/platform/plugins/common/pluginsRegistry';
 import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
+import {KeybindingsUtils} from 'vs/platform/keybinding/common/keybindingsUtils';
+import {IKeybindingService, ICommandHandlerDescription} from 'vs/platform/keybinding/common/keybindingService';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {PluginHostEditors} from 'vs/workbench/api/common/pluginHostEditors';
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
@@ -17,10 +18,16 @@ import {canSerialize} from 'vs/base/common/marshalling';
 import {toErrorMessage} from 'vs/base/common/errors';
 import * as vscode from 'vscode';
 
+interface CommandHandler {
+	callback: Function;
+	thisArg: any;
+	description: ICommandHandlerDescription;
+}
+
 @Remotable.PluginHostContext('PluginHostCommands')
 export class PluginHostCommands {
 
-	private _commands: { [n: string]: Function } = Object.create(null);
+	private _commands: { [n: string]: CommandHandler } = Object.create(null);
 	private _proxy: MainThreadCommands;
 	private _pluginHostEditors: PluginHostEditors;
 
@@ -29,7 +36,7 @@ export class PluginHostCommands {
 		this._proxy = threadService.getRemotable(MainThreadCommands);
 	}
 
-	registerCommand(id: string, command: <T>(...args: any[]) => T | Thenable<T>, thisArgs?: any): vscode.Disposable {
+	registerCommand(id: string, callback: <T>(...args: any[]) => T | Thenable<T>, thisArg?: any, description?: ICommandHandlerDescription): vscode.Disposable {
 
 		if (!id.trim().length) {
 			throw new Error('invalid id');
@@ -39,8 +46,8 @@ export class PluginHostCommands {
 			throw new Error('command with id already exists');
 		}
 
-		this._commands[id] = thisArgs ? command.bind(thisArgs) : command;
-		this._proxy._registerCommand(id);
+		this._commands[id] = { callback, thisArg, description };
+		this._proxy.$registerCommand(id);
 
 		return {
 			dispose: () => {
@@ -49,12 +56,12 @@ export class PluginHostCommands {
 		}
 	}
 
-	registerTextEditorCommand(commandId: string, callback: (textEditor: vscode.TextEditor, edit: vscode.TextEditorEdit) => void, thisArg?: any): vscode.Disposable {
+	registerTextEditorCommand(id: string, callback: (textEditor: vscode.TextEditor, edit: vscode.TextEditorEdit) => void, thisArg?: any): vscode.Disposable {
 		let actualCallback: (textEditor: vscode.TextEditor, edit: vscode.TextEditorEdit) => void = thisArg ? callback.bind(thisArg) : callback;
-		return this.registerCommand(commandId, () => {
+		return this.registerCommand(id, () => {
 			let activeTextEditor = this._pluginHostEditors.getActiveTextEditor();
 			if (!activeTextEditor) {
-				console.warn('Cannot execute ' + commandId + ' because there is no active text editor.');
+				console.warn('Cannot execute ' + id + ' because there is no active text editor.');
 				return;
 			}
 
@@ -62,10 +69,10 @@ export class PluginHostCommands {
 				actualCallback(activeTextEditor, edit);
 			}).then((result) => {
 				if (!result) {
-					console.warn('Edits from command ' + commandId + ' were not applied.')
+					console.warn('Edits from command ' + id + ' were not applied.')
 				}
 			}, (err) => {
-				console.warn('An error occured while running command ' + commandId, err);
+				console.warn('An error occured while running command ' + id, err);
 			});
 		})
 	}
@@ -75,7 +82,7 @@ export class PluginHostCommands {
 		if (this._commands[id]) {
 			// we stay inside the extension host and support
 			// to pass any kind of parameters around
-			return this._executeContributedCommand(id, ...args);
+			return this.$executeContributedCommand(id, ...args);
 
 		} else {
 			// // check that we can get all parameters over to
@@ -86,18 +93,19 @@ export class PluginHostCommands {
 			// 	}
 			// }
 
-			return this._proxy._executeCommand(id, args);
+			return this._proxy.$executeCommand(id, args);
 		}
 
 	}
 
-	_executeContributedCommand<T>(id: string, ...args: any[]): Thenable<T> {
+	$executeContributedCommand<T>(id: string, ...args: any[]): Thenable<T> {
 		let command = this._commands[id];
 		if (!command) {
 			return Promise.reject<T>(id);
 		}
 		try {
-			let result = command.apply(undefined, args);
+			let {callback, thisArg} = command;
+			let result = callback.apply(thisArg, args);
 			return Promise.resolve(result);
 		} catch (err) {
 			try {
@@ -111,12 +119,23 @@ export class PluginHostCommands {
 	}
 
 	getCommands(filterUnderscoreCommands: boolean = false): Thenable<string[]> {
-		return this._proxy._getCommands().then(result => {
+		return this._proxy.$getCommands().then(result => {
 			if (filterUnderscoreCommands) {
 				result = result.filter(command => command[0] !== '_');
 			}
 			return result;
 		});
+	}
+
+	$getContributedCommandHandlerDescriptions(): TPromise<{ [id: string]: string | ICommandHandlerDescription }> {
+		const result: { [id: string]: string | ICommandHandlerDescription } = Object.create(null);
+		for (let id in this._commands) {
+			let {description} = this._commands[id];
+			if (description) {
+				result[id] = description;
+			}
+		}
+		return TPromise.as(result);
 	}
 }
 
@@ -133,12 +152,12 @@ export class MainThreadCommands {
 		this._proxy = this._threadService.getRemotable(PluginHostCommands);
 	}
 
-	_registerCommand(id: string): TPromise<any> {
+	$registerCommand(id: string): TPromise<any> {
 
 		KeybindingsRegistry.registerCommandDesc({
 			id,
 			handler: (serviceAccessor, ...args: any[]) => {
-				return this._proxy._executeContributedCommand(id, ...args); //TODO@Joh - we cannot serialize the args
+				return this._proxy.$executeContributedCommand(id, ...args); //TODO@Joh - we cannot serialize the args
 			},
 			weight: undefined,
 			context: undefined,
@@ -152,11 +171,24 @@ export class MainThreadCommands {
 		return undefined;
 	}
 
-	_executeCommand<T>(id: string, args: any[]): Thenable<T> {
+	$executeCommand<T>(id: string, args: any[]): Thenable<T> {
 		return this._keybindingService.executeCommand(id, args);
 	}
 
-	_getCommands(): Thenable<string[]> {
+	$getCommands(): Thenable<string[]> {
 		return TPromise.as(Object.keys(KeybindingsRegistry.getCommands()));
+	}
+
+	getCommandHandlerDescriptions(): TPromise<{ [id: string]: string | ICommandHandlerDescription }> {
+		return this._proxy.$getContributedCommandHandlerDescriptions().then(result => {
+			const commands = KeybindingsRegistry.getCommands();
+			for (let id in commands) {
+				let {description} = commands[id];
+				if (description) {
+					result[id] = description;
+				}
+			}
+			return result;
+		});
 	}
 }

@@ -20,6 +20,7 @@ import * as typeConverters from 'vs/workbench/api/common/pluginHostTypeConverter
 import * as types from 'vs/workbench/api/common/pluginHostTypes';
 import {IPosition, IRange, ISingleEditOperation} from 'vs/editor/common/editorCommon';
 import * as modes from 'vs/editor/common/modes';
+import {ICommandHandlerDescription} from 'vs/platform/keybinding/common/keybindingService';
 import {CancellationTokenSource} from 'vs/base/common/cancellation';
 import {PluginHostModelService} from 'vs/workbench/api/common/pluginHostDocuments';
 import {IMarkerService, IMarker} from 'vs/platform/markers/common/markers';
@@ -44,10 +45,47 @@ export class ExtHostLanguageFeatureCommands {
 	constructor(commands: PluginHostCommands) {
 		this._commands = commands;
 
-		this._register('vscode.executeWorkspaceSymbolProvider', this._executeWorkspaceSymbolProvider);
-		this._register('vscode.executeDefinitionProvider', this._executeDefinitionProvider);
-		this._register('vscode.executeHoverProvider', this._executeHoverProvider);
-		this._register('vscode.executeDocumentHighlights', this._executeDocumentHighlights);
+		this._register('vscode.executeWorkspaceSymbolProvider', this._executeWorkspaceSymbolProvider, {
+			description: 'Execute all workspace symbol provider.',
+			signature: {
+				args: [{ name: 'query', constraint: String }],
+				returns: 'A promise that resolves to an array of SymbolInformation-instances.'
+			}
+		});
+
+		this._register('vscode.executeDefinitionProvider', this._executeDefinitionProvider, {
+			description: 'Execute all definition provider.',
+			signature: {
+				args: [
+					{ name: 'uri', description: 'Uri of a text document', constraint: URI },
+					{ name: 'position', description: 'Position of a symbol', constraint: types.Position }
+				],
+				returns: 'A promise that resolves to an array of Location-instances.'
+			}
+		});
+
+		this._register('vscode.executeHoverProvider', this._executeHoverProvider, {
+			description: 'Execute all definition provider.',
+			signature: {
+				args: [
+					{ name: 'uri', description: 'Uri of a text document', constraint: URI },
+					{ name: 'position', description: 'Position of a symbol', constraint: types.Position }
+				],
+				returns: 'A promise that resolves to an array of Hover-instances.'
+			}
+		});
+
+		this._register('vscode.executeDocumentHighlights', this._executeDocumentHighlights, {
+			description: 'Execute document highlight provider.',
+			signature: {
+				args: [
+					{ name: 'uri', description: 'Uri of a text document', constraint: URI },
+					{ name: 'position', description: 'Position in a text document', constraint: types.Position }
+				],
+				returns: 'A promise that resolves to an array of DocumentHighlight-instances.'
+			}
+		});
+
 		this._register('vscode.executeReferenceProvider', this._executeReferenceProvider);
 		this._register('vscode.executeDocumentRenameProvider', this._executeDocumentRenameProvider);
 		this._register('vscode.executeSignatureHelpProvider', this._executeSignatureHelpProvider);
@@ -62,8 +100,9 @@ export class ExtHostLanguageFeatureCommands {
 
 	// --- command impl
 
-	private _register(id: string, handler: (...args: any[]) => any): void {
-		this._disposables.push(this._commands.registerCommand(id, handler, this));
+	private _register(id: string, handler: (...args: any[]) => any, description?: ICommandHandlerDescription): void {
+		let disposable = this._commands.registerCommand(id, handler, this, description);
+		this._disposables.push(disposable);
 	}
 
 	/**

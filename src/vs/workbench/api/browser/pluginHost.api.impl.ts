@@ -105,7 +105,6 @@ export class PluginHostAPIImplementation {
 		this._proxy = threadService.getRemotable(MainProcessVSCodeAPIHelper);
 
 		this.version = contextService.getConfiguration().env.version;
-		this.commands = this._threadService.getRemotable(PluginHostCommands);
 		this.Uri = URI;
 		this.Location = extHostTypes.Location;
 		this.Diagnostic = <any> extHostTypes.Diagnostic;
@@ -137,6 +136,22 @@ export class PluginHostAPIImplementation {
 		errors.setUnexpectedErrorHandler((err) => {
 			this._proxy.onUnexpectedPluginHostError(errors.transformErrorForSerialization(err));
 		});
+
+		const pluginHostCommands = this._threadService.getRemotable(PluginHostCommands);
+		this.commands = {
+			registerCommand<T>(id: string, command: <T>(...args: any[]) => T | Thenable<T>, thisArgs?: any): vscode.Disposable {
+				return pluginHostCommands.registerCommand(id, command, thisArgs);
+			},
+			registerTextEditorCommand(commandId: string, callback: (textEditor: vscode.TextEditor, edit: vscode.TextEditorEdit) => void, thisArg?: any): vscode.Disposable {
+				return pluginHostCommands.registerTextEditorCommand(commandId, callback, thisArg);
+			},
+			executeCommand<T>(id: string, ...args: any[]): Thenable<T> {
+				return pluginHostCommands.executeCommand(id, args);
+			},
+			getCommands(filterInternal: boolean = false):Thenable<string[]> {
+				return pluginHostCommands.getCommands(filterInternal);
+			}
+		};
 
 		const pluginHostEditors = this._threadService.getRemotable(PluginHostEditors);
 		const pluginHostMessageService = new PluginHostMessageService(this._threadService, this.commands);
