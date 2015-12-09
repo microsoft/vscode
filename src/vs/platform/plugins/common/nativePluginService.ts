@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IPluginDescription, IMessage} from 'vs/platform/plugins/common/plugins';
+import {IPluginDescription, IMessage, IPluginStatus} from 'vs/platform/plugins/common/plugins';
 import {PluginsRegistry} from 'vs/platform/plugins/common/pluginsRegistry';
 import WinJS = require('vs/base/common/winjs.base');
 import {Remotable, IThreadService} from 'vs/platform/thread/common/thread';
@@ -64,6 +64,7 @@ export class MainProcessPluginService extends AbstractPluginService {
 	private _telemetryService: ITelemetryService;
 	private _proxy: PluginHostPluginService;
 	private _isDev: boolean;
+	private _pluginsStatus: { [id: string]: IPluginStatus };
 
 	/**
 	 * This class is constructed manually because it is a service, so it doesn't use any ctor injection
@@ -83,8 +84,13 @@ export class MainProcessPluginService extends AbstractPluginService {
 		this._threadService = threadService;
 		this._telemetryService = telemetryService;
 		this._proxy = this._threadService.getRemotable(PluginHostPluginService);
+		this._pluginsStatus = {};
 
 		PluginsRegistry.handleExtensionPoints((severity, source, message) => {
+			if (!this._pluginsStatus[source]) {
+				this._pluginsStatus[source] = { messages: [] };
+			}
+			this._pluginsStatus[source].messages.push({ type: severity, source, message });
 			this.showMessage(severity, source, message);
 		});
 	}
@@ -156,6 +162,10 @@ export class MainProcessPluginService extends AbstractPluginService {
 					console.log(msg);
 			}
 		}
+	}
+
+	public getPluginsStatus(): { [id: string]: IPluginStatus } {
+		return this._pluginsStatus;
 	}
 
 	// -- overwriting AbstractPluginService

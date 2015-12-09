@@ -60,12 +60,18 @@ export class ExtHostLanguageFeatureCommands {
 		this._register('vscode.executeFormatOnTypeProvider', this._executeFormatOnTypeProvider);
 	}
 
-	private _register(id: string, callback: (...args: any[]) => any): void {
-		this._disposables.push(this._commands.registerCommand(id, callback, this));
-	}
-
 	// --- command impl
 
+	private _register(id: string, handler: (...args: any[]) => any): void {
+		this._disposables.push(this._commands.registerCommand(id, handler, this));
+	}
+
+	/**
+	 * Execute workspace symbol provider.
+	 *
+	 * @param query Search string to match query symbol names
+	 * @return A promise that resolves to an array of symbol information.
+	 */
 	private _executeWorkspaceSymbolProvider(query: string): Thenable<types.SymbolInformation[]> {
 		return this._commands.executeCommand<ITypeBearing[]>('_executeWorkspaceSymbolProvider', { query }).then(value => {
 			if (Array.isArray(value)) {

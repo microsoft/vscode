@@ -40,6 +40,10 @@ export interface IMessage {
 	source: string;
 }
 
+export interface IPluginStatus {
+	messages: IMessage[];
+}
+
 export interface IPluginService {
 	serviceId: ServiceIdentifier<any>;
 	activateByEvent(activationEvent:string): TPromise<any>;
@@ -52,6 +56,7 @@ export interface IPluginService {
 
 	get(pluginId:string): any;
 	onReady(): TPromise<boolean>;
+	getPluginsStatus(): { [id: string]: IPluginStatus };
 }
 
 export var INSTANCE:IPluginService = null;

@@ -15,6 +15,7 @@ import {IEnterAction,IndentAction,IElectricAction} from 'vs/editor/common/modes'
 import {CursorMoveHelper, ICursorMoveHelperModel, IMoveResult} from 'vs/editor/common/controller/cursorMoveHelper';
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Errors = require('vs/base/common/errors');
+import {getEnterActionAtPosition} from 'vs/editor/common/modes/supports/onEnter';
 
 export interface IPostOperationRunnable {
 	(ctx: IOneCursorOperationContext): void;
@@ -950,64 +951,6 @@ export class OneCursorOp {
 		return this._enter(cursor, true, ctx);
 	}
 
-	private static _getEnterActionAtPosition(model:EditorCommon.IModel, lineNumber:number, column:number): { enterAction: IEnterAction; indentation: string; } {
-		var lineText = model.getLineContent(lineNumber);
-		var lineContext = model.getLineContext(lineNumber);
-		var enterAction:IEnterAction;
-
-		if (model.getMode().onEnterSupport) {
-			try {
-				enterAction = model.getMode().onEnterSupport.onEnter(model, new Position(lineNumber, column));
-			} catch (e) {
-				Errors.onUnexpectedError(e);
-			}
-		}
-
-		if (!enterAction) {
-			if (model.getMode().electricCharacterSupport) {
-				try {
-					enterAction = model.getMode().electricCharacterSupport.onEnter(lineContext, column - 1);
-				} catch(e) {
-					Errors.onUnexpectedError(e);
-				}
-			}
-		} else {
-			// console.log('USING NEW INDENTATION LOGIC!');
-		}
-
-		var indentation = Strings.getLeadingWhitespace(lineText);
-		if (indentation.length > column - 1) {
-			indentation = indentation.substring(0, column - 1);
-		}
-
-		if (!enterAction) {
-			enterAction = {
-				indentAction: IndentAction.None,
-				appendText: '',
-			};
-		} else {
-			if(!enterAction.appendText) {
-				if (
-					(enterAction.indentAction === IndentAction.Indent) ||
-					(enterAction.indentAction === IndentAction.IndentOutdent)
-				) {
-					enterAction.appendText = '\t';
-				} else {
-					enterAction.appendText = '';
-				}
-			}
-		}
-
-		if (enterAction.removeText) {
-			indentation = indentation.substring(0, indentation.length - 1);
-		}
-
-		return {
-			enterAction: enterAction,
-			indentation: indentation
-		};
-	}
-
 	private static _enter(cursor:OneCursor, keepPosition: boolean, ctx: IOneCursorOperationContext, position?: EditorCommon.IEditorPosition, range?: EditorCommon.IEditorRange): boolean {
 		if (typeof position === 'undefined') {
 			position = cursor.getPosition();
@@ -1017,7 +960,7 @@ export class OneCursorOp {
 		}
 		ctx.shouldPushStackElementBefore = true;
 
-		var r = this._getEnterActionAtPosition(cursor.model, position.lineNumber, position.column);
+		var r = getEnterActionAtPosition(cursor.model, position.lineNumber, position.column);
 		var enterAction = r.enterAction;
 		var indentation = r.indentation;
 
@@ -1308,7 +1251,7 @@ export class OneCursorOp {
 			return '\t';
 		}
 
-		var r = this._getEnterActionAtPosition(cursor.model, lastLineNumber, cursor.model.getLineMaxColumn(lastLineNumber));
+		var r = getEnterActionAtPosition(cursor.model, lastLineNumber, cursor.model.getLineMaxColumn(lastLineNumber));
 
 		var indentation: string;
 		if (r.enterAction.indentAction === IndentAction.Outdent) {
