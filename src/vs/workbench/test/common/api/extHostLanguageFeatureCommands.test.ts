@@ -119,22 +119,22 @@ suite('ExtHostLanguageFeatureCommands', function() {
 
 	// --- workspace symbols
 
-	// test('WorkspaceSymbols, invalid arguments', function(done) {
-	// 	let promises = [
-	// 		commands.executeCommand('vscode.executeWorkspaceSymbolProvider'),
-	// 		commands.executeCommand('vscode.executeWorkspaceSymbolProvider', null),
-	// 		commands.executeCommand('vscode.executeWorkspaceSymbolProvider', undefined),
-	// 		commands.executeCommand('vscode.executeWorkspaceSymbolProvider', true)
-	// 	];
+	test('WorkspaceSymbols, invalid arguments', function(done) {
+		let promises = [
+			commands.executeCommand('vscode.executeWorkspaceSymbolProvider'),
+			commands.executeCommand('vscode.executeWorkspaceSymbolProvider', null),
+			commands.executeCommand('vscode.executeWorkspaceSymbolProvider', undefined),
+			commands.executeCommand('vscode.executeWorkspaceSymbolProvider', true)
+		];
 
-	// 	threadService.sync().then(() => {
-	// 		TPromise.join(<any[]>promises).then(undefined, (err: any[]) => {
-	// 			assert.equal(err.length, 4);
-	// 			done();
-	// 			return [];
-	// 		});
-	// 	});
-	// });
+		// threadService.sync().then(() => {
+			TPromise.join(<any[]>promises).then(undefined, (err: any[]) => {
+				assert.equal(err.length, 4);
+				done();
+				return [];
+			});
+		// });
+	});
 
 	test('WorkspaceSymbols, ⇔ back and forth', function(done) {
 
@@ -172,22 +172,22 @@ suite('ExtHostLanguageFeatureCommands', function() {
 
 	// --- definition
 
-	// test('Definition, invalid arguments', function(done) {
-	// 	let promises = [
-	// 		commands.executeCommand('vscode.executeDefinitionProvider'),
-	// 		commands.executeCommand('vscode.executeDefinitionProvider', null),
-	// 		commands.executeCommand('vscode.executeDefinitionProvider', undefined),
-	// 		commands.executeCommand('vscode.executeDefinitionProvider', true, false)
-	// 	];
+	test('Definition, invalid arguments', function(done) {
+		let promises = [
+			commands.executeCommand('vscode.executeDefinitionProvider'),
+			commands.executeCommand('vscode.executeDefinitionProvider', null),
+			commands.executeCommand('vscode.executeDefinitionProvider', undefined),
+			commands.executeCommand('vscode.executeDefinitionProvider', true, false)
+		];
 
-	// 	threadService.sync().then(() => {
-	// 		TPromise.join(<any[]>promises).then(undefined, (err: any[]) => {
-	// 			assert.equal(err.length, 4);
-	// 			done();
-	// 			return [];
-	// 		});
-	// 	});
-	// });
+		// threadService.sync().then(() => {
+			TPromise.join(<any[]>promises).then(undefined, (err: any[]) => {
+				assert.equal(err.length, 4);
+				done();
+				return [];
+			});
+		// });
+	});
 
 	test('Definition, ⇔ back and forth', function(done) {
 

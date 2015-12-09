@@ -5,6 +5,7 @@
 'use strict';
 
 import {Remotable, IThreadService} from 'vs/platform/thread/common/thread';
+import {TypeConstraint, validateConstraint} from 'vs/base/common/types';
 import {IEventService} from 'vs/platform/event/common/event';
 import {PluginsRegistry} from 'vs/platform/plugins/common/pluginsRegistry';
 import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
@@ -104,16 +105,21 @@ export class PluginHostCommands {
 			return Promise.reject<T>(id);
 		}
 		try {
-			let {callback, thisArg} = command;
+			let {callback, thisArg, description} = command;
+			if (description) {
+				for (let i = 0; i < description.signature.args.length; i++) {
+					validateConstraint(args[i], description.signature.args[i].constraint);
+				}
+			}
 			let result = callback.apply(thisArg, args);
 			return Promise.resolve(result);
 		} catch (err) {
-			try {
-				console.log(toErrorMessage(err));
-				console.log(err);
-			} catch (err) {
-				//
-			}
+			// try {
+			// 	console.log(toErrorMessage(err));
+			// 	console.log(err);
+			// } catch (err) {
+			// 	//
+			// }
 			return Promise.reject<T>(`Running the contributed command:'${id}' failed.`);
 		}
 	}
