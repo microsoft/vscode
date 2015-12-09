@@ -179,7 +179,7 @@ export class MainThreadCommands {
 		return TPromise.as(Object.keys(KeybindingsRegistry.getCommands()));
 	}
 
-	getCommandHandlerDescriptions(): TPromise<{ [id: string]: string | ICommandHandlerDescription }> {
+	$getCommandHandlerDescriptions(): TPromise<{ [id: string]: string | ICommandHandlerDescription }> {
 		return this._proxy.$getContributedCommandHandlerDescriptions().then(result => {
 			const commands = KeybindingsRegistry.getCommands();
 			for (let id in commands) {
@@ -190,5 +190,44 @@ export class MainThreadCommands {
 			}
 			return result;
 		});
+	}
+}
+
+
+// --- command doc
+
+KeybindingsRegistry.registerCommandDesc({
+	id: '_generateCommandsDocumentation',
+	handler: function(accessor) {
+		return accessor.get(IThreadService).getRemotable(MainThreadCommands).$getCommandHandlerDescriptions().then(result => {
+			const all: string[] = [];
+			for (let id in result) {
+				all.push('`' + id + '`\n');
+				all.push(_generateMarkdown(result[id]))
+			}
+			console.log(all.join('\n'));
+		});
+	},
+	context: undefined,
+	weight: KeybindingsRegistry.WEIGHT.builtinExtension(0),
+	primary: undefined
+});
+
+function _generateMarkdown(description: string | ICommandHandlerDescription): string {
+	if (typeof description === 'string') {
+		return description;
+	} else {
+		let parts = [description.description];
+		parts.push('\n\n');
+		if (description.signature.args) {
+			for (let arg of description.signature.args) {
+				parts.push(`* _${arg.name}_ ${arg.description}\n`);
+			}
+		}
+		if (description.signature.returns) {
+			parts.push(`\n _(returns)_ ${description.signature.returns}`);
+		}
+		parts.push('\n\n');
+		return parts.join('');
 	}
 }
