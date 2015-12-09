@@ -340,7 +340,7 @@
 		<key>media-query</key>
 		<dict>
 			<key>begin</key>
-			<string>(?i)\s*(only|not)?\s*(all|aural|braille|embossed|handheld|print|projection|screen|tty|tv)?</string>
+			<string>(?i)\s*(only|not)?\s*(all|aural|braille|embossed|handheld|print|projection|screen|speech|tty|tv)?</string>
 			<key>beginCaptures</key>
 			<dict>
 				<key>1</key>
