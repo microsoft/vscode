@@ -368,7 +368,8 @@ enum State {
 	Triggered,
 	Loading,
 	Empty,
-	Open
+	Open,
+	Frozen
 }
 
 export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable {
@@ -569,15 +570,23 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 				this.messageElement.innerText = SuggestWidget.LOADING_MESSAGE;
 				this.messageElement.style.display = 'block';
 				this.treeElement.style.display = 'none';
+				removeClass(this.element, 'frozen');
 				break;
 			case State.Empty:
 				this.messageElement.innerText = SuggestWidget.NO_SUGGESTIONS_MESSAGE;
 				this.messageElement.style.display = 'block';
 				this.treeElement.style.display = 'none';
+				removeClass(this.element, 'frozen');
 				break;
 			case State.Open:
 				this.messageElement.style.display = 'none';
 				this.treeElement.style.display = 'block';
+				removeClass(this.element, 'frozen');
+				break;
+			case State.Frozen:
+				this.messageElement.style.display = 'none';
+				this.treeElement.style.display = 'block';
+				addClass(this.element, 'frozen');
 				break;
 		}
 
@@ -611,17 +620,28 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 		clearTimeout(this.loadingTimeout);
 
 		let model: CompletionModel = this.tree.getInput();
-		let promise: TPromise<void>;
+		let promise = TPromise.as(null);
+		let visibleCount: number;
 
 		if (model && model.raw === e.suggestions) {
+			const oldCurrentWord = model.currentWord;
 			model.currentWord = e.currentWord;
-			promise = this.tree.refresh();
+			visibleCount = model.visibleCount;
+
+			if (!e.auto && visibleCount === 0) {
+				model.currentWord = oldCurrentWord;
+				this.setState(State.Frozen);
+				return;
+			} else {
+				promise = this.tree.refresh();
+			}
 		} else {
 			model = new CompletionModel(e.suggestions, e.currentWord);
+			visibleCount = model.visibleCount;
 			promise = this.tree.setInput(model);
 		}
 
-		if (model.visibleCount === 0) {
+		if (visibleCount === 0) {
 			if (e.auto) {
 				this.setState(State.Hidden);
 			} else {
