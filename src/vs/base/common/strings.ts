@@ -622,6 +622,10 @@ export function startsWithUTF8BOM(str: string): boolean {
 export function score(target: string, query: string): number {
 	let score = 0;
 
+	if (!target || !query) {
+		return score; // return early if target or query are undefined
+	}
+
 	const queryLen = query.length;
 	const targetLower = target.toLowerCase();
 	const queryLower = query.toLowerCase();

@@ -186,7 +186,7 @@ export class QuickOpenEntry {
 			}
 		}
 
-		return compareAnything(nameA, nameB, lookFor.toLowerCase());
+		return compareAnything(nameA, nameB, lookFor ? lookFor.toLowerCase() : lookFor);
 	}
 
 	/**
