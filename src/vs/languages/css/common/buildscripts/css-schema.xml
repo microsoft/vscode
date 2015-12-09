@@ -19014,6 +19014,9 @@
         <value name="pre-wrap" version="1.0" browsers="all">
           <desc>Sets 'white-space-collapsing' to 'preserve' and 'text-wrap' to 'normal'.</desc>
         </value>
+        <value name="pre-wrap-auto" version="3.0" browsers="none">
+          <desc>Preserves white space and allows wrapping. However, some of the behavior is made UA dependent to allow matching platform conventions.</desc>
+        </value>
       </values>
     </entry>
     <entry name="widows" restriction="integer" version="2.0" browsers="C,IE8,O9.5,S1" ref="http://www.w3.org/TR/css3-break/#widows-orphans" syntax="&lt;integer&gt;">
