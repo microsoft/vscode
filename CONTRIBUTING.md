@@ -19,5 +19,5 @@ The more information you can provide, the more likely someone will be successful
 * Code that demonstrates the issue
 * Version of VS Code
 * Errors in the Dev Tools Console (Help | Toggle Developer Tools)
-* When you have extensions installed, can you reproduce the issue when starting vscode without extensions by using `--disable-extensions`? 
+* When you have extensions installed, can you reproduce the issue when starting vscode without extensions by using the `--disable-extensions` command line argument? 
 
