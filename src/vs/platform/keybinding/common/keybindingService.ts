@@ -59,10 +59,8 @@ export interface ICommandHandler {
 
 export interface ICommandHandlerDescription {
 	description: string;
-	signature: {
-		args: { name: string; description?: string; constraint?: TypeConstraint;}[];
-		returns?: string;
-	}
+	args: { name: string; description?: string; constraint?: TypeConstraint; }[];
+	returns?: string;
 }
 
 export interface ICommandsMap {

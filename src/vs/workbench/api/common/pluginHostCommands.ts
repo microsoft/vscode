@@ -107,8 +107,8 @@ export class PluginHostCommands {
 		try {
 			let {callback, thisArg, description} = command;
 			if (description) {
-				for (let i = 0; i < description.signature.args.length; i++) {
-					validateConstraint(args[i], description.signature.args[i].constraint);
+				for (let i = 0; i < description.args.length; i++) {
+					validateConstraint(args[i], description.args[i].constraint);
 				}
 			}
 			let result = callback.apply(thisArg, args);
@@ -208,8 +208,7 @@ KeybindingsRegistry.registerCommandDesc({
 		return accessor.get(IThreadService).getRemotable(MainThreadCommands).$getCommandHandlerDescriptions().then(result => {
 			const all: string[] = [];
 			for (let id in result) {
-				all.push('`' + id + '`\n');
-				all.push(_generateMarkdown(result[id]))
+				all.push('`' + id + '` - ' + _generateMarkdown(result[id]))
 			}
 			console.log(all.join('\n'));
 		});
@@ -225,13 +224,13 @@ function _generateMarkdown(description: string | ICommandHandlerDescription): st
 	} else {
 		let parts = [description.description];
 		parts.push('\n\n');
-		if (description.signature.args) {
-			for (let arg of description.signature.args) {
-				parts.push(`* _${arg.name}_ ${arg.description}\n`);
+		if (description.args) {
+			for (let arg of description.args) {
+				parts.push(`* _${arg.name}_ ${arg.description || ''}\n`);
 			}
 		}
-		if (description.signature.returns) {
-			parts.push(`\n _(returns)_ ${description.signature.returns}`);
+		if (description.returns) {
+			parts.push(`* _(returns)_ ${description.returns}`);
 		}
 		parts.push('\n\n');
 		return parts.join('');

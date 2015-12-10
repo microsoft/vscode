@@ -47,142 +47,115 @@ export class ExtHostApiCommands {
 
 		this._register('vscode.executeWorkspaceSymbolProvider', this._executeWorkspaceSymbolProvider, {
 			description: 'Execute all workspace symbol provider.',
-			signature: {
-				args: [{ name: 'query', constraint: String }],
-				returns: 'A promise that resolves to an array of SymbolInformation-instances.'
-			}
+			args: [{ name: 'query', constraint: String }],
+			returns: 'A promise that resolves to an array of SymbolInformation-instances.'
+
 		});
 		this._register('vscode.executeDefinitionProvider', this._executeDefinitionProvider, {
 			description: 'Execute all definition provider.',
-			signature: {
-				args: [
-					{ name: 'uri', description: 'Uri of a text document', constraint: URI },
-					{ name: 'position', description: 'Position of a symbol', constraint: types.Position }
-				],
-				returns: 'A promise that resolves to an array of Location-instances.'
-			}
+			args: [
+				{ name: 'uri', description: 'Uri of a text document', constraint: URI },
+				{ name: 'position', description: 'Position of a symbol', constraint: types.Position }
+			],
+			returns: 'A promise that resolves to an array of Location-instances.'
 		});
 		this._register('vscode.executeHoverProvider', this._executeHoverProvider, {
 			description: 'Execute all definition provider.',
-			signature: {
-				args: [
-					{ name: 'uri', description: 'Uri of a text document', constraint: URI },
-					{ name: 'position', description: 'Position of a symbol', constraint: types.Position }
-				],
-				returns: 'A promise that resolves to an array of Hover-instances.'
-			}
+			args: [
+				{ name: 'uri', description: 'Uri of a text document', constraint: URI },
+				{ name: 'position', description: 'Position of a symbol', constraint: types.Position }
+			],
+			returns: 'A promise that resolves to an array of Hover-instances.'
 		});
 		this._register('vscode.executeDocumentHighlights', this._executeDocumentHighlights, {
 			description: 'Execute document highlight provider.',
-			signature: {
-				args: [
-					{ name: 'uri', description: 'Uri of a text document', constraint: URI },
-					{ name: 'position', description: 'Position in a text document', constraint: types.Position }
-				],
-				returns: 'A promise that resolves to an array of DocumentHighlight-instances.'
-			}
+			args: [
+				{ name: 'uri', description: 'Uri of a text document', constraint: URI },
+				{ name: 'position', description: 'Position in a text document', constraint: types.Position }
+			],
+			returns: 'A promise that resolves to an array of DocumentHighlight-instances.'
 		});
 		this._register('vscode.executeReferenceProvider', this._executeReferenceProvider, {
 			description: 'Execute reference provider.',
-			signature: {
-				args: [
-					{ name: 'uri', description: 'Uri of a text document', constraint: URI },
-					{ name: 'position', description: 'Position in a text document', constraint: types.Position }
-				],
-				returns: 'A promise that resolves to an array of Location-instances.'
-			}
+			args: [
+				{ name: 'uri', description: 'Uri of a text document', constraint: URI },
+				{ name: 'position', description: 'Position in a text document', constraint: types.Position }
+			],
+			returns: 'A promise that resolves to an array of Location-instances.'
 		});
 		this._register('vscode.executeDocumentRenameProvider', this._executeDocumentRenameProvider, {
 			description: 'Execute rename provider.',
-			signature: {
-				args: [
-					{ name: 'uri', description: 'Uri of a text document', constraint: URI },
-					{ name: 'position', description: 'Position in a text document', constraint: types.Position },
-					{ name: 'newName', description: 'The new symbol name', constraint: String }
-				],
-				returns: 'A promise that resolves to a WorkspaceEdit.'
-			}
+			args: [
+				{ name: 'uri', description: 'Uri of a text document', constraint: URI },
+				{ name: 'position', description: 'Position in a text document', constraint: types.Position },
+				{ name: 'newName', description: 'The new symbol name', constraint: String }
+			],
+			returns: 'A promise that resolves to a WorkspaceEdit.'
 		});
 		this._register('vscode.executeSignatureHelpProvider', this._executeSignatureHelpProvider, {
 			description: 'Execute signature help provider.',
-			signature: {
-				args: [
-					{ name: 'uri', description: 'Uri of a text document', constraint: URI },
-					{ name: 'position', description: 'Position in a text document', constraint: types.Position }
-				],
-				returns: 'A promise that resolves to SignatureHelp.'
-			}
+			args: [
+				{ name: 'uri', description: 'Uri of a text document', constraint: URI },
+				{ name: 'position', description: 'Position in a text document', constraint: types.Position }
+			],
+			returns: 'A promise that resolves to SignatureHelp.'
 		});
 		this._register('vscode.executeDocumentSymbolProvider', this._executeDocumentSymbolProvider, {
 			description: 'Execute document symbol provider.',
-			signature: {
-				args: [
-					{ name: 'uri', description: 'Uri of a text document', constraint: URI }
-				],
-				returns: 'A promise that resolves to an array of SymbolInformation-instances.'
-			}
+			args: [
+				{ name: 'uri', description: 'Uri of a text document', constraint: URI }
+			],
+			returns: 'A promise that resolves to an array of SymbolInformation-instances.'
 		});
 		this._register('vscode.executeCompletionItemProvider', this._executeCompletionItemProvider, {
 			description: 'Execute completion item provider.',
-			signature: {
-				args: [
-					{ name: 'uri', description: 'Uri of a text document', constraint: URI },
-					{ name: 'position', description: 'Position in a text document', constraint: types.Position }
-				],
-				returns: 'A promise that resolves to an array of CompletionItem-instances.'
-			}
+			args: [
+				{ name: 'uri', description: 'Uri of a text document', constraint: URI },
+				{ name: 'position', description: 'Position in a text document', constraint: types.Position }
+			],
+			returns: 'A promise that resolves to an array of CompletionItem-instances.'
 		});
 		this._register('vscode.executeCodeActionProvider', this._executeCodeActionProvider, {
 			description: 'Execute code action provider.',
-			signature: {
-				args: [
-					{ name: 'uri', description: 'Uri of a text document', constraint: URI },
-					{ name: 'range', description: 'Range in a text document', constraint: types.Range }
-				],
-				returns: 'A promise that resolves to an array of CompletionItem-instances.'
-			}
+			args: [
+				{ name: 'uri', description: 'Uri of a text document', constraint: URI },
+				{ name: 'range', description: 'Range in a text document', constraint: types.Range }
+			],
+			returns: 'A promise that resolves to an array of CompletionItem-instances.'
 		});
 		this._register('vscode.executeCodeLensProvider', this._executeCodeLensProvider, {
 			description: 'Execute completion item provider.',
-			signature: {
-				args: [
-					{ name: 'uri', description: 'Uri of a text document', constraint: URI }
-				],
-				returns: 'A promise that resolves to an array of Commands.'
-			}
+			args: [
+				{ name: 'uri', description: 'Uri of a text document', constraint: URI }
+			],
+			returns: 'A promise that resolves to an array of Commands.'
 		});
 		this._register('vscode.executeFormatDocumentProvider', this._executeFormatDocumentProvider, {
 			description: 'Execute document format provider.',
-			signature: {
-				args: [
-					{ name: 'uri', description: 'Uri of a text document', constraint: URI },
-					{ name: 'options', description: 'Formatting options' }
-				],
-				returns: 'A promise that resolves to an array of TextEdits.'
-			}
+			args: [
+				{ name: 'uri', description: 'Uri of a text document', constraint: URI },
+				{ name: 'options', description: 'Formatting options' }
+			],
+			returns: 'A promise that resolves to an array of TextEdits.'
 		});
 		this._register('vscode.executeFormatRangeProvider', this._executeFormatRangeProvider, {
 			description: 'Execute range format provider.',
-			signature: {
-				args: [
-					{ name: 'uri', description: 'Uri of a text document', constraint: URI },
-					{ name: 'range', description: 'Range in a text document', constraint: types.Range },
-					{ name: 'options', description: 'Formatting options' }
-				],
-				returns: 'A promise that resolves to an array of TextEdits.'
-			}
+			args: [
+				{ name: 'uri', description: 'Uri of a text document', constraint: URI },
+				{ name: 'range', description: 'Range in a text document', constraint: types.Range },
+				{ name: 'options', description: 'Formatting options' }
+			],
+			returns: 'A promise that resolves to an array of TextEdits.'
 		});
 		this._register('vscode.executeFormatOnTypeProvider', this._executeFormatOnTypeProvider, {
 			description: 'Execute document format provider.',
-			signature: {
-				args: [
-					{ name: 'uri', description: 'Uri of a text document', constraint: URI },
-					{ name: 'position', description: 'Position in a text document', constraint: types.Position },
-					{ name: 'ch', description: 'Character that got typed', constraint: String },
-					{ name: 'options', description: 'Formatting options' }
-				],
-				returns: 'A promise that resolves to an array of TextEdits.'
-			}
+			args: [
+				{ name: 'uri', description: 'Uri of a text document', constraint: URI },
+				{ name: 'position', description: 'Position in a text document', constraint: types.Position },
+				{ name: 'ch', description: 'Character that got typed', constraint: String },
+				{ name: 'options', description: 'Formatting options' }
+			],
+			returns: 'A promise that resolves to an array of TextEdits.'
 		});
 	}
 
@@ -335,7 +308,7 @@ export class ExtHostApiCommands {
 		});
 	}
 
-	private _executeCodeLensProvider(resource: URI): Thenable<vscode.CodeLens[]>{
+	private _executeCodeLensProvider(resource: URI): Thenable<vscode.CodeLens[]> {
 		const args = { resource };
 		return this._commands.executeCommand<ICodeLensData[]>('_executeCodeLensProvider', args).then(value => {
 			if (Array.isArray(value)) {
@@ -372,7 +345,7 @@ export class ExtHostApiCommands {
 		});
 	}
 
-	private _executeFormatOnTypeProvider(resource: URI, position: types.Position, ch:string, options: vscode.FormattingOptions): Thenable<vscode.TextEdit[]> {
+	private _executeFormatOnTypeProvider(resource: URI, position: types.Position, ch: string, options: vscode.FormattingOptions): Thenable<vscode.TextEdit[]> {
 		const args = {
 			resource,
 			position: typeConverters.fromPosition(position),

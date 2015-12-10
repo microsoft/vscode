@@ -360,13 +360,11 @@ KeybindingsRegistry.registerCommandDesc({
 	primary: undefined,
 	description: {
 		description: 'Show references at a position in a file',
-		signature: {
-			args: [
-				{ name: 'uri', description: 'The text document in which to show references', constraint: URI },
-				{ name: 'position', description: 'The position at which to show', constraint: Position.isIPosition },
-				{ name: 'locations', description: 'An array of locations.', constraint: Array },
-			]
-		}
+		args: [
+			{ name: 'uri', description: 'The text document in which to show references', constraint: URI },
+			{ name: 'position', description: 'The position at which to show', constraint: Position.isIPosition },
+			{ name: 'locations', description: 'An array of locations.', constraint: Array },
+		]
 	}
 });
 CommonEditorRegistry.registerEditorCommand('closeReferenceSearch', CommonEditorRegistry.commandWeight(50), { primary: KeyCode.Escape }, false, CONTEXT_REFERENCE_SEARCH_VISIBLE, (accessor, editor, args) => {

@@ -98,7 +98,7 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 		if (typeof description === 'object') {
 			const metadata = <ICommandHandlerDescription>description;
 			const constraints: TypeConstraint[] = [];
-			for (let arg of metadata.signature.args) {
+			for (let arg of metadata.args) {
 				constraints.push(arg.constraint);
 			}
 			handler = function(accesor, args) {
