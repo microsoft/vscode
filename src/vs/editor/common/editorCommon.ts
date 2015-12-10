@@ -482,6 +482,11 @@ export interface ICommonEditorOptions {
 	 * Defaults to false.
 	 */
 	renderWhitespace?: boolean;
+	/**
+	 * Make the cursor move with scrolling.
+	 * Defaults to false.
+	 */
+	scrollCursorWithLine?: boolean;
 }
 
 /**
@@ -610,6 +615,7 @@ export interface IInternalEditorOptions {
 	outlineMarkers: boolean;
 	referenceInfos: boolean;
 	renderWhitespace: boolean;
+	scrollCursorWithLine: boolean;
 
 	// ---- Options that are computed
 
@@ -2061,6 +2067,10 @@ export interface ICursorRevealRangeEvent {
 	revealHorizontal:boolean;
 }
 
+export interface ICursorLineScrollEvent {
+	lineOffset: number;
+}
+
 export interface IModelChangedEvent {
 	oldModelUrl: string;
 	newModelUrl: string;
@@ -2502,7 +2512,8 @@ export var ViewEventNames = {
 	CursorPositionChangedEvent: 'cursorPositionChangedEvent',
 	CursorSelectionChangedEvent: 'cursorSelectionChangedEvent',
 	RevealRangeEvent: 'revealRangeEvent',
-	LineMappingChangedEvent: 'lineMappingChangedEvent'
+	LineMappingChangedEvent: 'lineMappingChangedEvent',
+	LineScrollEvent: 'lineScrollEvent'
 };
 
 export interface IScrollEvent {
@@ -2597,6 +2608,10 @@ export interface IViewRevealRangeEvent {
 	 * If false: there should be just a vertical revealing
 	 */
 	revealHorizontal: boolean;
+}
+
+export interface IViewLineScrollEvent {
+	lineOffset: number;
 }
 
 export interface IViewWhitespaceViewportData {
@@ -3231,6 +3246,7 @@ export var EventType = {
 	CursorPositionChanged: 'positionChanged',
 	CursorSelectionChanged: 'selectionChanged',
 	CursorRevealRange: 'revealRange',
+	CursorLineScroll: 'lineScroll',
 
 	ViewFocusGained: 'focusGained',
 	ViewFocusLost: 'focusLost',
@@ -3338,5 +3354,8 @@ export var Handler = {
 	LineInsertAfter:			'lineInsertAfter',
 	LineBreakInsert:			'lineBreakInsert',
 
-	SelectAll:					'selectAll'
+	SelectAll:					'selectAll',
+
+	ScrollLineUp:				'scrollLineUp',
+	ScrollLineDown:				'scrollLineDown'
 };

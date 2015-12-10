@@ -41,6 +41,7 @@ interface IMultipleCursorOperationContext {
 	isCursorUndo: boolean;
 	executeCommands: EditorCommon.ICommand[];
 	postOperationRunnables: IPostOperationRunnable[];
+	lineScrollOffset: number;
 }
 
 interface IExecContext {
@@ -85,7 +86,8 @@ export class Cursor extends EventEmitter {
 		super([
 			EditorCommon.EventType.CursorPositionChanged,
 			EditorCommon.EventType.CursorSelectionChanged,
-			EditorCommon.EventType.CursorRevealRange
+			EditorCommon.EventType.CursorRevealRange,
+			EditorCommon.EventType.CursorLineScroll
 		]);
 		this.editorId = editorId;
 		this.configuration = configuration;
@@ -306,7 +308,8 @@ export class Cursor extends EventEmitter {
 			isCursorUndo: false,
 			postOperationRunnables: [],
 			shouldPushStackElementBefore: false,
-			shouldPushStackElementAfter: false
+			shouldPushStackElementAfter: false,
+			lineScrollOffset: 0
 		};
 
 		callback(currentHandlerCtx);
@@ -336,6 +339,7 @@ export class Cursor extends EventEmitter {
 			var shouldRevealHorizontal: boolean;
 			var shouldRevealTarget: RevealTarget;
 			var isCursorUndo: boolean;
+			var lineScrollOffset: number;
 
 			var hasExecutedCommands = this._createAndInterpretHandlerCtx(eventSource, e.getData(), (currentHandlerCtx:IMultipleCursorOperationContext) => {
 				handled = handler(currentHandlerCtx);
@@ -346,6 +350,7 @@ export class Cursor extends EventEmitter {
 				shouldRevealVerticalInCenter = currentHandlerCtx.shouldRevealVerticalInCenter;
 				shouldRevealHorizontal = currentHandlerCtx.shouldRevealHorizontal;
 				isCursorUndo = currentHandlerCtx.isCursorUndo;
+				lineScrollOffset = currentHandlerCtx.lineScrollOffset;
 			});
 
 			if (hasExecutedCommands) {
@@ -401,6 +406,10 @@ export class Cursor extends EventEmitter {
 					this.emitCursorRevealRange(shouldRevealTarget, shouldRevealVerticalInCenter ? EditorCommon.VerticalRevealType.Center : EditorCommon.VerticalRevealType.Simple, shouldRevealHorizontal);
 				}
 				this.emitCursorSelectionChanged(eventSource, cursorPositionChangeReason);
+			}
+
+			if (lineScrollOffset) {
+				this.emitCursorLineScroll(lineScrollOffset);
 			}
 		} catch (err) {
 			Errors.onUnexpectedError(err);
@@ -845,6 +854,13 @@ export class Cursor extends EventEmitter {
 		this.emit(EditorCommon.EventType.CursorSelectionChanged, e);
 	}
 
+	private emitCursorLineScroll(lineScrollOffset: number): void {
+		var e:EditorCommon.ICursorLineScrollEvent = {
+			lineOffset: lineScrollOffset
+		};
+		this.emit(EditorCommon.EventType.CursorLineScroll, e);
+	}
+
 	private emitCursorRevealRange(revealTarget: RevealTarget, verticalType: EditorCommon.VerticalRevealType, revealHorizontal: boolean): void {
 		var positions = this.cursors.getPositions();
 		var viewPositions = this.cursors.getViewPositions();
@@ -958,6 +974,9 @@ export class Cursor extends EventEmitter {
 		handlersMap[H.Outdent] =					(ctx:IMultipleCursorOperationContext) => this._outdent(ctx);
 		handlersMap[H.Paste] =						(ctx:IMultipleCursorOperationContext) => this._paste(ctx);
 
+		handlersMap[H.ScrollLineUp] =				(ctx:IMultipleCursorOperationContext) => this._scrollLineUp(ctx);
+		handlersMap[H.ScrollLineDown] =				(ctx:IMultipleCursorOperationContext) => this._scrollLineDown(ctx);
+
 		handlersMap[H.DeleteLeft] =					(ctx:IMultipleCursorOperationContext) => this._deleteLeft(ctx);
 		handlersMap[H.DeleteWordLeft] =				(ctx:IMultipleCursorOperationContext) => this._deleteWordLeft(ctx);
 		handlersMap[H.DeleteRight] =				(ctx:IMultipleCursorOperationContext) => this._deleteRight(ctx);
@@ -1004,7 +1023,8 @@ export class Cursor extends EventEmitter {
 				executeCommand: null,
 				postOperationRunnable: null,
 				shouldPushStackElementBefore: false,
-				shouldPushStackElementAfter: false
+				shouldPushStackElementAfter: false,
+				lineScrollOffset: 0
 			};
 
 			result = callable(i, cursors[i], context) || result;
@@ -1014,6 +1034,7 @@ export class Cursor extends EventEmitter {
 				ctx.shouldRevealHorizontal = context.shouldRevealHorizontal;
 				ctx.shouldReveal = context.shouldReveal;
 				ctx.shouldRevealVerticalInCenter = context.shouldRevealVerticalInCenter;
+				ctx.lineScrollOffset = context.lineScrollOffset;
 			}
 
 			ctx.shouldPushStackElementBefore = ctx.shouldPushStackElementBefore || context.shouldPushStackElementBefore;
@@ -1296,6 +1317,20 @@ export class Cursor extends EventEmitter {
 		} else {
 			return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.paste(oneCursor, ctx.eventData.text, ctx.eventData.pasteOnNewLine, oneCtx));
 		}
+	}
+
+	private _scrollLineUp(ctx: IMultipleCursorOperationContext): boolean {
+		if (this.configuration.editor.scrollCursorWithLine) {
+			if (!this._moveUp(false, false, ctx)) return false;
+		}
+		return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.scrollLineUp(oneCursor, oneCtx));
+	}
+
+	private _scrollLineDown(ctx: IMultipleCursorOperationContext): boolean {
+		if (this.configuration.editor.scrollCursorWithLine) {
+			if (!this._moveDown(false, false, ctx)) return false;
+		}
+		return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.scrollLineDown(oneCursor, oneCtx));
 	}
 
 	private _distributePasteToCursors(ctx: IMultipleCursorOperationContext): string[] {

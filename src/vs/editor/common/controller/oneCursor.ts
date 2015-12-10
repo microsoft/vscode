@@ -30,6 +30,7 @@ export interface IOneCursorOperationContext {
 	shouldPushStackElementAfter: boolean;
 	executeCommand: EditorCommon.ICommand;
 	postOperationRunnable: IPostOperationRunnable;
+	lineScrollOffset: number;
 }
 
 export interface IModeConfiguration {
@@ -1331,6 +1332,16 @@ export class OneCursorOp {
 		});
 		ctx.shouldRevealHorizontal = false;
 
+		return true;
+	}
+
+	public static scrollLineUp(cursor:OneCursor, ctx: IOneCursorOperationContext): boolean {
+		ctx.lineScrollOffset = -1;
+		return true;
+	}
+
+	public static scrollLineDown(cursor:OneCursor, ctx: IOneCursorOperationContext): boolean {
+		ctx.lineScrollOffset = +1;
 		return true;
 	}
 

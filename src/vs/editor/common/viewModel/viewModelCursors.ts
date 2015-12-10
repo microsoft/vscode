@@ -105,6 +105,13 @@ export class ViewModelCursors {
 		emit(EditorCommon.ViewEventNames.RevealRangeEvent, newEvent);
 	}
 
+	public onCursorLineScroll(e:EditorCommon.ICursorLineScrollEvent, emit:(eventType:string, payload:any)=>void): void {
+		var newEvent:EditorCommon.IViewLineScrollEvent = {
+			lineOffset: e.lineOffset
+		};
+		emit(EditorCommon.ViewEventNames.LineScrollEvent, newEvent);
+	}
+
 	public onLineMappingChanged(emit:(eventType:string, payload:any)=>void): void {
 		if (this.lastCursorPositionChangedEvent) {
 			this.onCursorPositionChanged(this.lastCursorPositionChangedEvent, emit);
