@@ -3,7 +3,7 @@
 	"type": "object",
 	"default": {
 		"compilerOptions": {
-			"target": "ES5"
+			"target": "ES6"
 		}
 	},
 	"properties": {
@@ -42,7 +42,7 @@
 					"type": "boolean"
 				},
 				"target": {
-					"description": "Specify ECMAScript target version:  'ES3' (default), 'ES5', or 'ES6' (experimental).",
+					"description": "Specify ECMAScript target version:  'ES3', 'ES5', or 'ES6' (default).",
 					"enum": [
 						"ES3",
 						"ES5",
@@ -51,7 +51,7 @@
 						"es5",
 						"es6"
 					],
-					"default": "ES3"
+					"default": "ES6"
 				},
 				"experimentalDecorators": {
 					"description": "Enables experimental support for ES7 decorators.",
