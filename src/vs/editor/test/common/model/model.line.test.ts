@@ -1607,6 +1607,28 @@ suite('Editor Model - ModelLine.applyEdits text & markers', () => {
 		);
 	});
 
+	test('delete near markers', () => {
+		testLineEditMarkers(
+			'abcd',
+			[
+				marker(1, 3, true),
+				marker(2, 3, false)
+			],
+			[{
+				startColumn: 3,
+				endColumn: 4,
+				text: '',
+				forceMoveMarkers: false
+			}],
+			'abd',
+			[],
+			[
+				marker(1, 3, true),
+				marker(2, 3, false)
+			]
+		);
+	});
+
 	test('replace: updates markers 2', () => {
 		testLineEditMarkers(
 			'Hello world, how are you',
@@ -1785,6 +1807,28 @@ suite('Editor Model - ModelLine.applyEdits text & markers', () => {
 			[
 				marker(1, 1, false),
 				marker(2, 1, true),
+			]
+		);
+	});
+
+	test('replace selection', () => {
+		testLineEditMarkers(
+			'first',
+			[
+				marker(1, 1, true),
+				marker(2, 6, false),
+			],
+			[{
+				startColumn: 1,
+				endColumn: 6,
+				text: 'something',
+				forceMoveMarkers: false
+			}],
+			'something',
+			[2],
+			[
+				marker(1, 1, true),
+				marker(2, 10, false),
 			]
 		);
 	});

@@ -77,6 +77,28 @@ suite('Editor Side Editing - collapsed selection', () => {
 		);
 	});
 
+	test('replace at selection 2', () => {
+		testCommand(
+			[
+				'first',
+				'second line',
+				'third line',
+				'fourth'
+			],
+			new Selection(1,1,1,6),
+			[
+				EditOperation.replace(new Selection(1,1,1,6), 'something')
+			],
+			[
+				'something',
+				'second line',
+				'third line',
+				'fourth'
+			],
+			new Selection(1,1,1,10)
+		);
+	});
+
 	test('ModelLine.applyEdits uses `isReplace`', () => {
 		testLineEditMarker('something', 1, true, { startColumn: 1, endColumn: 1, text: 'asd', forceMoveMarkers: false }, 1);
 		testLineEditMarker('something', 1, true, { startColumn: 1, endColumn: 1, text: 'asd', forceMoveMarkers: true }, 4);
