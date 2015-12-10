@@ -34,7 +34,7 @@ export class FindController implements EditorCommon.IEditorContribution, FindWid
 	private editor:EditorBrowser.ICodeEditor;
 	private _findWidgetVisible: IKeybindingContextKey<boolean>;
 
-	private model:FindModel.IFindModel;
+	private model:FindModel.FindModelBoundToEditorModel;
 	private widget:FindWidget.FindWidget;
 	private widgetIsVisible:boolean;
 	private widgetListeners:Lifecycle.IDisposable[];
@@ -84,10 +84,7 @@ export class FindController implements EditorCommon.IEditorContribution, FindWid
 
 	public dispose(): void {
 		this.widgetListeners = Lifecycle.disposeAll(this.widgetListeners);
-		if (this.widget) {
-			this.widget.dispose();
-			this.widget = null;
-		}
+		this.widget.dispose();
 		this.disposeBindingAndModel();
 		this._eventEmitter.dispose();
 	}
@@ -98,9 +95,7 @@ export class FindController implements EditorCommon.IEditorContribution, FindWid
 
 	private disposeBindingAndModel(): void {
 		this._findWidgetVisible.reset();
-		if (this.widget) {
-			this.widget.setModel(null);
-		}
+		this.widget.setModel(null);
 		if (this.model) {
 			this.model.dispose();
 			this.model = null;
@@ -113,49 +108,16 @@ export class FindController implements EditorCommon.IEditorContribution, FindWid
 		this.editor.focus();
 	}
 
-	private _ensureHasState(): void {
-		if (!this.lastState) {
-			this.lastState = {
-				isReplaceRevealed: false,
-				properties: {
-					isRegex: false,
-					matchCase: false,
-					wholeWord: false
-				},
-				replaceString: '',
-				searchString: ''
-			};
-		}
-	}
-
 	public toggleCaseSensitive(): void {
-		if (this.widget) {
-			this.widget.toggleCaseSensitive();
-		} else {
-			this._ensureHasState();
-			this.lastState.properties.matchCase = !this.lastState.properties.matchCase;
-			this._eventEmitter.emit(FindController._STATE_CHANGED_EVENT);
-		}
+		this.widget.toggleCaseSensitive();
 	}
 
 	public toggleWholeWords(): void {
-		if (this.widget) {
-			this.widget.toggleWholeWords();
-		} else {
-			this._ensureHasState();
-			this.lastState.properties.wholeWord = !this.lastState.properties.wholeWord;
-			this._eventEmitter.emit(FindController._STATE_CHANGED_EVENT);
-		}
+		this.widget.toggleWholeWords();
 	}
 
 	public toggleRegex(): void {
-		if (this.widget) {
-			this.widget.toggleRegex();
-		} else {
-			this._ensureHasState();
-			this.lastState.properties.isRegex = !this.lastState.properties.isRegex;
-			this._eventEmitter.emit(FindController._STATE_CHANGED_EVENT);
-		}
+		this.widget.toggleRegex();
 	}
 
 	private onWidgetClosed(): void {
@@ -225,6 +187,14 @@ export class FindController implements EditorCommon.IEditorContribution, FindWid
 		// Start searching
 		this.model.start(this.lastState, searchScope, shouldFocus);
 		this.widgetIsVisible = true;
+
+		if (shouldFocus) {
+			if (forceRevealReplace) {
+				this.widget.focusReplaceInput();
+			} else {
+				this.widget.focusFindInput();
+			}
+		}
 	}
 
 	public startFromAction(withReplace:boolean): void {

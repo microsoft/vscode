@@ -43,26 +43,10 @@ export interface IFindState {
 export interface IFindStartEvent {
 	state: IFindState;
 	selectionFindEnabled: boolean;
-	shouldFocus: boolean;
+	shouldAnimate: boolean;
 }
 
-export interface IFindModel {
-	dispose(): void;
-
-	start(newFindData:IFindState, findScope:EditorCommon.IEditorRange, shouldFocus:boolean): void;
-	recomputeMatches(newFindData:IFindState, jumpToNextMatch:boolean): void;
-	setFindScope(findScope:EditorCommon.IEditorRange): void;
-
-	next(): void;
-	prev(): void;
-	replace(): void;
-	replaceAll(): void;
-
-	addStartEventListener(callback:(e:IFindStartEvent)=>void): Lifecycle.IDisposable;
-	addMatchesUpdatedEventListener(callback:(e:IFindMatchesEvent)=>void): Lifecycle.IDisposable;
-}
-
-export class FindModelBoundToEditorModel extends Events.EventEmitter implements IFindModel {
+export class FindModelBoundToEditorModel extends Events.EventEmitter {
 
 	private static _START_EVENT = 'start';
 	private static _MATCHES_UPDATED_EVENT = 'matches';
@@ -282,7 +266,7 @@ export class FindModelBoundToEditorModel extends Events.EventEmitter implements 
 		}
 	}
 
-	public start(newFindData:IFindState, findScope:EditorCommon.IEditorRange, shouldFocus:boolean): void {
+	public start(newFindData:IFindState, findScope:EditorCommon.IEditorRange, shouldAnimate:boolean): void {
 		this.startPosition = this.editor.getPosition();
 
 		this.isRegex = newFindData.properties.isRegex;
@@ -297,7 +281,7 @@ export class FindModelBoundToEditorModel extends Events.EventEmitter implements 
 		var e:IFindStartEvent = {
 			state: newFindData,
 			selectionFindEnabled: this.hasFindScope(),
-			shouldFocus: shouldFocus
+			shouldAnimate: shouldAnimate
 		};
 		this._emitStartEvent(e);
 	}

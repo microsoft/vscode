@@ -78,7 +78,7 @@ export class FindWidget extends EventEmitter.EventEmitter implements EditorBrows
 
 	private _toDispose:Lifecycle.IDisposable[];
 
-	private _model:FindModel.IFindModel;
+	private _model:FindModel.FindModelBoundToEditorModel;
 	private _modelListenersToDispose:Lifecycle.IDisposable[];
 
 	private focusTracker:DomUtils.IFocusTracker;
@@ -186,19 +186,14 @@ export class FindWidget extends EventEmitter.EventEmitter implements EditorBrows
 		return result;
 	}
 
-	public setModel(newFindModel:FindModel.IFindModel): void {
+	public setModel(newFindModel:FindModel.FindModelBoundToEditorModel): void {
 		this._removeModel();
 		if (newFindModel) {
 			// We have a new model! :)
 			this._model = newFindModel;
 			this._modelListenersToDispose.push(this._model.addStartEventListener((e:FindModel.IFindStartEvent) => {
-				this._reveal(e.shouldFocus);
+				this._reveal(e.shouldAnimate);
 				this._setState(e.state, e.selectionFindEnabled);
-				if (e.shouldFocus) {
-					this._findInput.select();
-					// Edge browser requires focus() in addition to select()
-					this._findInput.focus();
-				}
 			}));
 			this._modelListenersToDispose.push(this._model.addMatchesUpdatedEventListener((e:FindModel.IFindMatchesEvent) => {
 				DomUtils.toggleClass(this._domNode, 'no-results', this._findInput.getValue() !== '' && e.count === 0);
@@ -207,6 +202,18 @@ export class FindWidget extends EventEmitter.EventEmitter implements EditorBrows
 			// No model :(
 			this._hide(false);
 		}
+	}
+
+	public focusFindInput(): void {
+		this._findInput.select();
+		// Edge browser requires focus() in addition to select()
+		this._findInput.focus();
+	}
+
+	public focusReplaceInput(): void {
+		this._replaceInputBox.select();
+		// Edge browser requires focus() in addition to select()
+		this._replaceInputBox.focus();
 	}
 
 	private _removeModel(): void {
@@ -265,6 +272,9 @@ export class FindWidget extends EventEmitter.EventEmitter implements EditorBrows
 				this._findInput.focusOnCaseSensitive();
 			}
 			handled = true;
+		} else if (e.equals(CommonKeybindings.CTRLCMD_DOWN_ARROW)) {
+			this._codeEditor.focus();
+			handled = true;
 		}
 
 		if (handled) {
@@ -289,6 +299,9 @@ export class FindWidget extends EventEmitter.EventEmitter implements EditorBrows
 			handled = true;
 		} else if (e.equals(CommonKeybindings.TAB)) {
 			this._findInput.focusOnCaseSensitive();
+			handled = true;
+		} else if (e.equals(CommonKeybindings.CTRLCMD_DOWN_ARROW)) {
+			this._codeEditor.focus();
 			handled = true;
 		}
 
