@@ -52,7 +52,7 @@ export class FindController implements EditorCommon.IEditorContribution, FindWid
 		this.widgetIsVisible = false;
 		this.lastState = null;
 
-		this.widget = new FindWidget.FindWidget(this.editor, this, contextViewService);
+		this.widget = new FindWidget.FindWidget(this.editor, this, contextViewService, keybindingService);
 
 		this.widgetListeners = [];
 		this.widgetListeners.push(this.widget.addUserInputEventListener((e) => this.onWidgetUserInput(e)));
