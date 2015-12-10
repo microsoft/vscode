@@ -39,9 +39,7 @@ suite('Keybinding Registry', () => {
 			weight: 0,
 			description: {
 				description: 'a command',
-				signature: {
-					args: [{ name: 'value', constraint: Number }],
-				}
+				args: [{ name: 'value', constraint: Number }]
 			},
 			handler: function(accessor, args) {
 				return true;
