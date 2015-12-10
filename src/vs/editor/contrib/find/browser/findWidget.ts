@@ -26,17 +26,6 @@ export interface IUserInputEvent {
 	jumpToNextMatch: boolean;
 }
 
-export interface IFindWidget {
-	dispose(): void;
-
-	setModel(newFindModel:FindModel.IFindModel): void;
-	setSearchString(searchString:string): void;
-	getState(): FindModel.IFindState;
-
-	addUserInputEventListener(callback:(e:IUserInputEvent)=>void): Lifecycle.IDisposable;
-	addClosedEventListener(callback:()=>void): Lifecycle.IDisposable;
-}
-
 export interface IFindController {
 	enableSelectionFind(): void;
 	disableSelectionFind(): void;
@@ -56,7 +45,7 @@ const NLS_REPLACE_BTN_LABEL = nls.localize('label.replaceButton', "Replace");
 const NLS_REPLACE_ALL_BTN_LABEL = nls.localize('label.replaceAllButton', "Replace All");
 const NLS_TOGGLE_REPLACE_MODE_BTN_LABEL = nls.localize('label.toggleReplaceButton', "Toggle Replace mode");
 
-export class FindWidget extends EventEmitter.EventEmitter implements EditorBrowser.IOverlayWidget, IFindWidget {
+export class FindWidget extends EventEmitter.EventEmitter implements EditorBrowser.IOverlayWidget {
 
 	private static _USER_CLOSED_EVENT = 'close';
 	private static _USER_INPUT_EVENT = 'userInputEvent';
@@ -161,6 +150,7 @@ export class FindWidget extends EventEmitter.EventEmitter implements EditorBrows
 
 	public setSearchString(searchString:string): void {
 		this._findInput.setValue(searchString);
+		this._emitUserInputEvent(false);
 	}
 
 	private _setState(state:FindModel.IFindState, selectionFindEnabled:boolean): void {
@@ -263,10 +253,10 @@ export class FindWidget extends EventEmitter.EventEmitter implements EditorBrows
 		var handled = false;
 
 		if (e.equals(CommonKeybindings.ENTER)) {
-			this._codeEditor.getAction(FindModel.NEXT_MATCH_FIND_ID).run().done(null, Errors.onUnexpectedError);
+			this._codeEditor.getAction(FindModel.NEXT_MATCH_FIND_ACTION_ID).run().done(null, Errors.onUnexpectedError);
 			handled = true;
 		} else if (e.equals(CommonKeybindings.SHIFT_ENTER)) {
-			this._codeEditor.getAction(FindModel.PREVIOUS_MATCH_FIND_ID).run().done(null, Errors.onUnexpectedError);
+			this._codeEditor.getAction(FindModel.PREVIOUS_MATCH_FIND_ACTION_ID).run().done(null, Errors.onUnexpectedError);
 			handled = true;
 		} else if (e.equals(CommonKeybindings.TAB)) {
 			if (this._isReplaceVisible) {
@@ -334,6 +324,9 @@ export class FindWidget extends EventEmitter.EventEmitter implements EditorBrows
 			width: FindWidget.FIND_INPUT_AREA_WIDTH,
 			label: NLS_FIND_INPUT_LABEL,
 			placeholder: NLS_FIND_INPUT_PLACEHOLDER,
+			appendCaseSensitiveLabel: this._keybindingLabelFor(FindModel.TOGGLE_CASE_SENSITIVE_COMMAND_ID),
+			appendWholeWordsLabel: this._keybindingLabelFor(FindModel.TOGGLE_WHOLE_WORD_COMMAND_ID),
+			appendRegexLabel: this._keybindingLabelFor(FindModel.TOGGLE_REGEX_COMMAND_ID),
 			validation: (value:string): InputBox.IMessage => {
 				if (value.length === 0) {
 					return null;
@@ -358,19 +351,19 @@ export class FindWidget extends EventEmitter.EventEmitter implements EditorBrows
 
 		// Previous button
 		this._prevBtn = new SimpleButton(
-			NLS_PREVIOUS_MATCH_BTN_LABEL + this._keybindingLabelFor(FindModel.PREVIOUS_MATCH_FIND_ID),
+			NLS_PREVIOUS_MATCH_BTN_LABEL + this._keybindingLabelFor(FindModel.PREVIOUS_MATCH_FIND_ACTION_ID),
 			'previous'
 		).onTrigger(() => {
-			this._codeEditor.getAction(FindModel.PREVIOUS_MATCH_FIND_ID).run().done(null, Errors.onUnexpectedError);
+			this._codeEditor.getAction(FindModel.PREVIOUS_MATCH_FIND_ACTION_ID).run().done(null, Errors.onUnexpectedError);
 		});
 		this._toDispose.push(this._prevBtn);
 
 		// Next button
 		this._nextBtn = new SimpleButton(
-			NLS_NEXT_MATCH_BTN_LABEL + this._keybindingLabelFor(FindModel.NEXT_MATCH_FIND_ID),
+			NLS_NEXT_MATCH_BTN_LABEL + this._keybindingLabelFor(FindModel.NEXT_MATCH_FIND_ACTION_ID),
 			'next'
 		).onTrigger(() => {
-			this._codeEditor.getAction(FindModel.NEXT_MATCH_FIND_ID).run().done(null, Errors.onUnexpectedError);
+			this._codeEditor.getAction(FindModel.NEXT_MATCH_FIND_ACTION_ID).run().done(null, Errors.onUnexpectedError);
 		});
 		this._toDispose.push(this._nextBtn);
 
@@ -399,7 +392,7 @@ export class FindWidget extends EventEmitter.EventEmitter implements EditorBrows
 
 		// Close button
 		this._closeBtn = new SimpleButton(
-			NLS_CLOSE_BTN_LABEL + ' (Escape)',
+			NLS_CLOSE_BTN_LABEL + this._keybindingLabelFor(FindModel.CLOSE_FIND_WIDGET_COMMAND_ID),
 			'close-fw'
 			).onTrigger(() => {
 			this._hide(true);
@@ -580,6 +573,21 @@ export class FindWidget extends EventEmitter.EventEmitter implements EditorBrows
 
 	private _emitClosedEvent(): void {
 		this.emit(FindWidget._USER_CLOSED_EVENT);
+	}
+
+	public toggleCaseSensitive(): void {
+		this._findInput.setCaseSensitive(!this._findInput.getCaseSensitive());
+		this._emitUserInputEvent(false);
+	}
+
+	public toggleWholeWords(): void {
+		this._findInput.setWholeWords(!this._findInput.getWholeWords());
+		this._emitUserInputEvent(false);
+	}
+
+	public toggleRegex(): void {
+		this._findInput.setRegex(!this._findInput.getRegex());
+		this._emitUserInputEvent(false);
 	}
 }
 

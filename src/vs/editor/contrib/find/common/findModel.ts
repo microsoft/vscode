@@ -13,11 +13,14 @@ import {Range} from 'vs/editor/common/core/range';
 import {Position} from 'vs/editor/common/core/position';
 import {ReplaceCommand} from 'vs/editor/common/commands/replaceCommand';
 
-export var START_FIND_ID = 'actions.find';
-export var NEXT_MATCH_FIND_ID = 'editor.action.nextMatchFindAction';
-export var PREVIOUS_MATCH_FIND_ID = 'editor.action.previousMatchFindAction';
-
-export var START_FIND_REPLACE_ID = 'editor.action.startFindReplaceAction';
+export const START_FIND_ACTION_ID = 'actions.find';
+export const NEXT_MATCH_FIND_ACTION_ID = 'editor.action.nextMatchFindAction';
+export const PREVIOUS_MATCH_FIND_ACTION_ID = 'editor.action.previousMatchFindAction';
+export const START_FIND_REPLACE_ACTION_ID = 'editor.action.startFindReplaceAction';
+export const CLOSE_FIND_WIDGET_COMMAND_ID = 'closeFindWidget';
+export const TOGGLE_CASE_SENSITIVE_COMMAND_ID = 'toggleFindCaseSensitive';
+export const TOGGLE_WHOLE_WORD_COMMAND_ID = 'toggleFindWholeWord';
+export const TOGGLE_REGEX_COMMAND_ID = 'toggleFindRegex';
 
 export interface IFindMatchesEvent {
 	position: number;
