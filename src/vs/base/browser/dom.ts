@@ -1067,3 +1067,11 @@ export function emmet(description: string):HTMLElement {
 
 	return result;
 };
+
+export function show(element: HTMLElement): void {
+	element.style.display = null;
+}
+
+export function hide(element: HTMLElement): void {
+	element.style.display = 'none';
+}
