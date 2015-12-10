@@ -24,7 +24,7 @@ import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingServic
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {ExtHostLanguageFeatures, MainThreadLanguageFeatures} from 'vs/workbench/api/common/extHostLanguageFeatures';
-import {ExtHostLanguageFeatureCommands} from 'vs/workbench/api/common/extHostLanguageFeatureCommands';
+import {ExtHostApiCommands} from 'vs/workbench/api/common/extHostApiCommands';
 import {PluginHostCommands, MainThreadCommands} from 'vs/workbench/api/common/pluginHostCommands';
 import {PluginHostModelService} from 'vs/workbench/api/common/pluginHostDocuments';
 import {SyncDescriptor0} from 'vs/platform/instantiation/common/descriptors';
@@ -99,7 +99,7 @@ suite('ExtHostLanguageFeatureCommands', function() {
 
 		threadService.getRemotable(MainThreadCommands);
 		commands = threadService.getRemotable(PluginHostCommands);
-		new ExtHostLanguageFeatureCommands(commands);
+		new ExtHostApiCommands(commands);
 		mainThread = threadService.getRemotable(MainThreadLanguageFeatures);
 		extHost = threadService.getRemotable(ExtHostLanguageFeatures);
 	});

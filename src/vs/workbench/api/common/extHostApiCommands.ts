@@ -37,7 +37,7 @@ import {RenameRegistry} from 'vs/editor/contrib/rename/common/rename';
 import {FormatRegistry, FormatOnTypeRegistry} from 'vs/editor/contrib/format/common/format';
 import {ICodeLensData} from 'vs/editor/contrib/codelens/common/codelens';
 
-export class ExtHostLanguageFeatureCommands {
+export class ExtHostApiCommands {
 
 	private _commands: PluginHostCommands;
 	private _disposables: IDisposable[] = [];
