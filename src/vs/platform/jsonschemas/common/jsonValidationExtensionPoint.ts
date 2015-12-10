@@ -71,7 +71,11 @@ export class JSONValidationExtensionPoint {
 						collector.error(nls.localize('invalid.url.schema', "'configuration.jsonValidation.url' must start with 'http:', 'https:' or './' to reference schemas located in the extension"));
 						return;
 					}
-					schemaRegistry.addSchemaFileAssociation(extension.fileMatch, uri);
+					var fileMatch = extension.fileMatch;
+					if (!strings.startsWith(extension.fileMatch, '/')) {
+						fileMatch = '/' + fileMatch;
+					}
+					schemaRegistry.addSchemaFileAssociation(fileMatch, uri);
 				});
 			}
 		});

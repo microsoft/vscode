@@ -32,11 +32,7 @@ define([
 	'vs/workbench/browser/actions/showPerformanceBox',
 	'vs/workbench/browser/actions/openSettings',
 
-	'vs/workbench/parts/quickopen/browser/gotoSymbolHandler',
-	'vs/workbench/parts/quickopen/browser/commandsHandler',
-	'vs/workbench/parts/quickopen/browser/gotoLineHandler',
-	'vs/workbench/parts/quickopen/browser/helpHandler',
-	'vs/workbench/parts/quickopen/browser/markersHandler',
+	'vs/workbench/parts/quickopen/browser/quickopen.contribution',
 
 	'vs/workbench/parts/files/browser/explorerViewlet',
 	'vs/workbench/parts/files/browser/fileActions.contribution',

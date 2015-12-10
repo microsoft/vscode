@@ -192,23 +192,19 @@ export class OpenSymbolHandler extends QuickOpenHandler {
 	}
 
 	private sort(searchValue: string, elementA: SymbolEntry, elementB: SymbolEntry): number {
-		let elementAName = elementA.getName().toLowerCase();
-		let elementBName = elementB.getName().toLowerCase();
-
-		// Compare by name
-		let r = strings.localeCompare(elementAName, elementBName);
-		if (r !== 0) {
-			return r;
-		}
 
 		// Sort by Type if name is identical
-		let elementAType = elementA.getType();
-		let elementBType = elementB.getType();
-		if (elementAType !== elementBType) {
-			return OpenSymbolHandler.SUPPORTED_OPEN_TYPES.indexOf(elementAType) < OpenSymbolHandler.SUPPORTED_OPEN_TYPES.indexOf(elementBType) ? -1 : 1;
+		let elementAName = elementA.getName().toLowerCase();
+		let elementBName = elementB.getName().toLowerCase();
+		if (elementAName === elementBName) {
+			let elementAType = elementA.getType();
+			let elementBType = elementB.getType();
+			if (elementAType !== elementBType) {
+				return OpenSymbolHandler.SUPPORTED_OPEN_TYPES.indexOf(elementAType) < OpenSymbolHandler.SUPPORTED_OPEN_TYPES.indexOf(elementBType) ? -1 : 1;
+			}
 		}
 
-		return 0; // Keep default sorting order otherwise
+		return QuickOpenEntry.compare(elementA, elementB, searchValue);
 	}
 
 	public getGroupLabel(): string {

@@ -251,12 +251,7 @@ const fuzzyContiguousFilter = or(matchesPrefix, matchesCamelCase, matchesContigu
 const fuzzySeparateFilter = or(matchesPrefix, matchesCamelCase, matchesSubString);
 const fuzzyRegExpCache: { [key: string]: RegExp; } = {};
 
-let defaultFuzzyMatching = SubstringMatching.Contiguous;
-export function setDefaultFuzzyMatching(matcher: SubstringMatching): void {
-	defaultFuzzyMatching = matcher;
-}
-
-export function matchesFuzzy(word: string, wordToMatchAgainst: string, matcher = defaultFuzzyMatching): IMatch[] {
+export function matchesFuzzy(word: string, wordToMatchAgainst: string, enableSeparateSubstringMatching = false): IMatch[] {
 
 	// Form RegExp for wildcard matches
 	let regexp = fuzzyRegExpCache[word];
@@ -272,5 +267,5 @@ export function matchesFuzzy(word: string, wordToMatchAgainst: string, matcher =
 	}
 
 	// Default Filter
-	return matcher === SubstringMatching.Contiguous ? fuzzyContiguousFilter(word, wordToMatchAgainst) : fuzzySeparateFilter(word, wordToMatchAgainst);
+	return enableSeparateSubstringMatching ? fuzzySeparateFilter(word, wordToMatchAgainst) : fuzzyContiguousFilter(word, wordToMatchAgainst);
 }

@@ -10,11 +10,12 @@ import nls = require('vs/nls');
 import {ThrottledDelayer} from 'vs/base/common/async';
 import types = require('vs/base/common/types');
 import strings = require('vs/base/common/strings');
+import scorer = require('vs/base/common/scorer');
 import paths = require('vs/base/common/paths');
 import filters = require('vs/base/common/filters');
 import labels = require('vs/base/common/labels');
 import {IRange} from 'vs/editor/common/editorCommon';
-import {compareAnything} from 'vs/base/common/comparers';
+import {ListenerUnbind} from 'vs/base/common/eventEmitter';
 import {IAutoFocus} from 'vs/base/parts/quickopen/browser/quickOpen';
 import {QuickOpenEntry, QuickOpenModel} from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import {QuickOpenHandler} from 'vs/workbench/browser/quickopen';
@@ -22,7 +23,9 @@ import {FileEntry, OpenFileHandler} from 'vs/workbench/parts/search/browser/open
 import {OpenSymbolHandler as _OpenSymbolHandler} from 'vs/workbench/parts/search/browser/openSymbolHandler';
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
+import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
+import {ISearchConfiguration} from 'vs/platform/search/common/search';
+import {IConfigurationService, IConfigurationServiceEvent, ConfigurationServiceEventTypes} from 'vs/platform/configuration/common/configuration';
 
 // OpenSymbolHandler is used from an extension and must be in the main bundle file so it can load
 export const OpenSymbolHandler = _OpenSymbolHandler
@@ -42,11 +45,14 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 	private delayer: ThrottledDelayer<QuickOpenModel>;
 	private pendingSearch: TPromise<QuickOpenModel>;
 	private isClosed: boolean;
+	private fuzzyMatchingEnabled: boolean;
+	private configurationListenerUnbind: ListenerUnbind;
 
 	constructor(
 		@IMessageService private messageService: IMessageService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IInstantiationService instantiationService: IInstantiationService
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super();
 
@@ -59,6 +65,19 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 
 		this.resultsToSearchCache = Object.create(null);
 		this.delayer = new ThrottledDelayer<QuickOpenModel>(OpenAnythingHandler.SEARCH_DELAY);
+
+		this.updateFuzzyMatching(contextService.getOptions().globalSettings.settings);
+
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		this.configurationListenerUnbind = this.configurationService.addListener(ConfigurationServiceEventTypes.UPDATED, (e: IConfigurationServiceEvent) => this.updateFuzzyMatching(e.config));
+	}
+
+	private updateFuzzyMatching(configuration: ISearchConfiguration): void {
+		this.fuzzyMatchingEnabled = configuration.search && configuration.search.fuzzyFilePicker;
+		this.openFileHandler.setFuzzyMatchingEnabled(this.fuzzyMatchingEnabled);
 	}
 
 	public getResults(searchValue: string): TPromise<QuickOpenModel> {
@@ -143,7 +162,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 				let result = [...results[0].entries, ...results[1].entries];
 
 				// Sort
-				result.sort((elementA, elementB) => QuickOpenEntry.compare(elementA, elementB, searchValue));
+				result.sort((elementA, elementB) => this.sort(elementA, elementB, searchValue, this.fuzzyMatchingEnabled));
 
 				// Apply Range
 				result.forEach((element) => {
@@ -246,19 +265,19 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 
 			// Check if this entry is a match for the search value
 			let targetToMatch = searchInPath ? labels.getPathLabel(entry.getResource(), this.contextService) : entry.getLabel();
-			if (!filters.matchesFuzzy(searchValue, targetToMatch)) {
+			if (!filters.matchesFuzzy(searchValue, targetToMatch, this.fuzzyMatchingEnabled)) {
 				continue;
 			}
 
 			// Apply highlights
-			const {labelHighlights, descriptionHighlights} = QuickOpenEntry.highlight(entry, searchValue);
+			const {labelHighlights, descriptionHighlights} = QuickOpenEntry.highlight(entry, searchValue, this.fuzzyMatchingEnabled);
 			entry.setHighlights(labelHighlights, descriptionHighlights);
 
 			results.push(entry);
 		}
 
 		// Sort
-		results.sort((elementA, elementB) => QuickOpenEntry.compare(elementA, elementB, searchValue));
+		results.sort((elementA, elementB) => this.sort(elementA, elementB, searchValue, this.fuzzyMatchingEnabled));
 
 		// Apply Range
 		results.forEach((element) => {
@@ -268,6 +287,28 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 		});
 
 		return results;
+	}
+
+	private sort(elementA: QuickOpenEntry, elementB: QuickOpenEntry, lookFor: string, enableFuzzyScoring): number {
+
+		// Fuzzy scoring is special
+		if (enableFuzzyScoring) {
+			const labelAScore = scorer.score(elementA.getLabel(), lookFor);
+			const labelBScore = scorer.score(elementB.getLabel(), lookFor);
+
+			if (labelAScore !== labelBScore) {
+				return labelAScore > labelBScore ? -1 : 1;
+			}
+
+			const descriptionAScore = scorer.score(elementA.getDescription(), lookFor);
+			const descriptionBScore = scorer.score(elementB.getDescription(), lookFor);
+
+			if (descriptionAScore !== descriptionBScore) {
+				return descriptionAScore > descriptionBScore ? -1 : 1;
+			}
+		}
+
+		return QuickOpenEntry.compare(elementA, elementB, lookFor);
 	}
 
 	public getGroupLabel(): string {

@@ -67,9 +67,8 @@ class MarkerEntry extends QuickOpenEntryItem {
 		return null;
 	}
 
-	public run(mode:Mode, context:IContext):boolean {
-
-		if(mode !== Mode.OPEN) {
+	public run(mode: Mode, context: IContext): boolean {
+		if (mode !== Mode.OPEN) {
 			return false;
 		}
 
@@ -107,7 +106,7 @@ export class MarkersHandler extends QuickOpenHandler {
 		this._contextService = contextService;
 	}
 
-	public getResults(searchValue:string):TPromise<QuickOpenModel> {
+	public getResults(searchValue: string): TPromise<QuickOpenModel> {
 		searchValue = searchValue.trim();
 
 		let markers = this._markerService.read({ take: 500 });
@@ -121,7 +120,6 @@ export class MarkersHandler extends QuickOpenHandler {
 	}
 
 	private static _sort(a: IMarker, b: IMarker): number {
-
 		let ret: number;
 
 		// 1st: severity matters first
@@ -144,7 +142,7 @@ export class MarkersHandler extends QuickOpenHandler {
 
 		// 4th: start column matters
 		ret = a.startColumn - b.startColumn;
-		if(ret !== 0) {
+		if (ret !== 0) {
 			return ret;
 		}
 
@@ -153,7 +151,7 @@ export class MarkersHandler extends QuickOpenHandler {
 
 	private _filter(marker: IMarker, query: string): boolean {
 
-		if(marker.resource.scheme === network.schemas.inMemory) {
+		if (marker.resource.scheme === network.schemas.inMemory) {
 			// ignore inmemory-models
 			return false;
 		}
@@ -172,7 +170,7 @@ export class MarkersHandler extends QuickOpenHandler {
 		return 'marker-handler';
 	}
 
-	public getAutoFocus(searchValue:string):IAutoFocus {
+	public getAutoFocus(searchValue: string): IAutoFocus {
 		return {
 			autoFocusFirstEntry: !!searchValue
 		};
@@ -187,7 +185,7 @@ export class MarkersHandler extends QuickOpenHandler {
 
 }
 
-class GotoMarkerAction extends QuickOpenAction {
+export class GotoMarkerAction extends QuickOpenAction {
 
 	static Prefix = '!';
 	static Id = 'workbench.action.showErrorsWarnings';
@@ -197,23 +195,3 @@ class GotoMarkerAction extends QuickOpenAction {
 		super(actionId, actionLabel, GotoMarkerAction.Prefix, quickOpenService);
 	}
 }
-
-// Register Action
-let registry = <IWorkbenchActionRegistry> Registry.as(ActionExtensions.WorkbenchActions);
-registry.registerWorkbenchAction(new SyncActionDescriptor(GotoMarkerAction, GotoMarkerAction.Id, GotoMarkerAction.Label, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_M }));
-
-// Register Quick Open Handler
-(<IQuickOpenRegistry>Registry.as(QuickOpenExtensions.Quickopen)).registerQuickOpenHandler(
-	new QuickOpenHandlerDescriptor(
-		'vs/workbench/parts/quickopen/browser/markersHandler',
-		'MarkersHandler',
-		GotoMarkerAction.Prefix,
-		[
-			{
-				prefix: GotoMarkerAction.Prefix,
-				needsEditor: false,
-				description: env.isMacintosh ? nls.localize('desc.mac', "Show Errors or Warnings")  : nls.localize('desc.win', "Show Errors and Warnings")
-			},
-		]
-	)
-);

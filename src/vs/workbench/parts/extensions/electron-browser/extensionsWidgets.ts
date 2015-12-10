@@ -35,7 +35,7 @@ export class ExtensionsStatusbarItem implements statusbar.IStatusbarItem {
 	}
 
 	public render(container: HTMLElement): lifecycle.IDisposable {
-		this.domNode = dom.append(container, $('.extensions-statusbar octicon octicon-package'));
+		this.domNode = dom.append(container, $('a.extensions-statusbar octicon octicon-package'));
 		this.domNode.title = nls.localize('extensions', "Extensions"),
 		this.toDispose.push(dom.addDisposableListener(this.domNode, 'click', () => {
 			this.quickOpenService.show('>extensions: ').done(null, errors.onUnexpectedError);

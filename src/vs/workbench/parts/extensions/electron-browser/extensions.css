@@ -123,7 +123,8 @@
 
 /* Status bar */
 .monaco-shell .extensions-statusbar {
-	cursor: pointer;
+	padding: 0 5px 0 5px;
+	line-height: 22px;
 }
 
 .monaco-shell .extensions-statusbar.warning::before {
