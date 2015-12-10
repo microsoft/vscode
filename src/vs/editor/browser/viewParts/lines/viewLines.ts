@@ -115,24 +115,9 @@ export class ViewLines extends ViewLayer {
 		return true;
 	}
 
-	public onCursorLineScroll(e:EditorCommon.IViewLineScrollEvent): boolean {
-		var currentViewport = this._layoutProvider.getCurrentViewport();
-		var residualOffset = currentViewport.top - this._layoutProvider.getVerticalOffsetForLineNumber(this._currentVisibleRange.startLineNumber);
-		var newTopLineNumber: number;
-		if (e.lineOffset < 0) {
-			newTopLineNumber = this._currentVisibleRange.startLineNumber + e.lineOffset;
-			if (newTopLineNumber < 1) {
-				newTopLineNumber = 1;
-				residualOffset = 0;
-			}
-		} else {
-			newTopLineNumber = this._currentVisibleRange.startLineNumber + e.lineOffset;
-			if (newTopLineNumber > this._currentVisibleRange.endLineNumber) {
-				newTopLineNumber = this._currentVisibleRange.endLineNumber;
-				residualOffset = 0;
-			}
-		}
-		var newScrollTop = this._layoutProvider.getVerticalOffsetForLineNumber(newTopLineNumber) + residualOffset;
+	public onCursorScrollRequest(e:EditorCommon.IViewScrollRequestEvent): boolean {
+		let currentScrollTop = this._layoutProvider.getScrollTop();
+		let newScrollTop = currentScrollTop + e.deltaLines * this._context.configuration.editor.lineHeight;
 		this._layoutProvider.setScrollTop(newScrollTop);
 		return true;
 	}

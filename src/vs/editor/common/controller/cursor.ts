@@ -41,7 +41,7 @@ interface IMultipleCursorOperationContext {
 	isCursorUndo: boolean;
 	executeCommands: EditorCommon.ICommand[];
 	postOperationRunnables: IPostOperationRunnable[];
-	lineScrollOffset: number;
+	requestScrollDeltaLines: number;
 }
 
 interface IExecContext {
@@ -87,7 +87,7 @@ export class Cursor extends EventEmitter {
 			EditorCommon.EventType.CursorPositionChanged,
 			EditorCommon.EventType.CursorSelectionChanged,
 			EditorCommon.EventType.CursorRevealRange,
-			EditorCommon.EventType.CursorLineScroll
+			EditorCommon.EventType.CursorScrollRequest
 		]);
 		this.editorId = editorId;
 		this.configuration = configuration;
@@ -309,7 +309,7 @@ export class Cursor extends EventEmitter {
 			postOperationRunnables: [],
 			shouldPushStackElementBefore: false,
 			shouldPushStackElementAfter: false,
-			lineScrollOffset: 0
+			requestScrollDeltaLines: 0
 		};
 
 		callback(currentHandlerCtx);
@@ -339,7 +339,7 @@ export class Cursor extends EventEmitter {
 			var shouldRevealHorizontal: boolean;
 			var shouldRevealTarget: RevealTarget;
 			var isCursorUndo: boolean;
-			var lineScrollOffset: number;
+			var requestScrollDeltaLines: number;
 
 			var hasExecutedCommands = this._createAndInterpretHandlerCtx(eventSource, e.getData(), (currentHandlerCtx:IMultipleCursorOperationContext) => {
 				handled = handler(currentHandlerCtx);
@@ -350,7 +350,7 @@ export class Cursor extends EventEmitter {
 				shouldRevealVerticalInCenter = currentHandlerCtx.shouldRevealVerticalInCenter;
 				shouldRevealHorizontal = currentHandlerCtx.shouldRevealHorizontal;
 				isCursorUndo = currentHandlerCtx.isCursorUndo;
-				lineScrollOffset = currentHandlerCtx.lineScrollOffset;
+				requestScrollDeltaLines = currentHandlerCtx.requestScrollDeltaLines;
 			});
 
 			if (hasExecutedCommands) {
@@ -408,8 +408,8 @@ export class Cursor extends EventEmitter {
 				this.emitCursorSelectionChanged(eventSource, cursorPositionChangeReason);
 			}
 
-			if (lineScrollOffset) {
-				this.emitCursorLineScroll(lineScrollOffset);
+			if (requestScrollDeltaLines) {
+				this.emitCursorScrollRequest(requestScrollDeltaLines);
 			}
 		} catch (err) {
 			Errors.onUnexpectedError(err);
@@ -854,11 +854,11 @@ export class Cursor extends EventEmitter {
 		this.emit(EditorCommon.EventType.CursorSelectionChanged, e);
 	}
 
-	private emitCursorLineScroll(lineScrollOffset: number): void {
-		var e:EditorCommon.ICursorLineScrollEvent = {
-			lineOffset: lineScrollOffset
+	private emitCursorScrollRequest(lineScrollOffset: number): void {
+		var e:EditorCommon.ICursorScrollRequestEvent = {
+			deltaLines: lineScrollOffset
 		};
-		this.emit(EditorCommon.EventType.CursorLineScroll, e);
+		this.emit(EditorCommon.EventType.CursorScrollRequest, e);
 	}
 
 	private emitCursorRevealRange(revealTarget: RevealTarget, verticalType: EditorCommon.VerticalRevealType, revealHorizontal: boolean): void {
@@ -974,8 +974,10 @@ export class Cursor extends EventEmitter {
 		handlersMap[H.Outdent] =					(ctx:IMultipleCursorOperationContext) => this._outdent(ctx);
 		handlersMap[H.Paste] =						(ctx:IMultipleCursorOperationContext) => this._paste(ctx);
 
-		handlersMap[H.ScrollLineUp] =				(ctx:IMultipleCursorOperationContext) => this._scrollLineUp(ctx);
-		handlersMap[H.ScrollLineDown] =				(ctx:IMultipleCursorOperationContext) => this._scrollLineDown(ctx);
+		handlersMap[H.ScrollLineUp] =				(ctx:IMultipleCursorOperationContext) => this._scrollUp(false, ctx);
+		handlersMap[H.ScrollLineDown] =				(ctx:IMultipleCursorOperationContext) => this._scrollDown(false, ctx);
+		handlersMap[H.ScrollPageUp] =				(ctx:IMultipleCursorOperationContext) => this._scrollUp(true, ctx);
+		handlersMap[H.ScrollPageDown] =				(ctx:IMultipleCursorOperationContext) => this._scrollDown(true, ctx);
 
 		handlersMap[H.DeleteLeft] =					(ctx:IMultipleCursorOperationContext) => this._deleteLeft(ctx);
 		handlersMap[H.DeleteWordLeft] =				(ctx:IMultipleCursorOperationContext) => this._deleteWordLeft(ctx);
@@ -1024,7 +1026,7 @@ export class Cursor extends EventEmitter {
 				postOperationRunnable: null,
 				shouldPushStackElementBefore: false,
 				shouldPushStackElementAfter: false,
-				lineScrollOffset: 0
+				requestScrollDeltaLines: 0
 			};
 
 			result = callable(i, cursors[i], context) || result;
@@ -1034,7 +1036,7 @@ export class Cursor extends EventEmitter {
 				ctx.shouldRevealHorizontal = context.shouldRevealHorizontal;
 				ctx.shouldReveal = context.shouldReveal;
 				ctx.shouldRevealVerticalInCenter = context.shouldRevealVerticalInCenter;
-				ctx.lineScrollOffset = context.lineScrollOffset;
+				ctx.requestScrollDeltaLines = context.requestScrollDeltaLines;
 			}
 
 			ctx.shouldPushStackElementBefore = ctx.shouldPushStackElementBefore || context.shouldPushStackElementBefore;
@@ -1319,18 +1321,20 @@ export class Cursor extends EventEmitter {
 		}
 	}
 
-	private _scrollLineUp(ctx: IMultipleCursorOperationContext): boolean {
-		if (this.configuration.editor.scrollCursorWithLine) {
-			if (!this._moveUp(false, false, ctx)) return false;
+	private _scrollUp(isPaged: boolean, ctx: IMultipleCursorOperationContext): boolean {
+		if (this.configuration.editor.moveCursorWhenScrolling) {
+			if (!this._moveUp(false, isPaged, ctx)) {
+				return false;
+			}
 		}
-		return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.scrollLineUp(oneCursor, oneCtx));
+		ctx.requestScrollDeltaLines = isPaged ? -this.configuration.editor.pageSize : -1;
 	}
 
-	private _scrollLineDown(ctx: IMultipleCursorOperationContext): boolean {
-		if (this.configuration.editor.scrollCursorWithLine) {
-			if (!this._moveDown(false, false, ctx)) return false;
+	private _scrollDown(isPaged: boolean, ctx: IMultipleCursorOperationContext): boolean {
+		if (this.configuration.editor.moveCursorWhenScrolling) {
+			if (!this._moveDown(false, isPaged, ctx)) return false;
 		}
-		return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.scrollLineDown(oneCursor, oneCtx));
+		ctx.requestScrollDeltaLines = isPaged ? this.configuration.editor.pageSize : 1;
 	}
 
 	private _distributePasteToCursors(ctx: IMultipleCursorOperationContext): string[] {
