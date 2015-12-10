@@ -3,7 +3,7 @@
 ### Before Submitting an Issue
 First, please do a search in open issues to see if the issue or feature request has already been filed. If there is an issue add your comments to this issue.
 
-The Code project is distributed across multiple repositories, try to file the issue against the correct repository [[Related Projects]].
+The Code project is distributed across multiple repositories, try to file the issue against the correct repository [Related Projects](https://github.com/Microsoft/vscode/wiki/Related-Projects).
 
 If your issue is a question then please ask the question on [Stack Overflow](https://stackoverflow.com/questions/tagged/vscode) using the tag `vscode`. 
 
