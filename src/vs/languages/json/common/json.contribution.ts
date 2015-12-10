@@ -51,19 +51,7 @@ configurationRegistry.registerConfiguration({
 						'description': nls.localize('jsonConfiguration.schema', "The schema definition for the given URL. The schema only needs to be provided to avoid accesses to the schema URL."),
 					},
 				}
-			},
-			'default' : [
-				{ 'fileMatch': [ '/bower.json', '/.bower.json' ], 'url': 'http://json.schemastore.org/bower' },
-				{ 'fileMatch': [ '/package.json' ], 'url': 'http://json.schemastore.org/package' },
-				{ 'fileMatch': [ '/project.json' ], 'url': 'http://json.schemastore.org/project' },
-				{ 'fileMatch': [ '*.schema.json' ], 'url': 'http://json-schema.org/draft-04/schema#' },
-				{ 'fileMatch': [ '/global.json' ], 'url': 'http://json.schemastore.org/global' },
-				{ 'fileMatch': [ '/tsconfig.json'], 'url': 'http://json.schemastore.org/tsconfig' },
-				{ 'fileMatch': [ '/jsconfig.json'  ], 'url': 'http://opentools.azurewebsites.net/jsconfig' },
-				{ 'fileMatch': [ '/.bowerrc' ], 'url': 'http://json.schemastore.org/bowerrc' },
-				{ 'fileMatch': [ '/.jshintrc' ], 'url': 'http://json.schemastore.org/jshintrc' },
-				{ 'fileMatch': [ '/.jscsrc' ], 'url': 'http://json.schemastore.org/jscsrc' }
-			]
+			}
 		}
 	}
 });

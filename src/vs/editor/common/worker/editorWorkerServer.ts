@@ -73,6 +73,10 @@ class WorkerPluginService extends AbstractPluginService {
 		}
 	}
 
+	public deactivate(pluginId:string): void {
+		// nothing to do
+	}
+
 }
 
 export class EditorWorkerServer {

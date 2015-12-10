@@ -104,14 +104,43 @@ interface ITestRunner {
 
 export class PluginHostMain {
 
+	private _isTerminating: boolean;
+
 	constructor(
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IPluginService private pluginService: IPluginService,
 		@IInstantiationService instantiationService: IInstantiationService
-	) {}
+	) {
+		this._isTerminating = false;
+	}
 
 	public start(): TPromise<void> {
 		return this.readPlugins();
+	}
+
+	public terminate(): void {
+		if (this._isTerminating) {
+			// we are already shutting down...
+			return;
+		}
+		this._isTerminating = true;
+
+		try {
+			let allExtensions = PluginsRegistry.getAllPluginDescriptions();
+			let allExtensionsIds = allExtensions.map(ext => ext.id);
+			let activatedExtensions = allExtensionsIds.filter(id => this.pluginService.isActivated(id));
+
+			activatedExtensions.forEach((extensionId) => {
+				this.pluginService.deactivate(extensionId);
+			});
+		} catch(err) {
+			// TODO: write to log once we have one
+		}
+
+		// Give extensions 1 second to wrap up any async dispose, then exit
+		setTimeout(() => {
+			exit()
+		}, 1000);
 	}
 
 	private readPlugins(): TPromise<void> {

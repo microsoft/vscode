@@ -486,11 +486,11 @@ export class TextModel extends OrderGuaranteeEventEmitter implements EditorCommo
 			linesIndentedWithSpaces += (absoluteSpaceCounts[i] || 0);
 		}
 
-		// Give preference to tabs over spaces (when evidence is the same)
+		// Give preference to spaces over tabs (when evidence is the same)
 		// or when there are not enough clues (too little indentation in the file)
 		if (linesIndentedWithTabs >= linesIndentedWithSpaces) {
 			return {
-				insertSpaces: false,
+				insertSpaces: true,
 				tabSize: defaultTabSize
 			};
 		}
@@ -498,7 +498,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements EditorCommo
 		if (linesWithIndentationCount < 6 && linesIndentedWithTabs > 0) {
 			// Making a guess with 6 indented lines, of which tabs are used besides spaces is very difficult
 			return {
-				insertSpaces: false,
+				insertSpaces: true,
 				tabSize: defaultTabSize
 			};
 		}

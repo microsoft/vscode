@@ -66,6 +66,25 @@ suite('Search', () => {
 		});
 	});
 
+	test('Files: examples (fuzzy)', function(done: () => void) {
+		let engine = new FileSearchEngine({
+			rootPaths: [require.toUrl('./fixtures')],
+			filePattern: 'xl',
+			matchFuzzy: true
+		});
+
+		let count = 0;
+		engine.search((result) => {
+			if (result) {
+				count++;
+			}
+		}, () => { }, (error) => {
+			assert.ok(!error);
+			assert.equal(count, 5);
+			done();
+		});
+	});
+
 	test('Files: *.js (Files as roots)', function(done: () => void) {
 		let engine = new FileSearchEngine({
 			rootPaths: [require.toUrl('./fixtures/examples/company.js'), require.toUrl('./fixtures/examples/small.js')],

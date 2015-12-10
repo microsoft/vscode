@@ -776,7 +776,7 @@ export class SuggestSupport extends AbstractSupport implements Modes.ISuggestSup
 		return DefaultFilter;
 	}
 
-	public getSorter(): Modes.ISuggestionSorter {
+	public getSorter(): Modes.ISuggestionCompare {
 		return (one, other) => {
 			if (this.sortByType.length > 0) {
 				var oneTypeIndex = this.sortByType.indexOf(one.type);

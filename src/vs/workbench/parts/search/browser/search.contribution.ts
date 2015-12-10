@@ -197,6 +197,11 @@ configurationRegistry.registerConfiguration({
 					}
 				]
 			}
+		},
+		'search.fuzzyFilePicker': {
+			'type': 'boolean',
+			'default': false,
+			'description': nls.localize('enableFuzzy', "Enable or disable fuzzy matching and sorting in the file picker.")
 		}
 	}
 });

@@ -55,6 +55,7 @@ import {MainProcessPluginService} from 'vs/platform/plugins/common/nativePluginS
 import {MainThreadDocuments} from 'vs/workbench/api/common/pluginHostDocuments';
 import {MainProcessTextMateSyntax} from 'vs/editor/node/textMate/TMSyntax';
 import {MainProcessTextMateSnippet} from 'vs/editor/node/textMate/TMSnippets';
+import {JSONValidationExtensionPoint} from 'vs/platform/jsonschemas/common/jsonValidationExtensionPoint';
 import {LanguageConfigurationFileHandler} from 'vs/editor/node/languageConfiguration';
 import {MainThreadFileSystemEventService} from 'vs/workbench/api/common/pluginHostFileSystemEventService';
 import {MainThreadQuickOpen} from 'vs/workbench/api/browser/pluginHostQuickOpen';
@@ -355,6 +356,7 @@ export class WorkbenchShell {
 		this.threadService.getRemotable(RemoteTelemetryServiceHelper);
 		this.workbench.getInstantiationService().createInstance(MainProcessTextMateSyntax);
 		this.workbench.getInstantiationService().createInstance(MainProcessTextMateSnippet);
+		this.workbench.getInstantiationService().createInstance(JSONValidationExtensionPoint);
 		this.workbench.getInstantiationService().createInstance(LanguageConfigurationFileHandler);
 		this.threadService.getRemotable(MainThreadConfiguration);
 		this.threadService.getRemotable(MainThreadQuickOpen);

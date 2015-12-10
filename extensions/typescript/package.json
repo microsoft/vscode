@@ -101,6 +101,12 @@
 				"language": "typescriptreact",
 				"path": "./snippets/typescriptreact.json"
 			}
+		],
+		"jsonValidation": [
+			{
+				"fileMatch": "tsconfig.json",
+				"url": "http://json.schemastore.org/tsconfig"
+			}
 		]
 	}
 }

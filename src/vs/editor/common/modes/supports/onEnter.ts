@@ -9,6 +9,7 @@ import {IEnterAction, IndentAction, IOnEnterSupport, ILineContext, IMode} from '
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Errors = require('vs/base/common/errors');
 import Strings = require('vs/base/common/strings');
+import {Position} from 'vs/editor/common/core/position';
 
 export interface IBracketPair {
 	open: string;
@@ -178,4 +179,67 @@ export class OnEnterSupport implements IOnEnterSupport {
 			return null;
 		}
 	}
+}
+
+export function getRawEnterActionAtPosition(model:EditorCommon.ITokenizedModel, lineNumber:number, column:number): IEnterAction {
+	let enterAction:IEnterAction;
+
+	if (model.getMode().onEnterSupport) {
+		try {
+			enterAction = model.getMode().onEnterSupport.onEnter(model, new Position(lineNumber, column));
+		} catch (e) {
+			Errors.onUnexpectedError(e);
+		}
+	}
+
+	if (!enterAction) {
+		if (model.getMode().electricCharacterSupport) {
+			let lineContext = model.getLineContext(lineNumber);
+			try {
+				enterAction = model.getMode().electricCharacterSupport.onEnter(lineContext, column - 1);
+			} catch(e) {
+				Errors.onUnexpectedError(e);
+			}
+		}
+	} else {
+		// console.log('USING NEW INDENTATION LOGIC!');
+	}
+
+	return enterAction;
+}
+
+export function getEnterActionAtPosition(model:EditorCommon.ITokenizedModel, lineNumber:number, column:number): { enterAction: IEnterAction; indentation: string; } {
+	let lineText = model.getLineContent(lineNumber);
+	let indentation = Strings.getLeadingWhitespace(lineText);
+	if (indentation.length > column - 1) {
+		indentation = indentation.substring(0, column - 1);
+	}
+
+	let enterAction = getRawEnterActionAtPosition(model, lineNumber, column);
+	if (!enterAction) {
+		enterAction = {
+			indentAction: IndentAction.None,
+			appendText: '',
+		};
+	} else {
+		if(!enterAction.appendText) {
+			if (
+				(enterAction.indentAction === IndentAction.Indent) ||
+				(enterAction.indentAction === IndentAction.IndentOutdent)
+			) {
+				enterAction.appendText = '\t';
+			} else {
+				enterAction.appendText = '';
+			}
+		}
+	}
+
+	if (enterAction.removeText) {
+		indentation = indentation.substring(0, indentation.length - 1);
+	}
+
+	return {
+		enterAction: enterAction,
+		indentation: indentation
+	};
 }

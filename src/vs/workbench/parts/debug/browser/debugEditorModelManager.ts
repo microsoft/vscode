@@ -6,7 +6,7 @@
 import lifecycle = require('vs/base/common/lifecycle');
 import editorcommon = require('vs/editor/common/editorCommon');
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IDebugService, ModelEvents, ViewModelEvents, IBreakpoint, IRawBreakpoint } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugService, ModelEvents, ViewModelEvents, IBreakpoint, IRawBreakpoint, State } from 'vs/workbench/parts/debug/common/debug';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 
@@ -254,10 +254,11 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 
 	private createBreakpointDecorations(breakpoints: IBreakpoint[]): editorcommon.IModelDeltaDecoration[] {
 		const activated = this.debugService.getModel().areBreakpointsActivated();
+		const debugActive = this.debugService.getState() === State.Running || this.debugService.getState() === State.Stopped;
 		return breakpoints.map((breakpoint) => {
 			return {
 				options: (!breakpoint.enabled || !activated) ? DebugEditorModelManager.BREAKPOINT_DISABLED_DECORATION :
-					breakpoint.verified ? DebugEditorModelManager.BREAKPOINT_VERIFIED_DECORATION : DebugEditorModelManager.BREAKPOINT_DECORATION,
+					debugActive && !breakpoint.verified ? DebugEditorModelManager.BREAKPOINT_UNVERIFIED_DECORATION : DebugEditorModelManager.BREAKPOINT_DECORATION,
 				range: createRange(breakpoint.lineNumber, 1, breakpoint.lineNumber, 2)
 			};
 		});
@@ -275,8 +276,8 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 		stickiness: editorcommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
 	};
 
-	private static BREAKPOINT_VERIFIED_DECORATION: editorcommon.IModelDecorationOptions = {
-		glyphMarginClassName: 'debug-breakpoint-glyph-verified',
+	private static BREAKPOINT_UNVERIFIED_DECORATION: editorcommon.IModelDecorationOptions = {
+		glyphMarginClassName: 'debug-breakpoint-glyph-unverified',
 		stickiness: editorcommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
 	};
 

@@ -138,6 +138,18 @@ class Tokenizer {
 	}
 
 	public tokenize(line: string, state: TMState.TMState, offsetDelta: number = 0, stopAtOffset?: number): Modes.ILineTokens {
+		if (line.length >= 20000) {
+			return {
+				tokens: <Modes.IToken[]>[{
+					startIndex: offsetDelta,
+					type: '',
+					bracket: Modes.Bracket.None
+				}],
+				actualStopOffset: offsetDelta,
+				endState: state,
+				modeTransitions: [{ startIndex: offsetDelta, mode: state.getMode() }],
+			};
+		}
 		let freshState = state.clone();
 		let textMateResult = this._grammar.tokenizeLine(line, freshState.getRuleStack());
 		freshState.setRuleStack(textMateResult.ruleStack);

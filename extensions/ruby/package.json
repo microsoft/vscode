@@ -6,7 +6,7 @@
 	"contributes": {
 		"languages": [{
 			"id": "ruby",
-			"extensions": [ ".rb", ".rbx", ".rjs", ".gemspec", ".pp" ],
+			"extensions": [ ".rb", ".rbx", ".rjs", ".gemspec", ".pp", ".rake" ],
 			"filenames": [ "rakefile", "gemfile" ],
 			"aliases": [ "Ruby", "rb" ],
 			"configuration": "./ruby.configuration.json"
