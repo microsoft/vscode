@@ -5,6 +5,7 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
+import {TypeConstraint} from 'vs/base/common/types';
 import {createDecorator, IInstantiationService, ServiceIdentifier, ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
 import {Keybinding} from 'vs/base/common/keyCodes';
 
@@ -53,6 +54,13 @@ export interface IKeybindingItem {
 
 export interface ICommandHandler {
 	(accessor: ServicesAccessor, args: any): void;
+	description?: string | ICommandHandlerDescription;
+}
+
+export interface ICommandHandlerDescription {
+	description: string;
+	args: { name: string; description?: string; constraint?: TypeConstraint; }[];
+	returns?: string;
 }
 
 export interface ICommandsMap {

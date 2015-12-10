@@ -2648,11 +2648,13 @@ declare namespace vscode {
 		export function executeCommand<T>(command: string, ...rest: any[]): Thenable<T>;
 
 		/**
-		 * Retrieve the list of all available commands.
+		 * Retrieve the list of all available commands. Commands starting an underscore are
+		 * treated as internal commands.
 		 *
+		 * @param filterInternal Set `true` to not see internal commands (starting with an underscore)
 		 * @return Thenable that resolves to a list of command ids.
 		 */
-		export function getCommands(): Thenable<string[]>;
+		export function getCommands(filterInternal?: boolean): Thenable<string[]>;
 	}
 
 	/**

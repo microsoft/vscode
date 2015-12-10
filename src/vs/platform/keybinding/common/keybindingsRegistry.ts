@@ -5,7 +5,8 @@
 'use strict';
 
 import {Registry} from 'vs/platform/platform';
-import {ICommandHandler, ICommandsMap, IKeybindingItem, IKeybindings, IKeybindingContextRule} from 'vs/platform/keybinding/common/keybindingService';
+import {TypeConstraint, validateConstraints} from 'vs/base/common/types';
+import {ICommandHandler, ICommandHandlerDescription, ICommandsMap, IKeybindingItem, IKeybindings, IKeybindingContextRule} from 'vs/platform/keybinding/common/keybindingService';
 import {KeybindingsUtils} from 'vs/platform/keybinding/common/keybindingsUtils';
 import {KeyMod, KeyCode, BinaryKeybindings} from 'vs/base/common/keyCodes';
 import Platform = require('vs/base/common/platform');
@@ -18,6 +19,7 @@ export interface ICommandRule extends IKeybindings {
 
 export interface ICommandDescriptor extends ICommandRule {
 	handler: ICommandHandler;
+	description?: string | ICommandHandlerDescription;
 }
 
 export interface IKeybindingsRegistry {
@@ -88,7 +90,28 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 		// 	console.warn('Duplicate handler for command: ' + desc.id);
 		// }
 		// this._commands[desc.id] = desc.handler;
-		this._commands[desc.id] = desc.handler;
+
+		let {handler} = desc;
+		let description = desc.description || handler.description;
+
+		// add argument validation if rich command metadata is provided
+		if (typeof description === 'object') {
+			const metadata = <ICommandHandlerDescription>description;
+			const constraints: TypeConstraint[] = [];
+			for (let arg of metadata.args) {
+				constraints.push(arg.constraint);
+			}
+			handler = function(accesor, args) {
+				validateConstraints(args, constraints);
+				return desc.handler(accesor, args);
+			};
+		}
+
+		// make sure description is there
+		handler.description = description;
+
+		// register handler
+		this._commands[desc.id] = handler;
 	}
 
 	public getCommands(): ICommandsMap {
