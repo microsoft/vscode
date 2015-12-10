@@ -2230,6 +2230,12 @@ declare namespace vscode {
 		message: string;
 
 		/**
+		 * A human-readable string describing the source of this
+		 * diagnostic, e.g. 'typescript' or 'super lint'.
+		 */
+		source: string;
+
+		/**
 		 * The severity, default is [error](#DiagnosticSeverity.Error).
 		 */
 		severity: DiagnosticSeverity;

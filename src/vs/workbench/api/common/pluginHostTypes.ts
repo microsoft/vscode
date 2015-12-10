@@ -418,6 +418,7 @@ export class Diagnostic {
 
 	range: Range;
 	message: string;
+	source: string;
 	code: string | number;
 	severity: DiagnosticSeverity;
 
