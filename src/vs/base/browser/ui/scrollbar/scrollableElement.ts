@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Lifecycle = require('vs/base/common/lifecycle');
 import {IScrollable} from 'vs/base/common/scrollable';
 
 export interface ICreationOptions {
@@ -151,9 +150,8 @@ export interface IScrollableElement {
 	onElementInternalDimensions(): void;
 
 	/**
-	 * Destroy.
+	 * Dispose.
 	 */
-	destroy(): void;
 	dispose(): void;
 
 	/**

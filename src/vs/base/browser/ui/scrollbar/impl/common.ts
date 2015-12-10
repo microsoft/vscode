@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import ScrollableElement = require('vs/base/browser/ui/scrollbar/scrollableElement');
 import {IScrollable} from 'vs/base/common/scrollable';
 
 export interface IMouseWheelEvent {

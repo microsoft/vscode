@@ -5,22 +5,21 @@
 'use strict';
 
 import DomUtils = require('vs/base/browser/dom');
-import Touch = require('vs/base/browser/touch');
-import EventEmitter = require('vs/base/common/eventEmitter');
-import ScrollableElement = require('vs/base/browser/ui/scrollbar/scrollableElement');
-import Lifecycle = require('vs/base/common/lifecycle');
+import {Gesture} from 'vs/base/browser/touch';
+import {EventEmitter} from 'vs/base/common/eventEmitter';
+import {IDisposable} from 'vs/base/common/lifecycle';
 import {IScrollable} from 'vs/base/common/scrollable';
 
 export class DomNodeScrollable implements IScrollable {
 
-	private eventEmitterHelper: EventEmitter.EventEmitter;
+	private eventEmitterHelper: EventEmitter;
 	private domNode: HTMLElement;
-	private gestureHandler: Touch.Gesture;
+	private gestureHandler: Gesture;
 
 	constructor(domNode:HTMLElement) {
-		this.eventEmitterHelper = new EventEmitter.EventEmitter();
+		this.eventEmitterHelper = new EventEmitter();
 		this.domNode = domNode;
-		this.gestureHandler = new Touch.Gesture(this.domNode);
+		this.gestureHandler = new Gesture(this.domNode);
 	}
 
 	public getScrollHeight(): number {
@@ -47,7 +46,7 @@ export class DomNodeScrollable implements IScrollable {
 		this.domNode.scrollTop = scrollTop;
 	}
 
-	public addScrollListener(callback:()=>void):Lifecycle.IDisposable {
+	public addScrollListener(callback:()=>void): IDisposable {
 		var localDisposable = this.eventEmitterHelper.addListener2('scroll', callback);
 		var domDisposable = DomUtils.addDisposableListener(this.domNode, 'scroll', (e:Event) => {
 			this.eventEmitterHelper.emit('scroll', { browserEvent: e });

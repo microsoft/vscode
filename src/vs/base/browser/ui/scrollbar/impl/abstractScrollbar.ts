@@ -5,15 +5,15 @@
 'use strict';
 
 import DomUtils = require('vs/base/browser/dom');
-import Mouse = require('vs/base/browser/mouseEvent');
-import Common = require('vs/base/browser/ui/scrollbar/impl/common');
-import Lifecycle = require('vs/base/common/lifecycle');
-import GlobalMouseMoveMonitor = require('vs/base/browser/globalMouseMoveMonitor');
+import {StandardMouseEvent} from 'vs/base/browser/mouseEvent';
+import {IMouseWheelEvent, IParent, Visibility, IScrollbar} from 'vs/base/browser/ui/scrollbar/impl/common';
+import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
+import {GlobalMouseMoveMonitor, IStandardMouseMoveEventData, standardMouseMoveMerger} from 'vs/base/browser/globalMouseMoveMonitor';
 import Browser = require('vs/base/browser/browser');
 import Platform = require('vs/base/common/platform');
 
 export interface IMouseWheelEventFactory {
-	():Common.IMouseWheelEvent;
+	():IMouseWheelEvent;
 }
 
 export class ScrollbarState {
@@ -166,16 +166,16 @@ export class ScrollbarState {
 }
 
 class ScrollbarArrow {
-	private parent:Common.IParent;
+	private parent:IParent;
 	private mouseWheelEventFactory:IMouseWheelEventFactory;
 	public bgDomNode:HTMLElement;
 	public domNode:HTMLElement;
-	private toDispose:Lifecycle.IDisposable[];
+	private toDispose:IDisposable[];
 	private interval:number;
 	private timeout:number;
-	private mouseMoveMonitor:GlobalMouseMoveMonitor.GlobalMouseMoveMonitor<GlobalMouseMoveMonitor.IStandardMouseMoveEventData>;
+	private mouseMoveMonitor:GlobalMouseMoveMonitor<IStandardMouseMoveEventData>;
 
-	constructor(className:string, top:number, left:number, bottom:number, right:number, bgWidth:number, bgHeight:number, mouseWheelEventFactory:IMouseWheelEventFactory, parent:Common.IParent) {
+	constructor(className:string, top:number, left:number, bottom:number, right:number, bgWidth:number, bgHeight:number, mouseWheelEventFactory:IMouseWheelEventFactory, parent:IParent) {
 		this.parent = parent;
 		this.mouseWheelEventFactory = mouseWheelEventFactory;
 
@@ -192,7 +192,7 @@ class ScrollbarArrow {
 		setSize(this.domNode, AbstractScrollbar.ARROW_IMG_SIZE, AbstractScrollbar.ARROW_IMG_SIZE);
 		setPosition(this.domNode, top, left, bottom, right);
 
-		this.mouseMoveMonitor = new GlobalMouseMoveMonitor.GlobalMouseMoveMonitor<GlobalMouseMoveMonitor.IStandardMouseMoveEventData>();
+		this.mouseMoveMonitor = new GlobalMouseMoveMonitor<IStandardMouseMoveEventData>();
 
 		this.toDispose = [];
 		this.toDispose.push(DomUtils.addDisposableListener(this.bgDomNode, 'mousedown', (e:MouseEvent) => this._arrowMouseDown(e)));
@@ -203,7 +203,7 @@ class ScrollbarArrow {
 	}
 
 	public dispose(): void {
-		this.toDispose = Lifecycle.disposeAll(this.toDispose);
+		this.toDispose = disposeAll(this.toDispose);
 		this._clearArrowTimers();
 	}
 
@@ -221,8 +221,8 @@ class ScrollbarArrow {
 		this.timeout = window.setTimeout(scheduleRepeater, 200);
 
 		this.mouseMoveMonitor.startMonitoring(
-			GlobalMouseMoveMonitor.standardMouseMoveMerger,
-			(mouseMoveData:GlobalMouseMoveMonitor.IStandardMouseMoveEventData) => {
+			standardMouseMoveMerger,
+			(mouseMoveData:IStandardMouseMoveEventData) => {
 				/* Intentional empty */
 			},
 			() => {
@@ -230,7 +230,7 @@ class ScrollbarArrow {
 			}
 		);
 
-		var mouseEvent = new Mouse.StandardMouseEvent(browserEvent);
+		var mouseEvent = new StandardMouseEvent(browserEvent);
 		mouseEvent.preventDefault();
 	}
 
@@ -246,8 +246,8 @@ class ScrollbarArrow {
 	}
 }
 
-class VisibilityController implements Lifecycle.IDisposable {
-	private visibility:Common.Visibility;
+class VisibilityController implements IDisposable {
+	private visibility:Visibility;
 	private visibleClassName:string;
 	private invisibleClassName:string;
 	private domNode:HTMLElement;
@@ -256,7 +256,7 @@ class VisibilityController implements Lifecycle.IDisposable {
 	private isVisible:boolean;
 	private fadeAwayTimeout:number;
 
-	constructor(visibility:Common.Visibility, visibleClassName:string, invisibleClassName:string) {
+	constructor(visibility:Visibility, visibleClassName:string, invisibleClassName:string) {
 		this.visibility = visibility;
 		this.visibleClassName = visibleClassName;
 		this.invisibleClassName = invisibleClassName;
@@ -281,10 +281,10 @@ class VisibilityController implements Lifecycle.IDisposable {
 	// ----------------- Hide / Reveal
 
 	private applyVisibilitySetting(shouldBeVisible:boolean): boolean {
-		if (this.visibility === Common.Visibility.Hidden) {
+		if (this.visibility === Visibility.Hidden) {
 			return false;
 		}
-		if (this.visibility === Common.Visibility.Visible) {
+		if (this.visibility === Visibility.Visible) {
 			return true;
 		}
 		return shouldBeVisible;
@@ -369,7 +369,7 @@ export interface IMouseMoveEventData {
 	posy:number;
 }
 
-export class AbstractScrollbar implements Common.IScrollbar {
+export abstract class AbstractScrollbar implements IScrollbar {
 
 	static ARROW_IMG_SIZE = 11;
 	/**
@@ -378,22 +378,22 @@ export class AbstractScrollbar implements Common.IScrollbar {
 	static MOUSE_DRAG_RESET_DISTANCE = 140;
 
 	protected forbidTranslate3dUse:boolean;
-	private parent:Common.IParent;
+	private parent:IParent;
 	private scrollbarState:ScrollbarState;
 	private visibilityController:VisibilityController;
-	private mouseMoveMonitor:GlobalMouseMoveMonitor.GlobalMouseMoveMonitor<GlobalMouseMoveMonitor.IStandardMouseMoveEventData>;
+	private mouseMoveMonitor:GlobalMouseMoveMonitor<IStandardMouseMoveEventData>;
 
-	private toDispose:Lifecycle.IDisposable[];
+	private toDispose:IDisposable[];
 
 	public domNode:HTMLElement;
 	public slider:HTMLElement;
 
-	constructor(forbidTranslate3dUse:boolean, parent:Common.IParent, scrollbarState:ScrollbarState, visibility:Common.Visibility, extraScrollbarClassName:string) {
+	constructor(forbidTranslate3dUse:boolean, parent:IParent, scrollbarState:ScrollbarState, visibility:Visibility, extraScrollbarClassName:string) {
 		this.forbidTranslate3dUse = forbidTranslate3dUse;
 		this.parent = parent;
 		this.scrollbarState = scrollbarState;
 		this.visibilityController = new VisibilityController(visibility, 'visible scrollbar ' + extraScrollbarClassName, 'invisible scrollbar ' + extraScrollbarClassName);
-		this.mouseMoveMonitor = new GlobalMouseMoveMonitor.GlobalMouseMoveMonitor<GlobalMouseMoveMonitor.IStandardMouseMoveEventData>();
+		this.mouseMoveMonitor = new GlobalMouseMoveMonitor<IStandardMouseMoveEventData>();
 
 		this.toDispose = [];
 		this.toDispose.push(this.visibilityController);
@@ -439,14 +439,14 @@ export class AbstractScrollbar implements Common.IScrollbar {
 		setSize(this.slider, width, height);
 		this.domNode.appendChild(this.slider);
 
-		this.toDispose.push(DomUtils.addDisposableListener(this.slider, 'mousedown', (e:MouseEvent) => this._sliderMouseDown(new Mouse.StandardMouseEvent(e))));
+		this.toDispose.push(DomUtils.addDisposableListener(this.slider, 'mousedown', (e:MouseEvent) => this._sliderMouseDown(new StandardMouseEvent(e))));
 	}
 
 	/**
 	 * Clean-up
 	 */
 	public destroy(): void {
-		this.toDispose = Lifecycle.disposeAll(this.toDispose);
+		this.toDispose = disposeAll(this.toDispose);
 	}
 
 	// ----------------- Update state
@@ -490,7 +490,7 @@ export class AbstractScrollbar implements Common.IScrollbar {
 	// ----------------- DOM events
 
 	private _domNodeMouseDown(browserEvent:MouseEvent): void {
-		var e = new Mouse.StandardMouseEvent(browserEvent);
+		var e = new StandardMouseEvent(browserEvent);
 		if (e.target !== this.domNode) {
 			return;
 		}
@@ -498,7 +498,7 @@ export class AbstractScrollbar implements Common.IScrollbar {
 	}
 
 	public delegateMouseDown(browserEvent:MouseEvent): void {
-		var e = new Mouse.StandardMouseEvent(browserEvent);
+		var e = new StandardMouseEvent(browserEvent);
 		var domTop = this.domNode.getClientRects()[0].top;
 		var sliderStart = domTop + this.scrollbarState.getSliderPosition();
 		var sliderStop = domTop + this.scrollbarState.getSliderPosition() + this.scrollbarState.getSliderSize();
@@ -512,14 +512,14 @@ export class AbstractScrollbar implements Common.IScrollbar {
 		}
 	}
 
-	private _onMouseDown(e:Mouse.StandardMouseEvent): void {
+	private _onMouseDown(e:StandardMouseEvent): void {
 		var domNodePosition = DomUtils.getDomNodePosition(this.domNode);
 		var desiredSliderPosition = this._mouseDownRelativePosition(e, domNodePosition) - this.scrollbarState.getArrowSize() - this.scrollbarState.getSliderSize() / 2;
 		this.setDesiredScrollPosition(this.scrollbarState.convertSliderPositionToScrollPosition(desiredSliderPosition));
 		this._sliderMouseDown(e);
 	}
 
-	private _sliderMouseDown(e:Mouse.StandardMouseEvent): void {
+	private _sliderMouseDown(e:StandardMouseEvent): void {
 		if (e.leftButton) {
 			var initialMouseOrthogonalPosition = this._sliderOrthogonalMousePosition(e);
 			var initialScrollPosition = this._getScrollPosition();
@@ -527,8 +527,8 @@ export class AbstractScrollbar implements Common.IScrollbar {
 			DomUtils.toggleClass(this.slider, 'active', true);
 
 			this.mouseMoveMonitor.startMonitoring(
-				GlobalMouseMoveMonitor.standardMouseMoveMerger,
-				(mouseMoveData:GlobalMouseMoveMonitor.IStandardMouseMoveEventData) => {
+				standardMouseMoveMerger,
+				(mouseMoveData:IStandardMouseMoveEventData) => {
 					var mouseOrthogonalPosition = this._sliderOrthogonalMousePosition(mouseMoveData);
 					var mouseOrthogonalDelta = Math.abs(mouseOrthogonalPosition - initialMouseOrthogonalPosition);
 					// console.log(initialMouseOrthogonalPosition + ' -> ' + mouseOrthogonalPosition + ': ' + mouseOrthogonalDelta);
@@ -571,7 +571,7 @@ export class AbstractScrollbar implements Common.IScrollbar {
 	public _updateSlider(sliderSize:number, sliderPosition:number): void {
 	}
 
-	public _mouseDownRelativePosition(e:Mouse.StandardMouseEvent, domNodePosition:DomUtils.IDomNodePosition): number {
+	public _mouseDownRelativePosition(e:StandardMouseEvent, domNodePosition:DomUtils.IDomNodePosition): number {
 		return 0;
 	}
 

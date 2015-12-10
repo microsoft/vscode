@@ -6,14 +6,14 @@
 
 import 'vs/css!./scrollbars';
 import DomUtils = require('vs/base/browser/dom');
-import Mouse = require('vs/base/browser/mouseEvent');
+import {StandardMouseWheelEvent} from 'vs/base/browser/mouseEvent';
 import Platform = require('vs/base/common/platform');
-import Common = require('vs/base/browser/ui/scrollbar/impl/common');
-import DomNodeScrollable = require('vs/base/browser/ui/scrollbar/impl/domNodeScrollable');
-import HorizontalScrollbar = require('vs/base/browser/ui/scrollbar/impl/horizontalScrollbar');
-import VerticalScrollbar = require('vs/base/browser/ui/scrollbar/impl/verticalScrollbar');
+import {IOptions,IScrollbar,IDimensions,IMouseWheelEvent,visibilityFromString} from 'vs/base/browser/ui/scrollbar/impl/common';
+import {DomNodeScrollable} from 'vs/base/browser/ui/scrollbar/impl/domNodeScrollable';
+import {HorizontalScrollbar} from 'vs/base/browser/ui/scrollbar/impl/horizontalScrollbar';
+import {VerticalScrollbar} from 'vs/base/browser/ui/scrollbar/impl/verticalScrollbar';
 import ScrollableElementInt = require('vs/base/browser/ui/scrollbar/scrollableElement');
-import Lifecycle = require('vs/base/common/lifecycle');
+import {IDisposable,disposeAll} from 'vs/base/common/lifecycle';
 import {IScrollable} from 'vs/base/common/scrollable';
 
 var HIDE_TIMEOUT = 500;
@@ -22,12 +22,12 @@ var SCROLL_WHEEL_SENSITIVITY = 50;
 export class ScrollableElement implements ScrollableElementInt.IScrollableElement {
 
 	private originalElement:HTMLElement;
-	private options:Common.IOptions;
+	private options:IOptions;
 	private scrollable:IScrollable;
 	public verticalScrollbarWidth:number;
 	public horizontalScrollbarHeight:number;
-	private verticalScrollbar:Common.IScrollbar;
-	private horizontalScrollbar:Common.IScrollbar;
+	private verticalScrollbar:IScrollbar;
+	private horizontalScrollbar:IScrollbar;
 	private domNode:HTMLElement;
 
 	private leftShadowDomNode:HTMLElement;
@@ -35,15 +35,15 @@ export class ScrollableElement implements ScrollableElementInt.IScrollableElemen
 	private topLeftShadowDomNode:HTMLElement;
 	private listenOnDomNode:HTMLElement;
 
-	private toDispose:Lifecycle.IDisposable[];
-	private _mouseWheelToDispose:Lifecycle.IDisposable[];
+	private toDispose:IDisposable[];
+	private _mouseWheelToDispose:IDisposable[];
 
 	private onElementDimensionsTimeout:number;
 	private onElementInternalDimensionsTimeout:number;
 	private isDragging:boolean;
 	private mouseIsOver:boolean;
 
-	private dimensions:Common.IDimensions;
+	private dimensions:IDimensions;
 	private hideTimeout:number;
 
 	constructor(element:HTMLElement, options:ScrollableElementInt.ICreationOptions, dimensions:ScrollableElementInt.IDimensions = null) {
@@ -54,14 +54,14 @@ export class ScrollableElement implements ScrollableElementInt.IScrollableElemen
 		if (this.options.scrollable) {
 			this.scrollable = this.options.scrollable;
 		} else {
-			this.scrollable = new DomNodeScrollable.DomNodeScrollable(this.originalElement);
+			this.scrollable = new DomNodeScrollable(this.originalElement);
 		}
 
 		this.verticalScrollbarWidth = this.options.verticalScrollbarSize;
 		this.horizontalScrollbarHeight = this.options.horizontalScrollbarSize;
 
-		this.verticalScrollbar = new VerticalScrollbar.VerticalScrollbar(this.scrollable, this, this.options);
-		this.horizontalScrollbar = new HorizontalScrollbar.HorizontalScrollbar(this.scrollable, this, this.options);
+		this.verticalScrollbar = new VerticalScrollbar(this.scrollable, this, this.options);
+		this.horizontalScrollbar = new HorizontalScrollbar(this.scrollable, this, this.options);
 
 		this.domNode = document.createElement('div');
 		this.domNode.className = 'monaco-scrollable-element ' + this.options.className;
@@ -110,8 +110,8 @@ export class ScrollableElement implements ScrollableElementInt.IScrollableElemen
 	}
 
 	public dispose(): void {
-		this.toDispose = Lifecycle.disposeAll(this.toDispose);
-		this._mouseWheelToDispose = Lifecycle.disposeAll(this._mouseWheelToDispose);
+		this.toDispose = disposeAll(this.toDispose);
+		this._mouseWheelToDispose = disposeAll(this._mouseWheelToDispose);
 		this.verticalScrollbar.destroy();
 		this.horizontalScrollbar.destroy();
 		if (this.onElementDimensionsTimeout !== -1) {
@@ -122,9 +122,6 @@ export class ScrollableElement implements ScrollableElementInt.IScrollableElemen
 			window.clearTimeout(this.onElementInternalDimensionsTimeout);
 			this.onElementInternalDimensionsTimeout = -1;
 		}
-	}
-	public destroy(): void {
-		this.dispose();
 	}
 
 	public getDomNode():HTMLElement {
@@ -213,12 +210,12 @@ export class ScrollableElement implements ScrollableElementInt.IScrollableElemen
 		}
 
 		// Stop listening (if necessary)
-		this._mouseWheelToDispose = Lifecycle.disposeAll(this._mouseWheelToDispose);
+		this._mouseWheelToDispose = disposeAll(this._mouseWheelToDispose);
 
 		// Start listening (if necessary)
 		if (shouldListen) {
 			var onMouseWheel = (browserEvent:MouseWheelEvent) => {
-				var e = new Mouse.StandardMouseWheelEvent(browserEvent);
+				var e = new StandardMouseWheelEvent(browserEvent);
 				this.onMouseWheel(e);
 			};
 
@@ -227,7 +224,7 @@ export class ScrollableElement implements ScrollableElementInt.IScrollableElemen
 		}
 	}
 
-	public onMouseWheel(e: Common.IMouseWheelEvent): void {
+	public onMouseWheel(e: IMouseWheelEvent): void {
 		if (Platform.isMacintosh && e.browserEvent && this.options.saveLastScrollTimeOnClassName) {
 			// Mark dom node with timestamp of wheel event
 			var target = <HTMLElement>e.browserEvent.target;
@@ -369,7 +366,7 @@ export class ScrollableElement implements ScrollableElementInt.IScrollableElemen
 
 // -------------------- size & layout --------------------
 
-	private _computeDimensions(clientWidth:number, clientHeight:number): Common.IDimensions {
+	private _computeDimensions(clientWidth:number, clientHeight:number): IDimensions {
 		var width = clientWidth;
 		var height = clientHeight;
 
@@ -379,7 +376,7 @@ export class ScrollableElement implements ScrollableElementInt.IScrollableElemen
 		};
 	}
 
-	private _createOptions(options:ScrollableElementInt.ICreationOptions): Common.IOptions {
+	private _createOptions(options:ScrollableElementInt.ICreationOptions): IOptions {
 
 		function ensureValue<V>(source:any, prop:string, value:V) {
 			if (source.hasOwnProperty(prop)) {
@@ -388,7 +385,7 @@ export class ScrollableElement implements ScrollableElementInt.IScrollableElemen
 			return value;
 		}
 
-		var result:Common.IOptions = {
+		var result:IOptions = {
 			forbidTranslate3dUse: ensureValue(options, 'forbidTranslate3dUse', false),
 			className: ensureValue(options, 'className', ''),
 			useShadows: ensureValue(options, 'useShadows', true),
@@ -400,12 +397,12 @@ export class ScrollableElement implements ScrollableElementInt.IScrollableElemen
 			scrollable: ensureValue<IScrollable>(options, 'scrollable', null),
 			listenOnDomNode: ensureValue<HTMLElement>(options, 'listenOnDomNode', null),
 
-			horizontal: Common.visibilityFromString(ensureValue(options, 'horizontal', 'auto')),
+			horizontal: visibilityFromString(ensureValue(options, 'horizontal', 'auto')),
 			horizontalScrollbarSize: ensureValue(options, 'horizontalScrollbarSize', 10),
 			horizontalSliderSize: 0,
 			horizontalHasArrows: ensureValue(options, 'horizontalHasArrows', false),
 
-			vertical: Common.visibilityFromString(ensureValue(options, 'vertical', 'auto')),
+			vertical: visibilityFromString(ensureValue(options, 'vertical', 'auto')),
 			verticalScrollbarSize: ensureValue(options, 'verticalScrollbarSize', 10),
 			verticalHasArrows: ensureValue(options, 'verticalHasArrows', false),
 			verticalSliderSize: 0,

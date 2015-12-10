@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import winjs = require('vs/base/common/winjs.base');
+import {TPromise} from 'vs/base/common/winjs.base';
 import timer = require('vs/base/common/timer');
 import errors = require('vs/base/common/errors');
 import protocol = require('vs/base/common/worker/workerProtocol');
@@ -26,9 +26,9 @@ export interface IWorkerFactory {
 }
 
 interface IActiveRequest {
-	complete:winjs.ValueCallback;
-	error:winjs.ErrorCallback;
-	progress:winjs.ProgressCallback;
+	complete:(value:any)=>void;
+	error:(err:any)=>void;
+	progress:(progress:any)=>void;
 	type:string;
 	payload:any;
 }
@@ -52,7 +52,7 @@ export class WorkerClient {
 	private _proxiesMarshalling: remote.ProxiesMarshallingContribution;
 	private _decodeMessageName: (msg: protocol.IClientMessage) => string;
 
-	public onModuleLoaded:winjs.Promise;
+	public onModuleLoaded:TPromise<void>;
 
 	constructor(workerFactory:IWorkerFactory, moduleId:string, decodeMessageName:(msg:protocol.IClientMessage)=>string, onCrashCallback:(workerClient:WorkerClient)=>void, workerId:number=++WorkerClient.LAST_WORKER_ID) {
 		this._decodeMessageName = decodeMessageName;
@@ -107,16 +107,16 @@ export class WorkerClient {
 		return this._messagesQueue.length + (this._waitingForWorkerReply ? 1 : 0);
 	}
 
-	public request(requestName:string, payload:any, forceTimestamp?:number): winjs.Promise {
+	public request(requestName:string, payload:any, forceTimestamp?:number): TPromise<any> {
 
 		if (requestName.charAt(0) === '$') {
 			throw new Error('Illegal requestName: ' + requestName);
 		}
 
 		var shouldCancelPromise = false,
-			messagePromise:winjs.Promise;
+			messagePromise:TPromise<any>;
 
-		return new winjs.Promise((c, e, p) => {
+		return new TPromise<any>((c, e, p) => {
 
 			// hide the initialize promise inside this
 			// promise so that it won't be canceled by accident
@@ -162,7 +162,7 @@ export class WorkerClient {
 		delete this._messageHandlers[message];
 	}
 
-	private _sendMessage(type:string, payload:any, forceTimestamp:number=(new Date()).getTime()):winjs.Promise {
+	private _sendMessage(type:string, payload:any, forceTimestamp:number=(new Date()).getTime()):TPromise<any> {
 
 		var msg = {
 			id: ++this._lastMessageId,
@@ -171,8 +171,8 @@ export class WorkerClient {
 			payload: payload
 		};
 
-		var pc:winjs.ValueCallback, pe:winjs.ErrorCallback, pp:winjs.ProgressCallback;
-		var promise = new winjs.Promise((c, e, p) => {
+		var pc:(value:any)=>void, pe:(err:any)=>void, pp:(progress:any)=>void;
+		var promise = new TPromise<any>((c, e, p) => {
 				pc = c;
 				pe = e;
 				pp = p;
@@ -352,7 +352,7 @@ export class WorkerClient {
 		});
 	}
 
-	private _handleWorkerRequest(msg:protocol.IServerMessage): winjs.Promise {
+	private _handleWorkerRequest(msg:protocol.IServerMessage): TPromise<any> {
 		if (msg.type === '_proxyObj') {
 			return this._remoteCom.handleMessage(msg.payload);
 		}
@@ -366,14 +366,14 @@ export class WorkerClient {
 		}
 
 		this._onError('Received unexpected message from Worker:', msg);
-		return winjs.Promise.wrapError(new Error('No handler found'));
+		return TPromise.wrapError(new Error('No handler found'));
 	}
 
-	private _invokeHandler(handler:Function, handlerCtx:any, payload:any): winjs.Promise {
+	private _invokeHandler(handler:Function, handlerCtx:any, payload:any): TPromise<any> {
 		try {
-			return winjs.Promise.as(handler.call(handlerCtx, payload));
+			return TPromise.as(handler.call(handlerCtx, payload));
 		} catch (err) {
-			return winjs.Promise.wrapError(err);
+			return TPromise.wrapError(err);
 		}
 	}
 

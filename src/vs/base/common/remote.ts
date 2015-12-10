@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import winjs = require('vs/base/common/winjs.base');
-import marshalling = require('vs/base/common/marshalling');
+import {TPromise} from 'vs/base/common/winjs.base';
+import {IMarshallingContribution} from 'vs/base/common/marshalling';
 
 export interface IManyHandler {
 	handle(rpcId:string, method:string, args:any[]): any;
 }
 
 export interface IProxyHelper {
-	callOnRemote(proxyId: string, path: string, args:any[]): winjs.Promise;
+	callOnRemote(proxyId: string, path: string, args:any[]): TPromise<any>;
 }
 
 export interface IRemoteCom extends IProxyHelper {
@@ -33,7 +33,7 @@ export function createProxyFromCtor(remote:IProxyHelper, id:string, ctor:Functio
 	return result;
 }
 
-function createMethodProxy(remote:IProxyHelper, proxyId: string, path: string): (...myArgs: any[]) => winjs.Promise {
+function createMethodProxy(remote:IProxyHelper, proxyId: string, path: string): (...myArgs: any[]) => TPromise<any> {
 	return (...myArgs: any[]) => {
 		return remote.callOnRemote(proxyId, path, myArgs);
 	};
@@ -50,7 +50,7 @@ export interface ISerializedProxy {
 	desc: IObjDescriptor;
 }
 
-export class ProxiesMarshallingContribution implements marshalling.IMarshallingContribution {
+export class ProxiesMarshallingContribution implements IMarshallingContribution {
 
 	private _remoteCom:IProxyHelper;
 
