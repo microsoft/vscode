@@ -26,6 +26,7 @@ var eolFilter = [
 
 var indentationFilter = [
 	'**',
+	'!**/lib/**',
 	'!**/*.d.ts',
 	'!extensions/typescript/server/**',
 	'!test/assert.js',
