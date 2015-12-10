@@ -34,7 +34,7 @@ exports.data ={
 			{
 				"name": "@keyframes",
 				"desc": "Defines set of animation key frames.",
-				"browsers": "C43,FF16,IE10,O12.5,S9"
+				"browsers": "E,C43,FF16,IE10,O30,S9"
 			},
 			{
 				"name": "@media",
@@ -52,12 +52,12 @@ exports.data ={
 			},
 			{
 				"name": "@-ms-viewport",
-				"browsers": "IE10"
+				"browsers": "E,IE10"
 			},
 			{
 				"name": "@namespace",
 				"desc": "Declares a prefix and associates it with a namespace name.",
-				"browsers": "C,FF1,IE9,O8,S1"
+				"browsers": "E,C,FF1,IE9,O8,S1"
 			},
 			{
 				"name": "@-o-keyframes",
@@ -75,7 +75,7 @@ exports.data ={
 			{
 				"name": "@supports",
 				"desc": "A conditional group rule whose condition tests whether the user agent supports CSS property:value pairs.",
-				"browsers": "C,FF,O,S9"
+				"browsers": "E,C28,FF22,O12.1,S9"
 			},
 			{
 				"name": "@-webkit-keyframes",
@@ -91,7 +91,7 @@ exports.data ={
 			{
 				"name": ":after",
 				"desc": "Pseudo-element is used to insert content immediately after the content of an element (or other pseudo-element). The 'content' property is used to specify the content to insert.",
-				"browsers": "C,FF1,IE8,O8,S1"
+				"browsers": "E,C,FF1,IE8,O8,S1"
 			},
 			{
 				"name": ":any-link"
@@ -99,12 +99,12 @@ exports.data ={
 			{
 				"name": ":before",
 				"desc": "Pseudo-element is used to insert content immediately before the content of an element (or other pseudo-element). The 'content' property is used to specify the content to insert.",
-				"browsers": "C,FF1,IE8,O8,S1"
+				"browsers": "E,C,FF1,IE8,O8,S1"
 			},
 			{
 				"name": ":checked",
 				"desc": "Radio and checkbox elements can be toggled by the user. Some menu items are 'checked' when the user selects them. When such elements are toggled 'on' the :checked pseudo-class applies.",
-				"browsers": "C,FF1,IE9,O9,S3.13"
+				"browsers": "E,C,FF1,IE9,O9,S3.13"
 			},
 			{
 				"name": ":corner-present",
@@ -123,12 +123,12 @@ exports.data ={
 			{
 				"name": ":default",
 				"desc": "The :default selector applies to the one or more UI elements that are the default among a set of similar elements. This selector typically applies to context menu items, buttons, and select lists/menus.",
-				"browsers": "C,FF3,IE10,O10,S5"
+				"browsers": "C,FF3,O10,S5"
 			},
 			{
 				"name": ":disabled",
 				"desc": "The :disabled pseudo-class represents user interface elements that are in a disabled state; such elements have a corresponding enabled state.",
-				"browsers": "C,FF1.5,IE9,O9,S3.1"
+				"browsers": "E,C,FF1.5,IE9,O9,S3.1"
 			},
 			{
 				"name": ":double-button",
@@ -137,12 +137,12 @@ exports.data ={
 			{
 				"name": ":empty",
 				"desc": "The :empty pseudo-class represents an element that has no children at all.",
-				"browsers": "C,FF1.5,IE9,O9,S3.1"
+				"browsers": "E,C,FF1.5,IE9,O9,S3.1"
 			},
 			{
 				"name": ":enabled",
 				"desc": "The :enabled pseudo-class represents user interface elements that are in an enabled state; such elements have a corresponding disabled state.",
-				"browsers": "C,FF1.5,IE9,O9,S3.1"
+				"browsers": "E,C,FF1.5,IE9,O9,S3.1"
 			},
 			{
 				"name": ":end",
@@ -155,7 +155,7 @@ exports.data ={
 			{
 				"name": ":first-child",
 				"desc": "Same as :nth-child(1). The :first-child pseudo-class represents an element that is the first child of some other element.",
-				"browsers": "C,FF3,IE7,O9.5,S3.1"
+				"browsers": "E,C,FF3,IE7,O9.5,S3.1"
 			},
 			{
 				"name": ":first-letter",
@@ -168,11 +168,15 @@ exports.data ={
 			{
 				"name": ":first-of-type",
 				"desc": "Same as :nth-of-type(1). The :first-of-type pseudo-class represents an element that is the first sibling of its type in the list of children of its parent element.",
-				"browsers": "C,FF3.5,IE9,O9.5,S3.2"
+				"browsers": "E,C,FF3.5,IE9,O9.5,S3.2"
 			},
 			{
 				"name": ":focus",
 				"desc": "The :focus pseudo-class applies while an element has the focus (accepts keyboard or mouse events, or other forms of input)."
+			},
+			{
+				"name": ":fullscreen",
+				"browsers": "E"
 			},
 			{
 				"name": ":future",
@@ -201,32 +205,32 @@ exports.data ={
 			{
 				"name": ":indeterminate",
 				"desc": "The :indeterminate pseudo-class applies to UI elements whose value is in an indeterminate state.",
-				"browsers": "C,FF3.6,IE9,O10.6,S3"
+				"browsers": "E,C,FF3.6,IE9,O10.6,S3"
 			},
 			{
 				"name": ":in-range",
 				"desc": "The in-range and out-of-range pseudo-classes should be used in conjunction with the min and max attributes, whether on a range input, a number field, or any other types that accept those attributes.",
-				"browsers": "C,FF10,IE10,O9.6,S5.1"
+				"browsers": "E13,C,FF10,O9.6,S5.1"
 			},
 			{
 				"name": ":invalid",
 				"desc": "An element is :valid or :invalid when it is, respectively, valid or invalid with respect to data validity semantics defined by a different specification.",
-				"browsers": "C,FF4,IE10,O10,S5"
+				"browsers": "E,C,FF4,IE10,O10,S5"
 			},
 			{
 				"name": ":lang(en)",
 				"desc": "The pseudo-class :lang(C) represents an element that is in language C.",
-				"browsers": "C,FF1,IE8,O8,S3"
+				"browsers": "E,C,FF1,IE8,O8,S3"
 			},
 			{
 				"name": ":last-child",
 				"desc": "Same as :nth-last-child(1). The :last-child pseudo-class represents an element that is the last child of some other element.",
-				"browsers": "C,FF1,IE9,O9.5,S3.1"
+				"browsers": "E,C,FF1,IE9,O9.5,S3.1"
 			},
 			{
 				"name": ":last-of-type",
 				"desc": "Same as :nth-last-of-type(1). The :last-of-type pseudo-class represents an element that is the last sibling of its type in the list of children of its parent element.",
-				"browsers": "C,FF3.5,IE9,O9.5,S3.1"
+				"browsers": "E,C,FF3.5,IE9,O9.5,S3.1"
 			},
 			{
 				"name": ":left",
@@ -342,47 +346,47 @@ exports.data ={
 			{
 				"name": ":not(:empty)",
 				"desc": "The negation pseudo-class, :not(X), is a functional notation taking a simple selector (excluding the negation pseudo-class itself) as an argument. It represents an element that is not represented by its argument.",
-				"browsers": "C,FF1,IE9,O9.5,S2"
+				"browsers": "E,C,FF1,IE9,O9.5,S2"
 			},
 			{
 				"name": ":nth-child(2n+1)",
 				"desc": "The :nth-child(an+b) pseudo-class notation represents an element that has an+b-1 siblings before it in the document tree, for any positive integer or zero value of n, and has a parent element.",
-				"browsers": "C,FF3.5,IE9,O9.5,S3.1"
+				"browsers": "E,C,FF3.5,IE9,O9.5,S3.1"
 			},
 			{
 				"name": ":nth-last-child(-n+2)",
 				"desc": "The :nth-last-child(an+b) pseudo-class notation represents an element that has an+b-1 siblings after it in the document tree, for any positive integer or zero value of n, and has a parent element.",
-				"browsers": "C,FF3.5,IE9,O9.5,S3.1"
+				"browsers": "E,C,FF3.5,IE9,O9.5,S3.1"
 			},
 			{
 				"name": ":nth-last-of-type(n+2)",
 				"desc": "The :nth-last-of-type(an+b) pseudo-class notation represents an element that has an+b-1 siblings with the same expanded element name after it in the document tree, for any zero or positive integer value of n, and has a parent element.",
-				"browsers": "C,FF3.5,IE9,O9.5,S3.1"
+				"browsers": "E,C,FF3.5,IE9,O9.5,S3.1"
 			},
 			{
 				"name": ":nth-of-type(2n+1)",
 				"desc": "The :nth-of-type(an+b) pseudo-class notation represents an element that has an+b-1 siblings with the same expanded element name before it in the document tree, for any zero or positive integer value of n, and has a parent element.",
-				"browsers": "C,FF3.5,IE9,O9.5,S3.1"
+				"browsers": "E,C,FF3.5,IE9,O9.5,S3.1"
 			},
 			{
 				"name": ":only-child",
 				"desc": "Represents an element that has a parent element and whose parent element has no other element children. Same as :first-child:last-child or :nth-child(1):nth-last-child(1), but with a lower specificity.",
-				"browsers": "C,FF1.5,IE9,O9.5,S3.1"
+				"browsers": "E,C,FF1.5,IE9,O9.5,S3.1"
 			},
 			{
 				"name": ":only-of-type",
 				"desc": "The :only-of-type selector matches every element that is the only child of its type, of its parent. Same as :first-of-type:last-of-type or :nth-of-type(1):nth-last-of-type(1), but with a lower specificity.",
-				"browsers": "C,FF3.5,IE9,O9.5,S3.2"
+				"browsers": "E,C,FF3.5,IE9,O9.5,S3.2"
 			},
 			{
 				"name": ":optional",
 				"desc": "A form element is :required or :optional if a value for it is, respectively, required or optional before the form it belongs to is submitted. Elements that are not form elements are neither required nor optional.",
-				"browsers": "C,FF4,IE10,O10,S5"
+				"browsers": "E,C,FF4,IE10,O10,S5"
 			},
 			{
 				"name": ":out-of-range",
 				"desc": "The in-range and out-of-range pseudo-classes should be used in conjunction with the min and max attributes, whether on a range input, a number field, or any other types that accept those attributes.",
-				"browsers": "C,FF10,IE10,O9.6,S5.1"
+				"browsers": "E13,C,FF10,O9.6,S5.1"
 			},
 			{
 				"name": ":past",
@@ -391,17 +395,17 @@ exports.data ={
 			{
 				"name": ":read-only",
 				"desc": "An element whose contents are not user-alterable is :read-only. However, elements whose contents are user-alterable (such as text input fields) are considered to be in a :read-write state. In typical documents, most elements are :read-only.",
-				"browsers": "C,FF10,IE10,O9,S4"
+				"browsers": "E13,C,FF10,O9,S4"
 			},
 			{
 				"name": ":read-write",
 				"desc": "An element whose contents are not user-alterable is :read-only. However, elements whose contents are user-alterable (such as text input fields) are considered to be in a :read-write state. In typical documents, most elements are :read-only.",
-				"browsers": "C,FF10,IE10,O9,S4"
+				"browsers": "E13,C,FF10,O9,S4"
 			},
 			{
 				"name": ":required",
 				"desc": "A form element is :required or :optional if a value for it is, respectively, required or optional before the form it belongs to is submitted. Elements that are not form elements are neither required nor optional.",
-				"browsers": "C,FF4,IE10,O10,S5"
+				"browsers": "E,C,FF4,IE10,O10,S5"
 			},
 			{
 				"name": ":right",
@@ -410,7 +414,7 @@ exports.data ={
 			{
 				"name": ":root",
 				"desc": "The :root pseudo-class represents an element that is the root of the document. In HTML 4, this is always the HTML element.",
-				"browsers": "C,FF1,IE9,O9.5,S1"
+				"browsers": "E,C,FF1,IE9,O9.5,S1"
 			},
 			{
 				"name": ":single-button",
@@ -423,12 +427,12 @@ exports.data ={
 			{
 				"name": ":target",
 				"desc": "Some URIs refer to a location within a resource. This kind of URI ends with a 'number sign' (#) followed by an anchor identifier (called the fragment identifier).",
-				"browsers": "C,FF1,IE9,O9.5,S1"
+				"browsers": "E,C,FF1,IE9,O9.5,S1"
 			},
 			{
 				"name": ":valid",
 				"desc": "An element is :valid or :invalid when it is, respectively, valid or invalid with respect to data validity semantics defined by a different specification.",
-				"browsers": "C,FF4,IE10,O10,S5"
+				"browsers": "E,C,FF4,IE10,O10,S5"
 			},
 			{
 				"name": ":vertical",
@@ -455,12 +459,16 @@ exports.data ={
 			{
 				"name": "::after",
 				"desc": "Pseudo-element is used to insert content immediately after the content of an element (or other pseudo-element). The 'content' property is used to specify the content to insert.",
-				"browsers": "C,FF1.5,IE10,O7,S4"
+				"browsers": "E,C,FF1.5,IE10,O7,S4"
+			},
+			{
+				"name": "::backdrop",
+				"browsers": "E"
 			},
 			{
 				"name": "::before",
 				"desc": "Pseudo-element is used to insert content immediately before the content of an element (or other pseudo-element). The 'content' property is used to specify the content to insert.",
-				"browsers": "C,FF1.5,IE10,O8,S1"
+				"browsers": "E,C,FF1.5,IE10,O8,S1"
 			},
 			{
 				"name": "::content",
@@ -485,12 +493,12 @@ exports.data ={
 			{
 				"name": "::first-letter",
 				"desc": "The ::first-letter pseudo-element represents the first letter of an element, if it is not preceded by any other content (such as images or inline tables) on its line.",
-				"browsers": "C,FF1.5,IE10,O7,S1"
+				"browsers": "E,C,FF1.5,IE10,O7,S1"
 			},
 			{
 				"name": "::first-line",
 				"desc": "The ::first-line pseudo-element describes the contents of the first formatted line of an element.",
-				"browsers": "C,FF1.5,IE10,O7,S1"
+				"browsers": "E,C,FF1.5,IE10,O7,S1"
 			},
 			{
 				"name": "::-moz-focus-inner",
@@ -597,7 +605,7 @@ exports.data ={
 			{
 				"name": "::selection",
 				"desc": "The ::selection selector matches the portion of an element that is selected by a user. Only a few CSS properties can be applied to ::selection: color, background, cursor, and outline.",
-				"browsers": "C,FF4,IE9,O9.5,S1.1"
+				"browsers": "E,C,FF4,IE9,O9.5,S1.1"
 			},
 			{
 				"name": "::-webkit-file-upload-button",
@@ -732,7 +740,7 @@ exports.data ={
 			{
 				"name": "align-content",
 				"desc": "Aligns a flex container's lines within the flex container when there is extra space in the cross-axis, similar to how 'justify-content' aligns individual items within the main-axis.",
-				"browsers": "IE11,O12.1",
+				"browsers": "E,C29,FF22,IE11,O12.1,S9",
 				"restriction": "enum",
 				"values": [
 					{
@@ -758,7 +766,7 @@ exports.data ={
 			{
 				"name": "align-items",
 				"desc": "Flex items can be aligned in the cross axis of the current line of the flex container, similar to 'justify-content' but in the perpendicular direction.",
-				"browsers": "IE11,O12.1",
+				"browsers": "E,C29,FF22,IE11,O12.1,S9",
 				"restriction": "enum",
 				"values": [
 					{
@@ -781,7 +789,7 @@ exports.data ={
 			{
 				"name": "align-self",
 				"desc": "Flex items can be aligned in the cross axis of the current line of the flex container, similar to 'justify-content' but in the perpendicular direction.",
-				"browsers": "IE11,O12.1",
+				"browsers": "E,C29,FF22,IE11,O12.1,S9",
 				"restriction": "enum",
 				"values": [
 					{
@@ -805,9 +813,33 @@ exports.data ={
 				]
 			},
 			{
+				"name": "all",
+				"desc": "Shorthand that resets all properties except 'direction' and 'unicode-bidi'.",
+				"browsers": "C37,FF27,O24",
+				"restriction": "enum",
+				"values": [
+					{
+						"name": "initial"
+					},
+					{
+						"name": "inherit"
+					},
+					{
+						"name": "unset"
+					}
+				]
+			},
+			{
+				"name": "alt",
+				"desc": "Provides alternative text for assistive technology to replace the genenerated content of a ::before or ::after element.",
+				"browsers": "S9",
+				"restriction": "string, enum",
+				"values": []
+			},
+			{
 				"name": "animation",
 				"desc": "Shorthand property combines six of the animation properties into a single property.",
-				"browsers": "FF16,IE10,O12.5",
+				"browsers": "E,C43,FF16,IE10,O12.1,S9",
 				"restriction": "time, enum, identifier, number",
 				"values": [
 					{
@@ -873,13 +905,13 @@ exports.data ={
 			{
 				"name": "animation-delay",
 				"desc": "Defines when the animation will start. An 'animation-delay' value of '0' means the animation will execute as soon as it is applied. Otherwise, the value specifies an offset from the moment the animation is applied, and the animation will delay execution by that offset.",
-				"browsers": "FF16,IE10,O12.5",
+				"browsers": "E,C43,FF16,IE10,O12.1,S9",
 				"restriction": "time"
 			},
 			{
 				"name": "animation-direction",
 				"desc": "Defines whether or not the animation should play in reverse on alternate cycles.",
-				"browsers": "FF16,IE10,O12.5",
+				"browsers": "E,C43,FF16,IE10,O12.1,S9",
 				"restriction": "enum",
 				"values": [
 					{
@@ -901,13 +933,13 @@ exports.data ={
 			{
 				"name": "animation-duration",
 				"desc": "Defines the length of time that an animation takes to complete one cycle.",
-				"browsers": "FF16,IE10,O12.5",
+				"browsers": "E,C43,FF16,IE10,O12.1,S9",
 				"restriction": "time"
 			},
 			{
 				"name": "animation-fill-mode",
 				"desc": "Defines what values are applied by the animation outside the time it is executing.",
-				"browsers": "FF16,IE10,O12.5",
+				"browsers": "E,C43,FF16,IE10,O12.1,S9",
 				"restriction": "enum",
 				"values": [
 					{
@@ -929,21 +961,21 @@ exports.data ={
 			{
 				"name": "animation-iteration-count",
 				"desc": "Defines the number of times an animation cycle is played. The default value is one, meaning the animation will play from beginning to end once.",
-				"browsers": "FF16,IE10,O12.5",
-				"restriction": "number",
+				"browsers": "E,C43,FF16,IE10,O12.1,S9",
+				"restriction": "number, enum",
 				"values": []
 			},
 			{
 				"name": "animation-name",
 				"desc": "Defines a list of animations that apply. Each name is used to select the keyframe at-rule that provides the property values for the animation.",
-				"browsers": "FF16,IE10,O12.5",
-				"restriction": "identifier",
+				"browsers": "E,C43,FF16,IE10,O12.1,S9",
+				"restriction": "identifier, enum",
 				"values": []
 			},
 			{
 				"name": "animation-play-state",
 				"desc": "Defines whether the animation is running or paused.",
-				"browsers": "FF16,IE10,O12.5",
+				"browsers": "E,C43,FF16,IE10,O12.1,S9",
 				"restriction": "enum",
 				"values": [
 					{
@@ -957,7 +989,7 @@ exports.data ={
 			{
 				"name": "animation-timing-function",
 				"desc": "Describes how the animation will progress over one cycle of its duration. See the 'transition-timing-function'.",
-				"browsers": "FF16,IE10,O12.5",
+				"browsers": "E,C43,FF16,IE10,O12.1,S9",
 				"restriction": "enum",
 				"values": [
 					{
@@ -992,7 +1024,7 @@ exports.data ={
 			{
 				"name": "backface-visibility",
 				"desc": "Determines whether or not the 'back' side of a transformed element is visible when facing the viewer. With an identity transform, the front side of an element faces the viewer.",
-				"browsers": "FF16,IE10,O12.5",
+				"browsers": "E,C36,FF16,IE10,O23",
 				"restriction": "enum",
 				"values": [
 					{
@@ -1071,7 +1103,8 @@ exports.data ={
 						"browsers": "O11.1-12"
 					},
 					{
-						"name": "padding-box"
+						"name": "padding-box",
+						"desc": "The background is painted within (clipped to) the padding box"
 					},
 					{
 						"name": "radial-gradient()",
@@ -1154,7 +1187,8 @@ exports.data ={
 						"desc": "The background is fixed with regard to the viewport. In paged media where there is no viewport, a 'fixed' background is fixed with respect to the page box and therefore replicated on every page."
 					},
 					{
-						"name": "local"
+						"name": "local",
+						"browsers": "E,C,FF25,IE9,O11.5,S5"
 					},
 					{
 						"name": "scroll",
@@ -1163,9 +1197,69 @@ exports.data ={
 				]
 			},
 			{
+				"name": "background-blend-mode",
+				"desc": "Defines the blending mode of each background layer.",
+				"browsers": "C35,FF30,O22,S7.1",
+				"restriction": "enum",
+				"values": [
+					{
+						"name": "normal"
+					},
+					{
+						"name": "multiply"
+					},
+					{
+						"name": "screen"
+					},
+					{
+						"name": "overlay"
+					},
+					{
+						"name": "darken"
+					},
+					{
+						"name": "lighten"
+					},
+					{
+						"name": "color-dodge"
+					},
+					{
+						"name": "color-burn"
+					},
+					{
+						"name": "hard-light"
+					},
+					{
+						"name": "soft-light"
+					},
+					{
+						"name": "difference"
+					},
+					{
+						"name": "exclusion"
+					},
+					{
+						"name": "hue",
+						"browsers": "C35,FF30,O22"
+					},
+					{
+						"name": "saturation",
+						"browsers": "C35,FF30,O22"
+					},
+					{
+						"name": "color",
+						"browsers": "C35,FF30,O22"
+					},
+					{
+						"name": "luminosity",
+						"browsers": "C35,FF30,O22"
+					}
+				]
+			},
+			{
 				"name": "background-clip",
 				"desc": "Determines the background painting area.",
-				"browsers": "C,FF4,IE9,O10.5,S3",
+				"browsers": "E,C,FF4,IE9,O10.5,S3",
 				"restriction": "enum",
 				"values": [
 					{
@@ -1177,7 +1271,8 @@ exports.data ={
 						"desc": "The background is painted within (clipped to) the content box."
 					},
 					{
-						"name": "padding-box"
+						"name": "padding-box",
+						"desc": "The background is painted within (clipped to) the padding box"
 					}
 				]
 			},
@@ -1194,7 +1289,7 @@ exports.data ={
 				"values": [
 					{
 						"name": "linear-gradient()",
-						"browsers": "FF16,IE10,O12.5"
+						"browsers": "E,C26,FF16,IE10,O12.1,S6.1"
 					},
 					{
 						"name": "-moz-image-rect()",
@@ -1230,15 +1325,15 @@ exports.data ={
 					},
 					{
 						"name": "radial-gradient()",
-						"browsers": "FF16,IE10,O12.5"
+						"browsers": "E,FF16,IE10,O12.5"
 					},
 					{
 						"name": "repeating-linear-gradient()",
-						"browsers": "FF16,IE10,O12.5"
+						"browsers": "E,C26,FF16,IE10,O12.1,S6.1"
 					},
 					{
 						"name": "repeating-radial-gradient()",
-						"browsers": "FF16,IE10,O12.5"
+						"browsers": "E,C26,FF16,IE10,O12.1,S6.1"
 					},
 					{
 						"name": "url()"
@@ -1272,7 +1367,7 @@ exports.data ={
 			{
 				"name": "background-origin",
 				"desc": "For elements rendered as a single box, specifies the background positioning area. For elements rendered as multiple boxes (e.g., inline boxes on several lines, boxes on several pages) specifies which boxes 'box-decoration-break' operates on to determine the background positioning area(s).",
-				"browsers": "C,FF4,IE9,O10.5,S3",
+				"browsers": "E,C,FF4,IE9,O10.5,S3",
 				"restriction": "enum",
 				"values": [
 					{
@@ -1284,7 +1379,8 @@ exports.data ={
 						"desc": "The background is painted within (clipped to) the content box."
 					},
 					{
-						"name": "padding-box"
+						"name": "padding-box",
+						"desc": "The background is painted within (clipped to) the padding box"
 					}
 				]
 			},
@@ -1318,7 +1414,7 @@ exports.data ={
 			{
 				"name": "background-position-x",
 				"desc": "If background images have been specified, this property specifies their initial position (after any resizing) within their corresponding background positioning area.",
-				"browsers": "IE6",
+				"browsers": "E,IE6",
 				"restriction": "length, percentage",
 				"values": [
 					{
@@ -1346,7 +1442,7 @@ exports.data ={
 			{
 				"name": "background-position-y",
 				"desc": "If background images have been specified, this property specifies their initial position (after any resizing) within their corresponding background positioning area.",
-				"browsers": "IE6",
+				"browsers": "E,IE6",
 				"restriction": "length, percentage",
 				"values": [
 					{
@@ -1402,7 +1498,7 @@ exports.data ={
 			{
 				"name": "background-size",
 				"desc": "Specifies the size of the background images.",
-				"browsers": "C,FF4,IE9,O10,S4.1",
+				"browsers": "E,C,FF4,IE9,O10,S4.1",
 				"restriction": "length, percentage",
 				"values": [
 					{
@@ -1531,13 +1627,13 @@ exports.data ={
 			{
 				"name": "border-bottom-left-radius",
 				"desc": "The two length or percentage values of the 'border-*-radius' properties define the radii of a quarter ellipse that defines the shape of the corner of the outer border edge. The first value is the horizontal radius, the second the vertical radius. If the second value is omitted it is copied from the first. If either length is zero, the corner is square, not rounded. Percentages for the horizontal radius refer to the width of the border box, whereas percentages for the vertical radius refer to the height of the border box.",
-				"browsers": "C,FF4,IE9,O10.5,S5",
+				"browsers": "E,C,FF4,IE9,O10.5,S5",
 				"restriction": "length, percentage"
 			},
 			{
 				"name": "border-bottom-right-radius",
 				"desc": "The two length or percentage values of the 'border-*-radius' properties define the radii of a quarter ellipse that defines the shape of the corner of the outer border edge. The first value is the horizontal radius, the second the vertical radius. If the second value is omitted it is copied from the first. If either length is zero, the corner is square, not rounded. Percentages for the horizontal radius refer to the width of the border box, whereas percentages for the vertical radius refer to the height of the border box.",
-				"browsers": "C,FF4,IE9,O10.5,S5",
+				"browsers": "E,C,FF4,IE9,O10.5,S5",
 				"restriction": "length, percentage"
 			},
 			{
@@ -1624,7 +1720,7 @@ exports.data ={
 			{
 				"name": "border-image",
 				"desc": "Shorthand property for setting 'border-image-source', 'border-image-slice', 'border-image-width', 'border-image-outset' and 'border-image-repeat'. Omitted values are set to their initial values.",
-				"browsers": "C,FF13,IE11",
+				"browsers": "E,C16,FF15,IE11,O15,S6",
 				"restriction": "length, percentage, number, url, enum",
 				"values": [
 					{
@@ -1662,13 +1758,13 @@ exports.data ={
 			{
 				"name": "border-image-outset",
 				"desc": "The values specify the amount by which the border image area extends beyond the border box on the top, right, bottom, and left sides respectively. If the fourth value is absent, it is the same as the second. If the third one is also absent, it is the same as the first. If the second one is also absent, it is the same as the first. Numbers represent multiples of the corresponding border-width.",
-				"browsers": "FF13,IE11",
+				"browsers": "E,C16,FF15,IE11,O15,S6",
 				"restriction": "length, number"
 			},
 			{
 				"name": "border-image-repeat",
 				"desc": "Specifies how the images for the sides and the middle part of the border image are scaled and tiled. If the second keyword is absent, it is assumed to be the same as the first.",
-				"browsers": "FF13,IE11",
+				"browsers": "E,C16,FF15,IE11,O15,S6",
 				"restriction": "enum",
 				"values": [
 					{
@@ -1692,14 +1788,14 @@ exports.data ={
 			{
 				"name": "border-image-slice",
 				"desc": "The four 'border-image-slice' values represent inward offsets from the top, right, bottom, and left edges of the image respectively, dividing it into nine regions: four corners, four edges and a middle. The middle image part is discarded (treated as fully transparent) unless the 'fill' keyword is present. (It is drawn over the background; see the border-image drawing process.) If the fourth number/percentage is absent, it is the same as the second. If the third one is also absent, it is the same as the first. If the second one is also absent, it is the same as the first.",
-				"browsers": "C,IE11,FF12",
+				"browsers": "E,C16,FF15,IE11,O15,S6",
 				"restriction": "number, percentage",
 				"values": []
 			},
 			{
 				"name": "border-image-source",
 				"desc": "Specifies an image to use instead of the border styles given by the 'border-style' properties and as an additional background layer for the element. If the value is 'none' or if the image cannot be displayed, the border styles will be used.",
-				"browsers": "C,IE11,FF13",
+				"browsers": "E,C16,FF15,IE11,O15,S6",
 				"restriction": "url",
 				"values": [
 					{
@@ -1713,7 +1809,7 @@ exports.data ={
 			{
 				"name": "border-image-width",
 				"desc": "The four values of 'border-image-width' specify offsets that are used to divide the border image area into nine parts. They represent inward distances from the top, right, bottom, and left sides of the area, respectively.",
-				"browsers": "FF13,IE11",
+				"browsers": "E,C16,FF15,IE11,O15,S6",
 				"restriction": "length, percentage, number",
 				"values": []
 			},
@@ -1835,7 +1931,7 @@ exports.data ={
 			{
 				"name": "border-radius",
 				"desc": "The two length or percentage values of the 'border-*-radius' properties define the radii of a quarter ellipse that defines the shape of the corner of the outer border edge. The first value is the horizontal radius, the second the vertical radius. If the second value is omitted it is copied from the first. If either length is zero, the corner is square, not rounded. Percentages for the horizontal radius refer to the width of the border box, whereas percentages for the vertical radius refer to the height of the border box.",
-				"browsers": "C,FF4,IE9,O10.5,S5",
+				"browsers": "E,C,FF4,IE9,O10.5,S5",
 				"restriction": "length, percentage"
 			},
 			{
@@ -1956,7 +2052,7 @@ exports.data ={
 			{
 				"name": "border-spacing",
 				"desc": "The lengths specify the distance that separates adjoining cell borders. If one length is specified, it gives both the horizontal and vertical spacing. If two are specified, the first gives the horizontal spacing and the second the vertical spacing. Lengths may not be negative.",
-				"browsers": "C,FF1,IE8,O7,S1.2",
+				"browsers": "E,C,FF1,IE8,O7,S1.2",
 				"restriction": "length"
 			},
 			{
@@ -2061,13 +2157,13 @@ exports.data ={
 			{
 				"name": "border-top-left-radius",
 				"desc": "The two length or percentage values of the 'border-*-radius' properties define the radii of a quarter ellipse that defines the shape of the corner of the outer border edge. The first value is the horizontal radius, the second the vertical radius. If the second value is omitted it is copied from the first. If either length is zero, the corner is square, not rounded. Percentages for the horizontal radius refer to the width of the border box, whereas percentages for the vertical radius refer to the height of the border box.",
-				"browsers": "C,FF4,IE9,O10.5,S5",
+				"browsers": "E,C,FF4,IE9,O10.5,S5",
 				"restriction": "length, percentage"
 			},
 			{
 				"name": "border-top-right-radius",
 				"desc": "The two length or percentage values of the 'border-*-radius' properties define the radii of a quarter ellipse that defines the shape of the corner of the outer border edge. The first value is the horizontal radius, the second the vertical radius. If the second value is omitted it is copied from the first. If either length is zero, the corner is square, not rounded. Percentages for the horizontal radius refer to the width of the border box, whereas percentages for the vertical radius refer to the height of the border box.",
-				"browsers": "C,FF4,IE9,O10.5,S5",
+				"browsers": "E,C,FF4,IE9,O10.5,S5",
 				"restriction": "length, percentage"
 			},
 			{
@@ -2155,7 +2251,7 @@ exports.data ={
 			{
 				"name": "box-decoration-break",
 				"desc": "Specifies whether individual boxes are treated as broken pieces of one continuous box, or whether each box is individually wrapped with the border and padding.",
-				"browsers": "O11",
+				"browsers": "FF32,O11",
 				"restriction": "enum",
 				"values": [
 					{
@@ -2169,7 +2265,7 @@ exports.data ={
 			{
 				"name": "box-shadow",
 				"desc": "Attaches one or more drop-shadows to the box. The property is a comma-separated list of shadows, each specified by 2-4 length values, an optional color, and an optional 'inset' keyword. Omitted lengths are 0; omitted colors are a user agent chosen color.",
-				"browsers": "C,FF9,IE9,O11.6,S5.1",
+				"browsers": "E,C,FF4,IE9,O11.5,S5.1",
 				"restriction": "length, color, enum",
 				"values": [
 					{
@@ -2181,7 +2277,7 @@ exports.data ={
 			{
 				"name": "box-sizing",
 				"desc": "Box Model addition in CSS3.",
-				"browsers": "C,IE8,O8,S5.1",
+				"browsers": "E,C10,FF29,IE8,O8,S5.1",
 				"restriction": "enum",
 				"values": [
 					{
@@ -2197,7 +2293,7 @@ exports.data ={
 			{
 				"name": "break-after",
 				"desc": "Describes the page/column break behavior before the generated box.",
-				"browsers": "IE10,O11.1",
+				"browsers": "E,IE10,O11.5",
 				"restriction": "enum",
 				"values": [
 					{
@@ -2221,9 +2317,6 @@ exports.data ={
 						"desc": "Avoid a page break before/after the generated box."
 					},
 					{
-						"name": "avoid-region"
-					},
-					{
 						"name": "column",
 						"desc": "Always force a column break before/after the generated box."
 					},
@@ -2232,11 +2325,7 @@ exports.data ={
 						"desc": "Force one or two page breaks before/after the generated box so that the next page is formatted as a left page."
 					},
 					{
-						"name": "page",
-						"desc": "Always force a page break before/after the generated box."
-					},
-					{
-						"name": "region"
+						"name": "page"
 					},
 					{
 						"name": "right",
@@ -2247,7 +2336,7 @@ exports.data ={
 			{
 				"name": "break-before",
 				"desc": "Describes the page/column break behavior before the generated box.",
-				"browsers": "IE10,O11.6",
+				"browsers": "E,IE10,O11.5",
 				"restriction": "enum",
 				"values": [
 					{
@@ -2271,9 +2360,6 @@ exports.data ={
 						"desc": "Avoid a page break before/after the generated box."
 					},
 					{
-						"name": "avoid-region"
-					},
-					{
 						"name": "column",
 						"desc": "Always force a column break before/after the generated box."
 					},
@@ -2282,11 +2368,7 @@ exports.data ={
 						"desc": "Force one or two page breaks before/after the generated box so that the next page is formatted as a left page."
 					},
 					{
-						"name": "page",
-						"desc": "Always force a page break before/after the generated box."
-					},
-					{
-						"name": "region"
+						"name": "page"
 					},
 					{
 						"name": "right",
@@ -2297,7 +2379,7 @@ exports.data ={
 			{
 				"name": "break-inside",
 				"desc": "Describes the page/column break behavior inside the generated box.",
-				"browsers": "IE10,O11.6",
+				"browsers": "E,IE10,O11.5",
 				"restriction": "enum",
 				"values": [
 					{
@@ -2315,16 +2397,13 @@ exports.data ={
 					{
 						"name": "avoid-page",
 						"desc": "Avoid a page break inside the generated box."
-					},
-					{
-						"name": "avoid-region"
 					}
 				]
 			},
 			{
 				"name": "caption-side",
 				"desc": "Specifies the position of the caption box with respect to the table box.",
-				"browsers": "C,FF,IE8,O,S",
+				"browsers": "E,C,FF,IE8,O,S",
 				"restriction": "enum",
 				"values": [
 					{
@@ -2368,7 +2447,7 @@ exports.data ={
 			},
 			{
 				"name": "clip",
-				"desc": "Defines the visible portion of an element's box.",
+				"desc": "Deprecated. Use the 'clip-path' property instead. Defines the visible portion of an element's box.",
 				"restriction": "enum",
 				"values": [
 					{
@@ -2381,13 +2460,17 @@ exports.data ={
 			},
 			{
 				"name": "clip-path",
-				"desc": "Allows authors to control under what circumstances (if any) a particular graphic element can become the target of mouse events.",
+				"desc": "Specifies a clipping path where everything inside the path is visable and everything outside is clipped out.",
 				"restriction": "url, enum",
-				"values": []
+				"values": [
+					{
+						"name": "none"
+					}
+				]
 			},
 			{
 				"name": "clip-rule",
-				"desc": "Allows authors to control under what circumstances (if any) a particular graphic element can become the target of mouse events.",
+				"desc": "Indicates the algorithm which is to be used to determine what parts of the canvas are included inside the shape.",
 				"restriction": "enum",
 				"values": [
 					{
@@ -2409,14 +2492,14 @@ exports.data ={
 			{
 				"name": "column-count",
 				"desc": "Describes the optimal number of columns into which the content of the element will be flowed.",
-				"browsers": "IE10,O11.6",
-				"restriction": "integer",
+				"browsers": "E,IE10,O11.5,S9",
+				"restriction": "integer, enum",
 				"values": []
 			},
 			{
 				"name": "column-fill",
 				"desc": "In continuous media, this property will only be consulted if the length of columns has been constrained. Otherwise, columns will automatically be balanced.",
-				"browsers": "IE10,O11.6",
+				"browsers": "E,IE10,O11.5,S9",
 				"restriction": "enum",
 				"values": [
 					{
@@ -2431,14 +2514,14 @@ exports.data ={
 			{
 				"name": "column-gap",
 				"desc": "Sets the gap between columns. If there is a column rule between columns, it will appear in the middle of the gap.",
-				"browsers": "IE10,O11.6",
-				"restriction": "length",
+				"browsers": "E,IE10,O11.5,S9",
+				"restriction": "length, enum",
 				"values": []
 			},
 			{
 				"name": "column-rule",
 				"desc": "This property is a shorthand for setting 'column-rule-width', 'column-rule-style', and 'column-rule-color' at the same place in the style sheet. Omitted values are set to their initial values.",
-				"browsers": "IE10,O11.6",
+				"browsers": "E,IE10,O11.5,S9",
 				"restriction": "length, color, enum",
 				"values": [
 					{
@@ -2488,14 +2571,14 @@ exports.data ={
 			{
 				"name": "column-rule-color",
 				"desc": "Sets the color of the column rule",
-				"browsers": "IE10,O11.6",
+				"browsers": "E,IE10,O11.6",
 				"restriction": "color",
 				"values": []
 			},
 			{
 				"name": "column-rule-style",
 				"desc": "Sets the style of the rule between columns of an element.",
-				"browsers": "IE10,O11.6",
+				"browsers": "E,IE10,O11.5,S6",
 				"restriction": "enum",
 				"values": [
 					{
@@ -2540,8 +2623,8 @@ exports.data ={
 			{
 				"name": "column-rule-width",
 				"desc": "Sets the width of the rule between columns. Negative values are not allowed.",
-				"browsers": "IE10,O11.6",
-				"restriction": "length",
+				"browsers": "E,IE10,O11.5,S9",
+				"restriction": "length, enum",
 				"values": [
 					{
 						"name": "medium"
@@ -2557,14 +2640,14 @@ exports.data ={
 			{
 				"name": "columns",
 				"desc": "A shorthand property which sets both 'column-width' and 'column-count'.",
-				"browsers": "IE10,O11.6",
-				"restriction": "length, integer",
+				"browsers": "E,IE10,O11.5,S9",
+				"restriction": "length, integer, enum",
 				"values": []
 			},
 			{
 				"name": "column-span",
 				"desc": "Describes the page/column break behavior after the generated box.",
-				"browsers": "IE10,O11.6",
+				"browsers": "E,IE10,O11.5,S9",
 				"restriction": "enum",
 				"values": [
 					{
@@ -2580,14 +2663,14 @@ exports.data ={
 			{
 				"name": "column-width",
 				"desc": "This property describes the width of columns in multicol elements.",
-				"browsers": "IE10,O11.6",
-				"restriction": "length",
+				"browsers": "E,IE10,O11.5,S9",
+				"restriction": "length, enum",
 				"values": []
 			},
 			{
 				"name": "content",
 				"desc": "Determines which page-based occurrence of a given element is applied to a counter or string value.",
-				"browsers": "C,FF1,IE8,O4,S1",
+				"browsers": "E,C,FF1,IE8,O4,S1",
 				"restriction": "string, url",
 				"values": [
 					{
@@ -2616,14 +2699,14 @@ exports.data ={
 			{
 				"name": "counter-increment",
 				"desc": "Counters are used with the 'counter()' and 'counters()' functions of the 'content' property.",
-				"browsers": "C,FF1.5,IE8,O10.5,S3",
+				"browsers": "E,C,FF1.5,IE8,O10.5,S3",
 				"restriction": "identifier, integer",
 				"values": []
 			},
 			{
 				"name": "counter-reset",
 				"desc": "Property accepts one or more names of counters (identifiers), each one optionally followed by an integer. The integer gives the value that the counter is set to on each occurrence of the element.",
-				"browsers": "C,FF1.5,IE8,O10.5,S3",
+				"browsers": "E,C,FF1.5,IE8,O10.5,S3",
 				"restriction": "identifier, integer",
 				"values": []
 			},
@@ -2763,12 +2846,20 @@ exports.data ={
 					},
 					{
 						"name": "w-resize"
+					},
+					{
+						"name": "zoom-in",
+						"browsers": "E,C37,FF24,O12.1,S9"
+					},
+					{
+						"name": "zoom-out",
+						"browsers": "E,C37,FF24,O12.1,S9"
 					}
 				]
 			},
 			{
 				"name": "direction",
-				"desc": "Specifies the base directionality of text and elements on a line, and the directionality of embeddings and overrides for the Unicode bidirectional algorithm.",
+				"desc": "Specifies the inline base direction or directionality of any bidi paragraph, embedding, isolate, or override established by the box. Note: for HTML content use the 'dir' attribute and 'bdo' element rather than this property.",
 				"restriction": "enum",
 				"values": [
 					{
@@ -2788,11 +2879,12 @@ exports.data ={
 						"name": "block"
 					},
 					{
-						"name": "flex"
+						"name": "flex",
+						"browsers": "E,C29,FF22,IE11,O12.1,S9"
 					},
 					{
 						"name": "flexbox",
-						"browsers": "IE11,O12.1"
+						"browsers": "O12.1"
 					},
 					{
 						"name": "inline",
@@ -2802,11 +2894,12 @@ exports.data ={
 						"name": "inline-block"
 					},
 					{
-						"name": "inline-flex"
+						"name": "inline-flex",
+						"browsers": "E,C29,FF22,IE11,O12.1,S9"
 					},
 					{
 						"name": "inline-flexbox",
-						"browsers": "IE11,O12.1"
+						"browsers": "O12.1"
 					},
 					{
 						"name": "inline-table"
@@ -2868,7 +2961,7 @@ exports.data ={
 					},
 					{
 						"name": "-ms-grid",
-						"browsers": "IE10"
+						"browsers": "E,IE10"
 					},
 					{
 						"name": "-ms-inline-flexbox",
@@ -2876,7 +2969,7 @@ exports.data ={
 					},
 					{
 						"name": "-ms-inline-grid",
-						"browsers": "IE10"
+						"browsers": "E,IE10"
 					},
 					{
 						"name": "none",
@@ -2935,15 +3028,23 @@ exports.data ={
 						"browsers": "C,S1"
 					},
 					{
+						"name": "-webkit-flex",
+						"browsers": "C21,O15,S6.1"
+					},
+					{
 						"name": "-webkit-inline-box",
 						"browsers": "C,S1"
+					},
+					{
+						"name": "-webkit-inline-flex",
+						"browsers": "C21,O15,S6.1"
 					}
 				]
 			},
 			{
 				"name": "empty-cells",
 				"desc": "In the separated borders model, this property controls the rendering of borders and backgrounds around cells that have no visible content.",
-				"browsers": "C,FF1,IE7,O4,S1.2",
+				"browsers": "E,C,FF1,IE7,O4,S1.2",
 				"restriction": "enum",
 				"values": [
 					{
@@ -3001,13 +3102,52 @@ exports.data ={
 			},
 			{
 				"name": "filter",
-				"desc": "IE only. Used to produce visual effects.",
-				"browsers": "IE6-9"
+				"desc": "Processes an element’s rendering before it is displayed in the document, by applying one or more filter effects.",
+				"browsers": "E13,FF35",
+				"restriction": "enum, url",
+				"values": [
+					{
+						"name": "none"
+					},
+					{
+						"name": "blur()"
+					},
+					{
+						"name": "brightness()"
+					},
+					{
+						"name": "contrast()"
+					},
+					{
+						"name": "drop-shadow()"
+					},
+					{
+						"name": "grayscale()",
+						"desc": "Converts the input image to grayscale."
+					},
+					{
+						"name": "hue-rotate()"
+					},
+					{
+						"name": "invert()",
+						"desc": "Inverts the samples in the input image."
+					},
+					{
+						"name": "opacity()"
+					},
+					{
+						"name": "saturate()"
+					},
+					{
+						"name": "sepia()",
+						"desc": "Converts the input image to sepia."
+					}
+				]
 			},
 			{
 				"name": "flex",
 				"desc": "Specifies the components of a flexible length: the flex grow factor and flex shrink factor, and the flex basis.",
-				"browsers": "IE11,O12.1",
+				"browsers": "E,C29,FF22,IE11,O12.1,S9",
 				"restriction": "length, number, percentage",
 				"values": [
 					{
@@ -3021,14 +3161,22 @@ exports.data ={
 			{
 				"name": "flex-basis",
 				"desc": "The 'flex-basis' property sets the flex basis. Negative lengths are invalid.",
-				"browsers": "IE11,O12.1",
+				"browsers": "E,C29,FF22,IE11,O12.1,S9",
 				"restriction": "length, number, percentage",
-				"values": []
+				"values": [
+					{
+						"name": "auto"
+					},
+					{
+						"name": "content",
+						"browsers": "E,IE11"
+					}
+				]
 			},
 			{
 				"name": "flex-direction",
 				"desc": "Specifies how flexbox items are placed in the flexbox.",
-				"browsers": "IE11,O12.1",
+				"browsers": "E,C29,FF22,IE11,O12.1,S9",
 				"restriction": "enum",
 				"values": [
 					{
@@ -3048,7 +3196,7 @@ exports.data ={
 			{
 				"name": "flex-flow",
 				"desc": "Specifies how flexbox items are placed in the flexbox.",
-				"browsers": "IE11,O12.1",
+				"browsers": "E,C29,FF28,IE11,O12.1,S9",
 				"restriction": "enum",
 				"values": [
 					{
@@ -3079,19 +3227,19 @@ exports.data ={
 			{
 				"name": "flex-grow",
 				"desc": "The 'flex-grow' property sets the flex grow factor. Negative numbers are invalid.",
-				"browsers": "IE11,O12.1",
+				"browsers": "E,C29,FF22,IE11,O12.1,S9",
 				"restriction": "number"
 			},
 			{
 				"name": "flex-shrink",
 				"desc": "The 'flex-shrink' property sets the flex shrink factor. Negative numbers are invalid.",
-				"browsers": "IE11,O12.1",
+				"browsers": "E,C29,FF22,IE11,O12.1,S9",
 				"restriction": "number"
 			},
 			{
 				"name": "flex-wrap",
 				"desc": "controls whether the flexbox is single-line or multi-line, and the direction of the cross axis, which affects the direction new lines are stacked in and the meaning of the 'flex-align', 'flex-item-align', and 'flex-line-pack' properties.",
-				"browsers": "IE11,O12.1",
+				"browsers": "E,C29,FF28,IE11,O12.1,S9",
 				"restriction": "enum",
 				"values": [
 					{
@@ -3214,7 +3362,8 @@ exports.data ={
 						"name": "small"
 					},
 					{
-						"name": "small-caps"
+						"name": "small-caps",
+						"desc": "Specifies a font that is labeled as a small-caps font. If a genuine small-caps font is not available, user agents should simulate a small-caps font."
 					},
 					{
 						"name": "small-caption"
@@ -3300,7 +3449,7 @@ exports.data ={
 			{
 				"name": "font-feature-settings",
 				"desc": "This property provides low-level control over OpenType font features. It is intended as a way of providing access to font features that are not widely used but are needed for a particular use case.",
-				"browsers": "IE10",
+				"browsers": "E,FF34,IE10",
 				"restriction": "string, integer",
 				"values": [
 					{
@@ -3333,8 +3482,38 @@ exports.data ={
 					{
 						"name": "normal",
 						"desc": "No change in glyph substitution or positioning occurs."
+					},
+					{
+						"name": "off"
+					},
+					{
+						"name": "on"
 					}
 				]
+			},
+			{
+				"name": "font-kerning",
+				"desc": "Kerning is the contextual adjustment of inter-glyph spacing. This property controls metric kerning, kerning that utilizes adjustment data contained in the font.",
+				"browsers": "C33,FF34,O20",
+				"restriction": "enum",
+				"values": [
+					{
+						"name": "auto"
+					},
+					{
+						"name": "none"
+					},
+					{
+						"name": "normal"
+					}
+				]
+			},
+			{
+				"name": "font-language-override",
+				"desc": "The value of 'normal' implies that when rendering with OpenType fonts the language of the document is used to infer the OpenType language system, used to select language specific features when rendering.",
+				"browsers": "FF34",
+				"restriction": "string",
+				"values": []
 			},
 			{
 				"name": "font-size",
@@ -3372,15 +3551,15 @@ exports.data ={
 			},
 			{
 				"name": "font-size-adjust",
-				"desc": "This property is a way to preserve the readability of text when font fallback occurs. It does this by adjusting the font-size so that the x-height is the same irregardless of the font used.",
-				"browsers": "FF3.5,IE10",
+				"desc": "Preserves the readability of text when font fallback occurs by adjusting the font-size so that the x-height is the same irregardless of the font used.",
+				"browsers": "E,FF3,IE10",
 				"restriction": "number",
 				"values": []
 			},
 			{
 				"name": "font-stretch",
-				"desc": "The font-stretch property is used to expand or contract the horizontal width of the font. The change is relative to the normal width of the font as displayed by the browser.",
-				"browsers": "FF9,IE9",
+				"desc": "Selects a normal, condensed, or expanded face from a font family.",
+				"browsers": "E,FF9,IE9",
 				"restriction": "enum",
 				"values": [
 					{
@@ -3397,7 +3576,7 @@ exports.data ={
 					},
 					{
 						"name": "narrower",
-						"browsers": "IE10"
+						"browsers": "E,IE10"
 					},
 					{
 						"name": "normal"
@@ -3416,7 +3595,7 @@ exports.data ={
 					},
 					{
 						"name": "wider",
-						"browsers": "IE10"
+						"browsers": "E,IE10"
 					}
 				]
 			},
@@ -3438,6 +3617,24 @@ exports.data ={
 				]
 			},
 			{
+				"name": "font-synthesis",
+				"desc": "This property controls whether user agents are allowed to synthesize bold or oblique font faces when a font family lacks bold or italic faces.",
+				"browsers": "FF34,S9",
+				"restriction": "enum",
+				"values": [
+					{
+						"name": "none",
+						"desc": "Disallow all synthetic faces."
+					},
+					{
+						"name": "style"
+					},
+					{
+						"name": "weight"
+					}
+				]
+			},
+			{
 				"name": "font-variant",
 				"desc": "Specifies variant representations of the font",
 				"restriction": "enum",
@@ -3447,7 +3644,210 @@ exports.data ={
 						"desc": "Specifies a face that is not labeled as a small-caps font."
 					},
 					{
-						"name": "small-caps"
+						"name": "small-caps",
+						"desc": "Specifies a font that is labeled as a small-caps font. If a genuine small-caps font is not available, user agents should simulate a small-caps font."
+					}
+				]
+			},
+			{
+				"name": "font-variant-alternates",
+				"desc": "For any given character, fonts can provide a variety of alternate glyphs in addition to the default glyph for that character. This property provides control over the selection of these alternate glyphs.",
+				"browsers": "FF34",
+				"restriction": "enum",
+				"values": [
+					{
+						"name": "annotation()"
+					},
+					{
+						"name": "character-variant()"
+					},
+					{
+						"name": "historical-forms"
+					},
+					{
+						"name": "normal"
+					},
+					{
+						"name": "ornaments()"
+					},
+					{
+						"name": "styleset()"
+					},
+					{
+						"name": "stylistic()"
+					},
+					{
+						"name": "swash()"
+					}
+				]
+			},
+			{
+				"name": "font-variant-caps",
+				"desc": "Specifies control over capitalized forms.",
+				"browsers": "FF34",
+				"restriction": "enum",
+				"values": [
+					{
+						"name": "all-petite-caps"
+					},
+					{
+						"name": "all-small-caps"
+					},
+					{
+						"name": "normal"
+					},
+					{
+						"name": "petite-caps"
+					},
+					{
+						"name": "small-caps",
+						"desc": "Enables display of small capitals. Small-caps glyphs typically use the form of uppercase letters but are reduced to the size of lowercase letters."
+					},
+					{
+						"name": "titling-caps"
+					},
+					{
+						"name": "unicase"
+					}
+				]
+			},
+			{
+				"name": "font-variant-east-asian",
+				"desc": "Allows control of glyph substitute and positioning in East Asian text.",
+				"browsers": "FF34",
+				"restriction": "enum",
+				"values": [
+					{
+						"name": "full-width"
+					},
+					{
+						"name": "jis04"
+					},
+					{
+						"name": "jis78"
+					},
+					{
+						"name": "jis83"
+					},
+					{
+						"name": "jis90"
+					},
+					{
+						"name": "normal"
+					},
+					{
+						"name": "proportional-width"
+					},
+					{
+						"name": "ruby",
+						"desc": "Enables display of ruby variant glyphs."
+					},
+					{
+						"name": "simplified"
+					},
+					{
+						"name": "traditional"
+					}
+				]
+			},
+			{
+				"name": "font-variant-ligatures",
+				"desc": "Specifies control over which ligatures are enabled or disabled. A value of ‘normal’ implies that the defaults set by the font are used.",
+				"browsers": "C18,FF34,O15,S6",
+				"restriction": "enum",
+				"values": [
+					{
+						"name": "additional-ligatures"
+					},
+					{
+						"name": "common-ligatures"
+					},
+					{
+						"name": "contextual",
+						"browsers": "C35,F34,O22"
+					},
+					{
+						"name": "discretionary-ligatures"
+					},
+					{
+						"name": "historical-ligatures"
+					},
+					{
+						"name": "no-additional-ligatures"
+					},
+					{
+						"name": "no-common-ligatures"
+					},
+					{
+						"name": "no-contextual",
+						"browsers": "C35,F34,O22"
+					},
+					{
+						"name": "no-discretionary-ligatures"
+					},
+					{
+						"name": "no-historical-ligatures"
+					},
+					{
+						"name": "none",
+						"desc": "Disables all ligatures.",
+						"browsers": "FF34"
+					},
+					{
+						"name": "normal",
+						"desc": "Implies that the defaults set by the font are used."
+					}
+				]
+			},
+			{
+				"name": "font-variant-numeric",
+				"desc": "Specifies control over numerical forms.",
+				"browsers": "FF34",
+				"restriction": "enum",
+				"values": [
+					{
+						"name": "diagonal-fractions"
+					},
+					{
+						"name": "lining-nums"
+					},
+					{
+						"name": "normal"
+					},
+					{
+						"name": "oldstyle-nums"
+					},
+					{
+						"name": "ordinal"
+					},
+					{
+						"name": "proportional-nums"
+					},
+					{
+						"name": "slashed-zero"
+					},
+					{
+						"name": "stacked-fractions"
+					},
+					{
+						"name": "tabular-nums"
+					}
+				]
+			},
+			{
+				"name": "font-variant-position",
+				"desc": "Specifies the vertical position",
+				"browsers": "FF34",
+				"restriction": "enum",
+				"values": [
+					{
+						"name": "normal"
+					},
+					{
+						"name": "sub"
+					},
+					{
+						"name": "super"
 					}
 				]
 			},
@@ -3516,8 +3916,22 @@ exports.data ={
 				"values": []
 			},
 			{
+				"name": "image-orientation",
+				"desc": "Specifies an orthogonal rotation to be applied to an image before it is laid out.",
+				"browsers": "FF26",
+				"restriction": "angle",
+				"values": [
+					{
+						"name": "flip"
+					},
+					{
+						"name": "from-image"
+					}
+				]
+			},
+			{
 				"name": "image-rendering",
-				"desc": "The creator of SVG content might want to provide a hint to the implementation about how to make speed vs. quality tradeoffs as it performs image processing. The ‘image-rendering’ property provides a hint to the SVG user agent about how to optimize its image rendering.",
+				"desc": "Provides a hint to the user-agent about what aspects of an image are most important to preserve when the image is scaled, to aid the user-agent in the choice of an appropriate scaling algorithm.",
 				"browsers": "C,FF3.6,O11.6,S",
 				"restriction": "enum",
 				"values": [
@@ -3536,7 +3950,8 @@ exports.data ={
 						"name": "optimizeQuality"
 					},
 					{
-						"name": "optimizeSpeed"
+						"name": "optimizeSpeed",
+						"desc": "Deprecated."
 					},
 					{
 						"name": "pixelated"
@@ -3546,7 +3961,7 @@ exports.data ={
 			{
 				"name": "ime-mode",
 				"desc": "Controls the state of the input method editor for text fields.",
-				"browsers": "FF3,IE5",
+				"browsers": "E,FF3,IE5",
 				"restriction": "enum",
 				"values": [
 					{
@@ -3569,9 +3984,23 @@ exports.data ={
 				]
 			},
 			{
+				"name": "isolation",
+				"desc": "In CSS setting to 'isolate' will turn the element into a stacking context. In SVG, it defines whether an element is isolated or not.",
+				"browsers": "C,FF,O,S",
+				"restriction": "enum",
+				"values": [
+					{
+						"name": "auto"
+					},
+					{
+						"name": "isolate"
+					}
+				]
+			},
+			{
 				"name": "justify-content",
 				"desc": "Aligns a flex container's lines within the flex container when there is extra space in the cross-axis, similar to how 'justify-content' aligns individual items within the main-axis.",
-				"browsers": "IE11,O12.1",
+				"browsers": "E,C29,FF22,IE11,O12.1,S9",
 				"restriction": "enum",
 				"values": [
 					{
@@ -3606,7 +4035,7 @@ exports.data ={
 			{
 				"name": "letter-spacing",
 				"desc": "Specifies the minimum, maximum, and optimal spacing between grapheme clusters.",
-				"restriction": "length, percentage",
+				"restriction": "length",
 				"values": []
 			},
 			{
@@ -3619,16 +4048,7 @@ exports.data ={
 				"name": "line-height",
 				"desc": "Determines the block-progression dimension of the text content area of an inline box.",
 				"restriction": "number, length, percentage",
-				"values": [
-					{
-						"name": "none",
-						"desc": "The computed value of the property is the ancestor block element font-size."
-					},
-					{
-						"name": "normal",
-						"desc": "Tells user agents to set the computed value to a 'reasonable' value based on the font size of the element."
-					}
-				]
+				"values": []
 			},
 			{
 				"name": "list-style",
@@ -3702,6 +4122,18 @@ exports.data ={
 					},
 					{
 						"name": "url()"
+					},
+					{
+						"name": "linear-gradient()"
+					},
+					{
+						"name": "radial-gradient()"
+					},
+					{
+						"name": "repeating-linear-gradient()"
+					},
+					{
+						"name": "repeating-radial-gradient()"
 					}
 				]
 			},
@@ -3856,43 +4288,217 @@ exports.data ={
 			{
 				"name": "mask",
 				"desc": "Allows authors to control under what circumstances (if any) a particular graphic element can become the target of mouse events.",
-				"browsers": "FF3.5,IE10,O9",
+				"browsers": "E,FF3.5,IE10,O9",
 				"restriction": "url, enum",
 				"values": []
 			},
 			{
 				"name": "max-height",
 				"desc": "Allows authors to constrain content height to a certain range.",
-				"browsers": "C,FF1,IE7,O7,S1",
+				"browsers": "E,C,FF1,IE7,O7,S1",
 				"restriction": "length, percentage",
 				"values": []
 			},
 			{
 				"name": "max-width",
 				"desc": "Allows authors to constrain content width to a certain range.",
-				"browsers": "C,FF1,IE7,O7,S1",
+				"browsers": "E,C,FF1,IE7,O7,S1",
 				"restriction": "length, percentage",
 				"values": []
 			},
 			{
-				"name": "max-zoom",
-				"restriction": "number, percentage"
-			},
-			{
 				"name": "min-height",
 				"desc": "Allows authors to constrain content height to a certain range.",
-				"browsers": "C,FF1,IE7,O7,S1",
-				"restriction": "length, percentage"
+				"browsers": "E,C,FF1,IE7,O7,S1",
+				"restriction": "length, percentage",
+				"values": []
 			},
 			{
 				"name": "min-width",
 				"desc": "Allows authors to constrain content width to a certain range.",
-				"browsers": "C,FF1,IE7,O7,S1",
-				"restriction": "length, percentage"
+				"browsers": "E,C,FF1,IE7,O7,S1",
+				"restriction": "length, percentage",
+				"values": []
 			},
 			{
-				"name": "min-zoom",
-				"restriction": "number, percentage"
+				"name": "mix-blend-mode",
+				"desc": "Defines the formula that must be used to mix the colors with the backdrop.",
+				"browsers": "C41,FF32,O29,S7.1",
+				"restriction": "enum",
+				"values": [
+					{
+						"name": "normal"
+					},
+					{
+						"name": "multiply"
+					},
+					{
+						"name": "screen"
+					},
+					{
+						"name": "overlay"
+					},
+					{
+						"name": "darken"
+					},
+					{
+						"name": "lighten"
+					},
+					{
+						"name": "color-dodge"
+					},
+					{
+						"name": "color-burn"
+					},
+					{
+						"name": "hard-light"
+					},
+					{
+						"name": "soft-light"
+					},
+					{
+						"name": "difference"
+					},
+					{
+						"name": "exclusion"
+					},
+					{
+						"name": "hue",
+						"browsers": "C41,FF32,O29"
+					},
+					{
+						"name": "saturation",
+						"browsers": "C41,FF32,O29"
+					},
+					{
+						"name": "color",
+						"browsers": "C41,FF32,O29"
+					},
+					{
+						"name": "luminosity",
+						"browsers": "C41,FF32,O29"
+					}
+				]
+			},
+			{
+				"name": "motion-path",
+				"desc": "Specifies the motion path the element gets positioned at.",
+				"browsers": "C46,O33",
+				"restriction": "url, length, angle, enum",
+				"values": [
+					{
+						"name": "border-box"
+					},
+					{
+						"name": "circle()"
+					},
+					{
+						"name": "content-box"
+					},
+					{
+						"name": "ellipse()"
+					},
+					{
+						"name": "fill-box"
+					},
+					{
+						"name": "inset()"
+					},
+					{
+						"name": "margin-box"
+					},
+					{
+						"name": "none"
+					},
+					{
+						"name": "padding-box"
+					},
+					{
+						"name": "path()"
+					},
+					{
+						"name": "polygon()"
+					},
+					{
+						"name": "stroke-box"
+					},
+					{
+						"name": "view-box"
+					},
+					{
+						"name": "auto"
+					},
+					{
+						"name": "reverse"
+					}
+				]
+			},
+			{
+				"name": "motion-offset",
+				"desc": "Allows authors to constrain content width to a certain range.",
+				"browsers": "C46,O33",
+				"restriction": "length"
+			},
+			{
+				"name": "motion-path",
+				"desc": "Specifies the motion path the element gets positioned at.",
+				"browsers": "C46,O33",
+				"restriction": "url, enum",
+				"values": [
+					{
+						"name": "border-box"
+					},
+					{
+						"name": "circle()"
+					},
+					{
+						"name": "content-box"
+					},
+					{
+						"name": "ellipse()"
+					},
+					{
+						"name": "fill-box"
+					},
+					{
+						"name": "inset()"
+					},
+					{
+						"name": "margin-box"
+					},
+					{
+						"name": "none"
+					},
+					{
+						"name": "padding-box"
+					},
+					{
+						"name": "path()"
+					},
+					{
+						"name": "polygon()"
+					},
+					{
+						"name": "stroke-box"
+					},
+					{
+						"name": "view-box"
+					}
+				]
+			},
+			{
+				"name": "motion-rotation",
+				"desc": "Defines the direction of the element while positioning along the motion path.",
+				"browsers": "C46,O33",
+				"restriction": "angle",
+				"values": [
+					{
+						"name": "auto"
+					},
+					{
+						"name": "reverse"
+					}
+				]
 			},
 			{
 				"name": "-moz-animation",
@@ -3998,14 +4604,14 @@ exports.data ={
 				"name": "-moz-animation-iteration-count",
 				"desc": "Defines the number of times an animation cycle is played. The default value is one, meaning the animation will play from beginning to end once.",
 				"browsers": "FF9",
-				"restriction": "number",
+				"restriction": "number, enum",
 				"values": []
 			},
 			{
 				"name": "-moz-animation-name",
 				"desc": "Defines a list of animations that apply. Each name is used to select the keyframe at-rule that provides the property values for the animation.",
 				"browsers": "FF9",
-				"restriction": "identifier",
+				"restriction": "identifier, enum",
 				"values": []
 			},
 			{
@@ -4301,7 +4907,8 @@ exports.data ={
 						"name": "padding"
 					},
 					{
-						"name": "padding-box"
+						"name": "padding-box",
+						"desc": "The background is painted within (clipped to) the padding box"
 					}
 				]
 			},
@@ -4337,7 +4944,8 @@ exports.data ={
 						"desc": "The background is painted within (clipped to) the content box."
 					},
 					{
-						"name": "padding-box"
+						"name": "padding-box",
+						"desc": "The background is painted within (clipped to) the padding box"
 					}
 				]
 			},
@@ -4714,6 +5322,14 @@ exports.data ={
 					{
 						"name": "normal",
 						"desc": "No change in glyph substitution or positioning occurs."
+					},
+					{
+						"name": "off",
+						"browsers": "FF15"
+					},
+					{
+						"name": "on",
+						"browsers": "FF15"
 					}
 				]
 			},
@@ -4880,6 +5496,9 @@ exports.data ={
 					},
 					{
 						"name": "none"
+					},
+					{
+						"name": "perspective"
 					},
 					{
 						"name": "rotate()"
@@ -5114,7 +5733,7 @@ exports.data ={
 			{
 				"name": "-ms-accelerator",
 				"desc": "IE only. Has the ability to turn off its system underlines for accelerator keys until the ALT key is pressed",
-				"browsers": "IE10",
+				"browsers": "E,IE10",
 				"restriction": "enum",
 				"values": [
 					{
@@ -5154,7 +5773,7 @@ exports.data ={
 			{
 				"name": "-ms-content-zoom-chaining",
 				"desc": "Gets or sets a value that indicates the zoom behavior that occurs when a user hits the content boundary during a manipulation.",
-				"browsers": "IE10",
+				"browsers": "E,IE10",
 				"values": [
 					{
 						"name": "chained"
@@ -5167,7 +5786,7 @@ exports.data ={
 			{
 				"name": "-ms-content-zooming",
 				"desc": "Gets or sets a value that indicates whether zooming is enabled.",
-				"browsers": "IE10",
+				"browsers": "E,IE10",
 				"restriction": "enum",
 				"values": [
 					{
@@ -5181,25 +5800,25 @@ exports.data ={
 			{
 				"name": "-ms-content-zoom-limit",
 				"desc": "Gets or sets a shorthand value that sets values for the -ms-content-zoom-limit-min and the -ms-content-zoom-limit-max properties.",
-				"browsers": "IE10",
+				"browsers": "E,IE10",
 				"restriction": "percentage"
 			},
 			{
 				"name": "-ms-content-zoom-limit-max",
 				"desc": "Gets or sets a value that specifies the maximum value for the msContentZoomFactor property.",
-				"browsers": "IE10",
+				"browsers": "E,IE10",
 				"restriction": "percentage"
 			},
 			{
 				"name": "-ms-content-zoom-limit-min",
 				"desc": "Gets or sets a value that specifies the minimum value for the msContentZoomFactor property.",
-				"browsers": "IE10",
+				"browsers": "E,IE10",
 				"restriction": "percentage"
 			},
 			{
 				"name": "-ms-content-zoom-snap",
 				"desc": "Gets or sets a shorthand value that sets values for the -ms-content-zoom-snap-type and the -ms-content-zoom-snap-points properties.",
-				"browsers": "IE10",
+				"browsers": "E,IE10",
 				"values": [
 					{
 						"name": "mandatory"
@@ -5221,7 +5840,7 @@ exports.data ={
 			{
 				"name": "-ms-content-zoom-snap-points",
 				"desc": "Gets or sets a value that defines where zoom snap-points are located.",
-				"browsers": "IE10",
+				"browsers": "E,IE10",
 				"values": [
 					{
 						"name": "snapInterval(100%, 100%)"
@@ -5234,7 +5853,7 @@ exports.data ={
 			{
 				"name": "-ms-content-zoom-snap-type",
 				"desc": "Gets or sets a value that indicates how zooming is affected by defined snap-points.",
-				"browsers": "IE10",
+				"browsers": "E,IE10",
 				"restriction": "enum",
 				"values": [
 					{
@@ -5480,7 +6099,7 @@ exports.data ={
 			{
 				"name": "-ms-grid-column",
 				"desc": "grid-column is used to place grid items and explicitly defined grid cells in the Grid.",
-				"browsers": "IE10",
+				"browsers": "E,IE10",
 				"restriction": "integer, string, enum",
 				"values": [
 					{
@@ -5497,7 +6116,7 @@ exports.data ={
 			{
 				"name": "-ms-grid-column-align",
 				"desc": "Aligns the columns in a grid.",
-				"browsers": "IE10",
+				"browsers": "E,IE10",
 				"restriction": "enum",
 				"values": [
 					{
@@ -5521,24 +6140,24 @@ exports.data ={
 			{
 				"name": "-ms-grid-columns",
 				"desc": "Lays out the columns of the grid.",
-				"browsers": "IE10"
+				"browsers": "E,IE10"
 			},
 			{
 				"name": "-ms-grid-column-span",
 				"desc": "Specifies the number of columns to span.",
-				"browsers": "IE10",
+				"browsers": "E,IE10",
 				"restriction": "integer"
 			},
 			{
 				"name": "-ms-grid-layer",
 				"desc": "Grid-layer is similar in concept to z-index, but avoids overloading the meaning of the z-index property, which is applicable only to positioned elements.",
-				"browsers": "IE10",
+				"browsers": "E,IE10",
 				"restriction": "integer"
 			},
 			{
 				"name": "-ms-grid-row",
 				"desc": "grid-row is used to place grid items and explicitly defined grid cells in the Grid.",
-				"browsers": "IE10",
+				"browsers": "E,IE10",
 				"restriction": "integer, string, enum",
 				"values": [
 					{
@@ -5555,7 +6174,7 @@ exports.data ={
 			{
 				"name": "-ms-grid-row-align",
 				"desc": "Aligns the rows in a grid.",
-				"browsers": "IE10",
+				"browsers": "E,IE10",
 				"restriction": "enum",
 				"values": [
 					{
@@ -5579,18 +6198,18 @@ exports.data ={
 			{
 				"name": "-ms-grid-rows",
 				"desc": "Lays out the columns of the grid.",
-				"browsers": "IE10"
+				"browsers": "E,IE10"
 			},
 			{
 				"name": "-ms-grid-row-span",
 				"desc": "Specifies the number of rows to span.",
-				"browsers": "IE10",
+				"browsers": "E,IE10",
 				"restriction": "integer"
 			},
 			{
 				"name": "-ms-high-contrast-adjust",
 				"desc": "Gets or sets a value that indicates whether to override any Cascading Style Sheets (CSS) properties that would have been set in high contrast mode.",
-				"browsers": "IE10",
+				"browsers": "E,IE10",
 				"restriction": "enum",
 				"values": [
 					{
@@ -5604,27 +6223,27 @@ exports.data ={
 			{
 				"name": "-ms-hyphenate-limit-chars",
 				"desc": "Gets or sets one to three values that indicates the minimum number of characters in a hyphenated word.",
-				"browsers": "IE10",
+				"browsers": "E,IE10",
 				"restriction": "integer",
 				"values": []
 			},
 			{
 				"name": "-ms-hyphenate-limit-lines",
 				"desc": "Gets or sets a value that indicates the maximum number of consecutive lines in an element that may be ended with a hyphenated word.",
-				"browsers": "IE10",
+				"browsers": "E,IE10",
 				"restriction": "integer",
 				"values": []
 			},
 			{
 				"name": "-ms-hyphenate-limit-zone",
 				"desc": "Gets or sets a value that defines the width of the hyphenation zone.",
-				"browsers": "IE10",
+				"browsers": "E,IE10",
 				"restriction": "percentage, length"
 			},
 			{
 				"name": "-ms-hyphens",
 				"desc": "This property controls whether hyphenation is allowed to create more break opportunities within a line of text.",
-				"browsers": "IE10",
+				"browsers": "E,IE10",
 				"restriction": "enum",
 				"values": [
 					{
@@ -5682,7 +6301,7 @@ exports.data ={
 			{
 				"name": "-ms-layout-grid",
 				"desc": "Sets or retrieves the composite document grid properties that specify the layout of text characters.",
-				"browsers": "IE10",
+				"browsers": "E,IE10",
 				"values": [
 					{
 						"name": "char",
@@ -5703,7 +6322,7 @@ exports.data ={
 			{
 				"name": "-ms-layout-grid-char",
 				"desc": "Sets or retrieves the size of the character grid used for rendering the text content of an element.",
-				"browsers": "IE10",
+				"browsers": "E,IE10",
 				"restriction": "enum, length, percentage",
 				"values": [
 					{
@@ -5719,7 +6338,7 @@ exports.data ={
 			{
 				"name": "-ms-layout-grid-line",
 				"desc": "Sets or retrieves the gridline value used for rendering the text content of an element.",
-				"browsers": "IE10",
+				"browsers": "E,IE10",
 				"restriction": "length",
 				"values": [
 					{
@@ -5735,7 +6354,7 @@ exports.data ={
 			{
 				"name": "-ms-layout-grid-mode",
 				"desc": "Gets or sets whether the text layout grid uses two dimensions.",
-				"browsers": "IE10",
+				"browsers": "E,IE10",
 				"restriction": "enum",
 				"values": [
 					{
@@ -5759,7 +6378,7 @@ exports.data ={
 			{
 				"name": "-ms-layout-grid-type",
 				"desc": "Sets or retrieves the type of grid used for rendering the text content of an element.",
-				"browsers": "IE10",
+				"browsers": "E,IE10",
 				"restriction": "enum",
 				"values": [
 					{
@@ -5778,7 +6397,7 @@ exports.data ={
 			{
 				"name": "-ms-line-break",
 				"desc": "Specifies what set of line breaking restrictions are in effect within the element.",
-				"browsers": "IE10",
+				"browsers": "E,IE10",
 				"restriction": "enum",
 				"values": [
 					{
@@ -5790,7 +6409,8 @@ exports.data ={
 						"desc": "Sequences of CJK characters can no longer break on implied break points. This option should only be used where the presence of word separator characters still creates line-breaking opportunities, as in Korean."
 					},
 					{
-						"name": "newspaper"
+						"name": "newspaper",
+						"desc": "Breaks CJK scripts using the least restrictive set of line-breaking rules. Typically used for short lines, such as in newspapers."
 					},
 					{
 						"name": "normal",
@@ -5805,7 +6425,7 @@ exports.data ={
 			{
 				"name": "-ms-overflow-style",
 				"desc": "Specify whether content is clipped when it overflows the element's content area.",
-				"browsers": "IE10",
+				"browsers": "E,IE10",
 				"restriction": "enum",
 				"values": [
 					{
@@ -5973,7 +6593,7 @@ exports.data ={
 			{
 				"name": "-ms-scroll-chaining",
 				"desc": "Gets or sets a value that indicates the scrolling behavior that occurs when a user hits the content boundary during a manipulation.",
-				"browsers": "IE10",
+				"browsers": "E,IE10",
 				"restriction": "enum, length",
 				"values": [
 					{
@@ -5987,40 +6607,40 @@ exports.data ={
 			{
 				"name": "-ms-scroll-limit",
 				"desc": "Gets or sets a shorthand value that sets values for the -ms-scroll-limit-x-min, -ms-scroll-limit-y-min, -ms-scroll-limit-x-max, and -ms-scroll-limit-y-max properties.",
-				"browsers": "IE10",
+				"browsers": "E,IE10",
 				"restriction": "length",
 				"values": []
 			},
 			{
 				"name": "-ms-scroll-limit-x-max",
 				"desc": "Gets or sets a value that specifies the maximum value for the scrollLeft property.",
-				"browsers": "IE10",
+				"browsers": "E,IE10",
 				"restriction": "length",
 				"values": []
 			},
 			{
 				"name": "-ms-scroll-limit-x-min",
 				"desc": "Gets or sets a value that specifies the minimum value for the scrollLeft property.",
-				"browsers": "IE10",
+				"browsers": "E,IE10",
 				"restriction": "length"
 			},
 			{
 				"name": "-ms-scroll-limit-y-max",
 				"desc": "Gets or sets a value that specifies the maximum value for the scrollTop property.",
-				"browsers": "IE10",
+				"browsers": "E,IE10",
 				"restriction": "length",
 				"values": []
 			},
 			{
 				"name": "-ms-scroll-limit-y-min",
 				"desc": "Gets or sets a value that specifies the minimum value for the scrollTop property.",
-				"browsers": "IE10",
+				"browsers": "E,IE10",
 				"restriction": "length"
 			},
 			{
 				"name": "-ms-scroll-rails",
 				"desc": "Gets or sets a value that indicates whether or not small motions perpendicular to the primary axis of motion will result in either changes to both the scrollTop and scrollLeft properties or a change to the primary axis (for instance, either the scrollTop or scrollLeft properties will change, but not both).",
-				"browsers": "IE10",
+				"browsers": "E,IE10",
 				"restriction": "enum, length",
 				"values": [
 					{
@@ -6034,7 +6654,7 @@ exports.data ={
 			{
 				"name": "-ms-scroll-snap-points-x",
 				"desc": "Gets or sets a value that defines where snap-points will be located along the x-axis.",
-				"browsers": "IE10",
+				"browsers": "E,IE10",
 				"restriction": "enum",
 				"values": [
 					{
@@ -6048,7 +6668,7 @@ exports.data ={
 			{
 				"name": "-ms-scroll-snap-points-y",
 				"desc": "Gets or sets a value that defines where snap-points will be located along the y-axis.",
-				"browsers": "IE10",
+				"browsers": "E,IE10",
 				"restriction": "enum",
 				"values": [
 					{
@@ -6062,7 +6682,7 @@ exports.data ={
 			{
 				"name": "-ms-scroll-snap-type",
 				"desc": "Gets or sets a value that defines what type of snap-point should be used for the current element. There are two type of snap-points, with the primary difference being whether or not the user is guaranteed to always stop on a snap-point.",
-				"browsers": "IE10",
+				"browsers": "E,IE10",
 				"restriction": "enum",
 				"values": [
 					{
@@ -6079,7 +6699,7 @@ exports.data ={
 			{
 				"name": "-ms-scroll-snap-x",
 				"desc": "Gets or sets a shorthand value that sets values for the -ms-scroll-snap-type and -ms-scroll-snap-points-x properties.",
-				"browsers": "IE10",
+				"browsers": "E,IE10",
 				"restriction": "enum",
 				"values": [
 					{
@@ -6102,7 +6722,7 @@ exports.data ={
 			{
 				"name": "-ms-scroll-snap-y",
 				"desc": "Gets or sets a shorthand value that sets values for the -ms-scroll-snap-type and -ms-scroll-snap-points-y properties.",
-				"browsers": "IE10",
+				"browsers": "E,IE10",
 				"restriction": "enum",
 				"values": [
 					{
@@ -6125,7 +6745,7 @@ exports.data ={
 			{
 				"name": "-ms-scroll-translation",
 				"desc": "Gets or sets a value that specifies whether vertical-to-horizontal scroll wheel translation occurs on the specified element.",
-				"browsers": "IE10",
+				"browsers": "E,IE10",
 				"restriction": "enum",
 				"values": [
 					{
@@ -6139,7 +6759,7 @@ exports.data ={
 			{
 				"name": "-ms-text-align-last",
 				"desc": "Describes how the last line of a block or a line right before a forced line break is aligned when 'text-align' is set to 'justify'.",
-				"browsers": "IE8",
+				"browsers": "E,IE8",
 				"restriction": "enum",
 				"values": [
 					{
@@ -6166,7 +6786,7 @@ exports.data ={
 			{
 				"name": "-ms-text-autospace",
 				"desc": "Determines whether or not a full-width punctuation mark character should be trimmed if it appears at the beginning of a line, so that its 'ink' lines up with the first glyph in the line above and below.",
-				"browsers": "IE8",
+				"browsers": "E,IE8",
 				"restriction": "enum",
 				"values": [
 					{
@@ -6191,9 +6811,28 @@ exports.data ={
 				]
 			},
 			{
+				"name": "-ms-text-combine-horizontal",
+				"desc": "This property specifies the combination of multiple characters into the space of a single character.",
+				"browsers": "E,IE11",
+				"restriction": "enum, integer",
+				"values": [
+					{
+						"name": "all",
+						"desc": "Attempt to typeset horizontally all consecutive characters within the box such that they take up the space of a single character within the vertical line box."
+					},
+					{
+						"name": "digits"
+					},
+					{
+						"name": "none",
+						"desc": "No special processing."
+					}
+				]
+			},
+			{
 				"name": "-ms-text-justify",
 				"desc": "Selects the justification algorithm used when 'text-align' is set to 'justify'. The property applies to block containers, but the UA may (but is not required to) also support it on inline elements.",
-				"browsers": "IE8",
+				"browsers": "E,IE8",
 				"restriction": "enum",
 				"values": [
 					{
@@ -6221,7 +6860,7 @@ exports.data ={
 			{
 				"name": "-ms-text-kashida-space",
 				"desc": "Sets or retrieves the ratio of kashida expansion to white space expansion when justifying lines of text in the object.",
-				"browsers": "IE10",
+				"browsers": "E,IE10",
 				"restriction": "percentage"
 			},
 			{
@@ -6241,7 +6880,7 @@ exports.data ={
 			{
 				"name": "-ms-text-size-adjust",
 				"desc": "Specifies a size adjustment for displaying text content in mobile browsers.",
-				"browsers": "IE10",
+				"browsers": "E,IE10",
 				"restriction": "enum, percentage",
 				"values": [
 					{
@@ -6255,7 +6894,7 @@ exports.data ={
 			{
 				"name": "-ms-text-underline-position",
 				"desc": "Sets the position of an underline specified on the same element: it does not affect underlines specified by ancestor elements.This property is typically used in vertical writing contexts such as in Japanese documents where it often desired to have the underline appear 'over' (to the right of) the affected run of text",
-				"browsers": "IE10",
+				"browsers": "E,IE10",
 				"restriction": "enum",
 				"values": [
 					{
@@ -6312,7 +6951,7 @@ exports.data ={
 			{
 				"name": "-ms-touch-select",
 				"desc": "Gets or sets a value that toggles the 'gripper' visual elements that enable touch text selection.",
-				"browsers": "IE10",
+				"browsers": "E,IE10",
 				"restriction": "enum",
 				"values": [
 					{
@@ -6439,7 +7078,7 @@ exports.data ={
 			{
 				"name": "-ms-user-select",
 				"desc": "Controls the appearance of selection.",
-				"browsers": "IE10",
+				"browsers": "E,IE10",
 				"restriction": "enum",
 				"values": [
 					{
@@ -6479,7 +7118,8 @@ exports.data ={
 				"restriction": "enum",
 				"values": [
 					{
-						"name": "break-word"
+						"name": "break-word",
+						"desc": "An unbreakable 'word' may be broken at an arbitrary point if there are no otherwise-acceptable break points in the line."
 					},
 					{
 						"name": "normal",
@@ -6490,7 +7130,7 @@ exports.data ={
 			{
 				"name": "-ms-wrap-flow",
 				"desc": "An element becomes an exclusion when its 'wrap-flow' property has a computed value other than 'auto'.",
-				"browsers": "IE10",
+				"browsers": "E,IE10",
 				"restriction": "enum",
 				"values": [
 					{
@@ -6512,6 +7152,9 @@ exports.data ={
 						"name": "maximum"
 					},
 					{
+						"name": "minimum"
+					},
+					{
 						"name": "start",
 						"desc": "Inline flow content can wrap on the start edge of the exclusion area but must leave the area to end edge of the exclusion area empty."
 					}
@@ -6520,13 +7163,13 @@ exports.data ={
 			{
 				"name": "-ms-wrap-margin",
 				"desc": "Gets or sets a value that is used to offset the inner wrap shape from other shapes.",
-				"browsers": "IE10",
+				"browsers": "E,IE10",
 				"restriction": "length, percentage"
 			},
 			{
 				"name": "-ms-wrap-through",
 				"desc": "Gets or sets a value that specifies how content should wrap around an exclusion element.",
-				"browsers": "IE10",
+				"browsers": "E,IE10",
 				"restriction": "enum",
 				"values": [
 					{
@@ -6797,14 +7440,14 @@ exports.data ={
 				"name": "-o-animation-iteration-count",
 				"desc": "Defines the number of times an animation cycle is played. The default value is one, meaning the animation will play from beginning to end once.",
 				"browsers": "O12",
-				"restriction": "number",
+				"restriction": "number, enum",
 				"values": []
 			},
 			{
 				"name": "-o-animation-name",
 				"desc": "Defines a list of animations that apply. Each name is used to select the keyframe at-rule that provides the property values for the animation.",
 				"browsers": "O12",
-				"restriction": "identifier",
+				"restriction": "identifier, enum",
 				"values": []
 			},
 			{
@@ -6857,9 +7500,32 @@ exports.data ={
 				]
 			},
 			{
+				"name": "object-fit",
+				"desc": "The object-fit property specifies how the contents of a replaced element should be scaled relative to the box established by its used height and width.",
+				"browsers": "C32,FF36,O19,S7.1",
+				"restriction": "enum",
+				"values": [
+					{
+						"name": "contain"
+					},
+					{
+						"name": "cover"
+					},
+					{
+						"name": "fill"
+					},
+					{
+						"name": "none"
+					},
+					{
+						"name": "scale-down"
+					}
+				]
+			},
+			{
 				"name": "object-position",
 				"desc": "Determines the alignment of the replaced element inside its box.",
-				"browsers": "O10.6",
+				"browsers": "C32,FF36,O19",
 				"restriction": "enum, length, percentage",
 				"values": [
 					{
@@ -6972,11 +7638,8 @@ exports.data ={
 			{
 				"name": "order",
 				"desc": "Controls the order in which flex items appear within their flex container, by assigning them to ordinal groups.",
-				"browsers": "IE11,O12.1",
+				"browsers": "E,C29,FF22,IE11,O12.1,S9",
 				"restriction": "integer"
-			},
-			{
-				"name": "orientation"
 			},
 			{
 				"name": "orphans",
@@ -7212,8 +7875,8 @@ exports.data ={
 			},
 			{
 				"name": "outline",
-				"desc": "Shorthand property, and sets all three of 'outline-style', 'outline-width', and 'outline-color'.",
-				"browsers": "C,FF1.5,IE8,O8,S1.2",
+				"desc": "Shorthand property for 'outline-style', 'outline-width', and 'outline-color'.",
+				"browsers": "E,C,FF1.5,IE8,O8,S1.2",
 				"restriction": "length, color, enum",
 				"values": [
 					{
@@ -7269,7 +7932,7 @@ exports.data ={
 			{
 				"name": "outline-color",
 				"desc": "The color of the outline",
-				"browsers": "C,FF1.5,IE8,O8,S1.2",
+				"browsers": "E,C,FF1.5,IE8,O8,S1.2",
 				"restriction": "color",
 				"values": [
 					{
@@ -7286,7 +7949,7 @@ exports.data ={
 			{
 				"name": "outline-style",
 				"desc": "Style of the outline",
-				"browsers": "C,FF1.5,IE8,O8,S1.2",
+				"browsers": "E,C,FF1.5,IE8,O8,S1.2",
 				"restriction": "enum",
 				"values": [
 					{
@@ -7334,7 +7997,7 @@ exports.data ={
 			{
 				"name": "outline-width",
 				"desc": "Width of the outline",
-				"browsers": "C,FF1.5,IE8,O8,S1.2",
+				"browsers": "E,C,FF1.5,IE8,O8,S1.2",
 				"restriction": "length",
 				"values": [
 					{
@@ -7376,9 +8039,23 @@ exports.data ={
 				]
 			},
 			{
+				"name": "overflow-wrap",
+				"desc": "This property specifies whether the UA may break within a word to prevent overflow when an otherwise-unbreakable string is too long to fit within the line box.",
+				"browsers": "C23,O12.1,S6.1",
+				"restriction": "enum",
+				"values": [
+					{
+						"name": "break-word"
+					},
+					{
+						"name": "normal"
+					}
+				]
+			},
+			{
 				"name": "overflow-x",
 				"desc": "Specify whether content is clipped when it overflows the element's content area.",
-				"browsers": "C,FF1.5,IE5,O9.5,S3",
+				"browsers": "E,C,FF1.5,IE5,O9.5,S3",
 				"restriction": "enum",
 				"values": [
 					{
@@ -7402,7 +8079,7 @@ exports.data ={
 			{
 				"name": "overflow-y",
 				"desc": "Specify whether content is clipped when it overflows the element's content area.",
-				"browsers": "C,FF1.5,IE5,O9.5,S3",
+				"browsers": "E,C,FF1.5,IE5,O9.5,S3",
 				"restriction": "enum",
 				"values": [
 					{
@@ -7540,15 +8217,15 @@ exports.data ={
 			{
 				"name": "perspective",
 				"desc": "Applies the same transform as the perspective(<number>) transform function, except that it applies only to the positioned or transformed children of the element, not to the transform on the element itself.",
-				"browsers": "FF16,IE10,O12.5",
-				"restriction": "length",
+				"browsers": "E,C36,FF16,IE10,O23,S9",
+				"restriction": "length, enum",
 				"values": []
 			},
 			{
 				"name": "perspective-origin",
 				"desc": "Establishes the origin for the perspective property. It effectively sets the X and Y position at which the viewer appears to be looking at the children of the element.",
-				"browsers": "FF16,IE10,O12.5",
-				"restriction": "percentage, length",
+				"browsers": "E,C36,FF16,IE10,O23,S9",
+				"restriction": "percentage, length, enum",
 				"values": [
 					{
 						"name": "bottom"
@@ -7609,20 +8286,12 @@ exports.data ={
 						"name": "absolute"
 					},
 					{
-						"name": "center",
-						"desc": "Center positioned boxes are taken out of the normal flow. This means they have no impact on the layout of later siblings."
-					},
-					{
 						"name": "fixed",
 						"desc": "The box's position is calculated according to the 'absolute' model, but in addition, the box is fixed with respect to some reference. As with the 'absolute' model, the box's margins do not collapse with any other margins."
 					},
 					{
 						"name": "-ms-page",
-						"browsers": "IE10"
-					},
-					{
-						"name": "page",
-						"desc": "The box's position is calculated according to the 'absolute' model."
+						"browsers": "E,IE10"
 					},
 					{
 						"name": "relative"
@@ -7631,7 +8300,8 @@ exports.data ={
 						"name": "static"
 					},
 					{
-						"name": "sticky"
+						"name": "sticky",
+						"browsers": "FF32"
 					},
 					{
 						"name": "-webkit-sticky",
@@ -7642,14 +8312,14 @@ exports.data ={
 			{
 				"name": "quotes",
 				"desc": "Specifies quotation marks for any number of embedded quotations.",
-				"browsers": "C,FF1.5,IE8,O8,S5.1",
+				"browsers": "E,C,FF1.5,IE8,O8,S5.1",
 				"restriction": "string",
 				"values": []
 			},
 			{
 				"name": "resize",
 				"desc": "Allows control over the appearance and function of the resizing mechanism (e.g. a resize box or widget) on the element. Applies to elements with 'overflow' other than 'visible'.",
-				"browsers": "C,FF4,S3",
+				"browsers": "C,FF4,O15,S3",
 				"restriction": "enum",
 				"values": [
 					{
@@ -7684,36 +8354,46 @@ exports.data ={
 				"values": [
 					{
 						"name": "auto",
-						"desc": "The user agent determines how the ruby contents are aligned. This is the initial value."
+						"desc": "The user agent determines how the ruby contents are aligned. This is the initial value.",
+						"browsers": "E,IE5"
 					},
 					{
 						"name": "center",
 						"desc": "The ruby text content is centered within the width of the base. If the length of the base is smaller than the length of the ruby text, then the base is centered within the width of the ruby text."
 					},
 					{
-						"name": "distribute-letter"
+						"name": "distribute-letter",
+						"browsers": "E,IE5"
 					},
 					{
-						"name": "distribute-space"
-					},
-					{
-						"name": "end",
-						"desc": "The ruby text content is aligned with the end edge of the base."
+						"name": "distribute-space",
+						"browsers": "E,IE5"
 					},
 					{
 						"name": "left",
 						"desc": "The ruby text content is aligned with the start edge of the base."
 					},
 					{
-						"name": "line-edge"
+						"name": "line-edge",
+						"browsers": "E,IE5"
 					},
 					{
 						"name": "right",
-						"desc": "The ruby text content is aligned with the end edge of the base."
+						"desc": "The ruby text content is aligned with the end edge of the base.",
+						"browsers": "E,IE5"
 					},
 					{
 						"name": "start",
-						"desc": "The ruby text content is aligned with the start edge of the base."
+						"desc": "The ruby text content is aligned with the start edge of the base.",
+						"browsers": "FF10"
+					},
+					{
+						"name": "space-between",
+						"browsers": "FF10"
+					},
+					{
+						"name": "space-around",
+						"browsers": "FF10"
 					}
 				]
 			},
@@ -7834,14 +8514,182 @@ exports.data ={
 				"values": []
 			},
 			{
+				"name": "scroll-behavior",
+				"desc": "Specifies the scrolling behavior for a scrolling box, when scrolling happens due to navigation or CSSOM scrolling APIs.",
+				"browsers": "36",
+				"restriction": "enum",
+				"values": [
+					{
+						"name": "instant"
+					},
+					{
+						"name": "smooth"
+					}
+				]
+			},
+			{
+				"name": "scroll-snap-coordinate",
+				"desc": "Defines the x and y coordinate within the element which will align with the nearest ancestor scroll container’s snap-destination for the respective axis.",
+				"browsers": "FF39",
+				"restriction": "length, percentage, enum",
+				"values": [
+					{
+						"name": "none"
+					},
+					{
+						"name": "top"
+					},
+					{
+						"name": "right"
+					},
+					{
+						"name": "bottom"
+					},
+					{
+						"name": "left"
+					},
+					{
+						"name": "center"
+					}
+				]
+			},
+			{
+				"name": "scroll-snap-destination",
+				"desc": "Define the x and y coordinate within the scroll container’s visual viewport which element snap points will align with.",
+				"browsers": "FF39",
+				"restriction": "length, percentage, enum",
+				"values": [
+					{
+						"name": "top"
+					},
+					{
+						"name": "right"
+					},
+					{
+						"name": "bottom"
+					},
+					{
+						"name": "left"
+					},
+					{
+						"name": "center"
+					}
+				]
+			},
+			{
+				"name": "scroll-snap-points-x",
+				"desc": "Defines the positioning of snap points along the x axis of the scroll container it is applied to.",
+				"browsers": "FF39",
+				"restriction": "enum",
+				"values": [
+					{
+						"name": "none"
+					},
+					{
+						"name": "repeat()"
+					}
+				]
+			},
+			{
+				"name": "scroll-snap-points-y",
+				"desc": "Defines the positioning of snap points alobg the y axis of the scroll container it is applied to.",
+				"browsers": "FF39",
+				"restriction": "enum",
+				"values": [
+					{
+						"name": "none"
+					},
+					{
+						"name": "repeat()"
+					}
+				]
+			},
+			{
+				"name": "scroll-snap-type",
+				"desc": "Defines how strictly snap points are enforced on the scroll container.",
+				"browsers": "FF39",
+				"restriction": "enum",
+				"values": [
+					{
+						"name": "none"
+					},
+					{
+						"name": "mandatory"
+					},
+					{
+						"name": "proximity"
+					}
+				]
+			},
+			{
+				"name": "shape-image-threshold",
+				"desc": "Defines the alpha channel threshold used to extract the shape using an image. A value of 0.5 means that the shape will enclose all the pixels that are more than 50% opaque.",
+				"browsers": "C37,O24",
+				"restriction": "number"
+			},
+			{
+				"name": "shape-margin",
+				"desc": "Adds a margin to a 'shape-outside'. This defines a new shape that is the smallest contour that includes all the points that are the 'shape-margin' distance outward in the perpendicular direction from a point on the underlying shape.",
+				"browsers": "C37,O24",
+				"restriction": "url, length, percentage"
+			},
+			{
+				"name": "shape-outside",
+				"desc": "This property specifies an orthogonal rotation to be applied to an image before it is laid out.",
+				"browsers": "C37,O24",
+				"restriction": "enum",
+				"values": [
+					{
+						"name": "border-box",
+						"desc": "The background is painted within (clipped to) the border box."
+					},
+					{
+						"name": "circle()"
+					},
+					{
+						"name": "content-box",
+						"desc": "The background is painted within (clipped to) the content box."
+					},
+					{
+						"name": "ellipse()"
+					},
+					{
+						"name": "image()"
+					},
+					{
+						"name": "inset()"
+					},
+					{
+						"name": "linear-gradient()"
+					},
+					{
+						"name": "margin-box"
+					},
+					{
+						"name": "none"
+					},
+					{
+						"name": "padding-box",
+						"desc": "The background is painted within (clipped to) the padding box"
+					},
+					{
+						"name": "polygon()"
+					},
+					{
+						"name": "radial-gradient()"
+					},
+					{
+						"name": "repeating-linear-gradient()"
+					},
+					{
+						"name": "repeating-radial-gradient()"
+					}
+				]
+			},
+			{
 				"name": "size",
 				"browsers": "C,O8",
 				"restriction": "length"
-			},
-			{
-				"name": "src",
-				"desc": "specifies the resource containing font data. It is required, whether the font is downloadable or locally installed. It's value is a prioritized, comma-separated list of external references or locally installed font face names.",
-				"restriction": "enum, string, url, identifier"
 			},
 			{
 				"name": "stop-color",
@@ -7934,6 +8782,12 @@ exports.data ={
 				]
 			},
 			{
+				"name": "tab-size",
+				"desc": "Determines the width of the tab character (U+0009), in space characters (U+0020), when rendered",
+				"browsers": "C42,O29,S6.1",
+				"restriction": "integer, length"
+			},
+			{
 				"name": "text-align",
 				"desc": "Describes how inline contents of a block are horizontally aligned if the contents do not completely fill the line box.",
 				"restriction": "string",
@@ -7959,7 +8813,7 @@ exports.data ={
 			{
 				"name": "text-align-last",
 				"desc": "Describes how the last line of a block or a line right before a forced line break is aligned when 'text-align' is set to 'justify'.",
-				"browsers": "FF12,IE5",
+				"browsers": "E,FF12,IE5",
 				"restriction": "enum",
 				"values": [
 					{
@@ -8000,24 +8854,6 @@ exports.data ={
 				]
 			},
 			{
-				"name": "text-combine-upright",
-				"desc": "This property specifies the combination of multiple characters into the space of a single character.",
-				"restriction": "enum, integer",
-				"values": [
-					{
-						"name": "all",
-						"desc": "Attempt to typeset horizontally all consecutive characters within the box such that they take up the space of a single character within the vertical line box."
-					},
-					{
-						"name": "digits"
-					},
-					{
-						"name": "none",
-						"desc": "No special processing."
-					}
-				]
-			},
-			{
 				"name": "text-decoration",
 				"desc": "Decorations applied to font used for an element's text.",
 				"restriction": "enum, color",
@@ -8053,6 +8889,58 @@ exports.data ={
 				]
 			},
 			{
+				"name": "text-decoration-line",
+				"desc": "Specifies what line decorations, if any, are added to the element.",
+				"browsers": "FF36",
+				"restriction": "enum",
+				"values": [
+					{
+						"name": "line-through"
+					},
+					{
+						"name": "none",
+						"desc": "Neither produces nor inhibits text decoration."
+					},
+					{
+						"name": "overline"
+					},
+					{
+						"name": "underline"
+					}
+				]
+			},
+			{
+				"name": "text-decoration-style",
+				"desc": "Specifies the line style for underline, line-through and overline text decoration.",
+				"browsers": "FF36",
+				"restriction": "enum",
+				"values": [
+					{
+						"name": "dashed",
+						"desc": "Produces a dashed line style."
+					},
+					{
+						"name": "dotted",
+						"desc": "Produces a dotted line."
+					},
+					{
+						"name": "double",
+						"desc": "Produces a double line."
+					},
+					{
+						"name": "none",
+						"desc": "Produces no line."
+					},
+					{
+						"name": "solid",
+						"desc": "Produces a solid line."
+					},
+					{
+						"name": "wavy"
+					}
+				]
+			},
+			{
 				"name": "text-indent",
 				"desc": "Specifies the indentation applied to lines of inline content in a block. The indentation only affects the first line of inline content in the block unless the 'hanging' keyword is specified, in which case it affects all lines except the first.",
 				"restriction": "percentage, length",
@@ -8061,7 +8949,7 @@ exports.data ={
 			{
 				"name": "text-justify",
 				"desc": "Selects the justification algorithm used when 'text-align' is set to 'justify'. The property applies to block containers, but the UA may (but is not required to) also support it on inline elements.",
-				"browsers": "IE5.5",
+				"browsers": "E,IE5.5",
 				"restriction": "enum",
 				"values": [
 					{
@@ -8071,6 +8959,9 @@ exports.data ={
 					{
 						"name": "distribute",
 						"desc": "Justification primarily changes spacing both at word separators and at grapheme cluster boundaries in all scripts except those in the connected and cursive groups. This value is sometimes used in e.g. Japanese, often with the 'text-align-last' property."
+					},
+					{
+						"name": "distribute-all-lines"
 					},
 					{
 						"name": "inter-cluster"
@@ -8083,39 +8974,36 @@ exports.data ={
 					},
 					{
 						"name": "kashida"
+					},
+					{
+						"name": "newspaper"
 					}
 				]
 			},
 			{
 				"name": "text-orientation",
-				"desc": "This property specifies the orientation of text within a line",
+				"desc": "Specifies the orientation of text within a line.",
+				"browsers": "C,O15,S5.1",
 				"restriction": "enum",
 				"values": [
 					{
-						"name": "mixed"
+						"name": "sideways",
+						"browsers": "C25,O15,S6.1"
 					},
 					{
-						"name": "sideways"
-					},
-					{
-						"name": "sideways-left"
-					},
-					{
-						"name": "sideways-right"
+						"name": "sideways-right",
+						"browsers": "C25,O15,S6.1"
 					},
 					{
 						"name": "upright"
-					},
-					{
-						"name": "use-glyph-orientation"
 					}
 				]
 			},
 			{
 				"name": "text-overflow",
 				"desc": "Text can overflow for example when it is prevented from wrapping",
-				"browsers": "C,FF9,IE5.5,O11.6,S2",
-				"restriction": "enum",
+				"browsers": "E,C,FF9,IE5.5,O11.6,S2",
+				"restriction": "enum, string",
 				"values": [
 					{
 						"name": "clip"
@@ -8148,7 +9036,7 @@ exports.data ={
 			{
 				"name": "text-shadow",
 				"desc": "Enables shadow effects to be applied to the text of the element.",
-				"browsers": "C,FF3.6,IE10,O9.5,S1.1",
+				"browsers": "E,C,FF3.6,IE10,O9.5,S1.1",
 				"restriction": "length, color",
 				"values": []
 			},
@@ -8175,9 +9063,12 @@ exports.data ={
 			{
 				"name": "text-underline-position",
 				"desc": "Sets the position of an underline specified on the same element: it does not affect underlines specified by ancestor elements. This property is typically used in vertical writing contexts such as in Japanese documents where it often desired to have the underline appear 'over' (to the right of) the affected run of text",
-				"browsers": "IE10",
+				"browsers": "E,IE10",
 				"restriction": "enum",
 				"values": [
+					{
+						"name": "above"
+					},
 					{
 						"name": "auto",
 						"desc": "The user agent may use any algorithm to determine the underline's position. In horizontal line layout, the underline should be aligned as for alphabetic. In vertical line layout, if the language is set to Japanese or Korean, the underline should be aligned as for over."
@@ -8196,14 +9087,23 @@ exports.data ={
 			},
 			{
 				"name": "touch-action",
-				"browsers": "IE11",
+				"browsers": "E,C36,IE11,O23",
 				"restriction": "enum",
 				"values": [
 					{
 						"name": "auto"
 					},
 					{
-						"name": "double-tap-zoom"
+						"name": "cross-slide-x",
+						"browsers": "E,IE11"
+					},
+					{
+						"name": "cross-slide-y",
+						"browsers": "E,IE11"
+					},
+					{
+						"name": "double-tap-zoom",
+						"browsers": "E,IE11"
 					},
 					{
 						"name": "manipulation"
@@ -8218,14 +9118,15 @@ exports.data ={
 						"name": "pan-y"
 					},
 					{
-						"name": "pinch-zoom"
+						"name": "pinch-zoom",
+						"browsers": "E,IE11"
 					}
 				]
 			},
 			{
 				"name": "transform",
 				"desc": "A two-dimensional transformation is applied to an element through the 'transform' property. This property contains a list of transform functions similar to those allowed by SVG.",
-				"browsers": "FF16,IE10,O12.5",
+				"browsers": "E,C36,FF16,IE10,O12.1,S9",
 				"restriction": "enum",
 				"values": [
 					{
@@ -8236,6 +9137,9 @@ exports.data ={
 					},
 					{
 						"name": "none"
+					},
+					{
+						"name": "perspective()"
 					},
 					{
 						"name": "rotate()"
@@ -8296,8 +9200,8 @@ exports.data ={
 			{
 				"name": "transform-origin",
 				"desc": "Establishes the origin of transformation for an element. This property is applied by first translating the element by the negated value of the property, then applying the element's transform, then translating by the property value.",
-				"browsers": "FF16,IE10,O12.5",
-				"restriction": "length, percentage",
+				"browsers": "E,C36,FF16,IE10,O12.1,S9",
+				"restriction": "length, percentage, enum",
 				"values": [
 					{
 						"name": "bottom"
@@ -8319,18 +9223,22 @@ exports.data ={
 			{
 				"name": "transform-style",
 				"desc": "Defines how nested elements are rendered in 3D space.",
-				"browsers": "FF16,IE10,O12.5",
+				"browsers": "E,C36,FF16,IE10,O23,S9",
 				"restriction": "enum",
 				"values": [
 					{
 						"name": "flat"
+					},
+					{
+						"name": "preserve-3d",
+						"browsers": "E,C36,FF16,O23,S9"
 					}
 				]
 			},
 			{
 				"name": "transition",
 				"desc": "Shorthand property combines four of the transition properties into a single property.",
-				"browsers": "FF16,IE10,O12.5",
+				"browsers": "E,FF16,IE10,O12.5",
 				"restriction": "time, property, enum",
 				"values": [
 					{
@@ -8373,19 +9281,19 @@ exports.data ={
 			{
 				"name": "transition-delay",
 				"desc": "Defines when the transition will start. It allows a transition to begin execution some period of time from when it is applied.",
-				"browsers": "FF16,IE10,O12.5",
+				"browsers": "E,FF16,IE10,O12.5",
 				"restriction": "time"
 			},
 			{
 				"name": "transition-duration",
 				"desc": "Specifies how long the transition from the old value to the new value should take.",
-				"browsers": "FF16,IE10,O12.5",
+				"browsers": "E,FF16,IE10,O12.5",
 				"restriction": "time"
 			},
 			{
 				"name": "transition-property",
 				"desc": "Specifies the name of the CSS property to which the transition is applied.",
-				"browsers": "FF16,IE10,O12.5",
+				"browsers": "E,FF16,IE10,O12.5",
 				"restriction": "property",
 				"values": [
 					{
@@ -8401,7 +9309,7 @@ exports.data ={
 			{
 				"name": "transition-timing-function",
 				"desc": "Describes how the intermediate values used during a transition will be calculated.",
-				"browsers": "FF16,IE10,O12.5",
+				"browsers": "E,FF16,IE10,O12.5",
 				"restriction": "enum",
 				"values": [
 					{
@@ -8445,11 +9353,21 @@ exports.data ={
 						"name": "embed"
 					},
 					{
-						"name": "isolate-override"
+						"name": "isolate",
+						"desc": "The contents of the element are considered to be inside a separate, independent paragraph.",
+						"browsers": "C,FF10,O15,S5.1"
+					},
+					{
+						"name": "isolate-override",
+						"browsers": "C,FF17,O15,S6.1"
 					},
 					{
 						"name": "normal",
 						"desc": "The element does not open an additional level of embedding with respect to the bidirectional algorithm. For inline-level elements, implicit reordering works across element boundaries."
+					},
+					{
+						"name": "plaintext",
+						"browsers": "C,FF10,O15,S6"
 					}
 				]
 			},
@@ -8457,9 +9375,6 @@ exports.data ={
 				"name": "unicode-range",
 				"desc": "Range of Unicode characters supported by a given font. Initial value is U+0-10FFFF",
 				"restriction": "unicode-range"
-			},
-			{
-				"name": "user-zoom"
 			},
 			{
 				"name": "vertical-align",
@@ -8483,10 +9398,12 @@ exports.data ={
 						"desc": "Align the 'middle' baseline of the inline element with the middle baseline of the parent."
 					},
 					{
-						"name": "sub"
+						"name": "sub",
+						"desc": "Lower the baseline of the box to the proper position for subscripts of the parent's box. (This value has no effect on the font size of the element's text.)"
 					},
 					{
-						"name": "super"
+						"name": "super",
+						"desc": "Raise the baseline of the box to the proper position for superscripts of the parent's box. (This value has no effect on the font size of the element's text.)"
 					},
 					{
 						"name": "text-bottom"
@@ -8649,14 +9566,14 @@ exports.data ={
 				"name": "-webkit-animation-iteration-count",
 				"desc": "Defines the number of times an animation cycle is played. The default value is one, meaning the animation will play from beginning to end once.",
 				"browsers": "C,S5",
-				"restriction": "number",
+				"restriction": "number, enum",
 				"values": []
 			},
 			{
 				"name": "-webkit-animation-name",
 				"desc": "Defines a list of animations that apply. Each name is used to select the keyframe at-rule that provides the property values for the animation.",
 				"browsers": "C,S5",
-				"restriction": "identifier",
+				"restriction": "identifier, enum",
 				"values": []
 			},
 			{
@@ -8877,7 +9794,8 @@ exports.data ={
 						"desc": "The background is painted within (clipped to) the content box."
 					},
 					{
-						"name": "padding-box"
+						"name": "padding-box",
+						"desc": "The background is painted within (clipped to) the padding box"
 					}
 				]
 			},
@@ -8909,7 +9827,8 @@ exports.data ={
 						"desc": "The background is painted within (clipped to) the content box."
 					},
 					{
-						"name": "padding-box"
+						"name": "padding-box",
+						"desc": "The background is painted within (clipped to) the padding box"
 					}
 				]
 			},
@@ -9065,7 +9984,8 @@ exports.data ={
 				"browsers": "C,S4",
 				"values": [
 					{
-						"name": "above"
+						"name": "above",
+						"desc": "The reflection appears above the border box."
 					},
 					{
 						"name": "below",
@@ -9135,8 +10055,7 @@ exports.data ={
 						"desc": "Force one or two page breaks before/after the generated box so that the next page is formatted as a left page."
 					},
 					{
-						"name": "page",
-						"desc": "Always force a page break before/after the generated box."
+						"name": "page"
 					},
 					{
 						"name": "region"
@@ -9185,8 +10104,7 @@ exports.data ={
 						"desc": "Force one or two page breaks before/after the generated box so that the next page is formatted as a left page."
 					},
 					{
-						"name": "page",
-						"desc": "Always force a page break before/after the generated box."
+						"name": "page"
 					},
 					{
 						"name": "region"
@@ -9262,8 +10180,7 @@ exports.data ={
 						"desc": "Force one or two page breaks before/after the generated box so that the next page is formatted as a left page."
 					},
 					{
-						"name": "page",
-						"desc": "Always force a page break before/after the generated box."
+						"name": "page"
 					},
 					{
 						"name": "region"
@@ -9312,8 +10229,7 @@ exports.data ={
 						"desc": "Force one or two page breaks before/after the generated box so that the next page is formatted as a left page."
 					},
 					{
-						"name": "page",
-						"desc": "Always force a page break before/after the generated box."
+						"name": "page"
 					},
 					{
 						"name": "region"
@@ -9562,7 +10478,7 @@ exports.data ={
 			{
 				"name": "-webkit-font-feature-settings",
 				"desc": "This property provides low-level control over OpenType font features. It is intended as a way of providing access to font features that are not widely used but are needed for a particular use case.",
-				"browsers": "C,S5.2",
+				"browsers": "C16",
 				"restriction": "string, integer",
 				"values": [
 					{
@@ -9595,6 +10511,12 @@ exports.data ={
 					{
 						"name": "normal",
 						"desc": "No change in glyph substitution or positioning occurs."
+					},
+					{
+						"name": "off"
+					},
+					{
+						"name": "on"
 					}
 				]
 			},
@@ -9848,6 +10770,9 @@ exports.data ={
 						"name": "none"
 					},
 					{
+						"name": "perspective()"
+					},
+					{
 						"name": "rotate()"
 					},
 					{
@@ -9906,7 +10831,7 @@ exports.data ={
 			{
 				"name": "-webkit-transform-origin",
 				"desc": "Establishes the origin of transformation for an element. This property is applied by first translating the element by the negated value of the property, then applying the element's transform, then translating by the property value.",
-				"browsers": "C,O12,S3.1",
+				"browsers": "C,O15,S3.1",
 				"restriction": "length, percentage",
 				"values": [
 					{
@@ -10150,7 +11075,7 @@ exports.data ={
 			{
 				"name": "will-change",
 				"desc": "Provides a rendering hint to the user agent, stating what kinds of changes the author expects to perform on the element.",
-				"browsers": "C,FF",
+				"browsers": "C36,FF36,O24",
 				"restriction": "enum, identifier",
 				"values": [
 					{
@@ -10167,7 +11092,7 @@ exports.data ={
 			{
 				"name": "word-break",
 				"desc": "Specifies line break opportunities for non-CJK scripts.",
-				"browsers": "C,FF15,IE5,S3",
+				"browsers": "E,C,FF15,IE5,S3",
 				"restriction": "enum",
 				"values": [
 					{
@@ -10195,7 +11120,8 @@ exports.data ={
 				"restriction": "enum",
 				"values": [
 					{
-						"name": "break-word"
+						"name": "break-word",
+						"desc": "An unbreakable 'word' may be broken at an arbitrary point if there are no otherwise-acceptable break points in the line."
 					},
 					{
 						"name": "normal",
@@ -10206,6 +11132,7 @@ exports.data ={
 			{
 				"name": "writing-mode",
 				"desc": "This is a shorthand property for both 'direction' and 'block-progression'.",
+				"browsers": "E,FF41",
 				"restriction": "enum",
 				"values": [
 					{
@@ -10227,8 +11154,8 @@ exports.data ={
 			},
 			{
 				"name": "zoom",
-				"desc": "Sets or retrieves the magnification scale of the object.",
-				"browsers": "IE6,S4",
+				"desc": "Non-standard. Specifies the magnification scale of the object. See 'transform: scale()' for a standards-based alternative.",
+				"browsers": "E,C,IE6,O15,S4",
 				"restriction": "enum, integer, number, percentage",
 				"values": []
 			}
@@ -10264,7 +11191,6 @@ exports.descriptions = {
 	"running": "Resume playback of a paused animation.",
 	"local": "The background is fixed with regard to the element's contents: if the element has a scrolling mechanism, the background scrolls with the element's contents.",
 	"no-repeat": "The image is placed once and not repeated in this direction.",
-	"padding-box": "The background is painted within (clipped to) the padding box",
 	"repeat-x": "Equivalent to 'repeat no-repeat'.",
 	"repeat-y": "Equivalent to 'no-repeat repeat'.",
 	"groove": "Looks as if it were carved in the canvas. (This is typically achieved by creating a \"shadow\" from two colors that are slightly lighter and darker than the 'border-color'.)",
@@ -10272,6 +11198,7 @@ exports.descriptions = {
 	"ridge": "Looks as if it were coming out of the canvas.",
 	"clone": "Each box is independently wrapped with the border and padding. The 'border-radius' and 'border-image' and 'box-shadow', if any, are applied to each box independently. The background is drawn independently in each box of the element. A no-repeat background image will thus be rendered once in each box of the element.",
 	"slice": "No border and no padding are inserted at the break. No box-shadow is drawn at the broken edge; 'border-radius' has no effect at its corners; and the 'border-image' is rendered for the whole box as if it were unbroken. The effect is as though the element were rendered with no break present, and then sliced by the break afterward.",
+	"page": "Always force a page break before/after the generated box.",
 	"balance": "Balance content equally between columns, if possible.",
 	"attr()": "The attr(n) function returns as a string the value of attribute n for the subject of the selector",
 	"counter(name)": "Counters are denoted by identifiers (see the 'counter-increment' and 'counter-reset' properties).",
@@ -10303,6 +11230,8 @@ exports.descriptions = {
 	"vertical-text": "Indicates vertical-text that may be selected. Often rendered as a horizontal I-beam.",
 	"wait": "Indicates that the program is busy and the user should wait. Often rendered as a watch or hourglass.",
 	"w-resize": "Indicates that west edge is to be moved.",
+	"zoom-in": "Indicates that something can be zoomed (magnified) in or out, and often rendered as a magnifying glass with a '+' or '-' in the center of the glass, for 'zoom-in’ and 'zoom-out' respectively.",
+	"zoom-out": "Indicates that something can be zoomed (magnified) in or out, and often rendered as a magnifying glass with a '+' or '-' in the center of the glass, for 'zoom-in’ and 'zoom-out' respectively.",
 	"ltr": "Left-to-right direction.",
 	"rtl": "Right-to-left direction.",
 	"block": "Block boxes.",
@@ -10315,6 +11244,13 @@ exports.descriptions = {
 	"show": "Borders and backgrounds are drawn around/behind empty cells (like normal cells).",
 	"accumulate": "If the ancestor container element has a property of new, then all graphics elements within the current container are rendered both on the parent's background image and onto the target.",
 	"new": "Create a new background image canvas. All children of the current container element can access the background, and they will be rendered onto both the parent's background image canvas in addition to the target device.",
+	"blur()": "Applies a Gaussian blur to the input image.",
+	"brightness()": "Applies a linear multiplier to input image, making it appear more or less bright.",
+	"contrast()": "Adjusts the contrast of the input.",
+	"drop-shadow()": "Applies a drop shadow effect to the input image.",
+	"hue-rotate()": "Applies a hue rotation on the input image. ",
+	"opacity()": "Applies transparency to the samples in the input image.",
+	"saturate()": "Saturates the input image.",
 	"wrap-reverse": "Same as 'wrap', except the cross-start and cross-end directions are swapped.",
 	"bold": "Same as 700",
 	"bolder": "Specifies the weight of the face bolder than the inherited value.",
@@ -10324,12 +11260,52 @@ exports.descriptions = {
 	"menu": "The font used in menus (e.g., dropdown menus and menu lists).",
 	"message-box": "The font used in dialog boxes.",
 	"oblique": "Selects a font that is labeled 'oblique'.",
-	"small-caps": "Specifies a font that is labeled as a small-caps font. If a genuine small-caps font is not available, user agents should simulate a small-caps font.",
 	"small-caption": "The font used for labeling small controls.",
 	"status-bar": "The font used in window status bars.",
 	"narrower": "Indicates a narrower value relative to the width of the parent element.",
 	"wider": "Indicates a wider value relative to the width of the parent element.",
+	"annotation()": "Enables display of alternate annotation forms.",
+	"character-variant()": "Enables display of specific character variants.",
+	"historical-forms": "Enables display of historical forms.",
+	"ornaments()": "Enables replacement of default glyphs with ornaments, if provided in the font.",
+	"styleset()": "Enables display with stylistic sets.",
+	"stylistic()": "Enables display of stylistic alternates.",
+	"swash()": "Enables display of swash glyphs.",
+	"all-petite-caps": "Enables display of petite capitals for both upper and lowercase letters.",
+	"all-small-caps": "Enables display of small capitals for both upper and lowercase letters.",
+	"petite-caps": "Enables display of petite capitals.",
+	"titling-caps": "Enables display of titling capitals.",
+	"unicase": "Enables display of mixture of small capitals for uppercase letters with normal lowercase letters.",
+	"full-width": "Enables rendering of full-width variants.",
+	"jis04": "Enables rendering of JIS04 forms.",
+	"jis78": "Enables rendering of JIS78 forms.",
+	"jis83": "Enables rendering of JIS83 forms.",
+	"jis90": "Enables rendering of JIS90 forms.",
+	"proportional-width": "Enables rendering of proportionally-spaced variants.",
+	"simplified": "Enables rendering of simplified forms.",
+	"traditional": "Enables rendering of traditional forms.",
+	"additional-ligatures": "Enables display of additional ligatures.",
+	"common-ligatures": "Enables display of common ligatures.",
+	"contextual": "Enables display of contextual alternates.",
+	"discretionary-ligatures": "Enables display of discretionary ligatures.",
+	"historical-ligatures": "Enables display of historical ligatures.",
+	"no-additional-ligatures": "Disables display of additional ligatures.",
+	"no-common-ligatures": "Disables display of common ligatures.",
+	"no-contextual": "Disables display of contextual alternates.",
+	"no-discretionary-ligatures": "Disables display of discretionary ligatures.",
+	"no-historical-ligatures": "Disables display of historical ligatures.",
+	"diagonal-fractions": "Enables display of lining diagonal fractions.",
+	"lining-nums": "Enables display of lining numerals.",
+	"oldstyle-nums": "Enables display of old-style numerals.",
+	"ordinal": "Enables display of letter forms used with ordinal numbers.",
+	"proportional-nums": "Enables display of proportional numerals.",
+	"slashed-zero": "Enables display of slashed zeros.",
+	"stacked-fractions": "Enables display of lining stacked fractions.",
+	"tabular-nums": "Enables display of tabular numerals.",
+	"flip": "After rotating by the precededing angle, the image is flipped horizontally. Defaults to 0deg if the angle is ommitted.",
+	"from-image": "If the image has an orientation specified in its metadata, such as EXIF, this value computes to the angle that the metadata specifies is necessary to correctly orient the image.",
 	"crisp-edges": "The image must be scaled with an algorithm that preserves contrast and edges in the image, and which does not smooth colors or introduce blur to the image in the process.",
+	"optimizeQuality": "Deprecated.",
 	"pixelated": "When scaling the image up, the 'nearest neighbor' or similar algorithm must be used, so that the image appears to be simply composed of very large pixels.",
 	"active": "The input method editor is initially active; text entry is performed using it unless the user specifically dismisses it.",
 	"disabled": "The input method editor is disabled and may not be activated by the user.",
@@ -10371,7 +11347,6 @@ exports.descriptions = {
 	"mode": "Any of the range of mode values available to the -ms-layout-grid-mode property.",
 	"type": "Any of the range of type values available to the -ms-layout-grid-type property.",
 	"loose": "Default. Grid used for Japanese and Korean characters.",
-	"newspaper": "Breaks CJK scripts using the least restrictive set of line-breaking rules. Typically used for short lines, such as in newspapers.",
 	"-ms-autohiding-scrollbar": "Indicates the element displays auto-hiding scrollbars during mouse interactions and panning indicators during touch and keyboard interactions.",
 	"scrollbar": "Scrollbars are typically narrow strips inserted on one or two edges of an element and which often have arrows to click on and a \"thumb\" to drag up and down (or left and right) to move the contents of the element.",
 	"ideograph-alpha": "Creates 1/4em extra spacing between runs of ideographic letters and non-ideographic letters, such as Latin-based, Cyrillic, Greek, Arabic or Hebrew.",
@@ -10379,6 +11354,7 @@ exports.descriptions = {
 	"ideograph-parenthesis": "Creates extra spacing between normal (non wide) parenthesis and ideographs.",
 	"ideograph-space": "Extends the width of the space character while surrounded by ideographs.",
 	"punctuation": "Creates extra non-breaking spacing around punctuation as required by language-specific typographic conventions.",
+	"digits": "Attempt to typeset horizontally each maximal sequence of consecutive ASCII digits (U+0030–U+0039) that has as many or fewer characters than the specified integer such that it takes up the space of a single character within the vertical line box.",
 	"inter-cluster": "Justification primarily changes spacing at word separators and at grapheme cluster boundaries in clustered scripts. This value is typically used for Southeast Asian scripts such as Thai.",
 	"inter-ideograph": "Justification primarily changes spacing at word separators and at inter-graphemic boundaries in scripts that use no word spaces. This value is typically used for CJK languages.",
 	"inter-word": "Justification primarily changes spacing at word separators. This value is typically used for languages that separate words using spaces, like English or (sometimes) Korean.",
@@ -10390,9 +11366,9 @@ exports.descriptions = {
 	"under": "The underline is aligned with the 'bottom' (left in vertical writing) edge of the element's em-box. In this case the underline usually does not cross the descenders. This is sometimes called 'accounting' underline.",
 	"grippers": "Grippers are always on.",
 	"break-all": "Lines may break between any two grapheme clusters for non-CJK scripts. This option is used mostly in a context where the text is predominantly using CJK characters with few non-CJK excerpts and it is desired that the text be better distributed on each line.",
-	"break-word": "An unbreakable 'word' may be broken at an arbitrary point if there are no otherwise-acceptable break points in the line.",
 	"clear": "Inline flow content can only wrap on top and bottom of the exclusion and must leave the areas to the start and end edges of the exclusion box empty.",
 	"maximum": "Inline flow content can wrap on the side of the exclusion with the largest available space for the given line, and must leave the other side of the exclusion empty.",
+	"minimum": "Inline flow content can flow around the edge of the exclusion with the smallest available space within the flow content’s containing block, and must leave the other edge of the exclusion empty.",
 	"invert": "'Invert' is expected to perform a color inversion on the pixels on the screen. This is a common way to ensure the focus border is visible, regardless of color background.",
 	"absolute": "The box's position (and possibly size) is specified with the 'top', 'right', 'bottom', and 'left' properties. These properties specify offsets with respect to the box's 'containing block'.",
 	"-ms-page": "The box's position is calculated according to the 'absolute' model.",
@@ -10405,25 +11381,20 @@ exports.descriptions = {
 	"after": "The ruby text appears after the base. This is a relatively rare setting used in ideographic East Asian writing systems, most easily found in educational text.",
 	"before": "The ruby text appears before the base. This is the most common setting used in ideographic East Asian writing systems.",
 	"attr(x)": "The value of attribute 'x' is a string value. The string value is evaluated as a <number> to determine the number of ruby base elements to be spanned by the annotation element.",
-	"digits": "Attempt to typeset horizontally each maximal sequence of consecutive ASCII digits (U+0030–U+0039) that has as many or fewer characters than the specified integer such that it takes up the space of a single character within the vertical line box.",
-	"mixed": "In vertical writing modes, characters from horizontal-only scripts are set sideways, i.e. 90° clockwise from their standard orientation in horizontal text.",
 	"sideways": "This value is equivalent to 'sideways-right' in 'vertical-rl' writing mode and equivalent to 'sideways-left' in 'vertical-lr' writing mode.",
-	"sideways-left": "In vertical writing modes, this causes text to be set as if in a horizontal layout, but rotated 90° counter-clockwise.",
 	"sideways-right": "In vertical writing modes, this causes text to be set as if in a horizontal layout, but rotated 90° clockwise.",
 	"upright": "In vertical writing modes, characters from horizontal-only scripts are rendered upright, i.e. in their standard horizontal orientation.",
-	"use-glyph-orientation": "This value deprecated and only applies to SVG.",
 	"capitalize": "Puts all words in titlecase.",
 	"lowercase": "Puts all characters of each word in lowercase.",
 	"uppercase": "Puts all characters of each word in uppercase.",
 	"flat": "All children of this element are rendered flattened into the 2D plane of the element.",
+	"preserve-3d": "Flattening is not performed, so children maintain their position in 3D space.",
 	"bidi-override": "Inside the element, reordering is strictly in sequence according to the 'direction' property; the implicit part of the bidirectional algorithm is ignored.",
 	"embed": "If the element is inline-level, this value opens an additional level of embedding with respect to the bidirectional algorithm. The direction of this embedding level is given by the 'direction' property.",
 	"isolate-override": "This combines the isolation behavior of 'isolate' with the directional override behavior of 'bidi-override'",
-	"sub": "Lower the baseline of the box to the proper position for subscripts of the parent's box. (This value has no effect on the font size of the element's text.)",
-	"super": "Raise the baseline of the box to the proper position for superscripts of the parent's box. (This value has no effect on the font size of the element's text.)",
+	"plaintext": "For the purposes of the Unicode bidirectional algorithm, the base directionality of each bidi paragraph for which the element forms the containing block is determined not by the element's computed 'direction'.",
 	"text-bottom": "Align the bottom of the box with the after-edge of the parent element's font.",
 	"text-top": "Align the top of the box with the before-edge of the parent element's font.",
-	"above": "The reflection appears above the border box.",
 	"break": "If the content fits within the CSS Region, then this property has no effect.",
 	"pre": "Sets 'white-space-collapsing' to 'preserve' and 'text-wrap' to 'none'.",
 	"pre-line": "Sets 'white-space-collapsing' to 'preserve-breaks' and 'text-wrap' to 'normal'.",

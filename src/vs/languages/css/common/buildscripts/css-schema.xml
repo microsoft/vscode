@@ -544,6 +544,7 @@
         <value name="accumulate" version="4.0" browsers="all" />
         <value name="add" version="4.0" browsers="all" />
         <value name="replace" version="4.0" browsers="all" />
+      </values>
     </entry>
     <entry name="animation-delay" restriction="time" version="3.0" browsers="E,C43,FF16,IE10,O12.1,S9" ref="http://www.w3.org/TR/css3-animations/#animation-delay" syntax="div { $(name): 4s; }">
       <desc>Defines when the animation will start. An 'animation-delay' value of '0' means the animation will execute as soon as it is applied. Otherwise, the value specifies an offset from the moment the animation is applied, and the animation will delay execution by that offset.</desc>
@@ -3086,6 +3087,7 @@
         <value name="hide" version="3.0" browsers="all">
           <desc>The element generates boxes as normal, but those boxes do not participate in layout in any way.</desc>
         </value>
+      </values>
     </entry>
     <entry name="break-after" restriction="enum" version="3.0" browsers="E,IE10,O11.5" ref="http://www.w3.org/TR/css3-break/#break-between" syntax="h2 { $(name): column; }">
       <desc>Describes the page/column break behavior before the generated box.</desc>
@@ -16503,7 +16505,7 @@
         <value name="right" version="3.0" browsers="none">
           <desc>In vertical typographic modes, the underline is aligned as for 'below;, except it is aligned to the right edge of the text</desc>
         </value>
-        <value name="under" version="3.0" browsers="none">
+        <value name="under" version="3.0" browsers="none" />
       </values>
     </entry>
     <entry name="text-wrap" restriction="enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css3-text/#word-break0" syntax="p.test { $(name): none; }">
