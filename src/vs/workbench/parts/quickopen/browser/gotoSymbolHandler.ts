@@ -386,8 +386,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 
 	constructor(
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IQuickOpenService private quickOpenService: IQuickOpenService
+		@IWorkspaceContextService private contextService: IWorkspaceContextService
 	) {
 		super();
 

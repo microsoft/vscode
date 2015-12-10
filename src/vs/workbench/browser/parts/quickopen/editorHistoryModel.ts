@@ -19,7 +19,6 @@ import {EditorInput, getUntitledOrFileResource} from 'vs/workbench/common/editor
 import {IEditorRegistry, Extensions} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {EditorQuickOpenEntry} from 'vs/workbench/browser/quickopen';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IQuickOpenService} from 'vs/workbench/services/quickopen/browser/quickOpenService';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 
@@ -118,8 +117,7 @@ export class EditorHistoryModel extends QuickOpenModel {
 	constructor(
 		private editorService: IWorkbenchEditorService,
 		private instantiationService: IInstantiationService,
-		private contextService: IWorkspaceContextService,
-		private quickOpenService: IQuickOpenService
+		private contextService: IWorkspaceContextService
 	) {
 		super();
 	}

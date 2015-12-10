@@ -190,8 +190,7 @@ export class CommandsHandler extends QuickOpenHandler {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IMessageService private messageService: IMessageService,
 		@IKeybindingService private keybindingService: IKeybindingService,
-		@IActionsService private actionsService: IActionsService,
-		@IQuickOpenService private quickOpenService: IQuickOpenService
+		@IActionsService private actionsService: IActionsService
 	) {
 		super();
 	}

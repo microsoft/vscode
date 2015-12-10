@@ -25,7 +25,6 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {IMessageService} from 'vs/platform/message/common/message';
 import {IQueryOptions, ISearchService, ISearchComplete, ISearchProgressItem} from 'vs/platform/search/common/search';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {IQuickOpenService} from 'vs/workbench/services/quickopen/browser/quickOpenService';
 
 export class FileEntry extends EditorQuickOpenEntry {
 	private name: string;
@@ -99,8 +98,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@ITextFileService private textFileService: ITextFileService,
-		@ISearchService private searchService: ISearchService,
-		@IQuickOpenService private quickOpenService: IQuickOpenService
+		@ISearchService private searchService: ISearchService
 	) {
 		super();
 

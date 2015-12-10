@@ -23,7 +23,6 @@ import {OpenSymbolHandler as _OpenSymbolHandler} from 'vs/workbench/parts/search
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
-import {IQuickOpenService} from 'vs/workbench/services/quickopen/browser/quickOpenService';
 import {ISearchConfiguration} from 'vs/platform/search/common/search';
 import {IConfigurationService, IConfigurationServiceEvent, ConfigurationServiceEventTypes} from 'vs/platform/configuration/common/configuration';
 
@@ -52,7 +51,6 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 		@IMessageService private messageService: IMessageService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IQuickOpenService private quickOpenService: IQuickOpenService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super();

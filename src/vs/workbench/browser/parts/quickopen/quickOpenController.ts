@@ -40,7 +40,6 @@ import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {IKeybindingService, IKeybindingContextKey} from 'vs/platform/keybinding/common/keybindingService';
-import {IConfigurationService, IConfigurationServiceEvent, ConfigurationServiceEventTypes} from 'vs/platform/configuration/common/configuration';
 
 const ID = 'workbench.component.quickopen';
 const EDITOR_HISTORY_STORAGE_KEY = 'quickopen.editorhistory';
@@ -87,7 +86,6 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 		private messageService: IMessageService,
 		private telemetryService: ITelemetryService,
 		private contextService: IWorkspaceContextService,
-		private configurationService: IConfigurationService,
 		keybindingService: IKeybindingService
 	) {
 		super(ID);
@@ -126,7 +124,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 		this.toUnbind.push(this.eventService.addListener(EventType.EDITOR_SET_INPUT_ERROR, (e: EditorEvent) => this.onEditorInputSetError(e)));
 
 		// Editor History Model
-		this.editorHistoryModel = new EditorHistoryModel(this.editorService, this.instantiationService, this.contextService, this);
+		this.editorHistoryModel = new EditorHistoryModel(this.editorService, this.instantiationService, this.contextService);
 		this.memento = this.getMemento(this.storageService, Scope.WORKSPACE);
 		if (this.memento[EDITOR_HISTORY_STORAGE_KEY]) {
 			this.editorHistoryModel.loadFrom(this.memento[EDITOR_HISTORY_STORAGE_KEY]);
