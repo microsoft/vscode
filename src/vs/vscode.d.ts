@@ -1962,6 +1962,63 @@ declare namespace vscode {
 	}
 
 	/**
+	 * Reasons for which completion can be triggered.
+	 */
+	export enum CompletionTriggerReason {
+
+		/**
+		 * Invoked by the user, e.g. by hitting `Ctrl+Space`
+		 */
+		OnManualInvocation = 1,
+
+		/**
+		 * When a trigger character was types or when the configuration
+		 * is set to trigger on any character.
+		 */
+		OnType = 2
+	}
+
+	/**
+	 * Value-object that contains additional information when
+	 * requesting completions.
+	 */
+	export interface CompletionContext {
+		triggerReason: CompletionTriggerReason;
+		triggerCharacter: string;
+	}
+
+	/**
+	 * Represents a list of completions.
+	 */
+	export class CompletionList extends Array<CompletionItem> {
+
+		/**
+		 * The context from which this completion list was computed.
+		 */
+		context: CompletionContext;
+
+		/**
+		 * This list is not complete yet.
+		 */
+		isIncomplete: boolean;
+
+		/**
+		 * This list should be shown exclusively to the user. When multiple
+		 * lists express exclusiveness the first wins.
+		 */
+		isExclusive: boolean;
+
+		constructor(context: CompletionContext, isIncomplete?: boolean, isExclusive?: boolean);
+	}
+
+	export interface CompletionItemProvider2  {
+
+		provideCompletionItems(document: TextDocument, position: Position, context: CompletionContext, token: CancellationToken): CompletionList | Thenable<CompletionList>;
+
+		resolveCompletionItem?(item: CompletionItem, context: CompletionContext, token: CancellationToken): CompletionItem | Thenable<CompletionItem>;
+	}
+
+	/**
 	 * A tuple of two characters, like a pair of
 	 * opening and closing brackets.
 	 */
@@ -3121,7 +3178,7 @@ declare namespace vscode {
 		 * @param triggerCharacters Trigger completion when the user types one of the characters, like `.` or `:`.
 		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
-		export function registerCompletionItemProvider(selector: DocumentSelector, provider: CompletionItemProvider, ...triggerCharacters: string[]): Disposable;
+		export function registerCompletionItemProvider(selector: DocumentSelector, provider: CompletionItemProvider | CompletionItemProvider2, ...triggerCharacters: string[]): Disposable;
 
 		/**
 		 * Register a code action provider.
