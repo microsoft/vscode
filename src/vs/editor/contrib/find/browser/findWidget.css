@@ -160,11 +160,11 @@
 }
 
 .monaco-editor .find-widget .previous {
-	background-image: url('previous.svg');
+	background-image: url('images/previous.svg');
 }
 
 .monaco-editor .find-widget .next {
-	background-image: url('next.svg');
+	background-image: url('images/next.svg');
 }
 
 .monaco-editor .find-widget .disabled {
@@ -185,7 +185,7 @@
 	display: inline-block;
 	background-repeat: no-repeat;
 	background-position: 0 0;
-	background-image: url('cancelSelectionFind.svg');
+	background-image: url('images/cancelSelectionFind.svg');
 	width: 20px;
 	height: 20px;
 	border: none;
@@ -208,23 +208,23 @@
 }
 
 .monaco-editor .find-widget .close-fw {
-	background-image: url('close.svg');
+	background-image: url('images/close.svg');
 }
 
 .monaco-editor .find-widget .expand {
-	background-image: url('expando-expanded.svg');
+	background-image: url('images/expando-expanded.svg');
 }
 
 .monaco-editor .find-widget .collapse {
-	background-image: url('expando-collapsed.svg');
+	background-image: url('images/expando-collapsed.svg');
 }
 
 .monaco-editor .find-widget .replace {
-	background-image: url('replace.svg');
+	background-image: url('images/replace.svg');
 }
 
 .monaco-editor .find-widget .replace-all {
-	background-image: url('replace-all.svg');
+	background-image: url('images/replace-all.svg');
 }
 
 .monaco-editor .find-widget > .replace-part {
@@ -272,15 +272,15 @@
 }
 
 .monaco-editor.vs-dark .find-widget .previous {
-	background-image: url('previous-inverse.svg');
+	background-image: url('images/previous-inverse.svg');
 }
 
 .monaco-editor.vs-dark .find-widget .next {
-	background-image: url('next-inverse.svg');
+	background-image: url('images/next-inverse.svg');
 }
 
 .monaco-editor.vs-dark .find-widget .monaco-checkbox .label {
-	background-image: url('cancelSelectionFind-inverse.svg');
+	background-image: url('images/cancelSelectionFind-inverse.svg');
 }
 
 .monaco-editor.vs-dark .find-widget .monaco-checkbox .checkbox:not(:disabled):hover:before + .label {
@@ -292,23 +292,23 @@
 }
 
 .monaco-editor.vs-dark .find-widget .close-fw {
-	background-image: url('close-dark.svg');
+	background-image: url('images/close-dark.svg');
 }
 
 .monaco-editor.vs-dark .find-widget .replace {
-	background-image: url('replace-inverse.svg');
+	background-image: url('images/replace-inverse.svg');
 }
 
 .monaco-editor.vs-dark .find-widget .replace-all {
-	background-image: url('replace-all-inverse.svg');
+	background-image: url('images/replace-all-inverse.svg');
 }
 
 .monaco-editor.vs-dark .find-widget .expand {
-	background-image: url('expando-expanded-dark.svg');
+	background-image: url('images/expando-expanded-dark.svg');
 }
 
 .monaco-editor.vs-dark .find-widget .collapse {
-	background-image: url('expando-collapsed-dark.svg');
+	background-image: url('images/expando-collapsed-dark.svg');
 }
 
 .monaco-editor.vs-dark .find-widget .button:not(.disabled):hover {
@@ -350,23 +350,23 @@
 }
 
 .monaco-editor.hc-black .find-widget .previous:before {
-	content: url('previous-inverse.svg');
+	content: url('images/previous-inverse.svg');
 }
 
 .monaco-editor.hc-black .find-widget .next:before {
-	content: url('next-inverse.svg');
+	content: url('images/next-inverse.svg');
 }
 
 .monaco-editor.hc-black .find-widget .replace:before {
-	content: url('replace-inverse.svg');
+	content: url('images/replace-inverse.svg');
 }
 
 .monaco-editor.hc-black .find-widget .replace-all:before {
-	content: url('replace-all-inverse.svg');
+	content: url('images/replace-all-inverse.svg');
 }
 
 .monaco-editor.hc-black .find-widget .monaco-checkbox .label {
-	content: url('cancelSelectionFind-inverse.svg');
+	content: url('images/cancelSelectionFind-inverse.svg');
 	top: 1px;
 	left: 2px;
 }
@@ -376,19 +376,19 @@
 }
 
 .monaco-editor.hc-black .find-widget .close-fw:before {
-	content: url('close-dark.svg');
+	content: url('images/close-dark.svg');
 	top: 1px;
 	left: 0px;
 }
 
 .monaco-editor.hc-black .find-widget .expand:before {
-	content: url('expando-expanded-dark.svg');
+	content: url('images/expando-expanded-dark.svg');
 	top: 38%;
 	left: 40%
 }
 
 .monaco-editor.hc-black .find-widget .collapse:before {
-	content: url('expando-collapsed-dark.svg');
+	content: url('images/expando-collapsed-dark.svg');
 	top: 30%;
 	left: 40%;
 }
