@@ -2,6 +2,7 @@
 	"nameShort": "Code [OSS Build]",
 	"nameLong": "Code [OSS Build]",
 	"win32ExeBasename": "CodeOSS",
+	"win32MutexName": "vscodeoss",
 	"companyName": "Microsoft Corporation",
 	"copyright": "Copyright (C) 2015 Microsoft. All rights reserved",
 	"licenseUrl": "https://github.com/Microsoft/vscode/blob/master/LICENSE.txt",
