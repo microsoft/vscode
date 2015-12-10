@@ -10,6 +10,7 @@ import nls = require('vs/nls');
 import {ThrottledDelayer} from 'vs/base/common/async';
 import types = require('vs/base/common/types');
 import strings = require('vs/base/common/strings');
+import scorer = require('vs/base/common/scorer');
 import paths = require('vs/base/common/paths');
 import filters = require('vs/base/common/filters');
 import labels = require('vs/base/common/labels');
@@ -292,15 +293,15 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 
 		// Fuzzy scoring is special
 		if (enableFuzzyScoring) {
-			const labelAScore = strings.score(elementA.getLabel(), lookFor);
-			const labelBScore = strings.score(elementB.getLabel(), lookFor);
+			const labelAScore = scorer.score(elementA.getLabel(), lookFor);
+			const labelBScore = scorer.score(elementB.getLabel(), lookFor);
 
 			if (labelAScore !== labelBScore) {
 				return labelAScore > labelBScore ? -1 : 1;
 			}
 
-			const descriptionAScore = strings.score(elementA.getDescription(), lookFor);
-			const descriptionBScore = strings.score(elementB.getDescription(), lookFor);
+			const descriptionAScore = scorer.score(elementA.getDescription(), lookFor);
+			const descriptionBScore = scorer.score(elementB.getDescription(), lookFor);
 
 			if (descriptionAScore !== descriptionBScore) {
 				return descriptionAScore > descriptionBScore ? -1 : 1;
