@@ -19,6 +19,7 @@ import {Engine as TextSearchEngine} from 'vs/workbench/services/search/node/text
 export interface IRawSearch {
 	rootPaths: string[];
 	filePattern?: string;
+	matchFuzzy?: boolean;
 	excludePattern?: glob.IExpression;
 	includePattern?: glob.IExpression;
 	contentPattern?: IPatternInfo;

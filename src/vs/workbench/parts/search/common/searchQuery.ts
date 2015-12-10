@@ -63,7 +63,8 @@ export class QueryBuilder {
 				includePattern: options.includePattern,
 				maxResults: options.maxResults,
 				fileEncoding: options.fileEncoding,
-				contentPattern: contentPattern
+				contentPattern: contentPattern,
+				matchFuzzy: options.matchFuzzy
 			};
 		});
 	}

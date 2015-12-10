@@ -223,7 +223,8 @@ class DiskSearch {
 			filePattern: query.filePattern,
 			excludePattern: query.excludePattern,
 			includePattern: query.includePattern,
-			maxResults: query.maxResults
+			maxResults: query.maxResults,
+			matchFuzzy: query.matchFuzzy
 		};
 
 		if (query.type === QueryType.Text) {

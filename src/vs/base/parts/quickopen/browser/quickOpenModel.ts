@@ -134,7 +134,8 @@ export class QuickOpenEntry {
 	}
 
 	/**
-	 * A good default sort implementation for quick open entries
+	 * A good default sort implementation for quick open entries respecting highlight information
+	 * as well as associated resources.
 	 */
 	public static compare(elementA: QuickOpenEntry, elementB: QuickOpenEntry, lookFor: string): number {
 
@@ -153,7 +154,7 @@ export class QuickOpenEntry {
 			return 1;
 		}
 
-		// Sort by name/path
+		// Fallback to the full path if labels are identical and we have associated resources
 		let nameA = elementA.getLabel();
 		let nameB = elementB.getLabel();
 		if (nameA === nameB) {
@@ -169,20 +170,24 @@ export class QuickOpenEntry {
 		return compareAnything(nameA, nameB, lookFor);
 	}
 
-	public static highlight(entry: QuickOpenEntry, lookFor: string): { labelHighlights: IHighlight[], descriptionHighlights: IHighlight[] } {
+	/**
+	 * A good default highlight implementation for an entry with label and description.
+	 */
+	public static highlight(entry: QuickOpenEntry, lookFor: string, fuzzyHighlight = false): { labelHighlights: IHighlight[], descriptionHighlights: IHighlight[] } {
 		let labelHighlights: IHighlight[] = [];
 		let descriptionHighlights: IHighlight[] = [];
 
 		// Highlight file aware
 		if (entry.getResource()) {
 
-			// Highlight only inside label
-			if (lookFor.indexOf(Paths.nativeSep) < 0) {
-				labelHighlights = Filters.matchesFuzzy(lookFor, entry.getLabel());
+			// Fuzzy: Highlight in label and description
+			if (fuzzyHighlight) {
+				labelHighlights = Filters.matchesFuzzy(lookFor, entry.getLabel(), true);
+				descriptionHighlights = Filters.matchesFuzzy(lookFor, entry.getDescription(), true);
 			}
 
-			// Highlight in label and description
-			else {
+			// Path search: Highlight in label and description
+			else if (lookFor.indexOf(Paths.nativeSep) >= 0) {
 				descriptionHighlights = Filters.matchesFuzzy(Strings.trim(lookFor, Paths.nativeSep), entry.getDescription());
 
 				// If we have no highlights, assume that the match is split among name and parent folder
@@ -190,6 +195,11 @@ export class QuickOpenEntry {
 					labelHighlights = Filters.matchesFuzzy(Paths.basename(lookFor), entry.getLabel());
 					descriptionHighlights = Filters.matchesFuzzy(Strings.trim(Paths.dirname(lookFor), Paths.nativeSep), entry.getDescription());
 				}
+			}
+
+			// Highlight only inside label
+			else {
+				labelHighlights = Filters.matchesFuzzy(lookFor, entry.getLabel());
 			}
 		}
 

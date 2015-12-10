@@ -1,0 +1,8 @@
+// ATTENTION - THIS DIRECTORY CONTAINS THIRD PARTY OPEN SOURCE MATERIALS:
+[{
+	"name": "string_scorer",
+	"version": "10 March 2015",
+	"license": "MIT License",
+	"repositoryURL": "https://github.com/joshaven/string_score",
+	"description": "The file scorer.ts was inspired by the string_score algorithm from Joshaven Potter."
+}]
