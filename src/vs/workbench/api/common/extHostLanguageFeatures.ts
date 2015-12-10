@@ -5,32 +5,26 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import Event, {Emitter} from 'vs/base/common/event';
-import Severity from 'vs/base/common/severity';
 import {DefaultFilter} from 'vs/editor/common/modes/modesFilters';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {onUnexpectedError} from 'vs/base/common/errors';
-import {sequence} from 'vs/base/common/async';
-import {Range as EditorRange} from 'vs/editor/common/core/range';
 import {IDisposable} from 'vs/base/common/lifecycle';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {Remotable, IThreadService} from 'vs/platform/thread/common/thread';
+import {Range as EditorRange} from 'vs/editor/common/core/range';
 import * as vscode from 'vscode';
 import * as TypeConverters from 'vs/workbench/api/common/pluginHostTypeConverters';
-import {Position, Range, SymbolKind, DocumentHighlightKind, Disposable, Diagnostic, DiagnosticSeverity, Location, SignatureHelp, CompletionItemKind} from 'vs/workbench/api/common/pluginHostTypes';
+import {Range, DocumentHighlightKind, Disposable, Diagnostic, SignatureHelp} from 'vs/workbench/api/common/pluginHostTypes';
 import {IPosition, IRange, ISingleEditOperation} from 'vs/editor/common/editorCommon';
 import * as modes from 'vs/editor/common/modes';
 import {CancellationTokenSource} from 'vs/base/common/cancellation';
 import {PluginHostModelService} from 'vs/workbench/api/common/pluginHostDocuments';
 import {IMarkerService, IMarker} from 'vs/platform/markers/common/markers';
-import {PluginHostCommands, MainThreadCommands} from 'vs/workbench/api/common/pluginHostCommands';
+import {PluginHostCommands} from 'vs/workbench/api/common/pluginHostCommands';
 import {DeclarationRegistry} from 'vs/editor/contrib/goToDeclaration/common/goToDeclaration';
 import {ExtraInfoRegistry} from 'vs/editor/contrib/hover/common/hover';
 import {OccurrencesRegistry} from 'vs/editor/contrib/wordHighlighter/common/wordHighlighter';
 import {ReferenceRegistry} from 'vs/editor/contrib/referenceSearch/common/referenceSearch';
 import {QuickFixRegistry} from 'vs/editor/contrib/quickFix/common/quickFix';
 import {OutlineRegistry, IOutlineEntry, IOutlineSupport} from 'vs/editor/contrib/quickOpen/common/quickOpen';
-import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
 import {NavigateTypesSupportRegistry, INavigateTypesSupport, ITypeBearing} from 'vs/workbench/parts/search/common/search'
 import {RenameRegistry} from 'vs/editor/contrib/rename/common/rename';
 import {FormatRegistry, FormatOnTypeRegistry} from 'vs/editor/contrib/format/common/format';
@@ -256,7 +250,7 @@ class ReferenceAdapter implements modes.IReferenceSupport {
 		this._provider = provider;
 	}
 
-	canFindReferences():boolean {
+	canFindReferences(): boolean {
 		return true
 	}
 
@@ -376,7 +370,7 @@ class OnTypeFormattingAdapter implements modes.IFormattingSupport {
 		this._provider = provider;
 	}
 
-	autoFormatTriggerCharacters = []; // not here
+	autoFormatTriggerCharacters: string[] = []; // not here
 
 	formatAfterKeystroke(resource: URI, position: IPosition, ch: string, options: modes.IFormattingOptions): TPromise<ISingleEditOperation[]> {
 
@@ -548,7 +542,7 @@ class SuggestAdapter implements modes.ISuggestSupport {
 		});
 	}
 
-	getFilter(): any{
+	getFilter(): any {
 		throw new Error('illegal state');
 	}
 	getTriggerCharacters(): string[] {
@@ -601,7 +595,7 @@ type Adapter = OutlineAdapter | CodeLensAdapter | DeclarationAdapter | ExtraInfo
 @Remotable.PluginHostContext('ExtHostLanguageFeatures')
 export class ExtHostLanguageFeatures {
 
-	private static _handlePool = 0;
+	private static _handlePool: number = 0;
 
 	private _proxy: MainThreadLanguageFeatures;
 	private _documents: PluginHostModelService;
@@ -642,7 +636,7 @@ export class ExtHostLanguageFeatures {
 		return this._createDisposable(handle);
 	}
 
-	$getOutline(handle: number, resource: URI): TPromise<IOutlineEntry[]>{
+	$getOutline(handle: number, resource: URI): TPromise<IOutlineEntry[]> {
 		return this._withAdapter(handle, OutlineAdapter, adapter => adapter.getOutline(resource));
 	}
 
@@ -659,7 +653,7 @@ export class ExtHostLanguageFeatures {
 		return this._withAdapter(handle, CodeLensAdapter, adapter => adapter.findCodeLensSymbols(resource));
 	}
 
-	$resolveCodeLensSymbol(handle:number, resource: URI, symbol: modes.ICodeLensSymbol): TPromise<modes.ICodeLensSymbol> {
+	$resolveCodeLensSymbol(handle: number, resource: URI, symbol: modes.ICodeLensSymbol): TPromise<modes.ICodeLensSymbol> {
 		return this._withAdapter(handle, CodeLensAdapter, adapter => adapter.resolveCodeLensSymbol(resource, symbol));
 	}
 
@@ -685,7 +679,7 @@ export class ExtHostLanguageFeatures {
 		return this._createDisposable(handle);
 	}
 
-	$computeInfo(handle:number, resource: URI, position: IPosition): TPromise<modes.IComputeExtraInfoResult> {
+	$computeInfo(handle: number, resource: URI, position: IPosition): TPromise<modes.IComputeExtraInfoResult> {
 		return this._withAdapter(handle, ExtraInfoAdapter, adpater => adpater.computeInfo(resource, position));
 	}
 
@@ -698,7 +692,7 @@ export class ExtHostLanguageFeatures {
 		return this._createDisposable(handle);
 	}
 
-	$findOccurrences(handle:number, resource: URI, position: IPosition): TPromise<modes.IOccurence[]> {
+	$findOccurrences(handle: number, resource: URI, position: IPosition): TPromise<modes.IOccurence[]> {
 		return this._withAdapter(handle, OccurrencesAdapter, adapter => adapter.findOccurrences(resource, position));
 	}
 
@@ -724,7 +718,7 @@ export class ExtHostLanguageFeatures {
 		return this._createDisposable(handle);
 	}
 
-	$getQuickFixes(handle:number, resource: URI, range: IRange, marker: IMarker[]): TPromise<modes.IQuickFix[]> {
+	$getQuickFixes(handle: number, resource: URI, range: IRange, marker: IMarker[]): TPromise<modes.IQuickFix[]> {
 		return this._withAdapter(handle, QuickFixAdapter, adapter => adapter.getQuickFixes(resource, range, marker));
 	}
 
@@ -741,7 +735,7 @@ export class ExtHostLanguageFeatures {
 		return this._createDisposable(handle);
 	}
 
-	$formatDocument(handle: number, resource: URI, options: modes.IFormattingOptions): TPromise<ISingleEditOperation[]>{
+	$formatDocument(handle: number, resource: URI, options: modes.IFormattingOptions): TPromise<ISingleEditOperation[]> {
 		return this._withAdapter(handle, DocumentFormattingAdapter, adapter => adapter.formatDocument(resource, options));
 	}
 
@@ -752,7 +746,7 @@ export class ExtHostLanguageFeatures {
 		return this._createDisposable(handle);
 	}
 
-	$formatRange(handle: number, resource: URI, range: IRange, options: modes.IFormattingOptions): TPromise<ISingleEditOperation[]>{
+	$formatRange(handle: number, resource: URI, range: IRange, options: modes.IFormattingOptions): TPromise<ISingleEditOperation[]> {
 		return this._withAdapter(handle, RangeFormattingAdapter, adapter => adapter.formatRange(resource, range, options));
 	}
 
@@ -763,7 +757,7 @@ export class ExtHostLanguageFeatures {
 		return this._createDisposable(handle);
 	}
 
-	$formatAfterKeystroke(handle: number, resource: URI, position: IPosition, ch: string, options: modes.IFormattingOptions): TPromise<ISingleEditOperation[]>{
+	$formatAfterKeystroke(handle: number, resource: URI, position: IPosition, ch: string, options: modes.IFormattingOptions): TPromise<ISingleEditOperation[]> {
 		return this._withAdapter(handle, OnTypeFormattingAdapter, adapter => adapter.formatAfterKeystroke(resource, position, ch, options));
 	}
 

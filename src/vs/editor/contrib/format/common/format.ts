@@ -7,9 +7,8 @@
 
 import {IFormattingSupport, IFormattingOptions} from 'vs/editor/common/modes';
 import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
-import {onUnexpectedError, illegalArgument} from 'vs/base/common/errors';
+import {illegalArgument} from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
-import {IAction, Action} from 'vs/base/common/actions';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IModel, IRange, IPosition, ISingleEditOperation} from 'vs/editor/common/editorCommon';
