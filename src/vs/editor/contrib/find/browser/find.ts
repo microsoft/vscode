@@ -21,6 +21,7 @@ import {IKeybindingService, IKeybindingContextKey, IKeybindings} from 'vs/platfo
 import {IContextViewService} from 'vs/platform/contextview/browser/contextView';
 import {INullService} from 'vs/platform/instantiation/common/instantiation';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
+import {Range} from 'vs/editor/common/core/range';
 
 /**
  * The Find controller will survive an editor.setModel(..) call
@@ -516,7 +517,7 @@ export class SelectionHighlighter implements EditorCommon.IEditorContribution {
 			return;
 		}
 
-		var r = multiCursorFind(this.editor, false);
+		let r = multiCursorFind(this.editor, false);
 		if (!r) {
 			this.removeDecorations();
 			return;
@@ -537,19 +538,39 @@ export class SelectionHighlighter implements EditorCommon.IEditorContribution {
 			return;
 		}
 
-		var matches = this.editor.getModel().findMatches(r.searchText, true, r.isRegex, r.matchCase, r.wholeWord);
+		let allMatches = this.editor.getModel().findMatches(r.searchText, true, r.isRegex, r.matchCase, r.wholeWord);
+		allMatches.sort(Range.compareRangesUsingStarts);
 
-		// do not overlap with selection (issue #64)
-		let editorSelection = this.editor.getSelection();
+		let selections = this.editor.getSelections();
+		selections.sort(Range.compareRangesUsingStarts);
 
-		matches = matches.filter((m) => {
-			if (editorSelection.equalsRange(m)) {
-				return false;
+		// do not overlap with selection (issue #64 and #512)
+		let matches: EditorCommon.IEditorRange[] = [];
+		for (let i = 0, j = 0, len = allMatches.length, lenJ = selections.length; i < len; ) {
+			let match = allMatches[i];
+
+			if (j >= lenJ) {
+				// finished all editor selections
+				matches.push(match);
+				i++;
+			} else {
+				let cmp = Range.compareRangesUsingStarts(match, selections[j]);
+				if (cmp < 0) {
+					// match is before sel
+					matches.push(match);
+					i++;
+				} else if (cmp > 0) {
+					// sel is before match
+					j++;
+				} else {
+					// sel is equal to match
+					i++;
+					j++;
+				}
 			}
-			return true;
-		});
+		}
 
-		var decorations = matches.map(r => {
+		let decorations = matches.map(r => {
 			return {
 				range: r,
 				options: {
