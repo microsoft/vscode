@@ -22,7 +22,9 @@ export const FormatOnTypeRegistry = new LanguageFeatureRegistry<IFormattingSuppo
 export {IFormattingSupport};
 
 export function formatRange(model: IModel, range: IRange, options: IFormattingOptions): TPromise<ISingleEditOperation[]> {
-	const [support] = FormatRegistry.ordered(model);
+	const [support] = FormatRegistry.ordered(model)
+		.filter(s => typeof s.formatRange === 'function');
+
 	if (!support) {
 		return TPromise.as(undefined);
 	}
