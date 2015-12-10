@@ -5,7 +5,7 @@
 	"companyName": "Microsoft Corporation",
 	"copyright": "Copyright (C) 2015 Microsoft. All rights reserved",
 	"licenseUrl": "https://github.com/Microsoft/vscode/blob/master/LICENSE.txt",
-	"darwinBundleIdentifier": "code.visualstudio.com.Code",
+	"darwinBundleIdentifier": "com.visualstudio.code.oss",
 	"darwinApplicationCategoryType": "public.app-category.developer-tools",
 	"darwinBundleDocumentTypes": [{
 		"name": "Code OSS Build document",
