@@ -11,14 +11,14 @@ import Position = require('vs/editor/common/core/position');
 
 function testGuessIndentation(expectedInsertSpaces:boolean, expectedTabSize:number, text:string[], msg?:string): void {
 	var m = new TextModel.TextModel([], TextModel.TextModel.toRawText(text.join('\n')));
-	var r = m.guessIndentation(1773);
+	var r = m.guessIndentation(1337);
 	m.dispose();
 
 	assert.equal(r.insertSpaces, expectedInsertSpaces, msg);
 	if (expectedInsertSpaces) {
 		assert.equal(r.tabSize, expectedTabSize, msg);
 	} else {
-		assert.equal(r.tabSize, 1773, msg);
+		assert.equal(r.tabSize, 1337, msg);
 	}
 }
 
@@ -64,26 +64,26 @@ suite('Editor Model - TextModel', () => {
 	test('guess indentation 1', () => {
 
 		// Defaults to tabs
-		guessesTabs([
+		guessesSpaces(1337, [
 			'x',
 			'x'
 		]);
 
 		// Gives preference to tabs
-		guessesTabs([
+		guessesSpaces(1337, [
 			'\tx',
 			'x'
 		]);
-		guessesTabs([
+		guessesSpaces(1337, [
 			'\tx',
 			' x'
 		]);
-		guessesTabs([
+		guessesSpaces(1337, [
 			'\tx',
 			'  x'
 		]);
 
-		guessesTabs([
+		guessesSpaces(1337, [
 			'x',
 			' x',
 			' x',
@@ -93,7 +93,7 @@ suite('Editor Model - TextModel', () => {
 			' x',
 			' x'
 		], '7x1 - 1 space is never guessed as an indentation');
-		guessesTabs([
+		guessesSpaces(1337, [
 			'',
 			'  ',
 			'    ',

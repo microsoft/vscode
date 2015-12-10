@@ -8,7 +8,6 @@ import {Registry} from 'vs/platform/platform';
 import {ICommandHandler, ICommandsMap, IKeybindingItem, IKeybindings, IKeybindingContextRule} from 'vs/platform/keybinding/common/keybindingService';
 import {KeybindingsUtils} from 'vs/platform/keybinding/common/keybindingsUtils';
 import {KeyMod, KeyCode, BinaryKeybindings} from 'vs/base/common/keyCodes';
-import {ApiCommands} from 'vs/platform/keybinding/common/commands';
 import Platform = require('vs/base/common/platform');
 
 export interface ICommandRule extends IKeybindings {
@@ -68,17 +67,6 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 	constructor() {
 		this._keybindings = [];
 		this._commands = Object.create(null);
-		ApiCommands.Instance.track(event => {
-			this.registerCommandDesc({
-				id: event.id,
-				handler: function(accessor, args) {
-					event.handler.apply(event.thisArg, args);
-				},
-				weight: this.WEIGHT.externalExtension(0),
-				context: undefined,
-				primary: undefined
-			});
-		});
 	}
 
 	public registerCommandRule(rule:ICommandRule): void {

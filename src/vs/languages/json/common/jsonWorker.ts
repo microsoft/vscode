@@ -29,7 +29,7 @@ import errors = require('vs/base/common/errors');
 import {IMarkerService, IMarkerData} from 'vs/platform/markers/common/markers';
 import {IRequestService} from 'vs/platform/request/common/request';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {ISchemaContributions} from 'vs/languages/json/common/jsonContributionRegistry';
+import {ISchemaContributions} from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import {IResourceService} from 'vs/editor/common/services/resourceService';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 

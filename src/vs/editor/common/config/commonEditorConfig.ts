@@ -505,7 +505,7 @@ export class CommonEditorConfiguration extends EventEmitter implements EditorCom
 			tabSizeIsAuto: false,
 			tabSize: 4,
 			insertSpacesIsAuto: false,
-			insertSpaces: false
+			insertSpaces: true
 		};
 
 		if (opts.tabSize === 'auto') {

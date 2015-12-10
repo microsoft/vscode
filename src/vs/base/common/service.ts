@@ -131,7 +131,11 @@ export class Server {
 			if (!method) {
 				promise = Promise.wrapError(new Error(`${ request.name } is not a valid method on ${ request.serviceName }`));
 			} else {
-				promise = method.call(service, ...request.args)
+				try {
+					promise = method.call(service, ...request.args);
+				} catch (err) {
+					promise = Promise.wrapError(err);
+				}
 			}
 
 			if (!Promise.is(promise)) {

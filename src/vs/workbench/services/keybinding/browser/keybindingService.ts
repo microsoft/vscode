@@ -13,7 +13,7 @@ import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IKeybindingItem, IUserFriendlyKeybinding} from 'vs/platform/keybinding/common/keybindingService';
 import {IOSupport} from 'vs/platform/keybinding/common/commonKeybindingResolver';
-import * as JSONContributionRegistry from 'vs/languages/json/common/jsonContributionRegistry';
+import * as JSONContributionRegistry from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import {IJSONSchema} from 'vs/base/common/jsonSchema';
 
 export abstract class WorkbenchKeybindingService extends KeybindingService {

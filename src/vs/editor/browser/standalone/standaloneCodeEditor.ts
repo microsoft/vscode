@@ -40,6 +40,8 @@ import {createAsyncDescriptor0} from 'vs/platform/instantiation/common/descripto
 import {LanguageExtensions, ILanguageExtensionPoint} from 'vs/editor/common/modes/languageExtensionPoint';
 import {AbstractKeybindingService} from 'vs/platform/keybinding/browser/keybindingServiceImpl';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
+import {IJSONSchema} from 'vs/base/common/jsonSchema';
+import * as JSONContributionRegistry from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 
 // Set defaults for standalone editor
 DefaultConfig.editor.wrappingIndent = 'none';
@@ -449,6 +451,11 @@ export function registerStandaloneLanguage(language:ILanguageExtensionPoint, def
 			console.error('Cannot find module ' + defModule, err);
 		});
 	});
+}
+
+export function registerStandaloneSchema(uri:string, schema:IJSONSchema) {
+	let schemaRegistry = <JSONContributionRegistry.IJSONContributionRegistry>Registry.as(JSONContributionRegistry.Extensions.JSONContribution);
+	schemaRegistry.registerSchema(uri, schema);
 }
 
 export function colorizeElement(domNode:HTMLElement, options:colorizer.IColorizerElementOptions): TPromise<void> {

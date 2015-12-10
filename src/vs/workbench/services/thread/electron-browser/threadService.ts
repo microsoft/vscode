@@ -305,7 +305,9 @@ class PluginHostProcessManager {
 		this.terminating = true;
 
 		if (this.pluginHostProcessHandle) {
-			this.pluginHostProcessHandle.kill();
+			this.pluginHostProcessHandle.send({
+				type: '__$terminate'
+			});
 		}
 	}
 }

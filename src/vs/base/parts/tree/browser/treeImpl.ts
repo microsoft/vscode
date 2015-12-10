@@ -11,6 +11,7 @@ import Events = require('vs/base/common/eventEmitter');
 import Model = require('vs/base/parts/tree/common/treeModel');
 import View = require('./treeView');
 import _ = require('vs/base/parts/tree/common/tree');
+import { INavigator, MappedNavigator } from 'vs/base/common/iterator';
 
 export class TreeContext implements _.ITreeContext {
 
@@ -165,6 +166,10 @@ export class Tree extends Events.EventEmitter implements _.ITree {
 		this.view.setScrollPosition(pos);
 	}
 
+	getContentHeight(): number {
+		return this.view.getTotalHeight();
+	}
+
 	public setHighlight(element?:any, eventPayload?:any):void {
 		this.model.setHighlight(element, eventPayload);
 	}
@@ -304,6 +309,10 @@ export class Tree extends Events.EventEmitter implements _.ITree {
 
 	public withFakeRow(fn:(container:HTMLElement)=>any):any {
 		return this.view.withFakeRow(fn);
+	}
+
+	getNavigator(): INavigator<any> {
+		return new MappedNavigator(this.model.getNavigator(), i => i && i.getElement());
 	}
 
 	public dispose(): void {
