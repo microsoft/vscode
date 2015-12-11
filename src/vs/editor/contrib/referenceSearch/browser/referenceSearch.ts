@@ -357,7 +357,15 @@ KeybindingsRegistry.registerCommandDesc({
 	handler: showReferencesCommand,
 	weight: CommonEditorRegistry.commandWeight(50),
 	context: [],
-	primary: undefined
+	primary: undefined,
+	description: {
+		description: 'Show references at a position in a file',
+		args: [
+			{ name: 'uri', description: 'The text document in which to show references', constraint: URI },
+			{ name: 'position', description: 'The position at which to show', constraint: Position.isIPosition },
+			{ name: 'locations', description: 'An array of locations.', constraint: Array },
+		]
+	}
 });
 CommonEditorRegistry.registerEditorCommand('closeReferenceSearch', CommonEditorRegistry.commandWeight(50), { primary: KeyCode.Escape }, false, CONTEXT_REFERENCE_SEARCH_VISIBLE, (accessor, editor, args) => {
 	var outerEditor = peekView.getOuterEditor(accessor, args);

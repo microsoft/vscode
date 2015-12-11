@@ -47,6 +47,9 @@ export class ViewEventHandler {
 	public onCursorRevealRange(e:EditorCommon.IViewRevealRangeEvent): boolean {
 		return false;
 	}
+	public onCursorScrollRequest(e:EditorCommon.IViewScrollRequestEvent): boolean {
+		return false;
+	}
 	public onConfigurationChanged(e:EditorCommon.IConfigurationChangedEvent): boolean {
 		return false;
 	}
@@ -121,6 +124,10 @@ export class ViewEventHandler {
 
 				case EditorCommon.ViewEventNames.RevealRangeEvent:
 					this.shouldRender = this.onCursorRevealRange(<EditorCommon.IViewRevealRangeEvent>data) || this.shouldRender;
+					break;
+
+				case EditorCommon.ViewEventNames.ScrollRequestEvent:
+					this.shouldRender = this.onCursorScrollRequest(<EditorCommon.IViewScrollRequestEvent>data) || this.shouldRender;
 					break;
 
 				case EditorCommon.EventType.ConfigurationChanged:

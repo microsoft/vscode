@@ -115,6 +115,13 @@ export class ViewLines extends ViewLayer {
 		return true;
 	}
 
+	public onCursorScrollRequest(e:EditorCommon.IViewScrollRequestEvent): boolean {
+		let currentScrollTop = this._layoutProvider.getScrollTop();
+		let newScrollTop = currentScrollTop + e.deltaLines * this._context.configuration.editor.lineHeight;
+		this._layoutProvider.setScrollTop(newScrollTop);
+		return true;
+	}
+
 	private _hasVerticalScroll = false;
 	private _hasHorizontalScroll = false;
 	public onScrollChanged(e:EditorCommon.IScrollEvent): boolean {

@@ -105,6 +105,13 @@ export class ViewModelCursors {
 		emit(EditorCommon.ViewEventNames.RevealRangeEvent, newEvent);
 	}
 
+	public onCursorScrollRequest(e:EditorCommon.ICursorScrollRequestEvent, emit:(eventType:string, payload:any)=>void): void {
+		var newEvent:EditorCommon.IViewScrollRequestEvent = {
+			deltaLines: e.deltaLines
+		};
+		emit(EditorCommon.ViewEventNames.ScrollRequestEvent, newEvent);
+	}
+
 	public onLineMappingChanged(emit:(eventType:string, payload:any)=>void): void {
 		if (this.lastCursorPositionChangedEvent) {
 			this.onCursorPositionChanged(this.lastCursorPositionChangedEvent, emit);

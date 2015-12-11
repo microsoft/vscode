@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import winjs = require('vs/base/common/winjs.base');
+import {TPromise} from 'vs/base/common/winjs.base';
 import {readThreadSynchronizableObjects} from './threadService';
 import abstractThreadService = require('vs/platform/thread/common/abstractThreadService');
 import remote = require('vs/base/common/remote');
@@ -13,7 +13,7 @@ import {SyncDescriptor0} from 'vs/platform/instantiation/common/descriptors';
 import {IThreadService, IThreadServiceStatusListener, IThreadSynchronizableObject, ThreadAffinity} from 'vs/platform/thread/common/thread';
 
 export interface IMainThreadPublisher {
-	(messageName:string, payload:any): winjs.Promise;
+	(messageName:string, payload:any): TPromise<any>;
 }
 
 export class WorkerThreadService extends abstractThreadService.AbstractThreadService implements IThreadService {
@@ -34,31 +34,31 @@ export class WorkerThreadService extends abstractThreadService.AbstractThreadSer
 		readThreadSynchronizableObjects().forEach((obj) => this.registerInstance(obj));
 	}
 
-	private _handleRequest(identifier:string, memberName:string, args:any[]): winjs.Promise {
+	private _handleRequest(identifier:string, memberName:string, args:any[]): TPromise<any> {
 		if (!this._boundObjects.hasOwnProperty(identifier)) {
 			// Wait until all objects are constructed
-			return winjs.Promise.join(this._pendingObjects.slice(0)).then(() => {
+			return TPromise.join(this._pendingObjects.slice(0)).then(() => {
 				if (!this._boundObjects.hasOwnProperty(identifier)) {
-					return winjs.Promise.wrapError(new Error('Bound object `' + identifier + '` was not found.'));
+					return TPromise.wrapError(new Error('Bound object `' + identifier + '` was not found.'));
 				}
 //					console.log(identifier + ' > ' + memberName);
 				var obj = this._boundObjects[identifier];
-				return winjs.Promise.as(obj[memberName].apply(obj, args));
+				return TPromise.as(obj[memberName].apply(obj, args));
 			});
 		}
 //			console.log(identifier + ' > ' + memberName);
 		var obj = this._boundObjects[identifier];
-		return winjs.Promise.as(obj[memberName].apply(obj, args));
+		return TPromise.as(obj[memberName].apply(obj, args));
 	}
 
-	public dispatch(data:{ type:string; payload:any; }):winjs.Promise {
+	public dispatch(data:{ type:string; payload:any; }):TPromise<any> {
 		try {
 			var args = data.payload;
 			var result = this._handleRequest(args[0], args[1], args[2]);
-			return winjs.Promise.is(result) ? result : winjs.Promise.as(result);
+			return TPromise.is(result) ? result : TPromise.as(result);
 		} catch(e) {
 			// handler error
-			return winjs.Promise.wrapError(e);
+			return TPromise.wrapError(e);
 		}
 	}
 
@@ -77,7 +77,7 @@ export class WorkerThreadService extends abstractThreadService.AbstractThreadSer
 		return super._finishInstance(instance);
 	}
 
-	MainThread(obj:IThreadSynchronizableObject<any>, methodName:string, target:Function, params:any[]): winjs.Promise {
+	MainThread(obj:IThreadSynchronizableObject<any>, methodName:string, target:Function, params:any[]): TPromise<any> {
 		return this._publisher('threadService', {
 			identifier: obj.getId(),
 			memberName: methodName,
@@ -85,15 +85,15 @@ export class WorkerThreadService extends abstractThreadService.AbstractThreadSer
 		});
 	}
 
-	OneWorker(obj:IThreadSynchronizableObject<any>, methodName:string, target:Function, params:any[], affinity:ThreadAffinity): winjs.Promise {
+	OneWorker(obj:IThreadSynchronizableObject<any>, methodName:string, target:Function, params:any[], affinity:ThreadAffinity): TPromise<any> {
 		return target.apply(obj, params);
 	}
 
-	AllWorkers(obj:IThreadSynchronizableObject<any>, methodName:string, target:Function, params:any[]): winjs.Promise {
+	AllWorkers(obj:IThreadSynchronizableObject<any>, methodName:string, target:Function, params:any[]): TPromise<any> {
 		return target.apply(obj, params);
 	}
 
-	Everywhere(obj:IThreadSynchronizableObject<any>, methodName:string, target:Function, params:any[]): winjs.Promise {
+	Everywhere(obj:IThreadSynchronizableObject<any>, methodName:string, target:Function, params:any[]): TPromise<any> {
 		return target.apply(obj, params);
 	}
 

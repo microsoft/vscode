@@ -1594,7 +1594,7 @@ export class TreeView extends HeightMap implements IScrollable {
 
 	public dispose(): void {
 		// TODO@joao: improve
-		this.scrollableElement.destroy();
+		this.scrollableElement.dispose();
 
 		this.releaseModel();
 		this.modelListeners = null;

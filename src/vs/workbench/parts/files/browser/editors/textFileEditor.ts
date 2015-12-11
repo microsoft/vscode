@@ -198,9 +198,6 @@ export class TextFileEditor extends BaseTextEditor {
 			if ((<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_TOO_LARGE) {
 				this.messageService.show(Severity.Info, nls.localize('fileTooLarge', "We are sorry, but the file is too large to open it inside an editor."));
 
-				// We can still open it as binary though
-				this.openAsBinary(input, options);
-
 				return;
 			}
 

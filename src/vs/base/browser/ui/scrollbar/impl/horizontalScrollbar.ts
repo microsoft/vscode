@@ -4,31 +4,30 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import AbstractScrollbar = require('vs/base/browser/ui/scrollbar/impl/abstractScrollbar');
-import Mouse = require('vs/base/browser/mouseEvent');
+import {AbstractScrollbar, ScrollbarState, IMouseMoveEventData} from 'vs/base/browser/ui/scrollbar/impl/abstractScrollbar';
+import {StandardMouseEvent, StandardMouseWheelEvent} from 'vs/base/browser/mouseEvent';
 import DomUtils = require('vs/base/browser/dom');
-import Common = require('vs/base/browser/ui/scrollbar/impl/common');
-import ScrollableElement = require('vs/base/browser/ui/scrollbar/scrollableElement');
+import {IParent, IOptions, Visibility} from 'vs/base/browser/ui/scrollbar/impl/common';
 import Browser = require('vs/base/browser/browser');
 import {IScrollable} from 'vs/base/common/scrollable';
 
-export class HorizontalScrollbar extends AbstractScrollbar.AbstractScrollbar {
+export class HorizontalScrollbar extends AbstractScrollbar {
 
 	private scrollable:IScrollable;
 
-	constructor(scrollable:IScrollable, parent:Common.IParent, options:Common.IOptions) {
-		var s = new AbstractScrollbar.ScrollbarState(
+	constructor(scrollable:IScrollable, parent:IParent, options:IOptions) {
+		var s = new ScrollbarState(
 			(options.horizontalHasArrows ? options.arrowSize : 0),
-			(options.horizontal === Common.Visibility.Hidden ? 0 : options.horizontalScrollbarSize),
-			(options.vertical === Common.Visibility.Hidden ? 0 : options.verticalScrollbarSize)
+			(options.horizontal === Visibility.Hidden ? 0 : options.horizontalScrollbarSize),
+			(options.vertical === Visibility.Hidden ? 0 : options.verticalScrollbarSize)
 		);
 		super(options.forbidTranslate3dUse, parent, s, options.horizontal, 'horizontal');
 		this.scrollable = scrollable;
 
 		this._createDomNode();
 		if (options.horizontalHasArrows) {
-			var arrowDelta = (options.arrowSize - AbstractScrollbar.AbstractScrollbar.ARROW_IMG_SIZE) / 2;
-			var scrollbarDelta = (options.horizontalScrollbarSize - AbstractScrollbar.AbstractScrollbar.ARROW_IMG_SIZE) / 2;
+			var arrowDelta = (options.arrowSize - AbstractScrollbar.ARROW_IMG_SIZE) / 2;
+			var scrollbarDelta = (options.horizontalScrollbarSize - AbstractScrollbar.ARROW_IMG_SIZE) / 2;
 
 			this._createArrow('left-arrow', scrollbarDelta, arrowDelta, null, null, options.arrowSize, options.horizontalScrollbarSize, () => this._createMouseWheelEvent(1));
 			this._createArrow('right-arrow', scrollbarDelta, null, null, arrowDelta, options.arrowSize, options.horizontalScrollbarSize, () => this._createMouseWheelEvent(-1));
@@ -38,7 +37,7 @@ export class HorizontalScrollbar extends AbstractScrollbar.AbstractScrollbar {
 	}
 
 	public _createMouseWheelEvent(sign:number) {
-		return new Mouse.StandardMouseWheelEvent(null, sign, 0);
+		return new StandardMouseWheelEvent(null, sign, 0);
 	}
 
 	public _updateSlider(sliderSize:number, sliderPosition:number): void {
@@ -57,15 +56,15 @@ export class HorizontalScrollbar extends AbstractScrollbar.AbstractScrollbar {
 		DomUtils.StyleMutator.setBottom(this.domNode, 0);
 	}
 
-	public _mouseDownRelativePosition(e:Mouse.StandardMouseEvent, domNodePosition:DomUtils.IDomNodePosition): number {
+	public _mouseDownRelativePosition(e:StandardMouseEvent, domNodePosition:DomUtils.IDomNodePosition): number {
 		return e.posx - domNodePosition.left;
 	}
 
-	public _sliderMousePosition(e:AbstractScrollbar.IMouseMoveEventData): number {
+	public _sliderMousePosition(e:IMouseMoveEventData): number {
 		return e.posx;
 	}
 
-	public _sliderOrthogonalMousePosition(e:AbstractScrollbar.IMouseMoveEventData): number {
+	public _sliderOrthogonalMousePosition(e:IMouseMoveEventData): number {
 		return e.posy;
 	}
 

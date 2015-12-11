@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import winjs = require('vs/base/common/winjs.base');
+import {TPromise} from 'vs/base/common/winjs.base';
 import Browser = require('vs/base/browser/browser');
 import remote = require('vs/base/common/remote');
 import Types = require('vs/base/common/types');
@@ -46,9 +46,9 @@ export abstract class AbstractThreadService implements remote.IManyHandler {
 	public isInMainThread:boolean;
 
 	protected _instantiationService: instantiation.IInstantiationService;
-	
-	_boundObjects:{[id:string]:IThreadSynchronizableObject<any>;};
-	_pendingObjects:winjs.Promise[];
+
+	protected _boundObjects:{[id:string]:IThreadSynchronizableObject<any>;};
+	protected _pendingObjects:TPromise<IThreadSynchronizableObject<any>>[];
 	private _localObjMap: { [id:string]: any; };
 	private _proxyObjMap: { [id:string]: any; };
 
@@ -81,12 +81,13 @@ export abstract class AbstractThreadService implements remote.IManyHandler {
 	protected _doCreateInstance(params:any[]): any {
 		var instanceOrPromise = this._instantiationService.createInstance.apply(this._instantiationService, params);
 
-		if (winjs.Promise.is(instanceOrPromise)) {
+		if (TPromise.is(instanceOrPromise)) {
 
-			var objInstantiated = instanceOrPromise.then((instance: IThreadSynchronizableObject<any>): any => {
+			var objInstantiated: TPromise<IThreadSynchronizableObject<any>>;
+			objInstantiated = instanceOrPromise.then((instance: IThreadSynchronizableObject<any>): any => {
 				if (instance.asyncCtor) {
 					var initPromise = instance.asyncCtor();
-					if (winjs.Promise.is(initPromise)) {
+					if (TPromise.is(initPromise)) {
 						return initPromise.then(() => {
 							return instance;
 						});

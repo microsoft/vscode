@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import diffChange = require('vs/base/common/diff/diffChange');
+import {DiffChange} from 'vs/base/common/diff/diffChange';
 
 export interface ISequence {
 	getLength(): number;
@@ -105,7 +105,7 @@ var MaxDifferencesHistory = 1447;
  */
 class DiffChangeHelper {
 
-	private m_changes:diffChange.DiffChange[];
+	private m_changes:DiffChange[];
 	private m_originalStart:number;
 	private m_modifiedStart:number;
 	private m_originalCount:number;
@@ -129,7 +129,7 @@ class DiffChangeHelper {
 		// Only add to the list if there is something to add
 		if (this.m_originalCount > 0 || this.m_modifiedCount > 0) {
 			// Add the new change to our list
-			this.m_changes.push(new diffChange.DiffChange(this.m_originalStart, this.m_originalCount,
+			this.m_changes.push(new DiffChange(this.m_originalStart, this.m_originalCount,
 				this.m_modifiedStart, this.m_modifiedCount));
 		}
 
@@ -173,7 +173,7 @@ class DiffChangeHelper {
 	/**
 	 * Retrieves all of the changes marked by the class.
 	 */
-	public getChanges(): diffChange.DiffChange[] {
+	public getChanges(): DiffChange[] {
 		if (this.m_originalCount > 0 || this.m_modifiedCount > 0) {
 			// Finish up on whatever is left
 			this.MarkNextChange();
@@ -182,7 +182,7 @@ class DiffChangeHelper {
 		return this.m_changes;
 	}
 
-	public getReverseChanges(): diffChange.DiffChange[] {
+	public getReverseChanges(): DiffChange[] {
 		/// <summary>
 		/// Retrieves all of the changes marked by the class in the reverse order
 		/// </summary>
@@ -279,7 +279,7 @@ export class LcsDiff {
 	 * sequences on the bounded range.
 	 * @returns An array of the differences between the two input sequences.
 	 */
-	private _ComputeDiff(originalStart:number, originalEnd:number, modifiedStart:number, modifiedEnd:number): diffChange.DiffChange[] {
+	private _ComputeDiff(originalStart:number, originalEnd:number, modifiedStart:number, modifiedEnd:number): DiffChange[] {
 		var quitEarlyArr = [ false ];
 		return this.ComputeDiffRecursive(originalStart, originalEnd, modifiedStart, modifiedEnd, quitEarlyArr);
 	}
@@ -289,7 +289,7 @@ export class LcsDiff {
 	 * recursively.
 	 * @returns An array of the differences between the two input sequences.
 	 */
-	private ComputeDiffRecursive(originalStart:number, originalEnd:number, modifiedStart:number, modifiedEnd:number, quitEarlyArr:boolean[]): diffChange.DiffChange[] {
+	private ComputeDiffRecursive(originalStart:number, originalEnd:number, modifiedStart:number, modifiedEnd:number, quitEarlyArr:boolean[]): DiffChange[] {
 		quitEarlyArr[0] = false;
 
 		// Find the start of the differences
@@ -306,21 +306,21 @@ export class LcsDiff {
 
 		// In the special case where we either have all insertions or all deletions or the sequences are identical
 		if (originalStart > originalEnd || modifiedStart > modifiedEnd) {
-			var changes:diffChange.DiffChange[];
+			var changes:DiffChange[];
 
 			if (modifiedStart <= modifiedEnd) {
 				Debug.Assert(originalStart === originalEnd + 1, 'originalStart should only be one more than originalEnd');
 
 				// All insertions
 				changes = [
-					new diffChange.DiffChange(originalStart, 0, modifiedStart, modifiedEnd - modifiedStart + 1)
+					new DiffChange(originalStart, 0, modifiedStart, modifiedEnd - modifiedStart + 1)
 				];
 			} else if (originalStart <= originalEnd) {
 				Debug.Assert(modifiedStart === modifiedEnd + 1, 'modifiedStart should only be one more than modifiedEnd');
 
 				// All deletions
 				changes = [
-					new diffChange.DiffChange(originalStart, originalEnd - originalStart + 1, modifiedStart, 0)
+					new DiffChange(originalStart, originalEnd - originalStart + 1, modifiedStart, 0)
 				];
 			} else {
 				Debug.Assert(originalStart === originalEnd + 1, 'originalStart should only be one more than originalEnd');
@@ -351,7 +351,7 @@ export class LcsDiff {
 			// NOTE: ComputeDiff() is inclusive, therefore the second range starts on the next point
 
 			var leftChanges = this.ComputeDiffRecursive(originalStart, midOriginal, modifiedStart, midModified, quitEarlyArr);
-			var rightChanges: diffChange.DiffChange[] = [];
+			var rightChanges: DiffChange[] = [];
 
 			if (!quitEarlyArr[0]) {
 				rightChanges = this.ComputeDiffRecursive(midOriginal + 1, originalEnd, midModified + 1, modifiedEnd, quitEarlyArr);
@@ -359,7 +359,7 @@ export class LcsDiff {
 				// We did't have time to finish the first half, so we don't have time to compute this half.
 				// Consider the entire rest of the sequence different.
 				rightChanges = [
-					new diffChange.DiffChange(midOriginal + 1, originalEnd - (midOriginal + 1) + 1, midModified + 1, modifiedEnd - (midModified + 1) + 1)
+					new DiffChange(midOriginal + 1, originalEnd - (midOriginal + 1) + 1, midModified + 1, modifiedEnd - (midModified + 1) + 1)
 				];
 			}
 
@@ -368,7 +368,7 @@ export class LcsDiff {
 
 		// If we hit here, we quit early, and so can't return anything meaningful
 		return [
-			new diffChange.DiffChange(originalStart, originalEnd -originalStart + 1, modifiedStart, modifiedEnd - modifiedStart + 1)
+			new DiffChange(originalStart, originalEnd -originalStart + 1, modifiedStart, modifiedEnd - modifiedStart + 1)
 		];
 	}
 
@@ -377,8 +377,8 @@ export class LcsDiff {
 					forwardPoints:number[], reversePoints:number[],
 					originalIndex:number, originalEnd:number, midOriginalArr:number[],
 					modifiedIndex:number, modifiedEnd:number, midModifiedArr:number[],
-					deltaIsEven:boolean, quitEarlyArr:boolean[]): diffChange.DiffChange[] {
-		var forwardChanges: diffChange.DiffChange[] = null, reverseChanges: diffChange.DiffChange[] = null;
+					deltaIsEven:boolean, quitEarlyArr:boolean[]): DiffChange[] {
+		var forwardChanges: DiffChange[] = null, reverseChanges: DiffChange[] = null;
 
 		// First, walk backward through the forward diagonals history
 		var changeHelper = new DiffChangeHelper();
@@ -442,7 +442,7 @@ export class LcsDiff {
 			}
 
 			reverseChanges = [
-				new diffChange.DiffChange(originalStartPoint, originalEnd - originalStartPoint + 1,
+				new DiffChange(originalStartPoint, originalEnd - originalStartPoint + 1,
 							modifiedStartPoint, modifiedEnd - modifiedStartPoint + 1)
 			];
 		} else {
@@ -666,7 +666,7 @@ export class LcsDiff {
 					modifiedStart++;
 
 					return [
-						new diffChange.DiffChange(originalStart, originalEnd - originalStart + 1,
+						new DiffChange(originalStart, originalEnd - originalStart + 1,
 								modifiedStart, modifiedEnd - modifiedStart + 1)
 					];
 				}
@@ -760,9 +760,9 @@ export class LcsDiff {
 	 * @param The right changes
 	 * @returns The concatenated list
 	 */
-	private ConcatenateChanges(left:diffChange.DiffChange[], right:diffChange.DiffChange[]): diffChange.DiffChange[] {
-		var mergedChangeArr:diffChange.DiffChange[] = [];
-		var result:diffChange.DiffChange[] = null;
+	private ConcatenateChanges(left:DiffChange[], right:DiffChange[]): DiffChange[] {
+		var mergedChangeArr:DiffChange[] = [];
+		var result:DiffChange[] = null;
 
 		if (left.length === 0 || right.length === 0) {
 			return (right.length > 0) ? right : left;
@@ -771,14 +771,14 @@ export class LcsDiff {
 			// might recurse in the middle of a change thereby splitting it into
 			// two changes. Here in the combining stage, we detect and fuse those
 			// changes back together
-			result = new Array<diffChange.DiffChange>(left.length + right.length - 1);
+			result = new Array<DiffChange>(left.length + right.length - 1);
 			MyArray.Copy(left, 0, result, 0, left.length - 1);
 			result[left.length - 1] = mergedChangeArr[0];
 			MyArray.Copy(right, 1, result, left.length, right.length - 1);
 
 			return result;
 		} else {
-			result = new Array<diffChange.DiffChange>(left.length + right.length);
+			result = new Array<DiffChange>(left.length + right.length);
 			MyArray.Copy(left, 0, result, 0, left.length);
 			MyArray.Copy(right, 0, result, left.length, right.length);
 
@@ -794,7 +794,7 @@ export class LcsDiff {
 	 * @param mergedChange The merged change if the two overlap, null otherwise
 	 * @returns True if the two changes overlap
 	 */
-	private ChangesOverlap(left:diffChange.DiffChange, right:diffChange.DiffChange, mergedChangeArr:diffChange.DiffChange[]): boolean {
+	private ChangesOverlap(left:DiffChange, right:DiffChange, mergedChangeArr:DiffChange[]): boolean {
 		Debug.Assert(left.originalStart <= right.originalStart, 'Left change is not less than or equal to right change');
 		Debug.Assert(left.modifiedStart <= right.modifiedStart, 'Left change is not less than or equal to right change');
 
@@ -812,7 +812,7 @@ export class LcsDiff {
 				modifiedLength = right.modifiedStart + right.modifiedLength - left.modifiedStart;
 			}
 
-			mergedChangeArr[0] = new diffChange.DiffChange(originalStart, originalLength, modifiedStart, modifiedLength);
+			mergedChangeArr[0] = new DiffChange(originalStart, originalLength, modifiedStart, modifiedLength);
 			return true;
 		} else {
 			mergedChangeArr[0] = null;

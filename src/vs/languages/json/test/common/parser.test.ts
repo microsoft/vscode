@@ -104,7 +104,7 @@ suite('JSON - Parsing', () => {
 		var node = result.getNodeFromOffset(1);
 
 		assert.equal(node.type, 'object');
-		assert.deepEqual(node.getPath(), []);
+		assert.deepEqual(node.getNodeLocation().getSegments(), []);
 
 		assert.strictEqual(result.getNodeFromOffset(2), null);
 
@@ -114,8 +114,7 @@ suite('JSON - Parsing', () => {
 		node = result.getNodeFromOffset(2);
 
 		assert.equal(node.type, 'null');
-		assert.equal(node.name, '0');
-		assert.deepEqual(node.getPath(), ['0']);
+		assert.deepEqual(node.getNodeLocation().getSegments(), ['0']);
 
 		result = parser.parse('{"a":true}');
 		assert.strictEqual(result.errors.length, 0);
@@ -124,7 +123,7 @@ suite('JSON - Parsing', () => {
 
 		assert.equal(node.type, 'string');
 		assert.equal((<Parser.StringASTNode>node).isKey, true);
-		assert.deepEqual(node.getPath(), ['a']);
+		assert.deepEqual(node.getNodeLocation().getSegments(), ['a']);
 
 		node = result.getNodeFromOffset(4);
 
@@ -141,8 +140,7 @@ suite('JSON - Parsing', () => {
 		node = result.getNodeFromOffset(5);
 
 		assert.equal(node.type, 'boolean');
-		assert.equal(node.name, 'a');
-		assert.deepEqual(node.getPath(), ['a']);
+		assert.deepEqual(node.getNodeLocation().getSegments(), ['a']);
 
 	});
 
@@ -155,14 +153,14 @@ suite('JSON - Parsing', () => {
 		assert.strictEqual(result.errors.length, 0);
 
 		var node = result.getNodeFromOffset(content.indexOf('key2') + 2);
-		var path = node.getPath();
+		var location = node.getNodeLocation();
 
-		assert.deepEqual(path, ['key', 'key2']);
+		assert.deepEqual(location.getSegments(), ['key', 'key2']);
 
 		node = result.getNodeFromOffset(content.indexOf('42') + 1);
-		path = node.getPath();
+		location = node.getNodeLocation();
 
-		assert.deepEqual(path, ['key', 'key2']);
+		assert.deepEqual(location.getSegments(), ['key', 'key2']);
 	});
 
 	test('Nested AST in Array', function() {
@@ -173,9 +171,9 @@ suite('JSON - Parsing', () => {
 		assert.strictEqual(result.errors.length, 0);
 
 		var node = result.getNodeFromOffset(17);
-		var path = node.getPath();
+		var location = node.getNodeLocation();
 
-		assert.deepEqual(path, ['key', '0', 'key2']);
+		assert.deepEqual(location.getSegments(), ['key', '0', 'key2']);
 
 	});
 

@@ -35,17 +35,19 @@
 	margin-left: 5px;
 }
 
-.monaco-workbench > .part.statusbar > .statusbar-item a {
+.monaco-workbench > .part.statusbar > .statusbar-item a:not([disabled]) {
 	cursor: pointer;
 	display: inline-block;
+	height: 100%;
 }
 
 .monaco-workbench > .part.statusbar > .statusbar-entry > span {
 	cursor: default;
+	height: 100%;
 }
 
 .monaco-workbench > .part.statusbar > .statusbar-entry > span,
-.monaco-workbench > .part.statusbar > .statusbar-entry > a {
+.monaco-workbench > .part.statusbar > .statusbar-entry > a:not([disabled]) {
 	padding: 0 5px 0 5px;
 	white-space: pre; /* gives some degree of styling */
 }
@@ -55,13 +57,13 @@
 	font-size: 14px;
 }
 
-.monaco-workbench > .part.statusbar > .statusbar-item a:hover {
+.monaco-workbench > .part.statusbar > .statusbar-item a:hover:not([disabled]) {
 	background-color: rgba(255, 255, 255, 0.12);
 	text-decoration: none;
 	color: inherit;
 }
 
-.monaco-workbench > .part.statusbar > .statusbar-item a:active {
+.monaco-workbench > .part.statusbar > .statusbar-item a:active:not([disabled]) {
 	background-color: rgba(255, 255, 255, 0.18);
 }
 

@@ -20,7 +20,16 @@ export interface IOptions {
 	width?:number;
 	validation?:InputBox.IInputValidator;
 	label:string;
+
+	appendCaseSensitiveLabel?: string;
+	appendWholeWordsLabel?: string;
+	appendRegexLabel?: string;
 }
+
+const NLS_REGEX_CHECKBOX_LABEL = nls.localize('regexDescription', "Use Regular Expression");
+const NLS_WHOLE_WORD_CHECKBOX_LABEL = nls.localize('wordsDescription', "Match Whole Word");
+const NLS_CASE_SENSITIVE_CHECKBOX_LABEL = nls.localize('caseDescription', "Match Case");
+const NLS_DEFAULT_LABEL = nls.localize('defaultLabel', "input");
 
 export class FindInput {
 
@@ -48,7 +57,7 @@ export class FindInput {
 		this.width = options.width || 100;
 		this.placeholder = options.placeholder || '';
 		this.validation = options.validation;
-		this.label = options.label || nls.localize('defaultLabel', "input");
+		this.label = options.label || NLS_DEFAULT_LABEL;
 
 		this.listenersToRemove = [];
 		this.regex = null;
@@ -59,7 +68,7 @@ export class FindInput {
 		this.inputBox = null;
 		this.validationNode = null;
 
-		this.buildDomNode();
+		this.buildDomNode(options.appendCaseSensitiveLabel || '', options.appendWholeWordsLabel || '', options.appendRegexLabel || '');
 
 		if(Boolean(parent)) {
 			parent.appendChild(this.domNode);
@@ -172,7 +181,7 @@ export class FindInput {
 		this.inputBox.width = w;
 	}
 
-	private buildDomNode(): void {
+	private buildDomNode(appendCaseSensitiveLabel:string, appendWholeWordsLabel: string, appendRegexLabel: string): void {
 		this.domNode = document.createElement('div');
 		this.domNode.style.width = this.width + 'px';
 		$(this.domNode).addClass('monaco-findInput');
@@ -186,19 +195,19 @@ export class FindInput {
 			}
 		});
 
-		this.regex = new Checkbox.Checkbox('regex', nls.localize('regexDescription', "Use Regular Expression"), false, () => {
+		this.regex = new Checkbox.Checkbox('regex', NLS_REGEX_CHECKBOX_LABEL + appendRegexLabel, false, () => {
 			this.onOptionChange(null);
 			this.inputBox.focus();
 			this.setInputWidth();
 			this.validate();
 		});
-		this.wholeWords = new Checkbox.Checkbox('whole-word', nls.localize('wordsDescription', "Match Whole Word"), false, () => {
+		this.wholeWords = new Checkbox.Checkbox('whole-word', NLS_WHOLE_WORD_CHECKBOX_LABEL + appendWholeWordsLabel, false, () => {
 			this.onOptionChange(null);
 			this.inputBox.focus();
 			this.setInputWidth();
 			this.validate();
 		});
-		this.caseSensitive = new Checkbox.Checkbox('case-sensitive', nls.localize('caseDescription', "Match Case"), false, () => {
+		this.caseSensitive = new Checkbox.Checkbox('case-sensitive', NLS_CASE_SENSITIVE_CHECKBOX_LABEL + appendCaseSensitiveLabel, false, () => {
 			this.onOptionChange(null);
 			this.inputBox.focus();
 			this.setInputWidth();

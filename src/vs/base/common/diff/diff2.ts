@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import diffChange = require('vs/base/common/diff/diffChange');
+import {DiffChange} from 'vs/base/common/diff/diffChange';
 
 export interface ISequence {
 	getLength(): number;
@@ -164,14 +164,14 @@ export class LcsDiff2 {
 				while (j < yLength && !this.resultY[j]) {
 					j++;
 				}
-				changes.push(new diffChange.DiffChange(xChangeStart, i - xChangeStart, yChangeStart, j - yChangeStart));
+				changes.push(new DiffChange(xChangeStart, i - xChangeStart, yChangeStart, j - yChangeStart));
 			}
 		}
 		if (i < xLength) {
-			changes.push(new diffChange.DiffChange(i, xLength - i, yLength, 0));
+			changes.push(new DiffChange(i, xLength - i, yLength, 0));
 		}
 		if (j < yLength) {
-			changes.push(new diffChange.DiffChange(xLength, 0, j, yLength - j));
+			changes.push(new DiffChange(xLength, 0, j, yLength - j));
 		}
 		return changes;
 	}

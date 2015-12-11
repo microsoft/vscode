@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import winjs = require('vs/base/common/winjs.base');
+import {TPromise} from 'vs/base/common/winjs.base';
 import protocol = require('vs/base/common/worker/workerProtocol');
 import errors = require('vs/base/common/errors');
 import remote = require('vs/base/common/remote');
 import marshalling = require('vs/base/common/marshalling');
 
 interface IReplyCallbacks {
-	c: winjs.ValueCallback;
-	e: winjs.ErrorCallback;
-	p: winjs.ProgressCallback;
+	c: (value:any)=>void;
+	e: (err:any)=>void;
+	p: (progress:any)=>void;
 }
 
 export class WorkerServer {
@@ -81,7 +81,7 @@ export class WorkerServer {
 		this._postMessage(msg);
 	}
 
-	public request(requestName:string, payload:any): winjs.Promise {
+	public request(requestName:string, payload:any): TPromise<any> {
 		if (requestName.charAt(0) === '$') {
 			throw new Error('Illegal requestName: ' + requestName);
 		}
@@ -102,7 +102,7 @@ export class WorkerServer {
 			p: null
 		};
 
-		var r = new winjs.Promise((c, e, p) => {
+		var r = new TPromise<any>((c, e, p) => {
 			reply.c = c;
 			reply.e = e;
 			reply.p = p;
@@ -194,7 +194,7 @@ export class WorkerServer {
 		}
 	}
 
-	private _handleMessage(msg:protocol.IClientMessage, c:winjs.ValueCallback, e:winjs.ErrorCallback, p:winjs.ProgressCallback): void {
+	private _handleMessage(msg:protocol.IClientMessage, c:(value:any)=>void, e:(err:any)=>void, p:(progress:any)=>void): void {
 
 		if (msg.type === '_proxyObj') {
 			this._remoteCom.handleMessage(msg.payload).then(c, e, p);

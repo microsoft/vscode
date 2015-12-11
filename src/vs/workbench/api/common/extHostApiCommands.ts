@@ -5,38 +5,21 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import Event, {Emitter} from 'vs/base/common/event';
-import Severity from 'vs/base/common/severity';
-import {DefaultFilter} from 'vs/editor/common/modes/modesFilters';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {onUnexpectedError} from 'vs/base/common/errors';
-import {sequence} from 'vs/base/common/async';
-import {Range as EditorRange} from 'vs/editor/common/core/range';
 import {IDisposable} from 'vs/base/common/lifecycle';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
-import {Remotable, IThreadService} from 'vs/platform/thread/common/thread';
 import * as vscode from 'vscode';
 import * as typeConverters from 'vs/workbench/api/common/pluginHostTypeConverters';
 import * as types from 'vs/workbench/api/common/pluginHostTypes';
-import {IPosition, IRange, ISingleEditOperation} from 'vs/editor/common/editorCommon';
+import {ISingleEditOperation} from 'vs/editor/common/editorCommon';
 import * as modes from 'vs/editor/common/modes';
-import {CancellationTokenSource} from 'vs/base/common/cancellation';
-import {PluginHostModelService} from 'vs/workbench/api/common/pluginHostDocuments';
-import {IMarkerService, IMarker} from 'vs/platform/markers/common/markers';
-import {PluginHostCommands, MainThreadCommands} from 'vs/workbench/api/common/pluginHostCommands';
-import {DeclarationRegistry} from 'vs/editor/contrib/goToDeclaration/common/goToDeclaration';
-import {ExtraInfoRegistry} from 'vs/editor/contrib/hover/common/hover';
-import {OccurrencesRegistry} from 'vs/editor/contrib/wordHighlighter/common/wordHighlighter';
-import {ReferenceRegistry} from 'vs/editor/contrib/referenceSearch/common/referenceSearch';
-import {IQuickFix2, QuickFixRegistry, getQuickFixes} from 'vs/editor/contrib/quickFix/common/quickFix';
+import {ICommandHandlerDescription} from 'vs/platform/keybinding/common/keybindingService';
+import {PluginHostCommands} from 'vs/workbench/api/common/pluginHostCommands';
+import {IQuickFix2} from 'vs/editor/contrib/quickFix/common/quickFix';
 import {IOutline} from 'vs/editor/contrib/quickOpen/common/quickOpen';
-import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
-import {NavigateTypesSupportRegistry, INavigateTypesSupport, ITypeBearing} from 'vs/workbench/parts/search/common/search'
-import {RenameRegistry} from 'vs/editor/contrib/rename/common/rename';
-import {FormatRegistry, FormatOnTypeRegistry} from 'vs/editor/contrib/format/common/format';
+import {ITypeBearing} from 'vs/workbench/parts/search/common/search'
 import {ICodeLensData} from 'vs/editor/contrib/codelens/common/codelens';
 
-export class ExtHostLanguageFeatureCommands {
+export class ExtHostApiCommands {
 
 	private _commands: PluginHostCommands;
 	private _disposables: IDisposable[] = [];
@@ -44,26 +27,125 @@ export class ExtHostLanguageFeatureCommands {
 	constructor(commands: PluginHostCommands) {
 		this._commands = commands;
 
-		this._register('vscode.executeWorkspaceSymbolProvider', this._executeWorkspaceSymbolProvider);
-		this._register('vscode.executeDefinitionProvider', this._executeDefinitionProvider);
-		this._register('vscode.executeHoverProvider', this._executeHoverProvider);
-		this._register('vscode.executeDocumentHighlights', this._executeDocumentHighlights);
-		this._register('vscode.executeReferenceProvider', this._executeReferenceProvider);
-		this._register('vscode.executeDocumentRenameProvider', this._executeDocumentRenameProvider);
-		this._register('vscode.executeSignatureHelpProvider', this._executeSignatureHelpProvider);
-		this._register('vscode.executeDocumentSymbolProvider', this._executeDocumentSymbolProvider);
-		this._register('vscode.executeCompletionItemProvider', this._executeCompletionItemProvider);
-		this._register('vscode.executeCodeActionProvider', this._executeCodeActionProvider);
-		this._register('vscode.executeCodeLensProvider', this._executeCodeLensProvider);
-		this._register('vscode.executeFormatDocumentProvider', this._executeFormatDocumentProvider);
-		this._register('vscode.executeFormatRangeProvider', this._executeFormatRangeProvider);
-		this._register('vscode.executeFormatOnTypeProvider', this._executeFormatOnTypeProvider);
+		this._register('vscode.executeWorkspaceSymbolProvider', this._executeWorkspaceSymbolProvider, {
+			description: 'Execute all workspace symbol provider.',
+			args: [{ name: 'query', constraint: String }],
+			returns: 'A promise that resolves to an array of SymbolInformation-instances.'
+
+		});
+		this._register('vscode.executeDefinitionProvider', this._executeDefinitionProvider, {
+			description: 'Execute all definition provider.',
+			args: [
+				{ name: 'uri', description: 'Uri of a text document', constraint: URI },
+				{ name: 'position', description: 'Position of a symbol', constraint: types.Position }
+			],
+			returns: 'A promise that resolves to an array of Location-instances.'
+		});
+		this._register('vscode.executeHoverProvider', this._executeHoverProvider, {
+			description: 'Execute all definition provider.',
+			args: [
+				{ name: 'uri', description: 'Uri of a text document', constraint: URI },
+				{ name: 'position', description: 'Position of a symbol', constraint: types.Position }
+			],
+			returns: 'A promise that resolves to an array of Hover-instances.'
+		});
+		this._register('vscode.executeDocumentHighlights', this._executeDocumentHighlights, {
+			description: 'Execute document highlight provider.',
+			args: [
+				{ name: 'uri', description: 'Uri of a text document', constraint: URI },
+				{ name: 'position', description: 'Position in a text document', constraint: types.Position }
+			],
+			returns: 'A promise that resolves to an array of DocumentHighlight-instances.'
+		});
+		this._register('vscode.executeReferenceProvider', this._executeReferenceProvider, {
+			description: 'Execute reference provider.',
+			args: [
+				{ name: 'uri', description: 'Uri of a text document', constraint: URI },
+				{ name: 'position', description: 'Position in a text document', constraint: types.Position }
+			],
+			returns: 'A promise that resolves to an array of Location-instances.'
+		});
+		this._register('vscode.executeDocumentRenameProvider', this._executeDocumentRenameProvider, {
+			description: 'Execute rename provider.',
+			args: [
+				{ name: 'uri', description: 'Uri of a text document', constraint: URI },
+				{ name: 'position', description: 'Position in a text document', constraint: types.Position },
+				{ name: 'newName', description: 'The new symbol name', constraint: String }
+			],
+			returns: 'A promise that resolves to a WorkspaceEdit.'
+		});
+		this._register('vscode.executeSignatureHelpProvider', this._executeSignatureHelpProvider, {
+			description: 'Execute signature help provider.',
+			args: [
+				{ name: 'uri', description: 'Uri of a text document', constraint: URI },
+				{ name: 'position', description: 'Position in a text document', constraint: types.Position }
+			],
+			returns: 'A promise that resolves to SignatureHelp.'
+		});
+		this._register('vscode.executeDocumentSymbolProvider', this._executeDocumentSymbolProvider, {
+			description: 'Execute document symbol provider.',
+			args: [
+				{ name: 'uri', description: 'Uri of a text document', constraint: URI }
+			],
+			returns: 'A promise that resolves to an array of SymbolInformation-instances.'
+		});
+		this._register('vscode.executeCompletionItemProvider', this._executeCompletionItemProvider, {
+			description: 'Execute completion item provider.',
+			args: [
+				{ name: 'uri', description: 'Uri of a text document', constraint: URI },
+				{ name: 'position', description: 'Position in a text document', constraint: types.Position }
+			],
+			returns: 'A promise that resolves to an array of CompletionItem-instances.'
+		});
+		this._register('vscode.executeCodeActionProvider', this._executeCodeActionProvider, {
+			description: 'Execute code action provider.',
+			args: [
+				{ name: 'uri', description: 'Uri of a text document', constraint: URI },
+				{ name: 'range', description: 'Range in a text document', constraint: types.Range }
+			],
+			returns: 'A promise that resolves to an array of CompletionItem-instances.'
+		});
+		this._register('vscode.executeCodeLensProvider', this._executeCodeLensProvider, {
+			description: 'Execute completion item provider.',
+			args: [
+				{ name: 'uri', description: 'Uri of a text document', constraint: URI }
+			],
+			returns: 'A promise that resolves to an array of Commands.'
+		});
+		this._register('vscode.executeFormatDocumentProvider', this._executeFormatDocumentProvider, {
+			description: 'Execute document format provider.',
+			args: [
+				{ name: 'uri', description: 'Uri of a text document', constraint: URI },
+				{ name: 'options', description: 'Formatting options' }
+			],
+			returns: 'A promise that resolves to an array of TextEdits.'
+		});
+		this._register('vscode.executeFormatRangeProvider', this._executeFormatRangeProvider, {
+			description: 'Execute range format provider.',
+			args: [
+				{ name: 'uri', description: 'Uri of a text document', constraint: URI },
+				{ name: 'range', description: 'Range in a text document', constraint: types.Range },
+				{ name: 'options', description: 'Formatting options' }
+			],
+			returns: 'A promise that resolves to an array of TextEdits.'
+		});
+		this._register('vscode.executeFormatOnTypeProvider', this._executeFormatOnTypeProvider, {
+			description: 'Execute document format provider.',
+			args: [
+				{ name: 'uri', description: 'Uri of a text document', constraint: URI },
+				{ name: 'position', description: 'Position in a text document', constraint: types.Position },
+				{ name: 'ch', description: 'Character that got typed', constraint: String },
+				{ name: 'options', description: 'Formatting options' }
+			],
+			returns: 'A promise that resolves to an array of TextEdits.'
+		});
 	}
 
 	// --- command impl
 
-	private _register(id: string, handler: (...args: any[]) => any): void {
-		this._disposables.push(this._commands.registerCommand(id, handler, this));
+	private _register(id: string, handler: (...args: any[]) => any, description?: ICommandHandlerDescription): void {
+		let disposable = this._commands.registerCommand(id, handler, this, description);
+		this._disposables.push(disposable);
 	}
 
 	/**
@@ -208,12 +290,13 @@ export class ExtHostLanguageFeatureCommands {
 		});
 	}
 
-	private _executeCodeLensProvider(resource: URI): Thenable<vscode.CodeLens[]>{
+	private _executeCodeLensProvider(resource: URI): Thenable<vscode.CodeLens[]> {
 		const args = { resource };
 		return this._commands.executeCommand<ICodeLensData[]>('_executeCodeLensProvider', args).then(value => {
 			if (Array.isArray(value)) {
 				return value.map(item => {
-					return new types.CodeLens(typeConverters.toRange(item.symbol.range),
+					return new types.CodeLens(
+						typeConverters.toRange(item.symbol.range),
 						typeConverters.Command.to(item.symbol.command));
 				});
 			}
@@ -245,7 +328,7 @@ export class ExtHostLanguageFeatureCommands {
 		});
 	}
 
-	private _executeFormatOnTypeProvider(resource: URI, position: types.Position, ch:string, options: vscode.FormattingOptions): Thenable<vscode.TextEdit[]> {
+	private _executeFormatOnTypeProvider(resource: URI, position: types.Position, ch: string, options: vscode.FormattingOptions): Thenable<vscode.TextEdit[]> {
 		const args = {
 			resource,
 			position: typeConverters.fromPosition(position),

@@ -4,18 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import URI from 'vs/base/common/uri';
-import Event, {Emitter} from 'vs/base/common/event';
-import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {Remotable, IThreadService} from 'vs/platform/thread/common/thread';
-import {PluginHostModelService} from 'vs/workbench/api/common/pluginHostDocuments';
-import {ISingleEditOperation, ISelection, IRange, IInternalIndentationOptions} from 'vs/editor/common/editorCommon';
-import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
-import {IModelService} from 'vs/editor/common/services/modelService';
-import {MainThreadEditorsTracker, MainThreadTextEditor, ITextEditorConfiguration} from 'vs/workbench/api/common/mainThreadEditors';
-import * as TypeConverters from './pluginHostTypeConverters';
-import {TextEditorSelectionChangeEvent, TextEditorOptionsChangeEvent} from 'vscode';
 import {IEditorModesRegistry, Extensions} from 'vs/editor/common/modes/modesRegistry';
 import {Registry} from 'vs/platform/platform';
 import {INullService} from 'vs/platform/instantiation/common/instantiation';

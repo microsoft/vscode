@@ -166,6 +166,7 @@ class InternalEditorOptionsHelper {
 			outlineMarkers: toBoolean(opts.outlineMarkers),
 			referenceInfos: toBoolean(opts.referenceInfos),
 			renderWhitespace: toBoolean(opts.renderWhitespace),
+			moveCursorWhenScrolling: toBoolean(opts.moveCursorWhenScrolling),
 
 			layoutInfo: layoutInfo,
 			stylingInfo: {
@@ -816,6 +817,11 @@ configurationRegistry.registerConfiguration({
 			'type': 'boolean',
 			'default': DefaultConfig.editor.referenceInfos,
 			'description': nls.localize('referenceInfos', "Controls if the editor shows reference information for the modes that support it")
+		},
+		'editor.moveCursorWhenScrolling' : {
+			'type': 'boolean',
+			'default': DefaultConfig.editor.moveCursorWhenScrolling,
+			'description': nls.localize('moveCursorWhenScrolling', "Controls if the edition cursor moves when the user scrolls the editor line by line")
 		},
 		'diffEditor.renderSideBySide' : {
 			'type': 'boolean',

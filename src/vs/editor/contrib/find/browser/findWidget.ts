@@ -19,20 +19,11 @@ import EditorCommon = require('vs/editor/common/editorCommon');
 import FindModel = require('vs/editor/contrib/find/common/findModel');
 import Lifecycle = require('vs/base/common/lifecycle');
 import {CommonKeybindings} from 'vs/base/common/keyCodes';
+import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
+import {Keybinding} from 'vs/base/common/keyCodes';
 
 export interface IUserInputEvent {
 	jumpToNextMatch: boolean;
-}
-
-export interface IFindWidget {
-	dispose(): void;
-
-	setModel(newFindModel:FindModel.IFindModel): void;
-	setSearchString(searchString:string): void;
-	getState(): FindModel.IFindState;
-
-	addUserInputEventListener(callback:(e:IUserInputEvent)=>void): Lifecycle.IDisposable;
-	addClosedEventListener(callback:()=>void): Lifecycle.IDisposable;
 }
 
 export interface IFindController {
@@ -42,7 +33,19 @@ export interface IFindController {
 	replaceAll(): void;
 }
 
-export class FindWidget extends EventEmitter.EventEmitter implements EditorBrowser.IOverlayWidget, IFindWidget {
+const NLS_FIND_INPUT_LABEL = nls.localize('label.find', "Find");
+const NLS_FIND_INPUT_PLACEHOLDER = nls.localize('placeholder.find', "Find");
+const NLS_PREVIOUS_MATCH_BTN_LABEL = nls.localize('label.previousMatchButton', "Previous match");
+const NLS_NEXT_MATCH_BTN_LABEL = nls.localize('label.nextMatchButton', "Next match");
+const NLS_TOGGLE_SELECTION_FIND_TITLE = nls.localize('label.toggleSelectionFind', "Find in selection");
+const NLS_CLOSE_BTN_LABEL = nls.localize('label.closeButton', "Close");
+const NLS_REPLACE_INPUT_LABEL = nls.localize('label.replace', "Replace");
+const NLS_REPLACE_INPUT_PLACEHOLDER = nls.localize('placeholder.replace', "Replace");
+const NLS_REPLACE_BTN_LABEL = nls.localize('label.replaceButton', "Replace");
+const NLS_REPLACE_ALL_BTN_LABEL = nls.localize('label.replaceAllButton', "Replace All");
+const NLS_TOGGLE_REPLACE_MODE_BTN_LABEL = nls.localize('label.toggleReplaceButton', "Toggle Replace mode");
+
+export class FindWidget extends EventEmitter.EventEmitter implements EditorBrowser.IOverlayWidget {
 
 	private static _USER_CLOSED_EVENT = 'close';
 	private static _USER_INPUT_EVENT = 'userInputEvent';
@@ -54,6 +57,8 @@ export class FindWidget extends EventEmitter.EventEmitter implements EditorBrows
 
 	private _codeEditor:EditorBrowser.ICodeEditor;
 	private _controller: IFindController;
+	private _contextViewProvider:ContextView.IContextViewProvider;
+	private _keybindingService: IKeybindingService;
 
 	private _domNode:HTMLElement;
 	private _findInput:Findinput.FindInput;
@@ -73,14 +78,17 @@ export class FindWidget extends EventEmitter.EventEmitter implements EditorBrows
 
 	private _toDispose:Lifecycle.IDisposable[];
 
-	private _model:FindModel.IFindModel;
+	private _model:FindModel.FindModelBoundToEditorModel;
 	private _modelListenersToDispose:Lifecycle.IDisposable[];
-
-	private _contextViewProvider:ContextView.IContextViewProvider;
 
 	private focusTracker:DomUtils.IFocusTracker;
 
-	constructor(codeEditor:EditorBrowser.ICodeEditor, controller:IFindController, contextViewProvider:ContextView.IContextViewProvider) {
+	constructor(
+		codeEditor:EditorBrowser.ICodeEditor,
+		controller:IFindController,
+		contextViewProvider:ContextView.IContextViewProvider,
+		keybindingService:IKeybindingService
+	) {
 		super([
 			FindWidget._USER_INPUT_EVENT,
 			FindWidget._USER_CLOSED_EVENT,
@@ -88,6 +96,7 @@ export class FindWidget extends EventEmitter.EventEmitter implements EditorBrows
 		this._codeEditor = codeEditor;
 		this._controller = controller;
 		this._contextViewProvider = contextViewProvider;
+		this._keybindingService = keybindingService;
 
 		this._isVisible = false;
 		this._isReplaceVisible = false;
@@ -141,6 +150,7 @@ export class FindWidget extends EventEmitter.EventEmitter implements EditorBrows
 
 	public setSearchString(searchString:string): void {
 		this._findInput.setValue(searchString);
+		this._emitUserInputEvent(false);
 	}
 
 	private _setState(state:FindModel.IFindState, selectionFindEnabled:boolean): void {
@@ -176,19 +186,14 @@ export class FindWidget extends EventEmitter.EventEmitter implements EditorBrows
 		return result;
 	}
 
-	public setModel(newFindModel:FindModel.IFindModel): void {
+	public setModel(newFindModel:FindModel.FindModelBoundToEditorModel): void {
 		this._removeModel();
 		if (newFindModel) {
 			// We have a new model! :)
 			this._model = newFindModel;
 			this._modelListenersToDispose.push(this._model.addStartEventListener((e:FindModel.IFindStartEvent) => {
-				this._reveal(e.shouldFocus);
+				this._reveal(e.shouldAnimate);
 				this._setState(e.state, e.selectionFindEnabled);
-				if (e.shouldFocus) {
-					this._findInput.select();
-					// Edge browser requires focus() in addition to select()
-					this._findInput.focus();
-				}
 			}));
 			this._modelListenersToDispose.push(this._model.addMatchesUpdatedEventListener((e:FindModel.IFindMatchesEvent) => {
 				DomUtils.toggleClass(this._domNode, 'no-results', this._findInput.getValue() !== '' && e.count === 0);
@@ -197,6 +202,18 @@ export class FindWidget extends EventEmitter.EventEmitter implements EditorBrows
 			// No model :(
 			this._hide(false);
 		}
+	}
+
+	public focusFindInput(): void {
+		this._findInput.select();
+		// Edge browser requires focus() in addition to select()
+		this._findInput.focus();
+	}
+
+	public focusReplaceInput(): void {
+		this._replaceInputBox.select();
+		// Edge browser requires focus() in addition to select()
+		this._replaceInputBox.focus();
 	}
 
 	private _removeModel(): void {
@@ -243,10 +260,10 @@ export class FindWidget extends EventEmitter.EventEmitter implements EditorBrows
 		var handled = false;
 
 		if (e.equals(CommonKeybindings.ENTER)) {
-			this._codeEditor.getAction(FindModel.NEXT_MATCH_FIND_ID).run().done(null, Errors.onUnexpectedError);
+			this._codeEditor.getAction(FindModel.NEXT_MATCH_FIND_ACTION_ID).run().done(null, Errors.onUnexpectedError);
 			handled = true;
 		} else if (e.equals(CommonKeybindings.SHIFT_ENTER)) {
-			this._codeEditor.getAction(FindModel.PREVIOUS_MATCH_FIND_ID).run().done(null, Errors.onUnexpectedError);
+			this._codeEditor.getAction(FindModel.PREVIOUS_MATCH_FIND_ACTION_ID).run().done(null, Errors.onUnexpectedError);
 			handled = true;
 		} else if (e.equals(CommonKeybindings.TAB)) {
 			if (this._isReplaceVisible) {
@@ -254,6 +271,9 @@ export class FindWidget extends EventEmitter.EventEmitter implements EditorBrows
 			} else {
 				this._findInput.focusOnCaseSensitive();
 			}
+			handled = true;
+		} else if (e.equals(CommonKeybindings.CTRLCMD_DOWN_ARROW)) {
+			this._codeEditor.focus();
 			handled = true;
 		}
 
@@ -280,6 +300,9 @@ export class FindWidget extends EventEmitter.EventEmitter implements EditorBrows
 		} else if (e.equals(CommonKeybindings.TAB)) {
 			this._findInput.focusOnCaseSensitive();
 			handled = true;
+		} else if (e.equals(CommonKeybindings.CTRLCMD_DOWN_ARROW)) {
+			this._codeEditor.focus();
+			handled = true;
 		}
 
 		if (handled) {
@@ -300,12 +323,23 @@ export class FindWidget extends EventEmitter.EventEmitter implements EditorBrows
 		this._replaceAllBtn.setEnabled(findInputIsNonEmpty);
 	}
 
+	private _keybindingLabelFor(actionId:string): string {
+		let keybindings = this._keybindingService.lookupKeybindings(actionId);
+		if (keybindings.length === 0) {
+			return '';
+		}
+		return ' (' + this._keybindingService.getLabelFor(keybindings[0]) + ')';
+	}
+
 	private _buildFindPart(): HTMLElement {
 		// Find input
 		this._findInput = new Findinput.FindInput(null, this._contextViewProvider, {
 			width: FindWidget.FIND_INPUT_AREA_WIDTH,
-			label: nls.localize('label.find', "Find"),
-			placeholder: nls.localize('placeholder.find', "Find"),
+			label: NLS_FIND_INPUT_LABEL,
+			placeholder: NLS_FIND_INPUT_PLACEHOLDER,
+			appendCaseSensitiveLabel: this._keybindingLabelFor(FindModel.TOGGLE_CASE_SENSITIVE_COMMAND_ID),
+			appendWholeWordsLabel: this._keybindingLabelFor(FindModel.TOGGLE_WHOLE_WORD_COMMAND_ID),
+			appendRegexLabel: this._keybindingLabelFor(FindModel.TOGGLE_REGEX_COMMAND_ID),
 			validation: (value:string): InputBox.IMessage => {
 				if (value.length === 0) {
 					return null;
@@ -330,19 +364,19 @@ export class FindWidget extends EventEmitter.EventEmitter implements EditorBrows
 
 		// Previous button
 		this._prevBtn = new SimpleButton(
-			nls.localize('label.previousMatchButton', "Previous match (Shift+F3)"),
+			NLS_PREVIOUS_MATCH_BTN_LABEL + this._keybindingLabelFor(FindModel.PREVIOUS_MATCH_FIND_ACTION_ID),
 			'previous'
 		).onTrigger(() => {
-			this._codeEditor.getAction(FindModel.PREVIOUS_MATCH_FIND_ID).run().done(null, Errors.onUnexpectedError);
+			this._codeEditor.getAction(FindModel.PREVIOUS_MATCH_FIND_ACTION_ID).run().done(null, Errors.onUnexpectedError);
 		});
 		this._toDispose.push(this._prevBtn);
 
 		// Next button
 		this._nextBtn = new SimpleButton(
-			nls.localize('label.nextMatchButton', "Next match (F3)"),
+			NLS_NEXT_MATCH_BTN_LABEL + this._keybindingLabelFor(FindModel.NEXT_MATCH_FIND_ACTION_ID),
 			'next'
 		).onTrigger(() => {
-			this._codeEditor.getAction(FindModel.NEXT_MATCH_FIND_ID).run().done(null, Errors.onUnexpectedError);
+			this._codeEditor.getAction(FindModel.NEXT_MATCH_FIND_ACTION_ID).run().done(null, Errors.onUnexpectedError);
 		});
 		this._toDispose.push(this._nextBtn);
 
@@ -353,7 +387,7 @@ export class FindWidget extends EventEmitter.EventEmitter implements EditorBrows
 		findPart.appendChild(this._nextBtn.domNode);
 
 		// Toggle selection button
-		this._toggleSelectionFind = new Checkbox(findPart, nls.localize('label.toggleSelectionFind', "Find in selection"));
+		this._toggleSelectionFind = new Checkbox(findPart, NLS_TOGGLE_SELECTION_FIND_TITLE);
 		this._toggleSelectionFind.disable();
 		this._toDispose.push(DomUtils.addStandardDisposableListener(this._toggleSelectionFind.checkbox, 'change', (e) => {
 			if (this._toggleSelectionFind.checkbox.checked) {
@@ -371,7 +405,7 @@ export class FindWidget extends EventEmitter.EventEmitter implements EditorBrows
 
 		// Close button
 		this._closeBtn = new SimpleButton(
-			nls.localize('label.closeButton', "Close (Escape)"),
+			NLS_CLOSE_BTN_LABEL + this._keybindingLabelFor(FindModel.CLOSE_FIND_WIDGET_COMMAND_ID),
 			'close-fw'
 			).onTrigger(() => {
 			this._hide(true);
@@ -415,8 +449,8 @@ export class FindWidget extends EventEmitter.EventEmitter implements EditorBrows
 		replaceInput.className = 'replace-input';
 		replaceInput.style.width = FindWidget.REPLACE_INPUT_AREA_WIDTH + 'px';
 		this._replaceInputBox = new InputBox.InputBox(replaceInput, null, {
-			ariaLabel: nls.localize('label.replace', "Replace"),
-			placeholder: nls.localize('placeholder.replace', "Replace")
+			ariaLabel: NLS_REPLACE_INPUT_LABEL,
+			placeholder: NLS_REPLACE_INPUT_PLACEHOLDER
 		});
 
 		this._toDispose.push(DomUtils.addStandardDisposableListener(this._replaceInputBox.inputElement, 'keydown', (e) => this._onReplaceInputKeyDown(e)));
@@ -424,7 +458,7 @@ export class FindWidget extends EventEmitter.EventEmitter implements EditorBrows
 
 		// Replace one button
 		this._replaceBtn = new SimpleButton(
-			nls.localize('label.replaceButton', "Replace"),
+			NLS_REPLACE_BTN_LABEL,
 			'replace'
 		).onTrigger(() => {
 			this._controller.replace();
@@ -433,7 +467,7 @@ export class FindWidget extends EventEmitter.EventEmitter implements EditorBrows
 
 		// Replace all button
 		this._replaceAllBtn = new SimpleButton(
-			nls.localize('label.replaceAllButton', "Replace All"),
+			NLS_REPLACE_ALL_BTN_LABEL,
 			'replace-all'
 		).onTrigger(() => {
 			this._controller.replaceAll();
@@ -458,7 +492,7 @@ export class FindWidget extends EventEmitter.EventEmitter implements EditorBrows
 
 		// Toggle replace button
 		this._toggleReplaceBtn = new SimpleButton(
-			nls.localize('label.toggleReplaceButton', "Toggle Replace mode"),
+			NLS_TOGGLE_REPLACE_MODE_BTN_LABEL,
 			'toggle left'
 		).onTrigger(() => {
 			if (this._isReplaceVisible) {
@@ -552,6 +586,21 @@ export class FindWidget extends EventEmitter.EventEmitter implements EditorBrows
 
 	private _emitClosedEvent(): void {
 		this.emit(FindWidget._USER_CLOSED_EVENT);
+	}
+
+	public toggleCaseSensitive(): void {
+		this._findInput.setCaseSensitive(!this._findInput.getCaseSensitive());
+		this._emitUserInputEvent(false);
+	}
+
+	public toggleWholeWords(): void {
+		this._findInput.setWholeWords(!this._findInput.getWholeWords());
+		this._emitUserInputEvent(false);
+	}
+
+	public toggleRegex(): void {
+		this._findInput.setRegex(!this._findInput.getRegex());
+		this._emitUserInputEvent(false);
 	}
 }
 

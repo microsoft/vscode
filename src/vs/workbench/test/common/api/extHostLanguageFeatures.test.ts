@@ -958,6 +958,27 @@ suite('ExtHostLanguageFeatures', function() {
 		});
 	})
 
+	test('Format Range, + format_doc', function(done) {
+		disposables.push(extHost.registerDocumentRangeFormattingEditProvider(defaultSelector, <vscode.DocumentRangeFormattingEditProvider>{
+			provideDocumentRangeFormattingEdits(): any {
+				return [new types.TextEdit(new types.Range(0, 0, 1, 1), 'range')];
+			}
+		}));
+		disposables.push(extHost.registerDocumentFormattingEditProvider(defaultSelector, <vscode.DocumentFormattingEditProvider>{
+			provideDocumentFormattingEdits(): any {
+				return [new types.TextEdit(new types.Range(0, 0, 1, 1), 'doc')];
+			}
+		}));
+		threadService.sync().then(() => {
+			formatRange(model, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 }, { insertSpaces: true, tabSize: 4 }).then(value => {
+				assert.equal(value.length, 1);
+				let [first] = value;
+				assert.equal(first.text, 'range');
+				done();
+			});
+		});
+	});
+
 	test('Format Range, evil provider', function(done) {
 		disposables.push(extHost.registerDocumentRangeFormattingEditProvider(defaultSelector, <vscode.DocumentRangeFormattingEditProvider>{
 			provideDocumentRangeFormattingEdits(): any {

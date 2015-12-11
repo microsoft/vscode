@@ -253,10 +253,10 @@ export class VSCodeMenu {
 		let mru = this.getOpenedPathsList();
 		if (isFile || platform.isMacintosh /* on mac we don't treat files any different from folders */) {
 			mru.files.unshift(path);
-			mru.files = arrays.distinct(mru.files);
+			mru.files = arrays.distinct(mru.files, (f) => platform.isLinux ? f : f.toLowerCase());
 		} else {
 			mru.folders.unshift(path);
-			mru.folders = arrays.distinct(mru.folders);
+			mru.folders = arrays.distinct(mru.folders, (f) => platform.isLinux ? f : f.toLowerCase());
 		}
 
 		// Make sure its bounded

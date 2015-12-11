@@ -8,7 +8,7 @@
 import 'vs/css!./media/editorstatus';
 import nls = require('vs/nls');
 import {Promise, TPromise} from 'vs/base/common/winjs.base';
-import react = require('lib/react');
+import { emmet as $, append, show, hide } from 'vs/base/browser/dom';
 import objects = require('vs/base/common/objects');
 import encoding = require('vs/base/common/bits/encoding');
 import strings = require('vs/base/common/strings');
@@ -23,7 +23,7 @@ import {Registry} from 'vs/platform/platform';
 import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {UntitledEditorInput} from 'vs/workbench/browser/parts/editor/untitledEditorInput';
 import {EncodingMode, IEncodingSupport, asFileEditorInput, getUntitledOrFileResource} from 'vs/workbench/common/editor';
-import {toDisposable, IDisposable} from 'vs/base/common/lifecycle';
+import {toDisposable, IDisposable, combinedDispose} from 'vs/base/common/lifecycle';
 import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
 import {EndOfLineSequence, ITokenizedModel, EditorType, IEditorSelection, ITextModel, IDiffEditorModel, IEditor} from 'vs/editor/common/editorCommon';
 import {EventType, EditorEvent, TextEditorSelectionEvent, ResourceEvent} from 'vs/workbench/browser/events';
@@ -58,17 +58,6 @@ interface IEditorSelectionStatus {
 	charactersSelected?: number;
 }
 
-interface IProps {
-	eventService: IEventService;
-	editorService: IWorkbenchEditorService;
-	quickOpenService: IQuickOpenService;
-	onModeClick: () => void;
-	onSelectionClick: () => void;
-	onEOLClick: () => void;
-	onEncodingClick: () => void;
-	onTabFocusModeClick: () => void;
-}
-
 interface IState {
 	selectionStatus: IEditorSelectionStatus;
 	mode: string;
@@ -77,33 +66,33 @@ interface IState {
 	tabFocusMode: boolean;
 }
 
-class WidgetSpec extends react.BaseComponent<IProps, IState> {
+const nlsSingleSelectionRange = nls.localize('singleSelectionRange', "Ln {0}, Col {1} ({2} selected)");
+const nlsSingleSelection = nls.localize('singleSelection', "Ln {0}, Col {1}");
+const nlsMultiSelectionRange = nls.localize('multiSelectionRange', "{0} selections ({1} characters selected)");
+const nlsMultiSelection = nls.localize('multiSelection', "{0} selections");
+const nlsEOLLF = nls.localize('endOfLineLineFeed', "LF");
+const nlsEOLCRLF = nls.localize('endOfLineCarriageReturnLineFeed', "CRLF");
+const nlsTabFocusMode = nls.localize('tabFocusModeEnabled', "Accessibility Mode On");
 
-	private static nlsSingleSelectionRange = nls.localize('singleSelectionRange', "Ln {0}, Col {1} ({2} selected)");
-	private static nlsSingleSelection = nls.localize('singleSelection', "Ln {0}, Col {1}");
-	private static nlsMultiSelectionRange = nls.localize('multiSelectionRange', "{0} selections ({1} characters selected)");
-	private static nlsMultiSelection = nls.localize('multiSelection', "{0} selections");
+export class EditorStatus implements IStatusbarItem {
 
-	public static nlsEOLLF = nls.localize('endOfLineLineFeed', "LF");
-	public static nlsEOLCRLF = nls.localize('endOfLineCarriageReturnLineFeed', "CRLF");
-
-	private static nlsTabFocusMode = nls.localize('tabFocusModeEnabled', "Accessibility Mode On");
-
+	private state: IState;
+	private element: HTMLElement;
+	private tabFocusModeElement: HTMLElement;
+	private selectionElement: HTMLElement;
+	private encodingElement: HTMLElement;
+	private eolElement: HTMLElement;
+	private modeElement: HTMLElement;
 	private toDispose: IDisposable[];
 
-	public componentDidMount(): void {
-		this.toDispose = [
-			this.props.eventService.addListener2(EventType.EDITOR_INPUT_CHANGED, (e: EditorEvent) => this.onEditorInputChange(e.editor)),
-			this.props.eventService.addListener2(EventType.RESOURCE_ENCODING_CHANGED, (e: ResourceEvent) => this.onResourceEncodingChange(e.resource)),
-			this.props.eventService.addListener2(EventType.TEXT_EDITOR_SELECTION_CHANGED, (e: TextEditorSelectionEvent) => this.onSelectionChange(e.editor)),
-			this.props.eventService.addListener2(EventType.TEXT_EDITOR_MODE_CHANGED, (e: EditorEvent) => this.onModeChange(e.editor)),
-			this.props.eventService.addListener2(EventType.TEXT_EDITOR_CONTENT_CHANGED, (e: EditorEvent) => this.onEOLChange(e.editor)),
-			this.props.eventService.addListener2(EventType.TEXT_EDITOR_CONFIGURATION_CHANGED, (e: EditorEvent) => this.onTabFocusModeChange(e.editor)),
-		];
-	}
-
-	public getInitialState(): IState {
-		return {
+	constructor(
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IQuickOpenService private quickOpenService: IQuickOpenService,
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IEventService private eventService: IEventService
+	) {
+		this.toDispose = [];
+		this.state = {
 			selectionStatus: null,
 			mode: null,
 			encoding: null,
@@ -112,74 +101,85 @@ class WidgetSpec extends react.BaseComponent<IProps, IState> {
 		};
 	}
 
-	public render(): react.ReactHTMLElement {
-		let children: react.ReactHTMLElement[] = [];
+	public render(container: HTMLElement): IDisposable {
+		this.element = append(container, $('.editor-statusbar-item'));
 
-		if (this.state.tabFocusMode && this.state.tabFocusMode === true) {
-			children.push(react.createElement('a', {
-				className: 'editor-status-tabfocusmode',
-				title: nls.localize('disableTabMode', "Disable Accessibility Mode"),
-				onClick: this.onTabFocusModeClick
-			}, WidgetSpec.nlsTabFocusMode));
+		this.tabFocusModeElement = append(this.element, $('a.editor-status-tabfocusmode'));
+		this.tabFocusModeElement.title = nls.localize('disableTabMode', "Disable Accessibility Mode");
+		this.tabFocusModeElement.onclick = () => this.onTabFocusModeClick();
+		this.tabFocusModeElement.textContent = nlsTabFocusMode;
+
+		this.selectionElement = append(this.element, $('a.editor-status-selection'));
+		this.selectionElement.title = nls.localize('gotoLine', "Go to Line");
+		this.selectionElement.onclick = () => this.onSelectionClick();
+
+		this.encodingElement = append(this.element, $('a.editor-status-encoding'));
+		this.encodingElement.title = nls.localize('selectEncoding', "Select Encoding");
+		this.encodingElement.onclick = () => this.onEncodingClick();
+
+		this.eolElement = append(this.element, $('a.editor-status-eol'));
+		this.eolElement.title = nls.localize('selectEOL', "Select End of Line Sequence");
+		this.eolElement.onclick = () => this.onEOLClick();
+
+		this.modeElement = append(this.element, $('a.editor-status-mode'));
+		this.modeElement.title = nls.localize('selectLanguageMode', "Select Language Mode");
+		this.modeElement.onclick = () => this.onModeClick();
+
+		this.setState(this.state);
+
+		this.toDispose.push(
+			this.eventService.addListener2(EventType.EDITOR_INPUT_CHANGED, (e: EditorEvent) => this.onEditorInputChange(e.editor)),
+			this.eventService.addListener2(EventType.RESOURCE_ENCODING_CHANGED, (e: ResourceEvent) => this.onResourceEncodingChange(e.resource)),
+			this.eventService.addListener2(EventType.TEXT_EDITOR_SELECTION_CHANGED, (e: TextEditorSelectionEvent) => this.onSelectionChange(e.editor)),
+			this.eventService.addListener2(EventType.TEXT_EDITOR_MODE_CHANGED, (e: EditorEvent) => this.onModeChange(e.editor)),
+			this.eventService.addListener2(EventType.TEXT_EDITOR_CONTENT_CHANGED, (e: EditorEvent) => this.onEOLChange(e.editor)),
+			this.eventService.addListener2(EventType.TEXT_EDITOR_CONFIGURATION_CHANGED, (e: EditorEvent) => this.onTabFocusModeChange(e.editor))
+		);
+
+		return combinedDispose(...this.toDispose);
+	}
+
+	private setState(state: IState): void {
+		this.state = state;
+
+		if (state.tabFocusMode && state.tabFocusMode === true) {
+			show(this.tabFocusModeElement);
+		} else {
+			hide(this.tabFocusModeElement);
 		}
 
 		let selectionLabel = this.getSelectionLabel();
 		if (selectionLabel) {
-			children.push(react.createElement('a', {
-				className: 'editor-status-selection',
-				title: nls.localize('gotoLine', "Go to Line"),
-				onClick: this.onSelectionClick
-			}, selectionLabel));
+			this.selectionElement.textContent = selectionLabel;
+			show(this.selectionElement);
+		} else {
+			hide(this.selectionElement);
 		}
 
-		if (this.state.encoding) {
-			children.push(react.createElement('a', {
-				className: 'editor-status-encoding',
-				title: nls.localize('selectEncoding', "Select Encoding"),
-				onClick: this.onEncodingClick
-			}, this.state.encoding));
+		if (state.encoding) {
+			this.encodingElement.textContent = state.encoding;
+			show(this.encodingElement);
+		} else {
+			hide(this.encodingElement);
 		}
 
-		if (this.state.EOL) {
-			children.push(react.createElement('a', {
-				className: 'editor-status-eol',
-				title: nls.localize('selectEOL', "Select End of Line Sequence"),
-				onClick: this.onEOLClick
-			}, (this.state.EOL === '\r\n' ? WidgetSpec.nlsEOLCRLF : WidgetSpec.nlsEOLLF)));
+		if (state.EOL) {
+			this.eolElement.textContent = state.EOL === '\r\n' ? nlsEOLCRLF : nlsEOLLF;
+			show(this.eolElement);
+		} else {
+			hide(this.eolElement);
 		}
 
-		if (this.state.mode) {
-			children.push(react.createElement('a', {
-				className: 'editor-status-mode',
-				title: nls.localize('selectLanguageMode', "Select Language Mode"),
-				onClick: this.onModeClick
-			}, this.state.mode));
+		if (state.mode) {
+			this.modeElement.textContent = state.mode;
+			show(this.modeElement);
+		} else {
+			hide(this.modeElement);
 		}
-
-		return react.createElement('div', {
-			className: 'editor-statusbar-item',
-			children: children
-		});
 	}
 
-	private onModeClick(): void {
-		this.props.onModeClick();
-	}
-
-	private onSelectionClick(): void {
-		this.props.onSelectionClick();
-	}
-
-	private onEOLClick(): void {
-		this.props.onEOLClick();
-	}
-
-	private onEncodingClick(): void {
-		this.props.onEncodingClick();
-	}
-
-	private onTabFocusModeClick(): void {
-		this.props.onTabFocusModeClick();
+	private updateState(update: any): void {
+		this.setState(objects.assign({}, this.state, update));
 	}
 
 	private getSelectionLabel(): string {
@@ -191,16 +191,48 @@ class WidgetSpec extends react.BaseComponent<IProps, IState> {
 
 		if (info.selections.length === 1) {
 			if (info.charactersSelected) {
-				return strings.format(WidgetSpec.nlsSingleSelectionRange, info.selections[0].positionLineNumber, info.selections[0].positionColumn, info.charactersSelected);
+				return strings.format(nlsSingleSelectionRange, info.selections[0].positionLineNumber, info.selections[0].positionColumn, info.charactersSelected);
 			} else {
-				return strings.format(WidgetSpec.nlsSingleSelection, info.selections[0].positionLineNumber, info.selections[0].positionColumn);
+				return strings.format(nlsSingleSelection, info.selections[0].positionLineNumber, info.selections[0].positionColumn);
 			}
 		} else {
 			if (info.charactersSelected) {
-				return strings.format(WidgetSpec.nlsMultiSelectionRange, info.selections.length, info.charactersSelected);
+				return strings.format(nlsMultiSelectionRange, info.selections.length, info.charactersSelected);
 			} else {
-				return strings.format(WidgetSpec.nlsMultiSelection, info.selections.length);
+				return strings.format(nlsMultiSelection, info.selections.length);
 			}
+		}
+	}
+
+	private onModeClick(): void {
+		let action = this.instantiationService.createInstance(ChangeModeAction, ChangeModeAction.ID, ChangeModeAction.LABEL);
+
+		action.run().done(null, errors.onUnexpectedError);
+		action.dispose();
+	}
+
+	private onSelectionClick(): void {
+		this.quickOpenService.show(':'); // "Go to line"
+	}
+
+	private onEOLClick(): void {
+		let action = this.instantiationService.createInstance(ChangeEOLAction, ChangeEOLAction.ID, ChangeEOLAction.LABEL);
+
+		action.run().done(null, errors.onUnexpectedError);
+		action.dispose();
+	}
+
+	private onEncodingClick(): void {
+		let action = this.instantiationService.createInstance(ChangeEncodingAction, ChangeEncodingAction.ID, ChangeEncodingAction.LABEL);
+
+		action.run().done(null, errors.onUnexpectedError);
+		action.dispose();
+	}
+
+	private onTabFocusModeClick(): void {
+		let activeEditor = this.editorService.getActiveEditor();
+		if (activeEditor instanceof BaseTextEditor && isCodeEditorWithTabFocusMode(activeEditor)) {
+			(<ICodeEditor>activeEditor.getControl()).updateOptions({ tabFocusMode: false });
 		}
 	}
 
@@ -339,13 +371,13 @@ class WidgetSpec extends react.BaseComponent<IProps, IState> {
 	}
 
 	private isActiveEditor(e: BaseEditor): boolean {
-		let activeEditor = this.props.editorService.getActiveEditor();
+		let activeEditor = this.editorService.getActiveEditor();
 
 		return activeEditor && e && activeEditor === e;
 	}
 
 	private getActiveEditor(resource: uri): BaseEditor {
-		let activeEditor = this.props.editorService.getActiveEditor();
+		let activeEditor = this.editorService.getActiveEditor();
 		if (activeEditor) {
 			let r = getUntitledOrFileResource(activeEditor.input);
 			if (r && r.toString() === resource.toString()) {
@@ -354,73 +386,6 @@ class WidgetSpec extends react.BaseComponent<IProps, IState> {
 		}
 
 		return null;
-	}
-
-	private updateState(update: any, callback?: () => void): void {
-		this.setState(objects.mixin(update, this.state, false), callback);
-	}
-}
-
-let EditorStatusWidget = react.createFactoryForTS<IProps>(WidgetSpec.prototype);
-
-export class EditorStatus implements IStatusbarItem {
-
-	constructor(
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IQuickOpenService private quickOpenService: IQuickOpenService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IEventService private eventService: IEventService
-	) {
-	}
-
-	public render(container: HTMLElement): IDisposable {
-		react.render(
-			EditorStatusWidget({
-				editorService: this.editorService,
-				eventService: this.eventService,
-				quickOpenService: this.quickOpenService,
-				onModeClick: () => this.onModeClick(),
-				onSelectionClick: () => this.onSelectionClick(),
-				onEOLClick: () => this.onEOLClick(),
-				onTabFocusModeClick: () => this.onTabFocusModeClick(),
-				onEncodingClick: () => this.onEncodingClick()
-			}),
-			container
-		);
-
-		return toDisposable(() => react.unmountComponentAtNode(container));
-	}
-
-	private onModeClick(): void {
-		let action = this.instantiationService.createInstance(ChangeModeAction, ChangeModeAction.ID, ChangeModeAction.LABEL);
-
-		action.run().done(null, errors.onUnexpectedError);
-		action.dispose();
-	}
-
-	private onSelectionClick(): void {
-		this.quickOpenService.show(':'); // "Go to line"
-	}
-
-	private onEOLClick(): void {
-		let action = this.instantiationService.createInstance(ChangeEOLAction, ChangeEOLAction.ID, ChangeEOLAction.LABEL);
-
-		action.run().done(null, errors.onUnexpectedError);
-		action.dispose();
-	}
-
-	private onEncodingClick(): void {
-		let action = this.instantiationService.createInstance(ChangeEncodingAction, ChangeEncodingAction.ID, ChangeEncodingAction.LABEL);
-
-		action.run().done(null, errors.onUnexpectedError);
-		action.dispose();
-	}
-
-	private onTabFocusModeClick(): void {
-		let activeEditor = this.editorService.getActiveEditor();
-		if (activeEditor instanceof BaseTextEditor && isCodeEditorWithTabFocusMode(activeEditor)) {
-			(<ICodeEditor>activeEditor.getControl()).updateOptions({ tabFocusMode: false });
-		}
 	}
 }
 
@@ -548,8 +513,8 @@ export class ChangeEOLAction extends Action {
 		let textModel = getTextModel(editorWidget);
 
 		let EOLOptions: IChangeEOLEntry[] = [
-			{ label: WidgetSpec.nlsEOLLF, eol: EndOfLineSequence.LF },
-			{ label: WidgetSpec.nlsEOLCRLF, eol: EndOfLineSequence.CRLF },
+			{ label: nlsEOLLF, eol: EndOfLineSequence.LF },
+			{ label: nlsEOLCRLF, eol: EndOfLineSequence.CRLF },
 		];
 
 		let selectedIndex = (textModel.getEOL() === '\n') ? 0 : 1;

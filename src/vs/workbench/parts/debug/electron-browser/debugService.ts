@@ -560,10 +560,14 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 
 	public rawAttach(port: number): Promise {
 		if (this.session) {
-			return this.session.attach({ port });
-		}
-		const configuration = this.configurationManager.getConfiguration();
+			if (!this.session.isAttach) {
+				return this.session.attach({ port });
+			}
 
+			this.session.disconnect().done(null, errors.onUnexpectedError);
+		}
+
+		const configuration = this.configurationManager.getConfiguration();
 		return this.doCreateSession({
 			type: configuration.type,
 			request: 'attach',

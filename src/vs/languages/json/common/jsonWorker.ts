@@ -32,6 +32,7 @@ import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {ISchemaContributions} from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import {IResourceService} from 'vs/editor/common/services/resourceService';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import {JSONLocation} from './parser/jsonLocation';
 
 export interface IOptionsSchema {
 	/**
@@ -64,10 +65,10 @@ export interface ISuggestionsCollector {
 }
 
 export interface IJSONWorkerContribution {
-	getInfoContribution(contributionId: string, propertyKey: string) : WinJS.TPromise<HtmlContent.IHTMLContentElement[]>;
-	collectPropertySuggestions(contributionId: string, currentWord: string, addValue: boolean, isLast:boolean, result: ISuggestionsCollector) : WinJS.Promise;
-	collectValueSuggestions(contributionId: string, propertyKey: string, result: ISuggestionsCollector): WinJS.Promise;
-	collectDefaultSuggestions(contributionId: string, result: ISuggestionsCollector): WinJS.Promise;
+	getInfoContribution(resource: URI, location: JSONLocation) : WinJS.TPromise<HtmlContent.IHTMLContentElement[]>;
+	collectPropertySuggestions(resource: URI, location: JSONLocation, currentWord: string, addValue: boolean, isLast:boolean, result: ISuggestionsCollector) : WinJS.Promise;
+	collectValueSuggestions(resource: URI, location: JSONLocation, propertyKey: string, result: ISuggestionsCollector): WinJS.Promise;
+	collectDefaultSuggestions(resource: URI, result: ISuggestionsCollector): WinJS.Promise;
 }
 
 export class JSONWorker extends AbstractModeWorker implements Modes.IExtraInfoSupport {
@@ -235,13 +236,12 @@ export class JSONWorker extends AbstractModeWorker implements Modes.IExtraInfoSu
 					return true;
 				});
 
-				if (contributonId && node.name) {
-					for (var i= this.contributions.length -1; i >= 0; i--) {
-						var contribution = this.contributions[i];
-						var promise = contribution.getInfoContribution(contributonId, node.name);
-						if (promise) {
-							return promise.then((htmlContent) => { return this.createInfoResult(htmlContent, originalNode, modelMirror); } );
-						}
+				var location = node.getNodeLocation();
+				for (var i= this.contributions.length -1; i >= 0; i--) {
+					var contribution = this.contributions[i];
+					var promise = contribution.getInfoContribution(resource, location);
+					if (promise) {
+						return promise.then((htmlContent) => { return this.createInfoResult(htmlContent, originalNode, modelMirror); } );
 					}
 				}
 
@@ -356,28 +356,28 @@ export class JSONWorker extends AbstractModeWorker implements Modes.IExtraInfoSu
 						}
 					};
 
-					return this.jsonIntellisense.getValueSuggestions(schema, doc, node.parent, node.start, collector).then(() => {
-						var range = modelMirror.getRangeFromOffsetAndLength(node.start, node.end - node.start);
-						var text = modelMirror.getValueInRange(range);
-						for (var i = 0, len = proposals.length; i < len; i++) {
-							if (Strings.equalsIgnoreCase(proposals[i].label, text)) {
-								var nextIdx = i;
-								if (up) {
-									nextIdx = (i + 1) % len;
-								} else {
-									nextIdx =  i - 1;
-									if (nextIdx < 0) {
-										nextIdx = len - 1;
-									}
+					this.jsonIntellisense.getValueSuggestions(resource, schema, doc, node.parent, node.start, collector);
+					
+					var range = modelMirror.getRangeFromOffsetAndLength(node.start, node.end - node.start);
+					var text = modelMirror.getValueInRange(range);
+					for (var i = 0, len = proposals.length; i < len; i++) {
+						if (Strings.equalsIgnoreCase(proposals[i].label, text)) {
+							var nextIdx = i;
+							if (up) {
+								nextIdx = (i + 1) % len;
+							} else {
+								nextIdx =  i - 1;
+								if (nextIdx < 0) {
+									nextIdx = len - 1;
 								}
-								return {
-									value: proposals[nextIdx].label,
-									range: range
-								};
 							}
+							return {
+								value: proposals[nextIdx].label,
+								range: range
+							};
 						}
-						return null;
-					});
+					}
+					return null;
 				}
 			});
 		}

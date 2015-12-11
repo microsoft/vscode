@@ -171,6 +171,27 @@ suite('Types', () => {
 		assert(types.isUndefinedOrNull(null));
 	});
 
+	test('validateConstraints', () => {
+		types.validateConstraints([1, 'test', true], [Number, String, Boolean])
+		types.validateConstraints([1, 'test', true], ['number', 'string', 'boolean'])
+		types.validateConstraints([console.log], [Function])
+		types.validateConstraints([undefined], [types.isUndefined])
+		types.validateConstraints([1], [types.isNumber])
+
+		function foo() {}
+		types.validateConstraints([new foo()], [foo]);
+
+		function isFoo(f) {}
+		assert.throws(() => types.validateConstraints([new foo()], [isFoo]));
+
+		function isFoo2(f) { return true}
+		types.validateConstraints([new foo()], [isFoo2]);
+
+		assert.throws(() => types.validateConstraints([1, true], [types.isNumber, types.isString]));
+		assert.throws(() => types.validateConstraints(['2'], [types.isNumber]));
+		assert.throws(() => types.validateConstraints([1, 'test', true], [Number, String, Number]));
+	});
+
 	test('create', () => {
 		var zeroConstructor = function() { /**/ };
 
