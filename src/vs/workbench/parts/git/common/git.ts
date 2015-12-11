@@ -87,7 +87,8 @@ export var ModelEvents = {
 	STATUS_MODEL_UPDATED: 'StatusModelUpdated',
 	HEAD_UPDATED: 'HEADUpdated',
 	HEADS_UPDATED: 'HEADSUpdated',
-	TAGS_UPDATED: 'TagsUpdated'
+	TAGS_UPDATED: 'TagsUpdated',
+	REMOTES_UPDATED: 'RemotesUpdated'
 };
 
 // Model interfaces
@@ -133,6 +134,7 @@ export interface IModel extends EventEmitter.IEventEmitter {
 	getHEAD(): IBranch;
 	getHeads(): IBranch[];
 	getTags(): ITag[];
+	getRemotes(): IRemote[];
 	update(status: IRawStatus): void;
 	getPS1(): string;
 }
@@ -251,6 +253,10 @@ export interface IGitServiceError extends Error {
 	gitErrorCode: string;
 }
 
+export interface IPushOptions {
+	setUpstream?: boolean;
+}
+
 export interface IRawGitService {
 	serviceState(): WinJS.TPromise<RawServiceState>;
 	status(): WinJS.TPromise<IRawStatus>;
@@ -265,7 +271,7 @@ export interface IRawGitService {
 	revertFiles(treeish:string, filePaths?: string[]): WinJS.TPromise<IRawStatus>;
 	fetch(): WinJS.TPromise<IRawStatus>;
 	pull(rebase?: boolean): WinJS.TPromise<IRawStatus>;
-	push(): WinJS.TPromise<IRawStatus>;
+	push(remote?: string, name?: string, options?:IPushOptions): WinJS.TPromise<IRawStatus>;
 	sync(): WinJS.TPromise<IRawStatus>;
 	commit(message:string, amend?: boolean, stage?: boolean): WinJS.TPromise<IRawStatus>;
 	detectMimetypes(path: string, treeish?: string): WinJS.TPromise<string[]>;
@@ -291,7 +297,7 @@ export interface IGitService extends EventEmitter.IEventEmitter {
 	revertFiles(treeish:string, files?: IFileStatus[]): WinJS.TPromise<IModel>;
 	fetch(): WinJS.TPromise<IModel>;
 	pull(rebase?: boolean): WinJS.TPromise<IModel>;
-	push(): WinJS.TPromise<IModel>;
+	push(remote?: string, name?: string, options?:IPushOptions): WinJS.TPromise<IModel>;
 	sync(): WinJS.TPromise<IModel>;
 	commit(message:string, amend?: boolean, stage?: boolean): WinJS.TPromise<IModel>;
 	detectMimetypes(path: string, treeish?: string): WinJS.Promise;

@@ -557,8 +557,8 @@ export class GitService extends ee.EventEmitter
 		return this.run(git.ServiceOperations.PULL, () => this.raw.pull(rebase));
 	}
 
-	public push(): winjs.Promise {
-		return this.run(git.ServiceOperations.PUSH, () => this.raw.push());
+	public push(remote?: string, name?: string, options?:git.IPushOptions): winjs.Promise {
+		return this.run(git.ServiceOperations.PUSH, () => this.raw.push(remote, name, options));
 	}
 
 	public sync(): winjs.Promise {

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { Promise } from 'vs/base/common/winjs.base';
+import { Promise, TPromise } from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import { IEventEmitter } from 'vs/base/common/eventEmitter';
 import { ITree } from 'vs/base/parts/tree/common/tree';
@@ -28,6 +28,7 @@ import Severity from 'vs/base/common/severity';
 import { IGitService, IFileStatus, Status, StatusType, ServiceState,
 	IModel, IBranch, GitErrorCodes, ServiceOperations }
 	from 'vs/workbench/parts/git/common/git';
+import {IQuickOpenService, IPickOpenEntry} from 'vs/workbench/services/quickopen/browser/quickOpenService';
 
 function flatten(context?: any, preferFocus = false): IFileStatus[] {
 	if (!context) {
@@ -918,6 +919,75 @@ export class PushAction extends GitAction {
 
 			return Promise.wrapError(err);
 		});
+	}
+}
+
+export class PublishAction extends GitAction {
+
+	static ID = 'workbench.action.publish';
+
+	constructor(
+		@IGitService gitService: IGitService,
+		@IQuickOpenService private quickOpenService: IQuickOpenService,
+		@IMessageService private messageService: IMessageService
+	) {
+		super(PublishAction.ID, nls.localize('publish', "Publish"), 'git-action publish', gitService);
+	}
+
+	protected isEnabled():boolean {
+		if (!super.isEnabled()) {
+			return false;
+		}
+
+		if (!this.gitService.isIdle()) {
+			return false;
+		}
+
+		const model = this.gitService.getModel();
+
+		if (model.getRemotes().length === 0) {
+			return false;
+		}
+
+		const HEAD = model.getHEAD();
+
+		if (!HEAD || !HEAD.name || HEAD.upstream) {
+			return false;
+		}
+
+		return true;
+	}
+
+	public run(context?: any):Promise {
+		const model = this.gitService.getModel();
+		const remotes = model.getRemotes();
+		const branchName = model.getHEAD().name;
+		let promise: TPromise<string>;
+
+		if (remotes.length === 1) {
+			const remoteName = remotes[0].name;
+
+			const result = this.messageService.confirm({
+				message: nls.localize('confirmPublishMessage', "Are you sure you want to publish '{0}' to '{1}'?", branchName, remoteName),
+				primaryButton: nls.localize('confirmPublishMessageButton', "Publish")
+			});
+
+			promise = TPromise.as(result ? remoteName : null);
+		} else {
+			promise = this.quickOpenService.pick(remotes.map(r => r.name), {
+				placeHolder: nls.localize('publishPickMessage', "Pick a remote to push the branch '{0}' to:", branchName)
+			});
+		}
+
+		return promise
+			.then(remote => remote && this.gitService.push(remote, branchName, { setUpstream: true }))
+			.then(null, err => {
+				if (err.gitErrorCode === GitErrorCodes.AuthenticationFailed) {
+					return Promise.wrapError(errors.create(nls.localize('authFailed', "Authentication failed on the git remote.")));
+				}
+
+				return Promise.wrapError(err);
+			});
 	}
 }
 

@@ -11,7 +11,7 @@ import objects = require('vs/base/common/objects');
 import uuid = require('vs/base/common/uuid');
 import nls = require('vs/nls');
 import strings = require('vs/base/common/strings');
-import { IRawFileStatus, IHead, ITag, IBranch, IRemote, GitErrorCodes } from 'vs/workbench/parts/git/common/git';
+import { IRawFileStatus, IHead, ITag, IBranch, IRemote, GitErrorCodes, IPushOptions } from 'vs/workbench/parts/git/common/git';
 import { detectMimesFromStream } from 'vs/base/node/mime'
 import files = require('vs/platform/files/common/files');
 import { spawn, ChildProcess } from 'child_process';
@@ -525,8 +525,13 @@ export class Repository {
 		});
 	}
 
-	public push(): Promise {
-		return this.run(['push']).then(null, (err: GitError) => {
+	public push(remote?: string, name?: string, options?:IPushOptions): Promise {
+		const args = ['push'];
+		options && options.setUpstream && args.push('-u');
+		remote && args.push(remote);
+		name && args.push(name);
+
+		return this.run(args).then(null, (err: GitError) => {
 			if (/^error: failed to push some refs to\b/m.test(err.stderr)) {
 				err.gitErrorCode = GitErrorCodes.PushRejected;
 			} else if (/Could not read from remote repository/.test(err.stderr)) {

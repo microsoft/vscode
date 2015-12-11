@@ -9,7 +9,7 @@ import { TPromise, Promise } from 'vs/base/common/winjs.base';
 import mime = require('vs/base/node/mime');
 import pfs = require('vs/base/node/pfs');
 import { Repository, GitError } from 'vs/workbench/parts/git/node/git.lib';
-import { IRawGitService, RawServiceState, IRawStatus, IHead, GitErrorCodes } from 'vs/workbench/parts/git/common/git';
+import { IRawGitService, RawServiceState, IRawStatus, IHead, GitErrorCodes, IPushOptions } from 'vs/workbench/parts/git/common/git';
 
 function pathsAreEqual(p1: string, p2: string): boolean {
 	if (/^(win32|darwin)$/.test(process.platform)) {
@@ -121,8 +121,8 @@ export class RawGitService implements IRawGitService {
 		return this.repo.pull(rebase).then(() => this.status());
 	}
 
-	public push(): TPromise<IRawStatus> {
-		return this.repo.push().then(() => this.status());
+	public push(remote?: string, name?: string, options?:IPushOptions): TPromise<IRawStatus> {
+		return this.repo.push(remote, name, options).then(() => this.status());
 	}
 
 	public sync(): TPromise<IRawStatus> {
@@ -240,8 +240,8 @@ export class DelayedRawGitService implements IRawGitService {
 		return this.raw.then(raw => raw.pull(rebase));
 	}
 
-	public push(): TPromise<IRawStatus> {
-		return this.raw.then(raw => raw.push());
+	public push(origin?: string, name?: string, options?:IPushOptions): TPromise<IRawStatus> {
+		return this.raw.then(raw => raw.push(origin, name, options));
 	}
 
 	public sync(): TPromise<IRawStatus> {

@@ -312,6 +312,7 @@ export class Model extends EventEmitter.EventEmitter implements Git.IModel {
 	private HEAD: Git.IBranch;
 	private heads: Git.IBranch[];
 	private tags: Git.ITag[];
+	private remotes: Git.IRemote[];
 	private toDispose: Lifecycle.IDisposable[];
 
 	constructor() {
@@ -326,6 +327,7 @@ export class Model extends EventEmitter.EventEmitter implements Git.IModel {
 		this.HEAD = null;
 		this.heads = [];
 		this.tags = [];
+		this.remotes = [];
 	}
 
 	public getRepositoryRoot(): string {
@@ -346,6 +348,10 @@ export class Model extends EventEmitter.EventEmitter implements Git.IModel {
 
 	public getTags(): Git.ITag[] {
 		return this.tags;
+	}
+
+	public getRemotes(): Git.IRemote[] {
+		return this.remotes;
 	}
 
 	public update(status: Git.IRawStatus): void {
@@ -371,6 +377,9 @@ export class Model extends EventEmitter.EventEmitter implements Git.IModel {
 
 		this.tags = status.tags;
 		this.emit(Git.ModelEvents.TAGS_UPDATED);
+
+		this.remotes = status.remotes;
+		this.emit(Git.ModelEvents.REMOTES_UPDATED);
 
 		this.emit(Git.ModelEvents.MODEL_UPDATED);
 	}
