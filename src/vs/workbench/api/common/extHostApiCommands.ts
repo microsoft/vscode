@@ -256,7 +256,7 @@ export class ExtHostApiCommands {
 				for (let group of value) {
 					for (let suggestions of group) {
 						for (let suggestion of suggestions.suggestions) {
-							const item = typeConverters.Suggest.to(suggestion);
+							const item = typeConverters.Suggest.to(suggestions, position, suggestion);
 							items.push(item);
 						}
 					}

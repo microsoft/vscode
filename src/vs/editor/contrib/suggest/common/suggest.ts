@@ -50,7 +50,6 @@ export function suggest(model: IModel, position: IPosition, triggerCharacter: st
 						if (!suggestResult
 							|| !Array.isArray(suggestResult.suggestions)
 							|| suggestResult.suggestions.length === 0) {
-
 							continue;
 						}
 
@@ -58,36 +57,8 @@ export function suggest(model: IModel, position: IPosition, triggerCharacter: st
 							support,
 							currentWord: suggestResult.currentWord,
 							incomplete: suggestResult.incomplete,
-							overwriteAfter: suggestResult.overwriteAfter,
-							overwriteBefore: suggestResult.overwriteBefore,
 							suggestions: suggestResult.suggestions
 						}
-
-						const defaultRange: IRange = {
-							startLineNumber: position.lineNumber,
-							startColumn: position.column,
-							endLineNumber: position.lineNumber,
-							endColumn: position.column
-						};
-
-						if (typeof suggestResult.overwriteBefore === 'number' && suggestResult.overwriteBefore > 0) {
-							defaultRange.startColumn -= suggestResult.overwriteBefore;
-						}
-						if (typeof suggestResult.overwriteAfter === 'number' && suggestResult.overwriteAfter > 0) {
-							defaultRange.endColumn += suggestResult.overwriteAfter
-						}
-
-						for (let suggestion of suggestResult.suggestions) {
-							if (!suggestion.textEdit) {
-								suggestion.textEdit = {
-									text: suggestion.codeSnippet,
-									range: defaultRange
-								};
-							}
-						}
-
-						// add additional properties
-						mixin(suggestions2, suggestResult, false);
 						result.push(suggestions2);
 					}
 

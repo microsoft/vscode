@@ -388,20 +388,19 @@ export interface ISuggestion {
 	label: string;
 	codeSnippet: string;
 	type: string;
-	textEdit?: EditorCommon.ISingleEditOperation;
 	typeLabel?: string;
 	documentationLabel?: string;
 	filterText?: string;
 	sortText?: string;
 	noAutoAccept?: boolean;
+	overwriteBefore?: number;
+	overwriteAfter?: number;
 }
 
 export interface ISuggestResult {
 	currentWord: string;
 	suggestions:ISuggestion[];
 	incomplete?: boolean;
-	overwriteBefore?: number;
-	overwriteAfter?: number;
 }
 
 export interface ISuggestionFilter {

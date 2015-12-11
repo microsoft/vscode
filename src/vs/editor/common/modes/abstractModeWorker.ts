@@ -153,9 +153,7 @@ export class AbstractModeWorker {
 				result.push(<Modes.ISuggestResult> {
 					currentWord: value.currentWord,
 					suggestions: value.suggestions.filter((element) => !!accept(values[i].currentWord, element)),
-					incomplete: value.incomplete,
-					overwriteBefore: value.overwriteBefore,
-					overwriteAfter: value.overwriteAfter
+					incomplete: value.incomplete
 				});
 			}
 			return result;

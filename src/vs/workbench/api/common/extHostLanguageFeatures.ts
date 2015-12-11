@@ -502,12 +502,12 @@ class SuggestAdapter implements modes.ISuggestSupport {
 					// insert the text of the edit and create a dedicated
 					// suggestion-container with overwrite[Before|After]
 					suggestion.codeSnippet = item.textEdit.newText;
+					suggestion.overwriteBefore = pos.character - editRange.start.character,
+					suggestion.overwriteAfter = editRange.end.character - pos.character
 
 					allSuggestions.push({
 						currentWord: doc.getText(<any>editRange),
-						suggestions: [suggestion],
-						overwriteBefore: pos.character - editRange.start.character,
-						overwriteAfter: editRange.end.character - pos.character
+						suggestions: [suggestion]
 					});
 
 				} else {

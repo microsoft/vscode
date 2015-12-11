@@ -326,7 +326,6 @@ export const Suggest = {
 			codeSnippet: item.insertText || item.label,
 			type: types.CompletionItemKind[item.kind || types.CompletionItemKind.Text].toString().toLowerCase(),
 			typeLabel: item.detail,
-			textEdit: item.textEdit && TextEdit.from(item.textEdit),
 			documentationLabel: item.documentation,
 			sortText: item.sortText,
 			filterText: item.filterText
@@ -334,7 +333,7 @@ export const Suggest = {
 		return suggestion;
 	},
 
-	to(suggestion: modes.ISuggestion): types.CompletionItem {
+	to(container: modes.ISuggestResult, position: types.Position, suggestion: modes.ISuggestion): types.CompletionItem {
 		const result = new types.CompletionItem(suggestion.label);
 		result.insertText = suggestion.codeSnippet;
 		result.kind = types.CompletionItemKind[suggestion.type.charAt(0).toUpperCase() + suggestion.type.substr(1)];
@@ -342,7 +341,15 @@ export const Suggest = {
 		result.documentation = suggestion.documentationLabel;
 		result.sortText = suggestion.sortText;
 		result.filterText = suggestion.filterText;
-		result.textEdit = suggestion.textEdit && <any> TextEdit.to(suggestion.textEdit);
+
+		let overwriteBefore = (typeof suggestion.overwriteBefore === 'number') ? suggestion.overwriteBefore : container.currentWord.length;
+		let startPosition = new types.Position(position.line, Math.max(0, position.character - overwriteBefore));
+		let endPosition = position;
+		if (typeof suggestion.overwriteAfter === 'number') {
+			endPosition = new types.Position(position.line, position.character + suggestion.overwriteAfter);
+		}
+
+		result.textEdit = types.TextEdit.replace(new types.Range(startPosition, endPosition), suggestion.codeSnippet);
 		return result;
 	}
 }
