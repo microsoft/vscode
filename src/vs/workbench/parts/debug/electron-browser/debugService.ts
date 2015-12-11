@@ -782,10 +782,12 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 	}
 
 	private sendExceptionBreakpoints(): Promise {
-		if (this.session) {
+		if (!this.session) {
+			return Promise.as(null);
+		}
+		
 			var enabledExBreakpoints = this.model.getExceptionBreakpoints().filter(exb => exb.enabled);
 			return this.session.setExceptionBreakpoints({ filters: enabledExBreakpoints.map(exb => exb.name) });
-		}
 	}
 
 	private onFileChanges(fileChangesEvent: FileChangesEvent): void {
