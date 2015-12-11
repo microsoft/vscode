@@ -202,10 +202,12 @@ registerCoreCommand(H.ExpandLineSelection, {
 });
 
 registerCoreCommand(H.ScrollLineUp, {
-	primary: KeyMod.CtrlCmd | KeyCode.UpArrow
+	primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
+	mac: { primary: KeyMod.WinCtrl | KeyCode.PageUp}
 });
 registerCoreCommand(H.ScrollLineDown, {
-	primary: KeyMod.CtrlCmd | KeyCode.DownArrow
+	primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
+	mac: { primary: KeyMod.WinCtrl | KeyCode.PageDown}
 });
 
 registerCoreCommand(H.ScrollPageUp, {
