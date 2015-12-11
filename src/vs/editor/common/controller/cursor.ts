@@ -1323,10 +1323,12 @@ export class Cursor extends EventEmitter {
 
 	private _scrollUp(isPaged: boolean, ctx: IMultipleCursorOperationContext): boolean {
 		ctx.requestScrollDeltaLines = isPaged ? -this.configuration.editor.pageSize : -1;
+		return true;
 	}
 
 	private _scrollDown(isPaged: boolean, ctx: IMultipleCursorOperationContext): boolean {
 		ctx.requestScrollDeltaLines = isPaged ? this.configuration.editor.pageSize : 1;
+		return true;
 	}
 
 	private _distributePasteToCursors(ctx: IMultipleCursorOperationContext): string[] {
