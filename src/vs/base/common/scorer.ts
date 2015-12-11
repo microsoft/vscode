@@ -32,10 +32,8 @@
  * Start of string bonus: 8
  */
 export function score(target: string, query: string, cache?: {[id: string]: number}): number {
-	let score = 0;
-
 	if (!target || !query) {
-		return score; // return early if target or query are undefined
+		return 0; // return early if target or query are undefined
 	}
 
 	const cached = cache && cache[target + query];
@@ -46,15 +44,19 @@ export function score(target: string, query: string, cache?: {[id: string]: numb
 	const queryLen = query.length;
 	const targetLower = target.toLowerCase();
 	const queryLower = query.toLowerCase();
-	const wordPathBoundary = ['-', '_', ' ', '/', '\\'];
+	const wordPathBoundary = ['-', '_', ' ', '/', '\\', '.'];
 
 	let index = 0;
+	let lastIndexOf = 0;
+	let score = 0;
 	while (index < queryLen) {
-		var indexOf = targetLower.indexOf(queryLower[index]);
+		var indexOf = targetLower.indexOf(queryLower[index], lastIndexOf);
 		if (indexOf < 0) {
-			index++;
-			continue; // no match
+			score = 0; // This makes sure that the query is contained in the target
+			break;
 		}
+
+		lastIndexOf = indexOf;
 
 		// Character Match Bonus
 		score += 1;

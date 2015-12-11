@@ -37,6 +37,7 @@ export class QuickOpenEntry {
 	private labelHighlights: IHighlight[];
 	private descriptionHighlights: IHighlight[];
 	private hidden: boolean;
+	private labelPrefix: string;
 
 	constructor(highlights: IHighlight[] = []) {
 		this.id = (IDS++).toString();
@@ -55,7 +56,7 @@ export class QuickOpenEntry {
 	 * The prefix to show in front of the label if any
 	 */
 	public getPrefix(): string {
-		return null;
+		return this.labelPrefix;
 	}
 
 	/**
@@ -106,6 +107,13 @@ export class QuickOpenEntry {
 	 */
 	public setHidden(hidden: boolean): void {
 		this.hidden = hidden;
+	}
+
+	/**
+	 * Sets the prefix to show in front of the label
+	 */
+	public setPrefix(prefix: string): void {
+		this.labelPrefix = prefix;
 	}
 
 	/**
@@ -180,10 +188,30 @@ export class QuickOpenEntry {
 		// Highlight file aware
 		if (entry.getResource()) {
 
-			// Fuzzy: Highlight in label and description
+			// Fuzzy: Highlight is special
 			if (fuzzyHighlight) {
-				labelHighlights = Filters.matchesFuzzy(lookFor, entry.getLabel(), true);
-				descriptionHighlights = Filters.matchesFuzzy(lookFor, entry.getDescription(), true);
+				let candidateLabelHighlights = Filters.matchesFuzzy(lookFor, entry.getLabel(), true);
+				if (!candidateLabelHighlights) {
+					const pathPrefix = entry.getDescription() ? (entry.getDescription() + Paths.nativeSep) : '';
+					const pathPrefixLength = pathPrefix.length;
+
+					// If there are no highlights in the label, build a path out of description and highlight and match on both,
+					// then extract the individual label and description highlights back to the original positions
+					let pathHighlights = Filters.matchesFuzzy(lookFor, pathPrefix + entry.getLabel(), true);
+					if (pathHighlights) {
+						pathHighlights.forEach(h => {
+							if (h.start >= pathPrefixLength) {
+								h.start -= (pathPrefixLength);
+								h.end -= (pathPrefixLength);
+								labelHighlights.push(h);
+							} else {
+								descriptionHighlights.push(h);
+							}
+						});
+					}
+				} else {
+					labelHighlights = candidateLabelHighlights;
+				}
 			}
 
 			// Path search: Highlight in label and description

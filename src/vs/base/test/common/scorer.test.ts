@@ -29,15 +29,16 @@ suite('Scorer', () => {
 		scores.push(scorer.score(target, '4')); // no match
 
 		// Assert scoring order
-		let sortedScores = scores.sort();
-		assert.deepEqual(scores.reverse(), sortedScores);
+		let sortedScores = scores.sort((a, b) => b - a);
+		assert.deepEqual(scores, sortedScores);
 	});
 
 	test("cache", function() {
 		const cache = Object.create(null);
 
 		scorer.score('target', 'query', cache);
+		scorer.score('target', 't', cache);
 
-		assert.ok(Object.getOwnPropertyNames(cache).length > 0);
+		assert.equal(Object.getOwnPropertyNames(cache).length, 2);
 	});
 });
