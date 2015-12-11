@@ -200,11 +200,20 @@ export class QuickOpenEntry {
 					let pathHighlights = Filters.matchesFuzzy(lookFor, pathPrefix + entry.getLabel(), true);
 					if (pathHighlights) {
 						pathHighlights.forEach(h => {
-							if (h.start >= pathPrefixLength) {
-								h.start -= (pathPrefixLength);
-								h.end -= (pathPrefixLength);
-								labelHighlights.push(h);
-							} else {
+
+							// Match overlaps label and description part, we need to split it up
+							if (h.start < pathPrefixLength && h.end > pathPrefixLength) {
+								labelHighlights.push({ start: 0, end: h.end - pathPrefixLength });
+								descriptionHighlights.push({ start: h.start, end: pathPrefixLength });
+							}
+
+							// Match on label part
+							else if (h.start >= pathPrefixLength) {
+								labelHighlights.push({ start: h.start - pathPrefixLength, end: h.end - pathPrefixLength });
+							}
+
+							// Match on description part
+							else {
 								descriptionHighlights.push(h);
 							}
 						});
