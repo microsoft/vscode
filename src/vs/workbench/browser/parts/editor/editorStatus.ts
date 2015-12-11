@@ -359,8 +359,14 @@ export class EditorStatus implements IStatusbarItem {
 		this.updateState(info);
 	}
 
-	private onResourceEncodingChange(r: uri): void {
-		this.onEncodingChange(this.getActiveEditor(r));
+	private onResourceEncodingChange(resource: uri): void {
+		let activeEditor = this.editorService.getActiveEditor();
+		if (activeEditor) {
+			let activeResource = getUntitledOrFileResource(activeEditor.input, true);
+			if (activeResource && activeResource.toString() === resource.toString()) {
+				return this.onEncodingChange(<BaseEditor>activeEditor); // only update if the encoding changed for the active resource
+			}
+		}
 	}
 
 	private onTabFocusModeChange(e: BaseEditor): void {
@@ -382,18 +388,6 @@ export class EditorStatus implements IStatusbarItem {
 		let activeEditor = this.editorService.getActiveEditor();
 
 		return activeEditor && e && activeEditor === e;
-	}
-
-	private getActiveEditor(resource: uri): BaseEditor {
-		let activeEditor = this.editorService.getActiveEditor();
-		if (activeEditor) {
-			let r = getUntitledOrFileResource(activeEditor.input, true);
-			if (r && r.toString() === resource.toString()) {
-				return <BaseEditor>activeEditor;
-			}
-		}
-
-		return null;
 	}
 }
 
