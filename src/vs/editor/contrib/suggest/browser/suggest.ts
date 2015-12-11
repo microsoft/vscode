@@ -60,7 +60,6 @@ export class SuggestController implements EditorCommon.IEditorContribution {
 		}));
 		this.toDispose.push(SuggestRegistry.onDidChange(this.update, this));
 
-		// TODO@Joao: what is this?
 		this.toDispose.push(this.model.onDidAccept(e => Snippet.get(this.editor).run(e.snippet, e.overwriteBefore, e.overwriteAfter)));
 
 		this.update();
