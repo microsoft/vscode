@@ -153,6 +153,10 @@ class ModelMarkerHandler {
 			htmlMessage = [marker.message];
 		}
 
+		if (marker.source) {
+			htmlMessage.unshift({ isText: true, text: `[${marker.source}] ` });
+		}
+
 		return {
 			stickiness: EditorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 			className,

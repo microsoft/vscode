@@ -129,6 +129,7 @@ function _asMarker(diagnostic: ts.Diagnostic, classifier: DiagnosticClassifier, 
 	markers.push({
 		severity,
 		message: ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n'),
+		source: 'JavaScript',
 		code: diagnostic.code.toString(),
 		startLineNumber: range.startLineNumber,
 		startColumn: range.startColumn,

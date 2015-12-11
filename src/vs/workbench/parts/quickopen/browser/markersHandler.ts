@@ -45,19 +45,23 @@ class MarkerEntry extends QuickOpenEntryItem {
 		dom.clearNode(container);
 		let elements: string[] = [];
 		let {severity, message, source, resource, startLineNumber, startColumn} = this._marker;
-		if (source) {
-			message = `${message} (${source})`;
-		}
 		elements.push('<div class="inline">');
 		elements.push(strings.format('<div class="severity {0}"></div>', Severity.toString(severity).toLowerCase()));
 		elements.push('</div>');
 		elements.push('<div class="inline entry">');
 		elements.push('<div>');
+		if (source) {
+			elements.push(strings.format('<span class="source">[{0}]&nbsp;</span>', source))
+		}
 		elements.push(strings.format('<span class="message">{0}</span>', message));
 		elements.push('</div>');
 		elements.push('<div>');
-		elements.push(strings.format('<span class="path"><span class="basename">{0} ({1},{2})</span><span class="dirname">{3}</span></span>',
-			paths.basename(resource.fsPath), startLineNumber, startColumn, this._lp.getLabel(paths.dirname(resource.fsPath))
+		elements.push(strings.format(
+			'<span class="path"><span class="basename">{0} ({1},{2})</span><span class="dirname">{3}</span></span>',
+			paths.basename(resource.fsPath),
+			startLineNumber,
+			startColumn,
+			this._lp.getLabel(paths.dirname(resource.fsPath))
 		));
 		elements.push('</div>');
 		elements.push('<div>');
@@ -95,8 +99,7 @@ export class MarkersHandler extends QuickOpenHandler {
 	constructor(
 		@IMarkerService markerService: IMarkerService,
 		@IEditorService editorService: IEditorService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService
-	) {
+		@IWorkspaceContextService contextService: IWorkspaceContextService) {
 		super();
 
 		this._markerService = markerService;
@@ -120,25 +123,33 @@ export class MarkersHandler extends QuickOpenHandler {
 	private static _sort(a: IMarker, b: IMarker): number {
 		let ret: number;
 
-		// 1st: severity matters first
+		// severity matters first
 		ret = Severity.compare(a.severity, b.severity);
 		if (ret !== 0) {
 			return ret;
 		}
 
-		// 2nd: file name matters for equal severity
+		// source matters
+		if (a.source && b.source) {
+			ret = a.source.localeCompare(b.source);
+			if (ret !== 0) {
+				return ret;
+			}
+		}
+
+		// file name matters for equal severity
 		ret = strings.localeCompare(a.resource.fsPath, b.resource.fsPath);
 		if (ret !== 0) {
 			return ret;
 		}
 
-		// 3rd: start line matters
+		// start line matters
 		ret = a.startLineNumber - b.startLineNumber;
 		if (ret !== 0) {
 			return ret;
 		}
 
-		// 4th: start column matters
+		// start column matters
 		ret = a.startColumn - b.startColumn;
 		if (ret !== 0) {
 			return ret;
