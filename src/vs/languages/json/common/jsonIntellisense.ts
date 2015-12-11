@@ -114,7 +114,7 @@ export class JSONIntellisense {
 				this.contributions.forEach((contribution) => {
 					var collectPromise = contribution.collectPropertySuggestions(resource, location, currentWord, addValue, isLast, collector);
 					if (collectPromise) {
-						collectionPromises.push();
+						collectionPromises.push(collectPromise);
 					}
 				});
 			}
