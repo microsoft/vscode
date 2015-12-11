@@ -44,11 +44,17 @@ export class JSONIntellisense {
 			incomplete: false,
 			suggestions: []
 		};
+		var overwriteBefore = void 0;
+		var overwriteAfter = void 0;
+
 		var proposed: { [key: string]: boolean } = {};
 		var collector : JsonWorker.ISuggestionsCollector = {
 			add: (suggestion: Modes.ISuggestion) => {
 				if (!proposed[suggestion.label]) {
 					proposed[suggestion.label] = true;
+
+					suggestion.overwriteBefore = overwriteBefore;
+					suggestion.overwriteAfter = overwriteAfter;
 					result.suggestions.push(suggestion);
 				}
 			},
@@ -74,8 +80,8 @@ export class JSONIntellisense {
 					var stringNode = <Parser.StringASTNode> node;
 					if (stringNode.isKey) {
 						var nodeRange = modelMirror.getRangeFromOffsetAndLength(node.start, node.end - node.start);
-						result.overwriteBefore = position.column - nodeRange.startColumn;
-						result.overwriteAfter = nodeRange.endColumn - position.column;
+						overwriteBefore = position.column - nodeRange.startColumn;
+						overwriteAfter = nodeRange.endColumn - position.column;
 						addValue = !(node.parent && ((<Parser.PropertyASTNode> node.parent).value));
 						currentProperty = node.parent ? <Parser.PropertyASTNode> node.parent : null;
 						currentKey = modelMirror.getValueInRange({ startColumn: nodeRange.startColumn + 1, startLineNumber: nodeRange.startLineNumber, endColumn: position.column, endLineNumber: position.lineNumber });
@@ -122,8 +128,8 @@ export class JSONIntellisense {
 			// proposals for values
 			if (node && (node.type === 'string' || node.type === 'number' || node.type === 'boolean' || node.type === 'null')) {
 				var nodeRange = modelMirror.getRangeFromOffsetAndLength(node.start, node.end - node.start);
-				result.overwriteBefore = position.column - nodeRange.startColumn;
-				result.overwriteAfter = nodeRange.endColumn - position.column;
+				overwriteBefore = position.column - nodeRange.startColumn;
+				overwriteAfter = nodeRange.endColumn - position.column;
 				node = node.parent;
 			}
 

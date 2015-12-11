@@ -504,8 +504,8 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 			this.submitTelemetryData();
 
 			const container = item.container;
-			const overwriteBefore = (typeof container.overwriteBefore === 'undefined') ? container.currentWord.length : container.overwriteBefore;
-			const overwriteAfter = (typeof container.overwriteAfter === 'undefined') ? 0 : Math.max(0, container.overwriteAfter);
+			const overwriteBefore = (typeof item.suggestion.overwriteBefore === 'undefined') ? container.currentWord.length : item.suggestion.overwriteBefore;
+			const overwriteAfter = (typeof item.suggestion.overwriteAfter === 'undefined') ? 0 : Math.max(0, item.suggestion.overwriteAfter);
 			this.model.accept(item.suggestion, overwriteBefore, overwriteAfter);
 
 			this.editor.focus();
