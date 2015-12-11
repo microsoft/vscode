@@ -309,15 +309,17 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 			}
 
 			// Score on full resource path comes next
-			const resourceAScore = scorer.score(elementA.getResource().fsPath, lookFor, this.scorerCache);
-			const resourceBScore = scorer.score(elementB.getResource().fsPath, lookFor, this.scorerCache);
+			if (elementA.getResource() && elementB.getResource()) {
+				const resourceAScore = scorer.score(elementA.getResource().fsPath, lookFor, this.scorerCache);
+				const resourceBScore = scorer.score(elementB.getResource().fsPath, lookFor, this.scorerCache);
 
-			// Useful for understanding the scoring
-			// elementA.setPrefix(elementA.getPrefix() + ' ' + resourceAScore + ': ');
-			// elementB.setPrefix(elementB.getPrefix() + ' ' + resourceBScore + ': ');
+				// Useful for understanding the scoring
+				// elementA.setPrefix(elementA.getPrefix() + ' ' + resourceAScore + ': ');
+				// elementB.setPrefix(elementB.getPrefix() + ' ' + resourceBScore + ': ');
 
-			if (resourceAScore !== resourceBScore) {
-				return resourceAScore > resourceBScore ? -1 : 1;
+				if (resourceAScore !== resourceBScore) {
+					return resourceAScore > resourceBScore ? -1 : 1;
+				}
 			}
 		}
 
