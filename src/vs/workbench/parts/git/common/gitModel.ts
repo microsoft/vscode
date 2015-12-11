@@ -355,7 +355,8 @@ export class Model extends EventEmitter.EventEmitter implements Git.IModel {
 				status: [],
 				HEAD: null,
 				heads: [],
-				tags: []
+				tags: [],
+				remotes: []
 			};
 		}
 

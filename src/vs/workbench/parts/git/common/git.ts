@@ -21,6 +21,10 @@ export interface IRawFileStatus {
 	rename?: string;
 }
 
+export interface IRemote {
+	name: string;
+}
+
 export interface IHead {
 	name?: string;
 	commit?: string;
@@ -44,6 +48,7 @@ export interface IRawStatus {
 	HEAD: IBranch;
 	heads: IBranch[];
 	tags: ITag[];
+	remotes: IRemote[];
 }
 
 // Model enums

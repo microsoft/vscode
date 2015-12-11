@@ -50,13 +50,14 @@ export class RawGitService implements IRawGitService {
 						return HEAD;
 					}
 				}, (): IHead => null)
-				.then(HEAD => Promise.join([this.getRepositoryRoot(), this.repo.getHeads(), this.repo.getTags()]).then(r => {
+				.then(HEAD => Promise.join([this.getRepositoryRoot(), this.repo.getHeads(), this.repo.getTags(), this.repo.getRemotes()]).then(r => {
 					return {
 						repositoryRoot: r[0],
 						status: status,
 						HEAD: HEAD,
 						heads: r[1],
-						tags: r[2]
+						tags: r[2],
+						remotes: r[3]
 					};
 				})))
 			.then(null, (err) => {
