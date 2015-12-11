@@ -445,9 +445,9 @@
       }
     },
     "native-keymap": {
-      "version": "0.0.2",
-      "from": "native-keymap@0.0.2",
-      "resolved": "https://registry.npmjs.org/native-keymap/-/native-keymap-0.0.2.tgz"
+      "version": "0.1.0",
+      "from": "native-keymap@0.1.0",
+      "resolved": "https://registry.npmjs.org/native-keymap/-/native-keymap-0.1.0.tgz"
     },
     "winreg": {
       "version": "0.0.12",
