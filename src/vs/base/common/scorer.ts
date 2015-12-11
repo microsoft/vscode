@@ -31,6 +31,7 @@
  * Start of word/path bonus: 7
  * Start of string bonus: 8
  */
+const wordPathBoundary = ['-', '_', ' ', '/', '\\', '.'];
 export function score(target: string, query: string, cache?: {[id: string]: number}): number {
 	if (!target || !query) {
 		return 0; // return early if target or query are undefined
@@ -44,7 +45,6 @@ export function score(target: string, query: string, cache?: {[id: string]: numb
 	const queryLen = query.length;
 	const targetLower = target.toLowerCase();
 	const queryLower = query.toLowerCase();
-	const wordPathBoundary = ['-', '_', ' ', '/', '\\', '.'];
 
 	let index = 0;
 	let lastIndexOf = 0;
