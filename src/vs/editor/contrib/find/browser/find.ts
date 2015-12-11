@@ -433,6 +433,32 @@ class AddSelectionToNextFindMatchAction extends SelectNextFindMatchAction {
 	}
 }
 
+class AddSelectionToAllFindMatchAction extends SelectNextFindMatchAction {
+	static ID = 'editor.action.addSelectionToAllFindMatch';
+
+	constructor(descriptor:EditorCommon.IEditorActionDescriptorData, editor:EditorCommon.ICommonCodeEditor, @INullService ns) {
+		super(descriptor, editor, ns);
+	}
+
+	public run(): TPromise<boolean> {
+		var allMatches = [];
+
+		while (this._getNextMatch()) {
+			allMatches.push(this._getNextMatch());
+		}
+
+		if (!allMatches.length) {
+			return TPromise.as(false);
+		}
+
+		var allSelections = this.editor.getSelections();
+		this.editor.setSelections(allSelections.concat(allMatches));
+		this.editor.revealRangeInCenterIfOutsideViewport(allMatches[allMatches.length]);
+
+		return TPromise.as(true);
+	}
+}
+
 class MoveSelectionToNextFindMatchAction extends SelectNextFindMatchAction {
 	static ID = 'editor.action.moveSelectionToNextFindMatch';
 
@@ -625,6 +651,10 @@ CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(MoveSelecti
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(AddSelectionToNextFindMatchAction, AddSelectionToNextFindMatchAction.ID, nls.localize('addSelectionToNextFindMatch', "Add Selection To Next Find Match"), {
 	context: ContextKey.EditorFocus,
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_D
+}));
+CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(AddSelectionToAllFindMatchAction, AddSelectionToAllFindMatchAction.ID, nls.localize('addSelectionToAllFindMatch', "Add Selection To All Find Matches"), {
+	context: ContextKey.EditorFocus,
+	primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KEY_G
 }));
 EditorBrowserRegistry.registerEditorContribution(FindController);
 EditorBrowserRegistry.registerEditorContribution(SelectionHighlighter);
