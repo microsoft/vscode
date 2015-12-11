@@ -18,6 +18,7 @@ import {QuickOpenEntryGroup} from 'vs/base/parts/quickopen/browser/quickOpenMode
 import {EditorQuickOpenEntry, EditorQuickOpenEntryGroup, IEditorQuickOpenEntry} from 'vs/workbench/browser/quickopen';
 import {IWorkbenchEditorService, EditorArrangement} from 'vs/workbench/services/editor/common/editorService';
 import {IQuickOpenService} from 'vs/workbench/services/quickopen/browser/quickOpenService';
+import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {Position, IEditor} from 'vs/platform/editor/common/editor';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
@@ -530,6 +531,29 @@ export class EvenEditorWidthsAction extends Action {
 	}
 }
 
+let MAXIMIZE_EDITOR_ACTION_ID = 'workbench.action.maximizeEditor';
+let MAXIMIZE_EDITOR_ACTION_LABEL = nls.localize('maximizeEditor', "Maximize Active Editor and Hide Sidebar");
+export class MaximizeEditorAction extends Action {
+
+	constructor(
+		id: string,
+		label: string,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IPartService private partService: IPartService
+	) {
+		super(id, label);
+	}
+
+	public run(): Promise {
+		if (this.editorService.getActiveEditor()) {
+			this.editorService.arrangeEditors(EditorArrangement.MINIMIZE_OTHERS);
+			this.partService.setSideBarHidden(true);
+		}
+
+		return Promise.as(false);
+	}
+}
+
 // Contribute to Quick Open
 let actionBarRegistry = <IActionBarRegistry>Registry.as(ActionBarExtensions.Actionbar);
 actionBarRegistry.registerActionBarContributor(Scope.VIEWER, QuickOpenActionContributor);
@@ -549,6 +573,7 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(FocusFirstEditorAction
 registry.registerWorkbenchAction(new SyncActionDescriptor(FocusSecondEditorAction, FOCUS_SECOND_EDITOR_ACTION_ID, FOCUS_SECOND_EDITOR_ACTION_LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_2 }), category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(FocusThirdEditorAction, FOCUS_THIRD_EDITOR_ACTION_ID, FOCUS_THIRD_EDITOR_ACTION_LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_3 }), category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(EvenEditorWidthsAction, EVEN_EDITOR_WIDTHS_ACTION_ID, EVEN_EDITOR_WIDTHS_ACTION_LABEL), category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(MaximizeEditorAction, MAXIMIZE_EDITOR_ACTION_ID, MAXIMIZE_EDITOR_ACTION_LABEL), category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(MinimizeOtherEditorsAction, MINIMIZE_EDITORS_ACTION_ID, MINIMIZE_EDITORS_ACTION_LABEL), category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(MoveEditorLeftAction, MOVE_EDITOR_LEFT_ACTION_ID, MOVE_EDITOR_LEFT_ACTION_LABEL, { primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.LeftArrow) }), category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(MoveEditorRightAction, MOVE_EDITOR_RIGHT_ACTION_ID, MOVE_EDITOR_RIGHT_ACTION_LABEL, { primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.RightArrow) }), category);
