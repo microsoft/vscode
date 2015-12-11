@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import stream = require('stream');
+import uuid = require('vs/base/common/uuid');
 import ee = require('vs/base/common/eventEmitter');
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
 import debug = require('vs/workbench/parts/debug/common/debug');
@@ -18,6 +19,7 @@ export class V8Protocol extends ee.EventEmitter {
 	private sequence: number;
 	private pendingRequests: { [id: number]: (e: DebugProtocol.Response) => void; };
 	private rawData: Buffer;
+	private id: string;
 	private contentLength: number;
 
 	constructor() {
@@ -28,6 +30,7 @@ export class V8Protocol extends ee.EventEmitter {
 		this.contentLength = -1;
 		this.pendingRequests = {};
 		this.rawData = new Buffer(0);
+		this.id = uuid.generateUuid();
 	}
 
 	public emit(eventType: string, data?: any): void {
@@ -38,8 +41,13 @@ export class V8Protocol extends ee.EventEmitter {
 			eventType === debug.SessionEvents.DEBUGEE_TERMINATED || eventType === debug.SessionEvents.SERVER_EXIT) {
 			this.flowEventsCount++;
 		}
+		data.sessionId = this.getId();
 
 		super.emit(eventType, data);
+	}
+
+	public getId(): string {
+		return this.id;
 	}
 
 	protected connect(readable: stream.Readable, writable: stream.Writable): void {

@@ -270,11 +270,10 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		}));
 
 		this.toDispose.push(this.session.addListener2(debug.SessionEvents.DEBUGEE_TERMINATED, (event: DebugProtocol.TerminatedEvent) => {
-			if (this.session) {
+			if (this.session && this.session.getId() === (<any>event).sessionId) {
 				this.session.disconnect().done(null, errors.onUnexpectedError);
 			}
 		}));
-
 
 		this.toDispose.push(this.session.addListener2(debug.SessionEvents.OUTPUT, (event: DebugProtocol.OutputEvent) => {
 			if (event.body && typeof event.body.output === 'string' && event.body.output.length > 0) {
@@ -785,9 +784,9 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		if (!this.session) {
 			return Promise.as(null);
 		}
-		
-			var enabledExBreakpoints = this.model.getExceptionBreakpoints().filter(exb => exb.enabled);
-			return this.session.setExceptionBreakpoints({ filters: enabledExBreakpoints.map(exb => exb.name) });
+
+		var enabledExBreakpoints = this.model.getExceptionBreakpoints().filter(exb => exb.enabled);
+		return this.session.setExceptionBreakpoints({ filters: enabledExBreakpoints.map(exb => exb.name) });
 	}
 
 	private onFileChanges(fileChangesEvent: FileChangesEvent): void {
