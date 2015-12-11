@@ -6,17 +6,20 @@
 import nls = require('vs/nls');
 import strings = require('vs/base/common/strings');
 import { assign } from 'vs/base/common/objects';
-import { emmet as $, append } from 'vs/base/browser/dom';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { emmet as $, append, show, hide, addClass } from 'vs/base/browser/dom';
 import { IDisposable, combinedDispose } from 'vs/base/common/lifecycle';
-import { IGitService, ServiceState, IBranch, ServiceOperations } from 'vs/workbench/parts/git/common/git';
+import { IGitService, ServiceState, IBranch, ServiceOperations, IRemote } from 'vs/workbench/parts/git/common/git';
 import { IStatusbarItem } from 'vs/workbench/browser/parts/statusbar/statusbar';
 import { IQuickOpenService } from 'vs/workbench/services/quickopen/browser/quickOpenService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { SyncAction, PublishAction } from './gitActions';
 
 interface IState {
 	serviceState: ServiceState;
 	isBusy: boolean;
 	HEAD: IBranch;
+	remotes: IRemote[];
 	ps1: string;
 }
 
@@ -27,6 +30,14 @@ export class GitStatusbarItem implements IStatusbarItem {
 	private quickOpenService: IQuickOpenService;
 	private state: IState;
 	private element: HTMLElement;
+	private branchElement: HTMLElement;
+	private publishElement: HTMLElement;
+	private syncElement: HTMLElement;
+	private syncLabelElement: HTMLElement;
+
+	private syncAction: SyncAction;
+	private publishAction: PublishAction;
+
 	private toDispose: IDisposable[];
 
 	constructor(
@@ -37,18 +48,32 @@ export class GitStatusbarItem implements IStatusbarItem {
 		this.instantiationService = instantiationService;
 		this.gitService = gitService;
 		this.quickOpenService = quickOpenService;
-		this.toDispose = [];
+
+		this.syncAction = instantiationService.createInstance(SyncAction, SyncAction.ID, SyncAction.LABEL);
+		this.publishAction = instantiationService.createInstance(PublishAction, PublishAction.ID, PublishAction.LABEL);
+
+		this.toDispose = [
+			this.syncAction,
+			this.publishAction
+		];
 
 		this.state = {
 			serviceState: ServiceState.NotInitialized,
 			isBusy: false,
 			HEAD: null,
+			remotes: [],
 			ps1: ''
 		};
 	}
 
 	public render(container: HTMLElement): IDisposable {
-		this.element = append(container, $('a'));
+		this.element = append(container, $('.git-statusbar-group'));
+		this.branchElement = append(this.element, $('a'));
+		this.publishElement = append(this.element, $('a'));
+		this.syncElement = append(this.element, $('a'));
+		append(this.syncElement, $('span.octicon.octicon-sync'));
+		this.syncLabelElement = append(this.syncElement, $('span'));
+
 		this.setState(this.state);
 		this.toDispose.push(this.gitService.addBulkListener2(() => this.onGitServiceChange()));
 		return combinedDispose(...this.toDispose);
@@ -61,6 +86,7 @@ export class GitStatusbarItem implements IStatusbarItem {
 			serviceState: this.gitService.getState(),
 			isBusy: this.gitService.getRunningOperations().some(op => op.id === ServiceOperations.CHECKOUT || op.id === ServiceOperations.BRANCH),
 			HEAD: model.getHEAD(),
+			remotes: model.getRemotes(),
 			ps1: model.getPS1()
 		});
 	}
@@ -68,14 +94,15 @@ export class GitStatusbarItem implements IStatusbarItem {
 	private setState(state: IState): void {
 		this.state = state;
 
-		let disabled = false;
-		let className = 'git-statusbar-item';
+		let isGitDisabled = false;
+		let className = 'git-statusbar-branch-item';
 		let textContent: string;
+		let aheadBehindLabel = '';
 		let title = '';
 		let onclick: () => void = null;
 
 		if (state.serviceState !== ServiceState.OK) {
-			disabled = true;
+			isGitDisabled = true;
 			className += ' disabled';
 			title = nls.localize('gitNotEnabled', "Git is not enabled in this workspace.");
 			textContent = '\u00a0';
@@ -85,7 +112,7 @@ export class GitStatusbarItem implements IStatusbarItem {
 			if (state.isBusy) {
 				className += ' busy';
 			} else {
-				onclick = () => this.onClick();
+				onclick = () => this.onBranchClick();
 			}
 
 			if (!HEAD) {
@@ -96,23 +123,62 @@ export class GitStatusbarItem implements IStatusbarItem {
 			} else if (!HEAD.commit || !HEAD.upstream || (!HEAD.ahead && !HEAD.behind)) {
 				textContent = state.ps1;
 			} else {
-				textContent = strings.format('{0} {1}↓ {2}↑', state.ps1, HEAD.behind, HEAD.ahead);
+				textContent = state.ps1;
+				aheadBehindLabel = strings.format('{0}↓ {1}↑', HEAD.behind, HEAD.ahead);
 			}
 		}
 
-		this.element.className = className;
-		this.element.title = title;
-		this.element.textContent = textContent;
-		this.element.onclick = onclick;
+		this.branchElement.className = className;
+		this.branchElement.title = title;
+		this.branchElement.textContent = textContent;
+		this.branchElement.onclick = onclick;
+		this.publishElement.className = 'octicon octicon-cloud-upload';
+		this.syncLabelElement.textContent = aheadBehindLabel;
+		this.syncElement.className = 'git-statusbar-sync-item' + (aheadBehindLabel ? '' : ' empty');
 
-		if (disabled) {
-			this.element.setAttribute('disabled', 'disabled');
+		if (isGitDisabled) {
+			hide(this.branchElement);
+			hide(this.publishElement);
+			hide(this.syncElement);
 		} else {
-			this.element.removeAttribute('disabled');
+			show(this.branchElement);
+
+			if (state.HEAD && !!state.HEAD.upstream) {
+				show(this.syncElement);
+				hide(this.publishElement);
+			} else if (state.remotes.length > 0) {
+				hide(this.syncElement);
+				show(this.publishElement);
+			} else {
+				hide(this.syncElement);
+				hide(this.publishElement);
+			}
+		}
+
+		if (this.syncAction.enabled) {
+			this.syncElement.onclick = () => this.onSyncClick();
+		} else {
+			this.syncElement.onclick = null;
+			addClass(this.syncElement, 'disabled');
+		}
+
+		if (this.publishAction.enabled) {
+			this.publishElement.onclick = () => this.onPublishClick();
+		} else {
+			this.publishElement.onclick = null;
+			addClass(this.publishElement, 'disabled');
 		}
 	}
 
-	private onClick(): void {
+	private onBranchClick(): void {
 		this.quickOpenService.show('git checkout ');
+	}
+
+	private onPublishClick(): void {
+		this.publishAction.run().done(null, onUnexpectedError);
+	}
+
+	private onSyncClick(): void {
+		this.syncAction.run().done(null, onUnexpectedError);
 	}
 }
