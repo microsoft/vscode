@@ -62,7 +62,6 @@ class ConfigClass implements IConfiguration {
 			outlineMarkers: false,
 			referenceInfos: true,
 			renderWhitespace: false,
-			moveCursorWhenScrolling: false,
 
 			tabSize: 4,
 			insertSpaces: true,

@@ -482,11 +482,6 @@ export interface ICommonEditorOptions {
 	 * Defaults to false.
 	 */
 	renderWhitespace?: boolean;
-	/**
-	 * Make the cursor move with scrolling.
-	 * Defaults to false.
-	 */
-	moveCursorWhenScrolling?: boolean;
 }
 
 /**
@@ -615,7 +610,6 @@ export interface IInternalEditorOptions {
 	outlineMarkers: boolean;
 	referenceInfos: boolean;
 	renderWhitespace: boolean;
-	moveCursorWhenScrolling: boolean;
 
 	// ---- Options that are computed
 

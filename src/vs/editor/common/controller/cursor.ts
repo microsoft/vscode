@@ -1322,18 +1322,10 @@ export class Cursor extends EventEmitter {
 	}
 
 	private _scrollUp(isPaged: boolean, ctx: IMultipleCursorOperationContext): boolean {
-		if (this.configuration.editor.moveCursorWhenScrolling) {
-			if (!this._moveUp(false, isPaged, ctx)) {
-				return false;
-			}
-		}
 		ctx.requestScrollDeltaLines = isPaged ? -this.configuration.editor.pageSize : -1;
 	}
 
 	private _scrollDown(isPaged: boolean, ctx: IMultipleCursorOperationContext): boolean {
-		if (this.configuration.editor.moveCursorWhenScrolling) {
-			if (!this._moveDown(false, isPaged, ctx)) return false;
-		}
 		ctx.requestScrollDeltaLines = isPaged ? this.configuration.editor.pageSize : 1;
 	}
 
