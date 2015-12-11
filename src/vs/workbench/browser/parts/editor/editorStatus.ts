@@ -22,9 +22,9 @@ import {IEditorModesRegistry, Extensions} from 'vs/editor/common/modes/modesRegi
 import {Registry} from 'vs/platform/platform';
 import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {UntitledEditorInput} from 'vs/workbench/browser/parts/editor/untitledEditorInput';
-import {EncodingMode, IEncodingSupport, asFileEditorInput, getUntitledOrFileResource} from 'vs/workbench/common/editor';
+import {IFileEditorInput, EditorInput, EncodingMode, IEncodingSupport, asFileEditorInput, getUntitledOrFileResource} from 'vs/workbench/common/editor';
 import {toDisposable, IDisposable, combinedDispose} from 'vs/base/common/lifecycle';
-import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
+import {ICodeEditor, IDiffEditor} from 'vs/editor/browser/editorBrowser';
 import {EndOfLineSequence, ITokenizedModel, EditorType, IEditorSelection, ITextModel, IDiffEditorModel, IEditor} from 'vs/editor/common/editorCommon';
 import {EventType, EditorEvent, TextEditorSelectionEvent, ResourceEvent} from 'vs/workbench/browser/events';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
@@ -51,6 +51,14 @@ function getTextModel(editorWidget: IEditor): ITextModel {
 	}
 
 	return textModel;
+}
+
+function asFileOrUntitledEditorInput(input: any): UntitledEditorInput|IFileEditorInput {
+	if (input instanceof UntitledEditorInput) {
+		return input;
+	}
+
+	return asFileEditorInput(input, true /* support diff editor */);
 }
 
 interface IEditorSelectionStatus {
@@ -336,7 +344,7 @@ export class EditorStatus implements IStatusbarItem {
 
 		// We only support text based editors
 		if (e instanceof BaseTextEditor) {
-			let encodingSupport: IEncodingSupport = <any>e.input;
+			let encodingSupport: IEncodingSupport = <any>asFileOrUntitledEditorInput(e.input);
 			if (encodingSupport && types.isFunction(encodingSupport.getEncoding)) {
 				let rawEncoding = encodingSupport.getEncoding();
 				let encodingInfo = encoding.SUPPORTED_ENCODINGS[rawEncoding];
@@ -379,7 +387,7 @@ export class EditorStatus implements IStatusbarItem {
 	private getActiveEditor(resource: uri): BaseEditor {
 		let activeEditor = this.editorService.getActiveEditor();
 		if (activeEditor) {
-			let r = getUntitledOrFileResource(activeEditor.input);
+			let r = getUntitledOrFileResource(activeEditor.input, true);
 			if (r && r.toString() === resource.toString()) {
 				return <BaseEditor>activeEditor;
 			}
@@ -391,12 +399,20 @@ export class EditorStatus implements IStatusbarItem {
 
 function isCodeEditorWithTabFocusMode(e: BaseTextEditor): boolean {
 	let editorWidget = e.getControl();
+	if (editorWidget.getEditorType() === EditorType.IDiffEditor) {
+		editorWidget = (<IDiffEditor>editorWidget).getModifiedEditor();
+	}
+
 	return (editorWidget.getEditorType() === EditorType.ICodeEditor &&
 		(<ICodeEditor>editorWidget).getConfiguration().tabFocusMode);
 }
 
 function isWritableCodeEditor(e: BaseTextEditor): boolean {
 	let editorWidget = e.getControl();
+	if (editorWidget.getEditorType() === EditorType.IDiffEditor) {
+		editorWidget = (<IDiffEditor>editorWidget).getModifiedEditor();
+	}
+
 	return (editorWidget.getEditorType() === EditorType.ICodeEditor &&
 		!(<ICodeEditor>editorWidget).getConfiguration().readOnly);
 }
@@ -553,7 +569,7 @@ export class ChangeEncodingAction extends Action {
 			return this.quickOpenService.pick([{ label: nls.localize('noEditor', "No text editor active at this time") }]);
 		}
 
-		let encodingSupport: IEncodingSupport = <any>activeEditor.input;
+		let encodingSupport: IEncodingSupport = <any>asFileOrUntitledEditorInput(activeEditor.input);
 		if (!types.areFunctions(encodingSupport.setEncoding, encodingSupport.getEncoding)) {
 			return this.quickOpenService.pick([{ label: nls.localize('noFileEditor', "No file active at this time") }]);
 		}
@@ -562,7 +578,7 @@ export class ChangeEncodingAction extends Action {
 		let saveWithEncodingPick: IPickOpenEntry = { label: nls.localize('saveWithEncoding', "Save with Encoding") };
 		let reopenWithEncodingPick: IPickOpenEntry = { label: nls.localize('reopenWithEncoding', "Reopen with Encoding") };
 
-		if (activeEditor.input instanceof UntitledEditorInput) {
+		if (encodingSupport instanceof UntitledEditorInput) {
 			pickActionPromise = Promise.as(saveWithEncodingPick);
 		} else if (!isWritableCodeEditor(<BaseTextEditor>activeEditor)) {
 			pickActionPromise = Promise.as(reopenWithEncodingPick);
@@ -607,11 +623,9 @@ export class ChangeEncodingAction extends Action {
 					}).then((encoding) => {
 						if (encoding) {
 							activeEditor = this.editorService.getActiveEditor();
-							encodingSupport = <any>activeEditor.input;
+							encodingSupport = <any>asFileOrUntitledEditorInput(activeEditor.input);
 							if (encodingSupport && types.areFunctions(encodingSupport.setEncoding, encodingSupport.getEncoding) && encodingSupport.getEncoding() !== encoding.id) {
-
-								// Set new encoding
-								encodingSupport.setEncoding(encoding.id, isReopenWithEncoding ? EncodingMode.Decode : EncodingMode.Encode);
+								encodingSupport.setEncoding(encoding.id, isReopenWithEncoding ? EncodingMode.Decode : EncodingMode.Encode); // Set new encoding
 							}
 						}
 					});
