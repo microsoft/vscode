@@ -380,6 +380,9 @@ export namespace SignatureHelp {
 					parameterItem.signatureLabelOffset = idx;
 					idx += parameter.label.length;
 					parameterItem.signatureLabelEnd = idx;
+				} else {
+					parameterItem.signatureLabelOffset = 0;
+					parameterItem.signatureLabelEnd = 0;
 				}
 			}
 
