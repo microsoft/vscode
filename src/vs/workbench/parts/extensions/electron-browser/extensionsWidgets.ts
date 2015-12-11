@@ -8,10 +8,14 @@ import Severity from 'vs/base/common/severity';
 import errors = require('vs/base/common/errors');
 import dom = require('vs/base/browser/dom');
 import lifecycle = require('vs/base/common/lifecycle');
+import actions = require('vs/base/common/actions');
 import statusbar = require('vs/workbench/browser/parts/statusbar/statusbar');
 import { IPluginService, IPluginStatus } from 'vs/platform/plugins/common/plugins';
-import { IMessageService } from 'vs/platform/message/common/message';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IMessageService, CloseAction } from 'vs/platform/message/common/message';
+import { UninstallAction } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
 import { IQuickOpenService } from 'vs/workbench/services/quickopen/browser/quickOpenService';
+import { IExtensionsService, IGalleryService, IExtension } from 'vs/workbench/parts/extensions/common/extensions';
 
 var $ = dom.emmet;
 
@@ -25,7 +29,10 @@ export class ExtensionsStatusbarItem implements statusbar.IStatusbarItem {
 
 	constructor(
 		@IPluginService pluginService: IPluginService,
-		@IMessageService private messageService: IMessageService
+		@IMessageService private messageService: IMessageService,
+		@IExtensionsService protected extensionsService: IExtensionsService,
+		@IInstantiationService protected instantiationService: IInstantiationService
+
 	) {
 		this.toDispose = [];
 		this.messageCount = 0;
@@ -50,7 +57,17 @@ export class ExtensionsStatusbarItem implements statusbar.IStatusbarItem {
 				Object.keys(this.status).forEach(key => {
 					this.status[key].messages.forEach(m => {
 						if (m.type > Severity.Ignore) {
-							this.messageService.show(m.type, m.message);
+							this.messageService.show(m.type, {
+								message:  m.message,
+								actions: [CloseAction, new actions.Action('extensions.uninstall2', nls.localize('uninstall', "Uninstall Extension"), null, true, () => {
+									return this.extensionsService.getInstalled().then(installed => {
+										const extension = installed.filter(ext => ext.path === m.source).pop();
+										if (extension) {
+											return this.instantiationService.createInstance(UninstallAction).run(extension);
+										}
+									});
+								})]
+							});
 						}
 					});
 				});
