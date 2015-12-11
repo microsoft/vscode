@@ -43,6 +43,8 @@ export class V8Protocol extends ee.EventEmitter {
 		}
 		if (data) {
 			data.sessionId = this.getId();
+		} else {
+			data = { sessionId: this.getId() };
 		}
 
 		super.emit(eventType, data);

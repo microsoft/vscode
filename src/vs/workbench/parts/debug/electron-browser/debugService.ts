@@ -281,8 +281,10 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 			}
 		}));
 
-		this.toDispose.push(this.session.addListener2(debug.SessionEvents.SERVER_EXIT, e => {
-			this.onSessionEnd();
+		this.toDispose.push(this.session.addListener2(debug.SessionEvents.SERVER_EXIT, event => {
+			if (this.session && this.session.getId() === event.sessionId) {
+				this.onSessionEnd();
+			}
 		}));
 	}
 
