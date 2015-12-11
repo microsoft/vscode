@@ -160,6 +160,9 @@ export class TextFileService extends BrowserTextFileService {
 			message.push('');
 		}
 
+		const dontSaveLabel = nls.localize('dontSave', "Don't Save");
+		const cancelLabel = nls.localize('cancel', "Cancel");
+
 		let opts: remote.IMessageBoxOptions = {
 			title: this.contextService.getConfiguration().env.appName,
 			message: message.join('\n'),
@@ -167,8 +170,8 @@ export class TextFileService extends BrowserTextFileService {
 			detail: nls.localize('saveChangesDetail', "Your changes will be lost if you don't save them."),
 			buttons: [
 				resourcesToConfirm.length > 1 ? nls.localize('saveAll', "Save All") : nls.localize('save', "Save"),
-				nls.localize('cancel', "Cancel"),
-				nls.localize('dontSave', "Don't Save")
+				isWindows ? dontSaveLabel : cancelLabel,
+				isWindows ? cancelLabel : dontSaveLabel
 			],
 			noLink: true,
 			cancelId: 1
