@@ -123,14 +123,9 @@
 
 /* Status bar */
 .monaco-shell .extensions-statusbar {
-	padding: 0 5px 0 5px;
+	padding: 0 5px 0 25px;
 	line-height: 22px;
-}
-
-.monaco-shell .extensions-statusbar.warning::before {
-	color: yellow;
-}
-
-.monaco-shell .extensions-statusbar.error::before {
-	color: #FF9D00;
+	background: url('extensions-status.svg') center center no-repeat;
+	background-size: 17px;
+	background-position: 4px 50%;
 }
