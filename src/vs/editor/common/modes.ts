@@ -395,8 +395,6 @@ export interface ISuggestion {
 	noAutoAccept?: boolean;
 	overwriteBefore?: number;
 	overwriteAfter?: number;
-
-	textEdit?: EditorCommon.ISingleEditOperation;
 }
 
 export interface ISuggestResult {

@@ -59,33 +59,6 @@ export function suggest(model: IModel, position: IPosition, triggerCharacter: st
 							incomplete: suggestResult.incomplete,
 							suggestions: suggestResult.suggestions
 						}
-
-						const defaultRange: IRange = {
-							startLineNumber: position.lineNumber,
-							startColumn: position.column,
-							endLineNumber: position.lineNumber,
-							endColumn: position.column
-						};
-
-						for (let suggestion of suggestResult.suggestions) {
-							if (!suggestion.textEdit) {
-								suggestion.textEdit = {
-									text: suggestion.codeSnippet,
-									range: defaultRange
-								};
-								if (typeof suggestion.overwriteBefore === 'number' && suggestion.overwriteBefore > 0 || typeof suggestion.overwriteAfter === 'number' && suggestion.overwriteAfter > 0) {
-									suggestion.textEdit.range = {
-										startLineNumber: position.lineNumber,
-										startColumn: position.column - suggestion.overwriteBefore || 0,
-										endLineNumber: position.lineNumber,
-										endColumn: position.column + suggestion.overwriteAfter || 0
-									}
-								}
-							}
-						}
-
-						// add additional properties
-						mixin(suggestions2, suggestResult, false);
 						result.push(suggestions2);
 					}
 
