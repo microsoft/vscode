@@ -491,7 +491,7 @@
 					<key>match</key>
 					<string>(?x)
 					    (?:-|\+)?(?:(?:[0-9]+(?:\.[0-9]+)?)|(?:\.[0-9]+))
-					    ((?:px|pt|ch|cm|mm|in|r?em|ex|pc|deg|g?rad|dpi|dpcm|s)\b|%)?
+					    ((?:em|ex|px|rem|vw|vh|vmin|vmax|mm|cm|in|pt|pc|deg|grad|rad|ms|s|Hz|kHz)\b|%)?
 					</string>
 					<key>name</key>
 					<string>constant.numeric.css</string>
