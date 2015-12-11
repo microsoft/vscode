@@ -41,7 +41,9 @@ export class V8Protocol extends ee.EventEmitter {
 			eventType === debug.SessionEvents.DEBUGEE_TERMINATED || eventType === debug.SessionEvents.SERVER_EXIT) {
 			this.flowEventsCount++;
 		}
-		data.sessionId = this.getId();
+		if (data) {
+			data.sessionId = this.getId();
+		}
 
 		super.emit(eventType, data);
 	}
