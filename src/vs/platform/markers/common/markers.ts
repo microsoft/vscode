@@ -12,7 +12,7 @@ import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/comm
 export var IMarkerService = createDecorator<IMarkerService>('markerService');
 
 export interface IMarkerService {
-	serviceId : ServiceIdentifier<any>;
+	serviceId: ServiceIdentifier<any>;
 
 	getStatistics(): MarkerStatistics;
 
@@ -22,7 +22,7 @@ export interface IMarkerService {
 
 	remove(owner: string, resources: URI[]): void
 
-	read(filter?: { owner?: string; resource?: URI; selector?:RegExp, take?: number; }): IMarker[];
+	read(filter?: { owner?: string; resource?: URI; selector?: RegExp, take?: number; }): IMarker[];
 
 	onMarkerChanged: Event<URI[]>;
 }
@@ -36,6 +36,7 @@ export interface IMarkerData {
 	code?: string;
 	severity: Severity;
 	message: string;
+	source?: string;
 	startLineNumber: number;
 	startColumn: number;
 	endLineNumber: number;
@@ -44,7 +45,7 @@ export interface IMarkerData {
 
 export interface IResourceMarker {
 	resource: URI;
-	marker:IMarkerData;
+	marker: IMarkerData;
 }
 
 export interface IMarker {
@@ -53,6 +54,7 @@ export interface IMarker {
 	severity: Severity;
 	code?: string;
 	message: string;
+	source?: string;
 	startLineNumber: number;
 	startColumn: number;
 	endLineNumber: number;

@@ -5,8 +5,7 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import {illegalArgument, illegalState, readonly, onUnexpectedError} from 'vs/base/common/errors';
-import {TextEditorOptions} from 'vscode';
+import {illegalArgument} from 'vs/base/common/errors';
 
 export class Disposable {
 
@@ -165,8 +164,8 @@ export class Range {
 	}
 
 	constructor(start: Position, end: Position);
-	constructor(startLine: number, startColumn: number, endLine:number, endColumn:number);
-	constructor(startLineOrStart: number|Position, startColumnOrEnd: number|Position, endLine?:number, endColumn?:number) {
+	constructor(startLine: number, startColumn: number, endLine: number, endColumn: number);
+	constructor(startLineOrStart: number|Position, startColumnOrEnd: number|Position, endLine?: number, endColumn?: number) {
 		let start: Position;
 		let end: Position;
 
@@ -266,8 +265,8 @@ export class Selection extends Range {
 	}
 
 	constructor(anchor: Position, active: Position);
-	constructor(anchorLine: number, anchorColumn: number, activeLine:number, activeColumn:number);
-	constructor(anchorLineOrAnchor: number|Position, anchorColumnOrActive: number|Position, activeLine?:number, activeColumn?:number) {
+	constructor(anchorLine: number, anchorColumn: number, activeLine: number, activeColumn: number);
+	constructor(anchorLineOrAnchor: number|Position, anchorColumnOrActive: number|Position, activeLine?: number, activeColumn?: number) {
 		let anchor: Position;
 		let active: Position;
 
@@ -419,6 +418,7 @@ export class Diagnostic {
 
 	range: Range;
 	message: string;
+	source: string;
 	code: string | number;
 	severity: DiagnosticSeverity;
 
@@ -434,7 +434,7 @@ export class Hover {
 	public contents: vscode.MarkedString[];
 	public range: Range;
 
-	constructor(contents: vscode.MarkedString | vscode.MarkedString[], range?:Range) {
+	constructor(contents: vscode.MarkedString | vscode.MarkedString[], range?: Range) {
 		if (!contents) {
 			throw new Error('Illegal argument');
 		}

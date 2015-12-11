@@ -210,6 +210,7 @@ export class MarkerService implements IMarkerService, IThreadSynchronizableObjec
 				resource: key.resource,
 				code: data.code,
 				message: data.message,
+				source: data.source,
 				severity: data.severity,
 				startLineNumber: data.startLineNumber,
 				startColumn: data.startColumn,
