@@ -45,6 +45,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 	private delayer: ThrottledDelayer<QuickOpenModel>;
 	private pendingSearch: TPromise<QuickOpenModel>;
 	private isClosed: boolean;
+	private scorerCache: {[key: string]: number};
 	private fuzzyMatchingEnabled: boolean;
 	private configurationListenerUnbind: ListenerUnbind;
 
@@ -64,6 +65,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 		this.openFileHandler.setStandalone(false);
 
 		this.resultsToSearchCache = Object.create(null);
+		this.scorerCache = Object.create(null);
 		this.delayer = new ThrottledDelayer<QuickOpenModel>(OpenAnythingHandler.SEARCH_DELAY);
 
 		this.updateFuzzyMatching(contextService.getOptions().globalSettings.settings);
@@ -293,15 +295,15 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 
 		// Fuzzy scoring is special
 		if (enableFuzzyScoring) {
-			const labelAScore = scorer.score(elementA.getLabel(), lookFor);
-			const labelBScore = scorer.score(elementB.getLabel(), lookFor);
+			const labelAScore = scorer.score(elementA.getLabel(), lookFor, this.scorerCache);
+			const labelBScore = scorer.score(elementB.getLabel(), lookFor, this.scorerCache);
 
 			if (labelAScore !== labelBScore) {
 				return labelAScore > labelBScore ? -1 : 1;
 			}
 
-			const descriptionAScore = scorer.score(elementA.getDescription(), lookFor);
-			const descriptionBScore = scorer.score(elementB.getDescription(), lookFor);
+			const descriptionAScore = scorer.score(elementA.getDescription(), lookFor, this.scorerCache);
+			const descriptionBScore = scorer.score(elementB.getDescription(), lookFor, this.scorerCache);
 
 			if (descriptionAScore !== descriptionBScore) {
 				return descriptionAScore > descriptionBScore ? -1 : 1;
@@ -329,6 +331,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 
 		// Clear Cache
 		this.resultsToSearchCache = Object.create(null);
+		this.scorerCache = Object.create(null);
 
 		// Propagate
 		this.openSymbolHandler.onClose(canceled);

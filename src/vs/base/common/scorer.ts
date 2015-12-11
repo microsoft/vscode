@@ -31,11 +31,16 @@
  * Start of word/path bonus: 7
  * Start of string bonus: 8
  */
-export function score(target: string, query: string): number {
+export function score(target: string, query: string, cache?: {[id: string]: number}): number {
 	let score = 0;
 
 	if (!target || !query) {
 		return score; // return early if target or query are undefined
+	}
+
+	const cached = cache && cache[target + query];
+	if (typeof cached === 'number') {
+		return cached;
 	}
 
 	const queryLen = query.length;
@@ -75,6 +80,10 @@ export function score(target: string, query: string): number {
 		}
 
 		index++;
+	}
+
+	if (cache) {
+		cache[target + query] = score;
 	}
 
 	return score;

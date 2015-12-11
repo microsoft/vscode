@@ -32,4 +32,12 @@ suite('Scorer', () => {
 		let sortedScores = scores.sort();
 		assert.deepEqual(scores.reverse(), sortedScores);
 	});
+
+	test("cache", function() {
+		const cache = Object.create(null);
+
+		scorer.score('target', 'query', cache);
+
+		assert.ok(Object.getOwnPropertyNames(cache).length > 0);
+	});
 });
