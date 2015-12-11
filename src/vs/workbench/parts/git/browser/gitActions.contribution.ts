@@ -31,7 +31,7 @@ import {IFileService, IFileStat} from 'vs/platform/files/common/files';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import wbar = require('vs/workbench/browser/actionRegistry');
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { OpenChangeAction, SyncAction } from './gitActions';
+import { OpenChangeAction, SyncAction, PullAction, PushAction, PublishAction } from './gitActions';
 import Severity from 'vs/base/common/severity';
 import paths = require('vs/base/common/paths');
 import URI from 'vs/base/common/uri';
@@ -444,4 +444,7 @@ let workbenchActionRegistry = (<wbar.IWorkbenchActionRegistry> platform.Registry
 // Register Actions
 const category = nls.localize('git', "Git");
 workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(GlobalOpenChangeAction, GlobalOpenChangeAction.ID, GlobalOpenChangeAction.LABEL), category);
+workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(PullAction, PullAction.ID, PullAction.LABEL), category);
+workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(PushAction, PushAction.ID, PushAction.LABEL), category);
 workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(SyncAction, SyncAction.ID, SyncAction.LABEL), category);
+workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(PublishAction, PublishAction.ID, PublishAction.LABEL), category);

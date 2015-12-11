@@ -883,9 +883,14 @@ export class PullWithRebaseAction extends PullAction {
 export class PushAction extends GitAction {
 
 	static ID = 'workbench.action.push';
+	static LABEL = nls.localize('push', "Push");
 
-	constructor(@IGitService gitService: IGitService) {
-		super(PushAction.ID, nls.localize('push', "Push"), 'git-action push', gitService);
+	constructor(
+		id: string = PushAction.ID,
+		label: string = PushAction.LABEL,
+		@IGitService gitService: IGitService
+	) {
+		super(id, label, 'git-action push', gitService);
 	}
 
 	protected isEnabled():boolean {
@@ -925,13 +930,16 @@ export class PushAction extends GitAction {
 export class PublishAction extends GitAction {
 
 	static ID = 'workbench.action.publish';
+	static LABEL = nls.localize('publish', "Publish");
 
 	constructor(
+		id: string = PublishAction.ID,
+		label: string = PublishAction.LABEL,
 		@IGitService gitService: IGitService,
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
 		@IMessageService private messageService: IMessageService
 	) {
-		super(PublishAction.ID, nls.localize('publish', "Publish"), 'git-action publish', gitService);
+		super(id, label, 'git-action publish', gitService);
 	}
 
 	protected isEnabled():boolean {
