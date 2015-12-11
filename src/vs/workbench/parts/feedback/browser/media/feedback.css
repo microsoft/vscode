@@ -1,0 +1,399 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+.monaco-shell .feedback-form {
+	width: 420px;
+	top: 30px;
+	right: 6px;
+	padding: 1em;
+}
+
+.monaco-shell .feedback-form h2 {
+	margin: 0;
+	padding: 0;
+	font-family: "Segoe WPC", "Segoe UI", "SFUIDisplay-Light", "HelveticaNeue-Light", sans-serif, "Droid Sans Fallback";
+	font-weight: normal;
+	font-size: 1.8em;
+}
+
+.monaco-shell .feedback-form h3 {
+	margin: 1em 0 0;
+	padding: 0;
+	font-weight: normal;
+	font-size: 1.2em;
+}
+
+.monaco-shell .feedback-form .content {
+	font-size: 1.2em;
+}
+
+.monaco-shell .feedback-form .content > div {
+	display: inline-block;
+	vertical-align: top;
+	margin-top: 20px;
+}
+
+.monaco-shell .feedback-form .content .contactus {
+	padding: 10px;
+	border: solid 1px #B4BABF;
+	background-color: #EBF2F9;
+	float: right;
+}
+
+.monaco-shell.vs-dark .feedback-form .content .contactus {
+	border: solid 1px #44444C;
+	background-color: #333337;
+}
+
+
+.monaco-shell .feedback-form .content .channels {
+	margin-top: 5px;
+	font-size: 0.9em;
+}
+
+.monaco-shell .char-counter {
+	padding-left: 3px;
+}
+
+/* TODO @C5 review link color */
+.monaco-shell .feedback-form .content .channels a {
+	color: #007ACC;
+	padding: 2px 0;
+}
+
+.monaco-shell.vs-dark .feedback-form .content .channels a {
+	color: #75BEFF;
+}
+
+.monaco-shell .feedback-form .feedback-alias, .monaco-shell .feedback-form .feedback-description {
+	resize: none;
+	font-size: 1.1em;
+	margin: 6px 0 0;
+	width: 100%;
+	padding: 3px 2px;
+	-webkit-box-sizing:	border-box;
+	-o-box-sizing:		border-box;
+	-moz-box-sizing:	border-box;
+	-ms-box-sizing:		border-box;
+	box-sizing:			border-box;
+}
+
+.monaco-shell .feedback-form .feedback-empty {
+	margin-top: .2em;
+}
+
+.monaco-shell .feedback-form .feedback-alias-checkbox {
+	display: inline-block;
+	vertical-align: text-top;
+	margin-left: 0;
+}
+
+.monaco-shell .feedback-form .feedback-alias {
+	height: 26px;
+}
+
+.monaco-shell .feedback-form .feedback-alias:disabled {
+	opacity: 0.6;
+}
+
+.monaco-shell .feedback-form .cancel {
+	position: absolute;
+	top: 0;
+	right: 0;
+	margin: .5em 0 0 0;
+	padding: .5em;
+	width: 22px;
+	height: 22px;
+	border: none;
+	cursor: pointer;
+}
+
+.monaco-shell .feedback-form .form-buttons {
+	margin-top: 18px;
+	text-align: right;
+}
+
+.monaco-shell .feedback-form .send {
+	padding: .5em 1.5em;
+	font-size: 1.1em;
+	margin: 0;
+	width: 15%;
+	-webkit-box-sizing:	border-box;
+	-o-box-sizing:		border-box;
+	-moz-box-sizing:	border-box;
+	-ms-box-sizing:		border-box;
+	box-sizing:			border-box;
+
+	-webkit-transition: width 200ms ease-out;
+	transition: width 200ms ease-out;
+}
+
+.monaco-shell .feedback-form .send.in-progress {
+	width: 22%;
+}
+
+.monaco-shell .feedback-form .send.success,
+.monaco-shell .feedback-form .send.error {
+	width: 20%;
+}
+
+.monaco-shell .feedback-form .feedback-sentiment span {
+	color:rgb(111, 111, 111);
+}
+
+.monaco-shell .feedback-form .sentiment {
+	height: 32px;
+	width: 32px;
+	display: inline-block;
+	margin: .5em 0;
+	cursor: pointer;
+
+	-webkit-box-sizing:	border-box;
+	-o-box-sizing:		border-box;
+	-moz-box-sizing:	border-box;
+	-ms-box-sizing:		border-box;
+	box-sizing:			border-box;
+}
+
+.monaco-shell .feedback-form .sentiment:hover {
+	background-color: #eaeaea;
+}
+
+.monaco-shell .feedback-form .sentiment.checked {
+	border: 1px solid #39F;
+}
+
+/* Statusbar */
+.monaco-shell .statusbar-item > .dropdown.send-feedback {
+	display: inline-block;
+}
+
+.monaco-shell .statusbar-item > .dropdown.send-feedback:hover {
+	background-color: rgba(255, 255, 255, 0.12);
+}
+
+.monaco-shell .statusbar-item > .dropdown.send-feedback > .dropdown-label.send-feedback {
+	background: url('smiley.svg') center center no-repeat;
+	width: 26px;
+}
+
+/* Theming */
+.monaco-shell.vs .feedback-form {
+	color: black;
+	background: #F6F6F6;
+}
+
+.monaco-shell .feedback-form h2 {
+	color: #007ACC;
+}
+
+.monaco-shell.vs .feedback-form h3 {
+	color: #646465;
+}
+
+
+.monaco-shell.vs .feedback-form .feedback-alias, .monaco-shell.vs .feedback-form .feedback-description {
+	font-family: inherit;
+	border: 1px solid transparent;
+}
+
+
+.monaco-shell.vs .feedback-form .cancel {
+	background: url('close.svg') center center no-repeat;
+}
+
+.monaco-shell.vs .feedback-form .cancel:hover {
+	background-color: #eaeaea;
+}
+
+.monaco-shell .feedback-form .form-buttons .send {
+	background-color: #007ACC;
+	color: white;
+	border: none;
+	cursor: pointer;
+}
+
+.monaco-shell .feedback-form .form-buttons .send.in-progress,
+.monaco-shell .feedback-form .form-buttons .send:hover {
+	background-color: #006BB3;
+}
+
+.monaco-shell .feedback-form .form-buttons .send:disabled {
+	pointer-events: none;
+	cursor: not-allowed;
+	opacity: .65;
+}
+
+.monaco-shell .feedback-form .form-buttons .send.success {
+	background-color: #2d883e;
+}
+
+.monaco-shell .feedback-form .form-buttons .send.error {
+	background-color: #E51400;
+}
+
+.monaco-shell.vs-dark .feedback-form {
+	background: #252526;
+	box-shadow: 0 2px 8px #000;
+}
+
+.monaco-shell.vs-dark .feedback-form h2 {
+	color: #75BEFF;
+}
+
+.monaco-shell.vs-dark .feedback-form h3 {
+	font-weight: normal;
+	font-size: 1.2em;
+}
+
+.monaco-shell.vs-dark .feedback-form .sentiment:hover {
+	background-color: #1e1e1e;
+}
+
+.monaco-shell.vs-dark .feedback-form .sentiment.checked {
+	border-color: #75BEFF;
+}
+
+.monaco-shell.vs-dark .feedback-form .feedback-alias, .monaco-shell.vs-dark .feedback-form .feedback-description {
+	font-family: inherit;
+	border: 1px solid transparent;
+	background-color: #333337;
+	color: #D4D4D4;
+}
+
+.monaco-shell.vs-dark .feedback-form .cancel {
+	background: url('close-dark.svg') center center no-repeat;
+}
+
+.monaco-shell.vs-dark .feedback-form .cancel:hover {
+	background-color: #1e1e1e;
+}
+
+.monaco-shell .feedback-form .sentiment.smile {
+	background-image: url('happy.svg');
+	background-position: center;
+	background-repeat: no-repeat;
+}
+
+.monaco-shell .feedback-form .sentiment.frown {
+	background-image: url('sad.svg');
+	background-position: center;
+	background-repeat: no-repeat;
+}
+
+.monaco-shell .feedback-form .infotip {
+	background-image: url('info.svg');
+	background-position: center;
+	background-repeat: no-repeat;
+
+	height: 16px;
+	width: 16px;
+	display: inline-block;
+	vertical-align: text-bottom;
+	box-sizing:	border-box;
+	margin-left: 5px;
+}
+
+.monaco-shell .feedback-form .privacyLink {
+	float: left;
+	color: #007ACC !Important;
+}
+.monaco-shell.vs-dark .feedback-form .privacyLink {
+	color: #75BEFF !Important;
+}
+
+.monaco-shell .feedback-form .privacyLink:hover {
+	text-decoration: underline;
+}
+
+/* High Contrast Theming */
+.monaco-shell .hc-black .feedback-form {
+	background-color: #0C141F;
+}
+
+.monaco-shell.hc-black .feedback-form h2 {
+	color: white;
+}
+
+.monaco-shell.hc-black .feedback-form .feedback-alias, .monaco-shell.hc-black .feedback-form .feedback-description {
+	border: 1px solid #6FC3DF;
+	background-color: #000;
+	color: #D4D4D4;
+}
+
+.monaco-shell.hc-black .feedback-form .content .contactus {
+	padding: 10px;
+	border: solid 1px #B4BABF;
+	background-color: #0C141F;
+	float: right;
+}
+.monaco-shell.hc-black .feedback-form .cancel {
+	background: none;
+	opacity: 0.6;
+}
+
+.monaco-shell.hc-black .feedback-form .cancel:hover {
+	opacity: 1;
+}
+
+.monaco-shell.hc-black .feedback-form .cancel:before {
+	content: url('close-dark.svg');
+	position: relative;
+	top: 4px;
+	left: 6px;
+	height: 32px;
+	width: 32px;
+}
+
+.monaco-shell.hc-black .feedback-form .form-buttons .send,
+.monaco-shell.hc-black .feedback-form .form-buttons .send.in-progress,
+.monaco-shell.hc-black .feedback-form .form-buttons .send.success {
+	background-color: #0C141F;
+	color: #D4D4D4;
+	border: 1px solid #6FC3DF;
+}
+
+.monaco-shell.hc-black .feedback-form .form-buttons .send:hover {
+	background-color: #0C141F;
+}
+
+.monaco-shell.hc-black .feedback-form .sentiment {
+	background: none;
+}
+
+.monaco-shell.hc-black .feedback-form .sentiment.checked {
+	border: 1px solid #DF740C;
+}
+
+.monaco-shell.hc-black .feedback-form .sentiment:before {
+	height: 21px;
+	width: 21px;
+	display: inline-block;
+	position: relative;
+	top: 4px;
+	left: 4px;
+}
+
+.monaco-shell.hc-black .feedback-form .sentiment.smile:before {
+	content: url('happy.svg');
+}
+
+.monaco-shell.hc-black .feedback-form .sentiment.frown:before {
+	content: url('sad.svg');
+}
+
+.monaco-shell .feedback-form .infotip {
+	background: none;
+}
+
+.monaco-shell .feedback-form .infotip:before {
+	content: url('info.svg');
+	height: 16px;
+	width: 16px;
+	display: inline-block;
+}
+
+.monaco-shell.hc-black .feedback-form .privacyLink {
+	color: white !Important;
+}

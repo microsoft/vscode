@@ -147,6 +147,7 @@
 					'platform': remote.process.platform,
 					'enableTasks': hasWorkspaceContext,
 					'enableJavaScriptRewriting': true,
+					'enableSendASmile' : !!configuration.sendASmile,
 					'enableTypeScriptServiceMode': true || !process.env['VSCODE_TSWORKER'],
 					'enableTypeScriptServiceModeForJS': !!process.env['CODE_TSJS']
 				};

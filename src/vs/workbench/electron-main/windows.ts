@@ -554,6 +554,7 @@ export class WindowsManager {
 		configuration.updateChannel = UpdateManager.channel;
 		configuration.recentPaths = this.getRecentlyOpenedPaths(workspacePath, filesToOpen);
 		configuration.aiConfig = env.product.aiConfig;
+		configuration.sendASmile = env.product.sendASmile;
 		configuration.enableTelemetry = env.product.enableTelemetry;
 		configuration.userEnv = userEnv;
 
