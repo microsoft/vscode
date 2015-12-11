@@ -342,10 +342,10 @@ export const Suggest = {
 		result.sortText = suggestion.sortText;
 		result.filterText = suggestion.filterText;
 
-		var overwriteBefore = (typeof suggestion.overwriteBefore !== 'undefined') ? suggestion.overwriteBefore : container.currentWord.length;
-		var startPosition = new types.Position(position.line, Math.max(0, position.character - overwriteBefore));
-		var endPosition = position;
-		if (typeof suggestion.overwriteAfter !== 'undefined') {
+		let overwriteBefore = (typeof suggestion.overwriteBefore === 'number') ? suggestion.overwriteBefore : container.currentWord.length;
+		let startPosition = new types.Position(position.line, Math.max(0, position.character - overwriteBefore));
+		let endPosition = position;
+		if (typeof suggestion.overwriteAfter === 'number') {
 			endPosition = new types.Position(position.line, position.character + suggestion.overwriteAfter);
 		}
 
