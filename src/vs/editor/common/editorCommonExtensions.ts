@@ -236,17 +236,20 @@ function triggerEditorActionGlobal(actionId: string, accessor: ServicesAccessor,
 
 var defaultEditorActionKeybindingOptions:IEditorActionKeybindingOptions = { primary: null, context: ContextKey.EditorTextFocus };
 
-function contextRule(needsTextFocus: boolean, needsKey: string): IKeybindingContextRule[]{
+function contextRule(needsTextFocus: boolean, needsKey: string): IKeybindingContextRule[] {
+	let result: IKeybindingContextRule[] = [];
+
 	if (needsTextFocus) {
-		return [
-			{ key: EditorCommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS },
-			{ key: needsKey }
-		];
+		result.push({ key: EditorCommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS });
+	} else {
+		result.push({ key: EditorCommon.KEYBINDING_CONTEXT_EDITOR_FOCUS });
 	}
-	return [
-		{ key: EditorCommon.KEYBINDING_CONTEXT_EDITOR_FOCUS },
-		{ key: needsKey }
-	];
+
+	if (needsKey) {
+		result.push({ key: needsKey });
+	}
+
+	return result;
 }
 
 function createCommandHandler(commandId: string, handler: IEditorCommandHandler): ICommandHandler {

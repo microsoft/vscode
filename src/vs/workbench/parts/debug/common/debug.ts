@@ -189,6 +189,7 @@ export interface IRawAdapter extends IRawEnvAdapter {
 	configurationAttributes?: any;
 	initialConfigurations?: any[];
 	win?: IRawEnvAdapter;
+	windows?: IRawEnvAdapter;
 	osx?: IRawEnvAdapter;
 	linux?: IRawEnvAdapter;
 }

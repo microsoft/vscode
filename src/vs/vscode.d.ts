@@ -2230,6 +2230,12 @@ declare namespace vscode {
 		message: string;
 
 		/**
+		 * A human-readable string describing the source of this
+		 * diagnostic, e.g. 'typescript' or 'super lint'.
+		 */
+		source: string;
+
+		/**
 		 * The severity, default is [error](#DiagnosticSeverity.Error).
 		 */
 		severity: DiagnosticSeverity;
@@ -2648,11 +2654,13 @@ declare namespace vscode {
 		export function executeCommand<T>(command: string, ...rest: any[]): Thenable<T>;
 
 		/**
-		 * Retrieve the list of all available commands.
+		 * Retrieve the list of all available commands. Commands starting an underscore are
+		 * treated as internal commands.
 		 *
+		 * @param filterInternal Set `true` to not see internal commands (starting with an underscore)
 		 * @return Thenable that resolves to a list of command ids.
 		 */
-		export function getCommands(): Thenable<string[]>;
+		export function getCommands(filterInternal?: boolean): Thenable<string[]>;
 	}
 
 	/**

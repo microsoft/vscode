@@ -31,7 +31,7 @@ function _getSafeTokenizationSupport(mode: Modes.IMode): Modes.ITokenizationSupp
 function _tokenizeToHtmlContent(text: string, tokenizationSupport: Modes.ITokenizationSupport): IHTMLContentElement {
 	var result: IHTMLContentElement = {
 		tagName: 'div',
-		style: 'white-space: pre',
+		style: 'white-space: pre-wrap',
 		children: []
 	};
 

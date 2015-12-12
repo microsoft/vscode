@@ -21,7 +21,7 @@ import session = require('vs/workbench/parts/debug/node/rawDebugSession');
 import model = require('vs/workbench/parts/debug/common/debugModel');
 import debuginputs = require('vs/workbench/parts/debug/browser/debugEditorInputs');
 import viewmodel = require('vs/workbench/parts/debug/common/debugViewModel');
-import debugactions = require('vs/workbench/parts/debug/browser/debugActions');
+import debugactions = require('vs/workbench/parts/debug/electron-browser/debugActions');
 import { ConfigurationManager } from 'vs/workbench/parts/debug/node/debugConfigurationManager';
 import { Repl } from 'vs/workbench/parts/debug/browser/replEditor';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
@@ -270,11 +270,10 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		}));
 
 		this.toDispose.push(this.session.addListener2(debug.SessionEvents.DEBUGEE_TERMINATED, (event: DebugProtocol.TerminatedEvent) => {
-			if (this.session) {
+			if (this.session && this.session.getId() === (<any>event).sessionId) {
 				this.session.disconnect().done(null, errors.onUnexpectedError);
 			}
 		}));
-
 
 		this.toDispose.push(this.session.addListener2(debug.SessionEvents.OUTPUT, (event: DebugProtocol.OutputEvent) => {
 			if (event.body && typeof event.body.output === 'string' && event.body.output.length > 0) {
@@ -282,8 +281,10 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 			}
 		}));
 
-		this.toDispose.push(this.session.addListener2(debug.SessionEvents.SERVER_EXIT, e => {
-			this.onSessionEnd();
+		this.toDispose.push(this.session.addListener2(debug.SessionEvents.SERVER_EXIT, event => {
+			if (this.session && this.session.getId() === event.sessionId) {
+				this.onSessionEnd();
+			}
 		}));
 	}
 
@@ -560,10 +561,14 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 
 	public rawAttach(port: number): Promise {
 		if (this.session) {
-			return this.session.attach({ port });
-		}
-		const configuration = this.configurationManager.getConfiguration();
+			if (!this.session.isAttach) {
+				return this.session.attach({ port });
+			}
 
+			this.session.disconnect().done(null, errors.onUnexpectedError);
+		}
+
+		const configuration = this.configurationManager.getConfiguration();
 		return this.doCreateSession({
 			type: configuration.type,
 			request: 'attach',
@@ -601,19 +606,17 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		}
 		this.session = null;
 		this.partService.removeClass('debugging');
-		this.contextService.updateOptions('editor', {
-			hover: true
-		});
 		this.editorService.focusEditor();
+
+		this.model.clearThreads(true);
+		this.setFocusedStackFrameAndEvaluate(null);
+		this.setStateAndEmit(debug.State.Inactive);
 
 		// Set breakpoints back to unverified since the session ended.
 		const data: {[id: string]: { line: number, verified: boolean } } = { };
 		this.model.getBreakpoints().forEach(bp => data[bp.getId()] = { line: bp.lineNumber, verified: false });
 		this.model.updateBreakpoints(data);
 
-		this.model.clearThreads(true);
-		this.setFocusedStackFrameAndEvaluate(null);
-		this.setStateAndEmit(debug.State.Inactive);
 		this.inDebugMode.reset();
 	}
 
@@ -780,10 +783,12 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 	}
 
 	private sendExceptionBreakpoints(): Promise {
-		if (this.session) {
-			var enabledExBreakpoints = this.model.getExceptionBreakpoints().filter(exb => exb.enabled);
-			return this.session.setExceptionBreakpoints({ filters: enabledExBreakpoints.map(exb => exb.name) });
+		if (!this.session) {
+			return Promise.as(null);
 		}
+
+		var enabledExBreakpoints = this.model.getExceptionBreakpoints().filter(exb => exb.enabled);
+		return this.session.setExceptionBreakpoints({ filters: enabledExBreakpoints.map(exb => exb.name) });
 	}
 
 	private onFileChanges(fileChangesEvent: FileChangesEvent): void {

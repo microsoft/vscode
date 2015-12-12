@@ -5,12 +5,15 @@
 'use strict';
 
 import HtmlContent = require('vs/base/common/htmlContent');
+import Strings = require('vs/base/common/strings');
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
 import WinJS = require('vs/base/common/winjs.base');
 import nls = require('vs/nls');
 import JSONWorker = require('vs/languages/json/common/jsonWorker');
 import {INullService} from 'vs/platform/instantiation/common/instantiation';
+import URI from 'vs/base/common/uri';
+import {JSONLocation} from 'vs/languages/json/common/parser/jsonLocation';
 
 var globProperties:Modes.ISuggestion[] = [
 	{ type: 'value', label: nls.localize('fileLabel', "Files by Extension"), codeSnippet: '"**/*.{{extension}}": true', documentationLabel: nls.localize('fileDescription', "Match all files of a specific file extension.")},
@@ -32,27 +35,34 @@ export class GlobPatternContribution implements JSONWorker.IJSONWorkerContributi
 	constructor(@INullService ns) {
 	}
 
-	public collectDefaultSuggestions(contributionId: string, result: JSONWorker.ISuggestionsCollector): WinJS.Promise {
-		return WinJS.Promise.as(0);
+	private isSettingsFile(resource: URI): boolean {
+		var path = resource.path;
+		return Strings.endsWith(path, '/settings.json');
 	}
 
-	public collectPropertySuggestions(contributionId: string, currentWord: string, addValue: boolean, isLast:boolean, result: JSONWorker.ISuggestionsCollector) : WinJS.Promise {
-		if (contributionId === 'glob-pattern') {
+	public collectDefaultSuggestions(resource: URI, result: JSONWorker.ISuggestionsCollector): WinJS.Promise {
+		return null;
+	}
+
+	public collectPropertySuggestions(resource: URI, location: JSONLocation, currentWord: string, addValue: boolean, isLast:boolean, result: JSONWorker.ISuggestionsCollector) : WinJS.Promise {
+		if (this.isSettingsFile(resource) && (location.matches(['files.exclude']) || location.matches(['search.exclude']))) {
+
 			globProperties.forEach((e) => result.add(e));
 		}
 
-		return WinJS.Promise.as(0);
+		return null;
 	}
 
-	public collectValueSuggestions(contributionId: string, currentKey: string, result: JSONWorker.ISuggestionsCollector): WinJS.Promise {
-		if (contributionId === 'glob-pattern') {
+	public collectValueSuggestions(resource: URI, location: JSONLocation, currentKey: string, result: JSONWorker.ISuggestionsCollector): WinJS.Promise {
+		if (this.isSettingsFile(resource) && (location.matches(['files.exclude']) || location.matches(['search.exclude']))) {
+
 			globValues.forEach((e) => result.add(e));
 		}
 
-		return WinJS.Promise.as(0);
+		return null;
 	}
 
-	public getInfoContribution(contributionId: string, pack: string): WinJS.TPromise<HtmlContent.IHTMLContentElement[]> {
+	public getInfoContribution(resource: URI, location: JSONLocation): WinJS.TPromise<HtmlContent.IHTMLContentElement[]> {
 		return null;
 	}
 }

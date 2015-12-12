@@ -21,7 +21,6 @@ import remote = require('remote');
 import IDebugService = debug.IDebugService;
 
 var clipboard = remote.require('clipboard');
-
 var registry = <wbaregistry.IWorkbenchActionRegistry> platform.Registry.as(wbaregistry.Extensions.WorkbenchActions);
 
 export class AbstractDebugAction extends actions.Action {
@@ -291,7 +290,7 @@ export class RemoveAllBreakpointsAction extends AbstractDebugAction {
 
 export class ToggleEnablementAction extends AbstractDebugAction {
 	static ID = 'workbench.debug.viewlet.action.toggleBreakpointEnablement';
-	static LABEL = nls.localize('toggleEnablement', "Toggle Enablement");
+	static LABEL = nls.localize('toggleEnablement', "Enable/Disable Breakpoint");
 
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
 		super(id, label, 'debug-action toggle-enablement', debugService, keybindingService);

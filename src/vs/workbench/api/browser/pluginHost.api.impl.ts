@@ -12,17 +12,17 @@ import {PluginHostFileSystemEventService} from 'vs/workbench/api/common/pluginHo
 import {PluginHostModelService, setWordDefinitionFor} from 'vs/workbench/api/common/pluginHostDocuments';
 import {PluginHostConfiguration} from 'vs/workbench/api/common/pluginHostConfiguration';
 import {PluginHostDiagnostics} from 'vs/workbench/api/common/pluginHostDiagnostics';
-import {PluginHostWorkspace} from 'vs/workbench/api/browser/pluginHostWorkspace';
+import {PluginHostWorkspace} from 'vs/workbench/api/common/pluginHostWorkspace';
 import {PluginHostQuickOpen} from 'vs/workbench/api/browser/pluginHostQuickOpen';
 import {PluginHostStatusBar} from 'vs/workbench/api/browser/pluginHostStatusBar';
 import {PluginHostCommands} from 'vs/workbench/api/common/pluginHostCommands';
-import {ExtHostOutputService} from 'vs/workbench/api/browser/extHostOutputService';
+import {ExtHostOutputService} from 'vs/workbench/api/common/extHostOutputService';
 import {PluginHostMessageService} from 'vs/workbench/api/common/pluginHostMessageService';
 import {PluginHostTelemetryService} from 'vs/workbench/api/common/pluginHostTelemetry';
 import {PluginHostEditors} from 'vs/workbench/api/common/pluginHostEditors';
 import {ExtHostLanguages} from 'vs/workbench/api/common/extHostLanguages';
 import {ExtHostLanguageFeatures} from 'vs/workbench/api/common/extHostLanguageFeatures';
-import {ExtHostLanguageFeatureCommands} from 'vs/workbench/api/common/extHostLanguageFeatureCommands';
+import {ExtHostApiCommands} from 'vs/workbench/api/common/extHostApiCommands';
 import * as extHostTypes from 'vs/workbench/api/common/pluginHostTypes';
 import 'vs/workbench/api/common/pluginHostTypes.marshalling';
 import {wrapAsWinJSPromise} from 'vs/base/common/async';
@@ -105,7 +105,6 @@ export class PluginHostAPIImplementation {
 		this._proxy = threadService.getRemotable(MainProcessVSCodeAPIHelper);
 
 		this.version = contextService.getConfiguration().env.version;
-		this.commands = this._threadService.getRemotable(PluginHostCommands);
 		this.Uri = URI;
 		this.Location = extHostTypes.Location;
 		this.Diagnostic = <any> extHostTypes.Diagnostic;
@@ -137,6 +136,22 @@ export class PluginHostAPIImplementation {
 		errors.setUnexpectedErrorHandler((err) => {
 			this._proxy.onUnexpectedPluginHostError(errors.transformErrorForSerialization(err));
 		});
+
+		const pluginHostCommands = this._threadService.getRemotable(PluginHostCommands);
+		this.commands = {
+			registerCommand<T>(id: string, command: <T>(...args: any[]) => T | Thenable<T>, thisArgs?: any): vscode.Disposable {
+				return pluginHostCommands.registerCommand(id, command, thisArgs);
+			},
+			registerTextEditorCommand(commandId: string, callback: (textEditor: vscode.TextEditor, edit: vscode.TextEditorEdit) => void, thisArg?: any): vscode.Disposable {
+				return pluginHostCommands.registerTextEditorCommand(commandId, callback, thisArg);
+			},
+			executeCommand<T>(id: string, ...args: any[]): Thenable<T> {
+				return pluginHostCommands.executeCommand(id, args);
+			},
+			getCommands(filterInternal: boolean = false):Thenable<string[]> {
+				return pluginHostCommands.getCommands(filterInternal);
+			}
+		};
 
 		const pluginHostEditors = this._threadService.getRemotable(PluginHostEditors);
 		const pluginHostMessageService = new PluginHostMessageService(this._threadService, this.commands);
@@ -252,7 +267,7 @@ export class PluginHostAPIImplementation {
 		const languages = new ExtHostLanguages(this._threadService);
 		const pluginHostDiagnostics = new PluginHostDiagnostics(this._threadService);
 		const languageFeatures = threadService.getRemotable(ExtHostLanguageFeatures);
-		const languageFeatureCommand = new ExtHostLanguageFeatureCommands(threadService.getRemotable(PluginHostCommands));
+		const languageFeatureCommand = new ExtHostApiCommands(threadService.getRemotable(PluginHostCommands));
 
 		this.languages = {
 			createDiagnosticCollection(name?: string): vscode.DiagnosticCollection {

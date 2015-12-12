@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict'
 
-import winjs = require('vs/base/common/winjs.base');
+import {TPromise} from 'vs/base/common/winjs.base';
 import descriptors = require('vs/platform/instantiation/common/descriptors');
 import instantiation = require('vs/platform/instantiation/common/instantiation');
 import {IDisposable} from 'vs/base/common/lifecycle';
@@ -27,9 +27,9 @@ export interface IThreadService {
 	addStatusListener(listener: IThreadServiceStatusListener): void;
 	removeStatusListener(listener: IThreadServiceStatusListener): void;
 
-	MainThread(obj: IThreadSynchronizableObject<any>, methodName: string, target: Function, param: any[]): winjs.Promise;
-	OneWorker(obj: IThreadSynchronizableObject<any>, methodName: string, target: Function, param: any[], affinity: ThreadAffinity): winjs.Promise;
-	AllWorkers(obj: IThreadSynchronizableObject<any>, methodName: string, target: Function, param: any[]): winjs.Promise;
+	MainThread(obj: IThreadSynchronizableObject<any>, methodName: string, target: Function, param: any[]): TPromise<any>;
+	OneWorker(obj: IThreadSynchronizableObject<any>, methodName: string, target: Function, param: any[], affinity: ThreadAffinity): TPromise<any>;
+	AllWorkers(obj: IThreadSynchronizableObject<any>, methodName: string, target: Function, param: any[]): TPromise<any>;
 	Everywhere(obj: IThreadSynchronizableObject<any>, methodName: string, target: Function, param: any[]): any;
 
 	createInstance<T extends IThreadSynchronizableObject<any>>(ctor: instantiation.INewConstructorSignature0<T>): T;
@@ -119,7 +119,7 @@ export interface IThreadSynchronizableObject<S> {
 
 	creationDone?:()=>void;
 
-	asyncCtor?:()=>winjs.Promise;
+	asyncCtor?:()=>TPromise<void>;
 
 	getSerializableState?:()=>S;
 

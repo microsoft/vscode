@@ -98,11 +98,11 @@
 			<array>
 				<dict>
 					<key>include</key>
-					<string>#expression</string>
+					<string>#object-member</string>
 				</dict>
 				<dict>
 					<key>include</key>
-					<string>#object-member</string>
+					<string>#expression</string>
 				</dict>
 			</array>
 		</dict>
@@ -348,7 +348,7 @@
 		<key>field-declaration</key>
 		<dict>
 			<key>begin</key>
-			<string>(?&lt;!\()\s*\b([a-zA-Z_$][\w$]*)\s*(\?\s*)?(?=(=|:))</string>
+			<string>(?&lt;!\()\s*((?:\b[a-zA-Z_$][\w$]*)|(?:\'[^']*\')|(?:\"[^"]*\"))\s*(\?\s*)?(?=(=|:))</string>
 			<key>beginCaptures</key>
 			<dict>
 				<key>1</key>

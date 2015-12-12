@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import winjs = require('vs/base/common/winjs.base');
+import {TPromise} from 'vs/base/common/winjs.base';
 import remote = require('vs/base/common/remote');
 import descriptors = require('vs/platform/instantiation/common/descriptors');
 
@@ -26,19 +26,19 @@ export class PluginHostThreadService extends abstractThreadService.AbstractThrea
 		readThreadSynchronizableObjects().forEach((obj) => this.registerInstance(obj));
 	}
 
-	MainThread(obj:IThreadSynchronizableObject<any>, methodName:string, target:Function, params:any[]): winjs.Promise {
+	MainThread(obj:IThreadSynchronizableObject<any>, methodName:string, target:Function, params:any[]): TPromise<any> {
 		return target.apply(obj, params);
 	}
 
-	OneWorker(obj:IThreadSynchronizableObject<any>, methodName:string, target:Function, params:any[], affinity:ThreadAffinity): winjs.Promise {
-		return winjs.Promise.as(null);
+	OneWorker(obj:IThreadSynchronizableObject<any>, methodName:string, target:Function, params:any[], affinity:ThreadAffinity): TPromise<any> {
+		return TPromise.as(null);
 	}
 
-	AllWorkers(obj:IThreadSynchronizableObject<any>, methodName:string, target:Function, params:any[]): winjs.Promise {
-		return winjs.Promise.as(null);
+	AllWorkers(obj:IThreadSynchronizableObject<any>, methodName:string, target:Function, params:any[]): TPromise<any> {
+		return TPromise.as(null);
 	}
 
-	Everywhere(obj:IThreadSynchronizableObject<any>, methodName:string, target:Function, params:any[]): winjs.Promise {
+	Everywhere(obj:IThreadSynchronizableObject<any>, methodName:string, target:Function, params:any[]): TPromise<any> {
 		return target.apply(obj, params);
 	}
 

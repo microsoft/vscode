@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IPluginDescription, IMessage} from 'vs/platform/plugins/common/plugins';
+import {IPluginDescription, IMessage, IPluginStatus} from 'vs/platform/plugins/common/plugins';
 import {PluginsRegistry} from 'vs/platform/plugins/common/pluginsRegistry';
 import WinJS = require('vs/base/common/winjs.base');
 import {Remotable, IThreadService} from 'vs/platform/thread/common/thread';
@@ -15,6 +15,7 @@ import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {PluginHostStorage} from 'vs/platform/storage/common/remotable.storage';
 import * as paths from 'vs/base/common/paths';
 import {IWorkspaceContextService, IConfiguration} from 'vs/platform/workspace/common/workspace';
+import {disposeAll} from 'vs/base/common/lifecycle';
 
 class PluginMemento implements IPluginMemento {
 
@@ -64,6 +65,7 @@ export class MainProcessPluginService extends AbstractPluginService {
 	private _telemetryService: ITelemetryService;
 	private _proxy: PluginHostPluginService;
 	private _isDev: boolean;
+	private _pluginsStatus: { [id: string]: IPluginStatus };
 
 	/**
 	 * This class is constructed manually because it is a service, so it doesn't use any ctor injection
@@ -83,8 +85,13 @@ export class MainProcessPluginService extends AbstractPluginService {
 		this._threadService = threadService;
 		this._telemetryService = telemetryService;
 		this._proxy = this._threadService.getRemotable(PluginHostPluginService);
+		this._pluginsStatus = {};
 
 		PluginsRegistry.handleExtensionPoints((severity, source, message) => {
+			if (!this._pluginsStatus[source]) {
+				this._pluginsStatus[source] = { messages: [] };
+			}
+			this._pluginsStatus[source].messages.push({ type: severity, source, message });
 			this.showMessage(severity, source, message);
 		});
 	}
@@ -158,6 +165,14 @@ export class MainProcessPluginService extends AbstractPluginService {
 		}
 	}
 
+	public getPluginsStatus(): { [id: string]: IPluginStatus } {
+		return this._pluginsStatus;
+	}
+
+	public deactivate(pluginId:string): void {
+		this._proxy.deactivate(pluginId);
+	}
+
 	// -- overwriting AbstractPluginService
 
 	protected _actualActivatePlugin(pluginDescription: IPluginDescription): WinJS.TPromise<ActivatedPlugin> {
@@ -222,6 +237,28 @@ export class PluginHostPluginService extends AbstractPluginService {
 		}
 	}
 
+	public deactivate(pluginId:string): void {
+		let plugin = this.activatedPlugins[pluginId];
+		if (!plugin) {
+			return;
+		}
+
+		// call deactivate if available
+		try {
+			if (typeof plugin.module.deactivate === 'function') {
+				plugin.module.deactivate();
+			}
+		} catch(err) {
+			// TODO: Do something with err if this is not the shutdown case
+		}
+
+		// clean up subscriptions
+		try {
+			disposeAll(plugin.subscriptions)
+		} catch(err) {
+			// TODO: Do something with err if this is not the shutdown case
+		}
+	}
 
 	// -- overwriting AbstractPluginService
 

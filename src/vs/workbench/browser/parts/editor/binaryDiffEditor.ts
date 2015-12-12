@@ -215,9 +215,9 @@ export class BinaryResourceDiffEditor extends BaseEditor implements IVerticalSas
 		// Sash
 		this.sash.dispose();
 
-		// Destroy Scrollbar
-		this.leftScrollbar.destroy();
-		this.rightScrollbar.destroy();
+		// Dispose Scrollbar
+		this.leftScrollbar.dispose();
+		this.rightScrollbar.dispose();
 
 		// Destroy Container
 		this.leftBinaryContainer.destroy();

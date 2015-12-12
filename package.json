@@ -1,6 +1,6 @@
 {
   "name": "Code",
-  "version": "0.10.3",
+  "version": "0.10.4",
   "electronVersion": "0.34.5",
   "author": {
     "name": "Microsoft Corporation"
@@ -26,8 +26,9 @@
     "iconv-lite": "^0.4.13",
     "sax": "^1.1.1",
     "semver": "^4.2.0",
-    "vscode-textmate": "^1.0.8",
-    "native-keymap": "^0.0.2",
+	"vscode-debugprotocol": "^1.0.0",
+    "vscode-textmate": "^1.0.9",
+    "native-keymap": "^0.1.0",
     "winreg": "0.0.12",
     "yauzl": "^2.3.1"
   },
@@ -55,7 +56,7 @@
     "gulp-rename": "^1.2.0",
     "gulp-sourcemaps": "^1.6.0",
     "gulp-symdest": "^1.0.0",
-    "gulp-tsb": "^1.7.3",
+    "gulp-tsb": "~1.7.3",
     "gulp-uglify": "^1.4.1",
     "gulp-util": "^3.0.6",
     "gulp-vinyl-zip": "^1.1.0",

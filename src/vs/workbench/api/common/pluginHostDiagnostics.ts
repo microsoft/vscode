@@ -9,12 +9,11 @@ import {IMarkerService, IResourceMarker, IMarkerData} from 'vs/platform/markers/
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import Severity from 'vs/base/common/severity';
-import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
-import vscode = require('vscode');
+import * as vscode from 'vscode';
 
 class DiagnosticCollection implements vscode.DiagnosticCollection {
 
-	private static _maxDiagnosticsPerFile = 250;
+	private static _maxDiagnosticsPerFile: number = 250;
 
 	private _name: string;
 	private _proxy: MainThreadDiagnostics;
@@ -125,6 +124,7 @@ class DiagnosticCollection implements vscode.DiagnosticCollection {
 			endLineNumber: range.end.line + 1,
 			endColumn: range.end.character + 1,
 			message: diagnostic.message,
+			source: diagnostic.source,
 			severity: DiagnosticCollection._convertDiagnosticsSeverity(diagnostic.severity),
 			code: String(diagnostic.code)
 		}
@@ -143,7 +143,7 @@ class DiagnosticCollection implements vscode.DiagnosticCollection {
 
 export class PluginHostDiagnostics {
 
-	private static _idPool = 0;
+	private static _idPool: number = 0;
 	private _proxy: MainThreadDiagnostics;
 
 	constructor(threadService: IThreadService) {

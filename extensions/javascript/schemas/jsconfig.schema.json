@@ -1,0 +1,79 @@
+{
+	"title": "JSON schema for the JavaScript configuration file",
+	"type": "object",
+	"default": {
+		"compilerOptions": {
+			"target": "ES6"
+		}
+	},
+	"properties": {
+		"compilerOptions": {
+			"type": "object",
+			"description": "Instructs the JavaScript language service how to validate .js files",
+			"properties": {
+				"charset": {
+					"description": "The character set of the input files",
+					"type": "string"
+				},
+				"diagnostics": {
+					"description": "Show diagnostic information.",
+					"type": "boolean"
+				},
+				"locale": {
+					"description": "The locale to use to show error messages, e.g. en-us.",
+					"type": "string"
+				},
+				"mapRoot": {
+					"description": "Specifies the location where debugger should locate map files instead of generated locations",
+					"type": "string",
+					"format": "uri"
+				},
+				"module": {
+					"description": "Module code generation to resolve against: 'commonjs', 'amd', 'system', or 'umd'.",
+					"enum": [
+						"commonjs",
+						"amd",
+						"system",
+						"umd"
+					]
+				},
+				"noLib": {
+					"description": "Do not include the default library file (lib.d.ts).",
+					"type": "boolean"
+				},
+				"target": {
+					"description": "Specify ECMAScript target version:  'ES3', 'ES5', or 'ES6' (default).",
+					"enum": [
+						"ES3",
+						"ES5",
+						"ES6",
+						"es3",
+						"es5",
+						"es6"
+					],
+					"default": "ES6"
+				},
+				"experimentalDecorators": {
+					"description": "Enables experimental support for ES7 decorators.",
+					"type": "boolean"
+				}
+			}
+		},
+		"files": {
+			"type": "array",
+			"description": "If no 'files' property is present in a jsconfig.json, the language service defaults to including all files the containing directory and subdirectories. When a 'files' property is specified, only those files are included.",
+			"items": {
+				"type": "string",
+				"format": "uri"
+			}
+		},
+		"exclude": {
+			"type": "array",
+			"description": "List files and folders that should not be included. This property is not honored when the 'files' property is present.",
+			"items": {
+				"type": "string",
+				"format": "uri"
+			}
+		}
+	}
+}

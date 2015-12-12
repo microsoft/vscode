@@ -25,7 +25,7 @@ import renderer = require('vs/base/parts/tree/browser/actionsRenderer');
 import debug = require('vs/workbench/parts/debug/common/debug');
 import model = require('vs/workbench/parts/debug/common/debugModel');
 import viewmodel = require('vs/workbench/parts/debug/common/debugViewModel');
-import debugactions = require('vs/workbench/parts/debug/browser/debugActions');
+import debugactions = require('vs/workbench/parts/debug/electron-browser/debugActions');
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -711,8 +711,8 @@ export class BreakpointsActionProvider extends SimpleActionProvider {
 		actions.push(this.instantiationService.createInstance(debugactions.DisableAllBreakpointsAction, debugactions.DisableAllBreakpointsAction.ID, debugactions.DisableAllBreakpointsAction.LABEL));
 		actions.push(new actionbar.Separator());
 
-		actions.push(this.instantiationService.createInstance(debugactions.AddFunctionBreakpointAction, debugactions.AddFunctionBreakpointAction.ID, debugactions.AddFunctionBreakpointAction.LABEL));
-		actions.push(new actionbar.Separator());
+		// actions.push(this.instantiationService.createInstance(debugactions.AddFunctionBreakpointAction, debugactions.AddFunctionBreakpointAction.ID, debugactions.AddFunctionBreakpointAction.LABEL));
+		// actions.push(new actionbar.Separator());
 
 		actions.push(this.instantiationService.createInstance(debugactions.ReapplyBreakpointsAction, debugactions.ReapplyBreakpointsAction.ID, debugactions.ReapplyBreakpointsAction.LABEL));
 

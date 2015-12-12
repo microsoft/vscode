@@ -195,13 +195,14 @@ export class HTMLWorker extends AbstractModeWorker {
 		var contentAfter = model.getLineContent(position.lineNumber).substr(position.column - 1);
 		var closeTag = isWhiteSpace(contentAfter) || strings.startsWith(contentAfter, '<') ? '>' : '';
 
-		var collectClosingTagSuggestion = (correctIndent:boolean) => {
+		var collectClosingTagSuggestion = (correctIndent:boolean, overwriteBefore: number) => {
 			var endPosition = scanner.getTokenPosition();
 			var matchingTag = this.findMatchingOpenTag(scanner);
 			if (matchingTag) {
 				var suggestion : Modes.ISuggestion = {
 					label: '/' + matchingTag,
 					codeSnippet: '/' + matchingTag + closeTag,
+					overwriteBefore: overwriteBefore,
 					type: 'property'
 				};
 				suggestions.suggestions.push(suggestion);
@@ -213,7 +214,7 @@ export class HTMLWorker extends AbstractModeWorker {
 						var startIndent = model.getLineContent(startPosition.lineNumber).substring(0, startPosition.column - 1);
 						var endIndent = model.getLineContent(endPosition.lineNumber).substring(0, endPosition.column - 1);
 						if (isWhiteSpace(startIndent) && isWhiteSpace(endIndent)) {
-							suggestions.overwriteBefore = position.column - 1;
+							suggestion.overwriteBefore = position.column - 1; // replace from start of line
 							suggestion.codeSnippet = startIndent + '</' + matchingTag + closeTag;
 						}
 					}
@@ -225,17 +226,13 @@ export class HTMLWorker extends AbstractModeWorker {
 
 
 		if (scanner.getTokenType() === DELIM_END) {
-			suggestions.overwriteBefore = suggestions.currentWord.length + 1;
-
-			var hasClose = collectClosingTagSuggestion(true);
+			var hasClose = collectClosingTagSuggestion(true, suggestions.currentWord.length + 1);
 			if (!hasClose) {
-				suggestions.overwriteBefore = suggestions.currentWord.length + 1;
-
-
 				this._tagProviders.forEach((provider) => {
 					provider.collectTags((tag, label) => {
 						suggestions.suggestions.push({
 							label: '/' + tag,
+							overwriteBefore: suggestions.currentWord.length + 1,
 							codeSnippet: '/' + tag + closeTag,
 							type: 'property',
 							documentationLabel: label
@@ -244,7 +241,7 @@ export class HTMLWorker extends AbstractModeWorker {
 				});
 			}
 		} else {
-			collectClosingTagSuggestion(false);
+			collectClosingTagSuggestion(false, suggestions.currentWord.length);
 
 			this._tagProviders.forEach((provider) => {
 				provider.collectTags((tag, label) => {

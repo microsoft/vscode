@@ -12,7 +12,7 @@ import objects = require('vs/base/common/objects');
 import strings = require('vs/base/common/strings');
 import {IPluginDescription} from 'vs/platform/plugins/common/plugins';
 import {PluginsRegistry} from 'vs/platform/plugins/common/pluginsRegistry';
-import JSONContributionRegistry = require('vs/languages/json/common/jsonContributionRegistry');
+import JSONContributionRegistry = require('vs/platform/jsonschemas/common/jsonContributionRegistry');
 
 
 export var Extensions = {

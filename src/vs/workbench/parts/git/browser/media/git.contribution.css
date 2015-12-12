@@ -221,7 +221,26 @@
 
 /* Status bar */
 
-.monaco-shell .git-statusbar-item {
+.monaco-shell .git-statusbar-group > a {
+	padding: 0 5px;
+}
+
+.monaco-shell .git-statusbar-group > a.disabled {
+	opacity: 0.7;
+}
+
+.monaco-shell .git-statusbar-group > a.octicon {
+	line-height: 22px;
+	font-size: 15px;
+	width: 16px;
+	text-align: center;
+}
+
+.monaco-shell .git-statusbar-group > .git-statusbar-sync-item:not(.empty) > span.octicon {
+	margin-right: 6px;
+}
+
+.monaco-shell .git-statusbar-group > .git-statusbar-branch-item {
 	background-image: url('../media/git-dark.svg');
 	background-repeat: no-repeat;
 	background-position: 4px 50%;
@@ -230,23 +249,15 @@
 	padding: 0 5px 0 22px;
 }
 
-.monaco-shell .git-statusbar-item.disabled {
-	padding: 0 5px 0 13px;
-}
-
-.monaco-shell .git-statusbar-item:not(.disabled):not(.busy) {
+.monaco-shell .git-statusbar-group > a:not(.disabled):not(.busy) {
 	cursor: pointer;
 }
 
-.monaco-shell .git-statusbar-item.disabled {
-	opacity: 0.6;
-}
-
-.monaco-shell .git-statusbar-item.busy {
+.monaco-shell .git-statusbar-group > .git-statusbar-branch-item.busy {
 	opacity: 0.6;
 	cursor: default;
 }
 
-.monaco-shell .git-statusbar-item.headless {
+.monaco-shell .git-statusbar-group > .git-statusbar-branch-item.headless {
 	font-style: italic;
 }

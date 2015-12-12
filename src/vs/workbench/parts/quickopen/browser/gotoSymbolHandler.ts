@@ -33,13 +33,14 @@ import {Position} from 'vs/platform/editor/common/editor';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 import {OutlineRegistry, getOutlineEntries} from 'vs/editor/contrib/quickOpen/common/quickOpen';
 
-const ACTION_ID = 'workbench.action.gotoSymbol';
-const ACTION_LABEL = nls.localize('gotoSymbol', "Go to Symbol...");
-
-const GOTO_SYMBOL_PREFIX = '@';
-const SCOPE_PREFIX = ':';
+export const GOTO_SYMBOL_PREFIX = '@';
+export const SCOPE_PREFIX = ':';
 
 export class GotoSymbolAction extends QuickOpenAction {
+
+	public static ID = 'workbench.action.gotoSymbol';
+	public static LABEL = nls.localize('gotoSymbol', "Go to Symbol...");
+
 	constructor(actionId: string, actionLabel: string, @IQuickOpenService quickOpenService: IQuickOpenService) {
 		super(actionId, actionLabel, GOTO_SYMBOL_PREFIX, quickOpenService);
 	}
@@ -432,7 +433,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 
 
 			if (model && types.isFunction((<ITokenizedModel>model).getMode)) {
-				canRun = OutlineRegistry.has(<IModel> model);
+				canRun = OutlineRegistry.has(<IModel>model);
 			}
 		}
 
@@ -527,7 +528,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 					return TPromise.as(this.outlineToModelCache[modelId]);
 				}
 
-				return getOutlineEntries(<IModel> model).then(outline => {
+				return getOutlineEntries(<IModel>model).then(outline => {
 
 					let model = new OutlineModel(outline, this.toQuickOpenEntries(outline));
 
@@ -628,28 +629,3 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 		this.activeOutlineRequest = null;
 	}
 }
-
-// Register Action
-let registry = <IWorkbenchActionRegistry>Registry.as(ActionExtensions.WorkbenchActions);
-registry.registerWorkbenchAction(new SyncActionDescriptor(GotoSymbolAction, ACTION_ID, ACTION_LABEL, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_O }));
-
-// Register Quick Outline Handler
-(<IQuickOpenRegistry>Registry.as(QuickOpenExtensions.Quickopen)).registerQuickOpenHandler(
-	new QuickOpenHandlerDescriptor(
-		'vs/workbench/parts/quickopen/browser/gotoSymbolHandler',
-		'GotoSymbolHandler',
-		GOTO_SYMBOL_PREFIX,
-		[
-			{
-				prefix: GOTO_SYMBOL_PREFIX,
-				needsEditor: true,
-				description: env.isMacintosh ? nls.localize('gotoSymbolDescriptionNormalMac', "Go to Symbol") : nls.localize('gotoSymbolDescriptionNormalWin', "Go to Symbol")
-			},
-			{
-				prefix: GOTO_SYMBOL_PREFIX + SCOPE_PREFIX,
-				needsEditor: true,
-				description: nls.localize('gotoSymbolDescriptionScoped', "Go to Symbol by Category")
-			}
-		]
-	)
-);

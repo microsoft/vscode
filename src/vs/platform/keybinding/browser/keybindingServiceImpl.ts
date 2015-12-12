@@ -215,7 +215,7 @@ export class KeybindingService extends AbstractKeybindingService implements IKey
 
 	private _getAllCommandsAsComment(): string {
 		var boundCommands = this._resolver.getDefaultBoundCommands();
-		var unboundCommands = Object.keys(KeybindingsRegistry.getCommands()).filter((commandId) => !boundCommands[commandId]);
+		var unboundCommands = Object.keys(KeybindingsRegistry.getCommands()).filter(commandId => commandId[0] !== '_' && !boundCommands[commandId]);
 		var pretty = unboundCommands.join('\n// - ');
 
 		return '// ' + nls.localize('unboundCommands', "Here are other available commands: ") + '\n// - ' + pretty;
@@ -279,9 +279,12 @@ export class KeybindingService extends AbstractKeybindingService implements IKey
 		if (!handler) {
 			return TPromise.wrapError(new Error(`No handler found for the command: '${commandId}'`));
 		}
-
-		let result = this._instantiationService.invokeFunction(handler, args);
-		return TPromise.as(result);
+		try {
+			let result = this._instantiationService.invokeFunction(handler, args);
+			return TPromise.as(result);
+		} catch (err) {
+			return TPromise.wrapError(err);
+		}
 	}
 
 	private _findContextAttr(domNode: HTMLElement): number {

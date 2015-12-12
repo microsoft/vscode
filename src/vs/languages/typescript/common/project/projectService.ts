@@ -113,6 +113,7 @@ export class LanguageServiceHost implements ts.LanguageServiceHost {
 		this._compilerOptions = options || ts.getDefaultCompilerOptions();
 		this._compilerOptions.allowNonTsExtensions = true; // because of JS* and mirror model we need this
 		this._compilerOptions.module = ts.ModuleKind.CommonJS; // because of JS*
+		this._compilerOptions.target = options && options.target !== undefined ? options.target : ts.ScriptTarget.Latest; // because of JS*
 	}
 
 	getCompilationSettings(): ts.CompilerOptions {

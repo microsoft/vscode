@@ -20,7 +20,7 @@ import {OneWorkerAttr, AllWorkersAttr} from 'vs/platform/thread/common/threadSer
 import {IThreadService, IThreadSynchronizableObject} from 'vs/platform/thread/common/thread';
 import {AsyncDescriptor2, createAsyncDescriptor2} from 'vs/platform/instantiation/common/descriptors';
 import {OnEnterSupport} from 'vs/editor/common/modes/supports/onEnter';
-import {IJSONContributionRegistry, Extensions, ISchemaContributions} from 'vs/languages/json/common/jsonContributionRegistry';
+import {IJSONContributionRegistry, Extensions, ISchemaContributions} from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 
 export class JSONMode extends AbstractMode<jsonWorker.JSONWorker> implements Modes.IExtraInfoSupport, Modes.IOutlineSupport, IThreadSynchronizableObject<ISchemaContributions> {

@@ -31,8 +31,7 @@ exports.loaderConfig = function (emptyPaths) {
 		paths: {
 			'vs': 'out-build/vs',
 			'vs/extensions': 'extensions',
-			'vscode': 'empty:',
-			'lib': 'out-build/lib'
+			'vscode': 'empty:'
 		},
 		'vs/text': {
 			paths: {

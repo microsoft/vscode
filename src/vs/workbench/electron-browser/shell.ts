@@ -55,6 +55,7 @@ import {MainProcessPluginService} from 'vs/platform/plugins/common/nativePluginS
 import {MainThreadDocuments} from 'vs/workbench/api/common/pluginHostDocuments';
 import {MainProcessTextMateSyntax} from 'vs/editor/node/textMate/TMSyntax';
 import {MainProcessTextMateSnippet} from 'vs/editor/node/textMate/TMSnippets';
+import {JSONValidationExtensionPoint} from 'vs/platform/jsonschemas/common/jsonValidationExtensionPoint';
 import {LanguageConfigurationFileHandler} from 'vs/editor/node/languageConfiguration';
 import {MainThreadFileSystemEventService} from 'vs/workbench/api/common/pluginHostFileSystemEventService';
 import {MainThreadQuickOpen} from 'vs/workbench/api/browser/pluginHostQuickOpen';
@@ -62,11 +63,11 @@ import {MainThreadStatusBar} from 'vs/workbench/api/browser/pluginHostStatusBar'
 import {MainThreadCommands} from 'vs/workbench/api/common/pluginHostCommands';
 import {RemoteTelemetryServiceHelper} from 'vs/platform/telemetry/common/abstractRemoteTelemetryService';
 import {MainThreadDiagnostics} from 'vs/workbench/api/common/pluginHostDiagnostics';
-import {MainThreadOutputService} from 'vs/workbench/api/browser/extHostOutputService';
+import {MainThreadOutputService} from 'vs/workbench/api/common/extHostOutputService';
 import {MainThreadMessageService} from 'vs/workbench/api/common/pluginHostMessageService';
 import {MainThreadLanguages} from 'vs/workbench/api/common/extHostLanguages';
 import {MainThreadEditors} from 'vs/workbench/api/common/pluginHostEditors';
-import {MainThreadWorkspace} from 'vs/workbench/api/browser/pluginHostWorkspace';
+import {MainThreadWorkspace} from 'vs/workbench/api/common/pluginHostWorkspace';
 import {MainThreadConfiguration} from 'vs/workbench/api/common/pluginHostConfiguration';
 import {MainThreadLanguageFeatures} from 'vs/workbench/api/common/extHostLanguageFeatures';
 import {EventService} from 'vs/platform/event/common/eventService';
@@ -355,6 +356,7 @@ export class WorkbenchShell {
 		this.threadService.getRemotable(RemoteTelemetryServiceHelper);
 		this.workbench.getInstantiationService().createInstance(MainProcessTextMateSyntax);
 		this.workbench.getInstantiationService().createInstance(MainProcessTextMateSnippet);
+		this.workbench.getInstantiationService().createInstance(JSONValidationExtensionPoint);
 		this.workbench.getInstantiationService().createInstance(LanguageConfigurationFileHandler);
 		this.threadService.getRemotable(MainThreadConfiguration);
 		this.threadService.getRemotable(MainThreadQuickOpen);

@@ -7,9 +7,8 @@
 
 import {IFormattingSupport, IFormattingOptions} from 'vs/editor/common/modes';
 import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
-import {onUnexpectedError, illegalArgument} from 'vs/base/common/errors';
+import {illegalArgument} from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
-import {IAction, Action} from 'vs/base/common/actions';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IModel, IRange, IPosition, ISingleEditOperation} from 'vs/editor/common/editorCommon';
@@ -22,7 +21,9 @@ export const FormatOnTypeRegistry = new LanguageFeatureRegistry<IFormattingSuppo
 export {IFormattingSupport};
 
 export function formatRange(model: IModel, range: IRange, options: IFormattingOptions): TPromise<ISingleEditOperation[]> {
-	const [support] = FormatRegistry.ordered(model);
+	const [support] = FormatRegistry.ordered(model)
+		.filter(s => typeof s.formatRange === 'function');
+
 	if (!support) {
 		return TPromise.as(undefined);
 	}

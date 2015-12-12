@@ -8,9 +8,13 @@ import WinJS = require('vs/base/common/winjs.base');
 import Types = require('vs/base/common/types');
 import URI from 'vs/base/common/uri';
 import Tree = require('vs/base/parts/tree/common/tree');
-import { IQuickNavigateConfiguration, IModel, IDataSource, IFilter, IRenderer, IRunner, Mode } from './quickOpen';
+import Filters = require('vs/base/common/filters');
+import Strings = require('vs/base/common/strings');
+import Paths = require('vs/base/common/paths');
+import {IQuickNavigateConfiguration, IModel, IDataSource, IFilter, IRenderer, IRunner, Mode} from './quickOpen';
 import ActionsRenderer = require('vs/base/parts/tree/browser/actionsRenderer');
 import Actions = require('vs/base/common/actions');
+import {compareAnything} from 'vs/base/common/comparers';
 import ActionBar = require('vs/base/browser/ui/actionbar/actionbar');
 import TreeDefaults = require('vs/base/parts/tree/browser/treeDefaults');
 import HighlightedLabel = require('vs/base/browser/ui/highlightedlabel/highlightedLabel');
@@ -33,6 +37,7 @@ export class QuickOpenEntry {
 	private labelHighlights: IHighlight[];
 	private descriptionHighlights: IHighlight[];
 	private hidden: boolean;
+	private labelPrefix: string;
 
 	constructor(highlights: IHighlight[] = []) {
 		this.id = (IDS++).toString();
@@ -45,6 +50,13 @@ export class QuickOpenEntry {
 	 */
 	public getId(): string {
 		return this.id;
+	}
+
+	/**
+	 * The prefix to show in front of the label if any
+	 */
+	public getPrefix(): string {
+		return this.labelPrefix;
 	}
 
 	/**
@@ -98,6 +110,13 @@ export class QuickOpenEntry {
 	}
 
 	/**
+	 * Sets the prefix to show in front of the label
+	 */
+	public setPrefix(prefix: string): void {
+		this.labelPrefix = prefix;
+	}
+
+	/**
 	 * Allows to set highlight ranges that should show up for the entry label and optionally description if set.
 	 */
 	public setHighlights(labelHighlights: IHighlight[], descriptionHighlights?: IHighlight[]): void {
@@ -120,6 +139,113 @@ export class QuickOpenEntry {
 	 */
 	public run(mode: Mode, context: IContext): boolean {
 		return false;
+	}
+
+	/**
+	 * A good default sort implementation for quick open entries respecting highlight information
+	 * as well as associated resources.
+	 */
+	public static compare(elementA: QuickOpenEntry, elementB: QuickOpenEntry, lookFor: string): number {
+
+		// Normalize
+		if (lookFor) {
+			lookFor = Strings.stripWildcards(lookFor).toLowerCase();
+		}
+
+		// Give matches with label highlights higher priority over
+		// those with only description highlights
+		const labelHighlightsA = elementA.getHighlights()[0] || [];
+		const labelHighlightsB = elementB.getHighlights()[0] || [];
+		if (labelHighlightsA.length && !labelHighlightsB.length) {
+			return -1;
+		} else if (!labelHighlightsA.length && labelHighlightsB.length) {
+			return 1;
+		}
+
+		// Fallback to the full path if labels are identical and we have associated resources
+		let nameA = elementA.getLabel();
+		let nameB = elementB.getLabel();
+		if (nameA === nameB) {
+			let resourceA = elementA.getResource();
+			let resourceB = elementB.getResource();
+
+			if (resourceA && resourceB) {
+				nameA = elementA.getResource().fsPath;
+				nameB = elementB.getResource().fsPath;
+			}
+		}
+
+		return compareAnything(nameA, nameB, lookFor);
+	}
+
+	/**
+	 * A good default highlight implementation for an entry with label and description.
+	 */
+	public static highlight(entry: QuickOpenEntry, lookFor: string, fuzzyHighlight = false): { labelHighlights: IHighlight[], descriptionHighlights: IHighlight[] } {
+		let labelHighlights: IHighlight[] = [];
+		let descriptionHighlights: IHighlight[] = [];
+
+		// Highlight file aware
+		if (entry.getResource()) {
+
+			// Fuzzy: Highlight is special
+			if (fuzzyHighlight) {
+				let candidateLabelHighlights = Filters.matchesFuzzy(lookFor, entry.getLabel(), true);
+				if (!candidateLabelHighlights) {
+					const pathPrefix = entry.getDescription() ? (entry.getDescription() + Paths.nativeSep) : '';
+					const pathPrefixLength = pathPrefix.length;
+
+					// If there are no highlights in the label, build a path out of description and highlight and match on both,
+					// then extract the individual label and description highlights back to the original positions
+					let pathHighlights = Filters.matchesFuzzy(lookFor, pathPrefix + entry.getLabel(), true);
+					if (pathHighlights) {
+						pathHighlights.forEach(h => {
+
+							// Match overlaps label and description part, we need to split it up
+							if (h.start < pathPrefixLength && h.end > pathPrefixLength) {
+								labelHighlights.push({ start: 0, end: h.end - pathPrefixLength });
+								descriptionHighlights.push({ start: h.start, end: pathPrefixLength });
+							}
+
+							// Match on label part
+							else if (h.start >= pathPrefixLength) {
+								labelHighlights.push({ start: h.start - pathPrefixLength, end: h.end - pathPrefixLength });
+							}
+
+							// Match on description part
+							else {
+								descriptionHighlights.push(h);
+							}
+						});
+					}
+				} else {
+					labelHighlights = candidateLabelHighlights;
+				}
+			}
+
+			// Path search: Highlight in label and description
+			else if (lookFor.indexOf(Paths.nativeSep) >= 0) {
+				descriptionHighlights = Filters.matchesFuzzy(Strings.trim(lookFor, Paths.nativeSep), entry.getDescription());
+
+				// If we have no highlights, assume that the match is split among name and parent folder
+				if (!descriptionHighlights || !descriptionHighlights.length) {
+					labelHighlights = Filters.matchesFuzzy(Paths.basename(lookFor), entry.getLabel());
+					descriptionHighlights = Filters.matchesFuzzy(Strings.trim(Paths.dirname(lookFor), Paths.nativeSep), entry.getDescription());
+				}
+			}
+
+			// Highlight only inside label
+			else {
+				labelHighlights = Filters.matchesFuzzy(lookFor, entry.getLabel());
+			}
+		}
+
+		// Highlight by label otherwise
+		else {
+			labelHighlights = Filters.matchesFuzzy(lookFor, entry.getLabel());
+		}
+
+		return { labelHighlights, descriptionHighlights };
 	}
 }
 
@@ -173,6 +299,10 @@ export class QuickOpenEntryGroup extends QuickOpenEntry {
 
 	public setShowBorder(showBorder: boolean): void {
 		this.withBorder = showBorder;
+	}
+
+	public getPrefix(): string {
+		return this.entry ? this.entry.getPrefix() : super.getPrefix();
 	}
 
 	public getLabel(): string {
@@ -265,6 +395,7 @@ class NoActionProvider implements ActionsRenderer.IActionProvider {
 export interface IQuickOpenEntryTemplateData {
 	container: HTMLElement;
 	icon: HTMLSpanElement;
+	prefix: HTMLSpanElement;
 	label: HighlightedLabel.HighlightedLabel;
 	meta: HTMLSpanElement;
 	description: HighlightedLabel.HighlightedLabel;
@@ -346,6 +477,10 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 		let icon = document.createElement('span');
 		entry.appendChild(icon);
 
+		// Prefix
+		let prefix = document.createElement('span');
+		entry.appendChild(prefix);
+
 		// Label
 		let label = new HighlightedLabel.HighlightedLabel(entry);
 
@@ -363,6 +498,7 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 		return {
 			container: container,
 			icon: icon,
+			prefix: prefix,
 			label: label,
 			meta: meta,
 			description: description,
@@ -424,7 +560,10 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 			let iconClass = entry.getIcon() ? ('quick-open-entry-icon ' + entry.getIcon()) : '';
 			data.icon.className = iconClass;
 
-			// Label
+			// Prefix
+			let prefix = entry.getPrefix() || '';
+			data.prefix.textContent = prefix;
+
 			let labelHighlights = highlights[0];
 			data.label.set(entry.getLabel() || '', labelHighlights || []);
 

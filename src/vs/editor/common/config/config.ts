@@ -168,6 +168,7 @@ registerCoreCommand(H.CursorDownSelect, {
 	mac: { primary: KeyMod.Shift | KeyCode.DownArrow },
 	linux: { primary: KeyMod.Shift | KeyCode.DownArrow }
 });
+
 registerCoreCommand(H.CursorPageUp, {
 	primary: KeyCode.PageUp
 });
@@ -195,6 +196,25 @@ registerCoreCommand(H.CursorEnd, {
 registerCoreCommand(H.CursorEndSelect, {
 	primary: KeyMod.Shift | KeyCode.End,
 	mac: { primary: KeyMod.Shift | KeyCode.End, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.RightArrow] }
+});
+registerCoreCommand(H.ExpandLineSelection, {
+	primary: KeyMod.CtrlCmd | KeyCode.KEY_I
+});
+
+registerCoreCommand(H.ScrollLineUp, {
+	primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
+	mac: { primary: KeyMod.WinCtrl | KeyCode.PageUp}
+});
+registerCoreCommand(H.ScrollLineDown, {
+	primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
+	mac: { primary: KeyMod.WinCtrl | KeyCode.PageDown}
+});
+
+registerCoreCommand(H.ScrollPageUp, {
+	primary: KeyMod.CtrlCmd | KeyCode.PageUp
+});
+registerCoreCommand(H.ScrollPageDown, {
+	primary: KeyMod.CtrlCmd | KeyCode.PageDown
 });
 
 registerCoreCommand(H.Tab, {

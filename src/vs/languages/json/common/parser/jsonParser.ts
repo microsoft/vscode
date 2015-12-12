@@ -9,6 +9,7 @@ import Arrays = require('vs/base/common/arrays');
 import Types = require('vs/base/common/types');
 import Json = require('vs/base/common/json');
 import JsonSchema = require('vs/base/common/jsonSchema');
+import {JSONLocation} from './jsonLocation';
 import SchemaService = require('vs/languages/json/common/jsonSchemaService');
 
 export interface IRange {
@@ -36,20 +37,14 @@ export class ASTNode {
 		this.parent = parent;
 	}
 
-	public getPath():string[] {
-		var path:string[] = [];
-		if (this.parent) {
-			path = this.parent.getPath();
-
-			if (this.name) {
-				path.push(this.name);
-			}
-
-			return path;
-		} else {
-			return path;
+	public getNodeLocation(): JSONLocation {
+		var path = this.parent ? this.parent.getNodeLocation() : new JSONLocation([]);
+		if (this.name) {
+			path = path.append(this.name);
 		}
+		return path;
 	}
+
 
 	public getChildNodes(): ASTNode[] {
 		return [];
@@ -925,7 +920,7 @@ export class JSONParser {
 
 			_scanner.scan(); // consume ColonToken
 
-			if (!node.setValue(_parseValue(node, node.key.getValue()))) {
+			if (!node.setValue(_parseValue(node, key.value))) {
 				return _error(nls.localize('ValueExpected', 'Value expected'), node, [], [Json.SyntaxKind.CloseBraceToken, Json.SyntaxKind.CommaToken]);
 			}
 			node.end = node.value.end;
@@ -1013,7 +1008,7 @@ export class JSONParser {
 
 		_scanner.scan();
 
-		_doc.root = _parseValue(null, 'root');
+		_doc.root = _parseValue(null, null);
 		if (!_doc.root) {
 			_error(nls.localize('Invalid symbol', 'Expected a JSON object, array or literal'));
 		} else if (_scanner.getToken() !== Json.SyntaxKind.EOF) {

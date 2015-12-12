@@ -490,12 +490,14 @@ export interface ICommonEditorOptions {
 export interface IEditorOptions extends ICommonEditorOptions {
 	/**
 	 * Tab size in spaces. This is used for rendering and for editing.
-	 * Defaults to 'auto', meaning the model attached to the editor will be scanned and this property will be guessed.
+	 * 'auto' means the model attached to the editor will be scanned and this property will be guessed.
+	 * Defaults to 4.
 	 */
 	tabSize?:any;
 	/**
 	 * Insert spaces instead of tabs when indenting or when auto-indenting.
-	 * Defaults to 'auto', meaning the model attached to the editor will be scanned and this property will be guessed.
+	 * 'auto' means the model attached to the editor will be scanned and this property will be guessed.
+	 * Defaults to true.
 	 */
 	insertSpaces?:any;
 	/**
@@ -2059,6 +2061,10 @@ export interface ICursorRevealRangeEvent {
 	revealHorizontal:boolean;
 }
 
+export interface ICursorScrollRequestEvent {
+	deltaLines: number;
+}
+
 export interface IModelChangedEvent {
 	oldModelUrl: string;
 	newModelUrl: string;
@@ -2500,7 +2506,8 @@ export var ViewEventNames = {
 	CursorPositionChangedEvent: 'cursorPositionChangedEvent',
 	CursorSelectionChangedEvent: 'cursorSelectionChangedEvent',
 	RevealRangeEvent: 'revealRangeEvent',
-	LineMappingChangedEvent: 'lineMappingChangedEvent'
+	LineMappingChangedEvent: 'lineMappingChangedEvent',
+	ScrollRequestEvent: 'scrollRequestEvent'
 };
 
 export interface IScrollEvent {
@@ -2595,6 +2602,10 @@ export interface IViewRevealRangeEvent {
 	 * If false: there should be just a vertical revealing
 	 */
 	revealHorizontal: boolean;
+}
+
+export interface IViewScrollRequestEvent {
+	deltaLines: number;
 }
 
 export interface IViewWhitespaceViewportData {
@@ -3229,6 +3240,7 @@ export var EventType = {
 	CursorPositionChanged: 'positionChanged',
 	CursorSelectionChanged: 'selectionChanged',
 	CursorRevealRange: 'revealRange',
+	CursorScrollRequest: 'scrollRequest',
 
 	ViewFocusGained: 'focusGained',
 	ViewFocusLost: 'focusLost',
@@ -3283,6 +3295,8 @@ export var Handler = {
 	CursorEnd:					'cursorEnd',
 	CursorEndSelect:			'cursorEndSelect',
 
+	ExpandLineSelection:		'expandLineSelection',
+
 	CursorTop:					'cursorTop',
 	CursorTopSelect:			'cursorTopSelect',
 	CursorBottom:				'cursorBottom',
@@ -3334,5 +3348,11 @@ export var Handler = {
 	LineInsertAfter:			'lineInsertAfter',
 	LineBreakInsert:			'lineBreakInsert',
 
-	SelectAll:					'selectAll'
+	SelectAll:					'selectAll',
+
+	ScrollLineUp:				'scrollLineUp',
+	ScrollLineDown:				'scrollLineDown',
+
+	ScrollPageUp:				'scrollPageUp',
+	ScrollPageDown:				'scrollPageDown'
 };

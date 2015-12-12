@@ -5,10 +5,13 @@
 'use strict';
 
 import HtmlContent = require('vs/base/common/htmlContent');
+import Strings = require('vs/base/common/strings');
 import WinJS = require('vs/base/common/winjs.base');
 import nls = require('vs/nls');
 import JSONWorker = require('vs/languages/json/common/jsonWorker');
 import {IRequestService} from 'vs/platform/request/common/request';
+import {JSONLocation} from 'vs/languages/json/common/parser/jsonLocation';
+import URI from 'vs/base/common/uri';
 
 var LIMIT = 40;
 
@@ -20,8 +23,13 @@ export class ProjectJSONContribution implements JSONWorker.IJSONWorkerContributi
 		this.requestService = requestService;
 	}
 
-	public collectDefaultSuggestions(contributionId: string, result: JSONWorker.ISuggestionsCollector): WinJS.Promise {
-		if (contributionId === 'http://json.schemastore.org/project') {
+	private isProjectJSONFile(resource: URI): boolean {
+		var path = resource.path;
+		return Strings.endsWith(path, '/project.json');
+	}
+
+	public collectDefaultSuggestions(resource: URI, result: JSONWorker.ISuggestionsCollector): WinJS.Promise {
+		if (this.isProjectJSONFile(resource)) {
 			var defaultValue = {
 				'version': '{{1.0.0-*}}',
 				'dependencies': {},
@@ -32,11 +40,11 @@ export class ProjectJSONContribution implements JSONWorker.IJSONWorkerContributi
 			};
 			result.add({ type: 'type', label: nls.localize('json.project.default', 'Default project.json'), codeSnippet: JSON.stringify(defaultValue, null, '\t'), documentationLabel: '' });
 		}
-		return WinJS.Promise.as(0);
+		return null;
 	}
 
-	public collectPropertySuggestions(contributionId: string, currentWord: string, addValue: boolean, isLast:boolean, result: JSONWorker.ISuggestionsCollector) : WinJS.Promise {
-		if (contributionId === 'nugget-packages') {
+	public collectPropertySuggestions(resource: URI, location: JSONLocation, currentWord: string, addValue: boolean, isLast:boolean, result: JSONWorker.ISuggestionsCollector) : WinJS.Promise {
+		if (this.isProjectJSONFile(resource) && (location.matches(['dependencies']) || location.matches(['frameworks', '*', 'dependencies']) || location.matches(['frameworks', '*', 'frameworkAssemblies']))) {
 			var queryUrl : string;
 			if (currentWord.length > 0) {
 				queryUrl = 'https://www.nuget.org/api/v2/Packages?'
@@ -94,11 +102,11 @@ export class ProjectJSONContribution implements JSONWorker.IJSONWorkerContributi
 				return 0;
 			});
 		}
-		return WinJS.Promise.as(0);
+		return null;
 	}
 
-	public collectValueSuggestions(contributionId: string, currentKey: string, result: JSONWorker.ISuggestionsCollector): WinJS.Promise {
-		if (contributionId === 'nugget-packages') {
+	public collectValueSuggestions(resource: URI, location: JSONLocation, currentKey: string, result: JSONWorker.ISuggestionsCollector): WinJS.Promise {
+		if (this.isProjectJSONFile(resource) && (location.matches(['dependencies']) || location.matches(['frameworks', '*', 'dependencies']) || location.matches(['frameworks', '*', 'frameworkAssemblies']))) {
 			var queryUrl = 'https://www.myget.org/F/aspnetrelease/api/v2/Packages?'
 					+ '$filter=Id%20eq%20\''
 					+ encodeURIComponent(currentKey)
@@ -137,12 +145,12 @@ export class ProjectJSONContribution implements JSONWorker.IJSONWorkerContributi
 				return 0;
 			});
 		}
-		return WinJS.Promise.as(0);
+		return null;
 	}
 
-	public getInfoContribution(contributionId: string, pack: string): WinJS.TPromise<HtmlContent.IHTMLContentElement[]> {
-
-		if (contributionId === 'nugget-package') {
+	public getInfoContribution(resource: URI, location: JSONLocation): WinJS.TPromise<HtmlContent.IHTMLContentElement[]> {
+		if (this.isProjectJSONFile(resource) && (location.matches(['dependencies', '*']) || location.matches(['frameworks', '*', 'dependencies', '*']) || location.matches(['frameworks', '*', 'frameworkAssemblies', '*']))) {
+			var pack = location.getSegments()[location.getSegments().length - 1];
 
 			var htmlContent : HtmlContent.IHTMLContentElement[] = [];
 			htmlContent.push({className: 'type', text: nls.localize('json.nugget.package.hover', '{0}', pack) });

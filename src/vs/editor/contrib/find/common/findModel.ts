@@ -13,11 +13,14 @@ import {Range} from 'vs/editor/common/core/range';
 import {Position} from 'vs/editor/common/core/position';
 import {ReplaceCommand} from 'vs/editor/common/commands/replaceCommand';
 
-export var START_FIND_ID = 'actions.find';
-export var NEXT_MATCH_FIND_ID = 'editor.action.nextMatchFindAction';
-export var PREVIOUS_MATCH_FIND_ID = 'editor.action.previousMatchFindAction';
-
-export var START_FIND_REPLACE_ID = 'editor.action.startFindReplaceAction';
+export const START_FIND_ACTION_ID = 'actions.find';
+export const NEXT_MATCH_FIND_ACTION_ID = 'editor.action.nextMatchFindAction';
+export const PREVIOUS_MATCH_FIND_ACTION_ID = 'editor.action.previousMatchFindAction';
+export const START_FIND_REPLACE_ACTION_ID = 'editor.action.startFindReplaceAction';
+export const CLOSE_FIND_WIDGET_COMMAND_ID = 'closeFindWidget';
+export const TOGGLE_CASE_SENSITIVE_COMMAND_ID = 'toggleFindCaseSensitive';
+export const TOGGLE_WHOLE_WORD_COMMAND_ID = 'toggleFindWholeWord';
+export const TOGGLE_REGEX_COMMAND_ID = 'toggleFindRegex';
 
 export interface IFindMatchesEvent {
 	position: number;
@@ -40,26 +43,10 @@ export interface IFindState {
 export interface IFindStartEvent {
 	state: IFindState;
 	selectionFindEnabled: boolean;
-	shouldFocus: boolean;
+	shouldAnimate: boolean;
 }
 
-export interface IFindModel {
-	dispose(): void;
-
-	start(newFindData:IFindState, findScope:EditorCommon.IEditorRange, shouldFocus:boolean): void;
-	recomputeMatches(newFindData:IFindState, jumpToNextMatch:boolean): void;
-	setFindScope(findScope:EditorCommon.IEditorRange): void;
-
-	next(): void;
-	prev(): void;
-	replace(): void;
-	replaceAll(): void;
-
-	addStartEventListener(callback:(e:IFindStartEvent)=>void): Lifecycle.IDisposable;
-	addMatchesUpdatedEventListener(callback:(e:IFindMatchesEvent)=>void): Lifecycle.IDisposable;
-}
-
-export class FindModelBoundToEditorModel extends Events.EventEmitter implements IFindModel {
+export class FindModelBoundToEditorModel extends Events.EventEmitter {
 
 	private static _START_EVENT = 'start';
 	private static _MATCHES_UPDATED_EVENT = 'matches';
@@ -279,7 +266,7 @@ export class FindModelBoundToEditorModel extends Events.EventEmitter implements 
 		}
 	}
 
-	public start(newFindData:IFindState, findScope:EditorCommon.IEditorRange, shouldFocus:boolean): void {
+	public start(newFindData:IFindState, findScope:EditorCommon.IEditorRange, shouldAnimate:boolean): void {
 		this.startPosition = this.editor.getPosition();
 
 		this.isRegex = newFindData.properties.isRegex;
@@ -294,7 +281,7 @@ export class FindModelBoundToEditorModel extends Events.EventEmitter implements 
 		var e:IFindStartEvent = {
 			state: newFindData,
 			selectionFindEnabled: this.hasFindScope(),
-			shouldFocus: shouldFocus
+			shouldAnimate: shouldAnimate
 		};
 		this._emitStartEvent(e);
 	}

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import winjs = require('vs/base/common/winjs.base');
+import {TPromise, decoratePromise} from 'vs/base/common/winjs.base';
 import Worker = require('vs/base/common/worker/workerClient');
 import abstractThreadService = require('vs/platform/thread/common/abstractThreadService');
 import Env = require('vs/base/common/flags');
@@ -39,8 +39,8 @@ export class MainThreadService extends abstractThreadService.AbstractThreadServi
 	private _contextService:IWorkspaceContextService;
 	private _affinityScrambler:IAffinityMap;
 
-	private _workersCreatedPromise:winjs.Promise;
-	private _triggerWorkersCreatedPromise:winjs.ValueCallback;
+	private _workersCreatedPromise:TPromise<void>;
+	private _triggerWorkersCreatedPromise:(value:void)=>void;
 	private _listeners:IThreadServiceStatusListener[];
 
 	private _workerFactory:Worker.IWorkerFactory;
@@ -60,7 +60,7 @@ export class MainThreadService extends abstractThreadService.AbstractThreadServi
 		this._affinityScrambler = {};
 		this._listeners = [];
 
-		this._workersCreatedPromise = new winjs.Promise((c, e, p) => {
+		this._workersCreatedPromise = new TPromise<void>((c, e, p) => {
 			this._triggerWorkersCreatedPromise = c;
 		}, () => {
 			// Not cancelable
@@ -70,7 +70,7 @@ export class MainThreadService extends abstractThreadService.AbstractThreadServi
 		readThreadSynchronizableObjects().forEach((obj) => this.registerInstance(obj));
 
 		// If nobody asks for workers to be created in 5s, the workers are created automatically
-		winjs.Promise.timeout(MainThreadService.MAXIMUM_WORKER_CREATION_DELAY).then(() => this.ensureWorkers());
+		TPromise.timeout(MainThreadService.MAXIMUM_WORKER_CREATION_DELAY).then(() => this.ensureWorkers());
 	}
 
 	ensureWorkers(): void {
@@ -112,10 +112,10 @@ export class MainThreadService extends abstractThreadService.AbstractThreadServi
 		}
 	}
 
-	private _afterWorkers(): winjs.Promise {
+	private _afterWorkers(): TPromise<void> {
 		var shouldCancelPromise = false;
 
-		return new winjs.Promise((c, e, p) => {
+		return new TPromise<void>((c, e, p) => {
 
 			// hide the initialize promise inside this
 			// promise so that it won't be canceled by accident
@@ -184,7 +184,7 @@ export class MainThreadService extends abstractThreadService.AbstractThreadServi
 			}
 
 			var obj = this._boundObjects[identifier];
-			return winjs.Promise.as(obj[memberName].apply(obj, args));
+			return TPromise.as(obj[memberName].apply(obj, args));
 		});
 
 		return worker;
@@ -201,7 +201,7 @@ export class MainThreadService extends abstractThreadService.AbstractThreadServi
 		return r;
 	}
 
-	MainThread(obj:IThreadSynchronizableObject<any>, methodName:string, target:Function, params:any[]): winjs.Promise {
+	MainThread(obj:IThreadSynchronizableObject<any>, methodName:string, target:Function, params:any[]): TPromise<any> {
 		return target.apply(obj, params);
 	}
 
@@ -234,7 +234,7 @@ export class MainThreadService extends abstractThreadService.AbstractThreadServi
 		return (scramble + affinity) % this._workerPool.length;
 	}
 
-	OneWorker(obj:IThreadSynchronizableObject<any>, methodName:string, target:Function, params:any[], affinity:ThreadAffinity): winjs.Promise {
+	OneWorker(obj:IThreadSynchronizableObject<any>, methodName:string, target:Function, params:any[], affinity:ThreadAffinity): TPromise<any> {
 		return this._afterWorkers().then(() => {
 			if (this._workerPool.length === 0) {
 				throw new Error('Cannot fulfill request...');
@@ -246,9 +246,9 @@ export class MainThreadService extends abstractThreadService.AbstractThreadServi
 		});
 	}
 
-	AllWorkers(obj:IThreadSynchronizableObject<any>, methodName:string, target:Function, params:any[]): winjs.Promise {
+	AllWorkers(obj:IThreadSynchronizableObject<any>, methodName:string, target:Function, params:any[]): TPromise<any> {
 		return this._afterWorkers().then(() => {
-			return winjs.Promise.join(this._workerPool.map((w) => {
+			return TPromise.join(this._workerPool.map((w) => {
 				return this._remoteCall(w, obj, methodName, params);
 			}));
 		});
@@ -263,7 +263,7 @@ export class MainThreadService extends abstractThreadService.AbstractThreadServi
 		return target.apply(obj, params);
 	}
 
-	private _remoteCall(worker:Worker.WorkerClient, obj:IThreadSynchronizableObject<any>, methodName:string, params:any[]): winjs.Promise {
+	private _remoteCall(worker:Worker.WorkerClient, obj:IThreadSynchronizableObject<any>, methodName:string, params:any[]): TPromise<any> {
 		var id = obj.getId();
 		if (!id) {
 			throw new Error('Synchronizable Objects must have an identifier');
@@ -277,7 +277,7 @@ export class MainThreadService extends abstractThreadService.AbstractThreadServi
 		};
 
 
-		var r = winjs.decoratePromise(worker.request('threadService', [id, methodName, params]), stopTimer, stopTimer);
+		var r = decoratePromise(worker.request('threadService', [id, methodName, params]), stopTimer, stopTimer);
 
 		this._pingListenersIfNecessary();
 
@@ -337,21 +337,21 @@ export class MainThreadService extends abstractThreadService.AbstractThreadServi
 
 	private _createWorkerProxyHelper(whichWorker:ThreadAffinity): remote.IProxyHelper {
 		return {
-			callOnRemote: (proxyId: string, path: string, args:any[]): winjs.Promise => {
+			callOnRemote: (proxyId: string, path: string, args:any[]): TPromise<any> => {
 				return this._callOnWorker(whichWorker, proxyId, path, args);
 			}
 		};
 	}
 
-	private _callOnWorker(whichWorker:ThreadAffinity, proxyId: string, path: string, args:any[]): winjs.Promise {
+	private _callOnWorker(whichWorker:ThreadAffinity, proxyId: string, path: string, args:any[]): TPromise<any> {
 		if (whichWorker === ThreadAffinity.None) {
-			return winjs.Promise.as(null);
+			return TPromise.as(null);
 		}
 
 		return this._afterWorkers().then(() => {
 			if (whichWorker === ThreadAffinity.All) {
 				var promises = this._workerPool.map(w => w.getRemoteCom()).map(rCom => rCom.callOnRemote(proxyId, path, args));
-				return winjs.Promise.join(promises);
+				return TPromise.join(promises);
 			}
 
 			var workerIdx = whichWorker % this._workerPool.length;

@@ -9,6 +9,7 @@ import Touch = require('vs/base/browser/touch');
 import Events = require('vs/base/common/eventEmitter');
 import Mouse = require('vs/base/browser/mouseEvent');
 import Keyboard = require('vs/base/browser/keyboardEvent');
+import { INavigator } from 'vs/base/common/iterator';
 
 export interface ITree extends Events.IEventEmitter {
 
@@ -131,6 +132,11 @@ export interface ITree extends Events.IEventEmitter {
 	 * to the top; 1 means all the way down.
 	 */
 	setScrollPosition(pos: number): void;
+
+	/**
+	 * Returns the total height of the tree's content.
+	 */
+	getContentHeight(): number;
 
 	/**
 	 * Sets the tree's highlight to be the given element.
@@ -308,6 +314,12 @@ export interface ITree extends Events.IEventEmitter {
 	 * Returns whatever fn(...) returns.
 	 */
 	withFakeRow(fn:(container:HTMLElement)=>any):any;
+
+	/**
+	 * Returns a navigator which allows to discover the visible and
+	 * expanded elements in the tree.
+	 */
+	getNavigator(): INavigator<any>;
 
 	/**
 	 * Disposes the tree

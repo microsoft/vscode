@@ -6,24 +6,37 @@
 'use strict';
 
 import * as assert from 'assert';
-import * as fs from 'fs';
-import * as os from 'os';
-import {workspace, window, Position, commands} from 'vscode';
-import {createRandomFile, deleteFile, cleanUp} from './utils';
+import {commands} from 'vscode';
 import {join} from 'path';
 
-suite("editor tests", () => {
+suite("commands namespace tests", () => {
 
-	teardown(cleanUp);
+	test('getCommands', function(done) {
 
-	// test('calling command completes with the extension host updated properly', () => {
-	// 	return workspace.openTextDocument(join(workspace.rootPath, './far.js')).then(doc => {
-	// 		return window.showTextDocument(doc).then(editor => {
-	// 			assert.equal(window.visibleTextEditors.length, 1);
-	// 			return commands.executeCommand('workbench.action.closeAllEditors').then(() => {
-	// 				assert.equal(window.visibleTextEditors.length, 0);
-	// 			});
-	// 		});
-	// 	});
-	// });
+		let p1 = commands.getCommands().then(commands => {
+			let hasOneWithUnderscore = false;
+			for (let command of commands) {
+				if (command[0] === '_') {
+					hasOneWithUnderscore = true;
+					break;
+				}
+			}
+			assert.ok(hasOneWithUnderscore);
+		}, done);
+
+		let p2 = commands.getCommands(true).then(commands => {
+			let hasOneWithUnderscore = false;
+			for (let command of commands) {
+				if (command[0] === '_') {
+					hasOneWithUnderscore = true;
+					break;
+				}
+			}
+			assert.ok(!hasOneWithUnderscore);
+		}, done);
+
+		Promise.all([p1, p2]).then(() => {
+			done();
+		}, done);
+	});
 });

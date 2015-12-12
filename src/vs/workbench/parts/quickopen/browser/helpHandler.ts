@@ -15,7 +15,7 @@ import {ITree, IElementCallback} from 'vs/base/parts/tree/common/tree';
 import {QuickOpenHandlerDescriptor, IQuickOpenRegistry, Extensions, QuickOpenHandler} from 'vs/workbench/browser/quickopen';
 import {IQuickOpenService} from 'vs/workbench/services/quickopen/browser/quickOpenService';
 
-const HELP_PREFIX = '?';
+export const HELP_PREFIX = '?';
 
 class HelpEntry extends QuickOpenEntryItem {
 	private prefix: string;
@@ -183,13 +183,3 @@ export class HelpHandler extends QuickOpenHandler {
 		};
 	}
 }
-
-// Register Quick Open Handler
-(<IQuickOpenRegistry>Registry.as(Extensions.Quickopen)).registerQuickOpenHandler(
-	new QuickOpenHandlerDescriptor(
-		'vs/workbench/parts/quickopen/browser/helpHandler',
-		'HelpHandler',
-		HELP_PREFIX,
-		nls.localize('helpDescription', "Show Help")
-	)
-);

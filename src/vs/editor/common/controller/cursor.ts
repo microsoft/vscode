@@ -41,6 +41,7 @@ interface IMultipleCursorOperationContext {
 	isCursorUndo: boolean;
 	executeCommands: EditorCommon.ICommand[];
 	postOperationRunnables: IPostOperationRunnable[];
+	requestScrollDeltaLines: number;
 }
 
 interface IExecContext {
@@ -85,7 +86,8 @@ export class Cursor extends EventEmitter {
 		super([
 			EditorCommon.EventType.CursorPositionChanged,
 			EditorCommon.EventType.CursorSelectionChanged,
-			EditorCommon.EventType.CursorRevealRange
+			EditorCommon.EventType.CursorRevealRange,
+			EditorCommon.EventType.CursorScrollRequest
 		]);
 		this.editorId = editorId;
 		this.configuration = configuration;
@@ -306,7 +308,8 @@ export class Cursor extends EventEmitter {
 			isCursorUndo: false,
 			postOperationRunnables: [],
 			shouldPushStackElementBefore: false,
-			shouldPushStackElementAfter: false
+			shouldPushStackElementAfter: false,
+			requestScrollDeltaLines: 0
 		};
 
 		callback(currentHandlerCtx);
@@ -336,6 +339,7 @@ export class Cursor extends EventEmitter {
 			var shouldRevealHorizontal: boolean;
 			var shouldRevealTarget: RevealTarget;
 			var isCursorUndo: boolean;
+			var requestScrollDeltaLines: number;
 
 			var hasExecutedCommands = this._createAndInterpretHandlerCtx(eventSource, e.getData(), (currentHandlerCtx:IMultipleCursorOperationContext) => {
 				handled = handler(currentHandlerCtx);
@@ -346,6 +350,7 @@ export class Cursor extends EventEmitter {
 				shouldRevealVerticalInCenter = currentHandlerCtx.shouldRevealVerticalInCenter;
 				shouldRevealHorizontal = currentHandlerCtx.shouldRevealHorizontal;
 				isCursorUndo = currentHandlerCtx.isCursorUndo;
+				requestScrollDeltaLines = currentHandlerCtx.requestScrollDeltaLines;
 			});
 
 			if (hasExecutedCommands) {
@@ -401,6 +406,10 @@ export class Cursor extends EventEmitter {
 					this.emitCursorRevealRange(shouldRevealTarget, shouldRevealVerticalInCenter ? EditorCommon.VerticalRevealType.Center : EditorCommon.VerticalRevealType.Simple, shouldRevealHorizontal);
 				}
 				this.emitCursorSelectionChanged(eventSource, cursorPositionChangeReason);
+			}
+
+			if (requestScrollDeltaLines) {
+				this.emitCursorScrollRequest(requestScrollDeltaLines);
 			}
 		} catch (err) {
 			Errors.onUnexpectedError(err);
@@ -845,6 +854,13 @@ export class Cursor extends EventEmitter {
 		this.emit(EditorCommon.EventType.CursorSelectionChanged, e);
 	}
 
+	private emitCursorScrollRequest(lineScrollOffset: number): void {
+		var e:EditorCommon.ICursorScrollRequestEvent = {
+			deltaLines: lineScrollOffset
+		};
+		this.emit(EditorCommon.EventType.CursorScrollRequest, e);
+	}
+
 	private emitCursorRevealRange(revealTarget: RevealTarget, verticalType: EditorCommon.VerticalRevealType, revealHorizontal: boolean): void {
 		var positions = this.cursors.getPositions();
 		var viewPositions = this.cursors.getViewPositions();
@@ -958,6 +974,11 @@ export class Cursor extends EventEmitter {
 		handlersMap[H.Outdent] =					(ctx:IMultipleCursorOperationContext) => this._outdent(ctx);
 		handlersMap[H.Paste] =						(ctx:IMultipleCursorOperationContext) => this._paste(ctx);
 
+		handlersMap[H.ScrollLineUp] =				(ctx:IMultipleCursorOperationContext) => this._scrollUp(false, ctx);
+		handlersMap[H.ScrollLineDown] =				(ctx:IMultipleCursorOperationContext) => this._scrollDown(false, ctx);
+		handlersMap[H.ScrollPageUp] =				(ctx:IMultipleCursorOperationContext) => this._scrollUp(true, ctx);
+		handlersMap[H.ScrollPageDown] =				(ctx:IMultipleCursorOperationContext) => this._scrollDown(true, ctx);
+
 		handlersMap[H.DeleteLeft] =					(ctx:IMultipleCursorOperationContext) => this._deleteLeft(ctx);
 		handlersMap[H.DeleteWordLeft] =				(ctx:IMultipleCursorOperationContext) => this._deleteWordLeft(ctx);
 		handlersMap[H.DeleteRight] =				(ctx:IMultipleCursorOperationContext) => this._deleteRight(ctx);
@@ -965,6 +986,8 @@ export class Cursor extends EventEmitter {
 		handlersMap[H.DeleteAllLeft] =				(ctx:IMultipleCursorOperationContext) => this._deleteAllLeft(ctx);
 		handlersMap[H.DeleteAllRight] =				(ctx:IMultipleCursorOperationContext) => this._deleteAllRight(ctx);
 		handlersMap[H.Cut] =						(ctx:IMultipleCursorOperationContext) => this._cut(ctx);
+
+		handlersMap[H.ExpandLineSelection] =		(ctx:IMultipleCursorOperationContext) => this._expandLineSelection(ctx);
 
 		handlersMap[H.Undo] =						(ctx:IMultipleCursorOperationContext) => this._undo(ctx);
 		handlersMap[H.CursorUndo] =					(ctx:IMultipleCursorOperationContext) => this._cursorUndo(ctx);
@@ -1002,7 +1025,8 @@ export class Cursor extends EventEmitter {
 				executeCommand: null,
 				postOperationRunnable: null,
 				shouldPushStackElementBefore: false,
-				shouldPushStackElementAfter: false
+				shouldPushStackElementAfter: false,
+				requestScrollDeltaLines: 0
 			};
 
 			result = callable(i, cursors[i], context) || result;
@@ -1012,6 +1036,7 @@ export class Cursor extends EventEmitter {
 				ctx.shouldRevealHorizontal = context.shouldRevealHorizontal;
 				ctx.shouldReveal = context.shouldReveal;
 				ctx.shouldRevealVerticalInCenter = context.shouldRevealVerticalInCenter;
+				ctx.requestScrollDeltaLines = context.requestScrollDeltaLines;
 			}
 
 			ctx.shouldPushStackElementBefore = ctx.shouldPushStackElementBefore || context.shouldPushStackElementBefore;
@@ -1187,6 +1212,10 @@ export class Cursor extends EventEmitter {
 		return true;
 	}
 
+	private _expandLineSelection(ctx: IMultipleCursorOperationContext): boolean {
+		return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.expandLineSelection(oneCursor, oneCtx));
+	}
+
 	private _lineInsertBefore(ctx: IMultipleCursorOperationContext): boolean {
 		return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.lineInsertBefore(oneCursor, oneCtx));
 	}
@@ -1290,6 +1319,16 @@ export class Cursor extends EventEmitter {
 		} else {
 			return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.paste(oneCursor, ctx.eventData.text, ctx.eventData.pasteOnNewLine, oneCtx));
 		}
+	}
+
+	private _scrollUp(isPaged: boolean, ctx: IMultipleCursorOperationContext): boolean {
+		ctx.requestScrollDeltaLines = isPaged ? -this.configuration.editor.pageSize : -1;
+		return true;
+	}
+
+	private _scrollDown(isPaged: boolean, ctx: IMultipleCursorOperationContext): boolean {
+		ctx.requestScrollDeltaLines = isPaged ? this.configuration.editor.pageSize : 1;
+		return true;
 	}
 
 	private _distributePasteToCursors(ctx: IMultipleCursorOperationContext): string[] {

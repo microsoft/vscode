@@ -142,6 +142,24 @@ export enum KeyCode {
 	 */
 	US_QUOTE,
 
+	NUMPAD_0, // VK_NUMPAD0, 0x60, Numeric keypad 0 key
+	NUMPAD_1, // VK_NUMPAD1, 0x61, Numeric keypad 1 key
+	NUMPAD_2, // VK_NUMPAD2, 0x62, Numeric keypad 2 key
+	NUMPAD_3, // VK_NUMPAD3, 0x63, Numeric keypad 3 key
+	NUMPAD_4, // VK_NUMPAD4, 0x64, Numeric keypad 4 key
+	NUMPAD_5, // VK_NUMPAD5, 0x65, Numeric keypad 5 key
+	NUMPAD_6, // VK_NUMPAD6, 0x66, Numeric keypad 6 key
+	NUMPAD_7, // VK_NUMPAD7, 0x67, Numeric keypad 7 key
+	NUMPAD_8, // VK_NUMPAD8, 0x68, Numeric keypad 8 key
+	NUMPAD_9, // VK_NUMPAD9, 0x69, Numeric keypad 9 key
+
+	NUMPAD_MULTIPLY,	// VK_MULTIPLY, 0x6A, Multiply key
+	NUMPAD_ADD,			// VK_ADD, 0x6B, Add key
+	// NUMPAD_SEPARATOR,	// VK_SEPARATOR, 0x6C, Separator key
+	NUMPAD_SUBTRACT,	// VK_SUBTRACT, 0x6D, Subtract key
+	NUMPAD_DECIMAL,		// VK_DECIMAL, 0x6E, Decimal key
+	NUMPAD_DIVIDE,		// VK_DIVIDE, 0x6F,
+
 	/**
 	 * Placed last to cover the length of the enum.
 	 */
@@ -240,13 +258,40 @@ let TO_STRING_MAP: string[] = [];
 	TO_STRING_MAP[KeyCode.US_BACKSLASH] 			= '\\';
 	TO_STRING_MAP[KeyCode.US_CLOSE_SQUARE_BRACKET] 	= ']';
 	TO_STRING_MAP[KeyCode.US_QUOTE]					= '\'';
+
+	TO_STRING_MAP[KeyCode.NUMPAD_0] = 'NumPad0';
+	TO_STRING_MAP[KeyCode.NUMPAD_1] = 'NumPad1';
+	TO_STRING_MAP[KeyCode.NUMPAD_2] = 'NumPad2';
+	TO_STRING_MAP[KeyCode.NUMPAD_3] = 'NumPad3';
+	TO_STRING_MAP[KeyCode.NUMPAD_4] = 'NumPad4';
+	TO_STRING_MAP[KeyCode.NUMPAD_5] = 'NumPad5';
+	TO_STRING_MAP[KeyCode.NUMPAD_6] = 'NumPad6';
+	TO_STRING_MAP[KeyCode.NUMPAD_7] = 'NumPad7';
+	TO_STRING_MAP[KeyCode.NUMPAD_8] = 'NumPad8';
+	TO_STRING_MAP[KeyCode.NUMPAD_9] = 'NumPad9';
+
+	TO_STRING_MAP[KeyCode.NUMPAD_MULTIPLY] = 'NumPad_Multiply';
+	TO_STRING_MAP[KeyCode.NUMPAD_ADD] = 'NumPad_Add';
+	TO_STRING_MAP[KeyCode.NUMPAD_SUBTRACT] = 'NumPad_Subtract';
+	TO_STRING_MAP[KeyCode.NUMPAD_DECIMAL] = 'NumPad_Decimal';
+	TO_STRING_MAP[KeyCode.NUMPAD_DIVIDE] = 'NumPad_Divide';
+
+	// for (let i = 0; i < KeyCode.MAX_VALUE; i++) {
+	// 	if (!TO_STRING_MAP[i]) {
+	// 		console.warn('Missing string representation for ' + KeyCode[i]);
+	// 	}
+	// }
 })();
 
 let FROM_STRING_MAP: {[str:string]:KeyCode;} = {};
 FROM_STRING_MAP['\r'] = KeyCode.Enter;
 (function() {
 	for (let i = 0, len = TO_STRING_MAP.length; i < len; i++) {
+		if (!TO_STRING_MAP[i]) {
+			continue;
+		}
 		FROM_STRING_MAP[TO_STRING_MAP[i]] = i;
+		FROM_STRING_MAP[TO_STRING_MAP[i].toLowerCase()] = i;
 	}
 })();
 
