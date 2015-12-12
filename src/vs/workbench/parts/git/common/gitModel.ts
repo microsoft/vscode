@@ -334,10 +334,6 @@ export class Model extends EventEmitter.EventEmitter implements Git.IModel {
 		return this.repositoryRoot;
 	}
 
-	public getRepositoryRoot(): string {
-		return this.repositoryRoot;
-	}
-
 	public getStatus(): Git.IStatusModel {
 		return this.status;
 	}

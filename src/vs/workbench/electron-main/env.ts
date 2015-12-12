@@ -50,6 +50,11 @@ export interface IProductConfiguration {
 		key: string;
 		asimovKey: string;
 	},
+	sendASmile: {
+		submitUrl: string,
+		reportIssueUrl: string,
+		requestFeatureUrl: string
+	},
 	documentationUrl: string,
 	releaseNotesUrl: string,
 	twitterUrl: string,

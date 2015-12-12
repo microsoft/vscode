@@ -116,6 +116,11 @@ export interface IWindowConfiguration extends env.ICommandLineArguments {
 	aiConfig: {
 		key: string;
 		asimovKey: string;
+	},
+	sendASmile: {
+		submitUrl: string,
+		reportIssueUrl: string,
+		requestFeatureUrl: string
 	}
 }
 
