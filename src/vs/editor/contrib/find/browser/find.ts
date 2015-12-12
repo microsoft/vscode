@@ -409,6 +409,19 @@ class SelectNextFindMatchAction extends EditorAction {
 
 		return Selection.createSelection(nextMatch.startLineNumber, nextMatch.startColumn, nextMatch.endLineNumber, nextMatch.endColumn);
 	}
+
+	protected _getAllMatches(): Array<EditorCommon.IEditorSelection> {
+		var r = multiCursorFind(this.editor, true);
+		if (!r) {
+			return [];
+		}
+
+		var allMatches = this.editor.getModel().findMatches(r.searchText, true, r.isRegex, r.matchCase, r.wholeWord);
+
+		return allMatches.map(match=> {
+			return Selection.createSelection(match.startLineNumber, match.startColumn, match.endLineNumber, match.endColumn);
+		});
+	}
 }
 
 class AddSelectionToNextFindMatchAction extends SelectNextFindMatchAction {
@@ -441,11 +454,7 @@ class AddSelectionToAllFindMatchAction extends SelectNextFindMatchAction {
 	}
 
 	public run(): TPromise<boolean> {
-		var allMatches = [];
-
-		while (this._getNextMatch()) {
-			allMatches.push(this._getNextMatch());
-		}
+		var allMatches = this._getAllMatches();
 
 		if (!allMatches.length) {
 			return TPromise.as(false);
@@ -453,7 +462,7 @@ class AddSelectionToAllFindMatchAction extends SelectNextFindMatchAction {
 
 		var allSelections = this.editor.getSelections();
 		this.editor.setSelections(allSelections.concat(allMatches));
-		this.editor.revealRangeInCenterIfOutsideViewport(allMatches[allMatches.length]);
+		this.editor.revealRangeInCenterIfOutsideViewport(allMatches[allMatches.length - 1]);
 
 		return TPromise.as(true);
 	}
