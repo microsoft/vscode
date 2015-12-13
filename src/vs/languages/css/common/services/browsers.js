@@ -2212,7 +2212,7 @@ exports.data ={
 			},
 			{
 				"name": "border-top-width",
-				"desc": "'Border-width' is a shorthand that sets the four 'border-*-width' properties. If it has four values, they set top, right, bottom and left in that order. If left is missing, it is the same as right; if bottom is missing, it is the same as top; if right is missing, it is the same as top.",
+				"desc": "Shorthand that sets the four 'border-*-width' properties. If it has four values, they set top, right, bottom and left in that order. If left is missing, it is the same as right; if bottom is missing, it is the same as top; if right is missing, it is the same as top.",
 				"restriction": "length",
 				"values": [
 					{
@@ -2228,7 +2228,7 @@ exports.data ={
 			},
 			{
 				"name": "border-width",
-				"desc": "'Border-width' is a shorthand that sets the four 'border-*-width' properties. If it has four values, they set top, right, bottom and left in that order. If left is missing, it is the same as right; if bottom is missing, it is the same as top; if right is missing, it is the same as top.",
+				"desc": "Shorthand that sets the four 'border-*-width' properties. If it has four values, they set top, right, bottom and left in that order. If left is missing, it is the same as right; if bottom is missing, it is the same as top; if right is missing, it is the same as top.",
 				"restriction": "length",
 				"values": [
 					{
@@ -4381,10 +4381,10 @@ exports.data ={
 				]
 			},
 			{
-				"name": "motion-path",
-				"desc": "Specifies the motion path the element gets positioned at.",
+				"name": "motion",
+				"desc": "Shorthand property for setting 'motion-path', 'motion-offset' and 'motion-rotation'.",
 				"browsers": "C46,O33",
-				"restriction": "url, length, angle, enum",
+				"restriction": "url, length, percentage, angle, enum",
 				"values": [
 					{
 						"name": "border-box"
@@ -4435,9 +4435,9 @@ exports.data ={
 			},
 			{
 				"name": "motion-offset",
-				"desc": "Allows authors to constrain content width to a certain range.",
+				"desc": "A distance that describes the position along the specified motion path.",
 				"browsers": "C46,O33",
-				"restriction": "length"
+				"restriction": "length, percentage"
 			},
 			{
 				"name": "motion-path",
@@ -9087,6 +9087,7 @@ exports.data ={
 			},
 			{
 				"name": "touch-action",
+				"desc": "Determines whether touch input may trigger default behavior supplied by user agent.",
 				"browsers": "E,C36,IE11,O23",
 				"restriction": "enum",
 				"values": [
