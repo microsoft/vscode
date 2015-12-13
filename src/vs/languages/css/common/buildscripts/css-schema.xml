@@ -3569,7 +3569,7 @@
       </values>
     </entry>
     <entry name="column-rule" restriction="length, color, enum" version="3.0" browsers="E,IE10,O11.5,S9" ref="http://www.w3.org/TR/css3-multicol/#column-rule0" syntax="header { $(name): 5px solid red;}">
-      <desc>This property is a shorthand for setting 'column-rule-width', 'column-rule-style', and 'column-rule-color' at the same place in the style sheet. Omitted values are set to their initial values.</desc>
+      <desc>Shorthand for setting 'column-rule-width', 'column-rule-style', and 'column-rule-color' at the same place in the style sheet. Omitted values are set to their initial values.</desc>
       <values>
         <value name="dashed" version="1.0" browsers="all">
           <desc>A series of square-ended dashes.</desc>
@@ -3920,7 +3920,7 @@
       </values>
     </entry>
     <entry name="column-width" restriction="length, enum" version="3.0" browsers="E,IE10,O11.5,S9" ref="http://www.w3.org/TR/css3-multicol/#column-width" syntax="div { $(name): 100px; }">
-      <desc>This property describes the width of columns in multicol elements.</desc>
+      <desc>Describes the width of columns in multicol elements.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all">
           <desc>The width depends on the values of other properties.</desc>
@@ -4247,7 +4247,7 @@
       </values>
     </entry>
     <entry name="display" restriction="enum" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-box/#display" syntax="p { $(name): inline; }">
-      <desc>This property, in combination with 'float' and 'position', determines the type of box or boxes that are generated for an element.</desc>
+      <desc>In combination with 'float' and 'position', determines the type of box or boxes that are generated for an element.</desc>
       <values>
         <value name="block" version="2.0" browsers="all">
           <desc>Block boxes.</desc>
@@ -4377,7 +4377,7 @@
       </values>
     </entry>
     <entry name="fill" restriction="color, enum, url" version="3.0" browsers="all" ref="http://www.w3.org/TR/SVG11/painting.html#FillProperty">
-      <desc>The 'fill' property paints the interior of the given graphical element.</desc>
+      <desc>Paints the interior of the given graphical element.</desc>
       <values>
         <value name="ActiveBorder" version="2.0" browsers="all">
           <desc>Active window border.</desc>
@@ -4682,7 +4682,7 @@
       </values>
     </entry>
     <entry name="flex-basis" restriction="length, number, percentage" version="3.0" browsers="E,C29,FF22,IE11,O12.1,S9" ref="http://www.w3.org/TR/css3-flexbox/#flex-basis-propdef" syntax="p { $(name): 30%; }">
-      <desc>The 'flex-basis' property sets the flex basis. Negative lengths are invalid.</desc>
+      <desc>Sets the flex basis. Negative lengths are invalid.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all" />
         <value name="content" version="3.0" browsers="E,IE11" />
@@ -4716,7 +4716,7 @@
       </values>
     </entry>
     <entry name="flex-grow" restriction="number" version="3.0" browsers="E,C29,FF22,IE11,O12.1,S9" ref="http://www.w3.org/TR/css3-flexbox/#flex-grow" syntax="p { $(name): 4; }">
-      <desc>The 'flex-grow' property sets the flex grow factor. Negative numbers are invalid.</desc>
+      <desc>Sets the flex grow factor. Negative numbers are invalid.</desc>
     </entry>
     <entry name="flex-shrink" restriction="number" version="3.0" browsers="E,C29,FF22,IE11,O12.1,S9" ref="http://www.w3.org/TR/css3-flexbox/#flex-shrink" syntax="p { $(name): 4; }">
       <desc>The 'flex-shrink' property sets the flex shrink factor. Negative numbers are invalid.</desc>
@@ -5118,7 +5118,7 @@
       </values>
     </entry>
     <entry name="font-feature-settings" restriction="string, integer" version="3.0" browsers="E,FF34,IE10" ref="http://www.w3.org/TR/css3-fonts/#propdef-font-feature-settings" syntax="body { $(name): 'hwid'; }">
-      <desc>This property provides low-level control over OpenType font features. It is intended as a way of providing access to font features that are not widely used but are needed for a particular use case.</desc>
+      <desc>Provides low-level control over OpenType font features. It is intended as a way of providing access to font features that are not widely used but are needed for a particular use case.</desc>
       <values>
         <value name="&quot;c2cs&quot;" version="3.0" browsers="all" />
         <value name="&quot;dlig&quot;" version="3.0" browsers="all" />
@@ -5209,7 +5209,7 @@
       </values>
     </entry>
     <entry name="font-synthesis" restriction="enum" version="3.0" browsers="FF34,S9" ref="http://www.w3.org/TR/css3-fonts/#propdef-font-synthesis" syntax="html:lang(ar) { $(name): none; }">
-      <desc>This property controls whether user agents are allowed to synthesize bold or oblique font faces when a font family lacks bold or italic faces.</desc>
+      <desc>Controls whether user agents are allowed to synthesize bold or oblique font faces when a font family lacks bold or italic faces.</desc>
       <values>
         <value name="none" version="3.0" browsers="all">
           <desc>Disallow all synthetic faces.</desc>
@@ -6475,7 +6475,7 @@
       </values>
     </entry>
     <entry name="-moz-appearance" restriction="enum" version="3.0" browsers="FF1" ref="https://developer.mozilla.org/en/CSS/-moz-appearance" syntax=".example { $(name): toolbarbutton; }">
-      <desc>The -moz-appearance CSS property is used in Gecko (Firefox) to display an element using a platform-native styling based on the operating system's theme.</desc>
+      <desc>Used in Gecko (Firefox) to display an element using a platform-native styling based on the operating system's theme.</desc>
       <values>
         <value name="button" version="3.0" browsers="all" />
         <value name="button-arrow-down" version="3.0" browsers="all" />
@@ -6592,7 +6592,7 @@
       </values>
     </entry>
     <entry name="-moz-border-bottom-colors" restriction="color" version="3.0" browsers="FF1" ref="https://developer.mozilla.org/en/CSS/-moz-border-left-colors" syntax="td { $(name):  #00ff33 #33ff66 #66ff99; }">
-      <desc>In Mozilla applications like Firefox, -moz-border-bottom-colors sets a list of colors for the bottom border.</desc>
+      <desc>Sets a list of colors for the bottom border.</desc>
       <values>
         <value name="ActiveBorder" version="2.0" browsers="all">
           <desc>Active window border.</desc>
@@ -6868,7 +6868,7 @@
       </values>
     </entry>
     <entry name="-moz-border-left-colors" restriction="color" version="3.0" browsers="FF1" ref="https://developer.mozilla.org/en/CSS/-moz-border-left-colors" syntax="td { $(name):  #00ff33 #33ff66 #66ff99; }">
-      <desc>In Mozilla applications like Firefox, -moz-border-bottom-colors sets a list of colors for the bottom border.</desc>
+      <desc>Sets a list of colors for the bottom border.</desc>
       <values>
         <value name="ActiveBorder" version="2.0" browsers="all">
           <desc>Active window border.</desc>
@@ -7119,7 +7119,7 @@
       </values>
     </entry>
     <entry name="-moz-border-right-colors" restriction="color" version="3.0" browsers="FF1" ref="https://developer.mozilla.org/en/CSS/-moz-border-left-colors" syntax="td { $(name):  #00ff33 #33ff66 #66ff99; }">
-      <desc>In Mozilla applications like Firefox, -moz-border-bottom-colors sets a list of colors for the bottom border.</desc>
+      <desc>Sets a list of colors for the bottom border.</desc>
       <values>
         <value name="ActiveBorder" version="2.0" browsers="all">
           <desc>Active window border.</desc>
@@ -7370,7 +7370,7 @@
       </values>
     </entry>
     <entry name="-moz-border-top-colors" restriction="color" version="3.0" browsers="FF1" ref="https://developer.mozilla.org/en/CSS/-moz-border-left-colors" syntax="td { $(name):  #00ff33 #33ff66 #66ff99; }">
-      <desc>In Mozilla applications like Firefox, -moz-border-bottom-colors sets a list of colors for the bottom border.</desc>
+      <desc>Ske Firefox, -moz-border-bottom-colors sets a list of colors for the bottom border.</desc>
       <values>
         <value name="ActiveBorder" version="2.0" browsers="all">
           <desc>Active window border.</desc>
@@ -7621,7 +7621,7 @@
       </values>
     </entry>
     <entry name="-moz-box-align" restriction="enum" version="3.0" browsers="FF1" ref="https://developer.mozilla.org/en/CSS/-moz-box-align" syntax="div { $(name): end; }">
-      <desc>In Mozilla applications, -moz-box-align specifies how a XUL box aligns its contents across (perpendicular to) the direction of its layout. The effect of this is only visible if there is extra space in the box.</desc>
+      <desc>Specifies how a XUL box aligns its contents across (perpendicular to) the direction of its layout. The effect of this is only visible if there is extra space in the box.</desc>
       <values>
         <value name="baseline" version="3.0" browsers="all">
           <desc>If this box orientation is inline-axis or horizontal, all children are placed with their baselines aligned, and extra space placed before or after as necessary. For block flows, the baseline of the first non-empty line box located within the element is used. For tables, the baseline of the first cell is used.</desc>
@@ -7641,7 +7641,7 @@
       </values>
     </entry>
     <entry name="-moz-box-direction" restriction="enum" version="3.0" browsers="FF1" ref="https://developer.mozilla.org/en/CSS/-moz-box-direction" syntax="div { $(name): reverse; }">
-      <desc>In Mozilla applications, -moz-box-direction specifies whether a box lays out its contents normally (from the top or left edge), or in reverse (from the bottom or right edge).</desc>
+      <desc>Specifies whether a box lays out its contents normally (from the top or left edge), or in reverse (from the bottom or right edge).</desc>
       <values>
         <value name="normal" version="3.0" browsers="all">
           <desc>A box with a computed value of horizontal for box-orient displays its children from left to right. A box with a computed value of vertical displays its children from top to bottom.</desc>
@@ -7652,7 +7652,7 @@
       </values>
     </entry>
     <entry name="-moz-box-flex" restriction="number" version="3.0" browsers="FF1" ref="https://developer.mozilla.org/en/CSS/-moz-box-flex" syntax="div { $(name): 1; }">
-      <desc>In Mozilla applications, -moz-box-flex specifies how a box grows to fill the box that contains it, in the direction of the containing box's layout.</desc>
+      <desc>Specifies how a box grows to fill the box that contains it, in the direction of the containing box's layout.</desc>
     </entry>
     <entry name="-moz-box-flexgroup" restriction="integer" version="3.0" browsers="FF1" ref="https://developer.mozilla.org/en/CSS/-moz-box-flexgroup" syntax="div { $(name): 3; }">
       <desc>Flexible elements can be assigned to flex groups using the 'box-flex-group' property.</desc>
@@ -7678,7 +7678,7 @@
       </values>
     </entry>
     <entry name="-moz-box-pack" restriction="enum" version="3.0" browsers="FF1" ref="https://developer.mozilla.org/en/CSS/-moz-box-pack" syntax="div { $(name): end; }">
-      <desc>In Mozilla applications, -moz-box-pack specifies how a box packs its contents in the direction of its layout. The effect of this is only visible if there is extra space in the box.</desc>
+      <desc>Specifies how a box packs its contents in the direction of its layout. The effect of this is only visible if there is extra space in the box.</desc>
       <values>
         <value name="center" version="3.0" browsers="all">
           <desc>The extra space is divided evenly, with half placed before the first child and the other half placed after the last child.</desc>
@@ -7725,7 +7725,7 @@
       </values>
     </entry>
     <entry name="-moz-column-rule" restriction="length, color, enum" version="3.0" browsers="FF3.5" ref="http://www.w3.org/TR/css3-multicol/#column-rule0" syntax="header { $(name): 5px solid red;}">
-      <desc>This property is a shorthand for setting 'column-rule-width', 'column-rule-style', and 'column-rule-color' at the same place in the style sheet. Omitted values are set to their initial values.</desc>
+      <desc>Shorthand for setting 'column-rule-width', 'column-rule-style', and 'column-rule-color' at the same place in the style sheet. Omitted values are set to their initial values.</desc>
       <values>
         <value name="dashed" version="1.0" browsers="all">
           <desc>A series of square-ended dashes.</desc>
@@ -8073,7 +8073,7 @@
       </values>
     </entry>
     <entry name="-moz-font-feature-settings" restriction="string, integer" version="3.0" browsers="FF4" ref="http://www.w3.org/TR/css3-fonts/#propdef-font-feature-settings" syntax="body { $(name): 'hwid'; }">
-      <desc>This property provides low-level control over OpenType font features. It is intended as a way of providing access to font features that are not widely used but are needed for a particular use case.</desc>
+      <desc>Provides low-level control over OpenType font features. It is intended as a way of providing access to font features that are not widely used but are needed for a particular use case.</desc>
       <values>
         <value name="&quot;c2cs&quot;" version="3.0" browsers="all" />
         <value name="&quot;dlig&quot;" version="3.0" browsers="all" />
@@ -8092,7 +8092,7 @@
       </values>
     </entry>
     <entry name="-moz-hyphens" restriction="enum" version="3.0" browsers="FF9" ref="http://www.w3.org/TR/css3-text/#hyphens0" syntax="div { $(name): manual; }">
-      <desc>This property controls whether hyphenation is allowed to create more break opportunities within a line of text.</desc>
+      <desc>Controls whether hyphenation is allowed to create more break opportunities within a line of text.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all">
           <desc>Conditional hyphenation characters inside a word, if present, take priority over automatic resources when determining hyphenation points within the word.</desc>
@@ -8644,7 +8644,7 @@
       <desc>IE only. Used to extend behaviors of the browser</desc>
     </entry>
     <entry name="-ms-block-progression" restriction="enum" version="3.0" browsers="IE8" ref="http://www.w3.org/TR/2003/CR-css3-text-20030514/#Progression" syntax="div { $(name): bt; }">
-      <desc>The 'block-progression' property sets the block-progression value and the flow orientation</desc>
+      <desc>Sets the block-progression value and the flow orientation</desc>
       <values>
         <value name="bt" version="3.0" browsers="all">
           <desc>Bottom-to-top block flow. Layout is horizontal.</desc>
@@ -8713,7 +8713,7 @@
       </values>
     </entry>
     <entry name="-ms-flex-align" restriction="enum" version="3.0" browsers="IE10" ref="http://www.w3.org/TR/css3-flexbox/#flex-align0" syntax="div { $(name): center; }">
-      <desc>The 'flex-align' property changes the way free space is allocated in the length axis.</desc>
+      <desc>Changes the way free space is allocated in the length axis.</desc>
       <values>
         <value name="baseline" version="3.0" browsers="all">
           <desc>Align all flexbox items so that their baselines line up, then distribute free space above and below the content.</desc>
@@ -8760,7 +8760,7 @@
       </values>
     </entry>
     <entry name="-ms-flex-item-align" restriction="enum" version="3.0" browsers="IE10" ref="http://www.w3.org/TR/css3-flexbox/#flex-item-align" syntax="div { $(name): center; }">
-      <desc>The 'flex-align' property changes the way free space is allocated in the length axis.</desc>
+      <desc>Changes the way free space is allocated in the length axis.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all" />
         <value name="baseline" version="3.0" browsers="all">
@@ -8781,7 +8781,7 @@
       </values>
     </entry>
     <entry name="-ms-flex-line-pack" restriction="enum" version="3.0" browsers="IE10" ref="http://www.w3.org/TR/css3-flexbox/#flex-line-pack0" syntax="div { $(name): justify; }">
-      <desc>The 'flex-line-pack' property aligns a flexbox's lines within the flexbox when there is extra space in the cross axis, similar to how 'flex-pack' aligns individual items within the main axis.</desc>
+      <desc>Aligns a flexbox's lines within the flexbox when there is extra space in the cross axis, similar to how 'flex-pack' aligns individual items within the main axis.</desc>
       <values>
         <value name="center" version="3.0" browsers="all">
           <desc>The extra space is divided evenly, with half placed before the first child and the other half placed after the last child.</desc>
@@ -11554,7 +11554,7 @@
       </values>
     </entry>
     <entry name="-ms-writing-mode" restriction="enum" version="3.0" browsers="IE8" ref="http://www.w3.org/TR/2003/CR-css3-text-20030514/#writing-mode" syntax="span { $(name): lr-tb; }">
-      <desc>This is a shorthand property for both 'direction' and 'block-progression'.</desc>
+      <desc>Shorthand property for both 'direction' and 'block-progression'.</desc>
       <values>
         <value name="bt-lr" version="3.0" browsers="all" />
         <value name="bt-rl" version="3.0" browsers="all" />
@@ -11786,7 +11786,7 @@
       </values>
     </entry>
     <entry name="object-fit" restriction="enum" version="3.0" browsers="C32,FF36,O19,S7.1" ref="http://www.w3.org/TR/css4-images/#object-fit" syntax="p { $(name): cover; }">
-      <desc>The object-fit property specifies how the contents of a replaced element should be scaled relative to the box established by its used height and width.</desc>
+      <desc>Specifies how the contents of a replaced element should be scaled relative to the box established by its used height and width.</desc>
       <values>
         <value name="contain" version="3.0" browsers="all" />
         <value name="cover" version="3.0" browsers="all" />
@@ -11831,7 +11831,7 @@
       </values>
     </entry>
     <entry name="-o-object-fit" restriction="enum" version="3.0" browsers="O10.6" ref="http://www.w3.org/TR/css4-images/#object-fit" syntax="p { $(name): cover; }">
-      <desc>The object-fit property specifies how the contents of a replaced element should be scaled relative to the box established by its used height and width.</desc>
+      <desc>Specifies how the contents of a replaced element should be scaled relative to the box established by its used height and width.</desc>
       <values>
         <value name="contain" version="3.0" browsers="all" />
         <value name="cover" version="3.0" browsers="all" />
@@ -12407,7 +12407,7 @@
       </values>
     </entry>
     <entry name="overflow-wrap" restriction="enum" version="3.0" browsers="C23,O12.1,S6.1" ref="http://www.w3.org/TR/css3-text/#overflow-wrap0" syntax="div { $(name): break-word; }">
-      <desc>This property specifies whether the UA may break within a word to prevent overflow when an otherwise-unbreakable string is too long to fit within the line box.</desc>
+      <desc>Specifies whether the UA may break within a word to prevent overflow when an otherwise-unbreakable string is too long to fit within the line box.</desc>
       <values>
         <value name="break-word" version="3.0" browsers="all" />
         <value name="normal" version="3.0" browsers="all" />
@@ -12760,7 +12760,7 @@
       </values>
     </entry>
     <entry name="ruby-align" restriction="enum" version="3.0" browsers="FF10,IE5" ref="http://www.w3.org/TR/css3-ruby/#rubyalign" syntax="auto | start | left | center | end | right | distribute-letter | distribute-space | line-edge">
-      <desc>This property can be used on any element to control the text alignment of the ruby text and ruby base contents relative to each other.</desc>
+      <desc>Used on any element to control the text alignment of the ruby text and ruby base contents relative to each other.</desc>
       <values>
         <value name="auto" version="3.0" browsers="E,IE5">
           <desc>The user agent determines how the ruby contents are aligned. This is the initial value.</desc>
@@ -12808,7 +12808,7 @@
       </values>
     </entry>
     <entry name="ruby-position" restriction="enum" version="3.0" browsers="FF10,IE5" ref="http://www.w3.org/TR/css3-ruby/#ruby-position" syntax="before | after | right">
-      <desc>This property is used by the parent of elements with display: ruby-text to control the position of the ruby text with respect to its base.</desc>
+      <desc>Used by the parent of elements with display: ruby-text to control the position of the ruby text with respect to its base.</desc>
       <values>
         <value name="after" version="3.0" browsers="all">
           <desc>The ruby text appears after the base. This is a relatively rare setting used in ideographic East Asian writing systems, most easily found in educational text.</desc>
@@ -15036,7 +15036,7 @@
       </values>
     </entry>
     <entry name="stop-color" restriction="color" version="3.0" browsers="all" ref="http://www.w3.org/TR/SVG11/pservers.html#StopColorProperty">
-      <desc>The 'stop-color' property indicates what color to use at that gradient stop.</desc>
+      <desc>Indicates what color to use at that gradient stop.</desc>
       <values>
         <value name="ActiveBorder" version="2.0" browsers="all">
           <desc>Active window border.</desc>
@@ -16431,7 +16431,7 @@
       </values>
     </entry>
     <entry name="text-space-collapse" restriction="enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css3-text/#text-space-collapse" syntax="div { $(name): collapse; }">
-      <desc>This property declares whether and how white space inside the element is collapsed. Values have the following meanings, which must be interpreted according to the white space processing rules.</desc>
+      <desc>Declares whether and how white space inside the element is collapsed. Values have the following meanings, which must be interpreted according to the white space processing rules.</desc>
       <values>
         <value name="collapse" version="3.0" browsers="all" />
         <value name="discard" version="3.0" browsers="all" />

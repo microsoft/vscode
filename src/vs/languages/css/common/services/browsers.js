@@ -2520,7 +2520,7 @@ exports.data ={
 			},
 			{
 				"name": "column-rule",
-				"desc": "This property is a shorthand for setting 'column-rule-width', 'column-rule-style', and 'column-rule-color' at the same place in the style sheet. Omitted values are set to their initial values.",
+				"desc": "Shorthand for setting 'column-rule-width', 'column-rule-style', and 'column-rule-color' at the same place in the style sheet. Omitted values are set to their initial values.",
 				"browsers": "E,IE10,O11.5,S9",
 				"restriction": "length, color, enum",
 				"values": [
@@ -2662,7 +2662,7 @@ exports.data ={
 			},
 			{
 				"name": "column-width",
-				"desc": "This property describes the width of columns in multicol elements.",
+				"desc": "Describes the width of columns in multicol elements.",
 				"browsers": "E,IE10,O11.5,S9",
 				"restriction": "length, enum",
 				"values": []
@@ -2872,7 +2872,7 @@ exports.data ={
 			},
 			{
 				"name": "display",
-				"desc": "This property, in combination with 'float' and 'position', determines the type of box or boxes that are generated for an element.",
+				"desc": "In combination with 'float' and 'position', determines the type of box or boxes that are generated for an element.",
 				"restriction": "enum",
 				"values": [
 					{
@@ -3074,7 +3074,7 @@ exports.data ={
 			},
 			{
 				"name": "fill",
-				"desc": "The 'fill' property paints the interior of the given graphical element.",
+				"desc": "Paints the interior of the given graphical element.",
 				"restriction": "color, enum, url",
 				"values": [
 					{
@@ -3160,7 +3160,7 @@ exports.data ={
 			},
 			{
 				"name": "flex-basis",
-				"desc": "The 'flex-basis' property sets the flex basis. Negative lengths are invalid.",
+				"desc": "Sets the flex basis. Negative lengths are invalid.",
 				"browsers": "E,C29,FF22,IE11,O12.1,S9",
 				"restriction": "length, number, percentage",
 				"values": [
@@ -3226,7 +3226,7 @@ exports.data ={
 			},
 			{
 				"name": "flex-grow",
-				"desc": "The 'flex-grow' property sets the flex grow factor. Negative numbers are invalid.",
+				"desc": "Sets the flex grow factor. Negative numbers are invalid.",
 				"browsers": "E,C29,FF22,IE11,O12.1,S9",
 				"restriction": "number"
 			},
@@ -3448,7 +3448,7 @@ exports.data ={
 			},
 			{
 				"name": "font-feature-settings",
-				"desc": "This property provides low-level control over OpenType font features. It is intended as a way of providing access to font features that are not widely used but are needed for a particular use case.",
+				"desc": "Provides low-level control over OpenType font features. It is intended as a way of providing access to font features that are not widely used but are needed for a particular use case.",
 				"browsers": "E,FF34,IE10",
 				"restriction": "string, integer",
 				"values": [
@@ -3618,7 +3618,7 @@ exports.data ={
 			},
 			{
 				"name": "font-synthesis",
-				"desc": "This property controls whether user agents are allowed to synthesize bold or oblique font faces when a font family lacks bold or italic faces.",
+				"desc": "Controls whether user agents are allowed to synthesize bold or oblique font faces when a font family lacks bold or italic faces.",
 				"browsers": "FF34,S9",
 				"restriction": "enum",
 				"values": [
@@ -4665,7 +4665,7 @@ exports.data ={
 			},
 			{
 				"name": "-moz-appearance",
-				"desc": "The -moz-appearance CSS property is used in Gecko (Firefox) to display an element using a platform-native styling based on the operating system's theme.",
+				"desc": "Used in Gecko (Firefox) to display an element using a platform-native styling based on the operating system's theme.",
 				"browsers": "FF1",
 				"restriction": "enum",
 				"values": [
@@ -4951,7 +4951,7 @@ exports.data ={
 			},
 			{
 				"name": "-moz-border-bottom-colors",
-				"desc": "In Mozilla applications like Firefox, -moz-border-bottom-colors sets a list of colors for the bottom border.",
+				"desc": "Sets a list of colors for the bottom border.",
 				"browsers": "FF1",
 				"restriction": "color",
 				"values": []
@@ -4996,28 +4996,28 @@ exports.data ={
 			},
 			{
 				"name": "-moz-border-left-colors",
-				"desc": "In Mozilla applications like Firefox, -moz-border-bottom-colors sets a list of colors for the bottom border.",
+				"desc": "Sets a list of colors for the bottom border.",
 				"browsers": "FF1",
 				"restriction": "color",
 				"values": []
 			},
 			{
 				"name": "-moz-border-right-colors",
-				"desc": "In Mozilla applications like Firefox, -moz-border-bottom-colors sets a list of colors for the bottom border.",
+				"desc": "Sets a list of colors for the bottom border.",
 				"browsers": "FF1",
 				"restriction": "color",
 				"values": []
 			},
 			{
 				"name": "-moz-border-top-colors",
-				"desc": "In Mozilla applications like Firefox, -moz-border-bottom-colors sets a list of colors for the bottom border.",
+				"desc": "Ske Firefox, -moz-border-bottom-colors sets a list of colors for the bottom border.",
 				"browsers": "FF1",
 				"restriction": "color",
 				"values": []
 			},
 			{
 				"name": "-moz-box-align",
-				"desc": "In Mozilla applications, -moz-box-align specifies how a XUL box aligns its contents across (perpendicular to) the direction of its layout. The effect of this is only visible if there is extra space in the box.",
+				"desc": "Specifies how a XUL box aligns its contents across (perpendicular to) the direction of its layout. The effect of this is only visible if there is extra space in the box.",
 				"browsers": "FF1",
 				"restriction": "enum",
 				"values": [
@@ -5045,7 +5045,7 @@ exports.data ={
 			},
 			{
 				"name": "-moz-box-direction",
-				"desc": "In Mozilla applications, -moz-box-direction specifies whether a box lays out its contents normally (from the top or left edge), or in reverse (from the bottom or right edge).",
+				"desc": "Specifies whether a box lays out its contents normally (from the top or left edge), or in reverse (from the bottom or right edge).",
 				"browsers": "FF1",
 				"restriction": "enum",
 				"values": [
@@ -5061,7 +5061,7 @@ exports.data ={
 			},
 			{
 				"name": "-moz-box-flex",
-				"desc": "In Mozilla applications, -moz-box-flex specifies how a box grows to fill the box that contains it, in the direction of the containing box's layout.",
+				"desc": "Specifies how a box grows to fill the box that contains it, in the direction of the containing box's layout.",
 				"browsers": "FF1",
 				"restriction": "number"
 			},
@@ -5101,7 +5101,7 @@ exports.data ={
 			},
 			{
 				"name": "-moz-box-pack",
-				"desc": "In Mozilla applications, -moz-box-pack specifies how a box packs its contents in the direction of its layout. The effect of this is only visible if there is extra space in the box.",
+				"desc": "Specifies how a box packs its contents in the direction of its layout. The effect of this is only visible if there is extra space in the box.",
 				"browsers": "FF1",
 				"restriction": "enum",
 				"values": [
@@ -5155,7 +5155,7 @@ exports.data ={
 			},
 			{
 				"name": "-moz-column-rule",
-				"desc": "This property is a shorthand for setting 'column-rule-width', 'column-rule-style', and 'column-rule-color' at the same place in the style sheet. Omitted values are set to their initial values.",
+				"desc": "Shorthand for setting 'column-rule-width', 'column-rule-style', and 'column-rule-color' at the same place in the style sheet. Omitted values are set to their initial values.",
 				"browsers": "FF3.5",
 				"restriction": "length, color, enum",
 				"values": [
@@ -5288,7 +5288,7 @@ exports.data ={
 			},
 			{
 				"name": "-moz-font-feature-settings",
-				"desc": "This property provides low-level control over OpenType font features. It is intended as a way of providing access to font features that are not widely used but are needed for a particular use case.",
+				"desc": "Provides low-level control over OpenType font features. It is intended as a way of providing access to font features that are not widely used but are needed for a particular use case.",
 				"browsers": "FF4",
 				"restriction": "string, integer",
 				"values": [
@@ -5335,7 +5335,7 @@ exports.data ={
 			},
 			{
 				"name": "-moz-hyphens",
-				"desc": "This property controls whether hyphenation is allowed to create more break opportunities within a line of text.",
+				"desc": "Controls whether hyphenation is allowed to create more break opportunities within a line of text.",
 				"browsers": "FF9",
 				"restriction": "enum",
 				"values": [
@@ -5752,7 +5752,7 @@ exports.data ={
 			},
 			{
 				"name": "-ms-block-progression",
-				"desc": "The 'block-progression' property sets the block-progression value and the flow orientation",
+				"desc": "Sets the block-progression value and the flow orientation",
 				"browsers": "IE8",
 				"restriction": "enum",
 				"values": [
@@ -5889,7 +5889,7 @@ exports.data ={
 			},
 			{
 				"name": "-ms-flex-align",
-				"desc": "The 'flex-align' property changes the way free space is allocated in the length axis.",
+				"desc": "Changes the way free space is allocated in the length axis.",
 				"browsers": "IE10",
 				"restriction": "enum",
 				"values": [
@@ -5968,7 +5968,7 @@ exports.data ={
 			},
 			{
 				"name": "-ms-flex-item-align",
-				"desc": "The 'flex-align' property changes the way free space is allocated in the length axis.",
+				"desc": "Changes the way free space is allocated in the length axis.",
 				"browsers": "IE10",
 				"restriction": "enum",
 				"values": [
@@ -5999,7 +5999,7 @@ exports.data ={
 			},
 			{
 				"name": "-ms-flex-line-pack",
-				"desc": "The 'flex-line-pack' property aligns a flexbox's lines within the flexbox when there is extra space in the cross axis, similar to how 'flex-pack' aligns individual items within the main axis.",
+				"desc": "Aligns a flexbox's lines within the flexbox when there is extra space in the cross axis, similar to how 'flex-pack' aligns individual items within the main axis.",
 				"browsers": "IE10",
 				"restriction": "enum",
 				"values": [
@@ -7184,7 +7184,7 @@ exports.data ={
 			},
 			{
 				"name": "-ms-writing-mode",
-				"desc": "This is a shorthand property for both 'direction' and 'block-progression'.",
+				"desc": "Shorthand property for both 'direction' and 'block-progression'.",
 				"browsers": "IE8",
 				"restriction": "enum",
 				"values": [
@@ -7501,7 +7501,7 @@ exports.data ={
 			},
 			{
 				"name": "object-fit",
-				"desc": "The object-fit property specifies how the contents of a replaced element should be scaled relative to the box established by its used height and width.",
+				"desc": "Specifies how the contents of a replaced element should be scaled relative to the box established by its used height and width.",
 				"browsers": "C32,FF36,O19,S7.1",
 				"restriction": "enum",
 				"values": [
@@ -7585,7 +7585,7 @@ exports.data ={
 			},
 			{
 				"name": "-o-object-fit",
-				"desc": "The object-fit property specifies how the contents of a replaced element should be scaled relative to the box established by its used height and width.",
+				"desc": "Specifies how the contents of a replaced element should be scaled relative to the box established by its used height and width.",
 				"browsers": "O10.6",
 				"restriction": "enum",
 				"values": [
@@ -8040,7 +8040,7 @@ exports.data ={
 			},
 			{
 				"name": "overflow-wrap",
-				"desc": "This property specifies whether the UA may break within a word to prevent overflow when an otherwise-unbreakable string is too long to fit within the line box.",
+				"desc": "Specifies whether the UA may break within a word to prevent overflow when an otherwise-unbreakable string is too long to fit within the line box.",
 				"browsers": "C23,O12.1,S6.1",
 				"restriction": "enum",
 				"values": [
@@ -8348,7 +8348,7 @@ exports.data ={
 			},
 			{
 				"name": "ruby-align",
-				"desc": "This property can be used on any element to control the text alignment of the ruby text and ruby base contents relative to each other.",
+				"desc": "Used on any element to control the text alignment of the ruby text and ruby base contents relative to each other.",
 				"browsers": "FF10,IE5",
 				"restriction": "enum",
 				"values": [
@@ -8423,7 +8423,7 @@ exports.data ={
 			},
 			{
 				"name": "ruby-position",
-				"desc": "This property is used by the parent of elements with display: ruby-text to control the position of the ruby text with respect to its base.",
+				"desc": "Used by the parent of elements with display: ruby-text to control the position of the ruby text with respect to its base.",
 				"browsers": "FF10,IE5",
 				"restriction": "enum",
 				"values": [
@@ -8693,7 +8693,7 @@ exports.data ={
 			},
 			{
 				"name": "stop-color",
-				"desc": "The 'stop-color' property indicates what color to use at that gradient stop.",
+				"desc": "Indicates what color to use at that gradient stop.",
 				"restriction": "color",
 				"values": []
 			},
