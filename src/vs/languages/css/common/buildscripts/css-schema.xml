@@ -1319,7 +1319,7 @@
       </values>
     </entry>
     <entry name="border-bottom-color" restriction="color" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#border-color" syntax="td { $(name): blue; }">
-      <desc>The color of the border around all four edges of an element.</desc>
+      <desc>Sets the color of the bottom border.</desc>
       <values>
         <value name="ActiveBorder" version="2.0" browsers="all">
           <desc>Active window border.</desc>
@@ -1576,7 +1576,7 @@
       <desc>The two length or percentage values of the 'border-*-radius' properties define the radii of a quarter ellipse that defines the shape of the corner of the outer border edge. The first value is the horizontal radius, the second the vertical radius. If the second value is omitted it is copied from the first. If either length is zero, the corner is square, not rounded. Percentages for the horizontal radius refer to the width of the border box, whereas percentages for the vertical radius refer to the height of the border box.</desc>
     </entry>
     <entry name="border-bottom-style" restriction="enum" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#border-style" syntax="td { $(name): solid; }">
-      <desc>The style of the border around edges of an element.</desc>
+      <desc>Sets the style of the bottom border.</desc>
       <values>
         <value name="dashed" version="1.0" browsers="all">
           <desc>A series of square-ended dashes.</desc>
@@ -1611,7 +1611,7 @@
       </values>
     </entry>
     <entry name="border-bottom-width" restriction="length" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#border-width" syntax="td { $(name): 2px; }">
-      <desc>'Border-width' is a shorthand that sets the four 'border-*-width' properties. If it has four values, they set top, right, bottom and left in that order. If left is missing, it is the same as right; if bottom is missing, it is the same as top; if right is missing, it is the same as top.</desc>
+      <desc>>Sets the thickness of the bottom border.</desc>
       <values>
         <value name="medium" version="1.0" browsers="all" />
         <value name="thick" version="1.0" browsers="all" />
@@ -2001,7 +2001,7 @@
       </values>
     </entry>
     <entry name="border-left-color" restriction="color" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#border-color" syntax="td { $(name): blue; }">
-      <desc>The color of the border around all four edges of an element.</desc>
+      <desc>Sets the color of the left border.</desc>
       <values>
         <value name="ActiveBorder" version="2.0" browsers="all">
           <desc>Active window border.</desc>
@@ -2252,7 +2252,7 @@
       </values>
     </entry>
     <entry name="border-left-style" restriction="enum" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#border-style" syntax="td { $(name): solid; }">
-      <desc>The style of the border around edges of an element.</desc>
+      <desc>Sets the style of the left border.</desc>
       <values>
         <value name="dashed" version="1.0" browsers="all">
           <desc>A series of square-ended dashes.</desc>
@@ -2287,7 +2287,7 @@
       </values>
     </entry>
     <entry name="border-left-width" restriction="length" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#border-width" syntax="td { $(name): 2px; }">
-      <desc>'Border-width' is a shorthand that sets the four 'border-*-width' properties. If it has four values, they set top, right, bottom and left in that order. If left is missing, it is the same as right; if bottom is missing, it is the same as top; if right is missing, it is the same as top.</desc>
+      <desc>Sets the thickness of the left border.</desc>
       <values>
         <value name="medium" version="1.0" browsers="all" />
         <value name="thick" version="1.0" browsers="all" />
@@ -2336,7 +2336,7 @@
       </values>
     </entry>
     <entry name="border-right-color" restriction="color" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#border-color" syntax="td { $(name): blue; }">
-      <desc>The color of the border around all four edges of an element.</desc>
+      <desc>Sets the color of the right border.</desc>
       <values>
         <value name="ActiveBorder" version="2.0" browsers="all">
           <desc>Active window border.</desc>
@@ -2587,7 +2587,7 @@
       </values>
     </entry>
     <entry name="border-right-style" restriction="enum" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#border-style" syntax="td { $(name): solid; }">
-      <desc>The style of the border around edges of an element.</desc>
+      <desc>Sets the style of the right border.</desc>
       <values>
         <value name="dashed" version="1.0" browsers="all">
           <desc>A series of square-ended dashes.</desc>
@@ -2622,7 +2622,7 @@
       </values>
     </entry>
     <entry name="border-right-width" restriction="length" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#border-width" syntax="td { $(name): 2px; }">
-      <desc>'Border-width' is a shorthand that sets the four 'border-*-width' properties. If it has four values, they set top, right, bottom and left in that order. If left is missing, it is the same as right; if bottom is missing, it is the same as top; if right is missing, it is the same as top.</desc>
+      <desc>Sets the thickness of the right border.</desc>
       <values>
         <value name="medium" version="1.0" browsers="all" />
         <value name="thick" version="1.0" browsers="all" />
@@ -2706,7 +2706,7 @@
       </values>
     </entry>
     <entry name="border-top-color" restriction="color" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#border-color" syntax="td { $(name): blue; }">
-      <desc>The color of the border around all four edges of an element.</desc>
+      <desc>Sets the color of the top border.</desc>
       <values>
         <value name="ActiveBorder" version="2.0" browsers="all">
           <desc>Active window border.</desc>
@@ -2963,7 +2963,7 @@
       <desc>The two length or percentage values of the 'border-*-radius' properties define the radii of a quarter ellipse that defines the shape of the corner of the outer border edge. The first value is the horizontal radius, the second the vertical radius. If the second value is omitted it is copied from the first. If either length is zero, the corner is square, not rounded. Percentages for the horizontal radius refer to the width of the border box, whereas percentages for the vertical radius refer to the height of the border box.</desc>
     </entry>
     <entry name="border-top-style" restriction="enum" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#border-style" syntax="td { $(name): solid; }">
-      <desc>The style of the border around edges of an element.</desc>
+      <desc>Sets the style of the top border.</desc>
       <values>
         <value name="dashed" version="1.0" browsers="all">
           <desc>A series of square-ended dashes.</desc>
@@ -2998,7 +2998,7 @@
       </values>
     </entry>
     <entry name="border-top-width" restriction="length" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#border-width" syntax="td { $(name): 2px; }">
-      <desc>Shorthand that sets the four 'border-*-width' properties. If it has four values, they set top, right, bottom and left in that order. If left is missing, it is the same as right; if bottom is missing, it is the same as top; if right is missing, it is the same as top.</desc>
+      <desc>Sets the thickness of the top border.</desc>
       <values>
         <value name="medium" version="1.0" browsers="all" />
         <value name="thick" version="1.0" browsers="all" />

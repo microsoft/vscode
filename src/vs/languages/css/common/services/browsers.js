@@ -1620,7 +1620,7 @@ exports.data ={
 			},
 			{
 				"name": "border-bottom-color",
-				"desc": "The color of the border around all four edges of an element.",
+				"desc": "Sets the color of the bottom border.",
 				"restriction": "color",
 				"values": []
 			},
@@ -1638,7 +1638,7 @@ exports.data ={
 			},
 			{
 				"name": "border-bottom-style",
-				"desc": "The style of the border around edges of an element.",
+				"desc": "Sets the style of the bottom border.",
 				"restriction": "enum",
 				"values": [
 					{
@@ -1682,7 +1682,7 @@ exports.data ={
 			},
 			{
 				"name": "border-bottom-width",
-				"desc": "'Border-width' is a shorthand that sets the four 'border-*-width' properties. If it has four values, they set top, right, bottom and left in that order. If left is missing, it is the same as right; if bottom is missing, it is the same as top; if right is missing, it is the same as top.",
+				"desc": ">Sets the thickness of the bottom border.",
 				"restriction": "length",
 				"values": [
 					{
@@ -1864,13 +1864,13 @@ exports.data ={
 			},
 			{
 				"name": "border-left-color",
-				"desc": "The color of the border around all four edges of an element.",
+				"desc": "Sets the color of the left border.",
 				"restriction": "color",
 				"values": []
 			},
 			{
 				"name": "border-left-style",
-				"desc": "The style of the border around edges of an element.",
+				"desc": "Sets the style of the left border.",
 				"restriction": "enum",
 				"values": [
 					{
@@ -1914,7 +1914,7 @@ exports.data ={
 			},
 			{
 				"name": "border-left-width",
-				"desc": "'Border-width' is a shorthand that sets the four 'border-*-width' properties. If it has four values, they set top, right, bottom and left in that order. If left is missing, it is the same as right; if bottom is missing, it is the same as top; if right is missing, it is the same as top.",
+				"desc": "Sets the thickness of the left border.",
 				"restriction": "length",
 				"values": [
 					{
@@ -1985,13 +1985,13 @@ exports.data ={
 			},
 			{
 				"name": "border-right-color",
-				"desc": "The color of the border around all four edges of an element.",
+				"desc": "Sets the color of the right border.",
 				"restriction": "color",
 				"values": []
 			},
 			{
 				"name": "border-right-style",
-				"desc": "The style of the border around edges of an element.",
+				"desc": "Sets the style of the right border.",
 				"restriction": "enum",
 				"values": [
 					{
@@ -2035,7 +2035,7 @@ exports.data ={
 			},
 			{
 				"name": "border-right-width",
-				"desc": "'Border-width' is a shorthand that sets the four 'border-*-width' properties. If it has four values, they set top, right, bottom and left in that order. If left is missing, it is the same as right; if bottom is missing, it is the same as top; if right is missing, it is the same as top.",
+				"desc": "Sets the thickness of the right border.",
 				"restriction": "length",
 				"values": [
 					{
@@ -2150,7 +2150,7 @@ exports.data ={
 			},
 			{
 				"name": "border-top-color",
-				"desc": "The color of the border around all four edges of an element.",
+				"desc": "Sets the color of the top border.",
 				"restriction": "color",
 				"values": []
 			},
@@ -2168,7 +2168,7 @@ exports.data ={
 			},
 			{
 				"name": "border-top-style",
-				"desc": "The style of the border around edges of an element.",
+				"desc": "Sets the style of the top border.",
 				"restriction": "enum",
 				"values": [
 					{
@@ -2212,7 +2212,7 @@ exports.data ={
 			},
 			{
 				"name": "border-top-width",
-				"desc": "Shorthand that sets the four 'border-*-width' properties. If it has four values, they set top, right, bottom and left in that order. If left is missing, it is the same as right; if bottom is missing, it is the same as top; if right is missing, it is the same as top.",
+				"desc": "Sets the thickness of the top border.",
 				"restriction": "length",
 				"values": [
 					{
