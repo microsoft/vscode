@@ -88,10 +88,6 @@ export class MainProcessPluginService extends AbstractPluginService {
 		this._pluginsStatus = {};
 
 		PluginsRegistry.handleExtensionPoints((severity, source, message) => {
-			if (!this._pluginsStatus[source]) {
-				this._pluginsStatus[source] = { messages: [] };
-			}
-			this._pluginsStatus[source].messages.push({ type: severity, source, message });
 			this.showMessage(severity, source, message);
 		});
 	}
@@ -139,6 +135,14 @@ export class MainProcessPluginService extends AbstractPluginService {
 	protected _showMessage(severity:Severity, msg:string): void {
 		this._proxy.$doShowMessage(severity, msg);
 		this.$doShowMessage(severity, msg);
+	}
+
+	public showMessage(severity:Severity, source: string, message:string) {
+		super.showMessage(severity, source, message);
+		if (!this._pluginsStatus[source]) {
+			this._pluginsStatus[source] = { messages: [] };
+		}
+		this._pluginsStatus[source].messages.push({ type: severity, source, message });
 	}
 
 	public $doShowMessage(severity:Severity, msg:string): void {
