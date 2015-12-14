@@ -154,7 +154,7 @@ export class ResourceViewer {
 				.empty()
 				.style({ paddingLeft: '20px' }) // restore CSS value in case the user saw a PDF before where we remove padding
 				.span({
-					text: nls.localize('nativeBinaryError', "The file cannot be displayed in the editor because it is either binary, very large or uses an unsupported text encoding.")
+					text: nls.localize('nativeBinaryError', "The file cannot be displayed in the editor because it is either binary or uses an unsupported text encoding.")
 				});
 
 			if (scrollbar) {
