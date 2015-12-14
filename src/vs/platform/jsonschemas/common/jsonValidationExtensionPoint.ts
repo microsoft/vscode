@@ -8,6 +8,7 @@ import nls = require('vs/nls');
 import {IJSONSchema} from 'vs/base/common/jsonSchema';
 import {PluginsRegistry} from 'vs/platform/plugins/common/pluginsRegistry';
 import {Registry} from 'vs/platform/platform';
+import URI from 'vs/base/common/uri';
 import JSONContributionRegistry = require('vs/platform/jsonschemas/common/jsonContributionRegistry');
 import strings = require('vs/base/common/strings');
 import paths = require('vs/base/common/paths');
@@ -66,7 +67,11 @@ export class JSONValidationExtensionPoint {
 						return;
 					}
 					if (strings.startsWith(uri, './')) {
-						uri = paths.normalize(paths.join(extensionPath, uri));
+						try {
+							uri = URI.file(paths.normalize(paths.join(extensionPath, uri))).toString();
+						} catch (e) {
+							collector.error(nls.localize('invalid.url.fileschema', "'configuration.jsonValidation.url' is an invalid relative URL: " + e));
+						}
 					} else if (!strings.startsWith(uri, 'https:/') && strings.startsWith(uri, 'https:/')) {
 						collector.error(nls.localize('invalid.url.schema', "'configuration.jsonValidation.url' must start with 'http:', 'https:' or './' to reference schemas located in the extension"));
 						return;
