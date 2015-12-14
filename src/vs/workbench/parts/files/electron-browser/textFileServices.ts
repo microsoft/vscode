@@ -160,32 +160,34 @@ export class TextFileService extends BrowserTextFileService {
 			message.push('');
 		}
 
-		const dontSaveLabel = nls.localize('dontSave', "Don't Save");
-		const cancelLabel = nls.localize('cancel', "Cancel");
+		// Button order
+		// Windows: Save | Don't Save | Cancel
+		// Mac/Linux: Save | Cancel | Don't
+
+		const save = { label: resourcesToConfirm.length > 1 ? nls.localize('saveAll', "Save All") : nls.localize('save', "Save"), result: ConfirmResult.SAVE };
+		const dontSave = { label: nls.localize('dontSave', "Don't Save"), result: ConfirmResult.DONT_SAVE };
+		const cancel = { label: nls.localize('cancel', "Cancel"), result: ConfirmResult.CANCEL };
+
+		const buttons = [save];
+		if (isWindows) {
+			buttons.push(dontSave, cancel);
+		} else {
+			buttons.push(cancel, dontSave);
+		}
 
 		let opts: remote.IMessageBoxOptions = {
 			title: this.contextService.getConfiguration().env.appName,
 			message: message.join('\n'),
 			type: 'warning',
 			detail: nls.localize('saveChangesDetail', "Your changes will be lost if you don't save them."),
-			buttons: [
-				resourcesToConfirm.length > 1 ? nls.localize('saveAll', "Save All") : nls.localize('save', "Save"),
-				isWindows ? dontSaveLabel : cancelLabel,
-				isWindows ? cancelLabel : dontSaveLabel
-			],
+			buttons: buttons.map(b => b.label),
 			noLink: true,
-			cancelId: 1
+			cancelId: buttons.indexOf(cancel)
 		};
 
-		let res = Dialog.showMessageBox(remote.getCurrentWindow(), opts);
-		switch (res) {
-			case 0:
-				return ConfirmResult.SAVE;
-			case 1:
-				return ConfirmResult.CANCEL;
-		}
+		const choice = Dialog.showMessageBox(remote.getCurrentWindow(), opts);
 
-		return ConfirmResult.DONT_SAVE;
+		return buttons[choice].result;
 	}
 
 	public saveAll(includeUntitled?: boolean): TPromise<ITextFileOperationResult>;
