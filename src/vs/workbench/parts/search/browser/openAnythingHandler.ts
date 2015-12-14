@@ -266,7 +266,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 			}
 
 			// Check if this entry is a match for the search value
-			let targetToMatch = searchInPath ? labels.getPathLabel(entry.getResource(), this.contextService) : entry.getLabel();
+			let targetToMatch = searchInPath && entry.getResource() ? labels.getPathLabel(entry.getResource(), this.contextService) : entry.getLabel();
 			if (!filters.matchesFuzzy(searchValue, targetToMatch, this.fuzzyMatchingEnabled)) {
 				continue;
 			}

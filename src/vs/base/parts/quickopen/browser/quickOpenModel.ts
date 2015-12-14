@@ -170,8 +170,8 @@ export class QuickOpenEntry {
 			let resourceB = elementB.getResource();
 
 			if (resourceA && resourceB) {
-				nameA = elementA.getResource().fsPath;
-				nameB = elementB.getResource().fsPath;
+				nameA = resourceA.fsPath;
+				nameB = resourceB.fsPath;
 			}
 		}
 
