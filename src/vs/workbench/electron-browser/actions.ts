@@ -198,8 +198,8 @@ export class ZoomOutAction extends BaseZoomAction {
 	public run(): Promise {
 		return this.loadConfiguredZoomLevel().then(level => {
 			let newZoomLevelCandiate = webFrame.getZoomLevel() - 1;
-			if (newZoomLevelCandiate < level) {
-				newZoomLevelCandiate = level; // do not allow to zoom below the configured level
+			if (newZoomLevelCandiate < 0 && newZoomLevelCandiate < level) {
+				newZoomLevelCandiate = Math.min(level, 0); // do not zoom below configured level or below 0
 			}
 
 			webFrame.setZoomLevel(newZoomLevelCandiate);
