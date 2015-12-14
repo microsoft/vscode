@@ -37,7 +37,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 	private static SYMBOL_SEARCH_SUBSEQUENT_TIMEOUT = 100;
 	private static SEARCH_DELAY = 300; // This delay accommodates for the user typing a word and then stops typing to start searching
 
-	private static MAX_DISPLAYED_RESULTS = 2048;
+	private static MAX_DISPLAYED_RESULTS = 1024;
 
 	private openSymbolHandler: _OpenSymbolHandler;
 	private openFileHandler: OpenFileHandler;
@@ -288,7 +288,10 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 			}
 		});
 
-		return results;
+		// Cap the number of results to make the view snappy
+		const viewResults = results.length > OpenAnythingHandler.MAX_DISPLAYED_RESULTS ? results.slice(0, OpenAnythingHandler.MAX_DISPLAYED_RESULTS) : results;
+
+		return viewResults;
 	}
 
 	private sort(elementA: QuickOpenEntry, elementB: QuickOpenEntry, lookFor: string, enableFuzzyScoring): number {
