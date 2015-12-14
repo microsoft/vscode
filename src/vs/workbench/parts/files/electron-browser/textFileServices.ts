@@ -11,7 +11,7 @@ import {Registry} from 'vs/platform/platform';
 import {IEditorModesRegistry, Extensions as ModesExtensions} from 'vs/editor/common/modes/modesRegistry';
 import paths = require('vs/base/common/paths');
 import strings = require('vs/base/common/strings');
-import {isWindows} from 'vs/base/common/platform';
+import {isWindows, isMacintosh} from 'vs/base/common/platform';
 import URI from 'vs/base/common/uri';
 import {Action} from 'vs/base/common/actions';
 import {UntitledEditorModel} from 'vs/workbench/browser/parts/editor/untitledEditorModel';
@@ -162,17 +162,20 @@ export class TextFileService extends BrowserTextFileService {
 
 		// Button order
 		// Windows: Save | Don't Save | Cancel
-		// Mac/Linux: Save | Cancel | Don't
+		// Mac: Save | Cancel | Don't Save
+		// Linux: Don't Save | Cancel | Save
 
 		const save = { label: resourcesToConfirm.length > 1 ? nls.localize('saveAll', "Save All") : nls.localize('save', "Save"), result: ConfirmResult.SAVE };
 		const dontSave = { label: nls.localize('dontSave', "Don't Save"), result: ConfirmResult.DONT_SAVE };
 		const cancel = { label: nls.localize('cancel', "Cancel"), result: ConfirmResult.CANCEL };
 
-		const buttons = [save];
+		let buttons:{ label: string, result: ConfirmResult }[] = [];
 		if (isWindows) {
-			buttons.push(dontSave, cancel);
+			buttons = [save, dontSave, cancel];
+		} else if (isMacintosh) {
+			buttons = [save, cancel, dontSave];
 		} else {
-			buttons.push(cancel, dontSave);
+			buttons = [dontSave, cancel, save];
 		}
 
 		let opts: remote.IMessageBoxOptions = {
