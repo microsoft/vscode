@@ -266,7 +266,8 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 			}
 
 			// Check if this entry is a match for the search value
-			let targetToMatch = searchInPath && entry.getResource() ? labels.getPathLabel(entry.getResource(), this.contextService) : entry.getLabel();
+			const resource = entry.getResource(); // can be null for symbol results!
+			let targetToMatch = searchInPath && resource ? labels.getPathLabel(resource, this.contextService) : entry.getLabel();
 			if (!filters.matchesFuzzy(searchValue, targetToMatch, this.fuzzyMatchingEnabled)) {
 				continue;
 			}
@@ -311,10 +312,12 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 				return labelAScore > labelBScore ? -1 : 1;
 			}
 
-			// Score on full resource path comes next
-			if (elementA.getResource() && elementB.getResource()) {
-				const resourceAScore = scorer.score(elementA.getResource().fsPath, lookFor, this.scorerCache);
-				const resourceBScore = scorer.score(elementB.getResource().fsPath, lookFor, this.scorerCache);
+			// Score on full resource path comes next (can be null for symbols!)
+			let resourceA = elementA.getResource();
+			let resourceB = elementB.getResource();
+			if (resourceA && resourceB) {
+				const resourceAScore = scorer.score(resourceA.fsPath, lookFor, this.scorerCache);
+				const resourceBScore = scorer.score(resourceB.fsPath, lookFor, this.scorerCache);
 
 				// Useful for understanding the scoring
 				// elementA.setPrefix(elementA.getPrefix() + ' ' + resourceAScore + ': ');
