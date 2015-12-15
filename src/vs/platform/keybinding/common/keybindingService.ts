@@ -8,6 +8,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {TypeConstraint} from 'vs/base/common/types';
 import {createDecorator, IInstantiationService, ServiceIdentifier, ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
 import {Keybinding} from 'vs/base/common/keyCodes';
+import {IHTMLContentElement} from 'vs/base/common/htmlContent';
 
 export interface IUserFriendlyKeybinding {
 	key: string;
@@ -92,6 +93,7 @@ export interface IKeybindingService {
 	customKeybindingsCount(): number;
 
 	getLabelFor(keybinding:Keybinding): string;
+	getHTMLLabelFor(keybinding:Keybinding): IHTMLContentElement[];
 
 	executeCommand<T>(commandId: string, args?: any): TPromise<T>;
 	executeCommand(commandId: string, args?: any): TPromise<any>;

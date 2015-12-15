@@ -20,6 +20,7 @@ import {IJSONSchema} from 'vs/base/common/jsonSchema';
 import {KeyCode, Keybinding, IKeyBindingLabelProvider, MacUIKeyLabelProvider, ClassicUIKeyLabelProvider} from 'vs/base/common/keyCodes';
 import * as nativeKeymap from 'native-keymap';
 import Platform = require('vs/base/common/platform');
+import {IHTMLContentElement} from 'vs/base/common/htmlContent';
 
 interface ContributedKeyBinding {
 	command: string;
@@ -136,6 +137,11 @@ export default class PluginWorkbenchKeybindingService extends WorkbenchKeybindin
 	public getLabelFor(keybinding:Keybinding): string {
 		this._ensureNativeKeymap();
 		return keybinding.toCustomLabel(this._nativeLabelProvider);
+	}
+
+	public getHTMLLabelFor(keybinding:Keybinding): IHTMLContentElement[] {
+		this._ensureNativeKeymap();
+		return keybinding.toCustomHTMLLabel(this._nativeLabelProvider);
 	}
 
 	private _handleKeybindingsExtensionPointUser(isBuiltin: boolean, keybindings:ContributedKeyBinding | ContributedKeyBinding[], collector:IMessageCollector): boolean {

@@ -7,6 +7,7 @@
 
 import nls = require('vs/nls');
 import Platform = require('vs/base/common/platform');
+import {IHTMLContentElement} from 'vs/base/common/htmlContent';
 
 /**
  * Virtual Key Codes, the value does not hold any inherent meaning.
@@ -422,8 +423,22 @@ export class Keybinding {
 	/**
 	 * Format the binding to a format appropiate for rendering in the UI
 	 */
+	private static _toUSHTMLLabel(value:number): IHTMLContentElement[] {
+		return _asHTML(value, (Platform.isMacintosh ? MacUIKeyLabelProvider.INSTANCE : ClassicUIKeyLabelProvider.INSTANCE));
+	}
+
+	/**
+	 * Format the binding to a format appropiate for rendering in the UI
+	 */
 	private static _toCustomLabel(value:number, labelProvider:IKeyBindingLabelProvider): string {
 		return _asString(value, labelProvider);
+	}
+
+	/**
+	 * Format the binding to a format appropiate for rendering in the UI
+	 */
+	private static _toCustomHTMLLabel(value:number, labelProvider:IKeyBindingLabelProvider): IHTMLContentElement[] {
+		return _asHTML(value, labelProvider);
 	}
 
 	/**
@@ -490,8 +505,22 @@ export class Keybinding {
 	/**
 	 * Format the binding to a format appropiate for rendering in the UI
 	 */
+	public _toUSHTMLLabel(): IHTMLContentElement[] {
+		return Keybinding._toUSHTMLLabel(this.value);
+	}
+
+	/**
+	 * Format the binding to a format appropiate for rendering in the UI
+	 */
 	public toCustomLabel(labelProvider:IKeyBindingLabelProvider): string {
 		return Keybinding._toCustomLabel(this.value, labelProvider);
+	}
+
+	/**
+	 * Format the binding to a format appropiate for rendering in the UI
+	 */
+	public toCustomHTMLLabel(labelProvider:IKeyBindingLabelProvider): IHTMLContentElement[] {
+		return Keybinding._toCustomHTMLLabel(this.value, labelProvider);
 	}
 
 	/**
@@ -660,4 +689,74 @@ function _asString(keybinding:number, labelProvider:IKeyBindingLabelProvider): s
 	}
 
 	return actualResult;
+}
+
+function _pushKey(result:IHTMLContentElement[], str:string): void {
+	if (result.length > 0) {
+		result.push({
+			tagName: 'span',
+			text: '+'
+		});
+	}
+	result.push({
+		tagName: 'span',
+		className: 'monaco-kbkey',
+		text: str
+	});
+}
+
+function _asHTML(keybinding:number, labelProvider:IKeyBindingLabelProvider, isChord:boolean = false): IHTMLContentElement[] {
+	let result:IHTMLContentElement[] = [],
+		ctrlCmd = BinaryKeybindings.hasCtrlCmd(keybinding),
+		shift = BinaryKeybindings.hasShift(keybinding),
+		alt = BinaryKeybindings.hasAlt(keybinding),
+		winCtrl = BinaryKeybindings.hasWinCtrl(keybinding),
+		keyCode = BinaryKeybindings.extractKeyCode(keybinding);
+
+	// translate modifier keys: Ctrl-Shift-Alt-Meta
+	if ((ctrlCmd && !Platform.isMacintosh) || (winCtrl && Platform.isMacintosh)) {
+		_pushKey(result, labelProvider.ctrlKeyLabel);
+	}
+
+	if (shift) {
+		_pushKey(result, labelProvider.shiftKeyLabel);
+	}
+
+	if (alt) {
+		_pushKey(result, labelProvider.altKeyLabel);
+	}
+
+	if (ctrlCmd && Platform.isMacintosh) {
+		_pushKey(result, labelProvider.cmdKeyLabel);
+	}
+
+	if (winCtrl && !Platform.isMacintosh) {
+		_pushKey(result, labelProvider.windowsKeyLabel);
+	}
+
+	// the actual key
+	_pushKey(result, labelProvider.getLabelForKey(keyCode));
+
+	let chordTo: IHTMLContentElement[] = null;
+
+	if (BinaryKeybindings.hasChord(keybinding)) {
+		chordTo = _asHTML(BinaryKeybindings.extractChordPart(keybinding), labelProvider, true);
+		result.push({
+			tagName: 'span',
+			text: ' '
+		});
+		result = result.concat(chordTo);
+	}
+
+	if (isChord) {
+		return result;
+	}
+
+	return [{
+		tagName: 'span',
+		className: 'monaco-kb',
+		children: result
+	}]
+
+	return result;
 }

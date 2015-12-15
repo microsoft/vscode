@@ -20,10 +20,16 @@ import {EditorAction, Behaviour} from 'vs/editor/common/editorAction';
 import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
+import {RunOnceScheduler} from 'vs/base/common/async';
+import {IOSupport} from 'vs/platform/keybinding/common/commonKeybindingResolver';
+import {IHTMLContentElement} from 'vs/base/common/htmlContent';
 
 const NLS_LAUNCH_MESSAGE = nls.localize('defineKeybinding.start', "Define Keybinding");
 const NLS_DEFINE_MESSAGE = nls.localize('defineKeybinding.initial', "Press desired key combination and ENTER");
 const NLS_DEFINE_ACTION_LABEL = nls.localize('DefineKeybindingAction',"Define Keybinding");
+const NLS_KB_LAYOUT_INFO_MESSAGE = nls.localize('defineKeybinding.kbLayoutMessage', "For your current keyboard layout press ");
+
+const INTERESTING_FILE = /keybindings\.json$/;
 
 export class DefineKeybindingController implements EditorCommon.IEditorContribution {
 
@@ -34,15 +40,19 @@ export class DefineKeybindingController implements EditorCommon.IEditorContribut
 	}
 
 	private _editor: EditorBrowser.ICodeEditor;
+	private _keybindingService:IKeybindingService;
 	private _launchWidget: DefineKeybindingLauncherWidget;
 	private _defineWidget: DefineKeybindingWidget;
 	private _toDispose: IDisposable[];
+	private _modelToDispose: IDisposable[];
+	private _updateDecorations: RunOnceScheduler;
 
 	constructor(
 		editor:EditorBrowser.ICodeEditor,
 		@IKeybindingService keybindingService:IKeybindingService
 	) {
 		this._editor = editor;
+		this._keybindingService = keybindingService;
 		this._toDispose = [];
 		this._launchWidget = new DefineKeybindingLauncherWidget(this._editor, keybindingService, () => this.launch());
 		this._defineWidget = new DefineKeybindingWidget(this._editor, (keybinding) => this._onAccepted(keybinding));
@@ -53,7 +63,14 @@ export class DefineKeybindingController implements EditorCommon.IEditorContribut
 			} else {
 				this._launchWidget.hide();
 			}
+			this._onModel();
 		}));
+
+		this._updateDecorations = new RunOnceScheduler(() => this._updateDecorationsNow(), 500);
+		this._toDispose.push(this._updateDecorations);
+
+		this._modelToDispose = [];
+		this._onModel();
 	}
 
 	public getId(): string {
@@ -61,6 +78,7 @@ export class DefineKeybindingController implements EditorCommon.IEditorContribut
 	}
 
 	public dispose(): void {
+		this._modelToDispose = disposeAll(this._modelToDispose);
 		this._toDispose = disposeAll(this._toDispose);
 		this._launchWidget.dispose();
 		this._launchWidget = null;
@@ -84,6 +102,99 @@ export class DefineKeybindingController implements EditorCommon.IEditorContribut
 		].join('\n');
 
 		Snippet.get(this._editor).run(new Snippet.CodeSnippet(snippetText), 0, 0);
+	}
+
+	private _onModel(): void {
+		this._modelToDispose = disposeAll(this._modelToDispose);
+
+		let model = this._editor.getModel();
+		if (!model) {
+			return;
+		}
+
+		let url = model.getAssociatedResource().toString();
+		if (!INTERESTING_FILE.test(url)) {
+			return;
+		}
+
+		this._modelToDispose.push(model.addListener2(EditorCommon.EventType.ModelContentChanged2, (e) => this._updateDecorations.schedule()));
+		this._modelToDispose.push({
+			dispose: () => {
+				this._dec = this._editor.deltaDecorations(this._dec, []);
+				this._updateDecorations.cancel();
+			}
+		});
+		this._updateDecorations.schedule();
+	}
+
+	private static _cachedKeybindingRegex: string = null;
+	private static _getKeybindingRegex(): string {
+		if (!this._cachedKeybindingRegex) {
+			let numpadKey = "numpad(0|1|2|3|4|5|6|7|8|9|_multiply|_add|_subtract|_decimal|_divide)";
+			let punctKey = "`|\\-|=|\\[|\\]|\\\\\\\\|;|'|,|\\.|\\/";
+			let specialKey = "left|up|right|down|pageup|pagedown|end|home|tab|enter|escape|space|backspace|delete|pausebreak|capslock|insert";
+			let casualKey = "[a-z]|[0-9]|f(1|2|3|4|5|6|7|8|9|10|11|12|13|14|15)";
+			let key = '((' + [numpadKey, punctKey, specialKey, casualKey].join(')|(') + '))';
+			let mod = '((ctrl|shift|alt|cmd|win|meta)\\+)*';
+			let keybinding = '(' + mod + key + ')';
+
+			this._cachedKeybindingRegex = '"\\s*(' + keybinding + '(\\s+' + keybinding +')?' + ')\\s*"';
+		}
+		return this._cachedKeybindingRegex;
+	}
+
+	private _dec:string[] = [];
+	private _updateDecorationsNow(): void {
+		let model = this._editor.getModel();
+		let regex = DefineKeybindingController._getKeybindingRegex();
+
+		var m = model.findMatches(regex, false, true, false, false);
+
+		let data = m.map((range) => {
+			let text = model.getValueInRange(range);
+
+			let strKeybinding = text.substring(1, text.length - 1);
+			strKeybinding = strKeybinding.replace(/\\\\/g, '\\');
+
+			let numKeybinding = IOSupport.readKeybinding(strKeybinding);
+
+			let keybinding = new Keybinding(numKeybinding);
+
+			return {
+				strKeybinding: strKeybinding,
+				keybinding: keybinding,
+				usLabel: keybinding._toUSLabel(),
+				label: this._keybindingService.getLabelFor(keybinding),
+				range: range
+			};
+		});
+
+		data = data.filter((entry) => {
+			return (entry.usLabel !== entry.label);
+		});
+
+		this._dec = this._editor.deltaDecorations(this._dec, data.map((m) : EditorCommon.IModelDeltaDecoration => {
+			let label = m.label;
+			let msg:IHTMLContentElement[] = [{
+				tagName: 'span',
+				text: NLS_KB_LAYOUT_INFO_MESSAGE
+			}];
+			msg = msg.concat(this._keybindingService.getHTMLLabelFor(m.keybinding));
+			return {
+				range: m.range,
+				options: {
+					stickiness: EditorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+					className: 'keybindingInfo',
+					htmlMessage: msg,
+					inlineClassName: 'inlineKeybindingInfo',
+					overviewRuler: {
+						color: 'rgba(100, 100, 250, 0.6)',
+						darkColor: 'rgba(100, 100, 250, 0.6)',
+						position: EditorCommon.OverviewRulerLane.Right
+					}
+				}
+			}
+		}))
 	}
 }
 
@@ -277,7 +388,6 @@ export class DefineKeybindingAction extends EditorAction {
 
 }
 
-const INTERESTING_FILE = /keybindings\.json$/;
 function isInterestingEditorModel(editor:EditorCommon.ICommonCodeEditor): boolean {
 	if (editor.getConfiguration().readOnly) {
 		return false;

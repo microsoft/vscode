@@ -49,6 +49,7 @@ import {ITelemetryService, ITelemetryInfo} from 'vs/platform/telemetry/common/te
 import {IWorkspaceContextService, IWorkspace, IConfiguration} from 'vs/platform/workspace/common/workspace';
 import {IKeybindingService, IKeybindingContextKey, IKeybindingItem} from 'vs/platform/keybinding/common/keybindingService';
 import {Keybinding} from 'vs/base/common/keyCodes';
+import {IHTMLContentElement} from 'vs/base/common/htmlContent';
 
 export const TestWorkspace: IWorkspace = {
 	resource: URI.file('C:\\testWorkspace'),
@@ -166,6 +167,10 @@ export class TestKeybindingService implements IKeybindingService {
 
 	public getLabelFor(keybinding:Keybinding): string {
 		return keybinding._toUSLabel();
+	}
+
+	public getHTMLLabelFor(keybinding:Keybinding): IHTMLContentElement[] {
+		return keybinding._toUSHTMLLabel();
 	}
 
 	public createScoped(domNode: HTMLElement): IKeybindingService {

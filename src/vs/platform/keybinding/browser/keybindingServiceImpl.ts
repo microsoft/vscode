@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import 'vs/css!./keybindings';
+
 import Severity from 'vs/base/common/severity';
 import {TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
@@ -19,6 +21,7 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {IMessageService} from 'vs/platform/message/common/message';
 import {IResolveResult, CommonKeybindingResolver} from 'vs/platform/keybinding/common/commonKeybindingResolver';
 import {Keybinding, KeyCode} from 'vs/base/common/keyCodes';
+import {IHTMLContentElement} from 'vs/base/common/htmlContent';
 
 var KEYBINDING_CONTEXT_ATTR = 'data-keybinding-context';
 
@@ -82,7 +85,7 @@ class KeybindingContextKey<T> implements IKeybindingContextKey<T> {
 
 }
 
-export class AbstractKeybindingService {
+export abstract class AbstractKeybindingService {
 	public serviceId = IKeybindingService;
 	protected _myContextId: number;
 	protected _instantiationService: IInstantiationService;
@@ -118,37 +121,15 @@ export class AbstractKeybindingService {
 		this.getContext(this._myContextId).removeValue(key);
 	}
 
-	public getLabelFor(keybinding:Keybinding): string {
-		throw new Error('Not implemented');
-	}
-
-	public customKeybindingsCount(): number {
-		throw new Error('Not implemented');
-	}
-
-	public getContext(contextId: number): KeybindingContext {
-		throw new Error('Not implemented');
-	}
-
-	public createChildContext(parentContextId?: number): number {
-		throw new Error('Not implemented');
-	}
-
-	public disposeContext(contextId: number): void {
-		throw new Error('Not implemented');
-	}
-
-	public getDefaultKeybindings(): string {
-		throw new Error('Not implemented');
-	}
-
-	public lookupKeybindings(commandId: string): Keybinding[]{
-		throw new Error('Not implemented');
-	}
-
-	public executeCommand(commandId: string, args:any): TPromise<any> {
-		throw new Error('Not implemented');
-	}
+	public abstract getLabelFor(keybinding:Keybinding): string;
+	public abstract getHTMLLabelFor(keybinding:Keybinding): IHTMLContentElement[];
+	public abstract customKeybindingsCount(): number;
+	public abstract getContext(contextId: number): KeybindingContext;
+	public abstract createChildContext(parentContextId?: number): number;
+	public abstract disposeContext(contextId: number): void;
+	public abstract getDefaultKeybindings(): string;
+	public abstract lookupKeybindings(commandId: string): Keybinding[];
+	public abstract executeCommand(commandId: string, args:any): TPromise<any>;
 }
 
 export class KeybindingService extends AbstractKeybindingService implements IKeybindingService {
@@ -187,6 +168,10 @@ export class KeybindingService extends AbstractKeybindingService implements IKey
 
 	public getLabelFor(keybinding:Keybinding): string {
 		return keybinding._toUSLabel();
+	}
+
+	public getHTMLLabelFor(keybinding:Keybinding): IHTMLContentElement[] {
+		return keybinding._toUSHTMLLabel();
 	}
 
 	protected updateResolver(): void {
@@ -343,6 +328,10 @@ class ScopedKeybindingService extends AbstractKeybindingService {
 
 	public getLabelFor(keybinding:Keybinding): string {
 		return this._parent.getLabelFor(keybinding);
+	}
+
+	public getHTMLLabelFor(keybinding:Keybinding): IHTMLContentElement[] {
+		return this._parent.getHTMLLabelFor(keybinding);
 	}
 
 	public getDefaultKeybindings(): string {
