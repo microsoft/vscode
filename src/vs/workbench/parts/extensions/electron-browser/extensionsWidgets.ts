@@ -50,8 +50,10 @@ export class ExtensionsStatusbarItem implements statusbar.IStatusbarItem {
 		this.container = container;
 		if (this.messageCount > 0) {
 			this.domNode = dom.append(container, $('a.extensions-statusbar'));
-			this.domNode.title = nls.localize('extensions', "Extensions"),
-			this.domNode.textContent = `${ this.messageCount }`;
+			const issueLabel = this.messageCount > 1 ? nls.localize('issues', "issues") : nls.localize('issue', "issue");
+			const extensionLabel = nls.localize('extension', "extension")
+			this.domNode.title = `${ this.messageCount } ${ extensionLabel } ${ issueLabel }`;
+			this.domNode.textContent = `${ this.messageCount } ${ issueLabel }`;
 
 			this.toDispose.push(dom.addDisposableListener(this.domNode, 'click', () => {
 				Object.keys(this.status).forEach(key => {
