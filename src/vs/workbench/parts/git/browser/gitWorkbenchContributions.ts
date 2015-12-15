@@ -290,8 +290,14 @@ class DirtyDiffModelDecorator {
 		}
 		this.model = null;
 		this.decorations = null;
-		this.delayer.cancel();
-		this.diffDelayer.cancel();
+		if (this.delayer) {
+			this.delayer.cancel();
+			this.delayer = null;
+		}
+		if (this.diffDelayer) {
+			this.diffDelayer.cancel();
+			this.diffDelayer = null;
+		}
 	}
 }
 
@@ -326,6 +332,7 @@ export class DirtyDiffDecorator implements ext.IWorkbenchContribution {
 		this.decorators = Object.create(null);
 		this.toDispose = [];
 		this.toDispose.push(eventService.addListener2(workbenchEvents.EventType.EDITOR_INPUT_CHANGED, () => this.onEditorInputChange()));
+		this.toDispose.push(gitService.addListener2(git.ServiceEvents.DISPOSE, () => this.dispose()));
 	}
 
 	public getId(): string {
@@ -396,6 +403,7 @@ export class DirtyDiffDecorator implements ext.IWorkbenchContribution {
 	}
 
 	public dispose(): void {
+		this.toDispose = lifecycle.disposeAll(this.toDispose);
 		this.models.forEach(m => this.decorators[m.id].dispose());
 		this.models = null;
 		this.decorators = null;

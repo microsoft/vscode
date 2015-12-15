@@ -199,7 +199,8 @@ export var ServiceEvents = {
 	OPERATION_START: 'operationStart',
 	OPERATION_END: 'operationEnd',
 	OPERATION: 'operation',
-	ERROR: 'error'
+	ERROR: 'error',
+	DISPOSE: 'dispose'
 };
 
 // Service operations

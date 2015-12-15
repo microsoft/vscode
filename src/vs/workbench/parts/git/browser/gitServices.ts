@@ -765,6 +765,8 @@ export class GitService extends ee.EventEmitter
 	}
 
 	public dispose(): void {
+		this.emit(git.ServiceEvents.DISPOSE);
+
 		if (this.model) {
 			this.model.dispose();
 			this.model = null;
