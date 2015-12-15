@@ -231,9 +231,12 @@
 
 .monaco-shell .git-statusbar-group > a.octicon {
 	line-height: 22px;
-	font-size: 15px;
 	width: 16px;
 	text-align: center;
+}
+
+.monaco-shell .git-statusbar-group .octicon {
+	font-size: 14px;
 }
 
 .monaco-shell .git-statusbar-group > .git-statusbar-sync-item:not(.empty) > span.octicon {
