@@ -658,6 +658,12 @@ function _asString(keybinding:number, labelProvider:IKeyBindingLabelProvider): s
 		winCtrl = BinaryKeybindings.hasWinCtrl(keybinding),
 		keyCode = BinaryKeybindings.extractKeyCode(keybinding);
 
+	let keyLabel = labelProvider.getLabelForKey(keyCode);
+	if (!keyLabel) {
+		// cannot trigger this key code under this kb layout
+		return '';
+	}
+
 	// translate modifier keys: Ctrl-Shift-Alt-Meta
 	if ((ctrlCmd && !Platform.isMacintosh) || (winCtrl && Platform.isMacintosh)) {
 		result.push(labelProvider.ctrlKeyLabel);
@@ -680,7 +686,7 @@ function _asString(keybinding:number, labelProvider:IKeyBindingLabelProvider): s
 	}
 
 	// the actual key
-	result.push(labelProvider.getLabelForKey(keyCode));
+	result.push(keyLabel);
 
 	var actualResult = result.join(labelProvider.modifierSeparator);
 
@@ -713,6 +719,12 @@ function _asHTML(keybinding:number, labelProvider:IKeyBindingLabelProvider, isCh
 		winCtrl = BinaryKeybindings.hasWinCtrl(keybinding),
 		keyCode = BinaryKeybindings.extractKeyCode(keybinding);
 
+	let keyLabel = labelProvider.getLabelForKey(keyCode);
+	if (!keyLabel) {
+		// cannot trigger this key code under this kb layout
+		return [];
+	}
+
 	// translate modifier keys: Ctrl-Shift-Alt-Meta
 	if ((ctrlCmd && !Platform.isMacintosh) || (winCtrl && Platform.isMacintosh)) {
 		_pushKey(result, labelProvider.ctrlKeyLabel);
@@ -735,7 +747,7 @@ function _asHTML(keybinding:number, labelProvider:IKeyBindingLabelProvider, isCh
 	}
 
 	// the actual key
-	_pushKey(result, labelProvider.getLabelForKey(keyCode));
+	_pushKey(result, keyLabel);
 
 	let chordTo: IHTMLContentElement[] = null;
 

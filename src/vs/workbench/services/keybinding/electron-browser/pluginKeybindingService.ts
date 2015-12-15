@@ -225,18 +225,18 @@ export default class PluginWorkbenchKeybindingService extends WorkbenchKeybindin
 
 		// See https://msdn.microsoft.com/en-us/library/windows/desktop/dd375731(v=vs.85).aspx
 		// See https://github.com/alexandrudima/vscode-keyboard/blob/master/deps/chromium/keyboard_codes_win.h
-		let interesting = {
-			VKEY_OEM_1: KeyCode.US_SEMICOLON, // (0xBA) as ;
-			VKEY_OEM_PLUS: KeyCode.US_EQUAL, //  (0xBB) as =
-			VKEY_OEM_COMMA: KeyCode.US_COMMA, //  (0xBC) as ,
-			VKEY_OEM_MINUS: KeyCode.US_MINUS, //  (0xBD) as -
-			VKEY_OEM_PERIOD: KeyCode.US_DOT, //  (0xBE) as .
-			VKEY_OEM_2: KeyCode.US_SLASH, //  (0xBF) as /
-			VKEY_OEM_3: KeyCode.US_BACKTICK, //  (0xC0) as `
-			VKEY_OEM_4: KeyCode.US_OPEN_SQUARE_BRACKET, //  (0xDB) as [
-			VKEY_OEM_5: KeyCode.US_BACKSLASH, //  (0xDC) as \
-			VKEY_OEM_6: KeyCode.US_CLOSE_SQUARE_BRACKET, //  (0xDD) as ]
-			VKEY_OEM_7: KeyCode.US_QUOTE, //  (0xDE) as '
+		let interestingKeyCodes:{[vkeyCode:string]:KeyCode;} = {
+			VKEY_OEM_1:			KeyCode.US_SEMICOLON,				//  (0xBA) as ;
+			VKEY_OEM_PLUS:		KeyCode.US_EQUAL,					//  (0xBB) as =
+			VKEY_OEM_COMMA:		KeyCode.US_COMMA,					//  (0xBC) as ,
+			VKEY_OEM_MINUS:		KeyCode.US_MINUS,					//  (0xBD) as -
+			VKEY_OEM_PERIOD:	KeyCode.US_DOT,						//  (0xBE) as .
+			VKEY_OEM_2:			KeyCode.US_SLASH,					//  (0xBF) as /
+			VKEY_OEM_3:			KeyCode.US_BACKTICK,				//  (0xC0) as `
+			VKEY_OEM_4:			KeyCode.US_OPEN_SQUARE_BRACKET,		//  (0xDB) as [
+			VKEY_OEM_5:			KeyCode.US_BACKSLASH,				//  (0xDC) as \
+			VKEY_OEM_6:			KeyCode.US_CLOSE_SQUARE_BRACKET,	//  (0xDD) as ]
+			VKEY_OEM_7:			KeyCode.US_QUOTE,					//  (0xDE) as '
 		};
 
 		let remaps:string[] = [];
@@ -245,15 +245,26 @@ export default class PluginWorkbenchKeybindingService extends WorkbenchKeybindin
 		}
 
 		let nativeMappings = nativeKeymap.getKeyMap();
+		let hadRemap = false;
 		for (let i = 0, len = nativeMappings.length; i < len; i++) {
 			let nativeMapping = nativeMappings[i];
 
-			if (interesting[nativeMapping.key_code]) {
+			if (interestingKeyCodes[nativeMapping.key_code]) {
 				let newValue = nativeMapping.value || nativeMapping.withShift;
 				if (newValue.length > 0) {
-					remaps[interesting[nativeMapping.key_code]] = newValue;
+					hadRemap = true;
+					remaps[interestingKeyCodes[nativeMapping.key_code]] = newValue;
 				} else {
-					// console.warn('invalid remap for ', nativeMapping);
+					console.warn('invalid remap for ', nativeMapping);
+				}
+			}
+		}
+
+		if (hadRemap) {
+			for (let interestingKeyCode in interestingKeyCodes) {
+				if (interestingKeyCodes.hasOwnProperty(interestingKeyCode)) {
+					let keyCode = interestingKeyCodes[interestingKeyCode];
+					remaps[keyCode] = remaps[keyCode] || '';
 				}
 			}
 		}
@@ -272,7 +283,7 @@ class NativeMacUIKeyLabelProvider extends MacUIKeyLabelProvider {
 	}
 
 	public getLabelForKey(keyCode:KeyCode): string {
-		if (this.remaps[keyCode]) {
+		if (this.remaps[keyCode] !== null) {
 			return this.remaps[keyCode];
 		}
 		return super.getLabelForKey(keyCode);
@@ -285,7 +296,7 @@ class NativeClassicUIKeyLabelProvider extends ClassicUIKeyLabelProvider {
 	}
 
 	public getLabelForKey(keyCode:KeyCode): string {
-		if (this.remaps[keyCode]) {
+		if (this.remaps[keyCode] !== null) {
 			return this.remaps[keyCode];
 		}
 		return super.getLabelForKey(keyCode);
