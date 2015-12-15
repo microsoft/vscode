@@ -699,7 +699,7 @@ class TaskService extends EventEmitter implements ITaskService {
 
 	public beforeShutdown(): boolean | TPromise<boolean> {
 		if (this._taskSystem && this._taskSystem.isActiveSync()) {
-			if (this.messageService.confirm({
+			if (this._taskSystem.canAutoTerminate() || this.messageService.confirm({
 				message: nls.localize('TaskSystem.runningTask', 'There is a task running. Do you want to terminate it?'),
 				primaryButton: nls.localize('TaskSystem.terminateTask', "Terminate Task")
 			})) {
@@ -1059,6 +1059,11 @@ if (Env.enableTasks) {
 							'type': 'boolean',
 							'description': nls.localize('JsonSchema.watching', 'Whether the executed task is kept alive and is watching the file system.'),
 							'default': true
+						},
+						'promptOnClose': {
+							'type': 'boolean',
+							'description': nls.localize('JsonSchema.promptOnClose', 'Whether the user is prompted when VS Code closes with a running background task.'),
+							'default': false
 						},
 						'echoCommand': {
 							'type': 'boolean',

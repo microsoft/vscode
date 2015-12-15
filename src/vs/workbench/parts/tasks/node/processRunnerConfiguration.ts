@@ -58,6 +58,11 @@ export interface TaskDescription {
 	isWatching?:boolean;
 
 	/**
+	 * Whether the task should prompt on close for confirmation if running.
+	 */
+	promptOnClose?: boolean;
+
+	/**
 	 * Whether this task maps to the default build command.
 	 */
 	isBuildCommand?:boolean;
@@ -162,6 +167,11 @@ export interface BaseTaskRunnerConfiguration extends TaskSystem.TaskConfiguratio
 	 * but not both.
 	 */
 	isWatching?: boolean;
+
+	/**
+	 * Whether the task should prompt on close for confirmation if running.
+	 */
+	promptOnClose?: boolean;
 
 	/**
 	 * The configuration of the available tasks. A tasks.json file can either
@@ -432,12 +442,19 @@ class ConfigurationParser {
 			if (!Types.isUndefined(fileConfig.isWatching)) {
 				isWatching = !!fileConfig.isWatching;
 			}
+			let promptOnClose: boolean = true;
+			if (!Types.isUndefined(fileConfig.promptOnClose)) {
+				promptOnClose = !!fileConfig.promptOnClose;
+			} else {
+				promptOnClose = !isWatching;
+			}
 			let task: TaskSystem.TaskDescription = {
 				id: UUID.generateUuid(),
 				name: globals.command,
 				showOutput: globals.showOutput,
 				suppressTaskName: true,
 				isWatching: isWatching,
+				promptOnClose: promptOnClose,
 				echoCommand: globals.echoCommand,
 			};
 			if (hasGlobalMatcher) {
@@ -527,6 +544,12 @@ class ConfigurationParser {
 			task.isWatching = false;
 			if (!Types.isUndefined(externalTask.isWatching)) {
 				task.isWatching = !!externalTask.isWatching;
+			}
+			task.promptOnClose = true;
+			if (!Types.isUndefined(externalTask.promptOnClose)) {
+				task.promptOnClose = !!externalTask.promptOnClose;
+			} else {
+				task.promptOnClose = !task.isWatching;
 			}
 			if (Types.isString(externalTask.showOutput)) {
 				task.showOutput = TaskSystem.ShowOutput.fromString(externalTask.showOutput);
