@@ -217,7 +217,7 @@ function packageTask(platform, arch, opts) {
 		var result = all
 			.pipe(util.fixWin32DirectoryPermissions())
 			.pipe(electron(_.extend({}, config, { platform: platform, arch: arch })))
-			.pipe(filter(['**', '!LICENSE', '!version']));
+			.pipe(filter(['**', '!LICENSE', '!LICENSES.chromium.html', '!version']));
 
 		if (platform === 'win32') {
 			result = es.merge(result, gulp.src('resources/win32/bin/**', { base: 'resources/win32' }));
