@@ -6,6 +6,7 @@
 import nls = require('vs/nls');
 import strings = require('vs/base/common/strings');
 import { assign } from 'vs/base/common/objects';
+import { Delayer } from 'vs/base/common/async';
 import { emmet as $, append, show, hide, addClass, toggleClass } from 'vs/base/browser/dom';
 import { IDisposable, combinedDispose } from 'vs/base/common/lifecycle';
 import { IGitService, ServiceState, IBranch, ServiceOperations, IRemote } from 'vs/workbench/parts/git/common/git';
@@ -25,6 +26,8 @@ interface IState {
 	ps1: string;
 }
 
+const DisablementDelay = 500;
+
 export class GitStatusbarItem implements IStatusbarItem {
 
 	private instantiationService: IInstantiationService;
@@ -36,6 +39,7 @@ export class GitStatusbarItem implements IStatusbarItem {
 	private publishElement: HTMLElement;
 	private syncElement: HTMLElement;
 	private syncLabelElement: HTMLElement;
+	private disablementDelayer: Delayer<void>;
 
 	private syncAction: SyncAction;
 	private publishAction: PublishAction;
@@ -51,6 +55,7 @@ export class GitStatusbarItem implements IStatusbarItem {
 		this.instantiationService = instantiationService;
 		this.gitService = gitService;
 		this.quickOpenService = quickOpenService;
+		this.disablementDelayer = new Delayer<void>(DisablementDelay);
 
 		this.syncAction = instantiationService.createInstance(SyncAction, SyncAction.ID, SyncAction.LABEL);
 		this.publishAction = instantiationService.createInstance(PublishAction, PublishAction.ID, PublishAction.LABEL);
@@ -156,20 +161,25 @@ export class GitStatusbarItem implements IStatusbarItem {
 
 			if (state.HEAD && !!state.HEAD.upstream) {
 				show(this.syncElement);
+				toggleClass(this.syncElement, 'syncing', this.state.isSyncing);
+				toggleClass(this.syncElement, 'empty', !aheadBehindLabel);
+				this.disablementDelayer.trigger(
+					() => toggleClass(this.syncElement, 'disabled', !this.syncAction.enabled),
+					this.syncAction.enabled ? 0 : DisablementDelay
+				);
 				hide(this.publishElement);
 			} else if (state.remotes.length > 0) {
 				hide(this.syncElement);
 				show(this.publishElement);
+				this.disablementDelayer.trigger(
+					() => toggleClass(this.publishElement, 'disabled', !this.publishAction.enabled),
+					this.publishAction.enabled ? 0 : DisablementDelay
+				);
 			} else {
 				hide(this.syncElement);
 				hide(this.publishElement);
 			}
 		}
-
-		toggleClass(this.syncElement, 'syncing', this.state.isSyncing);
-		toggleClass(this.syncElement, 'empty', !aheadBehindLabel);
-		toggleClass(this.syncElement, 'disabled', !this.syncAction.enabled);
-		toggleClass(this.publishElement, 'disabled', !this.publishAction.enabled);
 	}
 
 	private onBranchClick(): void {
