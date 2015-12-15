@@ -455,7 +455,7 @@
 .monaco-editor.vs-dark .token.constant.entity					{ color: #CE9178; }
 .monaco-editor.vs-dark .token.constant.numeric					{ color: #B5CEA8; }
 .monaco-editor.vs-dark .token.constant.numeric.hex				{ color: #5BB498; }
-.monaco-editor.vs-dark .token.constant.numeric.octal			{ color: #204070; }
+.monaco-editor.vs-dark .token.constant.numeric.octal			{ color: #5BB498; }
 .monaco-editor.vs-dark .token.constant.numeric.binary			{ color: #e07070; }
 .monaco-editor.vs-dark .token.constant.regexp					{ color: #646695; }
 .monaco-editor.vs-dark .token.constant.rgb-value				{ color: #D4D4D4; }
@@ -473,8 +473,8 @@
 .monaco-editor.vs-dark .token.entity							{ color: #9CDCFE; }
 .monaco-editor.vs-dark .token.entity.name						{ color: #569CD6; }
 .monaco-editor.vs-dark .token.entity.name.tag					{ color: #569CD6; }
-.monaco-editor.vs-dark .token.entity.name.function				{ color: #DCDCAA; }
-.monaco-editor.vs-dark .token.entity.name.class					{ color: #4EC9B0; }
+.monaco-editor.vs-dark .token.entity.name.function				{ color: #D4D4D4; }
+.monaco-editor.vs-dark .token.entity.name.class					{ color: #D4D4D4; }
 .monaco-editor.vs-dark .token.entity.name.selector				{ color: #D7BA7D; }
 
 .monaco-editor.vs-dark .token.entity.other.selector				{ color: #D7BA7D; }
@@ -512,8 +512,8 @@
 .monaco-editor.vs-dark .token.meta.preprocessor.string			{ color: #CE9178; }
 .monaco-editor.vs-dark .token.meta.preprocessor.numeric			{ color: #B5CEA8; }
 .monaco-editor.vs-dark .token.meta.cast							{ color: #569CD6; }
-.monaco-editor.vs-dark .token.meta.parameter.type				{ color: #569CD6; }
-.monaco-editor.vs-dark .token.meta.parameter.type.variable		{ color: #9CDCFE; }
+.monaco-editor.vs-dark .token.meta.parameter.type				{ color: #D4D4D4; }
+.monaco-editor.vs-dark .token.meta.parameter.type.variable		{ color: #D4D4D4; }
 .monaco-editor.vs-dark .token.meta.dictionary.key				{ color: #569CD6; }
 
 .monaco-editor.vs-dark .token.storage							{ color: #569CD6; }
@@ -523,9 +523,9 @@
 .monaco-editor.vs-dark .token.annotation.storage.type,
 .monaco-editor.vs-dark .token.heritage.storage.type,
 .monaco-editor.vs-dark .token.cast.storage.type,
-.monaco-editor.vs-dark .token.new.storage.type					{ color: #4EC9B0; }
+.monaco-editor.vs-dark .token.new.storage.type					{ color: #D4D4D4; }
 .monaco-editor.vs-dark .token.var.storage.type					{ color: #569CD6; }
-.monaco-editor.vs-dark .token.var.annotation.storage.type		{ color: #4EC9B0; }
+.monaco-editor.vs-dark .token.var.annotation.storage.type		{ color: #D4D4D4; }
 
 .monaco-editor.vs-dark .token.string							{ color: #CE9178; }
 .monaco-editor.vs-dark .token.string.tag			    		{ color: #CE9178; }
@@ -552,9 +552,9 @@
 .monaco-editor.vs-dark .token.support.variable
 .monaco-editor.vs-dark .token.support.other*/
 
-.monaco-editor.vs-dark .token.variable.parameter				{ color: #9CDCFE; }
+.monaco-editor.vs-dark .token.variable.parameter				{ color: #D4D4D4; }
 /*.monaco-editor.vs-dark .token.variable*/
-.monaco-editor.vs-dark .token.variable.language					{ color: #4864AA; }
+.monaco-editor.vs-dark .token.variable.language					{ color: #569CD6; }
 /*.monaco-editor.vs-dark .token.variable.other*/
 
 /* Keywords should come at the end in order to match cases like token.keyword.string */
@@ -592,7 +592,7 @@
 .monaco-editor.hc-black .token.constant.entity					{ color: #CE9178; }
 .monaco-editor.hc-black .token.constant.numeric					{ color: #B5CEA8; }
 .monaco-editor.hc-black .token.constant.numeric.hex				{ color: #5BB498; }
-.monaco-editor.hc-black .token.constant.numeric.octal			{ color: #204070; }
+.monaco-editor.hc-black .token.constant.numeric.octal			{ color: #5BB498; }
 .monaco-editor.hc-black .token.constant.numeric.binary			{ color: #e07070; }
 .monaco-editor.hc-black .token.constant.regexp					{ color: #B46695; }
 .monaco-editor.hc-black .token.constant.rgb-value				{ color: #D4D4D4; }
@@ -610,8 +610,8 @@
 .monaco-editor.hc-black .token.entity							{ color: #9CDCFE; }
 .monaco-editor.hc-black .token.entity.name						{ color: #569CD6; }
 .monaco-editor.hc-black .token.entity.name.tag					{ color: #569CD6; }
-.monaco-editor.hc-black .token.entity.name.function				{ color: #DCDCAA; }
-.monaco-editor.hc-black .token.entity.name.class				{ color: #4EC9B0; }
+.monaco-editor.hc-black .token.entity.name.function				{ color: #D4D4D4; }
+.monaco-editor.hc-black .token.entity.name.class				{ color: #D4D4D4; }
 .monaco-editor.hc-black .token.entity.name.selector				{ color: #D7BA7D; }
 .monaco-editor.hc-black .token.entity.other.selector			{ color: #D7BA7D; }
 .monaco-editor.hc-black .token.entity.other.attribute-name		{ color: #9CDCFE; }
@@ -648,8 +648,8 @@
 .monaco-editor.hc-black .token.meta.preprocessor.string			{ color: #CE9178; }
 .monaco-editor.hc-black .token.meta.preprocessor.numeric		{ color: #B5CEA8; }
 .monaco-editor.hc-black .token.meta.cast						{ color: #569CD6; }
-.monaco-editor.hc-black .token.meta.parameter.type				{ color: #569CD6; }
-.monaco-editor.hc-black .token.meta.parameter.type.variable		{ color: #9CDCFE; }
+.monaco-editor.hc-black .token.meta.parameter.type				{ color: #D4D4D4; }
+.monaco-editor.hc-black .token.meta.parameter.type.variable		{ color: #D4D4D4; }
 .monaco-editor.hc-black .token.meta.dictionary.key				{ color: #569CD6; }
 
 .monaco-editor.hc-black .token.storage							{ color: #569CD6; }
@@ -659,9 +659,9 @@
 .monaco-editor.hc-black .token.annotation.storage.type,
 .monaco-editor.hc-black .token.heritage.storage.type,
 .monaco-editor.hc-black .token.cast.storage.type,
-.monaco-editor.hc-black .token.new.storage.type					{ color: #4EC9B0; }
+.monaco-editor.hc-black .token.new.storage.type					{ color: #D4D4D4; }
 .monaco-editor.hc-black .token.var.storage.type					{ color: #569CD6; }
-.monaco-editor.hc-black .token.var.annotation.storage.type		{ color: #4EC9B0; }
+.monaco-editor.hc-black .token.var.annotation.storage.type		{ color: #D4D4D4; }
 
 .monaco-editor.hc-black .token.string							{ color: #CE9178; }
 .monaco-editor.hc-black .token.string.tag						{ color: #CE9178; }
@@ -680,7 +680,7 @@
 .monaco-editor.hc-black .token.support							{ color: #569CD6; }
 .monaco-editor.hc-black .token.support.function					{ color: #D4D4D4; }
 .monaco-editor.hc-black .token.support.method					{ color: #D4D4D4; }
-.monaco-editor.hc-black .token.support.type						{ color: #9CDCFE; }
+.monaco-editor.hc-black .token.support.type						{ color: #D4D4D4; }
 .monaco-editor.hc-black .token.support.property-value			{ color: #CE9178; }
 /*.monaco-editor.hc-black .token.support.function
 .monaco-editor.hc-black .token.support.class
@@ -688,9 +688,9 @@
 .monaco-editor.hc-black .token.support.variable
 .monaco-editor.hc-black .token.support.other*/
 
-.monaco-editor.hc-black .token.variable.parameter				{ color: #9CDCFE; }
+.monaco-editor.hc-black .token.variable.parameter				{ color: #D4D4D4; }
 /*.monaco-editor.hc-black .token.variable*/
-.monaco-editor.hc-black .token.variable.language					{ color: #4864AA; }
+.monaco-editor.hc-black .token.variable.language				{ color: #569CD6; }
 /*.monaco-editor.hc-black .token.variable.other*/
 
 
