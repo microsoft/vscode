@@ -421,23 +421,6 @@ class OpenGitViewletAction extends viewlet.ToggleViewletAction {
 	}
 }
 
-class GitCommandsAction extends actions.Action {
-
-	public static ID = 'workbench.action.git.executeGitCommands';
-	public static LABEL = nls.localize('executeGitCommands', "Execute Git Commands");
-	private quickOpenService: IQuickOpenService;
-
-	constructor(id: string, label: string, @IQuickOpenService quickOpenService: IQuickOpenService) {
-		super(id, label);
-		this.quickOpenService = quickOpenService;
-	}
-
-	public run(event?:any): winjs.Promise {
-		this.quickOpenService.show('git ');
-		return winjs.Promise.as(null);
-	}
-}
-
 export function registerContributions(): void {
 
 	// Register Statusbar item
@@ -474,11 +457,6 @@ export function registerContributions(): void {
 			linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_G }
 		}),
 		nls.localize('view', "View")
-	);
-
-	// Register Action for git quick open mode
-	(<wbar.IWorkbenchActionRegistry> platform.Registry.as(wbar.Extensions.WorkbenchActions)).registerWorkbenchAction(
-		new SyncActionDescriptor(GitCommandsAction, GitCommandsAction.ID, GitCommandsAction.LABEL)
 	);
 
 	// Register MergeDecorator

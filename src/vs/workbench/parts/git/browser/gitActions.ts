@@ -1124,3 +1124,37 @@ export class UndoLastCommitAction extends GitAction {
 		return this.gitService.reset('HEAD~');
 	}
 }
+
+export class StartGitCheckoutAction extends Action {
+
+	public static ID = 'workbench.action.git.startGitCheckout';
+	public static LABEL = nls.localize('checkout', "Checkout");
+	private quickOpenService: IQuickOpenService;
+
+	constructor(id: string, label: string, @IQuickOpenService quickOpenService: IQuickOpenService) {
+		super(id, label);
+		this.quickOpenService = quickOpenService;
+	}
+
+	public run(event?:any): Promise {
+		this.quickOpenService.show('git checkout ');
+		return Promise.as(null);
+	}
+}
+
+export class StartGitBranchAction extends Action {
+
+	public static ID = 'workbench.action.git.startGitBranch';
+	public static LABEL = nls.localize('branch2', "Branch");
+	private quickOpenService: IQuickOpenService;
+
+	constructor(id: string, label: string, @IQuickOpenService quickOpenService: IQuickOpenService) {
+		super(id, label);
+		this.quickOpenService = quickOpenService;
+	}
+
+	public run(event?:any): Promise {
+		this.quickOpenService.show('git branch ');
+		return Promise.as(null);
+	}
+}
