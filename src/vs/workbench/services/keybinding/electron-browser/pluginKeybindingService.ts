@@ -381,16 +381,22 @@ let _b24_getActualKeyCodeMap = (function() {
 				let nativeMapping = nativeMappings[i];
 
 				if (nativeMapping.value && _b24_interestingChars[nativeMapping.value]) {
+					// console.log(nativeMapping.value + " is made by " + nativeMapping.key_code);
 					let keyCode = NATIVE_KEY_CODE_TO_KEY_CODE[nativeMapping.key_code];
 					if (keyCode && keyCode !== KeyCode.Unknown) {
-						result[nativeMapping.value] = keyCode;
+						if (!result[nativeMapping.value] || result[nativeMapping.value] > keyCode) {
+							result[nativeMapping.value] = keyCode;
+						}
 					}
 				}
 
 				if (nativeMapping.withShift && _b24_interestingChars[nativeMapping.withShift]) {
+					// console.log(nativeMapping.withShift + " is made by " + nativeMapping.key_code);
 					let keyCode = NATIVE_KEY_CODE_TO_KEY_CODE[nativeMapping.key_code];
 					if (keyCode && keyCode !== KeyCode.Unknown) {
-						result[nativeMapping.withShift] = keyCode;
+						if (!result[nativeMapping.withShift] || result[nativeMapping.withShift] > keyCode) {
+							result[nativeMapping.withShift] = keyCode;
+						}
 					}
 				}
 			}
@@ -412,6 +418,10 @@ setExtractKeyCode((e:KeyboardEvent) => {
 		try {
 			let charCode = parseInt(strCharCode, 16);
 			let char = String.fromCharCode(charCode);
+			let unfixMap = _b24_getActualKeyCodeMap();
+			if (unfixMap[char]) {
+				return unfixMap[char];
+			}
 			// console.log(keyIdentifier + ' => ' + char);
 		} catch(err) {
 		}
@@ -568,7 +578,7 @@ export default class PluginWorkbenchKeybindingService extends WorkbenchKeybindin
 					hadRemap = true;
 					remaps[NATIVE_KEY_CODE_TO_KEY_CODE[nativeMapping.key_code]] = newValue;
 				} else {
-					console.warn('invalid remap for ', nativeMapping);
+					// console.warn('invalid remap for ', nativeMapping);
 				}
 			}
 		}
