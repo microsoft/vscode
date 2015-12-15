@@ -630,7 +630,13 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 
 			if (!e.auto && visibleCount === 0) {
 				model.currentWord = oldCurrentWord;
-				this.setState(State.Frozen);
+
+				if (model.visibleCount > 0) {
+					this.setState(State.Frozen);
+				} else {
+					this.setState(State.Empty);
+				}
+
 				return;
 			} else {
 				promise = this.tree.refresh();
