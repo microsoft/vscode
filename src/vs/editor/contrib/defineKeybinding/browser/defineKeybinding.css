@@ -13,8 +13,6 @@
 
 .monaco-editor .defineKeybindingWidget {
 	font-family: 'Segoe WPC', 'Segoe UI', "SFUIText-Light", HelveticaNeue-Light, sans-serif, "Droid Sans Fallback";
-	width: 340px;
-	height: 60px;
 	padding: 10px;
 }
 
@@ -23,7 +21,8 @@
 	text-align: center;
 }
 
-.monaco-editor .defineKeybindingWidget .input {
+.monaco-editor .defineKeybindingWidget .input,
+.monaco-editor .defineKeybindingWidget .output {
 	margin-top:10px;
 	width: 320px;
 	display: block;
