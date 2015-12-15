@@ -70,7 +70,7 @@ export class JSONValidationExtensionPoint {
 						try {
 							uri = URI.file(paths.normalize(paths.join(extensionPath, uri))).toString();
 						} catch (e) {
-							collector.error(nls.localize('invalid.url.fileschema', "'configuration.jsonValidation.url' is an invalid relative URL: " + e));
+							collector.error(nls.localize('invalid.url.fileschema', "'configuration.jsonValidation.url' is an invalid relative URL: {0}", e.message));
 						}
 					} else if (!strings.startsWith(uri, 'https:/') && strings.startsWith(uri, 'https:/')) {
 						collector.error(nls.localize('invalid.url.schema', "'configuration.jsonValidation.url' must start with 'http:', 'https:' or './' to reference schemas located in the extension"));
