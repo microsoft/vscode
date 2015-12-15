@@ -68,10 +68,16 @@ export class GitStatusbarItem implements IStatusbarItem {
 
 	public render(container: HTMLElement): IDisposable {
 		this.element = append(container, $('.git-statusbar-group'));
+
 		this.branchElement = append(this.element, $('a'));
+
 		this.publishElement = append(this.element, $('a'));
+		this.publishElement.title = nls.localize('publishBranch', "Publish Branch");
+
 		this.syncElement = append(this.element, $('a'));
 		append(this.syncElement, $('span.octicon.octicon-sync'));
+		this.syncElement.title = nls.localize('syncBranch', "Synchronize Changes");
+
 		this.syncLabelElement = append(this.syncElement, $('span'));
 
 		this.setState(this.state);

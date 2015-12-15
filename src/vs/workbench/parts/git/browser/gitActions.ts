@@ -983,7 +983,7 @@ export class PublishAction extends GitAction {
 			promise = TPromise.as(result ? remoteName : null);
 		} else {
 			promise = this.quickOpenService.pick(remotes.map(r => r.name), {
-				placeHolder: nls.localize('publishPickMessage', "Pick a remote to push the branch '{0}' to:", branchName)
+				placeHolder: nls.localize('publishPickMessage', "Pick a remote to publish the branch '{0}' to:", branchName)
 			});
 		}
 
