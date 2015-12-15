@@ -166,7 +166,6 @@ function packageTask(platform, arch, opts) {
 			'extensions/**',
 			'!extensions/*/src/**',
 			'!extensions/*/out/**/test/**',
-			'!extensions/*/node_modules/**', // remove this asap, need to ignore dev dependencies
 			'!extensions/typescript/bin/**'
 		], { base: '.' });
 
