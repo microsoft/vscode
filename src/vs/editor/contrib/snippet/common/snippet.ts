@@ -15,6 +15,7 @@ import {Selection} from 'vs/editor/common/core/selection';
 import {IKeybindingService, IKeybindingContextKey} from 'vs/platform/keybinding/common/keybindingService';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 import {EditOperation} from 'vs/editor/common/core/editOperation';
+import { getSnippets } from 'vs/editor/common/modes/modesRegistry';
 
 interface IParsedLinePlaceHolderInfo {
 	id: string;
@@ -893,4 +894,24 @@ CommonEditorRegistry.registerEditorCommand('acceptSnippet', weight, { primary: K
 });
 CommonEditorRegistry.registerEditorCommand('leaveSnippet', weight, { primary: KeyCode.Escape }, true, CONTEXT_SNIPPET_MODE,(ctx, editor, args) => {
 	get(editor).leaveSnippet();
+});
+
+CommonEditorRegistry.registerEditorCommand('invokeSnippetForCurrentWord', weight, {primary: KeyMod.CtrlCmd | KeyCode.KEY_J}, true, null, (ctx, editor, args) => {
+	const model = editor.getModel();
+	const position = editor.getPosition();
+	const currentWord = editor.getModel().getWordAtPosition(position);
+
+	if (!currentWord || !currentWord.word.trim()) {
+		return;
+	}
+
+	const snippets = getSnippets(model, position);
+	const potentialSugestions = snippets.suggestions.filter(x => x.type == "snippet");
+
+	if (potentialSugestions.length == 0) {
+		return;
+	}
+
+	const suggestion = potentialSugestions[0];
+	get(editor).run(new CodeSnippet(suggestion.codeSnippet), snippets.currentWord.length, 0);
 });
