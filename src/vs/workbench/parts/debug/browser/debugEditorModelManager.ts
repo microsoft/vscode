@@ -254,7 +254,8 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 
 	private createBreakpointDecorations(breakpoints: IBreakpoint[]): editorcommon.IModelDeltaDecoration[] {
 		const activated = this.debugService.getModel().areBreakpointsActivated();
-		const debugActive = this.debugService.getState() === State.Running || this.debugService.getState() === State.Stopped;
+		const state = this.debugService.getState();
+		const debugActive = state === State.Running || state === State.Stopped || state === State.Initializing;
 		return breakpoints.map((breakpoint) => {
 			return {
 				options: (!breakpoint.enabled || !activated) ? DebugEditorModelManager.BREAKPOINT_DISABLED_DECORATION :
