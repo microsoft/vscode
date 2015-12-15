@@ -141,13 +141,21 @@ interface INormalizedKeyCode {
 	key: string;
 }
 
-function extractKeyCode(e:KeyboardEvent): KeyCode {
+export function lookupKeyCode(e:KeyboardEvent): KeyCode {
+	return KEY_CODE_MAP[e.keyCode] || KeyCode.Unknown;
+}
+
+let extractKeyCode = function extractKeyCode(e:KeyboardEvent): KeyCode {
 	if (e.charCode) {
 		// "keypress" events mostly
 		let char = String.fromCharCode(e.charCode).toUpperCase();
 		return KeyCode.fromString(char);
 	}
-	return KEY_CODE_MAP[e.keyCode] || KeyCode.Unknown;
+	return lookupKeyCode(e);
+}
+
+export function setExtractKeyCode(newExtractKeyCode:(e:KeyboardEvent)=>KeyCode): void {
+	extractKeyCode = newExtractKeyCode;
 }
 
 export interface IKeyboardEvent {
