@@ -78,7 +78,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 	}
 
 	private updateFuzzyMatching(configuration: ISearchConfiguration): void {
-		this.fuzzyMatchingEnabled = configuration.search && configuration.search.fuzzyFilePicker;
+		this.fuzzyMatchingEnabled = configuration.filePicker && configuration.filePicker.alternateFileNameMatching;
 		this.openFileHandler.setFuzzyMatchingEnabled(this.fuzzyMatchingEnabled);
 	}
 
