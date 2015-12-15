@@ -99,6 +99,11 @@ class Context {
 			return false;
 		}
 
+		if (!isNaN(Number(this.wordBefore))) {
+			// Word before is number only
+			return false;
+		}
+
 		if (this.wordAfter.length > 0) {
 			// Word after position is non empty
 			return false;
