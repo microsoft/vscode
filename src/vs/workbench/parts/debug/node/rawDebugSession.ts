@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import nls = require('vs/nls');
 import cp = require('child_process');
 import fs = require('fs');
 import net = require('net');
@@ -290,7 +291,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 		this.serverProcess = null;
 		this.cachedInitServer = null;
 		if (!this.stopServerPending) {
-			this.messageService.show(severity.Error, 'Debug adapter process has terminated unexpectedly');
+			this.messageService.show(severity.Error, nls.localize('debugAdapterCrash', "Debug adapter process has terminated unexpectedly"));
 		}
 		this.emit(debug.SessionEvents.SERVER_EXIT);
 	}

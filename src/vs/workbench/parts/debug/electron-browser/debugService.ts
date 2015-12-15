@@ -500,6 +500,10 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 			linesStartAt1: true,
 			pathFormat: 'path'
 		}).then((result: DebugProtocol.InitializeResponse) => {
+			if (!this.session) {
+				return Promise.wrapError(new Error(nls.localize('debugAdapterCrash', "Debug adapter process has terminated unexpectedly")));
+			}
+
 			this.setStateAndEmit(debug.State.Initializing);
 			return configuration.request === 'attach' ? this.session.attach(configuration) : this.session.launch(configuration);
 		}).then((result: DebugProtocol.Response) => {
