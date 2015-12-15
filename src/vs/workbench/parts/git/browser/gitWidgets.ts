@@ -6,18 +6,20 @@
 import nls = require('vs/nls');
 import strings = require('vs/base/common/strings');
 import { assign } from 'vs/base/common/objects';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { emmet as $, append, show, hide, addClass } from 'vs/base/browser/dom';
+import { emmet as $, append, show, hide, addClass, toggleClass } from 'vs/base/browser/dom';
 import { IDisposable, combinedDispose } from 'vs/base/common/lifecycle';
 import { IGitService, ServiceState, IBranch, ServiceOperations, IRemote } from 'vs/workbench/parts/git/common/git';
 import { IStatusbarItem } from 'vs/workbench/browser/parts/statusbar/statusbar';
 import { IQuickOpenService } from 'vs/workbench/services/quickopen/browser/quickOpenService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { SyncAction, PublishAction } from './gitActions';
+import Severity from 'vs/base/common/severity';
+import { IMessageService } from 'vs/platform/message/common/message';
 
 interface IState {
 	serviceState: ServiceState;
 	isBusy: boolean;
+	isSyncing: boolean;
 	HEAD: IBranch;
 	remotes: IRemote[];
 	ps1: string;
@@ -43,7 +45,8 @@ export class GitStatusbarItem implements IStatusbarItem {
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IGitService gitService: IGitService,
-		@IQuickOpenService quickOpenService: IQuickOpenService
+		@IQuickOpenService quickOpenService: IQuickOpenService,
+		@IMessageService private messageService: IMessageService
 	) {
 		this.instantiationService = instantiationService;
 		this.gitService = gitService;
@@ -60,6 +63,7 @@ export class GitStatusbarItem implements IStatusbarItem {
 		this.state = {
 			serviceState: ServiceState.NotInitialized,
 			isBusy: false,
+			isSyncing: false,
 			HEAD: null,
 			remotes: [],
 			ps1: ''
@@ -71,14 +75,16 @@ export class GitStatusbarItem implements IStatusbarItem {
 
 		this.branchElement = append(this.element, $('a'));
 
-		this.publishElement = append(this.element, $('a'));
+		this.publishElement = append(this.element, $('a.octicon.octicon-cloud-upload'));
 		this.publishElement.title = nls.localize('publishBranch', "Publish Branch");
+		this.publishElement.onclick = () => this.onPublishClick();
 
-		this.syncElement = append(this.element, $('a'));
-		append(this.syncElement, $('span.octicon.octicon-sync'));
+		this.syncElement = append(this.element, $('a.git-statusbar-sync-item'));
 		this.syncElement.title = nls.localize('syncBranch', "Synchronize Changes");
+		this.syncElement.onclick = () => this.onSyncClick();
+		append(this.syncElement, $('span.octicon.octicon-sync'));
 
-		this.syncLabelElement = append(this.syncElement, $('span'));
+		this.syncLabelElement = append(this.syncElement, $('span.ahead-behind'));
 
 		this.setState(this.state);
 		this.toDispose.push(this.gitService.addBulkListener2(() => this.onGitServiceChange()));
@@ -91,6 +97,7 @@ export class GitStatusbarItem implements IStatusbarItem {
 		this.setState({
 			serviceState: this.gitService.getState(),
 			isBusy: this.gitService.getRunningOperations().some(op => op.id === ServiceOperations.CHECKOUT || op.id === ServiceOperations.BRANCH),
+			isSyncing: this.gitService.getRunningOperations().some(op => op.id === ServiceOperations.SYNC),
 			HEAD: model.getHEAD(),
 			remotes: model.getRemotes(),
 			ps1: model.getPS1()
@@ -138,9 +145,7 @@ export class GitStatusbarItem implements IStatusbarItem {
 		this.branchElement.title = title;
 		this.branchElement.textContent = textContent;
 		this.branchElement.onclick = onclick;
-		this.publishElement.className = 'octicon octicon-cloud-upload';
 		this.syncLabelElement.textContent = aheadBehindLabel;
-		this.syncElement.className = 'git-statusbar-sync-item' + (aheadBehindLabel ? '' : ' empty');
 
 		if (isGitDisabled) {
 			hide(this.branchElement);
@@ -161,19 +166,10 @@ export class GitStatusbarItem implements IStatusbarItem {
 			}
 		}
 
-		if (this.syncAction.enabled) {
-			this.syncElement.onclick = () => this.onSyncClick();
-		} else {
-			this.syncElement.onclick = null;
-			addClass(this.syncElement, 'disabled');
-		}
-
-		if (this.publishAction.enabled) {
-			this.publishElement.onclick = () => this.onPublishClick();
-		} else {
-			this.publishElement.onclick = null;
-			addClass(this.publishElement, 'disabled');
-		}
+		toggleClass(this.syncElement, 'syncing', this.state.isSyncing);
+		toggleClass(this.syncElement, 'empty', !aheadBehindLabel);
+		toggleClass(this.syncElement, 'disabled', !this.syncAction.enabled);
+		toggleClass(this.publishElement, 'disabled', !this.publishAction.enabled);
 	}
 
 	private onBranchClick(): void {
@@ -181,10 +177,20 @@ export class GitStatusbarItem implements IStatusbarItem {
 	}
 
 	private onPublishClick(): void {
-		this.publishAction.run().done(null, onUnexpectedError);
+		if (!this.publishAction.enabled) {
+			return;
+		}
+
+		this.publishAction.run()
+			.done(null, err => this.messageService.show(Severity.Error, err));
 	}
 
 	private onSyncClick(): void {
-		this.syncAction.run().done(null, onUnexpectedError);
+		if (!this.syncAction.enabled) {
+			return;
+		}
+
+		this.syncAction.run()
+			.done(null, err => this.messageService.show(Severity.Error, err));
 	}
 }

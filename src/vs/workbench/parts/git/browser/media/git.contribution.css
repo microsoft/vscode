@@ -236,11 +236,25 @@
 }
 
 .monaco-shell .git-statusbar-group .octicon {
-	font-size: 14px;
+	font-size: 15px;
 }
 
 .monaco-shell .git-statusbar-group > .git-statusbar-sync-item:not(.empty) > span.octicon {
 	margin-right: 6px;
+}
+
+@keyframes spin {
+	from { transform: rotate(0deg); }
+	to { transform: rotate(360deg); }
+}
+
+.monaco-shell .git-statusbar-group > .git-statusbar-sync-item.syncing > .octicon {
+	animation: 1.5s linear infinite spin;
+}
+
+.monaco-shell .git-statusbar-group > .git-statusbar-sync-item.disabled > .ahead-behind,
+.monaco-shell .git-statusbar-group > .git-statusbar-sync-item.busy > .ahead-behind {
+	cursor: default;
 }
 
 .monaco-shell .git-statusbar-group > .git-statusbar-branch-item {
@@ -256,7 +270,8 @@
 	cursor: pointer;
 }
 
-.monaco-shell .git-statusbar-group > .git-statusbar-branch-item.busy {
+.monaco-shell .git-statusbar-group > .busy,
+.monaco-shell .git-statusbar-group > .disabled, {
 	opacity: 0.6;
 	cursor: default;
 }
