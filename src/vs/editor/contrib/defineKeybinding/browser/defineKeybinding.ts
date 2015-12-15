@@ -27,7 +27,8 @@ import {IHTMLContentElement} from 'vs/base/common/htmlContent';
 const NLS_LAUNCH_MESSAGE = nls.localize('defineKeybinding.start', "Define Keybinding");
 const NLS_DEFINE_MESSAGE = nls.localize('defineKeybinding.initial', "Press desired key combination and ENTER");
 const NLS_DEFINE_ACTION_LABEL = nls.localize('DefineKeybindingAction',"Define Keybinding");
-const NLS_KB_LAYOUT_INFO_MESSAGE = nls.localize('defineKeybinding.kbLayoutMessage', "For your current keyboard layout press ");
+const NLS_KB_LAYOUT_INFO_MESSAGE = nls.localize('defineKeybinding.kbLayoutInfoMessage', "For your current keyboard layout press ");
+const NLS_KB_LAYOUT_ERROR_MESSAGE = nls.localize('defineKeybinding.kbLayoutErrorMessage', "You won't be able to produce this key combination under your current keyboard layout.");
 
 const INTERESTING_FILE = /keybindings\.json$/;
 
@@ -174,27 +175,55 @@ export class DefineKeybindingController implements EditorCommon.IEditorContribut
 		});
 
 		this._dec = this._editor.deltaDecorations(this._dec, data.map((m) : EditorCommon.IModelDeltaDecoration => {
-			let label = m.label;
-			let msg:IHTMLContentElement[] = [{
-				tagName: 'span',
-				text: NLS_KB_LAYOUT_INFO_MESSAGE
-			}];
-			msg = msg.concat(this._keybindingService.getHTMLLabelFor(m.keybinding));
+			let isError:boolean;
+			let msg:IHTMLContentElement[];
+
+			if (!m.label) {
+				isError = true;
+				msg = [{
+					tagName: 'span',
+					text: NLS_KB_LAYOUT_ERROR_MESSAGE
+				}];
+			} else {
+				isError = false;
+				msg = [{
+					tagName: 'span',
+					text: NLS_KB_LAYOUT_INFO_MESSAGE
+				}];
+				msg = msg.concat(this._keybindingService.getHTMLLabelFor(m.keybinding));
+			}
 			return {
 				range: m.range,
-				options: {
-					stickiness: EditorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-					className: 'keybindingInfo',
-					htmlMessage: msg,
-					inlineClassName: 'inlineKeybindingInfo',
-					overviewRuler: {
-						color: 'rgba(100, 100, 250, 0.6)',
-						darkColor: 'rgba(100, 100, 250, 0.6)',
-						position: EditorCommon.OverviewRulerLane.Right
-					}
-				}
+				options: DefineKeybindingController._decorationOptions(msg, isError)
 			}
 		}))
+	}
+
+	private static _decorationOptions(msg:IHTMLContentElement[], isError:boolean): EditorCommon.IModelDecorationOptions {
+		if (isError) {
+			return {
+				stickiness: EditorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+				className: 'keybindingError',
+				htmlMessage: msg,
+				inlineClassName: 'inlineKeybindingError',
+				overviewRuler: {
+					color: 'rgba(250, 100, 100, 0.6)',
+					darkColor: 'rgba(250, 100, 100, 0.6)',
+					position: EditorCommon.OverviewRulerLane.Right
+				}
+			}
+		}
+		return {
+			stickiness: EditorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+			className: 'keybindingInfo',
+			htmlMessage: msg,
+			inlineClassName: 'inlineKeybindingInfo',
+			overviewRuler: {
+				color: 'rgba(100, 100, 250, 0.6)',
+				darkColor: 'rgba(100, 100, 250, 0.6)',
+				position: EditorCommon.OverviewRulerLane.Right
+			}
+		}
 	}
 }
 
