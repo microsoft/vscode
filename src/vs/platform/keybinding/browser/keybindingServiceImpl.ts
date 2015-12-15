@@ -262,7 +262,7 @@ export class KeybindingService extends AbstractKeybindingService implements IKey
 
 		let handler = this._getCommandHandler(commandId);
 		if (!handler) {
-			return TPromise.wrapError(new Error(`No handler found for the command: '${commandId}'`));
+			return TPromise.wrapError(new Error(`No handler found for the command: '${commandId}'. Ensure there is an activation event defined, if you are an extension.`));
 		}
 		try {
 			let result = this._instantiationService.invokeFunction(handler, args);
