@@ -224,6 +224,10 @@ class DirtyDiffModelDecorator {
 	}
 
 	private triggerDiff(): winjs.Promise {
+		if (!this.diffDelayer) {
+			return winjs.Promise.as(null);
+		}
+
 		return this.diffDelayer.trigger(() => {
 			if (!this.model || this.model.isDisposed()) {
 				return winjs.Promise.as([]); // disposed
