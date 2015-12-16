@@ -545,7 +545,7 @@
 .monaco-editor.vs-dark .token.support.function					{ color: #D4D4D4; }
 .monaco-editor.vs-dark .token.support.method					{ color: #D4D4D4; }
 .monaco-editor.vs-dark .token.support.type						{ color: #9CDCFE; }
-.monaco-editor.vs-dark .token.support.property-value			{ color: #CE9178; }
+.monaco-editor.vs-dark .token.support.property-value			{ color: #D4D4D4; }
 /*.monaco-editor.vs-dark .token.support.function
 .monaco-editor.vs-dark .token.support.class
 .monaco-editor.vs-dark .token.support.constant
@@ -681,7 +681,7 @@
 .monaco-editor.hc-black .token.support.function					{ color: #D4D4D4; }
 .monaco-editor.hc-black .token.support.method					{ color: #D4D4D4; }
 .monaco-editor.hc-black .token.support.type						{ color: #D4D4D4; }
-.monaco-editor.hc-black .token.support.property-value			{ color: #CE9178; }
+.monaco-editor.hc-black .token.support.property-value			{ color: #D4D4D4; }
 /*.monaco-editor.hc-black .token.support.function
 .monaco-editor.hc-black .token.support.class
 .monaco-editor.hc-black .token.support.constant
