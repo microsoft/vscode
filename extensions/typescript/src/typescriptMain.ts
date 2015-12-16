@@ -37,13 +37,14 @@ export function activate(context: ExtensionContext): void {
 
 	let clientHost = new TypeScriptServiceClientHost();
 	let client = clientHost.serviceClient;
+
+	context.subscriptions.push(commands.registerCommand('typescript.reloadProjects', () => {
+		clientHost.reloadProjects();
+	}));
 	// Register the supports for both TS and TSX so that we can have separate grammars but share the mode
 	client.onReady().then(() => {
 		registerSupports(MODE_ID_TS, clientHost, client);
 		registerSupports(MODE_ID_TSX, clientHost, client);
-		context.subscriptions.push(commands.registerCommand('typescript.reloadProjects', () => {
-			clientHost.reloadProjects();
-		}));
 	}, () => {
 		// Nothing to do here. The client did show a message;
 	})

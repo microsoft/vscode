@@ -14,7 +14,8 @@
 	},
 	"activationEvents": [
 		"onLanguage:typescript",
-		"onLanguage:typescriptreact"
+		"onLanguage:typescriptreact",
+		"onCommand:typescript.reloadProjects"
 	],
 	"main": "./out/typescriptMain",
 	"contributes": {
@@ -77,7 +78,8 @@
 		"commands": [
 			{
 				"command": "typescript.reloadProjects",
-				"title": "TypeScript: Reload Projects"
+				"title": "Reload Projects",
+				"category": "TypeScript"
 			}
 		],
 		"debuggers": [
