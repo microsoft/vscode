@@ -1,9 +1,9 @@
 {
 	"compilerOptions": {
 		"noLib": true,
-		"target": "ES5",
+		"target": "es5",
 		"module": "commonjs",
-		"sourceMap": true,
+		"sourceMap": false,
 		"outDir": "../out"
 	},
 	"exclude": [

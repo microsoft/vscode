@@ -9,7 +9,7 @@
  * ------------------------------------------------------------------------------------------ */
 'use strict';
 
-import { languages, workspace, Uri, ExtensionContext, IndentAction, Diagnostic, DiagnosticCollection, Range } from 'vscode';
+import { languages, commands, workspace, Uri, ExtensionContext, IndentAction, Diagnostic, DiagnosticCollection, Range } from 'vscode';
 
 import * as Proto from './protocol';
 import TypeScriptServiceClient from './typescriptServiceClient';
@@ -41,6 +41,9 @@ export function activate(context: ExtensionContext): void {
 	client.onReady().then(() => {
 		registerSupports(MODE_ID_TS, clientHost, client);
 		registerSupports(MODE_ID_TSX, clientHost, client);
+		context.subscriptions.push(commands.registerCommand('typescript.reloadProjects', () => {
+			clientHost.reloadProjects();
+		}));
 	}, () => {
 		// Nothing to do here. The client did show a message;
 	})
@@ -164,6 +167,11 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 
 	public get serviceClient(): TypeScriptServiceClient {
 		return this.client;
+	}
+
+	public reloadProjects(): void {
+		this.client.execute('reloadProjects', null, false);
+		this.triggerAllDiagnostics();
 	}
 
 	public addBufferSyncSupport(support: BufferSyncSupport): void {

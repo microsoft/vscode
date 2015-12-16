@@ -74,6 +74,12 @@
 			"command": "^acceptSelectedSuggestion",
 			"when": "editorTextFocus && suggestWidgetVisible && editorLangId == 'typescript' && suggestionSupportsAcceptOnKey"
 		},
+		"commands": [
+			{
+				"command": "typescript.reloadProjects",
+				"title": "TypeScript: Reload Projects"
+			}
+		],
 		"debuggers": [
 			{
 				"type": "node",
