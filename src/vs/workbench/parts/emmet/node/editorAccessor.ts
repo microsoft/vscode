@@ -19,7 +19,7 @@ export class EditorAccessor implements emmet.Editor {
 
 	lineStarts: number[] = null;
 
-	emmetSupportedModes = ['html', 'razor', 'css', 'less', 'sass', 'xml', 'xsl', 'jade', 'handlebars', 'hbs', 'jsx', 'tsx'];
+	emmetSupportedModes = ['html', 'razor', 'css', 'less', 'scss', 'xml', 'xsl', 'jade', 'handlebars', 'hbs', 'jsx', 'tsx'];
 
 	constructor(editor: ICommonCodeEditor) {
 		this.editor = editor;
@@ -115,11 +115,14 @@ export class EditorAccessor implements emmet.Editor {
 		let position = this.editor.getSelection().getStartPosition();
 		let mode = this.editor.getModel().getModeAtPosition(position.lineNumber, position.column);
 		let syntax = mode.getId().split('.').pop();
-		if (syntax === 'razor' || syntax === 'handlebars') { // treat like html
+		if (syntax === 'razor' || syntax === 'handlebars') { // treat razor and handlebars like html
 			return 'html';
 		}
-		if (syntax === 'typescriptreact' || syntax == 'javascriptreact') { // treat like html
+		if (syntax === 'typescriptreact' || syntax == 'javascriptreact') { // treat like tsx like jsx
 			return 'jsx';
+		}
+		if (syntax === 'sass') { // sass is really sccs... map it to scss
+			return'scss';
 		}
 		return syntax;
 	}
