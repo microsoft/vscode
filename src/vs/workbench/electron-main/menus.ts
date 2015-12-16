@@ -90,6 +90,7 @@ export class VSCodeMenu {
 				// Should not happen
 			}
 
+			// Fill hash map of resolved keybindings
 			let needsMenuUpdate = false;
 			keybindings.forEach((keybinding) => {
 				let accelerator = new Keybinding(keybinding.binding)._toElectronAccelerator();
@@ -101,8 +102,15 @@ export class VSCodeMenu {
 				}
 			});
 
+			// A keybinding might have been unassigned, so we have to account for that too
+			if (Object.keys(this.mapLastKnownKeybindingToActionId).length !== Object.keys(this.mapResolvedKeybindingToActionId).length) {
+				needsMenuUpdate = true;
+			}
+
 			if (needsMenuUpdate) {
 				storage.setItem(VSCodeMenu.lastKnownKeybindingsMapStorageKey, this.mapResolvedKeybindingToActionId); // keep to restore instantly after restart
+				this.mapLastKnownKeybindingToActionId = this.mapResolvedKeybindingToActionId; // update our last known map
+
 				this.updateMenu();
 			}
 		});
