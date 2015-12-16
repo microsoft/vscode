@@ -334,6 +334,17 @@ export class ViewModel extends EventEmitter implements EditorCommon.IViewModel {
 		}
 		return this.convertModelPositionToViewPosition(modelPosition.lineNumber, modelPosition.column);
 	}
+
+	public validateViewSelection(viewSelection:EditorCommon.IEditorSelection, modelSelection:EditorCommon.IEditorSelection): EditorCommon.IEditorSelection {
+		let modelSelectionStart = new Position(modelSelection.selectionStartLineNumber, modelSelection.selectionStartColumn);
+		let modelPosition = new Position(modelSelection.positionLineNumber, modelSelection.positionColumn);
+
+		let viewSelectionStart = this.validateViewPosition(viewSelection.selectionStartLineNumber, viewSelection.selectionStartColumn, modelSelectionStart);
+		let viewPosition = this.validateViewPosition(viewSelection.positionLineNumber, viewSelection.positionColumn, modelPosition);
+
+		return new Selection(viewSelectionStart.lineNumber, viewSelectionStart.column, viewPosition.lineNumber, viewPosition.column);
+	}
+
 	private onCursorPositionChanged(e:EditorCommon.ICursorPositionChangedEvent): void {
 		this.cursors.onCursorPositionChanged(e, (eventType:string, payload:any) => this.emit(eventType, payload));
 	}

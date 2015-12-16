@@ -841,13 +841,19 @@ export class Cursor extends EventEmitter {
 	}
 
 	private emitCursorSelectionChanged(source:string, reason:string): void {
-		var selections = this.cursors.getSelections();
-		var primarySelection = selections[0];
-		var secondarySelections = selections.slice(1);
+		let selections = this.cursors.getSelections();
+		let primarySelection = selections[0];
+		let secondarySelections = selections.slice(1);
 
-		var e:EditorCommon.ICursorSelectionChangedEvent = {
+		let viewSelections = this.cursors.getViewSelections();
+		let primaryViewSelection = viewSelections[0];
+		let secondaryViewSelections = viewSelections.slice(1);
+
+		let e:EditorCommon.ICursorSelectionChangedEvent = {
 			selection: primarySelection,
+			viewSelection: primaryViewSelection,
 			secondarySelections: secondarySelections,
+			secondaryViewSelections: secondaryViewSelections,
 			source: source,
 			reason: reason
 		};

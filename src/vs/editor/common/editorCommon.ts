@@ -2023,9 +2023,17 @@ export interface ICursorSelectionChangedEvent {
 	 */
 	selection:IEditorSelection;
 	/**
+	 * The primary selection in view coordinates.
+	 */
+	viewSelection:IEditorSelection;
+	/**
 	 * The secondary selections.
 	 */
 	secondarySelections:IEditorSelection[];
+	/**
+	 * The secondary selections in view coordinates.
+	 */
+	secondaryViewSelections:IEditorSelection[];
 	/**
 	 * Source of the call that caused the event.
 	 */

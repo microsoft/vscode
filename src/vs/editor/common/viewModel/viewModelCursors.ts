@@ -10,6 +10,7 @@ import EditorCommon = require('vs/editor/common/editorCommon');
 
 export interface IConverter {
 	validateViewPosition(viewLineNumber:number, viewColumn:number, modelPosition:EditorCommon.IEditorPosition): EditorCommon.IEditorPosition;
+	validateViewSelection(viewSelection:EditorCommon.IEditorSelection, modelSelection:EditorCommon.IEditorSelection): EditorCommon.IEditorSelection;
 	convertModelSelectionToViewSelection(modelSelection:EditorCommon.IEditorSelection): EditorCommon.IEditorSelection;
 	convertModelRangeToViewRange(modelRange:EditorCommon.IRange): EditorCommon.IEditorRange;
 }
@@ -74,13 +75,13 @@ export class ViewModelCursors {
 	public onCursorSelectionChanged(e:EditorCommon.ICursorSelectionChangedEvent, emit:(eventType:string, payload:any)=>void): void {
 		this.lastCursorSelectionChangedEvent = e;
 
-		var selection = this.converter.convertModelSelectionToViewSelection(e.selection);
-		var secondarySelections: EditorCommon.IEditorSelection[] = [];
-		for (var i = 0, len = e.secondarySelections.length; i < len; i++) {
-			secondarySelections[i] = this.converter.convertModelSelectionToViewSelection(e.secondarySelections[i]);
+		let selection = this.converter.validateViewSelection(e.viewSelection, e.selection);
+		let secondarySelections: EditorCommon.IEditorSelection[] = [];
+		for (let i = 0, len = e.secondarySelections.length; i < len; i++) {
+			secondarySelections[i] = this.converter.validateViewSelection(e.secondaryViewSelections[i], e.secondarySelections[i]);
 		}
 
-		var newEvent:EditorCommon.IViewCursorSelectionChangedEvent = {
+		let newEvent:EditorCommon.IViewCursorSelectionChangedEvent = {
 			selection: selection,
 			secondarySelections: secondarySelections
 		};
