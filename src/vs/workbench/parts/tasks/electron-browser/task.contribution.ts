@@ -460,6 +460,7 @@ class TaskService extends EventEmitter implements ITaskService {
 	private _taskSystemPromise: TPromise<ITaskSystem>;
 	private _taskSystem: ITaskSystem;
 	private taskSystemListeners: ListenerUnbind[];
+	private clearTaskSystemPromise: boolean;
 
 	private fileChangesListener: ListenerUnbind;
 
@@ -487,10 +488,15 @@ class TaskService extends EventEmitter implements ITaskService {
 		this.pluginService = pluginService;
 
 		this.taskSystemListeners = [];
+		this.clearTaskSystemPromise = false;
 		this.configurationService.addListener(ConfigurationServiceEventTypes.UPDATED, () => {
 			this.emit(TaskServiceEvents.ConfigChanged);
-			this._taskSystem = null;
-			this._taskSystemPromise = null;
+			if (this._taskSystem && this._taskSystem.isActiveSync()) {
+				this.clearTaskSystemPromise = true;
+			} else {
+				this._taskSystem = null;
+				this._taskSystemPromise = null;
+			}
 			this.disposeTaskSystemListeners();
 		});
 
@@ -502,7 +508,7 @@ class TaskService extends EventEmitter implements ITaskService {
 		this.taskSystemListeners = [];
 	}
 
-	private disposeFleChangesListener(): void {
+	private disposeFileChangesListener(): void {
 		if (this.fileChangesListener) {
 			this.fileChangesListener();
 			this.fileChangesListener = null;
@@ -664,7 +670,13 @@ class TaskService extends EventEmitter implements ITaskService {
 							}
 						});
 					}
-					return runResult.promise;
+					return runResult.promise.then((value) => {
+						if (this.clearTaskSystemPromise) {
+							this._taskSystemPromise = null;
+							this.clearTaskSystemPromise = false;
+						}
+						return value;
+					});
 				}, (err: any) => {
 					this.handleError(err);
 				});
@@ -684,8 +696,12 @@ class TaskService extends EventEmitter implements ITaskService {
 					return taskSystem.terminate();
 				}).then(response => {
 					if (response.success) {
+						if (this.clearTaskSystemPromise) {
+							this._taskSystemPromise = null;
+							this.clearTaskSystemPromise = false;
+						}
 						this.emit(TaskServiceEvents.Terminated, {});
-						this.disposeFleChangesListener();
+						this.disposeFileChangesListener();
 					}
 					return response;
 				});
@@ -707,7 +723,7 @@ class TaskService extends EventEmitter implements ITaskService {
 					if (response.success) {
 						this.emit(TaskServiceEvents.Terminated, {});
 						this._taskSystem = null;
-						this.disposeFleChangesListener();
+						this.disposeFileChangesListener();
 						this.disposeTaskSystemListeners();
 						return false; // no veto
 					}
