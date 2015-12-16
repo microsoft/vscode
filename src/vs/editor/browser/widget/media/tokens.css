@@ -352,8 +352,7 @@
 .monaco-editor.vs .token.entity.other.inherited-class
 .monaco-editor.vs .token.entity.other.attribute-name*/
 
-.monaco-editor.vs .token.annotation.storage.type,
-.monaco-editor.vs .token.heritage.storage.type					{ color: #2B91AF; }
+
 .monaco-editor.vs .token.invalid								{ color: #cd3131; }
 /*.monaco-editor.vs .token.invalid.illegal
 .monaco-editor.vs .token.invalid.deprecated*/
@@ -377,7 +376,7 @@
 .monaco-editor.vs .token.meta.preprocessor						{ color: #0000FF; }
 .monaco-editor.vs .token.meta.preprocessor.string				{ color: #A31515; }
 .monaco-editor.vs .token.meta.preprocessor.numeric				{ color: #09885A; }
-.monaco-editor.vs .token.meta.cast								{ color: #2B91AF; }
+.monaco-editor.vs .token.meta.cast								{ color: #000000; }
 .monaco-editor.vs .token.meta.parameter.type					{ color: #000000; }
 .monaco-editor.vs .token.meta.parameter.type.variable			{ color: #000000; }
 .monaco-editor.vs .token.meta.dictionary.key					{ color: #0451A5; }
@@ -386,8 +385,10 @@
 .monaco-editor.vs .token.storage.content						{ color: red; }
 .monaco-editor.vs .token.storage.type							{ color: #0000FF; }
 .monaco-editor.vs .token.storage.modifier						{ color: #0000FF; }
+.monaco-editor.vs .token.annotation.storage.type,
+.monaco-editor.vs .token.heritage.storage.type,
 .monaco-editor.vs .token.cast.storage.type,
-.monaco-editor.vs .token.new.storage.type						{ color: #2B91AF; }
+.monaco-editor.vs .token.new.storage.type						{ color: #000000; }
 .monaco-editor.vs .token.var.storage.type						{ color: #0000FF; }
 .monaco-editor.vs .token.var.annotation.storage.type			{ color: #000000; }
 
