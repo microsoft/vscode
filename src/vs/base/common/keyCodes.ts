@@ -94,6 +94,13 @@ export enum KeyCode {
 	F10,
 	F11,
 	F12,
+	F13,
+	F14,
+	F15,
+	F16,
+	F17,
+	F18,
+	F19,
 
 	NumLock,
 	ScrollLock,
@@ -156,7 +163,7 @@ export enum KeyCode {
 
 	NUMPAD_MULTIPLY,	// VK_MULTIPLY, 0x6A, Multiply key
 	NUMPAD_ADD,			// VK_ADD, 0x6B, Add key
-	// NUMPAD_SEPARATOR,	// VK_SEPARATOR, 0x6C, Separator key
+	NUMPAD_SEPARATOR,	// VK_SEPARATOR, 0x6C, Separator key
 	NUMPAD_SUBTRACT,	// VK_SUBTRACT, 0x6D, Subtract key
 	NUMPAD_DECIMAL,		// VK_DECIMAL, 0x6E, Decimal key
 	NUMPAD_DIVIDE,		// VK_DIVIDE, 0x6F,
@@ -244,6 +251,14 @@ let TO_STRING_MAP: string[] = [];
 	TO_STRING_MAP[KeyCode.F10] = 'F10';
 	TO_STRING_MAP[KeyCode.F11] = 'F11';
 	TO_STRING_MAP[KeyCode.F12] = 'F12';
+	TO_STRING_MAP[KeyCode.F13] = 'F13';
+	TO_STRING_MAP[KeyCode.F14] = 'F14';
+	TO_STRING_MAP[KeyCode.F15] = 'F15';
+	TO_STRING_MAP[KeyCode.F16] = 'F16';
+	TO_STRING_MAP[KeyCode.F17] = 'F17';
+	TO_STRING_MAP[KeyCode.F18] = 'F18';
+	TO_STRING_MAP[KeyCode.F19] = 'F19';
+
 
 	TO_STRING_MAP[KeyCode.NumLock] 		= 'NumLock';
 	TO_STRING_MAP[KeyCode.ScrollLock] 	= 'ScrollLock';
@@ -273,6 +288,7 @@ let TO_STRING_MAP: string[] = [];
 
 	TO_STRING_MAP[KeyCode.NUMPAD_MULTIPLY] = 'NumPad_Multiply';
 	TO_STRING_MAP[KeyCode.NUMPAD_ADD] = 'NumPad_Add';
+	TO_STRING_MAP[KeyCode.NUMPAD_SEPARATOR] = 'NumPad_Separator';
 	TO_STRING_MAP[KeyCode.NUMPAD_SUBTRACT] = 'NumPad_Subtract';
 	TO_STRING_MAP[KeyCode.NUMPAD_DECIMAL] = 'NumPad_Decimal';
 	TO_STRING_MAP[KeyCode.NUMPAD_DIVIDE] = 'NumPad_Divide';

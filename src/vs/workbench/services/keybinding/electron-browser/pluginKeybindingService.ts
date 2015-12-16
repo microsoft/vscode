@@ -215,7 +215,7 @@ const NATIVE_KEY_CODE_TO_KEY_CODE: {[nativeKeyCode:string]:KeyCode;} = {
 	VKEY_NUMPAD9: KeyCode.NUMPAD_9,
 	VKEY_MULTIPLY: KeyCode.NUMPAD_MULTIPLY,
 	VKEY_ADD: KeyCode.NUMPAD_ADD,
-	VKEY_SEPARATOR: KeyCode.Unknown, // MISSING
+	VKEY_SEPARATOR: KeyCode.NUMPAD_SEPARATOR,
 	VKEY_SUBTRACT: KeyCode.NUMPAD_SUBTRACT,
 	VKEY_DECIMAL: KeyCode.NUMPAD_DECIMAL,
 	VKEY_DIVIDE: KeyCode.NUMPAD_DIVIDE,
@@ -231,13 +231,13 @@ const NATIVE_KEY_CODE_TO_KEY_CODE: {[nativeKeyCode:string]:KeyCode;} = {
 	VKEY_F10: KeyCode.F10,
 	VKEY_F11: KeyCode.F11,
 	VKEY_F12: KeyCode.F12,
-	VKEY_F13: KeyCode.Unknown, // MISSING
-	VKEY_F14: KeyCode.Unknown, // MISSING
-	VKEY_F15: KeyCode.Unknown, // MISSING
-	VKEY_F16: KeyCode.Unknown, // MISSING
-	VKEY_F17: KeyCode.Unknown, // MISSING
-	VKEY_F18: KeyCode.Unknown, // MISSING
-	VKEY_F19: KeyCode.Unknown, // MISSING
+	VKEY_F13: KeyCode.F13,
+	VKEY_F14: KeyCode.F14,
+	VKEY_F15: KeyCode.F15,
+	VKEY_F16: KeyCode.F16,
+	VKEY_F17: KeyCode.F17,
+	VKEY_F18: KeyCode.F18,
+	VKEY_F19: KeyCode.F19,
 	VKEY_F20: KeyCode.Unknown, // MISSING
 	VKEY_F21: KeyCode.Unknown, // MISSING
 	VKEY_F22: KeyCode.Unknown, // MISSING
