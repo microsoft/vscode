@@ -178,14 +178,14 @@ export class PluginHostMain {
 			});
 			userPlugins.forEach((userPlugin) => {
 				if (resultingPluginsMap.hasOwnProperty(userPlugin.id)) {
-					collector.warn('', 'Overwriting extension ' + resultingPluginsMap[userPlugin.id].extensionFolderPath + ' with ' + userPlugin.extensionFolderPath);
+					collector.warn(userPlugin.extensionFolderPath, 'Overwriting extension ' + resultingPluginsMap[userPlugin.id].extensionFolderPath + ' with ' + userPlugin.extensionFolderPath);
 				}
 				resultingPluginsMap[userPlugin.id] = userPlugin;
 			});
 			extensionDevPlugins.forEach(extensionDevPlugin => {
 				collector.info('', 'Loading development extension at ' + extensionDevPlugin.extensionFolderPath);
 				if (resultingPluginsMap.hasOwnProperty(extensionDevPlugin.id)) {
-					collector.warn('', 'Overwriting extension ' + resultingPluginsMap[extensionDevPlugin.id].extensionFolderPath + ' with ' + extensionDevPlugin.extensionFolderPath);
+					collector.warn(extensionDevPlugin.extensionFolderPath, 'Overwriting extension ' + resultingPluginsMap[extensionDevPlugin.id].extensionFolderPath + ' with ' + extensionDevPlugin.extensionFolderPath);
 				}
 				resultingPluginsMap[extensionDevPlugin.id] = extensionDevPlugin;
 			});
