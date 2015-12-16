@@ -440,6 +440,7 @@ class DefineKeybindingWidget implements EditorBrowser.IOverlayWidget {
 
 		this._lastKeybinding = null;
 		this._inputNode.value = '';
+		DomUtils.clearNode(this._outputNode);
 		this._inputNode.focus();
 	}
 
