@@ -380,7 +380,7 @@
 .monaco-editor.vs .token.meta.cast								{ color: #2B91AF; }
 .monaco-editor.vs .token.meta.parameter.type					{ color: #2B91AF; }
 .monaco-editor.vs .token.meta.parameter.type.variable			{ color: #000000; }
-.monaco-editor.vs .token.meta.dictionary.key					{ color: #A31515; }
+.monaco-editor.vs .token.meta.dictionary.key					{ color: #0451A5; }
 
 .monaco-editor.vs .token.storage								{ color: #0000FF; }
 .monaco-editor.vs .token.storage.content						{ color: red; }
@@ -514,7 +514,7 @@
 .monaco-editor.vs-dark .token.meta.cast							{ color: #569CD6; }
 .monaco-editor.vs-dark .token.meta.parameter.type				{ color: #D4D4D4; }
 .monaco-editor.vs-dark .token.meta.parameter.type.variable		{ color: #D4D4D4; }
-.monaco-editor.vs-dark .token.meta.dictionary.key				{ color: #569CD6; }
+.monaco-editor.vs-dark .token.meta.dictionary.key				{ color: #9CDCFE; }
 
 .monaco-editor.vs-dark .token.storage							{ color: #569CD6; }
 .monaco-editor.vs-dark .token.storage.content					{ color: #9CDCFE; }
@@ -650,7 +650,7 @@
 .monaco-editor.hc-black .token.meta.cast						{ color: #569CD6; }
 .monaco-editor.hc-black .token.meta.parameter.type				{ color: #D4D4D4; }
 .monaco-editor.hc-black .token.meta.parameter.type.variable		{ color: #D4D4D4; }
-.monaco-editor.hc-black .token.meta.dictionary.key				{ color: #569CD6; }
+.monaco-editor.hc-black .token.meta.dictionary.key				{ color: #9CDCFE; }
 
 .monaco-editor.hc-black .token.storage							{ color: #569CD6; }
 .monaco-editor.hc-black .token.storage.content					{ color: #9CDCFE; }
