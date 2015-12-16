@@ -527,7 +527,7 @@ export class Keybinding {
 	 * This prints the binding in a format suitable for electron's accelerators.
 	 * See https://github.com/atom/electron/blob/master/docs/api/accelerator.md
 	 */
-	public toElectronAccelerator(): string {
+	public _toElectronAccelerator(): string {
 		return Keybinding._toElectronAccelerator(this.value);
 	}
 
@@ -553,7 +553,7 @@ export interface IKeyBindingLabelProvider {
 /**
  * Print for Electron
  */
-class ElectronAcceleratorLabelProvider implements IKeyBindingLabelProvider {
+export class ElectronAcceleratorLabelProvider implements IKeyBindingLabelProvider {
 	public static INSTANCE = new ElectronAcceleratorLabelProvider();
 
 	public ctrlKeyLabel = 'Ctrl';

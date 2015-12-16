@@ -467,6 +467,23 @@ export default class PluginWorkbenchKeybindingService extends WorkbenchKeybindin
 		return keybinding.toCustomHTMLLabel(this._nativeLabelProvider);
 	}
 
+	public getElectronAcceleratorFor(keybinding:Keybinding): string {
+		if (Platform.isWindows) {
+			// electron menus always do the correct rendering on Windows
+			return super.getElectronAcceleratorFor(keybinding);
+		}
+
+		let usLabel = keybinding._toUSLabel();
+		let label = this.getLabelFor(keybinding);
+		if (usLabel !== label) {
+			// electron menus are incorrect in rendering (linux) and in rendering and interpreting (mac)
+			// for non US standard keyboard layouts
+			return null;
+		}
+
+		return super.getElectronAcceleratorFor(keybinding);
+	}
+
 	private _handleKeybindingsExtensionPointUser(isBuiltin: boolean, keybindings:ContributedKeyBinding | ContributedKeyBinding[], collector:IMessageCollector): boolean {
 		if (isContributedKeyBindingsArray(keybindings)) {
 			let commandAdded = false;

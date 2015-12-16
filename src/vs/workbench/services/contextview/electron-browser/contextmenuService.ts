@@ -15,6 +15,7 @@ import {KeybindingsUtils} from 'vs/platform/keybinding/common/keybindingsUtils';
 import {IContextMenuService, IContextMenuDelegate} from 'vs/platform/contextview/browser/contextView';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IMessageService} from 'vs/platform/message/common/message';
+import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 
 import remote = require('remote');
 
@@ -25,10 +26,12 @@ export class ContextMenuService implements IContextMenuService {
 	public serviceId = IContextMenuService;
 	private telemetryService: ITelemetryService;
 	private messageService: IMessageService;
+	private keybindingService: IKeybindingService;
 
-	constructor(messageService: IMessageService, telemetryService: ITelemetryService) {
+	constructor(messageService: IMessageService, telemetryService: ITelemetryService, keybindingService: IKeybindingService) {
 		this.messageService = messageService;
 		this.telemetryService = telemetryService;
+		this.keybindingService = keybindingService;
 	}
 
 	public showContextMenu(delegate: IContextMenuDelegate): void {
@@ -45,7 +48,7 @@ export class ContextMenuService implements IContextMenuService {
 					menu.append(new MenuItem({ type: 'separator' }));
 				} else {
 					const keybinding = !!delegate.getKeyBinding ? delegate.getKeyBinding(a) : undefined;
-					const accelerator = keybinding && keybinding.toElectronAccelerator();
+					const accelerator = keybinding && this.keybindingService.getElectronAcceleratorFor(keybinding);
 
 					const item = new MenuItem({
 						label: a.label,

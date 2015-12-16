@@ -92,7 +92,7 @@ export class VSCodeMenu {
 
 			let needsMenuUpdate = false;
 			keybindings.forEach((keybinding) => {
-				let accelerator = new Keybinding(keybinding.binding).toElectronAccelerator();
+				let accelerator = new Keybinding(keybinding.binding)._toElectronAccelerator();
 				if (accelerator) {
 					this.mapResolvedKeybindingToActionId[keybinding.id] = accelerator;
 					if (this.mapLastKnownKeybindingToActionId[keybinding.id] !== accelerator) {

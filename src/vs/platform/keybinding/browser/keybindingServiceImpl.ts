@@ -123,6 +123,7 @@ export abstract class AbstractKeybindingService {
 
 	public abstract getLabelFor(keybinding:Keybinding): string;
 	public abstract getHTMLLabelFor(keybinding:Keybinding): IHTMLContentElement[];
+	public abstract getElectronAcceleratorFor(keybinding:Keybinding): string;
 	public abstract customKeybindingsCount(): number;
 	public abstract getContext(contextId: number): KeybindingContext;
 	public abstract createChildContext(parentContextId?: number): number;
@@ -172,6 +173,10 @@ export class KeybindingService extends AbstractKeybindingService implements IKey
 
 	public getHTMLLabelFor(keybinding:Keybinding): IHTMLContentElement[] {
 		return keybinding._toUSHTMLLabel();
+	}
+
+	public getElectronAcceleratorFor(keybinding:Keybinding): string {
+		return keybinding._toElectronAccelerator();
 	}
 
 	protected updateResolver(): void {
@@ -332,6 +337,10 @@ class ScopedKeybindingService extends AbstractKeybindingService {
 
 	public getHTMLLabelFor(keybinding:Keybinding): IHTMLContentElement[] {
 		return this._parent.getHTMLLabelFor(keybinding);
+	}
+
+	public getElectronAcceleratorFor(keybinding:Keybinding): string {
+		return this._parent.getElectronAcceleratorFor(keybinding);
 	}
 
 	public getDefaultKeybindings(): string {

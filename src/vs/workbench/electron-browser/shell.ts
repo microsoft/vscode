@@ -326,7 +326,7 @@ export class WorkbenchShell {
 		result.addSingleton(IRequestService, requestService);
 		result.addSingleton(IWorkspaceContextService, this.contextService);
 		result.addSingleton(IContextViewService, this.contextViewService);
-		result.addSingleton(IContextMenuService, new ContextMenuService(this.messageService, this.telemetryService));
+		result.addSingleton(IContextMenuService, new ContextMenuService(this.messageService, this.telemetryService, this.keybindingService));
 		result.addSingleton(IMessageService, this.messageService);
 		result.addSingleton(IStorageService, this.storageService);
 		result.addSingleton(ILifecycleService, lifecycleService);

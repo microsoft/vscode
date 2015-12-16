@@ -173,6 +173,10 @@ export class TestKeybindingService implements IKeybindingService {
 		return keybinding._toUSHTMLLabel();
 	}
 
+	public getElectronAcceleratorFor(keybinding:Keybinding): string {
+		return keybinding._toElectronAccelerator();
+	}
+
 	public createScoped(domNode: HTMLElement): IKeybindingService {
 		return this;
 	}

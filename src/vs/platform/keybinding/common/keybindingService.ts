@@ -94,6 +94,7 @@ export interface IKeybindingService {
 
 	getLabelFor(keybinding:Keybinding): string;
 	getHTMLLabelFor(keybinding:Keybinding): IHTMLContentElement[];
+	getElectronAcceleratorFor(keybinding:Keybinding): string;
 
 	executeCommand<T>(commandId: string, args?: any): TPromise<T>;
 	executeCommand(commandId: string, args?: any): TPromise<any>;
