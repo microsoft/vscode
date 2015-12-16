@@ -61,7 +61,11 @@ function main(server: Server, initData: IInitData): void {
 	instantiationService.addSingleton(IRequestService, requestService);
 
 	instantiationService.addSingleton(IExtensionsService, new SyncDescriptor(ExtensionsService));
-	server.registerService('ExtensionService', instantiationService.getInstance(IExtensionsService));
+	const extensionService = <ExtensionsService> instantiationService.getInstance(IExtensionsService);
+	server.registerService('ExtensionService', extensionService);
+
+	// eventually clean up old extensions
+	setTimeout(() => extensionService.removeDeprecatedExtensions(), 5000);
 }
 
 function setupIPC(hook: string): TPromise<Server> {

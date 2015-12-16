@@ -244,10 +244,10 @@ class DataSource implements IDataSource<IExtensionEntry> {
 		const extension = entry.extension;
 
 		if (extension.galleryInformation) {
-			return extension.galleryInformation.id;
+			return `${ extension.galleryInformation.id }-${ extension.version }`;
 		}
 
-		return `local@${ extension.publisher }.${extension.name}@${ extension.path || '' }`;
+		return `local@${ extension.publisher }.${ extension.name }-${ extension.version }@${ extension.path || '' }`;
 	}
 
 	getLabel(entry: IExtensionEntry): string {

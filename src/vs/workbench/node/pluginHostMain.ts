@@ -162,10 +162,9 @@ export class PluginHostMain {
 	}
 
 	private static scanPlugins(collector: IPluginsMessageCollector, builtinPluginsPath: string, userInstallPath: string, pluginDevelopmentPath: string, version: string): TPromise<IPluginDescription[]> {
-
-		let builtinPlugins: TPromise<IPluginDescription[]> = PluginScanner.scanPlugins(version, collector, builtinPluginsPath, true);
-		let userPlugins: TPromise<IPluginDescription[]> = (userInstallPath ? PluginScanner.scanPlugins(version, collector, userInstallPath, false) : TPromise.as([]));
-		let developedPlugins: TPromise<IPluginDescription[]> = (pluginDevelopmentPath ? PluginScanner.scanOneOrMultiplePlugins(version, collector, pluginDevelopmentPath, false) : TPromise.as([]));
+		const builtinPlugins = PluginScanner.scanPlugins(version, collector, builtinPluginsPath, true);
+		const userPlugins = !userInstallPath ? TPromise.as([]) : PluginScanner.scanPlugins(version, collector, userInstallPath, false);
+		const developedPlugins = !pluginDevelopmentPath ? TPromise.as([]) : PluginScanner.scanOneOrMultiplePlugins(version, collector, pluginDevelopmentPath, false);
 
 		return TPromise.join([builtinPlugins, userPlugins, developedPlugins]).then((_: IPluginDescription[][]) => {
 			let builtinPlugins = _[0];

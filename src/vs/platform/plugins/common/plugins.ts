@@ -11,6 +11,7 @@ import Severity from 'vs/base/common/severity';
 export interface IPluginDescription {
 	id: string;
 	name: string;
+	version: string;
 	publisher: string;
 	isBuiltin: boolean;
 	extensionFolderPath: string;
