@@ -5,10 +5,14 @@
 
 .monaco-editor .defineKeybindingLauncher {
 	font-family: 'Segoe WPC', 'Segoe UI', "SFUIText-Light", HelveticaNeue-Light, sans-serif, "Droid Sans Fallback";
-	background: rgba(0,255,0,0.3);
+	background: rgb(179,255,179);
 	padding: 10px;
 	border-radius: 5px;
 	cursor: pointer;
+}
+.monaco-editor.vs-dark .defineKeybindingLauncher,
+.monaco-editor.hc-black .defineKeybindingLauncher {
+	background: rgb(21,97,21);
 }
 
 .monaco-editor .defineKeybindingWidget {
@@ -19,6 +23,7 @@
 .monaco-editor .defineKeybindingWidget .message {
 	width: 320px;
 	text-align: center;
+	white-space: nowrap;
 }
 
 .monaco-editor .defineKeybindingWidget .input,

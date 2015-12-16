@@ -60,6 +60,13 @@ export class DefineKeybindingController implements EditorCommon.IEditorContribut
 		this._launchWidget = new DefineKeybindingLauncherWidget(this._editor, keybindingService, () => this.launch());
 		this._defineWidget = new DefineKeybindingWidget(this._editor, keybindingService, (keybinding) => this._onAccepted(keybinding));
 
+		this._toDispose.push(this._editor.addListener2(EditorCommon.EventType.ConfigurationChanged, (e) => {
+			if (isInterestingEditorModel(this._editor)) {
+				this._launchWidget.show();
+			} else {
+				this._launchWidget.hide();
+			}
+		}));
 		this._toDispose.push(this._editor.addListener2(EditorCommon.EventType.ModelChanged, (e) => {
 			if (isInterestingEditorModel(this._editor)) {
 				this._launchWidget.show();
