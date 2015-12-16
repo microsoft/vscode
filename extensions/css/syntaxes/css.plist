@@ -441,7 +441,7 @@
 						</dict>
 						<dict>
 							<key>match</key>
-							<string>\b(portrait|landscape|progressive|interlace)</string>
+							<string>\b(portrait|landscape|progressive|interlace|none|coarse|fine|on-demand|hover)</string>
 							<key>name</key>
 							<string>support.constant.property-value.css</string>
 						</dict>
