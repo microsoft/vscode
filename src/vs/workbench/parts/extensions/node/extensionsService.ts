@@ -146,7 +146,7 @@ export class ExtensionsService implements IExtensionsService {
 
 	private installFromZip(zipPath: string): TPromise<IExtension> {
 		return validate(zipPath).then(manifest => {
-			const extensionPath = path.join(this.extensionsPath, `${ manifest.publisher }.${ manifest.name }`);
+			const extensionPath = path.join(this.extensionsPath, `${ manifest.publisher }.${ manifest.name }-${ manifest.version }`);
 			this._onInstallExtension.fire(manifest);
 
 			return extract(zipPath, extensionPath, { sourcePath: 'extension', overwrite: true })
@@ -203,7 +203,7 @@ export class ExtensionsService implements IExtensionsService {
 	}
 
 	private getInstallationPath(extension: IExtension): string {
-		return extension.path || path.join(this.extensionsPath, `${ extension.publisher }.${ extension.name }`);
+		return extension.path || path.join(this.extensionsPath, `${ extension.publisher }.${ extension.name }-${ extension.version }`);
 	}
 
 	public removeDeprecatedExtensions(): TPromise<void> {
