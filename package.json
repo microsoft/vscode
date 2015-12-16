@@ -28,7 +28,7 @@
     "semver": "^4.2.0",
     "vscode-debugprotocol": "^1.0.0",
     "vscode-textmate": "^1.0.9",
-    "native-keymap": "^0.1.0",
+    "native-keymap": "^0.1.1",
     "winreg": "0.0.12",
     "yauzl": "^2.3.1"
   },
