@@ -9,6 +9,7 @@ var es = require('event-stream');
 var path = require('path');
 
 var all = [
+	'*',
 	'build/**/*',
 	'extensions/**/*',
 	'scripts/**/*',
@@ -18,6 +19,8 @@ var all = [
 
 var eolFilter = [
 	'**',
+	'!ThirdPartyNotices.txt',
+	'!LICENSE.txt',
 	'!extensions/**/out/**',
 	'!**/node_modules/**',
 	'!**/fixtures/**',
@@ -26,6 +29,9 @@ var eolFilter = [
 
 var indentationFilter = [
 	'**',
+	'!ThirdPartyNotices.txt',
+	'!**/*.md',
+	'!**/*.yml',
 	'!**/lib/**',
 	'!**/*.d.ts',
 	'!extensions/typescript/server/**',
