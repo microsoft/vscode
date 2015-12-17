@@ -203,6 +203,7 @@ export class BaseTextDocument implements vscode.TextDocument {
 	dispose(): void {
 		this._lines.length = 0;
 		this._textLines.length = 0;
+		this._isDirty = false;
 	}
 
 	get uri(): URI {
