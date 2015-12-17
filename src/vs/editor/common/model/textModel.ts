@@ -472,7 +472,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements EditorCommo
 			throw new Error('TextModel.guessIndentation: Model is disposed');
 		}
 
-		var i:number,
+		let i:number,
 			len:number,
 			factors = this._extractIndentationFactors(),
 			linesWithIndentationCount = factors.linesWithIndentationCount,
@@ -481,29 +481,12 @@ export class TextModel extends OrderGuaranteeEventEmitter implements EditorCommo
 			relativeSpaceCounts = factors.relativeSpaceCounts;
 
 		// Count the absolute number of times tabs or spaces have been used as indentation
-		var linesIndentedWithSpaces = 0;
+		let linesIndentedWithSpaces = 0;
 		for (i = 1, len = absoluteSpaceCounts.length; i < len; i++) {
 			linesIndentedWithSpaces += (absoluteSpaceCounts[i] || 0);
 		}
 
-		// Give preference to spaces over tabs (when evidence is the same)
-		// or when there are not enough clues (too little indentation in the file)
-		if (linesIndentedWithTabs >= linesIndentedWithSpaces) {
-			return {
-				insertSpaces: true,
-				tabSize: defaultTabSize
-			};
-		}
-
-		if (linesWithIndentationCount < 6 && linesIndentedWithTabs > 0) {
-			// Making a guess with 6 indented lines, of which tabs are used besides spaces is very difficult
-			return {
-				insertSpaces: true,
-				tabSize: defaultTabSize
-			};
-		}
-
-		var candidate:number,
+		let candidate:number,
 			candidateScore:number,
 			penalization:number,
 			m:number,
@@ -528,18 +511,18 @@ export class TextModel extends OrderGuaranteeEventEmitter implements EditorCommo
 			scores[candidate] = candidateScore / (1 + penalization);
 		}
 
-//		console.log('----------');
-//		console.log('linesWithIndentationCount: ', linesWithIndentationCount);
-//		console.log('linesIndentedWithTabs: ', linesIndentedWithTabs);
-//		console.log('absoluteSpaceCounts: ', absoluteSpaceCounts);
-//		console.log('relativeSpaceCounts: ', relativeSpaceCounts);
-//		console.log('=> linesIndentedWithSpaces: ', linesIndentedWithSpaces);
-//		console.log('=> scores: ', scores);
+		// console.log('----------');
+		// console.log('linesWithIndentationCount: ', linesWithIndentationCount);
+		// console.log('linesIndentedWithTabs: ', linesIndentedWithTabs);
+		// console.log('absoluteSpaceCounts: ', absoluteSpaceCounts);
+		// console.log('relativeSpaceCounts: ', relativeSpaceCounts);
+		// console.log('=> linesIndentedWithSpaces: ', linesIndentedWithSpaces);
+		// console.log('=> scores: ', scores);
 
-		var bestCandidate = defaultTabSize,
+		let bestCandidate = defaultTabSize,
 			bestCandidateScore = 0;
 
-		var allowedGuesses = [2, 4, 6, 8];
+		let allowedGuesses = [2, 4, 6, 8];
 
 		for (i = 0; i < allowedGuesses.length; i++) {
 			candidate = allowedGuesses[i];
@@ -549,8 +532,15 @@ export class TextModel extends OrderGuaranteeEventEmitter implements EditorCommo
 				bestCandidateScore = candidateScore;
 			}
 		}
+
+		let insertSpaces = true;
+		if (linesIndentedWithTabs > linesIndentedWithSpaces) {
+			// More lines indented with tabs
+			insertSpaces = false;
+		}
+
 		return {
-			insertSpaces: true,
+			insertSpaces: insertSpaces,
 			tabSize: bestCandidate
 		};
 	}
