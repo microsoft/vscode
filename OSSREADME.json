@@ -104,9 +104,9 @@
 	]
 },
 {
-	// Reason: vscode-textmate is not public yet
-	// TODO: Remove once vscode-textmate visibility is made public
-	"name": "vscode-textmate",
+	// Reason: windows-mutex is not public yet
+	// TODO: Remove once windows-mutex visibility is made public
+	"name": "windows-mutex",
 	"isLicense": true,
 	"licenseDetail": [
 		"The MIT License (MIT)",
