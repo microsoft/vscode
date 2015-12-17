@@ -65,6 +65,7 @@ suite('workspace-namespace', () => {
 
 			return doc.save().then(() => {
 				assert.ok(closed === doc);
+				assert.ok(!doc.isDirty);
 				assert.ok(fs.existsSync(path));
 
 				d0.dispose();
