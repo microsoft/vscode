@@ -77,7 +77,7 @@ export class EmptyBlocksWithoutComment implements rules.IStyleRule<ts.Block> {
 		var insideBlock = block.getChildAt(1);
 		if (insideBlock) {
 			var text = ts.getTextOfNode(insideBlock);
-			if (text && strings.trimWhitespace(text).length > 0) {
+			if (text && text.trim().length > 0) {
 				return true;
 			}
 		}

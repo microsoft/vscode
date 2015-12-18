@@ -81,17 +81,6 @@ suite('Strings', () => {
 		assert.strictEqual(strings.escape("<foo>Hello</foo>"), "&lt;foo&gt;Hello&lt;/foo&gt;");
 	});
 
-
-	test("formatDate", function () {
-		assert(strings.formatDate());
-		assert(strings.formatDate(new Date()));
-	});
-
-	test("formatTime", function () {
-		assert(strings.formatTime());
-		assert(strings.formatTime(new Date()));
-	});
-
 	test("startsWith", function () {
 		assert(strings.startsWith("foo", "f"));
 		assert(strings.startsWith("foo", "fo"));
@@ -156,12 +145,12 @@ suite('Strings', () => {
 	});
 
 	test("trimWhitespace", function () {
-		assert.strictEqual(strings.trimWhitespace(" foo "), "foo");
-		assert.strictEqual(strings.trimWhitespace("	 foo	"), "foo");
-		assert.strictEqual(strings.trimWhitespace("  foo"), "foo");
-		assert.strictEqual(strings.trimWhitespace("bar  "), "bar");
-		assert.strictEqual(strings.trimWhitespace("   "), "");
-		assert.strictEqual(strings.trimWhitespace(" 	  "), "");
+		assert.strictEqual(" foo ".trim(), "foo");
+		assert.strictEqual("	 foo	".trim(), "foo");
+		assert.strictEqual("  foo".trim(), "foo");
+		assert.strictEqual("bar  ".trim(), "bar");
+		assert.strictEqual("   ".trim(), "");
+		assert.strictEqual(" 	  ".trim(), "");
 	});
 
 	test("uri encode with slashes", function () {

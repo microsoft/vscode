@@ -46,52 +46,6 @@ export function format(value: string, ...args: any[]): string {
 }
 
 /**
- * Simple, non-language-aware date formatter.
- */
-export function formatDate(date: Date = new Date()): string {
-	return nls.localize(
-		{
-			key: 'format.date',
-			comment: [
-				'{0} represents the month as a 2 digit number',
-				'{1} represents the day as a 2 digit number',
-				'{2} represents the year as a 4 digit number',
-				'{3} represents the hours as a 2 digit number',
-				'{4} represents the minutes as a 2 digit number',
-				'{5} represents the seconds as a 2 digit number'
-			]
-		},
-		"{0}-{1}-{2} {3}:{4}:{5}",
-		pad(date.getMonth() + 1, 2),
-		pad(date.getDate(), 2),
-		pad(date.getFullYear(), 4),
-		pad(date.getHours(), 2),
-		pad(date.getMinutes(), 2),
-		pad(date.getSeconds(), 2)
-	);
-}
-
-/**
- * Simple, non-language-aware time formatter.
- */
-export function formatTime(date: Date = new Date()): string {
-	return nls.localize(
-		{
-			key: 'format.time',
-			comment: [
-				'{0} represents the hours as a 2 digit number',
-				'{1} represents the minutes as a 2 digit number',
-				'{2} represents the seconds as a 2 digit number'
-			]
-		},
-		"{0}:{1}:{2}",
-		pad(date.getHours(), 2),
-		pad(date.getMinutes(), 2),
-		pad(date.getSeconds(), 2)
-	);
-}
-
-/**
  * Converts HTML characters inside the string to use entities instead. Makes the string safe from
  * being used e.g. in HTMLElement.innerHTML.
  */
@@ -186,13 +140,6 @@ export function rtrim(haystack?: string, needle?: string): string {
 	}
 
 	return haystack.substring(0, offset);
-}
-
-/**
- * Removes all occurrences of whitespaces from the beginning and end of haystack.
- */
-export function trimWhitespace(haystack: string): string {
-	return haystack.replace(/(^\s+|\s+$)/g, '');
 }
 
 export function convertSimple2RegExpPattern(pattern: string): string {
