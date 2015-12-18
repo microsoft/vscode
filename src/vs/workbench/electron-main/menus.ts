@@ -538,7 +538,7 @@ export class VSCodeMenu {
 
 		let zoomIn = this.createMenuItem(nls.localize('miZoomIn', "&&Zoom in"), 'workbench.action.zoomIn');
 		let zoomOut = this.createMenuItem(nls.localize('miZoomOut', "Zoom o&&ut"), 'workbench.action.zoomOut');
-		[
+		arrays.coalesce([
 			commands,
 			markers,
 			output,
@@ -552,7 +552,7 @@ export class VSCodeMenu {
 			__separator__(),
 			zoomIn,
 			zoomOut
-		].forEach((item) => viewMenu.append(item));
+		]).forEach((item) => viewMenu.append(item));
 	}
 
 	private setGotoMenu(gotoMenu: Menu): void {
