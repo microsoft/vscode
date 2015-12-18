@@ -61,6 +61,10 @@ export var debuggersExtPoint = pluginsRegistry.PluginsRegistry.registerExtension
 				description: nls.localize('vscode.extension.contributes.debuggers.program', "Path to the debug adapter program. Path is either absolute or relative to the extension folder."),
 				type: 'string'
 			},
+			args: {
+				description: nls.localize('vscode.extension.contributes.debuggers.args', "Optional arguments to pass to the adapter."),
+				type: 'array'
+			},
 			runtime : {
 				description: nls.localize('vscode.extension.contributes.debuggers.runtime', "Optional runtime in case the program attribute is not an executable but requires a runtime."),
 				type: 'string'

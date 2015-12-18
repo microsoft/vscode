@@ -202,7 +202,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 	private launchServer(launch: { command: string, argv: string[] }): Promise {
 		return new Promise((c, e) => {
 			if (launch.command === 'node') {
-				stdfork.fork(launch.argv[0], [], {}, (err, child) => {
+				stdfork.fork(launch.argv[0], launch.argv.slice(1), {}, (err, child) => {
 					if (err) {
 						e(new Error(`Unable to launch debug adapter from ${ launch.argv[0] }.`));
 					}
@@ -259,25 +259,25 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 	}
 
 	private getLaunchDetails(): TPromise<{ command: string; argv: string[]; }> {
-		return new TPromise<string>((c, e) => {
+		return new Promise((c, e) => {
 			fs.exists(this.adapter.program, exists => {
 				if (exists) {
-					// trust the local bin folder
-					c(this.adapter.program);
+					c(null);
 				} else {
 					e(new Error(`DebugAdapter bin folder not found on path ${this.adapter.program}.`));
 				}
 			});
-		}).then(adapterPath => {
+		}).then(() => {
 			if (this.adapter.runtime) {
 				return {
 					command: this.adapter.runtime,
-					argv: [adapterPath].concat(this.adapter.runtimeArgs)
+					argv: (this.adapter.runtimeArgs || []).concat([this.adapter.program]).concat(this.adapter.args || [])
 				};
 			}
 
 			return {
-				command: adapterPath
+				command: this.adapter.program,
+				argv: this.adapter.args || []
 			};
 		});
 	}
