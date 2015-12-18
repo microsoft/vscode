@@ -299,10 +299,12 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 
 		// Fuzzy scoring is special
 		if (enableFuzzyScoring) {
+			const labelA = elementA.getLabel();
+			const labelB = elementB.getLabel();
 
 			// Give higher importance to label score
-			const labelAScore = scorer.score(elementA.getLabel(), lookFor, this.scorerCache);
-			const labelBScore = scorer.score(elementB.getLabel(), lookFor, this.scorerCache);
+			const labelAScore = scorer.score(labelA, lookFor, this.scorerCache);
+			const labelBScore = scorer.score(labelB, lookFor, this.scorerCache);
 
 			// Useful for understanding the scoring
 			// elementA.setPrefix(labelAScore + ' ');
@@ -326,6 +328,15 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 				if (resourceAScore !== resourceBScore) {
 					return resourceAScore > resourceBScore ? -1 : 1;
 				}
+			}
+
+			// At this place, the scores are identical so we check for string lengths and favor shorter ones
+			if (labelA.length !== labelB.length) {
+				return labelA.length < labelB.length ? -1 : 1;
+			}
+
+			if (resourceA && resourceB && resourceA.fsPath.length !== resourceB.fsPath.length) {
+				return resourceA.fsPath.length < resourceB.fsPath.length ? -1 : 1;
 			}
 		}
 
