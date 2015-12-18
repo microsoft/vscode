@@ -121,6 +121,14 @@ export class ExplorerViewlet extends Viewlet {
 		}
 	}
 
+	public focusWorkingFilesView(): void {
+		super.focus();
+
+		if (this.workingFilesView) {
+			this.workingFilesView.focus();
+		}
+	}
+
 	public layout(dimension: Dimension): void {
 		this.splitView.layout(dimension.height);
 	}
