@@ -67,49 +67,72 @@ export class FileWalker {
 		// Reset state
 		this.resetState();
 
-		// For each source
-		flow.parallel(rootPaths, (absolutePath, perEntryCallback) => {
+		// Support that the file pattern is a full path to a file that exists
+		this.checkFilePatternMatch(rootPaths, (exists) => {
 
-			// Try to Read as folder
-			extfs.readdir(absolutePath, (error: Error, files: string[]) => {
-				if (this.isCanceled || this.isLimitHit) {
-					return perEntryCallback(null, null);
-				}
+			// Report result from file pattern if matching
+			if (exists) {
+				onResult({ path: this.filePattern });
+			}
 
-				// Handle Directory
-				if (!error) {
-					return this.doWalk(absolutePath, '', files, onResult, perEntryCallback);
-				}
+			// For each source
+			flow.parallel(rootPaths, (absolutePath, perEntryCallback) => {
 
-				// Not a folder - deal with file result then
-				if ((<any>error).code === FileWalker.ENOTDIR && !this.isCanceled && !this.isLimitHit) {
-
-					// Check exclude pattern
-					if (glob.match(this.excludePattern, absolutePath)) {
+				// Try to Read as folder
+				extfs.readdir(absolutePath, (error: Error, files: string[]) => {
+					if (this.isCanceled || this.isLimitHit) {
 						return perEntryCallback(null, null);
 					}
 
-					// Check for match on file pattern and include pattern
-					if (this.isFilePatternMatch(paths.basename(absolutePath), absolutePath) && (!this.includePattern || glob.match(this.includePattern, absolutePath))) {
-						this.resultCount++;
+					// Handle Directory
+					if (!error) {
+						return this.doWalk(absolutePath, '', files, onResult, perEntryCallback);
+					}
 
-						if (this.maxResults && this.resultCount > this.maxResults) {
-							this.isLimitHit = true;
+					// Not a folder - deal with file result then
+					if ((<any>error).code === FileWalker.ENOTDIR && !this.isCanceled && !this.isLimitHit) {
+
+						// Check exclude pattern
+						if (glob.match(this.excludePattern, absolutePath)) {
+							return perEntryCallback(null, null);
 						}
 
-						if (!this.isLimitHit) {
-							onResult({
-								path: absolutePath
-							});
+						// Check for match on file pattern and include pattern
+						if (this.isFilePatternMatch(paths.basename(absolutePath), absolutePath) && (!this.includePattern || glob.match(this.includePattern, absolutePath))) {
+							this.resultCount++;
+
+							if (this.maxResults && this.resultCount > this.maxResults) {
+								this.isLimitHit = true;
+							}
+
+							if (!this.isLimitHit) {
+								onResult({
+									path: absolutePath
+								});
+							}
 						}
 					}
-				}
 
-				// Unwind
-				return perEntryCallback(null, null);
+					// Unwind
+					return perEntryCallback(null, null);
+				});
+			}, (err, result) => {
+				done(err ? err[0] : null, this.isLimitHit);
 			});
-		}, (err, result) => {
-			done(err ? err[0] : null, this.isLimitHit);
+		});
+	}
+
+	private checkFilePatternMatch(rootPaths: string[], clb: (exists: boolean) => void): void {
+		if (!this.filePattern || !paths.isAbsolute(this.filePattern)) {
+			return clb(false);
+		}
+
+		if (rootPaths && rootPaths.some(r => r === this.filePattern)) {
+			return clb(false); // root paths matches are handled already (prevents duplicates)
+		}
+
+		return fs.stat(this.filePattern, (error, stat) => {
+			return clb(!error && !stat.isDirectory()); // only existing files
 		});
 	}
 
