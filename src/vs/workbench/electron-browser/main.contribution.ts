@@ -11,8 +11,9 @@ import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
 import {IConfigurationRegistry, Extensions as ConfigurationExtensions} from 'vs/platform/configuration/common/configurationRegistry';
 import {IWorkbenchActionRegistry, Extensions} from 'vs/workbench/browser/actionRegistry';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
+import platform = require('vs/base/common/platform');
 import {WorkbenchMessageService} from 'vs/workbench/services/message/browser/messageService';
-import {CloseEditorAction, ReloadWindowAction, ShowStartupPerformance, ZoomResetAction, ZoomOutAction, ZoomInAction, ToggleDevToolsAction, ToggleFullScreenAction, OpenRecentAction, CloseFolderAction, CloseWindowAction, NewWindowAction, CloseMessagesAction} from 'vs/workbench/electron-browser/actions';
+import {CloseEditorAction, ReloadWindowAction, ShowStartupPerformance, ZoomResetAction, ZoomOutAction, ZoomInAction, ToggleDevToolsAction, ToggleFullScreenAction, ToggleMenuBarAction, OpenRecentAction, CloseFolderAction, CloseWindowAction, NewWindowAction, CloseMessagesAction} from 'vs/workbench/electron-browser/actions';
 
 // Contribute Global Actions
 const viewCategory = nls.localize('view', "View");
@@ -32,6 +33,9 @@ workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(Reload
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(CloseMessagesAction, CloseMessagesAction.ID, CloseMessagesAction.LABEL, { primary: KeyCode.Escape }, [{ key: WorkbenchMessageService.GLOBAL_MESSAGES_SHOWING_CONTEXT }]));
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(CloseEditorAction, CloseEditorAction.ID, CloseEditorAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_W, win: { primary: KeyMod.CtrlCmd | KeyCode.F4, secondary: [KeyMod.CtrlCmd | KeyCode.KEY_W] } }), viewCategory);
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleFullScreenAction, ToggleFullScreenAction.ID, ToggleFullScreenAction.LABEL, { primary: KeyCode.F11, mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KEY_F } }), viewCategory);
+if (platform.isWindows) {
+	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleMenuBarAction, ToggleMenuBarAction.ID, ToggleMenuBarAction.LABEL), viewCategory);
+}
 
 // Configuration: Window
 const configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigurationExtensions.Configuration);

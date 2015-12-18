@@ -125,6 +125,22 @@ export class ToggleFullScreenAction extends Action {
 	}
 }
 
+export class ToggleMenuBarAction extends Action {
+
+	public static ID = 'workbench.action.toggleMenuBar';
+	public static LABEL = nls.localize('toggleMenuBar', "Toggle Menu Bar");
+
+	constructor(id: string, label: string, @IWindowService private windowService: IWindowService) {
+		super(id, label);
+	}
+
+	public run(): Promise {
+		ipc.send('vscode:toggleMenuBar', this.windowService.getWindowId());
+
+		return Promise.as(true);
+	}
+}
+
 export class ToggleDevToolsAction extends Action {
 
 	public static ID = 'workbench.action.toggleDevTools';

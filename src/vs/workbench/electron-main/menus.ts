@@ -531,7 +531,7 @@ export class VSCodeMenu {
 		let output = this.createMenuItem(nls.localize('miToggleOutput', "Toggle &&Output"), 'workbench.action.output.toggleOutput');
 
 		let fullscreen = new MenuItem({ label: mnemonicLabel(nls.localize('miToggleFullScreen', "Toggle &&Full Screen")), accelerator: this.getAccelerator('workbench.action.toggleFullScreen'), click: () => windows.manager.getLastActiveWindow().toggleFullScreen(), enabled: windows.manager.getWindowCount() > 0 });
-
+		let toggleMenuBar = this.createMenuItem(nls.localize('miToggleMenuBar', "Toggle Menu &&Bar"), 'workbench.action.toggleMenuBar');
 		let splitEditor = this.createMenuItem(nls.localize('miSplitEditor', "Split &&Editor"), 'workbench.action.splitEditor');
 		let toggleSidebar = this.createMenuItem(nls.localize('miToggleSidebar', "&&Toggle Side Bar"), 'workbench.action.toggleSidebarVisibility');
 		let moveSidebar = this.createMenuItem(nls.localize('miMoveSidebar', "&&Move Side Bar"), 'workbench.action.toggleSidebarPosition');
@@ -544,6 +544,7 @@ export class VSCodeMenu {
 			output,
 			__separator__(),
 			fullscreen,
+			platform.isWindows ? toggleMenuBar : void 0,
 			__separator__(),
 			splitEditor,
 			toggleSidebar,

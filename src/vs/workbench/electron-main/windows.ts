@@ -24,6 +24,7 @@ import lifecycle = require('vs/workbench/electron-main/lifecycle');
 import nls = require('vs/nls');
 import paths = require('vs/base/common/paths');
 import arrays = require('vs/base/common/arrays');
+import types = require('vs/base/common/types');
 import objects = require('vs/base/common/objects');
 import storage = require('vs/workbench/electron-main/storage');
 import settings = require('vs/workbench/electron-main/settings');
@@ -97,7 +98,6 @@ export class WindowsManager {
 
 	private static workingDirPickerStorageKey = 'pickerWorkingDir';
 	private static windowsStateStorageKey = 'windowsState';
-	private static themeStorageKey = 'theme'; // TODO@Ben this key is only used to find out if a window can be shown instantly because of light theme, remove once we have support for bg color
 
 	private static WINDOWS: window.VSCodeWindow[] = [];
 
@@ -229,9 +229,21 @@ export class WindowsManager {
 			}
 		});
 
+		ipc.on('vscode:toggleMenuBar', (event: Event, windowId: number) => {
+			env.log('IPC#vscode:toggleMenuBar');
+
+			// Update in settings
+			let menuBarHidden = storage.getItem(window.VSCodeWindow.menuBarHiddenKey, false);
+			let newMenuBarHidden = !menuBarHidden;
+			storage.setItem(window.VSCodeWindow.menuBarHiddenKey, newMenuBarHidden);
+
+			// Update across windows
+			WindowsManager.WINDOWS.forEach(w => w.setMenuBarVisibility(!newMenuBarHidden));
+		});
+
 		ipc.on('vscode:changeTheme', (event, theme: string) => {
 			this.sendToAll('vscode:changeTheme', theme);
-			storage.setItem(WindowsManager.themeStorageKey, theme);
+			storage.setItem(window.VSCodeWindow.themeStorageKey, theme);
 		});
 
 		ipc.on('vscode:broadcast', (event: Event, windowId: number, target: string, broadcast: { channel: string; payload: any; }) => {
@@ -679,7 +691,11 @@ export class WindowsManager {
 
 		// New window
 		if (!vscodeWindow) {
-			vscodeWindow = new window.VSCodeWindow(this.getNewWindowState(configuration), !!configuration.pluginDevelopmentPath, /vs($| )/.test(storage.getItem<string>(WindowsManager.themeStorageKey)));
+			vscodeWindow = new window.VSCodeWindow({
+				state: this.getNewWindowState(configuration),
+				isPluginDevelopmentHost: !!configuration.pluginDevelopmentPath
+			});
+
 			WindowsManager.WINDOWS.push(vscodeWindow);
 
 			// Window Events

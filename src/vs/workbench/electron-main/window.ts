@@ -25,6 +25,11 @@ export interface IWindowState {
 	mode?: WindowMode;
 }
 
+export interface IWindowCreationOptions {
+	state: IWindowState;
+	isPluginDevelopmentHost: boolean;
+}
+
 export enum WindowMode {
 	Maximized,
 	Normal,
@@ -128,6 +133,9 @@ const enableDebugLogging = false;
 
 export class VSCodeWindow {
 
+	public static menuBarHiddenKey = 'menuBarHidden';
+	public static themeStorageKey = 'theme'; // TODO@Ben this key is only used to find out if a window can be shown instantly because of light theme, remove once we have support for bg color
+
 	private static MIN_WIDTH = 200;
 	private static MIN_HEIGHT = 120;
 
@@ -144,16 +152,17 @@ export class VSCodeWindow {
 	private currentConfig: IWindowConfiguration;
 	private pendingLoadConfig: IWindowConfiguration;
 
-	constructor(state?: IWindowState, isPluginDevelopmentHost?: boolean, usesLightTheme?: boolean) {
+	constructor(config: IWindowCreationOptions) {
 		this._lastFocusTime = -1;
 		this._readyState = ReadyState.NONE;
-		this._isPluginDevelopmentHost = isPluginDevelopmentHost;
+		this._isPluginDevelopmentHost = config.isPluginDevelopmentHost;
 		this.whenReadyCallbacks = [];
 
 		// Load window state
-		this.restoreWindowState(state);
+		this.restoreWindowState(config.state);
 
 		// For VS theme we can show directly because background is white
+		const usesLightTheme = /vs($| )/.test(storage.getItem<string>(VSCodeWindow.themeStorageKey));
 		let showDirectly = usesLightTheme;
 		if (showDirectly && !global.windowShow) {
 			global.windowShow = new Date().getTime();
@@ -188,6 +197,10 @@ export class VSCodeWindow {
 
 		if (showDirectly) {
 			this._lastFocusTime = new Date().getTime(); // since we show directly, we need to set the last focus time too
+		}
+
+		if (storage.getItem<boolean>(VSCodeWindow.menuBarHiddenKey, false)) {
+			this.setMenuBarVisibility(false); // respect configured menu bar visibility
 		}
 
 		this.registerListeners();
@@ -532,9 +545,17 @@ export class VSCodeWindow {
 
 		// Windows: Hide the menu bar but still allow to bring it up by pressing the Alt key
 		if (platform.isWindows) {
-			this.win.setMenuBarVisibility(!willBeFullScreen);
-			this.win.setAutoHideMenuBar(willBeFullScreen);
+			if (willBeFullScreen) {
+				this.setMenuBarVisibility(false);
+			} else {
+				this.setMenuBarVisibility(!storage.getItem<boolean>(VSCodeWindow.menuBarHiddenKey, false)); // restore as configured
+			}
 		}
+	}
+
+	public setMenuBarVisibility(visible: boolean): void {
+		this.win.setMenuBarVisibility(visible);
+		this.win.setAutoHideMenuBar(!visible);
 	}
 
 	public sendWhenReady(channel: string, ...args: any[]): void {
