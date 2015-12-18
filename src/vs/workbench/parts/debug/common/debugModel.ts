@@ -33,6 +33,9 @@ function massageValue(value: string): string {
 	return value ? value.replace(/\n/g, '\\n').replace(/\r/g, '\\r').replace(/\t/g, '\\t') : value;
 }
 
+var notPropertySyntax = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
+var arrayElementSyntax = /\[.*\]$/;
+
 export function getFullExpressionName(expression: debug.IExpression, sessionType: string): string {
 	let names = [expression.name];
 	if (expression instanceof Variable) {
@@ -45,11 +48,10 @@ export function getFullExpressionName(expression: debug.IExpression, sessionType
 	names = names.reverse();
 
 	let result = null;
-	const propertySyntax = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
 	names.forEach(name => {
 		if (!result) {
 			result = name;
-		} else if (sessionType === 'node' && !propertySyntax.test(name)) {
+		} else if (arrayElementSyntax.test(name) || (sessionType === 'node' && !notPropertySyntax.test(name))) {
 			// Use safe way to access node properties a['property_name']. Also handles array elements.
 			result = name && name.indexOf('[') === 0 ? `${ result }${ name }` : `${ result }['${ name }']`;
 		} else {
