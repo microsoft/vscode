@@ -2212,6 +2212,27 @@ export class AddToWorkingFiles extends Action {
 	}
 }
 
+export class FocusWorkingFiles extends Action {
+
+	public static ID = 'workbench.files.action.focusWorkingFiles';
+	public static LABEL = nls.localize('focusWorkingFiles', "Focus on Working Files");
+
+	constructor(
+		id: string,
+		label: string,
+		@IViewletService private viewletService: IViewletService
+	) {
+		super(id, label);
+	}
+
+	public run(): Promise {
+		return this.viewletService.openViewlet(Files.VIEWLET_ID, true).then((viewlet: ExplorerViewlet) => {
+			viewlet.getWorkingFilesView().expand();
+			viewlet.getWorkingFilesView().focus();
+		});
+	}
+}
+
 export function keybindingForAction(id: string): Keybinding {
 	switch (id) {
 		case GlobalNewFileAction.ID:

@@ -103,6 +103,10 @@ export class ExplorerViewlet extends Viewlet {
 		return this.explorerView;
 	}
 
+	public getWorkingFilesView(): WorkingFilesView {
+		return this.workingFilesView;
+	}
+
 	public setVisible(visible: boolean): TPromise<void> {
 		return super.setVisible(visible).then(() => {
 			return Promise.join(this.views.map((view) => view.setVisible(visible)));

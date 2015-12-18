@@ -307,7 +307,6 @@ export class WorkingFilesDragAndDrop extends DefaultDragAndDrop {
 }
 
 export class WorkingFilesController extends DefaultController {
-	private didCatchEnterDown: boolean;
 	private actionProvider: WorkingFilesActionProvider;
 	private model: WorkingFilesModel;
 
@@ -319,12 +318,10 @@ export class WorkingFilesController extends DefaultController {
 	) {
 		super({ clickBehavior: ClickBehavior.ON_MOUSE_DOWN });
 
-		this.didCatchEnterDown = false;
 		this.model = model;
 		this.actionProvider = provider;
 
 		this.downKeyBindingDispatcher.set(CommonKeybindings.ENTER, this.onEnterDown.bind(this));
-		this.upKeyBindingDispatcher.set(CommonKeybindings.ENTER, this.onEnterUp.bind(this));
 		if (platform.isMacintosh) {
 			this.upKeyBindingDispatcher.set(CommonKeybindings.WINCTRL_ENTER, this.onModifierEnterUp.bind(this)); // Mac: somehow Cmd+Enter does not work
 		} else {
@@ -405,23 +402,6 @@ export class WorkingFilesController extends DefaultController {
 			this.openEditor(<WorkingFileEntry>element, false, false);
 		}
 
-		this.didCatchEnterDown = true;
-
-		return true;
-	}
-
-	private onEnterUp(tree: tree.ITree, event: StandardKeyboardEvent): boolean {
-		if (!this.didCatchEnterDown) {
-			return false;
-		}
-
-		let element = tree.getFocus();
-		if (element) {
-			this.openEditor(<WorkingFileEntry>element, false, false);
-		}
-
-		this.didCatchEnterDown = false;
-
 		return true;
 	}
 
@@ -430,8 +410,6 @@ export class WorkingFilesController extends DefaultController {
 		if (element) {
 			this.openEditor(<WorkingFileEntry>element, false, true);
 		}
-
-		this.didCatchEnterDown = false;
 
 		return true;
 	}
