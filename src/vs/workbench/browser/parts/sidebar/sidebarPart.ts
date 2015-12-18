@@ -31,6 +31,7 @@ import {WorkbenchProgressService} from 'vs/workbench/services/progress/browser/p
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {IViewlet} from 'vs/workbench/common/viewlet';
+import {ExplorerViewlet} from 'vs/workbench/parts/files/browser/explorerViewlet';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IEventService} from 'vs/platform/event/common/event';
@@ -573,7 +574,37 @@ export class FocusSideBarAction extends Action {
 	}
 }
 
+export class FocusWorkingFilesViewAction extends Action {
+
+	public static ID = 'workbench.action.focusWorkingFilesView';
+	public static LABEL = nls.localize('focusWorkingFilesView', "Focus on Working Files View");
+
+	constructor(
+		id: string,
+		label: string,
+		@IViewletService private viewletService: IViewletService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<boolean> {
+
+		let viewlet = this.viewletService.getActiveViewlet();
+
+		if (viewlet instanceof ExplorerViewlet) {
+			viewlet.focusWorkingFilesView();
+		}
+
+		return TPromise.as(true);
+	}
+}
+
 let registry = <IWorkbenchActionRegistry>Registry.as(ActionExtensions.WorkbenchActions);
+
 registry.registerWorkbenchAction(new SyncActionDescriptor(FocusSideBarAction, FocusSideBarAction.ID, FocusSideBarAction.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_0
+}), nls.localize('viewCategory', "View"));
+
+registry.registerWorkbenchAction(new SyncActionDescriptor(FocusWorkingFilesViewAction, FocusWorkingFilesViewAction.ID, FocusWorkingFilesViewAction.LABEL, {
+	primary: KeyMod.CtrlCmd | KeyCode.KEY_9
 }), nls.localize('viewCategory', "View"));
