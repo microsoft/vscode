@@ -298,6 +298,17 @@ jsonContributionRegistry.registerSchema('http://json-schema.org/draft-04/schema#
 			],
 			'description': nls.localize('schema.json.type', 'Either a string of one of the basic schema types (number, integer, null, array, object, boolean, string) or an array of strings specifying a subset of those types.')
 		},
+		'format': {
+			'anyOf': [
+				{
+					'type': 'string',
+					'description': nls.localize('schema.json.format', 'Describes the format expected for the value.'),
+					'enum': [ 'date-time', 'uri', 'email', 'hostname', 'ipv4', 'ipv6', 'regex']
+				},{
+					'type': 'string'
+				}
+			]
+		},
 		'allOf': {
 			'allOf': [
 				{ '$ref': '#/definitions/schemaArray' }
