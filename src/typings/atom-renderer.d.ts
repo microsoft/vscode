@@ -219,6 +219,7 @@ declare module 'remote' {
 		getPosition(): number[];
 		setPosition(x: number, y: number): void;
 		setMenuBarVisibility(visible: boolean): void;
+		setAutoHideMenuBar(autoHide: boolean): void;
 		maximize(): void;
 		setRepresentedFilename(path: string): void;
 		setDocumentEdited(edited: boolean): void;

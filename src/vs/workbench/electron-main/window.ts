@@ -526,10 +526,15 @@ export class VSCodeWindow {
 	}
 
 	public toggleFullScreen(): void {
-		let isFullScreen = this.win.isFullScreen();
+		let willBeFullScreen = !this.win.isFullScreen();
 
-		this.win.setFullScreen(!isFullScreen);
-		this.win.setMenuBarVisibility(isFullScreen);
+		this.win.setFullScreen(willBeFullScreen);
+
+		// Windows: Hide the menu bar but still allow to bring it up by pressing the Alt key
+		if (platform.isWindows) {
+			this.win.setMenuBarVisibility(!willBeFullScreen);
+			this.win.setAutoHideMenuBar(willBeFullScreen);
+		}
 	}
 
 	public sendWhenReady(channel: string, ...args: any[]): void {
