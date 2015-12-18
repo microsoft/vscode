@@ -27,7 +27,6 @@ if (!env.enableTypeScriptServiceModeForJS) {
 		moduleId: 'vs/languages/javascript/common/javascript',
 		ctorName: 'JSMode'
 	});
-	modesExtensions.registerWorkerParticipant('javascript', 'vs/languages/typescript/common/participants/filenameSuggestions', 'FilenameSuggestions');
 
 	// ----- Registration and Configuration --------------------------------------------------------
 

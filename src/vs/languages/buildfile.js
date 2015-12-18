@@ -106,7 +106,6 @@ exports.collectModules = function(args) {
 		.combine(worker)
 			.define('vs/languages/typescript/common/typescriptWorker2');
 
-	particpantExcludes.define('vs/languages/typescript/common/participants/filenameSuggestions');
 	particpantExcludes.define('vs/languages/typescript/common/js/globalVariableRewriter');
 	particpantExcludes.define('vs/languages/typescript/common/js/importAndExportRewriter');
 	particpantExcludes.define('vs/languages/typescript/common/js/angularServiceRewriter');
