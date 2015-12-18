@@ -129,6 +129,8 @@ export abstract class AbstractSystemVariables implements ISystemVariables {
 		} else if (Types.isObject(value)) {
 			return this.__resolveLiteral(value);
 		}
+
+		return value;
 	}
 
 	private __resolveString(value: string): string {
