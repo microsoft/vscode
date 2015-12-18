@@ -2723,8 +2723,7 @@ declare namespace vscode {
 		 *
 		 * @param message The message to show.
 		 * @param items A set of items that will be rendered as actions in the message.
-		 * @return A thenable that resolves to the selected item or `undefined`. The thenable will be rejected
-		 * when the message was dismissed.
+		 * @return A thenable that resolves to the selected item or `undefined` when being dismissed.
 		 */
 		export function showInformationMessage(message: string, ...items: string[]): Thenable<string>;
 
@@ -2735,8 +2734,7 @@ declare namespace vscode {
 		 *
 		 * @param message The message to show.
 		 * @param items A set of items that will be rendered as actions in the message.
-		 * @return A thenable that resolves to the selected item or `undefined`. The thenable will be rejected
-		 * when the message was dismissed.
+		 * @return A thenable that resolves to the selected item or `undefined` when being dismissed.
 		 */
 		export function showInformationMessage<T extends MessageItem>(message: string, ...items: T[]): Thenable<T>;
 
@@ -2747,8 +2745,7 @@ declare namespace vscode {
 		 *
 		 * @param message The message to show.
 		 * @param items A set of items that will be rendered as actions in the message.
-		 * @return A thenable that resolves to the selected item or `undefined`. The thenable will be rejected
-		 * when the message was dismissed.
+		 * @return A thenable that resolves to the selected item or `undefined` when being dismissed.
 		 */
 		export function showWarningMessage(message: string, ...items: string[]): Thenable<string>;
 
@@ -2759,8 +2756,7 @@ declare namespace vscode {
 		 *
 		 * @param message The message to show.
 		 * @param items A set of items that will be rendered as actions in the message.
-		 * @return A thenable that resolves to the selected item or `undefined`. The thenable will be rejected
-		 * when the message was dismissed.
+		 * @return A thenable that resolves to the selected item or `undefined` when being dismissed.
 		 */
 		export function showWarningMessage<T extends MessageItem>(message: string, ...items: T[]): Thenable<T>;
 
@@ -2771,8 +2767,7 @@ declare namespace vscode {
 		 *
 		 * @param message The message to show.
 		 * @param items A set of items that will be rendered as actions in the message.
-		 * @return A thenable that resolves to the selected item or `undefined`. The thenable will be rejected
-		 * when the message was dismissed.
+		 * @return A thenable that resolves to the selected item or `undefined` when being dismissed.
 		 */
 		export function showErrorMessage(message: string, ...items: string[]): Thenable<string>;
 
@@ -2783,8 +2778,7 @@ declare namespace vscode {
 		 *
 		 * @param message The message to show.
 		 * @param items A set of items that will be rendered as actions in the message.
-		 * @return A thenable that resolves to the selected item or `undefined`. The thenable will be rejected
-		 * when the message was dismissed.
+		 * @return A thenable that resolves to the selected item or `undefined` when being dismissed.
 		 */
 		export function showErrorMessage<T extends MessageItem>(message: string, ...items: T[]): Thenable<T>;
 
