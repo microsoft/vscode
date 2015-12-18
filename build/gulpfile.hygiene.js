@@ -24,7 +24,7 @@ var eolFilter = [
 	'!extensions/**/out/**',
 	'!**/node_modules/**',
 	'!**/fixtures/**',
-	'!**/*.{svg,exe,png,scpt,bat,cur,ttf,woff,eot}',
+	'!**/*.{svg,exe,png,scpt,bat,cmd,cur,ttf,woff,eot}',
 ];
 
 var indentationFilter = [
@@ -61,6 +61,8 @@ var copyrightFilterList = [
 	'!**/*.html',
 	'!**/test/**',
 	'!**/*.md',
+	'!**/*.bat',
+	'!**/*.cmd',
 	'!**/*.sh',
 	'!**/*.txt',
 	'!src/vs/editor/standalone-languages/swift.ts',
