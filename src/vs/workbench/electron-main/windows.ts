@@ -237,8 +237,12 @@ export class WindowsManager {
 		ipc.on('vscode:broadcast', (event: Event, windowId: number, target: string, broadcast: { channel: string; payload: any; }) => {
 			if (broadcast.channel && broadcast.payload) {
 				if (target) {
-					let targetWindow = this.findWindow(target, null, true);
-					if (targetWindow && targetWindow.win.id !== windowId) {
+					const otherWindowsWithTarget = WindowsManager.WINDOWS.filter(w => w.win.id !== windowId && typeof w.openedWorkspacePath === 'string');
+					const directTargetMatch = otherWindowsWithTarget.filter(w => this.isPathEqual(target, w.openedWorkspacePath));
+					const parentTargetMatch = otherWindowsWithTarget.filter(w => paths.isEqualOrParent(target, w.openedWorkspacePath));
+
+					const targetWindow = directTargetMatch.length ? directTargetMatch[0] : parentTargetMatch[0]; // prefer direct match over parent match
+					if (targetWindow) {
 						targetWindow.send('vscode:broadcast', broadcast);
 					}
 				} else {
@@ -858,7 +862,7 @@ export class WindowsManager {
 		return null;
 	}
 
-	public findWindow(workspacePath: string, filePath?: string, allowWorkspaceEqualOrParent?: boolean): window.VSCodeWindow {
+	public findWindow(workspacePath: string, filePath?: string): window.VSCodeWindow {
 		if (WindowsManager.WINDOWS.length) {
 
 			// Sort the last active window to the front of the array of windows to test
@@ -873,7 +877,7 @@ export class WindowsManager {
 			let res = windowsToTest.filter((w) => {
 
 				// match on workspace
-				if (typeof w.openedWorkspacePath === 'string' && (this.isPathEqual(w.openedWorkspacePath, workspacePath) || (allowWorkspaceEqualOrParent && paths.isEqualOrParent(workspacePath, w.openedWorkspacePath)))) {
+				if (typeof w.openedWorkspacePath === 'string' && (this.isPathEqual(w.openedWorkspacePath, workspacePath))) {
 					return true;
 				}
 
