@@ -526,6 +526,8 @@ export class VSCodeMenu {
 	}
 
 	private setViewMenu(viewMenu: Menu): void {
+		let toggleMenubar:MenuItem;
+
 		let commands = this.createMenuItem(nls.localize('miCommandPalette', "&&Command Palette..."), 'workbench.action.showCommands');
 		let markers = this.createMenuItem(nls.localize('miMarker', "&&Errors and Warnings..."), 'workbench.action.showErrorsWarnings');
 		let output = this.createMenuItem(nls.localize('miToggleOutput', "Toggle &&Output"), 'workbench.action.output.toggleOutput');
@@ -535,6 +537,9 @@ export class VSCodeMenu {
 		let splitEditor = this.createMenuItem(nls.localize('miSplitEditor', "Split &&Editor"), 'workbench.action.splitEditor');
 		let toggleSidebar = this.createMenuItem(nls.localize('miToggleSidebar', "&&Toggle Side Bar"), 'workbench.action.toggleSidebarVisibility');
 		let moveSidebar = this.createMenuItem(nls.localize('miMoveSidebar', "&&Move Side Bar"), 'workbench.action.toggleSidebarPosition');
+		if (platform.isMacintosh == false) {
+			toggleMenubar = this.createMenuItem(nls.localize('miToggleMenuBar', '&&Toggle Menu Bar'),'workbench.action.toggleMenubar');
+		}
 
 		let zoomIn = this.createMenuItem(nls.localize('miZoomIn', "&&Zoom in"), 'workbench.action.zoomIn');
 		let zoomOut = this.createMenuItem(nls.localize('miZoomOut', "Zoom o&&ut"), 'workbench.action.zoomOut');
@@ -552,6 +557,9 @@ export class VSCodeMenu {
 			zoomIn,
 			zoomOut
 		].forEach((item) => viewMenu.append(item));
+		if (!platform.isMacintosh) {
+			viewMenu.insert(9, toggleMenubar);
+		}
 	}
 
 	private setGotoMenu(gotoMenu: Menu): void {

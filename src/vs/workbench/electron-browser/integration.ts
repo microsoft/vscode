@@ -102,6 +102,10 @@ export class ElectronIntegration {
 			this.storageService.store('workbench.theme', theme, StorageScope.GLOBAL);
 		});
 
+		ipc.on('vscode:saveMenuBarState', (newState: boolean) => {
+			this.storageService.store('workbench.menubar.hidden', newState, StorageScope.GLOBAL);
+		});
+
 		// Configuration changes
 		this.configurationService.addListener(ConfigurationServiceEventTypes.UPDATED, (e: IConfigurationServiceEvent) => {
 			let windowConfig: IWindowConfiguration = e.config;
@@ -115,6 +119,10 @@ export class ElectronIntegration {
 				webFrame.setZoomLevel(newZoomLevel);
 			}
 		});
+
+		if (this.storageService.getBoolean('workbench.menubar.hidden', StorageScope.GLOBAL, false) == true) {
+			ipc.send('vscode:toggleMenuBar', this.windowService.getWindowId());
+		}
 	}
 
 	private resolveKeybindings(actionIds: string[]): TPromise<{ id: string; binding: number; }[]> {

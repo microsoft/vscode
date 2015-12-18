@@ -36,6 +36,7 @@ export interface IWindowConfiguration {
 
 export class ElectronWindow {
 	private win: remote.BrowserWindow;
+	private menuBarVisibility: boolean;
 
 	constructor(
 		win: remote.BrowserWindow,

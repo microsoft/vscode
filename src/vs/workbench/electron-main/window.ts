@@ -542,6 +542,11 @@ export class VSCodeWindow {
 		this._win.webContents.send(channel, ...args);
 	}
 
+	public toggleMenuBarVisibility(): void {
+		this.win.setAutoHideMenuBar(!this.win.isMenuBarAutoHide());
+		this.sendWhenReady('vscode:saveMenuBarState', this.win.isMenuBarAutoHide());
+	}
+
 	public dispose(): void {
 		if (this.showTimeoutHandle) {
 			clearTimeout(this.showTimeoutHandle);

@@ -425,3 +425,21 @@ export class CloseMessagesAction extends Action {
 		return Promise.as(null);
 	}
 }
+export class ToggleMenuBarAction extends Action {
+
+	public static ID = 'workbench.action.toggleMenubar';
+	public static LABEL = nls.localize('toggleMenubar', "Toggle Menu bar");
+
+	constructor(id: string,
+				label: string,
+				@IWindowService private windowService: IWindowService
+	) {
+		super(id, label);
+	}
+
+	public run(): Promise {
+		ipc.send('vscode:toggleMenuBar', this.windowService.getWindowId());
+
+		return Promise.as(true);
+	}
+}
