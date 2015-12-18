@@ -94,6 +94,7 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 	padding-right: 0.8em;
+	margin-right: 0.8em;
 }
 
 .debug-viewlet .debug-call-stack .stack-frame > .file {
@@ -110,7 +111,6 @@
 
 .debug-viewlet .debug-call-stack .stack-frame > .file:not(:first-child) {
 	margin-left: 0.8em;
-	margin-right: 0.15em;
 }
 
 /* Variables & Expression view */
