@@ -44,6 +44,8 @@ import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 
 export class SidebarPart extends Part implements IViewletService {
 
+	public static activeViewletSettingsKey = 'workbench.sidebar.activeviewletid';
+
 	public serviceId = IViewletService;
 
 	private instantiationService: IInstantiationService;
@@ -233,6 +235,9 @@ export class SidebarPart extends Part implements IViewletService {
 
 		// Remember Viewlet
 		this.activeViewlet = viewlet;
+
+		// Store in preferences
+		this.storageService.store(SidebarPart.activeViewletSettingsKey, this.activeViewlet.getId(), StorageScope.WORKSPACE);
 
 		// Remember
 		this.lastActiveViewletId = this.activeViewlet.getId();

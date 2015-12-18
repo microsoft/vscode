@@ -199,9 +199,14 @@ export class Workbench implements IPartService {
 
 			// Show default viewlet unless sidebar is hidden or we dont have a default viewlet
 			let registry = (<IViewletRegistry>Registry.as(ViewletExtensions.Viewlets));
-			if (!this.sideBarHidden && !!registry.getDefaultViewletId()) {
-				let viewletTimerEvent = timer.start(timer.Topic.STARTUP, strings.format('Opening Viewlet: {0}', registry.getDefaultViewletId()));
-				viewletAndEditorPromises.push(this.sidebarPart.openViewlet(registry.getDefaultViewletId(), false).then(() => viewletTimerEvent.stop()));
+			let viewletId = registry.getDefaultViewletId();
+			if (!this.workbenchParams.configuration.env.isBuilt) {
+				viewletId = this.storageService.get(SidebarPart.activeViewletSettingsKey, StorageScope.WORKSPACE, registry.getDefaultViewletId()); // help developers and restore last view
+			}
+
+			if (!this.sideBarHidden && !!viewletId) {
+				let viewletTimerEvent = timer.start(timer.Topic.STARTUP, strings.format('Opening Viewlet: {0}', viewletId));
+				viewletAndEditorPromises.push(this.sidebarPart.openViewlet(viewletId, false).then(() => viewletTimerEvent.stop()));
 			}
 
 			// Check for configured options to open files on startup and resolve if any or open untitled for empty workbench
