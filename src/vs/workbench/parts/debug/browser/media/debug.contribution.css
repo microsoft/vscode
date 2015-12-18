@@ -201,7 +201,7 @@
 	color: rgba(108, 108, 108, 0.8);
 }
 
-.monaco-workbench .monaco-tree-row:not(.selected) .expression .unavailable {
+.monaco-workbench .monaco-tree-row .expression .unavailable {
 	font-style: italic;
 }
 
