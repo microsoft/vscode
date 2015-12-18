@@ -172,7 +172,7 @@
 
             // Return true if the given text is composed entirely of whitespace.
             this.is_whitespace = function(text) {
-                for (var n = 0; n < text.length; text++) {
+                for (var n = 0; n < text.length; n++) {
                     if (!this.Utils.in_array(text.charAt(n), this.Utils.whitespace)) {
                         return false;
                     }
@@ -467,7 +467,7 @@
                 } else if (tag_check === 'script' &&
                     (tag_complete.search('type') === -1 ||
                     (tag_complete.search('type') > -1 &&
-                    tag_complete.search(/\b(text|application)\/(x-)?(javascript|ecmascript|jscript|livescript)/) > -1))) {
+                    tag_complete.search(/\b(text|application)\/(x-)?(javascript|ecmascript|jscript|livescript|(ld\+)?json)/) > -1))) {
                     if (!peek) {
                         this.record_tag(tag_check);
                         this.tag_type = 'SCRIPT';
@@ -525,7 +525,7 @@
                     matched = false;
 
                 this.pos = start_pos;
-                input_char = this.input.charAt(this.pos);
+                var input_char = this.input.charAt(this.pos);
                 this.pos++;
 
                 while (this.pos <= this.input.length) {
@@ -570,15 +570,34 @@
                 return comment;
             };
 
-            this.get_unformatted = function(delimiter, orig_tag) { //function to return unformatted content in its entirety
+            function tokenMatcher(delimiter) {
+              var token = '';
 
+              var add = function (str) {
+                var newToken = token + str.toLowerCase();
+                token = newToken.length <= delimiter.length ? newToken : newToken.substr(newToken.length - delimiter.length, delimiter.length);
+              };
+
+              var doesNotMatch = function () {
+                return token.indexOf(delimiter) === -1;
+              };
+
+              return {
+                add: add,
+                doesNotMatch: doesNotMatch
+              };
+            }
+
+            this.get_unformatted = function(delimiter, orig_tag) { //function to return unformatted content in its entirety
                 if (orig_tag && orig_tag.toLowerCase().indexOf(delimiter) !== -1) {
                     return '';
                 }
                 var input_char = '';
                 var content = '';
-                var min_index = 0;
                 var space = true;
+
+                var delimiterMatcher = tokenMatcher(delimiter);
+
                 do {
 
                     if (this.pos >= this.input.length) {
@@ -606,16 +625,17 @@
                         }
                     }
                     content += input_char;
+                    delimiterMatcher.add(input_char);
                     this.line_char_count++;
                     space = true;
 
                     if (indent_handlebars && input_char === '{' && content.length && content.charAt(content.length - 2) === '{') {
                         // Handlebars expressions in strings should also be unformatted.
                         content += this.get_unformatted('}}');
-                        // These expressions are opaque.  Ignore delimiters found in them.
-                        min_index = content.length;
+                        // Don't consider when stopping for delimiters.
                     }
-                } while (content.toLowerCase().indexOf(delimiter, min_index) === -1);
+                } while (delimiterMatcher.doesNotMatch());
+
                 return content;
             };
 
@@ -832,6 +852,21 @@
                     multi_parser.current_mode = 'CONTENT';
                     break;
                 case 'TK_TAG_HANDLEBARS_ELSE':
+                    // Don't add a newline if opening {{#if}} tag is on the current line
+                    var foundIfOnCurrentLine = false;
+                    for (var lastCheckedOutput=multi_parser.output.length-1; lastCheckedOutput>=0; lastCheckedOutput--) {
+		        if (multi_parser.output[lastCheckedOutput] === '\n') {
+		            break;
+                        } else {
+                            if (multi_parser.output[lastCheckedOutput].match(/{{#if/)) {
+                                foundIfOnCurrentLine = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (!foundIfOnCurrentLine) {
+                        multi_parser.print_newline(false, multi_parser.output);
+                    }
                     multi_parser.print_token(multi_parser.token_text);
                     if (multi_parser.indent_content) {
                         multi_parser.indent();
