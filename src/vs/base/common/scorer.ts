@@ -66,19 +66,19 @@ export function score(target: string, query: string, cache?: {[id: string]: numb
 			score += 1;
 		}
 
-		// Upper Case Bonus
-		if (isUpper(target.charCodeAt(indexOf))) {
-			score += 1;
-		}
-
 		// Prefix Bonus
 		if (indexOf === 0) {
 			score += 8;
 		}
 
 		// Start of Word/Path Bonous
-		if (wordPathBoundary.some(w => w === target[indexOf - 1])) {
+		else if (wordPathBoundary.some(w => w === target[indexOf - 1])) {
 			score += 7;
+		}
+
+		// Inside Word Upper Case Bonus
+		else if (isUpper(target.charCodeAt(indexOf))) {
+			score += 1;
 		}
 
 		index++;
