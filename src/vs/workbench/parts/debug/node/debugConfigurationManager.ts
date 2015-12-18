@@ -230,18 +230,22 @@ export class ConfigurationManager {
 
 			// Massage configuration attributes - append workspace path to relatvie paths, substitute variables in paths.
 			this.configuration = filtered.length === 1 ? filtered[0] : null;
-			if (this.configuration && this.systemVariables) {
+			if (this.configuration) {
+				if (this.systemVariables) {
+					Object.keys(this.configuration).forEach(key => {
+						this.configuration[key] = this.systemVariables.resolve(this.configuration[key]);
+					});
+				}
+
 				this.configuration.debugServer = config.debugServer;
-				this.configuration.outDir = this.resolvePath(this.systemVariables.resolve(this.configuration.outDir));
+				this.configuration.outDir = this.resolvePath(this.configuration.outDir);
 				this.configuration.address = this.configuration.address || 'localhost';
-				this.configuration.program = this.resolvePath(this.systemVariables.resolve(this.configuration.program));
+				this.configuration.program = this.resolvePath(this.configuration.program);
 				this.configuration.stopOnEntry = this.configuration.stopOnEntry === undefined ? false : this.configuration.stopOnEntry;
 				this.configuration.args = this.configuration.args && this.configuration.args.length > 0 ? this.systemVariables.resolve(this.configuration.args) : null;
-				this.configuration.env = <{ [key: string]: string; }> this.systemVariables.resolve(this.configuration.env);
-				this.configuration.cwd = this.resolvePath(this.systemVariables.resolve(this.configuration.cwd) || '.', false);
-				this.configuration.runtimeExecutable = this.resolvePath(this.systemVariables.resolve(this.configuration.runtimeExecutable));
-				this.configuration.runtimeArgs = this.configuration.runtimeArgs && this.configuration.runtimeArgs.length > 0 ? this.systemVariables.resolve(this.configuration.runtimeArgs) : null;
-				this.configuration.outDir = this.resolvePath(this.configuration.outDir);
+				this.configuration.cwd = this.resolvePath(this.configuration.cwd || '.', false);
+				this.configuration.runtimeExecutable = this.resolvePath(this.configuration.runtimeExecutable);
+				this.configuration.runtimeArgs = this.configuration.runtimeArgs && this.configuration.runtimeArgs.length > 0 ? this.configuration.runtimeArgs : null;
 			}
 		});
 	}
