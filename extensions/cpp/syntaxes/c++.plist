@@ -97,7 +97,7 @@
 		</dict>
 		<dict>
 			<key>match</key>
-			<string>\b(constexpr|export|mutable|typename|thread_local)\b</string>
+			<string>\b(constexpr|export|mutable|typename|thread_local|noexcept)\b</string>
 			<key>name</key>
 			<string>storage.modifier.c++</string>
 		</dict>
