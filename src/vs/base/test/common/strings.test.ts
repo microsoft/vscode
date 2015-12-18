@@ -91,13 +91,6 @@ suite('Strings', () => {
 		assert(strings.startsWith("", ""));
 	});
 
-	test("splice", function () {
-		assert.equal(strings.splice('boo', 1, 2, 'far'), 'bfar');
-		assert.equal(strings.splice('boo', 0, 2), 'o');
-		assert.equal(strings.splice('boo', 0, 3, 'far'), 'far');
-		assert.equal(strings.splice('boo', 3, 0, 'far'), 'boofar');
-	});
-
 	test("endsWith", function () {
 		assert(strings.endsWith("foo", "o"));
 		assert(strings.endsWith("foo", "oo"));
@@ -151,14 +144,6 @@ suite('Strings', () => {
 		assert.strictEqual("bar  ".trim(), "bar");
 		assert.strictEqual("   ".trim(), "");
 		assert.strictEqual(" 	  ".trim(), "");
-	});
-
-	test("uri encode with slashes", function () {
-		var str = strings.encodeURIPart("hello &/ world");
-		assert.strictEqual(str, "hello%20%26%2F%20world");
-
-		str = strings.encodeURIPart("hello &/ world", true);
-		assert.strictEqual(str, "hello%20%26/%20world");
 	});
 
 	test("localeCompare", function() {

@@ -181,10 +181,6 @@ export function endsWith(haystack: string, needle: string): boolean {
 	}
 }
 
-export function splice(haystack: string, offset: number, length: number, value: string = ''): string {
-	return haystack.substring(0, offset) + value + haystack.substring(offset + length);
-}
-
 export function createRegExp(searchString: string, isRegex: boolean, matchCase: boolean, wholeWord: boolean): RegExp {
 	if (searchString === '') {
 		throw new Error('Cannot create regex from empty string');
@@ -246,22 +242,6 @@ export function normalizeNFC(str: string, cache?:{[str: string]: string}): strin
 	return res;
 }
 
-export function encodeURIPart(haystack: string, keepSlashes?: boolean): string {
-	if (!haystack) {
-		return haystack;
-	}
-
-	if (!keepSlashes) {
-		return encodeURIComponent(haystack);
-	} else {
-		var parts = haystack.split('/');
-		for (var i = 0, len = parts.length; i < len; i++) {
-			parts[i] = encodeURIComponent(parts[i]);
-		}
-		return parts.join('/');
-	}
-}
-
 export function isCamelCasePattern(pattern: string): boolean {
 	return (/^\w[\w.]*$/).test(pattern);
 }
@@ -286,21 +266,6 @@ export function assertRegExp(pattern: string, modifiers: string): void {
 	if (regExpLeadsToEndlessLoop(new RegExp(pattern, modifiers))) {
 		throw new Error('Regular expression /' + pattern + '/g results in infinitive matches');
 	}
-}
-
-export function normalizePath(path?: string): string {
-
-	// No path provided, assume root
-	if (!path) {
-		return '';
-	}
-
-	// Paths must not start with a slash because they are always relative to the workspace root
-	if (path.indexOf('/') === 0) {
-		path = path.substring(1);
-	}
-
-	return encodeURIPart(path, true);
 }
 
 export function colorize(code: number, value: string): string {
