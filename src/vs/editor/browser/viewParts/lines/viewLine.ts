@@ -355,6 +355,10 @@ class ViewLine implements IViewLineData {
 
 			if (clientRects.length > 0) {
 				result = this._createRawVisibleRangesFromClientRects(clientRects, deltaTop, correctionTop, deltaLeft);
+
+				if (startElement === endElement && startOffset === endOffset && endOffset === endElement.textContent.length) {
+					result[0].left = Math.max(0, endElement.parentElement.getBoundingClientRect().right - deltaLeft);
+				}
 			}
 
 			return result;
