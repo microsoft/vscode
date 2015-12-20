@@ -800,7 +800,7 @@ configurationRegistry.registerConfiguration({
 			'type': 'string',
 			'enum': ['blink', 'visible', 'hidden'],
 			'default': DefaultConfig.editor.cursorBlinking,
-			'description': nls.localize('cursorBlinking', "Controls the cursor blinking animation.")
+			'description': nls.localize('cursorBlinking', "Controls the cursor blinking animation, accepted values are 'blink', 'visible', and 'hidden'")
 		},
 		'editor.hideCursorInOverviewRuler' : {
 			'type': 'boolean',
