@@ -1279,8 +1279,7 @@ exports.data ={
 			{
 				"name": "background-color",
 				"desc": "Color used for an element's background",
-				"restriction": "color",
-				"values": []
+				"restriction": "color"
 			},
 			{
 				"name": "background-image",
@@ -1621,8 +1620,7 @@ exports.data ={
 			{
 				"name": "border-bottom-color",
 				"desc": "Sets the color of the bottom border.",
-				"restriction": "color",
-				"values": []
+				"restriction": "color"
 			},
 			{
 				"name": "border-bottom-left-radius",
@@ -1714,8 +1712,7 @@ exports.data ={
 			{
 				"name": "border-color",
 				"desc": "The color of the border around all four edges of an element.",
-				"restriction": "color",
-				"values": []
+				"restriction": "color"
 			},
 			{
 				"name": "border-image",
@@ -1865,8 +1862,7 @@ exports.data ={
 			{
 				"name": "border-left-color",
 				"desc": "Sets the color of the left border.",
-				"restriction": "color",
-				"values": []
+				"restriction": "color"
 			},
 			{
 				"name": "border-left-style",
@@ -1986,8 +1982,7 @@ exports.data ={
 			{
 				"name": "border-right-color",
 				"desc": "Sets the color of the right border.",
-				"restriction": "color",
-				"values": []
+				"restriction": "color"
 			},
 			{
 				"name": "border-right-style",
@@ -2151,8 +2146,7 @@ exports.data ={
 			{
 				"name": "border-top-color",
 				"desc": "Sets the color of the top border.",
-				"restriction": "color",
-				"values": []
+				"restriction": "color"
 			},
 			{
 				"name": "border-top-left-radius",
@@ -2486,8 +2480,7 @@ exports.data ={
 			{
 				"name": "color",
 				"desc": "Color of an element's text",
-				"restriction": "color",
-				"values": []
+				"restriction": "color"
 			},
 			{
 				"name": "column-count",
@@ -2572,8 +2565,7 @@ exports.data ={
 				"name": "column-rule-color",
 				"desc": "Sets the color of the column rule",
 				"browsers": "E,IE10,O11.6",
-				"restriction": "color",
-				"values": []
+				"restriction": "color"
 			},
 			{
 				"name": "column-rule-style",
@@ -3277,8 +3269,7 @@ exports.data ={
 			{
 				"name": "flood-color",
 				"desc": "Indicates what color to use to flood the current filter primitive subregion.",
-				"restriction": "color",
-				"values": []
+				"restriction": "color"
 			},
 			{
 				"name": "flood-opacity",
@@ -4041,8 +4032,7 @@ exports.data ={
 			{
 				"name": "lighting-color",
 				"desc": "Defines the color of the light source for filter primitives 'feDiffuseLighting' and 'feSpecularLighting'.",
-				"restriction": "color",
-				"values": []
+				"restriction": "color"
 			},
 			{
 				"name": "line-height",
@@ -4953,8 +4943,7 @@ exports.data ={
 				"name": "-moz-border-bottom-colors",
 				"desc": "Sets a list of colors for the bottom border.",
 				"browsers": "FF1",
-				"restriction": "color",
-				"values": []
+				"restriction": "color"
 			},
 			{
 				"name": "-moz-border-image",
@@ -4998,22 +4987,19 @@ exports.data ={
 				"name": "-moz-border-left-colors",
 				"desc": "Sets a list of colors for the bottom border.",
 				"browsers": "FF1",
-				"restriction": "color",
-				"values": []
+				"restriction": "color"
 			},
 			{
 				"name": "-moz-border-right-colors",
 				"desc": "Sets a list of colors for the bottom border.",
 				"browsers": "FF1",
-				"restriction": "color",
-				"values": []
+				"restriction": "color"
 			},
 			{
 				"name": "-moz-border-top-colors",
 				"desc": "Ske Firefox, -moz-border-bottom-colors sets a list of colors for the bottom border.",
 				"browsers": "FF1",
-				"restriction": "color",
-				"values": []
+				"restriction": "color"
 			},
 			{
 				"name": "-moz-box-align",
@@ -5207,8 +5193,7 @@ exports.data ={
 				"name": "-moz-column-rule-color",
 				"desc": "Sets the color of the column rule",
 				"browsers": "FF3.5",
-				"restriction": "color",
-				"values": []
+				"restriction": "color"
 			},
 			{
 				"name": "-moz-column-rule-style",
@@ -5413,8 +5398,7 @@ exports.data ={
 				"name": "-moz-text-decoration-color",
 				"desc": "Specifies the color of text decoration (underlines overlines, and line-throughs) set on the element with text-decoration-line.",
 				"browsers": "FF6",
-				"restriction": "color",
-				"values": []
+				"restriction": "color"
 			},
 			{
 				"name": "-moz-text-decoration-line",
@@ -6538,57 +6522,49 @@ exports.data ={
 				"name": "-ms-scrollbar-3dlight-color",
 				"desc": "Determines the color of the top and left edges of the scroll box and scroll arrows of a scroll bar.",
 				"browsers": "IE8",
-				"restriction": "color",
-				"values": []
+				"restriction": "color"
 			},
 			{
 				"name": "-ms-scrollbar-arrow-color",
 				"desc": "Determines the color of the arrow elements of a scroll arrow.",
 				"browsers": "IE8",
-				"restriction": "color",
-				"values": []
+				"restriction": "color"
 			},
 			{
 				"name": "-ms-scrollbar-base-color",
 				"desc": "Determines the color of the main elements of a scroll bar, which include the scroll box, track, and scroll arrows.",
 				"browsers": "IE8",
-				"restriction": "color",
-				"values": []
+				"restriction": "color"
 			},
 			{
 				"name": "-ms-scrollbar-darkshadow-color",
 				"desc": "Determines the color of the gutter of a scroll bar.",
 				"browsers": "IE8",
-				"restriction": "color",
-				"values": []
+				"restriction": "color"
 			},
 			{
 				"name": "-ms-scrollbar-face-color",
 				"desc": "Determines the color of the scroll box and scroll arrows of a scroll bar.",
 				"browsers": "IE8",
-				"restriction": "color",
-				"values": []
+				"restriction": "color"
 			},
 			{
 				"name": "-ms-scrollbar-highlight-color",
 				"desc": "Determines the color of the top and left edges of the scroll box and scroll arrows of a scroll bar.",
 				"browsers": "IE8",
-				"restriction": "color",
-				"values": []
+				"restriction": "color"
 			},
 			{
 				"name": "-ms-scrollbar-shadow-color",
 				"desc": "Determines the color of the bottom and right edges of the scroll box and scroll arrows of a scroll bar.",
 				"browsers": "IE8",
-				"restriction": "color",
-				"values": []
+				"restriction": "color"
 			},
 			{
 				"name": "-ms-scrollbar-track-color",
 				"desc": "Determines the color of the track element of a scroll bar.",
 				"browsers": "IE8",
-				"restriction": "color",
-				"values": []
+				"restriction": "color"
 			},
 			{
 				"name": "-ms-scroll-chaining",
@@ -7933,10 +7909,11 @@ exports.data ={
 				"name": "outline-color",
 				"desc": "The color of the outline",
 				"browsers": "E,C,FF1.5,IE8,O8,S1.2",
-				"restriction": "color",
+				"restriction": "enum, color",
 				"values": [
 					{
-						"name": "invert"
+						"name": "invert",
+						"browsers": "E,IE8,O"
 					}
 				]
 			},
@@ -8461,57 +8438,49 @@ exports.data ={
 				"name": "scrollbar-3dlight-color",
 				"desc": "Determines the color of the top and left edges of the scroll box and scroll arrows of a scroll bar.",
 				"browsers": "IE6",
-				"restriction": "color",
-				"values": []
+				"restriction": "color"
 			},
 			{
 				"name": "scrollbar-arrow-color",
 				"desc": "Determines the color of the arrow elements of a scroll arrow.",
 				"browsers": "IE6",
-				"restriction": "color",
-				"values": []
+				"restriction": "color"
 			},
 			{
 				"name": "scrollbar-base-color",
 				"desc": "Determines the color of the main elements of a scroll bar, which include the scroll box, track, and scroll arrows.",
 				"browsers": "IE6",
-				"restriction": "color",
-				"values": []
+				"restriction": "color"
 			},
 			{
 				"name": "scrollbar-darkshadow-color",
 				"desc": "Determines the color of the gutter of a scroll bar.",
 				"browsers": "IE6",
-				"restriction": "color",
-				"values": []
+				"restriction": "color"
 			},
 			{
 				"name": "scrollbar-face-color",
 				"desc": "Determines the color of the scroll box and scroll arrows of a scroll bar.",
 				"browsers": "IE6",
-				"restriction": "color",
-				"values": []
+				"restriction": "color"
 			},
 			{
 				"name": "scrollbar-highlight-color",
 				"desc": "Determines the color of the top and left edges of the scroll box and scroll arrows of a scroll bar.",
 				"browsers": "IE6",
-				"restriction": "color",
-				"values": []
+				"restriction": "color"
 			},
 			{
 				"name": "scrollbar-shadow-color",
 				"desc": "Determines the color of the bottom and right edges of the scroll box and scroll arrows of a scroll bar.",
 				"browsers": "IE6",
-				"restriction": "color",
-				"values": []
+				"restriction": "color"
 			},
 			{
 				"name": "scrollbar-track-color",
 				"desc": "Determines the color of the track element of a scroll bar.",
 				"browsers": "IE6",
-				"restriction": "color",
-				"values": []
+				"restriction": "color"
 			},
 			{
 				"name": "scroll-behavior",
@@ -8694,8 +8663,7 @@ exports.data ={
 			{
 				"name": "stop-color",
 				"desc": "Indicates what color to use at that gradient stop.",
-				"restriction": "color",
-				"values": []
+				"restriction": "color"
 			},
 			{
 				"name": "stop-opacity",
@@ -8705,8 +8673,12 @@ exports.data ={
 			{
 				"name": "stroke",
 				"desc": "The 'stroke' property paints along the outline of the given graphical element.",
-				"restriction": "color",
-				"values": []
+				"restriction": "color, enum, url",
+				"values": [
+					{
+						"name": "url()"
+					}
+				]
 			},
 			{
 				"name": "stroke-dasharray",
@@ -10336,8 +10308,7 @@ exports.data ={
 				"name": "-webkit-column-rule-color",
 				"desc": "Sets the color of the column rule",
 				"browsers": "C,S3",
-				"restriction": "color",
-				"values": []
+				"restriction": "color"
 			},
 			{
 				"name": "-webkit-column-rule-style",
@@ -10686,14 +10657,12 @@ exports.data ={
 			{
 				"name": "-webkit-tap-highlight-color",
 				"browsers": "C,S3.1",
-				"restriction": "color",
-				"values": []
+				"restriction": "color"
 			},
 			{
 				"name": "-webkit-text-fill-color",
 				"browsers": "S3",
-				"restriction": "color",
-				"values": []
+				"restriction": "color"
 			},
 			{
 				"name": "-webkit-text-size-adjust",
@@ -10730,8 +10699,7 @@ exports.data ={
 			{
 				"name": "-webkit-text-stroke-color",
 				"browsers": "S3",
-				"restriction": "color",
-				"values": []
+				"restriction": "color"
 			},
 			{
 				"name": "-webkit-text-stroke-width",
@@ -11370,7 +11338,7 @@ exports.descriptions = {
 	"clear": "Inline flow content can only wrap on top and bottom of the exclusion and must leave the areas to the start and end edges of the exclusion box empty.",
 	"maximum": "Inline flow content can wrap on the side of the exclusion with the largest available space for the given line, and must leave the other side of the exclusion empty.",
 	"minimum": "Inline flow content can flow around the edge of the exclusion with the smallest available space within the flow content’s containing block, and must leave the other edge of the exclusion empty.",
-	"invert": "'Invert' is expected to perform a color inversion on the pixels on the screen. This is a common way to ensure the focus border is visible, regardless of color background.",
+	"invert": "Performs a color inversion on the pixels on the screen.",
 	"absolute": "The box's position (and possibly size) is specified with the 'top', 'right', 'bottom', and 'left' properties. These properties specify offsets with respect to the box's 'containing block'.",
 	"-ms-page": "The box's position is calculated according to the 'absolute' model.",
 	"relative": "The box's position is calculated according to the normal flow (this is called the position in normal flow). Then the box is offset relative to its normal position.",
