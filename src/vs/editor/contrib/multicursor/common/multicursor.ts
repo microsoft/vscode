@@ -28,7 +28,7 @@ class InsertCursorBelow extends HandlerEditorAction {
 	}
 }
 
-class InsertCursorsFromLineSelection extends EditorAction {
+class InsertCursorAtEndOfEachLineSelected extends EditorAction {
 	static ID = 'editor.action.insertCursorAtEndOfEachLineSelected';
 
 	constructor(descriptor:EditorCommon.IEditorActionDescriptorData, editor:EditorCommon.ICommonCodeEditor, @INullService ns) {
@@ -36,31 +36,31 @@ class InsertCursorsFromLineSelection extends EditorAction {
 	}
 
 	public run(): TPromise<boolean> {
-		let sel = this.editor.getSelection();
-		if(!sel.isEmpty()) {
+		let selection = this.editor.getSelection();
+		if(!selection.isEmpty()) {
 			let model = this.editor.getModel();
-			let sels = new Array<EditorCommon.ISelection>();
-			let sStart = sel.getStartPosition();
-			let sEnd = sel.getEndPosition();
-			for (var i = sStart.lineNumber; i <= sEnd.lineNumber; i++) {
-				if(i !== sEnd.lineNumber) {
-					let lEnd = model.getLineMaxColumn(i);
-					sels.push({
+			let newSelections = new Array<EditorCommon.ISelection>();
+			let selectionStart = selection.getStartPosition();
+			let selectionEnd = selection.getEndPosition();
+			for (var i = selectionStart.lineNumber; i <= selectionEnd.lineNumber; i++) {
+				if(i !== selectionEnd.lineNumber) {
+					let currentLineMaxColumn = model.getLineMaxColumn(i);
+					newSelections.push({
 						selectionStartLineNumber: i,
-						selectionStartColumn: lEnd,
+						selectionStartColumn: currentLineMaxColumn,
 						positionLineNumber: i,
-						positionColumn: lEnd
+						positionColumn: currentLineMaxColumn
 					});
-				} else if( sEnd.column > 0 ) {
-					sels.push({
-						selectionStartLineNumber: sEnd.lineNumber,
-						selectionStartColumn: sEnd.column,
-						positionLineNumber: sEnd.lineNumber,
-						positionColumn: sEnd.column
+				} else if( selectionEnd.column > 0 ) {
+					newSelections.push({
+						selectionStartLineNumber: selectionEnd.lineNumber,
+						selectionStartColumn: selectionEnd.column,
+						positionLineNumber: selectionEnd.lineNumber,
+						positionColumn: selectionEnd.column
 					});
 				}
 			}
-			this.editor.setSelections(sels);
+			this.editor.setSelections(newSelections);
 		}
 		return TPromise.as(true);
 	}
@@ -84,7 +84,7 @@ CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(InsertCurso
 		secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.DownArrow]
 	}
 }));
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(InsertCursorsFromLineSelection, InsertCursorsFromLineSelection.ID, nls.localize('mutlicursor.insertAtEndOfEachLineSelected', "Create multiple cursors from selected lines"), {
+CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(InsertCursorAtEndOfEachLineSelected, InsertCursorAtEndOfEachLineSelected.ID, nls.localize('mutlicursor.insertAtEndOfEachLineSelected', "Create multiple cursors from selected lines"), {
 	context: ContextKey.EditorTextFocus,
 	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_I
 }));
