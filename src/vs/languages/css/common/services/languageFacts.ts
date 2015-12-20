@@ -189,8 +189,7 @@ export var colorKeywords : { [name:string]:string } = {
 	'transparent': 'Fully transparent. This keyword can be considered a shorthand for rgba(0,0,0,0) which is its computed value.',
 	'Window': 'Window background.',
 	'WindowFrame': 'Window frame.',
-	'WindowText': 'Text in windows.',
-	'none': ''
+	'WindowText': 'Text in windows.'
 };
 
 export var units : { [unitName:string]:string[] } = {
