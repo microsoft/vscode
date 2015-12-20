@@ -321,6 +321,13 @@ export class CSSIntellisense {
 				type: 'keyword'
 			});
 		});
+		languageFacts.svgElements.forEach((entry) => {
+			result.push({
+				label: entry,
+				codeSnippet: entry,
+				type: 'keyword'
+			});
+		});
 
 		var visited: { [name: string]: boolean } = {};
 		visited[this.currentWord] = true;
