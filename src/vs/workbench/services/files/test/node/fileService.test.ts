@@ -250,7 +250,7 @@ suite('FileService', () => {
 
 	test('resolveFile', function(done: () => void) {
 		service.resolveFile(uri.file(testDir), { resolveTo: [uri.file(path.join(testDir, 'deep'))]}).done(r => {
-			assert.equal(r.children.length, 5);
+			assert.equal(r.children.length, 6);
 
 			let deep = utils.getByName(r, 'deep');
 			assert.equal(deep.children.length, 4);
@@ -396,6 +396,16 @@ suite('FileService', () => {
 
 		service.resolveContent(resource, { encoding: 'windows1252' }).done(c => {
 			assert.equal(c.charset, 'windows1252');
+
+			done();
+		});
+	});
+
+	test('resolveContent - BOM removed', function(done: () => void) {
+		let resource = uri.file(path.join(testDir, 'some_utf8_bom.txt'));
+
+		service.resolveContent(resource).done(c => {
+			assert.equal(encoding.detectEncodingByBOMFromBuffer(new Buffer(c.value), 512), null);
 
 			done();
 		});
