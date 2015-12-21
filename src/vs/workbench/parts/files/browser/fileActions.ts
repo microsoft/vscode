@@ -30,6 +30,7 @@ import {EditorInputAction} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {IFrameEditor} from 'vs/workbench/browser/parts/editor/iframeEditor';
 import {DiffEditorInput} from 'vs/workbench/browser/parts/editor/diffEditorInput';
 import workbenchEditorCommon = require('vs/workbench/common/editor');
+import {IEditorSelection} from 'vs/editor/common/editorCommon';
 import {FileEditorInput} from 'vs/workbench/parts/files/browser/editors/fileEditorInput';
 import {FileStat, NewStatPlaceholder} from 'vs/workbench/parts/files/browser/views/explorerViewModel';
 import {ExplorerView} from 'vs/workbench/parts/files/browser/views/explorerView';
@@ -47,6 +48,7 @@ import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {IStorageService} from 'vs/platform/storage/common/storage';
 import {IResourceInput, Position} from 'vs/platform/editor/common/editor';
 import {IEventService} from 'vs/platform/event/common/event';
+import {ISelection} from 'vs/platform/selection/common/selection';
 import {IInstantiationService, IConstructorSignature2, INewConstructorSignature2, INewConstructorSignature1, INullService} from 'vs/platform/instantiation/common/instantiation';
 import {IMessageService, IMessageWithAction, IConfirmation, Severity, CancelAction} from 'vs/platform/message/common/message';
 import {IProgressService, IProgressRunner} from 'vs/platform/progress/common/progress';
@@ -1527,6 +1529,14 @@ export abstract class BaseSaveFileAction extends BaseActionWithErrorReporting {
 					encodingOfSource = textModel && textModel.getEncoding(); // text model can be null e.g. if this is a binary file!
 				}
 
+				let selectionOfSource: IEditorSelection;
+				if (positionsOfSource.length) {
+					const activeEditor = this.editorService.getActiveEditor();
+					if (activeEditor && positionsOfSource.indexOf(activeEditor.position) >= 0) {
+						selectionOfSource = <IEditorSelection>activeEditor.getSelection();
+					}
+				}
+
 				// Special case: an untitled file with associated path gets saved directly unless "saveAs" is true
 				let savePromise: TPromise<URI>;
 				if (!this.isSaveAs() && source.scheme === 'untitled' && this.untitledEditorService.hasAssociatedFilePath(source)) {
@@ -1554,11 +1564,17 @@ export abstract class BaseSaveFileAction extends BaseActionWithErrorReporting {
 					if (target.toString() !== source.toString() && positionsOfSource.length) {
 						let targetInput = this.instantiationService.createInstance(FileEditorInput, target, mimeOfSource, encodingOfSource);
 
-						reopenPromise = this.editorService.openEditor(targetInput, null, positionsOfSource[0]).then(() => {
+						let options: workbenchEditorCommon.TextEditorOptions;
+						if (selectionOfSource) {
+							options = new workbenchEditorCommon.TextEditorOptions();
+							options.selection(selectionOfSource.startLineNumber, selectionOfSource.startColumn, selectionOfSource.endLineNumber, selectionOfSource.endColumn);
+						}
+
+						reopenPromise = this.editorService.openEditor(targetInput, options, positionsOfSource[0]).then(() => {
 							if (positionsOfSource.length > 1) {
-								return this.editorService.openEditor(targetInput, null, positionsOfSource[1]).then(() => {
+								return this.editorService.openEditor(targetInput, options, positionsOfSource[1]).then(() => {
 									if (positionsOfSource.length > 2) {
-										return this.editorService.openEditor(targetInput, null, positionsOfSource[2]);
+										return this.editorService.openEditor(targetInput, options, positionsOfSource[2]);
 									}
 								});
 							}
@@ -1646,7 +1662,7 @@ export abstract class BaseSaveAllAction extends BaseActionWithErrorReporting {
 	protected doRun(): TPromise<boolean> {
 
 		// Store mimes per untitled file to restore later
-		const mapUntitledToProperties: {[resource:string]: { mime: string; encoding: string; }} = Object.create(null);
+		const mapUntitledToProperties: { [resource: string]: { mime: string; encoding: string; } } = Object.create(null);
 		this.textFileService.getDirty()
 			.filter(r => r.scheme === 'untitled')			// All untitled resources^
 			.map(r => this.untitledEditorService.get(r))	// Mapped to their inputs
