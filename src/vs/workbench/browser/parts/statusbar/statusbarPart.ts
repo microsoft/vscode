@@ -23,7 +23,7 @@ import {StatusbarAlignment, IStatusbarRegistry, Extensions, IStatusbarItem} from
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
-import {IStatusbarService, IStatusbarEntry} from 'vs/workbench/services/statusbar/statusbarService';
+import {IStatusbarService, IStatusbarEntry} from 'vs/workbench/services/statusbar/common/statusbarService';
 
 export class StatusbarPart extends Part implements IStatusbarService {
 

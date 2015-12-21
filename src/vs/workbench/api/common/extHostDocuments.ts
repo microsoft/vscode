@@ -23,7 +23,6 @@ import * as vscode from 'vscode';
 import {WordHelper} from 'vs/editor/common/model/textModelWithTokensHelpers';
 import {IFileService} from 'vs/platform/files/common/files';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/browser/untitledEditorService';
-import {UntitledEditorModel} from 'vs/workbench/browser/parts/editor/untitledEditorModel';
 
 export interface IModelAddedData {
 	url: URI;

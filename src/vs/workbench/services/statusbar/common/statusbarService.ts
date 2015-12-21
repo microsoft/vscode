@@ -6,10 +6,13 @@
 'use strict';
 
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
-import {StatusbarAlignment} from 'vs/workbench/browser/parts/statusbar/statusbar';
 import {IDisposable} from 'vs/base/common/lifecycle';
 
 export var IStatusbarService = createDecorator<IStatusbarService>('statusbarService');
+
+export enum StatusbarAlignment {
+	LEFT, RIGHT
+}
 
 /**
  * A declarative way of describing a status bar entry

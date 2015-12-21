@@ -6,6 +6,7 @@
 
 import {Registry} from 'vs/platform/platform';
 import {IDisposable} from 'vs/base/common/lifecycle';
+import statusbarService = require('vs/workbench/services/statusbar/common/statusbarService');
 import {SyncDescriptor0, createSyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
 import {INewConstructorSignature0} from 'vs/platform/instantiation/common/instantiation';
 
@@ -13,9 +14,7 @@ export interface IStatusbarItem {
 	render(element: HTMLElement): IDisposable;
 }
 
-export enum StatusbarAlignment {
-	LEFT, RIGHT
-}
+export import StatusbarAlignment = statusbarService.StatusbarAlignment;
 
 export class StatusbarItemDescriptor {
 

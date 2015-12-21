@@ -59,7 +59,7 @@ import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IThreadService} from 'vs/platform/thread/common/thread';
 import {IPluginService} from 'vs/platform/plugins/common/plugins';
 import {AbstractThreadService} from 'vs/platform/thread/common/abstractThreadService';
-import {IStatusbarService} from 'vs/workbench/services/statusbar/statusbarService';
+import {IStatusbarService} from 'vs/workbench/services/statusbar/common/statusbarService';
 
 interface WorkbenchParams {
 	workspace?: IWorkspace;

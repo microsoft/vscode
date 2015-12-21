@@ -14,7 +14,7 @@ import {ExtHostConfiguration} from 'vs/workbench/api/common/extHostConfiguration
 import {ExtHostDiagnostics} from 'vs/workbench/api/common/extHostDiagnostics';
 import {ExtHostWorkspace} from 'vs/workbench/api/common/extHostWorkspace';
 import {ExtHostQuickOpen} from 'vs/workbench/api/browser/extHostQuickOpen';
-import {ExtHostStatusBar} from 'vs/workbench/api/browser/extHostStatusBar';
+import {ExtHostStatusBar} from 'vs/workbench/api/common/extHostStatusBar';
 import {ExtHostCommands} from 'vs/workbench/api/common/extHostCommands';
 import {ExtHostOutputService} from 'vs/workbench/api/common/extHostOutputService';
 import {ExtHostMessageService} from 'vs/workbench/api/common/extHostMessageService';

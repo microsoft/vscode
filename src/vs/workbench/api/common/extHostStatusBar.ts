@@ -4,12 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
 import {Remotable, IThreadService} from 'vs/platform/thread/common/thread';
-import {IStatusbarService} from 'vs/workbench/services/statusbar/statusbarService';
-import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
-import {StatusbarAlignment as MainThreadStatusBarAlignment} from 'vs/workbench/browser/parts/statusbar/statusbar';
-import {StatusBarAlignment as ExtHostStatusBarAlignment, Disposable} from '../common/extHostTypes';
+import {IStatusbarService, StatusbarAlignment as MainThreadStatusBarAlignment} from 'vs/workbench/services/statusbar/common/statusbarService';
+import {IDisposable} from 'vs/base/common/lifecycle';
+import {StatusBarAlignment as ExtHostStatusBarAlignment, Disposable} from './extHostTypes';
 import {StatusBarItem, StatusBarAlignment} from 'vscode';
 
 export class ExtHostStatusBarEntry implements StatusBarItem {
@@ -123,7 +121,7 @@ export class ExtHostStatusBarEntry implements StatusBarItem {
 class StatusBarMessage {
 
 	private _item: StatusBarItem;
-	private _messages: {message:string}[] = [];
+	private _messages: { message: string }[] = [];
 
 	constructor(statusBar: ExtHostStatusBar) {
 		this._item = statusBar.createStatusBarEntry(ExtHostStatusBarAlignment.Left, Number.MIN_VALUE);
@@ -192,7 +190,7 @@ export class ExtHostStatusBar {
 
 @Remotable.MainContext('MainThreadStatusBar')
 export class MainThreadStatusBar {
-	private mapIdToDisposable: { [id:number]: IDisposable };
+	private mapIdToDisposable: { [id: number]: IDisposable };
 
 	constructor(
 		@IStatusbarService private statusbarService: IStatusbarService

@@ -14,7 +14,7 @@ import {IMessageService, IMessageWithAction, IConfirmation, Severity} from 'vs/p
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IKeybindingService, IKeybindingContextKey} from 'vs/platform/keybinding/common/keybindingService';
 import {IQuickOpenService} from 'vs/workbench/services/quickopen/browser/quickOpenService';
-import {IStatusbarService} from 'vs/workbench/services/statusbar/statusbarService';
+import {IStatusbarService} from 'vs/workbench/services/statusbar/common/statusbarService';
 
 interface IBufferedMessage {
 	severity: Severity;

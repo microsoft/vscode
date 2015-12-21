@@ -58,7 +58,7 @@ import {JSONValidationExtensionPoint} from 'vs/platform/jsonschemas/common/jsonV
 import {LanguageConfigurationFileHandler} from 'vs/editor/node/languageConfiguration';
 import {MainThreadFileSystemEventService} from 'vs/workbench/api/common/extHostFileSystemEventService';
 import {MainThreadQuickOpen} from 'vs/workbench/api/browser/extHostQuickOpen';
-import {MainThreadStatusBar} from 'vs/workbench/api/browser/extHostStatusBar';
+import {MainThreadStatusBar} from 'vs/workbench/api/common/extHostStatusBar';
 import {MainThreadCommands} from 'vs/workbench/api/common/extHostCommands';
 import {RemoteTelemetryServiceHelper} from 'vs/platform/telemetry/common/abstractRemoteTelemetryService';
 import {MainThreadDiagnostics} from 'vs/workbench/api/common/extHostDiagnostics';
