@@ -12,7 +12,7 @@ import URI from 'vs/base/common/uri';
 import {join} from 'vs/base/common/paths';
 import {validateFileName} from 'vs/workbench/parts/files/browser/fileActions';
 import {LocalFileChangeEvent} from 'vs/workbench/parts/files/common/files';
-import {FileStat} from 'vs/workbench/parts/files/browser/views/explorerViewModel';
+import {FileStat} from 'vs/workbench/parts/files/common/viewModel';
 
 function createStat(path, name, isFolder, hasChildren, size, mtime, mime) {
 	return new FileStat(toResource(path), isFolder, hasChildren, name, mtime);

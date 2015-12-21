@@ -5,7 +5,6 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
-import Browser = require('vs/base/browser/browser');
 import remote = require('vs/base/common/remote');
 import Types = require('vs/base/common/types');
 import {IThreadServiceStatusListener, ThreadAffinity, Remotable, IRemotableCtorMap, IThreadSynchronizableObject, IDynamicProxy} from 'vs/platform/thread/common/thread';

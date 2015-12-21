@@ -18,7 +18,7 @@ import {DerivedFrameEditorInput} from 'vs/workbench/parts/files/browser/editors/
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
-import {FileStat} from 'vs/workbench/parts/files/browser/views/explorerViewModel';
+import {FileStat} from 'vs/workbench/parts/files/common/viewModel';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 
 class FilesViewerActionContributor extends ActionBarContributor {
