@@ -10,7 +10,6 @@ import {IMessageService} from 'vs/platform/message/common/message';
 import Severity from 'vs/base/common/severity';
 import {Action} from 'vs/base/common/actions';
 import {TPromise as Promise} from 'vs/base/common/winjs.base';
-import {ExtHostCommands} from 'vs/workbench/api/common/extHostCommands';
 import vscode = require('vscode');
 
 export class ExtHostMessageService {

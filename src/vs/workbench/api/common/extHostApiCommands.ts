@@ -16,7 +16,7 @@ import {ICommandHandlerDescription} from 'vs/platform/keybinding/common/keybindi
 import {ExtHostCommands} from 'vs/workbench/api/common/extHostCommands';
 import {IQuickFix2} from 'vs/editor/contrib/quickFix/common/quickFix';
 import {IOutline} from 'vs/editor/contrib/quickOpen/common/quickOpen';
-import {ITypeBearing} from 'vs/workbench/parts/search/common/search'
+import {ITypeBearing} from 'vs/workbench/parts/search/common/search';
 import {ICodeLensData} from 'vs/editor/contrib/codelens/common/codelens';
 
 export class ExtHostApiCommands {
@@ -169,7 +169,7 @@ export class ExtHostApiCommands {
 		};
 		return this._commands.executeCommand<modes.IReference[]>('_executeDefinitionProvider', args).then(value => {
 			if (Array.isArray(value)) {
-				return value.map(typeConverters.toLocation)
+				return value.map(typeConverters.toLocation);
 			}
 		});
 	}
@@ -181,7 +181,7 @@ export class ExtHostApiCommands {
 		};
 		return this._commands.executeCommand<modes.IComputeExtraInfoResult[]>('_executeHoverProvider', args).then(value => {
 			if (Array.isArray(value)) {
-				return value.map(typeConverters.toHover)
+				return value.map(typeConverters.toHover);
 			}
 		});
 	}
@@ -193,7 +193,7 @@ export class ExtHostApiCommands {
 		};
 		return this._commands.executeCommand<modes.IOccurence[]>('_executeDocumentHighlights', args).then(value => {
 			if (Array.isArray(value)) {
-				return value.map(typeConverters.toDocumentHighlight)
+				return value.map(typeConverters.toDocumentHighlight);
 			}
 		});
 	}
@@ -205,7 +205,7 @@ export class ExtHostApiCommands {
 		};
 		return this._commands.executeCommand<modes.IReference[]>('_executeDocumentHighlights', args).then(value => {
 			if (Array.isArray(value)) {
-				return value.map(typeConverters.toLocation)
+				return value.map(typeConverters.toLocation);
 			}
 		});
 	}

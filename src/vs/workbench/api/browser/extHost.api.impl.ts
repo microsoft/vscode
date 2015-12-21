@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {MainInplaceReplaceSupport, ReplaceSupport, IBracketElectricCharacterContribution} from 'vs/editor/common/modes/supports';
+import {IBracketElectricCharacterContribution} from 'vs/editor/common/modes/supports';
 import {score} from 'vs/editor/common/modes/languageSelector';
 import {Remotable, IThreadService} from 'vs/platform/thread/common/thread';
 import * as errors from 'vs/base/common/errors';
@@ -24,12 +24,9 @@ import {ExtHostLanguageFeatures} from 'vs/workbench/api/common/extHostLanguageFe
 import {ExtHostApiCommands} from 'vs/workbench/api/common/extHostApiCommands';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
 import 'vs/workbench/api/common/extHostTypes.marshalling';
-import * as TypeConverters from 'vs/workbench/api/common/extHostTypeConverters';
-import {wrapAsWinJSPromise} from 'vs/base/common/async';
 import Modes = require('vs/editor/common/modes');
-import {IModelService} from 'vs/editor/common/services/modelService';
 import {IModeService} from 'vs/editor/common/services/modeService';
-import {IDeclarationContribution, ISuggestContribution, IReferenceContribution, ICommentsSupportContribution, ITokenTypeClassificationSupportContribution} from 'vs/editor/common/modes/supports';
+import {ICommentsSupportContribution, ITokenTypeClassificationSupportContribution} from 'vs/editor/common/modes/supports';
 import {IOnEnterSupportOptions} from 'vs/editor/common/modes/supports/onEnter';
 import URI from 'vs/base/common/uri';
 import Severity from 'vs/base/common/severity';
@@ -37,7 +34,6 @@ import {IDisposable} from 'vs/base/common/lifecycle';
 import EditorCommon = require('vs/editor/common/editorCommon');
 import {IPluginService, IPluginDescription} from 'vs/platform/plugins/common/plugins';
 import {PluginsRegistry} from 'vs/platform/plugins/common/pluginsRegistry';
-import {relative} from 'path';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {CancellationTokenSource} from 'vs/base/common/cancellation';
@@ -337,7 +333,7 @@ export class ExtHostAPIImplementation {
 			get all():Extension<any>[] {
 				return PluginsRegistry.getAllPluginDescriptions().map((desc) => new Extension(pluginService, desc));
 			}
-		}
+		};
 
 		// Intentionally calling a function for typechecking purposes
 		defineAPI(this);
@@ -354,8 +350,6 @@ export class ExtHostAPIImplementation {
 
 		// comment configuration
 		if (comments) {
-			let lineCommentToken = comments.lineComment;
-
 			let contrib: ICommentsSupportContribution = { commentsConfiguration: {} };
 			if (comments.lineComment) {
 				contrib.commentsConfiguration.lineCommentTokens = [comments.lineComment];
@@ -482,8 +476,8 @@ class Extension<T> implements vscode.Extension<T> {
 }
 
 function defineAPI(impl: typeof vscode) {
-	var node_module = <any>require.__$__nodeRequire('module');
-	var original = node_module._load;
+	let node_module = <any>require.__$__nodeRequire('module');
+	let original = node_module._load;
 	node_module._load = function load(request, parent, isMain) {
 		if (request === 'vscode') {
 			return impl;

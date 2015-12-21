@@ -233,8 +233,8 @@ export class Range {
 		} else if (other.contains(this)) {
 			return other;
 		}
-		let start = Position.Min(other.start, this._start)
-		let end = Position.Max(other.end, this.end)
+		let start = Position.Min(other.start, this._start);
+		let end = Position.Max(other.end, this.end);
 		return new Range(start, end);
 	}
 
@@ -306,7 +306,7 @@ export class Selection extends Range {
 			end: this.end,
 			active: this.active,
 			anchor: this.anchor
-		}
+		};
 	}
 }
 
@@ -334,7 +334,7 @@ export class TextEdit {
 
 	set range(value: Range) {
 		if (!value) {
-			throw illegalArgument('range')
+			throw illegalArgument('range');
 		}
 		this._range = value;
 	}
@@ -470,7 +470,7 @@ export class Diagnostic {
 			range: this.range,
 			source: this.source,
 			code: this.code,
-		}
+		};
 	}
 }
 
@@ -513,7 +513,7 @@ export class DocumentHighlight {
 		return {
 			range: this.range,
 			kind: DocumentHighlightKind[this.kind]
-		}
+		};
 	}
 }
 
@@ -558,7 +558,7 @@ export class SymbolInformation {
 			kind: SymbolKind[this.kind],
 			location: this.location,
 			containerName: this.containerName
-		}
+		};
 	}
 }
 
@@ -659,7 +659,7 @@ export class CompletionItem {
 			filterText: this.filterText,
 			insertText: this.insertText,
 			textEdit: this.textEdit
-		}
+		};
 	}
 }
 

@@ -25,7 +25,7 @@ import {OccurrencesRegistry} from 'vs/editor/contrib/wordHighlighter/common/word
 import {ReferenceRegistry} from 'vs/editor/contrib/referenceSearch/common/referenceSearch';
 import {QuickFixRegistry} from 'vs/editor/contrib/quickFix/common/quickFix';
 import {OutlineRegistry, IOutlineEntry, IOutlineSupport} from 'vs/editor/contrib/quickOpen/common/quickOpen';
-import {NavigateTypesSupportRegistry, INavigateTypesSupport, ITypeBearing} from 'vs/workbench/parts/search/common/search'
+import {NavigateTypesSupportRegistry, INavigateTypesSupport, ITypeBearing} from 'vs/workbench/parts/search/common/search';
 import {RenameRegistry} from 'vs/editor/contrib/rename/common/rename';
 import {FormatRegistry, FormatOnTypeRegistry} from 'vs/editor/contrib/format/common/format';
 import {CodeLensRegistry} from 'vs/editor/contrib/codelens/common/codelens';
@@ -102,7 +102,7 @@ class CodeLensAdapter implements modes.ICodeLensSupport {
 					id: String(i),
 					range: TypeConverters.fromRange(lens.range),
 					command: TypeConverters.Command.from(lens.command)
-				}
+				};
 			});
 		});
 	}
@@ -133,7 +133,7 @@ class CodeLensAdapter implements modes.ICodeLensSupport {
 				command = {
 					title: '<<MISSING COMMAND>>',
 					command: 'missing',
-				}
+				};
 			}
 
 			symbol.command = TypeConverters.Command.from(command);
@@ -236,7 +236,7 @@ class OccurrencesAdapter implements modes.IOccurrencesSupport {
 		return {
 			range: TypeConverters.fromRange(documentHighlight.range),
 			kind: DocumentHighlightKind[documentHighlight.kind].toString().toLowerCase()
-		}
+		};
 	}
 }
 
@@ -251,7 +251,7 @@ class ReferenceAdapter implements modes.IReferenceSupport {
 	}
 
 	canFindReferences(): boolean {
-		return true
+		return true;
 	}
 
 	findReferences(resource: URI, position: IPosition, includeDeclaration: boolean): TPromise<modes.IReference[]> {
@@ -502,8 +502,8 @@ class SuggestAdapter implements modes.ISuggestSupport {
 					// insert the text of the edit and create a dedicated
 					// suggestion-container with overwrite[Before|After]
 					suggestion.codeSnippet = item.textEdit.newText;
-					suggestion.overwriteBefore = pos.character - editRange.start.character,
-					suggestion.overwriteAfter = editRange.end.character - pos.character
+					suggestion.overwriteBefore = pos.character - editRange.start.character;
+					suggestion.overwriteAfter = editRange.end.character - pos.character;
 
 					allSuggestions.push({
 						currentWord: doc.getText(<any>editRange),

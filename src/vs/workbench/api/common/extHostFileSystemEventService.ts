@@ -6,7 +6,6 @@
 
 import {FileChangesEvent, FileChangeType} from 'vs/platform/files/common/files';
 import {Remotable, IThreadService} from 'vs/platform/thread/common/thread';
-import {IMarkerService} from 'vs/platform/markers/common/markers';
 import Event, {Emitter} from 'vs/base/common/event';
 import {Disposable} from './extHostTypes';
 import {IEventService} from 'vs/platform/event/common/event';

@@ -16,7 +16,7 @@ import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
 import {Range, Position} from 'vs/workbench/api/common/extHostTypes';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IEditorService} from 'vs/platform/editor/common/editor';
-import {EventType as FileEventType, LocalFileChangeEvent, ITextFileService, ITextFileOperationResult} from 'vs/workbench/parts/files/common/files';
+import {EventType as FileEventType, LocalFileChangeEvent, ITextFileService} from 'vs/workbench/parts/files/common/files';
 import * as TypeConverters from './extHostTypeConverters';
 import {TPromise} from 'vs/base/common/winjs.base';
 import * as vscode from 'vscode';
@@ -32,7 +32,7 @@ export interface IModelAddedData {
 	isDirty: boolean;
 }
 
-var _modeId2WordDefinition: {
+const _modeId2WordDefinition: {
 	[modeId:string]: RegExp;
 } = Object.create(null);
 
@@ -252,7 +252,7 @@ export class BaseTextDocument implements vscode.TextDocument {
 			return this._lines[range.start.line].substring(range.start.character, range.end.character);
 		}
 
-		var lineEnding = this._eol,
+		let lineEnding = this._eol,
 			startLineIndex = range.start.line,
 			endLineIndex = range.end.line,
 			resultLines: string[] = [];
@@ -355,7 +355,7 @@ export class BaseTextDocument implements vscode.TextDocument {
 
 	validatePosition(position:Position): Position {
 		if (!(position instanceof Position)) {
-			throw new Error('Invalid argument')
+			throw new Error('Invalid argument');
 		}
 
 		let {line, character} = position;
@@ -673,7 +673,7 @@ export class MainThreadDocuments {
 		let asFileUri = URI.file(uri.fsPath);
 		return this._fileService.resolveFile(asFileUri).then(stats => {
 			// don't create a new file ontop of an existing file
-			return TPromise.wrapError<boolean>('file already exists on disk')
+			return TPromise.wrapError<boolean>('file already exists on disk');
 		}, err => {
 			let input = this._untitledEditorService.createOrGet(asFileUri); // using file-uri makes it show in 'Working Files' section
 			return input.resolve(true).then(model => {

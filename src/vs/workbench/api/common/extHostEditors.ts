@@ -14,7 +14,7 @@ import {Selection, Range, Position, EditorOptions} from './extHostTypes';
 import {ISingleEditOperation, ISelection, IRange, IInternalIndentationOptions, IEditor, EditorType, ICommonCodeEditor, ICommonDiffEditor, IDecorationRenderOptions, IRangeWithMessage} from 'vs/editor/common/editorCommon';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IEditor as IPlatformEditor, IResourceInput, Position as EditorPosition} from 'vs/platform/editor/common/editor';
+import {IEditor as IPlatformEditor, Position as EditorPosition} from 'vs/platform/editor/common/editor';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {MainThreadEditorsTracker, TextEditorRevealType, MainThreadTextEditor, ITextEditorConfiguration} from 'vs/workbench/api/common/mainThreadEditors';
 import * as TypeConverters from './extHostTypeConverters';
@@ -130,7 +130,7 @@ export class ExtHostEditors {
 
 	_acceptTextEditorRemove(id:string): void {
 		// make sure the removed editor is not visible
-		var newVisibleEditors = this._visibleEditorIds.filter(visibleEditorId => visibleEditorId !== id);
+		let newVisibleEditors = this._visibleEditorIds.filter(visibleEditorId => visibleEditorId !== id);
 
 		if (this._activeEditorId === id) {
 			// removing the current active editor
@@ -241,7 +241,7 @@ export class TextEditorEdit {
 function readonly(name: string, alt?: string) {
 	let message = `The property '${name}' is readonly.`;
 	if (alt) {
-		message += ` Use '${alt}' instead.`
+		message += ` Use '${alt}' instead.`;
 	}
 	return new Error(message);
 }
@@ -256,10 +256,10 @@ function deprecated(name:string, message:string = 'Refer to the documentation fo
 		descriptor.value = function(...args: any[]) {
 			console.warn(`[Deprecation Warning] method '${name}' is deprecated and should no longer be used. ${message}`);
 			return originalMethod.apply(this, args);
-		}
+		};
 
 		return descriptor;
-	}
+	};
 }
 
 class ExtHostTextEditor implements vscode.TextEditor {
@@ -315,7 +315,7 @@ class ExtHostTextEditor implements vscode.TextEditor {
 	}
 
 	_acceptOptions(options: EditorOptions): void {
-		this._options = options
+		this._options = options;
 	}
 
 	// ---- selections
@@ -384,10 +384,10 @@ class ExtHostTextEditor implements vscode.TextEditor {
 	}
 
 	_applyEdit(edit:TextEditorEdit): TPromise<boolean> {
-		var editData = edit.finalize();
+		let editData = edit.finalize();
 
 		// prepare data for serialization
-		var edits: ISingleEditOperation[] = editData.edits.map((edit) => {
+		let edits: ISingleEditOperation[] = editData.edits.map((edit) => {
 			return {
 				range: TypeConverters.fromRange(edit.range),
 				text: edit.text,

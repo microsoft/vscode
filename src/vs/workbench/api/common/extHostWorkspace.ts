@@ -8,11 +8,10 @@ import URI from 'vs/base/common/uri';
 import {ISearchService, QueryType} from 'vs/platform/search/common/search';
 import {IWorkspaceContextService, IWorkspace} from 'vs/platform/workspace/common/workspace';
 import {Remotable, IThreadService} from 'vs/platform/thread/common/thread';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {ITextFileService, ITextFileOperationResult} from 'vs/workbench/parts/files/common/files';
-import {Uri, FileSystemWatcher} from 'vscode';
+import {ITextFileService} from 'vs/workbench/parts/files/common/files';
+import {Uri} from 'vscode';
 import {ICommonCodeEditor} from 'vs/editor/common/editorCommon';
 import {bulkEdit, IResourceEdit} from 'vs/editor/common/services/bulkEdit';
 import {TPromise} from 'vs/base/common/winjs.base';
@@ -46,7 +45,7 @@ export class ExtHostWorkspace {
 			return path.substring(this._workspacePath.length);
 		}
 
-		return path
+		return path;
 	}
 
 	findFiles(include: string, exclude: string, maxResults?:number): Thenable<Uri[]> {
@@ -120,7 +119,7 @@ export class MainThreadWorkspace {
 
 	saveAll(includeUntitled?: boolean): Thenable<boolean> {
 		return this._textFileService.saveAll(includeUntitled).then(result => {
-			return result.results.every(each => each.success === true);;
+			return result.results.every(each => each.success === true);
 		});
 	}
 

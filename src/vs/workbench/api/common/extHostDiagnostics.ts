@@ -127,7 +127,7 @@ class DiagnosticCollection implements vscode.DiagnosticCollection {
 			source: diagnostic.source,
 			severity: DiagnosticCollection._convertDiagnosticsSeverity(diagnostic.severity),
 			code: String(diagnostic.code)
-		}
+		};
 	}
 
 	private static _convertDiagnosticsSeverity(severity: number): Severity {

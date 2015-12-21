@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
 import {clone} from 'vs/base/common/objects';
 import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
 import {IThreadService, Remotable} from 'vs/platform/thread/common/thread';
@@ -48,14 +47,14 @@ export class ExtHostConfiguration {
 		// result = Object.freeze(result);
 		result.has = function(key: string): boolean {
 			return typeof ExtHostConfiguration._lookUp(key, config) !== 'undefined';
-		}
+		};
 		result.get = function <T>(key: string, defaultValue?: T): T {
 			let result = ExtHostConfiguration._lookUp(key, config);
 			if (typeof result === 'undefined') {
 				result = defaultValue;
 			}
 			return result;
-		}
+		};
 		return result;
 	}
 

@@ -7,7 +7,6 @@
 import {registerMarshallingContribution, IMarshallingContribution} from 'vs/base/common/marshalling';
 import * as types from './extHostTypes';
 import {fromPosition, fromRange} from './extHostTypeConverters';
-import {IRange, IPosition} from 'vs/editor/common/editorCommon';
 import {IReference} from 'vs/editor/common/modes';
 
 abstract class OneWayMarshalling<T> implements IMarshallingContribution {

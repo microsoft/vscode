@@ -5,7 +5,6 @@
 'use strict';
 
 import Severity from 'vs/base/common/severity';
-import * as objects from 'vs/base/common/objects';
 import * as modes from 'vs/editor/common/modes';
 import * as types from './extHostTypes';
 import {Position as EditorPosition} from 'vs/platform/editor/common/editor';
@@ -163,7 +162,7 @@ export function fromRangeOrRangeWithMessage(ranges:vscode.Range[]|vscode.Decorat
 		return ranges.map((r): IRangeWithMessage => {
 			return {
 				range: fromRange(r)
-			}
+			};
 		});
 	}
 }
@@ -173,12 +172,12 @@ export const TextEdit = {
 		return <ISingleEditOperation>{
 			text: edit.newText,
 			range: fromRange(edit.range)
-		}
+		};
 	},
 	to(edit: ISingleEditOperation): vscode.TextEdit {
 		return new types.TextEdit(toRange(edit.range), edit.text);
 	}
-}
+};
 
 export namespace SymbolKind {
 
@@ -251,7 +250,7 @@ export namespace SymbolKind {
 			case 'boolean':
 				return types.SymbolKind.Boolean;
 		}
-		return types.SymbolKind.Property
+		return types.SymbolKind.Property;
 	}
 }
 
@@ -262,7 +261,7 @@ export namespace SymbolInformation {
 			SymbolKind.to(entry.type),
 			toRange(entry.range),
 			undefined,
-			entry.containerLabel)
+			entry.containerLabel);
 	}
 
 	export function toOutlineEntry(symbol: vscode.SymbolInformation): modes.IOutlineEntry {
@@ -274,7 +273,6 @@ export namespace SymbolInformation {
 			icon: undefined,
 		};
 	}
-
 }
 
 export function fromSymbolInformation(info: vscode.SymbolInformation): ITypeBearing {
@@ -306,7 +304,7 @@ export function fromHover(hover: vscode.Hover): modes.IComputeExtraInfoResult {
 	return <modes.IComputeExtraInfoResult>{
 		range: fromRange(hover.range),
 		htmlContent: hover.contents.map(fromFormattedString)
-	}
+	};
 }
 
 export function toHover(info: modes.IComputeExtraInfoResult): types.Hover {
@@ -352,7 +350,7 @@ export const Suggest = {
 		result.textEdit = types.TextEdit.replace(new types.Range(startPosition, endPosition), suggestion.codeSnippet);
 		return result;
 	}
-}
+};
 
 export namespace SignatureHelp {
 
@@ -362,7 +360,7 @@ export namespace SignatureHelp {
 			currentSignature: signatureHelp.activeSignature,
 			currentParameter: signatureHelp.activeParameter,
 			signatures: []
-		}
+		};
 
 		for (let signature of signatureHelp.signatures) {
 
@@ -441,4 +439,4 @@ export const Command = {
 			};
 		}
 	}
-}
+};

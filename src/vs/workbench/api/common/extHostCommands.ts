@@ -5,18 +5,11 @@
 'use strict';
 
 import {Remotable, IThreadService} from 'vs/platform/thread/common/thread';
-import {TypeConstraint, validateConstraint} from 'vs/base/common/types';
-import {IEventService} from 'vs/platform/event/common/event';
-import {PluginsRegistry} from 'vs/platform/plugins/common/pluginsRegistry';
-import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
+import {validateConstraint} from 'vs/base/common/types';
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
-import {KeybindingsUtils} from 'vs/platform/keybinding/common/keybindingsUtils';
 import {IKeybindingService, ICommandHandlerDescription} from 'vs/platform/keybinding/common/keybindingService';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {ExtHostEditors} from 'vs/workbench/api/common/extHostEditors';
-import {IMessageService, Severity} from 'vs/platform/message/common/message';
-import {canSerialize} from 'vs/base/common/marshalling';
-import {toErrorMessage} from 'vs/base/common/errors';
 import * as vscode from 'vscode';
 
 interface CommandHandler {
@@ -54,7 +47,7 @@ export class ExtHostCommands {
 			dispose: () => {
 				delete this._commands[id];
 			}
-		}
+		};
 	}
 
 	registerTextEditorCommand(id: string, callback: (textEditor: vscode.TextEditor, edit: vscode.TextEditorEdit) => void, thisArg?: any): vscode.Disposable {
@@ -70,12 +63,12 @@ export class ExtHostCommands {
 				actualCallback(activeTextEditor, edit);
 			}).then((result) => {
 				if (!result) {
-					console.warn('Edits from command ' + id + ' were not applied.')
+					console.warn('Edits from command ' + id + ' were not applied.');
 				}
 			}, (err) => {
 				console.warn('An error occured while running command ' + id, err);
 			});
-		})
+		});
 	}
 
 	executeCommand<T>(id: string, ...args: any[]): Thenable<T> {
@@ -208,7 +201,7 @@ KeybindingsRegistry.registerCommandDesc({
 		return accessor.get(IThreadService).getRemotable(MainThreadCommands).$getCommandHandlerDescriptions().then(result => {
 			const all: string[] = [];
 			for (let id in result) {
-				all.push('`' + id + '` - ' + _generateMarkdown(result[id]))
+				all.push('`' + id + '` - ' + _generateMarkdown(result[id]));
 			}
 			console.log(all.join('\n'));
 		});
