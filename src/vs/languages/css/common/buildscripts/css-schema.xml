@@ -962,21 +962,11 @@
     <entry name="behavior" restriction="url" version="3.0" browsers="IE6" ref="http://msdn.microsoft.com/en-us/ie/gg192966.aspx" syntax="div { $(name): url(http://example.com/png_fix.htc); }">
       <desc>IE only. Used to extend behaviors of the browser</desc>
     </entry>
-    <entry name="border" restriction="length, line-style, color, enum" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#borders" syntax="header { $(name): 5px solid red;}">
+    <entry name="border" restriction="length, line-width, line-style, color" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#borders" syntax="header { $(name): 5px solid red;}">
       <desc>Shorthand property for setting border width, style and color</desc>
-      <values>
-        <value name="medium" version="1.0" browsers="all" />
-        <value name="thick" version="1.0" browsers="all" />
-        <value name="thin" version="1.0" browsers="all" />
-      </values>
     </entry>
-    <entry name="border-bottom" restriction="length, line-style, color, enum" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#borders" syntax="header { $(name): 5px solid red;}">
+    <entry name="border-bottom" restriction="length, line-width, line-style, color" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#borders" syntax="header { $(name): 5px solid red;}">
       <desc>Shorthand property for setting border width, style and color</desc>
-      <values>
-        <value name="medium" version="1.0" browsers="all" />
-        <value name="thick" version="1.0" browsers="all" />
-        <value name="thin" version="1.0" browsers="all" />
-      </values>
     </entry>
     <entry name="border-bottom-color" restriction="color" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#border-color" syntax="td { $(name): blue; }">
       <desc>Sets the color of the bottom border.</desc>
@@ -990,13 +980,8 @@
     <entry name="border-bottom-style" restriction="line-style" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#border-style" syntax="td { $(name): solid; }">
       <desc>Sets the style of the bottom border.</desc>
     </entry>
-    <entry name="border-bottom-width" restriction="length" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#border-width" syntax="td { $(name): 2px; }">
+    <entry name="border-bottom-width" restriction="length, line-width" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#border-width" syntax="td { $(name): 2px; }">
       <desc>>Sets the thickness of the bottom border.</desc>
-      <values>
-        <value name="medium" version="1.0" browsers="all" />
-        <value name="thick" version="1.0" browsers="all" />
-        <value name="thin" version="1.0" browsers="all" />
-      </values>
     </entry>
     <entry name="border-collapse" restriction="enum" version="2.0" browsers="all" ref="http://www.w3.org/TR/CSS2/tables.html#borders" syntax="table { $(name): collapse; }">
       <desc>Selects a table's border model.</desc>
@@ -1094,13 +1079,8 @@
         </value>
       </values>
     </entry>
-    <entry name="border-left" restriction="length, line-style, color, enum" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#borders" syntax="header { $(name): 5px solid red;}">
+    <entry name="border-left" restriction="length, line-width, line-style, color" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#borders" syntax="header { $(name): 5px solid red;}">
       <desc>Shorthand property for setting border width, style and color</desc>
-      <values>
-        <value name="medium" version="1.0" browsers="all" />
-        <value name="thick" version="1.0" browsers="all" />
-        <value name="thin" version="1.0" browsers="all" />
-      </values>
     </entry>
     <entry name="border-left-color" restriction="color" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#border-color" syntax="td { $(name): blue; }">
       <desc>Sets the color of the left border.</desc>
@@ -1108,24 +1088,14 @@
     <entry name="border-left-style" restriction="line-style" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#border-style" syntax="td { $(name): solid; }">
       <desc>Sets the style of the left border.</desc>
     </entry>
-    <entry name="border-left-width" restriction="length" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#border-width" syntax="td { $(name): 2px; }">
+    <entry name="border-left-width" restriction="length, line-width" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#border-width" syntax="td { $(name): 2px; }">
       <desc>Sets the thickness of the left border.</desc>
-      <values>
-        <value name="medium" version="1.0" browsers="all" />
-        <value name="thick" version="1.0" browsers="all" />
-        <value name="thin" version="1.0" browsers="all" />
-      </values>
     </entry>
     <entry name="border-radius" restriction="length, percentage" version="3.0" browsers="E,C,FF4,IE9,O10.5,S5" ref="http://www.w3.org/TR/css3-background/#border-radius" syntax="td { $(name): 3px 4px; }">
       <desc>The two length or percentage values of the 'border-*-radius' properties define the radii of a quarter ellipse that defines the shape of the corner of the outer border edge. The first value is the horizontal radius, the second the vertical radius. If the second value is omitted it is copied from the first. If either length is zero, the corner is square, not rounded. Percentages for the horizontal radius refer to the width of the border box, whereas percentages for the vertical radius refer to the height of the border box.</desc>
     </entry>
-    <entry name="border-right" restriction="length, line-style, color, enum" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#borders" syntax="header { $(name): 5px solid red;}">
+    <entry name="border-right" restriction="length, line-width, line-style, color" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#borders" syntax="header { $(name): 5px solid red;}">
       <desc>Shorthand property for setting border width, style and color</desc>
-      <values>
-        <value name="medium" version="1.0" browsers="all" />
-        <value name="thick" version="1.0" browsers="all" />
-        <value name="thin" version="1.0" browsers="all" />
-      </values>
     </entry>
     <entry name="border-right-color" restriction="color" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#border-color" syntax="td { $(name): blue; }">
       <desc>Sets the color of the right border.</desc>
@@ -1133,13 +1103,8 @@
     <entry name="border-right-style" restriction="line-style" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#border-style" syntax="td { $(name): solid; }">
       <desc>Sets the style of the right border.</desc>
     </entry>
-    <entry name="border-right-width" restriction="length" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#border-width" syntax="td { $(name): 2px; }">
+    <entry name="border-right-width" restriction="length, line-width" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#border-width" syntax="td { $(name): 2px; }">
       <desc>Sets the thickness of the right border.</desc>
-      <values>
-        <value name="medium" version="1.0" browsers="all" />
-        <value name="thick" version="1.0" browsers="all" />
-        <value name="thin" version="1.0" browsers="all" />
-      </values>
     </entry>
     <entry name="border-spacing" restriction="length" version="2.0" browsers="E,C,FF1,IE8,O7,S1.2" ref="http://www.w3.org/TR/CSS2/tables.html#borders" syntax="table { $(name): 10px 50px; }">
       <desc>The lengths specify the distance that separates adjoining cell borders. If one length is specified, it gives both the horizontal and vertical spacing. If two are specified, the first gives the horizontal spacing and the second the vertical spacing. Lengths may not be negative.</desc>
@@ -1147,12 +1112,8 @@
     <entry name="border-style" restriction="line-style" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#border-style" syntax="td { $(name): solid; }">
       <desc>The style of the border around edges of an element.</desc>
     </entry>
-    <entry name="border-top" restriction="length, line-style, color, enum" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#borders" syntax="header { $(name): 5px solid red;}">
+    <entry name="border-top" restriction="length, line-width, line-style, color" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#borders" syntax="header { $(name): 5px solid red;}">
       <desc>Shorthand property for setting border width, style and color</desc>
-      <values>
-        <value name="thick" version="1.0" browsers="all" />
-        <value name="thin" version="1.0" browsers="all" />
-      </values>
     </entry>
     <entry name="border-top-color" restriction="color" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#border-color" syntax="td { $(name): blue; }">
       <desc>Sets the color of the top border.</desc>
@@ -1166,21 +1127,11 @@
     <entry name="border-top-style" restriction="line-style" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#border-style" syntax="td { $(name): solid; }">
       <desc>Sets the style of the top border.</desc>
     </entry>
-    <entry name="border-top-width" restriction="length" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#border-width" syntax="td { $(name): 2px; }">
+    <entry name="border-top-width" restriction="length, line-width" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#border-width" syntax="td { $(name): 2px; }">
       <desc>Sets the thickness of the top border.</desc>
-      <values>
-        <value name="medium" version="1.0" browsers="all" />
-        <value name="thick" version="1.0" browsers="all" />
-        <value name="thin" version="1.0" browsers="all" />
-      </values>
     </entry>
-    <entry name="border-width" restriction="length" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#border-width" syntax="td { $(name): 2px; }">
+    <entry name="border-width" restriction="length, line-width" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#border-width" syntax="td { $(name): 2px; }">
       <desc>Shorthand that sets the four 'border-*-width' properties. If it has four values, they set top, right, bottom and left in that order. If left is missing, it is the same as right; if bottom is missing, it is the same as top; if right is missing, it is the same as top.</desc>
-      <values>
-        <value name="medium" version="1.0" browsers="all" />
-        <value name="thick" version="1.0" browsers="all" />
-        <value name="thin" version="1.0" browsers="all" />
-      </values>
     </entry>
     <entry name="bottom" restriction="length, percentage" version="2.0" browsers="all" ref="http://www.w3.org/TR/css3-positioning/#propdef-bottom" syntax="article { $(name): 50px; }">
       <desc>Specifies how far an absolutely positioned box's bottom margin edge is offset above the bottom edge of the box's 'containing block'.</desc>
@@ -1489,13 +1440,8 @@
         </value>
       </values>
     </entry>
-    <entry name="column-rule" restriction="length, line-style, color, enum" version="3.0" browsers="E,IE10,O11.5,S9" ref="http://www.w3.org/TR/css3-multicol/#column-rule0" syntax="header { $(name): 5px solid red;}">
+    <entry name="column-rule" restriction="length, line-width, line-style, color" version="3.0" browsers="E,IE10,O11.5,S9" ref="http://www.w3.org/TR/css3-multicol/#column-rule0" syntax="header { $(name): 5px solid red;}">
       <desc>Shorthand for setting 'column-rule-width', 'column-rule-style', and 'column-rule-color' at the same place in the style sheet. Omitted values are set to their initial values.</desc>
-      <values>
-        <value name="medium" version="1.0" browsers="all" />
-        <value name="thick" version="1.0" browsers="all" />
-        <value name="thin" version="1.0" browsers="all" />
-      </values>
     </entry>
     <entry name="column-rule-color" restriction="color" version="3.0" browsers="E,IE10,O11.6" ref="http://www.w3.org/TR/css3-multicol/#column-rule-color" syntax="div { $(name): #ff0; }">
       <desc>Sets the color of the column rule</desc>
@@ -1503,13 +1449,8 @@
     <entry name="column-rule-style" restriction="line-style" version="3.0" browsers="E,IE10,O11.5,S6" ref="http://www.w3.org/TR/css3-multicol/#column-rule-style" syntax="div { $(name): solid; }">
       <desc>Sets the style of the rule between columns of an element.</desc>
     </entry>
-    <entry name="column-rule-width" restriction="length, enum" version="3.0" browsers="E,IE10,O11.5,S9" ref="http://www.w3.org/TR/css3-multicol/#column-rule-width" syntax="div { $(name): 3px; }">
+    <entry name="column-rule-width" restriction="length, line-width" version="3.0" browsers="E,IE10,O11.5,S9" ref="http://www.w3.org/TR/css3-multicol/#column-rule-width" syntax="div { $(name): 3px; }">
       <desc>Sets the width of the rule between columns. Negative values are not allowed.</desc>
-      <values>
-        <value name="medium" version="1.0" browsers="all" />
-        <value name="thick" version="1.0" browsers="all" />
-        <value name="thin" version="1.0" browsers="all" />
-      </values>
     </entry>
     <entry name="columns" restriction="length, integer, enum" version="3.0" browsers="E,IE10,O11.5,S9" ref="http://www.w3.org/TR/css3-multicol/#columns0" syntax="div { $(name): 100px 3; }">
       <desc>A shorthand property which sets both 'column-width' and 'column-count'.</desc>
@@ -3602,13 +3543,8 @@
         </value>
       </values>
     </entry>
-    <entry name="-moz-column-rule" restriction="length, line-style, color, enum" version="3.0" browsers="FF3.5" ref="http://www.w3.org/TR/css3-multicol/#column-rule0" syntax="header { $(name): 5px solid red;}">
+    <entry name="-moz-column-rule" restriction="length, line-width, line-style, color" version="3.0" browsers="FF3.5" ref="http://www.w3.org/TR/css3-multicol/#column-rule0" syntax="header { $(name): 5px solid red;}">
       <desc>Shorthand for setting 'column-rule-width', 'column-rule-style', and 'column-rule-color' at the same place in the style sheet. Omitted values are set to their initial values.</desc>
-      <values>
-        <value name="medium" version="1.0" browsers="all" />
-        <value name="thick" version="1.0" browsers="all" />
-        <value name="thin" version="1.0" browsers="all" />
-      </values>
     </entry>
     <entry name="-moz-column-rule-color" restriction="color" version="3.0" browsers="FF3.5" ref="http://www.w3.org/TR/css3-multicol/#column-rule-color" syntax="div { $(name): #ff0; }">
       <desc>Sets the color of the column rule</desc>
@@ -3616,13 +3552,8 @@
     <entry name="-moz-column-rule-style" restriction="line-style" version="3.0" browsers="FF3.5" ref="http://www.w3.org/TR/css3-multicol/#column-rule-style" syntax="div { $(name): solid; }">
       <desc>Sets the style of the rule between columns of an element.</desc>
     </entry>
-    <entry name="-moz-column-rule-width" restriction="length" version="3.0" browsers="FF3.5" ref="http://www.w3.org/TR/css3-multicol/#column-rule-width" syntax="div { $(name): 3px; }">
+    <entry name="-moz-column-rule-width" restriction="length, line-width" version="3.0" browsers="FF3.5" ref="http://www.w3.org/TR/css3-multicol/#column-rule-width" syntax="div { $(name): 3px; }">
       <desc>Sets the width of the rule between columns. Negative values are not allowed.</desc>
-      <values>
-        <value name="medium" version="1.0" browsers="all" />
-        <value name="thick" version="1.0" browsers="all" />
-        <value name="thin" version="1.0" browsers="all" />
-      </values>
     </entry>
     <entry name="-moz-columns" restriction="length, integer" version="3.0" browsers="FF9" ref="http://www.w3.org/TR/css3-multicol/#columns0" syntax="div { $(name): 100px 3; }">
       <desc>A shorthand property which sets both 'column-width' and 'column-count'.</desc>
@@ -5312,16 +5243,13 @@
         </value>
       </values>
     </entry>
-    <entry name="outline" restriction="length, line-style, color, enum" version="2.0" browsers="E,C,FF1.5,IE8,O8,S1.2" ref="http://www.w3.org/TR/css3-ui/#outline0" syntax="header { $(name): 5px solid red;}">
+    <entry name="outline" restriction="length, line-width, line-style, color, enum" version="2.0" browsers="E,C,FF1.5,IE8,O8,S1.2" ref="http://www.w3.org/TR/css3-ui/#outline0" syntax="header { $(name): 5px solid red;}">
       <desc>Shorthand property for 'outline-style', 'outline-width', and 'outline-color'.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all" />
         <value name="invert" version="2.0" browsers="E,IE8,O">
           <desc>Performs a color inversion on the pixels on the screen.</desc>
         </value>
-        <value name="medium" version="1.0" browsers="all" />
-        <value name="thick" version="1.0" browsers="all" />
-        <value name="thin" version="1.0" browsers="all" />
       </values>
     </entry>
     <entry name="outline-color" restriction="enum, color" version="2.0" browsers="E,C,FF1.5,IE8,O8,S1.2" ref="http://www.w3.org/TR/css3-ui/#outline-color" syntax="body { $(name): red; }">
@@ -5343,13 +5271,8 @@
 		<value name="" version="3.0" browsers="none" />
       </values>
     </entry>
-    <entry name="outline-width" restriction="length" version="2.0" browsers="E,C,FF1.5,IE8,O8,S1.2" ref="http://www.w3.org/TR/css3-ui/#outline-width0" syntax="td { $(name): 2px; }">
+    <entry name="outline-width" restriction="length, line-width" version="2.0" browsers="E,C,FF1.5,IE8,O8,S1.2" ref="http://www.w3.org/TR/css3-ui/#outline-width0" syntax="td { $(name): 2px; }">
       <desc>Width of the outline</desc>
-      <values>
-        <value name="medium" version="1.0" browsers="all" />
-        <value name="thick" version="1.0" browsers="all" />
-        <value name="thin" version="1.0" browsers="all" />
-      </values>
     </entry>
     <entry name="overflow" restriction="enum" version="2.0" browsers="all" ref="http://www.w3.org/TR/css3-box/#overflow" syntax="div { overflow: hidden auto; }">
       <desc>Shorthand for setting 'overflow-x' and 'overflow-y'.</desc>
@@ -7486,13 +7409,8 @@
         </value>
       </values>
     </entry>
-    <entry name="-webkit-column-rule" restriction="length, line-style, color, enum" version="3.0" browsers="C,S3" ref="http://www.w3.org/TR/css3-multicol/#column-rule0" syntax="header { $(name): 5px solid red;}">
+    <entry name="-webkit-column-rule" restriction="length, line-width, line-style, color" version="3.0" browsers="C,S3" ref="http://www.w3.org/TR/css3-multicol/#column-rule0" syntax="header { $(name): 5px solid red;}">
       <desc>This property is a shorthand for setting 'column-rule-width', 'column-rule-style', and 'column-rule-color' at the same place in the style sheet. Omitted values are set to their initial values.</desc>
-      <values>
-        <value name="medium" version="1.0" browsers="all" />
-        <value name="thick" version="1.0" browsers="all" />
-        <value name="thin" version="1.0" browsers="all" />
-      </values>
     </entry>
     <entry name="-webkit-column-rule-color" restriction="color" version="3.0" browsers="C,S3" ref="http://www.w3.org/TR/css3-multicol/#column-rule-color" syntax="div { $(name): #ff0; }">
       <desc>Sets the color of the column rule</desc>
@@ -7500,13 +7418,8 @@
     <entry name="-webkit-column-rule-style" restriction="line-style" version="3.0" browsers="C,S3" ref="http://www.w3.org/TR/css3-multicol/#column-rule-style" syntax="div { $(name): solid; }">
       <desc>Sets the style of the rule between columns of an element.</desc>
     </entry>
-    <entry name="-webkit-column-rule-width" restriction="length" version="3.0" browsers="C,S3" ref="http://www.w3.org/TR/css3-multicol/#column-rule-width" syntax="div { $(name): 3px; }">
+    <entry name="-webkit-column-rule-width" restriction="length, line-width" version="3.0" browsers="C,S3" ref="http://www.w3.org/TR/css3-multicol/#column-rule-width" syntax="div { $(name): 3px; }">
       <desc>Sets the width of the rule between columns. Negative values are not allowed.</desc>
-      <values>
-        <value name="medium" version="1.0" browsers="all" />
-        <value name="thick" version="1.0" browsers="all" />
-        <value name="thin" version="1.0" browsers="all" />
-      </values>
     </entry>
     <entry name="-webkit-columns" restriction="length, integer" version="3.0" browsers="C,S3" ref="http://www.w3.org/TR/css3-multicol/#columns0" syntax="div { $(name): 100px 3; }">
       <desc>A shorthand property which sets both 'column-width' and 'column-count'.</desc>
@@ -7677,21 +7590,11 @@
         </value>
       </values>
     </entry>
-    <entry name="-webkit-text-stroke" restriction="color, length, percentage" version="3.0" browsers="S3" syntax="div { $(name): red 2x; }">
-      <values>
-        <value name="medium" version="3.0" browsers="all" />
-        <value name="thick" version="3.0" browsers="all" />
-        <value name="thin" version="3.0" browsers="all" />
-      </values>
+    <entry name="-webkit-text-stroke" restriction="length, line-width, color, percentage" version="3.0" browsers="S3" syntax="div { $(name): red 2x; }">
     </entry>
     <entry name="-webkit-text-stroke-color" restriction="color" version="3.0" browsers="S3" syntax="div { $(name): red; }">
     </entry>
-    <entry name="-webkit-text-stroke-width" restriction="length, percentage" version="3.0" browsers="S3" syntax="div { $(name): 2px; }">
-      <values>
-        <value name="medium" version="3.0" browsers="all" />
-        <value name="thick" version="3.0" browsers="all" />
-        <value name="thin" version="3.0" browsers="all" />
-      </values>
+    <entry name="-webkit-text-stroke-width" restriction="length, line-width, percentage" version="3.0" browsers="S3" syntax="div { $(name): 2px; }">
     </entry>
     <entry name="-webkit-touch-callout" restriction="enum" version="3.0" browsers="S3" syntax="a { $(name): none; }">
       <values>

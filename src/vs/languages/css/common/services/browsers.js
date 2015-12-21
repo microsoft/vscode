@@ -1474,34 +1474,12 @@ exports.data ={
 			{
 				"name": "border",
 				"desc": "Shorthand property for setting border width, style and color",
-				"restriction": "length, line-style, color, enum",
-				"values": [
-					{
-						"name": "medium"
-					},
-					{
-						"name": "thick"
-					},
-					{
-						"name": "thin"
-					}
-				]
+				"restriction": "length, line-width, line-style, color"
 			},
 			{
 				"name": "border-bottom",
 				"desc": "Shorthand property for setting border width, style and color",
-				"restriction": "length, line-style, color, enum",
-				"values": [
-					{
-						"name": "medium"
-					},
-					{
-						"name": "thick"
-					},
-					{
-						"name": "thin"
-					}
-				]
+				"restriction": "length, line-width, line-style, color"
 			},
 			{
 				"name": "border-bottom-color",
@@ -1528,18 +1506,7 @@ exports.data ={
 			{
 				"name": "border-bottom-width",
 				"desc": ">Sets the thickness of the bottom border.",
-				"restriction": "length",
-				"values": [
-					{
-						"name": "medium"
-					},
-					{
-						"name": "thick"
-					},
-					{
-						"name": "thin"
-					}
-				]
+				"restriction": "length, line-width"
 			},
 			{
 				"name": "border-collapse",
@@ -1660,18 +1627,7 @@ exports.data ={
 			{
 				"name": "border-left",
 				"desc": "Shorthand property for setting border width, style and color",
-				"restriction": "length, line-style, color, enum",
-				"values": [
-					{
-						"name": "medium"
-					},
-					{
-						"name": "thick"
-					},
-					{
-						"name": "thin"
-					}
-				]
+				"restriction": "length, line-width, line-style, color"
 			},
 			{
 				"name": "border-left-color",
@@ -1686,18 +1642,7 @@ exports.data ={
 			{
 				"name": "border-left-width",
 				"desc": "Sets the thickness of the left border.",
-				"restriction": "length",
-				"values": [
-					{
-						"name": "medium"
-					},
-					{
-						"name": "thick"
-					},
-					{
-						"name": "thin"
-					}
-				]
+				"restriction": "length, line-width"
 			},
 			{
 				"name": "border-radius",
@@ -1708,18 +1653,7 @@ exports.data ={
 			{
 				"name": "border-right",
 				"desc": "Shorthand property for setting border width, style and color",
-				"restriction": "length, line-style, color, enum",
-				"values": [
-					{
-						"name": "medium"
-					},
-					{
-						"name": "thick"
-					},
-					{
-						"name": "thin"
-					}
-				]
+				"restriction": "length, line-width, line-style, color"
 			},
 			{
 				"name": "border-right-color",
@@ -1734,18 +1668,7 @@ exports.data ={
 			{
 				"name": "border-right-width",
 				"desc": "Sets the thickness of the right border.",
-				"restriction": "length",
-				"values": [
-					{
-						"name": "medium"
-					},
-					{
-						"name": "thick"
-					},
-					{
-						"name": "thin"
-					}
-				]
+				"restriction": "length, line-width"
 			},
 			{
 				"name": "border-spacing",
@@ -1761,15 +1684,7 @@ exports.data ={
 			{
 				"name": "border-top",
 				"desc": "Shorthand property for setting border width, style and color",
-				"restriction": "length, line-style, color, enum",
-				"values": [
-					{
-						"name": "thick"
-					},
-					{
-						"name": "thin"
-					}
-				]
+				"restriction": "length, line-width, line-style, color"
 			},
 			{
 				"name": "border-top-color",
@@ -1796,34 +1711,12 @@ exports.data ={
 			{
 				"name": "border-top-width",
 				"desc": "Sets the thickness of the top border.",
-				"restriction": "length",
-				"values": [
-					{
-						"name": "medium"
-					},
-					{
-						"name": "thick"
-					},
-					{
-						"name": "thin"
-					}
-				]
+				"restriction": "length, line-width"
 			},
 			{
 				"name": "border-width",
 				"desc": "Shorthand that sets the four 'border-*-width' properties. If it has four values, they set top, right, bottom and left in that order. If left is missing, it is the same as right; if bottom is missing, it is the same as top; if right is missing, it is the same as top.",
-				"restriction": "length",
-				"values": [
-					{
-						"name": "medium"
-					},
-					{
-						"name": "thick"
-					},
-					{
-						"name": "thin"
-					}
-				]
+				"restriction": "length, line-width"
 			},
 			{
 				"name": "bottom",
@@ -2103,18 +1996,7 @@ exports.data ={
 				"name": "column-rule",
 				"desc": "Shorthand for setting 'column-rule-width', 'column-rule-style', and 'column-rule-color' at the same place in the style sheet. Omitted values are set to their initial values.",
 				"browsers": "E,IE10,O11.5,S9",
-				"restriction": "length, line-style, color, enum",
-				"values": [
-					{
-						"name": "medium"
-					},
-					{
-						"name": "thick"
-					},
-					{
-						"name": "thin"
-					}
-				]
+				"restriction": "length, line-width, line-style, color"
 			},
 			{
 				"name": "column-rule-color",
@@ -2132,18 +2014,7 @@ exports.data ={
 				"name": "column-rule-width",
 				"desc": "Sets the width of the rule between columns. Negative values are not allowed.",
 				"browsers": "E,IE10,O11.5,S9",
-				"restriction": "length, enum",
-				"values": [
-					{
-						"name": "medium"
-					},
-					{
-						"name": "thick"
-					},
-					{
-						"name": "thin"
-					}
-				]
+				"restriction": "length, line-width"
 			},
 			{
 				"name": "columns",
@@ -4659,18 +4530,7 @@ exports.data ={
 				"name": "-moz-column-rule",
 				"desc": "Shorthand for setting 'column-rule-width', 'column-rule-style', and 'column-rule-color' at the same place in the style sheet. Omitted values are set to their initial values.",
 				"browsers": "FF3.5",
-				"restriction": "length, line-style, color, enum",
-				"values": [
-					{
-						"name": "medium"
-					},
-					{
-						"name": "thick"
-					},
-					{
-						"name": "thin"
-					}
-				]
+				"restriction": "length, line-width, line-style, color"
 			},
 			{
 				"name": "-moz-column-rule-color",
@@ -4688,18 +4548,7 @@ exports.data ={
 				"name": "-moz-column-rule-width",
 				"desc": "Sets the width of the rule between columns. Negative values are not allowed.",
 				"browsers": "FF3.5",
-				"restriction": "length",
-				"values": [
-					{
-						"name": "medium"
-					},
-					{
-						"name": "thick"
-					},
-					{
-						"name": "thin"
-					}
-				]
+				"restriction": "length, line-width"
 			},
 			{
 				"name": "-moz-columns",
@@ -7140,7 +6989,7 @@ exports.data ={
 				"name": "outline",
 				"desc": "Shorthand property for 'outline-style', 'outline-width', and 'outline-color'.",
 				"browsers": "E,C,FF1.5,IE8,O8,S1.2",
-				"restriction": "length, line-style, color, enum",
+				"restriction": "length, line-width, line-style, color, enum",
 				"values": [
 					{
 						"name": "auto"
@@ -7148,15 +6997,6 @@ exports.data ={
 					{
 						"name": "invert",
 						"browsers": "E,IE8,O"
-					},
-					{
-						"name": "medium"
-					},
-					{
-						"name": "thick"
-					},
-					{
-						"name": "thin"
 					}
 				]
 			},
@@ -7193,18 +7033,7 @@ exports.data ={
 				"name": "outline-width",
 				"desc": "Width of the outline",
 				"browsers": "E,C,FF1.5,IE8,O8,S1.2",
-				"restriction": "length",
-				"values": [
-					{
-						"name": "medium"
-					},
-					{
-						"name": "thick"
-					},
-					{
-						"name": "thin"
-					}
-				]
+				"restriction": "length, line-width"
 			},
 			{
 				"name": "overflow",
@@ -9402,18 +9231,7 @@ exports.data ={
 				"name": "-webkit-column-rule",
 				"desc": "This property is a shorthand for setting 'column-rule-width', 'column-rule-style', and 'column-rule-color' at the same place in the style sheet. Omitted values are set to their initial values.",
 				"browsers": "C,S3",
-				"restriction": "length, line-style, color, enum",
-				"values": [
-					{
-						"name": "medium"
-					},
-					{
-						"name": "thick"
-					},
-					{
-						"name": "thin"
-					}
-				]
+				"restriction": "length, line-width, line-style, color"
 			},
 			{
 				"name": "-webkit-column-rule-color",
@@ -9431,18 +9249,7 @@ exports.data ={
 				"name": "-webkit-column-rule-width",
 				"desc": "Sets the width of the rule between columns. Negative values are not allowed.",
 				"browsers": "C,S3",
-				"restriction": "length",
-				"values": [
-					{
-						"name": "medium"
-					},
-					{
-						"name": "thick"
-					},
-					{
-						"name": "thin"
-					}
-				]
+				"restriction": "length, line-width"
 			},
 			{
 				"name": "-webkit-columns",
@@ -9738,18 +9545,7 @@ exports.data ={
 			{
 				"name": "-webkit-text-stroke",
 				"browsers": "S3",
-				"restriction": "color, length, percentage",
-				"values": [
-					{
-						"name": "medium"
-					},
-					{
-						"name": "thick"
-					},
-					{
-						"name": "thin"
-					}
-				]
+				"restriction": "length, line-width, color, percentage"
 			},
 			{
 				"name": "-webkit-text-stroke-color",
@@ -9759,18 +9555,7 @@ exports.data ={
 			{
 				"name": "-webkit-text-stroke-width",
 				"browsers": "S3",
-				"restriction": "length, percentage",
-				"values": [
-					{
-						"name": "medium"
-					},
-					{
-						"name": "thick"
-					},
-					{
-						"name": "thin"
-					}
-				]
+				"restriction": "length, line-width, percentage"
 			},
 			{
 				"name": "-webkit-touch-callout",

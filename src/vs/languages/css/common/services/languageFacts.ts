@@ -213,6 +213,8 @@ export var lineStyleKeywords : { [name:string]:string } = {
 	'solid': 'A single line segment.'
 };
 
+export var lineWidthKeywords  = ['medium', 'thick', 'thin'];
+
 export var cssWideKeywords = ['initial', 'inherit', 'unset'];
 
 export var units : { [unitName:string]:string[] } = {

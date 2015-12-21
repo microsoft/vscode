@@ -134,7 +134,7 @@ export class CSSIntellisense {
 		if (entry) {
 			this.getColorProposals(entry, result);
 			this.getPositionProposals(entry, result);
-			this.getLineStyleProposals(entry, result);
+			this.getLineProposals(entry, result);
 			this.getValueEnumProposals(entry, result);
 			this.getCSSWideKeywordProposals(entry, result);
 			this.getUnitProposals(entry, result);
@@ -279,7 +279,7 @@ export class CSSIntellisense {
 		return result;
 	}
 
-	protected getLineStyleProposals(entry:languageFacts.IEntry, result:Modes.ISuggestion[]):Modes.ISuggestion[] {
+	protected getLineProposals(entry:languageFacts.IEntry, result:Modes.ISuggestion[]):Modes.ISuggestion[] {
 		if (entry.restrictions.indexOf('line-style') !== -1) {
 			for (var lineStyle in languageFacts.lineStyleKeywords) {
 				result.push({
@@ -289,6 +289,15 @@ export class CSSIntellisense {
 					type: 'value'
 				});
 			}
+		};
+		if (entry.restrictions.indexOf('line-width') !== -1) {
+			languageFacts.lineWidthKeywords.forEach((lineWidth) => {
+				result.push({
+					label: lineWidth,
+					codeSnippet: lineWidth,
+					type: 'value'
+				});
+			});
 		};
 		return result;
 	}
