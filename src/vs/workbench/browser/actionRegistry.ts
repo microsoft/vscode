@@ -10,7 +10,6 @@ import collections = require('vs/base/common/collections');
 import {Registry} from 'vs/platform/platform';
 import {IAction} from 'vs/base/common/actions';
 import {EventProvider} from 'vs/base/common/eventProvider';
-import {EventSource} from 'vs/base/common/eventSource';
 import {KeybindingsRegistry,ICommandDescriptor} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {KeybindingsUtils} from 'vs/platform/keybinding/common/keybindingsUtils';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
@@ -57,41 +56,21 @@ export interface IWorkbenchActionRegistry {
 	 * Returns the category for the given action or null iff none.
 	 */
 	getCategory(actionId: string): string;
-
-	/**
-	 * Eventing for workbench actions.
-	 */
-	onRegisterWorkbenchAction: EventProvider<(descriptor: SyncActionDescriptor) => void>;
-	onUnregisterWorkbenchAction: EventProvider<(descriptor: SyncActionDescriptor) => void>;
 }
 
 class WorkbenchActionRegistry implements IWorkbenchActionRegistry {
 	private workbenchActions: collections.IStringDictionary<SyncActionDescriptor>;
-	private onActionUnregister: EventSource<(descriptor: SyncActionDescriptor) => void>;
-	private onActionRegister: EventSource<(descriptor: SyncActionDescriptor) => void>;
 	private mapActionIdToCategory: { [id: string]: string; };
 
 	constructor() {
 		this.workbenchActions = Object.create(null);
 		this.mapActionIdToCategory = Object.create(null);
-
-		this.onActionRegister = new EventSource<(descriptor: SyncActionDescriptor) => void>();
-		this.onActionUnregister = new EventSource<(descriptor: SyncActionDescriptor) => void>();
-	}
-
-	private fireActionRegister(descriptor: SyncActionDescriptor): void {
-		this.onActionRegister.fire(descriptor);
-	}
-
-	private fireActionUnregister(descriptor: SyncActionDescriptor): void {
-		this.onActionUnregister.fire(descriptor);
 	}
 
 	public registerWorkbenchAction(descriptor: SyncActionDescriptor, category?: string): void {
 		if (!this.workbenchActions[descriptor.id]) {
 			this.workbenchActions[descriptor.id] = descriptor;
 			registerWorkbenchCommandFromAction(descriptor);
-			this.fireActionRegister(descriptor);
 
 			if (category) {
 				this.mapActionIdToCategory[descriptor.id] = category;
@@ -107,8 +86,6 @@ class WorkbenchActionRegistry implements IWorkbenchActionRegistry {
 		let descriptor = this.workbenchActions[id];
 		delete this.workbenchActions[id];
 		delete this.mapActionIdToCategory[id];
-
-		this.fireActionUnregister(descriptor);
 
 		return true;
 	}
@@ -130,14 +107,6 @@ class WorkbenchActionRegistry implements IWorkbenchActionRegistry {
 		this.mapActionIdToCategory = Object.create(null);
 
 		actions.forEach(action => this.registerWorkbenchAction(action), this);
-	}
-
-	public get onRegisterWorkbenchAction(): EventProvider<(descriptor: SyncActionDescriptor) => void> {
-		return this.onActionRegister.value;
-	}
-
-	public get onUnregisterWorkbenchAction(): EventProvider<(descriptor: SyncActionDescriptor) => void> {
-		return this.onActionUnregister.value;
 	}
 }
 
