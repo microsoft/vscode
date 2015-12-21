@@ -61,9 +61,6 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 	}
 
 	public dispose(): void {
-		this.modelService.onModelAdded.remove(this.onModelAdded, this);
-		this.modelService.onModelAdded.remove(this.onModelRemoved, this);
-
 		var modelUrlStr: string;
 		for (modelUrlStr in this.modelData) {
 			if (this.modelData.hasOwnProperty(modelUrlStr)) {
@@ -79,9 +76,9 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 	}
 
 	private registerListeners(): void {
-		this.modelService.onModelAdded.add(this.onModelAdded, this);
+		this.toDispose.push(this.modelService.onModelAdded(this.onModelAdded, this));
 		this.modelService.getModels().forEach(model => this.onModelAdded(model));
-		this.modelService.onModelRemoved.add(this.onModelRemoved, this);
+		this.toDispose.push(this.modelService.onModelRemoved(this.onModelRemoved, this));
 
 		this.toDispose.push(this.debugService.getModel().addListener2(ModelEvents.BREAKPOINTS_UPDATED, () => this.onBreakpointsChanged()));
 		this.toDispose.push(this.debugService.getViewModel().addListener2(ViewModelEvents.FOCUSED_STACK_FRAME_UPDATED, () => this.onFocusedStackFrameUpdated()));

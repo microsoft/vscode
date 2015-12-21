@@ -16,7 +16,7 @@ import {IModelService} from 'vs/editor/common/services/modelService';
 import {Remotable, IThreadService, ThreadAffinity, IThreadSynchronizableObject} from 'vs/platform/thread/common/thread';
 import {AllWorkersAttr} from 'vs/platform/thread/common/threadService';
 import {IHTMLContentElement} from 'vs/base/common/htmlContent';
-import {EventSource} from 'vs/base/common/eventSource';
+import Event, {Emitter} from 'vs/base/common/event';
 import URI from 'vs/base/common/uri';
 import Severity from 'vs/base/common/severity';
 import {EventProvider} from 'vs/base/common/eventProvider';
@@ -178,9 +178,9 @@ export class ModelServiceImpl implements IModelService {
 	private _threadService: IThreadService;
 	private _workerHelper: ModelServiceWorkerHelper;
 
-	private _onModelAdded: EventSource<(model: EditorCommon.IModel) => void>;
-	private _onModelRemoved: EventSource<(model: EditorCommon.IModel) => void>;
-	private _onModelModeChanged: EventSource<(model: EditorCommon.IModel, oldModeId:string) => void>;
+	private _onModelAdded: Emitter<EditorCommon.IModel>;
+	private _onModelRemoved: Emitter<EditorCommon.IModel>;
+	private _onModelModeChanged: Emitter<{ model: EditorCommon.IModel; oldModeId: string; }>;
 
 	/**
 	 * All the models known in the system.
@@ -194,9 +194,9 @@ export class ModelServiceImpl implements IModelService {
 
 		this._models = {};
 
-		this._onModelAdded = new EventSource<(model: EditorCommon.IModel) => void>();
-		this._onModelRemoved = new EventSource<(model: EditorCommon.IModel) => void>();
-		this._onModelModeChanged = new EventSource<(model: EditorCommon.IModel, oldModeId:string) => void>();
+		this._onModelAdded = new Emitter<EditorCommon.IModel>();
+		this._onModelRemoved = new Emitter<EditorCommon.IModel>();
+		this._onModelModeChanged = new Emitter<{ model: EditorCommon.IModel; oldModeId: string; }>();
 
 		if(this._markerService) {
 			this._markerServiceSubscription = this._markerService.onMarkerChanged(this._handleMarkerChange, this);
@@ -286,16 +286,16 @@ export class ModelServiceImpl implements IModelService {
 		return modelData.model;
 	}
 
-	public get onModelAdded(): EventProvider<(model:EditorCommon.IModel)=>void> {
-		return this._onModelAdded ? this._onModelAdded.value : null;
+	public get onModelAdded(): Event<EditorCommon.IModel> {
+		return this._onModelAdded ? this._onModelAdded.event : null;
 	}
 
-	public get onModelRemoved(): EventProvider<(model:EditorCommon.IModel)=>void> {
-		return this._onModelRemoved ? this._onModelRemoved.value : null;
+	public get onModelRemoved(): Event<EditorCommon.IModel> {
+		return this._onModelRemoved ? this._onModelRemoved.event : null;
 	}
 
-	public get onModelModeChanged(): EventProvider<(model:EditorCommon.IModel, oldModeId:string)=>void> {
-		return this._onModelModeChanged ? this._onModelModeChanged.value : null;
+	public get onModelModeChanged(): Event<{ model: EditorCommon.IModel; oldModeId: string; }> {
+		return this._onModelModeChanged ? this._onModelModeChanged.event : null;
 	}
 
 	// --- end IModelService
@@ -365,7 +365,7 @@ export class ModelServiceImpl implements IModelService {
 						// Forward mode change to all the workers
 						this._workerHelper.$_acceptDidChangeModelMode(modelData.getModelId(), modeChangedEvent.oldMode.getId(), modeChangedEvent.newMode.getId());
 					}
-					this._onModelModeChanged.fire(modelData.model, modeChangedEvent.oldMode.getId());
+					this._onModelModeChanged.fire({ model: modelData.model, oldModeId: modeChangedEvent.oldMode.getId() });
 					break;
 			}
 		}

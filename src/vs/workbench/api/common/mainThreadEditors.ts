@@ -300,8 +300,8 @@ export class MainThreadEditorsTracker {
 			onLostFocus: () => this._updateFocusedTextEditor()
 		};
 
-		this._modelService.onModelAdded.add(this._onModelAdded, this, this._toDispose);
-		this._modelService.onModelRemoved.add(this._onModelRemoved, this, this._toDispose);
+		this._modelService.onModelAdded(this._onModelAdded, this, this._toDispose);
+		this._modelService.onModelRemoved(this._onModelRemoved, this, this._toDispose);
 
 		this._codeEditorService.onCodeEditorAdd(this._onCodeEditorAdd, this, this._toDispose);
 		this._codeEditorService.onCodeEditorRemove(this._onCodeEditorRemove, this, this._toDispose);

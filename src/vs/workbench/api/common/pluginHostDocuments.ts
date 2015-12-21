@@ -552,9 +552,9 @@ export class MainThreadDocuments {
 		this._modelIsSynced = {};
 
 		this._toDispose = [];
-		modelService.onModelAdded.add(this._onModelAdded, this, this._toDispose);
-		modelService.onModelRemoved.add(this._onModelRemoved, this, this._toDispose);
-		modelService.onModelModeChanged.add(this._onModelModeChanged, this, this._toDispose);
+		modelService.onModelAdded(this._onModelAdded, this, this._toDispose);
+		modelService.onModelRemoved(this._onModelRemoved, this, this._toDispose);
+		modelService.onModelModeChanged(this._onModelModeChanged, this, this._toDispose);
 
 		this._toDispose.push(eventService.addListener2(FileEventType.FILE_SAVED, (e: LocalFileChangeEvent) => {
 			this._proxy._acceptModelSaved(e.getAfter().resource);
@@ -595,7 +595,8 @@ export class MainThreadDocuments {
 		});
 	}
 
-	private _onModelModeChanged(model: EditorCommon.IModel, oldModeId:string): void {
+	private _onModelModeChanged(event: { model: EditorCommon.IModel; oldModeId: string;}): void {
+		let {model, oldModeId} = event;
 		let modelUrl = model.getAssociatedResource();
 		if (!this._modelIsSynced[modelUrl.toString()]) {
 			return;
