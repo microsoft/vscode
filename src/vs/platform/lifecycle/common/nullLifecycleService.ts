@@ -12,7 +12,6 @@ class NullLifecycleService implements ILifecycleService {
 
 	public serviceId = ILifecycleService;
 
-	private _onBeforeShutdown: Emitter<any> = new Emitter<any>();
 	private _onShutdown: Emitter<any> = new Emitter<any>();
 
 	public addBeforeShutdownParticipant(p: IBeforeShutdownParticipant): void {

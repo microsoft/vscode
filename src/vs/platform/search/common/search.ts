@@ -92,8 +92,9 @@ export class LineMatch implements ILineMatch {
 export interface ISearchConfiguration extends IFilesConfiguration {
 	search: {
 		exclude: glob.IExpression;
-	},
+	};
+
 	filePicker: {
 		alternateFileNameMatching: boolean;
-	}
+	};
 }

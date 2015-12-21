@@ -5,7 +5,7 @@
 'use strict';
 
 import winjs = require('vs/base/common/winjs.base');
-import Event, {Emitter} from 'vs/base/common/event';
+import Event from 'vs/base/common/event';
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
 
 export var ILifecycleService = createDecorator<ILifecycleService>('lifecycleService');

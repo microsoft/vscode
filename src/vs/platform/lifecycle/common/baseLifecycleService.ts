@@ -4,8 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import arrays = require('vs/base/common/arrays');
-import winjs = require('vs/base/common/winjs.base');
 import Event, {Emitter} from 'vs/base/common/event';
 
 import {ILifecycleService, IBeforeShutdownParticipant} from './lifecycle';

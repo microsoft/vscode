@@ -70,13 +70,13 @@ export class BaseRegistry<T> {
 		this.instantiationService = service;
 
 		while(this.toBeInstantiated.length > 0) {
-			var entry = this.toBeInstantiated.shift();
+			let entry = this.toBeInstantiated.shift();
 			this.instantiate(entry);
 		}
 	}
 
 	private instantiate(ctor:IConstructorSignature0<T> | INewConstructorSignature0<T>):void {
-		var instance = this.instantiationService.createInstance(ctor);
+		let instance = this.instantiationService.createInstance(ctor);
 		this.instances.push(instance);
 	}
 

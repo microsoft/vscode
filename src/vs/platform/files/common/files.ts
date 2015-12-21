@@ -4,18 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('vs/base/common/assert');
 import winjs = require('vs/base/common/winjs.base');
 import paths = require('vs/base/common/paths');
 import URI from 'vs/base/common/uri';
-import nls = require('vs/nls');
-import encoding = require('vs/base/common/bits/encoding');
-import types = require('vs/base/common/types');
-import strings = require('vs/base/common/strings');
 import glob = require('vs/base/common/glob');
-import arrays = require('vs/base/common/arrays');
 import events = require('vs/base/common/events');
-import mimes = require('vs/base/common/mime');
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
 
 export var IFileService = createDecorator<IFileService>('fileService');

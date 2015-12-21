@@ -138,11 +138,11 @@ export interface IEnvironment {
 	aiConfig: {
 		key: string;
 		asimovKey: string;
-	},
+	};
 
 	sendASmile: {
 		submitUrl: string,
 		reportIssueUrl: string,
 		requestFeatureUrl: string
-	}
+	};
 }
