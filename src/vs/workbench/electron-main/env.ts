@@ -265,13 +265,17 @@ function parseOpts(argv: string[]): OptionBag {
 function parsePathArguments(argv: string[], gotoLineMode?: boolean): string[] {
 	return arrays.distinct(					// no duplicates
 		argv.filter(a => !(/^-/.test(a))) 	// find arguments without leading "-"
-			.map((arg) => {						// resolve to path
+			.map((arg) => {					// resolve to path
 				let pathCandidate = arg;
 
 				let parsedPath: IParsedPath;
 				if (gotoLineMode) {
 					parsedPath = parseLineAndColumnAware(arg);
 					pathCandidate = parsedPath.path;
+				}
+
+				if (platform.isWindows && pathCandidate) {
+					pathCandidate = strings.rtrim(pathCandidate, '"'); // https://github.com/Microsoft/vscode/issues/1498
 				}
 
 				let realPath: string;
