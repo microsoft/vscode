@@ -30,21 +30,9 @@ export function compareAnything(one: string, other: string, lookFor: string): nu
 	var elementBName = other.toLowerCase();
 
 	// Sort prefix matches over non prefix matches
-	var elementAPrefixMatch = elementAName.indexOf(lookFor) === 0;
-	var elementBPrefixMatch = elementBName.indexOf(lookFor) === 0;
-	if (elementAPrefixMatch !== elementBPrefixMatch) {
-		return elementAPrefixMatch ? -1 : 1;
-	}
-
-	// Same prefix: Sort shorter matches to the top to have those on top that match more precisely
-	else if (elementAPrefixMatch && elementBPrefixMatch) {
-		if (elementAName.length < elementBName.length) {
-			return -1;
-		}
-
-		if (elementAName.length > elementBName.length) {
-			return 1;
-		}
+	const prefixCompare = compareByPrefix(one, other, lookFor);
+	if (prefixCompare) {
+		return prefixCompare;
 	}
 
 	// Sort suffix matches over non suffix matches
@@ -62,4 +50,29 @@ export function compareAnything(one: string, other: string, lookFor: string): nu
 
 	// Compare by name
 	return strings.localeCompare(elementAName, elementBName);
+}
+
+export function compareByPrefix(one: string, other: string, lookFor: string): number {
+	var elementAName = one.toLowerCase();
+	var elementBName = other.toLowerCase();
+
+	// Sort prefix matches over non prefix matches
+	var elementAPrefixMatch = elementAName.indexOf(lookFor) === 0;
+	var elementBPrefixMatch = elementBName.indexOf(lookFor) === 0;
+	if (elementAPrefixMatch !== elementBPrefixMatch) {
+		return elementAPrefixMatch ? -1 : 1;
+	}
+
+	// Same prefix: Sort shorter matches to the top to have those on top that match more precisely
+	else if (elementAPrefixMatch && elementBPrefixMatch) {
+		if (elementAName.length < elementBName.length) {
+			return -1;
+		}
+
+		if (elementAName.length > elementBName.length) {
+			return 1;
+		}
+	}
+
+	return 0;
 }

@@ -16,6 +16,7 @@ import filters = require('vs/base/common/filters');
 import labels = require('vs/base/common/labels');
 import {IRange} from 'vs/editor/common/editorCommon';
 import {ListenerUnbind} from 'vs/base/common/eventEmitter';
+import {compareByPrefix} from 'vs/base/common/comparers';
 import {IAutoFocus} from 'vs/base/parts/quickopen/browser/quickOpen';
 import {QuickOpenEntry, QuickOpenModel} from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import {QuickOpenHandler} from 'vs/workbench/browser/quickopen';
@@ -301,6 +302,12 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 		if (enableFuzzyScoring) {
 			const labelA = elementA.getLabel();
 			const labelB = elementB.getLabel();
+
+			// treat prefix matches highest in any case
+			const prefixCompare = compareByPrefix(labelA, labelB, lookFor);
+			if (prefixCompare) {
+				return prefixCompare;
+			}
 
 			// Give higher importance to label score
 			const labelAScore = scorer.score(labelA, lookFor, this.scorerCache);
