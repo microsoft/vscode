@@ -31,10 +31,10 @@ export function createNumberDictionary<V>():INumberDictionary<V> {
 
 /**
  * Looks up and returns a property that is owned
- * by the provided map object. 
+ * by the provided map object.
  * @param what The key.
  * @param from A native JavaScript object that stores items.
- * @param alternate A default value this is return in case an item with 
+ * @param alternate A default value this is return in case an item with
  * 	the key isn't found.
  */
 export function lookup<T>(from:IStringDictionary<T>, what:string, alternate?:T):T;
@@ -74,39 +74,20 @@ export function lookupOrInsert<T>(from:any, stringOrNumber:any, alternate:any):T
  */
 export function insert<T>(into: IStringDictionary<T>, data: T, hashFn: (data: T) => string): void;
 export function insert<T>(into: INumberDictionary<T>, data: T, hashFn: (data: T) => string): void;
-export function insert<T>(into: any, data: T, hashFn: (data: T) => string): void { 
+export function insert<T>(into: any, data: T, hashFn: (data: T) => string): void {
 	into[hashFn(data)] = data;
 }
 
 var hasOwnProperty = Object.prototype.hasOwnProperty;
 
 /**
- * Returns {{true}} iff the provided object contains a property 
+ * Returns {{true}} iff the provided object contains a property
  * with the given name.
  */
 export function contains<T>(from:IStringDictionary<T>, what:string):boolean;
 export function contains<T>(from:INumberDictionary<T>, what:number):boolean;
 export function contains<T>(from:any, what:any):boolean {
 	return hasOwnProperty.call(from, what);
-}
-
-
-export function keys<T>(from:IStringDictionary<T>):IIterable<string>;
-export function keys<T>(from:INumberDictionary<T>):IIterable<number>;
-export function keys<T>(from:any):IIterable<any> {
-
-	return {
-		every: function(callback:(element:any)=>boolean):boolean {
-			for (var key in from) {
-				if (hasOwnProperty.call(from, key)) {
-					if(!callback(key)) {
-						return false;
-					}
-				}
-			}
-			return true;
-		}
-	};
 }
 
 /**
@@ -166,146 +147,4 @@ export function groupBy<T>(data: T[], groupFn: (element: T) => string): IStringD
 	var result = createStringDictionary<T[]>();
 	data.forEach(element => lookupOrInsert(result, groupFn(element), []).push(element));
 	return result;
-}
-
-
-/**
- * An iterable of a given type. This iterable is
- * compatible with the JavaScript array.
- */
-export interface IIterable<E> {
-
-	/**
-	 * Iterates over every element in the array
-	 * as long as the callback does not return some
-	 * 'falsy' value.
-	 * @param callback A function that is called for each element
-	 * @return {{true}} if every element has been visited, 
-	 * 	{{false}} if it returned early
-	 */
-	every(callback:(element:E)=>boolean):boolean;
-}
-
-export var EmptyIterable:IIterable<any> = {
-	every: function(callback) {
-		return true;
-	}
-};
-
-export function combine<E>(iterables:IIterable<E>[]):IIterable<E> {
-	var len = iterables.length;
-	if(len === 0) {
-		return EmptyIterable;
-	} else if(len === 1) {
-		return iterables[0];
-	}
-	return {
-		every: function(callback:(element:E)=>any) {
-			for(var i = 0; i < len; i++) {
-				if(!iterables[i].every(callback)) {
-					return false;
-				}
-			}
-			return true;
-		}
-	};
-}
-
-export function singleton<E>(element:E):IIterable<E> {
-	return {
-		every: function(callback) {
-			return callback(element);
-		}
-	};
-}
-
-export function toArray<E>(iterable:IIterable<E>):E[] {
-	if(Array.isArray(iterable)) {
-		return <E[]> iterable;
-	} else {
-		var result:E[] = [];
-		iterable.every((e) => {
-			result.push(e);
-			return true;
-		});
-		return result;
-	}
-}
-
-///**
-// * ECMAScript 6 iterator
-// */
-//export interface IIterator<T> {
-//	next(): { done: boolean; value?: T; };
-//}
-//
-//export function empty<T>():IIterator<T> {
-//	return {
-//		next: function() { return { done: true }; }
-//	};
-//}
-//
-//export function iterator<T>(array: T[]): IIterator<T> { 
-//	var i = 0;
-//	return {
-//		next: () => { 
-//			if(i < array.length) {
-//				return {
-//					done: false,
-//					value: array[i++]
-//				};
-//			} else {
-//				return {
-//					done: true
-//				};
-//			}
-//		}
-//	};
-//}
-
-interface ICacheRow<T> {
-	element: T;
-	onRemove: ()=>void;
-}
-
-/**
- * Limited size cache. Provided a certain cache size limit, it
- * removes the older elements as new ones are inserted.
- */
-export class LimitedSizeCache<T> {
-
-	private cache: { [id: string]: ICacheRow<T> };
-	private order: string[];
-
-	constructor(private size: number) {
-		this.cache = Object.create(null);
-		this.order = [];
-	}
-
-	public get(id: string): T {
-		var result = this.cache[id];
-		return result && result.element;
-	}
-
-	public put(id: string, element: T, onRemove: ()=>void): void {
-		var existing = this.cache[id];
-		var row: ICacheRow<T> = { element: element, onRemove: onRemove };
-
-		this.cache[id] = row;
-
-		if (!existing) {
-			this.order.push(id);
-		}
-
-		this.swipe();
-	}
-
-	private swipe(): void {
-		while (this.order.length > this.size) {
-			var id = this.order.shift();
-			var row = this.cache[id];
-			row.onRemove();
-			delete this.cache[id];
-		}
-	}
 }
