@@ -6,7 +6,7 @@
 
 import {ITree, IElementCallback} from 'vs/base/parts/tree/common/tree';
 import {TPromise} from 'vs/base/common/winjs.base';
-import Event, {Emitter} from 'vs/base/common/event';
+import Event from 'vs/base/common/event';
 import {IQuickNavigateConfiguration, IAutoFocus} from 'vs/base/parts/quickopen/browser/quickOpen';
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
 import {IEditorInput} from 'vs/platform/editor/common/editor';
@@ -63,7 +63,7 @@ export interface IInputOptions {
 	password?: boolean;
 }
 
-export var IQuickOpenService = createDecorator<IQuickOpenService>('quickOpenService')
+export var IQuickOpenService = createDecorator<IQuickOpenService>('quickOpenService');
 
 export interface IQuickOpenService {
 	serviceId : ServiceIdentifier<any>;

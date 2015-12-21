@@ -14,7 +14,6 @@ import lifecycle = require('vs/base/common/lifecycle');
 import timer = require('vs/base/common/timer');
 import platform = require('vs/platform/platform');
 import async = require('vs/base/common/async');
-import {IRequestService} from 'vs/platform/request/common/request';
 import {IConfigurationService, IConfigurationServiceEvent, ConfigurationServiceEventTypes} from 'vs/platform/configuration/common/configuration';
 import {BaseRequestService} from 'vs/platform/request/common/baseRequestService';
 import rawHttpService = require('vs/workbench/services/request/node/rawHttpService');
@@ -41,10 +40,6 @@ export class RequestService extends BaseRequestService implements IThreadSynchro
 	) {
 		super(contextService, telemetryService);
 		this.callOnDispose = [];
-
-		let configureRawService = (rawHttpService: IRawHttpService, configuration: any) => {
-			rawHttpService.configure(configuration.http && configuration.http.proxy);
-		};
 
 		// proxy setting updating
 		this.callOnDispose.push(configurationService.addListener(ConfigurationServiceEventTypes.UPDATED, (e: IConfigurationServiceEvent) => {

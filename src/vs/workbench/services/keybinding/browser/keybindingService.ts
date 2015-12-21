@@ -92,7 +92,7 @@ let schema : IJSONSchema = {
 			}
 		}
 	}
-}
+};
 
 let schemaRegistry = <JSONContributionRegistry.IJSONContributionRegistry>Registry.as(JSONContributionRegistry.Extensions.JSONContribution);
 schemaRegistry.registerSchema(schemaId, schema);

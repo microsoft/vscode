@@ -9,7 +9,6 @@ import uri from 'vs/base/common/uri';
 import glob = require('vs/base/common/glob');
 import objects = require('vs/base/common/objects');
 import filters = require('vs/base/common/filters');
-import strings = require('vs/base/common/strings');
 import {Client} from 'vs/base/node/service.cp';
 import {IProgress, LineMatch, FileMatch, ISearchComplete, ISearchProgressItem, QueryType, IFileMatch, ISearchQuery, ISearchConfiguration, ISearchService} from 'vs/platform/search/common/search';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/browser/untitledEditorService';

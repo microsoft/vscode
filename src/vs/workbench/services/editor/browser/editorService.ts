@@ -18,11 +18,9 @@ import {UntitledEditorInput} from 'vs/workbench/browser/parts/editor/untitledEdi
 import {DiffEditorInput} from 'vs/workbench/browser/parts/editor/diffEditorInput';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/browser/untitledEditorService';
 import {IWorkbenchEditorService, EditorArrangement, IFileInput} from 'vs/workbench/services/editor/common/editorService';
-import {IStorageService} from 'vs/platform/storage/common/storage';
-import {IEditorInput, IEditorModel, IEditorOptions, ITextInput, Position, IEditor, IResourceInput, ITextEditorModel} from 'vs/platform/editor/common/editor';
+import {IEditorInput, IEditorModel, IEditorOptions, Position, IEditor, IResourceInput, ITextEditorModel} from 'vs/platform/editor/common/editor';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {AsyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 
 export interface IEditorPart {
 	setEditors(inputs: EditorInput[], options?: EditorOptions[]): TPromise<BaseEditor[]>;

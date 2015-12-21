@@ -446,7 +446,7 @@ export class FileService implements files.IFileService {
 						done = true;
 						c(content);
 					}
-				})
+				});
 			});
 		});
 	}

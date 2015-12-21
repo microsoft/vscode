@@ -8,12 +8,11 @@
 import fs = require('fs');
 import paths = require('path');
 
-import types = require('vs/base/common/types');
 import filters = require('vs/base/common/filters');
 import arrays = require('vs/base/common/arrays');
 import strings = require('vs/base/common/strings');
 import glob = require('vs/base/common/glob');
-import {IProgress, IPatternInfo} from 'vs/platform/search/common/search';
+import {IProgress} from 'vs/platform/search/common/search';
 
 import extfs = require('vs/base/node/extfs');
 import flow = require('vs/base/node/flow');

@@ -9,13 +9,11 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {IEventService} from 'vs/platform/event/common/event';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {IKeybindingItem, IUserFriendlyKeybinding, ICommandHandler} from 'vs/platform/keybinding/common/keybindingService';
 import {PluginsRegistry, IMessageCollector} from 'vs/platform/plugins/common/pluginsRegistry';
-import {IPluginService, IPluginDescription, IPointListener, IActivationEventListener} from 'vs/platform/plugins/common/plugins';
+import {IPluginService} from 'vs/platform/plugins/common/plugins';
 import {IOSupport} from 'vs/platform/keybinding/common/commonKeybindingResolver';
 import {WorkbenchKeybindingService} from 'vs/workbench/services/keybinding/browser/keybindingService';
-import {ICommandDescriptor, ICommandRule, KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
-import {IMessageService, Severity} from 'vs/platform/message/common/message';
+import {ICommandRule, KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {IJSONSchema} from 'vs/base/common/jsonSchema';
 import {KeyCode, Keybinding, IKeyBindingLabelProvider, MacUIKeyLabelProvider, ClassicUIKeyLabelProvider} from 'vs/base/common/keyCodes';
 import * as nativeKeymap from 'native-keymap';
@@ -42,27 +40,27 @@ function isValidContributedKeyBinding(keyBinding: ContributedKeyBinding, rejects
 		return false;
 	}
 	if (typeof keyBinding.command !== 'string') {
-		rejects.push(nls.localize('requirestring', "property `{0}` is mandatory and must be of type `string`", 'command'))
+		rejects.push(nls.localize('requirestring', "property `{0}` is mandatory and must be of type `string`", 'command'));
 		return false;
 	}
 	if (typeof keyBinding.key !== 'string') {
-		rejects.push(nls.localize('requirestring', "property `{0}` is mandatory and must be of type `string`", 'key'))
+		rejects.push(nls.localize('requirestring', "property `{0}` is mandatory and must be of type `string`", 'key'));
 		return false;
 	}
 	if (keyBinding.when && typeof keyBinding.when !== 'string') {
-		rejects.push(nls.localize('optstring', "property `{0}` can be omitted or must be of type `string`", 'when'))
+		rejects.push(nls.localize('optstring', "property `{0}` can be omitted or must be of type `string`", 'when'));
 		return false;
 	}
 	if (keyBinding.mac && typeof keyBinding.mac !== 'string') {
-		rejects.push(nls.localize('optstring', "property `{0}` can be omitted or must be of type `string`", 'mac'))
+		rejects.push(nls.localize('optstring', "property `{0}` can be omitted or must be of type `string`", 'mac'));
 		return false;
 	}
 	if (keyBinding.linux && typeof keyBinding.linux !== 'string') {
-		rejects.push(nls.localize('optstring', "property `{0}` can be omitted or must be of type `string`", 'linux'))
+		rejects.push(nls.localize('optstring', "property `{0}` can be omitted or must be of type `string`", 'linux'));
 		return false;
 	}
 	if (keyBinding.win && typeof keyBinding.win !== 'string') {
-		rejects.push(nls.localize('optstring', "property `{0}` can be omitted or must be of type `string`", 'win'))
+		rejects.push(nls.localize('optstring', "property `{0}` can be omitted or must be of type `string`", 'win'));
 		return false;
 	}
 	return true;
@@ -111,8 +109,8 @@ let keybindingsExtPoint = PluginsRegistry.registerExtensionPoint<ContributedKeyB
 });
 
 let getNativeKeymap = (function() {
-	var called = false;
-	var result: nativeKeymap.INativeKeyMap[];
+	let called = false;
+	let result: nativeKeymap.INativeKeyMap[];
 
 	return function getNativeKeymap() {
 		if (!called) {
@@ -120,7 +118,7 @@ let getNativeKeymap = (function() {
 			result = nativeKeymap.getKeyMap();
 		}
 		return result;
-	}
+	};
 })();
 
 // See https://msdn.microsoft.com/en-us/library/windows/desktop/dd375731(v=vs.85).aspx
@@ -370,7 +368,7 @@ interface IUnfixedVirtualKeyCodeMap {
 	[char:string]: KeyCode;
 }
 let _b24_getActualKeyCodeMap = (function() {
-	var result: IUnfixedVirtualKeyCodeMap = null;
+	let result: IUnfixedVirtualKeyCodeMap = null;
 	return function() {
 		if (!result) {
 			result = Object.create(null);
@@ -402,7 +400,7 @@ let _b24_getActualKeyCodeMap = (function() {
 			}
 		}
 		return result;
-	}
+	};
 })();
 
 setExtractKeyCode((e:KeyboardEvent) => {
@@ -546,7 +544,7 @@ export default class PluginWorkbenchKeybindingService extends WorkbenchKeybindin
 			mac: mac && { primary: IOSupport.readKeybinding(mac) },
 			linux: linux && { primary: IOSupport.readKeybinding(linux) },
 			win: win && { primary: IOSupport.readKeybinding(win) }
-		}
+		};
 
 		if (!desc.primary && !desc.mac && !desc.linux && !desc.win) {
 			return;
@@ -610,7 +608,7 @@ export default class PluginWorkbenchKeybindingService extends WorkbenchKeybindin
 		}
 
 		if (Platform.isMacintosh) {
-			this._nativeLabelProvider = new NativeMacUIKeyLabelProvider(remaps)
+			this._nativeLabelProvider = new NativeMacUIKeyLabelProvider(remaps);
 		} else {
 			this._nativeLabelProvider = new NativeClassicUIKeyLabelProvider(remaps);
 		}

@@ -7,7 +7,6 @@
 import errors = require('vs/base/common/errors');
 import platform = require('vs/base/common/platform');
 import nls = require('vs/nls');
-import types = require('vs/base/common/types');
 import {EventType} from 'vs/base/common/events';
 import {IEditorSelection} from 'vs/editor/common/editorCommon';
 import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';

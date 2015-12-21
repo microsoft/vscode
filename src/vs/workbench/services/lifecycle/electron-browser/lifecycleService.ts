@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
 import {Promise, TPromise} from 'vs/base/common/winjs.base';
 import errors = require('vs/base/common/errors');
 import {IMessageService} from 'vs/platform/message/common/message';

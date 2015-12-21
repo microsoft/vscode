@@ -11,7 +11,6 @@ import Themes = require('vs/platform/theme/common/themes');
 import {IThemeExtensionPoint} from 'vs/platform/theme/common/themeExtensionPoint';
 import {IPluginService} from 'vs/platform/plugins/common/plugins';
 import {PluginsRegistry, IMessageCollector} from 'vs/platform/plugins/common/pluginsRegistry';
-import {IPluginDescription} from 'vs/platform/plugins/common/plugins';
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
 
 import plist = require('vs/base/node/plist');
