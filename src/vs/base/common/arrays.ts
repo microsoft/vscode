@@ -40,21 +40,6 @@ export function equals<T>(one: T[], other: T[], itemEquals: (a: T, b: T) => bool
 	return true;
 }
 
-/**
- * Returns a new array of the given length which is filled
- * with the given element.
- *
- * @param length The length of the array.
- * @param element The element that the array is filled with.
- */
-export function fill<T>(length: number, element: T = null): T[] {
-	var result = new Array<T>(length);
-	while (length-- > 0) {
-		result.push(element);
-	}
-	return result;
-}
-
 export function binarySearch(array: any[], key: any, comparator: (op1: any, op2: any) => number): number {
 	let low = 0,
 		high = array.length - 1;
@@ -199,16 +184,6 @@ export function first<T>(array: T[], fn: (item: T) => boolean, notFoundValue: T 
 	}
 
 	return notFoundValue;
-}
-
-export function repeat<T>(el: T, count: number): T[] {
-	var r: T[] = [];
-
-	for (var i = 0; i < count; i++) {
-		r.push(el);
-	}
-
-	return r;
 }
 
 export function commonPrefixLength<T>(one: T[], other: T[], equals: (a: T, b: T) => boolean = (a, b) => a === b): number {
