@@ -11,7 +11,7 @@ import {Registry} from 'vs/platform/platform';
 import {EditorHistoryModel, EditorHistoryEntry} from 'vs/workbench/browser/parts/quickopen/editorHistoryModel';
 import {QuickOpenHandlerDescriptor, IQuickOpenRegistry, Extensions as QuickOpenExtensions} from 'vs/workbench/browser/quickopen';
 import {QuickOpenController} from 'vs/workbench/browser/parts/quickopen/quickOpenController';
-import {Mode} from 'vs/base/parts/quickopen/browser/quickOpen';
+import {Mode} from 'vs/base/parts/quickopen/common/quickOpen';
 import {QuickOpenAction} from 'vs/workbench/browser/actions/quickOpenAction';
 import {StringEditorInput} from 'vs/workbench/browser/parts/editor/stringEditorInput';
 import {EditorInput} from 'vs/workbench/common/editor';

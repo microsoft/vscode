@@ -6,7 +6,7 @@
 
 import {TPromise} from 'vs/base/common/winjs.base';
 import {Remotable, IThreadService} from 'vs/platform/thread/common/thread';
-import {IQuickOpenService, IPickOpenEntryItem, IPickOptions} from 'vs/workbench/services/quickopen/browser/quickOpenService';
+import {IQuickOpenService, IPickOpenEntryItem, IPickOptions} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {QuickPickOptions, QuickPickItem, InputBoxOptions} from 'vscode';
 
 export interface MyQuickPickItems extends IPickOpenEntryItem {

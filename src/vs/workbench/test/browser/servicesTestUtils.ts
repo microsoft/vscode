@@ -31,7 +31,7 @@ import {IConfigurationService} from 'vs/platform/configuration/common/configurat
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
 import UntitledEditorService = require('vs/workbench/services/untitled/browser/untitledEditorService');
 import WorkbenchEditorService = require('vs/workbench/services/editor/common/editorService');
-import QuickOpenService = require('vs/workbench/services/quickopen/browser/quickOpenService');
+import QuickOpenService = require('vs/workbench/services/quickopen/common/quickOpenService');
 import ViewletService = require('vs/workbench/services/viewlet/common/viewletService');
 import PartService = require('vs/workbench/services/part/common/partService');
 import WorkspaceContextService = require('vs/workbench/services/workspace/common/contextService');

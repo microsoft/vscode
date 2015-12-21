@@ -13,7 +13,7 @@ import {IDisposable} from 'vs/base/common/lifecycle';
 import {IMessageService, IMessageWithAction, IConfirmation, Severity} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IKeybindingService, IKeybindingContextKey} from 'vs/platform/keybinding/common/keybindingService';
-import {IQuickOpenService} from 'vs/workbench/services/quickopen/browser/quickOpenService';
+import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IStatusbarService} from 'vs/workbench/services/statusbar/common/statusbarService';
 
 interface IBufferedMessage {

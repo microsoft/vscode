@@ -6,7 +6,7 @@
 import {Promise} from 'vs/base/common/winjs.base';
 import {isFunction} from 'vs/base/common/types';
 import {ITree, IRenderer, IFilter, IDataSource} from 'vs/base/parts/tree/common/tree';
-import {IModel} from './quickOpen';
+import {IModel} from 'vs/base/parts/quickopen/common/quickOpen';
 
 export interface IModelProvider {
 	getModel<T>(): IModel<T>;

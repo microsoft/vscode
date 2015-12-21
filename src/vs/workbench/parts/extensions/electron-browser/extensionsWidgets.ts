@@ -14,7 +14,7 @@ import { IPluginService, IPluginStatus } from 'vs/platform/plugins/common/plugin
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService, CloseAction } from 'vs/platform/message/common/message';
 import { UninstallAction } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
-import { IQuickOpenService } from 'vs/workbench/services/quickopen/browser/quickOpenService';
+import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
 import { IExtensionsService, IGalleryService, IExtension } from 'vs/workbench/parts/extensions/common/extensions';
 
 var $ = dom.emmet;

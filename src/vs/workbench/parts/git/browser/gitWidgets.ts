@@ -11,7 +11,7 @@ import { emmet as $, append, show, hide, addClass, toggleClass } from 'vs/base/b
 import { IDisposable, combinedDispose } from 'vs/base/common/lifecycle';
 import { IGitService, ServiceState, IBranch, ServiceOperations, IRemote } from 'vs/workbench/parts/git/common/git';
 import { IStatusbarItem } from 'vs/workbench/browser/parts/statusbar/statusbar';
-import { IQuickOpenService } from 'vs/workbench/services/quickopen/browser/quickOpenService';
+import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { SyncAction, PublishAction } from './gitActions';
 import Severity from 'vs/base/common/severity';

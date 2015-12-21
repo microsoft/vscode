@@ -12,11 +12,11 @@ import strings = require('vs/base/common/strings');
 import types = require('vs/base/common/types');
 import errors = require('vs/base/common/errors');
 import {Registry} from 'vs/platform/platform';
-import {Mode, IContext, IAutoFocus, IModel} from 'vs/base/parts/quickopen/browser/quickOpen';
+import {Mode, IContext, IAutoFocus, IModel} from 'vs/base/parts/quickopen/common/quickOpen';
 import {QuickOpenEntry, IHighlight, QuickOpenEntryGroup, QuickOpenModel} from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import {EditorOptions, EditorInput} from 'vs/workbench/common/editor';
 import {IFileInput, IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IQuickOpenService} from 'vs/workbench/services/quickopen/browser/quickOpenService';
+import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {AsyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
 
 export class QuickOpenHandler {

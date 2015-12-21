@@ -15,10 +15,9 @@ import Strings = require('vs/base/common/strings');
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
 import Filters = require('vs/base/common/filters');
-import QuickOpenCommon = require('vs/base/parts/quickopen/browser/quickOpen');
 import QuickOpenWidget = require('vs/base/parts/quickopen/browser/quickOpenWidget');
 import QuickOpenModel = require('vs/base/parts/quickopen/browser/quickOpenModel');
-import QuickOpen = require('vs/base/parts/quickopen/browser/quickOpen');
+import QuickOpen = require('vs/base/parts/quickopen/common/quickOpen');
 import EditorQuickOpen = require('./editorQuickOpen');
 import {Behaviour} from 'vs/editor/common/editorAction';
 import {INullService} from 'vs/platform/instantiation/common/instantiation';
@@ -71,8 +70,8 @@ class SymbolEntry extends QuickOpenModel.QuickOpenEntryGroup {
 		return this.range;
 	}
 
-	public run(mode:QuickOpenCommon.Mode, context:QuickOpenModel.IContext):boolean {
-		if (mode === QuickOpenCommon.Mode.OPEN) {
+	public run(mode:QuickOpen.Mode, context:QuickOpenModel.IContext):boolean {
+		if (mode === QuickOpen.Mode.OPEN) {
 			return this.runOpen(context);
 		}
 

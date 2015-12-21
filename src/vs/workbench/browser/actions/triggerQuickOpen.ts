@@ -10,7 +10,7 @@ import {Registry} from 'vs/platform/platform';
 import {Action} from 'vs/base/common/actions';
 import {Promise} from 'vs/base/common/winjs.base';
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
-import {IQuickOpenService} from 'vs/workbench/services/quickopen/browser/quickOpenService';
+import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IKeybindingService, IKeybindings} from 'vs/platform/keybinding/common/keybindingService';
 import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';

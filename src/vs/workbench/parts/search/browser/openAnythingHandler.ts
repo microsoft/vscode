@@ -16,7 +16,7 @@ import labels = require('vs/base/common/labels');
 import {IRange} from 'vs/editor/common/editorCommon';
 import {ListenerUnbind} from 'vs/base/common/eventEmitter';
 import {compareByPrefix} from 'vs/base/common/comparers';
-import {IAutoFocus} from 'vs/base/parts/quickopen/browser/quickOpen';
+import {IAutoFocus} from 'vs/base/parts/quickopen/common/quickOpen';
 import {QuickOpenEntry, QuickOpenModel} from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import {QuickOpenHandler} from 'vs/workbench/browser/quickopen';
 import {FileEntry, OpenFileHandler} from 'vs/workbench/parts/search/browser/openFileHandler';

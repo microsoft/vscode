@@ -11,7 +11,7 @@ import paths = require('vs/base/common/paths');
 import URI from 'vs/base/common/uri';
 import labels = require('vs/base/common/labels');
 import {EventType} from 'vs/base/common/events';
-import {Mode, IContext} from 'vs/base/parts/quickopen/browser/quickOpen';
+import {Mode, IContext} from 'vs/base/parts/quickopen/common/quickOpen';
 import {QuickOpenEntry, QuickOpenModel, IHighlight} from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import {EditorInput, getUntitledOrFileResource} from 'vs/workbench/common/editor';
 import {IEditorRegistry, Extensions} from 'vs/workbench/browser/parts/editor/baseEditor';

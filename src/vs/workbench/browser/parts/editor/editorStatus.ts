@@ -28,7 +28,7 @@ import {EndOfLineSequence, ITokenizedModel, EditorType, IEditorSelection, ITextM
 import {EventType, EditorEvent, TextEditorSelectionEvent, ResourceEvent} from 'vs/workbench/browser/events';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
 import {IWorkbenchEditorService}  from 'vs/workbench/services/editor/common/editorService';
-import {IQuickOpenService, IPickOpenEntry} from 'vs/workbench/services/quickopen/browser/quickOpenService';
+import {IQuickOpenService, IPickOpenEntry} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IFilesConfiguration} from 'vs/platform/files/common/files';

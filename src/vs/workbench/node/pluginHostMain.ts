@@ -18,7 +18,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import paths = require('vs/base/common/paths');
 import {IPluginService, IPluginDescription} from 'vs/platform/plugins/common/plugins';
 import {PluginsRegistry, PluginsMessageCollector, IPluginsMessageCollector} from 'vs/platform/plugins/common/pluginsRegistry';
-import {ExtHostAPIImplementation} from 'vs/workbench/api/browser/extHost.api.impl';
+import {ExtHostAPIImplementation} from 'vs/workbench/api/common/extHost.api.impl';
 import { create as createIPC, IPluginsIPC } from 'vs/platform/plugins/common/ipcRemoteCom';
 import {ExtHostModelService} from 'vs/workbench/api/common/extHostDocuments';
 import {IInstantiationService } from 'vs/platform/instantiation/common/instantiation';

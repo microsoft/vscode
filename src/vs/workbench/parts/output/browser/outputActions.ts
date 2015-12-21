@@ -18,7 +18,7 @@ import {IOutputChannelRegistry, Extensions, IOutputService, OUTPUT_EDITOR_INPUT_
 import {OutputEditorInput} from 'vs/workbench/parts/output/browser/outputEditorInput';
 import {SelectActionItem} from 'vs/base/browser/ui/actionbar/actionbar';
 import {IWorkbenchEditorService}  from 'vs/workbench/services/editor/common/editorService';
-import {IQuickOpenService} from 'vs/workbench/services/quickopen/browser/quickOpenService';
+import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IInstantiationService, INullService} from 'vs/platform/instantiation/common/instantiation';
 
 export class GlobalShowOutputAction extends Action {

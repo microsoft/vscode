@@ -11,7 +11,7 @@ import Tree = require('vs/base/parts/tree/common/tree');
 import Filters = require('vs/base/common/filters');
 import Strings = require('vs/base/common/strings');
 import Paths = require('vs/base/common/paths');
-import {IQuickNavigateConfiguration, IModel, IDataSource, IFilter, IRenderer, IRunner, Mode} from './quickOpen';
+import {IQuickNavigateConfiguration, IModel, IDataSource, IFilter, IRenderer, IRunner, Mode} from 'vs/base/parts/quickopen/common/quickOpen';
 import ActionsRenderer = require('vs/base/parts/tree/browser/actionsRenderer');
 import Actions = require('vs/base/common/actions');
 import {compareAnything} from 'vs/base/common/comparers';

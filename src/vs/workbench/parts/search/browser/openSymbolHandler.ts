@@ -10,7 +10,7 @@ import {ThrottledDelayer} from 'vs/base/common/async';
 import URI from 'vs/base/common/uri';
 import {QuickOpenHandler, EditorQuickOpenEntry} from 'vs/workbench/browser/quickopen';
 import {QuickOpenModel, QuickOpenEntry, IHighlight} from 'vs/base/parts/quickopen/browser/quickOpenModel';
-import {IAutoFocus} from 'vs/base/parts/quickopen/browser/quickOpen';
+import {IAutoFocus} from 'vs/base/parts/quickopen/common/quickOpen';
 import filters = require('vs/base/common/filters');
 import {IRange} from 'vs/editor/common/editorCommon';
 import {EditorInput} from 'vs/workbench/common/editor';
