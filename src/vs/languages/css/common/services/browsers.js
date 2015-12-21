@@ -817,17 +817,7 @@ exports.data ={
 				"desc": "Shorthand that resets all properties except 'direction' and 'unicode-bidi'.",
 				"browsers": "C37,FF27,O24",
 				"restriction": "enum",
-				"values": [
-					{
-						"name": "initial"
-					},
-					{
-						"name": "inherit"
-					},
-					{
-						"name": "unset"
-					}
-				]
+				"values": []
 			},
 			{
 				"name": "alt",

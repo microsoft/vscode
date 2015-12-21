@@ -467,10 +467,7 @@
 		<entry name="all" restriction="enum" version="3.0" browsers="C37,FF27,O24" ref="http://www.w3.org/TR/css-cascade-3/#all-shorthand" syntax="* { $(name): unset; }">
       <desc>Shorthand that resets all properties except 'direction' and 'unicode-bidi'.</desc>
       <values>
-        <value name="initial" version="3.0" browsers="all" />
-        <value name="inherit" version="3.0" browsers="all" />
         <value name="revert" version="4.0" browsers="none" />
-        <value name="unset" version="3.0" browsers="all" />
       </values>
     </entry>
     <entry name="alt" restriction="string, enum" version="3.0" browsers="S9" ref="https://drafts.csswg.org/css-content-3/#propdef-alt" syntax="label::before { $(name): 'alt text'; }">

@@ -134,6 +134,7 @@ export class CSSIntellisense {
 		if (entry) {
 			this.getColorProposals(entry, result);
 			this.getValueEnumProposals(entry, result);
+			this.getCSSWideKeywordProposals(entry, result);
 			this.getUnitProposals(entry, result);
 		} else {
 			var existingValues = new Set();
@@ -165,6 +166,17 @@ export class CSSIntellisense {
 				}
 			});
 		}
+		return result;
+	}
+
+	public getCSSWideKeywordProposals(entry:languageFacts.IEntry, result:Modes.ISuggestion[]):Modes.ISuggestion[]{
+		languageFacts.cssWideKeywords.forEach((entry) => {
+			result.push({
+				label: entry,
+				codeSnippet: entry,
+				type: 'value'
+			});
+		});
 		return result;
 	}
 

@@ -192,6 +192,8 @@ export var colorKeywords : { [name:string]:string } = {
 	'WindowText': 'Text in windows.'
 };
 
+export var cssWideKeywords = ['initial', 'inherit', 'unset'];
+
 export var units : { [unitName:string]:string[] } = {
 	'length': ['em', 'rem', 'ex', 'px', 'cm', 'mm', 'in', 'pt', 'pc', 'ch', 'vw', 'vh', 'vmin', 'vmax'],
 	'angle': ['deg', 'rad', 'grad', 'turn'],
