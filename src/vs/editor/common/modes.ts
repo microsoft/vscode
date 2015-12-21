@@ -22,11 +22,6 @@ export interface IWorkerParticipant {
 
 }
 
-export interface ISuggestParticipant extends IWorkerParticipant {
-	filter?:(word:string, suggestion:ISuggestion) => IMatch[];
-	suggest?:(resource:URI, position:EditorCommon.IPosition, context?:any) => TPromise<ISuggestResult>;
-}
-
 export enum Bracket {
 	None = 0,
 	Open = 1,

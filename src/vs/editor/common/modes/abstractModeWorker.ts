@@ -18,15 +18,10 @@ import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
 import {TPromise} from 'vs/base/common/winjs.base';
 
-function isISuggestParticipant(thing:any):boolean {
-	return typeof (<Modes.ISuggestParticipant> thing).suggest === 'function' || typeof (<Modes.ISuggestParticipant> thing).filter === 'function';
-}
-
 export class AbstractModeWorker {
 
 	static filter: Modes.ISuggestionFilter = DefaultFilter;
 
-	private _suggestParticipants:Modes.ISuggestParticipant[] = [];
 	private _participants:Modes.IWorkerParticipant[] = [];
 
 	public resourceService:IResourceService;
@@ -52,9 +47,6 @@ export class AbstractModeWorker {
 			(resource) => this._shouldIncludeModelInValidation(resource),
 			500
 		);
-
-		// add contributed participants
-		this._suggestParticipants = this._getWorkerParticipants<Modes.ISuggestParticipant>(p => isISuggestParticipant(p));
 
 		this.inplaceReplaceSupport = this._createInPlaceReplaceSupport();
 	}
@@ -111,47 +103,29 @@ export class AbstractModeWorker {
 
 	// ---- suggestion ---------------------------------------------------------------------------------------
 
-	public suggest(resource:URI, position:EditorCommon.IPosition):TPromise<Modes.ISuggestResult[]> {
+	public suggest(resource: URI, position: EditorCommon.IPosition): TPromise<Modes.ISuggestResult[]> {
 
-		return this._getSuggestContext(resource).then((context) => {
-			var promises = [ this.doSuggest(resource, position) ];
-			promises.push.apply(promises, this._participantSuggests(resource, position, context));
-			return TPromise.join(promises);
+		return this.doSuggest(resource, position).then(value => {
 
-		}).then((values) => {
-			// filter suggestions
-			var accept = this.getSuggestionFilterMain(),
-				result:Modes.ISuggestResult[] = [];
-
-			for (var i = 0, len = values.length; i < len; i++) {
-				var value = values[i];
-				if(!value) {
-					continue;
-				}
-				result.push(<Modes.ISuggestResult> {
-					currentWord: value.currentWord,
-					suggestions: value.suggestions.filter((element) => !!accept(values[i].currentWord, element)),
-					incomplete: value.incomplete
-				});
+			if (!value) {
+				return;
 			}
+			// filter suggestions
+			var accept = this.getSuggestionFilter(),
+				result: Modes.ISuggestResult[] = [];
+
+			result.push(<Modes.ISuggestResult>{
+				currentWord: value.currentWord,
+				suggestions: value.suggestions.filter((element) => !!accept(value.currentWord, element)),
+				incomplete: value.incomplete
+			});
 			return result;
 
 		}, (error) => {
-			return <Modes.ISuggestResult[]> [{
+			return <Modes.ISuggestResult[]>[{
 				currentWord: '',
 				suggestions: []
 			}];
-		});
-	}
-
-	public _participantSuggests(resource:URI, position:EditorCommon.IPosition, context:any):TPromise<Modes.ISuggestResult>[] {
-		return this._suggestParticipants.map((participant) => {
-			try {
-				return participant.suggest(resource, position, context);
-			} catch(e) {
-				/// We should install a watch dog here. If a participant fails
-				/// too often we should shut the participant down.
-			}
 		});
 	}
 
@@ -197,19 +171,6 @@ export class AbstractModeWorker {
 
 	public suggestSnippets(resource:URI, position:EditorCommon.IPosition):Modes.ISuggestion[] {
 		return [];
-	}
-
-	private getSuggestionFilterMain():Modes.ISuggestionFilter {
-		var filter = this.getSuggestionFilter();
-
-		// Collect Suggestion Participants
-		this._suggestParticipants.forEach((participant:any) => {
-			if (typeof participant.filter === 'function') {
-				filter = and(filter, (<Modes.ISuggestParticipant>participant).filter);
-			}
-		});
-
-		return filter;
 	}
 
 	public getSuggestionFilter():Modes.ISuggestionFilter {
