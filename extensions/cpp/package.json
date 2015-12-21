@@ -6,13 +6,13 @@
 	"contributes": {
 		"languages": [{
 			"id": "c",
-			"extensions": [ ".c" ],
+			"extensions": [ ".c", ".m"],
 			"aliases": [ "C", "c" ],
 			"configuration": "./cpp.configuration.json"
 		},
 		{
 			"id": "cpp",
-			"extensions": [ ".cpp", ".cc", ".cxx", ".hpp", ".hh", ".hxx", ".h" ],
+			"extensions": [ ".cpp", ".cc", ".cxx", ".hpp", ".hh", ".hxx", ".h", ".mm" ],
 			"aliases": [ "C++", "Cpp", "cpp"],
 			"configuration": "./cpp.configuration.json"
 		}],
