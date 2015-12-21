@@ -1474,43 +1474,10 @@ exports.data ={
 			{
 				"name": "border",
 				"desc": "Shorthand property for setting border width, style and color",
-				"restriction": "length, color, enum",
+				"restriction": "length, line-style, color, enum",
 				"values": [
 					{
-						"name": "dashed",
-						"desc": "A series of square-ended dashes."
-					},
-					{
-						"name": "dotted",
-						"desc": "A series of round dots."
-					},
-					{
-						"name": "double",
-						"desc": "Two parallel solid lines with some space between them. (The thickness of the lines is not specified, but the sum of the lines and the space must equal 'border-width'.)"
-					},
-					{
-						"name": "groove"
-					},
-					{
-						"name": "hidden",
-						"desc": "Same as 'none', but has different behavior in the border conflict resolution rules for border-collapsed tables."
-					},
-					{
-						"name": "inset",
-						"desc": "Looks as if the content on the inside of the border is sunken into the canvas. Treated as 'ridge' in border-collapsed tables."
-					},
-					{
 						"name": "medium"
-					},
-					{
-						"name": "outset"
-					},
-					{
-						"name": "ridge"
-					},
-					{
-						"name": "solid",
-						"desc": "A single line segment."
 					},
 					{
 						"name": "thick"
@@ -1523,43 +1490,10 @@ exports.data ={
 			{
 				"name": "border-bottom",
 				"desc": "Shorthand property for setting border width, style and color",
-				"restriction": "length, color, enum",
+				"restriction": "length, line-style, color, enum",
 				"values": [
 					{
-						"name": "dashed",
-						"desc": "A series of square-ended dashes."
-					},
-					{
-						"name": "dotted",
-						"desc": "A series of round dots."
-					},
-					{
-						"name": "double",
-						"desc": "Two parallel solid lines with some space between them. (The thickness of the lines is not specified, but the sum of the lines and the space must equal 'border-width'.)"
-					},
-					{
-						"name": "groove"
-					},
-					{
-						"name": "hidden",
-						"desc": "Same as 'none', but has different behavior in the border conflict resolution rules for border-collapsed tables."
-					},
-					{
-						"name": "inset",
-						"desc": "Looks as if the content on the inside of the border is sunken into the canvas. Treated as 'ridge' in border-collapsed tables."
-					},
-					{
 						"name": "medium"
-					},
-					{
-						"name": "outset"
-					},
-					{
-						"name": "ridge"
-					},
-					{
-						"name": "solid",
-						"desc": "A single line segment."
 					},
 					{
 						"name": "thick"
@@ -1589,46 +1523,7 @@ exports.data ={
 			{
 				"name": "border-bottom-style",
 				"desc": "Sets the style of the bottom border.",
-				"restriction": "enum",
-				"values": [
-					{
-						"name": "dashed",
-						"desc": "A series of square-ended dashes."
-					},
-					{
-						"name": "dotted",
-						"desc": "A series of round dots."
-					},
-					{
-						"name": "double",
-						"desc": "Two parallel solid lines with some space between them. (The thickness of the lines is not specified, but the sum of the lines and the space must equal 'border-width'.)"
-					},
-					{
-						"name": "groove"
-					},
-					{
-						"name": "hidden",
-						"desc": "Same as 'none', but has different behavior in the border conflict resolution rules for border-collapsed tables."
-					},
-					{
-						"name": "inset",
-						"desc": "Looks as if the content on the inside of the border is sunken into the canvas. Treated as 'ridge' in border-collapsed tables."
-					},
-					{
-						"name": "none",
-						"desc": "No border. Color and width are ignored (i.e., the border has width 0, unless the border is an image)"
-					},
-					{
-						"name": "outset"
-					},
-					{
-						"name": "ridge"
-					},
-					{
-						"name": "solid",
-						"desc": "A single line segment."
-					}
-				]
+				"restriction": "line-style"
 			},
 			{
 				"name": "border-bottom-width",
@@ -1765,43 +1660,10 @@ exports.data ={
 			{
 				"name": "border-left",
 				"desc": "Shorthand property for setting border width, style and color",
-				"restriction": "length, color, enum",
+				"restriction": "length, line-style, color, enum",
 				"values": [
 					{
-						"name": "dashed",
-						"desc": "A series of square-ended dashes."
-					},
-					{
-						"name": "dotted",
-						"desc": "A series of round dots."
-					},
-					{
-						"name": "double",
-						"desc": "Two parallel solid lines with some space between them. (The thickness of the lines is not specified, but the sum of the lines and the space must equal 'border-width'.)"
-					},
-					{
-						"name": "groove"
-					},
-					{
-						"name": "hidden",
-						"desc": "Same as 'none', but has different behavior in the border conflict resolution rules for border-collapsed tables."
-					},
-					{
-						"name": "inset",
-						"desc": "Looks as if the content on the inside of the border is sunken into the canvas. Treated as 'ridge' in border-collapsed tables."
-					},
-					{
 						"name": "medium"
-					},
-					{
-						"name": "outset"
-					},
-					{
-						"name": "ridge"
-					},
-					{
-						"name": "solid",
-						"desc": "A single line segment."
 					},
 					{
 						"name": "thick"
@@ -1819,46 +1681,7 @@ exports.data ={
 			{
 				"name": "border-left-style",
 				"desc": "Sets the style of the left border.",
-				"restriction": "enum",
-				"values": [
-					{
-						"name": "dashed",
-						"desc": "A series of square-ended dashes."
-					},
-					{
-						"name": "dotted",
-						"desc": "A series of round dots."
-					},
-					{
-						"name": "double",
-						"desc": "Two parallel solid lines with some space between them. (The thickness of the lines is not specified, but the sum of the lines and the space must equal 'border-width'.)"
-					},
-					{
-						"name": "groove"
-					},
-					{
-						"name": "hidden",
-						"desc": "Same as 'none', but has different behavior in the border conflict resolution rules for border-collapsed tables."
-					},
-					{
-						"name": "inset",
-						"desc": "Looks as if the content on the inside of the border is sunken into the canvas. Treated as 'ridge' in border-collapsed tables."
-					},
-					{
-						"name": "none",
-						"desc": "No border. Color and width are ignored (i.e., the border has width 0, unless the border is an image)"
-					},
-					{
-						"name": "outset"
-					},
-					{
-						"name": "ridge"
-					},
-					{
-						"name": "solid",
-						"desc": "A single line segment."
-					}
-				]
+				"restriction": "line-style"
 			},
 			{
 				"name": "border-left-width",
@@ -1885,43 +1708,10 @@ exports.data ={
 			{
 				"name": "border-right",
 				"desc": "Shorthand property for setting border width, style and color",
-				"restriction": "length, color, enum",
+				"restriction": "length, line-style, color, enum",
 				"values": [
 					{
-						"name": "dashed",
-						"desc": "A series of square-ended dashes."
-					},
-					{
-						"name": "dotted",
-						"desc": "A series of round dots."
-					},
-					{
-						"name": "double",
-						"desc": "Two parallel solid lines with some space between them. (The thickness of the lines is not specified, but the sum of the lines and the space must equal 'border-width'.)"
-					},
-					{
-						"name": "groove"
-					},
-					{
-						"name": "hidden",
-						"desc": "Same as 'none', but has different behavior in the border conflict resolution rules for border-collapsed tables."
-					},
-					{
-						"name": "inset",
-						"desc": "Looks as if the content on the inside of the border is sunken into the canvas. Treated as 'ridge' in border-collapsed tables."
-					},
-					{
 						"name": "medium"
-					},
-					{
-						"name": "outset"
-					},
-					{
-						"name": "ridge"
-					},
-					{
-						"name": "solid",
-						"desc": "A single line segment."
 					},
 					{
 						"name": "thick"
@@ -1939,46 +1729,7 @@ exports.data ={
 			{
 				"name": "border-right-style",
 				"desc": "Sets the style of the right border.",
-				"restriction": "enum",
-				"values": [
-					{
-						"name": "dashed",
-						"desc": "A series of square-ended dashes."
-					},
-					{
-						"name": "dotted",
-						"desc": "A series of round dots."
-					},
-					{
-						"name": "double",
-						"desc": "Two parallel solid lines with some space between them. (The thickness of the lines is not specified, but the sum of the lines and the space must equal 'border-width'.)"
-					},
-					{
-						"name": "groove"
-					},
-					{
-						"name": "hidden",
-						"desc": "Same as 'none', but has different behavior in the border conflict resolution rules for border-collapsed tables."
-					},
-					{
-						"name": "inset",
-						"desc": "Looks as if the content on the inside of the border is sunken into the canvas. Treated as 'ridge' in border-collapsed tables."
-					},
-					{
-						"name": "none",
-						"desc": "No border. Color and width are ignored (i.e., the border has width 0, unless the border is an image)"
-					},
-					{
-						"name": "outset"
-					},
-					{
-						"name": "ridge"
-					},
-					{
-						"name": "solid",
-						"desc": "A single line segment."
-					}
-				]
+				"restriction": "line-style"
 			},
 			{
 				"name": "border-right-width",
@@ -2005,88 +1756,13 @@ exports.data ={
 			{
 				"name": "border-style",
 				"desc": "The style of the border around edges of an element.",
-				"restriction": "enum",
-				"values": [
-					{
-						"name": "dashed",
-						"desc": "A series of square-ended dashes."
-					},
-					{
-						"name": "dotted",
-						"desc": "A series of round dots."
-					},
-					{
-						"name": "double",
-						"desc": "Two parallel solid lines with some space between them. (The thickness of the lines is not specified, but the sum of the lines and the space must equal 'border-width'.)"
-					},
-					{
-						"name": "groove"
-					},
-					{
-						"name": "hidden",
-						"desc": "Same as 'none', but has different behavior in the border conflict resolution rules for border-collapsed tables."
-					},
-					{
-						"name": "inset",
-						"desc": "Looks as if the content on the inside of the border is sunken into the canvas. Treated as 'ridge' in border-collapsed tables."
-					},
-					{
-						"name": "none",
-						"desc": "No border. Color and width are ignored (i.e., the border has width 0, unless the border is an image)"
-					},
-					{
-						"name": "outset"
-					},
-					{
-						"name": "ridge"
-					},
-					{
-						"name": "solid",
-						"desc": "A single line segment."
-					}
-				]
+				"restriction": "line-style"
 			},
 			{
 				"name": "border-top",
 				"desc": "Shorthand property for setting border width, style and color",
-				"restriction": "length, color, enum",
+				"restriction": "length, line-style, color, enum",
 				"values": [
-					{
-						"name": "dashed",
-						"desc": "A series of square-ended dashes."
-					},
-					{
-						"name": "dotted",
-						"desc": "A series of round dots."
-					},
-					{
-						"name": "double",
-						"desc": "Two parallel solid lines with some space between them. (The thickness of the lines is not specified, but the sum of the lines and the space must equal 'border-width'.)"
-					},
-					{
-						"name": "groove"
-					},
-					{
-						"name": "hidden",
-						"desc": "Same as 'none', but has different behavior in the border conflict resolution rules for border-collapsed tables."
-					},
-					{
-						"name": "inset",
-						"desc": "Looks as if the content on the inside of the border is sunken into the canvas. Treated as 'ridge' in border-collapsed tables."
-					},
-					{
-						"name": "medium"
-					},
-					{
-						"name": "outset"
-					},
-					{
-						"name": "ridge"
-					},
-					{
-						"name": "solid",
-						"desc": "A single line segment."
-					},
 					{
 						"name": "thick"
 					},
@@ -2115,46 +1791,7 @@ exports.data ={
 			{
 				"name": "border-top-style",
 				"desc": "Sets the style of the top border.",
-				"restriction": "enum",
-				"values": [
-					{
-						"name": "dashed",
-						"desc": "A series of square-ended dashes."
-					},
-					{
-						"name": "dotted",
-						"desc": "A series of round dots."
-					},
-					{
-						"name": "double",
-						"desc": "Two parallel solid lines with some space between them. (The thickness of the lines is not specified, but the sum of the lines and the space must equal 'border-width'.)"
-					},
-					{
-						"name": "groove"
-					},
-					{
-						"name": "hidden",
-						"desc": "Same as 'none', but has different behavior in the border conflict resolution rules for border-collapsed tables."
-					},
-					{
-						"name": "inset",
-						"desc": "Looks as if the content on the inside of the border is sunken into the canvas. Treated as 'ridge' in border-collapsed tables."
-					},
-					{
-						"name": "none",
-						"desc": "No border. Color and width are ignored (i.e., the border has width 0, unless the border is an image)"
-					},
-					{
-						"name": "outset"
-					},
-					{
-						"name": "ridge"
-					},
-					{
-						"name": "solid",
-						"desc": "A single line segment."
-					}
-				]
+				"restriction": "line-style"
 			},
 			{
 				"name": "border-top-width",
@@ -2215,8 +1852,7 @@ exports.data ={
 				"restriction": "length, color, enum",
 				"values": [
 					{
-						"name": "inset",
-						"desc": "Changes the drop shadow from an outer shadow (one that shadows the box onto the canvas, as if it were lifted above the canvas) to an inner shadow (one that shadows the canvas onto the box, as if the box were cut out of the canvas and shifted behind it)."
+						"name": "inset"
 					}
 				]
 			},
@@ -2467,43 +2103,10 @@ exports.data ={
 				"name": "column-rule",
 				"desc": "Shorthand for setting 'column-rule-width', 'column-rule-style', and 'column-rule-color' at the same place in the style sheet. Omitted values are set to their initial values.",
 				"browsers": "E,IE10,O11.5,S9",
-				"restriction": "length, color, enum",
+				"restriction": "length, line-style, color, enum",
 				"values": [
 					{
-						"name": "dashed",
-						"desc": "A series of square-ended dashes."
-					},
-					{
-						"name": "dotted",
-						"desc": "A series of round dots."
-					},
-					{
-						"name": "double",
-						"desc": "Two parallel solid lines with some space between them. (The thickness of the lines is not specified, but the sum of the lines and the space must equal 'border-width'.)"
-					},
-					{
-						"name": "groove"
-					},
-					{
-						"name": "hidden",
-						"desc": "Same as 'none', but has different behavior in the border conflict resolution rules for border-collapsed tables."
-					},
-					{
-						"name": "inset",
-						"desc": "Looks as if the content on the inside of the border is sunken into the canvas. Treated as 'ridge' in border-collapsed tables."
-					},
-					{
 						"name": "medium"
-					},
-					{
-						"name": "outset"
-					},
-					{
-						"name": "ridge"
-					},
-					{
-						"name": "solid",
-						"desc": "A single line segment."
 					},
 					{
 						"name": "thick"
@@ -2523,46 +2126,7 @@ exports.data ={
 				"name": "column-rule-style",
 				"desc": "Sets the style of the rule between columns of an element.",
 				"browsers": "E,IE10,O11.5,S6",
-				"restriction": "enum",
-				"values": [
-					{
-						"name": "dashed",
-						"desc": "A series of square-ended dashes."
-					},
-					{
-						"name": "dotted",
-						"desc": "A series of round dots."
-					},
-					{
-						"name": "double",
-						"desc": "Two parallel solid lines with some space between them. (The thickness of the lines is not specified, but the sum of the lines and the space must equal 'border-width'.)"
-					},
-					{
-						"name": "groove"
-					},
-					{
-						"name": "hidden",
-						"desc": "Same as 'none', but has different behavior in the border conflict resolution rules for border-collapsed tables."
-					},
-					{
-						"name": "inset",
-						"desc": "Looks as if the content on the inside of the border is sunken into the canvas. Treated as 'ridge' in border-collapsed tables."
-					},
-					{
-						"name": "none",
-						"desc": "No border. Color and width are ignored (i.e., the border has width 0, unless the border is an image)"
-					},
-					{
-						"name": "outset"
-					},
-					{
-						"name": "ridge"
-					},
-					{
-						"name": "solid",
-						"desc": "A single line segment."
-					}
-				]
+				"restriction": "line-style"
 			},
 			{
 				"name": "column-rule-width",
@@ -5095,43 +4659,10 @@ exports.data ={
 				"name": "-moz-column-rule",
 				"desc": "Shorthand for setting 'column-rule-width', 'column-rule-style', and 'column-rule-color' at the same place in the style sheet. Omitted values are set to their initial values.",
 				"browsers": "FF3.5",
-				"restriction": "length, color, enum",
+				"restriction": "length, line-style, color, enum",
 				"values": [
 					{
-						"name": "dashed",
-						"desc": "A series of square-ended dashes."
-					},
-					{
-						"name": "dotted",
-						"desc": "A series of round dots."
-					},
-					{
-						"name": "double",
-						"desc": "Two parallel solid lines with some space between them. (The thickness of the lines is not specified, but the sum of the lines and the space must equal 'border-width'.)"
-					},
-					{
-						"name": "groove"
-					},
-					{
-						"name": "hidden",
-						"desc": "Same as 'none', but has different behavior in the border conflict resolution rules for border-collapsed tables."
-					},
-					{
-						"name": "inset",
-						"desc": "Looks as if the content on the inside of the border is sunken into the canvas. Treated as 'ridge' in border-collapsed tables."
-					},
-					{
 						"name": "medium"
-					},
-					{
-						"name": "outset"
-					},
-					{
-						"name": "ridge"
-					},
-					{
-						"name": "solid",
-						"desc": "A single line segment."
 					},
 					{
 						"name": "thick"
@@ -5151,46 +4682,7 @@ exports.data ={
 				"name": "-moz-column-rule-style",
 				"desc": "Sets the style of the rule between columns of an element.",
 				"browsers": "FF3.5",
-				"restriction": "enum",
-				"values": [
-					{
-						"name": "dashed",
-						"desc": "A series of square-ended dashes."
-					},
-					{
-						"name": "dotted",
-						"desc": "A series of round dots."
-					},
-					{
-						"name": "double",
-						"desc": "Two parallel solid lines with some space between them. (The thickness of the lines is not specified, but the sum of the lines and the space must equal 'border-width'.)"
-					},
-					{
-						"name": "groove"
-					},
-					{
-						"name": "hidden",
-						"desc": "Same as 'none', but has different behavior in the border conflict resolution rules for border-collapsed tables."
-					},
-					{
-						"name": "inset",
-						"desc": "Looks as if the content on the inside of the border is sunken into the canvas. Treated as 'ridge' in border-collapsed tables."
-					},
-					{
-						"name": "none",
-						"desc": "No border. Color and width are ignored (i.e., the border has width 0, unless the border is an image)"
-					},
-					{
-						"name": "outset"
-					},
-					{
-						"name": "ridge"
-					},
-					{
-						"name": "solid",
-						"desc": "A single line segment."
-					}
-				]
+				"restriction": "line-style"
 			},
 			{
 				"name": "-moz-column-rule-width",
@@ -5363,24 +4855,20 @@ exports.data ={
 				"restriction": "enum",
 				"values": [
 					{
-						"name": "dashed",
-						"desc": "Produces a dashed line style."
+						"name": "dashed"
 					},
 					{
-						"name": "dotted",
-						"desc": "Produces a dotted line."
+						"name": "dotted"
 					},
 					{
-						"name": "double",
-						"desc": "Produces a double line."
+						"name": "double"
 					},
 					{
 						"name": "none",
 						"desc": "Produces no line."
 					},
 					{
-						"name": "solid",
-						"desc": "Produces a solid line."
+						"name": "solid"
 					},
 					{
 						"name": "wavy"
@@ -7652,49 +7140,13 @@ exports.data ={
 				"name": "outline",
 				"desc": "Shorthand property for 'outline-style', 'outline-width', and 'outline-color'.",
 				"browsers": "E,C,FF1.5,IE8,O8,S1.2",
-				"restriction": "length, color, enum",
+				"restriction": "length, line-style, color, enum",
 				"values": [
 					{
 						"name": "auto"
 					},
 					{
-						"name": "dashed",
-						"desc": "A series of square-ended dashes."
-					},
-					{
-						"name": "dotted",
-						"desc": "A series of round dots."
-					},
-					{
-						"name": "double",
-						"desc": "Two parallel solid lines with some space between them. (The thickness of the lines is not specified, but the sum of the lines and the space must equal 'border-width'.)"
-					},
-					{
-						"name": "groove"
-					},
-					{
-						"name": "hidden",
-						"desc": "Same as 'none', but has different behavior in the border conflict resolution rules for border-collapsed tables."
-					},
-					{
-						"name": "inset",
-						"desc": "Looks as if the content on the inside of the border is sunken into the canvas. Treated as 'ridge' in border-collapsed tables."
-					},
-					{
-						"name": "invert"
-					},
-					{
 						"name": "medium"
-					},
-					{
-						"name": "outset"
-					},
-					{
-						"name": "ridge"
-					},
-					{
-						"name": "solid",
-						"desc": "A single line segment."
 					},
 					{
 						"name": "thick"
@@ -7726,47 +7178,10 @@ exports.data ={
 				"name": "outline-style",
 				"desc": "Style of the outline",
 				"browsers": "E,C,FF1.5,IE8,O8,S1.2",
-				"restriction": "enum",
+				"restriction": "line-style, enum",
 				"values": [
 					{
 						"name": "auto"
-					},
-					{
-						"name": "dashed",
-						"desc": "A series of square-ended dashes."
-					},
-					{
-						"name": "dotted",
-						"desc": "A series of round dots."
-					},
-					{
-						"name": "double",
-						"desc": "Two parallel solid lines with some space between them. (The thickness of the lines is not specified, but the sum of the lines and the space must equal 'border-width'.)"
-					},
-					{
-						"name": "groove"
-					},
-					{
-						"name": "hidden",
-						"desc": "Same as 'none', but has different behavior in the border conflict resolution rules for border-collapsed tables."
-					},
-					{
-						"name": "inset",
-						"desc": "Looks as if the content on the inside of the border is sunken into the canvas. Treated as 'ridge' in border-collapsed tables."
-					},
-					{
-						"name": "none",
-						"desc": "No border. Color and width are ignored (i.e., the border has width 0, unless the border is an image)"
-					},
-					{
-						"name": "outset"
-					},
-					{
-						"name": "ridge"
-					},
-					{
-						"name": "solid",
-						"desc": "A single line segment."
 					}
 				]
 			},
@@ -8581,16 +7996,13 @@ exports.data ={
 				"restriction": "enum, color",
 				"values": [
 					{
-						"name": "dashed",
-						"desc": "Produces a dashed line style."
+						"name": "dashed"
 					},
 					{
-						"name": "dotted",
-						"desc": "Produces a dotted line."
+						"name": "dotted"
 					},
 					{
-						"name": "double",
-						"desc": "Produces a double line."
+						"name": "double"
 					},
 					{
 						"name": "line-through"
@@ -8599,8 +8011,7 @@ exports.data ={
 						"name": "overline"
 					},
 					{
-						"name": "solid",
-						"desc": "Produces a solid line."
+						"name": "solid"
 					},
 					{
 						"name": "underline"
@@ -8638,24 +8049,20 @@ exports.data ={
 				"restriction": "enum",
 				"values": [
 					{
-						"name": "dashed",
-						"desc": "Produces a dashed line style."
+						"name": "dashed"
 					},
 					{
-						"name": "dotted",
-						"desc": "Produces a dotted line."
+						"name": "dotted"
 					},
 					{
-						"name": "double",
-						"desc": "Produces a double line."
+						"name": "double"
 					},
 					{
 						"name": "none",
 						"desc": "Produces no line."
 					},
 					{
-						"name": "solid",
-						"desc": "Produces a solid line."
+						"name": "solid"
 					},
 					{
 						"name": "wavy"
@@ -9991,43 +9398,10 @@ exports.data ={
 				"name": "-webkit-column-rule",
 				"desc": "This property is a shorthand for setting 'column-rule-width', 'column-rule-style', and 'column-rule-color' at the same place in the style sheet. Omitted values are set to their initial values.",
 				"browsers": "C,S3",
-				"restriction": "length, color, enum",
+				"restriction": "length, line-style, color, enum",
 				"values": [
 					{
-						"name": "dashed",
-						"desc": "A series of square-ended dashes."
-					},
-					{
-						"name": "dotted",
-						"desc": "A series of round dots."
-					},
-					{
-						"name": "double",
-						"desc": "Two parallel solid lines with some space between them. (The thickness of the lines is not specified, but the sum of the lines and the space must equal 'border-width'.)"
-					},
-					{
-						"name": "groove"
-					},
-					{
-						"name": "hidden",
-						"desc": "Same as 'none', but has different behavior in the border conflict resolution rules for border-collapsed tables."
-					},
-					{
-						"name": "inset",
-						"desc": "Looks as if the content on the inside of the border is sunken into the canvas. Treated as 'ridge' in border-collapsed tables."
-					},
-					{
 						"name": "medium"
-					},
-					{
-						"name": "outset"
-					},
-					{
-						"name": "ridge"
-					},
-					{
-						"name": "solid",
-						"desc": "A single line segment."
 					},
 					{
 						"name": "thick"
@@ -10047,46 +9421,7 @@ exports.data ={
 				"name": "-webkit-column-rule-style",
 				"desc": "Sets the style of the rule between columns of an element.",
 				"browsers": "C,S3",
-				"restriction": "enum",
-				"values": [
-					{
-						"name": "dashed",
-						"desc": "A series of square-ended dashes."
-					},
-					{
-						"name": "dotted",
-						"desc": "A series of round dots."
-					},
-					{
-						"name": "double",
-						"desc": "Two parallel solid lines with some space between them. (The thickness of the lines is not specified, but the sum of the lines and the space must equal 'border-width'.)"
-					},
-					{
-						"name": "groove"
-					},
-					{
-						"name": "hidden",
-						"desc": "Same as 'none', but has different behavior in the border conflict resolution rules for border-collapsed tables."
-					},
-					{
-						"name": "inset",
-						"desc": "Looks as if the content on the inside of the border is sunken into the canvas. Treated as 'ridge' in border-collapsed tables."
-					},
-					{
-						"name": "none",
-						"desc": "No border. Color and width are ignored (i.e., the border has width 0, unless the border is an image)"
-					},
-					{
-						"name": "outset"
-					},
-					{
-						"name": "ridge"
-					},
-					{
-						"name": "solid",
-						"desc": "A single line segment."
-					}
-				]
+				"restriction": "line-style"
 			},
 			{
 				"name": "-webkit-column-rule-width",
@@ -10861,11 +10196,9 @@ exports.descriptions = {
 	"no-repeat": "The image is placed once and not repeated in this direction.",
 	"repeat-x": "Equivalent to 'repeat no-repeat'.",
 	"repeat-y": "Equivalent to 'no-repeat repeat'.",
-	"groove": "Looks as if it were carved in the canvas. (This is typically achieved by creating a \"shadow\" from two colors that are slightly lighter and darker than the 'border-color'.)",
-	"outset": "Looks as if the content on the inside of the border is coming out of the canvas. Treated as 'groove' in border-collapsed tables.",
-	"ridge": "Looks as if it were coming out of the canvas.",
 	"clone": "Each box is independently wrapped with the border and padding. The 'border-radius' and 'border-image' and 'box-shadow', if any, are applied to each box independently. The background is drawn independently in each box of the element. A no-repeat background image will thus be rendered once in each box of the element.",
 	"slice": "No border and no padding are inserted at the break. No box-shadow is drawn at the broken edge; 'border-radius' has no effect at its corners; and the 'border-image' is rendered for the whole box as if it were unbroken. The effect is as though the element were rendered with no break present, and then sliced by the break afterward.",
+	"inset": "Changes the drop shadow from an outer shadow (one that shadows the box onto the canvas, as if it were lifted above the canvas) to an inner shadow (one that shadows the canvas onto the box, as if the box were cut out of the canvas and shifted behind it).",
 	"page": "Always force a page break before/after the generated box.",
 	"balance": "Balance content equally between columns, if possible.",
 	"attr()": "The attr(n) function returns as a string the value of attribute n for the subject of the selector",
@@ -10988,6 +10321,10 @@ exports.descriptions = {
 	"line-through": "Each line of text has a line through the middle.",
 	"overline": "Each line of text has a line above it.",
 	"underline": "Each line of text is underlined.",
+	"dashed": "Produces a dashed line style.",
+	"dotted": "Produces a dotted line.",
+	"double": "Produces a double line.",
+	"solid": "Produces a solid line.",
 	"wavy": "Produces a wavy line.",
 	"matrix()": "Specifies a 2D transformation in the form of a transformation matrix of six values. matrix(a,b,c,d,e,f) is equivalent to applying the transformation matrix [a b c d e f]",
 	"matrix3d()": "specifies a 3D transformation as a 4x4 homogeneous matrix of 16 values in column-major order.",

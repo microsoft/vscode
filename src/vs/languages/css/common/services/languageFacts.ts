@@ -200,6 +200,19 @@ export var positionKeywords : { [name:string]:string } = {
 	'top': 'Computes to ‘0%’ for the vertical position if one or two values are given, otherwise specifies the top edge as the origin for the next offset.'
 };
 
+export var lineStyleKeywords : { [name:string]:string } = {
+	'dashed': 'A series of square-ended dashes.',
+	'dotted': 'A series of round dots.',
+	'double': 'Two parallel solid lines with some space between them.',
+	'groove': 'Looks as if it were carved in the canvas.',
+	'hidden': 'Same as ‘none’, but has different behavior in the border conflict resolution rules for border-collapsed tables.',
+	'inset': 'Looks as if the content on the inside of the border is sunken into the canvas.',
+	'none': 'No border. Color and width are ignored.',
+	'outset': 'Looks as if the content on the inside of the border is coming out of the canvas.',
+	'ridge': 'Looks as if it were coming out of the canvas.',
+	'solid': 'A single line segment.'
+};
+
 export var cssWideKeywords = ['initial', 'inherit', 'unset'];
 
 export var units : { [unitName:string]:string[] } = {

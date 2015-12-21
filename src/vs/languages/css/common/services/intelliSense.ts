@@ -134,6 +134,7 @@ export class CSSIntellisense {
 		if (entry) {
 			this.getColorProposals(entry, result);
 			this.getPositionProposals(entry, result);
+			this.getLineStyleProposals(entry, result);
 			this.getValueEnumProposals(entry, result);
 			this.getCSSWideKeywordProposals(entry, result);
 			this.getUnitProposals(entry, result);
@@ -271,6 +272,20 @@ export class CSSIntellisense {
 					label: position,
 					documentationLabel: languageFacts.positionKeywords[position],
 					codeSnippet: position,
+					type: 'value'
+				});
+			}
+		};
+		return result;
+	}
+
+	protected getLineStyleProposals(entry:languageFacts.IEntry, result:Modes.ISuggestion[]):Modes.ISuggestion[] {
+		if (entry.restrictions.indexOf('line-style') !== -1) {
+			for (var lineStyle in languageFacts.lineStyleKeywords) {
+				result.push({
+					label: lineStyle,
+					documentationLabel: languageFacts.lineStyleKeywords[lineStyle],
+					codeSnippet: lineStyle,
 					type: 'value'
 				});
 			}

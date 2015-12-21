@@ -962,78 +962,18 @@
     <entry name="behavior" restriction="url" version="3.0" browsers="IE6" ref="http://msdn.microsoft.com/en-us/ie/gg192966.aspx" syntax="div { $(name): url(http://example.com/png_fix.htc); }">
       <desc>IE only. Used to extend behaviors of the browser</desc>
     </entry>
-    <entry name="border" restriction="length, color, enum" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#borders" syntax="header { $(name): 5px solid red;}">
+    <entry name="border" restriction="length, line-style, color, enum" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#borders" syntax="header { $(name): 5px solid red;}">
       <desc>Shorthand property for setting border width, style and color</desc>
       <values>
-        <value name="dashed" version="1.0" browsers="all">
-          <desc>A series of square-ended dashes.</desc>
-        </value>
-        <value name="dotted" version="1.0" browsers="all">
-          <desc>A series of round dots.</desc>
-        </value>
-        <value name="double" version="1.0" browsers="all">
-          <desc>Two parallel solid lines with some space between them. (The thickness of the lines is not specified, but the sum of the lines and the space must equal 'border-width'.)</desc>
-        </value>
-        <value name="groove" version="1.0" browsers="all">
-          <desc>Looks as if it were carved in the canvas. (This is typically achieved by creating a "shadow" from two colors that are slightly lighter and darker than the 'border-color'.)</desc>
-        </value>
-        <value name="hidden" version="3.0" browsers="all">
-          <desc>Same as 'none', but has different behavior in the border conflict resolution rules for border-collapsed tables.</desc>
-        </value>
-        <value name="inset" version="1.0" browsers="all">
-          <desc>Looks as if the content on the inside of the border is sunken into the canvas. Treated as 'ridge' in border-collapsed tables.</desc>
-        </value>
         <value name="medium" version="1.0" browsers="all" />
-        <value name="none" version="1.0" browsers="all">
-          <desc>No border. Color and width are ignored (i.e., the border has width 0, unless the border is an image)</desc>
-        </value>
-        <value name="outset" version="1.0" browsers="all">
-          <desc>Looks as if the content on the inside of the border is coming out of the canvas. Treated as 'groove' in border-collapsed tables.</desc>
-        </value>
-        <value name="ridge" version="1.0" browsers="all">
-          <desc>Looks as if it were coming out of the canvas.</desc>
-        </value>
-        <value name="solid" version="1.0" browsers="all">
-          <desc>A single line segment.</desc>
-        </value>
         <value name="thick" version="1.0" browsers="all" />
         <value name="thin" version="1.0" browsers="all" />
       </values>
     </entry>
-    <entry name="border-bottom" restriction="length, color, enum" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#borders" syntax="header { $(name): 5px solid red;}">
+    <entry name="border-bottom" restriction="length, line-style, color, enum" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#borders" syntax="header { $(name): 5px solid red;}">
       <desc>Shorthand property for setting border width, style and color</desc>
       <values>
-        <value name="dashed" version="1.0" browsers="all">
-          <desc>A series of square-ended dashes.</desc>
-        </value>
-        <value name="dotted" version="1.0" browsers="all">
-          <desc>A series of round dots.</desc>
-        </value>
-        <value name="double" version="1.0" browsers="all">
-          <desc>Two parallel solid lines with some space between them. (The thickness of the lines is not specified, but the sum of the lines and the space must equal 'border-width'.)</desc>
-        </value>
-        <value name="groove" version="1.0" browsers="all">
-          <desc>Looks as if it were carved in the canvas. (This is typically achieved by creating a "shadow" from two colors that are slightly lighter and darker than the 'border-color'.)</desc>
-        </value>
-        <value name="hidden" version="3.0" browsers="all">
-          <desc>Same as 'none', but has different behavior in the border conflict resolution rules for border-collapsed tables.</desc>
-        </value>
-        <value name="inset" version="1.0" browsers="all">
-          <desc>Looks as if the content on the inside of the border is sunken into the canvas. Treated as 'ridge' in border-collapsed tables.</desc>
-        </value>
         <value name="medium" version="1.0" browsers="all" />
-        <value name="none" version="1.0" browsers="all">
-          <desc>No border. Color and width are ignored (i.e., the border has width 0, unless the border is an image)</desc>
-        </value>
-        <value name="outset" version="1.0" browsers="all">
-          <desc>Looks as if the content on the inside of the border is coming out of the canvas. Treated as 'groove' in border-collapsed tables.</desc>
-        </value>
-        <value name="ridge" version="1.0" browsers="all">
-          <desc>Looks as if it were coming out of the canvas.</desc>
-        </value>
-        <value name="solid" version="1.0" browsers="all">
-          <desc>A single line segment.</desc>
-        </value>
         <value name="thick" version="1.0" browsers="all" />
         <value name="thin" version="1.0" browsers="all" />
       </values>
@@ -1047,40 +987,8 @@
     <entry name="border-bottom-right-radius" restriction="length, percentage" version="3.0" browsers="E,C,FF4,IE9,O10.5,S5" ref="http://www.w3.org/TR/css3-background/#border-radius" syntax="td { $(name): 4px; }">
       <desc>The two length or percentage values of the 'border-*-radius' properties define the radii of a quarter ellipse that defines the shape of the corner of the outer border edge. The first value is the horizontal radius, the second the vertical radius. If the second value is omitted it is copied from the first. If either length is zero, the corner is square, not rounded. Percentages for the horizontal radius refer to the width of the border box, whereas percentages for the vertical radius refer to the height of the border box.</desc>
     </entry>
-    <entry name="border-bottom-style" restriction="enum" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#border-style" syntax="td { $(name): solid; }">
+    <entry name="border-bottom-style" restriction="line-style" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#border-style" syntax="td { $(name): solid; }">
       <desc>Sets the style of the bottom border.</desc>
-      <values>
-        <value name="dashed" version="1.0" browsers="all">
-          <desc>A series of square-ended dashes.</desc>
-        </value>
-        <value name="dotted" version="1.0" browsers="all">
-          <desc>A series of round dots.</desc>
-        </value>
-        <value name="double" version="1.0" browsers="all">
-          <desc>Two parallel solid lines with some space between them. (The thickness of the lines is not specified, but the sum of the lines and the space must equal 'border-width'.)</desc>
-        </value>
-        <value name="groove" version="1.0" browsers="all">
-          <desc>Looks as if it were carved in the canvas. (This is typically achieved by creating a "shadow" from two colors that are slightly lighter and darker than the 'border-color'.)</desc>
-        </value>
-        <value name="hidden" version="3.0" browsers="all">
-          <desc>Same as 'none', but has different behavior in the border conflict resolution rules for border-collapsed tables.</desc>
-        </value>
-        <value name="inset" version="1.0" browsers="all">
-          <desc>Looks as if the content on the inside of the border is sunken into the canvas. Treated as 'ridge' in border-collapsed tables.</desc>
-        </value>
-        <value name="none" version="1.0" browsers="all">
-          <desc>No border. Color and width are ignored (i.e., the border has width 0, unless the border is an image)</desc>
-        </value>
-        <value name="outset" version="1.0" browsers="all">
-          <desc>Looks as if the content on the inside of the border is coming out of the canvas. Treated as 'groove' in border-collapsed tables.</desc>
-        </value>
-        <value name="ridge" version="1.0" browsers="all">
-          <desc>Looks as if it were coming out of the canvas.</desc>
-        </value>
-        <value name="solid" version="1.0" browsers="all">
-          <desc>A single line segment.</desc>
-        </value>
-      </values>
     </entry>
     <entry name="border-bottom-width" restriction="length" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#border-width" syntax="td { $(name): 2px; }">
       <desc>>Sets the thickness of the bottom border.</desc>
@@ -1186,40 +1094,10 @@
         </value>
       </values>
     </entry>
-    <entry name="border-left" restriction="length, color, enum" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#borders" syntax="header { $(name): 5px solid red;}">
+    <entry name="border-left" restriction="length, line-style, color, enum" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#borders" syntax="header { $(name): 5px solid red;}">
       <desc>Shorthand property for setting border width, style and color</desc>
       <values>
-        <value name="dashed" version="1.0" browsers="all">
-          <desc>A series of square-ended dashes.</desc>
-        </value>
-        <value name="dotted" version="1.0" browsers="all">
-          <desc>A series of round dots.</desc>
-        </value>
-        <value name="double" version="1.0" browsers="all">
-          <desc>Two parallel solid lines with some space between them. (The thickness of the lines is not specified, but the sum of the lines and the space must equal 'border-width'.)</desc>
-        </value>
-        <value name="groove" version="1.0" browsers="all">
-          <desc>Looks as if it were carved in the canvas. (This is typically achieved by creating a "shadow" from two colors that are slightly lighter and darker than the 'border-color'.)</desc>
-        </value>
-        <value name="hidden" version="3.0" browsers="all">
-          <desc>Same as 'none', but has different behavior in the border conflict resolution rules for border-collapsed tables.</desc>
-        </value>
-        <value name="inset" version="1.0" browsers="all">
-          <desc>Looks as if the content on the inside of the border is sunken into the canvas. Treated as 'ridge' in border-collapsed tables.</desc>
-        </value>
         <value name="medium" version="1.0" browsers="all" />
-        <value name="none" version="1.0" browsers="all">
-          <desc>No border. Color and width are ignored (i.e., the border has width 0, unless the border is an image)</desc>
-        </value>
-        <value name="outset" version="1.0" browsers="all">
-          <desc>Looks as if the content on the inside of the border is coming out of the canvas. Treated as 'groove' in border-collapsed tables.</desc>
-        </value>
-        <value name="ridge" version="1.0" browsers="all">
-          <desc>Looks as if it were coming out of the canvas.</desc>
-        </value>
-        <value name="solid" version="1.0" browsers="all">
-          <desc>A single line segment.</desc>
-        </value>
         <value name="thick" version="1.0" browsers="all" />
         <value name="thin" version="1.0" browsers="all" />
       </values>
@@ -1227,40 +1105,8 @@
     <entry name="border-left-color" restriction="color" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#border-color" syntax="td { $(name): blue; }">
       <desc>Sets the color of the left border.</desc>
     </entry>
-    <entry name="border-left-style" restriction="enum" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#border-style" syntax="td { $(name): solid; }">
+    <entry name="border-left-style" restriction="line-style" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#border-style" syntax="td { $(name): solid; }">
       <desc>Sets the style of the left border.</desc>
-      <values>
-        <value name="dashed" version="1.0" browsers="all">
-          <desc>A series of square-ended dashes.</desc>
-        </value>
-        <value name="dotted" version="1.0" browsers="all">
-          <desc>A series of round dots.</desc>
-        </value>
-        <value name="double" version="1.0" browsers="all">
-          <desc>Two parallel solid lines with some space between them. (The thickness of the lines is not specified, but the sum of the lines and the space must equal 'border-width'.)</desc>
-        </value>
-        <value name="groove" version="1.0" browsers="all">
-          <desc>Looks as if it were carved in the canvas. (This is typically achieved by creating a "shadow" from two colors that are slightly lighter and darker than the 'border-color'.)</desc>
-        </value>
-        <value name="hidden" version="3.0" browsers="all">
-          <desc>Same as 'none', but has different behavior in the border conflict resolution rules for border-collapsed tables.</desc>
-        </value>
-        <value name="inset" version="1.0" browsers="all">
-          <desc>Looks as if the content on the inside of the border is sunken into the canvas. Treated as 'ridge' in border-collapsed tables.</desc>
-        </value>
-        <value name="none" version="1.0" browsers="all">
-          <desc>No border. Color and width are ignored (i.e., the border has width 0, unless the border is an image)</desc>
-        </value>
-        <value name="outset" version="1.0" browsers="all">
-          <desc>Looks as if the content on the inside of the border is coming out of the canvas. Treated as 'groove' in border-collapsed tables.</desc>
-        </value>
-        <value name="ridge" version="1.0" browsers="all">
-          <desc>Looks as if it were coming out of the canvas.</desc>
-        </value>
-        <value name="solid" version="1.0" browsers="all">
-          <desc>A single line segment.</desc>
-        </value>
-      </values>
     </entry>
     <entry name="border-left-width" restriction="length" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#border-width" syntax="td { $(name): 2px; }">
       <desc>Sets the thickness of the left border.</desc>
@@ -1273,40 +1119,10 @@
     <entry name="border-radius" restriction="length, percentage" version="3.0" browsers="E,C,FF4,IE9,O10.5,S5" ref="http://www.w3.org/TR/css3-background/#border-radius" syntax="td { $(name): 3px 4px; }">
       <desc>The two length or percentage values of the 'border-*-radius' properties define the radii of a quarter ellipse that defines the shape of the corner of the outer border edge. The first value is the horizontal radius, the second the vertical radius. If the second value is omitted it is copied from the first. If either length is zero, the corner is square, not rounded. Percentages for the horizontal radius refer to the width of the border box, whereas percentages for the vertical radius refer to the height of the border box.</desc>
     </entry>
-    <entry name="border-right" restriction="length, color, enum" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#borders" syntax="header { $(name): 5px solid red;}">
+    <entry name="border-right" restriction="length, line-style, color, enum" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#borders" syntax="header { $(name): 5px solid red;}">
       <desc>Shorthand property for setting border width, style and color</desc>
       <values>
-        <value name="dashed" version="1.0" browsers="all">
-          <desc>A series of square-ended dashes.</desc>
-        </value>
-        <value name="dotted" version="1.0" browsers="all">
-          <desc>A series of round dots.</desc>
-        </value>
-        <value name="double" version="1.0" browsers="all">
-          <desc>Two parallel solid lines with some space between them. (The thickness of the lines is not specified, but the sum of the lines and the space must equal 'border-width'.)</desc>
-        </value>
-        <value name="groove" version="1.0" browsers="all">
-          <desc>Looks as if it were carved in the canvas. (This is typically achieved by creating a "shadow" from two colors that are slightly lighter and darker than the 'border-color'.)</desc>
-        </value>
-        <value name="hidden" version="3.0" browsers="all">
-          <desc>Same as 'none', but has different behavior in the border conflict resolution rules for border-collapsed tables.</desc>
-        </value>
-        <value name="inset" version="1.0" browsers="all">
-          <desc>Looks as if the content on the inside of the border is sunken into the canvas. Treated as 'ridge' in border-collapsed tables.</desc>
-        </value>
         <value name="medium" version="1.0" browsers="all" />
-        <value name="none" version="1.0" browsers="all">
-          <desc>No border. Color and width are ignored (i.e., the border has width 0, unless the border is an image)</desc>
-        </value>
-        <value name="outset" version="1.0" browsers="all">
-          <desc>Looks as if the content on the inside of the border is coming out of the canvas. Treated as 'groove' in border-collapsed tables.</desc>
-        </value>
-        <value name="ridge" version="1.0" browsers="all">
-          <desc>Looks as if it were coming out of the canvas.</desc>
-        </value>
-        <value name="solid" version="1.0" browsers="all">
-          <desc>A single line segment.</desc>
-        </value>
         <value name="thick" version="1.0" browsers="all" />
         <value name="thin" version="1.0" browsers="all" />
       </values>
@@ -1314,40 +1130,8 @@
     <entry name="border-right-color" restriction="color" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#border-color" syntax="td { $(name): blue; }">
       <desc>Sets the color of the right border.</desc>
     </entry>
-    <entry name="border-right-style" restriction="enum" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#border-style" syntax="td { $(name): solid; }">
+    <entry name="border-right-style" restriction="line-style" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#border-style" syntax="td { $(name): solid; }">
       <desc>Sets the style of the right border.</desc>
-      <values>
-        <value name="dashed" version="1.0" browsers="all">
-          <desc>A series of square-ended dashes.</desc>
-        </value>
-        <value name="dotted" version="1.0" browsers="all">
-          <desc>A series of round dots.</desc>
-        </value>
-        <value name="double" version="1.0" browsers="all">
-          <desc>Two parallel solid lines with some space between them. (The thickness of the lines is not specified, but the sum of the lines and the space must equal 'border-width'.)</desc>
-        </value>
-        <value name="groove" version="1.0" browsers="all">
-          <desc>Looks as if it were carved in the canvas. (This is typically achieved by creating a "shadow" from two colors that are slightly lighter and darker than the 'border-color'.)</desc>
-        </value>
-        <value name="hidden" version="3.0" browsers="all">
-          <desc>Same as 'none', but has different behavior in the border conflict resolution rules for border-collapsed tables.</desc>
-        </value>
-        <value name="inset" version="1.0" browsers="all">
-          <desc>Looks as if the content on the inside of the border is sunken into the canvas. Treated as 'ridge' in border-collapsed tables.</desc>
-        </value>
-        <value name="none" version="1.0" browsers="all">
-          <desc>No border. Color and width are ignored (i.e., the border has width 0, unless the border is an image)</desc>
-        </value>
-        <value name="outset" version="1.0" browsers="all">
-          <desc>Looks as if the content on the inside of the border is coming out of the canvas. Treated as 'groove' in border-collapsed tables.</desc>
-        </value>
-        <value name="ridge" version="1.0" browsers="all">
-          <desc>Looks as if it were coming out of the canvas.</desc>
-        </value>
-        <value name="solid" version="1.0" browsers="all">
-          <desc>A single line segment.</desc>
-        </value>
-      </values>
     </entry>
     <entry name="border-right-width" restriction="length" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#border-width" syntax="td { $(name): 2px; }">
       <desc>Sets the thickness of the right border.</desc>
@@ -1360,75 +1144,12 @@
     <entry name="border-spacing" restriction="length" version="2.0" browsers="E,C,FF1,IE8,O7,S1.2" ref="http://www.w3.org/TR/CSS2/tables.html#borders" syntax="table { $(name): 10px 50px; }">
       <desc>The lengths specify the distance that separates adjoining cell borders. If one length is specified, it gives both the horizontal and vertical spacing. If two are specified, the first gives the horizontal spacing and the second the vertical spacing. Lengths may not be negative.</desc>
     </entry>
-    <entry name="border-style" restriction="enum" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#border-style" syntax="td { $(name): solid; }">
+    <entry name="border-style" restriction="line-style" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#border-style" syntax="td { $(name): solid; }">
       <desc>The style of the border around edges of an element.</desc>
-      <values>
-        <value name="dashed" version="1.0" browsers="all">
-          <desc>A series of square-ended dashes.</desc>
-        </value>
-        <value name="dotted" version="1.0" browsers="all">
-          <desc>A series of round dots.</desc>
-        </value>
-        <value name="double" version="1.0" browsers="all">
-          <desc>Two parallel solid lines with some space between them. (The thickness of the lines is not specified, but the sum of the lines and the space must equal 'border-width'.)</desc>
-        </value>
-        <value name="groove" version="1.0" browsers="all">
-          <desc>Looks as if it were carved in the canvas. (This is typically achieved by creating a "shadow" from two colors that are slightly lighter and darker than the 'border-color'.)</desc>
-        </value>
-        <value name="hidden" version="3.0" browsers="all">
-          <desc>Same as 'none', but has different behavior in the border conflict resolution rules for border-collapsed tables.</desc>
-        </value>
-        <value name="inset" version="1.0" browsers="all">
-          <desc>Looks as if the content on the inside of the border is sunken into the canvas. Treated as 'ridge' in border-collapsed tables.</desc>
-        </value>
-        <value name="none" version="1.0" browsers="all">
-          <desc>No border. Color and width are ignored (i.e., the border has width 0, unless the border is an image)</desc>
-        </value>
-        <value name="outset" version="1.0" browsers="all">
-          <desc>Looks as if the content on the inside of the border is coming out of the canvas. Treated as 'groove' in border-collapsed tables.</desc>
-        </value>
-        <value name="ridge" version="1.0" browsers="all">
-          <desc>Looks as if it were coming out of the canvas.</desc>
-        </value>
-        <value name="solid" version="1.0" browsers="all">
-          <desc>A single line segment.</desc>
-        </value>
-      </values>
     </entry>
-    <entry name="border-top" restriction="length, color, enum" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#borders" syntax="header { $(name): 5px solid red;}">
+    <entry name="border-top" restriction="length, line-style, color, enum" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#borders" syntax="header { $(name): 5px solid red;}">
       <desc>Shorthand property for setting border width, style and color</desc>
       <values>
-        <value name="dashed" version="1.0" browsers="all">
-          <desc>A series of square-ended dashes.</desc>
-        </value>
-        <value name="dotted" version="1.0" browsers="all">
-          <desc>A series of round dots.</desc>
-        </value>
-        <value name="double" version="1.0" browsers="all">
-          <desc>Two parallel solid lines with some space between them. (The thickness of the lines is not specified, but the sum of the lines and the space must equal 'border-width'.)</desc>
-        </value>
-        <value name="groove" version="1.0" browsers="all">
-          <desc>Looks as if it were carved in the canvas. (This is typically achieved by creating a "shadow" from two colors that are slightly lighter and darker than the 'border-color'.)</desc>
-        </value>
-        <value name="hidden" version="3.0" browsers="all">
-          <desc>Same as 'none', but has different behavior in the border conflict resolution rules for border-collapsed tables.</desc>
-        </value>
-        <value name="inset" version="1.0" browsers="all">
-          <desc>Looks as if the content on the inside of the border is sunken into the canvas. Treated as 'ridge' in border-collapsed tables.</desc>
-        </value>
-        <value name="medium" version="1.0" browsers="all" />
-        <value name="none" version="1.0" browsers="all">
-          <desc>No border. Color and width are ignored (i.e., the border has width 0, unless the border is an image)</desc>
-        </value>
-        <value name="outset" version="1.0" browsers="all">
-          <desc>Looks as if the content on the inside of the border is coming out of the canvas. Treated as 'groove' in border-collapsed tables.</desc>
-        </value>
-        <value name="ridge" version="1.0" browsers="all">
-          <desc>Looks as if it were coming out of the canvas.</desc>
-        </value>
-        <value name="solid" version="1.0" browsers="all">
-          <desc>A single line segment.</desc>
-        </value>
         <value name="thick" version="1.0" browsers="all" />
         <value name="thin" version="1.0" browsers="all" />
       </values>
@@ -1442,40 +1163,8 @@
     <entry name="border-top-right-radius" restriction="length, percentage" version="3.0" browsers="E,C,FF4,IE9,O10.5,S5" ref="http://www.w3.org/TR/css3-background/#border-radius" syntax="td { $(name): 4px; }">
       <desc>The two length or percentage values of the 'border-*-radius' properties define the radii of a quarter ellipse that defines the shape of the corner of the outer border edge. The first value is the horizontal radius, the second the vertical radius. If the second value is omitted it is copied from the first. If either length is zero, the corner is square, not rounded. Percentages for the horizontal radius refer to the width of the border box, whereas percentages for the vertical radius refer to the height of the border box.</desc>
     </entry>
-    <entry name="border-top-style" restriction="enum" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#border-style" syntax="td { $(name): solid; }">
+    <entry name="border-top-style" restriction="line-style" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#border-style" syntax="td { $(name): solid; }">
       <desc>Sets the style of the top border.</desc>
-      <values>
-        <value name="dashed" version="1.0" browsers="all">
-          <desc>A series of square-ended dashes.</desc>
-        </value>
-        <value name="dotted" version="1.0" browsers="all">
-          <desc>A series of round dots.</desc>
-        </value>
-        <value name="double" version="1.0" browsers="all">
-          <desc>Two parallel solid lines with some space between them. (The thickness of the lines is not specified, but the sum of the lines and the space must equal 'border-width'.)</desc>
-        </value>
-        <value name="groove" version="1.0" browsers="all">
-          <desc>Looks as if it were carved in the canvas. (This is typically achieved by creating a "shadow" from two colors that are slightly lighter and darker than the 'border-color'.)</desc>
-        </value>
-        <value name="hidden" version="3.0" browsers="all">
-          <desc>Same as 'none', but has different behavior in the border conflict resolution rules for border-collapsed tables.</desc>
-        </value>
-        <value name="inset" version="1.0" browsers="all">
-          <desc>Looks as if the content on the inside of the border is sunken into the canvas. Treated as 'ridge' in border-collapsed tables.</desc>
-        </value>
-        <value name="none" version="1.0" browsers="all">
-          <desc>No border. Color and width are ignored (i.e., the border has width 0, unless the border is an image)</desc>
-        </value>
-        <value name="outset" version="1.0" browsers="all">
-          <desc>Looks as if the content on the inside of the border is coming out of the canvas. Treated as 'groove' in border-collapsed tables.</desc>
-        </value>
-        <value name="ridge" version="1.0" browsers="all">
-          <desc>Looks as if it were coming out of the canvas.</desc>
-        </value>
-        <value name="solid" version="1.0" browsers="all">
-          <desc>A single line segment.</desc>
-        </value>
-      </values>
     </entry>
     <entry name="border-top-width" restriction="length" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#border-width" syntax="td { $(name): 2px; }">
       <desc>Sets the thickness of the top border.</desc>
@@ -1800,40 +1489,10 @@
         </value>
       </values>
     </entry>
-    <entry name="column-rule" restriction="length, color, enum" version="3.0" browsers="E,IE10,O11.5,S9" ref="http://www.w3.org/TR/css3-multicol/#column-rule0" syntax="header { $(name): 5px solid red;}">
+    <entry name="column-rule" restriction="length, line-style, color, enum" version="3.0" browsers="E,IE10,O11.5,S9" ref="http://www.w3.org/TR/css3-multicol/#column-rule0" syntax="header { $(name): 5px solid red;}">
       <desc>Shorthand for setting 'column-rule-width', 'column-rule-style', and 'column-rule-color' at the same place in the style sheet. Omitted values are set to their initial values.</desc>
       <values>
-        <value name="dashed" version="1.0" browsers="all">
-          <desc>A series of square-ended dashes.</desc>
-        </value>
-        <value name="dotted" version="1.0" browsers="all">
-          <desc>A series of round dots.</desc>
-        </value>
-        <value name="double" version="1.0" browsers="all">
-          <desc>Two parallel solid lines with some space between them. (The thickness of the lines is not specified, but the sum of the lines and the space must equal 'border-width'.)</desc>
-        </value>
-        <value name="groove" version="1.0" browsers="all">
-          <desc>Looks as if it were carved in the canvas. (This is typically achieved by creating a "shadow" from two colors that are slightly lighter and darker than the 'border-color'.)</desc>
-        </value>
-        <value name="hidden" version="3.0" browsers="all">
-          <desc>Same as 'none', but has different behavior in the border conflict resolution rules for border-collapsed tables.</desc>
-        </value>
-        <value name="inset" version="1.0" browsers="all">
-          <desc>Looks as if the content on the inside of the border is sunken into the canvas. Treated as 'ridge' in border-collapsed tables.</desc>
-        </value>
         <value name="medium" version="1.0" browsers="all" />
-        <value name="none" version="1.0" browsers="all">
-          <desc>No border. Color and width are ignored (i.e., the border has width 0, unless the border is an image)</desc>
-        </value>
-        <value name="outset" version="1.0" browsers="all">
-          <desc>Looks as if the content on the inside of the border is coming out of the canvas. Treated as 'groove' in border-collapsed tables.</desc>
-        </value>
-        <value name="ridge" version="1.0" browsers="all">
-          <desc>Looks as if it were coming out of the canvas.</desc>
-        </value>
-        <value name="solid" version="1.0" browsers="all">
-          <desc>A single line segment.</desc>
-        </value>
         <value name="thick" version="1.0" browsers="all" />
         <value name="thin" version="1.0" browsers="all" />
       </values>
@@ -1841,40 +1500,8 @@
     <entry name="column-rule-color" restriction="color" version="3.0" browsers="E,IE10,O11.6" ref="http://www.w3.org/TR/css3-multicol/#column-rule-color" syntax="div { $(name): #ff0; }">
       <desc>Sets the color of the column rule</desc>
     </entry>
-    <entry name="column-rule-style" restriction="enum" version="3.0" browsers="E,IE10,O11.5,S6" ref="http://www.w3.org/TR/css3-multicol/#column-rule-style" syntax="div { $(name): solid; }">
+    <entry name="column-rule-style" restriction="line-style" version="3.0" browsers="E,IE10,O11.5,S6" ref="http://www.w3.org/TR/css3-multicol/#column-rule-style" syntax="div { $(name): solid; }">
       <desc>Sets the style of the rule between columns of an element.</desc>
-      <values>
-        <value name="dashed" version="1.0" browsers="all">
-          <desc>A series of square-ended dashes.</desc>
-        </value>
-        <value name="dotted" version="1.0" browsers="all">
-          <desc>A series of round dots.</desc>
-        </value>
-        <value name="double" version="1.0" browsers="all">
-          <desc>Two parallel solid lines with some space between them. (The thickness of the lines is not specified, but the sum of the lines and the space must equal 'border-width'.)</desc>
-        </value>
-        <value name="groove" version="1.0" browsers="all">
-          <desc>Looks as if it were carved in the canvas. (This is typically achieved by creating a "shadow" from two colors that are slightly lighter and darker than the 'border-color'.)</desc>
-        </value>
-        <value name="hidden" version="3.0" browsers="all">
-          <desc>Same as 'none', but has different behavior in the border conflict resolution rules for border-collapsed tables.</desc>
-        </value>
-        <value name="inset" version="1.0" browsers="all">
-          <desc>Looks as if the content on the inside of the border is sunken into the canvas. Treated as 'ridge' in border-collapsed tables.</desc>
-        </value>
-        <value name="none" version="1.0" browsers="all">
-          <desc>No border. Color and width are ignored (i.e., the border has width 0, unless the border is an image)</desc>
-        </value>
-        <value name="outset" version="1.0" browsers="all">
-          <desc>Looks as if the content on the inside of the border is coming out of the canvas. Treated as 'groove' in border-collapsed tables.</desc>
-        </value>
-        <value name="ridge" version="1.0" browsers="all">
-          <desc>Looks as if it were coming out of the canvas.</desc>
-        </value>
-        <value name="solid" version="1.0" browsers="all">
-          <desc>A single line segment.</desc>
-        </value>
-      </values>
     </entry>
     <entry name="column-rule-width" restriction="length, enum" version="3.0" browsers="E,IE10,O11.5,S9" ref="http://www.w3.org/TR/css3-multicol/#column-rule-width" syntax="div { $(name): 3px; }">
       <desc>Sets the width of the rule between columns. Negative values are not allowed.</desc>
@@ -3975,40 +3602,10 @@
         </value>
       </values>
     </entry>
-    <entry name="-moz-column-rule" restriction="length, color, enum" version="3.0" browsers="FF3.5" ref="http://www.w3.org/TR/css3-multicol/#column-rule0" syntax="header { $(name): 5px solid red;}">
+    <entry name="-moz-column-rule" restriction="length, line-style, color, enum" version="3.0" browsers="FF3.5" ref="http://www.w3.org/TR/css3-multicol/#column-rule0" syntax="header { $(name): 5px solid red;}">
       <desc>Shorthand for setting 'column-rule-width', 'column-rule-style', and 'column-rule-color' at the same place in the style sheet. Omitted values are set to their initial values.</desc>
       <values>
-        <value name="dashed" version="1.0" browsers="all">
-          <desc>A series of square-ended dashes.</desc>
-        </value>
-        <value name="dotted" version="1.0" browsers="all">
-          <desc>A series of round dots.</desc>
-        </value>
-        <value name="double" version="1.0" browsers="all">
-          <desc>Two parallel solid lines with some space between them. (The thickness of the lines is not specified, but the sum of the lines and the space must equal 'border-width'.)</desc>
-        </value>
-        <value name="groove" version="1.0" browsers="all">
-          <desc>Looks as if it were carved in the canvas. (This is typically achieved by creating a "shadow" from two colors that are slightly lighter and darker than the 'border-color'.)</desc>
-        </value>
-        <value name="hidden" version="3.0" browsers="all">
-          <desc>Same as 'none', but has different behavior in the border conflict resolution rules for border-collapsed tables.</desc>
-        </value>
-        <value name="inset" version="1.0" browsers="all">
-          <desc>Looks as if the content on the inside of the border is sunken into the canvas. Treated as 'ridge' in border-collapsed tables.</desc>
-        </value>
         <value name="medium" version="1.0" browsers="all" />
-        <value name="none" version="1.0" browsers="all">
-          <desc>No border. Color and width are ignored (i.e., the border has width 0, unless the border is an image)</desc>
-        </value>
-        <value name="outset" version="1.0" browsers="all">
-          <desc>Looks as if the content on the inside of the border is coming out of the canvas. Treated as 'groove' in border-collapsed tables.</desc>
-        </value>
-        <value name="ridge" version="1.0" browsers="all">
-          <desc>Looks as if it were coming out of the canvas.</desc>
-        </value>
-        <value name="solid" version="1.0" browsers="all">
-          <desc>A single line segment.</desc>
-        </value>
         <value name="thick" version="1.0" browsers="all" />
         <value name="thin" version="1.0" browsers="all" />
       </values>
@@ -4016,40 +3613,8 @@
     <entry name="-moz-column-rule-color" restriction="color" version="3.0" browsers="FF3.5" ref="http://www.w3.org/TR/css3-multicol/#column-rule-color" syntax="div { $(name): #ff0; }">
       <desc>Sets the color of the column rule</desc>
     </entry>
-    <entry name="-moz-column-rule-style" restriction="enum" version="3.0" browsers="FF3.5" ref="http://www.w3.org/TR/css3-multicol/#column-rule-style" syntax="div { $(name): solid; }">
+    <entry name="-moz-column-rule-style" restriction="line-style" version="3.0" browsers="FF3.5" ref="http://www.w3.org/TR/css3-multicol/#column-rule-style" syntax="div { $(name): solid; }">
       <desc>Sets the style of the rule between columns of an element.</desc>
-      <values>
-        <value name="dashed" version="1.0" browsers="all">
-          <desc>A series of square-ended dashes.</desc>
-        </value>
-        <value name="dotted" version="1.0" browsers="all">
-          <desc>A series of round dots.</desc>
-        </value>
-        <value name="double" version="1.0" browsers="all">
-          <desc>Two parallel solid lines with some space between them. (The thickness of the lines is not specified, but the sum of the lines and the space must equal 'border-width'.)</desc>
-        </value>
-        <value name="groove" version="1.0" browsers="all">
-          <desc>Looks as if it were carved in the canvas. (This is typically achieved by creating a "shadow" from two colors that are slightly lighter and darker than the 'border-color'.)</desc>
-        </value>
-        <value name="hidden" version="3.0" browsers="all">
-          <desc>Same as 'none', but has different behavior in the border conflict resolution rules for border-collapsed tables.</desc>
-        </value>
-        <value name="inset" version="1.0" browsers="all">
-          <desc>Looks as if the content on the inside of the border is sunken into the canvas. Treated as 'ridge' in border-collapsed tables.</desc>
-        </value>
-        <value name="none" version="1.0" browsers="all">
-          <desc>No border. Color and width are ignored (i.e., the border has width 0, unless the border is an image)</desc>
-        </value>
-        <value name="outset" version="1.0" browsers="all">
-          <desc>Looks as if the content on the inside of the border is coming out of the canvas. Treated as 'groove' in border-collapsed tables.</desc>
-        </value>
-        <value name="ridge" version="1.0" browsers="all">
-          <desc>Looks as if it were coming out of the canvas.</desc>
-        </value>
-        <value name="solid" version="1.0" browsers="all">
-          <desc>A single line segment.</desc>
-        </value>
-      </values>
     </entry>
     <entry name="-moz-column-rule-width" restriction="length" version="3.0" browsers="FF3.5" ref="http://www.w3.org/TR/css3-multicol/#column-rule-width" syntax="div { $(name): 3px; }">
       <desc>Sets the width of the rule between columns. Negative values are not allowed.</desc>
@@ -5747,44 +5312,11 @@
         </value>
       </values>
     </entry>
-    <entry name="outline" restriction="length, color, enum" version="2.0" browsers="E,C,FF1.5,IE8,O8,S1.2" ref="http://www.w3.org/TR/css3-ui/#outline0" syntax="header { $(name): 5px solid red;}">
+    <entry name="outline" restriction="length, line-style, color, enum" version="2.0" browsers="E,C,FF1.5,IE8,O8,S1.2" ref="http://www.w3.org/TR/css3-ui/#outline0" syntax="header { $(name): 5px solid red;}">
       <desc>Shorthand property for 'outline-style', 'outline-width', and 'outline-color'.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all" />
-        <value name="dashed" version="1.0" browsers="all">
-          <desc>A series of square-ended dashes.</desc>
-        </value>
-        <value name="dotted" version="1.0" browsers="all">
-          <desc>A series of round dots.</desc>
-        </value>
-        <value name="double" version="1.0" browsers="all">
-          <desc>Two parallel solid lines with some space between them. (The thickness of the lines is not specified, but the sum of the lines and the space must equal 'border-width'.)</desc>
-        </value>
-        <value name="groove" version="1.0" browsers="all">
-          <desc>Looks as if it were carved in the canvas. (This is typically achieved by creating a "shadow" from two colors that are slightly lighter and darker than the 'border-color'.)</desc>
-        </value>
-        <value name="hidden" version="3.0" browsers="all">
-          <desc>Same as 'none', but has different behavior in the border conflict resolution rules for border-collapsed tables.</desc>
-        </value>
-        <value name="inset" version="1.0" browsers="all">
-          <desc>Looks as if the content on the inside of the border is sunken into the canvas. Treated as 'ridge' in border-collapsed tables.</desc>
-        </value>
-        <value name="invert" version="2.0" browsers="all">
-          <desc>Performs a color inversion on the pixels on the screen.</desc>
-        </value>
         <value name="medium" version="1.0" browsers="all" />
-        <value name="none" version="1.0" browsers="all">
-          <desc>No border. Color and width are ignored (i.e., the border has width 0, unless the border is an image)</desc>
-        </value>
-        <value name="outset" version="1.0" browsers="all">
-          <desc>Looks as if the content on the inside of the border is coming out of the canvas. Treated as 'groove' in border-collapsed tables.</desc>
-        </value>
-        <value name="ridge" version="1.0" browsers="all">
-          <desc>Looks as if it were coming out of the canvas.</desc>
-        </value>
-        <value name="solid" version="1.0" browsers="all">
-          <desc>A single line segment.</desc>
-        </value>
         <value name="thick" version="1.0" browsers="all" />
         <value name="thin" version="1.0" browsers="all" />
       </values>
@@ -5801,40 +5333,11 @@
     <entry name="outline-offset" restriction="length" version="3.0" browsers="C,FF1.5,O9.5,S1.2" ref="http://www.w3.org/TR/css3-ui/#outline-offset0" syntax="article { $(name): 15px; }">
       <desc>Width of the outline</desc>
     </entry>
-    <entry name="outline-style" restriction="enum" version="2.0" browsers="E,C,FF1.5,IE8,O8,S1.2" ref="http://www.w3.org/TR/css3-ui/#outline-style0" syntax="td { $(name): solid; }">
+    <entry name="outline-style" restriction="line-style, enum" version="2.0" browsers="E,C,FF1.5,IE8,O8,S1.2" ref="http://www.w3.org/TR/css3-ui/#outline-style0" syntax="td { $(name): solid; }">
       <desc>Style of the outline</desc>
       <values>
         <value name="auto" version="3.0" browsers="all" />
-        <value name="dashed" version="1.0" browsers="all">
-          <desc>A series of square-ended dashes.</desc>
-        </value>
-        <value name="dotted" version="1.0" browsers="all">
-          <desc>A series of round dots.</desc>
-        </value>
-        <value name="double" version="1.0" browsers="all">
-          <desc>Two parallel solid lines with some space between them. (The thickness of the lines is not specified, but the sum of the lines and the space must equal 'border-width'.)</desc>
-        </value>
-        <value name="groove" version="1.0" browsers="all">
-          <desc>Looks as if it were carved in the canvas. (This is typically achieved by creating a "shadow" from two colors that are slightly lighter and darker than the 'border-color'.)</desc>
-        </value>
-        <value name="hidden" version="3.0" browsers="all">
-          <desc>Same as 'none', but has different behavior in the border conflict resolution rules for border-collapsed tables.</desc>
-        </value>
-        <value name="inset" version="1.0" browsers="all">
-          <desc>Looks as if the content on the inside of the border is sunken into the canvas. Treated as 'ridge' in border-collapsed tables.</desc>
-        </value>
-        <value name="none" version="1.0" browsers="all">
-          <desc>No border. Color and width are ignored (i.e., the border has width 0, unless the border is an image)</desc>
-        </value>
-        <value name="outset" version="1.0" browsers="all">
-          <desc>Looks as if the content on the inside of the border is coming out of the canvas. Treated as 'groove' in border-collapsed tables.</desc>
-        </value>
-        <value name="ridge" version="1.0" browsers="all">
-          <desc>Looks as if it were coming out of the canvas.</desc>
-        </value>
-        <value name="solid" version="1.0" browsers="all">
-          <desc>A single line segment.</desc>
-        </value>
+		<value name="" version="3.0" browsers="none" />
       </values>
     </entry>
     <entry name="outline-width" restriction="length" version="2.0" browsers="E,C,FF1.5,IE8,O8,S1.2" ref="http://www.w3.org/TR/css3-ui/#outline-width0" syntax="td { $(name): 2px; }">
@@ -7980,40 +7483,10 @@
         </value>
       </values>
     </entry>
-    <entry name="-webkit-column-rule" restriction="length, color, enum" version="3.0" browsers="C,S3" ref="http://www.w3.org/TR/css3-multicol/#column-rule0" syntax="header { $(name): 5px solid red;}">
+    <entry name="-webkit-column-rule" restriction="length, line-style, color, enum" version="3.0" browsers="C,S3" ref="http://www.w3.org/TR/css3-multicol/#column-rule0" syntax="header { $(name): 5px solid red;}">
       <desc>This property is a shorthand for setting 'column-rule-width', 'column-rule-style', and 'column-rule-color' at the same place in the style sheet. Omitted values are set to their initial values.</desc>
       <values>
-        <value name="dashed" version="1.0" browsers="all">
-          <desc>A series of square-ended dashes.</desc>
-        </value>
-        <value name="dotted" version="1.0" browsers="all">
-          <desc>A series of round dots.</desc>
-        </value>
-        <value name="double" version="1.0" browsers="all">
-          <desc>Two parallel solid lines with some space between them. (The thickness of the lines is not specified, but the sum of the lines and the space must equal 'border-width'.)</desc>
-        </value>
-        <value name="groove" version="1.0" browsers="all">
-          <desc>Looks as if it were carved in the canvas. (This is typically achieved by creating a "shadow" from two colors that are slightly lighter and darker than the 'border-color'.)</desc>
-        </value>
-        <value name="hidden" version="3.0" browsers="all">
-          <desc>Same as 'none', but has different behavior in the border conflict resolution rules for border-collapsed tables.</desc>
-        </value>
-        <value name="inset" version="1.0" browsers="all">
-          <desc>Looks as if the content on the inside of the border is sunken into the canvas. Treated as 'ridge' in border-collapsed tables.</desc>
-        </value>
         <value name="medium" version="1.0" browsers="all" />
-        <value name="none" version="1.0" browsers="all">
-          <desc>No border. Color and width are ignored (i.e., the border has width 0, unless the border is an image)</desc>
-        </value>
-        <value name="outset" version="1.0" browsers="all">
-          <desc>Looks as if the content on the inside of the border is coming out of the canvas. Treated as 'groove' in border-collapsed tables.</desc>
-        </value>
-        <value name="ridge" version="1.0" browsers="all">
-          <desc>Looks as if it were coming out of the canvas.</desc>
-        </value>
-        <value name="solid" version="1.0" browsers="all">
-          <desc>A single line segment.</desc>
-        </value>
         <value name="thick" version="1.0" browsers="all" />
         <value name="thin" version="1.0" browsers="all" />
       </values>
@@ -8021,40 +7494,8 @@
     <entry name="-webkit-column-rule-color" restriction="color" version="3.0" browsers="C,S3" ref="http://www.w3.org/TR/css3-multicol/#column-rule-color" syntax="div { $(name): #ff0; }">
       <desc>Sets the color of the column rule</desc>
     </entry>
-    <entry name="-webkit-column-rule-style" restriction="enum" version="3.0" browsers="C,S3" ref="http://www.w3.org/TR/css3-multicol/#column-rule-style" syntax="div { $(name): solid; }">
+    <entry name="-webkit-column-rule-style" restriction="line-style" version="3.0" browsers="C,S3" ref="http://www.w3.org/TR/css3-multicol/#column-rule-style" syntax="div { $(name): solid; }">
       <desc>Sets the style of the rule between columns of an element.</desc>
-      <values>
-        <value name="dashed" version="1.0" browsers="all">
-          <desc>A series of square-ended dashes.</desc>
-        </value>
-        <value name="dotted" version="1.0" browsers="all">
-          <desc>A series of round dots.</desc>
-        </value>
-        <value name="double" version="1.0" browsers="all">
-          <desc>Two parallel solid lines with some space between them. (The thickness of the lines is not specified, but the sum of the lines and the space must equal 'border-width'.)</desc>
-        </value>
-        <value name="groove" version="1.0" browsers="all">
-          <desc>Looks as if it were carved in the canvas. (This is typically achieved by creating a "shadow" from two colors that are slightly lighter and darker than the 'border-color'.)</desc>
-        </value>
-        <value name="hidden" version="3.0" browsers="all">
-          <desc>Same as 'none', but has different behavior in the border conflict resolution rules for border-collapsed tables.</desc>
-        </value>
-        <value name="inset" version="1.0" browsers="all">
-          <desc>Looks as if the content on the inside of the border is sunken into the canvas. Treated as 'ridge' in border-collapsed tables.</desc>
-        </value>
-        <value name="none" version="1.0" browsers="all">
-          <desc>No border. Color and width are ignored (i.e., the border has width 0, unless the border is an image)</desc>
-        </value>
-        <value name="outset" version="1.0" browsers="all">
-          <desc>Looks as if the content on the inside of the border is coming out of the canvas. Treated as 'groove' in border-collapsed tables.</desc>
-        </value>
-        <value name="ridge" version="1.0" browsers="all">
-          <desc>Looks as if it were coming out of the canvas.</desc>
-        </value>
-        <value name="solid" version="1.0" browsers="all">
-          <desc>A single line segment.</desc>
-        </value>
-      </values>
     </entry>
     <entry name="-webkit-column-rule-width" restriction="length" version="3.0" browsers="C,S3" ref="http://www.w3.org/TR/css3-multicol/#column-rule-width" syntax="div { $(name): 3px; }">
       <desc>Sets the width of the rule between columns. Negative values are not allowed.</desc>
