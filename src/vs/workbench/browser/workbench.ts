@@ -282,7 +282,7 @@ export class Workbench implements IPartService {
 		let threadService = this.instantiationService.getInstance(IThreadService);
 		let pluginService = this.instantiationService.getInstance(IPluginService);
 		this.lifecycleService = this.instantiationService.getInstance(ILifecycleService);
-		this.lifecycleService.onShutdown.add(this.shutdownComponents, this);
+		this.toDispose.push(this.lifecycleService.onShutdown(this.shutdownComponents, this));
 		let contextMenuService = this.instantiationService.getInstance(IContextMenuService);
 		this.untitledEditorService = this.instantiationService.getInstance(IUntitledEditorService);
 
@@ -553,9 +553,6 @@ export class Workbench implements IPartService {
 
 		// Dispose all
 		this.toDispose = disposeAll(this.toDispose);
-
-		// Unhook listener
-		this.lifecycleService.onShutdown.remove(this.shutdownComponents, this);
 
 		// Event
 		this.eventService.emit(EventType.WORKBENCH_DISPOSED);

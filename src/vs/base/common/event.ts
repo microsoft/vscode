@@ -102,7 +102,7 @@ export class Emitter<T> {
 	 * To be kept private to fire an event to
 	 * subscribers
 	 */
-	fire(event: T): any {
+	fire(event?: T): any {
 		if (this._callbacks) {
 			this._callbacks.invoke.call(this._callbacks, event);
 		}

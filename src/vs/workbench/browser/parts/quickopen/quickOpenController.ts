@@ -21,8 +21,7 @@ import {ITree, IElementCallback} from 'vs/base/parts/tree/common/tree';
 import {Registry} from 'vs/platform/platform';
 import {WorkbenchComponent} from 'vs/workbench/browser/component';
 import {EditorEvent, EventType} from 'vs/workbench/browser/events';
-import {EventProvider} from 'vs/base/common/eventProvider';
-import {EventSource} from 'vs/base/common/eventSource';
+import Event, {Emitter} from 'vs/base/common/event';
 import {Identifiers} from 'vs/workbench/common/constants';
 import {Scope} from 'vs/workbench/common/memento';
 import {QuickOpenHandler, QuickOpenHandlerDescriptor, IQuickOpenRegistry, Extensions} from 'vs/workbench/browser/quickopen';
@@ -58,8 +57,8 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 
 	public serviceId = IQuickOpenService;
 
-	private _onShow: EventSource<() => void>;
-	private _onHide: EventSource<() => void>;
+	private _onShow: Emitter<void>;
+	private _onHide: Emitter<void>;
 
 	private instantiationService: IInstantiationService;
 	private quickOpenWidget: QuickOpenWidget;
@@ -97,16 +96,16 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 
 		this.inQuickOpenMode = keybindingService.createKey(QUICK_OPEN_MODE, false);
 
-		this._onShow = new EventSource<() => void>();
-		this._onHide = new EventSource<() => void>();
+		this._onShow = new Emitter<void>();
+		this._onHide = new Emitter<void>();
 	}
 
-	public get onShow(): EventProvider<() => void> {
-		return this._onShow.value;
+	public get onShow(): Event<void> {
+		return this._onShow.event;
 	}
 
-	public get onHide(): EventProvider<() => void> {
-		return this._onHide.value;
+	public get onHide(): Event<void> {
+		return this._onHide.event;
 	}
 
 	public setInstantiationService(service: IInstantiationService): void {

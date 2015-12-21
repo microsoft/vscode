@@ -1897,6 +1897,7 @@ export class CloseWorkingFileAction extends Action {
 
 	private model: WorkingFilesModel;
 	private element: WorkingFileEntry;
+	private listenerToDispose: IDisposable;
 
 	constructor(
 		model: WorkingFilesModel,
@@ -1914,7 +1915,7 @@ export class CloseWorkingFileAction extends Action {
 
 		if (this.model) {
 			this.enabled = (this.model.count() > 0);
-			this.model.onModelChange.add(this.onModelChange, this);
+			this.listenerToDispose = this.model.onModelChange(this.onModelChange, this);
 		}
 	}
 
@@ -1999,8 +2000,9 @@ export class CloseWorkingFileAction extends Action {
 	}
 
 	public dispose(): void {
-		if (this.model) {
-			this.model.onModelChange.remove(this.onModelChange, this);
+		if (this.listenerToDispose) {
+			this.listenerToDispose.dispose();
+			delete this.listenerToDispose;
 		}
 
 		super.dispose();

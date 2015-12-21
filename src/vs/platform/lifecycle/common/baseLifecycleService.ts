@@ -6,8 +6,7 @@
 
 import arrays = require('vs/base/common/arrays');
 import winjs = require('vs/base/common/winjs.base');
-import {EventProvider} from 'vs/base/common/eventProvider';
-import {EventSource} from 'vs/base/common/eventSource';
+import Event, {Emitter} from 'vs/base/common/event';
 
 import {ILifecycleService, IBeforeShutdownParticipant} from './lifecycle';
 
@@ -15,14 +14,14 @@ export class BaseLifecycleService implements ILifecycleService {
 	public serviceId = ILifecycleService;
 
 	private _beforeShutdownParticipants: IBeforeShutdownParticipant[];
-	private _onShutdown: EventSource<() => void>;
+	private _onShutdown: Emitter<void>;
 
 	constructor() {
 		this._beforeShutdownParticipants = [];
-		this._onShutdown = new EventSource<() => void>();
+		this._onShutdown = new Emitter<void>();
 	}
 
-	protected fireShutdown(): void{
+	protected fireShutdown(): void {
 		this._onShutdown.fire();
 	}
 
@@ -34,7 +33,7 @@ export class BaseLifecycleService implements ILifecycleService {
 		return this._beforeShutdownParticipants;
 	}
 
-	public get onShutdown(): EventProvider<() => void> {
-		return this._onShutdown.value;
+	public get onShutdown(): Event<void> {
+		return this._onShutdown.event;
 	}
 }

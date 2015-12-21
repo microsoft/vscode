@@ -18,10 +18,10 @@ import Storage = require('vs/workbench/browser/storage');
 import WorkbenchEditorCommon = require('vs/workbench/common/editor');
 import Viewlet = require('vs/workbench/browser/viewlet');
 import InstantiationService = require('vs/platform/instantiation/common/instantiationService');
+import Event, {Emitter} from 'vs/base/common/event';
 import LifecycleService = require('vs/platform/lifecycle/common/baseLifecycleService');
 import Types = require('vs/base/common/types');
 import Mime = require('vs/base/common/mime');
-import {EventProvider} from 'vs/base/common/eventProvider';
 import Assert = require('vs/base/common/assert');
 import Severity from 'vs/base/common/severity';
 import Arrays = require('vs/base/common/arrays');
@@ -506,11 +506,11 @@ export class TestQuickOpenService implements QuickOpenService.IQuickOpenService 
 		return [];
 	}
 
-	get onShow(): EventProvider<() => void> {
+	get onShow(): Event<void> {
 		return null;
 	}
 
-	get onHide(): EventProvider<() => void> {
+	get onHide(): Event<void> {
 		return null;
 	}
 

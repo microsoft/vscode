@@ -6,7 +6,7 @@
 
 import {ITree, IElementCallback} from 'vs/base/parts/tree/common/tree';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {EventProvider} from 'vs/base/common/eventProvider';
+import Event, {Emitter} from 'vs/base/common/event';
 import {IQuickNavigateConfiguration, IAutoFocus} from 'vs/base/parts/quickopen/browser/quickOpen';
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
 import {IEditorInput} from 'vs/platform/editor/common/editor';
@@ -119,10 +119,10 @@ export interface IQuickOpenService {
 	/**
 	 * Allows to register on the event that quick open is showing
 	 */
-	onShow: EventProvider<() => void>;
+	onShow: Event<void>;
 
 	/**
 	 * Allows to register on the event that quick open is hiding
 	 */
-	onHide: EventProvider<() => void>;
+	onHide: Event<void>;
 }

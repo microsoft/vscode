@@ -19,7 +19,6 @@ import {IHTMLContentElement} from 'vs/base/common/htmlContent';
 import Event, {Emitter} from 'vs/base/common/event';
 import URI from 'vs/base/common/uri';
 import Severity from 'vs/base/common/severity';
-import {EventProvider} from 'vs/base/common/eventProvider';
 import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
 import Errors = require('vs/base/common/errors');

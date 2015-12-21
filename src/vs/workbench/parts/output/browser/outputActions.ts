@@ -9,6 +9,7 @@ import nls = require('vs/nls');
 import {Registry} from 'vs/platform/platform';
 import errors = require('vs/base/common/errors');
 import arrays = require('vs/base/common/arrays');
+import {disposeAll, IDisposable} from 'vs/base/common/lifecycle';
 import {IAction, Action} from 'vs/base/common/actions';
 import {EditorAction, Behaviour} from 'vs/editor/common/editorAction';
 import {ICommonCodeEditor, IEditorActionDescriptorData} from 'vs/editor/common/editorCommon';
@@ -182,6 +183,7 @@ export class SwitchOutputAction extends EditorInputAction {
 
 export class SwitchOutputActionItem extends SelectActionItem {
 	private input: OutputEditorInput;
+	private outputListenerDispose: IDisposable;
 
 	constructor(
 		action: IAction,
@@ -192,7 +194,7 @@ export class SwitchOutputActionItem extends SelectActionItem {
 
 		this.input = input;
 
-		this.outputService.onOutputChannel.add(this.onOutputChannel, this);
+		this.outputListenerDispose = this.outputService.onOutputChannel(this.onOutputChannel, this);
 	}
 
 	private onOutputChannel(): void {
@@ -213,7 +215,11 @@ export class SwitchOutputActionItem extends SelectActionItem {
 	public dispose(): void {
 		super.dispose();
 
-		this.outputService.onOutputChannel.remove(this.onOutputChannel, this);
+		if (this.outputListenerDispose) {
+			this.outputListenerDispose.dispose();
+			delete this.outputListenerDispose;
+		}
+
 		delete this.input;
 	}
 }

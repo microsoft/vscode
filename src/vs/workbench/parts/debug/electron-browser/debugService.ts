@@ -125,10 +125,10 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 			}));
 		}
 
-		lifecycleService.onShutdown.add(this.store, this);
-		lifecycleService.onShutdown.add(this.dispose, this);
+		lifecycleService.onShutdown(this.store, this);
+		lifecycleService.onShutdown(this.dispose, this);
 
-		this.windowService.onBroadcast.add(this.onBroadcast, this);
+		this.windowService.onBroadcast(this.onBroadcast, this);
 	}
 
 	private onBroadcast(broadcast: IBroadcast): void {

@@ -78,8 +78,8 @@ export class FileTracker implements IWorkbenchContribution {
 		this.toUnbind.push(this.eventService.addListener(FileEventType.FILE_REVERTED, (e: LocalFileChangeEvent) => this.onTextFileReverted(e)));
 
 		// Working Files Model Change
-		this.textFileService.getWorkingFilesModel().onModelChange.add(this.onWorkingFilesModelChange, this);
-		this.toUnbind.push(() => this.textFileService.getWorkingFilesModel().onModelChange.remove(this.onWorkingFilesModelChange, this));
+		const disposable = this.textFileService.getWorkingFilesModel().onModelChange(this.onWorkingFilesModelChange, this);
+		this.toUnbind.push(() => disposable.dispose());
 
 		// Support openFiles event for existing and new files
 		ipc.on('vscode:openFiles', (request: IOpenFileRequest) => {
@@ -100,7 +100,7 @@ export class FileTracker implements IWorkbenchContribution {
 			}
 		});
 
-		this.lifecycleService.onShutdown.add(this.dispose, this);
+		this.lifecycleService.onShutdown(this.dispose, this);
 	}
 
 	private toInputs(paths: IPath[], isNew: boolean): IResourceInput[] {

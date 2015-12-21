@@ -29,6 +29,7 @@ export class WorkbenchMessageService implements IMessageService {
 	public serviceId = IMessageService;
 
 	private handler: MessageList;
+	private disposeables: IDisposable[];
 	private statusMsgDispose: IDisposable;
 
 	private canShowMessages: boolean;
@@ -48,6 +49,7 @@ export class WorkbenchMessageService implements IMessageService {
 
 		this.messageBuffer = [];
 		this.canShowMessages = true;
+		this.disposeables = [];
 
 		this.registerListeners();
 	}
@@ -56,13 +58,13 @@ export class WorkbenchMessageService implements IMessageService {
 		this.statusbarService = statusbarService;
 		this.quickOpenService = quickOpenService;
 
-		this.quickOpenService.onShow.add(this.onQuickOpenShowing, this);
-		this.quickOpenService.onHide.add(this.onQuickOpenHiding, this);
+		this.disposeables.push(this.quickOpenService.onShow(this.onQuickOpenShowing, this));
+		this.disposeables.push(this.quickOpenService.onHide(this.onQuickOpenHiding, this));
 	}
 
 	private registerListeners(): void {
-		this.handler.onMessagesShowing.add(this.onMessagesShowing, this);
-		this.handler.onMessagesCleared.add(this.onMessagesCleared, this);
+		this.disposeables.push(this.handler.onMessagesShowing(this.onMessagesShowing, this));
+		this.disposeables.push(this.handler.onMessagesCleared(this.onMessagesCleared, this));
 	}
 
 	private onMessagesShowing(): void {
@@ -205,12 +207,8 @@ export class WorkbenchMessageService implements IMessageService {
 	}
 
 	public dispose(): void {
-		this.handler.onMessagesShowing.remove(this.onMessagesShowing, this);
-		this.handler.onMessagesCleared.remove(this.onMessagesCleared, this);
-
-		if (this.quickOpenService) {
-			this.quickOpenService.onShow.remove(this.onQuickOpenShowing, this);
-			this.quickOpenService.onHide.remove(this.onQuickOpenHiding, this);
+		while (this.disposeables.length) {
+			this.disposeables.pop().dispose();
 		}
 	}
 }

@@ -14,6 +14,7 @@ import workbenchEditorCommon = require('vs/workbench/common/editor');
 import {CollapsibleState} from 'vs/base/browser/ui/splitview/splitview';
 import {IWorkingFileEntry, IWorkingFilesModel, IWorkingFileModelChangeEvent, LocalFileChangeEvent, EventType as FileEventType, IFilesConfiguration, ITextFileService} from 'vs/workbench/parts/files/common/files';
 import dom = require('vs/base/browser/dom');
+import {disposeAll, IDisposable} from 'vs/base/common/lifecycle';
 import errors = require('vs/base/common/errors');
 import {EditorEvent, EventType as WorkbenchEventType, UntitledEditorEvent} from 'vs/workbench/browser/events';
 import {AdaptiveCollapsibleViewletView} from 'vs/workbench/browser/viewlet';
@@ -46,6 +47,8 @@ export class WorkingFilesView extends AdaptiveCollapsibleViewletView {
 	private dirtyCountElement: HTMLElement;
 	private lastDirtyCount: number;
 
+	private disposeables: IDisposable[];
+
 	constructor(actionRunner: IActionRunner, settings: any,
 		@IEventService private eventService: IEventService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
@@ -63,6 +66,7 @@ export class WorkingFilesView extends AdaptiveCollapsibleViewletView {
 		this.settings = settings;
 		this.model = this.textFileService.getWorkingFilesModel();
 		this.lastDirtyCount = 0;
+		this.disposeables = [];
 	}
 
 	public renderHeader(container: HTMLElement): void {
@@ -129,8 +133,8 @@ export class WorkingFilesView extends AdaptiveCollapsibleViewletView {
 	private registerListeners(): void {
 
 		// update on model changes
-		this.model.onModelChange.add(this.onWorkingFilesModelChange, this);
-		this.model.onWorkingFileChange.add(this.onWorkingFileChange, this);
+		this.disposeables.push(this.model.onModelChange(this.onWorkingFilesModelChange, this));
+		this.disposeables.push(this.model.onWorkingFileChange(this.onWorkingFileChange, this));
 
 		// listen to untitled
 		this.toDispose.push(this.eventService.addListener2(WorkbenchEventType.UNTITLED_FILE_DIRTY, (e: UntitledEditorEvent) => this.onUntitledFileDirty()));
@@ -313,7 +317,8 @@ export class WorkingFilesView extends AdaptiveCollapsibleViewletView {
 	public dispose(): void {
 		super.dispose();
 
-		this.model.onModelChange.remove(this.onWorkingFilesModelChange, this);
-		this.model.onWorkingFileChange.remove(this.onWorkingFileChange, this);
+		while (this.disposeables.length) {
+			this.disposeables.pop().dispose();
+		}
 	}
 }

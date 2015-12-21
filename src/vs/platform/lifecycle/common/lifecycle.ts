@@ -5,7 +5,7 @@
 'use strict';
 
 import winjs = require('vs/base/common/winjs.base');
-import {EventProvider} from 'vs/base/common/eventProvider';
+import Event, {Emitter} from 'vs/base/common/event';
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
 
 export var ILifecycleService = createDecorator<ILifecycleService>('lifecycleService');
@@ -20,7 +20,7 @@ export interface IBeforeShutdownParticipant {
 	 * Note: It is absolutely important to avoid long running promises on this call. Please try hard to return
 	 * a boolean directly. Returning a promise has quite an impact on the shutdown sequence!
 	 */
-	beforeShutdown(): boolean|winjs.TPromise<boolean>;
+	beforeShutdown(): boolean | winjs.TPromise<boolean>;
 }
 
 /**
@@ -40,5 +40,5 @@ export interface ILifecycleService {
 	 * Fired when no client is preventing the shutdown from happening. Can be used to dispose heavy resources
 	 * like running processes. Can also be used to save UI state to storage.
 	 */
-	onShutdown: EventProvider<() => void>;
+	onShutdown: Event<void>;
 }

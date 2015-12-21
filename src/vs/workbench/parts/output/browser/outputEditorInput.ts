@@ -6,7 +6,6 @@
 
 import {TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
-import {EventProvider} from 'vs/base/common/eventProvider';
 import {EditorModel} from 'vs/workbench/common/editor';
 import {LogEditorInput} from 'vs/workbench/browser/parts/editor/logEditorInput';
 import {OUTPUT_EDITOR_INPUT_ID, IOutputEvent, OUTPUT_MIME, IOutputService} from 'vs/workbench/parts/output/common/output';
@@ -50,7 +49,8 @@ export class OutputEditorInput extends LogEditorInput {
 		this.channel = channel;
 		this.toUnbind = [];
 
-		this.outputService.onOutput.add(this.onOutputReceived, this);
+		const listenerUnbind = this.outputService.onOutput(this.onOutputReceived, this);
+		this.toUnbind.push(() => listenerUnbind.dispose());
 	}
 
 	private onOutputReceived(e: IOutputEvent): void {
@@ -108,8 +108,6 @@ export class OutputEditorInput extends LogEditorInput {
 		while (this.toUnbind.length) {
 			this.toUnbind.pop()();
 		}
-
-		this.outputService.onOutput.remove(this.onOutputReceived, this);
 
 		super.dispose();
 	}

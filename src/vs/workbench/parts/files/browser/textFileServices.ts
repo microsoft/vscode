@@ -45,7 +45,7 @@ export abstract class TextFileService implements ITextFileService {
 		this.listenerToUnbind = this.eventService.addListener(EventType.WORKBENCH_OPTIONS_CHANGED, () => this.onOptionsChanged());
 		if (this.lifecycleService) {
 			this.lifecycleService.addBeforeShutdownParticipant(this);
-			this.lifecycleService.onShutdown.add(this.dispose, this);
+			this.lifecycleService.onShutdown(this.dispose, this);
 		}
 	}
 

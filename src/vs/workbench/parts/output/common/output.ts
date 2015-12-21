@@ -6,7 +6,7 @@
 
 import {TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
-import {EventProvider} from 'vs/base/common/eventProvider';
+import Event, {Emitter} from 'vs/base/common/event';
 import {Registry} from 'vs/platform/platform';
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
 import {IEditor, Position} from 'vs/platform/editor/common/editor';
@@ -90,12 +90,12 @@ export interface IOutputService {
 	/**
 	 * Allows to register on Output events
 	 */
-	onOutput: EventProvider<(event: IOutputEvent) => void>;
+	onOutput: Event<IOutputEvent>;
 
 	/**
 	 * Allows to register on a new Output channel getting filled with output
 	 */
-	onOutputChannel: EventProvider<(channel: string) => void>;
+	onOutputChannel: Event<string>;
 }
 
 export interface IOutputChannelRegistry {

@@ -433,7 +433,7 @@ export class GitService extends ee.EventEmitter
 		this.toDispose.push(this.eventService.addListener2(FileEventType.FILE_CHANGES,(e) => this.onFileChanges(e)));
 		this.toDispose.push(this.eventService.addListener2(filesCommon.EventType.FILE_SAVED, (e) => this.onLocalFileChange(e)));
 		this.toDispose.push(this.eventService.addListener2(filesCommon.EventType.FILE_REVERTED, (e) => this.onLocalFileChange(e)));
-		this.lifecycleService.onShutdown.add(this.dispose, this);
+		this.lifecycleService.onShutdown(this.dispose, this);
 	}
 
 	private triggerStatus(force: boolean = false): void {

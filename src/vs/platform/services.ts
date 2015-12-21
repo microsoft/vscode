@@ -24,7 +24,6 @@ import types = require('vs/base/common/types');
 
 import http = require('vs/base/common/http');
 import events = require('vs/base/common/events');
-import {EventProvider} from 'vs/base/common/eventProvider';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IContextViewService, IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IEditorService} from 'vs/platform/editor/common/editor';

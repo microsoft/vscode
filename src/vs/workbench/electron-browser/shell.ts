@@ -296,10 +296,10 @@ export class WorkbenchShell {
 		this.contextViewService = new ContextViewService(this.container, this.telemetryService, this.messageService);
 
 		let lifecycleService = new LifecycleService(this.messageService, this.windowService);
-		lifecycleService.onShutdown.add(() => fileService.dispose());
+		lifecycleService.onShutdown(() => fileService.dispose());
 
 		this.threadService = new MainThreadService(this.contextService, this.messageService, this.windowService);
-		lifecycleService.onShutdown.add(() => this.threadService.dispose());
+		lifecycleService.onShutdown(() => this.threadService.dispose());
 
 		let requestService = new RequestService(
 			this.contextService,
@@ -307,7 +307,7 @@ export class WorkbenchShell {
 			this.telemetryService
 		);
 		this.threadService.registerInstance(requestService);
-		lifecycleService.onShutdown.add(() => requestService.dispose());
+		lifecycleService.onShutdown(() => requestService.dispose());
 
 		let markerService = new MarkerService(this.threadService);
 

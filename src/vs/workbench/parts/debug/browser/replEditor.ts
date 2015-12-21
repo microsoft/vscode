@@ -75,7 +75,7 @@ export class Repl extends baseeditor.BaseEditor {
 		this.toDispose.push(this.debugService.getModel().addListener2(debug.ModelEvents.REPL_ELEMENTS_UPDATED, (re: debug.ITreeElement|debug.ITreeElement[]) => {
 			this.onReplElementsUpdated(re);
 		}));
-		lifecycleService.onShutdown.add(this.onShutdown, this);
+		lifecycleService.onShutdown(this.onShutdown, this);
 	}
 
 	private onReplElementsUpdated(re: debug.ITreeElement | debug.ITreeElement[]): void {

@@ -9,7 +9,6 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import collections = require('vs/base/common/collections');
 import {Registry} from 'vs/platform/platform';
 import {IAction} from 'vs/base/common/actions';
-import {EventProvider} from 'vs/base/common/eventProvider';
 import {KeybindingsRegistry,ICommandDescriptor} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {KeybindingsUtils} from 'vs/platform/keybinding/common/keybindingsUtils';
 import {IPartService} from 'vs/workbench/services/part/common/partService';

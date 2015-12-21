@@ -150,7 +150,7 @@ export class WindowsManager {
 			}, 100);
 		});
 
-		settings.manager.onChange.add((newSettings) => {
+		settings.manager.onChange((newSettings) => {
 			this.sendToAll('vscode:optionsChange', JSON.stringify({ globalSettings: newSettings }));
 		}, this);
 
