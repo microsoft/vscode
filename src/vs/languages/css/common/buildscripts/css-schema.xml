@@ -889,32 +889,12 @@
         </value>
       </values>
     </entry>
-    <entry name="background-position" restriction="length, percentage" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#the-background-position" syntax="div { $(name): left center}">
+    <entry name="background-position" restriction="position, length, percentage" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#the-background-position" syntax="div { $(name): left center}">
       <desc>If background images have been specified, this property specifies their initial position (after any resizing) within their corresponding background positioning area.</desc>
-      <values>
-        <value name="bottom" version="1.0" browsers="all">
-          <desc>Equivalent to '100%' for the vertical position if one or two values are given, otherwise specifies the bottom edge as the origin for the next offset.</desc>
-        </value>
-        <value name="center" version="1.0" browsers="all">
-          <desc>Equivalent to '50%' ('left 50%') for the horizontal position if the horizontal position is not otherwise specified, or '50%' ('top 50%') for the vertical position if it is.</desc>
-        </value>
-        <value name="left" version="1.0" browsers="all">
-          <desc>Equivalent to '0%' for the horizontal position if one or two values are given, otherwise specifies the left edge as the origin for the next offset.</desc>
-        </value>
-        <value name="right" version="1.0" browsers="all">
-          <desc>Equivalent to '100%' for the horizontal position if one or two values are given, otherwise specifies the right edge as the origin for the next offset.</desc>
-        </value>
-        <value name="top" version="1.0" browsers="all">
-          <desc>Equivalent to '0%' for the vertical position if one or two values are given, otherwise specifies the top edge as the origin for the next offset.</desc>
-        </value>
-      </values>
     </entry>
     <entry name="background-position-x" restriction="length, percentage" version="4.0" browsers="E,IE6" ref="https://drafts.csswg.org/css-backgrounds-4/#propdef-background-position-x" syntax="body { $(name): center; }">
       <desc>If background images have been specified, this property specifies their initial position (after any resizing) within their corresponding background positioning area.</desc>
       <values>
-        <value name="bottom" version="4.0" browsers="all">
-          <desc>Equivalent to '100%' for the vertical position if one or two values are given, otherwise specifies the bottom edge as the origin for the next offset.</desc>
-        </value>
         <value name="center" version="4.0" browsers="all">
           <desc>Equivalent to '50%' ('left 50%') for the horizontal position if the horizontal position is not otherwise specified, or '50%' ('top 50%') for the vertical position if it is.</desc>
         </value>
@@ -923,9 +903,6 @@
         </value>
         <value name="right" version="4.0" browsers="all">
           <desc>Equivalent to '100%' for the horizontal position if one or two values are given, otherwise specifies the right edge as the origin for the next offset.</desc>
-        </value>
-        <value name="top" version="4.0" browsers="all">
-          <desc>Equivalent to '0%' for the vertical position if one or two values are given, otherwise specifies the top edge as the origin for the next offset.</desc>
         </value>
         <value name="x-end" version="4.0" browsers="none" />
         <value name="x-start" version="4.0" browsers="none" />
@@ -939,12 +916,6 @@
         </value>
         <value name="center" version="4.0" browsers="all">
           <desc>Equivalent to '50%' ('left 50%') for the horizontal position if the horizontal position is not otherwise specified, or '50%' ('top 50%') for the vertical position if it is.</desc>
-        </value>
-        <value name="left" version="4.0" browsers="all">
-          <desc>Equivalent to '0%' for the horizontal position if one or two values are given, otherwise specifies the left edge as the origin for the next offset.</desc>
-        </value>
-        <value name="right" version="4.0" browsers="all">
-          <desc>Equivalent to '100%' for the horizontal position if one or two values are given, otherwise specifies the right edge as the origin for the next offset.</desc>
         </value>
         <value name="top" version="4.0" browsers="all">
           <desc>Equivalent to '0%' for the vertical position if one or two values are given, otherwise specifies the top edge as the origin for the next offset.</desc>
@@ -4145,15 +4116,8 @@
         </value>
       </values>
     </entry>
-    <entry name="-moz-perspective-origin" restriction="percentage, length" version="3.0" browsers="FF10" ref="http://www.w3.org/TR/css3-3d-transforms/#perspective-origin" syntax="div { $(name): 10px; }">
+    <entry name="-moz-perspective-origin" restriction="position, percentage, length" version="3.0" browsers="FF10" ref="http://www.w3.org/TR/css3-3d-transforms/#perspective-origin" syntax="div { $(name): 10px; }">
       <desc>Establishes the origin for the perspective property. It effectively sets the X and Y position at which the viewer appears to be looking at the children of the element.</desc>
-      <values>
-        <value name="bottom" version="3.0" browsers="all" />
-        <value name="center" version="3.0" browsers="all" />
-        <value name="left" version="3.0" browsers="all" />
-        <value name="right" version="3.0" browsers="all" />
-        <value name="top" version="3.0" browsers="all" />
-      </values>
     </entry>
     <entry name="-moz-text-align-last" restriction="enum" version="3.0" browsers="FF12" ref="http://www.w3.org/TR/css3-text/#text-align-last0" syntax="div { $(name): right; }">
       <desc>Describes how the last line of a block or a line right before a forced line break is aligned when 'text-align' is set to 'justify'.</desc>
@@ -4296,15 +4260,8 @@
         </value>
       </values>
     </entry>
-    <entry name="-moz-transform-origin" restriction="length, percentage" version="3.0" browsers="FF3.5" ref="http://www.w3.org/TR/css3-2d-transforms/#transform-origin" syntax=".album { $(name): 20% 40%; }">
+    <entry name="-moz-transform-origin" restriction="position, length, percentage" version="3.0" browsers="FF3.5" ref="http://www.w3.org/TR/css3-2d-transforms/#transform-origin" syntax=".album { $(name): 20% 40%; }">
       <desc>Establishes the origin of transformation for an element. This property is applied by first translating the element by the negated value of the property, then applying the element's transform, then translating by the property value.</desc>
-      <values>
-        <value name="bottom" version="3.0" browsers="all" />
-        <value name="center" version="3.0" browsers="all" />
-        <value name="left" version="3.0" browsers="all" />
-        <value name="right" version="3.0" browsers="all" />
-        <value name="top" version="3.0" browsers="all" />
-      </values>
     </entry>
     <entry name="-moz-transition" restriction="time, property, enum" version="3.0" browsers="FF4" ref="http://www.w3.org/TR/css3-transitions/#transition" syntax="div { $(name): background-color linear 1s; }">
       <desc>Shorthand property combines four of the transition properties into a single property.</desc>
@@ -4879,35 +4836,14 @@
         </value>
       </values>
     </entry>
-    <entry name="-ms-perspective-origin" restriction="percentage, length" version="3.0" browsers="IE10" ref="http://www.w3.org/TR/css3-3d-transforms/#perspective-origin" syntax="div { $(name): 10px; }">
+    <entry name="-ms-perspective-origin" restriction="position, percentage, length" version="3.0" browsers="IE10" ref="http://www.w3.org/TR/css3-3d-transforms/#perspective-origin" syntax="div { $(name): 10px; }">
       <desc>Establishes the origin for the perspective property. It effectively sets the X and Y position at which the viewer appears to be looking at the children of the element.</desc>
-      <values>
-        <value name="bottom" version="3.0" browsers="all" />
-        <value name="center" version="3.0" browsers="all" />
-        <value name="left" version="3.0" browsers="all" />
-        <value name="right" version="3.0" browsers="all" />
-        <value name="top" version="3.0" browsers="all" />
-      </values>
     </entry>
-    <entry name="-ms-perspective-origin-x" restriction="percentage, length" version="3.0" browsers="IE10" ref="http://www.w3.org/TR/css3-3d-transforms/#perspective-origin">
+    <entry name="-ms-perspective-origin-x" restriction="position, percentage, length" version="3.0" browsers="IE10" ref="http://www.w3.org/TR/css3-3d-transforms/#perspective-origin">
       <desc>Establishes the origin for the perspective property. It effectively sets the X  position at which the viewer appears to be looking at the children of the element.</desc>
-      <values>
-        <value name="bottom" version="3.0" browsers="all" />
-        <value name="center" version="3.0" browsers="all" />
-        <value name="left" version="3.0" browsers="all" />
-        <value name="right" version="3.0" browsers="all" />
-        <value name="top" version="3.0" browsers="all" />
-      </values>
     </entry>
-    <entry name="-ms-perspective-origin-y" restriction="percentage, length" version="3.0" browsers="IE10" ref="http://www.w3.org/TR/css3-3d-transforms/#perspective-origin">
+    <entry name="-ms-perspective-origin-y" restriction="position, percentage, length" version="3.0" browsers="IE10" ref="http://www.w3.org/TR/css3-3d-transforms/#perspective-origin">
       <desc>Establishes the origin for the perspective property. It effectively sets the Y position at which the viewer appears to be looking at the children of the element.</desc>
-      <values>
-        <value name="bottom" version="3.0" browsers="all" />
-        <value name="center" version="3.0" browsers="all" />
-        <value name="left" version="3.0" browsers="all" />
-        <value name="right" version="3.0" browsers="all" />
-        <value name="top" version="3.0" browsers="all" />
-      </values>
     </entry>
     <entry name="-ms-progress-appearance" restriction="enum" version="3.0" browsers="IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/Hh779845.aspx" syntax="progress { $(name): bar; }">
       <desc>Gets or sets a value that specifies whether a progress control displays as a bar or a ring.</desc>
@@ -5258,15 +5194,8 @@
         </value>
       </values>
     </entry>
-    <entry name="-ms-transform-origin" restriction="length, percentage" version="3.0" browsers="IE9-9" ref="http://www.w3.org/TR/css3-2d-transforms/#transform-origin" syntax=".album { $(name): 20% 40%; }">
+    <entry name="-ms-transform-origin" restriction="position, length, percentage" version="3.0" browsers="IE9-9" ref="http://www.w3.org/TR/css3-2d-transforms/#transform-origin" syntax=".album { $(name): 20% 40%; }">
       <desc>Establishes the origin of transformation for an element. This property is applied by first translating the element by the negated value of the property, then applying the element's transform, then translating by the property value.</desc>
-      <values>
-        <value name="bottom" version="3.0" browsers="all" />
-        <value name="center" version="3.0" browsers="all" />
-        <value name="left" version="3.0" browsers="all" />
-        <value name="right" version="3.0" browsers="all" />
-        <value name="top" version="3.0" browsers="all" />
-      </values>
     </entry>
     <entry name="-ms-transform-origin-x" restriction="length, percentage" version="3.0" browsers="IE10" ref="http://www.w3.org/TR/css3-3d-transforms/#transform-origin">
       <desc>The x coordinate of the origin for transforms applied to an element with respect to its border box.</desc>
@@ -5595,15 +5524,8 @@
         <value name="scale-down" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="object-position" restriction="enum, length, percentage" version="3.0" browsers="C32,FF36,O19" ref="http://www.w3.org/TR/css4-images/#object-position" syntax="img { $(name): left top; }">
+    <entry name="object-position" restriction="position, length, percentage" version="3.0" browsers="C32,FF36,O19" ref="http://www.w3.org/TR/css4-images/#object-position" syntax="img { $(name): left top; }">
       <desc>Determines the alignment of the replaced element inside its box.</desc>
-      <values>
-        <value name="bottom" version="3.0" browsers="all" />
-        <value name="center" version="3.0" browsers="all" />
-        <value name="left" version="3.0" browsers="all" />
-        <value name="right" version="3.0" browsers="all" />
-        <value name="top" version="3.0" browsers="all" />
-      </values>
     </entry>
     <entry name="-o-border-image" restriction="length, percentage, number, url, enum" version="3.0" browsers="O11.6" ref="http://www.w3.org/TR/css3-background/#border-image" syntax="div { $(name): url(border.png) 0 5 0 5;}">
       <desc>Shorthand property for setting 'border-image-source', 'border-image-slice', 'border-image-width', 'border-image-outset' and 'border-image-repeat'. Omitted values are set to their initial values.</desc>
@@ -5640,15 +5562,8 @@
         <value name="scale-down" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="-o-object-position" restriction="enum, length, percentage" version="3.0" browsers="O10.6" ref="http://www.w3.org/TR/css4-images/#object-position" syntax="img { $(name): left top; }">
+    <entry name="-o-object-position" restriction="position, length, percentage" version="3.0" browsers="O10.6" ref="http://www.w3.org/TR/css4-images/#object-position" syntax="img { $(name): left top; }">
       <desc>Determines the alignment of the replaced element inside its box.</desc>
-      <values>
-        <value name="bottom" version="3.0" browsers="all" />
-        <value name="center" version="3.0" browsers="all" />
-        <value name="left" version="3.0" browsers="all" />
-        <value name="right" version="3.0" browsers="all" />
-        <value name="top" version="3.0" browsers="all" />
-      </values>
     </entry>
     <entry name="opacity" restriction="number(0-1)" version="3.0" browsers="C,FF3.6,IE9,O9,S1.2" ref="http://www.w3.org/TR/css3-color/#opacity" syntax="article { $(name): opacity: 0.4; }">
       <desc>Opacity of an element's text, where 1 is opaque and 0 is entirely transparent.</desc>
@@ -5742,15 +5657,8 @@
         </value>
       </values>
     </entry>
-    <entry name="-o-transform-origin" restriction="length, percentage" version="3.0" browsers="O10.5" ref="http://www.w3.org/TR/css3-2d-transforms/#transform-origin" syntax="div { $(name): 20% 40%; }">
+    <entry name="-o-transform-origin" restriction="positon, length, percentage" version="3.0" browsers="O10.5" ref="http://www.w3.org/TR/css3-2d-transforms/#transform-origin" syntax="div { $(name): 20% 40%; }">
       <desc>Establishes the origin of transformation for an element. This property is applied by first translating the element by the negated value of the property, then applying the element's transform, then translating by the property value.</desc>
-      <values>
-        <value name="bottom" version="3.0" browsers="all" />
-        <value name="center" version="3.0" browsers="all" />
-        <value name="left" version="3.0" browsers="all" />
-        <value name="right" version="3.0" browsers="all" />
-        <value name="top" version="3.0" browsers="all" />
-      </values>
     </entry>
     <entry name="-o-transition" restriction="time, property, enum" version="3.0" browsers="O11.5" ref="http://www.w3.org/TR/css3-transitions/#transition" syntax="div { $(name): background-color linear 1s; }">
       <desc>Shorthand property combines four of the transition properties into a single property.</desc>
@@ -6150,15 +6058,8 @@
         </value>
       </values>
     </entry>
-    <entry name="perspective-origin" restriction="percentage, length, enum" version="3.0" browsers="E,C36,FF16,IE10,O23,S9" ref="http://www.w3.org/TR/css3-3d-transforms/#perspective-origin" syntax="div { $(name): 10px; }">
+    <entry name="perspective-origin" restriction="position, percentage, length" version="3.0" browsers="E,C36,FF16,IE10,O23,S9" ref="http://www.w3.org/TR/css3-3d-transforms/#perspective-origin" syntax="div { $(name): 10px; }">
       <desc>Establishes the origin for the perspective property. It effectively sets the X and Y position at which the viewer appears to be looking at the children of the element.</desc>
-      <values>
-        <value name="bottom" version="3.0" browsers="all" />
-        <value name="center" version="3.0" browsers="all" />
-        <value name="left" version="3.0" browsers="all" />
-        <value name="right" version="3.0" browsers="all" />
-        <value name="top" version="3.0" browsers="all" />
-      </values>
     </entry>
     <entry name="pitch" restriction="frequency" version="2.0" browsers="none" ref="http://www.w3.org/TR/CSS2/aural.html#propdef-pitch" syntax="&lt;frequency&gt; | x-low | low | medium | high | x-high">
       <desc>Specifies the average pitch (a frequency) of the speaking voice. The average pitch of a voice depends on the voice family. For example, the average pitch for a standard male voice is around 120Hz, but for a female voice, it's around 210Hz.</desc>
@@ -6304,15 +6205,8 @@
     <entry name="rotation" restriction="angle" version="3.0" browsers="none" ref="http://www.w3.org/TR/css3-box/#rotation" syntax="img { $(name): 90deg; }">
       <desc>Rotates a block-level element counterclockwise around the point given by 'rotation-point'.</desc>
     </entry>
-    <entry name="rotation-point" restriction="percentage, length" version="3.0" browsers="none" ref="http://www.w3.org/TR/css3-box/#rotation-point" syntax="img { $(name): 10% 25%; }">
+    <entry name="rotation-point" restriction="position, percentage, length" version="3.0" browsers="none" ref="http://www.w3.org/TR/css3-box/#rotation-point" syntax="img { $(name): 10% 25%; }">
       <desc>Pair of values that defines a point as an offset from the top left border edge. Initial value is 50% 50%.</desc>
-      <values>
-        <value name="bottom" version="3.0" browsers="all" />
-        <value name="center" version="3.0" browsers="all" />
-        <value name="left" version="3.0" browsers="all" />
-        <value name="right" version="3.0" browsers="all" />
-        <value name="top" version="3.0" browsers="all" />
-      </values>
     </entry>
     <entry name="ruby-align" restriction="enum" version="3.0" browsers="FF10,IE5" ref="http://www.w3.org/TR/css3-ruby/#rubyalign" syntax="auto | start | left | center | end | right | distribute-letter | distribute-space | line-edge">
       <desc>Used on any element to control the text alignment of the ruby text and ruby base contents relative to each other.</desc>
@@ -6425,28 +6319,16 @@
         <value name="smooth" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="scroll-snap-coordinate" restriction="length, percentage, enum" version="3.0" browsers="FF39" ref="http://www.w3.org/TR/css-snappoints-1/#propdef-scroll-snap-coordinate">
+    <entry name="scroll-snap-coordinate" restriction="position, length, percentage, enum" version="3.0" browsers="FF39" ref="http://www.w3.org/TR/css-snappoints-1/#propdef-scroll-snap-coordinate">
       <desc>Defines the x and y coordinate within the element which will align with the nearest ancestor scroll container’s snap-destination for the respective axis.</desc>
       <values>
         <value name="none" version="3.0" browsers="all" />
-        <value name="top" version="3.0" browsers="all" />
-        <value name="right" version="3.0" browsers="all" />
-        <value name="bottom" version="3.0" browsers="all" />
-        <value name="left" version="3.0" browsers="all" />
-        <value name="center" version="3.0" browsers="all" />
         <value name="border-box" version="3.0" browsers="none" />
         <value name="margin-box" version="3.0" browsers="none" />
       </values>
     </entry>
-    <entry name="scroll-snap-destination" restriction="length, percentage, enum" version="3.0" browsers="FF39" ref="http://www.w3.org/TR/css-snappoints-1/#propdef-scroll-snap-destination">
+    <entry name="scroll-snap-destination" restriction="position, length, percentage" version="3.0" browsers="FF39" ref="http://www.w3.org/TR/css-snappoints-1/#propdef-scroll-snap-destination">
       <desc>Define the x and y coordinate within the scroll container’s visual viewport which element snap points will align with.</desc>
-      <values>
-        <value name="top" version="3.0" browsers="all" />
-        <value name="right" version="3.0" browsers="all" />
-        <value name="bottom" version="3.0" browsers="all" />
-        <value name="left" version="3.0" browsers="all" />
-        <value name="center" version="3.0" browsers="all" />
-      </values>
     </entry>
     <entry name="scroll-snap-points-x" restriction="enum" version="3.0" browsers="FF39" ref="http://www.w3.org/TR/css-snappoints-1/#propdef-scroll-snap-points-x">
       <desc>Defines the positioning of snap points along the x axis of the scroll container it is applied to.</desc>
@@ -7202,15 +7084,8 @@
         <value name="view-box" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="transform-origin" restriction="length, percentage, enum" version="3.0" browsers="E,C36,FF16,IE10,O12.1,S9" ref="http://www.w3.org/TR/css3-transforms/#propdef-transform-origin" syntax=".album { $(name): 20% 40%; }">
+    <entry name="transform-origin" restriction="position, length, percentage" version="3.0" browsers="E,C36,FF16,IE10,O12.1,S9" ref="http://www.w3.org/TR/css3-transforms/#propdef-transform-origin" syntax=".album { $(name): 20% 40%; }">
       <desc>Establishes the origin of transformation for an element. This property is applied by first translating the element by the negated value of the property, then applying the element's transform, then translating by the property value.</desc>
-      <values>
-        <value name="bottom" version="3.0" browsers="all" />
-        <value name="center" version="3.0" browsers="all" />
-        <value name="left" version="3.0" browsers="all" />
-        <value name="right" version="3.0" browsers="all" />
-        <value name="top" version="3.0" browsers="all" />
-      </values>
     </entry>
     <entry name="transform-style" restriction="enum" version="3.0" browsers="E,C36,FF16,IE10,O23,S9" ref="http://www.w3.org/TR/css3-transforms/#propdef-transform-style" syntax="div { $(name): flat; }">
       <desc>Defines how nested elements are rendered in 3D space.</desc>
@@ -8329,15 +8204,8 @@
         </value>
       </values>
     </entry>
-    <entry name="-webkit-perspective-origin" restriction="percentage, length" version="3.0" browsers="C,S4" ref="http://www.w3.org/TR/css3-3d-transforms/#perspective-origin" syntax="div { $(name): 10px; }">
+    <entry name="-webkit-perspective-origin" restriction="position, percentage, length" version="3.0" browsers="C,S4" ref="http://www.w3.org/TR/css3-3d-transforms/#perspective-origin" syntax="div { $(name): 10px; }">
       <desc>Establishes the origin for the perspective property. It effectively sets the X and Y position at which the viewer appears to be looking at the children of the element.</desc>
-      <values>
-        <value name="bottom" version="3.0" browsers="all" />
-        <value name="center" version="3.0" browsers="all" />
-        <value name="left" version="3.0" browsers="all" />
-        <value name="right" version="3.0" browsers="all" />
-        <value name="top" version="3.0" browsers="all" />
-      </values>
     </entry>
     <entry name="-webkit-region-fragment" restriction="enum" version="3.0" browsers="S7" ref="http://dev.w3.org/csswg/css-regions/#region-fragment" syntax="article { $(name): break; }">
       <desc>The 'region-fragment' property controls the behavior of the last region associated with a named flow.</desc>
@@ -8453,15 +8321,8 @@
         </value>
       </values>
     </entry>
-    <entry name="-webkit-transform-origin" restriction="length, percentage" version="3.0" browsers="C,O15,S3.1" ref="http://www.w3.org/TR/css3-2d-transforms/#transform-origin" syntax=".album { $(name): 20% 40%; }">
+    <entry name="-webkit-transform-origin" restriction="position, length, percentage" version="3.0" browsers="C,O15,S3.1" ref="http://www.w3.org/TR/css3-2d-transforms/#transform-origin" syntax=".album { $(name): 20% 40%; }">
       <desc>Establishes the origin of transformation for an element. This property is applied by first translating the element by the negated value of the property, then applying the element's transform, then translating by the property value.</desc>
-      <values>
-        <value name="bottom" version="3.0" browsers="all" />
-        <value name="center" version="3.0" browsers="all" />
-        <value name="left" version="3.0" browsers="all" />
-        <value name="right" version="3.0" browsers="all" />
-        <value name="top" version="3.0" browsers="all" />
-      </values>
     </entry>
     <entry name="-webkit-transform-origin-x" restriction="length, percentage" version="3.0" browsers="C,S3.1" ref="http://www.w3.org/TR/css3-3d-transforms/#transform-origin" syntax="img { $(name): 5px}">
       <desc>The x coordinate of the origin for transforms applied to an element with respect to its border box.</desc>

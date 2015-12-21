@@ -133,6 +133,7 @@ export class CSSIntellisense {
 
 		if (entry) {
 			this.getColorProposals(entry, result);
+			this.getPositionProposals(entry, result);
 			this.getValueEnumProposals(entry, result);
 			this.getCSSWideKeywordProposals(entry, result);
 			this.getUnitProposals(entry, result);
@@ -259,6 +260,20 @@ export class CSSIntellisense {
 					type: 'function'
 				});
 			});
+		};
+		return result;
+	}
+
+	protected getPositionProposals(entry:languageFacts.IEntry, result:Modes.ISuggestion[]):Modes.ISuggestion[] {
+		if (entry.restrictions.indexOf('position') !== -1) {
+			for (var position in languageFacts.positionKeywords) {
+				result.push({
+					label: position,
+					documentationLabel: languageFacts.positionKeywords[position],
+					codeSnippet: position,
+					type: 'value'
+				});
+			}
 		};
 		return result;
 	}

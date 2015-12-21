@@ -192,6 +192,14 @@ export var colorKeywords : { [name:string]:string } = {
 	'WindowText': 'Text in windows.'
 };
 
+export var positionKeywords : { [name:string]:string } = {
+	'bottom': 'Computes to ‘100%’ for the vertical position if one or two values are given, otherwise specifies the bottom edge as the origin for the next offset.',
+	'center': 'Computes to ‘50%’ (‘left 50%’) for the horizontal position if the horizontal position is not otherwise specified, or ‘50%’ (‘top 50%’) for the vertical position if it is.',
+	'left': 'Computes to ‘0%’ for the horizontal position if one or two values are given, otherwise specifies the left edge as the origin for the next offset.',
+	'right': 'Computes to ‘100%’ for the horizontal position if one or two values are given, otherwise specifies the right edge as the origin for the next offset.',
+	'top': 'Computes to ‘0%’ for the vertical position if one or two values are given, otherwise specifies the top edge as the origin for the next offset.'
+};
+
 export var cssWideKeywords = ['initial', 'inherit', 'unset'];
 
 export var units : { [unitName:string]:string[] } = {

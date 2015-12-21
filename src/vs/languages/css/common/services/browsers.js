@@ -1376,29 +1376,7 @@ exports.data ={
 			{
 				"name": "background-position",
 				"desc": "If background images have been specified, this property specifies their initial position (after any resizing) within their corresponding background positioning area.",
-				"restriction": "length, percentage",
-				"values": [
-					{
-						"name": "bottom",
-						"desc": "Equivalent to '100%' for the vertical position if one or two values are given, otherwise specifies the bottom edge as the origin for the next offset."
-					},
-					{
-						"name": "center",
-						"desc": "Equivalent to '50%' ('left 50%') for the horizontal position if the horizontal position is not otherwise specified, or '50%' ('top 50%') for the vertical position if it is."
-					},
-					{
-						"name": "left",
-						"desc": "Equivalent to '0%' for the horizontal position if one or two values are given, otherwise specifies the left edge as the origin for the next offset."
-					},
-					{
-						"name": "right",
-						"desc": "Equivalent to '100%' for the horizontal position if one or two values are given, otherwise specifies the right edge as the origin for the next offset."
-					},
-					{
-						"name": "top",
-						"desc": "Equivalent to '0%' for the vertical position if one or two values are given, otherwise specifies the top edge as the origin for the next offset."
-					}
-				]
+				"restriction": "position, length, percentage"
 			},
 			{
 				"name": "background-position-x",
@@ -1407,10 +1385,6 @@ exports.data ={
 				"restriction": "length, percentage",
 				"values": [
 					{
-						"name": "bottom",
-						"desc": "Equivalent to '100%' for the vertical position if one or two values are given, otherwise specifies the bottom edge as the origin for the next offset."
-					},
-					{
 						"name": "center",
 						"desc": "Equivalent to '50%' ('left 50%') for the horizontal position if the horizontal position is not otherwise specified, or '50%' ('top 50%') for the vertical position if it is."
 					},
@@ -1421,10 +1395,6 @@ exports.data ={
 					{
 						"name": "right",
 						"desc": "Equivalent to '100%' for the horizontal position if one or two values are given, otherwise specifies the right edge as the origin for the next offset."
-					},
-					{
-						"name": "top",
-						"desc": "Equivalent to '0%' for the vertical position if one or two values are given, otherwise specifies the top edge as the origin for the next offset."
 					}
 				]
 			},
@@ -1441,14 +1411,6 @@ exports.data ={
 					{
 						"name": "center",
 						"desc": "Equivalent to '50%' ('left 50%') for the horizontal position if the horizontal position is not otherwise specified, or '50%' ('top 50%') for the vertical position if it is."
-					},
-					{
-						"name": "left",
-						"desc": "Equivalent to '0%' for the horizontal position if one or two values are given, otherwise specifies the left edge as the origin for the next offset."
-					},
-					{
-						"name": "right",
-						"desc": "Equivalent to '100%' for the horizontal position if one or two values are given, otherwise specifies the right edge as the origin for the next offset."
 					},
 					{
 						"name": "top",
@@ -5338,24 +5300,7 @@ exports.data ={
 				"name": "-moz-perspective-origin",
 				"desc": "Establishes the origin for the perspective property. It effectively sets the X and Y position at which the viewer appears to be looking at the children of the element.",
 				"browsers": "FF10",
-				"restriction": "percentage, length",
-				"values": [
-					{
-						"name": "bottom"
-					},
-					{
-						"name": "center"
-					},
-					{
-						"name": "left"
-					},
-					{
-						"name": "right"
-					},
-					{
-						"name": "top"
-					}
-				]
+				"restriction": "position, percentage, length"
 			},
 			{
 				"name": "-moz-text-align-last",
@@ -5534,24 +5479,7 @@ exports.data ={
 				"name": "-moz-transform-origin",
 				"desc": "Establishes the origin of transformation for an element. This property is applied by first translating the element by the negated value of the property, then applying the element's transform, then translating by the property value.",
 				"browsers": "FF3.5",
-				"restriction": "length, percentage",
-				"values": [
-					{
-						"name": "bottom"
-					},
-					{
-						"name": "center"
-					},
-					{
-						"name": "left"
-					},
-					{
-						"name": "right"
-					},
-					{
-						"name": "top"
-					}
-				]
+				"restriction": "position, length, percentage"
 			},
 			{
 				"name": "-moz-transition",
@@ -6429,70 +6357,19 @@ exports.data ={
 				"name": "-ms-perspective-origin",
 				"desc": "Establishes the origin for the perspective property. It effectively sets the X and Y position at which the viewer appears to be looking at the children of the element.",
 				"browsers": "IE10",
-				"restriction": "percentage, length",
-				"values": [
-					{
-						"name": "bottom"
-					},
-					{
-						"name": "center"
-					},
-					{
-						"name": "left"
-					},
-					{
-						"name": "right"
-					},
-					{
-						"name": "top"
-					}
-				]
+				"restriction": "position, percentage, length"
 			},
 			{
 				"name": "-ms-perspective-origin-x",
 				"desc": "Establishes the origin for the perspective property. It effectively sets the X  position at which the viewer appears to be looking at the children of the element.",
 				"browsers": "IE10",
-				"restriction": "percentage, length",
-				"values": [
-					{
-						"name": "bottom"
-					},
-					{
-						"name": "center"
-					},
-					{
-						"name": "left"
-					},
-					{
-						"name": "right"
-					},
-					{
-						"name": "top"
-					}
-				]
+				"restriction": "position, percentage, length"
 			},
 			{
 				"name": "-ms-perspective-origin-y",
 				"desc": "Establishes the origin for the perspective property. It effectively sets the Y position at which the viewer appears to be looking at the children of the element.",
 				"browsers": "IE10",
-				"restriction": "percentage, length",
-				"values": [
-					{
-						"name": "bottom"
-					},
-					{
-						"name": "center"
-					},
-					{
-						"name": "left"
-					},
-					{
-						"name": "right"
-					},
-					{
-						"name": "top"
-					}
-				]
+				"restriction": "position, percentage, length"
 			},
 			{
 				"name": "-ms-progress-appearance",
@@ -7004,24 +6881,7 @@ exports.data ={
 				"name": "-ms-transform-origin",
 				"desc": "Establishes the origin of transformation for an element. This property is applied by first translating the element by the negated value of the property, then applying the element's transform, then translating by the property value.",
 				"browsers": "IE9-9",
-				"restriction": "length, percentage",
-				"values": [
-					{
-						"name": "bottom"
-					},
-					{
-						"name": "center"
-					},
-					{
-						"name": "left"
-					},
-					{
-						"name": "right"
-					},
-					{
-						"name": "top"
-					}
-				]
+				"restriction": "position, length, percentage"
 			},
 			{
 				"name": "-ms-transform-origin-x",
@@ -7492,24 +7352,7 @@ exports.data ={
 				"name": "object-position",
 				"desc": "Determines the alignment of the replaced element inside its box.",
 				"browsers": "C32,FF36,O19",
-				"restriction": "enum, length, percentage",
-				"values": [
-					{
-						"name": "bottom"
-					},
-					{
-						"name": "center"
-					},
-					{
-						"name": "left"
-					},
-					{
-						"name": "right"
-					},
-					{
-						"name": "top"
-					}
-				]
+				"restriction": "position, length, percentage"
 			},
 			{
 				"name": "-o-border-image",
@@ -7576,24 +7419,7 @@ exports.data ={
 				"name": "-o-object-position",
 				"desc": "Determines the alignment of the replaced element inside its box.",
 				"browsers": "O10.6",
-				"restriction": "enum, length, percentage",
-				"values": [
-					{
-						"name": "bottom"
-					},
-					{
-						"name": "center"
-					},
-					{
-						"name": "left"
-					},
-					{
-						"name": "right"
-					},
-					{
-						"name": "top"
-					}
-				]
+				"restriction": "position, length, percentage"
 			},
 			{
 				"name": "opacity",
@@ -7714,24 +7540,7 @@ exports.data ={
 				"name": "-o-transform-origin",
 				"desc": "Establishes the origin of transformation for an element. This property is applied by first translating the element by the negated value of the property, then applying the element's transform, then translating by the property value.",
 				"browsers": "O10.5",
-				"restriction": "length, percentage",
-				"values": [
-					{
-						"name": "bottom"
-					},
-					{
-						"name": "center"
-					},
-					{
-						"name": "left"
-					},
-					{
-						"name": "right"
-					},
-					{
-						"name": "top"
-					}
-				]
+				"restriction": "positon, length, percentage"
 			},
 			{
 				"name": "-o-transition",
@@ -8192,24 +8001,7 @@ exports.data ={
 				"name": "perspective-origin",
 				"desc": "Establishes the origin for the perspective property. It effectively sets the X and Y position at which the viewer appears to be looking at the children of the element.",
 				"browsers": "E,C36,FF16,IE10,O23,S9",
-				"restriction": "percentage, length, enum",
-				"values": [
-					{
-						"name": "bottom"
-					},
-					{
-						"name": "center"
-					},
-					{
-						"name": "left"
-					},
-					{
-						"name": "right"
-					},
-					{
-						"name": "top"
-					}
-				]
+				"restriction": "position, percentage, length"
 			},
 			{
 				"name": "pointer-events",
@@ -8490,25 +8282,10 @@ exports.data ={
 				"name": "scroll-snap-coordinate",
 				"desc": "Defines the x and y coordinate within the element which will align with the nearest ancestor scroll container’s snap-destination for the respective axis.",
 				"browsers": "FF39",
-				"restriction": "length, percentage, enum",
+				"restriction": "position, length, percentage, enum",
 				"values": [
 					{
 						"name": "none"
-					},
-					{
-						"name": "top"
-					},
-					{
-						"name": "right"
-					},
-					{
-						"name": "bottom"
-					},
-					{
-						"name": "left"
-					},
-					{
-						"name": "center"
 					}
 				]
 			},
@@ -8516,24 +8293,7 @@ exports.data ={
 				"name": "scroll-snap-destination",
 				"desc": "Define the x and y coordinate within the scroll container’s visual viewport which element snap points will align with.",
 				"browsers": "FF39",
-				"restriction": "length, percentage, enum",
-				"values": [
-					{
-						"name": "top"
-					},
-					{
-						"name": "right"
-					},
-					{
-						"name": "bottom"
-					},
-					{
-						"name": "left"
-					},
-					{
-						"name": "center"
-					}
-				]
+				"restriction": "position, length, percentage"
 			},
 			{
 				"name": "scroll-snap-points-x",
@@ -9164,24 +8924,7 @@ exports.data ={
 				"name": "transform-origin",
 				"desc": "Establishes the origin of transformation for an element. This property is applied by first translating the element by the negated value of the property, then applying the element's transform, then translating by the property value.",
 				"browsers": "E,C36,FF16,IE10,O12.1,S9",
-				"restriction": "length, percentage, enum",
-				"values": [
-					{
-						"name": "bottom"
-					},
-					{
-						"name": "center"
-					},
-					{
-						"name": "left"
-					},
-					{
-						"name": "right"
-					},
-					{
-						"name": "top"
-					}
-				]
+				"restriction": "position, length, percentage"
 			},
 			{
 				"name": "transform-style",
@@ -10610,24 +10353,7 @@ exports.data ={
 				"name": "-webkit-perspective-origin",
 				"desc": "Establishes the origin for the perspective property. It effectively sets the X and Y position at which the viewer appears to be looking at the children of the element.",
 				"browsers": "C,S4",
-				"restriction": "percentage, length",
-				"values": [
-					{
-						"name": "bottom"
-					},
-					{
-						"name": "center"
-					},
-					{
-						"name": "left"
-					},
-					{
-						"name": "right"
-					},
-					{
-						"name": "top"
-					}
-				]
+				"restriction": "position, percentage, length"
 			},
 			{
 				"name": "-webkit-region-fragment",
@@ -10791,24 +10517,7 @@ exports.data ={
 				"name": "-webkit-transform-origin",
 				"desc": "Establishes the origin of transformation for an element. This property is applied by first translating the element by the negated value of the property, then applying the element's transform, then translating by the property value.",
 				"browsers": "C,O15,S3.1",
-				"restriction": "length, percentage",
-				"values": [
-					{
-						"name": "bottom"
-					},
-					{
-						"name": "center"
-					},
-					{
-						"name": "left"
-					},
-					{
-						"name": "right"
-					},
-					{
-						"name": "top"
-					}
-				]
+				"restriction": "position, length, percentage"
 			},
 			{
 				"name": "-webkit-transform-origin-x",
