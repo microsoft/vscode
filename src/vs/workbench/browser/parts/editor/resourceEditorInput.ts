@@ -5,7 +5,6 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
-import {MIME_TEXT} from 'vs/base/common/mime';
 import {EditorModel, EditorInput} from 'vs/workbench/common/editor';
 import {ResourceEditorModel} from 'vs/workbench/browser/parts/editor/resourceEditorModel';
 import URI from 'vs/base/common/uri';

@@ -42,7 +42,7 @@ import {Position, Parts, IPartService} from 'vs/workbench/services/part/common/p
 import {DEFAULT_THEME_ID} from 'vs/platform/theme/common/themes';
 import {IWorkspaceContextService as IWorkbenchWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {IStorageService, StorageScope, StorageEvent, StorageEventType} from 'vs/platform/storage/common/storage';
-import {IWorkspaceContextService, IWorkspace, IConfiguration} from 'vs/platform/workspace/common/workspace';
+import {IWorkspace, IConfiguration} from 'vs/platform/workspace/common/workspace';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IActivityService} from 'vs/workbench/services/activity/common/activityService';

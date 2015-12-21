@@ -14,8 +14,6 @@ import workbenchEditorCommon = require('vs/workbench/common/editor');
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import dom = require('vs/base/browser/dom');
-import {AnchorAlignment, ContextView} from 'vs/base/browser/ui/contextview/contextview';
-import {IDisposable} from 'vs/base/common/lifecycle';
 import {IStorageService} from 'vs/platform/storage/common/storage';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
@@ -31,7 +29,7 @@ export interface IWindowConfiguration {
 		openFilesInNewWindow: boolean;
 		reopenFolders: string;
 		zoomLevel: number;
-	}
+	};
 }
 
 export class ElectronWindow {

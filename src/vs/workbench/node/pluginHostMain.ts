@@ -15,10 +15,8 @@ import pfs = require('vs/base/node/pfs');
 
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
-import json = require('vs/base/common/json');
-import strings = require('vs/base/common/strings');
 import paths = require('vs/base/common/paths');
-import {IPluginService, IPluginDescription, IMessage} from 'vs/platform/plugins/common/plugins';
+import {IPluginService, IPluginDescription} from 'vs/platform/plugins/common/plugins';
 import {PluginsRegistry, PluginsMessageCollector, IPluginsMessageCollector} from 'vs/platform/plugins/common/pluginsRegistry';
 import {ExtHostAPIImplementation} from 'vs/workbench/api/browser/extHost.api.impl';
 import { create as createIPC, IPluginsIPC } from 'vs/platform/plugins/common/ipcRemoteCom';
@@ -32,11 +30,7 @@ import {ExtHostTelemetryService} from 'vs/workbench/api/common/extHostTelemetry'
 import {BaseRequestService} from 'vs/platform/request/common/baseRequestService';
 import {BaseWorkspaceContextService} from 'vs/platform/workspace/common/baseWorkspaceContextService';
 import {ModeServiceImpl} from 'vs/editor/common/services/modeServiceImpl';
-import {IThemeExtensionPoint} from 'vs/platform/theme/common/themeExtensionPoint';
-import {ILanguageExtensionPoint} from 'vs/editor/common/modes/languageExtensionPoint';
-import {ITMSyntaxExtensionPoint} from 'vs/editor/node/textMate/TMSyntax';
 import {PluginScanner} from 'vs/workbench/node/extensionPoints';
-import Severity from 'vs/base/common/severity';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { Client } from 'vs/base/node/service.net';
 import { IExtensionsService } from 'vs/workbench/parts/extensions/common/extensions';
@@ -99,7 +93,7 @@ export function createServices(remoteCom: IPluginsIPC, initData: IInitData, shar
 }
 
 interface ITestRunner {
-	run(testsRoot:string, clb: (error:Error, failures?: number) => void): void;
+	run(testsRoot: string, clb: (error: Error, failures?: number) => void): void;
 }
 
 export class PluginHostMain {
@@ -133,13 +127,13 @@ export class PluginHostMain {
 			activatedExtensions.forEach((extensionId) => {
 				this.pluginService.deactivate(extensionId);
 			});
-		} catch(err) {
+		} catch (err) {
 			// TODO: write to log once we have one
 		}
 
 		// Give extensions 1 second to wrap up any async dispose, then exit
 		setTimeout(() => {
-			exit()
+			exit();
 		}, 1000);
 	}
 
@@ -252,8 +246,8 @@ export class PluginHostMain {
 		}
 
 		// Require the test runner via node require from the provided path
-		let testRunner:ITestRunner;
-		let requireError:Error;
+		let testRunner: ITestRunner;
+		let requireError: Error;
 		try {
 			testRunner = <any>require.__$__nodeRequire(env.pluginTestsPath);
 		} catch (error) {

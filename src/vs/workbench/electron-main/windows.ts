@@ -24,7 +24,6 @@ import lifecycle = require('vs/workbench/electron-main/lifecycle');
 import nls = require('vs/nls');
 import paths = require('vs/base/common/paths');
 import arrays = require('vs/base/common/arrays');
-import types = require('vs/base/common/types');
 import objects = require('vs/base/common/objects');
 import storage = require('vs/workbench/electron-main/storage');
 import settings = require('vs/workbench/electron-main/settings');
@@ -123,7 +122,7 @@ export class WindowsManager {
 				cliArgWithoutPath.pathArguments = [];
 				this.windowsState.openedFolders = []; // make sure we do not restore too much
 
-				manager.open({ cli: cliArgWithoutPath });
+				this.open({ cli: cliArgWithoutPath });
 			}
 		});
 
@@ -144,7 +143,7 @@ export class WindowsManager {
 
 			// Handle paths delayed in case more are coming!
 			runningTimeout = setTimeout(() => {
-				manager.open({ cli: env.cliArgs, pathsToOpen: macOpenFiles, forceNewWindow: true /* dropping on the dock should force open in a new window */ });
+				this.open({ cli: env.cliArgs, pathsToOpen: macOpenFiles, forceNewWindow: true /* dropping on the dock should force open in a new window */ });
 				macOpenFiles = [];
 				runningTimeout = null;
 			}, 100);
@@ -162,7 +161,7 @@ export class WindowsManager {
 			env.log('IPC#vscode-windowOpen: ', paths);
 
 			if (paths && paths.length) {
-				manager.open({ cli: env.cliArgs, pathsToOpen: paths, forceNewWindow: forceNewWindow });
+				this.open({ cli: env.cliArgs, pathsToOpen: paths, forceNewWindow: forceNewWindow });
 			}
 		});
 
@@ -181,13 +180,13 @@ export class WindowsManager {
 		ipc.on('vscode:openFilePicker', (event: Event) => {
 			env.log('IPC#vscode-openFilePicker');
 
-			manager.openFilePicker();
+			this.openFilePicker();
 		});
 
 		ipc.on('vscode:openFolderPicker', (event: Event) => {
 			env.log('IPC#vscode-openFolderPicker');
 
-			manager.openFolderPicker();
+			this.openFolderPicker();
 		});
 
 		ipc.on('vscode:closeFolder', (event: Event, windowId: number) => {
@@ -195,20 +194,20 @@ export class WindowsManager {
 
 			let win = this.getWindowById(windowId);
 			if (win) {
-				manager.open({ cli: env.cliArgs, forceEmpty: true, windowToUse: win });
+				this.open({ cli: env.cliArgs, forceEmpty: true, windowToUse: win });
 			}
 		});
 
 		ipc.on('vscode:openNewWindow', (event: Event) => {
 			env.log('IPC#vscode-openNewWindow');
 
-			manager.openNewWindow();
+			this.openNewWindow();
 		});
 
 		ipc.on('vscode:openFileFolderPicker', (event: Event) => {
 			env.log('IPC#vscode-openFileFolderPicker');
 
-			manager.openFolderPicker();
+			this.openFolderPicker();
 		});
 
 		ipc.on('vscode:reloadWindow', (event: Event, windowId: number) => {
@@ -318,7 +317,7 @@ export class WindowsManager {
 				return <IWindowState>{
 					workspacePath: w.openedWorkspacePath,
 					uiState: w.serializeWindowState()
-				}
+				};
 			});
 		});
 

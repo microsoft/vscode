@@ -17,10 +17,9 @@ import 'vs/css!vs/workbench/browser/media/hc-black-theme';
 import {Promise, TPromise} from 'vs/base/common/winjs.base';
 import {Dimension, Builder, $} from 'vs/base/browser/builder';
 import objects = require('vs/base/common/objects');
-import env = require('vs/base/common/flags');
 import dom = require('vs/base/browser/dom');
-import Event, { Emitter } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import {Emitter} from 'vs/base/common/event';
+import {IDisposable} from 'vs/base/common/lifecycle';
 import errors = require('vs/base/common/errors');
 import {ContextViewService} from 'vs/platform/contextview/browser/contextViewService';
 import {ContextMenuService} from 'vs/workbench/services/contextview/electron-browser/contextmenuService';
@@ -83,7 +82,7 @@ import {IEventService} from 'vs/platform/event/common/event';
 import {IFileService} from 'vs/platform/files/common/files';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
-import {IMarkerService, IMarkerData} from 'vs/platform/markers/common/markers';
+import {IMarkerService} from 'vs/platform/markers/common/markers';
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {IRequestService} from 'vs/platform/request/common/request';
 import {ISearchService} from 'vs/platform/search/common/search';
@@ -99,10 +98,9 @@ import { IServiceCtor, isServiceEvent } from 'vs/base/common/service';
 import { connect, Client } from 'vs/base/node/service.net';
 import { IExtensionsService } from 'vs/workbench/parts/extensions/common/extensions';
 import { ExtensionsService } from 'vs/workbench/parts/extensions/node/extensionsService';
-import webFrame = require('web-frame');
 
 /**
- * This ugly beast is needed because at the point when we need shared services
+ * This ugly code is needed because at the point when we need shared services
  * in the instantiation service, the connection to the shared process is not yet
  * completed. This create a delayed service wrapper that waits on that connection
  * and then relays all requests to the shared services.
@@ -418,7 +416,7 @@ export class WorkbenchShell {
 		if (!themeId) {
 			return;
 		}
-		var applyTheme = () => {
+		let applyTheme = () => {
 			if (this.currentTheme) {
 				$(this.container).removeClass(this.currentTheme);
 			}
@@ -428,7 +426,7 @@ export class WorkbenchShell {
 			if (layout) {
 				this.layout();
 			}
-		}
+		};
 
 		if (!themes.getSyntaxThemeId(themeId)) {
 			applyTheme();
@@ -443,8 +441,6 @@ export class WorkbenchShell {
 				errors.onUnexpectedError(error);
 			});
 		}
-
-
 	}
 
 	private registerListeners(): void {

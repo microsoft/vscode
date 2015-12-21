@@ -71,8 +71,6 @@ export class SideBySideEditorControl extends EventEmitter implements IVerticalSa
 	private editorActionsToolbar: ToolBar[];
 	private closeEditorAction: Action[];
 
-	private editorInputStateHoverTimeout: number;
-
 	private splitEditorAction: Action;
 
 	private leftSash: Sash;

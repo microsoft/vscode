@@ -8,7 +8,6 @@
 import app = require('app');
 import events = require('events');
 import ipc = require('ipc');
-import browserwindow = require('browser-window');
 
 import {TPromise, TValueCallback} from 'vs/base/common/winjs.base';
 import {ReadyState, VSCodeWindow} from 'vs/workbench/electron-main/window';

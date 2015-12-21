@@ -18,7 +18,7 @@ interface IRendererConnection {
 
 // This calls exit directly in case the initialization is not finished and we need to exit
 // Otherwise, if initialization completed we go to pluginHostMain.terminate()
-var onTerminate = function() {
+let onTerminate = function() {
 	exit();
 };
 
@@ -70,7 +70,7 @@ function connectToRenderer(): TPromise<IRendererConnection> {
 			setInterval(function() {
 				if (stats.length >= 250) {
 					let total = stats.reduce((prev, current) => prev + current, 0);
-					console.warn(`MANY messages are being SEND FROM the extension host!`)
+					console.warn(`MANY messages are being SEND FROM the extension host!`);
 					console.warn(`SEND during 1sec: message_count=${stats.length}, total_len=${total}`);
 				}
 				stats.length = 0;

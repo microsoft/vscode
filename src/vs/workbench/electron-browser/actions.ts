@@ -9,17 +9,14 @@ import {Promise, TPromise} from 'vs/base/common/winjs.base';
 import timer = require('vs/base/common/timer');
 import paths = require('vs/base/common/paths');
 import {Action} from 'vs/base/common/actions';
-import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
 import {IWindowService} from 'vs/workbench/services/window/electron-browser/windowService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import nls = require('vs/nls');
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
-import {IThreadService} from 'vs/platform/thread/common/thread';
 import {IWindowConfiguration} from 'vs/workbench/electron-browser/window';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IQuickOpenService} from 'vs/workbench/services/quickopen/browser/quickOpenService';
 import {INullService} from 'vs/platform/instantiation/common/instantiation';
-import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 
 import ipc = require('ipc');
@@ -398,7 +395,7 @@ export class OpenRecentAction extends Action {
 				label: paths.basename(p),
 				description: paths.dirname(p),
 				path: p
-			}
+			};
 		});
 
 		return this.quickOpenService.pick(picks, {

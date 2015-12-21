@@ -15,7 +15,6 @@ import {UntitledEditorInput} from 'vs/workbench/browser/parts/editor/untitledEdi
 import {ResourceEditorInput} from 'vs/workbench/browser/parts/editor/resourceEditorInput';
 import {TextDiffEditor} from 'vs/workbench/browser/parts/editor/textDiffEditor';
 import {BinaryResourceDiffEditor} from 'vs/workbench/browser/parts/editor/binaryDiffEditor';
-import {BinaryResourceEditor} from 'vs/workbench/browser/parts/editor/binaryEditor';
 import {IFrameEditor} from 'vs/workbench/browser/parts/editor/iframeEditor';
 import {IFrameEditorInput} from 'vs/workbench/browser/parts/editor/iframeEditorInput';
 import {ChangeEncodingAction, ChangeEOLAction, ChangeModeAction, EditorStatus} from 'vs/workbench/browser/parts/editor/editorStatus';

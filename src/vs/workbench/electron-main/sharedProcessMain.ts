@@ -7,7 +7,6 @@ import * as fs from 'fs';
 import platform = require('vs/base/common/platform');
 import { serve, Server, connect } from 'vs/base/node/service.net';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { create as createInstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 

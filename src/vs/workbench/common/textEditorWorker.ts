@@ -98,29 +98,29 @@ export class TextEditorWorker extends AbstractModeWorker {
 			while ((match = pattern.exec(line)) !== null) {
 
 				// Convert the relative path information to a resource that we can use in links
-				var workspaceRelativePath = strings.replaceAll(strings.rtrim(match[1], '.'), '\\', '/'); // remove trailing "." that likely indicate end of sentence
-				var resource:string;
+				let workspaceRelativePath = strings.replaceAll(strings.rtrim(match[1], '.'), '\\', '/'); // remove trailing "." that likely indicate end of sentence
+				let resource:string;
 				try {
-					resource = contextService.toResource(workspaceRelativePath).toString()
+					resource = contextService.toResource(workspaceRelativePath).toString();
 				} catch (error) {
 					continue; // we might find an invalid URI and then we dont want to loose all other links
 				}
 
 				// Append line/col information to URI if matching
 				if (match[3]) {
-					var lineNumber = match[3];
+					let lineNumber = match[3];
 
 					if (match[5]) {
-						var columnNumber = match[5];
+						let columnNumber = match[5];
 						resource = strings.format('{0}#{1},{2}', resource, lineNumber, columnNumber);
 					} else {
 						resource = strings.format('{0}#{1}', resource, lineNumber);
 					}
 				}
 
-				var fullMatch = strings.rtrim(match[0], '.'); // remove trailing "." that likely indicate end of sentence
+				let fullMatch = strings.rtrim(match[0], '.'); // remove trailing "." that likely indicate end of sentence
 
-				var index = line.indexOf(fullMatch, offset);
+				let index = line.indexOf(fullMatch, offset);
 				offset += index + fullMatch.length;
 
 				var linkRange = {

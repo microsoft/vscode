@@ -11,9 +11,7 @@ import Menu = require('menu');
 import MenuItem = require('menu-item');
 import Dialog = require('dialog');
 import shell = require('shell');
-import os = require('os');
 import ipc = require('ipc');
-import browserWindow = require('browser-window');
 
 import nls = require('vs/nls');
 import platform = require('vs/base/common/platform');
@@ -24,7 +22,6 @@ import env = require('vs/workbench/electron-main/env');
 import storage = require('vs/workbench/electron-main/storage');
 import um = require('vs/workbench/electron-main/update-manager');
 import {Keybinding} from 'vs/base/common/keyCodes';
-import {KeybindingsUtils} from 'vs/platform/keybinding/common/keybindingsUtils';
 
 let UpdateManager = um.Instance;
 
@@ -66,7 +63,7 @@ export class VSCodeMenu {
 
 		// Keep flag when app quits
 		app.on('will-quit', () => {
-			this.isQuitting = true
+			this.isQuitting = true;
 		});
 
 		// Listen to "open" & "close" event from window manager
@@ -697,7 +694,7 @@ export class VSCodeMenu {
 				if (windowInFocus.win.isDevToolsFocused()) {
 					devToolsFocusedFn(windowInFocus.win.devToolsWebContents);
 				} else {
-					windows.manager.sendToFocused('vscode:runAction', actionId)
+					windows.manager.sendToFocused('vscode:runAction', actionId);
 				}
 			}
 		});

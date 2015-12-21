@@ -12,10 +12,8 @@ import os = require('os');
 import app = require('app');
 
 import arrays = require('vs/base/common/arrays');
-import objects = require('vs/base/common/objects');
 import strings = require('vs/base/common/strings');
 import platform = require('vs/base/common/platform');
-import paths = require('vs/base/common/paths');
 import uri from 'vs/base/common/uri';
 import types = require('vs/base/common/types');
 
@@ -30,7 +28,7 @@ export interface IProductConfiguration {
 		application: {
 			png: string;
 		}
-	},
+	};
 	win32AppUserModelId: string;
 	dataFolderName: string;
 	downloadUrl: string;
@@ -49,19 +47,19 @@ export interface IProductConfiguration {
 	aiConfig: {
 		key: string;
 		asimovKey: string;
-	},
+	};
 	sendASmile: {
 		submitUrl: string,
 		reportIssueUrl: string,
 		requestFeatureUrl: string
-	},
-	documentationUrl: string,
-	releaseNotesUrl: string,
-	twitterUrl: string,
-	requestFeatureUrl: string,
-	reportIssueUrl: string,
-	licenseUrl: string,
-	privacyStatementUrl: string
+	};
+	documentationUrl: string;
+	releaseNotesUrl: string;
+	twitterUrl: string;
+	requestFeatureUrl: string;
+	reportIssueUrl: string;
+	licenseUrl: string;
+	privacyStatementUrl: string;
 }
 
 export const isBuilt = !process.env.VSCODE_DEV;
@@ -368,7 +366,7 @@ export function parseLineAndColumnAware(rawPath: string): IParsedPath {
 		path: path,
 		line: line !== null ? line : void 0,
 		column: column !== null ? column : line !== null ? 1 : void 0 // if we have a line, make sure column is also set
-	}
+	};
 }
 
 export function toLineAndColumnPath(parsedPath: IParsedPath): string {

@@ -28,7 +28,6 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
-import {KeybindingsUtils} from 'vs/platform/keybinding/common/keybindingsUtils';
 
 export class ActivitybarPart extends Part implements IActivityService {
 	public serviceId = IActivityService;

@@ -9,7 +9,6 @@ import {Action, IAction} from 'vs/base/common/actions';
 import {ActionBarContributor} from 'vs/workbench/browser/actionBarRegistry';
 import types = require('vs/base/common/types');
 import {Builder} from 'vs/base/browser/builder';
-import URI from 'vs/base/common/uri';
 import {Registry} from 'vs/platform/platform';
 import {Viewlet} from 'vs/workbench/browser/viewlet';
 import {EditorInput, IFileEditorInput, EditorOptions} from 'vs/workbench/common/editor';

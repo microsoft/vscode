@@ -21,7 +21,6 @@ import {IWorkspace, IConfiguration, IEnvironment} from 'vs/platform/workspace/co
 
 import path = require('path');
 import fs = require('fs');
-import child_process = require('child_process');
 
 import gracefulFs = require('graceful-fs');
 gracefulFs.gracefulify(fs);
@@ -30,12 +29,6 @@ export interface IPath {
 	filePath: string;
 	lineNumber?: number;
 	columnNumber?: number;
-}
-
-export interface IMainConfiguration {
-	window: {
-
-	}
 }
 
 export interface IMainEnvironment extends IEnvironment {

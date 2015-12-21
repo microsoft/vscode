@@ -65,7 +65,6 @@ export class EditorPart extends Part implements IEditorPart {
 	private instantiationService: IInstantiationService;
 	private dimension: Dimension;
 	private sideBySideControl: SideBySideEditorControl;
-	private quickStartTimer: timer.ITimerEvent;
 	private memento: any;
 
 	// The following data structures are partitioned into array of Position as provided by Services.POSITION array
@@ -212,7 +211,7 @@ export class EditorPart extends Part implements IEditorPart {
 
 				// To prevent race conditions, we call the close in a timeout because it can well be
 				// that an input is being disposed with the intent to replace it with some other input
-				// right after. 
+				// right after.
 				setTimeout(() => {
 					if (input === this.visibleInputs[position]) {
 						this.closeEditors(false, input).done(null, errors.onUnexpectedError);

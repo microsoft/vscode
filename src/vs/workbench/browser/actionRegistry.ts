@@ -4,20 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
 import {TPromise} from 'vs/base/common/winjs.base';
 import collections = require('vs/base/common/collections');
 import {Registry} from 'vs/platform/platform';
 import {IAction} from 'vs/base/common/actions';
 import {KeybindingsRegistry,ICommandDescriptor} from 'vs/platform/keybinding/common/keybindingsRegistry';
-import {KeybindingsUtils} from 'vs/platform/keybinding/common/keybindingsUtils';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {ICommandHandler} from 'vs/platform/keybinding/common/keybindingService';
 import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
-import {IMessageService, IMessageWithAction} from 'vs/platform/message/common/message';
+import {IMessageService} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {Keybinding} from 'vs/base/common/keyCodes';
 import Severity from 'vs/base/common/severity';
 
 export const Extensions = {
@@ -82,7 +79,6 @@ class WorkbenchActionRegistry implements IWorkbenchActionRegistry {
 			return false;
 		}
 
-		let descriptor = this.workbenchActions[id];
 		delete this.workbenchActions[id];
 		delete this.mapActionIdToCategory[id];
 

@@ -14,7 +14,7 @@ import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/edito
 import {IPartService, Position} from 'vs/workbench/services/part/common/partService';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {IStorageService, StorageScope, StorageEventType} from 'vs/platform/storage/common/storage';
-import {IContextViewService, IContextMenuService} from 'vs/platform/contextview/browser/contextView';
+import {IContextViewService} from 'vs/platform/contextview/browser/contextView';
 import {IEventService} from 'vs/platform/event/common/event';
 
 const DEFAULT_MIN_PART_WIDTH = 170;

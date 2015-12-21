@@ -18,7 +18,7 @@ import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/c
 export interface ISettings {
 	settings: any;
 	settingsParseErrors?: string[];
-	keybindings: any
+	keybindings: any;
 }
 
 export class UserSettings {
