@@ -69,8 +69,8 @@ class VariablesView extends viewlet.CollapsibleViewletView {
 	}
 
 	public renderBody(container: HTMLElement): void {
+		dom.addClass(container, 'debug-variables');
 		this.treeContainer = renderViewTree(container);
-		dom.addClass(this.treeContainer, 'debug-variables');
 
 		this.tree = new treeimpl.Tree(this.treeContainer, {
 			dataSource: new viewer.VariablesDataSource(this.debugService),
@@ -136,8 +136,8 @@ class WatchExpressionsView extends viewlet.CollapsibleViewletView {
 	}
 
 	public renderBody(container: HTMLElement): void {
+		dom.addClass(container, 'debug-watch');
 		this.treeContainer = renderViewTree(container);
-		dom.addClass(this.treeContainer, 'debug-watch');
 
 		var actionProvider = new viewer.WatchExpressionsActionProvider(this.instantiationService);
 		this.tree = new treeimpl.Tree(this.treeContainer, {
@@ -206,9 +206,9 @@ class CallStackView extends viewlet.CollapsibleViewletView {
 	}
 
 	public renderBody(container: HTMLElement): void {
+		dom.addClass(container, 'debug-call-stack');
 		this.renderMessageBox(container);
 		this.treeContainer = renderViewTree(container);
-		dom.addClass(this.treeContainer, 'debug-call-stack');
 
 		this.tree = new treeimpl.Tree(this.treeContainer, {
 			dataSource: new viewer.CallStackDataSource(),
@@ -310,8 +310,8 @@ class BreakpointsView extends viewlet.AdaptiveCollapsibleViewletView {
 	}
 
 	public renderBody(container: HTMLElement): void {
+		dom.addClass(container, 'debug-breakpoints');
 		this.treeContainer = renderViewTree(container);
-		dom.addClass(this.treeContainer, 'debug-breakpoints');
 		var actionProvider = new viewer.BreakpointsActionProvider(this.instantiationService);
 
 		this.tree = new treeimpl.Tree(this.treeContainer, {
