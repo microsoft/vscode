@@ -6,6 +6,7 @@
 
 import {registerMarshallingContribution, IMarshallingContribution} from 'vs/base/common/marshalling';
 import * as types from './extHostTypes';
+import {fromPosition, fromRange} from './extHostTypeConverters';
 import {IRange, IPosition} from 'vs/editor/common/editorCommon';
 import {IReference} from 'vs/editor/common/modes';
 
@@ -31,12 +32,7 @@ class RangeMarshalling extends OneWayMarshalling<types.Range> {
 	}
 
 	serialize(obj: types.Range, serialize: (obj: any) => any): any {
-		return <IRange>{
-			startLineNumber: 1 + obj.start.line,
-			startColumn: 1 + obj.start.character,
-			endLineNumber: 1 + obj.end.line,
-			endColumn: 1 + obj.end.character
-		};
+		return fromRange(obj);
 	}
 }
 
@@ -47,10 +43,7 @@ class PositionMarshalling extends OneWayMarshalling<types.Position> {
 	}
 
 	serialize(obj: types.Position, serialize: (obj: any) => any): any {
-		return <IPosition>{
-			lineNumber: 1 + obj.line,
-			column: 1 + obj.character
-		};
+		return fromPosition(obj);
 	}
 }
 
