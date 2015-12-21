@@ -6,7 +6,7 @@
 	"contributes": {
 		"languages": [{
 			"id": "c",
-			"extensions": [ ".c", ".m"],
+			"extensions": [ ".c"],
 			"aliases": [ "C", "c" ],
 			"configuration": "./cpp.configuration.json"
 		},
