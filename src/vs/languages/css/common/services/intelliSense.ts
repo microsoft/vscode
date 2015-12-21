@@ -238,7 +238,7 @@ export class CSSIntellisense {
 					label: color,
 					documentationLabel: languageFacts.colorKeywords[color],
 					codeSnippet: color,
-					type: 'function'
+					type: 'value'
 				});
 			}
 			var colorValues = new Set();
