@@ -16,9 +16,9 @@ import {Uri, FileSystemWatcher} from 'vscode';
 import {ICommonCodeEditor} from 'vs/editor/common/editorCommon';
 import {bulkEdit, IResourceEdit} from 'vs/editor/common/services/bulkEdit';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {fromRange} from 'vs/workbench/api/common/pluginHostTypeConverters';
+import {fromRange} from 'vs/workbench/api/common/extHostTypeConverters';
 
-export class PluginHostWorkspace {
+export class ExtHostWorkspace {
 
 	private _proxy: MainThreadWorkspace;
 	private _workspacePath: string;

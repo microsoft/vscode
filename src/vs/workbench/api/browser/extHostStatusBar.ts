@@ -9,10 +9,10 @@ import {Remotable, IThreadService} from 'vs/platform/thread/common/thread';
 import {IStatusbarService} from 'vs/workbench/services/statusbar/statusbarService';
 import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
 import {StatusbarAlignment as MainThreadStatusBarAlignment} from 'vs/workbench/browser/parts/statusbar/statusbar';
-import {StatusBarAlignment as ExtHostStatusBarAlignment, Disposable} from '../common/pluginHostTypes';
+import {StatusBarAlignment as ExtHostStatusBarAlignment, Disposable} from '../common/extHostTypes';
 import {StatusBarItem, StatusBarAlignment} from 'vscode';
 
-export class PluginHostStatusBarEntry implements StatusBarItem {
+export class ExtHostStatusBarEntry implements StatusBarItem {
 	private static ID_GEN = 0;
 
 	private _id: number;
@@ -30,7 +30,7 @@ export class PluginHostStatusBarEntry implements StatusBarItem {
 	private _proxy: MainThreadStatusBar;
 
 	constructor(proxy: MainThreadStatusBar, alignment: ExtHostStatusBarAlignment = ExtHostStatusBarAlignment.Left, priority?: number) {
-		this._id = PluginHostStatusBarEntry.ID_GEN++;
+		this._id = ExtHostStatusBarEntry.ID_GEN++;
 		this._proxy = proxy;
 		this._alignment = alignment;
 		this._priority = priority;
@@ -125,7 +125,7 @@ class StatusBarMessage {
 	private _item: StatusBarItem;
 	private _messages: {message:string}[] = [];
 
-	constructor(statusBar: PluginHostStatusBar) {
+	constructor(statusBar: ExtHostStatusBar) {
 		this._item = statusBar.createStatusBarEntry(ExtHostStatusBarAlignment.Left, Number.MIN_VALUE);
 	}
 
@@ -158,7 +158,7 @@ class StatusBarMessage {
 	}
 }
 
-export class PluginHostStatusBar {
+export class ExtHostStatusBar {
 
 	private _proxy: MainThreadStatusBar;
 	private _statusMessage: StatusBarMessage;
@@ -169,7 +169,7 @@ export class PluginHostStatusBar {
 	}
 
 	createStatusBarEntry(alignment?: ExtHostStatusBarAlignment, priority?: number): StatusBarItem {
-		return new PluginHostStatusBarEntry(this._proxy, alignment, priority);
+		return new ExtHostStatusBarEntry(this._proxy, alignment, priority);
 	}
 
 	setStatusBarMessage(text: string, timeoutOrThenable?: number | Thenable<any>): Disposable {

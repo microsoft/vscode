@@ -8,7 +8,7 @@ import {FileChangesEvent, FileChangeType} from 'vs/platform/files/common/files';
 import {Remotable, IThreadService} from 'vs/platform/thread/common/thread';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
 import Event, {Emitter} from 'vs/base/common/event';
-import {Disposable} from './pluginHostTypes';
+import {Disposable} from './extHostTypes';
 import {IEventService} from 'vs/platform/event/common/event';
 import {RunOnceScheduler} from 'vs/base/common/async';
 import URI from 'vs/base/common/uri';
@@ -99,8 +99,8 @@ export class FileSystemWatcher implements _FileSystemWatcher {
 	}
 }
 
-@Remotable.PluginHostContext('PluginHostFileSystemEventService')
-export class PluginHostFileSystemEventService {
+@Remotable.PluginHostContext('ExtHostFileSystemEventService')
+export class ExtHostFileSystemEventService {
 
 	private _emitter = new Emitter<FileSystemEvents>();
 	private _watchers: FileSystemWatcher[] = [];
@@ -121,7 +121,7 @@ export class MainThreadFileSystemEventService {
 
 	constructor( @IEventService eventService: IEventService, @IThreadService threadService: IThreadService) {
 
-		const proxy = threadService.getRemotable(PluginHostFileSystemEventService);
+		const proxy = threadService.getRemotable(ExtHostFileSystemEventService);
 		const events: FileSystemEvents = {
 			created: [],
 			changed: [],

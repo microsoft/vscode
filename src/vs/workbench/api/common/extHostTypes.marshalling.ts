@@ -5,7 +5,7 @@
 'use strict';
 
 import {registerMarshallingContribution, IMarshallingContribution} from 'vs/base/common/marshalling';
-import * as types from './pluginHostTypes';
+import * as types from './extHostTypes';
 import {IRange, IPosition} from 'vs/editor/common/editorCommon';
 import {IReference} from 'vs/editor/common/modes';
 

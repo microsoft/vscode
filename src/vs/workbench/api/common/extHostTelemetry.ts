@@ -12,7 +12,7 @@ import {TPromise as Promise} from 'vs/base/common/winjs.base';
 import {AbstractRemoteTelemetryService} from 'vs/platform/telemetry/common/abstractRemoteTelemetryService';
 import vscode = require('vscode');
 
-export class PluginHostTelemetryService extends AbstractRemoteTelemetryService {
+export class ExtHostTelemetryService extends AbstractRemoteTelemetryService {
 
 	protected handleEvent(eventName:string, data?:any):void {
 		var data = data || {};

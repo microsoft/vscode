@@ -13,8 +13,8 @@ import Event, {Emitter} from 'vs/base/common/event';
 import {INullService} from 'vs/platform/instantiation/common/instantiation';
 import {WorkspaceConfiguration} from 'vscode';
 
-@Remotable.PluginHostContext('PluginHostConfiguration')
-export class PluginHostConfiguration {
+@Remotable.PluginHostContext('ExtHostConfiguration')
+export class ExtHostConfiguration {
 
 	private _config: any;
 	private _hasConfig: boolean;
@@ -40,17 +40,17 @@ export class PluginHostConfiguration {
 		}
 
 		const config = section
-			? PluginHostConfiguration._lookUp(section, this._config)
+			? ExtHostConfiguration._lookUp(section, this._config)
 			: this._config;
 
 
 		let result = config ? clone(config) : {};
 		// result = Object.freeze(result);
 		result.has = function(key: string): boolean {
-			return typeof PluginHostConfiguration._lookUp(key, config) !== 'undefined';
+			return typeof ExtHostConfiguration._lookUp(key, config) !== 'undefined';
 		}
 		result.get = function <T>(key: string, defaultValue?: T): T {
-			let result = PluginHostConfiguration._lookUp(key, config);
+			let result = ExtHostConfiguration._lookUp(key, config);
 			if (typeof result === 'undefined') {
 				result = defaultValue;
 			}
@@ -78,13 +78,13 @@ export class MainThreadConfiguration {
 
 	private _configurationService: IConfigurationService;
 	private _toDispose: IDisposable[];
-	private _proxy: PluginHostConfiguration;
+	private _proxy: ExtHostConfiguration;
 
 	constructor(@IConfigurationService configurationService: IConfigurationService,
 		@IThreadService threadService: IThreadService) {
 
 		this._configurationService = configurationService;
-		this._proxy = threadService.getRemotable(PluginHostConfiguration);
+		this._proxy = threadService.getRemotable(ExtHostConfiguration);
 
 		this._toDispose = [];
 		this._toDispose.push(this._configurationService.addListener2(ConfigurationServiceEventTypes.UPDATED, (e:IConfigurationServiceEvent) => {

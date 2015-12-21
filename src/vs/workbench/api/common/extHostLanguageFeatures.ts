@@ -11,14 +11,14 @@ import {IDisposable} from 'vs/base/common/lifecycle';
 import {Remotable, IThreadService} from 'vs/platform/thread/common/thread';
 import {Range as EditorRange} from 'vs/editor/common/core/range';
 import * as vscode from 'vscode';
-import * as TypeConverters from 'vs/workbench/api/common/pluginHostTypeConverters';
-import {Range, DocumentHighlightKind, Disposable, Diagnostic, SignatureHelp} from 'vs/workbench/api/common/pluginHostTypes';
+import * as TypeConverters from 'vs/workbench/api/common/extHostTypeConverters';
+import {Range, DocumentHighlightKind, Disposable, Diagnostic, SignatureHelp} from 'vs/workbench/api/common/extHostTypes';
 import {IPosition, IRange, ISingleEditOperation} from 'vs/editor/common/editorCommon';
 import * as modes from 'vs/editor/common/modes';
 import {CancellationTokenSource} from 'vs/base/common/cancellation';
-import {PluginHostModelService} from 'vs/workbench/api/common/pluginHostDocuments';
+import {ExtHostModelService} from 'vs/workbench/api/common/extHostDocuments';
 import {IMarkerService, IMarker} from 'vs/platform/markers/common/markers';
-import {PluginHostCommands} from 'vs/workbench/api/common/pluginHostCommands';
+import {ExtHostCommands} from 'vs/workbench/api/common/extHostCommands';
 import {DeclarationRegistry} from 'vs/editor/contrib/goToDeclaration/common/goToDeclaration';
 import {ExtraInfoRegistry} from 'vs/editor/contrib/hover/common/hover';
 import {OccurrencesRegistry} from 'vs/editor/contrib/wordHighlighter/common/wordHighlighter';
@@ -54,10 +54,10 @@ function asWinJsPromise<T>(callback: (token: vscode.CancellationToken) => T | Th
 
 class OutlineAdapter implements IOutlineSupport {
 
-	private _documents: PluginHostModelService;
+	private _documents: ExtHostModelService;
 	private _provider: vscode.DocumentSymbolProvider;
 
-	constructor(documents: PluginHostModelService, provider: vscode.DocumentSymbolProvider) {
+	constructor(documents: ExtHostModelService, provider: vscode.DocumentSymbolProvider) {
 		this._documents = documents;
 		this._provider = provider;
 	}
@@ -74,12 +74,12 @@ class OutlineAdapter implements IOutlineSupport {
 
 class CodeLensAdapter implements modes.ICodeLensSupport {
 
-	private _documents: PluginHostModelService;
+	private _documents: ExtHostModelService;
 	private _provider: vscode.CodeLensProvider;
 
 	private _cache: { [uri: string]: vscode.CodeLens[] } = Object.create(null);
 
-	constructor(documents: PluginHostModelService, provider: vscode.CodeLensProvider) {
+	constructor(documents: ExtHostModelService, provider: vscode.CodeLensProvider) {
 		this._documents = documents;
 		this._provider = provider;
 	}
@@ -144,10 +144,10 @@ class CodeLensAdapter implements modes.ICodeLensSupport {
 
 class DeclarationAdapter implements modes.IDeclarationSupport {
 
-	private _documents: PluginHostModelService;
+	private _documents: ExtHostModelService;
 	private _provider: vscode.DefinitionProvider;
 
-	constructor(documents: PluginHostModelService, provider: vscode.DefinitionProvider) {
+	constructor(documents: ExtHostModelService, provider: vscode.DefinitionProvider) {
 		this._documents = documents;
 		this._provider = provider;
 	}
@@ -181,10 +181,10 @@ class DeclarationAdapter implements modes.IDeclarationSupport {
 
 class ExtraInfoAdapter implements modes.IExtraInfoSupport {
 
-	private _documents: PluginHostModelService;
+	private _documents: ExtHostModelService;
 	private _provider: vscode.HoverProvider;
 
-	constructor(documents: PluginHostModelService, provider: vscode.HoverProvider) {
+	constructor(documents: ExtHostModelService, provider: vscode.HoverProvider) {
 		this._documents = documents;
 		this._provider = provider;
 	}
@@ -212,10 +212,10 @@ class ExtraInfoAdapter implements modes.IExtraInfoSupport {
 
 class OccurrencesAdapter implements modes.IOccurrencesSupport {
 
-	private _documents: PluginHostModelService;
+	private _documents: ExtHostModelService;
 	private _provider: vscode.DocumentHighlightProvider;
 
-	constructor(documents: PluginHostModelService, provider: vscode.DocumentHighlightProvider) {
+	constructor(documents: ExtHostModelService, provider: vscode.DocumentHighlightProvider) {
 		this._documents = documents;
 		this._provider = provider;
 	}
@@ -242,10 +242,10 @@ class OccurrencesAdapter implements modes.IOccurrencesSupport {
 
 class ReferenceAdapter implements modes.IReferenceSupport {
 
-	private _documents: PluginHostModelService;
+	private _documents: ExtHostModelService;
 	private _provider: vscode.ReferenceProvider;
 
-	constructor(documents: PluginHostModelService, provider: vscode.ReferenceProvider) {
+	constructor(documents: ExtHostModelService, provider: vscode.ReferenceProvider) {
 		this._documents = documents;
 		this._provider = provider;
 	}
@@ -275,11 +275,11 @@ class ReferenceAdapter implements modes.IReferenceSupport {
 
 class QuickFixAdapter implements modes.IQuickFixSupport {
 
-	private _documents: PluginHostModelService;
-	private _commands: PluginHostCommands;
+	private _documents: ExtHostModelService;
+	private _commands: ExtHostCommands;
 	private _provider: vscode.CodeActionProvider;
 
-	constructor(documents: PluginHostModelService, commands: PluginHostCommands, provider: vscode.CodeActionProvider) {
+	constructor(documents: ExtHostModelService, commands: ExtHostCommands, provider: vscode.CodeActionProvider) {
 		this._documents = documents;
 		this._commands = commands;
 		this._provider = provider;
@@ -317,10 +317,10 @@ class QuickFixAdapter implements modes.IQuickFixSupport {
 
 class DocumentFormattingAdapter implements modes.IFormattingSupport {
 
-	private _documents: PluginHostModelService;
+	private _documents: ExtHostModelService;
 	private _provider: vscode.DocumentFormattingEditProvider;
 
-	constructor(documents: PluginHostModelService, provider: vscode.DocumentFormattingEditProvider) {
+	constructor(documents: ExtHostModelService, provider: vscode.DocumentFormattingEditProvider) {
 		this._documents = documents;
 		this._provider = provider;
 	}
@@ -339,10 +339,10 @@ class DocumentFormattingAdapter implements modes.IFormattingSupport {
 
 class RangeFormattingAdapter implements modes.IFormattingSupport {
 
-	private _documents: PluginHostModelService;
+	private _documents: ExtHostModelService;
 	private _provider: vscode.DocumentRangeFormattingEditProvider;
 
-	constructor(documents: PluginHostModelService, provider: vscode.DocumentRangeFormattingEditProvider) {
+	constructor(documents: ExtHostModelService, provider: vscode.DocumentRangeFormattingEditProvider) {
 		this._documents = documents;
 		this._provider = provider;
 	}
@@ -362,10 +362,10 @@ class RangeFormattingAdapter implements modes.IFormattingSupport {
 
 class OnTypeFormattingAdapter implements modes.IFormattingSupport {
 
-	private _documents: PluginHostModelService;
+	private _documents: ExtHostModelService;
 	private _provider: vscode.OnTypeFormattingEditProvider;
 
-	constructor(documents: PluginHostModelService, provider: vscode.OnTypeFormattingEditProvider) {
+	constructor(documents: ExtHostModelService, provider: vscode.OnTypeFormattingEditProvider) {
 		this._documents = documents;
 		this._provider = provider;
 	}
@@ -404,10 +404,10 @@ class NavigateTypeAdapter implements INavigateTypesSupport {
 
 class RenameAdapter implements modes.IRenameSupport {
 
-	private _documents: PluginHostModelService;
+	private _documents: ExtHostModelService;
 	private _provider: vscode.RenameProvider;
 
-	constructor(documents: PluginHostModelService, provider: vscode.RenameProvider) {
+	constructor(documents: ExtHostModelService, provider: vscode.RenameProvider) {
 		this._documents = documents;
 		this._provider = provider;
 	}
@@ -458,11 +458,11 @@ interface ISuggestion2 extends modes.ISuggestion {
 
 class SuggestAdapter implements modes.ISuggestSupport {
 
-	private _documents: PluginHostModelService;
+	private _documents: ExtHostModelService;
 	private _provider: vscode.CompletionItemProvider;
 	private _cache: { [key: string]: vscode.CompletionItem[] } = Object.create(null);
 
-	constructor(documents: PluginHostModelService, provider: vscode.CompletionItemProvider) {
+	constructor(documents: ExtHostModelService, provider: vscode.CompletionItemProvider) {
 		this._documents = documents;
 		this._provider = provider;
 	}
@@ -558,10 +558,10 @@ class SuggestAdapter implements modes.ISuggestSupport {
 
 class ParameterHintsAdapter implements modes.IParameterHintsSupport {
 
-	private _documents: PluginHostModelService;
+	private _documents: ExtHostModelService;
 	private _provider: vscode.SignatureHelpProvider;
 
-	constructor(documents: PluginHostModelService, provider: vscode.SignatureHelpProvider) {
+	constructor(documents: ExtHostModelService, provider: vscode.SignatureHelpProvider) {
 		this._documents = documents;
 		this._provider = provider;
 	}
@@ -598,14 +598,14 @@ export class ExtHostLanguageFeatures {
 	private static _handlePool: number = 0;
 
 	private _proxy: MainThreadLanguageFeatures;
-	private _documents: PluginHostModelService;
-	private _commands: PluginHostCommands;
+	private _documents: ExtHostModelService;
+	private _commands: ExtHostCommands;
 	private _adapter: { [handle: number]: Adapter } = Object.create(null);
 
 	constructor( @IThreadService threadService: IThreadService) {
 		this._proxy = threadService.getRemotable(MainThreadLanguageFeatures);
-		this._documents = threadService.getRemotable(PluginHostModelService);
-		this._commands = threadService.getRemotable(PluginHostCommands);
+		this._documents = threadService.getRemotable(ExtHostModelService);
+		this._commands = threadService.getRemotable(ExtHostCommands);
 	}
 
 	private _createDisposable(handle: number): Disposable {

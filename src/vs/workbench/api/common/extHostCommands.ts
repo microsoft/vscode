@@ -13,7 +13,7 @@ import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegi
 import {KeybindingsUtils} from 'vs/platform/keybinding/common/keybindingsUtils';
 import {IKeybindingService, ICommandHandlerDescription} from 'vs/platform/keybinding/common/keybindingService';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {PluginHostEditors} from 'vs/workbench/api/common/pluginHostEditors';
+import {ExtHostEditors} from 'vs/workbench/api/common/extHostEditors';
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {canSerialize} from 'vs/base/common/marshalling';
 import {toErrorMessage} from 'vs/base/common/errors';
@@ -25,15 +25,15 @@ interface CommandHandler {
 	description: ICommandHandlerDescription;
 }
 
-@Remotable.PluginHostContext('PluginHostCommands')
-export class PluginHostCommands {
+@Remotable.PluginHostContext('ExtHostCommands')
+export class ExtHostCommands {
 
 	private _commands: { [n: string]: CommandHandler } = Object.create(null);
 	private _proxy: MainThreadCommands;
-	private _pluginHostEditors: PluginHostEditors;
+	private _pluginHostEditors: ExtHostEditors;
 
 	constructor(@IThreadService threadService: IThreadService) {
-		this._pluginHostEditors = threadService.getRemotable(PluginHostEditors);
+		this._pluginHostEditors = threadService.getRemotable(ExtHostEditors);
 		this._proxy = threadService.getRemotable(MainThreadCommands);
 	}
 
@@ -150,12 +150,12 @@ export class MainThreadCommands {
 
 	private _threadService: IThreadService;
 	private _keybindingService: IKeybindingService;
-	private _proxy: PluginHostCommands;
+	private _proxy: ExtHostCommands;
 
 	constructor( @IThreadService threadService: IThreadService, @IKeybindingService keybindingService: IKeybindingService) {
 		this._threadService = threadService;
 		this._keybindingService = keybindingService;
-		this._proxy = this._threadService.getRemotable(PluginHostCommands);
+		this._proxy = this._threadService.getRemotable(ExtHostCommands);
 	}
 
 	$registerCommand(id: string): TPromise<any> {

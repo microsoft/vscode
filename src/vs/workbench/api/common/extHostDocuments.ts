@@ -13,11 +13,11 @@ import {Remotable, IThreadService} from 'vs/platform/thread/common/thread';
 import Event, {Emitter} from 'vs/base/common/event';
 import URI from 'vs/base/common/uri';
 import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
-import {Range, Position} from 'vs/workbench/api/common/pluginHostTypes';
+import {Range, Position} from 'vs/workbench/api/common/extHostTypes';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IEditorService} from 'vs/platform/editor/common/editor';
 import {EventType as FileEventType, LocalFileChangeEvent, ITextFileService, ITextFileOperationResult} from 'vs/workbench/parts/files/common/files';
-import * as TypeConverters from './pluginHostTypeConverters';
+import * as TypeConverters from './extHostTypeConverters';
 import {TPromise} from 'vs/base/common/winjs.base';
 import * as vscode from 'vscode';
 import {WordHelper} from 'vs/editor/common/model/textModelWithTokensHelpers';
@@ -45,8 +45,8 @@ export function getWordDefinitionFor(modeId:string):RegExp {
 	return _modeId2WordDefinition[modeId];
 }
 
-@Remotable.PluginHostContext('PluginHostModelService')
-export class PluginHostModelService {
+@Remotable.PluginHostContext('ExtHostModelService')
+export class ExtHostModelService {
 
 	private _onDidAddDocumentEventEmitter: Emitter<BaseTextDocument>;
 	public onDidAddDocument: Event<BaseTextDocument>;
@@ -60,7 +60,7 @@ export class PluginHostModelService {
 	private _onDidSaveDocumentEventEmitter: Emitter<BaseTextDocument>;
 	public onDidSaveDocument: Event<BaseTextDocument>;
 
-	private _documents: {[modelUri:string]:PluginHostDocument;};
+	private _documents: {[modelUri:string]:ExtHostDocument;};
 
 	private _proxy: MainThreadDocuments;
 
@@ -118,7 +118,7 @@ export class PluginHostModelService {
 	}
 
 	public _acceptModelAdd(data:IModelAddedData): void {
-		let document = new PluginHostDocument(this._proxy, data.url, data.value.lines, data.value.EOL, data.modeId, data.versionId, data.isDirty);
+		let document = new ExtHostDocument(this._proxy, data.url, data.value.lines, data.value.EOL, data.modeId, data.versionId, data.isDirty);
 		let key = document.uri.toString();
 		if (this._documents[key]) {
 			throw new Error('Document `' + key + '` already exists.');
@@ -405,7 +405,7 @@ export class BaseTextDocument implements vscode.TextDocument {
 	}
 }
 
-export class PluginHostDocument extends BaseTextDocument {
+export class ExtHostDocument extends BaseTextDocument {
 
 	private _proxy: MainThreadDocuments;
 
@@ -532,7 +532,7 @@ export class MainThreadDocuments {
 	private _untitledEditorService: IUntitledEditorService;
 	private _toDispose: IDisposable[];
 	private _modelToDisposeMap: {[modelUrl:string]:IDisposable;};
-	private _proxy: PluginHostModelService;
+	private _proxy: ExtHostModelService;
 	private _modelIsSynced: {[modelId:string]:boolean;};
 
 	constructor(
@@ -548,7 +548,7 @@ export class MainThreadDocuments {
 		this._editorService = editorService;
 		this._fileService = fileService;
 		this._untitledEditorService = untitledEditorService;
-		this._proxy = threadService.getRemotable(PluginHostModelService);
+		this._proxy = threadService.getRemotable(ExtHostModelService);
 		this._modelIsSynced = {};
 
 		this._toDispose = [];

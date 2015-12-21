@@ -15,7 +15,7 @@ export interface MyQuickPickItems extends IPickOpenEntryItem {
 
 export type Item = string | QuickPickItem;
 
-export class PluginHostQuickOpen {
+export class ExtHostQuickOpen {
 
 	private _proxy: MainThreadQuickOpen;
 

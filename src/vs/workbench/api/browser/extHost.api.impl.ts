@@ -8,23 +8,23 @@ import {MainInplaceReplaceSupport, ReplaceSupport, IBracketElectricCharacterCont
 import {score} from 'vs/editor/common/modes/languageSelector';
 import {Remotable, IThreadService} from 'vs/platform/thread/common/thread';
 import * as errors from 'vs/base/common/errors';
-import {PluginHostFileSystemEventService} from 'vs/workbench/api/common/pluginHostFileSystemEventService';
-import {PluginHostModelService, setWordDefinitionFor} from 'vs/workbench/api/common/pluginHostDocuments';
-import {PluginHostConfiguration} from 'vs/workbench/api/common/pluginHostConfiguration';
-import {PluginHostDiagnostics} from 'vs/workbench/api/common/pluginHostDiagnostics';
-import {PluginHostWorkspace} from 'vs/workbench/api/common/pluginHostWorkspace';
-import {PluginHostQuickOpen} from 'vs/workbench/api/browser/pluginHostQuickOpen';
-import {PluginHostStatusBar} from 'vs/workbench/api/browser/pluginHostStatusBar';
-import {PluginHostCommands} from 'vs/workbench/api/common/pluginHostCommands';
+import {ExtHostFileSystemEventService} from 'vs/workbench/api/common/extHostFileSystemEventService';
+import {ExtHostModelService, setWordDefinitionFor} from 'vs/workbench/api/common/extHostDocuments';
+import {ExtHostConfiguration} from 'vs/workbench/api/common/extHostConfiguration';
+import {ExtHostDiagnostics} from 'vs/workbench/api/common/extHostDiagnostics';
+import {ExtHostWorkspace} from 'vs/workbench/api/common/extHostWorkspace';
+import {ExtHostQuickOpen} from 'vs/workbench/api/browser/extHostQuickOpen';
+import {ExtHostStatusBar} from 'vs/workbench/api/browser/extHostStatusBar';
+import {ExtHostCommands} from 'vs/workbench/api/common/extHostCommands';
 import {ExtHostOutputService} from 'vs/workbench/api/common/extHostOutputService';
-import {PluginHostMessageService} from 'vs/workbench/api/common/pluginHostMessageService';
-import {PluginHostTelemetryService} from 'vs/workbench/api/common/pluginHostTelemetry';
-import {PluginHostEditors} from 'vs/workbench/api/common/pluginHostEditors';
+import {ExtHostMessageService} from 'vs/workbench/api/common/extHostMessageService';
+import {ExtHostEditors} from 'vs/workbench/api/common/extHostEditors';
 import {ExtHostLanguages} from 'vs/workbench/api/common/extHostLanguages';
 import {ExtHostLanguageFeatures} from 'vs/workbench/api/common/extHostLanguageFeatures';
 import {ExtHostApiCommands} from 'vs/workbench/api/common/extHostApiCommands';
-import * as extHostTypes from 'vs/workbench/api/common/pluginHostTypes';
+import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
 import 'vs/workbench/api/common/pluginHostTypes.marshalling';
+import * as TypeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import {wrapAsWinJSPromise} from 'vs/base/common/async';
 import Modes = require('vs/editor/common/modes');
 import {IModelService} from 'vs/editor/common/services/modelService';
@@ -39,7 +39,6 @@ import {IPluginService, IPluginDescription} from 'vs/platform/plugins/common/plu
 import {PluginsRegistry} from 'vs/platform/plugins/common/pluginsRegistry';
 import {relative} from 'path';
 import {TPromise} from 'vs/base/common/winjs.base';
-import * as TypeConverters from 'vs/workbench/api/common/pluginHostTypeConverters';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {CancellationTokenSource} from 'vs/base/common/cancellation';
 import vscode = require('vscode');
@@ -50,11 +49,11 @@ import * as paths from 'vs/base/common/paths';
  * This class implements the API described in vscode.d.ts,
  * for the case of the extensionHost host process
  */
-export class PluginHostAPIImplementation {
+export class ExtHostAPIImplementation {
 
 	private static _LAST_REGISTER_TOKEN = 0;
 	private static generateDisposeToken(): string {
-		return String(++PluginHostAPIImplementation._LAST_REGISTER_TOKEN);
+		return String(++ExtHostAPIImplementation._LAST_REGISTER_TOKEN);
 	}
 
 	private _threadService: IThreadService;
@@ -137,7 +136,7 @@ export class PluginHostAPIImplementation {
 			this._proxy.onUnexpectedPluginHostError(errors.transformErrorForSerialization(err));
 		});
 
-		const pluginHostCommands = this._threadService.getRemotable(PluginHostCommands);
+		const pluginHostCommands = this._threadService.getRemotable(ExtHostCommands);
 		this.commands = {
 			registerCommand<T>(id: string, command: <T>(...args: any[]) => T | Thenable<T>, thisArgs?: any): vscode.Disposable {
 				return pluginHostCommands.registerCommand(id, command, thisArgs);
@@ -153,11 +152,10 @@ export class PluginHostAPIImplementation {
 			}
 		};
 
-		const pluginHostEditors = this._threadService.getRemotable(PluginHostEditors);
-		const pluginHostMessageService = new PluginHostMessageService(this._threadService, this.commands);
-		const pluginHostQuickOpen = new PluginHostQuickOpen(this._threadService);
-		const pluginHostStatusBar = new PluginHostStatusBar(this._threadService);
-		const pluginHostTelemetryService = new PluginHostTelemetryService(threadService);
+		const pluginHostEditors = this._threadService.getRemotable(ExtHostEditors);
+		const pluginHostMessageService = new ExtHostMessageService(this._threadService, this.commands);
+		const pluginHostQuickOpen = new ExtHostQuickOpen(this._threadService);
+		const pluginHostStatusBar = new ExtHostStatusBar(this._threadService);
 		const extHostOutputService = new ExtHostOutputService(this._threadService);
 		this.window = {
 			get activeTextEditor() {
@@ -206,9 +204,9 @@ export class PluginHostAPIImplementation {
 
 		//
 		const workspacePath = contextService.getWorkspace() ? contextService.getWorkspace().resource.fsPath : undefined;
-		const pluginHostFileSystemEvent = threadService.getRemotable(PluginHostFileSystemEventService);
-		const pluginHostWorkspace = new PluginHostWorkspace(this._threadService, workspacePath);
-		const pluginHostDocuments = this._threadService.getRemotable(PluginHostModelService);
+		const pluginHostFileSystemEvent = threadService.getRemotable(ExtHostFileSystemEventService);
+		const pluginHostWorkspace = new ExtHostWorkspace(this._threadService, workspacePath);
+		const pluginHostDocuments = this._threadService.getRemotable(ExtHostModelService);
 		this.workspace = Object.freeze({
 			get rootPath() {
 				return pluginHostWorkspace.getPath();
@@ -265,9 +263,9 @@ export class PluginHostAPIImplementation {
 
 		//
 		const languages = new ExtHostLanguages(this._threadService);
-		const pluginHostDiagnostics = new PluginHostDiagnostics(this._threadService);
+		const pluginHostDiagnostics = new ExtHostDiagnostics(this._threadService);
 		const languageFeatures = threadService.getRemotable(ExtHostLanguageFeatures);
-		const languageFeatureCommand = new ExtHostApiCommands(threadService.getRemotable(PluginHostCommands));
+		const languageFeatureCommand = new ExtHostApiCommands(threadService.getRemotable(ExtHostCommands));
 
 		this.languages = {
 			createDiagnosticCollection(name?: string): vscode.DiagnosticCollection {
@@ -326,7 +324,7 @@ export class PluginHostAPIImplementation {
 			}
 		};
 
-		var pluginHostConfiguration = threadService.getRemotable(PluginHostConfiguration);
+		var pluginHostConfiguration = threadService.getRemotable(ExtHostConfiguration);
 
 		//
 		this.extensions = {
@@ -339,7 +337,6 @@ export class PluginHostAPIImplementation {
 			get all():Extension<any>[] {
 				return PluginsRegistry.getAllPluginDescriptions().map((desc) => new Extension(pluginService, desc));
 			}
-			// getTelemetryInfo: pluginHostTelemetryService.getTelemetryInfo.bind(pluginHostTelemetryService)
 		}
 
 		// Intentionally calling a function for typechecking purposes
@@ -426,31 +423,31 @@ export class PluginHostAPIImplementation {
 	}
 
 	private Modes_CommentsSupport_register(modeId: string, commentsSupport: ICommentsSupportContribution): IDisposable {
-		let disposeToken = PluginHostAPIImplementation.generateDisposeToken();
+		let disposeToken = ExtHostAPIImplementation.generateDisposeToken();
 		this._proxy.Modes_CommentsSupport_register(disposeToken, modeId, commentsSupport);
 		return this._disposableFromToken(disposeToken);
 	}
 
 	private Modes_TokenTypeClassificationSupport_register(modeId: string, tokenTypeClassificationSupport:ITokenTypeClassificationSupportContribution): IDisposable {
-		let disposeToken = PluginHostAPIImplementation.generateDisposeToken();
+		let disposeToken = ExtHostAPIImplementation.generateDisposeToken();
 		this._proxy.Modes_TokenTypeClassificationSupport_register(disposeToken, modeId, tokenTypeClassificationSupport);
 		return this._disposableFromToken(disposeToken);
 	}
 
 	private Modes_ElectricCharacterSupport_register(modeId: string, electricCharacterSupport:IBracketElectricCharacterContribution): IDisposable {
-		let disposeToken = PluginHostAPIImplementation.generateDisposeToken();
+		let disposeToken = ExtHostAPIImplementation.generateDisposeToken();
 		this._proxy.Modes_ElectricCharacterSupport_register(disposeToken, modeId, electricCharacterSupport);
 		return this._disposableFromToken(disposeToken);
 	}
 
 	private Modes_CharacterPairSupport_register(modeId: string, characterPairSupport:Modes.ICharacterPairContribution): IDisposable {
-		let disposeToken = PluginHostAPIImplementation.generateDisposeToken();
+		let disposeToken = ExtHostAPIImplementation.generateDisposeToken();
 		this._proxy.Modes_CharacterPairSupport_register(disposeToken, modeId, characterPairSupport);
 		return this._disposableFromToken(disposeToken);
 	}
 
 	private Modes_OnEnterSupport_register(modeId: string, opts: IOnEnterSupportOptions): IDisposable {
-		let disposeToken = PluginHostAPIImplementation.generateDisposeToken();
+		let disposeToken = ExtHostAPIImplementation.generateDisposeToken();
 		this._proxy.Modes_OnEnterSupport_register(disposeToken, modeId, opts);
 		return this._disposableFromToken(disposeToken);
 	}

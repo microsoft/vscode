@@ -20,15 +20,15 @@ import strings = require('vs/base/common/strings');
 import paths = require('vs/base/common/paths');
 import {IPluginService, IPluginDescription, IMessage} from 'vs/platform/plugins/common/plugins';
 import {PluginsRegistry, PluginsMessageCollector, IPluginsMessageCollector} from 'vs/platform/plugins/common/pluginsRegistry';
-import {PluginHostAPIImplementation} from 'vs/workbench/api/browser/pluginHost.api.impl';
+import {ExtHostAPIImplementation} from 'vs/workbench/api/browser/extHost.api.impl';
 import { create as createIPC, IPluginsIPC } from 'vs/platform/plugins/common/ipcRemoteCom';
-import {PluginHostModelService} from 'vs/workbench/api/common/pluginHostDocuments';
+import {ExtHostModelService} from 'vs/workbench/api/common/extHostDocuments';
 import {IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import InstantiationService = require('vs/platform/instantiation/common/instantiationService');
 import {PluginHostPluginService} from 'vs/platform/plugins/common/nativePluginService';
 import {PluginHostThreadService} from 'vs/platform/thread/common/pluginHostThreadService';
 import marshalling = require('vs/base/common/marshalling');
-import {PluginHostTelemetryService} from 'vs/workbench/api/common/pluginHostTelemetry';
+import {ExtHostTelemetryService} from 'vs/workbench/api/common/extHostTelemetry';
 import {BaseRequestService} from 'vs/platform/request/common/baseRequestService';
 import {BaseWorkspaceContextService} from 'vs/platform/workspace/common/baseWorkspaceContextService';
 import {ModeServiceImpl} from 'vs/editor/common/services/modeServiceImpl';
@@ -71,9 +71,9 @@ export function createServices(remoteCom: IPluginsIPC, initData: IInitData, shar
 	let contextService = new BaseWorkspaceContextService(initData.contextService.workspace, initData.contextService.configuration, initData.contextService.options);
 	let threadService = new PluginHostThreadService(remoteCom);
 	threadService.setInstantiationService(InstantiationService.create({ threadService: threadService }));
-	let telemetryServiceInstance = new PluginHostTelemetryService(threadService);
+	let telemetryServiceInstance = new ExtHostTelemetryService(threadService);
 	let requestService = new BaseRequestService(contextService, telemetryServiceInstance);
-	let modelService = threadService.getRemotable(PluginHostModelService);
+	let modelService = threadService.getRemotable(ExtHostModelService);
 
 	let pluginService = new PluginHostPluginService(threadService);
 	let modeService = new ModeServiceImpl(threadService, pluginService);
@@ -84,13 +84,13 @@ export function createServices(remoteCom: IPluginsIPC, initData: IInitData, shar
 		threadService: threadService,
 		modeService: modeService,
 		pluginService: pluginService,
-		telemetryService: PluginHostTelemetryService
+		telemetryService: ExtHostTelemetryService
 	};
 	let instantiationService = InstantiationService.create(_services);
 	threadService.setInstantiationService(instantiationService);
 
 	// Create the monaco API
-	instantiationService.createInstance(PluginHostAPIImplementation);
+	instantiationService.createInstance(ExtHostAPIImplementation);
 
 	// Connect to shared process services
 	instantiationService.addSingleton(IExtensionsService, sharedProcessClient.getService<IExtensionsService>('ExtensionService', ExtensionsService));

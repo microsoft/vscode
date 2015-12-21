@@ -7,7 +7,7 @@
 import Severity from 'vs/base/common/severity';
 import * as objects from 'vs/base/common/objects';
 import * as modes from 'vs/editor/common/modes';
-import * as types from './pluginHostTypes';
+import * as types from './extHostTypes';
 import {Position as EditorPosition} from 'vs/platform/editor/common/editor';
 import {IPosition, ISelection, IRange, IRangeWithMessage, ISingleEditOperation} from 'vs/editor/common/editorCommon';
 import {IHTMLContentElement} from 'vs/base/common/htmlContent';

@@ -7,7 +7,7 @@
 
 import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
-import * as types from 'vs/workbench/api/common/pluginHostTypes';
+import * as types from 'vs/workbench/api/common/extHostTypes';
 
 suite('PluginHostTypes', function() {
 

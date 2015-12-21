@@ -141,7 +141,7 @@ class DiagnosticCollection implements vscode.DiagnosticCollection {
 	}
 }
 
-export class PluginHostDiagnostics {
+export class ExtHostDiagnostics {
 
 	private static _idPool: number = 0;
 	private _proxy: MainThreadDiagnostics;
@@ -152,7 +152,7 @@ export class PluginHostDiagnostics {
 
 	createDiagnosticCollection(name: string): vscode.DiagnosticCollection {
 		if (!name) {
-			name = '_generated_diagnostic_collection_name_#' + PluginHostDiagnostics._idPool++;
+			name = '_generated_diagnostic_collection_name_#' + ExtHostDiagnostics._idPool++;
 		}
 		return new DiagnosticCollection(name, this._proxy);
 	}

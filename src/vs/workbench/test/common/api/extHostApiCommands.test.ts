@@ -10,8 +10,7 @@ import {setUnexpectedErrorHandler, errorHandler} from 'vs/base/common/errors';
 import {create} from 'vs/base/common/types';
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {PluginHostDocument} from 'vs/workbench/api/common/pluginHostDocuments';
-import * as types from 'vs/workbench/api/common/pluginHostTypes';
+import * as types from 'vs/workbench/api/common/extHostTypes';
 import {Range as CodeEditorRange} from 'vs/editor/common/core/range';
 import * as EditorCommon from 'vs/editor/common/editorCommon';
 import {Model as EditorModel} from 'vs/editor/common/model/model';
@@ -25,8 +24,8 @@ import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegi
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {ExtHostLanguageFeatures, MainThreadLanguageFeatures} from 'vs/workbench/api/common/extHostLanguageFeatures';
 import {ExtHostApiCommands} from 'vs/workbench/api/common/extHostApiCommands';
-import {PluginHostCommands, MainThreadCommands} from 'vs/workbench/api/common/pluginHostCommands';
-import {PluginHostModelService} from 'vs/workbench/api/common/pluginHostDocuments';
+import {ExtHostCommands, MainThreadCommands} from 'vs/workbench/api/common/extHostCommands';
+import {ExtHostModelService} from 'vs/workbench/api/common/extHostDocuments';
 import {SyncDescriptor0} from 'vs/platform/instantiation/common/descriptors';
 import {LanguageSelector} from 'vs/editor/common/modes/languageSelector';
 import {OutlineRegistry, getOutlineEntries} from 'vs/editor/contrib/quickOpen/common/quickOpen';
@@ -52,7 +51,7 @@ const model: EditorCommon.IModel = new EditorModel(
 
 let extHost: ExtHostLanguageFeatures;
 let mainThread: MainThreadLanguageFeatures;
-let commands: PluginHostCommands;
+let commands: ExtHostCommands;
 let disposables: vscode.Disposable[] = [];
 let originalErrorHandler: (e: any) => any;
 
@@ -84,7 +83,7 @@ suite('ExtHostLanguageFeatureCommands', function() {
 			}
 		})
 
-		threadService.getRemotable(PluginHostModelService)._acceptModelAdd({
+		threadService.getRemotable(ExtHostModelService)._acceptModelAdd({
 			isDirty: false,
 			versionId: model.getVersionId(),
 			modeId: model.getModeId(),
@@ -98,7 +97,7 @@ suite('ExtHostLanguageFeatureCommands', function() {
 		});
 
 		threadService.getRemotable(MainThreadCommands);
-		commands = threadService.getRemotable(PluginHostCommands);
+		commands = threadService.getRemotable(ExtHostCommands);
 		new ExtHostApiCommands(commands);
 		mainThread = threadService.getRemotable(MainThreadLanguageFeatures);
 		extHost = threadService.getRemotable(ExtHostLanguageFeatures);

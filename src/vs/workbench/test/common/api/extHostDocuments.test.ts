@@ -7,15 +7,15 @@
 
 import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
-import {PluginHostDocument} from 'vs/workbench/api/common/pluginHostDocuments';
-import {Position} from 'vs/workbench/api/common/pluginHostTypes';
+import {ExtHostDocument} from 'vs/workbench/api/common/extHostDocuments';
+import {Position} from 'vs/workbench/api/common/extHostTypes';
 import {Range as CodeEditorRange} from 'vs/editor/common/core/range';
 import * as EditorCommon from 'vs/editor/common/editorCommon';
 
 
 suite("PluginHostDocument", () => {
 
-	let doc: PluginHostDocument;
+	let doc: ExtHostDocument;
 
 	function assertPositionAt(offset: number, line: number, character: number) {
 		let position = doc.positionAt(offset);
@@ -30,7 +30,7 @@ suite("PluginHostDocument", () => {
 	}
 
 	setup(function() {
-		doc = new PluginHostDocument(undefined, URI.file(''), [
+		doc = new ExtHostDocument(undefined, URI.file(''), [
 			'This is line one', //16
 			'and this is line number two', //27
 			'it is followed by #3', //20
@@ -193,7 +193,7 @@ suite("PluginHostDocument updates line mapping", () => {
 		return '(' + position.line + ',' + position.character + ')';
 	}
 
-	function assertDocumentLineMapping(doc:PluginHostDocument, direction:AssertDocumentLineMappingDirection): void {
+	function assertDocumentLineMapping(doc:ExtHostDocument, direction:AssertDocumentLineMappingDirection): void {
 		let allText = doc.getText();
 
 		let line = 0, character = 0, previousIsCarriageReturn = false;
@@ -234,7 +234,7 @@ suite("PluginHostDocument updates line mapping", () => {
 	}
 
 	function testLineMappingDirectionAfterEvents(lines:string[], eol: string, direction:AssertDocumentLineMappingDirection, events:EditorCommon.IModelContentChangedEvent2[]): void {
-		let myDocument = new PluginHostDocument(undefined, URI.file(''), lines.slice(0), eol, 'text', 1, false);
+		let myDocument = new ExtHostDocument(undefined, URI.file(''), lines.slice(0), eol, 'text', 1, false);
 		assertDocumentLineMapping(myDocument, direction);
 
 		myDocument._acceptEvents(events);

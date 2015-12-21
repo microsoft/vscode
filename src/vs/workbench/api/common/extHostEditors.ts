@@ -9,15 +9,15 @@ import Event, {Emitter} from 'vs/base/common/event';
 import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {Remotable, IThreadService} from 'vs/platform/thread/common/thread';
-import {PluginHostModelService} from 'vs/workbench/api/common/pluginHostDocuments';
-import {Selection, Range, Position, EditorOptions} from './pluginHostTypes';
+import {ExtHostModelService} from 'vs/workbench/api/common/extHostDocuments';
+import {Selection, Range, Position, EditorOptions} from './extHostTypes';
 import {ISingleEditOperation, ISelection, IRange, IInternalIndentationOptions, IEditor, EditorType, ICommonCodeEditor, ICommonDiffEditor, IDecorationRenderOptions, IRangeWithMessage} from 'vs/editor/common/editorCommon';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IEditor as IPlatformEditor, IResourceInput, Position as EditorPosition} from 'vs/platform/editor/common/editor';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {MainThreadEditorsTracker, TextEditorRevealType, MainThreadTextEditor, ITextEditorConfiguration} from 'vs/workbench/api/common/mainThreadEditors';
-import * as TypeConverters from './pluginHostTypeConverters';
+import * as TypeConverters from './extHostTypeConverters';
 import {TextDocument, TextEditorSelectionChangeEvent, TextEditorOptionsChangeEvent, TextEditorOptions, ViewColumn} from 'vscode';
 import {EventType} from 'vs/workbench/browser/events';
 import {IEventService} from 'vs/platform/event/common/event';
@@ -30,8 +30,8 @@ export interface ITextEditorAddData {
 	selections: ISelection[];
 }
 
-@Remotable.PluginHostContext('PluginHostEditors')
-export class PluginHostEditors {
+@Remotable.PluginHostContext('ExtHostEditors')
+export class ExtHostEditors {
 
 	public onDidChangeTextEditorSelection: Event<TextEditorSelectionChangeEvent>;
 	private _onDidChangeTextEditorSelection: Emitter<TextEditorSelectionChangeEvent>;
@@ -39,10 +39,10 @@ export class PluginHostEditors {
 	public onDidChangeTextEditorOptions: Event<TextEditorOptionsChangeEvent>;
 	private _onDidChangeTextEditorOptions: Emitter<TextEditorOptionsChangeEvent>;
 
-	private _editors: { [id: string]: PluginHostTextEditor };
+	private _editors: { [id: string]: ExtHostTextEditor };
 	private _proxy: MainThreadEditors;
 	private _onDidChangeActiveTextEditor: Emitter<vscode.TextEditor>;
-	private _modelService: PluginHostModelService;
+	private _modelService: ExtHostModelService;
 	private _activeEditorId: string;
 	private _visibleEditorIds: string[];
 
@@ -55,7 +55,7 @@ export class PluginHostEditors {
 		this._onDidChangeTextEditorOptions = new Emitter<TextEditorOptionsChangeEvent>();
 		this.onDidChangeTextEditorOptions = this._onDidChangeTextEditorOptions.event;
 
-		this._modelService = threadService.getRemotable(PluginHostModelService);
+		this._modelService = threadService.getRemotable(ExtHostModelService);
 		this._proxy = threadService.getRemotable(MainThreadEditors);
 		this._onDidChangeActiveTextEditor = new Emitter<vscode.TextEditor>();
 		this._editors = Object.create(null);
@@ -94,7 +94,7 @@ export class PluginHostEditors {
 
 	_acceptTextEditorAdd(data:ITextEditorAddData): void {
 		let document = this._modelService.getDocument(data.document);
-		let newEditor = new PluginHostTextEditor(this._proxy, data.id, document, data.selections.map(TypeConverters.toSelection), data.options);
+		let newEditor = new ExtHostTextEditor(this._proxy, data.id, document, data.selections.map(TypeConverters.toSelection), data.options);
 		this._editors[data.id] = newEditor;
 	}
 
@@ -262,7 +262,7 @@ function deprecated(name:string, message:string = 'Refer to the documentation fo
 	}
 }
 
-class PluginHostTextEditor implements vscode.TextEditor {
+class ExtHostTextEditor implements vscode.TextEditor {
 
 	private _proxy: MainThreadEditors;
 	private _id: string;
@@ -400,7 +400,7 @@ class PluginHostTextEditor implements vscode.TextEditor {
 
 	// ---- util
 
-	private _runOnProxy(callback: () => TPromise<any>, silent:boolean): TPromise<PluginHostTextEditor> {
+	private _runOnProxy(callback: () => TPromise<any>, silent:boolean): TPromise<ExtHostTextEditor> {
 		return callback().then(() => this, err => {
 			if (!silent) {
 				return TPromise.wrapError(silent);
@@ -413,7 +413,7 @@ class PluginHostTextEditor implements vscode.TextEditor {
 @Remotable.MainContext('MainThreadEditors')
 export class MainThreadEditors {
 
-	private _proxy: PluginHostEditors;
+	private _proxy: ExtHostEditors;
 	private _workbenchEditorService: IWorkbenchEditorService;
 	private _editorTracker: MainThreadEditorsTracker;
 	private _toDispose: IDisposable[];
@@ -429,7 +429,7 @@ export class MainThreadEditors {
 		@IEventService eventService:IEventService,
 		@IModelService modelService:IModelService
 	) {
-		this._proxy = threadService.getRemotable(PluginHostEditors);
+		this._proxy = threadService.getRemotable(ExtHostEditors);
 		this._workbenchEditorService = workbenchEditorService;
 		this._toDispose = [];
 		this._textEditorsListenersMap = Object.create(null);
