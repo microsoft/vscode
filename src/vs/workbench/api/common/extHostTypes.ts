@@ -148,6 +148,10 @@ export class Position {
 		}
 		return new Position(line, character);
 	}
+
+	toJSON(): any {
+		return [this.line, this.character];
+	}
 }
 
 export class Range {
@@ -248,6 +252,10 @@ export class Range {
 		}
 		return new Range(start, end);
 	}
+
+	toJSON(): any {
+		return [this.start, this.end];
+	}
 }
 
 export class Selection extends Range {
@@ -291,6 +299,15 @@ export class Selection extends Range {
 	get isReversed(): boolean {
 		return this._anchor === this._end;
 	}
+
+	toJSON() {
+		return {
+			start: this.start,
+			end: this.end,
+			active: this.active,
+			anchor: this.anchor
+		}
+	}
 }
 
 export class TextEdit {
@@ -333,6 +350,13 @@ export class TextEdit {
 	constructor(range: Range, newText: string) {
 		this.range = range;
 		this.newText = newText;
+	}
+
+	toJSON(): any {
+		return {
+			range: this.range,
+			newText: this.newText
+		};
 	}
 }
 
@@ -387,6 +411,10 @@ export class WorkspaceEdit {
 	get size(): number {
 		return this._values.length;
 	}
+
+	toJSON(): any {
+		return this._values;
+	}
 }
 
 export enum DiagnosticSeverity {
@@ -412,6 +440,13 @@ export class Location {
 			throw new Error('Illegal argument');
 		}
 	}
+
+	toJSON(): any {
+		return {
+			uri: this.uri,
+			range: this.range
+		};
+	}
 }
 
 export class Diagnostic {
@@ -426,6 +461,16 @@ export class Diagnostic {
 		this.range = range;
 		this.message = message;
 		this.severity = severity;
+	}
+
+	toJSON(): any {
+		return {
+			severity: DiagnosticSeverity[this.severity],
+			message: this.message,
+			range: this.range,
+			source: this.source,
+			code: this.code,
+		}
 	}
 }
 
@@ -463,6 +508,13 @@ export class DocumentHighlight {
 		this.range = range;
 		this.kind = kind;
 	}
+
+	toJSON(): any {
+		return {
+			range: this.range,
+			kind: DocumentHighlightKind[this.kind]
+		}
+	}
 }
 
 export enum SymbolKind {
@@ -498,6 +550,15 @@ export class SymbolInformation {
 		this.kind = kind;
 		this.location = new Location(uri, range);
 		this.containerName = containerName;
+	}
+
+	toJSON(): any {
+		return {
+			name: this.name,
+			kind: SymbolKind[this.kind],
+			location: this.location,
+			containerName: this.containerName
+		}
 	}
 }
 
@@ -586,6 +647,19 @@ export class CompletionItem {
 
 	constructor(label: string) {
 		this.label = label;
+	}
+
+	toJSON(): any {
+		return {
+			label: this.label,
+			kind: CompletionItemKind[this.kind],
+			detail: this.detail,
+			documentation: this.documentation,
+			sortText: this.sortText,
+			filterText: this.filterText,
+			insertText: this.insertText,
+			textEdit: this.textEdit
+		}
 	}
 }
 

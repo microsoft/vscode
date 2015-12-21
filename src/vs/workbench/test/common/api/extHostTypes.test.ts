@@ -9,7 +9,13 @@ import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
 import * as types from 'vs/workbench/api/common/extHostTypes';
 
-suite('PluginHostTypes', function() {
+function assertToJSON(a: any, expected: any) {
+	const raw = JSON.stringify(a);
+	const actual = JSON.parse(raw);
+	assert.deepEqual(actual, expected);
+}
+
+suite('ExtHostTypes', function() {
 
 	test('Disposable', function() {
 
@@ -47,6 +53,14 @@ suite('PluginHostTypes', function() {
 		assert.throws(() => pos.character = -1);
 		assert.throws(() => pos.line = 12);
 
+		let [line, character] = pos.toJSON();
+		assert.equal(line, 0);
+		assert.equal(character, 0);
+	});
+
+	test('Position, toJSON', function() {
+		let pos = new types.Position(4, 2);
+		assertToJSON(pos, [4, 2])
 	});
 
 	test('Position, isBefore(OrEqual)?', function() {
@@ -131,6 +145,12 @@ suite('PluginHostTypes', function() {
 		let range = new types.Range(1, 0, 0, 0);
 		assert.throws(() => range.start = null);
 		assert.throws(() => range.start = new types.Position(0, 3));
+	});
+
+	test('Range, toJSON', function() {
+
+		let range = new types.Range(1, 2, 3, 4);
+		assertToJSON(range, [[1, 2], [3, 4]]);
 	});
 
 	test('Range, sorting', function() {
@@ -249,6 +269,7 @@ suite('PluginHostTypes', function() {
 		let range = new types.Range(1, 1, 2, 11);
 		let edit = new types.TextEdit(range, undefined);
 		assert.equal(edit.newText, '');
+		assertToJSON(edit, { range: [[1, 1], [2, 11]], newText: '' });
 
 		edit = new types.TextEdit(range, null);
 		assert.equal(edit.newText, '');
@@ -268,11 +289,16 @@ suite('PluginHostTypes', function() {
 		edit.set(a, [types.TextEdit.insert(new types.Position(0, 0), 'fff')]);
 		assert.ok(edit.has(a));
 		assert.equal(edit.size, 1);
+		assertToJSON(edit, [['file://a.ts', [{ range: [[0, 0], [0, 0]], newText: 'fff' }]]]);
 
 		edit.insert(b, new types.Position(1, 1), 'fff');
 		edit.delete(b, new types.Range(0, 0, 0, 0));
 		assert.ok(edit.has(b));
 		assert.equal(edit.size, 2);
+		assertToJSON(edit, [
+			['file://a.ts', [{ range: [[0, 0], [0, 0]], newText: 'fff' }]],
+			['file://b.ts', [{ range: [[1, 1], [1, 1]], newText: 'fff' }, { range: [[0, 0], [0, 0]], newText: '' }]]
+		]);
 
 		edit.set(b, undefined);
 		assert.ok(edit.has(b));
@@ -280,5 +306,43 @@ suite('PluginHostTypes', function() {
 
 		edit.set(b, [types.TextEdit.insert(new types.Position(0, 0), 'ffff')]);
 		assert.equal(edit.get(b).length, 1);
+
+	});
+
+	test('toJSON & stringify', function() {
+
+		assertToJSON(new types.Selection(3, 4, 2, 1), { start: [2, 1], end: [3, 4], anchor: [3, 4], active: [2, 1] });
+
+		assertToJSON(new types.Location(types.Uri.file('u.ts'), new types.Range(1, 2, 3, 4)), { uri: 'file://u.ts', range: [[1, 2], [3, 4]] });
+		assertToJSON(new types.Location(types.Uri.file('u.ts'), new types.Position(3, 4)), { uri: 'file://u.ts', range: [[3, 4], [3, 4]] });
+
+		let diag = new types.Diagnostic(new types.Range(0, 1, 2, 3), 'hello');
+		assertToJSON(diag, { severity: 'Error', message: 'hello', range: [[0, 1], [2, 3]] });
+		diag.source = 'me'
+		assertToJSON(diag, { severity: 'Error', message: 'hello', range: [[0, 1], [2, 3]], source: 'me' });
+
+		assertToJSON(new types.DocumentHighlight(new types.Range(2, 3, 4, 5)), { range: [[2, 3], [4, 5]], kind: 'Text' });
+		assertToJSON(new types.DocumentHighlight(new types.Range(2, 3, 4, 5), types.DocumentHighlightKind.Read), { range: [[2, 3], [4, 5]], kind: 'Read' });
+
+		assertToJSON(new types.SymbolInformation('test', types.SymbolKind.Boolean, new types.Range(0, 1, 2, 3)), {
+			name: 'test',
+			kind: 'Boolean',
+			location: {
+				range: [[0, 1], [2, 3]]
+			}
+		});
+
+		assertToJSON(new types.CodeLens(new types.Range(7, 8, 9, 10)), { range: [[7, 8], [9, 10]] });
+		assertToJSON(new types.CodeLens(new types.Range(7, 8, 9, 10), { command: 'id', title: 'title' }), {
+			range: [[7, 8], [9, 10]],
+			command: { command: 'id', title: 'title' }
+		});
+
+		assertToJSON(new types.CompletionItem('complete'), { label: 'complete' });
+
+		let item = new types.CompletionItem('complete');
+		item.kind = types.CompletionItemKind.Interface
+		assertToJSON(item, { label: 'complete', kind: 'Interface' });
+
 	});
 });
