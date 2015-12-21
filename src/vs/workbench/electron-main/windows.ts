@@ -421,7 +421,7 @@ export class WindowsManager {
 			// Open Files in last instance if any and flag tells us so
 			let lastActiveWindow = this.getLastActiveWindow();
 			if (!openFilesInNewWindow && lastActiveWindow) {
-				lastActiveWindow.restore();
+				lastActiveWindow.focus();
 				lastActiveWindow.ready().then((readyWindow) => {
 					readyWindow.send('vscode:openFiles', {
 						filesToOpen: filesToOpen,
@@ -449,7 +449,7 @@ export class WindowsManager {
 			// Check for existing instances
 			let windowsOnWorkspacePath = arrays.coalesce(foldersToOpen.map((iPath) => this.findWindow(iPath.workspacePath)));
 			if (windowsOnWorkspacePath.length > 0) {
-				windowsOnWorkspacePath[0].restore(); // just focus one of them
+				windowsOnWorkspacePath[0].focus(); // just focus one of them
 				windowsOnWorkspacePath[0].ready().then((readyWindow) => {
 					readyWindow.send('vscode:openFiles', {
 						filesToOpen: filesToOpen,
@@ -518,7 +518,7 @@ export class WindowsManager {
 		let res = WindowsManager.WINDOWS.filter((w) => w.config && this.isPathEqual(w.config.pluginDevelopmentPath, openConfig.cli.pluginDevelopmentPath));
 		if (res && res.length === 1) {
 			this.reload(res[0], openConfig.cli);
-			res[0].restore(); // make sure it gets focus and is restored
+			res[0].focus(); // make sure it gets focus and is restored
 
 			return;
 		}
@@ -685,7 +685,7 @@ export class WindowsManager {
 			vscodeWindow = windowToUse || this.getLastActiveWindow();
 
 			if (vscodeWindow) {
-				vscodeWindow.restore();
+				vscodeWindow.focus();
 			}
 		}
 
@@ -856,7 +856,7 @@ export class WindowsManager {
 	public focusLastActive(cli: env.ICommandLineArguments): void {
 		let lastActive = this.getLastActiveWindow();
 		if (lastActive) {
-			lastActive.restore();
+			lastActive.focus();
 		}
 
 		// No window - open new one

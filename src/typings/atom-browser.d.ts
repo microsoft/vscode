@@ -182,6 +182,8 @@ declare class BrowserWindow extends EventEmitter {
 	setFullScreen(fullscreen: boolean): void;
 	isFullScreen(): boolean;
 	isMaximized(): boolean;
+	minimize(): void;
+	isFocused(): boolean;
 	isMinimized(): boolean;
 	isVisible(): boolean;
 	restore(): boolean;

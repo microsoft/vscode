@@ -6,6 +6,7 @@
 'use strict';
 
 import path = require('path');
+import os = require('os');
 
 import Shell = require('shell');
 import screen = require('screen');
@@ -218,18 +219,23 @@ export class VSCodeWindow {
 		return this._win;
 	}
 
-	public restore(): void {
+	public focus(): void {
 		if (!this._win) {
 			return;
 		}
 
-		if (this._win.isMinimized()) {
-			this._win.restore();
+		// Windows 10: https://github.com/Microsoft/vscode/issues/929
+		if (platform.isWindows && os.release() && os.release().indexOf('10.') === 0 && !this._win.isFocused()) {
+			this._win.minimize();
+			this._win.focus();
 		}
 
-		if (platform.isWindows || platform.isLinux) {
-			this._win.show(); // Windows & Linux sometimes cannot bring the window to the front when it is in the background
-		} else {
+		// Mac / Linux / Windows 7 & 8
+		else {
+			if (this._win.isMinimized()) {
+				this._win.restore();
+			}
+
 			this._win.focus();
 		}
 	}
