@@ -4143,10 +4143,10 @@
         </value>
       </values>
     </entry>
-    <entry name="-moz-text-decoration-color" restriction="color" version="3.0" browsers="FF6" ref="http://www.w3.org/TR/css3-text/#text-decoration-color0" syntax="div { $(name): #ff0; }">
+    <entry name="-moz-text-decoration-color" restriction="color" version="3.0" browsers="FF6" ref="http://www.w3.org/TR/css-text-decor-3/#text-decoration-color" syntax="div { $(name): #ff0; }">
       <desc>Specifies the color of text decoration (underlines overlines, and line-throughs) set on the element with text-decoration-line.</desc>
     </entry>
-    <entry name="-moz-text-decoration-line" restriction="enum" version="3.0" browsers="FF6" ref="http://www.w3.org/TR/css3-text/#text-decoration-line0" syntax="div { $(name): underline; }">
+    <entry name="-moz-text-decoration-line" restriction="enum" version="3.0" browsers="FF6" ref="http://www.w3.org/TR/css-text-decor-3/#text-decoration-line" syntax="div { $(name): underline; }">
       <desc>Specifies what line decorations, if any, are added to the element.</desc>
       <values>
         <value name="line-through" version="3.0" browsers="all">
@@ -4163,7 +4163,7 @@
         </value>
       </values>
     </entry>
-    <entry name="-moz-text-decoration-style" restriction="enum" version="3.0" browsers="FF6" ref="http://www.w3.org/TR/css3-text/#text-decoration-style0" syntax="div { $(name): solid; }">
+    <entry name="-moz-text-decoration-style" restriction="enum" version="3.0" browsers="FF6" ref="http://www.w3.org/TR/css-text-decor-3/#text-decoration-style" syntax="div { $(name): solid; }">
       <desc>Specifies the line style for underline, line-through and overline text decoration.</desc>
       <values>
         <value name="dashed" version="3.0" browsers="all">
@@ -6624,7 +6624,7 @@
         </value>
       </values>
     </entry>
-    <entry name="text-decoration" restriction="enum, color" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-text/#text-decoration0" syntax="a:visited { $(name): line-through; }">
+    <entry name="text-decoration" restriction="enum, color" version="1.0" browsers="all" ref="http://www.w3.org/TR/css-text-decor-3/#text-decoration-style" syntax="a:visited { $(name): line-through; }">
       <desc>Decorations applied to font used for an element's text.</desc>
       <values>
         <value name="dashed" version="1.0" browsers="all">
@@ -6656,10 +6656,10 @@
         </value>
       </values>
     </entry>
-    <entry name="text-decoration-color" restriction="color" version="3.0" browsers="none" ref="http://www.w3.org/TR/css3-text/#text-decoration-color0" syntax="div { $(name): #ff0; }">
+    <entry name="text-decoration-color" restriction="color" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-text-decor-3/#text-decoration-color" syntax="div { $(name): #ff0; }">
       <desc>Specifies the color of text decoration (underlines overlines, and line-throughs) set on the element with text-decoration-line.</desc>
     </entry>
-    <entry name="text-decoration-line" restriction="enum" version="3.0" browsers="FF36" ref="http://www.w3.org/TR/css3-text/#text-decoration-line0" syntax="div { $(name): underline; }">
+    <entry name="text-decoration-line" restriction="enum" version="3.0" browsers="FF36" ref="http://www.w3.org/TR/css-text-decor-3/#text-decoration-line" syntax="div { $(name): underline; }">
       <desc>Specifies what line decorations, if any, are added to the element.</desc>
       <values>
         <value name="line-through" version="3.0" browsers="all">
@@ -6676,7 +6676,7 @@
         </value>
       </values>
     </entry>
-    <entry name="text-decoration-skip" restriction="enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css3-text/#text-decoration-skip0" syntax="none | [ images || spaces || ink || all ]">
+    <entry name="text-decoration-skip" restriction="enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-text-decor-3/#text-decoration-skip" syntax="none | [ images || spaces || ink || all ]">
       <desc>Specifies what parts of the element's content any text decoration affecting the element must skip over. It controls all text decoration lines drawn by the element and also any text decoration lines drawn by its ancestors.</desc>
       <values>
         <value name="box-decoration" version="3.0" browsers="all">
@@ -6696,7 +6696,7 @@
         </value>
       </values>
     </entry>
-    <entry name="text-decoration-style" restriction="enum" version="3.0" browsers="FF36" ref="http://www.w3.org/TR/css3-text/#text-decoration-style0" syntax="div { $(name): solid; }">
+    <entry name="text-decoration-style" restriction="enum" version="3.0" browsers="FF36" ref="http://www.w3.org/TR/css-text-decor-3/#text-decoration-style" syntax="div { $(name): solid; }">
       <desc>Specifies the line style for underline, line-through and overline text decoration.</desc>
       <values>
         <value name="dashed" version="3.0" browsers="all">
@@ -6719,7 +6719,7 @@
         </value>
       </values>
     </entry>
-    <entry name="text-emphasis" restriction="color, string" version="3.0" browsers="none" ref="http://www.w3.org/TR/css3-text/#text-emphasis0" syntax="&lt;color&gt; | &lt;string&gt; | none | [ [ filled | open ] || [ dot | circle | double-circle | triangle | sesame ] ]">
+    <entry name="text-emphasis" restriction="color, string" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-text-decor-3/#text-emphasis" syntax="&lt;color&gt; | &lt;string&gt; | none | [ [ filled | open ] || [ dot | circle | double-circle | triangle | sesame ] ]">
       <desc>Shorthand for setting text-emphasis-style and text-emphasis-color in one declaration.</desc>
       <values>
         <value name="circle" version="3.0" browsers="all">
@@ -6748,10 +6748,10 @@
         </value>
       </values>
     </entry>
-    <entry name="text-emphasis-color" restriction="color" version="3.0" browsers="none" ref="http://www.w3.org/TR/css3-text/#text-emphasis-color0" syntax="div { $(name): #ff0; }">
+    <entry name="text-emphasis-color" restriction="color" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-text-decor-3/#text-emphasis-color" syntax="div { $(name): #ff0; }">
       <desc>Describes the foreground color of the emphasis marks.</desc>
     </entry>
-    <entry name="text-emphasis-position" restriction="enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css3-text/#text-emphasis-position0" syntax="[ above | below ] &amp;&amp; [ right | left ]">
+    <entry name="text-emphasis-position" restriction="enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-text-decor-3/#text-emphasis-position" syntax="[ above | below ] &amp;&amp; [ right | left ]">
       <desc>Describes where emphasis marks are drawn at.</desc>
       <values>
         <value name="over" version="3.0" browsers="all">
@@ -6768,7 +6768,7 @@
         </value>
       </values>
     </entry>
-    <entry name="text-emphasis-style" restriction="string" version="3.0" browsers="none" ref="http://www.w3.org/TR/css3-text/#text-emphasis-style0" syntax="none | [[ filled | open ] || [ dot | circle | double-circle | triangle | sesame ]] | &lt;string&gt;">
+    <entry name="text-emphasis-style" restriction="string" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-text-decor-3/#text-emphasis-style" syntax="none | [[ filled | open ] || [ dot | circle | double-circle | triangle | sesame ]] | &lt;string&gt;">
       <desc>Applies emphasis marks to the element's text.</desc>
       <values>
         <value name="circle" version="3.0" browsers="all">
