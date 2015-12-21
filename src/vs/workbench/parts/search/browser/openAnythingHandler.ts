@@ -9,7 +9,6 @@ import {Promise, TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import {ThrottledDelayer} from 'vs/base/common/async';
 import types = require('vs/base/common/types');
-import strings = require('vs/base/common/strings');
 import scorer = require('vs/base/common/scorer');
 import paths = require('vs/base/common/paths');
 import filters = require('vs/base/common/filters');
@@ -21,15 +20,12 @@ import {IAutoFocus} from 'vs/base/parts/quickopen/browser/quickOpen';
 import {QuickOpenEntry, QuickOpenModel} from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import {QuickOpenHandler} from 'vs/workbench/browser/quickopen';
 import {FileEntry, OpenFileHandler} from 'vs/workbench/parts/search/browser/openFileHandler';
-import {OpenSymbolHandler as _OpenSymbolHandler} from 'vs/workbench/parts/search/browser/openSymbolHandler';
+import {OpenSymbolHandler} from 'vs/workbench/parts/search/browser/openSymbolHandler';
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {ISearchConfiguration} from 'vs/platform/search/common/search';
 import {IConfigurationService, IConfigurationServiceEvent, ConfigurationServiceEventTypes} from 'vs/platform/configuration/common/configuration';
-
-// OpenSymbolHandler is used from an extension and must be in the main bundle file so it can load
-export const OpenSymbolHandler = _OpenSymbolHandler
 
 export class OpenAnythingHandler extends QuickOpenHandler {
 	private static LINE_COLON_PATTERN = /[#|:](\d*)([#|:](\d*))?$/;
@@ -40,7 +36,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 
 	private static MAX_DISPLAYED_RESULTS = 1024;
 
-	private openSymbolHandler: _OpenSymbolHandler;
+	private openSymbolHandler: OpenSymbolHandler;
 	private openFileHandler: OpenFileHandler;
 	private resultsToSearchCache: { [searchValue: string]: QuickOpenEntry[]; };
 	private delayer: ThrottledDelayer<QuickOpenModel>;
@@ -59,7 +55,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 		super();
 
 		// Instantiate delegate handlers
-		this.openSymbolHandler = instantiationService.createInstance(_OpenSymbolHandler);
+		this.openSymbolHandler = instantiationService.createInstance(OpenSymbolHandler);
 		this.openFileHandler = instantiationService.createInstance(OpenFileHandler);
 
 		this.openSymbolHandler.setStandalone(false);

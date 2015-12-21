@@ -11,7 +11,6 @@ import paths = require('vs/base/common/paths');
 import errors = require('vs/base/common/errors');
 import labels = require('vs/base/common/labels');
 import {disposeAll, IDisposable} from 'vs/base/common/lifecycle';
-import files = require('vs/workbench/parts/files/browser/files');
 import filesCommon = require('vs/workbench/parts/files/common/files');
 import {IFileStat, FileChangeType, FileChangesEvent, EventType as FileEventType} from 'vs/platform/files/common/files';
 import {EditorEvent, UntitledEditorEvent, EventType as WorkbenchEventType} from 'vs/workbench/browser/events';
@@ -382,11 +381,13 @@ export class WorkingFilesModel implements filesCommon.IWorkingFilesModel {
 
 		// Add untitled ones (after joinCreation() to make sure we catch everything)
 		this.partService.joinCreation().done(() => {
-			this.untitledEditorService && this.untitledEditorService.getAll().map((u) => u.getResource())
-				.filter((r) => !this.untitledEditorService.hasAssociatedFilePath(r))		// only those without association
-				.forEach((r) => {
-					this.addEntry(r);
-				});
+			if (this.untitledEditorService) {
+				this.untitledEditorService.getAll().map((u) => u.getResource())
+					.filter((r) => !this.untitledEditorService.hasAssociatedFilePath(r))		// only those without association
+					.forEach((r) => {
+						this.addEntry(r);
+					});
+			}
 		}, errors.onUnexpectedError);
 	}
 

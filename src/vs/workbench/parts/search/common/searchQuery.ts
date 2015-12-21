@@ -4,15 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('vs/base/common/assert');
-import types = require('vs/base/common/types');
-import uri from 'vs/base/common/uri';
 import glob = require('vs/base/common/glob');
-import strings = require('vs/base/common/strings');
 import objects = require('vs/base/common/objects');
 import {TPromise} from 'vs/base/common/winjs.base';
 import search = require('vs/platform/search/common/search');
-import {IConfigurationService, IConfigurationServiceEvent, ConfigurationServiceEventTypes} from 'vs/platform/configuration/common/configuration';
+import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 
 export function getExcludes(configuration: search.ISearchConfiguration): glob.IExpression {
 	let fileExcludes = configuration && configuration.files && configuration.files.exclude;

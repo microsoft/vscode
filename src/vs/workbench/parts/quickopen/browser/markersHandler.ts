@@ -51,7 +51,7 @@ class MarkerEntry extends QuickOpenEntryItem {
 		elements.push('<div class="inline entry">');
 		elements.push('<div>');
 		if (source) {
-			elements.push(strings.format('<span class="source">[{0}]&nbsp;</span>', source))
+			elements.push(strings.format('<span class="source">[{0}]&nbsp;</span>', source));
 		}
 		elements.push(strings.format('<span class="message">{0}</span>', message));
 		elements.push('</div>');

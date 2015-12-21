@@ -28,8 +28,6 @@ import {TextFileEditor} from 'vs/workbench/parts/files/browser/editors/textFileE
 import {BinaryFileEditor} from 'vs/workbench/parts/files/browser/editors/binaryFileEditor';
 import {IInstantiationService, INullService} from 'vs/platform/instantiation/common/instantiation';
 import {SyncDescriptor, AsyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
-import {registerSingleton} from 'vs/platform/instantiation/common/extensions';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IKeybindings} from 'vs/platform/keybinding/common/keybindingService';
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';

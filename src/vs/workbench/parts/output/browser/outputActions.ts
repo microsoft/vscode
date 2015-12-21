@@ -9,7 +9,7 @@ import nls = require('vs/nls');
 import {Registry} from 'vs/platform/platform';
 import errors = require('vs/base/common/errors');
 import arrays = require('vs/base/common/arrays');
-import {disposeAll, IDisposable} from 'vs/base/common/lifecycle';
+import {IDisposable} from 'vs/base/common/lifecycle';
 import {IAction, Action} from 'vs/base/common/actions';
 import {EditorAction, Behaviour} from 'vs/editor/common/editorAction';
 import {ICommonCodeEditor, IEditorActionDescriptorData} from 'vs/editor/common/editorCommon';

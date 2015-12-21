@@ -8,7 +8,6 @@
 import {TPromise} from 'vs/base/common/winjs.base';
 import {onUnexpectedError, illegalArgument} from 'vs/base/common/errors';
 import {IDisposable} from 'vs/base/common/lifecycle';
-import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
 import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {IRange} from 'vs/editor/common/editorCommon';
 import URI from 'vs/base/common/uri';
@@ -50,7 +49,7 @@ export namespace NavigateTypesSupportRegistry {
 					}
 				}
 			}
-		}
+		};
 	}
 
 	export function all(): INavigateTypesSupport[] {

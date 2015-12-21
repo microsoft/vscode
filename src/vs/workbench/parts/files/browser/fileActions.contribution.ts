@@ -7,7 +7,6 @@
 import nls = require('vs/nls');
 import {Registry} from 'vs/platform/platform';
 import {Action, IAction} from 'vs/base/common/actions';
-import paths = require('vs/base/common/paths');
 import {ActionItem, BaseActionItem, Separator} from 'vs/base/browser/ui/actionbar/actionbar';
 import {Scope, IActionBarRegistry, Extensions as ActionBarExtensions, ActionBarContributor} from 'vs/workbench/browser/actionBarRegistry';
 import {IEditorInputActionContext, IEditorInputAction, EditorInputActionContributor} from 'vs/workbench/browser/parts/editor/baseEditor';
@@ -16,14 +15,11 @@ import {RevertLocalChangesAction, AcceptLocalChangesAction, ConflictResolutionDi
 import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
 import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/browser/actionRegistry';
 import {DerivedFrameEditorInput} from 'vs/workbench/parts/files/browser/editors/derivedFrameEditorInput';
-import {KeybindingsUtils} from 'vs/platform/keybinding/common/keybindingsUtils';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {FileStat} from 'vs/workbench/parts/files/browser/views/explorerViewModel';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
-
-const HTML_MIME = 'text/html';
 
 class FilesViewerActionContributor extends ActionBarContributor {
 
@@ -47,8 +43,6 @@ class FilesViewerActionContributor extends ActionBarContributor {
 		let tree = context.viewer;
 		let actions: IAction[] = [];
 		let separateOpen = false;
-
-		let extension = stat.isDirectory ? null : paths.extname(stat.name);
 
 		// Open side by side
 		if (!stat.isDirectory) {

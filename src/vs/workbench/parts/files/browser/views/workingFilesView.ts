@@ -14,7 +14,7 @@ import workbenchEditorCommon = require('vs/workbench/common/editor');
 import {CollapsibleState} from 'vs/base/browser/ui/splitview/splitview';
 import {IWorkingFileEntry, IWorkingFilesModel, IWorkingFileModelChangeEvent, LocalFileChangeEvent, EventType as FileEventType, IFilesConfiguration, ITextFileService} from 'vs/workbench/parts/files/common/files';
 import dom = require('vs/base/browser/dom');
-import {disposeAll, IDisposable} from 'vs/base/common/lifecycle';
+import {IDisposable} from 'vs/base/common/lifecycle';
 import errors = require('vs/base/common/errors');
 import {EditorEvent, EventType as WorkbenchEventType, UntitledEditorEvent} from 'vs/workbench/browser/events';
 import {AdaptiveCollapsibleViewletView} from 'vs/workbench/browser/viewlet';
@@ -83,7 +83,7 @@ export class WorkingFilesView extends AdaptiveCollapsibleViewletView {
 		return [
 			this.instantiationService.createInstance(SaveAllAction, SaveAllAction.ID, SaveAllAction.LABEL),
 			this.instantiationService.createInstance(CloseWorkingFileAction, this.model, null)
-		]
+		];
 	}
 
 	public renderBody(container: HTMLElement): void {

@@ -7,14 +7,13 @@
 import {TPromise} from 'vs/base/common/winjs.base';
 import {Event as BaseEvent, PropertyChangeEvent} from 'vs/base/common/events';
 import URI from 'vs/base/common/uri';
-import Event, {Emitter} from 'vs/base/common/event';
+import Event from 'vs/base/common/event';
 import {guessMimeTypes} from 'vs/base/common/mime';
 import {IModel, IEditorOptions} from 'vs/editor/common/editorCommon';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import {EncodingMode, EditorInput, IFileEditorInput} from 'vs/workbench/common/editor';
-import {IFileStat, FileChangesEvent, IFilesConfiguration} from 'vs/platform/files/common/files';
+import {IFileStat, IFilesConfiguration} from 'vs/platform/files/common/files';
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
-import {ISearchService} from 'vs/platform/search/common/search';
 import {FileStat} from 'vs/workbench/parts/files/browser/views/explorerViewModel';
 
 /**

@@ -7,15 +7,13 @@
 
 import 'vs/css!./media/feedback';
 import nls = require('vs/nls');
-import types = require('vs/base/common/types');
 import {IDisposable} from 'vs/base/common/lifecycle';
 import {Builder, $} from 'vs/base/browser/builder';
 import errors = require('vs/base/common/errors');
-import DOM = require('vs/base/browser/dom');
 import {Promise} from 'vs/base/common/winjs.base';
 import {Dropdown} from 'vs/base/browser/ui/dropdown/dropdown';
 import {IXHRResponse} from 'vs/base/common/http';
-import {IContextViewService, IContextMenuService} from 'vs/platform/contextview/browser/contextView';
+import {IContextViewService} from 'vs/platform/contextview/browser/contextView';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 
 const STATUS_TIMEOUT = 500;

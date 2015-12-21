@@ -30,7 +30,7 @@ import {IModeService} from 'vs/editor/common/services/modeService';
 interface ILanguageConfiguration {
 	markdown: {
 		styles: string[];
-	}
+	};
 }
 
 // This extension tracks markdown files for changes to update markdown editors and inputs accordingly.
