@@ -272,6 +272,11 @@ class CallStackView extends viewlet.CollapsibleViewletView {
 		}));
 	}
 
+	public layoutBody(size: number): void {
+		const sizeWithRespectToMessageBox = this.messageBox && !this.messageBox.hidden ? size - 27 : size;
+		super.layoutBody(sizeWithRespectToMessageBox);
+	}
+
 	private renderMessageBox(container: HTMLElement): void {
 		this.messageBox = document.createElement('div');
 		dom.addClass(this.messageBox, 'debug-message-box');
