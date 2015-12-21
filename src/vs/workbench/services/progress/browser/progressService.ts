@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {Promise} from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import types = require('vs/base/common/types');
 import {ProgressBar} from 'vs/base/browser/ui/progressbar/progressbar';
 import {ScopedService} from 'vs/workbench/browser/services';
@@ -16,7 +16,7 @@ interface ProgressState {
 	total?: number;
 	worked?: number;
 	done?: boolean;
-	whilePromise?: Promise;
+	whilePromise?: TPromise<any>;
 }
 
 export class WorkbenchProgressService extends ScopedService implements IProgressService {
@@ -163,7 +163,7 @@ export class WorkbenchProgressService extends ScopedService implements IProgress
 		};
 	}
 
-	public showWhile(promise: Promise, delay?: number): Promise {
+	public showWhile(promise: TPromise<any>, delay?: number): TPromise<any> {
 		let stack: boolean = !!this.progressState.whilePromise;
 
 		// Reset State
@@ -173,7 +173,7 @@ export class WorkbenchProgressService extends ScopedService implements IProgress
 
 		// Otherwise join with existing running promise to ensure progress is accurate
 		else {
-			promise = Promise.join([promise, this.progressState.whilePromise]);
+			promise = TPromise.join([promise, this.progressState.whilePromise]);
 		}
 
 		// Keep Promise in State

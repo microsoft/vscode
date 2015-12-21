@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import WinJS = require('vs/base/common/winjs.base');
+import {TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import Paths = require('vs/base/common/paths');
 import Themes = require('vs/platform/theme/common/themes');
@@ -16,13 +16,13 @@ import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/comm
 import plist = require('vs/base/node/plist');
 import pfs = require('vs/base/node/pfs');
 
-export var IThemeService = createDecorator<IThemeService>('themeService');
+export let IThemeService = createDecorator<IThemeService>('themeService');
 
 export interface IThemeService {
-	serviceId : ServiceIdentifier<any>;
-	getTheme(themeId: string) : WinJS.TPromise<ITheme>;
-	loadThemeCSS(themeId: string) : WinJS.TPromise<boolean>;
-	getThemes(): WinJS.TPromise<ITheme[]>;
+	serviceId: ServiceIdentifier<any>;
+	getTheme(themeId: string): TPromise<ITheme>;
+	loadThemeCSS(themeId: string): TPromise<boolean>;
+	getThemes(): TPromise<ITheme[]>;
 }
 
 export interface ITheme {
@@ -35,15 +35,15 @@ export interface ITheme {
 
 // implementation
 
-var defaultBaseTheme = Themes.toId(Themes.BaseTheme.VS_DARK);
+let defaultBaseTheme = Themes.toId(Themes.BaseTheme.VS_DARK);
 
 let themesExtPoint = PluginsRegistry.registerExtensionPoint<IThemeExtensionPoint[]>('themes', {
 	description: nls.localize('vscode.extension.contributes.themes', 'Contributes textmate color themes.'),
 	type: 'array',
-	default: [{ label: '{{label}}', uiTheme: 'vs-dark', path: './themes/{{id}}.tmTheme.'}],
+	default: [{ label: '{{label}}', uiTheme: 'vs-dark', path: './themes/{{id}}.tmTheme.' }],
 	items: {
 		type: 'object',
-		default: { label: '{{label}}', uiTheme: 'vs-dark', path: './themes/{{id}}.tmTheme.'},
+		default: { label: '{{label}}', uiTheme: 'vs-dark', path: './themes/{{id}}.tmTheme.' },
 		properties: {
 			label: {
 				description: nls.localize('vscode.extension.contributes.themes.label', 'Label of the color theme as shown in the UI.'),
@@ -51,7 +51,7 @@ let themesExtPoint = PluginsRegistry.registerExtensionPoint<IThemeExtensionPoint
 			},
 			uiTheme: {
 				description: nls.localize('vscode.extension.contributes.themes.uiTheme', 'Base theme defining the colors around the editor: \'vs\' is the light color theme, \'vs-dark\' is the dark color theme.'),
-				enum: [ 'vs', 'vs-dark']
+				enum: ['vs', 'vs-dark']
 			},
 			path: {
 				description: nls.localize('vscode.extension.contributes.themes.path', 'Path of the tmTheme file. The path is relative to the extension folder and is typically \'./themes/themeFile.tmTheme\'.'),
@@ -66,7 +66,7 @@ export class ThemeService implements IThemeService {
 
 	private knownThemes: ITheme[];
 
-	constructor (private pluginService: IPluginService) {
+	constructor(private pluginService: IPluginService) {
 		this.knownThemes = [];
 
 		themesExtPoint.setHandler((extensions) => {
@@ -76,9 +76,9 @@ export class ThemeService implements IThemeService {
 		});
 	}
 
-	public getTheme(themeId: string) : WinJS.TPromise<ITheme> {
+	public getTheme(themeId: string): TPromise<ITheme> {
 		return this.getThemes().then(allThemes => {
-			var themes = allThemes.filter(t => t.id === themeId);
+			let themes = allThemes.filter(t => t.id === themeId);
 			if (themes.length > 0) {
 				return themes[0];
 			}
@@ -86,16 +86,16 @@ export class ThemeService implements IThemeService {
 		});
 	}
 
-	public loadThemeCSS(themeId: string) : WinJS.TPromise<boolean> {
+	public loadThemeCSS(themeId: string): TPromise<boolean> {
 		return this.getTheme(themeId).then(theme => {
 			if (theme) {
 				return loadTheme(theme);
 			}
 			return null;
-		})
+		});
 	}
 
-	public getThemes(): WinJS.TPromise<ITheme[]> {
+	public getThemes(): TPromise<ITheme[]> {
 		return this.pluginService.onReady().then(isReady => {
 			return this.knownThemes;
 		});
@@ -126,47 +126,45 @@ export class ThemeService implements IThemeService {
 				collector.warn(nls.localize('invalid.path.1', "Expected `contributes.{0}.path` ({1}) to be included inside extension's folder ({2}). This might make the extension non-portable.", themesExtPoint.name, normalizedAbsolutePath, extensionFolderPath));
 			}
 
-			var themeSelector = toCssSelector(extensionId + '-' + Paths.normalize(theme.path));
+			let themeSelector = toCssSelector(extensionId + '-' + Paths.normalize(theme.path));
 			this.knownThemes.push({
 				id: `${theme.uiTheme || defaultBaseTheme} ${themeSelector}`,
 				label: theme.label || Paths.basename(theme.path),
 				description: theme.description,
 				path: normalizedAbsolutePath
 			});
-		})
+		});
 	}
-
 }
 
 function toCssSelector(str: string) {
 	return str.replace(/[^_\-a-zA-Z0-9]/g, '-');
 }
 
-
-function loadTheme(theme: ITheme) : WinJS.TPromise<boolean> {
+function loadTheme(theme: ITheme): TPromise<boolean> {
 	if (theme.styleSheetContent) {
-		_applyRules(theme.styleSheetContent)
+		_applyRules(theme.styleSheetContent);
 	}
 
 	return pfs.readFile(theme.path).then(content => {
-		var parseResult = plist.parse(content.toString());
+		let parseResult = plist.parse(content.toString());
 		if (parseResult.errors && parseResult.errors.length) {
-			return WinJS.TPromise.wrapError(new Error(nls.localize('error.cannotparse', "Problems parsing plist file: {0}", parseResult.errors.join(', '))));
+			return TPromise.wrapError(new Error(nls.localize('error.cannotparse', "Problems parsing plist file: {0}", parseResult.errors.join(', '))));
 		}
-		var styleSheetContent = _processThemeObject(theme.id, parseResult.value);
+		let styleSheetContent = _processThemeObject(theme.id, parseResult.value);
 		theme.styleSheetContent = styleSheetContent;
-		_applyRules(styleSheetContent)
+		_applyRules(styleSheetContent);
 		return true;
 	}, error => {
-		return WinJS.Promise.wrapError(nls.localize('error.cannotloadtheme', "Unable to load {0}", theme.path));
+		return TPromise.wrapError(nls.localize('error.cannotloadtheme', "Unable to load {0}", theme.path));
 	});
 }
 
-function _processThemeObject(themeId: string, themeDocument: any) : string {
-	var cssRules : string[] = [];
+function _processThemeObject(themeId: string, themeDocument: any): string {
+	let cssRules: string[] = [];
 
-	var themeSettings = themeDocument.settings;
-	var editorSettings = {
+	let themeSettings = themeDocument.settings;
+	let editorSettings = {
 		background: void 0,
 		foreground: void 0,
 		caret: void 0,
@@ -175,18 +173,18 @@ function _processThemeObject(themeId: string, themeDocument: any) : string {
 		selection: void 0
 	};
 
-	var themeSelector = `${Themes.getBaseThemeId(themeId)}.${Themes.getSyntaxThemeId(themeId)}`;
+	let themeSelector = `${Themes.getBaseThemeId(themeId)}.${Themes.getSyntaxThemeId(themeId)}`;
 
 	if (Array.isArray(themeSettings)) {
 		themeSettings.forEach((s, index, arr) => {
 			if (index === 0 && !s.scope) {
 				editorSettings = s.settings;
 			} else {
-				var scope : string = s.scope;
-				var settings : string = s.settings;
+				let scope: string = s.scope;
+				let settings: string = s.settings;
 				if (scope && settings) {
-					var rules = scope.split(',');
-					var statements = _settingsToStatements(settings);
+					let rules = scope.split(',');
+					let statements = _settingsToStatements(settings);
 					rules.forEach(rule => {
 						rule = rule.trim().replace(/ /g, '.'); // until we have scope hierarchy in the editor dom: replace spaces with .
 
@@ -198,55 +196,55 @@ function _processThemeObject(themeId: string, themeDocument: any) : string {
 	}
 
 	if (editorSettings.background) {
-		var background = new Color(editorSettings.background);
+		let background = new Color(editorSettings.background);
 		//cssRules.push(`.monaco-editor.${themeSelector} { background-color: ${background}; }`);
 		cssRules.push(`.monaco-editor.${themeSelector} .monaco-editor-background { background-color: ${background}; }`);
 		cssRules.push(`.monaco-editor.${themeSelector} .glyph-margin { background-color: ${background}; }`);
 		cssRules.push(`.monaco-workbench.${themeSelector} .monaco-editor-background { background-color: ${background}; }`);
 	}
 	if (editorSettings.foreground) {
-		var foreground = new Color(editorSettings.foreground);
+		let foreground = new Color(editorSettings.foreground);
 		cssRules.push(`.monaco-editor.${themeSelector} { color: ${foreground}; }`);
 		cssRules.push(`.monaco-editor.${themeSelector} .token { color: ${foreground}; }`);
 	}
 	if (editorSettings.selection) {
-		var selection = new Color(editorSettings.selection);
+		let selection = new Color(editorSettings.selection);
 		cssRules.push(`.monaco-editor.${themeSelector} .focused .selected-text { background-color: ${selection}; }`);
 		cssRules.push(`.monaco-editor.${themeSelector} .selected-text { background-color: ${selection.transparent(0.5)}; }`);
 	}
 	if (editorSettings.lineHighlight) {
-		var lineHighlight = new Color(editorSettings.lineHighlight);
+		let lineHighlight = new Color(editorSettings.lineHighlight);
 		cssRules.push(`.monaco-editor.${themeSelector} .current-line { background-color: ${lineHighlight}; }`);
 	}
 	if (editorSettings.caret) {
-		var caret = new Color(editorSettings.caret);
+		let caret = new Color(editorSettings.caret);
 		cssRules.push(`.monaco-editor.${themeSelector} .cursor { background-color: ${caret}; }`);
 	}
 	if (editorSettings.invisibles) {
-		var invisibles = new Color(editorSettings.invisibles);
+		let invisibles = new Color(editorSettings.invisibles);
 		cssRules.push(`.monaco-editor.${themeSelector} .token.whitespace { color: ${invisibles} !important; }`);
 	}
 
 	return cssRules.join('\n');
 }
 
-function _settingsToStatements(settings: any) : string {
-	var statements: string[] = [];
+function _settingsToStatements(settings: any): string {
+	let statements: string[] = [];
 
-	for (var settingName in settings) {
+	for (let settingName in settings) {
 		var value = settings[settingName];
 		switch (settingName) {
 			case 'foreground':
-				var foreground = new Color(value);
+				let foreground = new Color(value);
 				statements.push(`color: ${foreground};`);
 				break;
 			case 'background':
 				// do not support background color for now, see bug 18924
-				//var background = new Color(value);
+				//let background = new Color(value);
 				//statements.push(`background-color: ${background};`);
 				break;
 			case 'fontStyle':
-				var segments = value.split(' ');
+				let segments = value.split(' ');
 				segments.forEach(s => {
 					switch (value) {
 						case 'italic':
@@ -265,62 +263,62 @@ function _settingsToStatements(settings: any) : string {
 	return statements.join(' ');
 }
 
-var className = 'contributedColorTheme';
+let className = 'contributedColorTheme';
 
 function _applyRules(styleSheetContent: string) {
-	var themeStyles = document.head.getElementsByClassName(className);
+	let themeStyles = document.head.getElementsByClassName(className);
 	if (themeStyles.length === 0) {
-		var elStyle = document.createElement('style');
-		elStyle.type= 'text/css';
+		let elStyle = document.createElement('style');
+		elStyle.type = 'text/css';
 		elStyle.className = className;
 		elStyle.innerHTML = styleSheetContent;
 		document.head.appendChild(elStyle);
 	} else {
-		(<HTMLStyleElement> themeStyles[0]).innerHTML = styleSheetContent;
+		(<HTMLStyleElement>themeStyles[0]).innerHTML = styleSheetContent;
 	}
 }
 
-interface RGBA { r:number; g: number; b: number; a:number; }
+interface RGBA { r: number; g: number; b: number; a: number; }
 
 class Color {
 
-	private parsed : RGBA;
+	private parsed: RGBA;
 	private str: string;
 
-	constructor(arg: string|RGBA) {
+	constructor(arg: string | RGBA) {
 		if (typeof arg === 'string') {
-			this.parsed = Color.parse(<string> arg);
+			this.parsed = Color.parse(<string>arg);
 		} else {
-			this.parsed = <RGBA> arg;
+			this.parsed = <RGBA>arg;
 		}
 		this.str = null;
 	}
 
-	private static parse(color: string) : RGBA {
+	private static parse(color: string): RGBA {
 		function parseHex(str: string) {
 			return parseInt('0x' + str);
 		}
 
 		if (color.charAt(0) === '#' && color.length >= 7) {
-			var r = parseHex(color.substr(1, 2));
-			var g = parseHex(color.substr(3, 2));
-			var b = parseHex(color.substr(5, 2));
-			var a = color.length === 9 ? parseHex(color.substr(7, 2)) / 0xff : 1
+			let r = parseHex(color.substr(1, 2));
+			let g = parseHex(color.substr(3, 2));
+			let b = parseHex(color.substr(5, 2));
+			let a = color.length === 9 ? parseHex(color.substr(7, 2)) / 0xff : 1;
 			return { r, g, b, a };
 		}
-		return { r:255, g:0, b:0, a:1 };
+		return { r: 255, g: 0, b: 0, a: 1 };
 	}
 
 	public toString(): string {
 		if (!this.str) {
-			var p = this.parsed;
+			let p = this.parsed;
 			this.str = `rgba(${p.r}, ${p.g}, ${p.b}, ${+p.a.toFixed(2)})`;
 		}
 		return this.str;
 	}
 
-	public transparent(factor: number) : Color {
-		var p = this.parsed;
-		return new Color({ r: p.r, g: p.g, b: p.b, a: p.a*factor });
+	public transparent(factor: number): Color {
+		let p = this.parsed;
+		return new Color({ r: p.r, g: p.g, b: p.b, a: p.a * factor });
 	}
 }
