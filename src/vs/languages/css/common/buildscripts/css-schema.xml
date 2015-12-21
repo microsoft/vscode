@@ -7575,11 +7575,11 @@
         </value>
       </values>
     </entry>
-    <entry name="-webkit-tap-highlight-color" restriction="color" version="3" browsers="C,S3.1" ref="http://css-infos.net/property/-webkit-tap-highlight-color">
+    <entry name="-webkit-tap-highlight-color" restriction="color" version="3" browsers="E,C,S3.1" ref="http://css-infos.net/property/-webkit-tap-highlight-color">
     </entry>
-    <entry name="-webkit-text-fill-color" restriction="color" version="3.0" browsers="S3" syntax="div { $(name): red; }">
+    <entry name="-webkit-text-fill-color" restriction="color" version="3.0" browsers="E,C,S3" syntax="div { $(name): red; }">
     </entry>
-    <entry name="-webkit-text-size-adjust" restriction="percentage" version="3.0" browsers="C,S3" ref="http://css-infos.net/property/-webkit-text-size-adjust" syntax="div { $(name): 60%; }">
+    <entry name="-webkit-text-size-adjust" restriction="percentage" version="3.0" browsers="E,C,S3" ref="http://css-infos.net/property/-webkit-text-size-adjust" syntax="div { $(name): 60%; }">
       <desc>Specifies a size adjustment for displaying text content in Safari on iPhone.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all">

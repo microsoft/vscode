@@ -9518,18 +9518,18 @@ exports.data ={
 			},
 			{
 				"name": "-webkit-tap-highlight-color",
-				"browsers": "C,S3.1",
+				"browsers": "E,C,S3.1",
 				"restriction": "color"
 			},
 			{
 				"name": "-webkit-text-fill-color",
-				"browsers": "S3",
+				"browsers": "E,C,S3",
 				"restriction": "color"
 			},
 			{
 				"name": "-webkit-text-size-adjust",
 				"desc": "Specifies a size adjustment for displaying text content in Safari on iPhone.",
-				"browsers": "C,S3",
+				"browsers": "E,C,S3",
 				"restriction": "percentage",
 				"values": [
 					{
