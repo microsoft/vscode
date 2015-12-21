@@ -68,7 +68,7 @@ export class FileWalker {
 		this.resetState();
 
 		// Support that the file pattern is a full path to a file that exists
-		this.checkFilePatternMatch(rootPaths, (exists) => {
+		this.checkFilePatternAbsoluteMatch(rootPaths, (exists) => {
 
 			// Report result from file pattern if matching
 			if (exists) {
@@ -86,7 +86,17 @@ export class FileWalker {
 
 					// Handle Directory
 					if (!error) {
-						return this.doWalk(absolutePath, '', files, onResult, perEntryCallback);
+
+						// Support relative paths to files from a root resource
+						return this.checkFilePatternRelativeMatch(absolutePath, (match) => {
+
+							// Report result from file pattern if matching
+							if (match) {
+								onResult({ path: match });
+							}
+
+							return this.doWalk(absolutePath, '', files, onResult, perEntryCallback);
+						});
 					}
 
 					// Not a folder - deal with file result then
@@ -122,7 +132,7 @@ export class FileWalker {
 		});
 	}
 
-	private checkFilePatternMatch(rootPaths: string[], clb: (exists: boolean) => void): void {
+	private checkFilePatternAbsoluteMatch(rootPaths: string[], clb: (exists: boolean) => void): void {
 		if (!this.filePattern || !paths.isAbsolute(this.filePattern)) {
 			return clb(false);
 		}
@@ -133,6 +143,18 @@ export class FileWalker {
 
 		return fs.stat(this.filePattern, (error, stat) => {
 			return clb(!error && !stat.isDirectory()); // only existing files
+		});
+	}
+
+	private checkFilePatternRelativeMatch(basePath: string, clb: (matchPath: string) => void): void {
+		if (!this.filePattern || paths.isAbsolute(this.filePattern) || !this.searchInPath) {
+			return clb(null);
+		}
+
+		const absolutePath = paths.join(basePath, this.filePattern);
+
+		return fs.stat(absolutePath, (error, stat) => {
+			return clb(!error && !stat.isDirectory() ? absolutePath : null); // only existing files
 		});
 	}
 
