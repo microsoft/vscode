@@ -22,13 +22,6 @@ export interface IWorkerParticipant {
 
 }
 
-export interface IValidateParticipant extends IWorkerParticipant {
-	/**
-	 * @param context mode specific data that helps with validation.
-	 */
-	validate(mirrorModel:EditorCommon.IMirrorModel, markerService:IMarkerService, context:any):void;
-}
-
 export interface ISuggestParticipant extends IWorkerParticipant {
 	filter?:(word:string, suggestion:ISuggestion) => IMatch[];
 	suggest?:(resource:URI, position:EditorCommon.IPosition, context?:any) => TPromise<ISuggestResult>;

@@ -18,10 +18,6 @@ import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
 import {TPromise} from 'vs/base/common/winjs.base';
 
-function isIValidateParticipant(thing:any):boolean {
-	return typeof (<Modes.IValidateParticipant> thing).validate === 'function';
-}
-
 function isISuggestParticipant(thing:any):boolean {
 	return typeof (<Modes.ISuggestParticipant> thing).suggest === 'function' || typeof (<Modes.ISuggestParticipant> thing).filter === 'function';
 }
@@ -30,7 +26,6 @@ export class AbstractModeWorker {
 
 	static filter: Modes.ISuggestionFilter = DefaultFilter;
 
-	private _validationParticipants:Modes.IValidateParticipant[] = [];
 	private _suggestParticipants:Modes.ISuggestParticipant[] = [];
 	private _participants:Modes.IWorkerParticipant[] = [];
 
@@ -59,7 +54,6 @@ export class AbstractModeWorker {
 		);
 
 		// add contributed participants
-		this._validationParticipants = this._getWorkerParticipants<Modes.IValidateParticipant>(p => isIValidateParticipant(p));
 		this._suggestParticipants = this._getWorkerParticipants<Modes.ISuggestParticipant>(p => isISuggestParticipant(p));
 
 		this.inplaceReplaceSupport = this._createInPlaceReplaceSupport();
@@ -90,9 +84,6 @@ export class AbstractModeWorker {
 
 	private _newValidate(changed:URI[], notChanged:URI[], dueToConfigurationChange:boolean): void {
 		this.doValidateOnChange(changed, notChanged, dueToConfigurationChange);
-		for (var i = 0; i < changed.length; i++) {
-			this.triggerValidateParticipation(changed[i], this._getContextForValidationParticipants(changed[i]));
-		}
 	}
 
 	public _getContextForValidationParticipants(resource:URI):any {
@@ -112,19 +103,6 @@ export class AbstractModeWorker {
 				this.doValidate(changed[i]);
 			}
 		}
-	}
-
-	public triggerValidateParticipation(resource:URI, context:any=null):void {
-
-		var model = this.resourceService.get(resource);
-		this._validationParticipants.forEach(participant => {
-			try {
-				participant.validate(model, this.markerService, context);
-			} catch(e) {
-				/// We should install a watch dog here. If a participant fails
-				/// too often we should shut the participant down.
-			}
-		});
 	}
 
 	public doValidate(resource:URI): void {
