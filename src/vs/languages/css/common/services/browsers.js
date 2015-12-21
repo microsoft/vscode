@@ -7146,6 +7146,10 @@ exports.data ={
 						"name": "auto"
 					},
 					{
+						"name": "invert",
+						"browsers": "E,IE8,O"
+					},
+					{
 						"name": "medium"
 					},
 					{

@@ -5316,6 +5316,9 @@
       <desc>Shorthand property for 'outline-style', 'outline-width', and 'outline-color'.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all" />
+        <value name="invert" version="2.0" browsers="E,IE8,O">
+          <desc>Performs a color inversion on the pixels on the screen.</desc>
+        </value>
         <value name="medium" version="1.0" browsers="all" />
         <value name="thick" version="1.0" browsers="all" />
         <value name="thin" version="1.0" browsers="all" />
