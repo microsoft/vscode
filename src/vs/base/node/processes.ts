@@ -10,7 +10,7 @@ import ChildProcess = cp.ChildProcess;
 import exec = cp.exec;
 import spawn = cp.spawn;
 
-import { Writable, Readable, PassThrough } from 'stream';
+import { PassThrough } from 'stream';
 
 import { fork } from './stdFork';
 
@@ -53,7 +53,7 @@ export function terminateProcess(process: ChildProcess, cwd?: string): Terminate
 				stdio: ['pipe', 'pipe', 'ignore']
 			};
 			if (cwd) {
-				options.cwd = cwd
+				options.cwd = cwd;
 			}
 			(<any>cp).execFileSync('taskkill', ['/T', '/F', '/PID', process.pid.toString()], options);
 		} catch (err) {
@@ -61,8 +61,8 @@ export function terminateProcess(process: ChildProcess, cwd?: string): Terminate
 		}
 	} else if (Platform.isLinux || Platform.isMacintosh) {
 		try {
-			var cmd = URI.parse(require.toUrl('vs/base/node/terminateProcess.sh')).fsPath;
-			var result = (<any>cp).spawnSync(cmd, [process.pid.toString()]);
+			let cmd = URI.parse(require.toUrl('vs/base/node/terminateProcess.sh')).fsPath;
+			let result = (<any>cp).spawnSync(cmd, [process.pid.toString()]);
 			if (result.error) {
 				return { success: false, error: result.error };
 			}

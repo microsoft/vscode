@@ -9,7 +9,7 @@ import 'vs/css!./countBadge';
 import Builder = require('vs/base/browser/builder');
 import Strings = require('vs/base/common/strings');
 
-var $ = Builder.$;
+const $ = Builder.$;
 
 export class CountBadge {
 
@@ -17,9 +17,9 @@ export class CountBadge {
 	private count: number;
 	private titleFormat: string;
 
-	constructor (container:Builder.Builder, count?:number, titleFormat?:string);
-	constructor (container:HTMLElement, count?:number, titleFormat?:string);
-	constructor (container:any, count?:number, titleFormat?:string) {
+	constructor(container: Builder.Builder, count?: number, titleFormat?: string);
+	constructor(container: HTMLElement, count?: number, titleFormat?: string);
+	constructor(container: any, count?: number, titleFormat?: string) {
 		this.$el = $('.monaco-count-badge').appendTo(container);
 		this.titleFormat = titleFormat || '';
 		this.setCount(count || 0);

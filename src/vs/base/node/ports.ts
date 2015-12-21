@@ -16,9 +16,9 @@ export function findFreePort(startPort: number, giveUpAfter:number, clb: (port: 
 		return clb(0);
 	}
 
-	var tryPort = startPort;
+	let tryPort = startPort;
 
-	var server = net.createServer();
+	let server = net.createServer();
 	server.listen(tryPort, (err) => {
 		server.once('close', () => {
 			return clb(tryPort);

@@ -30,12 +30,12 @@ export interface IRequestResult {
 }
 
 export function request(options: IRequestOptions): TPromise<IRequestResult> {
-	var req: http.ClientRequest;
+	let req: http.ClientRequest;
 
 	return new TPromise<IRequestResult>((c, e) => {
-		var endpoint = parseUrl(options.url);
+		let endpoint = parseUrl(options.url);
 
-		var opts: https.RequestOptions = {
+		let opts: https.RequestOptions = {
 			hostname: endpoint.hostname,
 			port: endpoint.port ? parseInt(endpoint.port) : (endpoint.protocol === 'https:' ? 443 : 80),
 			path: endpoint.path,
@@ -48,7 +48,7 @@ export function request(options: IRequestOptions): TPromise<IRequestResult> {
 			opts.auth = options.user + ':' + options.password;
 		}
 
-		var protocol = endpoint.protocol === 'https:' ? https : http;
+		let protocol = endpoint.protocol === 'https:' ? https : http;
 		req = protocol.request(opts, (res: http.ClientResponse) => {
 			if (res.statusCode >= 300 && res.statusCode < 400 && options.followRedirects && options.followRedirects > 0 && res.headers['location']) {
 				c(<any> request(assign({}, options, {
@@ -93,7 +93,7 @@ export function json<T>(opts: IRequestOptions): TPromise<T> {
 			return e('Response doesn\'t appear to be JSON');
 		}
 
-		var buffer: string[] = [];
+		let buffer: string[] = [];
 		pair.res.on('data', d => buffer.push(d));
 		pair.res.on('end', () => c(JSON.parse(buffer.join(''))));
 		pair.res.on('error', e);

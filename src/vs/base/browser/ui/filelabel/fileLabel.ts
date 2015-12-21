@@ -37,7 +37,7 @@ export class FileLabel {
 	}
 
 	public setValue(arg1: uri | string): void {
-		var newPath = getPath(arg1);
+		let newPath = getPath(arg1);
 
 		if (this.renderedOnce && this.path === newPath) {
 			// don't render again if nothing has changed
@@ -52,15 +52,15 @@ export class FileLabel {
 	private render(): void {
 		dom.clearNode(this.domNode);
 
-		var htmlContent: string[] = [];
+		let htmlContent: string[] = [];
 
 		htmlContent.push('<span class="file-name">');
 		htmlContent.push(paths.basename(this.path));
 		htmlContent.push('</span>');
 
-		var parent = paths.dirname(this.path);
+		let parent = paths.dirname(this.path);
 		if (parent && parent !== '.') {
-			var pathLabel = getPathLabel(parent, this.basepath);
+			let pathLabel = getPathLabel(parent, this.basepath);
 			htmlContent.push('<span class="file-path" title="' + pathLabel + '">');
 			htmlContent.push(pathLabel);
 			htmlContent.push('</span>');
@@ -80,7 +80,7 @@ function getPath(arg1: uri | string | IWorkspaceProvider): string {
 	}
 
 	if (types.isFunction((<IWorkspaceProvider>arg1).getWorkspace)) {
-		var ws = (<IWorkspaceProvider>arg1).getWorkspace();
+		let ws = (<IWorkspaceProvider>arg1).getWorkspace();
 		return ws ? ws.resource.fsPath : void 0;
 	}
 

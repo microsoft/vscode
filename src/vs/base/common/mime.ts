@@ -25,7 +25,7 @@ export function generateKnownFilenames(onlyExtensions: boolean = true): any {
 	};
 	let removeLeadingDot = (ext: string) => {
 		return ext.replace(/^\./, '');
-	}
+	};
 
 	let list: string[] = [];
 	list = list.concat(Object.keys(registeredTextMimesByFilename));
@@ -40,7 +40,7 @@ export function generateKnownFilenames(onlyExtensions: boolean = true): any {
 
 	let pushCurrentRow = () => {
 		if (currentRow.length > 0) {
-			result.push('\'' + currentRow.join('\', \'') + '\'')
+			result.push('\'' + currentRow.join('\', \'') + '\'');
 		}
 	};
 
@@ -139,7 +139,6 @@ export function guessMimeTypes(path: string, firstLine?: string): string[] {
 	// Check with file name and extension
 	path = path.toLowerCase();
 	let filename = paths.basename(path);
-	let extension = paths.extname(path);
 
 	let exactNameMatch: string;
 	let extensionMatch: string;

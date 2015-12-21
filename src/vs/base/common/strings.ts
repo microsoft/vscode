@@ -4,28 +4,26 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
-
 /**
  * The empty string.
  */
-export var empty = '';
+export const empty = '';
 
 /**
  * @returns the provided number with the given number of preceding zeros.
  */
 export function pad(n: number, l: number, char: string = '0'): string {
-	var str = '' + n;
-	var r = [str];
+	let str = '' + n;
+	let r = [str];
 
-	for (var i = str.length; i < l; i++) {
+	for (let i = str.length; i < l; i++) {
 		r.push(char);
 	}
 
 	return r.reverse().join('');
 }
 
-var _formatRegexp = /{(\d+)}/g;
+const _formatRegexp = /{(\d+)}/g;
 
 /**
  * Helper to produce a string with a variable number of arguments. Insert variable segments
@@ -38,7 +36,7 @@ export function format(value: string, ...args: any[]): string {
 		return value;
 	}
 	return value.replace(_formatRegexp, function (match, group) {
-		var idx = parseInt(group, 10);
+		let idx = parseInt(group, 10);
 		return isNaN(idx) || idx < 0 || idx >= args.length ?
 			match :
 			args[idx];
@@ -80,7 +78,7 @@ export function replaceAll(haystack: string, needle: string, replacement: string
  * @param needle the thing to trim (default is a blank)
  */
 export function trim(haystack: string, needle: string = ' '): string {
-	var trimmed = ltrim(haystack, needle);
+	let trimmed = ltrim(haystack, needle);
 	return rtrim(trimmed, needle);
 }
 
@@ -94,12 +92,12 @@ export function ltrim(haystack?: string, needle?: string): string {
 		return haystack;
 	}
 
-	var needleLen = needle.length;
+	let needleLen = needle.length;
 	if (needleLen === 0 || haystack.length === 0) {
 		return haystack;
 	}
 
-	var offset = 0,
+	let offset = 0,
 		idx = -1;
 
 	while ((idx = haystack.indexOf(needle, offset)) === offset) {
@@ -118,14 +116,14 @@ export function rtrim(haystack?: string, needle?: string): string {
 		return haystack;
 	}
 
-	var needleLen = needle.length,
+	let needleLen = needle.length,
 		haystackLen = haystack.length;
 
 	if (needleLen === 0 || haystackLen === 0) {
 		return haystack;
 	}
 
-	var offset = haystackLen,
+	let offset = haystackLen,
 		idx = -1;
 
 	while (true) {
@@ -158,7 +156,7 @@ export function startsWith(haystack: string, needle: string): boolean {
 		return false;
 	}
 
-	for (var i = 0; i < needle.length; i++) {
+	for (let i = 0; i < needle.length; i++) {
 		if (haystack[i] !== needle[i]) {
 			return false;
 		}
@@ -171,7 +169,7 @@ export function startsWith(haystack: string, needle: string): boolean {
  * Determines if haystack ends with needle.
  */
 export function endsWith(haystack: string, needle: string): boolean {
-	var diff = haystack.length - needle.length;
+	let diff = haystack.length - needle.length;
 	if (diff > 0) {
 		return haystack.lastIndexOf(needle) === haystack.length - needle.length;
 	} else if (diff === 0) {
@@ -196,7 +194,7 @@ export function createRegExp(searchString: string, isRegex: boolean, matchCase: 
 			searchString = searchString + '\\b';
 		}
 	}
-	var modifiers = 'g';
+	let modifiers = 'g';
 	if (!matchCase) {
 		modifiers += 'i';
 	}
@@ -213,7 +211,7 @@ export function regExpLeadsToEndlessLoop(regexp: RegExp): boolean {
 
 	// We check against an empty string. If the regular expression doesn't advance
 	// (e.g. ends in an endless loop) it will match an empty string.
-	var match = regexp.exec('');
+	let match = regexp.exec('');
 	return (match && <any>regexp.lastIndex === 0);
 }
 
@@ -223,7 +221,7 @@ export function regExpLeadsToEndlessLoop(regexp: RegExp): boolean {
  *
  * @see {@link https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/normalize}
  */
-export var canNormalize = typeof ((<any>'').normalize) === 'function';
+export let canNormalize = typeof ((<any>'').normalize) === 'function';
 export function normalizeNFC(str: string, cache?:{[str: string]: string}): string {
 	if (!canNormalize || !str) {
 		return str;
@@ -233,7 +231,7 @@ export function normalizeNFC(str: string, cache?:{[str: string]: string}): strin
 		return cache[str];
 	}
 
-	var res = (<any>str).normalize('NFC');
+	let res = (<any>str).normalize('NFC');
 
 	if (cache) {
 		cache[str] = res;
@@ -277,7 +275,7 @@ export function colorize(code: number, value: string): string {
  * If string is empty or contains only whitespaces, returns -1
  */
 export function firstNonWhitespaceIndex(str: string): number {
-	for (var i = 0, len = str.length; i < len; i++) {
+	for (let i = 0, len = str.length; i < len; i++) {
 		if (str.charAt(i) !== ' ' && str.charAt(i) !== '\t') {
 			return i;
 		}
@@ -290,7 +288,7 @@ export function firstNonWhitespaceIndex(str: string): number {
  * If the string contains only whitespaces, returns entire string
  */
 export function getLeadingWhitespace(str: string): string {
-	for (var i = 0, len = str.length; i < len; i++) {
+	for (let i = 0, len = str.length; i < len; i++) {
 		if (str.charAt(i) !== ' ' && str.charAt(i) !== '\t') {
 			return str.substring(0, i);
 		}
@@ -303,7 +301,7 @@ export function getLeadingWhitespace(str: string): string {
  * If string is empty or contains only whitespaces, returns -1
  */
 export function lastNonWhitespaceIndex(str: string): number {
-	for (var i = str.length - 1; i >= 0; i--) {
+	for (let i = str.length - 1; i >= 0; i--) {
 		if (str.charAt(i) !== ' ' && str.charAt(i) !== '\t') {
 			return i;
 		}
@@ -321,23 +319,23 @@ function isAsciiChar(code: number): boolean {
 
 export function equalsIgnoreCase(a: string, b: string): boolean {
 
-	var len1 = a.length,
+	let len1 = a.length,
 		len2 = b.length;
 
 	if (len1 !== len2) {
 		return false;
 	}
 
-	for (var i = 0; i < len1; i++) {
+	for (let i = 0; i < len1; i++) {
 
-		var codeA = a.charCodeAt(i),
+		let codeA = a.charCodeAt(i),
 			codeB = b.charCodeAt(i);
 
 		if (codeA === codeB) {
 			continue;
 
 		} else if (isAsciiChar(codeA) && isAsciiChar(codeB)) {
-			var diff = Math.abs(codeA - codeB);
+			let diff = Math.abs(codeA - codeB);
 			if (diff !== 0 && diff !== 32) {
 				return false;
 			}
@@ -356,7 +354,7 @@ export function equalsIgnoreCase(a: string, b: string): boolean {
  */
 export function commonPrefixLength(a: string, b: string): number {
 
-	var i: number,
+	let i: number,
 		len = Math.min(a.length, b.length);
 
 	for (i = 0; i < len; i++) {
@@ -373,11 +371,11 @@ export function commonPrefixLength(a: string, b: string): number {
  */
 export function commonSuffixLength(a: string, b: string): number {
 
-	var i: number,
+	let i: number,
 		len = Math.min(a.length, b.length);
 
-	var aLastIndex = a.length - 1;
-	var bLastIndex = b.length - 1;
+	let aLastIndex = a.length - 1;
+	let bLastIndex = b.length - 1;
 
 	for (i = 0; i < len; i++) {
 		if (a.charCodeAt(aLastIndex - i) !== b.charCodeAt(bLastIndex - i)) {
@@ -394,9 +392,9 @@ export function commonSuffixLength(a: string, b: string): number {
 // Code points U+0000 to U+D7FF and U+E000 to U+FFFF are represented on a single character
 // Code points U+10000 to U+10FFFF are represented on two consecutive characters
 //export function getUnicodePoint(str:string, index:number, len:number):number {
-//	var chrCode = str.charCodeAt(index);
+//	let chrCode = str.charCodeAt(index);
 //	if (0xD800 <= chrCode && chrCode <= 0xDBFF && index + 1 < len) {
-//		var nextChrCode = str.charCodeAt(index + 1);
+//		let nextChrCode = str.charCodeAt(index + 1);
 //		if (0xDC00 <= nextChrCode && nextChrCode <= 0xDFFF) {
 //			return (chrCode - 0xD800) << 10 + (nextChrCode - 0xDC00) + 0x10000;
 //		}
@@ -404,12 +402,12 @@ export function commonSuffixLength(a: string, b: string): number {
 //	return chrCode;
 //}
 //export function isLeadSurrogate(chr:string) {
-//	var chrCode = chr.charCodeAt(0);
+//	let chrCode = chr.charCodeAt(0);
 //	return ;
 //}
 //
 //export function isTrailSurrogate(chr:string) {
-//	var chrCode = chr.charCodeAt(0);
+//	let chrCode = chr.charCodeAt(0);
 //	return 0xDC00 <= chrCode && chrCode <= 0xDFFF;
 //}
 
@@ -424,15 +422,15 @@ export function commonSuffixLength(a: string, b: string): number {
  * @param second a string
  */
 export function difference(first: string, second: string, maxLenDelta: number = 4): number {
-	var lengthDifference = Math.abs(first.length - second.length);
+	let lengthDifference = Math.abs(first.length - second.length);
 	// We only compute score if length of the currentWord and length of entry.name are similar.
 	if (lengthDifference > maxLenDelta) {
 		return 0;
 	}
 	// Initialize LCS (largest common subsequence) matrix.
-	var LCS: number[][] = [];
-	var zeroArray: number[] = [];
-	var i: number, j: number;
+	let LCS: number[][] = [];
+	let zeroArray: number[] = [];
+	let i: number, j: number;
 	for (i = 0; i < second.length + 1; ++i) {
 		zeroArray.push(0);
 	}
@@ -456,7 +454,7 @@ export function difference(first: string, second: string, maxLenDelta: number = 
  * line. There is always one entry which is zero.
  */
 export function computeLineStarts(text: string): number[] {
-	var regexp = /\r\n|\r|\n/g,
+	let regexp = /\r\n|\r|\n/g,
 		ret: number[] = [0],
 		match: RegExpExecArray;
 	while ((match = regexp.exec(text))) {
@@ -475,10 +473,10 @@ export function lcut(text: string, n: number): string {
 		return text;
 	}
 
-	var segments = text.split(/\b/),
+	let segments = text.split(/\b/),
 		count = 0;
 
-	for (var i = segments.length - 1; i >= 0; i--) {
+	for (let i = segments.length - 1; i >= 0; i--) {
 		count += segments[i].length;
 
 		if (count > n) {
@@ -492,10 +490,10 @@ export function lcut(text: string, n: number): string {
 
 // Escape codes
 // http://en.wikipedia.org/wiki/ANSI_escape_code
-var EL = /\x1B\x5B[12]?K/g; // Erase in line
-var LF = /\xA/g; // line feed
-var COLOR_START = /\x1b\[\d+m/g; // Color
-var COLOR_END = /\x1b\[0?m/g; // Color
+const EL = /\x1B\x5B[12]?K/g; // Erase in line
+const LF = /\xA/g; // line feed
+const COLOR_START = /\x1b\[\d+m/g; // Color
+const COLOR_END = /\x1b\[0?m/g; // Color
 
 export function removeAnsiEscapeCodes(str: string): string {
 	if (str) {
@@ -510,9 +508,9 @@ export function removeAnsiEscapeCodes(str: string): string {
 
 // -- UTF-8 BOM
 
-var __utf8_bom = 65279;
+const __utf8_bom = 65279;
 
-export var UTF8_BOM_CHARACTER = String.fromCharCode(__utf8_bom);
+export const UTF8_BOM_CHARACTER = String.fromCharCode(__utf8_bom);
 
 export function startsWithUTF8BOM(str: string): boolean {
 	return (str && str.length > 0 && str.charCodeAt(0) === __utf8_bom);

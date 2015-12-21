@@ -6,24 +6,24 @@
 
 // --- THIS FILE IS TEMPORARY UNTIL ENV.TS IS CLEANED UP. IT CAN SAFELY BE USED IN ALL TARGET EXECUTION ENVIRONMENTS (node & dom) ---
 
-var _isWindows = false;
-var _isMacintosh = false;
-var _isLinux = false;
-var _isNative = false;
-var _isWeb = false;
-var _isQunit = false;
+let _isWindows = false;
+let _isMacintosh = false;
+let _isLinux = false;
+let _isNative = false;
+let _isWeb = false;
+let _isQunit = false;
 
 interface INodeProcess {
 	platform: string;
 }
-declare var process: INodeProcess;
-declare var global: any;
+declare let process: INodeProcess;
+declare let global: any;
 
 interface INavigator {
 	userAgent:string;
 }
-declare var navigator: INavigator;
-declare var self: any;
+declare let navigator: INavigator;
+declare let self: any;
 
 // OS detection
 if (typeof process === 'object') {
@@ -32,7 +32,7 @@ if (typeof process === 'object') {
 	_isLinux = (process.platform === 'linux');
 	_isNative = true;
 } else if (typeof navigator === 'object') {
-	var userAgent = navigator.userAgent;
+	let userAgent = navigator.userAgent;
 	_isWindows = userAgent.indexOf('Windows') >= 0;
 	_isMacintosh = userAgent.indexOf('Macintosh') >= 0;
 	_isLinux = userAgent.indexOf('Linux') >= 0;
@@ -48,7 +48,7 @@ export enum Platform {
 	Windows
 }
 
-export var _platform:Platform = Platform.Web;
+export let _platform:Platform = Platform.Web;
 if (_isNative) {
 	if (_isMacintosh) {
 		_platform = Platform.Mac;
@@ -82,7 +82,7 @@ interface IGlobals {
 	clearInterval(token: IntervalToken);
 }
 
-var _globals = <IGlobals> (typeof self === 'object' ? self : global);
+const _globals = <IGlobals> (typeof self === 'object' ? self : global);
 export const globals: any = _globals;
 
 export function hasWebWorkerSupport(): boolean {

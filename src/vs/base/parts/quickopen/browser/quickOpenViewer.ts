@@ -3,11 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Promise } from 'vs/base/common/winjs.base';
-import { isFunction } from 'vs/base/common/types';
-import { ActionBar, IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ITree, IRenderer, IFilter, IDataSource } from 'vs/base/parts/tree/common/tree';
-import { IModel } from './quickOpen';
+import {Promise} from 'vs/base/common/winjs.base';
+import {isFunction} from 'vs/base/common/types';
+import {ITree, IRenderer, IFilter, IDataSource} from 'vs/base/parts/tree/common/tree';
+import {IModel} from './quickOpen';
 
 export interface IModelProvider {
 	getModel<T>(): IModel<T>;
