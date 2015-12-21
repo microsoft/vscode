@@ -12,9 +12,11 @@ import assert = require('assert');
 
 import {FileService, IEncodingOverride} from 'vs/workbench/services/files/node/fileService';
 import {EventType, FileChangesEvent, FileOperationResult, IFileOperationResult} from 'vs/platform/files/common/files';
+import {nfcall} from 'vs/base/common/async';
 import uri from 'vs/base/common/uri';
 import uuid = require('vs/base/common/uuid');
 import extfs = require('vs/base/node/extfs');
+import encoding = require('vs/base/node/encoding');
 import {EventEmitter} from 'vs/base/common/eventEmitter';
 import utils = require('vs/workbench/services/files/test/node/utils');
 
@@ -281,10 +283,14 @@ suite('FileService', () => {
 			c.charset = charset;
 
 			return service.updateContent(c.resource, c.value, { charset: charset }).then(c => {
-				return service.resolveContent(resource).then(c => {
-					assert.equal(c.charset, charset);
+				return nfcall(encoding.detectEncodingByBOM, c.resource.fsPath).then((enc) => {
+					assert.equal(enc, encoding.UTF16be);
 
-					done();
+					return service.resolveContent(resource).then(c => {
+						assert.equal(c.charset, charset);
+
+						done();
+					});
 				});
 			});
 		});
@@ -300,10 +306,14 @@ suite('FileService', () => {
 			c.value = 'Some updates';
 
 			return service.updateContent(c.resource, c.value, { charset: charset }).then(c => {
-				return service.resolveContent(resource).then(c => {
-					assert.equal(c.charset, charset);
+				return nfcall(encoding.detectEncodingByBOM, c.resource.fsPath).then((enc) => {
+					assert.equal(enc, encoding.UTF16le);
 
-					done();
+					return service.resolveContent(resource).then(c => {
+						assert.equal(c.charset, charset);
+
+						done();
+					});
 				});
 			});
 		});

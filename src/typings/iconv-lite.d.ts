@@ -12,7 +12,7 @@ declare module 'iconv-lite' {
 
 	export function encodingExists(encoding:string): boolean;
 
-	export function decodeStream(encoding:string): NodeJS.EventEmitter;
+	export function decodeStream(encoding:string): NodeJS.ReadWriteStream;
 
-	export function encodeStream(encoding:string): NodeJS.EventEmitter;
+	export function encodeStream(encoding:string): NodeJS.ReadWriteStream;
 }

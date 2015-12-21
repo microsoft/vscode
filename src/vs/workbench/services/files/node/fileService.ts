@@ -21,7 +21,7 @@ import {Promise, TPromise} from 'vs/base/common/winjs.base';
 import types = require('vs/base/common/types');
 import objects = require('vs/base/common/objects');
 import extfs = require('vs/base/node/extfs');
-import { nfcall, Limiter, ThrottledDelayer } from 'vs/base/common/async';
+import {nfcall, Limiter, ThrottledDelayer} from 'vs/base/common/async';
 import uri from 'vs/base/common/uri';
 import nls = require('vs/nls');
 
@@ -212,7 +212,7 @@ export class FileService implements files.IFileService {
 		});
 	}
 
-	public updateContent(resource:uri, value:string, options:files.IUpdateContentOptions = Object.create(null)): TPromise<files.IFileStat> {
+	public updateContent(resource: uri, value: string, options: files.IUpdateContentOptions = Object.create(null)): TPromise<files.IFileStat> {
 		let absolutePath = this.toAbsolutePath(resource);
 
 		// 1.) check file
@@ -359,7 +359,7 @@ export class FileService implements files.IFileService {
 			return this.doMoveOrCopyFile(sourcePath, targetPath, true, true).then((exists) => {
 
 				// 3.) resolve
-				return this.resolve(targetResource).then((stat) => <files.IImportResult> { isNew: !exists, stat: stat });
+				return this.resolve(targetResource).then((stat) => <files.IImportResult>{ isNew: !exists, stat: stat });
 			});
 		});
 	}
@@ -372,7 +372,7 @@ export class FileService implements files.IFileService {
 
 	// Helpers
 
-	private toAbsolutePath(arg1: uri|files.IFileStat): string {
+	private toAbsolutePath(arg1: uri | files.IFileStat): string {
 		let resource: uri;
 		if (uri.isURI(arg1)) {
 			resource = <uri>arg1;
@@ -419,15 +419,34 @@ export class FileService implements files.IFileService {
 			}
 
 			// 2.) read contents
-			return pfs.readFile(absolutePath).then((contents: NodeBuffer) => {
+			return new Promise((c, e) => {
+				let done = false;
+				let chunks: NodeBuffer[] = [];
 				let fileEncoding = this.getEncoding(model.resource, enc);
 
-				// Handle encoding
-				let content: files.IContent = <any>model;
-				content.value = iconv.decode(contents, fileEncoding); // decode takes care of stripping any BOMs from the file content
-				content.charset = fileEncoding; // make sure to store the charset in the model to restore it later when writing
+				const reader = fs.createReadStream(absolutePath).pipe(iconv.decodeStream(fileEncoding)); // decode takes care of stripping any BOMs from the file content
 
-				return content;
+				reader.on('data', (buf) => {
+					chunks.push(buf);
+				});
+
+				reader.on('error', (error) => {
+					if (!done) {
+						done = true;
+						e(error);
+					}
+				});
+
+				reader.on('end', () => {
+					let content: files.IContent = <any>model;
+					content.value = chunks.join('');
+					content.charset = fileEncoding; // make sure to store the charset in the model to restore it later when writing
+
+					if (!done) {
+						done = true;
+						c(content);
+					}
+				})
 			});
 		});
 	}
@@ -467,7 +486,7 @@ export class FileService implements files.IFileService {
 		return null;
 	}
 
-	private checkFile(absolutePath: string, options:files.IUpdateContentOptions): TPromise<boolean /* exists */> {
+	private checkFile(absolutePath: string, options: files.IUpdateContentOptions): TPromise<boolean /* exists */> {
 		return pfs.exists(absolutePath).then((exists) => {
 			if (exists) {
 				return pfs.stat(absolutePath).then((stat: fs.Stats) => {
