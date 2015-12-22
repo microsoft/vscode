@@ -11,6 +11,7 @@ import {onUnexpectedError, illegalArgument} from 'vs/base/common/errors';
 import {ISuggestSupport, ISuggestResult} from 'vs/editor/common/modes';
 import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
 import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
+import {getSnippets} from 'vs/editor/common/modes/modesRegistry';
 
 export var CONTEXT_SUGGEST_WIDGET_VISIBLE = 'suggestWidgetVisible';
 export var CONTEXT_SUGGESTION_SUPPORTS_ACCEPT_ON_KEY = 'suggestionSupportsAcceptOnKey';
@@ -40,10 +41,10 @@ export function suggest(model: IModel, position: IPosition, triggerCharacter: st
 			}
 
 			// for each support in the group ask for suggestions
-			let promises = supports.map(support => {
+			const promises = supports.map(support => {
 				return support.suggest(resource, position, triggerCharacter).then(values => {
 
-					let result: ISuggestResult2[] = [];
+					const result: ISuggestResult2[] = [];
 					for (let suggestResult of values) {
 
 						if (!suggestResult
@@ -52,13 +53,12 @@ export function suggest(model: IModel, position: IPosition, triggerCharacter: st
 							continue;
 						}
 
-						const suggestions2: ISuggestResult2 = {
+						result.push({
 							support,
 							currentWord: suggestResult.currentWord,
 							incomplete: suggestResult.incomplete,
 							suggestions: suggestResult.suggestions
-						}
-						result.push(suggestions2);
+						});
 					}
 
 					return result;
@@ -76,7 +76,16 @@ export function suggest(model: IModel, position: IPosition, triggerCharacter: st
 		};
 	});
 
-	return sequence(factory).then(() => suggestions);
+	return sequence(factory).then(() => {
+		// add snippets to the first group
+		const snippets = getSnippets(model, position);
+		if (suggestions.length === 0) {
+			suggestions.push([snippets]);
+		} else {
+			suggestions[0].push(snippets);
+		}
+		return suggestions;
+	});
 }
 
 CommonEditorRegistry.registerDefaultLanguageCommand('_executeCompletionItemProvider', (model, position, args) => {

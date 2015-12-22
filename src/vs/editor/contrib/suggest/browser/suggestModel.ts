@@ -8,7 +8,6 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import Event, { Emitter } from 'vs/base/common/event';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import {startsWith} from 'vs/base/common/strings';
-import { getSnippets } from 'vs/editor/common/modes/modesRegistry';
 import * as EditorCommon from 'vs/editor/common/editorCommon';
 import { ISuggestSupport, ISuggestion } from 'vs/editor/common/modes';
 import { CodeSnippet } from 'vs/editor/contrib/snippet/common/snippet';
@@ -314,7 +313,7 @@ export class SuggestModel implements IDisposable {
 				return;
 			}
 
-			this.raw = all.concat([[getSnippets(model, position)]]);
+			this.raw = all;
 			this.incomplete = all.reduce((r, s) => r || s.reduce((r, s) => r || s.incomplete, false), false);
 
 			this.onNewContext(new Context(this.editor, auto));
