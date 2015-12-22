@@ -5,9 +5,8 @@
 'use strict';
 
 import {sequence} from 'vs/base/common/async';
-import {IModel, IPosition, IRange} from 'vs/editor/common/editorCommon';
+import {IModel, IPosition} from 'vs/editor/common/editorCommon';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {mixin} from 'vs/base/common/objects';
 import {onUnexpectedError, illegalArgument} from 'vs/base/common/errors';
 import {ISuggestSupport, ISuggestResult} from 'vs/editor/common/modes';
 import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';

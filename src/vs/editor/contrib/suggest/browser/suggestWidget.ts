@@ -6,22 +6,21 @@
 'use strict';
 
 import 'vs/css!./suggest';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, disposeAll } from 'vs/base/common/lifecycle';
 import { assign } from 'vs/base/common/objects';
 import Event, { Emitter } from 'vs/base/common/event';
 import { append, addClass, removeClass, emmet as $ } from 'vs/base/browser/dom';
-import Tree = require('vs/base/parts/tree/common/tree');
-import TreeImpl = require('vs/base/parts/tree/browser/treeImpl');
-import TreeDefaults = require('vs/base/parts/tree/browser/treeDefaults');
-import HighlightedLabel = require('vs/base/browser/ui/highlightedlabel/highlightedLabel');
+import * as Tree from 'vs/base/parts/tree/common/tree';
+import * as TreeImpl from 'vs/base/parts/tree/browser/treeImpl';
+import * as TreeDefaults from 'vs/base/parts/tree/browser/treeDefaults';
+import * as HighlightedLabel from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { SuggestModel, ICancelEvent, ISuggestEvent, ITriggerEvent } from './suggestModel';
-import Mouse = require('vs/base/browser/mouseEvent');
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import EventEmitter = require('vs/base/common/eventEmitter');
-import Timer = require('vs/base/common/timer');
+import * as Mouse from 'vs/base/browser/mouseEvent';
+import * as EditorBrowser from 'vs/editor/browser/editorBrowser';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as Timer from 'vs/base/common/timer';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { SuggestRegistry, CONTEXT_SUGGESTION_SUPPORTS_ACCEPT_ON_KEY } from '../common/suggest';
 import { IKeybindingService, IKeybindingContextKey } from 'vs/platform/keybinding/common/keybindingService';
@@ -31,11 +30,12 @@ import { ISuggestResult2 } from '../common/suggest';
 import URI from 'vs/base/common/uri';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { onUnexpectedError, isPromiseCanceledError, illegalArgument } from 'vs/base/common/errors';
-const DefaultCompare: ISuggestionCompare = (a, b) => a.label.localeCompare(b.label);
+
+const defaultCompare: ISuggestionCompare = (a, b) => a.label.localeCompare(b.label);
 
 class CompletionItem {
 
-	private static _idPool = 0;
+	private static _idPool: number = 0;
 
 	id: string;
 	suggestion: ISuggestion;
@@ -43,16 +43,16 @@ class CompletionItem {
 	support: ISuggestSupport;
 	container: ISuggestResult;
 
-	private _resolveDetails:TPromise<CompletionItem>
+	private _resolveDetails: TPromise<CompletionItem>
 
-	constructor(public group: CompletionGroup, suggestion: ISuggestion, container:ISuggestResult2) {
+	constructor(public group: CompletionGroup, suggestion: ISuggestion, container: ISuggestResult2) {
 		this.id = '_completion_item_#' + CompletionItem._idPool++;
 		this.support = container.support;
 		this.suggestion = suggestion;
 		this.container = container;
 	}
 
-	resolveDetails(resource:URI, position:EditorCommon.IPosition): TPromise<CompletionItem> {
+	resolveDetails(resource: URI, position: EditorCommon.IPosition): TPromise<CompletionItem> {
 		if (this._resolveDetails) {
 			return this._resolveDetails;
 		}
@@ -64,8 +64,8 @@ class CompletionItem {
 		return this._resolveDetails = this.support
 			.getSuggestionDetails(resource, position, this.suggestion)
 			.then(
-				value => this.suggestion = assign(this.suggestion, value),
-				err => isPromiseCanceledError(err) ? this._resolveDetails = null : onUnexpectedError(err)
+			value => this.suggestion = assign(this.suggestion, value),
+			err => isPromiseCanceledError(err) ? this._resolveDetails = null : onUnexpectedError(err)
 			)
 			.then(() => this);
 	}
@@ -93,7 +93,7 @@ class CompletionGroup {
 			);
 		}, []);
 
-		this.compare = DefaultCompare;
+		this.compare = defaultCompare;
 		this.filter = DefaultFilter;
 
 		if (this.items.length > 0) {
@@ -158,7 +158,7 @@ export class MessageRoot {
 	}
 }
 
-function isRoot(element: any) : boolean {
+function isRoot(element: any): boolean {
 	return element instanceof MessageRoot || element instanceof CompletionModel;
 }
 
@@ -205,7 +205,7 @@ class DataSource implements Tree.IDataSource {
 
 class Controller extends TreeDefaults.DefaultController {
 
-	/* protected */ public onLeftClick(tree:Tree.ITree, element:any, event:Mouse.StandardMouseEvent):boolean {
+	/* protected */ public onLeftClick(tree: Tree.ITree, element: any, event: Mouse.StandardMouseEvent): boolean {
 		event.preventDefault();
 		event.stopPropagation();
 
@@ -219,7 +219,7 @@ class Controller extends TreeDefaults.DefaultController {
 
 class Filter implements Tree.IFilter {
 
-	constructor(private getState: () => State) {}
+	constructor(private getState: () => State) { }
 
 	isVisible(tree: Tree.ITree, element: any): boolean {
 		if (isRoot(element)) {
@@ -266,7 +266,7 @@ interface ISuggestionTemplateData {
 
 class Renderer implements Tree.IRenderer {
 
-	public getHeight(tree:Tree.ITree, element:any):number {
+	public getHeight(tree: Tree.ITree, element: any): number {
 		if (element instanceof CompletionItem) {
 			if ((<CompletionItem>element).suggestion.documentationLabel && tree.isFocused(element)) {
 				return 35;
@@ -285,10 +285,10 @@ class Renderer implements Tree.IRenderer {
 			const span = $('span');
 			span.style.opacity = '0.7';
 			container.appendChild(span);
-			return <IMessageTemplateData> { element: span };
+			return <IMessageTemplateData>{ element: span };
 		}
 
-		const data = <ISuggestionTemplateData> Object.create(null);
+		const data = <ISuggestionTemplateData>Object.create(null);
 		data.root = container;
 
 		data.icon = append(container, $('.icon'));
@@ -305,12 +305,12 @@ class Renderer implements Tree.IRenderer {
 
 	public renderElement(tree: Tree.ITree, element: any, templateId: string, templateData: any): void {
 		if (templateId === 'message') {
-			(<IMessageTemplateData> templateData).element.textContent = element.message;
+			(<IMessageTemplateData>templateData).element.textContent = element.message;
 			return;
 		}
 
-		const data = <ISuggestionTemplateData> templateData;
-		const suggestion = (<CompletionItem> element).suggestion;
+		const data = <ISuggestionTemplateData>templateData;
+		const suggestion = (<CompletionItem>element).suggestion;
 
 		if (suggestion.type && suggestion.type.charAt(0) === '#') {
 			data.root.setAttribute('aria-label', 'color');
@@ -322,7 +322,7 @@ class Renderer implements Tree.IRenderer {
 			data.colorspan.style.backgroundColor = '';
 		}
 
-		data.highlightedLabel.set(suggestion.label, (<CompletionItem> element).highlights);
+		data.highlightedLabel.set(suggestion.label, (<CompletionItem>element).highlights);
 		data.typeLabel.textContent = suggestion.typeLabel || '';
 		data.documentation.textContent = suggestion.documentationLabel || '';
 	}
@@ -332,12 +332,12 @@ class Renderer implements Tree.IRenderer {
 			return;
 		}
 
-		const data = <ISuggestionTemplateData> templateData;
+		const data = <ISuggestionTemplateData>templateData;
 		data.highlightedLabel.dispose();
 	}
 }
 
-function computeScore(suggestion:string, currentWord:string, currentWordLowerCase:string) : number {
+function computeScore(suggestion: string, currentWord: string, currentWordLowerCase: string): number {
 	const suggestionLowerCase = suggestion.toLowerCase();
 	let score = 0;
 
@@ -374,20 +374,20 @@ enum State {
 
 export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable {
 
-	static ID = 'editor.widget.suggestWidget';
-	static WIDTH = 438;
+	static ID: string = 'editor.widget.suggestWidget';
+	static WIDTH: number = 438;
 
-	static LOADING_MESSAGE = nls.localize('suggestWidget.loading', "Loading...");
-	static NO_SUGGESTIONS_MESSAGE = nls.localize('suggestWidget.noSuggestions', "No suggestions.");
+	static LOADING_MESSAGE: string = nls.localize('suggestWidget.loading', "Loading...");
+	static NO_SUGGESTIONS_MESSAGE: string = nls.localize('suggestWidget.noSuggestions', "No suggestions.");
 
-	public allowEditorOverflow = true; // Editor.IContentWidget.allowEditorOverflow
+	public allowEditorOverflow: boolean = true; // Editor.IContentWidget.allowEditorOverflow
 
 	private state: State;
 	private isAuto: boolean;
 	private shouldShowEmptySuggestionList: boolean;
 	private suggestionSupportsAutoAccept: IKeybindingContextKey<boolean>;
 	private loadingTimeout: number;
-	private currentSuggestionDetails:TPromise<CompletionItem>;
+	private currentSuggestionDetails: TPromise<CompletionItem>;
 	private oldFocus: CompletionItem;
 
 	private telemetryData: ITelemetryData;
@@ -483,7 +483,7 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 		});
 	}
 
-	private onTreeSelection(e:Tree.ISelectionEvent): void {
+	private onTreeSelection(e: Tree.ISelectionEvent): void {
 		if (!e.selection || e.selection.length === 0) {
 			return;
 		}
@@ -512,11 +512,11 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 		}
 	}
 
-	private onTreeFocus(e:Tree.IFocusEvent): void {
+	private onTreeFocus(e: Tree.IFocusEvent): void {
 		const focus = e.focus;
 		const payload = e.payload;
 
-		if(focus instanceof CompletionItem) {
+		if (focus instanceof CompletionItem) {
 			this.resolveDetails(<CompletionItem>focus);
 			this.suggestionSupportsAutoAccept.set(!(<CompletionItem>focus).suggestion.noAutoAccept);
 		}
@@ -658,7 +658,7 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 				}
 			}
 
-			if(this.telemetryTimer) {
+			if (this.telemetryTimer) {
 				this.telemetryTimer.data = { reason: 'empty' };
 				this.telemetryTimer.stop();
 				this.telemetryTimer = null;
@@ -698,7 +698,7 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 
 			this.setState(State.Open);
 
-			if(this.telemetryTimer) {
+			if (this.telemetryTimer) {
 				this.telemetryTimer.data = { reason: 'results' };
 				this.telemetryTimer.stop();
 				this.telemetryTimer = null;
@@ -731,7 +731,7 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 			return;
 		}
 
-		if(this.currentSuggestionDetails) {
+		if (this.currentSuggestionDetails) {
 			this.currentSuggestionDetails.cancel();
 		}
 
@@ -744,7 +744,7 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 			this.currentSuggestionDetails = undefined;
 			return this.tree.refresh(item).then(() => this.updateWidgetHeight());
 		})
-		.done(null, err => !isPromiseCanceledError(err) && onUnexpectedError(err));
+			.done(null, err => !isPromiseCanceledError(err) && onUnexpectedError(err));
 	}
 
 	public selectNextPage(): boolean {
@@ -807,7 +807,7 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 		}
 	}
 
-	public acceptSelectedSuggestion() : boolean {
+	public acceptSelectedSuggestion(): boolean {
 		switch (this.state) {
 			case State.Hidden:
 				return false;
@@ -844,7 +844,7 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 		this.model.cancel();
 	}
 
-	public getPosition():EditorBrowser.IContentWidgetPosition {
+	public getPosition(): EditorBrowser.IContentWidgetPosition {
 		if (this.state === State.Hidden) {
 			return null;
 		}
@@ -855,21 +855,20 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 		};
 	}
 
-	public getDomNode() : HTMLElement {
+	public getDomNode(): HTMLElement {
 		return this.element;
 	}
 
-	public getId() : string {
+	public getId(): string {
 		return SuggestWidget.ID;
 	}
 
-	private submitTelemetryData() : void {
+	private submitTelemetryData(): void {
 		this.telemetryService.publicLog('suggestWidget', this.telemetryData);
 		this.telemetryData = null;
 	}
 
 	private updateWidgetHeight(): void {
-		const input = this.tree.getInput();
 		const maxHeight = 1000;
 		let height = 0;
 
@@ -890,7 +889,7 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 		this.editor.layoutContentWidget(this);
 	}
 
-	public dispose() : void {
+	public dispose(): void {
 		this.state = null;
 		this.suggestionSupportsAutoAccept = null;
 		this.currentSuggestionDetails = null;

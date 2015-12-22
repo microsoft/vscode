@@ -4,30 +4,28 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
-import Lifecycle = require('vs/base/common/lifecycle');
-import Snippet = require('vs/editor/contrib/snippet/common/snippet');
+import * as nls from 'vs/nls';
+import * as Lifecycle from 'vs/base/common/lifecycle';
+import * as Snippet from 'vs/editor/contrib/snippet/common/snippet';
 import { SuggestWidget } from './suggestWidget';
 import { SuggestModel } from './suggestModel';
-import Errors = require('vs/base/common/errors');
+import * as Errors from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { EditorBrowserRegistry } from 'vs/editor/browser/editorBrowserExtensions';
 import { CommonEditorRegistry, ContextKey, EditorActionDescriptor } from 'vs/editor/common/editorCommonExtensions';
-import { EditorAction, Behaviour } from 'vs/editor/common/editorAction';
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
-import EventEmitter = require('vs/base/common/eventEmitter');
+import { EditorAction } from 'vs/editor/common/editorAction';
+import * as EditorBrowser from 'vs/editor/browser/editorBrowser';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as Modes from 'vs/editor/common/modes';
 import { IKeybindingService, IKeybindingContextKey } from 'vs/platform/keybinding/common/keybindingService';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { SuggestRegistry, ACCEPT_SELECTED_SUGGESTION_CMD, CONTEXT_SUGGEST_WIDGET_VISIBLE } from 'vs/editor/contrib/suggest/common/suggest';
 import { IInstantiationService, INullService } from 'vs/platform/instantiation/common/instantiation';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 
 export class SuggestController implements EditorCommon.IEditorContribution {
-	static ID = 'editor.contrib.suggestController';
+	static ID: string = 'editor.contrib.suggestController';
 
-	static getSuggestController(editor:EditorCommon.ICommonCodeEditor): SuggestController {
+	static getSuggestController(editor: EditorCommon.ICommonCodeEditor): SuggestController {
 		return <SuggestController>editor.getContribution(SuggestController.ID);
 	}
 
@@ -38,7 +36,7 @@ export class SuggestController implements EditorCommon.IEditorContribution {
 	private toDispose: Lifecycle.IDisposable[];
 
 	constructor(
-		private editor:EditorBrowser.ICodeEditor,
+		private editor: EditorBrowser.ICodeEditor,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
@@ -134,9 +132,8 @@ export class SuggestController implements EditorCommon.IEditorContribution {
 	}
 
 	private triggerCharacterHandler(character: string, groups: Modes.ISuggestSupport[][]): void {
-		var position = this.editor.getPosition();
-		var lineContext = this.editor.getModel().getLineContext(position.lineNumber);
-		var mode: Modes.IMode = this.editor.getModel().getMode();
+		const position = this.editor.getPosition();
+		const lineContext = this.editor.getModel().getLineContext(position.lineNumber);
 
 		groups = groups.map(supports => {
 			return supports.filter(support => support.shouldAutotriggerSuggest(lineContext, position.column - 1, character));
@@ -193,9 +190,9 @@ export class SuggestController implements EditorCommon.IEditorContribution {
 
 export class TriggerSuggestAction extends EditorAction {
 
-	static ID = 'editor.action.triggerSuggest';
+	static ID: string = 'editor.action.triggerSuggest';
 
-	constructor(descriptor:EditorCommon.IEditorActionDescriptorData, editor:EditorCommon.ICommonCodeEditor, @INullService ns) {
+	constructor(descriptor: EditorCommon.IEditorActionDescriptorData, editor: EditorCommon.ICommonCodeEditor, @INullService ns) {
 		super(descriptor, editor);
 	}
 
@@ -203,12 +200,12 @@ export class TriggerSuggestAction extends EditorAction {
 		return SuggestRegistry.has(this.editor.getModel()) && !this.editor.getConfiguration().readOnly;
 	}
 
-	public run():TPromise<boolean> {
+	public run(): TPromise<boolean> {
 		return SuggestController.getSuggestController(this.editor).triggerSuggest();
 	}
 }
 
-var weight = CommonEditorRegistry.commandWeight(90);
+const weight = CommonEditorRegistry.commandWeight(90);
 
 // register action
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(TriggerSuggestAction, TriggerSuggestAction.ID, nls.localize('suggest.trigger.label', "Trigger Suggest"), {
@@ -216,28 +213,28 @@ CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(TriggerSugg
 	primary: KeyMod.CtrlCmd | KeyCode.Space,
 	mac: { primary: KeyMod.WinCtrl | KeyCode.Space }
 }));
-CommonEditorRegistry.registerEditorCommand(ACCEPT_SELECTED_SUGGESTION_CMD, weight, { primary: KeyCode.Enter, secondary:[KeyCode.Tab] }, true, CONTEXT_SUGGEST_WIDGET_VISIBLE, (ctx, editor, args) => {
-	var controller = SuggestController.getSuggestController(editor);
+CommonEditorRegistry.registerEditorCommand(ACCEPT_SELECTED_SUGGESTION_CMD, weight, { primary: KeyCode.Enter, secondary: [KeyCode.Tab] }, true, CONTEXT_SUGGEST_WIDGET_VISIBLE, (ctx, editor, args) => {
+	const controller = SuggestController.getSuggestController(editor);
 	controller.acceptSelectedSuggestion();
 });
 CommonEditorRegistry.registerEditorCommand('hideSuggestWidget', weight, { primary: KeyCode.Escape }, true, CONTEXT_SUGGEST_WIDGET_VISIBLE, (ctx, editor, args) => {
-	var controller = SuggestController.getSuggestController(editor);
+	const controller = SuggestController.getSuggestController(editor);
 	controller.hideSuggestWidget();
 });
 CommonEditorRegistry.registerEditorCommand('selectNextSuggestion', weight, { primary: KeyCode.DownArrow }, true, CONTEXT_SUGGEST_WIDGET_VISIBLE, (ctx, editor, args) => {
-	var controller = SuggestController.getSuggestController(editor);
+	const controller = SuggestController.getSuggestController(editor);
 	controller.selectNextSuggestion();
 });
 CommonEditorRegistry.registerEditorCommand('selectNextPageSuggestion', weight, { primary: KeyCode.PageDown }, true, CONTEXT_SUGGEST_WIDGET_VISIBLE, (ctx, editor, args) => {
-	var controller = SuggestController.getSuggestController(editor);
+	const controller = SuggestController.getSuggestController(editor);
 	controller.selectNextPageSuggestion();
 });
 CommonEditorRegistry.registerEditorCommand('selectPrevSuggestion', weight, { primary: KeyCode.UpArrow }, true, CONTEXT_SUGGEST_WIDGET_VISIBLE, (ctx, editor, args) => {
-	var controller = SuggestController.getSuggestController(editor);
+	const controller = SuggestController.getSuggestController(editor);
 	controller.selectPrevSuggestion();
 });
 CommonEditorRegistry.registerEditorCommand('selectPrevPageSuggestion', weight, { primary: KeyCode.PageUp }, true, CONTEXT_SUGGEST_WIDGET_VISIBLE, (ctx, editor, args) => {
-	var controller = SuggestController.getSuggestController(editor);
+	const controller = SuggestController.getSuggestController(editor);
 	controller.selectPrevPageSuggestion();
 });
 EditorBrowserRegistry.registerEditorContribution(SuggestController);
