@@ -24,7 +24,7 @@ import {MainTelemetryService} from 'vs/platform/telemetry/browser/mainTelemetryS
 import Severity from 'vs/base/common/severity';
 import {UntitledEditorService} from 'vs/workbench/services/untitled/browser/untitledEditorService';
 import {WorkbenchProgressService} from 'vs/workbench/services/progress/browser/progressService';
-import {ScopedService} from 'vs/workbench/browser/services';
+import {ScopedService} from 'vs/workbench/common/services';
 import {EditorArrangement} from 'vs/workbench/services/editor/common/editorService';
 import {DelegatingWorkbenchEditorService, WorkbenchEditorService, IEditorPart} from 'vs/workbench/services/editor/browser/editorService';
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
