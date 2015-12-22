@@ -12,6 +12,7 @@ import debug = require('vs/workbench/parts/debug/common/debug');
 import { tokenizeToHtmlContent } from 'vs/editor/common/modes/textToHtmlTokenizer';
 
 const $ = dom.emmet;
+const stringRegex = /^(['"]).*\1$/;
 
 export class DebugHoverWidget implements editorbrowser.IContentWidget {
 
@@ -119,7 +120,13 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 				}
 
 				for (let i = 0; i < children.length; i++) {
-					objectToString += `   ${ children[i].name }: ${ children[i].value }`.substr(0, 80);
+					const nameAndValue = `   ${ children[i].name }: ${ children[i].value }`;
+					objectToString += nameAndValue.substr(0, 80);
+					// add a quote to the end of the string if cropped
+					if (nameAndValue.length > 80 && stringRegex.test(children[i].value)) {
+						objectToString += children[i].value[0];
+					}
+
 					if (i < children.length - 1) {
 						objectToString += ',\n';
 					}
