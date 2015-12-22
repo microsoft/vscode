@@ -8,7 +8,7 @@
 import 'vs/css!./viewCursors';
 import Browser = require('vs/base/browser/browser');
 
-import {ViewCursor} from 'vs/editor/browser/viewParts/viewCursors/viewCursor';
+import {ViewCursor, CursorStyle} from 'vs/editor/browser/viewParts/viewCursors/viewCursor';
 import {ViewPart} from 'vs/editor/browser/view/viewPart';
 import EditorBrowser = require('vs/editor/browser/editorBrowser');
 import EditorCommon = require('vs/editor/common/editorCommon');
@@ -52,6 +52,7 @@ export class ViewCursors extends ViewPart {
 
 		this._editorHasFocus = false;
 		this._updateBlinking();
+		this._updateCursorStyle();
 	}
 
 	public dispose(): void {
@@ -107,6 +108,7 @@ export class ViewCursors extends ViewPart {
 	public onCursorPositionChanged(e:EditorCommon.IViewCursorPositionChangedEvent): boolean {
 		this._primaryCursor.onCursorPositionChanged(e.position, e.isInEditableRange);
 		this._updateBlinking();
+		this._updateCursorStyle();
 
 		if (this._secondaryCursors.length < e.secondaryPositions.length) {
 			// Create new cursors
@@ -137,6 +139,7 @@ export class ViewCursors extends ViewPart {
 	public onConfigurationChanged(e:EditorCommon.IConfigurationChangedEvent): boolean {
 		this._primaryCursor.onConfigurationChanged(e);
 		this._updateBlinking();
+		this._updateCursorStyle();
 		for (var i = 0, len = this._secondaryCursors.length; i < len; i++) {
 			this._secondaryCursors[i].onConfigurationChanged(e);
 		}
@@ -160,6 +163,7 @@ export class ViewCursors extends ViewPart {
 	public onViewFocusChanged(isFocused:boolean): boolean {
 		this._editorHasFocus = isFocused;
 		this._updateBlinking();
+		this._updateCursorStyle();
 		return false;
 	}
 	// --- end event handlers
@@ -208,6 +212,15 @@ export class ViewCursors extends ViewPart {
 		}
 	}
 // --- end blinking logic
+
+	private _getCursorStyle(): CursorStyle {
+		return CursorStyle[this._context.configuration.editor.cursorStyle || 'line'] || CursorStyle.line;
+	}
+
+	private _updateCursorStyle(): void {
+		this._primaryCursor.setStyle(this._getCursorStyle());
+	}
+
 
 	private _blink(): void {
 		if (this._isVisible) {

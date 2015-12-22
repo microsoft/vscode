@@ -9,7 +9,18 @@
 
 .monaco-editor .cursors-layer > .cursor {
 	position: absolute;
+	cursor: text;
+}
+
+.monaco-editor .cursors-layer > .cursor-line {
+	position: absolute;
 	width: 2px;
+	cursor: text;
+}
+
+.monaco-editor .cursors-layer > .cursor-block {
+	position: absolute;
+	width: 1ch;
 	cursor: text;
 }
 
