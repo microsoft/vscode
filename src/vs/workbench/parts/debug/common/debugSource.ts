@@ -33,7 +33,7 @@ export class Source {
 				if (found) {
 					return {
 						name: found.source.name,
-						path: found.source.uri.fsPath,
+						path: found.source.inMemory ? null : found.source.uri.fsPath,
 						sourceReference: found.source.reference
 					}
 				}
