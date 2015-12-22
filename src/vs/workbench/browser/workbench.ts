@@ -36,7 +36,8 @@ import {IViewletRegistry, Extensions as ViewletExtensions} from 'vs/workbench/br
 import {QuickOpenController} from 'vs/workbench/browser/parts/quickopen/quickOpenController';
 import {getServices} from 'vs/platform/instantiation/common/extensions';
 import {AbstractKeybindingService} from 'vs/platform/keybinding/browser/keybindingServiceImpl';
-import {UntitledEditorService, IUntitledEditorService} from 'vs/workbench/services/untitled/browser/untitledEditorService';
+import {UntitledEditorService} from 'vs/workbench/services/untitled/browser/untitledEditorService';
+import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {WorkbenchEditorService} from 'vs/workbench/services/editor/browser/editorService';
 import {Position, Parts, IPartService} from 'vs/workbench/services/part/common/partService';
 import {DEFAULT_THEME_ID} from 'vs/platform/theme/common/themes';

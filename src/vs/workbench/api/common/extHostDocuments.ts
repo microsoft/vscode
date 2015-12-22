@@ -22,7 +22,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import * as vscode from 'vscode';
 import {WordHelper} from 'vs/editor/common/model/textModelWithTokensHelpers';
 import {IFileService} from 'vs/platform/files/common/files';
-import {IUntitledEditorService} from 'vs/workbench/services/untitled/browser/untitledEditorService';
+import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 
 export interface IModelAddedData {
 	url: URI;

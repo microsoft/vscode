@@ -10,7 +10,7 @@ import {IEditorModesRegistry, Extensions} from 'vs/editor/common/modes/modesRegi
 import {isUnspecific, guessMimeTypes, MIME_TEXT, suggestFilename} from 'vs/base/common/mime';
 import labels = require('vs/base/common/labels');
 import paths = require('vs/base/common/paths');
-import {EditorModel, EncodingMode, IInputStatus, EditorInput, IResourceEditorInput, IEncodingSupport} from 'vs/workbench/common/editor';
+import {UntitledEditorInput as AbstractUntitledEditorInput, EditorModel, EncodingMode, IInputStatus} from 'vs/workbench/common/editor';
 import {Registry} from 'vs/platform/platform';
 import {UntitledEditorModel} from 'vs/workbench/browser/parts/editor/untitledEditorModel';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
@@ -20,7 +20,7 @@ import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 /**
  * An editor input to be used for untitled text buffers.
  */
-export class UntitledEditorInput extends EditorInput implements IResourceEditorInput, IEncodingSupport {
+export class UntitledEditorInput extends AbstractUntitledEditorInput {
 
 	public static ID: string = 'workbench.editors.untitledEditorInput';
 	public static SCHEMA: string = 'untitled';

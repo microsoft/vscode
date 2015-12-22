@@ -20,7 +20,7 @@ import {CACHE, TextFileEditorModel} from 'vs/workbench/parts/files/browser/edito
 import {ITextFileOperationResult, ConfirmResult} from 'vs/workbench/parts/files/common/files';
 import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/browser/actionRegistry';
 import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
-import {IUntitledEditorService} from 'vs/workbench/services/untitled/browser/untitledEditorService';
+import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {IFileService} from 'vs/platform/files/common/files';
 import {IInstantiationService, INullService} from 'vs/platform/instantiation/common/instantiation';
 import {IEventService} from 'vs/platform/event/common/event';

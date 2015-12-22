@@ -41,6 +41,7 @@ import {BaseWorkspaceContextService} from 'vs/platform/workspace/common/baseWork
 import {IEditorInput, IEditorModel, IEditorOptions, ITextInput, Position, IEditor, IResourceInput, ITextEditorModel} from 'vs/platform/editor/common/editor';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {IMessageService, IConfirmation} from 'vs/platform/message/common/message';
 import Lifecycle = require('vs/base/common/lifecycle');
 import {IRequestService} from 'vs/platform/request/common/request';
@@ -355,8 +356,8 @@ export class MockRequestService extends BaseRequestService {
 	}
 }
 
-export class TestUntitledEditorService implements UntitledEditorService.IUntitledEditorService {
-	public serviceId = UntitledEditorService.IUntitledEditorService;
+export class TestUntitledEditorService implements IUntitledEditorService {
+	public serviceId = IUntitledEditorService;
 
 	public get(resource: URI) {
 		return null;
