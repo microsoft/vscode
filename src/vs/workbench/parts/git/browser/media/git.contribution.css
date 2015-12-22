@@ -236,7 +236,7 @@
 }
 
 .monaco-shell .git-statusbar-group .octicon {
-	font-size: 15px;
+	font-size: 14px;
 }
 
 .monaco-shell .git-statusbar-group > .git-statusbar-sync-item:not(.empty) > span.octicon {
