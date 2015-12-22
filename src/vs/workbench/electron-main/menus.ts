@@ -541,7 +541,7 @@ export class VSCodeMenu {
 			output,
 			__separator__(),
 			fullscreen,
-			platform.isWindows ? toggleMenuBar : void 0,
+			platform.isWindows || platform.isLinux ? toggleMenuBar : void 0,
 			__separator__(),
 			splitEditor,
 			toggleSidebar,

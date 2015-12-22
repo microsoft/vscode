@@ -549,8 +549,8 @@ export class VSCodeWindow {
 
 		this.win.setFullScreen(willBeFullScreen);
 
-		// Windows: Hide the menu bar but still allow to bring it up by pressing the Alt key
-		if (platform.isWindows) {
+		// Windows & Linux: Hide the menu bar but still allow to bring it up by pressing the Alt key
+		if (platform.isWindows || platform.isLinux) {
 			if (willBeFullScreen) {
 				this.setMenuBarVisibility(false);
 			} else {
