@@ -26,18 +26,6 @@ import {ExtHostLanguageFeatures, MainThreadLanguageFeatures} from 'vs/workbench/
 import {ExtHostApiCommands} from 'vs/workbench/api/common/extHostApiCommands';
 import {ExtHostCommands, MainThreadCommands} from 'vs/workbench/api/common/extHostCommands';
 import {ExtHostModelService} from 'vs/workbench/api/common/extHostDocuments';
-import {SyncDescriptor0} from 'vs/platform/instantiation/common/descriptors';
-import {LanguageSelector} from 'vs/editor/common/modes/languageSelector';
-import {OutlineRegistry, getOutlineEntries} from 'vs/editor/contrib/quickOpen/common/quickOpen';
-import {CodeLensRegistry, getCodeLensData} from 'vs/editor/contrib/codelens/common/codelens';
-import {DeclarationRegistry, getDeclarationsAtPosition} from 'vs/editor/contrib/goToDeclaration/common/goToDeclaration';
-import {ExtraInfoRegistry, getExtraInfoAtPosition} from 'vs/editor/contrib/hover/common/hover';
-import {OccurrencesRegistry, getOccurrencesAtPosition} from 'vs/editor/contrib/wordHighlighter/common/wordHighlighter';
-import {ReferenceRegistry, findReferences} from 'vs/editor/contrib/referenceSearch/common/referenceSearch';
-import {getQuickFixes} from 'vs/editor/contrib/quickFix/common/quickFix';
-import {getNavigateToItems} from 'vs/workbench/parts/search/common/search';
-import {rename} from 'vs/editor/contrib/rename/common/rename';
-import {getParameterHints} from 'vs/editor/contrib/parameterHints/common/parameterHints';
 
 const defaultSelector = { scheme: 'far' };
 const model: EditorCommon.IModel = new EditorModel(
@@ -66,18 +54,18 @@ suite('ExtHostLanguageFeatureCommands', function() {
 		threadService.setInstantiationService(instantiationService);
 		instantiationService.addSingleton(IMarkerService, new MarkerService(threadService));
 		instantiationService.addSingleton(IThreadService, threadService);
-		instantiationService.addSingleton(IModelService, <IModelService> {
+		instantiationService.addSingleton(IModelService, <IModelService>{
 			serviceId: IModelService,
-			getModel():any { return model; },
-			createModel():any { throw new Error(); },
-			destroyModel():any { throw new Error(); },
-			getModels():any { throw new Error(); },
+			getModel(): any { return model; },
+			createModel(): any { throw new Error(); },
+			destroyModel(): any { throw new Error(); },
+			getModels(): any { throw new Error(); },
 			onModelAdded: undefined,
 			onModelModeChanged: undefined,
 			onModelRemoved: undefined
 		});
 		instantiationService.addSingleton(IKeybindingService, <IKeybindingService>{
-			executeCommand(id, args):any {
+			executeCommand(id, args): any {
 				let handler = KeybindingsRegistry.getCommands()[id];
 				return TPromise.as(instantiationService.invokeFunction(handler, args));
 			}
@@ -127,11 +115,11 @@ suite('ExtHostLanguageFeatureCommands', function() {
 		];
 
 		// threadService.sync().then(() => {
-			TPromise.join(<any[]>promises).then(undefined, (err: any[]) => {
-				assert.equal(err.length, 4);
-				done();
-				return [];
-			});
+		TPromise.join(<any[]>promises).then(undefined, (err: any[]) => {
+			assert.equal(err.length, 4);
+			done();
+			return [];
+		});
 		// });
 	});
 
@@ -180,11 +168,11 @@ suite('ExtHostLanguageFeatureCommands', function() {
 		];
 
 		// threadService.sync().then(() => {
-			TPromise.join(<any[]>promises).then(undefined, (err: any[]) => {
-				assert.equal(err.length, 4);
-				done();
-				return [];
-			});
+		TPromise.join(<any[]>promises).then(undefined, (err: any[]) => {
+			assert.equal(err.length, 4);
+			done();
+			return [];
+		});
 		// });
 	});
 
