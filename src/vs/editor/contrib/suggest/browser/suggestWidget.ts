@@ -31,7 +31,9 @@ import URI from 'vs/base/common/uri';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { onUnexpectedError, isPromiseCanceledError, illegalArgument } from 'vs/base/common/errors';
 
-const defaultCompare: ISuggestionCompare = (a, b) => a.label.localeCompare(b.label);
+const defaultCompare: ISuggestionCompare = (a, b) => {
+	return (a.sortText || a.label).localeCompare((b.sortText || b.label));
+}
 
 class CompletionItem {
 
