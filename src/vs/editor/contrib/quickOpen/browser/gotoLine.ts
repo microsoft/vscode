@@ -11,7 +11,7 @@ import EditorBrowser = require('vs/editor/browser/editorBrowser');
 import EditorCommon = require('vs/editor/common/editorCommon');
 import QuickOpenWidget = require('vs/base/parts/quickopen/browser/quickOpenWidget');
 import QuickOpenModel = require('vs/base/parts/quickopen/browser/quickOpenModel');
-import QuickOpen = require('vs/base/parts/quickopen/browser/quickOpen');
+import QuickOpen = require('vs/base/parts/quickopen/common/quickOpen');
 import EditorQuickOpen = require('./editorQuickOpen');
 import {INullService} from 'vs/platform/instantiation/common/instantiation';
 

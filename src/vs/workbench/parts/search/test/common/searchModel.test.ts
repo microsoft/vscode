@@ -7,7 +7,7 @@
 import * as assert from 'assert';
 import {Match, FileMatch, SearchResult} from 'vs/workbench/parts/search/common/searchModel';
 import model = require('vs/editor/common/model/model');
-import {EventSource} from 'vs/base/common/eventSource';
+import {Emitter} from 'vs/base/common/event';
 import {IModel} from 'vs/editor/common/editorCommon';
 import URI from 'vs/base/common/uri';
 import {create} from 'vs/platform/instantiation/common/instantiationService';
@@ -24,13 +24,13 @@ suite('Search - Model', () => {
 	let oneModel: IModel;
 
 	setup(() => {
-		let event = new EventSource<any>();
+		let emitter = new Emitter<any>();
 
 		oneModel = new model.Model('line1\nline2\nline3', null, URI.parse('file:///folder/file.txt'));
 		instantiation = create({
 			modelService: {
 				getModel: () => oneModel,
-				onModelAdded: event.value
+				onModelAdded: emitter.event
 			},
 			requestService: {
 				getRequestUrl: () => 'file:///folder/file.txt'

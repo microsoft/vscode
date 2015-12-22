@@ -1,0 +1,131 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.quick-open-widget .extension {
+	padding: 0 14px 0 0;
+	height: 48px;
+}
+
+.quick-open-widget .extension .row {
+	display: block;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	height: 24px;
+}
+
+.quick-open-widget .extension .row .actions {
+	float: right;
+}
+
+.quick-open-widget .extension .description {
+	display: block;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	opacity: 0.6;
+}
+
+.quick-open-widget .extension .version {
+	font-family: Menlo, Monaco, Consolas, "Droid Sans Mono", "Courier New", monospace, "Droid Sans Fallback";
+	font-size: smaller;
+}
+
+.quick-open-widget .extension .version {
+	padding-left: 6px;
+	opacity: 0.7;
+}
+
+.quick-open-widget .extension .published {
+	float: right;
+	opacity: 0.6;
+	font-size: smaller;
+}
+
+.quick-open-widget .extension .published > .since {
+	opacity: 0.6;
+	margin-right: 0.5em;
+}
+
+@keyframes move-background {
+	to { background-position: 8px 0; }
+}
+
+.quick-open-widget .extension .actions .action-item:not(.disabled) {
+	display: none;
+}
+
+.quick-open-widget .monaco-tree-row:hover .extension .actions .action-item,
+.quick-open-widget .monaco-tree-row.focused .extension .actions .action-item {
+	display: inherit;
+}
+
+.quick-open-widget .extension .actions .action-item:not(:first-child) {
+	margin-left: 2px;
+}
+
+.quick-open-widget .extension .actions .action-item {
+	line-height: 12px;
+}
+
+.quick-open-widget .extension .actions .action-label {
+	width: 12px;
+	height: 12px;
+	font-size: smaller;
+	border: 1px solid rgba(132, 132, 132, 0.5);
+	border-radius: 2px;
+	padding: 1px;
+	vertical-align: text-bottom;
+	text-transform: uppercase;
+	color: rgb(0, 157, 255);
+	border-color: rgb(0, 157, 255);
+}
+
+.quick-open-widget .extension .actions .action-label:not(.icon) {
+	padding: 1px 3px;
+	display: inline-block;
+	width: auto;
+	font-size: x-small;
+}
+
+.quick-open-widget .extension .actions .action-item.disabled .action-label {
+	animation: move-background 0.5s linear infinite;
+	background-color: rgba(132, 132, 132, 0.5);
+	background-size: 8px;
+	background-image: linear-gradient(-45deg, rgba(255, 255, 255, 0.5) 25%, transparent 25%, transparent 50%, rgba(255, 255, 255, 0.5) 50%, rgba(255, 255, 255, 0.5) 75%, transparent 75%, transparent);
+	color: rgb(0, 0, 0);
+	border-color: rgb(0, 0, 0);
+}
+
+.quick-open-widget .extension .actions .action-item .action-label:hover {
+	text-decoration: none;
+}
+
+.quick-open-widget .extension .actions .action-item:not(.disabled) .action-label:hover {
+	color: inherit;
+	background: rgba(132, 132, 132, 0.2);
+	border-color: #CCC;
+}
+
+.quick-open-widget .extension .actions .action-item:not(.disabled) .action-label:active {
+	background: rgba(132, 132, 132, 0.5);
+}
+
+.quick-open-widget .extension .actions .action-item:active {
+	-ms-transform: none;
+	-webkit-transform: none;
+	-moz-transform: none;
+	-o-transform: none;
+	transform: none;
+}
+
+/* Status bar */
+.monaco-shell .extensions-statusbar {
+	padding: 0 5px 0 25px;
+	line-height: 22px;
+	background: url('extensions-status.svg') center center no-repeat;
+	background-size: 14px;
+	background-position: 4px 50%;
+}

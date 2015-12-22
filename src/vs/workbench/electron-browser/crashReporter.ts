@@ -9,7 +9,6 @@ import {IConfigurationRegistry, Extensions} from 'vs/platform/configuration/comm
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {Registry} from 'vs/platform/platform';
-import platform = require('vs/base/common/platform');
 
 import crashReporter = require('crash-reporter');
 import ipc = require('ipc');

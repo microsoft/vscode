@@ -9,11 +9,11 @@ import nls = require('vs/nls');
 import {Builder, $} from 'vs/base/browser/builder';
 import types = require('vs/base/common/types');
 import {Registry} from 'vs/platform/platform';
-import {Mode, IContext, IAutoFocus} from 'vs/base/parts/quickopen/browser/quickOpen';
-import {QuickOpenEntry, QuickOpenEntryItem, QuickOpenModel} from 'vs/base/parts/quickopen/browser/quickOpenModel';
+import {Mode, IContext, IAutoFocus} from 'vs/base/parts/quickopen/common/quickOpen';
+import {QuickOpenEntryItem, QuickOpenModel} from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import {ITree, IElementCallback} from 'vs/base/parts/tree/common/tree';
-import {QuickOpenHandlerDescriptor, IQuickOpenRegistry, Extensions, QuickOpenHandler} from 'vs/workbench/browser/quickopen';
-import {IQuickOpenService} from 'vs/workbench/services/quickopen/browser/quickOpenService';
+import {IQuickOpenRegistry, Extensions, QuickOpenHandler} from 'vs/workbench/browser/quickopen';
+import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 
 export const HELP_PREFIX = '?';
 

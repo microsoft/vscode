@@ -31,25 +31,32 @@
  * Start of word/path bonus: 7
  * Start of string bonus: 8
  */
-export function score(target: string, query: string): number {
-	let score = 0;
-
+const wordPathBoundary = ['-', '_', ' ', '/', '\\', '.'];
+export function score(target: string, query: string, cache?: {[id: string]: number}): number {
 	if (!target || !query) {
-		return score; // return early if target or query are undefined
+		return 0; // return early if target or query are undefined
+	}
+
+	const cached = cache && cache[target + query];
+	if (typeof cached === 'number') {
+		return cached;
 	}
 
 	const queryLen = query.length;
 	const targetLower = target.toLowerCase();
 	const queryLower = query.toLowerCase();
-	const wordPathBoundary = ['-', '_', ' ', '/', '\\'];
 
 	let index = 0;
+	let lastIndexOf = 0;
+	let score = 0;
 	while (index < queryLen) {
-		var indexOf = targetLower.indexOf(queryLower[index]);
+		var indexOf = targetLower.indexOf(queryLower[index], lastIndexOf);
 		if (indexOf < 0) {
-			index++;
-			continue; // no match
+			score = 0; // This makes sure that the query is contained in the target
+			break;
 		}
+
+		lastIndexOf = indexOf;
 
 		// Character Match Bonus
 		score += 1;
@@ -59,22 +66,26 @@ export function score(target: string, query: string): number {
 			score += 1;
 		}
 
-		// Upper Case Bonus
-		if (isUpper(target.charCodeAt(indexOf))) {
-			score += 1;
-		}
-
 		// Prefix Bonus
 		if (indexOf === 0) {
 			score += 8;
 		}
 
 		// Start of Word/Path Bonous
-		if (wordPathBoundary.some(w => w === target[indexOf - 1])) {
+		else if (wordPathBoundary.some(w => w === target[indexOf - 1])) {
 			score += 7;
 		}
 
+		// Inside Word Upper Case Bonus
+		else if (isUpper(target.charCodeAt(indexOf))) {
+			score += 1;
+		}
+
 		index++;
+	}
+
+	if (cache) {
+		cache[target + query] = score;
 	}
 
 	return score;

@@ -14,7 +14,6 @@ import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingServic
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 
 import remote = require('remote');
-import platform = require('vs/base/common/platform');
 
 export class MessageService extends WorkbenchMessageService {
 

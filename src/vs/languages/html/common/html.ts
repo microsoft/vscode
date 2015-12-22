@@ -454,11 +454,6 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode<W> i
 		return createAsyncDescriptor2('vs/languages/html/common/htmlWorker', 'HTMLWorker');
 	}
 
-	static $formatDocument = OneWorkerAttr(HTMLMode, HTMLMode.prototype.formatDocument);
-	public formatDocument(resource:URI, options:Modes.IFormattingOptions):winjs.TPromise<EditorCommon.ISingleEditOperation[]> {
-		return this._worker((w) => w.format(resource, null, options));
-	}
-
 	static $formatRange = OneWorkerAttr(HTMLMode, HTMLMode.prototype.formatRange);
 	public formatRange(resource:URI, range:EditorCommon.IRange, options:Modes.IFormattingOptions):winjs.TPromise<EditorCommon.ISingleEditOperation[]> {
 		return this._worker((w) => w.format(resource, range, options));

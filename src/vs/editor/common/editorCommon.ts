@@ -2023,9 +2023,17 @@ export interface ICursorSelectionChangedEvent {
 	 */
 	selection:IEditorSelection;
 	/**
+	 * The primary selection in view coordinates.
+	 */
+	viewSelection:IEditorSelection;
+	/**
 	 * The secondary selections.
 	 */
 	secondarySelections:IEditorSelection[];
+	/**
+	 * The secondary selections in view coordinates.
+	 */
+	secondaryViewSelections:IEditorSelection[];
 	/**
 	 * Source of the call that caused the event.
 	 */
@@ -2059,6 +2067,10 @@ export interface ICursorRevealRangeEvent {
 	 * If false: there should be just a vertical revealing
 	 */
 	revealHorizontal:boolean;
+}
+
+export interface ICursorScrollRequestEvent {
+	deltaLines: number;
 }
 
 export interface IModelChangedEvent {
@@ -2502,7 +2514,8 @@ export var ViewEventNames = {
 	CursorPositionChangedEvent: 'cursorPositionChangedEvent',
 	CursorSelectionChangedEvent: 'cursorSelectionChangedEvent',
 	RevealRangeEvent: 'revealRangeEvent',
-	LineMappingChangedEvent: 'lineMappingChangedEvent'
+	LineMappingChangedEvent: 'lineMappingChangedEvent',
+	ScrollRequestEvent: 'scrollRequestEvent'
 };
 
 export interface IScrollEvent {
@@ -2597,6 +2610,10 @@ export interface IViewRevealRangeEvent {
 	 * If false: there should be just a vertical revealing
 	 */
 	revealHorizontal: boolean;
+}
+
+export interface IViewScrollRequestEvent {
+	deltaLines: number;
 }
 
 export interface IViewWhitespaceViewportData {
@@ -3231,6 +3248,7 @@ export var EventType = {
 	CursorPositionChanged: 'positionChanged',
 	CursorSelectionChanged: 'selectionChanged',
 	CursorRevealRange: 'revealRange',
+	CursorScrollRequest: 'scrollRequest',
 
 	ViewFocusGained: 'focusGained',
 	ViewFocusLost: 'focusLost',
@@ -3338,5 +3356,11 @@ export var Handler = {
 	LineInsertAfter:			'lineInsertAfter',
 	LineBreakInsert:			'lineBreakInsert',
 
-	SelectAll:					'selectAll'
+	SelectAll:					'selectAll',
+
+	ScrollLineUp:				'scrollLineUp',
+	ScrollLineDown:				'scrollLineDown',
+
+	ScrollPageUp:				'scrollPageUp',
+	ScrollPageDown:				'scrollPageDown'
 };

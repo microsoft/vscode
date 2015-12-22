@@ -119,10 +119,7 @@ function uriFromPath(_path) {
 }
 
 loader.config({
-	baseUrl: uriFromPath(path.join(__dirname, '..')),
-	paths: {
-		'vs': path.basename(__dirname) + '/vs'
-	},
+	baseUrl: uriFromPath(path.join(__dirname)),
 	catchError: true,
 	nodeRequire: require,
 	nodeMain: __filename

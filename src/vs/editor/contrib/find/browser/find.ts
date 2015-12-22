@@ -17,10 +17,11 @@ import Lifecycle = require('vs/base/common/lifecycle');
 import config = require('vs/editor/common/config/config');
 import EditorCommon = require('vs/editor/common/editorCommon');
 import {Selection} from 'vs/editor/common/core/selection';
-import {IKeybindingService, IKeybindingContextKey} from 'vs/platform/keybinding/common/keybindingService';
+import {IKeybindingService, IKeybindingContextKey, IKeybindings} from 'vs/platform/keybinding/common/keybindingService';
 import {IContextViewService} from 'vs/platform/contextview/browser/contextView';
 import {INullService} from 'vs/platform/instantiation/common/instantiation';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
+import {Range} from 'vs/editor/common/core/range';
 
 /**
  * The Find controller will survive an editor.setModel(..) call
@@ -29,16 +30,19 @@ export class FindController implements EditorCommon.IEditorContribution, FindWid
 
 	static ID = 'editor.contrib.findController';
 
+	private static _STATE_CHANGED_EVENT = 'stateChanged';
+
 	private editor:EditorBrowser.ICodeEditor;
 	private _findWidgetVisible: IKeybindingContextKey<boolean>;
 
-	private model:FindModel.IFindModel;
-	private widget:FindWidget.IFindWidget;
+	private model:FindModel.FindModelBoundToEditorModel;
+	private widget:FindWidget.FindWidget;
 	private widgetIsVisible:boolean;
 	private widgetListeners:Lifecycle.IDisposable[];
 
 	private editorListeners:EventEmitter.ListenerUnbind[];
 	private lastState:FindModel.IFindState;
+	private _eventEmitter: EventEmitter.EventEmitter;
 
 	static getFindController(editor:EditorCommon.ICommonCodeEditor): FindController {
 		return <FindController>editor.getContribution(FindController.ID);
@@ -52,7 +56,7 @@ export class FindController implements EditorCommon.IEditorContribution, FindWid
 		this.widgetIsVisible = false;
 		this.lastState = null;
 
-		this.widget = new FindWidget.FindWidget(this.editor, this, contextViewService);
+		this.widget = new FindWidget.FindWidget(this.editor, this, contextViewService, keybindingService);
 
 		this.widgetListeners = [];
 		this.widgetListeners.push(this.widget.addUserInputEventListener((e) => this.onWidgetUserInput(e)));
@@ -71,6 +75,8 @@ export class FindController implements EditorCommon.IEditorContribution, FindWid
 			});
 			this.editorListeners = [];
 		}));
+
+		this._eventEmitter = new EventEmitter.EventEmitter([FindController._STATE_CHANGED_EVENT]);
 	}
 
 	public getId(): string {
@@ -79,18 +85,18 @@ export class FindController implements EditorCommon.IEditorContribution, FindWid
 
 	public dispose(): void {
 		this.widgetListeners = Lifecycle.disposeAll(this.widgetListeners);
-		if (this.widget) {
-			this.widget.dispose();
-			this.widget = null;
-		}
+		this.widget.dispose();
 		this.disposeBindingAndModel();
+		this._eventEmitter.dispose();
+	}
+
+	public onStateChanged(listener:()=>void): Lifecycle.IDisposable {
+		return this._eventEmitter.addListener2(FindController._STATE_CHANGED_EVENT, listener);
 	}
 
 	private disposeBindingAndModel(): void {
 		this._findWidgetVisible.reset();
-		if (this.widget) {
-			this.widget.setModel(null);
-		}
+		this.widget.setModel(null);
 		if (this.model) {
 			this.model.dispose();
 			this.model = null;
@@ -101,6 +107,18 @@ export class FindController implements EditorCommon.IEditorContribution, FindWid
 		this.widgetIsVisible = false;
 		this.disposeBindingAndModel();
 		this.editor.focus();
+	}
+
+	public toggleCaseSensitive(): void {
+		this.widget.toggleCaseSensitive();
+	}
+
+	public toggleWholeWords(): void {
+		this.widget.toggleWholeWords();
+	}
+
+	public toggleRegex(): void {
+		this.widget.toggleRegex();
 	}
 
 	private onWidgetClosed(): void {
@@ -114,10 +132,6 @@ export class FindController implements EditorCommon.IEditorContribution, FindWid
 
 	public setSearchString(searchString:string): void {
 		this.widget.setSearchString(searchString);
-		this.lastState = this.widget.getState();
-		if (this.model) {
-			this.model.recomputeMatches(this.lastState, false);
-		}
 	}
 
 	private onWidgetUserInput(e:FindWidget.IUserInputEvent): void {
@@ -125,6 +139,7 @@ export class FindController implements EditorCommon.IEditorContribution, FindWid
 		if (this.model) {
 			this.model.recomputeMatches(this.lastState, e.jumpToNextMatch);
 		}
+		this._eventEmitter.emit(FindController._STATE_CHANGED_EVENT);
 	}
 
 	private _start(forceRevealReplace:boolean, seedSearchStringFromSelection:boolean, seedSearchScopeFromSelection:boolean, shouldFocus:boolean): void {
@@ -173,6 +188,14 @@ export class FindController implements EditorCommon.IEditorContribution, FindWid
 		// Start searching
 		this.model.start(this.lastState, searchScope, shouldFocus);
 		this.widgetIsVisible = true;
+
+		if (shouldFocus) {
+			if (forceRevealReplace) {
+				this.widget.focusReplaceInput();
+			} else {
+				this.widget.focusFindInput();
+			}
+		}
 	}
 
 	public startFromAction(withReplace:boolean): void {
@@ -287,7 +310,7 @@ export class StartFindReplaceAction extends BaseStartFindAction {
 	}
 
 	public getId(): string {
-		return FindModel.START_FIND_REPLACE_ID;
+		return FindModel.START_FIND_REPLACE_ACTION_ID;
 	}
 
 	_startController(controller:FindController): void {
@@ -463,19 +486,20 @@ export class SelectionHighlighter implements EditorCommon.IEditorContribution {
 	private editor:EditorCommon.ICommonCodeEditor;
 	private model:EditorCommon.IModel;
 	private decorations:string[];
-	private toUnhook:EventEmitter.ListenerUnbind[];
+	private toDispose:Lifecycle.IDisposable[];
 
 	constructor(editor:EditorCommon.ICommonCodeEditor, @INullService ns) {
 		this.editor = editor;
 		this.model = this.editor.getModel();
 		this.decorations = [];
-		this.toUnhook = [];
+		this.toDispose = [];
 
-		this.toUnhook.push(editor.addListener(EditorCommon.EventType.CursorPositionChanged, e => this.onPositionChanged(e)));
-		this.toUnhook.push(editor.addListener(EditorCommon.EventType.ModelChanged, (e) => {
+		this.toDispose.push(editor.addListener2(EditorCommon.EventType.CursorPositionChanged, _ => this._update()));
+		this.toDispose.push(editor.addListener2(EditorCommon.EventType.ModelChanged, (e) => {
 			this.removeDecorations();
 			this.model = this.editor.getModel();
 		}));
+		this.toDispose.push(FindController.getFindController(editor).onStateChanged(() => this._update()));
 	}
 
 	public getId(): string {
@@ -488,12 +512,12 @@ export class SelectionHighlighter implements EditorCommon.IEditorContribution {
 		}
 	}
 
-	private onPositionChanged(e:EditorCommon.ICursorPositionChangedEvent): void {
+	private _update(): void {
 		if (!this.editor.getConfiguration().selectionHighlight) {
 			return;
 		}
 
-		var r = multiCursorFind(this.editor, false);
+		let r = multiCursorFind(this.editor, false);
 		if (!r) {
 			this.removeDecorations();
 			return;
@@ -514,19 +538,39 @@ export class SelectionHighlighter implements EditorCommon.IEditorContribution {
 			return;
 		}
 
-		var matches = this.editor.getModel().findMatches(r.searchText, true, r.isRegex, r.matchCase, r.wholeWord);
+		let allMatches = this.editor.getModel().findMatches(r.searchText, true, r.isRegex, r.matchCase, r.wholeWord);
+		allMatches.sort(Range.compareRangesUsingStarts);
 
-		// do not overlap with selection (issue #64)
-		let editorSelection = this.editor.getSelection();
+		let selections = this.editor.getSelections();
+		selections.sort(Range.compareRangesUsingStarts);
 
-		matches = matches.filter((m) => {
-			if (editorSelection.equalsRange(m)) {
-				return false;
+		// do not overlap with selection (issue #64 and #512)
+		let matches: EditorCommon.IEditorRange[] = [];
+		for (let i = 0, j = 0, len = allMatches.length, lenJ = selections.length; i < len; ) {
+			let match = allMatches[i];
+
+			if (j >= lenJ) {
+				// finished all editor selections
+				matches.push(match);
+				i++;
+			} else {
+				let cmp = Range.compareRangesUsingStarts(match, selections[j]);
+				if (cmp < 0) {
+					// match is before sel
+					matches.push(match);
+					i++;
+				} else if (cmp > 0) {
+					// sel is before match
+					j++;
+				} else {
+					// sel is equal to match
+					i++;
+					j++;
+				}
 			}
-			return true;
-		});
+		}
 
-		var decorations = matches.map(r => {
+		let decorations = matches.map(r => {
 			return {
 				range: r,
 				options: {
@@ -541,9 +585,7 @@ export class SelectionHighlighter implements EditorCommon.IEditorContribution {
 
 	public dispose(): void {
 		this.removeDecorations();
-		while(this.toUnhook.length > 0) {
-			this.toUnhook.pop()();
-		}
+		this.toDispose = Lifecycle.disposeAll(this.toDispose);
 	}
 }
 
@@ -556,22 +598,22 @@ CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(SelectHighl
 var CONTEXT_FIND_WIDGET_VISIBLE = 'findWidgetVisible';
 
 // register actions
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(StartFindAction, FindModel.START_FIND_ID, nls.localize('startFindAction',"Find"), {
+CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(StartFindAction, FindModel.START_FIND_ACTION_ID, nls.localize('startFindAction',"Find"), {
 	context: ContextKey.None,
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_F,
 	secondary: [KeyMod.CtrlCmd | KeyCode.F3]
 }));
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(NextMatchFindAction, FindModel.NEXT_MATCH_FIND_ID, nls.localize('findNextMatchAction', "Find Next"), {
+CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(NextMatchFindAction, FindModel.NEXT_MATCH_FIND_ACTION_ID, nls.localize('findNextMatchAction', "Find Next"), {
 	context: ContextKey.EditorFocus,
 	primary: KeyCode.F3,
 	mac: { primary: KeyMod.CtrlCmd | KeyCode.KEY_G, secondary: [KeyCode.F3] }
 }));
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(PreviousMatchFindAction, FindModel.PREVIOUS_MATCH_FIND_ID, nls.localize('findPreviousMatchAction', "Find Previous"), {
+CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(PreviousMatchFindAction, FindModel.PREVIOUS_MATCH_FIND_ACTION_ID, nls.localize('findPreviousMatchAction', "Find Previous"), {
 	context: ContextKey.EditorFocus,
 	primary: KeyMod.Shift | KeyCode.F3,
 	mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_G, secondary: [KeyMod.Shift | KeyCode.F3] }
 }));
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(StartFindReplaceAction, FindModel.START_FIND_REPLACE_ID, nls.localize('startReplace', "Replace"), {
+CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(StartFindReplaceAction, FindModel.START_FIND_REPLACE_ACTION_ID, nls.localize('startReplace', "Replace"), {
 	context: ContextKey.None,
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_H,
 	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_F }
@@ -586,6 +628,25 @@ CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(AddSelectio
 }));
 EditorBrowserRegistry.registerEditorContribution(FindController);
 EditorBrowserRegistry.registerEditorContribution(SelectionHighlighter);
-CommonEditorRegistry.registerEditorCommand('closeFindWidget', CommonEditorRegistry.commandWeight(5), { primary: KeyCode.Escape }, false, CONTEXT_FIND_WIDGET_VISIBLE, (ctx, editor, args) => {
-	FindController.getFindController(editor).closeFindWidget();
+
+function registerFindCommand(id:string, callback:(controller:FindController)=>void, keybindings:IKeybindings, needsKey:string = null): void {
+	CommonEditorRegistry.registerEditorCommand(id, CommonEditorRegistry.commandWeight(5), keybindings, false, needsKey, (ctx, editor, args) => {
+		callback(FindController.getFindController(editor));
+	});
+}
+
+registerFindCommand(FindModel.CLOSE_FIND_WIDGET_COMMAND_ID, x => x.closeFindWidget(), {
+	primary: KeyCode.Escape
+}, CONTEXT_FIND_WIDGET_VISIBLE);
+registerFindCommand(FindModel.TOGGLE_CASE_SENSITIVE_COMMAND_ID, x => x.toggleCaseSensitive(), {
+	primary: KeyMod.Alt | KeyCode.KEY_C,
+	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_C }
+});
+registerFindCommand(FindModel.TOGGLE_WHOLE_WORD_COMMAND_ID, x => x.toggleWholeWords(), {
+	primary: KeyMod.Alt | KeyCode.KEY_W,
+	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_W }
+});
+registerFindCommand(FindModel.TOGGLE_REGEX_COMMAND_ID, x => x.toggleRegex(), {
+	primary: KeyMod.Alt | KeyCode.KEY_R,
+	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_R }
 });

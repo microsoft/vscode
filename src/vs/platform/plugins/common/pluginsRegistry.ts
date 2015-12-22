@@ -150,6 +150,10 @@ export function isValidPluginDescription(extensionFolderPath: string, pluginDesc
 		notices.push(nls.localize('pluginDescription.name', "property `{0}` is mandatory and must be of type `string`", 'name'));
 		return false;
 	}
+	if (typeof pluginDescription.version !== 'string') {
+		notices.push(nls.localize('pluginDescription.version', "property `{0}` is mandatory and must be of type `string`", 'version'));
+		return false;
+	}
 	if (!pluginDescription.engines) {
 		notices.push(nls.localize('pluginDescription.engines', "property `{0}` is mandatory and must be of type `object`", 'engines'));
 		return false;

@@ -6,22 +6,17 @@
 'use strict';
 
 import uuid = require('vs/base/common/uuid');
-import types = require('vs/base/common/types');
 import strings = require('vs/base/common/strings');
 import platform = require('vs/base/common/platform');
-import glob = require('vs/base/common/glob');
-import events = require('vs/base/common/eventEmitter');
 
 import flow = require('vs/base/node/flow');
 
 import fs = require('fs');
 import paths = require('path');
-import stream = require('stream');
 
-var loop = flow.loop;
-var sequence = flow.sequence;
+const loop = flow.loop;
 
-var normalizedCache = Object.create(null);
+const normalizedCache = Object.create(null);
 export function readdir(path: string, callback: (error: Error, files: string[]) => void): void {
 
 	// Mac: uses NFD unicode form on disk, but we want NFC
@@ -51,7 +46,7 @@ function readdirNormalize(path: string, callback: (error: Error, files: string[]
 		// for our concerns.
 		// See https://github.com/nodejs/node/issues/4002
 		return callback(null, children.filter(c => c !== '.' && c !== '..'));
-	})
+	});
 }
 
 export function mkdirp(path: string, mode: number, callback: (error: Error) => void): void {
@@ -122,12 +117,12 @@ export function copy(source: string, target: string, callback: (error: Error) =>
 }
 
 function pipeFs(source: string, target: string, mode: number, callback: (error: Error) => void): void {
-	var callbackHandled = false;
+	let callbackHandled = false;
 
-	var readStream = fs.createReadStream(source);
-	var writeStream = fs.createWriteStream(target, { mode: mode });
+	let readStream = fs.createReadStream(source);
+	let writeStream = fs.createWriteStream(target, { mode: mode });
 
-	var onError = (error: Error) => {
+	let onError = (error: Error) => {
 		if (!callbackHandled) {
 			callbackHandled = true;
 			callback(error);
@@ -176,7 +171,7 @@ export function del(path: string, tmpFolder: string, callback: (error: Error) =>
 				return rmRecursive(path, callback);
 			}
 
-			var pathInTemp = paths.join(tmpFolder, uuid.generateUuid());
+			let pathInTemp = paths.join(tmpFolder, uuid.generateUuid());
 			fs.rename(path, pathInTemp, (error: Error) => {
 				if (error) {
 					return rmRecursive(path, callback); // if rename fails, delete without tmp dir
@@ -213,7 +208,7 @@ function rmRecursive(path: string, callback: (error: Error) => void): void {
 				if (err || !stat) {
 					callback(err);
 				} else if (!stat.isDirectory() || stat.isSymbolicLink() /* !!! never recurse into links when deleting !!! */) {
-					var mode = stat.mode;
+					let mode = stat.mode;
 					if (!(mode & 128)) { // 128 === 0200
 						fs.chmod(path, mode | 128, (err: Error) => { // 128 === 0200
 							if (err) {
@@ -232,8 +227,8 @@ function rmRecursive(path: string, callback: (error: Error) => void): void {
 						} else if (children.length === 0) {
 							fs.rmdir(path, callback);
 						} else {
-							var firstError: Error = null;
-							var childrenLeft = children.length;
+							let firstError: Error = null;
+							let childrenLeft = children.length;
 							children.forEach((child) => {
 								rmRecursive(paths.join(path, child), (err: Error) => {
 									childrenLeft--;

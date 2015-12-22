@@ -7,6 +7,7 @@
 
 import nls = require('vs/nls');
 import Platform = require('vs/base/common/platform');
+import {IHTMLContentElement} from 'vs/base/common/htmlContent';
 
 /**
  * Virtual Key Codes, the value does not hold any inherent meaning.
@@ -93,6 +94,13 @@ export enum KeyCode {
 	F10,
 	F11,
 	F12,
+	F13,
+	F14,
+	F15,
+	F16,
+	F17,
+	F18,
+	F19,
 
 	NumLock,
 	ScrollLock,
@@ -141,6 +149,24 @@ export enum KeyCode {
 	 * For the US standard keyboard, the ''"' key
 	 */
 	US_QUOTE,
+
+	NUMPAD_0, // VK_NUMPAD0, 0x60, Numeric keypad 0 key
+	NUMPAD_1, // VK_NUMPAD1, 0x61, Numeric keypad 1 key
+	NUMPAD_2, // VK_NUMPAD2, 0x62, Numeric keypad 2 key
+	NUMPAD_3, // VK_NUMPAD3, 0x63, Numeric keypad 3 key
+	NUMPAD_4, // VK_NUMPAD4, 0x64, Numeric keypad 4 key
+	NUMPAD_5, // VK_NUMPAD5, 0x65, Numeric keypad 5 key
+	NUMPAD_6, // VK_NUMPAD6, 0x66, Numeric keypad 6 key
+	NUMPAD_7, // VK_NUMPAD7, 0x67, Numeric keypad 7 key
+	NUMPAD_8, // VK_NUMPAD8, 0x68, Numeric keypad 8 key
+	NUMPAD_9, // VK_NUMPAD9, 0x69, Numeric keypad 9 key
+
+	NUMPAD_MULTIPLY,	// VK_MULTIPLY, 0x6A, Multiply key
+	NUMPAD_ADD,			// VK_ADD, 0x6B, Add key
+	NUMPAD_SEPARATOR,	// VK_SEPARATOR, 0x6C, Separator key
+	NUMPAD_SUBTRACT,	// VK_SUBTRACT, 0x6D, Subtract key
+	NUMPAD_DECIMAL,		// VK_DECIMAL, 0x6E, Decimal key
+	NUMPAD_DIVIDE,		// VK_DIVIDE, 0x6F,
 
 	/**
 	 * Placed last to cover the length of the enum.
@@ -225,6 +251,14 @@ let TO_STRING_MAP: string[] = [];
 	TO_STRING_MAP[KeyCode.F10] = 'F10';
 	TO_STRING_MAP[KeyCode.F11] = 'F11';
 	TO_STRING_MAP[KeyCode.F12] = 'F12';
+	TO_STRING_MAP[KeyCode.F13] = 'F13';
+	TO_STRING_MAP[KeyCode.F14] = 'F14';
+	TO_STRING_MAP[KeyCode.F15] = 'F15';
+	TO_STRING_MAP[KeyCode.F16] = 'F16';
+	TO_STRING_MAP[KeyCode.F17] = 'F17';
+	TO_STRING_MAP[KeyCode.F18] = 'F18';
+	TO_STRING_MAP[KeyCode.F19] = 'F19';
+
 
 	TO_STRING_MAP[KeyCode.NumLock] 		= 'NumLock';
 	TO_STRING_MAP[KeyCode.ScrollLock] 	= 'ScrollLock';
@@ -240,13 +274,41 @@ let TO_STRING_MAP: string[] = [];
 	TO_STRING_MAP[KeyCode.US_BACKSLASH] 			= '\\';
 	TO_STRING_MAP[KeyCode.US_CLOSE_SQUARE_BRACKET] 	= ']';
 	TO_STRING_MAP[KeyCode.US_QUOTE]					= '\'';
+
+	TO_STRING_MAP[KeyCode.NUMPAD_0] = 'NumPad0';
+	TO_STRING_MAP[KeyCode.NUMPAD_1] = 'NumPad1';
+	TO_STRING_MAP[KeyCode.NUMPAD_2] = 'NumPad2';
+	TO_STRING_MAP[KeyCode.NUMPAD_3] = 'NumPad3';
+	TO_STRING_MAP[KeyCode.NUMPAD_4] = 'NumPad4';
+	TO_STRING_MAP[KeyCode.NUMPAD_5] = 'NumPad5';
+	TO_STRING_MAP[KeyCode.NUMPAD_6] = 'NumPad6';
+	TO_STRING_MAP[KeyCode.NUMPAD_7] = 'NumPad7';
+	TO_STRING_MAP[KeyCode.NUMPAD_8] = 'NumPad8';
+	TO_STRING_MAP[KeyCode.NUMPAD_9] = 'NumPad9';
+
+	TO_STRING_MAP[KeyCode.NUMPAD_MULTIPLY] = 'NumPad_Multiply';
+	TO_STRING_MAP[KeyCode.NUMPAD_ADD] = 'NumPad_Add';
+	TO_STRING_MAP[KeyCode.NUMPAD_SEPARATOR] = 'NumPad_Separator';
+	TO_STRING_MAP[KeyCode.NUMPAD_SUBTRACT] = 'NumPad_Subtract';
+	TO_STRING_MAP[KeyCode.NUMPAD_DECIMAL] = 'NumPad_Decimal';
+	TO_STRING_MAP[KeyCode.NUMPAD_DIVIDE] = 'NumPad_Divide';
+
+	// for (let i = 0; i < KeyCode.MAX_VALUE; i++) {
+	// 	if (!TO_STRING_MAP[i]) {
+	// 		console.warn('Missing string representation for ' + KeyCode[i]);
+	// 	}
+	// }
 })();
 
 let FROM_STRING_MAP: {[str:string]:KeyCode;} = {};
 FROM_STRING_MAP['\r'] = KeyCode.Enter;
 (function() {
 	for (let i = 0, len = TO_STRING_MAP.length; i < len; i++) {
+		if (!TO_STRING_MAP[i]) {
+			continue;
+		}
 		FROM_STRING_MAP[TO_STRING_MAP[i]] = i;
+		FROM_STRING_MAP[TO_STRING_MAP[i].toLowerCase()] = i;
 	}
 })();
 
@@ -377,8 +439,22 @@ export class Keybinding {
 	/**
 	 * Format the binding to a format appropiate for rendering in the UI
 	 */
+	private static _toUSHTMLLabel(value:number): IHTMLContentElement[] {
+		return _asHTML(value, (Platform.isMacintosh ? MacUIKeyLabelProvider.INSTANCE : ClassicUIKeyLabelProvider.INSTANCE));
+	}
+
+	/**
+	 * Format the binding to a format appropiate for rendering in the UI
+	 */
 	private static _toCustomLabel(value:number, labelProvider:IKeyBindingLabelProvider): string {
 		return _asString(value, labelProvider);
+	}
+
+	/**
+	 * Format the binding to a format appropiate for rendering in the UI
+	 */
+	private static _toCustomHTMLLabel(value:number, labelProvider:IKeyBindingLabelProvider): IHTMLContentElement[] {
+		return _asHTML(value, labelProvider);
 	}
 
 	/**
@@ -445,15 +521,29 @@ export class Keybinding {
 	/**
 	 * Format the binding to a format appropiate for rendering in the UI
 	 */
+	public _toUSHTMLLabel(): IHTMLContentElement[] {
+		return Keybinding._toUSHTMLLabel(this.value);
+	}
+
+	/**
+	 * Format the binding to a format appropiate for rendering in the UI
+	 */
 	public toCustomLabel(labelProvider:IKeyBindingLabelProvider): string {
 		return Keybinding._toCustomLabel(this.value, labelProvider);
+	}
+
+	/**
+	 * Format the binding to a format appropiate for rendering in the UI
+	 */
+	public toCustomHTMLLabel(labelProvider:IKeyBindingLabelProvider): IHTMLContentElement[] {
+		return Keybinding._toCustomHTMLLabel(this.value, labelProvider);
 	}
 
 	/**
 	 * This prints the binding in a format suitable for electron's accelerators.
 	 * See https://github.com/atom/electron/blob/master/docs/api/accelerator.md
 	 */
-	public toElectronAccelerator(): string {
+	public _toElectronAccelerator(): string {
 		return Keybinding._toElectronAccelerator(this.value);
 	}
 
@@ -479,7 +569,7 @@ export interface IKeyBindingLabelProvider {
 /**
  * Print for Electron
  */
-class ElectronAcceleratorLabelProvider implements IKeyBindingLabelProvider {
+export class ElectronAcceleratorLabelProvider implements IKeyBindingLabelProvider {
 	public static INSTANCE = new ElectronAcceleratorLabelProvider();
 
 	public ctrlKeyLabel = 'Ctrl';
@@ -584,6 +674,12 @@ function _asString(keybinding:number, labelProvider:IKeyBindingLabelProvider): s
 		winCtrl = BinaryKeybindings.hasWinCtrl(keybinding),
 		keyCode = BinaryKeybindings.extractKeyCode(keybinding);
 
+	let keyLabel = labelProvider.getLabelForKey(keyCode);
+	if (!keyLabel) {
+		// cannot trigger this key code under this kb layout
+		return '';
+	}
+
 	// translate modifier keys: Ctrl-Shift-Alt-Meta
 	if ((ctrlCmd && !Platform.isMacintosh) || (winCtrl && Platform.isMacintosh)) {
 		result.push(labelProvider.ctrlKeyLabel);
@@ -606,7 +702,7 @@ function _asString(keybinding:number, labelProvider:IKeyBindingLabelProvider): s
 	}
 
 	// the actual key
-	result.push(labelProvider.getLabelForKey(keyCode));
+	result.push(keyLabel);
 
 	var actualResult = result.join(labelProvider.modifierSeparator);
 
@@ -615,4 +711,80 @@ function _asString(keybinding:number, labelProvider:IKeyBindingLabelProvider): s
 	}
 
 	return actualResult;
+}
+
+function _pushKey(result:IHTMLContentElement[], str:string): void {
+	if (result.length > 0) {
+		result.push({
+			tagName: 'span',
+			text: '+'
+		});
+	}
+	result.push({
+		tagName: 'span',
+		className: 'monaco-kbkey',
+		text: str
+	});
+}
+
+function _asHTML(keybinding:number, labelProvider:IKeyBindingLabelProvider, isChord:boolean = false): IHTMLContentElement[] {
+	let result:IHTMLContentElement[] = [],
+		ctrlCmd = BinaryKeybindings.hasCtrlCmd(keybinding),
+		shift = BinaryKeybindings.hasShift(keybinding),
+		alt = BinaryKeybindings.hasAlt(keybinding),
+		winCtrl = BinaryKeybindings.hasWinCtrl(keybinding),
+		keyCode = BinaryKeybindings.extractKeyCode(keybinding);
+
+	let keyLabel = labelProvider.getLabelForKey(keyCode);
+	if (!keyLabel) {
+		// cannot trigger this key code under this kb layout
+		return [];
+	}
+
+	// translate modifier keys: Ctrl-Shift-Alt-Meta
+	if ((ctrlCmd && !Platform.isMacintosh) || (winCtrl && Platform.isMacintosh)) {
+		_pushKey(result, labelProvider.ctrlKeyLabel);
+	}
+
+	if (shift) {
+		_pushKey(result, labelProvider.shiftKeyLabel);
+	}
+
+	if (alt) {
+		_pushKey(result, labelProvider.altKeyLabel);
+	}
+
+	if (ctrlCmd && Platform.isMacintosh) {
+		_pushKey(result, labelProvider.cmdKeyLabel);
+	}
+
+	if (winCtrl && !Platform.isMacintosh) {
+		_pushKey(result, labelProvider.windowsKeyLabel);
+	}
+
+	// the actual key
+	_pushKey(result, keyLabel);
+
+	let chordTo: IHTMLContentElement[] = null;
+
+	if (BinaryKeybindings.hasChord(keybinding)) {
+		chordTo = _asHTML(BinaryKeybindings.extractChordPart(keybinding), labelProvider, true);
+		result.push({
+			tagName: 'span',
+			text: ' '
+		});
+		result = result.concat(chordTo);
+	}
+
+	if (isChord) {
+		return result;
+	}
+
+	return [{
+		tagName: 'span',
+		className: 'monaco-kb',
+		children: result
+	}]
+
+	return result;
 }

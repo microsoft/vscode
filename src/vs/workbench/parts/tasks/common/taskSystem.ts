@@ -92,6 +92,11 @@ export interface TaskDescription {
 	isWatching?: boolean;
 
 	/**
+	 * Whether the task should prompt on close for confirmation if running.
+	 */
+	promptOnClose?: boolean;
+
+	/**
 	 * Controls whether the output of the running tasks is shown or not. Default
 	 * value is "always".
 	 */
@@ -197,6 +202,7 @@ export interface ITaskSystem extends IEventEmitter {
 	run(taskIdentifier: string): ITaskRunResult;
 	isActive(): TPromise<boolean>;
 	isActiveSync(): boolean;
+	canAutoTerminate(): boolean;
 	terminate(): TPromise<TerminateResponse>;
 	tasks(): TPromise<TaskDescription[]>;
 }

@@ -10,8 +10,8 @@ import {setUnexpectedErrorHandler, errorHandler} from 'vs/base/common/errors';
 import {create} from 'vs/base/common/types';
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {PluginHostDocument} from 'vs/workbench/api/common/pluginHostDocuments';
-import * as types from 'vs/workbench/api/common/pluginHostTypes';
+import {ExtHostDocument} from 'vs/workbench/api/common/extHostDocuments';
+import * as types from 'vs/workbench/api/common/extHostTypes';
 import {Range as CodeEditorRange} from 'vs/editor/common/core/range';
 import * as EditorCommon from 'vs/editor/common/editorCommon';
 import {Model as EditorModel} from 'vs/editor/common/model/model';
@@ -21,8 +21,8 @@ import {MarkerService} from 'vs/platform/markers/common/markerService';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
 import {IThreadService} from 'vs/platform/thread/common/thread';
 import {ExtHostLanguageFeatures, MainThreadLanguageFeatures} from 'vs/workbench/api/common/extHostLanguageFeatures';
-import {PluginHostCommands, MainThreadCommands} from 'vs/workbench/api/common/pluginHostCommands';
-import {PluginHostModelService} from 'vs/workbench/api/common/pluginHostDocuments';
+import {ExtHostCommands, MainThreadCommands} from 'vs/workbench/api/common/extHostCommands';
+import {ExtHostModelService} from 'vs/workbench/api/common/extHostDocuments';
 import {SyncDescriptor0} from 'vs/platform/instantiation/common/descriptors';
 import {LanguageSelector} from 'vs/editor/common/modes/languageSelector';
 import {OutlineRegistry, getOutlineEntries} from 'vs/editor/contrib/quickOpen/common/quickOpen';
@@ -65,7 +65,7 @@ suite('ExtHostLanguageFeatures', function() {
 		originalErrorHandler = errorHandler.getUnexpectedErrorHandler();
 		setUnexpectedErrorHandler(() => { });
 
-		threadService.getRemotable(PluginHostModelService)._acceptModelAdd({
+		threadService.getRemotable(ExtHostModelService)._acceptModelAdd({
 			isDirty: false,
 			versionId: model.getVersionId(),
 			modeId: model.getModeId(),
@@ -78,7 +78,7 @@ suite('ExtHostLanguageFeatures', function() {
 			},
 		});
 
-		threadService.getRemotable(PluginHostCommands);
+		threadService.getRemotable(ExtHostCommands);
 		threadService.getRemotable(MainThreadCommands);
 		mainThread = threadService.getRemotable(MainThreadLanguageFeatures);
 		extHost = threadService.getRemotable(ExtHostLanguageFeatures);
@@ -636,7 +636,7 @@ suite('ExtHostLanguageFeatures', function() {
 
 	test('Quick Fix, invoke command+args', function(done) {
 		let actualArgs: any;
-		let commands = threadService.getRemotable(PluginHostCommands);
+		let commands = threadService.getRemotable(ExtHostCommands);
 		disposables.push(commands.registerCommand('test1', function(...args: any[]) {
 			actualArgs = args;
 		}));

@@ -9,7 +9,7 @@ import { TPromise, Promise } from 'vs/base/common/winjs.base';
 import mime = require('vs/base/node/mime');
 import pfs = require('vs/base/node/pfs');
 import { Repository, GitError } from 'vs/workbench/parts/git/node/git.lib';
-import { IRawGitService, RawServiceState, IRawStatus, IHead, GitErrorCodes } from 'vs/workbench/parts/git/common/git';
+import { IRawGitService, RawServiceState, IRawStatus, IHead, GitErrorCodes, IPushOptions } from 'vs/workbench/parts/git/common/git';
 
 function pathsAreEqual(p1: string, p2: string): boolean {
 	if (/^(win32|darwin)$/.test(process.platform)) {
@@ -50,13 +50,14 @@ export class RawGitService implements IRawGitService {
 						return HEAD;
 					}
 				}, (): IHead => null)
-				.then(HEAD => Promise.join([this.getRepositoryRoot(), this.repo.getHeads(), this.repo.getTags()]).then(r => {
+				.then(HEAD => Promise.join([this.getRepositoryRoot(), this.repo.getHeads(), this.repo.getTags(), this.repo.getRemotes()]).then(r => {
 					return {
 						repositoryRoot: r[0],
 						status: status,
 						HEAD: HEAD,
 						heads: r[1],
-						tags: r[2]
+						tags: r[2],
+						remotes: r[3]
 					};
 				})))
 			.then(null, (err) => {
@@ -120,8 +121,8 @@ export class RawGitService implements IRawGitService {
 		return this.repo.pull(rebase).then(() => this.status());
 	}
 
-	public push(): TPromise<IRawStatus> {
-		return this.repo.push().then(() => this.status());
+	public push(remote?: string, name?: string, options?:IPushOptions): TPromise<IRawStatus> {
+		return this.repo.push(remote, name, options).then(() => this.status());
 	}
 
 	public sync(): TPromise<IRawStatus> {
@@ -239,8 +240,8 @@ export class DelayedRawGitService implements IRawGitService {
 		return this.raw.then(raw => raw.pull(rebase));
 	}
 
-	public push(): TPromise<IRawStatus> {
-		return this.raw.then(raw => raw.push());
+	public push(origin?: string, name?: string, options?:IPushOptions): TPromise<IRawStatus> {
+		return this.raw.then(raw => raw.push(origin, name, options));
 	}
 
 	public sync(): TPromise<IRawStatus> {

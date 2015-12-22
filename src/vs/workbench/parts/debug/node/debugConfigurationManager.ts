@@ -9,20 +9,22 @@ import { Promise, TPromise } from 'vs/base/common/winjs.base';
 import uri from 'vs/base/common/uri';
 import { schemas } from 'vs/base/common/network';
 import paths = require('vs/base/common/paths');
+import Severity from 'vs/base/common/severity';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import platform = require('vs/platform/platform');
-import pluginsRegistry = require('vs/platform/plugins/common/pluginsRegistry');
 import editor = require('vs/editor/common/editorCommon');
+import pluginsRegistry = require('vs/platform/plugins/common/pluginsRegistry');
+import platform = require('vs/platform/platform');
 import jsonContributionRegistry = require('vs/platform/jsonschemas/common/jsonContributionRegistry');
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IFileService } from 'vs/platform/files/common/files';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IMessageService } from 'vs/platform/message/common/message';
 import debug = require('vs/workbench/parts/debug/common/debug');
 import { SystemVariables } from 'vs/workbench/parts/lib/node/systemVariables';
 import { Adapter } from 'vs/workbench/parts/debug/node/debugAdapter';
 import { IWorkspaceContextService } from 'vs/workbench/services/workspace/common/contextService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IFileService } from 'vs/platform/files/common/files';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IQuickOpenService } from 'vs/workbench/services/quickopen/browser/quickOpenService';
+import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
 
 // Debuggers extension point
 
@@ -58,6 +60,10 @@ export var debuggersExtPoint = pluginsRegistry.PluginsRegistry.registerExtension
 			program: {
 				description: nls.localize('vscode.extension.contributes.debuggers.program', "Path to the debug adapter program. Path is either absolute or relative to the extension folder."),
 				type: 'string'
+			},
+			args: {
+				description: nls.localize('vscode.extension.contributes.debuggers.args', "Optional arguments to pass to the adapter."),
+				type: 'array'
 			},
 			runtime : {
 				description: nls.localize('vscode.extension.contributes.debuggers.runtime', "Optional runtime in case the program attribute is not an executable but requires a runtime."),
@@ -151,10 +157,11 @@ export class ConfigurationManager {
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IQuickOpenService private quickOpenService: IQuickOpenService
+		@IQuickOpenService private quickOpenService: IQuickOpenService,
+		@IMessageService private messageService: IMessageService
 	) {
 		this.systemVariables = this.contextService.getWorkspace() ? new SystemVariables(this.editorService, this.contextService) : null;
-		this.setConfiguration(configName);
+		this.setConfiguration(configName, true);
 		this.adapters = [];
 		this.registerListeners();
 		this.allModeIdsForBreakpoints = {};
@@ -218,7 +225,7 @@ export class ConfigurationManager {
 		return this.adapters.filter(adapter => adapter.type === this.configuration.type).pop();
 	}
 
-	public setConfiguration(name: string): Promise {
+	public setConfiguration(name: string, silent = false): Promise {
 		return this.loadLaunchConfig().then(config => {
 			if (!config || !config.configurations) {
 				this.configuration = null;
@@ -230,18 +237,22 @@ export class ConfigurationManager {
 
 			// Massage configuration attributes - append workspace path to relatvie paths, substitute variables in paths.
 			this.configuration = filtered.length === 1 ? filtered[0] : null;
-			if (this.configuration && this.systemVariables) {
+			if (this.configuration) {
+				if (this.systemVariables) {
+					Object.keys(this.configuration).forEach(key => {
+						this.configuration[key] = this.systemVariables.resolve(this.configuration[key]);
+					});
+				}
+
 				this.configuration.debugServer = config.debugServer;
-				this.configuration.outDir = this.resolvePath(this.systemVariables.resolve(this.configuration.outDir));
+				this.configuration.outDir = this.resolvePath(this.configuration.outDir, silent);
 				this.configuration.address = this.configuration.address || 'localhost';
-				this.configuration.program = this.resolvePath(this.systemVariables.resolve(this.configuration.program));
+				this.configuration.program = this.resolvePath(this.configuration.program, silent);
 				this.configuration.stopOnEntry = this.configuration.stopOnEntry === undefined ? false : this.configuration.stopOnEntry;
 				this.configuration.args = this.configuration.args && this.configuration.args.length > 0 ? this.systemVariables.resolve(this.configuration.args) : null;
-				this.configuration.env = <{ [key: string]: string; }> this.systemVariables.resolve(this.configuration.env);
-				this.configuration.cwd = this.resolvePath(this.systemVariables.resolve(this.configuration.cwd) || '.', false);
-				this.configuration.runtimeExecutable = this.resolvePath(this.systemVariables.resolve(this.configuration.runtimeExecutable));
-				this.configuration.runtimeArgs = this.configuration.runtimeArgs && this.configuration.runtimeArgs.length > 0 ? this.systemVariables.resolve(this.configuration.runtimeArgs) : null;
-				this.configuration.outDir = this.resolvePath(this.configuration.outDir);
+				this.configuration.cwd = this.resolvePath(this.configuration.cwd || '.', silent);
+				this.configuration.runtimeExecutable = this.resolvePath(this.configuration.runtimeExecutable, silent);
+				this.configuration.runtimeArgs = this.configuration.runtimeArgs && this.configuration.runtimeArgs.length > 0 ? this.configuration.runtimeArgs : null;
 			}
 		});
 	}
@@ -332,12 +343,15 @@ export class ConfigurationManager {
 		return !!this.allModeIdsForBreakpoints[modeId];
 	}
 
-	private resolvePath(p: string, showError = true): string {
+	private resolvePath(p: string, silent: boolean): string {
 		if (!p) {
 			return null;
 		}
 		if (path.isAbsolute(p)) {
 			return paths.normalize(p, true);
+		}
+		if (!silent) {
+			this.messageService.show(Severity.Warning, 'Relative paths in \'launch.json\' will no longer be supported, use \'${workspaceRoot}/' + p + '\' instead.');
 		}
 
 		return paths.normalize(uri.file(paths.join(this.contextService.getWorkspace().resource.fsPath, p)).fsPath, true);

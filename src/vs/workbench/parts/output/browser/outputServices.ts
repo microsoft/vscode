@@ -5,9 +5,8 @@
 'use strict';
 
 import {Promise, TPromise} from 'vs/base/common/winjs.base';
-import {EventProvider} from 'vs/base/common/eventProvider';
 import strings = require('vs/base/common/strings');
-import {EventSource} from 'vs/base/common/eventSource';
+import Event, {Emitter} from 'vs/base/common/event';
 import {EditorOptions} from 'vs/workbench/common/editor';
 import {StringEditor} from 'vs/workbench/browser/parts/editor/stringEditor';
 import {OUTPUT_MIME, DEFAULT_OUTPUT_CHANNEL, IOutputEvent, IOutputService} from 'vs/workbench/parts/output/common/output';
@@ -30,8 +29,8 @@ export class OutputService implements IOutputService {
 	private lastSentOutputEventsTime: number;
 	private bufferedOutput: { [channel: string]: string; };
 
-	private _onOutput: EventSource<(event: IOutputEvent) => void>;
-	private _onOutputChannel: EventSource<(channel: string) => void>;
+	private _onOutput: Emitter<IOutputEvent>;
+	private _onOutputChannel: Emitter<string>;
 
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -39,8 +38,8 @@ export class OutputService implements IOutputService {
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@ILifecycleService private lifecycleService: ILifecycleService
 	) {
-		this._onOutput = new EventSource<(event: IOutputEvent) => void>();
-		this._onOutputChannel = new EventSource<(channel: string) => void>();
+		this._onOutput = new Emitter<IOutputEvent>();
+		this._onOutputChannel = new Emitter<string>();
 
 		this.receivedOutput = Object.create(null);
 
@@ -51,16 +50,16 @@ export class OutputService implements IOutputService {
 		this.registerListeners();
 	}
 
-	public get onOutput(): EventProvider<(event: IOutputEvent) => void> {
-		return this._onOutput.value;
+	public get onOutput(): Event<IOutputEvent> {
+		return this._onOutput.event;
 	}
 
-	public get onOutputChannel(): EventProvider<(channel: string) => void> {
-		return this._onOutputChannel.value;
+	public get onOutputChannel(): Event<string> {
+		return this._onOutputChannel.event;
 	}
 
 	private registerListeners(): void {
-		this.lifecycleService.onShutdown.add(this.dispose, this);
+		this.lifecycleService.onShutdown(this.dispose, this);
 	}
 
 	public append(channelOrOutput: string, output?: string): void {

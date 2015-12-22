@@ -15,7 +15,7 @@ import {IAction, IActionRunner, Action, ActionRunner} from 'vs/base/common/actio
 import {IActionItem, ActionsOrientation} from 'vs/base/browser/ui/actionbar/actionbar';
 import {ITree, IFocusEvent, ISelectionEvent} from 'vs/base/parts/tree/common/tree';
 import {WorkbenchComponent} from 'vs/workbench/browser/component';
-import {ViewletEvent} from 'vs/workbench/browser/events';
+import {ViewletEvent} from 'vs/workbench/common/events';
 import {prepareActions} from 'vs/workbench/browser/actionBarRegistry';
 import {ToolBar} from 'vs/base/browser/ui/toolbar/toolbar';
 import {DelayedDragHandler} from 'vs/base/browser/dnd';

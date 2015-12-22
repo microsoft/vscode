@@ -55,7 +55,12 @@ export namespace Config {
 		/**
 		 * Whether the executed command is kept alive and is watching the file system.
 		 */
-		isWatching?:boolean;
+		isWatching?: boolean;
+
+		/**
+		 * Whether the task should prompt on close for confirmation if running.
+		 */
+		promptOnClose?: boolean;
 
 		/**
 		 * Controls whether the output view of the running tasks is brought to front or not.
@@ -134,6 +139,11 @@ export interface Task {
 	isWatching: boolean;
 
 	/**
+	 * Whether the task should prompt on close for confirmation if running.
+	 */
+	promptOnClose?: boolean;
+
+	/**
 	 * Controls whether the output view of the running tasks is brought to front or not.
 	 * See BaseTaskRunnerConfiguration#showOutput for details.
 	 */
@@ -205,6 +215,12 @@ export class TaskParser  extends Parser {
 		if (this.is(json.isWatching, Types.isBoolean)) {
 			isWatching = json.isWatching;
 		}
+		let promptOnClose: boolean = true;
+		if (this.is(json.promptOnClose, Types.isBoolean)) {
+			promptOnClose = json.promptOnClose;
+		} else {
+			promptOnClose = !isWatching;
+		}
 		if (this.is(json.showOutput, Types.isString)) {
 			showOutput = ShowOutput.fromString(json.showOutput) || ShowOutput.Always;
 		}
@@ -229,7 +245,7 @@ export class TaskParser  extends Parser {
 				problemMatcher.push(matcher);
 			}
 		}
-		return { id, name, trigger, executable, isWatching, showOutput, echoCommand, settings, problemMatcher };
+		return { id, name, trigger, executable, isWatching, promptOnClose, showOutput, echoCommand, settings, problemMatcher };
 	}
 
 	private parseProblemMatcher(json: string | ProblemMatcherConfig.ProblemMatcher): ProblemMatcher {

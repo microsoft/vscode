@@ -6,17 +6,15 @@
 
 import arrays = require('vs/base/common/arrays');
 import uri from 'vs/base/common/uri';
-import {EventSource} from 'vs/base/common/eventSource';
-import {EventProvider} from 'vs/base/common/eventProvider';
+import Event, {Emitter} from 'vs/base/common/event';
 import paths = require('vs/base/common/paths');
 import errors = require('vs/base/common/errors');
 import labels = require('vs/base/common/labels');
 import {disposeAll, IDisposable} from 'vs/base/common/lifecycle';
-import files = require('vs/workbench/parts/files/browser/files');
 import filesCommon = require('vs/workbench/parts/files/common/files');
 import {IFileStat, FileChangeType, FileChangesEvent, EventType as FileEventType} from 'vs/platform/files/common/files';
-import {EditorEvent, UntitledEditorEvent, EventType as WorkbenchEventType} from 'vs/workbench/browser/events';
-import {IUntitledEditorService} from 'vs/workbench/services/untitled/browser/untitledEditorService';
+import {UntitledEditorEvent, EventType as WorkbenchEventType, EditorEvent} from 'vs/workbench/common/events';
+import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
@@ -31,8 +29,8 @@ export class WorkingFilesModel implements filesCommon.IWorkingFilesModel {
 	private entries: WorkingFileEntry[];
 	private pathLabelProvider: labels.PathLabelProvider;
 	private mapEntryToResource: { [resource: string]: WorkingFileEntry; };
-	private _onModelChange: EventSource<(event: filesCommon.IWorkingFileModelChangeEvent) => void>;
-	private _onWorkingFileChange: EventSource<(file: WorkingFileEntry) => void>;
+	private _onModelChange: Emitter<filesCommon.IWorkingFileModelChangeEvent>;
+	private _onWorkingFileChange: Emitter<WorkingFileEntry>;
 	private toDispose: IDisposable[];
 
 	constructor(
@@ -47,8 +45,8 @@ export class WorkingFilesModel implements filesCommon.IWorkingFilesModel {
 		this.entries = [];
 		this.toDispose = [];
 		this.mapEntryToResource = Object.create(null);
-		this._onModelChange = new EventSource<() => void>();
-		this._onWorkingFileChange = new EventSource<() => void>();
+		this._onModelChange = new Emitter<filesCommon.IWorkingFileModelChangeEvent>();
+		this._onWorkingFileChange = new Emitter<WorkingFileEntry>();
 
 		this.load();
 		this.registerListeners();
@@ -146,12 +144,12 @@ export class WorkingFilesModel implements filesCommon.IWorkingFilesModel {
 		}
 	}
 
-	public get onModelChange(): EventProvider<(event: filesCommon.IWorkingFileModelChangeEvent) => void> {
-		return this._onModelChange.value;
+	public get onModelChange(): Event<filesCommon.IWorkingFileModelChangeEvent> {
+		return this._onModelChange.event;
 	}
 
-	public get onWorkingFileChange(): EventProvider<(file: WorkingFileEntry) => void> {
-		return this._onWorkingFileChange.value;
+	public get onWorkingFileChange(): Event<WorkingFileEntry> {
+		return this._onWorkingFileChange.event;
 	}
 
 	public getEntries(excludeOutOfContext?: boolean): WorkingFileEntry[] {
@@ -383,11 +381,13 @@ export class WorkingFilesModel implements filesCommon.IWorkingFilesModel {
 
 		// Add untitled ones (after joinCreation() to make sure we catch everything)
 		this.partService.joinCreation().done(() => {
-			this.untitledEditorService && this.untitledEditorService.getAll().map((u) => u.getResource())
-				.filter((r) => !this.untitledEditorService.hasAssociatedFilePath(r))		// only those without association
-				.forEach((r) => {
-					this.addEntry(r);
-				});
+			if (this.untitledEditorService) {
+				this.untitledEditorService.getAll().map((u) => u.getResource())
+					.filter((r) => !this.untitledEditorService.hasAssociatedFilePath(r))		// only those without association
+					.forEach((r) => {
+						this.addEntry(r);
+					});
+			}
 		}, errors.onUnexpectedError);
 	}
 

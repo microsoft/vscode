@@ -8,12 +8,11 @@
 import fs = require('fs');
 import paths = require('path');
 
-import types = require('vs/base/common/types');
 import filters = require('vs/base/common/filters');
 import arrays = require('vs/base/common/arrays');
 import strings = require('vs/base/common/strings');
 import glob = require('vs/base/common/glob');
-import {IProgress, IPatternInfo} from 'vs/platform/search/common/search';
+import {IProgress} from 'vs/platform/search/common/search';
 
 import extfs = require('vs/base/node/extfs');
 import flow = require('vs/base/node/flow');
@@ -67,49 +66,94 @@ export class FileWalker {
 		// Reset state
 		this.resetState();
 
-		// For each source
-		flow.parallel(rootPaths, (absolutePath, perEntryCallback) => {
+		// Support that the file pattern is a full path to a file that exists
+		this.checkFilePatternAbsoluteMatch(rootPaths, (exists) => {
 
-			// Try to Read as folder
-			extfs.readdir(absolutePath, (error: Error, files: string[]) => {
-				if (this.isCanceled || this.isLimitHit) {
-					return perEntryCallback(null, null);
-				}
+			// Report result from file pattern if matching
+			if (exists) {
+				onResult({ path: this.filePattern });
+			}
 
-				// Handle Directory
-				if (!error) {
-					return this.doWalk(absolutePath, '', files, onResult, perEntryCallback);
-				}
+			// For each source
+			flow.parallel(rootPaths, (absolutePath, perEntryCallback) => {
 
-				// Not a folder - deal with file result then
-				if ((<any>error).code === FileWalker.ENOTDIR && !this.isCanceled && !this.isLimitHit) {
-
-					// Check exclude pattern
-					if (glob.match(this.excludePattern, absolutePath)) {
+				// Try to Read as folder
+				extfs.readdir(absolutePath, (error: Error, files: string[]) => {
+					if (this.isCanceled || this.isLimitHit) {
 						return perEntryCallback(null, null);
 					}
 
-					// Check for match on file pattern and include pattern
-					if (this.isFilePatternMatch(paths.basename(absolutePath), absolutePath) && (!this.includePattern || glob.match(this.includePattern, absolutePath))) {
-						this.resultCount++;
+					// Handle Directory
+					if (!error) {
 
-						if (this.maxResults && this.resultCount > this.maxResults) {
-							this.isLimitHit = true;
+						// Support relative paths to files from a root resource
+						return this.checkFilePatternRelativeMatch(absolutePath, (match) => {
+
+							// Report result from file pattern if matching
+							if (match) {
+								onResult({ path: match });
+							}
+
+							return this.doWalk(absolutePath, '', files, onResult, perEntryCallback);
+						});
+					}
+
+					// Not a folder - deal with file result then
+					if ((<any>error).code === FileWalker.ENOTDIR && !this.isCanceled && !this.isLimitHit) {
+
+						// Check exclude pattern
+						if (glob.match(this.excludePattern, absolutePath)) {
+							return perEntryCallback(null, null);
 						}
 
-						if (!this.isLimitHit) {
-							onResult({
-								path: absolutePath
-							});
+						// Check for match on file pattern and include pattern
+						if (this.isFilePatternMatch(paths.basename(absolutePath), absolutePath) && (!this.includePattern || glob.match(this.includePattern, absolutePath))) {
+							this.resultCount++;
+
+							if (this.maxResults && this.resultCount > this.maxResults) {
+								this.isLimitHit = true;
+							}
+
+							if (!this.isLimitHit) {
+								onResult({
+									path: absolutePath
+								});
+							}
 						}
 					}
-				}
 
-				// Unwind
-				return perEntryCallback(null, null);
+					// Unwind
+					return perEntryCallback(null, null);
+				});
+			}, (err, result) => {
+				done(err ? err[0] : null, this.isLimitHit);
 			});
-		}, (err, result) => {
-			done(err ? err[0] : null, this.isLimitHit);
+		});
+	}
+
+	private checkFilePatternAbsoluteMatch(rootPaths: string[], clb: (exists: boolean) => void): void {
+		if (!this.filePattern || !paths.isAbsolute(this.filePattern)) {
+			return clb(false);
+		}
+
+		if (rootPaths && rootPaths.some(r => r === this.filePattern)) {
+			return clb(false); // root paths matches are handled already (prevents duplicates)
+		}
+
+		return fs.stat(this.filePattern, (error, stat) => {
+			return clb(!error && !stat.isDirectory()); // only existing files
+		});
+	}
+
+	private checkFilePatternRelativeMatch(basePath: string, clb: (matchPath: string) => void): void {
+		if (!this.filePattern || paths.isAbsolute(this.filePattern) || !this.searchInPath) {
+			return clb(null);
+		}
+
+		const absolutePath = paths.join(basePath, this.filePattern);
+
+		return fs.stat(absolutePath, (error, stat) => {
+			return clb(!error && !stat.isDirectory() ? absolutePath : null); // only existing files
 		});
 	}
 

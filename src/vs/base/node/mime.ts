@@ -7,7 +7,6 @@
 
 import streams = require('stream');
 
-import strings = require('vs/base/common/strings');
 import mime = require('vs/base/common/mime');
 
 import stream = require('vs/base/node/stream');
@@ -21,7 +20,7 @@ import encoding = require('vs/base/node/encoding');
  *
  * Here is the original mime type detection in pseudocode:
  *
- * var mimes = [];
+ * let mimes = [];
  *
  * read file extension
  *
@@ -77,14 +76,14 @@ function handleReadResult(err: Error, buffer: NodeBuffer, bytesRead: number, cal
 }
 
 function doDetectMimesFromBuffer(buffer: NodeBuffer, bytesRead: number): IMimeAndEncoding {
-	var enc = encoding.detectEncodingByBOMFromBuffer(buffer, bytesRead);
-	var mimes = doDetectMimesFromContent(enc, buffer, bytesRead);
+	let enc = encoding.detectEncodingByBOMFromBuffer(buffer, bytesRead);
+	let mimes = doDetectMimesFromContent(enc, buffer, bytesRead);
 
-	var isText = true;
+	let isText = true;
 
 	// Detect 0 bytes to see if file is binary (ignore for UTF 16 though)
 	if (enc !== encoding.UTF16be && enc !== encoding.UTF16le) {
-		for (var i = 0; i < bytesRead; i++) {
+		for (let i = 0; i < bytesRead; i++) {
 			if (buffer.readInt8(i) === 0) {
 				isText = false;
 				break;
@@ -106,7 +105,7 @@ function doDetectMimesFromContent(enc: string, buffer: NodeBuffer, bytesRead: nu
 	}
 
 	// check for utf8 BOM
-	var startpos = 0;
+	let startpos = 0;
 	if (enc !== null) {
 		if (enc === encoding.UTF8) {
 			startpos = 3; // prepare for skipping BOM
@@ -119,17 +118,17 @@ function doDetectMimesFromContent(enc: string, buffer: NodeBuffer, bytesRead: nu
 }
 
 function filterAndSortMimes(detectedMimes: string[], guessedMimes: string[]): string[] {
-	var mimes = detectedMimes;
+	let mimes = detectedMimes;
 
 	// Add extension based mime as first element as this is the desire of whoever created the file.
 	// Never care about application/octet-stream or application/unknown as guessed mime, as this is the fallback of the guess which is never accurate
-	var guessedMime = guessedMimes[0];
+	let guessedMime = guessedMimes[0];
 	if (guessedMime !== mime.MIME_BINARY && guessedMime !== mime.MIME_UNKNOWN) {
 		mimes.unshift(guessedMime);
 	}
 
 	// Remove duplicate elements from array and sort unspecific mime to the end
-	var uniqueSortedMimes = mimes.filter((element, position) => {
+	let uniqueSortedMimes = mimes.filter((element, position) => {
 		return element && mimes.indexOf(element) === position;
 	}).sort((mimeA, mimeB) => {
 		if (mimeA === mime.MIME_BINARY) { return 1; }
@@ -169,7 +168,7 @@ function handleMimeResult(nameHint: string, error: Error, result: IMimeAndEncodi
 		return callback(error, null);
 	}
 
-	var filterAndSortedMimes = filterAndSortMimes(result.mimes, mime.guessMimeTypes(nameHint));
+	let filterAndSortedMimes = filterAndSortMimes(result.mimes, mime.guessMimeTypes(nameHint));
 	result.mimes = filterAndSortedMimes;
 
 	callback(null, result);

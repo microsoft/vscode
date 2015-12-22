@@ -13,7 +13,6 @@ import {IModelService} from 'vs/editor/common/services/modelService';
  * An editor model whith an in-memory, readonly content that is backed by an existing editor model.
  */
 export class ResourceEditorModel extends BaseTextEditorModel {
-	private resource: URI;
 
 	constructor(
 		resource: URI,

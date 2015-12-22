@@ -11,15 +11,14 @@ import path = require('path');
 
 import json = require('vs/base/common/json');
 import objects = require('vs/base/common/objects');
-import {EventProvider} from 'vs/base/common/eventProvider';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {EventSource} from 'vs/base/common/eventSource';
+import Event, {Emitter} from 'vs/base/common/event';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 
 export interface ISettings {
 	settings: any;
 	settingsParseErrors?: string[];
-	keybindings: any
+	keybindings: any;
 }
 
 export class UserSettings {
@@ -33,12 +32,12 @@ export class UserSettings {
 	private appSettingsPath: string;
 	private appKeybindingsPath: string;
 
-	private _onChange: EventSource<(settings: ISettings) => void>;
+	private _onChange: Emitter<ISettings>;
 
 	constructor(appSettingsPath: string, appKeybindingsPath: string) {
 		this.appSettingsPath = appSettingsPath;
 		this.appKeybindingsPath = appKeybindingsPath;
-		this._onChange = new EventSource<(settings: ISettings) => void>();
+		this._onChange = new Emitter<ISettings>();
 
 		this.registerWatchers();
 	}
@@ -67,8 +66,8 @@ export class UserSettings {
 		});
 	}
 
-	public get onChange(): EventProvider<(settings: ISettings) => void> {
-		return this._onChange.value;
+	public get onChange(): Event<ISettings> {
+		return this._onChange.event;
 	}
 
 	public getValue(key: string, fallback?: any): any {

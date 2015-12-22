@@ -9,6 +9,7 @@ var es = require('event-stream');
 var path = require('path');
 
 var all = [
+	'*',
 	'build/**/*',
 	'extensions/**/*',
 	'scripts/**/*',
@@ -18,14 +19,19 @@ var all = [
 
 var eolFilter = [
 	'**',
+	'!ThirdPartyNotices.txt',
+	'!LICENSE.txt',
 	'!extensions/**/out/**',
 	'!**/node_modules/**',
 	'!**/fixtures/**',
-	'!**/*.{svg,exe,png,scpt,bat,cur,ttf,woff,eot}',
+	'!**/*.{svg,exe,png,scpt,bat,cmd,cur,ttf,woff,eot}',
 ];
 
 var indentationFilter = [
 	'**',
+	'!ThirdPartyNotices.txt',
+	'!**/*.md',
+	'!**/*.yml',
 	'!**/lib/**',
 	'!**/*.d.ts',
 	'!extensions/typescript/server/**',
@@ -55,6 +61,8 @@ var copyrightFilterList = [
 	'!**/*.html',
 	'!**/test/**',
 	'!**/*.md',
+	'!**/*.bat',
+	'!**/*.cmd',
 	'!**/*.sh',
 	'!**/*.txt',
 	'!src/vs/editor/standalone-languages/swift.ts',

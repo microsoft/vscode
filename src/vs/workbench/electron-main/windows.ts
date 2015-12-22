@@ -97,7 +97,6 @@ export class WindowsManager {
 
 	private static workingDirPickerStorageKey = 'pickerWorkingDir';
 	private static windowsStateStorageKey = 'windowsState';
-	private static themeStorageKey = 'theme'; // TODO@Ben this key is only used to find out if a window can be shown instantly because of light theme, remove once we have support for bg color
 
 	private static WINDOWS: window.VSCodeWindow[] = [];
 
@@ -123,7 +122,7 @@ export class WindowsManager {
 				cliArgWithoutPath.pathArguments = [];
 				this.windowsState.openedFolders = []; // make sure we do not restore too much
 
-				manager.open({ cli: cliArgWithoutPath });
+				this.open({ cli: cliArgWithoutPath });
 			}
 		});
 
@@ -144,13 +143,13 @@ export class WindowsManager {
 
 			// Handle paths delayed in case more are coming!
 			runningTimeout = setTimeout(() => {
-				manager.open({ cli: env.cliArgs, pathsToOpen: macOpenFiles, forceNewWindow: true /* dropping on the dock should force open in a new window */ });
+				this.open({ cli: env.cliArgs, pathsToOpen: macOpenFiles, forceNewWindow: true /* dropping on the dock should force open in a new window */ });
 				macOpenFiles = [];
 				runningTimeout = null;
 			}, 100);
 		});
 
-		settings.manager.onChange.add((newSettings) => {
+		settings.manager.onChange((newSettings) => {
 			this.sendToAll('vscode:optionsChange', JSON.stringify({ globalSettings: newSettings }));
 		}, this);
 
@@ -162,7 +161,7 @@ export class WindowsManager {
 			env.log('IPC#vscode-windowOpen: ', paths);
 
 			if (paths && paths.length) {
-				manager.open({ cli: env.cliArgs, pathsToOpen: paths, forceNewWindow: forceNewWindow });
+				this.open({ cli: env.cliArgs, pathsToOpen: paths, forceNewWindow: forceNewWindow });
 			}
 		});
 
@@ -181,13 +180,13 @@ export class WindowsManager {
 		ipc.on('vscode:openFilePicker', (event: Event) => {
 			env.log('IPC#vscode-openFilePicker');
 
-			manager.openFilePicker();
+			this.openFilePicker();
 		});
 
 		ipc.on('vscode:openFolderPicker', (event: Event) => {
 			env.log('IPC#vscode-openFolderPicker');
 
-			manager.openFolderPicker();
+			this.openFolderPicker();
 		});
 
 		ipc.on('vscode:closeFolder', (event: Event, windowId: number) => {
@@ -195,20 +194,20 @@ export class WindowsManager {
 
 			let win = this.getWindowById(windowId);
 			if (win) {
-				manager.open({ cli: env.cliArgs, forceEmpty: true, windowToUse: win });
+				this.open({ cli: env.cliArgs, forceEmpty: true, windowToUse: win });
 			}
 		});
 
 		ipc.on('vscode:openNewWindow', (event: Event) => {
 			env.log('IPC#vscode-openNewWindow');
 
-			manager.openNewWindow();
+			this.openNewWindow();
 		});
 
 		ipc.on('vscode:openFileFolderPicker', (event: Event) => {
 			env.log('IPC#vscode-openFileFolderPicker');
 
-			manager.openFolderPicker();
+			this.openFolderPicker();
 		});
 
 		ipc.on('vscode:reloadWindow', (event: Event, windowId: number) => {
@@ -229,16 +228,32 @@ export class WindowsManager {
 			}
 		});
 
+		ipc.on('vscode:toggleMenuBar', (event: Event, windowId: number) => {
+			env.log('IPC#vscode:toggleMenuBar');
+
+			// Update in settings
+			let menuBarHidden = storage.getItem(window.VSCodeWindow.menuBarHiddenKey, false);
+			let newMenuBarHidden = !menuBarHidden;
+			storage.setItem(window.VSCodeWindow.menuBarHiddenKey, newMenuBarHidden);
+
+			// Update across windows
+			WindowsManager.WINDOWS.forEach(w => w.setMenuBarVisibility(!newMenuBarHidden));
+		});
+
 		ipc.on('vscode:changeTheme', (event, theme: string) => {
 			this.sendToAll('vscode:changeTheme', theme);
-			storage.setItem(WindowsManager.themeStorageKey, theme);
+			storage.setItem(window.VSCodeWindow.themeStorageKey, theme);
 		});
 
 		ipc.on('vscode:broadcast', (event: Event, windowId: number, target: string, broadcast: { channel: string; payload: any; }) => {
 			if (broadcast.channel && broadcast.payload) {
 				if (target) {
-					let targetWindow = this.findWindow(target);
-					if (targetWindow && targetWindow.win.id !== windowId) {
+					const otherWindowsWithTarget = WindowsManager.WINDOWS.filter(w => w.win.id !== windowId && typeof w.openedWorkspacePath === 'string');
+					const directTargetMatch = otherWindowsWithTarget.filter(w => this.isPathEqual(target, w.openedWorkspacePath));
+					const parentTargetMatch = otherWindowsWithTarget.filter(w => paths.isEqualOrParent(target, w.openedWorkspacePath));
+
+					const targetWindow = directTargetMatch.length ? directTargetMatch[0] : parentTargetMatch[0]; // prefer direct match over parent match
+					if (targetWindow) {
 						targetWindow.send('vscode:broadcast', broadcast);
 					}
 				} else {
@@ -302,7 +317,7 @@ export class WindowsManager {
 				return <IWindowState>{
 					workspacePath: w.openedWorkspacePath,
 					uiState: w.serializeWindowState()
-				}
+				};
 			});
 		});
 
@@ -405,7 +420,7 @@ export class WindowsManager {
 			// Open Files in last instance if any and flag tells us so
 			let lastActiveWindow = this.getLastActiveWindow();
 			if (!openFilesInNewWindow && lastActiveWindow) {
-				lastActiveWindow.restore();
+				lastActiveWindow.focus();
 				lastActiveWindow.ready().then((readyWindow) => {
 					readyWindow.send('vscode:openFiles', {
 						filesToOpen: filesToOpen,
@@ -433,7 +448,7 @@ export class WindowsManager {
 			// Check for existing instances
 			let windowsOnWorkspacePath = arrays.coalesce(foldersToOpen.map((iPath) => this.findWindow(iPath.workspacePath)));
 			if (windowsOnWorkspacePath.length > 0) {
-				windowsOnWorkspacePath[0].restore(); // just focus one of them
+				windowsOnWorkspacePath[0].focus(); // just focus one of them
 				windowsOnWorkspacePath[0].ready().then((readyWindow) => {
 					readyWindow.send('vscode:openFiles', {
 						filesToOpen: filesToOpen,
@@ -502,7 +517,7 @@ export class WindowsManager {
 		let res = WindowsManager.WINDOWS.filter((w) => w.config && this.isPathEqual(w.config.pluginDevelopmentPath, openConfig.cli.pluginDevelopmentPath));
 		if (res && res.length === 1) {
 			this.reload(res[0], openConfig.cli);
-			res[0].restore(); // make sure it gets focus and is restored
+			res[0].focus(); // make sure it gets focus and is restored
 
 			return;
 		}
@@ -554,6 +569,7 @@ export class WindowsManager {
 		configuration.updateChannel = UpdateManager.channel;
 		configuration.recentPaths = this.getRecentlyOpenedPaths(workspacePath, filesToOpen);
 		configuration.aiConfig = env.product.aiConfig;
+		configuration.sendASmile = env.product.sendASmile;
 		configuration.enableTelemetry = env.product.enableTelemetry;
 		configuration.userEnv = userEnv;
 
@@ -668,13 +684,17 @@ export class WindowsManager {
 			vscodeWindow = windowToUse || this.getLastActiveWindow();
 
 			if (vscodeWindow) {
-				vscodeWindow.restore();
+				vscodeWindow.focus();
 			}
 		}
 
 		// New window
 		if (!vscodeWindow) {
-			vscodeWindow = new window.VSCodeWindow(this.getNewWindowState(configuration), !!configuration.pluginDevelopmentPath, /vs($| )/.test(storage.getItem<string>(WindowsManager.themeStorageKey)));
+			vscodeWindow = new window.VSCodeWindow({
+				state: this.getNewWindowState(configuration),
+				isPluginDevelopmentHost: !!configuration.pluginDevelopmentPath
+			});
+
 			WindowsManager.WINDOWS.push(vscodeWindow);
 
 			// Window Events
@@ -835,7 +855,7 @@ export class WindowsManager {
 	public focusLastActive(cli: env.ICommandLineArguments): void {
 		let lastActive = this.getLastActiveWindow();
 		if (lastActive) {
-			lastActive.restore();
+			lastActive.focus();
 		}
 
 		// No window - open new one
@@ -872,7 +892,7 @@ export class WindowsManager {
 			let res = windowsToTest.filter((w) => {
 
 				// match on workspace
-				if (typeof w.openedWorkspacePath === 'string' && this.isPathEqual(w.openedWorkspacePath, workspacePath)) {
+				if (typeof w.openedWorkspacePath === 'string' && (this.isPathEqual(w.openedWorkspacePath, workspacePath))) {
 					return true;
 				}
 

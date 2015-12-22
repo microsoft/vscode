@@ -7,7 +7,6 @@
 
 import 'vs/css!./resourceviewer';
 import nls = require('vs/nls');
-import strings = require('vs/base/common/strings');
 import mimes = require('vs/base/common/mime');
 import URI from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
@@ -62,7 +61,7 @@ const mapExtToMediaMimes = {
 	'.flv': 'video/x-flv',
 	'.avi': 'video/x-msvideo',
 	'.movie': 'video/x-sgi-movie'
-}
+};
 
 /**
  * Helper to actually render the given resource into the provided container. Will adjust scrollbar (if provided) automatically based on loading
@@ -102,7 +101,7 @@ export class ResourceViewer {
 
 		// Embed Object (only PDF for now)
 		else if (false /* PDF is currently not supported in Electron it seems */ && mime.indexOf('pdf') >= 0) {
-			var object = $(container)
+			$(container)
 				.empty()
 				.style({ padding: 0, margin: 0 }) // We really do not want any paddings or margins when displaying PDFs
 				.element('object')
@@ -133,7 +132,7 @@ export class ResourceViewer {
 
 		// Embed Video (if supported in browser)
 		else if (mime.indexOf('video/') >= 0) {
-			var video = $(container)
+			$(container)
 				.empty()
 				.style({ paddingLeft: '20px' }) // restore CSS value in case the user saw a PDF before where we remove padding
 				.element('video')

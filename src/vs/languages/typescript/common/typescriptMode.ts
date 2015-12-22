@@ -43,12 +43,12 @@ class SemanticValidator {
 		this._mode = mode;
 		this._validation = new async.RunOnceScheduler(this._doValidate.bind(this), 750);
 		if (this._modelService) {
-			this._modelService.onModelAdded.add(this._onModelAdded, this);
-			this._modelService.onModelRemoved.add(this._onModelRemoved, this);
-			this._modelService.onModelModeChanged.add((model, oldModeId) => {
+			this._modelService.onModelAdded(this._onModelAdded, this);
+			this._modelService.onModelRemoved(this._onModelRemoved, this);
+			this._modelService.onModelModeChanged(event => {
 				// Handle a model mode changed as a remove + add
-				this._onModelRemoved(model);
-				this._onModelAdded(model);
+				this._onModelRemoved(event.model);
+				this._onModelAdded(event.model);
 			}, this);
 			this._modelService.getModels().forEach(this._onModelAdded, this);
 		// } else {

@@ -182,6 +182,8 @@ declare class BrowserWindow extends EventEmitter {
 	setFullScreen(fullscreen: boolean): void;
 	isFullScreen(): boolean;
 	isMaximized(): boolean;
+	minimize(): void;
+	isFocused(): boolean;
 	isMinimized(): boolean;
 	isVisible(): boolean;
 	restore(): boolean;
@@ -190,6 +192,7 @@ declare class BrowserWindow extends EventEmitter {
 	getPosition(): number[];
 	setPosition(x: number, y: number): void;
 	setMenuBarVisibility(visible: boolean): void;
+	setAutoHideMenuBar(autoHide: boolean): void;
 	maximize(): void;
 	setRepresentedFilename(path: string): void;
 	setTitle(title: string): void;

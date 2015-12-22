@@ -33,7 +33,7 @@ export interface IOccurrence {
 export function findOccurrences(stylesheet:nodes.Node, offset:number):IOccurrence[] {
 	var result:IOccurrence[] = [];
 	var node = nodes.getNodeAtOffset(stylesheet, offset);
-	if (!node || node.type === nodes.NodeType.Stylesheet) {
+	if (!node || node.type === nodes.NodeType.Stylesheet || node.type === nodes.NodeType.Declarations) {
 		return result;
 	}
 

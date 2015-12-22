@@ -7,7 +7,6 @@
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
 import {ListenerUnbind, ListenerCallback, IEventEmitter, IEmitterEvent} from 'vs/base/common/eventEmitter';
 import EditorCommon = require('vs/editor/common/editorCommon');
-import {EventProvider} from 'vs/base/common/eventProvider';
 import URI from 'vs/base/common/uri';
 import {IDisposable} from 'vs/base/common/lifecycle';
 

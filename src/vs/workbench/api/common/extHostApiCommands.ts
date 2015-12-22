@@ -8,23 +8,23 @@ import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import * as vscode from 'vscode';
-import * as typeConverters from 'vs/workbench/api/common/pluginHostTypeConverters';
-import * as types from 'vs/workbench/api/common/pluginHostTypes';
+import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
+import * as types from 'vs/workbench/api/common/extHostTypes';
 import {ISingleEditOperation} from 'vs/editor/common/editorCommon';
 import * as modes from 'vs/editor/common/modes';
 import {ICommandHandlerDescription} from 'vs/platform/keybinding/common/keybindingService';
-import {PluginHostCommands} from 'vs/workbench/api/common/pluginHostCommands';
+import {ExtHostCommands} from 'vs/workbench/api/common/extHostCommands';
 import {IQuickFix2} from 'vs/editor/contrib/quickFix/common/quickFix';
 import {IOutline} from 'vs/editor/contrib/quickOpen/common/quickOpen';
-import {ITypeBearing} from 'vs/workbench/parts/search/common/search'
+import {ITypeBearing} from 'vs/workbench/parts/search/common/search';
 import {ICodeLensData} from 'vs/editor/contrib/codelens/common/codelens';
 
 export class ExtHostApiCommands {
 
-	private _commands: PluginHostCommands;
+	private _commands: ExtHostCommands;
 	private _disposables: IDisposable[] = [];
 
-	constructor(commands: PluginHostCommands) {
+	constructor(commands: ExtHostCommands) {
 		this._commands = commands;
 
 		this._register('vscode.executeWorkspaceSymbolProvider', this._executeWorkspaceSymbolProvider, {
@@ -169,7 +169,7 @@ export class ExtHostApiCommands {
 		};
 		return this._commands.executeCommand<modes.IReference[]>('_executeDefinitionProvider', args).then(value => {
 			if (Array.isArray(value)) {
-				return value.map(typeConverters.toLocation)
+				return value.map(typeConverters.toLocation);
 			}
 		});
 	}
@@ -181,7 +181,7 @@ export class ExtHostApiCommands {
 		};
 		return this._commands.executeCommand<modes.IComputeExtraInfoResult[]>('_executeHoverProvider', args).then(value => {
 			if (Array.isArray(value)) {
-				return value.map(typeConverters.toHover)
+				return value.map(typeConverters.toHover);
 			}
 		});
 	}
@@ -193,7 +193,7 @@ export class ExtHostApiCommands {
 		};
 		return this._commands.executeCommand<modes.IOccurence[]>('_executeDocumentHighlights', args).then(value => {
 			if (Array.isArray(value)) {
-				return value.map(typeConverters.toDocumentHighlight)
+				return value.map(typeConverters.toDocumentHighlight);
 			}
 		});
 	}
@@ -205,7 +205,7 @@ export class ExtHostApiCommands {
 		};
 		return this._commands.executeCommand<modes.IReference[]>('_executeDocumentHighlights', args).then(value => {
 			if (Array.isArray(value)) {
-				return value.map(typeConverters.toLocation)
+				return value.map(typeConverters.toLocation);
 			}
 		});
 	}
@@ -256,7 +256,7 @@ export class ExtHostApiCommands {
 				for (let group of value) {
 					for (let suggestions of group) {
 						for (let suggestion of suggestions.suggestions) {
-							const item = typeConverters.Suggest.to(suggestion);
+							const item = typeConverters.Suggest.to(suggestions, position, suggestion);
 							items.push(item);
 						}
 					}

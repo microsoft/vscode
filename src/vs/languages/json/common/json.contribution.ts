@@ -30,6 +30,7 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('jsonConfiguration.schemas', "Associate schemas to JSON files in the current project"),
 			'items': {
 				'type': 'object',
+				'default': { fileMatch: [ '{{/myfile}}' ], url: '{{schemaURL}}' },
 				'properties': {
 					'url': {
 						'type': 'string',

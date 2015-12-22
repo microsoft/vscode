@@ -201,7 +201,7 @@
 	color: rgba(108, 108, 108, 0.8);
 }
 
-.monaco-workbench .monaco-tree-row:not(.selected) .expression .unavailable {
+.monaco-workbench .monaco-tree-row .expression .unavailable {
 	font-style: italic;
 }
 
@@ -265,6 +265,10 @@
 
 .monaco-editor.vs-dark .debug-top-stack-frame-column {
 	background: rgba(255, 255, 0, 0.15);
+}
+
+.monaco-editor.vs-dark .debug-breakpoint-glyph {
+	background: url('breakpoint-dark.svg') center center no-repeat;
 }
 
 .monaco-editor.vs-dark .debug-breakpoint-glyph-disabled {

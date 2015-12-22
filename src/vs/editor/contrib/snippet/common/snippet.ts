@@ -777,7 +777,7 @@ class SnippetController implements ISnippetController {
 
 	private static _getCommandForSnippet(adaptedSnippet:ICodeSnippet, typeRange:EditorCommon.IEditorRange): EditorCommon.IIdentifiedSingleEditOperation {
 		var insertText = adaptedSnippet.lines.join('\n');
-		return EditOperation.replace(typeRange, insertText);
+		return EditOperation.replaceMove(typeRange, insertText);
 	}
 
 	private _runForPrimarySelection(snippet: CodeSnippet, overwriteBefore: number, overwriteAfter: number): void {

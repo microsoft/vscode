@@ -20,10 +20,10 @@ import {FileEditorInput} from 'vs/workbench/parts/files/browser/editors/fileEdit
 import {DerivedFrameEditorInput} from 'vs/workbench/parts/files/browser/editors/derivedFrameEditorInput';
 import {State, TextFileEditorModel, CACHE} from 'vs/workbench/parts/files/browser/editors/textFileEditorModel';
 import {IFrameEditor} from 'vs/workbench/browser/parts/editor/iframeEditor';
-import {EventType as WorkbenchEventType, EditorInputEvent, UntitledEditorEvent} from 'vs/workbench/browser/events';
-import {IUntitledEditorService} from 'vs/workbench/services/untitled/browser/untitledEditorService';
+import {EventType as WorkbenchEventType, EditorInputEvent, UntitledEditorEvent} from 'vs/workbench/common/events';
+import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IQuickOpenService} from 'vs/workbench/services/quickopen/browser/quickOpenService';
+import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IActivityService, NumberBadge} from 'vs/workbench/services/activity/common/activityService';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {IEditorInput} from 'vs/platform/editor/common/editor';

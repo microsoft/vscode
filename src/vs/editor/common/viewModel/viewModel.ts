@@ -235,6 +235,10 @@ export class ViewModel extends EventEmitter implements EditorCommon.IViewModel {
 						this.onCursorRevealRange(<EditorCommon.ICursorRevealRangeEvent>data);
 						break;
 
+					case EditorCommon.EventType.CursorScrollRequest:
+						this.onCursorScrollRequest(<EditorCommon.ICursorScrollRequestEvent>data);
+						break;
+
 					case EditorCommon.EventType.ConfigurationChanged:
 						revealPreviousCenteredModelRange = this._onTabSizeChange(this.configuration.getIndentationOptions().tabSize) || revealPreviousCenteredModelRange;
 						revealPreviousCenteredModelRange = this._onWrappingIndentChange(this.configuration.editor.wrappingIndent) || revealPreviousCenteredModelRange;
@@ -330,6 +334,17 @@ export class ViewModel extends EventEmitter implements EditorCommon.IViewModel {
 		}
 		return this.convertModelPositionToViewPosition(modelPosition.lineNumber, modelPosition.column);
 	}
+
+	public validateViewSelection(viewSelection:EditorCommon.IEditorSelection, modelSelection:EditorCommon.IEditorSelection): EditorCommon.IEditorSelection {
+		let modelSelectionStart = new Position(modelSelection.selectionStartLineNumber, modelSelection.selectionStartColumn);
+		let modelPosition = new Position(modelSelection.positionLineNumber, modelSelection.positionColumn);
+
+		let viewSelectionStart = this.validateViewPosition(viewSelection.selectionStartLineNumber, viewSelection.selectionStartColumn, modelSelectionStart);
+		let viewPosition = this.validateViewPosition(viewSelection.positionLineNumber, viewSelection.positionColumn, modelPosition);
+
+		return new Selection(viewSelectionStart.lineNumber, viewSelectionStart.column, viewPosition.lineNumber, viewPosition.column);
+	}
+
 	private onCursorPositionChanged(e:EditorCommon.ICursorPositionChangedEvent): void {
 		this.cursors.onCursorPositionChanged(e, (eventType:string, payload:any) => this.emit(eventType, payload));
 	}
@@ -338,6 +353,9 @@ export class ViewModel extends EventEmitter implements EditorCommon.IViewModel {
 	}
 	private onCursorRevealRange(e:EditorCommon.ICursorRevealRangeEvent): void {
 		this.cursors.onCursorRevealRange(e, (eventType:string, payload:any) => this.emit(eventType, payload));
+	}
+	private onCursorScrollRequest(e:EditorCommon.ICursorScrollRequestEvent): void {
+		this.cursors.onCursorScrollRequest(e, (eventType:string, payload:any) => this.emit(eventType, payload));
 	}
 	// --- end inbound event conversion
 

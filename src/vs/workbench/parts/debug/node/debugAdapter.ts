@@ -21,7 +21,9 @@ export class Adapter {
 	public enableBreakpointsFor: { languageIds: string[] };
 
 	constructor(rawAdapter: debug.IRawAdapter, systemVariables: SystemVariables, extensionFolderPath: string) {
-
+		if (rawAdapter.windows) {
+			rawAdapter.win = rawAdapter.windows;
+		}
 		if (platform.isWindows && rawAdapter.win) {
 			this.runtime = rawAdapter.win.runtime;
 			this.runtimeArgs = rawAdapter.win.runtimeArgs;

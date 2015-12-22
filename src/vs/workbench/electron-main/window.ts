@@ -6,6 +6,7 @@
 'use strict';
 
 import path = require('path');
+import os = require('os');
 
 import Shell = require('shell');
 import screen = require('screen');
@@ -23,6 +24,11 @@ export interface IWindowState {
 	x?: number;
 	y?: number;
 	mode?: WindowMode;
+}
+
+export interface IWindowCreationOptions {
+	state: IWindowState;
+	isPluginDevelopmentHost: boolean;
 }
 
 export enum WindowMode {
@@ -116,12 +122,20 @@ export interface IWindowConfiguration extends env.ICommandLineArguments {
 	aiConfig: {
 		key: string;
 		asimovKey: string;
+	},
+	sendASmile: {
+		submitUrl: string,
+		reportIssueUrl: string,
+		requestFeatureUrl: string
 	}
 }
 
 const enableDebugLogging = false;
 
 export class VSCodeWindow {
+
+	public static menuBarHiddenKey = 'menuBarHidden';
+	public static themeStorageKey = 'theme'; // TODO@Ben this key is only used to find out if a window can be shown instantly because of light theme, remove once we have support for bg color
 
 	private static MIN_WIDTH = 200;
 	private static MIN_HEIGHT = 120;
@@ -139,16 +153,17 @@ export class VSCodeWindow {
 	private currentConfig: IWindowConfiguration;
 	private pendingLoadConfig: IWindowConfiguration;
 
-	constructor(state?: IWindowState, isPluginDevelopmentHost?: boolean, usesLightTheme?: boolean) {
+	constructor(config: IWindowCreationOptions) {
 		this._lastFocusTime = -1;
 		this._readyState = ReadyState.NONE;
-		this._isPluginDevelopmentHost = isPluginDevelopmentHost;
+		this._isPluginDevelopmentHost = config.isPluginDevelopmentHost;
 		this.whenReadyCallbacks = [];
 
 		// Load window state
-		this.restoreWindowState(state);
+		this.restoreWindowState(config.state);
 
 		// For VS theme we can show directly because background is white
+		const usesLightTheme = /vs($| )/.test(storage.getItem<string>(VSCodeWindow.themeStorageKey));
 		let showDirectly = usesLightTheme;
 		if (showDirectly && !global.windowShow) {
 			global.windowShow = new Date().getTime();
@@ -185,6 +200,10 @@ export class VSCodeWindow {
 			this._lastFocusTime = new Date().getTime(); // since we show directly, we need to set the last focus time too
 		}
 
+		if (storage.getItem<boolean>(VSCodeWindow.menuBarHiddenKey, false)) {
+			this.setMenuBarVisibility(false); // respect configured menu bar visibility
+		}
+
 		this.registerListeners();
 	}
 
@@ -200,18 +219,23 @@ export class VSCodeWindow {
 		return this._win;
 	}
 
-	public restore(): void {
+	public focus(): void {
 		if (!this._win) {
 			return;
 		}
 
-		if (this._win.isMinimized()) {
-			this._win.restore();
+		// Windows 10: https://github.com/Microsoft/vscode/issues/929
+		if (platform.isWindows && os.release() && os.release().indexOf('10.') === 0 && !this._win.isFocused()) {
+			this._win.minimize();
+			this._win.focus();
 		}
 
-		if (platform.isWindows || platform.isLinux) {
-			this._win.show(); // Windows & Linux sometimes cannot bring the window to the front when it is in the background
-		} else {
+		// Mac / Linux / Windows 7 & 8
+		else {
+			if (this._win.isMinimized()) {
+				this._win.restore();
+			}
+
 			this._win.focus();
 		}
 	}
@@ -521,10 +545,23 @@ export class VSCodeWindow {
 	}
 
 	public toggleFullScreen(): void {
-		let isFullScreen = this.win.isFullScreen();
+		let willBeFullScreen = !this.win.isFullScreen();
 
-		this.win.setFullScreen(!isFullScreen);
-		this.win.setMenuBarVisibility(isFullScreen);
+		this.win.setFullScreen(willBeFullScreen);
+
+		// Windows & Linux: Hide the menu bar but still allow to bring it up by pressing the Alt key
+		if (platform.isWindows || platform.isLinux) {
+			if (willBeFullScreen) {
+				this.setMenuBarVisibility(false);
+			} else {
+				this.setMenuBarVisibility(!storage.getItem<boolean>(VSCodeWindow.menuBarHiddenKey, false)); // restore as configured
+			}
+		}
+	}
+
+	public setMenuBarVisibility(visible: boolean): void {
+		this.win.setMenuBarVisibility(visible);
+		this.win.setAutoHideMenuBar(!visible);
 	}
 
 	public sendWhenReady(channel: string, ...args: any[]): void {

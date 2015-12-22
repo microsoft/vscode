@@ -125,10 +125,10 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 			}));
 		}
 
-		lifecycleService.onShutdown.add(this.store, this);
-		lifecycleService.onShutdown.add(this.dispose, this);
+		lifecycleService.onShutdown(this.store, this);
+		lifecycleService.onShutdown(this.dispose, this);
 
-		this.windowService.onBroadcast.add(this.onBroadcast, this);
+		this.windowService.onBroadcast(this.onBroadcast, this);
 	}
 
 	private onBroadcast(broadcast: IBroadcast): void {
@@ -270,11 +270,10 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		}));
 
 		this.toDispose.push(this.session.addListener2(debug.SessionEvents.DEBUGEE_TERMINATED, (event: DebugProtocol.TerminatedEvent) => {
-			if (this.session) {
+			if (this.session && this.session.getId() === (<any>event).sessionId) {
 				this.session.disconnect().done(null, errors.onUnexpectedError);
 			}
 		}));
-
 
 		this.toDispose.push(this.session.addListener2(debug.SessionEvents.OUTPUT, (event: DebugProtocol.OutputEvent) => {
 			if (event.body && typeof event.body.output === 'string' && event.body.output.length > 0) {
@@ -282,8 +281,10 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 			}
 		}));
 
-		this.toDispose.push(this.session.addListener2(debug.SessionEvents.SERVER_EXIT, e => {
-			this.onSessionEnd();
+		this.toDispose.push(this.session.addListener2(debug.SessionEvents.SERVER_EXIT, event => {
+			if (this.session && this.session.getId() === event.sessionId) {
+				this.onSessionEnd();
+			}
 		}));
 	}
 
@@ -499,6 +500,10 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 			linesStartAt1: true,
 			pathFormat: 'path'
 		}).then((result: DebugProtocol.InitializeResponse) => {
+			if (!this.session) {
+				return Promise.wrapError(new Error(nls.localize('debugAdapterCrash', "Debug adapter process has terminated unexpectedly")));
+			}
+
 			this.setStateAndEmit(debug.State.Initializing);
 			return configuration.request === 'attach' ? this.session.attach(configuration) : this.session.launch(configuration);
 		}).then((result: DebugProtocol.Response) => {
@@ -771,7 +776,8 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 			bp =>  `${ bp.desiredLineNumber }`
 		);
 
-		return this.session.setBreakpoints({ source: Source.fromUri(modelUri).toRawSource(), lines: breakpointsToSend.map(bp => bp.desiredLineNumber) }).then(response => {
+
+		return this.session.setBreakpoints({ source: Source.toRawSource(modelUri, this.model), lines: breakpointsToSend.map(bp => bp.desiredLineNumber) }).then(response => {
 			const data: {[id: string]: { line: number, verified: boolean } } = { };
 			for (let i = 0; i < breakpointsToSend.length; i++) {
 				data[breakpointsToSend[i].getId()] = response.body.breakpoints[i];
@@ -782,10 +788,12 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 	}
 
 	private sendExceptionBreakpoints(): Promise {
-		if (this.session) {
-			var enabledExBreakpoints = this.model.getExceptionBreakpoints().filter(exb => exb.enabled);
-			return this.session.setExceptionBreakpoints({ filters: enabledExBreakpoints.map(exb => exb.name) });
+		if (!this.session) {
+			return Promise.as(null);
 		}
+
+		var enabledExBreakpoints = this.model.getExceptionBreakpoints().filter(exb => exb.enabled);
+		return this.session.setExceptionBreakpoints({ filters: enabledExBreakpoints.map(exb => exb.name) });
 	}
 
 	private onFileChanges(fileChangesEvent: FileChangesEvent): void {

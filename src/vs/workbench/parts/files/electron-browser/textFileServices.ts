@@ -20,8 +20,7 @@ import {CACHE, TextFileEditorModel} from 'vs/workbench/parts/files/browser/edito
 import {ITextFileOperationResult, ConfirmResult} from 'vs/workbench/parts/files/common/files';
 import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/browser/actionRegistry';
 import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
-import {IUntitledEditorService} from 'vs/workbench/services/untitled/browser/untitledEditorService';
-import {IMessageService, Severity} from 'vs/platform/message/common/message'
+import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {IFileService} from 'vs/platform/files/common/files';
 import {IInstantiationService, INullService} from 'vs/platform/instantiation/common/instantiation';
 import {IEventService} from 'vs/platform/event/common/event';
@@ -160,29 +159,34 @@ export class TextFileService extends BrowserTextFileService {
 			message.push('');
 		}
 
+		// Button order
+		// Windows: Save | Don't Save | Cancel
+		// Mac/Linux: Save | Cancel | Don't
+
+		const save = { label: resourcesToConfirm.length > 1 ? nls.localize('saveAll', "Save All") : nls.localize('save', "Save"), result: ConfirmResult.SAVE };
+		const dontSave = { label: nls.localize('dontSave', "Don't Save"), result: ConfirmResult.DONT_SAVE };
+		const cancel = { label: nls.localize('cancel', "Cancel"), result: ConfirmResult.CANCEL };
+
+		const buttons = [save];
+		if (isWindows) {
+			buttons.push(dontSave, cancel);
+		} else {
+			buttons.push(cancel, dontSave);
+		}
+
 		let opts: remote.IMessageBoxOptions = {
 			title: this.contextService.getConfiguration().env.appName,
 			message: message.join('\n'),
 			type: 'warning',
 			detail: nls.localize('saveChangesDetail', "Your changes will be lost if you don't save them."),
-			buttons: [
-				resourcesToConfirm.length > 1 ? nls.localize('saveAll', "Save All") : nls.localize('save', "Save"),
-				nls.localize('cancel', "Cancel"),
-				nls.localize('dontSave', "Don't Save")
-			],
+			buttons: buttons.map(b => b.label),
 			noLink: true,
-			cancelId: 1
+			cancelId: buttons.indexOf(cancel)
 		};
 
-		let res = Dialog.showMessageBox(remote.getCurrentWindow(), opts);
-		switch (res) {
-			case 0:
-				return ConfirmResult.SAVE;
-			case 1:
-				return ConfirmResult.CANCEL;
-		}
+		const choice = Dialog.showMessageBox(remote.getCurrentWindow(), opts);
 
-		return ConfirmResult.DONT_SAVE;
+		return buttons[choice].result;
 	}
 
 	public saveAll(includeUntitled?: boolean): TPromise<ITextFileOperationResult>;

@@ -201,6 +201,22 @@ registerCoreCommand(H.ExpandLineSelection, {
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_I
 });
 
+registerCoreCommand(H.ScrollLineUp, {
+	primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
+	mac: { primary: KeyMod.WinCtrl | KeyCode.PageUp}
+});
+registerCoreCommand(H.ScrollLineDown, {
+	primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
+	mac: { primary: KeyMod.WinCtrl | KeyCode.PageDown}
+});
+
+registerCoreCommand(H.ScrollPageUp, {
+	primary: KeyMod.CtrlCmd | KeyCode.PageUp
+});
+registerCoreCommand(H.ScrollPageDown, {
+	primary: KeyMod.CtrlCmd | KeyCode.PageDown
+});
+
 registerCoreCommand(H.Tab, {
 	primary: KeyCode.Tab
 }, KeybindingsRegistry.WEIGHT.editorCore(), [

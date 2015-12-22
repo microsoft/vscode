@@ -12,7 +12,7 @@ import {EditableTextModel, IValidatedEditOperation} from 'vs/editor/common/model
 import {TextModel} from 'vs/editor/common/model/textModel';
 import {LineMarker, TextModelWithMarkers} from 'vs/editor/common/model/textModelWithMarkers';
 import {ILineMarker} from 'vs/editor/common/model/modelLine';
-import {PluginHostDocument} from 'vs/workbench/api/common/pluginHostDocuments';
+import {ExtHostDocument} from 'vs/workbench/api/common/extHostDocuments';
 import {MirrorModel, IMirrorModelEvents} from 'vs/editor/common/model/mirrorModel';
 
 suite('EditorModel - EditableTextModel._getInverseEdits', () => {
@@ -1185,7 +1185,7 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 		var mirrorModel1 = new MirrorModel(null, model.getVersionId(), model.toRawText(), null);
 		var mirrorModel1PrevVersionId = model.getVersionId();
 
-		var mirrorModel2 = new PluginHostDocument(null, null, model.toRawText().lines, model.toRawText().EOL, null, model.getVersionId(), false);
+		var mirrorModel2 = new ExtHostDocument(null, null, model.toRawText().lines, model.toRawText().EOL, null, model.getVersionId(), false);
 		var mirrorModel2PrevVersionId = model.getVersionId();
 
 		model.addListener(EditorCommon.EventType.ModelContentChanged, (e:EditorCommon.IModelContentChangedEvent) => {

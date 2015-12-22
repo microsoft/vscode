@@ -281,7 +281,7 @@ function _getJavaScriptSemanticDiagnostics(sourceFile: ts.SourceFile, options: t
 			case ts.SyntaxKind.Decorator:
 				if(!options.experimentalDecorators) {
 					let diag = createDiagnosticForNode(node);
-					diag.messageText = 'Decorators is an experimental feature which must be enabled explicitly. Use a jsconfig.json-file and the \'experimentalDecorators\' switch.';
+					diag.messageText = 'Decorators is an experimental feature which must be enabled explicitly. Use a jsconfig.json file and the \'experimentalDecorators\' switch.';
 					diag.category = ts.DiagnosticCategory.Warning;
 					diagnostics.push(diag);
 				}
@@ -342,7 +342,7 @@ function _getJavaScriptSemanticDiagnostics(sourceFile: ts.SourceFile, options: t
 			length,
 			messageText: !target
 				? 'This can only be used in ts files.'
-				: 'This can only be used with ES6. Make sure to have a jsconfig.json-file which sets the target to ES6.',
+				: 'This can only be used with ES6. Make sure to have a jsconfig.json file which sets the target to ES6.',
 			category: ts.DiagnosticCategory.Error,
 			code: -1
 		};

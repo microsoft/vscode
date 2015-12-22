@@ -103,12 +103,20 @@ export class ElectronIntegration {
 		});
 
 		// Configuration changes
+		let previousConfiguredZoomLevel: number;
 		this.configurationService.addListener(ConfigurationServiceEventTypes.UPDATED, (e: IConfigurationServiceEvent) => {
 			let windowConfig: IWindowConfiguration = e.config;
 
 			let newZoomLevel = 0;
 			if (windowConfig.window && typeof windowConfig.window.zoomLevel === 'number') {
 				newZoomLevel = windowConfig.window.zoomLevel;
+
+				// Leave early if the configured zoom level did not change (https://github.com/Microsoft/vscode/issues/1536)
+				if (previousConfiguredZoomLevel === newZoomLevel) {
+					return;
+				}
+
+				previousConfiguredZoomLevel = newZoomLevel;
 			}
 
 			if (webFrame.getZoomLevel() !== newZoomLevel) {
@@ -121,11 +129,17 @@ export class ElectronIntegration {
 		return this.partService.joinCreation().then(() => {
 			return arrays.coalesce(actionIds.map((id) => {
 				let bindings = this.keybindingService.lookupKeybindings(id);
-				if (bindings.length) {
-					return {
-						id: id,
-						binding: bindings[0].value	// take first user configured binding
-					};
+
+				// return the first binding that can be represented by electron
+				for (let i = 0; i < bindings.length; i++) {
+					let binding = bindings[i];
+					let electronAccelerator = this.keybindingService.getElectronAcceleratorFor(binding);
+					if (electronAccelerator) {
+						return {
+							id: id,
+							binding: binding.value
+						};
+					}
 				}
 
 				return null;

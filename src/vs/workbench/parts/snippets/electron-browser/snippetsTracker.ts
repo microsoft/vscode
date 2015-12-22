@@ -69,7 +69,7 @@ export class SnippetsTracker implements workbenchExt.IWorkbenchContribution {
 			// the path might not exist anymore, ignore this error and return
 		}
 
-		this.lifecycleService.onShutdown.add(this.dispose, this);
+		this.lifecycleService.onShutdown(this.dispose, this);
 	}
 
 	private scanUserSnippets() : winjs.Promise {

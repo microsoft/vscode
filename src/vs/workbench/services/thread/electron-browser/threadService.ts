@@ -7,12 +7,9 @@
 
 import {TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
-import env = require('vs/base/common/flags');
 import {MainThreadService as CommonMainThreadService} from 'vs/platform/thread/common/mainThreadService';
 import pluginsIPC = require('vs/platform/plugins/common/ipcRemoteCom');
-import remote = require('vs/base/common/remote');
 import marshalling = require('vs/base/common/marshalling');
-import json = require('vs/base/common/json');
 import strings = require('vs/base/common/strings');
 import objects = require('vs/base/common/objects');
 import uri from 'vs/base/common/uri';
@@ -64,7 +61,7 @@ export class MainThreadService extends CommonMainThreadService {
 				console.log('%c[Plugin \u2192 Window]%c[len: ' + strings.pad(msg.length, 5, ' ') + ']', 'color: darkgreen', 'color: grey', JSON.parse(msg));
 			}
 
-			this.remoteCom.handle(msg)
+			this.remoteCom.handle(msg);
 		});
 
 		this.remoteCom.registerBigHandler(this);

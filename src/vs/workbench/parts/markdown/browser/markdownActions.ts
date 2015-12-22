@@ -186,7 +186,7 @@ export class ShowWelcomeAction extends Action {
 	}
 
 	public setPreserveFocus(preserveFocus: boolean) {
-		this.preserveFocus = preserveFocus
+		this.preserveFocus = preserveFocus;
 	}
 
 	public run(): Promise {

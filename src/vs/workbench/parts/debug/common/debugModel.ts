@@ -33,6 +33,9 @@ function massageValue(value: string): string {
 	return value ? value.replace(/\n/g, '\\n').replace(/\r/g, '\\r').replace(/\t/g, '\\t') : value;
 }
 
+var notPropertySyntax = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
+var arrayElementSyntax = /\[.*\]$/;
+
 export function getFullExpressionName(expression: debug.IExpression, sessionType: string): string {
 	let names = [expression.name];
 	if (expression instanceof Variable) {
@@ -45,11 +48,10 @@ export function getFullExpressionName(expression: debug.IExpression, sessionType
 	names = names.reverse();
 
 	let result = null;
-	const propertySyntax = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
 	names.forEach(name => {
 		if (!result) {
 			result = name;
-		} else if (sessionType === 'node' && !propertySyntax.test(name)) {
+		} else if (arrayElementSyntax.test(name) || (sessionType === 'node' && !notPropertySyntax.test(name))) {
 			// Use safe way to access node properties a['property_name']. Also handles array elements.
 			result = name && name.indexOf('[') === 0 ? `${ result }${ name }` : `${ result }['${ name }']`;
 		} else {
@@ -184,13 +186,17 @@ export class Expression implements debug.IExpression {
 
 export class Variable implements debug.IExpression {
 
+	public static allValues: { [id: string]: string } = {};
 	// Cache children to optimize debug hover behaviour.
 	private children: TPromise<debug.IExpression[]>;
 	public value: string;
+	public valueChanged: boolean;
 
 	constructor(public parent: debug.IExpressionContainer, public reference: number, public name: string, value: string) {
 		this.children = null;
 		this.value = massageValue(value);
+		this.valueChanged = Variable.allValues[this.getId()] && Variable.allValues[this.getId()] !== value;
+		Variable.allValues[this.getId()] = value;
 	}
 
 	public getId(): string {
@@ -334,6 +340,7 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 		} else {
 			if (removeThreads) {
 				this.threads = {};
+				Variable.allValues = {};
 			} else {
 				for (var ref in this.threads) {
 					if (this.threads.hasOwnProperty(ref)) {

@@ -19,7 +19,6 @@ export function getUserEnvironment(): TPromise<IEnv> {
 	}
 
 	return new TPromise((c, e) => {
-		let didReturn = false;
 		let child = cp.spawn(process.env.SHELL, ['-ilc', 'env'], {
 			detached: true,
 			stdio: ['ignore', 'pipe', process.stderr],

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import nls = require('vs/nls');
 import cp = require('child_process');
 import fs = require('fs');
 import net = require('net');
@@ -113,7 +114,11 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 		return this.send('pause', args);
 	}
 
-	public disconnect(restart = false): TPromise<DebugProtocol.DisconnectResponse> {
+	public disconnect(restart = false, force = false): TPromise<DebugProtocol.DisconnectResponse> {
+		if (this.stopServerPending && force) {
+			return this.stopServer();
+		}
+
 		if ((this.serverProcess || this.socket) && !this.stopServerPending) {
 			// point of no return: from now on don't report any errors
 			this.stopServerPending = true;
@@ -201,7 +206,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 	private launchServer(launch: { command: string, argv: string[] }): Promise {
 		return new Promise((c, e) => {
 			if (launch.command === 'node') {
-				stdfork.fork(launch.argv[0], [], {}, (err, child) => {
+				stdfork.fork(launch.argv[0], launch.argv.slice(1), {}, (err, child) => {
 					if (err) {
 						e(new Error(`Unable to launch debug adapter from ${ launch.argv[0] }.`));
 					}
@@ -258,25 +263,25 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 	}
 
 	private getLaunchDetails(): TPromise<{ command: string; argv: string[]; }> {
-		return new TPromise<string>((c, e) => {
+		return new Promise((c, e) => {
 			fs.exists(this.adapter.program, exists => {
 				if (exists) {
-					// trust the local bin folder
-					c(this.adapter.program);
+					c(null);
 				} else {
 					e(new Error(`DebugAdapter bin folder not found on path ${this.adapter.program}.`));
 				}
 			});
-		}).then(adapterPath => {
+		}).then(() => {
 			if (this.adapter.runtime) {
 				return {
 					command: this.adapter.runtime,
-					argv: [adapterPath].concat(this.adapter.runtimeArgs)
+					argv: (this.adapter.runtimeArgs || []).concat([this.adapter.program]).concat(this.adapter.args || [])
 				};
 			}
 
 			return {
-				command: adapterPath
+				command: this.adapter.program,
+				argv: this.adapter.args || []
 			};
 		});
 	}
@@ -290,7 +295,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 		this.serverProcess = null;
 		this.cachedInitServer = null;
 		if (!this.stopServerPending) {
-			this.messageService.show(severity.Error, 'Debug adapter process has terminated unexpectedly');
+			this.messageService.show(severity.Error, nls.localize('debugAdapterCrash', "Debug adapter process has terminated unexpectedly"));
 		}
 		this.emit(debug.SessionEvents.SERVER_EXIT);
 	}

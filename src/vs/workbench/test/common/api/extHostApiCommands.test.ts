@@ -10,8 +10,7 @@ import {setUnexpectedErrorHandler, errorHandler} from 'vs/base/common/errors';
 import {create} from 'vs/base/common/types';
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {PluginHostDocument} from 'vs/workbench/api/common/pluginHostDocuments';
-import * as types from 'vs/workbench/api/common/pluginHostTypes';
+import * as types from 'vs/workbench/api/common/extHostTypes';
 import {Range as CodeEditorRange} from 'vs/editor/common/core/range';
 import * as EditorCommon from 'vs/editor/common/editorCommon';
 import {Model as EditorModel} from 'vs/editor/common/model/model';
@@ -25,8 +24,8 @@ import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegi
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {ExtHostLanguageFeatures, MainThreadLanguageFeatures} from 'vs/workbench/api/common/extHostLanguageFeatures';
 import {ExtHostApiCommands} from 'vs/workbench/api/common/extHostApiCommands';
-import {PluginHostCommands, MainThreadCommands} from 'vs/workbench/api/common/pluginHostCommands';
-import {PluginHostModelService} from 'vs/workbench/api/common/pluginHostDocuments';
+import {ExtHostCommands, MainThreadCommands} from 'vs/workbench/api/common/extHostCommands';
+import {ExtHostModelService} from 'vs/workbench/api/common/extHostDocuments';
 import {SyncDescriptor0} from 'vs/platform/instantiation/common/descriptors';
 import {LanguageSelector} from 'vs/editor/common/modes/languageSelector';
 import {OutlineRegistry, getOutlineEntries} from 'vs/editor/contrib/quickOpen/common/quickOpen';
@@ -52,7 +51,7 @@ const model: EditorCommon.IModel = new EditorModel(
 
 let extHost: ExtHostLanguageFeatures;
 let mainThread: MainThreadLanguageFeatures;
-let commands: PluginHostCommands;
+let commands: ExtHostCommands;
 let disposables: vscode.Disposable[] = [];
 let originalErrorHandler: (e: any) => any;
 
@@ -84,7 +83,7 @@ suite('ExtHostLanguageFeatureCommands', function() {
 			}
 		})
 
-		threadService.getRemotable(PluginHostModelService)._acceptModelAdd({
+		threadService.getRemotable(ExtHostModelService)._acceptModelAdd({
 			isDirty: false,
 			versionId: model.getVersionId(),
 			modeId: model.getModeId(),
@@ -98,7 +97,7 @@ suite('ExtHostLanguageFeatureCommands', function() {
 		});
 
 		threadService.getRemotable(MainThreadCommands);
-		commands = threadService.getRemotable(PluginHostCommands);
+		commands = threadService.getRemotable(ExtHostCommands);
 		new ExtHostApiCommands(commands);
 		mainThread = threadService.getRemotable(MainThreadLanguageFeatures);
 		extHost = threadService.getRemotable(ExtHostLanguageFeatures);
@@ -244,29 +243,51 @@ suite('ExtHostLanguageFeatureCommands', function() {
 			provideCompletionItems(doc, pos): any {
 				let a = new types.CompletionItem('item1');
 				let b = new types.CompletionItem('item2');
-				b.textEdit = types.TextEdit.replace(new types.Range(0, 0, 0, 4), 'foo');
-				return [a, b];
+				b.textEdit = types.TextEdit.replace(new types.Range(0, 4, 0, 8), 'foo'); // overwite after
+				let c = new types.CompletionItem('item3');
+				c.textEdit = types.TextEdit.replace(new types.Range(0, 1, 0, 6), 'foobar'); // overwite before & after
+				let d = new types.CompletionItem('item4');
+				d.textEdit = types.TextEdit.replace(new types.Range(0, 1, 0, 4), ''); // overwite before
+				return [a, b, c, d];
 			}
 		}, []));
 
 		threadService.sync().then(() => {
-			commands.executeCommand<vscode.CompletionItem[]>('vscode.executeCompletionItemProvider', model.getAssociatedResource(), new types.Position(0, 0)).then(values => {
-				assert.equal(values.length, 2);
-				let [first, second] = values;
-				assert.equal(first.label, 'item1');
-				assert.equal(first.textEdit.newText, 'item1');
-				assert.equal(first.textEdit.range.start.line, 0);
-				assert.equal(first.textEdit.range.start.character, 0);
-				assert.equal(first.textEdit.range.end.line, 0);
-				assert.equal(first.textEdit.range.end.character, 0);
+			commands.executeCommand<vscode.CompletionItem[]>('vscode.executeCompletionItemProvider', model.getAssociatedResource(), new types.Position(0, 4)).then(values => {
+				try {
+					assert.equal(values.length, 4);
+					let [first, second, third, forth] = values;
+					assert.equal(first.label, 'item1');
+					assert.equal(first.textEdit.newText, 'item1');
+					assert.equal(first.textEdit.range.start.line, 0);
+					assert.equal(first.textEdit.range.start.character, 0);
+					assert.equal(first.textEdit.range.end.line, 0);
+					assert.equal(first.textEdit.range.end.character, 4);
 
-				assert.equal(second.label, 'item2');
-				assert.equal(second.textEdit.newText, 'foo');
-				assert.equal(second.textEdit.range.start.line, 0);
-				assert.equal(second.textEdit.range.start.character, 0);
-				assert.equal(second.textEdit.range.end.line, 0);
-				assert.equal(second.textEdit.range.end.character, 4);
-				done();
+					assert.equal(second.label, 'item2');
+					assert.equal(second.textEdit.newText, 'foo');
+					assert.equal(second.textEdit.range.start.line, 0);
+					assert.equal(second.textEdit.range.start.character, 4);
+					assert.equal(second.textEdit.range.end.line, 0);
+					assert.equal(second.textEdit.range.end.character, 8);
+
+					assert.equal(third.label, 'item3');
+					assert.equal(third.textEdit.newText, 'foobar');
+					assert.equal(third.textEdit.range.start.line, 0);
+					assert.equal(third.textEdit.range.start.character, 1);
+					assert.equal(third.textEdit.range.end.line, 0);
+					assert.equal(third.textEdit.range.end.character, 6);
+
+					assert.equal(forth.label, 'item4');
+					assert.equal(forth.textEdit.newText, '');
+					assert.equal(forth.textEdit.range.start.line, 0);
+					assert.equal(forth.textEdit.range.start.character, 1);
+					assert.equal(forth.textEdit.range.end.line, 0);
+					assert.equal(forth.textEdit.range.end.character, 4);
+					done();
+				} catch (e) {
+					done(e);
+				}
 			});
 		});
 	});

@@ -13,7 +13,6 @@ import labels = require('vs/base/common/labels');
 import platform = require('vs/base/common/platform');
 import uri from 'vs/base/common/uri';
 import severity from 'vs/base/common/severity';
-import files = require('vs/workbench/parts/files/browser/files');
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {asFileEditorInput} from 'vs/workbench/common/editor';
 import {IMessageService} from 'vs/platform/message/common/message';

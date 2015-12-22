@@ -235,6 +235,25 @@ export class ModelLine {
 		}
 	}
 
+	// private _printMarkers(): string {
+	// 	if (!this._markers) {
+	// 		return '[]';
+	// 	}
+	// 	if (this._markers.length === 0) {
+	// 		return '[]';
+	// 	}
+
+	// 	var markers = this._markers;
+
+	// 	var printMarker = (m:ILineMarker) => {
+	// 		if (m.stickToPreviousCharacter) {
+	// 			return '|' + m.column;
+	// 		}
+	// 		return m.column + '|';
+	// 	}
+	// 	return '[' + markers.map(printMarker).join(', ') + ']';
+	// }
+
 	private _createMarkersAdjuster(changedMarkers:IChangedMarkers): IMarkersAdjuster {
 		if (!this._markers) {
 			return NO_OP_MARKERS_ADJUSTER;
@@ -250,22 +269,12 @@ export class ModelLine {
 		var markersIndex = 0;
 		var marker = markers[markersIndex];
 
-		// var printMarker = (m:ILineMarker) => {
-		// 	if (m.stickToPreviousCharacter) {
-		// 		return '|' + m.column;
-		// 	}
-		// 	return m.column + '|';
-		// }
-		// var printMarkers = () => {
-		// 	return '[' + markers.map(printMarker).join(', ') + ']';
-		// };
-
-		// console.log('------------- INITIAL MARKERS: ' + printMarkers());
+		// console.log('------------- INITIAL MARKERS: ' + this._printMarkers());
 
 		let adjust = (toColumn:number, delta:number, minimumAllowedColumn:number, forceStickToPrevious:boolean, forceMoveMarkers:boolean) => {
 			// console.log('------------------------------');
 			// console.log('adjust called: toColumn: ' + toColumn + ', delta: ' + delta + ', minimumAllowedColumn: ' + minimumAllowedColumn + ', forceStickToPrevious: ' + forceStickToPrevious + ', forceMoveMarkers:' + forceMoveMarkers);
-			// console.log('BEFORE::: markersIndex: ' + markersIndex + ' : ' + printMarkers());
+			// console.log('BEFORE::: markersIndex: ' + markersIndex + ' : ' + this._printMarkers());
 			while (
 				markersIndex < markersLength
 				&& (
@@ -292,13 +301,13 @@ export class ModelLine {
 					marker = markers[markersIndex];
 				}
 			}
-			// console.log('AFTER::: markersIndex: ' + markersIndex + ' : ' + printMarkers());
+			// console.log('AFTER::: markersIndex: ' + markersIndex + ' : ' + this._printMarkers());
 		};
 
 		let finish = (delta:number, lineTextLength:number) => {
 			adjust(Number.MAX_VALUE, delta, 1, false, false);
 
-			// console.log('------------- FINAL MARKERS: ' + printMarkers());
+			// console.log('------------- FINAL MARKERS: ' + this._printMarkers());
 		};
 
 		return {
@@ -361,13 +370,14 @@ export class ModelLine {
 	}
 
 	public split(changedMarkers: IChangedMarkers, splitColumn:number, forceMoveMarkers:boolean): ModelLine {
-		// console.log('--> split: ' + splitColumn);
+		// console.log('--> split @ ' + splitColumn + '::: ' + this._printMarkers());
 		var myText = this.text.substring(0, splitColumn - 1);
 		var otherText = this.text.substring(splitColumn - 1);
 
 		var otherMarkers: ILineMarker[] = null;
 
 		if (this._markers) {
+			this._markers.sort(ModelLine._compareMarkers);
 			for (let i = 0, len = this._markers.length; i < len; i++) {
 				let marker = this._markers[i];
 
@@ -410,7 +420,8 @@ export class ModelLine {
 	}
 
 	public append(changedMarkers: IChangedMarkers, other:ModelLine): void {
-		// console.log('--> append: ');
+		// console.log('--> append: THIS :: ' + this._printMarkers());
+		// console.log('--> append: OTHER :: ' + this._printMarkers());
 		var thisTextLength = this.text.length;
 		this._setText(this.text + other.text);
 

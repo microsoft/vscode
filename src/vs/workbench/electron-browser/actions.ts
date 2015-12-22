@@ -9,17 +9,14 @@ import {Promise, TPromise} from 'vs/base/common/winjs.base';
 import timer = require('vs/base/common/timer');
 import paths = require('vs/base/common/paths');
 import {Action} from 'vs/base/common/actions';
-import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
 import {IWindowService} from 'vs/workbench/services/window/electron-browser/windowService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import nls = require('vs/nls');
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
-import {IThreadService} from 'vs/platform/thread/common/thread';
 import {IWindowConfiguration} from 'vs/workbench/electron-browser/window';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {IQuickOpenService} from 'vs/workbench/services/quickopen/browser/quickOpenService';
+import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {INullService} from 'vs/platform/instantiation/common/instantiation';
-import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 
 import ipc = require('ipc');
@@ -125,6 +122,22 @@ export class ToggleFullScreenAction extends Action {
 	}
 }
 
+export class ToggleMenuBarAction extends Action {
+
+	public static ID = 'workbench.action.toggleMenuBar';
+	public static LABEL = nls.localize('toggleMenuBar', "Toggle Menu Bar");
+
+	constructor(id: string, label: string, @IWindowService private windowService: IWindowService) {
+		super(id, label);
+	}
+
+	public run(): Promise {
+		ipc.send('vscode:toggleMenuBar', this.windowService.getWindowId());
+
+		return Promise.as(true);
+	}
+}
+
 export class ToggleDevToolsAction extends Action {
 
 	public static ID = 'workbench.action.toggleDevTools';
@@ -198,8 +211,8 @@ export class ZoomOutAction extends BaseZoomAction {
 	public run(): Promise {
 		return this.loadConfiguredZoomLevel().then(level => {
 			let newZoomLevelCandiate = webFrame.getZoomLevel() - 1;
-			if (newZoomLevelCandiate < level) {
-				newZoomLevelCandiate = level; // do not allow to zoom below the configured level
+			if (newZoomLevelCandiate < 0 && newZoomLevelCandiate < level) {
+				newZoomLevelCandiate = Math.min(level, 0); // do not zoom below configured level or below 0
 			}
 
 			webFrame.setZoomLevel(newZoomLevelCandiate);
@@ -382,7 +395,7 @@ export class OpenRecentAction extends Action {
 				label: paths.basename(p),
 				description: paths.dirname(p),
 				path: p
-			}
+			};
 		});
 
 		return this.quickOpenService.pick(picks, {

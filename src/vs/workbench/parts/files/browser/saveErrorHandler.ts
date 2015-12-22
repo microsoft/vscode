@@ -10,7 +10,7 @@ import errors = require('vs/base/common/errors');
 import paths = require('vs/base/common/paths');
 import {Action} from 'vs/base/common/actions';
 import URI from 'vs/base/common/uri';
-import {EditorModel, EditorInput} from 'vs/workbench/common/editor';
+import {EditorModel} from 'vs/workbench/common/editor';
 import {guessMimeTypes} from 'vs/base/common/mime';
 import {EditorInputAction} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {ResourceEditorInput} from 'vs/workbench/browser/parts/editor/resourceEditorInput';

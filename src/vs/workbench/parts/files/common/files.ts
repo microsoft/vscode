@@ -5,17 +5,16 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
-import {Event, PropertyChangeEvent} from 'vs/base/common/events';
+import {Event as BaseEvent, PropertyChangeEvent} from 'vs/base/common/events';
 import URI from 'vs/base/common/uri';
+import Event from 'vs/base/common/event';
 import {guessMimeTypes} from 'vs/base/common/mime';
-import {EventProvider} from 'vs/base/common/eventProvider';
 import {IModel, IEditorOptions} from 'vs/editor/common/editorCommon';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import {EncodingMode, EditorInput, IFileEditorInput} from 'vs/workbench/common/editor';
-import {IFileStat, FileChangesEvent, IFilesConfiguration} from 'vs/platform/files/common/files';
+import {IFileStat, IFilesConfiguration} from 'vs/platform/files/common/files';
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
-import {ISearchService} from 'vs/platform/search/common/search';
-import {FileStat} from 'vs/workbench/parts/files/browser/views/explorerViewModel';
+import {FileStat} from 'vs/workbench/parts/files/common/viewModel';
 
 /**
  * Explorer viewlet id.
@@ -79,9 +78,9 @@ export interface IWorkingFileModelChangeEvent {
 
 export interface IWorkingFilesModel {
 
-	onModelChange: EventProvider<(event: IWorkingFileModelChangeEvent) => void>;
+	onModelChange: Event<IWorkingFileModelChangeEvent>;
 
-	onWorkingFileChange: EventProvider<(file: IWorkingFileEntry) => void>;
+	onWorkingFileChange: Event<IWorkingFileEntry>;
 
 	getEntries(excludeOutOfContext?: boolean): IWorkingFileEntry[];
 
@@ -198,7 +197,7 @@ export const EventType = {
  */
 export class LocalFileChangeEvent extends PropertyChangeEvent {
 
-	constructor(before?: IFileStat, after?: IFileStat, originalEvent?: Event) {
+	constructor(before?: IFileStat, after?: IFileStat, originalEvent?: BaseEvent) {
 		super(null, before, after, originalEvent);
 	}
 
@@ -252,7 +251,7 @@ export class TextFileChangeEvent extends LocalFileChangeEvent {
 	private _model: IModel;
 	private _isAutoSaved: boolean;
 
-	constructor(model: IModel, before: IFileStat, after: IFileStat = before, originalEvent?: Event) {
+	constructor(model: IModel, before: IFileStat, after: IFileStat = before, originalEvent?: BaseEvent) {
 		super(before, after, originalEvent);
 
 		this._model = model;

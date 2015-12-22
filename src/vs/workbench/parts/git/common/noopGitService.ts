@@ -14,7 +14,8 @@ export class NoOpGitService implements git.IRawGitService {
 		status: [],
 		HEAD: null,
 		heads: [],
-		tags: []
+		tags: [],
+		remotes: []
 	};
 
 	public serviceState(): winjs.TPromise<git.RawServiceState> {

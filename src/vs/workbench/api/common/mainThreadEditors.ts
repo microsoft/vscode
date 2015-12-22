@@ -6,7 +6,6 @@
 
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Event, {Emitter} from 'vs/base/common/event';
-import {IThreadService} from 'vs/platform/thread/common/thread';
 import {IEditor} from 'vs/platform/editor/common/editor';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
 import {IModelService} from 'vs/editor/common/services/modelService';
@@ -113,7 +112,7 @@ export class MainThreadTextEditor {
 		this._codeEditor = codeEditor;
 		if (this._codeEditor) {
 
-			var forwardSelection = () => {
+			let forwardSelection = () => {
 				this._lastSelection = this._codeEditor.getSelections();
 				this._onSelectionChanged.fire(this._lastSelection);
 			};
@@ -122,7 +121,7 @@ export class MainThreadTextEditor {
 				forwardSelection();
 			}
 
-			var forwardConfiguration = () => {
+			let forwardConfiguration = () => {
 				this._lastConfiguration = MainThreadTextEditor._readConfiguration(this._codeEditor);
 				this._onConfigurationChanged.fire(this._lastConfiguration);
 			};
@@ -236,13 +235,13 @@ export class MainThreadTextEditor {
 		}
 
 		if (this._codeEditor) {
-			var transformedEdits = edits.map((edit): EditorCommon.IIdentifiedSingleEditOperation => {
+			let transformedEdits = edits.map((edit): EditorCommon.IIdentifiedSingleEditOperation => {
 				return {
 					identifier: null,
 					range: Range.lift(edit.range),
 					text: edit.text,
 					forceMoveMarkers: edit.forceMoveMarkers
-				}
+				};
 			});
 			return this._codeEditor.executeEdits('MainThreadTextEditor', transformedEdits) || true;
 		}
@@ -300,8 +299,8 @@ export class MainThreadEditorsTracker {
 			onLostFocus: () => this._updateFocusedTextEditor()
 		};
 
-		this._modelService.onModelAdded.add(this._onModelAdded, this, this._toDispose);
-		this._modelService.onModelRemoved.add(this._onModelRemoved, this, this._toDispose);
+		this._modelService.onModelAdded(this._onModelAdded, this, this._toDispose);
+		this._modelService.onModelRemoved(this._onModelRemoved, this, this._toDispose);
 
 		this._codeEditorService.onCodeEditorAdd(this._onCodeEditorAdd, this, this._toDispose);
 		this._codeEditorService.onCodeEditorRemove(this._onCodeEditorRemove, this, this._toDispose);
@@ -449,7 +448,7 @@ export class MainThreadEditorsTracker {
 	}
 
 	private _findVisibleTextEditorIds(): string[] {
-		var result = [];
+		let result = [];
 		let modelUris = Object.keys(this._model2TextEditors);
 		for (let i = 0, len = modelUris.length; i < len; i++) {
 			let editors = this._model2TextEditors[modelUris[i]];
@@ -562,7 +561,7 @@ interface IVisibleModels {
 	[modelUri:string]: {
 		model: EditorCommon.IModel;
 		codeEditors: EditorCommon.ICommonCodeEditor[];
-	}
+	};
 }
 
 function strcmp(a:string, b:string): number {

@@ -14,7 +14,7 @@ import {SyncDescriptor, createSyncDescriptor} from 'vs/platform/instantiation/co
 
 export class Target1 {
 
-	constructor(private platformServices:services.IPlatformServices) {
+	constructor(private platformServices) {
 		assert.ok(!!platformServices.editorService);
 	}
 
@@ -30,7 +30,7 @@ export class Target1 {
 
 export class Target2 {
 
-	constructor(private platformServices:services.IPlatformServices, private far:boolean) {
+	constructor(private platformServices, private far:boolean) {
 		assert.ok(!!platformServices.editorService);
 	}
 
@@ -48,21 +48,21 @@ export class Target2 {
 }
 
 class Target3 {
-	constructor(private platformServices:services.IPlatformServices) {
+	constructor(private platformServices) {
 		assert.ok(!!platformServices.editorService);
 		assert.equal(platformServices['far'], 1234);
 	}
 }
 
 class Target4 {
-	constructor(private platformServices:services.IPlatformServices) {
+	constructor(private platformServices) {
 		assert.equal(platformServices.editorService, 1234);
 	}
 }
 
 export class EvilTarget1 {
 
-	constructor(private platformServices:services.IPlatformServices) {
+	constructor(private platformServices) {
 		platformServices.editorService = null;
 	}
 }

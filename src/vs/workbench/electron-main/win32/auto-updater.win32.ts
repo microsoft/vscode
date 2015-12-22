@@ -7,17 +7,14 @@
 
 import events = require('events');
 import {IAutoUpdater, IUpdate} from 'auto-updater';
-import app = require('app');
 import path = require('path');
 import os = require('os');
-import fs = require('fs');
 import cp = require('child_process');
 import pfs = require('vs/base/node/pfs');
-import {ClientRequest} from 'http';
 import {mkdirp} from 'vs/base/node/extfs';
 import {isString} from 'vs/base/common/types';
 import {Promise, TPromise} from 'vs/base/common/winjs.base';
-import {IRequestOptions, download, json } from 'vs/base/node/request';
+import {download, json } from 'vs/base/node/request';
 import { getProxyAgent } from 'vs/workbench/node/proxy';
 import {manager as Settings} from 'vs/workbench/electron-main/settings';
 import {manager as Lifecycle} from 'vs/workbench/electron-main/lifecycle';

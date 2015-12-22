@@ -11,9 +11,7 @@ import Menu = require('menu');
 import MenuItem = require('menu-item');
 import Dialog = require('dialog');
 import shell = require('shell');
-import os = require('os');
 import ipc = require('ipc');
-import browserWindow = require('browser-window');
 
 import nls = require('vs/nls');
 import platform = require('vs/base/common/platform');
@@ -24,7 +22,6 @@ import env = require('vs/workbench/electron-main/env');
 import storage = require('vs/workbench/electron-main/storage');
 import um = require('vs/workbench/electron-main/update-manager');
 import {Keybinding} from 'vs/base/common/keyCodes';
-import {KeybindingsUtils} from 'vs/platform/keybinding/common/keybindingsUtils';
 
 let UpdateManager = um.Instance;
 
@@ -66,7 +63,7 @@ export class VSCodeMenu {
 
 		// Keep flag when app quits
 		app.on('will-quit', () => {
-			this.isQuitting = true
+			this.isQuitting = true;
 		});
 
 		// Listen to "open" & "close" event from window manager
@@ -90,9 +87,10 @@ export class VSCodeMenu {
 				// Should not happen
 			}
 
+			// Fill hash map of resolved keybindings
 			let needsMenuUpdate = false;
 			keybindings.forEach((keybinding) => {
-				let accelerator = new Keybinding(keybinding.binding).toElectronAccelerator();
+				let accelerator = new Keybinding(keybinding.binding)._toElectronAccelerator();
 				if (accelerator) {
 					this.mapResolvedKeybindingToActionId[keybinding.id] = accelerator;
 					if (this.mapLastKnownKeybindingToActionId[keybinding.id] !== accelerator) {
@@ -101,8 +99,15 @@ export class VSCodeMenu {
 				}
 			});
 
+			// A keybinding might have been unassigned, so we have to account for that too
+			if (Object.keys(this.mapLastKnownKeybindingToActionId).length !== Object.keys(this.mapResolvedKeybindingToActionId).length) {
+				needsMenuUpdate = true;
+			}
+
 			if (needsMenuUpdate) {
 				storage.setItem(VSCodeMenu.lastKnownKeybindingsMapStorageKey, this.mapResolvedKeybindingToActionId); // keep to restore instantly after restart
+				this.mapLastKnownKeybindingToActionId = this.mapResolvedKeybindingToActionId; // update our last known map
+
 				this.updateMenu();
 			}
 		});
@@ -523,19 +528,20 @@ export class VSCodeMenu {
 		let output = this.createMenuItem(nls.localize('miToggleOutput', "Toggle &&Output"), 'workbench.action.output.toggleOutput');
 
 		let fullscreen = new MenuItem({ label: mnemonicLabel(nls.localize('miToggleFullScreen', "Toggle &&Full Screen")), accelerator: this.getAccelerator('workbench.action.toggleFullScreen'), click: () => windows.manager.getLastActiveWindow().toggleFullScreen(), enabled: windows.manager.getWindowCount() > 0 });
-
+		let toggleMenuBar = this.createMenuItem(nls.localize('miToggleMenuBar', "Toggle Menu &&Bar"), 'workbench.action.toggleMenuBar');
 		let splitEditor = this.createMenuItem(nls.localize('miSplitEditor', "Split &&Editor"), 'workbench.action.splitEditor');
 		let toggleSidebar = this.createMenuItem(nls.localize('miToggleSidebar', "&&Toggle Side Bar"), 'workbench.action.toggleSidebarVisibility');
 		let moveSidebar = this.createMenuItem(nls.localize('miMoveSidebar', "&&Move Side Bar"), 'workbench.action.toggleSidebarPosition');
 
 		let zoomIn = this.createMenuItem(nls.localize('miZoomIn', "&&Zoom in"), 'workbench.action.zoomIn');
 		let zoomOut = this.createMenuItem(nls.localize('miZoomOut', "Zoom o&&ut"), 'workbench.action.zoomOut');
-		[
+		arrays.coalesce([
 			commands,
 			markers,
 			output,
 			__separator__(),
 			fullscreen,
+			platform.isWindows || platform.isLinux ? toggleMenuBar : void 0,
 			__separator__(),
 			splitEditor,
 			toggleSidebar,
@@ -543,7 +549,7 @@ export class VSCodeMenu {
 			__separator__(),
 			zoomIn,
 			zoomOut
-		].forEach((item) => viewMenu.append(item));
+		]).forEach((item) => viewMenu.append(item));
 	}
 
 	private setGotoMenu(gotoMenu: Menu): void {
@@ -688,7 +694,7 @@ export class VSCodeMenu {
 				if (windowInFocus.win.isDevToolsFocused()) {
 					devToolsFocusedFn(windowInFocus.win.devToolsWebContents);
 				} else {
-					windows.manager.sendToFocused('vscode:runAction', actionId)
+					windows.manager.sendToFocused('vscode:runAction', actionId);
 				}
 			}
 		});

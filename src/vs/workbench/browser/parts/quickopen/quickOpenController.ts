@@ -13,16 +13,15 @@ import strings = require('vs/base/common/strings');
 import filters = require('vs/base/common/filters');
 import uuid = require('vs/base/common/uuid');
 import types = require('vs/base/common/types');
-import {Mode, IContext, IAutoFocus, IQuickNavigateConfiguration, IModel} from 'vs/base/parts/quickopen/browser/quickOpen';
+import {Mode, IContext, IAutoFocus, IQuickNavigateConfiguration, IModel} from 'vs/base/parts/quickopen/common/quickOpen';
 import {QuickOpenEntryItem, QuickOpenEntry, QuickOpenModel, QuickOpenEntryGroup} from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import {QuickOpenWidget} from 'vs/base/parts/quickopen/browser/quickOpenWidget';
 import {ContributableActionProvider} from 'vs/workbench/browser/actionBarRegistry';
 import {ITree, IElementCallback} from 'vs/base/parts/tree/common/tree';
 import {Registry} from 'vs/platform/platform';
 import {WorkbenchComponent} from 'vs/workbench/browser/component';
-import {EditorEvent, EventType} from 'vs/workbench/browser/events';
-import {EventProvider} from 'vs/base/common/eventProvider';
-import {EventSource} from 'vs/base/common/eventSource';
+import {EditorEvent, EventType} from 'vs/workbench/common/events';
+import Event, {Emitter} from 'vs/base/common/event';
 import {Identifiers} from 'vs/workbench/common/constants';
 import {Scope} from 'vs/workbench/common/memento';
 import {QuickOpenHandler, QuickOpenHandlerDescriptor, IQuickOpenRegistry, Extensions} from 'vs/workbench/browser/quickopen';
@@ -30,8 +29,8 @@ import {EditorHistoryModel} from 'vs/workbench/browser/parts/quickopen/editorHis
 import {EditorInput} from 'vs/workbench/common/editor';
 import errors = require('vs/base/common/errors');
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IPickOpenEntry, IInputOptions, IQuickOpenService, IPickOptions} from 'vs/workbench/services/quickopen/browser/quickOpenService';
-import {IPickOpenEntryItem} from 'vs/workbench/services/quickopen/browser/quickOpenService';
+import {IPickOpenEntry, IInputOptions, IQuickOpenService, IPickOptions} from 'vs/workbench/services/quickopen/common/quickOpenService';
+import {IPickOpenEntryItem} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
 import {IStorageService} from 'vs/platform/storage/common/storage';
 import {IEventService} from 'vs/platform/event/common/event';
@@ -58,8 +57,8 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 
 	public serviceId = IQuickOpenService;
 
-	private _onShow: EventSource<() => void>;
-	private _onHide: EventSource<() => void>;
+	private _onShow: Emitter<void>;
+	private _onHide: Emitter<void>;
 
 	private instantiationService: IInstantiationService;
 	private quickOpenWidget: QuickOpenWidget;
@@ -97,16 +96,16 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 
 		this.inQuickOpenMode = keybindingService.createKey(QUICK_OPEN_MODE, false);
 
-		this._onShow = new EventSource<() => void>();
-		this._onHide = new EventSource<() => void>();
+		this._onShow = new Emitter<void>();
+		this._onHide = new Emitter<void>();
 	}
 
-	public get onShow(): EventProvider<() => void> {
-		return this._onShow.value;
+	public get onShow(): Event<void> {
+		return this._onShow.event;
 	}
 
-	public get onHide(): EventProvider<() => void> {
-		return this._onHide.value;
+	public get onHide(): Event<void> {
+		return this._onHide.event;
 	}
 
 	public setInstantiationService(service: IInstantiationService): void {

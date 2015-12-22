@@ -201,7 +201,7 @@ export class ReplExpressionsRenderer implements tree.IRenderer {
 
 	public renderElement(tree: tree.ITree, element: any, templateId: string, templateData: any): void {
 		if (templateId === ReplExpressionsRenderer.VARIABLE_TEMPLATE_ID) {
-			debugviewer.renderVariable(tree, element, templateData, this.debugService.getState() === debug.State.Inactive);
+			debugviewer.renderVariable(tree, element, templateData, this.debugService.getState() === debug.State.Inactive, false);
 		} else if (templateId === ReplExpressionsRenderer.INPUT_OUTPUT_PAIR_TEMPLATE_ID) {
 			this.renderInputOutputPair(tree, element, templateData);
 		} else if (templateId === ReplExpressionsRenderer.VALUE_OUTPUT_TEMPLATE_ID) {

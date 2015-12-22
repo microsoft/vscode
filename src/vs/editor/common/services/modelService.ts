@@ -8,7 +8,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
-import {EventProvider} from 'vs/base/common/eventProvider';
+import Event from 'vs/base/common/event';
 import URI from 'vs/base/common/uri';
 
 export var IModelService = createDecorator<IModelService>('modelService');
@@ -24,10 +24,10 @@ export interface IModelService {
 
 	getModel(resource: URI): EditorCommon.IModel;
 
-	onModelAdded: EventProvider<(model: EditorCommon.IModel) => void>;
+	onModelAdded: Event<EditorCommon.IModel>;
 
-	onModelRemoved: EventProvider<(model: EditorCommon.IModel) => void>;
+	onModelRemoved: Event<EditorCommon.IModel>;
 
-	onModelModeChanged: EventProvider<(model: EditorCommon.IModel, oldModeId:string) => void>;
+	onModelModeChanged: Event<{ model: EditorCommon.IModel; oldModeId: string; }>;
 }
 

@@ -5,7 +5,6 @@
 
 'use strict';
 
-import nls = require('vs/nls');
 import {TPromise, Promise} from 'vs/base/common/winjs.base';
 import uri from 'vs/base/common/uri';
 import strings = require('vs/base/common/strings');
@@ -18,12 +17,9 @@ import {IStat, IContent, ConfigurationService as CommonConfigurationService} fro
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {OptionsChangeEvent, EventType} from 'vs/workbench/common/events';
 import {IEventService} from 'vs/platform/event/common/event';
-import {IMessageService} from 'vs/platform/message/common/message';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import severity from 'vs/base/common/severity';
 
 import fs = require('fs');
-import flow = require('vs/base/node/flow');
 
 export class ConfigurationService extends CommonConfigurationService {
 

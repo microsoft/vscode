@@ -11,7 +11,7 @@ import Tree = require('vs/base/parts/tree/common/tree');
 import Filters = require('vs/base/common/filters');
 import Strings = require('vs/base/common/strings');
 import Paths = require('vs/base/common/paths');
-import {IQuickNavigateConfiguration, IModel, IDataSource, IFilter, IRenderer, IRunner, Mode} from './quickOpen';
+import {IQuickNavigateConfiguration, IModel, IDataSource, IFilter, IRenderer, IRunner, Mode} from 'vs/base/parts/quickopen/common/quickOpen';
 import ActionsRenderer = require('vs/base/parts/tree/browser/actionsRenderer');
 import Actions = require('vs/base/common/actions');
 import {compareAnything} from 'vs/base/common/comparers';
@@ -37,6 +37,7 @@ export class QuickOpenEntry {
 	private labelHighlights: IHighlight[];
 	private descriptionHighlights: IHighlight[];
 	private hidden: boolean;
+	private labelPrefix: string;
 
 	constructor(highlights: IHighlight[] = []) {
 		this.id = (IDS++).toString();
@@ -55,7 +56,7 @@ export class QuickOpenEntry {
 	 * The prefix to show in front of the label if any
 	 */
 	public getPrefix(): string {
-		return null;
+		return this.labelPrefix;
 	}
 
 	/**
@@ -106,6 +107,13 @@ export class QuickOpenEntry {
 	 */
 	public setHidden(hidden: boolean): void {
 		this.hidden = hidden;
+	}
+
+	/**
+	 * Sets the prefix to show in front of the label
+	 */
+	public setPrefix(prefix: string): void {
+		this.labelPrefix = prefix;
 	}
 
 	/**
@@ -162,8 +170,8 @@ export class QuickOpenEntry {
 			let resourceB = elementB.getResource();
 
 			if (resourceA && resourceB) {
-				nameA = elementA.getResource().fsPath;
-				nameB = elementB.getResource().fsPath;
+				nameA = resourceA.fsPath;
+				nameB = resourceB.fsPath;
 			}
 		}
 
@@ -180,20 +188,38 @@ export class QuickOpenEntry {
 		// Highlight file aware
 		if (entry.getResource()) {
 
-			// Fuzzy: Highlight in label and description
-			if (fuzzyHighlight) {
-				labelHighlights = Filters.matchesFuzzy(lookFor, entry.getLabel(), true);
-				descriptionHighlights = Filters.matchesFuzzy(lookFor, entry.getDescription(), true);
-			}
+			// Fuzzy/Full-Path: Highlight is special
+			if (fuzzyHighlight || lookFor.indexOf(Paths.nativeSep) >= 0) {
+				let candidateLabelHighlights = Filters.matchesFuzzy(lookFor, entry.getLabel(), fuzzyHighlight);
+				if (!candidateLabelHighlights) {
+					const pathPrefix = entry.getDescription() ? (entry.getDescription() + Paths.nativeSep) : '';
+					const pathPrefixLength = pathPrefix.length;
 
-			// Path search: Highlight in label and description
-			else if (lookFor.indexOf(Paths.nativeSep) >= 0) {
-				descriptionHighlights = Filters.matchesFuzzy(Strings.trim(lookFor, Paths.nativeSep), entry.getDescription());
+					// If there are no highlights in the label, build a path out of description and highlight and match on both,
+					// then extract the individual label and description highlights back to the original positions
+					let pathHighlights = Filters.matchesFuzzy(lookFor, pathPrefix + entry.getLabel(), fuzzyHighlight);
+					if (pathHighlights) {
+						pathHighlights.forEach(h => {
 
-				// If we have no highlights, assume that the match is split among name and parent folder
-				if (!descriptionHighlights || !descriptionHighlights.length) {
-					labelHighlights = Filters.matchesFuzzy(Paths.basename(lookFor), entry.getLabel());
-					descriptionHighlights = Filters.matchesFuzzy(Strings.trim(Paths.dirname(lookFor), Paths.nativeSep), entry.getDescription());
+							// Match overlaps label and description part, we need to split it up
+							if (h.start < pathPrefixLength && h.end > pathPrefixLength) {
+								labelHighlights.push({ start: 0, end: h.end - pathPrefixLength });
+								descriptionHighlights.push({ start: h.start, end: pathPrefixLength });
+							}
+
+							// Match on label part
+							else if (h.start >= pathPrefixLength) {
+								labelHighlights.push({ start: h.start - pathPrefixLength, end: h.end - pathPrefixLength });
+							}
+
+							// Match on description part
+							else {
+								descriptionHighlights.push(h);
+							}
+						});
+					}
+				} else {
+					labelHighlights = candidateLabelHighlights;
 				}
 			}
 

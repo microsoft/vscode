@@ -31,8 +31,6 @@ if (!env.enableTypeScriptServiceMode) {
 		ctorName: 'TypeScriptMode'
 	});
 
-	modesExtensions.registerWorkerParticipant('typescript', 'vs/languages/typescript/common/participants/filenameSuggestions', 'FilenameSuggestions');
-
 	var configurationRegistry = <ConfigurationRegistry.IConfigurationRegistry>platform.Registry.as(ConfigurationRegistry.Extensions.Configuration);
 	configurationRegistry.registerConfiguration({
 		'id': 'typescript',

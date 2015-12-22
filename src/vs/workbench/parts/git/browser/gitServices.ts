@@ -14,7 +14,7 @@ import errors = require('vs/base/common/errors');
 import mime = require('vs/base/common/mime');
 import paths = require('vs/base/common/paths');
 import ee = require('vs/base/common/eventEmitter');
-import wbevents = require('vs/workbench/browser/events');
+import wbevents = require('vs/workbench/common/events');
 import WorkbenchEditorCommon = require('vs/workbench/common/editor');
 import git = require('vs/workbench/parts/git/common/git');
 import model = require('vs/workbench/parts/git/common/gitModel');
@@ -433,7 +433,7 @@ export class GitService extends ee.EventEmitter
 		this.toDispose.push(this.eventService.addListener2(FileEventType.FILE_CHANGES,(e) => this.onFileChanges(e)));
 		this.toDispose.push(this.eventService.addListener2(filesCommon.EventType.FILE_SAVED, (e) => this.onLocalFileChange(e)));
 		this.toDispose.push(this.eventService.addListener2(filesCommon.EventType.FILE_REVERTED, (e) => this.onLocalFileChange(e)));
-		this.lifecycleService.onShutdown.add(this.dispose, this);
+		this.lifecycleService.onShutdown(this.dispose, this);
 	}
 
 	private triggerStatus(force: boolean = false): void {
@@ -557,8 +557,8 @@ export class GitService extends ee.EventEmitter
 		return this.run(git.ServiceOperations.PULL, () => this.raw.pull(rebase));
 	}
 
-	public push(): winjs.Promise {
-		return this.run(git.ServiceOperations.PUSH, () => this.raw.push());
+	public push(remote?: string, name?: string, options?:git.IPushOptions): winjs.Promise {
+		return this.run(git.ServiceOperations.PUSH, () => this.raw.push(remote, name, options));
 	}
 
 	public sync(): winjs.Promise {
@@ -765,6 +765,8 @@ export class GitService extends ee.EventEmitter
 	}
 
 	public dispose(): void {
+		this.emit(git.ServiceEvents.DISPOSE);
+
 		if (this.model) {
 			this.model.dispose();
 			this.model = null;

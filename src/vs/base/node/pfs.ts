@@ -97,7 +97,7 @@ export function unlink(path: string): Promise {
 }
 
 function doStatMultiple(paths: string[]): TPromise<{ path: string; stats: fs.Stats; }> {
-	var path = paths.shift();
+	let path = paths.shift();
 	return stat(path).then((value) => {
 		return {
 			path: path,

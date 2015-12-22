@@ -69,7 +69,7 @@ function quit(message?: string);
 function quit(arg?: any) {
 	let exitCode = 0;
 	if (typeof arg === 'string') {
-		env.log(arg)
+		env.log(arg);
 	} else {
 		exitCode = 1; // signal error to the outside
 		if (arg.stack) {
@@ -82,7 +82,6 @@ function quit(arg?: any) {
 	process.exit(exitCode);
 }
 
-
 function main(ipcServer: Server, userEnv: env.IProcessEnvironment): void {
 	env.log('### VSCode main.js ###');
 	env.log(env.appRoot, env.cliArgs);
@@ -90,7 +89,7 @@ function main(ipcServer: Server, userEnv: env.IProcessEnvironment): void {
 	// Setup Windows mutex
 	let windowsMutex: Mutex = null;
 	try {
-		var Mutex = (<any> require.__$__nodeRequire('windows-mutex')).Mutex;
+		const Mutex = (<any>require.__$__nodeRequire('windows-mutex')).Mutex;
 		windowsMutex = new Mutex('vscode');
 	} catch (e) {
 		// noop
@@ -129,7 +128,9 @@ function main(ipcServer: Server, userEnv: env.IProcessEnvironment): void {
 		}
 
 		sharedProcess.kill();
-		windowsMutex && windowsMutex.release();
+		if (windowsMutex) {
+			windowsMutex.release();
+		}
 	});
 
 	// Lifecycle

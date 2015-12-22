@@ -14,7 +14,7 @@ import {Action, IActionRunner} from 'vs/base/common/actions';
 import {prepareActions} from 'vs/workbench/browser/actionBarRegistry';
 import {ITree} from 'vs/base/parts/tree/common/tree';
 import {Tree} from 'vs/base/parts/tree/browser/treeImpl';
-import {EditorEvent, EventType as WorkbenchEventType} from 'vs/workbench/browser/events';
+import {EditorEvent, EventType as WorkbenchEventType} from 'vs/workbench/common/events';
 import {LocalFileChangeEvent, IFilesConfiguration} from 'vs/workbench/parts/files/common/files';
 import {IFileStat, IResolveFileOptions, FileChangeType, FileChangesEvent, IFileChange, EventType as FileEventType, IFileService} from 'vs/platform/files/common/files';
 import {FileImportedEvent, RefreshViewExplorerAction, NewFolderAction, NewFileAction} from 'vs/workbench/parts/files/browser/fileActions';
@@ -23,7 +23,7 @@ import {FileDragAndDrop, FileFilter, FileSorter, FileController, FileRenderer, F
 import lifecycle = require('vs/base/common/lifecycle');
 import DOM = require('vs/base/browser/dom');
 import {CollapseAction, CollapsibleViewletView} from 'vs/workbench/browser/viewlet';
-import {FileStat} from 'vs/workbench/parts/files/browser/views/explorerViewModel';
+import {FileStat} from 'vs/workbench/parts/files/common/viewModel';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {IWorkspace} from 'vs/platform/workspace/common/workspace';

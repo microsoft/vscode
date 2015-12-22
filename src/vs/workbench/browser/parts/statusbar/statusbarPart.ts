@@ -10,12 +10,12 @@ import dom = require('vs/base/browser/dom');
 import types = require('vs/base/common/types');
 import nls = require('vs/nls');
 import {toErrorMessage} from 'vs/base/common/errors';
-import {Promise, TPromise} from 'vs/base/common/winjs.base';
+import {Promise} from 'vs/base/common/winjs.base';
 import {disposeAll, IDisposable} from 'vs/base/common/lifecycle';
 import {Builder, $} from 'vs/base/browser/builder';
 import {Registry} from 'vs/platform/platform';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
-import {IAction, Action} from 'vs/base/common/actions';
+import {IAction} from 'vs/base/common/actions';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {Part} from 'vs/workbench/browser/part';
 import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/browser/actionRegistry';
@@ -23,7 +23,7 @@ import {StatusbarAlignment, IStatusbarRegistry, Extensions, IStatusbarItem} from
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
-import {IStatusbarService, IStatusbarEntry} from 'vs/workbench/services/statusbar/statusbarService';
+import {IStatusbarService, IStatusbarEntry} from 'vs/workbench/services/statusbar/common/statusbarService';
 
 export class StatusbarPart extends Part implements IStatusbarService {
 

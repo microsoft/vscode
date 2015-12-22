@@ -72,9 +72,6 @@ export class Update {
 
 		// manually check for update on linux
 		if (isLinux && updateFeedUrl) {
-			const updateChannel = env.updateChannel;
-			const platform = `${process.platform}-${process.arch}`;
-
 			this.requestService.makeRequest({ url: updateFeedUrl }).done(res => {
 				if (res.status !== 200) {
 					return; // no update available

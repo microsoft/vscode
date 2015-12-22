@@ -13,8 +13,8 @@ export interface IDisposable {
 }
 
 export function disposeAll<T extends IDisposable>(arr: T[]): T[] {
-	for (var i = 0, len = arr.length; i < len; i++) {
-		if(arr[i]) {
+	for (let i = 0, len = arr.length; i < len; i++) {
+		if (arr[i]) {
 			arr[i].dispose();
 		}
 	}
@@ -34,24 +34,24 @@ export function combinedDispose2(disposables: IDisposable[]): IDisposable {
 	};
 }
 
-export function fnToDisposable(fn: ()=>void): IDisposable {
+export function fnToDisposable(fn: () => void): IDisposable {
 	return {
 		dispose: () => fn()
 	};
 }
 
-export function toDisposable(...fns: (()=>void)[]): IDisposable {
+export function toDisposable(...fns: (() => void)[]): IDisposable {
 	return combinedDispose2(fns.map(fnToDisposable));
 }
 
-function callAll(arg:any):any {
+function callAll(arg: any): any {
 	if (!arg) {
 		return null;
-	} else if(typeof arg === 'function') {
+	} else if (typeof arg === 'function') {
 		arg();
 		return null;
-	} else if(Array.isArray(arg)) {
-		while(arg.length > 0) {
+	} else if (Array.isArray(arg)) {
+		while (arg.length > 0) {
 			arg.pop()();
 		}
 		return arg;
@@ -68,4 +68,4 @@ export interface CallAll {
 /**
  * Calls all functions that are being passed to it.
  */
-export var cAll: CallAll = callAll;
+export const cAll: CallAll = callAll;

@@ -7,8 +7,7 @@
 import nls = require('vs/nls');
 import {IPluginDescription, IPointListener, IActivationEventListener, IMessage} from 'vs/platform/plugins/common/plugins';
 import {isValidPluginDescription as baseIsValidPluginDescription} from 'vs/platform/plugins/common/pluginsRegistry';
-
-import {satisfies} from 'semver';
+import * as semver from 'semver';
 
 export interface IParsedVersion {
 	hasCaret: boolean;
@@ -207,6 +206,11 @@ export function isValidExtensionVersion(version: string, extensionDesc:IReducedE
 export function isValidPluginDescription(version: string, extensionFolderPath: string, pluginDescription:IPluginDescription, notices:string[]): boolean {
 
 	if (!baseIsValidPluginDescription(extensionFolderPath, pluginDescription, notices)) {
+		return false;
+	}
+
+	if (!semver.valid(pluginDescription.version)) {
+		notices.push(nls.localize('notSemver', "Extension version is not semver compatible."));
 		return false;
 	}
 

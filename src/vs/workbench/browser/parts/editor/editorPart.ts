@@ -23,7 +23,7 @@ import {Scope as MementoScope} from 'vs/workbench/common/memento';
 import {Scope, IActionBarRegistry, Extensions as ActionBarExtensions, prepareActions} from 'vs/workbench/browser/actionBarRegistry';
 import {IAction} from 'vs/base/common/actions';
 import {Part} from 'vs/workbench/browser/part';
-import {EventType as WorkbenchEventType, EditorEvent} from 'vs/workbench/browser/events';
+import {EventType as WorkbenchEventType, EditorEvent} from 'vs/workbench/common/events';
 import {IEditorRegistry, Extensions as EditorExtensions, BaseEditor, IEditorInputActionContext, EditorDescriptor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {EditorInput, EditorOptions, TextEditorOptions} from 'vs/workbench/common/editor';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
@@ -65,7 +65,6 @@ export class EditorPart extends Part implements IEditorPart {
 	private instantiationService: IInstantiationService;
 	private dimension: Dimension;
 	private sideBySideControl: SideBySideEditorControl;
-	private quickStartTimer: timer.ITimerEvent;
 	private memento: any;
 
 	// The following data structures are partitioned into array of Position as provided by Services.POSITION array
@@ -212,7 +211,7 @@ export class EditorPart extends Part implements IEditorPart {
 
 				// To prevent race conditions, we call the close in a timeout because it can well be
 				// that an input is being disposed with the intent to replace it with some other input
-				// right after. 
+				// right after.
 				setTimeout(() => {
 					if (input === this.visibleInputs[position]) {
 						this.closeEditors(false, input).done(null, errors.onUnexpectedError);

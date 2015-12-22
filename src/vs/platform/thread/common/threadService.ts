@@ -6,7 +6,7 @@
 
 import Platform = require('vs/platform/platform');
 import types = require('vs/base/common/types');
-import winjs = require('vs/base/common/winjs.base');
+import {TPromise} from 'vs/base/common/winjs.base';
 import thread = require('./thread');
 
 export var THREAD_SERVICE_PROPERTY_NAME = '__$$__threadService';
@@ -37,13 +37,13 @@ export function MainThreadAttr(type:Function, target:Function): void {
 
 export interface IOneWorkerAnnotation {
 	(type: Function, target: Function, affinity?: thread.ThreadAffinity): void;
-	(type: Function, target: Function, condition: () => winjs.TPromise<any>, affinity?: thread.ThreadAffinity): void;
+	(type: Function, target: Function, condition: () => TPromise<any>, affinity?: thread.ThreadAffinity): void;
 }
 
 function OneWorkerFn(type: Function, target: Function, conditionOrAffinity?: any, affinity:thread.ThreadAffinity = thread.ThreadAffinity.None): void {
 
 	var methodName = findMember(type.prototype, target),
-		condition: () => winjs.TPromise<any>;
+		condition: () => TPromise<any>;
 
 	if(typeof conditionOrAffinity === 'function') {
 		condition = conditionOrAffinity;
@@ -61,8 +61,8 @@ function OneWorkerFn(type: Function, target: Function, conditionOrAffinity?: any
 			var that = this,
 				promise = condition.call(that);
 
-			if(!winjs.Promise.is(promise)) {
-				promise = winjs.Promise.as(promise);
+			if(!TPromise.is(promise)) {
+				promise = TPromise.as(promise);
 			}
 
 			return promise.then(function() {

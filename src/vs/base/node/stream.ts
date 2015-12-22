@@ -8,18 +8,16 @@
 import fs = require('fs');
 import stream = require('stream');
 
-import types = require('vs/base/common/types');
-
 /**
  * Reads up to total bytes from the provided stream.
  */
 export function readExactlyByStream(stream:stream.Readable, totalBytes:number, callback:(err:Error, buffer:NodeBuffer, bytesRead:number) => void):void {
-	var done = false;
-	var buffer = new Buffer(totalBytes);
-	var bytesRead = 0;
+	let done = false;
+	let buffer = new Buffer(totalBytes);
+	let bytesRead = 0;
 
 	stream.on('data', (data:NodeBuffer) => {
-		var bytesToRead = Math.min(totalBytes - bytesRead, data.length);
+		let bytesToRead = Math.min(totalBytes - bytesRead, data.length);
 		data.copy(buffer, bytesRead, 0, bytesToRead);
 		bytesRead += bytesToRead;
 
@@ -35,7 +33,7 @@ export function readExactlyByStream(stream:stream.Readable, totalBytes:number, c
 		}
 	});
 
-	var onSuccess = () => {
+	let onSuccess = () => {
 		if (!done) {
 			done = true;
 			callback(null, buffer, bytesRead);
@@ -68,9 +66,9 @@ export function readExactlyByFile(file:string, totalBytes:number, callback:(erro
 			});
 		}
 
-		var buffer = new Buffer(totalBytes);
-		var bytesRead = 0;
-		var zeroAttempts = 0;
+		let buffer = new Buffer(totalBytes);
+		let bytesRead = 0;
+		let zeroAttempts = 0;
 		function loop():void {
 			fs.read(fd, buffer, bytesRead, totalBytes - bytesRead, null, (err, moreBytesRead)=>{
 				if (err) {

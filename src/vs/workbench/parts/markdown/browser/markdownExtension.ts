@@ -17,7 +17,7 @@ import {IWorkbenchContribution} from 'vs/workbench/common/contributions';
 import {IFrameEditor} from 'vs/workbench/browser/parts/editor/iframeEditor';
 import {MarkdownEditorInput} from 'vs/workbench/parts/markdown/browser/markdownEditorInput';
 import {ShowWelcomeAction} from 'vs/workbench/parts/markdown/browser/markdownActions';
-import {EditorEvent, EventType as WorkbenchEventType} from 'vs/workbench/browser/events';
+import {EditorEvent, EventType as WorkbenchEventType} from 'vs/workbench/common/events';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {IStorageService, StorageScope, StorageEvent, StorageEventType} from 'vs/platform/storage/common/storage';
@@ -30,7 +30,7 @@ import {IModeService} from 'vs/editor/common/services/modeService';
 interface ILanguageConfiguration {
 	markdown: {
 		styles: string[];
-	}
+	};
 }
 
 // This extension tracks markdown files for changes to update markdown editors and inputs accordingly.

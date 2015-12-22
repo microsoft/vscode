@@ -6,7 +6,6 @@
 'use strict';
 
 import 'vs/css!./media/search.contribution';
-import env = require('vs/base/common/platform');
 import {Registry} from 'vs/platform/platform';
 import {IViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor, ToggleViewletAction} from 'vs/workbench/browser/viewlet';
 import {IConfigurationRegistry, Extensions as ConfigurationExtensions} from 'vs/platform/configuration/common/configurationRegistry';
@@ -24,7 +23,7 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {AsyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IKeybindings} from 'vs/platform/keybinding/common/keybindingService';
-import {IQuickOpenService} from 'vs/workbench/services/quickopen/browser/quickOpenService';
+import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
@@ -198,10 +197,10 @@ configurationRegistry.registerConfiguration({
 				]
 			}
 		},
-		'search.fuzzyFilePicker': {
+		'filePicker.alternateFileNameMatching': {
 			'type': 'boolean',
 			'default': false,
-			'description': nls.localize('enableFuzzy', "Enable or disable fuzzy matching and sorting in the file picker.")
+			'description': nls.localize('enableFuzzy', "Experimental support for fuzzy matching of file names in the file picker.")
 		}
 	}
 });

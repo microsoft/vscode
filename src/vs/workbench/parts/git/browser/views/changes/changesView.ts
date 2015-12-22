@@ -20,7 +20,7 @@ import Actions = require('vs/base/common/actions');
 import ActionBar = require('vs/base/browser/ui/actionbar/actionbar');
 import Tree = require('vs/base/parts/tree/common/tree');
 import TreeImpl = require('vs/base/parts/tree/browser/treeImpl');
-import WorkbenchEvents = require('vs/workbench/browser/events');
+import WorkbenchEvents = require('vs/workbench/common/events');
 import git = require('vs/workbench/parts/git/common/git');
 import GitView = require('vs/workbench/parts/git/browser/views/view');
 import GitActions = require('vs/workbench/parts/git/browser/gitActions');
@@ -250,7 +250,9 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 				this.instantiationService.createInstance(GitActions.SyncAction, GitActions.SyncAction.ID, GitActions.SyncAction.LABEL),
 				this.instantiationService.createInstance(GitActions.PullAction, GitActions.PullAction.ID, GitActions.PullAction.LABEL),
 				this.instantiationService.createInstance(GitActions.PullWithRebaseAction),
-				this.instantiationService.createInstance(GitActions.PushAction),
+				this.instantiationService.createInstance(GitActions.PushAction, GitActions.PushAction.ID, GitActions.PushAction.LABEL),
+				new ActionBar.Separator(),
+				this.instantiationService.createInstance(GitActions.PublishAction, GitActions.PublishAction.ID, GitActions.PublishAction.LABEL),
 				new ActionBar.Separator(),
 				this.instantiationService.createInstance(GitActions.CommitAction, this),
 				this.instantiationService.createInstance(GitActions.StageAndCommitAction, this),

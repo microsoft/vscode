@@ -17,10 +17,9 @@ import 'vs/css!vs/workbench/browser/media/hc-black-theme';
 import {Promise, TPromise} from 'vs/base/common/winjs.base';
 import {Dimension, Builder, $} from 'vs/base/browser/builder';
 import objects = require('vs/base/common/objects');
-import env = require('vs/base/common/flags');
 import dom = require('vs/base/browser/dom');
-import Event, { Emitter } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import {Emitter} from 'vs/base/common/event';
+import {IDisposable} from 'vs/base/common/lifecycle';
 import errors = require('vs/base/common/errors');
 import {ContextViewService} from 'vs/platform/contextview/browser/contextViewService';
 import {ContextMenuService} from 'vs/workbench/services/contextview/electron-browser/contextmenuService';
@@ -50,25 +49,25 @@ import {IModelService} from 'vs/editor/common/services/modelService';
 import {ModelServiceImpl} from 'vs/editor/common/services/modelServiceImpl';
 import {CodeEditorServiceImpl} from 'vs/editor/browser/services/codeEditorServiceImpl';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
-import {MainProcessVSCodeAPIHelper} from 'vs/workbench/api/browser/pluginHost.api.impl';
+import {MainProcessVSCodeAPIHelper} from 'vs/workbench/api/common/extHost.api.impl';
 import {MainProcessPluginService} from 'vs/platform/plugins/common/nativePluginService';
-import {MainThreadDocuments} from 'vs/workbench/api/common/pluginHostDocuments';
+import {MainThreadDocuments} from 'vs/workbench/api/common/extHostDocuments';
 import {MainProcessTextMateSyntax} from 'vs/editor/node/textMate/TMSyntax';
 import {MainProcessTextMateSnippet} from 'vs/editor/node/textMate/TMSnippets';
 import {JSONValidationExtensionPoint} from 'vs/platform/jsonschemas/common/jsonValidationExtensionPoint';
 import {LanguageConfigurationFileHandler} from 'vs/editor/node/languageConfiguration';
-import {MainThreadFileSystemEventService} from 'vs/workbench/api/common/pluginHostFileSystemEventService';
-import {MainThreadQuickOpen} from 'vs/workbench/api/browser/pluginHostQuickOpen';
-import {MainThreadStatusBar} from 'vs/workbench/api/browser/pluginHostStatusBar';
-import {MainThreadCommands} from 'vs/workbench/api/common/pluginHostCommands';
+import {MainThreadFileSystemEventService} from 'vs/workbench/api/common/extHostFileSystemEventService';
+import {MainThreadQuickOpen} from 'vs/workbench/api/common/extHostQuickOpen';
+import {MainThreadStatusBar} from 'vs/workbench/api/common/extHostStatusBar';
+import {MainThreadCommands} from 'vs/workbench/api/common/extHostCommands';
 import {RemoteTelemetryServiceHelper} from 'vs/platform/telemetry/common/abstractRemoteTelemetryService';
-import {MainThreadDiagnostics} from 'vs/workbench/api/common/pluginHostDiagnostics';
+import {MainThreadDiagnostics} from 'vs/workbench/api/common/extHostDiagnostics';
 import {MainThreadOutputService} from 'vs/workbench/api/common/extHostOutputService';
-import {MainThreadMessageService} from 'vs/workbench/api/common/pluginHostMessageService';
+import {MainThreadMessageService} from 'vs/workbench/api/common/extHostMessageService';
 import {MainThreadLanguages} from 'vs/workbench/api/common/extHostLanguages';
-import {MainThreadEditors} from 'vs/workbench/api/common/pluginHostEditors';
-import {MainThreadWorkspace} from 'vs/workbench/api/common/pluginHostWorkspace';
-import {MainThreadConfiguration} from 'vs/workbench/api/common/pluginHostConfiguration';
+import {MainThreadEditors} from 'vs/workbench/api/common/extHostEditors';
+import {MainThreadWorkspace} from 'vs/workbench/api/common/extHostWorkspace';
+import {MainThreadConfiguration} from 'vs/workbench/api/common/extHostConfiguration';
 import {MainThreadLanguageFeatures} from 'vs/workbench/api/common/extHostLanguageFeatures';
 import {EventService} from 'vs/platform/event/common/eventService';
 import {IOptions} from 'vs/workbench/common/options';
@@ -83,7 +82,7 @@ import {IEventService} from 'vs/platform/event/common/event';
 import {IFileService} from 'vs/platform/files/common/files';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
-import {IMarkerService, IMarkerData} from 'vs/platform/markers/common/markers';
+import {IMarkerService} from 'vs/platform/markers/common/markers';
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {IRequestService} from 'vs/platform/request/common/request';
 import {ISearchService} from 'vs/platform/search/common/search';
@@ -92,17 +91,17 @@ import {IWorkspaceContextService, IConfiguration, IWorkspace} from 'vs/platform/
 import {IPluginService} from 'vs/platform/plugins/common/plugins';
 import {MainThreadModeServiceImpl} from 'vs/editor/common/services/modeServiceImpl';
 import {IModeService} from 'vs/editor/common/services/modeService';
-import {IUntitledEditorService, UntitledEditorService} from 'vs/workbench/services/untitled/browser/untitledEditorService';
+import {UntitledEditorService} from 'vs/workbench/services/untitled/browser/untitledEditorService';
+import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {CrashReporter} from 'vs/workbench/electron-browser/crashReporter';
 import {IThemeService, ThemeService} from 'vs/workbench/services/themes/node/themeService';
 import { IServiceCtor, isServiceEvent } from 'vs/base/common/service';
 import { connect, Client } from 'vs/base/node/service.net';
 import { IExtensionsService } from 'vs/workbench/parts/extensions/common/extensions';
 import { ExtensionsService } from 'vs/workbench/parts/extensions/node/extensionsService';
-import webFrame = require('web-frame');
 
 /**
- * This ugly beast is needed because at the point when we need shared services
+ * This ugly code is needed because at the point when we need shared services
  * in the instantiation service, the connection to the shared process is not yet
  * completed. This create a delayed service wrapper that waits on that connection
  * and then relays all requests to the shared services.
@@ -296,10 +295,10 @@ export class WorkbenchShell {
 		this.contextViewService = new ContextViewService(this.container, this.telemetryService, this.messageService);
 
 		let lifecycleService = new LifecycleService(this.messageService, this.windowService);
-		lifecycleService.onShutdown.add(() => fileService.dispose());
+		lifecycleService.onShutdown(() => fileService.dispose());
 
 		this.threadService = new MainThreadService(this.contextService, this.messageService, this.windowService);
-		lifecycleService.onShutdown.add(() => this.threadService.dispose());
+		lifecycleService.onShutdown(() => this.threadService.dispose());
 
 		let requestService = new RequestService(
 			this.contextService,
@@ -307,7 +306,7 @@ export class WorkbenchShell {
 			this.telemetryService
 		);
 		this.threadService.registerInstance(requestService);
-		lifecycleService.onShutdown.add(() => requestService.dispose());
+		lifecycleService.onShutdown(() => requestService.dispose());
 
 		let markerService = new MarkerService(this.threadService);
 
@@ -326,7 +325,7 @@ export class WorkbenchShell {
 		result.addSingleton(IRequestService, requestService);
 		result.addSingleton(IWorkspaceContextService, this.contextService);
 		result.addSingleton(IContextViewService, this.contextViewService);
-		result.addSingleton(IContextMenuService, new ContextMenuService(this.messageService, this.telemetryService));
+		result.addSingleton(IContextMenuService, new ContextMenuService(this.messageService, this.telemetryService, this.keybindingService));
 		result.addSingleton(IMessageService, this.messageService);
 		result.addSingleton(IStorageService, this.storageService);
 		result.addSingleton(ILifecycleService, lifecycleService);
@@ -418,7 +417,7 @@ export class WorkbenchShell {
 		if (!themeId) {
 			return;
 		}
-		var applyTheme = () => {
+		let applyTheme = () => {
 			if (this.currentTheme) {
 				$(this.container).removeClass(this.currentTheme);
 			}
@@ -428,7 +427,7 @@ export class WorkbenchShell {
 			if (layout) {
 				this.layout();
 			}
-		}
+		};
 
 		if (!themes.getSyntaxThemeId(themeId)) {
 			applyTheme();
@@ -443,8 +442,6 @@ export class WorkbenchShell {
 				errors.onUnexpectedError(error);
 			});
 		}
-
-
 	}
 
 	private registerListeners(): void {

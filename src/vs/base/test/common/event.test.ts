@@ -8,7 +8,6 @@ import * as assert from 'assert';
 import Event, {Emitter, fromEventEmitter} from 'vs/base/common/event';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import {EventEmitter} from 'vs/base/common/eventEmitter';
-import {EventSource} from 'vs/base/common/eventSource';
 import Errors = require('vs/base/common/errors');
 
 namespace Samples {

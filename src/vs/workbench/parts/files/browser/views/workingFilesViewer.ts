@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
 import {TPromise, Promise} from 'vs/base/common/winjs.base';
 import platform = require('vs/base/common/platform');
 import {$} from 'vs/base/browser/builder';
@@ -14,7 +13,6 @@ import {ExternalElementsDragAndDropData, ElementsDragAndDropData, DesktopDragAnd
 import {ClickBehavior, DefaultController, DefaultDragAndDrop} from 'vs/base/parts/tree/browser/treeDefaults';
 import errors = require('vs/base/common/errors');
 import mime = require('vs/base/common/mime');
-import severity from 'vs/base/common/severity';
 import uri from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
 import {StandardMouseEvent, DragMouseEvent} from 'vs/base/browser/mouseEvent';
@@ -24,10 +22,9 @@ import actions = require('vs/base/common/actions');
 import {ActionsRenderer} from 'vs/base/parts/tree/browser/actionsRenderer';
 import {ContributableActionProvider} from 'vs/workbench/browser/actionBarRegistry';
 import {keybindingForAction, CloseWorkingFileAction, SelectResourceForCompareAction, CompareResourcesAction, SaveFileAsAction, SaveFileAction, RevertFileAction, OpenToSideAction} from 'vs/workbench/parts/files/browser/fileActions';
-import files = require('vs/workbench/parts/files/browser/files');
 import {asFileResource} from 'vs/workbench/parts/files/common/files';
 import {WorkingFileEntry, WorkingFilesModel} from 'vs/workbench/parts/files/browser/workingFilesModel';
-import {IUntitledEditorService} from 'vs/workbench/services/untitled/browser/untitledEditorService';
+import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
@@ -307,7 +304,6 @@ export class WorkingFilesDragAndDrop extends DefaultDragAndDrop {
 }
 
 export class WorkingFilesController extends DefaultController {
-	private didCatchEnterDown: boolean;
 	private actionProvider: WorkingFilesActionProvider;
 	private model: WorkingFilesModel;
 
@@ -319,12 +315,10 @@ export class WorkingFilesController extends DefaultController {
 	) {
 		super({ clickBehavior: ClickBehavior.ON_MOUSE_DOWN });
 
-		this.didCatchEnterDown = false;
 		this.model = model;
 		this.actionProvider = provider;
 
 		this.downKeyBindingDispatcher.set(CommonKeybindings.ENTER, this.onEnterDown.bind(this));
-		this.upKeyBindingDispatcher.set(CommonKeybindings.ENTER, this.onEnterUp.bind(this));
 		if (platform.isMacintosh) {
 			this.upKeyBindingDispatcher.set(CommonKeybindings.WINCTRL_ENTER, this.onModifierEnterUp.bind(this)); // Mac: somehow Cmd+Enter does not work
 		} else {
@@ -405,23 +399,6 @@ export class WorkingFilesController extends DefaultController {
 			this.openEditor(<WorkingFileEntry>element, false, false);
 		}
 
-		this.didCatchEnterDown = true;
-
-		return true;
-	}
-
-	private onEnterUp(tree: tree.ITree, event: StandardKeyboardEvent): boolean {
-		if (!this.didCatchEnterDown) {
-			return false;
-		}
-
-		let element = tree.getFocus();
-		if (element) {
-			this.openEditor(<WorkingFileEntry>element, false, false);
-		}
-
-		this.didCatchEnterDown = false;
-
 		return true;
 	}
 
@@ -430,8 +407,6 @@ export class WorkingFilesController extends DefaultController {
 		if (element) {
 			this.openEditor(<WorkingFileEntry>element, false, true);
 		}
-
-		this.didCatchEnterDown = false;
 
 		return true;
 	}

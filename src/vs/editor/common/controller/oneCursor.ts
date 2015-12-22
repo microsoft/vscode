@@ -30,6 +30,7 @@ export interface IOneCursorOperationContext {
 	shouldPushStackElementAfter: boolean;
 	executeCommand: EditorCommon.ICommand;
 	postOperationRunnable: IPostOperationRunnable;
+	requestScrollDeltaLines: number;
 }
 
 export interface IModeConfiguration {

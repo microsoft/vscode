@@ -478,7 +478,7 @@ export class IOSupport {
 			key = input;
 		}
 
-		let keyCode = KeyCode.fromString(IOSupport.capitalizeKey(key));
+		let keyCode = KeyCode.fromString(key);
 
 		let result = 0;
 		if (ctrlCmd) {
@@ -495,39 +495,6 @@ export class IOSupport {
 		}
 		result |= keyCode;
 		return KeyMod.chord(result, chord);
-	}
-
-	private static capitalizeKey(key: string): string {
-		if (!key || key.length === 0) {
-			return key;
-		}
-
-		switch (key) {
-			case 'pausebreak':
-				return 'PauseBreak';
-			case 'capslock':
-				return 'CapsLock';
-			case 'pageup':
-				return 'PageUp';
-			case 'pagedown':
-				return 'PageDown';
-			case 'leftarrow':
-				return 'LeftArrow';
-			case 'uparrow':
-				return 'UpArrow';
-			case 'rightarrow':
-				return 'RightArrow';
-			case 'downarrow':
-				return 'DownArrow';
-			case 'contextmenu':
-				return 'ContextMenu';
-			case 'numlock':
-				return 'NumLock';
-			case 'scrolllock':
-				return 'ScrollLock';
-		}
-
-		return key.charAt(0).toUpperCase() + key.substr(1);
 	}
 
 	private static writeKeybindingContexts(out: OutputBuilder, context: IKeybindingContextRule[]): void {

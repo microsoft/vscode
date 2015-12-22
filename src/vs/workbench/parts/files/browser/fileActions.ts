@@ -9,7 +9,6 @@ import 'vs/css!./media/fileactions';
 import {Promise, TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import {isWindows, isLinux, isMacintosh} from 'vs/base/common/platform';
-import {$} from 'vs/base/browser/builder';
 import {sequence, ITask} from 'vs/base/common/async';
 import {MIME_TEXT, isUnspecific, isBinaryMime, guessMimeTypes} from 'vs/base/common/mime';
 import paths = require('vs/base/common/paths');
@@ -23,15 +22,16 @@ import {Action, IAction} from 'vs/base/common/actions';
 import {MessageType, IInputValidator} from 'vs/base/browser/ui/inputbox/inputBox';
 import {ITree, IHighlightEvent} from 'vs/base/parts/tree/common/tree';
 import {disposeAll, IDisposable} from 'vs/base/common/lifecycle';
-import {EventType as WorkbenchEventType, EditorEvent} from 'vs/workbench/browser/events';
+import {EventType as WorkbenchEventType, EditorEvent} from 'vs/workbench/common/events';
 import Files = require('vs/workbench/parts/files/common/files');
 import {IFileService, IFileStat, IImportResult} from 'vs/platform/files/common/files';
 import {EditorInputAction} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {IFrameEditor} from 'vs/workbench/browser/parts/editor/iframeEditor';
 import {DiffEditorInput} from 'vs/workbench/browser/parts/editor/diffEditorInput';
 import workbenchEditorCommon = require('vs/workbench/common/editor');
+import {IEditorSelection} from 'vs/editor/common/editorCommon';
 import {FileEditorInput} from 'vs/workbench/parts/files/browser/editors/fileEditorInput';
-import {FileStat, NewStatPlaceholder} from 'vs/workbench/parts/files/browser/views/explorerViewModel';
+import {FileStat, NewStatPlaceholder} from 'vs/workbench/parts/files/common/viewModel';
 import {ExplorerView} from 'vs/workbench/parts/files/browser/views/explorerView';
 import {ExplorerViewlet} from 'vs/workbench/parts/files/browser/explorerViewlet';
 import {CACHE} from 'vs/workbench/parts/files/browser/editors/textFileEditorModel';
@@ -39,15 +39,15 @@ import {HTMLFrameEditorInput} from 'vs/workbench/parts/files/browser/editors/htm
 import {DerivedFrameEditorInput} from 'vs/workbench/parts/files/browser/editors/derivedFrameEditorInput';
 import {IActionProvider} from 'vs/base/parts/tree/browser/actionsRenderer';
 import {WorkingFileEntry, WorkingFilesModel} from 'vs/workbench/parts/files/browser/workingFilesModel';
-import {IUntitledEditorService} from 'vs/workbench/services/untitled/browser/untitledEditorService';
+import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IQuickOpenService} from 'vs/workbench/services/quickopen/browser/quickOpenService';
+import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {IStorageService} from 'vs/platform/storage/common/storage';
 import {IResourceInput, Position} from 'vs/platform/editor/common/editor';
 import {IEventService} from 'vs/platform/event/common/event';
-import {IInstantiationService, IConstructorSignature2, INewConstructorSignature2, INewConstructorSignature1, INullService} from 'vs/platform/instantiation/common/instantiation';
+import {IInstantiationService, INewConstructorSignature2, INullService} from 'vs/platform/instantiation/common/instantiation';
 import {IMessageService, IMessageWithAction, IConfirmation, Severity, CancelAction} from 'vs/platform/message/common/message';
 import {IProgressService, IProgressRunner} from 'vs/platform/progress/common/progress';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
@@ -1527,6 +1527,14 @@ export abstract class BaseSaveFileAction extends BaseActionWithErrorReporting {
 					encodingOfSource = textModel && textModel.getEncoding(); // text model can be null e.g. if this is a binary file!
 				}
 
+				let selectionOfSource: IEditorSelection;
+				if (positionsOfSource.length) {
+					const activeEditor = this.editorService.getActiveEditor();
+					if (activeEditor && positionsOfSource.indexOf(activeEditor.position) >= 0) {
+						selectionOfSource = <IEditorSelection>activeEditor.getSelection();
+					}
+				}
+
 				// Special case: an untitled file with associated path gets saved directly unless "saveAs" is true
 				let savePromise: TPromise<URI>;
 				if (!this.isSaveAs() && source.scheme === 'untitled' && this.untitledEditorService.hasAssociatedFilePath(source)) {
@@ -1554,11 +1562,17 @@ export abstract class BaseSaveFileAction extends BaseActionWithErrorReporting {
 					if (target.toString() !== source.toString() && positionsOfSource.length) {
 						let targetInput = this.instantiationService.createInstance(FileEditorInput, target, mimeOfSource, encodingOfSource);
 
-						reopenPromise = this.editorService.openEditor(targetInput, null, positionsOfSource[0]).then(() => {
+						let options: workbenchEditorCommon.TextEditorOptions;
+						if (selectionOfSource) {
+							options = new workbenchEditorCommon.TextEditorOptions();
+							options.selection(selectionOfSource.startLineNumber, selectionOfSource.startColumn, selectionOfSource.endLineNumber, selectionOfSource.endColumn);
+						}
+
+						reopenPromise = this.editorService.openEditor(targetInput, options, positionsOfSource[0]).then(() => {
 							if (positionsOfSource.length > 1) {
-								return this.editorService.openEditor(targetInput, null, positionsOfSource[1]).then(() => {
+								return this.editorService.openEditor(targetInput, options, positionsOfSource[1]).then(() => {
 									if (positionsOfSource.length > 2) {
-										return this.editorService.openEditor(targetInput, null, positionsOfSource[2]);
+										return this.editorService.openEditor(targetInput, options, positionsOfSource[2]);
 									}
 								});
 							}
@@ -1646,7 +1660,7 @@ export abstract class BaseSaveAllAction extends BaseActionWithErrorReporting {
 	protected doRun(): TPromise<boolean> {
 
 		// Store mimes per untitled file to restore later
-		const mapUntitledToProperties: {[resource:string]: { mime: string; encoding: string; }} = Object.create(null);
+		const mapUntitledToProperties: { [resource: string]: { mime: string; encoding: string; } } = Object.create(null);
 		this.textFileService.getDirty()
 			.filter(r => r.scheme === 'untitled')			// All untitled resources^
 			.map(r => this.untitledEditorService.get(r))	// Mapped to their inputs
@@ -1881,6 +1895,7 @@ export class CloseWorkingFileAction extends Action {
 
 	private model: WorkingFilesModel;
 	private element: WorkingFileEntry;
+	private listenerToDispose: IDisposable;
 
 	constructor(
 		model: WorkingFilesModel,
@@ -1898,7 +1913,7 @@ export class CloseWorkingFileAction extends Action {
 
 		if (this.model) {
 			this.enabled = (this.model.count() > 0);
-			this.model.onModelChange.add(this.onModelChange, this);
+			this.listenerToDispose = this.model.onModelChange(this.onModelChange, this);
 		}
 	}
 
@@ -1983,8 +1998,9 @@ export class CloseWorkingFileAction extends Action {
 	}
 
 	public dispose(): void {
-		if (this.model) {
-			this.model.onModelChange.remove(this.onModelChange, this);
+		if (this.listenerToDispose) {
+			this.listenerToDispose.dispose();
+			delete this.listenerToDispose;
 		}
 
 		super.dispose();
@@ -2209,6 +2225,27 @@ export class AddToWorkingFiles extends Action {
 		}
 
 		return Promise.as(true);
+	}
+}
+
+export class FocusWorkingFiles extends Action {
+
+	public static ID = 'workbench.files.action.focusWorkingFiles';
+	public static LABEL = nls.localize('focusWorkingFiles', "Focus on Working Files");
+
+	constructor(
+		id: string,
+		label: string,
+		@IViewletService private viewletService: IViewletService
+	) {
+		super(id, label);
+	}
+
+	public run(): Promise {
+		return this.viewletService.openViewlet(Files.VIEWLET_ID, true).then((viewlet: ExplorerViewlet) => {
+			viewlet.getWorkingFilesView().expand();
+			viewlet.getWorkingFilesView().focus();
+		});
 	}
 }
 

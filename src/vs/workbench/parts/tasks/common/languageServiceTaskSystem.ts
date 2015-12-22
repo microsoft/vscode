@@ -73,6 +73,10 @@ export class LanguageServiceTaskSystem extends EventEmitter implements ITaskSyst
 		return false;
 	}
 
+	public canAutoTerminate(): boolean {
+		return false;
+	}
+
 	public terminate(): TPromise<TerminateResponse> {
 		return TPromise.as({ success: true });
 	}

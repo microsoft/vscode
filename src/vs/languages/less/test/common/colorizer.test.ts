@@ -11,7 +11,7 @@ import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
 import LESS = require('vs/languages/less/common/less');
 import modesUtil = require('vs/editor/test/common/modesUtil');
-import {cssTokenTypes} from 'vs/languages/css/common/css';
+import * as lessTokenTypes from 'vs/languages/less/common/lessTokenTypes';
 
 suite('LESS-tokenization', () => {
 
@@ -34,7 +34,7 @@ suite('LESS-tokenization', () => {
 			tokens: [
 				{ startIndex: 0, type: 'keyword.less' },
 				{ startIndex: 8, type: 'punctuation.parenthesis.less' },
-				{ startIndex: 9, type: cssTokenTypes.TOKEN_VALUE + '.numeric.less' },
+				{ startIndex: 9, type: lessTokenTypes.TOKEN_VALUE + '.numeric.less' },
 				{ startIndex: 11, type: 'punctuation.parenthesis.less' },
 				{ startIndex: 12, type: 'punctuation.less' }
 			]}],
@@ -53,7 +53,7 @@ suite('LESS-tokenization', () => {
 			[{
 			line: 'whenn',
 			tokens: [
-				{ startIndex: 0, type: cssTokenTypes.TOKEN_SELECTOR_TAG + '.less' }
+				{ startIndex: 0, type: lessTokenTypes.TOKEN_SELECTOR_TAG + '.less' }
 			]}],
 
 			[{
@@ -70,8 +70,8 @@ suite('LESS-tokenization', () => {
 			tokens: [
 				{ startIndex: 0, type: 'keyword.less' },
 				{ startIndex: 8, type: 'punctuation.parenthesis.less' },
-				{ startIndex: 9, type: cssTokenTypes.TOKEN_VALUE + '.numeric.less' },
-				{ startIndex: 11, type: cssTokenTypes.TOKEN_VALUE + '.unit.less' },
+				{ startIndex: 9, type: lessTokenTypes.TOKEN_VALUE + '.numeric.less' },
+				{ startIndex: 11, type: lessTokenTypes.TOKEN_VALUE + '.unit.less' },
 				{ startIndex: 13, type: 'punctuation.parenthesis.less' },
 				{ startIndex: 14, type: 'punctuation.less' }
 			]}],
@@ -79,7 +79,7 @@ suite('LESS-tokenization', () => {
 			[{
 			line: 'pxx',
 			tokens: [
-				{ startIndex: 0, type: cssTokenTypes.TOKEN_SELECTOR_TAG + '.less' }
+				{ startIndex: 0, type: lessTokenTypes.TOKEN_SELECTOR_TAG + '.less' }
 			]}],
 
 			// single line Strings
@@ -165,7 +165,7 @@ suite('LESS-tokenization', () => {
 			tokens: [
 				{ startIndex:0, type: 'comment.less' },
 				{ startIndex:13, type: '' },
-				{ startIndex:14, type: cssTokenTypes.TOKEN_VALUE + '.numeric.less' },
+				{ startIndex:14, type: lessTokenTypes.TOKEN_VALUE + '.numeric.less' },
 				{ startIndex:15, type: 'punctuation.less' }
 			]}],
 
@@ -173,28 +173,28 @@ suite('LESS-tokenization', () => {
 			[{
 			line: '0',
 			tokens: [
-				{ startIndex:0, type: cssTokenTypes.TOKEN_VALUE + '.numeric.less' }
+				{ startIndex:0, type: lessTokenTypes.TOKEN_VALUE + '.numeric.less' }
 			]}],
 
 			[{
 			line: ' 0',
 			tokens: [
 				{ startIndex:0, type: '' },
-				{ startIndex:1, type: cssTokenTypes.TOKEN_VALUE + '.numeric.less' }
+				{ startIndex:1, type: lessTokenTypes.TOKEN_VALUE + '.numeric.less' }
 			]}],
 
 			[{
 			line: ' 0 ',
 			tokens: [
 				{ startIndex:0, type: '' },
-				{ startIndex:1, type: cssTokenTypes.TOKEN_VALUE + '.numeric.less' },
+				{ startIndex:1, type: lessTokenTypes.TOKEN_VALUE + '.numeric.less' },
 				{ startIndex:2, type: '' }
 			]}],
 
 			[{
 			line: '0 ',
 			tokens: [
-				{ startIndex:0, type: cssTokenTypes.TOKEN_VALUE + '.numeric.less' },
+				{ startIndex:0, type: lessTokenTypes.TOKEN_VALUE + '.numeric.less' },
 				{ startIndex:1, type: '' }
 			]}],
 
@@ -204,9 +204,9 @@ suite('LESS-tokenization', () => {
 				{ startIndex:0, type: 'variable.less' },
 				{ startIndex:5, type: 'punctuation.less' },
 				{ startIndex:6, type: '' },
-				{ startIndex:7, type: cssTokenTypes.TOKEN_VALUE + '.numeric.less' },
+				{ startIndex:7, type: lessTokenTypes.TOKEN_VALUE + '.numeric.less' },
 				{ startIndex:8, type: 'operator.less' },
-				{ startIndex:9, type: cssTokenTypes.TOKEN_VALUE + '.numeric.less' }
+				{ startIndex:9, type: lessTokenTypes.TOKEN_VALUE + '.numeric.less' }
 			]}],
 
 			[{
@@ -215,9 +215,9 @@ suite('LESS-tokenization', () => {
 				{ startIndex:0, type: 'variable.less' },
 				{ startIndex:5, type: 'punctuation.less' },
 				{ startIndex:6, type: '' },
-				{ startIndex:7, type: cssTokenTypes.TOKEN_VALUE + '.numeric.less' },
+				{ startIndex:7, type: lessTokenTypes.TOKEN_VALUE + '.numeric.less' },
 				{ startIndex:10, type: 'operator.less' },
-				{ startIndex:11, type: cssTokenTypes.TOKEN_VALUE + '.numeric.less' }
+				{ startIndex:11, type: lessTokenTypes.TOKEN_VALUE + '.numeric.less' }
 			]}],
 
 			[{
@@ -226,23 +226,23 @@ suite('LESS-tokenization', () => {
 				{ startIndex:0, type: 'variable.less' },
 				{ startIndex:5, type: 'punctuation.less' },
 				{ startIndex:6, type: '' },
-				{ startIndex:7, type: cssTokenTypes.TOKEN_VALUE + '.numeric.less' },
+				{ startIndex:7, type: lessTokenTypes.TOKEN_VALUE + '.numeric.less' },
 				{ startIndex:8, type: '' },
 				{ startIndex:9, type: 'operator.less' },
 				{ startIndex:10, type: '' },
-				{ startIndex:11, type: cssTokenTypes.TOKEN_VALUE + '.numeric.less' }
+				{ startIndex:11, type: lessTokenTypes.TOKEN_VALUE + '.numeric.less' }
 			]}],
 
 			[{
 			line: '0123',
 			tokens: [
-				{ startIndex:0, type: cssTokenTypes.TOKEN_VALUE + '.numeric.less' }
+				{ startIndex:0, type: lessTokenTypes.TOKEN_VALUE + '.numeric.less' }
 			]}],
 
 			[{
 			line: '#012343',
 			tokens: [
-				{ startIndex:0, type: cssTokenTypes.TOKEN_VALUE + '.rgb-value.less' }
+				{ startIndex:0, type: lessTokenTypes.TOKEN_VALUE + '.rgb-value.less' }
 			]}],
 
 			// Bracket Matching
@@ -250,20 +250,20 @@ suite('LESS-tokenization', () => {
 			line: '[1,2,3]',
 			tokens: [
 				{ startIndex:0, type: 'punctuation.bracket.less', bracket: Modes.Bracket.Open },
-				{ startIndex:1, type: cssTokenTypes.TOKEN_VALUE + '.numeric.less' },
+				{ startIndex:1, type: lessTokenTypes.TOKEN_VALUE + '.numeric.less' },
 				{ startIndex:2, type: 'punctuation.less' },
-				{ startIndex:3, type: cssTokenTypes.TOKEN_VALUE + '.numeric.less' },
+				{ startIndex:3, type: lessTokenTypes.TOKEN_VALUE + '.numeric.less' },
 				{ startIndex:4, type: 'punctuation.less' },
-				{ startIndex:5, type: cssTokenTypes.TOKEN_VALUE + '.numeric.less' },
+				{ startIndex:5, type: lessTokenTypes.TOKEN_VALUE + '.numeric.less' },
 				{ startIndex:6, type: 'punctuation.bracket.less', bracket: Modes.Bracket.Close }
 			]}],
 
 			[{
 			line: 'foo(123);',
 			tokens: [
-				{ startIndex:0, type: cssTokenTypes.TOKEN_SELECTOR_TAG + '.less' },
+				{ startIndex:0, type: lessTokenTypes.TOKEN_SELECTOR_TAG + '.less' },
 				{ startIndex:3, type: 'punctuation.parenthesis.less', bracket: Modes.Bracket.Open },
-				{ startIndex:4, type: cssTokenTypes.TOKEN_VALUE + '.numeric.less' },
+				{ startIndex:4, type: lessTokenTypes.TOKEN_VALUE + '.numeric.less' },
 				{ startIndex:7, type: 'punctuation.parenthesis.less', bracket: Modes.Bracket.Close },
 				{ startIndex:8, type: 'punctuation.less' }
 			]}],
@@ -313,7 +313,7 @@ suite('LESS-tokenization', () => {
 				{ startIndex:10, type: '' },
 				{ startIndex:11, type: 'punctuation.less' },
 				{ startIndex:12, type: '' },
-				{ startIndex:13, type: cssTokenTypes.TOKEN_VALUE + '.numeric.less' },
+				{ startIndex:13, type: lessTokenTypes.TOKEN_VALUE + '.numeric.less' },
 				{ startIndex:14, type: 'punctuation.less' },
 				{ startIndex:15, type: '' },
 				{ startIndex:16, type: 'comment.less' }
@@ -322,7 +322,7 @@ suite('LESS-tokenization', () => {
 			[{
 			line: '.something(@some, @other) when (iscolor(@other)) { aname// my commen',
 			tokens: [
-				{ startIndex:0, type: cssTokenTypes.TOKEN_SELECTOR + '.class.less' },
+				{ startIndex:0, type: lessTokenTypes.TOKEN_SELECTOR + '.class.less' },
 				{ startIndex:10, type: 'punctuation.parenthesis.less' },
 				{ startIndex:11, type: 'variable.less' },
 				{ startIndex:16, type: 'punctuation.less' },
@@ -341,14 +341,14 @@ suite('LESS-tokenization', () => {
 				{ startIndex:48, type: '' },
 				{ startIndex:49, type: 'punctuation.curly.less' },
 				{ startIndex:50, type: '' },
-				{ startIndex:51, type: cssTokenTypes.TOKEN_SELECTOR_TAG + '.less' },
+				{ startIndex:51, type: lessTokenTypes.TOKEN_SELECTOR_TAG + '.less' },
 				{ startIndex:56, type: 'comment.less' }
 			]}],
 
 			[{
 			line: '.something(@some//mycomment',
 			tokens: [
-				{ startIndex:0, type: cssTokenTypes.TOKEN_SELECTOR + '.class.less' },
+				{ startIndex:0, type: lessTokenTypes.TOKEN_SELECTOR + '.class.less' },
 				{ startIndex:10, type: 'punctuation.parenthesis.less' },
 				{ startIndex:11, type: 'variable.less' },
 				{ startIndex:16, type: 'comment.less' }
@@ -361,7 +361,7 @@ suite('LESS-tokenization', () => {
 				{ startIndex:10, type: '' },
 				{ startIndex:11, type: 'punctuation.less' },
 				{ startIndex:12, type: '' },
-				{ startIndex:13, type: cssTokenTypes.TOKEN_VALUE + '.rgb-value.less' },
+				{ startIndex:13, type: lessTokenTypes.TOKEN_VALUE + '.rgb-value.less' },
 				{ startIndex:15, type: 'punctuation.less' }
 			]}],
 
@@ -397,7 +397,7 @@ suite('LESS-tokenization', () => {
 				{ startIndex:10, type: 'punctuation.less' },
 				{ startIndex:11, type: '' },
 				{ startIndex:12, type: 'comment.less' },
-				{ startIndex:29, type: cssTokenTypes.TOKEN_VALUE + '.numeric.less' },
+				{ startIndex:29, type: lessTokenTypes.TOKEN_VALUE + '.numeric.less' },
 				{ startIndex:30, type: 'punctuation.less' }
 			]}],
 
@@ -409,7 +409,7 @@ suite('LESS-tokenization', () => {
 				{ startIndex:11, type: '' },
 				{ startIndex:12, type: 'comment.less' },
 				{ startIndex:23, type: '' },
-				{ startIndex:24, type: cssTokenTypes.TOKEN_VALUE + '.numeric.less' },
+				{ startIndex:24, type: lessTokenTypes.TOKEN_VALUE + '.numeric.less' },
 				{ startIndex:25, type: 'punctuation.less' }
 			]}],
 
@@ -445,7 +445,7 @@ suite('LESS-tokenization', () => {
 				{ startIndex:15, type: '' },
 				{ startIndex:16, type: 'punctuation.less' },
 				{ startIndex:17, type: '' },
-				{ startIndex:18, type: cssTokenTypes.TOKEN_VALUE + '.numeric.less' },
+				{ startIndex:18, type: lessTokenTypes.TOKEN_VALUE + '.numeric.less' },
 				{ startIndex:19, type: 'punctuation.less' }
 			]}],
 
@@ -453,11 +453,11 @@ suite('LESS-tokenization', () => {
 			[{
 			line: '.class { filter: ~"ms:alwaysHasItsOwnSyntax.For.Stuff()";',
 			tokens: [
-				{ startIndex:0, type: cssTokenTypes.TOKEN_SELECTOR + '.class.less' },
+				{ startIndex:0, type: lessTokenTypes.TOKEN_SELECTOR + '.class.less' },
 				{ startIndex:6, type: '' },
 				{ startIndex:7, type: 'punctuation.curly.less' },
 				{ startIndex:8, type: '' },
-				{ startIndex:9, type: cssTokenTypes.TOKEN_PROPERTY + '.less' },
+				{ startIndex:9, type: lessTokenTypes.TOKEN_PROPERTY + '.less' },
 				{ startIndex:15, type: 'punctuation.less' },
 				{ startIndex:16, type: '' },
 				{ startIndex:17, type: 'string.punctuation.less' },
@@ -470,10 +470,10 @@ suite('LESS-tokenization', () => {
 			[{
 			line: '.class {.mixin (@a) when (@a > 10), (@a < -10) { }',
 			tokens: [
-				{ startIndex:0, type: cssTokenTypes.TOKEN_SELECTOR + '.class.less' },
+				{ startIndex:0, type: lessTokenTypes.TOKEN_SELECTOR + '.class.less' },
 				{ startIndex:6, type: '' },
 				{ startIndex:7, type: 'punctuation.curly.less' },
-				{ startIndex:8, type: cssTokenTypes.TOKEN_SELECTOR + '.class.less' },
+				{ startIndex:8, type: lessTokenTypes.TOKEN_SELECTOR + '.class.less' },
 				{ startIndex:14, type: '' },
 				{ startIndex:15, type: 'punctuation.parenthesis.less' },
 				{ startIndex:16, type: 'variable.less' },
@@ -486,7 +486,7 @@ suite('LESS-tokenization', () => {
 				{ startIndex:28, type: '' },
 				{ startIndex:29, type: 'operator.less' },
 				{ startIndex:30, type: '' },
-				{ startIndex:31, type: cssTokenTypes.TOKEN_VALUE + '.numeric.less' },
+				{ startIndex:31, type: lessTokenTypes.TOKEN_VALUE + '.numeric.less' },
 				{ startIndex:33, type: 'punctuation.parenthesis.less' },
 				{ startIndex:34, type: 'punctuation.less' },
 				{ startIndex:35, type: '' },
@@ -496,7 +496,7 @@ suite('LESS-tokenization', () => {
 				{ startIndex:40, type: 'operator.less' },
 				{ startIndex:41, type: '' },
 				{ startIndex:42, type: 'operator.less' },
-				{ startIndex:43, type: cssTokenTypes.TOKEN_VALUE + '.numeric.less' },
+				{ startIndex:43, type: lessTokenTypes.TOKEN_VALUE + '.numeric.less' },
 				{ startIndex:45, type: 'punctuation.parenthesis.less' },
 				{ startIndex:46, type: '' },
 				{ startIndex:47, type: 'punctuation.curly.less' },
@@ -507,7 +507,7 @@ suite('LESS-tokenization', () => {
 			[{
 			line: '.truth (@a) when (@a = true) { }',
 			tokens: [
-				{ startIndex:0, type: cssTokenTypes.TOKEN_SELECTOR + '.class.less' },
+				{ startIndex:0, type: lessTokenTypes.TOKEN_SELECTOR + '.class.less' },
 				{ startIndex:6, type: '' },
 				{ startIndex:7, type: 'punctuation.parenthesis.less' },
 				{ startIndex:8, type: 'variable.less' },
@@ -531,7 +531,7 @@ suite('LESS-tokenization', () => {
 			[{
 			line: '.max (@a, @b) when (@a > @b) { width: @a; }',
 			tokens: [
-				{ startIndex:0, type: cssTokenTypes.TOKEN_SELECTOR + '.class.less' },
+				{ startIndex:0, type: lessTokenTypes.TOKEN_SELECTOR + '.class.less' },
 				{ startIndex:4, type: '' },
 				{ startIndex:5, type: 'punctuation.parenthesis.less' },
 				{ startIndex:6, type: 'variable.less' },
@@ -552,7 +552,7 @@ suite('LESS-tokenization', () => {
 				{ startIndex:28, type: '' },
 				{ startIndex:29, type: 'punctuation.curly.less' },
 				{ startIndex:30, type: '' },
-				{ startIndex:31, type: cssTokenTypes.TOKEN_PROPERTY + '.less' },
+				{ startIndex:31, type: lessTokenTypes.TOKEN_PROPERTY + '.less' },
 				{ startIndex:36, type: 'punctuation.less' },
 				{ startIndex:37, type: '' },
 				{ startIndex:38, type: 'variable.less' },
@@ -564,7 +564,7 @@ suite('LESS-tokenization', () => {
 			[{
 			line: '.mixin (@a, @b: 0) when (isnumber(@b)) { }',
 			tokens: [
-				{ startIndex:0, type: cssTokenTypes.TOKEN_SELECTOR + '.class.less' },
+				{ startIndex:0, type: lessTokenTypes.TOKEN_SELECTOR + '.class.less' },
 				{ startIndex:6, type: '' },
 				{ startIndex:7, type: 'punctuation.parenthesis.less' },
 				{ startIndex:8, type: 'variable.less' },
@@ -573,7 +573,7 @@ suite('LESS-tokenization', () => {
 				{ startIndex:12, type: 'variable.less' },
 				{ startIndex:14, type: 'punctuation.less' },
 				{ startIndex:15, type: '' },
-				{ startIndex:16, type: cssTokenTypes.TOKEN_VALUE + '.numeric.less' },
+				{ startIndex:16, type: lessTokenTypes.TOKEN_VALUE + '.numeric.less' },
 				{ startIndex:17, type: 'punctuation.parenthesis.less' },
 				{ startIndex:18, type: '' },
 				{ startIndex:19, type: 'keyword.less' },
@@ -593,7 +593,7 @@ suite('LESS-tokenization', () => {
 			[{
 			line: '.mixin (@a, @b: black) when (iscolor(@b)) { }',
 			tokens: [
-				{ startIndex:0, type: cssTokenTypes.TOKEN_SELECTOR + '.class.less' },
+				{ startIndex:0, type: lessTokenTypes.TOKEN_SELECTOR + '.class.less' },
 				{ startIndex:6, type: '' },
 				{ startIndex:7, type: 'punctuation.parenthesis.less' },
 				{ startIndex:8, type: 'variable.less' },
@@ -602,7 +602,7 @@ suite('LESS-tokenization', () => {
 				{ startIndex:12, type: 'variable.less' },
 				{ startIndex:14, type: 'punctuation.less' },
 				{ startIndex:15, type: '' },
-				{ startIndex:16, type: cssTokenTypes.TOKEN_VALUE + '.less' },
+				{ startIndex:16, type: lessTokenTypes.TOKEN_VALUE + '.less' },
 				{ startIndex:21, type: 'punctuation.parenthesis.less' },
 				{ startIndex:22, type: '' },
 				{ startIndex:23, type: 'keyword.less' },
@@ -641,46 +641,46 @@ suite('LESS-tokenization', () => {
 			[{
 			line: '.box-shadow(inset 0 1px 1px rgba(0,0,0,.075), 0 0 8px rgba(82,168,236,.6));',
 			tokens: [
-				{ startIndex:0, type: cssTokenTypes.TOKEN_SELECTOR + '.class.less' },
+				{ startIndex:0, type: lessTokenTypes.TOKEN_SELECTOR + '.class.less' },
 				{ startIndex:11, type: 'punctuation.parenthesis.less' },
-				{ startIndex:12, type: cssTokenTypes.TOKEN_VALUE + '.less' },
+				{ startIndex:12, type: lessTokenTypes.TOKEN_VALUE + '.less' },
 				{ startIndex:17, type: '' },
-				{ startIndex:18, type: cssTokenTypes.TOKEN_VALUE + '.numeric.less' },
+				{ startIndex:18, type: lessTokenTypes.TOKEN_VALUE + '.numeric.less' },
 				{ startIndex:19, type: '' },
-				{ startIndex:20, type: cssTokenTypes.TOKEN_VALUE + '.numeric.less' },
-				{ startIndex:21, type: cssTokenTypes.TOKEN_VALUE + '.unit.less' },
+				{ startIndex:20, type: lessTokenTypes.TOKEN_VALUE + '.numeric.less' },
+				{ startIndex:21, type: lessTokenTypes.TOKEN_VALUE + '.unit.less' },
 				{ startIndex:23, type: '' },
-				{ startIndex:24, type: cssTokenTypes.TOKEN_VALUE + '.numeric.less' },
-				{ startIndex:25, type: cssTokenTypes.TOKEN_VALUE + '.unit.less' },
+				{ startIndex:24, type: lessTokenTypes.TOKEN_VALUE + '.numeric.less' },
+				{ startIndex:25, type: lessTokenTypes.TOKEN_VALUE + '.unit.less' },
 				{ startIndex:27, type: '' },
-				{ startIndex:28, type: cssTokenTypes.TOKEN_VALUE + '.less' },
+				{ startIndex:28, type: lessTokenTypes.TOKEN_VALUE + '.less' },
 				{ startIndex:32, type: 'punctuation.parenthesis.less' },
-				{ startIndex:33, type: cssTokenTypes.TOKEN_VALUE + '.numeric.less' },
+				{ startIndex:33, type: lessTokenTypes.TOKEN_VALUE + '.numeric.less' },
 				{ startIndex:34, type: 'punctuation.less' },
-				{ startIndex:35, type: cssTokenTypes.TOKEN_VALUE + '.numeric.less' },
+				{ startIndex:35, type: lessTokenTypes.TOKEN_VALUE + '.numeric.less' },
 				{ startIndex:36, type: 'punctuation.less' },
-				{ startIndex:37, type: cssTokenTypes.TOKEN_VALUE + '.numeric.less' },
+				{ startIndex:37, type: lessTokenTypes.TOKEN_VALUE + '.numeric.less' },
 				{ startIndex:38, type: 'punctuation.less' },
-				{ startIndex:39, type: cssTokenTypes.TOKEN_VALUE + '.numeric.less' },
+				{ startIndex:39, type: lessTokenTypes.TOKEN_VALUE + '.numeric.less' },
 				{ startIndex:43, type: 'punctuation.parenthesis.less' },
 				{ startIndex:44, type: 'punctuation.less' },
 				{ startIndex:45, type: '' },
-				{ startIndex:46, type: cssTokenTypes.TOKEN_VALUE + '.numeric.less' },
+				{ startIndex:46, type: lessTokenTypes.TOKEN_VALUE + '.numeric.less' },
 				{ startIndex:47, type: '' },
-				{ startIndex:48, type: cssTokenTypes.TOKEN_VALUE + '.numeric.less' },
+				{ startIndex:48, type: lessTokenTypes.TOKEN_VALUE + '.numeric.less' },
 				{ startIndex:49, type: '' },
-				{ startIndex:50, type: cssTokenTypes.TOKEN_VALUE + '.numeric.less' },
-				{ startIndex:51, type: cssTokenTypes.TOKEN_VALUE + '.unit.less' },
+				{ startIndex:50, type: lessTokenTypes.TOKEN_VALUE + '.numeric.less' },
+				{ startIndex:51, type: lessTokenTypes.TOKEN_VALUE + '.unit.less' },
 				{ startIndex:53, type: '' },
-				{ startIndex:54, type: cssTokenTypes.TOKEN_VALUE + '.less' },
+				{ startIndex:54, type: lessTokenTypes.TOKEN_VALUE + '.less' },
 				{ startIndex:58, type: 'punctuation.parenthesis.less' },
-				{ startIndex:59, type: cssTokenTypes.TOKEN_VALUE + '.numeric.less' },
+				{ startIndex:59, type: lessTokenTypes.TOKEN_VALUE + '.numeric.less' },
 				{ startIndex:61, type: 'punctuation.less' },
-				{ startIndex:62, type: cssTokenTypes.TOKEN_VALUE + '.numeric.less' },
+				{ startIndex:62, type: lessTokenTypes.TOKEN_VALUE + '.numeric.less' },
 				{ startIndex:65, type: 'punctuation.less' },
-				{ startIndex:66, type: cssTokenTypes.TOKEN_VALUE + '.numeric.less' },
+				{ startIndex:66, type: lessTokenTypes.TOKEN_VALUE + '.numeric.less' },
 				{ startIndex:69, type: 'punctuation.less' },
-				{ startIndex:70, type: cssTokenTypes.TOKEN_VALUE + '.numeric.less' },
+				{ startIndex:70, type: lessTokenTypes.TOKEN_VALUE + '.numeric.less' },
 				{ startIndex:72, type: 'punctuation.parenthesis.less' },
 				{ startIndex:73, type: 'punctuation.parenthesis.less' },
 				{ startIndex:74, type: 'punctuation.less' }
@@ -690,9 +690,9 @@ suite('LESS-tokenization', () => {
 			[{
 			line: 'input[type="radio"]',
 			tokens: [
-				{ startIndex:0, type: cssTokenTypes.TOKEN_SELECTOR_TAG + '.less' },
+				{ startIndex:0, type: lessTokenTypes.TOKEN_SELECTOR_TAG + '.less' },
 				{ startIndex:5, type: 'punctuation.bracket.less' },
-				{ startIndex:6, type: cssTokenTypes.TOKEN_SELECTOR_TAG + '.less' },
+				{ startIndex:6, type: lessTokenTypes.TOKEN_SELECTOR_TAG + '.less' },
 				{ startIndex:10, type: 'operator.less' },
 				{ startIndex:11, type: 'string.punctuation.less' },
 				{ startIndex:12, type: 'string.less' },
@@ -712,7 +712,7 @@ suite('LESS-tokenization', () => {
 			[{
 			line: 'some("\\42");',
 			tokens: [
-				{ startIndex:0, type: cssTokenTypes.TOKEN_SELECTOR_TAG + '.less' },
+				{ startIndex:0, type: lessTokenTypes.TOKEN_SELECTOR_TAG + '.less' },
 				{ startIndex:4, type: 'punctuation.parenthesis.less' },
 				{ startIndex:5, type: 'string.punctuation.less' },
 				{ startIndex:6, type: 'string.less' },
@@ -736,7 +736,7 @@ suite('LESS-tokenization', () => {
 			[{
 			line: 'class^="icon-"',
 			tokens: [
-				{ startIndex:0, type: cssTokenTypes.TOKEN_SELECTOR_TAG + '.less' },
+				{ startIndex:0, type: lessTokenTypes.TOKEN_SELECTOR_TAG + '.less' },
 				{ startIndex:5, type: 'operator.less' },
 				{ startIndex:7, type: 'string.punctuation.less' },
 				{ startIndex:8, type: 'string.less' },
@@ -746,7 +746,7 @@ suite('LESS-tokenization', () => {
 			[{
 			line: 'class*="icon-"',
 			tokens: [
-				{ startIndex:0, type: cssTokenTypes.TOKEN_SELECTOR_TAG + '.less' },
+				{ startIndex:0, type: lessTokenTypes.TOKEN_SELECTOR_TAG + '.less' },
 				{ startIndex:5, type: 'operator.less' },
 				{ startIndex:7, type: 'string.punctuation.less' },
 				{ startIndex:8, type: 'string.less' },
@@ -756,7 +756,7 @@ suite('LESS-tokenization', () => {
 			[{
 			line: 'class~="icon-"',
 			tokens: [
-				{ startIndex:0, type: cssTokenTypes.TOKEN_SELECTOR_TAG + '.less' },
+				{ startIndex:0, type: lessTokenTypes.TOKEN_SELECTOR_TAG + '.less' },
 				{ startIndex:5, type: 'operator.less' },
 				{ startIndex:7, type: 'string.punctuation.less' },
 				{ startIndex:8, type: 'string.less' },
@@ -766,7 +766,7 @@ suite('LESS-tokenization', () => {
 			[{
 			line: 'class ~ = "icon-"',
 			tokens: [
-				{ startIndex:0, type: cssTokenTypes.TOKEN_SELECTOR_TAG + '.less' },
+				{ startIndex:0, type: lessTokenTypes.TOKEN_SELECTOR_TAG + '.less' },
 				{ startIndex:5, type: '' },
 				{ startIndex:6, type: 'operator.less' },
 				{ startIndex:7, type: '' },
@@ -780,7 +780,7 @@ suite('LESS-tokenization', () => {
 			[{
 			line: 'class|="icon-"',
 			tokens: [
-				{ startIndex:0, type: cssTokenTypes.TOKEN_SELECTOR_TAG + '.less' },
+				{ startIndex:0, type: lessTokenTypes.TOKEN_SELECTOR_TAG + '.less' },
 				{ startIndex:5, type: 'operator.less' },
 				{ startIndex:7, type: 'string.punctuation.less' },
 				{ startIndex:8, type: 'string.less' },
@@ -790,18 +790,18 @@ suite('LESS-tokenization', () => {
 			[{
 			line: '.hide-text { font: 0/0 a; }',
 			tokens: [
-				{ startIndex:0, type: cssTokenTypes.TOKEN_SELECTOR + '.class.less' },
+				{ startIndex:0, type: lessTokenTypes.TOKEN_SELECTOR + '.class.less' },
 				{ startIndex:10, type: '' },
 				{ startIndex:11, type: 'punctuation.curly.less' },
 				{ startIndex:12, type: '' },
-				{ startIndex:13, type: cssTokenTypes.TOKEN_PROPERTY + '.less' },
+				{ startIndex:13, type: lessTokenTypes.TOKEN_PROPERTY + '.less' },
 				{ startIndex:17, type: 'punctuation.less' },
 				{ startIndex:18, type: '' },
-				{ startIndex:19, type: cssTokenTypes.TOKEN_VALUE + '.numeric.less' },
+				{ startIndex:19, type: lessTokenTypes.TOKEN_VALUE + '.numeric.less' },
 				{ startIndex:20, type: 'operator.less' },
-				{ startIndex:21, type: cssTokenTypes.TOKEN_VALUE + '.numeric.less' },
+				{ startIndex:21, type: lessTokenTypes.TOKEN_VALUE + '.numeric.less' },
 				{ startIndex:22, type: '' },
-				{ startIndex:23, type: cssTokenTypes.TOKEN_VALUE + '.less' },
+				{ startIndex:23, type: lessTokenTypes.TOKEN_VALUE + '.less' },
 				{ startIndex:24, type: 'punctuation.less' },
 				{ startIndex:25, type: '' },
 				{ startIndex:26, type: 'punctuation.curly.less' }
@@ -811,7 +811,7 @@ suite('LESS-tokenization', () => {
 			[{
 			line: '.translate3d(@x, @y, @z) { -webkit-transform: translate3d(@x, @y, @z); }',
 			tokens: [
-				{ startIndex:0, type: cssTokenTypes.TOKEN_SELECTOR + '.class.less' },
+				{ startIndex:0, type: lessTokenTypes.TOKEN_SELECTOR + '.class.less' },
 				{ startIndex:12, type: 'punctuation.parenthesis.less' },
 				{ startIndex:13, type: 'variable.less' },
 				{ startIndex:15, type: 'punctuation.less' },
@@ -824,10 +824,10 @@ suite('LESS-tokenization', () => {
 				{ startIndex:24, type: '' },
 				{ startIndex:25, type: 'punctuation.curly.less' },
 				{ startIndex:26, type: '' },
-				{ startIndex:27, type: cssTokenTypes.TOKEN_PROPERTY + '.less' },
+				{ startIndex:27, type: lessTokenTypes.TOKEN_PROPERTY + '.less' },
 				{ startIndex:44, type: 'punctuation.less' },
 				{ startIndex:45, type: '' },
-				{ startIndex:46, type: cssTokenTypes.TOKEN_VALUE + '.less' },
+				{ startIndex:46, type: lessTokenTypes.TOKEN_VALUE + '.less' },
 				{ startIndex:57, type: 'punctuation.parenthesis.less' },
 				{ startIndex:58, type: 'variable.less' },
 				{ startIndex:60, type: 'punctuation.less' },
@@ -846,20 +846,20 @@ suite('LESS-tokenization', () => {
 			[{
 			line: '.dropdown-menu > li > a:hover > [class=" icon-"]',
 			tokens: [
-				{ startIndex:0, type: cssTokenTypes.TOKEN_SELECTOR + '.class.less' },
+				{ startIndex:0, type: lessTokenTypes.TOKEN_SELECTOR + '.class.less' },
 				{ startIndex:14, type: '' },
 				{ startIndex:15, type: 'operator.less' },
 				{ startIndex:16, type: '' },
-				{ startIndex:17, type: cssTokenTypes.TOKEN_SELECTOR_TAG + '.less' },
+				{ startIndex:17, type: lessTokenTypes.TOKEN_SELECTOR_TAG + '.less' },
 				{ startIndex:19, type: '' },
 				{ startIndex:20, type: 'operator.less' },
 				{ startIndex:21, type: '' },
-				{ startIndex:22, type: cssTokenTypes.TOKEN_SELECTOR_TAG + '.less' },
+				{ startIndex:22, type: lessTokenTypes.TOKEN_SELECTOR_TAG + '.less' },
 				{ startIndex:29, type: '' },
 				{ startIndex:30, type: 'operator.less' },
 				{ startIndex:31, type: '' },
 				{ startIndex:32, type: 'punctuation.bracket.less' },
-				{ startIndex:33, type: cssTokenTypes.TOKEN_SELECTOR_TAG + '.less' },
+				{ startIndex:33, type: lessTokenTypes.TOKEN_SELECTOR_TAG + '.less' },
 				{ startIndex:38, type: 'operator.less' },
 				{ startIndex:39, type: 'string.punctuation.less' },
 				{ startIndex:40, type: 'string.less' },
@@ -870,39 +870,39 @@ suite('LESS-tokenization', () => {
 			[{
 			line: '.bw-gradient(@color: #F5F5F5, @start: 0, @stop: 255) { background: -webkit-gradient(color-stop(0, rgb(@start,@start,@start)), color-stop(1, rgb(@stop,@stop,@stop))); }',
 			tokens: [
-				{ startIndex:0, type: cssTokenTypes.TOKEN_SELECTOR + '.class.less' },
+				{ startIndex:0, type: lessTokenTypes.TOKEN_SELECTOR + '.class.less' },
 				{ startIndex:12, type: 'punctuation.parenthesis.less' },
 				{ startIndex:13, type: 'variable.less' },
 				{ startIndex:19, type: 'punctuation.less' },
 				{ startIndex:20, type: '' },
-				{ startIndex:21, type: cssTokenTypes.TOKEN_VALUE + '.rgb-value.less' },
+				{ startIndex:21, type: lessTokenTypes.TOKEN_VALUE + '.rgb-value.less' },
 				{ startIndex:28, type: 'punctuation.less' },
 				{ startIndex:29, type: '' },
 				{ startIndex:30, type: 'variable.less' },
 				{ startIndex:36, type: 'punctuation.less' },
 				{ startIndex:37, type: '' },
-				{ startIndex:38, type: cssTokenTypes.TOKEN_VALUE + '.numeric.less' },
+				{ startIndex:38, type: lessTokenTypes.TOKEN_VALUE + '.numeric.less' },
 				{ startIndex:39, type: 'punctuation.less' },
 				{ startIndex:40, type: '' },
 				{ startIndex:41, type: 'variable.less' },
 				{ startIndex:46, type: 'punctuation.less' },
 				{ startIndex:47, type: '' },
-				{ startIndex:48, type: cssTokenTypes.TOKEN_VALUE + '.numeric.less' },
+				{ startIndex:48, type: lessTokenTypes.TOKEN_VALUE + '.numeric.less' },
 				{ startIndex:51, type: 'punctuation.parenthesis.less' },
 				{ startIndex:52, type: '' },
 				{ startIndex:53, type: 'punctuation.curly.less' },
 				{ startIndex:54, type: '' },
-				{ startIndex:55, type: cssTokenTypes.TOKEN_PROPERTY + '.less' },
+				{ startIndex:55, type: lessTokenTypes.TOKEN_PROPERTY + '.less' },
 				{ startIndex:65, type: 'punctuation.less' },
 				{ startIndex:66, type: '' },
-				{ startIndex:67, type: cssTokenTypes.TOKEN_VALUE + '.less' },
+				{ startIndex:67, type: lessTokenTypes.TOKEN_VALUE + '.less' },
 				{ startIndex:83, type: 'punctuation.parenthesis.less' },
-				{ startIndex:84, type: cssTokenTypes.TOKEN_VALUE + '.less' },
+				{ startIndex:84, type: lessTokenTypes.TOKEN_VALUE + '.less' },
 				{ startIndex:94, type: 'punctuation.parenthesis.less' },
-				{ startIndex:95, type: cssTokenTypes.TOKEN_VALUE + '.numeric.less' },
+				{ startIndex:95, type: lessTokenTypes.TOKEN_VALUE + '.numeric.less' },
 				{ startIndex:96, type: 'punctuation.less' },
 				{ startIndex:97, type: '' },
-				{ startIndex:98, type: cssTokenTypes.TOKEN_VALUE + '.less' },
+				{ startIndex:98, type: lessTokenTypes.TOKEN_VALUE + '.less' },
 				{ startIndex:101, type: 'punctuation.parenthesis.less' },
 				{ startIndex:102, type: 'variable.less' },
 				{ startIndex:108, type: 'punctuation.less' },
@@ -913,12 +913,12 @@ suite('LESS-tokenization', () => {
 				{ startIndex:123, type: 'punctuation.parenthesis.less' },
 				{ startIndex:124, type: 'punctuation.less' },
 				{ startIndex:125, type: '' },
-				{ startIndex:126, type: cssTokenTypes.TOKEN_VALUE + '.less' },
+				{ startIndex:126, type: lessTokenTypes.TOKEN_VALUE + '.less' },
 				{ startIndex:136, type: 'punctuation.parenthesis.less' },
-				{ startIndex:137, type: cssTokenTypes.TOKEN_VALUE + '.numeric.less' },
+				{ startIndex:137, type: lessTokenTypes.TOKEN_VALUE + '.numeric.less' },
 				{ startIndex:138, type: 'punctuation.less' },
 				{ startIndex:139, type: '' },
-				{ startIndex:140, type: cssTokenTypes.TOKEN_VALUE + '.less' },
+				{ startIndex:140, type: lessTokenTypes.TOKEN_VALUE + '.less' },
 				{ startIndex:143, type: 'punctuation.parenthesis.less' },
 				{ startIndex:144, type: 'variable.less' },
 				{ startIndex:149, type: 'punctuation.less' },
@@ -938,7 +938,7 @@ suite('LESS-tokenization', () => {
 			line: '      body ',
 			tokens: [
 				{ startIndex:0, type: '' },
-				{ startIndex:6, type: cssTokenTypes.TOKEN_SELECTOR_TAG + '.less' },
+				{ startIndex:6, type: lessTokenTypes.TOKEN_SELECTOR_TAG + '.less' },
 				{ startIndex:10, type: '' }
 			]}],
 
@@ -953,54 +953,54 @@ suite('LESS-tokenization', () => {
 			[{
 			line: 'body {',
 			tokens: [
-				{ startIndex:0, type: cssTokenTypes.TOKEN_SELECTOR_TAG + '.less' },
+				{ startIndex:0, type: lessTokenTypes.TOKEN_SELECTOR_TAG + '.less' },
 				{ startIndex:4, type: '' },
 				{ startIndex:5, type: 'punctuation.curly.less', bracket: Modes.Bracket.Open }
 			]}, {
 			line: '  margin: 0;',
 			tokens: [
 				{ startIndex:0, type: '' },
-				{ startIndex:2, type: cssTokenTypes.TOKEN_PROPERTY + '.less' },
+				{ startIndex:2, type: lessTokenTypes.TOKEN_PROPERTY + '.less' },
 				{ startIndex:8, type: 'punctuation.less' },
 				{ startIndex:9, type: '' },
-				{ startIndex:10, type: cssTokenTypes.TOKEN_VALUE + '.numeric.less' },
+				{ startIndex:10, type: lessTokenTypes.TOKEN_VALUE + '.numeric.less' },
 				{ startIndex:11, type: 'punctuation.less' }
 			]}, {
 			line: '  padding: 3em 6em;',
 			tokens: [
 				{ startIndex:0, type: '' },
-				{ startIndex:2, type: cssTokenTypes.TOKEN_PROPERTY + '.less' },
+				{ startIndex:2, type: lessTokenTypes.TOKEN_PROPERTY + '.less' },
 				{ startIndex:9, type: 'punctuation.less' },
 				{ startIndex:10, type: '' },
-				{ startIndex:11, type: cssTokenTypes.TOKEN_VALUE + '.numeric.less' },
-				{ startIndex:12, type: cssTokenTypes.TOKEN_VALUE + '.unit.less' },
+				{ startIndex:11, type: lessTokenTypes.TOKEN_VALUE + '.numeric.less' },
+				{ startIndex:12, type: lessTokenTypes.TOKEN_VALUE + '.unit.less' },
 				{ startIndex:14, type: '' },
-				{ startIndex:15, type: cssTokenTypes.TOKEN_VALUE + '.numeric.less' },
-				{ startIndex:16, type: cssTokenTypes.TOKEN_VALUE + '.unit.less' },
+				{ startIndex:15, type: lessTokenTypes.TOKEN_VALUE + '.numeric.less' },
+				{ startIndex:16, type: lessTokenTypes.TOKEN_VALUE + '.unit.less' },
 				{ startIndex:18, type: 'punctuation.less' }
 			]}, {
 			line: '  font-family: tahoma, arial, sans-serif;',
 			tokens: [
 				{ startIndex:0, type: '' },
-				{ startIndex:2, type: cssTokenTypes.TOKEN_PROPERTY + '.less' },
+				{ startIndex:2, type: lessTokenTypes.TOKEN_PROPERTY + '.less' },
 				{ startIndex:13, type: 'punctuation.less' },
 				{ startIndex:14, type: '' },
-				{ startIndex:15, type: cssTokenTypes.TOKEN_VALUE + '.less' },
+				{ startIndex:15, type: lessTokenTypes.TOKEN_VALUE + '.less' },
 				{ startIndex:21, type: 'punctuation.less' },
 				{ startIndex:22, type: '' },
-				{ startIndex:23, type: cssTokenTypes.TOKEN_VALUE + '.less' },
+				{ startIndex:23, type: lessTokenTypes.TOKEN_VALUE + '.less' },
 				{ startIndex:28, type: 'punctuation.less' },
 				{ startIndex:29, type: '' },
-				{ startIndex:30, type: cssTokenTypes.TOKEN_VALUE + '.less' },
+				{ startIndex:30, type: lessTokenTypes.TOKEN_VALUE + '.less' },
 				{ startIndex:40, type: 'punctuation.less' }
 			]}, {
 			line: '  text-decoration: none !important;',
 			tokens: [
 				{ startIndex:0, type: '' },
-				{ startIndex:2, type: cssTokenTypes.TOKEN_PROPERTY + '.less' },
+				{ startIndex:2, type: lessTokenTypes.TOKEN_PROPERTY + '.less' },
 				{ startIndex:17, type: 'punctuation.less' },
 				{ startIndex:18, type: '' },
-				{ startIndex:19, type: cssTokenTypes.TOKEN_VALUE + '.less' },
+				{ startIndex:19, type: lessTokenTypes.TOKEN_VALUE + '.less' },
 				{ startIndex:23, type: '' },
 				{ startIndex:24, type: 'keyword.less' },
 				{ startIndex:34, type: 'punctuation.less' }
@@ -1008,10 +1008,10 @@ suite('LESS-tokenization', () => {
 			line: '  color: #000;',
 			tokens: [
 				{ startIndex:0, type: '' },
-				{ startIndex:2, type: cssTokenTypes.TOKEN_PROPERTY + '.less' },
+				{ startIndex:2, type: lessTokenTypes.TOKEN_PROPERTY + '.less' },
 				{ startIndex:7, type: 'punctuation.less' },
 				{ startIndex:8, type: '' },
-				{ startIndex:9, type: cssTokenTypes.TOKEN_VALUE + '.rgb-value.less' },
+				{ startIndex:9, type: lessTokenTypes.TOKEN_VALUE + '.rgb-value.less' },
 				{ startIndex:13, type: 'punctuation.less' }
 			]}, {
 			line: '  }',
@@ -1028,19 +1028,19 @@ suite('LESS-tokenization', () => {
 				{ startIndex:1, type: '' },
 				{ startIndex:2, type: 'punctuation.curly.less' },
 				{ startIndex:3, type: '' },
-				{ startIndex:4, type: cssTokenTypes.TOKEN_PROPERTY + '.less' },
+				{ startIndex:4, type: lessTokenTypes.TOKEN_PROPERTY + '.less' },
 				{ startIndex:11, type: 'punctuation.less' },
 				{ startIndex:12, type: '' },
-				{ startIndex:13, type: cssTokenTypes.TOKEN_VALUE + '.numeric.less' },
-				{ startIndex:14, type: cssTokenTypes.TOKEN_VALUE + '.unit.less' },
+				{ startIndex:13, type: lessTokenTypes.TOKEN_VALUE + '.numeric.less' },
+				{ startIndex:14, type: lessTokenTypes.TOKEN_VALUE + '.unit.less' },
 				{ startIndex:16, type: '' },
 				{ startIndex:17, type: 'operator.less' },
-				{ startIndex:18, type: cssTokenTypes.TOKEN_VALUE + '.numeric.less' },
-				{ startIndex:19, type: cssTokenTypes.TOKEN_VALUE + '.unit.less' },
+				{ startIndex:18, type: lessTokenTypes.TOKEN_VALUE + '.numeric.less' },
+				{ startIndex:19, type: lessTokenTypes.TOKEN_VALUE + '.unit.less' },
 				{ startIndex:21, type: '' },
 				{ startIndex:22, type: 'operator.less' },
-				{ startIndex:23, type: cssTokenTypes.TOKEN_VALUE + '.numeric.less' },
-				{ startIndex:26, type: cssTokenTypes.TOKEN_VALUE + '.unit.less' },
+				{ startIndex:23, type: lessTokenTypes.TOKEN_VALUE + '.numeric.less' },
+				{ startIndex:26, type: lessTokenTypes.TOKEN_VALUE + '.unit.less' },
 				{ startIndex:28, type: 'punctuation.less' },
 				{ startIndex:29, type: '' },
 				{ startIndex:30, type: 'punctuation.curly.less' }
@@ -1051,11 +1051,11 @@ suite('LESS-tokenization', () => {
 			[{
 			line: 'h1 /*comment*/ p {',
 			tokens: [
-				{ startIndex:0, type: cssTokenTypes.TOKEN_SELECTOR_TAG + '.less' },
+				{ startIndex:0, type: lessTokenTypes.TOKEN_SELECTOR_TAG + '.less' },
 				{ startIndex:2, type: '' },
 				{ startIndex:3, type: 'comment.less' },
 				{ startIndex:14, type: '' },
-				{ startIndex:15, type: cssTokenTypes.TOKEN_SELECTOR_TAG + '.less' },
+				{ startIndex:15, type: lessTokenTypes.TOKEN_SELECTOR_TAG + '.less' },
 				{ startIndex:16, type: '' },
 				{ startIndex:17, type: 'punctuation.curly.less', bracket: Modes.Bracket.Open }
 			]}],
@@ -1066,7 +1066,7 @@ suite('LESS-tokenization', () => {
 			[{
 			line: 'h1 /*com',
 			tokens: [
-				{ startIndex:0, type: cssTokenTypes.TOKEN_SELECTOR_TAG + '.less' },
+				{ startIndex:0, type: lessTokenTypes.TOKEN_SELECTOR_TAG + '.less' },
 				{ startIndex:2, type: '' },
 				{ startIndex:3, type: 'comment.less' }
 			]}, {
@@ -1074,7 +1074,7 @@ suite('LESS-tokenization', () => {
 			tokens: [
 				{ startIndex:0, type: 'comment.less' },
 				{ startIndex:6, type: '' },
-				{ startIndex:7, type: cssTokenTypes.TOKEN_SELECTOR_TAG + '.less' }
+				{ startIndex:7, type: lessTokenTypes.TOKEN_SELECTOR_TAG + '.less' }
 			]}],
 
 			// CSS ID rule
@@ -1085,7 +1085,7 @@ suite('LESS-tokenization', () => {
 			[{
 			line: '#myID {',
 			tokens: [
-				{ startIndex:0, type: cssTokenTypes.TOKEN_SELECTOR + '.id.less' },
+				{ startIndex:0, type: lessTokenTypes.TOKEN_SELECTOR + '.id.less' },
 				{ startIndex:5, type: '' },
 				{ startIndex:6, type: 'punctuation.curly.less', bracket: Modes.Bracket.Open }
 			]}],
@@ -1096,7 +1096,7 @@ suite('LESS-tokenization', () => {
 			[{
 			line: '.myID {',
 			tokens: [
-				{ startIndex:0, type: cssTokenTypes.TOKEN_SELECTOR + '.class.less' },
+				{ startIndex:0, type: lessTokenTypes.TOKEN_SELECTOR + '.class.less' },
 				{ startIndex:5, type: '' },
 				{ startIndex:6, type: 'punctuation.curly.less', bracket: Modes.Bracket.Open }
 			]}],
@@ -1126,7 +1126,7 @@ suite('LESS-tokenization', () => {
 			line: '  content: "con\\',
 			tokens: [
 				{ startIndex:0, type: '' },
-				{ startIndex:2, type: cssTokenTypes.TOKEN_PROPERTY + '.less' },
+				{ startIndex:2, type: lessTokenTypes.TOKEN_PROPERTY + '.less' },
 				{ startIndex:9, type: 'punctuation.less' },
 				{ startIndex:10, type: '' },
 				{ startIndex:11, type: 'string.punctuation.less', bracket: Modes.Bracket.Open },
@@ -1148,7 +1148,7 @@ suite('LESS-tokenization', () => {
 			line: '  content: "";',
 			tokens: [
 				{ startIndex:0, type: '' },
-				{ startIndex:2, type: cssTokenTypes.TOKEN_PROPERTY + '.less' },
+				{ startIndex:2, type: lessTokenTypes.TOKEN_PROPERTY + '.less' },
 				{ startIndex:9, type: 'punctuation.less' },
 				{ startIndex:10, type: '' },
 				{ startIndex:11, type: 'string.punctuation.less', bracket: Modes.Bracket.Open },
@@ -1163,7 +1163,7 @@ suite('LESS-tokenization', () => {
 			line: '  _content: "";',
 			tokens: [
 				{ startIndex:0, type: '' },
-				{ startIndex:2, type: cssTokenTypes.TOKEN_PROPERTY + '.less' },
+				{ startIndex:2, type: lessTokenTypes.TOKEN_PROPERTY + '.less' },
 				{ startIndex:10, type: 'punctuation.less' },
 				{ startIndex:11, type: '' },
 				{ startIndex:12, type: 'string.punctuation.less', bracket: Modes.Bracket.Open },
@@ -1185,7 +1185,7 @@ suite('LESS-tokenization', () => {
 			line: '  font-family: "Opificio";',
 			tokens: [
 				{ startIndex:0, type: '' },
-				{ startIndex:2, type: cssTokenTypes.TOKEN_PROPERTY + '.less' },
+				{ startIndex:2, type: lessTokenTypes.TOKEN_PROPERTY + '.less' },
 				{ startIndex:13, type: 'punctuation.less' },
 				{ startIndex:14, type: '' },
 				{ startIndex:15, type: 'string.punctuation.less', bracket: Modes.Bracket.Open },
@@ -1207,7 +1207,7 @@ suite('LESS-tokenization', () => {
 			[{
 			line: 'p{}',
 			tokens: [
-				{ startIndex:0, type: cssTokenTypes.TOKEN_SELECTOR_TAG + '.less' },
+				{ startIndex:0, type: lessTokenTypes.TOKEN_SELECTOR_TAG + '.less' },
 				{ startIndex:1, type: 'punctuation.curly.less', bracket: Modes.Bracket.Open },
 				{ startIndex:2, type: 'punctuation.curly.less', bracket: Modes.Bracket.Close }
 			]}],
@@ -1215,7 +1215,7 @@ suite('LESS-tokenization', () => {
 			[{
 			line: 'p:nth() {}',
 			tokens: [
-				{ startIndex:0, type: cssTokenTypes.TOKEN_SELECTOR_TAG + '.less' },
+				{ startIndex:0, type: lessTokenTypes.TOKEN_SELECTOR_TAG + '.less' },
 				{ startIndex:5, type: 'punctuation.parenthesis.less', bracket: Modes.Bracket.Open },
 				{ startIndex:6, type: 'punctuation.parenthesis.less', bracket: Modes.Bracket.Close },
 				{ startIndex:7, type: '' },
@@ -1271,13 +1271,13 @@ suite('LESS-tokenization', () => {
 			]}, {
 			line: '.rule1{}',
 			tokens: [
-				{ startIndex:0, type: cssTokenTypes.TOKEN_SELECTOR + '.class.less' },
+				{ startIndex:0, type: lessTokenTypes.TOKEN_SELECTOR + '.class.less' },
 				{ startIndex:6, type: 'punctuation.curly.less', bracket: Modes.Bracket.Open },
 				{ startIndex:7, type: 'punctuation.curly.less', bracket: Modes.Bracket.Close }
 			]}, {
 			line: '.rule2{}',
 			tokens: [
-				{ startIndex:0, type: cssTokenTypes.TOKEN_SELECTOR + '.class.less' },
+				{ startIndex:0, type: lessTokenTypes.TOKEN_SELECTOR + '.class.less' },
 				{ startIndex:6, type: 'punctuation.curly.less', bracket: Modes.Bracket.Open },
 				{ startIndex:7, type: 'punctuation.curly.less', bracket: Modes.Bracket.Close }
 			]}],
@@ -1288,27 +1288,27 @@ suite('LESS-tokenization', () => {
 			tokens: [
 				{ startIndex:0, type: 'variable.less' },
 				{ startIndex:18, type: '' },
-				{ startIndex:19, type: cssTokenTypes.TOKEN_SELECTOR_TAG + '.less' },
+				{ startIndex:19, type: lessTokenTypes.TOKEN_SELECTOR_TAG + '.less' },
 				{ startIndex:36, type: '' },
 				{ startIndex:37, type: 'punctuation.curly.less', bracket: Modes.Bracket.Open }
 			]}, {
 			line: '  from {',
 			tokens: [
 				{ startIndex:0, type: '' },
-				{ startIndex:2, type: cssTokenTypes.TOKEN_SELECTOR_TAG + '.less' },
+				{ startIndex:2, type: lessTokenTypes.TOKEN_SELECTOR_TAG + '.less' },
 				{ startIndex:6, type: '' },
 				{ startIndex:7, type: 'punctuation.curly.less' }
 			]}, {
 			line: '  -webkit-transform: rotate(0deg);',
 			tokens: [
 				{ startIndex:0, type: '' },
-				{ startIndex:2, type: cssTokenTypes.TOKEN_PROPERTY + '.less' },
+				{ startIndex:2, type: lessTokenTypes.TOKEN_PROPERTY + '.less' },
 				{ startIndex:19, type: 'punctuation.less' },
 				{ startIndex:20, type: '' },
-				{ startIndex:21, type: cssTokenTypes.TOKEN_VALUE + '.less' },
+				{ startIndex:21, type: lessTokenTypes.TOKEN_VALUE + '.less' },
 				{ startIndex:27, type: 'punctuation.parenthesis.less' },
-				{ startIndex:28, type: cssTokenTypes.TOKEN_VALUE + '.numeric.less' },
-				{ startIndex:29, type: cssTokenTypes.TOKEN_VALUE + '.unit.less' },
+				{ startIndex:28, type: lessTokenTypes.TOKEN_VALUE + '.numeric.less' },
+				{ startIndex:29, type: lessTokenTypes.TOKEN_VALUE + '.unit.less' },
 				{ startIndex:32, type: 'punctuation.parenthesis.less' },
 				{ startIndex:33, type: 'punctuation.less' }
 			]}, {
@@ -1320,20 +1320,20 @@ suite('LESS-tokenization', () => {
 			line: '  to {',
 			tokens: [
 				{ startIndex:0, type: '' },
-				{ startIndex:2, type: cssTokenTypes.TOKEN_SELECTOR_TAG + '.less' },
+				{ startIndex:2, type: lessTokenTypes.TOKEN_SELECTOR_TAG + '.less' },
 				{ startIndex:4, type: '' },
 				{ startIndex:5, type: 'punctuation.curly.less' }
 			]}, {
 			line: '  -webkit-transform: rotate(360deg);',
 			tokens: [
 				{ startIndex:0, type: '' },
-				{ startIndex:2, type: cssTokenTypes.TOKEN_PROPERTY + '.less' },
+				{ startIndex:2, type: lessTokenTypes.TOKEN_PROPERTY + '.less' },
 				{ startIndex:19, type: 'punctuation.less' },
 				{ startIndex:20, type: '' },
-				{ startIndex:21, type: cssTokenTypes.TOKEN_VALUE + '.less' },
+				{ startIndex:21, type: lessTokenTypes.TOKEN_VALUE + '.less' },
 				{ startIndex:27, type: 'punctuation.parenthesis.less' },
-				{ startIndex:28, type: cssTokenTypes.TOKEN_VALUE + '.numeric.less' },
-				{ startIndex:31, type: cssTokenTypes.TOKEN_VALUE + '.unit.less' },
+				{ startIndex:28, type: lessTokenTypes.TOKEN_VALUE + '.numeric.less' },
+				{ startIndex:31, type: lessTokenTypes.TOKEN_VALUE + '.unit.less' },
 				{ startIndex:34, type: 'punctuation.parenthesis.less' },
 				{ startIndex:35, type: 'punctuation.less' }
 			]}, {
@@ -1353,12 +1353,12 @@ suite('LESS-tokenization', () => {
 		modesUtil.assertTokenization(tokenizationSupport, [{
 			line: 'input[type= \\"submit\\"',
 			tokens: [
-				{ startIndex:0, type: cssTokenTypes.TOKEN_SELECTOR_TAG + '.less' },
+				{ startIndex:0, type: lessTokenTypes.TOKEN_SELECTOR_TAG + '.less' },
 				{ startIndex:5, type: 'punctuation.bracket.less'},
-				{ startIndex:6, type: cssTokenTypes.TOKEN_SELECTOR_TAG + '.less' },
+				{ startIndex:6, type: lessTokenTypes.TOKEN_SELECTOR_TAG + '.less' },
 				{ startIndex:10, type: 'operator.less'},
 				{ startIndex:11, type: ''},
-				{ startIndex:12, type: cssTokenTypes.TOKEN_SELECTOR_TAG + '.less'}
+				{ startIndex:12, type: lessTokenTypes.TOKEN_SELECTOR_TAG + '.less'}
 			]}
 		]);
 	});
@@ -1367,13 +1367,13 @@ suite('LESS-tokenization', () => {
 		modesUtil.assertTokenization(tokenizationSupport, [{
 			line: '.\\34 hello { -moz-foo: --myvar }',
 			tokens: [
-				{ startIndex:0, type: cssTokenTypes.TOKEN_SELECTOR + '.class.less' },
+				{ startIndex:0, type: lessTokenTypes.TOKEN_SELECTOR + '.class.less' },
 				{ startIndex:10, type: ''},
 				{ startIndex:11, type: 'punctuation.curly.less'},
 				{ startIndex:12, type: ''},
-				{ startIndex:13, type: cssTokenTypes.TOKEN_SELECTOR_TAG + '.less'},
+				{ startIndex:13, type: lessTokenTypes.TOKEN_SELECTOR_TAG + '.less'},
 				{ startIndex:22, type: ''},
-				{ startIndex:23, type: cssTokenTypes.TOKEN_SELECTOR_TAG + '.less'},
+				{ startIndex:23, type: lessTokenTypes.TOKEN_SELECTOR_TAG + '.less'},
 				{ startIndex:30, type: ''},
 				{ startIndex:31, type: 'punctuation.curly.less'},
 			]}

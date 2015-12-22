@@ -41,7 +41,7 @@ var baseModules = [
 // Build
 
 var builtInExtensions = {
-	'jrieken.vscode-omnisharp': '0.2.0',
+	'jrieken.vscode-omnisharp': '0.3.0',
 };
 
 var vscodeEntryPoints = _.flatten([
@@ -166,7 +166,8 @@ function packageTask(platform, arch, opts) {
 			'extensions/**',
 			'!extensions/*/src/**',
 			'!extensions/*/out/**/test/**',
-			'!extensions/typescript/bin/**'
+			'!extensions/typescript/bin/**',
+			'!extensions/vscode-api-tests/**'
 		], { base: '.' });
 
 		var pluginHostSourceMap = gulp.src(out + '/vs/workbench/node/pluginHostProcess.js.map', { base: '.' })
@@ -188,7 +189,9 @@ function packageTask(platform, arch, opts) {
 
 		var deps = gulp.src(depsSrc, { base: '.', dot: true })
 			.pipe(util.cleanNodeModule('fsevents', ['binding.gyp', 'fsevents.cc', 'build/**', 'src/**', 'test/**'], true))
-			.pipe(util.cleanNodeModule('oniguruma', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], true));
+			.pipe(util.cleanNodeModule('alexandrudima-oniguruma', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], true))
+			.pipe(util.cleanNodeModule('windows-mutex', ['binding.gyp', 'build/**', 'src/**'], true))
+			.pipe(util.cleanNodeModule('native-keymap', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], true));
 
 		var resources = gulp.src('resources/*', { base: '.' });
 
@@ -217,7 +220,7 @@ function packageTask(platform, arch, opts) {
 		var result = all
 			.pipe(util.fixWin32DirectoryPermissions())
 			.pipe(electron(_.extend({}, config, { platform: platform, arch: arch })))
-			.pipe(filter(['**', '!LICENSE', '!version']));
+			.pipe(filter(['**', '!LICENSE', '!LICENSES.chromium.html', '!version']));
 
 		if (platform === 'win32') {
 			result = es.merge(result, gulp.src('resources/win32/bin/**', { base: 'resources/win32' }));

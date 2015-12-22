@@ -6,10 +6,7 @@
 'use strict';
 
 import {Promise} from 'vs/base/common/winjs.base';
-import { Client } from 'vs/base/node/service.cp';
-import types = require('vs/base/common/types');
-import events = require('vs/base/common/eventEmitter');
-import arrays = require('vs/base/common/arrays');
+import {Client} from 'vs/base/node/service.cp';
 import uri from 'vs/base/common/uri';
 import {EventType} from 'vs/platform/files/common/files';
 import {toFileChangesEvent, IRawFileChange} from 'vs/workbench/services/files/node/watcher/common';

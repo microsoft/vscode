@@ -9,26 +9,24 @@ import {Promise, TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import {ThrottledDelayer} from 'vs/base/common/async';
 import types = require('vs/base/common/types');
-import strings = require('vs/base/common/strings');
+import {isWindows} from 'vs/base/common/platform';
 import scorer = require('vs/base/common/scorer');
 import paths = require('vs/base/common/paths');
 import filters = require('vs/base/common/filters');
 import labels = require('vs/base/common/labels');
 import {IRange} from 'vs/editor/common/editorCommon';
 import {ListenerUnbind} from 'vs/base/common/eventEmitter';
-import {IAutoFocus} from 'vs/base/parts/quickopen/browser/quickOpen';
+import {compareByPrefix} from 'vs/base/common/comparers';
+import {IAutoFocus} from 'vs/base/parts/quickopen/common/quickOpen';
 import {QuickOpenEntry, QuickOpenModel} from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import {QuickOpenHandler} from 'vs/workbench/browser/quickopen';
 import {FileEntry, OpenFileHandler} from 'vs/workbench/parts/search/browser/openFileHandler';
-import {OpenSymbolHandler as _OpenSymbolHandler} from 'vs/workbench/parts/search/browser/openSymbolHandler';
+import {OpenSymbolHandler} from 'vs/workbench/parts/search/browser/openSymbolHandler';
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {ISearchConfiguration} from 'vs/platform/search/common/search';
 import {IConfigurationService, IConfigurationServiceEvent, ConfigurationServiceEventTypes} from 'vs/platform/configuration/common/configuration';
-
-// OpenSymbolHandler is used from an extension and must be in the main bundle file so it can load
-export const OpenSymbolHandler = _OpenSymbolHandler
 
 export class OpenAnythingHandler extends QuickOpenHandler {
 	private static LINE_COLON_PATTERN = /[#|:](\d*)([#|:](\d*))?$/;
@@ -37,14 +35,15 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 	private static SYMBOL_SEARCH_SUBSEQUENT_TIMEOUT = 100;
 	private static SEARCH_DELAY = 300; // This delay accommodates for the user typing a word and then stops typing to start searching
 
-	private static MAX_DISPLAYED_RESULTS = 2048;
+	private static MAX_DISPLAYED_RESULTS = 1024;
 
-	private openSymbolHandler: _OpenSymbolHandler;
+	private openSymbolHandler: OpenSymbolHandler;
 	private openFileHandler: OpenFileHandler;
 	private resultsToSearchCache: { [searchValue: string]: QuickOpenEntry[]; };
 	private delayer: ThrottledDelayer<QuickOpenModel>;
 	private pendingSearch: TPromise<QuickOpenModel>;
 	private isClosed: boolean;
+	private scorerCache: {[key: string]: number};
 	private fuzzyMatchingEnabled: boolean;
 	private configurationListenerUnbind: ListenerUnbind;
 
@@ -57,13 +56,14 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 		super();
 
 		// Instantiate delegate handlers
-		this.openSymbolHandler = instantiationService.createInstance(_OpenSymbolHandler);
+		this.openSymbolHandler = instantiationService.createInstance(OpenSymbolHandler);
 		this.openFileHandler = instantiationService.createInstance(OpenFileHandler);
 
 		this.openSymbolHandler.setStandalone(false);
 		this.openFileHandler.setStandalone(false);
 
 		this.resultsToSearchCache = Object.create(null);
+		this.scorerCache = Object.create(null);
 		this.delayer = new ThrottledDelayer<QuickOpenModel>(OpenAnythingHandler.SEARCH_DELAY);
 
 		this.updateFuzzyMatching(contextService.getOptions().globalSettings.settings);
@@ -76,12 +76,17 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 	}
 
 	private updateFuzzyMatching(configuration: ISearchConfiguration): void {
-		this.fuzzyMatchingEnabled = configuration.search && configuration.search.fuzzyFilePicker;
+		this.fuzzyMatchingEnabled = configuration.filePicker && configuration.filePicker.alternateFileNameMatching;
 		this.openFileHandler.setFuzzyMatchingEnabled(this.fuzzyMatchingEnabled);
 	}
 
 	public getResults(searchValue: string): TPromise<QuickOpenModel> {
 		searchValue = searchValue.trim();
+
+		// Help Windows users to search for paths when using slash
+		if (isWindows) {
+			searchValue = searchValue.replace(/\//g, '\\');
+		}
 
 		// Cancel any pending search
 		this.cancelPendingSearch();
@@ -254,7 +259,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 
 		// Pattern match on results and adjust highlights
 		let results: QuickOpenEntry[] = [];
-		const searchInPath = searchValue.indexOf(paths.nativeSep) >= 0;
+		const searchInPath = this.fuzzyMatchingEnabled || searchValue.indexOf(paths.nativeSep) >= 0;
 		for (let i = 0; i < cachedEntries.length; i++) {
 			let entry = cachedEntries[i];
 
@@ -264,7 +269,8 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 			}
 
 			// Check if this entry is a match for the search value
-			let targetToMatch = searchInPath ? labels.getPathLabel(entry.getResource(), this.contextService) : entry.getLabel();
+			const resource = entry.getResource(); // can be null for symbol results!
+			let targetToMatch = searchInPath && resource ? labels.getPathLabel(resource, this.contextService) : entry.getLabel();
 			if (!filters.matchesFuzzy(searchValue, targetToMatch, this.fuzzyMatchingEnabled)) {
 				continue;
 			}
@@ -286,25 +292,60 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 			}
 		});
 
-		return results;
+		// Cap the number of results to make the view snappy
+		const viewResults = results.length > OpenAnythingHandler.MAX_DISPLAYED_RESULTS ? results.slice(0, OpenAnythingHandler.MAX_DISPLAYED_RESULTS) : results;
+
+		return viewResults;
 	}
 
 	private sort(elementA: QuickOpenEntry, elementB: QuickOpenEntry, lookFor: string, enableFuzzyScoring): number {
 
 		// Fuzzy scoring is special
 		if (enableFuzzyScoring) {
-			const labelAScore = scorer.score(elementA.getLabel(), lookFor);
-			const labelBScore = scorer.score(elementB.getLabel(), lookFor);
+			const labelA = elementA.getLabel();
+			const labelB = elementB.getLabel();
+
+			// treat prefix matches highest in any case
+			const prefixCompare = compareByPrefix(labelA, labelB, lookFor);
+			if (prefixCompare) {
+				return prefixCompare;
+			}
+
+			// Give higher importance to label score
+			const labelAScore = scorer.score(labelA, lookFor, this.scorerCache);
+			const labelBScore = scorer.score(labelB, lookFor, this.scorerCache);
+
+			// Useful for understanding the scoring
+			// elementA.setPrefix(labelAScore + ' ');
+			// elementB.setPrefix(labelBScore + ' ');
 
 			if (labelAScore !== labelBScore) {
 				return labelAScore > labelBScore ? -1 : 1;
 			}
 
-			const descriptionAScore = scorer.score(elementA.getDescription(), lookFor);
-			const descriptionBScore = scorer.score(elementB.getDescription(), lookFor);
+			// Score on full resource path comes next (can be null for symbols!)
+			let resourceA = elementA.getResource();
+			let resourceB = elementB.getResource();
+			if (resourceA && resourceB) {
+				const resourceAScore = scorer.score(resourceA.fsPath, lookFor, this.scorerCache);
+				const resourceBScore = scorer.score(resourceB.fsPath, lookFor, this.scorerCache);
 
-			if (descriptionAScore !== descriptionBScore) {
-				return descriptionAScore > descriptionBScore ? -1 : 1;
+				// Useful for understanding the scoring
+				// elementA.setPrefix(elementA.getPrefix() + ' ' + resourceAScore + ': ');
+				// elementB.setPrefix(elementB.getPrefix() + ' ' + resourceBScore + ': ');
+
+				if (resourceAScore !== resourceBScore) {
+					return resourceAScore > resourceBScore ? -1 : 1;
+				}
+			}
+
+			// At this place, the scores are identical so we check for string lengths and favor shorter ones
+			if (labelA.length !== labelB.length) {
+				return labelA.length < labelB.length ? -1 : 1;
+			}
+
+			if (resourceA && resourceB && resourceA.fsPath.length !== resourceB.fsPath.length) {
+				return resourceA.fsPath.length < resourceB.fsPath.length ? -1 : 1;
 			}
 		}
 
@@ -329,6 +370,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 
 		// Clear Cache
 		this.resultsToSearchCache = Object.create(null);
+		this.scorerCache = Object.create(null);
 
 		// Propagate
 		this.openSymbolHandler.onClose(canceled);

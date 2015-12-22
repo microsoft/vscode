@@ -5,13 +5,13 @@
 'use strict';
 
 import {sequence} from 'vs/base/common/async';
-import {IModel, IPosition, IRange} from 'vs/editor/common/editorCommon';
+import {IModel, IPosition} from 'vs/editor/common/editorCommon';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {mixin} from 'vs/base/common/objects';
 import {onUnexpectedError, illegalArgument} from 'vs/base/common/errors';
 import {ISuggestSupport, ISuggestResult} from 'vs/editor/common/modes';
 import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
 import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
+import {getSnippets} from 'vs/editor/common/modes/modesRegistry';
 
 export var CONTEXT_SUGGEST_WIDGET_VISIBLE = 'suggestWidgetVisible';
 export var CONTEXT_SUGGESTION_SUPPORTS_ACCEPT_ON_KEY = 'suggestionSupportsAcceptOnKey';
@@ -41,54 +41,24 @@ export function suggest(model: IModel, position: IPosition, triggerCharacter: st
 			}
 
 			// for each support in the group ask for suggestions
-			let promises = supports.map(support => {
+			const promises = supports.map(support => {
 				return support.suggest(resource, position, triggerCharacter).then(values => {
 
-					let result: ISuggestResult2[] = [];
+					const result: ISuggestResult2[] = [];
 					for (let suggestResult of values) {
 
 						if (!suggestResult
 							|| !Array.isArray(suggestResult.suggestions)
 							|| suggestResult.suggestions.length === 0) {
-
 							continue;
 						}
 
-						const suggestions2: ISuggestResult2 = {
+						result.push({
 							support,
 							currentWord: suggestResult.currentWord,
 							incomplete: suggestResult.incomplete,
-							overwriteAfter: suggestResult.overwriteAfter,
-							overwriteBefore: suggestResult.overwriteBefore,
 							suggestions: suggestResult.suggestions
-						}
-
-						const defaultRange: IRange = {
-							startLineNumber: position.lineNumber,
-							startColumn: position.column,
-							endLineNumber: position.lineNumber,
-							endColumn: position.column
-						};
-
-						if (typeof suggestResult.overwriteBefore === 'number' && suggestResult.overwriteBefore > 0) {
-							defaultRange.startColumn -= suggestResult.overwriteBefore;
-						}
-						if (typeof suggestResult.overwriteAfter === 'number' && suggestResult.overwriteAfter > 0) {
-							defaultRange.endColumn += suggestResult.overwriteAfter
-						}
-
-						for (let suggestion of suggestResult.suggestions) {
-							if (!suggestion.textEdit) {
-								suggestion.textEdit = {
-									text: suggestion.codeSnippet,
-									range: defaultRange
-								};
-							}
-						}
-
-						// add additional properties
-						mixin(suggestions2, suggestResult, false);
-						result.push(suggestions2);
+						});
 					}
 
 					return result;
@@ -106,7 +76,16 @@ export function suggest(model: IModel, position: IPosition, triggerCharacter: st
 		};
 	});
 
-	return sequence(factory).then(() => suggestions);
+	return sequence(factory).then(() => {
+		// add snippets to the first group
+		const snippets = getSnippets(model, position);
+		if (suggestions.length === 0) {
+			suggestions.push([snippets]);
+		} else {
+			suggestions[0].push(snippets);
+		}
+		return suggestions;
+	});
 }
 
 CommonEditorRegistry.registerDefaultLanguageCommand('_executeCompletionItemProvider', (model, position, args) => {

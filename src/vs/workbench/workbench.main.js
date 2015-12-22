@@ -71,6 +71,8 @@ define([
 
 	'vs/workbench/parts/themes/electron-browser/themes.contribution',
 
+	'vs/workbench/parts/feedback/electron-browser/feedback.contribution',
+
 	'vs/workbench/electron-browser/main.contribution',
 	'vs/workbench/electron-browser/main'
 

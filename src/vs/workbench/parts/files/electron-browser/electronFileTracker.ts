@@ -12,8 +12,8 @@ import {OpenResourcesAction} from 'vs/workbench/parts/files/browser/fileActions'
 import plat = require('vs/base/common/platform');
 import errors = require('vs/base/common/errors');
 import URI from 'vs/base/common/uri';
-import {EventType as WorkbenchEventType} from 'vs/workbench/browser/events';
-import {IUntitledEditorService} from 'vs/workbench/services/untitled/browser/untitledEditorService';
+import {EventType as WorkbenchEventType} from 'vs/workbench/common/events';
+import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {IResourceInput} from 'vs/platform/editor/common/editor';
@@ -78,8 +78,8 @@ export class FileTracker implements IWorkbenchContribution {
 		this.toUnbind.push(this.eventService.addListener(FileEventType.FILE_REVERTED, (e: LocalFileChangeEvent) => this.onTextFileReverted(e)));
 
 		// Working Files Model Change
-		this.textFileService.getWorkingFilesModel().onModelChange.add(this.onWorkingFilesModelChange, this);
-		this.toUnbind.push(() => this.textFileService.getWorkingFilesModel().onModelChange.remove(this.onWorkingFilesModelChange, this));
+		const disposable = this.textFileService.getWorkingFilesModel().onModelChange(this.onWorkingFilesModelChange, this);
+		this.toUnbind.push(() => disposable.dispose());
 
 		// Support openFiles event for existing and new files
 		ipc.on('vscode:openFiles', (request: IOpenFileRequest) => {
@@ -100,7 +100,7 @@ export class FileTracker implements IWorkbenchContribution {
 			}
 		});
 
-		this.lifecycleService.onShutdown.add(this.dispose, this);
+		this.lifecycleService.onShutdown(this.dispose, this);
 	}
 
 	private toInputs(paths: IPath[], isNew: boolean): IResourceInput[] {

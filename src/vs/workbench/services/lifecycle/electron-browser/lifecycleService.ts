@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
-import {Promise, TPromise} from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import errors = require('vs/base/common/errors');
 import {IMessageService} from 'vs/platform/message/common/message';
 import {BaseLifecycleService} from 'vs/platform/lifecycle/common/baseLifecycleService';
@@ -100,6 +99,6 @@ export class LifecycleService extends BaseLifecycleService {
 			return false; // return directly when no veto was provided
 		}
 
-		return Promise.join(vetoPromises).then(() => hasPromiseWithVeto);
+		return TPromise.join(vetoPromises).then(() => hasPromiseWithVeto);
 	}
 }
