@@ -1223,9 +1223,9 @@ export class SearchViewlet extends Viewlet {
 				if (!completed) {
 					message = nls.localize('searchCanceled', "Search was canceled before any results could be found - ");
 				} else if (hasIncludes && hasExcludes) {
-					message = nls.localize('noResultsIncludesExcludes', "No results found matching '{0}' excluding '{1}' - ", includePattern, excludePattern);
+					message = nls.localize('noResultsIncludesExcludes', "No results found in '{0}' excluding '{1}' - ", includePattern, excludePattern);
 				} else if (hasIncludes) {
-					message = nls.localize('noResultsIncludes', "No results found matching '{0}' - ", includePattern);
+					message = nls.localize('noResultsIncludes', "No results found in '{0}' - ", includePattern);
 				} else if (hasExcludes) {
 					message = nls.localize('noResultsExcludes', "No results found excluding '{0}' - ", excludePattern);
 				} else {
