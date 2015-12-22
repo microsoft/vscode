@@ -103,12 +103,20 @@ export class ElectronIntegration {
 		});
 
 		// Configuration changes
+		let previousConfiguredZoomLevel: number;
 		this.configurationService.addListener(ConfigurationServiceEventTypes.UPDATED, (e: IConfigurationServiceEvent) => {
 			let windowConfig: IWindowConfiguration = e.config;
 
 			let newZoomLevel = 0;
 			if (windowConfig.window && typeof windowConfig.window.zoomLevel === 'number') {
 				newZoomLevel = windowConfig.window.zoomLevel;
+
+				// Leave early if the configured zoom level did not change (https://github.com/Microsoft/vscode/issues/1536)
+				if (previousConfiguredZoomLevel === newZoomLevel) {
+					return;
+				}
+
+				previousConfiguredZoomLevel = newZoomLevel;
 			}
 
 			if (webFrame.getZoomLevel() !== newZoomLevel) {
