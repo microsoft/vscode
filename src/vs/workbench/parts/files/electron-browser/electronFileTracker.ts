@@ -12,7 +12,7 @@ import {OpenResourcesAction} from 'vs/workbench/parts/files/browser/fileActions'
 import plat = require('vs/base/common/platform');
 import errors = require('vs/base/common/errors');
 import URI from 'vs/base/common/uri';
-import {EventType as WorkbenchEventType} from 'vs/workbench/browser/events';
+import {EventType as WorkbenchEventType} from 'vs/workbench/common/events';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';

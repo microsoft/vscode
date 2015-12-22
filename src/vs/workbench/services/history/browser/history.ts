@@ -9,10 +9,10 @@ import platform = require('vs/base/common/platform');
 import nls = require('vs/nls');
 import {EventType} from 'vs/base/common/events';
 import {IEditorSelection} from 'vs/editor/common/editorCommon';
-import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
+import {IEditor as IBaseEditor} from 'vs/platform/editor/common/editor';
 import {TextEditorOptions, EditorInput} from 'vs/workbench/common/editor';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
-import {EditorEvent, TextEditorSelectionEvent, EventType as WorkbenchEventType, EditorInputEvent} from 'vs/workbench/browser/events';
+import {EditorEvent, TextEditorSelectionEvent, EventType as WorkbenchEventType, EditorInputEvent} from 'vs/workbench/common/events';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IHistoryService} from 'vs/workbench/services/history/common/history';
@@ -119,7 +119,7 @@ export abstract class BaseHistoryService {
 		this.onEditorEvent(event.editor);
 	}
 
-	private onEditorEvent(editor: BaseEditor): void {
+	private onEditorEvent(editor: IBaseEditor): void {
 		let input = editor ? editor.input : null;
 
 		// If an active editor is set, but is different from the one from the event, prevent update because the editor is not active.
@@ -146,9 +146,9 @@ export abstract class BaseHistoryService {
 		window.document.title = windowTitle;
 	}
 
-	protected abstract handleEditorSelectionChangeEvent(editor?: BaseEditor): void;
+	protected abstract handleEditorSelectionChangeEvent(editor?: IBaseEditor): void;
 
-	protected abstract handleEditorInputChangeEvent(editor?: BaseEditor): void;
+	protected abstract handleEditorInputChangeEvent(editor?: IBaseEditor): void;
 
 	protected getWindowTitle(input?: IEditorInput): string {
 		let title = this.doGetWindowTitle(input);
@@ -293,15 +293,15 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		});
 	}
 
-	protected handleEditorSelectionChangeEvent(editor?: BaseEditor): void {
+	protected handleEditorSelectionChangeEvent(editor?: IBaseEditor): void {
 		this.handleEditorEvent(editor, true);
 	}
 
-	protected handleEditorInputChangeEvent(editor?: BaseEditor): void {
+	protected handleEditorInputChangeEvent(editor?: IBaseEditor): void {
 		this.handleEditorEvent(editor, false);
 	}
 
-	private handleEditorEvent(editor: BaseEditor, storeSelection: boolean): void {
+	private handleEditorEvent(editor: IBaseEditor, storeSelection: boolean): void {
 		if (this.blockEditorEvent) {
 			return; // while we open an editor due to a navigation, we do not want to update our stack
 		}
@@ -334,7 +334,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		}
 	}
 
-	private handleNonTextEditorEvent(editor: BaseEditor): void {
+	private handleNonTextEditorEvent(editor: IBaseEditor): void {
 		let currentStack = this.stack[this.index];
 		if (currentStack && currentStack.input.matches(editor.input)) {
 			return; // do not push same editor input again

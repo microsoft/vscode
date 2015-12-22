@@ -19,7 +19,7 @@ import timer = require('vs/base/common/timer');
 import errors = require('vs/base/common/errors');
 import {Registry} from 'vs/platform/platform';
 import {Identifiers, Preferences} from 'vs/workbench/common/constants';
-import {EventType} from 'vs/workbench/browser/events';
+import {EventType} from 'vs/workbench/common/events';
 import {IOptions} from 'vs/workbench/common/options';
 import {IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions} from 'vs/workbench/common/contributions';
 import {IEditorRegistry, Extensions as EditorExtensions} from 'vs/workbench/browser/parts/editor/baseEditor';

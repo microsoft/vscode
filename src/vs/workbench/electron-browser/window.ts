@@ -9,7 +9,7 @@ import platform = require('vs/base/common/platform');
 import paths = require('vs/base/common/paths');
 import uri from 'vs/base/common/uri';
 import {Identifiers} from 'vs/workbench/common/constants';
-import {EventType, EditorEvent} from 'vs/workbench/browser/events';
+import {EventType, EditorEvent} from 'vs/workbench/common/events';
 import workbenchEditorCommon = require('vs/workbench/common/editor');
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';

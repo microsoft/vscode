@@ -19,7 +19,7 @@ import {TextFileEditorModel} from 'vs/workbench/parts/files/browser/editors/text
 import {TextFileService} from 'vs/workbench/parts/files/browser/textFileServices';
 import {TestEventService, TestPartService, TestStorageService, TestRequestService, TestContextService, TestWorkspace, TestEditorService, MockRequestService} from 'vs/workbench/test/browser/servicesTestUtils';
 import {Viewlet} from 'vs/workbench/browser/viewlet';
-import {EventType} from 'vs/workbench/browser/events';
+import {EventType} from 'vs/workbench/common/events';
 import {MainTelemetryService} from 'vs/platform/telemetry/browser/mainTelemetryService';
 import Severity from 'vs/base/common/severity';
 import {UntitledEditorService} from 'vs/workbench/services/untitled/browser/untitledEditorService';

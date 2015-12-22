@@ -20,7 +20,7 @@ import {join} from 'vs/base/common/paths';
 import {BaseEditor, EditorInputAction, EditorInputActionContributor, EditorDescriptor, Extensions, IEditorRegistry, IEditorInputFactory} from 'vs/workbench/browser/parts/editor/baseEditor';
 import URI from 'vs/base/common/uri';
 import {create} from 'vs/platform/instantiation/common/instantiationService';
-import {EventType, EditorEvent} from 'vs/workbench/browser/events';
+import {EventType, EditorEvent} from 'vs/workbench/common/events';
 import {Promise, TPromise} from 'vs/base/common/winjs.base';
 import {IEditorInput, IEditorModel, IEditorOptions, ITextInput, Position, IEditor, IResourceInput, ITextEditorModel} from 'vs/platform/editor/common/editor';
 

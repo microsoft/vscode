@@ -19,15 +19,14 @@ import {IStatusbarItem} from 'vs/workbench/browser/parts/statusbar/statusbar';
 import {Action} from 'vs/base/common/actions';
 import {IEditorModesRegistry, Extensions} from 'vs/editor/common/modes/modesRegistry';
 import {Registry} from 'vs/platform/platform';
-import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {UntitledEditorInput} from 'vs/workbench/browser/parts/editor/untitledEditorInput';
 import {IFileEditorInput, EncodingMode, IEncodingSupport, asFileEditorInput, getUntitledOrFileResource} from 'vs/workbench/common/editor';
 import {IDisposable, combinedDispose} from 'vs/base/common/lifecycle';
 import {ICodeEditor, IDiffEditor} from 'vs/editor/browser/editorBrowser';
 import {EndOfLineSequence, ITokenizedModel, EditorType, IEditorSelection, ITextModel, IDiffEditorModel, IEditor} from 'vs/editor/common/editorCommon';
-import {EditorEvent, TextEditorSelectionEvent} from 'vs/workbench/browser/events';
-import {EventType, ResourceEvent} from 'vs/workbench/common/events';
+import {EventType, ResourceEvent, EditorEvent, TextEditorSelectionEvent} from 'vs/workbench/common/events';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
+import {IEditor as IBaseEditor} from 'vs/platform/editor/common/editor';
 import {IWorkbenchEditorService}  from 'vs/workbench/services/editor/common/editorService';
 import {IQuickOpenService, IPickOpenEntry} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
@@ -244,7 +243,7 @@ export class EditorStatus implements IStatusbarItem {
 		}
 	}
 
-	private onEditorInputChange(e: BaseEditor): void {
+	private onEditorInputChange(e: IBaseEditor): void {
 		this.onSelectionChange(e);
 		this.onModeChange(e);
 		this.onEOLChange(e);
@@ -252,7 +251,7 @@ export class EditorStatus implements IStatusbarItem {
 		this.onTabFocusModeChange(e);
 	}
 
-	private onModeChange(e: BaseEditor): void {
+	private onModeChange(e: IBaseEditor): void {
 		if (e && !this.isActiveEditor(e)) {
 			return;
 		}
@@ -279,7 +278,7 @@ export class EditorStatus implements IStatusbarItem {
 		this.updateState(info);
 	}
 
-	private onSelectionChange(e: BaseEditor): void {
+	private onSelectionChange(e: IBaseEditor): void {
 		if (e && !this.isActiveEditor(e)) {
 			return;
 		}
@@ -316,7 +315,7 @@ export class EditorStatus implements IStatusbarItem {
 		this.updateState({ selectionStatus: info });
 	}
 
-	private onEOLChange(e: BaseEditor): void {
+	private onEOLChange(e: IBaseEditor): void {
 		if (e && !this.isActiveEditor(e)) {
 			return;
 		}
@@ -335,7 +334,7 @@ export class EditorStatus implements IStatusbarItem {
 		this.updateState(info);
 	}
 
-	private onEncodingChange(e: BaseEditor): void {
+	private onEncodingChange(e: IBaseEditor): void {
 		if (e && !this.isActiveEditor(e)) {
 			return;
 		}
@@ -364,12 +363,12 @@ export class EditorStatus implements IStatusbarItem {
 		if (activeEditor) {
 			let activeResource = getUntitledOrFileResource(activeEditor.input, true);
 			if (activeResource && activeResource.toString() === resource.toString()) {
-				return this.onEncodingChange(<BaseEditor>activeEditor); // only update if the encoding changed for the active resource
+				return this.onEncodingChange(<IBaseEditor>activeEditor); // only update if the encoding changed for the active resource
 			}
 		}
 	}
 
-	private onTabFocusModeChange(e: BaseEditor): void {
+	private onTabFocusModeChange(e: IBaseEditor): void {
 		if (e && !this.isActiveEditor(e)) {
 			return;
 		}
@@ -384,7 +383,7 @@ export class EditorStatus implements IStatusbarItem {
 		this.updateState(info);
 	}
 
-	private isActiveEditor(e: BaseEditor): boolean {
+	private isActiveEditor(e: IBaseEditor): boolean {
 		let activeEditor = this.editorService.getActiveEditor();
 
 		return activeEditor && e && activeEditor === e;

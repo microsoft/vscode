@@ -8,8 +8,7 @@
 import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
 import {Event, PropertyChangeEvent} from 'vs/base/common/events';
-import {EditorEvent} from 'vs/workbench/browser/events';
-import {CommandEvent, ViewletEvent} from 'vs/workbench/common/events';
+import {CommandEvent, ViewletEvent, EditorEvent} from 'vs/workbench/common/events';
 import {LocalFileChangeEvent} from 'vs/workbench/parts/files/common/files';
 import {FileImportedEvent} from 'vs/workbench/parts/files/browser/fileActions';
 

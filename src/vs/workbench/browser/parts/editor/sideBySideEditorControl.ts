@@ -23,7 +23,7 @@ import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {EditorInput, IInputStatus, TextEditorOptions} from 'vs/workbench/common/editor';
 import {DiffEditorInput} from 'vs/workbench/browser/parts/editor/diffEditorInput';
 import {EventType as BaseEventType} from 'vs/base/common/events';
-import {EditorInputEvent, EventType as WorkbenchEventType} from 'vs/workbench/browser/events';
+import {EditorInputEvent, EventType as WorkbenchEventType} from 'vs/workbench/common/events';
 import DOM = require('vs/base/browser/dom');
 import {IActionItem, ActionsOrientation} from 'vs/base/browser/ui/actionbar/actionbar';
 import {ToolBar} from 'vs/base/browser/ui/toolbar/toolbar';

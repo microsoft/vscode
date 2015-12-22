@@ -4,8 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {Event} from 'vs/base/common/events';
 import URI from 'vs/base/common/uri';
+import {Event} from 'vs/base/common/events';
+import {IEditorSelection} from 'vs/editor/common/editorCommon';
+import CommonEvents = require('vs/workbench/common/events');
+import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
+import {IEditor} from 'vs/platform/editor/common/editor';
+import {EditorInput, EditorOptions} from 'vs/workbench/common/editor';
+import {Position} from 'vs/platform/editor/common/editor';
 
 /**
  * All workbench events are listed here. For DOM events, see Monaco.Base.DomUtils.EventType.
@@ -133,6 +139,63 @@ export class EventType {
 	 * assumption on workbench options after this event is emitted.
 	 */
 	static WORKBENCH_OPTIONS_CHANGED = 'workbenchOptionsChanged';
+}
+
+/**
+ * Editor events are being emitted when the editor input changes, shows, is being saved or when the editor content changes.
+ */
+export class EditorEvent extends Event {
+	public editor: IEditor;
+	public editorId: string;
+	public editorInput: EditorInput;
+	public editorOptions: EditorOptions;
+	public position: Position;
+
+	private prevented: boolean;
+
+	constructor(editor: IEditor, editorId: string, editorInput: EditorInput, editorOptions: EditorOptions, position: Position, originalEvent?: any) {
+		super(originalEvent);
+
+		this.editor = editor;
+		this.editorId = editorId;
+		this.editorInput = editorInput;
+		this.editorOptions = editorOptions;
+		this.position = position;
+	}
+
+	public prevent(): void {
+		this.prevented = true;
+	}
+
+	public isPrevented(): boolean {
+		return this.prevented;
+	}
+}
+
+/**
+ * Editor input events are being emitted when the editor input state changes.
+ */
+export class EditorInputEvent extends Event {
+	public editorInput: EditorInput;
+
+	constructor(editorInput: EditorInput, originalEvent?: any) {
+		super(originalEvent);
+
+		this.editorInput = editorInput;
+	}
+}
+
+/**
+ * A subclass of EditorEvent for text editor selection changes.
+ */
+export class TextEditorSelectionEvent extends EditorEvent {
+	public selection: IEditorSelection;
+
+	constructor(selection: IEditorSelection, editor: IEditor, editorId: string, editorInput: EditorInput, editorOptions: EditorOptions, position: Position, originalEvent?: any) {
+		super(editor, editorId, editorInput, editorOptions, position, originalEvent);
+
+		this.selection = selection;
+	}
 }
 
 /**

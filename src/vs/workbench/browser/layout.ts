@@ -6,7 +6,7 @@
 
 import {Dimension, Builder, Box} from 'vs/base/browser/builder';
 import {Preferences} from 'vs/workbench/common/constants';
-import {EditorEvent, EventType} from 'vs/workbench/browser/events';
+import {EditorEvent, EventType} from 'vs/workbench/common/events';
 import {Part} from 'vs/workbench/browser/part';
 import {QuickOpenController} from 'vs/workbench/browser/parts/quickopen/quickOpenController';
 import {Sash, ISashEvent, IVerticalSashLayoutProvider} from 'vs/base/browser/ui/sash/sash';

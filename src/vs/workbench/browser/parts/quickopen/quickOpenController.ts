@@ -20,7 +20,7 @@ import {ContributableActionProvider} from 'vs/workbench/browser/actionBarRegistr
 import {ITree, IElementCallback} from 'vs/base/parts/tree/common/tree';
 import {Registry} from 'vs/platform/platform';
 import {WorkbenchComponent} from 'vs/workbench/browser/component';
-import {EditorEvent, EventType} from 'vs/workbench/browser/events';
+import {EditorEvent, EventType} from 'vs/workbench/common/events';
 import Event, {Emitter} from 'vs/base/common/event';
 import {Identifiers} from 'vs/workbench/common/constants';
 import {Scope} from 'vs/workbench/common/memento';
