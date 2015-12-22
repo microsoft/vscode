@@ -10,7 +10,7 @@
  * acts a dictionary. The keys are strings.
  */
 export interface IStringDictionary<V> {
-	[name:string]:V;
+	[name: string]: V;
 }
 
 /**
@@ -18,14 +18,14 @@ export interface IStringDictionary<V> {
  * acts a dictionary. The keys are numbers.
  */
 export interface INumberDictionary<V> {
-	[idx:number]:V;
+	[idx: number]: V;
 }
 
-export function createStringDictionary<V>():IStringDictionary<V> {
+export function createStringDictionary<V>(): IStringDictionary<V> {
 	return Object.create(null);
 }
 
-export function createNumberDictionary<V>():INumberDictionary<V> {
+export function createNumberDictionary<V>(): INumberDictionary<V> {
 	return Object.create(null);
 }
 
@@ -37,11 +37,11 @@ export function createNumberDictionary<V>():INumberDictionary<V> {
  * @param alternate A default value this is return in case an item with
  * 	the key isn't found.
  */
-export function lookup<T>(from:IStringDictionary<T>, what:string, alternate?:T):T;
-export function lookup<T>(from:INumberDictionary<T>, what:number, alternate?:T):T;
-export function lookup<T>(from:any, what:any, alternate:T=null):T {
-	var key = String(what);
-	if(contains(from, key)) {
+export function lookup<T>(from: IStringDictionary<T>, what: string, alternate?: T): T;
+export function lookup<T>(from: INumberDictionary<T>, what: number, alternate?: T): T;
+export function lookup<T>(from: any, what: any, alternate: T = null): T {
+	const key = String(what);
+	if (contains(from, key)) {
 		return from[key];
 	}
 	return alternate;
@@ -52,16 +52,16 @@ export function lookup<T>(from:any, what:any, alternate:T=null):T {
  * Looks up a value from the set. If the set doesn't contain the
  * value it inserts and returns the given alternate value.
  */
-export function lookupOrInsert<T>(from:IStringDictionary<T>, key:string, alternate:T):T;
-export function lookupOrInsert<T>(from:IStringDictionary<T>, key:string, alternateFn:()=>T):T;
-export function lookupOrInsert<T>(from:INumberDictionary<T>, key:number, alternate:T):T;
-export function lookupOrInsert<T>(from:INumberDictionary<T>, key:number, alternateFn:()=>T):T;
-export function lookupOrInsert<T>(from:any, stringOrNumber:any, alternate:any):T {
-	var key = String(stringOrNumber);
-	if(contains(from, key)) {
+export function lookupOrInsert<T>(from: IStringDictionary<T>, key: string, alternate: T): T;
+export function lookupOrInsert<T>(from: IStringDictionary<T>, key: string, alternateFn: () => T): T;
+export function lookupOrInsert<T>(from: INumberDictionary<T>, key: number, alternate: T): T;
+export function lookupOrInsert<T>(from: INumberDictionary<T>, key: number, alternateFn: () => T): T;
+export function lookupOrInsert<T>(from: any, stringOrNumber: any, alternate: any): T {
+	const key = String(stringOrNumber);
+	if (contains(from, key)) {
 		return from[key];
 	} else {
-		if(typeof alternate === 'function') {
+		if (typeof alternate === 'function') {
 			alternate = alternate();
 		}
 		from[key] = alternate;
@@ -78,15 +78,15 @@ export function insert<T>(into: any, data: T, hashFn: (data: T) => string): void
 	into[hashFn(data)] = data;
 }
 
-var hasOwnProperty = Object.prototype.hasOwnProperty;
+const hasOwnProperty = Object.prototype.hasOwnProperty;
 
 /**
  * Returns {{true}} iff the provided object contains a property
  * with the given name.
  */
-export function contains<T>(from:IStringDictionary<T>, what:string):boolean;
-export function contains<T>(from:INumberDictionary<T>, what:number):boolean;
-export function contains<T>(from:any, what:any):boolean {
+export function contains<T>(from: IStringDictionary<T>, what: string): boolean;
+export function contains<T>(from: INumberDictionary<T>, what: number): boolean;
+export function contains<T>(from: any, what: any): boolean {
 	return hasOwnProperty.call(from, what);
 }
 
@@ -94,10 +94,10 @@ export function contains<T>(from:any, what:any):boolean {
  * Returns an array which contains all values that reside
  * in the given set.
  */
-export function values<T>(from:IStringDictionary<T>):T[];
-export function values<T>(from:INumberDictionary<T>):T[];
-export function values<T>(from:any):any[] {
-	var result:T[] = [];
+export function values<T>(from: IStringDictionary<T>): T[];
+export function values<T>(from: INumberDictionary<T>): T[];
+export function values<T>(from: any): any[] {
+	const result: T[] = [];
 	for (var key in from) {
 		if (hasOwnProperty.call(from, key)) {
 			result.push(from[key]);
@@ -110,15 +110,15 @@ export function values<T>(from:any):any[] {
  * Iterates over each entry in the provided set. The iterator allows
  * to remove elements and will stop when the callback returns {{false}}.
  */
-export function forEach<T>(from:IStringDictionary<T>, callback:(entry:{key:string; value:T;}, remove:Function)=>any):void;
-export function forEach<T>(from:INumberDictionary<T>, callback:(entry:{key:number; value:T;}, remove:Function)=>any):void;
-export function forEach<T>(from:any, callback:(entry:{key:any; value:T;}, remove:Function)=>any):void {
+export function forEach<T>(from: IStringDictionary<T>, callback: (entry: { key: string; value: T; }, remove: Function) => any): void;
+export function forEach<T>(from: INumberDictionary<T>, callback: (entry: { key: number; value: T; }, remove: Function) => any): void;
+export function forEach<T>(from: any, callback: (entry: { key: any; value: T; }, remove: Function) => any): void {
 	for (var key in from) {
 		if (hasOwnProperty.call(from, key)) {
-			var result = callback({ key:key, value: from[key] }, function() {
+			const result = callback({ key: key, value: from[key] }, function() {
 				delete from[key];
 			});
-			if(result === false) {
+			if (result === false) {
 				return;
 			}
 		}
@@ -131,8 +131,8 @@ export function forEach<T>(from:any, callback:(entry:{key:any; value:T;}, remove
  */
 export function remove<T>(from: IStringDictionary<T>, key: string): boolean;
 export function remove<T>(from: INumberDictionary<T>, key: string): boolean;
-export function remove<T>(from:any, key:string):boolean {
-	if(!hasOwnProperty.call(from, key)) {
+export function remove<T>(from: any, key: string): boolean {
+	if (!hasOwnProperty.call(from, key)) {
 		return false;
 	}
 	delete from[key];
@@ -143,8 +143,8 @@ export function remove<T>(from:any, key:string):boolean {
  * Groups the collection into a dictionary based on the provided
  * group function.
  */
-export function groupBy<T>(data: T[], groupFn: (element: T) => string): IStringDictionary<T[]>{
-	var result = createStringDictionary<T[]>();
+export function groupBy<T>(data: T[], groupFn: (element: T) => string): IStringDictionary<T[]> {
+	const result = createStringDictionary<T[]>();
 	data.forEach(element => lookupOrInsert(result, groupFn(element), []).push(element));
 	return result;
 }

@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import errors = require('vs/base/common/errors');
+import * as errors from 'vs/base/common/errors';
 import { Promise, TPromise, ValueCallback, ErrorCallback, ProgressCallback } from 'vs/base/common/winjs.base';
-import platform = require('vs/base/common/platform');
+import * as platform from 'vs/base/common/platform';
 import {CancellationTokenSource} from 'vs/base/common/cancellation';
 
 export interface PromiseLike<T> {
@@ -35,7 +35,7 @@ export function wrapAsWinJSPromise<T>(callback: (...args: any[]) => PromiseLike<
 			args.push(source.token);
 			let value = callback.apply(context, args);
 
-			if (value && typeof value['then'] === 'function') {
+			if (value && typeof (<PromiseLike<any>>value).then === 'function') {
 				value.then(c, e);
 			} else {
 				c(value);
@@ -90,10 +90,10 @@ export class Throttler {
 			this.queuedPromiseFactory = promiseFactory;
 
 			if (!this.queuedPromise) {
-				var onComplete = () => {
+				const onComplete = () => {
 					this.queuedPromise = null;
 
-					var result = this.queue(this.queuedPromiseFactory);
+					const result = this.queue(this.queuedPromiseFactory);
 					this.queuedPromiseFactory = null;
 
 					return result;
@@ -181,7 +181,7 @@ export class Delayer<T> {
 				this.completionPromise = null;
 				this.onSuccess = null;
 
-				var result = this.task();
+				const result = this.task();
 				this.task = null;
 
 				return result;
@@ -297,7 +297,7 @@ export class ShallowCancelThenPromise<T> extends TPromise<T> {
 
 	constructor(outer: TPromise<T>) {
 
-		var completeCallback: ValueCallback,
+		let completeCallback: ValueCallback,
 			errorCallback: ErrorCallback,
 			progressCallback: ProgressCallback;
 
@@ -351,9 +351,9 @@ export function always<T>(promise: TPromise<T>, f: Function): TPromise<T> {
  * promise will complete to an array of results from each promise.
  */
 export function sequence<T>(promiseFactory: ITask<TPromise<T>>[]): TPromise<T[]> {
-	var results: T[] = [];
+	const results: T[] = [];
 
-	// Reverse since we start with last element using pop()
+	// reverse since we start with last element using pop()
 	promiseFactory = promiseFactory.reverse();
 
 	function next(): Promise {
@@ -369,7 +369,7 @@ export function sequence<T>(promiseFactory: ITask<TPromise<T>>[]): TPromise<T[]>
 			results.push(result);
 		}
 
-		var n = next();
+		const n = next();
 		if (n) {
 			return n.then(thenHandler);
 		}
@@ -385,9 +385,9 @@ export interface IFunction<A, R> {
 }
 
 export function once<A, R>(fn: IFunction<A, R>): IFunction<A, R> {
-	var _this = this;
-	var didCall = false;
-	var result: R;
+	const _this = this;
+	let didCall = false;
+	let result: R;
 
 	return function() {
 		if (didCall) {
@@ -439,10 +439,10 @@ export class Limiter<T> {
 
 	private consume(): void {
 		while (this.outstandingPromises.length && this.runningPromises < this.maxDegreeOfParalellism) {
-			var iLimitedTask = this.outstandingPromises.shift();
+			const iLimitedTask = this.outstandingPromises.shift();
 			this.runningPromises++;
 
-			var promise = iLimitedTask.factory();
+			const promise = iLimitedTask.factory();
 			promise.done(iLimitedTask.c, iLimitedTask.e, iLimitedTask.p);
 			promise.done(() => this.consumed(), () => this.consumed());
 		}
