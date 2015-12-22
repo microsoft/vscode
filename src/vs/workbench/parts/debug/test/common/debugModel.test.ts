@@ -184,7 +184,8 @@ suite('Debug - Model', () => {
 		assert.equal(debugmodel.getFullExpressionName(new debugmodel.Expression(null, false), type), null);
 		assert.equal(debugmodel.getFullExpressionName(new debugmodel.Expression('son', false), type), 'son');
 
-		const son = new debugmodel.Variable(new debugmodel.Variable(new debugmodel.Variable(null, 0, 'grandfather', '75'), 0, 'father', '45'), 0, 'son', '20');
+		const scope = new debugmodel.Scope(1, 'myscope', 1, false);
+		const son = new debugmodel.Variable(new debugmodel.Variable(new debugmodel.Variable(scope, 0, 'grandfather', '75'), 0, 'father', '45'), 0, 'son', '20');
 		assert.equal(debugmodel.getFullExpressionName(son, type), 'grandfather.father.son');
 
 		const grandson = new debugmodel.Variable(son, 0, '/weird_name', '1');
