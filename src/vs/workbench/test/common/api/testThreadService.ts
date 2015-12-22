@@ -6,10 +6,8 @@
 'use strict';
 
 import {NullThreadService} from 'vs/platform/test/common/nullThreadService';
-import {create} from 'vs/base/common/types';
 import {SyncDescriptor0} from 'vs/platform/instantiation/common/descriptors';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 
 export class TestThreadService extends NullThreadService {
 
@@ -21,10 +19,12 @@ export class TestThreadService extends NullThreadService {
 		return this._callCountValue;
 	}
 
-	private set _callCount(value:number) {
+	private set _callCount(value: number) {
 		this._callCountValue = value;
 		if (this._callCountValue === 0) {
-			this._completeIdle && this._completeIdle();
+			if (this._completeIdle) {
+				this._completeIdle();
+			}
 			this._idle = undefined;
 		}
 	}
@@ -49,18 +49,19 @@ export class TestThreadService extends NullThreadService {
 
 	protected _registerAndInstantiateMainProcessActor<T>(id: string, descriptor: SyncDescriptor0<T>): T {
 
-		let _calls:{path: string; args: any[] }[] = [];
+		let _calls: {path: string; args: any[] }[] = [];
 		let _instance: any;
 
 		return this._getOrCreateProxyInstance({
-
 
 			callOnRemote: (proxyId: string, path: string, args: any[]): TPromise<any> => {
 
 				this._callCount++;
 				_calls.push({path, args});
 
-				return TPromise.timeout(0).then(() => {
+				return new TPromise<any>((c) => {
+					setTimeout(c, 0);
+				}).then(() => {
 					if (!_instance) {
 						_instance = this._instantiationService.createInstance(descriptor.ctor);
 					}
