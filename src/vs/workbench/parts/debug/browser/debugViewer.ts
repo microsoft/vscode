@@ -57,10 +57,14 @@ export function renderExpressionValue(tree: tree.ITree, arg2: debug.IExpression|
 	container.title = value;
 }
 
-export function renderVariable(tree: tree.ITree, variable: model.Variable, data: IVariableTemplateData, debugInactive: boolean): void {
+export function renderVariable(tree: tree.ITree, variable: model.Variable, data: IVariableTemplateData, debugInactive: boolean, showChanged: boolean): void {
 	data.name.textContent = `${variable.name}:`;
 	if (variable.value) {
 		renderExpressionValue(tree, variable, debugInactive, data.value);
+		if (variable.valueChanged && showChanged) {
+			// Value changed color has priority over other colors.
+			data.value.className = 'value changed';
+		}
 	} else {
 		data.value.textContent = '';
 		data.value.title = '';
@@ -435,7 +439,7 @@ export class VariablesRenderer implements tree.IRenderer {
 		if (templateId === VariablesRenderer.SCOPE_TEMPLATE_ID) {
 			this.renderScope(element, templateData);
 		} else {
-			renderVariable(tree, element, templateData, this.debugService.getState() === debug.State.Inactive);
+			renderVariable(tree, element, templateData, this.debugService.getState() === debug.State.Inactive, true);
 		}
 	}
 

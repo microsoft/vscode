@@ -122,6 +122,10 @@
 	font-size: 11px;
 }
 
+.debug-viewlet .monaco-tree-row .expression .value.changed {
+	color: #E51400;
+}
+
 .debug-viewlet .monaco-inputbox {
 	width: 100%;
 	line-height: normal;
@@ -150,6 +154,10 @@
 
 .vs-dark .debug-viewlet .debug-action.add-watch-expression {
 	background: url('add-inverse.svg') center center no-repeat;
+}
+
+.vs-dark .debug-viewlet .monaco-tree-row .expression .value.changed {
+	color: #c10;
 }
 
 /* Breakpoints */

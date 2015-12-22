@@ -186,13 +186,17 @@ export class Expression implements debug.IExpression {
 
 export class Variable implements debug.IExpression {
 
+	public static allValues: { [id: string]: string } = {};
 	// Cache children to optimize debug hover behaviour.
 	private children: TPromise<debug.IExpression[]>;
 	public value: string;
+	public valueChanged: boolean;
 
 	constructor(public parent: debug.IExpressionContainer, public reference: number, public name: string, value: string) {
 		this.children = null;
 		this.value = massageValue(value);
+		this.valueChanged = Variable.allValues[this.getId()] && Variable.allValues[this.getId()] !== value;
+		Variable.allValues[this.getId()] = value;
 	}
 
 	public getId(): string {
@@ -336,6 +340,7 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 		} else {
 			if (removeThreads) {
 				this.threads = {};
+				Variable.allValues = {};
 			} else {
 				for (var ref in this.threads) {
 					if (this.threads.hasOwnProperty(ref)) {
