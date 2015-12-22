@@ -6,7 +6,6 @@
 import assert = require('assert');
 import uri from 'vs/base/common/uri';
 import severity from 'vs/base/common/severity';
-import debug = require('vs/workbench/parts/debug/common/debug');
 import debugmodel = require('vs/workbench/parts/debug/common/debugModel');
 
 suite('Debug - Model', () => {

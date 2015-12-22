@@ -176,7 +176,7 @@ export class DebugEditorContribution implements editorcommon.IEditorContribution
 	private onKeyDown(e: keyboard.StandardKeyboardEvent): void {
 		const stopKey = env.isMacintosh ? KeyCode.Meta : KeyCode.Ctrl;
 		if (e.keyCode !== stopKey) {
-			// Do not hide hover when Ctrl/Meta is pressed
+			// do not hide hover when Ctrl/Meta is pressed
 			this.hoverWidget.hide();
 		}
 	}

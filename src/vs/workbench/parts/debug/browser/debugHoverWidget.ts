@@ -11,12 +11,12 @@ import editorcommon = require('vs/editor/common/editorCommon');
 import debug = require('vs/workbench/parts/debug/common/debug');
 import { tokenizeToHtmlContent } from 'vs/editor/common/modes/textToHtmlTokenizer';
 
-var $ = dom.emmet;
+const $ = dom.emmet;
 
 export class DebugHoverWidget implements editorbrowser.IContentWidget {
 
 	public static ID = 'debug.hoverWidget';
-	// Editor.IContentWidget.allowEditorOverflow
+	// editor.IContentWidget.allowEditorOverflow
 	public allowEditorOverflow = true;
 
 	private domNode: HTMLElement;
@@ -52,7 +52,7 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 			return;
 		}
 
-		// String magic to get the parents of the variable (a and b for a.b.foo)
+		// string magic to get the parents of the variable (a and b for a.b.foo)
 		const lineContent = this.editor.getModel().getLineContent(pos.lineNumber);
 		const namesToFind = lineContent.substring(0, lineContent.indexOf('.' + hoveringOver))
 			.split('.').map(word => word.trim()).filter(word => !!word);
@@ -71,9 +71,9 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 			// get the scopes variables
 			.map((scope: debug.IScope) => scope.getChildren(this.debugService).done((children: debug.IExpression[]) => {
 
-				// Look for our variable in the list. First find the parents of the hovered variable if there are any.
+				// look for our variable in the list. First find the parents of the hovered variable if there are any.
 				for (var i = 0; i < namesToFind.length && children; i++) {
-					// Some languages pass the type as part of the name, so need to check if the last word of the name matches.
+					// some languages pass the type as part of the name, so need to check if the last word of the name matches.
 					const filtered = children.filter(v => typeof v.name === 'string' && (namesToFind[i] === v.name || namesToFind[i] === v.name.substr(v.name.lastIndexOf(' ') + 1)));
 					if (filtered.length !== 1) {
 						break;
@@ -111,14 +111,14 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 		this.lastHoveringOver = hoveringOver;
 
 		if (variable.reference > 0 && variable.value.indexOf('function') === -1) {
-			var objectToString = '{\n';
+			let objectToString = '{\n';
 			variable.getChildren(this.debugService).then(children => {
 				if (!children) {
 					this.hide();
 					return;
 				}
 
-				for (var i = 0; i < children.length; i++) {
+				for (let i = 0; i < children.length; i++) {
 					objectToString += `   ${ children[i].name }: ${ children[i].value }`.substr(0, 80);
 					if (i < children.length - 1) {
 						objectToString += ',\n';

@@ -6,18 +6,13 @@
 import nls = require('vs/nls');
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
 import actions = require('vs/base/common/actions');
-import lifecycle = require('vs/base/common/lifecycle');
-import types = require('vs/base/common/types');
-import strings = require('vs/base/common/strings');
 import URI from 'vs/base/common/uri';
-import async = require('vs/base/common/async');
 import { isMacintosh, isLinux, isWindows } from 'vs/base/common/platform';
 import actionbar = require('vs/base/browser/ui/actionbar/actionbar');
 import dom = require('vs/base/browser/dom');
 import errors = require('vs/base/common/errors');
 import severity from 'vs/base/common/severity';
 import mouse = require('vs/base/browser/mouseEvent');
-import inputbox = require('vs/base/browser/ui/inputbox/inputBox');
 import tree = require('vs/base/parts/tree/common/tree');
 import renderer = require('vs/base/parts/tree/browser/actionsRenderer');
 import treedefaults = require('vs/base/parts/tree/browser/treeDefaults');
@@ -30,7 +25,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
-var $ = dom.emmet;
+const $ = dom.emmet;
 
 function getExpressionClassName(): string {
 	return isMacintosh ? '.expression.mac' : '.expression.win-linux'
@@ -222,7 +217,7 @@ export class ReplExpressionsRenderer implements tree.IRenderer {
 
 	private renderOutputValue(output: model.ValueOutputElement, templateData: IValueOutputTemplateData): void {
 
-		// Counter
+		// counter
 		if (output.counter > 1) {
 			templateData.counter.textContent = String(output.counter);
 			templateData.counter.className = (output.severity === severity.Warning) ? 'counter warn' : (output.severity === severity.Error) ? 'counter error' : 'counter info';
@@ -231,14 +226,14 @@ export class ReplExpressionsRenderer implements tree.IRenderer {
 			templateData.counter.className = 'counter';
 		}
 
-		// Group
+		// group
 		if (output.grouped) {
 			dom.addClass(templateData.container, 'grouped');
 		} else {
 			dom.removeClass(templateData.container, 'grouped');
 		}
 
-		// Value
+		// value
 		dom.clearNode(templateData.value);
 		let result = this.handleANSIOutput(output.value);
 		if (typeof result === 'string') {
@@ -257,7 +252,7 @@ export class ReplExpressionsRenderer implements tree.IRenderer {
 
 		for (let i = 0, len = text.length; i < len; i++) {
 
-			// Start of ANSI escape sequence (see http://ascii-table.com/ansi-escape-sequences.php)
+			// start of ANSI escape sequence (see http://ascii-table.com/ansi-escape-sequences.php)
 			if (text.charCodeAt(i) === 27) {
 				let index = i;
 				let chr = (++index < len ? text.charAt(index) : null);
@@ -279,7 +274,7 @@ export class ReplExpressionsRenderer implements tree.IRenderer {
 						code = '0';
 					}
 
-					if (chr === 'm') { // Set text color/mode.
+					if (chr === 'm') { // set text color/mode.
 
 						// only respect text-foreground ranges and ignore the values for "black" & "white" because those
 						// only make sense in combination with text-background ranges which we currently not support
@@ -296,7 +291,7 @@ export class ReplExpressionsRenderer implements tree.IRenderer {
 							tokensContainer = document.createElement('span');
 						}
 
-						// Flush text buffer if we have any
+						// flush text buffer if we have any
 						if (buffer) {
 							this.insert(this.handleLinks(buffer), currentToken || tokensContainer);
 							buffer = '';
@@ -310,13 +305,13 @@ export class ReplExpressionsRenderer implements tree.IRenderer {
 				}
 			}
 
-			// Normal text
+			// normal text
 			else {
 				buffer += text[i];
 			}
 		}
 
-		// Flush remaining text buffer if we have any
+		// flush remaining text buffer if we have any
 		if (buffer) {
 			let res = this.handleLinks(buffer);
 			if (typeof res !== 'string' || currentToken) {
@@ -398,17 +393,17 @@ export class ReplExpressionsRenderer implements tree.IRenderer {
 
 	private renderOutputKeyValue(tree: tree.ITree, output: model.KeyValueOutputElement, templateData: IKeyValueOutputTemplateData): void {
 
-		// Key
+		// key
 		if (output.key) {
 			templateData.key.textContent = `${output.key}:`;
 		} else {
 			templateData.key.textContent = '';
 		}
 
-		// Value
+		// value
 		debugviewer.renderExpressionValue(tree, output.value, false, templateData.value);
 
-		// Annotation if any
+		// annotation if any
 		if (output.annotation) {
 			templateData.annotation.className = 'annotation octicon octicon-info';
 			templateData.annotation.title = output.annotation;
@@ -417,7 +412,7 @@ export class ReplExpressionsRenderer implements tree.IRenderer {
 			templateData.annotation.title = '';
 		}
 
-		// Group
+		// group
 		if (output.grouped) {
 			dom.addClass(templateData.container, 'grouped');
 		} else {
@@ -441,7 +436,7 @@ export class ReplExpressionsActionProvider extends debugviewer.SimpleActionProvi
 	}
 
 	public getSecondaryActions(tree: tree.ITree, element: any): TPromise<actions.IAction[]> {
-		var actions: actions.IAction[] = [];
+		const actions: actions.IAction[] = [];
 		if (element instanceof model.Variable || element instanceof model.Expression) {
 			actions.push(this.instantiationService.createInstance(dbgactions.AddToWatchExpressionsAction, dbgactions.AddToWatchExpressionsAction.ID, dbgactions.AddToWatchExpressionsAction.LABEL, element));
 			actions.push(new actionbar.Separator());
@@ -473,7 +468,7 @@ export class ReplExpressionsController extends debugviewer.BaseDebugController {
 
 	/* protected */ public onLeftClick(tree: tree.ITree, element: any, eventish: treedefaults.ICancelableEvent, origin: string = 'mouse'): boolean {
 		const mouseEvent = <mouse.StandardMouseEvent> eventish;
-		// Input and output are one element in the tree => we only expand if the user clicked on the output.
+		// input and output are one element in the tree => we only expand if the user clicked on the output.
 		if ((element.reference > 0 || (element instanceof model.KeyValueOutputElement && element.getChildren().length > 0)) && mouseEvent.target.className.indexOf('input expression') === -1) {
 			super.onLeftClick(tree, element, eventish, origin);
 			tree.clearFocus();
@@ -482,7 +477,7 @@ export class ReplExpressionsController extends debugviewer.BaseDebugController {
 
 		const selection = window.getSelection();
 		if (selection.type !== 'Range' || this.lastSelectedString === selection.toString()) {
-			// Only focus the input if the user is not currently selecting.
+			// only focus the input if the user is not currently selecting.
 			this.replInput.focus();
 		}
 		this.lastSelectedString = selection.toString();
