@@ -884,6 +884,9 @@ declare namespace vscode {
 	 * A cancellation token is passed to an asynchronous or long running
 	 * operation to request cancellation, like cancelling a request
 	 * for completion items because the user continued to type.
+	 *
+	 * To get an instance of a `CancellationToken` use a
+	 * [CancellationTokenSource](#CancellationTokenSource).
 	 */
 	export interface CancellationToken {
 
@@ -2941,9 +2944,10 @@ declare namespace vscode {
 		 * @param include A glob pattern that defines the files to search for.
 		 * @param exclude A glob pattern that defines files and folders to exclude.
 		 * @param maxResults An upper-bound for the result.
+		 * @param token A token that can be used to signal cancellation to the underlying search engine.
 		 * @return A thenable that resolves to an array of resource identifiers.
 		 */
-		export function findFiles(include: string, exclude: string, maxResults?: number): Thenable<Uri[]>;
+		export function findFiles(include: string, exclude: string, maxResults?: number, token?: CancellationToken): Thenable<Uri[]>;
 
 		/**
 		 * Save all dirty files.

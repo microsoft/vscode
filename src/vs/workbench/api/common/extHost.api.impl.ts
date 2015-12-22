@@ -213,8 +213,8 @@ export class ExtHostAPIImplementation {
 			asRelativePath: (pathOrUri) => {
 				return pluginHostWorkspace.getRelativePath(pathOrUri);
 			},
-			findFiles: (include, exclude, maxResults?) => {
-				return pluginHostWorkspace.findFiles(include, exclude, maxResults);
+			findFiles: (include, exclude, maxResults?, token?) => {
+				return pluginHostWorkspace.findFiles(include, exclude, maxResults, token);
 			},
 			saveAll: (includeUntitled?) => {
 				return pluginHostWorkspace.saveAll(includeUntitled);

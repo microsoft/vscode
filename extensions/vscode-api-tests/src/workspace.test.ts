@@ -6,7 +6,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import {workspace, TextDocument, window, Position, Uri} from 'vscode';
+import {workspace, TextDocument, window, Position, Uri, CancellationTokenSource} from 'vscode';
 import {createRandomFile, deleteFile, cleanUp, pathEquals} from './utils';
 import {join, basename} from 'path';
 import * as fs from 'fs';
@@ -123,6 +123,17 @@ suite('workspace-namespace', () => {
 		return workspace.findFiles('*.js', null).then((res) => {
 			assert.equal(res.length, 1);
 			assert.equal(basename(workspace.asRelativePath(res[0])), 'far.js');
+		});
+	});
+
+	test('findFiles, cancellation', () => {
+
+		const source = new CancellationTokenSource();
+		const token = source.token; // just to get an instance first
+		source.cancel();
+
+		return workspace.findFiles('*.js', null, 100, token).then((res) => {
+			assert.equal(res, void 0);
 		});
 	});
 });
