@@ -425,10 +425,18 @@ export class ReplExpressionsRenderer implements tree.IRenderer {
 	}
 }
 
-export class ReplExpressionsActionProvider extends debugviewer.SimpleActionProvider {
+export class ReplExpressionsActionProvider implements renderer.IActionProvider {
 
 	constructor(private instantiationService: IInstantiationService) {
-		super();
+		// noop
+	}
+
+	public hasActions(tree: tree.ITree, element: any): boolean {
+		return false;
+	}
+
+	public getActions(tree: tree.ITree, element: any): TPromise<actions.IAction[]> {
+		return Promise.as([]);
 	}
 
 	public hasSecondaryActions(tree: tree.ITree, element: any): boolean {
@@ -449,6 +457,10 @@ export class ReplExpressionsActionProvider extends debugviewer.SimpleActionProvi
 
 		actions.push(this.instantiationService.createInstance(dbgactions.ClearReplAction));
 		return Promise.as(actions);
+	}
+
+	public getActionItem(tree: tree.ITree, element: any, action: actions.IAction): actionbar.IActionItem {
+		return null;
 	}
 }
 
