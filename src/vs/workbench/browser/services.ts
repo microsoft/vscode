@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {EventType, ViewletEvent, EditorEvent} from 'vs/workbench/browser/events';
+import {EditorEvent} from 'vs/workbench/browser/events';
+import {EventType, ViewletEvent} from 'vs/workbench/common/events';
 import {IEventService} from 'vs/platform/event/common/event';
 
 export abstract class ScopedService {

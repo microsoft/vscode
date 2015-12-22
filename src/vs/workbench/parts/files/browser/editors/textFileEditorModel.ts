@@ -13,7 +13,7 @@ import diagnostics = require('vs/base/common/diagnostics');
 import types = require('vs/base/common/types');
 import {IModelContentChangedEvent, EventType as EditorEventType} from 'vs/editor/common/editorCommon';
 import {IMode} from 'vs/editor/common/modes';
-import {EventType as WorkbenchEventType, ResourceEvent} from 'vs/workbench/browser/events';
+import {EventType as WorkbenchEventType, ResourceEvent} from 'vs/workbench/common/events';
 import {LocalFileChangeEvent, EventType as FileEventType, TextFileChangeEvent} from 'vs/workbench/parts/files/common/files';
 import {EncodingMode, EditorModel, IEncodingSupport} from 'vs/workbench/common/editor';
 import {BaseTextEditorModel} from 'vs/workbench/browser/parts/editor/textEditorModel';

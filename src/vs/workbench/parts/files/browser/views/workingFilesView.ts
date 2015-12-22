@@ -16,7 +16,8 @@ import {IWorkingFileEntry, IWorkingFilesModel, IWorkingFileModelChangeEvent, Loc
 import dom = require('vs/base/browser/dom');
 import {IDisposable} from 'vs/base/common/lifecycle';
 import errors = require('vs/base/common/errors');
-import {EditorEvent, EventType as WorkbenchEventType, UntitledEditorEvent} from 'vs/workbench/browser/events';
+import {EditorEvent} from 'vs/workbench/browser/events';
+import {EventType as WorkbenchEventType, UntitledEditorEvent} from 'vs/workbench/common/events';
 import {AdaptiveCollapsibleViewletView} from 'vs/workbench/browser/viewlet';
 import {CloseWorkingFileAction, SaveAllAction} from 'vs/workbench/parts/files/browser/fileActions';
 import {WorkingFileEntry} from 'vs/workbench/parts/files/browser/workingFilesModel';

@@ -25,7 +25,8 @@ import {IFileEditorInput, EncodingMode, IEncodingSupport, asFileEditorInput, get
 import {IDisposable, combinedDispose} from 'vs/base/common/lifecycle';
 import {ICodeEditor, IDiffEditor} from 'vs/editor/browser/editorBrowser';
 import {EndOfLineSequence, ITokenizedModel, EditorType, IEditorSelection, ITextModel, IDiffEditorModel, IEditor} from 'vs/editor/common/editorCommon';
-import {EventType, EditorEvent, TextEditorSelectionEvent, ResourceEvent} from 'vs/workbench/browser/events';
+import {EditorEvent, TextEditorSelectionEvent} from 'vs/workbench/browser/events';
+import {EventType, ResourceEvent} from 'vs/workbench/common/events';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
 import {IWorkbenchEditorService}  from 'vs/workbench/services/editor/common/editorService';
 import {IQuickOpenService, IPickOpenEntry} from 'vs/workbench/services/quickopen/common/quickOpenService';
