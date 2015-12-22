@@ -119,33 +119,6 @@ function renderRenameBox(debugService: debug.IDebugService, contextViewService: 
 	}));
 }
 
-export class SimpleActionProvider implements renderer.IActionProvider {
-
-	constructor() {
-		// noop
-	}
-
-	public hasActions(tree: tree.ITree, element: any): boolean {
-		return false;
-	}
-
-	public getActions(tree: tree.ITree, element: any): TPromise<actions.IAction[]> {
-		return Promise.as([]);
-	}
-
-	public hasSecondaryActions(tree: tree.ITree, element: any): boolean {
-		return false;
-	}
-
-	public getSecondaryActions(tree: tree.ITree, element: any): TPromise<actions.IAction[]> {
-		return Promise.as([]);
-	}
-
-	public getActionItem(tree: tree.ITree, element: any, action: actions.IAction): actionbar.IActionItem {
-		return null;
-	}
-}
-
 export class BaseDebugController extends treedefaults.DefaultController {
 
 	constructor(protected debugService: debug.IDebugService, private contextMenuService: IContextMenuService, private actionProvider: renderer.IActionProvider, private focusOnContextMenu = true) {
@@ -317,17 +290,20 @@ export class CallStackRenderer implements tree.IRenderer {
 
 // variables
 
-export class VariablesActionProvider extends SimpleActionProvider {
+export class VariablesActionProvider implements renderer.IActionProvider {
 
 	private instantiationService: IInstantiationService;
 
 	constructor(instantiationService: IInstantiationService) {
-		super();
 		this.instantiationService = instantiationService;
 	}
 
 	public hasActions(tree: tree.ITree, element: any): boolean {
 		return false;
+	}
+
+	public getActions(tree: tree.ITree, element: any): TPromise<actions.IAction[]> {
+		return Promise.as([]);
 	}
 
 	public hasSecondaryActions(tree: tree.ITree, element: any): boolean {
@@ -343,6 +319,10 @@ export class VariablesActionProvider extends SimpleActionProvider {
 		}
 
 		return Promise.as(actions);
+	}
+
+	public getActionItem(tree: tree.ITree, element: any, action: actions.IAction): actionbar.IActionItem {
+		return null;
 	}
 }
 
@@ -449,12 +429,11 @@ export class VariablesRenderer implements tree.IRenderer {
 
 // watch expressions
 
-export class WatchExpressionsActionProvider extends SimpleActionProvider {
+export class WatchExpressionsActionProvider implements renderer.IActionProvider {
 
 	private instantiationService: IInstantiationService;
 
 	constructor(instantiationService: IInstantiationService) {
-		super();
 		this.instantiationService = instantiationService;
 	}
 
@@ -500,6 +479,10 @@ export class WatchExpressionsActionProvider extends SimpleActionProvider {
 		}
 
 		return Promise.as(actions);
+	}
+
+	public getActionItem(tree: tree.ITree, element: any, action: actions.IAction): actionbar.IActionItem {
+		return null;
 	}
 }
 
@@ -669,10 +652,10 @@ export class WatchExpressionsController extends BaseDebugController {
 
 // breakpoints
 
-export class BreakpointsActionProvider extends SimpleActionProvider {
+export class BreakpointsActionProvider implements renderer.IActionProvider {
 
 	constructor(private instantiationService: IInstantiationService) {
-		super();
+		// noop
 	}
 
 	public hasActions(tree: tree.ITree, element: any): boolean {
@@ -716,6 +699,10 @@ export class BreakpointsActionProvider extends SimpleActionProvider {
 		actions.push(this.instantiationService.createInstance(debugactions.ReapplyBreakpointsAction, debugactions.ReapplyBreakpointsAction.ID, debugactions.ReapplyBreakpointsAction.LABEL));
 
 		return Promise.as(actions);
+	}
+
+	public getActionItem(tree: tree.ITree, element: any, action: actions.IAction): actionbar.IActionItem {
+		return null;
 	}
 }
 
