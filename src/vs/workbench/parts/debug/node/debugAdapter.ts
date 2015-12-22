@@ -69,31 +69,31 @@ export class Adapter {
 	}
 
 	public getSchemaAttributes(): any[] {
-		// Fill in the default configuration attributes shared by all adapters.
+		// fill in the default configuration attributes shared by all adapters.
 		if (this.configurationAttributes) {
 			return Object.keys(this.configurationAttributes).map(request => {
 				const attributes = this.configurationAttributes[request];
 				const defaultRequired = ['name', 'type', 'request'];
-				attributes["required"] = attributes["required"] && attributes["required"].length ? defaultRequired.concat(attributes["required"]) : defaultRequired;
-				attributes['additionalProperties'] = false;
-				attributes['type'] = 'object';
-				if (!attributes['properties']) {
-					attributes['properties'] = { };
+				attributes.required = attributes.required && attributes.required.length ? defaultRequired.concat(attributes.required) : defaultRequired;
+				attributes.additionalProperties = false;
+				attributes.type = 'object';
+				if (!attributes.properties) {
+					attributes.properties = { };
 				}
-				attributes['properties']['type'] = {
+				attributes.properties.type = {
 					enum: [this.type],
 					description: 'Type of configuration.',
 				};
-				attributes['properties']['name'] = {
+				attributes.properties.name = {
 					type: 'string',
 					description: 'Name of configuration; appears in the launch configuration drop down menu.',
 					default: 'Launch'
 				};
-				attributes['properties']['request'] = {
+				attributes.properties.request = {
 					enum: [request],
 					description: 'Request type of configuration. Can be "launch" or "attach".',
 				};
-				attributes['properties']['preLaunchTask'] = {
+				attributes.properties.preLaunchTask = {
 					type: 'string',
 					description: 'Task to run before debug session starts.'
 				};

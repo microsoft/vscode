@@ -26,7 +26,7 @@ import { IWorkspaceContextService } from 'vs/workbench/services/workspace/common
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
 
-// Debuggers extension point
+// debuggers extension point
 
 export var debuggersExtPoint = pluginsRegistry.PluginsRegistry.registerExtensionPoint<debug.IRawAdapter[]>('debuggers', {
 	description: nls.localize('vscode.extension.contributes.debuggers', 'Contributes debug adapters.'),
@@ -115,10 +115,10 @@ export var debuggersExtPoint = pluginsRegistry.PluginsRegistry.registerExtension
 	}
 });
 
-// Debug General Schema
+// debug general schema
 
 export var schemaId = 'local://schemas/launch';
-var schema: IJSONSchema = {
+const schema: IJSONSchema = {
 	id: schemaId,
 	type: 'object',
 	title: nls.localize('app.launch.json.title', "Launch configuration"),
@@ -139,7 +139,7 @@ var schema: IJSONSchema = {
 	}
 }
 
-var jsonRegistry = <jsonContributionRegistry.IJSONContributionRegistry>platform.Registry.as(jsonContributionRegistry.Extensions.JSONContribution);
+const jsonRegistry = <jsonContributionRegistry.IJSONContributionRegistry>platform.Registry.as(jsonContributionRegistry.Extensions.JSONContribution);
 jsonRegistry.registerSchema(schemaId, schema);
 jsonRegistry.addSchemaFileAssociation('/.vscode/launch.json', schemaId);
 
@@ -184,7 +184,7 @@ export class ConfigurationManager {
 								if (attribute === 'enableBreakpointsFor') {
 									Object.keys(adapter.enableBreakpointsFor).forEach(languageId => duplicate.enableBreakpointsFor[languageId] = true);
 								} else if (duplicate[attribute] && attribute !== 'type') {
-									// Give priority to the later registered extension.
+									// give priority to the later registered extension.
 									duplicate[attribute] = adapter[attribute];
 									extension.collector.error(nls.localize('duplicateDebuggerType', "Debug type '{0}' is already registered and has attribute '{1}', ignoring attribute '{1}'.", adapter.type, attribute));
 								} else {
@@ -202,7 +202,7 @@ export class ConfigurationManager {
 				});
 			});
 
-			// Update the schema to include all attributes and types from extensions.
+			// update the schema to include all attributes and types from extensions.
 			// debug.schema.properties['configurations'].items.properties.type.enum = this.adapters.map(adapter => adapter.type);
 			this.adapters.forEach(adapter => {
 				const schemaAttributes = adapter.getSchemaAttributes();
@@ -232,10 +232,10 @@ export class ConfigurationManager {
 				return;
 			}
 
-			// If the configuration name is not set yet, take the first launch config (can happen if debug viewlet has not been opened yet).
+			// if the configuration name is not set yet, take the first launch config (can happen if debug viewlet has not been opened yet).
 			const filtered = name ? config.configurations.filter(cfg => cfg.name === name) : [config.configurations[0]];
 
-			// Massage configuration attributes - append workspace path to relatvie paths, substitute variables in paths.
+			// massage configuration attributes - append workspace path to relatvie paths, substitute variables in paths.
 			this.configuration = filtered.length === 1 ? filtered[0] : null;
 			if (this.configuration) {
 				if (this.systemVariables) {
@@ -306,7 +306,7 @@ export class ConfigurationManager {
 			return Promise.as(true);
 		}
 
-		// Check package.json for 'main' or 'scripts' so we generate a more pecise 'program' attribute in launch.json.
+		// check package.json for 'main' or 'scripts' so we generate a more pecise 'program' attribute in launch.json.
 		const packageJsonUri = uri.file(paths.join(this.contextService.getWorkspace().resource.fsPath, '/package.json'));
 		return this.fileService.resolveContent(packageJsonUri).then(jsonContent => {
 			try {
@@ -322,8 +322,8 @@ export class ConfigurationManager {
 			return null;
 		}, err => null).then(program => {
 			adapter.initialConfigurations.forEach(config => {
-				if (program && config["program"]) {
-					config["program"] = program;
+				if (program && config.program) {
+					config.program = program;
 				}
 			});
 		});
@@ -337,8 +337,8 @@ export class ConfigurationManager {
 			return false;
 		}
 
-		var mode = model ? model.getMode() : null;
-		var modeId = mode ? mode.getId() : null;
+		const mode = model ? model.getMode() : null;
+		const modeId = mode ? mode.getId() : null;
 
 		return !!this.allModeIdsForBreakpoints[modeId];
 	}
