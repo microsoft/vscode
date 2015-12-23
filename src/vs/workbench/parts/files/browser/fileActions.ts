@@ -1753,7 +1753,6 @@ export class SaveAllAction extends BaseSaveAllAction {
 	protected includeUntitled(): boolean {
 		return true;
 	}
-
 }
 
 export class SaveFilesAction extends BaseSaveAllAction {

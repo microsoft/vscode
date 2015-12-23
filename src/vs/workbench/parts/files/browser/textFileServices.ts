@@ -55,7 +55,7 @@ export abstract class TextFileService implements ITextFileService {
 	private registerListeners(): void {
 		this.lifecycleService.addBeforeShutdownParticipant(this);
 		this.lifecycleService.onShutdown(this.dispose, this);
-		
+
 		this.listenerToUnbind.push(this.configurationService.addListener(ConfigurationServiceEventTypes.UPDATED, (e: IConfigurationServiceEvent) => this.onConfigurationChange(e.config)));
 	}
 
@@ -66,10 +66,16 @@ export abstract class TextFileService implements ITextFileService {
 	}
 
 	private onConfigurationChange(configuration: IFilesConfiguration): void {
+		const wasAutoSaveEnabled = this.isAutoSaveEnabled();
+
 		this.configuredAutoSaveDelay = configuration && configuration.files && configuration.files.autoSaveAfterDelay;
 
 		const autoSaveConfig = this.getAutoSaveConfiguration();
 		CACHE.getAll().forEach((model) => model.updateAutoSaveConfiguration(autoSaveConfig));
+
+		if (!wasAutoSaveEnabled && this.isAutoSaveEnabled()) {
+			this.saveAll().done(null, errors.onUnexpectedError); // save all dirty when enabling auto save
+		}
 	}
 
 	public getDirty(resource?: URI): URI[] {
