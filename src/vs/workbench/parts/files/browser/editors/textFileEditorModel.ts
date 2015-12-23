@@ -14,10 +14,9 @@ import types = require('vs/base/common/types');
 import {IModelContentChangedEvent, EventType as EditorEventType} from 'vs/editor/common/editorCommon';
 import {IMode} from 'vs/editor/common/modes';
 import {EventType as WorkbenchEventType, ResourceEvent} from 'vs/workbench/common/events';
-import {LocalFileChangeEvent, EventType as FileEventType, TextFileChangeEvent} from 'vs/workbench/parts/files/common/files';
+import {LocalFileChangeEvent, EventType as FileEventType, TextFileChangeEvent, ITextFileService, IAutoSaveConfiguration} from 'vs/workbench/parts/files/common/files';
 import {EncodingMode, EditorModel, IEncodingSupport} from 'vs/workbench/common/editor';
 import {BaseTextEditorModel} from 'vs/workbench/browser/parts/editor/textEditorModel';
-import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {IFileService, IFileStat, IFileOperationResult, FileOperationResult, IContent} from 'vs/platform/files/common/files';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
@@ -96,7 +95,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 	private bufferSavedVersionId: number;
 	private versionOnDiskStat: IFileStat;
 	private blockModelContentChange: boolean;
-	private autoSaveDelay: number;
+	private autoSaveAfterMillies: number;
 	private autoSaveEnabled: boolean;
 	private autoSavePromises: TPromise<void>[];
 	private mapPendingSaveToVersionId: { [versionId: string]: TPromise<void> };
@@ -113,10 +112,10 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 		@IModeService modeService: IModeService,
 		@IModelService modelService: IModelService,
 		@IEventService private eventService: IEventService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IFileService private fileService: IFileService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@ITelemetryService private telemetryService: ITelemetryService
+		@ITelemetryService private telemetryService: ITelemetryService,
+		@ITextFileService private textFileService: ITextFileService
 	) {
 		super(modelService, modeService);
 
@@ -133,20 +132,17 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 		this.lastDirtyTime = 0;
 		this.mapPendingSaveToVersionId = {};
 
-		this.updateOptions();
+		this.updateAutoSaveConfiguration(textFileService.getAutoSaveConfiguration());
 	}
 
-	public updateOptions(): void {
-
-		// Check for Autosave Delay Configuration
-		let options = this.contextService.getOptions();
-		if (options && types.isNumber(options.autoSaveDelay)) {
-			this.autoSaveDelay = options.autoSaveDelay;
+	public updateAutoSaveConfiguration(config: IAutoSaveConfiguration): void {
+		if (typeof config.autoSaveAfterDelay === 'number' && config.autoSaveAfterDelay > 0) {
+			this.autoSaveAfterMillies = config.autoSaveAfterDelay * 1000;
+			this.autoSaveEnabled = true;
 		} else {
-			this.autoSaveDelay = TextFileEditorModel.DEFAULT_AUTO_SAVE_DELAY;
+			this.autoSaveAfterMillies = void 0;
+			this.autoSaveEnabled = false;
 		}
-
-		this.autoSaveEnabled = (this.autoSaveDelay !== -1);
 	}
 
 	/**
@@ -385,13 +381,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 		// Cancel any currently running auto saves to make this the one that succeeds
 		this.cancelAutoSavePromises();
 
-		// Support to save without delay if configured as such
-		if (this.autoSaveDelay === 0) {
-			return this.doSave(versionId, true);
-		}
-
-		// Otherwise create new save promise and keep it
-		let promise: TPromise<void> = Promise.timeout(this.autoSaveDelay).then(() => {
+		// Create new save promise and keep it
+		let promise: TPromise<void> = Promise.timeout(this.autoSaveAfterMillies).then(() => {
 
 			// Only trigger save if the version id has not changed meanwhile
 			if (versionId === this.versionId) {
@@ -449,8 +440,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 		if (this.isBusySaving()) {
 			diag('doSave(' + versionId + ') - exit - because busy saving', this.resource, new Date());
 
-			// Avoid endless loop here and guard if autoSaveDelay is 0 (used by tests only)
-			if (this.autoSaveDelay > 0) {
+			// Avoid endless loop here and guard if auto save is disabled
+			if (this.autoSaveEnabled) {
 				return this.doAutoSave(versionId);
 			}
 		}

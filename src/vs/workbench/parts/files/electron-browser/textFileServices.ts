@@ -23,9 +23,9 @@ import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {IFileService} from 'vs/platform/files/common/files';
 import {IInstantiationService, INullService} from 'vs/platform/instantiation/common/instantiation';
-import {IEventService} from 'vs/platform/event/common/event';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
+import {IConfigurationService, IConfigurationServiceEvent, ConfigurationServiceEventTypes} from 'vs/platform/configuration/common/configuration';
 
 import remote = require('remote');
 import ipc = require('ipc');
@@ -35,20 +35,14 @@ const Dialog = remote.require('dialog');
 export class TextFileService extends BrowserTextFileService {
 
 	constructor(
-		@IEventService eventService: IEventService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
-		@IInstantiationService private instantiationService: IInstantiationService,
+		@IInstantiationService instantiationService: IInstantiationService,
 		@IFileService private fileService: IFileService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
-		@ILifecycleService lifecycleService: ILifecycleService
+		@ILifecycleService lifecycleService: ILifecycleService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
-		super(eventService, contextService, instantiationService, lifecycleService);
-
-		this.registerAutoSaveActions();
-	}
-
-	protected onOptionsChanged(): void {
-		super.onOptionsChanged();
+		super(contextService, instantiationService, configurationService, lifecycleService);
 
 		this.registerAutoSaveActions();
 	}

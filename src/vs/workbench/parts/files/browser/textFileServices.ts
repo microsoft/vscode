@@ -6,16 +6,18 @@
 
 import {TPromise, Promise} from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
+import errors = require('vs/base/common/errors');
+import {ListenerUnbind} from 'vs/base/common/eventEmitter';
 import {FileEditorInput} from 'vs/workbench/parts/files/browser/editors/fileEditorInput';
 import {CACHE, TextFileEditorModel} from 'vs/workbench/parts/files/browser/editors/textFileEditorModel';
-import {IResult, ITextFileOperationResult, ConfirmResult, ITextFileService} from 'vs/workbench/parts/files/common/files';
+import {IResult, ITextFileOperationResult, ConfirmResult, ITextFileService, IAutoSaveConfiguration} from 'vs/workbench/parts/files/common/files';
 import {EventType} from 'vs/workbench/common/events';
 import {WorkingFilesModel} from 'vs/workbench/parts/files/browser/workingFilesModel';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
-import {IFileOperationResult, FileOperationResult} from 'vs/platform/files/common/files';
-import {IEventService} from 'vs/platform/event/common/event';
+import {IFilesConfiguration, IFileOperationResult, FileOperationResult} from 'vs/platform/files/common/files';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
+import {IConfigurationService, IConfigurationServiceEvent, ConfigurationServiceEventTypes} from 'vs/platform/configuration/common/configuration';
 
 /**
  * The workbench file service implementation implements the raw file service spec and adds additional methods on top.
@@ -25,30 +27,49 @@ import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 export abstract class TextFileService implements ITextFileService {
 	public serviceId = ITextFileService;
 
-	private listenerToUnbind: () => void;
-	private workingFilesModel: WorkingFilesModel;
+	private listenerToUnbind: ListenerUnbind[];
+	private _workingFilesModel: WorkingFilesModel;
+
+	private configuredAutoSaveDelay: number;
 
 	constructor(
-		@IEventService private eventService: IEventService,
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
-		@IInstantiationService instantiationService: IInstantiationService,
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IConfigurationService private configurationService: IConfigurationService,
 		@ILifecycleService private lifecycleService: ILifecycleService
 	) {
-		this.workingFilesModel = instantiationService.createInstance(WorkingFilesModel);
+		this.listenerToUnbind = [];
 
 		this.registerListeners();
+		this.loadConfiguration();
+	}
+
+	private get workingFilesModel(): WorkingFilesModel {
+		if (!this._workingFilesModel) {
+			this._workingFilesModel = this.instantiationService.createInstance(WorkingFilesModel);
+		}
+
+		return this._workingFilesModel;
 	}
 
 	private registerListeners(): void {
-		this.listenerToUnbind = this.eventService.addListener(EventType.WORKBENCH_OPTIONS_CHANGED, () => this.onOptionsChanged());
-		if (this.lifecycleService) {
-			this.lifecycleService.addBeforeShutdownParticipant(this);
-			this.lifecycleService.onShutdown(this.dispose, this);
-		}
+		this.lifecycleService.addBeforeShutdownParticipant(this);
+		this.lifecycleService.onShutdown(this.dispose, this);
+		
+		this.listenerToUnbind.push(this.configurationService.addListener(ConfigurationServiceEventTypes.UPDATED, (e: IConfigurationServiceEvent) => this.onConfigurationChange(e.config)));
 	}
 
-	protected onOptionsChanged(): void {
-		CACHE.getAll().forEach((model) => model.updateOptions());
+	private loadConfiguration(): void {
+		this.configurationService.loadConfiguration().done((configuration: IFilesConfiguration) => {
+			this.onConfigurationChange(configuration);
+		}, errors.onUnexpectedError);
+	}
+
+	private onConfigurationChange(configuration: IFilesConfiguration): void {
+		this.configuredAutoSaveDelay = configuration && configuration.files && configuration.files.autoSaveAfterDelay;
+
+		const autoSaveConfig = this.getAutoSaveConfiguration();
+		CACHE.getAll().forEach((model) => model.updateAutoSaveConfiguration(autoSaveConfig));
 	}
 
 	public getDirty(resource?: URI): URI[] {
@@ -172,8 +193,20 @@ export abstract class TextFileService implements ITextFileService {
 		return this.workingFilesModel;
 	}
 
+	public isAutoSaveEnabled(): boolean {
+		return this.configuredAutoSaveDelay && this.configuredAutoSaveDelay > 0;
+	}
+
+	public getAutoSaveConfiguration(): IAutoSaveConfiguration {
+		return {
+			autoSaveAfterDelay: this.configuredAutoSaveDelay && this.configuredAutoSaveDelay > 0 ? this.configuredAutoSaveDelay : void 0
+		}
+	}
+
 	public dispose(): void {
-		this.listenerToUnbind();
+		while (this.listenerToUnbind.length) {
+			this.listenerToUnbind.pop()();
+		}
 
 		this.workingFilesModel.dispose();
 

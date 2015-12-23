@@ -417,5 +417,6 @@ export interface IFilesConfiguration {
 		exclude: glob.IExpression;
 		encoding: string;
 		trimTrailingWhitespace: boolean;
+		autoSaveAfterDelay: number;
 	};
 }
