@@ -421,6 +421,10 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		return this.sendAllBreakpoints();
 	}
 
+	public editBreakpoint(breakpoint?: debug.IBreakpoint): Promise {
+		return Promise.as(true);
+	}
+
 	public addFunctionBreakpoint(functionName?: string): Promise {
 		this.model.addFunctionBreakpoint(functionName);
 		// TODO@Isidor send updated function breakpoints

@@ -392,6 +392,32 @@ export class AddFunctionBreakpointAction extends AbstractDebugAction {
 	}
 }
 
+export class AddConditionalBreakpointAction extends AbstractDebugAction {
+	static ID = 'workbench.debug.viewlet.action.addConditionalBreakpointAction';
+	static LABEL = nls.localize('addConditionalBreakpoint', "Add Conditional Breakpoint");
+
+	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
+		super(id, label, null, debugService, keybindingService);
+	}
+
+	public run(): Promise {
+		return this.debugService.editBreakpoint();
+	}
+}
+
+export class EditConditionalBreakpointAction extends AbstractDebugAction {
+	static ID = 'workbench.debug.viewlet.action.editConditionalBreakpointAction';
+	static LABEL = nls.localize('editConditionalBreakpoint', "Edit Breakpoint");
+
+	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
+		super(id, label, null, debugService, keybindingService);
+	}
+
+	public run(breakpoint: debug.IBreakpoint): Promise {
+		return this.debugService.editBreakpoint(breakpoint);
+	}
+}
+
 export class ToggleBreakpointAction extends EditorAction {
 	static ID = 'editor.debug.action.toggleBreakpoint';
 
