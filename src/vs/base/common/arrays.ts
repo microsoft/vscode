@@ -171,7 +171,7 @@ export function distinct<T>(array: T[], keyFn?: (t: T) => string): T[] {
 }
 
 export function first<T>(array: T[], fn: (item: T) => boolean, notFoundValue: T = null): T {
-	for (let i = 0; i < array.length; i++) {
+	for (let i = 0, I = array.length; i < I; i++) {
 		const element = array[i];
 
 		if (fn(element)) {
