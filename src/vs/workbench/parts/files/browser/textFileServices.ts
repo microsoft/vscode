@@ -18,6 +18,7 @@ import {IFilesConfiguration, IFileOperationResult, FileOperationResult} from 'vs
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 import {IConfigurationService, IConfigurationServiceEvent, ConfigurationServiceEventTypes} from 'vs/platform/configuration/common/configuration';
+import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 
 /**
  * The workbench file service implementation implements the raw file service spec and adds additional methods on top.
@@ -36,6 +37,7 @@ export abstract class TextFileService implements ITextFileService {
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IConfigurationService private configurationService: IConfigurationService,
+		@ITelemetryService private telemetryService: ITelemetryService,
 		@ILifecycleService private lifecycleService: ILifecycleService
 	) {
 		this.listenerToUnbind = [];
@@ -62,6 +64,9 @@ export abstract class TextFileService implements ITextFileService {
 	private loadConfiguration(): void {
 		this.configurationService.loadConfiguration().done((configuration: IFilesConfiguration) => {
 			this.onConfigurationChange(configuration);
+
+			// we want to find out about this setting from telemetry
+			this.telemetryService.publicLog('autoSave', this.getAutoSaveConfiguration());
 		}, errors.onUnexpectedError);
 	}
 

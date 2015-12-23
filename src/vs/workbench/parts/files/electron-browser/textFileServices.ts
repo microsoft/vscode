@@ -25,6 +25,7 @@ import {IFileService} from 'vs/platform/files/common/files';
 import {IInstantiationService, INullService} from 'vs/platform/instantiation/common/instantiation';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
+import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IConfigurationService, IConfigurationServiceEvent, ConfigurationServiceEventTypes} from 'vs/platform/configuration/common/configuration';
 
 import remote = require('remote');
@@ -40,9 +41,10 @@ export class TextFileService extends BrowserTextFileService {
 		@IFileService private fileService: IFileService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@ILifecycleService lifecycleService: ILifecycleService,
+		@ITelemetryService telemetryService: ITelemetryService,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
-		super(contextService, instantiationService, configurationService, lifecycleService);
+		super(contextService, instantiationService, configurationService, telemetryService, lifecycleService);
 	}
 
 	public beforeShutdown(): boolean | TPromise<boolean> {
