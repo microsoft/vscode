@@ -29,14 +29,14 @@ export class BreakpointWidget extends ZoneWidget {
 
 	public fillContainer(container: HTMLElement): void {
 		dom.addClass(container, 'breakpoint-widget');
-		let inputBoxContainer = dom.append(container, $('.inputBoxContainer'));
+		const uri = this.editor.getModel().getAssociatedResource();
+		const breakpoint = this.debugService.getModel().getBreakpoints().filter(bp => bp.lineNumber === this.lineNumber && bp.source.uri.toString() === uri.toString()).pop();
+
+		const inputBoxContainer = dom.append(container, $('.inputBoxContainer'));
 		this.inputBox = new InputBox(inputBoxContainer, this.contextViewService, {
-			validationOptions: {
-				validation: null,
-				showMessage: true
-			}
+			placeholder: `The breakpoint on line ${ this.lineNumber } will only stop if this condition is true`
 		});
-		this.inputBox.value = '';
+		this.inputBox.value = (breakpoint && breakpoint.condition) ? breakpoint.condition : '';
 
 		let disposed = false;
 		const toDispose: [lifecycle.IDisposable] = [this.inputBox, this];
@@ -45,7 +45,6 @@ export class BreakpointWidget extends ZoneWidget {
 			if (!disposed) {
 				disposed = true;
 				if (success) {
-					const uri = this.editor.getModel().getAssociatedResource();
 					const raw = {
 						uri,
 						lineNumber: this.lineNumber,
