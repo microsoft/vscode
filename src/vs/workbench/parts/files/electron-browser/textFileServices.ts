@@ -15,6 +15,7 @@ import {isWindows} from 'vs/base/common/platform';
 import URI from 'vs/base/common/uri';
 import {Action} from 'vs/base/common/actions';
 import {UntitledEditorModel} from 'vs/workbench/browser/parts/editor/untitledEditorModel';
+import {IEventService} from 'vs/platform/event/common/event';
 import {TextFileService as BrowserTextFileService} from 'vs/workbench/parts/files/browser/textFileServices';
 import {CACHE, TextFileEditorModel} from 'vs/workbench/parts/files/browser/editors/textFileEditorModel';
 import {ITextFileOperationResult, ConfirmResult} from 'vs/workbench/parts/files/common/files';
@@ -42,9 +43,10 @@ export class TextFileService extends BrowserTextFileService {
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IConfigurationService configurationService: IConfigurationService
+		@IConfigurationService configurationService: IConfigurationService,
+		@IEventService eventService: IEventService
 	) {
-		super(contextService, instantiationService, configurationService, telemetryService, lifecycleService);
+		super(contextService, instantiationService, configurationService, telemetryService, lifecycleService, eventService);
 	}
 
 	public beforeShutdown(): boolean | TPromise<boolean> {
@@ -54,8 +56,6 @@ export class TextFileService extends BrowserTextFileService {
 		if (this.getDirty().length) {
 
 			// If auto save is enabled, save all files and then check again for dirty files
-			// We do this because the auto save delay can be long and the user decided to quit
-			// meanwhile
 			if (this.isAutoSaveEnabled()) {
 				return this.saveAll(false /* files only */).then(() => {
 					if (this.getDirty().length) {

@@ -418,5 +418,6 @@ export interface IFilesConfiguration {
 		encoding: string;
 		trimTrailingWhitespace: boolean;
 		autoSaveAfterDelay: number;
+		autoSaveAfterFocusChange: boolean;
 	};
 }

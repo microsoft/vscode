@@ -17,6 +17,7 @@ import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/c
 import {IFilesConfiguration, IFileOperationResult, FileOperationResult} from 'vs/platform/files/common/files';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
+import {IEventService} from 'vs/platform/event/common/event';
 import {IConfigurationService, IConfigurationServiceEvent, ConfigurationServiceEventTypes} from 'vs/platform/configuration/common/configuration';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 
@@ -26,19 +27,22 @@ import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
  * It also adds diagnostics and logging around file system operations.
  */
 export abstract class TextFileService implements ITextFileService {
+
 	public serviceId = ITextFileService;
 
 	private listenerToUnbind: ListenerUnbind[];
 	private _workingFilesModel: WorkingFilesModel;
 
 	private configuredAutoSaveDelay: number;
+	private configuredAutoSaveOnFocusChange: boolean;
 
 	constructor(
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@ILifecycleService private lifecycleService: ILifecycleService
+		@ILifecycleService private lifecycleService: ILifecycleService,
+		@IEventService private eventService: IEventService
 	) {
 		this.listenerToUnbind = [];
 
@@ -55,10 +59,23 @@ export abstract class TextFileService implements ITextFileService {
 	}
 
 	private registerListeners(): void {
+
+		// Lifecycle
 		this.lifecycleService.addBeforeShutdownParticipant(this);
 		this.lifecycleService.onShutdown(this.dispose, this);
 
+		// Configuration changes
 		this.listenerToUnbind.push(this.configurationService.addListener(ConfigurationServiceEventTypes.UPDATED, (e: IConfigurationServiceEvent) => this.onConfigurationChange(e.config)));
+
+		// Editor focus change
+		window.addEventListener('blur', () => this.onEditorFocusChange(), true);
+		this.listenerToUnbind.push(this.eventService.addListener(EventType.EDITOR_INPUT_CHANGED, () => this.onEditorFocusChange()));
+	}
+
+	private onEditorFocusChange(): void {
+		if (this.configuredAutoSaveOnFocusChange && this.getDirty().length) {
+			this.saveAll().done(null, errors.onUnexpectedError); // save dirty files when we change focus in the editor area
+		}
 	}
 
 	private loadConfiguration(): void {
@@ -74,6 +91,7 @@ export abstract class TextFileService implements ITextFileService {
 		const wasAutoSaveEnabled = this.isAutoSaveEnabled();
 
 		this.configuredAutoSaveDelay = configuration && configuration.files && configuration.files.autoSaveAfterDelay;
+		this.configuredAutoSaveOnFocusChange = configuration && configuration.files && configuration.files.autoSaveAfterFocusChange;
 
 		const autoSaveConfig = this.getAutoSaveConfiguration();
 		CACHE.getAll().forEach((model) => model.updateAutoSaveConfiguration(autoSaveConfig));
@@ -205,12 +223,13 @@ export abstract class TextFileService implements ITextFileService {
 	}
 
 	public isAutoSaveEnabled(): boolean {
-		return this.configuredAutoSaveDelay && this.configuredAutoSaveDelay > 0;
+		return this.configuredAutoSaveDelay && this.configuredAutoSaveDelay > 0 || this.configuredAutoSaveOnFocusChange;
 	}
 
 	public getAutoSaveConfiguration(): IAutoSaveConfiguration {
 		return {
-			autoSaveAfterDelay: this.configuredAutoSaveDelay && this.configuredAutoSaveDelay > 0 ? this.configuredAutoSaveDelay : void 0
+			autoSaveAfterDelay: this.configuredAutoSaveDelay && this.configuredAutoSaveDelay > 0 ? this.configuredAutoSaveDelay : void 0,
+			autoSaveAfterFocusChange: this.configuredAutoSaveOnFocusChange
 		}
 	}
 

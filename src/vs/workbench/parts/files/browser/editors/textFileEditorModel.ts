@@ -96,7 +96,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 	private versionOnDiskStat: IFileStat;
 	private blockModelContentChange: boolean;
 	private autoSaveAfterMillies: number;
-	private autoSaveEnabled: boolean;
+	private autoSaveAfterMilliesEnabled: boolean;
 	private autoSavePromises: TPromise<void>[];
 	private mapPendingSaveToVersionId: { [versionId: string]: TPromise<void> };
 	private disposed: boolean;
@@ -138,10 +138,10 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 	public updateAutoSaveConfiguration(config: IAutoSaveConfiguration): void {
 		if (typeof config.autoSaveAfterDelay === 'number' && config.autoSaveAfterDelay > 0) {
 			this.autoSaveAfterMillies = config.autoSaveAfterDelay * 1000;
-			this.autoSaveEnabled = true;
+			this.autoSaveAfterMilliesEnabled = true;
 		} else {
 			this.autoSaveAfterMillies = void 0;
-			this.autoSaveEnabled = false;
+			this.autoSaveAfterMilliesEnabled = false;
 		}
 	}
 
@@ -334,7 +334,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 		// In this case we clear the dirty flag and emit a SAVED event to indicate this state.
 		// Note: we currently only do this check when auto-save is turned off because there you see
 		// a dirty indicator that you want to get rid of when undoing to the saved version.
-		if (!this.autoSaveEnabled && this.textEditorModel.getAlternativeVersionId() === this.bufferSavedVersionId) {
+		if (!this.autoSaveAfterMilliesEnabled && this.textEditorModel.getAlternativeVersionId() === this.bufferSavedVersionId) {
 			diag('onModelContentChanged() - model content changed back to last saved version', this.resource, new Date());
 
 			// Clear flags
@@ -352,7 +352,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 		this.makeDirty(e);
 
 		// Start auto save process unless we are in conflict resolution mode and unless it is disabled
-		if (this.autoSaveEnabled) {
+		if (this.autoSaveAfterMilliesEnabled) {
 			if (!this.inConflictResolutionMode) {
 				this.doAutoSave(this.versionId);
 			} else {
@@ -441,14 +441,14 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 			diag('doSave(' + versionId + ') - exit - because busy saving', this.resource, new Date());
 
 			// Avoid endless loop here and guard if auto save is disabled
-			if (this.autoSaveEnabled) {
+			if (this.autoSaveAfterMilliesEnabled) {
 				return this.doAutoSave(versionId);
 			}
 		}
 
 		// Push all edit operations to the undo stack so that the user has a chance to
 		// Ctrl+Z back to the saved version. We only do this when auto-save is turned off
-		if (!this.autoSaveEnabled) {
+		if (!this.autoSaveAfterMilliesEnabled) {
 			this.textEditorModel.pushStackElement();
 		}
 
