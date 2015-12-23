@@ -82,15 +82,14 @@ export function findFirst<T>(array: T[], p: (x: T) => boolean): number {
 export function merge<T>(arrays: T[][], hashFn?: (element: T) => string): T[] {
 	const result = new Array<T>();
 	if (!hashFn) {
-		for (let i = 0, len = arrays.length; i < len; i++) {
-			result.push.apply(result, arrays[i]);
+		for (element of arrays) {
+			result.push.apply(result, element);
 		}
 	} else {
 		const map: { [k: string]: boolean } = {};
-		for (let i = 0; i < arrays.length; i++) {
-			for (let j = 0; j < arrays[i].length; j++) {
-				let element = arrays[i][j],
-					hash = hashFn(element);
+		for (arraysLine of arrays) {
+			for (element of arraysLine) {
+				let hash = hashFn(element);
 
 				if (!map.hasOwnProperty(hash)) {
 					map[hash] = true;
@@ -171,9 +170,7 @@ export function distinct<T>(array: T[], keyFn?: (t: T) => string): T[] {
 }
 
 export function first<T>(array: T[], fn: (item: T) => boolean, notFoundValue: T = null): T {
-	for (let i = 0, iMax = array.length; i < iMax; i++) {
-		const element = array[i];
-
+	for (element of array) {
 		if (fn(element)) {
 			return element;
 		}
