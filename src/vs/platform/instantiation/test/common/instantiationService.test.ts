@@ -6,7 +6,6 @@
 
 
 import assert = require('assert');
-import services = require('vs/platform/services');
 import instantiation = require('vs/platform/instantiation/common/instantiation');
 import instantiationService = require('vs/platform/instantiation/common/instantiationService');
 
