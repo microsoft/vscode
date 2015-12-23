@@ -8,6 +8,7 @@ import actions = require('vs/base/common/actions');
 import lifecycle = require('vs/base/common/lifecycle');
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
 import editorCommon = require('vs/editor/common/editorCommon');
+import editorbrowser = require('vs/editor/browser/editorBrowser');
 import baseeditor = require('vs/workbench/browser/parts/editor/baseEditor');
 import { EditorAction, Behaviour } from 'vs/editor/common/editorAction';
 import platform = require('vs/platform/platform');
@@ -396,12 +397,12 @@ export class AddConditionalBreakpointAction extends AbstractDebugAction {
 	static ID = 'workbench.debug.viewlet.action.addConditionalBreakpointAction';
 	static LABEL = nls.localize('addConditionalBreakpoint', "Add Conditional Breakpoint");
 
-	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
+	constructor(id: string, label: string, private editor: editorbrowser.ICodeEditor, private lineNumber: number, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
 		super(id, label, null, debugService, keybindingService);
 	}
 
 	public run(): Promise {
-		return this.debugService.editBreakpoint();
+		return this.debugService.editBreakpoint(this.editor, this.lineNumber);
 	}
 }
 
@@ -409,12 +410,12 @@ export class EditConditionalBreakpointAction extends AbstractDebugAction {
 	static ID = 'workbench.debug.viewlet.action.editConditionalBreakpointAction';
 	static LABEL = nls.localize('editConditionalBreakpoint', "Edit Breakpoint");
 
-	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
+	constructor(id: string, label: string, private editor: editorbrowser.ICodeEditor, private lineNumber: number, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
 		super(id, label, null, debugService, keybindingService);
 	}
 
 	public run(breakpoint: debug.IBreakpoint): Promise {
-		return this.debugService.editBreakpoint(breakpoint);
+		return this.debugService.editBreakpoint(this.editor, this.lineNumber);
 	}
 }
 

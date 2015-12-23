@@ -22,6 +22,7 @@ import model = require('vs/workbench/parts/debug/common/debugModel');
 import debuginputs = require('vs/workbench/parts/debug/browser/debugEditorInputs');
 import viewmodel = require('vs/workbench/parts/debug/common/debugViewModel');
 import debugactions = require('vs/workbench/parts/debug/electron-browser/debugActions');
+import { BreakpointWidget } from 'vs/workbench/parts/debug/browser/breakpointWidget';
 import { ConfigurationManager } from 'vs/workbench/parts/debug/node/debugConfigurationManager';
 import { Repl } from 'vs/workbench/parts/debug/browser/replEditor';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
@@ -421,7 +422,10 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		return this.sendAllBreakpoints();
 	}
 
-	public editBreakpoint(breakpoint?: debug.IBreakpoint): Promise {
+	public editBreakpoint(editor: editorbrowser.ICodeEditor, lineNumber: number): Promise {
+		const breakpointWidget = this.instantiationService.createInstance(BreakpointWidget, editor, lineNumber);
+		breakpointWidget.show({ lineNumber, column: 1 }, 2);
+
 		return Promise.as(true);
 	}
 
