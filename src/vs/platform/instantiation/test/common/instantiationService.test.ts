@@ -118,36 +118,6 @@ class DependentService implements IDependentService {
 	name = 'farboo';
 }
 
-@instantiation.Uses(IService1)
-class UsesTarget {
-
-	constructor(ctx: instantiation.Context) {
-		var service = ctx.get(IService1);
-		assert.ok(service);
-		assert.equal(service.c, 1);
-	}
-}
-
-@instantiation.Uses(IService2)
-class UsesTarget2 extends UsesTarget {
-	constructor(ctx: instantiation.Context) {
-		super(ctx);
-
-		var service = ctx.get(IService2);
-		assert.ok(service);
-		assert.ok(service.d);
-	}
-}
-
-class UsesTarget3 extends UsesTarget2 {
-	constructor(ctx: instantiation.Context, @IService3 service:IService3) {
-		super(ctx);
-
-		assert.ok(service);
-		assert.equal(service.s, 'farboo');
-	}
-}
-
 class ParameterTarget {
 
 	constructor( @IService1 service1: IService1) {
@@ -296,31 +266,6 @@ suite('Instantiation Service', () => {
 
 	test('safe on create - don\'t allow service change', function() {
 		assert.throws(() => service.createInstance(EvilTarget1));
-	});
-
-	test('@Uses - simple case', function () {
-
-		var service = instantiationService.create(Object.create(null));
-		service.addSingleton(IService1, new Service1());
-
-		var target = service.createInstance(UsesTarget);
-	});
-
-	test('@Uses - inheritance', function () {
-		var service = instantiationService.create(Object.create(null));
-		service.addSingleton(IService1, new Service1());
-		service.addSingleton(IService2, new Service2());
-
-		service.createInstance(UsesTarget2);
-	});
-
-	test('@Uses and @IServiceName', function() {
-		var service = instantiationService.create(Object.create(null));
-		service.addSingleton(IService1, new Service1());
-		service.addSingleton(IService2, new Service2());
-		service.addSingleton(IService3, new Service3());
-
-		service.createInstance(<instantiation.IConstructorSignature0<UsesTarget3>> UsesTarget3);
 	});
 
 	test('@Param - simple clase', function () {
