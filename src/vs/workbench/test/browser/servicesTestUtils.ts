@@ -97,10 +97,6 @@ export class TestContextService implements WorkspaceContextService.IWorkspaceCon
 
 	}
 
-	public isAutoSaveEnabled() {
-		return true;
-	}
-
 	public isInsideWorkspace(resource: URI): boolean {
 		if (resource && this.workspace) {
 			return Paths.isEqualOrParent(resource.fsPath, this.workspace.resource.fsPath);

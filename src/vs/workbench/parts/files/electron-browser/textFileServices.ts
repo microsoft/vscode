@@ -43,14 +43,6 @@ export class TextFileService extends BrowserTextFileService {
 		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super(contextService, instantiationService, configurationService, lifecycleService);
-
-		this.registerAutoSaveActions();
-	}
-
-	private registerAutoSaveActions(): void {
-		let workbenchActionsRegistry = <IWorkbenchActionRegistry>Registry.as(ActionExtensions.WorkbenchActions);
-		workbenchActionsRegistry.unregisterWorkbenchAction(ToggleAutoSaveAction.ID);
-		workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleAutoSaveAction, ToggleAutoSaveAction.ID, this.contextService.isAutoSaveEnabled() ? nls.localize('disableAutoSave', "Disable Auto Save") : nls.localize('enableAutoSave', "Enable Auto Save")), nls.localize('filesCategory', "Files"));
 	}
 
 	public beforeShutdown(): boolean | TPromise<boolean> {
@@ -405,20 +397,5 @@ export class TextFileService extends BrowserTextFileService {
 		options.filters = filters;
 
 		return options;
-	}
-}
-
-class ToggleAutoSaveAction extends Action {
-
-	public static ID = 'workbench.action.files.toggleAutoSave';
-
-	constructor(id: string, label: string, @INullService ns) {
-		super(id, label);
-	}
-
-	public run(): Promise {
-		ipc.send('vscode:toggleAutoSave');
-
-		return Promise.as(true);
 	}
 }

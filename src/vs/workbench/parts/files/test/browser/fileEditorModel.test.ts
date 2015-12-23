@@ -187,7 +187,7 @@ suite('Files - TextFileEditorModel', () => {
 		let eventCounter = 0;
 		let m1 = baseInstantiationService.createInstance(TextFileEditorModel, toResource("/path/index.txt"), "utf8");
 
-		(<any>m1).autoSaveDelay = 10;
+		(<any>m1).autoSaveAfterMillies = 10;
 		(<any>m1).autoSaveEnabled = true;
 
 		eventService.addListener(EventType.FILE_DIRTY, () => {

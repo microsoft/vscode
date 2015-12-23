@@ -108,7 +108,6 @@ export interface IWindowConfiguration extends env.ICommandLineArguments {
 	filesToOpen?: IPath[];
 	filesToCreate?: IPath[];
 	extensionsToInstall: string[];
-	autoSaveDelay?: number;
 	crashReporter: ICrashReporterConfigBrowser;
 	extensionsGallery: {
 		serviceUrl: string;
@@ -386,7 +385,6 @@ export class VSCodeWindow {
 		delete configuration.filesToOpen;
 		delete configuration.filesToCreate;
 		delete configuration.extensionsToInstall;
-		configuration.autoSaveDelay = storage.getItem<number>('autoSaveDelay') || -1 /* Disabled by default */;
 
 		// Some configuration things get inherited if the window is being reloaded and we are
 		// in plugin development mode. These options are all development related.
