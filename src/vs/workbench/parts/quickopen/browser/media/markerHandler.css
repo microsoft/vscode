@@ -8,6 +8,10 @@
 	vertical-align: top;
 }
 
+.quick-open-widget.marker-handler .row {
+	height: 24px;
+}
+
 .quick-open-widget.marker-handler .severity {
 	display: inline-block;
 	width: 16px;
@@ -39,14 +43,6 @@
 	background: url('status-info-inverse.svg') center center no-repeat;
 }
 
-.quick-open-widget.marker-handler .entry .path {
-	opacity: 0.7;
-}
-
-.quick-open-widget.marker-handler .entry .path .basename {
-	margin-right: 0.7em;
-}
-
-.quick-open-widget.marker-handler .entry .path .dirname {
-	opacity: 0.6;
+.quick-open-widget.marker-handler .description {
+	margin-left: 20px;
 }
