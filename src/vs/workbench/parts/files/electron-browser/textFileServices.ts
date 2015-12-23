@@ -16,7 +16,7 @@ import URI from 'vs/base/common/uri';
 import {Action} from 'vs/base/common/actions';
 import {UntitledEditorModel} from 'vs/workbench/browser/parts/editor/untitledEditorModel';
 import {IEventService} from 'vs/platform/event/common/event';
-import {TextFileService as BrowserTextFileService} from 'vs/workbench/parts/files/browser/textFileServices';
+import {TextFileService as AbstractTextFileService} from 'vs/workbench/parts/files/browser/textFileServices';
 import {CACHE, TextFileEditorModel} from 'vs/workbench/parts/files/browser/editors/textFileEditorModel';
 import {ITextFileOperationResult, ConfirmResult} from 'vs/workbench/parts/files/common/files';
 import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/browser/actionRegistry';
@@ -34,7 +34,7 @@ import ipc = require('ipc');
 
 const Dialog = remote.require('dialog');
 
-export class TextFileService extends BrowserTextFileService {
+export class TextFileService extends AbstractTextFileService {
 
 	constructor(
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
