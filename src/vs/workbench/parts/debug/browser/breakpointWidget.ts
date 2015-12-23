@@ -3,9 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/css!../browser/media/breakpointWidget';
 import async = require('vs/base/common/async');
 import errors = require('vs/base/common/errors');
 import { CommonKeybindings } from 'vs/base/common/keyCodes';
+import platform = require('vs/base/common/platform');
 import lifecycle = require('vs/base/common/lifecycle');
 import dom = require('vs/base/browser/dom');
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
@@ -36,11 +38,11 @@ export class BreakpointWidget extends ZoneWidget {
 		this.inputBox = new InputBox(inputBoxContainer, this.contextViewService, {
 			placeholder: `The breakpoint on line ${ this.lineNumber } will only stop if this condition is true`
 		});
+		dom.addClass(this.inputBox.inputElement, platform.isWindows ? 'windows' : platform.isMacintosh ? 'mac' : 'linux');
 		this.inputBox.value = (breakpoint && breakpoint.condition) ? breakpoint.condition : '';
 
 		let disposed = false;
 		const toDispose: [lifecycle.IDisposable] = [this.inputBox, this];
-
 		const wrapUp = async.once<any, void>((success: boolean) => {
 			if (!disposed) {
 				disposed = true;
