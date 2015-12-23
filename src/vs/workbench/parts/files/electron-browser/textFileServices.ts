@@ -52,31 +52,50 @@ export class TextFileService extends BrowserTextFileService {
 
 		// Dirty files need treatment on shutdown
 		if (this.getDirty().length) {
-			let confirm = this.confirmSave();
 
-			// Save
-			if (confirm === ConfirmResult.SAVE) {
-				return this.saveAll(true /* includeUntitled */).then((result) => {
-					if (result.results.some((r) => !r.success)) {
-						return true; // veto if some saves failed
+			// If auto save is enabled, save all files and then check again for dirty files
+			// We do this because the auto save delay can be long and the user decided to quit
+			// meanwhile
+			if (this.isAutoSaveEnabled()) {
+				return this.saveAll(false /* files only */).then(() => {
+					if (this.getDirty().length) {
+						return this.confirmBeforeShutdown(); // we still have dirty files around, so confirm normally
 					}
 
-					return false; // no veto
+					return false; // all good, no veto
 				});
 			}
 
-			// Don't Save
-			else if (confirm === ConfirmResult.DONT_SAVE) {
-				return false; // no veto
-			}
-
-			// Cancel
-			else if (confirm === ConfirmResult.CANCEL) {
-				return true; // veto
-			}
+			// Otherwise just confirm what to do
+			return this.confirmBeforeShutdown();
 		}
 
 		return false; // no veto
+	}
+
+	private confirmBeforeShutdown(): boolean | TPromise<boolean> {
+		let confirm = this.confirmSave();
+
+		// Save
+		if (confirm === ConfirmResult.SAVE) {
+			return this.saveAll(true /* includeUntitled */).then((result) => {
+				if (result.results.some((r) => !r.success)) {
+					return true; // veto if some saves failed
+				}
+
+				return false; // no veto
+			});
+		}
+
+		// Don't Save
+		else if (confirm === ConfirmResult.DONT_SAVE) {
+			return false; // no veto
+		}
+
+		// Cancel
+		else if (confirm === ConfirmResult.CANCEL) {
+			return true; // veto
+		}
 	}
 
 	public revertAll(resources?: URI[], force?: boolean): TPromise<ITextFileOperationResult> {
