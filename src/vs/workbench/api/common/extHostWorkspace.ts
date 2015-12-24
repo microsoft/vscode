@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import {isPromiseCanceledError} from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
 import {ISearchService, QueryType} from 'vs/platform/search/common/search';
 import {IWorkspaceContextService, IWorkspace} from 'vs/platform/workspace/common/workspace';
@@ -11,13 +12,15 @@ import {Remotable, IThreadService} from 'vs/platform/thread/common/thread';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {ITextFileService} from 'vs/workbench/parts/files/common/files';
-import {Uri} from 'vscode';
 import {ICommonCodeEditor} from 'vs/editor/common/editorCommon';
 import {bulkEdit, IResourceEdit} from 'vs/editor/common/services/bulkEdit';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {fromRange} from 'vs/workbench/api/common/extHostTypeConverters';
+import {Uri, CancellationToken} from 'vscode';
 
 export class ExtHostWorkspace {
+
+	private static _requestIdPool = 0;
 
 	private _proxy: MainThreadWorkspace;
 	private _workspacePath: string;
@@ -48,12 +51,17 @@ export class ExtHostWorkspace {
 		return path;
 	}
 
-	findFiles(include: string, exclude: string, maxResults?:number): Thenable<Uri[]> {
-		return this._proxy.findFiles(include, exclude, maxResults);
+	findFiles(include: string, exclude: string, maxResults?: number, token?: CancellationToken): Thenable<Uri[]> {
+		const requestId = ExtHostWorkspace._requestIdPool++;
+		const result = this._proxy.$startSearch(include, exclude, maxResults, requestId);
+		if (token) {
+			token.onCancellationRequested(() => this._proxy.$cancelSearch(requestId));
+		}
+		return result;
 	}
 
 	saveAll(includeUntitled?: boolean): Thenable<boolean> {
-		return this._proxy.saveAll(includeUntitled);
+		return this._proxy.$saveAll(includeUntitled);
 	}
 
 	appyEdit(edit: vscode.WorkspaceEdit): TPromise<boolean> {
@@ -73,19 +81,19 @@ export class ExtHostWorkspace {
 			}
 		}
 
-		return this._proxy.applyWorkspaceEdit(resourceEdits);
+		return this._proxy.$applyWorkspaceEdit(resourceEdits);
 	}
 }
 
 @Remotable.MainContext('MainThreadWorkspace')
 export class MainThreadWorkspace {
 
+	private _activeSearches: { [id: number]: TPromise<Uri[]> } = Object.create(null);
 	private _searchService: ISearchService;
 	private _workspace: IWorkspace;
 	private _textFileService: ITextFileService;
 	private _editorService:IWorkbenchEditorService;
 	private _eventService:IEventService;
-
 
 	constructor( @ISearchService searchService: ISearchService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
@@ -100,13 +108,13 @@ export class MainThreadWorkspace {
 		this._eventService = eventService;
 	}
 
-	findFiles(include: string, exclude: string, maxResults: number): Thenable<Uri[]> {
+	$startSearch(include: string, exclude: string, maxResults: number, requestId: number): Thenable<Uri[]> {
 
 		if (!this._workspace) {
 			return;
 		}
 
-		return this._searchService.search({
+		const search = this._searchService.search({
 			rootResources: [this._workspace.resource],
 			type: QueryType.File,
 			maxResults,
@@ -114,16 +122,35 @@ export class MainThreadWorkspace {
 			excludePattern: { [exclude]: true },
 		}).then(result => {
 			return result.results.map(m => m.resource);
+		}, err => {
+			if (!isPromiseCanceledError(err)) {
+				return TPromise.wrapError(err);
+			}
 		});
+
+		this._activeSearches[requestId] = search;
+		const onDone = () => delete this._activeSearches[requestId];
+		search.done(onDone, onDone);
+
+		return search;
 	}
 
-	saveAll(includeUntitled?: boolean): Thenable<boolean> {
+	$cancelSearch(requestId: number): Thenable<boolean> {
+		const search = this._activeSearches[requestId];
+		if (search) {
+			delete this._activeSearches[requestId];
+			search.cancel();
+			return TPromise.as(true);
+		}
+	}
+
+	$saveAll(includeUntitled?: boolean): Thenable<boolean> {
 		return this._textFileService.saveAll(includeUntitled).then(result => {
 			return result.results.every(each => each.success === true);
 		});
 	}
 
-	applyWorkspaceEdit(edits: IResourceEdit[]): TPromise<boolean> {
+	$applyWorkspaceEdit(edits: IResourceEdit[]): TPromise<boolean> {
 
 		let codeEditor: ICommonCodeEditor;
 		let editor = this._editorService.getActiveEditor();

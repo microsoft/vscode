@@ -20,12 +20,11 @@ import {FileEditorInput} from 'vs/workbench/parts/files/browser/editors/fileEdit
 import {DerivedFrameEditorInput} from 'vs/workbench/parts/files/browser/editors/derivedFrameEditorInput';
 import {State, TextFileEditorModel, CACHE} from 'vs/workbench/parts/files/browser/editors/textFileEditorModel';
 import {IFrameEditor} from 'vs/workbench/browser/parts/editor/iframeEditor';
-import {EventType as WorkbenchEventType, EditorInputEvent, UntitledEditorEvent} from 'vs/workbench/browser/events';
-import {IUntitledEditorService} from 'vs/workbench/services/untitled/browser/untitledEditorService';
+import {EventType as WorkbenchEventType, EditorInputEvent, UntitledEditorEvent} from 'vs/workbench/common/events';
+import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IActivityService, NumberBadge} from 'vs/workbench/services/activity/common/activityService';
-import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {IEditorInput} from 'vs/platform/editor/common/editor';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
@@ -43,7 +42,6 @@ export class FileTracker implements IWorkbenchContribution {
 	private toUnbind: { (): void; }[];
 
 	constructor(
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IEventService private eventService: IEventService,
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
@@ -86,7 +84,7 @@ export class FileTracker implements IWorkbenchContribution {
 	private onTextFileDirty(e: LocalFileChangeEvent): void {
 		this.emitInputStateChangeEvent(e.getAfter().resource);
 
-		if (!this.contextService.isAutoSaveEnabled()) {
+		if (!this.textFileService.isAutoSaveEnabled()) {
 			this.updateActivityBadge(); // no indication needed when auto save is turned off and we didn't show dirty
 		}
 	}

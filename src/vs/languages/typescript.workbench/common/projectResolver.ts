@@ -4,29 +4,27 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import glob = require('vs/base/common/glob');
-import nls = require('vs/nls');
-import objects = require('vs/base/common/objects');
-import typescript = require('vs/languages/typescript/common/typescript');
-import lifecycle = require('vs/base/common/lifecycle');
-import errors = require('vs/base/common/errors');
-import collections = require('vs/base/common/collections');
-import async = require('vs/base/common/async');
-import winjs = require('vs/base/common/winjs.base');
+import * as glob from 'vs/base/common/glob';
+import * as nls from 'vs/nls';
+import * as objects from 'vs/base/common/objects';
+import * as typescript from 'vs/languages/typescript/common/typescript';
+import * as lifecycle from 'vs/base/common/lifecycle';
+import * as errors from 'vs/base/common/errors';
+import * as collections from 'vs/base/common/collections';
+import * as async from 'vs/base/common/async';
+import * as winjs from 'vs/base/common/winjs.base';
 import Severity from 'vs/base/common/severity';
 import URI from 'vs/base/common/uri';
-import paths = require('vs/base/common/paths');
-import services = require('vs/platform/services');
-import ts = require('vs/languages/typescript/common/lib/typescriptServices');
-import editorCommon = require('vs/editor/common/editorCommon');
+import * as paths from 'vs/base/common/paths';
+import * as ts from 'vs/languages/typescript/common/lib/typescriptServices';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {IEventService} from 'vs/platform/event/common/event';
-import Files = require('vs/platform/files/common/files');
+import * as Files from 'vs/platform/files/common/files';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {ISearchService, QueryType} from 'vs/platform/search/common/search';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {IWorkspace} from 'vs/platform/workspace/common/workspace';
+import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 
 interface $ProjectPerf {
 	start: number;
@@ -131,15 +129,25 @@ class ProjectResolver implements typescript.IProjectResolver2 {
 	private _pendingFiles: { [r: string]: { resource: URI; kind: typescript.ChangeKind } } = Object.create(null);
 	private _unbindListener: Function;
 
-	constructor(ctx: services.IServicesContext, configuration: { files: string; projects: string; maxFilesPerProject: number;}, consumer: typescript.IProjectConsumer) {
-		this._fileService = ctx['fileService'];
-		this._searchService = ctx['searchService'];
-		this._eventService = ctx['eventService'];
-		this._markerService = ctx['markerService'];
-		this._messageService = ctx['messageService'];
-		this._modelService = ctx['modelService'];
-		this._telemetryService = ctx['telemetryService'];
-		this._workspace = ctx['contextService'].getWorkspace() && (<IWorkspace> ctx['contextService'].getWorkspace()).resource;
+	constructor(configuration: { files: string; projects: string; maxFilesPerProject: number; },
+		consumer: typescript.IProjectConsumer,
+		@Files.IFileService fileService: Files.IFileService,
+		@ISearchService searchService: ISearchService,
+		@IEventService eventService: IEventService,
+		@IMarkerService markerService: IMarkerService,
+		@IMessageService messageService: IMessageService,
+		@IModelService modelService: IModelService,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IWorkspaceContextService contextService: IWorkspaceContextService
+	) {
+		this._fileService = fileService;
+		this._searchService = searchService;
+		this._eventService = eventService;
+		this._markerService = markerService;
+		this._messageService = messageService;
+		this._modelService = modelService;
+		this._telemetryService = telemetryService;
+		this._workspace = contextService.getWorkspace() && contextService.getWorkspace().resource;
 		this._consumer = consumer;
 		this._configuration = configuration;
 

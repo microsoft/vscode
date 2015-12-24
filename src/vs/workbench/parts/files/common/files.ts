@@ -288,6 +288,11 @@ export interface IResult {
 	success?: boolean;
 }
 
+export interface IAutoSaveConfiguration {
+	autoSaveAfterDelay: number;
+	autoSaveAfterFocusChange: boolean;
+}
+
 export var ITextFileService = createDecorator<ITextFileService>(TEXT_FILE_SERVICE_ID);
 
 export interface ITextFileService extends IDisposable {
@@ -360,4 +365,14 @@ export interface ITextFileService extends IDisposable {
 	 * Provides access to the list of working files.
 	 */
 	getWorkingFilesModel(): IWorkingFilesModel;
+
+	/**
+	 * Checks if the user configured auto save to be enabled or not
+	 */
+	isAutoSaveEnabled(): boolean;
+
+	/**
+	 * Convinient fast access to the configured auto save settings.
+	 */
+	getAutoSaveConfiguration(): IAutoSaveConfiguration;
 }

@@ -16,7 +16,7 @@ import Severity from 'vs/base/common/severity';
 import winjs = require('vs/base/common/winjs.base');
 import ext = require('vs/workbench/common/contributions');
 import git = require('vs/workbench/parts/git/common/git');
-import workbenchEvents = require('vs/workbench/browser/events');
+import workbenchEvents = require('vs/workbench/common/events');
 import common = require('vs/editor/common/editorCommon');
 import widget = require('vs/editor/browser/widget/codeEditorWidget');
 import viewlet = require('vs/workbench/browser/viewlet');

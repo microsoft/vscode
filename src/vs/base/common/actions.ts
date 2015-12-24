@@ -6,10 +6,10 @@
 
 import {Promise} from 'vs/base/common/winjs.base';
 import { IEventEmitter, EventEmitter, ListenerCallback, IBulkListenerCallback, ListenerUnbind } from 'vs/base/common/eventEmitter';
-import Lifecycle = require('vs/base/common/lifecycle');
-import Events = require('vs/base/common/events');
+import {IDisposable} from 'vs/base/common/lifecycle';
+import * as Events from 'vs/base/common/events';
 
-export interface IAction extends Lifecycle.IDisposable {
+export interface IAction extends IDisposable {
 	id: string;
 	label: string;
 	tooltip: string;
@@ -70,11 +70,11 @@ export interface IActionProvider {
 
 export class Action extends EventEmitter implements IAction {
 
-	static LABEL = 'label';
-	static TOOLTIP = 'tooltip';
-	static CLASS = 'class';
-	static ENABLED = 'enabled';
-	static CHECKED = 'checked';
+	static LABEL: string = 'label';
+	static TOOLTIP: string = 'tooltip';
+	static CLASS: string = 'class';
+	static ENABLED: string = 'enabled';
+	static CHECKED: string = 'checked';
 
 	public _id: string;
 	public _label: string;
@@ -265,22 +265,6 @@ class ProxyAction extends Action implements IEventEmitter {
 	public emit(eventType: string, data?: any): void {
 		this.delegate.emit(eventType, data);
 	}
-}
-
-export function radioGroup(actions: Action[]): Action[] {
-
-	function newCecker(action: Action): any {
-		return function() {
-			actions.forEach((otherAction: Action) => {
-				otherAction.checked = (otherAction === action);
-			});
-		};
-	};
-
-	return actions.map(function(action) {
-		return new ProxyAction(action, newCecker(action));
-	});
-
 }
 
 export interface IRunEvent {

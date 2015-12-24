@@ -14,7 +14,7 @@ import {create} from 'vs/platform/instantiation/common/instantiationService';
 import {TextFileService} from 'vs/workbench/parts/files/browser/textFileServices';
 import {MainTelemetryService} from 'vs/platform/telemetry/browser/mainTelemetryService';
 import {FileTracker} from 'vs/workbench/parts/files/browser/fileTracker';
-import {TestFileService, TestEditorService, TestPartService, MockRequestService, TestEventService, TestContextService, TestStorageService, TestWorkspace} from 'vs/workbench/test/browser/servicesTestUtils';
+import {TestFileService, TestLifecycleService, TestEditorService, TestPartService, MockRequestService, TestConfigurationService, TestEventService, TestContextService, TestStorageService, TestWorkspace} from 'vs/workbench/test/browser/servicesTestUtils';
 import {createMockModelService, createMockModeService} from 'vs/editor/test/common/servicesTestUtils';
 
 function toResource(path) {
@@ -44,7 +44,9 @@ suite('Files - FileEditorInput', () => {
 			partService: new TestPartService(),
 			modeService: createMockModeService(),
 			modelService: createMockModelService(),
-			telemetryService: telemetryService
+			telemetryService: telemetryService,
+			lifecycleService: new TestLifecycleService(),
+			configurationService: new TestConfigurationService()
 		});
 
 		let textFileServices = instantiationService.createInstance(<any>TextFileService);
@@ -109,8 +111,8 @@ suite('Files - FileEditorInput', () => {
 	});
 
 	test('Input.matches() - FileEditorInput', function() {
-		let fileEditorInput = new FileEditorInput(toResource('/foo/bar/updatefile.js'), 'text/javascript', void 0, void 0, void 0);
-		let contentEditorInput2 = new FileEditorInput(toResource('/foo/bar/updatefile.js'), 'text/javascript', void 0, void 0, void 0);
+		let fileEditorInput = new FileEditorInput(toResource('/foo/bar/updatefile.js'), 'text/javascript', void 0, void 0, void 0, void 0);
+		let contentEditorInput2 = new FileEditorInput(toResource('/foo/bar/updatefile.js'), 'text/javascript', void 0, void 0, void 0, void 0);
 
 		assert.strictEqual(fileEditorInput.matches(null), false);
 		assert.strictEqual(fileEditorInput.matches(fileEditorInput), true);
@@ -133,7 +135,9 @@ suite('Files - FileEditorInput', () => {
 			partService: new TestPartService(),
 			modeService: createMockModeService(),
 			modelService: createMockModelService(),
-			telemetryService: telemetryService
+			telemetryService: telemetryService,
+			lifecycleService: new TestLifecycleService(),
+			configurationService: new TestConfigurationService()
 		});
 
 		let textFileServices = instantiationService.createInstance(<any>TextFileService);
@@ -175,7 +179,9 @@ suite('Files - FileEditorInput', () => {
 			partService: new TestPartService(),
 			modeService: createMockModeService(),
 			modelService: createMockModelService(),
-			telemetryService: telemetryService
+			telemetryService: telemetryService,
+			lifecycleService: new TestLifecycleService(),
+			configurationService: new TestConfigurationService()
 		});
 
 		let textFileServices = instantiationService.createInstance(<any>TextFileService);

@@ -9,6 +9,7 @@ import {Promise, TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import {ThrottledDelayer} from 'vs/base/common/async';
 import types = require('vs/base/common/types');
+import {isWindows} from 'vs/base/common/platform';
 import scorer = require('vs/base/common/scorer');
 import paths = require('vs/base/common/paths');
 import filters = require('vs/base/common/filters');
@@ -81,6 +82,11 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 
 	public getResults(searchValue: string): TPromise<QuickOpenModel> {
 		searchValue = searchValue.trim();
+
+		// Help Windows users to search for paths when using slash
+		if (isWindows) {
+			searchValue = searchValue.replace(/\//g, '\\');
+		}
 
 		// Cancel any pending search
 		this.cancelPendingSearch();

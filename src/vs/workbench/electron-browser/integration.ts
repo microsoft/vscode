@@ -5,13 +5,15 @@
 
 'use strict';
 
+import nls = require('vs/nls');
 import {TPromise} from 'vs/base/common/winjs.base';
 import errors = require('vs/base/common/errors');
 import arrays = require('vs/base/common/arrays');
 import Severity from 'vs/base/common/severity';
+import {OpenGlobalSettingsAction} from 'vs/workbench/browser/actions/openSettings';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
-import {IMessageService} from 'vs/platform/message/common/message';
+import {IMessageService, CloseAction} from 'vs/platform/message/common/message';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
@@ -98,22 +100,42 @@ export class ElectronIntegration {
 		});
 
 		// Theme changes
-		ipc.on('vscode:changeTheme', (theme:string) => {
+		ipc.on('vscode:changeTheme', (theme: string) => {
 			this.storageService.store('workbench.theme', theme, StorageScope.GLOBAL);
 		});
 
 		// Configuration changes
+		let previousConfiguredZoomLevel: number;
 		this.configurationService.addListener(ConfigurationServiceEventTypes.UPDATED, (e: IConfigurationServiceEvent) => {
 			let windowConfig: IWindowConfiguration = e.config;
 
 			let newZoomLevel = 0;
 			if (windowConfig.window && typeof windowConfig.window.zoomLevel === 'number') {
 				newZoomLevel = windowConfig.window.zoomLevel;
+
+				// Leave early if the configured zoom level did not change (https://github.com/Microsoft/vscode/issues/1536)
+				if (previousConfiguredZoomLevel === newZoomLevel) {
+					return;
+				}
+
+				previousConfiguredZoomLevel = newZoomLevel;
 			}
 
 			if (webFrame.getZoomLevel() !== newZoomLevel) {
 				webFrame.setZoomLevel(newZoomLevel);
 			}
+		});
+
+		// Auto Save Info (TODO@Ben remove me in a couple of versions)
+		ipc.on('vscode:showAutoSaveInfo', () => {
+			this.messageService.show(
+				Severity.Info, {
+					message: nls.localize('autoSaveInfo', "The **File | Auto Save** setting moved into the **settings.json** file. Please configure it from there to enable auto save again."),
+					actions: [
+						CloseAction,
+						this.instantiationService.createInstance(OpenGlobalSettingsAction, OpenGlobalSettingsAction.ID, OpenGlobalSettingsAction.LABEL)
+					]
+			});
 		});
 	}
 

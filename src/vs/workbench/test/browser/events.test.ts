@@ -10,7 +10,7 @@ import URI from 'vs/base/common/uri';
 import * as Paths from 'vs/base/common/paths';
 import * as Files from 'vs/platform/files/common/files';
 import {Event, PropertyChangeEvent} from 'vs/base/common/events';
-import {CommandEvent, EditorEvent, ViewletEvent} from 'vs/workbench/browser/events';
+import {CommandEvent, ViewletEvent, EditorEvent} from 'vs/workbench/common/events';
 
 let FileChangesEvent = Files.FileChangesEvent;
 

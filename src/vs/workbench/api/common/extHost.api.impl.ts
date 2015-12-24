@@ -160,8 +160,8 @@ export class ExtHostAPIImplementation {
 			get visibleTextEditors() {
 				return pluginHostEditors.getVisibleTextEditors();
 			},
-			showTextDocument(document: vscode.TextDocument, column: vscode.ViewColumn): TPromise<vscode.TextEditor> {
-				return pluginHostEditors.showTextDocument(document, column);
+			showTextDocument(document: vscode.TextDocument, column?: vscode.ViewColumn, preserveFocus?: boolean): TPromise<vscode.TextEditor> {
+				return pluginHostEditors.showTextDocument(document, column, preserveFocus);
 			},
 			createTextEditorDecorationType(options:vscode.DecorationRenderOptions): vscode.TextEditorDecorationType {
 				return pluginHostEditors.createTextEditorDecorationType(options);
@@ -213,8 +213,8 @@ export class ExtHostAPIImplementation {
 			asRelativePath: (pathOrUri) => {
 				return pluginHostWorkspace.getRelativePath(pathOrUri);
 			},
-			findFiles: (include, exclude, maxResults?) => {
-				return pluginHostWorkspace.findFiles(include, exclude, maxResults);
+			findFiles: (include, exclude, maxResults?, token?) => {
+				return pluginHostWorkspace.findFiles(include, exclude, maxResults, token);
 			},
 			saveAll: (includeUntitled?) => {
 				return pluginHostWorkspace.saveAll(includeUntitled);

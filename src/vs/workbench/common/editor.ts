@@ -122,6 +122,80 @@ export abstract class EditorInput extends EventEmitter implements IEditorInput {
 	}
 }
 
+export interface IResourceEditorInput extends IEditorInput {
+
+	/**
+	 * Gets the absolute file resource URI this input is about.
+	 */
+	getResource(): URI;
+}
+
+export enum EncodingMode {
+
+	/**
+	 * Instructs the encoding support to encode the current input with the provided encoding
+	 */
+	Encode,
+
+	/**
+	 * Instructs the encoding support to decode the current input with the provided encoding
+	 */
+	Decode
+}
+
+export interface IEncodingSupport {
+
+	/**
+	 * Gets the encoding of the input if known.
+	 */
+	getEncoding(): string;
+
+	/**
+	 * Sets the encoding for the input for saving.
+	 */
+	setEncoding(encoding: string, mode: EncodingMode): void;
+}
+
+/**
+ * This is a tagging interface to declare an editor input being capable of dealing with files. It is only used in the editor registry
+ * to register this kind of input to the platform.
+ */
+export interface IFileEditorInput extends IResourceEditorInput, IEncodingSupport {
+
+	/**
+	 * Gets the mime type of the file this input is about.
+	 */
+	getMime(): string;
+
+	/**
+	 * Sets the mime type of the file this input is about.
+	 */
+	setMime(mime: string): void;
+
+	/**
+	 * Sets the absolute file resource URI this input is about.
+	 */
+	setResource(resource: URI): void;
+}
+
+/**
+ * The base class of untitled editor inputs in the workbench.
+ */
+export abstract class UntitledEditorInput extends EditorInput implements IResourceEditorInput, IEncodingSupport {
+
+	abstract getResource(): URI;
+
+	abstract isDirty(): boolean;
+
+	abstract suggestFileName(): string;
+
+	abstract getMime(): string;
+
+	abstract getEncoding(): string;
+
+	abstract setEncoding(encoding: string, mode: EncodingMode): void;
+}
+
 /**
  * The base class of editor inputs that have an original and modified side.
  */
@@ -393,62 +467,6 @@ export class TextDiffEditorOptions extends TextEditorOptions {
 	 * the first change will not be revealed.
 	 */
 	public autoRevealFirstChange: boolean;
-}
-
-export interface IResourceEditorInput extends IEditorInput {
-
-	/**
-	 * Gets the absolute file resource URI this input is about.
-	 */
-	getResource(): URI;
-}
-
-export enum EncodingMode {
-
-	/**
-	 * Instructs the encoding support to encode the current input with the provided encoding
-	 */
-	Encode,
-
-	/**
-	 * Instructs the encoding support to decode the current input with the provided encoding
-	 */
-	Decode
-}
-
-export interface IEncodingSupport {
-
-	/**
-	 * Gets the encoding of the input if known.
-	 */
-	getEncoding(): string;
-
-	/**
-	 * Sets the encoding for the input for saving.
-	 */
-	setEncoding(encoding: string, mode: EncodingMode): void;
-}
-
-/**
- * This is a tagging interface to declare an editor input being capable of dealing with files. It is only used in the editor registry
- * to register this kind of input to the platform.
- */
-export interface IFileEditorInput extends IResourceEditorInput, IEncodingSupport {
-
-	/**
-	 * Gets the mime type of the file this input is about.
-	 */
-	getMime(): string;
-
-	/**
-	 * Sets the mime type of the file this input is about.
-	 */
-	setMime(mime: string): void;
-
-	/**
-	 * Sets the absolute file resource URI this input is about.
-	 */
-	setResource(resource: URI): void;
 }
 
 /**

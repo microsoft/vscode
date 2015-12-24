@@ -12,8 +12,8 @@ import {OpenResourcesAction} from 'vs/workbench/parts/files/browser/fileActions'
 import plat = require('vs/base/common/platform');
 import errors = require('vs/base/common/errors');
 import URI from 'vs/base/common/uri';
-import {EventType as WorkbenchEventType} from 'vs/workbench/browser/events';
-import {IUntitledEditorService} from 'vs/workbench/services/untitled/browser/untitledEditorService';
+import {EventType as WorkbenchEventType} from 'vs/workbench/common/events';
+import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {IResourceInput} from 'vs/platform/editor/common/editor';
@@ -160,7 +160,7 @@ export class FileTracker implements IWorkbenchContribution {
 	}
 
 	private onTextFileDirty(e: LocalFileChangeEvent): void {
-		if (!this.contextService.isAutoSaveEnabled() && !this.isDocumentedEdited) {
+		if (!this.textFileService.isAutoSaveEnabled() && !this.isDocumentedEdited) {
 			this.updateDocumentEdited(); // no indication needed when auto save is turned off and we didn't show dirty
 		}
 	}

@@ -23,7 +23,7 @@ import {ProgressBar} from 'vs/base/browser/ui/progressbar/progressbar';
 import {Scope, IActionBarRegistry, Extensions, prepareActions} from 'vs/workbench/browser/actionBarRegistry';
 import {Action, IAction} from 'vs/base/common/actions';
 import {Part} from 'vs/workbench/browser/part';
-import {EventType as WorkbenchEventType, ViewletEvent} from 'vs/workbench/browser/events';
+import {EventType as WorkbenchEventType, ViewletEvent} from 'vs/workbench/common/events';
 import {Viewlet, EventType as ViewletEventType, IViewletRegistry, Extensions as ViewletExtensions} from 'vs/workbench/browser/viewlet';
 import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/browser/actionRegistry';
 import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';

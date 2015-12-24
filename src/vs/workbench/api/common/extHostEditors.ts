@@ -19,7 +19,7 @@ import {IModelService} from 'vs/editor/common/services/modelService';
 import {MainThreadEditorsTracker, TextEditorRevealType, MainThreadTextEditor, ITextEditorConfiguration} from 'vs/workbench/api/common/mainThreadEditors';
 import * as TypeConverters from './extHostTypeConverters';
 import {TextDocument, TextEditorSelectionChangeEvent, TextEditorOptionsChangeEvent, TextEditorOptions, ViewColumn} from 'vscode';
-import {EventType} from 'vs/workbench/browser/events';
+import {EventType} from 'vs/workbench/common/events';
 import {IEventService} from 'vs/platform/event/common/event';
 import {equals as arrayEquals} from 'vs/base/common/arrays';
 
@@ -75,8 +75,8 @@ export class ExtHostEditors {
 		return this._onDidChangeActiveTextEditor && this._onDidChangeActiveTextEditor.event;
 	}
 
-	showTextDocument(document: TextDocument, column: ViewColumn): TPromise<vscode.TextEditor> {
-		return this._proxy._tryShowTextDocument(<URI> document.uri, TypeConverters.fromViewColumn(column)).then(id => {
+	showTextDocument(document: TextDocument, column: ViewColumn, preserveFocus: boolean): TPromise<vscode.TextEditor> {
+		return this._proxy._tryShowTextDocument(<URI> document.uri, TypeConverters.fromViewColumn(column), preserveFocus).then(id => {
 			let editor = this._editors[id];
 			if (editor) {
 				return editor;
@@ -525,12 +525,12 @@ export class MainThreadEditors {
 
 	// --- from plugin host process
 
-	_tryShowTextDocument(resource: URI, position: EditorPosition): TPromise<string> {
+	_tryShowTextDocument(resource: URI, position: EditorPosition, preserveFocus: boolean): TPromise<string> {
 
 		// the input we want to open
 		let input = {
 			resource,
-			options: { preserveFocus: false }
+			options: { preserveFocus }
 		};
 
 		return this._workbenchEditorService.openEditor(input, position).then(editor => {

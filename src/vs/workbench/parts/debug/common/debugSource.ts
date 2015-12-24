@@ -24,29 +24,29 @@ export class Source {
 	}
 
 	public static toRawSource(uri: uri, model: IModel): DebugProtocol.Source {
-		// First try to find the raw source amongst the stack frames - since that represenation has more data (source reference),
+		// first try to find the raw source amongst the stack frames - since that represenation has more data (source reference),
 		const threads = model.getThreads();
-		for (var threadId in threads) {
+		for (let threadId in threads) {
 			if (threads.hasOwnProperty(threadId) && threads[threadId].callStack) {
 				const found = threads[threadId].callStack.filter(sf => sf.source.uri.toString() === uri.toString()).pop();
 
 				if (found) {
 					return {
 						name: found.source.name,
-						path: found.source.uri.fsPath,
+						path: found.source.inMemory ? null : found.source.uri.fsPath,
 						sourceReference: found.source.reference
 					}
 				}
 			}
 		}
 
-		// Did not find the raw source amongst the stack frames, construct the raw stack frame from the limited data you have.
+		// did not find the raw source amongst the stack frames, construct the raw stack frame from the limited data you have.
 		return Source.isInMemory(uri) ? { name: Source.getName(uri) } :
 			{ path: paths.normalize(uri.fsPath, true) };
 	}
 
 	public static fromRawSource(rawSource: DebugProtocol.Source): Source {
-		var uriStr = rawSource.path ? uri.file(rawSource.path).toString() : Source.INTERNAL_URI_PREFIX + rawSource.name;
+		const uriStr = rawSource.path ? uri.file(rawSource.path).toString() : Source.INTERNAL_URI_PREFIX + rawSource.name;
 		return new Source(rawSource.name, uriStr, rawSource.sourceReference);
 	}
 
@@ -55,7 +55,7 @@ export class Source {
 	}
 
 	private static getName(uri: uri): string {
-		var uriStr = uri.toString();
+		const uriStr = uri.toString();
 		return uriStr.substr(uriStr.lastIndexOf('/') + 1);
 	}
 

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-var MAX_HISTORY_ENTRIES = 50;
+const MAX_HISTORY_ENTRIES = 50;
 
 /**
  * The repl history has the following characteristics:
@@ -34,8 +34,8 @@ export class ReplHistory {
 	}
 
 	private navigate(previous: boolean): string {
-		// Validate new Pointer
-		var newPointer = -1;
+		// validate new pointer
+		let newPointer = -1;
 		if (previous && this.historyPointer > 0 && this.history.length > this.historyPointer - 1) {
 			newPointer = this.historyPointer - 1;
 		} else if (!previous && this.history.length > this.historyPointer + 1) {
@@ -44,10 +44,10 @@ export class ReplHistory {
 
 		if (newPointer >= 0) {
 
-			// Remember pointer for next navigation
+			// remember pointer for next navigation
 			this.historyPointer = newPointer;
 
-			// Check for overwrite
+			// check for overwrite
 			if (this.historyOverwrites && this.historyOverwrites[newPointer.toString()]) {
 				return this.historyOverwrites[newPointer.toString()];
 			}
@@ -59,9 +59,9 @@ export class ReplHistory {
 	}
 
 	public remember(expression: string, fromPrevious: boolean): void {
-		var previousPointer: number;
+		let previousPointer: number;
 
-		// This method is called after the user has navigated in the history. Therefor we need to
+		// this method is called after the user has navigated in the history. Therefor we need to
 		// restore the value of the pointer from the point when the user started the navigation.
 		if (fromPrevious) {
 			previousPointer = this.historyPointer + 1;
@@ -69,14 +69,14 @@ export class ReplHistory {
 			previousPointer = this.historyPointer - 1;
 		}
 
-		// When the user starts to navigate in history, add the current expression to the history
+		// when the user starts to navigate in history, add the current expression to the history
 		// once so that the user can always navigate back to it and does not loose its data.
 		if (previousPointer === this.history.length && !this.currentExpressionStoredMarkers) {
 			this.history.push(expression);
 			this.currentExpressionStoredMarkers = true;
 		}
 
-		// Keep edits that are made to history items up until the user actually evaluates a expression
+		// keep edits that are made to history items up until the user actually evaluates a expression
 		else {
 			if (!this.historyOverwrites) {
 				this.historyOverwrites = {};
@@ -87,28 +87,28 @@ export class ReplHistory {
 	}
 
 	public evaluated(expression: string): void {
-		// Clear current expression that was stored previously to support history navigation now on evaluate
+		// clear current expression that was stored previously to support history navigation now on evaluate
 		if (this.currentExpressionStoredMarkers) {
 			this.history.pop();
 		}
 
-		// Keep in local history if expression provided and not equal to previous expression stored in history
+		// keep in local history if expression provided and not equal to previous expression stored in history
 		if (expression && (this.history.length === 0 || this.history[this.history.length - 1] !== expression)) {
 			this.history.push(expression);
 		}
 
-		// Advance History Pointer to the end
+		// advance History Pointer to the end
 		this.historyPointer = this.history.length;
 
-		// Reset Marker
+		// reset marker
 		this.currentExpressionStoredMarkers = false;
 
-		// Reset Overwrites
+		// reset overwrites
 		delete this.historyOverwrites;
 	}
 
 	public save(): string[] {
-		// Remove current expression from history since it was not evaluated
+		// remove current expression from history since it was not evaluated
 		if (this.currentExpressionStoredMarkers) {
 			this.history.pop();
 		}

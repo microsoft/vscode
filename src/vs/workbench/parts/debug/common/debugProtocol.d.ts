@@ -450,6 +450,8 @@ declare module DebugProtocol {
 		path?: string;
 		/** If sourceReference > 0 the contents of the source can be retrieved through the SourceRequest. A sourceReference is only valid for a session, so it must not be used to persist a source. */
 		sourceReference?: number;
+        /** The (optional) origin of this source: possible values "internal module", "inlined content from source map" */
+        origin?: string;
 	}
 
 	/** A Stackframe contains the source location. */

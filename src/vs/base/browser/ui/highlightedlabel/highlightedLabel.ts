@@ -4,25 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import strings = require('vs/base/common/strings');
+import * as strings from 'vs/base/common/strings';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import builder = require('vs/base/browser/builder');
-import dom = require('vs/base/browser/dom');
-import objects = require('vs/base/common/objects');
+import * as dom from 'vs/base/browser/dom';
+import * as objects from 'vs/base/common/objects';
 
 export interface IHighlight {
-	start:number;
-	end:number;
+	start: number;
+	end: number;
 }
 
 export class HighlightedLabel implements IDisposable {
 
-	private domNode:HTMLElement;
-	private text:string;
-	private highlights:IHighlight[];
-	private didEverRender:boolean;
+	private domNode: HTMLElement;
+	private text: string;
+	private highlights: IHighlight[];
+	private didEverRender: boolean;
 
-	constructor(container:HTMLElement) {
+	constructor(container: HTMLElement) {
 		this.domNode = document.createElement('span');
 		this.domNode.className = 'monaco-highlighted-label';
 		this.didEverRender = false;
@@ -33,9 +32,13 @@ export class HighlightedLabel implements IDisposable {
 		return this.domNode;
 	}
 
-	set(text:string = '', highlights:IHighlight[] = []) {
-		if(this.didEverRender && this.text === text && objects.equals(this.highlights, text)) {
+	set(text: string = '', highlights?: IHighlight[]) {
+		if (this.didEverRender && this.text === text && objects.equals(this.highlights, highlights)) {
 			return;
+		}
+
+		if (!Array.isArray(highlights)) {
+			highlights = [];
 		}
 
 		this.text = text;
@@ -46,11 +49,11 @@ export class HighlightedLabel implements IDisposable {
 	private render() {
 		dom.clearNode(this.domNode);
 
-		var htmlContent:string[] = [],
-			highlight:IHighlight,
+		let htmlContent: string[] = [],
+			highlight: IHighlight,
 			pos = 0;
 
-		for (var i = 0; i < this.highlights.length; i++) {
+		for (let i = 0; i < this.highlights.length; i++) {
 			highlight = this.highlights[i];
 			if (highlight.end === highlight.start) {
 				continue;

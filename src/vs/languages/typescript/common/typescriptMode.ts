@@ -10,11 +10,8 @@ import URI from 'vs/base/common/uri';
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
 import lifecycle = require('vs/base/common/lifecycle');
-import objects = require('vs/base/common/objects');
-import types = require('vs/base/common/types');
 import async = require('vs/base/common/async');
 import supports = require('vs/editor/common/modes/supports');
-import services = require('vs/platform/services');
 import tokenization = require('vs/languages/typescript/common/features/tokenization');
 import quickFixMainActions = require('vs/languages/typescript/common/features/quickFixMainActions');
 import typescriptWorker = require('vs/languages/typescript/common/typescriptWorker2');
@@ -38,8 +35,8 @@ class SemanticValidator {
 	private _lastChangedResource: URI;
 	private _listener: { [r: string]: Function } = Object.create(null);
 
-	constructor(ctx: services.IServicesContext, mode: TypeScriptMode<any>) {
-		this._modelService = ctx['modelService'];
+	constructor(mode: TypeScriptMode<any>, @IModelService modelService: IModelService) {
+		this._modelService = modelService;
 		this._mode = mode;
 		this._validation = new async.RunOnceScheduler(this._doValidate.bind(this), 750);
 		if (this._modelService) {

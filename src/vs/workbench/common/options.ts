@@ -37,12 +37,6 @@ export interface IOptions {
 	singleFileMode?: boolean;
 
 	/**
-	 * A number indicating the auto save delay in ms. A time of -1 indicates that
-	 * auto save indicates that auto save is turned off completly.
-	 */
-	autoSaveDelay?: number;
-
-	/**
 	 * A flag turning the workbench into readonly mode preventing file modifications.
 	 */
 	readOnly?: boolean;

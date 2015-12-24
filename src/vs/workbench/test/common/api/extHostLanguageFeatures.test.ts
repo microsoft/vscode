@@ -9,8 +9,6 @@ import * as assert from 'assert';
 import {setUnexpectedErrorHandler, errorHandler} from 'vs/base/common/errors';
 import {create} from 'vs/base/common/types';
 import URI from 'vs/base/common/uri';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {ExtHostDocument} from 'vs/workbench/api/common/extHostDocuments';
 import * as types from 'vs/workbench/api/common/extHostTypes';
 import {Range as CodeEditorRange} from 'vs/editor/common/core/range';
 import * as EditorCommon from 'vs/editor/common/editorCommon';
@@ -23,14 +21,12 @@ import {IThreadService} from 'vs/platform/thread/common/thread';
 import {ExtHostLanguageFeatures, MainThreadLanguageFeatures} from 'vs/workbench/api/common/extHostLanguageFeatures';
 import {ExtHostCommands, MainThreadCommands} from 'vs/workbench/api/common/extHostCommands';
 import {ExtHostModelService} from 'vs/workbench/api/common/extHostDocuments';
-import {SyncDescriptor0} from 'vs/platform/instantiation/common/descriptors';
-import {LanguageSelector} from 'vs/editor/common/modes/languageSelector';
 import {OutlineRegistry, getOutlineEntries} from 'vs/editor/contrib/quickOpen/common/quickOpen';
-import {CodeLensRegistry, getCodeLensData} from 'vs/editor/contrib/codelens/common/codelens';
-import {DeclarationRegistry, getDeclarationsAtPosition} from 'vs/editor/contrib/goToDeclaration/common/goToDeclaration';
-import {ExtraInfoRegistry, getExtraInfoAtPosition} from 'vs/editor/contrib/hover/common/hover';
-import {OccurrencesRegistry, getOccurrencesAtPosition} from 'vs/editor/contrib/wordHighlighter/common/wordHighlighter';
-import {ReferenceRegistry, findReferences} from 'vs/editor/contrib/referenceSearch/common/referenceSearch';
+import {getCodeLensData} from 'vs/editor/contrib/codelens/common/codelens';
+import {getDeclarationsAtPosition} from 'vs/editor/contrib/goToDeclaration/common/goToDeclaration';
+import {getExtraInfoAtPosition} from 'vs/editor/contrib/hover/common/hover';
+import {getOccurrencesAtPosition} from 'vs/editor/contrib/wordHighlighter/common/wordHighlighter';
+import {findReferences} from 'vs/editor/contrib/referenceSearch/common/referenceSearch';
 import {getQuickFixes} from 'vs/editor/contrib/quickFix/common/quickFix';
 import {getNavigateToItems} from 'vs/workbench/parts/search/common/search';
 import {rename} from 'vs/editor/contrib/rename/common/rename';
@@ -168,7 +164,7 @@ suite('ExtHostLanguageFeatures', function() {
 	test('CodeLens, evil provider', function(done) {
 
 		disposables.push(extHost.registerCodeLensProvider(defaultSelector, <vscode.CodeLensProvider>{
-			provideCodeLenses():any {
+			provideCodeLenses(): any {
 				throw new Error('evil')
 			}
 		}));
@@ -189,12 +185,12 @@ suite('ExtHostLanguageFeatures', function() {
 	test('CodeLens, do not resolve a resolved lens', function(done) {
 
 		disposables.push(extHost.registerCodeLensProvider(defaultSelector, <vscode.CodeLensProvider>{
-			provideCodeLenses():any {
+			provideCodeLenses(): any {
 				return [new types.CodeLens(
 					new types.Range(0, 0, 0, 0),
 					{ command: 'id', title: 'Title' })];
 			},
-			resolveCodeLens():any {
+			resolveCodeLens(): any {
 				assert.ok(false, 'do not resolve');
 			}
 		}));

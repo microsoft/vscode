@@ -33,7 +33,6 @@ export interface IPath {
 
 export interface IMainEnvironment extends IEnvironment {
 	workspacePath?: string;
-	autoSaveDelay?: number;
 	filesToOpen?: IPath[];
 	filesToCreate?: IPath[];
 	extensionsToInstall?: string[];
@@ -58,7 +57,6 @@ export function startup(environment: IMainEnvironment, globalSettings: IGlobalSe
 		filesToOpen: filesToOpen,
 		filesToCreate: filesToCreate,
 		extensionsToInstall: environment.extensionsToInstall,
-		autoSaveDelay: environment.autoSaveDelay,
 		globalSettings: globalSettings
 	};
 

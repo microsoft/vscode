@@ -23,7 +23,7 @@ import {Scope as MementoScope} from 'vs/workbench/common/memento';
 import {Scope, IActionBarRegistry, Extensions as ActionBarExtensions, prepareActions} from 'vs/workbench/browser/actionBarRegistry';
 import {IAction} from 'vs/base/common/actions';
 import {Part} from 'vs/workbench/browser/part';
-import {EventType as WorkbenchEventType, EditorEvent} from 'vs/workbench/browser/events';
+import {EventType as WorkbenchEventType, EditorEvent} from 'vs/workbench/common/events';
 import {IEditorRegistry, Extensions as EditorExtensions, BaseEditor, IEditorInputActionContext, EditorDescriptor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {EditorInput, EditorOptions, TextEditorOptions} from 'vs/workbench/common/editor';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
