@@ -17,7 +17,7 @@ import {StringEditorModel} from 'vs/workbench/browser/parts/editor/stringEditorM
 import {FileEditorInput} from 'vs/workbench/parts/files/browser/editors/fileEditorInput';
 import {TextFileEditorModel} from 'vs/workbench/parts/files/browser/editors/textFileEditorModel';
 import {TextFileService} from 'vs/workbench/parts/files/browser/textFileServices';
-import {TestEventService, TestPartService, TestStorageService, TestRequestService, TestContextService, TestWorkspace, TestEditorService, MockRequestService} from 'vs/workbench/test/browser/servicesTestUtils';
+import {TestEventService, TestLifecycleService, TestPartService, TestStorageService, TestConfigurationService, TestRequestService, TestContextService, TestWorkspace, TestEditorService, MockRequestService} from 'vs/workbench/test/browser/servicesTestUtils';
 import {Viewlet} from 'vs/workbench/browser/viewlet';
 import {EventType} from 'vs/workbench/common/events';
 import {MainTelemetryService} from 'vs/platform/telemetry/browser/mainTelemetryService';
@@ -243,16 +243,20 @@ suite('Workbench UI Services', () => {
 			contextService: contextService,
 			requestService: requestService,
 			telemetryService: telemetryService,
+			configurationService: new TestConfigurationService(),
 			untitledEditorService: new UntitledEditorService(),
 			storageService: new TestStorageService(),
 			editorService: editorService,
 			partService: new TestPartService(),
 			modeService: createMockModeService(),
 			modelService: createMockModelService(),
+			lifecycleService: new TestLifecycleService(),
 			fileService: TestFileService
 		};
 		let inst = create(services);
 
+		let textFileService = inst.createInstance(<any>TextFileService);
+		inst.registerService('textFileService', textFileService);
 		services['instantiationService'] = inst;
 
 		let activeInput: EditorInput = inst.createInstance(FileEditorInput, toResource('/something.js'), 'text/javascript', void 0);
@@ -347,14 +351,15 @@ suite('Workbench UI Services', () => {
 			untitledEditorService: new UntitledEditorService(),
 			editorService: editorService,
 			partService: new TestPartService(),
-			modelService: createMockModelService()
+			lifecycleService: new TestLifecycleService(),
+			modelService: createMockModelService(),
+			configurationService: new TestConfigurationService()
 		};
 
 		let inst = create(services);
 		let textFileService = inst.createInstance(<any>TextFileService);
-		services['textFileService'] = textFileService;
-		services['instantiationService'] = inst;
 		inst.registerService('textFileService', textFileService);
+		services['instantiationService'] = inst;
 		let activeInput: EditorInput = inst.createInstance(FileEditorInput, toResource('/something.js'), 'text/javascript', void 0);
 
 		let testEditorPart = new TestEditorPart();

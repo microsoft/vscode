@@ -37,9 +37,9 @@ suite('Files - TextFileEditor', () => {
 		equal(Registry.as(ExtensionId).getEditors().length, oldEditorCnt + 2);
 		equal(Registry.as(ExtensionId).getEditorInputs().length, oldInputCnt + 2);
 
-		strictEqual(Registry.as(ExtensionId).getEditor(new FileEditorInput(URI.file(join('C:\\', "/foo/bar/foobar.html")), "test-text/html", void 0, void 0, void 0)), d1);
-		strictEqual(Registry.as(ExtensionId).getEditor(new FileEditorInput(URI.file(join('C:\\', "/foo/bar/foobar.js")), "test-text/javascript", void 0, void 0, void 0)), d1);
-		strictEqual(Registry.as(ExtensionId).getEditor(new FileEditorInput(URI.file(join('C:\\', "/foo/bar/foobar.css")), "test-text/css", void 0, void 0, void 0)), d2);
+		strictEqual(Registry.as(ExtensionId).getEditor(new FileEditorInput(URI.file(join('C:\\', "/foo/bar/foobar.html")), "test-text/html", void 0, void 0, void 0, void 0)), d1);
+		strictEqual(Registry.as(ExtensionId).getEditor(new FileEditorInput(URI.file(join('C:\\', "/foo/bar/foobar.js")), "test-text/javascript", void 0, void 0, void 0, void 0)), d1);
+		strictEqual(Registry.as(ExtensionId).getEditor(new FileEditorInput(URI.file(join('C:\\', "/foo/bar/foobar.css")), "test-text/css", void 0, void 0, void 0, void 0)), d2);
 
 		Registry.as(ExtensionId).setEditors(oldEditors);
 	});

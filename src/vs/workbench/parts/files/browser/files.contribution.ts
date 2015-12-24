@@ -218,6 +218,16 @@ configurationRegistry.registerConfiguration({
 			'type': 'boolean',
 			'default': false,
 			'description': nls.localize('trimTrailingWhitespace', "When enabled, will trim trailing whitespace when you save a file.")
+		},
+		'files.autoSaveAfterDelay': {
+			'type': 'number',
+			'default': 0,
+			'description': nls.localize('autoSaveAfterDelay', "When set to a positive number, will automatically save dirty files after configured seconds.")
+		},
+		'files.autoSaveAfterFocusChange': {
+			'type': 'boolean',
+			'default': false,
+			'description': nls.localize('autoSaveAfterFocusChange', "When enabled, will automatically save dirty files after focus changes away from the editor.")
 		}
 	}
 });

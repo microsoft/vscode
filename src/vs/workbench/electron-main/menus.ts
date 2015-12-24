@@ -36,9 +36,6 @@ export class VSCodeMenu {
 
 	private static MAX_RECENT_ENTRIES = 10;
 
-	private static AUTO_SAVE_DELAY_DEFAULT = 1000; // in ms
-	private static AUTO_SAVE_DISABLED = -1;
-
 	private isQuitting:boolean;
 	private appMenuInstalled: boolean;
 
@@ -72,11 +69,6 @@ export class VSCodeMenu {
 
 		// Resolve keybindings when any first workbench is loaded
 		windows.onReady((win) => this.resolveKeybindings(win));
-
-		// Listen to VSCode window
-		ipc.on('vscode:toggleAutoSave', () => {
-			this.toggleAutoSave();
-		});
 
 		// Listen to resolved keybindings
 		ipc.on('vscode:keybindingsResolved', (event, rawKeybindings) => {
@@ -127,25 +119,6 @@ export class VSCodeMenu {
 		if (this.actionIdKeybindingRequests.length) {
 			win.send('vscode:resolveKeybindings', JSON.stringify(this.actionIdKeybindingRequests));
 		}
-	}
-
-	private toggleAutoSave(): void {
-		let currentAutoSaveDelay = storage.getItem<number>(windows.WindowsManager.autoSaveDelayStorageKey) || -1;
-		if (typeof currentAutoSaveDelay !== 'number') {
-			currentAutoSaveDelay = VSCodeMenu.AUTO_SAVE_DELAY_DEFAULT;
-		}
-
-		let newAutoSaveDelay = (currentAutoSaveDelay === VSCodeMenu.AUTO_SAVE_DELAY_DEFAULT) ? VSCodeMenu.AUTO_SAVE_DISABLED : VSCodeMenu.AUTO_SAVE_DELAY_DEFAULT;
-
-		storage.setItem(windows.WindowsManager.autoSaveDelayStorageKey, newAutoSaveDelay);
-
-		windows.manager.sendToAll('vscode:optionsChange', JSON.stringify({ autoSaveDelay: newAutoSaveDelay }));
-
-		if (newAutoSaveDelay >= 0) {
-			windows.manager.sendToAll('vscode:runAction', 'workbench.action.files.saveFiles');
-		}
-
-		this.updateMenu();
 	}
 
 	private updateMenu(): void {
@@ -345,13 +318,9 @@ export class VSCodeMenu {
 		this.setOpenRecentMenu(openRecentMenu);
 		let openRecent = new MenuItem({ label: mnemonicLabel(nls.localize('miOpenRecent', "Open &&Recent")), submenu: openRecentMenu, enabled: openRecentMenu.items.length > 0 });
 
-		let autoSaveDelay = storage.getItem<number>(windows.WindowsManager.autoSaveDelayStorageKey) || -1 /* Disabled by default */;
-
-		let saveFile = this.createMenuItem(nls.localize('miSave', "&&Save"), 'workbench.action.files.save', autoSaveDelay === -1 && windows.manager.getWindowCount() > 0);
+		let saveFile = this.createMenuItem(nls.localize('miSave', "&&Save"), 'workbench.action.files.save', windows.manager.getWindowCount() > 0);
 		let saveFileAs = this.createMenuItem(nls.localize('miSaveAs', "Save As..."), 'workbench.action.files.saveAs', windows.manager.getWindowCount() > 0);
-		let saveAllFiles = this.createMenuItem(nls.localize('miSaveAll', "Save &&All"), 'workbench.action.files.saveAll', autoSaveDelay === -1 && windows.manager.getWindowCount() > 0);
-
-		let autoSave = new MenuItem({ label: mnemonicLabel(nls.localize('miAutoSave', "Auto Save")), type: 'checkbox', checked: autoSaveDelay !== -1, enabled: windows.manager.getWindowCount() > 0, click: () => windows.manager.sendToFocused('vscode:runAction', 'workbench.action.files.toggleAutoSave') });
+		let saveAllFiles = this.createMenuItem(nls.localize('miSaveAll', "Save &&All"), 'workbench.action.files.saveAll', windows.manager.getWindowCount() > 0);
 
 		let preferences = this.getPreferencesMenu();
 
@@ -376,8 +345,6 @@ export class VSCodeMenu {
 			saveFile,
 			saveFileAs,
 			saveAllFiles,
-			__separator__(),
-			autoSave,
 			__separator__(),
 			!platform.isMacintosh ? preferences : null,
 			!platform.isMacintosh ? __separator__() : null,

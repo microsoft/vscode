@@ -6,16 +6,20 @@
 
 import {TPromise, Promise} from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
+import errors = require('vs/base/common/errors');
+import {ListenerUnbind} from 'vs/base/common/eventEmitter';
 import {FileEditorInput} from 'vs/workbench/parts/files/browser/editors/fileEditorInput';
 import {CACHE, TextFileEditorModel} from 'vs/workbench/parts/files/browser/editors/textFileEditorModel';
-import {IResult, ITextFileOperationResult, ConfirmResult, ITextFileService} from 'vs/workbench/parts/files/common/files';
+import {IResult, ITextFileOperationResult, ConfirmResult, ITextFileService, IAutoSaveConfiguration} from 'vs/workbench/parts/files/common/files';
 import {EventType} from 'vs/workbench/common/events';
 import {WorkingFilesModel} from 'vs/workbench/parts/files/browser/workingFilesModel';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
-import {IFileOperationResult, FileOperationResult} from 'vs/platform/files/common/files';
-import {IEventService} from 'vs/platform/event/common/event';
+import {IFilesConfiguration, IFileOperationResult, FileOperationResult} from 'vs/platform/files/common/files';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
+import {IEventService} from 'vs/platform/event/common/event';
+import {IConfigurationService, IConfigurationServiceEvent, ConfigurationServiceEventTypes} from 'vs/platform/configuration/common/configuration';
+import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 
 /**
  * The workbench file service implementation implements the raw file service spec and adds additional methods on top.
@@ -23,32 +27,78 @@ import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
  * It also adds diagnostics and logging around file system operations.
  */
 export abstract class TextFileService implements ITextFileService {
+
 	public serviceId = ITextFileService;
 
-	private listenerToUnbind: () => void;
-	private workingFilesModel: WorkingFilesModel;
+	private listenerToUnbind: ListenerUnbind[];
+	private _workingFilesModel: WorkingFilesModel;
+
+	private configuredAutoSaveDelay: number;
+	private configuredAutoSaveOnFocusChange: boolean;
 
 	constructor(
-		@IEventService private eventService: IEventService,
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@ILifecycleService private lifecycleService: ILifecycleService
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IConfigurationService private configurationService: IConfigurationService,
+		@ITelemetryService private telemetryService: ITelemetryService,
+		@ILifecycleService private lifecycleService: ILifecycleService,
+		@IEventService private eventService: IEventService
 	) {
-		this.workingFilesModel = instantiationService.createInstance(WorkingFilesModel);
+		this.listenerToUnbind = [];
 
 		this.registerListeners();
+		this.loadConfiguration();
+	}
+
+	private get workingFilesModel(): WorkingFilesModel {
+		if (!this._workingFilesModel) {
+			this._workingFilesModel = this.instantiationService.createInstance(WorkingFilesModel);
+		}
+
+		return this._workingFilesModel;
 	}
 
 	private registerListeners(): void {
-		this.listenerToUnbind = this.eventService.addListener(EventType.WORKBENCH_OPTIONS_CHANGED, () => this.onOptionsChanged());
-		if (this.lifecycleService) {
-			this.lifecycleService.addBeforeShutdownParticipant(this);
-			this.lifecycleService.onShutdown(this.dispose, this);
+
+		// Lifecycle
+		this.lifecycleService.addBeforeShutdownParticipant(this);
+		this.lifecycleService.onShutdown(this.dispose, this);
+
+		// Configuration changes
+		this.listenerToUnbind.push(this.configurationService.addListener(ConfigurationServiceEventTypes.UPDATED, (e: IConfigurationServiceEvent) => this.onConfigurationChange(e.config)));
+
+		// Editor focus change
+		window.addEventListener('blur', () => this.onEditorFocusChange(), true);
+		this.listenerToUnbind.push(this.eventService.addListener(EventType.EDITOR_INPUT_CHANGED, () => this.onEditorFocusChange()));
+	}
+
+	private onEditorFocusChange(): void {
+		if (this.configuredAutoSaveOnFocusChange && this.getDirty().length) {
+			this.saveAll().done(null, errors.onUnexpectedError); // save dirty files when we change focus in the editor area
 		}
 	}
 
-	protected onOptionsChanged(): void {
-		CACHE.getAll().forEach((model) => model.updateOptions());
+	private loadConfiguration(): void {
+		this.configurationService.loadConfiguration().done((configuration: IFilesConfiguration) => {
+			this.onConfigurationChange(configuration);
+
+			// we want to find out about this setting from telemetry
+			this.telemetryService.publicLog('autoSave', this.getAutoSaveConfiguration());
+		}, errors.onUnexpectedError);
+	}
+
+	private onConfigurationChange(configuration: IFilesConfiguration): void {
+		const wasAutoSaveEnabled = this.isAutoSaveEnabled();
+
+		this.configuredAutoSaveDelay = configuration && configuration.files && configuration.files.autoSaveAfterDelay;
+		this.configuredAutoSaveOnFocusChange = configuration && configuration.files && configuration.files.autoSaveAfterFocusChange;
+
+		const autoSaveConfig = this.getAutoSaveConfiguration();
+		CACHE.getAll().forEach((model) => model.updateAutoSaveConfiguration(autoSaveConfig));
+
+		if (!wasAutoSaveEnabled && this.isAutoSaveEnabled()) {
+			this.saveAll().done(null, errors.onUnexpectedError); // save all dirty when enabling auto save
+		}
 	}
 
 	public getDirty(resource?: URI): URI[] {
@@ -172,8 +222,21 @@ export abstract class TextFileService implements ITextFileService {
 		return this.workingFilesModel;
 	}
 
+	public isAutoSaveEnabled(): boolean {
+		return this.configuredAutoSaveDelay && this.configuredAutoSaveDelay > 0 || this.configuredAutoSaveOnFocusChange;
+	}
+
+	public getAutoSaveConfiguration(): IAutoSaveConfiguration {
+		return {
+			autoSaveAfterDelay: this.configuredAutoSaveDelay && this.configuredAutoSaveDelay > 0 ? this.configuredAutoSaveDelay : void 0,
+			autoSaveAfterFocusChange: this.configuredAutoSaveOnFocusChange
+		}
+	}
+
 	public dispose(): void {
-		this.listenerToUnbind();
+		while (this.listenerToUnbind.length) {
+			this.listenerToUnbind.pop()();
+		}
 
 		this.workingFilesModel.dispose();
 

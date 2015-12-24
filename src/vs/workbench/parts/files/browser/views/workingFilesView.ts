@@ -22,7 +22,6 @@ import {CloseWorkingFileAction, SaveAllAction} from 'vs/workbench/parts/files/br
 import {WorkingFileEntry} from 'vs/workbench/parts/files/browser/workingFilesModel';
 import {WorkingFilesDragAndDrop, WorkingFilesSorter, WorkingFilesController, WorkingFilesDataSource, WorkingFilesRenderer, WorkingFilesActionProvider} from 'vs/workbench/parts/files/browser/views/workingFilesViewer';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {IConfigurationService, IConfigurationServiceEvent, ConfigurationServiceEventTypes} from 'vs/platform/configuration/common/configuration';
 import {IEditorInput} from 'vs/platform/editor/common/editor';
 import {IEventService} from 'vs/platform/event/common/event';
@@ -37,8 +36,6 @@ export class WorkingFilesView extends AdaptiveCollapsibleViewletView {
 	private static DEFAULT_MAX_VISIBLE_FILES = 9;
 	private static DEFAULT_DYNAMIC_HEIGHT = true;
 
-	private textFileService: ITextFileService;
-
 	private settings: any;
 	private maxVisibleWorkingFiles: number;
 	private dynamicHeight: boolean;
@@ -51,17 +48,14 @@ export class WorkingFilesView extends AdaptiveCollapsibleViewletView {
 
 	constructor(actionRunner: IActionRunner, settings: any,
 		@IEventService private eventService: IEventService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IMessageService messageService: IMessageService,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@ITextFileService textFileService: ITextFileService,
+		@ITextFileService private textFileService: ITextFileService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super(actionRunner, WorkingFilesView.computeExpandedBodySize(textFileService.getWorkingFilesModel()), !!settings[WorkingFilesView.MEMENTO_COLLAPSED], 'workingFilesView', messageService, contextMenuService);
-
-		this.textFileService = textFileService;
 
 		this.settings = settings;
 		this.model = this.textFileService.getWorkingFilesModel();
@@ -154,7 +148,7 @@ export class WorkingFilesView extends AdaptiveCollapsibleViewletView {
 	}
 
 	private onTextFileDirty(e: LocalFileChangeEvent): void {
-		if (!this.contextService.isAutoSaveEnabled()) {
+		if (!this.textFileService.isAutoSaveEnabled()) {
 			this.updateDirtyIndicator(); // no indication needed when auto save is turned off and we didn't show dirty
 		}
 	}
