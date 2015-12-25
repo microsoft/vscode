@@ -26,20 +26,14 @@ class ToggleWordWrapAction extends EditorAction {
 
         let wrappingInfo = this.editor.getConfiguration().wrappingInfo;
 
-        //console.log('toggleWordWrap: wc1: ' + wrappingInfo.wrappingColumn );
-        //console.log('toggleWordWrap: isViewportWrapping: ' + wrappingInfo.isViewportWrapping);
-
-		if (wrappingInfo.isViewportWrapping == false) {
+        if (wrappingInfo.isViewportWrapping == false) {
             wrappingInfo.wrappingColumn = 0;
-            //wrappingInfo.isViewportWrapping = true;
-		} else {
-            //wrappingInfo.isViewportWrapping = false;
+        } else {
             wrappingInfo.wrappingColumn = DefaultConfig.editor.wrappingColumn;
-		}
-        //console.log('toggleWordWrap: wc2: ' + wrappingInfo.wrappingColumn );
-		this.editor.updateOptions(wrappingInfo);
-
-		return TPromise.as(true);
+        }
+        this.editor.updateOptions(wrappingInfo);
+        
+        return TPromise.as(true);
 	}
 }
 
