@@ -14,8 +14,8 @@ var Workforce;
         calculateMonthlyExpenses();
         {
             var result = 0;
-            for (var i = 0; i < employees.length; i++) {
-                result += employees[i].calculatePay();
+            for (let employee of employees) {
+                result += employee.calculatePay();
             }
             return result;
         }

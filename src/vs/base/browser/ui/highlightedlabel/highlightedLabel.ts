@@ -53,8 +53,7 @@ export class HighlightedLabel implements IDisposable {
 			highlight: IHighlight,
 			pos = 0;
 
-		for (let i = 0; i < this.highlights.length; i++) {
-			highlight = this.highlights[i];
+		for (let highlight of this.highlights) {
 			if (highlight.end === highlight.start) {
 				continue;
 			}

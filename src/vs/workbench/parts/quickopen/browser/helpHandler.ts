@@ -131,15 +131,12 @@ export class HelpHandler extends QuickOpenHandler {
 		let workbenchScoped: HelpEntry[] = [];
 		let editorScoped: HelpEntry[] = [];
 		let entry: HelpEntry;
-		for (let i = 0; i < handlerDescriptors.length; i++) {
-			let handlerDescriptor = handlerDescriptors[i];
+		for (let handlerDescriptor of handlerDescriptors) {
 			if (handlerDescriptor.prefix !== HELP_PREFIX) {
 
 				// Descriptor has multiple help entries
 				if (types.isArray(handlerDescriptor.helpEntries)) {
-					for (let j = 0; j < handlerDescriptor.helpEntries.length; j++) {
-						let helpEntry = handlerDescriptor.helpEntries[j];
-
+					for (let helpEntry of handlerDescriptor.helpEntries) {
 						if (helpEntry.prefix.indexOf(searchValue) === 0) {
 							entry = new HelpEntry(helpEntry.prefix, helpEntry.description, this.quickOpenService, searchValue.length > 0);
 							if (helpEntry.needsEditor) {

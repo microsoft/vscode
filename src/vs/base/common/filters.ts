@@ -26,8 +26,8 @@ export interface IMatch {
  */
 export function or(...filter: IFilter[]): IFilter {
 	return function(word: string, wordToMatchAgainst: string): IMatch[] {
-		for (let i = 0, len = filter.length; i < len; i++) {
-			let match = filter[i](word, wordToMatchAgainst);
+		for (let filterElement of filter) {
+			let match = filterElement(word, wordToMatchAgainst);
 			if (match) {
 				return match;
 			}
@@ -44,8 +44,8 @@ export function or(...filter: IFilter[]): IFilter {
 export function and(...filter: IFilter[]): IFilter {
 	return function(word: string, wordToMatchAgainst: string): IMatch[] {
 		let result: IMatch[] = [];
-		for (let i = 0, len = filter.length; i < len; i++) {
-			let match = filter[i](word, wordToMatchAgainst);
+		for (let filterElement of filter) {
+			let match = filterElement(word, wordToMatchAgainst);
 			if (!match) {
 				return null;
 			}

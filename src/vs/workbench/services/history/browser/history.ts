@@ -209,8 +209,7 @@ export abstract class BaseHistoryService {
 		}
 
 		let editors = this.editorService.getVisibleEditors();
-		for (let i = 0; i < editors.length; i++) {
-			let editor = editors[i];
+		for (let editor of editors) {
 			if (editor !== activeEditor && input.matches(editor.input)) {
 				return editor.position;
 			}

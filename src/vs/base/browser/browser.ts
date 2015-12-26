@@ -107,8 +107,7 @@ export function hasCSSAnimationSupport() {
 	var supported = false;
 	var element = globals.document.createElement('div');
 	var properties = ['animationName', 'webkitAnimationName', 'msAnimationName', 'MozAnimationName', 'OAnimationName'];
-	for (var i = 0; i < properties.length; i++) {
-		var property = properties[i];
+	for (let property of properties) {
 		if (!types.isUndefinedOrNull(element.style[property]) || element.style.hasOwnProperty(property)) {
 			supported = true;
 			break;

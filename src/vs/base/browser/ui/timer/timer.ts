@@ -152,14 +152,14 @@ export class TimeKeeperRenderer {
 		this.timeFilter = parseInt(this.timeFilterDomNode.value, 10);
 
 		var domNodes = Array.prototype.slice.call(this.domNode.children, 0);
-			for (var i = 0; i < domNodes.length; i++) {
-				var eventId = domNodes[i].getAttribute('data-event-id');
+			for (let domNode of domNodes) {
+				var eventId = domNode.getAttribute('data-event-id');
 				var event = this.renderedEvents[eventId];
 
 				if (this.shouldShow(event)) {
-					domNodes[i].style.display = 'inherit';
+					domNode.style.display = 'inherit';
 				} else {
-					domNodes[i].style.display = 'none';
+					domNode.style.display = 'none';
 				}
 			}
 	}

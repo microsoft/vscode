@@ -142,8 +142,7 @@ class SearchController extends DefaultController {
 	private onDelete(tree: ITree, event: any): boolean {
 		let result = false;
 		let elements = tree.getSelection();
-		for (let i = 0; i < elements.length; i++) {
-			let element = elements[i];
+		for (let element of elements) {
 			if (element instanceof FileMatch) {
 				new RemoveAction(tree, element).run().done(null, errors.onUnexpectedError);
 				result = true;
@@ -1403,9 +1402,9 @@ export class SearchViewlet extends Viewlet {
 
 		let matches = this.viewModel.matches();
 
-		for (let i = 0, len = matches.length; i < len; i++) {
-			if (e.resource.toString() === matches[i].resource().toString()) {
-				this.viewModel.remove(matches[i]);
+		for (let match of matches) {
+			if (e.resource.toString() === match.resource().toString()) {
+				this.viewModel.remove(match);
 			}
 		}
 	}
@@ -1418,9 +1417,9 @@ export class SearchViewlet extends Viewlet {
 
 		let matches = this.viewModel.matches();
 
-		for (let i = 0, len = matches.length; i < len; i++) {
-			if (e.contains(matches[i].resource(), FileChangeType.DELETED)) {
-				this.viewModel.remove(matches[i]);
+		for (let match of matches) {
+			if (e.contains(match.resource(), FileChangeType.DELETED)) {
+				this.viewModel.remove(match);
 			}
 		}
 	}

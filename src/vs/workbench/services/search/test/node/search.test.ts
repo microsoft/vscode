@@ -18,8 +18,7 @@ import {Engine as TextSearchEngine} from 'vs/workbench/services/search/node/text
 function count(lineMatches: LineMatch[]): number {
 	let count = 0;
 	if (lineMatches) {
-		for (let i = 0; i < lineMatches.length; i++) {
-			let line = lineMatches[i];
+		for (let line of lineMatches) {
 			let wordMatches = line.offsetAndLengths;
 			count += wordMatches.length;
 		}

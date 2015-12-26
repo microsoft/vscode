@@ -260,9 +260,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 		// Pattern match on results and adjust highlights
 		let results: QuickOpenEntry[] = [];
 		const searchInPath = this.fuzzyMatchingEnabled || searchValue.indexOf(paths.nativeSep) >= 0;
-		for (let i = 0; i < cachedEntries.length; i++) {
-			let entry = cachedEntries[i];
-
+		for (let entry of cachedEntries) {
 			// Check for file entries if range is used
 			if (range && !(entry instanceof FileEntry)) {
 				continue;

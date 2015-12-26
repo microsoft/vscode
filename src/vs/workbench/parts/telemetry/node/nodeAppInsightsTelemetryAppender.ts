@@ -212,8 +212,7 @@ export class NodeAppInsightsTelemetryAppender implements ITelemetryAppender {
 	private flaten(obj:any, order:number = 0, prefix? : string): any {
 		var result:{[key:string]: any} = {};
 		var properties = obj ? Object.getOwnPropertyNames(obj) : [];
-		for (var i =0; i < properties.length; i++) {
-			var item = properties[i];
+		for (let item of properties) {
 			var index = prefix ? prefix + item : item;
 
 			if (types.isArray(obj[item])) {

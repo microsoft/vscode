@@ -290,9 +290,9 @@ export function toErrorMessage(error: any = null, verbose: boolean = false): str
 			}
 
 			if (types.isArray(detail.error)) {
-				for (let i = 0; i < detail.error.length; i++) {
-					if (detail.error[i] && !types.isUndefinedOrNull(detail.error[i].status)) {
-						return _xhrToErrorMessage(detail.error[i], verbose);
+				for (let errorElement of detail.error) {
+					if (errorElement && !types.isUndefinedOrNull(errorElement.status)) {
+						return _xhrToErrorMessage(errorElement, verbose);
 					}
 				}
 			}
@@ -328,9 +328,9 @@ export function toErrorMessage(error: any = null, verbose: boolean = false): str
 export function getHttpStatus(error: any): number {
 	if (error) {
 		if (types.isArray(error)) {
-			for (let i = 0; i < error.length; i++) {
-				if (error[i] && error[i].status) {
-					return error[i].status;
+			for (let errorElement of error) {
+				if (errorElement && errorElement.status) {
+					return errorElement.status;
 				}
 			}
 		} else if (error.status) {

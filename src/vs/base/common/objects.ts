@@ -68,8 +68,8 @@ function _cloneAndChange(obj: any, changer: (orig: any) => any, encounteredObjec
 
 	if (Types.isArray(obj)) {
 		var r1: any[] = [];
-		for (var i1 = 0; i1 < obj.length; i1++) {
-			r1.push(_cloneAndChange(obj[i1], changer, encounteredObjects));
+		for (let objElement of obj) {
+			r1.push(_cloneAndChange(objElement, changer, encounteredObjects));
 		}
 		return r1;
 	}
@@ -183,14 +183,13 @@ export function equals(one: any, other: any): boolean {
 		return false;
 	}
 
-	var i: number,
-		key: string;
+	var key: string;
 
 	if (Array.isArray(one)) {
 		if (one.length !== other.length) {
 			return false;
 		}
-		for (i = 0; i < one.length; i++) {
+		for (let i = 0; i < one.length; i++) {
 			if (!equals(one[i], other[i])) {
 				return false;
 			}
@@ -210,8 +209,8 @@ export function equals(one: any, other: any): boolean {
 		if (!equals(oneKeys, otherKeys)) {
 			return false;
 		}
-		for (i = 0; i < oneKeys.length; i++) {
-			if (!equals(one[oneKeys[i]], other[oneKeys[i]])) {
+		for (let oneKeysElement of oneKeys) {
+			if (!equals(one[oneKeysElement], other[oneKeysElement])) {
 				return false;
 			}
 		}

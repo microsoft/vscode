@@ -839,8 +839,7 @@ export function getCSSRule(selector:string, style:HTMLStyleElement=sharedStyle):
 	}
 
 	var rules = getDynamicStyleSheetRules(style);
-	for (var i = 0; i < rules.length; i++) {
-		var rule = rules[i];
+	for (let rule of rules) {
 		var normalizedSelectorText = rule.selectorText.replace(/::/gi, ':');
 		if (normalizedSelectorText === selector) {
 			return rule;

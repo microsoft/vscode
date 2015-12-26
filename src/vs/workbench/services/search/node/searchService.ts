@@ -251,8 +251,8 @@ class DiskSearch {
 					result.push(fileMatch);
 
 					if (data.lineMatches) {
-						for (let j = 0; j < data.lineMatches.length; j++) {
-							fileMatch.lineMatches.push(new LineMatch(data.lineMatches[j].preview, data.lineMatches[j].lineNumber, data.lineMatches[j].offsetAndLengths));
+						for (let lineMatch of data.lineMatches) {
+							fileMatch.lineMatches.push(new LineMatch(lineMatch.preview, lineMatch.lineNumber, lineMatch.offsetAndLengths));
 						}
 					}
 

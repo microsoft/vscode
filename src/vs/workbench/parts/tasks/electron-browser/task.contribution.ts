@@ -523,8 +523,8 @@ class TaskService extends EventEmitter implements ITaskService {
 				let parseErrors: string[] = config ? (<any>config).$parseErrors : null;
 				if (parseErrors) {
 					let isAffected = false;
-					for (let i = 0; i < parseErrors.length; i++) {
-						if (/tasks\.json$/.test(parseErrors[i])) {
+					for (let parseError of parseErrors) {
+						if (/tasks\.json$/.test(parseError)) {
 							isAffected = true;
 							break;
 						}

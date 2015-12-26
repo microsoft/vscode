@@ -46,9 +46,7 @@ export function splitGlobAware(pattern: string, splitChar: string): string[] {
 
 	let char: string;
 	let curVal = '';
-	for (let i = 0; i < pattern.length; i++) {
-		char = pattern[i];
-
+	for (let char of pattern) {
 		switch (char) {
 			case splitChar:
 				if (!inBraces && !inBrackets) {
@@ -123,9 +121,7 @@ function parseRegExp(pattern: string): string {
 			let bracketVal = '';
 
 			let char: string;
-			for (let i = 0; i < segment.length; i++) {
-				char = segment[i];
-
+			for (let char of segment) {
 				// Support brace expansion
 				if (char !== '}' && inBraces) {
 					braceVal += char;
@@ -274,9 +270,7 @@ export function match(arg1: string|IExpression, path: string, siblings?: string[
 
 function matchExpression(expression: IExpression, path: string, siblings?: string[]): string /* the matching pattern */ {
 	let patterns = Object.getOwnPropertyNames(expression);
-	for (let i = 0; i < patterns.length; i++) {
-		let pattern = patterns[i];
-
+	for (let pattern of patterns) {
 		// Pattern matches path
 		if (match(pattern, path)) {
 			let value = expression[pattern];
