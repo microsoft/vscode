@@ -630,6 +630,45 @@
 				</dict>
 				<dict>
 					<key>begin</key>
+					<string>((hue-)?rotate|skew(X|Y|Z)?)\s*(\()</string>
+					<key>beginCaptures</key>
+					<dict>
+						<key>1</key>
+						<dict>
+							<key>name</key>
+							<string>support.function.misc.css</string>
+						</dict>
+						<key>2</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.section.function.css</string>
+						</dict>
+					</dict>
+					<key>end</key>
+					<string>(\))</string>
+					<key>endCaptures</key>
+					<dict>
+						<key>1</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.section.function.css</string>
+						</dict>
+					</dict>
+					<key>patterns</key>
+					<array>
+						<dict>
+							<key>match</key>
+							<string>(?x)
+					    		(?:-|\+)?(?:(?:[0-9]+(?:\.[0-9]+)?)|(?:\.[0-9]+))
+								((?:deg|g?rad|turn)\b)
+							</string>
+							<key>name</key>
+							<string>constant.numeric.css</string>
+						</dict>
+					</array>
+				</dict>
+				<dict>
+					<key>begin</key>
 					<string>(format|local|url|attr|counter|counters)\s*(\()</string>
 					<key>beginCaptures</key>
 					<dict>
