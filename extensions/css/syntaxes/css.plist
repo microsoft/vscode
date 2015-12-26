@@ -897,7 +897,7 @@
 						</dict>
 					</dict>
 					<key>match</key>
-					<string>(:)(active|hover|link|visited|focus)\b</string>
+					<string>(:)(active|hover|(any-)?link|visited|focus)\b</string>
 					<key>name</key>
 					<string>entity.other.attribute-name.pseudo-class.css</string>
 				</dict>
