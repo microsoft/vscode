@@ -560,7 +560,7 @@
 				</dict>
 				<dict>
 					<key>begin</key>
-					<string>(rect)\s*(\()</string>
+					<string>(blur|perspective|rect|translate(3d|X|Y|Z)?)\s*(\()</string>
 					<key>beginCaptures</key>
 					<dict>
 						<key>1</key>
