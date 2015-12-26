@@ -798,7 +798,7 @@
 						</dict>
 					</dict>
 					<key>match</key>
-					<string>(:)((first|last)-child|(first|last|only)-of-type|empty|root|target|fullscreen|first|left|right)\b</string>
+					<string>(:)((first|last)-child|(first|last|only)-of-type|empty|root|target|fullscreen|first|left|right|scope)\b</string>
 					<key>name</key>
 					<string>entity.other.attribute-name.pseudo-class.css</string>
 				</dict>
