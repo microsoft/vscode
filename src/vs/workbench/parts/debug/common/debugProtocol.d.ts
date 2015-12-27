@@ -191,8 +191,10 @@ declare module DebugProtocol {
 	export interface SetBreakpointsArguments {
 		/** The source location of the breakpoints; either source.path or source.reference must be specified. */
 		source: Source;
-		/** The code locations of the breakpoints */
-		lines: number[];
+		/** The code locations of the breakpoints. */
+    	breakpoints?: SourceBreakpoint[];
+        /** Deprecated: The code locations of the breakpoints. */
+        lines?: number[];
 	}
 	/** Response to "setBreakpoints" request.
 		Returned is information about each breakpoint created by this request.
@@ -489,6 +491,17 @@ declare module DebugProtocol {
 		/** If variablesReference is > 0, the variable is structured and its children can be retrieved by passing variablesReference to the VariablesRequest. */
 		variablesReference: number;
 	}
+
+    /** Properties of a breakpoint passed to the setBreakpoints request.
+    */
+    export interface SourceBreakpoint {
+        /** The source line of the breakpoint. */
+        line: number;
+        /** An optional source column of the breakpoint. */
+        column?: number;
+        /** An optional expression for conditional breakpoints. */
+        expression?: string;
+    }
 
 	/** Information about a Breakpoint created in the setBreakpoints request.
 	*/
