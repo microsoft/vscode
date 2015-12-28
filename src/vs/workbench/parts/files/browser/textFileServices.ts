@@ -90,8 +90,8 @@ export abstract class TextFileService implements ITextFileService {
 	private onConfigurationChange(configuration: IFilesConfiguration): void {
 		const wasAutoSaveEnabled = this.isAutoSaveEnabled();
 
-		this.configuredAutoSaveDelay = configuration && configuration.files && configuration.files.autoSaveAfterDelay;
-		this.configuredAutoSaveOnFocusChange = configuration && configuration.files && configuration.files.autoSaveAfterFocusChange;
+		this.configuredAutoSaveDelay = configuration && configuration.files && configuration.files.autoSaveDelay;
+		this.configuredAutoSaveOnFocusChange = configuration && configuration.files && configuration.files.autoSaveFocusChange;
 
 		const autoSaveConfig = this.getAutoSaveConfiguration();
 		CACHE.getAll().forEach((model) => model.updateAutoSaveConfiguration(autoSaveConfig));
@@ -228,8 +228,8 @@ export abstract class TextFileService implements ITextFileService {
 
 	public getAutoSaveConfiguration(): IAutoSaveConfiguration {
 		return {
-			autoSaveAfterDelay: this.configuredAutoSaveDelay && this.configuredAutoSaveDelay > 0 ? this.configuredAutoSaveDelay : void 0,
-			autoSaveAfterFocusChange: this.configuredAutoSaveOnFocusChange
+			autoSaveDelay: this.configuredAutoSaveDelay && this.configuredAutoSaveDelay > 0 ? this.configuredAutoSaveDelay : void 0,
+			autoSaveFocusChange: this.configuredAutoSaveOnFocusChange
 		}
 	}
 

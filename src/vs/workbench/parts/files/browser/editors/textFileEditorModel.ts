@@ -136,8 +136,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 	}
 
 	public updateAutoSaveConfiguration(config: IAutoSaveConfiguration): void {
-		if (typeof config.autoSaveAfterDelay === 'number' && config.autoSaveAfterDelay > 0) {
-			this.autoSaveAfterMillies = config.autoSaveAfterDelay * 1000;
+		if (typeof config.autoSaveDelay === 'number' && config.autoSaveDelay > 0) {
+			this.autoSaveAfterMillies = config.autoSaveDelay * 1000;
 			this.autoSaveAfterMilliesEnabled = true;
 		} else {
 			this.autoSaveAfterMillies = void 0;

@@ -289,8 +289,8 @@ export interface IResult {
 }
 
 export interface IAutoSaveConfiguration {
-	autoSaveAfterDelay: number;
-	autoSaveAfterFocusChange: boolean;
+	autoSaveDelay: number;
+	autoSaveFocusChange: boolean;
 }
 
 export var ITextFileService = createDecorator<ITextFileService>(TEXT_FILE_SERVICE_ID);
