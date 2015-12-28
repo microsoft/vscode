@@ -375,9 +375,7 @@ let _b24_getActualKeyCodeMap = (function() {
 
 			let nativeMappings = getNativeKeymap();
 
-			for (let i = 0, len = nativeMappings.length; i < len; i++) {
-				let nativeMapping = nativeMappings[i];
-
+			for (let nativeMapping of nativeMappings) {
 				if (nativeMapping.value && _b24_interestingChars[nativeMapping.value]) {
 					// console.log(nativeMapping.value + " is made by " + nativeMapping.key_code);
 					let keyCode = NATIVE_KEY_CODE_TO_KEY_CODE[nativeMapping.key_code];
@@ -584,9 +582,7 @@ export default class PluginWorkbenchKeybindingService extends WorkbenchKeybindin
 
 		let nativeMappings = getNativeKeymap();
 		let hadRemap = false;
-		for (let i = 0, len = nativeMappings.length; i < len; i++) {
-			let nativeMapping = nativeMappings[i];
-
+		for (let nativeMapping of nativeMappings) {
 			if (interestingKeyCodes[nativeMapping.key_code]) {
 				let newValue = nativeMapping.value || nativeMapping.withShift;
 				if (newValue.length > 0) {

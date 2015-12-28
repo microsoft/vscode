@@ -13,9 +13,9 @@ export interface IDisposable {
 }
 
 export function disposeAll<T extends IDisposable>(arr: T[]): T[] {
-	for (let i = 0, len = arr.length; i < len; i++) {
-		if (arr[i]) {
-			arr[i].dispose();
+	for (let arrElement of arr) {
+		if (arrElement) {
+			arrElement.dispose();
 		}
 	}
 

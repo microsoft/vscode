@@ -472,9 +472,7 @@ export class FileService implements files.IFileService {
 
 	private getEncodingOverride(resource: uri): string {
 		if (resource && this.options.encodingOverride && this.options.encodingOverride.length) {
-			for (let i = 0; i < this.options.encodingOverride.length; i++) {
-				let override = this.options.encodingOverride[i];
-
+			for (let override of this.options.encodingOverride) {
 				// check if the resource is a child of the resource with override and use
 				// the provided encoding in that case
 				if (resource.toString().indexOf(override.resource.toString() + '/') === 0) {

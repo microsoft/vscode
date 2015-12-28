@@ -83,8 +83,8 @@ export class EventEmitter implements IEventEmitter {
 		this._deferredCnt = 0;
 		if (allowedEventTypes) {
 			this._allowedEventTypes = {};
-			for (var i = 0; i < allowedEventTypes.length; i++) {
-				this._allowedEventTypes[allowedEventTypes[i]] = true;
+			for (let allowedEventType of allowedEventTypes) {
+				this._allowedEventTypes[allowedEventType] = true;
 			}
 		} else {
 			this._allowedEventTypes = null;
@@ -178,8 +178,8 @@ export class EventEmitter implements IEventEmitter {
 			if (emitterType) {
 				// If the emitter has an emitterType, recreate events
 				newEvents = [];
-				for (var i = 0, len = events.length; i < len; i++) {
-					newEvents.push(new EmitterEvent(events[i].getType(), events[i].getData(), emitterType));
+				for (let event of events) {
+					newEvents.push(new EmitterEvent(event.getType(), event.getData(), emitterType));
 				}
 			}
 
@@ -236,9 +236,9 @@ export class EventEmitter implements IEventEmitter {
 	protected _emitToSpecificTypeListeners(eventType:string, data:any): void {
 		if (this._listeners.hasOwnProperty(eventType)) {
 			var listeners = this._listeners[eventType].slice(0);
-			for (var i = 0, len = listeners.length; i < len; i++) {
+			for (let listener of listeners) {
 				try {
-					listeners[i](data);
+					listener(data);
 				} catch(e) {
 					Errors.onUnexpectedError(e);
 				}
@@ -248,9 +248,9 @@ export class EventEmitter implements IEventEmitter {
 
 	protected _emitToBulkListeners(events:EmitterEvent[]): void {
 		var bulkListeners = this._bulkListeners.slice(0);
-		for (var i = 0, len = bulkListeners.length; i < len; i++) {
+		for (let bulkListener of bulkListeners) {
 			try {
-				bulkListeners[i](events);
+				bulkListener(events);
 			} catch(e) {
 				Errors.onUnexpectedError(e);
 			}
@@ -261,12 +261,10 @@ export class EventEmitter implements IEventEmitter {
 		if (this._bulkListeners.length > 0) {
 			this._emitToBulkListeners(events);
 		}
-		for (var i = 0, len = events.length; i < len; i++) {
-			var e = events[i];
-
-			this._emitToSpecificTypeListeners(e.getType(), e.getData());
-			if (e.getEmitterType()) {
-				this._emitToSpecificTypeListeners(e.getType() + '/' + e.getEmitterType(), e.getData());
+		for (let event of events) {
+			this._emitToSpecificTypeListeners(event.getType(), event.getData());
+			if (event.getEmitterType()) {
+				this._emitToSpecificTypeListeners(event.getType() + '/' + event.getEmitterType(), event.getData());
 			}
 		}
 	}
@@ -341,16 +339,16 @@ export class OrderGuaranteeEventEmitter extends EventEmitter {
 	protected _emitToSpecificTypeListeners(eventType:string, data:any): void {
 		if (this._listeners.hasOwnProperty(eventType)) {
 			let listeners = this._listeners[eventType];
-			for (let i = 0, len = listeners.length; i < len; i++) {
-				this._emitQueue.push(new EmitQueueElement(listeners[i], data));
+			for (let listener of listeners) {
+				this._emitQueue.push(new EmitQueueElement(listener, data));
 			}
 		}
 	}
 
 	protected _emitToBulkListeners(events:EmitterEvent[]): void {
 		let bulkListeners = this._bulkListeners;
-		for (let i = 0, len = bulkListeners.length; i < len; i++) {
-			this._emitQueue.push(new EmitQueueElement(bulkListeners[i], events));
+		for (let bulkListener of bulkListeners) {
+			this._emitQueue.push(new EmitQueueElement(bulkListener, events));
 		}
 	}
 

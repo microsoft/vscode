@@ -44,8 +44,7 @@ export function generateKnownFilenames(onlyExtensions: boolean = true): any {
 		}
 	};
 
-	for (let i = 0, len = list.length; i < len; i++) {
-		let item = list[i];
+	for (let item of list) {
 		if (item.length === 0) {
 			continue;
 		}
@@ -125,12 +124,11 @@ export function guessMimeTypes(path: string, firstLine?: string): string[] {
 		}
 
 		if (firstLine.length > 0) {
-			for (let i = 0; i < registeredTextMimesByFirstLine.length; ++i) {
-
+			for (let element of registeredTextMimesByFirstLine) {
 				// Make sure the entire line matches, not just a subpart.
-				let matches = firstLine.match(registeredTextMimesByFirstLine[i].regexp);
+				let matches = firstLine.match(element.regexp);
 				if (matches && matches.length > 0 && matches[0].length === firstLine.length) {
-					return [registeredTextMimesByFirstLine[i].mime, MIME_TEXT];
+					return [element.mime, MIME_TEXT];
 				}
 			}
 		}

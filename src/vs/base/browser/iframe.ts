@@ -109,9 +109,7 @@ export function getPositionOfChildWindowRelativeToAncestorWindow(childWindow:Win
 
 	var windowChain = getSameOriginWindowChain();
 
-	for (var i = 0; i < windowChain.length; i++) {
-		var windowChainEl = windowChain[i];
-
+	for (let windowChainEl of windowChain) {
 		if (windowChainEl.window === ancestorWindow) {
 			break;
 		}
@@ -129,4 +127,4 @@ export function getPositionOfChildWindowRelativeToAncestorWindow(childWindow:Win
 		top: top,
 		left: left
 	};
-}	
+}

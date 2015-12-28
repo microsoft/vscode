@@ -123,8 +123,7 @@ export class AbstractProblemCollector extends EventEmitter implements IDisposabl
 			if (!candidates) {
 				continue;
 			}
-			for (let i = 0; i < candidates.length; i++) {
-				let matcher = candidates[i];
+			for (let matcher of candidates) {
 				let result = matcher.handle(this.buffer, startIndex);
 				if (result.match) {
 					this._numberOfMatches++;
@@ -337,8 +336,7 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 
 	private tryBegin(line: string): boolean {
 		let result = false;
-		for (let i = 0; i < this.watchingBeginsPatterns.length; i++) {
-			let beginMatcher = this.watchingBeginsPatterns[i];
+		for (let beginMatcher of this.watchingBeginsPatterns) {
 			let matches = beginMatcher.pattern.regexp.exec(line);
 			if (matches) {
 				this.emit(ProblemCollectorEvents.WatchingBeginDetected, {});
@@ -361,8 +359,7 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 
 	private tryFinish(line: string): boolean {
 		let result = false;
-		for (let i = 0; i < this.watchingEndsPatterns.length; i++) {
-			let endMatcher = this.watchingEndsPatterns[i];
+		for (let endMatcher of this.watchingEndsPatterns) {
 			let matches = endMatcher.pattern.regexp.exec(line);
 			if (matches) {
 				this.emit(ProblemCollectorEvents.WatchingEndDetected, {});

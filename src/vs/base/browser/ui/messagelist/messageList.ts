@@ -264,8 +264,7 @@ export class MessageList {
 		let handledMessages: { [message: string]: number; } = {};
 
 		let offset = 0;
-		for (let i = 0; i < this.messages.length; i++) {
-			let message = this.messages[i];
+		for (let message of this.messages) {
 			if (types.isUndefinedOrNull(handledMessages[message.text])) {
 				message.count = 1;
 				messages.push(message);

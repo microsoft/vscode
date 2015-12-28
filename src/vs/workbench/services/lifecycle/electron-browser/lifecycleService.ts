@@ -72,8 +72,8 @@ export class LifecycleService extends BaseLifecycleService {
 		let vetoPromises: TPromise<void>[] = [];
 		let hasPromiseWithVeto = false;
 
-		for (let i = 0; i < participants.length; i++) {
-			let participantVeto = participants[i].beforeShutdown();
+		for (let participant of participants) {
+			let participantVeto = participant.beforeShutdown();
 			if (participantVeto === true) {
 				return true; // return directly when any veto was provided
 			}

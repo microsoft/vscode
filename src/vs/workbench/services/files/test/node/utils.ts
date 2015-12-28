@@ -14,9 +14,9 @@ export class TestEventService extends EventEmitter {
 }
 
 export function getByName(root: IFileStat, name: string): IFileStat {
-	for (let i = 0; i < root.children.length; i++) {
-		if (root.children[i].name === name) {
-			return root.children[i];
+	for (let child of root.children) {
+		if (child.name === name) {
+			return child;
 		}
 	}
 

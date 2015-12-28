@@ -142,9 +142,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 
 			// Highlight
 			let results: QuickOpenEntry[] = [];
-			for (let i = 0; i < complete.results.length; i++) {
-				let fileMatch = complete.results[i];
-
+			for (let fileMatch of complete.results) {
 				let label = paths.basename(fileMatch.resource.fsPath);
 				let description = labels.getPathLabel(paths.dirname(fileMatch.resource.fsPath), this.contextService);
 

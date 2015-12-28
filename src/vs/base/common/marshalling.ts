@@ -41,8 +41,7 @@ export function canSerialize(obj: any): boolean {
 export function serialize(obj:any): any {
 	return objects.cloneAndChange(obj, (orig:any) => {
 		if (typeof orig === 'object') {
-			for (var i = 0; i < marshallingContributions.length; i++) {
-				var contrib = marshallingContributions[i];
+			for (let contrib of marshallingContributions) {
 				if (contrib.canSerialize(orig)) {
 					return contrib.serialize(orig, serialize);
 				}
