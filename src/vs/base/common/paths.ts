@@ -5,6 +5,7 @@
 'use strict';
 
 import {isLinux, isWindows} from 'vs/base/common/platform';
+import {endsWith} from 'vs/base/common/strings';
 
 /**
  * The forward slash path separator.
@@ -55,7 +56,7 @@ export function normalize(path: string, toOSPath?: boolean): string {
 		// badSep is the path separator we don't want. Usually
 		// the backslash, unless isWindows && toOSPath
 		let badSep = toOSPath && isWindows ? '/' : '\\';
-		if(path.indexOf(badSep) === -1) {
+		if (path.indexOf(badSep) === -1) {
 			return path;
 		}
 	}
@@ -65,7 +66,7 @@ export function normalize(path: string, toOSPath?: boolean): string {
 		if (parts[i] === '.' && !!parts[i + 1]) {
 			parts.splice(i, 1);
 			i -= 1;
-		} else if(parts[i] === '..' && !!parts[i - 1]) {
+		} else if (parts[i] === '..' && !!parts[i - 1]) {
 			parts.splice(i - 1, 2);
 			i -= 2;
 		}
@@ -103,7 +104,7 @@ export function dirname(path: string): string {
 	var idx = ~path.lastIndexOf('/') || ~path.lastIndexOf('\\');
 	if (idx === 0) {
 		return '.';
-	} else if(~idx === 0) {
+	} else if (~idx === 0) {
 		return path[0];
 	} else {
 		return path.substring(0, ~idx);
@@ -226,7 +227,7 @@ export function isAbsolute(path: string): boolean {
 	return path && path[0] === '/';
 }
 
-export function makeAbsolute(path: string, isPathNormalized?:boolean): string {
+export function makeAbsolute(path: string, isPathNormalized?: boolean): string {
 	return isAbsolute(!isPathNormalized ? normalize(path) : path) ? path : sep + path;
 }
 
@@ -238,7 +239,7 @@ const _slash = '/'.charCodeAt(0);
 
 export function isEqualOrParent(path: string, candidate: string): boolean {
 
-	if(path === candidate) {
+	if (path === candidate) {
 		return true;
 	}
 
@@ -247,22 +248,22 @@ export function isEqualOrParent(path: string, candidate: string): boolean {
 
 	let candidateLen = candidate.length;
 	let lastCandidateChar = candidate.charCodeAt(candidateLen - 1);
-	if(lastCandidateChar === _slash) {
+	if (lastCandidateChar === _slash) {
 		candidate = candidate.substring(0, candidateLen - 1);
 		candidateLen -= 1;
 	}
 
-	if(path === candidate) {
+	if (path === candidate) {
 		return true;
 	}
 
-	if(!isLinux) {
+	if (!isLinux) {
 		// case insensitive
 		path = path.toLowerCase();
 		candidate = candidate.toLowerCase();
 	}
 
-	if(path === candidate) {
+	if (path === candidate) {
 		return true;
 	}
 
@@ -272,4 +273,36 @@ export function isEqualOrParent(path: string, candidate: string): boolean {
 
 	let char = path.charCodeAt(candidateLen);
 	return char === _slash;
+}
+
+// Reference: https://en.wikipedia.org/wiki/Filename
+const INVALID_FILE_CHARS = isWindows ? /[\\/:\*\?"<>\|]/g : /[\\/]/g;
+const WINDOWS_FORBIDDEN_NAMES = /con|prn|aux|clock\$|nul|lpt[0-9]|com[0-9]/i;
+export function isValidBasename(name: string): boolean {
+	if (!name || name.length === 0 || /^\s+$/.test(name)) {
+		return false; // require a name that is not just whitespace
+	}
+
+	INVALID_FILE_CHARS.lastIndex = 0; // the holy grail of software development
+	if (INVALID_FILE_CHARS.test(name)) {
+		return false; // check for certain invalid file characters
+	}
+
+	if (isWindows && WINDOWS_FORBIDDEN_NAMES.test(name)) {
+		return false; // check for certain invalid file names
+	}
+
+	if (name === '.' || name === '..') {
+		return false; // check for reserved values
+	}
+
+	if (isWindows && endsWith(name, '.')) {
+		return false; // Windows: file cannot end with a "."
+	}
+
+	if (isWindows && name.length !== name.trim().length) {
+		return false; // Windows: file cannot end with a whitespace
+	}
+
+	return true;
 }
