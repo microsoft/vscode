@@ -262,6 +262,7 @@ export class VSCodeMenu {
 
 	private clearOpenedPathsList(): void {
 		storage.setItem(windows.WindowsManager.openedPathsListStorageKey, { folders: [], files: [] });
+		app.clearRecentDocuments();
 
 		this.updateMenu();
 	}
