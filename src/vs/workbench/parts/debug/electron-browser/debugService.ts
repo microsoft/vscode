@@ -761,7 +761,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		const filtered = this.debugStringEditorInputs.filter(input => input.getResource().toString() === source.uri.toString());
 
 		if (filtered.length === 0) {
-			const result = this.instantiationService.createInstance(debuginputs.DebugStringEditorInput, source.name, source.uri, 'internal module', value, mtype, void 0);
+			const result = this.instantiationService.createInstance(debuginputs.DebugStringEditorInput, source.name, source.uri, source.origin, value, mtype, void 0);
 			this.debugStringEditorInputs.push(result);
 			return result;
 		} else {

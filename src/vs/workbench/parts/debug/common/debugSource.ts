@@ -14,7 +14,7 @@ export class Source {
 
 	private static INTERNAL_URI_PREFIX = 'debug://internal/';
 
-	constructor(public name: string, uriStr: string, public reference = 0) {
+	constructor(public name: string, uriStr: string, public origin: string, public reference = 0) {
 		this.uri = uri.parse(uriStr);
 		this.available = true;
 	}
@@ -47,11 +47,11 @@ export class Source {
 
 	public static fromRawSource(rawSource: DebugProtocol.Source): Source {
 		const uriStr = rawSource.path ? uri.file(rawSource.path).toString() : Source.INTERNAL_URI_PREFIX + rawSource.name;
-		return new Source(rawSource.name, uriStr, rawSource.sourceReference);
+		return new Source(rawSource.name, uriStr, rawSource.origin, rawSource.sourceReference);
 	}
 
 	public static fromUri(uri: uri): Source {
-		return new Source(Source.getName(uri), uri.toString());
+		return new Source(Source.getName(uri), uri.toString(), '');
 	}
 
 	private static getName(uri: uri): string {
