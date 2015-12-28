@@ -22,6 +22,7 @@ import model = require('vs/workbench/parts/debug/common/debugModel');
 import debuginputs = require('vs/workbench/parts/debug/browser/debugEditorInputs');
 import viewmodel = require('vs/workbench/parts/debug/common/debugViewModel');
 import debugactions = require('vs/workbench/parts/debug/electron-browser/debugActions');
+import { BreakpointWidget } from 'vs/workbench/parts/debug/browser/breakpointWidget';
 import { ConfigurationManager } from 'vs/workbench/parts/debug/node/debugConfigurationManager';
 import { Repl } from 'vs/workbench/parts/debug/browser/replEditor';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
@@ -421,6 +422,13 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		return this.sendAllBreakpoints();
 	}
 
+	public editBreakpoint(editor: editorbrowser.ICodeEditor, lineNumber: number): Promise {
+		const breakpointWidget = this.instantiationService.createInstance(BreakpointWidget, editor, lineNumber);
+		breakpointWidget.show({ lineNumber, column: 1 }, 2);
+
+		return Promise.as(true);
+	}
+
 	public addFunctionBreakpoint(functionName?: string): Promise {
 		this.model.addFunctionBreakpoint(functionName);
 		// TODO@Isidor send updated function breakpoints
@@ -776,7 +784,9 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		);
 
 
-		return this.session.setBreakpoints({ source: Source.toRawSource(modelUri, this.model), lines: breakpointsToSend.map(bp => bp.desiredLineNumber) }).then(response => {
+		return this.session.setBreakpoints({ source: Source.toRawSource(modelUri, this.model), lines: breakpointsToSend.map(bp => bp.desiredLineNumber),
+			breakpoints: breakpointsToSend.map(bp => ({ line: bp.desiredLineNumber, condition: bp.condition })) }).then(response => {
+
 			const data: {[id: string]: { line: number, verified: boolean } } = { };
 			for (let i = 0; i < breakpointsToSend.length; i++) {
 				data[breakpointsToSend[i].getId()] = response.body.breakpoints[i];

@@ -9,6 +9,7 @@ import ee = require('vs/base/common/eventEmitter');
 import severity from 'vs/base/common/severity';
 import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import editor = require('vs/editor/common/editorCommon');
+import editorbrowser = require('vs/editor/browser/editorBrowser');
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 
 export var VIEWLET_ID = 'workbench.view.debug';
@@ -230,6 +231,7 @@ export interface IDebugService extends ee.IEventEmitter {
 	toggleBreakpointsActivated(): Promise;
 	removeAllBreakpoints(): Promise;
 	sendAllBreakpoints(): Promise;
+	editBreakpoint(editor: editorbrowser.ICodeEditor, lineNumber: number): Promise;
 
 	addFunctionBreakpoint(functionName?: string): Promise;
 	renameFunctionBreakpoint(id: string, newFunctionName: string): Promise;

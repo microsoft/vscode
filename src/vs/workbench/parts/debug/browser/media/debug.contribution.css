@@ -49,6 +49,10 @@
 	background: url('breakpoint.svg') center center no-repeat;
 }
 
+.monaco-editor .debug-breakpoint-conditional-glyph {
+	background: url('breakpoint-conditional.svg') center center no-repeat;
+}
+
 .monaco-editor .debug-top-stack-frame-glyph.debug-breakpoint-glyph {
 	background: url('current-and-breakpoint.svg') center center no-repeat;
 }
@@ -269,6 +273,10 @@
 
 .monaco-editor.vs-dark .debug-breakpoint-glyph {
 	background: url('breakpoint-dark.svg') center center no-repeat;
+}
+
+.monaco-editor.vs-dark .debug-breakpoint-conditional-glyph {
+	background: url('breakpoint-conditional-dark.svg') center center no-repeat;
 }
 
 .monaco-editor.vs-dark .debug-breakpoint-glyph-disabled {

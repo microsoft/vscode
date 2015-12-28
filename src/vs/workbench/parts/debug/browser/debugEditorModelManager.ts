@@ -255,7 +255,8 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 		return breakpoints.map((breakpoint) => {
 			return {
 				options: (!breakpoint.enabled || !activated) ? DebugEditorModelManager.BREAKPOINT_DISABLED_DECORATION :
-					debugActive && !breakpoint.verified ? DebugEditorModelManager.BREAKPOINT_UNVERIFIED_DECORATION : DebugEditorModelManager.BREAKPOINT_DECORATION,
+					debugActive && !breakpoint.verified ? DebugEditorModelManager.BREAKPOINT_UNVERIFIED_DECORATION :
+					breakpoint.condition ? DebugEditorModelManager.CONDITIONAL_BREAKPOINT_DECORATION : DebugEditorModelManager.BREAKPOINT_DECORATION,
 				range: createRange(breakpoint.lineNumber, 1, breakpoint.lineNumber, 2)
 			};
 		});
@@ -265,6 +266,11 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 
 	private static BREAKPOINT_DECORATION: editorcommon.IModelDecorationOptions = {
 		glyphMarginClassName: 'debug-breakpoint-glyph',
+		stickiness: editorcommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
+	};
+
+	private static CONDITIONAL_BREAKPOINT_DECORATION: editorcommon.IModelDecorationOptions = {
+		glyphMarginClassName: 'debug-breakpoint-conditional-glyph',
 		stickiness: editorcommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
 	};
 

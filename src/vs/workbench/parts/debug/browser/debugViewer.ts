@@ -6,6 +6,7 @@
 import nls = require('vs/nls');
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
 import lifecycle = require('vs/base/common/lifecycle');
+import { CommonKeybindings } from 'vs/base/common/keyCodes';
 import paths = require('vs/base/common/paths');
 import async = require('vs/base/common/async');
 import errors = require('vs/base/common/errors');
@@ -29,7 +30,6 @@ import { IContextViewService, IContextMenuService } from 'vs/platform/contextvie
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IMessageService } from 'vs/platform/message/common/message';
-import { CommonKeybindings } from 'vs/base/common/keyCodes';
 
 const $ = dom.emmet;
 const booleanRegex = /^true|false$/i;
@@ -108,8 +108,8 @@ function renderRenameBox(debugService: debug.IDebugService, contextViewService: 
 	});
 
 	toDispose.push(dom.addStandardDisposableListener(inputBox.inputElement, 'keydown', (e: dom.IKeyboardEvent) => {
-		let isEscape = e.equals(CommonKeybindings.ESCAPE);
-		let isEnter = e.equals(CommonKeybindings.ENTER);
+		const isEscape = e.equals(CommonKeybindings.ESCAPE);
+		const isEnter = e.equals(CommonKeybindings.ENTER);
 		if (isEscape || isEnter) {
 			wrapUp(isEnter);
 		}

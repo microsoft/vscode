@@ -45,6 +45,7 @@ export class DebugEditorContribution implements editorcommon.IEditorContribution
 		const actions = [];
 		if (breakpoint) {
 			actions.push(this.instantiationService.createInstance(debugactions.RemoveBreakpointAction, debugactions.RemoveBreakpointAction.ID, debugactions.RemoveBreakpointAction.LABEL));
+			actions.push(this.instantiationService.createInstance(debugactions.EditConditionalBreakpointAction, debugactions.EditConditionalBreakpointAction.ID, debugactions.EditConditionalBreakpointAction.LABEL, this.editor, lineNumber));
 			actions.push(this.instantiationService.createInstance(debugactions.ToggleEnablementAction, debugactions.ToggleEnablementAction.ID, debugactions.ToggleEnablementAction.LABEL));
 		} else {
 			actions.push(new Action(
@@ -54,6 +55,7 @@ export class DebugEditorContribution implements editorcommon.IEditorContribution
 				true,
 				() =>  this.debugService.toggleBreakpoint({ uri, lineNumber })
 			));
+			actions.push(this.instantiationService.createInstance(debugactions.AddConditionalBreakpointAction, debugactions.AddConditionalBreakpointAction.ID, debugactions.AddConditionalBreakpointAction.LABEL, this.editor, lineNumber));
 		}
 
 		return TPromise.as(actions);
