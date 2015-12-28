@@ -150,7 +150,7 @@
                 <key>name</key>
                 <string>string.quoted.double.dosbatch</string>
                 <key>end</key>
-                <string>"</string>
+                <string>"|$</string>
             </dict>
             <dict>
                 <key>name</key>
