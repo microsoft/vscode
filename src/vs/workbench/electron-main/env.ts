@@ -13,6 +13,7 @@ import app = require('app');
 
 import arrays = require('vs/base/common/arrays');
 import strings = require('vs/base/common/strings');
+import paths = require('vs/base/common/paths');
 import platform = require('vs/base/common/platform');
 import uri from 'vs/base/common/uri';
 import types = require('vs/base/common/types');
@@ -261,41 +262,61 @@ function parseOpts(argv: string[]): OptionBag {
 }
 
 function parsePathArguments(argv: string[], gotoLineMode?: boolean): string[] {
-	return arrays.distinct(					// no duplicates
-		argv.filter(a => !(/^-/.test(a))) 	// find arguments without leading "-"
-			.map((arg) => {					// resolve to path
-				let pathCandidate = arg;
+	return arrays.coalesce(							// no invalid paths
+		arrays.distinct(							// no duplicates
+			argv.filter(a => !(/^-/.test(a))) 		// arguments without leading "-"
+				.map((arg) => {
+					let pathCandidate = arg;
 
-				let parsedPath: IParsedPath;
-				if (gotoLineMode) {
-					parsedPath = parseLineAndColumnAware(arg);
-					pathCandidate = parsedPath.path;
-				}
+					let parsedPath: IParsedPath;
+					if (gotoLineMode) {
+						parsedPath = parseLineAndColumnAware(arg);
+						pathCandidate = parsedPath.path;
+					}
 
-				if (platform.isWindows && pathCandidate) {
-					pathCandidate = strings.rtrim(pathCandidate, '"'); // https://github.com/Microsoft/vscode/issues/1498
-				}
+					if (pathCandidate) {
+						pathCandidate = massagePath(pathCandidate);
+					}
 
-				let realPath: string;
-				try {
-					realPath = fs.realpathSync(pathCandidate);
-				} catch (error) {
-					// in case of an error, assume the user wants to create this file
-					// if the path is relative, we join it to the cwd
-					realPath = path.normalize(path.isAbsolute(pathCandidate) ? pathCandidate : path.join(process.cwd(), pathCandidate));
-				}
+					let realPath: string;
+					try {
+						realPath = fs.realpathSync(pathCandidate);
+					} catch (error) {
+						// in case of an error, assume the user wants to create this file
+						// if the path is relative, we join it to the cwd
+						realPath = path.normalize(path.isAbsolute(pathCandidate) ? pathCandidate : path.join(process.cwd(), pathCandidate));
+					}
 
-				if (gotoLineMode) {
-					parsedPath.path = realPath;
-					return toLineAndColumnPath(parsedPath);
-				}
+					if (!paths.isValidBasename(path.basename(realPath))) {
+						return null; // do not allow invalid file names
+					}
 
-				return realPath;
-			}),
-		(element) => {
-			return element && (platform.isWindows || platform.isMacintosh) ? element.toLowerCase() : element; // only linux is case sensitive on the fs
-		}
+					if (gotoLineMode) {
+						parsedPath.path = realPath;
+						return toLineAndColumnPath(parsedPath);
+					}
+
+					return realPath;
+				}),
+			(element) => {
+				return element && (platform.isWindows || platform.isMacintosh) ? element.toLowerCase() : element; // only linux is case sensitive on the fs
+			}
+		)
 	);
+}
+
+function massagePath(path: string): string {
+	if (platform.isWindows) {
+		path = strings.rtrim(path, '"'); // https://github.com/Microsoft/vscode/issues/1498
+	}
+
+	// Trim whitespaces
+	path = strings.trim(strings.trim(path, ' '), '\t');
+
+	// Remove trailing dots
+	path = strings.rtrim(path, '.');
+
+	return path;
 }
 
 function normalizePath(p?: string): string {
@@ -332,7 +353,7 @@ function parseString(argv: string[], key: string, defaultValue?: string, fallbac
 
 export function getPlatformIdentifier(): string {
 	if (process.platform === 'linux') {
-		return `linux-${ process.arch }`;
+		return `linux-${process.arch}`;
 	}
 
 	return process.platform;

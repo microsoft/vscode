@@ -92,7 +92,6 @@ interface ILogEntry {
 
 export class WindowsManager {
 
-	public static autoSaveDelayStorageKey = 'autoSaveDelay';
 	public static openedPathsListStorageKey = 'openedPathsList';
 
 	private static workingDirPickerStorageKey = 'pickerWorkingDir';
@@ -174,6 +173,12 @@ export class WindowsManager {
 
 				// Event
 				eventEmitter.emit(EventTypes.READY, win);
+
+				// TODO@Ben remove me in a couple of versions
+				if (storage.getItem<number>('autoSaveDelay') === 1000) {
+					storage.removeItem('autoSaveDelay');
+					win.send('vscode:showAutoSaveInfo');
+				}
 			}
 		});
 
@@ -564,7 +569,6 @@ export class WindowsManager {
 		configuration.welcomePage = env.product.welcomePage;
 		configuration.productDownloadUrl = env.product.downloadUrl;
 		configuration.releaseNotesUrl = env.product.releaseNotesUrl;
-		configuration.autoSaveDelay = storage.getItem<number>(WindowsManager.autoSaveDelayStorageKey) || -1 /* Disabled by default */;
 		configuration.updateFeedUrl = UpdateManager.feedUrl;
 		configuration.updateChannel = UpdateManager.channel;
 		configuration.recentPaths = this.getRecentlyOpenedPaths(workspacePath, filesToOpen);

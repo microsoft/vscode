@@ -6,6 +6,7 @@
 import path = require('path');
 import nls = require('vs/nls');
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
+import objects = require('vs/base/common/objects');
 import uri from 'vs/base/common/uri';
 import { schemas } from 'vs/base/common/network';
 import paths = require('vs/base/common/paths');
@@ -236,7 +237,7 @@ export class ConfigurationManager {
 			const filtered = name ? config.configurations.filter(cfg => cfg.name === name) : [config.configurations[0]];
 
 			// massage configuration attributes - append workspace path to relatvie paths, substitute variables in paths.
-			this.configuration = filtered.length === 1 ? filtered[0] : null;
+			this.configuration = filtered.length === 1 ? objects.deepClone(filtered[0]) : null;
 			if (this.configuration) {
 				if (this.systemVariables) {
 					Object.keys(this.configuration).forEach(key => {

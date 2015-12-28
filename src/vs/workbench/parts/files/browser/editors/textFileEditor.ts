@@ -10,6 +10,7 @@ import errors = require('vs/base/common/errors');
 import {MIME_BINARY, MIME_TEXT} from 'vs/base/common/mime';
 import labels = require('vs/base/common/labels');
 import types = require('vs/base/common/types');
+import paths = require('vs/base/common/paths');
 import {Action} from 'vs/base/common/actions';
 import {VIEWLET_ID, TEXT_FILE_EDITOR_ID, ITextFileService} from 'vs/workbench/parts/files/common/files';
 import {SaveErrorHandler} from 'vs/workbench/parts/files/browser/saveErrorHandler';
@@ -173,8 +174,8 @@ export class TextFileEditor extends BaseTextEditor {
 				return;
 			}
 
-			// Offer to create a file from the error if we have a file not found
-			if ((<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND) {
+			// Offer to create a file from the error if we have a file not found and the name is valid
+			if ((<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND && paths.isValidBasename(paths.basename((<FileEditorInput>input).getResource().fsPath))) {
 				return Promise.wrapError(errors.create(errors.toErrorMessage(error), { actions: [
 					CancelAction,
 					new Action('workbench.files.action.createMissingFile', nls.localize('createFile', "Create File"), null, true, () => {

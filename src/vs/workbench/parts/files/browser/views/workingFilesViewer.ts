@@ -22,7 +22,7 @@ import actions = require('vs/base/common/actions');
 import {ActionsRenderer} from 'vs/base/parts/tree/browser/actionsRenderer';
 import {ContributableActionProvider} from 'vs/workbench/browser/actionBarRegistry';
 import {keybindingForAction, CloseWorkingFileAction, SelectResourceForCompareAction, CompareResourcesAction, SaveFileAsAction, SaveFileAction, RevertFileAction, OpenToSideAction} from 'vs/workbench/parts/files/browser/fileActions';
-import {asFileResource} from 'vs/workbench/parts/files/common/files';
+import {asFileResource, ITextFileService} from 'vs/workbench/parts/files/common/files';
 import {WorkingFileEntry, WorkingFilesModel} from 'vs/workbench/parts/files/browser/workingFilesModel';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
@@ -119,8 +119,8 @@ export class WorkingFilesActionProvider extends ContributableActionProvider {
 
 	constructor(model: WorkingFilesModel,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IUntitledEditorService private untitledEditorService: IUntitledEditorService
+		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
+		@ITextFileService private textFileService: ITextFileService
 	) {
 		super();
 
@@ -155,7 +155,7 @@ export class WorkingFilesActionProvider extends ContributableActionProvider {
 				actions.unshift(openToSideAction); // be on top
 
 				// Files: Save / Revert
-				let autoSaveEnabled = this.contextService.isAutoSaveEnabled();
+				let autoSaveEnabled = this.textFileService.isAutoSaveEnabled();
 				if ((!autoSaveEnabled || element.dirty) && element.isFile) {
 					actions.push(new Separator());
 

@@ -2362,8 +2362,9 @@ declare namespace vscode {
 		 * Reveal this channel in the UI.
 		 *
 		 * @param column The column in which to show the channel, default in [one](#ViewColumn.One).
+		 * @param preserveFocus When `true` the channel will not take focus.
 		 */
-		show(column?: ViewColumn): void;
+		show(column?: ViewColumn, preserveFocus?: boolean): void;
 
 		/**
 		 * Hide this channel from the UI.
@@ -2708,9 +2709,10 @@ declare namespace vscode {
 		 * @param document A text document to be shown.
 		 * @param column A view column in which the editor should be shown. The default is the [one](#ViewColumn.One), other values
 		 * are adjusted to be __Min(column, columnCount + 1)__.
+		 * @param preserveFocus When `true` the editor will not take focus.
 		 * @return A promise that resolves to an [editor](#TextEditor).
 		 */
-		export function showTextDocument(document: TextDocument, column?: ViewColumn): Thenable<TextEditor>;
+		export function showTextDocument(document: TextDocument, column?: ViewColumn, preserveFocus?: boolean): Thenable<TextEditor>;
 
 		/**
 		 * Create a TextEditorDecorationType that can be used to add decorations to text editors.

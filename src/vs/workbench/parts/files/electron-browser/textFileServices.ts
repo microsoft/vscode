@@ -15,7 +15,8 @@ import {isWindows} from 'vs/base/common/platform';
 import URI from 'vs/base/common/uri';
 import {Action} from 'vs/base/common/actions';
 import {UntitledEditorModel} from 'vs/workbench/browser/parts/editor/untitledEditorModel';
-import {TextFileService as BrowserTextFileService} from 'vs/workbench/parts/files/browser/textFileServices';
+import {IEventService} from 'vs/platform/event/common/event';
+import {TextFileService as AbstractTextFileService} from 'vs/workbench/parts/files/browser/textFileServices';
 import {CACHE, TextFileEditorModel} from 'vs/workbench/parts/files/browser/editors/textFileEditorModel';
 import {ITextFileOperationResult, ConfirmResult} from 'vs/workbench/parts/files/common/files';
 import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/browser/actionRegistry';
@@ -23,40 +24,29 @@ import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {IFileService} from 'vs/platform/files/common/files';
 import {IInstantiationService, INullService} from 'vs/platform/instantiation/common/instantiation';
-import {IEventService} from 'vs/platform/event/common/event';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
+import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
+import {IConfigurationService, IConfigurationServiceEvent, ConfigurationServiceEventTypes} from 'vs/platform/configuration/common/configuration';
 
 import remote = require('remote');
 import ipc = require('ipc');
 
 const Dialog = remote.require('dialog');
 
-export class TextFileService extends BrowserTextFileService {
+export class TextFileService extends AbstractTextFileService {
 
 	constructor(
-		@IEventService eventService: IEventService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
-		@IInstantiationService private instantiationService: IInstantiationService,
+		@IInstantiationService instantiationService: IInstantiationService,
 		@IFileService private fileService: IFileService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
-		@ILifecycleService lifecycleService: ILifecycleService
+		@ILifecycleService lifecycleService: ILifecycleService,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IEventService eventService: IEventService
 	) {
-		super(eventService, contextService, instantiationService, lifecycleService);
-
-		this.registerAutoSaveActions();
-	}
-
-	protected onOptionsChanged(): void {
-		super.onOptionsChanged();
-
-		this.registerAutoSaveActions();
-	}
-
-	private registerAutoSaveActions(): void {
-		let workbenchActionsRegistry = <IWorkbenchActionRegistry>Registry.as(ActionExtensions.WorkbenchActions);
-		workbenchActionsRegistry.unregisterWorkbenchAction(ToggleAutoSaveAction.ID);
-		workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleAutoSaveAction, ToggleAutoSaveAction.ID, this.contextService.isAutoSaveEnabled() ? nls.localize('disableAutoSave', "Disable Auto Save") : nls.localize('enableAutoSave', "Enable Auto Save")), nls.localize('filesCategory', "Files"));
+		super(contextService, instantiationService, configurationService, telemetryService, lifecycleService, eventService);
 	}
 
 	public beforeShutdown(): boolean | TPromise<boolean> {
@@ -64,31 +54,48 @@ export class TextFileService extends BrowserTextFileService {
 
 		// Dirty files need treatment on shutdown
 		if (this.getDirty().length) {
-			let confirm = this.confirmSave();
 
-			// Save
-			if (confirm === ConfirmResult.SAVE) {
-				return this.saveAll(true /* includeUntitled */).then((result) => {
-					if (result.results.some((r) => !r.success)) {
-						return true; // veto if some saves failed
+			// If auto save is enabled, save all files and then check again for dirty files
+			if (this.isAutoSaveEnabled()) {
+				return this.saveAll(false /* files only */).then(() => {
+					if (this.getDirty().length) {
+						return this.confirmBeforeShutdown(); // we still have dirty files around, so confirm normally
 					}
 
-					return false; // no veto
+					return false; // all good, no veto
 				});
 			}
 
-			// Don't Save
-			else if (confirm === ConfirmResult.DONT_SAVE) {
-				return false; // no veto
-			}
-
-			// Cancel
-			else if (confirm === ConfirmResult.CANCEL) {
-				return true; // veto
-			}
+			// Otherwise just confirm what to do
+			return this.confirmBeforeShutdown();
 		}
 
 		return false; // no veto
+	}
+
+	private confirmBeforeShutdown(): boolean | TPromise<boolean> {
+		let confirm = this.confirmSave();
+
+		// Save
+		if (confirm === ConfirmResult.SAVE) {
+			return this.saveAll(true /* includeUntitled */).then((result) => {
+				if (result.results.some((r) => !r.success)) {
+					return true; // veto if some saves failed
+				}
+
+				return false; // no veto
+			});
+		}
+
+		// Don't Save
+		else if (confirm === ConfirmResult.DONT_SAVE) {
+			return false; // no veto
+		}
+
+		// Cancel
+		else if (confirm === ConfirmResult.CANCEL) {
+			return true; // veto
+		}
 	}
 
 	public revertAll(resources?: URI[], force?: boolean): TPromise<ITextFileOperationResult> {
@@ -411,20 +418,5 @@ export class TextFileService extends BrowserTextFileService {
 		options.filters = filters;
 
 		return options;
-	}
-}
-
-class ToggleAutoSaveAction extends Action {
-
-	public static ID = 'workbench.action.files.toggleAutoSave';
-
-	constructor(id: string, label: string, @INullService ns) {
-		super(id, label);
-	}
-
-	public run(): Promise {
-		ipc.send('vscode:toggleAutoSave');
-
-		return Promise.as(true);
 	}
 }

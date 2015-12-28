@@ -11,7 +11,7 @@ import paths = require('vs/base/common/paths');
 import errors = require('vs/base/common/errors');
 import labels = require('vs/base/common/labels');
 import {disposeAll, IDisposable} from 'vs/base/common/lifecycle';
-import filesCommon = require('vs/workbench/parts/files/common/files');
+import {ITextFileService, IWorkingFilesModel, IWorkingFileModelChangeEvent, IWorkingFileEntry, EventType, LocalFileChangeEvent, WORKING_FILES_MODEL_ENTRY_CLASS_ID} from 'vs/workbench/parts/files/common/files';
 import {IFileStat, FileChangeType, FileChangesEvent, EventType as FileEventType} from 'vs/platform/files/common/files';
 import {UntitledEditorEvent, EventType as WorkbenchEventType, EditorEvent} from 'vs/workbench/common/events';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
@@ -22,14 +22,14 @@ import {asFileEditorInput} from 'vs/workbench/common/editor';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
 import {IEventService} from 'vs/platform/event/common/event';
 
-export class WorkingFilesModel implements filesCommon.IWorkingFilesModel {
+export class WorkingFilesModel implements IWorkingFilesModel {
 
 	private static STORAGE_KEY = 'workingFiles.model.entries';
 
 	private entries: WorkingFileEntry[];
 	private pathLabelProvider: labels.PathLabelProvider;
 	private mapEntryToResource: { [resource: string]: WorkingFileEntry; };
-	private _onModelChange: Emitter<filesCommon.IWorkingFileModelChangeEvent>;
+	private _onModelChange: Emitter<IWorkingFileModelChangeEvent>;
 	private _onWorkingFileChange: Emitter<WorkingFileEntry>;
 	private toDispose: IDisposable[];
 
@@ -39,13 +39,14 @@ export class WorkingFilesModel implements filesCommon.IWorkingFilesModel {
 		@IPartService private partService: IPartService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IUntitledEditorService private untitledEditorService: IUntitledEditorService
+		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
+		@ITextFileService private textFileService: ITextFileService
 	) {
 		this.pathLabelProvider = new labels.PathLabelProvider(this.contextService);
 		this.entries = [];
 		this.toDispose = [];
 		this.mapEntryToResource = Object.create(null);
-		this._onModelChange = new Emitter<filesCommon.IWorkingFileModelChangeEvent>();
+		this._onModelChange = new Emitter<IWorkingFileModelChangeEvent>();
 		this._onWorkingFileChange = new Emitter<WorkingFileEntry>();
 
 		this.load();
@@ -55,7 +56,7 @@ export class WorkingFilesModel implements filesCommon.IWorkingFilesModel {
 	private registerListeners(): void {
 
 		// listen to global file changes to clean up model
-		this.toDispose.push(this.eventService.addListener2('files.internal:fileChanged', (e: filesCommon.LocalFileChangeEvent) => this.onLocalFileChange(e)));
+		this.toDispose.push(this.eventService.addListener2('files.internal:fileChanged', (e: LocalFileChangeEvent) => this.onLocalFileChange(e)));
 		this.toDispose.push(this.eventService.addListener2(FileEventType.FILE_CHANGES, (e) => this.onFileChanges(e)));
 
 		// listen to untitled
@@ -63,10 +64,10 @@ export class WorkingFilesModel implements filesCommon.IWorkingFilesModel {
 		this.toDispose.push(this.eventService.addListener2(WorkbenchEventType.UNTITLED_FILE_DELETED, (e) => this.onUntitledFileDeleted(e)));
 
 		// listen to files being changed locally
-		this.toDispose.push(this.eventService.addListener2(filesCommon.EventType.FILE_DIRTY, (e: filesCommon.LocalFileChangeEvent) => this.onTextFileDirty(e)));
-		this.toDispose.push(this.eventService.addListener2(filesCommon.EventType.FILE_SAVE_ERROR, (e: filesCommon.LocalFileChangeEvent) => this.onTextFileSaveError(e)));
-		this.toDispose.push(this.eventService.addListener2(filesCommon.EventType.FILE_SAVED, (e: filesCommon.LocalFileChangeEvent) => this.onTextFileSaved(e)));
-		this.toDispose.push(this.eventService.addListener2(filesCommon.EventType.FILE_REVERTED, (e: filesCommon.LocalFileChangeEvent) => this.onTextFileReverted(e)));
+		this.toDispose.push(this.eventService.addListener2(EventType.FILE_DIRTY, (e: LocalFileChangeEvent) => this.onTextFileDirty(e)));
+		this.toDispose.push(this.eventService.addListener2(EventType.FILE_SAVE_ERROR, (e: LocalFileChangeEvent) => this.onTextFileSaveError(e)));
+		this.toDispose.push(this.eventService.addListener2(EventType.FILE_SAVED, (e: LocalFileChangeEvent) => this.onTextFileSaved(e)));
+		this.toDispose.push(this.eventService.addListener2(EventType.FILE_REVERTED, (e: LocalFileChangeEvent) => this.onTextFileReverted(e)));
 
 		// clean up model on set input error
 		this.toDispose.push(this.eventService.addListener2(WorkbenchEventType.EDITOR_SET_INPUT_ERROR, (e: EditorEvent) => this.onEditorInputSetError(e)));
@@ -83,23 +84,23 @@ export class WorkingFilesModel implements filesCommon.IWorkingFilesModel {
 		}
 	}
 
-	private onTextFileDirty(e: filesCommon.LocalFileChangeEvent): void {
-		if (!this.contextService.isAutoSaveEnabled()) {
+	private onTextFileDirty(e: LocalFileChangeEvent): void {
+		if (!this.textFileService.isAutoSaveEnabled()) {
 			this.updateDirtyState(e.getAfter().resource, true); // no indication needed when auto save is turned off and we didn't show dirty
 		} else {
 			this.addEntry(e.getAfter().resource);
 		}
 	}
 
-	private onTextFileSaveError(e: filesCommon.LocalFileChangeEvent): void {
+	private onTextFileSaveError(e: LocalFileChangeEvent): void {
 		this.updateDirtyState(e.getAfter().resource, true);
 	}
 
-	private onTextFileSaved(e: filesCommon.LocalFileChangeEvent): void {
+	private onTextFileSaved(e: LocalFileChangeEvent): void {
 		this.updateDirtyState(e.getAfter().resource, false);
 	}
 
-	private onTextFileReverted(e: filesCommon.LocalFileChangeEvent): void {
+	private onTextFileReverted(e: LocalFileChangeEvent): void {
 		if (this.hasEntry(e.getAfter().resource)) {
 			this.updateDirtyState(e.getAfter().resource, false);
 		}
@@ -119,7 +120,7 @@ export class WorkingFilesModel implements filesCommon.IWorkingFilesModel {
 		}
 	}
 
-	private onLocalFileChange(e: filesCommon.LocalFileChangeEvent): void {
+	private onLocalFileChange(e: LocalFileChangeEvent): void {
 		if (e.gotMoved()) {
 			this.moveEntry(e.getBefore().resource, e.getAfter().resource);
 		}
@@ -144,7 +145,7 @@ export class WorkingFilesModel implements filesCommon.IWorkingFilesModel {
 		}
 	}
 
-	public get onModelChange(): Event<filesCommon.IWorkingFileModelChangeEvent> {
+	public get onModelChange(): Event<IWorkingFileModelChangeEvent> {
 		return this._onModelChange.event;
 	}
 
@@ -395,7 +396,7 @@ export class WorkingFilesModel implements filesCommon.IWorkingFilesModel {
 		this.toDispose = disposeAll(this.toDispose);
 	}
 
-	private fireModelChange(event: filesCommon.IWorkingFileModelChangeEvent): void {
+	private fireModelChange(event: IWorkingFileModelChangeEvent): void {
 		this._onModelChange.fire(event);
 	}
 
@@ -413,7 +414,7 @@ interface ISerializedWorkingFileEntry {
 	index: number;
 }
 
-export class WorkingFileEntry implements filesCommon.IWorkingFileEntry {
+export class WorkingFileEntry implements IWorkingFileEntry {
 	private _resource: uri;
 	private _index: number;
 	private _dirty: boolean;
@@ -445,7 +446,7 @@ export class WorkingFileEntry implements filesCommon.IWorkingFileEntry {
 	}
 
 	public get CLASS_ID(): string {
-		return filesCommon.WORKING_FILES_MODEL_ENTRY_CLASS_ID;
+		return WORKING_FILES_MODEL_ENTRY_CLASS_ID;
 	}
 
 	public get isFile(): boolean {
