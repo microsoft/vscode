@@ -500,7 +500,7 @@ declare module DebugProtocol {
         /** An optional source column of the breakpoint. */
         column?: number;
         /** An optional expression for conditional breakpoints. */
-        expression?: string;
+        condition?: string;
     }
 
 	/** Information about a Breakpoint created in the setBreakpoints request.
