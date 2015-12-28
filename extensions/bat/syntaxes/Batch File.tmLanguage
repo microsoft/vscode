@@ -63,6 +63,34 @@
                 <string>\s*:\s*:.*$</string>
             </dict>
             <dict>
+                <key>captures</key>
+                <dict>
+                    <key>1</key>
+                    <dict>
+                        <key>name</key>
+                        <string>variable.parameter.function.begin.shell</string>
+                    </dict>
+                </dict>
+                <key>name</key>
+                <string>variable.parameter.function.dosbatch</string>
+                <key>match</key>
+                <string>(?i)(%)(~(?:f|d|p|n|x|s|a|t|z|\$[^:]*:)*)?\d</string>
+            </dict>
+            <dict>
+                <key>captures</key>
+                <dict>
+                    <key>1</key>
+                    <dict>
+                        <key>name</key>
+                        <string>variable.parameter.loop.begin.shell</string>
+                    </dict>
+                </dict>
+                <key>name</key>
+                <string>variable.parameter.loop.dosbatch</string>
+                <key>match</key>
+                <string>(?i)(%%)(~(?:f|d|p|n|x|s|a|t|z|\$[^:]*:)*)?[a-z]</string>
+            </dict>
+            <dict>
                 <key>begin</key>
                 <string>"</string>
                 <key>endCaptures</key>
