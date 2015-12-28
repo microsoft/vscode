@@ -87,7 +87,7 @@
 				"type": "node",
 				"enableBreakpointsFor": {
 					"languageIds": [
-						"typescript"
+						"typescript", "typescriptreact"
 					]
 				}
 			},
