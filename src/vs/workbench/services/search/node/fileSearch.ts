@@ -7,12 +7,15 @@
 
 import fs = require('fs');
 import paths = require('path');
+import cp = require('child_process');
+import iconv = require('iconv-lite');
 
 import filters = require('vs/base/common/filters');
 import arrays = require('vs/base/common/arrays');
 import strings = require('vs/base/common/strings');
 import glob = require('vs/base/common/glob');
 import {IProgress} from 'vs/platform/search/common/search';
+import {LineDecoder} from 'vs/base/node/decoder';
 
 import extfs = require('vs/base/node/extfs');
 import flow = require('vs/base/node/flow');
@@ -62,6 +65,24 @@ export class FileWalker {
 	}
 
 	public walk(rootPaths: string[], onResult: (result: ISerializedFileMatch) => void, done: (error: Error, isLimitHit: boolean) => void): void {
+		this.filePattern = '';
+		console.log("START");
+		var count = 0;
+		this.walk2(rootPaths, (r) => {
+			if (r.path) {
+				count++;
+			}
+		}, (error: Error, isLimitHit: boolean) => {
+			onResult({
+				path: '' + count
+			});
+			console.log("END");
+			done(error, isLimitHit);
+		});
+	}
+
+	private walk2(rootPaths: string[], onResult: (result: ISerializedFileMatch) => void, done: (error: Error, isLimitHit: boolean) => void): void {
+
 
 		// Reset state
 		this.resetState();
@@ -94,7 +115,16 @@ export class FileWalker {
 								onResult({ path: match });
 							}
 
-							return this.doWalk(absolutePath, '', files, onResult, perEntryCallback);
+							if (process.env.SNAIL) {
+								console.log('doWalk');
+								return this.doWalk(absolutePath, '', files, onResult, perEntryCallback);
+							} else if (process.platform === 'win32') {
+								console.log('doWalkWithWindowsDir');
+								return this.doWalkWithWindowsDir(absolutePath, '', files, onResult, perEntryCallback);
+							} else {
+								console.log('doWalkWithUnixFind');
+								return this.doWalkWithUnixFind(absolutePath, '', files, onResult, perEntryCallback);
+							}
 						});
 					}
 
@@ -267,6 +297,66 @@ export class FileWalker {
 
 			return clb(null, path);
 		});
+	}
+
+	private doWalkWithUnixFind(absolutePath: string, relativeParentPath: string, files: string[], onResult: (result: ISerializedFileMatch) => void, done: (error: Error, result: any) => void): void {
+		let find: cp.ChildProcess;
+		if (process.platform === 'darwin') {
+			find = cp.spawn('find', ['-L', absolutePath, '-type', 'f']); // find -L . -type f
+		} else {
+			find = cp.spawn('find', [absolutePath, '-type', 'f', '-follow']); // find . -type f -follow
+		}
+
+		let stdoutLineDecoder = new LineDecoder();
+		let mapParentToSiblings = Object.create(null);
+		let filepaths: string[] = [];
+
+		var perPathHandler = function(p) {
+			if (!p) {
+				return;
+			}
+
+			filepaths.push(p);
+
+			let parent = paths.dirname(p);
+			let siblings: string[] = mapParentToSiblings[parent];
+			if (!siblings) {
+				siblings = [p];
+				mapParentToSiblings[parent] = siblings;
+			} else {
+				siblings.push(p);
+			}
+		};
+
+		find.stdout.on('data', (data) => {
+			stdoutLineDecoder.write(data).forEach(p => perPathHandler(p));
+		});
+
+		find.on('close', (code) => {
+			perPathHandler(stdoutLineDecoder.end());
+
+			filepaths.forEach(p => {
+				if (!p) {
+					return;
+				}
+
+				let relativeFilePath = p.substr(absolutePath.length + 1 /* leading slash */);
+				let siblings = mapParentToSiblings[paths.dirname(p)];
+				if (glob.match(this.excludePattern, relativeFilePath, siblings)) {
+					return;
+				}
+
+				if (this.isFilePatternMatch(p, relativeFilePath) && (!this.includePattern || glob.match(this.includePattern, relativeFilePath, siblings))) {
+					onResult({ path: p });
+				}
+			});
+
+			done(null, null);
+		});
+	}
+
+	private doWalkWithWindowsDir(absolutePath: string, relativeParentPath: string, files: string[], onResult: (result: ISerializedFileMatch) => void, done: (error: Error, result: any) => void): void {
+
 	}
 }
 
