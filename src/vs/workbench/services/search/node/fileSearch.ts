@@ -35,6 +35,7 @@ export class FileWalker {
 	private isCanceled: boolean;
 	private searchInPath: boolean;
 	private matchFuzzy: boolean;
+	private runningNative: cp.ChildProcess;
 
 	private walkedPaths: { [path: string]: boolean; };
 
@@ -55,33 +56,25 @@ export class FileWalker {
 	}
 
 	private resetState(): void {
-		this.walkedPaths = Object.create(null); // reset
+		this.walkedPaths = Object.create(null);
 		this.resultCount = 0;
 		this.isLimitHit = false;
+		this.terminateNative();
 	}
 
 	public cancel(): void {
 		this.isCanceled = true;
+		this.terminateNative();
+	}
+
+	private terminateNative(): void {
+		if (this.runningNative) {
+			this.runningNative.kill();
+			this.runningNative = null;
+		}
 	}
 
 	public walk(rootPaths: string[], onResult: (result: ISerializedFileMatch) => void, done: (error: Error, isLimitHit: boolean) => void): void {
-		this.filePattern = '';
-		console.log("START");
-		var count = 0;
-		this.walk2(rootPaths, (r) => {
-			if (r.path) {
-				count++;
-			}
-		}, (error: Error, isLimitHit: boolean) => {
-			onResult({
-				path: '' + count
-			});
-			console.log("END");
-			done(error, isLimitHit);
-		});
-	}
-
-	private walk2(rootPaths: string[], onResult: (result: ISerializedFileMatch) => void, done: (error: Error, isLimitHit: boolean) => void): void {
 
 		// Reset state
 		this.resetState();
@@ -114,16 +107,8 @@ export class FileWalker {
 								onResult({ path: match });
 							}
 
-							if (process.env.SNAIL) {
-								console.log('doWalk');
-								return this.doWalk(absolutePath, '', files, onResult, perEntryCallback);
-							} else if (process.platform === 'win32') {
-								console.log('doWalkWithWindowsDir');
-								return this.doWalkWithWindowsDir(absolutePath, '', files, onResult, perEntryCallback);
-							} else {
-								console.log('doWalkWithUnixFind');
-								return this.doWalkWithUnixFind(absolutePath, '', files, onResult, perEntryCallback);
-							}
+							// Recurse into children
+							return this.recurse(absolutePath, files, onResult, perEntryCallback);
 						});
 					}
 
@@ -186,7 +171,20 @@ export class FileWalker {
 		});
 	}
 
-	private doWalk(absolutePath: string, relativeParentPath: string, files: string[], onResult: (result: ISerializedFileMatch) => void, done: (error: Error, result: any) => void): void {
+	private recurse(absolutePath: string, files: string[], onResult: (result: ISerializedFileMatch) => void, done: (error: Error, isLimitHit: boolean) => void): void {
+
+		// CLASSIC_FILE_WALK: Classic node.js APIs use
+		// Windows: Use "dir" command
+		// Mac/Linux: Use "find" command
+
+		if (process.env.CLASSIC_FILE_WALK) {
+			return this.recurseWithNodeJS(absolutePath, '', files, onResult, done);
+		}
+
+		return this.recurseWithNativeCommand(absolutePath, onResult, done);
+	}
+
+	private recurseWithNodeJS(absolutePath: string, relativeParentPath: string, files: string[], onResult: (result: ISerializedFileMatch) => void, done: (error: Error, result: any) => void): void {
 
 		// Execute tasks on each file in parallel to optimize throughput
 		flow.parallel(files, (file: string, clb: (error: Error) => void): void => {
@@ -230,7 +228,7 @@ export class FileWalker {
 						}
 
 						// Continue walking
-						this.doWalk(currentPath, relativeFilePath, children, onResult, clb);
+						this.recurseWithNodeJS(currentPath, relativeFilePath, children, onResult, clb);
 					});
 				}
 
@@ -298,109 +296,99 @@ export class FileWalker {
 		});
 	}
 
-	private doWalkWithUnixFind(absolutePath: string, relativeParentPath: string, files: string[], onResult: (result: ISerializedFileMatch) => void, done: (error: Error, result: any) => void): void {
-		let find: cp.ChildProcess;
+	private recurseWithNativeCommand(absolutePath: string, onResult: (result: ISerializedFileMatch) => void, done: (error: Error, result: any) => void): void {
+		let cmd: cp.ChildProcess;
+		let needsDecoding = false;
+
+		// Use native command to find files (follow symlinks)
 		if (process.platform === 'darwin') {
-			find = cp.spawn('find', ['-L', absolutePath, '-type', 'f']); // find -L . -type f
+			cmd = cp.spawn('find', ['-L', absolutePath, '-type', 'f']);
+		} else if (process.platform === 'linux') {
+			cmd = cp.spawn('find', [absolutePath, '-type', 'f', '-follow']);
 		} else {
-			find = cp.spawn('find', [absolutePath, '-type', 'f', '-follow']); // find . -type f -follow
+			cmd = cp.spawn('cmd', ['/U', '/c', 'dir', '/s', '/b', '/a-d'], { cwd: absolutePath });
+			needsDecoding = true; // /U enables unicode (UTF16le = ucs2) output
 		}
 
-		let stdoutLineDecoder = new LineDecoder();
-		let mapParentToSiblings = Object.create(null);
-		let filepaths: string[] = [];
+		// Store globally so that we can kill the command if we get canceled
+		this.runningNative = cmd;
 
-		var perPathHandler = function(p) {
+		let stdoutLineDecoder = new LineDecoder();
+		let mapFoldersToFiles: { [path: string]: string[] } = Object.create(null);
+
+		let perPathHandler = function(p: string): void {
 			if (!p) {
 				return;
 			}
 
-			filepaths.push(p);
-
+			// Map parents to children
 			let parent = paths.dirname(p);
-			let siblings: string[] = mapParentToSiblings[parent];
+			let siblings = mapFoldersToFiles[parent];
 			if (!siblings) {
 				siblings = [p];
-				mapParentToSiblings[parent] = siblings;
+				mapFoldersToFiles[parent] = siblings;
 			} else {
 				siblings.push(p);
 			}
 		};
 
-		find.stdout.on('data', (data) => {
-			stdoutLineDecoder.write(data).forEach(p => perPathHandler(p));
+		let toRelativeWithSlash = function(path: string): string {
+			return strings.replaceAll(path.substr(absolutePath.length + 1 /* leading slash */), '\\', '/');
+		}
+
+		cmd.stdout.on('data', (data) => {
+			if (!this.isCanceled) {
+				stdoutLineDecoder.write(needsDecoding ? iconv.decode(data, 'ucs2') : data).forEach(p => perPathHandler(p));
+			}
 		});
 
-		find.on('close', (code) => {
-			perPathHandler(stdoutLineDecoder.end());
+		cmd.on('close', (code) => {
+			if (!this.isCanceled) {
 
-			filepaths.forEach(p => {
-				if (!p) {
-					return;
-				}
+				// consume last line from decoder
+				perPathHandler(stdoutLineDecoder.end());
 
-				let relativeFilePath = p.substr(absolutePath.length + 1 /* leading slash */);
-				let siblings = mapParentToSiblings[paths.dirname(p)];
-				if (glob.match(this.excludePattern, relativeFilePath, siblings)) {
-					return;
-				}
+				// From all folders we walked by...
+				[].concat.apply([], Object.keys(mapFoldersToFiles)
 
-				if (this.isFilePatternMatch(p, relativeFilePath) && (!this.includePattern || glob.match(this.includePattern, relativeFilePath, siblings))) {
-					onResult({ path: p });
-				}
-			});
+					// ...only take those that are not excluded by patterns...
+					.filter(p => !glob.match(this.excludePattern, toRelativeWithSlash(p), mapFoldersToFiles[paths.dirname(p)]))
 
-			done(null, null);
-		});
-	}
+					// ...and concat all arrays of children into one array...
+					.map(p => mapFoldersToFiles[p]))
 
-	private doWalkWithWindowsDir(absolutePath: string, relativeParentPath: string, files: string[], onResult: (result: ISerializedFileMatch) => void, done: (error: Error, result: any) => void): void {
-		let find: cp.ChildProcess = cp.spawn('cmd', ['/U', '/c', 'dir', '/s', '/b', '/a-d'], { cwd: absolutePath });
+					// ...to iterate over them!
+					.forEach(p => {
+						if (!p || this.isLimitHit) {
+							return;
+						}
 
-		let stdoutLineDecoder = new LineDecoder();
-		let mapParentToSiblings = Object.create(null);
-		let filepaths: string[] = [];
+						let relativeFilePath = toRelativeWithSlash(p);
+						let siblings = mapFoldersToFiles[paths.dirname(p)];
 
-		var perPathHandler = function(p) {
-			if (!p) {
-				return;
+						// Exclude
+						if (glob.match(this.excludePattern, relativeFilePath, siblings)) {
+							return;
+						}
+
+						// Include
+						if (this.isFilePatternMatch(paths.basename(p), relativeFilePath) && (!this.includePattern || glob.match(this.includePattern, relativeFilePath, siblings))) {
+							this.resultCount++;
+
+							if (this.maxResults && this.resultCount > this.maxResults) {
+								this.isLimitHit = true;
+							}
+
+							if (!this.isLimitHit) {
+								onResult({
+									path: p
+								});
+							}
+						}
+					});
 			}
 
-			filepaths.push(p);
-
-			let parent = paths.dirname(p);
-			let siblings: string[] = mapParentToSiblings[parent];
-			if (!siblings) {
-				siblings = [p];
-				mapParentToSiblings[parent] = siblings;
-			} else {
-				siblings.push(p);
-			}
-		};
-
-		find.stdout.on('data', (data) => {
-			stdoutLineDecoder.write(iconv.decode(data, 'ucs2')).forEach(p => perPathHandler(p));
-		});
-
-		find.on('close', (code) => {
-			perPathHandler(stdoutLineDecoder.end());
-
-			filepaths.forEach(p => {
-				if (!p) {
-					return;
-				}
-
-				let relativeFilePath = p.substr(absolutePath.length + 1 /* leading slash */);
-				let siblings = mapParentToSiblings[paths.dirname(p)];
-				if (glob.match(this.excludePattern, relativeFilePath, siblings)) {
-					return;
-				}
-
-				if (this.isFilePatternMatch(p, relativeFilePath) && (!this.includePattern || glob.match(this.includePattern, relativeFilePath, siblings))) {
-					onResult({ path: p });
-				}
-			});
-
+			// We are done!
 			done(null, null);
 		});
 	}

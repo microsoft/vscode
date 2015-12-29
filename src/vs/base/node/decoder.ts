@@ -28,9 +28,10 @@ export class LineDecoder {
 	public write(value: string): string[];
 	public write(arg1: any): string[] {
 		let result: string[] = [];
-		let value = this.remaining
-			? this.remaining + typeof arg1 === 'string' ? arg1 : this.stringDecoder.write(arg1)
-			: typeof arg1 === 'string' ? arg1 : this.stringDecoder.write(arg1);
+		let value = typeof arg1 === 'string' ? arg1 : this.stringDecoder.write(arg1);
+		if (this.remaining) {
+			value = this.remaining + value;
+		}
 
 		if (value.length < 1) {
 			return result;
