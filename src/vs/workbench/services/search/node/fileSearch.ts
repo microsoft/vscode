@@ -83,7 +83,6 @@ export class FileWalker {
 
 	private walk2(rootPaths: string[], onResult: (result: ISerializedFileMatch) => void, done: (error: Error, isLimitHit: boolean) => void): void {
 
-
 		// Reset state
 		this.resetState();
 
@@ -356,7 +355,54 @@ export class FileWalker {
 	}
 
 	private doWalkWithWindowsDir(absolutePath: string, relativeParentPath: string, files: string[], onResult: (result: ISerializedFileMatch) => void, done: (error: Error, result: any) => void): void {
+		let find: cp.ChildProcess = cp.spawn('cmd', ['/U', '/c', 'dir', '/s', '/b', '/a-d'], { cwd: absolutePath });
 
+		let stdoutLineDecoder = new LineDecoder();
+		let mapParentToSiblings = Object.create(null);
+		let filepaths: string[] = [];
+
+		var perPathHandler = function(p) {
+			if (!p) {
+				return;
+			}
+
+			filepaths.push(p);
+
+			let parent = paths.dirname(p);
+			let siblings: string[] = mapParentToSiblings[parent];
+			if (!siblings) {
+				siblings = [p];
+				mapParentToSiblings[parent] = siblings;
+			} else {
+				siblings.push(p);
+			}
+		};
+
+		find.stdout.on('data', (data) => {
+			stdoutLineDecoder.write(iconv.decode(data, 'ucs2')).forEach(p => perPathHandler(p));
+		});
+
+		find.on('close', (code) => {
+			perPathHandler(stdoutLineDecoder.end());
+
+			filepaths.forEach(p => {
+				if (!p) {
+					return;
+				}
+
+				let relativeFilePath = p.substr(absolutePath.length + 1 /* leading slash */);
+				let siblings = mapParentToSiblings[paths.dirname(p)];
+				if (glob.match(this.excludePattern, relativeFilePath, siblings)) {
+					return;
+				}
+
+				if (this.isFilePatternMatch(p, relativeFilePath) && (!this.includePattern || glob.match(this.includePattern, relativeFilePath, siblings))) {
+					onResult({ path: p });
+				}
+			});
+
+			done(null, null);
+		});
 	}
 }
 

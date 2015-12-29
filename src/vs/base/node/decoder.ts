@@ -24,11 +24,13 @@ export class LineDecoder {
 		this.remaining = null;
 	}
 
-	public write(buffer: NodeBuffer): string[] {
+	public write(buffer: NodeBuffer): string[];
+	public write(value: string): string[];
+	public write(arg1: any): string[] {
 		let result: string[] = [];
 		let value = this.remaining
-			? this.remaining + this.stringDecoder.write(buffer)
-			: this.stringDecoder.write(buffer);
+			? this.remaining + typeof arg1 === 'string' ? arg1 : this.stringDecoder.write(arg1)
+			: typeof arg1 === 'string' ? arg1 : this.stringDecoder.write(arg1);
 
 		if (value.length < 1) {
 			return result;
