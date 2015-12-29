@@ -301,7 +301,9 @@ export class FileWalker {
 
 	private recurseWithNativeCommand(absolutePath: string, onResult: (result: ISerializedFileMatch) => void, done: (error: Error, result: any) => void): void {
 		let cmd: cp.ChildProcess;
+
 		let needsDecoding = false;
+		let usesBackslash = false;
 
 		// Use native command to find files (follow symlinks)
 		if (process.platform === 'darwin') {
@@ -311,6 +313,7 @@ export class FileWalker {
 		} else {
 			cmd = cp.spawn('cmd', ['/U', '/c', 'dir', '/s', '/b', '/a-d'], { cwd: absolutePath });
 			needsDecoding = true; // /U enables unicode (UTF16le = ucs2) output
+			usesBackslash = true;
 		}
 
 		// Store globally so that we can kill the command if we get canceled
@@ -336,7 +339,9 @@ export class FileWalker {
 		};
 
 		let toRelativeWithSlash = function(path: string): string {
-			return strings.replaceAll(path.substr(absolutePath.length + 1 /* leading slash */), '\\', '/');
+			let relativeFilePath = path.substr(absolutePath.length + 1 /* leading slash */);
+
+			return usesBackslash ? strings.replaceAll(relativeFilePath, '\\', '/') : relativeFilePath;
 		}
 
 		cmd.stdout.on('data', (data) => {
@@ -352,11 +357,10 @@ export class FileWalker {
 		});
 
 		cmd.on('close', (code) => {
-			if (code && this.verboseLogging) {
-				console.error('Native file walker exited abnormaly with code: ' + code);
-			}
-
 			if (!this.isCanceled) {
+				if (code && this.verboseLogging) {
+					console.error('Native file walker exited abnormaly with code: ' + code);
+				}
 
 				// consume last line from decoder
 				perPathHandler(stdoutLineDecoder.end());
@@ -365,7 +369,16 @@ export class FileWalker {
 				[].concat.apply([], Object.keys(mapFoldersToFiles)
 
 					// ...only take those that are not excluded by patterns...
-					.filter(p => !glob.match(this.excludePattern, toRelativeWithSlash(p), mapFoldersToFiles[paths.dirname(p)]))
+					.filter(p => {
+						let relativeFilePath = toRelativeWithSlash(p);
+						do {
+							if (glob.match(this.excludePattern, relativeFilePath, mapFoldersToFiles[paths.dirname(relativeFilePath)])) {
+								return false; // exclude
+							}
+						} while ((relativeFilePath = paths.dirname(relativeFilePath)) !== '.'); // walk parents up until root is reached
+
+						return true; // keep
+					})
 
 					// ...and concat all arrays of children into one array...
 					.map(p => mapFoldersToFiles[p]))
