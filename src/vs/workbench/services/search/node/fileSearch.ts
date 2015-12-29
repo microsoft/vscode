@@ -35,7 +35,9 @@ export class FileWalker {
 	private isCanceled: boolean;
 	private searchInPath: boolean;
 	private matchFuzzy: boolean;
+
 	private runningNative: cp.ChildProcess;
+	private verboseLogging: boolean;
 
 	private walkedPaths: { [path: string]: boolean; };
 
@@ -47,6 +49,7 @@ export class FileWalker {
 		this.includePattern = config.includePattern;
 		this.maxResults = config.maxResults || null;
 		this.walkedPaths = Object.create(null);
+		this.verboseLogging = !!process.env.VERBOSE_LOGGING;
 
 		// Normalize file patterns to forward slashs
 		if (this.filePattern && this.filePattern.indexOf(paths.sep) >= 0) {
@@ -342,7 +345,17 @@ export class FileWalker {
 			}
 		});
 
+		cmd.stderr.on('data', (data) => {
+			if (!this.isCanceled && this.verboseLogging) {
+				console.error(needsDecoding ? iconv.decode(data, 'ucs2') : data);
+			}
+		});
+
 		cmd.on('close', (code) => {
+			if (code && this.verboseLogging) {
+				console.error('Native file walker exited abnormaly with code: ' + code);
+			}
+
 			if (!this.isCanceled) {
 
 				// consume last line from decoder
