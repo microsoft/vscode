@@ -375,4 +375,9 @@ export interface ITextFileService extends IDisposable {
 	 * Convinient fast access to the configured auto save settings.
 	 */
 	getAutoSaveConfiguration(): IAutoSaveConfiguration;
+
+	/**
+	 * Event is fired with the auto save configuration whenever it changes.
+	 */
+	onAutoSaveConfigurationChange: Event<IAutoSaveConfiguration>;
 }

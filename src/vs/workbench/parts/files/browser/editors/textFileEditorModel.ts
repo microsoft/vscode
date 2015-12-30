@@ -8,6 +8,7 @@ import nls = require('vs/nls');
 import {TPromise, Promise} from 'vs/base/common/winjs.base';
 import {onUnexpectedError, toErrorMessage, getHttpStatus} from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
+import {IDisposable} from 'vs/base/common/lifecycle';
 import paths = require('vs/base/common/paths');
 import diagnostics = require('vs/base/common/diagnostics');
 import types = require('vs/base/common/types');
@@ -90,6 +91,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 	private contentEncoding: string; 			// encoding as reported from disk
 	private preferredEncoding: string;			// encoding as chosen by the user
 	private textModelChangeListener: () => void;
+	private textFileServiceListener: IDisposable;
 	private dirty: boolean;
 	private versionId: number;
 	private bufferSavedVersionId: number;
@@ -133,9 +135,14 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 		this.mapPendingSaveToVersionId = {};
 
 		this.updateAutoSaveConfiguration(textFileService.getAutoSaveConfiguration());
+		this.registerListeners();
 	}
 
-	public updateAutoSaveConfiguration(config: IAutoSaveConfiguration): void {
+	private registerListeners(): void {
+		this.textFileServiceListener = this.textFileService.onAutoSaveConfigurationChange(config => this.updateAutoSaveConfiguration(config));
+	}
+
+	private updateAutoSaveConfiguration(config: IAutoSaveConfiguration): void {
 		if (typeof config.autoSaveDelay === 'number' && config.autoSaveDelay > 0) {
 			this.autoSaveAfterMillies = config.autoSaveDelay * 1000;
 			this.autoSaveAfterMilliesEnabled = true;
@@ -730,6 +737,11 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 		if (this.textModelChangeListener) {
 			this.textModelChangeListener();
 			this.textModelChangeListener = null;
+		}
+
+		if (this.textFileServiceListener) {
+			this.textFileServiceListener.dispose();
+			this.textFileServiceListener = null;
 		}
 
 		this.cancelAutoSavePromises();

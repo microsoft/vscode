@@ -8,6 +8,7 @@ import {TPromise, Promise} from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import errors = require('vs/base/common/errors');
 import {ListenerUnbind} from 'vs/base/common/eventEmitter';
+import Event, {Emitter} from 'vs/base/common/event';
 import {FileEditorInput} from 'vs/workbench/parts/files/browser/editors/fileEditorInput';
 import {CACHE, TextFileEditorModel} from 'vs/workbench/parts/files/browser/editors/textFileEditorModel';
 import {IResult, ITextFileOperationResult, ConfirmResult, ITextFileService, IAutoSaveConfiguration} from 'vs/workbench/parts/files/common/files';
@@ -33,6 +34,8 @@ export abstract class TextFileService implements ITextFileService {
 	private listenerToUnbind: ListenerUnbind[];
 	private _workingFilesModel: WorkingFilesModel;
 
+	private _onAutoSaveConfigurationChange: Emitter<IAutoSaveConfiguration>;
+
 	private configuredAutoSaveDelay: number;
 	private configuredAutoSaveOnFocusChange: boolean;
 
@@ -45,9 +48,14 @@ export abstract class TextFileService implements ITextFileService {
 		@IEventService private eventService: IEventService
 	) {
 		this.listenerToUnbind = [];
+		this._onAutoSaveConfigurationChange = new Emitter<IAutoSaveConfiguration>();
 
 		this.registerListeners();
 		this.loadConfiguration();
+	}
+
+	public get onAutoSaveConfigurationChange(): Event<IAutoSaveConfiguration> {
+		return this._onAutoSaveConfigurationChange.event;
 	}
 
 	private get workingFilesModel(): WorkingFilesModel {
@@ -93,11 +101,12 @@ export abstract class TextFileService implements ITextFileService {
 		this.configuredAutoSaveDelay = configuration && configuration.files && configuration.files.autoSaveDelay;
 		this.configuredAutoSaveOnFocusChange = configuration && configuration.files && configuration.files.autoSaveFocusChange;
 
-		const autoSaveConfig = this.getAutoSaveConfiguration();
-		CACHE.getAll().forEach((model) => model.updateAutoSaveConfiguration(autoSaveConfig));
+		// Emit as event
+		this._onAutoSaveConfigurationChange.fire(this.getAutoSaveConfiguration());
 
+		// save all dirty when enabling auto save
 		if (!wasAutoSaveEnabled && this.isAutoSaveEnabled()) {
-			this.saveAll().done(null, errors.onUnexpectedError); // save all dirty when enabling auto save
+			this.saveAll().done(null, errors.onUnexpectedError);
 		}
 	}
 
