@@ -322,25 +322,6 @@ export function toErrorMessage(error: any = null, verbose: boolean = false): str
 	return nls.localize('error.defaultMessage', "An unknown error occurred. Please consult the log for more details.");
 }
 
-/**
- * Looks for an HTTP Status in the provided error parameter.
- */
-export function getHttpStatus(error: any): number {
-	if (error) {
-		if (types.isArray(error)) {
-			for (let i = 0; i < error.length; i++) {
-				if (error[i] && error[i].status) {
-					return error[i].status;
-				}
-			}
-		} else if (error.status) {
-			return error.status;
-		}
-	}
-
-	return -1;
-}
-
 let canceledName = 'Canceled';
 
 /**

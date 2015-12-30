@@ -6,7 +6,7 @@
 
 import nls = require('vs/nls');
 import {TPromise, Promise} from 'vs/base/common/winjs.base';
-import {onUnexpectedError, toErrorMessage, getHttpStatus} from 'vs/base/common/errors';
+import {onUnexpectedError, toErrorMessage} from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import paths = require('vs/base/common/paths');
@@ -42,19 +42,7 @@ class DefaultSaveErrorHandler implements ISaveErrorHandler {
 	constructor( @IMessageService private messageService: IMessageService) { }
 
 	public onSaveError(error: any, model: TextFileEditorModel): void {
-		let message: string;
-
-		// 412 Dirty write prevention
-		if (getHttpStatus(error) === 412) {
-			message = nls.localize('staleSaveError', "Failed to save '{0}': The version on disk is newer. Please open the file and save it again.", paths.basename(model.getResource().fsPath));
-		}
-
-		// Any other save error
-		else {
-			message = nls.localize('genericSaveError', "Failed to save '{0}': {1}", paths.basename(model.getResource().fsPath), toErrorMessage(error, false));
-		}
-
-		this.messageService.show(Severity.Error, message);
+		this.messageService.show(Severity.Error, nls.localize('genericSaveError', "Failed to save '{0}': {1}", paths.basename(model.getResource().fsPath), toErrorMessage(error, false)));
 	}
 }
 
