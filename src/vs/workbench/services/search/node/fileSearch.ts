@@ -21,6 +21,8 @@ import extfs = require('vs/base/node/extfs');
 import flow = require('vs/base/node/flow');
 import {ISerializedFileMatch, IRawSearch, ISearchEngine} from 'vs/workbench/services/search/node/rawSearchService';
 
+const normalizedPathCache: {[path: string]: string;} = Object.create(null);
+
 export class FileWalker {
 
 	private static ENOTDIR = 'ENOTDIR';
@@ -302,12 +304,14 @@ export class FileWalker {
 	private recurseWithNativeCommand(absolutePath: string, onResult: (result: ISerializedFileMatch) => void, done: (error: Error, result: any) => void): void {
 		let cmd: cp.ChildProcess;
 
-		let needsDecoding = false;
-		let usesBackslash = false;
+		let needsDecoding = false; 			// Windows
+		let usesBackslash = false; 			// Windows
+		let needsNFCNormalization = false; 	// Mac
 
 		// Use native command to find files (follow symlinks)
 		if (process.platform === 'darwin') {
 			cmd = cp.spawn('find', ['-L', absolutePath, '-type', 'f']);
+			needsNFCNormalization = true;
 		} else if (process.platform === 'linux') {
 			cmd = cp.spawn('find', [absolutePath, '-type', 'f', '-follow']);
 		} else {
@@ -325,6 +329,10 @@ export class FileWalker {
 		let perPathHandler = function(p: string): void {
 			if (!p) {
 				return;
+			}
+
+			if (needsNFCNormalization) {
+				p = strings.normalizeNFC(p, normalizedPathCache);
 			}
 
 			// Map parents to children
