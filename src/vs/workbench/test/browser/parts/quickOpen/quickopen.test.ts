@@ -64,7 +64,7 @@ suite('Workbench QuickOpen', () => {
 		let input2 = inst.createInstance(StringEditorInput, "name2", 'description', "value2", "text/plain", false);
 		(<any>input2).getResource = () => "path";
 		let entry2 = new EditorHistoryEntry(editorService, contextService, input2, null, null, model);
-		assert.equal(entry2.getResource(), "path");
+		assert.ok(!entry2.getResource()); // inputs with getResource are not taken as resource for entry, only files and untitled
 
 		assert(!entry1.matches(entry2.getInput()));
 		assert(entry1.matches(entry1.getInput()));

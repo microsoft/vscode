@@ -39,16 +39,7 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 
 		this.input = input;
 		this.model = model;
-
-		let resource = getUntitledOrFileResource(input);
-		if (resource) {
-			this.resource = resource;
-		} else {
-			let inputWithResource: { getResource(): URI } = <any>input;
-			if (types.isFunction(inputWithResource.getResource)) {
-				this.resource = inputWithResource.getResource();
-			}
-		}
+		this.resource = getUntitledOrFileResource(input);
 
 		this.setHighlights(labelHighlights, descriptionHighlights);
 	}
