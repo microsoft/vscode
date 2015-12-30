@@ -134,7 +134,7 @@ suite('Search', () => {
 			}
 		}, () => { }, (error) => {
 			assert.ok(!error);
-			assert.equal(count, 11);
+			assert.equal(count, 12);
 			done();
 		});
 	});
@@ -193,7 +193,7 @@ suite('Search', () => {
 			}
 		}, () => { }, (error) => {
 			assert.ok(!error);
-			assert.equal(count, 6);
+			assert.equal(count, 7);
 			done();
 		});
 	});
@@ -212,7 +212,7 @@ suite('Search', () => {
 			}
 		}, () => { }, (error) => {
 			assert.ok(!error);
-			assert.equal(count, 6);
+			assert.equal(count, 7);
 			done();
 		});
 	});
@@ -231,7 +231,28 @@ suite('Search', () => {
 			}
 		}, () => { }, (error) => {
 			assert.ok(!error);
-			assert.equal(count, 6);
+			assert.equal(count, 7);
+			done();
+		});
+	});
+
+	test('Files: Unicode and Spaces', function(done: () => void) {
+		let engine = new FileSearchEngine({
+			rootPaths: [require.toUrl('./fixtures')],
+			filePattern: '汉语'
+		});
+
+		let count = 0;
+		let res;
+		engine.search((result) => {
+			if (result) {
+				count++;
+			}
+			res = result;
+		}, () => { }, (error) => {
+			assert.ok(!error);
+			assert.equal(count, 1);
+			assert.equal(path.basename(res.path), '汉语.txt');
 			done();
 		});
 	});
