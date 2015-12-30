@@ -47,6 +47,8 @@ export class TextFileService extends AbstractTextFileService {
 		@IEventService eventService: IEventService
 	) {
 		super(contextService, instantiationService, configurationService, telemetryService, lifecycleService, eventService);
+
+		this.init();
 	}
 
 	public beforeShutdown(): boolean | TPromise<boolean> {

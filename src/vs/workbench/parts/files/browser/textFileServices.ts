@@ -49,7 +49,9 @@ export abstract class TextFileService implements ITextFileService {
 	) {
 		this.listenerToUnbind = [];
 		this._onAutoSaveConfigurationChange = new Emitter<IAutoSaveConfiguration>();
+	}
 
+	protected init(): void {
 		this.registerListeners();
 		this.loadConfiguration();
 	}
