@@ -390,7 +390,15 @@ export class FileWalker {
 						}
 
 						let relativeFilePath = toRelativeWithSlash(p);
+						let filename = paths.basename(p);
 						let siblings = mapFoldersToFiles[paths.dirname(p)];
+
+						// If the user searches for the exact file name, we adjust the glob matching
+						// to ignore filtering by siblings because the user seems to know what she
+						// is searching for and we want to include the result in that case anyway
+						if (this.config.filePattern === filename) {
+							siblings = [];
+						}
 
 						// Exclude
 						if (glob.match(this.excludePattern, relativeFilePath, siblings)) {
@@ -398,7 +406,7 @@ export class FileWalker {
 						}
 
 						// Include
-						if (this.isFilePatternMatch(paths.basename(p), relativeFilePath) && (!this.includePattern || glob.match(this.includePattern, relativeFilePath, siblings))) {
+						if (this.isFilePatternMatch(filename, relativeFilePath) && (!this.includePattern || glob.match(this.includePattern, relativeFilePath, siblings))) {
 							this.resultCount++;
 
 							if (this.maxResults && this.resultCount > this.maxResults) {
