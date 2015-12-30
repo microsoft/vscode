@@ -324,7 +324,8 @@ export class FileWalker {
 		this.runningNative = cmd;
 
 		let stdoutLineDecoder = new LineDecoder();
-		let mapFoldersToFiles: { [path: string]: string[] } = Object.create(null);
+		let mapFoldersToFilepaths: { [path: string]: string[] } = Object.create(null);
+		let mapFoldersToFilenames: { [path: string]: string[] } = Object.create(null);
 
 		let perPathHandler = function(p: string): void {
 			if (!p) {
@@ -335,14 +336,24 @@ export class FileWalker {
 				p = strings.normalizeNFC(p, normalizedPathCache);
 			}
 
-			// Map parents to children
+			// Map parents to children (full path)
 			let parent = paths.dirname(p);
-			let siblings = mapFoldersToFiles[parent];
+			let siblings = mapFoldersToFilepaths[parent];
 			if (!siblings) {
 				siblings = [p];
-				mapFoldersToFiles[parent] = siblings;
+				mapFoldersToFilepaths[parent] = siblings;
 			} else {
 				siblings.push(p);
+			}
+
+			// Map parents to children (basename)
+			let basename = paths.basename(p);
+			siblings = mapFoldersToFilenames[parent];
+			if (!siblings) {
+				siblings = [basename];
+				mapFoldersToFilenames[parent] = siblings;
+			} else {
+				siblings.push(basename);
 			}
 		};
 
@@ -374,7 +385,7 @@ export class FileWalker {
 				perPathHandler(stdoutLineDecoder.end());
 
 				// From all folders we walked by...
-				[].concat.apply([], Object.keys(mapFoldersToFiles)
+				[].concat.apply([], Object.keys(mapFoldersToFilepaths)
 
 					// ...only take those that are not excluded by patterns...
 					.filter(p => {
@@ -389,7 +400,7 @@ export class FileWalker {
 					})
 
 					// ...and concat all arrays of children into one array...
-					.map(p => mapFoldersToFiles[p]))
+					.map(p => mapFoldersToFilepaths[p]))
 
 					// ...to iterate over them!
 					.forEach(p => {
@@ -399,7 +410,7 @@ export class FileWalker {
 
 						let relativeFilePath = toRelativeWithSlash(p);
 						let filename = paths.basename(p);
-						let siblings = mapFoldersToFiles[paths.dirname(p)];
+						let siblings = mapFoldersToFilenames[paths.dirname(p)];
 
 						// If the user searches for the exact file name, we adjust the glob matching
 						// to ignore filtering by siblings because the user seems to know what she
