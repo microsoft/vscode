@@ -372,7 +372,7 @@ export class FileWalker {
 					.filter(p => {
 						let relativeFilePath = toRelativeWithSlash(p);
 						do {
-							if (glob.match(this.excludePattern, relativeFilePath, mapFoldersToFiles[paths.dirname(relativeFilePath)])) {
+							if (glob.match(this.excludePattern, relativeFilePath)) {
 								return false; // exclude
 							}
 						} while ((relativeFilePath = paths.dirname(relativeFilePath)) !== '.'); // walk parents up until root is reached
