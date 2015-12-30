@@ -80,7 +80,7 @@ suite('Search', () => {
 			}
 		}, () => { }, (error) => {
 			assert.ok(!error);
-			assert.equal(count, 5);
+			assert.equal(count, 6);
 			done();
 		});
 	});
@@ -134,7 +134,7 @@ suite('Search', () => {
 			}
 		}, () => { }, (error) => {
 			assert.ok(!error);
-			assert.equal(count, 9);
+			assert.equal(count, 11);
 			done();
 		});
 	});
@@ -153,6 +153,85 @@ suite('Search', () => {
 		}, () => { }, (error) => {
 			assert.ok(!error);
 			assert.equal(count, 0);
+			done();
+		});
+	});
+
+	test('Files: *.* without derived', function(done: () => void) {
+		let engine = new FileSearchEngine({
+			rootPaths: [require.toUrl('./fixtures')],
+			filePattern: 'site.*',
+			excludePattern: { "**/*.css": { "when": "$(basename).less" } }
+		});
+
+		let count = 0;
+		let res;
+		engine.search((result) => {
+			if (result) {
+				count++;
+			}
+			res = result;
+		}, () => { }, (error) => {
+			assert.ok(!error);
+			assert.equal(count, 1);
+			assert.ok(path.basename(res.path) === 'site.less');
+			done();
+		});
+	});
+
+	test('Files: *.* exclude folder without wildcard', function(done: () => void) {
+		let engine = new FileSearchEngine({
+			rootPaths: [require.toUrl('./fixtures')],
+			filePattern: '*.*',
+			excludePattern: { "examples": true }
+		});
+
+		let count = 0;
+		engine.search((result) => {
+			if (result) {
+				count++;
+			}
+		}, () => { }, (error) => {
+			assert.ok(!error);
+			assert.equal(count, 6);
+			done();
+		});
+	});
+
+	test('Files: *.* exclude folder with leading wildcard', function(done: () => void) {
+		let engine = new FileSearchEngine({
+			rootPaths: [require.toUrl('./fixtures')],
+			filePattern: '*.*',
+			excludePattern: { "**/examples": true }
+		});
+
+		let count = 0;
+		engine.search((result) => {
+			if (result) {
+				count++;
+			}
+		}, () => { }, (error) => {
+			assert.ok(!error);
+			assert.equal(count, 6);
+			done();
+		});
+	});
+
+	test('Files: *.* exclude folder with trailing wildcard', function(done: () => void) {
+		let engine = new FileSearchEngine({
+			rootPaths: [require.toUrl('./fixtures')],
+			filePattern: '*.*',
+			excludePattern: { "examples/**": true }
+		});
+
+		let count = 0;
+		engine.search((result) => {
+			if (result) {
+				count++;
+			}
+		}, () => { }, (error) => {
+			assert.ok(!error);
+			assert.equal(count, 6);
 			done();
 		});
 	});
