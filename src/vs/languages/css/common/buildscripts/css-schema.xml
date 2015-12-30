@@ -44,18 +44,22 @@
       <desc>Defines a stylesheet for a particular media type.</desc>
     </entry>
     <entry name="@-moz-document" version="3.0" browsers="FF1.8" ref="https://developer.mozilla.org/en/CSS/@document">
-      <desc>The @-moz-document rule is a Gecko-specific at-rule that restricts the style rules contained within it based on the URL of the document.</desc>
+      <desc>Gecko-specific at-rule that restricts the style rules contained within it based on the URL of the document.</desc>
     </entry>
-    <entry name="@-moz-keyframes" version="3.0" browsers="FF5" ref="https://developer.mozilla.org/en/CSS/@keyframes" syntax="@-moz-keyframes animation-name">
+    <entry name="@-moz-keyframes" version="3.0" browsers="FF5" ref="http://www.w3.org/TR/css3-animations/#keyframes" syntax="@-moz-keyframes animation-name">
       <desc>Defines set of animation key frames.</desc>
     </entry>
-    <entry name="@-ms-viewport" version="3.0" browsers="E,IE10" ref="http://www.w3.org/TR/css-device-adapt/#the-viewport-rule" syntax="@$(name) { width: device-width; }" />
+    <entry name="@-ms-viewport" version="3.0" browsers="E,IE10" ref="http://www.w3.org/TR/css-device-adapt/#the-viewport-rule" syntax="@$(name) { width: device-width; }" >
+      <desc>Specifies the size, zoom factor, and orientation of the viewport.</desc>
+    </entry>
     <entry name="@namespace" version="3.0" browsers="E,C,FF1,IE9,O8,S1" ref="http://www.w3.org/TR/css3-namespace/#declaration" syntax="@namespace [prefix] string|url;">
       <desc>Declares a prefix and associates it with a namespace name.</desc>
     </entry>
-    <entry name="@-o-keyframes" version="3.0" browsers="O12" ref="http://www.w3.org/TR/css3-animations/#keyframes" syntax="@-o-keyframes animation-name { }" />
+    <entry name="@-o-keyframes" version="3.0" browsers="O12" ref="http://www.w3.org/TR/css3-animations/#keyframes" syntax="@-o-keyframes animation-name { }">
+      <desc>Defines set of animation key frames.</desc>
+    </entry>
     <entry name="@-o-viewport" version="3.0" browsers="O11" ref="http://dev.w3.org/csswg/css-device-adapt/#the-viewport-rule" syntax="@$(name) { width: 320px; zoom: 0.5; }">
-      <desc>Sets the viewport properties in Opera Mobile 11 - 12.1.</desc>
+      <desc>Specifies the size, zoom factor, and orientation of the viewport.</desc>
     </entry>
     <entry name="@page" version="2.0" browsers="all" ref="http://www.w3.org/TR/css3-page/#page-box-page-rule" syntax="@page :first { margin-top: 10cm }">
       <desc>Directive defines various page parameters.</desc>
