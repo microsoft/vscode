@@ -315,7 +315,7 @@ export class FileWalker {
 		} else if (process.platform === 'linux') {
 			cmd = cp.spawn('find', [absolutePath, '-type', 'f', '-follow']);
 		} else {
-			cmd = cp.spawn('cmd', ['/U', '/c', 'dir', '/s', '/b', '/a-d'], { cwd: absolutePath });
+			cmd = cp.spawn('cmd', ['/U', '/c', 'dir', absolutePath, '/s', '/b', '/a-d']);
 			needsDecoding = true; // /U enables unicode (UTF16le = ucs2) output
 			usesBackslash = true;
 		}
