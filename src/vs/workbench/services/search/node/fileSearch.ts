@@ -376,6 +376,8 @@ export class FileWalker {
 		});
 
 		cmd.on('close', (code) => {
+			this.runningNative = null;
+			
 			if (!this.isCanceled) {
 				if (code && this.verboseLogging) {
 					console.error('Native file walker exited abnormaly with code: ' + code);
