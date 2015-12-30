@@ -19,17 +19,11 @@
     <entry name="@charset" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-syntax/#charset" syntax="@charset 'utf-8';">
       <desc>Defines character set of the document.</desc>
     </entry>
-    <entry name="@counter" version="3.0" browsers="none" ref="http://www.w3.org/TR/css3-content/#counter0" syntax="@counter footnote { list-style-type: super-decimal; }">
-      <desc>Authors may use @counter declaration blocks and the 'page-policy' property, which applies only to strings and counters.</desc>
-    </entry>
     <entry name="@counter-style" version="3.0" browsers="FF33" ref="http://www.w3.org/TR/css-counter-styles-3/#the-counter-style-rule" syntax="@counter-style &lt;counter-style-name> { &lt;declaration-list> }">
       <desc>Defines a custom counter style.</desc>
     </entry>
     <entry name="@font-face" version="3.0" browsers="all" ref="http://www.w3.org/TR/css3-fonts/#the-font-face-rule" syntax="@font-face { &lt;font-description&gt; }">
       <desc>Allows for linking to fonts that are automatically activated when needed. This permits authors to work around the limitation of 'web-safe' fonts, allowing for consistent rendering independent of the fonts available in a given user's environment.</desc>
-    </entry>
-    <entry name="@host" version="2.0" browsers="C" ref="http://www.w3.org/TR/shadow-dom/#host-at-rule" syntax="@host { :scope { color: red; } }">
-      <desc>Applies to elements specified in shadow trees.</desc>
     </entry>
     <entry name="@import" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-syntax/#at-import" syntax="@import url('file.css') tv, print;">
       <desc>Includes content of another file.</desc>
@@ -63,7 +57,7 @@
     <entry name="@-o-viewport" version="3.0" browsers="O11" ref="http://dev.w3.org/csswg/css-device-adapt/#the-viewport-rule" syntax="@$(name) { width: 320px; zoom: 0.5; }">
       <desc>Sets the viewport properties in Opera Mobile 11 - 12.1.</desc>
     </entry>
-    <entry name="@page" version="2.0" browsers="all" ref="http://www.w3.org/TR/css3-page/#page-box-page-rule" syntax="@page">
+    <entry name="@page" version="2.0" browsers="all" ref="http://www.w3.org/TR/css3-page/#page-box-page-rule" syntax="@page :first { margin-top: 10cm }">
       <desc>Directive defines various page parameters.</desc>
     </entry>
     <entry name="@right-bottom" version="3" browsers="none" ref="http://www.w3.org/TR/css3-page/#page-box">
@@ -74,9 +68,6 @@
     </entry>
     <entry name="@right-top" version="3" browsers="none" ref="http://www.w3.org/TR/css3-page/#page-box">
       <desc>A variable-height box within the area defined by the right margin and adjacent to the bottom of the top-right-corner.</desc>
-    </entry>
-    <entry name="@string" version="3.0" browsers="none" ref="http://www.w3.org/TR/css3-content/#string" syntax="@string chapter { page-policy: last; }">
-      <desc>Authors may use @string declaration blocks and the 'page-policy' property, which applies only to strings and counters.</desc>
     </entry>
     <entry name="@supports" version="3.0" browsers="E,C28,FF22,O12.1,S9" ref="http://www.w3.org/TR/css3-conditional/#at-supports" syntax="@supports (display: flexbox) { div { display: flexbox; } }">
       <desc>A conditional group rule whose condition tests whether the user agent supports CSS property:value pairs.</desc>
