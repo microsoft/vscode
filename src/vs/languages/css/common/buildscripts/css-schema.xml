@@ -22,8 +22,14 @@
     <entry name="@counter-style" version="3.0" browsers="FF33" ref="http://www.w3.org/TR/css-counter-styles-3/#the-counter-style-rule" syntax="@counter-style &lt;counter-style-name> { &lt;declaration-list> }">
       <desc>Defines a custom counter style.</desc>
     </entry>
+    <entry name="@custom-media" version="4.0" browsers="none" ref="http://www.w3.org/TR/mediaqueries-4/#at-ruledef-custom-media" syntax="@custom-media --narrow-viewport (max-width: 30em);">
+      <desc>Defines a custom media feature that can then be used in a media feature.</desc>
+    </entry>
     <entry name="@font-face" version="3.0" browsers="all" ref="http://www.w3.org/TR/css3-fonts/#the-font-face-rule" syntax="@font-face { &lt;font-description&gt; }">
       <desc>Allows for linking to fonts that are automatically activated when needed. This permits authors to work around the limitation of 'web-safe' fonts, allowing for consistent rendering independent of the fonts available in a given user's environment.</desc>
+    </entry>
+    <entry name="@font-feature-values" version="3.0" browsers="FF34" ref="http://www.w3.org/TR/css-fonts-3/#at-font-feature-values-rule" syntax="@font-feature-values &lt;font-family> { }">
+      <desc>Defines named values for the indices used to select alternate glyphs for a given font family.</desc>
     </entry>
     <entry name="@import" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-syntax/#at-import" syntax="@import url('file.css') tv, print;">
       <desc>Includes content of another file.</desc>
@@ -72,6 +78,9 @@
     </entry>
     <entry name="@right-top" version="3" browsers="none" ref="http://www.w3.org/TR/css3-page/#page-box">
       <desc>A variable-height box within the area defined by the right margin and adjacent to the bottom of the top-right-corner.</desc>
+    </entry>
+    <entry name="@scope" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-scoping-1/#at-ruledef-scope" syntax="@scope &lt;selector> { &lt;stylesheet> }">
+      <desc>Creates scoped style rules using CSS syntax.</desc>
     </entry>
     <entry name="@supports" version="3.0" browsers="E,C28,FF22,O12.1,S9" ref="http://www.w3.org/TR/css3-conditional/#at-supports" syntax="@supports (display: flexbox) { div { display: flexbox; } }">
       <desc>A conditional group rule whose condition tests whether the user agent supports CSS property:value pairs.</desc>

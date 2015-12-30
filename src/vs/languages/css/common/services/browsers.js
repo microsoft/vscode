@@ -23,9 +23,9 @@ exports.data ={
 				"desc": "Allows for linking to fonts that are automatically activated when needed. This permits authors to work around the limitation of 'web-safe' fonts, allowing for consistent rendering independent of the fonts available in a given user's environment."
 			},
 			{
-				"name": "@host",
-				"desc": "Applies to elements specified in shadow trees.",
-				"browsers": "C"
+				"name": "@font-feature-values",
+				"desc": "Defines named values for the indices used to select alternate glyphs for a given font family.",
+				"browsers": "FF34"
 			},
 			{
 				"name": "@import",
@@ -42,7 +42,7 @@ exports.data ={
 			},
 			{
 				"name": "@-moz-document",
-				"desc": "The @-moz-document rule is a Gecko-specific at-rule that restricts the style rules contained within it based on the URL of the document.",
+				"desc": "Gecko-specific at-rule that restricts the style rules contained within it based on the URL of the document.",
 				"browsers": "FF1.8"
 			},
 			{
@@ -52,6 +52,7 @@ exports.data ={
 			},
 			{
 				"name": "@-ms-viewport",
+				"desc": "Specifies the size, zoom factor, and orientation of the viewport.",
 				"browsers": "E,IE10"
 			},
 			{
@@ -61,11 +62,12 @@ exports.data ={
 			},
 			{
 				"name": "@-o-keyframes",
+				"desc": "Defines set of animation key frames.",
 				"browsers": "O12"
 			},
 			{
 				"name": "@-o-viewport",
-				"desc": "Sets the viewport properties in Opera Mobile 11 - 12.1.",
+				"desc": "Specifies the size, zoom factor, and orientation of the viewport.",
 				"browsers": "O11"
 			},
 			{
