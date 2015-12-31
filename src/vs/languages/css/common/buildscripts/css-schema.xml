@@ -111,7 +111,9 @@
     <entry name=":active" version="2.0" browsers="all" ref="http://www.w3.org/TR/css3-selectors/#the-user-action-pseudo-classes-hover-act" syntax="a:active { color: red; }">
       <desc>Applies while an element is being activated by the user. For example, between the times the user presses the mouse button and releases it.</desc>
     </entry>
-    <entry name=":any-link" version="3.0" browsers="all" ref="http://www.w3.org/TR/selectors4/#the-any-link-pseudo" syntax="a:any-link { text-decoration: none; }" />
+    <entry name=":any-link" version="3.0" browsers="S9" ref="http://www.w3.org/TR/selectors4/#the-any-link-pseudo" syntax="a:any-link { text-decoration: none; }">
+      <desc>Represents an element that acts as the source anchor of a hyperlink. Applies to both visited and unvisited links.</desc>
+    </entry>
     <entry name=":checked" version="3.0" browsers="E,C,FF1,IE9,O9,S3.13" ref="http://www.w3.org/TR/css3-selectors/#checked" syntax="input:checked { color: red; }">
       <desc>Radio and checkbox elements can be toggled by the user. Some menu items are 'checked' when the user selects them. When such elements are toggled 'on' the :checked pseudo-class applies.</desc>
     </entry>
