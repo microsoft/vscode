@@ -235,6 +235,8 @@ export function normalizeNFC(str: string, cache?:{[str: string]: string}): strin
 	let res: string;
 	if (nonAsciiCharactersPattern.test(str)) {
 		res = (<any>str).normalize('NFC');
+	} else {
+		res = str;
 	}
 
 	if (cache) {
