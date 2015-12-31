@@ -71,18 +71,19 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 		this.scorerCache = Object.create(null);
 		this.delayer = new ThrottledDelayer<QuickOpenModel>(OpenAnythingHandler.SEARCH_DELAY);
 
-		this.updateFuzzyMatching(contextService.getOptions().globalSettings.settings);
+		this.updateConfiguration(contextService.getOptions().globalSettings.settings);
 
 		this.registerListeners();
 	}
 
 	private registerListeners(): void {
-		this.configurationListenerUnbind = this.configurationService.addListener(ConfigurationServiceEventTypes.UPDATED, (e: IConfigurationServiceEvent) => this.updateFuzzyMatching(e.config));
+		this.configurationListenerUnbind = this.configurationService.addListener(ConfigurationServiceEventTypes.UPDATED, (e: IConfigurationServiceEvent) => this.updateConfiguration(e.config));
 	}
 
-	private updateFuzzyMatching(configuration: ISearchConfiguration): void {
+	private updateConfiguration(configuration: ISearchConfiguration): void {
 		this.fuzzyMatchingEnabled = configuration.filePicker && configuration.filePicker.alternateFileNameMatching;
 		this.openFileHandler.setFuzzyMatchingEnabled(this.fuzzyMatchingEnabled);
+		this.openFileHandler.setDisableFastFileLookup(configuration.search && configuration.search.disableFastFileLookup);
 	}
 
 	public getResults(searchValue: string): TPromise<QuickOpenModel> {

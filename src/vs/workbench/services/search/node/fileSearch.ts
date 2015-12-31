@@ -37,6 +37,7 @@ export class FileWalker {
 	private isCanceled: boolean;
 	private searchInPath: boolean;
 	private matchFuzzy: boolean;
+	private disableFastFileLookup: boolean;
 
 	private runningNative: cp.ChildProcess;
 	private verboseLogging: boolean;
@@ -47,6 +48,7 @@ export class FileWalker {
 		this.config = config;
 		this.filePattern = config.filePattern;
 		this.matchFuzzy = config.matchFuzzy;
+		this.disableFastFileLookup = config.disableFastFileLookup;
 		this.excludePattern = config.excludePattern;
 		this.includePattern = config.includePattern;
 		this.maxResults = config.maxResults || null;
@@ -177,12 +179,11 @@ export class FileWalker {
 	}
 
 	private recurse(absolutePath: string, files: string[], onResult: (result: ISerializedFileMatch) => void, done: (error: Error, isLimitHit: boolean) => void): void {
-
 		// CLASSIC_FILE_WALK: Classic node.js APIs use
 		// Windows: Use "dir" command
 		// Mac/Linux: Use "find" command
 
-		if (process.env.CLASSIC_FILE_WALK) {
+		if (this.disableFastFileLookup) {
 			return this.recurseWithNodeJS(absolutePath, '', files, onResult, done);
 		}
 
@@ -377,7 +378,7 @@ export class FileWalker {
 
 		cmd.on('close', (code) => {
 			this.runningNative = null;
-			
+
 			if (!this.isCanceled) {
 				if (code && this.verboseLogging) {
 					console.error('Native file walker exited abnormaly with code: ' + code);

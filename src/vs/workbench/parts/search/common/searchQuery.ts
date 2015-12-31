@@ -60,7 +60,8 @@ export class QueryBuilder {
 				maxResults: options.maxResults,
 				fileEncoding: options.fileEncoding,
 				contentPattern: contentPattern,
-				matchFuzzy: options.matchFuzzy
+				matchFuzzy: options.matchFuzzy,
+				disableFastFileLookup: options.disableFastFileLookup
 			};
 		});
 	}
