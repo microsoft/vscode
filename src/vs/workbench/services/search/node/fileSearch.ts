@@ -407,7 +407,7 @@ export class FileWalker {
 
 					// ...to iterate over them!
 					.forEach(p => {
-						if (!p || this.isLimitHit) {
+						if (this.isLimitHit) {
 							return;
 						}
 
