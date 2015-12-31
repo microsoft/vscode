@@ -123,8 +123,12 @@
     <entry name=":corner-present" version="3.0" browsers="C,S5" ref="https://webkit.org/blog/363/styling-scrollbars/">
       <desc>Non-standard. Indicates whether or not a scrollbar corner is present.</desc>
     </entry>
-    <entry name=":current" version="3.0" browsers="all" ref="http://www.w3.org/TR/selectors4/#current-pseudo" syntax=":current { text-decoration: none; }" />
-    <entry name=":current(div)" version="3.0" browsers="all" ref="http://www.w3.org/TR/selectors4/#current-pseudo" syntax=":current(div, p) { color: blue; }" />
+    <entry name=":current" version="4.0" browsers="none" ref="http://www.w3.org/TR/selectors4/#current-pseudo" syntax=":current { background-color: lightyellow; }">
+      <desc>Represents the element, or an ancestor of the element, that is currently being displayed.</desc>
+    </entry>
+    <entry name=":current()" version="4.0" browsers="none" ref="http://www.w3.org/TR/selectors4/#current-pseudo" syntax=":current(div, p) { background-color: lightyellow; }">
+      <desc>Takes a list of compound selectors as its argument: it represents the :current element that matches the argument or, if that does not match, the innermost ancestor of the :current element that does.</desc>
+    </entry>
     <entry name=":decrement" version="3.0" browsers="C,S5" ref="https://webkit.org/blog/363/styling-scrollbars/">
       <desc>Non-standard. Applies to buttons and track pieces. Indicates whether or not the button or track piece will decrement the view’s position when used.</desc>
     </entry>
@@ -162,7 +166,9 @@
       <desc>Applies while an element has the focus (accepts keyboard or mouse events, or other forms of input).</desc>
     </entry>
     <entry name=":fullscreen" version="3.0" browsers="E" ref="https://fullscreen.spec.whatwg.org/#:fullscreen-pseudo-class" syntax="iframe:fullscreen { border: none; }" />
-    <entry name=":future" version="3.0" browsers="C,O16,S6" ref="https://dvcs.w3.org/hg/text-tracks/raw-file/default/webvtt/Overview.html#dfn-future-pseudo-class" syntax=":future { color: yellow; }" />
+    <entry name=":future" version="4.0" browsers="C,O16,S6" ref="http://www.w3.org/TR/selectors4/#the-future-pseudo" syntax=":future { color: yellow; }">
+      <desc>Represents any element that is defined to occur entirely after a :current element.</desc>
+    </entry>
     <entry name=":horizontal" version="3.0" browsers="C,S5" ref="https://webkit.org/blog/363/styling-scrollbars/">
       <desc>Non-standard. Applies to any scrollbar pieces that have a horizontal orientation.</desc>
     </entry>
@@ -266,7 +272,9 @@
     <entry name=":out-of-range" version="3.0" browsers="E13,C,FF10,O9.6,S5.1" ref="http://www.w3.org/TR/css3-ui/#out-of-range" syntax="input:out-of-range { color: red; }">
       <desc>Used in conjunction with the min and max attributes, whether on a range input, a number field, or any other types that accept those attributes.</desc>
     </entry>
-    <entry name=":past" version="3.0" browsers="C,O16,S6" ref="https://dvcs.w3.org/hg/text-tracks/raw-file/default/webvtt/Overview.html#dfn-past-pseudo-class" syntax=":past { color: green; }" />
+    <entry name=":past" version="4.0" browsers="C,O16,S6" ref="http://www.w3.org/TR/selectors4/#the-past-pseudo" syntax=":past { color: green; }">
+      <desc>Represents any element that is defined to occur entirely prior to a :current element.</desc>
+    </entry>
     <entry name=":read-only" version="3.0" browsers="E13,C,FF10,O9,S4" ref="http://www.w3.org/TR/css3-ui/" syntax="input:read-only { margin: auto; }">
       <desc>An element whose contents are not user-alterable is :read-only. However, elements whose contents are user-alterable (such as text input fields) are considered to be in a :read-write state. In typical documents, most elements are :read-only.</desc>
     </entry>
