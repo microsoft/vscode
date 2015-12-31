@@ -111,13 +111,7 @@
     <entry name=":active" version="2.0" browsers="all" ref="http://www.w3.org/TR/css3-selectors/#the-user-action-pseudo-classes-hover-act" syntax="a:active { color: red; }">
       <desc>Applies while an element is being activated by the user. For example, between the times the user presses the mouse button and releases it.</desc>
     </entry>
-    <entry name=":after" version="2.0" browsers="E,C,FF1,IE8,O8,S1" ref="http://www.w3.org/TR/css3-content/#inserting" syntax="div:after { content: 'abc'; }">
-      <desc>Insert content immediately after the content of an element (or other pseudo-element). The 'content' property is used to specify the content to insert.</desc>
-    </entry>
     <entry name=":any-link" version="3.0" browsers="all" ref="http://www.w3.org/TR/selectors4/#the-any-link-pseudo" syntax="a:any-link { text-decoration: none; }" />
-    <entry name=":before" version="2.0" browsers="E,C,FF1,IE8,O8,S1" ref="http://www.w3.org/TR/css3-content/#inserting" syntax="div:before { content: 'abc'; }">
-      <desc>Insert content immediately before the content of an element (or other pseudo-element). The 'content' property is used to specify the content to insert.</desc>
-    </entry>
     <entry name=":checked" version="3.0" browsers="E,C,FF1,IE9,O9,S3.13" ref="http://www.w3.org/TR/css3-selectors/#checked" syntax="input:checked { color: red; }">
       <desc>Radio and checkbox elements can be toggled by the user. Some menu items are 'checked' when the user selects them. When such elements are toggled 'on' the :checked pseudo-class applies.</desc>
     </entry>
@@ -147,12 +141,6 @@
     </entry>
     <entry name=":first-child" version="2.0" browsers="E,C,FF3,IE7,O9.5,S3.1" ref="http://www.w3.org/TR/css3-selectors/#first-child-pseudo" syntax="li:first-child { font-size: 1.2em; }">
       <desc>Same as :nth-child(1). Represents an element that is the first child of some other element.</desc>
-    </entry>
-    <entry name=":first-letter" version="2.0" browsers="all" ref="http://www.w3.org/TR/css3-selectors/#first-letter" syntax="p:first-letter { font-size: 200%; }">
-      <desc>Represents the first letter of an element, if it is not preceded by any other content (such as images or inline tables) on its line.</desc>
-    </entry>
-    <entry name=":first-line" version="2.0" browsers="all" ref="http://www.w3.org/TR/css3-selectors/#first-line" syntax="p:first-line { color: green; }">
-      <desc>Describes the contents of the first formatted line of an element.</desc>
     </entry>
     <entry name=":first-of-type" version="3.0" browsers="E,C,FF3.5,IE9,O9.5,S3.2" ref="http://www.w3.org/TR/css3-selectors/#first-of-type-pseudo" syntax="dl dt:first-of-type { font-size: 200%; }">
       <desc>Same as :nth-of-type(1). Represents an element that is the first sibling of its type in the list of children of its parent element.</desc>
