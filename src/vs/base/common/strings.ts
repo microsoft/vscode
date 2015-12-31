@@ -222,6 +222,7 @@ export function regExpLeadsToEndlessLoop(regexp: RegExp): boolean {
  * @see {@link https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/normalize}
  */
 export let canNormalize = typeof ((<any>'').normalize) === 'function';
+const nonAsciiCharactersPattern = /[^\u0000-\u0080]/;
 export function normalizeNFC(str: string, cache?:{[str: string]: string}): string {
 	if (!canNormalize || !str) {
 		return str;
@@ -231,7 +232,10 @@ export function normalizeNFC(str: string, cache?:{[str: string]: string}): strin
 		return cache[str];
 	}
 
-	let res = (<any>str).normalize('NFC');
+	let res: string;
+	if (nonAsciiCharactersPattern.test(str)) {
+		res = (<any>str).normalize('NFC');
+	}
 
 	if (cache) {
 		cache[str] = res;
