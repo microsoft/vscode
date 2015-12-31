@@ -358,8 +358,15 @@ export class FileWalker {
 			}
 		};
 
+		// Since we normalize paths to NFC and use string.length to convert to the relative
+		// path, we need to ensure that all paths are NFC, even the one we start from.
+		let absolutePathNormalized = absolutePath;
+		if (needsNFCNormalization) {
+			absolutePathNormalized = strings.normalizeNFC(absolutePath, normalizedPathCache);
+		}
+
 		let toRelativeWithSlash = function(path: string): string {
-			let relativeFilePath = path.substr(absolutePath.length + 1 /* leading slash */);
+			let relativeFilePath = path.substr(absolutePathNormalized.length + 1 /* leading slash */);
 
 			return usesBackslash ? strings.replaceAll(relativeFilePath, '\\', '/') : relativeFilePath;
 		}
