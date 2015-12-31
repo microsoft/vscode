@@ -21,7 +21,7 @@ import extfs = require('vs/base/node/extfs');
 import flow = require('vs/base/node/flow');
 import {ISerializedFileMatch, IRawSearch, ISearchEngine} from 'vs/workbench/services/search/node/rawSearchService';
 
-const normalizedPathCache: {[path: string]: string;} = Object.create(null);
+const normalizedPathCache: { [path: string]: string; } = Object.create(null);
 
 export class FileWalker {
 
@@ -324,9 +324,28 @@ export class FileWalker {
 		// Store globally so that we can kill the command if we get canceled
 		this.runningNative = cmd;
 
+		interface IFile {
+			absolutePath: string;
+			relativePath: string;
+			relativeDirname: string;
+			basename: string;
+		}
+
+		// Since we normalize paths to NFC and use string.length to convert to the relative
+		// path, we need to ensure that all paths are NFC, even the one we start from.
+		let absolutePathLength = absolutePath.length;
+		if (needsNFCNormalization) {
+			absolutePathLength = strings.normalizeNFC(absolutePath, normalizedPathCache).length;
+		}
+
+		let toRelativeWithSlash = function(path: string): string {
+			let relativeFilePath = path.substr(absolutePathLength + 1 /* leading slash */);
+
+			return usesBackslash ? strings.replaceAll(relativeFilePath, '\\', '/') : relativeFilePath;
+		}
+
 		let stdoutLineDecoder = new LineDecoder();
-		let mapFoldersToFilepaths: { [path: string]: string[] } = Object.create(null);
-		let mapFoldersToFilenames: { [path: string]: string[] } = Object.create(null);
+		let mapFoldersToFiles: { [relativePath: string]: IFile[] } = Object.create(null);
 
 		let perPathHandler = function(p: string): void {
 			if (!p) {
@@ -337,39 +356,23 @@ export class FileWalker {
 				p = strings.normalizeNFC(p, normalizedPathCache);
 			}
 
-			// Map parents to children (full path)
-			let parent = paths.dirname(p);
-			let siblings = mapFoldersToFilepaths[parent];
+			let relativePath = toRelativeWithSlash(p);
+			let basename = paths.basename(relativePath);
+			let relativeDirName = paths.dirname(relativePath);
+
+			let siblings = mapFoldersToFiles[relativeDirName];
 			if (!siblings) {
-				siblings = [p];
-				mapFoldersToFilepaths[parent] = siblings;
-			} else {
-				siblings.push(p);
+				siblings = [];
+				mapFoldersToFiles[relativeDirName] = siblings;
 			}
 
-			// Map parents to children (basename)
-			let basename = paths.basename(p);
-			siblings = mapFoldersToFilenames[parent];
-			if (!siblings) {
-				siblings = [basename];
-				mapFoldersToFilenames[parent] = siblings;
-			} else {
-				siblings.push(basename);
-			}
+			siblings.push({
+				absolutePath: p,
+				relativePath: relativePath,
+				relativeDirname: relativeDirName,
+				basename
+			});
 		};
-
-		// Since we normalize paths to NFC and use string.length to convert to the relative
-		// path, we need to ensure that all paths are NFC, even the one we start from.
-		let absolutePathNormalized = absolutePath;
-		if (needsNFCNormalization) {
-			absolutePathNormalized = strings.normalizeNFC(absolutePath, normalizedPathCache);
-		}
-
-		let toRelativeWithSlash = function(path: string): string {
-			let relativeFilePath = path.substr(absolutePathNormalized.length + 1 /* leading slash */);
-
-			return usesBackslash ? strings.replaceAll(relativeFilePath, '\\', '/') : relativeFilePath;
-		}
 
 		cmd.stdout.on('data', (data) => {
 			if (!this.isCanceled) {
@@ -395,11 +398,10 @@ export class FileWalker {
 				perPathHandler(stdoutLineDecoder.end());
 
 				// From all folders we walked by...
-				[].concat.apply([], Object.keys(mapFoldersToFilepaths)
+				[].concat.apply([], Object.keys(mapFoldersToFiles)
 
 					// ...only take those that are not excluded by patterns...
-					.filter(p => {
-						let relativeFilePath = toRelativeWithSlash(p);
+					.filter(relativeFilePath => {
 						do {
 							if (glob.match(this.excludePattern, relativeFilePath)) {
 								return false; // exclude
@@ -410,32 +412,30 @@ export class FileWalker {
 					})
 
 					// ...and concat all arrays of children into one array...
-					.map(p => mapFoldersToFilepaths[p]))
+					.map(p => mapFoldersToFiles[p]))
 
 					// ...to iterate over them!
-					.forEach(p => {
+					.forEach((file: IFile) => {
 						if (this.isLimitHit) {
 							return;
 						}
 
-						let relativeFilePath = toRelativeWithSlash(p);
-						let filename = paths.basename(p);
-						let siblings = mapFoldersToFilenames[paths.dirname(p)];
+						let siblings = mapFoldersToFiles[file.relativeDirname] && mapFoldersToFiles[file.relativeDirname].map(f => f.basename);
 
 						// If the user searches for the exact file name, we adjust the glob matching
 						// to ignore filtering by siblings because the user seems to know what she
 						// is searching for and we want to include the result in that case anyway
-						if (this.config.filePattern === filename) {
+						if (this.config.filePattern === file.basename) {
 							siblings = [];
 						}
 
 						// Exclude
-						if (glob.match(this.excludePattern, relativeFilePath, siblings)) {
+						if (glob.match(this.excludePattern, file.relativePath, siblings)) {
 							return;
 						}
 
 						// Include
-						if (this.isFilePatternMatch(filename, relativeFilePath) && (!this.includePattern || glob.match(this.includePattern, relativeFilePath, siblings))) {
+						if (this.isFilePatternMatch(file.basename, file.relativePath) && (!this.includePattern || glob.match(this.includePattern, file.relativePath, siblings))) {
 							this.resultCount++;
 
 							if (this.maxResults && this.resultCount > this.maxResults) {
@@ -444,7 +444,7 @@ export class FileWalker {
 
 							if (!this.isLimitHit) {
 								onResult({
-									path: p
+									path: file.absolutePath
 								});
 							}
 						}
