@@ -135,8 +135,8 @@
     <entry name=":default" version="3.0" browsers="C,FF3,O10,S5" ref="http://www.w3.org/TR/css3-ui/#pseudo-default" syntax="input:default { color: red; }">
       <desc>Applies to the one or more UI elements that are the default among a set of similar elements. This selector typically applies to context menu items, buttons, and select lists/menus.</desc>
     </entry>
-    <entry name=":dir(ltr)" version="3.0" browsers="none" ref="http://www.w3.org/TR/selectors4/#dir-pseudo" syntax="section:dir(ltr) { border-color: pink; }">
-      <desc>Allows the author to write selectors that represent an element based on its directionality as determined by the document language.</desc>
+    <entry name=":dir()" version="4.0" browsers="none" ref="http://www.w3.org/TR/selectors4/#dir-pseudo" syntax="section:dir(ltr) { border-color: pink; }">
+      <desc>Represents an element based on its directionality as determined by the document language.</desc>
     </entry>
     <entry name=":disabled" version="3.0" browsers="E,C,FF1.5,IE9,O9,S3.1" ref="http://www.w3.org/TR/css3-selectors/#enableddisabled" syntax="input:disabled { background-color: silver; }">
       <desc>Represents user interface elements that are in a disabled state; such elements have a corresponding enabled state.</desc>
@@ -189,7 +189,7 @@
     <entry name=":invalid" version="3.0" browsers="E,C,FF4,IE10,O10,S5" ref="http://www.w3.org/TR/css3-ui/" syntax="input:invalid { border-color: red; }">
       <desc>An element is :valid or :invalid when it is, respectively, valid or invalid with respect to data validity semantics defined by a different specification.</desc>
     </entry>
-    <entry name=":lang(en)" version="2.0" browsers="E,C,FF1,IE8,O8,S3" ref="http://www.w3.org/TR/css3-selectors/#lang-pseudo" syntax="html:lang(en) { color: blue; }">
+    <entry name=":lang()" version="2.0" browsers="E,C,FF1,IE8,O8,S3" ref="http://www.w3.org/TR/css3-selectors/#lang-pseudo" syntax="html:lang(en) { color: blue; }">
       <desc>Represents an element that is in language specified.</desc>
     </entry>
     <entry name=":last-child" version="3.0" browsers="E,C,FF1,IE9,O9.5,S3.1" ref="http://www.w3.org/TR/css3-selectors/#last-child-pseudo" syntax="li:last-child { font-size: 1.2em; }">
@@ -204,10 +204,14 @@
     <entry name=":link" version="2.0" browsers="all" ref="http://www.w3.org/TR/css3-selectors/#the-link-pseudo-classes-link-and-visited" syntax="a:link { text-decoration: none; }">
       <desc>Applies to links that have not yet been visited.</desc>
     </entry>
-    <entry name=":local-link" version="3.0" browsers="all" ref="http://www.w3.org/TR/selectors4/#local-pseudo" syntax="a:local-link { text-decoration: none; }" />
-    <entry name=":local-link(0)" version="3.0" browsers="all" ref="http://www.w3.org/TR/selectors4/#local-pseudo" syntax="a:local-link(0) { text-decoration: none; }" />
-    <entry name=":matches(:hover)" version="3.0" browsers="none" ref="http://www.w3.org/TR/selectors4/#matches" syntax="div:matches(:hover) { border-color: pink; }">
-      <desc>A functional notation taking a selector list as its argument. It represents an element that is represented by its argument.</desc>
+    <entry name=":local-link" version="4.0" browsers="none" ref="http://www.w3.org/TR/selectors4/#local-pseudo" syntax="a:local-link { text-decoration: none; }">
+      <desc>Allows authors to style hyperlinks based on the users current location within a site and to differentiate site-internal versus site-external links.</desc>
+    </entry>
+    <entry name=":local-link()" version="4.0" browsers="none" ref="http://www.w3.org/TR/selectors4/#local-pseudo" syntax="a:local-link(0) { text-decoration: none; }">
+      <desc>Accepts a non-negative integer as its sole argument, which, if the document's URL belongs to a hierarchical scheme, indicates the number of path levels to match. Use :local-link(0) to match links that target the same domain.</desc>
+    </entry>
+    <entry name=":matches()" version="4.0" browsers="S9" ref="http://www.w3.org/TR/selectors4/#matches" syntax="div:matches(:hover) { border-color: pink; }">
+      <desc>Takes a selector list as its argument. It represents an element that is represented by its argument.</desc>
     </entry>
     <entry name=":-moz-any" version="3.0" browsers="FF4" />
     <entry name=":-moz-any-link" version="3.0" browsers="FF1" />
@@ -231,33 +235,37 @@
     <entry name=":-ms-fullscreen" version="3.0" browsers="IE11" ref="http://www.w3.org/TR/fullscreen/#:fullscreen-pseudo-class" syntax="iframe:fullscreen { border: none; }" />
     <entry name=":-ms-input-placeholder" version="3.0" browsers="IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh767367.aspx" syntax="input:-ms-input-placeholder { color: red; }" />
     <entry name=":-ms-keyboard-active" version="3.0" browsers="IE10" ref="#NoOnlineDocs" syntax="input:-ms-keyboard-active { background: red; }" />
-    <entry name=":-ms-lang(en)" version="3.0" browsers="IE10" ref="http://www.w3.org/TR/css3-selectors/#lang-pseudo" syntax="html:-ms-lang(en) { color: blue; }">
-      <desc>Rrepresents an element that is in the language specified.</desc>
+    <entry name=":-ms-lang()" version="4.0" browsers="E,IE10" ref="http://www.w3.org/TR/selectors4/#lang-pseudo" syntax="html:-ms-lang(en, fr, de) { color: blue; }">
+      <desc>Represents an element that is in the language specified. Accepts a comma seperated list of language tokens.</desc>
     </entry>
     <entry name=":no-button" version="3.0" browsers="C,S5" ref="https://webkit.org/blog/363/styling-scrollbars/">
       <desc>Non-standard. Applies to track pieces. Applies when there is no button at that end of the track.</desc>
     </entry>
-    <entry name=":not(:empty)" version="3.0" browsers="E,C,FF1,IE9,O9.5,S2" ref="http://www.w3.org/TR/css3-selectors/#negation" syntax="div:not(:empty) { border-color: pink; }">
+    <entry name=":not()" version="3.0" browsers="E,C,FF1,IE9,O9.5,S2" ref="http://www.w3.org/TR/css3-selectors/#negation" syntax="div:not(:empty) { border-color: pink; }">
       <desc>The negation pseudo-class, :not(X), is a functional notation taking a simple selector (excluding the negation pseudo-class itself) as an argument. It represents an element that is not represented by its argument.</desc>
     </entry>
-    <entry name=":nth-child(2n+1)" version="3.0" browsers="E,C,FF3.5,IE9,O9.5,S3.1" ref="http://www.w3.org/TR/css3-selectors/#nth-child-pseudo" syntax="tr:nth-child(2n+1) { border-color: pink; }">
+    <entry name=":nth-child()" version="3.0" browsers="E,C,FF3.5,IE9,O9.5,S3.1" ref="http://www.w3.org/TR/css3-selectors/#nth-child-pseudo" syntax="tr:nth-child(2n+1) { border-color: pink; }">
       <desc>Represents an element that has an+b-1 siblings before it in the document tree, for any positive integer or zero value of n, and has a parent element.</desc>
     </entry>
-    <entry name=":nth-column(2n+1)" version="3.0" browsers="none" ref="http://www.w3.org/TR/selectors4/#nth-column-pseudo" syntax=":nth-column(2n+1) &gt; span { color: yellow; }" />
-    <entry name=":nth-last-child(-n+2)" version="3.0" browsers="E,C,FF3.5,IE9,O9.5,S3.1" ref="http://www.w3.org/TR/css3-selectors/#nth-last-child-pseudo" syntax="tr:nth-last-child(-n+2) { border-color: pink; }">
+    <entry name=":nth-column()" version="4.0" browsers="none" ref="http://www.w3.org/TR/selectors4/#nth-column-pseudo" syntax=":nth-column(2n+1) &gt; span { color: yellow; }">
+      <desc>Represents a cell element belonging to a column that has An+B-1 columns before it, for any positive integer or zero value of n.</desc>
+    </entry>
+    <entry name=":nth-last-child()" version="3.0" browsers="E,C,FF3.5,IE9,O9.5,S3.1" ref="http://www.w3.org/TR/css3-selectors/#nth-last-child-pseudo" syntax="tr:nth-last-child(-n+2) { border-color: pink; }">
       <desc>Represents an element that has an+b-1 siblings after it in the document tree, for any positive integer or zero value of n, and has a parent element.</desc>
     </entry>
-    <entry name=":nth-last-column(2n+1)" version="3.0" browsers="none" ref="http://www.w3.org/TR/selectors4/#nth-column-pseudo" syntax=":nth-last-column(2n+1) &gt; span { color: yellow; }" />
-    <entry name=":nth-last-match(div)" version="3.0" browsers="none" ref="http://www.w3.org/TR/selectors4/#nth-last-match-pseudo" syntax="div:nth-last-match(p) { border-color: pink; }">
+    <entry name=":nth-last-column()" version="4.0" browsers="none" ref="http://www.w3.org/TR/selectors4/#nth-column-pseudo" syntax=":nth-last-column(2n+1) &gt; span { color: yellow; }">
+      <desc>Represents a cell element belonging to a column that has An+B-1 columns after it, for any positive integer or zero value of n.</desc>
+    </entry>
+    <entry name=":nth-last-match()" version="4.0" browsers="none" ref="http://www.w3.org/TR/selectors4/#nth-last-match-pseudo" syntax="div:nth-last-match(p) { border-color: pink; }">
       <desc>Represents an element that has An+B-1 siblings that match the given selector list after it in the document tree.</desc>
     </entry>
-    <entry name=":nth-last-of-type(n+2)" version="3.0" browsers="E,C,FF3.5,IE9,O9.5,S3.1" ref="http://www.w3.org/TR/css3-selectors/#nth-of-type-pseudo" syntax="tr:nth-last-of-type(n+2) { border-color: pink; }">
+    <entry name=":nth-last-of-type()" version="3.0" browsers="E,C,FF3.5,IE9,O9.5,S3.1" ref="http://www.w3.org/TR/css3-selectors/#nth-of-type-pseudo" syntax="tr:nth-last-of-type(n+2) { border-color: pink; }">
       <desc>Represents an element that has an+b-1 siblings with the same expanded element name after it in the document tree, for any zero or positive integer value of n, and has a parent element.</desc>
     </entry>
-    <entry name=":nth-match(div)" version="3.0" browsers="none" ref="http://www.w3.org/TR/selectors4/#the-nth-match-pseudo" syntax="div:nth-match(p) { border-color: pink; }">
+    <entry name=":nth-match()" version="4.0" browsers="none" ref="http://www.w3.org/TR/selectors4/#the-nth-match-pseudo" syntax="div:nth-match(p) { border-color: pink; }">
       <desc>Represents an element that has An+B-1 siblings that match the given selector list before it in the document tree.</desc>
     </entry>
-    <entry name=":nth-of-type(2n+1)" version="3.0" browsers="E,C,FF3.5,IE9,O9.5,S3.1" ref="http://www.w3.org/TR/css3-selectors/#nth-of-type-pseudo" syntax="tr:nth-of-type(2n) { border-color: pink; }">
+    <entry name=":nth-of-type()" version="3.0" browsers="E,C,FF3.5,IE9,O9.5,S3.1" ref="http://www.w3.org/TR/css3-selectors/#nth-of-type-pseudo" syntax="tr:nth-of-type(2n) { border-color: pink; }">
       <desc>Represents an element that has an+b-1 siblings with the same expanded element name before it in the document tree, for any zero or positive integer value of n, and has a parent element.</desc>
     </entry>
     <entry name=":only-child" version="3.0" browsers="E,C,FF1.5,IE9,O9.5,S3.1" ref="http://www.w3.org/TR/css3-selectors/#only-child-pseudo" syntax="p:only-child { color: #f00; }">
@@ -275,6 +283,9 @@
     <entry name=":past" version="4.0" browsers="C,O16,S6" ref="http://www.w3.org/TR/selectors4/#the-past-pseudo" syntax=":past { color: green; }">
       <desc>Represents any element that is defined to occur entirely prior to a :current element.</desc>
     </entry>
+    <entry name=":placeholder-shown" version="4.0" browsers="none" ref="http://www.w3.org/TR/selectors4/#placeholder" syntax="input:placeholder-shown { color: grey; }">
+      <desc>Matches an input element that is showing placeholder text.</desc>
+    </entry>
     <entry name=":read-only" version="3.0" browsers="E13,C,FF10,O9,S4" ref="http://www.w3.org/TR/css3-ui/" syntax="input:read-only { margin: auto; }">
       <desc>An element whose contents are not user-alterable is :read-only. However, elements whose contents are user-alterable (such as text input fields) are considered to be in a :read-write state. In typical documents, most elements are :read-only.</desc>
     </entry>
@@ -290,7 +301,7 @@
     <entry name=":root" version="3.0" browsers="E,C,FF1,IE9,O9.5,S1" ref="http://www.w3.org/TR/css3-selectors/#root-pseudo" syntax=":root { padding: auto 3em; }">
       <desc>Represents an element that is the root of the document. In HTML 4, this is always the HTML element.</desc>
     </entry>
-    <entry name=":scope" version="3.0" browsers="none" ref="http://www.w3.org/TR/selectors4/#scope-pseudo" syntax=":scope { border-color: pink; }">
+    <entry name=":scope" version="4.0" browsers="FF32,S6" ref="http://www.w3.org/TR/selectors4/#scope-pseudo" syntax=":scope { border-color: pink; }">
       <desc>Represents any element that is in the contextual reference element set.</desc>
     </entry>
     <entry name=":single-button" version="3.0" browsers="C,S5" ref="https://webkit.org/blog/363/styling-scrollbars/">
@@ -301,6 +312,9 @@
     </entry>
     <entry name=":target" version="3.0" browsers="E,C,FF1,IE9,O9.5,S1" ref="http://www.w3.org/TR/css3-selectors/#root-pseudo" syntax="h2:target { background-color: yellow; }">
       <desc>Some URIs refer to a location within a resource. This kind of URI ends with a 'number sign' (#) followed by an anchor identifier (called the fragment identifier).</desc>
+    </entry>
+    <entry name=":user-invalid" version="4.0" browsers="none" ref="http://www.w3.org/TR/selectors4/#user-pseudos" syntax="input:user-invalid { outline: 2px solid red; }">
+      <desc>Represents an input element with incorrect input, but only after the user has significantly interacted with it.</desc>
     </entry>
     <entry name=":valid" version="3.0" browsers="E,C,FF4,IE10,O10,S5" ref="http://www.w3.org/TR/css3-ui/" syntax="input:valid { border-color: green; }">
       <desc>An element is :valid or :invalid when it is, respectively, valid or invalid with respect to data validity semantics defined by a different specification.</desc>
