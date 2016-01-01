@@ -132,8 +132,8 @@
     <entry name=":decrement" version="3.0" browsers="C,S5" ref="https://webkit.org/blog/363/styling-scrollbars/">
       <desc>Non-standard. Applies to buttons and track pieces. Indicates whether or not the button or track piece will decrement the view’s position when used.</desc>
     </entry>
-    <entry name=":default" version="3.0" browsers="C,FF3,O10,S5" ref="http://www.w3.org/TR/css3-ui/#pseudo-default" syntax="input:default { color: red; }">
-      <desc>Applies to the one or more UI elements that are the default among a set of similar elements. This selector typically applies to context menu items, buttons, and select lists/menus.</desc>
+    <entry name=":default" version="3.0" browsers="C,FF3,O10,S5" ref="http://www.w3.org/TR/selectors4/#the-default-pseudo" syntax="input:default { color: red; }">
+      <desc>Applies to the one or more UI elements that are the default among a set of similar elements. Typically applies to context menu items, buttons, and select lists/menus.</desc>
     </entry>
     <entry name=":dir()" version="4.0" browsers="none" ref="http://www.w3.org/TR/selectors4/#dir-pseudo" syntax="section:dir(ltr) { border-color: pink; }">
       <desc>Represents an element based on its directionality as determined by the document language.</desc>
@@ -180,13 +180,13 @@
     <entry name=":increment" version="3.0" browsers="C,S5" ref="https://webkit.org/blog/363/styling-scrollbars/">
       <desc>Non-standard. Applies to buttons and track pieces. Indicates whether or not the button or track piece will increment the view’s position when used.</desc>
     </entry>
-    <entry name=":indeterminate" version="3.0" browsers="E,C,FF3.6,IE9,O10.6,S3" ref="http://www.w3.org/TR/css3-ui/#indeterminate" syntax="input:indeterminate { margin: auto 2px; }">
+    <entry name=":indeterminate" version="4.0" browsers="E,C,FF3.6,IE9,O10.6,S3" ref="http://www.w3.org/TR/selectors4/#indeterminate" syntax="input:indeterminate { margin: auto 2px; }">
       <desc>Applies to UI elements whose value is in an indeterminate state.</desc>
     </entry>
-    <entry name=":in-range" version="3.0" browsers="E13,C,FF10,O9.6,S5.1" ref="http://www.w3.org/TR/css3-ui/#in-range" syntax="input:in-range { color: green; }">
+    <entry name=":in-range" version="4.0" browsers="E13,C,FF10,O9.6,S5.1" ref="http://www.w3.org/TR/selectors4/#range-pseudos" syntax="input:in-range { color: green; }">
       <desc>Used in conjunction with the min and max attributes, whether on a range input, a number field, or any other types that accept those attributes.</desc>
     </entry>
-    <entry name=":invalid" version="3.0" browsers="E,C,FF4,IE10,O10,S5" ref="http://www.w3.org/TR/css3-ui/" syntax="input:invalid { border-color: red; }">
+    <entry name=":invalid" version="4.0" browsers="E,C,FF4,IE10,O10,S5" ref="http://www.w3.org/TR/selectors4/#validity-pseudos" syntax="input:invalid { border-color: red; }">
       <desc>An element is :valid or :invalid when it is, respectively, valid or invalid with respect to data validity semantics defined by a different specification.</desc>
     </entry>
     <entry name=":lang()" version="2.0" browsers="E,C,FF1,IE8,O8,S3" ref="http://www.w3.org/TR/css3-selectors/#lang-pseudo" syntax="html:lang(en) { color: blue; }">
@@ -274,10 +274,10 @@
     <entry name=":only-of-type" version="3.0" browsers="E,C,FF3.5,IE9,O9.5,S3.2" ref="http://www.w3.org/TR/css3-selectors/#only-of-type-pseudo" syntax="p:only-of-type { color: #f00; }">
       <desc>Matches every element that is the only child of its type, of its parent. Same as :first-of-type:last-of-type or :nth-of-type(1):nth-last-of-type(1), but with a lower specificity.</desc>
     </entry>
-    <entry name=":optional" version="3.0" browsers="E,C,FF4,IE10,O10,S5" ref="http://www.w3.org/TR/css3-ui/" syntax="input:optional { color: yellow; }">
+    <entry name=":optional" version="4.0" browsers="E,C,FF4,IE10,O10,S5" ref="http://www.w3.org/TR/selectors4/#opt-pseudos" syntax="input:optional { color: yellow; }">
       <desc>A form element is :required or :optional if a value for it is, respectively, required or optional before the form it belongs to is submitted. Elements that are not form elements are neither required nor optional.</desc>
     </entry>
-    <entry name=":out-of-range" version="3.0" browsers="E13,C,FF10,O9.6,S5.1" ref="http://www.w3.org/TR/css3-ui/#out-of-range" syntax="input:out-of-range { color: red; }">
+    <entry name=":out-of-range" version="4.0" browsers="E13,C,FF10,O9.6,S5.1" ref="http://www.w3.org/TR/selectors4/#range-pseudos" syntax="input:out-of-range { color: red; }">
       <desc>Used in conjunction with the min and max attributes, whether on a range input, a number field, or any other types that accept those attributes.</desc>
     </entry>
     <entry name=":past" version="4.0" browsers="C,O16,S6" ref="http://www.w3.org/TR/selectors4/#the-past-pseudo" syntax=":past { color: green; }">
@@ -286,13 +286,13 @@
     <entry name=":placeholder-shown" version="4.0" browsers="none" ref="http://www.w3.org/TR/selectors4/#placeholder" syntax="input:placeholder-shown { color: grey; }">
       <desc>Matches an input element that is showing placeholder text.</desc>
     </entry>
-    <entry name=":read-only" version="3.0" browsers="E13,C,FF10,O9,S4" ref="http://www.w3.org/TR/css3-ui/" syntax="input:read-only { margin: auto; }">
+    <entry name=":read-only" version="4.0" browsers="E13,C,FF10,O9,S4" ref="http://www.w3.org/TR/selectors4/#rw-pseudos" syntax="input:read-only { margin: auto; }">
       <desc>An element whose contents are not user-alterable is :read-only. However, elements whose contents are user-alterable (such as text input fields) are considered to be in a :read-write state. In typical documents, most elements are :read-only.</desc>
     </entry>
-    <entry name=":read-write" version="3.0" browsers="E13,C,FF10,O9,S4" ref="http://www.w3.org/TR/css3-ui/" syntax="input:read-write { margin: auto 2px; }">
+    <entry name=":read-write" version="4.0" browsers="E13,C,FF10,O9,S4" ref="http://www.w3.org/TR/selectors4/#rw-pseudos" syntax="input:read-write { margin: auto 2px; }">
       <desc>An element whose contents are not user-alterable is :read-only. However, elements whose contents are user-alterable (such as text input fields) are considered to be in a :read-write state. In typical documents, most elements are :read-only.</desc>
     </entry>
-    <entry name=":required" version="3.0" browsers="E,C,FF4,IE10,O10,S5" ref="http://www.w3.org/TR/css3-ui/" syntax="input:optional { color: yellow; }">
+    <entry name=":required" version="4.0" browsers="E,C,FF4,IE10,O10,S5" ref="http://www.w3.org/TR/selectors4/#opt-pseudos" syntax="input:optional { color: yellow; }">
       <desc>A form element is :required or :optional if a value for it is, respectively, required or optional before the form it belongs to is submitted. Elements that are not form elements are neither required nor optional.</desc>
     </entry>
     <entry name=":right" version="2.0" browsers="all" ref="http://www.w3.org/TR/css3-page/#left-right-first" syntax="@page :right { margin-left: 4cm; }">
@@ -316,7 +316,7 @@
     <entry name=":user-invalid" version="4.0" browsers="none" ref="http://www.w3.org/TR/selectors4/#user-pseudos" syntax="input:user-invalid { outline: 2px solid red; }">
       <desc>Represents an input element with incorrect input, but only after the user has significantly interacted with it.</desc>
     </entry>
-    <entry name=":valid" version="3.0" browsers="E,C,FF4,IE10,O10,S5" ref="http://www.w3.org/TR/css3-ui/" syntax="input:valid { border-color: green; }">
+    <entry name=":valid" version="4.0" browsers="E,C,FF4,IE10,O10,S5" ref="http://www.w3.org/TR/selectors4/#validity-pseudos" syntax="input:valid { border-color: green; }">
       <desc>An element is :valid or :invalid when it is, respectively, valid or invalid with respect to data validity semantics defined by a different specification.</desc>
     </entry>
     <entry name=":vertical" version="3.0" browsers="C,S5" ref="https://webkit.org/blog/363/styling-scrollbars/">
