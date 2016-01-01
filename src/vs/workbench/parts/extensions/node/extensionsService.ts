@@ -178,6 +178,10 @@ export class ExtensionsService implements IExtensionsService {
 		});
 	}
 
+	public installed(extension: IExtension): TPromise<boolean> {
+		return pfs.dirExists(this.getInstallationPath(extension))
+	}
+
 	private getDeprecated(): TPromise<IExtension[]> {
 		return this.getAllInstalled().then(plugins => {
 			const byId = values(groupBy(plugins, p => `${ p.publisher }.${ p.name }`));
