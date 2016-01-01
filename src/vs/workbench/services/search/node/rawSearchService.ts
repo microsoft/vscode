@@ -20,7 +20,7 @@ export interface IRawSearch {
 	rootPaths: string[];
 	filePattern?: string;
 	matchFuzzy?: boolean;
-	disableFastFileLookup?: boolean;
+	fileLookup?: number;
 	excludePattern?: glob.IExpression;
 	includePattern?: glob.IExpression;
 	contentPattern?: IPatternInfo;

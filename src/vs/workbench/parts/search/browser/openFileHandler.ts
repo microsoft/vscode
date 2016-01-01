@@ -88,7 +88,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 	private delayer: ThrottledDelayer<QuickOpenEntry[]>;
 	private isStandalone: boolean;
 	private fuzzyMatchingEnabled: boolean;
-	private disableFastFileLookup: boolean;
+	private fileLookup: number;
 
 	constructor(
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
@@ -115,8 +115,8 @@ export class OpenFileHandler extends QuickOpenHandler {
 		this.fuzzyMatchingEnabled = enabled;
 	}
 
-	public setDisableFastFileLookup(disable: boolean): void {
-		this.disableFastFileLookup = disable;
+	public setFastFileLookup(fileLookup: number): void {
+		this.fileLookup = fileLookup;
 	}
 
 	public getResults(searchValue: string): TPromise<QuickOpenModel> {
@@ -141,7 +141,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 			rootResources.push(this.contextService.getWorkspace().resource);
 		}
 
-		let query: IQueryOptions = { filePattern: searchValue, matchFuzzy: this.fuzzyMatchingEnabled, disableFastFileLookup: this.disableFastFileLookup, rootResources: rootResources };
+		let query: IQueryOptions = { filePattern: searchValue, matchFuzzy: this.fuzzyMatchingEnabled, fileLookup: this.fileLookup, rootResources: rootResources };
 
 		return this.queryBuilder.file(query).then((query) => this.searchService.search(query)).then((complete) => {
 

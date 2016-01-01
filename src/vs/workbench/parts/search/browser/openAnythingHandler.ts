@@ -83,7 +83,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 	private updateConfiguration(configuration: ISearchConfiguration): void {
 		this.fuzzyMatchingEnabled = configuration.filePicker && configuration.filePicker.alternateFileNameMatching;
 		this.openFileHandler.setFuzzyMatchingEnabled(this.fuzzyMatchingEnabled);
-		this.openFileHandler.setDisableFastFileLookup(configuration.search && configuration.search.disableFastFileLookup);
+		this.openFileHandler.setFastFileLookup(configuration.search && configuration.search.fileLookup);
 	}
 
 	public getResults(searchValue: string): TPromise<QuickOpenModel> {

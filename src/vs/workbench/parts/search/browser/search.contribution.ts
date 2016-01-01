@@ -197,10 +197,10 @@ configurationRegistry.registerConfiguration({
 				]
 			}
 		},
-		'search.disableFastFileLookup': {
-			'type': 'boolean',
-			'default': false,
-			'description': nls.localize('disableFastFileLookup', "Only enable when you see that file picker or search results are missing files.")
+		'search.fileLookup': {
+			'type': 'number',
+			'default': 0,
+			'description': nls.localize('fileLookup', "Only enable when you see that file picker or search results are missing files.")
 		},
 		'filePicker.alternateFileNameMatching': {
 			'type': 'boolean',

@@ -61,7 +61,7 @@ export class QueryBuilder {
 				fileEncoding: options.fileEncoding,
 				contentPattern: contentPattern,
 				matchFuzzy: options.matchFuzzy,
-				disableFastFileLookup: options.disableFastFileLookup
+				fileLookup: options.fileLookup
 			};
 		});
 	}

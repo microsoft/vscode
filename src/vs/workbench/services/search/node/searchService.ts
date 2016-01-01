@@ -224,7 +224,7 @@ class DiskSearch {
 			includePattern: query.includePattern,
 			maxResults: query.maxResults,
 			matchFuzzy: query.matchFuzzy,
-			disableFastFileLookup: query.disableFastFileLookup
+			fileLookup: query.fileLookup
 		};
 
 		if (query.type === QueryType.Text) {
