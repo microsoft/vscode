@@ -209,6 +209,11 @@ export class FileWalker {
 			this.recurseWithNodeJSStatSync(absolutePath, '', files, onResult);
 			return done(null, false);
 		}
+
+		if (this.fileLookup === 5) {
+			console.log('recurseWithNodeJSLStat');
+			return this.recurseWithNodeJSLStat(absolutePath, '', files, onResult, done);
+		}
 	}
 
 	private recurseWithNodeJS(absolutePath: string, relativeParentPath: string, files: string[], onResult: (result: ISerializedFileMatch) => void, done: (error: Error, result: any) => void): void {
@@ -401,6 +406,91 @@ export class FileWalker {
 							this.recurseWithNodeJSStat(currentPath, relativeFilePath, children, onResult, clb);
 						});
 					});
+				}
+
+				// Check for match on file pattern and include pattern
+				if (this.isFilePatternMatch(file, relativeFilePath) && (!this.includePattern || glob.match(this.includePattern, relativeFilePath))) {
+					this.resultCount++;
+
+					if (this.maxResults && this.resultCount > this.maxResults) {
+						this.isLimitHit = true;
+					}
+
+					if (!this.isLimitHit) {
+						onResult({
+							path: currentPath
+						});
+					}
+				}
+
+				// Unwind
+				return clb(null);
+			});
+		}, (error: Error[]): void => {
+			if (error) {
+				error = arrays.coalesce(error); // find any error by removing null values first
+			}
+
+			return done(error && error.length > 0 ? error[0] : null, null);
+		});
+	}
+
+	private recurseWithNodeJSLStat(absolutePath: string, relativeParentPath: string, files: string[], onResult: (result: ISerializedFileMatch) => void, done: (error: Error, result: any) => void): void {
+
+		// Execute tasks on each file in parallel to optimize throughput
+		flow.parallel(files, (file: string, clb: (error: Error) => void): void => {
+
+			// Check canceled
+			if (this.isCanceled || this.isLimitHit) {
+				return clb(null);
+			}
+
+			// If the user searches for the exact file name, we adjust the glob matching
+			// to ignore filtering by siblings because the user seems to know what she
+			// is searching for and we want to include the result in that case anyway
+			let siblings = files;
+			if (this.config.filePattern === file) {
+				siblings = [];
+			}
+
+			// Check exclude pattern
+			let relativeFilePath = strings.trim([relativeParentPath, file].join('/'), '/');
+			if (glob.match(this.excludePattern, relativeFilePath, siblings)) {
+				return clb(null);
+			}
+
+			// Try to read dir
+			let currentPath = paths.join(absolutePath, file);
+			fs.lstat(currentPath, (error, stat) => {
+				if (error) {
+					return clb(null);
+				}
+
+				if (stat.isDirectory()) {
+					if (stat.isSymbolicLink()) {
+
+						// to really prevent loops with links we need to resolve the real path of them
+						return this.realPathLink(currentPath, (error, realpath) => {
+							if (error) {
+								return clb(null); // ignore errors
+							}
+
+							if (this.walkedPaths[realpath]) {
+								return clb(null); // escape when there are cycles (can happen with symlinks)
+							} else {
+								this.walkedPaths[realpath] = true; // remember as walked
+							}
+
+							// Continue walking
+							return extfs.readdir(currentPath, (error: Error, children: string[]): void => {
+								this.recurseWithNodeJSLStat(currentPath, relativeFilePath, children, onResult, clb);
+							});
+						});
+					} else {
+						return extfs.readdir(currentPath, (error: Error, children: string[]): void => {
+							this.recurseWithNodeJSLStat(currentPath, relativeFilePath, children, onResult, clb);
+						});
+					}
 				}
 
 				// Check for match on file pattern and include pattern
