@@ -6,7 +6,7 @@
 
 import {ILanguage} from './types';
 
-export var language = <ILanguage> {
+export var language: ILanguage = {
 	displayName: 'Swift',
 	name: 'swift',
 	defaultToken: '',
