@@ -34,6 +34,20 @@ export function readdir(path: string, callback: (error: Error, files: string[]) 
 	return readdirNormalize(path, callback);
 };
 
+export function readdirSync(path: string): string[] {
+	try {
+		let files = fs.readdirSync(path);
+
+		if (platform.isMacintosh) {
+			return files.map(c => strings.normalizeNFC(c, normalizedCache));
+		}
+
+		return files.filter(c => c !== '.' && c !== '..');
+	} catch (error) {
+		return null;
+	}
+}
+
 function readdirNormalize(path: string, callback: (error: Error, files: string[]) => void): void {
 	fs.readdir(path, (error, children) => {
 		if (error) {

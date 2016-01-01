@@ -197,6 +197,11 @@ configurationRegistry.registerConfiguration({
 				]
 			}
 		},
+		'search.fileLookup': {
+			'type': 'number',
+			'default': 0,
+			'description': nls.localize('fileLookup', "Only enable when you see that file picker or search results are missing files.")
+		},
 		'filePicker.alternateFileNameMatching': {
 			'type': 'boolean',
 			'default': false,

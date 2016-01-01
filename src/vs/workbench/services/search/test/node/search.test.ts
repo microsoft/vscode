@@ -240,6 +240,25 @@ suite('Search', () => {
 		});
 	});
 
+	test('Files: *.* exclude with unicode', function(done: () => void) {
+		let engine = new FileSearchEngine({
+			rootPaths: rootpaths(),
+			filePattern: '*.*',
+			excludePattern: { "**/üm laut汉语": true }
+		});
+
+		let count = 0;
+		engine.search((result) => {
+			if (result) {
+				count++;
+			}
+		}, () => { }, (error) => {
+			assert.ok(!error);
+			assert.equal(count, 11);
+			done();
+		});
+	});
+
 	test('Files: Unicode and Spaces', function(done: () => void) {
 		let engine = new FileSearchEngine({
 			rootPaths: rootpaths(),
