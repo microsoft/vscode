@@ -165,7 +165,9 @@
     <entry name=":focus" version="2.0" browsers="all" ref="http://www.w3.org/TR/css3-selectors/#the-user-action-pseudo-classes-hover-act" syntax="a:focus { color: yellow; }">
       <desc>Applies while an element has the focus (accepts keyboard or mouse events, or other forms of input).</desc>
     </entry>
-    <entry name=":fullscreen" version="3.0" browsers="E" ref="https://fullscreen.spec.whatwg.org/#:fullscreen-pseudo-class" syntax="iframe:fullscreen { border: none; }" />
+    <entry name=":fullscreen" version="3.0" browsers="E" ref="https://fullscreen.spec.whatwg.org/#:fullscreen-pseudo-class" syntax="iframe:fullscreen { border: none; }">
+      <desc>Matches any element that has its fullscreen flag set.</desc>
+    </entry>
     <entry name=":future" version="4.0" browsers="C,O16,S6" ref="http://www.w3.org/TR/selectors4/#the-future-pseudo" syntax=":future { color: yellow; }">
       <desc>Represents any element that is defined to occur entirely after a :current element.</desc>
     </entry>
@@ -219,7 +221,9 @@
     <entry name=":-moz-drag-over" version="3.0" browsers="FF1" />
     <entry name=":-moz-first-node" version="3.0" browsers="FF1" />
     <entry name=":-moz-focusring" version="3.0" browsers="FF4" />
-    <entry name=":-moz-full-screen" version="3.0" browsers="FF9" />
+    <entry name=":-moz-full-screen" version="3.0" browsers="FF9">
+      <desc>Matches any element that has its fullscreen flag set.</desc>
+    </entry>
     <entry name=":-moz-last-node" version="3.0" browsers="FF1" />
     <entry name=":-moz-loading" version="3.0" browsers="FF3" />
     <entry name=":-moz-only-whitespace" version="3.0" browsers="FF1.5" />
@@ -232,7 +236,9 @@
     <entry name=":-moz-ui-valid" version="3.0" browsers="FF4" />
     <entry name=":-moz-user-disabled" version="3.0" browsers="FF3" />
     <entry name=":-moz-window-inactive" version="3.0" browsers="FF4" />
-    <entry name=":-ms-fullscreen" version="3.0" browsers="IE11" ref="http://www.w3.org/TR/fullscreen/#:fullscreen-pseudo-class" syntax="iframe:fullscreen { border: none; }" />
+    <entry name=":-ms-fullscreen" version="3.0" browsers="IE11" ref="https://fullscreen.spec.whatwg.org/#:fullscreen-pseudo-class" syntax="iframe:-ms-fullscreen { border: none; }">
+      <desc>Matches any element that has its fullscreen flag set.</desc>
+    </entry>
     <entry name=":-ms-input-placeholder" version="3.0" browsers="IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh767367.aspx" syntax="input:-ms-input-placeholder { color: red; }" />
     <entry name=":-ms-keyboard-active" version="3.0" browsers="IE10" ref="#NoOnlineDocs" syntax="input:-ms-keyboard-active { background: red; }" />
     <entry name=":-ms-lang()" version="4.0" browsers="E,IE10" ref="http://www.w3.org/TR/selectors4/#lang-pseudo" syntax="html:-ms-lang(en, fr, de) { color: blue; }">
@@ -326,7 +332,9 @@
       <desc>Applies once the link has been visited by the user.</desc>
     </entry>
     <entry name=":-webkit-any" version="3.0" browsers="C,S5" />
-    <entry name=":-webkit-full-screen" version="3.0" browsers="C,S6" />
+    <entry name=":-webkit-full-screen" version="3.0" browsers="C,S6">
+      <desc>Matches any element that has its fullscreen flag set.</desc>
+    </entry>
     <entry name=":window-inactive" version="3.0" browsers="C,S3" ref="https://webkit.org/blog/363/styling-scrollbars/">
       <desc>Non-standard. Applies to all scrollbar pieces. Indicates whether or not the window containing the scrollbar is currently active.</desc>
     </entry>
@@ -341,7 +349,9 @@
     <entry name="::alternate" version="3.0" browsers="none" ref="http://www.w3.org/TR/css3-content/#inserting1" syntax="span::after::alternate { content: 'alternate2'; move-to: example; }">
       <desc>This pseudo-element is created by setting its 'move-to' property to an identifier. It is rendered at the next occurrence of 'pending()' in a 'content' property.</desc>
     </entry>
-    <entry name="::backdrop" version="3.0" browsers="E" ref="https://fullscreen.spec.whatwg.org/#::backdrop-pseudo-element" syntax="*|*:fullscreen::backdrop { position: fixed; }" />
+    <entry name="::backdrop" version="3.0" browsers="E" ref="https://fullscreen.spec.whatwg.org/#::backdrop-pseudo-element" syntax="*|*:fullscreen::backdrop { position: fixed; }">
+      <desc>Used to create a backdrop that hides the underlying document for an element in a top layer (such as an element that is displayed fullscreen).</desc>
+    </entry>
     <entry name="::before" version="3.0" browsers="E,C,FF1.5,IE10,O8,S1" ref="http://www.w3.org/TR/css3-content/#inserting" syntax="div::before { content: 'abc'; }">
       <desc>Pseudo-element is used to insert content immediately before the content of an element (or other pseudo-element). The 'content' property is used to specify the content to insert.</desc>
     </entry>
@@ -372,7 +382,9 @@
     <entry name="::-moz-placeholder" version="3.0" browsers="FF9" />
     <entry name="::-moz-progress-bar" version="3.0" browsers="FF9" />
     <entry name="::-moz-selection" version="3.0" browsers="FF1" />
-    <entry name="::-ms-backdrop" version="3.0" browsers="IE11" ref="http://www.w3.org/TR/fullscreen/#::backdrop-pseudo-element" syntax="*|*:fullscreen::backdrop { position: fixed; }" />
+    <entry name="::-ms-backdrop" version="3.0" browsers="IE11" ref="https://fullscreen.spec.whatwg.org/#::backdrop-pseudo-element" syntax="*|*:-ms-fullscreen::-ms-backdrop { position: fixed; }">
+      <desc>Used to create a backdrop that hides the underlying document for an element in a top layer (such as an element that is displayed fullscreen).</desc>
+    </entry>
     <entry name="::-ms-browse" version="3.0" browsers="IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh779844.aspx">
       <desc>Applies one or more styles to the browse button of an input type=file control.</desc>
     </entry>
