@@ -88,20 +88,12 @@ exports.data ={
 		"pseudoclasses": [
 			{
 				"name": ":active",
-				"desc": "The :active pseudo-class applies while an element is being activated by the user. For example, between the times the user presses the mouse button and releases it."
+				"desc": "Applies while an element is being activated by the user. For example, between the times the user presses the mouse button and releases it."
 			},
 			{
-				"name": ":after",
-				"desc": "Pseudo-element is used to insert content immediately after the content of an element (or other pseudo-element). The 'content' property is used to specify the content to insert.",
-				"browsers": "E,C,FF1,IE8,O8,S1"
-			},
-			{
-				"name": ":any-link"
-			},
-			{
-				"name": ":before",
-				"desc": "Pseudo-element is used to insert content immediately before the content of an element (or other pseudo-element). The 'content' property is used to specify the content to insert.",
-				"browsers": "E,C,FF1,IE8,O8,S1"
+				"name": ":any-link",
+				"desc": "Represents an element that acts as the source anchor of a hyperlink. Applies to both visited and unvisited links.",
+				"browsers": "S9"
 			},
 			{
 				"name": ":checked",
@@ -110,44 +102,42 @@ exports.data ={
 			},
 			{
 				"name": ":corner-present",
+				"desc": "Non-standard. Indicates whether or not a scrollbar corner is present.",
 				"browsers": "C,S5"
 			},
 			{
-				"name": ":current"
-			},
-			{
-				"name": ":current(div)"
-			},
-			{
 				"name": ":decrement",
+				"desc": "Non-standard. Applies to buttons and track pieces. Indicates whether or not the button or track piece will decrement the view’s position when used.",
 				"browsers": "C,S5"
 			},
 			{
 				"name": ":default",
-				"desc": "The :default selector applies to the one or more UI elements that are the default among a set of similar elements. This selector typically applies to context menu items, buttons, and select lists/menus.",
+				"desc": "Applies to the one or more UI elements that are the default among a set of similar elements. Typically applies to context menu items, buttons, and select lists/menus.",
 				"browsers": "C,FF3,O10,S5"
 			},
 			{
 				"name": ":disabled",
-				"desc": "The :disabled pseudo-class represents user interface elements that are in a disabled state; such elements have a corresponding enabled state.",
+				"desc": "Represents user interface elements that are in a disabled state; such elements have a corresponding enabled state.",
 				"browsers": "E,C,FF1.5,IE9,O9,S3.1"
 			},
 			{
 				"name": ":double-button",
+				"desc": "Non-standard. Applies to buttons and track pieces. Applies when both buttons are displayed together at the same end of the scrollbar.",
 				"browsers": "C,S5"
 			},
 			{
 				"name": ":empty",
-				"desc": "The :empty pseudo-class represents an element that has no children at all.",
+				"desc": "Represents an element that has no children at all.",
 				"browsers": "E,C,FF1.5,IE9,O9,S3.1"
 			},
 			{
 				"name": ":enabled",
-				"desc": "The :enabled pseudo-class represents user interface elements that are in an enabled state; such elements have a corresponding disabled state.",
+				"desc": "Represents user interface elements that are in an enabled state; such elements have a corresponding disabled state.",
 				"browsers": "E,C,FF1.5,IE9,O9,S3.1"
 			},
 			{
 				"name": ":end",
+				"desc": "Non-standard. Applies to buttons and track pieces. Indicates whether the object is placed after the thumb.",
 				"browsers": "C,S5"
 			},
 			{
@@ -156,62 +146,65 @@ exports.data ={
 			},
 			{
 				"name": ":first-child",
-				"desc": "Same as :nth-child(1). The :first-child pseudo-class represents an element that is the first child of some other element.",
+				"desc": "Same as :nth-child(1). Represents an element that is the first child of some other element.",
 				"browsers": "E,C,FF3,IE7,O9.5,S3.1"
 			},
 			{
-				"name": ":first-letter",
-				"desc": "The :first-letter pseudo-element represents the first letter of an element, if it is not preceded by any other content (such as images or inline tables) on its line."
-			},
-			{
-				"name": ":first-line",
-				"desc": "The :first-line pseudo-element describes the contents of the first formatted line of an element."
-			},
-			{
 				"name": ":first-of-type",
-				"desc": "Same as :nth-of-type(1). The :first-of-type pseudo-class represents an element that is the first sibling of its type in the list of children of its parent element.",
+				"desc": "Same as :nth-of-type(1). Represents an element that is the first sibling of its type in the list of children of its parent element.",
 				"browsers": "E,C,FF3.5,IE9,O9.5,S3.2"
 			},
 			{
 				"name": ":focus",
-				"desc": "The :focus pseudo-class applies while an element has the focus (accepts keyboard or mouse events, or other forms of input)."
+				"desc": "Applies while an element has the focus (accepts keyboard or mouse events, or other forms of input)."
 			},
 			{
 				"name": ":fullscreen",
+				"desc": "Matches any element that has its fullscreen flag set.",
 				"browsers": "E"
 			},
 			{
 				"name": ":future",
+				"desc": "Represents any element that is defined to occur entirely after a :current element.",
 				"browsers": "C,O16,S6"
 			},
 			{
 				"name": ":horizontal",
+				"desc": "Non-standard. Applies to any scrollbar pieces that have a horizontal orientation.",
 				"browsers": "C,S5"
 			},
 			{
 				"name": ":host",
-				"browsers": "C,FF,O"
+				"desc": "When evaluated in the context of a shadow tree, matches the shadow tree’s host element.",
+				"browsers": "C35,O22"
 			},
 			{
 				"name": ":host()",
-				"browsers": "C,FF,O"
+				"desc": "When evaluated in the context of a shadow tree, it matches the shadow tree’s host element if the host element, in its normal context, matches the selector argument.",
+				"browsers": "C35,O22"
+			},
+			{
+				"name": ":host-context()",
+				"desc": "Tests whether there is an ancestor, outside the shadow tree, which matches a particular selector.",
+				"browsers": "C35,O22"
 			},
 			{
 				"name": ":hover",
-				"desc": "The :hover pseudo-class applies while the user designates an element with a pointing device, but does not necessarily activate it. For example, a visual user agent could apply this pseudo-class when the cursor (mouse pointer) hovers over a box generated by the element."
+				"desc": "Applies while the user designates an element with a pointing device, but does not necessarily activate it. For example, a visual user agent could apply this pseudo-class when the cursor (mouse pointer) hovers over a box generated by the element."
 			},
 			{
 				"name": ":increment",
+				"desc": "Non-standard. Applies to buttons and track pieces. Indicates whether or not the button or track piece will increment the view’s position when used.",
 				"browsers": "C,S5"
 			},
 			{
 				"name": ":indeterminate",
-				"desc": "The :indeterminate pseudo-class applies to UI elements whose value is in an indeterminate state.",
+				"desc": "Applies to UI elements whose value is in an indeterminate state.",
 				"browsers": "E,C,FF3.6,IE9,O10.6,S3"
 			},
 			{
 				"name": ":in-range",
-				"desc": "The in-range and out-of-range pseudo-classes should be used in conjunction with the min and max attributes, whether on a range input, a number field, or any other types that accept those attributes.",
+				"desc": "Used in conjunction with the min and max attributes, whether on a range input, a number field, or any other types that accept those attributes.",
 				"browsers": "E13,C,FF10,O9.6,S5.1"
 			},
 			{
@@ -220,18 +213,18 @@ exports.data ={
 				"browsers": "E,C,FF4,IE10,O10,S5"
 			},
 			{
-				"name": ":lang(en)",
-				"desc": "The pseudo-class :lang(C) represents an element that is in language C.",
+				"name": ":lang()",
+				"desc": "Represents an element that is in language specified.",
 				"browsers": "E,C,FF1,IE8,O8,S3"
 			},
 			{
 				"name": ":last-child",
-				"desc": "Same as :nth-last-child(1). The :last-child pseudo-class represents an element that is the last child of some other element.",
+				"desc": "Same as :nth-last-child(1). Represents an element that is the last child of some other element.",
 				"browsers": "E,C,FF1,IE9,O9.5,S3.1"
 			},
 			{
 				"name": ":last-of-type",
-				"desc": "Same as :nth-last-of-type(1). The :last-of-type pseudo-class represents an element that is the last sibling of its type in the list of children of its parent element.",
+				"desc": "Same as :nth-last-of-type(1). Represents an element that is the last sibling of its type in the list of children of its parent element.",
 				"browsers": "E,C,FF3.5,IE9,O9.5,S3.1"
 			},
 			{
@@ -240,13 +233,12 @@ exports.data ={
 			},
 			{
 				"name": ":link",
-				"desc": "The :link pseudo-class applies to links that have not yet been visited."
+				"desc": "Applies to links that have not yet been visited."
 			},
 			{
-				"name": ":local-link"
-			},
-			{
-				"name": ":local-link(0)"
+				"name": ":matches()",
+				"desc": "Takes a selector list as its argument. It represents an element that is represented by its argument.",
+				"browsers": "S9"
 			},
 			{
 				"name": ":-moz-any",
@@ -274,6 +266,7 @@ exports.data ={
 			},
 			{
 				"name": ":-moz-full-screen",
+				"desc": "Matches any element that has its fullscreen flag set.",
 				"browsers": "FF9"
 			},
 			{
@@ -326,6 +319,7 @@ exports.data ={
 			},
 			{
 				"name": ":-ms-fullscreen",
+				"desc": "Matches any element that has its fullscreen flag set.",
 				"browsers": "IE11"
 			},
 			{
@@ -337,37 +331,38 @@ exports.data ={
 				"browsers": "IE10"
 			},
 			{
-				"name": ":-ms-lang(en)",
-				"desc": "The pseudo-class :-ms-lang(C) represents an element that is in language C.",
-				"browsers": "IE10"
+				"name": ":-ms-lang()",
+				"desc": "Represents an element that is in the language specified. Accepts a comma seperated list of language tokens.",
+				"browsers": "E,IE10"
 			},
 			{
 				"name": ":no-button",
+				"desc": "Non-standard. Applies to track pieces. Applies when there is no button at that end of the track.",
 				"browsers": "C,S5"
 			},
 			{
-				"name": ":not(:empty)",
+				"name": ":not()",
 				"desc": "The negation pseudo-class, :not(X), is a functional notation taking a simple selector (excluding the negation pseudo-class itself) as an argument. It represents an element that is not represented by its argument.",
 				"browsers": "E,C,FF1,IE9,O9.5,S2"
 			},
 			{
-				"name": ":nth-child(2n+1)",
-				"desc": "The :nth-child(an+b) pseudo-class notation represents an element that has an+b-1 siblings before it in the document tree, for any positive integer or zero value of n, and has a parent element.",
+				"name": ":nth-child()",
+				"desc": "Represents an element that has an+b-1 siblings before it in the document tree, for any positive integer or zero value of n, and has a parent element.",
 				"browsers": "E,C,FF3.5,IE9,O9.5,S3.1"
 			},
 			{
-				"name": ":nth-last-child(-n+2)",
-				"desc": "The :nth-last-child(an+b) pseudo-class notation represents an element that has an+b-1 siblings after it in the document tree, for any positive integer or zero value of n, and has a parent element.",
+				"name": ":nth-last-child()",
+				"desc": "Represents an element that has an+b-1 siblings after it in the document tree, for any positive integer or zero value of n, and has a parent element.",
 				"browsers": "E,C,FF3.5,IE9,O9.5,S3.1"
 			},
 			{
-				"name": ":nth-last-of-type(n+2)",
-				"desc": "The :nth-last-of-type(an+b) pseudo-class notation represents an element that has an+b-1 siblings with the same expanded element name after it in the document tree, for any zero or positive integer value of n, and has a parent element.",
+				"name": ":nth-last-of-type()",
+				"desc": "Represents an element that has an+b-1 siblings with the same expanded element name after it in the document tree, for any zero or positive integer value of n, and has a parent element.",
 				"browsers": "E,C,FF3.5,IE9,O9.5,S3.1"
 			},
 			{
-				"name": ":nth-of-type(2n+1)",
-				"desc": "The :nth-of-type(an+b) pseudo-class notation represents an element that has an+b-1 siblings with the same expanded element name before it in the document tree, for any zero or positive integer value of n, and has a parent element.",
+				"name": ":nth-of-type()",
+				"desc": "Represents an element that has an+b-1 siblings with the same expanded element name before it in the document tree, for any zero or positive integer value of n, and has a parent element.",
 				"browsers": "E,C,FF3.5,IE9,O9.5,S3.1"
 			},
 			{
@@ -377,7 +372,7 @@ exports.data ={
 			},
 			{
 				"name": ":only-of-type",
-				"desc": "The :only-of-type selector matches every element that is the only child of its type, of its parent. Same as :first-of-type:last-of-type or :nth-of-type(1):nth-last-of-type(1), but with a lower specificity.",
+				"desc": "Matches every element that is the only child of its type, of its parent. Same as :first-of-type:last-of-type or :nth-of-type(1):nth-last-of-type(1), but with a lower specificity.",
 				"browsers": "E,C,FF3.5,IE9,O9.5,S3.2"
 			},
 			{
@@ -387,11 +382,12 @@ exports.data ={
 			},
 			{
 				"name": ":out-of-range",
-				"desc": "The in-range and out-of-range pseudo-classes should be used in conjunction with the min and max attributes, whether on a range input, a number field, or any other types that accept those attributes.",
+				"desc": "Used in conjunction with the min and max attributes, whether on a range input, a number field, or any other types that accept those attributes.",
 				"browsers": "E13,C,FF10,O9.6,S5.1"
 			},
 			{
 				"name": ":past",
+				"desc": "Represents any element that is defined to occur entirely prior to a :current element.",
 				"browsers": "C,O16,S6"
 			},
 			{
@@ -415,15 +411,22 @@ exports.data ={
 			},
 			{
 				"name": ":root",
-				"desc": "The :root pseudo-class represents an element that is the root of the document. In HTML 4, this is always the HTML element.",
+				"desc": "Represents an element that is the root of the document. In HTML 4, this is always the HTML element.",
 				"browsers": "E,C,FF1,IE9,O9.5,S1"
 			},
 			{
+				"name": ":scope",
+				"desc": "Represents any element that is in the contextual reference element set.",
+				"browsers": "FF32,S6"
+			},
+			{
 				"name": ":single-button",
+				"desc": "Non-standard. Applies to buttons and track pieces. Applies when both buttons are displayed separately at either end of the scrollbar.",
 				"browsers": "C,S5"
 			},
 			{
 				"name": ":start",
+				"desc": "Non-standard. Applies to buttons and track pieces. Indicates whether the object is placed before the thumb.",
 				"browsers": "C,S5"
 			},
 			{
@@ -438,11 +441,12 @@ exports.data ={
 			},
 			{
 				"name": ":vertical",
+				"desc": "Non-standard. Applies to any scrollbar pieces that have a vertical orientation.",
 				"browsers": "C,S5"
 			},
 			{
 				"name": ":visited",
-				"desc": "The :visited pseudo-class applies once the link has been visited by the user."
+				"desc": "Applies once the link has been visited by the user."
 			},
 			{
 				"name": ":-webkit-any",
@@ -450,10 +454,12 @@ exports.data ={
 			},
 			{
 				"name": ":-webkit-full-screen",
+				"desc": "Matches any element that has its fullscreen flag set.",
 				"browsers": "C,S6"
 			},
 			{
 				"name": ":window-inactive",
+				"desc": "Non-standard. Applies to all scrollbar pieces. Indicates whether or not the window containing the scrollbar is currently active.",
 				"browsers": "C,S3"
 			}
 		],
@@ -465,6 +471,7 @@ exports.data ={
 			},
 			{
 				"name": "::backdrop",
+				"desc": "Used to create a backdrop that hides the underlying document for an element in a top layer (such as an element that is displayed fullscreen).",
 				"browsers": "E"
 			},
 			{
@@ -532,6 +539,7 @@ exports.data ={
 			},
 			{
 				"name": "::-ms-backdrop",
+				"desc": "Used to create a backdrop that hides the underlying document for an element in a top layer (such as an element that is displayed fullscreen).",
 				"browsers": "IE11"
 			},
 			{
