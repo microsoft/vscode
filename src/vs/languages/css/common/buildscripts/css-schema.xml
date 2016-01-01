@@ -115,7 +115,7 @@
       <desc>Represents an element that acts as the source anchor of a hyperlink. Applies to both visited and unvisited links.</desc>
     </entry>
     <entry name=":blank" version="4.0" browsers="none" ref="http://www.w3.org/TR/selectors4/#the-blank-pseudo" syntax="p:blank { display: none; }">
-      <desc>Identical to the :empty pseudo-class, except that it additionally excludes characters affected by whitespace processing.</desc>
+      <desc>The same as :empty, except that it additionally matches elements that only contain code points affected by whitespace processing.</desc>
     </entry>
     <entry name=":checked" version="3.0" browsers="E,C,FF1,IE9,O9,S3.13" ref="http://www.w3.org/TR/css3-selectors/#checked" syntax="input:checked { color: red; }">
       <desc>Radio and checkbox elements can be toggled by the user. Some menu items are 'checked' when the user selects them. When such elements are toggled 'on' the :checked pseudo-class applies.</desc>
@@ -222,32 +222,66 @@
     <entry name=":matches()" version="4.0" browsers="S9" ref="http://www.w3.org/TR/selectors4/#matches" syntax="div:matches(:hover) { border-color: pink; }">
       <desc>Takes a selector list as its argument. It represents an element that is represented by its argument.</desc>
     </entry>
-    <entry name=":-moz-any" version="3.0" browsers="FF4" />
-    <entry name=":-moz-any-link" version="3.0" browsers="FF1" />
-    <entry name=":-moz-broken" version="3.0" browsers="FF3" />
-    <entry name=":-moz-drag-over" version="3.0" browsers="FF1" />
-    <entry name=":-moz-first-node" version="3.0" browsers="FF1" />
-    <entry name=":-moz-focusring" version="3.0" browsers="FF4" />
-    <entry name=":-moz-full-screen" version="3.0" browsers="FF9">
-      <desc>Matches any element that has its fullscreen flag set.</desc>
+    <entry name=":-moz-any()" version="3.0" browsers="FF4">
+      <desc>Represents an element that is represented by the selector list passed as its argument. Standardized as :matches().</desc>
     </entry>
-    <entry name=":-moz-last-node" version="3.0" browsers="FF1" />
-    <entry name=":-moz-loading" version="3.0" browsers="FF3" />
-    <entry name=":-moz-only-whitespace" version="3.0" browsers="FF1.5" />
-    <entry name=":-moz-placeholder" version="3.0" browsers="FF4" />
-    <entry name=":-moz-range-thumb" version="3.0" browsers="FF22" />
-    <entry name=":-moz-range-track" version="3.0" browsers="FF22" />
-    <entry name=":-moz-submit-invalid" version="3.0" browsers="FF4" />
-    <entry name=":-moz-suppressed" version="3.0" browsers="FF3" />
-    <entry name=":-moz-ui-invalid" version="3.0" browsers="FF4" />
-    <entry name=":-moz-ui-valid" version="3.0" browsers="FF4" />
-    <entry name=":-moz-user-disabled" version="3.0" browsers="FF3" />
-    <entry name=":-moz-window-inactive" version="3.0" browsers="FF4" />
+    <entry name=":-moz-any-link" version="3.0" browsers="FF1">
+      <desc>Represents an element that acts as the source anchor of a hyperlink. Applies to both visited and unvisited links.</desc>
+    </entry>
+    <entry name=":-moz-broken" version="3.0" browsers="FF3">
+      <desc>Non-standard. Matches elements representing broken images.</desc>
+    </entry>
+    <entry name=":-moz-drag-over" version="3.0" browsers="FF1">
+      <desc>Non-standard. Matches elements when a drag-over event applies to it.</desc>
+    </entry>
+    <entry name=":-moz-first-node" version="3.0" browsers="FF1">
+      <desc>Non-standard. Represents an element that is the first child node of some other element.</desc>
+    </entry>
+    <entry name=":-moz-focusring" version="3.0" browsers="FF4">
+      <desc>Non-standard. Matches an element that has focus and focus ring drawing is enabled in the browser.</desc>
+    </entry>
+    <entry name=":-moz-full-screen" version="3.0" browsers="FF9">
+      <desc>Matches any element that has its fullscreen flag set. Standardized as :fullscreen.</desc>
+    </entry>
+    <entry name=":-moz-last-node" version="3.0" browsers="FF1">
+      <desc>Non-standard. Represents an element that is the last child node of some other element.</desc>
+    </entry>
+    <entry name=":-moz-loading" version="3.0" browsers="FF3">
+      <desc>Non-standard. Matches elements, such as images, that haven’t started loading yet.</desc>
+    </entry>
+    <entry name=":-moz-only-whitespace" version="3.0" browsers="FF1.5">
+      <desc>The same as :empty, except that it additionally matches elements that only contain code points affected by whitespace processing. Standardized as :blank.</desc>
+    </entry>
+    <entry name=":-moz-placeholder" version="3.0" browsers="FF4">
+      <desc>Deprecated. Represents placeholder text in an input field. Use ::-moz-placeholder for Firefox 19+.</desc>
+    </entry>
+    <entry name=":-moz-submit-invalid" version="3.0" browsers="FF4">
+      <desc>Non-standard. Represents any submit button when the contents of the associated form are not valid.</desc>
+    </entry>
+    <entry name=":-moz-suppressed" version="3.0" browsers="FF3">
+      <desc>Non-standard. Matches elements representing images that have been blocked from loading.</desc>
+    </entry>
+    <entry name=":-moz-ui-invalid" version="3.0" browsers="FF4">
+      <desc>Non-standard. Represents any validated form element whose value isn't valid </desc>
+    </entry>
+    <entry name=":-moz-ui-valid" version="3.0" browsers="FF4">
+      <desc>Non-standard. Represents any validated form element whose value is valid </desc>
+    </entry>
+    <entry name=":-moz-user-disabled" version="3.0" browsers="FF3">
+      <desc>Non-standard. Matches elements representing images that have been disabled due to the user’s preferences.</desc>
+    </entry>
+    <entry name=":-moz-window-inactive" version="3.0" browsers="FF4">
+      <desc>Non-standard. Matches elements in an inactive window.</desc>
+    </entry>
     <entry name=":-ms-fullscreen" version="3.0" browsers="IE11" ref="https://fullscreen.spec.whatwg.org/#:fullscreen-pseudo-class" syntax="iframe:-ms-fullscreen { border: none; }">
       <desc>Matches any element that has its fullscreen flag set.</desc>
     </entry>
-    <entry name=":-ms-input-placeholder" version="3.0" browsers="IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh767367.aspx" syntax="input:-ms-input-placeholder { color: red; }" />
-    <entry name=":-ms-keyboard-active" version="3.0" browsers="IE10" ref="#NoOnlineDocs" syntax="input:-ms-keyboard-active { background: red; }" />
+    <entry name=":-ms-input-placeholder" version="3.0" browsers="IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh767367.aspx" syntax="input:-ms-input-placeholder { color: red; }">
+      <desc>Represents placeholder text in an input field. Note: for Edge use the pseudo-element ::-ms-input-placeholder. Standardized as ::placeholder.</desc>
+    </entry>
+    <entry name=":-ms-keyboard-active" version="3.0" browsers="IE10" ref="https://msdn.microsoft.com/en-us/library/dn336891(v=vs.85).aspx" syntax="input:-ms-keyboard-active { background: red; }">
+      <desc>Windows Store apps only. Applies one or more styles to an element when it has focus and the user presses the space bar.</desc>
+    </entry>
     <entry name=":-ms-lang()" version="4.0" browsers="E,IE10" ref="http://www.w3.org/TR/selectors4/#lang-pseudo" syntax="html:-ms-lang(en, fr, de) { color: blue; }">
       <desc>Represents an element that is in the language specified. Accepts a comma seperated list of language tokens.</desc>
     </entry>
@@ -338,9 +372,11 @@
     <entry name=":visited" version="2.0" browsers="all" ref="http://www.w3.org/TR/css3-selectors/#the-link-pseudo-classes-link-and-visited" syntax="a:visited { color: purple; }">
       <desc>Applies once the link has been visited by the user.</desc>
     </entry>
-    <entry name=":-webkit-any" version="3.0" browsers="C,S5" />
+    <entry name=":-webkit-any()" version="3.0" browsers="C,S5">
+      <desc>Represents an element that is represented by the selector list passed as its argument. Standardized as :matches().</desc>
+    </entry>
     <entry name=":-webkit-full-screen" version="3.0" browsers="C,S6">
-      <desc>Matches any element that has its fullscreen flag set.</desc>
+      <desc>Matches any element that has its fullscreen flag set. Standardized as :fullscreen.</desc>
     </entry>
     <entry name=":window-inactive" version="3.0" browsers="C,S3" ref="https://webkit.org/blog/363/styling-scrollbars/">
       <desc>Non-standard. Applies to all scrollbar pieces. Indicates whether or not the window containing the scrollbar is currently active.</desc>

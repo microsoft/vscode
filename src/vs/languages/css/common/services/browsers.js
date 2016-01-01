@@ -241,80 +241,88 @@ exports.data ={
 				"browsers": "S9"
 			},
 			{
-				"name": ":-moz-any",
+				"name": ":-moz-any()",
+				"desc": "Represents an element that is represented by the selector list passed as its argument. Standardized as :matches().",
 				"browsers": "FF4"
 			},
 			{
 				"name": ":-moz-any-link",
+				"desc": "Represents an element that acts as the source anchor of a hyperlink. Applies to both visited and unvisited links.",
 				"browsers": "FF1"
 			},
 			{
 				"name": ":-moz-broken",
+				"desc": "Non-standard. Matches elements representing broken images.",
 				"browsers": "FF3"
 			},
 			{
 				"name": ":-moz-drag-over",
+				"desc": "Non-standard. Matches elements when a drag-over event applies to it.",
 				"browsers": "FF1"
 			},
 			{
 				"name": ":-moz-first-node",
+				"desc": "Non-standard. Represents an element that is the first child node of some other element.",
 				"browsers": "FF1"
 			},
 			{
 				"name": ":-moz-focusring",
+				"desc": "Non-standard. Matches an element that has focus and focus ring drawing is enabled in the browser.",
 				"browsers": "FF4"
 			},
 			{
 				"name": ":-moz-full-screen",
-				"desc": "Matches any element that has its fullscreen flag set.",
+				"desc": "Matches any element that has its fullscreen flag set. Standardized as :fullscreen.",
 				"browsers": "FF9"
 			},
 			{
 				"name": ":-moz-last-node",
+				"desc": "Non-standard. Represents an element that is the last child node of some other element.",
 				"browsers": "FF1"
 			},
 			{
 				"name": ":-moz-loading",
+				"desc": "Non-standard. Matches elements, such as images, that haven’t started loading yet.",
 				"browsers": "FF3"
 			},
 			{
 				"name": ":-moz-only-whitespace",
+				"desc": "The same as :empty, except that it additionally matches elements that only contain code points affected by whitespace processing. Standardized as :blank.",
 				"browsers": "FF1.5"
 			},
 			{
 				"name": ":-moz-placeholder",
+				"desc": "Deprecated. Represents placeholder text in an input field. Use ::-moz-placeholder for Firefox 19+.",
 				"browsers": "FF4"
 			},
 			{
-				"name": ":-moz-range-thumb",
-				"browsers": "FF22"
-			},
-			{
-				"name": ":-moz-range-track",
-				"browsers": "FF22"
-			},
-			{
 				"name": ":-moz-submit-invalid",
+				"desc": "Non-standard. Represents any submit button when the contents of the associated form are not valid.",
 				"browsers": "FF4"
 			},
 			{
 				"name": ":-moz-suppressed",
+				"desc": "Non-standard. Matches elements representing images that have been blocked from loading.",
 				"browsers": "FF3"
 			},
 			{
 				"name": ":-moz-ui-invalid",
+				"desc": "Non-standard. Represents any validated form element whose value isn't valid ",
 				"browsers": "FF4"
 			},
 			{
 				"name": ":-moz-ui-valid",
+				"desc": "Non-standard. Represents any validated form element whose value is valid ",
 				"browsers": "FF4"
 			},
 			{
 				"name": ":-moz-user-disabled",
+				"desc": "Non-standard. Matches elements representing images that have been disabled due to the user’s preferences.",
 				"browsers": "FF3"
 			},
 			{
 				"name": ":-moz-window-inactive",
+				"desc": "Non-standard. Matches elements in an inactive window.",
 				"browsers": "FF4"
 			},
 			{
@@ -324,10 +332,12 @@ exports.data ={
 			},
 			{
 				"name": ":-ms-input-placeholder",
+				"desc": "Represents placeholder text in an input field. Note: for Edge use the pseudo-element ::-ms-input-placeholder. Standardized as ::placeholder.",
 				"browsers": "IE10"
 			},
 			{
 				"name": ":-ms-keyboard-active",
+				"desc": "Windows Store apps only. Applies one or more styles to an element when it has focus and the user presses the space bar.",
 				"browsers": "IE10"
 			},
 			{
@@ -449,12 +459,13 @@ exports.data ={
 				"desc": "Applies once the link has been visited by the user."
 			},
 			{
-				"name": ":-webkit-any",
+				"name": ":-webkit-any()",
+				"desc": "Represents an element that is represented by the selector list passed as its argument. Standardized as :matches().",
 				"browsers": "C,S5"
 			},
 			{
 				"name": ":-webkit-full-screen",
-				"desc": "Matches any element that has its fullscreen flag set.",
+				"desc": "Matches any element that has its fullscreen flag set. Standardized as :fullscreen.",
 				"browsers": "C,S6"
 			},
 			{
