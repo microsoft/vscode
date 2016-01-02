@@ -413,60 +413,70 @@
     </entry>
     <entry name="::-moz-focus-inner" version="3.0" browsers="FF4" />
     <entry name="::-moz-focus-outer" version="3.0" browsers="FF4" />
-    <entry name="::-moz-list-bullet" version="3.0" browsers="FF1" />
-    <entry name="::-moz-list-number" version="3.0" browsers="FF1" />
-    <entry name="::-moz-placeholder" version="3.0" browsers="FF9" />
-    <entry name="::-moz-progress-bar" version="3.0" browsers="FF9" />
-    <entry name="::-moz-selection" version="3.0" browsers="FF1" />
+    <entry name="::-moz-list-bullet" version="3.0" browsers="FF1">
+      <desc>Used to style the bullet of a list element. Similar to the standardized ::marker.</desc>
+    </entry>
+    <entry name="::-moz-list-number" version="3.0" browsers="FF1">
+      <desc>Used to style the numbers of a list element. Similar to the standardized ::marker.</desc>
+    </entry>
+    <entry name="::-moz-placeholder" version="3.0" browsers="FF19">
+      <desc>Represents placeholder text in an input field</desc>
+    </entry>
+    <entry name="::-moz-progress-bar" version="3.0" browsers="FF9">
+      <desc>Represents the bar portion of a progress bar.</desc>
+    </entry>
+    <entry name="::-moz-selection" version="3.0" browsers="FF1">
+      <desc>Represents the portion of a document that has been highlighted by the user.</desc>
+    </entry>
     <entry name="::-ms-backdrop" version="3.0" browsers="IE11" ref="https://fullscreen.spec.whatwg.org/#::backdrop-pseudo-element" syntax="*|*:-ms-fullscreen::-ms-backdrop { position: fixed; }">
       <desc>Used to create a backdrop that hides the underlying document for an element in a top layer (such as an element that is displayed fullscreen).</desc>
     </entry>
-    <entry name="::-ms-browse" version="3.0" browsers="IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh779844.aspx">
-      <desc>Applies one or more styles to the browse button of an input type=file control.</desc>
+    <entry name="::-ms-browse" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh779844.aspx">
+      <desc>Represents the browse button of an input type=file control.</desc>
     </entry>
-    <entry name="::-ms-check" version="3.0" browsers="IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh465739.aspx">
-      <desc>Applies one or more styles to the check of a checkbox or radio button input control.</desc>
+    <entry name="::-ms-check" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh465739.aspx">
+      <desc>Represents the check of a checkbox or radio button input control.</desc>
     </entry>
-    <entry name="::-ms-clear" version="3.0" browsers="IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh465740.aspx">
-      <desc>Applies one or more styles to the entry area of a text input control when it contains no content.</desc>
+    <entry name="::-ms-clear" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh465740.aspx">
+      <desc>Represents the clear button of a text input control</desc>
     </entry>
-    <entry name="::-ms-expand" version="3.0" browsers="IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh465742.aspx">
-      <desc>Applies one or more styles to the drop-down button of a select control.</desc>
+    <entry name="::-ms-expand" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh465742.aspx">
+      <desc>Represents the drop-down button of a select control.</desc>
     </entry>
-    <entry name="::-ms-fill" version="3.0" browsers="IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh465757.aspx">
-      <desc>Applies one or more styles to the bar portion of a progress bar.</desc>
+    <entry name="::-ms-fill" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh465757.aspx">
+      <desc>Represents the bar portion of a progress bar.</desc>
     </entry>
-    <entry name="::-ms-fill-lower" version="3.0" browsers="IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh465745.aspx">
-      <desc>Applies one or more styles to portion of the slider track from its smallest value up to the value currently selected by the thumb. In a left-to-right layout, this is the portion of the slider track to the left of the thumb.</desc>
+    <entry name="::-ms-fill-lower" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh465745.aspx">
+      <desc>Represents the portion of the slider track from its smallest value up to the value currently selected by the thumb. In a left-to-right layout, this is the portion of the slider track to the left of the thumb.</desc>
     </entry>
-    <entry name="::-ms-fill-upper" version="3.0" browsers="IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh465748.aspx">
-      <desc>Applies one or more styles to portion of the slider track from the value currently selected by the thumb up to the slider's largest value. In a left-to-right layout, this is the portion of the slider track to the right of the thumb.</desc>
+    <entry name="::-ms-fill-upper" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh465748.aspx">
+      <desc>Represents the portion of the slider track from the value currently selected by the thumb up to the slider's largest value. In a left-to-right layout, this is the portion of the slider track to the right of the thumb.</desc>
     </entry>
-    <entry name="::-ms-reveal" version="3.0" browsers="IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh465773.aspx">
-      <desc>Applies one or more styles to the password reveal button of an input type=password control.</desc>
+    <entry name="::-ms-reveal" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh465773.aspx">
+      <desc>Represents the password reveal button of an input type=password control.</desc>
     </entry>
-    <entry name="::-ms-thumb" version="3.0" browsers="IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh465780.aspx">
-      <desc>Applies one or more styles to portion of the range input control (also known as a slider control) that the user drags.</desc>
+    <entry name="::-ms-thumb" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh465780.aspx">
+      <desc>Represents the portion of range input control (also known as a slider control) that the user drags.</desc>
     </entry>
-    <entry name="::-ms-ticks-after" version="3.0" browsers="IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh465789.aspx">
-      <desc>Applies one or more styles to the tick marks of a slider that begin just after the thumb and continue up to the slider's largest value. In a left-to-right layout, these are the ticks to the right of the thumb.</desc>
+    <entry name="::-ms-ticks-after" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh465789.aspx">
+      <desc>Represents the tick marks of a slider that begin just after the thumb and continue up to the slider's largest value. In a left-to-right layout, these are the ticks to the right of the thumb.</desc>
     </entry>
-    <entry name="::-ms-ticks-before" version="3.0" browsers="IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh465796.aspx">
-      <desc>Applies one or more styles to the tick marks of a slider that represent its smallest values up to the value currently selected by the thumb. In a left-to-right layout, these are the ticks to the left of the thumb.</desc>
+    <entry name="::-ms-ticks-before" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh465796.aspx">
+      <desc>Represents the tick marks of a slider that represent its smallest values up to the value currently selected by the thumb. In a left-to-right layout, these are the ticks to the left of the thumb.</desc>
     </entry>
-    <entry name="::-ms-tooltip" version="3.0" browsers="IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh465805.aspx">
-      <desc>Applies one or more styles to the tooltip of a slider (input type=range).</desc>
+    <entry name="::-ms-tooltip" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh465805.aspx">
+      <desc>Represents the tooltip of a slider (input type=range).</desc>
     </entry>
-    <entry name="::-ms-track" version="3.0" browsers="IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh465813.aspx">
-      <desc>Applies one or more styles to track of a slider.</desc>
+    <entry name="::-ms-track" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh465813.aspx">
+      <desc>Represents the track of a slider.</desc>
     </entry>
-    <entry name="::-ms-value" version="3.0" browsers="IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh465820.aspx">
-      <desc>Applies one or more styles to the content of a text or password input control, or a select control.</desc>
+    <entry name="::-ms-value" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh465820.aspx">
+      <desc>Represents the content of a text or password input control, or a select control.</desc>
     </entry>
     <entry name="::placeholder" version="4.0" browsers="none" ref="http://www.w3.org/TR/css-pseudo-4/#selectordef-placeholder" syntax="input::placeholder { color: grey; }">
       <desc>Represents placeholder text in an input field</desc>
     </entry>
-    <entry name="::selection" version="4.0" browsers="E,C,FF4,IE9,O9.5,S1.1" ref="http://www.w3.org/TR/css-pseudo-4/#selectordef-selection" syntax="p::selection { color: red; }">
+    <entry name="::selection" version="4.0" browsers="E,C,IE9,O9.5,S1.1" ref="http://www.w3.org/TR/css-pseudo-4/#selectordef-selection" syntax="p::selection { color: red; }">
       <desc>Represents the portion of a document that has been highlighted by the user.</desc>
     </entry>
     <entry name="::region" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-scoping-1/#the-region-pseudo-element" syntax="::region p { margin-right: 5em; }">
@@ -485,10 +495,10 @@
     <entry name="::-webkit-inner-spin-button" version="3.0" browsers="C,O,S6" />
     <entry name="::-webkit-input-placeholder" version="3.0" browsers="C,S4" />
     <entry name="::-webkit-keygen-select" version="3.0" browsers="C,O,S6" />
-    <entry name="::-webkit-meter-bar" version="3.0" browsers="C,O,S6" />
-    <entry name="::-webkit-meter-even-less-good-value" version="3.0" browsers="C,O,S6" />
-    <entry name="::-webkit-meter-optimum-value" version="3.0" browsers="C,O,S6" />
-    <entry name="::-webkit-meter-suboptimal-value" version="3.0" browsers="C,O,S6" />
+    <entry name="::-webkit-meter-bar" version="3.0" browsers="E13,C,O15,S6" />
+    <entry name="::-webkit-meter-even-less-good-value" version="3.0" browsers="E13,C,O15,S6" />
+    <entry name="::-webkit-meter-optimum-value" version="3.0" browsers="E13,C,O15,S6" />
+    <entry name="::-webkit-meter-suboptimal-value" version="3.0" browsers="E13,C,O15,S6" />
     <entry name="::-webkit-ouer-spin-button" version="3.0" browsers="C,O,S6" />
     <entry name="::-webkit-progress-bar" version="3.0" browsers="C,S3" />
     <entry name="::-webkit-progress-inner-element" version="3.0" browsers="C,S3" />
