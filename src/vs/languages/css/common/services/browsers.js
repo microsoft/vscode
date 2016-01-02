@@ -1823,7 +1823,7 @@ exports.data ={
 			},
 			{
 				"name": "break-after",
-				"desc": "Describes the page/column break behavior before the generated box.",
+				"desc": "Describes the page/column/region break behavior after the generated box.",
 				"browsers": "E,IE10,O11.5",
 				"restriction": "enum",
 				"values": [
@@ -1833,30 +1833,31 @@ exports.data ={
 					},
 					{
 						"name": "auto",
-						"desc": "Neither force nor forbid a page/column break before/after the generated box."
+						"desc": "Neither force nor forbid a page/column break before/after the principal box."
 					},
 					{
 						"name": "avoid",
-						"desc": "Avoid a page/column break before/after the generated box."
+						"desc": "Avoid a break before/after the principal box."
 					},
 					{
 						"name": "avoid-column",
-						"desc": "Avoid a column break before/after the generated box."
+						"desc": "Avoid a column break before/after the principal box."
 					},
 					{
 						"name": "avoid-page",
-						"desc": "Avoid a page break before/after the generated box."
+						"desc": "Avoid a page break before/after the principal box."
 					},
 					{
 						"name": "column",
-						"desc": "Always force a column break before/after the generated box."
+						"desc": "Always force a column break before/after the principal box."
 					},
 					{
 						"name": "left",
 						"desc": "Force one or two page breaks before/after the generated box so that the next page is formatted as a left page."
 					},
 					{
-						"name": "page"
+						"name": "page",
+						"desc": "Always force a page break before/after the principal box."
 					},
 					{
 						"name": "right",
@@ -1866,7 +1867,7 @@ exports.data ={
 			},
 			{
 				"name": "break-before",
-				"desc": "Describes the page/column break behavior before the generated box.",
+				"desc": "Describes the page/column/region break behavior before the generated box.",
 				"browsers": "E,IE10,O11.5",
 				"restriction": "enum",
 				"values": [
@@ -1876,30 +1877,31 @@ exports.data ={
 					},
 					{
 						"name": "auto",
-						"desc": "Neither force nor forbid a page/column break before/after the generated box."
+						"desc": "Neither force nor forbid a page/column break before/after the principal box."
 					},
 					{
 						"name": "avoid",
-						"desc": "Avoid a page/column break before/after the generated box."
+						"desc": "Avoid a break before/after the principal box."
 					},
 					{
 						"name": "avoid-column",
-						"desc": "Avoid a column break before/after the generated box."
+						"desc": "Avoid a column break before/after the principal box."
 					},
 					{
 						"name": "avoid-page",
-						"desc": "Avoid a page break before/after the generated box."
+						"desc": "Avoid a page break before/after the principal box."
 					},
 					{
 						"name": "column",
-						"desc": "Always force a column break before/after the generated box."
+						"desc": "Always force a column break before/after the principal box."
 					},
 					{
 						"name": "left",
 						"desc": "Force one or two page breaks before/after the generated box so that the next page is formatted as a left page."
 					},
 					{
-						"name": "page"
+						"name": "page",
+						"desc": "Always force a page break before/after the principal box."
 					},
 					{
 						"name": "right",
@@ -1909,25 +1911,25 @@ exports.data ={
 			},
 			{
 				"name": "break-inside",
-				"desc": "Describes the page/column break behavior inside the generated box.",
+				"desc": "Describes the page/column/region break behavior inside the principal box.",
 				"browsers": "E,IE10,O11.5",
 				"restriction": "enum",
 				"values": [
 					{
 						"name": "auto",
-						"desc": "Neither force nor forbid a page/column break inside the generated box."
+						"desc": "Impose no additional breaking constraints within the box."
 					},
 					{
 						"name": "avoid",
-						"desc": "Avoid a page/column break inside the generated box."
+						"desc": "Avoid breaks within the box."
 					},
 					{
 						"name": "avoid-column",
-						"desc": "Avoid a column break inside the generated box."
+						"desc": "Avoid a column break within the box."
 					},
 					{
 						"name": "avoid-page",
-						"desc": "Avoid a page break inside the generated box."
+						"desc": "Avoid a page break within the box."
 					}
 				]
 			},
@@ -6844,7 +6846,7 @@ exports.data ={
 			},
 			{
 				"name": "orphans",
-				"desc": "Specifies the minimum number of lines in a block element that must be left at the bottom of a page.",
+				"desc": "Specifies the minimum number of line boxes in a block container that must be left in a fragment before a fragmentation break.",
 				"browsers": "C,IE8,O7,S1.3",
 				"restriction": "integer"
 			},
@@ -9073,7 +9075,8 @@ exports.data ={
 						"desc": "Force one or two page breaks before/after the generated box so that the next page is formatted as a left page."
 					},
 					{
-						"name": "page"
+						"name": "page",
+						"desc": "Always force a page break before/after the generated box."
 					},
 					{
 						"name": "region"
@@ -9122,7 +9125,8 @@ exports.data ={
 						"desc": "Force one or two page breaks before/after the generated box so that the next page is formatted as a left page."
 					},
 					{
-						"name": "page"
+						"name": "page",
+						"desc": "Always force a page break before/after the generated box."
 					},
 					{
 						"name": "region"
@@ -9198,7 +9202,8 @@ exports.data ={
 						"desc": "Force one or two page breaks before/after the generated box so that the next page is formatted as a left page."
 					},
 					{
-						"name": "page"
+						"name": "page",
+						"desc": "Always force a page break before/after the generated box."
 					},
 					{
 						"name": "region"
@@ -9247,7 +9252,8 @@ exports.data ={
 						"desc": "Force one or two page breaks before/after the generated box so that the next page is formatted as a left page."
 					},
 					{
-						"name": "page"
+						"name": "page",
+						"desc": "Always force a page break before/after the generated box."
 					},
 					{
 						"name": "region"
@@ -9926,7 +9932,7 @@ exports.data ={
 			},
 			{
 				"name": "widows",
-				"desc": "Specifies the minimum number of lines in a block element that must be left at the top of a page.",
+				"desc": "Specifies the minimum number of line boxes of a block container that must be left in a fragment after a break.",
 				"browsers": "C,IE8,O9.5,S1",
 				"restriction": "integer"
 			},
@@ -10054,12 +10060,11 @@ exports.descriptions = {
 	"paused": "A running animation will be paused.",
 	"running": "Resume playback of a paused animation.",
 	"no-repeat": "The image is placed once and not repeated in this direction.",
-	"clone": "Each box is independently wrapped with the border and padding. The 'border-radius' and 'border-image' and 'box-shadow', if any, are applied to each box independently. The background is drawn independently in each box of the element. A no-repeat background image will thus be rendered once in each box of the element.",
-	"slice": "No border and no padding are inserted at the break. No box-shadow is drawn at the broken edge; 'border-radius' has no effect at its corners; and the 'border-image' is rendered for the whole box as if it were unbroken. The effect is as though the element were rendered with no break present, and then sliced by the break afterward.",
+	"clone": "Each box is independently wrapped with the border and padding.",
+	"slice": "The effect is as though the element were rendered with no breaks present, and then sliced by the breaks afterward.",
 	"inset": "Changes the drop shadow from an outer shadow (one that shadows the box onto the canvas, as if it were lifted above the canvas) to an inner shadow (one that shadows the canvas onto the box, as if the box were cut out of the canvas and shifted behind it).",
-	"page": "Always force a page break before/after the generated box.",
 	"balance": "Balance content equally between columns, if possible.",
-	"attr()": "The attr(n) function returns as a string the value of attribute n for the subject of the selector",
+	"attr()": "The attr(n) function returns as a string the value of attribute n for the subject of the selector.",
 	"counter(name)": "Counters are denoted by identifiers (see the 'counter-increment' and 'counter-reset' properties).",
 	"alias": "Indicates an alias of/shortcut to something is to be created. Often rendered as an arrow with a small curved arrow next to it.",
 	"all-scroll": "Indicates that the something can be scrolled in any direction. Often rendered as arrows pointing up, down, left, and right with a dot in the middle.",
