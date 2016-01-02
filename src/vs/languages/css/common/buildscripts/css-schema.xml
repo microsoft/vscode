@@ -686,7 +686,7 @@
       </values>
     </entry>
     <entry name="animation-delay" restriction="time" version="3.0" browsers="E,C43,FF16,IE10,O12.1,S9" ref="http://www.w3.org/TR/css3-animations/#animation-delay" syntax="div { $(name): 4s; }">
-      <desc>Defines when the animation will start. An 'animation-delay' value of '0' means the animation will execute as soon as it is applied. Otherwise, the value specifies an offset from the moment the animation is applied, and the animation will delay execution by that offset.</desc>
+      <desc>Defines when the animation will start.</desc>
     </entry>
     <entry name="animation-direction" restriction="enum" version="3.0" browsers="E,C43,FF16,IE10,O12.1,S9" ref="http://www.w3.org/TR/css3-animations/#animation-direction" syntax="div { $(name): normal; }">
       <desc>Defines whether or not the animation should play in reverse on alternate cycles.</desc>
@@ -753,7 +753,7 @@
       </values>
     </entry>
     <entry name="animation-timing-function" restriction="enum" version="3.0" browsers="E,C43,FF16,IE10,O12.1,S9" ref="http://www.w3.org/TR/css3-animations/#animation-timing-function" syntax="div { $(name): ease; }">
-      <desc>Describes how the animation will progress over one cycle of its duration. See the 'transition-timing-function'.</desc>
+      <desc>Describes how the animation will progress over one cycle of its duration.</desc>
       <values>
         <value name="cubic-bezier()" version="3.0" browsers="all">
           <desc>Specifies a cubic-bezier curve. The four values specify points P1 and P2  of the curve as (x1, y1, x2, y2). All values must be in the range [0, 1].</desc>
@@ -3380,7 +3380,7 @@
       </values>
     </entry>
     <entry name="-moz-animation-delay" restriction="time" version="3.0" browsers="FF9" ref="http://www.w3.org/TR/css3-animations/#animation-delay" syntax="div { $(name): 4s; }">
-      <desc>Defines when the animation will start. An 'animation-delay' value of '0' means the animation will execute as soon as it is applied. Otherwise, the value specifies an offset from the moment the animation is applied, and the animation will delay execution by that offset.</desc>
+      <desc>Defines when the animation will start.</desc>
     </entry>
     <entry name="-moz-animation-direction" restriction="enum" version="3.0" browsers="FF9" ref="http://www.w3.org/TR/css3-animations/#animation-direction" syntax="div { $(name): normal; }">
       <desc>Defines whether or not the animation should play in reverse on alternate cycles.</desc>
@@ -5088,7 +5088,7 @@
       </values>
     </entry>
     <entry name="-o-animation-delay" restriction="time" version="3.0" browsers="O12" ref="http://www.w3.org/TR/css3-animations/#animation-delay" syntax="div { $(name): 4s; }">
-      <desc>Defines when the animation will start. An 'animation-delay' value of '0' means the animation will execute as soon as it is applied. Otherwise, the value specifies an offset from the moment the animation is applied, and the animation will delay execution by that offset.</desc>
+      <desc>Defines when the animation will start.</desc>
     </entry>
     <entry name="-o-animation-direction" restriction="enum" version="3.0" browsers="O12" ref="http://www.w3.org/TR/css3-animations/#animation-direction" syntax="div { $(name): normal; }">
       <desc>Defines whether or not the animation should play in reverse on alternate cycles.</desc>
@@ -7079,7 +7079,7 @@
       </values>
     </entry>
     <entry name="-webkit-animation-delay" restriction="time" version="3.0" browsers="C,S5" ref="http://www.w3.org/TR/css3-animations/#animation-delay" syntax="div { $(name): 4s; }">
-      <desc>Defines when the animation will start. An 'animation-delay' value of '0' means the animation will execute as soon as it is applied. Otherwise, the value specifies an offset from the moment the animation is applied, and the animation will delay execution by that offset.</desc>
+      <desc>Defines when the animation will start.</desc>
     </entry>
     <entry name="-webkit-animation-direction" restriction="enum" version="3.0" browsers="C,S5" ref="http://www.w3.org/TR/css3-animations/#animation-direction" syntax="div { $(name): normal; }">
       <desc>Defines whether or not the animation should play in reverse on alternate cycles.</desc>
