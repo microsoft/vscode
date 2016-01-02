@@ -526,24 +526,46 @@
   </pseudoElements>
   <properties>
     <entry name="align-content" restriction="enum" version="3.0" browsers="E,C29,FF22,IE11,O12.1,S9" ref="http://www.w3.org/TR/css3-flexbox/#align-content" syntax="p { $(name): flex-start; }">
-      <desc>Aligns a flex container's lines within the flex container when there is extra space in the cross-axis, similar to how 'justify-content' aligns individual items within the main-axis.</desc>
+      <desc>Aligns a flex container’s lines within the flex container when there is extra space in the cross-axis, similar to how 'justify-content' aligns individual items within the main-axis.</desc>
       <values>
-        <value name="center" version="3.0" browsers="all" />
-        <value name="flex-end" version="3.0" browsers="all" />
-        <value name="flex-start" version="3.0" browsers="all" />
-        <value name="space-around" version="3.0" browsers="all" />
-        <value name="space-between" version="3.0" browsers="all" />
-        <value name="stretch" version="3.0" browsers="all" />
+        <value name="center" version="3.0" browsers="all">
+          <desc>Lines are packed toward the center of the flex container.</desc>
+		</value>
+        <value name="flex-end" version="3.0" browsers="all">
+          <desc>Lines are packed toward the end of the flex container.</desc>
+		</value>
+        <value name="flex-start" version="3.0" browsers="all">
+          <desc>Lines are packed toward the start of the flex container.</desc>
+		</value>
+        <value name="space-around" version="3.0" browsers="all">
+          <desc>Lines are evenly distributed in the flex container, with half-size spaces on either end.</desc>
+		</value>
+        <value name="space-between" version="3.0" browsers="all">
+          <desc>Lines are evenly distributed in the flex container.</desc>
+		</value>
+        <value name="stretch" version="3.0" browsers="all">
+          <desc>Lines stretch to take up the remaining space.</desc>
+		</value>
       </values>
     </entry>
     <entry name="align-items" restriction="enum" version="3.0" browsers="E,C29,FF22,IE11,O12.1,S9" ref="http://www.w3.org/TR/css3-flexbox/#align-items" syntax="p { $(name): flex-start; }">
-      <desc>Flex items can be aligned in the cross axis of the current line of the flex container, similar to 'justify-content' but in the perpendicular direction.</desc>
+      <desc>Aligns flex items along the cross axis of the current line of the flex container.</desc>
       <values>
-        <value name="baseline" version="3.0" browsers="all" />
-        <value name="center" version="3.0" browsers="all" />
-        <value name="flex-end" version="3.0" browsers="all" />
-        <value name="flex-start" version="3.0" browsers="all" />
-        <value name="stretch" version="3.0" browsers="all" />
+        <value name="baseline" version="3.0" browsers="all">
+          <desc>If the flex item’s inline axis is the same as the cross axis, this value is identical to 'flex-start'. Otherwise, it participates in baseline alignment.</desc>
+		</value>
+        <value name="center" version="3.0" browsers="all">
+          <desc>The flex item’s margin box is centered in the cross axis within the line.</desc>
+		</value>
+        <value name="flex-end" version="3.0" browsers="all">
+          <desc>The cross-end margin edge of the flex item is placed flush with the cross-end edge of the line.</desc>
+		</value>
+        <value name="flex-start" version="3.0" browsers="all">
+          <desc>The cross-start margin edge of the flex item is placed flush with the cross-start edge of the line.</desc>
+		</value>
+        <value name="stretch" version="3.0" browsers="all">
+          <desc>If the cross size property of the flex item computes to auto, and neither of the cross-axis margins are auto, the flex item is stretched.</desc>
+		</value>
       </values>
     </entry>
     <entry name="alignment-baseline" restriction="enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-inline/#propdef-alignment-baseline" syntax="img { $(name): middle; }">
@@ -562,14 +584,26 @@
       </values>
     </entry>
     <entry name="align-self" restriction="enum" version="3.0" browsers="E,C29,FF22,IE11,O12.1,S9" ref="http://www.w3.org/TR/css3-flexbox/#align-items" syntax="p { $(name): flex-start; }">
-      <desc>Flex items can be aligned in the cross axis of the current line of the flex container, similar to 'justify-content' but in the perpendicular direction.</desc>
+      <desc>allows the default alignment along the cross axis to be overridden for individual flex items.</desc>
       <values>
-        <value name="auto" version="3.0" browsers="all" />
-        <value name="baseline" version="3.0" browsers="all" />
-        <value name="center" version="3.0" browsers="all" />
-        <value name="flex-end" version="3.0" browsers="all" />
-        <value name="flex-start" version="3.0" browsers="all" />
-        <value name="stretch" version="3.0" browsers="all" />
+        <value name="auto" version="3.0" browsers="all">
+          <desc>Computes to the value of 'align-items' on the element’s parent, or 'stretch' if the element has no parent. On absolutely positioned elements, it computes to itself.</desc>
+		</value>
+        <value name="baseline" version="3.0" browsers="all">
+          <desc>If the flex item’s inline axis is the same as the cross axis, this value is identical to 'flex-start'. Otherwise, it participates in baseline alignment.</desc>
+		</value>
+        <value name="center" version="3.0" browsers="all">
+          <desc>The flex item’s margin box is centered in the cross axis within the line.</desc>
+		</value>
+        <value name="flex-end" version="3.0" browsers="all">
+          <desc>The cross-end margin edge of the flex item is placed flush with the cross-end edge of the line.</desc>
+		</value>
+        <value name="flex-start" version="3.0" browsers="all">
+          <desc>The cross-start margin edge of the flex item is placed flush with the cross-start edge of the line.</desc>
+		</value>
+        <value name="stretch" version="3.0" browsers="all">
+          <desc>If the cross size property of the flex item computes to auto, and neither of the cross-axis margins are auto, the flex item is stretched.</desc>
+		</value>
       </values>
     </entry>
 		<entry name="all" restriction="enum" version="3.0" browsers="C37,FF27,O24" ref="http://www.w3.org/TR/css-cascade-3/#all-shorthand" syntax="* { $(name): unset; }">
@@ -2092,38 +2126,62 @@
     <entry name="flex" restriction="length, number, percentage" version="3.0" browsers="E,C29,FF22,IE11,O12.1,S9" ref="http://www.w3.org/TR/css3-flexbox/#flex" syntax="p { $(name): 0 1 auto; }">
       <desc>Specifies the components of a flexible length: the flex grow factor and flex shrink factor, and the flex basis.</desc>
       <values>
-        <value name="auto" version="3.0" browsers="all" />
-        <value name="none" version="3.0" browsers="all" />
+        <value name="auto" version="3.0" browsers="all">
+          <desc>Retrieves the value of the main size property as the used 'flex-basis'.</desc>
+        </value>
+        <value name="none" version="3.0" browsers="all">
+          <desc>Expands to '0 0 auto'.</desc>
+        </value>
       </values>
     </entry>
     <entry name="flex-basis" restriction="length, number, percentage" version="3.0" browsers="E,C29,FF22,IE11,O12.1,S9" ref="http://www.w3.org/TR/css3-flexbox/#flex-basis-propdef" syntax="p { $(name): 30%; }">
-      <desc>Sets the flex basis. Negative lengths are invalid.</desc>
+      <desc>Sets the flex basis.</desc>
       <values>
-        <value name="auto" version="3.0" browsers="all" />
-        <value name="content" version="3.0" browsers="E,IE11" />
+        <value name="auto" version="3.0" browsers="all">
+          <desc>Retrieves the value of the main size property as the used 'flex-basis'.</desc>
+        </value>
+        <value name="content" version="3.0" browsers="E,IE11">
+          <desc>Indicates automatic sizing, based on the flex item’s content.</desc>
+        </value>
       </values>
     </entry>
     <entry name="flex-direction" restriction="enum" version="3.0" browsers="E,C29,FF22,IE11,O12.1,S9" ref="http://www.w3.org/TR/css3-flexbox/#flex-direction" syntax="div { $(name): column; }">
-      <desc>Specifies how flexbox items are placed in the flexbox.</desc>
+      <desc>Specifies how flex items are placed in the flex container, by setting the direction of the flex container’s main axis.</desc>
       <values>
-        <value name="column" version="3.0" browsers="all" />
-        <value name="column-reverse" version="3.0" browsers="all" />
-        <value name="row" version="3.0" browsers="all" />
-        <value name="row-reverse" version="3.0" browsers="all" />
+        <value name="column" version="3.0" browsers="all">
+          <desc>The flex container’s main axis has the same orientation as the block axis of the current writing mode.</desc>
+        </value>
+        <value name="column-reverse" version="3.0" browsers="all">
+          <desc>Same as 'column', except the main-start and main-end directions are swapped.</desc>
+        </value>
+        <value name="row" version="3.0" browsers="all">
+          <desc>The flex container’s main axis has the same orientation as the inline axis of the current writing mode.</desc>
+        </value>
+        <value name="row-reverse" version="3.0" browsers="all">
+          <desc>Same as 'row', except the main-start and main-end directions are swapped.</desc>
+        </value>
       </values>
     </entry>
     <entry name="flex-flow" restriction="enum" version="3.0" browsers="E,C29,FF28,IE11,O12.1,S9" ref="http://www.w3.org/TR/css3-flexbox/#flex-flow" syntax="div { $(name): column wrap; }">
       <desc>Specifies how flexbox items are placed in the flexbox.</desc>
       <values>
-        <value name="column" version="3.0" browsers="all" />
-        <value name="column-reverse" version="3.0" browsers="all" />
-        <value name="nowrap" version="3.0" browsers="all">
-          <desc>The flexbox is single-line. The cross-start direction is equivalent to either the 'start' or 'before' direction of the current writing mode, whichever is in the cross-axis, and the cross-end direction is the opposite direction of cross-start.</desc>
+        <value name="column" version="3.0" browsers="all">
+          <desc>The flex container’s main axis has the same orientation as the block axis of the current writing mode.</desc>
         </value>
-        <value name="row" version="3.0" browsers="all" />
-        <value name="row-reverse" version="3.0" browsers="all" />
+        <value name="column-reverse" version="3.0" browsers="all">
+          <desc>Same as 'column', except the main-start and main-end directions are swapped.</desc>
+        </value>
+        <value name="nowrap" version="3.0" browsers="all">
+          <desc>The flex container is single-line.</desc>
+        </value>
+        <value name="row" version="3.0" browsers="all">
+          <desc>The flex container’s main axis has the same orientation as the inline axis of the current writing mode.</desc>
+        </value>
+        <value name="row-reverse" version="3.0" browsers="all">
+          <desc>Same as 'row', except the main-start and main-end directions are swapped.</desc>
+        </value
         <value name="wrap" version="3.0" browsers="all">
-          <desc>The flexbox is multi-line. The cross-start direction is equivalent to either the 'start' or 'before' direction of the current writing mode, whichever is in the cross-axis, and the cross-end direction is the opposite direction of cross-start.</desc>
+          <desc>The flexbox is multi-line.</desc>
         </value>
         <value name="wrap-reverse" version="3.0" browsers="all">
           <desc>Same as 'wrap', except the cross-start and cross-end directions are swapped.</desc>
@@ -2134,16 +2192,16 @@
       <desc>Sets the flex grow factor. Negative numbers are invalid.</desc>
     </entry>
     <entry name="flex-shrink" restriction="number" version="3.0" browsers="E,C29,FF22,IE11,O12.1,S9" ref="http://www.w3.org/TR/css3-flexbox/#flex-shrink" syntax="p { $(name): 4; }">
-      <desc>The 'flex-shrink' property sets the flex shrink factor. Negative numbers are invalid.</desc>
+      <desc>Sets the flex shrink factor. Negative numbers are invalid.</desc>
     </entry>
     <entry name="flex-wrap" restriction="enum" version="3.0" browsers="E,C29,FF28,IE11,O12.1,S9" ref="http://www.w3.org/TR/css3-flexbox/#flex-wrap" syntax="div { $(name): nowrap; }">
-      <desc>controls whether the flexbox is single-line or multi-line, and the direction of the cross axis, which affects the direction new lines are stacked in and the meaning of the 'flex-align', 'flex-item-align', and 'flex-line-pack' properties.</desc>
+      <desc>Controls whether the flex container is single-line or multi-line, and the direction of the cross-axis, which determines the direction new lines are stacked in.</desc>
       <values>
         <value name="nowrap" version="3.0" browsers="all">
-          <desc>The flexbox is single-line. The cross-start direction is equivalent to either the 'start' or 'before' direction of the current writing mode, whichever is in the cross-axis, and the cross-end direction is the opposite direction of cross-start.</desc>
+          <desc>The flex container is single-line.</desc>
         </value>
         <value name="wrap" version="3.0" browsers="all">
-          <desc>The flexbox is multi-line. The cross-start direction is equivalent to either the 'start' or 'before' direction of the current writing mode, whichever is in the cross-axis, and the cross-end direction is the opposite direction of cross-start.</desc>
+          <desc>The flexbox is multi-line.</desc>
         </value>
         <value name="wrap-reverse" version="3.0" browsers="all">
           <desc>Same as 'wrap', except the cross-start and cross-end directions are swapped.</desc>
@@ -2906,13 +2964,23 @@
       </values>
     </entry>
     <entry name="justify-content" restriction="enum" version="3.0" browsers="E,C29,FF22,IE11,O12.1,S9" ref="http://www.w3.org/TR/css3-flexbox/#align-content" syntax="p { $(name): flex-start; }">
-      <desc>Aligns a flex container's lines within the flex container when there is extra space in the cross-axis, similar to how 'justify-content' aligns individual items within the main-axis.</desc>
+      <desc>Aligns flex items along the main axis of the current line of the flex container.</desc>
       <values>
-        <value name="center" version="3.0" browsers="all" />
-        <value name="flex-end" version="3.0" browsers="all" />
-        <value name="flex-start" version="3.0" browsers="all" />
-        <value name="space-around" version="3.0" browsers="all" />
-        <value name="space-between" version="3.0" browsers="all" />
+        <value name="center" version="3.0" browsers="all">
+          <desc>Flex items are packed toward the center of the line.</desc>
+        </value>
+        <value name="flex-end" version="3.0" browsers="all" >
+          <desc>Flex items are packed toward the end of the line.</desc>
+        </value>
+        <value name="flex-start" version="3.0" browsers="all">
+          <desc>Flex items are packed toward the start of the line.</desc>
+        </value>
+        <value name="space-around" version="3.0" browsers="all">
+          <desc>Flex items are evenly distributed in the line, with half-size spaces on either end.</desc>
+        </value>
+        <value name="space-between" version="3.0" browsers="all">
+          <desc>Flex items are evenly distributed in the line.</desc>
+        </value>
       </values>
     </entry>
     <entry name="kerning" restriction="length, enum" version="3.0" browsers="all" ref="http://www.w3.org/TR/SVG11/text.html#KerningProperty">
