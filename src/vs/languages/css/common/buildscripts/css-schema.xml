@@ -848,7 +848,7 @@
       </values>
     </entry>
     <entry name="background" restriction="enum, color, length, percentage, url" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#background" syntax="section { $(name): url(image.png) no-repeat #999; }">
-      <desc>Background of an element</desc>
+      <desc>Shorthand property for setting most background properties at the same place in the style sheet.</desc>
       <values>
         <value name="border-box" version="1.0" browsers="all">
           <desc>The background is painted within (clipped to) the border box.</desc>
@@ -925,16 +925,16 @@
       </values>
     </entry>
     <entry name="background-attachment" restriction="enum" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#the-background-attachment" syntax=".box { $(name): fixed; }">
-      <desc>If background images are specified, this property specifies whether they are fixed with regard to the viewport ('fixed') or scroll along with the element ('scroll') or its contents ('local').</desc>
+      <desc>Specifies whether the background images are fixed with regard to the viewport ('fixed') or scroll along with the element ('scroll') or its contents ('local').</desc>
       <values>
         <value name="fixed" version="1.0" browsers="all">
           <desc>The background is fixed with regard to the viewport. In paged media where there is no viewport, a 'fixed' background is fixed with respect to the page box and therefore replicated on every page.</desc>
         </value>
         <value name="local" version="3.0" browsers="E,C,FF25,IE9,O11.5,S5">
-          <desc>The background is fixed with regard to the element's contents: if the element has a scrolling mechanism, the background scrolls with the element's contents.</desc>
+          <desc>The background is fixed with regard to the element’s contents: if the element has a scrolling mechanism, the background scrolls with the element’s contents.</desc>
         </value>
         <value name="scroll" version="1.0" browsers="all">
-          <desc>The background is fixed with regard to the element itself and does not scroll with its contents. (It is effectively attached to the element's border.)</desc>
+          <desc>The background is fixed with regard to the element itself and does not scroll with its contents. (It is effectively attached to the element’s border.)</desc>
         </value>
       </values>
     </entry>
@@ -974,11 +974,10 @@
       </values>
     </entry>
     <entry name="background-color" restriction="color" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#the-background-color" syntax="body { $(name): white; }">
-      <desc>Color used for an element's background</desc>
+      <desc>Sets the background color of an element.</desc>
     </entry>
-
     <entry name="background-image" restriction="url, enum" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#the-background-image" syntax="article { $(name): url(image.png); }">
-      <desc>Image used for an element's background</desc>
+      <desc>Sets the background image(s) of an element.</desc>
       <values>
         <value name="linear-gradient()" version="3.0" browsers="E,C26,FF16,IE10,O12.1,S6.1" />
         <value name="-moz-image-rect()" version="3.0" browsers="FF3.6" />
@@ -987,7 +986,7 @@
         <value name="-moz-repeating-linear-gradient()" version="3.0" browsers="FF10" />
         <value name="-moz-repeating-radial-gradient()" version="3.0" browsers="FF10" />
         <value name="none" version="1.0" browsers="all">
-          <desc>A value of 'none' counts as an image layer but draws nothing.</desc>
+          <desc>Counts as an image layer but draws nothing.</desc>
         </value>
         <value name="-o-linear-gradient()" version="3.0" browsers="O11.1" />
         <value name="-o-repeating-linear-gradient()" version="3.0" browsers="O11.1-12" />
@@ -1032,7 +1031,7 @@
       </values>
     </entry>
     <entry name="background-position" restriction="position, length, percentage" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#the-background-position" syntax="div { $(name): left center}">
-      <desc>If background images have been specified, this property specifies their initial position (after any resizing) within their corresponding background positioning area.</desc>
+      <desc>Specifies the initial position of the background image(s) (after any resizing) within their corresponding background positioning area.</desc>
     </entry>
     <entry name="background-position-x" restriction="length, percentage" version="4.0" browsers="E,IE6" ref="https://drafts.csswg.org/css-backgrounds-4/#propdef-background-position-x" syntax="body { $(name): center; }">
       <desc>If background images have been specified, this property specifies their initial position (after any resizing) within their corresponding background positioning area.</desc>
@@ -1067,7 +1066,7 @@
       </values>
     </entry>
     <entry name="background-repeat" restriction="enum" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#the-background-repeat" syntax="article { $(name): no-repeat; }">
-      <desc>How the background image is tiled within an element</desc>
+      <desc>Specifies how background images are tiled after they have been sized and positioned.</desc>
       <values>
         <value name="no-repeat" version="1.0" browsers="all">
           <desc>The image is placed once and not repeated in this direction.</desc>
@@ -1076,10 +1075,10 @@
           <desc>The image is repeated in this direction as often as needed to cover the background painting area.</desc>
         </value>
         <value name="repeat-x" version="1.0" browsers="all">
-          <desc>Equivalent to 'repeat no-repeat'.</desc>
+          <desc>Computes to 'repeat no-repeat'.</desc>
         </value>
         <value name="repeat-y" version="1.0" browsers="all">
-          <desc>Equivalent to 'no-repeat repeat'.</desc>
+          <desc>Computes to 'no-repeat repeat'.</desc>
         </value>
         <value name="round" version="3.0" browsers="all">
           <desc>The image is repeated as often as will fit within the background positioning area. If it doesn't fit a whole number of times, it is rescaled so that it does.</desc>
@@ -1092,7 +1091,9 @@
     <entry name="background-size" restriction="length, percentage" version="3.0" browsers="E,C,FF4,IE9,O10,S4.1" ref="http://www.w3.org/TR/css3-background/#the-background-size" syntax="header { $(name): 20px; }">
       <desc>Specifies the size of the background images.</desc>
       <values>
-        <value name="auto" version="3.0" browsers="all" />
+        <value name="auto" version="3.0" browsers="all">
+          <desc>Resolved by using the image’s intrinsic ratio and the size of the other dimension, or failing that, using the image’s intrinsic size, or failing that, treating it as 100%.</desc>
+        </value>
         <value name="contain" version="3.0" browsers="all">
           <desc>Scale the image, while preserving its intrinsic aspect ratio (if any), to the largest size such that both its width and its height can fit inside the background positioning area.</desc>
         </value>
@@ -2179,7 +2180,7 @@
         </value>
         <value name="row-reverse" version="3.0" browsers="all">
           <desc>Same as 'row', except the main-start and main-end directions are swapped.</desc>
-        </value
+        </value>
         <value name="wrap" version="3.0" browsers="all">
           <desc>The flexbox is multi-line.</desc>
         </value>
@@ -2969,7 +2970,7 @@
         <value name="center" version="3.0" browsers="all">
           <desc>Flex items are packed toward the center of the line.</desc>
         </value>
-        <value name="flex-end" version="3.0" browsers="all" >
+        <value name="flex-end" version="3.0" browsers="all">
           <desc>Flex items are packed toward the end of the line.</desc>
         </value>
         <value name="flex-start" version="3.0" browsers="all">

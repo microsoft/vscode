@@ -771,76 +771,93 @@ exports.data ={
 		"properties": [
 			{
 				"name": "align-content",
-				"desc": "Aligns a flex container's lines within the flex container when there is extra space in the cross-axis, similar to how 'justify-content' aligns individual items within the main-axis.",
+				"desc": "Aligns a flex container’s lines within the flex container when there is extra space in the cross-axis, similar to how 'justify-content' aligns individual items within the main-axis.",
 				"browsers": "E,C29,FF22,IE11,O12.1,S9",
 				"restriction": "enum",
 				"values": [
 					{
-						"name": "center"
+						"name": "center",
+						"desc": "Lines are packed toward the center of the flex container."
 					},
 					{
-						"name": "flex-end"
+						"name": "flex-end",
+						"desc": "Lines are packed toward the end of the flex container."
 					},
 					{
-						"name": "flex-start"
+						"name": "flex-start",
+						"desc": "Lines are packed toward the start of the flex container."
 					},
 					{
-						"name": "space-around"
+						"name": "space-around",
+						"desc": "Lines are evenly distributed in the flex container, with half-size spaces on either end."
 					},
 					{
-						"name": "space-between"
+						"name": "space-between",
+						"desc": "Lines are evenly distributed in the flex container."
 					},
 					{
-						"name": "stretch"
+						"name": "stretch",
+						"desc": "Lines stretch to take up the remaining space."
 					}
 				]
 			},
 			{
 				"name": "align-items",
-				"desc": "Flex items can be aligned in the cross axis of the current line of the flex container, similar to 'justify-content' but in the perpendicular direction.",
+				"desc": "Aligns flex items along the cross axis of the current line of the flex container.",
 				"browsers": "E,C29,FF22,IE11,O12.1,S9",
 				"restriction": "enum",
 				"values": [
 					{
-						"name": "baseline"
+						"name": "baseline",
+						"desc": "If the flex item’s inline axis is the same as the cross axis, this value is identical to 'flex-start'. Otherwise, it participates in baseline alignment."
 					},
 					{
-						"name": "center"
+						"name": "center",
+						"desc": "The flex item’s margin box is centered in the cross axis within the line."
 					},
 					{
-						"name": "flex-end"
+						"name": "flex-end",
+						"desc": "The cross-end margin edge of the flex item is placed flush with the cross-end edge of the line."
 					},
 					{
-						"name": "flex-start"
+						"name": "flex-start",
+						"desc": "The cross-start margin edge of the flex item is placed flush with the cross-start edge of the line."
 					},
 					{
-						"name": "stretch"
+						"name": "stretch",
+						"desc": "If the cross size property of the flex item computes to auto, and neither of the cross-axis margins are auto, the flex item is stretched."
 					}
 				]
 			},
 			{
 				"name": "align-self",
-				"desc": "Flex items can be aligned in the cross axis of the current line of the flex container, similar to 'justify-content' but in the perpendicular direction.",
+				"desc": "allows the default alignment along the cross axis to be overridden for individual flex items.",
 				"browsers": "E,C29,FF22,IE11,O12.1,S9",
 				"restriction": "enum",
 				"values": [
 					{
-						"name": "auto"
+						"name": "auto",
+						"desc": "Computes to the value of 'align-items' on the element’s parent, or 'stretch' if the element has no parent. On absolutely positioned elements, it computes to itself."
 					},
 					{
-						"name": "baseline"
+						"name": "baseline",
+						"desc": "If the flex item’s inline axis is the same as the cross axis, this value is identical to 'flex-start'. Otherwise, it participates in baseline alignment."
 					},
 					{
-						"name": "center"
+						"name": "center",
+						"desc": "The flex item’s margin box is centered in the cross axis within the line."
 					},
 					{
-						"name": "flex-end"
+						"name": "flex-end",
+						"desc": "The cross-end margin edge of the flex item is placed flush with the cross-end edge of the line."
 					},
 					{
-						"name": "flex-start"
+						"name": "flex-start",
+						"desc": "The cross-start margin edge of the flex item is placed flush with the cross-start edge of the line."
 					},
 					{
-						"name": "stretch"
+						"name": "stretch",
+						"desc": "If the cross size property of the flex item computes to auto, and neither of the cross-axis margins are auto, the flex item is stretched."
 					}
 				]
 			},
@@ -926,7 +943,7 @@ exports.data ={
 			},
 			{
 				"name": "animation-delay",
-				"desc": "Defines when the animation will start. An 'animation-delay' value of '0' means the animation will execute as soon as it is applied. Otherwise, the value specifies an offset from the moment the animation is applied, and the animation will delay execution by that offset.",
+				"desc": "Defines when the animation will start.",
 				"browsers": "E,C43,FF16,IE10,O12.1,S9",
 				"restriction": "time"
 			},
@@ -1010,7 +1027,7 @@ exports.data ={
 			},
 			{
 				"name": "animation-timing-function",
-				"desc": "Describes how the animation will progress over one cycle of its duration. See the 'transition-timing-function'.",
+				"desc": "Describes how the animation will progress over one cycle of its duration.",
 				"browsers": "E,C43,FF16,IE10,O12.1,S9",
 				"restriction": "enum",
 				"values": [
@@ -1059,7 +1076,7 @@ exports.data ={
 			},
 			{
 				"name": "background",
-				"desc": "Background of an element",
+				"desc": "Shorthand property for setting most background properties at the same place in the style sheet.",
 				"restriction": "enum, color, length, percentage, url",
 				"values": [
 					{
@@ -1091,7 +1108,8 @@ exports.data ={
 						"browsers": "FF16,IE10,O12.5"
 					},
 					{
-						"name": "local"
+						"name": "local",
+						"desc": "The background is fixed with regard to the element's contents: if the element has a scrolling mechanism, the background scrolls with the element's contents."
 					},
 					{
 						"name": "-moz-element(#id)",
@@ -1145,10 +1163,12 @@ exports.data ={
 						"browsers": "FF16,IE10,O12.5"
 					},
 					{
-						"name": "repeat-x"
+						"name": "repeat-x",
+						"desc": "Equivalent to 'repeat no-repeat'."
 					},
 					{
-						"name": "repeat-y"
+						"name": "repeat-y",
+						"desc": "Equivalent to 'no-repeat repeat'."
 					},
 					{
 						"name": "right",
@@ -1201,7 +1221,7 @@ exports.data ={
 			},
 			{
 				"name": "background-attachment",
-				"desc": "If background images are specified, this property specifies whether they are fixed with regard to the viewport ('fixed') or scroll along with the element ('scroll') or its contents ('local').",
+				"desc": "Specifies whether the background images are fixed with regard to the viewport ('fixed') or scroll along with the element ('scroll') or its contents ('local').",
 				"restriction": "enum",
 				"values": [
 					{
@@ -1210,11 +1230,12 @@ exports.data ={
 					},
 					{
 						"name": "local",
+						"desc": "The background is fixed with regard to the element’s contents: if the element has a scrolling mechanism, the background scrolls with the element’s contents.",
 						"browsers": "E,C,FF25,IE9,O11.5,S5"
 					},
 					{
 						"name": "scroll",
-						"desc": "The background is fixed with regard to the element itself and does not scroll with its contents. (It is effectively attached to the element's border.)"
+						"desc": "The background is fixed with regard to the element itself and does not scroll with its contents. (It is effectively attached to the element’s border.)"
 					}
 				]
 			},
@@ -1300,12 +1321,12 @@ exports.data ={
 			},
 			{
 				"name": "background-color",
-				"desc": "Color used for an element's background",
+				"desc": "Sets the background color of an element.",
 				"restriction": "color"
 			},
 			{
 				"name": "background-image",
-				"desc": "Image used for an element's background",
+				"desc": "Sets the background image(s) of an element.",
 				"restriction": "url, enum",
 				"values": [
 					{
@@ -1334,7 +1355,7 @@ exports.data ={
 					},
 					{
 						"name": "none",
-						"desc": "A value of 'none' counts as an image layer but draws nothing."
+						"desc": "Counts as an image layer but draws nothing."
 					},
 					{
 						"name": "-o-linear-gradient()",
@@ -1407,7 +1428,7 @@ exports.data ={
 			},
 			{
 				"name": "background-position",
-				"desc": "If background images have been specified, this property specifies their initial position (after any resizing) within their corresponding background positioning area.",
+				"desc": "Specifies the initial position of the background image(s) (after any resizing) within their corresponding background positioning area.",
 				"restriction": "position, length, percentage"
 			},
 			{
@@ -1452,7 +1473,7 @@ exports.data ={
 			},
 			{
 				"name": "background-repeat",
-				"desc": "How the background image is tiled within an element",
+				"desc": "Specifies how background images are tiled after they have been sized and positioned.",
 				"restriction": "enum",
 				"values": [
 					{
@@ -1463,10 +1484,12 @@ exports.data ={
 						"desc": "The image is repeated in this direction as often as needed to cover the background painting area."
 					},
 					{
-						"name": "repeat-x"
+						"name": "repeat-x",
+						"desc": "Computes to 'repeat no-repeat'."
 					},
 					{
-						"name": "repeat-y"
+						"name": "repeat-y",
+						"desc": "Computes to 'no-repeat repeat'."
 					},
 					{
 						"name": "round",
@@ -1485,7 +1508,8 @@ exports.data ={
 				"restriction": "length, percentage",
 				"values": [
 					{
-						"name": "auto"
+						"name": "auto",
+						"desc": "Resolved by using the image’s intrinsic ratio and the size of the other dimension, or failing that, using the image’s intrinsic size, or failing that, treating it as 100%."
 					},
 					{
 						"name": "contain",
@@ -2562,21 +2586,24 @@ exports.data ={
 				"restriction": "length, number, percentage",
 				"values": [
 					{
-						"name": "auto"
+						"name": "auto",
+						"desc": "Retrieves the value of the main size property as the used 'flex-basis'."
 					},
 					{
-						"name": "none"
+						"name": "none",
+						"desc": "Expands to '0 0 auto'."
 					}
 				]
 			},
 			{
 				"name": "flex-basis",
-				"desc": "Sets the flex basis. Negative lengths are invalid.",
+				"desc": "Sets the flex basis.",
 				"browsers": "E,C29,FF22,IE11,O12.1,S9",
 				"restriction": "length, number, percentage",
 				"values": [
 					{
-						"name": "auto"
+						"name": "auto",
+						"desc": "Retrieves the value of the main size property as the used 'flex-basis'."
 					},
 					{
 						"name": "content",
@@ -2586,21 +2613,25 @@ exports.data ={
 			},
 			{
 				"name": "flex-direction",
-				"desc": "Specifies how flexbox items are placed in the flexbox.",
+				"desc": "Specifies how flex items are placed in the flex container, by setting the direction of the flex container’s main axis.",
 				"browsers": "E,C29,FF22,IE11,O12.1,S9",
 				"restriction": "enum",
 				"values": [
 					{
-						"name": "column"
+						"name": "column",
+						"desc": "The flex container’s main axis has the same orientation as the block axis of the current writing mode."
 					},
 					{
-						"name": "column-reverse"
+						"name": "column-reverse",
+						"desc": "Same as 'column', except the main-start and main-end directions are swapped."
 					},
 					{
-						"name": "row"
+						"name": "row",
+						"desc": "The flex container’s main axis has the same orientation as the inline axis of the current writing mode."
 					},
 					{
-						"name": "row-reverse"
+						"name": "row-reverse",
+						"desc": "Same as 'row', except the main-start and main-end directions are swapped."
 					}
 				]
 			},
@@ -2611,24 +2642,28 @@ exports.data ={
 				"restriction": "enum",
 				"values": [
 					{
-						"name": "column"
+						"name": "column",
+						"desc": "The flex container’s main axis has the same orientation as the block axis of the current writing mode."
 					},
 					{
-						"name": "column-reverse"
+						"name": "column-reverse",
+						"desc": "Same as 'column', except the main-start and main-end directions are swapped."
 					},
 					{
 						"name": "nowrap",
-						"desc": "The flexbox is single-line. The cross-start direction is equivalent to either the 'start' or 'before' direction of the current writing mode, whichever is in the cross-axis, and the cross-end direction is the opposite direction of cross-start."
+						"desc": "The flex container is single-line."
 					},
 					{
-						"name": "row"
+						"name": "row",
+						"desc": "The flex container’s main axis has the same orientation as the inline axis of the current writing mode."
 					},
 					{
-						"name": "row-reverse"
+						"name": "row-reverse",
+						"desc": "Same as 'row', except the main-start and main-end directions are swapped."
 					},
 					{
 						"name": "wrap",
-						"desc": "The flexbox is multi-line. The cross-start direction is equivalent to either the 'start' or 'before' direction of the current writing mode, whichever is in the cross-axis, and the cross-end direction is the opposite direction of cross-start."
+						"desc": "The flexbox is multi-line."
 					},
 					{
 						"name": "wrap-reverse"
@@ -2643,23 +2678,23 @@ exports.data ={
 			},
 			{
 				"name": "flex-shrink",
-				"desc": "The 'flex-shrink' property sets the flex shrink factor. Negative numbers are invalid.",
+				"desc": "Sets the flex shrink factor. Negative numbers are invalid.",
 				"browsers": "E,C29,FF22,IE11,O12.1,S9",
 				"restriction": "number"
 			},
 			{
 				"name": "flex-wrap",
-				"desc": "controls whether the flexbox is single-line or multi-line, and the direction of the cross axis, which affects the direction new lines are stacked in and the meaning of the 'flex-align', 'flex-item-align', and 'flex-line-pack' properties.",
+				"desc": "Controls whether the flex container is single-line or multi-line, and the direction of the cross-axis, which determines the direction new lines are stacked in.",
 				"browsers": "E,C29,FF28,IE11,O12.1,S9",
 				"restriction": "enum",
 				"values": [
 					{
 						"name": "nowrap",
-						"desc": "The flexbox is single-line. The cross-start direction is equivalent to either the 'start' or 'before' direction of the current writing mode, whichever is in the cross-axis, and the cross-end direction is the opposite direction of cross-start."
+						"desc": "The flex container is single-line."
 					},
 					{
 						"name": "wrap",
-						"desc": "The flexbox is multi-line. The cross-start direction is equivalent to either the 'start' or 'before' direction of the current writing mode, whichever is in the cross-axis, and the cross-end direction is the opposite direction of cross-start."
+						"desc": "The flexbox is multi-line."
 					},
 					{
 						"name": "wrap-reverse"
@@ -3409,24 +3444,29 @@ exports.data ={
 			},
 			{
 				"name": "justify-content",
-				"desc": "Aligns a flex container's lines within the flex container when there is extra space in the cross-axis, similar to how 'justify-content' aligns individual items within the main-axis.",
+				"desc": "Aligns flex items along the main axis of the current line of the flex container.",
 				"browsers": "E,C29,FF22,IE11,O12.1,S9",
 				"restriction": "enum",
 				"values": [
 					{
-						"name": "center"
+						"name": "center",
+						"desc": "Flex items are packed toward the center of the line."
 					},
 					{
-						"name": "flex-end"
+						"name": "flex-end",
+						"desc": "Flex items are packed toward the end of the line."
 					},
 					{
-						"name": "flex-start"
+						"name": "flex-start",
+						"desc": "Flex items are packed toward the start of the line."
 					},
 					{
-						"name": "space-around"
+						"name": "space-around",
+						"desc": "Flex items are evenly distributed in the line, with half-size spaces on either end."
 					},
 					{
-						"name": "space-between"
+						"name": "space-between",
+						"desc": "Flex items are evenly distributed in the line."
 					}
 				]
 			},
@@ -3977,7 +4017,7 @@ exports.data ={
 			},
 			{
 				"name": "-moz-animation-delay",
-				"desc": "Defines when the animation will start. An 'animation-delay' value of '0' means the animation will execute as soon as it is applied. Otherwise, the value specifies an offset from the moment the animation is applied, and the animation will delay execution by that offset.",
+				"desc": "Defines when the animation will start.",
 				"browsers": "FF9",
 				"restriction": "time"
 			},
@@ -6577,7 +6617,7 @@ exports.data ={
 			},
 			{
 				"name": "-o-animation-delay",
-				"desc": "Defines when the animation will start. An 'animation-delay' value of '0' means the animation will execute as soon as it is applied. Otherwise, the value specifies an offset from the moment the animation is applied, and the animation will delay execution by that offset.",
+				"desc": "Defines when the animation will start.",
 				"browsers": "O12",
 				"restriction": "time"
 			},
@@ -8486,7 +8526,7 @@ exports.data ={
 			},
 			{
 				"name": "-webkit-animation-delay",
-				"desc": "Defines when the animation will start. An 'animation-delay' value of '0' means the animation will execute as soon as it is applied. Otherwise, the value specifies an offset from the moment the animation is applied, and the animation will delay execution by that offset.",
+				"desc": "Defines when the animation will start.",
 				"browsers": "C,S5",
 				"restriction": "time"
 			},
@@ -10013,10 +10053,7 @@ exports.descriptions = {
 	"step-start": "The step-start function is equivalent to steps(1, start).",
 	"paused": "A running animation will be paused.",
 	"running": "Resume playback of a paused animation.",
-	"local": "The background is fixed with regard to the element's contents: if the element has a scrolling mechanism, the background scrolls with the element's contents.",
 	"no-repeat": "The image is placed once and not repeated in this direction.",
-	"repeat-x": "Equivalent to 'repeat no-repeat'.",
-	"repeat-y": "Equivalent to 'no-repeat repeat'.",
 	"clone": "Each box is independently wrapped with the border and padding. The 'border-radius' and 'border-image' and 'box-shadow', if any, are applied to each box independently. The background is drawn independently in each box of the element. A no-repeat background image will thus be rendered once in each box of the element.",
 	"slice": "No border and no padding are inserted at the break. No box-shadow is drawn at the broken edge; 'border-radius' has no effect at its corners; and the 'border-image' is rendered for the whole box as if it were unbroken. The effect is as though the element were rendered with no break present, and then sliced by the break afterward.",
 	"inset": "Changes the drop shadow from an outer shadow (one that shadows the box onto the canvas, as if it were lifted above the canvas) to an inner shadow (one that shadows the canvas onto the box, as if the box were cut out of the canvas and shifted behind it).",
@@ -10073,6 +10110,7 @@ exports.descriptions = {
 	"hue-rotate()": "Applies a hue rotation on the input image. ",
 	"opacity()": "Applies transparency to the samples in the input image.",
 	"saturate()": "Saturates the input image.",
+	"content": "Indicates automatic sizing, based on the flex item’s content.",
 	"wrap-reverse": "Same as 'wrap', except the cross-start and cross-end directions are swapped.",
 	"bold": "Same as 700",
 	"bolder": "Specifies the weight of the face bolder than the inherited value.",
