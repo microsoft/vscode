@@ -1288,10 +1288,10 @@
       <desc>Specifies whether individual boxes are treated as broken pieces of one continuous box, or whether each box is individually wrapped with the border and padding.</desc>
       <values>
         <value name="clone" version="3.0" browsers="all">
-          <desc>Each box is independently wrapped with the border and padding. The 'border-radius' and 'border-image' and 'box-shadow', if any, are applied to each box independently. The background is drawn independently in each box of the element. A no-repeat background image will thus be rendered once in each box of the element.</desc>
+          <desc>Each box is independently wrapped with the border and padding.</desc>
         </value>
         <value name="slice" version="3.0" browsers="all">
-          <desc>No border and no padding are inserted at the break. No box-shadow is drawn at the broken edge; 'border-radius' has no effect at its corners; and the 'border-image' is rendered for the whole box as if it were unbroken. The effect is as though the element were rendered with no break present, and then sliced by the break afterward.</desc>
+          <desc>The effect is as though the element were rendered with no breaks present, and then sliced by the breaks afterward.</desc>
         </value>
       </values>
     </entry>
@@ -1353,34 +1353,38 @@
       </values>
     </entry>
     <entry name="break-after" restriction="enum" version="3.0" browsers="E,IE10,O11.5" ref="http://www.w3.org/TR/css3-break/#break-between" syntax="h2 { $(name): column; }">
-      <desc>Describes the page/column break behavior before the generated box.</desc>
+      <desc>Describes the page/column/region break behavior after the generated box.</desc>
       <values>
         <value name="always" version="3.0" browsers="all">
           <desc>Always force a page break before/after the generated box.</desc>
         </value>
         <value name="auto" version="3.0" browsers="all">
-          <desc>Neither force nor forbid a page/column break before/after the generated box.</desc>
+          <desc>Neither force nor forbid a page/column break before/after the principal box.</desc>
         </value>
         <value name="avoid" version="3.0" browsers="all">
-          <desc>Avoid a page/column break before/after the generated box.</desc>
+          <desc>Avoid a break before/after the principal box.</desc>
         </value>
         <value name="avoid-column" version="3.0" browsers="all">
-          <desc>Avoid a column break before/after the generated box.</desc>
+          <desc>Avoid a column break before/after the principal box.</desc>
         </value>
         <value name="avoid-page" version="3.0" browsers="all">
-          <desc>Avoid a page break before/after the generated box.</desc>
+          <desc>Avoid a page break before/after the principal box.</desc>
         </value>
-        <value name="avoid-region" version="3.0" browsers="none" />
+        <value name="avoid-region" version="3.0" browsers="none">
+          <desc>Avoid a region break before/after the principal box.</desc>
+        </value>
         <value name="column" version="3.0" browsers="all">
-          <desc>Always force a column break before/after the generated box.</desc>
+          <desc>Always force a column break before/after the principal box.</desc>
         </value>
         <value name="left" version="3.0" browsers="all">
           <desc>Force one or two page breaks before/after the generated box so that the next page is formatted as a left page.</desc>
         </value>
         <value name="page" version="3.0" browsers="all">
-          <desc>Always force a page break before/after the generated box.</desc>
+          <desc>Always force a page break before/after the principal box.</desc>
         </value>
-        <value name="region" version="3.0" browsers="none" />
+        <value name="region" version="3.0" browsers="none">
+          <desc>Always force a region break before/after the principal box.</desc>
+        </value>
         <value name="right" version="3.0" browsers="all">
           <desc>Force one or two page breaks before/after the generated box so that the next page is formatted as a right page.</desc>
         </value>
@@ -1393,34 +1397,38 @@
       </values>
     </entry>
     <entry name="break-before" restriction="enum" version="3.0" browsers="E,IE10,O11.5" ref="http://www.w3.org/TR/css3-break/#break-between" syntax="h2 { $(name): column; }">
-      <desc>Describes the page/column break behavior before the generated box.</desc>
+      <desc>Describes the page/column/region break behavior before the generated box.</desc>
       <values>
         <value name="always" version="3.0" browsers="all">
           <desc>Always force a page break before/after the generated box.</desc>
         </value>
         <value name="auto" version="3.0" browsers="all">
-          <desc>Neither force nor forbid a page/column break before/after the generated box.</desc>
+          <desc>Neither force nor forbid a page/column break before/after the principal box.</desc>
         </value>
         <value name="avoid" version="3.0" browsers="all">
-          <desc>Avoid a page/column break before/after the generated box.</desc>
+          <desc>Avoid a break before/after the principal box.</desc>
         </value>
         <value name="avoid-column" version="3.0" browsers="all">
-          <desc>Avoid a column break before/after the generated box.</desc>
+          <desc>Avoid a column break before/after the principal box.</desc>
         </value>
         <value name="avoid-page" version="3.0" browsers="all">
-          <desc>Avoid a page break before/after the generated box.</desc>
+          <desc>Avoid a page break before/after the principal box.</desc>
         </value>
-        <value name="avoid-region" version="3.0" browsers="none" />
+        <value name="avoid-region" version="3.0" browsers="none">
+          <desc>Avoid a region break before/after the principal box.</desc>
+        </value>
         <value name="column" version="3.0" browsers="all">
-          <desc>Always force a column break before/after the generated box.</desc>
+          <desc>Always force a column break before/after the principal box.</desc>
         </value>
         <value name="left" version="3.0" browsers="all">
           <desc>Force one or two page breaks before/after the generated box so that the next page is formatted as a left page.</desc>
         </value>
         <value name="page" version="3.0" browsers="all">
-          <desc>Always force a page break before/after the generated box.</desc>
+          <desc>Always force a page break before/after the principal box.</desc>
         </value>
-        <value name="region" version="3.0" browsers="none" />
+        <value name="region" version="3.0" browsers="none">
+          <desc>Always force a region break before/after the principal box.</desc>
+        </value>
         <value name="right" version="3.0" browsers="all">
           <desc>Force one or two page breaks before/after the generated box so that the next page is formatted as a right page.</desc>
         </value>
@@ -1433,21 +1441,23 @@
       </values>
     </entry>
     <entry name="break-inside" restriction="enum" version="3.0" browsers="E,IE10,O11.5" ref="http://www.w3.org/TR/css3-break/#break-within" syntax="h2 { $(name): avoid-column; }">
-      <desc>Describes the page/column break behavior inside the generated box.</desc>
+      <desc>Describes the page/column/region break behavior inside the principal box.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all">
-          <desc>Neither force nor forbid a page/column break inside the generated box.</desc>
+          <desc>Impose no additional breaking constraints within the box.</desc>
         </value>
         <value name="avoid" version="3.0" browsers="all">
-          <desc>Avoid a page/column break inside the generated box.</desc>
+          <desc>Avoid breaks within the box.</desc>
         </value>
         <value name="avoid-column" version="3.0" browsers="all">
-          <desc>Avoid a column break inside the generated box.</desc>
+          <desc>Avoid a column break within the box.</desc>
         </value>
         <value name="avoid-page" version="3.0" browsers="all">
-          <desc>Avoid a page break inside the generated box.</desc>
+          <desc>Avoid a page break within the box.</desc>
         </value>
-        <value name="avoid-region" version="3.0" browsers="none" />
+        <value name="avoid-region" version="3.0" browsers="none">
+          <desc>Avoid a region break within the box.</desc>
+        </value>
       </values>
     </entry>
     <entry name="caption-side" restriction="enum" version="2.0" browsers="E,C,FF,IE8,O,S" ref="http://www.w3.org/TR/CSS2/tables.html#caption-position" syntax="caption { $(name): bottom; }">
@@ -5245,7 +5255,7 @@
       <desc>Controls the order in which flex items appear within their flex container, by assigning them to ordinal groups.</desc>
     </entry>
     <entry name="orphans" restriction="integer" version="2.0" browsers="C,IE8,O7,S1.3" ref="http://www.w3.org/TR/css3-break/#widows-orphans" syntax="&lt;integer&gt;">
-      <desc>Specifies the minimum number of lines in a block element that must be left at the bottom of a page.</desc>
+      <desc>Specifies the minimum number of line boxes in a block container that must be left in a fragment before a fragmentation break.</desc>
     </entry>
     <entry name="-o-table-baseline" restriction="integer" version="3.0" browsers="O9.6" ref="http://www.w3.org/TR/mathml-for-css/" syntax="td { $(name): 2; }">
       <desc>Determines which row of a inline-table should be used as baseline of inline-table.</desc>
@@ -8002,7 +8012,7 @@
       </values>
     </entry>
     <entry name="widows" restriction="integer" version="2.0" browsers="C,IE8,O9.5,S1" ref="http://www.w3.org/TR/css3-break/#widows-orphans" syntax="&lt;integer&gt;">
-      <desc>Specifies the minimum number of lines in a block element that must be left at the top of a page.</desc>
+      <desc>Specifies the minimum number of line boxes of a block container that must be left in a fragment after a break.</desc>
     </entry>
     <entry name="width" restriction="length, percentage" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-box/#width" syntax="header { $(name): 200px; }">
       <desc>Specifies the width of the content area, padding area or border area (depending on 'box-sizing') of certain boxes.</desc>
