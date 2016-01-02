@@ -1641,18 +1641,28 @@
     <entry name="contain" restriction="enum" version="3.0" browsers="none" ref="https://drafts.csswg.org/css-containment-3/#propdef-contain" syntax="div { $(name): strict; }">
       <desc>Indicates that an element and its contents are, as much as possible, independent of the rest of the document tree.</desc>
       <values>
-        <value name="none" version="3.0" browsers="all" />
-        <value name="strict" version="3.0" browsers="all" />
-        <value name="layout" version="3.0" browsers="all" />
-        <value name="style" version="3.0" browsers="all" />
-        <value name="paint" version="3.0" browsers="all" />
+        <value name="none" version="3.0" browsers="all">
+          <desc>Indicates that the property has no effect.</desc>
+        </value>
+        <value name="strict" version="3.0" browsers="all">
+          <desc>Turns on all forms of containment for the element.</desc>
+        </value>
+        <value name="layout" version="3.0" browsers="all">
+          <desc>Turns on layout containment for the element.</desc>
+        </value>
+        <value name="style" version="3.0" browsers="all">
+          <desc>Turns on style containment for the element.</desc>
+        </value>
+        <value name="paint" version="3.0" browsers="all">
+          <desc>Turns on paint containment for the element.</desc>
+        </value>
       </values>
     </entry>
     <entry name="content" restriction="string, url" version="2.0" browsers="E,C,FF1,IE8,O4,S1" ref="http://www.w3.org/TR/css3-content/#content" syntax="a:after { $(name): ' ( attr(href))';}">
       <desc>Determines which page-based occurrence of a given element is applied to a counter or string value.</desc>
       <values>
         <value name="attr()" version="2.0" browsers="all">
-          <desc>The attr(n) function returns as a string the value of attribute n for the subject of the selector</desc>
+          <desc>The attr(n) function returns as a string the value of attribute n for the subject of the selector.</desc>
         </value>
         <value name="box" version="3.0" browsers="none">
           <desc>A hollow square.</desc>
