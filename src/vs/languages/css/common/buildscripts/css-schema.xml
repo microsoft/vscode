@@ -1533,8 +1533,12 @@
     <entry name="color-adjust" restriction="enum" version="4.0" browsers="none" ref="https://drafts.csswg.org/css-color-4/#propdef-color-adjust" syntax="image { $(name): exact; }">
       <desc>Provides a hint to the user-agent about how it should treat color and style choices that might be expensive or generally unwise on a given device.</desc>
       <values>
-        <value name="economy" version="4.0" browsers="all" />
-        <value name="exact" version="4.0" browsers="all" />
+        <value name="economy" version="4.0" browsers="all">
+          <desc>The user agent should make adjustments to the page’s styling as it deems necessary and prudent for the output device.</desc>
+        </value>
+        <value name="exact" version="4.0" browsers="all">
+          <desc>Indicates that the page is using color and styling on the specified element in a way which is important and significant, and which should not be tweaked or changed except at the user’s request.</desc>
+        </value>
       </values>
     </entry>
     <entry name="color-interpolation" restriction="enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/SVG11/painting.html#ColorInterpolationProperty">
