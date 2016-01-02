@@ -395,10 +395,10 @@
     <entry name="::content" version="3.0" browsers="C35,O22" ref="http://www.w3.org/TR/css-scoping-1/#selectordef-content" syntax="::content > span { color: yellow; }">
       <desc>Deprecated. Matches the distribution list itself, on elements that have one. Use ::slotted for forward compatibility.</desc>
     </entry>
-    <entry name="::cue" version="3.0" browsers="C,O16,S6" ref="https://dvcs.w3.org/hg/text-tracks/raw-file/default/webvtt/Overview.html#the-cue-pseudo-element" syntax="::cue { color: red; }" />
-    <entry name="::cue()" version="3.0" browsers="C,O16,S6" ref="https://dvcs.w3.org/hg/text-tracks/raw-file/default/webvtt/Overview.html#the-cue-pseudo-element" syntax="::cue(v(voice=woman)) { color: red; }" />
-    <entry name="::cue-region" version="3.0" browsers="C,O16,S6" ref="https://dvcs.w3.org/hg/text-tracks/raw-file/default/webvtt/Overview.html#the-cue-region-pseudo-element" syntax="::cue-region(v(voice=woman)) { color: red; }" />
-    <entry name="::cue-region()" version="3.0" browsers="C,O16,S6" ref="https://dvcs.w3.org/hg/text-tracks/raw-file/default/webvtt/Overview.html#the-cue-region-pseudo-element" syntax="::cue-region { border: none; }" />
+    <entry name="::cue" version="3.0" browsers="C,O16,S6" ref="https://w3c.github.io/webvtt/#the-cue-pseudo-element" syntax="::cue { color: red; }" />
+    <entry name="::cue()" version="3.0" browsers="C,O16,S6" ref="https://w3c.github.io/webvtt/#selectordef-cue-selector" syntax="::cue(v(voice=woman)) { color: red; }" />
+    <entry name="::cue-region" version="3.0" browsers="C,O16,S6" ref="https://w3c.github.io/webvtt/#the-cue-region-pseudo-element" syntax="::cue-region { border: none; }" />
+    <entry name="::cue-region()" version="3.0" browsers="C,O16,S6" ref="https://w3c.github.io/webvtt/#the-cue-region-pseudo-element" syntax="::cue-region(v(voice=woman)) { color: red; }" />
     <entry name="::first-letter" version="3.0" browsers="E,C,FF1.5,IE9,O7,S1" ref="http://www.w3.org/TR/css-pseudo-4/#first-letter-pseudo" syntax="p::first-letter { font-size: 200%; }">
       <desc>Represents the first letter of an element, if it is not preceded by any other content (such as images or inline tables) on its line.</desc>
     </entry>
