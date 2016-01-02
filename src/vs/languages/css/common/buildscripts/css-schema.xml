@@ -392,7 +392,9 @@
     <entry name="::before" version="3.0" browsers="E,C,FF1.5,IE9,O9,S4" ref="http://www.w3.org/TR/css-pseudo-4/#selectordef-before" syntax="div::before { content: 'abc'; }">
       <desc>Represents a styleable child pseudo-element immediately before the originating element’s actual content.</desc>
     </entry>
-    <entry name="::content" version="3.0" browsers="C,FF,O" ref="http://w3c.github.io/webcomponents/spec/shadow/#content-pseudo-element" syntax="::content &gt; span { color: yellow; }" />
+    <entry name="::content" version="3.0" browsers="C35,O22" ref="http://www.w3.org/TR/css-scoping-1/#selectordef-content" syntax="::content > span { color: yellow; }">
+      <desc>Deprecated. Matches the distribution list itself, on elements that have one. Use ::slotted for forward compatibility.</desc>
+    </entry>
     <entry name="::cue" version="3.0" browsers="C,O16,S6" ref="https://dvcs.w3.org/hg/text-tracks/raw-file/default/webvtt/Overview.html#the-cue-pseudo-element" syntax="::cue { color: red; }" />
     <entry name="::cue()" version="3.0" browsers="C,O16,S6" ref="https://dvcs.w3.org/hg/text-tracks/raw-file/default/webvtt/Overview.html#the-cue-pseudo-element" syntax="::cue(v(voice=woman)) { color: red; }" />
     <entry name="::cue-region" version="3.0" browsers="C,O16,S6" ref="https://dvcs.w3.org/hg/text-tracks/raw-file/default/webvtt/Overview.html#the-cue-region-pseudo-element" syntax="::cue-region(v(voice=woman)) { color: red; }" />
@@ -466,6 +468,15 @@
     </entry>
     <entry name="::selection" version="4.0" browsers="E,C,FF4,IE9,O9.5,S1.1" ref="http://www.w3.org/TR/css-pseudo-4/#selectordef-selection" syntax="p::selection { color: red; }">
       <desc>Represents the portion of a document that has been highlighted by the user.</desc>
+    </entry>
+    <entry name="::region" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-scoping-1/#the-region-pseudo-element" syntax="::region p { margin-right: 5em; }">
+      <desc>Represents a relationship between a selector that matches a CSS Region, and a relative selector that matches some named flow content.</desc>
+    </entry>
+    <entry name="::shadow" version="3.0" browsers="C35,O22" ref="http://www.w3.org/TR/css-scoping-1/#shadow-pseudoelement" syntax="x-foo::shadow > span { color: red; }">
+      <desc>Matches the shadow root if an element has a shadow tree.</desc>
+    </entry>
+    <entry name="::slotted" version="3.0" browsers="none" ref="https://drafts.csswg.org/css-scoping-1/#selectordef-slotted" syntax="::slotted > span { color: yellow; }">
+      <desc>Matches the distribution list itself, on elements that have one.</desc>
     </entry>
     <entry name="::spelling-error" version="4.0" browsers="none" ref="http://www.w3.org/TR/css-pseudo-4/#selectordef-spelling-error" syntax="::spelling-error { text-decoration: dotted underline red; }">
       <desc>Represents a portion of text that has been flagged by the user agent as misspelled.</desc>
