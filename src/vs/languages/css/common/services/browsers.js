@@ -477,8 +477,8 @@ exports.data ={
 		"pseudoelements": [
 			{
 				"name": "::after",
-				"desc": "Pseudo-element is used to insert content immediately after the content of an element (or other pseudo-element). The 'content' property is used to specify the content to insert.",
-				"browsers": "E,C,FF1.5,IE10,O7,S4"
+				"desc": "Represents a styleable child pseudo-element immediately after the originating element’s actual content.",
+				"browsers": "E,C,FF1.5,IE9,O9,S4"
 			},
 			{
 				"name": "::backdrop",
@@ -487,12 +487,13 @@ exports.data ={
 			},
 			{
 				"name": "::before",
-				"desc": "Pseudo-element is used to insert content immediately before the content of an element (or other pseudo-element). The 'content' property is used to specify the content to insert.",
-				"browsers": "E,C,FF1.5,IE10,O8,S1"
+				"desc": "Represents a styleable child pseudo-element immediately before the originating element’s actual content.",
+				"browsers": "E,C,FF1.5,IE9,O9,S4"
 			},
 			{
 				"name": "::content",
-				"browsers": "C,FF,O"
+				"desc": "Deprecated. Matches the distribution list itself, on elements that have one. Use ::slotted for forward compatibility.",
+				"browsers": "C35,O22"
 			},
 			{
 				"name": "::cue",
@@ -512,13 +513,13 @@ exports.data ={
 			},
 			{
 				"name": "::first-letter",
-				"desc": "The ::first-letter pseudo-element represents the first letter of an element, if it is not preceded by any other content (such as images or inline tables) on its line.",
-				"browsers": "E,C,FF1.5,IE10,O7,S1"
+				"desc": "Represents the first letter of an element, if it is not preceded by any other content (such as images or inline tables) on its line.",
+				"browsers": "E,C,FF1.5,IE9,O7,S1"
 			},
 			{
 				"name": "::first-line",
-				"desc": "The ::first-line pseudo-element describes the contents of the first formatted line of an element.",
-				"browsers": "E,C,FF1.5,IE10,O7,S1"
+				"desc": "Describes the contents of the first formatted line of its originating element.",
+				"browsers": "E,C,FF1.5,IE9,O7,S1"
 			},
 			{
 				"name": "::-moz-focus-inner",
@@ -530,22 +531,27 @@ exports.data ={
 			},
 			{
 				"name": "::-moz-list-bullet",
+				"desc": "Used to style the bullet of a list element. Similar to the standardized ::marker.",
 				"browsers": "FF1"
 			},
 			{
 				"name": "::-moz-list-number",
+				"desc": "Used to style the numbers of a list element. Similar to the standardized ::marker.",
 				"browsers": "FF1"
 			},
 			{
 				"name": "::-moz-placeholder",
-				"browsers": "FF9"
+				"desc": "Represents placeholder text in an input field",
+				"browsers": "FF19"
 			},
 			{
 				"name": "::-moz-progress-bar",
+				"desc": "Represents the bar portion of a progress bar.",
 				"browsers": "FF9"
 			},
 			{
 				"name": "::-moz-selection",
+				"desc": "Represents the portion of a document that has been highlighted by the user.",
 				"browsers": "FF1"
 			},
 			{
@@ -555,78 +561,83 @@ exports.data ={
 			},
 			{
 				"name": "::-ms-browse",
-				"desc": "Applies one or more styles to the browse button of an input type=file control.",
-				"browsers": "IE10"
+				"desc": "Represents the browse button of an input type=file control.",
+				"browsers": "E,IE10"
 			},
 			{
 				"name": "::-ms-check",
-				"desc": "Applies one or more styles to the check of a checkbox or radio button input control.",
-				"browsers": "IE10"
+				"desc": "Represents the check of a checkbox or radio button input control.",
+				"browsers": "E,IE10"
 			},
 			{
 				"name": "::-ms-clear",
-				"desc": "Applies one or more styles to the entry area of a text input control when it contains no content.",
-				"browsers": "IE10"
+				"desc": "Represents the clear button of a text input control",
+				"browsers": "E,IE10"
 			},
 			{
 				"name": "::-ms-expand",
-				"desc": "Applies one or more styles to the drop-down button of a select control.",
-				"browsers": "IE10"
+				"desc": "Represents the drop-down button of a select control.",
+				"browsers": "E,IE10"
 			},
 			{
 				"name": "::-ms-fill",
-				"desc": "Applies one or more styles to the bar portion of a progress bar.",
-				"browsers": "IE10"
+				"desc": "Represents the bar portion of a progress bar.",
+				"browsers": "E,IE10"
 			},
 			{
 				"name": "::-ms-fill-lower",
-				"desc": "Applies one or more styles to portion of the slider track from its smallest value up to the value currently selected by the thumb. In a left-to-right layout, this is the portion of the slider track to the left of the thumb.",
-				"browsers": "IE10"
+				"desc": "Represents the portion of the slider track from its smallest value up to the value currently selected by the thumb. In a left-to-right layout, this is the portion of the slider track to the left of the thumb.",
+				"browsers": "E,IE10"
 			},
 			{
 				"name": "::-ms-fill-upper",
-				"desc": "Applies one or more styles to portion of the slider track from the value currently selected by the thumb up to the slider's largest value. In a left-to-right layout, this is the portion of the slider track to the right of the thumb.",
-				"browsers": "IE10"
+				"desc": "Represents the portion of the slider track from the value currently selected by the thumb up to the slider's largest value. In a left-to-right layout, this is the portion of the slider track to the right of the thumb.",
+				"browsers": "E,IE10"
 			},
 			{
 				"name": "::-ms-reveal",
-				"desc": "Applies one or more styles to the password reveal button of an input type=password control.",
-				"browsers": "IE10"
+				"desc": "Represents the password reveal button of an input type=password control.",
+				"browsers": "E,IE10"
 			},
 			{
 				"name": "::-ms-thumb",
-				"desc": "Applies one or more styles to portion of the range input control (also known as a slider control) that the user drags.",
-				"browsers": "IE10"
+				"desc": "Represents the portion of range input control (also known as a slider control) that the user drags.",
+				"browsers": "E,IE10"
 			},
 			{
 				"name": "::-ms-ticks-after",
-				"desc": "Applies one or more styles to the tick marks of a slider that begin just after the thumb and continue up to the slider's largest value. In a left-to-right layout, these are the ticks to the right of the thumb.",
-				"browsers": "IE10"
+				"desc": "Represents the tick marks of a slider that begin just after the thumb and continue up to the slider's largest value. In a left-to-right layout, these are the ticks to the right of the thumb.",
+				"browsers": "E,IE10"
 			},
 			{
 				"name": "::-ms-ticks-before",
-				"desc": "Applies one or more styles to the tick marks of a slider that represent its smallest values up to the value currently selected by the thumb. In a left-to-right layout, these are the ticks to the left of the thumb.",
-				"browsers": "IE10"
+				"desc": "Represents the tick marks of a slider that represent its smallest values up to the value currently selected by the thumb. In a left-to-right layout, these are the ticks to the left of the thumb.",
+				"browsers": "E,IE10"
 			},
 			{
 				"name": "::-ms-tooltip",
-				"desc": "Applies one or more styles to the tooltip of a slider (input type=range).",
-				"browsers": "IE10"
+				"desc": "Represents the tooltip of a slider (input type=range).",
+				"browsers": "E,IE10"
 			},
 			{
 				"name": "::-ms-track",
-				"desc": "Applies one or more styles to track of a slider.",
-				"browsers": "IE10"
+				"desc": "Represents the track of a slider.",
+				"browsers": "E,IE10"
 			},
 			{
 				"name": "::-ms-value",
-				"desc": "Applies one or more styles to the content of a text or password input control, or a select control.",
-				"browsers": "IE10"
+				"desc": "Represents the content of a text or password input control, or a select control.",
+				"browsers": "E,IE10"
 			},
 			{
 				"name": "::selection",
-				"desc": "The ::selection selector matches the portion of an element that is selected by a user. Only a few CSS properties can be applied to ::selection: color, background, cursor, and outline.",
-				"browsers": "E,C,FF4,IE9,O9.5,S1.1"
+				"desc": "Represents the portion of a document that has been highlighted by the user.",
+				"browsers": "E,C,IE9,O9.5,S1.1"
+			},
+			{
+				"name": "::shadow",
+				"desc": "Matches the shadow root if an element has a shadow tree.",
+				"browsers": "C35,O22"
 			},
 			{
 				"name": "::-webkit-file-upload-button",
@@ -646,19 +657,19 @@ exports.data ={
 			},
 			{
 				"name": "::-webkit-meter-bar",
-				"browsers": "C,O,S6"
+				"browsers": "E13,C,O15,S6"
 			},
 			{
 				"name": "::-webkit-meter-even-less-good-value",
-				"browsers": "C,O,S6"
+				"browsers": "E13,C,O15,S6"
 			},
 			{
 				"name": "::-webkit-meter-optimum-value",
-				"browsers": "C,O,S6"
+				"browsers": "E13,C,O15,S6"
 			},
 			{
 				"name": "::-webkit-meter-suboptimal-value",
-				"browsers": "C,O,S6"
+				"browsers": "E13,C,O15,S6"
 			},
 			{
 				"name": "::-webkit-ouer-spin-button",
