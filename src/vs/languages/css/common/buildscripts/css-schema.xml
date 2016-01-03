@@ -5021,7 +5021,7 @@
       <desc>Gets or sets a value that is used to offset the inner wrap shape from other shapes.</desc>
     </entry>
     <entry name="-ms-wrap-through" restriction="enum" version="3.0" browsers="E,IE10" ref="http://www.w3.org/TR/css3-exclusions/#propdef-wrap-through" syntax="div { $(name): wrap; }">
-      <desc>Gets or sets a value that specifies how content should wrap around an exclusion element.</desc>
+      <desc>Specifies if an element inherits its parent wrapping context. In other words if it is subject to the exclusions defined outside the element.</desc>
       <values>
         <value name="none" version="3.0" browsers="all">
           <desc>The exclusion element does not inherit its parent node's wrapping context. Its descendants are only subject to exclusion shapes defined inside the element.</desc>
