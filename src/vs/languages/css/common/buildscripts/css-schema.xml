@@ -6014,11 +6014,15 @@
     <entry name="scrollbar-track-color" restriction="color" version="3.0" browsers="IE6" ref="http://msdn.microsoft.com/en-us/library/ms531160(VS.85).aspx" syntax="textarea { $(name): #00ffff; }">
       <desc>Determines the color of the track element of a scroll bar.</desc>
     </entry>
-    <entry name="scroll-behavior" restriction="enum" version="3.0" browsers="36" ref="http://www.w3.org/TR/cssom-view/#scroll-behavior">
+    <entry name="scroll-behavior" restriction="enum" version="3.0" browsers="FF36" ref="http://www.w3.org/TR/cssom-view/#scroll-behavior">
       <desc>Specifies the scrolling behavior for a scrolling box, when scrolling happens due to navigation or CSSOM scrolling APIs.</desc>
       <values>
-        <value name="instant" version="3.0" browsers="all" />
-        <value name="smooth" version="3.0" browsers="all" />
+        <value name="auto" version="3.0" browsers="all">
+          <desc>Scrolls in an instant fashion.</desc>
+        </value>
+        <value name="smooth" version="3.0" browsers="all">
+          <desc>Scrolls in a smooth fashion using a user-agent-defined timing function and time period.</desc>
+        </value>
       </values>
     </entry>
     <entry name="scroll-snap-coordinate" restriction="position, length, percentage, enum" version="3.0" browsers="FF39" ref="http://www.w3.org/TR/css-snappoints-1/#propdef-scroll-snap-coordinate">
