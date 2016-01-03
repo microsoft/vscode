@@ -770,6 +770,12 @@ exports.data ={
 		],
 		"properties": [
 			{
+				"name": "additive-symbols",
+				"desc": "Specifies the symbols used by the marker-construction algorithm specified by the system descriptor. Needs to be specified if the counter system is 'additive'.",
+				"browsers": "FF33",
+				"restriction": "integer, string, url, identifier"
+			},
+			{
 				"name": "align-content",
 				"desc": "Aligns a flex container’s lines within the flex container when there is extra space in the cross-axis, similar to how 'justify-content' aligns individual items within the main-axis.",
 				"browsers": "E,C29,FF22,IE11,O12.1,S9",
@@ -913,7 +919,8 @@ exports.data ={
 						"name": "forwards"
 					},
 					{
-						"name": "infinite"
+						"name": "infinite",
+						"desc": "Causes the animation to repeat forever."
 					},
 					{
 						"name": "linear"
@@ -2510,6 +2517,12 @@ exports.data ={
 				]
 			},
 			{
+				"name": "fallback",
+				"desc": "Specifies a fallback counter style to be used when the current counter style can’t create a representation for a given counter value.",
+				"browsers": "FF33",
+				"restriction": "identifier"
+			},
+			{
 				"name": "fill",
 				"desc": "Paints the interior of the given graphical element.",
 				"restriction": "color, enum, url",
@@ -3550,6 +3563,10 @@ exports.data ={
 						"desc": "A filled square."
 					},
 					{
+						"name": "symbols()",
+						"browsers": "FF35"
+					},
+					{
 						"name": "upper-alpha"
 					},
 					{
@@ -3642,6 +3659,10 @@ exports.data ={
 					{
 						"name": "square",
 						"desc": "A filled square."
+					},
+					{
+						"name": "symbols()",
+						"browsers": "FF35"
 					},
 					{
 						"name": "upper-alpha"
@@ -3989,7 +4010,8 @@ exports.data ={
 						"name": "forwards"
 					},
 					{
-						"name": "infinite"
+						"name": "infinite",
+						"desc": "Causes the animation to repeat forever."
 					},
 					{
 						"name": "linear"
@@ -6152,7 +6174,8 @@ exports.data ={
 				"restriction": "enum",
 				"values": [
 					{
-						"name": "alphabetic"
+						"name": "alphabetic",
+						"desc": "The underline is aligned with the alphabetic baseline. In this case the underline is likely to cross some descenders."
 					},
 					{
 						"name": "auto",
@@ -6552,6 +6575,12 @@ exports.data ={
 				]
 			},
 			{
+				"name": "negative",
+				"desc": "Defines how to alter the representation when the counter value is negative.",
+				"browsers": "FF33",
+				"restriction": "url, identifier, string"
+			},
+			{
 				"name": "-o-animation",
 				"desc": "Shorthand property combines six of the animation properties into a single property.",
 				"browsers": "O12",
@@ -6589,7 +6618,8 @@ exports.data ={
 						"name": "forwards"
 					},
 					{
-						"name": "infinite"
+						"name": "infinite",
+						"desc": "Causes the animation to repeat forever."
 					},
 					{
 						"name": "linear"
@@ -7199,6 +7229,12 @@ exports.data ={
 				]
 			},
 			{
+				"name": "pad",
+				"desc": "Specifies a “fixed-width” counter style, where representations shorter than the pad value are padded with a particular <symbol>",
+				"browsers": "FF33",
+				"restriction": "integer, string, url, identifier"
+			},
+			{
 				"name": "padding",
 				"desc": "Shorthand property to set values the thickness of the padding area. If left is omitted, it is the same as right. If bottom is omitted it is the same as top, if right is omitted it is the same as top. The value may not be negative.",
 				"restriction": "length, percentage"
@@ -7391,11 +7427,33 @@ exports.data ={
 				]
 			},
 			{
+				"name": "prefix",
+				"desc": "Specifies a <symbol> that is prepended to the marker representation.",
+				"browsers": "FF33",
+				"restriction": "string, url, identifier"
+			},
+			{
 				"name": "quotes",
 				"desc": "Specifies quotation marks for any number of embedded quotations.",
 				"browsers": "E,C,FF1.5,IE8,O8,S5.1",
 				"restriction": "string",
 				"values": []
+			},
+			{
+				"name": "range",
+				"desc": "Defines the ranges over which the counter style is defined.",
+				"browsers": "FF33",
+				"restriction": "integer, enum",
+				"values": [
+					{
+						"name": "auto",
+						"desc": "The range depends on the counter system."
+					},
+					{
+						"name": "infinite",
+						"desc": "If used as the first value in a range, it represents negative infinity; if used as the second value, it represents positive infinity."
+					}
+				]
 			},
 			{
 				"name": "resize",
@@ -7809,6 +7867,49 @@ exports.data ={
 				"name": "stroke-width",
 				"desc": "This property specifies the width of the stroke on the current object.",
 				"restriction": "percentage, length, integer"
+			},
+			{
+				"name": "suffix",
+				"desc": "Specifies a <symbol> that is appended to the marker representation.",
+				"browsers": "FF33",
+				"restriction": "string, url, identifier"
+			},
+			{
+				"name": "system",
+				"desc": "Specifies which algorithm will be used to construct the counter’s representation based on the counter value.",
+				"browsers": "FF33",
+				"restriction": "enum, integer",
+				"values": [
+					{
+						"name": "additive"
+					},
+					{
+						"name": "alphabetic",
+						"desc": "Interprets the list of counter symbols as digits to an alphabetic numbering system, similar to the default lower-alpha counter style, which wraps from \"a\", \"b\", \"c\", to \"aa\", \"ab\", \"ac\"."
+					},
+					{
+						"name": "cyclic"
+					},
+					{
+						"name": "extends"
+					},
+					{
+						"name": "fixed",
+						"desc": "Runs through its list of counter symbols once, then falls back."
+					},
+					{
+						"name": "numeric"
+					},
+					{
+						"name": "symbolic"
+					}
+				]
+			},
+			{
+				"name": "symbols",
+				"desc": "Specifies the symbols used by the marker-construction algorithm specified by the system descriptor.",
+				"browsers": "FF33",
+				"restriction": "string, url, identifier"
 			},
 			{
 				"name": "table-layout",
@@ -8498,7 +8599,8 @@ exports.data ={
 						"name": "forwards"
 					},
 					{
-						"name": "infinite"
+						"name": "infinite",
+						"desc": "Causes the animation to repeat forever."
 					},
 					{
 						"name": "linear"
@@ -10052,7 +10154,6 @@ exports.descriptions = {
 	"ease-in-out": "Equivalent to cubic-bezier(0.42, 0, 0.58, 1.0).",
 	"ease-out": "Equivalent to cubic-bezier(0, 0, 0.58, 1.0).",
 	"forwards": "The final property value (as defined in the last @keyframes at-rule) is maintained after the animation completes.",
-	"infinite": "Causes the animation to repeat forever.",
 	"linear": "Equivalent to cubic-bezier(0.0, 0.0, 1.0, 1.0).",
 	"step-end": "The step-end function is equivalent to steps(1, end).",
 	"steps(1, start)": "The first parameter specifies the number of intervals in the function. The second parameter, which is optional, is either the value 'start' or 'end'.",
@@ -10179,6 +10280,7 @@ exports.descriptions = {
 	"disc": "A filled circle.",
 	"inside": "The marker box is outside the principal block box, as described in the section on the ::marker pseudo-element below.",
 	"outside": "The ::marker pseudo-element is an inline element placed immediately before all ::before pseudo-elements in the principal block box, after which the element's content flows.",
+	"symbols()": "Allows a counter style to be defined inline.",
 	"block-axis": "Elements are oriented along the box's axis.",
 	"inline-axis": "Elements are oriented vertically.",
 	"manual": "Words are only broken at line breaks where there are characters inside the word that suggest line break opportunities",
@@ -10230,7 +10332,6 @@ exports.descriptions = {
 	"kashida": "Justification primarily stretches Arabic and related scripts through the use of kashida or other calligraphic elongation.",
 	"clip": "Clip inline content that overflows. Characters may be only partially rendered.",
 	"ellipsis": "Render an ellipsis character (U+2026) to represent clipped inline content.",
-	"alphabetic": "The underline is aligned with the alphabetic baseline. In this case the underline is likely to cross some descenders.",
 	"over": "The underline is aligned with the 'top' (right in vertical writing) edge of the element's em-box. In this mode, an overline also switches sides.",
 	"under": "The underline is aligned with the 'bottom' (left in vertical writing) edge of the element's em-box. In this case the underline usually does not cross the descenders. This is sometimes called 'accounting' underline.",
 	"grippers": "Grippers are always on.",
@@ -10250,6 +10351,11 @@ exports.descriptions = {
 	"after": "The ruby text appears after the base. This is a relatively rare setting used in ideographic East Asian writing systems, most easily found in educational text.",
 	"before": "The ruby text appears before the base. This is the most common setting used in ideographic East Asian writing systems.",
 	"attr(x)": "The value of attribute 'x' is a string value. The string value is evaluated as a <number> to determine the number of ruby base elements to be spanned by the annotation element.",
+	"additive": "Represents “sign-value” numbering systems, which, rather than using reusing digits in different positions to change their value, define additional digits with much larger values, so that the value of the number can be obtained by adding all the digits together.",
+	"cyclic": "Cycles repeatedly through its provided symbols, looping back to the beginning when it reaches the end of the list.",
+	"extends": "Use the algorithm of another counter style, but alter other aspects.",
+	"numeric": "interprets the list of counter symbols as digits to a \"place-value\" numbering system, similar to the default 'decimal' counter style.",
+	"symbolic": "Cycles repeatedly through its provided symbols, doubling, tripling, etc. the symbols on each successive pass through the list.",
 	"sideways": "This value is equivalent to 'sideways-right' in 'vertical-rl' writing mode and equivalent to 'sideways-left' in 'vertical-lr' writing mode.",
 	"sideways-right": "In vertical writing modes, this causes text to be set as if in a horizontal layout, but rotated 90° clockwise.",
 	"upright": "In vertical writing modes, characters from horizontal-only scripts are rendered upright, i.e. in their standard horizontal orientation.",
