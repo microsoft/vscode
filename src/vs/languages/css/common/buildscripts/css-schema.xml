@@ -1970,67 +1970,97 @@
         </value>
       </values>
     </entry>
-    <entry name="display" restriction="enum" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-box/#display" syntax="p { $(name): inline; }">
+    <entry name="display" restriction="enum" version="1.0" browsers="all" ref="http://www.w3.org/TR/css-display-3/#propdef-display" syntax="p { $(name): inline; }">
       <desc>In combination with 'float' and 'position', determines the type of box or boxes that are generated for an element.</desc>
       <values>
         <value name="block" version="2.0" browsers="all">
-          <desc>Block boxes.</desc>
+          <desc>The element generates a block-level box</desc>
         </value>
-        <value name="compact" version="3.0" browsers="none">
-          <desc>Either block boxes or a marker box, depending on context. Properties apply to compact boxes based on their final status.</desc>
+        <value name="contents" version="3.0" browsers="none">
+          <desc>The element itself does not generate any boxes, but its children and pseudo-elements still generate boxes as normal.</desc>
         </value>
-        <value name="flex" version="1.0" browsers="E,C29,FF22,IE11,O12.1,S9" />
-        <value name="flexbox" version="1.0" browsers="O12.1" />
-        <value name="grid" version="3.0" browsers="none" />
+        <value name="flex" version="3.0" browsers="E,C29,FF22,IE11,O12.1,S9">
+          <desc>The element generates a principal flex container box and establishes a flex formatting context.</desc>
+        </value>
+        <value name="flexbox" version="1.0" browsers="O12.1">
+          <desc>The element lays out its contents using flow layout (block-and-inline layout). Standardized as 'flex'.</desc>
+        </value>
+        <value name="flow" version="3.0" browsers="none">
+          <desc>The element lays out its contents using flow layout (block-and-inline layout).</desc>
+        </value>
+        <value name="flow-root" version="3.0" browsers="none">
+          <desc>The element generates a block container box, and lays out its contents using flow layout.</desc>
+        </value>
+        <value name="grid" version="3.0" browsers="none">
+          <desc>The element generates a principal grid container box, and establishes a grid formatting context.</desc>
+        </value>
         <value name="inline" version="2.0" browsers="all">
-          <desc>Inline boxes.</desc>
+          <desc>The element generates an inline-level box.</desc>
         </value>
         <value name="inline-block" version="2.0" browsers="all">
           <desc>A block box, which itself is flowed as a single inline box, similar to a replaced element. The inside of an inline-block is formatted as a block box, and the box itself is formatted as an inline box.</desc>
         </value>
-        <value name="inline-flex" version="1.0" browsers="E,C29,FF22,IE11,O12.1,S9" />
-        <value name="inline-flexbox" version="1.0" browsers="O12.1" />
-        <value name="inline-grid" version="3.0" browsers="none" />
-        <value name="inline-table" version="2.0" browsers="all" />
+        <value name="inline-flex" version="1.0" browsers="E,C29,FF22,IE11,O12.1,S9">
+          <desc>Inline-level flex container.</desc>
+        </value>
+        <value name="inline-flexbox" version="1.0" browsers="O12.1">
+          <desc>Inline-level flex container. Standardized as 'inline-flex'</desc>
+        </value>
+        <value name="inline-grid" version="3.0" browsers="none">
+          <desc>Inline-level grid container.</desc>
+        </value>
+        <value name="inline-table" version="2.0" browsers="all">
+          <desc>Inline-level table wrapper box containing table box.</desc>
+        </value>
         <value name="list-item" version="2.0" browsers="all">
           <desc>One or more block boxes and one marker box.</desc>
         </value>
-        <value name="marker" version="3.0" browsers="none" />
-        <value name="-moz-box" version="1.0" browsers="FF" />
+        <value name="-moz-box" version="1.0" browsers="FF">
+          <desc>The element lays out its contents using flow layout (block-and-inline layout). Standardized as 'flex'.</desc>
+        </value>
         <value name="-moz-deck" version="1.0" browsers="FF" />
         <value name="-moz-grid" version="1.0" browsers="FF" />
         <value name="-moz-grid-group" version="1.0" browsers="FF" />
         <value name="-moz-grid-line" version="1.0" browsers="FF" />
         <value name="-moz-groupbox" version="1.0" browsers="FF" />
-        <value name="-moz-inline-box" version="1.0" browsers="FF" />
+        <value name="-moz-inline-box" version="1.0" browsers="FF">
+          <desc>Inline-level flex container. Standardized as 'inline-flex'</desc>
+        </value>
         <value name="-moz-inline-grid" version="1.0" browsers="FF" />
         <value name="-moz-inline-stack" version="1.0" browsers="FF" />
         <value name="-moz-marker" version="1.0" browsers="FF" />
         <value name="-moz-popup" version="1.0" browsers="FF" />
         <value name="-moz-stack" version="1.0" browsers="FF" />
-        <value name="-ms-flexbox" version="1.0" browsers="IE10" />
-        <value name="-ms-grid" version="3.0" browsers="E,IE10">
-          <desc>A value of grid causes an element to display as a block-level Grid element</desc>
+        <value name="-ms-flexbox" version="1.0" browsers="IE10">
+          <desc>The element lays out its contents using flow layout (block-and-inline layout). Standardized as 'flex'.</desc>
         </value>
-        <value name="-ms-inline-flexbox" version="1.0" browsers="IE10" />
+        <value name="-ms-grid" version="3.0" browsers="E,IE10">
+          <desc>The element generates a principal grid container box, and establishes a grid formatting context.</desc>
+        </value>
+        <value name="-ms-inline-flexbox" version="1.0" browsers="IE10">
+          <desc>Inline-level flex container. Standardized as 'inline-flex'</desc>
+        </value>
         <value name="-ms-inline-grid" version="3.0" browsers="E,IE10">
-          <desc>A value of inline-grid causes an element to display as an inline-level Grid element.</desc>
+          <desc>Inline-level grid container.</desc>
         </value>
         <value name="none" version="1.0" browsers="all">
-          <desc>This value causes an element to generate no boxes (i.e., the element has no effect on layout). Descendant elements do not generate any boxes either; this behavior cannot be overridden by setting the 'display' property on the descendants.</desc>
+          <desc>The element and its descendants generates no boxes.</desc>
         </value>
-        <value name="normal" version="3.0" browsers="all" />
-        <value name="ruby" version="3.0" browsers="all" />
+        <value name="ruby" version="3.0" browsers="all">
+           <desc>The element generates a principal ruby container box, and establishes a ruby formatting context.</desc>
+        </value>
         <value name="ruby-base" version="3.0" browsers="all" />
         <value name="ruby-base-container" version="3.0" browsers="all" />
         <value name="ruby-base-group" version="3.0" browsers="none" />
         <value name="ruby-text" version="3.0" browsers="all" />
         <value name="ruby-text-container" version="3.0" browsers="all" />
         <value name="ruby-text-group" version="3.0" browsers="none" />
-        <value name="run-in" version="2.0" browsers="all">
-          <desc>Either block or inline boxes, depending on context. Properties apply to run-in boxes based on their final status (inline-level or block-level).</desc>
+        <value name="run-in" version="2.0" browsers="IE8">
+          <desc>The element generates a run-in box. Run-in elements act like inlines or blocks, depending on the surrounding elements.</desc>
         </value>
-        <value name="table" version="2.0" browsers="all" />
+        <value name="table" version="2.0" browsers="all">
+          <desc>The element generates a principal table wrapper box containing an additionally-generated table box, and establishes a table formatting context.</desc>
+        </value>
         <value name="table-caption" version="2.0" browsers="all" />
         <value name="table-cell" version="2.0" browsers="all" />
         <value name="table-column" version="2.0" browsers="all" />
@@ -2039,10 +2069,18 @@
         <value name="table-header-group" version="2.0" browsers="all" />
         <value name="table-row" version="2.0" browsers="all" />
         <value name="table-row-group" version="2.0" browsers="all" />
-        <value name="-webkit-box" version="1.0" browsers="C,S1" />
-        <value name="-webkit-flex" version="1.0" browsers="C21,O15,S6.1" />
-        <value name="-webkit-inline-box" version="1.0" browsers="C,S1" />
-        <value name="-webkit-inline-flex" version="1.0" browsers="C21,O15,S6.1" />
+        <value name="-webkit-box" version="1.0" browsers="C,S1">
+          <desc>The element lays out its contents using flow layout (block-and-inline layout). Standardized as 'flex'.</desc>
+        </value>
+        <value name="-webkit-flex" version="1.0" browsers="C21,O15,S6.1">
+          <desc>The element lays out its contents using flow layout (block-and-inline layout).</desc>
+        </value>
+        <value name="-webkit-inline-box" version="1.0" browsers="C,S1">
+          <desc>Inline-level flex container. Standardized as 'inline-flex'</desc>
+        </value>
+        <value name="-webkit-inline-flex" version="1.0" browsers="C21,O15,S6.1">
+          <desc>Inline-level flex container.</desc>
+        </value>
       </values>
     </entry>
     <entry name="dominant-baseline" restriction="enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-inline/#propdef-dominant-baseline" syntax="span { $(name): alphabetic; }">
