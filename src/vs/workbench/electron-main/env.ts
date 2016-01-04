@@ -31,6 +31,7 @@ export interface IProductConfiguration {
 		}
 	};
 	win32AppUserModelId: string;
+	win32MutexName: string;
 	dataFolderName: string;
 	downloadUrl: string;
 	updateUrl: string;

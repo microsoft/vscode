@@ -90,7 +90,7 @@ function main(ipcServer: Server, userEnv: env.IProcessEnvironment): void {
 	let windowsMutex: Mutex = null;
 	try {
 		const Mutex = (<any>require.__$__nodeRequire('windows-mutex')).Mutex;
-		windowsMutex = new Mutex('vscode');
+		windowsMutex = new Mutex(env.product.win32MutexName);
 	} catch (e) {
 		// noop
 	}
