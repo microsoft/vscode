@@ -26,7 +26,7 @@ function resolveChildren(debugService: debug.IDebugService, parent: debug.IExpre
 		return arrays.distinct(response.body.variables, v => v.name).map(
 			v => new Variable(parent, v.variablesReference, v.name, v.value)
 		);
-	}, (e: Error) => [new Variable(parent, 0, null, e.message)]);
+	}, (e: Error) => [new Variable(parent, 0, null, e.message, false)]);
 }
 
 function massageValue(value: string): string {
@@ -192,7 +192,7 @@ export class Variable implements debug.IExpression {
 	public value: string;
 	public valueChanged: boolean;
 
-	constructor(public parent: debug.IExpressionContainer, public reference: number, public name: string, value: string) {
+	constructor(public parent: debug.IExpressionContainer, public reference: number, public name: string, value: string, public available = true) {
 		this.children = null;
 		this.value = massageValue(value);
 		this.valueChanged = Variable.allValues[this.getId()] && Variable.allValues[this.getId()] !== value;

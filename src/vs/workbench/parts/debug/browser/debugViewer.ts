@@ -41,7 +41,7 @@ export function renderExpressionValue(tree: tree.ITree, arg2: debug.IExpression|
 	// remove stale classes
 	container.className = 'value';
 	// when resolving expressions we represent errors from the server as a variable with name === null.
-	if (value === null || (arg2 instanceof model.Expression && !arg2.available)) {
+	if (value === null || ((arg2 instanceof model.Expression || arg2 instanceof model.Variable) && !arg2.available)) {
 		dom.addClass(container, 'unavailable');
 		debugInactive ? dom.removeClass(container, 'error') : dom.addClass(container, 'error');
 	} else if (!isNaN(+value)) {
@@ -57,7 +57,10 @@ export function renderExpressionValue(tree: tree.ITree, arg2: debug.IExpression|
 }
 
 export function renderVariable(tree: tree.ITree, variable: model.Variable, data: IVariableTemplateData, debugInactive: boolean, showChanged: boolean): void {
-	data.name.textContent = `${variable.name}:`;
+	if (variable.available) {
+		data.name.textContent = `${variable.name}:`;
+	}
+
 	if (variable.value) {
 		renderExpressionValue(tree, variable, debugInactive, data.value);
 		if (variable.valueChanged && showChanged) {
