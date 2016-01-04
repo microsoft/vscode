@@ -50,19 +50,21 @@ import encoding = require('vs/base/node/encoding');
  * 	mimes.push('application/octet-stream')    // last element: least specific
  */
 
+const BUFFER_READ_MAX_LEN = 512; // max buffer len to use when detecting encoding/mime
+
 export interface IMimeAndEncoding {
 	encoding: string;
 	mimes: string[];
 }
 
 function doDetectMimesFromStream(instream: streams.Readable, callback: (error: Error, result: IMimeAndEncoding) => void): void {
-	stream.readExactlyByStream(instream, 512, (err, buffer, bytesRead) => {
+	stream.readExactlyByStream(instream, BUFFER_READ_MAX_LEN, (err, buffer, bytesRead) => {
 		handleReadResult(err, buffer, bytesRead, callback);
 	});
 }
 
 function doDetectMimesFromFile(absolutePath: string, callback: (error: Error, result: IMimeAndEncoding) => void): void {
-	stream.readExactlyByFile(absolutePath, 512, (err, buffer, bytesRead) => {
+	stream.readExactlyByFile(absolutePath, BUFFER_READ_MAX_LEN, (err, buffer, bytesRead) => {
 		handleReadResult(err, buffer, bytesRead, callback);
 	});
 }
@@ -72,18 +74,16 @@ function handleReadResult(err: Error, buffer: NodeBuffer, bytesRead: number, cal
 		return callback(err, null);
 	}
 
-	return callback(null, doDetectMimesFromBuffer(buffer, bytesRead));
+	return callback(null, detectMimeAndEncodingFromBuffer(buffer, bytesRead));
 }
 
-function doDetectMimesFromBuffer(buffer: NodeBuffer, bytesRead: number): IMimeAndEncoding {
+export function detectMimeAndEncodingFromBuffer(buffer: NodeBuffer, bytesRead: number): IMimeAndEncoding {
 	let enc = encoding.detectEncodingByBOMFromBuffer(buffer, bytesRead);
-	let mimes = doDetectMimesFromContent(enc, buffer, bytesRead);
-
-	let isText = true;
 
 	// Detect 0 bytes to see if file is binary (ignore for UTF 16 though)
+	let isText = true;
 	if (enc !== encoding.UTF16be && enc !== encoding.UTF16le) {
-		for (let i = 0; i < bytesRead; i++) {
+		for (let i = 0; i < bytesRead && i < BUFFER_READ_MAX_LEN; i++) {
 			if (buffer.readInt8(i) === 0) {
 				isText = false;
 				break;
@@ -91,30 +91,10 @@ function doDetectMimesFromBuffer(buffer: NodeBuffer, bytesRead: number): IMimeAn
 		}
 	}
 
-	mimes.push(isText ? mime.MIME_TEXT : mime.MIME_BINARY);
-
 	return {
-		mimes: mimes,
+		mimes: isText ? [mime.MIME_TEXT] : [mime.MIME_BINARY],
 		encoding: enc
 	};
-}
-
-function doDetectMimesFromContent(enc: string, buffer: NodeBuffer, bytesRead: number): string[] {
-	if (bytesRead === 0 || !buffer) {
-		return [];
-	}
-
-	// check for utf8 BOM
-	let startpos = 0;
-	if (enc !== null) {
-		if (enc === encoding.UTF8) {
-			startpos = 3; // prepare for skipping BOM
-		} else {
-			return []; // we don't auto detect from other encodings yet
-		}
-	}
-
-	return [];
 }
 
 function filterAndSortMimes(detectedMimes: string[], guessedMimes: string[]): string[] {

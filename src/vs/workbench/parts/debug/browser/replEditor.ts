@@ -8,7 +8,6 @@ import { TPromise, Promise } from 'vs/base/common/winjs.base';
 import errors = require('vs/base/common/errors');
 import lifecycle = require('vs/base/common/lifecycle');
 import builder = require('vs/base/browser/builder');
-import async = require('vs/base/common/async');
 import dom = require('vs/base/browser/dom');
 import platform = require('vs/base/common/platform');
 import tree = require('vs/base/parts/tree/common/tree');
@@ -18,7 +17,6 @@ import baseeditor = require('vs/workbench/browser/parts/editor/baseEditor');
 import editorinputs = require('vs/workbench/parts/debug/browser/debugEditorInputs');
 import viewer = require('vs/workbench/parts/debug/browser/replViewer');
 import debug = require('vs/workbench/parts/debug/common/debug');
-import model = require('vs/workbench/parts/debug/common/debugModel');
 import debugactions = require('vs/workbench/parts/debug/electron-browser/debugActions');
 import replhistory = require('vs/workbench/parts/debug/common/replHistory');
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -29,15 +27,15 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { CommonKeybindings } from 'vs/base/common/keyCodes';
 
-var $ = dom.emmet;
+const $ = dom.emmet;
 
-var replTreeOptions = {
+const replTreeOptions = {
 	indentPixels: 8,
 	twistiePixels: 20,
 	paddingOnRow: false
 };
 
-var HISTORY_STORAGE_KEY = 'debug.repl.history';
+const HISTORY_STORAGE_KEY = 'debug.repl.history';
 
 export class Repl extends baseeditor.BaseEditor {
 
@@ -98,11 +96,11 @@ export class Repl extends baseeditor.BaseEditor {
 	}
 
 	public createEditor(parent: builder.Builder): void {
-		var container = dom.append(parent.getHTMLElement(), $('.repl'));
-		// Inherit the background color from selected theme.
+		const container = dom.append(parent.getHTMLElement(), $('.repl'));
+		// inherit the background color from selected theme.
 		dom.addClass(container, 'monaco-editor-background');
 		this.treeContainer = dom.append(container, $('.repl-tree'));
-		var replInputContainer = dom.append(container, $(platform.isWindows ? '.repl-input-wrapper.windows' : platform.isMacintosh ? '.repl-input-wrapper.mac' : '.repl-input-wrapper.linux'));
+		const replInputContainer = dom.append(container, $(platform.isWindows ? '.repl-input-wrapper.windows' : platform.isMacintosh ? '.repl-input-wrapper.mac' : '.repl-input-wrapper.linux'));
 		this.replInput = <HTMLInputElement>dom.append(replInputContainer, $('input.repl-input'));
 
 		dom.addStandardDisposableListener(this.replInput, 'keydown', (e: dom.IKeyboardEvent) => {
@@ -113,11 +111,11 @@ export class Repl extends baseeditor.BaseEditor {
 				Repl.HISTORY.evaluated(trimmedValue);
 				this.replInput.value = '';
 			} else if (e.equals(CommonKeybindings.UP_ARROW) || e.equals(CommonKeybindings.DOWN_ARROW)) {
-				var historyInput = e.equals(CommonKeybindings.UP_ARROW) ? Repl.HISTORY.previous() : Repl.HISTORY.next();
+				const historyInput = e.equals(CommonKeybindings.UP_ARROW) ? Repl.HISTORY.previous() : Repl.HISTORY.next();
 				if (historyInput) {
 					Repl.HISTORY.remember(this.replInput.value, e.equals(CommonKeybindings.UP_ARROW));
 					this.replInput.value = historyInput;
-					// Always leave cursor at the end.
+					// always leave cursor at the end.
 					e.preventDefault();
 				}
 			}
@@ -175,7 +173,7 @@ export class Repl extends baseeditor.BaseEditor {
 	}
 
 	public dispose(): void {
-		// Destroy Container
+		// destroy container
 		this.toDispose = lifecycle.disposeAll(this.toDispose);
 
 		super.dispose();
@@ -199,7 +197,9 @@ export class ReplEditorActionContributor extends baseeditor.EditorInputActionCon
 
 export class ReplInputFactory implements baseeditor.IEditorInputFactory {
 
-	constructor(@INullService ns) {}
+	constructor(@INullService ns) {
+		// noop
+	}
 
 	public serialize(editorInput: wbeditorcommon.EditorInput): string {
 		return editorInput.getId();

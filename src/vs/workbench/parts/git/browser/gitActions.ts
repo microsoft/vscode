@@ -435,7 +435,7 @@ export abstract class BaseUndoAction extends GitAction {
 				detail: count === 1
 					? nls.localize('confirmUndoAllOne', "There are unstaged changes in {0} file.\n\nThis action is irreversible!", count)
 					: nls.localize('confirmUndoAllMultiple', "There are unstaged changes in {0} files.\n\nThis action is irreversible!", count),
-				primaryButton: nls.localize('cleanChangesLabel', "Clean Changes")
+				primaryButton: nls.localize('cleanChangesLabel', "&&Clean Changes")
 			};
 		}
 
@@ -444,7 +444,7 @@ export abstract class BaseUndoAction extends GitAction {
 		return {
 			message: nls.localize('confirmUndo', "Are you sure you want to clean changes in '{0}'?", label),
 			detail: nls.localize('irreversible', "This action is irreversible!"),
-			primaryButton: nls.localize('cleanChangesLabel', "Clean Changes")
+			primaryButton: nls.localize('cleanChangesLabel', "&&Clean Changes")
 		};
 	}
 
@@ -977,7 +977,7 @@ export class PublishAction extends GitAction {
 
 			const result = this.messageService.confirm({
 				message: nls.localize('confirmPublishMessage', "Are you sure you want to publish '{0}' to '{1}'?", branchName, remoteName),
-				primaryButton: nls.localize('confirmPublishMessageButton', "Publish")
+				primaryButton: nls.localize('confirmPublishMessageButton', "&&Publish")
 			});
 
 			promise = TPromise.as(result ? remoteName : null);

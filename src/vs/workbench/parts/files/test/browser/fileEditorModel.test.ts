@@ -15,7 +15,7 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {create} from 'vs/platform/instantiation/common/instantiationService';
 import {TextFileService} from 'vs/workbench/parts/files/browser/textFileServices';
 import {EventType, LocalFileChangeEvent} from 'vs/workbench/parts/files/common/files';
-import {TestFileService, TestPartService, TestEditorService, TestUntitledEditorService, TestStorageService, TestTelemetryService, TestContextService, TestMessageService, TestEventService} from 'vs/workbench/test/browser/servicesTestUtils';
+import {TestFileService, TestLifecycleService, TestPartService, TestEditorService, TestConfigurationService, TestUntitledEditorService, TestStorageService, TestTelemetryService, TestContextService, TestMessageService, TestEventService} from 'vs/workbench/test/browser/servicesTestUtils';
 import Severity = require('vs/base/common/severity');
 import {IEventService} from 'vs/platform/event/common/event';
 import {IMessageService, IConfirmation} from 'vs/platform/message/common/message';
@@ -48,10 +48,14 @@ suite('Files - TextFileEditorModel', () => {
 			editorService: new TestEditorService(),
 			partService: new TestPartService(),
 			modeService: createMockModeService(),
-			modelService: createMockModelService()
+			modelService: createMockModelService(),
+			lifecycleService: new TestLifecycleService(),
+			configurationService: new TestConfigurationService()
 		});
 
 		textFileService = <TextFileService>baseInstantiationService.createInstance(<any>TextFileService);
+
+		baseInstantiationService.registerService('textFileService', textFileService);
 	});
 
 	teardown(() => {
@@ -183,8 +187,8 @@ suite('Files - TextFileEditorModel', () => {
 		let eventCounter = 0;
 		let m1 = baseInstantiationService.createInstance(TextFileEditorModel, toResource("/path/index.txt"), "utf8");
 
-		(<any>m1).autoSaveDelay = 10;
-		(<any>m1).autoSaveEnabled = true;
+		(<any>m1).autoSaveAfterMillies = 10;
+		(<any>m1).autoSaveAfterMilliesEnabled = true;
 
 		eventService.addListener(EventType.FILE_DIRTY, () => {
 			eventCounter++;

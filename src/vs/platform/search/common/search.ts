@@ -22,7 +22,8 @@ export interface ISearchService {
 }
 
 export interface IQueryOptions {
-	rootResources?: uri[];
+	folderResources?: uri[];
+	extraFileResources?: uri[];
 	filePattern?: string;
 	excludePattern?: glob.IExpression;
 	includePattern?: glob.IExpression;

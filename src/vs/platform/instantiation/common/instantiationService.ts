@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import winjs = require('vs/base/common/winjs.base');
-import errors = require('vs/base/common/errors');
-import strings = require('vs/base/common/strings');
-import types = require('vs/base/common/types');
-import collections = require('vs/base/common/collections');
-import descriptors = require('./descriptors');
+import * as winjs from 'vs/base/common/winjs.base';
+import * as errors from 'vs/base/common/errors';
+import * as strings from 'vs/base/common/strings';
+import * as types from 'vs/base/common/types';
+import * as collections from 'vs/base/common/collections';
+import * as descriptors from './descriptors';
 import {Graph} from 'vs/base/common/graph';
 import * as instantiation from './instantiation';
 
@@ -19,59 +19,20 @@ import ServiceIdentifier = instantiation.ServiceIdentifier;
 /**
  * Creates a new instance of an instantiation service.
  */
-export function create(services:any = Object.create(null)):IInstantiationService {
+export function create(services: any = Object.create(null)): IInstantiationService {
 	let result = new InstantiationService(services, new AccessLock());
 	return result;
 }
 
-export interface MutableContext extends instantiation.Context {
-	add<T>(service: any, id: string|ServiceIdentifier<T>): void;
-}
-
-/**
- * Creates a {{MutableContext}} which can be used to create objects
- * that use property bag injection. *Only* use this for testing and
- * *not* in production code.
- */
-export function createContext(): MutableContext {
-
-	const idx: { [name: string]: any } = Object.create(null);
-
-	function add<T>(service: any, id: string|ServiceIdentifier<T>) {
-		if (typeof id === 'string') {
-			idx[id] = service;
-		} else {
-			idx[instantiation._util.getServiceId(id)] = service;
-		}
-	}
-
-	function get<T>(id: ServiceIdentifier<T>): T {
-		let name = id[instantiation._util.DI_PROVIDES];
-		if (!name) {
-			throw new Error('@ServiceName decoration expected');
-		}
-		var service = idx[name];
-		if(!service) {
-			throw new Error(`service '${name}' not found. @Uses-decorator incomplete?`);
-		}
-		return service;
-	}
-
-	return {
-		get,
-		add
-	}
-}
-
 class AccessLock {
 
-	private _value:number = 0;
+	private _value: number = 0;
 
 	public get locked() {
 		return this._value === 0;
 	}
 
-	public runUnlocked<R>(r:() => R):R {
+	public runUnlocked<R>(r: () => R): R {
 		this._value++;
 		try {
 			return r();
@@ -83,7 +44,7 @@ class AccessLock {
 
 class ServicesMap {
 
-	constructor(private _services:any, private _lock:AccessLock) {
+	constructor(private _services: any, private _lock: AccessLock) {
 		collections.forEach(this._services, (entry) => {
 
 			// add a accessor to myselves
@@ -122,11 +83,11 @@ class ServicesMap {
 		this._services[name] = service;
 	}
 
-	public get lock():AccessLock {
+	public get lock(): AccessLock {
 		return this._lock;
 	}
 
-	public get services():any {
+	public get services(): any {
 		return this._services;
 	}
 
@@ -156,7 +117,7 @@ class ServicesMap {
 					}
 
 					if (instanceOrDesc instanceof descriptors.SyncDescriptor) {
-						var d = { serviceId: dependency.serviceId, desc: instanceOrDesc };
+						const d = { serviceId: dependency.serviceId, desc: instanceOrDesc };
 						stack.push(d);
 						graph.insertEdge(item, d);
 					}
@@ -189,7 +150,7 @@ class ServicesMap {
 		return this._lock.runUnlocked(() => {
 
 			let accessor: instantiation.ServicesAccessor = {
-				get: <T>(id:instantiation.ServiceIdentifier<T>) => {
+				get: <T>(id: instantiation.ServiceIdentifier<T>) => {
 					let value = instantiation._util.getServiceId(id);
 					return <T>this[value];
 				}
@@ -206,32 +167,21 @@ class ServicesMap {
 			let fixedArguments = descriptor.staticArguments().concat(args);
 			let expectedFirstServiceIndex = fixedArguments.length;
 			let actualFirstServiceIndex = Number.MAX_VALUE;
-			let ctx: MutableContext;
 			serviceInjections.forEach(si => {
+				// @IServiceName
 				let {serviceId, index} = si;
 				let service = this._lock.runUnlocked(() => this[serviceId]);
-				if (index === void 0) {
-					// @Uses
-					if (!ctx) {
-						ctx = createContext();
-						allArguments[0] = ctx; // ctx goes first
-						expectedFirstServiceIndex += 1;
-					}
-					ctx.add(service, serviceId);
-				} else {
-					// @IServiceName
-					allArguments[index] = service;
-					actualFirstServiceIndex = Math.min(actualFirstServiceIndex, si.index);
-				}
+				allArguments[index] = service;
+				actualFirstServiceIndex = Math.min(actualFirstServiceIndex, si.index);
 			});
 
 			// insert the fixed arguments into the array of all ctor
 			// arguments. don't overwrite existing values tho it indicates
 			// something is off
-			let i = ctx ? 1 : 0;
+			let i = 0;
 			for (let arg of fixedArguments) {
 				let hasValue = allArguments[i] !== void 0;
-				if(!hasValue) {
+				if (!hasValue) {
 					allArguments[i] = arg;
 				}
 				i += 1;
@@ -261,9 +211,9 @@ class ServicesMap {
 		}
 
 		return this._lock.runUnlocked(() => {
-			var instance = types.create.apply(null, allArguments);
+			const instance = types.create.apply(null, allArguments);
 			descriptor._validate(instance);
-			return <T> instance;
+			return <T>instance;
 		});
 	}
 }
@@ -271,15 +221,15 @@ class ServicesMap {
 class InstantiationService implements IInstantiationService {
 	public serviceId = IInstantiationService;
 
-	private _servicesMap:ServicesMap;
+	private _servicesMap: ServicesMap;
 
-	constructor(services:any, lock:AccessLock) {
+	constructor(services: any, lock: AccessLock) {
 		services['instantiationService'] = this;
 		this._servicesMap = new ServicesMap(services, lock);
 	}
 
-	createChild(services:any):IInstantiationService {
-		var childServices = {};
+	createChild(services: any): IInstantiationService {
+		const childServices = {};
 		// copy existing services
 		collections.forEach(this._servicesMap.services, (entry) => {
 			childServices[entry.key] = entry.value;
@@ -291,11 +241,11 @@ class InstantiationService implements IInstantiationService {
 		return new InstantiationService(childServices, this._servicesMap.lock);
 	}
 
-	registerService(name:string, service:any):void {
+	registerService(name: string, service: any): void {
 		this._servicesMap.registerService(name, service);
 	}
 
-	addSingleton<T>(id: ServiceIdentifier<T>, instanceOrDescriptor: T|descriptors.SyncDescriptor<T>): void {
+	addSingleton<T>(id: ServiceIdentifier<T>, instanceOrDescriptor: T | descriptors.SyncDescriptor<T>): void {
 		let name = instantiation._util.getServiceId(id);
 		this._servicesMap.registerService(name, instanceOrDescriptor);
 	}
@@ -306,25 +256,25 @@ class InstantiationService implements IInstantiationService {
 		return result;
 	}
 
-	createInstance<T>(ctor:instantiation.IConstructorSignature0<T>, ...rest:any[]):T;
-	createInstance<A1, T>(ctor:instantiation.IConstructorSignature1<A1, T>, ...rest:any[]):T;
-	createInstance<A1, A2, T>(ctor:instantiation.IConstructorSignature2<A1, A2, T>, ...rest:any[]):T;
-	createInstance<A1, A2, A3, T>(ctor:instantiation.IConstructorSignature3<A1, A2, A3, T>, ...rest:any[]):T;
-	createInstance<A1, A2, A3, A4, T>(ctor:instantiation.IConstructorSignature4<A1, A2, A3, A4, T>, first:A1, second:A2, third:A3, fourth:A4):T;
-	createInstance<A1, A2, A3, A4, A5, T>(ctor:instantiation.IConstructorSignature5<A1, A2, A3, A4, A5, T>, first:A1, second:A2, third:A3, fourth:A4, fifth:A5):T;
-	createInstance<A1, A2, A3, A4, A5, A6, T>(ctor:instantiation.IConstructorSignature6<A1, A2, A3, A4, A5, A6, T>, first:A1, second:A2, third:A3, fourth:A4, fifth:A5, sixth:A6):T;
-	createInstance<A1, A2, A3, A4, A5, A6, A7, T>(ctor:instantiation.IConstructorSignature7<A1, A2, A3, A4, A5, A6, A7, T>, first:A1, second:A2, third:A3, fourth:A4, fifth:A5, sixth:A6, seventh:A7):T;
-	createInstance<A1, A2, A3, A4, A5, A6, A7, A8, T>(ctor:instantiation.IConstructorSignature8<A1, A2, A3, A4, A5, A6, A7, A8, T>, first: A1, second: A2, third: A3, fourth: A4, fifth: A5, sixth: A6, seventh: A7, eigth: A8): T;
+	createInstance<T>(ctor: instantiation.IConstructorSignature0<T>, ...rest: any[]): T;
+	createInstance<A1, T>(ctor: instantiation.IConstructorSignature1<A1, T>, ...rest: any[]): T;
+	createInstance<A1, A2, T>(ctor: instantiation.IConstructorSignature2<A1, A2, T>, ...rest: any[]): T;
+	createInstance<A1, A2, A3, T>(ctor: instantiation.IConstructorSignature3<A1, A2, A3, T>, ...rest: any[]): T;
+	createInstance<A1, A2, A3, A4, T>(ctor: instantiation.IConstructorSignature4<A1, A2, A3, A4, T>, first: A1, second: A2, third: A3, fourth: A4): T;
+	createInstance<A1, A2, A3, A4, A5, T>(ctor: instantiation.IConstructorSignature5<A1, A2, A3, A4, A5, T>, first: A1, second: A2, third: A3, fourth: A4, fifth: A5): T;
+	createInstance<A1, A2, A3, A4, A5, A6, T>(ctor: instantiation.IConstructorSignature6<A1, A2, A3, A4, A5, A6, T>, first: A1, second: A2, third: A3, fourth: A4, fifth: A5, sixth: A6): T;
+	createInstance<A1, A2, A3, A4, A5, A6, A7, T>(ctor: instantiation.IConstructorSignature7<A1, A2, A3, A4, A5, A6, A7, T>, first: A1, second: A2, third: A3, fourth: A4, fifth: A5, sixth: A6, seventh: A7): T;
+	createInstance<A1, A2, A3, A4, A5, A6, A7, A8, T>(ctor: instantiation.IConstructorSignature8<A1, A2, A3, A4, A5, A6, A7, A8, T>, first: A1, second: A2, third: A3, fourth: A4, fifth: A5, sixth: A6, seventh: A7, eigth: A8): T;
 
-	createInstance<T>(ctor:instantiation.INewConstructorSignature0<T>, ...rest: any[]): T;
-	createInstance<A1, T>(ctor:instantiation.INewConstructorSignature1<A1, T>, ...rest:any[]):T;
-	createInstance<A1, A2, T>(ctor:instantiation.INewConstructorSignature2<A1, A2, T>, ...rest:any[]):T;
-	createInstance<A1, A2, A3, T>(ctor:instantiation.INewConstructorSignature3<A1, A2, A3, T>, ...rest:any[]):T;
-	createInstance<A1, A2, A3, A4, T>(ctor:instantiation.INewConstructorSignature4<A1, A2, A3, A4, T>, first:A1, second:A2, third:A3, fourth:A4):T;
-	createInstance<A1, A2, A3, A4, A5, T>(ctor:instantiation.INewConstructorSignature5<A1, A2, A3, A4, A5, T>, first:A1, second:A2, third:A3, fourth:A4, fifth:A5):T;
-	createInstance<A1, A2, A3, A4, A5, A6, T>(ctor:instantiation.INewConstructorSignature6<A1, A2, A3, A4, A5, A6, T>, first:A1, second:A2, third:A3, fourth:A4, fifth:A5, sixth:A6):T;
-	createInstance<A1, A2, A3, A4, A5, A6, A7, T>(ctor:instantiation.INewConstructorSignature7<A1, A2, A3, A4, A5, A6, A7, T>, first:A1, second:A2, third:A3, fourth:A4, fifth:A5, sixth:A6, seventh:A7):T;
-	createInstance<A1, A2, A3, A4, A5, A6, A7, A8, T>(ctor:instantiation.INewConstructorSignature8<A1, A2, A3, A4, A5, A6, A7, A8, T>, first:A1, second:A2, third:A3, fourth:A4, fifth:A5, sixth:A6, seventh:A7, eigth:A8):T;
+	createInstance<T>(ctor: instantiation.INewConstructorSignature0<T>, ...rest: any[]): T;
+	createInstance<A1, T>(ctor: instantiation.INewConstructorSignature1<A1, T>, ...rest: any[]): T;
+	createInstance<A1, A2, T>(ctor: instantiation.INewConstructorSignature2<A1, A2, T>, ...rest: any[]): T;
+	createInstance<A1, A2, A3, T>(ctor: instantiation.INewConstructorSignature3<A1, A2, A3, T>, ...rest: any[]): T;
+	createInstance<A1, A2, A3, A4, T>(ctor: instantiation.INewConstructorSignature4<A1, A2, A3, A4, T>, first: A1, second: A2, third: A3, fourth: A4): T;
+	createInstance<A1, A2, A3, A4, A5, T>(ctor: instantiation.INewConstructorSignature5<A1, A2, A3, A4, A5, T>, first: A1, second: A2, third: A3, fourth: A4, fifth: A5): T;
+	createInstance<A1, A2, A3, A4, A5, A6, T>(ctor: instantiation.INewConstructorSignature6<A1, A2, A3, A4, A5, A6, T>, first: A1, second: A2, third: A3, fourth: A4, fifth: A5, sixth: A6): T;
+	createInstance<A1, A2, A3, A4, A5, A6, A7, T>(ctor: instantiation.INewConstructorSignature7<A1, A2, A3, A4, A5, A6, A7, T>, first: A1, second: A2, third: A3, fourth: A4, fifth: A5, sixth: A6, seventh: A7): T;
+	createInstance<A1, A2, A3, A4, A5, A6, A7, A8, T>(ctor: instantiation.INewConstructorSignature8<A1, A2, A3, A4, A5, A6, A7, A8, T>, first: A1, second: A2, third: A3, fourth: A4, fifth: A5, sixth: A6, seventh: A7, eigth: A8): T;
 
 	createInstance<T>(descriptor: descriptors.SyncDescriptor0<T>): T;
 	createInstance<A1, T>(descriptor: descriptors.SyncDescriptor1<A1, T>, a1: A1): T;
@@ -346,27 +296,27 @@ class InstantiationService implements IInstantiationService {
 	createInstance<A1, A2, A3, A4, A5, A6, A7, T>(descriptor: descriptors.AsyncDescriptor7<A1, A2, A3, A4, A5, A6, A7, T>, a1: A1, a2: A2, a3: A3, a4: A4, a5: A5, a6: A6, a7: A7): winjs.TPromise<T>;
 	createInstance<A1, A2, A3, A4, A5, A6, A7, A8, T>(descriptor: descriptors.AsyncDescriptor8<A1, A2, A3, A4, A5, A6, A7, A8, T>, a1: A1, a2: A2, a3: A3, a4: A4, a5: A5, a6: A6, a7: A7, a8: A8): winjs.TPromise<T>;
 
-	createInstance<T>(descriptor:descriptors.AsyncDescriptor<T>, ...args:any[]):winjs.TPromise<T>;
+	createInstance<T>(descriptor: descriptors.AsyncDescriptor<T>, ...args: any[]): winjs.TPromise<T>;
 
-	createInstance<T>(param:any):any {
+	createInstance<T>(param: any): any {
 
 		var rest = new Array<any>(arguments.length - 1);
-		for(var i = 1, len = arguments.length; i < len; i++) {
+		for (var i = 1, len = arguments.length; i < len; i++) {
 			rest[i - 1] = arguments[i];
 		}
 
-		if(param instanceof descriptors.SyncDescriptor) {
-			return this._servicesMap.createInstance(<descriptors.SyncDescriptor<T>> param, rest);
-		} else if(param instanceof descriptors.AsyncDescriptor) {
-			return this._createInstanceAsync(<descriptors.AsyncDescriptor<T>> param, rest);
+		if (param instanceof descriptors.SyncDescriptor) {
+			return this._servicesMap.createInstance(<descriptors.SyncDescriptor<T>>param, rest);
+		} else if (param instanceof descriptors.AsyncDescriptor) {
+			return this._createInstanceAsync(<descriptors.AsyncDescriptor<T>>param, rest);
 		} else {
-			return this._servicesMap.createInstance(new descriptors.SyncDescriptor(<instantiation.IConstructorSignature0<T>> param), rest);
+			return this._servicesMap.createInstance(new descriptors.SyncDescriptor(<instantiation.IConstructorSignature0<T>>param), rest);
 		}
 	}
 
-	_createInstanceAsync<T>(descriptor:descriptors.AsyncDescriptor<T>, args:any[]):winjs.TPromise<T> {
+	_createInstanceAsync<T>(descriptor: descriptors.AsyncDescriptor<T>, args: any[]): winjs.TPromise<T> {
 
-		var canceled:Error;
+		let canceled: Error;
 
 		return new winjs.TPromise((c, e, p) => {
 			require([descriptor.moduleName], (_module?: any) => {
@@ -378,8 +328,8 @@ class InstantiationService implements IInstantiationService {
 					return e(errors.illegalArgument('module not found: ' + descriptor.moduleName));
 				}
 
-				var ctor: Function;
-				if(!descriptor.ctorName) {
+				let ctor: Function;
+				if (!descriptor.ctorName) {
 					ctor = _module;
 				} else {
 					ctor = _module[descriptor.ctorName];
@@ -402,14 +352,14 @@ class InstantiationService implements IInstantiationService {
 	}
 
 	invokeFunction<R>(ctor: instantiation.IFunctionSignature0<R>): R;
-	invokeFunction<A1, R>(ctor:instantiation.IFunctionSignature1<A1, R>, first:A1):R;
-	invokeFunction<A1, A2, R>(ctor:instantiation.IFunctionSignature2<A1, A2, R>, first:A1, second:A2):R;
-	invokeFunction<A1, A2, A3, R>(ctor:instantiation.IFunctionSignature3<A1, A2, A3, R>, first:A1, second:A2, third:A3):R;
-	invokeFunction<A1, A2, A3, A4, R>(ctor:instantiation.IFunctionSignature4<A1, A2, A3, A4, R>, first:A1, second:A2, third:A3, fourth:A4):R;
-	invokeFunction<A1, A2, A3, A4, A5, R>(ctor:instantiation.IFunctionSignature5<A1, A2, A3, A4, A5, R>, first:A1, second:A2, third:A3, fourth:A4, fifth:A5):R;
-	invokeFunction<A1, A2, A3, A4, A5, A6, R>(ctor:instantiation.IFunctionSignature6<A1, A2, A3, A4, A5, A6, R>, first:A1, second:A2, third:A3, fourth:A4, fifth:A5, sixth:A6):R;
-	invokeFunction<A1, A2, A3, A4, A5, A6, A7, R>(ctor:instantiation.IFunctionSignature7<A1, A2, A3, A4, A5, A6, A7, R>, first:A1, second:A2, third:A3, fourth:A4, fifth:A5, sixth:A6, seventh:A7):R;
-	invokeFunction<A1, A2, A3, A4, A5, A6, A7, A8, R>(ctor:instantiation.IFunctionSignature8<A1, A2, A3, A4, A5, A6, A7, A8, R>, first:A1, second:A2, third:A3, fourth:A4, fifth:A5, sixth:A6, seventh:A7, eigth:A8):R;
+	invokeFunction<A1, R>(ctor: instantiation.IFunctionSignature1<A1, R>, first: A1): R;
+	invokeFunction<A1, A2, R>(ctor: instantiation.IFunctionSignature2<A1, A2, R>, first: A1, second: A2): R;
+	invokeFunction<A1, A2, A3, R>(ctor: instantiation.IFunctionSignature3<A1, A2, A3, R>, first: A1, second: A2, third: A3): R;
+	invokeFunction<A1, A2, A3, A4, R>(ctor: instantiation.IFunctionSignature4<A1, A2, A3, A4, R>, first: A1, second: A2, third: A3, fourth: A4): R;
+	invokeFunction<A1, A2, A3, A4, A5, R>(ctor: instantiation.IFunctionSignature5<A1, A2, A3, A4, A5, R>, first: A1, second: A2, third: A3, fourth: A4, fifth: A5): R;
+	invokeFunction<A1, A2, A3, A4, A5, A6, R>(ctor: instantiation.IFunctionSignature6<A1, A2, A3, A4, A5, A6, R>, first: A1, second: A2, third: A3, fourth: A4, fifth: A5, sixth: A6): R;
+	invokeFunction<A1, A2, A3, A4, A5, A6, A7, R>(ctor: instantiation.IFunctionSignature7<A1, A2, A3, A4, A5, A6, A7, R>, first: A1, second: A2, third: A3, fourth: A4, fifth: A5, sixth: A6, seventh: A7): R;
+	invokeFunction<A1, A2, A3, A4, A5, A6, A7, A8, R>(ctor: instantiation.IFunctionSignature8<A1, A2, A3, A4, A5, A6, A7, A8, R>, first: A1, second: A2, third: A3, fourth: A4, fifth: A5, sixth: A6, seventh: A7, eigth: A8): R;
 	invokeFunction<R>(signature: any, ...args: any[]): R {
 		return this._servicesMap.invokeFunction<R>(signature, args);
 	}

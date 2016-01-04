@@ -37,7 +37,8 @@ export function score(target: string, query: string, cache?: {[id: string]: numb
 		return 0; // return early if target or query are undefined
 	}
 
-	const cached = cache && cache[target + query];
+	const hash = target + query;
+	const cached = cache && cache[hash];
 	if (typeof cached === 'number') {
 		return cached;
 	}
@@ -85,7 +86,7 @@ export function score(target: string, query: string, cache?: {[id: string]: numb
 	}
 
 	if (cache) {
-		cache[target + query] = score;
+		cache[hash] = score;
 	}
 
 	return score;

@@ -19,7 +19,7 @@ import {IEditorRegistry, Extensions, EditorDescriptor} from 'vs/workbench/browse
 import {BinaryEditorModel} from 'vs/workbench/browser/parts/editor/binaryEditorModel';
 import {IFileOperationResult, FileOperationResult} from 'vs/platform/files/common/files';
 import {FileEditorDescriptor} from 'vs/workbench/parts/files/browser/files';
-import {BINARY_FILE_EDITOR_ID, FILE_EDITOR_INPUT_ID, FileEditorInput as CommonFileEditorInput} from 'vs/workbench/parts/files/common/files';
+import {ITextFileService, BINARY_FILE_EDITOR_ID, FILE_EDITOR_INPUT_ID, FileEditorInput as CommonFileEditorInput} from 'vs/workbench/parts/files/common/files';
 import {CACHE, TextFileEditorModel, State} from 'vs/workbench/parts/files/browser/editors/textFileEditorModel';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
@@ -63,7 +63,8 @@ export class FileEditorInput extends CommonFileEditorInput {
 		mime: string,
 		preferredEncoding: string,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@ITextFileService private textFileService: ITextFileService
 	) {
 		super();
 
@@ -157,11 +158,11 @@ export class FileEditorInput extends CommonFileEditorInput {
 				}
 
 				case State.DIRTY: {
-					return { state: 'dirty', decoration: !this.contextService.isAutoSaveEnabled() ? '\u25cf' : '', displayText: FileEditorInput.nlsDirtyDisplay, description: FileEditorInput.nlsDirtyMeta };
+					return { state: 'dirty', decoration: !this.textFileService.isAutoSaveEnabled() ? '\u25cf' : '', displayText: FileEditorInput.nlsDirtyDisplay, description: FileEditorInput.nlsDirtyMeta };
 				}
 
 				case State.PENDING_SAVE:
-					return { state: 'saving', decoration: !this.contextService.isAutoSaveEnabled() ? '\u25cf' : '', displayText: FileEditorInput.nlsPendingSaveDisplay, description: FileEditorInput.nlsPendingSaveMeta };
+					return { state: 'saving', decoration: !this.textFileService.isAutoSaveEnabled() ? '\u25cf' : '', displayText: FileEditorInput.nlsPendingSaveDisplay, description: FileEditorInput.nlsPendingSaveMeta };
 
 				case State.ERROR:
 					return { state: 'error', decoration: '\u25cf', displayText: FileEditorInput.nlsErrorDisplay, description: FileEditorInput.nlsErrorMeta };

@@ -6,18 +6,18 @@
 
 import nls = require('vs/nls');
 import {TPromise, Promise} from 'vs/base/common/winjs.base';
-import {onUnexpectedError, toErrorMessage, getHttpStatus} from 'vs/base/common/errors';
+import {onUnexpectedError, toErrorMessage} from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
+import {IDisposable} from 'vs/base/common/lifecycle';
 import paths = require('vs/base/common/paths');
 import diagnostics = require('vs/base/common/diagnostics');
 import types = require('vs/base/common/types');
 import {IModelContentChangedEvent, EventType as EditorEventType} from 'vs/editor/common/editorCommon';
 import {IMode} from 'vs/editor/common/modes';
 import {EventType as WorkbenchEventType, ResourceEvent} from 'vs/workbench/common/events';
-import {LocalFileChangeEvent, EventType as FileEventType, TextFileChangeEvent} from 'vs/workbench/parts/files/common/files';
+import {LocalFileChangeEvent, EventType as FileEventType, TextFileChangeEvent, ITextFileService, IAutoSaveConfiguration} from 'vs/workbench/parts/files/common/files';
 import {EncodingMode, EditorModel, IEncodingSupport} from 'vs/workbench/common/editor';
 import {BaseTextEditorModel} from 'vs/workbench/browser/parts/editor/textEditorModel';
-import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {IFileService, IFileStat, IFileOperationResult, FileOperationResult, IContent} from 'vs/platform/files/common/files';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
@@ -42,19 +42,7 @@ class DefaultSaveErrorHandler implements ISaveErrorHandler {
 	constructor( @IMessageService private messageService: IMessageService) { }
 
 	public onSaveError(error: any, model: TextFileEditorModel): void {
-		let message: string;
-
-		// 412 Dirty write prevention
-		if (getHttpStatus(error) === 412) {
-			message = nls.localize('staleSaveError', "Failed to save '{0}': The version on disk is newer. Please open the file and save it again.", paths.basename(model.getResource().fsPath));
-		}
-
-		// Any other save error
-		else {
-			message = nls.localize('genericSaveError', "Failed to save '{0}': {1}", paths.basename(model.getResource().fsPath), toErrorMessage(error, false));
-		}
-
-		this.messageService.show(Severity.Error, message);
+		this.messageService.show(Severity.Error, nls.localize('genericSaveError', "Failed to save '{0}': {1}", paths.basename(model.getResource().fsPath), toErrorMessage(error, false)));
 	}
 }
 
@@ -91,13 +79,14 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 	private contentEncoding: string; 			// encoding as reported from disk
 	private preferredEncoding: string;			// encoding as chosen by the user
 	private textModelChangeListener: () => void;
+	private textFileServiceListener: IDisposable;
 	private dirty: boolean;
 	private versionId: number;
 	private bufferSavedVersionId: number;
 	private versionOnDiskStat: IFileStat;
 	private blockModelContentChange: boolean;
-	private autoSaveDelay: number;
-	private autoSaveEnabled: boolean;
+	private autoSaveAfterMillies: number;
+	private autoSaveAfterMilliesEnabled: boolean;
 	private autoSavePromises: TPromise<void>[];
 	private mapPendingSaveToVersionId: { [versionId: string]: TPromise<void> };
 	private disposed: boolean;
@@ -113,10 +102,10 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 		@IModeService modeService: IModeService,
 		@IModelService modelService: IModelService,
 		@IEventService private eventService: IEventService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IFileService private fileService: IFileService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@ITelemetryService private telemetryService: ITelemetryService
+		@ITelemetryService private telemetryService: ITelemetryService,
+		@ITextFileService private textFileService: ITextFileService
 	) {
 		super(modelService, modeService);
 
@@ -133,20 +122,22 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 		this.lastDirtyTime = 0;
 		this.mapPendingSaveToVersionId = {};
 
-		this.updateOptions();
+		this.updateAutoSaveConfiguration(textFileService.getAutoSaveConfiguration());
+		this.registerListeners();
 	}
 
-	public updateOptions(): void {
+	private registerListeners(): void {
+		this.textFileServiceListener = this.textFileService.onAutoSaveConfigurationChange(config => this.updateAutoSaveConfiguration(config));
+	}
 
-		// Check for Autosave Delay Configuration
-		let options = this.contextService.getOptions();
-		if (options && types.isNumber(options.autoSaveDelay)) {
-			this.autoSaveDelay = options.autoSaveDelay;
+	private updateAutoSaveConfiguration(config: IAutoSaveConfiguration): void {
+		if (typeof config.autoSaveDelay === 'number' && config.autoSaveDelay > 0) {
+			this.autoSaveAfterMillies = config.autoSaveDelay * 1000;
+			this.autoSaveAfterMilliesEnabled = true;
 		} else {
-			this.autoSaveDelay = TextFileEditorModel.DEFAULT_AUTO_SAVE_DELAY;
+			this.autoSaveAfterMillies = void 0;
+			this.autoSaveAfterMilliesEnabled = false;
 		}
-
-		this.autoSaveEnabled = (this.autoSaveDelay !== -1);
 	}
 
 	/**
@@ -338,7 +329,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 		// In this case we clear the dirty flag and emit a SAVED event to indicate this state.
 		// Note: we currently only do this check when auto-save is turned off because there you see
 		// a dirty indicator that you want to get rid of when undoing to the saved version.
-		if (!this.autoSaveEnabled && this.textEditorModel.getAlternativeVersionId() === this.bufferSavedVersionId) {
+		if (!this.autoSaveAfterMilliesEnabled && this.textEditorModel.getAlternativeVersionId() === this.bufferSavedVersionId) {
 			diag('onModelContentChanged() - model content changed back to last saved version', this.resource, new Date());
 
 			// Clear flags
@@ -356,7 +347,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 		this.makeDirty(e);
 
 		// Start auto save process unless we are in conflict resolution mode and unless it is disabled
-		if (this.autoSaveEnabled) {
+		if (this.autoSaveAfterMilliesEnabled) {
 			if (!this.inConflictResolutionMode) {
 				this.doAutoSave(this.versionId);
 			} else {
@@ -385,13 +376,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 		// Cancel any currently running auto saves to make this the one that succeeds
 		this.cancelAutoSavePromises();
 
-		// Support to save without delay if configured as such
-		if (this.autoSaveDelay === 0) {
-			return this.doSave(versionId, true);
-		}
-
-		// Otherwise create new save promise and keep it
-		let promise: TPromise<void> = Promise.timeout(this.autoSaveDelay).then(() => {
+		// Create new save promise and keep it
+		let promise: TPromise<void> = Promise.timeout(this.autoSaveAfterMillies).then(() => {
 
 			// Only trigger save if the version id has not changed meanwhile
 			if (versionId === this.versionId) {
@@ -449,15 +435,15 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 		if (this.isBusySaving()) {
 			diag('doSave(' + versionId + ') - exit - because busy saving', this.resource, new Date());
 
-			// Avoid endless loop here and guard if autoSaveDelay is 0 (used by tests only)
-			if (this.autoSaveDelay > 0) {
+			// Avoid endless loop here and guard if auto save is disabled
+			if (this.autoSaveAfterMilliesEnabled) {
 				return this.doAutoSave(versionId);
 			}
 		}
 
 		// Push all edit operations to the undo stack so that the user has a chance to
 		// Ctrl+Z back to the saved version. We only do this when auto-save is turned off
-		if (!this.autoSaveEnabled) {
+		if (!this.autoSaveAfterMilliesEnabled) {
 			this.textEditorModel.pushStackElement();
 		}
 
@@ -739,6 +725,11 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 		if (this.textModelChangeListener) {
 			this.textModelChangeListener();
 			this.textModelChangeListener = null;
+		}
+
+		if (this.textFileServiceListener) {
+			this.textFileServiceListener.dispose();
+			this.textFileServiceListener = null;
 		}
 
 		this.cancelAutoSavePromises();

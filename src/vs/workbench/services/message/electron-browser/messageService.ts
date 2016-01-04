@@ -9,6 +9,7 @@ import {IWindowService} from 'vs/workbench/services/window/electron-browser/wind
 import nls = require('vs/nls');
 import {WorkbenchMessageService} from 'vs/workbench/services/message/browser/messageService';
 import {IConfirmation} from 'vs/platform/message/common/message';
+import {isWindows} from 'vs/base/common/platform';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
@@ -28,7 +29,7 @@ export class MessageService extends WorkbenchMessageService {
 
 	public confirm(confirmation: IConfirmation): boolean {
 		if (!confirmation.primaryButton) {
-			confirmation.primaryButton = nls.localize('yesButton', "Yes");
+			confirmation.primaryButton = nls.localize('yesButton', "&&Yes");
 		}
 
 		if (!confirmation.secondaryButton) {
@@ -39,8 +40,8 @@ export class MessageService extends WorkbenchMessageService {
 			title: confirmation.title || this.contextService.getConfiguration().env.appName,
 			message: confirmation.message,
 			buttons: [
-				confirmation.primaryButton,
-				confirmation.secondaryButton
+				this.mnemonicLabel(confirmation.primaryButton),
+				this.mnemonicLabel(confirmation.secondaryButton)
 			],
 			noLink: true,
 			cancelId: 1
@@ -53,5 +54,13 @@ export class MessageService extends WorkbenchMessageService {
 		let result = this.windowService.getWindow().showMessageBox(opts);
 
 		return result === 0 ? true : false;
+	}
+
+	private mnemonicLabel(label: string): string {
+		if (!isWindows) {
+			return label.replace(/&&/g, ''); // no mnemonic support on mac/linux in buttons yet
+		}
+
+		return label.replace(/&&/g, '&');
 	}
 }

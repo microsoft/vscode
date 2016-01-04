@@ -15,7 +15,7 @@ import Options = require('vs/languages/typescript/common/options');
 
 function getWordAtOffset(text: string, offset: number): string {
 	var endOffset = offset;
-	while(offset > 0 && /\w|\$/.test(text.charAt(offset - 1))) {
+	while(offset > 0 && /(-?\d*\.\d\w*)|([^\`\~\!\@\#\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s])/.test(text.charAt(offset - 1))) {
 		offset -= 1;
 	}
 	return text.substring(offset, endOffset);

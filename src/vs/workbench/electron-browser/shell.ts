@@ -251,7 +251,6 @@ export class WorkbenchShell {
 			{
 				userAgent: navigator.userAgent,
 				windowSize: windowSize,
-				autoSaveEnabled: this.contextService.isAutoSaveEnabled && this.contextService.isAutoSaveEnabled(),
 				emptyWorkbench: !this.contextService.getWorkspace(),
 				customKeybindingsCount: this.keybindingService.customKeybindingsCount(),
 				theme: this.currentTheme

@@ -122,14 +122,6 @@ export abstract class EditorInput extends EventEmitter implements IEditorInput {
 	}
 }
 
-export interface IResourceEditorInput extends IEditorInput {
-
-	/**
-	 * Gets the absolute file resource URI this input is about.
-	 */
-	getResource(): URI;
-}
-
 export enum EncodingMode {
 
 	/**
@@ -160,7 +152,7 @@ export interface IEncodingSupport {
  * This is a tagging interface to declare an editor input being capable of dealing with files. It is only used in the editor registry
  * to register this kind of input to the platform.
  */
-export interface IFileEditorInput extends IResourceEditorInput, IEncodingSupport {
+export interface IFileEditorInput extends IEditorInput, IEncodingSupport {
 
 	/**
 	 * Gets the mime type of the file this input is about.
@@ -173,6 +165,11 @@ export interface IFileEditorInput extends IResourceEditorInput, IEncodingSupport
 	setMime(mime: string): void;
 
 	/**
+	 * Gets the absolute file resource URI this input is about.
+	 */
+	getResource(): URI;
+
+	/**
 	 * Sets the absolute file resource URI this input is about.
 	 */
 	setResource(resource: URI): void;
@@ -181,7 +178,7 @@ export interface IFileEditorInput extends IResourceEditorInput, IEncodingSupport
 /**
  * The base class of untitled editor inputs in the workbench.
  */
-export abstract class UntitledEditorInput extends EditorInput implements IResourceEditorInput, IEncodingSupport {
+export abstract class UntitledEditorInput extends EditorInput implements IEncodingSupport {
 
 	abstract getResource(): URI;
 
@@ -477,11 +474,12 @@ export function getUntitledOrFileResource(input: IEditorInput, supportDiff?: boo
 		return null;
 	}
 
-	let resourceInput = <IResourceEditorInput>input;
-	if (types.isFunction(resourceInput.getResource)) {
-		return resourceInput.getResource();
+	// Untitled
+	if (input instanceof UntitledEditorInput) {
+		return input.getResource();
 	}
 
+	// File
 	let fileInput = asFileEditorInput(input, supportDiff);
 	return fileInput && fileInput.getResource();
 }
@@ -501,5 +499,5 @@ export function asFileEditorInput(obj: any, supportDiff?: boolean): IFileEditorI
 
 	let i = <IFileEditorInput>obj;
 
-	return i instanceof EditorInput && types.areFunctions(i.setResource, i.setMime, i.getResource, i.getMime) ? i : null;
+	return i instanceof EditorInput && types.areFunctions(i.setResource, i.setMime, i.setEncoding, i.getEncoding, i.getResource, i.getMime) ? i : null;
 }

@@ -1,0 +1,26 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-editor .zone-widget .zone-widget-container.breakpoint-widget {
+	border-top-color: #E89208;
+	border-bottom-color: #E89208;
+}
+
+.monaco-editor .breakpoint-widget .input {
+	font-family: Monaco, Menlo, Consolas, "Droid Sans Mono", "Inconsolata", "Courier New", monospace, "Droid Sans Fallback";
+	line-height: 22px;
+}
+
+.monaco-editor .breakpoint-widget .input.mac {
+	font-size: 11px;
+}
+
+.monaco-editor .breakpoint-widget .input.win {
+	font-size: 13px;
+}
+
+.monaco-editor .breakpoint-widget .input.linux {
+	font-size: 13px;
+}

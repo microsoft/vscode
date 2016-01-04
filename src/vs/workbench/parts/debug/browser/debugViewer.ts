@@ -6,10 +6,10 @@
 import nls = require('vs/nls');
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
 import lifecycle = require('vs/base/common/lifecycle');
+import { CommonKeybindings } from 'vs/base/common/keyCodes';
 import paths = require('vs/base/common/paths');
 import async = require('vs/base/common/async');
 import errors = require('vs/base/common/errors');
-import severity from 'vs/base/common/severity';
 import strings = require('vs/base/common/strings');
 import { isMacintosh } from 'vs/base/common/platform';
 import dom = require('vs/base/browser/dom');
@@ -30,18 +30,17 @@ import { IContextViewService, IContextMenuService } from 'vs/platform/contextvie
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IMessageService } from 'vs/platform/message/common/message';
-import { CommonKeybindings } from 'vs/base/common/keyCodes';
 
-var $ = dom.emmet;
-var booleanRegex = /^true|false$/i;
-var stringRegex = /^(['"]).*\1$/;
+const $ = dom.emmet;
+const booleanRegex = /^true|false$/i;
+const stringRegex = /^(['"]).*\1$/;
 
 export function renderExpressionValue(tree: tree.ITree, arg2: debug.IExpression|string, debugInactive: boolean, container: HTMLElement): void {
 	let value = typeof arg2 === 'string' ? arg2 : arg2.value;
 
-	// Remove stale classes
+	// remove stale classes
 	container.className = 'value';
-	// When resolving expressions we represent errors from the server as a variable with name === null.
+	// when resolving expressions we represent errors from the server as a variable with name === null.
 	if (value === null || (arg2 instanceof model.Expression && !arg2.available)) {
 		dom.addClass(container, 'unavailable');
 		debugInactive ? dom.removeClass(container, 'error') : dom.addClass(container, 'error');
@@ -62,7 +61,7 @@ export function renderVariable(tree: tree.ITree, variable: model.Variable, data:
 	if (variable.value) {
 		renderExpressionValue(tree, variable, debugInactive, data.value);
 		if (variable.valueChanged && showChanged) {
-			// Value changed color has priority over other colors.
+			// value changed color has priority over other colors.
 			data.value.className = 'value changed';
 		}
 	} else {
@@ -84,10 +83,10 @@ function renderRenameBox(debugService: debug.IDebugService, contextViewService: 
 	inputBox.value = element.name ? element.name : '';
 	inputBox.focus();
 
-	var disposed = false;
-	var toDispose: [lifecycle.IDisposable] = [inputBox];
+	let disposed = false;
+	const toDispose: [lifecycle.IDisposable] = [inputBox];
 
-	var wrapUp = async.once<any, void>((renamed: boolean) => {
+	const wrapUp = async.once<any, void>((renamed: boolean) => {
 		if (!disposed) {
 			disposed = true;
 			if (element instanceof model.Expression && renamed && inputBox.value) {
@@ -102,15 +101,15 @@ function renderRenameBox(debugService: debug.IDebugService, contextViewService: 
 
 			tree.clearHighlight();
 			tree.DOMFocus();
-			// Need to remove the input box since this template will be reused.
+			// need to remove the input box since this template will be reused.
 			container.removeChild(inputBoxContainer);
 			lifecycle.disposeAll(toDispose);
 		}
 	});
 
 	toDispose.push(dom.addStandardDisposableListener(inputBox.inputElement, 'keydown', (e: dom.IKeyboardEvent) => {
-		let isEscape = e.equals(CommonKeybindings.ESCAPE);
-		let isEnter = e.equals(CommonKeybindings.ENTER);
+		const isEscape = e.equals(CommonKeybindings.ESCAPE);
+		const isEnter = e.equals(CommonKeybindings.ENTER);
 		if (isEscape || isEnter) {
 			wrapUp(isEnter);
 		}
@@ -118,37 +117,6 @@ function renderRenameBox(debugService: debug.IDebugService, contextViewService: 
 	toDispose.push(dom.addDisposableListener(inputBox.inputElement, 'blur', () => {
 		wrapUp(true);
 	}));
-}
-
-export class SimpleActionProvider implements renderer.IActionProvider {
-
-	constructor() {
-		// noop
-	}
-
-	public hasActions(tree: tree.ITree, element: any): boolean {
-		return false;
-	}
-
-	public getActions(tree: tree.ITree, element: any): TPromise<actions.IAction[]> {
-		var result: actions.IAction[] = [];
-
-		return Promise.as(result);
-	}
-
-	public hasSecondaryActions(tree: tree.ITree, element: any): boolean {
-		return false;
-	}
-
-	public getSecondaryActions(tree: tree.ITree, element: any): TPromise<actions.IAction[]> {
-		var result: actions.IAction[] = [];
-
-		return Promise.as(result);
-	}
-
-	public getActionItem(tree: tree.ITree, element: any, action: actions.IAction): actionbar.IActionItem {
-		return null;
-	}
 }
 
 export class BaseDebugController extends treedefaults.DefaultController {
@@ -177,7 +145,7 @@ export class BaseDebugController extends treedefaults.DefaultController {
 		}
 
 		if (this.actionProvider.hasSecondaryActions(tree, element)) {
-			var anchor = { x: event.posx + 1, y: event.posy };
+			const anchor = { x: event.posx + 1, y: event.posy };
 			this.contextMenuService.showContextMenu({
 				getAnchor: () => anchor,
 				getActions: () => this.actionProvider.getSecondaryActions(tree, element),
@@ -200,7 +168,7 @@ export class BaseDebugController extends treedefaults.DefaultController {
 	}
 }
 
-// Call Stack
+// call stack
 
 export class CallStackDataSource implements tree.IDataSource {
 
@@ -217,9 +185,9 @@ export class CallStackDataSource implements tree.IDataSource {
 			return Promise.as((<model.Thread> element).callStack);
 		}
 
-		var threads = (<model.Model> element).getThreads();
-		var threadsArray: debug.IThread[] = [];
-		for (var reference in threads) {
+		const threads = (<model.Model> element).getThreads();
+		const threadsArray: debug.IThread[] = [];
+		for (let reference in threads) {
 			if (threads.hasOwnProperty(reference)) {
 				threadsArray.push(threads[reference]);
 			}
@@ -320,19 +288,22 @@ export class CallStackRenderer implements tree.IRenderer {
 	}
 }
 
-// Variables
+// variables
 
-export class VariablesActionProvider extends SimpleActionProvider {
+export class VariablesActionProvider implements renderer.IActionProvider {
 
 	private instantiationService: IInstantiationService;
 
 	constructor(instantiationService: IInstantiationService) {
-		super();
 		this.instantiationService = instantiationService;
 	}
 
 	public hasActions(tree: tree.ITree, element: any): boolean {
 		return false;
+	}
+
+	public getActions(tree: tree.ITree, element: any): TPromise<actions.IAction[]> {
+		return Promise.as([]);
 	}
 
 	public hasSecondaryActions(tree: tree.ITree, element: any): boolean {
@@ -348,6 +319,10 @@ export class VariablesActionProvider extends SimpleActionProvider {
 		}
 
 		return Promise.as(actions);
+	}
+
+	public getActionItem(tree: tree.ITree, element: any, action: actions.IAction): actionbar.IActionItem {
+		return null;
 	}
 }
 
@@ -452,14 +427,13 @@ export class VariablesRenderer implements tree.IRenderer {
 	}
 }
 
-// Watch expressions
+// watch expressions
 
-export class WatchExpressionsActionProvider extends SimpleActionProvider {
+export class WatchExpressionsActionProvider implements renderer.IActionProvider {
 
 	private instantiationService: IInstantiationService;
 
 	constructor(instantiationService: IInstantiationService) {
-		super();
 		this.instantiationService = instantiationService;
 	}
 
@@ -480,7 +454,7 @@ export class WatchExpressionsActionProvider extends SimpleActionProvider {
 	}
 
 	public getSecondaryActions(tree: tree.ITree, element: any): Promise {
-		var actions: actions.Action[] = [];
+		const actions: actions.Action[] = [];
 		if (element instanceof model.Expression) {
 			const expression = <model.Expression> element;
 			actions.push(this.instantiationService.createInstance(debugactions.AddWatchExpressionAction, debugactions.AddWatchExpressionAction.ID, debugactions.AddWatchExpressionAction.LABEL));
@@ -506,6 +480,10 @@ export class WatchExpressionsActionProvider extends SimpleActionProvider {
 
 		return Promise.as(actions);
 	}
+
+	public getActionItem(tree: tree.ITree, element: any, action: actions.IAction): actionbar.IActionItem {
+		return null;
+	}
 }
 
 export class WatchExpressionsDataSource implements tree.IDataSource {
@@ -523,7 +501,7 @@ export class WatchExpressionsDataSource implements tree.IDataSource {
 			return true;
 		}
 
-		var watchExpression = <model.Expression> element;
+		const watchExpression = <model.Expression> element;
 		return watchExpression.reference !== 0 && !strings.equalsIgnoreCase(watchExpression.value, 'null');
 	}
 
@@ -634,9 +612,9 @@ export class WatchExpressionsController extends BaseDebugController {
 	}
 
 	/* protected */ public onLeftClick(tree: tree.ITree, element: any, event: mouse.StandardMouseEvent): boolean {
-		// Doubleclick on primitive value: open input box to be able to select and copy value.
+		// double click on primitive value: open input box to be able to select and copy value.
 		if (element instanceof model.Expression && event.detail === 2) {
-			var expression = <debug.IExpression> element;
+			const expression = <debug.IExpression> element;
 			if (expression.reference === 0) {
 				this.debugService.getViewModel().setSelectedExpression(expression);
 			}
@@ -647,9 +625,9 @@ export class WatchExpressionsController extends BaseDebugController {
 	}
 
 	protected onRename(tree: tree.ITree, event: KeyboardEvent): boolean {
-		var element = tree.getFocus();
+		const element = tree.getFocus();
 		if (element instanceof model.Expression) {
-			var watchExpression = <model.Expression> element;
+			const watchExpression = <model.Expression> element;
 			if (watchExpression.reference === 0) {
 				this.debugService.getViewModel().setSelectedExpression(watchExpression);
 			}
@@ -660,9 +638,9 @@ export class WatchExpressionsController extends BaseDebugController {
 	}
 
 	protected onDelete(tree: tree.ITree, event: keyboard.StandardKeyboardEvent): boolean {
-		var element = tree.getFocus();
+		const element = tree.getFocus();
 		if (element instanceof model.Expression) {
-			var we = <model.Expression> element;
+			const we = <model.Expression> element;
 			this.debugService.clearWatchExpressions(we.getId());
 
 			return true;
@@ -672,12 +650,12 @@ export class WatchExpressionsController extends BaseDebugController {
 	}
 }
 
-// Breakpoints
+// breakpoints
 
-export class BreakpointsActionProvider extends SimpleActionProvider {
+export class BreakpointsActionProvider implements renderer.IActionProvider {
 
 	constructor(private instantiationService: IInstantiationService) {
-		super();
+		// noop
 	}
 
 	public hasActions(tree: tree.ITree, element: any): boolean {
@@ -701,7 +679,7 @@ export class BreakpointsActionProvider extends SimpleActionProvider {
 	}
 
 	public getSecondaryActions(tree: tree.ITree, element: any): TPromise<actions.IAction[]> {
-		var actions: actions.Action[] = [this.instantiationService.createInstance(debugactions.ToggleEnablementAction, debugactions.ToggleEnablementAction.ID, debugactions.ToggleEnablementAction.LABEL)];
+		const actions: actions.Action[] = [this.instantiationService.createInstance(debugactions.ToggleEnablementAction, debugactions.ToggleEnablementAction.ID, debugactions.ToggleEnablementAction.LABEL)];
 		actions.push(new actionbar.Separator());
 
 		actions.push(this.instantiationService.createInstance(debugactions.RemoveBreakpointAction, debugactions.RemoveBreakpointAction.ID, debugactions.RemoveBreakpointAction.LABEL));
@@ -722,6 +700,10 @@ export class BreakpointsActionProvider extends SimpleActionProvider {
 
 		return Promise.as(actions);
 	}
+
+	public getActionItem(tree: tree.ITree, element: any, action: actions.IAction): actionbar.IActionItem {
+		return null;
+	}
 }
 
 export class BreakpointsDataSource implements tree.IDataSource {
@@ -735,8 +717,8 @@ export class BreakpointsDataSource implements tree.IDataSource {
 	}
 
 	public getChildren(tree: tree.ITree, element: any): Promise {
-		var model = <model.Model> element;
-		var exBreakpoints = <debug.IEnablement[]> model.getExceptionBreakpoints();
+		const model = <model.Model> element;
+		const exBreakpoints = <debug.IEnablement[]> model.getExceptionBreakpoints();
 
 		return Promise.as(exBreakpoints.concat(model.getFunctionBreakpoints()).concat(model.getBreakpoints()));
 	}
@@ -799,7 +781,7 @@ export class BreakpointsRenderer implements tree.IRenderer {
 	}
 
 	public renderTemplate(tree: tree.ITree, templateId: string, container: HTMLElement): any {
-		var data: IBreakpointTemplateData = Object.create(null);
+		const data: IBreakpointTemplateData = Object.create(null);
 		if (templateId === BreakpointsRenderer.BREAKPOINT_TEMPLATE_ID || templateId === BreakpointsRenderer.FUNCTION_BREAKPOINT_TEMPLATE_ID) {
 			data.actionBar = new actionbar.ActionBar(container, { actionRunner: this.actionRunner });
 			data.actionBar.push(this.actionProvider.getBreakpointActions(), { icon: true, label: false });
@@ -839,7 +821,7 @@ export class BreakpointsRenderer implements tree.IRenderer {
 	}
 
 	private renderExceptionBreakpoint(exceptionBreakpoint: debug.IExceptionBreakpoint, data: IExceptionBreakpointTemplateData): void {
-		var namePascalCase = exceptionBreakpoint.name.charAt(0).toUpperCase() + exceptionBreakpoint.name.slice(1);
+		const namePascalCase = exceptionBreakpoint.name.charAt(0).toUpperCase() + exceptionBreakpoint.name.slice(1);
 		data.name.textContent = `${ namePascalCase} exceptions`;
 		data.checkbox.checked = exceptionBreakpoint.enabled;
 	}
@@ -892,7 +874,7 @@ export class BreakpointsController extends BaseDebugController {
 
 	private doNotFocusExceptionBreakpoint(tree: tree.ITree, upSucceeded: boolean) : boolean {
 		if (upSucceeded) {
-			var focus = tree.getFocus();
+			const focus = tree.getFocus();
 			if (focus instanceof model.ExceptionBreakpoint) {
 				tree.focusNth(2);
 			}

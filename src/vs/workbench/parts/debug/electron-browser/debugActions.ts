@@ -8,6 +8,7 @@ import actions = require('vs/base/common/actions');
 import lifecycle = require('vs/base/common/lifecycle');
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
 import editorCommon = require('vs/editor/common/editorCommon');
+import editorbrowser = require('vs/editor/browser/editorBrowser');
 import baseeditor = require('vs/workbench/browser/parts/editor/baseEditor');
 import { EditorAction, Behaviour } from 'vs/editor/common/editorAction';
 import platform = require('vs/platform/platform');
@@ -20,8 +21,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybindingServ
 import remote = require('remote');
 import IDebugService = debug.IDebugService;
 
-var clipboard = remote.require('clipboard');
-var registry = <wbaregistry.IWorkbenchActionRegistry> platform.Registry.as(wbaregistry.Extensions.WorkbenchActions);
+const clipboard = remote.require('clipboard');
 
 export class AbstractDebugAction extends actions.Action {
 
@@ -36,8 +36,8 @@ export class AbstractDebugAction extends actions.Action {
 		this.toDispose = [];
 		this.toDispose.push(this.debugService.addListener2(debug.ServiceEvents.STATE_CHANGED, () => this.updateEnablement()));
 
-		var keybinding: string = null;
-		var keys = this.keybindingService.lookupKeybindings(id).map(k => this.keybindingService.getLabelFor(k));
+		let keybinding: string = null;
+		const keys = this.keybindingService.lookupKeybindings(id).map(k => this.keybindingService.getLabelFor(k));
 		if (keys && keys.length) {
 			keybinding = keys[0];
 		}
@@ -80,7 +80,7 @@ export class ConfigureAction extends AbstractDebugAction {
 	}
 
 	public run(event?: any): Promise {
-		var sideBySide = !!(event && (event.ctrlKey || event.metaKey));
+		const sideBySide = !!(event && (event.ctrlKey || event.metaKey));
 		return this.debugService.openConfigFile(sideBySide);
 	}
 }
@@ -393,17 +393,43 @@ export class AddFunctionBreakpointAction extends AbstractDebugAction {
 	}
 }
 
+export class AddConditionalBreakpointAction extends AbstractDebugAction {
+	static ID = 'workbench.debug.viewlet.action.addConditionalBreakpointAction';
+	static LABEL = nls.localize('addConditionalBreakpoint', "Add Conditional Breakpoint");
+
+	constructor(id: string, label: string, private editor: editorbrowser.ICodeEditor, private lineNumber: number, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
+		super(id, label, null, debugService, keybindingService);
+	}
+
+	public run(): Promise {
+		return this.debugService.editBreakpoint(this.editor, this.lineNumber);
+	}
+}
+
+export class EditConditionalBreakpointAction extends AbstractDebugAction {
+	static ID = 'workbench.debug.viewlet.action.editConditionalBreakpointAction';
+	static LABEL = nls.localize('editConditionalBreakpoint', "Edit Breakpoint");
+
+	constructor(id: string, label: string, private editor: editorbrowser.ICodeEditor, private lineNumber: number, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
+		super(id, label, null, debugService, keybindingService);
+	}
+
+	public run(breakpoint: debug.IBreakpoint): Promise {
+		return this.debugService.editBreakpoint(this.editor, this.lineNumber);
+	}
+}
+
 export class ToggleBreakpointAction extends EditorAction {
 	static ID = 'editor.debug.action.toggleBreakpoint';
 
-	constructor(descriptor:editorCommon.IEditorActionDescriptorData, editor:editorCommon.ICommonCodeEditor, @IDebugService private debugService: IDebugService) {
+	constructor(descriptor: editorCommon.IEditorActionDescriptorData, editor: editorCommon.ICommonCodeEditor, @IDebugService private debugService: IDebugService) {
 		super(descriptor, editor, Behaviour.TextFocus);
 	}
 
 	public run(): TPromise<boolean> {
 		if (this.debugService.getState() !== debug.State.Disabled) {
-			var lineNumber = this.editor.getPosition().lineNumber;
-			var modelUrl = this.editor.getModel().getAssociatedResource();
+			const lineNumber = this.editor.getPosition().lineNumber;
+			const modelUrl = this.editor.getModel().getAssociatedResource();
 			if (this.debugService.canSetBreakpointsIn(this.editor.getModel(), lineNumber)) {
 				return this.debugService.toggleBreakpoint({ uri: modelUrl, lineNumber: lineNumber });
 			}
@@ -446,8 +472,8 @@ export class RunToCursorAction extends EditorAction {
 	}
 
 	public run(): TPromise<boolean> {
-		var lineNumber = this.editor.getPosition().lineNumber;
-		var uri = this.editor.getModel().getAssociatedResource();
+		const lineNumber = this.editor.getPosition().lineNumber;
+		const uri = this.editor.getModel().getAssociatedResource();
 
 		this.debugService.getActiveSession().addOneTimeListener(debug.SessionEvents.STOPPED, () => {
 			this.debugService.toggleBreakpoint({ uri, lineNumber });
@@ -469,11 +495,11 @@ export class RunToCursorAction extends EditorAction {
 			return false;
 		}
 
-		var lineNumber = this.editor.getPosition().lineNumber;
-		var uri = this.editor.getModel().getAssociatedResource();
-		var bps = this.debugService.getModel().getBreakpoints().filter(bp => bp.lineNumber === lineNumber && bp.source.uri.toString() === uri.toString());
+		const lineNumber = this.editor.getPosition().lineNumber;
+		const uri = this.editor.getModel().getAssociatedResource();
+		const bps = this.debugService.getModel().getBreakpoints().filter(bp => bp.lineNumber === lineNumber && bp.source.uri.toString() === uri.toString());
 
-		// Breakpoint must not be on position (no need for this action).
+		// breakpoint must not be on position (no need for this action).
 		return bps.length === 0;
 	}
 }
@@ -504,7 +530,7 @@ export class SelectionToWatchExpressionsAction extends EditorAction {
 	}
 
 	public run(): TPromise<boolean> {
-		var text = this.editor.getModel().getValueInRange(this.editor.getSelection());
+		const text = this.editor.getModel().getValueInRange(this.editor.getSelection());
 		return this.viewletService.openViewlet(debug.VIEWLET_ID).then(() => this.debugService.addWatchExpression(text));
 	}
 
@@ -513,8 +539,8 @@ export class SelectionToWatchExpressionsAction extends EditorAction {
 	}
 
 	public shouldShowInContextMenu(): boolean {
-		var selection = this.editor.getSelection();
-		var text = this.editor.getModel().getValueInRange(selection);
+		const selection = this.editor.getSelection();
+		const text = this.editor.getModel().getValueInRange(selection);
 
 		return !!selection && !selection.isEmpty() && this.debugService.getState() !== debug.State.Inactive && text && /\S/.test(text);
 	}
@@ -528,7 +554,7 @@ export class SelectionToReplAction extends EditorAction {
 	}
 
 	public run(): TPromise<boolean> {
-		var text = this.editor.getModel().getValueInRange(this.editor.getSelection());
+		const text = this.editor.getModel().getValueInRange(this.editor.getSelection());
 		return this.debugService.addReplExpression(text).then(() => this.debugService.revealRepl());
 	}
 
@@ -537,9 +563,7 @@ export class SelectionToReplAction extends EditorAction {
 	}
 
 	public shouldShowInContextMenu(): boolean {
-		var selection = this.editor.getSelection();
-		var text = this.editor.getModel().getValueInRange(selection);
-
+		const selection = this.editor.getSelection();
 		return !!selection && !selection.isEmpty() && this.debugService.getState() === debug.State.Stopped;
 	}
 }

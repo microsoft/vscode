@@ -185,19 +185,28 @@ export class QuickOpenEntry {
 		let labelHighlights: IHighlight[] = [];
 		let descriptionHighlights: IHighlight[] = [];
 
+		const label = entry.getLabel();
+		const description = entry.getDescription();
+
 		// Highlight file aware
 		if (entry.getResource()) {
 
+			// Highlight entire label and description if searching for full absolute path
+			if (lookFor.toLowerCase() === entry.getResource().fsPath.toLowerCase()) {
+				labelHighlights.push({ start: 0, end: label.length });
+				descriptionHighlights.push({ start: 0, end: description.length });
+			}
+
 			// Fuzzy/Full-Path: Highlight is special
-			if (fuzzyHighlight || lookFor.indexOf(Paths.nativeSep) >= 0) {
-				let candidateLabelHighlights = Filters.matchesFuzzy(lookFor, entry.getLabel(), fuzzyHighlight);
+			else if (fuzzyHighlight || lookFor.indexOf(Paths.nativeSep) >= 0) {
+				let candidateLabelHighlights = Filters.matchesFuzzy(lookFor, label, fuzzyHighlight);
 				if (!candidateLabelHighlights) {
-					const pathPrefix = entry.getDescription() ? (entry.getDescription() + Paths.nativeSep) : '';
+					const pathPrefix = description ? (description + Paths.nativeSep) : '';
 					const pathPrefixLength = pathPrefix.length;
 
 					// If there are no highlights in the label, build a path out of description and highlight and match on both,
 					// then extract the individual label and description highlights back to the original positions
-					let pathHighlights = Filters.matchesFuzzy(lookFor, pathPrefix + entry.getLabel(), fuzzyHighlight);
+					let pathHighlights = Filters.matchesFuzzy(lookFor, pathPrefix + label, fuzzyHighlight);
 					if (pathHighlights) {
 						pathHighlights.forEach(h => {
 
@@ -225,13 +234,13 @@ export class QuickOpenEntry {
 
 			// Highlight only inside label
 			else {
-				labelHighlights = Filters.matchesFuzzy(lookFor, entry.getLabel());
+				labelHighlights = Filters.matchesFuzzy(lookFor, label);
 			}
 		}
 
 		// Highlight by label otherwise
 		else {
-			labelHighlights = Filters.matchesFuzzy(lookFor, entry.getLabel());
+			labelHighlights = Filters.matchesFuzzy(lookFor, label);
 		}
 
 		return { labelHighlights, descriptionHighlights };

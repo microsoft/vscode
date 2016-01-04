@@ -16,8 +16,8 @@ import debug = require('vs/workbench/parts/debug/common/debug');
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 
 function resolveChildren(debugService: debug.IDebugService, parent: debug.IExpressionContainer): TPromise<Variable[]> {
-	var session = debugService.getActiveSession();
-	// Only variables with reference > 0 have children.
+	const session = debugService.getActiveSession();
+	// only variables with reference > 0 have children.
 	if (!session || parent.reference <= 0) {
 		return TPromise.as([]);
 	}
@@ -33,13 +33,13 @@ function massageValue(value: string): string {
 	return value ? value.replace(/\n/g, '\\n').replace(/\r/g, '\\r').replace(/\t/g, '\\t') : value;
 }
 
-var notPropertySyntax = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
-var arrayElementSyntax = /\[.*\]$/;
+const notPropertySyntax = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
+const arrayElementSyntax = /\[.*\]$/;
 
 export function getFullExpressionName(expression: debug.IExpression, sessionType: string): string {
 	let names = [expression.name];
 	if (expression instanceof Variable) {
-		var v = (<Variable> expression).parent;
+		let v = (<Variable> expression).parent;
 		while (v instanceof Variable || v instanceof Expression) {
 			names.push((<Variable> v).name);
 			v = (<Variable> v).parent;
@@ -52,7 +52,7 @@ export function getFullExpressionName(expression: debug.IExpression, sessionType
 		if (!result) {
 			result = name;
 		} else if (arrayElementSyntax.test(name) || (sessionType === 'node' && !notPropertySyntax.test(name))) {
-			// Use safe way to access node properties a['property_name']. Also handles array elements.
+			// use safe way to access node properties a['property_name']. Also handles array elements.
 			result = name && name.indexOf('[') === 0 ? `${ result }${ name }` : `${ result }['${ name }']`;
 		} else {
 			result = `${ result }.${ name }`;
@@ -187,7 +187,7 @@ export class Expression implements debug.IExpression {
 export class Variable implements debug.IExpression {
 
 	public static allValues: { [id: string]: string } = {};
-	// Cache children to optimize debug hover behaviour.
+	// cache children to optimize debug hover behaviour.
 	private children: TPromise<debug.IExpression[]>;
 	public value: string;
 	public valueChanged: boolean;
@@ -342,7 +342,7 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 				this.threads = {};
 				Variable.allValues = {};
 			} else {
-				for (var ref in this.threads) {
+				for (let ref in this.threads) {
 					if (this.threads.hasOwnProperty(ref)) {
 						this.threads[ref].callStack = [];
 						this.threads[ref].exception = false;
@@ -445,7 +445,7 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 	}
 
 	public addReplExpression(session: debug.IRawDebugSession, stackFrame: debug.IStackFrame, name: string): Promise {
-		var expression = new Expression(name, true);
+		const expression = new Expression(name, true);
 		this.replElements.push(expression);
 		return this.evaluateExpression(session, stackFrame, expression, true).then(() =>
 			this.emit(debug.ModelEvents.REPL_ELEMENTS_UPDATED, expression)
@@ -459,7 +459,7 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 		let previousOutput = this.replElements.length && (<ValueOutputElement>this.replElements[this.replElements.length - 1]);
 		let groupTogether = !!previousOutput && severity === previousOutput.severity;
 
-		// String message
+		// string message
 		if (typeof value === 'string') {
 			if (value && value.trim() && previousOutput && previousOutput.value === value && previousOutput.severity === severity) {
 				previousOutput.counter++; // we got the same output (but not an empty string when trimmed) so we just increment the counter
@@ -471,7 +471,7 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 			}
 		}
 
-		// Key-Value output
+		// key-value output
 		else {
 			elements.push(new KeyValueOutputElement(value.prototype, value, nls.localize('snapshotObj', "Only primitive values are shown for this object."), groupTogether));
 		}
@@ -483,7 +483,7 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 	}
 
 	public appendReplOutput(value: string, severity?: severity): void {
-		var elements:OutputElement[] = [];
+		const elements: OutputElement[] = [];
 		let previousOutput = this.replElements.length && (<ValueOutputElement>this.replElements[this.replElements.length - 1]);
 		let lines = value.split('\n');
 		let groupTogether = !!previousOutput && previousOutput.category === 'output' && severity === previousOutput.severity;
@@ -511,7 +511,7 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 	}
 
 	public addWatchExpression(session: debug.IRawDebugSession, stackFrame: debug.IStackFrame, name: string): Promise {
-		var we = new Expression(name, false);
+		const we = new Expression(name, false);
 		this.watchExpressions.push(we);
 		if (!name) {
 			this.emit(debug.ModelEvents.WATCH_EXPRESSIONS_UPDATED, we);
@@ -522,7 +522,7 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 	}
 
 	public renameWatchExpression(session: debug.IRawDebugSession, stackFrame: debug.IStackFrame, id: string, newName: string): Promise {
-		var filtered = this.watchExpressions.filter(we => we.getId() === id);
+		const filtered = this.watchExpressions.filter(we => we.getId() === id);
 		if (filtered.length === 1) {
 			filtered[0].name = newName;
 			return this.evaluateExpression(session, stackFrame, filtered[0], false).then(() => {
@@ -535,7 +535,7 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 
 	public evaluateWatchExpressions(session: debug.IRawDebugSession, stackFrame: debug.IStackFrame, id: string = null): Promise {
 		if (id) {
-			var filtered = this.watchExpressions.filter(we => we.getId() === id);
+			const filtered = this.watchExpressions.filter(we => we.getId() === id);
 			if (filtered.length !== 1) {
 				return Promise.as(null);
 			}
@@ -606,7 +606,7 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 		}
 
 		if (data.callStack) {
-			// Convert raw call stack into proper modelled call stack
+			// convert raw call stack into proper modelled call stack
 			this.threads[data.threadId].callStack = data.callStack.map(
 				(rsf, level) => {
 					if (!rsf) {

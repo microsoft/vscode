@@ -261,11 +261,8 @@ export function match(arg1: string|IExpression, path: string, siblings?: string[
 
 	// Glob with String
 	if (typeof arg1 === 'string') {
-		try {
-			return globToRegExp(arg1).test(path);
-		} catch (error) {
-			return false; // ignore pattern if the regex is invalid
-		}
+		var regExp = globToRegExp(arg1);
+		return regExp && regExp.test(path);
 	}
 
 	// Glob with Expression
@@ -277,16 +274,16 @@ function matchExpression(expression: IExpression, path: string, siblings?: strin
 	for (let i = 0; i < patterns.length; i++) {
 		let pattern = patterns[i];
 
+		let value = expression[pattern];
+		if (value === false) {
+			continue; // pattern is disabled
+		}
+
 		// Pattern matches path
 		if (match(pattern, path)) {
-			let value = expression[pattern];
 
 			// Expression Pattern is <boolean>
 			if (typeof value === 'boolean') {
-				if (value === false) {
-					continue; // pattern is disabled
-				}
-
 				return pattern;
 			}
 

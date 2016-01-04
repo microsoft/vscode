@@ -709,13 +709,13 @@ export class BaseDeleteFileAction extends BaseFileAction {
 			confirm = {
 				message: this.element.isDirectory ? nls.localize('confirmMoveTrashMessageFolder', "Are you sure you want to delete '{0}' and its contents?", this.element.name) : nls.localize('confirmMoveTrashMessageFile', "Are you sure you want to delete '{0}'?", this.element.name),
 				detail: isWindows ? nls.localize('undoBin', "You can restore from the recycle bin.") : nls.localize('undoTrash', "You can restore from the trash."),
-				primaryButton: isWindows ? nls.localize('deleteButtonLabelRecycleBin', "Move to Recycle Bin") : nls.localize('deleteButtonLabelTrash', "Move to Trash")
+				primaryButton: isWindows ? nls.localize('deleteButtonLabelRecycleBin', "&&Move to Recycle Bin") : nls.localize('deleteButtonLabelTrash', "&&Move to Trash")
 			};
 		} else {
 			confirm = {
 				message: this.element.isDirectory ? nls.localize('confirmDeleteMessageFolder', "Are you sure you want to permanently delete '{0}' and its contents?", this.element.name) : nls.localize('confirmDeleteMessageFile', "Are you sure you want to permanently delete '{0}'?", this.element.name),
 				detail: nls.localize('irreversible', "This action is irreversible!"),
-				primaryButton: nls.localize('deleteButtonLabel', "Delete")
+				primaryButton: nls.localize('deleteButtonLabel', "&&Delete")
 			};
 		}
 
@@ -879,7 +879,7 @@ export class ImportFileAction extends BaseFileAction {
 						let confirm: IConfirmation = {
 							message: nls.localize('confirmOverwrite', "A file or folder with the same name already exists in the destination folder. Do you want to replace it?"),
 							detail: nls.localize('irreversible', "This action is irreversible!"),
-							primaryButton: nls.localize('replaceButtonLabel', "Replace")
+							primaryButton: nls.localize('replaceButtonLabel', "&&Replace")
 						};
 
 						overwrite = this.messageService.confirm(confirm);
@@ -1753,7 +1753,6 @@ export class SaveAllAction extends BaseSaveAllAction {
 	protected includeUntitled(): boolean {
 		return true;
 	}
-
 }
 
 export class SaveFilesAction extends BaseSaveAllAction {
@@ -2275,9 +2274,6 @@ export function keybindingForAction(id: string): Keybinding {
 	return null;
 }
 
-// See also http://en.wikipedia.org/wiki/Filename#Reserved_characters_and_words
-let INVALID_FILE_CHARS = isWindows ? ['/', '\\', ':', '*', '?', '\'', '<', '>', '|'] : ['/', '\\'];
-
 export function validateFileName(parent: IFileStat, name: string, allowOverwriting: boolean = false): string {
 
 	// Produce a well formed file name
@@ -2301,11 +2297,9 @@ export function validateFileName(parent: IFileStat, name: string, allowOverwriti
 		}
 	}
 
-	// Invalid File Char
-	for (let i = 0; i < INVALID_FILE_CHARS.length; i++) {
-		if (name.indexOf(INVALID_FILE_CHARS[i]) >= 0) {
-			return nls.localize('invalidFileNameError', "The name **{0}** contains characters that are not valid as a file or folder name. Please choose a different name.", name);
-		}
+	// Invalid File name
+	if (!paths.isValidBasename(name)) {
+		return nls.localize('invalidFileNameError', "The name **{0}** is not valid as a file or folder name. Please choose a different name.", name);
 	}
 
 	// Max length restriction (on Windows)

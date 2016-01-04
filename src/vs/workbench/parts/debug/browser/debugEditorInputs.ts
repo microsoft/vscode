@@ -47,11 +47,11 @@ export class ReplEditorInput extends wbeditorcommon.EditorInput {
 		return ReplEditorInput.ID;
 	}
 
-	public getName() : string {
+	public getName(): string {
 		return ReplEditorInput.NAME;
 	}
 
-	public resolve(refresh?:boolean): TPromise<wbeditorcommon.EditorModel> {
+	public resolve(refresh?: boolean): TPromise<wbeditorcommon.EditorModel> {
 		return TPromise.as(null);
 	}
 }

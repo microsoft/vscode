@@ -183,4 +183,24 @@ suite('Paths', () => {
 			assert(!paths.isUNC('\\\\foo'));
 		}
 	});
+
+	test('isValidBasename', () => {
+		assert.ok(!paths.isValidBasename(null));
+		assert.ok(!paths.isValidBasename(''));
+		assert.ok(paths.isValidBasename('test.txt'));
+		assert.ok(!paths.isValidBasename('/test.txt'));
+		assert.ok(!paths.isValidBasename('\\test.txt'));
+
+		if (platform.isWindows) {
+			assert.ok(!paths.isValidBasename('aux'));
+			assert.ok(!paths.isValidBasename('Aux'));
+			assert.ok(!paths.isValidBasename('LPT0'));
+			assert.ok(!paths.isValidBasename('test.txt.'));
+			assert.ok(!paths.isValidBasename('test.txt..'));
+			assert.ok(!paths.isValidBasename('test.txt '));
+			assert.ok(!paths.isValidBasename('test.txt\t'));
+			assert.ok(!paths.isValidBasename('tes:t.txt'));
+			assert.ok(!paths.isValidBasename('tes"t.txt'));
+		}
+	});
 });

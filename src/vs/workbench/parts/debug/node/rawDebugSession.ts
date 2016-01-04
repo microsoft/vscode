@@ -54,8 +54,8 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 
 	protected send(command: string, args: any): TPromise<DebugProtocol.Response> {
 		return this.initServer().then(() => super.send(command, args).then(response => response, (errorResponse: DebugProtocol.ErrorResponse) => {
-			var error = errorResponse.body ? errorResponse.body.error : null;
-			var message = error ? debug.formatPII(error.format, false, error.variables) : errorResponse.message;
+			const error = errorResponse.body ? errorResponse.body.error : null;
+			const message = error ? debug.formatPII(error.format, false, error.variables) : errorResponse.message;
 			if (error && error.sendTelemetry) {
 				this.telemetryService.publicLog('debugProtocolErrorResponse', { error : message });
 			}
@@ -94,11 +94,11 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 		return this.sendAndLazyEmit('continue', args);
 	}
 
-	// Node sometimes sends "stopped" events earlier than the response for the "step" request.
-	// Due to this we only emit "continued" if we did not miss a stopped event.
-	// We do not emit straight away to reduce viewlet flickering.
+	// node sometimes sends "stopped" events earlier than the response for the "step" request.
+	// due to this we only emit "continued" if we did not miss a stopped event.
+	// we do not emit straight away to reduce viewlet flickering.
 	private sendAndLazyEmit(command: string, args: any, eventType = debug.SessionEvents.CONTINUED): TPromise<DebugProtocol.Response> {
-		var count = this.flowEventsCount;
+		const count = this.flowEventsCount;
 		return this.send(command, args).then(response => {
 			setTimeout(() => {
 				if (this.flowEventsCount === count) {
@@ -168,8 +168,6 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 		return this.adapter.type;
 	}
 
-	//---- private
-
 	private connectServer(port: number): Promise {
 		return new Promise((c, e) => {
 			this.socket = net.createConnection(port, null, () => {
@@ -191,10 +189,10 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 			this.serverProcess.on('error', (err: Error) => this.onServerError(err));
 			this.serverProcess.on('exit', (code: number, signal: string) => this.onServerExit());
 
-			var sanitize = (s: string) => s.toString().replace(/\r?\n$/mg, '');
-			//		this.serverProcess.stdout.on('data', (data: string) => {
-			//			console.log('%c' + sanitize(data), 'background: #ddd; font-style: italic;');
-			//		});
+			const sanitize = (s: string) => s.toString().replace(/\r?\n$/mg, '');
+			// this.serverProcess.stdout.on('data', (data: string) => {
+			// 	console.log('%c' + sanitize(data), 'background: #ddd; font-style: italic;');
+			// });
 			this.serverProcess.stderr.on('data', (data: string) => {
 				console.log(sanitize(data));
 			});
@@ -240,13 +238,13 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 
 		this.stopServerPending = true;
 
-		var ret: Promise;
+		let ret: Promise;
 		// when killing a process in windows its child
 		// processes are *not* killed but become root
 		// processes. Therefore we use TASKKILL.EXE
 		if (platform.isWindows) {
 			ret = new Promise((c, e) => {
-				var killer = cp.exec(`taskkill /F /T /PID ${this.serverProcess.pid}`, function (err, stdout, stderr) {
+				const killer = cp.exec(`taskkill /F /T /PID ${this.serverProcess.pid}`, function (err, stdout, stderr) {
 					if (err) {
 						return e(err);
 					}

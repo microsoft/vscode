@@ -35,8 +35,8 @@ KeybindingsRegistry.registerCommandDesc({
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 	context: [{ key: 'searchViewletVisible' }],
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_J,
-	handler: ctx => {
-		let viewletService = <IViewletService>ctx['viewletService'];
+	handler: accessor => {
+		let viewletService = accessor.get(IViewletService);
 		viewletService.openViewlet(VIEWLET_ID, true)
 			.then(viewlet => (<any>viewlet).toggleFileTypes());
 	}
