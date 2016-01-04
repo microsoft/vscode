@@ -2248,15 +2248,19 @@
       <desc>Indicates what opacity to use to flood the current filter primitive subregion.</desc>
     </entry>
     <entry name="flow-from" restriction="identifier" version="3.0" browsers="none" ref="http://www.w3.org/TR/css3-regions/#flow-from" syntax="div { $(name): identifier; }">
-      <desc>Gets or sets a value that identifies a Connected Frame container in the document that accepts the content flow from the data source.</desc>
+      <desc>Makes a block container a region and associates it with a named flow.</desc>
       <values>
-        <value name="none" version="3.0" browsers="all" />
+        <value name="none" version="3.0" browsers="all">
+          <desc>The block container is not a CSS Region.</desc>
+        </value>
       </values>
     </entry>
     <entry name="flow-into" restriction="identifier" version="3.0" browsers="none" ref="http://www.w3.org/TR/css3-regions/#flow-into" syntax="div { $(name): identifier; }">
-      <desc>Gets or sets a value that identifies an iframe container in the document that serves as the Connected Frame data source.</desc>
+      <desc>Places an element or its contents into a named flow.</desc>
       <values>
-        <value name="none" version="3.0" browsers="all" />
+        <value name="none" version="3.0" browsers="all">
+          <desc>The element is not moved to a named flow and normal CSS processing takes place.</desc>
+        </value>
       </values>
     </entry>
     <entry name="font" restriction="font" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-fonts/#propdef-font" syntax="body { $(name): bold 12px arial, verdana; }">
@@ -4287,16 +4291,20 @@
         </value>
       </values>
     </entry>
-    <entry name="-ms-flow-from" restriction="identifier" version="3.0" browsers="IE10" ref="http://www.w3.org/TR/css3-regions/#flow-from" syntax="div { $(name): identifier; }">
-      <desc>Gets or sets a value that identifies a Connected Frame container in the document that accepts the content flow from the data source.</desc>
+    <entry name="-ms-flow-from" restriction="identifier" version="3.0" browsers="E,IE10" ref="http://www.w3.org/TR/css3-regions/#flow-from" syntax="div { $(name): identifier; }">
+      <desc>Makes a block container a region and associates it with a named flow.</desc>
       <values>
-        <value name="none" version="3.0" browsers="all" />
+        <value name="none" version="3.0" browsers="all">
+          <desc>The block container is not a CSS Region.</desc>
+        </value>
       </values>
     </entry>
-    <entry name="-ms-flow-into" restriction="identifier" version="3.0" browsers="IE10" ref="http://www.w3.org/TR/css3-regions/#flow-into" syntax="div { $(name): identifier; }">
-      <desc>Gets or sets a value that identifies an iframe container in the document that serves as the Connected Frame data source.</desc>
+    <entry name="-ms-flow-into" restriction="identifier" version="3.0" browsers="E,IE10" ref="http://www.w3.org/TR/css3-regions/#flow-into" syntax="div { $(name): identifier; }">
+      <desc>Places an element or its contents into a named flow.</desc>
       <values>
-        <value name="none" version="3.0" browsers="all" />
+        <value name="none" version="3.0" browsers="all">
+          <desc>The element is not moved to a named flow and normal CSS processing takes place.</desc>
+        </value>
       </values>
     </entry>
     <entry name="-ms-grid-column" restriction="integer, string, enum" version="3.0" browsers="E,IE10" ref="http://www.w3.org/TR/css3-grid-layout/#grid-column" syntax="#item1 { $(name): start end; }">
@@ -7843,16 +7851,20 @@
         <value name="sepia()" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="-webkit-flow-from" restriction="identifier" version="3.0" browsers="C,S5.2" ref="http://www.w3.org/TR/css3-regions/#flow-from" syntax="div { $(name): identifier; }">
-      <desc>Gets or sets a value that identifies a Connected Frame container in the document that accepts the content flow from the data source.</desc>
+    <entry name="-webkit-flow-from" restriction="identifier" version="3.0" browsers="S6.1" ref="http://www.w3.org/TR/css3-regions/#flow-from" syntax="div { $(name): identifier; }">
+      <desc>Makes a block container a region and associates it with a named flow.</desc>
       <values>
-        <value name="none" version="3.0" browsers="all" />
+        <value name="none" version="3.0" browsers="all">
+          <desc>The block container is not a CSS Region.</desc>
+        </value>
       </values>
     </entry>
-    <entry name="-webkit-flow-into" restriction="identifier" version="3.0" browsers="C,S5.2" ref="http://www.w3.org/TR/css3-regions/#flow-into" syntax="div { $(name): identifier; }">
-      <desc>Gets or sets a value that identifies an iframe container in the document that serves as the Connected Frame data source.</desc>
+    <entry name="-webkit-flow-into" restriction="identifier" version="3.0" browsers="S6.1" ref="http://www.w3.org/TR/css3-regions/#flow-into" syntax="div { $(name): identifier; }">
+      <desc>Places an element or its contents into a named flow.</desc>
       <values>
-        <value name="none" version="3.0" browsers="all" />
+        <value name="none" version="3.0" browsers="all">
+          <desc>The element is not moved to a named flow and normal CSS processing takes place.</desc>
+        </value>
       </values>
     </entry>
     <entry name="-webkit-font-feature-settings" restriction="string, integer" version="3.0" browsers="C16" ref="http://www.w3.org/TR/css3-fonts/#propdef-font-feature-settings" syntax="body { $(name): 'hwid'; }">
