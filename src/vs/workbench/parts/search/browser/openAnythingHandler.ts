@@ -21,7 +21,7 @@ import {IAutoFocus} from 'vs/base/parts/quickopen/common/quickOpen';
 import {QuickOpenEntry, QuickOpenModel} from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import {QuickOpenHandler} from 'vs/workbench/browser/quickopen';
 import {FileEntry, OpenFileHandler} from 'vs/workbench/parts/search/browser/openFileHandler';
-import {OpenSymbolHandler} from 'vs/workbench/parts/search/browser/openSymbolHandler';
+import * as openSymbolHandler from 'vs/workbench/parts/search/browser/openSymbolHandler';
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
@@ -32,6 +32,9 @@ interface ISearchWithRange {
 	search: string;
 	range: IRange;
 }
+
+// OpenSymbolHandler is used from an extension and must be in the main bundle file so it can load
+export import OpenSymbolHandler = openSymbolHandler.OpenSymbolHandler;
 
 export class OpenAnythingHandler extends QuickOpenHandler {
 	private static LINE_COLON_PATTERN = /[#|:](\d*)([#|:](\d*))?$/;
