@@ -774,7 +774,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 	}
 
 	private sendBreakpoints(modelUri: uri): Promise {
-		if (!this.session) {
+		if (!this.session || !this.session.readyForBreakpoints) {
 			return Promise.as(null);
 		}
 
@@ -797,7 +797,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 	}
 
 	private sendExceptionBreakpoints(): Promise {
-		if (!this.session) {
+		if (!this.session || !this.session.readyForBreakpoints) {
 			return Promise.as(null);
 		}
 

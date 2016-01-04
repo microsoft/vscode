@@ -12,6 +12,7 @@ import debug = require('vs/workbench/parts/debug/common/debug');
 export class V8Protocol extends ee.EventEmitter {
 
 	public emittedStopped: boolean;
+	public readyForBreakpoints: boolean;
 	protected flowEventsCount: number;
 	private static TWO_CRLF = '\r\n\r\n';
 
@@ -26,6 +27,7 @@ export class V8Protocol extends ee.EventEmitter {
 		super();
 		this.flowEventsCount = 0;
 		this.emittedStopped = false;
+		this.readyForBreakpoints = false;
 		this.sequence = 1;
 		this.contentLength = -1;
 		this.pendingRequests = {};
@@ -37,10 +39,14 @@ export class V8Protocol extends ee.EventEmitter {
 		if (eventType === debug.SessionEvents.STOPPED) {
 			this.emittedStopped = true;
 		}
+		if (eventType === debug.SessionEvents.INITIALIZED) {
+			this.readyForBreakpoints = true;
+		}
 		if (eventType === debug.SessionEvents.CONTINUED || eventType === debug.SessionEvents.STOPPED ||
 			eventType === debug.SessionEvents.DEBUGEE_TERMINATED || eventType === debug.SessionEvents.SERVER_EXIT) {
 			this.flowEventsCount++;
 		}
+		
 		if (data) {
 			data.sessionId = this.getId();
 		} else {
