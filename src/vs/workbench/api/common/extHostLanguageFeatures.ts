@@ -78,8 +78,7 @@ class CodeLensAdapter implements modes.ICodeLensSupport {
 	private _commands: ExtHostCommands;
 	private _provider: vscode.CodeLensProvider;
 
-	private _cachedLenses: { [uri: string]: vscode.CodeLens[] } = Object.create(null);
-	private _cachedCommands: IDisposable[] = [];
+	private _cache: { [uri: string]: [vscode.CodeLens[], IDisposable[]] } = Object.create(null);
 
 	constructor(documents: ExtHostModelService, commands: ExtHostCommands, provider: vscode.CodeLensProvider) {
 		this._documents = documents;
@@ -91,21 +90,25 @@ class CodeLensAdapter implements modes.ICodeLensSupport {
 		let doc = this._documents.getDocument(resource);
 		let key = resource.toString();
 
-		this._cachedCommands = disposeAll(this._cachedCommands);
-		delete this._cachedLenses[key];
+		let entry = this._cache[key];
+		if (entry) {
+			// disposeAll(entry[1]);
+			delete this._cache[key];
+		}
 
 		return asWinJsPromise(token => this._provider.provideCodeLenses(doc, token)).then(value => {
 			if (!Array.isArray(value)) {
 				return;
 			}
 
-			this._cachedLenses[key] = value;
+			entry = [value, []];
+			this._cache[key] = entry;
 
 			return value.map((lens, i) => {
 				return <modes.ICodeLensSymbol>{
 					id: String(i),
 					range: TypeConverters.fromRange(lens.range),
-					command: TypeConverters.Command.from(lens.command, { commands: this._commands, disposables: this._cachedCommands })
+					command: TypeConverters.Command.from(lens.command, { commands: this._commands, disposables: entry[1] })
 				};
 			});
 		});
@@ -113,7 +116,7 @@ class CodeLensAdapter implements modes.ICodeLensSupport {
 
 	resolveCodeLensSymbol(resource: URI, symbol: modes.ICodeLensSymbol): TPromise<modes.ICodeLensSymbol> {
 
-		let lenses = this._cachedLenses[resource.toString()];
+		let [lenses, disposables] = this._cache[resource.toString()];
 		if (!lenses) {
 			return;
 		}
@@ -140,7 +143,7 @@ class CodeLensAdapter implements modes.ICodeLensSupport {
 				};
 			}
 
-			symbol.command = TypeConverters.Command.from(command, { commands: this._commands, disposables: this._cachedCommands });
+			symbol.command = TypeConverters.Command.from(command, { commands: this._commands, disposables });
 			return symbol;
 		});
 	}

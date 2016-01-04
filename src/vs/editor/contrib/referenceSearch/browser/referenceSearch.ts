@@ -333,7 +333,7 @@ let showReferencesCommand: ICommandHandler = (accessor, args:[URI, EditorCommon.
 
 		let controller = FindReferencesController.getController(control);
 		let range = Position.asEmptyRange(args[1]);
-		return TPromise.as(controller.processRequest(Range.lift(range), TPromise.as(args[2])));
+		return TPromise.as(controller.processRequest(Range.lift(range), TPromise.as(args[2]))).then(() => true);
 	});
 };
 

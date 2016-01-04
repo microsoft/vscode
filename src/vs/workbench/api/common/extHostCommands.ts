@@ -10,7 +10,9 @@ import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegi
 import {IKeybindingService, ICommandHandlerDescription} from 'vs/platform/keybinding/common/keybindingService';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {ExtHostEditors} from 'vs/workbench/api/common/extHostEditors';
-import {Disposable} from 'vs/workbench/api/common/extHostTypes';
+import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
+import * as extHostTypeConverter from 'vs/workbench/api/common/extHostTypeConverters';
+import {cloneAndChange} from 'vs/base/common/objects';
 
 interface CommandHandler {
 	callback: Function;
@@ -30,7 +32,7 @@ export class ExtHostCommands {
 		this._proxy = threadService.getRemotable(MainThreadCommands);
 	}
 
-	registerCommand(id: string, callback: <T>(...args: any[]) => T | Thenable<T>, thisArg?: any, description?: ICommandHandlerDescription): Disposable {
+	registerCommand(id: string, callback: <T>(...args: any[]) => T | Thenable<T>, thisArg?: any, description?: ICommandHandlerDescription): extHostTypes.Disposable {
 
 		if (!id.trim().length) {
 			throw new Error('invalid id');
@@ -43,7 +45,7 @@ export class ExtHostCommands {
 		this._commands[id] = { callback, thisArg, description };
 		this._proxy.$registerCommand(id);
 
-		return new Disposable(() => delete this._commands[id]);
+		return new extHostTypes.Disposable(() => delete this._commands[id]);
 	}
 
 	executeCommand<T>(id: string, ...args: any[]): Thenable<T> {
@@ -54,13 +56,22 @@ export class ExtHostCommands {
 			return this.$executeContributedCommand(id, ...args);
 
 		} else {
-			// // check that we can get all parameters over to
-			// // the other side
-			// for (let i = 0; i < args.length; i++) {
-			// 	if (args[i] !== null && typeof args[i] === 'object' && !canSerialize(args[i])) {
-			// 		throw new Error('illegal argument - can not serialize argument number: ' + i)
-			// 	}
-			// }
+			// automagically convert some argument types
+
+			args = cloneAndChange(args, function(value) {
+				if (value instanceof extHostTypes.Position) {
+					return extHostTypeConverter.fromPosition(value);
+				}
+				if (value instanceof extHostTypes.Range) {
+					return extHostTypeConverter.fromRange(value);
+				}
+				if (value instanceof extHostTypes.Location) {
+					return extHostTypeConverter.location.from(value);
+				}
+				if (!Array.isArray(value)) {
+					return value;
+				}
+			});
 
 			return this._proxy.$executeCommand(id, args);
 		}
@@ -70,7 +81,7 @@ export class ExtHostCommands {
 	$executeContributedCommand<T>(id: string, ...args: any[]): Thenable<T> {
 		let command = this._commands[id];
 		if (!command) {
-			return Promise.reject<T>(id);
+			return Promise.reject<T>(`Contributed command '${id}' does not exist.`);
 		}
 		try {
 			let {callback, thisArg, description} = command;

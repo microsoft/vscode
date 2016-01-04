@@ -23,7 +23,6 @@ import {ExtHostLanguages} from 'vs/workbench/api/common/extHostLanguages';
 import {ExtHostLanguageFeatures} from 'vs/workbench/api/common/extHostLanguageFeatures';
 import {registerApiCommands} from 'vs/workbench/api/common/extHostApiCommands';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
-import 'vs/workbench/api/common/extHostTypes.marshalling';
 import Modes = require('vs/editor/common/modes');
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {ICommentsSupportContribution, ITokenTypeClassificationSupportContribution} from 'vs/editor/common/modes/supports';

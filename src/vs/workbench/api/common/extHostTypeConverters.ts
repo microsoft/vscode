@@ -298,10 +298,17 @@ export function toSymbolInformation(bearing: ITypeBearing): types.SymbolInformat
 }
 
 
-export function toLocation(reference: modes.IReference): types.Location {
-	return new types.Location(reference.resource, toRange(reference.range));
+export const location = {
+	from(value: types.Location): modes.IReference {
+		return {
+			range: fromRange(value.range),
+			resource: value.uri
+		}
+	},
+	to(value: modes.IReference): types.Location {
+		return new types.Location(value.resource, toRange(value.range));
+	}
 }
-
 
 export function fromHover(hover: vscode.Hover): modes.IComputeExtraInfoResult {
 	return <modes.IComputeExtraInfoResult>{
