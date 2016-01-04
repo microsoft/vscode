@@ -130,7 +130,7 @@ export class ElectronIntegration {
 		ipc.on('vscode:showAutoSaveInfo', () => {
 			this.messageService.show(
 				Severity.Info, {
-					message: nls.localize('autoSaveInfo', "The **File | Auto Save** option moved into settings. Please configure **files.autoSaveDelay** to enable auto save again."),
+					message: nls.localize('autoSaveInfo', "The **File | Auto Save** option moved into settings. Please configure **files.autoSaveDelay: 1** to restore the old behavior."),
 					actions: [
 						CloseAction,
 						this.instantiationService.createInstance(OpenGlobalSettingsAction, OpenGlobalSettingsAction.ID, OpenGlobalSettingsAction.LABEL)
