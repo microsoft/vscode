@@ -1790,61 +1790,37 @@
         </value>
       </values>
     </entry>
-    <entry name="cue" restriction="url, volume, enum" version="2.0" browsers="none" ref="http://www.w3.org/TR/css3-speech/#cue" syntax="h1 { $(name): url(dong.wav) -3dB;}">
+    <entry name="cue" restriction="url, volume, enum" version="2.0" browsers="none" ref="http://www.w3.org/TR/css3-speech/#cue" syntax="h1 { $(name): url(ding.wav) -3dB url(dong.wav) -2dB;}">
       <desc>Shorthand for setting 'cue-before' and 'cue-after'. If two values are given the first value is 'cue-before' and the second is 'cue-after'. If only one value is given, it applies to both properties.</desc>
       <values>
-        <value name="loud" version="2.0" browsers="all" />
-        <value name="medium" version="2.0" browsers="all" />
         <value name="none" version="2.0" browsers="all">
           <desc>No auditory icon is specified.</desc>
         </value>
-        <value name="silent" version="2.0" browsers="all">
-          <desc>Value of '0'</desc>
+        <value name="url()" version="2.0" browsers="all">
+          <desc>Designates an auditory icon resource.</desc>
         </value>
-        <value name="soft" version="2.0" browsers="all" />
-        <value name="url()" version="2.0" browsers="all" />
-        <value name="x-loud" version="2.0" browsers="all">
-          <desc>Value of '100'</desc>
-        </value>
-        <value name="x-soft" version="2.0" browsers="all" />
       </values>
     </entry>
     <entry name="cue-after" restriction="url, volume, enum" version="2.0" browsers="none" ref="http://www.w3.org/TR/css3-speech/#cue-after" syntax="h1 { $(name): url(dong.wav) -3dB;}">
-      <desc>Auditory icons are another way to distinguish semantic elements. Sounds may be played before and/or after the element to delimit it.</desc>
+      <desc>Specifies an auditory icon (i.e. pre-recorded / pre-generated sound clips) to be played after the selected element within the aural box model.</desc>
       <values>
-        <value name="loud" version="2.0" browsers="all" />
-        <value name="medium" version="2.0" browsers="all" />
         <value name="none" version="2.0" browsers="all">
           <desc>No auditory icon is specified.</desc>
         </value>
-        <value name="silent" version="2.0" browsers="all">
-          <desc>Value of '0'</desc>
+        <value name="url()" version="2.0" browsers="all">
+          <desc>Designates an auditory icon resource.</desc>
         </value>
-        <value name="soft" version="2.0" browsers="all" />
-        <value name="url()" version="2.0" browsers="all" />
-        <value name="x-loud" version="2.0" browsers="all">
-          <desc>Value of '100'</desc>
-        </value>
-        <value name="x-soft" version="2.0" browsers="all" />
       </values>
     </entry>
-    <entry name="cue-before" restriction="url, volume, enum" version="2.0" browsers="none" ref="http://www.w3.org/TR/css3-speech/#cue-before" syntax="h1 { $(name): url(dong.wav) -3dB;}">
-      <desc>Auditory icons are another way to distinguish semantic elements. Sounds may be played before and/or after the element to delimit it.</desc>
+    <entry name="cue-before" restriction="url, volume, enum" version="2.0" browsers="none" ref="http://www.w3.org/TR/css3-speech/#cue-before" syntax="h1 { $(name): url(ding.wav) -3dB;}">
+      <desc>Specifies an auditory icon (i.e. pre-recorded / pre-generated sound clips) to be played before the selected element within the aural box model.</desc>
       <values>
-        <value name="loud" version="2.0" browsers="all" />
-        <value name="medium" version="2.0" browsers="all" />
         <value name="none" version="2.0" browsers="all">
           <desc>No auditory icon is specified.</desc>
         </value>
-        <value name="silent" version="2.0" browsers="all">
-          <desc>Value of '0'</desc>
+        <value name="url()" version="2.0" browsers="all">
+          <desc>Designates an auditory icon resource.</desc>
         </value>
-        <value name="soft" version="2.0" browsers="all" />
-        <value name="url()" version="2.0" browsers="all" />
-        <value name="x-loud" version="2.0" browsers="all">
-          <desc>Value of '100'</desc>
-        </value>
-        <value name="x-soft" version="2.0" browsers="all" />
       </values>
     </entry>
     <entry name="cursor" restriction="url, number, enum" version="2.0" browsers="all" ref="http://www.w3.org/TR/css3-ui/#cursor0" syntax="nav { $(name): pointer; }">
@@ -5768,34 +5744,70 @@
     <entry name="pause" restriction="time, enum" version="2.0" browsers="none" ref="http://www.w3.org/TR/css3-speech/#pause" syntax="h2 { $(name): 30ms 40ms; }">
       <desc>Shorthand for setting 'pause-before' and 'pause-after'. If two values are given, the first value is 'pause-before' and the second is 'pause-after'. If only one value is given, it applies to both properties.</desc>
       <values>
-        <value name="medium" version="2.0" browsers="all" />
-        <value name="none" version="2.0" browsers="all" />
-        <value name="strong" version="2.0" browsers="all" />
-        <value name="weak" version="2.0" browsers="all" />
-        <value name="x-strong" version="2.0" browsers="all" />
-        <value name="x-weak" version="2.0" browsers="all" />
+        <value name="medium" version="2.0" browsers="all">
+          <desc>A medium pause in speech output. The exact time is implementation-dependent.</desc>
+        </value>
+        <value name="none" version="2.0" browsers="all">
+          <desc>Equivalent to 0ms.</desc>
+        </value>
+        <value name="strong" version="2.0" browsers="all">
+          <desc>A strong pause in speech output. The exact time is implementation-dependent.</desc>
+        </value>
+        <value name="weak" version="2.0" browsers="all">
+          <desc>A weak pause in speech output. The exact time is implementation-dependent.</desc>
+        </value>
+        <value name="x-strong" version="2.0" browsers="all">
+          <desc>An extra strong pause in speech output. The exact time is implementation-dependent.</desc>
+        </value>
+        <value name="x-weak" version="2.0" browsers="all">
+          <desc>An extra weak pause in speech output. The exact time is implementation-dependent.</desc>
+        </value>
       </values>
     </entry>
     <entry name="pause-after" restriction="time" version="2.0" browsers="none" ref="http://www.w3.org/TR/css3-speech/#pause-after" syntax="h3 { $(name): 30ms; }">
       <desc>Specifies a pause or prosodic boundary to be observed after an element or, if any 'cue-after' is specified, after these. Values indicate the prosodic strength of the break in speech output.</desc>
       <values>
-        <value name="medium" version="2.0" browsers="all" />
-        <value name="none" version="2.0" browsers="all" />
-        <value name="strong" version="2.0" browsers="all" />
-        <value name="weak" version="2.0" browsers="all" />
-        <value name="x-strong" version="2.0" browsers="all" />
-        <value name="x-weak" version="2.0" browsers="all" />
+        <value name="medium" version="2.0" browsers="all">
+          <desc>A medium pause in speech output. The exact time is implementation-dependent.</desc>
+        </value>
+        <value name="none" version="2.0" browsers="all">
+          <desc>Equivalent to 0ms.</desc>
+        </value>
+        <value name="strong" version="2.0" browsers="all">
+          <desc>A strong pause in speech output. The exact time is implementation-dependent.</desc>
+        </value>
+        <value name="weak" version="2.0" browsers="all">
+          <desc>A weak pause in speech output. The exact time is implementation-dependent.</desc>
+        </value>
+        <value name="x-strong" version="2.0" browsers="all">
+          <desc>An extra strong pause in speech output. The exact time is implementation-dependent.</desc>
+        </value>
+        <value name="x-weak" version="2.0" browsers="all">
+          <desc>An extra weak pause in speech output. The exact time is implementation-dependent.</desc>
+        </value>
       </values>
     </entry>
     <entry name="pause-before" restriction="time" version="2.0" browsers="none" ref="http://www.w3.org/TR/css3-speech/#pause-before" syntax="h3 { $(name): 30ms; }">
       <desc>Specifies a pause or prosodic boundary to be observed before an element or, if any 'cue-before' is specified, before these. Values indicate the prosodic strength of the break in speech output.</desc>
       <values>
-        <value name="medium" version="2.0" browsers="all" />
-        <value name="none" version="2.0" browsers="all" />
-        <value name="strong" version="2.0" browsers="all" />
-        <value name="weak" version="2.0" browsers="all" />
-        <value name="x-strong" version="2.0" browsers="all" />
-        <value name="x-weak" version="2.0" browsers="all" />
+        <value name="medium" version="2.0" browsers="all">
+          <desc>A medium pause in speech output. The exact time is implementation-dependent.</desc>
+        </value>
+        <value name="none" version="2.0" browsers="all">
+          <desc>Equivalent to 0ms.</desc>
+        </value>
+        <value name="strong" version="2.0" browsers="all">
+          <desc>A strong pause in speech output. The exact time is implementation-dependent.</desc>
+        </value>
+        <value name="weak" version="2.0" browsers="all">
+          <desc>A weak pause in speech output. The exact time is implementation-dependent.</desc>
+        </value>
+        <value name="x-strong" version="2.0" browsers="all">
+          <desc>An extra strong pause in speech output. The exact time is implementation-dependent.</desc>
+        </value>
+        <value name="x-weak" version="2.0" browsers="all">
+          <desc>An extra weak pause in speech output. The exact time is implementation-dependent.</desc>
+        </value>
       </values>
     </entry>
     <entry name="perspective" restriction="length, enum" version="3.0" browsers="E,C36,FF16,IE10,O23,S9" ref="http://www.w3.org/TR/css3-3d-transforms/#perspective" syntax="div { $(name): none; }">
@@ -5923,34 +5935,70 @@
     <entry name="rest" restriction="time" version="3.0" browsers="none" ref="http://www.w3.org/TR/css3-speech/#rest" syntax="h3 { $(name): 4s; }">
       <desc>Shorthand for setting 'rest-before' and 'rest-after'. If two values are given, the first value is 'rest-before' and the second is 'rest-after'. If only one value is given, it applies to both properties.</desc>
       <values>
-        <value name="medium" version="3.0" browsers="all" />
-        <value name="none" version="3.0" browsers="all" />
-        <value name="strong" version="3.0" browsers="all" />
-        <value name="weak" version="3.0" browsers="all" />
-        <value name="x-strong" version="3.0" browsers="all" />
-        <value name="x-weak" version="3.0" browsers="all" />
+        <value name="medium" version="2.0" browsers="all">
+          <desc>A medium rest in speech output. The exact time is implementation-dependent.</desc>
+        </value>
+        <value name="none" version="2.0" browsers="all">
+          <desc>Equivalent to 0ms.</desc>
+        </value>
+        <value name="strong" version="2.0" browsers="all">
+          <desc>A strong rest in speech output. The exact time is implementation-dependent.</desc>
+        </value>
+        <value name="weak" version="2.0" browsers="all">
+          <desc>A weak rest in speech output. The exact time is implementation-dependent.</desc>
+        </value>
+        <value name="x-strong" version="2.0" browsers="all">
+          <desc>An extra strong rest in speech output. The exact time is implementation-dependent.</desc>
+        </value>
+        <value name="x-weak" version="2.0" browsers="all">
+          <desc>An extra weak rest in speech output. The exact time is implementation-dependent.</desc>
+        </value>
       </values>
     </entry>
     <entry name="rest-after" restriction="time" version="3.0" browsers="none" ref="http://www.w3.org/TR/css3-speech/#rest-after" syntax="h3 { $(name): 4s; }">
-      <desc>Specifies a rest or prosodic boundary to be observed after an element's content.</desc>
+      <desc>Specifies a rest or prosodic boundary to be observed after an element’s content.</desc>
       <values>
-        <value name="medium" version="3.0" browsers="all" />
-        <value name="none" version="3.0" browsers="all" />
-        <value name="strong" version="3.0" browsers="all" />
-        <value name="weak" version="3.0" browsers="all" />
-        <value name="x-strong" version="3.0" browsers="all" />
-        <value name="x-weak" version="3.0" browsers="all" />
+        <value name="medium" version="2.0" browsers="all">
+          <desc>A medium rest in speech output. The exact time is implementation-dependent.</desc>
+        </value>
+        <value name="none" version="2.0" browsers="all">
+          <desc>Equivalent to 0ms.</desc>
+        </value>
+        <value name="strong" version="2.0" browsers="all">
+          <desc>A strong rest in speech output. The exact time is implementation-dependent.</desc>
+        </value>
+        <value name="weak" version="2.0" browsers="all">
+          <desc>A weak rest in speech output. The exact time is implementation-dependent.</desc>
+        </value>
+        <value name="x-strong" version="2.0" browsers="all">
+          <desc>An extra strong rest in speech output. The exact time is implementation-dependent.</desc>
+        </value>
+        <value name="x-weak" version="2.0" browsers="all">
+          <desc>An extra weak rest in speech output. The exact time is implementation-dependent.</desc>
+        </value>
       </values>
     </entry>
     <entry name="rest-before" restriction="time" version="3.0" browsers="none" ref="http://www.w3.org/TR/css3-speech/#rest-before" syntax="h3 { $(name): 4s; }">
-      <desc>Specifies a rest or prosodic boundary to be observed before an element's content.</desc>
+      <desc>Specifies a rest or prosodic boundary to be observed before an element’s content.</desc>
       <values>
-        <value name="medium" version="3.0" browsers="all" />
-        <value name="none" version="3.0" browsers="all" />
-        <value name="strong" version="3.0" browsers="all" />
-        <value name="weak" version="3.0" browsers="all" />
-        <value name="x-strong" version="3.0" browsers="all" />
-        <value name="x-weak" version="3.0" browsers="all" />
+        <value name="medium" version="2.0" browsers="all">
+          <desc>A medium rest in speech output. The exact time is implementation-dependent.</desc>
+        </value>
+        <value name="none" version="2.0" browsers="all">
+          <desc>Equivalent to 0ms.</desc>
+        </value>
+        <value name="strong" version="2.0" browsers="all">
+          <desc>A strong rest in speech output. The exact time is implementation-dependent.</desc>
+        </value>
+        <value name="weak" version="2.0" browsers="all">
+          <desc>A weak rest in speech output. The exact time is implementation-dependent.</desc>
+        </value>
+        <value name="x-strong" version="2.0" browsers="all">
+          <desc>An extra strong rest in speech output. The exact time is implementation-dependent.</desc>
+        </value>
+        <value name="x-weak" version="2.0" browsers="all">
+          <desc>An extra weak rest in speech output. The exact time is implementation-dependent.</desc>
+        </value>>
       </values>
     </entry>
     <entry name="richness" restriction="number(0-100)" version="2.0" browsers="none" ref="http://www.w3.org/TR/CSS2/aural.html#propdef-richness" syntax="A value between '0' and '100'. The higher the value, the more the voice will carry. A lower value will produce a soft, mellifluous voice.">
@@ -6188,31 +6236,22 @@
     <entry name="speak" restriction="enum" version="2.0" browsers="none" ref="http://www.w3.org/TR/css3-speech/#speak" syntax="div { $(name): normal; }">
       <desc>Specifies whether text will be rendered aurally and if so, in what manner.</desc>
       <values>
-        <value name="digits" version="2.0" browsers="all">
-          <desc>Speak numbers one digit at a time, for instance, 'twelve' would be spoken as 'one two', and '31' as 'three one'.</desc>
-        </value>
-        <value name="literal-punctuation" version="2.0" browsers="all">
-          <desc>Similar to 'normal' value, but punctuation such as semicolons, braces, and so on are to be spoken literally.</desc>
+        <value name="auto" version="2.0" browsers="all">
+          <desc>Computed to 'none' if 'display' is 'none', otherwise 'auto'.</desc>
         </value>
         <value name="none" version="2.0" browsers="all">
-          <desc>Suppresses aural rendering so that the element requires no time to render.</desc>
-        </value>
-        <value name="no-punctuation" version="2.0" browsers="all">
-          <desc>Similar to 'normal' value but punctuation is not to be spoken nor rendered as various pauses.</desc>
+          <desc>Suppresses aural rendering.</desc>
         </value>
         <value name="normal" version="2.0" browsers="all">
-          <desc>Uses language-dependent pronunciation rules for rendering an element and its children. Punctuation is not spoken, but instead is rendered naturally as various pauses.</desc>
-        </value>
-        <value name="spell-out" version="2.0" browsers="all">
-          <desc>Spells the text one letter at a time (useful for acronyms and abbreviations). In languages where accented characters are rare, it is permitted to drop accents in favor of alternative unaccented spellings.</desc>
+          <desc>The element is rendered aurally.</desc>
         </value>
       </values>
     </entry>
     <entry name="speak-as" restriction="enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css3-speech/#speak-as" syntax="div { $(name): spell-out; }">
-      <desc>Determines in what manner text gets rendered aurally, based upon a basic predefined list of possible values.</desc>
+      <desc>Determines in what manner text gets rendered aurally, based upon a basic predefined list of possibilities.</desc>
       <values>
         <value name="digits" version="3.0" browsers="all">
-          <desc>Speak numbers one digit at a time, for instance, 'twelve' would be spoken as 'one two', and '31' as 'three one'.</desc>
+          <desc>Speak numbers one digit at a time.</desc>
         </value>
         <value name="literal-punctuation" version="3.0" browsers="all">
           <desc>Punctuation such as semicolons, braces, and so on is named aloud (i.e. spoken literally) rather than rendered naturally as appropriate pauses.</desc>
@@ -6221,10 +6260,10 @@
           <desc>Punctuation is not rendered: neither spoken nor rendered as pauses.</desc>
         </value>
         <value name="normal" version="3.0" browsers="all">
-          <desc>Uses language-dependent pronunciation rules for rendering the element's content.</desc>
+          <desc>Uses language-dependent pronunciation rules for rendering the element’s content.</desc>
         </value>
         <value name="spell-out" version="3.0" browsers="all">
-          <desc>Spells the text one letter at a time (useful for acronyms and abbreviations).</desc>
+          <desc>Spells the text one letter at a time.</desc>
         </value>
       </values>
     </entry>
@@ -7093,73 +7132,103 @@
       </values>
     </entry>
     <entry name="voice-balance" restriction="number(-100-100)" version="3.0" browsers="none" ref="http://www.w3.org/TR/css3-speech/#voice-balance" syntax="&lt;number&gt; | left | center | right | leftwards | rightwards">
-      <desc>Refers to the balance between left and right channels, and presumes a two channel (stereo) model that is widely supported on consumer audio equipment.</desc>
+      <desc>Controls the spatial distribution of audio output across a lateral sound stage.</desc>
       <values>
         <value name="center" version="3.0" browsers="all">
           <desc>Same as '0'.</desc>
         </value>
         <value name="left" version="3.0" browsers="all">
-          <desc>Same as -100.</desc>
+          <desc>Same as '-100'.</desc>
         </value>
         <value name="leftwards" version="3.0" browsers="all">
-          <desc>Moves the sound to the left, relative to the inherited voice balance. More precisely, subtract 20 from the inherited value and clip the resulting value to the range '-100' and '100'.</desc>
+          <desc>Moves the sound to the left, by subtracting 20 from the inherited ‘voice-balance’ value, and by clamping the resulting number to ‘-100’.</desc>
         </value>
         <value name="right" version="3.0" browsers="all">
-          <desc>Same as '100' or '+100'.</desc>
+          <desc>Same as '100'.</desc>
         </value>
         <value name="rightwards" version="3.0" browsers="all">
-          <desc>Moves the sound to the right, relative to the inherited voice balance. More precisely, add 20 to the inherited value and clip the resulting value to the range '-100' and '100'.</desc>
+          <desc>Moves the sound to the right, by adding 20 to the inherited ‘voice-balance’ value, and by clamping the resulting number to ‘100’.</desc>
         </value>
       </values>
     </entry>
     <entry name="voice-duration" restriction="time" version="3.0" browsers="none" ref="http://www.w3.org/TR/css3-speech/#voice-duration" syntax="&lt;time&gt;">
-      <desc>Allows authors to specify how long it should take to render the selected element's content. This property overrides the 'voice-rate' property.</desc>
+      <desc>Specifies how long it should take to render the selected element's content (not including audio cues, pauses and rest).</desc>
+	  <values>
+        <value name="auto" version="3.0" browsers="all">
+          <desc>Resolves to a used value corresponding to the duration of the speech synthesis when using the inherited ‘voice-rate’.</desc>
+        </value>
+      </values>
     </entry>
-    <entry name="voice-family" restriction="number, string" version="2.0" browsers="none" ref="http://www.w3.org/TR/css3-speech/#voice-family" syntax="[[&lt;specific-voice&gt; | &lt;generic-voice&gt; ],]* [&lt;specific-voice&gt; | &lt;generic-voice&gt; ]">
+    <entry name="voice-family" restriction="number, string, identifier" version="2.0" browsers="none" ref="http://www.w3.org/TR/css3-speech/#voice-family" syntax="[[&lt;specific-voice&gt; | &lt;generic-voice&gt; ],]* [&lt;specific-voice&gt; | &lt;generic-voice&gt; ]">
       <desc>Comma-separated, prioritized list of voice family names (compare with 'font-family').</desc>
       <values>
         <value name="child" version="2.0" browsers="all">
-          <desc>Child voice for 'age'</desc>
+          <desc>Child voice for 'age'.</desc>
         </value>
         <value name="female" version="2.0" browsers="all">
-          <desc>Female voice for 'generic-voice'</desc>
+          <desc>Female voice for 'generic-voice'.</desc>
         </value>
         <value name="male" version="2.0" browsers="all">
-          <desc>Male voice for 'generic-voice'</desc>
+          <desc>Male voice for 'generic-voice'.</desc>
         </value>
         <value name="neutral" version="2.0" browsers="all">
-          <desc>Neutral voice for 'generic-voice'</desc>
+          <desc>Neutral voice for 'generic-voice'.</desc>
         </value>
         <value name="old" version="2.0" browsers="all">
-          <desc>Old person voice for 'age'</desc>
+          <desc>Old person voice for 'age'.</desc>
+        </value>
+        <value name="preserve" version="3.0" browsers="all">
+          <desc>Indicates that the ‘voice-family’ value gets inherited and used regardless of any potential language change within the markup.</desc>
         </value>
         <value name="young" version="2.0" browsers="all">
-          <desc>Young person voice for 'age'</desc>
+          <desc>Young person voice for 'age'.</desc>
         </value>
       </values>
     </entry>
     <entry name="voice-pitch" restriction="percentage, number, frequency, semitones" version="3.0" browsers="none" ref="http://www.w3.org/TR/css3-speech/#voice-pitch" syntax="h2 { $(name): absolute 30Hz; }">
       <desc>Specifies the average pitch (a frequency) of the speaking voice. The average pitch of a voice depends on the voice family. For example, the average pitch for a standard male voice is around 120Hz, but for a female voice, it's around 210Hz.</desc>
       <values>
-        <value name="absolute" version="3.0" browsers="all" />
-        <value name="high" version="3.0" browsers="all" />
-        <value name="low" version="3.0" browsers="all" />
-        <value name="medium" version="3.0" browsers="all">
-          <desc>Equivalent to 100% and means the normal pitch for this voice</desc>
+        <value name="absolute" version="3.0" browsers="all">
+          <desc>Indicates that the specified frequency represents an absolute value.</desc>
         </value>
-        <value name="x-high" version="3.0" browsers="all" />
-        <value name="x-low" version="3.0" browsers="all" />
+        <value name="high" version="3.0" browsers="all">
+          <desc>High pitch. Exact level is implementation and voice specific.</desc>
+        </value>
+        <value name="low" version="3.0" browsers="all">
+          <desc>Low pitch. Exact level is implementation and voice specific.</desc>
+        </value>
+        <value name="medium" version="3.0" browsers="all">
+          <desc>Medium pitch. Exact level is implementation and voice specific.</desc>
+        </value>
+        <value name="x-high" version="3.0" browsers="all">
+          <desc>Extra High pitch. Exact level is implementation and voice specific.</desc>
+        </value>
+        <value name="x-low" version="3.0" browsers="all">
+          <desc>Extra low pitch. Exact level is implementation and voice specific.</desc>
+        </value>
       </values>
     </entry>
     <entry name="voice-range" restriction="percentage, number, frequency, semitones" version="3.0" browsers="none" ref="http://www.w3.org/TR/css3-speech/#voice-props-voice-range" syntax="h2 { $(name): +10Hz; }">
-      <desc>Specifies variation in average pitch. Human languages are spoken with varying inflection and pitch; these variations convey additional meaning and emphasis.</desc>
+      <desc>Specifies the variability in the “baseline” pitch, i.e. how much the fundamental frequency may deviate from the average pitch of the speech output.</desc>
       <values>
-        <value name="absolute" version="3.0" browsers="all" />
-        <value name="high" version="3.0" browsers="all" />
-        <value name="low" version="3.0" browsers="all" />
-        <value name="medium" version="3.0" browsers="all" />
-        <value name="x-high" version="3.0" browsers="all" />
-        <value name="x-low" version="3.0" browsers="all" />
+        <value name="absolute" version="3.0" browsers="all">
+          <desc>Indicates that the specified frequency represents an absolute value.</desc>
+        </value>
+        <value name="high" version="3.0" browsers="all">
+          <desc>High pitch. Exact level is implementation and voice specific.</desc>
+        </value>
+        <value name="low" version="3.0" browsers="all">
+          <desc>Low pitch. Exact level is implementation and voice specific.</desc>
+        </value>
+        <value name="medium" version="3.0" browsers="all">
+          <desc>Medium pitch. Exact level is implementation and voice specific.</desc>
+        </value>
+        <value name="x-high" version="3.0" browsers="all">
+          <desc>Extra High pitch. Exact level is implementation and voice specific.</desc>
+        </value>
+        <value name="x-low" version="3.0" browsers="all">
+          <desc>Extra low pitch. Exact level is implementation and voice specific.</desc>
+        </value>
       </values>
     </entry>
     <entry name="voice-rate" restriction="percentage" version="3.0" browsers="none" ref="http://www.w3.org/TR/css3-speech/#voice-rate" syntax="&lt;percentage&gt; | x-slow | slow | medium | fast | x-fast">
@@ -7177,30 +7246,44 @@
     <entry name="voice-stress" restriction="enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css3-speech/#voice-stress" syntax="h2 { $(name): moderate; }">
       <desc>Indicates the strength of emphasis to be applied. Emphasis is indicated using a combination of pitch change, timing changes, loudness and other acoustic differences) that varies from one language to the next.</desc>
       <values>
-        <value name="moderate" version="3.0" browsers="all" />
+        <value name="moderate" version="3.0" browsers="all">
+          <desc>Monotonically non-decreasing in strength. More emphasis than what the speech synthesizer would normally produce.</desc>
+        </value>
         <value name="none" version="3.0" browsers="all">
           <desc>Inhibits the synthesizer from emphasizing words it would normally emphasize.</desc>
         </value>
-        <value name="normal" version="3.0" browsers="all" />
-        <value name="reduced" version="3.0" browsers="all">
-          <desc>Effectively the opposite of emphasizing a word. For example, when the phrase 'going to' is reduced it may be spoken as 'gonna'.</desc>
+        <value name="normal" version="3.0" browsers="all">
+          <desc>Represents the default emphasis produced by the speech synthesizer.</desc>
         </value>
-        <value name="strong" version="3.0" browsers="all" />
+        <value name="reduced" version="3.0" browsers="all">
+          <desc>Effectively the opposite of emphasizing a word.</desc>
+        </value>
+        <value name="strong" version="3.0" browsers="all">
+          <desc>Monotonically non-decreasing in strength. More emphasis than what the speech synthesizer would normally produce.</desc>
+        </value>
       </values>
     </entry>
     <entry name="voice-volume" restriction="volume, enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css3-speech/#voice-volume" syntax="&lt;decibel&gt; | silent | x-soft | soft | medium | loud | x-loud">
-      <desc>Refers to the amplitude of the waveform output by the speech synthesizer. The value of 'silent' is mapped to '0' and 'x-loud' is mapped to '100'. The mapping of other values to numerical volume levels is implementation dependent and may vary from one speech synthesizer to the next.</desc>
+      <desc>Controls the amplitude of the audio waveform generated by the speech synthesiser.</desc>
       <values>
-        <value name="loud" version="3.0" browsers="all" />
-        <value name="medium" version="3.0" browsers="all" />
+        <value name="loud" version="3.0" browsers="all">
+          <desc>Intermediary value between 'meduyn and 'x-loud'.</desc>
+        </value>
+        <value name="medium" version="3.0" browsers="all">
+          <desc>The user's preferred volume level.</desc>
+        </value>
         <value name="silent" version="3.0" browsers="all">
-          <desc>Volume value 0.</desc>
+          <desc>Specifies that no sound is generated.</desc>
         </value>
-        <value name="soft" version="3.0" browsers="all" />
+        <value name="soft" version="3.0" browsers="all">
+          <desc>Intermediary value between 'x-soft' and 'medium'.</desc>
+        </value>
         <value name="x-loud" version="3.0" browsers="all">
-          <desc>Volume value 100.</desc>
+          <desc>The user’s maximum tolerable volume level.</desc>
         </value>
-        <value name="x-soft" version="3.0" browsers="all" />
+        <value name="x-soft" version="3.0" browsers="all">
+          <desc>The user’s minimum audible volume level.</desc>
+        </value>
       </values>
     </entry>
     <entry name="volume" restriction="percentage, number" version="2.0" browsers="none" ref="http://www.w3.org/TR/CSS2/aural.html#propdef-volume" syntax="&lt;number&gt; | &lt;percentage&gt; | silent | x-soft | soft | medium | loud | x-loud">
