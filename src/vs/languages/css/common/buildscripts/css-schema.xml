@@ -5653,9 +5653,11 @@
       <desc>Shorthand property to set values the thickness of the padding area. If left is omitted, it is the same as right. If bottom is omitted it is the same as top, if right is omitted it is the same as top. The value may not be negative.</desc>
     </entry>
     <entry name="page" restriction="identifier" version="3.0" browsers="none" ref="http://www.w3.org/TR/css3-page/#page" syntax="auto | &lt;identifier&gt;">
-      <desc>Specifies a particular type of page where an element SHOULD be displayed</desc>
+      <desc>Specifies a particular type of page (called a named page) on which an element must be displayed.</desc>
       <values>
-        <value name="auto" version="3.0" browsers="all" />
+        <value name="auto" version="3.0" browsers="all">
+          <desc>Used value is the value specified on its nearest ancestor with a non-auto value.</desc>
+        </value>
       </values>
     </entry>
     <entry name="page-break-after" restriction="enum" version="2.0" browsers="all" ref="http://www.w3.org/TR/css3-break/#page-break-properties" syntax="table { $(name): always; }">
