@@ -8147,9 +8147,15 @@
     <entry name="will-change" restriction="enum, identifier" version="3.0" browsers="C36,FF36,O24" ref="http://www.w3.org/TR/css-will-change/" syntax="body { $(name): scroll-position; }">
       <desc>Provides a rendering hint to the user agent, stating what kinds of changes the author expects to perform on the element.</desc>
       <values>
-        <value name="auto" version="3.0" browsers="all" />
-        <value name="contents" version="3.0" browsers="all" />
-        <value name="scroll-position" version="3.0" browsers="all" />
+        <value name="auto" version="3.0" browsers="all">
+          <desc>Expresses no particular intent.</desc>
+        </value>
+        <value name="contents" version="3.0" browsers="all">
+          <desc>Indicates that the author expects to animate or change something about the element’s contents in the near future.</desc>
+        </value>
+        <value name="scroll-position" version="3.0" browsers="all">
+          <desc>Indicates that the author expects to animate or change the scroll position of the element in the near future.</desc>
+        </value>
       </values>
     </entry>
     <entry name="word-break" restriction="enum" version="3.0" browsers="E,C,FF15,IE5,S3" ref="http://www.w3.org/TR/css3-text/#word-break0" syntax="p.album { $(name): break-all; }">
