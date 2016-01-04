@@ -2904,13 +2904,16 @@
       <desc>Determines whether a punctuation mark, if one is present, may be placed outside the content area at the start or at the end of a full line of text.</desc>
       <values>
         <value name="allow-end" version="3.0" browsers="all">
-          <desc>Punctuation (specifically, stops and commas) may hang outside the end edge of all lines if the punctuation does not otherwise fit prior to justification.</desc>
+          <desc>A stop or comma at the end of a line hangs if it does not otherwise fit prior to justification.</desc>
         </value>
         <value name="first" version="3.0" browsers="all">
-          <desc>Punctuation (specifically, opening brackets and quotes) may hang outside the start edge of the first line.</desc>
+          <desc>An opening bracket or quote at the start of the first formatted line of an element hangs.</desc>
         </value>
         <value name="force-end" version="3.0" browsers="all">
-          <desc>Punctuation (specifically, stops and commas) may hang outside the end edge of all lines. If justification is enabled on this line, then it will force the punctuation to hang.</desc>
+          <desc>A stop or comma at the end of a line hangs.</desc>
+        </value>
+        <value name="last" version="3.0" browsers="all">
+          <desc>A closing bracket or quote at the end of the last formatted line of an element hangs.</desc>
         </value>
         <value name="none" version="3.0" browsers="all">
           <desc>No characters can hang.</desc>
@@ -2957,7 +2960,7 @@
       <desc>Specifies the maximum amount of unfilled space (before justification) that may be left in the line box before hyphenation is triggered to pull part of a word from the next line back up into the current line.</desc>
     </entry>
     <entry name="hyphens" restriction="enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-text-3/#hyphens-property" syntax="div { $(name): manual; }">
-      <desc>This property controls whether hyphenation is allowed to create more break opportunities within a line of text.</desc>
+      <desc>Controls whether hyphenation is allowed to create more break opportunities within a line of text.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all">
           <desc>Conditional hyphenation characters inside a word, if present, take priority over automatic resources when determining hyphenation points within the word.</desc>
@@ -4463,7 +4466,7 @@
       <desc>Gets or sets a value that defines the width of the hyphenation zone.</desc>
     </entry>
     <entry name="-ms-hyphens" restriction="enum" version="3.0" browsers="E,IE10" ref="http://www.w3.org/TR/css3-text/#hyphens0" syntax="div { $(name): manual; }">
-      <desc>This property controls whether hyphenation is allowed to create more break opportunities within a line of text.</desc>
+      <desc>Controls whether hyphenation is allowed to create more break opportunities within a line of text.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all">
           <desc>Conditional hyphenation characters inside a word, if present, take priority over automatic resources when determining hyphenation points within the word.</desc>
@@ -5379,7 +5382,7 @@
       <desc>Determines which row of a inline-table should be used as baseline of inline-table.</desc>
     </entry>
     <entry name="-o-tab-size" restriction="integer, length" version="3.0" browsers="O10.6" ref="http://www.w3.org/TR/css3-text/#tab-size" syntax="div { $(name): 4; }">
-      <desc>This property determines the width of the tab character (U+0009), in space characters (U+0020), when rendered</desc>
+      <desc>This property determines the width of the tab character (U+0009), in space characters (U+0020), when rendered.</desc>
     </entry>
     <entry name="-o-text-overflow" restriction="enum" version="3.0" browsers="O10" ref="http://www.w3.org/TR/css3-ui/#text-overflow0" syntax="span { $(name): ellipsis; }">
       <desc>Text can overflow for example when it is prevented from wrapping</desc>
@@ -5610,8 +5613,12 @@
     <entry name="overflow-wrap" restriction="enum" version="3.0" browsers="C23,O12.1,S6.1" ref="http://www.w3.org/TR/css3-text/#overflow-wrap0" syntax="div { $(name): break-word; }">
       <desc>Specifies whether the UA may break within a word to prevent overflow when an otherwise-unbreakable string is too long to fit within the line box.</desc>
       <values>
-        <value name="break-word" version="3.0" browsers="all" />
-        <value name="normal" version="3.0" browsers="all" />
+        <value name="break-word" version="3.0" browsers="all">
+          <desc>An otherwise unbreakable sequence of characters may be broken at an arbitrary point if there are no otherwise-acceptable break points in the line.</desc>
+        </value>
+        <value name="normal" version="3.0" browsers="all">
+          <desc>Lines may break only at allowed break points.</desc>
+        </value>
       </values>
     </entry>
     <entry name="overflow-x" restriction="enum" version="3.0" browsers="E,C,FF1.5,IE5,O9.5,S3" ref="http://www.w3.org/TR/css3-box/#overflow-x" syntax="div { $(name): hidden; }">
@@ -6340,8 +6347,8 @@
         </value>
       </values>
     </entry>
-    <entry name="tab-size" restriction="integer, length" version="3.0" browsers="C42,O29,S6.1" ref="http://www.w3.org/TR/css3-text/#tab-size" syntax="div { $(name): 4; }">
-      <desc>Determines the width of the tab character (U+0009), in space characters (U+0020), when rendered</desc>
+    <entry name="tab-size" restriction="integer, length" version="3.0" browsers="C21,O15,S6.1" ref="http://www.w3.org/TR/css3-text/#tab-size" syntax="div { $(name): 4; }">
+      <desc>Determines the width of the tab character (U+0009), in space characters (U+0020), when rendered.</desc>
     </entry>
     <entry name="text-align" restriction="string" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-text/#text-align0" syntax="h2 { $(name): center; }">
       <desc>Describes how inline contents of a block are horizontally aligned if the contents do not completely fill the line box.</desc>
@@ -6372,7 +6379,9 @@
     <entry name="text-align-last" restriction="enum" version="3.0" browsers="E,FF12,IE5" ref="http://www.w3.org/TR/css3-text/#text-align-last0" syntax="div { $(name): right; }">
       <desc>Describes how the last line of a block or a line right before a forced line break is aligned when 'text-align' is set to 'justify'.</desc>
       <values>
-        <value name="auto" version="3.0" browsers="all" />
+        <value name="auto" version="3.0" browsers="all">
+          <desc>Content on the affected line is aligned per 'text-align' unless 'text-align' is set to 'justify', in which case it is 'start-aligned'.</desc>
+        </value>
         <value name="center" version="3.0" browsers="all">
           <desc>The inline contents are centered within the line box.</desc>
         </value>
@@ -6609,7 +6618,9 @@
           <desc>Justification primarily changes spacing both at word separators and at grapheme cluster boundaries in all scripts except those in the connected and cursive groups. This value is sometimes used in e.g. Japanese, often with the 'text-align-last' property.</desc>
         </value>
         <value name="distribute-all-lines" version="3.0" browsers="all" />
-        <value name="inter-character" version="3.0" browsers="none" />
+        <value name="inter-character" version="3.0" browsers="none">
+          <desc>Justification adjusts spacing between each pair of adjacent typographic character units.</desc>
+        </value>
         <value name="inter-cluster" version="3.0" browsers="all">
           <desc>Justification primarily changes spacing at word separators and at grapheme cluster boundaries in clustered scripts. This value is typically used for Southeast Asian scripts such as Thai.</desc>
         </value>
@@ -6725,23 +6736,23 @@
         <value name="punctuation" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="text-transform" restriction="enum" version="" browsers="all" ref="http://www.w3.org/TR/css3-text/#text-transform0" syntax="h1 { $(name): capitalize; }">
-      <desc>Controls capitalization effects of an element's text.</desc>
+    <entry name="text-transform" restriction="enum" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-text/#text-transform0" syntax="h1 { $(name): capitalize; }">
+      <desc>Controls capitalization effects of an element’s text.</desc>
       <values>
-        <value name="capitalize" version="" browsers="all">
-          <desc>Puts all words in titlecase.</desc>
+        <value name="capitalize" version="1.0" browsers="all">
+          <desc>Puts the first typographic letter unit of each word in titlecase.</desc>
         </value>
         <value name="full-width" version="3.0" browsers="none">
           <desc>Puts all characters in fullwidth form. If the character does not have corresponding fullwidth form, it is left as is.</desc>
         </value>
-        <value name="lowercase" version="" browsers="all">
-          <desc>Puts all characters of each word in lowercase.</desc>
+        <value name="lowercase" version="1.0" browsers="all">
+          <desc>Puts all letters in lowercase.</desc>
         </value>
-        <value name="none" version="" browsers="all">
-          <desc>No capitalization effects.</desc>
+        <value name="none" version="1.0" browsers="all">
+          <desc>No effects.</desc>
         </value>
-        <value name="uppercase" version="" browsers="all">
-          <desc>Puts all characters of each word in uppercase.</desc>
+        <value name="uppercase" version="1.0" browsers="all">
+          <desc>Puts all letters in uppercase.</desc>
         </value>
       </values>
     </entry>
@@ -6766,7 +6777,7 @@
         </value>
       </values>
     </entry>
-    <entry name="text-wrap" restriction="enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css3-text/#word-break0" syntax="p.test { $(name): none; }">
+    <entry name="text-wrap" restriction="enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css3-text/#propdef-text-wrap" syntax="p.test { $(name): none; }">
       <desc>Specifies mode for text wrapping.</desc>
       <values>
         <value name="balance" version="3.0" browsers="all">
@@ -7864,7 +7875,7 @@
       </values>
     </entry>
     <entry name="-webkit-hyphens" restriction="enum" version="3.0" browsers="S5.1" ref="http://www.w3.org/TR/css3-text/#hyphens0" syntax="div { $(name): manual; }">
-      <desc>This property controls whether hyphenation is allowed to create more break opportunities within a line of text.</desc>
+      <desc>Controls whether hyphenation is allowed to create more break opportunities within a line of text.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all">
           <desc>Conditional hyphenation characters inside a word, if present, take priority over automatic resources when determining hyphenation points within the word.</desc>
@@ -8187,10 +8198,10 @@
         <value name="pre" version="1.0" browsers="all">
           <desc>Sets 'white-space-collapsing' to 'preserve' and 'text-wrap' to 'none'.</desc>
         </value>
-        <value name="pre-line" version="1.0" browsers="all">
+        <value name="pre-line" version="2.1" browsers="all">
           <desc>Sets 'white-space-collapsing' to 'preserve-breaks' and 'text-wrap' to 'normal'.</desc>
         </value>
-        <value name="pre-wrap" version="1.0" browsers="all">
+        <value name="pre-wrap" version="2.1" browsers="all">
           <desc>Sets 'white-space-collapsing' to 'preserve' and 'text-wrap' to 'normal'.</desc>
         </value>
         <value name="pre-wrap-auto" version="3.0" browsers="none">
@@ -8227,10 +8238,10 @@
       <desc>Specifies line break opportunities for non-CJK scripts.</desc>
       <values>
         <value name="break-all" version="3.0" browsers="all">
-          <desc>Lines may break between any two grapheme clusters for non-CJK scripts. This option is used mostly in a context where the text is predominantly using CJK characters with few non-CJK excerpts and it is desired that the text be better distributed on each line.</desc>
+          <desc>Lines may break between any two grapheme clusters for non-CJK scripts.</desc>
         </value>
         <value name="keep-all" version="3.0" browsers="all">
-          <desc>Block characters can no longer create implied break points. Otherwise this option is equivalent to 'normal'. This option is mostly used where the presence of word separator characters still creates line-breaking opportunities, as in Korean.</desc>
+          <desc>Block characters can no longer create implied break points.</desc>
         </value>
         <value name="normal" version="3.0" browsers="all">
           <desc>Breaks non-CJK scripts according to their own rules.</desc>
@@ -8238,10 +8249,10 @@
       </values>
     </entry>
     <entry name="word-spacing" restriction="length, percentage" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-text/#word-spacing0" syntax="article { $(name): 3px; }">
-      <desc>Specifies the minimum, maximum, and optimal spacing between words.</desc>
+      <desc>Specifies additional spacing between “words”.</desc>
       <values>
         <value name="normal" version="1.0" browsers="all">
-          <desc>The normal inter-word space, as defined by the current font and/or the user agent.</desc>
+          <desc>No additional spacing is applied. Computes to zero.</desc>
         </value>
       </values>
     </entry>
@@ -8249,7 +8260,7 @@
       <desc>Specifies whether the UA may break within a word to prevent overflow when an otherwise-unbreakable string is too long to fit.</desc>
       <values>
         <value name="break-word" version="2.0" browsers="all">
-          <desc>An unbreakable 'word' may be broken at an arbitrary point if there are no otherwise-acceptable break points in the line.</desc>
+          <desc>An otherwise unbreakable sequence of characters may be broken at an arbitrary point if there are no otherwise-acceptable break points in the line.</desc>
         </value>
         <value name="normal" version="2.0" browsers="all">
           <desc>Lines may break only at allowed break points.</desc>
