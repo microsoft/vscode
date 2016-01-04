@@ -10,6 +10,7 @@ import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegi
 import {IKeybindingService, ICommandHandlerDescription} from 'vs/platform/keybinding/common/keybindingService';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {ExtHostEditors} from 'vs/workbench/api/common/extHostEditors';
+import {Disposable} from 'vs/workbench/api/common/extHostTypes';
 import * as vscode from 'vscode';
 
 interface CommandHandler {
@@ -30,7 +31,7 @@ export class ExtHostCommands {
 		this._proxy = threadService.getRemotable(MainThreadCommands);
 	}
 
-	registerCommand(id: string, callback: <T>(...args: any[]) => T | Thenable<T>, thisArg?: any, description?: ICommandHandlerDescription): vscode.Disposable {
+	registerCommand(id: string, callback: <T>(...args: any[]) => T | Thenable<T>, thisArg?: any, description?: ICommandHandlerDescription): Disposable {
 
 		if (!id.trim().length) {
 			throw new Error('invalid id');
@@ -43,15 +44,11 @@ export class ExtHostCommands {
 		this._commands[id] = { callback, thisArg, description };
 		this._proxy.$registerCommand(id);
 
-		return {
-			dispose: () => {
-				delete this._commands[id];
-			}
-		};
+		return new Disposable(() => delete this._commands[id]);
 	}
 
 	registerTextEditorCommand(id: string, callback: (textEditor: vscode.TextEditor, edit: vscode.TextEditorEdit) => void, thisArg?: any): vscode.Disposable {
-		let actualCallback: (textEditor: vscode.TextEditor, edit: vscode.TextEditorEdit) => void = thisArg ? callback.bind(thisArg) : callback;
+		let actualCallback: typeof callback = thisArg ? callback.bind(thisArg) : callback;
 		return this.registerCommand(id, () => {
 			let activeTextEditor = this._pluginHostEditors.getActiveTextEditor();
 			if (!activeTextEditor) {
