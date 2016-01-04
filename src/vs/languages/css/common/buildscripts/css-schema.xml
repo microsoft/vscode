@@ -1310,7 +1310,7 @@
       </values>
     </entry>
     <entry name="box-sizing" restriction="enum" version="3.0" browsers="E,C10,FF29,IE8,O8,S5.1" ref="http://www.w3.org/TR/css3-ui/#box-sizing" syntax="div { $(name): content-box; }">
-      <desc>Box Model addition in CSS3.</desc>
+      <desc>Specifies the behavior of the 'width' and 'height' properties.</desc>
       <values>
         <value name="border-box" version="3.0" browsers="all">
           <desc>The specified width and height (and respective min/max properties) on this element determine the border box of the element.</desc>
@@ -1476,6 +1476,15 @@
         <value name="top" version="2.0" browsers="all">
           <desc>Positions the caption box above the table box.</desc>
         </value>
+      </values>
+    </entry>
+    <entry name="caret-color" restriction="color, enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css3-ui/#propdef-caret-color" syntax="textarea { $(name): red; }">
+      <desc>Controls the color of the text insertion indicator.</desc>
+      <values>
+        <value name="auto" version="3.0" browsers="all">
+          <desc>currentColor. User agents may automatically adjust the color of caret to ensure good visibility and contrast with the surrounding content.</desc>
+        </value>
+        <value name="" version="3.0" browsers="none"/>
       </values>
     </entry>
     <entry name="clear" restriction="enum" version="1.0" browsers="all" ref="http://www.w3.org/TR/2006/WD-CSS21-20060411/visuren.html#propdef-clear" syntax="footer { $(name): both; }">
@@ -1838,7 +1847,7 @@
         <value name="x-soft" version="2.0" browsers="all" />
       </values>
     </entry>
-    <entry name="cursor" restriction="url, number" version="2.0" browsers="all" ref="http://www.w3.org/TR/css3-ui/#cursor0" syntax="nav { $(name): pointer; }">
+    <entry name="cursor" restriction="url, number, enum" version="2.0" browsers="all" ref="http://www.w3.org/TR/css3-ui/#cursor0" syntax="nav { $(name): pointer; }">
       <desc>Allows control over cursor appearance in an element</desc>
       <values>
         <value name="alias" version="3.0" browsers="all">
@@ -1874,16 +1883,30 @@
         <value name="ew-resize" version="3.0" browsers="all">
           <desc>Indicates a bidirectional east-west resize cursor.</desc>
         </value>
+        <value name="grab" version="3.0" browsers="FF27">
+          <desc>Indicates that something can be grabbed.</desc>
+        </value>
+        <value name="grabbing" version="3.0" browsers="FF27">
+          <desc>Indicates that something is being grabbed.</desc>
+        </value>
         <value name="help" version="2.0" browsers="all">
           <desc>Help is available for the object under the cursor. Often rendered as a question mark or a balloon.</desc>
         </value>
         <value name="move" version="2.0" browsers="all">
           <desc>Indicates something is to be moved.</desc>
         </value>
-        <value name="-moz-grab" version="3.0" browsers="FF" />
-        <value name="-moz-grabbing" version="3.0" browsers="FF" />
-        <value name="-moz-zoom-in" version="3.0" browsers="FF" />
-        <value name="-moz-zoom-out" version="3.0" browsers="FF" />
+        <value name="-moz-grab" version="3.0" browsers="FF1.5">
+          <desc>Indicates that something can be grabbed.</desc>
+        </value>
+        <value name="-moz-grabbing" version="3.0" browsers="FF1.5">
+          <desc>Indicates that something is being grabbed.</desc>
+        </value>
+        <value name="-moz-zoom-in" version="3.0" browsers="FF">
+          <desc>Indicates that something can be zoomed (magnified) in.</desc>
+        </value>
+        <value name="-moz-zoom-out" version="3.0" browsers="FF">
+          <desc>Indicates that something can be zoomed (magnified) out.</desc>
+        </value>
         <value name="ne-resize" version="2.0" browsers="all">
           <desc>Indicates that movement starts from north-east corner.</desc>
         </value>
@@ -1938,18 +1961,26 @@
         <value name="wait" version="2.0" browsers="all">
           <desc>Indicates that the program is busy and the user should wait. Often rendered as a watch or hourglass.</desc>
         </value>
-        <value name="-webkit-grab" version="2.0" browsers="C,S1.2" />
-        <value name="-webkit-grabbing" version="2.0" browsers="C,S1.2" />
-        <value name="-webkit-zoom-in" version="2.0" browsers="C,S1.2" />
-        <value name="-webkit-zoom-out" version="2.0" browsers="C,S1.2" />
+        <value name="-webkit-grab" version="3.0" browsers="C,S4">
+          <desc>Indicates that something can be grabbed.</desc>
+        </value>
+        <value name="-webkit-grabbing" version="3.0" browsers="C,S4">
+          <desc>Indicates that something is being grabbed.</desc>
+        </value>
+        <value name="-webkit-zoom-in" version="2.0" browsers="C,S1.2">
+          <desc>Indicates that something can be zoomed (magnified) in.</desc>
+        </value>
+        <value name="-webkit-zoom-out" version="2.0" browsers="C,S1.2">
+          <desc>Indicates that something can be zoomed (magnified) out.</desc>
+        </value>
         <value name="w-resize" version="2.0" browsers="all">
           <desc>Indicates that west edge is to be moved.</desc>
         </value>
         <value name="zoom-in" version="3.0" browsers="E,C37,FF24,O12.1,S9">
-          <desc>Indicates that something can be zoomed (magnified) in or out, and often rendered as a magnifying glass with a '+' or '-' in the center of the glass, for 'zoom-in’ and 'zoom-out' respectively.</desc>
+          <desc>Indicates that something can be zoomed (magnified) in.</desc>
         </value>
         <value name="zoom-out" version="3.0" browsers="E,C37,FF24,O12.1,S9">
-          <desc>Indicates that something can be zoomed (magnified) in or out, and often rendered as a magnifying glass with a '+' or '-' in the center of the glass, for 'zoom-in’ and 'zoom-out' respectively.</desc>
+          <desc>Indicates that something can be zoomed (magnified) out.</desc>
         </value>
       </values>
     </entry>
@@ -5057,14 +5088,18 @@
         <value name="none" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="nav-down" restriction="enum, identifier, string" version="3.0" browsers="O9.5" ref="http://www.w3.org/TR/css3-ui/#nav-up" syntax="auto | 'id' [ current | root | 'target-name' ]?">
+    <entry name="nav-down" restriction="enum, identifier, string" version="3.0" browsers="O9.5" ref="http://www.w3.org/TR/css3-ui/#nav-dir" syntax="auto | 'id' [ current | root | 'target-name' ]?">
       <desc>Provides an way to control directional focus navigation.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all">
           <desc>The user agent automatically determines which element to navigate the focus to in response to directional navigational input.</desc>
         </value>
-        <value name="current" version="3.0" browsers="all" />
-        <value name="root" version="3.0" browsers="all" />
+        <value name="current" version="3.0" browsers="all">
+          <desc>Indicates that the user agent should target the frame that the element is in.</desc>
+        </value>
+        <value name="root" version="3.0" browsers="all">
+          <desc>Indicates that the user agent should target the full window.</desc>
+        </value>
       </values>
     </entry>
     <entry name="nav-index" restriction="number" version="3.0" browsers="O9.5" ref="http://www.w3.org/TR/css3-ui/#nav-index0" syntax="auto | 'number'">
@@ -5075,34 +5110,46 @@
         </value>
       </values>
     </entry>
-    <entry name="nav-left" restriction="enum, identifier, string" version="3.0" browsers="O9.5" ref="http://www.w3.org/TR/css3-ui/#nav-up" syntax="auto | 'id' [ current | root | 'target-name' ]?">
+    <entry name="nav-left" restriction="enum, identifier, string" version="3.0" browsers="O9.5" ref="http://www.w3.org/TR/css3-ui/#nav-dir" syntax="auto | 'id' [ current | root | 'target-name' ]?">
       <desc>Provides an way to control directional focus navigation.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all">
           <desc>The user agent automatically determines which element to navigate the focus to in response to directional navigational input.</desc>
         </value>
-        <value name="current" version="3.0" browsers="all" />
-        <value name="root" version="3.0" browsers="all" />
+        <value name="current" version="3.0" browsers="all">
+          <desc>Indicates that the user agent should target the frame that the element is in.</desc>
+        </value>
+        <value name="root" version="3.0" browsers="all">
+          <desc>Indicates that the user agent should target the full window.</desc>
+        </value>
       </values>
     </entry>
-    <entry name="nav-right" restriction="enum, identifier, string" version="3.0" browsers="O9.5" ref="http://www.w3.org/TR/css3-ui/#nav-up" syntax="auto | 'id' [ current | root | 'target-name' ]?">
+    <entry name="nav-right" restriction="enum, identifier, string" version="3.0" browsers="O9.5" ref="http://www.w3.org/TR/css3-ui/#nav-dir" syntax="auto | 'id' [ current | root | 'target-name' ]?">
       <desc>Provides an way to control directional focus navigation.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all">
           <desc>The user agent automatically determines which element to navigate the focus to in response to directional navigational input.</desc>
         </value>
-        <value name="current" version="3.0" browsers="all" />
-        <value name="root" version="3.0" browsers="all" />
+        <value name="current" version="3.0" browsers="all">
+          <desc>Indicates that the user agent should target the frame that the element is in.</desc>
+        </value>
+        <value name="root" version="3.0" browsers="all">
+          <desc>Indicates that the user agent should target the full window.</desc>
+        </value>
       </values>
     </entry>
-    <entry name="nav-up" restriction="enum, identifier, string" version="3.0" browsers="O9.5" ref="http://www.w3.org/TR/css3-ui/#nav-up" syntax="auto | 'id' [ current | root | 'target-name' ]?">
+    <entry name="nav-up" restriction="enum, identifier, string" version="3.0" browsers="O9.5" ref="http://www.w3.org/TR/css3-ui/#nav-dir" syntax="auto | 'id' [ current | root | 'target-name' ]?">
       <desc>Provides an way to control directional focus navigation.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all">
           <desc>The user agent automatically determines which element to navigate the focus to in response to directional navigational input.</desc>
         </value>
-        <value name="current" version="3.0" browsers="all" />
-        <value name="root" version="3.0" browsers="all" />
+        <value name="current" version="3.0" browsers="all">
+          <desc>Indicates that the user agent should target the frame that the element is in.</desc>
+        </value>
+        <value name="root" version="3.0" browsers="all">
+          <desc>Indicates that the user agent should target the full window.</desc>
+        </value>
       </values>
     </entry>
     <entry name="negative" restriction="url, identifier, string" version="3.0" browsers="FF33" ref="http://www.w3.org/TR/css-counter-styles-3/#descdef-counter-style-negative" syntax="@counter-style { negative: '(' ')'; }">
@@ -5502,7 +5549,9 @@
     <entry name="outline" restriction="length, line-width, line-style, color, enum" version="2.0" browsers="E,C,FF1.5,IE8,O8,S1.2" ref="http://www.w3.org/TR/css3-ui/#outline0" syntax="header { $(name): 5px solid red;}">
       <desc>Shorthand property for 'outline-style', 'outline-width', and 'outline-color'.</desc>
       <values>
-        <value name="auto" version="3.0" browsers="all" />
+        <value name="auto" version="3.0" browsers="all">
+          <desc>Permits the user agent to render a custom outline style, typically the default platform style.</desc>
+        </value>
         <value name="invert" version="2.0" browsers="E,IE8,O">
           <desc>Performs a color inversion on the pixels on the screen.</desc>
         </value>
@@ -5514,7 +5563,7 @@
         <value name="invert" version="2.0" browsers="E,IE8,O">
           <desc>Performs a color inversion on the pixels on the screen.</desc>
         </value>
-        <value name="white" version="2.0" browsers="all" />
+        <value name="" version="3.0" browsers="none" />
       </values>
     </entry>
     <entry name="outline-offset" restriction="length" version="3.0" browsers="C,FF1.5,O9.5,S1.2" ref="http://www.w3.org/TR/css3-ui/#outline-offset0" syntax="article { $(name): 15px; }">
@@ -5523,7 +5572,9 @@
     <entry name="outline-style" restriction="line-style, enum" version="2.0" browsers="E,C,FF1.5,IE8,O8,S1.2" ref="http://www.w3.org/TR/css3-ui/#outline-style0" syntax="td { $(name): solid; }">
       <desc>Style of the outline</desc>
       <values>
-        <value name="auto" version="3.0" browsers="all" />
+        <value name="auto" version="3.0" browsers="all">
+          <desc>Permits the user agent to render a custom outline style, typically the default platform style.</desc>
+        </value>
 		<value name="" version="3.0" browsers="none" />
       </values>
     </entry>
@@ -5844,7 +5895,7 @@
       </values>
     </entry>
     <entry name="resize" restriction="enum" version="3.0" browsers="C,FF4,O15,S3" ref="http://www.w3.org/TR/css3-ui/#resize0" syntax="div { $(name): both; }">
-      <desc>Allows control over the appearance and function of the resizing mechanism (e.g. a resize box or widget) on the element. Applies to elements with 'overflow' other than 'visible'.</desc>
+      <desc>Specifies whether or not an element is resizable by the user, and if so, along which axis/axes.</desc>
       <values>
         <value name="both" version="3.0" browsers="all">
           <desc>The UA presents a bidirectional resizing mechanism to allow the user to adjust both the height and the width of the element.</desc>
@@ -6599,7 +6650,7 @@
       </values>
     </entry>
     <entry name="text-overflow" restriction="enum, string" version="3.0" browsers="E,C,FF9,IE5.5,O11.6,S2" ref="http://www.w3.org/TR/css3-ui/#text-overflow0" syntax="span { $(name): ellipsis; }">
-      <desc>Text can overflow for example when it is prevented from wrapping</desc>
+      <desc>Text can overflow for example when it is prevented from wrapping.</desc>
       <values>
         <value name="clip" version="3.0" browsers="all">
           <desc>Clip inline content that overflows. Characters may be only partially rendered.</desc>
