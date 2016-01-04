@@ -837,7 +837,7 @@ exports.data ={
 			},
 			{
 				"name": "align-self",
-				"desc": "allows the default alignment along the cross axis to be overridden for individual flex items.",
+				"desc": "Allows the default alignment along the cross axis to be overridden for individual flex items.",
 				"browsers": "E,C29,FF22,IE11,O12.1,S9",
 				"restriction": "enum",
 				"values": [
@@ -1253,7 +1253,8 @@ exports.data ={
 				"restriction": "enum",
 				"values": [
 					{
-						"name": "normal"
+						"name": "normal",
+						"desc": "Default attribute which specifies no blending"
 					},
 					{
 						"name": "multiply"
@@ -1814,7 +1815,7 @@ exports.data ={
 			},
 			{
 				"name": "box-sizing",
-				"desc": "Box Model addition in CSS3.",
+				"desc": "Specifies the behavior of the 'width' and 'height' properties.",
 				"browsers": "E,C10,FF29,IE8,O8,S5.1",
 				"restriction": "enum",
 				"values": [
@@ -2157,7 +2158,7 @@ exports.data ={
 			{
 				"name": "cursor",
 				"desc": "Allows control over cursor appearance in an element",
-				"restriction": "url, number",
+				"restriction": "url, number, enum",
 				"values": [
 					{
 						"name": "alias"
@@ -2195,6 +2196,14 @@ exports.data ={
 						"name": "ew-resize"
 					},
 					{
+						"name": "grab",
+						"browsers": "FF27"
+					},
+					{
+						"name": "grabbing",
+						"browsers": "FF27"
+					},
+					{
 						"name": "help"
 					},
 					{
@@ -2202,11 +2211,11 @@ exports.data ={
 					},
 					{
 						"name": "-moz-grab",
-						"browsers": "FF"
+						"browsers": "FF1.5"
 					},
 					{
 						"name": "-moz-grabbing",
-						"browsers": "FF"
+						"browsers": "FF1.5"
 					},
 					{
 						"name": "-moz-zoom-in",
@@ -2274,11 +2283,11 @@ exports.data ={
 					},
 					{
 						"name": "-webkit-grab",
-						"browsers": "C,S1.2"
+						"browsers": "C,S4"
 					},
 					{
 						"name": "-webkit-grabbing",
-						"browsers": "C,S1.2"
+						"browsers": "C,S4"
 					},
 					{
 						"name": "-webkit-zoom-in",
@@ -2332,7 +2341,7 @@ exports.data ={
 					},
 					{
 						"name": "inline",
-						"desc": "Inline boxes."
+						"desc": "The element generates an inline-level box."
 					},
 					{
 						"name": "inline-block"
@@ -2417,13 +2426,11 @@ exports.data ={
 					},
 					{
 						"name": "none",
-						"desc": "This value causes an element to generate no boxes (i.e., the element has no effect on layout). Descendant elements do not generate any boxes either; this behavior cannot be overridden by setting the 'display' property on the descendants."
+						"desc": "The element and its descendants generates no boxes."
 					},
 					{
-						"name": "normal"
-					},
-					{
-						"name": "ruby"
+						"name": "ruby",
+						"desc": "The element generates a principal ruby container box, and establishes a ruby formatting context."
 					},
 					{
 						"name": "ruby-base"
@@ -2438,7 +2445,8 @@ exports.data ={
 						"name": "ruby-text-container"
 					},
 					{
-						"name": "run-in"
+						"name": "run-in",
+						"browsers": "IE8"
 					},
 					{
 						"name": "table"
@@ -2605,6 +2613,10 @@ exports.data ={
 						"desc": "Retrieves the value of the main size property as the used 'flex-basis'."
 					},
 					{
+						"name": "content",
+						"browsers": "E,IE11"
+					},
+					{
 						"name": "none",
 						"desc": "Expands to '0 0 auto'."
 					}
@@ -2637,16 +2649,13 @@ exports.data ={
 						"desc": "The flex container’s main axis has the same orientation as the block axis of the current writing mode."
 					},
 					{
-						"name": "column-reverse",
-						"desc": "Same as 'column', except the main-start and main-end directions are swapped."
+						"name": "column-reverse"
 					},
 					{
-						"name": "row",
-						"desc": "The flex container’s main axis has the same orientation as the inline axis of the current writing mode."
+						"name": "row"
 					},
 					{
-						"name": "row-reverse",
-						"desc": "Same as 'row', except the main-start and main-end directions are swapped."
+						"name": "row-reverse"
 					}
 				]
 			},
@@ -2661,20 +2670,17 @@ exports.data ={
 						"desc": "The flex container’s main axis has the same orientation as the block axis of the current writing mode."
 					},
 					{
-						"name": "column-reverse",
-						"desc": "Same as 'column', except the main-start and main-end directions are swapped."
+						"name": "column-reverse"
 					},
 					{
 						"name": "nowrap",
 						"desc": "The flex container is single-line."
 					},
 					{
-						"name": "row",
-						"desc": "The flex container’s main axis has the same orientation as the inline axis of the current writing mode."
+						"name": "row"
 					},
 					{
-						"name": "row-reverse",
-						"desc": "Same as 'row', except the main-start and main-end directions are swapped."
+						"name": "row-reverse"
 					},
 					{
 						"name": "wrap",
@@ -2791,7 +2797,8 @@ exports.data ={
 						"desc": "The font used to label icons."
 					},
 					{
-						"name": "italic"
+						"name": "italic",
+						"desc": "Selects a font that is labeled 'italic', or, if that is not available, one labeled 'oblique'."
 					},
 					{
 						"name": "large"
@@ -2816,7 +2823,8 @@ exports.data ={
 						"desc": "Specifies a face that is not labeled as a small-caps font."
 					},
 					{
-						"name": "oblique"
+						"name": "oblique",
+						"desc": "Selects a font that is labeled 'oblique'."
 					},
 					{
 						"name": "small"
@@ -2958,13 +2966,16 @@ exports.data ={
 				"restriction": "enum",
 				"values": [
 					{
-						"name": "auto"
+						"name": "auto",
+						"desc": "Specifies that kerning is applied at the discretion of the user agent."
 					},
 					{
-						"name": "none"
+						"name": "none",
+						"desc": "Specifies that kerning is not applied."
 					},
 					{
-						"name": "normal"
+						"name": "normal",
+						"desc": "Specifies that kerning is applied."
 					}
 				]
 			},
@@ -3065,14 +3076,16 @@ exports.data ={
 				"restriction": "enum",
 				"values": [
 					{
-						"name": "italic"
+						"name": "italic",
+						"desc": "Selects a font that is labeled as an 'italic' face, or an 'oblique' face if one is not"
 					},
 					{
 						"name": "normal",
 						"desc": "Selects a face that is classified as 'normal'."
 					},
 					{
-						"name": "oblique"
+						"name": "oblique",
+						"desc": "Selects a font that is labeled as an 'oblique' face, or an 'italic' face if one is not."
 					}
 				]
 			},
@@ -3125,7 +3138,8 @@ exports.data ={
 						"name": "historical-forms"
 					},
 					{
-						"name": "normal"
+						"name": "normal",
+						"desc": "None of the features are enabled."
 					},
 					{
 						"name": "ornaments()"
@@ -3154,7 +3168,8 @@ exports.data ={
 						"name": "all-small-caps"
 					},
 					{
-						"name": "normal"
+						"name": "normal",
+						"desc": "None of the features are enabled."
 					},
 					{
 						"name": "petite-caps"
@@ -3193,7 +3208,8 @@ exports.data ={
 						"name": "jis90"
 					},
 					{
-						"name": "normal"
+						"name": "normal",
+						"desc": "None of the features are enabled."
 					},
 					{
 						"name": "proportional-width"
@@ -3301,13 +3317,16 @@ exports.data ={
 				"restriction": "enum",
 				"values": [
 					{
-						"name": "normal"
+						"name": "normal",
+						"desc": "None of the features are enabled."
 					},
 					{
-						"name": "sub"
+						"name": "sub",
+						"desc": "Enables display of subscript variants (OpenType feature: subs)."
 					},
 					{
-						"name": "super"
+						"name": "super",
+						"desc": "Enables display of superscript variants (OpenType feature: sups)."
 					}
 				]
 			},
@@ -3799,7 +3818,8 @@ exports.data ={
 				"restriction": "enum",
 				"values": [
 					{
-						"name": "normal"
+						"name": "normal",
+						"desc": "Default attribute which specifies no blending"
 					},
 					{
 						"name": "multiply"
@@ -4827,10 +4847,12 @@ exports.data ={
 				"restriction": "enum, percentage",
 				"values": [
 					{
-						"name": "auto"
+						"name": "auto",
+						"desc": "Renderers must use the default size adjustment when displaying on a small device."
 					},
 					{
-						"name": "none"
+						"name": "none",
+						"desc": "Renderers must not do size adjustment when displaying on a small device."
 					}
 				]
 			},
@@ -4910,7 +4932,7 @@ exports.data ={
 			},
 			{
 				"name": "-moz-transform-origin",
-				"desc": "Establishes the origin of transformation for an element. This property is applied by first translating the element by the negated value of the property, then applying the element's transform, then translating by the property value.",
+				"desc": "Establishes the origin of transformation for an element.",
 				"browsers": "FF3.5",
 				"restriction": "position, length, percentage"
 			},
@@ -5224,21 +5246,21 @@ exports.data ={
 			},
 			{
 				"name": "-ms-flex-align",
-				"desc": "Changes the way free space is allocated in the length axis.",
+				"desc": "Aligns flex items along the cross axis of the current line of the flex container.",
 				"browsers": "IE10",
 				"restriction": "enum",
 				"values": [
 					{
 						"name": "baseline",
-						"desc": "Align all flexbox items so that their baselines line up, then distribute free space above and below the content."
+						"desc": "If the flex item’s inline axis is the same as the cross axis, this value is identical to 'flex-start'. Otherwise, it participates in baseline alignment."
 					},
 					{
 						"name": "center",
-						"desc": "The flexbox item's margin box is centered in the cross axis within the line."
+						"desc": "The flex item’s margin box is centered in the cross axis within the line."
 					},
 					{
 						"name": "end",
-						"desc": "The cross-end margin edge of the flexbox item is placed flush with the cross-end edge of the line."
+						"desc": "The cross-end margin edge of the flex item is placed flush with the cross-end edge of the line."
 					},
 					{
 						"name": "start",
@@ -5252,12 +5274,13 @@ exports.data ={
 			},
 			{
 				"name": "-ms-flex-direction",
-				"desc": "Specifies how flexbox items are placed in the flexbox.",
+				"desc": "Specifies how flex items are placed in the flex container, by setting the direction of the flex container’s main axis.",
 				"browsers": "IE10",
 				"restriction": "enum",
 				"values": [
 					{
-						"name": "column"
+						"name": "column",
+						"desc": "The flex container’s main axis has the same orientation as the block axis of the current writing mode."
 					},
 					{
 						"name": "column-reverse"
@@ -5277,24 +5300,22 @@ exports.data ={
 				"restriction": "enum",
 				"values": [
 					{
-						"name": "column"
+						"name": "column",
+						"desc": "The flex container’s main axis has the same orientation as the block axis of the current writing mode."
 					},
 					{
 						"name": "column-reverse"
 					},
 					{
 						"name": "nowrap",
-						"desc": "The flexbox is single-line. The cross-start direction is equivalent to either the 'start' or 'before' direction of the current writing mode, whichever is in the cross-axis, and the cross-end direction is the opposite direction of cross-start."
+						"desc": "The flex container is single-line."
 					},
 					{
 						"name": "row"
 					},
 					{
-						"name": "row-reverse"
-					},
-					{
 						"name": "wrap",
-						"desc": "The flexbox is multi-line. The cross-start direction is equivalent to either the 'start' or 'before' direction of the current writing mode, whichever is in the cross-axis, and the cross-end direction is the opposite direction of cross-start."
+						"desc": "The flexbox is multi-line."
 					},
 					{
 						"name": "wrap-reverse"
@@ -5303,114 +5324,115 @@ exports.data ={
 			},
 			{
 				"name": "-ms-flex-item-align",
-				"desc": "Changes the way free space is allocated in the length axis.",
+				"desc": "Allows the default alignment along the cross axis to be overridden for individual flex items.",
 				"browsers": "IE10",
 				"restriction": "enum",
 				"values": [
 					{
-						"name": "auto"
+						"name": "auto",
+						"desc": "Computes to the value of 'align-items' on the element’s parent, or 'stretch' if the element has no parent. On absolutely positioned elements, it computes to itself."
 					},
 					{
 						"name": "baseline",
-						"desc": "Align all flexbox items so that their baselines line up, then distribute free space above and below the content."
+						"desc": "If the flex item’s inline axis is the same as the cross axis, this value is identical to 'flex-start'. Otherwise, it participates in baseline alignment."
 					},
 					{
 						"name": "center",
-						"desc": "The flexbox item's margin box is centered in the cross axis within the line."
+						"desc": "The flex item’s margin box is centered in the cross axis within the line."
 					},
 					{
 						"name": "end",
-						"desc": "The cross-end margin edge of the flexbox item is placed flush with the cross-end edge of the line."
+						"desc": "The cross-end margin edge of the flex item is placed flush with the cross-end edge of the line."
 					},
 					{
 						"name": "start",
-						"desc": "The cross-start margin edge of the flexbox item is placed flush with the cross-start edge of the line."
+						"desc": "The cross-start margin edge of the flex item is placed flush with the cross-start edge of the line."
 					},
 					{
 						"name": "stretch",
-						"desc": "If the cross size property of the flexbox item is anything other than 'auto', this value is identical to 'start'."
+						"desc": "If the cross size property of the flex item computes to auto, and neither of the cross-axis margins are auto, the flex item is stretched."
 					}
 				]
 			},
 			{
 				"name": "-ms-flex-line-pack",
-				"desc": "Aligns a flexbox's lines within the flexbox when there is extra space in the cross axis, similar to how 'flex-pack' aligns individual items within the main axis.",
+				"desc": "Aligns a flex container’s lines within the flex container when there is extra space in the cross-axis, similar to how 'justify-content' aligns individual items within the main-axis.",
 				"browsers": "IE10",
 				"restriction": "enum",
 				"values": [
 					{
 						"name": "center",
-						"desc": "The extra space is divided evenly, with half placed before the first child and the other half placed after the last child."
+						"desc": "Lines are packed toward the center of the flex container."
 					},
 					{
 						"name": "distribute",
-						"desc": "Lines are evenly distributed in the flexbox, with half-size spaces on either end."
+						"desc": "Lines are evenly distributed in the flex container, with half-size spaces on either end."
 					},
 					{
 						"name": "end",
-						"desc": "For normal direction boxes, the right edge of the last child is placed at the right side, with all extra space placed before the first child. For reverse direction boxes, the left edge of the first child is placed at the left side, with all extra space placed after the last child."
+						"desc": "Lines are packed toward the end of the flex container."
 					},
 					{
 						"name": "justify",
-						"desc": "The space is divided evenly in-between each child, with none of the extra space placed before the first child or after the last child. If there is only one child, treat the pack value as if it were start."
+						"desc": "Lines are evenly distributed in the flex container."
 					},
 					{
 						"name": "start",
-						"desc": "For normal direction boxes, the left edge of the first child is placed at the left side, with all extra space placed after the last child. For reverse direction boxes, the right edge of the last child is placed at the right side, with all extra space placed before the first child."
+						"desc": "Lines are packed toward the start of the flex container."
 					},
 					{
 						"name": "stretch",
-						"desc": "Lines stretch to take up the remaining space. If the leftover free-space is negative, this value is identical to 'start'."
+						"desc": "Lines stretch to take up the remaining space."
 					}
 				]
 			},
 			{
 				"name": "-ms-flex-order",
-				"desc": "This property is an integer with an initial value of 1.",
+				"desc": "Controls the order in which children of a flex container appear within the flex container, by assigning them to ordinal groups.",
 				"browsers": "IE10",
 				"restriction": "integer"
 			},
 			{
 				"name": "-ms-flex-pack",
-				"desc": "The 'flex-pack' property defines the flexibility of these packing spaces.",
+				"desc": "Aligns flex items along the main axis of the current line of the flex container.",
 				"browsers": "IE10",
 				"restriction": "enum",
 				"values": [
 					{
 						"name": "center",
-						"desc": "The extra space is divided evenly, with half placed before the first child and the other half placed after the last child."
+						"desc": "Flex items are packed toward the center of the line."
 					},
 					{
 						"name": "distribute",
-						"desc": "Lines are evenly distributed in the flexbox, with half-size spaces on either end."
+						"desc": "Flex items are evenly distributed in the line, with half-size spaces on either end."
 					},
 					{
 						"name": "end",
-						"desc": "For normal direction boxes, the right edge of the last child is placed at the right side, with all extra space placed before the first child. For reverse direction boxes, the left edge of the first child is placed at the left side, with all extra space placed after the last child."
+						"desc": "Flex items are packed toward the end of the line."
 					},
 					{
 						"name": "justify",
-						"desc": "The space is divided evenly in-between each child, with none of the extra space placed before the first child or after the last child. If there is only one child, treat the pack value as if it were start."
+						"desc": "Flex items are evenly distributed in the line."
 					},
 					{
 						"name": "start",
-						"desc": "For normal direction boxes, the left edge of the first child is placed at the left side, with all extra space placed after the last child. For reverse direction boxes, the right edge of the last child is placed at the right side, with all extra space placed before the first child."
+						"desc": "Flex items are packed toward the start of the line."
 					}
 				]
 			},
 			{
 				"name": "-ms-flex-wrap",
-				"desc": "controls whether the flexbox is single-line or multi-line, and the direction of the cross axis, which affects the direction new lines are stacked in and the meaning of the 'flex-align', 'flex-item-align', and 'flex-line-pack' properties.",
+				"desc": "Controls whether the flex container is single-line or multi-line, and the direction of the cross-axis, which determines the direction new lines are stacked in.",
 				"browsers": "IE10",
 				"restriction": "enum",
 				"values": [
 					{
 						"name": "nowrap",
-						"desc": "The flexbox is single-line. The cross-start direction is equivalent to either the 'start' or 'before' direction of the current writing mode, whichever is in the cross-axis, and the cross-end direction is the opposite direction of cross-start."
+						"desc": "The flex container is single-line."
 					},
 					{
 						"name": "wrap",
-						"desc": "The flexbox is multi-line. The cross-start direction is equivalent to either the 'start' or 'before' direction of the current writing mode, whichever is in the cross-axis, and the cross-end direction is the opposite direction of cross-start."
+						"desc": "The flexbox is multi-line."
 					},
 					{
 						"name": "wrap-reverse"
@@ -5419,15 +5441,15 @@ exports.data ={
 			},
 			{
 				"name": "-ms-flow-from",
-				"desc": "Gets or sets a value that identifies a Connected Frame container in the document that accepts the content flow from the data source.",
-				"browsers": "IE10",
+				"desc": "Makes a block container a region and associates it with a named flow.",
+				"browsers": "E,IE10",
 				"restriction": "identifier",
 				"values": []
 			},
 			{
 				"name": "-ms-flow-into",
-				"desc": "Gets or sets a value that identifies an iframe container in the document that serves as the Connected Frame data source.",
-				"browsers": "IE10",
+				"desc": "Places an element or its contents into a named flow.",
+				"browsers": "E,IE10",
 				"restriction": "identifier",
 				"values": []
 			},
@@ -5557,27 +5579,27 @@ exports.data ={
 			},
 			{
 				"name": "-ms-hyphenate-limit-chars",
-				"desc": "Gets or sets one to three values that indicates the minimum number of characters in a hyphenated word.",
+				"desc": "Specifies the minimum number of characters in a hyphenated word.",
 				"browsers": "E,IE10",
 				"restriction": "integer",
 				"values": []
 			},
 			{
 				"name": "-ms-hyphenate-limit-lines",
-				"desc": "Gets or sets a value that indicates the maximum number of consecutive lines in an element that may be ended with a hyphenated word.",
+				"desc": "Indicates the maximum number of successive hyphenated lines in an element.",
 				"browsers": "E,IE10",
 				"restriction": "integer",
 				"values": []
 			},
 			{
 				"name": "-ms-hyphenate-limit-zone",
-				"desc": "Gets or sets a value that defines the width of the hyphenation zone.",
+				"desc": "Specifies the maximum amount of unfilled space (before justification) that may be left in the line box before hyphenation is triggered to pull part of a word from the next line back up into the current line.",
 				"browsers": "E,IE10",
 				"restriction": "percentage, length"
 			},
 			{
 				"name": "-ms-hyphens",
-				"desc": "This property controls whether hyphenation is allowed to create more break opportunities within a line of text.",
+				"desc": "Controls whether hyphenation is allowed to create more break opportunities within a line of text.",
 				"browsers": "E,IE10",
 				"restriction": "enum",
 				"values": [
@@ -5962,13 +5984,16 @@ exports.data ={
 				"restriction": "enum",
 				"values": [
 					{
-						"name": "mandatory"
+						"name": "none",
+						"desc": "The visual viewport of this scroll container must ignore snap points, if any, when scrolled."
 					},
 					{
-						"name": "none"
+						"name": "mandatory",
+						"desc": "The visual viewport of this scroll container is guaranteed to rest on a snap point when there are no active scrolling operations."
 					},
 					{
-						"name": "proximity"
+						"name": "proximity",
+						"desc": "The visual viewport of this scroll container may come to rest on a snap point at the termination of a scroll at the discretion of the UA given the parameters of the scroll."
 					}
 				]
 			},
@@ -6160,10 +6185,12 @@ exports.data ={
 				"restriction": "enum, percentage",
 				"values": [
 					{
-						"name": "auto"
+						"name": "auto",
+						"desc": "Renderers must use the default size adjustment when displaying on a small device."
 					},
 					{
-						"name": "none"
+						"name": "none",
+						"desc": "Renderers must not do size adjustment when displaying on a small device."
 					}
 				]
 			},
@@ -6313,7 +6340,7 @@ exports.data ={
 			},
 			{
 				"name": "-ms-transform-origin",
-				"desc": "Establishes the origin of transformation for an element. This property is applied by first translating the element by the negated value of the property, then applying the element's transform, then translating by the property value.",
+				"desc": "Establishes the origin of transformation for an element.",
 				"browsers": "IE9-9",
 				"restriction": "position, length, percentage"
 			},
@@ -6363,7 +6390,7 @@ exports.data ={
 					},
 					{
 						"name": "keep-all",
-						"desc": "Block characters can no longer create implied break points. Otherwise this option is equivalent to 'normal'. This option is mostly used where the presence of word separator characters still creates line-breaking opportunities, as in Korean."
+						"desc": "Block characters can no longer create implied break points."
 					},
 					{
 						"name": "normal",
@@ -6428,7 +6455,7 @@ exports.data ={
 			},
 			{
 				"name": "-ms-wrap-through",
-				"desc": "Gets or sets a value that specifies how content should wrap around an exclusion element.",
+				"desc": "Specifies if an element inherits its parent wrapping context. In other words if it is subject to the exclusions defined outside the element.",
 				"browsers": "E,IE10",
 				"restriction": "enum",
 				"values": [
@@ -6870,7 +6897,7 @@ exports.data ={
 			},
 			{
 				"name": "order",
-				"desc": "Controls the order in which flex items appear within their flex container, by assigning them to ordinal groups.",
+				"desc": "Controls the order in which children of a flex container appear within the flex container, by assigning them to ordinal groups.",
 				"browsers": "E,C29,FF22,IE11,O12.1,S9",
 				"restriction": "integer"
 			},
@@ -6888,7 +6915,7 @@ exports.data ={
 			},
 			{
 				"name": "-o-tab-size",
-				"desc": "This property determines the width of the tab character (U+0009), in space characters (U+0020), when rendered",
+				"desc": "This property determines the width of the tab character (U+0009), in space characters (U+0020), when rendered.",
 				"browsers": "O10.6",
 				"restriction": "integer, length"
 			},
@@ -6979,7 +7006,7 @@ exports.data ={
 			},
 			{
 				"name": "-o-transform-origin",
-				"desc": "Establishes the origin of transformation for an element. This property is applied by first translating the element by the negated value of the property, then applying the element's transform, then translating by the property value.",
+				"desc": "Establishes the origin of transformation for an element.",
 				"browsers": "O10.5",
 				"restriction": "positon, length, percentage"
 			},
@@ -7096,7 +7123,8 @@ exports.data ={
 				"restriction": "length, line-width, line-style, color, enum",
 				"values": [
 					{
-						"name": "auto"
+						"name": "auto",
+						"desc": "Permits the user agent to render a custom outline style, typically the default platform style."
 					},
 					{
 						"name": "invert",
@@ -7129,7 +7157,8 @@ exports.data ={
 				"restriction": "line-style, enum",
 				"values": [
 					{
-						"name": "auto"
+						"name": "auto",
+						"desc": "Permits the user agent to render a custom outline style, typically the default platform style."
 					}
 				]
 			},
@@ -7173,16 +7202,18 @@ exports.data ={
 				"restriction": "enum",
 				"values": [
 					{
-						"name": "break-word"
+						"name": "break-word",
+						"desc": "An otherwise unbreakable sequence of characters may be broken at an arbitrary point if there are no otherwise-acceptable break points in the line."
 					},
 					{
-						"name": "normal"
+						"name": "normal",
+						"desc": "Lines may break only at allowed break points."
 					}
 				]
 			},
 			{
 				"name": "overflow-x",
-				"desc": "Specify whether content is clipped when it overflows the element's content area.",
+				"desc": "Specifies the handling of overflow in the horizontal direction.",
 				"browsers": "E,C,FF1.5,IE5,O9.5,S3",
 				"restriction": "enum",
 				"values": [
@@ -7206,7 +7237,7 @@ exports.data ={
 			},
 			{
 				"name": "overflow-y",
-				"desc": "Specify whether content is clipped when it overflows the element's content area.",
+				"desc": "Specifies the handling of overflow in the vertical direction.",
 				"browsers": "E,C,FF1.5,IE5,O9.5,S3",
 				"restriction": "enum",
 				"values": [
@@ -7422,7 +7453,7 @@ exports.data ={
 					},
 					{
 						"name": "-webkit-sticky",
-						"browsers": "C"
+						"browsers": "S6.1"
 					}
 				]
 			},
@@ -7457,7 +7488,7 @@ exports.data ={
 			},
 			{
 				"name": "resize",
-				"desc": "Allows control over the appearance and function of the resizing mechanism (e.g. a resize box or widget) on the element. Applies to elements with 'overflow' other than 'visible'.",
+				"desc": "Specifies whether or not an element is resizable by the user, and if so, along which axis/axes.",
 				"browsers": "C,FF4,O15,S3",
 				"restriction": "enum",
 				"values": [
@@ -7487,7 +7518,7 @@ exports.data ={
 			},
 			{
 				"name": "ruby-align",
-				"desc": "Used on any element to control the text alignment of the ruby text and ruby base contents relative to each other.",
+				"desc": "Specifies how text is distributed within the various ruby boxes when their contents do not exactly fill their respective boxes.",
 				"browsers": "FF10,IE5",
 				"restriction": "enum",
 				"values": [
@@ -7498,7 +7529,7 @@ exports.data ={
 					},
 					{
 						"name": "center",
-						"desc": "The ruby text content is centered within the width of the base. If the length of the base is smaller than the length of the ruby text, then the base is centered within the width of the ruby text."
+						"desc": "The ruby content is centered within its box."
 					},
 					{
 						"name": "distribute-letter",
@@ -7528,10 +7559,12 @@ exports.data ={
 					},
 					{
 						"name": "space-between",
+						"desc": "The ruby content expands as defined for normal text justification (as defined by 'text-justify'),",
 						"browsers": "FF10"
 					},
 					{
 						"name": "space-around",
+						"desc": "As for 'space-between' except that there exists an extra justification opportunities whose space is distributed half before and half after the ruby content.",
 						"browsers": "FF10"
 					}
 				]
@@ -7647,11 +7680,12 @@ exports.data ={
 			{
 				"name": "scroll-behavior",
 				"desc": "Specifies the scrolling behavior for a scrolling box, when scrolling happens due to navigation or CSSOM scrolling APIs.",
-				"browsers": "36",
+				"browsers": "FF36",
 				"restriction": "enum",
 				"values": [
 					{
-						"name": "instant"
+						"name": "auto",
+						"desc": "Scrolls in an instant fashion."
 					},
 					{
 						"name": "smooth"
@@ -7665,7 +7699,8 @@ exports.data ={
 				"restriction": "position, length, percentage, enum",
 				"values": [
 					{
-						"name": "none"
+						"name": "none",
+						"desc": "Specifies that this element does not contribute a snap point."
 					}
 				]
 			},
@@ -7710,13 +7745,16 @@ exports.data ={
 				"restriction": "enum",
 				"values": [
 					{
-						"name": "none"
+						"name": "none",
+						"desc": "The visual viewport of this scroll container must ignore snap points, if any, when scrolled."
 					},
 					{
-						"name": "mandatory"
+						"name": "mandatory",
+						"desc": "The visual viewport of this scroll container is guaranteed to rest on a snap point when there are no active scrolling operations."
 					},
 					{
-						"name": "proximity"
+						"name": "proximity",
+						"desc": "The visual viewport of this scroll container may come to rest on a snap point at the termination of a scroll at the discretion of the UA given the parameters of the scroll."
 					}
 				]
 			},
@@ -7734,7 +7772,7 @@ exports.data ={
 			},
 			{
 				"name": "shape-outside",
-				"desc": "This property specifies an orthogonal rotation to be applied to an image before it is laid out.",
+				"desc": "Specifies an orthogonal rotation to be applied to an image before it is laid out.",
 				"browsers": "C37,O24",
 				"restriction": "enum",
 				"values": [
@@ -7743,36 +7781,42 @@ exports.data ={
 						"desc": "The background is painted within (clipped to) the border box."
 					},
 					{
-						"name": "circle()"
+						"name": "circle()",
+						"desc": "Defines a circle."
 					},
 					{
 						"name": "content-box",
 						"desc": "The background is painted within (clipped to) the content box."
 					},
 					{
-						"name": "ellipse()"
+						"name": "ellipse()",
+						"desc": "Defines an ellipse."
 					},
 					{
 						"name": "image()"
 					},
 					{
-						"name": "inset()"
+						"name": "inset()",
+						"desc": "Defines an inset rectangle."
 					},
 					{
 						"name": "linear-gradient()"
 					},
 					{
-						"name": "margin-box"
+						"name": "margin-box",
+						"desc": "The background is painted within (clipped to) the margin box"
 					},
 					{
-						"name": "none"
+						"name": "none",
+						"desc": "The float area is unaffected."
 					},
 					{
 						"name": "padding-box",
 						"desc": "The background is painted within (clipped to) the padding box"
 					},
 					{
-						"name": "polygon()"
+						"name": "polygon()",
+						"desc": "Defines a polygon."
 					},
 					{
 						"name": "radial-gradient()"
@@ -7928,8 +7972,8 @@ exports.data ={
 			},
 			{
 				"name": "tab-size",
-				"desc": "Determines the width of the tab character (U+0009), in space characters (U+0020), when rendered",
-				"browsers": "C42,O29,S6.1",
+				"desc": "Determines the width of the tab character (U+0009), in space characters (U+0020), when rendered.",
+				"browsers": "C21,O15,S6.1",
 				"restriction": "integer, length"
 			},
 			{
@@ -7962,7 +8006,8 @@ exports.data ={
 				"restriction": "enum",
 				"values": [
 					{
-						"name": "auto"
+						"name": "auto",
+						"desc": "Content on the affected line is aligned per 'text-align' unless 'text-align' is set to 'justify', in which case it is 'start-aligned'."
 					},
 					{
 						"name": "center",
@@ -8138,7 +8183,7 @@ exports.data ={
 			},
 			{
 				"name": "text-overflow",
-				"desc": "Text can overflow for example when it is prevented from wrapping",
+				"desc": "Text can overflow for example when it is prevented from wrapping.",
 				"browsers": "E,C,FF9,IE5.5,O11.6,S2",
 				"restriction": "enum, string",
 				"values": [
@@ -8179,7 +8224,7 @@ exports.data ={
 			},
 			{
 				"name": "text-transform",
-				"desc": "Controls capitalization effects of an element's text.",
+				"desc": "Controls capitalization effects of an element’s text.",
 				"restriction": "enum",
 				"values": [
 					{
@@ -8190,7 +8235,7 @@ exports.data ={
 					},
 					{
 						"name": "none",
-						"desc": "No capitalization effects."
+						"desc": "No effects."
 					},
 					{
 						"name": "uppercase"
@@ -8208,11 +8253,11 @@ exports.data ={
 					},
 					{
 						"name": "auto",
-						"desc": "The user agent may use any algorithm to determine the underline's position. In horizontal line layout, the underline should be aligned as for alphabetic. In vertical line layout, if the language is set to Japanese or Korean, the underline should be aligned as for over."
+						"desc": "The user agent may use any algorithm to determine the underline’s position. In horizontal line layout, the underline should be aligned as for alphabetic. In vertical line layout, if the language is set to Japanese or Korean, the underline should be aligned as for over."
 					},
 					{
 						"name": "below",
-						"desc": "The underline is aligned with the under edge of the element's content box."
+						"desc": "The underline is aligned with the under edge of the element’s content box."
 					}
 				]
 			},
@@ -8337,7 +8382,7 @@ exports.data ={
 			},
 			{
 				"name": "transform-origin",
-				"desc": "Establishes the origin of transformation for an element. This property is applied by first translating the element by the negated value of the property, then applying the element's transform, then translating by the property value.",
+				"desc": "Establishes the origin of transformation for an element.",
 				"browsers": "E,C36,FF16,IE10,O12.1,S9",
 				"restriction": "position, length, percentage"
 			},
@@ -9494,15 +9539,15 @@ exports.data ={
 			},
 			{
 				"name": "-webkit-flow-from",
-				"desc": "Gets or sets a value that identifies a Connected Frame container in the document that accepts the content flow from the data source.",
-				"browsers": "C,S5.2",
+				"desc": "Makes a block container a region and associates it with a named flow.",
+				"browsers": "S6.1",
 				"restriction": "identifier",
 				"values": []
 			},
 			{
 				"name": "-webkit-flow-into",
-				"desc": "Gets or sets a value that identifies an iframe container in the document that serves as the Connected Frame data source.",
-				"browsers": "C,S5.2",
+				"desc": "Places an element or its contents into a named flow.",
+				"browsers": "S6.1",
 				"restriction": "identifier",
 				"values": []
 			},
@@ -9553,7 +9598,7 @@ exports.data ={
 			},
 			{
 				"name": "-webkit-hyphens",
-				"desc": "This property controls whether hyphenation is allowed to create more break opportunities within a line of text.",
+				"desc": "Controls whether hyphenation is allowed to create more break opportunities within a line of text.",
 				"browsers": "S5.1",
 				"restriction": "enum",
 				"values": [
@@ -9708,17 +9753,17 @@ exports.data ={
 			},
 			{
 				"name": "-webkit-text-size-adjust",
-				"desc": "Specifies a size adjustment for displaying text content in Safari on iPhone.",
+				"desc": "Specifies a size adjustment for displaying text content in mobile browsers.",
 				"browsers": "E,C,S3",
 				"restriction": "percentage",
 				"values": [
 					{
 						"name": "auto",
-						"desc": "The text size is automatically adjusted for Safari on iPhone."
+						"desc": "Renderers must use the default size adjustment when displaying on a small device."
 					},
 					{
 						"name": "none",
-						"desc": "The text size is not adjusted."
+						"desc": "Renderers must not do size adjustment when displaying on a small device."
 					}
 				]
 			},
@@ -9819,7 +9864,7 @@ exports.data ={
 			},
 			{
 				"name": "-webkit-transform-origin",
-				"desc": "Establishes the origin of transformation for an element. This property is applied by first translating the element by the negated value of the property, then applying the element's transform, then translating by the property value.",
+				"desc": "Establishes the origin of transformation for an element.",
 				"browsers": "C,O15,S3.1",
 				"restriction": "position, length, percentage"
 			},
@@ -10051,7 +10096,8 @@ exports.data ={
 				"restriction": "enum, identifier",
 				"values": [
 					{
-						"name": "auto"
+						"name": "auto",
+						"desc": "Expresses no particular intent."
 					},
 					{
 						"name": "contents"
@@ -10072,7 +10118,7 @@ exports.data ={
 					},
 					{
 						"name": "keep-all",
-						"desc": "Block characters can no longer create implied break points. Otherwise this option is equivalent to 'normal'. This option is mostly used where the presence of word separator characters still creates line-breaking opportunities, as in Korean."
+						"desc": "Block characters can no longer create implied break points."
 					},
 					{
 						"name": "normal",
@@ -10082,7 +10128,7 @@ exports.data ={
 			},
 			{
 				"name": "word-spacing",
-				"desc": "Specifies the minimum, maximum, and optimal spacing between words.",
+				"desc": "Specifies additional spacing between “words”.",
 				"restriction": "length, percentage",
 				"values": []
 			},
@@ -10093,7 +10139,7 @@ exports.data ={
 				"values": [
 					{
 						"name": "break-word",
-						"desc": "An unbreakable 'word' may be broken at an arbitrary point if there are no otherwise-acceptable break points in the line."
+						"desc": "An otherwise unbreakable sequence of characters may be broken at an arbitrary point if there are no otherwise-acceptable break points in the line."
 					},
 					{
 						"name": "normal",
@@ -10109,6 +10155,14 @@ exports.data ={
 				"values": [
 					{
 						"name": "horizontal-tb"
+					},
+					{
+						"name": "sideways-lr",
+						"browsers": "FF43"
+					},
+					{
+						"name": "sideways-rl",
+						"browsers": "FF43"
 					},
 					{
 						"name": "vertical-lr"
@@ -10161,6 +10215,21 @@ exports.descriptions = {
 	"paused": "A running animation will be paused.",
 	"running": "Resume playback of a paused animation.",
 	"no-repeat": "The image is placed once and not repeated in this direction.",
+	"multiply": "The source color is multiplied by the destination color and replaces the destination.",
+	"screen": "Multiplies the complements of the backdrop and source color values, then complements the result.",
+	"overlay": "Multiplies or screens the colors, depending on the backdrop color value.",
+	"darken": "Selects the darker of the backdrop and source colors.",
+	"lighten": "Selects the lighter of the backdrop and source colors.",
+	"color-dodge": "Brightens the backdrop color to reflect the source color.",
+	"color-burn": "Darkens the backdrop color to reflect the source color.",
+	"hard-light": "Multiplies or screens the colors, depending on the source color value.",
+	"soft-light": "Darkens or lightens the colors, depending on the source color value.",
+	"difference": "Subtracts the darker of the two constituent colors from the lighter color..",
+	"exclusion": "Produces an effect similar to that of the Difference mode but lower in contrast.",
+	"hue": "Creates a color with the hue of the source color and the saturation and luminosity of the backdrop color.",
+	"saturation": "Creates a color with the saturation of the source color and the hue and luminosity of the backdrop color.",
+	"color": "Creates a color with the hue and saturation of the source color and the luminosity of the backdrop color.",
+	"luminosity": "Creates a color with the luminosity of the source color and the hue and saturation of the backdrop color.",
 	"clone": "Each box is independently wrapped with the border and padding.",
 	"slice": "The effect is as though the element were rendered with no breaks present, and then sliced by the breaks afterward.",
 	"inset": "Changes the drop shadow from an outer shadow (one that shadows the box onto the canvas, as if it were lifted above the canvas) to an inner shadow (one that shadows the canvas onto the box, as if the box were cut out of the canvas and shifted behind it).",
@@ -10176,8 +10245,14 @@ exports.descriptions = {
 	"crosshair": "A simple crosshair (e.g., short line segments resembling a '+' sign). Often used to indicate a two dimensional bitmap selection mode.",
 	"e-resize": "Indicates that east edge is to be moved.",
 	"ew-resize": "Indicates a bidirectional east-west resize cursor.",
+	"grab": "Indicates that something can be grabbed.",
+	"grabbing": "Indicates that something is being grabbed.",
 	"help": "Help is available for the object under the cursor. Often rendered as a question mark or a balloon.",
 	"move": "Indicates something is to be moved.",
+	"-moz-grab": "Indicates that something can be grabbed.",
+	"-moz-grabbing": "Indicates that something is being grabbed.",
+	"-moz-zoom-in": "Indicates that something can be zoomed (magnified) in.",
+	"-moz-zoom-out": "Indicates that something can be zoomed (magnified) out.",
 	"ne-resize": "Indicates that movement starts from north-east corner.",
 	"nesw-resize": "Indicates a bidirectional north-east/south-west cursor.",
 	"no-drop": "Indicates that the dragged item cannot be dropped at the current cursor location. Often rendered as a hand or pointer with a small circle with a line through it.",
@@ -10194,17 +10269,35 @@ exports.descriptions = {
 	"sw-resize": "Indicates that movement starts from south-west corner.",
 	"vertical-text": "Indicates vertical-text that may be selected. Often rendered as a horizontal I-beam.",
 	"wait": "Indicates that the program is busy and the user should wait. Often rendered as a watch or hourglass.",
+	"-webkit-grab": "Indicates that something can be grabbed.",
+	"-webkit-grabbing": "Indicates that something is being grabbed.",
+	"-webkit-zoom-in": "Indicates that something can be zoomed (magnified) in.",
+	"-webkit-zoom-out": "Indicates that something can be zoomed (magnified) out.",
 	"w-resize": "Indicates that west edge is to be moved.",
-	"zoom-in": "Indicates that something can be zoomed (magnified) in or out, and often rendered as a magnifying glass with a '+' or '-' in the center of the glass, for 'zoom-in’ and 'zoom-out' respectively.",
-	"zoom-out": "Indicates that something can be zoomed (magnified) in or out, and often rendered as a magnifying glass with a '+' or '-' in the center of the glass, for 'zoom-in’ and 'zoom-out' respectively.",
+	"zoom-in": "Indicates that something can be zoomed (magnified) in.",
+	"zoom-out": "Indicates that something can be zoomed (magnified) out.",
 	"ltr": "Left-to-right direction.",
 	"rtl": "Right-to-left direction.",
-	"block": "Block boxes.",
+	"block": "The element generates a block-level box",
+	"flex": "The element generates a principal flex container box and establishes a flex formatting context.",
+	"flexbox": "The element lays out its contents using flow layout (block-and-inline layout). Standardized as 'flex'.",
 	"inline-block": "A block box, which itself is flowed as a single inline box, similar to a replaced element. The inside of an inline-block is formatted as a block box, and the box itself is formatted as an inline box.",
+	"inline-flex": "Inline-level flex container.",
+	"inline-flexbox": "Inline-level flex container. Standardized as 'inline-flex'",
+	"inline-table": "Inline-level table wrapper box containing table box.",
 	"list-item": "One or more block boxes and one marker box.",
-	"-ms-grid": "A value of grid causes an element to display as a block-level Grid element",
-	"-ms-inline-grid": "A value of inline-grid causes an element to display as an inline-level Grid element.",
-	"run-in": "Either block or inline boxes, depending on context. Properties apply to run-in boxes based on their final status (inline-level or block-level).",
+	"-moz-box": "The element lays out its contents using flow layout (block-and-inline layout). Standardized as 'flex'.",
+	"-moz-inline-box": "Inline-level flex container. Standardized as 'inline-flex'",
+	"-ms-flexbox": "The element lays out its contents using flow layout (block-and-inline layout). Standardized as 'flex'.",
+	"-ms-grid": "The element generates a principal grid container box, and establishes a grid formatting context.",
+	"-ms-inline-flexbox": "Inline-level flex container. Standardized as 'inline-flex'",
+	"-ms-inline-grid": "Inline-level grid container.",
+	"run-in": "The element generates a run-in box. Run-in elements act like inlines or blocks, depending on the surrounding elements.",
+	"table": "The element generates a principal table wrapper box containing an additionally-generated table box, and establishes a table formatting context.",
+	"-webkit-box": "The element lays out its contents using flow layout (block-and-inline layout). Standardized as 'flex'.",
+	"-webkit-flex": "The element lays out its contents using flow layout (block-and-inline layout).",
+	"-webkit-inline-box": "Inline-level flex container. Standardized as 'inline-flex'",
+	"-webkit-inline-flex": "Inline-level flex container.",
 	"hide": "No borders or backgrounds are drawn around/behind empty cells.",
 	"show": "Borders and backgrounds are drawn around/behind empty cells (like normal cells).",
 	"accumulate": "If the ancestor container element has a property of new, then all graphics elements within the current container are rendered both on the parent's background image and onto the target.",
@@ -10217,19 +10310,22 @@ exports.descriptions = {
 	"opacity()": "Applies transparency to the samples in the input image.",
 	"saturate()": "Saturates the input image.",
 	"content": "Indicates automatic sizing, based on the flex item’s content.",
+	"column-reverse": "Same as 'column', except the main-start and main-end directions are swapped.",
+	"row": "The flex container’s main axis has the same orientation as the inline axis of the current writing mode.",
+	"row-reverse": "Same as 'row', except the main-start and main-end directions are swapped.",
 	"wrap-reverse": "Same as 'wrap', except the cross-start and cross-end directions are swapped.",
 	"bold": "Same as 700",
 	"bolder": "Specifies the weight of the face bolder than the inherited value.",
 	"caption": "The font used for captioned controls (e.g., buttons, drop-downs, etc.).",
-	"italic": "Selects a font that is labeled 'italic', or, if that is not available, one labeled 'oblique'.",
 	"lighter": "Specifies the weight of the face lighter than the inherited value.",
 	"menu": "The font used in menus (e.g., dropdown menus and menu lists).",
 	"message-box": "The font used in dialog boxes.",
-	"oblique": "Selects a font that is labeled 'oblique'.",
 	"small-caption": "The font used for labeling small controls.",
 	"status-bar": "The font used in window status bars.",
 	"narrower": "Indicates a narrower value relative to the width of the parent element.",
 	"wider": "Indicates a wider value relative to the width of the parent element.",
+	"style": "Allow synthetic italic faces.",
+	"weight": "Allow synthetic bold faces.",
 	"annotation()": "Enables display of alternate annotation forms.",
 	"character-variant()": "Enables display of specific character variants.",
 	"historical-forms": "Enables display of historical forms.",
@@ -10293,7 +10389,8 @@ exports.descriptions = {
 	"solid": "Produces a solid line.",
 	"wavy": "Produces a wavy line.",
 	"matrix()": "Specifies a 2D transformation in the form of a transformation matrix of six values. matrix(a,b,c,d,e,f) is equivalent to applying the transformation matrix [a b c d e f]",
-	"matrix3d()": "specifies a 3D transformation as a 4x4 homogeneous matrix of 16 values in column-major order.",
+	"matrix3d()": "Specifies a 3D transformation as a 4x4 homogeneous matrix of 16 values in column-major order.",
+	"perspective": "Specifies a perspective projection matrix.",
 	"rotate()": "Specifies a 2D rotation by the angle specified in the parameter about the origin of the element, as defined by the transform-origin property.",
 	"rotate3d()": "Specifies a clockwise 3D rotation by the angle specified in last parameter about the [x,y,z] direction vector described by the first 3 parameters.",
 	"rotateX('angle')": "Specifies a clockwise rotation by the given angle about the X axis.",
@@ -10335,22 +10432,27 @@ exports.descriptions = {
 	"over": "The underline is aligned with the 'top' (right in vertical writing) edge of the element's em-box. In this mode, an overline also switches sides.",
 	"under": "The underline is aligned with the 'bottom' (left in vertical writing) edge of the element's em-box. In this case the underline usually does not cross the descenders. This is sometimes called 'accounting' underline.",
 	"grippers": "Grippers are always on.",
-	"break-all": "Lines may break between any two grapheme clusters for non-CJK scripts. This option is used mostly in a context where the text is predominantly using CJK characters with few non-CJK excerpts and it is desired that the text be better distributed on each line.",
+	"break-all": "Lines may break between any two grapheme clusters for non-CJK scripts.",
 	"clear": "Inline flow content can only wrap on top and bottom of the exclusion and must leave the areas to the start and end edges of the exclusion box empty.",
 	"maximum": "Inline flow content can wrap on the side of the exclusion with the largest available space for the given line, and must leave the other side of the exclusion empty.",
 	"minimum": "Inline flow content can flow around the edge of the exclusion with the smallest available space within the flow content’s containing block, and must leave the other edge of the exclusion empty.",
+	"current": "Indicates that the user agent should target the frame that the element is in.",
+	"root": "Indicates that the user agent should target the full window.",
 	"invert": "Performs a color inversion on the pixels on the screen.",
+	"-moz-hidden-unscrollable": "Same as the standardized 'clip', except doesn’t establish a block formatting context.",
 	"absolute": "The box's position (and possibly size) is specified with the 'top', 'right', 'bottom', and 'left' properties. These properties specify offsets with respect to the box's 'containing block'.",
 	"-ms-page": "The box's position is calculated according to the 'absolute' model.",
 	"relative": "The box's position is calculated according to the normal flow (this is called the position in normal flow). Then the box is offset relative to its normal position.",
 	"static": "The box is a normal box, laid out according to the normal flow. The 'top', 'right', 'bottom', and 'left' properties do not apply.",
 	"sticky": "The box's position is calculated according to the normal flow. Then the box is offset relative to its flow root and containing block and in all cases, including table elements, does not affect the position of any following boxes.",
+	"-webkit-sticky": "The box's position is calculated according to the normal flow. Then the box is offset relative to its flow root and containing block and in all cases, including table elements, does not affect the position of any following boxes.",
 	"distribute-letter": "If the width of the ruby text is smaller than that of the base, then the ruby text contents are evenly distributed across the width of the base, with the first and last ruby text glyphs lining up with the corresponding first and last base glyphs. If the width of the ruby text is at least the width of the base, then the letters of the base are evenly distributed across the width of the ruby text.",
 	"distribute-space": "If the width of the ruby text is smaller than that of the base, then the ruby text contents are evenly distributed across the width of the base, with a certain amount of white space preceding the first and following the last character in the ruby text. That amount of white space is normally equal to half the amount of inter-character space of the ruby text.",
 	"line-edge": "If the ruby text is not adjacent to a line edge, it is aligned as in 'auto'. If it is adjacent to a line edge, then it is still aligned as in auto, but the side of the ruby text that touches the end of the line is lined up with the corresponding edge of the base.",
 	"after": "The ruby text appears after the base. This is a relatively rare setting used in ideographic East Asian writing systems, most easily found in educational text.",
 	"before": "The ruby text appears before the base. This is the most common setting used in ideographic East Asian writing systems.",
 	"attr(x)": "The value of attribute 'x' is a string value. The string value is evaluated as a <number> to determine the number of ruby base elements to be spanned by the annotation element.",
+	"smooth": "Scrolls in a smooth fashion using a user-agent-defined timing function and time period.",
 	"additive": "Represents “sign-value” numbering systems, which, rather than using reusing digits in different positions to change their value, define additional digits with much larger values, so that the value of the number can be obtained by adding all the digits together.",
 	"cyclic": "Cycles repeatedly through its provided symbols, looping back to the beginning when it reaches the end of the list.",
 	"extends": "Use the algorithm of another counter style, but alter other aspects.",
@@ -10359,9 +10461,10 @@ exports.descriptions = {
 	"sideways": "This value is equivalent to 'sideways-right' in 'vertical-rl' writing mode and equivalent to 'sideways-left' in 'vertical-lr' writing mode.",
 	"sideways-right": "In vertical writing modes, this causes text to be set as if in a horizontal layout, but rotated 90° clockwise.",
 	"upright": "In vertical writing modes, characters from horizontal-only scripts are rendered upright, i.e. in their standard horizontal orientation.",
-	"capitalize": "Puts all words in titlecase.",
-	"lowercase": "Puts all characters of each word in lowercase.",
-	"uppercase": "Puts all characters of each word in uppercase.",
+	"capitalize": "Puts the first typographic letter unit of each word in titlecase.",
+	"lowercase": "Puts all letters in lowercase.",
+	"uppercase": "Puts all letters in uppercase.",
+	"perspective()": "Specifies a perspective projection matrix.",
 	"flat": "All children of this element are rendered flattened into the 2D plane of the element.",
 	"preserve-3d": "Flattening is not performed, so children maintain their position in 3D space.",
 	"bidi-override": "Inside the element, reordering is strictly in sequence according to the 'direction' property; the implicit part of the bidirectional algorithm is ignored.",
@@ -10374,7 +10477,11 @@ exports.descriptions = {
 	"pre": "Sets 'white-space-collapsing' to 'preserve' and 'text-wrap' to 'none'.",
 	"pre-line": "Sets 'white-space-collapsing' to 'preserve-breaks' and 'text-wrap' to 'normal'.",
 	"pre-wrap": "Sets 'white-space-collapsing' to 'preserve' and 'text-wrap' to 'normal'.",
+	"contents": "Indicates that the author expects to animate or change something about the element’s contents in the near future.",
+	"scroll-position": "Indicates that the author expects to animate or change the scroll position of the element in the near future.",
 	"horizontal-tb": "Top-to-bottom block flow direction. The writing mode is horizontal.",
+	"sideways-lr": "Left-to-right block flow direction. The writing mode is vertical, while the typographic mode is horizontal.",
+	"sideways-rl": "Right-to-left block flow direction. The writing mode is vertical, while the typographic mode is horizontal.",
 	"vertical-lr": "Left-to-right block flow direction. The writing mode is vertical.",
 	"vertical-rl": "Right-to-left block flow direction. The writing mode is vertical."
 };

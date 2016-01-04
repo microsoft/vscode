@@ -2903,7 +2903,7 @@
         </value>
         <value name="span" version="3.0" browsers="all">
           <desc>Contributes a grid span to the grid item’s placement such that the corresponding edge of the grid item’s grid area is N lines from its opposite edge.</desc>
-        </value>>
+        </value>
       </values>
     </entry>
     <entry name="grid-row-end" restriction="identifier, integer, enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-grid-1/#propdef-grid-row-end" syntax="#item1 { $(name): span 2; }">
@@ -4184,12 +4184,12 @@
           <desc>Specifies a 2D transformation in the form of a transformation matrix of six values. matrix(a,b,c,d,e,f) is equivalent to applying the transformation matrix [a b c d e f]</desc>
         </value>
         <value name="matrix3d()" version="3.0" browsers="all">
-          <desc>specifies a 3D transformation as a 4x4 homogeneous matrix of 16 values in column-major order.</desc>
+          <desc>Specifies a 3D transformation as a 4x4 homogeneous matrix of 16 values in column-major order.</desc>
         </value>
         <value name="none" version="3.0" browsers="all" />
         <value name="perspective" version="3.0" browsers="all">
           <desc>Specifies a perspective projection matrix.</desc>
-        </value
+        </value>
         <value name="rotate()" version="3.0" browsers="all">
           <desc>Specifies a 2D rotation by the angle specified in the parameter about the origin of the element, as defined by the transform-origin property.</desc>
         </value>
@@ -5154,7 +5154,7 @@
           <desc>Specifies a 2D transformation in the form of a transformation matrix of six values. matrix(a,b,c,d,e,f) is equivalent to applying the transformation matrix [a b c d e f]</desc>
         </value>
         <value name="matrix3d()" version="3.0" browsers="all">
-          <desc>specifies a 3D transformation as a 4x4 homogeneous matrix of 16 values in column-major order.</desc>
+          <desc>Specifies a 3D transformation as a 4x4 homogeneous matrix of 16 values in column-major order.</desc>
         </value>
         <value name="none" version="3.0" browsers="all" />
         <value name="rotate()" version="3.0" browsers="all">
@@ -5237,10 +5237,10 @@
       <desc>Specifies line break opportunities for non-CJK scripts.</desc>
       <values>
         <value name="break-all" version="3.0" browsers="all">
-          <desc>Lines may break between any two grapheme clusters for non-CJK scripts. This option is used mostly in a context where the text is predominantly using CJK characters with few non-CJK excerpts and it is desired that the text be better distributed on each line.</desc>
+          <desc>Lines may break between any two grapheme clusters for non-CJK scripts.</desc>
         </value>
         <value name="keep-all" version="3.0" browsers="all">
-          <desc>Block characters can no longer create implied break points. Otherwise this option is equivalent to 'normal'. This option is mostly used where the presence of word separator characters still creates line-breaking opportunities, as in Korean.</desc>
+          <desc>Block characters can no longer create implied break points.</desc>
         </value>
         <value name="normal" version="3.0" browsers="all">
           <desc>Breaks non-CJK scripts according to their own rules.</desc>
@@ -5636,7 +5636,7 @@
           <desc>Specifies a 2D transformation in the form of a transformation matrix of six values. matrix(a,b,c,d,e,f) is equivalent to applying the transformation matrix [a b c d e f]</desc>
         </value>
         <value name="matrix3d()" version="3.0" browsers="all">
-          <desc>specifies a 3D transformation as a 4x4 homogeneous matrix of 16 values in column-major order.</desc>
+          <desc>Specifies a 3D transformation as a 4x4 homogeneous matrix of 16 values in column-major order.</desc>
         </value>
         <value name="none" version="3.0" browsers="all" />
         <value name="rotate()" version="3.0" browsers="all">
@@ -5789,28 +5789,24 @@
       <desc>Logical offset properties allow for offseting positioned boxes based on the writing-mode and direction properties.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all"/>
-        </value>
       </values>
     </entry>
     <entry name="offset-before" restriction="length, percentage, enum" version="3.0" browsers="none" ref="https://drafts.csswg.org/css-position/#propdef-offset-before" syntax="img { $(name): 10%;}">
       <desc>Logical offset properties allow for offseting positioned boxes based on the writing-mode and direction properties.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all"/>
-        </value>
       </values>
     </entry>
     <entry name="offset-end" restriction="length, percentage, enum" version="3.0" browsers="none" ref="https://drafts.csswg.org/css-position/#propdef-offset-end" syntax="img { $(name): 10%;}">
       <desc>Logical offset properties allow for offseting positioned boxes based on the writing-mode and direction properties.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all"/>
-        </value>
       </values>
     </entry>
     <entry name="offset-start" restriction="length, percentage, enum" version="3.0" browsers="none" ref="https://drafts.csswg.org/css-position/#propdef-offset-end" syntax="img { $(name): 10%;}">
       <desc>Logical offset properties allow for offseting positioned boxes based on the writing-mode and direction properties.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all"/>
-        </value>
       </values>
     </entry>
     <entry name="outline" restriction="length, line-width, line-style, color, enum" version="2.0" browsers="E,C,FF1.5,IE8,O8,S1.2" ref="http://www.w3.org/TR/css3-ui/#outline0" syntax="header { $(name): 5px solid red;}">
@@ -6266,7 +6262,7 @@
         </value>
         <value name="x-weak" version="2.0" browsers="all">
           <desc>An extra weak rest in speech output. The exact time is implementation-dependent.</desc>
-        </value>>
+        </value>
       </values>
     </entry>
     <entry name="right" restriction="length, percentage" version="2.0" browsers="all" ref="http://www.w3.org/TR/css3-positioning/#propdef-right" syntax="article { $(name): 50px; }">
@@ -8371,12 +8367,12 @@
           <desc>Specifies a 2D transformation in the form of a transformation matrix of six values. matrix(a,b,c,d,e,f) is equivalent to applying the transformation matrix [a b c d e f]</desc>
         </value>
         <value name="matrix3d()" version="3.0" browsers="all">
-          <desc>specifies a 3D transformation as a 4x4 homogeneous matrix of 16 values in column-major order.</desc>
+          <desc>Specifies a 3D transformation as a 4x4 homogeneous matrix of 16 values in column-major order.</desc>
         </value>
         <value name="none" version="3.0" browsers="all" />
         <value name="perspective()" version="3.0" browsers="all">
           <desc>Specifies a perspective projection matrix.</desc>
-        </value
+        </value>
         <value name="rotate()" version="3.0" browsers="all">
           <desc>Specifies a 2D rotation by the angle specified in the parameter about the origin of the element, as defined by the transform-origin property.</desc>
         </value>
