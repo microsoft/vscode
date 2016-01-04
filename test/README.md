@@ -2,17 +2,17 @@
 
 ## Run
 
-The best way to run the Code tests is from within VS Code. Simply press `CMD+Shift+T` (`Ctrl+Shift+T` on Windows) to launch the tests. To make development changes to unit tests you need to be running `gulp`. See [Development Workflow](https://github.com/Microsoft/vscode/wiki/How-to-Contribute#incremental-build) for more details. 
+The best way to run the Code tests is from within VS Code. Simply press `CMD+Shift+T` (`Ctrl+Shift+T` on Windows) to launch the tests. To make development changes to unit tests you need to be running `gulp`. See [Development Workflow](https://github.com/Microsoft/vscode/wiki/How-to-Contribute#incremental-build) for more details.
 
 If you wish to run the tests from a terminal, from the `vscode` folder run:
 
 **OS X and Linux**
 
-	./test/run.sh
+	./scripts/test.sh
 
 **Windows**
 
-	test\run
+	scripts\test
 
 ## Debug
 
@@ -24,8 +24,8 @@ The following command will create a `coverage` folder at the root of the workspa
 
 **OS X and Linux**
 
-	./test/run.sh --coverage
+	./scripts/test.sh --coverage
 
 **Windows**
 
-	test\run --coverage
+	scripts\test --coverage
