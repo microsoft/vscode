@@ -2387,9 +2387,15 @@
     <entry name="font-kerning" restriction="enum" version="3.0" browsers="C33,FF34,O20" ref="http://www.w3.org/TR/css3-fonts/#propdef-font-kerning" syntax="body { $(name): normal; }">
       <desc>Kerning is the contextual adjustment of inter-glyph spacing. This property controls metric kerning, kerning that utilizes adjustment data contained in the font.</desc>
       <values>
-        <value name="auto" version="3.0" browsers="all" />
-        <value name="none" version="3.0" browsers="all" />
-        <value name="normal" version="3.0" browsers="all" />
+        <value name="auto" version="3.0" browsers="all">
+          <desc>Specifies that kerning is applied at the discretion of the user agent.</desc>
+        </value>
+        <value name="none" version="3.0" browsers="all">
+          <desc>Specifies that kerning is not applied.</desc>
+        </value>
+        <value name="normal" version="3.0" browsers="all">
+          <desc>Specifies that kerning is applied.</desc>
+        </value>
       </values>
     </entry>
     <entry name="font-language-override" restriction="string" version="3.0" browsers="FF34" ref="http://www.w3.org/TR/css3-fonts/#font-language-override-prop" syntax="body { $(name): 'SRB'; }">
@@ -2418,7 +2424,7 @@
       <desc>Preserves the readability of text when font fallback occurs by adjusting the font-size so that the x-height is the same irregardless of the font used.</desc>
       <values>
         <value name="none" version="3.0" browsers="all">
-          <desc>Do not preserve the font's x-height.</desc>
+          <desc>Do not preserve the font’s x-height.</desc>
         </value>
       </values>
     </entry>
@@ -2446,13 +2452,13 @@
       <desc>Allows italic or oblique faces to be selected. Italic forms are generally cursive in nature while oblique faces are typically sloped versions of the regular face.</desc>
       <values>
         <value name="italic" version="1.0" browsers="all">
-          <desc>Selects a font that is labeled 'italic', or, if that is not available, one labeled 'oblique'.</desc>
+          <desc>Selects a font that is labeled as an 'italic' face, or an 'oblique' face if one is not</desc>
         </value>
         <value name="normal" version="1.0" browsers="all">
           <desc>Selects a face that is classified as 'normal'.</desc>
         </value>
         <value name="oblique" version="1.0" browsers="all">
-          <desc>Selects a font that is labeled 'oblique'.</desc>
+          <desc>Selects a font that is labeled as an 'oblique' face, or an 'italic' face if one is not.</desc>
         </value>
       </values>
     </entry>
@@ -2462,8 +2468,12 @@
         <value name="none" version="3.0" browsers="all">
           <desc>Disallow all synthetic faces.</desc>
         </value>
-        <value name="style" version="3.0" browsers="all" />
-        <value name="weight" version="3.0" browsers="all" />
+        <value name="style" version="3.0" browsers="all">
+          <desc>Allow synthetic italic faces.</desc>
+        </value>
+        <value name="weight" version="3.0" browsers="all">
+          <desc>Allow synthetic bold faces.</desc>
+        </value>
       </values>
     </entry>
     <entry name="font-variant" restriction="enum" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-fonts/#font-variant-prop" syntax="div { $(name): small-caps; }">
@@ -2489,7 +2499,9 @@
         <value name="historical-forms" version="3.0" browsers="all">
           <desc>Enables display of historical forms.</desc>
         </value>
-        <value name="normal" version="3.0" browsers="all" />
+        <value name="normal" version="3.0" browsers="all">
+          <desc>None of the features are enabled.</desc>
+        </value>
         <value name="ornaments()" version="3.0" browsers="all">
           <desc>Enables replacement of default glyphs with ornaments, if provided in the font.</desc>
         </value>
@@ -2513,7 +2525,9 @@
         <value name="all-small-caps" version="3.0" browsers="all">
           <desc>Enables display of small capitals for both upper and lowercase letters.</desc>
         </value>
-        <value name="normal" version="3.0" browsers="all" />
+        <value name="normal" version="3.0" browsers="all">
+          <desc>None of the features are enabled.</desc>
+        </value>
         <value name="petite-caps" version="3.0" browsers="all">
           <desc>Enables display of petite capitals.</desc>
         </value>
@@ -2546,7 +2560,9 @@
         <value name="jis90" version="3.0" browsers="all">
           <desc>Enables rendering of JIS90 forms.</desc>
         </value>
-        <value name="normal" version="3.0" browsers="all" />
+        <value name="normal" version="3.0" browsers="all">
+          <desc>None of the features are enabled.</desc>
+        </value>
         <value name="proportional-width" version="3.0" browsers="all">
           <desc>Enables rendering of proportionally-spaced variants.</desc>
         </value>
@@ -2635,9 +2651,15 @@
     <entry name="font-variant-position" restriction="enum" version="3.0" browsers="FF34" ref="http://www.w3.org/TR/css3-fonts/#propdef-font-variant-position" syntax="sub { $(name): subscript; }">
       <desc>Specifies the vertical position</desc>
       <values>
-        <value name="normal" version="3.0" browsers="all" />
-        <value name="sub" version="3.0" browsers="all" />
-        <value name="super" version="3.0" browsers="all" />
+        <value name="normal" version="3.0" browsers="all">
+          <desc>None of the features are enabled.</desc>
+        </value>
+        <value name="sub" version="3.0" browsers="all">
+          <desc>Enables display of subscript variants (OpenType feature: subs).</desc>
+        </value>
+        <value name="super" version="3.0" browsers="all">
+          <desc>Enables display of superscript variants (OpenType feature: sups).</desc>
+        </value>
       </values>
     </entry>
     <entry name="font-weight" restriction="enum" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-fonts/#font-weight-the-font-weight-property" syntax="th { $(name): bold; }">
