@@ -82,6 +82,7 @@ function extensionEquals(one: IExtension, other: IExtension): boolean {
 class OpenInGalleryAction extends Action {
 
 	constructor(
+		private promptToInstall: boolean,
 		@IMessageService protected messageService: IMessageService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IInstantiationService protected instantiationService: IInstantiationService
@@ -92,6 +93,10 @@ class OpenInGalleryAction extends Action {
 	public run(extension: IExtension): TPromise<any> {
 		const url = `${this.contextService.getConfiguration().env.extensionsGallery.itemUrl}/${ extension.publisher }.${ extension.name }`;
 		shell.openExternal(url);
+
+		if (!this.promptToInstall) {
+			return TPromise.as(null);
+		}
 
 		const hideMessage = this.messageService.show(Severity.Info, {
 			message: nls.localize('installPrompt', "Would you like to install '{0}'?", extension.displayName),
@@ -189,7 +194,7 @@ class Renderer implements IRenderer<IExtensionEntry> {
 			data.actionbar.clear();
 
 			if (entry.extension.galleryInformation) {
-				data.actionbar.push(this.instantiationService.createInstance(OpenInGalleryAction), { label: true, icon: false });
+				data.actionbar.push(this.instantiationService.createInstance(OpenInGalleryAction, entry.state !== ExtensionState.Installed), { label: true, icon: false });
 			}
 
 			switch (entry.state) {
