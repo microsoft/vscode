@@ -3983,7 +3983,9 @@
           <desc>specifies a 3D transformation as a 4x4 homogeneous matrix of 16 values in column-major order.</desc>
         </value>
         <value name="none" version="3.0" browsers="all" />
-        <value name="perspective" version="3.0" browsers="all" />
+        <value name="perspective" version="3.0" browsers="all">
+          <desc>Specifies a perspective projection matrix.</desc>
+        </value
         <value name="rotate()" version="3.0" browsers="all">
           <desc>Specifies a 2D rotation by the angle specified in the parameter about the origin of the element, as defined by the transform-origin property.</desc>
         </value>
@@ -4041,7 +4043,7 @@
       </values>
     </entry>
     <entry name="-moz-transform-origin" restriction="position, length, percentage" version="3.0" browsers="FF3.5" ref="http://www.w3.org/TR/css3-2d-transforms/#transform-origin" syntax=".album { $(name): 20% 40%; }">
-      <desc>Establishes the origin of transformation for an element. This property is applied by first translating the element by the negated value of the property, then applying the element's transform, then translating by the property value.</desc>
+      <desc>Establishes the origin of transformation for an element.</desc>
     </entry>
     <entry name="-moz-transition" restriction="time, property, enum" version="3.0" browsers="FF4" ref="http://www.w3.org/TR/css3-transitions/#transition" syntax="div { $(name): background-color linear 1s; }">
       <desc>Shorthand property combines four of the transition properties into a single property.</desc>
@@ -4975,7 +4977,7 @@
       </values>
     </entry>
     <entry name="-ms-transform-origin" restriction="position, length, percentage" version="3.0" browsers="IE9-9" ref="http://www.w3.org/TR/css3-2d-transforms/#transform-origin" syntax=".album { $(name): 20% 40%; }">
-      <desc>Establishes the origin of transformation for an element. This property is applied by first translating the element by the negated value of the property, then applying the element's transform, then translating by the property value.</desc>
+      <desc>Establishes the origin of transformation for an element.</desc>
     </entry>
     <entry name="-ms-transform-origin-x" restriction="length, percentage" version="3.0" browsers="IE10" ref="http://www.w3.org/TR/css3-3d-transforms/#transform-origin">
       <desc>The x coordinate of the origin for transforms applied to an element with respect to its border box.</desc>
@@ -5457,7 +5459,7 @@
       </values>
     </entry>
     <entry name="-o-transform-origin" restriction="positon, length, percentage" version="3.0" browsers="O10.5" ref="http://www.w3.org/TR/css3-2d-transforms/#transform-origin" syntax="div { $(name): 20% 40%; }">
-      <desc>Establishes the origin of transformation for an element. This property is applied by first translating the element by the negated value of the property, then applying the element's transform, then translating by the property value.</desc>
+      <desc>Establishes the origin of transformation for an element.</desc>
     </entry>
     <entry name="-o-transition" restriction="time, property, enum" version="3.0" browsers="O11.5" ref="http://www.w3.org/TR/css3-transitions/#transition" syntax="div { $(name): background-color linear 1s; }">
       <desc>Shorthand property combines four of the transition properties into a single property.</desc>
@@ -6805,10 +6807,12 @@
           <desc>Specifies a 2D transformation in the form of a transformation matrix of six values. matrix(a,b,c,d,e,f) is equivalent to applying the transformation matrix [a b c d e f]</desc>
         </value>
         <value name="matrix3d()" version="3.0" browsers="all">
-          <desc>specifies a 3D transformation as a 4x4 homogeneous matrix of 16 values in column-major order.</desc>
+          <desc>Specifies a 3D transformation as a 4x4 homogeneous matrix of 16 values in column-major order.</desc>
         </value>
         <value name="none" version="3.0" browsers="all" />
-        <value name="perspective()" version="3.0" browsers="all" />
+        <value name="perspective()" version="3.0" browsers="all">
+          <desc>Specifies a perspective projection matrix.</desc>
+        </value>
         <value name="rotate()" version="3.0" browsers="all">
           <desc>Specifies a 2D rotation by the angle specified in the parameter about the origin of the element, as defined by the transform-origin property.</desc>
         </value>
@@ -6868,13 +6872,19 @@
     <entry name="transform-box" restriction="enum" version="3.0" browsers="none" ref="https://drafts.csswg.org/css-transforms-1/#propdef-transform-box" syntax="div { $(name): border-box; }">
       <desc>All transformations defined by the 'transform' and 'transform-origin' property are relative to the position and dimension of the specified reference box.</desc>
       <values>
-        <value name="border-box" version="3.0" browsers="all" />
-        <value name="fill-box" version="3.0" browsers="all" />
-        <value name="view-box" version="3.0" browsers="all" />
+        <value name="border-box" version="3.0" browsers="all">
+          <desc>Uses the border box as reference box.</desc>
+        </value>
+        <value name="fill-box" version="3.0" browsers="all">
+          <desc>Uses the object bounding box as reference box.</desc>
+        </value>
+        <value name="view-box" version="3.0" browsers="all">
+          <desc>Uses the nearest SVG viewport as reference box.</desc>
+        </value>
       </values>
     </entry>
     <entry name="transform-origin" restriction="position, length, percentage" version="3.0" browsers="E,C36,FF16,IE10,O12.1,S9" ref="http://www.w3.org/TR/css3-transforms/#propdef-transform-origin" syntax=".album { $(name): 20% 40%; }">
-      <desc>Establishes the origin of transformation for an element. This property is applied by first translating the element by the negated value of the property, then applying the element's transform, then translating by the property value.</desc>
+      <desc>Establishes the origin of transformation for an element.</desc>
     </entry>
     <entry name="transform-style" restriction="enum" version="3.0" browsers="E,C36,FF16,IE10,O23,S9" ref="http://www.w3.org/TR/css3-transforms/#propdef-transform-style" syntax="div { $(name): flat; }">
       <desc>Defines how nested elements are rendered in 3D space.</desc>
@@ -7971,7 +7981,9 @@
           <desc>specifies a 3D transformation as a 4x4 homogeneous matrix of 16 values in column-major order.</desc>
         </value>
         <value name="none" version="3.0" browsers="all" />
-        <value name="perspective()" version="3.0" browsers="all" />
+        <value name="perspective()" version="3.0" browsers="all">
+          <desc>Specifies a perspective projection matrix.</desc>
+        </value
         <value name="rotate()" version="3.0" browsers="all">
           <desc>Specifies a 2D rotation by the angle specified in the parameter about the origin of the element, as defined by the transform-origin property.</desc>
         </value>
@@ -8029,7 +8041,7 @@
       </values>
     </entry>
     <entry name="-webkit-transform-origin" restriction="position, length, percentage" version="3.0" browsers="C,O15,S3.1" ref="http://www.w3.org/TR/css3-2d-transforms/#transform-origin" syntax=".album { $(name): 20% 40%; }">
-      <desc>Establishes the origin of transformation for an element. This property is applied by first translating the element by the negated value of the property, then applying the element's transform, then translating by the property value.</desc>
+      <desc>Establishes the origin of transformation for an element.</desc>
     </entry>
     <entry name="-webkit-transform-origin-x" restriction="length, percentage" version="3.0" browsers="C,S3.1" ref="http://www.w3.org/TR/css3-3d-transforms/#transform-origin" syntax="img { $(name): 5px}">
       <desc>The x coordinate of the origin for transforms applied to an element with respect to its border box.</desc>
