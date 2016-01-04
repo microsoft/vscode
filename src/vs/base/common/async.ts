@@ -7,47 +7,6 @@
 import * as errors from 'vs/base/common/errors';
 import { Promise, TPromise, ValueCallback, ErrorCallback, ProgressCallback } from 'vs/base/common/winjs.base';
 import * as platform from 'vs/base/common/platform';
-import {CancellationTokenSource} from 'vs/base/common/cancellation';
-
-export interface PromiseLike<T> {
-	/**
-	 * Attaches callbacks for the resolution and/or rejection of the Promise.
-	 * @param onfulfilled The callback to execute when the Promise is resolved.
-	 * @param onrejected The callback to execute when the Promise is rejected.
-	 * @returns A Promise for the completion of which ever callback is executed.
-	*/
-	then<TResult>(onfulfilled?: (value: T) => TResult | PromiseLike<TResult>, onrejected?: (reason: any) => TResult | PromiseLike<TResult>): PromiseLike<TResult>;
-	then<TResult>(onfulfilled?: (value: T) => TResult | PromiseLike<TResult>, onrejected?: (reason: any) => void): PromiseLike<TResult>;
-}
-
-export function wrapAsWinJSPromise<T>(callback: (...args: any[]) => PromiseLike<T>, context: any): (...args: any[]) => TPromise<T> {
-
-	if (!callback) {
-		return;
-	}
-
-	let result = function(...args: any[]) {
-
-		let source = new CancellationTokenSource();
-
-		return new TPromise<T>((c, e) => {
-
-			args.push(source.token);
-			let value = callback.apply(context, args);
-
-			if (value && typeof (<PromiseLike<any>>value).then === 'function') {
-				value.then(c, e);
-			} else {
-				c(value);
-			}
-
-		}, function() {
-			source.cancel();
-		});
-	};
-
-	return result;
-}
 
 export interface ITask<T> {
 	(): T;
