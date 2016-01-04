@@ -3889,8 +3889,12 @@
     <entry name="-moz-text-size-adjust" restriction="enum, percentage" version="3.0" browsers="FF" ref="http://dev.w3.org/csswg/css-size-adjust/" syntax="body { $(name): 150%; }">
       <desc>Specifies a size adjustment for displaying text content in mobile browsers.</desc>
       <values>
-        <value name="auto" version="3.0" browsers="all" />
-        <value name="none" version="3.0" browsers="all" />
+        <value name="auto" version="3.0" browsers="all">
+          <desc>Renderers must use the default size adjustment when displaying on a small device.</desc>
+        </value>
+        <value name="none" version="3.0" browsers="all">
+          <desc>Renderers must not do size adjustment when displaying on a small device.</desc>
+        </value>
       </values>
     </entry>
     <entry name="-moz-transform" restriction="enum" version="3.0" browsers="FF3.5" ref="http://www.w3.org/TR/css3-2d-transforms/#transform-property" syntax="div { $(name): rotate(-90deg); }">
@@ -4778,8 +4782,12 @@
     <entry name="-ms-text-size-adjust" restriction="enum, percentage" version="3.0" browsers="E,IE10" ref="http://dev.w3.org/csswg/css-size-adjust/" syntax="body { $(name): 150%; }">
       <desc>Specifies a size adjustment for displaying text content in mobile browsers.</desc>
       <values>
-        <value name="auto" version="3.0" browsers="all" />
-        <value name="none" version="3.0" browsers="all" />
+        <value name="auto" version="3.0" browsers="all">
+          <desc>Renderers must use the default size adjustment when displaying on a small device.</desc>
+        </value>
+        <value name="none" version="3.0" browsers="all">
+          <desc>Renderers must not do size adjustment when displaying on a small device.</desc>
+        </value>
       </values>
     </entry>
     <entry name="-ms-text-underline-position" restriction="enum" version="3.0" browsers="E,IE10" ref="http://www.w3.org/TR/css3-text/#text-underline-position0" syntax="div { $(name): auto; }">
@@ -6644,8 +6652,12 @@
     <entry name="text-size-adjust" restriction="enum, percentage" version="3.0" browsers="none" ref="http://dev.w3.org/csswg/css-size-adjust/" syntax="body { $(name): 150%; }">
       <desc>Specifies a size adjustment for displaying text content in mobile browsers.</desc>
       <values>
-        <value name="auto" version="3.0" browsers="all" />
-        <value name="none" version="3.0" browsers="all" />
+        <value name="auto" version="3.0" browsers="all">
+          <desc>Renderers must use the default size adjustment when displaying on a small device.</desc>
+        </value>
+        <value name="none" version="3.0" browsers="all">
+          <desc>Renderers must not do size adjustment when displaying on a small device.</desc>
+        </value>
       </values>
     </entry>
     <entry name="text-space-collapse" restriction="enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css3-text/#text-space-collapse" syntax="div { $(name): collapse; }">
@@ -7934,14 +7946,14 @@
     </entry>
     <entry name="-webkit-text-fill-color" restriction="color" version="3.0" browsers="E,C,S3" syntax="div { $(name): red; }">
     </entry>
-    <entry name="-webkit-text-size-adjust" restriction="percentage" version="3.0" browsers="E,C,S3" ref="http://css-infos.net/property/-webkit-text-size-adjust" syntax="div { $(name): 60%; }">
-      <desc>Specifies a size adjustment for displaying text content in Safari on iPhone.</desc>
+    <entry name="-webkit-text-size-adjust" restriction="percentage" version="3.0" browsers="E,C,S3" ref="https://drafts.csswg.org/css-size-adjust/#text-size-adjust" syntax="div { $(name): 60%; }">
+      <desc>Specifies a size adjustment for displaying text content in mobile browsers.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all">
-          <desc>The text size is automatically adjusted for Safari on iPhone.</desc>
+          <desc>Renderers must use the default size adjustment when displaying on a small device.</desc>
         </value>
         <value name="none" version="3.0" browsers="all">
-          <desc>The text size is not adjusted.</desc>
+          <desc>Renderers must not do size adjustment when displaying on a small device.</desc>
         </value>
       </values>
     </entry>
