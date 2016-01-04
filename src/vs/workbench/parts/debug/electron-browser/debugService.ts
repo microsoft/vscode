@@ -228,7 +228,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		}));
 
 		this.toDispose.push(this.session.addListener2(debug.SessionEvents.STOPPED, (event: DebugProtocol.StoppedEvent) => {
-			this.setStateAndEmit(debug.State.Stopped, event.body.reason);
+			this.setStateAndEmit(debug.State.Stopped);
 			const threadId = event.body.threadId;
 
 			this.getThreadData(threadId).then(() => {
@@ -356,9 +356,9 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		return this.state;
 	}
 
-	private setStateAndEmit(newState: debug.State, data?: any): void {
+	private setStateAndEmit(newState: debug.State): void {
 		this.state = newState;
-		this.emit(debug.ServiceEvents.STATE_CHANGED, data);
+		this.emit(debug.ServiceEvents.STATE_CHANGED);
 	}
 
 	public get enabled(): boolean {

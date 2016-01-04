@@ -128,7 +128,7 @@ export interface IViewModel extends ee.EventEmitter {
 }
 
 export interface IModel extends ee.IEventEmitter, ITreeElement {
-	getThreads(): { [reference: number]: IThread; };
+	getThreads(): { [threadId: number]: IThread; };
 	getBreakpoints(): IBreakpoint[];
 	areBreakpointsActivated(): boolean;
 	getFunctionBreakpoints(): IFunctionBreakpoint[];

@@ -246,10 +246,11 @@ class CallStackView extends viewlet.CollapsibleViewletView {
 		this.toDispose.push(debugModel.addListener2(debug.ModelEvents.CALLSTACK_UPDATED, () => {
 			this.tree.refresh().done(null, errors.onUnexpectedError);
 		}));
-		this.toDispose.push(this.debugService.addListener2(debug.ServiceEvents.STATE_CHANGED, (reason: string) => {
-			if (this.debugService.getState() === debug.State.Stopped && reason !== 'step') {
-				this.messageBox.textContent = nls.localize('debugStopped', "Paused on {0}.", reason);
-				reason === 'exception' ? this.messageBox.classList.add('exception') : this.messageBox.classList.remove('exception');
+		this.toDispose.push(this.debugService.getViewModel().addListener2(debug.ViewModelEvents.FOCUSED_STACK_FRAME_UPDATED, () => {
+			const focussedThread = this.debugService.getModel().getThreads()[this.debugService.getViewModel().getFocusedThreadId()];
+			if (focussedThread && focussedThread.stoppedReason && focussedThread.stoppedReason !== 'step') {
+				this.messageBox.textContent = nls.localize('debugStopped', "Paused on {0}.", focussedThread.stoppedReason);
+				focussedThread.stoppedReason === 'exception' ? this.messageBox.classList.add('exception') : this.messageBox.classList.remove('exception');
 
 				this.messageBox.hidden = false;
 				return;
