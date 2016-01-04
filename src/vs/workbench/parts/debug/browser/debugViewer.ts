@@ -190,11 +190,9 @@ export class CallStackDataSource implements tree.IDataSource {
 
 		const threads = (<model.Model> element).getThreads();
 		const threadsArray: debug.IThread[] = [];
-		for (let reference in threads) {
-			if (threads.hasOwnProperty(reference)) {
-				threadsArray.push(threads[reference]);
-			}
-		}
+		Object.keys(threads).forEach(threadId => {
+			threadsArray.push(threads[threadId]);
+		});
 
 		if (threadsArray.length === 1) {
 			return Promise.as(threadsArray[0].callStack);

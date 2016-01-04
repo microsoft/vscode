@@ -64,10 +64,10 @@ export function getFullExpressionName(expression: debug.IExpression, sessionType
 
 export class Thread implements debug.IThread {
 
-	public exception: boolean;
+	public stoppedReason: string;
 
 	constructor(public name: string, public threadId, public callStack: debug.IStackFrame[]) {
-		this.exception = false;
+		this.stoppedReason = undefined;
 	}
 
 	public getId(): string {
@@ -335,7 +335,7 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 				delete this.threads[reference];
 			} else {
 				this.threads[reference].callStack = [];
-				this.threads[reference].exception = false;
+				this.threads[reference].stoppedReason = undefined;
 			}
 		} else {
 			if (removeThreads) {
@@ -345,7 +345,7 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 				for (let ref in this.threads) {
 					if (this.threads.hasOwnProperty(ref)) {
 						this.threads[ref].callStack = [];
-						this.threads[ref].exception = false;
+						this.threads[ref].stoppedReason = undefined;
 					}
 				}
 			}
@@ -616,7 +616,7 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 					return new StackFrame(data.threadId, rsf.id, rsf.source ? Source.fromRawSource(rsf.source) : Source.fromUri(uri.parse('unknown')), rsf.name, rsf.line, rsf.column);
 				});
 
-			this.threads[data.threadId].exception = data.exception;
+			this.threads[data.threadId].stoppedReason = data.stoppedReason;
 		}
 
 		this.emit(debug.ModelEvents.CALLSTACK_UPDATED);
