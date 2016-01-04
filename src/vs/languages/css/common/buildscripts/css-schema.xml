@@ -6144,25 +6144,37 @@
       <desc>Adds a margin to a 'shape-outside'. This defines a new shape that is the smallest contour that includes all the points that are the 'shape-margin' distance outward in the perpendicular direction from a point on the underlying shape.</desc>
     </entry>
     <entry name="shape-outside" restriction="enum" version="3.0" browsers="C37,O24" ref="http://www.w3.org/TR/css-shapes-1/#shape-outside-property" syntax="div { $(name): margin-box; }">
-      <desc>This property specifies an orthogonal rotation to be applied to an image before it is laid out.</desc>
+      <desc>Specifies an orthogonal rotation to be applied to an image before it is laid out.</desc>
       <values>
         <value name="border-box" version="3.0" browsers="all">
           <desc>The background is painted within (clipped to) the border box.</desc>
         </value>
-        <value name="circle()" version="3.0" browsers="all" />
+        <value name="circle()" version="3.0" browsers="all">
+          <desc>Defines a circle.</desc>
+        </value>
         <value name="content-box" version="3.0" browsers="all">
           <desc>The background is painted within (clipped to) the content box.</desc>
         </value>
-        <value name="ellipse()" version="3.0" browsers="all" />
+        <value name="ellipse()" version="3.0" browsers="all">
+          <desc>Defines an ellipse.</desc>
+        </value>
         <value name="image()" version="3.0" browsers="all" />
-        <value name="inset()" version="3.0" browsers="all" />
+        <value name="inset()" version="3.0" browsers="all">
+          <desc>Defines an inset rectangle.</desc>
+        </value>
         <value name="linear-gradient()" version="3.0" browsers="all" />
-        <value name="margin-box" version="3.0" browsers="all" />
-        <value name="none" version="3.0" browsers="all" />
+        <value name="margin-box" version="3.0" browsers="all">
+          <desc>The background is painted within (clipped to) the margin box</desc>
+        </value>
+        <value name="none" version="3.0" browsers="all">
+          <desc>The float area is unaffected.</desc>
+        </value>
         <value name="padding-box" version="3.0" browsers="all">
           <desc>The background is painted within (clipped to) the padding box</desc>
         </value>
-        <value name="polygon()" version="3.0" browsers="all" />
+        <value name="polygon()" version="3.0" browsers="all">
+          <desc>Defines a polygon.</desc>
+        </value>
         <value name="radial-gradient()" version="3.0" browsers="all" />
         <value name="repeating-linear-gradient()" version="3.0" browsers="all" />
         <value name="repeating-radial-gradient()" version="3.0" browsers="all" />
