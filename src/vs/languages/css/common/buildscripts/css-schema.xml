@@ -574,16 +574,36 @@
     <entry name="alignment-baseline" restriction="enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-inline/#propdef-alignment-baseline" syntax="img { $(name): middle; }">
       <desc>Specifies what point of an inline-level box is aligned to what point in the parent.</desc>
       <values>
-        <value name="alphabetic" version="3.0" browsers="all" />
-        <value name="baseline" version="3.0" browsers="all" />
-        <value name="bottom" version="3.0" browsers="all" />
-        <value name="center" version="3.0" browsers="all" />
-        <value name="central" version="3.0" browsers="all" />
-        <value name="mathematical" version="3.0" browsers="all" />
-        <value name="middle" version="3.0" browsers="all" />
-        <value name="text-bottom" version="3.0" browsers="all" />
-        <value name="text-top" version="3.0" browsers="all" />
-        <value name="top" version="3.0" browsers="all" />
+        <value name="alphabetic" version="3.0" browsers="all">
+          <desc>Match the box’s alphabetic baseline to that of its parent.</desc>
+		</value>
+        <value name="baseline" version="3.0" browsers="all">
+          <desc>Use the dominant baseline choice of the parent. Match the box’s corresponding baseline to that of its parent.</desc>
+		</value>
+        <value name="bottom" version="3.0" browsers="all">
+          <desc>Align the bottom of the aligned subtree with the bottom of the line box.</desc>
+		</value>
+        <value name="center" version="3.0" browsers="all">
+          <desc>Align the center of the aligned subtree with the center of the line box.</desc>
+		</value>
+        <value name="central" version="3.0" browsers="all">
+          <desc>Match the box’s central baseline to the central baseline of its parent.</desc>
+		</value>
+        <value name="mathematical" version="3.0" browsers="all">
+          <desc>Match the box’s mathematical baseline to that of its parent.</desc>
+		</value>
+        <value name="middle" version="3.0" browsers="all">
+          <desc>Align the vertical midpoint of the box with the baseline of the parent box plus half the x-height of the parent.</desc>
+		</value>
+        <value name="text-bottom" version="3.0" browsers="all">
+          <desc>Match the bottom of the box to the bottom of the parent’s content area.</desc>
+		</value>
+        <value name="text-top" version="3.0" browsers="all">
+          <desc>Match the top of the box to the top of the parent’s content area.</desc>
+		</value>
+        <value name="top" version="3.0" browsers="all">
+          <desc>Align the top of the aligned subtree with the top of the line box.</desc>
+		</value>
       </values>
     </entry>
     <entry name="align-self" restriction="enum" version="3.0" browsers="E,C29,FF22,IE11,O12.1,S9" ref="http://www.w3.org/TR/css3-flexbox/#align-items" syntax="p { $(name): flex-start; }">
@@ -1097,6 +1117,17 @@
         </value>
         <value name="cover" version="3.0" browsers="all">
           <desc>Scale the image, while preserving its intrinsic aspect ratio (if any), to the smallest size such that both its width and its height can completely cover the background positioning area.</desc>
+        </value>
+      </values>
+    </entry>
+    <entry name="baseline-shift" restriction="length, percentage, enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-inline/#baseline-shift-property" syntax=".shift-up { $(name): super; }">
+      <desc>Specifies by how much the box is shifted up from its alignment point.</desc>
+      <values>
+        <value name="sub" version="3.0" browsers="all">
+          <desc>Lower by the offset appropriate for subscripts of the parent’s box.</desc>
+        </value>
+        <value name="super" version="3.0" browsers="all">
+          <desc>Raise by the offset appropriate for superscripts of the parent’s box.</desc>
         </value>
       </values>
     </entry>
@@ -2086,13 +2117,27 @@
     <entry name="dominant-baseline" restriction="enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-inline/#propdef-dominant-baseline" syntax="span { $(name): alphabetic; }">
       <desc>Specifies the dominant baseline, which is the baseline used to align the box’s text and inline-level contents.</desc>
       <values>
-        <value name="auto" version="3.0" browsers="all" />
-        <value name="text-bottom" version="3.0" browsers="all" />
-        <value name="alphabetic" version="3.0" browsers="all" />
-        <value name="central" version="3.0" browsers="all" />
-        <value name="mathematical" version="3.0" browsers="all" />
-        <value name="hanging" version="3.0" browsers="all" />
-        <value name="text-top" version="3.0" browsers="all" />
+        <value name="auto" version="3.0" browsers="all">
+          <desc>Equivalent to 'alphabetic' in horizontal writing modes and in vertical writing modes when 'text-orientation' is 'sideways', 'sideways-right', or 'sideways-left'. equivalent to 'central' in vertical writing modes when 'text-orientation' is 'mixed' or 'upright'.</desc>
+        </value>
+        <value name="text-bottom" version="3.0" browsers="all">
+          <desc>Use the bottom of the em box as the baseline.</desc>
+        </value>
+        <value name="alphabetic" version="3.0" browsers="all">
+          <desc>Use the alphabetic baseline.</desc>
+        </value>
+        <value name="central" version="3.0" browsers="all">
+          <desc>Use the central baseline (halfway between the ascent and descent).</desc>
+        </value>
+        <value name="mathematical" version="3.0" browsers="all">
+          <desc>Use the mathematical baseline.</desc>
+        </value>
+        <value name="hanging" version="3.0" browsers="all">
+          <desc>Use the hanging baseline.</desc>
+        </value>
+        <value name="text-top" version="3.0" browsers="all">
+          <desc>Use the top of the em box as the baseline.</desc>
+        </value>
       </values>
     </entry>
     <entry name="empty-cells" restriction="enum" version="2.0" browsers="E,C,FF1,IE7,O4,S1.2" ref="http://www.w3.org/TR/CSS2/tables.html#empty-cells" syntax="table { $(name): hide; }">
@@ -3127,26 +3172,46 @@
     <entry name="initial-letter" restriction="number, integer, enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-inline/#propdef-initial-letter" syntax="body { $(name): 3; }">
       <desc>Specifies styling for dropped, raised, and sunken initial letters.</desc>
       <values>
-        <value name="normal" version="3.0" browsers="all" />
+        <value name="normal" version="3.0" browsers="all">
+          <desc>No special initial-letter effect. Text behaves as normal.</desc>
+        </value>
       </values>
     </entry>
     <entry name="initial-letter-align" restriction="enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-inline/#propdef-initial-letter-align" syntax="body { $(name): ideographic; }">
       <desc>Specifies the alignment points used to size and position an initial letter.</desc>
       <values>
-        <value name="alphabetic" version="3.0" browsers="all" />
-        <value name="ideographic" version="3.0" browsers="all" />
-        <value name="hebrew" version="3.0" browsers="all" />
-        <value name="hanging" version="3.0" browsers="all" />
-        <value name="border-box" version="3.0" browsers="all" />
+        <value name="alphabetic" version="3.0" browsers="all">
+          <desc>Use the alphabetic and cap-height baselines of the surrounding text to align the initial letter.</desc>
+        </value>
+        <value name="ideographic" version="3.0" browsers="all">
+          <desc>Use the ideographic character face bottom and top edge baselines of the surrounding text to align the initial letter.</desc>
+        </value>
+        <value name="hebrew" version="3.0" browsers="all">
+          <desc>Use the alphabetic and (as yet theoretical) hebrew hanging baseline of the surrounding text to align the initial letter.</desc>
+        </value>
+        <value name="hanging" version="3.0" browsers="all">
+          <desc>Use the alphabetic and hanging baselines of the surrounding text to align the initial letter.</desc>
+        </value>
+        <value name="border-box" version="3.0" browsers="all">
+          <desc>Uses the initial letter box’s line-over and line-under border edges as the over and under alignment points, respectively.</desc>
+        </value>
       </values>
     </entry>
     <entry name="initial-letter-wrap" restriction="length, percentage, enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-inline/#propdef-initial-letter-wrap" syntax="body { $(name): first; }">
       <desc>Specifies whether lines impacted by an initial letter are shortened to fit the rectangular shape of the initial letter box or follow the contour of its end-edge glyph outline.</desc>
       <values>
-        <value name="none" version="3.0" browsers="all" />
-        <value name="first" version="3.0" browsers="all" />
-        <value name="all" version="3.0" browsers="all" />
-        <value name="grid" version="3.0" browsers="all" />
+        <value name="none" version="3.0" browsers="all">
+          <desc>No contour-fitting is performed: each impacted line is aligned flush to the end margin edge of the initial letter.</desc>
+        </value>
+        <value name="first" version="3.0" browsers="all">
+          <desc>Behaves as none if the first typographic character unit after the initial letter belongs to Unicode General Category Zs. Otherwise behaves as for all on the first line of the block containing the initial letter and as none on the rest.</desc>
+        </value>
+        <value name="all" version="3.0" browsers="all">
+          <desc>For each line of text impacted by the initial letter, the line box adjacent to the intial letter starts at the start-most point that touches the ink of the initial letter, plus the amount of the initial letter’s end-side border+padding+margin.</desc>
+        </value>
+        <value name="grid" version="3.0" browsers="all">
+          <desc>This value is the same as none, except that the exclusion area of the impacted lines is increased as necessary for its end-edge to land on the character grid. </desc>
+        </value>
       </values>
     </entry>
     <entry name="isolation" restriction="enum" version="3.0" browsers="C,FF,O,S" ref="http://www.w3.org/TR/compositing-1/#isolation" syntax="div { $(name): isolate; }">
