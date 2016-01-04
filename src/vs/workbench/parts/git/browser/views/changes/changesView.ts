@@ -328,7 +328,7 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 			return;
 		}
 
-		if (e.payload && e.payload.origin === 'keyboard' && (<IKeyboardEvent>e.payload.originalEvent).equals(CommonKeybindings.ENTER)) {
+		if (e.payload && e.payload.origin === 'keyboard' && !(<IKeyboardEvent>e.payload.originalEvent).equals(CommonKeybindings.ENTER)) {
 			return;
 		}
 
