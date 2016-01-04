@@ -240,6 +240,25 @@ suite('Search', () => {
 		});
 	});
 
+	test('Files: *.* exclude with unicode', function(done: () => void) {
+		let engine = new FileSearchEngine({
+			rootPaths: rootpaths(),
+			filePattern: '*.*',
+			excludePattern: { "**/üm laut汉语": true }
+		});
+
+		let count = 0;
+		engine.search((result) => {
+			if (result) {
+				count++;
+			}
+		}, () => { }, (error) => {
+			assert.ok(!error);
+			assert.equal(count, 11);
+			done();
+		});
+	});
+
 	test('Files: Unicode and Spaces', function(done: () => void) {
 		let engine = new FileSearchEngine({
 			rootPaths: rootpaths(),
@@ -257,6 +276,142 @@ suite('Search', () => {
 			assert.ok(!error);
 			assert.equal(count, 1);
 			assert.equal(path.basename(res.path), '汉语.txt');
+			done();
+		});
+	});
+
+	test('Files: no results', function(done: () => void) {
+		let engine = new FileSearchEngine({
+			rootPaths: rootpaths(),
+			filePattern: 'nofilematch'
+		});
+
+		let count = 0;
+		engine.search((result) => {
+			if (result) {
+				count++;
+			}
+		}, () => { }, (error) => {
+			assert.ok(!error);
+			assert.equal(count, 0);
+			done();
+		});
+	});
+
+	test('Files: absolute path to file ignores excludes', function(done: () => void) {
+		let engine = new FileSearchEngine({
+			rootPaths: rootpaths(),
+			filePattern: path.normalize(path.join(require.toUrl('./fixtures'), 'site.css')),
+			excludePattern: { "**/*.css": true }
+		});
+
+		let count = 0;
+		let res;
+		engine.search((result) => {
+			if (result) {
+				count++;
+			}
+			res = result;
+		}, () => { }, (error) => {
+			assert.ok(!error);
+			assert.equal(count, 1);
+			assert.equal(path.basename(res.path), 'site.css');
+			done();
+		});
+	});
+
+	test('Files: relative path to file ignores excludes', function(done: () => void) {
+		let engine = new FileSearchEngine({
+			rootPaths: rootpaths(),
+			filePattern: path.normalize(path.join('examples', 'company.js')),
+			excludePattern: { "**/*.js": true }
+		});
+
+		let count = 0;
+		let res;
+		engine.search((result) => {
+			if (result) {
+				count++;
+			}
+			res = result;
+		}, () => { }, (error) => {
+			assert.ok(!error);
+			assert.equal(count, 1);
+			assert.equal(path.basename(res.path), 'company.js');
+			done();
+		});
+	});
+
+	test('Files: rootpaths are only files', function(done: () => void) {
+		let engine = new FileSearchEngine({
+			rootPaths: [
+				path.normalize(path.join(require.toUrl('./fixtures'), 'site.css')),
+				path.normalize(path.join(require.toUrl('./fixtures'), 'examples', 'company.js')),
+				path.normalize(path.join(require.toUrl('./fixtures'), 'index.html'))
+			],
+			filePattern: '*.js'
+		});
+
+		let count = 0;
+		let res;
+		engine.search((result) => {
+			if (result) {
+				count++;
+			}
+			res = result;
+		}, () => { }, (error) => {
+			assert.ok(!error);
+			assert.equal(count, 1);
+			assert.equal(path.basename(res.path), 'company.js');
+			done();
+		});
+	});
+
+	test('Files: rootpaths are only files (with include)', function(done: () => void) {
+		let engine = new FileSearchEngine({
+			rootPaths: [
+				path.normalize(path.join(require.toUrl('./fixtures'), 'site.css')),
+				path.normalize(path.join(require.toUrl('./fixtures'), 'examples', 'company.js')),
+				path.normalize(path.join(require.toUrl('./fixtures'), 'index.html'))
+			],
+			filePattern: '*.*',
+			includePattern: { '**/*.css': true }
+		});
+
+		let count = 0;
+		let res;
+		engine.search((result) => {
+			if (result) {
+				count++;
+			}
+			res = result;
+		}, () => { }, (error) => {
+			assert.ok(!error);
+			assert.equal(count, 1);
+			assert.equal(path.basename(res.path), 'site.css');
+			done();
+		});
+	});
+
+	test('Files: rootpaths are only files (with exclude)', function(done: () => void) {
+		let engine = new FileSearchEngine({
+			rootPaths: [
+				path.normalize(path.join(require.toUrl('./fixtures'), 'site.css')),
+				path.normalize(path.join(require.toUrl('./fixtures'), 'examples', 'company.js')),
+				path.normalize(path.join(require.toUrl('./fixtures'), 'index.html'))
+			],
+			filePattern: '*.*',
+			excludePattern: { '**/*.css': true }
+		});
+
+		let count = 0;
+		engine.search((result) => {
+			if (result) {
+				count++;
+			}
+		}, () => { }, (error) => {
+			assert.ok(!error);
+			assert.equal(count, 2);
 			done();
 		});
 	});
@@ -368,7 +523,7 @@ suite('Search', () => {
 
 	test('Text: e (with excludes)', function(done: () => void) {
 		let c = 0;
-		let config:any = {
+		let config: any = {
 			rootPaths: rootpaths(),
 			filePattern: '*.*',
 			contentPattern: { pattern: 'e', modifiers: 'i' },
@@ -390,7 +545,7 @@ suite('Search', () => {
 
 	test('Text: e (with includes)', function(done: () => void) {
 		let c = 0;
-		let config:any = {
+		let config: any = {
 			rootPaths: rootpaths(),
 			filePattern: '*.*',
 			contentPattern: { pattern: 'e', modifiers: 'i' },
@@ -412,7 +567,7 @@ suite('Search', () => {
 
 	test('Text: e (with includes and exclude)', function(done: () => void) {
 		let c = 0;
-		let config:any = {
+		let config: any = {
 			rootPaths: rootpaths(),
 			filePattern: '*.*',
 			contentPattern: { pattern: 'e', modifiers: 'i' },

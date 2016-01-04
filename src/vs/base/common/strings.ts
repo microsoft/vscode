@@ -35,7 +35,7 @@ export function format(value: string, ...args: any[]): string {
 	if (args.length === 0) {
 		return value;
 	}
-	return value.replace(_formatRegexp, function (match, group) {
+	return value.replace(_formatRegexp, function(match, group) {
 		let idx = parseInt(group, 10);
 		return isNaN(idx) || idx < 0 || idx >= args.length ?
 			match :
@@ -48,7 +48,7 @@ export function format(value: string, ...args: any[]): string {
  * being used e.g. in HTMLElement.innerHTML.
  */
 export function escape(html: string): string {
-	return html.replace(/[<|>|&]/g, function (match) {
+	return html.replace(/[<|>|&]/g, function(match) {
 		switch (match) {
 			case '<': return '&lt;';
 			case '>': return '&gt;';
@@ -222,7 +222,8 @@ export function regExpLeadsToEndlessLoop(regexp: RegExp): boolean {
  * @see {@link https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/normalize}
  */
 export let canNormalize = typeof ((<any>'').normalize) === 'function';
-export function normalizeNFC(str: string, cache?:{[str: string]: string}): string {
+const nonAsciiCharactersPattern = /[^\u0000-\u0080]/;
+export function normalizeNFC(str: string, cache?: { [str: string]: string }): string {
 	if (!canNormalize || !str) {
 		return str;
 	}
@@ -231,7 +232,12 @@ export function normalizeNFC(str: string, cache?:{[str: string]: string}): strin
 		return cache[str];
 	}
 
-	let res = (<any>str).normalize('NFC');
+	let res: string;
+	if (nonAsciiCharactersPattern.test(str)) {
+		res = (<any>str).normalize('NFC');
+	} else {
+		res = str;
+	}
 
 	if (cache) {
 		cache[str] = res;
