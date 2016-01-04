@@ -4633,9 +4633,15 @@
     <entry name="-ms-scroll-snap-type" restriction="enum" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh466057.aspx" syntax="div { $(name): proximity; }">
       <desc>Gets or sets a value that defines what type of snap-point should be used for the current element. There are two type of snap-points, with the primary difference being whether or not the user is guaranteed to always stop on a snap-point.</desc>
       <values>
-        <value name="mandatory" version="3.0" browsers="all" />
-        <value name="none" version="3.0" browsers="all" />
-        <value name="proximity" version="3.0" browsers="all" />
+        <value name="none" version="3.0" browsers="all">
+          <desc>The visual viewport of this scroll container must ignore snap points, if any, when scrolled.</desc>
+        </value>
+        <value name="mandatory" version="3.0" browsers="all">
+          <desc>The visual viewport of this scroll container is guaranteed to rest on a snap point when there are no active scrolling operations.</desc>
+        </value>
+        <value name="proximity" version="3.0" browsers="all">
+          <desc>The visual viewport of this scroll container may come to rest on a snap point at the termination of a scroll at the discretion of the UA given the parameters of the scroll.</desc>
+        </value>
       </values>
     </entry>
     <entry name="-ms-scroll-snap-x" restriction="enum" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh466066.aspx" syntax="div { $(name): proximity snapInterval(100%, 100%); }">
@@ -6059,9 +6065,15 @@
     <entry name="scroll-snap-coordinate" restriction="position, length, percentage, enum" version="3.0" browsers="FF39" ref="http://www.w3.org/TR/css-snappoints-1/#propdef-scroll-snap-coordinate">
       <desc>Defines the x and y coordinate within the element which will align with the nearest ancestor scroll container’s snap-destination for the respective axis.</desc>
       <values>
-        <value name="none" version="3.0" browsers="all" />
-        <value name="border-box" version="3.0" browsers="none" />
-        <value name="margin-box" version="3.0" browsers="none" />
+        <value name="none" version="3.0" browsers="all">
+          <desc>Specifies that this element does not contribute a snap point.</desc>
+        </value>
+        <value name="border-box" version="3.0" browsers="none">
+          <desc>Specifies the offset of the snap coordinate from the start edge of the element’s border box.</desc>
+        </value>
+        <value name="margin-box" version="3.0" browsers="none">
+          <desc>Specifies the offset of the snap coordinate from the start edge of the element’s margin box.</desc>
+        </value>
       </values>
     </entry>
     <entry name="scroll-snap-destination" restriction="position, length, percentage" version="3.0" browsers="FF39" ref="http://www.w3.org/TR/css-snappoints-1/#propdef-scroll-snap-destination">
@@ -6084,9 +6096,15 @@
     <entry name="scroll-snap-type" restriction="enum" version="3.0" browsers="FF39" ref="http://www.w3.org/TR/css-snappoints-1/#propdef-scroll-snap-type">
       <desc>Defines how strictly snap points are enforced on the scroll container.</desc>
       <values>
-        <value name="none" version="3.0" browsers="all" />
-        <value name="mandatory" version="3.0" browsers="all" />
-        <value name="proximity" version="3.0" browsers="all" />
+        <value name="none" version="3.0" browsers="all">
+          <desc>The visual viewport of this scroll container must ignore snap points, if any, when scrolled.</desc>
+        </value>
+        <value name="mandatory" version="3.0" browsers="all">
+          <desc>The visual viewport of this scroll container is guaranteed to rest on a snap point when there are no active scrolling operations.</desc>
+        </value>
+        <value name="proximity" version="3.0" browsers="all">
+          <desc>The visual viewport of this scroll container may come to rest on a snap point at the termination of a scroll at the discretion of the UA given the parameters of the scroll.</desc>
+        </value>
       </values>
     </entry>
     <entry name="shape-image-threshold" restriction="number" version="3.0" browsers="C37,O24" ref="http://www.w3.org/TR/css-shapes-1/#propdef-shape-image-threshold" syntax="div { $(name): 0.5; }">
