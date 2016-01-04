@@ -5490,6 +5490,34 @@
         </value>
       </values>
     </entry>
+    <entry name="offset-after" restriction="length, percentage, enum" version="3.0" browsers="none" ref="https://drafts.csswg.org/css-position/#propdef-offset-after" syntax="img { $(name): 10%;}">
+      <desc>Logical offset properties allow for offseting positioned boxes based on the writing-mode and direction properties.</desc>
+      <values>
+        <value name="auto" version="3.0" browsers="all"/>
+        </value>
+      </values>
+    </entry>
+    <entry name="offset-before" restriction="length, percentage, enum" version="3.0" browsers="none" ref="https://drafts.csswg.org/css-position/#propdef-offset-before" syntax="img { $(name): 10%;}">
+      <desc>Logical offset properties allow for offseting positioned boxes based on the writing-mode and direction properties.</desc>
+      <values>
+        <value name="auto" version="3.0" browsers="all"/>
+        </value>
+      </values>
+    </entry>
+    <entry name="offset-end" restriction="length, percentage, enum" version="3.0" browsers="none" ref="https://drafts.csswg.org/css-position/#propdef-offset-end" syntax="img { $(name): 10%;}">
+      <desc>Logical offset properties allow for offseting positioned boxes based on the writing-mode and direction properties.</desc>
+      <values>
+        <value name="auto" version="3.0" browsers="all"/>
+        </value>
+      </values>
+    </entry>
+    <entry name="offset-start" restriction="length, percentage, enum" version="3.0" browsers="none" ref="https://drafts.csswg.org/css-position/#propdef-offset-end" syntax="img { $(name): 10%;}">
+      <desc>Logical offset properties allow for offseting positioned boxes based on the writing-mode and direction properties.</desc>
+      <values>
+        <value name="auto" version="3.0" browsers="all"/>
+        </value>
+      </values>
+    </entry>
     <entry name="outline" restriction="length, line-width, line-style, color, enum" version="2.0" browsers="E,C,FF1.5,IE8,O8,S1.2" ref="http://www.w3.org/TR/css3-ui/#outline0" syntax="header { $(name): 5px solid red;}">
       <desc>Shorthand property for 'outline-style', 'outline-width', and 'outline-color'.</desc>
       <values>
@@ -5824,7 +5852,9 @@
         <value name="sticky" version="3.0" browsers="FF32">
           <desc>The box's position is calculated according to the normal flow. Then the box is offset relative to its flow root and containing block and in all cases, including table elements, does not affect the position of any following boxes.</desc>
         </value>
-        <value name="-webkit-sticky" version="2.0" browsers="C" />
+        <value name="-webkit-sticky" version="2.0" browsers="S6.1">
+          <desc>The box's position is calculated according to the normal flow. Then the box is offset relative to its flow root and containing block and in all cases, including table elements, does not affect the position of any following boxes.</desc>
+        </value>
       </values>
     </entry>
     <entry name="prefix" restriction="string, url, identifier" version="3.0" browsers="FF33" ref="http://www.w3.org/TR/css-counter-styles-3/#descdef-counter-style-prefix" syntax="@counter-style { prefix: '#'; }">
