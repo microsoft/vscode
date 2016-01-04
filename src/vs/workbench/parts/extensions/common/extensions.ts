@@ -51,4 +51,5 @@ export interface IExtensionsService {
 	install(zipPath: string): TPromise<IExtension>;
 	uninstall(extension: IExtension): TPromise<void>;
 	getInstalled(includeDuplicateVersions?: boolean): TPromise<IExtension[]>;
+	installed(extension: IExtension): TPromise<boolean>;
 }
