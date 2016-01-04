@@ -21,7 +21,7 @@ import {ExtHostMessageService} from 'vs/workbench/api/common/extHostMessageServi
 import {ExtHostEditors} from 'vs/workbench/api/common/extHostEditors';
 import {ExtHostLanguages} from 'vs/workbench/api/common/extHostLanguages';
 import {ExtHostLanguageFeatures} from 'vs/workbench/api/common/extHostLanguageFeatures';
-import {ExtHostApiCommands} from 'vs/workbench/api/common/extHostApiCommands';
+import {registerApiCommands} from 'vs/workbench/api/common/extHostApiCommands';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
 import 'vs/workbench/api/common/extHostTypes.marshalling';
 import Modes = require('vs/editor/common/modes');
@@ -258,10 +258,12 @@ export class ExtHostAPIImplementation {
 		});
 
 		//
+		registerApiCommands(threadService);
+
+		//
 		const languages = new ExtHostLanguages(this._threadService);
 		const pluginHostDiagnostics = new ExtHostDiagnostics(this._threadService);
 		const languageFeatures = threadService.getRemotable(ExtHostLanguageFeatures);
-		const languageFeatureCommand = new ExtHostApiCommands(threadService.getRemotable(ExtHostCommands));
 
 		this.languages = {
 			createDiagnosticCollection(name?: string): vscode.DiagnosticCollection {

@@ -23,11 +23,10 @@ import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingServic
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {ExtHostLanguageFeatures, MainThreadLanguageFeatures} from 'vs/workbench/api/common/extHostLanguageFeatures';
-import {ExtHostApiCommands} from 'vs/workbench/api/common/extHostApiCommands';
+import {registerApiCommands} from 'vs/workbench/api/common/extHostApiCommands';
 import {ExtHostCommands, MainThreadCommands} from 'vs/workbench/api/common/extHostCommands';
 import {ExtHostModelService} from 'vs/workbench/api/common/extHostDocuments';
 
-const defaultSelector = { scheme: 'far' };
 const model: EditorCommon.IModel = new EditorModel(
 	[
 		'This is the first line',
@@ -86,7 +85,7 @@ suite('ExtHostLanguageFeatureCommands', function() {
 
 		threadService.getRemotable(MainThreadCommands);
 		commands = threadService.getRemotable(ExtHostCommands);
-		new ExtHostApiCommands(commands);
+		registerApiCommands(threadService);
 		mainThread = threadService.getRemotable(MainThreadLanguageFeatures);
 		extHost = threadService.getRemotable(ExtHostLanguageFeatures);
 	});
