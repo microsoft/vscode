@@ -709,13 +709,13 @@ export class BaseDeleteFileAction extends BaseFileAction {
 			confirm = {
 				message: this.element.isDirectory ? nls.localize('confirmMoveTrashMessageFolder', "Are you sure you want to delete '{0}' and its contents?", this.element.name) : nls.localize('confirmMoveTrashMessageFile', "Are you sure you want to delete '{0}'?", this.element.name),
 				detail: isWindows ? nls.localize('undoBin', "You can restore from the recycle bin.") : nls.localize('undoTrash', "You can restore from the trash."),
-				primaryButton: isWindows ? nls.localize('deleteButtonLabelRecycleBin', "Move to Recycle Bin") : nls.localize('deleteButtonLabelTrash', "Move to Trash")
+				primaryButton: isWindows ? nls.localize('deleteButtonLabelRecycleBin', "&&Move to Recycle Bin") : nls.localize('deleteButtonLabelTrash', "&&Move to Trash")
 			};
 		} else {
 			confirm = {
 				message: this.element.isDirectory ? nls.localize('confirmDeleteMessageFolder', "Are you sure you want to permanently delete '{0}' and its contents?", this.element.name) : nls.localize('confirmDeleteMessageFile', "Are you sure you want to permanently delete '{0}'?", this.element.name),
 				detail: nls.localize('irreversible', "This action is irreversible!"),
-				primaryButton: nls.localize('deleteButtonLabel', "Delete")
+				primaryButton: nls.localize('deleteButtonLabel', "&&Delete")
 			};
 		}
 
@@ -879,7 +879,7 @@ export class ImportFileAction extends BaseFileAction {
 						let confirm: IConfirmation = {
 							message: nls.localize('confirmOverwrite', "A file or folder with the same name already exists in the destination folder. Do you want to replace it?"),
 							detail: nls.localize('irreversible', "This action is irreversible!"),
-							primaryButton: nls.localize('replaceButtonLabel', "Replace")
+							primaryButton: nls.localize('replaceButtonLabel', "&&Replace")
 						};
 
 						overwrite = this.messageService.confirm(confirm);

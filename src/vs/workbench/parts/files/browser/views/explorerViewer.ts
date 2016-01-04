@@ -867,7 +867,7 @@ export class FileDragAndDrop implements Tree.IDragAndDrop {
 							let confirm: IConfirmation = {
 								message: nls.localize('confirmOverwriteMessage', "'{0}' already exists in the destination folder. Do you want to replace it?", source.name),
 								detail: nls.localize('irreversible', "This action is irreversible!"),
-								primaryButton: nls.localize('replaceButtonLabel', "Replace")
+								primaryButton: nls.localize('replaceButtonLabel', "&&Replace")
 							};
 
 							if (this.messageService.confirm(confirm)) {

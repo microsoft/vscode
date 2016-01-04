@@ -172,8 +172,8 @@ export class TextFileService extends AbstractTextFileService {
 		// Windows: Save | Don't Save | Cancel
 		// Mac/Linux: Save | Cancel | Don't
 
-		const save = { label: resourcesToConfirm.length > 1 ? nls.localize('saveAll', "Save All") : nls.localize('save', "Save"), result: ConfirmResult.SAVE };
-		const dontSave = { label: nls.localize('dontSave', "Don't Save"), result: ConfirmResult.DONT_SAVE };
+		const save = { label: resourcesToConfirm.length > 1 ? this.mnemonicLabel(nls.localize('saveAll', "&&Save All")) : this.mnemonicLabel(nls.localize('save', "&&Save")), result: ConfirmResult.SAVE };
+		const dontSave = { label: this.mnemonicLabel(nls.localize('dontSave', "Do&&n't Save")), result: ConfirmResult.DONT_SAVE };
 		const cancel = { label: nls.localize('cancel', "Cancel"), result: ConfirmResult.CANCEL };
 
 		const buttons = [save];
@@ -196,6 +196,14 @@ export class TextFileService extends AbstractTextFileService {
 		const choice = Dialog.showMessageBox(remote.getCurrentWindow(), opts);
 
 		return buttons[choice].result;
+	}
+
+	private mnemonicLabel(label: string): string {
+		if (!isWindows) {
+			return label.replace(/&&/g, ''); // no mnemonic support on mac/linux in buttons yet
+		}
+
+		return label.replace(/&&/g, '&');
 	}
 
 	public saveAll(includeUntitled?: boolean): TPromise<ITextFileOperationResult>;
