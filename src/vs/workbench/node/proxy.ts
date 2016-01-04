@@ -22,7 +22,7 @@ function getAgent(rawRequestURL: string, proxyURL: string, strictSSL: boolean = 
 	}
 
 	return new HttpsProxyAgent({
-		host: proxyEndpoint.host,
+		host: proxyEndpoint.hostname,
 		port: Number(proxyEndpoint.port),
 		rejectUnauthorized: strictSSL
 	});
