@@ -212,13 +212,9 @@ class DiskSearch {
 		let result: IFileMatch[] = [];
 		let request: PPromise<ISerializedSearchComplete, ISerializedSearchProgressItem>;
 
-		let rootResources: uri[] = [];
-		if (query.rootResources) {
-			rootResources.push(...query.rootResources);
-		}
-
 		let rawSearch: IRawSearch = {
-			rootPaths: rootResources.map(r => r.fsPath),
+			rootFolders: query.rootResources ? query.rootResources.map(r => r.fsPath) : [],
+			extraFiles: query.extraFileResources ? query.extraFileResources.map(r => r.fsPath) : [],
 			filePattern: query.filePattern,
 			excludePattern: query.excludePattern,
 			includePattern: query.includePattern,

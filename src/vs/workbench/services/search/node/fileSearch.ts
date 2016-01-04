@@ -61,7 +61,7 @@ export class FileWalker {
 		this.isCanceled = true;
 	}
 
-	public walk(rootPaths: string[], onResult: (result: ISerializedFileMatch) => void, done: (error: Error, isLimitHit: boolean) => void): void {
+	public walk(rootFolders: string[], extraFiles: string[], onResult: (result: ISerializedFileMatch) => void, done: (error: Error, isLimitHit: boolean) => void): void {
 
 		// Reset state
 		this.resetState();
@@ -79,59 +79,38 @@ export class FileWalker {
 				return done(null, false);
 			}
 
-			// For each source
-			flow.parallel(rootPaths, (absolutePath, perEntryCallback) => {
+			// For each extra file
+			if (extraFiles) {
+				extraFiles.forEach(extraFilePath => {
+					if (glob.match(this.excludePattern, extraFilePath)) {
+						return; // excluded
+					}
 
-				// Find out file vs folder
-				fs.stat(absolutePath, (error, stat) => {
+					// File: Check for match on file pattern and include pattern
+					this.matchFile(onResult, paths.basename(extraFilePath), extraFilePath, extraFilePath /* no workspace relative path */);
+				});
+			}
+
+			// For each root folder
+			flow.parallel(rootFolders, (absolutePath, perEntryCallback) => {
+				extfs.readdir(absolutePath, (error: Error, files: string[]) => {
 					if (error || this.isCanceled || this.isLimitHit) {
 						return perEntryCallback(null, null);
 					}
 
-					// Root Folder
-					if (stat.isDirectory()) {
-						return extfs.readdir(absolutePath, (error: Error, files: string[]) => {
-							if (error || this.isCanceled || this.isLimitHit) {
-								return perEntryCallback(null, null);
-							}
-
-							// Support relative paths to files from a root resource
-							return this.checkFilePatternRelativeMatch(absolutePath, (match) => {
-								if (this.isCanceled || this.isLimitHit) {
-									return perEntryCallback(null, null);
-								}
-
-								// Report result from file pattern if matching
-								if (match) {
-									onResult({ path: match });
-								}
-
-								return this.doWalk(absolutePath, '', files, onResult, perEntryCallback);
-							});
-						});
-					}
-
-					// Root File: Check for match on file pattern and include pattern and not exclude pattern
-					if (
-						!glob.match(this.excludePattern, absolutePath) &&
-						this.isFilePatternMatch(paths.basename(absolutePath), absolutePath) &&
-						(!this.includePattern || glob.match(this.includePattern, absolutePath))
-					) {
-						this.resultCount++;
-
-						if (this.maxResults && this.resultCount > this.maxResults) {
-							this.isLimitHit = true;
+					// Support relative paths to files from a root resource
+					return this.checkFilePatternRelativeMatch(absolutePath, (match) => {
+						if (this.isCanceled || this.isLimitHit) {
+							return perEntryCallback(null, null);
 						}
 
-						if (!this.isLimitHit) {
-							onResult({
-								path: absolutePath
-							});
+						// Report result from file pattern if matching
+						if (match) {
+							onResult({ path: match });
 						}
-					}
 
-					// Unwind
-					return perEntryCallback(null, null);
+						return this.doWalk(absolutePath, '', files, onResult, perEntryCallback);
+					});
 				});
 			}, (err, result) => {
 				done(err ? err[0] : null, this.isLimitHit);
@@ -219,18 +198,12 @@ export class FileWalker {
 				}
 
 				// File: Check for match on file pattern and include pattern
-				if (this.isFilePatternMatch(file, relativeFilePath) && (!this.includePattern || glob.match(this.includePattern, relativeFilePath))) {
-					this.resultCount++;
-
-					if (this.maxResults && this.resultCount > this.maxResults) {
-						this.isLimitHit = true;
+				else {
+					if (relativeFilePath === this.filePattern) {
+						return clb(null); // ignore file if its path matches with the file pattern because checkFilePatternRelativeMatch() takes care of those
 					}
 
-					if (!this.isLimitHit) {
-						onResult({
-							path: currentPath
-						});
-					}
+					this.matchFile(onResult, file, currentPath, relativeFilePath);
 				}
 
 				// Unwind
@@ -243,6 +216,22 @@ export class FileWalker {
 
 			return done(error && error.length > 0 ? error[0] : null, null);
 		});
+	}
+
+	private matchFile(onResult: (result: ISerializedFileMatch) => void, basename: string, absolutePath: string, relativePath: string): void {
+		if (this.isFilePatternMatch(basename, relativePath) && (!this.includePattern || glob.match(this.includePattern, relativePath))) {
+			this.resultCount++;
+
+			if (this.maxResults && this.resultCount > this.maxResults) {
+				this.isLimitHit = true;
+			}
+
+			if (!this.isLimitHit) {
+				onResult({
+					path: absolutePath
+				});
+			}
+		}
 	}
 
 	private isFilePatternMatch(name: string, path: string): boolean {
@@ -274,16 +263,19 @@ export class FileWalker {
 }
 
 export class Engine implements ISearchEngine {
-	private rootPaths: string[];
+	private rootFolders: string[];
+	private extraFiles: string[];
 	private walker: FileWalker;
 
 	constructor(config: IRawSearch) {
-		this.rootPaths = config.rootPaths;
+		this.rootFolders = config.rootFolders;
+		this.extraFiles = config.extraFiles;
+
 		this.walker = new FileWalker(config);
 	}
 
 	public search(onResult: (result: ISerializedFileMatch) => void, onProgress: (progress: IProgress) => void, done: (error: Error, isLimitHit: boolean) => void): void {
-		this.walker.walk(this.rootPaths, onResult, done);
+		this.walker.walk(this.rootFolders, this.extraFiles, onResult, done);
 	}
 
 	public cancel(): void {

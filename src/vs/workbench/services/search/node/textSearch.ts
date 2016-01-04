@@ -18,7 +18,8 @@ import {UTF16le, UTF16be, UTF8} from 'vs/base/node/encoding';
 import {ISerializedFileMatch, IRawSearch, ISearchEngine} from 'vs/workbench/services/search/node/rawSearchService';
 
 export class Engine implements ISearchEngine {
-	private rootPaths: string[];
+	private rootFolders: string[];
+	private extraFiles: string[];
 	private maxResults: number;
 	private walker: FileWalker;
 	private contentPattern: RegExp;
@@ -31,7 +32,8 @@ export class Engine implements ISearchEngine {
 	private fileEncoding: string;
 
 	constructor(config: IRawSearch, walker: FileWalker) {
-		this.rootPaths = config.rootPaths;
+		this.rootFolders = config.rootFolders;
+		this.extraFiles = config.extraFiles;
 		this.walker = walker;
 		this.contentPattern = strings.createRegExp(config.contentPattern.pattern, config.contentPattern.isRegExp, config.contentPattern.isCaseSensitive, config.contentPattern.isWordMatch);
 		this.isCanceled = false;
@@ -65,7 +67,7 @@ export class Engine implements ISearchEngine {
 			}
 		};
 
-		this.walker.walk(this.rootPaths, (result) => {
+		this.walker.walk(this.rootFolders, this.extraFiles, (result) => {
 
 			// Indicate progress to the outside
 			this.total++;

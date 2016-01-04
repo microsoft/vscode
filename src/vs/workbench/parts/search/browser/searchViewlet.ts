@@ -1110,13 +1110,9 @@ export class SearchViewlet extends Viewlet {
 
 		let includes: IExpression = this.inputPatternIncludes.getGlob();
 
-		let rootResources: URI[] = this.textFileService.getWorkingFilesModel().getOutOfWorkspaceContextEntries().map(e => e.resource);
-		if (this.contextService.getWorkspace()) {
-			rootResources.push(this.contextService.getWorkspace().resource);
-		}
-
 		let options: IQueryOptions = {
-			rootResources: rootResources,
+			rootResources: this.contextService.getWorkspace() ? [this.contextService.getWorkspace().resource] : [],
+			extraFileResources: this.textFileService.getWorkingFilesModel().getOutOfWorkspaceContextEntries().map(e => e.resource),
 			excludePattern: excludes,
 			includePattern: includes,
 			maxResults: SearchViewlet.MAX_TEXT_RESULTS,

@@ -17,7 +17,8 @@ import {FileWalker, Engine as FileSearchEngine} from 'vs/workbench/services/sear
 import {Engine as TextSearchEngine} from 'vs/workbench/services/search/node/textSearch';
 
 export interface IRawSearch {
-	rootPaths: string[];
+	rootFolders: string[];
+	extraFiles?: string[];
 	filePattern?: string;
 	matchFuzzy?: boolean;
 	excludePattern?: glob.IExpression;
@@ -60,7 +61,8 @@ export class SearchService implements IRawSearchService {
 
 	public textSearch(config: IRawSearch): PPromise<ISerializedSearchComplete, ISerializedSearchProgressItem> {
 		let engine = new TextSearchEngine(config, new FileWalker({
-			rootPaths: config.rootPaths,
+			rootFolders: config.rootFolders,
+			extraFiles: config.extraFiles,
 			includePattern: config.includePattern,
 			excludePattern: config.excludePattern,
 			filePattern: config.filePattern
