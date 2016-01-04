@@ -307,7 +307,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 		return viewResults;
 	}
 
-	private sort(elementA: QuickOpenEntry, elementB: QuickOpenEntry, lookFor: string, enableFuzzyScoring): number {
+	private sort(elementA: QuickOpenEntry, elementB: QuickOpenEntry, lookFor: string, enableFuzzyScoring: boolean): number {
 
 		// Fuzzy scoring is special
 		if (enableFuzzyScoring) {
