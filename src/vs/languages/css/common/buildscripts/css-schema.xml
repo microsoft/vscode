@@ -3056,8 +3056,12 @@
     <entry name="line-grid" restriction="enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-line-grid-1/#propdef-line-grid" syntax="div { $(name): create; }">
       <desc>Specifies whether this box creates a new baseline grid for its descendants or uses the same baseline grid as its parent.</desc>
       <values>
-        <value name="match-parent" version="3.0" browsers="all" />
-        <value name="create" version="3.0" browsers="all" />
+        <value name="match-parent" version="3.0" browsers="all">
+          <desc>Box assumes the line grid of its parent if its writing mode is the same as its parent.</desc>
+        </value>
+        <value name="create" version="3.0" browsers="all">
+          <desc>Box creates a new line grid using its own font and line layout settings.</desc>
+        </value>
       </values>
     </entry>
     <entry name="line-height" restriction="number, length, percentage" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-linebox/#line-height" syntax="#menu { $(name): 22px; }">
@@ -3071,9 +3075,15 @@
     <entry name="line-snap" restriction="enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-line-grid-1/#propdef-line-snap" syntax="div { $(name): baseline; }">
       <desc>Snaps line boxes contained by the element to the line grid specified by the 'line-grid' property.</desc>
       <values>
-        <value name="none" version="3.0" browsers="all" />
-        <value name="baseline" version="3.0" browsers="all" />
-				<value name="contain" version="3.0" browsers="all" />
+        <value name="none" version="3.0" browsers="all">
+          <desc>Line boxes do not snap to the grid; they stack normally.</desc>
+        </value>
+        <value name="baseline" version="3.0" browsers="all">
+          <desc>The dominant baseline snaps with the matching baseline on the line grid applying to the element.</desc>
+        </value>
+		<value name="contain" version="3.0" browsers="all">
+          <desc>Two baselines are used to align the line box.</desc>
+        </value>
       </values>
     </entry>
     <entry name="list-style" restriction="enum, url" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-lists/#list-style" syntax="ul { $(name): square url('square.png');}">
