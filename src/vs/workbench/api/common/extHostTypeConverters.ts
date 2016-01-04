@@ -4,7 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import {ExtHostCommands} from 'vs/workbench/api/common/extHostCommands';
 import Severity from 'vs/base/common/severity';
+import {isFalsyOrEmpty} from 'vs/base/common/arrays';
+import {IDisposable} from 'vs/base/common/lifecycle';
 import * as modes from 'vs/editor/common/modes';
 import * as types from './extHostTypes';
 import {Position as EditorPosition} from 'vs/platform/editor/common/editor';
@@ -419,24 +422,47 @@ export namespace SignatureHelp {
 	}
 }
 
-export const Command = {
-	from(command: vscode.Command): modes.ICommand {
-		if (command) {
-			return <modes.ICommand>{
-				id: command.command,
-				title: command.title,
-				arguments: command.arguments
-			};
-		}
-	},
 
-	to(command: modes.ICommand): vscode.Command {
-		if (command) {
-			return <vscode.Command>{
-				command: command.id,
-				title: command.title,
-				arguments: command.arguments
-			};
+export namespace Command {
+
+	const _cache: { [id: string]: vscode.Command } = Object.create(null);
+	let _idPool = 1;
+
+	export function from(command: vscode.Command, context: { commands: ExtHostCommands; disposables: IDisposable[]; }): modes.ICommand {
+
+		if (!command) {
+			return;
 		}
+
+		const result = <modes.ICommand>{
+			id: command.command,
+			title: command.title
+		};
+
+		if (!isFalsyOrEmpty(command.arguments)) {
+
+			// keep command around
+			const id = `temp-command-${_idPool++}`;
+			result.id = id;
+			_cache[id] = command;
+
+			const disposable1 = context.commands.registerCommand(id, () => context.commands.executeCommand(command.command, ..._cache[id].arguments));
+			const disposable2 = { dispose() { delete _cache[id] } };
+			context.disposables.push(disposable1, disposable2);
+		}
+
+		return result;
 	}
-};
+
+	export function to(command: modes.ICommand): vscode.Command {
+
+		let result = _cache[command.id];
+		if (!result) {
+			result = {
+				command: command.id,
+				title: command.title
+			}
+		}
+		return result;
+	}
+}

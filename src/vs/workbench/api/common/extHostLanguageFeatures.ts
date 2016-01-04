@@ -7,7 +7,7 @@
 import URI from 'vs/base/common/uri';
 import {DefaultFilter} from 'vs/editor/common/modes/modesFilters';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {IDisposable} from 'vs/base/common/lifecycle';
+import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
 import {Remotable, IThreadService} from 'vs/platform/thread/common/thread';
 import {Range as EditorRange} from 'vs/editor/common/core/range';
 import * as vscode from 'vscode';
@@ -33,7 +33,7 @@ import {ParameterHintsRegistry} from 'vs/editor/contrib/parameterHints/common/pa
 import {SuggestRegistry} from 'vs/editor/contrib/suggest/common/suggest';
 
 function isThenable<T>(obj: any): obj is Thenable<T> {
-	return obj && typeof obj['then'] === 'function';
+	return obj && typeof (<Thenable<any>>obj).then === 'function';
 }
 
 function asWinJsPromise<T>(callback: (token: vscode.CancellationToken) => T | Thenable<T>): TPromise<T> {
@@ -75,12 +75,15 @@ class OutlineAdapter implements IOutlineSupport {
 class CodeLensAdapter implements modes.ICodeLensSupport {
 
 	private _documents: ExtHostModelService;
+	private _commands: ExtHostCommands;
 	private _provider: vscode.CodeLensProvider;
 
-	private _cache: { [uri: string]: vscode.CodeLens[] } = Object.create(null);
+	private _cachedLenses: { [uri: string]: vscode.CodeLens[] } = Object.create(null);
+	private _cachedCommands: IDisposable[] = [];
 
-	constructor(documents: ExtHostModelService, provider: vscode.CodeLensProvider) {
+	constructor(documents: ExtHostModelService, commands: ExtHostCommands, provider: vscode.CodeLensProvider) {
 		this._documents = documents;
+		this._commands = commands;
 		this._provider = provider;
 	}
 
@@ -88,20 +91,21 @@ class CodeLensAdapter implements modes.ICodeLensSupport {
 		let doc = this._documents.getDocument(resource);
 		let key = resource.toString();
 
-		delete this._cache[key];
+		this._cachedCommands = disposeAll(this._cachedCommands);
+		delete this._cachedLenses[key];
 
 		return asWinJsPromise(token => this._provider.provideCodeLenses(doc, token)).then(value => {
 			if (!Array.isArray(value)) {
 				return;
 			}
 
-			this._cache[key] = value;
+			this._cachedLenses[key] = value;
 
 			return value.map((lens, i) => {
 				return <modes.ICodeLensSymbol>{
 					id: String(i),
 					range: TypeConverters.fromRange(lens.range),
-					command: TypeConverters.Command.from(lens.command)
+					command: TypeConverters.Command.from(lens.command, { commands: this._commands, disposables: this._cachedCommands })
 				};
 			});
 		});
@@ -109,7 +113,7 @@ class CodeLensAdapter implements modes.ICodeLensSupport {
 
 	resolveCodeLensSymbol(resource: URI, symbol: modes.ICodeLensSymbol): TPromise<modes.ICodeLensSymbol> {
 
-		let lenses = this._cache[resource.toString()];
+		let lenses = this._cachedLenses[resource.toString()];
 		if (!lenses) {
 			return;
 		}
@@ -136,7 +140,7 @@ class CodeLensAdapter implements modes.ICodeLensSupport {
 				};
 			}
 
-			symbol.command = TypeConverters.Command.from(command);
+			symbol.command = TypeConverters.Command.from(command, { commands: this._commands, disposables: this._cachedCommands });
 			return symbol;
 		});
 	}
@@ -279,22 +283,27 @@ class QuickFixAdapter implements modes.IQuickFixSupport {
 	private _commands: ExtHostCommands;
 	private _provider: vscode.CodeActionProvider;
 
+	private _cachedCommands: IDisposable[] = [];
+
 	constructor(documents: ExtHostModelService, commands: ExtHostCommands, provider: vscode.CodeActionProvider) {
 		this._documents = documents;
 		this._commands = commands;
 		this._provider = provider;
 	}
 
-	getQuickFixes(resource: URI, range: IRange, marker?: IMarker[]): TPromise<modes.IQuickFix[]> {
+	getQuickFixes(resource: URI, range: IRange, markers?: IMarker[]): TPromise<modes.IQuickFix[]> {
 
 		const doc = this._documents.getDocument(resource);
 		const ran = TypeConverters.toRange(range);
-		const diagnostics = marker.map(marker => {
+		const diagnostics = markers.map(marker => {
 			const diag = new Diagnostic(TypeConverters.toRange(marker), marker.message);
 			diag.code = marker.code;
 			diag.severity = TypeConverters.toDiagnosticSeverty(marker.severity);
 			return diag;
 		});
+
+		this._cachedCommands = disposeAll(this._cachedCommands);
+		const ctx = { commands: this._commands, disposables: this._cachedCommands };
 
 		return asWinJsPromise(token => this._provider.provideCodeActions(doc, ran, { diagnostics: <any>diagnostics }, token)).then(commands => {
 			if (!Array.isArray(commands)) {
@@ -302,7 +311,7 @@ class QuickFixAdapter implements modes.IQuickFixSupport {
 			}
 			return commands.map((command, i) => {
 				return <modes.IQuickFix> {
-					command: TypeConverters.Command.from(command),
+					command: TypeConverters.Command.from(command, ctx),
 					score: i
 				};
 			});
@@ -310,8 +319,8 @@ class QuickFixAdapter implements modes.IQuickFixSupport {
 	}
 
 	runQuickFixAction(resource: URI, range: IRange, quickFix: modes.IQuickFix): any {
-		let {command} = quickFix;
-		return this._commands.executeCommand(command.id, ...command.arguments);
+		let command = TypeConverters.Command.to(quickFix.command);
+		return this._commands.executeCommand(command.command, ...command.arguments);
 	}
 }
 
@@ -644,7 +653,7 @@ export class ExtHostLanguageFeatures {
 
 	registerCodeLensProvider(selector: vscode.DocumentSelector, provider: vscode.CodeLensProvider): vscode.Disposable {
 		const handle = this._nextHandle();
-		this._adapter[handle] = new CodeLensAdapter(this._documents, provider);
+		this._adapter[handle] = new CodeLensAdapter(this._documents, this._commands, provider);
 		this._proxy.$registerCodeLensSupport(handle, selector);
 		return this._createDisposable(handle);
 	}
