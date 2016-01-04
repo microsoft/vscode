@@ -789,45 +789,6 @@
         </value>
       </values>
     </entry>
-    <entry name="azimuth" restriction="angle" version="2.0" browsers="none" ref="http://www.w3.org/TR/CSS2/aural.html#propdef-azimuth" syntax="&lt;angle&gt; | [[ left-side | far-left | left | center-left | center | center-right | right | far-right | right-side ] || behind ] | leftwards | rightwards">
-      <desc>Sound spatial information</desc>
-      <values>
-        <value name="behind" version="2.0" browsers="all" />
-        <value name="center" version="2.0" browsers="all">
-          <desc>Same as '0deg'. With 'behind', '180deg'.</desc>
-        </value>
-        <value name="center-left" version="2.0" browsers="all">
-          <desc>Same as '340deg'. With 'behind', '200deg'.</desc>
-        </value>
-        <value name="center-right" version="2.0" browsers="all">
-          <desc>Same as '20deg'. With 'behind', '160deg'.</desc>
-        </value>
-        <value name="far-left" version="2.0" browsers="all">
-          <desc>Same as '300deg'. With 'behind', '240deg'.</desc>
-        </value>
-        <value name="far-right" version="2.0" browsers="all">
-          <desc>Same as '60deg'. With 'behind', '120deg'.</desc>
-        </value>
-        <value name="left" version="2.0" browsers="all">
-          <desc>Same as '320deg'. With 'behind', '220deg'</desc>
-        </value>
-        <value name="left-side" version="2.0" browsers="all">
-          <desc>Same as '270deg'. With 'behind', '270deg'.</desc>
-        </value>
-        <value name="leftwards" version="2.0" browsers="all">
-          <desc>Moves the sound to the left, relative to the current angle. More precisely, subtracts 20 degrees.</desc>
-        </value>
-        <value name="right" version="2.0" browsers="all">
-          <desc>Same as '40deg'. With 'behind', '140deg'.</desc>
-        </value>
-        <value name="right-side" version="2.0" browsers="all">
-          <desc>Same as '90deg'. With 'behind', '90deg'.</desc>
-        </value>
-        <value name="rightwards" version="2.0" browsers="all">
-          <desc>Moves the sound to the right, relative to the current angle. More precisely, adds 20 degrees.</desc>
-        </value>
-      </values>
-    </entry>
     <entry name="backdrop-filter" restriction="enum" version="4.0" browsers="none" ref="https://drafts.fxtf.org/filters-2/#propdef-backdrop-filter" syntax="div { $(name): blur(2px); }">
       <desc>Applies a filter effect where the first filter in the list takes the element's background image as the input image.</desc>
       <values>
@@ -2100,26 +2061,6 @@
         <value name="mathematical" version="3.0" browsers="all" />
         <value name="hanging" version="3.0" browsers="all" />
         <value name="text-top" version="3.0" browsers="all" />
-      </values>
-    </entry>
-    <entry name="elevation" restriction="angle" version="2.0" browsers="none" ref="https://drafts.csswg.org/css2/aural.html#propdef-elevation" syntax="h1 { $(name): above'; }">
-      <desc>Sound spatial information</desc>
-      <values>
-        <value name="above" version="2.0" browsers="all">
-          <desc>Same as '90deg'.</desc>
-        </value>
-        <value name="below" version="2.0" browsers="all">
-          <desc>Same as '-90deg'.</desc>
-        </value>
-        <value name="higher" version="2.0" browsers="all">
-          <desc>Adds 10 degrees to the current elevation.</desc>
-        </value>
-        <value name="level" version="2.0" browsers="all">
-          <desc>Same as '0deg'.</desc>
-        </value>
-        <value name="lower" version="2.0" browsers="all">
-          <desc>Subtracts 10 degrees from the current elevation.</desc>
-        </value>
       </values>
     </entry>
     <entry name="empty-cells" restriction="enum" version="2.0" browsers="E,C,FF1,IE7,O4,S1.2" ref="http://www.w3.org/TR/CSS2/tables.html#empty-cells" syntax="table { $(name): hide; }">
@@ -5821,21 +5762,6 @@
     <entry name="perspective-origin" restriction="position, percentage, length" version="3.0" browsers="E,C36,FF16,IE10,O23,S9" ref="http://www.w3.org/TR/css3-3d-transforms/#perspective-origin" syntax="div { $(name): 10px; }">
       <desc>Establishes the origin for the perspective property. It effectively sets the X and Y position at which the viewer appears to be looking at the children of the element.</desc>
     </entry>
-    <entry name="pitch" restriction="frequency" version="2.0" browsers="none" ref="http://www.w3.org/TR/CSS2/aural.html#propdef-pitch" syntax="&lt;frequency&gt; | x-low | low | medium | high | x-high">
-      <desc>Specifies the average pitch (a frequency) of the speaking voice. The average pitch of a voice depends on the voice family. For example, the average pitch for a standard male voice is around 120Hz, but for a female voice, it's around 210Hz.</desc>
-      <values>
-        <value name="high" version="2.0" browsers="all" />
-        <value name="low" version="2.0" browsers="all" />
-        <value name="medium" version="2.0" browsers="all">
-          <desc>Equivalent to 100% and means the normal pitch for this voice</desc>
-        </value>
-        <value name="x-high" version="2.0" browsers="all" />
-        <value name="x-low" version="2.0" browsers="all" />
-      </values>
-    </entry>
-    <entry name="pitch-range" restriction="number" version="2.0" browsers="none" ref="http://www.w3.org/TR/CSS2/aural.html#propdef-pitch-range" syntax="&lt;number&gt;">
-      <desc>Specifies variation in average pitch. The perceived pitch of a human voice is determined by the fundamental frequency and typically has a value of 120Hz for a male voice and 210Hz for a female voice.</desc>
-    </entry>
     <entry name="pointer-events" restriction="enum" version="3.0" browsers="all" ref="http://www.w3.org/TR/SVG11/interact.html#PointerEventsProperty">
       <desc>Allows authors to control under what circumstances (if any) a particular graphic element can become the target of mouse events.</desc>
       <values>
@@ -6000,9 +5926,6 @@
           <desc>An extra weak rest in speech output. The exact time is implementation-dependent.</desc>
         </value>>
       </values>
-    </entry>
-    <entry name="richness" restriction="number(0-100)" version="2.0" browsers="none" ref="http://www.w3.org/TR/CSS2/aural.html#propdef-richness" syntax="A value between '0' and '100'. The higher the value, the more the voice will carry. A lower value will produce a soft, mellifluous voice.">
-      <desc>Specifies the richness, or brightness, of the speaking voice. A rich voice will 'carry' in a large room, a smooth voice will not.</desc>
     </entry>
     <entry name="right" restriction="length, percentage" version="2.0" browsers="all" ref="http://www.w3.org/TR/css3-positioning/#propdef-right" syntax="article { $(name): 50px; }">
       <desc>Specifies how far an absolutely positioned box's right margin edge is offset to the left of the right edge of the box's 'containing block'.</desc>
@@ -6267,40 +6190,11 @@
         </value>
       </values>
     </entry>
-    <entry name="speech-rate" restriction="number" version="2.0" browsers="none" ref="http://www.w3.org/TR/CSS2/aural.html#propdef-speech-rate" syntax="&lt;number&gt; | x-slow | slow | medium | fast | x-fast | faster | slower">
-      <desc>Controls the speaking rate. The default rate for a voice depends on the language and dialect and on the personality of the voice.</desc>
-      <values>
-        <value name="fast" version="2.0" browsers="all">
-          <desc>Same as 300 words per minute.</desc>
-        </value>
-        <value name="faster" version="2.0" browsers="all">
-          <desc>Adds 40 words per minute to the current speech rate.</desc>
-        </value>
-        <value name="medium" version="2.0" browsers="all">
-          <desc>Same as 180-200 words per minute.</desc>
-        </value>
-        <value name="slow" version="2.0" browsers="all">
-          <desc>Same as 120 words per minute.</desc>
-        </value>
-        <value name="slower" version="2.0" browsers="all">
-          <desc>Subtracts 40 words per minute from the current speech rate.</desc>
-        </value>
-        <value name="x-fast" version="2.0" browsers="all">
-          <desc>Same as 500 words per minute.</desc>
-        </value>
-        <value name="x-slow" version="2.0" browsers="all">
-          <desc>Same as 80 words per minute.</desc>
-        </value>
-      </values>
-    </entry>
     <entry name="stop-color" restriction="color" version="3.0" browsers="all" ref="http://www.w3.org/TR/SVG11/pservers.html#StopColorProperty">
       <desc>Indicates what color to use at that gradient stop.</desc>
     </entry>
     <entry name="stop-opacity" restriction="number(0-1)" version="3.0" browsers="all" ref="http://www.w3.org/TR/SVG11/pservers.html#StopOpacityProperty">
       <desc>The 'stop-opacity' property defines the opacity of a given gradient stop.</desc>
-    </entry>
-    <entry name="stress" restriction="number(0-100)" version="2.0" browsers="none" ref="http://www.w3.org/TR/CSS2/aural.html#propdef-stress" syntax="A value, between '0' and '100'. The meaning of values depends on the language being spoken. For example, a level of '50' for a standard, English-speaking male voice (average pitch = 122Hz), speaking with normal intonation and emphasis would have a different meaning than '50' for an Italian voice.">
-      <desc>Specifies the height of 'local peaks' in the intonation contour of a voice. For example, English is a stressed language, and different parts of a sentence are assigned primary, secondary, or tertiary stress.</desc>
     </entry>
     <entry name="stroke" restriction="color, enum, url" version="3.0" browsers="all" ref="http://www.w3.org/TR/SVG11/painting.html#StrokeProperty">
       <desc>The 'stroke' property paints along the outline of the given graphical element.</desc>
@@ -7283,29 +7177,6 @@
         </value>
         <value name="x-soft" version="3.0" browsers="all">
           <desc>The user’s minimum audible volume level.</desc>
-        </value>
-      </values>
-    </entry>
-    <entry name="volume" restriction="percentage, number" version="2.0" browsers="none" ref="http://www.w3.org/TR/CSS2/aural.html#propdef-volume" syntax="&lt;number&gt; | &lt;percentage&gt; | silent | x-soft | soft | medium | loud | x-loud">
-      <desc>Volume refers to the median volume of the waveform. In other words, a highly inflected voice at a volume of 50 might peak well above that.</desc>
-      <values>
-        <value name="loud" version="2.0" browsers="all">
-          <desc>Same as '75'.</desc>
-        </value>
-        <value name="medium" version="2.0" browsers="all">
-          <desc>Same as '50'.</desc>
-        </value>
-        <value name="silent" version="2.0" browsers="all">
-          <desc>No sound at all. The value '0' does not mean the same as 'silent'.</desc>
-        </value>
-        <value name="soft" version="2.0" browsers="all">
-          <desc>Same as '25'.</desc>
-        </value>
-        <value name="x-loud" version="2.0" browsers="all">
-          <desc>Same as '100'.</desc>
-        </value>
-        <value name="x-soft" version="2.0" browsers="all">
-          <desc>Same as '0'.</desc>
         </value>
       </values>
     </entry>
