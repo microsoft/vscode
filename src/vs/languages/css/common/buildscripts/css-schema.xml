@@ -2874,35 +2874,51 @@
         </value>
       </values>
     </entry>
-    <entry name="hyphenate-character" restriction="integer, enum" version="3.0" browsers="none" ref="https://drafts.csswg.org/css-text-4/#propdef-hyphenate-character" syntax="div { $(name):'~'; }">
+    <entry name="hyphenate-character" restriction="string, enum" version="4.0" browsers="none" ref="https://drafts.csswg.org/css-text-4/#propdef-hyphenate-character" syntax="div { $(name):'~'; }">
       <desc>Specifies strings that are shown between parts of hyphenated words.</desc>
       <values>
-        <value name="auto" version="3.0" browsers="all" />
+        <value name="auto" version="4.0" browsers="all">
+          <desc>The user agent should find an appropriate value, preferably from the same source as the hyphenation dictionary.</desc>
+        </value>
       </values>
     </entry>
-    <entry name="hyphenate-limit-chars" restriction="integer, enum" version="3.0" browsers="none" ref="https://drafts.csswg.org/css-text-4/#propdef-hyphenate-limit-chars" syntax="div { $(name): 5 2 2; }">
+    <entry name="hyphenate-limit-chars" restriction="integer, enum" version="4.0" browsers="none" ref="https://drafts.csswg.org/css-text-4/#propdef-hyphenate-limit-chars" syntax="div { $(name): 5 2 2; }">
       <desc>Specifies the minimum number of characters in a hyphenated word.</desc>
       <values>
-        <value name="auto" version="3.0" browsers="all" />
+        <value name="auto" version="4.0" browsers="all">
+          <desc>The user agent chooses a value that adapts to the current layout.</desc>
+        </value>
       </values>
     </entry>
-    <entry name="hyphenate-limit-last" restriction="enum" version="3.0" browsers="none" ref="https://drafts.csswg.org/css-text-4/#propdef-hyphenate-limit-last" syntax="div { $(name): 2; }">
+    <entry name="hyphenate-limit-last" restriction="enum" version="4.0" browsers="none" ref="https://drafts.csswg.org/css-text-4/#propdef-hyphenate-limit-last" syntax="div { $(name): 2; }">
       <desc>Indicates hyphenation behavior at the end of elements, column, pages and spreads.</desc>
       <values>
-        <value name="none" version="3.0" browsers="all" />
-        <value name="always" version="3.0" browsers="all" />
-        <value name="column" version="3.0" browsers="all" />
-        <value name="page" version="3.0" browsers="all" />
-        <value name="spread" version="3.0" browsers="all" />
+        <value name="none" version="4.0" browsers="all">
+          <desc>No restrictions imposed.</desc>
+        </value>
+        <value name="always" version="4.0" browsers="all">
+          <desc>The last full line of the element, or the last line before any column, page, or spread break inside the element should not be hyphenated.</desc>
+        </value>
+        <value name="column" version="4.0" browsers="all">
+          <desc>The last line before any column, page, or spread break inside the element should not be hyphenated.</desc>
+        </value>
+        <value name="page" version="4.0" browsers="all">
+          <desc>The last line before page or spread break inside the element should not be hyphenated.</desc>
+        </value>
+        <value name="spread" version="4.0" browsers="all">
+          <desc>The last line before any spread break inside the element should not be hyphenated.</desc>
+        </value>
       </values>
     </entry>
-    <entry name="hyphenate-limit-lines" restriction="integer" version="3.0" browsers="none" ref="https://drafts.csswg.org/css-text-4/#propdef-hyphenate-limit-lines" syntax="div { $(name): 2; }">
+    <entry name="hyphenate-limit-lines" restriction="integer" version="4.0" browsers="none" ref="https://drafts.csswg.org/css-text-4/#propdef-hyphenate-limit-lines" syntax="div { $(name): 2; }">
       <desc>Indicates the maximum number of successive hyphenated lines in an element.</desc>
       <values>
-        <value name="no-limit" version="3.0" browsers="all" />
+        <value name="no-limit" version="4.0" browsers="all">
+          <desc>There is no limit.</desc>
+        </value>
       </values>
     </entry>
-    <entry name="hyphenate-limit-zone" restriction="percentage, length" version="3.0" browsers="none" ref="https://drafts.csswg.org/css-text-4/#propdef-hyphenate-limit-zone" syntax="div { $(name): 25%; }">
+    <entry name="hyphenate-limit-zone" restriction="percentage, length" version="4.0" browsers="none" ref="https://drafts.csswg.org/css-text-4/#propdef-hyphenate-limit-zone" syntax="div { $(name): 25%; }">
       <desc>Specifies the maximum amount of unfilled space (before justification) that may be left in the line box before hyphenation is triggered to pull part of a word from the next line back up into the current line.</desc>
     </entry>
     <entry name="hyphens" restriction="enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-text-3/#hyphens-property" syntax="div { $(name): manual; }">
@@ -4431,20 +4447,24 @@
         <value name="none" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="-ms-hyphenate-limit-chars" restriction="integer" version="3.0" browsers="E,IE10" ref="https://drafts.csswg.org/css-text-4/#propdef-hyphenate-limit-chars" syntax="div { $(name): 5 2 2; }">
-      <desc>Gets or sets one to three values that indicates the minimum number of characters in a hyphenated word.</desc>
+    <entry name="-ms-hyphenate-limit-chars" restriction="integer" version="4.0" browsers="E,IE10" ref="https://drafts.csswg.org/css-text-4/#propdef-hyphenate-limit-chars" syntax="div { $(name): 5 2 2; }">
+      <desc>Specifies the minimum number of characters in a hyphenated word.</desc>
       <values>
-        <value name="auto" version="3.0" browsers="all" />
+        <value name="auto" version="4.0" browsers="all">
+          <desc>The user agent chooses a value that adapts to the current layout.</desc>
+        </value>
       </values>
     </entry>
-    <entry name="-ms-hyphenate-limit-lines" restriction="integer" version="3.0" browsers="E,IE10" ref="https://drafts.csswg.org/css-text-4/#propdef-hyphenate-limit-lines" syntax="div { $(name): 2; }">
-      <desc>Gets or sets a value that indicates the maximum number of consecutive lines in an element that may be ended with a hyphenated word.</desc>
+    <entry name="-ms-hyphenate-limit-lines" restriction="integer" version="4.0" browsers="E,IE10" ref="https://drafts.csswg.org/css-text-4/#propdef-hyphenate-limit-lines" syntax="div { $(name): 2; }">
+      <desc>Indicates the maximum number of successive hyphenated lines in an element.</desc>
       <values>
-        <value name="no-limit" version="3.0" browsers="all" />
+        <value name="no-limit" version="4.0" browsers="all">
+          <desc>There is no limit.</desc>
+        </value>
       </values>
     </entry>
-    <entry name="-ms-hyphenate-limit-zone" restriction="percentage, length" version="3.0" browsers="E,IE10" ref="https://drafts.csswg.org/css-text-4/#propdef-hyphenate-limit-zone" syntax="div { $(name): 25%; }">
-      <desc>Gets or sets a value that defines the width of the hyphenation zone.</desc>
+    <entry name="-ms-hyphenate-limit-zone" restriction="percentage, length" version="4.0" browsers="E,IE10" ref="https://drafts.csswg.org/css-text-4/#propdef-hyphenate-limit-zone" syntax="div { $(name): 25%; }">
+      <desc>Specifies the maximum amount of unfilled space (before justification) that may be left in the line box before hyphenation is triggered to pull part of a word from the next line back up into the current line.</desc>
     </entry>
     <entry name="-ms-hyphens" restriction="enum" version="3.0" browsers="E,IE10" ref="http://www.w3.org/TR/css3-text/#hyphens0" syntax="div { $(name): manual; }">
       <desc>Controls whether hyphenation is allowed to create more break opportunities within a line of text.</desc>
@@ -6761,43 +6781,91 @@
         </value>
       </values>
     </entry>
-    <entry name="text-space-collapse" restriction="enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css3-text/#text-space-collapse" syntax="div { $(name): collapse; }">
+    <entry name="text-space-collapse" restriction="enum" version="4.0" browsers="none" ref="https://drafts.csswg.org/css-text-4/#white-space-collapsing" syntax="div { $(name): collapse; }">
       <desc>Declares whether and how white space inside the element is collapsed. Values have the following meanings, which must be interpreted according to the white space processing rules.</desc>
       <values>
-        <value name="collapse" version="3.0" browsers="all" />
-        <value name="discard" version="3.0" browsers="all" />
-        <value name="preserve" version="3.0" browsers="all" />
-        <value name="preserve-auto" version="3.0" browsers="all" />
-        <value name="preserve-trim" version="3.0" browsers="all" />
-        <value name="preserve-breaks" version="3.0" browsers="all" />
-        <value name="preserve-spaces" version="3.0" browsers="all" />
+        <value name="collapse" version="4.0" browsers="all">
+          <desc>Collapse sequences of white space into a single character</desc>
+        </value>
+        <value name="discard" version="4.0" browsers="all">
+          <desc>Discard all white space in the element.</desc>
+        </value>
+        <value name="preserve" version="4.0" browsers="all">
+          <desc>Prevents collapsing sequences of white space.</desc>
+        </value>
+        <value name="preserve-auto" version="4.0" browsers="all">
+          <desc>As 'preserve', but matches platform conventions for editable text fields.</desc>
+        </value>
+        <value name="preserve-trim" version="4.0" browsers="all">
+          <desc>As 'preserve', but collapse the advance widths of all preserved white space at the end of a line.</desc>
+        </value>
+        <value name="preserve-breaks" version="4.0" browsers="all">
+          <desc>Prevents collapsing sequences of white space, and converts tabs and segment breaks to spaces.</desc>
+        </value>
+        <value name="preserve-spaces" version="4.0" browsers="all">
+          <desc>Discard whitespace at the start and end of the element.</desc>
+        </value>
       </values>
     </entry>
-    <entry name="text-space-trim" restriction="enum" version="3.0" browsers="none" ref="https://drafts.csswg.org/css-text-4/#propdef-text-space-trim" syntax="div { $(name): trim-inner; }">
+    <entry name="text-space-trim" restriction="enum" version="4.0" browsers="none" ref="https://drafts.csswg.org/css-text-4/#propdef-text-space-trim" syntax="div { $(name): trim-inner; }">
       <desc>Specifies trimming behavior at the beginning and end of a box.</desc>
       <values>
-        <value name="none" version="3.0" browsers="all" />
-        <value name="trim-inner" version="3.0" browsers="all" />
-        <value name="discard-before" version="3.0" browsers="all" />
-        <value name="discard-after" version="3.0" browsers="all" />
+        <value name="none" version="4.0" browsers="all">
+          <desc>Don’t discard whitepace.</desc>
+        </value>
+        <value name="trim-inner" version="4.0" browsers="all">
+          <desc>Discard whitespace at the start and end of the element.</desc>
+        </value>
+        <value name="discard-before" version="4.0" browsers="all">
+          <desc>Collapse all collapsible whitespace immediately before the start of the element.</desc>
+        </value>
+        <value name="discard-after" version="4.0" browsers="all">
+          <desc>Collapse all collapsible whitespace immediately after the end of the element.</desc>
+        </value>
       </values>
     </entry>
-    <entry name="text-spacing" restriction="enum" version="3.0" browsers="none" ref="https://drafts.csswg.org/css-text-4/#propdef-text-spacing" syntax="div { $(name): none; }">
+    <entry name="text-spacing" restriction="enum" version="4.0" browsers="none" ref="https://drafts.csswg.org/css-text-4/#propdef-text-spacing" syntax="div { $(name): none; }">
       <desc>Controls spacing between adjacent characters on the same line within the same inline formatting context using a set of character-class-based rules.</desc>
       <values>
-        <value name="normal" version="3.0" browsers="all" />
-        <value name="none" version="3.0" browsers="all" />
-        <value name="trim-start" version="3.0" browsers="all" />
-        <value name="space-start" version="3.0" browsers="all" />
-        <value name="trim-end" version="3.0" browsers="all" />
-        <value name="space-end" version="3.0" browsers="all" />
-        <value name="allow-end" version="3.0" browsers="all" />
-        <value name="trim-adjacent" version="3.0" browsers="all" />
-        <value name="space-adjacent" version="3.0" browsers="all" />
-        <value name="no-compress" version="3.0" browsers="all" />
-        <value name="ideograph-alpha" version="3.0" browsers="all" />
-        <value name="ideograph-numeric" version="3.0" browsers="all" />
-        <value name="punctuation" version="3.0" browsers="all" />
+        <value name="normal" version="4.0" browsers="all">
+          <desc>Specifies the baseline behavior, equivalent to 'space-start allow-end trim-adjacent'.</desc>
+        </value>
+        <value name="none" version="4.0" browsers="all">
+          <desc>Turns off all text-spacing features. All fullwidth characters are set with full-width glyphs.</desc>
+        </value>
+        <value name="trim-start" version="4.0" browsers="all">
+          <desc>Set fullwidth opening punctuation with half-width glyphs (flush) at the start of each line.</desc>
+        </value>
+        <value name="space-start" version="4.0" browsers="all">
+          <desc>Set fullwidth opening punctuation with full-width glyphs (spaced) at the start of each line.</desc>
+        </value>
+        <value name="trim-end" version="4.0" browsers="all">
+          <desc>Set fullwidth closing punctuation with half-width glyphs (flush) at the end of each line.</desc>
+        </value>
+        <value name="space-end" version="4.0" browsers="all">
+          <desc>Set fullwidth opening punctuation with full-width glyphs (spaced) at the start of each line.</desc>
+        </value>
+        <value name="allow-end" version="4.0" browsers="all">
+          <desc>Set fullwidth closing punctuation with half-width glyphs (flush) at the end of each line if it does not otherwise fit prior to justification; otherwise set the punctuation with full-width glyphs.</desc>
+        </value>
+        <value name="trim-adjacent" version="4.0" browsers="all">
+          <desc>Collapse spacing between punctuation glyphs.</desc>
+        </value>
+        <value name="space-adjacent" version="4.0" browsers="all">
+          <desc>Set fullwidth opening punctuation with full-width glyphs (spaced) when not at the start of the line. Set fullwidth closing punctuation with full-width glyphs (spaced) when not at the end of the line.</desc>
+        </value>
+        <value name="no-compress" version="4.0" browsers="all">
+          <desc>Justification may not compress text-spacing.</desc>
+        </value>
+        <value name="ideograph-alpha" version="4.0" browsers="all">
+          <desc>Creates 1/4em extra spacing between runs of ideographs and non-ideographic letters.</desc>
+        </value>
+        <value name="ideograph-numeric" version="4.0" browsers="all">
+          <desc>Creates 1/4em extra spacing between runs of ideographs and non-ideographic numerals glyphs.</desc>
+        </value>
+        <value name="punctuation" version="4.0" browsers="all">
+          <desc>Creates extra non-breaking spacing around punctuation as required by language-specific typographic conventions.</desc>
+        </value>
       </values>
     </entry>
     <entry name="text-transform" restriction="enum" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-text/#text-transform0" syntax="h1 { $(name): capitalize; }">
