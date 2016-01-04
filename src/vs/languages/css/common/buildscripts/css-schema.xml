@@ -6750,18 +6750,20 @@
       <values>
         <value name="above" version="3.0" browsers="all" />
         <value name="auto" version="3.0" browsers="all">
-          <desc>The user agent may use any algorithm to determine the underline's position. In horizontal line layout, the underline should be aligned as for alphabetic. In vertical line layout, if the language is set to Japanese or Korean, the underline should be aligned as for over.</desc>
+          <desc>The user agent may use any algorithm to determine the underline’s position. In horizontal line layout, the underline should be aligned as for alphabetic. In vertical line layout, if the language is set to Japanese or Korean, the underline should be aligned as for over.</desc>
         </value>
         <value name="below" version="3.0" browsers="all">
-          <desc>The underline is aligned with the under edge of the element's content box.</desc>
+          <desc>The underline is aligned with the under edge of the element’s content box.</desc>
         </value>
         <value name="left" version="3.0" browsers="none">
           <desc>In vertical typographic modes, the underline is aligned as for 'below', on the left edge of the text.</desc>
         </value>
         <value name="right" version="3.0" browsers="none">
-          <desc>In vertical typographic modes, the underline is aligned as for 'below;, except it is aligned to the right edge of the text</desc>
+          <desc>In vertical typographic modes, the underline is aligned as for 'below', except it is aligned to the right edge of the text.</desc>
         </value>
-        <value name="under" version="3.0" browsers="none" />
+        <value name="under" version="3.0" browsers="none">
+          <desc>The underline is positioned under the element’s text content.</desc>
+        </value>
       </values>
     </entry>
     <entry name="text-wrap" restriction="enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css3-text/#word-break0" syntax="p.test { $(name): none; }">
