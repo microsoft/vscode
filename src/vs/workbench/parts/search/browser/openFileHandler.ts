@@ -132,7 +132,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 
 	private doFindResults(searchValue: string): TPromise<QuickOpenEntry[]> {
 		let query: IQueryOptions = {
-			rootResources: this.contextService.getWorkspace() ? [this.contextService.getWorkspace().resource] : [],
+			folderResources: this.contextService.getWorkspace() ? [this.contextService.getWorkspace().resource] : [],
 			extraFileResources: this.textFileService.getWorkingFilesModel().getOutOfWorkspaceContextEntries().map(e => e.resource),
 			filePattern: searchValue,
 			matchFuzzy: this.fuzzyMatchingEnabled

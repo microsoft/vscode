@@ -213,7 +213,7 @@ class DiskSearch {
 		let request: PPromise<ISerializedSearchComplete, ISerializedSearchProgressItem>;
 
 		let rawSearch: IRawSearch = {
-			rootFolders: query.rootResources ? query.rootResources.map(r => r.fsPath) : [],
+			rootFolders: query.folderResources ? query.folderResources.map(r => r.fsPath) : [],
 			extraFiles: query.extraFileResources ? query.extraFileResources.map(r => r.fsPath) : [],
 			filePattern: query.filePattern,
 			excludePattern: query.excludePattern,

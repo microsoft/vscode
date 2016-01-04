@@ -316,7 +316,7 @@ class ProjectResolver implements typescript.IProjectResolver2 {
 		}
 
 		return this._searchService.search({
-			rootResources: [root],
+			folderResources: [root],
 			type: QueryType.File,
 			maxResults,
 			includePattern,
@@ -451,7 +451,7 @@ class ProjectResolver implements typescript.IProjectResolver2 {
 		excludePattern[ProjectResolver._defaultExcludePatternForVirtualProject] = true;
 
 		return this._searchService.search({
-			rootResources: [this._workspace],
+			folderResources: [this._workspace],
 			type: QueryType.File,
 			maxResults: 50,
 			includePattern: { '**/*.d.ts': true },

@@ -1111,7 +1111,7 @@ export class SearchViewlet extends Viewlet {
 		let includes: IExpression = this.inputPatternIncludes.getGlob();
 
 		let options: IQueryOptions = {
-			rootResources: this.contextService.getWorkspace() ? [this.contextService.getWorkspace().resource] : [],
+			folderResources: this.contextService.getWorkspace() ? [this.contextService.getWorkspace().resource] : [],
 			extraFileResources: this.textFileService.getWorkingFilesModel().getOutOfWorkspaceContextEntries().map(e => e.resource),
 			excludePattern: excludes,
 			includePattern: includes,

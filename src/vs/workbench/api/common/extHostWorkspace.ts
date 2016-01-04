@@ -115,7 +115,7 @@ export class MainThreadWorkspace {
 		}
 
 		const search = this._searchService.search({
-			rootResources: [this._workspace.resource],
+			folderResources: [this._workspace.resource],
 			type: QueryType.File,
 			maxResults,
 			includePattern: { [include]: true },
