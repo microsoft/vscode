@@ -587,7 +587,7 @@
       </values>
     </entry>
     <entry name="align-self" restriction="enum" version="3.0" browsers="E,C29,FF22,IE11,O12.1,S9" ref="http://www.w3.org/TR/css3-flexbox/#align-items" syntax="p { $(name): flex-start; }">
-      <desc>allows the default alignment along the cross axis to be overridden for individual flex items.</desc>
+      <desc>Allows the default alignment along the cross axis to be overridden for individual flex items.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all">
           <desc>Computes to the value of 'align-items' on the element’s parent, or 'stretch' if the element has no parent. On absolutely positioned elements, it computes to itself.</desc>
@@ -2147,6 +2147,9 @@
       <values>
         <value name="auto" version="3.0" browsers="all">
           <desc>Retrieves the value of the main size property as the used 'flex-basis'.</desc>
+        </value>
+        <value name="content" version="3.0" browsers="E,IE11">
+          <desc>Indicates automatic sizing, based on the flex item’s content.</desc>
         </value>
         <value name="none" version="3.0" browsers="all">
           <desc>Expands to '0 0 auto'.</desc>
@@ -4198,16 +4201,16 @@
       </values>
     </entry>
     <entry name="-ms-flex-align" restriction="enum" version="3.0" browsers="IE10" ref="http://www.w3.org/TR/css3-flexbox/#flex-align0" syntax="div { $(name): center; }">
-      <desc>Changes the way free space is allocated in the length axis.</desc>
+      <desc>Aligns flex items along the cross axis of the current line of the flex container.</desc>
       <values>
         <value name="baseline" version="3.0" browsers="all">
-          <desc>Align all flexbox items so that their baselines line up, then distribute free space above and below the content.</desc>
+          <desc>If the flex item’s inline axis is the same as the cross axis, this value is identical to 'flex-start'. Otherwise, it participates in baseline alignment.</desc>
         </value>
         <value name="center" version="3.0" browsers="all">
-          <desc>The flexbox item's margin box is centered in the cross axis within the line.</desc>
+          <desc>The flex item’s margin box is centered in the cross axis within the line.</desc>
         </value>
         <value name="end" version="3.0" browsers="all">
-          <desc>The cross-end margin edge of the flexbox item is placed flush with the cross-end edge of the line.</desc>
+          <desc>The cross-end margin edge of the flex item is placed flush with the cross-end edge of the line.</desc>
         </value>
         <value name="start" version="3.0" browsers="all">
           <desc>The cross-start margin edge of the flexbox item is placed flush with the cross-start edge of the line.</desc>
@@ -4218,26 +4221,39 @@
       </values>
     </entry>
     <entry name="-ms-flex-direction" restriction="enum" version="3.0" browsers="IE10" ref="http://www.w3.org/TR/css3-flexbox/#flex-direction0" syntax="div { $(name): column; }">
-      <desc>Specifies how flexbox items are placed in the flexbox.</desc>
+      <desc>Specifies how flex items are placed in the flex container, by setting the direction of the flex container’s main axis.</desc>
       <values>
-        <value name="column" version="3.0" browsers="all" />
-        <value name="column-reverse" version="3.0" browsers="all" />
-        <value name="row" version="3.0" browsers="all" />
-        <value name="row-reverse" version="3.0" browsers="all" />
+        <value name="column" version="3.0" browsers="all">
+          <desc>The flex container’s main axis has the same orientation as the block axis of the current writing mode.</desc>
+        </value>
+        <value name="column-reverse" version="3.0" browsers="all">
+          <desc>Same as 'column', except the main-start and main-end directions are swapped.</desc>
+        </value>
+        <value name="row" version="3.0" browsers="all">
+          <desc>The flex container’s main axis has the same orientation as the inline axis of the current writing mode.</desc>
+        </value>
+        <value name="row-reverse" version="3.0" browsers="all">
+          <desc>Same as 'row', except the main-start and main-end directions are swapped.</desc>
+        </value>
       </values>
     </entry>
     <entry name="-ms-flex-flow" restriction="enum" version="3.0" browsers="IE10" ref="http://www.w3.org/TR/css3-flexbox/#flex-flow" syntax="div { $(name): column wrap; }">
       <desc>Specifies how flexbox items are placed in the flexbox.</desc>
       <values>
-        <value name="column" version="3.0" browsers="all" />
-        <value name="column-reverse" version="3.0" browsers="all" />
-        <value name="nowrap" version="3.0" browsers="all">
-          <desc>The flexbox is single-line. The cross-start direction is equivalent to either the 'start' or 'before' direction of the current writing mode, whichever is in the cross-axis, and the cross-end direction is the opposite direction of cross-start.</desc>
+        <value name="column" version="3.0" browsers="all">
+          <desc>The flex container’s main axis has the same orientation as the block axis of the current writing mode.</desc>
         </value>
-        <value name="row" version="3.0" browsers="all" />
-        <value name="row-reverse" version="3.0" browsers="all" />
+        <value name="column-reverse" version="3.0" browsers="all">
+          <desc>Same as 'column', except the main-start and main-end directions are swapped.</desc>
+        </value>
+        <value name="nowrap" version="3.0" browsers="all">
+          <desc>The flex container is single-line.</desc>
+        </value>
+        <value name="row" version="3.0" browsers="all">
+          <desc>The flex container’s main axis has the same orientation as the inline axis of the current writing mode.</desc>
+        </value>
         <value name="wrap" version="3.0" browsers="all">
-          <desc>The flexbox is multi-line. The cross-start direction is equivalent to either the 'start' or 'before' direction of the current writing mode, whichever is in the cross-axis, and the cross-end direction is the opposite direction of cross-start.</desc>
+          <desc>The flexbox is multi-line.</desc>
         </value>
         <value name="wrap-reverse" version="3.0" browsers="all">
           <desc>Same as 'wrap', except the cross-start and cross-end directions are swapped.</desc>
@@ -4245,80 +4261,82 @@
       </values>
     </entry>
     <entry name="-ms-flex-item-align" restriction="enum" version="3.0" browsers="IE10" ref="http://www.w3.org/TR/css3-flexbox/#flex-item-align" syntax="div { $(name): center; }">
-      <desc>Changes the way free space is allocated in the length axis.</desc>
+      <desc>Allows the default alignment along the cross axis to be overridden for individual flex items.</desc>
       <values>
-        <value name="auto" version="3.0" browsers="all" />
+        <value name="auto" version="3.0" browsers="all">
+          <desc>Computes to the value of 'align-items' on the element’s parent, or 'stretch' if the element has no parent. On absolutely positioned elements, it computes to itself.</desc>
+        </value>
         <value name="baseline" version="3.0" browsers="all">
-          <desc>Align all flexbox items so that their baselines line up, then distribute free space above and below the content.</desc>
+          <desc>If the flex item’s inline axis is the same as the cross axis, this value is identical to 'flex-start'. Otherwise, it participates in baseline alignment.</desc>
         </value>
         <value name="center" version="3.0" browsers="all">
-          <desc>The flexbox item's margin box is centered in the cross axis within the line.</desc>
+          <desc>The flex item’s margin box is centered in the cross axis within the line.</desc>
         </value>
         <value name="end" version="3.0" browsers="all">
-          <desc>The cross-end margin edge of the flexbox item is placed flush with the cross-end edge of the line.</desc>
+          <desc>The cross-end margin edge of the flex item is placed flush with the cross-end edge of the line.</desc>
         </value>
         <value name="start" version="3.0" browsers="all">
-          <desc>The cross-start margin edge of the flexbox item is placed flush with the cross-start edge of the line.</desc>
+          <desc>The cross-start margin edge of the flex item is placed flush with the cross-start edge of the line.</desc>
         </value>
         <value name="stretch" version="3.0" browsers="all">
-          <desc>If the cross size property of the flexbox item is anything other than 'auto', this value is identical to 'start'.</desc>
+          <desc>If the cross size property of the flex item computes to auto, and neither of the cross-axis margins are auto, the flex item is stretched.</desc>
         </value>
       </values>
     </entry>
     <entry name="-ms-flex-line-pack" restriction="enum" version="3.0" browsers="IE10" ref="http://www.w3.org/TR/css3-flexbox/#flex-line-pack0" syntax="div { $(name): justify; }">
-      <desc>Aligns a flexbox's lines within the flexbox when there is extra space in the cross axis, similar to how 'flex-pack' aligns individual items within the main axis.</desc>
+      <desc>Aligns a flex container’s lines within the flex container when there is extra space in the cross-axis, similar to how 'justify-content' aligns individual items within the main-axis.</desc>
       <values>
         <value name="center" version="3.0" browsers="all">
-          <desc>The extra space is divided evenly, with half placed before the first child and the other half placed after the last child.</desc>
+          <desc>Lines are packed toward the center of the flex container.</desc>
         </value>
         <value name="distribute" version="3.0" browsers="all">
-          <desc>Lines are evenly distributed in the flexbox, with half-size spaces on either end.</desc>
+          <desc>Lines are evenly distributed in the flex container, with half-size spaces on either end.</desc>
         </value>
         <value name="end" version="3.0" browsers="all">
-          <desc>For normal direction boxes, the right edge of the last child is placed at the right side, with all extra space placed before the first child. For reverse direction boxes, the left edge of the first child is placed at the left side, with all extra space placed after the last child.</desc>
+          <desc>Lines are packed toward the end of the flex container.</desc>
         </value>
         <value name="justify" version="3.0" browsers="all">
-          <desc>The space is divided evenly in-between each child, with none of the extra space placed before the first child or after the last child. If there is only one child, treat the pack value as if it were start.</desc>
+          <desc>Lines are evenly distributed in the flex container.</desc>
         </value>
         <value name="start" version="3.0" browsers="all">
-          <desc>For normal direction boxes, the left edge of the first child is placed at the left side, with all extra space placed after the last child. For reverse direction boxes, the right edge of the last child is placed at the right side, with all extra space placed before the first child.</desc>
+          <desc>Lines are packed toward the start of the flex container.</desc>
         </value>
         <value name="stretch" version="3.0" browsers="all">
-          <desc>Lines stretch to take up the remaining space. If the leftover free-space is negative, this value is identical to 'start'.</desc>
+          <desc>Lines stretch to take up the remaining space.</desc>
         </value>
       </values>
     </entry>
     <entry name="-ms-flex-order" restriction="integer" version="3.0" browsers="IE10" ref="http://www.w3.org/TR/css3-flexbox/#flex-order0" syntax="p { $(name): 1; }">
-      <desc>This property is an integer with an initial value of 1.</desc>
+      <desc>Controls the order in which children of a flex container appear within the flex container, by assigning them to ordinal groups.</desc>
     </entry>
     <entry name="-ms-flex-pack" restriction="enum" version="3.0" browsers="IE10" ref="http://www.w3.org/TR/css3-flexbox/#flex-pack0" syntax="div { $(name): justify; }">
-      <desc>The 'flex-pack' property defines the flexibility of these packing spaces.</desc>
+      <desc>Aligns flex items along the main axis of the current line of the flex container.</desc>
       <values>
         <value name="center" version="3.0" browsers="all">
-          <desc>The extra space is divided evenly, with half placed before the first child and the other half placed after the last child.</desc>
+          <desc>Flex items are packed toward the center of the line.</desc>
         </value>
         <value name="distribute" version="3.0" browsers="all">
-          <desc>Lines are evenly distributed in the flexbox, with half-size spaces on either end.</desc>
+          <desc>Flex items are evenly distributed in the line, with half-size spaces on either end.</desc>
         </value>
         <value name="end" version="3.0" browsers="all">
-          <desc>For normal direction boxes, the right edge of the last child is placed at the right side, with all extra space placed before the first child. For reverse direction boxes, the left edge of the first child is placed at the left side, with all extra space placed after the last child.</desc>
+          <desc>Flex items are packed toward the end of the line.</desc>
         </value>
         <value name="justify" version="3.0" browsers="all">
-          <desc>The space is divided evenly in-between each child, with none of the extra space placed before the first child or after the last child. If there is only one child, treat the pack value as if it were start.</desc>
+          <desc>Flex items are evenly distributed in the line.</desc>
         </value>
         <value name="start" version="3.0" browsers="all">
-          <desc>For normal direction boxes, the left edge of the first child is placed at the left side, with all extra space placed after the last child. For reverse direction boxes, the right edge of the last child is placed at the right side, with all extra space placed before the first child.</desc>
+          <desc>Flex items are packed toward the start of the line.</desc>
         </value>
       </values>
     </entry>
     <entry name="-ms-flex-wrap" restriction="enum" version="3.0" browsers="IE10" ref="http://www.w3.org/TR/css3-flexbox/#flex-wrap" syntax="div { $(name): nowrap; }">
-      <desc>controls whether the flexbox is single-line or multi-line, and the direction of the cross axis, which affects the direction new lines are stacked in and the meaning of the 'flex-align', 'flex-item-align', and 'flex-line-pack' properties.</desc>
+      <desc>Controls whether the flex container is single-line or multi-line, and the direction of the cross-axis, which determines the direction new lines are stacked in.</desc>
       <values>
         <value name="nowrap" version="3.0" browsers="all">
-          <desc>The flexbox is single-line. The cross-start direction is equivalent to either the 'start' or 'before' direction of the current writing mode, whichever is in the cross-axis, and the cross-end direction is the opposite direction of cross-start.</desc>
+          <desc>The flex container is single-line.</desc>
         </value>
         <value name="wrap" version="3.0" browsers="all">
-          <desc>The flexbox is multi-line. The cross-start direction is equivalent to either the 'start' or 'before' direction of the current writing mode, whichever is in the cross-axis, and the cross-end direction is the opposite direction of cross-start.</desc>
+          <desc>The flexbox is multi-line.</desc>
         </value>
         <value name="wrap-reverse" version="3.0" browsers="all">
           <desc>Same as 'wrap', except the cross-start and cross-end directions are swapped.</desc>
@@ -5346,7 +5364,7 @@
       <desc>Opacity of an element's text, where 1 is opaque and 0 is entirely transparent.</desc>
     </entry>
     <entry name="order" restriction="integer" version="3.0" browsers="E,C29,FF22,IE11,O12.1,S9" ref="http://www.w3.org/TR/css3-flexbox/#order" syntax="p { $(name): -1; }">
-      <desc>Controls the order in which flex items appear within their flex container, by assigning them to ordinal groups.</desc>
+      <desc>Controls the order in which children of a flex container appear within the flex container, by assigning them to ordinal groups.</desc>
     </entry>
     <entry name="orphans" restriction="integer" version="2.0" browsers="C,IE8,O7,S1.3" ref="http://www.w3.org/TR/css3-break/#widows-orphans" syntax="&lt;integer&gt;">
       <desc>Specifies the minimum number of line boxes in a block container that must be left in a fragment before a fragmentation break.</desc>
