@@ -133,12 +133,36 @@ export class ExtHostAPIImplementation {
 		});
 
 		const pluginHostCommands = this._threadService.getRemotable(ExtHostCommands);
+		const pluginHostEditors = this._threadService.getRemotable(ExtHostEditors);
+		const pluginHostMessageService = new ExtHostMessageService(this._threadService, this.commands);
+		const pluginHostQuickOpen = new ExtHostQuickOpen(this._threadService);
+		const pluginHostStatusBar = new ExtHostStatusBar(this._threadService);
+		const extHostOutputService = new ExtHostOutputService(this._threadService);
+
+		// commands namespace
 		this.commands = {
 			registerCommand<T>(id: string, command: <T>(...args: any[]) => T | Thenable<T>, thisArgs?: any): vscode.Disposable {
 				return pluginHostCommands.registerCommand(id, command, thisArgs);
 			},
-			registerTextEditorCommand(commandId: string, callback: (textEditor: vscode.TextEditor, edit: vscode.TextEditorEdit) => void, thisArg?: any): vscode.Disposable {
-				return pluginHostCommands.registerTextEditorCommand(commandId, callback, thisArg);
+			registerTextEditorCommand(id: string, callback: (textEditor: vscode.TextEditor, edit: vscode.TextEditorEdit) => void, thisArg?: any): vscode.Disposable {
+				let actualCallback: typeof callback = thisArg ? callback.bind(thisArg) : callback;
+				return pluginHostCommands.registerCommand(id, () => {
+					let activeTextEditor = pluginHostEditors.getActiveTextEditor();
+					if (!activeTextEditor) {
+						console.warn('Cannot execute ' + id + ' because there is no active text editor.');
+						return;
+					}
+
+					activeTextEditor.edit((edit: vscode.TextEditorEdit) => {
+						actualCallback(activeTextEditor, edit);
+					}).then((result) => {
+						if (!result) {
+							console.warn('Edits from command ' + id + ' were not applied.');
+						}
+					}, (err) => {
+						console.warn('An error occured while running command ' + id, err);
+					});
+				});
 			},
 			executeCommand<T>(id: string, ...args: any[]): Thenable<T> {
 				return pluginHostCommands.executeCommand(id, args);
@@ -148,11 +172,6 @@ export class ExtHostAPIImplementation {
 			}
 		};
 
-		const pluginHostEditors = this._threadService.getRemotable(ExtHostEditors);
-		const pluginHostMessageService = new ExtHostMessageService(this._threadService, this.commands);
-		const pluginHostQuickOpen = new ExtHostQuickOpen(this._threadService);
-		const pluginHostStatusBar = new ExtHostStatusBar(this._threadService);
-		const extHostOutputService = new ExtHostOutputService(this._threadService);
 		this.window = {
 			get activeTextEditor() {
 				return pluginHostEditors.getActiveTextEditor();

@@ -11,7 +11,6 @@ import {IKeybindingService, ICommandHandlerDescription} from 'vs/platform/keybin
 import {TPromise} from 'vs/base/common/winjs.base';
 import {ExtHostEditors} from 'vs/workbench/api/common/extHostEditors';
 import {Disposable} from 'vs/workbench/api/common/extHostTypes';
-import * as vscode from 'vscode';
 
 interface CommandHandler {
 	callback: Function;
@@ -45,27 +44,6 @@ export class ExtHostCommands {
 		this._proxy.$registerCommand(id);
 
 		return new Disposable(() => delete this._commands[id]);
-	}
-
-	registerTextEditorCommand(id: string, callback: (textEditor: vscode.TextEditor, edit: vscode.TextEditorEdit) => void, thisArg?: any): vscode.Disposable {
-		let actualCallback: typeof callback = thisArg ? callback.bind(thisArg) : callback;
-		return this.registerCommand(id, () => {
-			let activeTextEditor = this._pluginHostEditors.getActiveTextEditor();
-			if (!activeTextEditor) {
-				console.warn('Cannot execute ' + id + ' because there is no active text editor.');
-				return;
-			}
-
-			activeTextEditor.edit((edit: vscode.TextEditorEdit) => {
-				actualCallback(activeTextEditor, edit);
-			}).then((result) => {
-				if (!result) {
-					console.warn('Edits from command ' + id + ' were not applied.');
-				}
-			}, (err) => {
-				console.warn('An error occured while running command ' + id, err);
-			});
-		});
 	}
 
 	executeCommand<T>(id: string, ...args: any[]): Thenable<T> {
@@ -153,7 +131,7 @@ export class MainThreadCommands {
 		KeybindingsRegistry.registerCommandDesc({
 			id,
 			handler: (serviceAccessor, ...args: any[]) => {
-				return this._proxy.$executeContributedCommand(id, ...args); //TODO@Joh - we cannot serialize the args
+				return this._proxy.$executeContributedCommand(id, ...args);
 			},
 			weight: undefined,
 			context: undefined,
@@ -174,19 +152,6 @@ export class MainThreadCommands {
 	$getCommands(): Thenable<string[]> {
 		return TPromise.as(Object.keys(KeybindingsRegistry.getCommands()));
 	}
-
-	$getCommandHandlerDescriptions(): TPromise<{ [id: string]: string | ICommandHandlerDescription }> {
-		return this._proxy.$getContributedCommandHandlerDescriptions().then(result => {
-			const commands = KeybindingsRegistry.getCommands();
-			for (let id in commands) {
-				let {description} = commands[id];
-				if (description) {
-					result[id] = description;
-				}
-			}
-			return result;
-		});
-	}
 }
 
 
@@ -195,7 +160,18 @@ export class MainThreadCommands {
 KeybindingsRegistry.registerCommandDesc({
 	id: '_generateCommandsDocumentation',
 	handler: function(accessor) {
-		return accessor.get(IThreadService).getRemotable(MainThreadCommands).$getCommandHandlerDescriptions().then(result => {
+		return accessor.get(IThreadService).getRemotable(ExtHostCommands).$getContributedCommandHandlerDescriptions().then(result => {
+
+			// add local commands
+			const commands = KeybindingsRegistry.getCommands();
+			for (let id in commands) {
+				let {description} = commands[id];
+				if (description) {
+					result[id] = description;
+				}
+			}
+
+			// print all as markdown
 			const all: string[] = [];
 			for (let id in result) {
 				all.push('`' + id + '` - ' + _generateMarkdown(result[id]));
