@@ -7,9 +7,15 @@
 
 import {NullThreadService} from 'vs/platform/test/common/nullThreadService';
 import {SyncDescriptor0} from 'vs/platform/instantiation/common/descriptors';
+import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {TPromise} from 'vs/base/common/winjs.base';
 
 export class TestThreadService extends NullThreadService {
+
+	constructor(instantiationService: IInstantiationService) {
+		super();
+		this.setInstantiationService(instantiationService);
+	}
 
 	private _callCountValue: number = 0;
 	private _idle: TPromise<any>;
@@ -90,6 +96,3 @@ export class TestThreadService extends NullThreadService {
 		return this._getOrCreateLocalInstance(id, descriptor);
 	}
 }
-
-const Instance = new TestThreadService();
-export default Instance;
