@@ -5956,13 +5956,13 @@
       <desc>Pair of values that defines a point as an offset from the top left border edge. Initial value is 50% 50%.</desc>
     </entry>
     <entry name="ruby-align" restriction="enum" version="3.0" browsers="FF10,IE5" ref="http://www.w3.org/TR/css3-ruby/#rubyalign" syntax="auto | start | left | center | end | right | distribute-letter | distribute-space | line-edge">
-      <desc>Used on any element to control the text alignment of the ruby text and ruby base contents relative to each other.</desc>
+      <desc>Specifies how text is distributed within the various ruby boxes when their contents do not exactly fill their respective boxes.</desc>
       <values>
         <value name="auto" version="3.0" browsers="E,IE5">
           <desc>The user agent determines how the ruby contents are aligned. This is the initial value.</desc>
         </value>
         <value name="center" version="3.0" browsers="all">
-          <desc>The ruby text content is centered within the width of the base. If the length of the base is smaller than the length of the ruby text, then the base is centered within the width of the ruby text.</desc>
+          <desc>The ruby content is centered within its box.</desc>
         </value>
         <value name="distribute-letter" version="3.0" browsers="E,IE5">
           <desc>If the width of the ruby text is smaller than that of the base, then the ruby text contents are evenly distributed across the width of the base, with the first and last ruby text glyphs lining up with the corresponding first and last base glyphs. If the width of the ruby text is at least the width of the base, then the letters of the base are evenly distributed across the width of the ruby text.</desc>
@@ -5982,8 +5982,12 @@
         <value name="start" version="3.0" browsers="FF10">
           <desc>The ruby text content is aligned with the start edge of the base.</desc>
         </value>
-        <value name="space-between" version="3.0" browsers="FF10" />
-        <value name="space-around" version="3.0" browsers="FF10" />
+        <value name="space-between" version="3.0" browsers="FF10">
+          <desc>The ruby content expands as defined for normal text justification (as defined by 'text-justify'),</desc>
+        </value>
+        <value name="space-around" version="3.0" browsers="FF10">
+          <desc>As for 'space-between' except that there exists an extra justification opportunities whose space is distributed half before and half after the ruby content.</desc>
+        </value>
       </values>
     </entry>
     <entry name="ruby-overhang" restriction="enum" version="3.0" browsers="FF10,IE5" ref="http://www.w3.org/TR/css3-ruby/#rubyover" syntax="auto | start | end | none">
