@@ -3257,7 +3257,9 @@
     <entry name="max-lines" restriction="integer, enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-overflow-3/#max-lines0" syntax="div::nth-fragment(1) { $(name): 3; }">
       <desc>Forces a fragment to break after the specified number of lines.</desc>
       <values>
-        <value name="none" version="2.0" browsers="all" />
+        <value name="none" version="2.0" browsers="all">
+          <desc>Breaks occur only as specified elsewhere.</desc>
+        </value>
       </values>
     </entry>
     <entry name="min-height" restriction="length, percentage" version="2.0" browsers="E,C,FF1,IE7,O7,S1" ref="http://www.w3.org/TR/css3-box/#min-height" syntax="footer { $(name): 300px; }">
@@ -5553,21 +5555,20 @@
     <entry name="outline-width" restriction="length, line-width" version="2.0" browsers="E,C,FF1.5,IE8,O8,S1.2" ref="http://www.w3.org/TR/css3-ui/#outline-width0" syntax="td { $(name): 2px; }">
       <desc>Width of the outline</desc>
     </entry>
-    <entry name="overflow" restriction="enum" version="2.0" browsers="all" ref="http://www.w3.org/TR/css3-box/#overflow" syntax="div { overflow: hidden auto; }">
+    <entry name="overflow" restriction="enum" version="2.0" browsers="all" ref="http://www.w3.org/TR/css-overflow-3/#overflow" syntax="div { overflow: hidden auto; }">
       <desc>Shorthand for setting 'overflow-x' and 'overflow-y'.</desc>
       <values>
         <value name="auto" version="2.0" browsers="all">
           <desc>The behavior of the 'auto' value is UA-dependent, but should cause a scrolling mechanism to be provided for overflowing boxes.</desc>
         </value>
+        <value name="clip" version="3.0" browsers="none">
+          <desc>Behaves as 'hidden' except forbids scrolling entirely, through any mechanism.</desc>
+        </value>
         <value name="hidden" version="2.0" browsers="all">
           <desc>Content is clipped and no scrolling mechanism should be provided to view the content outside the clipping region.</desc>
         </value>
-        <value name="-moz-hidden-unscrollable" version="3.0" browsers="FF" />
-        <value name="no-content" version="3.0" browsers="none">
-          <desc>When the content doesn't fit in the content box, the whole content is hidden, as if 'visibility: hidden' were specified.</desc>
-        </value>
-        <value name="no-display" version="3.0" browsers="none">
-          <desc>When the content doesn't fit in the content box, the whole box is removed, as if 'display: none' were specified.</desc>
+        <value name="-moz-hidden-unscrollable" version="3.0" browsers="FF">
+          <desc>Same as the standardized 'clip', except doesn’t establish a block formatting context.</desc>
         </value>
         <value name="scroll" version="2.0" browsers="all">
           <desc>Content is clipped and if the user agent uses a scrolling mechanism that is visible on the screen (such as a scroll bar or a panner), that mechanism should be displayed for a box whether or not any of its content is clipped.</desc>
@@ -5589,19 +5590,16 @@
       </values>
     </entry>
     <entry name="overflow-x" restriction="enum" version="3.0" browsers="E,C,FF1.5,IE5,O9.5,S3" ref="http://www.w3.org/TR/css3-box/#overflow-x" syntax="div { $(name): hidden; }">
-      <desc>Specify whether content is clipped when it overflows the element's content area.</desc>
+      <desc>Specifies the handling of overflow in the horizontal direction.</desc>
       <values>
         <value name="auto" version="2.0" browsers="all">
           <desc>The behavior of the 'auto' value is UA-dependent, but should cause a scrolling mechanism to be provided for overflowing boxes.</desc>
         </value>
+        <value name="clip" version="3.0" browsers="none">
+          <desc>Behaves as 'hidden' except forbids scrolling entirely, through any mechanism.</desc>
+        </value>
         <value name="hidden" version="2.0" browsers="all">
           <desc>Content is clipped and no scrolling mechanism should be provided to view the content outside the clipping region.</desc>
-        </value>
-        <value name="no-content" version="3.0" browsers="none">
-          <desc>When the content doesn't fit in the content box, the whole content is hidden, as if 'visibility: hidden' were specified.</desc>
-        </value>
-        <value name="no-display" version="3.0" browsers="none">
-          <desc>When the content doesn't fit in the content box, the whole box is removed, as if 'display: none' were specified.</desc>
         </value>
         <value name="scroll" version="2.0" browsers="all">
           <desc>Content is clipped and if the user agent uses a scrolling mechanism that is visible on the screen (such as a scroll bar or a panner), that mechanism should be displayed for a box whether or not any of its content is clipped.</desc>
@@ -5612,19 +5610,16 @@
       </values>
     </entry>
     <entry name="overflow-y" restriction="enum" version="3.0" browsers="E,C,FF1.5,IE5,O9.5,S3" ref="http://www.w3.org/TR/css3-box/#overflow-x" syntax="div { $(name): hidden; }">
-      <desc>Specify whether content is clipped when it overflows the element's content area.</desc>
+      <desc>Specifies the handling of overflow in the vertical direction.</desc>
       <values>
         <value name="auto" version="2.0" browsers="all">
           <desc>The behavior of the 'auto' value is UA-dependent, but should cause a scrolling mechanism to be provided for overflowing boxes.</desc>
         </value>
+        <value name="clip" version="3.0" browsers="none">
+          <desc>Behaves as 'hidden' except forbids scrolling entirely, through any mechanism.</desc>
+        </value>
         <value name="hidden" version="2.0" browsers="all">
           <desc>Content is clipped and no scrolling mechanism should be provided to view the content outside the clipping region.</desc>
-        </value>
-        <value name="no-content" version="3.0" browsers="none">
-          <desc>When the content doesn't fit in the content box, the whole content is hidden, as if 'visibility: hidden' were specified.</desc>
-        </value>
-        <value name="no-display" version="3.0" browsers="none">
-          <desc>When the content doesn't fit in the content box, the whole box is removed, as if 'display: none' were specified.</desc>
         </value>
         <value name="scroll" version="2.0" browsers="all">
           <desc>Content is clipped and if the user agent uses a scrolling mechanism that is visible on the screen (such as a scroll bar or a panner), that mechanism should be displayed for a box whether or not any of its content is clipped.</desc>
