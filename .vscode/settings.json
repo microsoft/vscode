@@ -12,5 +12,6 @@
 		".build/**": true,
 		"out*/**": true,
 		"extensions/**/out/**": true
-	}
+	},
+	"filePicker.alternateFileNameMatching": true
 }
