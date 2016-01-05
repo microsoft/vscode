@@ -1459,7 +1459,8 @@ exports.data ={
 			{
 				"name": "background-repeat",
 				"desc": "Specifies how background images are tiled after they have been sized and positioned.",
-				"restriction": "repeat"
+				"restriction": "repeat",
+				"values": []
 			},
 			{
 				"name": "background-size",
@@ -1488,9 +1489,64 @@ exports.data ={
 				"restriction": "url"
 			},
 			{
+				"name": "block-size",
+				"desc": "Logical 'width'. Mapping depends on the element’s 'writing-mode'.",
+				"browsers": "FF41",
+				"restriction": "length, percentage",
+				"values": []
+			},
+			{
 				"name": "border",
 				"desc": "Shorthand property for setting border width, style and color",
 				"restriction": "length, line-width, line-style, color"
+			},
+			{
+				"name": "border-block-end",
+				"desc": "Logical 'border-bottom'. Mapping depends on the parent element’s 'writing-mode', 'direction', and 'text-orientation'.",
+				"browsers": "FF41",
+				"restriction": "length, line-width, line-style, color"
+			},
+			{
+				"name": "border-block-start",
+				"desc": "Logical 'border-top'. Mapping depends on the parent element’s 'writing-mode', 'direction', and 'text-orientation'.",
+				"browsers": "FF41",
+				"restriction": "length, line-width, line-style, color"
+			},
+			{
+				"name": "border-block-end-color",
+				"desc": "Logical 'border-bottom-color'. Mapping depends on the parent element’s 'writing-mode', 'direction', and 'text-orientation'.",
+				"browsers": "FF41",
+				"restriction": "color"
+			},
+			{
+				"name": "border-block-start-color",
+				"desc": "Logical 'border-top-color'. Mapping depends on the parent element’s 'writing-mode', 'direction', and 'text-orientation'.",
+				"browsers": "FF41",
+				"restriction": "color"
+			},
+			{
+				"name": "border-block-end-style",
+				"desc": "Logical 'border-bottom-style'. Mapping depends on the parent element’s 'writing-mode', 'direction', and 'text-orientation'.",
+				"browsers": "FF41",
+				"restriction": "line-style"
+			},
+			{
+				"name": "border-block-start-style",
+				"desc": "Logical 'border-top-style'. Mapping depends on the parent element’s 'writing-mode', 'direction', and 'text-orientation'.",
+				"browsers": "FF41",
+				"restriction": "lline-style"
+			},
+			{
+				"name": "border-block-end-width",
+				"desc": "Logical 'border-bottom-width'. Mapping depends on the parent element’s 'writing-mode', 'direction', and 'text-orientation'.",
+				"browsers": "FF41",
+				"restriction": "length, line-width"
+			},
+			{
+				"name": "border-block-start-width",
+				"desc": "Logical 'border-top-width'. Mapping depends on the parent element’s 'writing-mode', 'direction', and 'text-orientation'.",
+				"browsers": "FF41",
+				"restriction": "length, line-width"
 			},
 			{
 				"name": "border-bottom",
@@ -1542,7 +1598,8 @@ exports.data ={
 			{
 				"name": "border-color",
 				"desc": "The color of the border around all four edges of an element.",
-				"restriction": "color"
+				"restriction": "color",
+				"values": []
 			},
 			{
 				"name": "border-image",
@@ -1639,6 +1696,54 @@ exports.data ={
 				"values": []
 			},
 			{
+				"name": "border-inline-end",
+				"desc": "Logical 'border-right'. Mapping depends on the parent element’s 'writing-mode', 'direction', and 'text-orientation'.",
+				"browsers": "FF41",
+				"restriction": "length, line-width, line-style, color"
+			},
+			{
+				"name": "border-inline-start",
+				"desc": "Logical 'border-left'. Mapping depends on the parent element’s 'writing-mode', 'direction', and 'text-orientation'.",
+				"browsers": "FF41",
+				"restriction": "length, line-width, line-style, color"
+			},
+			{
+				"name": "border-inline-end-color",
+				"desc": "Logical 'border-right-color'. Mapping depends on the parent element’s 'writing-mode', 'direction', and 'text-orientation'.",
+				"browsers": "FF41",
+				"restriction": "color"
+			},
+			{
+				"name": "border-inline-start-color",
+				"desc": "Logical 'border-left-color'. Mapping depends on the parent element’s 'writing-mode', 'direction', and 'text-orientation'.",
+				"browsers": "FF41",
+				"restriction": "color"
+			},
+			{
+				"name": "border-inline-end-style",
+				"desc": "Logical 'border-right-style'. Mapping depends on the parent element’s 'writing-mode', 'direction', and 'text-orientation'.",
+				"browsers": "FF41",
+				"restriction": "line-style"
+			},
+			{
+				"name": "border-inline-start-style",
+				"desc": "Logical 'border-left-style'. Mapping depends on the parent element’s 'writing-mode', 'direction', and 'text-orientation'.",
+				"browsers": "FF41",
+				"restriction": "lline-style"
+			},
+			{
+				"name": "border-inline-end-width",
+				"desc": "Logical 'border-right-width'. Mapping depends on the parent element’s 'writing-mode', 'direction', and 'text-orientation'.",
+				"browsers": "FF41",
+				"restriction": "length, line-width"
+			},
+			{
+				"name": "border-inline-start-width",
+				"desc": "Logical 'border-left-width'. Mapping depends on the parent element’s 'writing-mode', 'direction', and 'text-orientation'.",
+				"browsers": "FF41",
+				"restriction": "length, line-width"
+			},
+			{
 				"name": "border-left",
 				"desc": "Shorthand property for setting border width, style and color",
 				"restriction": "length, line-width, line-style, color"
@@ -1693,7 +1798,8 @@ exports.data ={
 			{
 				"name": "border-style",
 				"desc": "The style of the border around edges of an element.",
-				"restriction": "line-style"
+				"restriction": "line-style",
+				"values": []
 			},
 			{
 				"name": "border-top",
@@ -1730,7 +1836,8 @@ exports.data ={
 			{
 				"name": "border-width",
 				"desc": "Shorthand that sets the four 'border-*-width' properties. If it has four values, they set top, right, bottom and left in that order. If left is missing, it is the same as right; if bottom is missing, it is the same as top; if right is missing, it is the same as top.",
-				"restriction": "length, line-width"
+				"restriction": "length, line-width",
+				"values": []
 			},
 			{
 				"name": "bottom",
@@ -1897,12 +2004,6 @@ exports.data ={
 				"browsers": "E,C,FF,IE8,O,S",
 				"restriction": "enum",
 				"values": [
-					{
-						"name": "block-end"
-					},
-					{
-						"name": "block-start"
-					},
 					{
 						"name": "bottom",
 						"desc": "Positions the caption box below the table box."
@@ -3443,6 +3544,13 @@ exports.data ={
 				]
 			},
 			{
+				"name": "inline-size",
+				"desc": "Logical 'height'. Mapping depends on the element’s 'writing-mode'.",
+				"browsers": "FF41",
+				"restriction": "length, percentage",
+				"values": []
+			},
+			{
 				"name": "isolation",
 				"desc": "In CSS setting to 'isolate' will turn the element into a stacking context. In SVG, it defines whether an element is isolated or not.",
 				"browsers": "C,FF,O,S",
@@ -3679,11 +3787,43 @@ exports.data ={
 				"name": "margin",
 				"desc": "Shorthand property to set values the thickness of the margin area. If left is omitted, it is the same as right. If bottom is omitted it is the same as top, if right is omitted it is the same as top. The value may not be negative.",
 				"restriction": "length, percentage",
+				"values": [
+					{
+						"name": "auto"
+					}
+				]
+			},
+			{
+				"name": "margin-block-end",
+				"desc": "Logical 'margin-bottom'. Mapping depends on the parent element’s 'writing-mode', 'direction', and 'text-orientation'.",
+				"browsers": "FF41",
+				"restriction": "length, percentage",
+				"values": []
+			},
+			{
+				"name": "margin-block-start",
+				"desc": "Logical 'margin-top'. Mapping depends on the parent element’s 'writing-mode', 'direction', and 'text-orientation'.",
+				"browsers": "FF41",
+				"restriction": "length, percentage",
 				"values": []
 			},
 			{
 				"name": "margin-bottom",
 				"desc": "Shorthand property to set values the thickness of the margin area. If left is omitted, it is the same as right. If bottom is omitted it is the same as top, if right is omitted it is the same as top. The value may not be negative.",
+				"restriction": "length, percentage",
+				"values": []
+			},
+			{
+				"name": "margin-inline-end",
+				"desc": "Logical 'margin-right'. Mapping depends on the parent element’s 'writing-mode', 'direction', and 'text-orientation'.",
+				"browsers": "FF41",
+				"restriction": "length, percentage",
+				"values": []
+			},
+			{
+				"name": "margin-inline-start",
+				"desc": "Logical 'margin-left'. Mapping depends on the parent element’s 'writing-mode', 'direction', and 'text-orientation'.",
+				"browsers": "FF41",
 				"restriction": "length, percentage",
 				"values": []
 			},
@@ -3772,9 +3912,23 @@ exports.data ={
 				]
 			},
 			{
+				"name": "max-block-size",
+				"desc": "Logical 'max-width'. Mapping depends on the element’s 'writing-mode'.",
+				"browsers": "FF41",
+				"restriction": "length, percentage",
+				"values": []
+			},
+			{
 				"name": "max-height",
 				"desc": "Allows authors to constrain content height to a certain range.",
 				"browsers": "E,C,FF1,IE7,O7,S1",
+				"restriction": "length, percentage",
+				"values": []
+			},
+			{
+				"name": "max-inline-size",
+				"desc": "Logical 'max-height'. Mapping depends on the element’s 'writing-mode'.",
+				"browsers": "FF41",
 				"restriction": "length, percentage",
 				"values": []
 			},
@@ -3786,11 +3940,23 @@ exports.data ={
 				"values": []
 			},
 			{
+				"name": "min-block-size",
+				"desc": "Logical 'min-width'. Mapping depends on the element’s 'writing-mode'.",
+				"browsers": "FF41",
+				"restriction": "length, percentage"
+			},
+			{
 				"name": "min-height",
 				"desc": "Allows authors to constrain content height to a certain range.",
 				"browsers": "E,C,FF1,IE7,O7,S1",
 				"restriction": "length, percentage",
 				"values": []
+			},
+			{
+				"name": "min-inline-size",
+				"desc": "Logical 'min-height'. Mapping depends on the element’s 'writing-mode'.",
+				"browsers": "FF41",
+				"restriction": "length, percentage"
 			},
 			{
 				"name": "min-width",
@@ -7043,6 +7209,34 @@ exports.data ={
 				]
 			},
 			{
+				"name": "offset-block-end",
+				"desc": "Logical 'bottom'. Mapping depends on the parent element’s 'writing-mode', 'direction', and 'text-orientation'.",
+				"browsers": "FF41",
+				"restriction": "length, percentage",
+				"values": []
+			},
+			{
+				"name": "offset-block-start",
+				"desc": "Logical 'top'. Mapping depends on the parent element’s 'writing-mode', 'direction', and 'text-orientation'.",
+				"browsers": "FF41",
+				"restriction": "length, percentage",
+				"values": []
+			},
+			{
+				"name": "offset-inline-end",
+				"desc": "Logical 'right'. Mapping depends on the parent element’s 'writing-mode', 'direction', and 'text-orientation'.",
+				"browsers": "FF41",
+				"restriction": "length, percentage",
+				"values": []
+			},
+			{
+				"name": "offset-inline-start",
+				"desc": "Logical 'left'. Mapping depends on the parent element’s 'writing-mode', 'direction', and 'text-orientation'.",
+				"browsers": "FF41",
+				"restriction": "length, percentage",
+				"values": []
+			},
+			{
 				"name": "outline",
 				"desc": "Shorthand property for 'outline-style', 'outline-width', and 'outline-color'.",
 				"browsers": "E,C,FF1.5,IE8,O8,S1.2",
@@ -7194,11 +7388,36 @@ exports.data ={
 			{
 				"name": "padding",
 				"desc": "Shorthand property to set values the thickness of the padding area. If left is omitted, it is the same as right. If bottom is omitted it is the same as top, if right is omitted it is the same as top. The value may not be negative.",
-				"restriction": "length, percentage"
+				"restriction": "length, percentage",
+				"values": []
 			},
 			{
 				"name": "padding-bottom",
 				"desc": "Shorthand property to set values the thickness of the padding area. If left is omitted, it is the same as right. If bottom is omitted it is the same as top, if right is omitted it is the same as top. The value may not be negative.",
+				"restriction": "length, percentage"
+			},
+			{
+				"name": "padding-block-end",
+				"desc": "Logical 'padding-bottom'. Mapping depends on the parent element’s 'writing-mode', 'direction', and 'text-orientation'.",
+				"browsers": "FF41",
+				"restriction": "length, percentage"
+			},
+			{
+				"name": "padding-block-start",
+				"desc": "Logical 'padding-top'. Mapping depends on the parent element’s 'writing-mode', 'direction', and 'text-orientation'.",
+				"browsers": "FF41",
+				"restriction": "length, percentage"
+			},
+			{
+				"name": "padding-inline-end",
+				"desc": "Logical 'padding-right'. Mapping depends on the parent element’s 'writing-mode', 'direction', and 'text-orientation'.",
+				"browsers": "FF41",
+				"restriction": "length, percentage"
+			},
+			{
+				"name": "padding-inline-start",
+				"desc": "Logical 'padding-left'. Mapping depends on the parent element’s 'writing-mode', 'direction', and 'text-orientation'.",
+				"browsers": "FF41",
 				"restriction": "length, percentage"
 			},
 			{
@@ -7907,6 +8126,11 @@ exports.data ={
 						"desc": "The inline contents are centered within the line box."
 					},
 					{
+						"name": "end",
+						"desc": "The inline contents are aligned to the end edge of the line box.",
+						"browsers": "C,FF3.6,O15,S3.1"
+					},
+					{
 						"name": "justify",
 						"desc": "The text is justified according to the method specified by the 'text-justify' property."
 					},
@@ -7917,6 +8141,11 @@ exports.data ={
 					{
 						"name": "right",
 						"desc": "The inline contents are aligned to the right edge of the line box. In vertical text, 'right' aligns to the edge of the line box that would be the end edge for left-to-right text."
+					},
+					{
+						"name": "start",
+						"desc": "The inline contents are aligned to the start edge of the line box.",
+						"browsers": "C,FF1,O15,S3.1"
 					}
 				]
 			},

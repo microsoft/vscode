@@ -342,6 +342,9 @@
     <entry name=":required" version="4.0" browsers="E,C,FF4,IE10,O10,S5" ref="http://www.w3.org/TR/selectors4/#opt-pseudos" syntax="input:optional { color: yellow; }">
       <desc>A form element is :required or :optional if a value for it is, respectively, required or optional before the form it belongs to is submitted. Elements that are not form elements are neither required nor optional.</desc>
     </entry>
+    <entry name=":recto" version="3.0" browsers="none" ref="https://drafts.csswg.org/css-logical-props/#valdef-logical-page-selector-recto" syntax="@page :recto { margin-inline-start: 4cm; }">
+      <desc>Equivalent to ':right' in left-to-right page progressions and ':left' in right-to-left page progressions.</desc>
+    </entry>
     <entry name=":right" version="2.0" browsers="all" ref="http://www.w3.org/TR/css3-page/#left-right-first" syntax="@page :right { margin-left: 4cm; }">
       <desc>When printing double-sided documents, the page boxes on left and right pages may be different. This can be expressed through CSS pseudo-classes defined in the  page context.</desc>
     </entry>
@@ -365,6 +368,9 @@
     </entry>
     <entry name=":valid" version="4.0" browsers="E,C,FF4,IE10,O10,S5" ref="http://www.w3.org/TR/selectors4/#validity-pseudos" syntax="input:valid { border-color: green; }">
       <desc>An element is :valid or :invalid when it is, respectively, valid or invalid with respect to data validity semantics defined by a different specification.</desc>
+    </entry>
+    <entry name=":verso" version="3.0" browsers="none" ref="https://drafts.csswg.org/css-logical-props/#valdef-logical-page-selector-verso" syntax="@page :verso { margin-inline-end: 4cm; }">
+      <desc>Equivalent to ':left' in left-to-right page progressions and ':right' in right-to-left page progressions.</desc>
     </entry>
     <entry name=":vertical" version="3.0" browsers="C,S5" ref="https://webkit.org/blog/363/styling-scrollbars/">
       <desc>Non-standard. Applies to any scrollbar pieces that have a vertical orientation.</desc>
@@ -1026,7 +1032,7 @@
         <value name="-webkit-repeating-radial-gradient()" version="3.0" browsers="C,S5.1" />
       </values>
     </entry>
-    <entry name="background-image-transform" restriction="enum" version="3.0" browsers="none" ref="https://drafts.csswg.org/css-logical-props-1/#propdef-background-image-transform" syntax="div { $(name): logical; }">
+    <entry name="background-image-transform" restriction="enum" version="3.0" browsers="none" ref="https://drafts.csswg.org/css-logical-props/#propdef-background-image-transform" syntax="div { $(name): logical; }">
       <desc>Defines whether background images are transformed to match to the value of 'writing-mode' property, and whether 'background-size' widths and heights are logical or physical.</desc>
       <values>
         <value name="logical" version="3.0" browsers="all">
@@ -1091,6 +1097,11 @@
     </entry>
     <entry name="background-repeat" restriction="repeat" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#the-background-repeat" syntax="article { $(name): no-repeat; }">
       <desc>Specifies how background images are tiled after they have been sized and positioned.</desc>
+      <values>
+        <value name="logical" version="3.0" browsers="none">
+          <desc>Double values are considered logical.</desc>
+        </value>
+      </values>
     </entry>
     <entry name="background-size" restriction="length, percentage" version="3.0" browsers="E,C,FF4,IE9,O10,S4.1" ref="http://www.w3.org/TR/css3-background/#the-background-size" syntax="header { $(name): 20px; }">
       <desc>Specifies the size of the background images.</desc>
@@ -1120,8 +1131,40 @@
     <entry name="behavior" restriction="url" version="3.0" browsers="IE6" ref="http://msdn.microsoft.com/en-us/ie/gg192966.aspx" syntax="div { $(name): url(http://example.com/png_fix.htc); }">
       <desc>IE only. Used to extend behaviors of the browser</desc>
     </entry>
+    <entry name="block-size" restriction="length, percentage" version="3.0" browsers="FF41" ref="https://drafts.csswg.org/css-logical-props/#propdef-block-size" syntax="header { $(name): 200px; }">
+      <desc>Logical 'width'. Mapping depends on the element’s 'writing-mode'.</desc>
+      <values>
+        <value name="auto" version="4.0" browsers="all">
+          <desc>Depends on the values of other properties.</desc>
+        </value>
+      </values>
+    </entry>
     <entry name="border" restriction="length, line-width, line-style, color" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#borders" syntax="header { $(name): 5px solid red;}">
       <desc>Shorthand property for setting border width, style and color</desc>
+    </entry>
+    <entry name="border-block-end" restriction="length, line-width, line-style, color" version="3.0" browsers="FF41" ref="https://drafts.csswg.org/css-logical-props/#border-padding" syntax="header { $(name): 5px solid red;}">
+      <desc>Logical 'border-bottom'. Mapping depends on the parent element’s 'writing-mode', 'direction', and 'text-orientation'.</desc>
+    </entry>
+    <entry name="border-block-start" restriction="length, line-width, line-style, color" version="3.0" browsers="FF41" ref="https://drafts.csswg.org/css-logical-props/#border-padding" syntax="header { $(name): 5px solid red;}">
+      <desc>Logical 'border-top'. Mapping depends on the parent element’s 'writing-mode', 'direction', and 'text-orientation'.</desc>
+    </entry>
+    <entry name="border-block-end-color" restriction="color" version="3.0" browsers="FF41" ref="https://drafts.csswg.org/css-logical-props/#border-padding" syntax="article { $(name): red; }">
+      <desc>Logical 'border-bottom-color'. Mapping depends on the parent element’s 'writing-mode', 'direction', and 'text-orientation'.</desc>
+    </entry>
+    <entry name="border-block-start-color" restriction="color" version="3.0" browsers="FF41" ref="https://drafts.csswg.org/css-logical-props/#border-padding" syntax="article { $(name): red; }">
+      <desc>Logical 'border-top-color'. Mapping depends on the parent element’s 'writing-mode', 'direction', and 'text-orientation'.</desc>
+    </entry>
+    <entry name="border-block-end-style" restriction="line-style" version="3.0" browsers="FF41" ref="https://drafts.csswg.org/css-logical-props/#border-padding" syntax="article { $(name): solid; }">
+      <desc>Logical 'border-bottom-style'. Mapping depends on the parent element’s 'writing-mode', 'direction', and 'text-orientation'.</desc>
+    </entry>
+    <entry name="border-block-start-style" restriction="lline-style" version="3.0" browsers="FF41" ref="https://drafts.csswg.org/css-logical-props/#border-padding" syntax="article { $(name): solid; }">
+      <desc>Logical 'border-top-style'. Mapping depends on the parent element’s 'writing-mode', 'direction', and 'text-orientation'.</desc>
+    </entry>
+    <entry name="border-block-end-width" restriction="length, line-width" version="3.0" browsers="FF41" ref="https://drafts.csswg.org/css-logical-props/#border-padding" syntax="article { $(name): 50px; }">
+      <desc>Logical 'border-bottom-width'. Mapping depends on the parent element’s 'writing-mode', 'direction', and 'text-orientation'.</desc>
+    </entry>
+    <entry name="border-block-start-width" restriction="length, line-width" version="3.0" browsers="FF41" ref="https://drafts.csswg.org/css-logical-props/#border-padding" syntax="article { $(name): 50px; }">
+      <desc>Logical 'border-top-width'. Mapping depends on the parent element’s 'writing-mode', 'direction', and 'text-orientation'.</desc>
     </entry>
     <entry name="border-bottom" restriction="length, line-width, line-style, color" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#borders" syntax="header { $(name): 5px solid red;}">
       <desc>Shorthand property for setting border width, style and color</desc>
@@ -1154,6 +1197,11 @@
     </entry>
     <entry name="border-color" restriction="color" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#border-color" syntax="td { $(name): blue; }">
       <desc>The color of the border around all four edges of an element.</desc>
+      <values>
+        <value name="logical" version="3.0" browsers="none">
+          <desc>Indicates that the values map to the logical properties instead of the physical ones.</desc>
+        </value>
+      </values>
     </entry>
     <entry name="border-image" restriction="length, percentage, number, url, enum" version="3.0" browsers="E,C16,FF15,IE11,O15,S6" ref="http://www.w3.org/TR/css3-background/#border-image" syntax="td { $(name): url(border.png) 30 30 round;}">
       <desc>Shorthand property for setting 'border-image-source', 'border-image-slice', 'border-image-width', 'border-image-outset' and 'border-image-repeat'. Omitted values are set to their initial values.</desc>
@@ -1215,7 +1263,7 @@
         <value name="url()" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="border-image-transform" restriction="enum" version="3.0" browsers="none" ref="https://drafts.csswg.org/css-logical-props-1/#propdef-border-image-transform" syntax="div { $(name): logical; }">
+    <entry name="border-image-transform" restriction="enum" version="3.0" browsers="none" ref="https://drafts.csswg.org/css-logical-props/#propdef-border-image-transform" syntax="div { $(name): logical; }">
       <desc>Defines whether border images are transformed to match to the value of 'writing-mode' property.</desc>
       <values>
         <value name="logical" version="3.0" browsers="all">
@@ -1225,7 +1273,7 @@
           <desc>The values for the 'border-image' properties are physical. The border images remain unchanged.</desc>
         </value>
         <value name="rotate" version="3.0" browsers="all">
-          <desc>Similar to logical, except that the inline direction is ignored.</desc>
+          <desc>Similar to 'logical', except that the inline direction is ignored.</desc>
         </value>
       </values>
     </entry>
@@ -1236,6 +1284,30 @@
           <desc>The border image width is the intrinsic width or height (whichever is applicable) of the corresponding image slice. If the image does not have the required intrinsic dimension then the corresponding border-width is used instead.</desc>
         </value>
       </values>
+    </entry>
+    <entry name="border-inline-end" restriction="length, line-width, line-style, color" version="3.0" browsers="FF41" ref="https://drafts.csswg.org/css-logical-props/#border-padding" syntax="header { $(name): 5px solid red;}">
+      <desc>Logical 'border-right'. Mapping depends on the parent element’s 'writing-mode', 'direction', and 'text-orientation'.</desc>
+    </entry>
+    <entry name="border-inline-start" restriction="length, line-width, line-style, color" version="3.0" browsers="FF41" ref="https://drafts.csswg.org/css-logical-props/#border-padding" syntax="header { $(name): 5px solid red;}">
+      <desc>Logical 'border-left'. Mapping depends on the parent element’s 'writing-mode', 'direction', and 'text-orientation'.</desc>
+    </entry>
+    <entry name="border-inline-end-color" restriction="color" version="3.0" browsers="FF41" ref="https://drafts.csswg.org/css-logical-props/#border-padding" syntax="article { $(name): red; }">
+      <desc>Logical 'border-right-color'. Mapping depends on the parent element’s 'writing-mode', 'direction', and 'text-orientation'.</desc>
+    </entry>
+    <entry name="border-inline-start-color" restriction="color" version="3.0" browsers="FF41" ref="https://drafts.csswg.org/css-logical-props/#border-padding" syntax="article { $(name): red; }">
+      <desc>Logical 'border-left-color'. Mapping depends on the parent element’s 'writing-mode', 'direction', and 'text-orientation'.</desc>
+    </entry>
+    <entry name="border-inline-end-style" restriction="line-style" version="3.0" browsers="FF41" ref="https://drafts.csswg.org/css-logical-props/#border-padding" syntax="article { $(name): solid; }">
+      <desc>Logical 'border-right-style'. Mapping depends on the parent element’s 'writing-mode', 'direction', and 'text-orientation'.</desc>
+    </entry>
+    <entry name="border-inline-start-style" restriction="lline-style" version="3.0" browsers="FF41" ref="https://drafts.csswg.org/css-logical-props/#border-padding" syntax="article { $(name): solid; }">
+      <desc>Logical 'border-left-style'. Mapping depends on the parent element’s 'writing-mode', 'direction', and 'text-orientation'.</desc>
+    </entry>
+    <entry name="border-inline-end-width" restriction="length, line-width" version="3.0" browsers="FF41" ref="https://drafts.csswg.org/css-logical-props/#border-padding" syntax="article { $(name): 50px; }">
+      <desc>Logical 'border-right-width'. Mapping depends on the parent element’s 'writing-mode', 'direction', and 'text-orientation'.</desc>
+    </entry>
+    <entry name="border-inline-start-width" restriction="length, line-width" version="3.0" browsers="FF41" ref="https://drafts.csswg.org/css-logical-props/#border-padding" syntax="article { $(name): 50px; }">
+      <desc>Logical 'border-left-width'. Mapping depends on the parent element’s 'writing-mode', 'direction', and 'text-orientation'.</desc>
     </entry>
     <entry name="border-left" restriction="length, line-width, line-style, color" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#borders" syntax="header { $(name): 5px solid red;}">
       <desc>Shorthand property for setting border width, style and color</desc>
@@ -1269,6 +1341,11 @@
     </entry>
     <entry name="border-style" restriction="line-style" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#border-style" syntax="td { $(name): solid; }">
       <desc>The style of the border around edges of an element.</desc>
+      <values>
+        <value name="logical" version="3.0" browsers="none">
+          <desc>Indicates that the values map to the logical properties instead of the physical ones.</desc>
+        </value>
+      </values>
     </entry>
     <entry name="border-top" restriction="length, line-width, line-style, color" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#borders" syntax="header { $(name): 5px solid red;}">
       <desc>Shorthand property for setting border width, style and color</desc>
@@ -1290,6 +1367,11 @@
     </entry>
     <entry name="border-width" restriction="length, line-width" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#border-width" syntax="td { $(name): 2px; }">
       <desc>Shorthand that sets the four 'border-*-width' properties. If it has four values, they set top, right, bottom and left in that order. If left is missing, it is the same as right; if bottom is missing, it is the same as top; if right is missing, it is the same as top.</desc>
+      <values>
+        <value name="logical" version="3.0" browsers="none">
+          <desc>Indicates that the values map to the logical properties instead of the physical ones.</desc>
+        </value>
+      </values>
     </entry>
     <entry name="bottom" restriction="length, percentage" version="2.0" browsers="all" ref="http://www.w3.org/TR/css3-positioning/#propdef-bottom" syntax="article { $(name): 50px; }">
       <desc>Specifies how far an absolutely positioned box's bottom margin edge is offset above the bottom edge of the box's 'containing block'.</desc>
@@ -1478,10 +1560,20 @@
     <entry name="caption-side" restriction="enum" version="2.0" browsers="E,C,FF,IE8,O,S" ref="http://www.w3.org/TR/CSS2/tables.html#caption-position" syntax="caption { $(name): bottom; }">
       <desc>Specifies the position of the caption box with respect to the table box.</desc>
       <values>
-        <value name="block-end" version="2.0" browsers="all" />
-        <value name="block-start" version="2.0" browsers="all" />
+        <value name="block-end" version="3.0" browsers="none">
+          <desc>Logical 'bottom'</desc>
+        </value>
+        <value name="block-start" version="3.0" browsers="none">
+          <desc>Logical 'top'</desc>
+        </value>
         <value name="bottom" version="2.0" browsers="all">
           <desc>Positions the caption box below the table box.</desc>
+        </value>
+        <value name="inline-end" version="3.0" browsers="none">
+          <desc>Logical 'right'</desc>
+        </value>
+        <value name="inline-start" version="3.0" browsers="none">
+          <desc>Logical 'left'</desc>
         </value>
         <value name="top" version="2.0" browsers="all">
           <desc>Positions the caption box above the table box.</desc>
@@ -1502,6 +1594,12 @@
       <values>
         <value name="both" version="1.0" browsers="all">
           <desc>The clearance of the generated box is set to the amount necessary to place the top border edge below the bottom outer edge of any right-floating and left-floating boxes that resulted from elements earlier in the source document.</desc>
+        </value>
+        <value name="inline-end" version="3.0" browsers="none">
+          <desc>Logical 'right'</desc>
+        </value>
+        <value name="inline-start" version="3.0" browsers="none">
+          <desc>Logical 'left'</desc>
         </value>
         <value name="left" version="1.0" browsers="all">
           <desc>The clearance of the generated box is set to the amount necessary to place the top border edge below the bottom outer edge of any left-floating boxes that resulted from elements earlier in the source document.</desc>
@@ -2338,6 +2436,12 @@
     <entry name="float" restriction="enum" version="1.0" browsers="all" ref="http://www.w3.org/TR/CSS21/visuren.html#propdef-float" syntax="img { $(name): right; }">
       <desc>Specifies how a box should be floated. It may be set for any element, but only applies to elements that generate boxes that are not absolutely positioned.</desc>
       <values>
+        <value name="inline-end" version="3.0" browsers="none">
+          <desc>Logical 'right'</desc>
+        </value>
+        <value name="inline-start" version="3.0" browsers="none">
+          <desc>Logical 'left'</desc>
+        </value>
         <value name="left" version="1.0" browsers="all">
           <desc>The element generates a block box that is floated to the left. Content flows on the right side of the box, starting at the top (subject to the 'clear' property).</desc>
         </value>
@@ -3242,6 +3346,14 @@
         </value>
       </values>
     </entry>
+    <entry name="inline-size" restriction="length, percentage" version="3.0" browsers="FF41" ref="https://drafts.csswg.org/css-logical-props/#propdef-inline-size" syntax="header { $(name): 200px; }">
+      <desc>Logical 'height'. Mapping depends on the element’s 'writing-mode'.</desc>
+      <values>
+        <value name="auto" version="3.0" browsers="all">
+          <desc>Depends on the values of other properties.</desc>
+        </value>
+      </values>
+    </entry>
     <entry name="isolation" restriction="enum" version="3.0" browsers="C,FF,O,S" ref="http://www.w3.org/TR/compositing-1/#isolation" syntax="div { $(name): isolate; }">
       <desc>In CSS setting to 'isolate' will turn the element into a stacking context. In SVG, it defines whether an element is isolated or not.</desc>
       <values>
@@ -3441,10 +3553,37 @@
       <desc>Shorthand property to set values the thickness of the margin area. If left is omitted, it is the same as right. If bottom is omitted it is the same as top, if right is omitted it is the same as top. The value may not be negative.</desc>
       <values>
         <value name="auto" version="1.0" browsers="all" />
+        <value name="logical" version="3.0" browsers="none">
+          <desc>Indicates that the values map to the logical properties instead of the physical ones.</desc>
+        </value>
+      </values>
+    </entry>
+    <entry name="margin-block-end" restriction="length, percentage" version="3.0" browsers="FF41" ref="https://drafts.csswg.org/css-logical-props/#logical-prop" syntax="div { $(name): 4px; }">
+      <desc>Logical 'margin-bottom'. Mapping depends on the parent element’s 'writing-mode', 'direction', and 'text-orientation'.</desc>
+      <values>
+        <value name="auto" version="1.0" browsers="all" />
+      </values>
+    </entry>
+    <entry name="margin-block-start" restriction="length, percentage" version="3.0" browsers="FF41" ref="https://drafts.csswg.org/css-logical-props/#logical-prop" syntax="div { $(name): 4px; }">
+      <desc>Logical 'margin-top'. Mapping depends on the parent element’s 'writing-mode', 'direction', and 'text-orientation'.</desc>
+      <values>
+        <value name="auto" version="1.0" browsers="all" />
       </values>
     </entry>
     <entry name="margin-bottom" restriction="length, percentage" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-box/#margin1" syntax="div { $(name): 4px; }">
       <desc>Shorthand property to set values the thickness of the margin area. If left is omitted, it is the same as right. If bottom is omitted it is the same as top, if right is omitted it is the same as top. The value may not be negative.</desc>
+      <values>
+        <value name="auto" version="1.0" browsers="all" />
+      </values>
+    </entry>
+    <entry name="margin-inline-end" restriction="length, percentage" version="3.0" browsers="FF41" ref="https://drafts.csswg.org/css-logical-props/#logical-prop" syntax="div { $(name): 4px; }">
+      <desc>Logical 'margin-right'. Mapping depends on the parent element’s 'writing-mode', 'direction', and 'text-orientation'.</desc>
+      <values>
+        <value name="auto" version="1.0" browsers="all" />
+      </values>
+    </entry>
+    <entry name="margin-inline-start" restriction="length, percentage" version="3.0" browsers="FF41" ref="https://drafts.csswg.org/css-logical-props/#logical-prop" syntax="div { $(name): 4px; }">
+      <desc>Logical 'margin-left'. Mapping depends on the parent element’s 'writing-mode', 'direction', and 'text-orientation'.</desc>
       <values>
         <value name="auto" version="1.0" browsers="all" />
       </values>
@@ -3777,10 +3916,26 @@
         </value>
       </values>
     </entry>
+    <entry name="max-block-size" restriction="length, percentage" version="3.0" browsers="FF41" ref="https://drafts.csswg.org/css-logical-props/#propdef-min-block-size" syntax="header { $(name): 200px; }">
+      <desc>Logical 'max-width'. Mapping depends on the element’s 'writing-mode'.</desc>
+      <values>
+        <value name="none" version="3.0" browsers="all">
+          <desc>No limit on the width of the box.</desc>
+        </value>
+      </values>
+    </entry>
     <entry name="max-height" restriction="length, percentage" version="2.0" browsers="E,C,FF1,IE7,O7,S1" ref="http://www.w3.org/TR/css3-box/#max-height" syntax="footer { $(name): 300px; }">
       <desc>Allows authors to constrain content height to a certain range.</desc>
       <values>
         <value name="none" version="2.0" browsers="all">
+          <desc>No limit on the height of the box.</desc>
+        </value>
+      </values>
+    </entry>
+    <entry name="max-inline-size" restriction="length, percentage" version="3.0" browsers="FF41" ref="https://drafts.csswg.org/css-logical-props/#propdef-min-block-size" syntax="header { $(name): 200px; }">
+      <desc>Logical 'max-height'. Mapping depends on the element’s 'writing-mode'.</desc>
+      <values>
+        <value name="none" version="3.0" browsers="all">
           <desc>No limit on the height of the box.</desc>
         </value>
       </values>
@@ -3801,11 +3956,17 @@
         </value>
       </values>
     </entry>
+    <entry name="min-block-size" restriction="length, percentage" version="3.0" browsers="FF41" ref="https://drafts.csswg.org/css-logical-props/#propdef-min-block-size" syntax="header { $(name): 200px; }">
+      <desc>Logical 'min-width'. Mapping depends on the element’s 'writing-mode'.</desc>
+    </entry>
     <entry name="min-height" restriction="length, percentage" version="2.0" browsers="E,C,FF1,IE7,O7,S1" ref="http://www.w3.org/TR/css3-box/#min-height" syntax="footer { $(name): 300px; }">
       <desc>Allows authors to constrain content height to a certain range.</desc>
       <values>
         <value name="auto" version="3.0" browsers="E,IE11" />
       </values>
+    </entry>
+    <entry name="min-inline-size" restriction="length, percentage" version="3.0" browsers="FF41" ref="https://drafts.csswg.org/css-logical-props/#propdef-min-block-size" syntax="header { $(name): 200px; }">
+      <desc>Logical 'min-height'. Mapping depends on the element’s 'writing-mode'.</desc>
     </entry>
     <entry name="min-width" restriction="length, percentage" version="2.0" browsers="E,C,FF1,IE7,O7,S1" ref="http://www.w3.org/TR/css3-box/#min-width" syntax="footer { $(name): 300px; }">
       <desc>Allows authors to constrain content width to a certain range.</desc>
@@ -6148,28 +6309,36 @@
         </value>
       </values>
     </entry>
-    <entry name="offset-after" restriction="length, percentage, enum" version="3.0" browsers="none" ref="https://drafts.csswg.org/css-position/#propdef-offset-after" syntax="img { $(name): 10%;}">
-      <desc>Logical offset properties allow for offseting positioned boxes based on the writing-mode and direction properties.</desc>
+    <entry name="offset-block-end" restriction="length, percentage" version="3.0" browsers="FF41" ref="https://drafts.csswg.org/css-logical-props/#logical-prop" syntax="article { $(name): 50px; }">
+      <desc>Logical 'bottom'. Mapping depends on the parent element’s 'writing-mode', 'direction', and 'text-orientation'.</desc>
       <values>
-        <value name="auto" version="3.0" browsers="all"/>
+        <value name="auto" version="3.0" browsers="all">
+          <desc>For non-replaced elements, the effect of this value depends on which of related properties have the value 'auto' as well</desc>
+        </value>
       </values>
     </entry>
-    <entry name="offset-before" restriction="length, percentage, enum" version="3.0" browsers="none" ref="https://drafts.csswg.org/css-position/#propdef-offset-before" syntax="img { $(name): 10%;}">
-      <desc>Logical offset properties allow for offseting positioned boxes based on the writing-mode and direction properties.</desc>
+    <entry name="offset-block-start" restriction="length, percentage" version="3.0" browsers="FF41" ref="https://drafts.csswg.org/css-logical-props/#logical-prop" syntax="article { $(name): 50px; }">
+      <desc>Logical 'top'. Mapping depends on the parent element’s 'writing-mode', 'direction', and 'text-orientation'.</desc>
       <values>
-        <value name="auto" version="3.0" browsers="all"/>
+        <value name="auto" version="3.0" browsers="all">
+          <desc>For non-replaced elements, the effect of this value depends on which of related properties have the value 'auto' as well</desc>
+        </value>
       </values>
     </entry>
-    <entry name="offset-end" restriction="length, percentage, enum" version="3.0" browsers="none" ref="https://drafts.csswg.org/css-position/#propdef-offset-end" syntax="img { $(name): 10%;}">
-      <desc>Logical offset properties allow for offseting positioned boxes based on the writing-mode and direction properties.</desc>
+    <entry name="offset-inline-end" restriction="length, percentage" version="3.0" browsers="FF41" ref="https://drafts.csswg.org/css-logical-props/#logical-prop" syntax="article { $(name): 50px; }">
+      <desc>Logical 'right'. Mapping depends on the parent element’s 'writing-mode', 'direction', and 'text-orientation'.</desc>
       <values>
-        <value name="auto" version="3.0" browsers="all"/>
+        <value name="auto" version="3.0" browsers="all">
+          <desc>For non-replaced elements, the effect of this value depends on which of related properties have the value 'auto' as well</desc>
+        </value>
       </values>
     </entry>
-    <entry name="offset-start" restriction="length, percentage, enum" version="3.0" browsers="none" ref="https://drafts.csswg.org/css-position/#propdef-offset-end" syntax="img { $(name): 10%;}">
-      <desc>Logical offset properties allow for offseting positioned boxes based on the writing-mode and direction properties.</desc>
+    <entry name="offset-inline-start" restriction="length, percentage" version="3.0" browsers="FF41" ref="https://drafts.csswg.org/css-logical-props/#logical-prop" syntax="article { $(name): 50px; }">
+      <desc>Logical 'left'. Mapping depends on the parent element’s 'writing-mode', 'direction', and 'text-orientation'.</desc>
       <values>
-        <value name="auto" version="3.0" browsers="all"/>
+        <value name="auto" version="3.0" browsers="all">
+          <desc>For non-replaced elements, the effect of this value depends on which of related properties have the value 'auto' as well</desc>
+        </value>
       </values>
     </entry>
     <entry name="outline" restriction="length, line-width, line-style, color, enum" version="2.0" browsers="E,C,FF1.5,IE8,O8,S1.2" ref="http://www.w3.org/TR/css3-ui/#outline0" syntax="header { $(name): 5px solid red;}">
@@ -6286,9 +6455,26 @@
     </entry>
     <entry name="padding" restriction="length, percentage" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-box/#padding1" syntax="div { $(name): 4px 7px 2px 4px; }">
       <desc>Shorthand property to set values the thickness of the padding area. If left is omitted, it is the same as right. If bottom is omitted it is the same as top, if right is omitted it is the same as top. The value may not be negative.</desc>
-    </entry>
+      <values>
+        <value name="logical" version="3.0" browsers="none">
+          <desc>Indicates that the values map to the logical properties instead of the physical ones.</desc>
+        </value>
+      </values>
+	</entry>
     <entry name="padding-bottom" restriction="length, percentage" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-box/#padding1" syntax="ul { $(name): 2em; }">
       <desc>Shorthand property to set values the thickness of the padding area. If left is omitted, it is the same as right. If bottom is omitted it is the same as top, if right is omitted it is the same as top. The value may not be negative.</desc>
+    </entry>
+    <entry name="padding-block-end" restriction="length, percentage" version="3.0" browsers="FF41" ref="https://drafts.csswg.org/css-logical-props/#border-padding" syntax="article { $(name): 50px; }">
+      <desc>Logical 'padding-bottom'. Mapping depends on the parent element’s 'writing-mode', 'direction', and 'text-orientation'.</desc>
+    </entry>
+    <entry name="padding-block-start" restriction="length, percentage" version="3.0" browsers="FF41" ref="https://drafts.csswg.org/css-logical-props/#border-padding" syntax="article { $(name): 50px; }">
+      <desc>Logical 'padding-top'. Mapping depends on the parent element’s 'writing-mode', 'direction', and 'text-orientation'.</desc>
+    </entry>
+    <entry name="padding-inline-end" restriction="length, percentage" version="3.0" browsers="FF41" ref="https://drafts.csswg.org/css-logical-props/#border-padding" syntax="article { $(name): 50px; }">
+      <desc>Logical 'padding-right'. Mapping depends on the parent element’s 'writing-mode', 'direction', and 'text-orientation'.</desc>
+    </entry>
+    <entry name="padding-inline-start" restriction="length, percentage" version="3.0" browsers="FF41" ref="https://drafts.csswg.org/css-logical-props/#border-padding" syntax="article { $(name): 50px; }">
+      <desc>Logical 'padding-left'. Mapping depends on the parent element’s 'writing-mode', 'direction', and 'text-orientation'.</desc>
     </entry>
     <entry name="padding-left" restriction="length, percentage" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-box/#padding1" syntax="ul { $(name): 2em; }">
       <desc>Shorthand property to set values the thickness of the padding area. If left is omitted, it is the same as right. If bottom is omitted it is the same as top, if right is omitted it is the same as top. The value may not be negative.</desc>
@@ -6322,8 +6508,14 @@
         <value name="left" version="2.0" browsers="all">
           <desc>Force one or two page breaks after the generated box so that the next page is formatted as a left page.</desc>
         </value>
+        <value name="recto" version="3.0" browsers="none">
+          <desc>Equivalent to right in left-to-right page progressions and left in right-to-left page progressions.</desc>
+        </value>
         <value name="right" version="2.0" browsers="all">
           <desc>Force one or two page breaks after the generated box so that the next page is formatted as a right page.</desc>
+        </value>
+        <value name="verso" version="3.0" browsers="none">
+          <desc>Equivalent to left in left-to-right page progressions and right in right-to-left page progressions.</desc>
         </value>
       </values>
     </entry>
@@ -6548,8 +6740,14 @@
         <value name="both" version="3.0" browsers="all">
           <desc>The UA presents a bidirectional resizing mechanism to allow the user to adjust both the height and the width of the element.</desc>
         </value>
+        <value name="block" version="3.0" browsers="none">
+          <desc>Logical 'vertical'</desc>
+        </value>
         <value name="horizontal" version="3.0" browsers="all">
           <desc>The UA presents a unidirectional horizontal resizing mechanism to allow the user to adjust only the width of the element.</desc>
+        </value>
+        <value name="inline" version="3.0" browsers="none">
+          <desc>Logical 'horizontal'</desc>
         </value>
         <value name="none" version="3.0" browsers="all">
           <desc>The UA does not present a resizing mechanism on the element, and the user is given no direct manipulation mechanism to resize the element.</desc>
@@ -7044,7 +7242,7 @@
         <value name="center" version="1.0" browsers="all">
           <desc>The inline contents are centered within the line box.</desc>
         </value>
-        <value name="end" version="3.0" browsers="none">
+        <value name="end" version="3.0" browsers="C,FF3.6,O15,S3.1">
           <desc>The inline contents are aligned to the end edge of the line box.</desc>
         </value>
         <value name="justify" version="1.0" browsers="all">
@@ -7059,7 +7257,7 @@
         <value name="right" version="1.0" browsers="all">
           <desc>The inline contents are aligned to the right edge of the line box. In vertical text, 'right' aligns to the edge of the line box that would be the end edge for left-to-right text.</desc>
         </value>
-        <value name="start" version="3.0" browsers="none">
+        <value name="start" version="3.0" browsers="C,FF1,O15,S3.1">
           <desc>The inline contents are aligned to the start edge of the line box.</desc>
         </value>
       </values>
