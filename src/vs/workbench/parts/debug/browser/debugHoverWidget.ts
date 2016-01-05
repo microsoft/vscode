@@ -95,8 +95,6 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 			return;
 		}
 
-		const variable = variables[0];
-
 		// show it
 		this.highlightDecorations = this.editor.deltaDecorations(this.highlightDecorations, [{
 			range: {
@@ -110,10 +108,14 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 			}
 		}]);
 		this.lastHoveringOver = hoveringOver;
+		this.doShow(pos, variables[0]);
+	}
 
-		if (variable.reference > 0 && variable.value.indexOf('function') === -1) {
+	private doShow(position: editorcommon.IEditorPosition, expression: debug.IExpression): void {
+		let value: string = undefined;
+		if (expression.reference > 0 && expression.value.indexOf('function') === -1) {
 			let objectToString = '{\n';
-			variable.getChildren(this.debugService).then(children => {
+			expression.getChildren(this.debugService).then(children => {
 				if (!children) {
 					this.hide();
 					return;
@@ -133,13 +135,11 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 				}
 				objectToString += '\n}';
 				return objectToString;
-			}).done(value => this.doShow(pos, value), () => this.hide());
+			}).done(v => value = v, () => this.hide());
 		} else {
-			this.doShow(pos, variable.value);
+			value = expression.value;
 		}
-	}
 
-	private doShow(position: editorcommon.IEditorPosition, value: string): void {
 		const model = this.editor.getModel();
 		if (!value || !model) {
 			return;
