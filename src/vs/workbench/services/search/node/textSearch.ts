@@ -167,12 +167,12 @@ export class Engine implements ISearchEngine {
 
 			function readFile(isFirstRead: boolean, clb: (error: Error) => void): void {
 				if (outer.limitReached || outer.isCanceled) {
-					return callback(null); // return early if canceled or limit reached
+					return clb(null); // return early if canceled or limit reached
 				}
 
 				fs.read(fd, buffer, 0, buffer.length, null, (error: Error, bytesRead: number, buffer: NodeBuffer) => {
 					if (error || bytesRead === 0 || outer.limitReached || outer.isCanceled) {
-						return callback(error); // return early if canceled or limit reached or no more bytes to read
+						return clb(error); // return early if canceled or limit reached or no more bytes to read
 					}
 
 					pos = 0;

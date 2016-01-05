@@ -35,7 +35,7 @@ const $ = dom.emmet;
 const booleanRegex = /^true|false$/i;
 const stringRegex = /^(['"]).*\1$/;
 
-export function renderExpressionValue(tree: tree.ITree, arg2: debug.IExpression|string, debugInactive: boolean, container: HTMLElement): void {
+export function renderExpressionValue(arg2: debug.IExpression|string, debugInactive: boolean, container: HTMLElement): void {
 	let value = typeof arg2 === 'string' ? arg2 : arg2.value;
 
 	// remove stale classes
@@ -62,7 +62,7 @@ export function renderVariable(tree: tree.ITree, variable: model.Variable, data:
 	}
 
 	if (variable.value) {
-		renderExpressionValue(tree, variable, debugInactive, data.value);
+		renderExpressionValue(variable, debugInactive, data.value);
 		if (variable.valueChanged && showChanged) {
 			// value changed color has priority over other colors.
 			data.value.className = 'value changed';
@@ -587,7 +587,7 @@ export class WatchExpressionsRenderer implements tree.IRenderer {
 	private renderExpression(tree: tree.ITree, expression: debug.IExpression, data: IVariableTemplateData): void {
 		data.name.textContent = `${expression.name}:`;
 		if (expression.value) {
-			renderExpressionValue(tree, expression, this.debugService.getState() === debug.State.Inactive, data.value);
+			renderExpressionValue(expression, this.debugService.getState() === debug.State.Inactive, data.value);
 		}
 	}
 

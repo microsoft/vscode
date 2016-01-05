@@ -138,44 +138,6 @@
 	background-repeat: no-repeat;
 }
 
-/* Hover */
-.monaco-editor .debug-hover-widget {
-	padding: 0 3px 0 3px;
-	border: 1px solid #CCC;
-	position: absolute;
-	margin-top: -1px;
-	cursor: default;
-	z-index: 50;
-	-webkit-animation-duration: 0.15s;
-	-webkit-animation-name: fadeIn;
-	-moz-animation-duration: 0.15s;
-	-moz-animation-name: fadeIn;
-	-ms-animation-duration: 0.15s;
-	-ms-animation-name: fadeIn;
-	animation-duration: 0.15s;
-	animation-name: fadeIn;
-
-	white-space: pre;
-	min-width: 50px;
-
-	-webkit-user-select: text;
-	-ms-user-select: text;
-	-khtml-user-select: text;
-	-moz-user-select: text;
-	-o-user-select: text;
-
-	overflow: hidden;
-}
-
-.monaco-editor .debug-hover-widget pre {
-	margin-top: 0;
-	margin-bottom: 0;
-}
-
-.monaco-editor .debugHoverHighlight {
-	background-color: rgba(173, 214, 255, 0.15);
-}
-
 /* Expressions */
 
 .monaco-workbench .monaco-tree-row .expression {
@@ -350,14 +312,6 @@
 .monaco-workbench.vs-dark .debug-actions-widget {
 	background-color: #333;
 	box-shadow: 0 2px 8px #000;
-}
-
-.monaco-editor.vs-dark .debug-hover-widget {
-	border-color: #555;
-}
-
-.monaco-editor.vs-dark .debugHoverHighlight {
-	background-color: rgba(38, 79, 120, 0.25);
 }
 
 /* High Contrast Theming */
