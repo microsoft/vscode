@@ -409,6 +409,19 @@ class SelectNextFindMatchAction extends EditorAction {
 
 		return Selection.createSelection(nextMatch.startLineNumber, nextMatch.startColumn, nextMatch.endLineNumber, nextMatch.endColumn);
 	}
+
+	protected _getAllMatches(): Array<EditorCommon.IEditorSelection> {
+		var r = multiCursorFind(this.editor, true);
+		if (!r) {
+			return [];
+		}
+
+		var allMatches = this.editor.getModel().findMatches(r.searchText, true, r.isRegex, r.matchCase, r.wholeWord);
+
+		return allMatches.map(match=> {
+			return Selection.createSelection(match.startLineNumber, match.startColumn, match.endLineNumber, match.endColumn);
+		});
+	}
 }
 
 class AddSelectionToNextFindMatchAction extends SelectNextFindMatchAction {
@@ -428,6 +441,28 @@ class AddSelectionToNextFindMatchAction extends SelectNextFindMatchAction {
 		var allSelections = this.editor.getSelections();
 		this.editor.setSelections(allSelections.concat(nextMatch));
 		this.editor.revealRangeInCenterIfOutsideViewport(nextMatch);
+
+		return TPromise.as(true);
+	}
+}
+
+class AddSelectionToAllFindMatchAction extends SelectNextFindMatchAction {
+	static ID = 'editor.action.addSelectionToAllFindMatch';
+
+	constructor(descriptor:EditorCommon.IEditorActionDescriptorData, editor:EditorCommon.ICommonCodeEditor, @INullService ns) {
+		super(descriptor, editor, ns);
+	}
+
+	public run(): TPromise<boolean> {
+		var allMatches = this._getAllMatches();
+
+		if (!allMatches.length) {
+			return TPromise.as(false);
+		}
+
+		var allSelections = this.editor.getSelections();
+		this.editor.setSelections(allSelections.concat(allMatches));
+		this.editor.revealRangeInCenterIfOutsideViewport(allMatches[allMatches.length - 1]);
 
 		return TPromise.as(true);
 	}
@@ -625,6 +660,10 @@ CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(MoveSelecti
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(AddSelectionToNextFindMatchAction, AddSelectionToNextFindMatchAction.ID, nls.localize('addSelectionToNextFindMatch', "Add Selection To Next Find Match"), {
 	context: ContextKey.EditorFocus,
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_D
+}));
+CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(AddSelectionToAllFindMatchAction, AddSelectionToAllFindMatchAction.ID, nls.localize('addSelectionToAllFindMatch', "Add Selection To All Find Matches"), {
+	context: ContextKey.EditorFocus,
+	primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KEY_G
 }));
 EditorBrowserRegistry.registerEditorContribution(FindController);
 EditorBrowserRegistry.registerEditorContribution(SelectionHighlighter);
