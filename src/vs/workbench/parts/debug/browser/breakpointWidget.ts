@@ -40,8 +40,8 @@ export class BreakpointWidget extends ZoneWidget {
 		});
 		dom.addClass(this.inputBox.inputElement, platform.isWindows ? 'windows' : platform.isMacintosh ? 'mac' : 'linux');
 		this.inputBox.value = (breakpoint && breakpoint.condition) ? breakpoint.condition : '';
-		// TODO@Isidor check with Alex why does the editor steal focus
-		setTimeout(() => this.inputBox.focus(), 150);
+		// Due to an electron bug we have to do the timeout, otherwise we do not get focus
+		setTimeout(() => this.inputBox.focus(), 0);
 
 		let disposed = false;
 		const toDispose: [lifecycle.IDisposable] = [this.inputBox, this];
