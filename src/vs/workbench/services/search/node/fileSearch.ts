@@ -19,9 +19,6 @@ import flow = require('vs/base/node/flow');
 import {ISerializedFileMatch, IRawSearch, ISearchEngine} from 'vs/workbench/services/search/node/rawSearchService';
 
 export class FileWalker {
-
-	private static ENOTDIR = 'ENOTDIR';
-
 	private config: IRawSearch;
 	private filePattern: string;
 	private excludePattern: glob.IExpression;
