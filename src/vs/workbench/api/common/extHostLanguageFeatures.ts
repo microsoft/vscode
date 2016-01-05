@@ -72,13 +72,19 @@ class OutlineAdapter implements IOutlineSupport {
 	}
 }
 
+interface CachedCodeLens {
+	symbols: modes.ICodeLensSymbol[];
+	lenses: vscode.CodeLens[];
+	disposables: IDisposable[];
+};
+
 class CodeLensAdapter implements modes.ICodeLensSupport {
 
 	private _documents: ExtHostModelService;
 	private _commands: ExtHostCommands;
 	private _provider: vscode.CodeLensProvider;
 
-	private _cache: { [uri: string]: [vscode.CodeLens[], IDisposable[]] } = Object.create(null);
+	private _cache: { [uri: string]: { version: number; data: TPromise<CachedCodeLens>; } } = Object.create(null);
 
 	constructor(documents: ExtHostModelService, commands: ExtHostCommands, provider: vscode.CodeLensProvider) {
 		this._documents = documents;
@@ -87,64 +93,91 @@ class CodeLensAdapter implements modes.ICodeLensSupport {
 	}
 
 	findCodeLensSymbols(resource: URI): TPromise<modes.ICodeLensSymbol[]> {
-		let doc = this._documents.getDocument(resource);
-		let key = resource.toString();
+		const doc = this._documents.getDocument(resource);
+		const version = doc.version;
+		const key = resource.toString();
 
+		// from cache
 		let entry = this._cache[key];
-		if (entry) {
-			// disposeAll(entry[1]);
-			delete this._cache[key];
+		if (entry && entry.version === version) {
+			return entry.data.then(cached => cached.symbols);
 		}
 
-		return asWinJsPromise(token => this._provider.provideCodeLenses(doc, token)).then(value => {
-			if (!Array.isArray(value)) {
+		const newCodeLensData = asWinJsPromise(token => this._provider.provideCodeLenses(doc, token)).then(lenses => {
+			if (!Array.isArray(lenses)) {
 				return;
 			}
 
-			entry = [value, []];
-			this._cache[key] = entry;
+			const data: CachedCodeLens = {
+				lenses,
+				symbols: [],
+				disposables: [],
+			}
 
-			return value.map((lens, i) => {
-				return <modes.ICodeLensSymbol>{
+			lenses.forEach((lens, i) => {
+				data.symbols.push(<modes.ICodeLensSymbol>{
 					id: String(i),
 					range: TypeConverters.fromRange(lens.range),
-					command: TypeConverters.Command.from(lens.command, { commands: this._commands, disposables: entry[1] })
-				};
+					command: TypeConverters.Command.from(lens.command, { commands: this._commands, disposables: data.disposables })
+				});
 			});
+
+			return data;
 		});
+
+		this._cache[key] = {
+			version,
+			data: newCodeLensData
+		};
+
+		return newCodeLensData.then(newCached => {
+			if (entry) {
+				// only now dispose old commands et al
+				entry.data.then(oldCached => disposeAll(oldCached.disposables));
+			}
+			return newCached && newCached.symbols;
+		});
+
 	}
 
 	resolveCodeLensSymbol(resource: URI, symbol: modes.ICodeLensSymbol): TPromise<modes.ICodeLensSymbol> {
 
-		let [lenses, disposables] = this._cache[resource.toString()];
-		if (!lenses) {
+		const entry = this._cache[resource.toString()];
+		if (!entry) {
 			return;
 		}
 
-		let lens = lenses[Number(symbol.id)];
-		if (!lens) {
-			return;
-		}
+		return entry.data.then(cachedData => {
 
-		let resolve: TPromise<vscode.CodeLens>;
-		if (typeof this._provider.resolveCodeLens !== 'function' || lens.isResolved) {
-			resolve = TPromise.as(lens);
-		} else {
-			resolve = asWinJsPromise(token => this._provider.resolveCodeLens(lens, token));
-		}
-
-		return resolve.then(newLens => {
-			lens = newLens || lens;
-			let command = lens.command;
-			if (!command) {
-				command = {
-					title: '<<MISSING COMMAND>>',
-					command: 'missing',
-				};
+			if (!cachedData) {
+				return;
 			}
 
-			symbol.command = TypeConverters.Command.from(command, { commands: this._commands, disposables });
-			return symbol;
+			let lens = cachedData.lenses[Number(symbol.id)];
+			if (!lens) {
+				return;
+			}
+
+			let resolve: TPromise<vscode.CodeLens>;
+			if (typeof this._provider.resolveCodeLens !== 'function' || lens.isResolved) {
+				resolve = TPromise.as(lens);
+			} else {
+				resolve = asWinJsPromise(token => this._provider.resolveCodeLens(lens, token));
+			}
+
+			return resolve.then(newLens => {
+				lens = newLens || lens;
+				let command = lens.command;
+				if (!command) {
+					command = {
+						title: '<<MISSING COMMAND>>',
+						command: 'missing',
+					};
+				}
+
+				symbol.command = TypeConverters.Command.from(command, { commands: this._commands, disposables: cachedData.disposables });
+				return symbol;
+			});
 		});
 	}
 }

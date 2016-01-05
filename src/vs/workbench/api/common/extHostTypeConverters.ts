@@ -449,7 +449,7 @@ export namespace Command {
 		if (!isFalsyOrEmpty(command.arguments)) {
 
 			// keep command around
-			const id = `temp-command-${_idPool++}`;
+			const id = `${command.command}-no-args-wrapper-${_idPool++}`;
 			result.id = id;
 			_cache[id] = command;
 

@@ -308,9 +308,16 @@ suite('ExtHostLanguageFeatureCommands', function() {
 	// --- code lens
 
 	test('CodeLens, back and forth', function(done) {
+
+		const complexArg = {
+			foo() { },
+			bar() { },
+			big: extHost
+		}
+
 		disposables.push(extHost.registerCodeLensProvider(defaultSelector, <vscode.CodeLensProvider>{
 			provideCodeLenses(): any {
-				return [new types.CodeLens(new types.Range(0, 0, 1, 1), { title: 'Title', command: 'cmd', arguments: [1, 2, true] })];
+				return [new types.CodeLens(new types.Range(0, 0, 1, 1), { title: 'Title', command: 'cmd', arguments: [1, true, complexArg] })];
 			}
 		}));
 
@@ -321,7 +328,9 @@ suite('ExtHostLanguageFeatureCommands', function() {
 
 				assert.equal(first.command.title, 'Title');
 				assert.equal(first.command.command, 'cmd');
-				assert.deepEqual(first.command.arguments, [1, 2, true]);
+				assert.equal(first.command.arguments[0], 1);
+				assert.equal(first.command.arguments[1], true);
+				assert.equal(first.command.arguments[2], complexArg);
 				done();
 			}, done);
 		});
