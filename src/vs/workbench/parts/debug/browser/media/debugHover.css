@@ -20,8 +20,6 @@
 	animation-name: fadeIn;
 
 	white-space: pre;
-	width: 350px;
-	height: 300px;
 
 	-webkit-user-select: text;
 	-ms-user-select: text;
@@ -34,7 +32,8 @@
 
 .monaco-editor .debug-hover-widget .debug-hover-tree {
 	line-height: 24px;
-	height: 100%;
+	width: 350px;
+	height: 300px;
 }
 
 /* Disable tree hover highlight in debug hover tree. */

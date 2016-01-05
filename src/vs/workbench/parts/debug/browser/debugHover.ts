@@ -16,7 +16,6 @@ import debug = require('vs/workbench/parts/debug/common/debug');
 import viewer = require('vs/workbench/parts/debug/browser/debugViewer');
 
 const $ = dom.emmet;
-const stringRegex = /^(['"]).*\1$/;
 const debugTreeOptions = {
 	indentPixels: 8,
 	twistiePixels: 20
@@ -34,15 +33,18 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 	private showAtPosition: editorcommon.IPosition;
 	private lastHoveringOver: string;
 	private highlightDecorations: string[];
+	private treeContainer: HTMLElement;
+	private valueContainer: HTMLElement;
 
 	constructor(private editor: editorbrowser.ICodeEditor, private debugService: debug.IDebugService, private instantiationService: IInstantiationService) {
 		this.domNode = $('.debug-hover-widget monaco-editor-background');
-		const treeContainer = dom.append(this.domNode, $('.debug-hover-tree'));
-		this.tree = new Tree(treeContainer, {
+		this.treeContainer = dom.append(this.domNode, $('.debug-hover-tree'));
+		this.tree = new Tree(this.treeContainer, {
 			dataSource: new viewer.VariablesDataSource(this.debugService),
 			renderer: this.instantiationService.createInstance(viewer.VariablesRenderer),
 			controller: new DebugHoverController()
 		}, debugTreeOptions);
+		this.valueContainer = dom.append(this.domNode, $('.debug-hover-value'));
 
 		this.isVisible = false;
 		this.showAtPosition = null;
@@ -128,8 +130,16 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 	}
 
 	private doShow(position: editorcommon.IEditorPosition, expression: debug.IExpression): void {
-		this.tree.setInput(expression).done(null, errors.onUnexpectedError);
-		this.tree.layout(this.domNode.clientHeight);
+		if (expression.reference > 0) {
+			this.valueContainer.hidden = true;
+			this.treeContainer.hidden = false;
+			this.tree.setInput(expression).done(null, errors.onUnexpectedError);
+			this.tree.layout(this.treeContainer.clientHeight);
+		} else {
+			this.treeContainer.hidden = true;
+			this.valueContainer.hidden = false;
+			this.valueContainer.textContent = expression.value;
+		}
 
 		this.showAtPosition = position;
 		this.isVisible = true;
