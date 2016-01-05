@@ -17,6 +17,11 @@ import {FileWalker} from 'vs/workbench/services/search/node/fileSearch';
 import {UTF16le, UTF16be, UTF8} from 'vs/base/node/encoding';
 import {ISerializedFileMatch, IRawSearch, ISearchEngine} from 'vs/workbench/services/search/node/rawSearchService';
 
+interface ReadLinesOptions {
+	bufferLength: number;
+	encoding: string;
+}
+
 export class Engine implements ISearchEngine {
 	private rootFolders: string[];
 	private extraFiles: string[];
@@ -30,6 +35,7 @@ export class Engine implements ISearchEngine {
 	private walkerError: Error;
 	private walkerIsDone: boolean;
 	private fileEncoding: string;
+	private limitReached: boolean;
 
 	constructor(config: IRawSearch, walker: FileWalker) {
 		this.rootFolders = config.rootFolders;
@@ -37,6 +43,7 @@ export class Engine implements ISearchEngine {
 		this.walker = walker;
 		this.contentPattern = strings.createRegExp(config.contentPattern.pattern, config.contentPattern.isRegExp, config.contentPattern.isCaseSensitive, config.contentPattern.isWordMatch);
 		this.isCanceled = false;
+		this.limitReached = false;
 		this.maxResults = config.maxResults;
 		this.worked = 0;
 		this.total = 0;
@@ -50,53 +57,46 @@ export class Engine implements ISearchEngine {
 
 	public search(onResult: (match: ISerializedFileMatch) => void, onProgress: (progress: IProgress) => void, done: (error: Error, isLimitHit: boolean) => void): void {
 		let resultCounter = 0;
-		let limitReached = false;
 
 		let unwind = (processed: number) => {
 			this.worked += processed;
 
-			// Emit progress()
-			if (processed && !this.isDone) {
+			// Emit progress() unless we got canceled or hit the limit
+			if (processed && !this.isDone && !this.isCanceled && !this.limitReached) {
 				onProgress({ total: this.total, worked: this.worked });
 			}
 
 			// Emit done()
 			if (this.worked === this.total && this.walkerIsDone && !this.isDone) {
 				this.isDone = true;
-				done(this.walkerError, limitReached);
+				done(this.walkerError, this.limitReached);
 			}
 		};
 
+		// Walk over the file system
 		this.walker.walk(this.rootFolders, this.extraFiles, (result) => {
-
-			// Indicate progress to the outside
 			this.total++;
-			onProgress({ total: this.total, worked: this.worked });
 
 			// If the result is empty or we have reached the limit or we are canceled, ignore it
-			if (limitReached || this.isCanceled) {
+			if (this.limitReached || this.isCanceled) {
 				return unwind(1);
 			}
+
+			// Indicate progress to the outside
+			onProgress({ total: this.total, worked: this.worked });
 
 			let fileMatch: FileMatch = null;
 
 			let doneCallback = (error?: Error) => {
-
-				// If the result is empty or we have reached the limit or we are canceled, ignore it
-				if (error || !fileMatch || fileMatch.isEmpty() || this.isCanceled) {
-					return unwind(1);
-				}
-
-				// Otherwise send it back as result
-				else {
+				if (!error && !this.isCanceled && fileMatch && !fileMatch.isEmpty()) {
 					onResult(fileMatch.serialize());
-
-					return unwind(1);
 				}
+
+				return unwind(1);
 			};
 
 			let perLineCallback = (line: string, lineNumber: number) => {
-				if (limitReached || this.isCanceled) {
+				if (this.limitReached || this.isCanceled) {
 					return; // return early if canceled or limit reached
 				}
 
@@ -104,10 +104,10 @@ export class Engine implements ISearchEngine {
 				let match = this.contentPattern.exec(line);
 
 				// Record all matches into file result
-				while (match !== null && match[0].length > 0 && !limitReached && !this.isCanceled) {
+				while (match !== null && match[0].length > 0 && !this.limitReached && !this.isCanceled) {
 					resultCounter++;
 					if (this.maxResults && resultCounter >= this.maxResults) {
-						limitReached = true;
+						this.limitReached = true;
 					}
 
 					if (fileMatch === null) {
@@ -126,132 +126,129 @@ export class Engine implements ISearchEngine {
 			};
 
 			// Read lines buffered to support large files
-			readlinesAsync(result.path, perLineCallback, { bufferLength: 8096, encoding: this.fileEncoding }, doneCallback);
+			this.readlinesAsync(result.path, perLineCallback, { bufferLength: 8096, encoding: this.fileEncoding }, doneCallback);
 		}, (error, isLimitHit) => {
 			this.walkerIsDone = true;
 			this.walkerError = error;
 			unwind(0 /* walker is done, indicate this back to our handler to be able to unwind */);
 		});
 	}
-}
 
-interface ReadLinesOptions {
-	bufferLength: number;
-	encoding: string;
-}
-
-function readlinesAsync(filename: string, perLineCallback: (line: string, lineNumber: number) => void, options: ReadLinesOptions, callback: (error: Error) => void): void {
-	fs.open(filename, 'r', null, (error: Error, fd: number) => {
-		if (error) {
-			return callback(error);
-		}
-
-		let buffer = new Buffer(options.bufferLength);
-		let pos: number;
-		let i: number;
-		let line = '';
-		let lineNumber = 0;
-		let lastBufferHadTraillingCR = false;
-
-		function decode(buffer: NodeBuffer): string {
-			if (options.encoding === UTF8) {
-				return buffer.toString(); // much faster to use built in toString() when encoding is default
-			}
-
-			return iconv.decode(buffer, options.encoding);
-		}
-
-		function lineFinished(offset: number): void {
-			line += decode(buffer.slice(pos, i + offset));
-			perLineCallback(line, lineNumber);
-			line = '';
-			lineNumber++;
-			pos = i + offset;
-		}
-
-		function readFile(isFirstRead: boolean, clb: (error: Error) => void): void {
-			fs.read(fd, buffer, 0, buffer.length, null, (error: Error, bytesRead: number, buffer: NodeBuffer) => {
-				if (error) {
-					return clb(error);
-				}
-
-				if (bytesRead === 0) {
-					return clb(null);
-				}
-
-				pos = 0;
-				i = 0;
-
-				// Detect encoding and mime when this is the beginning of the file
-				if (isFirstRead) {
-					let mimeAndEncoding = detectMimeAndEncodingFromBuffer(buffer, bytesRead);
-					if (mimeAndEncoding.mimes[mimeAndEncoding.mimes.length - 1] !== baseMime.MIME_TEXT) {
-						return clb(null); // skip files that seem binary
-					}
-
-					// Check for BOM offset
-					switch (mimeAndEncoding.encoding) {
-						case UTF8:
-							pos = i = 3;
-							options.encoding = UTF8;
-							break;
-						case UTF16be:
-							pos = i = 2;
-							options.encoding = UTF16be;
-							break;
-						case UTF16le:
-							pos = i = 2;
-							options.encoding = UTF16le;
-							break;
-					}
-				}
-
-				if (lastBufferHadTraillingCR) {
-					if (buffer[i] === 0x0a) { // LF (Line Feed)
-						lineFinished(1);
-						i++;
-					} else {
-						lineFinished(0);
-					}
-
-					lastBufferHadTraillingCR = false;
-				}
-
-				for (; i < bytesRead; ++i) {
-					if (buffer[i] === 0x0a) { // LF (Line Feed)
-						lineFinished(1);
-					} else if (buffer[i] === 0x0d) { // CR (Carriage Return)
-						if (i + 1 === bytesRead) {
-							lastBufferHadTraillingCR = true;
-						} else if (buffer[i + 1] === 0x0a) { // LF (Line Feed)
-							lineFinished(2);
-							i++;
-						} else {
-							lineFinished(1);
-						}
-					}
-				}
-
-				line += decode(buffer.slice(pos, bytesRead));
-
-				readFile(false /* isFirstRead */, clb); // Continue reading
-			});
-		}
-
-		readFile(true /* isFirstRead */, (error: Error) => {
+	private readlinesAsync(filename: string, perLineCallback: (line: string, lineNumber: number) => void, options: ReadLinesOptions, callback: (error: Error) => void): void {
+		fs.open(filename, 'r', null, (error: Error, fd: number) => {
 			if (error) {
 				return callback(error);
 			}
 
-			if (line.length) {
-				perLineCallback(line, lineNumber); // handle last line
+			let buffer = new Buffer(options.bufferLength);
+			let pos: number;
+			let i: number;
+			let line = '';
+			let lineNumber = 0;
+			let lastBufferHadTraillingCR = false;
+
+			const outer = this;
+
+			function decode(buffer: NodeBuffer): string {
+				if (options.encoding === UTF8) {
+					return buffer.toString(); // much faster to use built in toString() when encoding is default
+				}
+
+				return iconv.decode(buffer, options.encoding);
 			}
 
-			fs.close(fd, (error: Error) => {
-				callback(error);
+			function lineFinished(offset: number): void {
+				line += decode(buffer.slice(pos, i + offset));
+				perLineCallback(line, lineNumber);
+				line = '';
+				lineNumber++;
+				pos = i + offset;
+			}
+
+			function readFile(isFirstRead: boolean, clb: (error: Error) => void): void {
+				if (outer.limitReached || outer.isCanceled) {
+					return callback(null); // return early if canceled or limit reached
+				}
+
+				fs.read(fd, buffer, 0, buffer.length, null, (error: Error, bytesRead: number, buffer: NodeBuffer) => {
+					if (error || bytesRead === 0 || outer.limitReached || outer.isCanceled) {
+						return callback(error); // return early if canceled or limit reached or no more bytes to read
+					}
+
+					pos = 0;
+					i = 0;
+
+					// Detect encoding and mime when this is the beginning of the file
+					if (isFirstRead) {
+						let mimeAndEncoding = detectMimeAndEncodingFromBuffer(buffer, bytesRead);
+						if (mimeAndEncoding.mimes[mimeAndEncoding.mimes.length - 1] !== baseMime.MIME_TEXT) {
+							return clb(null); // skip files that seem binary
+						}
+
+						// Check for BOM offset
+						switch (mimeAndEncoding.encoding) {
+							case UTF8:
+								pos = i = 3;
+								options.encoding = UTF8;
+								break;
+							case UTF16be:
+								pos = i = 2;
+								options.encoding = UTF16be;
+								break;
+							case UTF16le:
+								pos = i = 2;
+								options.encoding = UTF16le;
+								break;
+						}
+					}
+
+					if (lastBufferHadTraillingCR) {
+						if (buffer[i] === 0x0a) { // LF (Line Feed)
+							lineFinished(1);
+							i++;
+						} else {
+							lineFinished(0);
+						}
+
+						lastBufferHadTraillingCR = false;
+					}
+
+					for (; i < bytesRead; ++i) {
+						if (buffer[i] === 0x0a) { // LF (Line Feed)
+							lineFinished(1);
+						} else if (buffer[i] === 0x0d) { // CR (Carriage Return)
+							if (i + 1 === bytesRead) {
+								lastBufferHadTraillingCR = true;
+							} else if (buffer[i + 1] === 0x0a) { // LF (Line Feed)
+								lineFinished(2);
+								i++;
+							} else {
+								lineFinished(1);
+							}
+						}
+					}
+
+					line += decode(buffer.slice(pos, bytesRead));
+
+					readFile(false /* isFirstRead */, clb); // Continue reading
+				});
+			}
+
+			readFile(true /* isFirstRead */, (error: Error) => {
+				if (error) {
+					return callback(error);
+				}
+
+				if (line.length) {
+					perLineCallback(line, lineNumber); // handle last line
+				}
+
+				fs.close(fd, (error: Error) => {
+					callback(error);
+				});
 			});
 		});
-	});
+	}
 }
 
 class FileMatch implements ISerializedFileMatch {

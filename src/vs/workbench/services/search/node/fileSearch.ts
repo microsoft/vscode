@@ -40,6 +40,8 @@ export class FileWalker {
 		this.includePattern = config.includePattern;
 		this.maxResults = config.maxResults || null;
 		this.walkedPaths = Object.create(null);
+		this.resultCount = 0;
+		this.isLimitHit = false;
 
 		// Normalize file patterns to forward slashes
 		if (this.filePattern && this.filePattern.indexOf(paths.sep) >= 0) {
@@ -48,23 +50,17 @@ export class FileWalker {
 		}
 	}
 
-	private resetState(): void {
-		this.walkedPaths = Object.create(null);
-		this.resultCount = 0;
-		this.isLimitHit = false;
-	}
-
 	public cancel(): void {
 		this.isCanceled = true;
 	}
 
 	public walk(rootFolders: string[], extraFiles: string[], onResult: (result: ISerializedFileMatch) => void, done: (error: Error, isLimitHit: boolean) => void): void {
 
-		// Reset state
-		this.resetState();
-
 		// Support that the file pattern is a full path to a file that exists
 		this.checkFilePatternAbsoluteMatch((exists) => {
+			if (this.isCanceled) {
+				return done(null, this.isLimitHit);
+			}
 
 			// Report result from file pattern if matching
 			if (exists) {
@@ -73,7 +69,7 @@ export class FileWalker {
 				// Optimization: a match on an absolute path is a good result and we do not
 				// continue walking the entire root paths array for other matches because
 				// it is very unlikely that another file would match on the full absolute path
-				return done(null, false);
+				return done(null, this.isLimitHit);
 			}
 
 			// For each extra file
