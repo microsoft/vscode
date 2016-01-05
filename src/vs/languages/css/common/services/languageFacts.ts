@@ -200,6 +200,15 @@ export var positionKeywords : { [name:string]:string } = {
 	'top': 'Computes to ‘0%’ for the vertical position if one or two values are given, otherwise specifies the top edge as the origin for the next offset.'
 };
 
+export var repeatStyleKeywords : { [name:string]:string } = {
+	'no-repeat': 'Placed once and not repeated in this direction.',
+	'repeat': 'Repeated in this direction as often as needed to cover the background painting area.',
+	'repeat-x': 'Computes to ‘repeat no-repeat’.',
+	'repeat-y': 'Computes to ‘no-repeat repeat’.',
+	'round': 'Repeated as often as will fit within the background positioning area. If it doesn’t fit a whole number of times, it is rescaled so that it does.',
+	'space': 'Repeated as often as will fit within the background positioning area without being clipped and then the images are spaced out to fill the area.'
+};
+
 export var lineStyleKeywords : { [name:string]:string } = {
 	'dashed': 'A series of square-ended dashes.',
 	'dotted': 'A series of round dots.',

@@ -1084,7 +1084,7 @@ exports.data ={
 			{
 				"name": "background",
 				"desc": "Shorthand property for setting most background properties at the same place in the style sheet.",
-				"restriction": "enum, color, length, percentage, url",
+				"restriction": "enum, color, length, repeat, percentage, url",
 				"values": [
 					{
 						"name": "border-box",
@@ -1139,9 +1139,6 @@ exports.data ={
 						"browsers": "FF10"
 					},
 					{
-						"name": "no-repeat"
-					},
-					{
 						"name": "-o-linear-gradient()",
 						"browsers": "O11.1-12"
 					},
@@ -1158,10 +1155,6 @@ exports.data ={
 						"browsers": "FF16,IE10,O12.5"
 					},
 					{
-						"name": "repeat",
-						"desc": "The image is repeated in this direction as often as needed to cover the background painting area."
-					},
-					{
 						"name": "repeating-linear-gradient()",
 						"browsers": "FF16,IE10,O12.5"
 					},
@@ -1170,28 +1163,12 @@ exports.data ={
 						"browsers": "FF16,IE10,O12.5"
 					},
 					{
-						"name": "repeat-x",
-						"desc": "Equivalent to 'repeat no-repeat'."
-					},
-					{
-						"name": "repeat-y",
-						"desc": "Equivalent to 'no-repeat repeat'."
-					},
-					{
 						"name": "right",
 						"desc": "Equivalent to '100%' for the horizontal position if one or two values are given, otherwise specifies the right edge as the origin for the next offset."
 					},
 					{
-						"name": "round",
-						"desc": "The image is repeated as often as will fit within the background positioning area. If it doesn't fit a whole number of times, it is rescaled so that it does."
-					},
-					{
 						"name": "scroll",
 						"desc": "The background is fixed with regard to the element itself and does not scroll with its contents. (It is effectively attached to the element's border.)"
-					},
-					{
-						"name": "space",
-						"desc": "The image is repeated as often as will fit within the background positioning area without being clipped and then the images are spaced out to fill the area. The first and last images touch the edges of the area."
 					},
 					{
 						"name": "top",
@@ -1482,32 +1459,7 @@ exports.data ={
 			{
 				"name": "background-repeat",
 				"desc": "Specifies how background images are tiled after they have been sized and positioned.",
-				"restriction": "enum",
-				"values": [
-					{
-						"name": "no-repeat"
-					},
-					{
-						"name": "repeat",
-						"desc": "The image is repeated in this direction as often as needed to cover the background painting area."
-					},
-					{
-						"name": "repeat-x",
-						"desc": "Computes to 'repeat no-repeat'."
-					},
-					{
-						"name": "repeat-y",
-						"desc": "Computes to 'no-repeat repeat'."
-					},
-					{
-						"name": "round",
-						"desc": "The image is repeated as often as will fit within the background positioning area. If it doesn't fit a whole number of times, it is rescaled so that it does."
-					},
-					{
-						"name": "space",
-						"desc": "The image is repeated as often as will fit within the background positioning area without being clipped and then the images are spaced out to fill the area. The first and last images touch the edges of the area."
-					}
-				]
+				"restriction": "repeat"
 			},
 			{
 				"name": "background-size",
@@ -1604,14 +1556,13 @@ exports.data ={
 					},
 					{
 						"name": "fill",
-						"desc": "Causes the middle part of the border-image to be preserved. (By default it is discarded, i.e., treated as empty.)"
+						"desc": "Causes the middle part of the border-image to be preserved."
 					},
 					{
 						"name": "none"
 					},
 					{
-						"name": "repeat",
-						"desc": "The image is tiled (repeated) to fill the area."
+						"name": "repeat"
 					},
 					{
 						"name": "round",
@@ -1643,8 +1594,7 @@ exports.data ={
 				"restriction": "enum",
 				"values": [
 					{
-						"name": "repeat",
-						"desc": "The image is tiled (repeated) to fill the area."
+						"name": "repeat"
 					},
 					{
 						"name": "round",
@@ -1988,11 +1938,12 @@ exports.data ={
 			},
 			{
 				"name": "clip",
-				"desc": "Deprecated. Use the 'clip-path' property instead. Defines the visible portion of an element's box.",
+				"desc": "Deprecated. Use the 'clip-path' property when support allows. Defines the visible portion of an element’s box.",
 				"restriction": "enum",
 				"values": [
 					{
-						"name": "auto"
+						"name": "auto",
+						"desc": "The element does not clip."
 					},
 					{
 						"name": "rect()"
@@ -2002,10 +1953,16 @@ exports.data ={
 			{
 				"name": "clip-path",
 				"desc": "Specifies a clipping path where everything inside the path is visable and everything outside is clipped out.",
+				"browsers": "FF3.5",
 				"restriction": "url, enum",
 				"values": [
 					{
-						"name": "none"
+						"name": "none",
+						"desc": "No clipping path gets created."
+					},
+					{
+						"name": "url()",
+						"desc": "References a <clipPath> element to create a clipping path."
 					}
 				]
 			},
@@ -2016,11 +1973,11 @@ exports.data ={
 				"values": [
 					{
 						"name": "evenodd",
-						"desc": "This rule determines the 'insideness' of a point on the canvas by drawing a ray from that point to infinity in any direction and counting the number of path segments from the given shape that the ray crosses."
+						"desc": "Determines the 'insideness' of a point on the canvas by drawing a ray from that point to infinity in any direction and counting the number of path segments from the given shape that the ray crosses."
 					},
 					{
 						"name": "nonzero",
-						"desc": "This rule determines the 'insideness' of a point on the canvas by drawing a ray from that point to infinity in any direction and then examining the places where a segment of the shape crosses the ray."
+						"desc": "Determines the 'insideness' of a point on the canvas by drawing a ray from that point to infinity in any direction and then examining the places where a segment of the shape crosses the ray."
 					}
 				]
 			},
@@ -3801,11 +3758,18 @@ exports.data ={
 				]
 			},
 			{
-				"name": "mask",
-				"desc": "Allows authors to control under what circumstances (if any) a particular graphic element can become the target of mouse events.",
-				"browsers": "E,FF3.5,IE10,O9",
-				"restriction": "url, enum",
-				"values": []
+				"name": "mask-type",
+				"desc": "Defines whether the content of the <mask> element is treated as as luminance mask or alpha mask.",
+				"browsers": "C24,FF35,O15,S7",
+				"restriction": "enum",
+				"values": [
+					{
+						"name": "alpha"
+					},
+					{
+						"name": "luminance"
+					}
+				]
 			},
 			{
 				"name": "max-height",
@@ -4484,14 +4448,13 @@ exports.data ={
 					},
 					{
 						"name": "fill",
-						"desc": "Causes the middle part of the border-image to be preserved. (By default it is discarded, i.e., treated as empty.)"
+						"desc": "Causes the middle part of the border-image to be preserved."
 					},
 					{
 						"name": "none"
 					},
 					{
-						"name": "repeat",
-						"desc": "The image is tiled (repeated) to fill the area."
+						"name": "repeat"
 					},
 					{
 						"name": "round",
@@ -6858,14 +6821,13 @@ exports.data ={
 					},
 					{
 						"name": "fill",
-						"desc": "Causes the middle part of the border-image to be preserved. (By default it is discarded, i.e., treated as empty.)"
+						"desc": "Causes the middle part of the border-image to be preserved."
 					},
 					{
 						"name": "none"
 					},
 					{
-						"name": "repeat",
-						"desc": "The image is tiled (repeated) to fill the area."
+						"name": "repeat"
 					},
 					{
 						"name": "round",
@@ -7828,7 +7790,7 @@ exports.data ={
 					},
 					{
 						"name": "margin-box",
-						"desc": "The background is painted within (clipped to) the margin box"
+						"desc": "The background is painted within (clipped to) the margin box."
 					},
 					{
 						"name": "none",
@@ -7836,7 +7798,7 @@ exports.data ={
 					},
 					{
 						"name": "padding-box",
-						"desc": "The background is painted within (clipped to) the padding box"
+						"desc": "The background is painted within (clipped to) the padding box."
 					},
 					{
 						"name": "polygon()",
@@ -9081,14 +9043,13 @@ exports.data ={
 					},
 					{
 						"name": "fill",
-						"desc": "Causes the middle part of the border-image to be preserved. (By default it is discarded, i.e., treated as empty.)"
+						"desc": "Causes the middle part of the border-image to be preserved."
 					},
 					{
 						"name": "none"
 					},
 					{
-						"name": "repeat",
-						"desc": "The image is tiled (repeated) to fill the area."
+						"name": "repeat"
 					},
 					{
 						"name": "round",
@@ -9768,6 +9729,88 @@ exports.data ={
 				]
 			},
 			{
+				"name": "-webkit-mask-clip",
+				"desc": "Determines the mask painting area, which determines the area that is affected by the mask.",
+				"browsers": "C,O15,S4",
+				"restriction": "enum",
+				"values": [
+					{
+						"name": "border-box",
+						"desc": "The background is painted within (clipped to) the border box."
+					},
+					{
+						"name": "padding-box",
+						"desc": "The background is painted within (clipped to) the padding box."
+					},
+					{
+						"name": "content-box",
+						"desc": "The background is painted within (clipped to) the content box."
+					}
+				]
+			},
+			{
+				"name": "-webkit-mask-image",
+				"desc": "Sets the mask layer image of an element.",
+				"browsers": "C,O15,S4",
+				"restriction": "url, image, enum",
+				"values": [
+					{
+						"name": "none",
+						"desc": "Counts as a transparent black image layer."
+					},
+					{
+						"name": "url()",
+						"desc": "Reference to a <mask element or to a CSS image."
+					}
+				]
+			},
+			{
+				"name": "-webkit-mask-origin",
+				"desc": "Specifies the mask positioning area.",
+				"browsers": "C,O15,S4",
+				"restriction": "enum",
+				"values": [
+					{
+						"name": "border-box",
+						"desc": "The background is painted within (clipped to) the border box."
+					},
+					{
+						"name": "padding-box",
+						"desc": "The background is painted within (clipped to) the padding box."
+					},
+					{
+						"name": "content-box",
+						"desc": "The background is painted within (clipped to) the content box."
+					}
+				]
+			},
+			{
+				"name": "-webkit-mask-repeat",
+				"desc": "Specifies how mask layer images are tiled after they have been sized and positioned.",
+				"browsers": "C,O15,S4",
+				"restriction": "repeat"
+			},
+			{
+				"name": "-webkit-mask-size",
+				"desc": "Specifies the size of the mask layer images.",
+				"browsers": "C,O15,S4",
+				"restriction": "length, percentage, enum",
+				"values": [
+					{
+						"name": "auto",
+						"desc": "Resolved by using the image’s intrinsic ratio and the size of the other dimension, or failing that, using the image’s intrinsic size, or failing that, treating it as 100%."
+					},
+					{
+						"name": "contain",
+						"desc": "Scale the image, while preserving its intrinsic aspect ratio (if any), to the largest size such that both its width and its height can fit inside the background positioning area."
+					},
+					{
+						"name": "cover",
+						"desc": "Scale the image, while preserving its intrinsic aspect ratio (if any), to the smallest size such that both its width and its height can completely cover the background positioning area."
+					}
+				]
+			},
+			{
 				"name": "-webkit-nbsp-mode",
 				"desc": "Defines the behavior of nonbreaking spaces within text.",
 				"browsers": "C,S3",
@@ -10299,7 +10342,6 @@ exports.descriptions = {
 	"step-start": "The step-start function is equivalent to steps(1, start).",
 	"paused": "A running animation will be paused.",
 	"running": "Resume playback of a paused animation.",
-	"no-repeat": "The image is placed once and not repeated in this direction.",
 	"multiply": "The source color is multiplied by the destination color and replaces the destination.",
 	"screen": "Multiplies the complements of the backdrop and source color values, then complements the result.",
 	"overlay": "Multiplies or screens the colors, depending on the backdrop color value.",
@@ -10315,9 +10357,11 @@ exports.descriptions = {
 	"saturation": "Creates a color with the saturation of the source color and the hue and luminosity of the backdrop color.",
 	"color": "Creates a color with the hue and saturation of the source color and the luminosity of the backdrop color.",
 	"luminosity": "Creates a color with the luminosity of the source color and the hue and saturation of the backdrop color.",
+	"repeat": "The image is tiled (repeated) to fill the area.",
 	"clone": "Each box is independently wrapped with the border and padding.",
 	"slice": "The effect is as though the element were rendered with no breaks present, and then sliced by the breaks afterward.",
 	"inset": "Changes the drop shadow from an outer shadow (one that shadows the box onto the canvas, as if it were lifted above the canvas) to an inner shadow (one that shadows the canvas onto the box, as if the box were cut out of the canvas and shifted behind it).",
+	"rect()": "Specifies offsets from the edges of the border box.",
 	"linearRGB": "Color operations should occur in the linearized RGB color space.",
 	"sRGB": "Color operations should occur in the sRGB color space.",
 	"balance": "Balance content equally between columns, if possible.",
@@ -10467,6 +10511,8 @@ exports.descriptions = {
 	"inside": "The marker box is outside the principal block box, as described in the section on the ::marker pseudo-element below.",
 	"outside": "The ::marker pseudo-element is an inline element placed immediately before all ::before pseudo-elements in the principal block box, after which the element's content flows.",
 	"symbols()": "Allows a counter style to be defined inline.",
+	"alpha": "Indicates that the alpha values of the mask should be used.",
+	"luminance": "Indicates that the luminance values of the mask should be used.",
 	"block-axis": "Elements are oriented along the box's axis.",
 	"inline-axis": "Elements are oriented vertically.",
 	"manual": "Words are only broken at line breaks where there are characters inside the word that suggest line break opportunities",

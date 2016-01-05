@@ -857,7 +857,7 @@
         <value name="visible" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="background" restriction="enum, color, length, percentage, url" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#background" syntax="section { $(name): url(image.png) no-repeat #999; }">
+    <entry name="background" restriction="enum, color, length, repeat, percentage, url" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#background" syntax="section { $(name): url(image.png) no-repeat #999; }">
       <desc>Shorthand property for setting most background properties at the same place in the style sheet.</desc>
       <values>
         <value name="border-box" version="1.0" browsers="all">
@@ -890,37 +890,19 @@
         <value name="none" version="1.0" browsers="all">
           <desc>A value of 'none' counts as an image layer but draws nothing.</desc>
         </value>
-        <value name="no-repeat" version="1.0" browsers="all">
-          <desc>The image is placed once and not repeated in this direction.</desc>
-        </value>
         <value name="-o-linear-gradient()" version="3.0" browsers="O11.1-12" />
         <value name="-o-repeating-linear-gradient()" version="3.0" browsers="O11.1-12" />
         <value name="padding-box" version="1.0" browsers="all">
           <desc>The background is painted within (clipped to) the padding box</desc>
         </value>
         <value name="radial-gradient()" version="3.0" browsers="FF16,IE10,O12.5" />
-        <value name="repeat" version="1.0" browsers="all">
-          <desc>The image is repeated in this direction as often as needed to cover the background painting area.</desc>
-        </value>
         <value name="repeating-linear-gradient()" version="3.0" browsers="FF16,IE10,O12.5" />
         <value name="repeating-radial-gradient()" version="3.0" browsers="FF16,IE10,O12.5" />
-        <value name="repeat-x" version="1.0" browsers="all">
-          <desc>Equivalent to 'repeat no-repeat'.</desc>
-        </value>
-        <value name="repeat-y" version="1.0" browsers="all">
-          <desc>Equivalent to 'no-repeat repeat'.</desc>
-        </value>
         <value name="right" version="1.0" browsers="all">
           <desc>Equivalent to '100%' for the horizontal position if one or two values are given, otherwise specifies the right edge as the origin for the next offset.</desc>
         </value>
-        <value name="round" version="3.0" browsers="all">
-          <desc>The image is repeated as often as will fit within the background positioning area. If it doesn't fit a whole number of times, it is rescaled so that it does.</desc>
-        </value>
         <value name="scroll" version="1.0" browsers="all">
           <desc>The background is fixed with regard to the element itself and does not scroll with its contents. (It is effectively attached to the element's border.)</desc>
-        </value>
-        <value name="space" version="3.0" browsers="all">
-          <desc>The image is repeated as often as will fit within the background positioning area without being clipped and then the images are spaced out to fill the area. The first and last images touch the edges of the area.</desc>
         </value>
         <value name="top" version="1.0" browsers="all">
           <desc>Equivalent to '0%' for the vertical position if one or two values are given, otherwise specifies the top edge as the origin for the next offset.</desc>
@@ -1107,28 +1089,8 @@
         <value name="y-start" version="4.0" browsers="none" />
       </values>
     </entry>
-    <entry name="background-repeat" restriction="enum" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#the-background-repeat" syntax="article { $(name): no-repeat; }">
+    <entry name="background-repeat" restriction="repeat" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#the-background-repeat" syntax="article { $(name): no-repeat; }">
       <desc>Specifies how background images are tiled after they have been sized and positioned.</desc>
-      <values>
-        <value name="no-repeat" version="1.0" browsers="all">
-          <desc>The image is placed once and not repeated in this direction.</desc>
-        </value>
-        <value name="repeat" version="1.0" browsers="all">
-          <desc>The image is repeated in this direction as often as needed to cover the background painting area.</desc>
-        </value>
-        <value name="repeat-x" version="1.0" browsers="all">
-          <desc>Computes to 'repeat no-repeat'.</desc>
-        </value>
-        <value name="repeat-y" version="1.0" browsers="all">
-          <desc>Computes to 'no-repeat repeat'.</desc>
-        </value>
-        <value name="round" version="3.0" browsers="all">
-          <desc>The image is repeated as often as will fit within the background positioning area. If it doesn't fit a whole number of times, it is rescaled so that it does.</desc>
-        </value>
-        <value name="space" version="3.0" browsers="all">
-          <desc>The image is repeated as often as will fit within the background positioning area without being clipped and then the images are spaced out to fill the area. The first and last images touch the edges of the area.</desc>
-        </value>
-      </values>
     </entry>
     <entry name="background-size" restriction="length, percentage" version="3.0" browsers="E,C,FF4,IE9,O10,S4.1" ref="http://www.w3.org/TR/css3-background/#the-background-size" syntax="header { $(name): 20px; }">
       <desc>Specifies the size of the background images.</desc>
@@ -1200,7 +1162,7 @@
           <desc>If 'auto' is specified then the border image width is the intrinsic width or height (whichever is applicable) of the corresponding image slice. If the image does not have the required intrinsic dimension then the corresponding border-width is used instead.</desc>
         </value>
         <value name="fill" version="3.0" browsers="all">
-          <desc>Causes the middle part of the border-image to be preserved. (By default it is discarded, i.e., treated as empty.)</desc>
+          <desc>Causes the middle part of the border-image to be preserved.</desc>
         </value>
         <value name="none" version="3.0" browsers="all" />
         <value name="repeat" version="3.0" browsers="all">
@@ -1242,7 +1204,7 @@
       <desc>The four 'border-image-slice' values represent inward offsets from the top, right, bottom, and left edges of the image respectively, dividing it into nine regions: four corners, four edges and a middle. The middle image part is discarded (treated as fully transparent) unless the 'fill' keyword is present. (It is drawn over the background; see the border-image drawing process.) If the fourth number/percentage is absent, it is the same as the second. If the third one is also absent, it is the same as the first. If the second one is also absent, it is the same as the first.</desc>
       <values>
         <value name="fill" version="3.0" browsers="all">
-          <desc>Causes the middle part of the border-image to be preserved. (By default it is discarded, i.e., treated as empty.)</desc>
+          <desc>Causes the middle part of the border-image to be preserved.</desc>
         </value>
       </values>
     </entry>
@@ -1271,7 +1233,7 @@
       <desc>The four values of 'border-image-width' specify offsets that are used to divide the border image area into nine parts. They represent inward distances from the top, right, bottom, and left sides of the area, respectively.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all">
-          <desc>If 'auto' is specified then the border image width is the intrinsic width or height (whichever is applicable) of the corresponding image slice. If the image does not have the required intrinsic dimension then the corresponding border-width is used instead.</desc>
+          <desc>The border image width is the intrinsic width or height (whichever is applicable) of the corresponding image slice. If the image does not have the required intrinsic dimension then the corresponding border-width is used instead.</desc>
         </value>
       </values>
     </entry>
@@ -1553,37 +1515,68 @@
       </values>
     </entry>
     <entry name="clip" restriction="enum" version="2.0" browsers="all" ref="http://www.w3.org/TR/css-masking/#clip-property" syntax="span { $(name): rect(0px, 60px, 200px, 0px); }">
-      <desc>Deprecated. Use the 'clip-path' property instead. Defines the visible portion of an element's box.</desc>
+      <desc>Deprecated. Use the 'clip-path' property when support allows. Defines the visible portion of an element’s box.</desc>
       <values>
-        <value name="auto" version="2.0" browsers="all" />
-        <value name="rect()" version="2.0" browsers="all" />
+        <value name="auto" version="2.0" browsers="all">
+          <desc>The element does not clip.</desc>
+        </value>
+        <value name="rect()" version="2.0" browsers="all">
+          <desc>Specifies offsets from the edges of the border box.</desc>
+        </value>
       </values>
     </entry>
-    <entry name="clip-path" restriction="url, enum" version="3.0" browsers="all" ref="http://www.w3.org/TR/css-masking/#the-clip-path">
+    <entry name="clip-path" restriction="url, enum" version="3.0" browsers="FF3.5" ref="http://www.w3.org/TR/css-masking/#the-clip-path">
       <desc>Specifies a clipping path where everything inside the path is visable and everything outside is clipped out.</desc>
       <values>
-        <value name="none" version="3.0" browsers="all" />
-        <value name="inset()" version="3.0" browsers="none" />
-        <value name="circle()" version="3.0" browsers="none" />
-        <value name="ellipse()" version="3.0" browsers="none" />
-        <value name="polygon()" version="3.0" browsers="none" />
-        <value name="border-box" version="3.0" browsers="none" />
-        <value name="padding-box" version="3.0" browsers="none" />
-        <value name="content-box" version="3.0" browsers="none" />
-        <value name="margin-box" version="3.0" browsers="none" />
-        <value name="fill-box" version="3.0" browsers="none" />
-        <value name="stroke-box" version="3.0" browsers="none" />
-        <value name="view-box" version="3.0" browsers="none" />
+        <value name="none" version="3.0" browsers="all">
+          <desc>No clipping path gets created.</desc>
+        </value>
+        <value name="inset()" version="3.0" browsers="none">
+          <desc>Defines an inset rectangle.</desc>
+        </value>
+        <value name="circle()" version="3.0" browsers="none">
+          <desc>Defines a circle.</desc>
+        </value>
+        <value name="ellipse()" version="3.0" browsers="none">
+          <desc>Defines an ellipse.</desc>
+        </value>
+        <value name="polygon()" version="3.0" browsers="none">
+          <desc>Defines a polygon.</desc>
+        </value>
+        <value name="border-box" version="3.0" browsers="none">
+          <desc>The background is painted within (clipped to) the border box.</desc>
+        </value>
+        <value name="padding-box" version="3.0" browsers="none">
+          <desc>The background is painted within (clipped to) the padding box.</desc>
+        </value>
+        <value name="content-box" version="3.0" browsers="none">
+          <desc>The background is painted within (clipped to) the content box.</desc>
+        </value>
+        <value name="margin-box" version="3.0" browsers="none">
+          <desc>The background is painted within (clipped to) the margin box.</desc>
+        </value>
+        <value name="fill-box" version="3.0" browsers="none">
+          <desc>Uses the object bounding box as reference box.</desc>
+        </value>
+        <value name="stroke-box" version="3.0" browsers="none">
+          <desc>Uses the stroke bounding box as reference box.</desc>
+        </value>
+        <value name="view-box" version="3.0" browsers="none">
+          <desc>Uses the nearest SVG viewport as reference box.</desc>
+        </value>
+        <value name="url()" version="3.0" browsers="all">
+          <desc>References a &lt;clipPath> element to create a clipping path.</desc>
+        </value>
       </values>
     </entry>
-    <entry name="clip-rule" restriction="enum" version="3.0" browsers="all" ref="http://www.w3.org/TR/SVG/masking.html#ClipPathElement">
+    <entry name="clip-rule" restriction="enum" version="3.0" browsers="all" ref="http://www.w3.org/TR/css-masking-1/#the-clip-rule">
       <desc>Indicates the algorithm which is to be used to determine what parts of the canvas are included inside the shape.</desc>
       <values>
         <value name="evenodd" version="3.0" browsers="all">
-          <desc>This rule determines the 'insideness' of a point on the canvas by drawing a ray from that point to infinity in any direction and counting the number of path segments from the given shape that the ray crosses.</desc>
+          <desc>Determines the 'insideness' of a point on the canvas by drawing a ray from that point to infinity in any direction and counting the number of path segments from the given shape that the ray crosses.</desc>
         </value>
         <value name="nonzero" version="3.0" browsers="all">
-          <desc>This rule determines the 'insideness' of a point on the canvas by drawing a ray from that point to infinity in any direction and then examining the places where a segment of the shape crosses the ray.</desc>
+          <desc>Determines the 'insideness' of a point on the canvas by drawing a ray from that point to infinity in any direction and then examining the places where a segment of the shape crosses the ray.</desc>
         </value>
       </values>
     </entry>
@@ -3509,10 +3502,279 @@
         <value name="url()" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="mask" restriction="url, enum" version="3.0" browsers="E,FF3.5,IE10,O9" ref="http://www.w3.org/TR/SVG/masking.html#ClipPathElement">
-      <desc>Allows authors to control under what circumstances (if any) a particular graphic element can become the target of mouse events.</desc>
+    <entry name="mask" restriction="url, image, length, percentage, position, repeat, enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-masking-1/#the-mask">
+      <desc>The mask shorthand.</desc>
       <values>
-        <value name="none" version="3.0" browsers="all" />
+        <value name="none" version="3.0" browsers="all">
+          <desc>Counts as a transparent black image layer.</desc>
+        </value>
+        <value name="url()" version="3.0" browsers="all">
+          <desc>Reference to a &lt;mask element or to a CSS image.</desc>
+        </value>
+        <value name="alpha" version="3.0" browsers="all">
+          <desc>Alpha values of the mask layer image should be used as the mask values.</desc>
+        </value>
+        <value name="auto" version="3.0" browsers="all"/>
+        <value name="luminance" version="3.0" browsers="all">
+          <desc>Luminance values of the mask layer image should be used as the mask values.</desc>
+        </value>
+        <value name="contain" version="3.0" browsers="all">
+          <desc>Scale the image, while preserving its intrinsic aspect ratio (if any), to the largest size such that both its width and its height can fit inside the background positioning area.</desc>
+        </value>
+        <value name="cover" version="3.0" browsers="all">
+          <desc>Scale the image, while preserving its intrinsic aspect ratio (if any), to the smallest size such that both its width and its height can completely cover the background positioning area.</desc>
+        </value>
+        <value name="border-box" version="3.0" browsers="all">
+          <desc>The background is painted within (clipped to) the border box.</desc>
+        </value>
+        <value name="padding-box" version="3.0" browsers="all">
+          <desc>The background is painted within (clipped to) the padding box.</desc>
+        </value>
+        <value name="content-box" version="3.0" browsers="all">
+          <desc>The background is painted within (clipped to) the content box.</desc>
+        </value>
+        <value name="margin-box" version="3.0" browsers="all">
+          <desc>The background is painted within (clipped to) the margin box.</desc>
+        </value>
+        <value name="no-clip" version="3.0" browsers="all">
+          <desc>The painted content is not restricted (not clipped).</desc>
+        </value>
+        <value name="fill-box" version="3.0" browsers="all">
+          <desc>Uses the object bounding box as reference box.</desc>
+        </value>
+        <value name="stroke-box" version="3.0" browsers="all">
+          <desc>Uses the stroke bounding box as reference box.</desc>
+        </value>
+        <value name="view-box" version="3.0" browsers="all">
+          <desc>Uses the nearest SVG viewport as reference box.</desc>
+        </value>
+        <value name="add" version="3.0" browsers="all">
+          <desc>The source is placed over the destination.</desc>
+        </value>
+        <value name="exclude" version="3.0" browsers="all">
+          <desc>The non-overlapping regions of source and destination are combined.</desc>
+        </value>
+        <value name="intersect" version="3.0" browsers="all">
+          <desc>The parts of source that overlap the destination, replace the destination.</desc>
+        </value>
+        <value name="subtract" version="3.0" browsers="all">
+          <desc>The source is placed, where it falls outside of the destination.</desc>
+        </value>
+      </values>
+    </entry>
+    <entry name="mask-border" restriction="image, length, number, percentage, enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-masking-1/#the-mask-border">
+      <desc>Shorthand property for setting 'mask-border-source', 'mask-border-slice', 'mask-border-width', 'mask-border-outset', 'mask-border-repeat', and 'mask-border-mode'.</desc>
+      <values>
+        <value name="none" version="3.0" browsers="all">
+          <desc>No mask border image.</desc>
+        </value>
+        <value name="fill" version="3.0" browsers="all">
+          <desc>Causes the middle part of the border-image to be preserved.</desc>
+        </value>
+         <value name="auto" version="3.0" browsers="all">
+          <desc>The mask border image width is the intrinsic width or height (whichever is applicable) of the corresponding image slice. If the image does not have the required intrinsic dimension then the corresponding border-width is used instead.</desc>
+        </value>
+        <value name="repeat" version="3.0" browsers="all">
+          <desc>The image is tiled (repeated) to fill the area.</desc>
+        </value>
+        <value name="round" version="3.0" browsers="all">
+          <desc>The image is tiled (repeated) to fill the area. If it does not fill the area with a whole number of tiles, the image is rescaled so that it does.</desc>
+        </value>
+        <value name="space" version="3.0" browsers="all">
+          <desc>The image is tiled (repeated) to fill the area. If it does not fill the area with a whole number of tiles, the extra space is distributed around the tiles.</desc>
+        </value>
+        <value name="stretch" version="3.0" browsers="all">
+          <desc>The image is stretched to fill the area.</desc>
+        </value>
+        <value name="alpha" version="3.0" browsers="all">
+          <desc>Alpha values of the mask border image should be used as the mask values.</desc>
+        </value>
+        <value name="luminance" version="3.0" browsers="all">
+          <desc>Luminance values of the mask border image should be used as the mask values.</desc>
+        </value>
+      </values>
+    </entry>
+    <entry name="mask-border-mode" restriction="enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-masking-1/#the-mask-border-mode">
+      <desc>Indicates whether the image value for 'mask-border-source' is treated as luminance mask or alpha mask.</desc>
+      <values>
+        <value name="alpha" version="3.0" browsers="all">
+          <desc>Alpha values of the mask border image should be used as the mask values.</desc>
+        </value>
+        <value name="luminance" version="3.0" browsers="all">
+          <desc>Luminance values of the mask border image should be used as the mask values.</desc>
+        </value>
+      </values>
+    </entry>
+    <entry name="mask-border-outset" restriction="length, number" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-masking-1/#the-mask-border-outset">
+      <desc>Specifies the amount by which the mask border image area extends beyond the border box.</desc>
+    </entry>
+    <entry name="mask-border-repeat" restriction="enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-masking-1/#the-mask-border-repeat">
+      <desc>Specifies how the images for the sides and the middle part of the mask border image are scaled and tiled.</desc>
+      <values>
+        <value name="repeat" version="3.0" browsers="all">
+          <desc>The image is tiled (repeated) to fill the area.</desc>
+        </value>
+        <value name="round" version="3.0" browsers="all">
+          <desc>The image is tiled (repeated) to fill the area. If it does not fill the area with a whole number of tiles, the image is rescaled so that it does.</desc>
+        </value>
+        <value name="space" version="3.0" browsers="all">
+          <desc>The image is tiled (repeated) to fill the area. If it does not fill the area with a whole number of tiles, the extra space is distributed around the tiles.</desc>
+        </value>
+        <value name="stretch" version="3.0" browsers="all">
+          <desc>The image is stretched to fill the area.</desc>
+        </value>
+      </values>
+    </entry>
+    <entry name="mask-border-slice" restriction="number, percentage, enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-masking-1/#the-mask-border-slice">
+      <desc>Specifies inward offsets from the top, right, bottom, and left edges of the mask border image, dividing it into nine regions: four corners, four edges and a middle.</desc>
+      <values>
+        <value name="fill" version="3.0" browsers="all">
+          <desc>Causes the middle part of the border-image to be preserved.</desc>
+        </value>
+      </values>
+    </entry>
+    <entry name="mask-border-source" restriction="image, enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-masking-1/#the-mask-border-source">
+      <desc>Specifies an image to be used as mask border image.</desc>
+      <values>
+        <value name="none" version="3.0" browsers="all">
+          <desc>No mask border image.</desc>
+        </value>
+      </values>
+    </entry>
+    <entry name="mask-border-width" restriction="length, percentage, enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-masking-1/#the-mask-border-width">
+      <desc>Specifies offsets that are used to divide the mask border image area into nine parts.</desc>
+      <values>
+        <value name="auto" version="3.0" browsers="all">
+          <desc>The mask border image width is the intrinsic width or height (whichever is applicable) of the corresponding image slice. If the image does not have the required intrinsic dimension then the corresponding border-width is used instead.</desc>
+        </value>
+      </values>
+    </entry>
+    <entry name="mask-clip" restriction="enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-masking-1/#the-mask-clip">
+      <desc>Determines the mask painting area, which determines the area that is affected by the mask.</desc>
+      <values>
+        <value name="border-box" version="3.0" browsers="all">
+          <desc>The background is painted within (clipped to) the border box.</desc>
+        </value>
+        <value name="padding-box" version="3.0" browsers="all">
+          <desc>The background is painted within (clipped to) the padding box.</desc>
+        </value>
+        <value name="content-box" version="3.0" browsers="all">
+          <desc>The background is painted within (clipped to) the content box.</desc>
+        </value>
+        <value name="margin-box" version="3.0" browsers="all">
+          <desc>The background is painted within (clipped to) the margin box.</desc>
+        </value>
+        <value name="no-clip" version="3.0" browsers="all">
+          <desc>The painted content is not restricted (not clipped).</desc>
+        </value>
+        <value name="fill-box" version="3.0" browsers="all">
+          <desc>Uses the object bounding box as reference box.</desc>
+        </value>
+        <value name="stroke-box" version="3.0" browsers="all">
+          <desc>Uses the stroke bounding box as reference box.</desc>
+        </value>
+        <value name="view-box" version="3.0" browsers="all">
+          <desc>Uses the nearest SVG viewport as reference box.</desc>
+        </value>
+      </values>
+    </entry>
+    <entry name="mask-composite" restriction="enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-masking-1/#the-mask-composite">
+      <desc>Defines the compositing operation used on the current mask layer with the mask layers below it.</desc>
+      <values>
+        <value name="add" version="3.0" browsers="all">
+          <desc>The source is placed over the destination.</desc>
+        </value>
+        <value name="exclude" version="3.0" browsers="all">
+          <desc>The non-overlapping regions of source and destination are combined.</desc>
+        </value>
+        <value name="intersect" version="3.0" browsers="all">
+          <desc>The parts of source that overlap the destination, replace the destination.</desc>
+        </value>
+        <value name="subtract" version="3.0" browsers="all">
+          <desc>The source is placed, where it falls outside of the destination.</desc>
+        </value>
+      </values>
+    </entry>
+    <entry name="mask-image" restriction="url, image, enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-masking-1/#the-mask-image">
+      <desc>Sets the mask layer image of an element.</desc>
+      <values>
+        <value name="none" version="3.0" browsers="all">
+          <desc>Counts as a transparent black image layer.</desc>
+        </value>
+        <value name="url()" version="3.0" browsers="all">
+          <desc>Reference to a &lt;mask element or to a CSS image.</desc>
+        </value>
+      </values>
+    </entry>
+    <entry name="mask-mode" restriction="url, image, enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-masking-1/#the-mask-mode">
+      <desc>Indicates whether the mask layer image is treated as luminance mask or alpha mask.</desc>
+      <values>
+        <value name="alpha" version="3.0" browsers="all">
+          <desc>Alpha values of the mask layer image should be used as the mask values.</desc>
+        </value>
+        <value name="auto" version="3.0" browsers="all">
+          <desc>Use alpha values if 'mask-image' is an image, luminance if a &lt;mask> element or a CSS image.</desc>
+        </value>
+        <value name="luminance" version="3.0" browsers="all">
+          <desc>Luminance values of the mask layer image should be used as the mask values.</desc>
+        </value>
+      </values>
+    </entry>
+    <entry name="mask-origin" restriction="enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-masking-1/#the-mask-origin">
+      <desc>Specifies the mask positioning area.</desc>
+      <values>
+        <value name="border-box" version="3.0" browsers="all">
+          <desc>The background is painted within (clipped to) the border box.</desc>
+        </value>
+        <value name="padding-box" version="3.0" browsers="all">
+          <desc>The background is painted within (clipped to) the padding box.</desc>
+        </value>
+        <value name="content-box" version="3.0" browsers="all">
+          <desc>The background is painted within (clipped to) the content box.</desc>
+        </value>
+        <value name="margin-box" version="3.0" browsers="all">
+          <desc>The background is painted within (clipped to) the margin box.</desc>
+        </value>
+        <value name="fill-box" version="3.0" browsers="all">
+          <desc>Uses the object bounding box as reference box.</desc>
+        </value>
+        <value name="stroke-box" version="3.0" browsers="all">
+          <desc>Uses the stroke bounding box as reference box.</desc>
+        </value>
+        <value name="view-box" version="3.0" browsers="all">
+          <desc>Uses the nearest SVG viewport as reference box.</desc>
+        </value>
+      </values>
+    </entry>
+    <entry name="mask-position" restriction="position, length, percentage" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-masking-1/#the-mask-position">
+      <desc>Specifies how mask layer images are positioned.</desc>
+    </entry>
+    <entry name="mask-repeat" restriction="repeat" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-masking-1/#the-mask-repeat">
+      <desc>Specifies how mask layer images are tiled after they have been sized and positioned.</desc>
+    </entry>
+    <entry name="mask-size" restriction="length, percentage, enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-masking-1/#the-mask-size">
+      <desc>Specifies the size of the mask layer images.</desc>
+       <values>
+        <value name="auto" version="3.0" browsers="all">
+          <desc>Resolved by using the image’s intrinsic ratio and the size of the other dimension, or failing that, using the image’s intrinsic size, or failing that, treating it as 100%.</desc>
+        </value>
+        <value name="contain" version="3.0" browsers="all">
+          <desc>Scale the image, while preserving its intrinsic aspect ratio (if any), to the largest size such that both its width and its height can fit inside the background positioning area.</desc>
+        </value>
+        <value name="cover" version="3.0" browsers="all">
+          <desc>Scale the image, while preserving its intrinsic aspect ratio (if any), to the smallest size such that both its width and its height can completely cover the background positioning area.</desc>
+        </value>
+      </values>
+    </entry>
+    <entry name="mask-type" restriction="enum" version="3.0" browsers="C24,FF35,O15,S7" ref="http://www.w3.org/TR/css-masking-1/#the-mask-type">
+      <desc>Defines whether the content of the &lt;mask> element is treated as as luminance mask or alpha mask.</desc>
+      <values>
+        <value name="alpha" version="3.0" browsers="all">
+          <desc>Indicates that the alpha values of the mask should be used.</desc>
+        </value>
+        <value name="luminance" version="3.0" browsers="all">
+          <desc>Indicates that the luminance values of the mask should be used.</desc>
+        </value>
       </values>
     </entry>
     <entry name="max-height" restriction="length, percentage" version="2.0" browsers="E,C,FF1,IE7,O7,S1" ref="http://www.w3.org/TR/css3-box/#max-height" syntax="footer { $(name): 300px; }">
@@ -3931,7 +4193,7 @@
           <desc>If 'auto' is specified then the border image width is the intrinsic width or height (whichever is applicable) of the corresponding image slice. If the image does not have the required intrinsic dimension then the corresponding border-width is used instead.</desc>
         </value>
         <value name="fill" version="3.0" browsers="all">
-          <desc>Causes the middle part of the border-image to be preserved. (By default it is discarded, i.e., treated as empty.)</desc>
+          <desc>Causes the middle part of the border-image to be preserved.</desc>
         </value>
         <value name="none" version="3.0" browsers="all" />
         <value name="repeat" version="3.0" browsers="all">
@@ -5607,7 +5869,7 @@
           <desc>If 'auto' is specified then the border image width is the intrinsic width or height (whichever is applicable) of the corresponding image slice. If the image does not have the required intrinsic dimension then the corresponding border-width is used instead.</desc>
         </value>
         <value name="fill" version="3.0" browsers="all">
-          <desc>Causes the middle part of the border-image to be preserved. (By default it is discarded, i.e., treated as empty.)</desc>
+          <desc>Causes the middle part of the border-image to be preserved.</desc>
         </value>
         <value name="none" version="3.0" browsers="all" />
         <value name="repeat" version="3.0" browsers="all">
@@ -6527,13 +6789,13 @@
         </value>
         <value name="linear-gradient()" version="3.0" browsers="all" />
         <value name="margin-box" version="3.0" browsers="all">
-          <desc>The background is painted within (clipped to) the margin box</desc>
+          <desc>The background is painted within (clipped to) the margin box.</desc>
         </value>
         <value name="none" version="3.0" browsers="all">
           <desc>The float area is unaffected.</desc>
         </value>
         <value name="padding-box" version="3.0" browsers="all">
-          <desc>The background is painted within (clipped to) the padding box</desc>
+          <desc>The background is painted within (clipped to) the padding box.</desc>
         </value>
         <value name="polygon()" version="3.0" browsers="all">
           <desc>Defines a polygon.</desc>
@@ -7929,7 +8191,7 @@
           <desc>If 'auto' is specified then the border image width is the intrinsic width or height (whichever is applicable) of the corresponding image slice. If the image does not have the required intrinsic dimension then the corresponding border-width is used instead.</desc>
         </value>
         <value name="fill" version="3.0" browsers="all">
-          <desc>Causes the middle part of the border-image to be preserved. (By default it is discarded, i.e., treated as empty.)</desc>
+          <desc>Causes the middle part of the border-image to be preserved.</desc>
         </value>
         <value name="none" version="3.0" browsers="all" />
         <value name="repeat" version="3.0" browsers="all">
@@ -8400,6 +8662,62 @@
         <value name="collapse" version="3.0" browsers="all" />
         <value name="discard" version="3.0" browsers="all" />
         <value name="separate" version="3.0" browsers="all" />
+      </values>
+    </entry>
+    <entry name="-webkit-mask-clip" restriction="enum" version="3.0" browsers="C,O15,S4" ref="http://www.w3.org/TR/css-masking-1/#the-mask-clip">
+      <desc>Determines the mask painting area, which determines the area that is affected by the mask.</desc>
+      <values>
+        <value name="border-box" version="3.0" browsers="all">
+          <desc>The background is painted within (clipped to) the border box.</desc>
+        </value>
+        <value name="padding-box" version="3.0" browsers="all">
+          <desc>The background is painted within (clipped to) the padding box.</desc>
+        </value>
+        <value name="content-box" version="3.0" browsers="all">
+          <desc>The background is painted within (clipped to) the content box.</desc>
+        </value>
+      </values>
+    </entry>
+    <entry name="-webkit-mask-image" restriction="url, image, enum" version="3.0" browsers="C,O15,S4" ref="http://www.w3.org/TR/css-masking-1/#the-mask-image">
+      <desc>Sets the mask layer image of an element.</desc>
+      <values>
+        <value name="none" version="3.0" browsers="all">
+          <desc>Counts as a transparent black image layer.</desc>
+        </value>
+        <value name="url()" version="3.0" browsers="all">
+          <desc>Reference to a &lt;mask element or to a CSS image.</desc>
+        </value>
+      </values>
+    </entry>
+    <entry name="-webkit-mask-origin" restriction="enum" version="3.0" browsers="C,O15,S4" ref="http://www.w3.org/TR/css-masking-1/#the-mask-origin">
+      <desc>Specifies the mask positioning area.</desc>
+      <values>
+        <value name="border-box" version="3.0" browsers="all">
+          <desc>The background is painted within (clipped to) the border box.</desc>
+        </value>
+        <value name="padding-box" version="3.0" browsers="all">
+          <desc>The background is painted within (clipped to) the padding box.</desc>
+        </value>
+        <value name="content-box" version="3.0" browsers="all">
+          <desc>The background is painted within (clipped to) the content box.</desc>
+        </value>
+      </values>
+    </entry>
+    <entry name="-webkit-mask-repeat" restriction="repeat" version="3.0" browsers="C,O15,S4" ref="http://www.w3.org/TR/css-masking-1/#the-mask-repeat">
+      <desc>Specifies how mask layer images are tiled after they have been sized and positioned.</desc>
+    </entry>
+    <entry name="-webkit-mask-size" restriction="length, percentage, enum" version="3.0" browsers="C,O15,S4" ref="http://www.w3.org/TR/css-masking-1/#the-mask-size">
+      <desc>Specifies the size of the mask layer images.</desc>
+       <values>
+        <value name="auto" version="3.0" browsers="all">
+          <desc>Resolved by using the image’s intrinsic ratio and the size of the other dimension, or failing that, using the image’s intrinsic size, or failing that, treating it as 100%.</desc>
+        </value>
+        <value name="contain" version="3.0" browsers="all">
+          <desc>Scale the image, while preserving its intrinsic aspect ratio (if any), to the largest size such that both its width and its height can fit inside the background positioning area.</desc>
+        </value>
+        <value name="cover" version="3.0" browsers="all">
+          <desc>Scale the image, while preserving its intrinsic aspect ratio (if any), to the smallest size such that both its width and its height can completely cover the background positioning area.</desc>
+        </value>
       </values>
     </entry>
     <entry name="-webkit-nbsp-mode" restriction="" version="3.0" browsers="C,S3" ref="http://css-infos.net/property/-webkit-nbsp-mode" syntax="p { $(name): space; }">
