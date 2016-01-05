@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import htmlcontentrenderer = require('vs/base/browser/htmlContentRenderer');
 import errors = require('vs/base/common/errors');
 import dom = require('vs/base/browser/dom');
 import { ITree } from 'vs/base/parts/tree/common/tree';

@@ -1,0 +1,70 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-editor .debug-hover-widget {
+	padding: 0 3px 0 3px;
+	border: 1px solid #CCC;
+	position: absolute;
+	margin-top: -1px;
+	cursor: default;
+	z-index: 50;
+	-webkit-animation-duration: 0.15s;
+	-webkit-animation-name: fadeIn;
+	-moz-animation-duration: 0.15s;
+	-moz-animation-name: fadeIn;
+	-ms-animation-duration: 0.15s;
+	-ms-animation-name: fadeIn;
+	animation-duration: 0.15s;
+	animation-name: fadeIn;
+
+	white-space: pre;
+	width: 350px;
+	height: 300px;
+
+	-webkit-user-select: text;
+	-ms-user-select: text;
+	-khtml-user-select: text;
+	-moz-user-select: text;
+	-o-user-select: text;
+
+	overflow: hidden;
+}
+
+.monaco-editor .debug-hover-widget .debug-hover-tree {
+	line-height: 24px;
+	height: 100%;
+}
+
+/* Disable tree hover highlight in debug hover tree. */
+.monaco-editor .debug-hover-widget .debug-hover-tree .monaco-tree .monaco-tree-rows > .monaco-tree-row:hover:not(.highlighted):not(.selected):not(.focused)  {
+	background-color: inherit;
+}
+
+.monaco-editor .debug-hover-widget .debug-hover-tree .monaco-tree .monaco-tree-rows > .monaco-tree-row {
+	cursor: default;
+}
+
+.monaco-editor .debug-hover-widget .debug-hover-tree .monaco-tree .monaco-tree-rows > .monaco-tree-row.has-children {
+	cursor: pointer;
+}
+
+.monaco-editor .debug-hover-widget pre {
+	margin-top: 0;
+	margin-bottom: 0;
+}
+
+.monaco-editor .debugHoverHighlight {
+	background-color: rgba(173, 214, 255, 0.15);
+}
+
+/* Dark theme */
+
+.monaco-editor.vs-dark .debug-hover-widget {
+	border-color: #555;
+}
+
+.monaco-editor.vs-dark .debugHoverHighlight {
+	background-color: rgba(38, 79, 120, 0.25);
+}

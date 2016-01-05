@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!../browser/media/debug.contribution';
+import 'vs/css!../browser/media/debugHover';
 import nls = require('vs/nls');
 import { CommonEditorRegistry, ContextKey, EditorActionDescriptor } from 'vs/editor/common/editorCommonExtensions';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
