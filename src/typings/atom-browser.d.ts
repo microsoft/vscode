@@ -284,13 +284,13 @@ interface IBrowserWindowOptions {
 	show?: boolean;
 	frame?: boolean;
 	kiosk?: boolean;
-	'web-preferences'?: IWebPreferences;
+	webPreferences?: IWebPreferences;
 	icon?: string;
-	'min-width'?: number;
-	'min-height'?: number;
-	'always-on-top'?: boolean;
-	'skip-taskbar'?: boolean;
-	'background-color'?: string;
+	minWidth?: number;
+	minHeight?: number;
+	alwaysOnTop?: boolean;
+	skipTaskbar?: boolean;
+	backgroundColor?: string;
 	resizable?: boolean;
 	title?: string;
 }

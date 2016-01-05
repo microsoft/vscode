@@ -173,9 +173,9 @@ export class VSCodeWindow {
 			height: this.windowState.height,
 			x: this.windowState.x,
 			y: this.windowState.y,
-			'background-color': usesLightTheme ? '#FFFFFF' : '#1E1E1E',
-			'min-width': VSCodeWindow.MIN_WIDTH,
-			'min-height': VSCodeWindow.MIN_HEIGHT,
+			backgroundColor: usesLightTheme ? '#FFFFFF' : '#1E1E1E',
+			minWidth: VSCodeWindow.MIN_WIDTH,
+			minHeight: VSCodeWindow.MIN_HEIGHT,
 			show: showDirectly && this.currentWindowMode !== WindowMode.Maximized, // in case we are maximized, only show later after the call to maximize (see below)
 			title: env.product.nameLong
 		};

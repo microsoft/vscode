@@ -46,8 +46,8 @@ export class GitAskpassService {
 			}
 
 			let win = new BrowserWindow({
-				'always-on-top': true,
-				'skip-taskbar': true,
+				alwaysOnTop: true,
+				skipTaskbar: true,
 				resizable: false,
 				width: 450,
 				height: platform.isWindows ? 280 : 260,
