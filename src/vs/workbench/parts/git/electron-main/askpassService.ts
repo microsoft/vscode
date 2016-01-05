@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as nls from 'vs/nls';
 import ipc = require('ipc');
 import platform = require('vs/base/common/platform');
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -51,7 +52,8 @@ export class GitAskpassService {
 				resizable: false,
 				width: 450,
 				height: platform.isWindows ? 280 : 260,
-				show: true
+				show: true,
+				title: nls.localize('git', "Git")
 			});
 
 			win.setMenuBarVisibility(false);
