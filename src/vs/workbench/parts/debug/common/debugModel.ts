@@ -613,7 +613,7 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 						return new StackFrame(data.threadId, 0, Source.fromUri(uri.parse('unknown')), nls.localize('unknownStack', "Unknown stack location"), undefined, undefined);
 					}
 
-					return new StackFrame(data.threadId, rsf.id, rsf.source ? Source.fromRawSource(rsf.source) : Source.fromUri(uri.parse('unknown')), rsf.name, rsf.line, rsf.column);
+					return new StackFrame(data.threadId, rsf.id, rsf.source ? new Source(rsf.source) : Source.fromUri(uri.parse('unknown')), rsf.name, rsf.line, rsf.column);
 				});
 
 			this.threads[data.threadId].stoppedReason = data.stoppedReason;
