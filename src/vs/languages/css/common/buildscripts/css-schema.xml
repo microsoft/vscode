@@ -6812,23 +6812,49 @@
     <entry name="shape-inside" restriction="url, enum" version="4.0" browsers="none" ref="https://drafts.csswg.org/css-shapes-2/#propdef-shape-inside" syntax="div { $(name): outside-shape; }">
       <desc>Adds one or more exclusion areas to the element’s wrapping context.</desc>
       <values>
-        <value name="auto" version="4.0" browsers="all" />
-        <value name="circle()" version="4.0" browsers="all" />
+        <value name="auto" version="4.0" browsers="all">
+          <desc>The shape is computed based on the content box of the element.</desc>
+        </value>
+        <value name="border-box" version="4.0" browsers="all">
+          <desc>The background is painted within (clipped to) the border box.</desc>
+        </value>
+        <value name="circle()" version="4.0" browsers="all">
+          <desc>Defines a circle.</desc>
+        </value>
+        <value name="content-box" version="4.0" browsers="all">
+          <desc>The background is painted within (clipped to) the content box.</desc>
+        </value>
         <value name="cross-fade()" version="4.0" browsers="all" />
-        <value name="display" version="4.0" browsers="all" />
-        <value name="ellipse()" version="4.0" browsers="all" />
+        <value name="display" version="4.0" browsers="all">
+          <desc>The shape is computed based on the shape of the display as described in css-round-display.</desc>
+        </value>
+        <value name="ellipse()" version="4.0" browsers="all">
+          <desc>Defines an ellipse.</desc>
+        </value>
         <value name="image()" version="4.0" browsers="all" />
         <value name="image-set()" version="4.0" browsers="all" />
-        <value name="inset()" version="4.0" browsers="all" />
+        <value name="inset()" version="4.0" browsers="all">
+          <desc>Defines an inset rectangle.</desc>
+        </value>
         <value name="linear-gradient()" version="4.0" browsers="all" />
-        <value name="margin-box" version="4.0" browsers="all" />
-        <value name="none" version="4.0" browsers="all" />
-        <value name="outside-shape" version="4.0" browsers="all" />
-        <value name="polygon()" version="4.0" browsers="all" />
+        <value name="margin-box" version="4.0" browsers="all">
+          <desc>The background is painted within (clipped to) the margin box.</desc>
+        </value>
+        <value name="outside-shape" version="4.0" browsers="all">
+          <desc>The shape is computed based on the shape defined by the shape-outside and shape-margin properties.</desc>
+        </value>
+        <value name="padding-box" version="3.0" browsers="all">
+          <desc>The background is painted within (clipped to) the padding box.</desc>
+        </value>
+        <value name="polygon()" version="4.0" browsers="all">
+          <desc>Defines a polygon.</desc>
+        </value>
         <value name="radial-gradient()" version="4.0" browsers="all" />
         <value name="repeating-linear-gradient()" version="4.0" browsers="all" />
         <value name="repeating-radial-gradient()" version="4.0" browsers="all" />
-        <value name="shape-box" version="4.0" browsers="all" />
+        <value name="url()" version="4.0" browsers="all">
+          <desc>If an SVG element it defines the shape. If an image, the shape is extracted and computed based on the alpha channel.</desc>
+        </value>
       </values>
     </entry>
     <entry name="shape-margin" restriction="url, length, percentage" version="3.0" browsers="C37,O24" ref="http://www.w3.org/TR/css-shapes-1/#propdef-shape-margin" syntax="div { $(name): 10px; }">
