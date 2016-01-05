@@ -809,21 +809,45 @@
         </value>
       </values>
     </entry>
-    <entry name="backdrop-filter" restriction="enum" version="4.0" browsers="none" ref="https://drafts.fxtf.org/filters-2/#propdef-backdrop-filter" syntax="div { $(name): blur(2px); }">
+    <entry name="backdrop-filter" restriction="enum, url" version="4.0" browsers="none" ref="https://drafts.fxtf.org/filters-2/#propdef-backdrop-filter" syntax="div { $(name): blur(2px); }">
       <desc>Applies a filter effect where the first filter in the list takes the element's background image as the input image.</desc>
       <values>
-        <value name="none" version="4.0" browsers="all" />
-        <value name="blur()" version="4.0" browsers="all" />
-        <value name="brightness()" version="4.0" browsers="all" />
-        <value name="contrast()" version="4.0" browsers="all" />
-        <value name="drop-shadow()" version="4.0" browsers="all" />
-        <value name="grayscale()" version="4.0" browsers="all" />
-        <value name="hue-rotate()" version="4.0" browsers="all" />
-        <value name="invert()" version="4.0" browsers="all" />
-        <value name="opacity()" version="4.0" browsers="all" />
-        <value name="saturate()" version="4.0" browsers="all" />
-        <value name="sepia()" version="4.0" browsers="all" />
-        <value name="url()" version="4.0" browsers="all" />
+        <value name="none" version="3.0" browsers="all">
+          <desc>No filter effects are applied.</desc>
+        </value>
+        <value name="blur()" version="3.0" browsers="all">
+          <desc>Applies a Gaussian blur to the input image.</desc>
+        </value>
+        <value name="brightness()" version="3.0" browsers="all">
+          <desc>Applies a linear multiplier to input image, making it appear more or less bright.</desc>
+        </value>
+        <value name="contrast()" version="3.0" browsers="all">
+          <desc>Adjusts the contrast of the input.</desc>
+        </value>
+        <value name="drop-shadow()" version="3.0" browsers="all">
+          <desc>Applies a drop shadow effect to the input image.</desc>
+        </value>
+        <value name="grayscale()" version="3.0" browsers="all">
+          <desc>Converts the input image to grayscale.</desc>
+        </value>
+        <value name="hue-rotate()" version="3.0" browsers="all">
+          <desc>Applies a hue rotation on the input image. </desc>
+        </value>
+        <value name="invert()" version="3.0" browsers="all">
+          <desc>Inverts the samples in the input image.</desc>
+        </value>
+        <value name="opacity()" version="3.0" browsers="all">
+          <desc>Applies transparency to the samples in the input image.</desc>
+        </value>
+        <value name="saturate()" version="3.0" browsers="all">
+          <desc>Saturates the input image.</desc>
+        </value>
+        <value name="sepia()" version="3.0" browsers="all">
+          <desc>Converts the input image to sepia.</desc>
+        </value>
+        <value name="url()" version="3.0" browsers="all">
+          <desc>A filter reference to a &lt;filter> element.</desc>
+        </value>
       </values>
     </entry>
     <entry name="backface-visibility" restriction="enum" version="3.0" browsers="E,C36,FF16,IE10,O23" ref="http://www.w3.org/TR/css3-3d-transforms/#backface-visibility" syntax="div { $(name): hidden; }">
@@ -2224,6 +2248,9 @@
         </value>
         <value name="sepia()" version="3.0" browsers="all">
           <desc>Converts the input image to sepia.</desc>
+        </value>
+        <value name="url()" version="3.0" browsers="FF3.6">
+          <desc>A filter reference to a &lt;filter> element.</desc>
         </value>
       </values>
     </entry>
@@ -7813,6 +7840,47 @@
         <value name="textfield" version="3.0" browsers="all" />
       </values>
     </entry>
+    <entry name="-webkit-backdrop-filter" restriction="enum, url" version="4.0" browsers="S9" ref="https://drafts.fxtf.org/filters-2/#propdef-backdrop-filter" syntax="div { $(name): blur(2px); }">
+      <desc>Applies a filter effect where the first filter in the list takes the element's background image as the input image.</desc>
+      <values>
+        <value name="none" version="3.0" browsers="all">
+          <desc>No filter effects are applied.</desc>
+        </value>
+        <value name="blur()" version="3.0" browsers="all">
+          <desc>Applies a Gaussian blur to the input image.</desc>
+        </value>
+        <value name="brightness()" version="3.0" browsers="all">
+          <desc>Applies a linear multiplier to input image, making it appear more or less bright.</desc>
+        </value>
+        <value name="contrast()" version="3.0" browsers="all">
+          <desc>Adjusts the contrast of the input.</desc>
+        </value>
+        <value name="drop-shadow()" version="3.0" browsers="all">
+          <desc>Applies a drop shadow effect to the input image.</desc>
+        </value>
+        <value name="grayscale()" version="3.0" browsers="all">
+          <desc>Converts the input image to grayscale.</desc>
+        </value>
+        <value name="hue-rotate()" version="3.0" browsers="all">
+          <desc>Applies a hue rotation on the input image. </desc>
+        </value>
+        <value name="invert()" version="3.0" browsers="all">
+          <desc>Inverts the samples in the input image.</desc>
+        </value>
+        <value name="opacity()" version="3.0" browsers="all">
+          <desc>Applies transparency to the samples in the input image.</desc>
+        </value>
+        <value name="saturate()" version="3.0" browsers="all">
+          <desc>Saturates the input image.</desc>
+        </value>
+        <value name="sepia()" version="3.0" browsers="all">
+          <desc>Converts the input image to sepia.</desc>
+        </value>
+        <value name="url()" version="3.0" browsers="all">
+          <desc>A filter reference to a &lt;filter> element.</desc>
+        </value>
+      </values>
+    </entry>
     <entry name="-webkit-backface-visibility" restriction="enum" version="3.0" browsers="C,S5" ref="http://www.w3.org/TR/css3-3d-transforms/#backface-visibility" syntax="div { $(name): hidden; }">
       <desc>Determines whether or not the 'back' side of a transformed element is visible when facing the viewer. With an identity transform, the front side of an element faces the viewer.</desc>
       <values>
@@ -8211,7 +8279,7 @@
         </value>
       </values>
     </entry>
-    <entry name="-webkit-filter" restriction="enum" version="3.0" browsers="C18,O15,S6" ref="http://www.w3.org/TR/filter-effects/#propdef-filter" syntax="img { $(name): blur(3px); }">
+    <entry name="-webkit-filter" restriction="enum, url" version="3.0" browsers="C18,O15,S6" ref="http://www.w3.org/TR/filter-effects/#propdef-filter" syntax="img { $(name): blur(3px); }">
       <desc>Processes an element’s rendering before it is displayed in the document, by applying one or more filter effects.</desc>
 	  <values>
         <value name="none" version="3.0" browsers="all">
@@ -8246,6 +8314,9 @@
         </value>
         <value name="sepia()" version="3.0" browsers="all">
           <desc>Converts the input image to sepia.</desc>
+        </value>
+        <value name="url()" version="3.0" browsers="all">
+          <desc>A filter reference to a &lt;filter> element.</desc>
         </value>
       </values>
     </entry>

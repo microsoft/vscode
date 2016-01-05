@@ -2615,6 +2615,11 @@ exports.data ={
 					},
 					{
 						"name": "sepia()"
+					},
+					{
+						"name": "url()",
+						"desc": "A filter reference to a <filter> element.",
+						"browsers": "FF3.6"
 					}
 				]
 			},
@@ -8952,6 +8957,52 @@ exports.data ={
 				]
 			},
 			{
+				"name": "-webkit-backdrop-filter",
+				"desc": "Applies a filter effect where the first filter in the list takes the element's background image as the input image.",
+				"browsers": "S9",
+				"restriction": "enum, url",
+				"values": [
+					{
+						"name": "none",
+						"desc": "No filter effects are applied."
+					},
+					{
+						"name": "blur()"
+					},
+					{
+						"name": "brightness()"
+					},
+					{
+						"name": "contrast()"
+					},
+					{
+						"name": "drop-shadow()"
+					},
+					{
+						"name": "grayscale()"
+					},
+					{
+						"name": "hue-rotate()"
+					},
+					{
+						"name": "invert()"
+					},
+					{
+						"name": "opacity()"
+					},
+					{
+						"name": "saturate()"
+					},
+					{
+						"name": "sepia()"
+					},
+					{
+						"name": "url()",
+						"desc": "A filter reference to a <filter> element."
+					}
+				]
+			},
+			{
 				"name": "-webkit-backface-visibility",
 				"desc": "Determines whether or not the 'back' side of a transformed element is visible when facing the viewer. With an identity transform, the front side of an element faces the viewer.",
 				"browsers": "C,S5",
@@ -9529,7 +9580,7 @@ exports.data ={
 				"name": "-webkit-filter",
 				"desc": "Processes an element’s rendering before it is displayed in the document, by applying one or more filter effects.",
 				"browsers": "C18,O15,S6",
-				"restriction": "enum",
+				"restriction": "enum, url",
 				"values": [
 					{
 						"name": "none",
@@ -9564,6 +9615,10 @@ exports.data ={
 					},
 					{
 						"name": "sepia()"
+					},
+					{
+						"name": "url()",
+						"desc": "A filter reference to a <filter> element."
 					}
 				]
 			},
