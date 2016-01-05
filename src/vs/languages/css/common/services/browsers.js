@@ -1086,12 +1086,8 @@ exports.data ={
 			{
 				"name": "background",
 				"desc": "Shorthand property for setting most background properties at the same place in the style sheet.",
-				"restriction": "enum, color, length, repeat, percentage, url",
+				"restriction": "enum, color, length, repeat, percentage, box, url",
 				"values": [
-					{
-						"name": "border-box",
-						"desc": "The background is painted within (clipped to) the border box."
-					},
 					{
 						"name": "bottom",
 						"desc": "Equivalent to '100%' for the vertical position if one or two values are given, otherwise specifies the bottom edge as the origin for the next offset."
@@ -1099,10 +1095,6 @@ exports.data ={
 					{
 						"name": "center",
 						"desc": "Equivalent to '50%' ('left 50%') for the horizontal position if the horizontal position is not otherwise specified, or '50%' ('top 50%') for the vertical position if it is."
-					},
-					{
-						"name": "content-box",
-						"desc": "The background is painted within (clipped to) the content box."
 					},
 					{
 						"name": "fixed",
@@ -1147,10 +1139,6 @@ exports.data ={
 					{
 						"name": "-o-repeating-linear-gradient()",
 						"browsers": "O11.1-12"
-					},
-					{
-						"name": "padding-box",
-						"desc": "The background is painted within (clipped to) the padding box"
 					},
 					{
 						"name": "radial-gradient()",
@@ -1290,21 +1278,7 @@ exports.data ={
 				"name": "background-clip",
 				"desc": "Determines the background painting area.",
 				"browsers": "E,C,FF4,IE9,O10.5,S3",
-				"restriction": "enum",
-				"values": [
-					{
-						"name": "border-box",
-						"desc": "The background is painted within (clipped to) the border box."
-					},
-					{
-						"name": "content-box",
-						"desc": "The background is painted within (clipped to) the content box."
-					},
-					{
-						"name": "padding-box",
-						"desc": "The background is painted within (clipped to) the padding box"
-					}
-				]
+				"restriction": "box"
 			},
 			{
 				"name": "background-color",
@@ -1397,21 +1371,7 @@ exports.data ={
 				"name": "background-origin",
 				"desc": "For elements rendered as a single box, specifies the background positioning area. For elements rendered as multiple boxes (e.g., inline boxes on several lines, boxes on several pages) specifies which boxes 'box-decoration-break' operates on to determine the background positioning area(s).",
 				"browsers": "E,C,FF4,IE9,O10.5,S3",
-				"restriction": "enum",
-				"values": [
-					{
-						"name": "border-box",
-						"desc": "The background is painted within (clipped to) the border box."
-					},
-					{
-						"name": "content-box",
-						"desc": "The background is painted within (clipped to) the content box."
-					},
-					{
-						"name": "padding-box",
-						"desc": "The background is painted within (clipped to) the padding box"
-					}
-				]
+				"restriction": "box"
 			},
 			{
 				"name": "background-position",
@@ -1880,12 +1840,10 @@ exports.data ={
 				"restriction": "enum",
 				"values": [
 					{
-						"name": "border-box",
-						"desc": "The specified width and height (and respective min/max properties) on this element determine the border box of the element."
+						"name": "border-box"
 					},
 					{
-						"name": "content-box",
-						"desc": "Behavior of width and height as specified by CSS2.1. The specified width and height (and respective min/max properties) apply to the width and height respectively of the content box of the element."
+						"name": "content-box"
 					}
 				]
 			},
@@ -2058,7 +2016,7 @@ exports.data ={
 				"name": "clip-path",
 				"desc": "Specifies a clipping path where everything inside the path is visable and everything outside is clipped out.",
 				"browsers": "FF3.5",
-				"restriction": "url, enum",
+				"restriction": "url, box, enum",
 				"values": [
 					{
 						"name": "none",
@@ -4124,7 +4082,7 @@ exports.data ={
 				"name": "motion",
 				"desc": "Shorthand property for setting 'motion-path', 'motion-offset' and 'motion-rotation'.",
 				"browsers": "C46,O33",
-				"restriction": "url, length, percentage, angle, enum",
+				"restriction": "url, length, percentage, angle, box, enum",
 				"values": [
 					{
 						"name": "none",
@@ -4153,7 +4111,7 @@ exports.data ={
 				"name": "motion-path",
 				"desc": "Specifies the motion path the element gets positioned at.",
 				"browsers": "C46,O33",
-				"restriction": "url, enum",
+				"restriction": "url, box, enum",
 				"values": [
 					{
 						"name": "none",
@@ -4574,24 +4532,8 @@ exports.data ={
 				"name": "-moz-background-clip",
 				"desc": "Determines the background painting area.",
 				"browsers": "FF1-3.6",
-				"restriction": "enum",
-				"values": [
-					{
-						"name": "border-box",
-						"desc": "The background is painted within (clipped to) the border box."
-					},
-					{
-						"name": "content-box",
-						"desc": "The background is painted within (clipped to) the content box."
-					},
-					{
-						"name": "padding"
-					},
-					{
-						"name": "padding-box",
-						"desc": "The background is painted within (clipped to) the padding box"
-					}
-				]
+				"restriction": "box, enum",
+				"values": []
 			},
 			{
 				"name": "-moz-background-inline-policy",
@@ -4614,21 +4556,7 @@ exports.data ={
 				"name": "-moz-background-origin",
 				"desc": "For elements rendered as a single box, specifies the background positioning area. For elements rendered as multiple boxes (e.g., inline boxes on several lines, boxes on several pages) specifies which boxes 'box-decoration-break' operates on to determine the background positioning area(s).",
 				"browsers": "FF1",
-				"restriction": "enum",
-				"values": [
-					{
-						"name": "border-box",
-						"desc": "The background is painted within (clipped to) the border box."
-					},
-					{
-						"name": "content-box",
-						"desc": "The background is painted within (clipped to) the content box."
-					},
-					{
-						"name": "padding-box",
-						"desc": "The background is painted within (clipped to) the padding box"
-					}
-				]
+				"restriction": "box"
 			},
 			{
 				"name": "-moz-border-bottom-colors",
@@ -4806,12 +4734,13 @@ exports.data ={
 				"restriction": "enum",
 				"values": [
 					{
-						"name": "border-box",
-						"desc": "The specified width and height (and respective min/max properties) on this element determine the border box of the element."
+						"name": "border-box"
 					},
 					{
-						"name": "content-box",
-						"desc": "Behavior of width and height as specified by CSS2.1. The specified width and height (and respective min/max properties) apply to the width and height respectively of the content box of the element."
+						"name": "content-box"
+					},
+					{
+						"name": "padding-box"
 					}
 				]
 			},
@@ -8013,18 +7942,10 @@ exports.data ={
 				"name": "shape-outside",
 				"desc": "Specifies an orthogonal rotation to be applied to an image before it is laid out.",
 				"browsers": "C37,O24",
-				"restriction": "enum",
+				"restriction": "box, enum",
 				"values": [
 					{
-						"name": "border-box",
-						"desc": "The background is painted within (clipped to) the border box."
-					},
-					{
 						"name": "circle()"
-					},
-					{
-						"name": "content-box",
-						"desc": "The background is painted within (clipped to) the content box."
 					},
 					{
 						"name": "ellipse()"
@@ -8044,10 +7965,6 @@ exports.data ={
 					{
 						"name": "none",
 						"desc": "The float area is unaffected."
-					},
-					{
-						"name": "padding-box",
-						"desc": "The background is painted within (clipped to) the padding box."
 					},
 					{
 						"name": "polygon()"
@@ -9240,21 +9157,7 @@ exports.data ={
 				"name": "-webkit-background-clip",
 				"desc": "Determines the background painting area.",
 				"browsers": "C,S3",
-				"restriction": "enum",
-				"values": [
-					{
-						"name": "border-box",
-						"desc": "The background is painted within (clipped to) the border box."
-					},
-					{
-						"name": "content-box",
-						"desc": "The background is painted within (clipped to) the content box."
-					},
-					{
-						"name": "padding-box",
-						"desc": "The background is painted within (clipped to) the padding box"
-					}
-				]
+				"restriction": "box"
 			},
 			{
 				"name": "-webkit-background-composite",
@@ -9273,21 +9176,7 @@ exports.data ={
 				"name": "-webkit-background-origin",
 				"desc": "For elements rendered as a single box, specifies the background positioning area. For elements rendered as multiple boxes (e.g., inline boxes on several lines, boxes on several pages) specifies which boxes 'box-decoration-break' operates on to determine the background positioning area(s).",
 				"browsers": "C,S3",
-				"restriction": "enum",
-				"values": [
-					{
-						"name": "border-box",
-						"desc": "The background is painted within (clipped to) the border box."
-					},
-					{
-						"name": "content-box",
-						"desc": "The background is painted within (clipped to) the content box."
-					},
-					{
-						"name": "padding-box",
-						"desc": "The background is painted within (clipped to) the padding box"
-					}
-				]
+				"restriction": "box"
 			},
 			{
 				"name": "-webkit-border-image",
@@ -9464,12 +9353,10 @@ exports.data ={
 				"restriction": "enum",
 				"values": [
 					{
-						"name": "border-box",
-						"desc": "The specified width and height (and respective min/max properties) on this element determine the border box of the element."
+						"name": "border-box"
 					},
 					{
-						"name": "content-box",
-						"desc": "Behavior of width and height as specified by CSS2.1. The specified width and height (and respective min/max properties) apply to the width and height respectively of the content box of the element."
+						"name": "content-box"
 					}
 				]
 			},
@@ -9990,21 +9877,7 @@ exports.data ={
 				"name": "-webkit-mask-clip",
 				"desc": "Determines the mask painting area, which determines the area that is affected by the mask.",
 				"browsers": "C,O15,S4",
-				"restriction": "enum",
-				"values": [
-					{
-						"name": "border-box",
-						"desc": "The background is painted within (clipped to) the border box."
-					},
-					{
-						"name": "padding-box",
-						"desc": "The background is painted within (clipped to) the padding box."
-					},
-					{
-						"name": "content-box",
-						"desc": "The background is painted within (clipped to) the content box."
-					}
-				]
+				"restriction": "box"
 			},
 			{
 				"name": "-webkit-mask-image",
@@ -10026,21 +9899,7 @@ exports.data ={
 				"name": "-webkit-mask-origin",
 				"desc": "Specifies the mask positioning area.",
 				"browsers": "C,O15,S4",
-				"restriction": "enum",
-				"values": [
-					{
-						"name": "border-box",
-						"desc": "The background is painted within (clipped to) the border box."
-					},
-					{
-						"name": "padding-box",
-						"desc": "The background is painted within (clipped to) the padding box."
-					},
-					{
-						"name": "content-box",
-						"desc": "The background is painted within (clipped to) the content box."
-					}
-				]
+				"restriction": "box"
 			},
 			{
 				"name": "-webkit-mask-repeat",
@@ -10636,6 +10495,8 @@ exports.descriptions = {
 	"clone": "Each box is independently wrapped with the border and padding.",
 	"slice": "The effect is as though the element were rendered with no breaks present, and then sliced by the breaks afterward.",
 	"inset": "Changes the drop shadow from an outer shadow (one that shadows the box onto the canvas, as if it were lifted above the canvas) to an inner shadow (one that shadows the canvas onto the box, as if the box were cut out of the canvas and shifted behind it).",
+	"border-box": "The specified width and height (and respective min/max properties) on this element determine the border box of the element.",
+	"content-box": "Behavior of width and height as specified by CSS2.1. The specified width and height (and respective min/max properties) apply to the width and height respectively of the content box of the element.",
 	"rect()": "Specifies offsets from the edges of the border box.",
 	"linearRGB": "Color operations should occur in the linearized RGB color space.",
 	"sRGB": "Color operations should occur in the sRGB color space.",
@@ -10794,6 +10655,7 @@ exports.descriptions = {
 	"path()": "Defines an SVG path as a string, with optional 'fill-rule' as the first argument.",
 	"block-axis": "Elements are oriented along the box's axis.",
 	"inline-axis": "Elements are oriented vertically.",
+	"padding-box": "The specified width and height (and respective min/max properties) on this element determine the padding box of the element.",
 	"manual": "Words are only broken at line breaks where there are characters inside the word that suggest line break opportunities",
 	"line-through": "Each line of text has a line through the middle.",
 	"overline": "Each line of text has a line above it.",

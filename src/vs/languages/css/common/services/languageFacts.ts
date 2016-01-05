@@ -224,6 +224,12 @@ export var lineStyleKeywords : { [name:string]:string } = {
 
 export var lineWidthKeywords  = ['medium', 'thick', 'thin'];
 
+export var boxKeywords : { [name:string]:string } = {
+	'border-box': 'The background is painted within (clipped to) the border box.',
+	'content-box': 'The background is painted within (clipped to) the content box.',
+	'padding-box': 'The background is painted within (clipped to) the padding box.'
+};
+
 export var cssWideKeywords = ['initial', 'inherit', 'unset'];
 
 export var units : { [unitName:string]:string[] } = {
