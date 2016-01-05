@@ -1017,6 +1017,15 @@ declare namespace vscode {
 		onDidDelete: Event<Uri>;
 	}
 
+	export interface TextDocumentContentProvider {
+
+		open(uri: Uri): string | Thenable<string>;
+
+		close(uri: Uri): any | Thenable<any>;
+
+		onDidChange?: Event<Uri>;
+	}
+
 	/**
 	 * Represents an item that can be selected from
 	 * a list of items.
@@ -3003,6 +3012,11 @@ declare namespace vscode {
 		 * @return A promise that resolves to a [document](#TextDocument).
 		 */
 		export function openTextDocument(fileName: string): Thenable<TextDocument>;
+
+		/**
+		 *
+		 */
+		export function registerTextDocumentContentProvider(scheme: string, provider: TextDocumentContentProvider): Disposable;
 
 		/**
 		 * An event that is emitted when a [text document](#TextDocument) is opened.

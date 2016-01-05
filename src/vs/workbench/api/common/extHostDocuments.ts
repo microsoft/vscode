@@ -13,7 +13,7 @@ import {Remotable, IThreadService} from 'vs/platform/thread/common/thread';
 import Event, {Emitter} from 'vs/base/common/event';
 import URI from 'vs/base/common/uri';
 import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
-import {Range, Position} from 'vs/workbench/api/common/extHostTypes';
+import {Range, Position, Disposable} from 'vs/workbench/api/common/extHostTypes';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IEditorService} from 'vs/platform/editor/common/editor';
 import {EventType as FileEventType, LocalFileChangeEvent, ITextFileService} from 'vs/workbench/parts/files/common/files';
@@ -114,6 +114,10 @@ export class ExtHostModelService {
 		return this._proxy._tryOpenDocument(uri).then(() => {
 			return this._documents[uri.toString()];
 		});
+	}
+
+	registerTextDocumentContentProvider(scheme: string, provider: vscode.TextDocumentContentProvider): vscode.Disposable {
+		return new Disposable(() => { });
 	}
 
 	public _acceptModelAdd(data:IModelAddedData): void {

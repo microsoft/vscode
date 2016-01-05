@@ -255,6 +255,9 @@ export class ExtHostAPIImplementation {
 			openTextDocument(uriOrFileName:vscode.Uri | string) {
 				return pluginHostDocuments.openDocument(uriOrFileName);
 			},
+			registerTextDocumentContentProvider(scheme: string, provider: vscode.TextDocumentContentProvider) {
+				return pluginHostDocuments.registerTextDocumentContentProvider(scheme, provider);
+			},
 			onDidOpenTextDocument: (listener, thisArgs?, disposables?) => {
 				return pluginHostDocuments.onDidAddDocument(listener, thisArgs, disposables);
 			},
