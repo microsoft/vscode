@@ -3869,21 +3869,54 @@
     <entry name="motion" restriction="url, length, percentage, angle, enum" version="3.0" browsers="C46,O33" ref="http://www.w3.org/TR/motion-1/#propdef-motion">
       <desc>Shorthand property for setting 'motion-path', 'motion-offset' and 'motion-rotation'.</desc>
       <values>
-        <value name="border-box" version="3.0" browsers="all" />
-        <value name="circle()" version="3.0" browsers="all" />
-        <value name="content-box" version="3.0" browsers="all" />
-        <value name="ellipse()" version="3.0" browsers="all" />
-        <value name="fill-box" version="3.0" browsers="all" />
-        <value name="inset()" version="3.0" browsers="all" />
-        <value name="margin-box" version="3.0" browsers="all" />
-        <value name="none" version="3.0" browsers="all" />
-        <value name="padding-box" version="3.0" browsers="all" />
-        <value name="path()" version="3.0" browsers="all" />
-        <value name="polygon()" version="3.0" browsers="all" />
-        <value name="stroke-box" version="3.0" browsers="all" />
-        <value name="view-box" version="3.0" browsers="all" />
-        <value name="auto" version="3.0" browsers="all" />
-        <value name="reverse" version="3.0" browsers="all" />
+        <value name="inset()" version="3.0" browsers="none">
+          <desc>Defines an inset rectangle.</desc>
+        </value>
+        <value name="circle()" version="3.0" browsers="none">
+          <desc>Defines a circle.</desc>
+        </value>
+        <value name="ellipse()" version="3.0" browsers="none">
+          <desc>Defines an ellipse.</desc>
+        </value>
+        <value name="polygon()" version="3.0" browsers="none">
+          <desc>Defines a polygon.</desc>
+        </value>
+        <value name="border-box" version="3.0" browsers="none">
+          <desc>The background is painted within (clipped to) the border box.</desc>
+        </value>
+        <value name="padding-box" version="3.0" browsers="none">
+          <desc>The background is painted within (clipped to) the padding box.</desc>
+        </value>
+        <value name="content-box" version="3.0" browsers="none">
+          <desc>The background is painted within (clipped to) the content box.</desc>
+        </value>
+        <value name="margin-box" version="3.0" browsers="none">
+          <desc>The background is painted within (clipped to) the margin box.</desc>
+        </value>
+        <value name="fill-box" version="3.0" browsers="none">
+          <desc>Uses the object bounding box as reference box.</desc>
+        </value>
+        <value name="stroke-box" version="3.0" browsers="none">
+          <desc>Uses the stroke bounding box as reference box.</desc>
+        </value>
+        <value name="view-box" version="3.0" browsers="none">
+          <desc>Uses the nearest SVG viewport as reference box.</desc>
+        </value>
+        <value name="none" version="3.0" browsers="all">
+          <desc>No motion path gets created.</desc>
+        </value>
+        <value name="path()" version="3.0" browsers="all">
+          <desc>Defines an SVG path as a string, with optional 'fill-rule' as the first argument.</desc>
+        </value>
+        <value name="url()" version="3.0" browsers="none">
+          <desc>References an SVG shape element and uses its geometry as motion path.</desc>
+        </value>
+        <value name="auto" version="3.0" browsers="all">
+          <desc>Indicates that the object is rotated by the angle of the direction of the motion path.</desc>
+        </value>
+        <value name="reverse" version="3.0" browsers="all">
+          <desc>Indicates that the object is rotated by the angle of the direction of the motion path plus 180 degrees.</desc>
+        </value>
       </values>
     </entry>
     <entry name="motion-offset" restriction="length, percentage" version="3.0" browsers="C46,O33" ref="http://www.w3.org/TR/motion-1/#propdef-motion-offset" syntax="div { $(name): 10%; }">
@@ -3892,26 +3925,59 @@
     <entry name="motion-path" restriction="url, enum" version="3.0" browsers="C46,O33" ref="http://www.w3.org/TR/motion-1/#propdef-motion-path">
       <desc>Specifies the motion path the element gets positioned at.</desc>
       <values>
-        <value name="border-box" version="3.0" browsers="all" />
-        <value name="circle()" version="3.0" browsers="all" />
-        <value name="content-box" version="3.0" browsers="all" />
-        <value name="ellipse()" version="3.0" browsers="all" />
-        <value name="fill-box" version="3.0" browsers="all" />
-        <value name="inset()" version="3.0" browsers="all" />
-        <value name="margin-box" version="3.0" browsers="all" />
-        <value name="none" version="3.0" browsers="all" />
-        <value name="padding-box" version="3.0" browsers="all" />
-        <value name="path()" version="3.0" browsers="all" />
-        <value name="polygon()" version="3.0" browsers="all" />
-        <value name="stroke-box" version="3.0" browsers="all" />
-        <value name="view-box" version="3.0" browsers="all" />
+        <value name="inset()" version="3.0" browsers="none">
+          <desc>Defines an inset rectangle.</desc>
+        </value>
+        <value name="circle()" version="3.0" browsers="none">
+          <desc>Defines a circle.</desc>
+        </value>
+        <value name="ellipse()" version="3.0" browsers="none">
+          <desc>Defines an ellipse.</desc>
+        </value>
+        <value name="polygon()" version="3.0" browsers="none">
+          <desc>Defines a polygon.</desc>
+        </value>
+        <value name="border-box" version="3.0" browsers="none">
+          <desc>The background is painted within (clipped to) the border box.</desc>
+        </value>
+        <value name="padding-box" version="3.0" browsers="none">
+          <desc>The background is painted within (clipped to) the padding box.</desc>
+        </value>
+        <value name="content-box" version="3.0" browsers="none">
+          <desc>The background is painted within (clipped to) the content box.</desc>
+        </value>
+        <value name="margin-box" version="3.0" browsers="none">
+          <desc>The background is painted within (clipped to) the margin box.</desc>
+        </value>
+        <value name="fill-box" version="3.0" browsers="none">
+          <desc>Uses the object bounding box as reference box.</desc>
+        </value>
+        <value name="stroke-box" version="3.0" browsers="none">
+          <desc>Uses the stroke bounding box as reference box.</desc>
+        </value>
+        <value name="view-box" version="3.0" browsers="none">
+          <desc>Uses the nearest SVG viewport as reference box.</desc>
+        </value>
+        <value name="none" version="3.0" browsers="all">
+          <desc>No motion path gets created.</desc>
+        </value>
+        <value name="path()" version="3.0" browsers="all">
+          <desc>Defines an SVG path as a string, with optional 'fill-rule' as the first argument.</desc>
+        </value>
+        <value name="url()" version="3.0" browsers="none">
+          <desc>References an SVG shape element and uses its geometry as motion path.</desc>
+        </value>
       </values>
     </entry>
     <entry name="motion-rotation" restriction="angle" version="3.0" browsers="C46,O33" ref="http://www.w3.org/TR/motion-1/#propdef-motion-rotation" syntax="div { $(name): 90%; }">
       <desc>Defines the direction of the element while positioning along the motion path.</desc>
       <values>
-        <value name="auto" version="3.0" browsers="all" />
-        <value name="reverse" version="3.0" browsers="all" />
+        <value name="auto" version="3.0" browsers="all">
+          <desc>Indicates that the object is rotated by the angle of the direction of the motion path.</desc>
+        </value>
+        <value name="reverse" version="3.0" browsers="all">
+          <desc>Indicates that the object is rotated by the angle of the direction of the motion path plus 180 degrees.</desc>
+        </value>
       </values>
     </entry>
     <entry name="move-to" restriction="identifier" version="3.0" browsers="none" ref="http://www.w3.org/TR/css3-content/#moving" syntax="normal | here | &lt;identifier&gt;">

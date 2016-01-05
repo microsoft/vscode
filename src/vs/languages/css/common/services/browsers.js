@@ -3867,49 +3867,19 @@ exports.data ={
 				"restriction": "url, length, percentage, angle, enum",
 				"values": [
 					{
-						"name": "border-box"
-					},
-					{
-						"name": "circle()"
-					},
-					{
-						"name": "content-box"
-					},
-					{
-						"name": "ellipse()"
-					},
-					{
-						"name": "fill-box"
-					},
-					{
-						"name": "inset()"
-					},
-					{
-						"name": "margin-box"
-					},
-					{
-						"name": "none"
-					},
-					{
-						"name": "padding-box"
+						"name": "none",
+						"desc": "No motion path gets created."
 					},
 					{
 						"name": "path()"
 					},
 					{
-						"name": "polygon()"
+						"name": "auto",
+						"desc": "Indicates that the object is rotated by the angle of the direction of the motion path."
 					},
 					{
-						"name": "stroke-box"
-					},
-					{
-						"name": "view-box"
-					},
-					{
-						"name": "auto"
-					},
-					{
-						"name": "reverse"
+						"name": "reverse",
+						"desc": "Indicates that the object is rotated by the angle of the direction of the motion path plus 180 degrees."
 					}
 				]
 			},
@@ -3926,43 +3896,11 @@ exports.data ={
 				"restriction": "url, enum",
 				"values": [
 					{
-						"name": "border-box"
-					},
-					{
-						"name": "circle()"
-					},
-					{
-						"name": "content-box"
-					},
-					{
-						"name": "ellipse()"
-					},
-					{
-						"name": "fill-box"
-					},
-					{
-						"name": "inset()"
-					},
-					{
-						"name": "margin-box"
-					},
-					{
-						"name": "none"
-					},
-					{
-						"name": "padding-box"
+						"name": "none",
+						"desc": "No motion path gets created."
 					},
 					{
 						"name": "path()"
-					},
-					{
-						"name": "polygon()"
-					},
-					{
-						"name": "stroke-box"
-					},
-					{
-						"name": "view-box"
 					}
 				]
 			},
@@ -3973,10 +3911,12 @@ exports.data ={
 				"restriction": "angle",
 				"values": [
 					{
-						"name": "auto"
+						"name": "auto",
+						"desc": "Indicates that the object is rotated by the angle of the direction of the motion path."
 					},
 					{
-						"name": "reverse"
+						"name": "reverse",
+						"desc": "Indicates that the object is rotated by the angle of the direction of the motion path plus 180 degrees."
 					}
 				]
 			},
@@ -7767,30 +7707,26 @@ exports.data ={
 						"desc": "The background is painted within (clipped to) the border box."
 					},
 					{
-						"name": "circle()",
-						"desc": "Defines a circle."
+						"name": "circle()"
 					},
 					{
 						"name": "content-box",
 						"desc": "The background is painted within (clipped to) the content box."
 					},
 					{
-						"name": "ellipse()",
-						"desc": "Defines an ellipse."
+						"name": "ellipse()"
 					},
 					{
 						"name": "image()"
 					},
 					{
-						"name": "inset()",
-						"desc": "Defines an inset rectangle."
+						"name": "inset()"
 					},
 					{
 						"name": "linear-gradient()"
 					},
 					{
-						"name": "margin-box",
-						"desc": "The background is painted within (clipped to) the margin box."
+						"name": "margin-box"
 					},
 					{
 						"name": "none",
@@ -7801,8 +7737,7 @@ exports.data ={
 						"desc": "The background is painted within (clipped to) the padding box."
 					},
 					{
-						"name": "polygon()",
-						"desc": "Defines a polygon."
+						"name": "polygon()"
 					},
 					{
 						"name": "radial-gradient()"
@@ -10513,6 +10448,7 @@ exports.descriptions = {
 	"symbols()": "Allows a counter style to be defined inline.",
 	"alpha": "Indicates that the alpha values of the mask should be used.",
 	"luminance": "Indicates that the luminance values of the mask should be used.",
+	"path()": "Defines an SVG path as a string, with optional 'fill-rule' as the first argument.",
 	"block-axis": "Elements are oriented along the box's axis.",
 	"inline-axis": "Elements are oriented vertically.",
 	"manual": "Words are only broken at line breaks where there are characters inside the word that suggest line break opportunities",
@@ -10589,6 +10525,11 @@ exports.descriptions = {
 	"before": "The ruby text appears before the base. This is the most common setting used in ideographic East Asian writing systems.",
 	"attr(x)": "The value of attribute 'x' is a string value. The string value is evaluated as a <number> to determine the number of ruby base elements to be spanned by the annotation element.",
 	"smooth": "Scrolls in a smooth fashion using a user-agent-defined timing function and time period.",
+	"circle()": "Defines a circle.",
+	"ellipse()": "Defines an ellipse.",
+	"inset()": "Defines an inset rectangle.",
+	"margin-box": "The background is painted within (clipped to) the margin box.",
+	"polygon()": "Defines a polygon.",
 	"additive": "Represents “sign-value” numbering systems, which, rather than using reusing digits in different positions to change their value, define additional digits with much larger values, so that the value of the number can be obtained by adding all the digits together.",
 	"cyclic": "Cycles repeatedly through its provided symbols, looping back to the beginning when it reaches the end of the list.",
 	"extends": "Use the algorithm of another counter style, but alter other aspects.",
