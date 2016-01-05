@@ -523,10 +523,6 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 			this.suggestionSupportsAutoAccept.set(!(<CompletionItem>focus).suggestion.noAutoAccept);
 		}
 
-		if (focus === this.oldFocus) {
-			return;
-		}
-
 		const elementsToRefresh: any[] = [];
 
 		if (this.oldFocus) {

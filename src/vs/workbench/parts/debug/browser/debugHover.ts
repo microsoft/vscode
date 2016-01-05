@@ -3,16 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import htmlcontentrenderer = require('vs/base/browser/htmlContentRenderer');
 import errors = require('vs/base/common/errors');
 import dom = require('vs/base/browser/dom');
+import { ITree } from 'vs/base/parts/tree/common/tree';
+import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
+import { DefaultController, ICancelableEvent } from 'vs/base/parts/tree/browser/treeDefaults';
 import editorbrowser = require('vs/editor/browser/editorBrowser');
 import editorcommon = require('vs/editor/common/editorCommon');
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import debug = require('vs/workbench/parts/debug/common/debug');
-import { tokenizeToHtmlContent } from 'vs/editor/common/modes/textToHtmlTokenizer';
+import viewer = require('vs/workbench/parts/debug/browser/debugViewer');
 
 const $ = dom.emmet;
-const stringRegex = /^(['"]).*\1$/;
+const debugTreeOptions = {
+	indentPixels: 8,
+	twistiePixels: 20
+};
 
 export class DebugHoverWidget implements editorbrowser.IContentWidget {
 
@@ -22,12 +28,23 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 
 	private domNode: HTMLElement;
 	private isVisible: boolean;
+	private tree: ITree;
 	private showAtPosition: editorcommon.IPosition;
 	private lastHoveringOver: string;
 	private highlightDecorations: string[];
+	private treeContainer: HTMLElement;
+	private valueContainer: HTMLElement;
 
-	constructor(private editor: editorbrowser.ICodeEditor, private debugService: debug.IDebugService) {
+	constructor(private editor: editorbrowser.ICodeEditor, private debugService: debug.IDebugService, private instantiationService: IInstantiationService) {
 		this.domNode = $('.debug-hover-widget monaco-editor-background');
+		this.treeContainer = dom.append(this.domNode, $('.debug-hover-tree'));
+		this.tree = new Tree(this.treeContainer, {
+			dataSource: new viewer.VariablesDataSource(this.debugService),
+			renderer: this.instantiationService.createInstance(viewer.VariablesRenderer),
+			controller: new DebugHoverController()
+		}, debugTreeOptions);
+		this.valueContainer = dom.append(this.domNode, $('.debug-hover-value'));
+
 		this.isVisible = false;
 		this.showAtPosition = null;
 		this.lastHoveringOver = null;
@@ -95,8 +112,6 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 			return;
 		}
 
-		const variable = variables[0];
-
 		// show it
 		this.highlightDecorations = this.editor.deltaDecorations(this.highlightDecorations, [{
 			range: {
@@ -110,54 +125,21 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 			}
 		}]);
 		this.lastHoveringOver = hoveringOver;
-
-		if (variable.reference > 0 && variable.value.indexOf('function') === -1) {
-			let objectToString = '{\n';
-			variable.getChildren(this.debugService).then(children => {
-				if (!children) {
-					this.hide();
-					return;
-				}
-
-				for (let i = 0; i < children.length; i++) {
-					const nameAndValue = `   ${ children[i].name }: ${ children[i].value }`;
-					objectToString += nameAndValue.substr(0, 80);
-					// add a quote to the end of the string if cropped
-					if (nameAndValue.length > 80 && stringRegex.test(children[i].value)) {
-						objectToString += children[i].value[0];
-					}
-
-					if (i < children.length - 1) {
-						objectToString += ',\n';
-					}
-				}
-				objectToString += '\n}';
-				return objectToString;
-			}).done(value => this.doShow(pos, value), () => this.hide());
-		} else {
-			this.doShow(pos, variable.value);
-		}
+		this.doShow(pos, variables[0]);
 	}
 
-	private doShow(position: editorcommon.IEditorPosition, value: string): void {
-		const model = this.editor.getModel();
-		if (!value || !model) {
-			return;
+	private doShow(position: editorcommon.IEditorPosition, expression: debug.IExpression): void {
+		if (expression.reference > 0) {
+			this.valueContainer.hidden = true;
+			this.treeContainer.hidden = false;
+			this.tree.setInput(expression).done(null, errors.onUnexpectedError);
+			this.tree.layout(this.treeContainer.clientHeight);
+		} else {
+			this.treeContainer.hidden = true;
+			this.valueContainer.hidden = false;
+			viewer.renderExpressionValue(expression, false, this.valueContainer);
 		}
 
-		let crlfCount = 0;
-		for (let i = 0; i < value.length; i++) {
-			if (value[i] === '\n') {
-				crlfCount++;
-			}
-			if (crlfCount > 12) {
-				value = value.substr(0, i + 1) + '   ...\n}';
-				break;
-			}
-		}
-
-		this.domNode.innerHTML = '';
-		this.domNode.appendChild(htmlcontentrenderer.renderHtml(tokenizeToHtmlContent(value, model.getMode())));
 		this.showAtPosition = position;
 		this.isVisible = true;
 		this.editor.layoutContentWidget(this);
@@ -182,5 +164,18 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 				editorbrowser.ContentWidgetPositionPreference.BELOW
 			]
 		} : null;
+	}
+}
+
+class DebugHoverController extends DefaultController {
+
+	/* protected */ public onLeftClick(tree: ITree, element: any, eventish: ICancelableEvent, origin: string = 'mouse'): boolean {
+		if (element.reference > 0) {
+			super.onLeftClick(tree, element, eventish, origin);
+			tree.clearFocus();
+			tree.deselect(element);
+		}
+
+		return true;
 	}
 }

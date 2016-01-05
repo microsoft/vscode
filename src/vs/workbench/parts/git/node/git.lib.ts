@@ -44,12 +44,12 @@ function exec(child: ChildProcess, encoding = 'utf8'): TPromise<IExecutionResult
 		new TPromise<string>(c => {
 			let buffers: Buffer[] = [];
 			on(child.stdout, 'data', b => buffers.push(b));
-			once(child.stdout, 'close', () => c(Buffer.concat(buffers).toString(encoding)));
+			once(child.stdout, 'close', () => c(iconv.decode(Buffer.concat(buffers), encoding)));
 		}),
 		new TPromise<string>(c => {
 			let buffers: Buffer[] = [];
 			on(child.stderr, 'data', b => buffers.push(b));
-			once(child.stderr, 'close', () => c(Buffer.concat(buffers).toString(encoding)));
+			once(child.stderr, 'close', () => c(iconv.decode(Buffer.concat(buffers), encoding)));
 		})
 	]).then(values => {
 		disposeAll(disposables);

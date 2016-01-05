@@ -180,7 +180,10 @@ export class MarkersHandler extends QuickOpenHandler {
 
 			// 2nd viewstate
 			const editor = this._editorService.getActiveEditor();
-			const viewState = (<ICommonCodeEditor>editor.getControl()).saveViewState();
+			let viewState: IEditorViewState;
+			if (editor) {
+				viewState = (<ICommonCodeEditor>editor.getControl()).saveViewState();
+			}
 
 			this._activeSession = [model, viewState];
 		}
@@ -199,8 +202,10 @@ export class MarkersHandler extends QuickOpenHandler {
 		if (this._activeSession) {
 			if (canceled) {
 				const [, viewState] = this._activeSession;
-				const editor = this._editorService.getActiveEditor();
-				(<ICommonCodeEditor>editor.getControl()).restoreViewState(viewState);
+				if (viewState) {
+					const editor = this._editorService.getActiveEditor();
+					(<ICommonCodeEditor>editor.getControl()).restoreViewState(viewState);
+				}
 			}
 			this._activeSession = undefined;
 		}

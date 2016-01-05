@@ -280,7 +280,10 @@ export class JSONSchemaService implements IJSONSchemaService {
 				this.contributionAssociations[pattern] = associations;
 
 				var fpa = this.getOrAddFilePatternAssociation(pattern);
-				associations.forEach(schemaId => fpa.addSchema(schemaId));
+				associations.forEach(schemaId => {
+					var id = this.normalizeId(schemaId);
+					fpa.addSchema(id)
+				});
 			}
 		}
 	}
@@ -327,7 +330,10 @@ export class JSONSchemaService implements IJSONSchemaService {
 		for (var pattern in this.contributionAssociations) {
 			var fpa = this.getOrAddFilePatternAssociation(pattern);
 
-			this.contributionAssociations[pattern].forEach(schemaId => fpa.addSchema(schemaId));
+			this.contributionAssociations[pattern].forEach(schemaId => {
+				var id = this.normalizeId(schemaId);
+				fpa.addSchema(id);
+			});
 		}
 	}
 

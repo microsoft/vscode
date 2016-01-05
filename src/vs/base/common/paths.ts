@@ -277,7 +277,7 @@ export function isEqualOrParent(path: string, candidate: string): boolean {
 
 // Reference: https://en.wikipedia.org/wiki/Filename
 const INVALID_FILE_CHARS = isWindows ? /[\\/:\*\?"<>\|]/g : /[\\/]/g;
-const WINDOWS_FORBIDDEN_NAMES = /con|prn|aux|clock\$|nul|lpt[0-9]|com[0-9]/i;
+const WINDOWS_FORBIDDEN_NAMES = /^(con|prn|aux|clock\$|nul|lpt[0-9]|com[0-9])$/i;
 export function isValidBasename(name: string): boolean {
 	if (!name || name.length === 0 || /^\s+$/.test(name)) {
 		return false; // require a name that is not just whitespace

@@ -245,11 +245,11 @@
 
 @keyframes spin {
 	from { transform: rotate(0deg); }
-	to { transform: rotate(360deg); }
+	to { transform: rotate(1080deg); }
 }
 
 .monaco-shell .git-statusbar-group > .git-statusbar-sync-item.syncing > .octicon {
-	animation: 1.5s linear infinite spin;
+	animation: 2s ease-in-out infinite spin;
 }
 
 .monaco-shell .git-statusbar-group > .git-statusbar-sync-item.disabled > .ahead-behind,

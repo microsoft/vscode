@@ -14,9 +14,21 @@ export class Source {
 
 	private static INTERNAL_URI_PREFIX = 'debug://internal/';
 
-	constructor(public name: string, uriStr: string, public origin: string, public reference = 0) {
-		this.uri = uri.parse(uriStr);
+	constructor(private raw: DebugProtocol.Source) {
+		this.uri = raw.path ? uri.file(raw.path) : uri.parse(Source.INTERNAL_URI_PREFIX + raw.name);
 		this.available = true;
+	}
+
+	public get name() {
+		return this.raw.name;
+	}
+
+	public get origin() {
+		return this.raw.origin;
+	}
+
+	public get reference() {
+		return this.raw.sourceReference;
 	}
 
 	public get inMemory() {
@@ -29,13 +41,8 @@ export class Source {
 		for (let threadId in threads) {
 			if (threads.hasOwnProperty(threadId) && threads[threadId].callStack) {
 				const found = threads[threadId].callStack.filter(sf => sf.source.uri.toString() === uri.toString()).pop();
-
 				if (found) {
-					return {
-						name: found.source.name,
-						path: found.source.inMemory ? null : found.source.uri.fsPath,
-						sourceReference: found.source.reference
-					}
+					return found.source.raw;
 				}
 			}
 		}
@@ -45,13 +52,11 @@ export class Source {
 			{ path: paths.normalize(uri.fsPath, true) };
 	}
 
-	public static fromRawSource(rawSource: DebugProtocol.Source): Source {
-		const uriStr = rawSource.path ? uri.file(rawSource.path).toString() : Source.INTERNAL_URI_PREFIX + rawSource.name;
-		return new Source(rawSource.name, uriStr, rawSource.origin, rawSource.sourceReference);
-	}
-
 	public static fromUri(uri: uri): Source {
-		return new Source(Source.getName(uri), uri.toString(), '');
+		return new Source({
+			name: Source.getName(uri),
+			path: uri.fsPath,
+		});
 	}
 
 	private static getName(uri: uri): string {

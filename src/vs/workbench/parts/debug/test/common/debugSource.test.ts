@@ -15,7 +15,6 @@ suite('Debug - Source', () => {
 
 		assert.equal(source.available, true);
 		assert.equal(source.inMemory, false);
-		assert.equal(source.reference, 0);
 		assert.equal(source.uri.toString(), u.toString());
 		assert.equal(source.name, 'd');
 	});
@@ -26,7 +25,7 @@ suite('Debug - Source', () => {
 			path: '/xx/yy/zz',
 			sourceReference: 0
 		};
-		const source = Source.fromRawSource(rawSource);
+		const source = new Source(rawSource);
 
 		assert.equal(source.available, true);
 		assert.equal(source.name, rawSource.name);
@@ -40,7 +39,7 @@ suite('Debug - Source', () => {
 			name: 'internalModule.js',
 			sourceReference: 11
 		};
-		const source = Source.fromRawSource(rawSource);
+		const source = new Source(rawSource);
 
 		assert.equal(source.available, true);
 		assert.equal(source.name, rawSource.name);

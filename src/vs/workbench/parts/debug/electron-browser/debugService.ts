@@ -228,13 +228,13 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		}));
 
 		this.toDispose.push(this.session.addListener2(debug.SessionEvents.STOPPED, (event: DebugProtocol.StoppedEvent) => {
-			this.setStateAndEmit(debug.State.Stopped, event.body.reason);
+			this.setStateAndEmit(debug.State.Stopped);
 			const threadId = event.body.threadId;
 
 			this.getThreadData(threadId).then(() => {
 				this.session.stackTrace({ threadId: threadId, levels: 20 }).done((result) => {
 
-					this.model.rawUpdate({ threadId: threadId, callStack: result.body.stackFrames, exception: event.body && event.body.reason === 'exception' });
+					this.model.rawUpdate({ threadId: threadId, callStack: result.body.stackFrames, stoppedReason: event.body.reason });
 					this.windowService.getWindow().focus();
 					const callStack = this.model.getThreads()[threadId].callStack;
 					if (callStack.length > 0) {
@@ -312,7 +312,8 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 	private loadBreakpoints(): debug.IBreakpoint[] {
 		try {
 			return JSON.parse(this.storageService.get(DEBUG_BREAKPOINTS_KEY, StorageScope.WORKSPACE, '[]')).map((breakpoint: any) => {
-				return new model.Breakpoint(new Source(breakpoint.source.name, breakpoint.source.uri, breakpoint.source.reference), breakpoint.desiredLineNumber || breakpoint.lineNumber, breakpoint.enabled, breakpoint.condition);
+				return new model.Breakpoint(breakpoint.source.raw ? new Source(breakpoint.source.raw) : Source.fromUri(uri.parse(breakpoint.source.uri)),
+					breakpoint.desiredLineNumber || breakpoint.lineNumber, breakpoint.enabled, breakpoint.condition);
 			});
 		} catch (e) {
 			return [];
@@ -356,9 +357,9 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		return this.state;
 	}
 
-	private setStateAndEmit(newState: debug.State, data?: any): void {
+	private setStateAndEmit(newState: debug.State): void {
 		this.state = newState;
-		this.emit(debug.ServiceEvents.STATE_CHANGED, data);
+		this.emit(debug.ServiceEvents.STATE_CHANGED);
 	}
 
 	public get enabled(): boolean {

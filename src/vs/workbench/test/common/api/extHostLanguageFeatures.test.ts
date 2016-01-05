@@ -13,7 +13,7 @@ import * as types from 'vs/workbench/api/common/extHostTypes';
 import {Range as CodeEditorRange} from 'vs/editor/common/core/range';
 import * as EditorCommon from 'vs/editor/common/editorCommon';
 import {Model as EditorModel} from 'vs/editor/common/model/model';
-import threadService from './testThreadService'
+import {TestThreadService} from './testThreadService'
 import {create as createInstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import {MarkerService} from 'vs/platform/markers/common/markerService';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
@@ -47,6 +47,7 @@ const model: EditorCommon.IModel = new EditorModel(
 let extHost: ExtHostLanguageFeatures;
 let mainThread: MainThreadLanguageFeatures;
 let disposables: vscode.Disposable[] = [];
+let threadService: TestThreadService;
 let originalErrorHandler: (e: any) => any;
 
 suite('ExtHostLanguageFeatures', function() {
@@ -54,7 +55,7 @@ suite('ExtHostLanguageFeatures', function() {
 	suiteSetup(() => {
 
 		let instantiationService = createInstantiationService();
-		threadService.setInstantiationService(instantiationService);
+		threadService = new TestThreadService(instantiationService);
 		instantiationService.addSingleton(IMarkerService, new MarkerService(threadService));
 		instantiationService.addSingleton(IThreadService, threadService);
 
