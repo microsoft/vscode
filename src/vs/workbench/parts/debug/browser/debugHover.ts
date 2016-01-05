@@ -10,7 +10,6 @@ import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { DefaultController, ICancelableEvent } from 'vs/base/parts/tree/browser/treeDefaults';
 import editorbrowser = require('vs/editor/browser/editorBrowser');
 import editorcommon = require('vs/editor/common/editorCommon');
-import { tokenizeToHtmlContent } from 'vs/editor/common/modes/textToHtmlTokenizer';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import debug = require('vs/workbench/parts/debug/common/debug');
 import viewer = require('vs/workbench/parts/debug/browser/debugViewer');
@@ -138,7 +137,7 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 		} else {
 			this.treeContainer.hidden = true;
 			this.valueContainer.hidden = false;
-			this.valueContainer.textContent = expression.value;
+			viewer.renderExpressionValue(expression, false, this.valueContainer);
 		}
 
 		this.showAtPosition = position;

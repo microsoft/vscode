@@ -58,7 +58,47 @@
 	background-color: rgba(173, 214, 255, 0.15);
 }
 
+.monaco-editor .debug-hover-widget .value {
+	color: rgba(108, 108, 108, 0.8);
+}
+
+.monaco-editor .debug-hover-widget .error {
+	color: #E51400;
+}
+
+.monaco-editor .debug-hover-widget .value.number {
+	color: #09885A;
+}
+
+.monaco-editor .debug-hover-widget .value.boolean {
+	color: #0000FF;
+}
+
+.monaco-editor .debug-hover-widget .value.string {
+	color: #A31515;
+}
+
 /* Dark theme */
+
+.monaco-editor.vs-dark .debug-hover-widget .value {
+	color: rgba(204, 204, 204, 0.6);
+}
+
+.monaco-editor.vs-dark .debug-hover-widget .error {
+	color: #F48771;
+}
+
+.monaco-editor.vs-dark .debug-hover-widget .value.number {
+	color: #B5CEA8;
+}
+
+.monaco-editor.vs-dark .debug-hover-widget .value.boolean {
+	color: #4E94CE;
+}
+
+.monaco-editor.vs-dark .debug-hover-widget .value.string {
+	color: #CE9178;
+}
 
 .monaco-editor.vs-dark .debug-hover-widget {
 	border-color: #555;
