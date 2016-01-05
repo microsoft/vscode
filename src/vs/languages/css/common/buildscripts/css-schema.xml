@@ -1801,6 +1801,18 @@
         <value name="auto" version="3.0" browsers="all">
           <desc>The width depends on the values of other properties.</desc>
         </value>
+        <value name="fill" version="3.0" browsers="none">
+          <desc>Specifies the optimal column width as the fill-available inline size of the multi-column element.</desc>
+        </value>
+        <value name="fit-content" version="3.0" browsers="none">
+          <desc>Specifies the optimal column width as min(max-content inline size, max(min-content inline size, fill-available inline size)).</desc>
+        </value>
+        <value name="max-content" version="3.0" browsers="none">
+          <desc>Specifies the optimal column width as the max-content inline size of the multi-column element’s contents.</desc>
+        </value>
+        <value name="min-content" version="3.0" browsers="none">
+          <desc>Specifies the optimal column width as the min-content inline size of the multi-column element’s contents.</desc>
+        </value>
       </values>
     </entry>
     <entry name="contain" restriction="enum" version="3.0" browsers="none" ref="https://drafts.csswg.org/css-containment-3/#propdef-contain" syntax="div { $(name): strict; }">
@@ -3185,6 +3197,18 @@
         <value name="auto" version="1.0" browsers="all">
           <desc>The height depends on the values of other properties.</desc>
         </value>
+        <value name="fill" version="3.0" browsers="none">
+          <desc>Use the fill-available inline size or fill-available block size, as appropriate to the writing mode.</desc>
+        </value>
+        <value name="fit-content" version="3.0" browsers="C46,O33">
+          <desc>Use the fit-content inline size or fit-content block size, as appropriate to the writing mode.</desc>
+        </value>
+        <value name="max-content" version="3.0" browsers="C46,O33">
+          <desc>Use the max-content inline size or max-content block size, as appropriate to the writing mode.</desc>
+        </value>
+        <value name="min-content" version="3.0" browsers="C46,O33">
+          <desc>Use the min-content inline size or min-content block size, as appropriate to the writing mode.</desc>
+        </value>
       </values>
     </entry>
     <entry name="hyphenate-character" restriction="string, enum" version="4.0" browsers="none" ref="https://drafts.csswg.org/css-text-4/#propdef-hyphenate-character" syntax="div { $(name):'~'; }">
@@ -3940,6 +3964,18 @@
         <value name="none" version="2.0" browsers="all">
           <desc>No limit on the height of the box.</desc>
         </value>
+        <value name="fill" version="3.0" browsers="none">
+          <desc>Use the fill-available inline size or fill-available block size, as appropriate to the writing mode.</desc>
+        </value>
+        <value name="fit-content" version="3.0" browsers="C46,O33">
+          <desc>Use the fit-content inline size or fit-content block size, as appropriate to the writing mode.</desc>
+        </value>
+        <value name="max-content" version="3.0" browsers="C46,O33">
+          <desc>Use the max-content inline size or max-content block size, as appropriate to the writing mode.</desc>
+        </value>
+        <value name="min-content" version="3.0" browsers="C46,O33">
+          <desc>Use the min-content inline size or min-content block size, as appropriate to the writing mode.</desc>
+        </value>
       </values>
     </entry>
     <entry name="max-inline-size" restriction="length, percentage" version="3.0" browsers="FF41" ref="https://drafts.csswg.org/css-logical-props/#propdef-min-block-size" syntax="header { $(name): 200px; }">
@@ -3955,6 +3991,18 @@
       <values>
         <value name="none" version="2.0" browsers="all">
           <desc>No limit on the width of the box.</desc>
+        </value>
+        <value name="fill" version="3.0" browsers="none">
+          <desc>Use the fill-available inline size or fill-available block size, as appropriate to the writing mode.</desc>
+        </value>
+        <value name="fit-content" version="3.0" browsers="C46,O33">
+          <desc>Use the fit-content inline size or fit-content block size, as appropriate to the writing mode.</desc>
+        </value>
+        <value name="max-content" version="3.0" browsers="C46,O33">
+          <desc>Use the max-content inline size or max-content block size, as appropriate to the writing mode.</desc>
+        </value>
+        <value name="min-content" version="3.0" browsers="C46,O33">
+          <desc>Use the min-content inline size or min-content block size, as appropriate to the writing mode.</desc>
         </value>
       </values>
     </entry>
@@ -3973,6 +4021,18 @@
       <desc>Allows authors to constrain content height to a certain range.</desc>
       <values>
         <value name="auto" version="3.0" browsers="E,IE11" />
+        <value name="fill" version="3.0" browsers="none">
+          <desc>Use the fill-available inline size or fill-available block size, as appropriate to the writing mode.</desc>
+        </value>
+        <value name="fit-content" version="3.0" browsers="C46,O33">
+          <desc>Use the fit-content inline size or fit-content block size, as appropriate to the writing mode.</desc>
+        </value>
+        <value name="max-content" version="3.0" browsers="C46,O33">
+          <desc>Use the max-content inline size or max-content block size, as appropriate to the writing mode.</desc>
+        </value>
+        <value name="min-content" version="3.0" browsers="C46,O33">
+          <desc>Use the min-content inline size or min-content block size, as appropriate to the writing mode.</desc>
+        </value>
       </values>
     </entry>
     <entry name="min-inline-size" restriction="length, percentage" version="3.0" browsers="FF41" ref="https://drafts.csswg.org/css-logical-props/#propdef-min-block-size" syntax="header { $(name): 200px; }">
@@ -3981,7 +4041,19 @@
     <entry name="min-width" restriction="length, percentage" version="2.0" browsers="E,C,FF1,IE7,O7,S1" ref="http://www.w3.org/TR/css3-box/#min-width" syntax="footer { $(name): 300px; }">
       <desc>Allows authors to constrain content width to a certain range.</desc>
       <values>
-     		<value name="auto" version="3.0" browsers="E,IE11" />
+        <value name="auto" version="3.0" browsers="E,IE11" />
+        <value name="fill" version="3.0" browsers="none">
+          <desc>Use the fill-available inline size or fill-available block size, as appropriate to the writing mode.</desc>
+        </value>
+        <value name="fit-content" version="3.0" browsers="C46,O33">
+          <desc>Use the fit-content inline size or fit-content block size, as appropriate to the writing mode.</desc>
+        </value>
+        <value name="max-content" version="3.0" browsers="C46,O33">
+          <desc>Use the max-content inline size or max-content block size, as appropriate to the writing mode.</desc>
+        </value>
+        <value name="min-content" version="3.0" browsers="C46,O33">
+          <desc>Use the min-content inline size or min-content block size, as appropriate to the writing mode.</desc>
+        </value>
       </values>
     </entry>
     <entry name="mix-blend-mode" restriction="enum" version="3.0" browsers="C41,FF32,O29,S7.1" ref="http://www.w3.org/TR/compositing-1/#propdef-mix-blend-mode" syntax="div { $(name): saturation; }">
@@ -9316,6 +9388,18 @@
       <values>
         <value name="auto" version="1.0" browsers="all">
           <desc>The width depends on the values of other properties.</desc>
+        </value>
+        <value name="fill" version="3.0" browsers="none">
+          <desc>Use the fill-available inline size or fill-available block size, as appropriate to the writing mode.</desc>
+        </value>
+        <value name="fit-content" version="3.0" browsers="C46,O33">
+          <desc>Use the fit-content inline size or fit-content block size, as appropriate to the writing mode.</desc>
+        </value>
+        <value name="max-content" version="3.0" browsers="C46,O33">
+          <desc>Use the max-content inline size or max-content block size, as appropriate to the writing mode.</desc>
+        </value>
+        <value name="min-content" version="3.0" browsers="C46,O33">
+          <desc>Use the min-content inline size or min-content block size, as appropriate to the writing mode.</desc>
         </value>
       </values>
     </entry>

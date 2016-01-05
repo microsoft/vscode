@@ -1074,10 +1074,12 @@ exports.data ={
 				"restriction": "enum",
 				"values": [
 					{
-						"name": "hidden"
+						"name": "hidden",
+						"desc": "Back side is hidden."
 					},
 					{
-						"name": "visible"
+						"name": "visible",
+						"desc": "Back side is visible."
 					}
 				]
 			},
@@ -1681,7 +1683,8 @@ exports.data ={
 				"restriction": "url",
 				"values": [
 					{
-						"name": "none"
+						"name": "none",
+						"desc": "Use the border styles."
 					},
 					{
 						"name": "url()"
@@ -2186,7 +2189,12 @@ exports.data ={
 				"desc": "Describes the width of columns in multicol elements.",
 				"browsers": "E,IE10,O11.5,S9",
 				"restriction": "length, enum",
-				"values": []
+				"values": [
+					{
+						"name": "auto",
+						"desc": "The width depends on the values of other properties."
+					}
+				]
 			},
 			{
 				"name": "content",
@@ -3369,7 +3377,8 @@ exports.data ={
 						"name": "lining-nums"
 					},
 					{
-						"name": "normal"
+						"name": "normal",
+						"desc": "None of the features are enabled."
 					},
 					{
 						"name": "oldstyle-nums"
@@ -3473,7 +3482,24 @@ exports.data ={
 				"name": "height",
 				"desc": "Specifies the height of the content area, padding area or border area (depending on 'box-sizing') of certain boxes.",
 				"restriction": "length, percentage",
-				"values": []
+				"values": [
+					{
+						"name": "auto",
+						"desc": "The height depends on the values of other properties."
+					},
+					{
+						"name": "fit-content",
+						"browsers": "C46,O33"
+					},
+					{
+						"name": "max-content",
+						"browsers": "C46,O33"
+					},
+					{
+						"name": "min-content",
+						"browsers": "C46,O33"
+					}
+				]
 			},
 			{
 				"name": "image-orientation",
@@ -3923,7 +3949,24 @@ exports.data ={
 				"desc": "Allows authors to constrain content height to a certain range.",
 				"browsers": "E,C,FF1,IE7,O7,S1",
 				"restriction": "length, percentage",
-				"values": []
+				"values": [
+					{
+						"name": "none",
+						"desc": "No limit on the height of the box."
+					},
+					{
+						"name": "fit-content",
+						"browsers": "C46,O33"
+					},
+					{
+						"name": "max-content",
+						"browsers": "C46,O33"
+					},
+					{
+						"name": "min-content",
+						"browsers": "C46,O33"
+					}
+				]
 			},
 			{
 				"name": "max-inline-size",
@@ -3937,7 +3980,24 @@ exports.data ={
 				"desc": "Allows authors to constrain content width to a certain range.",
 				"browsers": "E,C,FF1,IE7,O7,S1",
 				"restriction": "length, percentage",
-				"values": []
+				"values": [
+					{
+						"name": "none",
+						"desc": "No limit on the width of the box."
+					},
+					{
+						"name": "fit-content",
+						"browsers": "C46,O33"
+					},
+					{
+						"name": "max-content",
+						"browsers": "C46,O33"
+					},
+					{
+						"name": "min-content",
+						"browsers": "C46,O33"
+					}
+				]
 			},
 			{
 				"name": "min-block-size",
@@ -3950,7 +4010,24 @@ exports.data ={
 				"desc": "Allows authors to constrain content height to a certain range.",
 				"browsers": "E,C,FF1,IE7,O7,S1",
 				"restriction": "length, percentage",
-				"values": []
+				"values": [
+					{
+						"name": "auto",
+						"browsers": "E,IE11"
+					},
+					{
+						"name": "fit-content",
+						"browsers": "C46,O33"
+					},
+					{
+						"name": "max-content",
+						"browsers": "C46,O33"
+					},
+					{
+						"name": "min-content",
+						"browsers": "C46,O33"
+					}
+				]
 			},
 			{
 				"name": "min-inline-size",
@@ -3963,7 +4040,24 @@ exports.data ={
 				"desc": "Allows authors to constrain content width to a certain range.",
 				"browsers": "E,C,FF1,IE7,O7,S1",
 				"restriction": "length, percentage",
-				"values": []
+				"values": [
+					{
+						"name": "auto",
+						"browsers": "E,IE11"
+					},
+					{
+						"name": "fit-content",
+						"browsers": "C46,O33"
+					},
+					{
+						"name": "max-content",
+						"browsers": "C46,O33"
+					},
+					{
+						"name": "min-content",
+						"browsers": "C46,O33"
+					}
+				]
 			},
 			{
 				"name": "mix-blend-mode",
@@ -10379,7 +10473,24 @@ exports.data ={
 				"name": "width",
 				"desc": "Specifies the width of the content area, padding area or border area (depending on 'box-sizing') of certain boxes.",
 				"restriction": "length, percentage",
-				"values": []
+				"values": [
+					{
+						"name": "auto",
+						"desc": "The width depends on the values of other properties."
+					},
+					{
+						"name": "fit-content",
+						"browsers": "C46,O33"
+					},
+					{
+						"name": "max-content",
+						"browsers": "C46,O33"
+					},
+					{
+						"name": "min-content",
+						"browsers": "C46,O33"
+					}
+				]
 			},
 			{
 				"name": "will-change",
@@ -10662,6 +10773,9 @@ exports.descriptions = {
 	"slashed-zero": "Enables display of slashed zeros.",
 	"stacked-fractions": "Enables display of lining stacked fractions.",
 	"tabular-nums": "Enables display of tabular numerals.",
+	"fit-content": "Use the fit-content inline size or fit-content block size, as appropriate to the writing mode.",
+	"max-content": "Use the max-content inline size or max-content block size, as appropriate to the writing mode.",
+	"min-content": "Use the min-content inline size or min-content block size, as appropriate to the writing mode.",
 	"flip": "After rotating by the precededing angle, the image is flipped horizontally. Defaults to 0deg if the angle is ommitted.",
 	"from-image": "If the image has an orientation specified in its metadata, such as EXIF, this value computes to the angle that the metadata specifies is necessary to correctly orient the image.",
 	"crisp-edges": "The image must be scaled with an algorithm that preserves contrast and edges in the image, and which does not smooth colors or introduce blur to the image in the process.",
