@@ -856,11 +856,15 @@
         </value>
       </values>
     </entry>
-    <entry name="backface-visibility" restriction="enum" version="3.0" browsers="E,C36,FF16,IE10,O23" ref="http://www.w3.org/TR/css3-3d-transforms/#backface-visibility" syntax="div { $(name): hidden; }">
+    <entry name="backface-visibility" restriction="enum" version="3.0" browsers="E,C36,FF16,IE10,O23" ref="http://www.w3.org/TR/css3-transforms/#backface-visibility-property" syntax="div { $(name): hidden; }">
       <desc>Determines whether or not the 'back' side of a transformed element is visible when facing the viewer. With an identity transform, the front side of an element faces the viewer.</desc>
       <values>
-        <value name="hidden" version="3.0" browsers="all" />
-        <value name="visible" version="3.0" browsers="all" />
+        <value name="hidden" version="3.0" browsers="all">
+          <desc>Back side is hidden.</desc>
+        </value>
+        <value name="visible" version="3.0" browsers="all">
+          <desc>Back side is visible.</desc>
+        </value>
       </values>
     </entry>
     <entry name="background" restriction="enum, color, length, repeat, percentage, url" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#background" syntax="section { $(name): url(image.png) no-repeat #999; }">
@@ -1259,7 +1263,9 @@
     <entry name="border-image-source" restriction="url" version="3.0" browsers="E,C16,FF15,IE11,O15,S6" ref="http://www.w3.org/TR/css3-background/#the-border-image-source" syntax="aside { $(name): url(image.png); }">
       <desc>Specifies an image to use instead of the border styles given by the 'border-style' properties and as an additional background layer for the element. If the value is 'none' or if the image cannot be displayed, the border styles will be used.</desc>
       <values>
-        <value name="none" version="3.0" browsers="all" />
+        <value name="none" version="3.0" browsers="all">
+          <desc>Use the border styles.</desc>
+        </value>
         <value name="url()" version="3.0" browsers="all" />
       </values>
     </entry>
@@ -1398,7 +1404,9 @@
         <value name="inset" version="3.0" browsers="all">
           <desc>Changes the drop shadow from an outer shadow (one that shadows the box onto the canvas, as if it were lifted above the canvas) to an inner shadow (one that shadows the canvas onto the box, as if the box were cut out of the canvas and shifted behind it).</desc>
         </value>
-        <value name="none" version="3.0" browsers="all" />
+        <value name="none" version="3.0" browsers="all">
+          <desc>No shadow.</desc>
+        </value>
       </values>
     </entry>
     <entry name="box-sizing" restriction="enum" version="3.0" browsers="E,C10,FF29,IE8,O8,S5.1" ref="http://www.w3.org/TR/css3-ui/#box-sizing" syntax="div { $(name): content-box; }">
@@ -2839,7 +2847,9 @@
         <value name="lining-nums" version="3.0" browsers="all">
           <desc>Enables display of lining numerals.</desc>
         </value>
-        <value name="normal" version="3.0" browsers="all" />
+        <value name="normal" version="3.0" browsers="all">
+          <desc>None of the features are enabled.</desc>
+        </value>
         <value name="oldstyle-nums" version="3.0" browsers="all">
           <desc>Enables display of old-style numerals.</desc>
         </value>
@@ -3260,11 +3270,11 @@
         </value>
         <value name="-moz-crisp-edges" version="3.0" browsers="FF" />
         <value name="optimizeQuality" version="3.0" browsers="all">
-				  <desc>Deprecated.</desc>
-				</value>
+          <desc>Deprecated.</desc>
+        </value>
         <value name="optimizeSpeed" version="3.0" browsers="all">
-				  <desc>Deprecated.</desc>
-				</value>
+          <desc>Deprecated.</desc>
+        </value>
         <value name="pixelated" version="3.0" browsers="all">
           <desc>When scaling the image up, the 'nearest neighbor' or similar algorithm must be used, so that the image appears to be simply composed of very large pixels.</desc>
         </value>
