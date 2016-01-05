@@ -61,7 +61,7 @@ export class GitAskpassService {
 				credentials: null
 			};
 
-			win.loadUrl(require.toUrl('vs/workbench/parts/git/electron-main/index.html'));
+			win.loadURL(require.toUrl('vs/workbench/parts/git/electron-main/index.html'));
 			win.webContents.executeJavaScript('init(' + JSON.stringify({ id, host, command }) + ')');
 
 			win.once('closed', () => {

@@ -175,8 +175,7 @@ declare class BrowserWindow extends EventEmitter {
 	show(): void;
 	hide(): void;
 	focus(): void;
-	loadUrl(url: string): void;
-	getUrl(): string;
+	loadURL(url: string): void;
 	close(): void;
 	destroy(): void;
 	setFullScreen(fullscreen: boolean): void;

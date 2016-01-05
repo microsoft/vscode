@@ -364,7 +364,7 @@ export class VSCodeWindow {
 		}
 
 		// Load URL
-		this._win.loadUrl(this.getUrl(config));
+		this._win.loadURL(this.getUrl(config));
 
 		// Make window visible if it did not open in N seconds because this indicates an error
 		if (!config.isBuilt) {

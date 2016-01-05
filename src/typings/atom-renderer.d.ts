@@ -207,7 +207,7 @@ declare module 'remote' {
 		focus(): void;
 		isFocused(): boolean;
 		reload(): void;
-		loadUrl(url: string): void;
+		loadURL(url: string): void;
 		close(): void;
 		destroy(): void;
 		setFullScreen(fullscreen: boolean): void;

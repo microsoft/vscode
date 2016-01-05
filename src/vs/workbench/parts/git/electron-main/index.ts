@@ -71,7 +71,7 @@ export function configure(bus: events.EventEmitter): void {
 			credentials: null
 		};
 
-		win.loadUrl(require.toUrl('vs/workbench/parts/git/electron-main/index.html'));
+		win.loadURL(require.toUrl('vs/workbench/parts/git/electron-main/index.html'));
 		win.webContents.executeJavaScript('init(' + JSON.stringify(context) + ')');
 
 		win.once('closed', () => {
