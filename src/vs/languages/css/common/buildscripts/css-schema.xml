@@ -1585,12 +1585,18 @@
         <value name="sRGB" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="color-interpolation-filters" restriction="enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/filter-effects/#ColorInterpolationFiltersProperty">
+    <entry name="color-interpolation-filters" restriction="enum" version="3.0" browsers="E,C5,FF3,IE10,O9,S6" ref="http://www.w3.org/TR/filter-effects/#ColorInterpolationFiltersProperty">
       <desc>Specifies the color space for imaging operations performed via filter effects.</desc>
       <values>
-        <value name="auto" version="3.0" browsers="all" />
-        <value name="linearRGB" version="3.0" browsers="all" />
-        <value name="sRGB" version="3.0" browsers="all" />
+        <value name="auto" version="3.0" browsers="all">
+          <desc>Color operations are not required to occur in a particular color space.</desc>
+        </value>
+        <value name="linearRGB" version="3.0" browsers="all">
+          <desc>Color operations should occur in the linearized RGB color space.</desc>
+        </value>
+        <value name="sRGB" version="3.0" browsers="all">
+          <desc>Color operations should occur in the sRGB color space.</desc>
+        </value>
       </values>
     </entry>
     <entry name="color-profile" restriction="identifier, url, enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/SVG/color.html#ColorProfileProperty">
@@ -2183,10 +2189,12 @@
         <value name="nonzero" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="filter" restriction="enum, url" version="3.0" browsers="E13,FF35" ref="https://drafts.fxtf.org/filters-1/#propdef-filter" syntax="div { $(name): opacity(50%); }">
+    <entry name="filter" restriction="enum, url" version="3.0" browsers="E13,FF35" ref="http://www.w3.org/TR/filter-effects/#propdef-filter" syntax="div { $(name): opacity(50%); }">
       <desc>Processes an element’s rendering before it is displayed in the document, by applying one or more filter effects.</desc>
       <values>
-        <value name="none" version="3.0" browsers="all" />
+        <value name="none" version="3.0" browsers="all">
+          <desc>No filter effects are applied.</desc>
+        </value>
         <value name="blur()" version="3.0" browsers="all">
           <desc>Applies a Gaussian blur to the input image.</desc>
         </value>
@@ -2321,10 +2329,10 @@
         </value>
       </values>
     </entry>
-    <entry name="flood-color" restriction="color" version="3.0" browsers="all" ref="http://www.w3.org/TR/SVG11/filters.html#FloodColorProperty">
+    <entry name="flood-color" restriction="color" version="3.0" browsers="E,C5,FF3,IE10,O9,S6" ref="http://www.w3.org/TR/filter-effects/#FloodColorProperty">
       <desc>Indicates what color to use to flood the current filter primitive subregion.</desc>
     </entry>
-    <entry name="flood-opacity" restriction="number(0-1)" version="3.0" browsers="all" ref="http://www.w3.org/TR/SVG11/filters.html#FloodOpacityProperty">
+    <entry name="flood-opacity" restriction="number(0-1), percentage" version="3.0" browsers="E,C5,FF3,IE10,O9,S6" ref="http://www.w3.org/TR/filter-effects/#FloodOpacityProperty">
       <desc>Indicates what opacity to use to flood the current filter primitive subregion.</desc>
     </entry>
     <entry name="flow-from" restriction="identifier" version="3.0" browsers="none" ref="http://www.w3.org/TR/css3-regions/#flow-from" syntax="div { $(name): identifier; }">
@@ -3265,7 +3273,7 @@
         </value>
       </values>
     </entry>
-    <entry name="lighting-color" restriction="color" version="3.0" browsers="all" ref="http://www.w3.org/TR/SVG11/filters.html#LightingColorProperty">
+    <entry name="lighting-color" restriction="color" version="3.0" browsers="E,C5,FF3,IE10,O9,S6" ref="http://www.w3.org/TR/filter-effects/#LightingColorProperty">
       <desc>Defines the color of the light source for filter primitives 'feDiffuseLighting' and 'feSpecularLighting'.</desc>
     </entry>
     <entry name="line-break" restriction="enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css3-text/#line-break0" syntax="p { $(name): normal; }">
@@ -8203,16 +8211,42 @@
         </value>
       </values>
     </entry>
-    <entry name="-webkit-filter" restriction="enum" version="3.0" browsers="S6" syntax="img { $(name): blur(3px); }">
-      <values>
-        <value name="blur(3px)" version="3.0" browsers="all" />
-        <value name="brightness(2)" version="3.0" browsers="all" />
-        <value name="contrast(2)" version="3.0" browsers="all" />
-        <value name="grayscale()" version="3.0" browsers="all" />
-        <value name="hue-rotate(180deg)" version="3.0" browsers="all" />
-        <value name="invert()" version="3.0" browsers="all" />
-        <value name="saturate(3)" version="3.0" browsers="all" />
-        <value name="sepia()" version="3.0" browsers="all" />
+    <entry name="-webkit-filter" restriction="enum" version="3.0" browsers="C18,O15,S6" ref="http://www.w3.org/TR/filter-effects/#propdef-filter" syntax="img { $(name): blur(3px); }">
+      <desc>Processes an element’s rendering before it is displayed in the document, by applying one or more filter effects.</desc>
+	  <values>
+        <value name="none" version="3.0" browsers="all">
+          <desc>No filter effects are applied.</desc>
+        </value>
+        <value name="blur()" version="3.0" browsers="all">
+          <desc>Applies a Gaussian blur to the input image.</desc>
+        </value>
+        <value name="brightness()" version="3.0" browsers="all">
+          <desc>Applies a linear multiplier to input image, making it appear more or less bright.</desc>
+        </value>
+        <value name="contrast()" version="3.0" browsers="all">
+          <desc>Adjusts the contrast of the input.</desc>
+        </value>
+        <value name="drop-shadow()" version="3.0" browsers="all">
+          <desc>Applies a drop shadow effect to the input image.</desc>
+        </value>
+        <value name="grayscale()" version="3.0" browsers="all">
+          <desc>Converts the input image to grayscale.</desc>
+        </value>
+        <value name="hue-rotate()" version="3.0" browsers="all">
+          <desc>Applies a hue rotation on the input image. </desc>
+        </value>
+        <value name="invert()" version="3.0" browsers="all">
+          <desc>Inverts the samples in the input image.</desc>
+        </value>
+        <value name="opacity()" version="3.0" browsers="all">
+          <desc>Applies transparency to the samples in the input image.</desc>
+        </value>
+        <value name="saturate()" version="3.0" browsers="all">
+          <desc>Saturates the input image.</desc>
+        </value>
+        <value name="sepia()" version="3.0" browsers="all">
+          <desc>Converts the input image to sepia.</desc>
+        </value>
       </values>
     </entry>
     <entry name="-webkit-flow-from" restriction="identifier" version="3.0" browsers="S6.1" ref="http://www.w3.org/TR/css3-regions/#flow-from" syntax="div { $(name): identifier; }">

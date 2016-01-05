@@ -2030,6 +2030,24 @@ exports.data ={
 				"restriction": "color"
 			},
 			{
+				"name": "color-interpolation-filters",
+				"desc": "Specifies the color space for imaging operations performed via filter effects.",
+				"browsers": "E,C5,FF3,IE10,O9,S6",
+				"restriction": "enum",
+				"values": [
+					{
+						"name": "auto",
+						"desc": "Color operations are not required to occur in a particular color space."
+					},
+					{
+						"name": "linearRGB"
+					},
+					{
+						"name": "sRGB"
+					}
+				]
+			},
+			{
 				"name": "column-count",
 				"desc": "Describes the optimal number of columns into which the content of the element will be flowed.",
 				"browsers": "E,IE10,O11.5,S9",
@@ -2565,7 +2583,8 @@ exports.data ={
 				"restriction": "enum, url",
 				"values": [
 					{
-						"name": "none"
+						"name": "none",
+						"desc": "No filter effects are applied."
 					},
 					{
 						"name": "blur()"
@@ -2580,15 +2599,13 @@ exports.data ={
 						"name": "drop-shadow()"
 					},
 					{
-						"name": "grayscale()",
-						"desc": "Converts the input image to grayscale."
+						"name": "grayscale()"
 					},
 					{
 						"name": "hue-rotate()"
 					},
 					{
-						"name": "invert()",
-						"desc": "Inverts the samples in the input image."
+						"name": "invert()"
 					},
 					{
 						"name": "opacity()"
@@ -2597,8 +2614,7 @@ exports.data ={
 						"name": "saturate()"
 					},
 					{
-						"name": "sepia()",
-						"desc": "Converts the input image to sepia."
+						"name": "sepia()"
 					}
 				]
 			},
@@ -2744,12 +2760,14 @@ exports.data ={
 			{
 				"name": "flood-color",
 				"desc": "Indicates what color to use to flood the current filter primitive subregion.",
+				"browsers": "E,C5,FF3,IE10,O9,S6",
 				"restriction": "color"
 			},
 			{
 				"name": "flood-opacity",
 				"desc": "Indicates what opacity to use to flood the current filter primitive subregion.",
-				"restriction": "number(0-1)"
+				"browsers": "E,C5,FF3,IE10,O9,S6",
+				"restriction": "number(0-1), percentage"
 			},
 			{
 				"name": "font",
@@ -3525,6 +3543,7 @@ exports.data ={
 			{
 				"name": "lighting-color",
 				"desc": "Defines the color of the light source for filter primitives 'feDiffuseLighting' and 'feSpecularLighting'.",
+				"browsers": "E,C5,FF3,IE10,O9,S6",
 				"restriction": "color"
 			},
 			{
@@ -9508,29 +9527,40 @@ exports.data ={
 			},
 			{
 				"name": "-webkit-filter",
-				"browsers": "S6",
+				"desc": "Processes an element’s rendering before it is displayed in the document, by applying one or more filter effects.",
+				"browsers": "C18,O15,S6",
 				"restriction": "enum",
 				"values": [
 					{
-						"name": "blur(3px)"
+						"name": "none",
+						"desc": "No filter effects are applied."
 					},
 					{
-						"name": "brightness(2)"
+						"name": "blur()"
 					},
 					{
-						"name": "contrast(2)"
+						"name": "brightness()"
+					},
+					{
+						"name": "contrast()"
+					},
+					{
+						"name": "drop-shadow()"
 					},
 					{
 						"name": "grayscale()"
 					},
 					{
-						"name": "hue-rotate(180deg)"
+						"name": "hue-rotate()"
 					},
 					{
 						"name": "invert()"
 					},
 					{
-						"name": "saturate(3)"
+						"name": "opacity()"
+					},
+					{
+						"name": "saturate()"
 					},
 					{
 						"name": "sepia()"
@@ -10233,6 +10263,8 @@ exports.descriptions = {
 	"clone": "Each box is independently wrapped with the border and padding.",
 	"slice": "The effect is as though the element were rendered with no breaks present, and then sliced by the breaks afterward.",
 	"inset": "Changes the drop shadow from an outer shadow (one that shadows the box onto the canvas, as if it were lifted above the canvas) to an inner shadow (one that shadows the canvas onto the box, as if the box were cut out of the canvas and shifted behind it).",
+	"linearRGB": "Color operations should occur in the linearized RGB color space.",
+	"sRGB": "Color operations should occur in the sRGB color space.",
 	"balance": "Balance content equally between columns, if possible.",
 	"attr()": "The attr(n) function returns as a string the value of attribute n for the subject of the selector.",
 	"counter(name)": "Counters are denoted by identifiers (see the 'counter-increment' and 'counter-reset' properties).",
@@ -10306,9 +10338,12 @@ exports.descriptions = {
 	"brightness()": "Applies a linear multiplier to input image, making it appear more or less bright.",
 	"contrast()": "Adjusts the contrast of the input.",
 	"drop-shadow()": "Applies a drop shadow effect to the input image.",
+	"grayscale()": "Converts the input image to grayscale.",
 	"hue-rotate()": "Applies a hue rotation on the input image. ",
+	"invert()": "Inverts the samples in the input image.",
 	"opacity()": "Applies transparency to the samples in the input image.",
 	"saturate()": "Saturates the input image.",
+	"sepia()": "Converts the input image to sepia.",
 	"content": "Indicates automatic sizing, based on the flex item’s content.",
 	"column-reverse": "Same as 'column', except the main-start and main-end directions are swapped.",
 	"row": "The flex container’s main axis has the same orientation as the inline axis of the current writing mode.",
