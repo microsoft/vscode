@@ -3319,7 +3319,6 @@ declare namespace vscode {
 	 *
 	 * ```javascript
 	 * export function activate(context: vscode.ExtensionContext) {
-	 *
 	 * 		let api = {
 	 * 			sum(a, b) {
 	 * 				return a + b;
@@ -3328,7 +3327,6 @@ declare namespace vscode {
 	 * 				return a * b;
 	 * 			}
 	 * 		};
-	 *
 	 * 		// 'export' public api-surface
 	 *		return api;
 	 * }
