@@ -64,7 +64,7 @@
 		"jsonValidation": [
 			{
 				"fileMatch": "package.json",
-				"url": "http://json.schemastore.org/project"
+				"url": "http://json.schemastore.org/package"
 			},
 			{
 				"fileMatch": "bower.json",
