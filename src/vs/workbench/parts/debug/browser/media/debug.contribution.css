@@ -156,7 +156,8 @@
 	animation-name: fadeIn;
 
 	white-space: pre;
-	min-width: 50px;
+	width: 350px;
+	height: 300px;
 
 	-webkit-user-select: text;
 	-ms-user-select: text;
@@ -165,6 +166,24 @@
 	-o-user-select: text;
 
 	overflow: hidden;
+}
+
+.monaco-editor .debug-hover-widget .debug-hover-tree {
+	line-height: 24px;
+	height: 100%;
+}
+
+/* Disable tree hover highlight in debug hover tree. */
+.monaco-editor .debug-hover-widget .debug-hover-tree .monaco-tree .monaco-tree-rows > .monaco-tree-row:hover:not(.highlighted):not(.selected):not(.focused)  {
+	background-color: inherit;
+}
+
+.monaco-editor .debug-hover-widget .debug-hover-tree .monaco-tree .monaco-tree-rows > .monaco-tree-row {
+	cursor: default;
+}
+
+.monaco-editor .debug-hover-widget .debug-hover-tree .monaco-tree .monaco-tree-rows > .monaco-tree-row.has-children {
+	cursor: pointer;
 }
 
 .monaco-editor .debug-hover-widget pre {

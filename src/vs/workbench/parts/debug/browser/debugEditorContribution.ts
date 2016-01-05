@@ -37,7 +37,7 @@ export class DebugEditorContribution implements editorcommon.IEditorContribution
 	) {
 		this.breakpointHintDecoration = [];
 		this.toDispose = [];
-		this.hoverWidget = new DebugHoverWidget(this.editor, this.debugService);
+		this.hoverWidget = new DebugHoverWidget(this.editor, this.debugService, this.instantiationService);
 		this.registerListeners();
 	}
 
