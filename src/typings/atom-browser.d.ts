@@ -361,7 +361,7 @@ declare module 'crash-reporter' {
 interface ICrashReporterConfigBrowser {
 	productName?: string,
 	companyName: string,
-	submitUrl?: string,
+	submitURL?: string,
 	autoSubmit?: boolean,
 	ignoreSystemCrashHandler?: boolean,
 	extra?: any
