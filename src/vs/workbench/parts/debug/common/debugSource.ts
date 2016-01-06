@@ -52,13 +52,6 @@ export class Source {
 			{ path: paths.normalize(uri.fsPath, true) };
 	}
 
-	public static fromUri(uri: uri): Source {
-		return new Source({
-			name: Source.getName(uri),
-			path: uri.fsPath,
-		});
-	}
-
 	private static getName(uri: uri): string {
 		const uriStr = uri.toString();
 		return uriStr.substr(uriStr.lastIndexOf('/') + 1);
