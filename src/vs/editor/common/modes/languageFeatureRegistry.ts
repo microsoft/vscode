@@ -119,9 +119,7 @@ export default class LanguageFeatureRegistry<T> {
 			return;
 		}
 
-		if (this._updateScores(model)) {
-			this._sortByScore();
-		}
+		this._updateScores(model);
 
 		let supportIndex: number = -1;
 		let supportEntry: Entry<T>;
@@ -171,10 +169,8 @@ export default class LanguageFeatureRegistry<T> {
 		for (let entry of this._entries) {
 			entry._score = score(entry.selector, model.getAssociatedResource(), model.getModeId());
 		}
-		return true;
-	}
 
-	private _sortByScore(): void {
+		// needs sorting
 		this._entries.sort(LanguageFeatureRegistry._compareByScoreAndTime);
 	}
 
