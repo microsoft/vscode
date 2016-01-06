@@ -228,6 +228,7 @@ class Renderer implements IRenderer<IExtensionEntry> {
 		data.disposables.push(this.extensionsService.onDidUninstallExtension(e => onExtensionStateChange(e, ExtensionState.Uninstalled)));
 
 		data.displayName.set(extension.displayName, entry.highlights.displayName);
+		data.displayName.element.title = extension.name;
 		data.version.textContent = extension.version;
 		data.since.textContent = date ? since(new Date(date)) : '';
 		data.author.textContent = publisher;
