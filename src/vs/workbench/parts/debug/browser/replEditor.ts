@@ -40,6 +40,7 @@ const HISTORY_STORAGE_KEY = 'debug.repl.history';
 export class Repl extends baseeditor.BaseEditor {
 
 	public static ID = 'workbench.editors.replEditor';
+	private static HALF_WIDTH_TYPICAL = 'n';
 
 	private static HISTORY: replhistory.ReplHistory;
 	private static REFRESH_DELAY = 500; // delay in ms to refresh the repl for new elements to show
@@ -122,7 +123,7 @@ export class Repl extends baseeditor.BaseEditor {
 		});
 
 		this.characterWidthSurveyor = dom.append(container, $('.surveyor'));
-		this.characterWidthSurveyor.textContent = 'a';
+		this.characterWidthSurveyor.textContent = Repl.HALF_WIDTH_TYPICAL;
 		for (let i = 0; i < 10; i++) {
 			this.characterWidthSurveyor.textContent += this.characterWidthSurveyor.textContent;
 		}
