@@ -111,49 +111,68 @@ export enum KeyCode {
 	ScrollLock,
 
 	/**
+	 * Used for miscellaneous characters; it can vary by keyboard.
 	 * For the US standard keyboard, the ';:' key
 	 */
 	US_SEMICOLON,
 	/**
+	 * For any country/region, the '+' key
 	 * For the US standard keyboard, the '=+' key
 	 */
 	US_EQUAL,
 	/**
+	 * For any country/region, the ',' key
 	 * For the US standard keyboard, the ',<' key
 	 */
 	US_COMMA,
 	/**
+	 * For any country/region, the '-' key
 	 * For the US standard keyboard, the '-_' key
 	 */
 	US_MINUS,
 	/**
+	 * For any country/region, the '.' key
 	 * For the US standard keyboard, the '.>' key
 	 */
 	US_DOT,
 	/**
+	 * Used for miscellaneous characters; it can vary by keyboard.
 	 * For the US standard keyboard, the '/?' key
 	 */
 	US_SLASH,
 	/**
+	 * Used for miscellaneous characters; it can vary by keyboard.
 	 * For the US standard keyboard, the '`~' key
 	 */
 	US_BACKTICK,
 	/**
+	 * Used for miscellaneous characters; it can vary by keyboard.
 	 * For the US standard keyboard, the '[{' key
 	 */
 	US_OPEN_SQUARE_BRACKET,
 	/**
+	 * Used for miscellaneous characters; it can vary by keyboard.
 	 * For the US standard keyboard, the '\|' key
 	 */
 	US_BACKSLASH,
 	/**
+	 * Used for miscellaneous characters; it can vary by keyboard.
 	 * For the US standard keyboard, the ']}' key
 	 */
 	US_CLOSE_SQUARE_BRACKET,
 	/**
+	 * Used for miscellaneous characters; it can vary by keyboard.
 	 * For the US standard keyboard, the ''"' key
 	 */
 	US_QUOTE,
+	/**
+	 * Used for miscellaneous characters; it can vary by keyboard.
+	 */
+	OEM_8,
+	/**
+	 * Either the angle bracket key or the backslash key on the RT 102-key keyboard.
+	 */
+	OEM_102,
 
 	NUMPAD_0, // VK_NUMPAD0, 0x60, Numeric keypad 0 key
 	NUMPAD_1, // VK_NUMPAD1, 0x61, Numeric keypad 1 key
@@ -329,6 +348,8 @@ let STRING = createMapping((TO_STRING_MAP) => {
 	TO_STRING_MAP[KeyCode.US_BACKSLASH] 			= '\\';
 	TO_STRING_MAP[KeyCode.US_CLOSE_SQUARE_BRACKET] 	= ']';
 	TO_STRING_MAP[KeyCode.US_QUOTE]					= '\'';
+	TO_STRING_MAP[KeyCode.OEM_8]					= 'OEM_8';
+	TO_STRING_MAP[KeyCode.OEM_102]					= 'OEM_102';
 
 	TO_STRING_MAP[KeyCode.NUMPAD_0] = 'NumPad0';
 	TO_STRING_MAP[KeyCode.NUMPAD_1] = 'NumPad1';
@@ -378,8 +399,8 @@ let USER_SETTINGS = createMapping((TO_USER_SETTINGS_MAP) => {
 	FROM_USER_SETTINGS_MAP['OEM_5'] = KeyCode.US_BACKSLASH;
 	FROM_USER_SETTINGS_MAP['OEM_6'] = KeyCode.US_CLOSE_SQUARE_BRACKET;
 	FROM_USER_SETTINGS_MAP['OEM_7'] = KeyCode.US_QUOTE;
-	// FROM_USER_SETTINGS_MAP['OEM_8'] = KeyCode.Unknown; // MISSING
-	// FROM_USER_SETTINGS_MAP['OEM_102'] = KeyCode.Unknown; // MISSING
+	FROM_USER_SETTINGS_MAP['OEM_8'] = KeyCode.OEM_8;
+	FROM_USER_SETTINGS_MAP['OEM_102'] = KeyCode.OEM_102;
 });
 
 export namespace KeyCode {
@@ -534,6 +555,22 @@ export class Keybinding {
 			return null;
 		}
 		return _asString(value, ElectronAcceleratorLabelProvider.INSTANCE, Platform);
+	}
+
+	private static _cachedKeybindingRegex: string = null;
+	public static getUserSettingsKeybindingRegex(): string {
+		if (!this._cachedKeybindingRegex) {
+			let numpadKey = "numpad(0|1|2|3|4|5|6|7|8|9|_multiply|_add|_subtract|_decimal|_divide|_separator)";
+			let oemKey = "`|\\-|=|\\[|\\]|\\\\\\\\|;|'|,|\\.|\\/|oem_8|oem_102";
+			let specialKey = "left|up|right|down|pageup|pagedown|end|home|tab|enter|escape|space|backspace|delete|pausebreak|capslock|insert|contextmenu|numlock|scrolllock";
+			let casualKey = "[a-z]|[0-9]|f(1|2|3|4|5|6|7|8|9|10|11|12|13|14|15|16|17|18|19)";
+			let key = '((' + [numpadKey, oemKey, specialKey, casualKey].join(')|(') + '))';
+			let mod = '((ctrl|shift|alt|cmd|win|meta)\\+)*';
+			let keybinding = '(' + mod + key + ')';
+
+			this._cachedKeybindingRegex = '"\\s*(' + keybinding + '(\\s+' + keybinding +')?' + ')\\s*"';
+		}
+		return this._cachedKeybindingRegex;
 	}
 
 	/**

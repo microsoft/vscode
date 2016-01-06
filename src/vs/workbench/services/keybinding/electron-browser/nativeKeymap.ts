@@ -179,8 +179,8 @@ const NATIVE_KEY_CODE_TO_KEY_CODE: {[nativeKeyCode:string]:KeyCode;} = {
 	VKEY_OEM_5: KeyCode.US_BACKSLASH,
 	VKEY_OEM_6: KeyCode.US_CLOSE_SQUARE_BRACKET,
 	VKEY_OEM_7: KeyCode.US_QUOTE,
-	VKEY_OEM_8: KeyCode.Unknown, // MISSING
-	VKEY_OEM_102: KeyCode.Unknown, // MISSING
+	VKEY_OEM_8: KeyCode.OEM_8,
+	VKEY_OEM_102: KeyCode.OEM_102,
 	VKEY_PROCESSKEY: KeyCode.Unknown, // MISSING
 	VKEY_PACKET: KeyCode.Unknown, // MISSING
 	VKEY_DBE_SBCSCHAR: KeyCode.Unknown, // MISSING
@@ -348,6 +348,8 @@ export function getNativeLabelProvider(): IKeyBindingLabelProvider {
 			VKEY_OEM_5: true,
 			VKEY_OEM_6: true,
 			VKEY_OEM_7: true,
+			VKEY_OEM_8: true,
+			VKEY_OEM_102: true,
 		};
 
 		let remaps:string[] = [];

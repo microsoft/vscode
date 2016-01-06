@@ -85,6 +85,8 @@ suite('Keybinding IO', () => {
 		testRoundtrip(KeyCode.US_BACKSLASH, '\\', '\\', '\\');
 		testRoundtrip(KeyCode.US_CLOSE_SQUARE_BRACKET, ']', ']', ']');
 		testRoundtrip(KeyCode.US_QUOTE, '\'', '\'', '\'');
+		testRoundtrip(KeyCode.OEM_8, 'oem_8', 'oem_8', 'oem_8');
+		testRoundtrip(KeyCode.OEM_102, 'oem_102', 'oem_102', 'oem_102');
 
 		// OEM aliases
 		testDeserialization('OEM_1', 'OEM_1', 'OEM_1', KeyCode.US_SEMICOLON);
@@ -98,8 +100,8 @@ suite('Keybinding IO', () => {
 		testDeserialization('OEM_5', 'OEM_5', 'OEM_5', KeyCode.US_BACKSLASH);
 		testDeserialization('OEM_6', 'OEM_6', 'OEM_6', KeyCode.US_CLOSE_SQUARE_BRACKET);
 		testDeserialization('OEM_7', 'OEM_7', 'OEM_7', KeyCode.US_QUOTE);
-		testDeserialization('OEM_8', 'OEM_8', 'OEM_8', KeyCode.Unknown); // MISSING
-		testDeserialization('OEM_102', 'OEM_102', 'OEM_102', KeyCode.Unknown); // MISSING
+		testDeserialization('OEM_8', 'OEM_8', 'OEM_8', KeyCode.OEM_8);
+		testDeserialization('OEM_102', 'OEM_102', 'OEM_102', KeyCode.OEM_102);
 
 		// accepts '-' as separator
 		testDeserialization('ctrl-shift-alt-win-a', 'ctrl-shift-alt-cmd-a', 'ctrl-shift-alt-meta-a', KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyMod.WinCtrl | KeyCode.KEY_A);

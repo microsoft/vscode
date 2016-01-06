@@ -137,26 +137,10 @@ export class DefineKeybindingController implements EditorCommon.IEditorContribut
 		this._updateDecorations.schedule();
 	}
 
-	private static _cachedKeybindingRegex: string = null;
-	private static _getKeybindingRegex(): string {
-		if (!this._cachedKeybindingRegex) {
-			let numpadKey = "numpad(0|1|2|3|4|5|6|7|8|9|_multiply|_add|_subtract|_decimal|_divide)";
-			let punctKey = "`|\\-|=|\\[|\\]|\\\\\\\\|;|'|,|\\.|\\/";
-			let specialKey = "left|up|right|down|pageup|pagedown|end|home|tab|enter|escape|space|backspace|delete|pausebreak|capslock|insert";
-			let casualKey = "[a-z]|[0-9]|f(1|2|3|4|5|6|7|8|9|10|11|12|13|14|15)";
-			let key = '((' + [numpadKey, punctKey, specialKey, casualKey].join(')|(') + '))';
-			let mod = '((ctrl|shift|alt|cmd|win|meta)\\+)*';
-			let keybinding = '(' + mod + key + ')';
-
-			this._cachedKeybindingRegex = '"\\s*(' + keybinding + '(\\s+' + keybinding +')?' + ')\\s*"';
-		}
-		return this._cachedKeybindingRegex;
-	}
-
 	private _dec:string[] = [];
 	private _updateDecorationsNow(): void {
 		let model = this._editor.getModel();
-		let regex = DefineKeybindingController._getKeybindingRegex();
+		let regex = Keybinding.getUserSettingsKeybindingRegex();
 
 		var m = model.findMatches(regex, false, true, false, false);
 
