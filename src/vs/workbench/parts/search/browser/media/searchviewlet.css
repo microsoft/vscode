@@ -99,7 +99,7 @@
 
 .search-viewlet .filematch {
 	position: relative;
-	line-height: 24px;
+	line-height: 22px;
 	padding: 0;
 }
 
@@ -113,7 +113,7 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 	position: relative;
-	line-height: 24px;
+	line-height: 22px;
 }
 
 .search-viewlet .linematch.changedOrRemoved {

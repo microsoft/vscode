@@ -421,7 +421,7 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 			return (<QuickOpenEntryItem>entry).getHeight();
 		}
 
-		return 24;
+		return 22;
 	}
 
 	public getTemplateId(entry: QuickOpenEntry): string {

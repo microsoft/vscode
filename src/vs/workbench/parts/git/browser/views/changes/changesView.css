@@ -31,7 +31,7 @@
 /* Status view */
 
 .git-viewlet > .changes-view > .status-view > .monaco-tree .monaco-tree-row .content {
-	line-height: 24px;
+	line-height: 22px;
 }
 
 .git-viewlet > .changes-view > .status-view > .monaco-tree .monaco-tree-row .content .monaco-action-bar {

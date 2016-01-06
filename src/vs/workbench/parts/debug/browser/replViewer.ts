@@ -120,14 +120,14 @@ export class ReplExpressionsRenderer implements tree.IRenderer {
 
 	private getHeightForString(s: string): number {
 		if (!s || !s.length || this.width <= 0 || this.characterWidth <= 0) {
-			return 24;
+			return 22;
 		}
 		let realLength = 0;
 		for (let i = 0; i < s.length; i++) {
 			realLength += strings.isFullWidthCharacter(s.charCodeAt(i)) ? 2 : 1;
 		}
 
-		return 24 * Math.ceil(realLength * this.characterWidth / this.width);
+		return 22 * Math.ceil(realLength * this.characterWidth / this.width);
 	}
 
 	public setWidth(fullWidth: number, characterWidth: number): void {

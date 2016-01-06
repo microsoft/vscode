@@ -43,7 +43,7 @@ class HelpEntry extends QuickOpenEntryItem {
 	}
 
 	public getHeight(): number {
-		return 24;
+		return 22;
 	}
 
 	public getGroupLabel(): string {

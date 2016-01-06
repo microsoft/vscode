@@ -232,7 +232,7 @@ export class Renderer implements tree.IRenderer {
 	}
 
 	public getHeight(tree:tree.ITree, element:any): number {
-		return 24;
+		return 22;
 	}
 
 	public getTemplateId(tree: tree.ITree, element: any): string {

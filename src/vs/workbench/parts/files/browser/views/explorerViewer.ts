@@ -269,7 +269,7 @@ export class FileRenderer extends ActionsRenderer implements Tree.IRenderer {
 	}
 
 	public getContentHeight(tree: Tree.ITree, element: any): number {
-		return 24;
+		return 22;
 	}
 
 	public renderContents(tree: Tree.ITree, stat: FileStat, domElement: HTMLElement, previousCleanupFn: Tree.IElementCallback): Tree.IElementCallback {
