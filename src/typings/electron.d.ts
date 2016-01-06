@@ -1022,6 +1022,7 @@ declare module GitHubElectron {
 		 * of your app is running, and other instances signal this instance and exit.
 		 */
 		makeSingleInstance(callback: (args: string[], workingDirectory: string) => boolean): boolean;
+		setAppUserModelId(id: string): void;
 	}
 
 	interface CommandLine {
@@ -1057,7 +1058,7 @@ declare module GitHubElectron {
 		/**
 		 * Description of this task.
 		 */
-		description: string;
+		description?: string;
 		/**
 		 * The absolute path to an icon to be displayed in a JumpList, it can be
 		 * arbitrary resource file that contains an icon, usually you can specify
@@ -1069,9 +1070,9 @@ declare module GitHubElectron {
 		 * icons, set this value to identify the icon. If an icon file consists of
 		 * one icon, this value is 0.
 		 */
-		iconIndex: number;
-		commandLine: CommandLine;
-		dock: {
+		iconIndex?: number;
+		commandLine?: CommandLine;
+		dock?: {
 			/**
 			 * When critical is passed, the dock icon will bounce until either the
 			 * application becomes active or the request is canceled.

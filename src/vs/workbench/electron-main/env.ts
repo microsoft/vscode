@@ -9,7 +9,7 @@ import crypto = require('crypto');
 import fs = require('fs');
 import path = require('path');
 import os = require('os');
-import app = require('app');
+import {app} from 'electron';
 
 import arrays = require('vs/base/common/arrays');
 import strings = require('vs/base/common/strings');

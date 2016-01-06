@@ -6,12 +6,11 @@
 
 'use strict';
 
-import app = require('app');
 import Menu = require('menu');
 import MenuItem = require('menu-item');
 import Dialog = require('dialog');
 import shell = require('shell');
-import {ipcMain as ipc} from 'electron';
+import {ipcMain as ipc, app} from 'electron';
 
 import nls = require('vs/nls');
 import platform = require('vs/base/common/platform');
@@ -219,7 +218,7 @@ export class VSCodeMenu {
 			let dockMenu = new Menu();
 			dockMenu.append(new MenuItem({ label: mnemonicLabel(nls.localize('miNewWindow', "&&New Window")), click: () => windows.manager.openNewWindow() }));
 
-			app.dock.setMenu(dockMenu);
+			app.dock.setMenu(<any>dockMenu);
 		}
 	}
 
