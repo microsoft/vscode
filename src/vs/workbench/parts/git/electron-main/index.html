@@ -68,8 +68,9 @@
 			}
 		</style>
 		<script>
-			var shell = require('shell');
-			var ipc = require('electron').ipcRenderer;
+			var electron = require('electron');
+			var shell = electron.shell;
+			var ipc = electron.ipcRenderer;
 			var remote = require('remote');
 			var currentWindow = remote.getCurrentWindow();
 

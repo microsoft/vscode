@@ -19,9 +19,8 @@ import {IEventService} from 'vs/platform/event/common/event';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 
 import remote = require('remote');
-import {ipcRenderer as ipc} from 'electron';
+import {ipcRenderer as ipc, shell} from 'electron';
 
-const Shell = remote.require('shell');
 const Dialog = remote.require('dialog');
 
 export interface IWindowConfiguration {
@@ -128,7 +127,7 @@ export class ElectronWindow {
 
 		// Handle window.open() calls
 		window.open = function(url: string, target: string, features: string, replace: boolean) {
-			Shell.openExternal(url);
+			shell.openExternal(url);
 
 			return <Window>null;
 		};

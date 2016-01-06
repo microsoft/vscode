@@ -9,8 +9,7 @@
 import Menu = require('menu');
 import MenuItem = require('menu-item');
 import Dialog = require('dialog');
-import shell = require('shell');
-import {ipcMain as ipc, app} from 'electron';
+import {ipcMain as ipc, app, shell} from 'electron';
 
 import nls = require('vs/nls');
 import platform = require('vs/base/common/platform');

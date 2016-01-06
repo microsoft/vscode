@@ -8,7 +8,7 @@
 import path = require('path');
 import os = require('os');
 
-import Shell = require('shell');
+import {shell} from 'electron';
 import screen = require('screen');
 import BrowserWindow = require('browser-window');
 
@@ -321,7 +321,7 @@ export class VSCodeWindow {
 		this._win.webContents.on('new-window', (event: Event, url: string) => {
 			event.preventDefault();
 
-			Shell.openExternal(url);
+			shell.openExternal(url);
 		});
 
 		// Window Focus

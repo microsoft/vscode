@@ -19,9 +19,8 @@ import {IMessageService} from 'vs/platform/message/common/message';
 import {INullService} from 'vs/platform/instantiation/common/instantiation';
 
 import remote = require('remote');
-import {ipcRenderer as ipc} from 'electron';
+import {ipcRenderer as ipc, shell} from 'electron';
 
-const Shell = remote.require('shell');
 const Clipboard = remote.require('clipboard');
 
 export class RevealInOSAction extends Action {
@@ -36,7 +35,7 @@ export class RevealInOSAction extends Action {
 	}
 
 	public run(): Promise {
-		Shell.showItemInFolder(paths.normalize(this.resource.fsPath, true));
+		shell.showItemInFolder(paths.normalize(this.resource.fsPath, true));
 
 		return Promise.as(true);
 	}
@@ -59,7 +58,7 @@ export class GlobalRevealInOSAction extends Action {
 	public run(): Promise {
 		let fileInput = asFileEditorInput(this.editorService.getActiveEditorInput(), true);
 		if (fileInput) {
-			Shell.showItemInFolder(paths.normalize(fileInput.getResource().fsPath, true));
+			shell.showItemInFolder(paths.normalize(fileInput.getResource().fsPath, true));
 		} else {
 			this.messageService.show(severity.Info, nls.localize('openFileToReveal', "Open a file first to reveal"));
 		}
