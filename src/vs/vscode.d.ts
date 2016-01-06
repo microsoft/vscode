@@ -1019,11 +1019,18 @@ declare namespace vscode {
 
 	export interface TextDocumentContentProvider {
 
-		open(uri: Uri): string | Thenable<string>;
-
-		close(uri: Uri): any | Thenable<any>;
-
+		/**
+		 * An event to signal a resource has changed.
+		 */
 		onDidChange?: Event<Uri>;
+
+		/**
+		 *
+		 */
+		open(uri: Uri, token: CancellationToken): string | Thenable<string>;
+
+		// todo@joh make this optional?
+		close(uri: Uri, token: CancellationToken): any | Thenable<any>;
 	}
 
 	/**

@@ -15,7 +15,7 @@ import URI from 'vs/base/common/uri';
 import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
 import {Range, Position, Disposable} from 'vs/workbench/api/common/extHostTypes';
 import {IEventService} from 'vs/platform/event/common/event';
-import {IEditorService} from 'vs/platform/editor/common/editor';
+import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {EventType as FileEventType, LocalFileChangeEvent, ITextFileService} from 'vs/workbench/parts/files/common/files';
 import * as TypeConverters from './extHostTypeConverters';
 import {TPromise} from 'vs/base/common/winjs.base';
@@ -23,6 +23,12 @@ import * as vscode from 'vscode';
 import {WordHelper} from 'vs/editor/common/model/textModelWithTokensHelpers';
 import {IFileService} from 'vs/platform/files/common/files';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
+import {asWinJsPromise} from 'vs/base/common/async';
+import {EditorModel, EditorInput} from 'vs/workbench/common/editor';
+import {IEditorInput, IResourceInput} from 'vs/platform/editor/common/editor';
+import {BaseTextEditorModel} from 'vs/workbench/browser/parts/editor/textEditorModel';
+import {IMode} from 'vs/editor/common/modes';
+import {IModeService} from 'vs/editor/common/services/modeService';
 
 export interface IModelAddedData {
 	url: URI;
@@ -59,7 +65,8 @@ export class ExtHostModelService {
 	private _onDidSaveDocumentEventEmitter: Emitter<BaseTextDocument>;
 	public onDidSaveDocument: Event<BaseTextDocument>;
 
-	private _documents: {[modelUri:string]:ExtHostDocument;};
+	private _documents: { [modelUri: string]: ExtHostDocument; };
+	private _documentContentProviders: { [scheme: string]: vscode.TextDocumentContentProvider };
 
 	private _proxy: MainThreadDocuments;
 
@@ -79,6 +86,7 @@ export class ExtHostModelService {
 		this.onDidSaveDocument = this._onDidSaveDocumentEventEmitter.event;
 
 		this._documents = Object.create(null);
+		this._documentContentProviders = Object.create(null);
 	}
 
 	public getDocuments(): BaseTextDocument[] {
@@ -117,7 +125,28 @@ export class ExtHostModelService {
 	}
 
 	registerTextDocumentContentProvider(scheme: string, provider: vscode.TextDocumentContentProvider): vscode.Disposable {
-		return new Disposable(() => { });
+		if (scheme === 'file' || scheme === 'untitled' || this._documentContentProviders[scheme]) {
+			throw new Error(`scheme '${scheme}' already registered`);
+		}
+		this._documentContentProviders[scheme] = provider;
+		return new Disposable(() => delete this._documentContentProviders[scheme]);
+	}
+
+	$openTextDocumentContent(uri: URI): TPromise<string> {
+		const provider = this._documentContentProviders[uri.scheme];
+		if (!provider) {
+			return TPromise.wrapError<string>(`unsupported uri-scheme: ${uri.scheme}`);
+		}
+		// todo@joh protected for !string results, slow provider etc
+		return asWinJsPromise(token => provider.open(uri, token));
+	}
+
+	$closeTextDocumentContent(uri: URI): TPromise<any> {
+		const provider = this._documentContentProviders[uri.scheme];
+		if (!provider) {
+			return TPromise.wrapError<string>(`unsupported uri-scheme: ${uri.scheme}`);
+		}
+		return asWinJsPromise(token => provider.close(uri, token));
 	}
 
 	public _acceptModelAdd(data:IModelAddedData): void {
@@ -529,8 +558,10 @@ export class ExtHostDocument extends BaseTextDocument {
 
 @Remotable.MainContext('MainThreadDocuments')
 export class MainThreadDocuments {
+	private _modelService: IModelService;
+	private _modeService: IModeService;
 	private _textFileService: ITextFileService;
-	private _editorService: IEditorService;
+	private _editorService: IWorkbenchEditorService;
 	private _fileService: IFileService;
 	private _untitledEditorService: IUntitledEditorService;
 	private _toDispose: IDisposable[];
@@ -540,13 +571,16 @@ export class MainThreadDocuments {
 
 	constructor(
 		@IThreadService threadService: IThreadService,
-		@IModelService modelService:IModelService,
+		@IModelService modelService: IModelService,
+		@IModeService modeService: IModeService,
 		@IEventService eventService:IEventService,
 		@ITextFileService textFileService: ITextFileService,
-		@IEditorService editorService: IEditorService,
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IFileService fileService: IFileService,
 		@IUntitledEditorService untitledEditorService: IUntitledEditorService
 	) {
+		this._modelService = modelService;
+		this._modeService = modeService;
 		this._textFileService = textFileService;
 		this._editorService = editorService;
 		this._fileService = fileService;
@@ -633,6 +667,39 @@ export class MainThreadDocuments {
 		}
 	}
 
+	// --- editor input
+
+	getEditorInput(uri: URI): TPromise<IEditorInput> {
+		switch (uri.scheme) {
+			case 'file':
+				// file-scheme is support by the workbench
+				return this._editorService.inputToType({ resource: uri });
+
+			case 'untitled':
+				// some very special dance for unititled resources
+				const asFileUri = URI.file(uri.fsPath);
+				return this._fileService.resolveFile(asFileUri).then(stats => {
+					// don't create a new file ontop of an existing file
+					return TPromise.wrapError<any>('file already exists on disk');
+				}, err => {
+					const input = this._untitledEditorService.createOrGet(asFileUri); // using file-uri makes it show in 'Working Files' section
+					return input.resolve(true).then(model => {
+						if (input.getResource().toString() !== uri.toString()) {
+							throw new Error(`expected URI ${uri.toString()} BUT GOT ${input.getResource().toString()}`);
+						}
+						return this._proxy._acceptModelDirty(uri); // mark as dirty
+					}).then(() => {
+						return input;
+					});
+				});
+
+			default:
+				// create an input that talks back to the extension host
+				return TPromise.as(new MainThreadExtensionEditorInput(uri, this._proxy, this._modelService,
+					this._modeService));
+		}
+	}
+
 	// --- from plugin host process
 
 	_trySaveDocument(uri: URI): TPromise<boolean> {
@@ -645,49 +712,68 @@ export class MainThreadDocuments {
 			return TPromise.wrapError('Uri must have scheme and path. One or both are missing in: ' + uri.toString());
 		}
 
-		let promise: TPromise<boolean>;
-		switch (uri.scheme) {
-			case 'file':
-				promise = this._handleFileScheme(uri);
-				break;
-			case 'untitled':
-				promise = this._handleUnititledScheme(uri);
-				break;
-			default:
-				promise = TPromise.wrapError<boolean>('unsupported URI-scheme: ' + uri.scheme);
-				break;
-		}
-
-		return promise.then(success => {
-			if (!success) {
-				return TPromise.wrapError('cannot open ' + uri.toString());
-			}
+		return this.getEditorInput(uri).then(input => {
+			return this._editorService.resolveEditorModel(input).then(model => {
+				return true;
+			});
 		}, err => {
 			return TPromise.wrapError('cannot open ' + uri.toString() + '. Detail: ' + toErrorMessage(err));
 		});
 	}
+}
 
-	private _handleFileScheme(uri: URI): TPromise<boolean> {
-		return this._editorService.resolveEditorModel({ resource: uri }).then(model => {
-			return !!model;
+export class MainThreadExtensionEditorInput extends EditorInput {
+
+	private _model: MainThreadEditorModel;
+
+	constructor(resource: URI, documents: ExtHostModelService, modelService:IModelService, modeService:IModeService) {
+		super();
+		this._model = new MainThreadEditorModel(resource, documents, modelService, modeService)
+		// todo@joh name, description
+	}
+
+	getId(): string {
+		return 'MainThreadExtensionEditorInput'
+	}
+
+	resolve(refresh?: boolean): TPromise<EditorModel> {
+		// todo@joh proper refresh
+		return this._model.load(refresh);
+	}
+
+	dispose() {
+		console.log('MainThreadExtensionEditorInput DISPOSE');
+		super.dispose();
+	}
+}
+
+export class MainThreadEditorModel extends BaseTextEditorModel {
+
+	private _resource: URI;
+	private _documents: ExtHostModelService;
+
+	constructor(resource: URI, documents: ExtHostModelService, @IModelService modelService: IModelService,
+		@IModeService modeService: IModeService) {
+
+		super(modelService, modeService);
+		this._documents = documents;
+		this._resource = resource;
+	}
+
+	load(refresh?: boolean): TPromise<EditorModel> {
+		return this._documents.$openTextDocumentContent(this._resource).then(value => {
+			return this.createTextEditorModel(value, this._resource)
+		}).then(() => {
+			return this;
 		});
 	}
 
-	private _handleUnititledScheme(uri: URI): TPromise<boolean> {
-		let asFileUri = URI.file(uri.fsPath);
-		return this._fileService.resolveFile(asFileUri).then(stats => {
-			// don't create a new file ontop of an existing file
-			return TPromise.wrapError<boolean>('file already exists on disk');
-		}, err => {
-			let input = this._untitledEditorService.createOrGet(asFileUri); // using file-uri makes it show in 'Working Files' section
-			return input.resolve(true).then(model => {
-				if (input.getResource().toString() !== uri.toString()) {
-					throw new Error(`expected URI ${uri.toString() } BUT GOT ${input.getResource().toString() }`);
-				}
-				return this._proxy._acceptModelDirty(uri); // mark as dirty
-			}).then(() => {
-				return true;
-			});
-		});
+	protected getOrCreateMode(modeService: IModeService, mime: string, firstLineText?: string): TPromise<IMode> {
+		return modeService.getOrCreateModeByFilenameOrFirstLine(this._resource.fsPath, firstLineText);
+	}
+
+	dispose() {
+		console.log('MainThreadEditorModel DISPOSE');
+		super.dispose();
 	}
 }

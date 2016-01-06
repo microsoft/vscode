@@ -9,7 +9,7 @@ import Event, {Emitter} from 'vs/base/common/event';
 import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {Remotable, IThreadService} from 'vs/platform/thread/common/thread';
-import {ExtHostModelService} from 'vs/workbench/api/common/extHostDocuments';
+import {ExtHostModelService, MainThreadDocuments} from 'vs/workbench/api/common/extHostDocuments';
 import {Selection, Range, Position, EditorOptions} from './extHostTypes';
 import {ISingleEditOperation, ISelection, IRange, IInternalIndentationOptions, IEditor, EditorType, ICommonCodeEditor, ICommonDiffEditor, IDecorationRenderOptions, IRangeWithMessage} from 'vs/editor/common/editorCommon';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
@@ -20,6 +20,7 @@ import {MainThreadEditorsTracker, TextEditorRevealType, MainThreadTextEditor, IT
 import * as TypeConverters from './extHostTypeConverters';
 import {TextDocument, TextEditorSelectionChangeEvent, TextEditorOptionsChangeEvent, TextEditorOptions, ViewColumn} from 'vscode';
 import {EventType} from 'vs/workbench/common/events';
+import {EditorOptions as WorkbenchEditorOptions} from 'vs/workbench/common/editor';
 import {IEventService} from 'vs/platform/event/common/event';
 import {equals as arrayEquals} from 'vs/base/common/arrays';
 
@@ -414,6 +415,7 @@ class ExtHostTextEditor implements vscode.TextEditor {
 export class MainThreadEditors {
 
 	private _proxy: ExtHostEditors;
+	private _documents: MainThreadDocuments;
 	private _workbenchEditorService: IWorkbenchEditorService;
 	private _editorTracker: MainThreadEditorsTracker;
 	private _toDispose: IDisposable[];
@@ -430,6 +432,7 @@ export class MainThreadEditors {
 		@IModelService modelService:IModelService
 	) {
 		this._proxy = threadService.getRemotable(ExtHostEditors);
+		this._documents = threadService.getRemotable(MainThreadDocuments);
 		this._workbenchEditorService = workbenchEditorService;
 		this._toDispose = [];
 		this._textEditorsListenersMap = Object.create(null);
@@ -527,13 +530,12 @@ export class MainThreadEditors {
 
 	_tryShowTextDocument(resource: URI, position: EditorPosition, preserveFocus: boolean): TPromise<string> {
 
-		// the input we want to open
-		let input = {
-			resource,
-			options: { preserveFocus }
-		};
+		return this._documents.getEditorInput(resource).then(input => {
+			// open editor first
+			return this._workbenchEditorService.openEditor(input, WorkbenchEditorOptions.create({ preserveFocus }),
+				position);
 
-		return this._workbenchEditorService.openEditor(input, position).then(editor => {
+		}).then(editor => {
 
 			return new TPromise<void>(c => {
 				// not very nice but the way it is: changes to the editor state aren't

@@ -119,6 +119,63 @@ suite('workspace-namespace', () => {
 		});
 	});
 
+	test('registerTextDocumentContentProvider, simple', function() {
+
+		let registration = workspace.registerTextDocumentContentProvider('foo', {
+			open(uri) {
+				return uri.toString();
+			},
+			close() {
+				// nothing
+			}
+		});
+
+		const uri = Uri.parse('foo://testing/virtual.js');
+		return workspace.openTextDocument(uri).then(doc => {
+			assert.equal(doc.getText(), uri.toString());
+			assert.equal(doc.isDirty, false);
+			assert.equal(doc.uri.toString(), uri.toString());
+			registration.dispose();
+		});
+	});
+
+	test('registerTextDocumentContentProvider, constrains', function() {
+
+		// built-in
+		assert.throws(function() {
+			workspace.registerTextDocumentContentProvider('untitled', { open() { return null; }, close() { } });
+		});
+		// built-in
+		assert.throws(function() {
+			workspace.registerTextDocumentContentProvider('file', { open() { return null; }, close() { } });
+		});
+
+		// duplicate registration
+		let registration = workspace.registerTextDocumentContentProvider('foo', {
+			open(uri) {
+				return uri.toString();
+			},
+			close() {
+				// nothing
+			}
+		});
+		assert.throws(function() {
+			workspace.registerTextDocumentContentProvider('foo', { open() { return null; }, close() { } });
+		});
+
+		// unregister & register
+		registration.dispose();
+		registration = workspace.registerTextDocumentContentProvider('foo', { open() { return null; }, close() { } });
+		registration.dispose();
+
+		// missing scheme
+		return workspace.openTextDocument(Uri.parse('notThere://foo/far/boo/bar')).then(() => {
+			assert.ok(false, 'expected failure')
+		}, err => {
+			// expected
+		})
+	})
+
 	test('findFiles', () => {
 		return workspace.findFiles('*.js', null).then((res) => {
 			assert.equal(res.length, 1);
