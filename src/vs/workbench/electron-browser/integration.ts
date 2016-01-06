@@ -130,13 +130,25 @@ export class ElectronIntegration {
 		ipc.on('vscode:showAutoSaveInfo', () => {
 			this.messageService.show(
 				Severity.Info, {
-					message: nls.localize('autoSaveInfo', "The **File | Auto Save** option moved into settings. Please configure **files.autoSaveDelay: 1** to restore the old behavior."),
+					message: nls.localize('autoSaveInfo', "The **File | Auto Save** option moved into settings and **files.autoSaveDelay: 1** will be added to preserve it."),
 					actions: [
 						CloseAction,
 						this.instantiationService.createInstance(OpenGlobalSettingsAction, OpenGlobalSettingsAction.ID, OpenGlobalSettingsAction.LABEL)
 					]
-			});
+				});
 		});
+
+		ipc.on('vscode:showAutoSaveError', () => {
+			this.messageService.show(
+				Severity.Warning, {
+					message: nls.localize('autoSaveError', "Unable to write to settings. Please add **files.autoSaveDelay: 1** to settings.json."),
+					actions: [
+						CloseAction,
+						this.instantiationService.createInstance(OpenGlobalSettingsAction, OpenGlobalSettingsAction.ID, OpenGlobalSettingsAction.LABEL)
+					]
+				});
+		});
+
 	}
 
 	private resolveKeybindings(actionIds: string[]): TPromise<{ id: string; binding: number; }[]> {

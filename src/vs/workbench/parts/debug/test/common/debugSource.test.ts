@@ -9,16 +9,6 @@ import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 
 suite('Debug - Source', () => {
 
-	test('from uri', () => {
-		const u = uri.file('/a/b/c/d');
-		const source = Source.fromUri(u);
-
-		assert.equal(source.available, true);
-		assert.equal(source.inMemory, false);
-		assert.equal(source.uri.toString(), u.toString());
-		assert.equal(source.name, 'd');
-	});
-
 	test('from raw source', () => {
 		const rawSource = {
 			name: 'zz',

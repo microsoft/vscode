@@ -376,7 +376,7 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 	}
 
 	public addBreakpoints(rawData: debug.IRawBreakpoint[]): void {
-		this.breakpoints = this.breakpoints.concat(rawData.map(rawBp => new Breakpoint(Source.fromUri(rawBp.uri), rawBp.lineNumber, rawBp.enabled, rawBp.condition)));
+		this.breakpoints = this.breakpoints.concat(rawData.map(rawBp => new Breakpoint(new Source(Source.toRawSource(rawBp.uri, this)), rawBp.lineNumber, rawBp.enabled, rawBp.condition)));
 		this.breakpointsActivated = true;
 		this.emit(debug.ModelEvents.BREAKPOINTS_UPDATED);
 	}
@@ -610,10 +610,10 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 			this.threads[data.threadId].callStack = data.callStack.map(
 				(rsf, level) => {
 					if (!rsf) {
-						return new StackFrame(data.threadId, 0, Source.fromUri(uri.parse('unknown')), nls.localize('unknownStack', "Unknown stack location"), undefined, undefined);
+						return new StackFrame(data.threadId, 0, new Source({ name: 'unknown' }), nls.localize('unknownStack', "Unknown stack location"), undefined, undefined);
 					}
-
-					return new StackFrame(data.threadId, rsf.id, rsf.source ? new Source(rsf.source) : Source.fromUri(uri.parse('unknown')), rsf.name, rsf.line, rsf.column);
+					
+					return new StackFrame(data.threadId, rsf.id, rsf.source ? new Source(rsf.source) : new Source({ name: 'unknown' }), rsf.name, rsf.line, rsf.column);
 				});
 
 			this.threads[data.threadId].stoppedReason = data.stoppedReason;
