@@ -26,7 +26,7 @@
     "iconv-lite": "^0.4.13",
     "sax": "^1.1.1",
     "semver": "^4.2.0",
-    "vscode-debugprotocol": "^1.1.1",
+    "vscode-debugprotocol": "^1.2.1",
     "vscode-textmate": "^1.0.9",
     "native-keymap": "^0.1.2",
     "winreg": "0.0.12",
