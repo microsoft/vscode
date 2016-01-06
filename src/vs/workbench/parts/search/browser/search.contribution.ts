@@ -22,7 +22,7 @@ import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegi
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {AsyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {IKeybindings} from 'vs/platform/keybinding/common/keybindingService';
+import {KbExpr, IKeybindings} from 'vs/platform/keybinding/common/keybindingService';
 import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
@@ -33,7 +33,7 @@ export const VIEWLET_ID = 'workbench.view.search';
 KeybindingsRegistry.registerCommandDesc({
 	id: 'workbench.action.search.toggleQueryDetails',
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-	context: [{ key: 'searchViewletVisible' }],
+	context: KbExpr.has('searchViewletVisible'),
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_J,
 	handler: accessor => {
 		let viewletService = accessor.get(IViewletService);

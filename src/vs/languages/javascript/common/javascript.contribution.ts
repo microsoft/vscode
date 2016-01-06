@@ -8,7 +8,7 @@ import nls = require('vs/nls');
 import env = require('vs/base/common/flags');
 import platform = require('vs/platform/platform');
 import ConfigurationRegistry = require('vs/platform/configuration/common/configurationRegistry');
-import modesExtensions = require('vs/editor/common/modes/modesRegistry');
+import {LanguageExtensions} from 'vs/editor/common/modes/languageExtensionPoint';
 import typescript = require('vs/languages/typescript/common/typescript');
 import extensions = require('vs/languages/javascript/common/javascript.extensions');
 import Options = require('vs/languages/typescript/common/options');
@@ -17,7 +17,7 @@ import Mime = require('vs/base/common/mime');
 
 if (!env.enableTypeScriptServiceModeForJS) {
 
-	modesExtensions.registerMode({
+	LanguageExtensions.registerCompatMode({
 		id: 'javascript',
 		extensions: ['.js', '.es6'],
 		firstLine: '^#!.*\\bnode',
@@ -187,5 +187,12 @@ if (!env.enableTypeScriptServiceModeForJS) {
 		]
 	});
 } else {
-	Mime.registerTextMimeByFilename('.js', 'text/typescript');
+	LanguageExtensions.registerLanguage({
+		id: 'javascript',
+		extensions: ['.js', '.es6'],
+		firstLine: '^#!.*\\bnode',
+		filenames: ['jakefile'],
+		aliases: ['JavaScript', 'javascript', 'js'],
+		mimetypes: ['text/javascript']
+	});
 }

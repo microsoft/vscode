@@ -399,7 +399,7 @@ class BreakpointsView extends viewlet.AdaptiveCollapsibleViewletView {
 	}
 
 	private static getExpandedBodySize(length: number): number {
-		return Math.min(BreakpointsView.MAX_VISIBLE_FILES, length) * 24;
+		return Math.min(BreakpointsView.MAX_VISIBLE_FILES, length) * 22;
 	}
 
 	public shutdown(): void {

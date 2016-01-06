@@ -50,7 +50,14 @@ declare module DebugProtocol {
 	//---- Events
 
 	/** Event message for "initialized" event type.
-		The event indicates that the debugee is ready to accept SetBreakpoint calls.
+		This event indicates that the debug adapter is ready to accept configuration requests (e.g. SetBreakpointsRequest, SetExceptionBreakpointsRequest).
+		A debug adapter is expected to send this event when it is ready to accept configuration requests.
+		The sequence of events/requests is as follows:
+		- adapters sends InitializedEvent (at any time)
+		- frontend sends zero or more SetBreakpointsRequest
+		- frontend sends one SetExceptionBreakpointsRequest (in the future 'zero or one')
+		- frontend sends other configuration requests that are added in the future
+		- frontend sends one ConfigurationDoneRequest
 	*/
 	export interface InitializedEvent extends Event {
 	}
@@ -139,6 +146,20 @@ declare module DebugProtocol {
 	}
 	/** Response to Initialize request. */
 	export interface InitializeResponse extends Response {
+	}
+
+	/** ConfigurationDone request; value of command field is "configurationDone".
+		The client of the debug protocol must send this request at the end of the sequence of configuration requests (which was started by the InitializedEvent)
+	*/
+	export interface ConfigurationDoneRequest extends Request {
+		arguments?: ConfigurationDoneArguments;
+	}
+	/** Arguments for "configurationDone" request. */
+	export interface ConfigurationDoneArguments {
+		/* The configurationDone request has no standardized attributes. */
+	}
+	/** Response to "configurationDone" request. This is just an acknowledgement, so no body field is required. */
+	export interface ConfigurationDoneResponse extends Response {
 	}
 
 	/** Launch request; value of command field is "launch".

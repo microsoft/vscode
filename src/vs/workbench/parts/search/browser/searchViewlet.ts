@@ -210,7 +210,7 @@ class SearchRenderer extends ActionsRenderer {
 	}
 
 	public getContentHeight(tree: ITree, element: any): number {
-		return 24;
+		return 22;
 	}
 
 	public renderContents(tree: ITree, element: FileMatchOrMatch, domElement: HTMLElement, previousCleanupFn: IElementCallback): IElementCallback {

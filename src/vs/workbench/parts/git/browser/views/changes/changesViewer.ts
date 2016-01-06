@@ -232,7 +232,7 @@ export class Renderer implements tree.IRenderer {
 	}
 
 	public getHeight(tree:tree.ITree, element:any): number {
-		return 24;
+		return 22;
 	}
 
 	public getTemplateId(tree: tree.ITree, element: any): string {
@@ -671,7 +671,7 @@ export class Controller extends treedefaults.DefaultController {
 		if (event.shiftKey) {
 			var focus = tree.getFocus();
 
-			if (!focus || focus instanceof gitmodel.StatusGroup) {
+			if (!(focus instanceof gitmodel.FileStatus) || !(element instanceof gitmodel.FileStatus)) {
 				return;
 			}
 

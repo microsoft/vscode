@@ -78,7 +78,7 @@ export class WorkingFilesSorter implements tree.ISorter {
 
 export class WorkingFilesRenderer extends ActionsRenderer {
 
-	public static FILE_ITEM_HEIGHT = 24;
+	public static FILE_ITEM_HEIGHT = 22;
 
 	constructor(
 		model: WorkingFilesModel,

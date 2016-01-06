@@ -17,7 +17,7 @@ import viewer = require('vs/workbench/parts/debug/browser/debugViewer');
 const $ = dom.emmet;
 const debugTreeOptions = {
 	indentPixels: 8,
-	twistiePixels: 20
+	twistiePixels: 10
 };
 
 export class DebugHoverWidget implements editorbrowser.IContentWidget {
@@ -40,7 +40,7 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 		this.treeContainer = dom.append(this.domNode, $('.debug-hover-tree'));
 		this.tree = new Tree(this.treeContainer, {
 			dataSource: new viewer.VariablesDataSource(this.debugService),
-			renderer: this.instantiationService.createInstance(viewer.VariablesRenderer),
+			renderer: this.instantiationService.createInstance(VariablesHoverRenderer),
 			controller: new DebugHoverController()
 		}, debugTreeOptions);
 		this.valueContainer = dom.append(this.domNode, $('.debug-hover-value'));
@@ -177,5 +177,12 @@ class DebugHoverController extends DefaultController {
 		}
 
 		return true;
+	}
+}
+
+class VariablesHoverRenderer extends viewer.VariablesRenderer {
+
+	public getHeight(tree: ITree, element: any): number {
+		return 18;
 	}
 }

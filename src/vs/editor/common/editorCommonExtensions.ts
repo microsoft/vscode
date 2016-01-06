@@ -16,7 +16,7 @@ import {KeybindingsRegistry,ICommandDescriptor} from 'vs/platform/keybinding/com
 import config = require('vs/editor/common/config/config');
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {SyncDescriptor1, createSyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
-import {IKeybindingContextRule, ICommandHandler, IKeybindings} from 'vs/platform/keybinding/common/keybindingService';
+import {KbExpr, ICommandHandler, IKeybindings} from 'vs/platform/keybinding/common/keybindingService';
 
 // --- Keybinding extensions to make it more concise to express keybindings conditions
 export enum ContextKey {
@@ -176,15 +176,11 @@ class EditorContributionRegistry {
 			}
 		}
 
-		var context: IKeybindingContextRule[] = null;
+		var context: KbExpr = null;
 		if (desc.kbOpts.context === ContextKey.EditorTextFocus) {
-			context = [{
-				key: EditorCommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS
-			}];
+			context = KbExpr.has(EditorCommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS);
 		} else if (desc.kbOpts.context === ContextKey.EditorFocus) {
-			context = [{
-				key: EditorCommon.KEYBINDING_CONTEXT_EDITOR_FOCUS
-			}];
+			context = KbExpr.has(EditorCommon.KEYBINDING_CONTEXT_EDITOR_FOCUS);
 		}
 
 		var commandDesc: ICommandDescriptor = {
@@ -236,20 +232,15 @@ function triggerEditorActionGlobal(actionId: string, accessor: ServicesAccessor,
 
 var defaultEditorActionKeybindingOptions:IEditorActionKeybindingOptions = { primary: null, context: ContextKey.EditorTextFocus };
 
-function contextRule(needsTextFocus: boolean, needsKey: string): IKeybindingContextRule[] {
-	let result: IKeybindingContextRule[] = [];
+function contextRule(needsTextFocus: boolean, needsKey: string): KbExpr {
 
-	if (needsTextFocus) {
-		result.push({ key: EditorCommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS });
-	} else {
-		result.push({ key: EditorCommon.KEYBINDING_CONTEXT_EDITOR_FOCUS });
-	}
+	let base = KbExpr.has(needsTextFocus ? EditorCommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS : EditorCommon.KEYBINDING_CONTEXT_EDITOR_FOCUS);
 
 	if (needsKey) {
-		result.push({ key: needsKey });
+		return KbExpr.and(base, KbExpr.has(needsKey));
 	}
 
-	return result;
+	return base;
 }
 
 function createCommandHandler(commandId: string, handler: IEditorCommandHandler): ICommandHandler {

@@ -9,13 +9,13 @@
 }
 
 .quick-open-widget.marker-handler .row {
-	height: 24px;
+	height: 22px;
 }
 
 .quick-open-widget.marker-handler .severity {
 	display: inline-block;
 	width: 16px;
-	height: 24px;
+	height: 22px;
 	margin-right: 4px;
 }
 
