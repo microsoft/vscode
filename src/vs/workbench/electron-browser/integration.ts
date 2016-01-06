@@ -25,8 +25,7 @@ import {IConfigurationService, IConfigurationServiceEvent, ConfigurationServiceE
 import win = require('vs/workbench/electron-browser/window');
 
 import remote = require('remote');
-import {ipcRenderer as ipc} from 'electron';
-import webFrame = require('web-frame');
+import {ipcRenderer as ipc, webFrame} from 'electron';
 
 export class ElectronIntegration {
 
