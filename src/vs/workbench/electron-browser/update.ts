@@ -10,7 +10,6 @@ import severity from 'vs/base/common/severity';
 import {Promise} from 'vs/base/common/winjs.base';
 import {Action} from 'vs/base/common/actions';
 import {ipcRenderer as ipc, shell} from 'electron';
-import remote = require('remote');
 import {isLinux} from 'vs/base/common/platform';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';

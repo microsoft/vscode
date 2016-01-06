@@ -21,8 +21,7 @@ import {IEventService} from 'vs/platform/event/common/event';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 
-import remote = require('remote');
-import {ipcRenderer as ipc} from 'electron';
+import {ipcRenderer as ipc, remote} from 'electron';
 
 export interface IPath {
 	filePath: string;

@@ -20,7 +20,7 @@ import { RawGitService, DelayedRawGitService } from 'vs/workbench/parts/git/node
 import URI from 'vs/base/common/uri';
 import { spawn, exec } from 'child_process';
 import { join } from 'path';
-import * as remote from 'remote';
+import { remote } from 'electron';
 
 function findSpecificGit(gitPath: string): Promise {
 	return new Promise((c, e) => {

@@ -71,7 +71,7 @@
 			var electron = require('electron');
 			var shell = electron.shell;
 			var ipc = electron.ipcRenderer;
-			var remote = require('remote');
+			var remote = electron.remote;
 			var currentWindow = remote.getCurrentWindow();
 
 			function init(context) {

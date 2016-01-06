@@ -9,8 +9,7 @@ import {ElectronWindow} from 'vs/workbench/electron-browser/window';
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
 import Event, {Emitter} from 'vs/base/common/event';
 
-import remote = require('remote');
-import {ipcRenderer as ipc} from 'electron';
+import {ipcRenderer as ipc, remote} from 'electron';
 
 export var IWindowService = createDecorator<IWindowService>('windowService');
 
