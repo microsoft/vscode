@@ -6,19 +6,23 @@
 
 import nls = require('vs/nls');
 import {TPromise} from 'vs/base/common/winjs.base';
+import {IJSONSchema} from 'vs/base/common/jsonSchema';
+import {IHTMLContentElement} from 'vs/base/common/htmlContent';
+import {Registry} from 'vs/platform/platform';
 import {IEventService} from 'vs/platform/event/common/event';
+import * as JSONContributionRegistry from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {PluginsRegistry, IMessageCollector} from 'vs/platform/plugins/common/pluginsRegistry';
 import {IPluginService} from 'vs/platform/plugins/common/plugins';
 import {IOSupport} from 'vs/platform/keybinding/common/commonKeybindingResolver';
-import {WorkbenchKeybindingService} from 'vs/workbench/services/keybinding/browser/keybindingService';
+import {KeybindingService} from 'vs/platform/keybinding/browser/keybindingServiceImpl';
+import {IKeybindingItem, IUserFriendlyKeybinding} from 'vs/platform/keybinding/common/keybindingService';
 import {ICommandRule, KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
-import {IJSONSchema} from 'vs/base/common/jsonSchema';
-import {Keybinding, IKeyBindingLabelProvider} from 'vs/base/common/keyCodes';
-import Platform = require('vs/base/common/platform');
-import {IHTMLContentElement} from 'vs/base/common/htmlContent';
+import {Keybinding} from 'vs/base/common/keyCodes';
+import * as Platform from 'vs/base/common/platform';
 import {getNativeLabelProvider} from 'vs/workbench/services/keybinding/electron-browser/nativeKeymap';
+import {OptionsChangeEvent, EventType} from 'vs/workbench/common/events';
 
 interface ContributedKeyBinding {
 	command: string;
@@ -107,14 +111,21 @@ let keybindingsExtPoint = PluginsRegistry.registerExtensionPoint<ContributedKeyB
 	]
 });
 
+export class WorkbenchKeybindingService extends KeybindingService {
 
-export default class PluginWorkbenchKeybindingService extends WorkbenchKeybindingService {
-
+	private contextService: IWorkspaceContextService;
+	private eventService: IEventService;
+	private telemetryService: ITelemetryService;
+	private toDispose: Function;
 	private _pluginService: IPluginService;
 	private _eventService: IEventService;
 
 	constructor(contextService: IWorkspaceContextService, eventService: IEventService, telemetryService: ITelemetryService, domNode: HTMLElement) {
-		super(contextService, eventService, telemetryService, domNode);
+		this.contextService = contextService;
+		super(domNode);
+		this.eventService = eventService;
+		this.telemetryService = telemetryService;
+		this.toDispose = this.eventService.addListener(EventType.WORKBENCH_OPTIONS_CHANGED, (e) => this.onOptionsChanged(e));
 		this._eventService = eventService;
 		keybindingsExtPoint.setHandler((extensions) => {
 			let commandAdded = false;
@@ -131,6 +142,44 @@ export default class PluginWorkbenchKeybindingService extends WorkbenchKeybindin
 
 	setPluginService(pluginService: IPluginService): void {
 		this._pluginService = pluginService;
+	}
+
+	public customKeybindingsCount(): number {
+		let opts = this.contextService.getOptions();
+		if (opts.globalSettings && opts.globalSettings.keybindings && Array.isArray(opts.globalSettings.keybindings)) {
+			return opts.globalSettings.keybindings.length;
+		}
+		return 0;
+	}
+
+	protected _getExtraKeybindings(isFirstTime: boolean): IKeybindingItem[] {
+		let extras: IUserFriendlyKeybinding[] = [];
+		let opts = this.contextService.getOptions();
+		if (opts.globalSettings && opts.globalSettings.keybindings) {
+			if (!isFirstTime) {
+				let cnt = 0;
+				if (Array.isArray(opts.globalSettings.keybindings)) {
+					cnt = opts.globalSettings.keybindings.length;
+				}
+				this.telemetryService.publicLog('customKeybindingsChanged', {
+					keyCount: cnt
+				});
+			}
+			if (Array.isArray(opts.globalSettings.keybindings)) {
+				extras = opts.globalSettings.keybindings;
+			}
+		}
+		return extras.map((k, i) => IOSupport.readKeybindingItem(k, i));
+	}
+
+	private onOptionsChanged(e: OptionsChangeEvent): void {
+		if (e.key === 'globalSettings') {
+			this.updateResolver();
+		}
+	}
+
+	public dispose(): void {
+		this.toDispose();
 	}
 
 	public getLabelFor(keybinding:Keybinding): string {
@@ -232,3 +281,33 @@ export default class PluginWorkbenchKeybindingService extends WorkbenchKeybindin
 		return desc;
 	}
 }
+
+let schemaId = 'local://schemas/keybindings';
+let schema : IJSONSchema = {
+	'id': schemaId,
+	'type': 'array',
+	'title': nls.localize('keybindings.json.title', "Keybindings configuration"),
+	'items': {
+		'required': ['key'],
+		'type': 'object',
+		'default': { 'key': '{{_}}', 'command': '{{_}}', 'when': '{{_}}' },
+		'properties': {
+			'key': {
+				'type': 'string',
+				'description': nls.localize('keybindings.json.key', 'Key or key sequence (separated by space)'),
+			},
+			'command': {
+				'description': nls.localize('keybindings.json.command', 'Name of the command to execute'),
+			},
+			'when': {
+				'type': 'string',
+				'description': nls.localize('keybindings.json.when', 'Condition when the key is active.')
+			}
+		}
+	}
+};
+
+let schemaRegistry = <JSONContributionRegistry.IJSONContributionRegistry>Registry.as(JSONContributionRegistry.Extensions.JSONContribution);
+schemaRegistry.registerSchema(schemaId, schema);
+schemaRegistry.addSchemaFileAssociation('inmemory://defaults/keybindings.json', schemaId);
+schemaRegistry.addSchemaFileAssociation('%APP_SETTINGS_HOME%/keybindings.json', schemaId);
