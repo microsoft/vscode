@@ -32,8 +32,8 @@
 
 .monaco-editor .debug-hover-widget .debug-hover-tree {
 	line-height: 24px;
-	width: 350px;
-	height: 300px;
+	width: 330px;
+	height: 288px;
 }
 
 /* Disable tree hover highlight in debug hover tree. */
