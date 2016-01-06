@@ -224,6 +224,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		this.toDispose.push(this.session.addListener2(debug.SessionEvents.INITIALIZED, (event: DebugProtocol.InitializedEvent) => {
 			this.sendAllBreakpoints().done(null, errors.onUnexpectedError);
 			this.sendExceptionBreakpoints().done(null, errors.onUnexpectedError);
+			this.session.configurationDone().done(null, errors.onUnexpectedError);
 		}));
 
 		this.toDispose.push(this.session.addListener2(debug.SessionEvents.STOPPED, (event: DebugProtocol.StoppedEvent) => {
