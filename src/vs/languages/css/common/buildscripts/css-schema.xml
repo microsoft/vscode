@@ -6165,7 +6165,7 @@
       </values>
     </entry>
     <entry name="outline-color" restriction="enum, color" version="2.0" browsers="E,C,FF1.5,IE8,O8,S1.2" ref="http://www.w3.org/TR/css3-ui/#outline-color" syntax="body { $(name): red; }">
-      <desc>The color of the outline</desc>
+      <desc>The color of the outline.</desc>
       <values>
         <value name="invert" version="2.0" browsers="E,IE8,O">
           <desc>Performs a color inversion on the pixels on the screen.</desc>
@@ -6174,10 +6174,10 @@
       </values>
     </entry>
     <entry name="outline-offset" restriction="length" version="3.0" browsers="C,FF1.5,O9.5,S1.2" ref="http://www.w3.org/TR/css3-ui/#outline-offset0" syntax="article { $(name): 15px; }">
-      <desc>Width of the outline</desc>
+      <desc>Offset the outline and draw it beyond the border edge.</desc>
     </entry>
     <entry name="outline-style" restriction="line-style, enum" version="2.0" browsers="E,C,FF1.5,IE8,O8,S1.2" ref="http://www.w3.org/TR/css3-ui/#outline-style0" syntax="td { $(name): solid; }">
-      <desc>Style of the outline</desc>
+      <desc>Style of the outline.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all">
           <desc>Permits the user agent to render a custom outline style, typically the default platform style.</desc>
@@ -6186,7 +6186,7 @@
       </values>
     </entry>
     <entry name="outline-width" restriction="length, line-width" version="2.0" browsers="E,C,FF1.5,IE8,O8,S1.2" ref="http://www.w3.org/TR/css3-ui/#outline-width0" syntax="td { $(name): 2px; }">
-      <desc>Width of the outline</desc>
+      <desc>Width of the outline.</desc>
     </entry>
     <entry name="overflow" restriction="enum" version="2.0" browsers="all" ref="http://www.w3.org/TR/css-overflow-3/#overflow" syntax="div { overflow: hidden auto; }">
       <desc>Shorthand for setting 'overflow-x' and 'overflow-y'.</desc>
