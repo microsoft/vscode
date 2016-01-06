@@ -27,7 +27,7 @@ import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlighte
 import { Action } from 'vs/base/common/actions';
 import * as semver from 'semver';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import {shell} from 'electron';
+import { shell } from 'electron';
 
 const $ = dom.emmet;
 
