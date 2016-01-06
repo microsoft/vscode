@@ -10,8 +10,7 @@ import env = require('vs/workbench/electron-main/env');
 import events = require('vs/base/common/eventEmitter');
 import platform = require('vs/base/common/platform');
 
-import BrowserWindow = require('browser-window');
-import {ipcMain as ipc} from 'electron';
+import { ipcMain as ipc, BrowserWindow } from 'electron';
 
 interface ICredentialsContext {
 	id: number;
@@ -31,7 +30,7 @@ interface ICredentialsResult {
 
 interface IContext {
 	credentials: ICredentials;
-	window: BrowserWindow;
+	window: Electron.BrowserWindow;
 }
 
 export function configure(bus: events.EventEmitter): void {

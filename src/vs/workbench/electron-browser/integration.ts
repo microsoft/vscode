@@ -45,7 +45,7 @@ export class ElectronIntegration {
 	public integrate(shellContainer: HTMLElement): void {
 
 		// Register the active window
-		let activeWindow = this.instantiationService.createInstance(win.ElectronWindow, remote.getCurrentWindow(), shellContainer);
+		let activeWindow:any = this.instantiationService.createInstance(<any>win.ElectronWindow, remote.getCurrentWindow(), shellContainer);
 		this.windowService.registerWindow(activeWindow);
 
 		// Support runAction event

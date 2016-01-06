@@ -8,8 +8,7 @@
 
 import Menu = require('menu');
 import MenuItem = require('menu-item');
-import Dialog = require('dialog');
-import {ipcMain as ipc, app, shell} from 'electron';
+import {ipcMain as ipc, app, shell, dialog} from 'electron';
 
 import nls = require('vs/nls');
 import platform = require('vs/base/common/platform');
@@ -657,7 +656,7 @@ export class VSCodeMenu {
 					return;
 				}
 
-				if (windowInFocus.win.isDevToolsFocused()) {
+				if (windowInFocus.win.webContents.isDevToolsFocused()) {
 					devToolsFocusedFn(windowInFocus.win.devToolsWebContents);
 				} else {
 					windows.manager.sendToFocused('vscode:runAction', actionId);
@@ -689,7 +688,7 @@ export class VSCodeMenu {
 function openAboutDialog(): void {
 	let lastActiveWindow = windows.manager.getFocusedWindow() || windows.manager.getLastActiveWindow();
 
-	Dialog.showMessageBox(lastActiveWindow && lastActiveWindow.win, {
+	dialog.showMessageBox(lastActiveWindow && lastActiveWindow.win, {
 		title: env.product.nameLong,
 		type: 'info',
 		message: env.product.nameLong,
@@ -717,7 +716,7 @@ function openUrl(url: string, id: string): void {
 function toggleDevTools(): void {
 	let w = windows.manager.getFocusedWindow();
 	if (w && w.win) {
-		w.win.toggleDevTools();
+		w.win.webContents.toggleDevTools();
 	}
 }
 

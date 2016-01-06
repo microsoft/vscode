@@ -4,10 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import {ipcMain as ipc} from 'electron';
+import { ipcMain as ipc, BrowserWindow} from 'electron';
 import platform = require('vs/base/common/platform');
 import { TPromise } from 'vs/base/common/winjs.base';
-import BrowserWindow = require('browser-window');
 
 export interface ICredentials {
 	username: string;
@@ -21,7 +20,7 @@ interface ICredentialsResult {
 
 interface IContext {
 	credentials: ICredentials;
-	window: BrowserWindow;
+	window: Electron.BrowserWindow;
 }
 
 export class GitAskpassService {

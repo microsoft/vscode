@@ -29,8 +29,8 @@ var build = path.join(root, '.build');
 var commit = util.getVersion(root);
 
 var baseModules = [
-	'applicationinsights', 'assert', 'browser-window',
-	'child_process', 'chokidar', 'crypto', 'dialog', 'emmet',
+	'applicationinsights', 'assert',
+	'child_process', 'chokidar', 'crypto', 'emmet',
 	'events', 'fs', 'getmac', 'glob', 'graceful-fs', 'http', 'http-proxy-agent',
 	'https', 'https-proxy-agent', 'iconv-lite', 'electron', 'menu', 'menu-item', 'net',
 	'os', 'path', 'readline', 'remote', 'sax', 'semver',

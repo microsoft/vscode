@@ -3,9 +3,11 @@
 // Definitions by: jedmao <https://github.com/jedmao/>, rhysd <https://rhysd.github.io>
 // Definitions: https://github.com/DefinitelyTyped/DefinitelyTyped
 
+// Copied from https://github.com/DefinitelyTyped/DefinitelyTyped/commit/eddede55bd6b42c154eb8e44336d0fa44ca79965
+
 /// <reference path="./node.d.ts" />
 
-declare module GitHubElectron {
+declare module Electron {
 	/**
 	 * This class is used to represent an image.
 	 */
@@ -751,6 +753,10 @@ declare module GitHubElectron {
 		 */
 		isDevToolsOpened(): boolean;
 		/**
+		 * Returns whether the developer tools are focussed.
+		 */
+		isDevToolsFocused(): boolean;
+		/**
 		 * Toggle the developer tools.
 		 */
 		toggleDevTools(): void;
@@ -1181,14 +1187,7 @@ declare module GitHubElectron {
 			properties?: string|string[];
 		}
 
-		/**
-		 * @param browserWindow
-		 * @param options
-		 * @param callback If supplied, the API call will be asynchronous.
-		 * @returns On success, returns the path of file chosen by the user, otherwise
-		 * returns undefined.
-		 */
-		export function showSaveDialog(browserWindow?: BrowserWindow, options?: {
+		interface SaveDialogOptions {
 			title?: string;
 			defaultPath?: string;
 			/**
@@ -1199,7 +1198,16 @@ declare module GitHubElectron {
 				name: string;
 				extensions: string[];
 			}[]
-		}, callback?: (fileName: string) => void): string;
+		}
+
+		/**
+		 * @param browserWindow
+		 * @param options
+		 * @param callback If supplied, the API call will be asynchronous.
+		 * @returns On success, returns the path of file chosen by the user, otherwise
+		 * returns undefined.
+		 */
+		export function showSaveDialog(browserWindow?: BrowserWindow, options?: SaveDialogOptions, callback?: (fileName: string) => void): string;
 
 		/**
 		 * Shows a message box. It will block until the message box is closed. It returns .
@@ -1239,6 +1247,7 @@ declare module GitHubElectron {
 			detail?: string;
 			icon?: NativeImage;
 			noLink?: boolean;
+			cancelId?: number;
 		}
 	}
 
@@ -1310,11 +1319,11 @@ declare module GitHubElectron {
 		/**
 		 * @returns The contents of the clipboard as a NativeImage.
 		 */
-		readImage: typeof GitHubElectron.Clipboard.readImage;
+		readImage: typeof Electron.Clipboard.readImage;
 		/**
 		 * Writes the image into the clipboard.
 		 */
-		writeImage: typeof GitHubElectron.Clipboard.writeImage;
+		writeImage: typeof Electron.Clipboard.writeImage;
 		/**
 		 * Clears everything in clipboard.
 		 */
@@ -1633,19 +1642,19 @@ declare module GitHubElectron {
 		 * @returns On success, returns an array of file paths chosen by the user,
 		 * otherwise returns undefined.
 		 */
-		showOpenDialog: typeof GitHubElectron.Dialog.showOpenDialog;
+		showOpenDialog: typeof Electron.Dialog.showOpenDialog;
 		/**
 		 * @param callback If supplied, the API call will be asynchronous.
 		 * @returns On success, returns the path of file chosen by the user, otherwise
 		 * returns undefined.
 		 */
-		showSaveDialog: typeof GitHubElectron.Dialog.showSaveDialog;
+		showSaveDialog: typeof Electron.Dialog.showSaveDialog;
 		/**
 		 * Shows a message box. It will block until the message box is closed. It returns .
 		 * @param callback If supplied, the API call will be asynchronous.
 		 * @returns The index of the clicked button.
 		 */
-		showMessageBox: typeof GitHubElectron.Dialog.showMessageBox;
+		showMessageBox: typeof Electron.Dialog.showMessageBox;
 
 		/**
 		 * Runs a modal dialog that shows an error message. This API can be called safely
@@ -1775,26 +1784,26 @@ declare module GitHubElectron {
 	}
 
 	interface CommonElectron {
-		clipboard: GitHubElectron.Clipboard;
-		crashReporter: GitHubElectron.CrashReporter;
-		nativeImage: typeof GitHubElectron.NativeImage;
-		shell: GitHubElectron.Shell;
+		clipboard: Electron.Clipboard;
+		crashReporter: Electron.CrashReporter;
+		nativeImage: typeof Electron.NativeImage;
+		shell: Electron.Shell;
 
-		app: GitHubElectron.App;
-		autoUpdater: GitHubElectron.AutoUpdater;
-		BrowserWindow: typeof GitHubElectron.BrowserWindow;
-		contentTracing: GitHubElectron.ContentTracing;
-		dialog: GitHubElectron.Dialog;
-		ipcMain: GitHubElectron.IPCMain;
-		globalShortcut: GitHubElectron.GlobalShortcut;
-		Menu: typeof GitHubElectron.Menu;
-		MenuItem: typeof GitHubElectron.MenuItem;
+		app: Electron.App;
+		autoUpdater: Electron.AutoUpdater;
+		BrowserWindow: typeof Electron.BrowserWindow;
+		contentTracing: Electron.ContentTracing;
+		dialog: Electron.Dialog;
+		ipcMain: Electron.IPCMain;
+		globalShortcut: Electron.GlobalShortcut;
+		Menu: typeof Electron.Menu;
+		MenuItem: typeof Electron.MenuItem;
 		powerMonitor: NodeJS.EventEmitter;
-		powerSaveBlocker: GitHubElectron.PowerSaveBlocker;
-		protocol: GitHubElectron.Protocol;
-		screen: GitHubElectron.Screen;
-		session: GitHubElectron.Session;
-		Tray: typeof GitHubElectron.Tray;
+		powerSaveBlocker: Electron.PowerSaveBlocker;
+		protocol: Electron.Protocol;
+		screen: Electron.Screen;
+		session: Electron.Session;
+		Tray: typeof Electron.Tray;
 		hideInternalModules(): void;
 	}
 
@@ -1816,11 +1825,11 @@ declare module GitHubElectron {
 		getSources(options: any, callback: (error: Error, sources: DesktopCapturerSource[]) => any): void;
 	}
 
-	interface Electron extends CommonElectron {
-		desktopCapturer: GitHubElectron.DesktopCapturer;
-		ipcRenderer: GitHubElectron.IpcRenderer;
-		remote: GitHubElectron.Remote;
-		webFrame: GitHubElectron.WebFrame;
+	interface ElectronMainAndRenderer extends CommonElectron {
+		desktopCapturer: Electron.DesktopCapturer;
+		ipcRenderer: Electron.IpcRenderer;
+		remote: Electron.Remote;
+		webFrame: Electron.WebFrame;
 	}
 }
 
@@ -1829,7 +1838,7 @@ interface Window {
 	 * Creates a new window.
 	 * @returns An instance of BrowserWindowProxy class.
 	 */
-	open(url: string, frameName?: string, features?: string): GitHubElectron.BrowserWindowProxy;
+	open(url: string, frameName?: string, features?: string): Electron.BrowserWindowProxy;
 }
 
 interface File {
@@ -1840,10 +1849,10 @@ interface File {
 }
 
 declare module 'electron' {
-	var electron: GitHubElectron.Electron;
+	var electron: Electron.ElectronMainAndRenderer;
 	export = electron;
 }
 
 // interface NodeRequireFunction {
-// 	(moduleName: 'electron'): GitHubElectron.Electron;
+// 	(moduleName: 'electron'): Electron.Electron;
 // }

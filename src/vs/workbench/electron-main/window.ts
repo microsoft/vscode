@@ -8,8 +8,7 @@
 import path = require('path');
 import os = require('os');
 
-import {shell, screen} from 'electron';
-import BrowserWindow = require('browser-window');
+import {shell, screen, BrowserWindow} from 'electron';
 
 import {TPromise, TValueCallback} from 'vs/base/common/winjs.base';
 import platform = require('vs/base/common/platform');
@@ -138,7 +137,7 @@ export class VSCodeWindow {
 	private static MIN_HEIGHT = 120;
 
 	private showTimeoutHandle: any;
-	private _win: BrowserWindow;
+	private _win: Electron.BrowserWindow;
 	private _lastFocusTime: number;
 	private _readyState: ReadyState;
 	private _isPluginDevelopmentHost: boolean;
@@ -212,7 +211,7 @@ export class VSCodeWindow {
 		return this.currentConfig;
 	}
 
-	public get win(): BrowserWindow {
+	public get win(): Electron.BrowserWindow {
 		return this._win;
 	}
 
@@ -370,7 +369,7 @@ export class VSCodeWindow {
 				if (this._win && !this._win.isVisible() && !this._win.isMinimized()) {
 					this._win.show();
 					this._win.focus();
-					this._win.openDevTools();
+					this._win.webContents.openDevTools();
 				}
 			}, 10000);
 		}

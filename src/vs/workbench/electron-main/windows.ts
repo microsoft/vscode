@@ -10,9 +10,7 @@ import events = require('events');
 import path = require('path');
 import fs = require('fs');
 
-import BrowserWindow = require('browser-window');
-import Dialog = require('dialog');
-import {ipcMain as ipc, app, screen, crashReporter} from 'electron';
+import {ipcMain as ipc, app, screen, crashReporter, BrowserWindow, dialog} from 'electron';
 
 import platform = require('vs/base/common/platform');
 import env = require('vs/workbench/electron-main/env');
@@ -408,9 +406,9 @@ export class WindowsManager {
 
 					let activeWindow = BrowserWindow.getFocusedWindow();
 					if (activeWindow) {
-						Dialog.showMessageBox(activeWindow, options);
+						dialog.showMessageBox(activeWindow, options);
 					} else {
-						Dialog.showMessageBox(options);
+						dialog.showMessageBox(options);
 					}
 				}
 
@@ -874,7 +872,7 @@ export class WindowsManager {
 			pickerProperties = ['multiSelections', isFolder ? 'openDirectory' : 'openFile', 'createDirectory'];
 		}
 
-		Dialog.showOpenDialog(focussedWindow && focussedWindow.win, {
+		dialog.showOpenDialog(focussedWindow && focussedWindow.win, {
 			defaultPath: workingDir,
 			properties: pickerProperties
 		}, (paths) => {
@@ -1004,12 +1002,12 @@ export class WindowsManager {
 		return WindowsManager.WINDOWS.length;
 	}
 
-	private onWindowError(win: BrowserWindow, error: WindowError): void {
+	private onWindowError(win: Electron.BrowserWindow, error: WindowError): void {
 		console.error(error === WindowError.CRASHED ? '[VS Code]: render process crashed!' : '[VS Code]: detected unresponsive');
 
 		// Unresponsive
 		if (error === WindowError.UNRESPONSIVE) {
-			Dialog.showMessageBox(win, {
+			dialog.showMessageBox(win, {
 				title: env.product.nameLong,
 				type: 'warning',
 				buttons: [nls.localize('exit', "Exit"), nls.localize('wait', "Keep Waiting")],
@@ -1026,7 +1024,7 @@ export class WindowsManager {
 
 		// Crashed
 		else {
-			Dialog.showMessageBox(win, {
+			dialog.showMessageBox(win, {
 				title: env.product.nameLong,
 				type: 'warning',
 				buttons: [nls.localize('exit', "Exit")],
