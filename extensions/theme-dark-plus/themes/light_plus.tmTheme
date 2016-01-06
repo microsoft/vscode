@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>name</key>
+	<string>Light+</string>
+	<key>settings</key>
+	<array>
+		<dict>
+			<key>name</key>
+			<string>Function declarations</string>
+			<key>scope</key>
+			<string>entity.name.function</string>
+			<key>settings</key>
+			<dict>
+				<key>foreground</key>
+				<string>#404040</string>
+			</dict>
+		</dict>
+		<dict>
+			<key>name</key>
+			<string>Types declaration and references</string>
+			<key>scope</key>
+			<string>meta.parameter.type, entity.name.class, new.storage.type, meta.cast, cast.storage.type, heritage.storage.type, annotation.storage.type, var.annotation.storage.type</string>
+			<key>settings</key>
+			<dict>
+				<key>foreground</key>
+				<string>#2B91AF</string>
+			</dict>
+		</dict>
+		<dict>
+			<key>name</key>
+			<string>Control flow keywords</string>
+			<key>scope</key>
+			<string>keyword.control, meta.preprocessor</string>
+			<key>settings</key>
+			<dict>
+				<key>foreground</key>
+				<string>#AF00DB</string>
+			</dict>
+		</dict>
+		<dict>
+			<key>name</key>
+			<string>Parameter name</string>
+			<key>scope</key>
+			<string>meta.parameter.type.variable, variable.parameter</string>
+			<key>settings</key>
+			<dict>
+				<key>foreground</key>
+				<string>#001080</string>
+			</dict>
+		</dict>
+	</array>
+</dict>
+</plist>
