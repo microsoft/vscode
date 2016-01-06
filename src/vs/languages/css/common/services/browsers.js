@@ -773,7 +773,7 @@ exports.data ={
 				"name": "additive-symbols",
 				"desc": "Specifies the symbols used by the marker-construction algorithm specified by the system descriptor. Needs to be specified if the counter system is 'additive'.",
 				"browsers": "FF33",
-				"restriction": "integer, string, url, identifier"
+				"restriction": "integer, string, image, identifier"
 			},
 			{
 				"name": "align-content",
@@ -6540,7 +6540,7 @@ exports.data ={
 				"name": "negative",
 				"desc": "Defines how to alter the representation when the counter value is negative.",
 				"browsers": "FF33",
-				"restriction": "url, identifier, string"
+				"restriction": "image, identifier, string"
 			},
 			{
 				"name": "-o-animation",
@@ -7225,7 +7225,7 @@ exports.data ={
 				"name": "pad",
 				"desc": "Specifies a “fixed-width” counter style, where representations shorter than the pad value are padded with a particular <symbol>",
 				"browsers": "FF33",
-				"restriction": "integer, string, url, identifier"
+				"restriction": "integer, image, string, identifier"
 			},
 			{
 				"name": "padding",
@@ -7448,7 +7448,7 @@ exports.data ={
 				"name": "prefix",
 				"desc": "Specifies a <symbol> that is prepended to the marker representation.",
 				"browsers": "FF33",
-				"restriction": "string, url, identifier"
+				"restriction": "image, string, identifier"
 			},
 			{
 				"name": "quotes",
@@ -7859,7 +7859,7 @@ exports.data ={
 				"name": "suffix",
 				"desc": "Specifies a <symbol> that is appended to the marker representation.",
 				"browsers": "FF33",
-				"restriction": "string, url, identifier"
+				"restriction": "image, string, identifier"
 			},
 			{
 				"name": "system",
@@ -7896,7 +7896,7 @@ exports.data ={
 				"name": "symbols",
 				"desc": "Specifies the symbols used by the marker-construction algorithm specified by the system descriptor.",
 				"browsers": "FF33",
-				"restriction": "string, url, identifier"
+				"restriction": "image, string, identifier"
 			},
 			{
 				"name": "table-layout",

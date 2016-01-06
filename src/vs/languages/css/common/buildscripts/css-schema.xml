@@ -531,7 +531,7 @@
     <entry name="::-webkit-validation-bubble-text-block" version="3.0" browsers="C,O,S6" />
   </pseudoElements>
   <properties>
-    <entry name="additive-symbols" restriction="integer, string, url, identifier" version="3.0" browsers="FF33" ref="http://www.w3.org/TR/css-counter-styles-3/#descdef-counter-style-additive-symbols" syntax="@counter-style { additive-symbols: 1 I; }">
+    <entry name="additive-symbols" restriction="integer, string, image, identifier" version="3.0" browsers="FF33" ref="http://www.w3.org/TR/css-counter-styles-3/#descdef-counter-style-additive-symbols" syntax="@counter-style { additive-symbols: 1 I; }">
       <desc>Specifies the symbols used by the marker-construction algorithm specified by the system descriptor. Needs to be specified if the counter system is 'additive'.</desc>
     </entry>
     <entry name="align-content" restriction="enum" version="3.0" browsers="E,C29,FF22,IE11,O12.1,S9" ref="http://www.w3.org/TR/css3-flexbox/#align-content" syntax="p { $(name): flex-start; }">
@@ -5727,7 +5727,7 @@
         </value>
       </values>
     </entry>
-    <entry name="negative" restriction="url, identifier, string" version="3.0" browsers="FF33" ref="http://www.w3.org/TR/css-counter-styles-3/#descdef-counter-style-negative" syntax="@counter-style { negative: '(' ')'; }">
+    <entry name="negative" restriction="image, identifier, string" version="3.0" browsers="FF33" ref="http://www.w3.org/TR/css-counter-styles-3/#descdef-counter-style-negative" syntax="@counter-style { negative: '(' ')'; }">
       <desc>Defines how to alter the representation when the counter value is negative.</desc>
     </entry>
     <entry name="-o-animation" restriction="time, enum, identifier, number" version="3.0" browsers="O12" ref="http://www.w3.org/TR/css3-animations/#animation" syntax="div { $(name): movearound 4s ease 3 normal; }">
@@ -6262,7 +6262,7 @@
         </value>
       </values>
     </entry>
-    <entry name="pad" restriction="integer, string, url, identifier" version="3.0" browsers="FF33" ref="http://www.w3.org/TR/css-counter-styles-3/#descdef-counter-style-pad" syntax="@counter-style { pad: 3 '0'; }">
+    <entry name="pad" restriction="integer, image, string, identifier" version="3.0" browsers="FF33" ref="http://www.w3.org/TR/css-counter-styles-3/#descdef-counter-style-pad" syntax="@counter-style { pad: 3 '0'; }">
       <desc>Specifies a “fixed-width” counter style, where representations shorter than the pad value are padded with a particular &lt;symbol></desc>
     </entry>
     <entry name="padding" restriction="length, percentage" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-box/#padding1" syntax="div { $(name): 4px 7px 2px 4px; }">
@@ -6510,7 +6510,7 @@
         </value>
       </values>
     </entry>
-    <entry name="prefix" restriction="string, url, identifier" version="3.0" browsers="FF33" ref="http://www.w3.org/TR/css-counter-styles-3/#descdef-counter-style-prefix" syntax="@counter-style { prefix: '#'; }">
+    <entry name="prefix" restriction="image, string, identifier" version="3.0" browsers="FF33" ref="http://www.w3.org/TR/css-counter-styles-3/#descdef-counter-style-prefix" syntax="@counter-style { prefix: '#'; }">
       <desc>Specifies a &lt;symbol> that is prepended to the marker representation.</desc>
     </entry>
     <entry name="quotes" restriction="string" version="2.0" browsers="E,C,FF1.5,IE8,O8,S5.1" ref="http://www.w3.org/TR/css3-content/#quotes" syntax="none | [ &lt;string&gt; &lt;string&gt; ]+">
@@ -6948,7 +6948,7 @@
     <entry name="stroke-width" restriction="percentage, length, integer" version="3.0" browsers="all" ref="http://www.w3.org/TR/SVG11/painting.html#StrokeWidthProperty">
       <desc>This property specifies the width of the stroke on the current object.</desc>
     </entry>
-    <entry name="suffix" restriction="string, url, identifier" version="3.0" browsers="FF33" ref="http://www.w3.org/TR/css-counter-styles-3/#descdef-counter-style-suffix" syntax="@counter-style { suffix: '\2E\20'; }">
+    <entry name="suffix" restriction="image, string, identifier" version="3.0" browsers="FF33" ref="http://www.w3.org/TR/css-counter-styles-3/#descdef-counter-style-suffix" syntax="@counter-style { suffix: '\2E\20'; }">
       <desc>Specifies a &lt;symbol> that is appended to the marker representation.</desc>
     </entry>
     <entry name="system" restriction="enum, integer" version="3.0" browsers="FF33" ref="http://www.w3.org/TR/css-counter-styles-3/#descdef-counter-style-system" syntax="@counter-style triangle { system: cyclic; }">
@@ -6977,7 +6977,7 @@
         </value>
       </values>
     </entry>
-    <entry name="symbols" restriction="string, url, identifier" version="3.0" browsers="FF33" ref="http://www.w3.org/TR/css-counter-styles-3/#descdef-counter-style-symbols" syntax="@counter-style { symbols: '*' ⁑ † ‡; }">
+    <entry name="symbols" restriction="image, string, identifier" version="3.0" browsers="FF33" ref="http://www.w3.org/TR/css-counter-styles-3/#descdef-counter-style-symbols" syntax="@counter-style { symbols: '*' ⁑ † ‡; }">
       <desc>Specifies the symbols used by the marker-construction algorithm specified by the system descriptor.</desc>
     </entry>
     <entry name="table-layout" restriction="enum" version="2.0" browsers="all" ref="http://www.w3.org/TR/CSS2/tables.html#width-layout" syntax="table { $(name): fixed; }">
