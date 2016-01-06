@@ -23,7 +23,7 @@ let getNativeKeymap = (function() {
 })();
 
 // See https://msdn.microsoft.com/en-us/library/windows/desktop/dd375731(v=vs.85).aspx
-// See https://github.com/alexandrudima/vscode-keyboard/blob/master/deps/chromium/keyboard_codes_win.h
+// See https://github.com/Microsoft/node-native-keymap/blob/master/deps/chromium/keyboard_codes_win.h
 const NATIVE_KEY_CODE_TO_KEY_CODE: {[nativeKeyCode:string]:KeyCode;} = {
 	VKEY_BACK: KeyCode.Backspace,
 	VKEY_TAB: KeyCode.Tab,
@@ -335,7 +335,7 @@ let nativeLabelProvider:IKeyBindingLabelProvider = null;
 export function getNativeLabelProvider(): IKeyBindingLabelProvider {
 	if (!nativeLabelProvider) {
 		// See https://msdn.microsoft.com/en-us/library/windows/desktop/dd375731(v=vs.85).aspx
-		// See https://github.com/alexandrudima/vscode-keyboard/blob/master/deps/chromium/keyboard_codes_win.h
+		// See https://github.com/Microsoft/node-native-keymap/blob/master/deps/chromium/keyboard_codes_win.h
 		let interestingKeyCodes:{[vkeyCode:string]:boolean;} = {
 			VKEY_OEM_1: true,
 			VKEY_OEM_PLUS: true,
