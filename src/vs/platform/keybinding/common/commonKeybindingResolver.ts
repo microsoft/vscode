@@ -7,7 +7,7 @@
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {KeybindingsUtils} from 'vs/platform/keybinding/common/keybindingsUtils';
 import Platform = require('vs/base/common/platform');
-import {IKeybindingService, IKeybindingScopeLocation, ICommandHandler, IKeybindingItem, IKeybindings, IKeybindingContextRule, IUserFriendlyKeybinding, IKeybindingContextKey} from 'vs/platform/keybinding/common/keybindingService';
+import {IKeybindingService, IKeybindingScopeLocation, ICommandHandler, IKeybindingItem, IKeybindings, KbExpr, IUserFriendlyKeybinding, IKeybindingContextKey} from 'vs/platform/keybinding/common/keybindingService';
 import {KeyMod, KeyCode, BinaryKeybindings, Keybinding} from 'vs/base/common/keyCodes';
 
 export interface IResolveResult {
@@ -28,7 +28,7 @@ interface IChordsMap {
 }
 
 interface ICommandEntry {
-	context: IKeybindingContextRule[];
+	context: KbExpr;
 	keybinding: number;
 	commandId: string;
 }
@@ -71,7 +71,7 @@ export class CommonKeybindingResolver {
 				continue;
 			}
 			if (k.context) {
-				k.context = k.context.map(CommonKeybindingResolver.normalizeRule);
+				k.context = k.context.normalize();
 			}
 
 			let entry:ICommandEntry = {
@@ -140,59 +140,33 @@ export class CommonKeybindingResolver {
 	 * Returns true if `b` is a more relaxed `a`.
 	 * Return true if (`a` === true implies `b` === true).
 	 */
-	public static contextIsEntirelyIncluded(inNormalizedForm: boolean, a: IKeybindingContextRule[], b: IKeybindingContextRule[]): boolean {
-		if (!b || b.length === 0) {
+	public static contextIsEntirelyIncluded(inNormalizedForm: boolean, a: KbExpr, b: KbExpr): boolean {
+		if (!inNormalizedForm) {
+			a = a ? a.normalize() : null;
+			b = b ? b.normalize() : null;
+		}
+		if (!b) {
 			return true;
 		}
-		if (!a || a.length === 0) {
+		if (!a) {
 			return false;
 		}
 
-		if (!inNormalizedForm) {
-			a = a.map(CommonKeybindingResolver.normalizeRule);
-			b = b.map(CommonKeybindingResolver.normalizeRule);
+		let aRulesArr = a.serialize().split(' && ');
+		let bRulesArr = b.serialize().split(' && ');
+
+		let aRules: { [rule:string]: boolean; } = Object.create(null);
+		for (let i = 0, len = aRulesArr.length; i < len; i++) {
+			aRules[aRulesArr[i]] = true;
 		}
 
-		var aRules: { [rule:string]: boolean; } = Object.create(null);
-		for (var i = 0, len = a.length; i < len; i++) {
-			aRules[CommonKeybindingResolver._ruleToString(a[i])] = true;
-		}
-
-		for (var i = 0, len = b.length; i < len; i++) {
-			if (!aRules[CommonKeybindingResolver._ruleToString(b[i])]) {
+		for (let i = 0, len = bRulesArr.length; i < len; i++) {
+			if (!aRules[bRulesArr[i]]) {
 				return false;
 			}
 		}
 
 		return true;
-	}
-
-	private static _ruleToString(rule: IKeybindingContextRule): string {
-		var r = rule.key;
-		if (typeof rule.operator === 'undefined') {
-			r += ';' + KeybindingsRegistry.KEYBINDING_CONTEXT_OPERATOR_EQUAL;
-		} else {
-			r += ';' + rule.operator;
-		}
-		if (typeof rule.operand === 'undefined') {
-			r += ';' + true;
-		} else {
-			r += ';' + rule.operand;
-		}
-		return r;
-	}
-
-	public static normalizeRule(rule: IKeybindingContextRule): IKeybindingContextRule {
-		if (rule.operator === KeybindingsRegistry.KEYBINDING_CONTEXT_OPERATOR_NOT_EQUAL) {
-			if (typeof rule.operand === 'boolean') {
-				return {
-					key: rule.key,
-					operator: KeybindingsRegistry.KEYBINDING_CONTEXT_OPERATOR_EQUAL,
-					operand: !rule.operand
-				};
-			}
-		}
-		return rule;
 	}
 
 	private _addToLookupMap(item: IKeybindingItem): void {
@@ -298,35 +272,11 @@ export class CommonKeybindingResolver {
 		return null;
 	}
 
-	public static contextMatchesRules(context: any, rules: IKeybindingContextRule[]): boolean {
-		if (!rules || rules.length === 0) {
+	public static contextMatchesRules(context: any, rules: KbExpr): boolean {
+		if (!rules) {
 			return true;
 		}
-		for (var i = 0, len = rules.length; i < len; i++) {
-			if (!CommonKeybindingResolver.contextMatchesRule(context, rules[i])) {
-				return false;
-			}
-		}
-		return true;
-	}
-
-	public static contextMatchesRule(context: any, rule:IKeybindingContextRule): boolean {
-		var operator = (typeof rule.operator === 'undefined' ? KeybindingsRegistry.KEYBINDING_CONTEXT_OPERATOR_EQUAL : rule.operator);
-		var operand = (typeof rule.operand === 'undefined' ? true : rule.operand);
-
-		switch (operator) {
-			case KeybindingsRegistry.KEYBINDING_CONTEXT_OPERATOR_EQUAL:
-				if (operand === false) {
-					// Evaluate `key == false`   as   `!key`
-					return !context[rule.key];
-				}
-				return context[rule.key] === operand;
-			case KeybindingsRegistry.KEYBINDING_CONTEXT_OPERATOR_NOT_EQUAL:
-				return context[rule.key] !== operand;
-			default:
-				console.warn('Unknown operator ' + operator);
-		}
-		return true;
+		return rules.evaluate(context);
 	}
 }
 
@@ -374,16 +324,13 @@ export class IOSupport {
 
 	public static writeKeybindingItem(out: OutputBuilder, item: IKeybindingItem): void {
 		out.write('{ "key": ' + rightPaddedString('"' + IOSupport.writeKeybinding(item.keybinding).replace(/\\/g, '\\\\') + '",', 25) + ' "command": ');
-		if (item.context) {
+		let serializedContext = item.context ? item.context.serialize() : '';
+		if (serializedContext.length > 0) {
 			out.write('"' + item.command + '",');
 			out.writeLine();
-			if (item.context.length > 0) {
-				out.write('                                     "when": "');
-				IOSupport.writeKeybindingContexts(out, item.context);
-				out.write('" ');
-			} else {
-				out.write('"when": "" ');
-			}
+			out.write('                                     "when": "');
+			out.write(serializedContext);
+			out.write('" ');
 		} else {
 			out.write('"' + item.command + '" ');
 		}
@@ -497,96 +444,7 @@ export class IOSupport {
 		return KeyMod.chord(result, chord);
 	}
 
-	private static writeKeybindingContexts(out: OutputBuilder, context: IKeybindingContextRule[]): void {
-		var lastCtxIndex = context.length - 1;
-		context.forEach((c, i) => {
-			IOSupport.writeKeybindingContent(out, c);
-			if (i !== lastCtxIndex) {
-				out.write(' && ');
-			}
-		});
-	}
-
-	public static readKeybindingContexts(input: string): IKeybindingContextRule[] {
-		if (!input) {
-			return undefined;
-		}
-
-		var result: IKeybindingContextRule[] = [];
-
-		var pieces = input.split('&&');
-		for (var i = 0; i < pieces.length; i++) {
-			result.push(IOSupport.readKeybindingContext(pieces[i]));
-		}
-		return result;
-	}
-
-	private static writeKeybindingContent(out: OutputBuilder, context: IKeybindingContextRule): void {
-		if (context.operator) {
-			if (
-				(context.operator === KeybindingsRegistry.KEYBINDING_CONTEXT_OPERATOR_NOT_EQUAL && context.operand === true)
-				|| (context.operator === KeybindingsRegistry.KEYBINDING_CONTEXT_OPERATOR_EQUAL && context.operand === false)
-				) {
-				out.write('!' + context.key);
-				return;
-			}
-		}
-		out.write(context.key);
-		if (context.operator) {
-			if (context.operator === KeybindingsRegistry.KEYBINDING_CONTEXT_OPERATOR_EQUAL) {
-				out.write(' == ');
-			} else {
-				out.write(' != ');
-			}
-
-			if (typeof context.operand === 'boolean') {
-				out.write(context.operand);
-			} else {
-				out.write('\'' + context.operand + '\'');
-			}
-		}
-	}
-
-	private static readKeybindingContext(input: string): IKeybindingContextRule {
-		input = input.trim();
-
-		var pieces: string[], operator: string = null;
-		if (input.indexOf('!=') >= 0) {
-			pieces = input.split('!=');
-			operator = KeybindingsRegistry.KEYBINDING_CONTEXT_OPERATOR_NOT_EQUAL;
-		} else if (input.indexOf('==') >= 0) {
-			pieces = input.split('==');
-			operator = KeybindingsRegistry.KEYBINDING_CONTEXT_OPERATOR_EQUAL;
-		} else {
-			if (/^\!\s*/.test(input)) {
-				return {
-					key: input.substr(1).trim(),
-					operator: KeybindingsRegistry.KEYBINDING_CONTEXT_OPERATOR_NOT_EQUAL,
-					operand: true
-				};
-			}
-			return {
-				key: input
-			};
-		}
-
-		var operand = <any>pieces[1].trim();
-
-		if (operand === 'true') {
-			operand = true;
-		} else if (operand === 'false') {
-			operand = false;
-		} else {
-			var m = /^'([^']*)'$/.exec(operand);
-			if (m) {
-				operand = m[1];
-			}
-		}
-
-		return {
-			key: pieces[0].trim(),
-			operator: operator,
-			operand: operand
-		};
+	public static readKeybindingContexts(input: string): KbExpr {
+		return KbExpr.deserialize(input);
 	}
 }

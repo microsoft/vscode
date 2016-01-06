@@ -11,7 +11,7 @@ import EventEmitter = require('vs/base/common/eventEmitter');
 
 import Descriptors = require('vs/platform/instantiation/common/descriptors');
 import Instantiation = require('vs/platform/instantiation/common/instantiation');
-import {IKeybindingContextRule, IKeybindings} from 'vs/platform/keybinding/common/keybindingService';
+import {KbExpr, IKeybindings} from 'vs/platform/keybinding/common/keybindingService';
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
 
 export var IActionsService = createDecorator<IActionsService>('actionsService');
@@ -28,11 +28,11 @@ export class SyncActionDescriptor {
 	private _id: string;
 	private _label: string;
 	private _keybindings: IKeybindings;
-	private _keybindingContext: IKeybindingContextRule[];
+	private _keybindingContext: KbExpr;
 	private _keybindingWeight: number;
 
 	constructor(ctor:Instantiation.INewConstructorSignature2<string, string, Actions.Action>,
-		id:string, label:string, keybindings?:IKeybindings, keybindingContext?:IKeybindingContextRule[], keybindingWeight?:number
+		id:string, label:string, keybindings?:IKeybindings, keybindingContext?:KbExpr, keybindingWeight?:number
 	) {
 		this._id = id;
 		this._label = label;
@@ -58,7 +58,7 @@ export class SyncActionDescriptor {
 		return this._keybindings;
 	}
 
-	public get keybindingContext(): IKeybindingContextRule[] {
+	public get keybindingContext(): KbExpr {
 		return this._keybindingContext;
 	}
 

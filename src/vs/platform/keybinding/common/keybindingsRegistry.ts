@@ -6,7 +6,7 @@
 
 import {Registry} from 'vs/platform/platform';
 import {TypeConstraint, validateConstraints} from 'vs/base/common/types';
-import {ICommandHandler, ICommandHandlerDescription, ICommandsMap, IKeybindingItem, IKeybindings, IKeybindingContextRule} from 'vs/platform/keybinding/common/keybindingService';
+import {ICommandHandler, ICommandHandlerDescription, ICommandsMap, IKeybindingItem, IKeybindings, KbExpr} from 'vs/platform/keybinding/common/keybindingService';
 import {KeybindingsUtils} from 'vs/platform/keybinding/common/keybindingsUtils';
 import {KeyMod, KeyCode, BinaryKeybindings} from 'vs/base/common/keyCodes';
 import Platform = require('vs/base/common/platform');
@@ -14,7 +14,7 @@ import Platform = require('vs/base/common/platform');
 export interface ICommandRule extends IKeybindings {
 	id: string;
 	weight: number;
-	context: IKeybindingContextRule[];
+	context: KbExpr;
 }
 
 export interface ICommandDescriptor extends ICommandRule {
@@ -118,7 +118,7 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 		return this._commands;
 	}
 
-	private registerDefaultKeybinding(keybinding: number, commandId:string, weight1: number, weight2:number, context:IKeybindingContextRule[]): void {
+	private registerDefaultKeybinding(keybinding: number, commandId:string, weight1: number, weight2:number, context:KbExpr): void {
 		if (Platform.isWindows) {
 			if (BinaryKeybindings.hasCtrlCmd(keybinding) && !BinaryKeybindings.hasShift(keybinding) && BinaryKeybindings.hasAlt(keybinding) && !BinaryKeybindings.hasWinCtrl(keybinding)) {
 				if (/^[A-Z0-9\[\]\|\;\'\,\.\/\`]$/.test(KeyCode.toString(BinaryKeybindings.extractKeyCode(keybinding)))) {

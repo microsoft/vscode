@@ -11,7 +11,7 @@ import {Action} from 'vs/base/common/actions';
 import {Promise} from 'vs/base/common/winjs.base';
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
-import {IKeybindingService, IKeybindings} from 'vs/platform/keybinding/common/keybindingService';
+import {KbExpr, IKeybindingService, IKeybindings} from 'vs/platform/keybinding/common/keybindingService';
 import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 
@@ -163,5 +163,5 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(GlobalQuickOpenAction,
 registry.registerWorkbenchAction(new SyncActionDescriptor(OpenPreviousEditorAction, OpenPreviousEditorAction.ID, OpenPreviousEditorAction.LABEL, prevEditorKb));
 
 // Contribute Quick Navigate in Quick Open
-registry.registerWorkbenchAction(new SyncActionDescriptor(QuickOpenNavigateNextAction, QuickOpenNavigateNextAction.ID, QuickOpenNavigateNextAction.LABEL, navigateKeybinding(false), [{ key: 'inQuickOpen' }]));
-registry.registerWorkbenchAction(new SyncActionDescriptor(QuickOpenNavigatePreviousAction, QuickOpenNavigatePreviousAction.ID, QuickOpenNavigatePreviousAction.LABEL, navigateKeybinding(true), [{ key: 'inQuickOpen' }], KeybindingsRegistry.WEIGHT.workbenchContrib(50)));
+registry.registerWorkbenchAction(new SyncActionDescriptor(QuickOpenNavigateNextAction, QuickOpenNavigateNextAction.ID, QuickOpenNavigateNextAction.LABEL, navigateKeybinding(false), KbExpr.has('inQuickOpen')));
+registry.registerWorkbenchAction(new SyncActionDescriptor(QuickOpenNavigatePreviousAction, QuickOpenNavigatePreviousAction.ID, QuickOpenNavigatePreviousAction.LABEL, navigateKeybinding(true), KbExpr.has('inQuickOpen'), KeybindingsRegistry.WEIGHT.workbenchContrib(50)));
