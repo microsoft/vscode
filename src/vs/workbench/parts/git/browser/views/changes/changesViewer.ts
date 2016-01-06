@@ -671,7 +671,7 @@ export class Controller extends treedefaults.DefaultController {
 		if (event.shiftKey) {
 			var focus = tree.getFocus();
 
-			if (!focus || focus instanceof gitmodel.StatusGroup) {
+			if (!(focus instanceof gitmodel.FileStatus) || !(element instanceof gitmodel.FileStatus)) {
 				return;
 			}
 
