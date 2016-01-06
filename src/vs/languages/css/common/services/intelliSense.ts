@@ -175,14 +175,15 @@ export class CSSIntellisense {
 		return result;
 	}
 
-	public getCSSWideKeywordProposals(entry:languageFacts.IEntry, result:Modes.ISuggestion[]):Modes.ISuggestion[]{
-		languageFacts.cssWideKeywords.forEach((entry) => {
+	public getCSSWideKeywordProposals(entry:languageFacts.IEntry, result:Modes.ISuggestion[]):Modes.ISuggestion[] {
+		for (var keywords in languageFacts.cssWideKeywords) {
 			result.push({
-				label: entry,
-				codeSnippet: entry,
+				label: keywords,
+				documentationLabel: languageFacts.cssWideKeywords[keywords],
+				codeSnippet: keywords,
 				type: 'value'
 			});
-		});
+		}
 		return result;
 	}
 

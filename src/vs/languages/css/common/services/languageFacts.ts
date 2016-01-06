@@ -237,7 +237,11 @@ export var geometryBoxKeywords : { [name:string]:string } = {
 	'view-box': 'Uses the nearest SVG viewport as reference box.'
 };
 
-export var cssWideKeywords = ['initial', 'inherit', 'unset'];
+export var cssWideKeywords : { [name:string]:string } = {
+	'initial': 'Represents the value specified as the property’s initial value.',
+	'inherit': 'Represents the computed value of the property on the element’s parent.',
+	'unset': 'Acts as either `inherit` or `initial`, depending on whether the property is inherited or not.'
+};
 
 export var imageFunctions : { [name:string]:string } = {
 	'url()': 'Reference an image file by URL',
