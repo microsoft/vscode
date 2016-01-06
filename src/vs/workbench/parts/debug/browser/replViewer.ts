@@ -6,6 +6,7 @@
 import nls = require('vs/nls');
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
 import actions = require('vs/base/common/actions');
+import strings = require('vs/base/common/strings');
 import URI from 'vs/base/common/uri';
 import { isMacintosh, isLinux, isWindows } from 'vs/base/common/platform';
 import actionbar = require('vs/base/browser/ui/actionbar/actionbar');
@@ -121,8 +122,12 @@ export class ReplExpressionsRenderer implements tree.IRenderer {
 		if (!s || !s.length || this.width <= 0 || this.characterWidth <= 0) {
 			return 24;
 		}
+		let realLength = 0;
+		for (let i = 0; i < s.length; i++) {
+			realLength += strings.isFullWidthCharacter(s.charCodeAt(i)) ? 2 : 1;
+		}
 
-		return 24 * Math.ceil(s.length * this.characterWidth / this.width);
+		return 24 * Math.ceil(realLength * this.characterWidth / this.width);
 	}
 
 	public setWidth(fullWidth: number, characterWidth: number): void {
