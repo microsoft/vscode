@@ -51,7 +51,6 @@ export interface IProductConfiguration {
 		asimovKey: string;
 	};
 	sendASmile: {
-		submitUrl: string,
 		reportIssueUrl: string,
 		requestFeatureUrl: string
 	};

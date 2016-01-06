@@ -123,7 +123,6 @@ export interface IWindowConfiguration extends env.ICommandLineArguments {
 		asimovKey: string;
 	},
 	sendASmile: {
-		submitUrl: string,
 		reportIssueUrl: string,
 		requestFeatureUrl: string
 	}
