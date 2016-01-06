@@ -1052,7 +1052,7 @@
       </values>
     </entry>
     <entry name="behavior" restriction="url" version="3.0" browsers="IE6" ref="http://msdn.microsoft.com/en-us/ie/gg192966.aspx" syntax="div { $(name): url(http://example.com/png_fix.htc); }">
-      <desc>IE only. Used to extend behaviors of the browser</desc>
+      <desc>IE only. Used to extend behaviors of the browser.</desc>
     </entry>
     <entry name="block-size" restriction="length, percentage" version="3.0" browsers="FF41" ref="https://drafts.csswg.org/css-logical-props/#propdef-block-size" syntax="header { $(name): 200px; }">
       <desc>Logical 'width'. Mapping depends on the element’s 'writing-mode'.</desc>
@@ -1063,7 +1063,7 @@
       </values>
     </entry>
     <entry name="border" restriction="length, line-width, line-style, color" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#borders" syntax="header { $(name): 5px solid red;}">
-      <desc>Shorthand property for setting border width, style and color</desc>
+      <desc>Shorthand property for setting border width, style, and color.</desc>
     </entry>
     <entry name="border-block-end" restriction="length, line-width, line-style, color" version="3.0" browsers="FF41" ref="https://drafts.csswg.org/css-logical-props/#border-padding" syntax="header { $(name): 5px solid red;}">
       <desc>Logical 'border-bottom'. Mapping depends on the parent element’s 'writing-mode', 'direction', and 'text-orientation'.</desc>
@@ -1090,22 +1090,22 @@
       <desc>Logical 'border-top-width'. Mapping depends on the parent element’s 'writing-mode', 'direction', and 'text-orientation'.</desc>
     </entry>
     <entry name="border-bottom" restriction="length, line-width, line-style, color" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#borders" syntax="header { $(name): 5px solid red;}">
-      <desc>Shorthand property for setting border width, style and color</desc>
+      <desc>Shorthand property for setting border width, style and color.</desc>
     </entry>
     <entry name="border-bottom-color" restriction="color" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#border-color" syntax="td { $(name): blue; }">
       <desc>Sets the color of the bottom border.</desc>
     </entry>
     <entry name="border-bottom-left-radius" restriction="length, percentage" version="3.0" browsers="E,C,FF4,IE9,O10.5,S5" ref="http://www.w3.org/TR/css3-background/#border-radius" syntax="td { $(name): 4px; }">
-      <desc>The two length or percentage values of the 'border-*-radius' properties define the radii of a quarter ellipse that defines the shape of the corner of the outer border edge. The first value is the horizontal radius, the second the vertical radius. If the second value is omitted it is copied from the first. If either length is zero, the corner is square, not rounded. Percentages for the horizontal radius refer to the width of the border box, whereas percentages for the vertical radius refer to the height of the border box.</desc>
+      <desc>Defines the radii of the bottom left outer border edge.</desc>
     </entry>
     <entry name="border-bottom-right-radius" restriction="length, percentage" version="3.0" browsers="E,C,FF4,IE9,O10.5,S5" ref="http://www.w3.org/TR/css3-background/#border-radius" syntax="td { $(name): 4px; }">
-      <desc>The two length or percentage values of the 'border-*-radius' properties define the radii of a quarter ellipse that defines the shape of the corner of the outer border edge. The first value is the horizontal radius, the second the vertical radius. If the second value is omitted it is copied from the first. If either length is zero, the corner is square, not rounded. Percentages for the horizontal radius refer to the width of the border box, whereas percentages for the vertical radius refer to the height of the border box.</desc>
+      <desc>Defines the radii of the bottom right outer border edge.</desc>
     </entry>
     <entry name="border-bottom-style" restriction="line-style" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#border-style" syntax="td { $(name): solid; }">
       <desc>Sets the style of the bottom border.</desc>
     </entry>
     <entry name="border-bottom-width" restriction="length, line-width" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#border-width" syntax="td { $(name): 2px; }">
-      <desc>>Sets the thickness of the bottom border.</desc>
+      <desc>Sets the thickness of the bottom border.</desc>
     </entry>
     <entry name="border-collapse" restriction="enum" version="2.0" browsers="all" ref="http://www.w3.org/TR/CSS2/tables.html#borders" syntax="table { $(name): collapse; }">
       <desc>Selects a table's border model.</desc>
@@ -1172,7 +1172,7 @@
       </values>
     </entry>
     <entry name="border-image-slice" restriction="number, percentage" version="3.0" browsers="E,C16,FF15,IE11,O15,S6" ref="http://www.w3.org/TR/css3-background/#border-image-slice" syntax="div { $(name): 10%; }">
-      <desc>The four 'border-image-slice' values represent inward offsets from the top, right, bottom, and left edges of the image respectively, dividing it into nine regions: four corners, four edges and a middle. The middle image part is discarded (treated as fully transparent) unless the 'fill' keyword is present. (It is drawn over the background; see the border-image drawing process.) If the fourth number/percentage is absent, it is the same as the second. If the third one is also absent, it is the same as the first. If the second one is also absent, it is the same as the first.</desc>
+      <desc>Specifies inward offsets from the top, right, bottom, and left edges of the image, dividing it into nine regions: four corners, four edges and a middle.</desc>
       <values>
         <value name="fill" version="3.0" browsers="all">
           <desc>Causes the middle part of the border-image to be preserved.</desc>
@@ -1247,7 +1247,7 @@
       <desc>Sets the thickness of the left border.</desc>
     </entry>
     <entry name="border-radius" restriction="length, percentage" version="3.0" browsers="E,C,FF4,IE9,O10.5,S5" ref="http://www.w3.org/TR/css3-background/#border-radius" syntax="td { $(name): 3px 4px; }">
-      <desc>The two length or percentage values of the 'border-*-radius' properties define the radii of a quarter ellipse that defines the shape of the corner of the outer border edge. The first value is the horizontal radius, the second the vertical radius. If the second value is omitted it is copied from the first. If either length is zero, the corner is square, not rounded. Percentages for the horizontal radius refer to the width of the border box, whereas percentages for the vertical radius refer to the height of the border box.</desc>
+      <desc>Defines the radii of the outer border edge.</desc>
     </entry>
     <entry name="border-right" restriction="length, line-width, line-style, color" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#borders" syntax="header { $(name): 5px solid red;}">
       <desc>Shorthand property for setting border width, style and color</desc>
@@ -1279,10 +1279,10 @@
       <desc>Sets the color of the top border.</desc>
     </entry>
     <entry name="border-top-left-radius" restriction="length, percentage" version="3.0" browsers="E,C,FF4,IE9,O10.5,S5" ref="http://www.w3.org/TR/css3-background/#border-radius" syntax="td { $(name): 4px; }">
-      <desc>The two length or percentage values of the 'border-*-radius' properties define the radii of a quarter ellipse that defines the shape of the corner of the outer border edge. The first value is the horizontal radius, the second the vertical radius. If the second value is omitted it is copied from the first. If either length is zero, the corner is square, not rounded. Percentages for the horizontal radius refer to the width of the border box, whereas percentages for the vertical radius refer to the height of the border box.</desc>
+      <desc>Defines the radii of the top left outer border edge.</desc>
     </entry>
     <entry name="border-top-right-radius" restriction="length, percentage" version="3.0" browsers="E,C,FF4,IE9,O10.5,S5" ref="http://www.w3.org/TR/css3-background/#border-radius" syntax="td { $(name): 4px; }">
-      <desc>The two length or percentage values of the 'border-*-radius' properties define the radii of a quarter ellipse that defines the shape of the corner of the outer border edge. The first value is the horizontal radius, the second the vertical radius. If the second value is omitted it is copied from the first. If either length is zero, the corner is square, not rounded. Percentages for the horizontal radius refer to the width of the border box, whereas percentages for the vertical radius refer to the height of the border box.</desc>
+      <desc>Defines the radii of the top right outer border edge.</desc>
     </entry>
     <entry name="border-top-style" restriction="line-style" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#border-style" syntax="td { $(name): solid; }">
       <desc>Sets the style of the top border.</desc>

@@ -1284,7 +1284,7 @@ exports.data ={
 			},
 			{
 				"name": "behavior",
-				"desc": "IE only. Used to extend behaviors of the browser",
+				"desc": "IE only. Used to extend behaviors of the browser.",
 				"browsers": "IE6",
 				"restriction": "url"
 			},
@@ -1297,7 +1297,7 @@ exports.data ={
 			},
 			{
 				"name": "border",
-				"desc": "Shorthand property for setting border width, style and color",
+				"desc": "Shorthand property for setting border width, style, and color.",
 				"restriction": "length, line-width, line-style, color"
 			},
 			{
@@ -1350,7 +1350,7 @@ exports.data ={
 			},
 			{
 				"name": "border-bottom",
-				"desc": "Shorthand property for setting border width, style and color",
+				"desc": "Shorthand property for setting border width, style and color.",
 				"restriction": "length, line-width, line-style, color"
 			},
 			{
@@ -1360,13 +1360,13 @@ exports.data ={
 			},
 			{
 				"name": "border-bottom-left-radius",
-				"desc": "The two length or percentage values of the 'border-*-radius' properties define the radii of a quarter ellipse that defines the shape of the corner of the outer border edge. The first value is the horizontal radius, the second the vertical radius. If the second value is omitted it is copied from the first. If either length is zero, the corner is square, not rounded. Percentages for the horizontal radius refer to the width of the border box, whereas percentages for the vertical radius refer to the height of the border box.",
+				"desc": "Defines the radii of the bottom left outer border edge.",
 				"browsers": "E,C,FF4,IE9,O10.5,S5",
 				"restriction": "length, percentage"
 			},
 			{
 				"name": "border-bottom-right-radius",
-				"desc": "The two length or percentage values of the 'border-*-radius' properties define the radii of a quarter ellipse that defines the shape of the corner of the outer border edge. The first value is the horizontal radius, the second the vertical radius. If the second value is omitted it is copied from the first. If either length is zero, the corner is square, not rounded. Percentages for the horizontal radius refer to the width of the border box, whereas percentages for the vertical radius refer to the height of the border box.",
+				"desc": "Defines the radii of the bottom right outer border edge.",
 				"browsers": "E,C,FF4,IE9,O10.5,S5",
 				"restriction": "length, percentage"
 			},
@@ -1377,7 +1377,7 @@ exports.data ={
 			},
 			{
 				"name": "border-bottom-width",
-				"desc": ">Sets the thickness of the bottom border.",
+				"desc": "Sets the thickness of the bottom border.",
 				"restriction": "length, line-width"
 			},
 			{
@@ -1469,7 +1469,7 @@ exports.data ={
 			},
 			{
 				"name": "border-image-slice",
-				"desc": "The four 'border-image-slice' values represent inward offsets from the top, right, bottom, and left edges of the image respectively, dividing it into nine regions: four corners, four edges and a middle. The middle image part is discarded (treated as fully transparent) unless the 'fill' keyword is present. (It is drawn over the background; see the border-image drawing process.) If the fourth number/percentage is absent, it is the same as the second. If the third one is also absent, it is the same as the first. If the second one is also absent, it is the same as the first.",
+				"desc": "Specifies inward offsets from the top, right, bottom, and left edges of the image, dividing it into nine regions: four corners, four edges and a middle.",
 				"browsers": "E,C16,FF15,IE11,O15,S6",
 				"restriction": "number, percentage",
 				"values": []
@@ -1566,7 +1566,7 @@ exports.data ={
 			},
 			{
 				"name": "border-radius",
-				"desc": "The two length or percentage values of the 'border-*-radius' properties define the radii of a quarter ellipse that defines the shape of the corner of the outer border edge. The first value is the horizontal radius, the second the vertical radius. If the second value is omitted it is copied from the first. If either length is zero, the corner is square, not rounded. Percentages for the horizontal radius refer to the width of the border box, whereas percentages for the vertical radius refer to the height of the border box.",
+				"desc": "Defines the radii of the outer border edge.",
 				"browsers": "E,C,FF4,IE9,O10.5,S5",
 				"restriction": "length, percentage"
 			},
@@ -1614,13 +1614,13 @@ exports.data ={
 			},
 			{
 				"name": "border-top-left-radius",
-				"desc": "The two length or percentage values of the 'border-*-radius' properties define the radii of a quarter ellipse that defines the shape of the corner of the outer border edge. The first value is the horizontal radius, the second the vertical radius. If the second value is omitted it is copied from the first. If either length is zero, the corner is square, not rounded. Percentages for the horizontal radius refer to the width of the border box, whereas percentages for the vertical radius refer to the height of the border box.",
+				"desc": "Defines the radii of the top left outer border edge.",
 				"browsers": "E,C,FF4,IE9,O10.5,S5",
 				"restriction": "length, percentage"
 			},
 			{
 				"name": "border-top-right-radius",
-				"desc": "The two length or percentage values of the 'border-*-radius' properties define the radii of a quarter ellipse that defines the shape of the corner of the outer border edge. The first value is the horizontal radius, the second the vertical radius. If the second value is omitted it is copied from the first. If either length is zero, the corner is square, not rounded. Percentages for the horizontal radius refer to the width of the border box, whereas percentages for the vertical radius refer to the height of the border box.",
+				"desc": "Defines the radii of the top right outer border edge.",
 				"browsers": "E,C,FF4,IE9,O10.5,S5",
 				"restriction": "length, percentage"
 			},
@@ -7096,7 +7096,7 @@ exports.data ={
 			},
 			{
 				"name": "outline-color",
-				"desc": "The color of the outline",
+				"desc": "The color of the outline.",
 				"browsers": "E,C,FF1.5,IE8,O8,S1.2",
 				"restriction": "enum, color",
 				"values": [
@@ -7108,13 +7108,13 @@ exports.data ={
 			},
 			{
 				"name": "outline-offset",
-				"desc": "Width of the outline",
+				"desc": "Offset the outline and draw it beyond the border edge.",
 				"browsers": "C,FF1.5,O9.5,S1.2",
 				"restriction": "length"
 			},
 			{
 				"name": "outline-style",
-				"desc": "Style of the outline",
+				"desc": "Style of the outline.",
 				"browsers": "E,C,FF1.5,IE8,O8,S1.2",
 				"restriction": "line-style, enum",
 				"values": [
@@ -7126,7 +7126,7 @@ exports.data ={
 			},
 			{
 				"name": "outline-width",
-				"desc": "Width of the outline",
+				"desc": "Width of the outline.",
 				"browsers": "E,C,FF1.5,IE8,O8,S1.2",
 				"restriction": "length, line-width"
 			},
