@@ -31,24 +31,7 @@ import {FormatRegistry, FormatOnTypeRegistry} from 'vs/editor/contrib/format/com
 import {CodeLensRegistry} from 'vs/editor/contrib/codelens/common/codelens';
 import {ParameterHintsRegistry} from 'vs/editor/contrib/parameterHints/common/parameterHints';
 import {SuggestRegistry} from 'vs/editor/contrib/suggest/common/suggest';
-
-function isThenable<T>(obj: any): obj is Thenable<T> {
-	return obj && typeof (<Thenable<any>>obj).then === 'function';
-}
-
-function asWinJsPromise<T>(callback: (token: vscode.CancellationToken) => T | Thenable<T>): TPromise<T> {
-	let source = new CancellationTokenSource();
-	return new TPromise<T>((resolve, reject) => {
-		let item = callback(source.token);
-		if (isThenable<T>(item)) {
-			item.then(resolve, reject);
-		} else {
-			resolve(item);
-		}
-	}, () => {
-		source.cancel();
-	});
-}
+import {asWinJsPromise} from 'vs/base/common/async';
 
 // --- adapter
 
