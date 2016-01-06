@@ -278,7 +278,12 @@ export class ViewItem implements IViewItem {
 		if (afterElement === null) {
 			container.appendChild(this.element);
 		} else {
-			container.insertBefore(this.element, afterElement);
+			try {
+				container.insertBefore(this.element, afterElement);
+			} catch (e) {
+				console.warn('Failed to locate previous tree element');
+				container.appendChild(this.element);
+			}
 		}
 
 		this.render();
