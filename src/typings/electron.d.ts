@@ -66,6 +66,34 @@ declare module Electron {
 		function writeImage(image: NativeImage, type?: string): void;
 	}
 
+	interface Display {
+		id:number;
+		bounds:Bounds;
+		workArea:Bounds;
+		size:Dimension;
+		workAreaSize:Dimension;
+		scaleFactor:number;
+		rotation:number;
+		touchSupport:string;
+	}
+
+	interface Bounds {
+		x:number;
+		y:number;
+		width:number;
+		height:number;
+	}
+
+	interface Dimension {
+		width:number;
+		height:number;
+	}
+
+	interface Point {
+		x:number;
+		y:number;
+	}
+
 	class Screen implements NodeJS.EventEmitter {
 		addListener(event: string, listener: Function): Screen;
 		on(event: string, listener: Function): Screen;
@@ -80,26 +108,23 @@ declare module Electron {
 		/**
 		 * @returns The current absolute position of the mouse pointer.
 		 */
-		getCursorScreenPoint(): any;
+		getCursorScreenPoint(): Point;
 		/**
 		 * @returns The primary display.
 		 */
-		getPrimaryDisplay(): any;
+		getPrimaryDisplay(): Display;
 		/**
 		 * @returns An array of displays that are currently available.
 		 */
-		getAllDisplays(): any[];
+		getAllDisplays(): Display[];
 		/**
 		 * @returns The display nearest the specified point.
 		 */
-		getDisplayNearestPoint(point: {
-			x: number;
-			y: number;
-		}): any;
+		getDisplayNearestPoint(point: Point): Display;
 		/**
 		 * @returns The display that most closely intersects the provided bounds.
 		 */
-		getDisplayMatching(rect: Rectangle): any;
+		getDisplayMatching(rect: Rectangle): Display;
 	}
 
 	/**
@@ -510,6 +535,7 @@ declare module Electron {
 		subpixelFontScaling?: boolean;
 		overlayFullscreenVideo?: boolean;
 		titleBarStyle?: string;
+		backgroundColor?: string;
 	}
 
 	interface Rectangle {

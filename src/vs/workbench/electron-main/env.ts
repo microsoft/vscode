@@ -43,7 +43,7 @@ export interface IProductConfiguration {
 		serviceUrl: string;
 		itemUrl: string;
 	};
-	crashReporter: ICrashReporterConfigBrowser;
+	crashReporter: Electron.CrashReporterStartOptions;
 	welcomePage: string;
 	enableTelemetry: boolean;
 	aiConfig: {

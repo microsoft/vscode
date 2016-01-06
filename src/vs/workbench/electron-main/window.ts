@@ -106,7 +106,7 @@ export interface IWindowConfiguration extends env.ICommandLineArguments {
 	filesToOpen?: IPath[];
 	filesToCreate?: IPath[];
 	extensionsToInstall: string[];
-	crashReporter: ICrashReporterConfigBrowser;
+	crashReporter: Electron.CrashReporterStartOptions;
 	extensionsGallery: {
 		serviceUrl: string;
 		itemUrl: string;
@@ -165,7 +165,7 @@ export class VSCodeWindow {
 			global.windowShow = new Date().getTime();
 		}
 
-		let options: IBrowserWindowOptions = {
+		let options: Electron.BrowserWindowOptions = {
 			width: this.windowState.width,
 			height: this.windowState.height,
 			x: this.windowState.x,
@@ -532,7 +532,7 @@ export class VSCodeWindow {
 		return null;
 	}
 
-	public getBounds(): IBounds {
+	public getBounds(): Electron.Bounds {
 		let pos = this.win.getPosition();
 		let dimension = this.win.getSize();
 

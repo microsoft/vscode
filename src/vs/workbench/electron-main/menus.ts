@@ -214,7 +214,7 @@ export class VSCodeMenu {
 			let dockMenu = new Menu();
 			dockMenu.append(new MenuItem({ label: mnemonicLabel(nls.localize('miNewWindow', "&&New Window")), click: () => windows.manager.openNewWindow() }));
 
-			app.dock.setMenu(<any>dockMenu);
+			app.dock.setMenu(dockMenu);
 		}
 	}
 
@@ -643,7 +643,7 @@ export class VSCodeMenu {
 		return new MenuItem(options);
 	}
 
-	private createDevToolsAwareMenuItem(label:string, actionId: string, devToolsFocusedFn: (contents: WebContents) => void): Electron.MenuItem {
+	private createDevToolsAwareMenuItem(label:string, actionId: string, devToolsFocusedFn: (contents: Electron.WebContents) => void): Electron.MenuItem {
 		return new MenuItem({
 			label: mnemonicLabel(label),
 			accelerator: this.getAccelerator(actionId),

@@ -796,7 +796,7 @@ export class WindowsManager {
 		//
 
 		// We want the new window to open on the same display that the last active one is in
-		let displayToUse: IDisplay;
+		let displayToUse: Electron.Display;
 		let displays = screen.getAllDisplays();
 
 		// Single Display

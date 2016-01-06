@@ -38,7 +38,7 @@ export interface IUpdate {
 	quitAndUpdate: () => void;
 }
 
-interface IAutoUpdater extends IEventEmitter {
+interface IAutoUpdater extends NodeJS.EventEmitter {
 	setFeedURL(url: string): void;
 	checkForUpdates(): void;
 }
