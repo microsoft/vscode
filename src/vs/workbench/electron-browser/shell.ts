@@ -40,7 +40,7 @@ import {ConfigurationService} from 'vs/workbench/services/configuration/node/con
 import {FileService} from 'vs/workbench/services/files/electron-browser/fileService';
 import {SearchService} from 'vs/workbench/services/search/node/searchService';
 import {LifecycleService} from 'vs/workbench/services/lifecycle/electron-browser/lifecycleService';
-import PluginWorkbenchKeybindingService from 'vs/workbench/services/keybinding/electron-browser/pluginKeybindingService';
+import {WorkbenchKeybindingService} from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
 import {MainThreadService} from 'vs/workbench/services/thread/electron-browser/threadService';
 import {MarkerService} from 'vs/platform/markers/common/markerService';
 import {IActionsService} from 'vs/platform/actions/common/actions';
@@ -164,7 +164,7 @@ export class WorkbenchShell {
 	private themeService: IThemeService;
 	private contextService: WorkspaceContextService;
 	private telemetryService: ElectronTelemetryService;
-	private keybindingService: PluginWorkbenchKeybindingService;
+	private keybindingService: WorkbenchKeybindingService;
 
 	private container: HTMLElement;
 	private toUnbind: { (): void; }[];
@@ -275,7 +275,7 @@ export class WorkbenchShell {
 		let enableTelemetry = this.configuration.env.isBuilt && !this.configuration.env.pluginDevelopmentPath ? !!this.configuration.env.enableTelemetry : false;
 		this.telemetryService = new ElectronTelemetryService(this.storageService, { enableTelemetry: enableTelemetry, version: this.configuration.env.version, commitHash: this.configuration.env.commitHash });
 
-		this.keybindingService = new PluginWorkbenchKeybindingService(this.contextService, eventService, this.telemetryService, <any>window);
+		this.keybindingService = new WorkbenchKeybindingService(this.contextService, eventService, this.telemetryService, <any>window);
 
 		this.messageService = new MessageService(this.contextService, this.windowService, this.telemetryService, this.keybindingService);
 		this.keybindingService.setMessageService(this.messageService);
