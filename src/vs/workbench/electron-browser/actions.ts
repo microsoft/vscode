@@ -19,7 +19,7 @@ import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpe
 import {INullService} from 'vs/platform/instantiation/common/instantiation';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 
-import ipc = require('ipc'); // ipcRenderer
+import {ipcRenderer as ipc} from 'electron';
 import remote = require('remote');
 import webFrame = require('web-frame');
 

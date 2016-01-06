@@ -30,7 +30,7 @@ import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IConfigurationService, IConfigurationServiceEvent, ConfigurationServiceEventTypes} from 'vs/platform/configuration/common/configuration';
 
 import remote = require('remote');
-import ipc = require('ipc'); // ipcRenderer
+import {ipcRenderer as ipc} from 'electron';
 
 const Dialog = remote.require('dialog');
 

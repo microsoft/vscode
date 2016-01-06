@@ -13,7 +13,7 @@
 		<script type="text/javascript">
 			var path = require('path');
 			var remote = require('remote');
-			var ipc = require('ipc'); // ipcRenderer
+			var ipc = require('electron').ipcRenderer;
 
 			function onError(error, enableDeveloperTools) {
 				if (enableDeveloperTools) {

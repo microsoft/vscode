@@ -11,7 +11,7 @@ import events = require('vs/base/common/eventEmitter');
 import platform = require('vs/base/common/platform');
 
 import BrowserWindow = require('browser-window');
-import ipc = require('ipc'); // ipcMain
+import {ipcMain as ipc} from 'electron';
 
 interface ICredentialsContext {
 	id: number;

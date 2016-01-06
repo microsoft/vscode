@@ -22,7 +22,7 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 
 import remote = require('remote');
-import ipc = require('ipc'); // ipcRenderer
+import {ipcRenderer as ipc} from 'electron';
 
 export interface IPath {
 	filePath: string;
