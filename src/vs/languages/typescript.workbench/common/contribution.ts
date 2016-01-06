@@ -13,7 +13,7 @@ import {AsyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
 // contributes the project resolver logic to TypeScript and JavaScript
 // this guy is for the workbench, but not for the standalone editor
 
-if (env.enableJavaScriptRewriting) {
+if (env.enableJavaScriptRewriting && !env.enableTypeScriptServiceModeForJS) {
 	modesExt.registerWorkerParticipant('javascript', 'vs/languages/typescript/common/js/globalVariableRewriter', 'GlobalVariableCollector');
 	modesExt.registerWorkerParticipant('javascript', 'vs/languages/typescript/common/js/angularServiceRewriter', 'AngularServiceRewriter');
 	modesExt.registerWorkerParticipant('javascript', 'vs/languages/typescript/common/js/requireRewriter');
