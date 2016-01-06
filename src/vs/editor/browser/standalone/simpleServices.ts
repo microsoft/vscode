@@ -21,7 +21,7 @@ import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IKeybindingContextKey, IKeybindingItem, ICommandHandler, ICommandsMap} from 'vs/platform/keybinding/common/keybindingService';
 import {AbstractPluginService} from 'vs/platform/plugins/common/abstractPluginService';
-import {IOSupport} from 'vs/platform/keybinding/common/commonKeybindingResolver';
+import {IOSupport} from 'vs/platform/keybinding/common/keybindingResolver';
 import {PluginsRegistry, PluginsMessageCollector} from 'vs/platform/plugins/common/pluginsRegistry';
 
 export class SimpleEditor implements IEditor {

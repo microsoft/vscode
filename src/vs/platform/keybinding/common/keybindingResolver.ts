@@ -4,10 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
-import {KeybindingsUtils} from 'vs/platform/keybinding/common/keybindingsUtils';
-import Platform = require('vs/base/common/platform');
-import {IKeybindingService, IKeybindingScopeLocation, ICommandHandler, IKeybindingItem, IKeybindings, KbExpr, IUserFriendlyKeybinding, IKeybindingContextKey} from 'vs/platform/keybinding/common/keybindingService';
+import * as Platform from 'vs/base/common/platform';
+import {IKeybindingItem, KbExpr, IUserFriendlyKeybinding} from 'vs/platform/keybinding/common/keybindingService';
 import {KeyMod, KeyCode, BinaryKeybindings, Keybinding} from 'vs/base/common/keyCodes';
 
 export interface IResolveResult {
@@ -33,7 +31,7 @@ interface ICommandEntry {
 	commandId: string;
 }
 
-export class CommonKeybindingResolver {
+export class KeybindingResolver {
 	private _defaultKeybindings: IKeybindingItem[];
 	private _defaultBoundCommands: IBoundCommands;
 	private _map: ICommandMap;
@@ -107,10 +105,10 @@ export class CommonKeybindingResolver {
 			return;
 		}
 
-		var conflicts = this._map[keypress];
+		let conflicts = this._map[keypress];
 
-		for (var i = conflicts.length - 1; i >= 0; i--) {
-			var conflict = conflicts[i];
+		for (let i = conflicts.length - 1; i >= 0; i--) {
+			let conflict = conflicts[i];
 
 			if (conflict.commandId === item.command) {
 				continue;
@@ -121,7 +119,7 @@ export class CommonKeybindingResolver {
 				continue;
 			}
 
-			if (CommonKeybindingResolver.contextIsEntirelyIncluded(true, conflict.context, item.context)) {
+			if (KeybindingResolver.contextIsEntirelyIncluded(true, conflict.context, item.context)) {
 				// `item` completely overwrites `conflict`
 				if (this._shouldWarnOnConflict && isDefault) {
 					console.warn('Conflict detected, command `' + conflict.commandId + '` cannot be triggered by ' + Keybinding.toUserSettingsLabel(keypress));
@@ -182,11 +180,17 @@ export class CommonKeybindingResolver {
 	}
 
 	public getDefaultKeybindings(): string {
-		var out = new OutputBuilder();
+		let out = new OutputBuilder();
 		out.writeLine('[');
-		this._defaultKeybindings.forEach(k => {
+
+		let lastIndex = this._defaultKeybindings.length - 1;
+		this._defaultKeybindings.forEach((k, index) => {
 			IOSupport.writeKeybindingItem(out, k);
-			out.writeLine(',');
+			if (index !== lastIndex) {
+				out.writeLine(',');
+			} else {
+				out.writeLine();
+			}
 		});
 		out.writeLine(']');
 		return out.toString();
@@ -262,7 +266,7 @@ export class CommonKeybindingResolver {
 		for (let i = matches.length - 1; i >= 0; i--) {
 			let k = matches[i];
 
-			if (!CommonKeybindingResolver.contextMatchesRules(context, k.context)) {
+			if (!KeybindingResolver.contextMatchesRules(context, k.context)) {
 				continue;
 			}
 
@@ -339,8 +343,8 @@ export class IOSupport {
 	}
 
 	public static readKeybindingItem(input: IUserFriendlyKeybinding, index:number): IKeybindingItem {
-		var key = IOSupport.readKeybinding(input.key);
-		var context = IOSupport.readKeybindingContexts(input.when);
+		let key = IOSupport.readKeybinding(input.key);
+		let context = IOSupport.readKeybindingContexts(input.when);
 		return {
 			keybinding: key,
 			command: input.command,
@@ -360,7 +364,7 @@ export class IOSupport {
 		}
 		input = input.toLowerCase().trim();
 
-		var ctrlCmd = false,
+		let ctrlCmd = false,
 			shift = false,
 			alt = false,
 			winCtrl = false,
@@ -415,9 +419,9 @@ export class IOSupport {
 			});
 		}
 
-		var chord: number = 0;
+		let chord: number = 0;
 
-		var firstSpaceIdx = input.indexOf(' ');
+		let firstSpaceIdx = input.indexOf(' ');
 		if (firstSpaceIdx > 0) {
 			key = input.substring(0, firstSpaceIdx);
 			chord = IOSupport.readKeybinding(input.substring(firstSpaceIdx));

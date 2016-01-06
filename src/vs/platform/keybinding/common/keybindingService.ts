@@ -6,7 +6,7 @@
 
 import {TPromise} from 'vs/base/common/winjs.base';
 import {TypeConstraint} from 'vs/base/common/types';
-import {createDecorator, IInstantiationService, ServiceIdentifier, ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
+import {createDecorator, ServiceIdentifier, ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
 import {Keybinding} from 'vs/base/common/keyCodes';
 import {IHTMLContentElement} from 'vs/base/common/htmlContent';
 
@@ -168,7 +168,7 @@ export class KbAndExpression implements KbExpr {
 	}
 
 	public evaluate(context:any): boolean {
-		for (var i = 0, len = this.expr.length; i < len; i++) {
+		for (let i = 0, len = this.expr.length; i < len; i++) {
 			if (!this.expr[i].evaluate(context)) {
 				return false;
 			}
@@ -221,7 +221,7 @@ export class KbAndExpression implements KbExpr {
 }
 
 
-export var KbExpr = {
+export let KbExpr = {
 	has: (key:string) => new KbDefinedExpression(key),
 	equals: (key:string, value:any) => new KbEqualsExpression(key, value),
 	notEquals: (key:string, value:any) => new KbNotEqualsExpression(key, value),
@@ -268,7 +268,7 @@ export var KbExpr = {
 			return false;
 		}
 
-		var m = /^'([^']*)'$/.exec(serializedValue);
+		let m = /^'([^']*)'$/.exec(serializedValue);
 		if (m) {
 			return m[1].trim();
 		}
@@ -305,7 +305,7 @@ export interface IKeybindingContextKey<T> {
 	reset(): void;
 }
 
-export var IKeybindingService = createDecorator<IKeybindingService>('keybindingService');
+export let IKeybindingService = createDecorator<IKeybindingService>('keybindingService');
 
 export interface IKeybindingScopeLocation {
 	setAttribute(attr:string, value:string): void;

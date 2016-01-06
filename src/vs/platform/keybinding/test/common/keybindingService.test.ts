@@ -4,11 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
-import {CommonKeybindingResolver, IOSupport} from 'vs/platform/keybinding/common/commonKeybindingResolver';
-import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
-import {KeybindingsUtils} from 'vs/platform/keybinding/common/keybindingsUtils';
-import Platform = require('vs/base/common/platform');
+import * as assert from 'assert';
+import {KeybindingResolver, IOSupport} from 'vs/platform/keybinding/common/keybindingResolver';
+import * as Platform from 'vs/base/common/platform';
 import {KbExpr, KbAndExpression, IKeybindingItem} from 'vs/platform/keybinding/common/keybindingService';
 import {KeyMod, KeyCode, BinaryKeybindings} from 'vs/base/common/keyCodes';
 
@@ -25,10 +23,10 @@ suite('Keybinding Service', () => {
 			weight2: 0
 		};
 
-		assert.equal(CommonKeybindingResolver.contextMatchesRules({ bar: 'baz' }, contextRules), true);
-		assert.equal(CommonKeybindingResolver.contextMatchesRules({ bar: 'bz' }, contextRules), false);
+		assert.equal(KeybindingResolver.contextMatchesRules({ bar: 'baz' }, contextRules), true);
+		assert.equal(KeybindingResolver.contextMatchesRules({ bar: 'bz' }, contextRules), false);
 
-		var resolver = new CommonKeybindingResolver([keybindingItem], []);
+		var resolver = new KeybindingResolver([keybindingItem], []);
 		assert.equal(resolver.resolve({ bar: 'baz' }, 0, keybinding).commandId, 'yes');
 		assert.equal(resolver.resolve({ bar: 'bz' }, 0, keybinding), null);
 	});
@@ -47,10 +45,10 @@ suite('Keybinding Service', () => {
 
 	test('contextIsEntirelyIncluded', function () {
 		var assertIsIncluded = (a: KbExpr[], b: KbExpr[]) => {
-			assert.equal(CommonKeybindingResolver.contextIsEntirelyIncluded(false, new KbAndExpression(a), new KbAndExpression(b)), true);
+			assert.equal(KeybindingResolver.contextIsEntirelyIncluded(false, new KbAndExpression(a), new KbAndExpression(b)), true);
 		};
 		var assertIsNotIncluded = (a: KbExpr[], b: KbExpr[]) => {
-			assert.equal(CommonKeybindingResolver.contextIsEntirelyIncluded(false, new KbAndExpression(a), new KbAndExpression(b)), false);
+			assert.equal(KeybindingResolver.contextIsEntirelyIncluded(false, new KbAndExpression(a), new KbAndExpression(b)), false);
 		};
 		var key1IsTrue = KbExpr.equals('key1', true);
 		var key1IsNotFalse = KbExpr.notEquals('key1', false);
@@ -203,7 +201,7 @@ suite('Keybinding Service', () => {
 			}
 		];
 
-		var resolver = new CommonKeybindingResolver(items, [], false);
+		var resolver = new KeybindingResolver(items, [], false);
 
 
 
@@ -278,7 +276,7 @@ suite('Keybinding Service', () => {
 		};
 		function testExpression(expr:string, expected:boolean): void {
 			let rules = IOSupport.readKeybindingContexts(expr);
-			assert.equal(CommonKeybindingResolver.contextMatchesRules(context, rules), expected, expr);
+			assert.equal(KeybindingResolver.contextMatchesRules(context, rules), expected, expr);
 		}
 		function testBatch(expr:string, value:any): void {
 			testExpression(expr, !!value);

@@ -21,7 +21,7 @@ import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/edito
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {RunOnceScheduler} from 'vs/base/common/async';
-import {IOSupport} from 'vs/platform/keybinding/common/commonKeybindingResolver';
+import {IOSupport} from 'vs/platform/keybinding/common/keybindingResolver';
 import {IHTMLContentElement} from 'vs/base/common/htmlContent';
 import {renderHtml} from 'vs/base/browser/htmlContentRenderer';
 import {Range} from 'vs/editor/common/core/range';

@@ -17,7 +17,6 @@ import Filters = require('vs/base/common/filters');
 import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {EditorAction, Behaviour} from 'vs/editor/common/editorAction';
 import EditorQuickOpen = require('./editorQuickOpen');
-import {KeybindingsUtils} from 'vs/platform/keybinding/common/keybindingsUtils';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 
 export class EditorActionCommandEntry extends QuickOpenModel.QuickOpenEntryGroup {
