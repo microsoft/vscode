@@ -517,7 +517,7 @@ export class WorkbenchShell {
 		console.error(errorMsg);
 
 		// Show to user if friendly message provided
-		if (error.friendlyMessage && this.messageService) {
+		if (error && error.friendlyMessage && this.messageService) {
 			this.messageService.show(Severity.Error, error.friendlyMessage);
 		}
 	}
