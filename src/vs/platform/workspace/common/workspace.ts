@@ -141,7 +141,6 @@ export interface IEnvironment {
 	};
 
 	sendASmile: {
-		submitUrl: string,
 		reportIssueUrl: string,
 		requestFeatureUrl: string
 	};
