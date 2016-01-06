@@ -15,6 +15,8 @@
 	"activationEvents": [
 		"onLanguage:typescript",
 		"onLanguage:typescriptreact",
+		"onLanguage:javascript",
+		"onLanguage:javascriptreact",
 		"onCommand:typescript.reloadProjects"
 	],
 	"main": "./out/typescriptMain",

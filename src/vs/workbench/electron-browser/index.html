@@ -148,7 +148,7 @@
 					'enableJavaScriptRewriting': true,
 					'enableSendASmile' : !!configuration.sendASmile,
 					'enableTypeScriptServiceMode': true || !process.env['VSCODE_TSWORKER'],
-					'enableTypeScriptServiceModeForJS': !!process.env['CODE_TSJS']
+					'enableTypeScriptServiceModeForJS': !!process.env['CODE_TSJS'] || !!process.env['VSCODE_TSJS']
 				};
 
 				var programStart = remote.getGlobal('programStart');
