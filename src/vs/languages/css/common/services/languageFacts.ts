@@ -230,6 +230,13 @@ export var boxKeywords : { [name:string]:string } = {
 	'padding-box': 'The background is painted within (clipped to) the padding box.'
 };
 
+export var geometryBoxKeywords : { [name:string]:string } = {
+	'margin-box': 'Uses the margin box as reference box.',
+	'fill-box': 'Uses the object bounding box as reference box.',
+	'stroke-box': 'Uses the stroke bounding box as reference box.',
+	'view-box': 'Uses the nearest SVG viewport as reference box.'
+};
+
 export var cssWideKeywords = ['initial', 'inherit', 'unset'];
 
 export var units : { [unitName:string]:string[] } = {

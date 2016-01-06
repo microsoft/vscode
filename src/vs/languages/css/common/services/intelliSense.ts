@@ -319,7 +319,18 @@ export class CSSIntellisense {
 	}
 
 	protected getBoxProposals(entry:languageFacts.IEntry, result:Modes.ISuggestion[]):Modes.ISuggestion[] {
-		if (entry.restrictions.indexOf('box') !== -1) {
+		var geometryBox = entry.restrictions.indexOf('geometry-box');
+		if (geometryBox !== -1) {
+			for (var box in languageFacts.geometryBoxKeywords) {
+				result.push({
+					label: box,
+					documentationLabel: languageFacts.geometryBoxKeywords[box],
+					codeSnippet: box,
+					type: 'value'
+				});
+			}
+		};
+		if (entry.restrictions.indexOf('box') !== -1 || geometryBox !== -1) {
 			for (var box in languageFacts.boxKeywords) {
 				result.push({
 					label: box,

@@ -1600,7 +1600,7 @@
         </value>
       </values>
     </entry>
-    <entry name="clip-path" restriction="url, box, enum" version="3.0" browsers="FF3.5" ref="http://www.w3.org/TR/css-masking/#the-clip-path">
+    <entry name="clip-path" restriction="url, geometry-box, enum" version="3.0" browsers="FF3.5" ref="http://www.w3.org/TR/css-masking/#the-clip-path">
       <desc>Specifies a clipping path where everything inside the path is visable and everything outside is clipped out.</desc>
       <values>
         <value name="none" version="3.0" browsers="all">
@@ -1617,18 +1617,6 @@
         </value>
         <value name="polygon()" version="3.0" browsers="none">
           <desc>Defines a polygon.</desc>
-        </value>
-        <value name="margin-box" version="3.0" browsers="none">
-          <desc>The background is painted within (clipped to) the margin box.</desc>
-        </value>
-        <value name="fill-box" version="3.0" browsers="none">
-          <desc>Uses the object bounding box as reference box.</desc>
-        </value>
-        <value name="stroke-box" version="3.0" browsers="none">
-          <desc>Uses the stroke bounding box as reference box.</desc>
-        </value>
-        <value name="view-box" version="3.0" browsers="none">
-          <desc>Uses the nearest SVG viewport as reference box.</desc>
         </value>
         <value name="url()" version="3.0" browsers="all">
           <desc>References a &lt;clipPath> element to create a clipping path.</desc>
@@ -3635,7 +3623,7 @@
         <value name="url()" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="mask" restriction="url, image, length, percentage, position, repeat, box, enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-masking-1/#the-mask">
+    <entry name="mask" restriction="url, image, length, percentage, position, repeat, geometry-box, enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-masking-1/#the-mask">
       <desc>The mask shorthand.</desc>
       <values>
         <value name="none" version="3.0" browsers="all">
@@ -3657,20 +3645,8 @@
         <value name="cover" version="3.0" browsers="all">
           <desc>Scale the image, while preserving its intrinsic aspect ratio (if any), to the smallest size such that both its width and its height can completely cover the background positioning area.</desc>
         </value>
-        <value name="margin-box" version="3.0" browsers="all">
-          <desc>The background is painted within (clipped to) the margin box.</desc>
-        </value>
         <value name="no-clip" version="3.0" browsers="all">
           <desc>The painted content is not restricted (not clipped).</desc>
-        </value>
-        <value name="fill-box" version="3.0" browsers="all">
-          <desc>Uses the object bounding box as reference box.</desc>
-        </value>
-        <value name="stroke-box" version="3.0" browsers="all">
-          <desc>Uses the stroke bounding box as reference box.</desc>
-        </value>
-        <value name="view-box" version="3.0" browsers="all">
-          <desc>Uses the nearest SVG viewport as reference box.</desc>
         </value>
         <value name="add" version="3.0" browsers="all">
           <desc>The source is placed over the destination.</desc>
@@ -3773,24 +3749,13 @@
         </value>
       </values>
     </entry>
-    <entry name="mask-clip" restriction="box, enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-masking-1/#the-mask-clip">
+    <entry name="mask-clip" restriction="geometry-box, enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-masking-1/#the-mask-clip">
       <desc>Determines the mask painting area, which determines the area that is affected by the mask.</desc>
       <values>
-        <value name="margin-box" version="3.0" browsers="all">
-          <desc>The background is painted within (clipped to) the margin box.</desc>
-        </value>
         <value name="no-clip" version="3.0" browsers="all">
           <desc>The painted content is not restricted (not clipped).</desc>
         </value>
-        <value name="fill-box" version="3.0" browsers="all">
-          <desc>Uses the object bounding box as reference box.</desc>
-        </value>
-        <value name="stroke-box" version="3.0" browsers="all">
-          <desc>Uses the stroke bounding box as reference box.</desc>
-        </value>
-        <value name="view-box" version="3.0" browsers="all">
-          <desc>Uses the nearest SVG viewport as reference box.</desc>
-        </value>
+        <value name="" version="3.0" browsers="none"/>
       </values>
     </entry>
     <entry name="mask-composite" restriction="enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-masking-1/#the-mask-composite">
@@ -3835,22 +3800,8 @@
         </value>
       </values>
     </entry>
-    <entry name="mask-origin" restriction="box, enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-masking-1/#the-mask-origin">
+    <entry name="mask-origin" restriction="geometry-box, enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-masking-1/#the-mask-origin">
       <desc>Specifies the mask positioning area.</desc>
-      <values>
-        <value name="margin-box" version="3.0" browsers="all">
-          <desc>The background is painted within (clipped to) the margin box.</desc>
-        </value>
-        <value name="fill-box" version="3.0" browsers="all">
-          <desc>Uses the object bounding box as reference box.</desc>
-        </value>
-        <value name="stroke-box" version="3.0" browsers="all">
-          <desc>Uses the stroke bounding box as reference box.</desc>
-        </value>
-        <value name="view-box" version="3.0" browsers="all">
-          <desc>Uses the nearest SVG viewport as reference box.</desc>
-        </value>
-      </values>
     </entry>
     <entry name="mask-position" restriction="position, length, percentage" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-masking-1/#the-mask-position">
       <desc>Specifies how mask layer images are positioned.</desc>
@@ -4042,7 +3993,7 @@
         </value>
       </values>
     </entry>
-    <entry name="motion" restriction="url, length, percentage, angle, box, enum" version="3.0" browsers="C46,O33" ref="http://www.w3.org/TR/motion-1/#propdef-motion">
+    <entry name="motion" restriction="url, length, percentage, angle, geometry-box, enum" version="3.0" browsers="C46,O33" ref="http://www.w3.org/TR/motion-1/#propdef-motion">
       <desc>Shorthand property for setting 'motion-path', 'motion-offset' and 'motion-rotation'.</desc>
       <values>
         <value name="inset()" version="3.0" browsers="none">
@@ -4056,18 +4007,6 @@
         </value>
         <value name="polygon()" version="3.0" browsers="none">
           <desc>Defines a polygon.</desc>
-        </value>
-        <value name="margin-box" version="3.0" browsers="none">
-          <desc>The background is painted within (clipped to) the margin box.</desc>
-        </value>
-        <value name="fill-box" version="3.0" browsers="none">
-          <desc>Uses the object bounding box as reference box.</desc>
-        </value>
-        <value name="stroke-box" version="3.0" browsers="none">
-          <desc>Uses the stroke bounding box as reference box.</desc>
-        </value>
-        <value name="view-box" version="3.0" browsers="none">
-          <desc>Uses the nearest SVG viewport as reference box.</desc>
         </value>
         <value name="none" version="3.0" browsers="all">
           <desc>No motion path gets created.</desc>
@@ -4089,7 +4028,7 @@
     <entry name="motion-offset" restriction="length, percentage" version="3.0" browsers="C46,O33" ref="http://www.w3.org/TR/motion-1/#propdef-motion-offset" syntax="div { $(name): 10%; }">
       <desc>A distance that describes the position along the specified motion path.</desc>
     </entry>
-    <entry name="motion-path" restriction="url, box, enum" version="3.0" browsers="C46,O33" ref="http://www.w3.org/TR/motion-1/#propdef-motion-path">
+    <entry name="motion-path" restriction="url, geometry-box, enum" version="3.0" browsers="C46,O33" ref="http://www.w3.org/TR/motion-1/#propdef-motion-path">
       <desc>Specifies the motion path the element gets positioned at.</desc>
       <values>
         <value name="inset()" version="3.0" browsers="none">
@@ -4103,18 +4042,6 @@
         </value>
         <value name="polygon()" version="3.0" browsers="none">
           <desc>Defines a polygon.</desc>
-        </value>
-        <value name="margin-box" version="3.0" browsers="none">
-          <desc>The background is painted within (clipped to) the margin box.</desc>
-        </value>
-        <value name="fill-box" version="3.0" browsers="none">
-          <desc>Uses the object bounding box as reference box.</desc>
-        </value>
-        <value name="stroke-box" version="3.0" browsers="none">
-          <desc>Uses the stroke bounding box as reference box.</desc>
-        </value>
-        <value name="view-box" version="3.0" browsers="none">
-          <desc>Uses the nearest SVG viewport as reference box.</desc>
         </value>
         <value name="none" version="3.0" browsers="all">
           <desc>No motion path gets created.</desc>

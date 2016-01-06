@@ -2016,7 +2016,7 @@ exports.data ={
 				"name": "clip-path",
 				"desc": "Specifies a clipping path where everything inside the path is visable and everything outside is clipped out.",
 				"browsers": "FF3.5",
-				"restriction": "url, box, enum",
+				"restriction": "url, geometry-box, enum",
 				"values": [
 					{
 						"name": "none",
@@ -4082,7 +4082,7 @@ exports.data ={
 				"name": "motion",
 				"desc": "Shorthand property for setting 'motion-path', 'motion-offset' and 'motion-rotation'.",
 				"browsers": "C46,O33",
-				"restriction": "url, length, percentage, angle, box, enum",
+				"restriction": "url, length, percentage, angle, geometry-box, enum",
 				"values": [
 					{
 						"name": "none",
@@ -4111,7 +4111,7 @@ exports.data ={
 				"name": "motion-path",
 				"desc": "Specifies the motion path the element gets positioned at.",
 				"browsers": "C46,O33",
-				"restriction": "url, box, enum",
+				"restriction": "url, geometry-box, enum",
 				"values": [
 					{
 						"name": "none",
