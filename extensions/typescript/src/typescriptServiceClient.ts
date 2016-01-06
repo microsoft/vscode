@@ -117,6 +117,11 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			} else if (workspace.rootPath) {
 				modulePath = path.join(workspace.rootPath, this.tsdk, 'tsserver.js');
 			}
+		} else if (!!process.env['CODE_TSJS'] || !!process.env['VSCODE_TSJS']) {
+			let candidate = path.join(workspace.rootPath, 'node_modules', 'typescript', 'lib', 'tsserver.js');
+			if (fs.existsSync(candidate)) {
+				modulePath = candidate;
+			}
 		}
 		if (!fs.existsSync(modulePath)) {
 			window.showErrorMessage(`The path ${path.dirname(modulePath)} doesn't point to a valid tsserver install. TypeScript language features will be disabled.`);
