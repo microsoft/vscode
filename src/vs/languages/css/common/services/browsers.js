@@ -1086,39 +1086,19 @@ exports.data ={
 			{
 				"name": "background",
 				"desc": "Shorthand property for setting most background properties at the same place in the style sheet.",
-				"restriction": "enum, image, color, length, repeat, percentage, box",
+				"restriction": "enum, image, color, position, length, repeat, percentage, box",
 				"values": [
-					{
-						"name": "bottom",
-						"desc": "Equivalent to '100%' for the vertical position if one or two values are given, otherwise specifies the bottom edge as the origin for the next offset."
-					},
-					{
-						"name": "center",
-						"desc": "Equivalent to '50%' ('left 50%') for the horizontal position if the horizontal position is not otherwise specified, or '50%' ('top 50%') for the vertical position if it is."
-					},
 					{
 						"name": "fixed",
 						"desc": "The background is fixed with regard to the viewport. In paged media where there is no viewport, a 'fixed' background is fixed with respect to the page box and therefore replicated on every page."
-					},
-					{
-						"name": "left",
-						"desc": "Equivalent to '0%' for the horizontal position if one or two values are given, otherwise specifies the left edge as the origin for the next offset."
 					},
 					{
 						"name": "local",
 						"desc": "The background is fixed with regard to the element's contents: if the element has a scrolling mechanism, the background scrolls with the element's contents."
 					},
 					{
-						"name": "right",
-						"desc": "Equivalent to '100%' for the horizontal position if one or two values are given, otherwise specifies the right edge as the origin for the next offset."
-					},
-					{
 						"name": "scroll",
 						"desc": "The background is fixed with regard to the element itself and does not scroll with its contents. (It is effectively attached to the element's border.)"
-					},
-					{
-						"name": "top",
-						"desc": "Equivalent to '0%' for the vertical position if one or two values are given, otherwise specifies the top edge as the origin for the next offset."
 					}
 				]
 			},

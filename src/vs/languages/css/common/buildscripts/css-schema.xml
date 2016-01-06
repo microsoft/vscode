@@ -867,20 +867,11 @@
         </value>
       </values>
     </entry>
-    <entry name="background" restriction="enum, image, color, length, repeat, percentage, box" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#background" syntax="section { $(name): url(image.png) no-repeat #999; }">
+    <entry name="background" restriction="enum, image, color, position, length, repeat, percentage, box" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#background" syntax="section { $(name): url(image.png) no-repeat #999; }">
       <desc>Shorthand property for setting most background properties at the same place in the style sheet.</desc>
       <values>
-        <value name="bottom" version="1.0" browsers="all">
-          <desc>Equivalent to '100%' for the vertical position if one or two values are given, otherwise specifies the bottom edge as the origin for the next offset.</desc>
-        </value>
-        <value name="center" version="1.0" browsers="all">
-          <desc>Equivalent to '50%' ('left 50%') for the horizontal position if the horizontal position is not otherwise specified, or '50%' ('top 50%') for the vertical position if it is.</desc>
-        </value>
         <value name="fixed" version="1.0" browsers="all">
           <desc>The background is fixed with regard to the viewport. In paged media where there is no viewport, a 'fixed' background is fixed with respect to the page box and therefore replicated on every page.</desc>
-        </value>
-        <value name="left" version="1.0" browsers="all">
-          <desc>Equivalent to '0%' for the horizontal position if one or two values are given, otherwise specifies the left edge as the origin for the next offset.</desc>
         </value>
         <value name="local" version="3.0" browsers="all">
           <desc>The background is fixed with regard to the element's contents: if the element has a scrolling mechanism, the background scrolls with the element's contents.</desc>
@@ -888,14 +879,8 @@
         <value name="none" version="1.0" browsers="all">
           <desc>A value of 'none' counts as an image layer but draws nothing.</desc>
         </value>
-        <value name="right" version="1.0" browsers="all">
-          <desc>Equivalent to '100%' for the horizontal position if one or two values are given, otherwise specifies the right edge as the origin for the next offset.</desc>
-        </value>
         <value name="scroll" version="1.0" browsers="all">
           <desc>The background is fixed with regard to the element itself and does not scroll with its contents. (It is effectively attached to the element's border.)</desc>
-        </value>
-        <value name="top" version="1.0" browsers="all">
-          <desc>Equivalent to '0%' for the vertical position if one or two values are given, otherwise specifies the top edge as the origin for the next offset.</desc>
         </value>
       </values>
     </entry>
