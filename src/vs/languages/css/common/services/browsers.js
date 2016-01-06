@@ -1,8 +1,10 @@
-/*---------------------------------------------------------
- * Copyright (C) Microsoft Corporation. All rights reserved.
- *---------------------------------------------------------*/
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
 // file generated from css-schema.xml using css-exclude_generate_browserjs.js
-define(["require", "exports"], function(require, exports) {	
+define(["require", "exports"], function(require, exports) {
 
 exports.data ={
 	"css": {
@@ -1084,7 +1086,7 @@ exports.data ={
 			{
 				"name": "background",
 				"desc": "Shorthand property for setting most background properties at the same place in the style sheet.",
-				"restriction": "enum, color, length, repeat, percentage, box, url",
+				"restriction": "enum, image, color, length, repeat, percentage, box",
 				"values": [
 					{
 						"name": "bottom",
@@ -1103,52 +1105,8 @@ exports.data ={
 						"desc": "Equivalent to '0%' for the horizontal position if one or two values are given, otherwise specifies the left edge as the origin for the next offset."
 					},
 					{
-						"name": "linear-gradient()",
-						"browsers": "FF16,IE10,O12.5"
-					},
-					{
 						"name": "local",
 						"desc": "The background is fixed with regard to the element's contents: if the element has a scrolling mechanism, the background scrolls with the element's contents."
-					},
-					{
-						"name": "-moz-element(#id)",
-						"browsers": "FF3.6"
-					},
-					{
-						"name": "-moz-linear-gradient()",
-						"browsers": "FF3.6"
-					},
-					{
-						"name": "-moz-radial-gradient()",
-						"browsers": "FF3.6"
-					},
-					{
-						"name": "-moz-repeating-linear-gradient()",
-						"browsers": "FF10"
-					},
-					{
-						"name": "-moz-repeating-radial-gradient()",
-						"browsers": "FF10"
-					},
-					{
-						"name": "-o-linear-gradient()",
-						"browsers": "O11.1-12"
-					},
-					{
-						"name": "-o-repeating-linear-gradient()",
-						"browsers": "O11.1-12"
-					},
-					{
-						"name": "radial-gradient()",
-						"browsers": "FF16,IE10,O12.5"
-					},
-					{
-						"name": "repeating-linear-gradient()",
-						"browsers": "FF16,IE10,O12.5"
-					},
-					{
-						"name": "repeating-radial-gradient()",
-						"browsers": "FF16,IE10,O12.5"
 					},
 					{
 						"name": "right",
@@ -1161,33 +1119,6 @@ exports.data ={
 					{
 						"name": "top",
 						"desc": "Equivalent to '0%' for the vertical position if one or two values are given, otherwise specifies the top edge as the origin for the next offset."
-					},
-					{
-						"name": "url()"
-					},
-					{
-						"name": "-webkit-gradient()",
-						"browsers": "C,S4"
-					},
-					{
-						"name": "-webkit-image-set()",
-						"browsers": "C,S6"
-					},
-					{
-						"name": "-webkit-linear-gradient()",
-						"browsers": "C,S5.1"
-					},
-					{
-						"name": "-webkit-radial-gradient()",
-						"browsers": "C,S5.1"
-					},
-					{
-						"name": "-webkit-repeating-linear-gradient()",
-						"browsers": "C,S5.1"
-					},
-					{
-						"name": "-webkit-repeating-radial-gradient()",
-						"browsers": "C,S5.1"
 					}
 				]
 			},
@@ -1286,82 +1217,11 @@ exports.data ={
 			{
 				"name": "background-image",
 				"desc": "Sets the background image(s) of an element.",
-				"restriction": "url, enum",
+				"restriction": "image, enum",
 				"values": [
-					{
-						"name": "linear-gradient()",
-						"browsers": "E,C26,FF16,IE10,O12.1,S6.1"
-					},
-					{
-						"name": "-moz-image-rect()",
-						"browsers": "FF3.6"
-					},
-					{
-						"name": "-moz-linear-gradient()",
-						"browsers": "FF3.6"
-					},
-					{
-						"name": "-moz-radial-gradient()",
-						"browsers": "FF3.6"
-					},
-					{
-						"name": "-moz-repeating-linear-gradient()",
-						"browsers": "FF10"
-					},
-					{
-						"name": "-moz-repeating-radial-gradient()",
-						"browsers": "FF10"
-					},
 					{
 						"name": "none",
 						"desc": "Counts as an image layer but draws nothing."
-					},
-					{
-						"name": "-o-linear-gradient()",
-						"browsers": "O11.1"
-					},
-					{
-						"name": "-o-repeating-linear-gradient()",
-						"browsers": "O11.1-12"
-					},
-					{
-						"name": "radial-gradient()",
-						"browsers": "E,FF16,IE10,O12.5"
-					},
-					{
-						"name": "repeating-linear-gradient()",
-						"browsers": "E,C26,FF16,IE10,O12.1,S6.1"
-					},
-					{
-						"name": "repeating-radial-gradient()",
-						"browsers": "E,C26,FF16,IE10,O12.1,S6.1"
-					},
-					{
-						"name": "url()"
-					},
-					{
-						"name": "-webkit-gradient()",
-						"browsers": "C,S4"
-					},
-					{
-						"name": "-webkit-image-set()",
-						"browsers": "C,S6"
-					},
-					{
-						"name": "-webkit-linear-gradient()",
-						"browsers": "C,S5.1"
-					},
-					{
-						"name": "-webkit-radial-gradient()",
-						"browsers": "C,S5.1"
-					},
-					{
-						"name": "-webkit-repeating-linear-gradient()",
-						"browsers": "C,S5.1"
-					},
-					{
-						"name": "-webkit-repeating-radial-gradient()",
-						"browsers": "C,S5.1"
 					}
 				]
 			},
@@ -3673,27 +3533,8 @@ exports.data ={
 			{
 				"name": "list-style-image",
 				"desc": "Sets the image that will be used as the list item marker. When the image is available, it will replace the marker set with the 'list-style-type' marker.",
-				"restriction": "url",
-				"values": [
-					{
-						"name": "none"
-					},
-					{
-						"name": "url()"
-					},
-					{
-						"name": "linear-gradient()"
-					},
-					{
-						"name": "radial-gradient()"
-					},
-					{
-						"name": "repeating-linear-gradient()"
-					},
-					{
-						"name": "repeating-radial-gradient()"
-					}
-				]
+				"restriction": "image",
+				"values": []
 			},
 			{
 				"name": "list-style-position",
@@ -7940,29 +7781,14 @@ exports.data ={
 				"name": "shape-outside",
 				"desc": "Specifies an orthogonal rotation to be applied to an image before it is laid out.",
 				"browsers": "C37,O24",
-				"restriction": "box, shape, enum",
+				"restriction": "image, box, shape, enum",
 				"values": [
-					{
-						"name": "image()"
-					},
-					{
-						"name": "linear-gradient()"
-					},
 					{
 						"name": "margin-box"
 					},
 					{
 						"name": "none",
 						"desc": "The float area is unaffected."
-					},
-					{
-						"name": "radial-gradient()"
-					},
-					{
-						"name": "repeating-linear-gradient()"
-					},
-					{
-						"name": "repeating-radial-gradient()"
 					}
 				]
 			},

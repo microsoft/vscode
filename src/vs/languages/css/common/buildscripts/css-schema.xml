@@ -867,7 +867,7 @@
         </value>
       </values>
     </entry>
-    <entry name="background" restriction="enum, color, length, repeat, percentage, box, url" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#background" syntax="section { $(name): url(image.png) no-repeat #999; }">
+    <entry name="background" restriction="enum, image, color, length, repeat, percentage, box" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#background" syntax="section { $(name): url(image.png) no-repeat #999; }">
       <desc>Shorthand property for setting most background properties at the same place in the style sheet.</desc>
       <values>
         <value name="bottom" version="1.0" browsers="all">
@@ -882,23 +882,12 @@
         <value name="left" version="1.0" browsers="all">
           <desc>Equivalent to '0%' for the horizontal position if one or two values are given, otherwise specifies the left edge as the origin for the next offset.</desc>
         </value>
-        <value name="linear-gradient()" version="3.0" browsers="FF16,IE10,O12.5" />
         <value name="local" version="3.0" browsers="all">
           <desc>The background is fixed with regard to the element's contents: if the element has a scrolling mechanism, the background scrolls with the element's contents.</desc>
         </value>
-        <value name="-moz-element(#id)" version="3.0" browsers="FF3.6" />
-        <value name="-moz-linear-gradient()" version="3.0" browsers="FF3.6" />
-        <value name="-moz-radial-gradient()" version="3.0" browsers="FF3.6" />
-        <value name="-moz-repeating-linear-gradient()" version="3.0" browsers="FF10" />
-        <value name="-moz-repeating-radial-gradient()" version="3.0" browsers="FF10" />
         <value name="none" version="1.0" browsers="all">
           <desc>A value of 'none' counts as an image layer but draws nothing.</desc>
         </value>
-        <value name="-o-linear-gradient()" version="3.0" browsers="O11.1-12" />
-        <value name="-o-repeating-linear-gradient()" version="3.0" browsers="O11.1-12" />
-        <value name="radial-gradient()" version="3.0" browsers="FF16,IE10,O12.5" />
-        <value name="repeating-linear-gradient()" version="3.0" browsers="FF16,IE10,O12.5" />
-        <value name="repeating-radial-gradient()" version="3.0" browsers="FF16,IE10,O12.5" />
         <value name="right" version="1.0" browsers="all">
           <desc>Equivalent to '100%' for the horizontal position if one or two values are given, otherwise specifies the right edge as the origin for the next offset.</desc>
         </value>
@@ -908,13 +897,6 @@
         <value name="top" version="1.0" browsers="all">
           <desc>Equivalent to '0%' for the vertical position if one or two values are given, otherwise specifies the top edge as the origin for the next offset.</desc>
         </value>
-        <value name="url()" version="1.0" browsers="all" />
-        <value name="-webkit-gradient()" version="3.0" browsers="C,S4" />
-        <value name="-webkit-image-set()" version="3.0" browsers="C,S6" />
-        <value name="-webkit-linear-gradient()" version="3.0" browsers="C,S5.1" />
-        <value name="-webkit-radial-gradient()" version="3.0" browsers="C,S5.1" />
-        <value name="-webkit-repeating-linear-gradient()" version="3.0" browsers="C,S5.1" />
-        <value name="-webkit-repeating-radial-gradient()" version="3.0" browsers="C,S5.1" />
       </values>
     </entry>
     <entry name="background-attachment" restriction="enum" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#the-background-attachment" syntax=".box { $(name): fixed; }">
@@ -990,30 +972,13 @@
     <entry name="background-color" restriction="color" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#the-background-color" syntax="body { $(name): white; }">
       <desc>Sets the background color of an element.</desc>
     </entry>
-    <entry name="background-image" restriction="url, enum" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#the-background-image" syntax="article { $(name): url(image.png); }">
+    <entry name="background-image" restriction="image, enum" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-background/#the-background-image" syntax="article { $(name): url(image.png); }">
       <desc>Sets the background image(s) of an element.</desc>
       <values>
-        <value name="linear-gradient()" version="3.0" browsers="E,C26,FF16,IE10,O12.1,S6.1" />
-        <value name="-moz-image-rect()" version="3.0" browsers="FF3.6" />
-        <value name="-moz-linear-gradient()" version="3.0" browsers="FF3.6" />
-        <value name="-moz-radial-gradient()" version="3.0" browsers="FF3.6" />
-        <value name="-moz-repeating-linear-gradient()" version="3.0" browsers="FF10" />
-        <value name="-moz-repeating-radial-gradient()" version="3.0" browsers="FF10" />
         <value name="none" version="1.0" browsers="all">
           <desc>Counts as an image layer but draws nothing.</desc>
         </value>
-        <value name="-o-linear-gradient()" version="3.0" browsers="O11.1" />
-        <value name="-o-repeating-linear-gradient()" version="3.0" browsers="O11.1-12" />
-        <value name="radial-gradient()" version="3.0" browsers="E,FF16,IE10,O12.5" />
-        <value name="repeating-linear-gradient()" version="3.0" browsers="E,C26,FF16,IE10,O12.1,S6.1" />
-        <value name="repeating-radial-gradient()" version="3.0" browsers="E,C26,FF16,IE10,O12.1,S6.1" />
-        <value name="url()" version="1.0" browsers="all" />
-        <value name="-webkit-gradient()" version="3.0" browsers="C,S4" />
-        <value name="-webkit-image-set()" version="3.0" browsers="C,S6" />
-        <value name="-webkit-linear-gradient()" version="3.0" browsers="C,S5.1" />
-        <value name="-webkit-radial-gradient()" version="3.0" browsers="C,S5.1" />
-        <value name="-webkit-repeating-linear-gradient()" version="3.0" browsers="C,S5.1" />
-        <value name="-webkit-repeating-radial-gradient()" version="3.0" browsers="C,S5.1" />
+		<value name="" version="1.0" browsers="none"/>
       </values>
     </entry>
     <entry name="background-image-transform" restriction="enum" version="3.0" browsers="none" ref="https://drafts.csswg.org/css-logical-props/#propdef-background-image-transform" syntax="div { $(name): logical; }">
@@ -3467,16 +3432,10 @@
         <value name="url()" version="1.0" browsers="all" />
       </values>
     </entry>
-    <entry name="list-style-image" restriction="url" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-lists/#list-style-image" syntax="&lt;uri&gt; | none">
+    <entry name="list-style-image" restriction="image" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-lists/#list-style-image" syntax="&lt;uri&gt; | none">
       <desc>Sets the image that will be used as the list item marker. When the image is available, it will replace the marker set with the 'list-style-type' marker.</desc>
       <values>
         <value name="none" version="1.0" browsers="all" />
-        <value name="url()" version="1.0" browsers="all" />
-        <value name="linear-gradient()" version="3.0" browsers="all" />
-        <value name="radial-gradient()" version="3.0" browsers="all" />
-        <value name="repeating-linear-gradient()" version="3.0" browsers="all" />
-        <value name="repeating-radial-gradient()" version="3.0" browsers="all" />
-        <value name="image()" version="3.0" browsers="none" />
       </values>
     </entry>
     <entry name="list-style-position" restriction="enum" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-lists/#list-style-position" syntax="ul { $(name): inside; }">
@@ -6875,28 +6834,21 @@
     <entry name="shape-image-threshold" restriction="number" version="3.0" browsers="C37,O24" ref="http://www.w3.org/TR/css-shapes-1/#propdef-shape-image-threshold" syntax="div { $(name): 0.5; }">
       <desc>Defines the alpha channel threshold used to extract the shape using an image. A value of 0.5 means that the shape will enclose all the pixels that are more than 50% opaque.</desc>
     </entry>
-    <entry name="shape-inside" restriction="url, shape, box, enum" version="4.0" browsers="none" ref="https://drafts.csswg.org/css-shapes-2/#propdef-shape-inside" syntax="div { $(name): outside-shape; }">
+    <entry name="shape-inside" restriction="image, shape, box, enum" version="4.0" browsers="none" ref="https://drafts.csswg.org/css-shapes-2/#propdef-shape-inside" syntax="div { $(name): outside-shape; }">
       <desc>Adds one or more exclusion areas to the element’s wrapping context.</desc>
       <values>
         <value name="auto" version="4.0" browsers="all">
           <desc>The shape is computed based on the content box of the element.</desc>
         </value>
-        <value name="cross-fade()" version="4.0" browsers="all" />
         <value name="display" version="4.0" browsers="all">
           <desc>The shape is computed based on the shape of the display as described in css-round-display.</desc>
         </value>
-        <value name="image()" version="4.0" browsers="all" />
-        <value name="image-set()" version="4.0" browsers="all" />
-        <value name="linear-gradient()" version="4.0" browsers="all" />
         <value name="margin-box" version="4.0" browsers="all">
           <desc>The background is painted within (clipped to) the margin box.</desc>
         </value>
         <value name="outside-shape" version="4.0" browsers="all">
           <desc>The shape is computed based on the shape defined by the shape-outside and shape-margin properties.</desc>
         </value>
-        <value name="radial-gradient()" version="4.0" browsers="all" />
-        <value name="repeating-linear-gradient()" version="4.0" browsers="all" />
-        <value name="repeating-radial-gradient()" version="4.0" browsers="all" />
         <value name="url()" version="4.0" browsers="all">
           <desc>If an SVG element it defines the shape. If an image, the shape is extracted and computed based on the alpha channel.</desc>
         </value>
@@ -6905,20 +6857,15 @@
     <entry name="shape-margin" restriction="url, length, percentage" version="3.0" browsers="C37,O24" ref="http://www.w3.org/TR/css-shapes-1/#propdef-shape-margin" syntax="div { $(name): 10px; }">
       <desc>Adds a margin to a 'shape-outside'. This defines a new shape that is the smallest contour that includes all the points that are the 'shape-margin' distance outward in the perpendicular direction from a point on the underlying shape.</desc>
     </entry>
-    <entry name="shape-outside" restriction="box, shape, enum" version="3.0" browsers="C37,O24" ref="http://www.w3.org/TR/css-shapes-1/#shape-outside-property" syntax="div { $(name): margin-box; }">
+    <entry name="shape-outside" restriction="image, box, shape, enum" version="3.0" browsers="C37,O24" ref="http://www.w3.org/TR/css-shapes-1/#shape-outside-property" syntax="div { $(name): margin-box; }">
       <desc>Specifies an orthogonal rotation to be applied to an image before it is laid out.</desc>
       <values>
-        <value name="image()" version="3.0" browsers="all" />
-        <value name="linear-gradient()" version="3.0" browsers="all" />
         <value name="margin-box" version="3.0" browsers="all">
           <desc>The background is painted within (clipped to) the margin box.</desc>
         </value>
         <value name="none" version="3.0" browsers="all">
           <desc>The float area is unaffected.</desc>
         </value>
-        <value name="radial-gradient()" version="3.0" browsers="all" />
-        <value name="repeating-linear-gradient()" version="3.0" browsers="all" />
-        <value name="repeating-radial-gradient()" version="3.0" browsers="all" />
       </values>
     </entry>
     <entry name="shape-padding" restriction="length" version="4.0" browsers="none" ref="https://drafts.csswg.org/css-shapes-2/#propdef-shape-padding" syntax="div { $(name): 10px; }">

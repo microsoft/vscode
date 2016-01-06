@@ -239,6 +239,31 @@ export var geometryBoxKeywords : { [name:string]:string } = {
 
 export var cssWideKeywords = ['initial', 'inherit', 'unset'];
 
+export var imageFunctions : { [name:string]:string } = {
+	'url()': 'Reference an image file by URL',
+	'image()': 'Provide image fallbacks and annotations.',
+	'-webkit-image-set()': 'Provide multiple resolutions. Remember to use unprefixed image-set() in addition.',
+	'image-set()': 'Provide multiple resolutions of an image and let the UA decide which is most appropriate in a given situation.',
+	'-moz-element()': 'Use an element in the document as an image. Remember to use unprefixed element() in addition.',
+	'element()': 'Use an element in the document as an image.',
+	'cross-fade()': 'Indicates the two images to be combined and how far along in the transition the combination is.',
+	'-webkit-gradient()': 'Deprecated. Use modern linear-gradient() or radial-gradient() instead.',
+	'-webkit-linear-gradient()': 'Linear gradient. Remember to use unprefixed version in addition.',
+	'-moz-linear-gradient()': 'Linear gradient. Remember to use unprefixed version in addition.',
+	'-o-linear-gradient()': 'Linear gradient. Remember to use unprefixed version in addition.',
+	'linear-gradient()': 'A linear gradient is created by specifying a straight gradient line, and then several colors placed along that line.',
+	'-webkit-repeating-linear-gradient()': 'Repeating Linear gradient. Remember to use unprefixed version in addition.',
+	'-moz-repeating-linear-gradient()': 'Repeating Linear gradient. Remember to use unprefixed version in addition.',
+	'-o-repeating-linear-gradient()': 'RepeatingLinear gradient. Remember to use unprefixed version in addition.',
+	'repeating-linear-gradient()': 'Same as linear-gradient, except the color-stops are repeated infinitely in both directions, with their positions shifted by multiples of the difference between the last specified color-stop’s position and the first specified color-stop’s position.',
+	'-webkit-radial-gradient()': 'Radial gradient. Remember to use unprefixed version in addition.',
+	'-moz-radial-gradient()': 'Radial gradient. Remember to use unprefixed version in addition.',
+	'radial-gradient()': 'Colors emerge from a single point and smoothly spread outward in a circular or elliptical shape.',
+	'-webkit-repeating-radial-gradient()': 'Repeating radial gradient. Remember to use unprefixed version in addition.',
+	'-moz-repeating-radial-gradient()': 'Repeating radial gradient. Remember to use unprefixed version in addition.',
+	'repeating-radial-gradient()': 'Same as radial-gradient, except the color-stops are repeated infinitely in both directions, with their positions shifted by multiples of the difference between the last specified color-stop’s position and the first specified color-stop’s position.'
+};
+
 export var basicShapeFunctions : { [name:string]:string } = {
 	'circle()': 'Defines a circle.',
 	'ellipse()': 'Defines an ellipse.',
