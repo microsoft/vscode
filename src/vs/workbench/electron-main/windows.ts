@@ -246,7 +246,7 @@ export class WindowsManager {
 		ipc.on('vscode:broadcast', (event, windowId: number, target: string, broadcast: { channel: string; payload: any; }) => {
 			if (broadcast.channel && broadcast.payload) {
 				if (target) {
-					const otherWindowsWithTarget = WindowsManager.WINDOWS.filter(w => w.win.id !== windowId && typeof w.openedWorkspacePath === 'string');
+					const otherWindowsWithTarget = WindowsManager.WINDOWS.filter(w => w.id !== windowId && typeof w.openedWorkspacePath === 'string');
 					const directTargetMatch = otherWindowsWithTarget.filter(w => this.isPathEqual(target, w.openedWorkspacePath));
 					const parentTargetMatch = otherWindowsWithTarget.filter(w => paths.isEqualOrParent(target, w.openedWorkspacePath));
 
@@ -968,7 +968,7 @@ export class WindowsManager {
 
 	public sendToAll(channel: string, payload: any, windowIdsToIgnore?: number[]): void {
 		WindowsManager.WINDOWS.forEach((w) => {
-			if (windowIdsToIgnore && windowIdsToIgnore.indexOf(w.win.id) >= 0) {
+			if (windowIdsToIgnore && windowIdsToIgnore.indexOf(w.id) >= 0) {
 				return; // do not send if we are instructed to ignore it
 			}
 
@@ -986,7 +986,7 @@ export class WindowsManager {
 	}
 
 	public getWindowById(windowId: number): window.VSCodeWindow {
-		let res = WindowsManager.WINDOWS.filter((w) => w.win.id === windowId);
+		let res = WindowsManager.WINDOWS.filter((w) => w.id === windowId);
 		if (res && res.length === 1) {
 			return res[0];
 		}

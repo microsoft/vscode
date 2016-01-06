@@ -137,6 +137,7 @@ export class VSCodeWindow {
 	private static MIN_HEIGHT = 120;
 
 	private showTimeoutHandle: any;
+	private _id: number;
 	private _win: Electron.BrowserWindow;
 	private _lastFocusTime: number;
 	private _readyState: ReadyState;
@@ -183,6 +184,7 @@ export class VSCodeWindow {
 
 		// Create the browser window.
 		this._win = new BrowserWindow(options);
+		this._id = this._win.id;
 
 		if (showDirectly && this.currentWindowMode === WindowMode.Maximized) {
 			this.win.maximize();
@@ -209,6 +211,10 @@ export class VSCodeWindow {
 
 	public get config(): IWindowConfiguration {
 		return this.currentConfig;
+	}
+
+	public get id(): number {
+		return this._id;
 	}
 
 	public get win(): Electron.BrowserWindow {
