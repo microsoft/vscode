@@ -174,7 +174,29 @@ suite('workspace-namespace', () => {
 		}, err => {
 			// expected
 		})
-	})
+	});
+
+	test('registerTextDocumentContentProvider, show virtual document', function() {
+
+		// duplicate registration
+		let registration = workspace.registerTextDocumentContentProvider('foo', {
+			open(uri) {
+				return 'I am virtual';
+			},
+			close() {
+				// nothing
+			}
+		});
+
+		return workspace.openTextDocument(Uri.parse('foo://something/path')).then(doc => {
+			return window.showTextDocument(doc).then(editor => {
+
+				assert.ok(editor.document === doc);
+				assert.equal(editor.document.getText(), 'I am virtual');
+				registration.dispose();
+			})
+		});
+	});
 
 	test('findFiles', () => {
 		return workspace.findFiles('*.js', null).then((res) => {

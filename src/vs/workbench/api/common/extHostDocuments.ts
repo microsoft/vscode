@@ -27,8 +27,10 @@ import {asWinJsPromise} from 'vs/base/common/async';
 import {EditorModel, EditorInput} from 'vs/workbench/common/editor';
 import {IEditorInput, IResourceInput} from 'vs/platform/editor/common/editor';
 import {BaseTextEditorModel} from 'vs/workbench/browser/parts/editor/textEditorModel';
+import {ResourceEditorInput} from 'vs/workbench/browser/parts/editor/resourceEditorInput';
 import {IMode} from 'vs/editor/common/modes';
 import {IModeService} from 'vs/editor/common/services/modeService';
+import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 
 export interface IModelAddedData {
 	url: URI;
@@ -558,8 +560,7 @@ export class ExtHostDocument extends BaseTextDocument {
 
 @Remotable.MainContext('MainThreadDocuments')
 export class MainThreadDocuments {
-	private _modelService: IModelService;
-	private _modeService: IModeService;
+	private _instantiationService: IInstantiationService;
 	private _textFileService: ITextFileService;
 	private _editorService: IWorkbenchEditorService;
 	private _fileService: IFileService;
@@ -570,6 +571,7 @@ export class MainThreadDocuments {
 	private _modelIsSynced: {[modelId:string]:boolean;};
 
 	constructor(
+		@IInstantiationService instantiationService: IInstantiationService,
 		@IThreadService threadService: IThreadService,
 		@IModelService modelService: IModelService,
 		@IModeService modeService: IModeService,
@@ -579,8 +581,7 @@ export class MainThreadDocuments {
 		@IFileService fileService: IFileService,
 		@IUntitledEditorService untitledEditorService: IUntitledEditorService
 	) {
-		this._modelService = modelService;
-		this._modeService = modeService;
+		this._instantiationService = instantiationService;
 		this._textFileService = textFileService;
 		this._editorService = editorService;
 		this._fileService = fileService;
@@ -695,8 +696,7 @@ export class MainThreadDocuments {
 
 			default:
 				// create an input that talks back to the extension host
-				return TPromise.as(new MainThreadExtensionEditorInput(uri, this._proxy, this._modelService,
-					this._modeService));
+				return TPromise.as(this._instantiationService.createInstance(MainThreadExtensionEditorInput, uri, this._proxy));
 		}
 	}
 
@@ -722,14 +722,19 @@ export class MainThreadDocuments {
 	}
 }
 
-export class MainThreadExtensionEditorInput extends EditorInput {
+export class MainThreadExtensionEditorInput extends ResourceEditorInput {
 
-	private _model: MainThreadEditorModel;
+	private _documents: ExtHostModelService;
+	private _modeService: IModeService;
+	private _modelService: IModelService;
+	private _model: TPromise<EditorCommon.IModel>;
 
-	constructor(resource: URI, documents: ExtHostModelService, modelService:IModelService, modeService:IModeService) {
-		super();
-		this._model = new MainThreadEditorModel(resource, documents, modelService, modeService)
-		// todo@joh name, description
+	constructor(resource: URI, documents: ExtHostModelService, @IModelService modelService: IModelService,
+		@IModeService modeService: IModeService, @IInstantiationService instantiationService: IInstantiationService) {
+		super(resource.fsPath, undefined, resource, modelService, instantiationService);
+		this._documents = documents;
+		this._modeService = modeService;
+		this._modelService = modelService;
 	}
 
 	getId(): string {
@@ -737,43 +742,26 @@ export class MainThreadExtensionEditorInput extends EditorInput {
 	}
 
 	resolve(refresh?: boolean): TPromise<EditorModel> {
-		// todo@joh proper refresh
-		return this._model.load(refresh);
+
+		if (!this._model) {
+			const model = this._modelService.getModel(this.resource);
+			if (model) {
+				this._model = TPromise.as(model);
+			} else {
+				this._model = this._documents.$openTextDocumentContent(this.resource).then(value => {
+					const firstLine = value.substr(0, value.search(/\r?\n/) + 1);
+					return this._modelService.createModel(value,
+						this._modeService.getOrCreateModeByFilenameOrFirstLine(this.resource.fsPath, firstLine),
+						this.resource);
+				});
+			}
+		}
+
+		return this._model.then(() => super.resolve(refresh));
 	}
 
 	dispose() {
 		console.log('MainThreadExtensionEditorInput DISPOSE');
-		super.dispose();
-	}
-}
-
-export class MainThreadEditorModel extends BaseTextEditorModel {
-
-	private _resource: URI;
-	private _documents: ExtHostModelService;
-
-	constructor(resource: URI, documents: ExtHostModelService, @IModelService modelService: IModelService,
-		@IModeService modeService: IModeService) {
-
-		super(modelService, modeService);
-		this._documents = documents;
-		this._resource = resource;
-	}
-
-	load(refresh?: boolean): TPromise<EditorModel> {
-		return this._documents.$openTextDocumentContent(this._resource).then(value => {
-			return this.createTextEditorModel(value, this._resource)
-		}).then(() => {
-			return this;
-		});
-	}
-
-	protected getOrCreateMode(modeService: IModeService, mime: string, firstLineText?: string): TPromise<IMode> {
-		return modeService.getOrCreateModeByFilenameOrFirstLine(this._resource.fsPath, firstLineText);
-	}
-
-	dispose() {
-		console.log('MainThreadEditorModel DISPOSE');
 		super.dispose();
 	}
 }
