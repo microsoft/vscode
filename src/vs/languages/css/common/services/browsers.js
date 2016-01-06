@@ -7778,6 +7778,23 @@ exports.data ={
 				"restriction": "length"
 			},
 			{
+				"name": "src",
+				"desc": "Specifies the resource containing font data. It is required, whether the font is downloadable or locally installed.",
+				"restriction": "enum, url, identifier",
+				"values": [
+					{
+						"name": "url()",
+						"desc": "Reference font by URL"
+					},
+					{
+						"name": "format()"
+					},
+					{
+						"name": "local()"
+					}
+				]
+			},
+			{
 				"name": "stop-color",
 				"desc": "Indicates what color to use at that gradient stop.",
 				"restriction": "color"
@@ -10523,6 +10540,8 @@ exports.descriptions = {
 	"attr(x)": "The value of attribute 'x' is a string value. The string value is evaluated as a <number> to determine the number of ruby base elements to be spanned by the annotation element.",
 	"smooth": "Scrolls in a smooth fashion using a user-agent-defined timing function and time period.",
 	"margin-box": "The background is painted within (clipped to) the margin box.",
+	"format()": "Optional hint describing the format of the font resource.",
+	"local()": "Format-specific string that identifies a locally available copy of a given font.",
 	"additive": "Represents “sign-value” numbering systems, which, rather than using reusing digits in different positions to change their value, define additional digits with much larger values, so that the value of the number can be obtained by adding all the digits together.",
 	"cyclic": "Cycles repeatedly through its provided symbols, looping back to the beginning when it reaches the end of the list.",
 	"extends": "Use the algorithm of another counter style, but alter other aspects.",

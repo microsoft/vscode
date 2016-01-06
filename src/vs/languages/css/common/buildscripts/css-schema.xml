@@ -6901,6 +6901,20 @@
         </value>
       </values>
     </entry>
+    <entry name="src" restriction="enum, url, identifier" version="3.0" browsers="all" ref="http://www.w3.org/TR/css3-fonts/#src-desc" syntax="src: url(font.woff) format('woff');">
+      <desc>Specifies the resource containing font data. It is required, whether the font is downloadable or locally installed.</desc>
+      <values>
+        <value name="url()" version="3.0" browsers="all">
+          <desc>Reference font by URL</desc>
+        </value>
+        <value name="format()" version="3.0" browsers="all">
+          <desc>Optional hint describing the format of the font resource.</desc>
+        </value>
+        <value name="local()" version="3.0" browsers="all">
+          <desc>Format-specific string that identifies a locally available copy of a given font.</desc>
+        </value>
+      </values>
+    </entry>
     <entry name="stop-color" restriction="color" version="3.0" browsers="all" ref="http://www.w3.org/TR/SVG11/pservers.html#StopColorProperty">
       <desc>Indicates what color to use at that gradient stop.</desc>
     </entry>
