@@ -26,7 +26,6 @@ define([
 	'vs/editor/contrib/parameterHints/browser/parameterHints',
 	'vs/editor/contrib/quickFix/browser/quickFix',
 	'vs/editor/contrib/referenceSearch/browser/referenceSearch',
-	'vs/editor/contrib/rename/browser/rename',
 	'vs/editor/contrib/rename/browser/rename2',
 	'vs/editor/contrib/smartSelect/common/smartSelect',
 	'vs/editor/contrib/smartSelect/common/jumpToBracket',

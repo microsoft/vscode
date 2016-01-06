@@ -285,6 +285,7 @@ export class CSSMode extends AbstractMode<cssWorker.CSSWorker> {
 	public referenceSupport: Modes.IReferenceSupport;
 	public logicalSelectionSupport: Modes.ILogicalSelectionSupport;
 	public extraInfoSupport:Modes.IExtraInfoSupport;
+	public occurrencesSupport:Modes.IOccurrencesSupport;
 	public outlineSupport: Modes.IOutlineSupport;
 	public declarationSupport: Modes.IDeclarationSupport;
 	public suggestSupport: Modes.ISuggestSupport;
@@ -305,6 +306,7 @@ export class CSSMode extends AbstractMode<cssWorker.CSSWorker> {
 			{ tokenType: 'punctuation.bracket.css', open: '{', close: '}', isElectric: true }
 		] });
 
+		this.occurrencesSupport = this;
 		this.extraInfoSupport = this;
 		this.referenceSupport = new supports.ReferenceSupport(this, {
 			tokens: [cssTokenTypes.TOKEN_PROPERTY + '.css', cssTokenTypes.TOKEN_VALUE + '.css', cssTokenTypes.TOKEN_SELECTOR_TAG + '.css'],
@@ -342,6 +344,11 @@ export class CSSMode extends AbstractMode<cssWorker.CSSWorker> {
 
 	protected _getWorkerDescriptor(): AsyncDescriptor2<Modes.IMode, Modes.IWorkerParticipant[], cssWorker.CSSWorker> {
 		return createAsyncDescriptor2('vs/languages/css/common/cssWorker', 'CSSWorker');
+	}
+
+	static $findOccurrences = OneWorkerAttr(CSSMode, CSSMode.prototype.findOccurrences);
+	public findOccurrences(resource:URI, position:EditorCommon.IPosition, strict:boolean = false): WinJS.TPromise<Modes.IOccurence[]> {
+		return this._worker((w) => w.findOccurrences(resource, position, strict));
 	}
 
 	static $findDeclaration = OneWorkerAttr(CSSMode, CSSMode.prototype.findDeclaration);

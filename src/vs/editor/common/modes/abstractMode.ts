@@ -35,7 +35,6 @@ export class AbstractMode<W extends AbstractModeWorker> implements Modes.IMode {
 
 	// adapters start
 	public autoValidateDelay:number;
-	public occurrencesSupport:Modes.IOccurrencesSupport;
 	public suggestSupport:Modes.ISuggestSupport;
 	public inplaceReplaceSupport:Modes.IInplaceReplaceSupport;
 	public diffSupport:Modes.IDiffSupport;
@@ -63,7 +62,6 @@ export class AbstractMode<W extends AbstractModeWorker> implements Modes.IMode {
 		this._options = null;
 
 		this.autoValidateDelay = 500;
-		this.occurrencesSupport = this;
 		this.suggestSupport = this;
 		this.inplaceReplaceSupport = this;
 		this.diffSupport = this;
@@ -192,11 +190,6 @@ export class AbstractMode<W extends AbstractModeWorker> implements Modes.IMode {
 
 	public shouldShowEmptySuggestionList():boolean {
 		return true;
-	}
-
-	static $findOccurrences = OneWorkerAttr(AbstractMode, AbstractMode.prototype.findOccurrences);
-	public findOccurrences(resource:URI, position:EditorCommon.IPosition, strict:boolean = false): TPromise<Modes.IOccurence[]> {
-		return this._worker((w) => w.findOccurrences(resource, position, strict));
 	}
 
 	static $navigateValueSet = OneWorkerAttr(AbstractMode, AbstractMode.prototype.navigateValueSet);

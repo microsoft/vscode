@@ -22,6 +22,7 @@ import {IContextViewService} from 'vs/platform/contextview/browser/contextView';
 import {INullService} from 'vs/platform/instantiation/common/instantiation';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 import {Range} from 'vs/editor/common/core/range';
+import {OccurrencesRegistry} from 'vs/editor/contrib/wordHighlighter/common/wordHighlighter';
 
 /**
  * The Find controller will survive an editor.setModel(..) call
@@ -459,9 +460,18 @@ class MoveSelectionToNextFindMatchAction extends SelectNextFindMatchAction {
 class SelectHighlightsAction extends EditorAction {
 
 	static ID = 'editor.action.selectHighlights';
+	static COMPAT_ID = 'editor.action.changeAll';
 
 	constructor(descriptor:EditorCommon.IEditorActionDescriptorData, editor:EditorCommon.ICommonCodeEditor, @INullService ns) {
-		super(descriptor, editor, Behaviour.WidgetFocus);
+		let behaviour = Behaviour.WidgetFocus;
+		if (descriptor.id === SelectHighlightsAction.COMPAT_ID) {
+			behaviour |= Behaviour.ShowInContextMenu;
+		}
+		super(descriptor, editor, behaviour);
+	}
+
+	public getGroupId(): string {
+		return '2_change/1_changeAll';
 	}
 
 	public run(): TPromise<boolean> {
@@ -484,20 +494,17 @@ export class SelectionHighlighter implements EditorCommon.IEditorContribution {
 	static ID = 'editor.contrib.selectionHighlighter';
 
 	private editor:EditorCommon.ICommonCodeEditor;
-	private model:EditorCommon.IModel;
 	private decorations:string[];
 	private toDispose:Lifecycle.IDisposable[];
 
 	constructor(editor:EditorCommon.ICommonCodeEditor, @INullService ns) {
 		this.editor = editor;
-		this.model = this.editor.getModel();
 		this.decorations = [];
 		this.toDispose = [];
 
 		this.toDispose.push(editor.addListener2(EditorCommon.EventType.CursorPositionChanged, _ => this._update()));
 		this.toDispose.push(editor.addListener2(EditorCommon.EventType.ModelChanged, (e) => {
 			this.removeDecorations();
-			this.model = this.editor.getModel();
 		}));
 		this.toDispose.push(FindController.getFindController(editor).onStateChanged(() => this._update()));
 	}
@@ -522,10 +529,15 @@ export class SelectionHighlighter implements EditorCommon.IEditorContribution {
 			this.removeDecorations();
 			return;
 		}
+
+		let model = this.editor.getModel();
 		if (r.nextMatch) {
 			// This is an empty selection
-			this.removeDecorations();
-			return;
+			if (OccurrencesRegistry.has(model)) {
+				// Do not interfere with semantic word highlighting in the no selection case
+				this.removeDecorations();
+				return;
+			}
 		}
 		if (/^[ \t]+$/.test(r.searchText)) {
 			// whitespace only selection
@@ -538,7 +550,7 @@ export class SelectionHighlighter implements EditorCommon.IEditorContribution {
 			return;
 		}
 
-		let allMatches = this.editor.getModel().findMatches(r.searchText, true, r.isRegex, r.matchCase, r.wholeWord);
+		let allMatches = model.findMatches(r.searchText, true, r.isRegex, r.matchCase, r.wholeWord);
 		allMatches.sort(Range.compareRangesUsingStarts);
 
 		let selections = this.editor.getSelections();
@@ -593,6 +605,11 @@ export class SelectionHighlighter implements EditorCommon.IEditorContribution {
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(SelectHighlightsAction, SelectHighlightsAction.ID, nls.localize('selectAllOccurencesOfFindMatch', "Select All Occurences of Find Match"), {
 	context: ContextKey.EditorFocus,
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_L
+}));
+// register SelectHighlightsAction again to replace the now removed Change All action
+CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(SelectHighlightsAction, SelectHighlightsAction.COMPAT_ID, nls.localize('changeAll.label', "Change All Occurrences"), {
+	context: ContextKey.EditorTextFocus,
+	primary: KeyMod.CtrlCmd | KeyCode.F2
 }));
 
 var CONTEXT_FIND_WIDGET_VISIBLE = 'findWidgetVisible';
