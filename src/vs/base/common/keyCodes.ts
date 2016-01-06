@@ -5,9 +5,14 @@
 
 "use strict";
 
-import nls = require('vs/nls');
-import Platform = require('vs/base/common/platform');
+import * as nls from 'vs/nls';
+import * as defaultPlatform from 'vs/base/common/platform';
 import {IHTMLContentElement} from 'vs/base/common/htmlContent';
+
+export interface ISimplifiedPlatform {
+	isMacintosh: boolean;
+	isWindows: boolean;
+}
 
 /**
  * Virtual Key Codes, the value does not hold any inherent meaning.
@@ -432,48 +437,48 @@ export class Keybinding {
 	/**
 	 * Format the binding to a format appropiate for rendering in the UI
 	 */
-	private static _toUSLabel(value:number): string {
-		return _asString(value, (Platform.isMacintosh ? MacUIKeyLabelProvider.INSTANCE : ClassicUIKeyLabelProvider.INSTANCE));
+	private static _toUSLabel(value:number, Platform:ISimplifiedPlatform): string {
+		return _asString(value, (Platform.isMacintosh ? MacUIKeyLabelProvider.INSTANCE : ClassicUIKeyLabelProvider.INSTANCE), Platform);
 	}
 
 	/**
 	 * Format the binding to a format appropiate for rendering in the UI
 	 */
-	private static _toUSHTMLLabel(value:number): IHTMLContentElement[] {
-		return _asHTML(value, (Platform.isMacintosh ? MacUIKeyLabelProvider.INSTANCE : ClassicUIKeyLabelProvider.INSTANCE));
+	private static _toUSHTMLLabel(value:number, Platform:ISimplifiedPlatform): IHTMLContentElement[] {
+		return _asHTML(value, (Platform.isMacintosh ? MacUIKeyLabelProvider.INSTANCE : ClassicUIKeyLabelProvider.INSTANCE), Platform);
 	}
 
 	/**
 	 * Format the binding to a format appropiate for rendering in the UI
 	 */
-	private static _toCustomLabel(value:number, labelProvider:IKeyBindingLabelProvider): string {
-		return _asString(value, labelProvider);
+	private static _toCustomLabel(value:number, labelProvider:IKeyBindingLabelProvider, Platform:ISimplifiedPlatform): string {
+		return _asString(value, labelProvider, Platform);
 	}
 
 	/**
 	 * Format the binding to a format appropiate for rendering in the UI
 	 */
-	private static _toCustomHTMLLabel(value:number, labelProvider:IKeyBindingLabelProvider): IHTMLContentElement[] {
-		return _asHTML(value, labelProvider);
+	private static _toCustomHTMLLabel(value:number, labelProvider:IKeyBindingLabelProvider, Platform:ISimplifiedPlatform): IHTMLContentElement[] {
+		return _asHTML(value, labelProvider, Platform);
 	}
 
 	/**
 	 * This prints the binding in a format suitable for electron's accelerators.
 	 * See https://github.com/atom/electron/blob/master/docs/api/accelerator.md
 	 */
-	private static _toElectronAccelerator(value:number): string {
+	private static _toElectronAccelerator(value:number, Platform:ISimplifiedPlatform): string {
 		if (BinaryKeybindings.hasChord(value)) {
 			// Electron cannot handle chords
 			return null;
 		}
-		return _asString(value, ElectronAcceleratorLabelProvider.INSTANCE);
+		return _asString(value, ElectronAcceleratorLabelProvider.INSTANCE, Platform);
 	}
 
 	/**
 	 * Format the binding to a format appropiate for the user settings file.
 	 */
-	public static toUserSettingsLabel(value:number): string {
-		let result = _asString(value, UserSettingsKeyLabelProvider.INSTANCE);
+	public static toUserSettingsLabel(value:number, Platform:ISimplifiedPlatform = defaultPlatform): string {
+		let result = _asString(value, UserSettingsKeyLabelProvider.INSTANCE, Platform);
 		result = result.toLowerCase().replace(/arrow/g, '');
 
 		if (Platform.isMacintosh) {
@@ -514,44 +519,44 @@ export class Keybinding {
 	/**
 	 * Format the binding to a format appropiate for rendering in the UI
 	 */
-	public _toUSLabel(): string {
-		return Keybinding._toUSLabel(this.value);
+	public _toUSLabel(Platform:ISimplifiedPlatform = defaultPlatform): string {
+		return Keybinding._toUSLabel(this.value, Platform);
 	}
 
 	/**
 	 * Format the binding to a format appropiate for rendering in the UI
 	 */
-	public _toUSHTMLLabel(): IHTMLContentElement[] {
-		return Keybinding._toUSHTMLLabel(this.value);
+	public _toUSHTMLLabel(Platform:ISimplifiedPlatform = defaultPlatform): IHTMLContentElement[] {
+		return Keybinding._toUSHTMLLabel(this.value, Platform);
 	}
 
 	/**
 	 * Format the binding to a format appropiate for rendering in the UI
 	 */
-	public toCustomLabel(labelProvider:IKeyBindingLabelProvider): string {
-		return Keybinding._toCustomLabel(this.value, labelProvider);
+	public toCustomLabel(labelProvider:IKeyBindingLabelProvider, Platform:ISimplifiedPlatform = defaultPlatform): string {
+		return Keybinding._toCustomLabel(this.value, labelProvider, Platform);
 	}
 
 	/**
 	 * Format the binding to a format appropiate for rendering in the UI
 	 */
-	public toCustomHTMLLabel(labelProvider:IKeyBindingLabelProvider): IHTMLContentElement[] {
-		return Keybinding._toCustomHTMLLabel(this.value, labelProvider);
+	public toCustomHTMLLabel(labelProvider:IKeyBindingLabelProvider, Platform:ISimplifiedPlatform = defaultPlatform): IHTMLContentElement[] {
+		return Keybinding._toCustomHTMLLabel(this.value, labelProvider, Platform);
 	}
 
 	/**
 	 * This prints the binding in a format suitable for electron's accelerators.
 	 * See https://github.com/atom/electron/blob/master/docs/api/accelerator.md
 	 */
-	public _toElectronAccelerator(): string {
-		return Keybinding._toElectronAccelerator(this.value);
+	public _toElectronAccelerator(Platform:ISimplifiedPlatform = defaultPlatform): string {
+		return Keybinding._toElectronAccelerator(this.value, Platform);
 	}
 
 	/**
 	 * Format the binding to a format appropiate for the user settings file.
 	 */
-	public toUserSettingsLabel(): string {
-		return Keybinding.toUserSettingsLabel(this.value);
+	public toUserSettingsLabel(Platform:ISimplifiedPlatform = defaultPlatform): string {
+		return Keybinding.toUserSettingsLabel(this.value, Platform);
 	}
 
 }
@@ -666,7 +671,7 @@ class UserSettingsKeyLabelProvider implements IKeyBindingLabelProvider {
 	}
 }
 
-function _asString(keybinding:number, labelProvider:IKeyBindingLabelProvider): string {
+function _asString(keybinding:number, labelProvider:IKeyBindingLabelProvider, Platform:ISimplifiedPlatform): string {
 	let result:string[] = [],
 		ctrlCmd = BinaryKeybindings.hasCtrlCmd(keybinding),
 		shift = BinaryKeybindings.hasShift(keybinding),
@@ -707,7 +712,7 @@ function _asString(keybinding:number, labelProvider:IKeyBindingLabelProvider): s
 	var actualResult = result.join(labelProvider.modifierSeparator);
 
 	if (BinaryKeybindings.hasChord(keybinding)) {
-		return actualResult + ' ' + _asString(BinaryKeybindings.extractChordPart(keybinding), labelProvider);
+		return actualResult + ' ' + _asString(BinaryKeybindings.extractChordPart(keybinding), labelProvider, Platform);
 	}
 
 	return actualResult;
@@ -727,7 +732,7 @@ function _pushKey(result:IHTMLContentElement[], str:string): void {
 	});
 }
 
-function _asHTML(keybinding:number, labelProvider:IKeyBindingLabelProvider, isChord:boolean = false): IHTMLContentElement[] {
+function _asHTML(keybinding:number, labelProvider:IKeyBindingLabelProvider, Platform:ISimplifiedPlatform, isChord:boolean = false): IHTMLContentElement[] {
 	let result:IHTMLContentElement[] = [],
 		ctrlCmd = BinaryKeybindings.hasCtrlCmd(keybinding),
 		shift = BinaryKeybindings.hasShift(keybinding),
@@ -768,7 +773,7 @@ function _asHTML(keybinding:number, labelProvider:IKeyBindingLabelProvider, isCh
 	let chordTo: IHTMLContentElement[] = null;
 
 	if (BinaryKeybindings.hasChord(keybinding)) {
-		chordTo = _asHTML(BinaryKeybindings.extractChordPart(keybinding), labelProvider, true);
+		chordTo = _asHTML(BinaryKeybindings.extractChordPart(keybinding), labelProvider, Platform, true);
 		result.push({
 			tagName: 'span',
 			text: ' '

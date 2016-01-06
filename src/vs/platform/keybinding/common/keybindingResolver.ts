@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as Platform from 'vs/base/common/platform';
+import * as defaultPlatform from 'vs/base/common/platform';
 import {IKeybindingItem, KbExpr, IUserFriendlyKeybinding} from 'vs/platform/keybinding/common/keybindingService';
-import {KeyMod, KeyCode, BinaryKeybindings, Keybinding} from 'vs/base/common/keyCodes';
+import {KeyMod, KeyCode, BinaryKeybindings, Keybinding, ISimplifiedPlatform} from 'vs/base/common/keyCodes';
 
 export interface IResolveResult {
 	enterChord: number;
@@ -354,11 +354,11 @@ export class IOSupport {
 		};
 	}
 
-	private static writeKeybinding(input: number): string {
-		return Keybinding.toUserSettingsLabel(input);
+	public static writeKeybinding(input: number, Platform: ISimplifiedPlatform = defaultPlatform): string {
+		return Keybinding.toUserSettingsLabel(input, Platform);
 	}
 
-	public static readKeybinding(input: string): number {
+	public static readKeybinding(input: string, Platform: ISimplifiedPlatform = defaultPlatform): number {
 		if (!input) {
 			return null;
 		}
