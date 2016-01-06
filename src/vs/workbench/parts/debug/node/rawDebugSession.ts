@@ -136,6 +136,10 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 		return this.send('setExceptionBreakpoints', args);
 	}
 
+	public configurationDone(): TPromise<DebugProtocol.ConfigurationDoneResponse> {
+		return this.send('configurationDone', null);
+	}
+
 	public stackTrace(args: DebugProtocol.StackTraceArguments): TPromise<DebugProtocol.StackTraceResponse> {
 		return this.send('stackTrace', args);
 	}
