@@ -30,10 +30,10 @@ var commit = util.getVersion(root);
 
 var baseModules = [
 	'applicationinsights', 'assert', 'browser-window',
-	'child_process', 'chokidar', 'crash-reporter', 'crypto', 'dialog', 'emmet',
+	'child_process', 'chokidar', 'crypto', 'dialog', 'emmet',
 	'events', 'fs', 'getmac', 'glob', 'graceful-fs', 'http', 'http-proxy-agent',
-	'https', 'https-proxy-agent', 'iconv-lite', 'electron', 'ipc', 'menu', 'menu-item', 'net',
-	'original-fs', 'os', 'path', 'readline', 'remote', 'sax', 'semver',
+	'https', 'https-proxy-agent', 'iconv-lite', 'electron', 'menu', 'menu-item', 'net',
+	'os', 'path', 'readline', 'remote', 'sax', 'semver',
 	'stream', 'string_decoder', 'url', 'vscode-textmate', 'winreg',
 	'yauzl', 'native-keymap'
 ];

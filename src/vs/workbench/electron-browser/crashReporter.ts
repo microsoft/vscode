@@ -10,8 +10,7 @@ import {IConfigurationService} from 'vs/platform/configuration/common/configurat
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {Registry} from 'vs/platform/platform';
 
-import crashReporter = require('crash-reporter');
-import {ipcRenderer as ipc} from 'electron';
+import {ipcRenderer as ipc, crashReporter} from 'electron';
 
 let TELEMETRY_SECTION_ID = 'telemetry';
 
