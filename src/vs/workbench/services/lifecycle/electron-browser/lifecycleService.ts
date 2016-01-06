@@ -28,7 +28,7 @@ export class LifecycleService extends BaseLifecycleService {
 		let windowId = this.windowService.getWindowId();
 
 		// Main side indicates that window is about to unload, check for vetos
-		ipc.on('vscode:beforeUnload', (reply: { okChannel: string, cancelChannel: string }) => {
+		ipc.on('vscode:beforeUnload', (event, reply: { okChannel: string, cancelChannel: string }) => {
 			let veto = this.beforeUnload();
 
 			if (typeof veto === 'boolean') {

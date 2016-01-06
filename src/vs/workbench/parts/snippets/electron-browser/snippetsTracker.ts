@@ -20,7 +20,6 @@ import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 
 import remote = require('remote');
-import {ipcRenderer as ipc} from 'electron';
 import fs = require('fs');
 
 export class SnippetsTracker implements workbenchExt.IWorkbenchContribution {

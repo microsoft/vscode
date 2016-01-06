@@ -50,7 +50,7 @@ export class WindowService implements IWindowService {
 	}
 
 	private registerListeners(): void {
-		ipc.on('vscode:broadcast', (b: IBroadcast) => {
+		ipc.on('vscode:broadcast', (event, b: IBroadcast) => {
 			this._onBroadcast.fire(b);
 		});
 	}

@@ -82,7 +82,7 @@ export class FileTracker implements IWorkbenchContribution {
 		this.toUnbind.push(() => disposable.dispose());
 
 		// Support openFiles event for existing and new files
-		ipc.on('vscode:openFiles', (request: IOpenFileRequest) => {
+		ipc.on('vscode:openFiles', (event, request: IOpenFileRequest) => {
 			let inputs: IResourceInput[] = [];
 			if (request.filesToOpen) {
 				inputs.push(...this.toInputs(request.filesToOpen, false));

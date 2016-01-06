@@ -83,7 +83,7 @@ export class ExtensionsWorkbenchExtension implements IWorkbenchContribution {
 	}
 
 	private registerListeners(): void {
-		ipc.on('vscode:installExtensions', (request: IInstallExtensionsRequest) => {
+		ipc.on('vscode:installExtensions', (event, request: IInstallExtensionsRequest) => {
 			if (request.extensionsToInstall) {
 				this.install(request.extensionsToInstall).done(null, errors.onUnexpectedError);
 			}

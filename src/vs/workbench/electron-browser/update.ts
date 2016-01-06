@@ -57,7 +57,7 @@ export class Update {
 	) {
 		const env = this.contextService.getConfiguration().env;
 
-		ipc.on('vscode:update-downloaded', (update: IUpdate) => {
+		ipc.on('vscode:update-downloaded', (event, update: IUpdate) => {
 			this.messageService.show(severity.Info, {
 				message: nls.localize('updateAvailable', "{0} will be updated after it restarts.", env.appName),
 				actions: [Update.ShowReleaseNotesAction(env.releaseNotesUrl), Update.NotNowAction, Update.ApplyUpdateAction]
