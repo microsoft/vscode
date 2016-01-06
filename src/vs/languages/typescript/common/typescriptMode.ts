@@ -132,6 +132,7 @@ export class TypeScriptMode<W extends typescriptWorker.TypeScriptWorker2> extend
 	public characterPairSupport: Modes.ICharacterPairSupport;
 	public referenceSupport: Modes.IReferenceSupport;
 	public extraInfoSupport:Modes.IExtraInfoSupport;
+	public occurrencesSupport:Modes.IOccurrencesSupport;
 	public quickFixSupport:Modes.IQuickFixSupport;
 	public logicalSelectionSupport:Modes.ILogicalSelectionSupport;
 	public parameterHintsSupport:Modes.IParameterHintsSupport;
@@ -185,6 +186,7 @@ export class TypeScriptMode<W extends typescriptWorker.TypeScriptWorker2> extend
 		}
 
 		this.extraInfoSupport = this;
+		this.occurrencesSupport = this;
 		this.formattingSupport = this;
 		this.quickFixSupport = this;
 		this.logicalSelectionSupport = this;

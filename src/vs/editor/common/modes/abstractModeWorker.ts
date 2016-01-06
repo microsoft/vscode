@@ -177,30 +177,6 @@ export class AbstractModeWorker {
 		return AbstractModeWorker.filter;
 	}
 
-	// ---- occurrences ---------------------------------------------------------------
-
-	public findOccurrences(resource:URI, position:EditorCommon.IPosition, strict?:boolean):TPromise<Modes.IOccurence[]> {
-
-		var model = this.resourceService.get(resource),
-			wordAtPosition = model.getWordAtPosition(position),
-			currentWord = (wordAtPosition ? wordAtPosition.word : ''),
-			result:Modes.IOccurence[] = [];
-
-		var words = model.getAllWordsWithRange(),
-			upperBound = Math.min(1000, words.length); // Limit find occurences to 1000 occurences
-
-		for(var i = 0; i < upperBound; i++) {
-			if(words[i].text === currentWord) {
-				result.push({
-					range: words[i].range,
-					kind: 'text'
-				});
-			}
-		}
-
-		return TPromise.as(result);
-	}
-
 	// ---- diff --------------------------------------------------------------------------
 
 	public computeDiff(original:URI, modified:URI, ignoreTrimWhitespace:boolean):TPromise<EditorCommon.ILineChange[]> {
