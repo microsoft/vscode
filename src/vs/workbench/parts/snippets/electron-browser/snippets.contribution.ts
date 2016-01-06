@@ -20,7 +20,7 @@ import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import * as JSONContributionRegistry from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import {IJSONSchema} from 'vs/base/common/jsonSchema';
 
-import ipc = require('ipc');
+import ipc = require('ipc'); // ipcRenderer
 import fs = require('fs');
 
 class OpenSnippetsAction extends actions.Action {

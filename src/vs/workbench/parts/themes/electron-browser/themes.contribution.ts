@@ -19,7 +19,7 @@ import {IQuickOpenService, IPickOpenEntry} from 'vs/workbench/services/quickopen
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IThemeService, ITheme} from 'vs/workbench/services/themes/node/themeService';
 
-import ipc = require('ipc');
+import ipc = require('ipc'); // ipcRenderer
 
 class SelectThemeAction extends actions.Action {
 

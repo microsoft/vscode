@@ -13,7 +13,7 @@ import fs = require('fs');
 import BrowserWindow = require('browser-window');
 import Dialog = require('dialog');
 import app = require('app');
-import ipc = require('ipc');
+import ipc = require('ipc'); // ipcMain
 import screen = require('screen');
 import crashReporter = require('crash-reporter');
 

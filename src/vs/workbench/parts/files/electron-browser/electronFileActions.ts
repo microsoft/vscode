@@ -19,7 +19,7 @@ import {IMessageService} from 'vs/platform/message/common/message';
 import {INullService} from 'vs/platform/instantiation/common/instantiation';
 
 import remote = require('remote');
-import ipc = require('ipc');
+import ipc = require('ipc'); // ipcRenderer
 
 const Shell = remote.require('shell');
 const Clipboard = remote.require('clipboard');

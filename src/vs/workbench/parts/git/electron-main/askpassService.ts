@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import ipc = require('ipc');
+import ipc = require('ipc'); // ipcMain
 import platform = require('vs/base/common/platform');
 import { TPromise } from 'vs/base/common/winjs.base';
 import BrowserWindow = require('browser-window');

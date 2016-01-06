@@ -19,7 +19,7 @@ import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { ListExtensionsAction, InstallExtensionAction, ListOutdatedExtensionsAction } from './extensionsActions';
 import { IQuickOpenRegistry, Extensions, QuickOpenHandlerDescriptor } from 'vs/workbench/browser/quickopen';
 
-import ipc = require('ipc');
+import ipc = require('ipc'); // ipcRenderer
 
 interface IInstallExtensionsRequest {
 	extensionsToInstall: string[];

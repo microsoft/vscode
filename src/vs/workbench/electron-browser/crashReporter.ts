@@ -11,7 +11,7 @@ import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {Registry} from 'vs/platform/platform';
 
 import crashReporter = require('crash-reporter');
-import ipc = require('ipc');
+import ipc = require('ipc'); // ipcRenderer
 
 let TELEMETRY_SECTION_ID = 'telemetry';
 

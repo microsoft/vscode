@@ -10,7 +10,7 @@ import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/comm
 import Event, {Emitter} from 'vs/base/common/event';
 
 import remote = require('remote');
-import ipc = require('ipc');
+import ipc = require('ipc'); // ipcRenderer
 
 export var IWindowService = createDecorator<IWindowService>('windowService');
 

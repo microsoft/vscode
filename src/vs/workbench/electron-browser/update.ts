@@ -9,7 +9,7 @@ import nls = require('vs/nls');
 import severity from 'vs/base/common/severity';
 import {Promise} from 'vs/base/common/winjs.base';
 import {Action} from 'vs/base/common/actions';
-import ipc = require('ipc');
+import ipc = require('ipc'); // ipcRenderer
 import remote = require('remote');
 import {isLinux} from 'vs/base/common/platform';
 import {IMessageService} from 'vs/platform/message/common/message';

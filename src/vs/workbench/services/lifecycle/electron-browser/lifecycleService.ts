@@ -11,7 +11,7 @@ import {BaseLifecycleService} from 'vs/platform/lifecycle/common/baseLifecycleSe
 import {IWindowService} from 'vs/workbench/services/window/electron-browser/windowService';
 import severity from 'vs/base/common/severity';
 
-import ipc = require('ipc');
+import ipc = require('ipc'); // ipcRenderer
 
 export class LifecycleService extends BaseLifecycleService {
 

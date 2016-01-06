@@ -19,7 +19,7 @@ import {IEventService} from 'vs/platform/event/common/event';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 
 import remote = require('remote');
-import ipc = require('ipc');
+import ipc = require('ipc'); // ipcRenderer
 
 const Shell = remote.require('shell');
 const Dialog = remote.require('dialog');
