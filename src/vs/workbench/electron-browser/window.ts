@@ -126,10 +126,10 @@ export class ElectronWindow {
 		});
 
 		// Handle window.open() calls
-		window.open = function(url: string, target: string, features: string, replace: boolean) {
+		(<any>window).open = function(url: string, target: string, features: string, replace: boolean) {
 			shell.openExternal(url);
 
-			return <Window>null;
+			return null;
 		};
 	}
 

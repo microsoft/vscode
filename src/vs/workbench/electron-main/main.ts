@@ -5,9 +5,8 @@
 
 'use strict';
 
-import {app, shell} from 'electron';
+import {app, shell, dialog} from 'electron';
 import fs = require('fs');
-import dialog = require('dialog');
 import nls = require('vs/nls');
 import {assign} from 'vs/base/common/objects';
 import platform = require('vs/base/common/platform');

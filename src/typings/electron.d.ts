@@ -1238,6 +1238,7 @@ declare module GitHubElectron {
 			 */
 			detail?: string;
 			icon?: NativeImage;
+			noLink?: boolean;
 		}
 	}
 
@@ -1823,13 +1824,13 @@ declare module GitHubElectron {
 	}
 }
 
-// interface Window {
-// 	/**
-// 	 * Creates a new window.
-// 	 * @returns An instance of BrowserWindowProxy class.
-// 	 */
-// 	open(url: string, frameName?: string, features?: string): GitHubElectron.BrowserWindowProxy;
-// }
+interface Window {
+	/**
+	 * Creates a new window.
+	 * @returns An instance of BrowserWindowProxy class.
+	 */
+	open(url: string, frameName?: string, features?: string): GitHubElectron.BrowserWindowProxy;
+}
 
 interface File {
 	/**
