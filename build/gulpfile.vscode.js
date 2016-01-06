@@ -32,7 +32,7 @@ var baseModules = [
 	'applicationinsights', 'assert',
 	'child_process', 'chokidar', 'crypto', 'emmet',
 	'events', 'fs', 'getmac', 'glob', 'graceful-fs', 'http', 'http-proxy-agent',
-	'https', 'https-proxy-agent', 'iconv-lite', 'electron', 'menu', 'menu-item', 'net',
+	'https', 'https-proxy-agent', 'iconv-lite', 'electron', 'net',
 	'os', 'path', 'readline', 'remote', 'sax', 'semver',
 	'stream', 'string_decoder', 'url', 'vscode-textmate', 'winreg',
 	'yauzl', 'native-keymap'
