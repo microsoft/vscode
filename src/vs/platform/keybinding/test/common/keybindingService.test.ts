@@ -5,7 +5,7 @@
 'use strict';
 
 import assert = require('assert');
-import {CommonKeybindingResolver} from 'vs/platform/keybinding/common/commonKeybindingResolver';
+import {CommonKeybindingResolver, IOSupport} from 'vs/platform/keybinding/common/commonKeybindingResolver';
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {KeybindingsUtils} from 'vs/platform/keybinding/common/keybindingsUtils';
 import Platform = require('vs/base/common/platform');
@@ -305,7 +305,55 @@ suite('Keybinding Service', () => {
 		testResolve({}, KeyMod.CtrlCmd | KeyCode.KEY_G, 'eleven');
 
 		testKey('sixth', []);
+	});
 
+	test('contextMatchesRules', function () {
+		function testExpression(expr:string, expected:boolean): void {
+			let rules = IOSupport.readKeybindingContexts(expr);
+			assert.equal(CommonKeybindingResolver.contextMatchesRules(context, rules), expected, expr);
+		}
+		let context = {
+			'a': true,
+			'b': false,
+			'c': '5'
+		};
 
+		testExpression('', true);
+
+		testExpression('a', true);
+		testExpression('a == true', true == true);
+		testExpression('a != true', true != true);
+		testExpression('a == false', true == false);
+		testExpression('a != false', true != false);
+		testExpression('a == 5', true == <any>'5');
+		testExpression('a != 5', true != <any>'5');
+		testExpression('!a', !true);
+
+		testExpression('b', false);
+		testExpression('b == true', false == true);
+		testExpression('b != true', false != true);
+		testExpression('b == false', false == false);
+		testExpression('b != false', false != false);
+		testExpression('b == 5', false == <any>'5');
+		testExpression('b != 5', false != <any>'5');
+		testExpression('!b', !false);
+
+		// testExpression('c', <any>'5');
+		testExpression('c == true', <any>'5' == true);
+		testExpression('c != true', <any>'5' != true);
+		testExpression('c == false', <any>'5' == false);
+		testExpression('c != false', <any>'5' != false);
+		testExpression('c == 5', '5' == '5');
+		testExpression('c != 5', '5' != '5');
+		// testExpression('!c', !'5');
+
+		// testExpression('z', undefined);
+		testExpression('z == true', undefined == true);
+		testExpression('z != true', undefined != true);
+		// testExpression('z == false', undefined == false);
+		testExpression('z != false', undefined != false);
+		testExpression('z == 5', undefined == <any>'5');
+		testExpression('z != 5', undefined != <any>'5');
+		testExpression('!z', !undefined);
 	});
 });

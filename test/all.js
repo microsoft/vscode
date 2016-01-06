@@ -178,16 +178,18 @@ function main() {
 		});
 
 		// replace the default unexpected error handler to be useful during tests
-		loader('vs/base/common/errors').setUnexpectedErrorHandler(function (err) {
-			try {
-				throw new Error('oops');
-			} catch (e) {
-				unexpectedErrors.push((err && err.message ? err.message : err) + '\n' + e.stack);
-			}
-		});
+		loader(['vs/base/common/errors'], function(errors) {
+			errors.setUnexpectedErrorHandler(function (err) {
+				try {
+					throw new Error('oops');
+				} catch (e) {
+					unexpectedErrors.push((err && err.message ? err.message : err) + '\n' + e.stack);
+				}
+			});
 
-		// fire up mocha
-		run();
+			// fire up mocha
+			run();
+		});
 	});
 }
 
