@@ -239,6 +239,13 @@ export var geometryBoxKeywords : { [name:string]:string } = {
 
 export var cssWideKeywords = ['initial', 'inherit', 'unset'];
 
+export var basicShapeFunctions : { [name:string]:string } = {
+	'circle()': 'Defines a circle.',
+	'ellipse()': 'Defines an ellipse.',
+	'inset()': 'Defines an inset rectangle.',
+	'polygon()': 'Defines a polygon.'
+};
+
 export var units : { [unitName:string]:string[] } = {
 	'length': ['em', 'rem', 'ex', 'px', 'cm', 'mm', 'in', 'pt', 'pc', 'ch', 'vw', 'vh', 'vmin', 'vmax'],
 	'angle': ['deg', 'rad', 'grad', 'turn'],

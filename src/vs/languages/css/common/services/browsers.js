@@ -1,10 +1,8 @@
-/*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
- *--------------------------------------------------------------------------------------------*/
-
+/*---------------------------------------------------------
+ * Copyright (C) Microsoft Corporation. All rights reserved.
+ *---------------------------------------------------------*/
 // file generated from css-schema.xml using css-exclude_generate_browserjs.js
-define(["require", "exports"], function(require, exports) {
+define(["require", "exports"], function(require, exports) {	
 
 exports.data ={
 	"css": {
@@ -2016,7 +2014,7 @@ exports.data ={
 				"name": "clip-path",
 				"desc": "Specifies a clipping path where everything inside the path is visable and everything outside is clipped out.",
 				"browsers": "FF3.5",
-				"restriction": "url, geometry-box, enum",
+				"restriction": "url, shape, geometry-box, enum",
 				"values": [
 					{
 						"name": "none",
@@ -4082,7 +4080,7 @@ exports.data ={
 				"name": "motion",
 				"desc": "Shorthand property for setting 'motion-path', 'motion-offset' and 'motion-rotation'.",
 				"browsers": "C46,O33",
-				"restriction": "url, length, percentage, angle, geometry-box, enum",
+				"restriction": "url, length, percentage, angle, shape, geometry-box, enum",
 				"values": [
 					{
 						"name": "none",
@@ -4111,7 +4109,7 @@ exports.data ={
 				"name": "motion-path",
 				"desc": "Specifies the motion path the element gets positioned at.",
 				"browsers": "C46,O33",
-				"restriction": "url, geometry-box, enum",
+				"restriction": "url, shape, geometry-box, enum",
 				"values": [
 					{
 						"name": "none",
@@ -7942,19 +7940,10 @@ exports.data ={
 				"name": "shape-outside",
 				"desc": "Specifies an orthogonal rotation to be applied to an image before it is laid out.",
 				"browsers": "C37,O24",
-				"restriction": "box, enum",
+				"restriction": "box, shape, enum",
 				"values": [
 					{
-						"name": "circle()"
-					},
-					{
-						"name": "ellipse()"
-					},
-					{
 						"name": "image()"
-					},
-					{
-						"name": "inset()"
 					},
 					{
 						"name": "linear-gradient()"
@@ -7965,9 +7954,6 @@ exports.data ={
 					{
 						"name": "none",
 						"desc": "The float area is unaffected."
-					},
-					{
-						"name": "polygon()"
 					},
 					{
 						"name": "radial-gradient()"
@@ -10730,11 +10716,7 @@ exports.descriptions = {
 	"before": "The ruby text appears before the base. This is the most common setting used in ideographic East Asian writing systems.",
 	"attr(x)": "The value of attribute 'x' is a string value. The string value is evaluated as a <number> to determine the number of ruby base elements to be spanned by the annotation element.",
 	"smooth": "Scrolls in a smooth fashion using a user-agent-defined timing function and time period.",
-	"circle()": "Defines a circle.",
-	"ellipse()": "Defines an ellipse.",
-	"inset()": "Defines an inset rectangle.",
 	"margin-box": "The background is painted within (clipped to) the margin box.",
-	"polygon()": "Defines a polygon.",
 	"additive": "Represents “sign-value” numbering systems, which, rather than using reusing digits in different positions to change their value, define additional digits with much larger values, so that the value of the number can be obtained by adding all the digits together.",
 	"cyclic": "Cycles repeatedly through its provided symbols, looping back to the beginning when it reaches the end of the list.",
 	"extends": "Use the algorithm of another counter style, but alter other aspects.",

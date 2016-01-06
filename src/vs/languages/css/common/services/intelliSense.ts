@@ -137,6 +137,7 @@ export class CSSIntellisense {
 			this.getRepeatStyleProposals(entry, result);
 			this.getLineProposals(entry, result);
 			this.getBoxProposals(entry, result);
+			this.getBasicShapeProposals(entry, result);
 			this.getValueEnumProposals(entry, result);
 			this.getCSSWideKeywordProposals(entry, result);
 			this.getUnitProposals(entry, result);
@@ -337,6 +338,20 @@ export class CSSIntellisense {
 					documentationLabel: languageFacts.boxKeywords[box],
 					codeSnippet: box,
 					type: 'value'
+				});
+			}
+		};
+		return result;
+	}
+
+	protected getBasicShapeProposals(entry:languageFacts.IEntry, result:Modes.ISuggestion[]):Modes.ISuggestion[] {
+		if (entry.restrictions.indexOf('shape') !== -1) {
+			for (var shape in languageFacts.basicShapeFunctions) {
+				result.push({
+					label: shape,
+					documentationLabel: languageFacts.basicShapeFunctions[shape],
+					codeSnippet: shape,
+					type: 'function'
 				});
 			}
 		};

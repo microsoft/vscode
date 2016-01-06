@@ -1600,23 +1600,11 @@
         </value>
       </values>
     </entry>
-    <entry name="clip-path" restriction="url, geometry-box, enum" version="3.0" browsers="FF3.5" ref="http://www.w3.org/TR/css-masking/#the-clip-path">
+    <entry name="clip-path" restriction="url, shape, geometry-box, enum" version="3.0" browsers="FF3.5" ref="http://www.w3.org/TR/css-masking/#the-clip-path">
       <desc>Specifies a clipping path where everything inside the path is visable and everything outside is clipped out.</desc>
       <values>
         <value name="none" version="3.0" browsers="all">
           <desc>No clipping path gets created.</desc>
-        </value>
-        <value name="inset()" version="3.0" browsers="none">
-          <desc>Defines an inset rectangle.</desc>
-        </value>
-        <value name="circle()" version="3.0" browsers="none">
-          <desc>Defines a circle.</desc>
-        </value>
-        <value name="ellipse()" version="3.0" browsers="none">
-          <desc>Defines an ellipse.</desc>
-        </value>
-        <value name="polygon()" version="3.0" browsers="none">
-          <desc>Defines a polygon.</desc>
         </value>
         <value name="url()" version="3.0" browsers="all">
           <desc>References a &lt;clipPath> element to create a clipping path.</desc>
@@ -3993,21 +3981,9 @@
         </value>
       </values>
     </entry>
-    <entry name="motion" restriction="url, length, percentage, angle, geometry-box, enum" version="3.0" browsers="C46,O33" ref="http://www.w3.org/TR/motion-1/#propdef-motion">
+    <entry name="motion" restriction="url, length, percentage, angle, shape, geometry-box, enum" version="3.0" browsers="C46,O33" ref="http://www.w3.org/TR/motion-1/#propdef-motion">
       <desc>Shorthand property for setting 'motion-path', 'motion-offset' and 'motion-rotation'.</desc>
       <values>
-        <value name="inset()" version="3.0" browsers="none">
-          <desc>Defines an inset rectangle.</desc>
-        </value>
-        <value name="circle()" version="3.0" browsers="none">
-          <desc>Defines a circle.</desc>
-        </value>
-        <value name="ellipse()" version="3.0" browsers="none">
-          <desc>Defines an ellipse.</desc>
-        </value>
-        <value name="polygon()" version="3.0" browsers="none">
-          <desc>Defines a polygon.</desc>
-        </value>
         <value name="none" version="3.0" browsers="all">
           <desc>No motion path gets created.</desc>
         </value>
@@ -4028,21 +4004,9 @@
     <entry name="motion-offset" restriction="length, percentage" version="3.0" browsers="C46,O33" ref="http://www.w3.org/TR/motion-1/#propdef-motion-offset" syntax="div { $(name): 10%; }">
       <desc>A distance that describes the position along the specified motion path.</desc>
     </entry>
-    <entry name="motion-path" restriction="url, geometry-box, enum" version="3.0" browsers="C46,O33" ref="http://www.w3.org/TR/motion-1/#propdef-motion-path">
+    <entry name="motion-path" restriction="url, shape, geometry-box, enum" version="3.0" browsers="C46,O33" ref="http://www.w3.org/TR/motion-1/#propdef-motion-path">
       <desc>Specifies the motion path the element gets positioned at.</desc>
       <values>
-        <value name="inset()" version="3.0" browsers="none">
-          <desc>Defines an inset rectangle.</desc>
-        </value>
-        <value name="circle()" version="3.0" browsers="none">
-          <desc>Defines a circle.</desc>
-        </value>
-        <value name="ellipse()" version="3.0" browsers="none">
-          <desc>Defines an ellipse.</desc>
-        </value>
-        <value name="polygon()" version="3.0" browsers="none">
-          <desc>Defines a polygon.</desc>
-        </value>
         <value name="none" version="3.0" browsers="all">
           <desc>No motion path gets created.</desc>
         </value>
@@ -6911,36 +6875,24 @@
     <entry name="shape-image-threshold" restriction="number" version="3.0" browsers="C37,O24" ref="http://www.w3.org/TR/css-shapes-1/#propdef-shape-image-threshold" syntax="div { $(name): 0.5; }">
       <desc>Defines the alpha channel threshold used to extract the shape using an image. A value of 0.5 means that the shape will enclose all the pixels that are more than 50% opaque.</desc>
     </entry>
-    <entry name="shape-inside" restriction="url, box, enum" version="4.0" browsers="none" ref="https://drafts.csswg.org/css-shapes-2/#propdef-shape-inside" syntax="div { $(name): outside-shape; }">
+    <entry name="shape-inside" restriction="url, shape, box, enum" version="4.0" browsers="none" ref="https://drafts.csswg.org/css-shapes-2/#propdef-shape-inside" syntax="div { $(name): outside-shape; }">
       <desc>Adds one or more exclusion areas to the element’s wrapping context.</desc>
       <values>
         <value name="auto" version="4.0" browsers="all">
           <desc>The shape is computed based on the content box of the element.</desc>
         </value>
-        <value name="circle()" version="4.0" browsers="all">
-          <desc>Defines a circle.</desc>
-        </value>
         <value name="cross-fade()" version="4.0" browsers="all" />
         <value name="display" version="4.0" browsers="all">
           <desc>The shape is computed based on the shape of the display as described in css-round-display.</desc>
         </value>
-        <value name="ellipse()" version="4.0" browsers="all">
-          <desc>Defines an ellipse.</desc>
-        </value>
         <value name="image()" version="4.0" browsers="all" />
         <value name="image-set()" version="4.0" browsers="all" />
-        <value name="inset()" version="4.0" browsers="all">
-          <desc>Defines an inset rectangle.</desc>
-        </value>
         <value name="linear-gradient()" version="4.0" browsers="all" />
         <value name="margin-box" version="4.0" browsers="all">
           <desc>The background is painted within (clipped to) the margin box.</desc>
         </value>
         <value name="outside-shape" version="4.0" browsers="all">
           <desc>The shape is computed based on the shape defined by the shape-outside and shape-margin properties.</desc>
-        </value>
-        <value name="polygon()" version="4.0" browsers="all">
-          <desc>Defines a polygon.</desc>
         </value>
         <value name="radial-gradient()" version="4.0" browsers="all" />
         <value name="repeating-linear-gradient()" version="4.0" browsers="all" />
@@ -6953,28 +6905,16 @@
     <entry name="shape-margin" restriction="url, length, percentage" version="3.0" browsers="C37,O24" ref="http://www.w3.org/TR/css-shapes-1/#propdef-shape-margin" syntax="div { $(name): 10px; }">
       <desc>Adds a margin to a 'shape-outside'. This defines a new shape that is the smallest contour that includes all the points that are the 'shape-margin' distance outward in the perpendicular direction from a point on the underlying shape.</desc>
     </entry>
-    <entry name="shape-outside" restriction="box, enum" version="3.0" browsers="C37,O24" ref="http://www.w3.org/TR/css-shapes-1/#shape-outside-property" syntax="div { $(name): margin-box; }">
+    <entry name="shape-outside" restriction="box, shape, enum" version="3.0" browsers="C37,O24" ref="http://www.w3.org/TR/css-shapes-1/#shape-outside-property" syntax="div { $(name): margin-box; }">
       <desc>Specifies an orthogonal rotation to be applied to an image before it is laid out.</desc>
       <values>
-        <value name="circle()" version="3.0" browsers="all">
-          <desc>Defines a circle.</desc>
-        </value>
-        <value name="ellipse()" version="3.0" browsers="all">
-          <desc>Defines an ellipse.</desc>
-        </value>
         <value name="image()" version="3.0" browsers="all" />
-        <value name="inset()" version="3.0" browsers="all">
-          <desc>Defines an inset rectangle.</desc>
-        </value>
         <value name="linear-gradient()" version="3.0" browsers="all" />
         <value name="margin-box" version="3.0" browsers="all">
           <desc>The background is painted within (clipped to) the margin box.</desc>
         </value>
         <value name="none" version="3.0" browsers="all">
           <desc>The float area is unaffected.</desc>
-        </value>
-        <value name="polygon()" version="3.0" browsers="all">
-          <desc>Defines a polygon.</desc>
         </value>
         <value name="radial-gradient()" version="3.0" browsers="all" />
         <value name="repeating-linear-gradient()" version="3.0" browsers="all" />
