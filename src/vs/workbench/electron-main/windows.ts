@@ -23,6 +23,7 @@ import window = require('vs/workbench/electron-main/window');
 import lifecycle = require('vs/workbench/electron-main/lifecycle');
 import nls = require('vs/nls');
 import paths = require('vs/base/common/paths');
+import json = require('vs/base/common/json');
 import arrays = require('vs/base/common/arrays');
 import objects = require('vs/base/common/objects');
 import storage = require('vs/workbench/electron-main/storage');
@@ -175,10 +176,7 @@ export class WindowsManager {
 				eventEmitter.emit(EventTypes.READY, win);
 
 				// TODO@Ben remove me in a couple of versions
-				if (storage.getItem<number>('autoSaveDelay') === 1000) {
-					storage.removeItem('autoSaveDelay');
-					win.send('vscode:showAutoSaveInfo');
-				}
+				this.migrateAutoSave(win);
 			}
 		});
 
@@ -340,6 +338,46 @@ export class WindowsManager {
 
 			window.send('vscode:telemetry', { eventName: 'startupTime', data: { ellapsed: Date.now() - global.vscodeStart } });
 		});
+	}
+
+	private migrateAutoSave(win: window.VSCodeWindow): void {
+		if (storage.getItem<number>('autoSaveDelay') === 1000) {
+			storage.removeItem('autoSaveDelay');
+			win.send('vscode:showAutoSaveInfo');
+
+			try {
+
+				// Initial settings file
+				if (!fs.existsSync(env.appSettingsPath)) {
+					fs.writeFileSync(env.appSettingsPath, JSON.stringify({ 'files.autoSaveDelay': 1 }, null, '    '));
+				}
+
+				// Update existing settings file
+				else {
+					const settingsRaw = fs.readFileSync(env.appSettingsPath).toString();
+					const lastClosing = settingsRaw.lastIndexOf('}');
+					const errors = [];
+					const res = json.parse(settingsRaw, errors);
+
+					// We found a closing '}' and the JSON does not contain errors
+					if (lastClosing > 0 && !errors.length) {
+						const hasOtherKeys = Object.getOwnPropertyNames(res).length > 0;
+
+						const migratedSettings = settingsRaw.substring(0, lastClosing) + '\n    // Migrated from previous File | Auto Save setting:\n' + (hasOtherKeys ? '    , "files.autoSaveDelay": 1\n' : '    "files.autoSaveDelay": 1\n') + '}';
+
+						fs.writeFileSync(env.appSettingsPath, migratedSettings);
+					}
+
+					// Otherwise inform user that we cannot migrate the settings
+					else {
+						win.send('vscode:showAutoSaveError');
+					}
+				}
+			} catch (error) {
+				env.log(error);
+				win.send('vscode:showAutoSaveError');
+			}
+		}
 	}
 
 	public reload(win: window.VSCodeWindow, cli?: env.ICommandLineArguments): void {
@@ -600,7 +638,7 @@ export class WindowsManager {
 			recentPaths.unshift(workspacePath);
 		}
 
-				// Clear those dupes
+		// Clear those dupes
 		recentPaths = arrays.distinct(recentPaths);
 
 		// Make sure it is bounded
