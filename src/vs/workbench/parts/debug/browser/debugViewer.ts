@@ -380,7 +380,7 @@ export class VariablesRenderer implements tree.IRenderer {
 		// noop
 	}
 
-	public getHeight(tree:tree.ITree, element:any): number {
+	public getHeight(tree: tree.ITree, element: any): number {
 		return 24;
 	}
 
