@@ -537,7 +537,7 @@ export class AdaptiveCollapsibleViewletView extends FixedCollapsibleView impleme
 	) {
 		super({
 			expandedBodySize: initialBodySize,
-			headerSize: 24,
+			headerSize: 22,
 			initialState: collapsed ? CollapsibleState.COLLAPSED : CollapsibleState.EXPANDED
 		});
 
@@ -656,7 +656,7 @@ export class CollapsibleViewletView extends CollapsibleView implements IViewletV
 		@IContextMenuService protected contextMenuService: IContextMenuService
 	) {
 		super({
-			minimumSize: 2 * 24,
+			minimumSize: 2 * 22,
 			initialState: collapsed ? CollapsibleState.COLLAPSED : CollapsibleState.EXPANDED
 		});
 

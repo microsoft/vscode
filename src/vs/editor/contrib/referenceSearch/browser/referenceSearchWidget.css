@@ -57,7 +57,7 @@
 	width: 20%;
 	color: #646465;
 	font-family: "Segoe WPC", "Segoe UI", "SFUIText-Light", "HelveticaNeue-Light", sans-serif, "Droid Sans Fallback";
-	line-height: 24px;
+	line-height: 22px;
 	font-size: 13px;
 }
 
@@ -90,7 +90,7 @@
 
 .monaco-editor .reference-zone-widget .tree .reference-file {
 	position: relative;
-	line-height: 24px;
+	line-height: 22px;
 	color: #1E1E1E;
 }
 

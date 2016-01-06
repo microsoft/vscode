@@ -64,8 +64,8 @@ export class View extends ee.EventEmitter {
 
 		this.size = 0;
 		this._sizing = types.isUndefined(opts.sizing) ? ViewSizing.Flexible : opts.sizing;
-		this._fixedSize = types.isUndefined(opts.fixedSize) ? 24 : opts.fixedSize;
-		this._minimumSize = types.isUndefined(opts.minimumSize) ? 24 : opts.minimumSize;
+		this._fixedSize = types.isUndefined(opts.fixedSize) ? 22 : opts.fixedSize;
+		this._minimumSize = types.isUndefined(opts.minimumSize) ? 22 : opts.minimumSize;
 	}
 
 	public get sizing(): ViewSizing { return this._sizing; }
@@ -108,7 +108,7 @@ export class HeaderView extends View {
 	constructor(opts: IHeaderViewOptions) {
 		super(opts);
 
-		this.headerSize = types.isUndefined(opts.headerSize) ? 24 : opts.headerSize;
+		this.headerSize = types.isUndefined(opts.headerSize) ? 22 : opts.headerSize;
 	}
 
 	public render(container: HTMLElement, orientation: Orientation): void {
@@ -292,7 +292,7 @@ export class FixedCollapsibleView extends AbstractCollapsibleView {
 
 	constructor(opts: IFixedCollapsibleViewOptions) {
 		super(objects.mixin({ sizing: ViewSizing.Fixed }, opts));
-		this._expandedBodySize = types.isUndefined(opts.expandedBodySize) ? 24 : opts.expandedBodySize;
+		this._expandedBodySize = types.isUndefined(opts.expandedBodySize) ? 22 : opts.expandedBodySize;
 	}
 
 	public get fixedSize(): number { return this.state === CollapsibleState.EXPANDED ? this.expandedSize : this.headerSize; }

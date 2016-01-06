@@ -228,7 +228,7 @@ export class CallStackRenderer implements tree.IRenderer {
 	}
 
 	public getHeight(tree:tree.ITree, element:any): number {
-		return 24;
+		return 22;
 	}
 
 	public getTemplateId(tree: tree.ITree, element: any): string {
@@ -381,7 +381,7 @@ export class VariablesRenderer implements tree.IRenderer {
 	}
 
 	public getHeight(tree: tree.ITree, element: any): number {
-		return 24;
+		return 22;
 	}
 
 	public getTemplateId(tree: tree.ITree, element: any): string {
@@ -541,7 +541,7 @@ export class WatchExpressionsRenderer implements tree.IRenderer {
 	}
 
 	public getHeight(tree:tree.ITree, element:any): number {
-		return 24;
+		return 22;
 	}
 
 	public getTemplateId(tree: tree.ITree, element: any): string {
@@ -764,7 +764,7 @@ export class BreakpointsRenderer implements tree.IRenderer {
 	}
 
 	public getHeight(tree:tree.ITree, element:any): number {
-		return 24;
+		return 22;
 	}
 
 	public getTemplateId(tree: tree.ITree, element: any): string {

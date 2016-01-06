@@ -22,7 +22,7 @@ export class EmptyView extends CollapsibleView {
 
 	constructor(@IInstantiationService private instantiationService: IInstantiationService) {
 		super({
-			minimumSize: 2 * 24
+			minimumSize: 2 * 22
 		});
 	}
 
