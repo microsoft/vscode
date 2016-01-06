@@ -179,8 +179,58 @@ export enum KeyCode {
 	MAX_VALUE
 }
 
-let TO_STRING_MAP: string[] = [];
-(function() {
+interface IReverseMap {
+	[str:string]:KeyCode;
+}
+
+class Mapping {
+
+	_fromKeyCode: string[];
+	_toKeyCode: IReverseMap;
+
+	constructor(fromKeyCode: string[], toKeyCode: IReverseMap) {
+		this._fromKeyCode = fromKeyCode;
+		this._toKeyCode = toKeyCode;
+	}
+
+	fromKeyCode(keyCode:KeyCode): string {
+		return this._fromKeyCode[keyCode];
+	}
+
+	toKeyCode(str:string): KeyCode {
+		if (this._toKeyCode.hasOwnProperty(str)) {
+			return this._toKeyCode[str];
+		}
+		return KeyCode.Unknown;
+	}
+
+}
+
+function createMapping(fill1:(map:string[])=>void, fill2:(reverseMap:IReverseMap)=>void): Mapping {
+	let MAP: string[] = [];
+	fill1(MAP);
+
+	let REVERSE_MAP: IReverseMap = {};
+	for (let i = 0, len = MAP.length; i < len; i++) {
+		if (!MAP[i]) {
+			continue;
+		}
+		REVERSE_MAP[MAP[i]] = i;
+	}
+	fill2(REVERSE_MAP);
+
+	let FINAL_REVERSE_MAP: IReverseMap = {};
+	for (let entry in REVERSE_MAP) {
+		if (REVERSE_MAP.hasOwnProperty(entry)) {
+			FINAL_REVERSE_MAP[entry] = REVERSE_MAP[entry];
+			FINAL_REVERSE_MAP[entry.toLowerCase()] = REVERSE_MAP[entry];
+		}
+	}
+
+	return new Mapping(MAP, FINAL_REVERSE_MAP);
+}
+
+let STRING = createMapping((TO_STRING_MAP) => {
 	TO_STRING_MAP[KeyCode.Unknown] 		= 'unknown';
 
 	TO_STRING_MAP[KeyCode.Backspace] 	= 'Backspace';
@@ -303,29 +353,41 @@ let TO_STRING_MAP: string[] = [];
 	// 		console.warn('Missing string representation for ' + KeyCode[i]);
 	// 	}
 	// }
-})();
+}, (FROM_STRING_MAP) => {
+	FROM_STRING_MAP['\r'] = KeyCode.Enter;
+});
 
-let FROM_STRING_MAP: {[str:string]:KeyCode;} = {};
-FROM_STRING_MAP['\r'] = KeyCode.Enter;
-(function() {
-	for (let i = 0, len = TO_STRING_MAP.length; i < len; i++) {
-		if (!TO_STRING_MAP[i]) {
-			continue;
-		}
-		FROM_STRING_MAP[TO_STRING_MAP[i]] = i;
-		FROM_STRING_MAP[TO_STRING_MAP[i].toLowerCase()] = i;
+
+let USER_SETTINGS = createMapping((TO_USER_SETTINGS_MAP) => {
+	for (let i = 0, len = STRING._fromKeyCode.length; i < len; i++) {
+		TO_USER_SETTINGS_MAP[i] = STRING._fromKeyCode[i];
 	}
-})();
+	TO_USER_SETTINGS_MAP[KeyCode.LeftArrow] = 'Left';
+	TO_USER_SETTINGS_MAP[KeyCode.UpArrow] = 'Up';
+	TO_USER_SETTINGS_MAP[KeyCode.RightArrow] = 'Right';
+	TO_USER_SETTINGS_MAP[KeyCode.DownArrow] = 'Down';
+}, (FROM_USER_SETTINGS_MAP) => {
+	FROM_USER_SETTINGS_MAP['OEM_1'] = KeyCode.US_SEMICOLON;
+	FROM_USER_SETTINGS_MAP['OEM_PLUS'] = KeyCode.US_EQUAL;
+	FROM_USER_SETTINGS_MAP['OEM_COMMA'] = KeyCode.US_COMMA;
+	FROM_USER_SETTINGS_MAP['OEM_MINUS'] = KeyCode.US_MINUS;
+	FROM_USER_SETTINGS_MAP['OEM_PERIOD'] = KeyCode.US_DOT;
+	FROM_USER_SETTINGS_MAP['OEM_2'] = KeyCode.US_SLASH;
+	FROM_USER_SETTINGS_MAP['OEM_3'] = KeyCode.US_BACKTICK;
+	FROM_USER_SETTINGS_MAP['OEM_4'] = KeyCode.US_OPEN_SQUARE_BRACKET;
+	FROM_USER_SETTINGS_MAP['OEM_5'] = KeyCode.US_BACKSLASH;
+	FROM_USER_SETTINGS_MAP['OEM_6'] = KeyCode.US_CLOSE_SQUARE_BRACKET;
+	FROM_USER_SETTINGS_MAP['OEM_7'] = KeyCode.US_QUOTE;
+	// FROM_USER_SETTINGS_MAP['OEM_8'] = KeyCode.Unknown; // MISSING
+	// FROM_USER_SETTINGS_MAP['OEM_102'] = KeyCode.Unknown; // MISSING
+});
 
 export namespace KeyCode {
 	export function toString(key:KeyCode): string {
-		return TO_STRING_MAP[key];
+		return STRING.fromKeyCode(key);
 	}
 	export function fromString(key:string): KeyCode {
-		if (FROM_STRING_MAP.hasOwnProperty(key)) {
-			return FROM_STRING_MAP[key];
-		}
-		return KeyCode.Unknown;
+		return STRING.toKeyCode(key);
 	}
 }
 
@@ -479,7 +541,7 @@ export class Keybinding {
 	 */
 	public static toUserSettingsLabel(value:number, Platform:ISimplifiedPlatform = defaultPlatform): string {
 		let result = _asString(value, UserSettingsKeyLabelProvider.INSTANCE, Platform);
-		result = result.toLowerCase().replace(/arrow/g, '');
+		result = result.toLowerCase();
 
 		if (Platform.isMacintosh) {
 			result = result.replace(/meta/g, 'cmd');
@@ -488,6 +550,90 @@ export class Keybinding {
 		}
 
 		return result;
+	}
+
+	public static fromUserSettingsLabel(input: string, Platform: ISimplifiedPlatform = defaultPlatform): number {
+		if (!input) {
+			return null;
+		}
+		input = input.toLowerCase().trim();
+
+		let ctrlCmd = false,
+			shift = false,
+			alt = false,
+			winCtrl = false,
+			key:string = '';
+
+		while (/^(ctrl|shift|alt|meta|win|cmd)(\+|\-)/.test(input)) {
+			if (/^ctrl(\+|\-)/.test(input)) {
+				if (Platform.isMacintosh) {
+					winCtrl = true;
+				} else {
+					ctrlCmd = true;
+				}
+				input = input.substr('ctrl-'.length);
+			}
+			if (/^shift(\+|\-)/.test(input)) {
+				shift = true;
+				input = input.substr('shift-'.length);
+			}
+			if (/^alt(\+|\-)/.test(input)) {
+				alt = true;
+				input = input.substr('alt-'.length);
+			}
+			if (/^meta(\+|\-)/.test(input)) {
+				if (Platform.isMacintosh) {
+					ctrlCmd = true;
+				} else {
+					winCtrl = true;
+				}
+				input = input.substr('meta-'.length);
+			}
+			if (/^win(\+|\-)/.test(input)) {
+				if (Platform.isMacintosh) {
+					ctrlCmd = true;
+				} else {
+					winCtrl = true;
+				}
+				input = input.substr('win-'.length);
+			}
+			if (/^cmd(\+|\-)/.test(input)) {
+				if (Platform.isMacintosh) {
+					ctrlCmd = true;
+				} else {
+					winCtrl = true;
+				}
+				input = input.substr('cmd-'.length);
+			}
+		}
+
+		let chord: number = 0;
+
+		let firstSpaceIdx = input.indexOf(' ');
+		if (firstSpaceIdx > 0) {
+			key = input.substring(0, firstSpaceIdx);
+			chord = Keybinding.fromUserSettingsLabel(input.substring(firstSpaceIdx), Platform);
+		} else {
+			key = input;
+		}
+
+		let keyCode = USER_SETTINGS.toKeyCode(key);
+
+		let result = 0;
+		if (ctrlCmd) {
+			result |= KeyMod.CtrlCmd;
+		}
+		if (shift) {
+			result |= KeyMod.Shift;
+		}
+		if (alt) {
+			result |= KeyMod.Alt;
+		}
+		if (winCtrl) {
+			result |= KeyMod.WinCtrl;
+		}
+		result |= keyCode;
+		return KeyMod.chord(result, chord);
 	}
 
 	public value:number;
@@ -667,7 +813,7 @@ class UserSettingsKeyLabelProvider implements IKeyBindingLabelProvider {
 	public modifierSeparator = '+';
 
 	public getLabelForKey(keyCode:KeyCode): string {
-		return KeyCode.toString(keyCode);
+		return USER_SETTINGS.fromKeyCode(keyCode);
 	}
 }
 

@@ -11,19 +11,18 @@ import {KeyMod, KeyCode, ISimplifiedPlatform} from 'vs/base/common/keyCodes';
 suite('Keybinding IO', () => {
 
 	test('serialize/deserialize', function() {
-		let Platform = {
-			isMacintosh: false,
-			isWindows: true
-		};
+		const WINDOWS = { isMacintosh: false, isWindows: true };
+		const MACINTOSH = { isMacintosh: true, isWindows: false };
+		const LINUX = { isMacintosh: false, isWindows: false };
 
 		function testOneSerialization(keybinding:number, expected:string, msg:string, Platform:ISimplifiedPlatform): void {
 			let actualSerialized = IOSupport.writeKeybinding(keybinding, Platform);
 			assert.equal(actualSerialized, expected, expected + ' - ' + msg);
 		}
 		function testSerialization(keybinding:number, expectedWin:string, expectedMac:string, expectedLinux:string): void {
-			testOneSerialization(keybinding, expectedWin, 'win', { isMacintosh: false, isWindows: true });
-			testOneSerialization(keybinding, expectedMac, 'mac', { isMacintosh: true, isWindows: false });
-			testOneSerialization(keybinding, expectedLinux, 'linux', { isMacintosh: false, isWindows: false });
+			testOneSerialization(keybinding, expectedWin, 'win', WINDOWS);
+			testOneSerialization(keybinding, expectedMac, 'mac', MACINTOSH);
+			testOneSerialization(keybinding, expectedLinux, 'linux', LINUX);
 		}
 
 		function testOneDeserialization(keybinding:string, expected:number, msg:string, Platform:ISimplifiedPlatform): void {
@@ -31,9 +30,9 @@ suite('Keybinding IO', () => {
 			assert.equal(actualDeserialized, expected, keybinding + ' - ' + msg);
 		}
 		function testDeserialization(inWin:string, inMac:string, inLinux:string, expected:number): void {
-			testOneDeserialization(inWin, expected, 'win', { isMacintosh: false, isWindows: true });
-			testOneDeserialization(inMac, expected, 'mac', { isMacintosh: true, isWindows: false });
-			testOneDeserialization(inLinux, expected, 'linux', { isMacintosh: false, isWindows: false });
+			testOneDeserialization(inWin, expected, 'win', WINDOWS);
+			testOneDeserialization(inMac, expected, 'mac', MACINTOSH);
+			testOneDeserialization(inLinux, expected, 'linux', LINUX);
 		}
 
 		function testRoundtrip(keybinding:number, expectedWin:string, expectedMac:string, expectedLinux:string): void {
@@ -70,6 +69,10 @@ suite('Keybinding IO', () => {
 		// all modifiers
 		testRoundtrip(KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyMod.WinCtrl | KeyCode.KEY_A, 'ctrl+shift+alt+win+a', 'ctrl+shift+alt+cmd+a', 'ctrl+shift+alt+meta+a');
 
+		// chords
+		testRoundtrip(KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_A, KeyMod.CtrlCmd | KeyCode.KEY_A), 'ctrl+a ctrl+a', 'cmd+a cmd+a', 'ctrl+a ctrl+a');
+		testRoundtrip(KeyMod.chord(KeyMod.CtrlCmd | KeyCode.UpArrow, KeyMod.CtrlCmd | KeyCode.UpArrow), 'ctrl+up ctrl+up', 'cmd+up cmd+up', 'ctrl+up ctrl+up');
+
 		// OEM keys
 		testRoundtrip(KeyCode.US_SEMICOLON, ';', ';', ';');
 		testRoundtrip(KeyCode.US_EQUAL, '=', '=', '=');
@@ -82,6 +85,27 @@ suite('Keybinding IO', () => {
 		testRoundtrip(KeyCode.US_BACKSLASH, '\\', '\\', '\\');
 		testRoundtrip(KeyCode.US_CLOSE_SQUARE_BRACKET, ']', ']', ']');
 		testRoundtrip(KeyCode.US_QUOTE, '\'', '\'', '\'');
+
+		// OEM aliases
+		testDeserialization('OEM_1', 'OEM_1', 'OEM_1', KeyCode.US_SEMICOLON);
+		testDeserialization('OEM_PLUS', 'OEM_PLUS', 'OEM_PLUS', KeyCode.US_EQUAL);
+		testDeserialization('OEM_COMMA', 'OEM_COMMA', 'OEM_COMMA', KeyCode.US_COMMA);
+		testDeserialization('OEM_MINUS', 'OEM_MINUS', 'OEM_MINUS', KeyCode.US_MINUS);
+		testDeserialization('OEM_PERIOD', 'OEM_PERIOD', 'OEM_PERIOD', KeyCode.US_DOT);
+		testDeserialization('OEM_2', 'OEM_2', 'OEM_2', KeyCode.US_SLASH);
+		testDeserialization('OEM_3', 'OEM_3', 'OEM_3', KeyCode.US_BACKTICK);
+		testDeserialization('OEM_4', 'OEM_4', 'OEM_4', KeyCode.US_OPEN_SQUARE_BRACKET);
+		testDeserialization('OEM_5', 'OEM_5', 'OEM_5', KeyCode.US_BACKSLASH);
+		testDeserialization('OEM_6', 'OEM_6', 'OEM_6', KeyCode.US_CLOSE_SQUARE_BRACKET);
+		testDeserialization('OEM_7', 'OEM_7', 'OEM_7', KeyCode.US_QUOTE);
+		testDeserialization('OEM_8', 'OEM_8', 'OEM_8', KeyCode.Unknown); // MISSING
+		testDeserialization('OEM_102', 'OEM_102', 'OEM_102', KeyCode.Unknown); // MISSING
+
+		// accepts '-' as separator
+		testDeserialization('ctrl-shift-alt-win-a', 'ctrl-shift-alt-cmd-a', 'ctrl-shift-alt-meta-a', KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyMod.WinCtrl | KeyCode.KEY_A);
+
+		// various input mistakes
+		testDeserialization(' ctrl-shift-alt-win-A ', ' shift-alt-cmd-Ctrl-A ', ' ctrl-shift-alt-META-A ', KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyMod.WinCtrl | KeyCode.KEY_A);
 	});
 
 });
