@@ -12,8 +12,7 @@ import fs = require('fs');
 
 import BrowserWindow = require('browser-window');
 import Dialog = require('dialog');
-import {ipcMain as ipc, app} from 'electron';
-import screen = require('screen');
+import {ipcMain as ipc, app, screen} from 'electron';
 import crashReporter = require('crash-reporter');
 
 import platform = require('vs/base/common/platform');

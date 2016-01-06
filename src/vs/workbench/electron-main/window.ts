@@ -8,8 +8,7 @@
 import path = require('path');
 import os = require('os');
 
-import {shell} from 'electron';
-import screen = require('screen');
+import {shell, screen} from 'electron';
 import BrowserWindow = require('browser-window');
 
 import {TPromise, TValueCallback} from 'vs/base/common/winjs.base';

@@ -33,7 +33,7 @@ var baseModules = [
 	'child_process', 'chokidar', 'crash-reporter', 'crypto', 'dialog', 'emmet',
 	'events', 'fs', 'getmac', 'glob', 'graceful-fs', 'http', 'http-proxy-agent',
 	'https', 'https-proxy-agent', 'iconv-lite', 'electron', 'ipc', 'menu', 'menu-item', 'net',
-	'original-fs', 'os', 'path', 'readline', 'remote', 'sax', 'screen', 'semver',
+	'original-fs', 'os', 'path', 'readline', 'remote', 'sax', 'semver',
 	'stream', 'string_decoder', 'url', 'vscode-textmate', 'winreg',
 	'yauzl', 'native-keymap'
 ];
