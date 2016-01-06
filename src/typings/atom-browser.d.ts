@@ -331,7 +331,7 @@ interface IDock {
 // https://github.com/atom/electron/blob/master/docs/api/auto-updater.md
 declare module 'auto-updater' {
 	export interface IAutoUpdater extends IEventEmitter {
-		setFeedUrl(url: string): void;
+		setFeedURL(url: string): void;
 		checkForUpdates(): void;
 	}
 
@@ -342,7 +342,7 @@ declare module 'auto-updater' {
 		version?: string;
 	}
 
-	export function setFeedUrl(url: string): void;
+	export function setFeedURL(url: string): void;
 	export function checkForUpdates(): void;
 	export function addListener(event: string, listener: Function): EventEmitter;
 	export function on(event: string, listener: Function): EventEmitter;

@@ -29,7 +29,7 @@ var build = path.join(root, '.build');
 var commit = util.getVersion(root);
 
 var baseModules = [
-	'app', 'applicationinsights', 'assert', 'auto-updater', 'browser-window',
+	'applicationinsights', 'assert', 'browser-window',
 	'child_process', 'chokidar', 'crash-reporter', 'crypto', 'dialog', 'emmet',
 	'events', 'fs', 'getmac', 'glob', 'graceful-fs', 'http', 'http-proxy-agent',
 	'https', 'https-proxy-agent', 'iconv-lite', 'electron', 'ipc', 'menu', 'menu-item', 'net',
