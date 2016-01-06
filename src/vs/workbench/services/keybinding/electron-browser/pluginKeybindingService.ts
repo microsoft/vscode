@@ -520,9 +520,12 @@ export default class PluginWorkbenchKeybindingService extends WorkbenchKeybindin
 	}
 
 	protected _invokeHandler(commandId: string, args: any): TPromise<any> {
-		return this._pluginService.activateByEvent('onCommand:' + commandId).then(_ => {
-			return super._invokeHandler(commandId, args);
-		});
+		if (this._pluginService) {
+			return this._pluginService.activateByEvent('onCommand:' + commandId).then(_ => {
+				return super._invokeHandler(commandId, args);
+			});
+		}
+		return TPromise.as(null);
 	}
 
 	private _asCommandRule(isBuiltin: boolean, idx:number, binding: ContributedKeyBinding): ICommandRule {
