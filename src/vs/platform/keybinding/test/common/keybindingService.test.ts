@@ -9,18 +9,14 @@ import {CommonKeybindingResolver, IOSupport} from 'vs/platform/keybinding/common
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {KeybindingsUtils} from 'vs/platform/keybinding/common/keybindingsUtils';
 import Platform = require('vs/base/common/platform');
-import {IKeybindingContextRule, IKeybindingItem} from 'vs/platform/keybinding/common/keybindingService';
+import {KbExpr, KbAndExpression, IKeybindingItem} from 'vs/platform/keybinding/common/keybindingService';
 import {KeyMod, KeyCode, BinaryKeybindings} from 'vs/base/common/keyCodes';
 
 suite('Keybinding Service', () => {
 
 	test('resolve key', function() {
 		var keybinding = KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_Z;
-		var contextRules = [{
-			key: 'bar',
-			operator: 'equal',
-			operand: 'baz'
-		}]
+		var contextRules = KbExpr.equals('bar', 'baz');
 		var keybindingItem: IKeybindingItem = {
 			command: 'yes',
 			context: contextRules,
@@ -37,49 +33,33 @@ suite('Keybinding Service', () => {
 		assert.equal(resolver.resolve({ bar: 'bz' }, 0, keybinding), null);
 	});
 
-	function createEqualContextRule(key: string, operand: any): IKeybindingContextRule {
-		return {
-			key: key,
-			operator: KeybindingsRegistry.KEYBINDING_CONTEXT_OPERATOR_EQUAL,
-			operand: operand
-		};
-	}
-
-	function createNotEqualContextRule(key: string, operand: any): IKeybindingContextRule {
-		return {
-			key: key,
-			operator: KeybindingsRegistry.KEYBINDING_CONTEXT_OPERATOR_NOT_EQUAL,
-			operand: operand
-		};
-	}
-
 	test('normalizeRule', function () {
-		var key1IsTrue = createEqualContextRule('key1', true);
-		var key1IsNotFalse = createNotEqualContextRule('key1', false);
-		var key1IsFalse = createEqualContextRule('key1', false);
-		var key1IsNotTrue = createNotEqualContextRule('key1', true);
+		var key1IsTrue = KbExpr.equals('key1', true);
+		var key1IsNotFalse = KbExpr.notEquals('key1', false);
+		var key1IsFalse = KbExpr.equals('key1', false);
+		var key1IsNotTrue = KbExpr.notEquals('key1', true);
 
-		assert.deepEqual(CommonKeybindingResolver.normalizeRule(key1IsTrue), key1IsTrue);
-		assert.deepEqual(CommonKeybindingResolver.normalizeRule(key1IsNotFalse), key1IsTrue);
-		assert.deepEqual(CommonKeybindingResolver.normalizeRule(key1IsFalse), key1IsFalse);
-		assert.deepEqual(CommonKeybindingResolver.normalizeRule(key1IsNotTrue), key1IsFalse);
+		assert.ok(key1IsTrue.normalize().equals(KbExpr.has('key1')));
+		assert.ok(key1IsNotFalse.normalize().equals(KbExpr.has('key1')));
+		assert.ok(key1IsFalse.normalize().equals(KbExpr.not('key1')));
+		assert.ok(key1IsNotTrue.normalize().equals(KbExpr.not('key1')));
 	});
 
 	test('contextIsEntirelyIncluded', function () {
-		var assertIsIncluded = (a: IKeybindingContextRule[], b: IKeybindingContextRule[]) => {
-			assert.equal(CommonKeybindingResolver.contextIsEntirelyIncluded(false, a, b), true);
+		var assertIsIncluded = (a: KbExpr[], b: KbExpr[]) => {
+			assert.equal(CommonKeybindingResolver.contextIsEntirelyIncluded(false, new KbAndExpression(a), new KbAndExpression(b)), true);
 		};
-		var assertIsNotIncluded = (a: IKeybindingContextRule[], b: IKeybindingContextRule[]) => {
-			assert.equal(CommonKeybindingResolver.contextIsEntirelyIncluded(false, a, b), false);
+		var assertIsNotIncluded = (a: KbExpr[], b: KbExpr[]) => {
+			assert.equal(CommonKeybindingResolver.contextIsEntirelyIncluded(false, new KbAndExpression(a), new KbAndExpression(b)), false);
 		};
-		var key1IsTrue = createEqualContextRule('key1', true);
-		var key1IsNotFalse = createNotEqualContextRule('key1', false);
-		var key1IsFalse = createEqualContextRule('key1', false);
-		var key1IsNotTrue = createNotEqualContextRule('key1', true);
-		var key2IsTrue = createEqualContextRule('key2', true);
-		var key2IsNotFalse = createNotEqualContextRule('key2', false);
-		var key3IsTrue = createEqualContextRule('key3', true);
-		var key4IsTrue = createEqualContextRule('key4', true);
+		var key1IsTrue = KbExpr.equals('key1', true);
+		var key1IsNotFalse = KbExpr.notEquals('key1', false);
+		var key1IsFalse = KbExpr.equals('key1', false);
+		var key1IsNotTrue = KbExpr.notEquals('key1', true);
+		var key2IsTrue = KbExpr.equals('key2', true);
+		var key2IsNotFalse = KbExpr.notEquals('key2', false);
+		var key3IsTrue = KbExpr.equals('key3', true);
+		var key4IsTrue = KbExpr.equals('key4', true);
 
 		assertIsIncluded([key1IsTrue], null);
 		assertIsIncluded([key1IsTrue], []);
@@ -123,15 +103,10 @@ suite('Keybinding Service', () => {
 			// This one will never match because its context is always overwritten by another one
 			{
 				keybinding: KeyCode.KEY_X,
-				context: [{
-					key: 'key1',
-					operator: KeybindingsRegistry.KEYBINDING_CONTEXT_OPERATOR_EQUAL,
-					operand: true
-				}, {
-					key: 'key2',
-					operator: KeybindingsRegistry.KEYBINDING_CONTEXT_OPERATOR_NOT_EQUAL,
-					operand: false
-				}],
+				context: KbExpr.and(
+					KbExpr.equals('key1', true),
+					KbExpr.notEquals('key2', false)
+				),
 				command: 'first',
 				weight1: 1,
 				weight2: 0
@@ -139,11 +114,7 @@ suite('Keybinding Service', () => {
 			// This one always overwrites first
 			{
 				keybinding: KeyCode.KEY_X,
-				context: [{
-					key: 'key2',
-					operator: KeybindingsRegistry.KEYBINDING_CONTEXT_OPERATOR_EQUAL,
-					operand: true
-				}],
+				context: KbExpr.equals('key2', true),
 				command: 'second',
 				weight1: 2,
 				weight2: 0
@@ -151,7 +122,7 @@ suite('Keybinding Service', () => {
 			// This one is a secondary mapping for `second`
 			{
 				keybinding: KeyCode.KEY_Z,
-				context: [],
+				context: null,
 				command: 'second',
 				weight1: 2.5,
 				weight2: 0
@@ -159,11 +130,7 @@ suite('Keybinding Service', () => {
 			// This one sometimes overwrites first
 			{
 				keybinding: KeyCode.KEY_X,
-				context: [{
-					key: 'key3',
-					operator: KeybindingsRegistry.KEYBINDING_CONTEXT_OPERATOR_EQUAL,
-					operand: true
-				}],
+				context: KbExpr.equals('key3', true),
 				command: 'third',
 				weight1: 3,
 				weight2: 0
@@ -171,11 +138,7 @@ suite('Keybinding Service', () => {
 			// This one is always overwritten by another one
 			{
 				keybinding: KeyMod.CtrlCmd | KeyCode.KEY_Y,
-				context: [{
-					key: 'key4',
-					operator: KeybindingsRegistry.KEYBINDING_CONTEXT_OPERATOR_EQUAL,
-					operand: true
-				}],
+				context: KbExpr.equals('key4', true),
 				command: 'fourth',
 				weight1: 4,
 				weight2: 0
@@ -183,7 +146,7 @@ suite('Keybinding Service', () => {
 			// This one overwrites with a chord the previous one
 			{
 				keybinding: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_Y, KeyCode.KEY_Z),
-				context: [],
+				context: null,
 				command: 'fifth',
 				weight1: 5,
 				weight2: 0
@@ -191,49 +154,49 @@ suite('Keybinding Service', () => {
 			// This one has no keybinding
 			{
 				keybinding: 0,
-				context: [],
+				context: null,
 				command: 'sixth',
 				weight1: 6,
 				weight2: 0
 			},
 			{
 				keybinding: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_U),
-				context: [],
+				context: null,
 				command: 'seventh',
 				weight1: 6.5,
 				weight2: 0
 			},
 			{
 				keybinding: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_K),
-				context: [],
+				context: null,
 				command: 'seventh',
 				weight1: 6.5,
 				weight2: 0
 			},
 			{
 				keybinding: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_U),
-				context: [],
+				context: null,
 				command: 'uncomment lines',
 				weight1: 7,
 				weight2: 0
 			},
 			{
 				keybinding: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_C),
-				context: [],
+				context: null,
 				command: 'comment lines',
 				weight1: 8,
 				weight2: 0
 			},
 			{
 				keybinding: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_G, KeyMod.CtrlCmd | KeyCode.KEY_C),
-				context: [],
+				context: null,
 				command: 'unreachablechord',
 				weight1: 10,
 				weight2: 0
 			},
 			{
 				keybinding: KeyMod.CtrlCmd | KeyCode.KEY_G,
-				context: [],
+				context: null,
 				command: 'eleven',
 				weight1: 11,
 				weight2: 0
@@ -308,52 +271,35 @@ suite('Keybinding Service', () => {
 	});
 
 	test('contextMatchesRules', function () {
-		function testExpression(expr:string, expected:boolean): void {
-			let rules = IOSupport.readKeybindingContexts(expr);
-			assert.equal(CommonKeybindingResolver.contextMatchesRules(context, rules), expected, expr);
-		}
 		let context = {
 			'a': true,
 			'b': false,
 			'c': '5'
 		};
+		function testExpression(expr:string, expected:boolean): void {
+			let rules = IOSupport.readKeybindingContexts(expr);
+			assert.equal(CommonKeybindingResolver.contextMatchesRules(context, rules), expected, expr);
+		}
+		function testBatch(expr:string, value:any): void {
+			testExpression(expr, !!value);
+			testExpression(expr + ' == true', !!value);
+			testExpression(expr + ' != true', !value);
+			testExpression(expr + ' == false', !value);
+			testExpression(expr + ' != false', !!value);
+			testExpression(expr + ' == 5', value == <any>'5');
+			testExpression(expr + ' != 5', value != <any>'5');
+			testExpression('!' + expr, !value);
+		}
 
 		testExpression('', true);
 
-		testExpression('a', true);
-		testExpression('a == true', true == true);
-		testExpression('a != true', true != true);
-		testExpression('a == false', true == false);
-		testExpression('a != false', true != false);
-		testExpression('a == 5', true == <any>'5');
-		testExpression('a != 5', true != <any>'5');
-		testExpression('!a', !true);
+		testBatch('a', true);
+		testBatch('b', false);
+		testBatch('c', '5');
+		testBatch('z', undefined);
 
-		testExpression('b', false);
-		testExpression('b == true', false == true);
-		testExpression('b != true', false != true);
-		testExpression('b == false', false == false);
-		testExpression('b != false', false != false);
-		testExpression('b == 5', false == <any>'5');
-		testExpression('b != 5', false != <any>'5');
-		testExpression('!b', !false);
-
-		// testExpression('c', <any>'5');
-		testExpression('c == true', <any>'5' == true);
-		testExpression('c != true', <any>'5' != true);
-		testExpression('c == false', <any>'5' == false);
-		testExpression('c != false', <any>'5' != false);
-		testExpression('c == 5', '5' == '5');
-		testExpression('c != 5', '5' != '5');
-		// testExpression('!c', !'5');
-
-		// testExpression('z', undefined);
-		testExpression('z == true', undefined == true);
-		testExpression('z != true', undefined != true);
-		// testExpression('z == false', undefined == false);
-		testExpression('z != false', undefined != false);
-		testExpression('z == 5', undefined == <any>'5');
-		testExpression('z != 5', undefined != <any>'5');
-		testExpression('!z', !undefined);
+		testExpression('a && !b', true && !false);
+		testExpression('a && b', true && false);
+		testExpression('a && !b && c == 5', true && !false && '5' == '5');
 	});
 });

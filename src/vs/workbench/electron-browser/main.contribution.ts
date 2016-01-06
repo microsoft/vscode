@@ -12,6 +12,7 @@ import {IConfigurationRegistry, Extensions as ConfigurationExtensions} from 'vs/
 import {IWorkbenchActionRegistry, Extensions} from 'vs/workbench/browser/actionRegistry';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 import platform = require('vs/base/common/platform');
+import {KbExpr} from 'vs/platform/keybinding/common/keybindingService';
 import {WorkbenchMessageService} from 'vs/workbench/services/message/browser/messageService';
 import {CloseEditorAction, ReloadWindowAction, ShowStartupPerformance, ZoomResetAction, ZoomOutAction, ZoomInAction, ToggleDevToolsAction, ToggleFullScreenAction, ToggleMenuBarAction, OpenRecentAction, CloseFolderAction, CloseWindowAction, NewWindowAction, CloseMessagesAction} from 'vs/workbench/electron-browser/actions';
 
@@ -30,7 +31,7 @@ workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ZoomOu
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ZoomResetAction, ZoomResetAction.ID, ZoomResetAction.LABEL), viewCategory);
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ShowStartupPerformance, ShowStartupPerformance.ID, ShowStartupPerformance.LABEL), developerCategory);
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ReloadWindowAction, ReloadWindowAction.ID, ReloadWindowAction.LABEL));
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(CloseMessagesAction, CloseMessagesAction.ID, CloseMessagesAction.LABEL, { primary: KeyCode.Escape }, [{ key: WorkbenchMessageService.GLOBAL_MESSAGES_SHOWING_CONTEXT }]));
+workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(CloseMessagesAction, CloseMessagesAction.ID, CloseMessagesAction.LABEL, { primary: KeyCode.Escape }, KbExpr.has(WorkbenchMessageService.GLOBAL_MESSAGES_SHOWING_CONTEXT)));
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(CloseEditorAction, CloseEditorAction.ID, CloseEditorAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_W, win: { primary: KeyMod.CtrlCmd | KeyCode.F4, secondary: [KeyMod.CtrlCmd | KeyCode.KEY_W] } }), viewCategory);
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleFullScreenAction, ToggleFullScreenAction.ID, ToggleFullScreenAction.LABEL, { primary: KeyCode.F11, mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KEY_F } }), viewCategory);
 if (platform.isWindows || platform.isLinux) {

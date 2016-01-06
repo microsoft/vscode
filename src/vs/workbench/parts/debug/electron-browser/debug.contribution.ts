@@ -13,7 +13,7 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import platform = require('vs/platform/platform');
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IKeybindings } from 'vs/platform/keybinding/common/keybindingService';
+import { KbExpr, IKeybindings } from 'vs/platform/keybinding/common/keybindingService';
 import { EditorBrowserRegistry } from 'vs/editor/browser/editorBrowserExtensions';
 import wbaregistry = require('vs/workbench/browser/actionRegistry');
 import actionbarregistry = require('vs/workbench/browser/actionBarRegistry');
@@ -88,13 +88,13 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(OpenDebugViewletAction
 
 const debugCategory = nls.localize('debugCategory', "Debug");
 registry.registerWorkbenchAction(new SyncActionDescriptor(
-	dbgactions.StartDebugAction, dbgactions.StartDebugAction.ID, dbgactions.StartDebugAction.LABEL, { primary: KeyCode.F5 }, [{ key: debug.CONTEXT_IN_DEBUG_MODE, operator: KeybindingsRegistry.KEYBINDING_CONTEXT_OPERATOR_NOT_EQUAL, operand: true }]), debugCategory);
-registry.registerWorkbenchAction(new SyncActionDescriptor(dbgactions.StepOverDebugAction, dbgactions.StepOverDebugAction.ID, dbgactions.StepOverDebugAction.LABEL, { primary: KeyCode.F10 }, [{ key: debug.CONTEXT_IN_DEBUG_MODE }]), debugCategory);
-registry.registerWorkbenchAction(new SyncActionDescriptor(dbgactions.StepIntoDebugAction, dbgactions.StepIntoDebugAction.ID, dbgactions.StepIntoDebugAction.LABEL, { primary: KeyCode.F11 }, [{ key: debug.CONTEXT_IN_DEBUG_MODE }], KeybindingsRegistry.WEIGHT.workbenchContrib(1)), debugCategory);
-registry.registerWorkbenchAction(new SyncActionDescriptor(dbgactions.StepOutDebugAction, dbgactions.StepOutDebugAction.ID, dbgactions.StepOutDebugAction.LABEL, { primary: KeyMod.Shift | KeyCode.F11 }, [{ key: debug.CONTEXT_IN_DEBUG_MODE }]), debugCategory);
+	dbgactions.StartDebugAction, dbgactions.StartDebugAction.ID, dbgactions.StartDebugAction.LABEL, { primary: KeyCode.F5 }, KbExpr.not(debug.CONTEXT_IN_DEBUG_MODE)), debugCategory);
+registry.registerWorkbenchAction(new SyncActionDescriptor(dbgactions.StepOverDebugAction, dbgactions.StepOverDebugAction.ID, dbgactions.StepOverDebugAction.LABEL, { primary: KeyCode.F10 }, KbExpr.has(debug.CONTEXT_IN_DEBUG_MODE)), debugCategory);
+registry.registerWorkbenchAction(new SyncActionDescriptor(dbgactions.StepIntoDebugAction, dbgactions.StepIntoDebugAction.ID, dbgactions.StepIntoDebugAction.LABEL, { primary: KeyCode.F11 }, KbExpr.has(debug.CONTEXT_IN_DEBUG_MODE), KeybindingsRegistry.WEIGHT.workbenchContrib(1)), debugCategory);
+registry.registerWorkbenchAction(new SyncActionDescriptor(dbgactions.StepOutDebugAction, dbgactions.StepOutDebugAction.ID, dbgactions.StepOutDebugAction.LABEL, { primary: KeyMod.Shift | KeyCode.F11 }, KbExpr.has(debug.CONTEXT_IN_DEBUG_MODE)), debugCategory);
 registry.registerWorkbenchAction(new SyncActionDescriptor(dbgactions.RestartDebugAction, dbgactions.RestartDebugAction.ID, dbgactions.RestartDebugAction.LABEL), debugCategory);
-registry.registerWorkbenchAction(new SyncActionDescriptor(dbgactions.StopDebugAction, dbgactions.StopDebugAction.ID, dbgactions.StopDebugAction.LABEL, { primary: KeyMod.Shift | KeyCode.F5 }, [{ key: debug.CONTEXT_IN_DEBUG_MODE }]), debugCategory);
-registry.registerWorkbenchAction(new SyncActionDescriptor(dbgactions.ContinueAction, dbgactions.ContinueAction.ID, dbgactions.ContinueAction.LABEL, { primary: KeyCode.F5 }, [{ key: debug.CONTEXT_IN_DEBUG_MODE }]), debugCategory);
+registry.registerWorkbenchAction(new SyncActionDescriptor(dbgactions.StopDebugAction, dbgactions.StopDebugAction.ID, dbgactions.StopDebugAction.LABEL, { primary: KeyMod.Shift | KeyCode.F5 }, KbExpr.has(debug.CONTEXT_IN_DEBUG_MODE)), debugCategory);
+registry.registerWorkbenchAction(new SyncActionDescriptor(dbgactions.ContinueAction, dbgactions.ContinueAction.ID, dbgactions.ContinueAction.LABEL, { primary: KeyCode.F5 }, KbExpr.has(debug.CONTEXT_IN_DEBUG_MODE)), debugCategory);
 registry.registerWorkbenchAction(new SyncActionDescriptor(dbgactions.PauseAction, dbgactions.PauseAction.ID, dbgactions.PauseAction.LABEL), debugCategory);
 registry.registerWorkbenchAction(new SyncActionDescriptor(dbgactions.ConfigureAction, dbgactions.ConfigureAction.ID, dbgactions.ConfigureAction.LABEL), debugCategory);
 registry.registerWorkbenchAction(new SyncActionDescriptor(dbgactions.OpenReplAction, dbgactions.OpenReplAction.ID, dbgactions.OpenReplAction.LABEL), debugCategory);
