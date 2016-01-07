@@ -367,7 +367,6 @@ interface ITelemetryData {
 
 enum State {
 	Hidden,
-	Triggered,
 	Loading,
 	Empty,
 	Open,
@@ -559,11 +558,6 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 				this.treeElement.style.display = 'block';
 				this.hide();
 				return;
-			case State.Triggered:
-				this.messageElement.style.display = 'none';
-				this.treeElement.style.display = 'block';
-				this.hide();
-				return;
 			case State.Loading:
 				this.messageElement.innerText = SuggestWidget.LOADING_MESSAGE;
 				this.messageElement.style.display = 'block';
@@ -749,7 +743,6 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 		switch (this.state) {
 			case State.Hidden:
 				return false;
-			case State.Triggered:
 			case State.Loading:
 				return !this.isAuto;
 			default:
@@ -762,7 +755,6 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 		switch (this.state) {
 			case State.Hidden:
 				return false;
-			case State.Triggered:
 			case State.Loading:
 				return !this.isAuto;
 			default:
@@ -779,7 +771,6 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 		switch (this.state) {
 			case State.Hidden:
 				return false;
-			case State.Triggered:
 			case State.Loading:
 				return !this.isAuto;
 			default:
@@ -792,7 +783,6 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 		switch (this.state) {
 			case State.Hidden:
 				return false;
-			case State.Triggered:
 			case State.Loading:
 				return !this.isAuto;
 			default:
@@ -809,7 +799,6 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 		switch (this.state) {
 			case State.Hidden:
 				return false;
-			case State.Triggered:
 			case State.Loading:
 				return !this.isAuto;
 			default:
