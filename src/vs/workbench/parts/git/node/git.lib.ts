@@ -26,12 +26,12 @@ export interface IExecutionResult {
 function exec(child: ChildProcess, encoding = 'utf8'): TPromise<IExecutionResult> {
 	const disposables: IDisposable[] = [];
 
-	const once = (ee: EventEmitter, name: string, fn: Function) => {
+	const once = (ee: NodeJS.EventEmitter, name: string, fn: Function) => {
 		ee.once(name, fn);
 		disposables.push(toDisposable(() => ee.removeListener(name, fn)));
 	};
 
-	const on = (ee: EventEmitter, name: string, fn: Function) => {
+	const on = (ee: NodeJS.EventEmitter, name: string, fn: Function) => {
 		ee.on(name, fn);
 		disposables.push(toDisposable(() => ee.removeListener(name, fn)));
 	};

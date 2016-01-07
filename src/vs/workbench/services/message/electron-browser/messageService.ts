@@ -14,8 +14,6 @@ import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 
-import remote = require('remote');
-
 export class MessageService extends WorkbenchMessageService {
 
 	constructor(
@@ -36,7 +34,7 @@ export class MessageService extends WorkbenchMessageService {
 			confirmation.secondaryButton = nls.localize('cancelButton', "Cancel");
 		}
 
-		let opts: remote.IMessageBoxOptions = {
+		let opts: Electron.Dialog.ShowMessageBoxOptions = {
 			title: confirmation.title || this.contextService.getConfiguration().env.appName,
 			message: confirmation.message,
 			buttons: [

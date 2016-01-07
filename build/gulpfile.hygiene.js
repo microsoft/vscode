@@ -63,6 +63,7 @@ var copyrightFilterList = [
 	'!**/*.md',
 	'!**/*.bat',
 	'!**/*.cmd',
+	'!resources/win32/bin/code.js',
 	'!**/*.sh',
 	'!**/*.txt',
 	'!src/vs/editor/standalone-languages/swift.ts',

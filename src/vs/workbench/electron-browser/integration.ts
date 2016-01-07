@@ -24,9 +24,7 @@ import {IConfigurationService, IConfigurationServiceEvent, ConfigurationServiceE
 
 import win = require('vs/workbench/electron-browser/window');
 
-import remote = require('remote');
-import ipc = require('ipc');
-import webFrame = require('web-frame');
+import {ipcRenderer as ipc, webFrame, remote} from 'electron';
 
 export class ElectronIntegration {
 
@@ -50,12 +48,12 @@ export class ElectronIntegration {
 		this.windowService.registerWindow(activeWindow);
 
 		// Support runAction event
-		ipc.on('vscode:runAction', (actionId: string) => {
+		ipc.on('vscode:runAction', (event, actionId: string) => {
 			this.keybindingService.executeCommand(actionId, { from: 'menu' }).done(undefined, err => this.messageService.show(Severity.Error, err));
 		});
 
 		// Support options change
-		ipc.on('vscode:optionsChange', (options: string) => {
+		ipc.on('vscode:optionsChange', (event, options: string) => {
 			let optionsData = JSON.parse(options);
 			for (let key in optionsData) {
 				if (optionsData.hasOwnProperty(key)) {
@@ -66,7 +64,7 @@ export class ElectronIntegration {
 		});
 
 		// Support resolve keybindings event
-		ipc.on('vscode:resolveKeybindings', (rawActionIds: string) => {
+		ipc.on('vscode:resolveKeybindings', (event, rawActionIds: string) => {
 			let actionIds: string[] = [];
 			try {
 				actionIds = JSON.parse(rawActionIds);
@@ -82,11 +80,11 @@ export class ElectronIntegration {
 			}, () => errors.onUnexpectedError);
 		});
 
-		ipc.on('vscode:telemetry', ({ eventName, data }) => {
+		ipc.on('vscode:telemetry', (event, { eventName, data }) => {
 			this.telemetryService.publicLog(eventName, data);
 		});
 
-		ipc.on('vscode:reportError', (error) => {
+		ipc.on('vscode:reportError', (event, error) => {
 			if (error) {
 				let errorParsed = JSON.parse(error);
 				errorParsed.mainProcess = true;
@@ -100,7 +98,7 @@ export class ElectronIntegration {
 		});
 
 		// Theme changes
-		ipc.on('vscode:changeTheme', (theme: string) => {
+		ipc.on('vscode:changeTheme', (event, theme: string) => {
 			this.storageService.store('workbench.theme', theme, StorageScope.GLOBAL);
 		});
 

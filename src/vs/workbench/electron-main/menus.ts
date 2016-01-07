@@ -6,12 +6,7 @@
 
 'use strict';
 
-import app = require('app');
-import Menu = require('menu');
-import MenuItem = require('menu-item');
-import Dialog = require('dialog');
-import shell = require('shell');
-import ipc = require('ipc');
+import {ipcMain as ipc, app, shell, dialog, Menu, MenuItem} from 'electron';
 
 import nls = require('vs/nls');
 import platform = require('vs/base/common/platform');
@@ -154,7 +149,7 @@ export class VSCodeMenu {
 		let menubar = new Menu();
 
 		// Mac: Application
-		let macApplicationMenuItem: MenuItem;
+		let macApplicationMenuItem: Electron.MenuItem;
 		if (platform.isMacintosh) {
 			let applicationMenu = new Menu();
 			macApplicationMenuItem = new MenuItem({ label: env.product.nameShort, submenu: applicationMenu });
@@ -182,7 +177,7 @@ export class VSCodeMenu {
 		this.setGotoMenu(gotoMenu);
 
 		// Mac: Window
-		let macWindowMenuItem: MenuItem;
+		let macWindowMenuItem: Electron.MenuItem;
 		if (platform.isMacintosh) {
 			let windowMenu = new Menu();
 			macWindowMenuItem = new MenuItem({ label: mnemonicLabel(nls.localize('mWindow', "Window")), submenu: windowMenu, role: 'window' });
@@ -276,7 +271,7 @@ export class VSCodeMenu {
 		return mru;
 	}
 
-	private setMacApplicationMenu(macApplicationMenu: Menu): void {
+	private setMacApplicationMenu(macApplicationMenu: Electron.Menu): void {
 		let about = new MenuItem({ label: nls.localize('mAbout', "About {0}", env.product.nameLong), role: 'about' });
 		let checkForUpdates = this.getUpdateMenuItems();
 		let preferences = this.getPreferencesMenu();
@@ -301,10 +296,10 @@ export class VSCodeMenu {
 		actions.forEach(i => macApplicationMenu.append(i));
 	}
 
-	private setFileMenu(fileMenu: Menu): void {
+	private setFileMenu(fileMenu: Electron.Menu): void {
 		let hasNoWindows = (windows.manager.getWindowCount() === 0);
 
-		let newFile:MenuItem;
+		let newFile: Electron.MenuItem;
 		if (hasNoWindows) {
 			newFile = new MenuItem({ label: mnemonicLabel(nls.localize('miNewFile', "&&New File")), accelerator: this.getAccelerator('workbench.action.files.newUntitledFile'), click: () => windows.manager.openNewWindow() });
 		} else {
@@ -358,7 +353,7 @@ export class VSCodeMenu {
 		]).forEach((item) => fileMenu.append(item));
 	}
 
-	private getPreferencesMenu(): MenuItem {
+	private getPreferencesMenu(): Electron.MenuItem {
 		let userSettings = this.createMenuItem(nls.localize('miOpenSettings', "&&User Settings"), 'workbench.action.openGlobalSettings');
 		let workspaceSettings = this.createMenuItem(nls.localize('miOpenWorkspaceSettings', "&&Workspace Settings"), 'workbench.action.openWorkspaceSettings');
 		let kebindingSettings = this.createMenuItem(nls.localize('miOpenKeymap', "&&Keyboard Shortcuts"), 'workbench.action.openGlobalKeybindings');
@@ -396,7 +391,7 @@ export class VSCodeMenu {
 		}
 	}
 
-	private setOpenRecentMenu(openRecentMenu: Menu): void {
+	private setOpenRecentMenu(openRecentMenu: Electron.Menu): void {
 		let recentList = this.getOpenedPathsList();
 
 		// Folders
@@ -425,7 +420,7 @@ export class VSCodeMenu {
 		}
 	}
 
-	private createOpenRecentMenuItem(path:string): MenuItem {
+	private createOpenRecentMenuItem(path:string): Electron.MenuItem {
 		return new MenuItem({ label: path, click: () => {
 			let success = windows.manager.open({ cli: env.cliArgs, pathsToOpen: [path] });
 			if (!success) {
@@ -435,8 +430,8 @@ export class VSCodeMenu {
 		}});
 	}
 
-	private createRoleMenuItem(label:string, actionId:string, role:string): MenuItem {
-		let options:IMenuItemConfig = {
+	private createRoleMenuItem(label:string, actionId:string, role:string): Electron.MenuItem {
+		let options:Electron.MenuItemOptions = {
 			label: mnemonicLabel(label),
 			accelerator: this.getAccelerator(actionId),
 			role: role,
@@ -446,13 +441,13 @@ export class VSCodeMenu {
 		return new MenuItem(options);
 	}
 
-	private setEditMenu(winLinuxEditMenu: Menu): void {
-		let undo:MenuItem;
-		let redo:MenuItem;
-		let cut:MenuItem;
-		let copy:MenuItem;
-		let paste:MenuItem;
-		let selectAll:MenuItem;
+	private setEditMenu(winLinuxEditMenu: Electron.Menu): void {
+		let undo: Electron.MenuItem;
+		let redo: Electron.MenuItem;
+		let cut: Electron.MenuItem;
+		let copy: Electron.MenuItem;
+		let paste: Electron.MenuItem;
+		let selectAll: Electron.MenuItem;
 
 		if (platform.isMacintosh) {
 			undo = this.createDevToolsAwareMenuItem(nls.localize('miUndo', "&&Undo"), 'undo', (devTools) => devTools.undo());
@@ -490,7 +485,7 @@ export class VSCodeMenu {
 		].forEach((item) => winLinuxEditMenu.append(item));
 	}
 
-	private setViewMenu(viewMenu: Menu): void {
+	private setViewMenu(viewMenu: Electron.Menu): void {
 		let commands = this.createMenuItem(nls.localize('miCommandPalette', "&&Command Palette..."), 'workbench.action.showCommands');
 		let markers = this.createMenuItem(nls.localize('miMarker', "&&Errors and Warnings..."), 'workbench.action.showErrorsWarnings');
 		let output = this.createMenuItem(nls.localize('miToggleOutput', "Toggle &&Output"), 'workbench.action.output.toggleOutput');
@@ -520,7 +515,7 @@ export class VSCodeMenu {
 		]).forEach((item) => viewMenu.append(item));
 	}
 
-	private setGotoMenu(gotoMenu: Menu): void {
+	private setGotoMenu(gotoMenu: Electron.Menu): void {
 		let back = this.createMenuItem(nls.localize('miBack', "&&Back"), 'workbench.action.navigateBack');
 		let forward = this.createMenuItem(nls.localize('miForward', "&&Forward"), 'workbench.action.navigateForward');
 		let navigateHistory = this.createMenuItem(nls.localize('miNavigateHistory', "&&Navigate History"), 'workbench.action.openPreviousEditor');
@@ -542,7 +537,7 @@ export class VSCodeMenu {
 		].forEach((item) => gotoMenu.append(item));
 	}
 
-	private setMacWindowMenu(macWindowMenu: Menu): void {
+	private setMacWindowMenu(macWindowMenu: Electron.Menu): void {
 		let minimize = new MenuItem({ label: nls.localize('mMinimize', "Minimize"), role: 'minimize', accelerator: 'Command+M', enabled: windows.manager.getWindowCount() > 0 });
 		let close = new MenuItem({ label: nls.localize('mClose', "Close"), role: 'close', accelerator: 'Command+W', enabled: windows.manager.getWindowCount() > 0 });
 		let bringAllToFront = new MenuItem({ label: nls.localize('mBringToFront', "Bring All to Front"), role: 'front', enabled: windows.manager.getWindowCount() > 0 });
@@ -555,7 +550,7 @@ export class VSCodeMenu {
 		].forEach((item) => macWindowMenu.append(item));
 	}
 
-	private setHelpMenu(helpMenu: Menu): void {
+	private setHelpMenu(helpMenu: Electron.Menu): void {
 		let toggleDevToolsItem = new MenuItem({
 			label: mnemonicLabel(nls.localize('miToggleDevTools', "&&Toggle Developer Tools")),
 			accelerator: this.getAccelerator('workbench.action.toggleDevTools'),
@@ -590,7 +585,7 @@ export class VSCodeMenu {
 		}
 	}
 
-	private getUpdateMenuItems(): MenuItem[]{
+	private getUpdateMenuItems(): Electron.MenuItem[]{
 		switch (UpdateManager.state) {
 			case um.State.Uninitialized:
 				return [];
@@ -626,9 +621,9 @@ export class VSCodeMenu {
 		}
 	}
 
-	private createMenuItem(label:string, actionId: string, enabled?:boolean): MenuItem;
-	private createMenuItem(label:string, click:() => void, enabled?:boolean): MenuItem;
-	private createMenuItem(arg1:string, arg2:any, arg3?:boolean): MenuItem {
+	private createMenuItem(label:string, actionId: string, enabled?:boolean): Electron.MenuItem;
+	private createMenuItem(label:string, click:() => void, enabled?:boolean): Electron.MenuItem;
+	private createMenuItem(arg1:string, arg2:any, arg3?:boolean): Electron.MenuItem {
 		let label = mnemonicLabel(arg1);
 		let click:() => void = (typeof arg2 === 'function') ? arg2 : () => windows.manager.sendToFocused('vscode:runAction', arg2);
 		let enabled = typeof arg3 === 'boolean' ? arg3 : windows.manager.getWindowCount() > 0;
@@ -638,7 +633,7 @@ export class VSCodeMenu {
 			actionId = arg2;
 		}
 
-		let options:IMenuItemConfig = {
+		let options:Electron.MenuItemOptions = {
 			label: label,
 			accelerator: this.getAccelerator(actionId),
 			click: click,
@@ -648,7 +643,7 @@ export class VSCodeMenu {
 		return new MenuItem(options);
 	}
 
-	private createDevToolsAwareMenuItem(label:string, actionId: string, devToolsFocusedFn: (contents: WebContents) => void): MenuItem {
+	private createDevToolsAwareMenuItem(label:string, actionId: string, devToolsFocusedFn: (contents: Electron.WebContents) => void): Electron.MenuItem {
 		return new MenuItem({
 			label: mnemonicLabel(label),
 			accelerator: this.getAccelerator(actionId),
@@ -659,7 +654,7 @@ export class VSCodeMenu {
 					return;
 				}
 
-				if (windowInFocus.win.isDevToolsFocused()) {
+				if (windowInFocus.win.webContents.isDevToolsFocused()) {
 					devToolsFocusedFn(windowInFocus.win.devToolsWebContents);
 				} else {
 					windows.manager.sendToFocused('vscode:runAction', actionId);
@@ -691,7 +686,7 @@ export class VSCodeMenu {
 function openAboutDialog(): void {
 	let lastActiveWindow = windows.manager.getFocusedWindow() || windows.manager.getLastActiveWindow();
 
-	Dialog.showMessageBox(lastActiveWindow && lastActiveWindow.win, {
+	dialog.showMessageBox(lastActiveWindow && lastActiveWindow.win, {
 		title: env.product.nameLong,
 		type: 'info',
 		message: env.product.nameLong,
@@ -719,7 +714,7 @@ function openUrl(url: string, id: string): void {
 function toggleDevTools(): void {
 	let w = windows.manager.getFocusedWindow();
 	if (w && w.win) {
-		w.win.toggleDevTools();
+		w.win.webContents.toggleDevTools();
 	}
 }
 
@@ -727,7 +722,7 @@ function reportMenuActionTelemetry(id: string): void {
 	windows.manager.sendToFocused('vscode:telemetry', { eventName: 'workbenchActionExecuted', data: { id, from: 'menu' } });
 }
 
-function __separator__(): MenuItem {
+function __separator__(): Electron.MenuItem {
 	return new MenuItem({ type: 'separator' });
 }
 

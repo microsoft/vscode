@@ -20,7 +20,7 @@ import { RawGitService, DelayedRawGitService } from 'vs/workbench/parts/git/node
 import URI from 'vs/base/common/uri';
 import { spawn, exec } from 'child_process';
 import { join } from 'path';
-import * as remote from 'remote';
+import { remote } from 'electron';
 
 function findSpecificGit(gitPath: string): Promise {
 	return new Promise((c, e) => {
@@ -110,7 +110,7 @@ export function createNativeRawGitService(workspaceRoot: string, gitPath: string
 				timeout: 1000 * 60,
 				args: [gitPath, workspaceRoot, defaultEncoding, remote.process.execPath],
 				env: {
-					ATOM_SHELL_INTERNAL_RUN_AS_NODE: 1,
+					ELECTRON_RUN_AS_NODE: 1,
 					AMD_ENTRYPOINT: 'vs/workbench/parts/git/electron-browser/gitApp'
 				}
 			}

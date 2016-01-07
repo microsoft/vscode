@@ -19,9 +19,7 @@ import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpe
 import {INullService} from 'vs/platform/instantiation/common/instantiation';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 
-import ipc = require('ipc');
-import remote = require('remote');
-import webFrame = require('web-frame');
+import {ipcRenderer as ipc, webFrame, remote} from 'electron';
 
 export class CloseEditorAction extends Action {
 
@@ -74,14 +72,15 @@ export class CloseFolderAction extends Action {
 		id: string,
 		label: string,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IMessageService private messageService: IMessageService
+		@IMessageService private messageService: IMessageService,
+		@IWindowService private windowService: IWindowService
 	) {
 		super(id, label);
 	}
 
 	public run(): Promise {
 		if (this.contextService.getWorkspace()) {
-			ipc.send('vscode:closeFolder', remote.getCurrentWindow().id); // handled from browser process
+			ipc.send('vscode:closeFolder', this.windowService.getWindowId()); // handled from browser process
 		} else {
 			this.messageService.show(Severity.Info, nls.localize('noFolderOpened', "There is currently no folder opened in this instance to close."));
 		}
@@ -95,7 +94,11 @@ export class NewWindowAction extends Action {
 	public static ID = 'workbench.action.newWindow';
 	public static LABEL = nls.localize('newWindow', "New Window");
 
-	constructor(id: string, label: string, @IWindowService private windowService: IWindowService) {
+	constructor(
+		id: string,
+		label: string,
+		@IWindowService private windowService: IWindowService
+	) {
 		super(id, label);
 	}
 
@@ -148,7 +151,7 @@ export class ToggleDevToolsAction extends Action {
 	}
 
 	public run(): Promise {
-		remote.getCurrentWindow().toggleDevTools();
+		remote.getCurrentWindow().webContents.toggleDevTools();
 
 		return Promise.as(true);
 	}

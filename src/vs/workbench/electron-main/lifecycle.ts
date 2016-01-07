@@ -5,9 +5,8 @@
 
 'use strict';
 
-import app = require('app');
 import events = require('events');
-import ipc = require('ipc');
+import {ipcMain as ipc, app} from 'electron';
 
 import {TPromise, TValueCallback} from 'vs/base/common/winjs.base';
 import {ReadyState, VSCodeWindow} from 'vs/workbench/electron-main/window';
@@ -77,7 +76,7 @@ export class Lifecycle {
 
 		// Window Before Closing: Main -> Renderer
 		vscodeWindow.win.on('close', (e) => {
-			let windowId = vscodeWindow.win.id;
+			let windowId = vscodeWindow.id;
 			env.log('Lifecycle#window-before-close', windowId);
 
 			// The window already acknowledged to be closed
@@ -104,7 +103,7 @@ export class Lifecycle {
 	}
 
 	public unload(vscodeWindow: VSCodeWindow): TPromise<boolean /* veto */> {
-		env.log('Lifecycle#unload()', vscodeWindow.win.id);
+		env.log('Lifecycle#unload()', vscodeWindow.id);
 
 		// Always allow to unload a window that is not yet ready
 		if (vscodeWindow.readyState !== ReadyState.READY) {

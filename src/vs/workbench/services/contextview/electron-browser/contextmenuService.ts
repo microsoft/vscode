@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { TPromise } from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import severity from 'vs/base/common/severity';
 import actions = require('vs/base/common/actions');
 import {Separator} from 'vs/base/browser/ui/actionbar/actionbar';
@@ -16,10 +16,7 @@ import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 
-import remote = require('remote');
-
-const Menu = remote.require('menu');
-const MenuItem = remote.require('menu-item');
+import {remote} from 'electron';
 
 export class ContextMenuService implements IContextMenuService {
 	public serviceId = IContextMenuService;
@@ -39,26 +36,26 @@ export class ContextMenuService implements IContextMenuService {
 				return TPromise.as(null);
 			}
 
-			let menu = new Menu();
+			let menu = new remote.Menu();
 			let actionToRun: actions.IAction = null;
 
 			actions.forEach(a => {
 				if (a instanceof Separator) {
-					menu.append(new MenuItem({ type: 'separator' }));
+					menu.append(new remote.MenuItem({ type: 'separator' }));
 				} else {
 					const keybinding = !!delegate.getKeyBinding ? delegate.getKeyBinding(a) : undefined;
 					const accelerator = keybinding && this.keybindingService.getElectronAcceleratorFor(keybinding);
 
-					const item = new MenuItem({
+					const item = new remote.MenuItem({
 						label: a.label,
 						checked: a.checked,
 						accelerator,
+						enabled: a.enabled,
 						click: () => {
 							actionToRun = a;
 						}
 					});
 
-					item.enabled = a.enabled;
 					menu.append(item);
 				}
 			});

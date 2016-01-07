@@ -19,9 +19,7 @@ import {IConfigurationService, IConfigurationServiceEvent, ConfigurationServiceE
 import {IEventService} from 'vs/platform/event/common/event';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 
-import remote = require('remote');
-
-const Shell = remote.require('shell');
+import {shell} from 'electron';
 
 export class FileService implements files.IFileService {
 	public serviceId = files.IFileService;
@@ -176,7 +174,7 @@ export class FileService implements files.IFileService {
 
 		let absolutePath = resource.fsPath;
 
-		let result = Shell.moveItemToTrash(absolutePath);
+		let result = shell.moveItemToTrash(absolutePath);
 		if (!result) {
 			return TPromise.wrapError(new Error(nls.localize('trashFailed', "Failed to move '{0}' to the trash", paths.basename(absolutePath))));
 		}

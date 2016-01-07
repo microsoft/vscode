@@ -8,6 +8,7 @@ import fs = require('fs');
 import path = require('path');
 import events = require('events');
 
+import electron = require('electron');
 import platform = require('vs/base/common/platform');
 import env = require('vs/workbench/electron-main/env');
 import storage = require('vs/workbench/electron-main/storage');
@@ -37,8 +38,8 @@ export interface IUpdate {
 	quitAndUpdate: () => void;
 }
 
-interface IAutoUpdater extends IEventEmitter {
-	setFeedUrl(url: string): void;
+interface IAutoUpdater extends NodeJS.EventEmitter {
+	setFeedURL(url: string): void;
 	checkForUpdates(): void;
 }
 
@@ -67,7 +68,7 @@ export class UpdateManager extends events.EventEmitter {
 		if (platform.isWindows) {
 			this.raw = new Win32AutoUpdaterImpl();
 		} else if (platform.isMacintosh) {
-			this.raw = <any>require.__$__nodeRequire('auto-updater'); // https://github.com/atom/electron/issues/3194
+			this.raw = electron.autoUpdater;
 		}
 
 		if (this.raw) {
@@ -141,7 +142,7 @@ export class UpdateManager extends events.EventEmitter {
 		this._channel = channel;
 		this._feedUrl = feedUrl;
 
-		this.raw.setFeedUrl(feedUrl);
+		this.raw.setFeedURL(feedUrl);
 		this.setState(State.Idle);
 
 		// Check for updates on startup after 30 seconds

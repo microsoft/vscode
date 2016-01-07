@@ -11,8 +11,7 @@ import {FeedbackDropdown, IFeedback, IFeedbackService} from 'vs/workbench/parts/
 import {IContextViewService} from 'vs/platform/contextview/browser/contextView';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IRequestService} from 'vs/platform/request/common/request';
-
-import shell = require('shell');
+import {shell} from 'electron';
 
 class TwitterFeedbackService implements IFeedbackService {
 

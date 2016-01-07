@@ -27,8 +27,8 @@ import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlighte
 import { Action } from 'vs/base/common/actions';
 import * as semver from 'semver';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import remote = require('remote');
-const shell = remote.require('shell');
+import { shell } from 'electron';
+
 const $ = dom.emmet;
 
 const InstallLabel = nls.localize('install', "Install Extension");

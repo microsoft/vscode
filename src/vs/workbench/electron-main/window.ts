@@ -8,9 +8,7 @@
 import path = require('path');
 import os = require('os');
 
-import Shell = require('shell');
-import screen = require('screen');
-import BrowserWindow = require('browser-window');
+import {shell, screen, BrowserWindow} from 'electron';
 
 import {TPromise, TValueCallback} from 'vs/base/common/winjs.base';
 import platform = require('vs/base/common/platform');
@@ -108,7 +106,7 @@ export interface IWindowConfiguration extends env.ICommandLineArguments {
 	filesToOpen?: IPath[];
 	filesToCreate?: IPath[];
 	extensionsToInstall: string[];
-	crashReporter: ICrashReporterConfigBrowser;
+	crashReporter: Electron.CrashReporterStartOptions;
 	extensionsGallery: {
 		serviceUrl: string;
 		itemUrl: string;
@@ -139,7 +137,8 @@ export class VSCodeWindow {
 	private static MIN_HEIGHT = 120;
 
 	private showTimeoutHandle: any;
-	private _win: BrowserWindow;
+	private _id: number;
+	private _win: Electron.BrowserWindow;
 	private _lastFocusTime: number;
 	private _readyState: ReadyState;
 	private _isPluginDevelopmentHost: boolean;
@@ -167,14 +166,14 @@ export class VSCodeWindow {
 			global.windowShow = new Date().getTime();
 		}
 
-		let options: IBrowserWindowOptions = {
+		let options: Electron.BrowserWindowOptions = {
 			width: this.windowState.width,
 			height: this.windowState.height,
 			x: this.windowState.x,
 			y: this.windowState.y,
-			'background-color': usesLightTheme ? '#FFFFFF' : '#1E1E1E',
-			'min-width': VSCodeWindow.MIN_WIDTH,
-			'min-height': VSCodeWindow.MIN_HEIGHT,
+			backgroundColor: usesLightTheme ? '#FFFFFF' : '#1E1E1E',
+			minWidth: VSCodeWindow.MIN_WIDTH,
+			minHeight: VSCodeWindow.MIN_HEIGHT,
 			show: showDirectly && this.currentWindowMode !== WindowMode.Maximized, // in case we are maximized, only show later after the call to maximize (see below)
 			title: env.product.nameLong
 		};
@@ -185,6 +184,7 @@ export class VSCodeWindow {
 
 		// Create the browser window.
 		this._win = new BrowserWindow(options);
+		this._id = this._win.id;
 
 		if (showDirectly && this.currentWindowMode === WindowMode.Maximized) {
 			this.win.maximize();
@@ -213,7 +213,11 @@ export class VSCodeWindow {
 		return this.currentConfig;
 	}
 
-	public get win(): BrowserWindow {
+	public get id(): number {
+		return this._id;
+	}
+
+	public get win(): Electron.BrowserWindow {
 		return this._win;
 	}
 
@@ -321,7 +325,7 @@ export class VSCodeWindow {
 		this._win.webContents.on('new-window', (event: Event, url: string) => {
 			event.preventDefault();
 
-			Shell.openExternal(url);
+			shell.openExternal(url);
 		});
 
 		// Window Focus
@@ -363,7 +367,7 @@ export class VSCodeWindow {
 		}
 
 		// Load URL
-		this._win.loadUrl(this.getUrl(config));
+		this._win.loadURL(this.getUrl(config));
 
 		// Make window visible if it did not open in N seconds because this indicates an error
 		if (!config.isBuilt) {
@@ -371,7 +375,7 @@ export class VSCodeWindow {
 				if (this._win && !this._win.isVisible() && !this._win.isMinimized()) {
 					this._win.show();
 					this._win.focus();
-					this._win.openDevTools();
+					this._win.webContents.openDevTools();
 				}
 			}, 10000);
 		}
@@ -534,7 +538,7 @@ export class VSCodeWindow {
 		return null;
 	}
 
-	public getBounds(): IBounds {
+	public getBounds(): Electron.Bounds {
 		let pos = this.win.getPosition();
 		let dimension = this.win.getSize();
 

@@ -29,13 +29,11 @@ var build = path.join(root, '.build');
 var commit = util.getVersion(root);
 
 var baseModules = [
-	'app', 'applicationinsights', 'assert', 'auto-updater', 'browser-window',
-	'child_process', 'chokidar', 'crash-reporter', 'crypto', 'dialog', 'emmet',
+	'applicationinsights', 'assert', 'child_process', 'chokidar', 'crypto', 'emmet',
 	'events', 'fs', 'getmac', 'glob', 'graceful-fs', 'http', 'http-proxy-agent',
-	'https', 'https-proxy-agent', 'iconv-lite', 'ipc', 'menu', 'menu-item', 'net',
-	'original-fs', 'os', 'path', 'readline', 'remote', 'sax', 'screen', 'semver',
-	'shell', 'stream', 'string_decoder', 'url', 'vscode-textmate', 'web-frame', 'winreg',
-	'yauzl', 'native-keymap'
+	'https', 'https-proxy-agent', 'iconv-lite', 'electron', 'net',
+	'os', 'path', 'readline', 'sax', 'semver', 'stream', 'string_decoder', 'url',
+	'vscode-textmate', 'winreg', 'yauzl', 'native-keymap'
 ];
 
 // Build

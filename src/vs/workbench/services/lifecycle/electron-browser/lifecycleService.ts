@@ -11,7 +11,7 @@ import {BaseLifecycleService} from 'vs/platform/lifecycle/common/baseLifecycleSe
 import {IWindowService} from 'vs/workbench/services/window/electron-browser/windowService';
 import severity from 'vs/base/common/severity';
 
-import ipc = require('ipc');
+import {ipcRenderer as ipc} from 'electron';
 
 export class LifecycleService extends BaseLifecycleService {
 
@@ -28,7 +28,7 @@ export class LifecycleService extends BaseLifecycleService {
 		let windowId = this.windowService.getWindowId();
 
 		// Main side indicates that window is about to unload, check for vetos
-		ipc.on('vscode:beforeUnload', (reply: { okChannel: string, cancelChannel: string }) => {
+		ipc.on('vscode:beforeUnload', (event, reply: { okChannel: string, cancelChannel: string }) => {
 			let veto = this.beforeUnload();
 
 			if (typeof veto === 'boolean') {

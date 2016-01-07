@@ -21,7 +21,7 @@ import {IWindowService} from 'vs/workbench/services/window/electron-browser/wind
 import ports = require('vs/base/node/ports');
 
 import cp = require('child_process');
-import ipc = require('ipc');
+import {ipcRenderer as ipc} from 'electron';
 
 export const PLUGIN_LOG_BROADCAST_CHANNEL = 'vscode:pluginLog';
 export const PLUGIN_ATTACH_BROADCAST_CHANNEL = 'vscode:pluginAttach';
