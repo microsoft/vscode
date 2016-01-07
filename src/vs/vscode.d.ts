@@ -3367,8 +3367,8 @@ declare namespace vscode {
 	}
 }
 
-// TS 1.6 & node_module
-// export = vscode;
+// [javascript start marker]
+// DO NOT MODIFY ABOVE COMMENT
 
 // when used for JS*
 declare module 'vscode' {
