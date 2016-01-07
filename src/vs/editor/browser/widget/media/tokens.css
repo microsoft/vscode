@@ -14,8 +14,6 @@
 .monaco-editor.vs .token.constant					{ color: #dd0000; }
 .monaco-editor.vs .token.string						{ color: #A31515; }
 .monaco-editor.vs .token.string.escape				{ color: #A31515; }
-.monaco-editor.vs .token.comment					{ color: #008000; }
-.monaco-editor.vs .token.comment.shebang			{ color: #929292; }
 .monaco-editor.vs .token.literal					{ color: #000000; }
 .monaco-editor.vs .token.literal.string				{ color: #A31515; }
 .monaco-editor.vs .token.literal.hex				{ color: #e07000; }
@@ -83,7 +81,6 @@
 
 /* VSXML */
 .monaco-editor.vs .token.vs							{ color: #006400; }
-.monaco-editor.vs .token.comment.vs					{ color: #aeb9ae; }
 .monaco-editor.vs .token.tag.vs						{ color: #aeb9ae; }
 .monaco-editor.vs .token.attribute.name.vs			{ color: #aeb9ae; }
 .monaco-editor.vs .token.attribute.value.vs			{ color: #2c51cc; }
@@ -109,9 +106,6 @@
 .monaco-editor.vs-dark .token.constant					{ color: #dd0000; }
 .monaco-editor.vs-dark .token.string					{ color: #CE9178; }
 .monaco-editor.vs-dark .token.string.escape			    { color: #CE9178; }
-.monaco-editor.vs-dark .token.comment					{ color: #929292; }
-.monaco-editor.vs-dark .token.comment.shebang			{ color: #929292; }
-.monaco-editor.vs-dark .token.comment.doc				{ color: #608B4E; }
 .monaco-editor.vs-dark .token.literal					{ color: #e00000; }
 .monaco-editor.vs-dark .token.literal.hex				{ color: #e07000; }
 .monaco-editor.vs-dark .token.number					{ color: #B5CEA8; }
@@ -204,9 +198,6 @@
 .monaco-editor.hc-black .token.constant					{ color: #dd0000; }
 .monaco-editor.hc-black .token.string					{ color: #CE9178; }
 .monaco-editor.hc-black .token.string.escape			{ color: #CE9178; }
-.monaco-editor.hc-black .token.comment					{ color: #008000; }
-.monaco-editor.hc-black .token.comment.shebang			{ color: #929292; }
-.monaco-editor.hc-black .token.comment.doc				{ color: #608B4E; }
 
 .monaco-editor.hc-black .token.literal					{ color: #FFFFFF; }
 .monaco-editor.hc-black .token.literal.hex				{ color: #FFFFFF; }
@@ -301,18 +292,7 @@
 
 .monaco-editor.vs .token.builtin.function						{ color: #0000FF; }
 
-.monaco-editor.vs .token.comment,
-.monaco-editor.vs .token.comment.block,
-.monaco-editor.vs .token.comment.block.documentation,
-.monaco-editor.vs .token.comment.line							{ color: #008000; }
-/*
-.monaco-editor.vs .token.comment.line.documentation
-.monaco-editor.vs .token.comment.line.double-slash
-.monaco-editor.vs .token.comment.line.double-dash
-.monaco-editor.vs .token.comment.line.number-sign
-.monaco-editor.vs .token.comment.line.percentage
-.monaco-editor.vs .token.comment.line.character
-*/
+.monaco-editor.vs .token.comment								{ color: #008000; }
 
 .monaco-editor.vs .token.constant								{ color: #dd0000; }
 .monaco-editor.vs .token.constant.language						{ color: #0000FF; }
@@ -441,15 +421,7 @@
 
 .monaco-editor.vs-dark .token.builtin.function					{ color: #569CD6; }
 
-.monaco-editor.vs-dark .token.comment,
-.monaco-editor.vs-dark .token.comment.block,
-.monaco-editor.vs-dark .token.comment.block.documentation,
-.monaco-editor.vs-dark .token.comment.line						{ color: #608B4E; }
-/*.monaco-editor.vs-dark .token.comment.line.double-slash
-.monaco-editor.vs-dark .token.comment.line.double-dash
-.monaco-editor.vs-dark .token.comment.line.number-sign
-.monaco-editor.vs-dark .token.comment.line.percentage
-.monaco-editor.vs-dark .token.comment.line.character*/
+.monaco-editor.vs-dark .token.comment							{ color: #608B4E; }
 
 .monaco-editor.vs-dark .token.constant							{ color: #569CD6; }
 .monaco-editor.vs-dark .token.constant.language					{ color: #569CD6; }
@@ -578,15 +550,7 @@
 
 .monaco-editor.hc-black .token.builtin.function					{ color: #569CD6; }
 
-.monaco-editor.hc-black .token.comment,
-.monaco-editor.hc-black .token.comment.block,
-.monaco-editor.hc-black .token.comment.block.documentation,
-.monaco-editor.hc-black .token.comment.line						{ color: #608B4E; }
-/*.monaco-editor.hc-black .token.comment.line.double-slash
-.monaco-editor.hc-black .token.comment.line.double-dash
-.monaco-editor.hc-black .token.comment.line.number-sign
-.monaco-editor.hc-black .token.comment.line.percentage
-.monaco-editor.hc-black .token.comment.line.character*/
+.monaco-editor.hc-black .token.comment							{ color: #608B4E; }
 
 .monaco-editor.hc-black .token.constant							{ color: #569CD6; }
 .monaco-editor.hc-black .token.constant.language				{ color: #569CD6; }
