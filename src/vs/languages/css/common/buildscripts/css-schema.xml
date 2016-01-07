@@ -646,7 +646,9 @@
     <entry name="alt" restriction="string, enum" version="3.0" browsers="S9" ref="https://drafts.csswg.org/css-content-3/#propdef-alt" syntax="label::before { $(name): 'alt text'; }">
       <desc>Provides alternative text for assistive technology to replace the genenerated content of a ::before or ::after element.</desc>
       <values>
-        <value name="none" version="3.0" browsers="none" />
+        <value name="none" version="3.0" browsers="none">
+          <desc>No alternative text.</desc>
+        </value>
       </values>
     </entry>
     <entry name="animation" restriction="time, enum, identifier, number" version="3.0" browsers="E,C43,FF16,IE10,O12.1,S9" ref="http://www.w3.org/TR/css3-animations/#animation" syntax="div { $(name): movearound 4s ease 3 normal; }">
@@ -711,9 +713,15 @@
     <entry name="animation-composition" restriction="enum" version="4.0" browsers="none" ref="https://drafts.csswg.org/css-animations-2/#propdef-animation-composition" syntax="div { $(name): add; }">
       <desc>Defines the composite operation used when multiple animations affect the same property simultaneously.</desc>
       <values>
-        <value name="accumulate" version="4.0" browsers="all" />
-        <value name="add" version="4.0" browsers="all" />
-        <value name="replace" version="4.0" browsers="all" />
+        <value name="accumulate" version="4.0" browsers="all">
+          <desc>The effect value is accumulated onto the underlying value.</desc>
+        </value>
+        <value name="add" version="4.0" browsers="all">
+          <desc>The effect value is added to the underlying value.</desc>
+        </value>
+        <value name="replace" version="4.0" browsers="all">
+          <desc>The result of compositing the effect value with the underlying value is simply the effect value.</desc>
+        </value>
       </values>
     </entry>
     <entry name="animation-delay" restriction="time" version="3.0" browsers="E,C43,FF16,IE10,O12.1,S9" ref="http://www.w3.org/TR/css3-animations/#animation-delay" syntax="div { $(name): 4s; }">
@@ -1135,7 +1143,9 @@
         <value name="fill" version="3.0" browsers="all">
           <desc>Causes the middle part of the border-image to be preserved.</desc>
         </value>
-        <value name="none" version="3.0" browsers="all" />
+        <value name="none" version="3.0" browsers="all">
+          <desc>Use the border styles.</desc>
+        </value>
         <value name="repeat" version="3.0" browsers="all">
           <desc>The image is tiled (repeated) to fill the area.</desc>
         </value>
@@ -1179,13 +1189,12 @@
         </value>
       </values>
     </entry>
-    <entry name="border-image-source" restriction="url" version="3.0" browsers="E,C16,FF15,IE11,O15,S6" ref="http://www.w3.org/TR/css3-background/#the-border-image-source" syntax="aside { $(name): url(image.png); }">
+    <entry name="border-image-source" restriction="image" version="3.0" browsers="E,C16,FF15,IE11,O15,S6" ref="http://www.w3.org/TR/css3-background/#the-border-image-source" syntax="aside { $(name): url(image.png); }">
       <desc>Specifies an image to use instead of the border styles given by the 'border-style' properties and as an additional background layer for the element. If the value is 'none' or if the image cannot be displayed, the border styles will be used.</desc>
       <values>
         <value name="none" version="3.0" browsers="all">
           <desc>Use the border styles.</desc>
         </value>
-        <value name="url()" version="3.0" browsers="all" />
       </values>
     </entry>
     <entry name="border-image-transform" restriction="enum" version="3.0" browsers="none" ref="https://drafts.csswg.org/css-logical-props/#propdef-border-image-transform" syntax="div { $(name): logical; }">
@@ -1615,7 +1624,7 @@
       </values>
     </entry>
     <entry name="color-rendering" restriction="enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/SVG2/painting.html#ColorRenderingProperty">
-      <desc>Provides a hint to the SVG user agent about how to optimize its color interpolation and compositing operations.</desc>
+      <desc>Provides a hint about how to optimize its color interpolation and compositing operations.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all" />
         <value name="optimizeQuality" version="3.0" browsers="all">
@@ -2509,20 +2518,366 @@
     <entry name="font-feature-settings" restriction="string, integer" version="3.0" browsers="E,FF34,IE10" ref="http://www.w3.org/TR/css3-fonts/#propdef-font-feature-settings" syntax="body { $(name): 'hwid'; }">
       <desc>Provides low-level control over OpenType font features. It is intended as a way of providing access to font features that are not widely used but are needed for a particular use case.</desc>
       <values>
-        <value name="&quot;c2cs&quot;" version="3.0" browsers="all" />
-        <value name="&quot;dlig&quot;" version="3.0" browsers="all" />
-        <value name="&quot;kern&quot;" version="3.0" browsers="all" />
-        <value name="&quot;liga&quot;" version="3.0" browsers="all" />
-        <value name="&quot;lnum&quot;" version="3.0" browsers="all" />
-        <value name="&quot;onum&quot;" version="3.0" browsers="all" />
-        <value name="&quot;smcp&quot;" version="3.0" browsers="all" />
-        <value name="&quot;swsh&quot;" version="3.0" browsers="all" />
-        <value name="&quot;tnum&quot;" version="3.0" browsers="all" />
+        <value name="&quot;aalt&quot;" version="3.0" browsers="all">
+          <desc>Access All Alternates.</desc>
+        </value>
+        <value name="&quot;abvf&quot;" version="3.0" browsers="all">
+          <desc>Above-base Forms. Required in Khmer script.</desc>
+        </value>
+        <value name="&quot;abvm&quot;" version="3.0" browsers="all">
+          <desc>Above-base Mark Positioning. Required in Indic scripts.</desc>
+        </value>
+        <value name="&quot;abvs&quot;" version="3.0" browsers="all">
+          <desc>Above-base Substitutions. Required in Indic scripts.</desc>
+        </value>
+        <value name="&quot;afrc&quot;" version="3.0" browsers="all">
+          <desc>Alternative Fractions.</desc>
+        </value>
+        <value name="&quot;akhn&quot;" version="3.0" browsers="all">
+          <desc>Akhand. Required in most Indic scripts.</desc>
+        </value>
+        <value name="&quot;blwf&quot;" version="3.0" browsers="all">
+          <desc>Below-base Form. Required in a number of Indic scripts.</desc>
+        </value>
+        <value name="&quot;blwm&quot;" version="3.0" browsers="all">
+          <desc>Below-base Mark Positioning. Required in Indic scripts.</desc>
+        </value>
+        <value name="&quot;blws&quot;" version="3.0" browsers="all">
+          <desc>Below-base Substitutions. Required in Indic scripts.</desc>
+        </value>
+        <value name="&quot;calt&quot;" version="3.0" browsers="all">
+          <desc>Contextual Alternates.</desc>
+        </value>
+        <value name="&quot;case&quot;" version="3.0" browsers="all">
+          <desc>Case-Sensitive Forms. Applies only to European scripts; particularly prominent in Spanish-language setting.</desc>
+        </value>
+        <value name="&quot;ccmp&quot;" version="3.0" browsers="all">
+          <desc>Glyph Composition/Decomposition.</desc>
+        </value>
+        <value name="&quot;cfar&quot;" version="3.0" browsers="all">
+          <desc>Conjunct Form After Ro. Required in Khmer scripts.</desc>
+        </value>
+        <value name="&quot;cjct&quot;" version="3.0" browsers="all">
+          <desc>Conjunct Forms. Required in Indic scripts that show similarity to Devanagari.</desc>
+        </value>
+        <value name="&quot;clig&quot;" version="3.0" browsers="all">
+          <desc>Contextual Ligatures.</desc>
+        </value>
+        <value name="&quot;cpct&quot;" version="3.0" browsers="all">
+          <desc>Centered CJK Punctuation. Used primarily in Chinese fonts.</desc>
+        </value>
+        <value name="&quot;cpsp&quot;" version="3.0" browsers="all">
+          <desc>Capital Spacing. Should not be used in connecting scripts (e.g. most Arabic).</desc>
+        </value>
+        <value name="&quot;cswh&quot;" version="3.0" browsers="all">
+          <desc>Contextual Swash.</desc>
+        </value>
+        <value name="&quot;curs&quot;" version="3.0" browsers="all">
+          <desc>Cursive Positioning. Can be used in any cursive script.</desc>
+        </value>
+        <value name="&quot;c2pc&quot;" version="3.0" browsers="all">
+          <desc>Petite Capitals From Capitals. Applies only to bicameral scripts.</desc>
+        </value>
+        <value name="&quot;c2cs&quot;" version="3.0" browsers="all">
+          <desc>Small Capitals From Capitals. Applies only to bicameral scripts.</desc>
+        </value>
+        <value name="&quot;dist&quot;" version="3.0" browsers="all">
+          <desc>Distances. Required in Indic scripts.</desc>
+        </value>
+        <value name="&quot;dlig&quot;" version="3.0" browsers="all">
+          <desc>Discretionary ligatures.</desc>
+        </value>
+        <value name="&quot;dnom&quot;" version="3.0" browsers="all">
+          <desc>Denominators.</desc>
+        </value>
+        <value name="&quot;dtls&quot;" version="3.0" browsers="all">
+          <desc>Dotless Forms. Applied to math formula layout.</desc>
+        </value>
+        <value name="&quot;expt&quot;" version="3.0" browsers="all">
+          <desc>Expert Forms. Applies only to Japanese.</desc>
+        </value>
+        <value name="&quot;falt&quot;" version="3.0" browsers="all">
+          <desc>Final Glyph on Line Alternates. Can be used in any cursive script.</desc>
+        </value>
+        <value name="&quot;fin2&quot;" version="3.0" browsers="all">
+          <desc>Terminal Form #2. Used only with the Syriac script.</desc>
+        </value>
+        <value name="&quot;fin3&quot;" version="3.0" browsers="all">
+          <desc>Terminal Form #3. Used only with the Syriac script.</desc>
+        </value>
+        <value name="&quot;fina&quot;" version="3.0" browsers="all">
+          <desc>Terminal Forms. Can be used in any alphabetic script.</desc>
+        </value>
+        <value name="&quot;flac&quot;" version="3.0" browsers="all">
+          <desc>Flattened ascent forms. Applied to math formula layout.</desc>
+        </value>
+        <value name="&quot;frac&quot;" version="3.0" browsers="all">
+          <desc>Fractions.</desc>
+        </value>
+        <value name="&quot;fwid&quot;" version="3.0" browsers="all">
+          <desc>Full Widths. Applies to any script which can use monospaced forms.</desc>
+        </value>
+        <value name="&quot;half&quot;" version="3.0" browsers="all">
+          <desc>Half Forms. Required in Indic scripts that show similarity to Devanagari.</desc>
+        </value>
+        <value name="&quot;haln&quot;" version="3.0" browsers="all">
+          <desc>Halant Forms. Required in Indic scripts.</desc>
+        </value>
+        <value name="&quot;halt&quot;" version="3.0" browsers="all">
+          <desc>Alternate Half Widths. Used only in CJKV fonts.</desc>
+        </value>
+        <value name="&quot;hist&quot;" version="3.0" browsers="all">
+          <desc>Historical Forms.</desc>
+        </value>
+        <value name="&quot;hkna&quot;" version="3.0" browsers="all">
+          <desc>Horizontal Kana Alternates. Applies only to fonts that support kana (hiragana and katakana).</desc>
+        </value>
+        <value name="&quot;hlig&quot;" version="3.0" browsers="all">
+          <desc>Historical Ligatures.</desc>
+        </value>
+        <value name="&quot;hngl&quot;" version="3.0" browsers="all">
+          <desc>Hangul. Korean only.</desc>
+        </value>
+        <value name="&quot;hojo&quot;" version="3.0" browsers="all">
+          <desc>Hojo Kanji Forms (JIS X 0212-1990 Kanji Forms). Used only with Kanji script.</desc>
+        </value>
+        <value name="&quot;hwid&quot;" version="3.0" browsers="all">
+          <desc>Half Widths. Generally used only in CJKV fonts.</desc>
+        </value>
+        <value name="&quot;init&quot;" version="3.0" browsers="all">
+          <desc>Initial Forms. Can be used in any alphabetic script.</desc>
+        </value>
+        <value name="&quot;isol&quot;" version="3.0" browsers="all">
+          <desc>Isolated Forms. Can be used in any cursive script.</desc>
+        </value>
+        <value name="&quot;ital&quot;" version="3.0" browsers="all">
+          <desc>Italics. Applies mostly to Latin; note that many non-Latin fonts contain Latin as well.</desc>
+        </value>
+        <value name="&quot;jalt&quot;" version="3.0" browsers="all">
+          <desc>Justification Alternates. Can be used in any cursive script.</desc>
+        </value>
+        <value name="&quot;jp78&quot;" version="3.0" browsers="all">
+          <desc>JIS78 Forms. Applies only to Japanese.</desc>
+        </value>
+        <value name="&quot;jp83&quot;" version="3.0" browsers="all">
+          <desc>JIS83 Forms. Applies only to Japanese.</desc>
+        </value>
+        <value name="&quot;jp90&quot;" version="3.0" browsers="all">
+          <desc>JIS90 Forms. Applies only to Japanese.</desc>
+        </value>
+        <value name="&quot;jp04&quot;" version="3.0" browsers="all">
+          <desc>JIS2004 Forms. Applies only to Japanese.</desc>
+        </value>
+        <value name="&quot;kern&quot;" version="3.0" browsers="all">
+          <desc>Kerning.</desc>
+        </value>
+        <value name="&quot;lfbd&quot;" version="3.0" browsers="all">
+          <desc>Left Bounds.</desc>
+        </value>
+        <value name="&quot;liga&quot;" version="3.0" browsers="all">
+          <desc>Standard Ligatures.</desc>
+        </value>
+       <value name="&quot;ljmo&quot;" version="3.0" browsers="all">
+          <desc>Leading Jamo Forms. Required for Hangul script when Ancient Hangul writing system is supported.</desc>
+        </value>
+        <value name="&quot;lnum&quot;" version="3.0" browsers="all">
+          <desc>Lining Figures.</desc>
+        </value>
+        <value name="&quot;locl&quot;" version="3.0" browsers="all">
+          <desc>Localized Forms.</desc>
+        </value>
+        <value name="&quot;ltra&quot;" version="3.0" browsers="all">
+          <desc>Left-to-right glyph alternates.</desc>
+        </value>
+        <value name="&quot;ltrm&quot;" version="3.0" browsers="all">
+          <desc>Left-to-right mirrored forms.</desc>
+        </value>
+        <value name="&quot;mark&quot;" version="3.0" browsers="all">
+          <desc>Mark Positioning.</desc>
+        </value>
+        <value name="&quot;med2&quot;" version="3.0" browsers="all">
+          <desc>Medial Form #2. Used only with the Syriac script.</desc>
+        </value>
+        <value name="&quot;medi&quot;" version="3.0" browsers="all">
+          <desc>Medial Forms.</desc>
+        </value>
+        <value name="&quot;mgrk&quot;" version="3.0" browsers="all">
+          <desc>Mathematical Greek.</desc>
+        </value>
+        <value name="&quot;mkmk&quot;" version="3.0" browsers="all">
+          <desc>Mark to Mark Positioning.</desc>
+        </value>
+        <value name="&quot;nalt&quot;" version="3.0" browsers="all">
+          <desc>Alternate Annotation Forms.</desc>
+        </value>
+        <value name="&quot;nlck&quot;" version="3.0" browsers="all">
+          <desc>NLC Kanji Forms. Used only with Kanji script.</desc>
+        </value>
+        <value name="&quot;nukt&quot;" version="3.0" browsers="all">
+          <desc>Nukta Forms. Required in Indic scripts..</desc>
+        </value>
+        <value name="&quot;numr&quot;" version="3.0" browsers="all">
+          <desc>Numerators.</desc>
+        </value>
+        <value name="&quot;onum&quot;" version="3.0" browsers="all">
+          <desc>Oldstyle Figures.</desc>
+        </value>
+        <value name="&quot;opbd&quot;" version="3.0" browsers="all">
+          <desc>Optical Bounds.</desc>
+        </value>
+        <value name="&quot;ordn&quot;" version="3.0" browsers="all">
+          <desc>Ordinals. Applies mostly to Latin script.</desc>
+        </value>
+        <value name="&quot;ornm&quot;" version="3.0" browsers="all">
+          <desc>Ornaments.</desc>
+        </value>
+        <value name="&quot;palt&quot;" version="3.0" browsers="all">
+          <desc>Proportional Alternate Widths. Used mostly in CJKV fonts.</desc>
+        </value>
+        <value name="&quot;pcap&quot;" version="3.0" browsers="all">
+          <desc>Petite Capitals.</desc>
+        </value>
+        <value name="&quot;pkna&quot;" version="3.0" browsers="all">
+          <desc>Proportional Kana. Generally used only in Japanese fonts.</desc>
+        </value>
+        <value name="&quot;pnum&quot;" version="3.0" browsers="all">
+          <desc>Proportional Figures.</desc>
+        </value>
+        <value name="&quot;pref&quot;" version="3.0" browsers="all">
+          <desc>Pre-base Forms. Required in Khmer and Myanmar (Burmese) scripts and southern Indic scripts that may display a pre-base form of Ra.</desc>
+        </value>
+        <value name="&quot;pres&quot;" version="3.0" browsers="all">
+          <desc>Pre-base Substitutions. Required in Indic scripts.</desc>
+        </value>
+        <value name="&quot;pstf&quot;" version="3.0" browsers="all">
+          <desc>Post-base Forms. Required in scripts of south and southeast Asia that have post-base forms for consonants eg: Gurmukhi, Malayalam, Khmer.</desc>
+        </value>
+        <value name="&quot;psts&quot;" version="3.0" browsers="all">
+          <desc>Post-base Substitutions.</desc>
+        </value>
+        <value name="&quot;pwid&quot;" version="3.0" browsers="all">
+          <desc>Proportional Widths.</desc>
+        </value>
+        <value name="&quot;qwid&quot;" version="3.0" browsers="all">
+          <desc>Quarter Widths. Generally used only in CJKV fonts.</desc>
+        </value>
+        <value name="&quot;rand&quot;" version="3.0" browsers="all">
+          <desc>Randomize.</desc>
+        </value>
+        <value name="&quot;rclt&quot;" version="3.0" browsers="all">
+          <desc>Required Contextual Alternates. May apply to any script, but is especially important for many styles of Arabic.</desc>
+        </value>
+        <value name="&quot;rlig&quot;" version="3.0" browsers="all">
+          <desc>Required Ligatures. Applies to Arabic and Syriac. May apply to some other scripts.</desc>
+        </value>
+        <value name="&quot;rkrf&quot;" version="3.0" browsers="all">
+          <desc>Rakar Forms. Required in Devanagari and Gujarati scripts.</desc>
+        </value>
+        <value name="&quot;rphf&quot;" version="3.0" browsers="all">
+          <desc>Reph Form. Required in Indic scripts. E.g. Devanagari, Kannada.</desc>
+        </value>
+        <value name="&quot;rtbd&quot;" version="3.0" browsers="all">
+          <desc>Right Bounds.</desc>
+        </value>
+        <value name="&quot;rtla&quot;" version="3.0" browsers="all">
+          <desc>Right-to-left alternates.</desc>
+        </value>
+        <value name="&quot;rtlm&quot;" version="3.0" browsers="all">
+          <desc>Right-to-left mirrored forms.</desc>
+        </value>
+        <value name="&quot;ruby&quot;" version="3.0" browsers="all">
+          <desc>Ruby Notation Forms. Applies only to Japanese.</desc>
+        </value>
+        <value name="&quot;salt&quot;" version="3.0" browsers="all">
+          <desc>Stylistic Alternates.</desc>
+        </value>
+        <value name="&quot;sinf&quot;" version="3.0" browsers="all">
+          <desc>Scientific Inferiors.</desc>
+        </value>
+        <value name="&quot;size&quot;" version="3.0" browsers="all">
+          <desc>Optical size.</desc>
+        </value>
+        <value name="&quot;smcp&quot;" version="3.0" browsers="all">
+          <desc>Small Capitals. Applies only to bicameral scripts.</desc>
+        </value>
+        <value name="&quot;smpl&quot;" version="3.0" browsers="all">
+          <desc>Simplified Forms. Applies only to Chinese and Japanese.</desc>
+        </value>
+        <value name="&quot;ssty&quot;" version="3.0" browsers="all">
+          <desc>Math script style alternates.</desc>
+        </value>
+        <value name="&quot;stch&quot;" version="3.0" browsers="all">
+          <desc>Stretching Glyph Decomposition.</desc>
+        </value>
+        <value name="&quot;subs&quot;" version="3.0" browsers="all">
+          <desc>Subscript.</desc>
+        </value>
+        <value name="&quot;sups&quot;" version="3.0" browsers="all">
+          <desc>Superscript.</desc>
+        </value>
+        <value name="&quot;swsh&quot;" version="3.0" browsers="all">
+          <desc>Swash. Does not apply to ideographic scripts.</desc>
+        </value>
+        <value name="&quot;titl&quot;" version="3.0" browsers="all">
+          <desc>Titling.</desc>
+        </value>
+        <value name="&quot;tjmo&quot;" version="3.0" browsers="all">
+          <desc>Trailing Jamo Forms. Required for Hangul script when Ancient Hangul writing system is supported.</desc>
+        </value>
+        <value name="&quot;tnam&quot;" version="3.0" browsers="all">
+          <desc>Traditional Name Forms. Applies only to Japanese.</desc>
+        </value>
+        <value name="&quot;tnum&quot;" version="3.0" browsers="all">
+          <desc>Tabular Figures.</desc>
+        </value>
+        <value name="&quot;trad&quot;" version="3.0" browsers="all">
+          <desc>Traditional Forms. Applies only to Chinese and Japanese.</desc>
+        </value>
+        <value name="&quot;twid&quot;" version="3.0" browsers="all">
+          <desc>Third Widths. Generally used only in CJKV fonts.</desc>
+        </value>
+        <value name="&quot;unic&quot;" version="3.0" browsers="all">
+          <desc>Unicase.</desc>
+        </value>
+        <value name="&quot;valt&quot;" version="3.0" browsers="all">
+          <desc>Alternate Vertical Metrics. Applies only to scripts with vertical writing modes.</desc>
+        </value>
+        <value name="&quot;vatu&quot;" version="3.0" browsers="all">
+          <desc>Vattu Variants. Used for Indic scripts. E.g. Devanagari.</desc>
+        </value>
+        <value name="&quot;vert&quot;" version="3.0" browsers="all">
+          <desc>Vertical Alternates. Applies only to scripts with vertical writing modes.</desc>
+        </value>
+        <value name="&quot;vhal&quot;" version="3.0" browsers="all">
+          <desc>Alternate Vertical Half Metrics. Used only in CJKV fonts.</desc>
+        </value>
+        <value name="&quot;vjmo&quot;" version="3.0" browsers="all">
+          <desc>Vowel Jamo Forms. Required for Hangul script when Ancient Hangul writing system is supported.</desc>
+        </value>
+        <value name="&quot;vkna&quot;" version="3.0" browsers="all">
+          <desc>Vertical Kana Alternates. Applies only to fonts that support kana (hiragana and katakana).</desc>
+        </value>
+        <value name="&quot;vkrn&quot;" version="3.0" browsers="all">
+          <desc>Vertical Kerning.</desc>
+        </value>
+        <value name="&quot;vpal&quot;" version="3.0" browsers="all">
+          <desc>Proportional Alternate Vertical Metrics. Used mostly in CJKV fonts.</desc>
+        </value>
+        <value name="&quot;vrt2&quot;" version="3.0" browsers="all">
+          <desc>Vertical Alternates and Rotation. Applies only to scripts with vertical writing modes.</desc>
+        </value>
+        <value name="&quot;zero&quot;" version="3.0" browsers="all">
+          <desc>Slashed Zero.</desc>
+        </value>
         <value name="normal" version="3.0" browsers="all">
           <desc>No change in glyph substitution or positioning occurs.</desc>
         </value>
-        <value name="off" version="3.0" browsers="all" />
-        <value name="on" version="3.0" browsers="all" />
+        <value name="off" version="3.0" browsers="all">
+          <desc>Disable feature.</desc>
+        </value>
+        <value name="on" version="3.0" browsers="all">
+          <desc>Enable feature.</desc>
+        </value>
       </values>
     </entry>
     <entry name="font-kerning" restriction="enum" version="3.0" browsers="C33,FF34,O20" ref="http://www.w3.org/TR/css3-fonts/#propdef-font-kerning" syntax="body { $(name): normal; }">
@@ -2952,7 +3307,7 @@
         </value>
         <value name="span" version="3.0" browsers="all">
           <desc>Contributes a grid span to the grid item’s placement such that the corresponding edge of the grid item’s grid area is N lines from its opposite edge.</desc>
-        </value>/>
+        </value>
       </values>
     </entry>
     <entry name="grid-gap" restriction="length" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-grid-1/#propdef-grid-gap" syntax="#item1 { $(name): 2em 1em; }">
@@ -3300,8 +3655,12 @@
     <entry name="isolation" restriction="enum" version="3.0" browsers="C,FF,O,S" ref="http://www.w3.org/TR/compositing-1/#isolation" syntax="div { $(name): isolate; }">
       <desc>In CSS setting to 'isolate' will turn the element into a stacking context. In SVG, it defines whether an element is isolated or not.</desc>
       <values>
-        <value name="auto" version="3.0" browsers="all" />
-        <value name="isolate" version="3.0" browsers="all" />
+        <value name="auto" version="3.0" browsers="all">
+          <desc>Elements are not isolated unless an operation is applied that causes the creation of a stacking context.</desc>
+        </value>
+        <value name="isolate" version="3.0" browsers="all">
+          <desc>In CSS will turn the element into a stacking context.</desc>
+        </value>
       </values>
     </entry>
     <entry name="justify-content" restriction="enum" version="3.0" browsers="E,C29,FF22,IE11,O12.1,S9" ref="http://www.w3.org/TR/css3-flexbox/#align-content" syntax="p { $(name): flex-start; }">
@@ -3401,7 +3760,7 @@
         </value>
       </values>
     </entry>
-    <entry name="list-style" restriction="enum, url" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-lists/#list-style" syntax="ul { $(name): square url('square.png');}">
+    <entry name="list-style" restriction="image, enum, url" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-lists/#list-style" syntax="ul { $(name): square url('square.png');}">
       <desc>Shorthand for setting 'list-style-type', 'list-style-position' and 'list-style-image'</desc>
       <values>
         <value name="armenian" version="1.0" browsers="all" />
@@ -4883,57 +5242,91 @@
         <value name="bt" version="3.0" browsers="all">
           <desc>Bottom-to-top block flow. Layout is horizontal.</desc>
         </value>
-        <value name="lr" version="3.0" browsers="all" />
-        <value name="rl" version="3.0" browsers="all" />
-        <value name="tb" version="3.0" browsers="all" />
+        <value name="lr" version="3.0" browsers="all">
+          <desc>Left-to-right direction. The flow orientation is vertical.</desc>
+        </value>
+        <value name="rl" version="3.0" browsers="all">
+          <desc>Right-to-left direction. The flow orientation is vertical.</desc>
+        </value>
+        <value name="tb" version="3.0" browsers="all">
+          <desc>Top-to-bottom direction. The flow orientation is horizontal.</desc>
+        </value>
       </values>
     </entry>
     <entry name="-ms-content-zoom-chaining" restriction="" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh441243.aspx" syntax="div { $(name): chained; }">
-      <desc>Gets or sets a value that indicates the zoom behavior that occurs when a user hits the content boundary during a manipulation.</desc>
+      <desc>Specifies the zoom behavior that occurs when a user hits the zoom limit during a manipulation.</desc>
       <values>
-        <value name="chained" version="3.0" browsers="all" />
-        <value name="none" version="3.0" browsers="all" />
+        <value name="chained" version="3.0" browsers="all">
+          <desc>The nearest zoomable parent element begins zooming when the user hits a zoom limit during a manipulation. No bounce effect is shown.</desc>
+        </value>
+        <value name="none" version="3.0" browsers="all">
+          <desc>A bounce effect is shown when the user hits a zoom limit during a manipulation.</desc>
+        </value>
       </values>
     </entry>
     <entry name="-ms-content-zooming" restriction="enum" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh441251.aspx" syntax="div { $(name): zoom; }">
-      <desc>Gets or sets a value that indicates whether zooming is enabled.</desc>
+      <desc>Specifies whether zooming is enabled.</desc>
       <values>
-        <value name="none" version="3.0" browsers="all" />
-        <value name="zoom" version="3.0" browsers="all" />
+        <value name="none" version="3.0" browsers="all">
+          <desc>The element is not zoomable.</desc>
+        </value>
+        <value name="zoom" version="3.0" browsers="all">
+          <desc>The element is zoomable.</desc>
+        </value>
       </values>
     </entry>
     <entry name="-ms-content-zoom-limit" restriction="percentage" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh996912.aspx" syntax="div { $(name): 10%; }">
-      <desc>Gets or sets a shorthand value that sets values for the -ms-content-zoom-limit-min and the -ms-content-zoom-limit-max properties.</desc>
+      <desc>Shorthand property for the -ms-content-zoom-limit-min and -ms-content-zoom-limit-max properties.</desc>
     </entry>
     <entry name="-ms-content-zoom-limit-max" restriction="percentage" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh996913.aspx" syntax="div { $(name): 10%; }">
-      <desc>Gets or sets a value that specifies the maximum value for the msContentZoomFactor property.</desc>
+      <desc>Specifies the maximum zoom factor.</desc>
     </entry>
     <entry name="-ms-content-zoom-limit-min" restriction="percentage" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh996914.aspx" syntax="div { $(name): 10%; }">
-      <desc>Gets or sets a value that specifies the minimum value for the msContentZoomFactor property.</desc>
+      <desc>Specifies the minimum zoom factor.</desc>
     </entry>
     <entry name="-ms-content-zoom-snap" restriction="" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh441255.aspx" syntax="header { $(name): proximity; }">
-      <desc>Gets or sets a shorthand value that sets values for the -ms-content-zoom-snap-type and the -ms-content-zoom-snap-points properties.</desc>
+      <desc>Shorthand property for the -ms-content-zoom-snap-type and -ms-content-zoom-snap-points properties.</desc>
       <values>
-        <value name="mandatory" version="3.0" browsers="all" />
-        <value name="none" version="3.0" browsers="all" />
-        <value name="proximity" version="3.0" browsers="all" />
-        <value name="snapInterval(100%, 100%)" version="3.0" browsers="all" />
-        <value name="snapList()" version="3.0" browsers="all" />
+        <value name="mandatory" version="3.0" browsers="all">
+          <desc>Indicates that the motion of the content after the contact is picked up is always adjusted so that it lands on a snap-point.</desc>
+        </value>
+        <value name="none" version="3.0" browsers="all">
+          <desc>Indicates that zooming is unaffected by any defined snap-points.</desc>
+        </value>
+        <value name="proximity" version="3.0" browsers="all">
+          <desc>Indicates that the motion of the content after the contact is picked up may be adjusted if the content would normally stop "close enough" to a snap-point.</desc>
+        </value>
+        <value name="snapInterval(100%, 100%)" version="3.0" browsers="all">
+          <desc>Specifies where the snap-points will be placed.</desc>
+        </value>
+        <value name="snapList()" version="3.0" browsers="all">
+          <desc>Specifies the position of individual snap-points as a comma-separated list of zoom factors.</desc>
+        </value>
       </values>
     </entry>
     <entry name="-ms-content-zoom-snap-points" restriction="" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh441259.aspx">
-      <desc>Gets or sets a value that defines where zoom snap-points are located.</desc>
+      <desc>Defines where zoom snap-points are located.</desc>
       <values>
-        <value name="snapInterval(100%, 100%)" version="3.0" browsers="all" />
-        <value name="snapList()" version="3.0" browsers="all" />
+        <value name="snapInterval(100%, 100%)" version="3.0" browsers="all" >
+          <desc>Specifies where the snap-points will be placed.</desc>
+        </value>
+        <value name="snapList()" version="3.0" browsers="all">
+          <desc>Specifies the position of individual snap-points as a comma-separated list of zoom factors.</desc>
+        </value>
       </values>
     </entry>
     <entry name="-ms-content-zoom-snap-type" restriction="enum" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh441264.aspx" syntax="header { $(name): proximity; }">
-      <desc>Gets or sets a value that indicates how zooming is affected by defined snap-points.</desc>
+      <desc>Specifies how zooming is affected by defined snap-points.</desc>
       <values>
-        <value name="mandatory" version="3.0" browsers="all" />
-        <value name="none" version="3.0" browsers="all" />
-        <value name="proximity" version="3.0" browsers="all" />
+        <value name="mandatory" version="3.0" browsers="all">
+          <desc>Indicates that the motion of the content after the contact is picked up is always adjusted so that it lands on a snap-point.</desc>
+        </value>
+        <value name="none" version="3.0" browsers="all">
+          <desc>Indicates that zooming is unaffected by any defined snap-points.</desc>
+        </value>
+        <value name="proximity" version="3.0" browsers="all">
+          <desc>Indicates that the motion of the content after the contact is picked up may be adjusted if the content would normally stop "close enough" to a snap-point.</desc>
+        </value>
       </values>
     </entry>
     <entry name="-ms-filter" restriction="string" version="3.0" browsers="IE8-9" ref="http://msdn.microsoft.com/en-us/ie/gg192966.aspx" syntax="div { $(name): 'alpha(opacity = 50)'; }">
@@ -4942,8 +5335,12 @@
     <entry name="-ms-flex" restriction="length, number, percentage" version="3.0" browsers="IE10" ref="http://www.w3.org/TR/css3-flexbox/#flex" syntax="p { $(name): 1 auto; }">
       <desc>specifies the parameters of a flexible length: the positive and negative flexibility, and the preferred size.</desc>
       <values>
-        <value name="auto" version="3.0" browsers="all" />
-        <value name="none" version="3.0" browsers="all" />
+        <value name="auto" version="3.0" browsers="all">
+          <desc>Retrieves the value of the main size property as the used 'flex-basis'.</desc>
+        </value>
+        <value name="none" version="3.0" browsers="all">
+          <desc>Expands to '0 0 auto'.</desc>
+		</value>
       </values>
     </entry>
     <entry name="-ms-flex-align" restriction="enum" version="3.0" browsers="IE10" ref="http://www.w3.org/TR/css3-flexbox/#flex-align0" syntax="div { $(name): center; }">
@@ -5106,7 +5503,7 @@
       </values>
     </entry>
     <entry name="-ms-grid-column" restriction="integer, string, enum" version="3.0" browsers="E,IE10" ref="http://www.w3.org/TR/css3-grid-layout/#grid-column" syntax="#item1 { $(name): start end; }">
-      <desc>grid-column is used to place grid items and explicitly defined grid cells in the Grid.</desc>
+      <desc>Used to place grid items and explicitly defined grid cells in the Grid.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all" />
         <value name="end" version="3.0" browsers="all" />
@@ -5171,10 +5568,14 @@
       <desc>Specifies the number of rows to span.</desc>
     </entry>
     <entry name="-ms-high-contrast-adjust" restriction="enum" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh441137.aspx" syntax="section { $(name): auto; }">
-      <desc>Gets or sets a value that indicates whether to override any Cascading Style Sheets (CSS) properties that would have been set in high contrast mode.</desc>
+      <desc>Specifies if properties should be adjusted in high contrast mode.</desc>
       <values>
-        <value name="auto" version="3.0" browsers="all" />
-        <value name="none" version="3.0" browsers="all" />
+        <value name="auto" version="3.0" browsers="all">
+          <desc>Properties will be adjusted as applicable.</desc>
+        </value>
+        <value name="none" version="3.0" browsers="all">
+          <desc>No adjustments will be applied.</desc>
+        </value>
       </values>
     </entry>
     <entry name="-ms-hyphenate-limit-chars" restriction="integer" version="4.0" browsers="E,IE10" ref="https://drafts.csswg.org/css-text-4/#propdef-hyphenate-limit-chars" syntax="div { $(name): 5 2 2; }">
@@ -6059,20 +6460,30 @@
         </value>
       </values>
     </entry>
-    <entry name="object-fit" restriction="enum" version="3.0" browsers="C32,FF36,O19,S7.1" ref="http://www.w3.org/TR/css4-images/#object-fit" syntax="p { $(name): cover; }">
+    <entry name="object-fit" restriction="enum" version="3.0" browsers="C32,FF36,O19,S7.1" ref="http://www.w3.org/TR/css-images/#object-fit" syntax="p { $(name): cover; }">
       <desc>Specifies how the contents of a replaced element should be scaled relative to the box established by its used height and width.</desc>
       <values>
-        <value name="contain" version="3.0" browsers="all" />
-        <value name="cover" version="3.0" browsers="all" />
-        <value name="fill" version="3.0" browsers="all" />
-        <value name="none" version="3.0" browsers="all" />
-        <value name="scale-down" version="3.0" browsers="all" />
+        <value name="contain" version="3.0" browsers="all">
+          <desc>The replaced content is sized to maintain its aspect ratio while fitting within the element’s content box: its concrete object size is resolved as a contain constraint against the element's used width and height.</desc>
+        </value>
+        <value name="cover" version="3.0" browsers="all">
+          <desc>The replaced content is sized to maintain its aspect ratio while filling the element's entire content box: its concrete object size is resolved as a cover constraint against the element’s used width and height.</desc>
+        </value>
+        <value name="fill" version="3.0" browsers="all">
+          <desc>The replaced content is sized to fill the element’s content box: the object's concrete object size is the element's used width and height.</desc>
+        </value>
+        <value name="none" version="3.0" browsers="all">
+          <desc>The replaced content is not resized to fit inside the element's content box</desc>
+        </value>
+        <value name="scale-down" version="3.0" browsers="all">
+          <desc>Size the content as if ‘none’ or ‘contain’ were specified, whichever would result in a smaller concrete object size.</desc>
+        </value>
       </values>
     </entry>
-    <entry name="object-position" restriction="position, length, percentage" version="3.0" browsers="C32,FF36,O19" ref="http://www.w3.org/TR/css4-images/#object-position" syntax="img { $(name): left top; }">
+    <entry name="object-position" restriction="position, length, percentage" version="3.0" browsers="C32,FF36,O19" ref="http://www.w3.org/TR/css-images/#object-position" syntax="img { $(name): left top; }">
       <desc>Determines the alignment of the replaced element inside its box.</desc>
     </entry>
-    <entry name="-o-border-image" restriction="length, percentage, number, url, enum" version="3.0" browsers="O11.6" ref="http://www.w3.org/TR/css3-background/#border-image" syntax="div { $(name): url(border.png) 0 5 0 5;}">
+    <entry name="-o-border-image" restriction="length, percentage, number, image, enum" version="3.0" browsers="O11.6" ref="http://www.w3.org/TR/css3-background/#border-image" syntax="div { $(name): url(border.png) 0 5 0 5;}">
       <desc>Shorthand property for setting 'border-image-source', 'border-image-slice', 'border-image-width', 'border-image-outset' and 'border-image-repeat'. Omitted values are set to their initial values.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all">
@@ -6094,17 +6505,26 @@
         <value name="stretch" version="3.0" browsers="all">
           <desc>The image is stretched to fill the area.</desc>
         </value>
-        <value name="url()" version="3.0" browsers="all" />
       </values>
     </entry>
     <entry name="-o-object-fit" restriction="enum" version="3.0" browsers="O10.6" ref="http://www.w3.org/TR/css4-images/#object-fit" syntax="p { $(name): cover; }">
       <desc>Specifies how the contents of a replaced element should be scaled relative to the box established by its used height and width.</desc>
       <values>
-        <value name="contain" version="3.0" browsers="all" />
-        <value name="cover" version="3.0" browsers="all" />
-        <value name="fill" version="3.0" browsers="all" />
-        <value name="none" version="3.0" browsers="all" />
-        <value name="scale-down" version="3.0" browsers="all" />
+        <value name="contain" version="3.0" browsers="all">
+          <desc>The replaced content is sized to maintain its aspect ratio while fitting within the element’s content box: its concrete object size is resolved as a contain constraint against the element's used width and height.</desc>
+        </value>
+        <value name="cover" version="3.0" browsers="all">
+          <desc>The replaced content is sized to maintain its aspect ratio while filling the element's entire content box: its concrete object size is resolved as a cover constraint against the element’s used width and height.</desc>
+        </value>
+        <value name="fill" version="3.0" browsers="all">
+          <desc>The replaced content is sized to fill the element’s content box: the object's concrete object size is the element's used width and height.</desc>
+        </value>
+        <value name="none" version="3.0" browsers="all">
+          <desc>The replaced content is not resized to fit inside the element's content box</desc>
+        </value>
+        <value name="scale-down" version="3.0" browsers="all">
+          <desc>Size the content as if ‘none’ or ‘contain’ were specified, whichever would result in a smaller concrete object size.</desc>
+        </value>
       </values>
     </entry>
     <entry name="-o-object-position" restriction="position, length, percentage" version="3.0" browsers="O10.6" ref="http://www.w3.org/TR/css4-images/#object-position" syntax="img { $(name): left top; }">
@@ -6982,15 +7402,23 @@
     <entry name="scroll-snap-points-x" restriction="enum" version="3.0" browsers="FF39" ref="http://www.w3.org/TR/css-snappoints-1/#propdef-scroll-snap-points-x">
       <desc>Defines the positioning of snap points along the x axis of the scroll container it is applied to.</desc>
       <values>
-        <value name="none" version="3.0" browsers="all" />
-        <value name="repeat()" version="3.0" browsers="all" />
+        <value name="none" version="3.0" browsers="all">
+          <desc>No snap points are defined by this scroll container.</desc>
+        </value>
+        <value name="repeat()" version="3.0" browsers="all">
+          <desc>Defines an interval at which snap points are defined, starting from the container’s relevant start edge.</desc>
+        </value>
       </values>
     </entry>
     <entry name="scroll-snap-points-y" restriction="enum" version="3.0" browsers="FF39" ref="http://www.w3.org/TR/css-snappoints-1/#propdef-scroll-snap-points-y">
       <desc>Defines the positioning of snap points alobg the y axis of the scroll container it is applied to.</desc>
       <values>
-        <value name="none" version="3.0" browsers="all" />
-        <value name="repeat()" version="3.0" browsers="all" />
+        <value name="none" version="3.0" browsers="all">
+          <desc>No snap points are defined by this scroll container.</desc>
+        </value>
+        <value name="repeat()" version="3.0" browsers="all">
+          <desc>Defines an interval at which snap points are defined, starting from the container’s relevant start edge.</desc>
+        </value>
       </values>
     </entry>
     <entry name="scroll-snap-type" restriction="enum" version="3.0" browsers="FF39" ref="http://www.w3.org/TR/css-snappoints-1/#propdef-scroll-snap-type">
@@ -7757,15 +8185,25 @@
     </entry>
     <entry name="touch-action" restriction="enum" version="3.0" browsers="E,C36,IE11,O23" ref="http://www.w3.org/TR/pointerevents/#the-touch-action-css-property" syntax="div { $(name): pan-x; }">
       <desc>Determines whether touch input may trigger default behavior supplied by user agent.</desc>
-			<values>
-        <value name="auto" version="3.0" browsers="all" />
+      <values>
+        <value name="auto" version="3.0" browsers="all">
+          <desc>The user agent may determine any permitted touch behaviors for touches that begin on the element.</desc>
+        </value>
         <value name="cross-slide-x" version="3.0" browsers="E,IE11" />
         <value name="cross-slide-y" version="3.0" browsers="E,IE11" />
         <value name="double-tap-zoom" version="3.0" browsers="E,IE11" />
-        <value name="manipulation" version="3.0" browsers="all" />
-        <value name="none" version="3.0" browsers="all" />
-        <value name="pan-x" version="3.0" browsers="all" />
-        <value name="pan-y" version="3.0" browsers="all" />
+        <value name="manipulation" version="3.0" browsers="all">
+          <desc>The user agent may consider touches that begin on the element only for the purposes of scrolling and continuous zooming.</desc>
+        </value>
+        <value name="none" version="3.0" browsers="all">
+          <desc>Touches that begin on the element must not trigger default touch behaviors.</desc>
+        </value>
+        <value name="pan-x" version="3.0" browsers="all">
+          <desc>The user agent may consider touches that begin on the element only for the purposes of horizontally scrolling the element’s nearest ancestor with horizontally scrollable content.</desc>
+        </value>
+        <value name="pan-y" version="3.0" browsers="all">
+          <desc>The user agent may consider touches that begin on the element only for the purposes of vertically scrolling the element’s nearest ancestor with vertically scrollable content.</desc>
+        </value>
         <value name="pinch-zoom" version="3.0" browsers="E,IE11" />
       </values>
     </entry>
@@ -7982,11 +8420,19 @@
     <entry name="user-select" restriction="enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-ui-4/#propdef-user-select" syntax="div { $(name): text; }">
       <desc>Controls the appearance of selection.</desc>
       <values>
-        <value name="all" version="3.0" browsers="all" />
+        <value name="all" version="3.0" browsers="all">
+          <desc>The content of the element must be selected atomically</desc>
+        </value>
         <value name="auto" version="3.0" browsers="all" />
-        <value name="contain" version="3.0" browsers="all" />
-        <value name="none" version="3.0" browsers="all" />
-        <value name="text" version="3.0" browsers="all" />
+        <value name="contain" version="3.0" browsers="all">
+          <desc>UAs must not allow a selection which is started in this element to be extended outside of this element.</desc>
+        </value>
+        <value name="none" version="3.0" browsers="all">
+          <desc>The UA must not allow selections to be started in this element.</desc>
+        </value>
+        <value name="text" version="3.0" browsers="all">
+          <desc>The element imposes no constraint on the selection.</desc>
+        </value>
       </values>
     </entry>
 	<entry name="vector-effect" restriction="enum" version="4.0" browsers="none" ref="http://www.w3.org/TR/SVG2/painting.html#VectorEffectProperty" syntax="circle { $(name): non-rotation; }">

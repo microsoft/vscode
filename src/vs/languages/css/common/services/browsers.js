@@ -1416,7 +1416,8 @@ exports.data ={
 						"desc": "Causes the middle part of the border-image to be preserved."
 					},
 					{
-						"name": "none"
+						"name": "none",
+						"desc": "Use the border styles."
 					},
 					{
 						"name": "repeat"
@@ -1478,16 +1479,8 @@ exports.data ={
 				"name": "border-image-source",
 				"desc": "Specifies an image to use instead of the border styles given by the 'border-style' properties and as an additional background layer for the element. If the value is 'none' or if the image cannot be displayed, the border styles will be used.",
 				"browsers": "E,C16,FF15,IE11,O15,S6",
-				"restriction": "url",
-				"values": [
-					{
-						"name": "none",
-						"desc": "Use the border styles."
-					},
-					{
-						"name": "url()"
-					}
-				]
+				"restriction": "image",
+				"values": []
 			},
 			{
 				"name": "border-image-width",
@@ -2806,41 +2799,376 @@ exports.data ={
 				"restriction": "string, integer",
 				"values": [
 					{
-						"name": "\"c2cs\""
+						"name": "\"aalt\""
 					},
 					{
-						"name": "\"dlig\""
+						"name": "\"abvf\""
 					},
 					{
-						"name": "\"kern\""
+						"name": "\"abvm\""
 					},
 					{
-						"name": "\"liga\""
+						"name": "\"abvs\""
 					},
 					{
-						"name": "\"lnum\""
+						"name": "\"afrc\""
 					},
 					{
-						"name": "\"onum\""
+						"name": "\"akhn\""
 					},
 					{
-						"name": "\"smcp\""
+						"name": "\"blwf\""
 					},
 					{
-						"name": "\"swsh\""
+						"name": "\"blwm\""
 					},
 					{
-						"name": "\"tnum\""
+						"name": "\"blws\""
+					},
+					{
+						"name": "\"calt\""
+					},
+					{
+						"name": "\"case\""
+					},
+					{
+						"name": "\"ccmp\""
+					},
+					{
+						"name": "\"cfar\""
+					},
+					{
+						"name": "\"cjct\""
+					},
+					{
+						"name": "\"clig\""
+					},
+					{
+						"name": "\"cpct\""
+					},
+					{
+						"name": "\"cpsp\""
+					},
+					{
+						"name": "\"cswh\""
+					},
+					{
+						"name": "\"curs\""
+					},
+					{
+						"name": "\"c2pc\""
+					},
+					{
+						"name": "\"c2cs\"",
+						"desc": "Small Capitals From Capitals. Applies only to bicameral scripts."
+					},
+					{
+						"name": "\"dist\""
+					},
+					{
+						"name": "\"dlig\"",
+						"desc": "Discretionary ligatures."
+					},
+					{
+						"name": "\"dnom\""
+					},
+					{
+						"name": "\"dtls\""
+					},
+					{
+						"name": "\"expt\""
+					},
+					{
+						"name": "\"falt\""
+					},
+					{
+						"name": "\"fin2\""
+					},
+					{
+						"name": "\"fin3\""
+					},
+					{
+						"name": "\"fina\""
+					},
+					{
+						"name": "\"flac\""
+					},
+					{
+						"name": "\"frac\""
+					},
+					{
+						"name": "\"fwid\""
+					},
+					{
+						"name": "\"half\""
+					},
+					{
+						"name": "\"haln\""
+					},
+					{
+						"name": "\"halt\""
+					},
+					{
+						"name": "\"hist\""
+					},
+					{
+						"name": "\"hkna\""
+					},
+					{
+						"name": "\"hlig\""
+					},
+					{
+						"name": "\"hngl\""
+					},
+					{
+						"name": "\"hojo\""
+					},
+					{
+						"name": "\"hwid\""
+					},
+					{
+						"name": "\"init\""
+					},
+					{
+						"name": "\"isol\""
+					},
+					{
+						"name": "\"ital\""
+					},
+					{
+						"name": "\"jalt\""
+					},
+					{
+						"name": "\"jp78\""
+					},
+					{
+						"name": "\"jp83\""
+					},
+					{
+						"name": "\"jp90\""
+					},
+					{
+						"name": "\"jp04\""
+					},
+					{
+						"name": "\"kern\"",
+						"desc": "Kerning."
+					},
+					{
+						"name": "\"lfbd\""
+					},
+					{
+						"name": "\"liga\"",
+						"desc": "Standard Ligatures."
+					},
+					{
+						"name": "\"ljmo\""
+					},
+					{
+						"name": "\"lnum\"",
+						"desc": "Lining Figures."
+					},
+					{
+						"name": "\"locl\""
+					},
+					{
+						"name": "\"ltra\""
+					},
+					{
+						"name": "\"ltrm\""
+					},
+					{
+						"name": "\"mark\""
+					},
+					{
+						"name": "\"med2\""
+					},
+					{
+						"name": "\"medi\""
+					},
+					{
+						"name": "\"mgrk\""
+					},
+					{
+						"name": "\"mkmk\""
+					},
+					{
+						"name": "\"nalt\""
+					},
+					{
+						"name": "\"nlck\""
+					},
+					{
+						"name": "\"nukt\""
+					},
+					{
+						"name": "\"numr\""
+					},
+					{
+						"name": "\"onum\"",
+						"desc": "Oldstyle Figures."
+					},
+					{
+						"name": "\"opbd\""
+					},
+					{
+						"name": "\"ordn\""
+					},
+					{
+						"name": "\"ornm\""
+					},
+					{
+						"name": "\"palt\""
+					},
+					{
+						"name": "\"pcap\""
+					},
+					{
+						"name": "\"pkna\""
+					},
+					{
+						"name": "\"pnum\""
+					},
+					{
+						"name": "\"pref\""
+					},
+					{
+						"name": "\"pres\""
+					},
+					{
+						"name": "\"pstf\""
+					},
+					{
+						"name": "\"psts\""
+					},
+					{
+						"name": "\"pwid\""
+					},
+					{
+						"name": "\"qwid\""
+					},
+					{
+						"name": "\"rand\""
+					},
+					{
+						"name": "\"rclt\""
+					},
+					{
+						"name": "\"rlig\""
+					},
+					{
+						"name": "\"rkrf\""
+					},
+					{
+						"name": "\"rphf\""
+					},
+					{
+						"name": "\"rtbd\""
+					},
+					{
+						"name": "\"rtla\""
+					},
+					{
+						"name": "\"rtlm\""
+					},
+					{
+						"name": "\"ruby\""
+					},
+					{
+						"name": "\"salt\""
+					},
+					{
+						"name": "\"sinf\""
+					},
+					{
+						"name": "\"size\""
+					},
+					{
+						"name": "\"smcp\"",
+						"desc": "Small Capitals. Applies only to bicameral scripts."
+					},
+					{
+						"name": "\"smpl\""
+					},
+					{
+						"name": "\"ssty\""
+					},
+					{
+						"name": "\"stch\""
+					},
+					{
+						"name": "\"subs\""
+					},
+					{
+						"name": "\"sups\""
+					},
+					{
+						"name": "\"swsh\"",
+						"desc": "Swash. Does not apply to ideographic scripts."
+					},
+					{
+						"name": "\"titl\""
+					},
+					{
+						"name": "\"tjmo\""
+					},
+					{
+						"name": "\"tnam\""
+					},
+					{
+						"name": "\"tnum\"",
+						"desc": "Tabular Figures."
+					},
+					{
+						"name": "\"trad\""
+					},
+					{
+						"name": "\"twid\""
+					},
+					{
+						"name": "\"unic\""
+					},
+					{
+						"name": "\"valt\""
+					},
+					{
+						"name": "\"vatu\""
+					},
+					{
+						"name": "\"vert\""
+					},
+					{
+						"name": "\"vhal\""
+					},
+					{
+						"name": "\"vjmo\""
+					},
+					{
+						"name": "\"vkna\""
+					},
+					{
+						"name": "\"vkrn\""
+					},
+					{
+						"name": "\"vpal\""
+					},
+					{
+						"name": "\"vrt2\""
+					},
+					{
+						"name": "\"zero\""
 					},
 					{
 						"name": "normal",
 						"desc": "No change in glyph substitution or positioning occurs."
 					},
 					{
-						"name": "off"
+						"name": "off",
+						"desc": "Disable feature."
 					},
 					{
-						"name": "on"
+						"name": "on",
+						"desc": "Enable feature."
 					}
 				]
 			},
@@ -3379,10 +3707,12 @@ exports.data ={
 				"restriction": "enum",
 				"values": [
 					{
-						"name": "auto"
+						"name": "auto",
+						"desc": "Elements are not isolated unless an operation is applied that causes the creation of a stacking context."
 					},
 					{
-						"name": "isolate"
+						"name": "isolate",
+						"desc": "In CSS will turn the element into a stacking context."
 					}
 				]
 			},
@@ -3447,7 +3777,7 @@ exports.data ={
 			{
 				"name": "list-style",
 				"desc": "Shorthand for setting 'list-style-type', 'list-style-position' and 'list-style-image'",
-				"restriction": "enum, url",
+				"restriction": "image, enum, url",
 				"values": [
 					{
 						"name": "armenian"
@@ -5084,25 +5414,28 @@ exports.data ={
 			},
 			{
 				"name": "-ms-content-zoom-chaining",
-				"desc": "Gets or sets a value that indicates the zoom behavior that occurs when a user hits the content boundary during a manipulation.",
+				"desc": "Specifies the zoom behavior that occurs when a user hits the zoom limit during a manipulation.",
 				"browsers": "E,IE10",
 				"values": [
 					{
-						"name": "chained"
+						"name": "chained",
+						"desc": "The nearest zoomable parent element begins zooming when the user hits a zoom limit during a manipulation. No bounce effect is shown."
 					},
 					{
-						"name": "none"
+						"name": "none",
+						"desc": "A bounce effect is shown when the user hits a zoom limit during a manipulation."
 					}
 				]
 			},
 			{
 				"name": "-ms-content-zooming",
-				"desc": "Gets or sets a value that indicates whether zooming is enabled.",
+				"desc": "Specifies whether zooming is enabled.",
 				"browsers": "E,IE10",
 				"restriction": "enum",
 				"values": [
 					{
-						"name": "none"
+						"name": "none",
+						"desc": "The element is not zoomable."
 					},
 					{
 						"name": "zoom"
@@ -5111,71 +5444,81 @@ exports.data ={
 			},
 			{
 				"name": "-ms-content-zoom-limit",
-				"desc": "Gets or sets a shorthand value that sets values for the -ms-content-zoom-limit-min and the -ms-content-zoom-limit-max properties.",
+				"desc": "Shorthand property for the -ms-content-zoom-limit-min and -ms-content-zoom-limit-max properties.",
 				"browsers": "E,IE10",
 				"restriction": "percentage"
 			},
 			{
 				"name": "-ms-content-zoom-limit-max",
-				"desc": "Gets or sets a value that specifies the maximum value for the msContentZoomFactor property.",
+				"desc": "Specifies the maximum zoom factor.",
 				"browsers": "E,IE10",
 				"restriction": "percentage"
 			},
 			{
 				"name": "-ms-content-zoom-limit-min",
-				"desc": "Gets or sets a value that specifies the minimum value for the msContentZoomFactor property.",
+				"desc": "Specifies the minimum zoom factor.",
 				"browsers": "E,IE10",
 				"restriction": "percentage"
 			},
 			{
 				"name": "-ms-content-zoom-snap",
-				"desc": "Gets or sets a shorthand value that sets values for the -ms-content-zoom-snap-type and the -ms-content-zoom-snap-points properties.",
+				"desc": "Shorthand property for the -ms-content-zoom-snap-type and -ms-content-zoom-snap-points properties.",
 				"browsers": "E,IE10",
 				"values": [
 					{
-						"name": "mandatory"
+						"name": "mandatory",
+						"desc": "Indicates that the motion of the content after the contact is picked up is always adjusted so that it lands on a snap-point."
 					},
 					{
-						"name": "none"
+						"name": "none",
+						"desc": "Indicates that zooming is unaffected by any defined snap-points."
 					},
 					{
-						"name": "proximity"
+						"name": "proximity",
+						"desc": "Indicates that the motion of the content after the contact is picked up may be adjusted if the content would normally stop \"close enough\" to a snap-point."
 					},
 					{
-						"name": "snapInterval(100%, 100%)"
+						"name": "snapInterval(100%, 100%)",
+						"desc": "Specifies where the snap-points will be placed."
 					},
 					{
-						"name": "snapList()"
+						"name": "snapList()",
+						"desc": "Specifies the position of individual snap-points as a comma-separated list of zoom factors."
 					}
 				]
 			},
 			{
 				"name": "-ms-content-zoom-snap-points",
-				"desc": "Gets or sets a value that defines where zoom snap-points are located.",
+				"desc": "Defines where zoom snap-points are located.",
 				"browsers": "E,IE10",
 				"values": [
 					{
-						"name": "snapInterval(100%, 100%)"
+						"name": "snapInterval(100%, 100%)",
+						"desc": "Specifies where the snap-points will be placed."
 					},
 					{
-						"name": "snapList()"
+						"name": "snapList()",
+						"desc": "Specifies the position of individual snap-points as a comma-separated list of zoom factors."
 					}
 				]
 			},
 			{
 				"name": "-ms-content-zoom-snap-type",
-				"desc": "Gets or sets a value that indicates how zooming is affected by defined snap-points.",
+				"desc": "Specifies how zooming is affected by defined snap-points.",
 				"browsers": "E,IE10",
 				"restriction": "enum",
 				"values": [
 					{
-						"name": "mandatory"
+						"name": "mandatory",
+						"desc": "Indicates that the motion of the content after the contact is picked up is always adjusted so that it lands on a snap-point."
 					},
 					{
-						"name": "none"
+						"name": "none",
+						"desc": "Indicates that zooming is unaffected by any defined snap-points."
 					},
 					{
-						"name": "proximity"
+						"name": "proximity",
+						"desc": "Indicates that the motion of the content after the contact is picked up may be adjusted if the content would normally stop \"close enough\" to a snap-point."
 					}
 				]
 			},
@@ -5192,10 +5535,12 @@ exports.data ={
 				"restriction": "length, number, percentage",
 				"values": [
 					{
-						"name": "auto"
+						"name": "auto",
+						"desc": "Retrieves the value of the main size property as the used 'flex-basis'."
 					},
 					{
-						"name": "none"
+						"name": "none",
+						"desc": "Expands to '0 0 auto'."
 					}
 				]
 			},
@@ -5410,7 +5755,7 @@ exports.data ={
 			},
 			{
 				"name": "-ms-grid-column",
-				"desc": "grid-column is used to place grid items and explicitly defined grid cells in the Grid.",
+				"desc": "Used to place grid items and explicitly defined grid cells in the Grid.",
 				"browsers": "E,IE10",
 				"restriction": "integer, string, enum",
 				"values": [
@@ -5520,15 +5865,17 @@ exports.data ={
 			},
 			{
 				"name": "-ms-high-contrast-adjust",
-				"desc": "Gets or sets a value that indicates whether to override any Cascading Style Sheets (CSS) properties that would have been set in high contrast mode.",
+				"desc": "Specifies if properties should be adjusted in high contrast mode.",
 				"browsers": "E,IE10",
 				"restriction": "enum",
 				"values": [
 					{
-						"name": "auto"
+						"name": "auto",
+						"desc": "Properties will be adjusted as applicable."
 					},
 					{
-						"name": "none"
+						"name": "none",
+						"desc": "No adjustments will be applied."
 					}
 				]
 			},
@@ -6755,16 +7102,20 @@ exports.data ={
 				"restriction": "enum",
 				"values": [
 					{
-						"name": "contain"
+						"name": "contain",
+						"desc": "The replaced content is sized to maintain its aspect ratio while fitting within the element’s content box: its concrete object size is resolved as a contain constraint against the element's used width and height."
 					},
 					{
-						"name": "cover"
+						"name": "cover",
+						"desc": "The replaced content is sized to maintain its aspect ratio while filling the element's entire content box: its concrete object size is resolved as a cover constraint against the element’s used width and height."
 					},
 					{
-						"name": "fill"
+						"name": "fill",
+						"desc": "The replaced content is sized to fill the element’s content box: the object's concrete object size is the element's used width and height."
 					},
 					{
-						"name": "none"
+						"name": "none",
+						"desc": "The replaced content is not resized to fit inside the element's content box"
 					},
 					{
 						"name": "scale-down"
@@ -6781,7 +7132,7 @@ exports.data ={
 				"name": "-o-border-image",
 				"desc": "Shorthand property for setting 'border-image-source', 'border-image-slice', 'border-image-width', 'border-image-outset' and 'border-image-repeat'. Omitted values are set to their initial values.",
 				"browsers": "O11.6",
-				"restriction": "length, percentage, number, url, enum",
+				"restriction": "length, percentage, number, image, enum",
 				"values": [
 					{
 						"name": "auto",
@@ -6808,9 +7159,6 @@ exports.data ={
 					{
 						"name": "stretch",
 						"desc": "The image is stretched to fill the area."
-					},
-					{
-						"name": "url()"
 					}
 				]
 			},
@@ -6821,16 +7169,20 @@ exports.data ={
 				"restriction": "enum",
 				"values": [
 					{
-						"name": "contain"
+						"name": "contain",
+						"desc": "The replaced content is sized to maintain its aspect ratio while fitting within the element’s content box: its concrete object size is resolved as a contain constraint against the element's used width and height."
 					},
 					{
-						"name": "cover"
+						"name": "cover",
+						"desc": "The replaced content is sized to maintain its aspect ratio while filling the element's entire content box: its concrete object size is resolved as a cover constraint against the element’s used width and height."
 					},
 					{
-						"name": "fill"
+						"name": "fill",
+						"desc": "The replaced content is sized to fill the element’s content box: the object's concrete object size is the element's used width and height."
 					},
 					{
-						"name": "none"
+						"name": "none",
+						"desc": "The replaced content is not resized to fit inside the element's content box"
 					},
 					{
 						"name": "scale-down"
@@ -7731,7 +8083,8 @@ exports.data ={
 				"restriction": "enum",
 				"values": [
 					{
-						"name": "none"
+						"name": "none",
+						"desc": "No snap points are defined by this scroll container."
 					},
 					{
 						"name": "repeat()"
@@ -7745,7 +8098,8 @@ exports.data ={
 				"restriction": "enum",
 				"values": [
 					{
-						"name": "none"
+						"name": "none",
+						"desc": "No snap points are defined by this scroll container."
 					},
 					{
 						"name": "repeat()"
@@ -8279,7 +8633,8 @@ exports.data ={
 				"restriction": "enum",
 				"values": [
 					{
-						"name": "auto"
+						"name": "auto",
+						"desc": "The user agent may determine any permitted touch behaviors for touches that begin on the element."
 					},
 					{
 						"name": "cross-slide-x",
@@ -8294,16 +8649,20 @@ exports.data ={
 						"browsers": "E,IE11"
 					},
 					{
-						"name": "manipulation"
+						"name": "manipulation",
+						"desc": "The user agent may consider touches that begin on the element only for the purposes of scrolling and continuous zooming."
 					},
 					{
-						"name": "none"
+						"name": "none",
+						"desc": "Touches that begin on the element must not trigger default touch behaviors."
 					},
 					{
-						"name": "pan-x"
+						"name": "pan-x",
+						"desc": "The user agent may consider touches that begin on the element only for the purposes of horizontally scrolling the element’s nearest ancestor with horizontally scrollable content."
 					},
 					{
-						"name": "pan-y"
+						"name": "pan-y",
+						"desc": "The user agent may consider touches that begin on the element only for the purposes of vertically scrolling the element’s nearest ancestor with vertically scrollable content."
 					},
 					{
 						"name": "pinch-zoom",
@@ -10438,6 +10797,114 @@ exports.descriptions = {
 	"message-box": "The font used in dialog boxes.",
 	"small-caption": "The font used for labeling small controls.",
 	"status-bar": "The font used in window status bars.",
+	"\"aalt\"": "Access All Alternates.",
+	"\"abvf\"": "Above-base Forms. Required in Khmer script.",
+	"\"abvm\"": "Above-base Mark Positioning. Required in Indic scripts.",
+	"\"abvs\"": "Above-base Substitutions. Required in Indic scripts.",
+	"\"afrc\"": "Alternative Fractions.",
+	"\"akhn\"": "Akhand. Required in most Indic scripts.",
+	"\"blwf\"": "Below-base Form. Required in a number of Indic scripts.",
+	"\"blwm\"": "Below-base Mark Positioning. Required in Indic scripts.",
+	"\"blws\"": "Below-base Substitutions. Required in Indic scripts.",
+	"\"calt\"": "Contextual Alternates.",
+	"\"case\"": "Case-Sensitive Forms. Applies only to European scripts; particularly prominent in Spanish-language setting.",
+	"\"ccmp\"": "Glyph Composition/Decomposition.",
+	"\"cfar\"": "Conjunct Form After Ro. Required in Khmer scripts.",
+	"\"cjct\"": "Conjunct Forms. Required in Indic scripts that show similarity to Devanagari.",
+	"\"clig\"": "Contextual Ligatures.",
+	"\"cpct\"": "Centered CJK Punctuation. Used primarily in Chinese fonts.",
+	"\"cpsp\"": "Capital Spacing. Should not be used in connecting scripts (e.g. most Arabic).",
+	"\"cswh\"": "Contextual Swash.",
+	"\"curs\"": "Cursive Positioning. Can be used in any cursive script.",
+	"\"c2pc\"": "Petite Capitals From Capitals. Applies only to bicameral scripts.",
+	"\"dist\"": "Distances. Required in Indic scripts.",
+	"\"dnom\"": "Denominators.",
+	"\"dtls\"": "Dotless Forms. Applied to math formula layout.",
+	"\"expt\"": "Expert Forms. Applies only to Japanese.",
+	"\"falt\"": "Final Glyph on Line Alternates. Can be used in any cursive script.",
+	"\"fin2\"": "Terminal Form #2. Used only with the Syriac script.",
+	"\"fin3\"": "Terminal Form #3. Used only with the Syriac script.",
+	"\"fina\"": "Terminal Forms. Can be used in any alphabetic script.",
+	"\"flac\"": "Flattened ascent forms. Applied to math formula layout.",
+	"\"frac\"": "Fractions.",
+	"\"fwid\"": "Full Widths. Applies to any script which can use monospaced forms.",
+	"\"half\"": "Half Forms. Required in Indic scripts that show similarity to Devanagari.",
+	"\"haln\"": "Halant Forms. Required in Indic scripts.",
+	"\"halt\"": "Alternate Half Widths. Used only in CJKV fonts.",
+	"\"hist\"": "Historical Forms.",
+	"\"hkna\"": "Horizontal Kana Alternates. Applies only to fonts that support kana (hiragana and katakana).",
+	"\"hlig\"": "Historical Ligatures.",
+	"\"hngl\"": "Hangul. Korean only.",
+	"\"hojo\"": "Hojo Kanji Forms (JIS X 0212-1990 Kanji Forms). Used only with Kanji script.",
+	"\"hwid\"": "Half Widths. Generally used only in CJKV fonts.",
+	"\"init\"": "Initial Forms. Can be used in any alphabetic script.",
+	"\"isol\"": "Isolated Forms. Can be used in any cursive script.",
+	"\"ital\"": "Italics. Applies mostly to Latin; note that many non-Latin fonts contain Latin as well.",
+	"\"jalt\"": "Justification Alternates. Can be used in any cursive script.",
+	"\"jp78\"": "JIS78 Forms. Applies only to Japanese.",
+	"\"jp83\"": "JIS83 Forms. Applies only to Japanese.",
+	"\"jp90\"": "JIS90 Forms. Applies only to Japanese.",
+	"\"jp04\"": "JIS2004 Forms. Applies only to Japanese.",
+	"\"lfbd\"": "Left Bounds.",
+	"\"ljmo\"": "Leading Jamo Forms. Required for Hangul script when Ancient Hangul writing system is supported.",
+	"\"locl\"": "Localized Forms.",
+	"\"ltra\"": "Left-to-right glyph alternates.",
+	"\"ltrm\"": "Left-to-right mirrored forms.",
+	"\"mark\"": "Mark Positioning.",
+	"\"med2\"": "Medial Form #2. Used only with the Syriac script.",
+	"\"medi\"": "Medial Forms.",
+	"\"mgrk\"": "Mathematical Greek.",
+	"\"mkmk\"": "Mark to Mark Positioning.",
+	"\"nalt\"": "Alternate Annotation Forms.",
+	"\"nlck\"": "NLC Kanji Forms. Used only with Kanji script.",
+	"\"nukt\"": "Nukta Forms. Required in Indic scripts..",
+	"\"numr\"": "Numerators.",
+	"\"opbd\"": "Optical Bounds.",
+	"\"ordn\"": "Ordinals. Applies mostly to Latin script.",
+	"\"ornm\"": "Ornaments.",
+	"\"palt\"": "Proportional Alternate Widths. Used mostly in CJKV fonts.",
+	"\"pcap\"": "Petite Capitals.",
+	"\"pkna\"": "Proportional Kana. Generally used only in Japanese fonts.",
+	"\"pnum\"": "Proportional Figures.",
+	"\"pref\"": "Pre-base Forms. Required in Khmer and Myanmar (Burmese) scripts and southern Indic scripts that may display a pre-base form of Ra.",
+	"\"pres\"": "Pre-base Substitutions. Required in Indic scripts.",
+	"\"pstf\"": "Post-base Forms. Required in scripts of south and southeast Asia that have post-base forms for consonants eg: Gurmukhi, Malayalam, Khmer.",
+	"\"psts\"": "Post-base Substitutions.",
+	"\"pwid\"": "Proportional Widths.",
+	"\"qwid\"": "Quarter Widths. Generally used only in CJKV fonts.",
+	"\"rand\"": "Randomize.",
+	"\"rclt\"": "Required Contextual Alternates. May apply to any script, but is especially important for many styles of Arabic.",
+	"\"rlig\"": "Required Ligatures. Applies to Arabic and Syriac. May apply to some other scripts.",
+	"\"rkrf\"": "Rakar Forms. Required in Devanagari and Gujarati scripts.",
+	"\"rphf\"": "Reph Form. Required in Indic scripts. E.g. Devanagari, Kannada.",
+	"\"rtbd\"": "Right Bounds.",
+	"\"rtla\"": "Right-to-left alternates.",
+	"\"rtlm\"": "Right-to-left mirrored forms.",
+	"\"ruby\"": "Ruby Notation Forms. Applies only to Japanese.",
+	"\"salt\"": "Stylistic Alternates.",
+	"\"sinf\"": "Scientific Inferiors.",
+	"\"size\"": "Optical size.",
+	"\"smpl\"": "Simplified Forms. Applies only to Chinese and Japanese.",
+	"\"ssty\"": "Math script style alternates.",
+	"\"stch\"": "Stretching Glyph Decomposition.",
+	"\"subs\"": "Subscript.",
+	"\"sups\"": "Superscript.",
+	"\"titl\"": "Titling.",
+	"\"tjmo\"": "Trailing Jamo Forms. Required for Hangul script when Ancient Hangul writing system is supported.",
+	"\"tnam\"": "Traditional Name Forms. Applies only to Japanese.",
+	"\"trad\"": "Traditional Forms. Applies only to Chinese and Japanese.",
+	"\"twid\"": "Third Widths. Generally used only in CJKV fonts.",
+	"\"unic\"": "Unicase.",
+	"\"valt\"": "Alternate Vertical Metrics. Applies only to scripts with vertical writing modes.",
+	"\"vatu\"": "Vattu Variants. Used for Indic scripts. E.g. Devanagari.",
+	"\"vert\"": "Vertical Alternates. Applies only to scripts with vertical writing modes.",
+	"\"vhal\"": "Alternate Vertical Half Metrics. Used only in CJKV fonts.",
+	"\"vjmo\"": "Vowel Jamo Forms. Required for Hangul script when Ancient Hangul writing system is supported.",
+	"\"vkna\"": "Vertical Kana Alternates. Applies only to fonts that support kana (hiragana and katakana).",
+	"\"vkrn\"": "Vertical Kerning.",
+	"\"vpal\"": "Proportional Alternate Vertical Metrics. Used mostly in CJKV fonts.",
+	"\"vrt2\"": "Vertical Alternates and Rotation. Applies only to scripts with vertical writing modes.",
+	"\"zero\"": "Slashed Zero.",
 	"narrower": "Indicates a narrower value relative to the width of the parent element.",
 	"wider": "Indicates a wider value relative to the width of the parent element.",
 	"style": "Allow synthetic italic faces.",
@@ -10535,6 +11002,10 @@ exports.descriptions = {
 	"false": "The element does not contain an accelerator key sequence.",
 	"true": "The element contains an accelerator key sequence.",
 	"bt": "Bottom-to-top block flow. Layout is horizontal.",
+	"lr": "Left-to-right direction. The flow orientation is vertical.",
+	"rl": "Right-to-left direction. The flow orientation is vertical.",
+	"tb": "Top-to-bottom direction. The flow orientation is horizontal.",
+	"zoom": "The element is zoomable.",
 	"mode": "Any of the range of mode values available to the -ms-layout-grid-mode property.",
 	"type": "Any of the range of type values available to the -ms-layout-grid-type property.",
 	"loose": "Default. Grid used for Japanese and Korean characters.",
@@ -10561,6 +11032,7 @@ exports.descriptions = {
 	"minimum": "Inline flow content can flow around the edge of the exclusion with the smallest available space within the flow content’s containing block, and must leave the other edge of the exclusion empty.",
 	"current": "Indicates that the user agent should target the frame that the element is in.",
 	"root": "Indicates that the user agent should target the full window.",
+	"scale-down": "Size the content as if ‘none’ or ‘contain’ were specified, whichever would result in a smaller concrete object size.",
 	"invert": "Performs a color inversion on the pixels on the screen.",
 	"-moz-hidden-unscrollable": "Same as the standardized 'clip', except doesn’t establish a block formatting context.",
 	"painted": "The given element can be the target element for pointer events when the pointer is over a \"painted\" area. ",
@@ -10580,6 +11052,7 @@ exports.descriptions = {
 	"before": "The ruby text appears before the base. This is the most common setting used in ideographic East Asian writing systems.",
 	"attr(x)": "The value of attribute 'x' is a string value. The string value is evaluated as a <number> to determine the number of ruby base elements to be spanned by the annotation element.",
 	"smooth": "Scrolls in a smooth fashion using a user-agent-defined timing function and time period.",
+	"repeat()": "Defines an interval at which snap points are defined, starting from the container’s relevant start edge.",
 	"margin-box": "The background is painted within (clipped to) the margin box.",
 	"format()": "Optional hint describing the format of the font resource.",
 	"local()": "Format-specific string that identifies a locally available copy of a given font.",
