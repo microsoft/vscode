@@ -1561,14 +1561,14 @@
         </value>
       </values>
     </entry>
-    <entry name="clip-rule" restriction="enum" version="3.0" browsers="all" ref="http://www.w3.org/TR/css-masking-1/#the-clip-rule">
+    <entry name="clip-rule" restriction="enum" version="3.0" browsers="E,C5,FF3,IE10,O9,S6" ref="http://www.w3.org/TR/css-masking-1/#the-clip-rule">
       <desc>Indicates the algorithm which is to be used to determine what parts of the canvas are included inside the shape.</desc>
       <values>
         <value name="evenodd" version="3.0" browsers="all">
-          <desc>Determines the 'insideness' of a point on the canvas by drawing a ray from that point to infinity in any direction and counting the number of path segments from the given shape that the ray crosses.</desc>
+          <desc>Determines the ‘insideness’ of a point on the canvas by drawing a ray from that point to infinity in any direction and counting the number of path segments from the given shape that the ray crosses.</desc>
         </value>
         <value name="nonzero" version="3.0" browsers="all">
-          <desc>Determines the 'insideness' of a point on the canvas by drawing a ray from that point to infinity in any direction and then examining the places where a segment of the shape crosses the ray.</desc>
+          <desc>Determines the ‘insideness’ of a point on the canvas by drawing a ray from that point to infinity in any direction and then examining the places where a segment of the shape crosses the ray.</desc>
         </value>
       </values>
     </entry>
@@ -1586,12 +1586,18 @@
         </value>
       </values>
     </entry>
-    <entry name="color-interpolation" restriction="enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/SVG11/painting.html#ColorInterpolationProperty">
+    <entry name="color-interpolation" restriction="enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/SVG2/painting.html#ColorInterpolationProperty">
       <desc>Specifies the color space for gradient interpolations, color animations and alpha compositing.</desc>
       <values>
-        <value name="auto" version="3.0" browsers="all" />
-        <value name="linearRGB" version="3.0" browsers="all" />
-        <value name="sRGB" version="3.0" browsers="all" />
+        <value name="auto" version="3.0" browsers="all">
+          <desc>Color operations are not required to occur in a particular color space.</desc>
+        </value>
+        <value name="linearRGB" version="3.0" browsers="all">
+          <desc>Color operations should occur in the linearized RGB color space.</desc>
+        </value>
+        <value name="sRGB" version="3.0" browsers="all">
+          <desc>Color operations should occur in the sRGB color space.</desc>
+        </value>
       </values>
     </entry>
     <entry name="color-interpolation-filters" restriction="enum" version="3.0" browsers="E,C5,FF3,IE10,O9,S6" ref="http://www.w3.org/TR/filter-effects/#ColorInterpolationFiltersProperty">
@@ -1608,19 +1614,16 @@
         </value>
       </values>
     </entry>
-    <entry name="color-profile" restriction="identifier, url, enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/SVG/color.html#ColorProfileProperty">
-      <desc>Specifies the color profile to be used.</desc>
+    <entry name="color-rendering" restriction="enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/SVG2/painting.html#ColorRenderingProperty">
+      <desc>Provides a hint to the SVG user agent about how to optimize its color interpolation and compositing operations.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all" />
-        <value name="sRGB" version="3.0" browsers="all" />
-      </values>
-    </entry>
-    <entry name="color-rendering" restriction="enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/SVG11/painting.html#ColorRenderingProperty">
-      <desc>The creator of SVG content might want to provide a hint to the implementation about how to make speed vs. quality tradeoffs as it performs color interpolation and compositing. The ‘color-rendering’ property provides a hint to the SVG user agent about how to optimize its color interpolation and compositing operations.</desc>
-      <values>
-        <value name="auto" version="3.0" browsers="all" />
-        <value name="optimizeQuality" version="3.0" browsers="all" />
-        <value name="optimizeSpeed" version="3.0" browsers="all" />
+        <value name="optimizeQuality" version="3.0" browsers="all">
+          <desc>Indicates that the user agent shall emphasize quality over rendering speed.</desc>
+        </value>
+        <value name="optimizeSpeed" version="3.0" browsers="all">
+          <desc>Indicates that the user agent shall emphasize rendering speed over quality.</desc>
+        </value>
       </values>
     </entry>
     <entry name="column-count" restriction="integer, enum" version="3.0" browsers="E,IE10,O11.5,S9" ref="http://www.w3.org/TR/css3-multicol/#column-count" syntax="div { $(name): 3; }">
@@ -2011,10 +2014,10 @@
         </value>
       </values>
     </entry>
-    <entry name="cx" restriction="length, percentage" version="2.0" browsers="none" ref="https://svgwg.org/svg2-draft/geometry.html#CxProperty" syntax="circle { $(name): 10%; }">
+    <entry name="cx" restriction="length, percentage" version="4.0" browsers="none" ref="http://www.w3.org/TR/SVG2/geometry.html#CX" syntax="circle { $(name): 10%; }">
       <desc>Describes the horizontal center coordinate of the position of the element.</desc>
     </entry>
-    <entry name="cy" restriction="length, percentage" version="2.0" browsers="none" ref="https://svgwg.org/svg2-draft/geometry.html#CyProperty" syntax="circle { $(name): 10%; }">
+    <entry name="cy" restriction="length, percentage" version="4.0" browsers="none" ref="http://www.w3.org/TR/SVG2/geometry.html#CY" syntax="circle { $(name): 10%; }">
       <desc>Describes the vertical center coordinate of the position of the element.</desc>
     </entry>
     <entry name="direction" restriction="enum" version="2.0" browsers="all" ref="http://www.w3.org/TR/css-writing-modes-3/#direction" syntax="div { $(name): rtl; }">
@@ -2179,8 +2182,8 @@
         </value>
       </values>
     </entry>
-    <entry name="enable-background" restriction="integer, length, percentage, enum" version="3.0" browsers="all" ref="http://www.w3.org/TR/SVG11/filters.html#EnableBackgroundProperty">
-      <desc>Allocate a shared background image all graphic elements within a container.</desc>
+    <entry name="enable-background" restriction="integer, length, percentage, enum" version="3.0" browsers="all" ref="http://www.w3.org/TR/filter-effects/#AccessBackgroundImage">
+      <desc>Deprecated. Use 'isolation' property instead when support allows. Specifies how the accumulation of the background image is managed.</desc>
       <values>
         <value name="accumulate" version="3.0" browsers="all">
           <desc>If the ancestor container element has a property of new, then all graphics elements within the current container are rendered both on the parent's background image and onto the target.</desc>
@@ -2193,21 +2196,41 @@
     <entry name="fallback" restriction="identifier" version="3.0" browsers="FF33" ref="http://www.w3.org/TR/css-counter-styles-3/#descdef-counter-style-fallback" syntax="@counter-style { fallback: upper-alpha; }">
       <desc>Specifies a fallback counter style to be used when the current counter style can’t create a representation for a given counter value.</desc>
     </entry>
-    <entry name="fill" restriction="color, enum, url" version="3.0" browsers="all" ref="http://www.w3.org/TR/SVG11/painting.html#FillProperty">
+    <entry name="fill" restriction="color, enum, url" version="3.0" browsers="all" ref="http://www.w3.org/TR/SVG2/painting.html#FillProperty">
       <desc>Paints the interior of the given graphical element.</desc>
       <values>
-        <value name="url()" version="3.0" browsers="all" />
-        <value name="none" version="3.0" browsers="all" />
+        <value name="child" version="4.0" browsers="none">
+          <desc>A reference to the last child paint server element of the element being painted.</desc>
+        </value>
+        <value name="child()" version="4.0" browsers="none">
+          <desc>A reference to the nth child paint server element of the element being painted.</desc>
+        </value>
+        <value name="context-fill" version="4.0" browsers="none">
+          <desc>The computed value of the ‘fill’ property of the context element of the element being painted.</desc>
+        </value>
+        <value name="context-stroke" version="4.0" browsers="none">
+          <desc>The computed value of the ‘stroke’ property of the context element of the element being painted.</desc>
+        </value>
+        <value name="url()" version="3.0" browsers="all">
+          <desc>A URL reference to a paint server element, which is an element that defines a paint server: ‘hatch’, ‘linearGradient’, ‘mesh’, ‘pattern’, ‘radialGradient’ and ‘solidcolor’.</desc>
+        </value>
+        <value name="none" version="3.0" browsers="all">
+          <desc>No paint is applied in this layer.</desc>
+        </value>
       </values>
     </entry>
-    <entry name="fill-opacity" restriction="number(0-1)" version="3.0" browsers="all" ref="http://www.w3.org/TR/SVG11/painting.html#FillOpacityProperty">
-      <desc>'fill-opacity' specifies the opacity of the painting operation used to paint the interior the current object.</desc>
+    <entry name="fill-opacity" restriction="number(0-1)" version="3.0" browsers="all" ref="http://www.w3.org/TR/SVG2/painting.html#FillOpacity">
+      <desc>Specifies the opacity of the painting operation used to paint the interior the current object.</desc>
     </entry>
-    <entry name="fill-rule" restriction="enum" version="3.0" browsers="all" ref="http://www.w3.org/TR/SVG11/painting.html#FillRuleProperty">
-      <desc>The 'fill-rule' property indicates the algorithm which is to be used to determine what parts of the canvas are included inside the shape.</desc>
+    <entry name="fill-rule" restriction="enum" version="3.0" browsers="all" ref="http://www.w3.org/TR/SVG2/painting.html#WindingRule">
+      <desc>Indicates the algorithm (or winding rule) which is to be used to determine what parts of the canvas are included inside the shape.</desc>
       <values>
-        <value name="evenodd" version="3.0" browsers="all" />
-        <value name="nonzero" version="3.0" browsers="all" />
+        <value name="evenodd" version="3.0" browsers="all">
+          <desc>Determines the ‘insideness’ of a point on the canvas by drawing a ray from that point to infinity in any direction and counting the number of path segments from the given shape that the ray crosses.</desc>
+        </value>
+        <value name="nonzero" version="3.0" browsers="all">
+          <desc>Determines the ‘insideness’ of a point on the canvas by drawing a ray from that point to infinity in any direction and then examining the places where a segment of the shape crosses the ray.</desc>
+        </value>
       </values>
     </entry>
     <entry name="filter" restriction="enum, url" version="3.0" browsers="E13,FF35" ref="http://www.w3.org/TR/filter-effects/#propdef-filter" syntax="div { $(name): opacity(50%); }">
@@ -2826,11 +2849,11 @@
         </value>
       </values>
     </entry>
-    <entry name="glyph-orientation-horizontal" restriction="angle" version="3.0" browsers="all" ref="http://www.w3.org/TR/SVG11/text.html#GlyphOrientationHorizontalProperty">
-      <desc>Sets or retrieves a value that alters the orientation of a sequence of characters relative to an inline-progression-direction of horizontal.</desc>
+    <entry name="glyph-orientation-horizontal" restriction="angle, number" version="3.0" browsers="all" ref="http://www.w3.org/TR/SVG2/text.html#GlyphOrientationHorizontal">
+      <desc>Controls glyph orientation when the inline-progression-direction is horizontal.</desc>
     </entry>
-    <entry name="glyph-orientation-vertical" restriction="angle, enum" version="3.0" browsers="all" ref="http://www.w3.org/TR/SVG11/text.html#GlyphOrientationVerticalProperty">
-      <desc>Sets or retrieves a value that alters the orientation of a sequence of characters relative to an inline-progression-direction of vertical.</desc>
+    <entry name="glyph-orientation-vertical" restriction="angle, number, enum" version="3.0" browsers="all" ref="http://www.w3.org/TR/SVG2/text.html#GlyphOrientationVertical">
+      <desc>Controls glyph orientation when the inline-progression-direction is vertical.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all">
           <desc>Sets the orientation based on the fullwidth or non-fullwidth characters and the most common orientation.</desc>
@@ -3520,25 +3543,46 @@
         <value name="auto" version="1.0" browsers="all" />
       </values>
     </entry>
-    <entry name="marker" restriction="url" version="3.0" browsers="all" ref="http://www.w3.org/TR/SVG11/painting.html#MarkerProperty">
+    <entry name="marker" restriction="url" version="3.0" browsers="all" ref="http://www.w3.org/TR/SVG2/painting.html#MarkerProperty">
       <desc>Specifies the marker symbol that shall be used for all points on the sets the value for all vertices on the given ‘path’ element or basic shape.</desc>
       <values>
-        <value name="none" version="3.0" browsers="all" />
-        <value name="url()" version="3.0" browsers="all" />
+        <value name="none" version="3.0" browsers="all">
+          <desc>Indicates that no marker symbol will be drawn at the given vertex or vertices.</desc>
+        </value>
+        <value name="child" version="4.0" browsers="none">
+          <desc>Indicates that the last child &lt;marker> element of the element where the property is specified will be used.</desc>
+        </value>
+        <value name="url()" version="3.0" browsers="all">
+          <desc>Indicates that the &lt;marker> element referenced will be used.</desc>
+        </value>
       </values>
     </entry>
-    <entry name="marker-end" restriction="url" version="3.0" browsers="all" ref="http://www.w3.org/TR/SVG11/painting.html#MarkerEndProperty">
-      <desc>Defines the arrowhead or polymarker that shall be drawn at the final vertex.</desc>
+    <entry name="marker-end" restriction="url" version="3.0" browsers="all" ref="http://www.w3.org/TR/SVG2/painting.html#VertexMarkerProperties">
+      <desc>Specifies the marker that will be drawn at the last vertices of the given markable element.</desc>
       <values>
-        <value name="none" version="3.0" browsers="all" />
-        <value name="url()" version="3.0" browsers="all" />
+        <value name="none" version="3.0" browsers="all">
+          <desc>Indicates that no marker symbol will be drawn at the given vertex or vertices.</desc>
+        </value>
+        <value name="child" version="4.0" browsers="none">
+          <desc>Indicates that the last child &lt;marker> element of the element where the property is specified will be used.</desc>
+        </value>
+        <value name="url()" version="3.0" browsers="all">
+          <desc>Indicates that the &lt;marker> element referenced will be used.</desc>
+        </value>
       </values>
     </entry>
-    <entry name="marker-mid" restriction="url" version="3.0" browsers="all" ref="http://www.w3.org/TR/SVG11/painting.html#MarkerMidProperty">
-      <desc>Defines the arrowhead or polymarker that shall be drawn at every other vertex.</desc>
+    <entry name="marker-mid" restriction="url" version="3.0" browsers="all" ref="http://www.w3.org/TR/SVG2/painting.html#VertexMarkerProperties">
+      <desc>Specifies the marker that will be drawn at all vertices except the first and last.</desc>
       <values>
-        <value name="none" version="3.0" browsers="all" />
-        <value name="url()" version="3.0" browsers="all" />
+        <value name="none" version="3.0" browsers="all">
+          <desc>Indicates that no marker symbol will be drawn at the given vertex or vertices.</desc>
+        </value>
+        <value name="child" version="4.0" browsers="none">
+          <desc>Indicates that the last child &lt;marker> element of the element where the property is specified will be used.</desc>
+        </value>
+        <value name="url()" version="3.0" browsers="all">
+          <desc>Indicates that the &lt;marker> element referenced will be used.</desc>
+        </value>
       </values>
     </entry>
     <entry name="marker-side" restriction="enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css3-lists/#propdef-marker-side">
@@ -3548,11 +3592,18 @@
         <value name="list-container" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="marker-start" restriction="url" version="3.0" browsers="all" ref="http://www.w3.org/TR/SVG11/painting.html#MarkerStartProperty">
-      <desc>Defines the arrowhead or polymarker that shall be drawn at the first vertex of the given ‘path’ element or basic shape.</desc>
+    <entry name="marker-start" restriction="url" version="3.0" browsers="all" ref="http://www.w3.org/TR/SVG2/painting.html#VertexMarkerProperties">
+      <desc>Specifies the marker that will be drawn at the first vertices of the given markable element.</desc>
       <values>
-        <value name="none" version="3.0" browsers="all" />
-        <value name="url()" version="3.0" browsers="all" />
+        <value name="none" version="3.0" browsers="all">
+          <desc>Indicates that no marker symbol will be drawn at the given vertex or vertices.</desc>
+        </value>
+        <value name="child" version="4.0" browsers="none">
+          <desc>Indicates that the last child &lt;marker> element of the element where the property is specified will be used.</desc>
+        </value>
+        <value name="url()" version="3.0" browsers="all">
+          <desc>Indicates that the &lt;marker> element referenced will be used.</desc>
+        </value>
       </values>
     </entry>
     <entry name="mask" restriction="url, image, length, percentage, position, repeat, geometry-box, enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-masking-1/#the-mask">
@@ -6376,13 +6427,15 @@
         </value>
       </values>
     </entry>
-    <entry name="paint-order" restriction="enum" version="3.0" browsers="all" ref="https://svgwg.org/svg2-draft/painting.html#PaintOrder">
+    <entry name="paint-order" restriction="enum" version="4.0" browsers="C35,FF31,O22,S7.1" ref="http://www.w3.org/TR/SVG2/painting.html#PaintOrderProperty">
       <desc>Controls the order that the three paint operations that shapes and text are rendered with: their fill, their stroke and any markers they might have.</desc>
       <values>
-        <value name="fill" version="3.0" browsers="all" />
-        <value name="markers" version="3.0" browsers="all" />
-        <value name="normal" version="3.0" browsers="all" />
-        <value name="stroke" version="3.0" browsers="all" />
+        <value name="fill" version="4.0" browsers="all"/>
+        <value name="markers" version="4.0" browsers="all"/>
+        <value name="normal" version="4.0" browsers="all">
+          <desc>The element is painted with the standard order of painting operations: the 'fill' is painted first, then its 'stroke' and finally its markers.</desc>
+        </value>
+        <value name="stroke" version="4.0" browsers="all"/>
       </values>
     </entry>
     <entry name="pause" restriction="time, enum" version="2.0" browsers="none" ref="http://www.w3.org/TR/css3-speech/#pause" syntax="h2 { $(name): 30ms 40ms; }">
@@ -6465,18 +6518,36 @@
     <entry name="perspective-origin" restriction="position, percentage, length" version="3.0" browsers="E,C36,FF16,IE10,O23,S9" ref="http://www.w3.org/TR/css3-3d-transforms/#perspective-origin" syntax="div { $(name): 10px; }">
       <desc>Establishes the origin for the perspective property. It effectively sets the X and Y position at which the viewer appears to be looking at the children of the element.</desc>
     </entry>
-    <entry name="pointer-events" restriction="enum" version="3.0" browsers="all" ref="http://www.w3.org/TR/SVG11/interact.html#PointerEventsProperty">
-      <desc>Allows authors to control under what circumstances (if any) a particular graphic element can become the target of mouse events.</desc>
+    <entry name="pointer-events" restriction="enum" version="3.0" browsers="all" ref="http://www.w3.org/TR/SVG2/interact.html#PointerEventsProperty">
+      <desc>Specifies under what circumstances a given element can be the target element for a pointer event.</desc>
       <values>
-        <value name="all" version="3.0" browsers="all" />
-        <value name="fill" version="3.0" browsers="all" />
-        <value name="none" version="3.0" browsers="all" />
-        <value name="painted" version="3.0" browsers="all" />
-        <value name="stroke" version="3.0" browsers="all" />
-        <value name="visible" version="3.0" browsers="all" />
-        <value name="visibleFill" version="3.0" browsers="all" />
-        <value name="visiblePainted" version="3.0" browsers="all" />
-        <value name="visibleStroke" version="3.0" browsers="all" />
+        <value name="all" version="3.0" browsers="all">
+          <desc>The given element can be the target element for pointer events whenever the pointer is over either the interior or the perimeter of the element.</desc>
+        </value>
+        <value name="fill" version="3.0" browsers="all">
+          <desc>The given element can be the target element for pointer events whenever the pointer is over the interior of the element.</desc>
+        </value>
+        <value name="none" version="3.0" browsers="all">
+          <desc>The given element does not receive pointer events.</desc>
+        </value>
+        <value name="painted" version="3.0" browsers="all">
+          <desc>The given element can be the target element for pointer events when the pointer is over a "painted" area. </desc>
+        </value>
+        <value name="stroke" version="3.0" browsers="all">
+          <desc>The given element can be the target element for pointer events whenever the pointer is over the perimeter of the element.</desc>
+        </value>
+        <value name="visible" version="3.0" browsers="all">
+          <desc>The given element can be the target element for pointer events when the ‘visibility’ property is set to visible and the pointer is over either the interior or the perimete of the element.</desc>
+        </value>
+        <value name="visibleFill" version="3.0" browsers="all">
+          <desc>The given element can be the target element for pointer events when the ‘visibility’ property is set to visible and when the pointer is over the interior of the element.</desc>
+        </value>
+        <value name="visiblePainted" version="3.0" browsers="all">
+          <desc>The given element can be the target element for pointer events when the ‘visibility’ property is set to visible and when the pointer is over a ‘painted’ area.</desc>
+        </value>
+        <value name="visibleStroke" version="3.0" browsers="all">
+          <desc>The given element can be the target element for pointer events when the ‘visibility’ property is set to visible and when the pointer is over the perimeter of the element.</desc>
+        </value>
       </values>
     </entry>
     <entry name="position" restriction="enum" version="2.0" browsers="all" ref="http://www.w3.org/TR/css3-positioning/#propdef-position" syntax="div { $(name): absolute; }">
@@ -6521,7 +6592,7 @@
         </value>
       </values>
     </entry>
-    <entry name="r" restriction="length, percentage" version="3.0" browsers="none" ref="https://svgwg.org/svg2-draft/geometry.html#RProperty" syntax="circle { $(name): 100px;">
+    <entry name="r" restriction="length, percentage" version="3.0" browsers="none" ref="http://www.w3.org/TR/SVG2/geometry.html#R" syntax="circle { $(name): 100px;">
       <desc>Describes the radius of the ‘circle’ element.</desc>
     </entry>
     <entry name="range" restriction="integer, enum" version="3.0" browsers="FF33" ref="http://www.w3.org/TR/css-counter-styles-3/#descdef-counter-style-range" syntax="@counter-style { range: 2 infinite, 8 834048; }">
@@ -6730,10 +6801,10 @@
         </value>
       </values>
     </entry>
-    <entry name="rx" restriction="length, percentage" version="3.0" browsers="none" ref="https://svgwg.org/svg2-draft/geometry.html#RxProperty" syntax="circle { $(name): 100px;">
+    <entry name="rx" restriction="length, percentage" version="4.0" browsers="none" ref="http://www.w3.org/TR/SVG2/geometry.html#RX" syntax="circle { $(name): 100px;">
       <desc>Describes the horizontal radius of the ‘ellipse’ element, and the curve radius of the 'rect' element.</desc>
     </entry>
-    <entry name="ry" restriction="length, percentage" version="3.0" browsers="none" ref="https://svgwg.org/svg2-draft/geometry.html#RyProperty" syntax="circle { $(name): 100px;">
+    <entry name="ry" restriction="length, percentage" version="4.0" browsers="none" ref="http://www.w3.org/TR/SVG2/geometry.html#RY" syntax="circle { $(name): 100px;">
       <desc>Describes the vertical radius of the ‘ellipse’ element, and the curve radius of the 'rect' element.</desc>
     </entry>
     <entry name="scrollbar-3dlight-color" restriction="color" version="3.0" browsers="IE6" ref="http://msdn.microsoft.com/en-us/library/ms531153(VS.85).aspx" syntax="textarea { $(name): #00ffff; }">
@@ -6856,14 +6927,21 @@
     <entry name="shape-padding" restriction="length" version="4.0" browsers="none" ref="https://drafts.csswg.org/css-shapes-2/#propdef-shape-padding" syntax="div { $(name): 10px; }">
       <desc>Adds padding to a 'shape-inside'.</desc>
     </entry>
-    <entry name="shape-rendering" restriction="enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/SVG11/painting.html#ShapeRenderingProperty">
-      <desc>The creator of SVG content might want to provide a hint to the implementation about what tradeoffs to make as it renders vector graphics elements such as ‘path’ elements and basic shapes such as circles and rectangles.</desc>
+    <entry name="shape-rendering" restriction="enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/SVG2/painting.html#ShapeRenderingProperty">
+      <desc>Provides hints about what tradeoffs to make as it renders vector graphics elements such as &lt;path> elements and basic shapes such as circles and rectangles.</desc>
       <values>
-        <value name="auto" version="3.0" browsers="all" />
-        <value name="crispEdges" version="3.0" browsers="all" />
-        <value name="geometricPrecision" version="3.0" browsers="all" />
-        <value name="optimizeQuality" version="3.0" browsers="all" />
-        <value name="optimizeSpeed" version="3.0" browsers="all" />
+        <value name="auto" version="3.0" browsers="all">
+          <desc>Suppresses aural rendering.</desc>
+        </value>
+        <value name="crispEdges" version="3.0" browsers="all">
+          <desc>Emphasize the contrast between clean edges of artwork over rendering speed and geometric precision.</desc>
+        </value>
+        <value name="geometricPrecision" version="4.0" browsers="all">
+          <desc>Emphasize geometric precision over speed and crisp edges.</desc>
+        </value>
+        <value name="optimizeSpeed" version="3.0" browsers="all">
+          <desc>Emphasize rendering speed over geometric precision and crisp edges.</desc>
+        </value>
       </values>
     </entry>
     <entry name="size" restriction="length" version="2.1" browsers="C,O8" ref="http://www.w3.org/TR/css3-page/#page-size-prop" syntax="&lt;length&gt;{1,2} | auto | [ &lt;page-size&gt; || [ portrait | landscape] ]" />
@@ -6915,52 +6993,88 @@
         </value>
       </values>
     </entry>
-    <entry name="stop-color" restriction="color" version="3.0" browsers="all" ref="http://www.w3.org/TR/SVG11/pservers.html#StopColorProperty">
+    <entry name="stop-color" restriction="color" version="3.0" browsers="all" ref="http://www.w3.org/TR/SVG2/pservers.html#StopColorProperty">
       <desc>Indicates what color to use at that gradient stop.</desc>
     </entry>
-    <entry name="stop-opacity" restriction="number(0-1)" version="3.0" browsers="all" ref="http://www.w3.org/TR/SVG11/pservers.html#StopOpacityProperty">
-      <desc>The 'stop-opacity' property defines the opacity of a given gradient stop.</desc>
+    <entry name="stop-opacity" restriction="number(0-1)" version="3.0" browsers="all" ref="http://www.w3.org/TR/SVG2/pservers.html#StopOpacityProperty">
+      <desc>Defines the opacity of a given gradient stop.</desc>
     </entry>
-    <entry name="stroke" restriction="color, enum, url" version="3.0" browsers="all" ref="http://www.w3.org/TR/SVG11/painting.html#StrokeProperty">
-      <desc>The 'stroke' property paints along the outline of the given graphical element.</desc>
+    <entry name="stroke" restriction="color, enum, url" version="3.0" browsers="all" ref="http://www.w3.org/TR/SVG2/painting.html#StrokeProperty">
+      <desc>Paints along the outline of the given graphical element.</desc>
       <values>
-        <value name="url()" version="3.0" browsers="all" />
-        <value name="none" version="3.0" browsers="all" />
+        <value name="child" version="4.0" browsers="none">
+          <desc>A reference to the last child paint server element of the element being painted.</desc>
+        </value>
+        <value name="child()" version="4.0" browsers="none">
+          <desc>A reference to the nth child paint server element of the element being painted.</desc>
+        </value>
+        <value name="context-fill" version="4.0" browsers="none">
+          <desc>The computed value of the ‘fill’ property of the context element of the element being painted.</desc>
+        </value>
+        <value name="context-stroke" version="4.0" browsers="none">
+          <desc>The computed value of the ‘stroke’ property of the context element of the element being painted.</desc>
+        </value>
+        <value name="url()" version="3.0" browsers="all">
+          <desc>A URL reference to a paint server element, which is an element that defines a paint server: ‘hatch’, ‘linearGradient’, ‘mesh’, ‘pattern’, ‘radialGradient’ and ‘solidcolor’.</desc>
+        </value>
+        <value name="none" version="3.0" browsers="all">
+          <desc>No paint is applied in this layer.</desc>
+        </value>
       </values>
     </entry>
-    <entry name="stroke-dasharray" restriction="length, percentage, enum" version="3.0" browsers="all" ref="http://www.w3.org/TR/SVG11/painting.html#StrokeDashArrayProperty">
+    <entry name="stroke-dasharray" restriction="length, percentage, number, enum" version="3.0" browsers="all" ref="http://www.w3.org/TR/SVG2/painting.html#StrokeDasharrayProperty">
       <desc>Controls the pattern of dashes and gaps used to stroke paths.</desc>
       <values>
-        <value name="none" version="3.0" browsers="all" />
+        <value name="none" version="3.0" browsers="all">
+          <desc>Indicates that no dashing is used.</desc>
+        </value>
       </values>
     </entry>
-    <entry name="stroke-dashoffset" restriction="percentage, length, integer" version="3.0" browsers="all" ref="http://www.w3.org/TR/SVG11/painting.html#StrokeDashOffsetProperty">
+    <entry name="stroke-dashoffset" restriction="percentage, length" version="3.0" browsers="all" ref="http://www.w3.org/TR/SVG2/painting.html#StrokeDashoffsetProperty">
       <desc>Specifies the distance into the dash pattern to start the dash.</desc>
     </entry>
-    <entry name="stroke-linecap" restriction="enum" version="3.0" browsers="all" ref="http://www.w3.org/TR/SVG11/painting.html#StrokeLinecapProperty">
+    <entry name="stroke-linecap" restriction="enum" version="3.0" browsers="all" ref="http://www.w3.org/TR/SVG2/painting.html#StrokeLinecapProperty">
       <desc>Specifies the shape to be used at the end of open subpaths when they are stroked.</desc>
       <values>
-        <value name="butt" version="3.0" browsers="all" />
-        <value name="round" version="3.0" browsers="all" />
-        <value name="square" version="3.0" browsers="all" />
+        <value name="butt" version="3.0" browsers="all">
+          <desc>Indicates that the stroke for each subpath does not extend beyond its two endpoints.</desc>
+        </value>
+        <value name="round" version="3.0" browsers="all">
+          <desc>Indicates that at each end of each subpath, the shape representing the stroke will be extended by a half circle with a radius equal to the stroke width.</desc>
+        </value>
+        <value name="square" version="3.0" browsers="all">
+          <desc>Indicates that at the end of each subpath, the shape representing the stroke will be extended by a rectangle with the same width as the stroke width and whose length is half of the stroke width.</desc>
+        </value>
       </values>
     </entry>
-    <entry name="stroke-linejoin" restriction="enum" version="3.0" browsers="all" ref="http://www.w3.org/TR/SVG11/painting.html#StrokeLinejoinProperty">
-      <desc>specifies the shape to be used at the corners of paths or basic shapes when they are stroked.</desc>
+    <entry name="stroke-linejoin" restriction="enum" version="3.0" browsers="all" ref="http://www.w3.org/TR/SVG2/painting.html#StrokeLinejoinProperty">
+      <desc>Specifies the shape to be used at the corners of paths or basic shapes when they are stroked.</desc>
       <values>
-        <value name="bevel" version="3.0" browsers="all" />
-        <value name="miter" version="3.0" browsers="all" />
-        <value name="round" version="3.0" browsers="all" />
+        <value name="arcs" version="4.0" browsers="none">
+          <desc>Indicates that an arcs corner is to be used to join path segments.</desc>
+        </value>
+        <value name="bevel" version="3.0" browsers="all">
+          <desc>Indicates that a bevelled corner is to be used to join path segments.</desc>
+        </value>
+        <value name="miter" version="3.0" browsers="all">
+          <desc>Indicates that a sharp corner is to be used to join path segments.</desc>
+        </value>
+        <value name="miter-clip" version="4.0" browsers="none">
+          <desc>Same as miter but if the ‘stroke-miterlimit’ is exceeded, the miter is clipped at a miter length equal to the ‘stroke-miterlimit’ value multiplied by the stroke width.</desc>
+        </value>
+        <value name="round" version="3.0" browsers="all">
+          <desc>Indicates that a round corner is to be used to join path segments.</desc>
+        </value>
       </values>
     </entry>
-    <entry name="stroke-miterlimit" restriction="number" version="3.0" browsers="all" ref="http://www.w3.org/TR/SVG11/painting.html#StrokeMiterLimitProperty" syntax="path { $(name): 4; }">
+    <entry name="stroke-miterlimit" restriction="number" version="3.0" browsers="all" ref="http://www.w3.org/TR/SVG2/painting.html#StrokeMiterlimitProperty" syntax="path { $(name): 4; }">
       <desc>When two line segments meet at a sharp angle and miter joins have been specified for 'stroke-linejoin', it is possible for the miter to extend far beyond the thickness of the line stroking the path.</desc>
     </entry>
-    <entry name="stroke-opacity" restriction="number(0-1)" version="3.0" browsers="all" ref="http://www.w3.org/TR/SVG11/painting.html#StrokeOpacityProperty">
+    <entry name="stroke-opacity" restriction="number(0-1)" version="3.0" browsers="all" ref="http://www.w3.org/TR/SVG2/painting.html#StrokeOpacityProperty">
       <desc>Specifies the opacity of the painting operation used to stroke the current object.</desc>
     </entry>
-    <entry name="stroke-width" restriction="percentage, length, integer" version="3.0" browsers="all" ref="http://www.w3.org/TR/SVG11/painting.html#StrokeWidthProperty">
-      <desc>This property specifies the width of the stroke on the current object.</desc>
+    <entry name="stroke-width" restriction="percentage, length" version="3.0" browsers="all" ref="http://www.w3.org/TR/SVG2/painting.html#StrokeWidth">
+      <desc>Specifies the width of the stroke on the current object.</desc>
     </entry>
     <entry name="suffix" restriction="image, string, identifier" version="3.0" browsers="FF33" ref="http://www.w3.org/TR/css-counter-styles-3/#descdef-counter-style-suffix" syntax="@counter-style { suffix: '\2E\20'; }">
       <desc>Specifies a &lt;symbol> that is appended to the marker representation.</desc>
@@ -7060,12 +7174,18 @@
         </value>
       </values>
     </entry>
-    <entry name="text-anchor" restriction="enum" version="3.0" browsers="all" ref="http://www.w3.org/TR/SVG11/text.html#TextAnchorProperty">
+    <entry name="text-anchor" restriction="enum" version="3.0" browsers="all" ref="http://www.w3.org/TR/SVG2/text.html#TextAnchorProperty">
       <desc>Used to align (start-, middle- or end-alignment) a string of text relative to a given point.</desc>
       <values>
-        <value name="end" version="3.0" browsers="all" />
-        <value name="middle" version="3.0" browsers="all" />
-        <value name="start" version="3.0" browsers="all" />
+        <value name="end" version="3.0" browsers="all">
+          <desc>The rendered characters are aligned such that the end of the resulting rendered text is at the initial current text position.</desc>
+        </value>
+        <value name="middle" version="3.0" browsers="all">
+          <desc>The rendered characters are aligned such that the geometric middle of the resulting rendered text is at the initial current text position.</desc>
+        </value>
+        <value name="start" version="3.0" browsers="all">
+          <desc>The rendered characters are aligned such that the start of the resulting rendered text is at the initial current text position.</desc>
+        </value>
       </values>
     </entry>
     <entry name="text-combine-upright" restriction="enum, integer" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-writing-modes-3/#text-combine-upright" syntax="span { $(name): all; }">
@@ -7331,13 +7451,19 @@
         </value>
       </values>
     </entry>
-    <entry name="text-rendering" restriction="enum" version="3.0" browsers="C,FF3,O9,S5" ref="http://www.w3.org/TR/SVG11/painting.html#TextRenderingProperty">
+    <entry name="text-rendering" restriction="enum" version="3.0" browsers="C,FF3,O9,S5" ref="http://www.w3.org/TR/SVG2/painting.html#TextRenderingProperty">
       <desc>The creator of SVG content might want to provide a hint to the implementation about what tradeoffs to make as it renders text. The ‘text-rendering’ property provides these hints.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all" />
-        <value name="geometricPrecision" version="3.0" browsers="all" />
-        <value name="optimizeLegibility" version="3.0" browsers="all" />
-        <value name="optimizeSpeed" version="3.0" browsers="all" />
+        <value name="geometricPrecision" version="3.0" browsers="all">
+          <desc>Indicates that the user agent shall emphasize geometric precision over legibility and rendering speed.</desc>
+        </value>
+        <value name="optimizeLegibility" version="3.0" browsers="all">
+          <desc>Indicates that the user agent shall emphasize legibility over rendering speed and geometric precision.</desc>
+        </value>
+        <value name="optimizeSpeed" version="3.0" browsers="all">
+          <desc>Indicates that the user agent shall emphasize rendering speed over legibility and geometric precision.</desc>
+        </value>
       </values>
     </entry>
     <entry name="text-shadow" restriction="length, color" version="3.0" browsers="E,C,FF3.6,IE10,O9.5,S1.1" ref="http://www.w3.org/TR/css3-text/#text-shadow0" syntax="h1 { $(name): 20px 12px 2px #333;}">
@@ -7741,6 +7867,32 @@
         <value name="contain" version="3.0" browsers="all" />
         <value name="none" version="3.0" browsers="all" />
         <value name="text" version="3.0" browsers="all" />
+      </values>
+    </entry>
+	<entry name="vector-effect" restriction="enum" version="4.0" browsers="none" ref="http://www.w3.org/TR/SVG2/painting.html#VectorEffectProperty" syntax="circle { $(name): non-rotation; }">
+      <desc>Affects the vertical positioning of the inline boxes generated by an inline-level element inside a line box.</desc>
+      <values>
+        <value name="fixed-position" version="4.0" browsers="all">
+          <desc>The placement of local coordinate system is fixed in spite of change of CTMs from a host coordinate space.</desc>
+        </value>
+        <value name="none" version="4.0" browsers="all">
+          <desc>Specifies that no vector effect shall be applied.</desc>
+        </value>
+        <value name="non-rotation" version="4.0" browsers="all">
+          <desc>The rotation and skew of the local coordinate system is suppressd in spite of change of CTMs from a host coordinate space.</desc>
+        </value>
+        <value name="non-scaling-size" version="4.0" browsers="all">
+          <desc>The scale of the local coordinate system do not change in spite of change of CTMs from a host coordinate space.</desc>
+        </value>
+        <value name="non-scaling-stroke" version="4.0" browsers="all">
+          <desc>Modifies the way an object is stroked. Stroke outline shall be calculated in the “host” coordinate space instead of local coordinate system.</desc>
+        </value>
+        <value name="screen" version="4.0" browsers="all">
+          <desc>Specifies the coordinate system of content which is under the immediate control of the user agent.</desc>
+        </value>
+        <value name="viewport" version="4.0" browsers="all">
+          <desc>Specifies immediate viewport coordinate system as the host coordinate space.</desc>
+        </value>
       </values>
     </entry>
     <entry name="vertical-align" restriction="percentage, length" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-linebox/#vertical-align" syntax="div { $(name): middle; }">
@@ -9207,10 +9359,10 @@
         </value>
       </values>
     </entry>
-    <entry name="x" restriction="length, percentage" version="4.0" browsers="none" ref="https://svgwg.org/svg2-draft/geometry.html#XProperty" syntax="rect { $(name): 42em; }">
+    <entry name="x" restriction="length, percentage" version="4.0" browsers="none" ref="http://www.w3.org/TR/SVG2/geometry.html#X" syntax="rect { $(name): 42em; }">
       <desc>Describes the horizontal coordinate of the position of the element.</desc>
     </entry>
-    <entry name="y" restriction="length, percentage" version="4.0" browsers="none" ref="https://svgwg.org/svg2-draft/geometry.html#YProperty" syntax="rect { $(name): 42em; }">
+    <entry name="y" restriction="length, percentage" version="4.0" browsers="none" ref="http://www.w3.org/TR/SVG2/geometry.html#Y" syntax="rect { $(name): 42em; }">
       <desc>Describes the vertical coordinate of the position of the element.</desc>
     </entry>
     <entry name="z-index" restriction="integer" version="2.0" browsers="all" ref="http://www.w3.org/TR/css3-positioning/#propdef-z-index" syntax="img { $(name): 3; }">

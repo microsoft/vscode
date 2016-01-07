@@ -1869,15 +1869,14 @@ exports.data ={
 			{
 				"name": "clip-rule",
 				"desc": "Indicates the algorithm which is to be used to determine what parts of the canvas are included inside the shape.",
+				"browsers": "E,C5,FF3,IE10,O9,S6",
 				"restriction": "enum",
 				"values": [
 					{
-						"name": "evenodd",
-						"desc": "Determines the 'insideness' of a point on the canvas by drawing a ray from that point to infinity in any direction and counting the number of path segments from the given shape that the ray crosses."
+						"name": "evenodd"
 					},
 					{
-						"name": "nonzero",
-						"desc": "Determines the 'insideness' of a point on the canvas by drawing a ray from that point to infinity in any direction and then examining the places where a segment of the shape crosses the ray."
+						"name": "nonzero"
 					}
 				]
 			},
@@ -2393,7 +2392,7 @@ exports.data ={
 			},
 			{
 				"name": "enable-background",
-				"desc": "Allocate a shared background image all graphic elements within a container.",
+				"desc": "Deprecated. Use 'isolation' property instead when support allows. Specifies how the accumulation of the background image is managed.",
 				"restriction": "integer, length, percentage, enum",
 				"values": [
 					{
@@ -2416,18 +2415,19 @@ exports.data ={
 				"restriction": "color, enum, url",
 				"values": [
 					{
-						"name": "url()"
+						"name": "url()",
+						"desc": "A URL reference to a paint server element, which is an element that defines a paint server: ‘hatch’, ‘linearGradient’, ‘mesh’, ‘pattern’, ‘radialGradient’ and ‘solidcolor’."
 					}
 				]
 			},
 			{
 				"name": "fill-opacity",
-				"desc": "'fill-opacity' specifies the opacity of the painting operation used to paint the interior the current object.",
+				"desc": "Specifies the opacity of the painting operation used to paint the interior the current object.",
 				"restriction": "number(0-1)"
 			},
 			{
 				"name": "fill-rule",
-				"desc": "The 'fill-rule' property indicates the algorithm which is to be used to determine what parts of the canvas are included inside the shape.",
+				"desc": "Indicates the algorithm (or winding rule) which is to be used to determine what parts of the canvas are included inside the shape.",
 				"restriction": "enum",
 				"values": [
 					{
@@ -3265,13 +3265,13 @@ exports.data ={
 			},
 			{
 				"name": "glyph-orientation-horizontal",
-				"desc": "Sets or retrieves a value that alters the orientation of a sequence of characters relative to an inline-progression-direction of horizontal.",
-				"restriction": "angle"
+				"desc": "Controls glyph orientation when the inline-progression-direction is horizontal.",
+				"restriction": "angle, number"
 			},
 			{
 				"name": "glyph-orientation-vertical",
-				"desc": "Sets or retrieves a value that alters the orientation of a sequence of characters relative to an inline-progression-direction of vertical.",
-				"restriction": "angle, enum",
+				"desc": "Controls glyph orientation when the inline-progression-direction is vertical.",
+				"restriction": "angle, number, enum",
 				"values": []
 			},
 			{
@@ -3654,49 +3654,57 @@ exports.data ={
 				"restriction": "url",
 				"values": [
 					{
-						"name": "none"
+						"name": "none",
+						"desc": "Indicates that no marker symbol will be drawn at the given vertex or vertices."
 					},
 					{
-						"name": "url()"
+						"name": "url()",
+						"desc": "Indicates that the <marker> element referenced will be used."
 					}
 				]
 			},
 			{
 				"name": "marker-end",
-				"desc": "Defines the arrowhead or polymarker that shall be drawn at the final vertex.",
+				"desc": "Specifies the marker that will be drawn at the last vertices of the given markable element.",
 				"restriction": "url",
 				"values": [
 					{
-						"name": "none"
+						"name": "none",
+						"desc": "Indicates that no marker symbol will be drawn at the given vertex or vertices."
 					},
 					{
-						"name": "url()"
+						"name": "url()",
+						"desc": "Indicates that the <marker> element referenced will be used."
 					}
 				]
 			},
 			{
 				"name": "marker-mid",
-				"desc": "Defines the arrowhead or polymarker that shall be drawn at every other vertex.",
+				"desc": "Specifies the marker that will be drawn at all vertices except the first and last.",
 				"restriction": "url",
 				"values": [
 					{
-						"name": "none"
+						"name": "none",
+						"desc": "Indicates that no marker symbol will be drawn at the given vertex or vertices."
 					},
 					{
-						"name": "url()"
+						"name": "url()",
+						"desc": "Indicates that the <marker> element referenced will be used."
 					}
 				]
 			},
 			{
 				"name": "marker-start",
-				"desc": "Defines the arrowhead or polymarker that shall be drawn at the first vertex of the given ‘path’ element or basic shape.",
+				"desc": "Specifies the marker that will be drawn at the first vertices of the given markable element.",
 				"restriction": "url",
 				"values": [
 					{
-						"name": "none"
+						"name": "none",
+						"desc": "Indicates that no marker symbol will be drawn at the given vertex or vertices."
 					},
 					{
-						"name": "url()"
+						"name": "url()",
+						"desc": "Indicates that the <marker> element referenced will be used."
 					}
 				]
 			},
@@ -7350,6 +7358,7 @@ exports.data ={
 			{
 				"name": "paint-order",
 				"desc": "Controls the order that the three paint operations that shapes and text are rendered with: their fill, their stroke and any markers they might have.",
+				"browsers": "C35,FF31,O22,S7.1",
 				"restriction": "enum",
 				"values": [
 					{
@@ -7359,7 +7368,8 @@ exports.data ={
 						"name": "markers"
 					},
 					{
-						"name": "normal"
+						"name": "normal",
+						"desc": "The element is painted with the standard order of painting operations: the 'fill' is painted first, then its 'stroke' and finally its markers."
 					},
 					{
 						"name": "stroke"
@@ -7381,26 +7391,31 @@ exports.data ={
 			},
 			{
 				"name": "pointer-events",
-				"desc": "Allows authors to control under what circumstances (if any) a particular graphic element can become the target of mouse events.",
+				"desc": "Specifies under what circumstances a given element can be the target element for a pointer event.",
 				"restriction": "enum",
 				"values": [
 					{
-						"name": "all"
+						"name": "all",
+						"desc": "The given element can be the target element for pointer events whenever the pointer is over either the interior or the perimeter of the element."
 					},
 					{
-						"name": "fill"
+						"name": "fill",
+						"desc": "The given element can be the target element for pointer events whenever the pointer is over the interior of the element."
 					},
 					{
-						"name": "none"
+						"name": "none",
+						"desc": "The given element does not receive pointer events."
 					},
 					{
 						"name": "painted"
 					},
 					{
-						"name": "stroke"
+						"name": "stroke",
+						"desc": "The given element can be the target element for pointer events whenever the pointer is over the perimeter of the element."
 					},
 					{
-						"name": "visible"
+						"name": "visible",
+						"desc": "The given element can be the target element for pointer events when the ‘visibility’ property is set to visible and the pointer is over either the interior or the perimete of the element."
 					},
 					{
 						"name": "visibleFill"
@@ -7801,29 +7816,30 @@ exports.data ={
 			},
 			{
 				"name": "stop-opacity",
-				"desc": "The 'stop-opacity' property defines the opacity of a given gradient stop.",
+				"desc": "Defines the opacity of a given gradient stop.",
 				"restriction": "number(0-1)"
 			},
 			{
 				"name": "stroke",
-				"desc": "The 'stroke' property paints along the outline of the given graphical element.",
+				"desc": "Paints along the outline of the given graphical element.",
 				"restriction": "color, enum, url",
 				"values": [
 					{
-						"name": "url()"
+						"name": "url()",
+						"desc": "A URL reference to a paint server element, which is an element that defines a paint server: ‘hatch’, ‘linearGradient’, ‘mesh’, ‘pattern’, ‘radialGradient’ and ‘solidcolor’."
 					}
 				]
 			},
 			{
 				"name": "stroke-dasharray",
 				"desc": "Controls the pattern of dashes and gaps used to stroke paths.",
-				"restriction": "length, percentage, enum",
+				"restriction": "length, percentage, number, enum",
 				"values": []
 			},
 			{
 				"name": "stroke-dashoffset",
 				"desc": "Specifies the distance into the dash pattern to start the dash.",
-				"restriction": "percentage, length, integer"
+				"restriction": "percentage, length"
 			},
 			{
 				"name": "stroke-linecap",
@@ -7834,16 +7850,18 @@ exports.data ={
 						"name": "butt"
 					},
 					{
-						"name": "round"
+						"name": "round",
+						"desc": "Indicates that at each end of each subpath, the shape representing the stroke will be extended by a half circle with a radius equal to the stroke width."
 					},
 					{
-						"name": "square"
+						"name": "square",
+						"desc": "Indicates that at the end of each subpath, the shape representing the stroke will be extended by a rectangle with the same width as the stroke width and whose length is half of the stroke width."
 					}
 				]
 			},
 			{
 				"name": "stroke-linejoin",
-				"desc": "specifies the shape to be used at the corners of paths or basic shapes when they are stroked.",
+				"desc": "Specifies the shape to be used at the corners of paths or basic shapes when they are stroked.",
 				"restriction": "enum",
 				"values": [
 					{
@@ -7853,7 +7871,8 @@ exports.data ={
 						"name": "miter"
 					},
 					{
-						"name": "round"
+						"name": "round",
+						"desc": "Indicates that a round corner is to be used to join path segments."
 					}
 				]
 			},
@@ -7869,8 +7888,8 @@ exports.data ={
 			},
 			{
 				"name": "stroke-width",
-				"desc": "This property specifies the width of the stroke on the current object.",
-				"restriction": "percentage, length, integer"
+				"desc": "Specifies the width of the stroke on the current object.",
+				"restriction": "percentage, length"
 			},
 			{
 				"name": "suffix",
@@ -8003,13 +8022,16 @@ exports.data ={
 				"restriction": "enum",
 				"values": [
 					{
-						"name": "end"
+						"name": "end",
+						"desc": "The rendered characters are aligned such that the end of the resulting rendered text is at the initial current text position."
 					},
 					{
-						"name": "middle"
+						"name": "middle",
+						"desc": "The rendered characters are aligned such that the geometric middle of the resulting rendered text is at the initial current text position."
 					},
 					{
-						"name": "start"
+						"name": "start",
+						"desc": "The rendered characters are aligned such that the start of the resulting rendered text is at the initial current text position."
 					}
 				]
 			},
@@ -8181,7 +8203,8 @@ exports.data ={
 						"name": "optimizeLegibility"
 					},
 					{
-						"name": "optimizeSpeed"
+						"name": "optimizeSpeed",
+						"desc": "Indicates that the user agent shall emphasize rendering speed over legibility and geometric precision."
 					}
 				]
 			},
@@ -10307,6 +10330,8 @@ exports.descriptions = {
 	"border-box": "The specified width and height (and respective min/max properties) on this element determine the border box of the element.",
 	"content-box": "Behavior of width and height as specified by CSS2.1. The specified width and height (and respective min/max properties) apply to the width and height respectively of the content box of the element.",
 	"rect()": "Specifies offsets from the edges of the border box.",
+	"evenodd": "Determines the ‘insideness’ of a point on the canvas by drawing a ray from that point to infinity in any direction and counting the number of path segments from the given shape that the ray crosses.",
+	"nonzero": "Determines the ‘insideness’ of a point on the canvas by drawing a ray from that point to infinity in any direction and then examining the places where a segment of the shape crosses the ray.",
 	"linearRGB": "Color operations should occur in the linearized RGB color space.",
 	"sRGB": "Color operations should occur in the sRGB color space.",
 	"balance": "Balance content equally between columns, if possible.",
@@ -10526,6 +10551,10 @@ exports.descriptions = {
 	"root": "Indicates that the user agent should target the full window.",
 	"invert": "Performs a color inversion on the pixels on the screen.",
 	"-moz-hidden-unscrollable": "Same as the standardized 'clip', except doesn’t establish a block formatting context.",
+	"painted": "The given element can be the target element for pointer events when the pointer is over a \"painted\" area. ",
+	"visibleFill": "The given element can be the target element for pointer events when the ‘visibility’ property is set to visible and when the pointer is over the interior of the element.",
+	"visiblePainted": "The given element can be the target element for pointer events when the ‘visibility’ property is set to visible and when the pointer is over a ‘painted’ area.",
+	"visibleStroke": "The given element can be the target element for pointer events when the ‘visibility’ property is set to visible and when the pointer is over the perimeter of the element.",
 	"absolute": "The box's position (and possibly size) is specified with the 'top', 'right', 'bottom', and 'left' properties. These properties specify offsets with respect to the box's 'containing block'.",
 	"-ms-page": "The box's position is calculated according to the 'absolute' model.",
 	"relative": "The box's position is calculated according to the normal flow (this is called the position in normal flow). Then the box is offset relative to its normal position.",
@@ -10542,6 +10571,9 @@ exports.descriptions = {
 	"margin-box": "The background is painted within (clipped to) the margin box.",
 	"format()": "Optional hint describing the format of the font resource.",
 	"local()": "Format-specific string that identifies a locally available copy of a given font.",
+	"butt": "Indicates that the stroke for each subpath does not extend beyond its two endpoints.",
+	"bevel": "Indicates that a bevelled corner is to be used to join path segments.",
+	"miter": "Indicates that a sharp corner is to be used to join path segments.",
 	"additive": "Represents “sign-value” numbering systems, which, rather than using reusing digits in different positions to change their value, define additional digits with much larger values, so that the value of the number can be obtained by adding all the digits together.",
 	"cyclic": "Cycles repeatedly through its provided symbols, looping back to the beginning when it reaches the end of the list.",
 	"extends": "Use the algorithm of another counter style, but alter other aspects.",
@@ -10550,6 +10582,8 @@ exports.descriptions = {
 	"sideways": "This value is equivalent to 'sideways-right' in 'vertical-rl' writing mode and equivalent to 'sideways-left' in 'vertical-lr' writing mode.",
 	"sideways-right": "In vertical writing modes, this causes text to be set as if in a horizontal layout, but rotated 90° clockwise.",
 	"upright": "In vertical writing modes, characters from horizontal-only scripts are rendered upright, i.e. in their standard horizontal orientation.",
+	"geometricPrecision": "Indicates that the user agent shall emphasize geometric precision over legibility and rendering speed.",
+	"optimizeLegibility": "Indicates that the user agent shall emphasize legibility over rendering speed and geometric precision.",
 	"capitalize": "Puts the first typographic letter unit of each word in titlecase.",
 	"lowercase": "Puts all letters in lowercase.",
 	"uppercase": "Puts all letters in uppercase.",
