@@ -26,8 +26,8 @@ import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/unti
 import {asWinJsPromise} from 'vs/base/common/async';
 import {EditorModel, EditorInput} from 'vs/workbench/common/editor';
 import {IEditorInput, IResourceInput} from 'vs/platform/editor/common/editor';
-import {BaseTextEditorModel} from 'vs/workbench/browser/parts/editor/textEditorModel';
 import {ResourceEditorInput} from 'vs/workbench/browser/parts/editor/resourceEditorInput';
+import {BaseTextEditorModel} from 'vs/workbench/browser/parts/editor/textEditorModel';
 import {IMode} from 'vs/editor/common/modes';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
@@ -725,16 +725,12 @@ export class MainThreadDocuments {
 export class MainThreadExtensionEditorInput extends ResourceEditorInput {
 
 	private _documents: ExtHostModelService;
-	private _modeService: IModeService;
-	private _modelService: IModelService;
-	private _model: TPromise<EditorCommon.IModel>;
+	private _model: TPromise<MainThreadExtensionEditorModel>;
 
 	constructor(resource: URI, documents: ExtHostModelService, @IModelService modelService: IModelService,
 		@IModeService modeService: IModeService, @IInstantiationService instantiationService: IInstantiationService) {
 		super(resource.fsPath, undefined, resource, modelService, instantiationService);
 		this._documents = documents;
-		this._modeService = modeService;
-		this._modelService = modelService;
 	}
 
 	getId(): string {
@@ -742,26 +738,78 @@ export class MainThreadExtensionEditorInput extends ResourceEditorInput {
 	}
 
 	resolve(refresh?: boolean): TPromise<EditorModel> {
-
 		if (!this._model) {
-			const model = this._modelService.getModel(this.resource);
-			if (model) {
-				this._model = TPromise.as(model);
-			} else {
-				this._model = this._documents.$openTextDocumentContent(this.resource).then(value => {
-					const firstLine = value.substr(0, value.search(/\r?\n/) + 1);
-					return this._modelService.createModel(value,
-						this._modeService.getOrCreateModeByFilenameOrFirstLine(this.resource.fsPath, firstLine),
-						this.resource);
-				});
-			}
+			this._model = this.instantiationService.createInstance(MainThreadExtensionEditorModel,
+				this.resource, this._documents).load();
 		}
-
-		return this._model.then(() => super.resolve(refresh));
+		return this._model;
 	}
 
 	dispose() {
-		console.log('MainThreadExtensionEditorInput DISPOSE');
+		this._model.then(value => value.dispose());
 		super.dispose();
+	}
+}
+
+class MainThreadExtensionEditorModel extends BaseTextEditorModel {
+
+	private static _refCountKey = '__extensionContent_refCountKey';
+
+	private _resource: URI;
+	private _documents: ExtHostModelService;
+
+	constructor(resource: URI, documents: ExtHostModelService, @IModelService modelService: IModelService,
+		@IModeService modeService: IModeService) {
+
+		super(modelService, modeService, resource);
+		this._resource = resource;
+		this._documents = documents;
+	}
+
+	load(): TPromise<MainThreadExtensionEditorModel> {
+
+		let textEditorModel: TPromise<EditorCommon.IModel>;
+
+		if (this.textEditorModel) {
+			textEditorModel = TPromise.as(this.textEditorModel);
+		} else {
+			textEditorModel = this._documents.$openTextDocumentContent(this._resource).then(value => {
+				return this.createTextEditorModel(value, this._resource);
+			}).then(() => {
+				return this.textEditorModel;
+			});
+		}
+
+		return textEditorModel.then(model => {
+			this._ref();
+			return this;
+		});
+	}
+
+	dispose() {
+		if (this._unref()) {
+			this._documents.$closeTextDocumentContent(this._resource);
+			super.dispose();
+		}
+	}
+
+	protected getOrCreateMode(modeService: IModeService, mime: string, firstLineText?: string): TPromise<IMode> {
+		return modeService.getOrCreateModeByFilenameOrFirstLine(this._resource.fsPath, firstLineText);
+	}
+
+	private _ref(): void {
+		let count = this.textEditorModel.getProperty(MainThreadExtensionEditorModel._refCountKey);
+		this.textEditorModel.setProperty(MainThreadExtensionEditorModel._refCountKey, (count || 0) + 1);
+	}
+
+	private _unref(): boolean {
+		let count = this.textEditorModel.getProperty(MainThreadExtensionEditorModel._refCountKey);
+		if (typeof count === 'undefined') {
+			throw new Error('unref with count ' + count);
+		}
+		if (count === 1) {
+			return true;
+		}
+		this.textEditorModel.setProperty(MainThreadExtensionEditorModel._refCountKey, count - 1);
 	}
 }
