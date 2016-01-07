@@ -20,12 +20,14 @@ const $ = dom.emmet;
 
 export class BreakpointWidget extends ZoneWidget {
 	private inputBox: InputBox;
+	private toDispose: lifecycle.IDisposable[];
 
 	constructor(editor: editorbrowser.ICodeEditor, private lineNumber: number,
 		@IContextViewService private contextViewService: IContextViewService,
 		@debug.IDebugService private debugService: debug.IDebugService
 	) {
 		super(editor, { showFrame: true, showArrow: false });
+		this.toDispose = [];
 		this.create();
 	}
 
@@ -36,15 +38,16 @@ export class BreakpointWidget extends ZoneWidget {
 
 		const inputBoxContainer = dom.append(container, $('.inputBoxContainer'));
 		this.inputBox = new InputBox(inputBoxContainer, this.contextViewService, {
-			placeholder: `The breakpoint on line ${ this.lineNumber } will only stop if this condition is true`
+			placeholder: `Breakpoint on line ${ this.lineNumber } will only stop if this condition is true. 'Enter' to accept, 'esc' to cancel.`
 		});
+		this.toDispose.push(this.inputBox);
+
 		dom.addClass(this.inputBox.inputElement, platform.isWindows ? 'windows' : platform.isMacintosh ? 'mac' : 'linux');
 		this.inputBox.value = (breakpoint && breakpoint.condition) ? breakpoint.condition : '';
 		// Due to an electron bug we have to do the timeout, otherwise we do not get focus
 		setTimeout(() => this.inputBox.focus(), 0);
 
 		let disposed = false;
-		const toDispose: [lifecycle.IDisposable] = [this.inputBox, this];
 		const wrapUp = async.once<any, void>((success: boolean) => {
 			if (!disposed) {
 				disposed = true;
@@ -64,11 +67,11 @@ export class BreakpointWidget extends ZoneWidget {
 					this.debugService.toggleBreakpoint(raw).done(null, errors.onUnexpectedError);
 				}
 
-				lifecycle.disposeAll(toDispose);
+				this.dispose();
 			}
 		});
 
-		toDispose.push(dom.addStandardDisposableListener(this.inputBox.inputElement, 'keydown', (e: dom.IKeyboardEvent) => {
+		this.toDispose.push(dom.addStandardDisposableListener(this.inputBox.inputElement, 'keydown', (e: dom.IKeyboardEvent) => {
 			const isEscape = e.equals(CommonKeybindings.ESCAPE);
 			const isEnter = e.equals(CommonKeybindings.ENTER);
 			if (isEscape || isEnter) {
@@ -76,8 +79,13 @@ export class BreakpointWidget extends ZoneWidget {
 			}
 		}));
 
-		toDispose.push(dom.addDisposableListener(this.inputBox.inputElement, 'blur', () => {
+		this.toDispose.push(dom.addDisposableListener(this.inputBox.inputElement, 'blur', () => {
 			wrapUp(true);
 		}));
+	}
+
+	public dispose(): void {
+		super.dispose();
+		lifecycle.disposeAll(this.toDispose);
 	}
 }

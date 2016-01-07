@@ -66,6 +66,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 	private lastTaskEvent: TaskEvent;
 	private toDispose: lifecycle.IDisposable[];
 	private inDebugMode: IKeybindingContextKey<boolean>;
+	private breakpointWidget: BreakpointWidget;
 
 	constructor(
 		@IStorageService private storageService: IStorageService,
@@ -424,8 +425,12 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 	}
 
 	public editBreakpoint(editor: editorbrowser.ICodeEditor, lineNumber: number): Promise {
-		const breakpointWidget = this.instantiationService.createInstance(BreakpointWidget, editor, lineNumber);
-		breakpointWidget.show({ lineNumber, column: 1 }, 2);
+		if (this.breakpointWidget) {
+			this.breakpointWidget.dispose();
+		}
+		
+		this.breakpointWidget = this.instantiationService.createInstance(BreakpointWidget, editor, lineNumber);
+		this.breakpointWidget.show({ lineNumber, column: 1 }, 2);
 
 		return Promise.as(true);
 	}
