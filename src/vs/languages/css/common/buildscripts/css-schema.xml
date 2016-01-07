@@ -1815,10 +1815,10 @@
       </values>
     </entry>
     <entry name="counter-increment" restriction="identifier, integer" version="2.0" browsers="E,C,FF1.5,IE8,O10.5,S3" ref="http://www.w3.org/TR/css3-content/#counters" syntax="h1:before { $(name): section; }">
-      <desc>Counters are used with the 'counter()' and 'counters()' functions of the 'content' property.</desc>
+      <desc>Manipulate the value of existing counters.</desc>
       <values>
         <value name="none" version="2.0" browsers="all">
-          <desc>The counter is not modified.</desc>
+          <desc>This element does not alter the value of any counters.</desc>
         </value>
       </values>
     </entry>
@@ -3443,7 +3443,9 @@
     <entry name="list-style-image" restriction="image" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-lists/#list-style-image" syntax="&lt;uri&gt; | none">
       <desc>Sets the image that will be used as the list item marker. When the image is available, it will replace the marker set with the 'list-style-type' marker.</desc>
       <values>
-        <value name="none" version="1.0" browsers="all" />
+        <value name="none" version="1.0" browsers="all">
+          <desc>The default contents of the of the list item’s marker are given by 'list-style-type' instead.</desc>
+        </value>
       </values>
     </entry>
     <entry name="list-style-position" restriction="enum" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-lists/#list-style-position" syntax="ul { $(name): inside; }">
@@ -3457,33 +3459,147 @@
         </value>
       </values>
     </entry>
-    <entry name="list-style-type" restriction="enum" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-lists/#list-style-type" syntax="&lt;glyph&gt; | &lt;algorithmic&gt; | &lt;numeric&gt; | &lt;alphabetic&gt; | &lt;symbolic&gt; | &lt;non-repeating&gt; | normal | none">
-      <desc>Can be used to make an element look like a standard user interface element on the platform.</desc>
+    <entry name="list-style-type" restriction="enum, string" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-lists/#list-style-type" syntax="&lt;glyph&gt; | &lt;algorithmic&gt; | &lt;numeric&gt; | &lt;alphabetic&gt; | &lt;symbolic&gt; | &lt;non-repeating&gt; | normal | none">
+      <desc>Used to construct the default contents of a list item’s marker</desc>
       <values>
-        <value name="armenian" version="1.0" browsers="all" />
+        <value name="arabic-indic" version="3" browsers="none">
+          <desc>Arabic-indic numbering.</desc>
+        </value>
+        <value name="armenian" version="2.1" browsers="all">
+          <desc>Traditional uppercase Armenian numbering.</desc>
+        </value>
+        <value name="bengali" version="4" browsers="none">
+          <desc>Bengali numbering.</desc>
+        </value>
+        <value name="cambodian" version="4" browsers="none">
+          <desc>Cambodian/Khmer numbering.</desc>
+        </value>
         <value name="circle" version="1.0" browsers="all">
           <desc>A hollow circle.</desc>
         </value>
-        <value name="decimal" version="1.0" browsers="all" />
-        <value name="decimal-leading-zero" version="1.0" browsers="all" />
+        <value name="cjk-decimal" version="4" browsers="none">
+          <desc>Han decimal numbers.</desc>
+        </value>
+        <value name="cjk-earthly-branch" version="4" browsers="none">
+          <desc>Han “Earthly Branch” ordinals.</desc>
+        </value>
+        <value name="cjk-heavenly-stem" version="4" browsers="none">
+          <desc>Han “Heavenly Stem” ordinals.</desc>
+        </value>
+        <value name="decimal" version="1.0" browsers="all">
+          <desc>Western decimal numbers.</desc>
+        </value>
+        <value name="decimal-leading-zero" version="2.1" browsers="all">
+          <desc>Decimal numbers padded by initial zeros.</desc>
+        </value>
+        <value name="devanagari" version="4" browsers="none">
+          <desc>Devanagari numbering.</desc>
+        </value>
         <value name="disc" version="1.0" browsers="all">
           <desc>A filled circle.</desc>
         </value>
-        <value name="georgian" version="1.0" browsers="all" />
-        <value name="lower-alpha" version="1.0" browsers="all" />
-        <value name="lower-greek" version="1.0" browsers="all" />
-        <value name="lower-latin" version="1.0" browsers="all" />
-        <value name="lower-roman" version="1.0" browsers="all" />
-        <value name="none" version="1.0" browsers="all" />
+        <value name="disclosure-closed" version="4" browsers="none">
+          <desc>Symbols appropriate for indicating a closed disclosure widget.</desc>
+        </value>
+        <value name="disclosure-open" version="4" browsers="none">
+          <desc>Symbols appropriate for indicating an open disclosure widget.</desc>
+        </value>
+        <value name="georgian" version="2.1" browsers="all">
+          <desc>Traditional Georgian numbering.</desc>
+        </value>
+        <value name="gujarati" version="4" browsers="none">
+          <desc>Gujarati numbering.</desc>
+        </value>
+        <value name="gurmukhi" version="4" browsers="none">
+          <desc>Gurmukhi numbering.</desc>
+        </value>
+        <value name="hebrew" version="4" browsers="none">
+          <desc>Traditional Hebrew numbering.</desc>
+        </value>
+       <value name="hiragana" version="4" browsers="none">
+          <desc>Dictionary-order hiragana lettering</desc>
+        </value>
+       <value name="hiragana-iroha" version="4" browsers="none">
+          <desc>Iroha-order hiragana lettering</desc>
+        </value>
+        <value name="kannada" version="4" browsers="none">
+          <desc>Kannada numbering.</desc>
+        </value>
+       <value name="katakana" version="4" browsers="none">
+          <desc>Dictionary-order katakana lettering</desc>
+        </value>
+       <value name="katakana-iroha" version="4" browsers="none">
+          <desc>Iroha-order katakana lettering</desc>
+        </value>
+        <value name="khmer" version="4" browsers="none">
+          <desc>Cambodian/Khmer numbering.</desc>
+        </value>
+        <value name="lao" version="4" browsers="none">
+          <desc>Laotian numbering.</desc>
+        </value>
+        <value name="lower-alpha" version="1.0" browsers="all">
+          <desc>Lowercase ASCII letters.</desc>
+        </value>
+        <value name="lower-armenian" version="4" browsers="none">
+          <desc>Lowercase Armenian numbering.</desc>
+        </value>
+        <value name="lower-greek" version="2.1" browsers="all">
+          <desc>Lowercase classical Greek.</desc>
+        </value>
+        <value name="lower-latin" version="2.1" browsers="all">
+          <desc>Lowercase ASCII letters.</desc>
+        </value>
+        <value name="lower-roman" version="1.0" browsers="all">
+          <desc>Lowercase ASCII Roman numerals.</desc>
+        </value>
+        <value name="malayalam" version="4" browsers="none">
+          <desc>Malayalam numbering.</desc>
+        </value>
+        <value name="mongolian" version="4" browsers="none">
+          <desc>Mongolian numbering.</desc>
+        </value>
+        <value name="myanmar" version="4" browsers="none">
+          <desc>Myanmar (Burmese) numbering.</desc>
+        </value>
+        <value name="none" version="1.0" browsers="all">
+          <desc>No marker</desc>
+        </value>
+        <value name="oriya" version="4" browsers="none">
+          <desc>Oriya numbering.</desc>
+        </value>
+        <value name="persian" version="4" browsers="none">
+          <desc>Persian numbering.</desc>
+        </value>
         <value name="square" version="1.0" browsers="all">
           <desc>A filled square.</desc>
+        </value>
+        <value name="tamil" version="4" browsers="none">
+          <desc>Tamil numbering.</desc>
+        </value>
+        <value name="telugu" version="4" browsers="none">
+          <desc>Telugu numbering.</desc>
+        </value>
+        <value name="thai" version="4" browsers="none">
+          <desc>Thai (Siamese) numbering.</desc>
+        </value>
+        <value name="tibetan" version="4" browsers="none">
+          <desc>Tibetan numbering.</desc>
         </value>
         <value name="symbols()" version="3.0" browsers="FF35">
           <desc>Allows a counter style to be defined inline.</desc>
         </value>
-        <value name="upper-alpha" version="1.0" browsers="all" />
-        <value name="upper-latin" version="1.0" browsers="all" />
-        <value name="upper-roman" version="1.0" browsers="all" />
+        <value name="upper-alpha" version="1.0" browsers="all">
+          <desc>Uppercase ASCII letters.</desc>
+        </value>
+        <value name="upper-armenian" version="4" browsers="none">
+          <desc>Traditional uppercase Armenian numbering.</desc>
+        </value>
+        <value name="upper-latin" version="2.1" browsers="all">
+          <desc>Uppercase ASCII letters.</desc>
+        </value>
+        <value name="upper-roman" version="1.0" browsers="all">
+          <desc>Uppercase ASCII Roman numerals.</desc>
+        </value>
       </values>
     </entry>
     <entry name="margin" restriction="length, percentage" version="1.0" browsers="all" ref="http://www.w3.org/TR/css3-box/#margin1" syntax="div { $(name): 4px 7px 2px 4px; }">
@@ -3588,8 +3704,12 @@
     <entry name="marker-side" restriction="enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css3-lists/#propdef-marker-side">
       <desc>Specifies if list item markers position themselves relative to the list item or the list container’s directionality.</desc>
       <values>
-        <value name="list-item" version="3.0" browsers="all" />
-        <value name="list-container" version="3.0" browsers="all" />
+        <value name="list-item" version="3.0" browsers="all">
+          <desc>Any markers associated with the list item base their positioning off of the directionality of the list item.</desc>
+        </value>
+        <value name="list-container" version="3.0" browsers="all">
+          <desc>The associated markers instead base their positioning off of the directionality of the list item’s parent element.</desc>
+        </value>
       </values>
     </entry>
     <entry name="marker-start" restriction="url" version="3.0" browsers="all" ref="http://www.w3.org/TR/SVG2/painting.html#VertexMarkerProperties">

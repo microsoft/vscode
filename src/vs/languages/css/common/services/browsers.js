@@ -2022,7 +2022,7 @@ exports.data ={
 			},
 			{
 				"name": "counter-increment",
-				"desc": "Counters are used with the 'counter()' and 'counters()' functions of the 'content' property.",
+				"desc": "Manipulate the value of existing counters.",
 				"browsers": "E,C,FF1.5,IE8,O10.5,S3",
 				"restriction": "identifier, integer",
 				"values": []
@@ -3531,41 +3531,50 @@ exports.data ={
 			},
 			{
 				"name": "list-style-type",
-				"desc": "Can be used to make an element look like a standard user interface element on the platform.",
-				"restriction": "enum",
+				"desc": "Used to construct the default contents of a list item’s marker",
+				"restriction": "enum, string",
 				"values": [
 					{
-						"name": "armenian"
+						"name": "armenian",
+						"desc": "Traditional uppercase Armenian numbering."
 					},
 					{
 						"name": "circle"
 					},
 					{
-						"name": "decimal"
+						"name": "decimal",
+						"desc": "Western decimal numbers."
 					},
 					{
-						"name": "decimal-leading-zero"
+						"name": "decimal-leading-zero",
+						"desc": "Decimal numbers padded by initial zeros."
 					},
 					{
 						"name": "disc"
 					},
 					{
-						"name": "georgian"
+						"name": "georgian",
+						"desc": "Traditional Georgian numbering."
 					},
 					{
-						"name": "lower-alpha"
+						"name": "lower-alpha",
+						"desc": "Lowercase ASCII letters."
 					},
 					{
-						"name": "lower-greek"
+						"name": "lower-greek",
+						"desc": "Lowercase classical Greek."
 					},
 					{
-						"name": "lower-latin"
+						"name": "lower-latin",
+						"desc": "Lowercase ASCII letters."
 					},
 					{
-						"name": "lower-roman"
+						"name": "lower-roman",
+						"desc": "Lowercase ASCII Roman numerals."
 					},
 					{
-						"name": "none"
+						"name": "none",
+						"desc": "No marker"
 					},
 					{
 						"name": "square",
@@ -3576,13 +3585,16 @@ exports.data ={
 						"browsers": "FF35"
 					},
 					{
-						"name": "upper-alpha"
+						"name": "upper-alpha",
+						"desc": "Uppercase ASCII letters."
 					},
 					{
-						"name": "upper-latin"
+						"name": "upper-latin",
+						"desc": "Uppercase ASCII letters."
 					},
 					{
-						"name": "upper-roman"
+						"name": "upper-roman",
+						"desc": "Uppercase ASCII Roman numerals."
 					}
 				]
 			},
