@@ -79,6 +79,12 @@ function extensionEquals(one: IExtension, other: IExtension): boolean {
 	return one.publisher === other.publisher && one.name === other.name;
 }
 
+function extensionEntryCompare(one: IExtensionEntry, other: IExtensionEntry): number {
+	const oneName = one.extension.displayName || one.extension.name;
+	const otherName = other.extension.displayName || other.extension.name;
+	return oneName.localeCompare(otherName);
+}
+
 class OpenInGalleryAction extends Action {
 
 	constructor(
@@ -284,7 +290,7 @@ class LocalExtensionsModel implements IModel<IExtensionEntry> {
 				highlights,
 				state: ExtensionState.Installed
 			}))
-			.sort((a, b) => a.extension.name.localeCompare(b.extension.name));
+			.sort(extensionEntryCompare);
 	}
 }
 
@@ -357,7 +363,7 @@ class GalleryExtensionsModel implements IModel<IExtensionEntry> {
 						: ExtensionState.Uninstalled
 				};
 			})
-			.sort((a, b) => a.extension.name.localeCompare(b.extension.name));
+			.sort(extensionEntryCompare);
 	}
 }
 
@@ -429,7 +435,7 @@ class OutdatedExtensionsModel implements IModel<IExtensionEntry> {
 				highlights,
 				state: ExtensionState.Outdated
 			}))
-			.sort((a, b) => a.extension.name.localeCompare(b.extension.name));
+			.sort(extensionEntryCompare);
 	}
 }
 
