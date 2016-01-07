@@ -52,7 +52,14 @@ function findGitDarwin(): Promise {
 					return e('git not found');
 				}
 
-				return c(gitPath);
+				// make sure git executes
+				exec('git --version', err => {
+					if (err) {
+						return e('git not found');
+					}
+
+					return c(gitPath);
+				});
 			});
 		});
 	});
