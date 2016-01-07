@@ -78,10 +78,6 @@ export class BreakpointWidget extends ZoneWidget {
 				wrapUp(isEnter);
 			}
 		}));
-
-		this.toDispose.push(dom.addDisposableListener(this.inputBox.inputElement, 'blur', () => {
-			wrapUp(true);
-		}));
 	}
 
 	public dispose(): void {
