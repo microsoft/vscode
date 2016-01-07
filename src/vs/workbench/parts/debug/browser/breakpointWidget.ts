@@ -6,29 +6,42 @@
 import 'vs/css!../browser/media/breakpointWidget';
 import async = require('vs/base/common/async');
 import errors = require('vs/base/common/errors');
-import { CommonKeybindings } from 'vs/base/common/keyCodes';
+import { CommonKeybindings, KeyCode } from 'vs/base/common/keyCodes';
 import platform = require('vs/base/common/platform');
 import lifecycle = require('vs/base/common/lifecycle');
 import dom = require('vs/base/browser/dom');
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
+import { CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
 import editorbrowser = require('vs/editor/browser/editorBrowser');
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { IKeybindingService, IKeybindingContextKey } from 'vs/platform/keybinding/common/keybindingService';
 import debug = require('vs/workbench/parts/debug/common/debug');
 
 const $ = dom.emmet;
+const CONTEXT_BREAKPOINT_WIDGET_VISIBLE = 'breakpointWidgetVisible';
+const CLOSE_BREAKPOINT_WIDGET_COMMAND_ID = 'closeBreakpointWidget';
 
 export class BreakpointWidget extends ZoneWidget {
+
+	public static INSTANCE: BreakpointWidget;
+
 	private inputBox: InputBox;
 	private toDispose: lifecycle.IDisposable[];
+	private breakpointWidgetVisible: IKeybindingContextKey<boolean>;
 
 	constructor(editor: editorbrowser.ICodeEditor, private lineNumber: number,
 		@IContextViewService private contextViewService: IContextViewService,
-		@debug.IDebugService private debugService: debug.IDebugService
+		@debug.IDebugService private debugService: debug.IDebugService,
+		@IKeybindingService keybindingService: IKeybindingService
 	) {
 		super(editor, { showFrame: true, showArrow: false });
+
 		this.toDispose = [];
 		this.create();
+		this.breakpointWidgetVisible = keybindingService.createKey(CONTEXT_BREAKPOINT_WIDGET_VISIBLE, false);
+		this.breakpointWidgetVisible.set(true);
+		BreakpointWidget.INSTANCE = this;
 	}
 
 	public fillContainer(container: HTMLElement): void {
@@ -82,6 +95,14 @@ export class BreakpointWidget extends ZoneWidget {
 
 	public dispose(): void {
 		super.dispose();
+		this.breakpointWidgetVisible.reset();
+		BreakpointWidget.INSTANCE = undefined;
 		lifecycle.disposeAll(this.toDispose);
 	}
 }
+
+CommonEditorRegistry.registerEditorCommand(CLOSE_BREAKPOINT_WIDGET_COMMAND_ID, CommonEditorRegistry.commandWeight(8), { primary: KeyCode.Escape,  }, false, CONTEXT_BREAKPOINT_WIDGET_VISIBLE, (ctx, editor, args) => {
+	if (BreakpointWidget.INSTANCE) {
+		BreakpointWidget.INSTANCE.dispose();
+	}
+});
