@@ -424,8 +424,12 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 	}
 
 	public editBreakpoint(editor: editorbrowser.ICodeEditor, lineNumber: number): Promise {
-		const breakpointWidget = this.instantiationService.createInstance(BreakpointWidget, editor, lineNumber);
-		breakpointWidget.show({ lineNumber, column: 1 }, 2);
+		if (BreakpointWidget.INSTANCE) {
+			BreakpointWidget.INSTANCE.dispose();
+		}
+
+		this.instantiationService.createInstance(BreakpointWidget, editor, lineNumber);
+		BreakpointWidget.INSTANCE.show({ lineNumber, column: 1 }, 2);
 
 		return Promise.as(true);
 	}
