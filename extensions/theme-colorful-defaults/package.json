@@ -9,14 +9,14 @@
 	"contributes": {
 		"themes": [
 			{
-				"label": "Dark+ (Experimental)",
-				"description": "Default dark theme with a touch of color - Please provide feedback in issue 1849",
+				"label": "Dark+",
+				"description": "Default dark theme with a touch of color",
 				"uiTheme": "vs-dark",
 				"path": "./themes/dark_plus.tmTheme"
 			},
 			{
-				"label": "Light+ (Experimental)",
-				"description": "Default light theme with a touch of color - Please provide feedback in issue 1849",
+				"label": "Light+",
+				"description": "Default light theme with a touch of color",
 				"uiTheme": "vs",
 				"path": "./themes/light_plus.tmTheme"
 			}
