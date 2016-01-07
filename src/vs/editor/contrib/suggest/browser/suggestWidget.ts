@@ -11,7 +11,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, disposeAll } from 'vs/base/common/lifecycle';
 import { assign } from 'vs/base/common/objects';
 import Event, { Emitter } from 'vs/base/common/event';
-import { append, addClass, removeClass, emmet as $ } from 'vs/base/browser/dom';
+import { append, addClass, removeClass, toggleClass, emmet as $, hide, show } from 'vs/base/browser/dom';
 import * as Tree from 'vs/base/parts/tree/common/tree';
 import * as TreeImpl from 'vs/base/parts/tree/browser/treeImpl';
 import * as TreeDefaults from 'vs/base/parts/tree/browser/treeDefaults';
@@ -30,10 +30,6 @@ import { ISuggestResult2 } from '../common/suggest';
 import URI from 'vs/base/common/uri';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { onUnexpectedError, isPromiseCanceledError, illegalArgument } from 'vs/base/common/errors';
-
-const defaultCompare: ISuggestionCompare = (a, b) => {
-	return (a.sortText || a.label).localeCompare((b.sortText || b.label));
-}
 
 class CompletionItem {
 
@@ -72,6 +68,8 @@ class CompletionItem {
 			.then(() => this);
 	}
 }
+
+const defaultCompare: ISuggestionCompare = (a, b) => (a.sortText || a.label).localeCompare((b.sortText || b.label));
 
 class CompletionGroup {
 
@@ -370,7 +368,39 @@ enum State {
 	Loading,
 	Empty,
 	Open,
-	Frozen
+	Frozen,
+	Details
+}
+
+class SuggestionDetails {
+
+	private el: HTMLElement;
+	private label: HTMLElement;
+	private documentation: HTMLElement;
+
+	constructor(container: HTMLElement) {
+		this.el = append(container, $('.details'));
+		this.label = append(this.el, $('.label'));
+		this.documentation = append(this.el, $('.docs'));
+	}
+
+	get element() { return this.el; }
+
+	render(item: CompletionItem): void {
+		if (!item) {
+			this.label.textContent = '';
+			this.documentation.textContent = '';
+			return;
+		}
+
+		this.label.innerText = item.suggestion.label;
+		this.documentation.innerText = item.suggestion.documentationLabel;
+	}
+
+	dispose(): void {
+		this.el.parentElement.removeChild(this.el);
+		this.el = null;
+	}
 }
 
 export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable {
@@ -398,6 +428,7 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 	private element: HTMLElement;
 	private messageElement: HTMLElement;
 	private treeElement: HTMLElement;
+	private details: SuggestionDetails;
 	private tree: Tree.ITree;
 	private renderer: Renderer;
 
@@ -429,8 +460,8 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 		}
 
 		this.messageElement = append(this.element, $('.message'));
-		this.messageElement.style.display = 'none';
 		this.treeElement = append(this.element, $('.tree'));
+		this.details = new SuggestionDetails(this.element);
 
 		const configuration = {
 			renderer: this.renderer = new Renderer(),
@@ -454,7 +485,7 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 			editor.addListener2(EditorCommon.EventType.ModelModeChanged, () => this.onModelModeChanged()),
 			editor.addListener2(EditorCommon.EventType.ModelModeSupportChanged, (e: EditorCommon.IModeSupportChangedEvent) => e.suggestSupport && this.onModelModeChanged()),
 			SuggestRegistry.onDidChange(() => this.onModelModeChanged()),
-			editor.addListener2(EditorCommon.EventType.EditorTextBlur, () => this.onEditorBlur()),
+			// editor.addListener2(EditorCommon.EventType.EditorTextBlur, () => this.onEditorBlur()),
 			this.tree.addListener2('selection', e => this.onTreeSelection(e)),
 			this.tree.addListener2('focus', e => this.onTreeFocus(e)),
 			this.editor.addListener2(EditorCommon.EventType.CursorSelectionChanged, () => this.onCursorSelectionChanged()),
@@ -552,33 +583,35 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 	private setState(state: State): void {
 		this.state = state;
 
+		toggleClass(this.element, 'frozen', state === State.Frozen);
+
 		switch (state) {
 			case State.Hidden:
-				this.messageElement.style.display = 'none';
-				this.treeElement.style.display = 'block';
+				hide(this.messageElement, this.details.element);
+				show(this.treeElement);
 				this.hide();
 				return;
 			case State.Loading:
 				this.messageElement.innerText = SuggestWidget.LOADING_MESSAGE;
-				this.messageElement.style.display = 'block';
-				this.treeElement.style.display = 'none';
-				removeClass(this.element, 'frozen');
+				hide(this.treeElement, this.details.element);
+				show(this.messageElement);
 				break;
 			case State.Empty:
 				this.messageElement.innerText = SuggestWidget.NO_SUGGESTIONS_MESSAGE;
-				this.messageElement.style.display = 'block';
-				this.treeElement.style.display = 'none';
-				removeClass(this.element, 'frozen');
+				hide(this.treeElement, this.details.element);
+				show(this.messageElement);
 				break;
 			case State.Open:
-				this.messageElement.style.display = 'none';
-				this.treeElement.style.display = 'block';
-				removeClass(this.element, 'frozen');
+				hide(this.messageElement, this.details.element);
+				show(this.treeElement);
 				break;
 			case State.Frozen:
-				this.messageElement.style.display = 'none';
-				this.treeElement.style.display = 'block';
-				addClass(this.element, 'frozen');
+				hide(this.messageElement, this.details.element);
+				show(this.treeElement);
+				break;
+			case State.Details:
+				hide(this.messageElement, this.treeElement);
+				show(this.details.element);
 				break;
 		}
 
@@ -742,6 +775,7 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 	public selectNextPage(): boolean {
 		switch (this.state) {
 			case State.Hidden:
+			case State.Details:
 				return false;
 			case State.Loading:
 				return !this.isAuto;
@@ -754,6 +788,7 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 	public selectNext(): boolean {
 		switch (this.state) {
 			case State.Hidden:
+			case State.Details:
 				return false;
 			case State.Loading:
 				return !this.isAuto;
@@ -770,6 +805,7 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 	public selectPreviousPage(): boolean {
 		switch (this.state) {
 			case State.Hidden:
+			case State.Details:
 				return false;
 			case State.Loading:
 				return !this.isAuto;
@@ -782,6 +818,7 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 	public selectPrevious(): boolean {
 		switch (this.state) {
 			case State.Hidden:
+			case State.Details:
 				return false;
 			case State.Loading:
 				return !this.isAuto;
@@ -812,9 +849,29 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 		}
 	}
 
+	public toggleDetails(): void {
+		if (this.state === State.Details) {
+			this.setState(State.Open);
+			return;
+		}
+
+		if (this.state !== State.Open) {
+			return;
+		}
+
+		const item: CompletionItem = this.tree.getFocus();
+
+		if (!item || !item.suggestion.documentationLabel) {
+			return;
+		}
+
+		this.setState(State.Details);
+	}
+
 	public show(): void {
 		this._onDidVisibilityChange.fire(true);
 		this.tree.layout();
+		this.renderDetails();
 		this.editor.layoutContentWidget(this);
 		TPromise.timeout(100).done(() => {
 			addClass(this.element, 'visible');
@@ -856,24 +913,32 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 	}
 
 	private updateWidgetHeight(): void {
-		const maxHeight = 1000;
 		let height = 0;
 
 		if (this.state === State.Empty || this.state === State.Loading) {
 			height = 19;
+		} else if (this.state === State.Details) {
+			height = 12 * 19;
 		} else {
 			const focus = this.tree.getFocus();
 			const focusHeight = focus ? this.renderer.getHeight(this.tree, focus) : 19;
 			height += focusHeight;
 
 			const suggestionCount = (this.tree.getContentHeight() - focusHeight) / 19;
-			const maxSuggestions = Math.floor((maxHeight - focusHeight) / 19);
-			height += Math.min(suggestionCount, 11, maxSuggestions) * 19;
+			height += Math.min(suggestionCount, 11) * 19;
 		}
 
 		this.element.style.height = height + 'px';
 		this.tree.layout(height);
 		this.editor.layoutContentWidget(this);
+	}
+
+	private renderDetails(): void {
+		if (this.state !== State.Details) {
+			this.details.render(null);
+		} else {
+			this.details.render(this.tree.getFocus());
+		}
 	}
 
 	public dispose(): void {
@@ -887,6 +952,8 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 		this.element = null;
 		this.messageElement = null;
 		this.treeElement = null;
+		this.details.dispose();
+		this.details = null;
 		this.tree.dispose();
 		this.tree = null;
 		this.renderer = null;

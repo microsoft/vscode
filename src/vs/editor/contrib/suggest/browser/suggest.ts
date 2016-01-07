@@ -186,6 +186,12 @@ export class SuggestController implements EditorCommon.IEditorContribution {
 			this.widget.selectPreviousPage();
 		}
 	}
+
+	public toggleSuggestionDetails(): void {
+		if (this.widget) {
+			this.widget.toggleDetails();
+		}
+	}
 }
 
 export class TriggerSuggestAction extends EditorAction {
@@ -236,5 +242,9 @@ CommonEditorRegistry.registerEditorCommand('selectPrevSuggestion', weight, { pri
 CommonEditorRegistry.registerEditorCommand('selectPrevPageSuggestion', weight, { primary: KeyCode.PageUp }, true, CONTEXT_SUGGEST_WIDGET_VISIBLE, (ctx, editor, args) => {
 	const controller = SuggestController.getSuggestController(editor);
 	controller.selectPrevPageSuggestion();
+});
+CommonEditorRegistry.registerEditorCommand('toggleSuggestionDetails', weight, { primary: KeyMod.CtrlCmd | KeyCode.Space, mac: { primary: KeyMod.WinCtrl | KeyCode.Space } }, true, CONTEXT_SUGGEST_WIDGET_VISIBLE, (ctx, editor, args) => {
+	const controller = SuggestController.getSuggestController(editor);
+	controller.toggleSuggestionDetails();
 });
 EditorBrowserRegistry.registerEditorContribution(SuggestController);
