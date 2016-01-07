@@ -15,7 +15,7 @@ import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {PluginsRegistry, IMessageCollector} from 'vs/platform/plugins/common/pluginsRegistry';
 import {IPluginService} from 'vs/platform/plugins/common/plugins';
-import {IOSupport} from 'vs/platform/keybinding/common/commonKeybindingResolver';
+import {IOSupport} from 'vs/platform/keybinding/common/keybindingResolver';
 import {KeybindingService} from 'vs/platform/keybinding/browser/keybindingServiceImpl';
 import {IKeybindingItem, IUserFriendlyKeybinding} from 'vs/platform/keybinding/common/keybindingService';
 import {ICommandRule, KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';

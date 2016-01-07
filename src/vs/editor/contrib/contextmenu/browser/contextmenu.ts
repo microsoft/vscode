@@ -16,7 +16,6 @@ import Actions = require('vs/base/common/actions');
 import ActionBar = require('vs/base/browser/ui/actionbar/actionbar');
 import Lifecycle = require('vs/base/common/lifecycle');
 import SortedList = require('vs/base/common/sortedList');
-import {KeybindingsUtils} from 'vs/platform/keybinding/common/keybindingsUtils';
 import {IContextViewService, IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {INullService} from 'vs/platform/instantiation/common/instantiation';

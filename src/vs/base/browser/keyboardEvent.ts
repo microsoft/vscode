@@ -123,6 +123,9 @@ let KEY_CODE_MAP: {[keyCode:number]:KeyCode} = {};
 	KEY_CODE_MAP[220] = KeyCode.US_BACKSLASH;
 	KEY_CODE_MAP[221] = KeyCode.US_CLOSE_SQUARE_BRACKET;
 	KEY_CODE_MAP[222] = KeyCode.US_QUOTE;
+	KEY_CODE_MAP[223] = KeyCode.OEM_8;
+
+	KEY_CODE_MAP[226] = KeyCode.OEM_102;
 
 	if (Browser.isIE11orEarlier) {
 		KEY_CODE_MAP[91] = KeyCode.Meta;
