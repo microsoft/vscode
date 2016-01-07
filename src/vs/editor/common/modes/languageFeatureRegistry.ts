@@ -23,6 +23,7 @@ interface Entry<T> {
 
 export default class LanguageFeatureRegistry<T> {
 
+	private _clock: number = 0;
 	private _entries: Entry<T>[] = [];
 	private _onDidChange = new Emitter<number>();
 	private _supportName: string;
@@ -41,7 +42,7 @@ export default class LanguageFeatureRegistry<T> {
 			selector,
 			provider,
 			_score: -1,
-			_time: Date.now()
+			_time: this._clock++
 		};
 
 		this._entries.push(entry);
@@ -129,7 +130,7 @@ export default class LanguageFeatureRegistry<T> {
 				selector: undefined,
 				provider: model.getMode()[this._supportName],
 				_score: .5,
-				_time: 0
+				_time: -1
 			};
 			supportIndex = ~binarySearch(this._entries, supportEntry, LanguageFeatureRegistry._compareByScoreAndTime);
 		}
