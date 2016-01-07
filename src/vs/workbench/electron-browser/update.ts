@@ -9,14 +9,11 @@ import nls = require('vs/nls');
 import severity from 'vs/base/common/severity';
 import {Promise} from 'vs/base/common/winjs.base';
 import {Action} from 'vs/base/common/actions';
-import ipc = require('ipc');
-import remote = require('remote');
+import {ipcRenderer as ipc, shell} from 'electron';
 import {isLinux} from 'vs/base/common/platform';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {IRequestService} from 'vs/platform/request/common/request';
-
-const shell = remote.require('shell');
 
 interface IUpdate {
 	releaseNotes: string;
@@ -57,7 +54,7 @@ export class Update {
 	) {
 		const env = this.contextService.getConfiguration().env;
 
-		ipc.on('vscode:update-downloaded', (update: IUpdate) => {
+		ipc.on('vscode:update-downloaded', (event, update: IUpdate) => {
 			this.messageService.show(severity.Info, {
 				message: nls.localize('updateAvailable', "{0} will be updated after it restarts.", env.appName),
 				actions: [Update.ShowReleaseNotesAction(env.releaseNotesUrl), Update.NotNowAction, Update.ApplyUpdateAction]

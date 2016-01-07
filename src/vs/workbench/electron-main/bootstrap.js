@@ -8,7 +8,7 @@
 // Perf measurements
 global.vscodeStart = Date.now();
 
-var app = require('app');
+var app = require('electron').app;
 var path = require('path');
 
 // Change cwd if given via env variable

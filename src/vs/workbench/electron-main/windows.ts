@@ -10,12 +10,7 @@ import events = require('events');
 import path = require('path');
 import fs = require('fs');
 
-import BrowserWindow = require('browser-window');
-import Dialog = require('dialog');
-import app = require('app');
-import ipc = require('ipc');
-import screen = require('screen');
-import crashReporter = require('crash-reporter');
+import {ipcMain as ipc, app, screen, crashReporter, BrowserWindow, dialog} from 'electron';
 
 import platform = require('vs/base/common/platform');
 import env = require('vs/workbench/electron-main/env');
@@ -157,7 +152,7 @@ export class WindowsManager {
 			crashReporter.start(config);
 		});
 
-		ipc.on('vscode:windowOpen', (event: Event, paths: string[], forceNewWindow?: boolean) => {
+		ipc.on('vscode:windowOpen', (event, paths: string[], forceNewWindow?: boolean) => {
 			env.log('IPC#vscode-windowOpen: ', paths);
 
 			if (paths && paths.length) {
@@ -165,7 +160,7 @@ export class WindowsManager {
 			}
 		});
 
-		ipc.on('vscode:workbenchLoaded', (event: Event, windowId: number) => {
+		ipc.on('vscode:workbenchLoaded', (event, windowId: number) => {
 			env.log('IPC#vscode-workbenchLoaded');
 
 			let win = this.getWindowById(windowId);
@@ -180,19 +175,19 @@ export class WindowsManager {
 			}
 		});
 
-		ipc.on('vscode:openFilePicker', (event: Event) => {
+		ipc.on('vscode:openFilePicker', () => {
 			env.log('IPC#vscode-openFilePicker');
 
 			this.openFilePicker();
 		});
 
-		ipc.on('vscode:openFolderPicker', (event: Event) => {
+		ipc.on('vscode:openFolderPicker', () => {
 			env.log('IPC#vscode-openFolderPicker');
 
 			this.openFolderPicker();
 		});
 
-		ipc.on('vscode:closeFolder', (event: Event, windowId: number) => {
+		ipc.on('vscode:closeFolder', (event, windowId: number) => {
 			env.log('IPC#vscode-closeFolder');
 
 			let win = this.getWindowById(windowId);
@@ -201,19 +196,19 @@ export class WindowsManager {
 			}
 		});
 
-		ipc.on('vscode:openNewWindow', (event: Event) => {
+		ipc.on('vscode:openNewWindow', () => {
 			env.log('IPC#vscode-openNewWindow');
 
 			this.openNewWindow();
 		});
 
-		ipc.on('vscode:openFileFolderPicker', (event: Event) => {
+		ipc.on('vscode:openFileFolderPicker', () => {
 			env.log('IPC#vscode-openFileFolderPicker');
 
 			this.openFolderPicker();
 		});
 
-		ipc.on('vscode:reloadWindow', (event: Event, windowId: number) => {
+		ipc.on('vscode:reloadWindow', (event, windowId: number) => {
 			env.log('IPC#vscode:reloadWindow');
 
 			let vscodeWindow = this.getWindowById(windowId);
@@ -222,7 +217,7 @@ export class WindowsManager {
 			}
 		});
 
-		ipc.on('vscode:toggleFullScreen', (event: Event, windowId: number) => {
+		ipc.on('vscode:toggleFullScreen', (event, windowId: number) => {
 			env.log('IPC#vscode:toggleFullScreen');
 
 			let vscodeWindow = this.getWindowById(windowId);
@@ -231,7 +226,7 @@ export class WindowsManager {
 			}
 		});
 
-		ipc.on('vscode:toggleMenuBar', (event: Event, windowId: number) => {
+		ipc.on('vscode:toggleMenuBar', (event, windowId: number) => {
 			env.log('IPC#vscode:toggleMenuBar');
 
 			// Update in settings
@@ -248,10 +243,10 @@ export class WindowsManager {
 			storage.setItem(window.VSCodeWindow.themeStorageKey, theme);
 		});
 
-		ipc.on('vscode:broadcast', (event: Event, windowId: number, target: string, broadcast: { channel: string; payload: any; }) => {
+		ipc.on('vscode:broadcast', (event, windowId: number, target: string, broadcast: { channel: string; payload: any; }) => {
 			if (broadcast.channel && broadcast.payload) {
 				if (target) {
-					const otherWindowsWithTarget = WindowsManager.WINDOWS.filter(w => w.win.id !== windowId && typeof w.openedWorkspacePath === 'string');
+					const otherWindowsWithTarget = WindowsManager.WINDOWS.filter(w => w.id !== windowId && typeof w.openedWorkspacePath === 'string');
 					const directTargetMatch = otherWindowsWithTarget.filter(w => this.isPathEqual(target, w.openedWorkspacePath));
 					const parentTargetMatch = otherWindowsWithTarget.filter(w => paths.isEqualOrParent(target, w.openedWorkspacePath));
 
@@ -265,7 +260,7 @@ export class WindowsManager {
 			}
 		});
 
-		ipc.on('vscode:log', (event: Event, logEntry: ILogEntry) => {
+		ipc.on('vscode:log', (event, logEntry: ILogEntry) => {
 			let args = [];
 			try {
 				let parsed = JSON.parse(logEntry.arguments);
@@ -277,7 +272,7 @@ export class WindowsManager {
 			console[logEntry.severity].apply(console, args);
 		});
 
-		ipc.on('vscode:exit', (event: Event, code: number) => {
+		ipc.on('vscode:exit', (event, code: number) => {
 			process.exit(code);
 		});
 
@@ -291,7 +286,7 @@ export class WindowsManager {
 			}));
 		});
 
-		ipc.on('vscode:update-apply', (event: Event) => {
+		ipc.on('vscode:update-apply', () => {
 			env.log('IPC#vscode:update-apply');
 
 			if (UpdateManager.availableUpdate) {
@@ -411,9 +406,9 @@ export class WindowsManager {
 
 					let activeWindow = BrowserWindow.getFocusedWindow();
 					if (activeWindow) {
-						Dialog.showMessageBox(activeWindow, options);
+						dialog.showMessageBox(activeWindow, options);
 					} else {
-						Dialog.showMessageBox(options);
+						dialog.showMessageBox(options);
 					}
 				}
 
@@ -801,7 +796,7 @@ export class WindowsManager {
 		//
 
 		// We want the new window to open on the same display that the last active one is in
-		let displayToUse: IDisplay;
+		let displayToUse: Electron.Display;
 		let displays = screen.getAllDisplays();
 
 		// Single Display
@@ -877,7 +872,7 @@ export class WindowsManager {
 			pickerProperties = ['multiSelections', isFolder ? 'openDirectory' : 'openFile', 'createDirectory'];
 		}
 
-		Dialog.showOpenDialog(focussedWindow && focussedWindow.win, {
+		dialog.showOpenDialog(focussedWindow && focussedWindow.win, {
 			defaultPath: workingDir,
 			properties: pickerProperties
 		}, (paths) => {
@@ -973,7 +968,7 @@ export class WindowsManager {
 
 	public sendToAll(channel: string, payload: any, windowIdsToIgnore?: number[]): void {
 		WindowsManager.WINDOWS.forEach((w) => {
-			if (windowIdsToIgnore && windowIdsToIgnore.indexOf(w.win.id) >= 0) {
+			if (windowIdsToIgnore && windowIdsToIgnore.indexOf(w.id) >= 0) {
 				return; // do not send if we are instructed to ignore it
 			}
 
@@ -991,7 +986,7 @@ export class WindowsManager {
 	}
 
 	public getWindowById(windowId: number): window.VSCodeWindow {
-		let res = WindowsManager.WINDOWS.filter((w) => w.win.id === windowId);
+		let res = WindowsManager.WINDOWS.filter((w) => w.id === windowId);
 		if (res && res.length === 1) {
 			return res[0];
 		}
@@ -1007,12 +1002,12 @@ export class WindowsManager {
 		return WindowsManager.WINDOWS.length;
 	}
 
-	private onWindowError(win: BrowserWindow, error: WindowError): void {
+	private onWindowError(win: Electron.BrowserWindow, error: WindowError): void {
 		console.error(error === WindowError.CRASHED ? '[VS Code]: render process crashed!' : '[VS Code]: detected unresponsive');
 
 		// Unresponsive
 		if (error === WindowError.UNRESPONSIVE) {
-			Dialog.showMessageBox(win, {
+			dialog.showMessageBox(win, {
 				title: env.product.nameLong,
 				type: 'warning',
 				buttons: [nls.localize('exit', "Exit"), nls.localize('wait', "Keep Waiting")],
@@ -1029,7 +1024,7 @@ export class WindowsManager {
 
 		// Crashed
 		else {
-			Dialog.showMessageBox(win, {
+			dialog.showMessageBox(win, {
 				title: env.product.nameLong,
 				type: 'warning',
 				buttons: [nls.localize('exit', "Exit")],

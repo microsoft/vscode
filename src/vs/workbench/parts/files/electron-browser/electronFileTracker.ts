@@ -21,8 +21,7 @@ import {IEventService} from 'vs/platform/event/common/event';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 
-import remote = require('remote');
-import ipc = require('ipc');
+import {ipcRenderer as ipc, remote} from 'electron';
 
 export interface IPath {
 	filePath: string;
@@ -82,7 +81,7 @@ export class FileTracker implements IWorkbenchContribution {
 		this.toUnbind.push(() => disposable.dispose());
 
 		// Support openFiles event for existing and new files
-		ipc.on('vscode:openFiles', (request: IOpenFileRequest) => {
+		ipc.on('vscode:openFiles', (event, request: IOpenFileRequest) => {
 			let inputs: IResourceInput[] = [];
 			if (request.filesToOpen) {
 				inputs.push(...this.toInputs(request.filesToOpen, false));

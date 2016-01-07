@@ -5,7 +5,8 @@
 'use strict';
 
 import * as assert from 'assert';
-import {KeyCode, KeyMod, BinaryKeybindings} from 'vs/base/common/keyCodes';
+import {KeyCode, KeyMod, BinaryKeybindings, Keybinding} from 'vs/base/common/keyCodes';
+import * as Strings from 'vs/base/common/strings';
 
 interface ITestKeybinding {
 	ctrlCmd?: boolean;
@@ -65,4 +66,44 @@ suite('keyCodes', () => {
 		assert.equal(encodedFirstPart, KeyMod.CtrlCmd | KeyCode.KEY_Y, 'first part');
 		assert.equal(encodedSecondPart, encodedSecondPart, 'chord part');
 	});
+
+	test('getUserSettingsKeybindingRegex', () => {
+		let regex = new RegExp(Keybinding.getUserSettingsKeybindingRegex());
+
+		function testIsGood(userSettingsLabel:string, message:string = userSettingsLabel): void {
+			let userSettings = '"' + userSettingsLabel.replace(/\\/g, '\\\\') + '"';
+			let isGood = regex.test(userSettings);
+			assert.ok(isGood, message);
+		}
+
+		// check that all key codes are covered by the regex
+		let ignore: boolean[] = [];
+		ignore[KeyCode.Shift] = true;
+		ignore[KeyCode.Ctrl] = true;
+		ignore[KeyCode.Alt] = true;
+		ignore[KeyCode.Meta] = true;
+		for (let keyCode = KeyCode.Unknown + 1; keyCode < KeyCode.MAX_VALUE; keyCode++) {
+			if (ignore[keyCode]) {
+				continue;
+			}
+			let userSettings = Keybinding.toUserSettingsLabel(keyCode);
+			testIsGood(userSettings, keyCode + ' - ' + KeyCode[keyCode] + ' - ' + userSettings);
+		}
+
+		// one modifier
+		testIsGood('ctrl+a');
+		testIsGood('shift+a');
+		testIsGood('alt+a');
+		testIsGood('cmd+a');
+		testIsGood('meta+a');
+		testIsGood('win+a');
+
+		// more modifiers
+		testIsGood('ctrl+shift+a');
+		testIsGood('shift+alt+a');
+		testIsGood('ctrl+shift+alt+a');
+
+		// chords
+		testIsGood('ctrl+a ctrl+a');
+	})
 });

@@ -29,10 +29,7 @@ import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IConfigurationService, IConfigurationServiceEvent, ConfigurationServiceEventTypes} from 'vs/platform/configuration/common/configuration';
 
-import remote = require('remote');
-import ipc = require('ipc');
-
-const Dialog = remote.require('dialog');
+import {remote} from 'electron';
 
 export class TextFileService extends AbstractTextFileService {
 
@@ -183,7 +180,7 @@ export class TextFileService extends AbstractTextFileService {
 			buttons.push(cancel, dontSave);
 		}
 
-		let opts: remote.IMessageBoxOptions = {
+		let opts: Electron.Dialog.ShowMessageBoxOptions = {
 			title: this.contextService.getConfiguration().env.appName,
 			message: message.join('\n'),
 			type: 'warning',
@@ -193,7 +190,7 @@ export class TextFileService extends AbstractTextFileService {
 			cancelId: buttons.indexOf(cancel)
 		};
 
-		const choice = Dialog.showMessageBox(remote.getCurrentWindow(), opts);
+		const choice = remote.dialog.showMessageBox(remote.getCurrentWindow(), opts);
 
 		return buttons[choice].result;
 	}
@@ -366,18 +363,18 @@ export class TextFileService extends AbstractTextFileService {
 
 	private promptForPathAsync(defaultPath?: string): TPromise<string> {
 		return new TPromise<string>((c, e) => {
-			Dialog.showSaveDialog(remote.getCurrentWindow(), this.getSaveDialogOptions(defaultPath ? paths.normalize(defaultPath, true) : void 0), (path) => {
+			remote.dialog.showSaveDialog(remote.getCurrentWindow(), this.getSaveDialogOptions(defaultPath ? paths.normalize(defaultPath, true) : void 0), (path) => {
 				c(path);
 			});
 		});
 	}
 
 	private promptForPathSync(defaultPath?: string): string {
-		return Dialog.showSaveDialog(remote.getCurrentWindow(), this.getSaveDialogOptions(defaultPath ? paths.normalize(defaultPath, true) : void 0));
+		return remote.dialog.showSaveDialog(remote.getCurrentWindow(), this.getSaveDialogOptions(defaultPath ? paths.normalize(defaultPath, true) : void 0));
 	}
 
-	private getSaveDialogOptions(defaultPath?: string): remote.ISaveDialogOptions {
-		let options: remote.ISaveDialogOptions = {
+	private getSaveDialogOptions(defaultPath?: string): Electron.Dialog.SaveDialogOptions {
+		let options: Electron.Dialog.SaveDialogOptions = {
 			defaultPath: defaultPath
 		};
 

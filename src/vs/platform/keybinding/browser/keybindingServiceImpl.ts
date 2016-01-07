@@ -6,21 +6,21 @@
 
 import 'vs/css!./keybindings';
 
+import * as nls from 'vs/nls';
 import Severity from 'vs/base/common/severity';
 import {TPromise} from 'vs/base/common/winjs.base';
-import nls = require('vs/nls');
-import lifecycle = require('vs/base/common/lifecycle');
-import DOM = require('vs/base/browser/dom');
-import Keyboard = require('vs/base/browser/keyboardEvent');
+import {IDisposable} from 'vs/base/common/lifecycle';
+import * as DOM from 'vs/base/browser/dom';
+import {StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
-import {IKeybindingService, IKeybindingScopeLocation, ICommandHandler, IKeybindingItem, IKeybindings, IKeybindingContextKey} from 'vs/platform/keybinding/common/keybindingService';
+import {IKeybindingService, IKeybindingScopeLocation, ICommandHandler, IKeybindingItem, IKeybindingContextKey} from 'vs/platform/keybinding/common/keybindingService';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IMessageService} from 'vs/platform/message/common/message';
-import {IResolveResult, CommonKeybindingResolver} from 'vs/platform/keybinding/common/commonKeybindingResolver';
+import {KeybindingResolver} from 'vs/platform/keybinding/common/keybindingResolver';
 import {Keybinding, KeyCode} from 'vs/base/common/keyCodes';
 import {IHTMLContentElement} from 'vs/base/common/htmlContent';
 
-var KEYBINDING_CONTEXT_ATTR = 'data-keybinding-context';
+let KEYBINDING_CONTEXT_ATTR = 'data-keybinding-context';
 
 export class KeybindingContext {
 	private _parent: KeybindingContext;
@@ -45,8 +45,8 @@ export class KeybindingContext {
 	}
 
 	public getValue(): any {
-		var r = this._parent ? this._parent.getValue() : Object.create(null);
-		for (var key in this._value) {
+		let r = this._parent ? this._parent.getValue() : Object.create(null);
+		for (let key in this._value) {
 			r[key] = this._value[key];
 		}
 		return r;
@@ -138,10 +138,10 @@ export class KeybindingService extends AbstractKeybindingService implements IKey
 	};
 
 	protected _domNode: HTMLElement;
-	private _toDispose: lifecycle.IDisposable;
+	private _toDispose: IDisposable;
 	private _resolver: KeybindingResolver;
 	private _currentChord: number;
-	private _currentChordStatusMessage: lifecycle.IDisposable;
+	private _currentChordStatusMessage: IDisposable;
 
 	constructor(domNode: HTMLElement) {
 		this._lastContextId = -1;
@@ -150,7 +150,7 @@ export class KeybindingService extends AbstractKeybindingService implements IKey
 		this._contexts = Object.create(null);
 		this._contexts[String(this._myContextId)] = new KeybindingContext(this._myContextId, null);
 		this._toDispose = DOM.addDisposableListener(this._domNode, DOM.EventType.KEY_DOWN, (e:KeyboardEvent) => {
-			var keyEvent = new Keyboard.StandardKeyboardEvent(e);
+			let keyEvent = new StandardKeyboardEvent(e);
 			this._dispatch(keyEvent);
 		});
 
@@ -201,9 +201,10 @@ export class KeybindingService extends AbstractKeybindingService implements IKey
 	}
 
 	private _getAllCommandsAsComment(): string {
-		var boundCommands = this._resolver.getDefaultBoundCommands();
-		var unboundCommands = Object.keys(KeybindingsRegistry.getCommands()).filter(commandId => commandId[0] !== '_' && !boundCommands[commandId]);
-		var pretty = unboundCommands.join('\n// - ');
+		let boundCommands = this._resolver.getDefaultBoundCommands();
+		let unboundCommands = Object.keys(KeybindingsRegistry.getCommands()).filter(commandId => commandId[0] !== '_' && !boundCommands[commandId]);
+		unboundCommands.sort();
+		let pretty = unboundCommands.join('\n// - ');
 
 		return '// ' + nls.localize('unboundCommands', "Here are other available commands: ") + '\n// - ' + pretty;
 	}
@@ -213,17 +214,17 @@ export class KeybindingService extends AbstractKeybindingService implements IKey
 	}
 
 	private _dispatch(e: DOM.IKeyboardEvent): void {
-		var isModifierKey = (e.keyCode === KeyCode.Ctrl || e.keyCode === KeyCode.Shift || e.keyCode === KeyCode.Alt || e.keyCode === KeyCode.Meta);
+		let isModifierKey = (e.keyCode === KeyCode.Ctrl || e.keyCode === KeyCode.Shift || e.keyCode === KeyCode.Alt || e.keyCode === KeyCode.Meta);
 		if (isModifierKey) {
 			return;
 		}
 
-		var contextId = this._findContextAttr(e.target);
-		var context = this.getContext(contextId);
-		var contextValue = context.getValue();
+		let contextId = this._findContextAttr(e.target);
+		let context = this.getContext(contextId);
+		let contextValue = context.getValue();
 //		console.log(JSON.stringify(contextValue, null, '\t'));
 
-		var resolveResult = this._resolver.resolveKeyboardEvent(contextValue, this._currentChord, e);
+		let resolveResult = this._resolver.resolve(contextValue, this._currentChord, e.asKeybinding());
 
 		if (resolveResult && resolveResult.enterChord) {
 			e.preventDefault();
@@ -253,7 +254,7 @@ export class KeybindingService extends AbstractKeybindingService implements IKey
 			if (!/^\^/.test(resolveResult.commandId)) {
 				e.preventDefault();
 			}
-			var commandId = resolveResult.commandId.replace(/^\^/, '');
+			let commandId = resolveResult.commandId.replace(/^\^/, '');
 			this._invokeHandler(commandId, { context: contextValue }).done(undefined, err => {
 				this._messageService.show(Severity.Warning, err);
 			});
@@ -289,7 +290,7 @@ export class KeybindingService extends AbstractKeybindingService implements IKey
 	}
 
 	public createChildContext(parentContextId: number = this._myContextId): number {
-		var id = (++this._lastContextId);
+		let id = (++this._lastContextId);
 		this._contexts[String(id)] = new KeybindingContext(id, this.getContext(parentContextId));
 		return id;
 	}
@@ -300,9 +301,9 @@ export class KeybindingService extends AbstractKeybindingService implements IKey
 
 	public executeCommand(commandId: string, args:any = {}): TPromise<any> {
 		if (!args.context) {
-			var contextId = this._findContextAttr(<HTMLElement>document.activeElement);
-			var context = this.getContext(contextId);
-			var contextValue = context.getValue();
+			let contextId = this._findContextAttr(<HTMLElement>document.activeElement);
+			let context = this.getContext(contextId);
+			let contextValue = context.getValue();
 
 			args.context = contextValue;
 		}
@@ -366,11 +367,5 @@ class ScopedKeybindingService extends AbstractKeybindingService {
 
 	public executeCommand(commandId: string, args:any): TPromise<any> {
 		return this._parent.executeCommand(commandId, args);
-	}
-}
-
-export class KeybindingResolver extends CommonKeybindingResolver {
-	public resolveKeyboardEvent(context: any, currentChord: number, key: DOM.IKeyboardEvent): IResolveResult {
-		return this.resolve(context, currentChord, key.asKeybinding());
 	}
 }

@@ -9,8 +9,7 @@ import {ElectronWindow} from 'vs/workbench/electron-browser/window';
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
 import Event, {Emitter} from 'vs/base/common/event';
 
-import remote = require('remote');
-import ipc = require('ipc');
+import {ipcRenderer as ipc, remote} from 'electron';
 
 export var IWindowService = createDecorator<IWindowService>('windowService');
 
@@ -50,7 +49,7 @@ export class WindowService implements IWindowService {
 	}
 
 	private registerListeners(): void {
-		ipc.on('vscode:broadcast', (b: IBroadcast) => {
+		ipc.on('vscode:broadcast', (event, b: IBroadcast) => {
 			this._onBroadcast.fire(b);
 		});
 	}

@@ -18,11 +18,7 @@ import {asFileEditorInput} from 'vs/workbench/common/editor';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {INullService} from 'vs/platform/instantiation/common/instantiation';
 
-import remote = require('remote');
-import ipc = require('ipc');
-
-const Shell = remote.require('shell');
-const Clipboard = remote.require('clipboard');
+import {ipcRenderer as ipc, shell, clipboard} from 'electron';
 
 export class RevealInOSAction extends Action {
 	private resource: uri;
@@ -36,7 +32,7 @@ export class RevealInOSAction extends Action {
 	}
 
 	public run(): Promise {
-		Shell.showItemInFolder(paths.normalize(this.resource.fsPath, true));
+		shell.showItemInFolder(paths.normalize(this.resource.fsPath, true));
 
 		return Promise.as(true);
 	}
@@ -59,7 +55,7 @@ export class GlobalRevealInOSAction extends Action {
 	public run(): Promise {
 		let fileInput = asFileEditorInput(this.editorService.getActiveEditorInput(), true);
 		if (fileInput) {
-			Shell.showItemInFolder(paths.normalize(fileInput.getResource().fsPath, true));
+			shell.showItemInFolder(paths.normalize(fileInput.getResource().fsPath, true));
 		} else {
 			this.messageService.show(severity.Info, nls.localize('openFileToReveal', "Open a file first to reveal"));
 		}
@@ -80,7 +76,7 @@ export class CopyPathAction extends Action {
 	}
 
 	public run(): Promise {
-		Clipboard.writeText(labels.getPathLabel(this.resource));
+		clipboard.writeText(labels.getPathLabel(this.resource));
 
 		return Promise.as(true);
 	}
@@ -103,7 +99,7 @@ export class GlobalCopyPathAction extends Action {
 	public run(): Promise {
 		let fileInput = asFileEditorInput(this.editorService.getActiveEditorInput(), true);
 		if (fileInput) {
-			Clipboard.writeText(labels.getPathLabel(fileInput.getResource()));
+			clipboard.writeText(labels.getPathLabel(fileInput.getResource()));
 			this.editorService.focusEditor(); // focus back to editor
 		} else {
 			this.messageService.show(severity.Info, nls.localize('openFileToCopy', "Open a file first to copy its path"));

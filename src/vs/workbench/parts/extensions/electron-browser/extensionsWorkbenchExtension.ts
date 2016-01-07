@@ -19,7 +19,7 @@ import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { ListExtensionsAction, InstallExtensionAction, ListOutdatedExtensionsAction } from './extensionsActions';
 import { IQuickOpenRegistry, Extensions, QuickOpenHandlerDescriptor } from 'vs/workbench/browser/quickopen';
 
-import ipc = require('ipc');
+import {ipcRenderer as ipc} from 'electron';
 
 interface IInstallExtensionsRequest {
 	extensionsToInstall: string[];
@@ -83,7 +83,7 @@ export class ExtensionsWorkbenchExtension implements IWorkbenchContribution {
 	}
 
 	private registerListeners(): void {
-		ipc.on('vscode:installExtensions', (request: IInstallExtensionsRequest) => {
+		ipc.on('vscode:installExtensions', (event, request: IInstallExtensionsRequest) => {
 			if (request.extensionsToInstall) {
 				this.install(request.extensionsToInstall).done(null, errors.onUnexpectedError);
 			}

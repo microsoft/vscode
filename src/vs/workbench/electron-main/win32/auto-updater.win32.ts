@@ -6,7 +6,6 @@
 'use strict';
 
 import events = require('events');
-import {IAutoUpdater, IUpdate} from 'auto-updater';
 import path = require('path');
 import os = require('os');
 import cp = require('child_process');
@@ -19,7 +18,14 @@ import { getProxyAgent } from 'vs/workbench/node/proxy';
 import {manager as Settings} from 'vs/workbench/electron-main/settings';
 import {manager as Lifecycle} from 'vs/workbench/electron-main/lifecycle';
 
-export class Win32AutoUpdaterImpl extends events.EventEmitter implements IAutoUpdater {
+export interface IUpdate {
+	url: string;
+	name: string;
+	releaseNotes?: string;
+	version?: string;
+}
+
+export class Win32AutoUpdaterImpl extends events.EventEmitter {
 
 	private url: string;
 	private currentRequest: Promise;
@@ -36,7 +42,7 @@ export class Win32AutoUpdaterImpl extends events.EventEmitter implements IAutoUp
 		return new TPromise<string>((c, e) => mkdirp(result, null, err => err ? e(err) : c(result)));
 	}
 
-	public setFeedUrl(url: string): void {
+	public setFeedURL(url: string): void {
 		this.url = url;
 	}
 
@@ -102,7 +108,7 @@ export class Win32AutoUpdaterImpl extends events.EventEmitter implements IAutoUp
 	}
 
 	private getUpdatePackagePath(version: string): TPromise<string> {
-		return this.cachePath.then(cachePath => path.join(cachePath, `CodeSetup-${ version }.exe`));
+		return this.cachePath.then(cachePath => path.join(cachePath, `CodeSetup-${version}.exe`));
 	}
 
 	private quitAndUpdate(updatePackagePath: string): void {

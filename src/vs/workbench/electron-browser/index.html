@@ -12,12 +12,13 @@
 		<!-- Helpers -->
 		<script type="text/javascript">
 			var path = require('path');
-			var remote = require('remote');
-			var ipc = require('ipc');
+			var electron = require('electron');
+			var remote = electron.remote;
+			var ipc = electron.ipcRenderer;
 
 			function onError(error, enableDeveloperTools) {
 				if (enableDeveloperTools) {
-					remote.getCurrentWindow().openDevTools();
+					remote.getCurrentWindow().webContents.openDevTools();
 					remote.getCurrentWindow().show();
 				}
 
@@ -99,7 +100,7 @@
 
 		<!-- Startup Code -->
 		<script type="text/javascript">
-			var webFrame = require('web-frame');
+			var webFrame = require('electron').webFrame;
 
 			var mainStarted = false;
 			var args = parseURLQueryArgs();

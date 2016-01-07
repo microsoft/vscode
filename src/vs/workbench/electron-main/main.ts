@@ -5,10 +5,8 @@
 
 'use strict';
 
-import app = require('app');
+import {app, shell, dialog} from 'electron';
 import fs = require('fs');
-import dialog = require('dialog');
-import shell = require('shell');
 import nls = require('vs/nls');
 import {assign} from 'vs/base/common/objects';
 import platform = require('vs/base/common/platform');
@@ -23,7 +21,7 @@ import {getUserEnvironment} from 'vs/base/node/env';
 import {Promise, TPromise} from 'vs/base/common/winjs.base';
 import {GitAskpassService} from 'vs/workbench/parts/git/electron-main/askpassService';
 import {spawnSharedProcess} from 'vs/workbench/electron-main/sharedProcess';
-import { Mutex } from 'windows-mutex';
+import {Mutex} from 'windows-mutex';
 
 export class LaunchService {
 	public start(args: env.ICommandLineArguments, userEnv: env.IProcessEnvironment): Promise {

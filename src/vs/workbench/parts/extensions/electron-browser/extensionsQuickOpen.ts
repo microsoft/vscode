@@ -27,8 +27,8 @@ import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlighte
 import { Action } from 'vs/base/common/actions';
 import * as semver from 'semver';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import remote = require('remote');
-const shell = remote.require('shell');
+import { shell } from 'electron';
+
 const $ = dom.emmet;
 
 const InstallLabel = nls.localize('install', "Install Extension");
@@ -77,6 +77,12 @@ function getHighlights(input: string, extension: IExtension): IHighlights {
 
 function extensionEquals(one: IExtension, other: IExtension): boolean {
 	return one.publisher === other.publisher && one.name === other.name;
+}
+
+function extensionEntryCompare(one: IExtensionEntry, other: IExtensionEntry): number {
+	const oneName = one.extension.displayName || one.extension.name;
+	const otherName = other.extension.displayName || other.extension.name;
+	return oneName.localeCompare(otherName);
 }
 
 class OpenInGalleryAction extends Action {
@@ -284,7 +290,7 @@ class LocalExtensionsModel implements IModel<IExtensionEntry> {
 				highlights,
 				state: ExtensionState.Installed
 			}))
-			.sort((a, b) => a.extension.name.localeCompare(b.extension.name));
+			.sort(extensionEntryCompare);
 	}
 }
 
@@ -357,7 +363,7 @@ class GalleryExtensionsModel implements IModel<IExtensionEntry> {
 						: ExtensionState.Uninstalled
 				};
 			})
-			.sort((a, b) => a.extension.name.localeCompare(b.extension.name));
+			.sort(extensionEntryCompare);
 	}
 }
 
@@ -429,7 +435,7 @@ class OutdatedExtensionsModel implements IModel<IExtensionEntry> {
 				highlights,
 				state: ExtensionState.Outdated
 			}))
-			.sort((a, b) => a.extension.name.localeCompare(b.extension.name));
+			.sort(extensionEntryCompare);
 	}
 }
 
