@@ -120,12 +120,74 @@ export class FindModelBoundToEditorModel {
 		}
 	}
 
+	private _hasMatches(): boolean {
+		return (this._state.matchesCount > 0);
+	}
+
+	private _cannotFind(): boolean {
+		if (!this._hasMatches()) {
+			let findScope = this._decorations.getFindScope();
+			if (findScope) {
+				// Reveal the selection so user is reminded that 'selection find' is on.
+				this.editor.revealRangeInCenterIfOutsideViewport(findScope);
+			}
+			return true;
+		}
+		return false;
+	}
+
 	public moveToPrevMatch(): void {
+		if (this._cannotFind()) {
+			return;
+		}
 		this._decorations.movePrev();
 	}
 
 	public moveToNextMatch(): void {
+		if (this._cannotFind()) {
+			return;
+		}
+
+		// let {lineNumber,column} = this.editor.getPosition();
+		// let model = this.editor.getModel();
+
+		// if (this._state.isRegex) {
+		// 	// Force advancing to the next line if searching for ^ or ^$
+		// 	if (this._state.searchString === '^' || this._state.searchString === '^$') {
+		// 		if (lineNumber === model.getLineCount()) {
+		// 			lineNumber = 1;
+		// 		} else {
+		// 			lineNumber++;
+		// 		}
+		// 		column = 1;
+		// 	}
+
+		// 	// Force advancing to the next line if searching for $ and at the end of the line
+		// 	if (this._state.searchString === '$') {
+		// 		if (column === model.getLineMaxColumn(lineNumber)) {
+		// 			if (lineNumber === model.getLineCount()) {
+		// 				lineNumber = 1;
+		// 			} else {
+		// 				lineNumber++;
+		// 			}
+		// 			column = 1;
+		// 		}
+		// 	}
+		// }
+
+		// let position = new Position(lineNumber, column);
+
+		// let nextMatch = model.findNextMatch(this._state.searchString, position, this._state.isRegex, this._state.matchCase, this._state.wholeWord);
+
 		this._decorations.moveNext();
+
+		// let newSelection = this.editor.getSelection();
+
+		// if (!nextMatch.equalsRange(newSelection)) {
+		// 	console.log('MISMATCH!!! : ' + newSelection.toString() + ' ~ ' + nextMatch.toString());
+		// } else {
+		// 	console.log('GOOD');
+		// }
 	}
 
 	private getReplaceString(matchedString:string): string {
@@ -139,7 +201,7 @@ export class FindModelBoundToEditorModel {
 	}
 
 	public replace(): void {
-		if (!this._decorations.hasMatches()) {
+		if (!this._hasMatches()) {
 			return;
 		}
 
@@ -169,7 +231,7 @@ export class FindModelBoundToEditorModel {
 	}
 
 	public replaceAll(): void {
-		if (!this._decorations.hasMatches()) {
+		if (!this._hasMatches()) {
 			return;
 		}
 

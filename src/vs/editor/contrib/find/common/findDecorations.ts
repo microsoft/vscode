@@ -62,10 +62,6 @@ export class FindDecorations implements Lifecycle.IDisposable {
 		this._setDecorationIndex(-1, false);
 	}
 
-	public hasMatches(): boolean {
-		return (this.decorations.length > 0);
-	}
-
 	public setIndexToFirstAfterStartPosition(): void {
 		this._setDecorationIndex(this.indexAfterPosition(this.startPosition), false);
 	}
@@ -75,10 +71,6 @@ export class FindDecorations implements Lifecycle.IDisposable {
 	}
 
 	public movePrev(): void {
-		if (!this.hasMatches()) {
-			this._revealFindScope();
-			return;
-		}
 		if (this.decorationIndex === -1) {
 			this._setDecorationIndex(this.previousIndex(this.indexAfterPosition(this.startPosition)), true);
 		} else {
@@ -87,22 +79,10 @@ export class FindDecorations implements Lifecycle.IDisposable {
 	}
 
 	public moveNext(): void {
-		if (!this.hasMatches()) {
-			this._revealFindScope();
-			return;
-		}
 		if (this.decorationIndex === -1) {
 			this._setDecorationIndex(this.indexAfterPosition(this.startPosition), true);
 		} else {
 			this._setDecorationIndex(this.nextIndex(this.decorationIndex), true);
-		}
-	}
-
-	private _revealFindScope(): void {
-		let findScope = this.getFindScope();
-		if (findScope) {
-			// Reveal the selection so user is reminded that 'selection find' is on.
-			this.editor.revealRangeInCenterIfOutsideViewport(findScope);
 		}
 	}
 
