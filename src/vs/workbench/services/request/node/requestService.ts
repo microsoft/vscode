@@ -23,7 +23,7 @@ import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 
 interface IRawHttpService {
 	xhr(options: http.IXHROptions): TPromise<http.IXHRResponse>;
-	configure(proxy: string): void;
+	configure(proxy: string, strictSSL: boolean): void;
 }
 
 interface IXHRFunction {
@@ -44,7 +44,7 @@ export class RequestService extends BaseRequestService implements IThreadSynchro
 		// proxy setting updating
 		this.callOnDispose.push(configurationService.addListener(ConfigurationServiceEventTypes.UPDATED, (e: IConfigurationServiceEvent) => {
 			this.rawHttpServicePromise.then((rawHttpService) => {
-				rawHttpService.configure(e.config.http && e.config.http.proxy);
+				rawHttpService.configure(e.config.http && e.config.http.proxy, e.config.http.proxyStrictSSL);
 			});
 		}));
 	}
@@ -53,7 +53,7 @@ export class RequestService extends BaseRequestService implements IThreadSynchro
 	private get rawHttpServicePromise(): TPromise<IRawHttpService> {
 		if (!this._rawHttpServicePromise) {
 			this._rawHttpServicePromise = this.configurationService.loadConfiguration().then((configuration: any) => {
-				rawHttpService.configure(configuration.http && configuration.http.proxy);
+				rawHttpService.configure(configuration.http && configuration.http.proxy, configuration.http.proxyStrictSSL);
 				return rawHttpService;
 			});
 		}
