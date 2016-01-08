@@ -3394,10 +3394,11 @@ declare namespace vscode {
 	}
 }
 
-// [javascript start marker]
-// DO NOT MODIFY ABOVE COMMENT
+// TS 1.6 & node_module
+// export = vscode;
 
 // when used for JS*
+// !!! DO NOT MODIFY ABOVE COMMENT ("when used for JS*") IT IS BEING USED TO DETECT JS* ONLY CHANGES !!!
 declare module 'vscode' {
 	export = vscode;
 }
