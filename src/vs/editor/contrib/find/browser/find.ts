@@ -10,7 +10,7 @@ import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
 import {EditorAction, Behaviour} from 'vs/editor/common/editorAction';
 import {IFindController, FindWidget} from 'vs/editor/contrib/find/browser/findWidget';
-import {FindModelBoundToEditorModel, FindIds} from 'vs/editor/contrib/find/common/findModel';
+import {FindModelBoundToEditorModel, FIND_IDS} from 'vs/editor/contrib/find/common/findModel';
 import * as EditorBrowser from 'vs/editor/browser/editorBrowser';
 import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
 import * as EditorCommon from 'vs/editor/common/editorCommon';
@@ -581,22 +581,22 @@ CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(SelectHighl
 }));
 
 // register actions
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(StartFindAction, FindIds.START_FIND_ACTION_ID, nls.localize('startFindAction',"Find"), {
+CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(StartFindAction, FIND_IDS.StartFindAction, nls.localize('startFindAction',"Find"), {
 	context: ContextKey.None,
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_F,
 	secondary: [KeyMod.CtrlCmd | KeyCode.F3]
 }));
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(NextMatchFindAction, FindIds.NEXT_MATCH_FIND_ACTION_ID, nls.localize('findNextMatchAction', "Find Next"), {
+CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(NextMatchFindAction, FIND_IDS.NextMatchFindAction, nls.localize('findNextMatchAction', "Find Next"), {
 	context: ContextKey.EditorFocus,
 	primary: KeyCode.F3,
 	mac: { primary: KeyMod.CtrlCmd | KeyCode.KEY_G, secondary: [KeyCode.F3] }
 }));
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(PreviousMatchFindAction, FindIds.PREVIOUS_MATCH_FIND_ACTION_ID, nls.localize('findPreviousMatchAction', "Find Previous"), {
+CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(PreviousMatchFindAction, FIND_IDS.PreviousMatchFindAction, nls.localize('findPreviousMatchAction', "Find Previous"), {
 	context: ContextKey.EditorFocus,
 	primary: KeyMod.Shift | KeyCode.F3,
 	mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_G, secondary: [KeyMod.Shift | KeyCode.F3] }
 }));
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(StartFindReplaceAction, FindIds.START_FIND_REPLACE_ACTION_ID, nls.localize('startReplace', "Replace"), {
+CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(StartFindReplaceAction, FIND_IDS.StartFindReplaceAction, nls.localize('startReplace', "Replace"), {
 	context: ContextKey.None,
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_H,
 	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_F }
@@ -618,18 +618,18 @@ function registerFindCommand(id:string, callback:(controller:FindController)=>vo
 	});
 }
 
-registerFindCommand(FindIds.CLOSE_FIND_WIDGET_COMMAND_ID, x => x.closeFindWidget(), {
+registerFindCommand(FIND_IDS.CloseFindWidgetCommand, x => x.closeFindWidget(), {
 	primary: KeyCode.Escape
 }, CONTEXT_FIND_WIDGET_VISIBLE);
-registerFindCommand(FindIds.TOGGLE_CASE_SENSITIVE_COMMAND_ID, x => x.toggleCaseSensitive(), {
+registerFindCommand(FIND_IDS.ToggleCaseSensitiveCommand, x => x.toggleCaseSensitive(), {
 	primary: KeyMod.Alt | KeyCode.KEY_C,
 	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_C }
 });
-registerFindCommand(FindIds.TOGGLE_WHOLE_WORD_COMMAND_ID, x => x.toggleWholeWords(), {
+registerFindCommand(FIND_IDS.ToggleWholeWordCommand, x => x.toggleWholeWords(), {
 	primary: KeyMod.Alt | KeyCode.KEY_W,
 	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_W }
 });
-registerFindCommand(FindIds.TOGGLE_REGEX_COMMAND_ID, x => x.toggleRegex(), {
+registerFindCommand(FIND_IDS.ToggleRegexCommand, x => x.toggleRegex(), {
 	primary: KeyMod.Alt | KeyCode.KEY_R,
 	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_R }
 });

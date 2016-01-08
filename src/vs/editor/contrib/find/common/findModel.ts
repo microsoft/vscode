@@ -15,15 +15,15 @@ import {ReplaceCommand} from 'vs/editor/common/commands/replaceCommand';
 import {FindDecorations} from './findDecorations';
 import {FindReplaceStateChangedEvent, FindReplaceState} from './findState';
 
-export const FindIds = {
-	START_FIND_ACTION_ID: 'actions.find',
-	NEXT_MATCH_FIND_ACTION_ID: 'editor.action.nextMatchFindAction',
-	PREVIOUS_MATCH_FIND_ACTION_ID: 'editor.action.previousMatchFindAction',
-	START_FIND_REPLACE_ACTION_ID: 'editor.action.startFindReplaceAction',
-	CLOSE_FIND_WIDGET_COMMAND_ID: 'closeFindWidget',
-	TOGGLE_CASE_SENSITIVE_COMMAND_ID: 'toggleFindCaseSensitive',
-	TOGGLE_WHOLE_WORD_COMMAND_ID: 'toggleFindWholeWord',
-	TOGGLE_REGEX_COMMAND_ID: 'toggleFindRegex'
+export const FIND_IDS = {
+	StartFindAction: 'actions.find',
+	NextMatchFindAction: 'editor.action.nextMatchFindAction',
+	PreviousMatchFindAction: 'editor.action.previousMatchFindAction',
+	StartFindReplaceAction: 'editor.action.startFindReplaceAction',
+	CloseFindWidgetCommand: 'closeFindWidget',
+	ToggleCaseSensitiveCommand: 'toggleFindCaseSensitive',
+	ToggleWholeWordCommand: 'toggleFindWholeWord',
+	ToggleRegexCommand: 'toggleFindRegex'
 }
 
 export class FindModelBoundToEditorModel {

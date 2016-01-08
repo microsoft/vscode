@@ -16,7 +16,7 @@ import {InputBox, IMessage as InputBoxMessage} from 'vs/base/browser/ui/inputbox
 import {FindInput} from 'vs/base/browser/ui/findinput/findInput';
 import * as EditorBrowser from 'vs/editor/browser/editorBrowser';
 import * as EditorCommon from 'vs/editor/common/editorCommon';
-import {FindIds} from 'vs/editor/contrib/find/common/findModel';
+import {FIND_IDS} from 'vs/editor/contrib/find/common/findModel';
 import {disposeAll, IDisposable} from 'vs/base/common/lifecycle';
 import {CommonKeybindings} from 'vs/base/common/keyCodes';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
@@ -234,10 +234,10 @@ export class FindWidget implements EditorBrowser.IOverlayWidget {
 		let handled = false;
 
 		if (e.equals(CommonKeybindings.ENTER)) {
-			this._codeEditor.getAction(FindIds.NEXT_MATCH_FIND_ACTION_ID).run().done(null, Errors.onUnexpectedError);
+			this._codeEditor.getAction(FIND_IDS.NextMatchFindAction).run().done(null, Errors.onUnexpectedError);
 			handled = true;
 		} else if (e.equals(CommonKeybindings.SHIFT_ENTER)) {
-			this._codeEditor.getAction(FindIds.PREVIOUS_MATCH_FIND_ACTION_ID).run().done(null, Errors.onUnexpectedError);
+			this._codeEditor.getAction(FIND_IDS.PreviousMatchFindAction).run().done(null, Errors.onUnexpectedError);
 			handled = true;
 		} else if (e.equals(CommonKeybindings.TAB)) {
 			if (this._isReplaceVisible) {
@@ -304,9 +304,9 @@ export class FindWidget implements EditorBrowser.IOverlayWidget {
 			width: FindWidget.FIND_INPUT_AREA_WIDTH,
 			label: NLS_FIND_INPUT_LABEL,
 			placeholder: NLS_FIND_INPUT_PLACEHOLDER,
-			appendCaseSensitiveLabel: this._keybindingLabelFor(FindIds.TOGGLE_CASE_SENSITIVE_COMMAND_ID),
-			appendWholeWordsLabel: this._keybindingLabelFor(FindIds.TOGGLE_WHOLE_WORD_COMMAND_ID),
-			appendRegexLabel: this._keybindingLabelFor(FindIds.TOGGLE_REGEX_COMMAND_ID),
+			appendCaseSensitiveLabel: this._keybindingLabelFor(FIND_IDS.ToggleCaseSensitiveCommand),
+			appendWholeWordsLabel: this._keybindingLabelFor(FIND_IDS.ToggleWholeWordCommand),
+			appendRegexLabel: this._keybindingLabelFor(FIND_IDS.ToggleRegexCommand),
 			validation: (value:string): InputBoxMessage => {
 				if (value.length === 0) {
 					return null;
@@ -335,10 +335,10 @@ export class FindWidget implements EditorBrowser.IOverlayWidget {
 
 		// Previous button
 		this._prevBtn = new SimpleButton({
-			label: NLS_PREVIOUS_MATCH_BTN_LABEL + this._keybindingLabelFor(FindIds.PREVIOUS_MATCH_FIND_ACTION_ID),
+			label: NLS_PREVIOUS_MATCH_BTN_LABEL + this._keybindingLabelFor(FIND_IDS.PreviousMatchFindAction),
 			className: 'previous',
 			onTrigger: () => {
-				this._codeEditor.getAction(FindIds.PREVIOUS_MATCH_FIND_ACTION_ID).run().done(null, Errors.onUnexpectedError);
+				this._codeEditor.getAction(FIND_IDS.PreviousMatchFindAction).run().done(null, Errors.onUnexpectedError);
 			},
 			onKeyDown: (e) => {}
 		});
@@ -346,10 +346,10 @@ export class FindWidget implements EditorBrowser.IOverlayWidget {
 
 		// Next button
 		this._nextBtn = new SimpleButton({
-			label: NLS_NEXT_MATCH_BTN_LABEL + this._keybindingLabelFor(FindIds.NEXT_MATCH_FIND_ACTION_ID),
+			label: NLS_NEXT_MATCH_BTN_LABEL + this._keybindingLabelFor(FIND_IDS.NextMatchFindAction),
 			className: 'next',
 			onTrigger: () => {
-				this._codeEditor.getAction(FindIds.NEXT_MATCH_FIND_ACTION_ID).run().done(null, Errors.onUnexpectedError);
+				this._codeEditor.getAction(FIND_IDS.NextMatchFindAction).run().done(null, Errors.onUnexpectedError);
 			},
 			onKeyDown: (e) => {}
 		});
@@ -378,7 +378,7 @@ export class FindWidget implements EditorBrowser.IOverlayWidget {
 
 		// Close button
 		this._closeBtn = new SimpleButton({
-			label: NLS_CLOSE_BTN_LABEL + this._keybindingLabelFor(FindIds.CLOSE_FIND_WIDGET_COMMAND_ID),
+			label: NLS_CLOSE_BTN_LABEL + this._keybindingLabelFor(FIND_IDS.CloseFindWidgetCommand),
 			className: 'close-fw',
 			onTrigger: () => {
 				this._state.change({ isRevealed: false }, false);
