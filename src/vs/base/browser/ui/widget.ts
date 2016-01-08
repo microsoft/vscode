@@ -35,4 +35,8 @@ export abstract class Widget extends Disposable {
 	protected onfocus(domNode:HTMLElement, listener:(e:Event)=>void): void {
 		this._register(DomUtils.addDisposableListener(domNode, DomUtils.EventType.FOCUS, listener));
 	}
+
+	protected onchange(domNode:HTMLElement, listener:(e:Event)=>void): void {
+		this._register(DomUtils.addDisposableListener(domNode, DomUtils.EventType.CHANGE, listener));
+	}
 }

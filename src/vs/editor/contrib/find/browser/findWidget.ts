@@ -60,7 +60,7 @@ export class FindWidget extends Widget implements EditorBrowser.IOverlayWidget {
 	private _toggleReplaceBtn: SimpleButton;
 	private _prevBtn: SimpleButton;
 	private _nextBtn: SimpleButton;
-	private _toggleSelectionFind: Checkbox;
+	private _toggleSelectionFind: SimpleCheckbox;
 	private _closeBtn: SimpleButton;
 	private _replaceBtn: SimpleButton;
 	private _replaceAllBtn: SimpleButton;
@@ -166,9 +166,9 @@ export class FindWidget extends Widget implements EditorBrowser.IOverlayWidget {
 		}
 		if (e.searchScope) {
 			if (this._state.searchScope) {
-				this._toggleSelectionFind.checkbox.checked = true;
+				this._toggleSelectionFind.checked = true;
 			} else {
-				this._toggleSelectionFind.checkbox.checked = false;
+				this._toggleSelectionFind.checked = false;
 			}
 			this._updateToggleSelectionFindButton();
 		}
@@ -364,15 +364,18 @@ export class FindWidget extends Widget implements EditorBrowser.IOverlayWidget {
 		findPart.appendChild(this._nextBtn.domNode);
 
 		// Toggle selection button
-		this._toggleSelectionFind = this._register(new Checkbox(findPart, NLS_TOGGLE_SELECTION_FIND_TITLE));
-		this._toggleSelectionFind.disable();
-		this._register(DomUtils.addStandardDisposableListener(this._toggleSelectionFind.checkbox, 'change', (e) => {
-			if (this._toggleSelectionFind.checkbox.checked) {
-				this._reseedFindScope();
-			} else {
-				this._state.change({ searchScope: null }, true);
+		this._toggleSelectionFind = this._register(new SimpleCheckbox({
+			parent: findPart,
+			title: NLS_TOGGLE_SELECTION_FIND_TITLE,
+			onChange: () => {
+				if (this._toggleSelectionFind.checked) {
+					this._reseedFindScope();
+				} else {
+					this._state.change({ searchScope: null }, true);
+				}
 			}
 		}));
+		this._toggleSelectionFind.disable();
 
 		this._codeEditor.addListener(EditorCommon.EventType.CursorSelectionChanged, () => {
 			this._updateToggleSelectionFindButton();
@@ -413,7 +416,7 @@ export class FindWidget extends Widget implements EditorBrowser.IOverlayWidget {
 			return;
 		}
 
-		if (!this._toggleSelectionFind.checkbox.checked) {
+		if (!this._toggleSelectionFind.checked) {
 			let selection = this._codeEditor.getSelection();
 
 			if (selection.startLineNumber === selection.endLineNumber) {
@@ -559,24 +562,33 @@ export class FindWidget extends Widget implements EditorBrowser.IOverlayWidget {
 	}
 }
 
-export class Checkbox extends Widget {
+interface ISimpleCheckboxOpts {
+	parent: HTMLElement;
+	title: string;
+	onChange: () => void;
+}
+
+class SimpleCheckbox extends Widget {
 
 	private static _COUNTER = 0;
 
+	private _opts: ISimpleCheckboxOpts;
 	private _domNode: HTMLElement;
 	private _checkbox: HTMLInputElement;
 	private _label: HTMLLabelElement;
 
-	constructor(parent: HTMLElement, title: string) {
+	constructor(opts:ISimpleCheckboxOpts) {
 		super();
+		this._opts = opts;
+
 		this._domNode = document.createElement('div');
 		this._domNode.className = 'monaco-checkbox';
-		this._domNode.title = title;
+		this._domNode.title = this._opts.title;
 
 		this._checkbox = document.createElement('input');
 		this._checkbox.type = 'checkbox';
 		this._checkbox.className = 'checkbox';
-		this._checkbox.id = 'checkbox-' + Checkbox._COUNTER++;
+		this._checkbox.id = 'checkbox-' + SimpleCheckbox._COUNTER++;
 
 		this._label = document.createElement('label');
 		this._label.className = 'label';
@@ -586,15 +598,23 @@ export class Checkbox extends Widget {
 		this._domNode.appendChild(this._checkbox);
 		this._domNode.appendChild(this._label);
 
-		parent.appendChild(this._domNode);
+		this._opts.parent.appendChild(this._domNode);
+
+		this.onchange(this._checkbox, (e) => {
+			this._opts.onChange();
+		});
 	}
 
 	public get domNode(): HTMLElement {
 		return this._domNode;
 	}
 
-	public get checkbox(): HTMLInputElement {
-		return this._checkbox;
+	public get checked(): boolean {
+		return this._checkbox.checked;
+	}
+
+	public set checked(newValue:boolean) {
+		this._checkbox.checked = newValue;
 	}
 
 	public focus(): void {
