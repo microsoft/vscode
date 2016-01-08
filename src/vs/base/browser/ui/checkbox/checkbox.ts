@@ -8,11 +8,8 @@
 import 'vs/css!./checkbox';
 
 import * as nls from 'vs/nls';
-import {StandardMouseEvent} from 'vs/base/browser/mouseEvent';
-import {StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {KeyCode} from 'vs/base/common/keyCodes';
-import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
-import * as DomUtils from 'vs/base/browser/dom';
+import {Widget} from 'vs/base/browser/ui/widget';
 
 export interface ICheckboxOpts {
 	actionClassName: string;
@@ -21,18 +18,17 @@ export interface ICheckboxOpts {
 	onChange: () => void;
 }
 
-export class Checkbox implements IDisposable {
+export class Checkbox extends Widget {
 
 	private _opts: ICheckboxOpts;
-	private _toDispose: IDisposable[];
 	public domNode: HTMLElement;
 
 	private _checked: boolean;
 
 	constructor(opts:ICheckboxOpts) {
+		super();
 		this._opts = opts;
 		this._checked = this._opts.isChecked;
-		this._toDispose = [];
 
 		this.domNode = document.createElement('div');
 		this.domNode.title = this._opts.title;
@@ -42,27 +38,21 @@ export class Checkbox implements IDisposable {
 		this.domNode.setAttribute('aria-checked', String(this._checked));
 		this.domNode.setAttribute('aria-label', this._opts.title);
 
-		this._toDispose.push(DomUtils.addDisposableListener(this.domNode, 'click', (e:MouseEvent) => {
-			var ev = new StandardMouseEvent(e);
+		this.onclick(this.domNode, (ev) => {
 			this._checked = !this._checked;
 			this.domNode.className = this._className();
 			this._opts.onChange();
 			ev.preventDefault();
-		}));
+		});
 
-		this._toDispose.push(DomUtils.addDisposableListener(this.domNode, 'keydown', (browserEvent: KeyboardEvent) => {
-			var keyboardEvent = new StandardKeyboardEvent(browserEvent);
+		this.onkeydown(this.domNode, (keyboardEvent) => {
 			if (keyboardEvent.keyCode === KeyCode.Space || keyboardEvent.keyCode === KeyCode.Enter) {
 				this._checked = !this._checked;
 				this.domNode.className = this._className();
 				this._opts.onChange();
 				keyboardEvent.preventDefault();
 			}
-		}));
-	}
-
-	public dispose(): void {
-		this._toDispose = disposeAll(this._toDispose);
+		});
 	}
 
 	public focus(): void {

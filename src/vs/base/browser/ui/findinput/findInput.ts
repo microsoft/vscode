@@ -5,20 +5,20 @@
 'use strict';
 
 import 'vs/css!./findInput';
-import nls = require('vs/nls');
-import Builder = require('vs/base/browser/builder');
-import mouse = require('vs/base/browser/mouseEvent');
-import keyboard = require('vs/base/browser/keyboardEvent');
-import InputBox = require('vs/base/browser/ui/inputbox/inputBox');
-import Checkbox = require('vs/base/browser/ui/checkbox/checkbox');
-import ContextView = require('vs/base/browser/ui/contextview/contextview');
 
-var $ = Builder.$;
+import * as nls from 'vs/nls';
+import * as dom from 'vs/base/browser/dom';
+import {IMessage as InputBoxMessage, IInputValidator, InputBox} from 'vs/base/browser/ui/inputbox/inputBox';
+import {Checkbox} from 'vs/base/browser/ui/checkbox/checkbox';
+import {IContextViewProvider} from 'vs/base/browser/ui/contextview/contextview';
+import {Widget} from 'vs/base/browser/ui/widget';
+import Event, {Emitter} from 'vs/base/common/event';
+import {StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 
-export interface IOptions {
+export interface IFindInputOptions {
 	placeholder?:string;
 	width?:number;
-	validation?:InputBox.IInputValidator;
+	validation?:IInputValidator;
 	label:string;
 
 	appendCaseSensitiveLabel?: string;
@@ -31,73 +31,57 @@ const NLS_WHOLE_WORD_CHECKBOX_LABEL = nls.localize('wordsDescription', "Match Wh
 const NLS_CASE_SENSITIVE_CHECKBOX_LABEL = nls.localize('caseDescription', "Match Case");
 const NLS_DEFAULT_LABEL = nls.localize('defaultLabel', "input");
 
-export class FindInput {
+export class FindInput extends Widget {
 
 	static OPTION_CHANGE:string = 'optionChange';
 
-	private contextViewProvider: ContextView.IContextViewProvider;
-	private onOptionChange:(event:Event)=>void;
+	private contextViewProvider: IContextViewProvider;
 	private width:number;
 	private placeholder:string;
-	private validation:InputBox.IInputValidator;
+	private validation:IInputValidator;
 	private label:string;
 
-	private listenersToRemove:{():void;}[];
-	private regex:Checkbox.Checkbox;
-	private wholeWords:Checkbox.Checkbox;
-	private caseSensitive:Checkbox.Checkbox;
+	private regex:Checkbox;
+	private wholeWords:Checkbox;
+	private caseSensitive:Checkbox;
 	public domNode: HTMLElement;
-	public validationNode: Builder.Builder;
-	public inputBox:InputBox.InputBox;
+	public inputBox:InputBox;
 
-	constructor(parent:HTMLElement, contextViewProvider: ContextView.IContextViewProvider, options?:IOptions) {
+	private _onDidOptionChange = this._register(new Emitter<void>());
+	public onDidOptionChange: Event<void> = this._onDidOptionChange.event;
+
+	private _onKeyDown = this._register(new Emitter<StandardKeyboardEvent>());
+	public onKeyDown: Event<StandardKeyboardEvent> = this._onKeyDown.event;
+
+	private _onKeyUp = this._register(new Emitter<StandardKeyboardEvent>());
+	public onKeyUp: Event<StandardKeyboardEvent> = this._onKeyUp.event;
+
+	constructor(parent:HTMLElement, contextViewProvider: IContextViewProvider, options?:IFindInputOptions) {
+		super();
 		this.contextViewProvider = contextViewProvider;
-		this.onOptionChange = null;
 		this.width = options.width || 100;
 		this.placeholder = options.placeholder || '';
 		this.validation = options.validation;
 		this.label = options.label || NLS_DEFAULT_LABEL;
 
-		this.listenersToRemove = [];
 		this.regex = null;
 		this.wholeWords = null;
 		this.caseSensitive = null;
 		this.domNode = null;
 		this.inputBox = null;
-		this.validationNode = null;
 
 		this.buildDomNode(options.appendCaseSensitiveLabel || '', options.appendWholeWordsLabel || '', options.appendRegexLabel || '');
 
 		if(Boolean(parent)) {
 			parent.appendChild(this.domNode);
 		}
-	}
 
-	public destroy(): void {
-		this.regex.dispose();
-		this.wholeWords.dispose();
-		this.caseSensitive.dispose();
-		this.listenersToRemove.forEach((element) => {
-			element();
-		});
-		this.listenersToRemove = [];
-	}
-
-	public on(eventType:string, handler:(event:Event)=>void): FindInput {
-		switch(eventType) {
-			case 'keydown':
-			case 'keyup':
-				$(this.inputBox.inputElement).on(eventType, handler);
-				break;
-			case FindInput.OPTION_CHANGE:
-				this.onOptionChange = handler;
-				break;
-		}
-		return this;
+		this.onkeydown(this.inputBox.inputElement, (e) => this._onKeyDown.fire(e));
+		this.onkeyup(this.inputBox.inputElement, (e) => this._onKeyUp.fire(e));
 	}
 
 	public enable(): void {
-		$(this.domNode).removeClass('disabled');
+		dom.removeClass(this.domNode, 'disabled');
 		this.inputBox.enable();
 		this.regex.enable();
 		this.wholeWords.enable();
@@ -105,7 +89,7 @@ export class FindInput {
 	}
 
 	public disable(): void {
-		$(this.domNode).addClass('disabled');
+		dom.addClass(this.domNode, 'disabled');
 		this.inputBox.disable();
 		this.regex.disable();
 		this.wholeWords.disable();
@@ -175,60 +159,60 @@ export class FindInput {
 	}
 
 	private setInputWidth(): void {
-		var w = this.width - this.caseSensitive.width() - this.wholeWords.width() - this.regex.width();
+		let w = this.width - this.caseSensitive.width() - this.wholeWords.width() - this.regex.width();
 		this.inputBox.width = w;
 	}
 
 	private buildDomNode(appendCaseSensitiveLabel:string, appendWholeWordsLabel: string, appendRegexLabel: string): void {
 		this.domNode = document.createElement('div');
 		this.domNode.style.width = this.width + 'px';
-		$(this.domNode).addClass('monaco-findInput');
+		dom.addClass(this.domNode, 'monaco-findInput');
 
-		this.inputBox = new InputBox.InputBox(this.domNode, this.contextViewProvider, {
+		this.inputBox = this._register(new InputBox(this.domNode, this.contextViewProvider, {
 			placeholder: this.placeholder || '',
 			ariaLabel: this.label || '',
 			validationOptions: {
 				validation: this.validation || null,
 				showMessage: true
 			}
-		});
+		}));
 
-		this.regex = new Checkbox.Checkbox({
+		this.regex = this._register(new Checkbox({
 			actionClassName: 'regex',
 			title: NLS_REGEX_CHECKBOX_LABEL + appendRegexLabel,
 			isChecked: false,
 			onChange: () => {
-				this.onOptionChange(null);
+				this._onDidOptionChange.fire();
 				this.inputBox.focus();
 				this.setInputWidth();
 				this.validate();
 			}
-		});
-		this.wholeWords = new Checkbox.Checkbox({
+		}));
+		this.wholeWords = this._register(new Checkbox({
 			actionClassName: 'whole-word',
 			title: NLS_WHOLE_WORD_CHECKBOX_LABEL + appendWholeWordsLabel,
 			isChecked: false,
 			onChange: () => {
-				this.onOptionChange(null);
+				this._onDidOptionChange.fire();
 				this.inputBox.focus();
 				this.setInputWidth();
 				this.validate();
 			}
-		});
-		this.caseSensitive = new Checkbox.Checkbox({
+		}));
+		this.caseSensitive = this._register(new Checkbox({
 			actionClassName: 'case-sensitive',
 			title: NLS_CASE_SENSITIVE_CHECKBOX_LABEL + appendCaseSensitiveLabel,
 			isChecked: false,
 			onChange: () => {
-				this.onOptionChange(null);
+				this._onDidOptionChange.fire();
 				this.inputBox.focus();
 				this.setInputWidth();
 				this.validate();
 			}
-		});
+		}));
 		this.setInputWidth();
 
-		var controls = document.createElement('div');
+		let controls = document.createElement('div');
 		controls.className = 'controls';
 		controls.appendChild(this.caseSensitive.domNode);
 		controls.appendChild(this.wholeWords.domNode);
@@ -241,7 +225,7 @@ export class FindInput {
 		this.inputBox.validate();
 	}
 
-	public showMessage(message: InputBox.IMessage): void {
+	public showMessage(message: InputBoxMessage): void {
 		this.inputBox.showMessage(message);
 	}
 

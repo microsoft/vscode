@@ -138,7 +138,8 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 			flexibleHeight: true
 		});
 
-		this.addEmitter2(this.commitInputBox, 'commitInputBox');
+		this.commitInputBox.onDidChange((value) => this.emit('change', value));
+		this.commitInputBox.onDidHeightChange((value) => this.emit('heightchange', value));
 
 		$(this.commitInputBox.inputElement).on('keydown', (e:KeyboardEvent) => {
 			var keyboardEvent = new Keyboard.StandardKeyboardEvent(e);
@@ -179,7 +180,7 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 		this.tree.expandAll(this.gitService.getModel().getStatus().getGroups());
 
 		this.toDispose.push(this.tree.addListener2('selection', (e) => this.onSelection(e)));
-		this.toDispose.push(this.commitInputBox.addListener2('heightchange', () => this.layout()));
+		this.toDispose.push(this.commitInputBox.onDidHeightChange(() => this.layout()));
 	}
 
 	public focus():void {
