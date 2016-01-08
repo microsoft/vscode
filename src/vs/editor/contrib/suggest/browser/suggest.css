@@ -57,8 +57,27 @@
 	overflow: hidden;
 	margin-top: 0.1em;
 	padding-bottom: 0.1em;
+}
+
+.monaco-editor .suggest-widget .monaco-tree .monaco-tree-row > .content .docs > .docs-text {
+	flex: 2;
 	white-space: nowrap;
 	text-overflow: ellipsis;
+	overflow: hidden;
+}
+
+.monaco-editor .suggest-widget .monaco-tree .monaco-tree-row > .content .docs > .docs-details {
+	font-size: 1.4em;
+	opacity: 0.6;
+}
+
+.monaco-editor .suggest-widget .details > .header > .go-back,
+.monaco-editor .suggest-widget .monaco-tree .monaco-tree-row > .content .docs > .docs-details {
+	color: #0035DD;
+}
+
+.monaco-editor .suggest-widget .monaco-tree .monaco-tree-row > .content .docs > .docs-details:hover {
+	opacity: 1;
 }
 
 .monaco-editor .suggest-widget .details > .body > .docs,
@@ -92,7 +111,7 @@
 }
 
 .monaco-editor .suggest-widget .monaco-tree .monaco-tree-row.focused > .content .docs {
-	display: block;
+	display: flex;
 }
 
 .monaco-editor .suggest-widget .monaco-tree .monaco-tree-row > .content .icon {
@@ -146,8 +165,22 @@
 	padding: 0 10px;
 }
 
-.monaco-editor .suggest-widget .details > .title {
+.monaco-editor .suggest-widget .details > .header {
 	padding-top: 2px;
+	display: flex;
+}
+
+.monaco-editor .suggest-widget .details > .header > .title {
+	flex: 2;
+}
+
+.monaco-editor .suggest-widget .details > .header > .go-back {
+	cursor: pointer;
+	opacity: 0.6;
+}
+
+.monaco-editor .suggest-widget .details > .header > .go-back:hover {
+	opacity: 1;
 }
 
 .monaco-editor .suggest-widget .details > .body {
@@ -175,6 +208,8 @@
 }
 
 
+.monaco-editor.vs-dark .suggest-widget .monaco-tree .monaco-tree-row > .content .docs > .docs-details,
+.monaco-editor.vs-dark .suggest-widget .details > .header > .go-back,
 .monaco-editor.vs-dark .suggest-widget .details > .body > .type,
 .monaco-editor.vs-dark .suggest-widget .monaco-tree .monaco-tree-row > .content .type-label {
 	color: #4E94CE;
@@ -218,6 +253,8 @@
 	color: #C07A7A;
 }
 
+.monaco-editor.hc-black .suggest-widget .monaco-tree .monaco-tree-row > .content .docs > .docs-details,
+.monaco-editor.hc-black .suggest-widget .details > .header > .go-back,
 .monaco-editor.hc-black .suggest-widget .details > .body > .type,
 .monaco-editor.hc-black .suggest-widget .monaco-tree .monaco-tree-row > .content .type-label {
 	color: #4E94CE;

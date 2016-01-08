@@ -261,10 +261,13 @@ interface ISuggestionTemplateData {
 	colorspan: HTMLElement;
 	highlightedLabel: HighlightedLabel.HighlightedLabel;
 	typeLabel: HTMLElement;
+	documentationDetails: HTMLElement;
 	documentation: HTMLElement;
 }
 
 class Renderer implements Tree.IRenderer {
+
+	constructor(private widget: SuggestWidget) {}
 
 	public getHeight(tree: Tree.ITree, element: any): number {
 		if (element instanceof CompletionItem) {
@@ -298,7 +301,10 @@ class Renderer implements Tree.IRenderer {
 		const main = append(text, $('.main'));
 		data.highlightedLabel = new HighlightedLabel.HighlightedLabel(main);
 		data.typeLabel = append(main, $('span.type-label'));
-		data.documentation = append(text, $('.docs'));
+		const docs = append(text, $('.docs'));
+		data.documentation = append(docs, $('span.docs-text'));
+		data.documentationDetails = append(docs, $('span.docs-details.octicon.octicon-info'));
+		data.documentationDetails.title = nls.localize('readMore', "Read More...");
 
 		return data;
 	}
@@ -325,6 +331,19 @@ class Renderer implements Tree.IRenderer {
 		data.highlightedLabel.set(suggestion.label, (<CompletionItem>element).highlights);
 		data.typeLabel.textContent = suggestion.typeLabel || '';
 		data.documentation.textContent = suggestion.documentationLabel || '';
+
+		if (suggestion.documentationLabel) {
+			show(data.documentationDetails);
+
+			data.documentationDetails.onclick = e => {
+				e.stopPropagation();
+				e.preventDefault();
+				this.widget.toggleDetails();
+			};
+		} else {
+			hide(data.documentationDetails);
+			data.documentationDetails.onclick = null;
+		}
 	}
 
 	public disposeTemplate(tree: Tree.ITree, templateId: string, templateData: any): void {
@@ -376,14 +395,16 @@ class SuggestionDetails {
 
 	private el: HTMLElement;
 	private title: HTMLElement;
+	private back: HTMLElement;
 	private type: HTMLElement;
 	private docs: HTMLElement;
 
-	constructor(container: HTMLElement) {
+	constructor(container: HTMLElement, private widget: SuggestWidget) {
 		this.el = append(container, $('.details'));
-		this.title = append(this.el, $('.title'));
+		const header = append(this.el, $('.header'));
+		this.title = append(header, $('span.title'));
+		this.back = append(header, $('span.go-back.octicon.octicon-x'));
 		const body = append(this.el, $('.body'));
-
 		this.type = append(body, $('p.type'));
 		this.docs = append(body, $('p.docs'));
 	}
@@ -403,6 +424,11 @@ class SuggestionDetails {
 		this.title.innerText = item.suggestion.label;
 		this.type.innerText = item.suggestion.typeLabel;
 		this.docs.innerText = item.suggestion.documentationLabel;
+		this.back.onclick = e => {
+			e.preventDefault();
+			e.stopPropagation();
+			this.widget.toggleDetails();
+		};
 	}
 
 	dispose(): void {
@@ -469,10 +495,10 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 
 		this.messageElement = append(this.element, $('.message'));
 		this.treeElement = append(this.element, $('.tree'));
-		this.details = new SuggestionDetails(this.element);
+		this.details = new SuggestionDetails(this.element, this);
 
 		const configuration = {
-			renderer: this.renderer = new Renderer(),
+			renderer: this.renderer = new Renderer(this),
 			dataSource: new DataSource(),
 			controller: new Controller(),
 			filter: new Filter(() => this.state),
@@ -860,6 +886,7 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 	public toggleDetails(): void {
 		if (this.state === State.Details) {
 			this.setState(State.Open);
+			this.editor.focus();
 			return;
 		}
 
@@ -874,6 +901,7 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 		}
 
 		this.setState(State.Details);
+		this.editor.focus();
 	}
 
 	public show(): void {
