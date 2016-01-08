@@ -218,61 +218,70 @@ export class FindWidget extends Widget implements EditorBrowser.IOverlayWidget {
 
 	private _onFindInputKeyDown(e:DomUtils.IKeyboardEvent): void {
 
-		let handled = false;
+		switch (e.asKeybinding()) {
+			case CommonKeybindings.ENTER:
+				this._codeEditor.getAction(FIND_IDS.NextMatchFindAction).run().done(null, Errors.onUnexpectedError);
+				e.preventDefault();
+				return;
 
-		if (e.equals(CommonKeybindings.ENTER)) {
-			this._codeEditor.getAction(FIND_IDS.NextMatchFindAction).run().done(null, Errors.onUnexpectedError);
-			handled = true;
-		} else if (e.equals(CommonKeybindings.SHIFT_ENTER)) {
-			this._codeEditor.getAction(FIND_IDS.PreviousMatchFindAction).run().done(null, Errors.onUnexpectedError);
-			handled = true;
-		} else if (e.equals(CommonKeybindings.TAB)) {
-			if (this._isReplaceVisible) {
-				this._replaceInputBox.focus();
-			} else {
-				this._findInput.focusOnCaseSensitive();
-			}
-			handled = true;
-		} else if (e.equals(CommonKeybindings.CTRLCMD_DOWN_ARROW)) {
-			this._codeEditor.focus();
-			handled = true;
+			case CommonKeybindings.SHIFT_ENTER:
+				this._codeEditor.getAction(FIND_IDS.PreviousMatchFindAction).run().done(null, Errors.onUnexpectedError);
+				e.preventDefault();
+				return;
+
+			case CommonKeybindings.TAB:
+				if (this._isReplaceVisible) {
+					this._replaceInputBox.focus();
+				} else {
+					this._findInput.focusOnCaseSensitive();
+				}
+				e.preventDefault();
+				return;
+
+			case CommonKeybindings.CTRLCMD_DOWN_ARROW:
+				this._codeEditor.focus();
+				e.preventDefault();
+				return;
 		}
 
-		if (handled) {
-			e.preventDefault();
-		} else {
-			// getValue() is not updated right away
-			setTimeout(() => {
-				this._state.change({ searchString: this._findInput.getValue() }, true);
-			}, 10);
-		}
+		// getValue() is not updated right away
+		setTimeout(() => {
+			this._state.change({ searchString: this._findInput.getValue() }, true);
+		}, 10);
 	}
 
 	private _onReplaceInputKeyDown(e:DomUtils.IKeyboardEvent): void {
 
-		let handled = false;
+		switch (e.asKeybinding()) {
+			case CommonKeybindings.ENTER:
+				this._controller.replace();
+				e.preventDefault();
+				return;
 
-		if (e.equals(CommonKeybindings.ENTER)) {
-			this._controller.replace();
-			handled = true;
-		} else if (e.equals(CommonKeybindings.CTRLCMD_ENTER)) {
-			this._controller.replaceAll();
-			handled = true;
-		} else if (e.equals(CommonKeybindings.TAB)) {
-			this._findInput.focusOnCaseSensitive();
-			handled = true;
-		} else if (e.equals(CommonKeybindings.CTRLCMD_DOWN_ARROW)) {
-			this._codeEditor.focus();
-			handled = true;
+			case CommonKeybindings.CTRLCMD_ENTER:
+				this._controller.replaceAll();
+				e.preventDefault();
+				return;
+
+			case CommonKeybindings.TAB:
+				this._findInput.focusOnCaseSensitive();
+				e.preventDefault();
+				return;
+
+			case CommonKeybindings.SHIFT_TAB:
+				this._findInput.focus();
+				e.preventDefault();
+				return;
+
+			case CommonKeybindings.CTRLCMD_DOWN_ARROW:
+				this._codeEditor.focus();
+				e.preventDefault();
+				return;
 		}
 
-		if (handled) {
-			e.preventDefault();
-		} else {
-			setTimeout(() => {
-				this._state.change({ replaceString: this._replaceInputBox.value }, false);
-			}, 10);
-		}
+		setTimeout(() => {
+			this._state.change({ replaceString: this._replaceInputBox.value }, false);
+		}, 10);
 	}
 
 	// ----- initialization
@@ -316,6 +325,14 @@ export class FindWidget extends Widget implements EditorBrowser.IOverlayWidget {
 				wholeWord: this._findInput.getWholeWords(),
 				matchCase: this._findInput.getCaseSensitive()
 			}, true);
+		}));
+		this._register(this._findInput.onCaseSensitiveKeyDown((e) => {
+			if (e.equals(CommonKeybindings.SHIFT_TAB)) {
+				if (this._isReplaceVisible) {
+					this._replaceInputBox.focus();
+					e.preventDefault();
+				}
+			}
 		}));
 
 		this._findInput.disable();
@@ -371,7 +388,11 @@ export class FindWidget extends Widget implements EditorBrowser.IOverlayWidget {
 			onKeyDown: (e) => {
 				if (e.equals(CommonKeybindings.TAB)) {
 					if (this._isReplaceVisible) {
-						this._replaceBtn.focus();
+						if (this._replaceBtn.isEnabled()) {
+							this._replaceBtn.focus();
+						} else {
+							this._codeEditor.focus();
+						}
 						e.preventDefault();
 					}
 				}
@@ -628,6 +649,10 @@ class SimpleButton extends Widget {
 
 	public get domNode(): HTMLElement {
 		return this._domNode;
+	}
+
+	public isEnabled(): boolean {
+		return (this._domNode.tabIndex >= 0);
 	}
 
 	public focus(): void {

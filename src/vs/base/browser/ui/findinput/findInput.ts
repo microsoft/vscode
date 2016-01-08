@@ -56,6 +56,9 @@ export class FindInput extends Widget {
 	private _onKeyUp = this._register(new Emitter<StandardKeyboardEvent>());
 	public onKeyUp: Event<StandardKeyboardEvent> = this._onKeyUp.event;
 
+	private _onCaseSensitiveKeyDown = this._register(new Emitter<StandardKeyboardEvent>());
+	public onCaseSensitiveKeyDown: Event<StandardKeyboardEvent> = this._onCaseSensitiveKeyDown.event;
+
 	constructor(parent:HTMLElement, contextViewProvider: IContextViewProvider, options?:IFindInputOptions) {
 		super();
 		this.contextViewProvider = contextViewProvider;
@@ -208,6 +211,9 @@ export class FindInput extends Widget {
 				this.inputBox.focus();
 				this.setInputWidth();
 				this.validate();
+			},
+			onKeyDown: (e) => {
+				this._onCaseSensitiveKeyDown.fire(e);
 			}
 		}));
 		this.setInputWidth();

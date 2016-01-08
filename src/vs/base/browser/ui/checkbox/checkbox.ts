@@ -10,12 +10,14 @@ import 'vs/css!./checkbox';
 import * as nls from 'vs/nls';
 import {KeyCode} from 'vs/base/common/keyCodes';
 import {Widget} from 'vs/base/browser/ui/widget';
+import {StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 
 export interface ICheckboxOpts {
 	actionClassName: string;
 	title: string;
 	isChecked: boolean;
 	onChange: () => void;
+	onKeyDown?: (e:StandardKeyboardEvent) => void;
 }
 
 export class Checkbox extends Widget {
@@ -51,6 +53,11 @@ export class Checkbox extends Widget {
 				this.domNode.className = this._className();
 				this._opts.onChange();
 				keyboardEvent.preventDefault();
+				return;
+			}
+
+			if (this._opts.onKeyDown) {
+				this._opts.onKeyDown(keyboardEvent);
 			}
 		});
 	}
