@@ -48,8 +48,7 @@ export class FindInput {
 	private caseSensitive:Checkbox.Checkbox;
 	public domNode: HTMLElement;
 	public validationNode: Builder.Builder;
-	private inputNode:HTMLInputElement;
-	private inputBox:InputBox.InputBox;
+	public inputBox:InputBox.InputBox;
 
 	constructor(parent:HTMLElement, contextViewProvider: ContextView.IContextViewProvider, options?:IOptions) {
 		this.contextViewProvider = contextViewProvider;
@@ -64,7 +63,6 @@ export class FindInput {
 		this.wholeWords = null;
 		this.caseSensitive = null;
 		this.domNode = null;
-		this.inputNode = null;
 		this.inputBox = null;
 		this.validationNode = null;
 
