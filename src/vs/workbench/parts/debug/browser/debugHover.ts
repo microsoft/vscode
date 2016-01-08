@@ -16,8 +16,8 @@ import viewer = require('vs/workbench/parts/debug/browser/debugViewer');
 
 const $ = dom.emmet;
 const debugTreeOptions = {
-	indentPixels: 8,
-	twistiePixels: 10
+	indentPixels: 6,
+	twistiePixels: 12
 };
 
 export class DebugHoverWidget implements editorbrowser.IContentWidget {
