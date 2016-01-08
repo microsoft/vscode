@@ -26,8 +26,6 @@ import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/unti
 import {asWinJsPromise} from 'vs/base/common/async';
 import {EditorModel, EditorInput} from 'vs/workbench/common/editor';
 import {IEditorInput, IResourceInput} from 'vs/platform/editor/common/editor';
-import {ResourceEditorInput} from 'vs/workbench/browser/parts/editor/resourceEditorInput';
-import {BaseTextEditorModel} from 'vs/workbench/browser/parts/editor/textEditorModel';
 import {IMode} from 'vs/editor/common/modes';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
@@ -560,7 +558,8 @@ export class ExtHostDocument extends BaseTextDocument {
 
 @Remotable.MainContext('MainThreadDocuments')
 export class MainThreadDocuments {
-	private _instantiationService: IInstantiationService;
+	private _modelService: IModelService;
+	private _modeService: IModeService;
 	private _textFileService: ITextFileService;
 	private _editorService: IWorkbenchEditorService;
 	private _fileService: IFileService;
@@ -571,7 +570,6 @@ export class MainThreadDocuments {
 	private _modelIsSynced: {[modelId:string]:boolean;};
 
 	constructor(
-		@IInstantiationService instantiationService: IInstantiationService,
 		@IThreadService threadService: IThreadService,
 		@IModelService modelService: IModelService,
 		@IModeService modeService: IModeService,
@@ -581,7 +579,8 @@ export class MainThreadDocuments {
 		@IFileService fileService: IFileService,
 		@IUntitledEditorService untitledEditorService: IUntitledEditorService
 	) {
-		this._instantiationService = instantiationService;
+		this._modelService = modelService;
+		this._modeService = modeService;
 		this._textFileService = textFileService;
 		this._editorService = editorService;
 		this._fileService = fileService;
@@ -668,38 +667,6 @@ export class MainThreadDocuments {
 		}
 	}
 
-	// --- editor input
-
-	getEditorInput(uri: URI): TPromise<IEditorInput> {
-		switch (uri.scheme) {
-			case 'file':
-				// file-scheme is support by the workbench
-				return this._editorService.inputToType({ resource: uri });
-
-			case 'untitled':
-				// some very special dance for unititled resources
-				const asFileUri = URI.file(uri.fsPath);
-				return this._fileService.resolveFile(asFileUri).then(stats => {
-					// don't create a new file ontop of an existing file
-					return TPromise.wrapError<any>('file already exists on disk');
-				}, err => {
-					const input = this._untitledEditorService.createOrGet(asFileUri); // using file-uri makes it show in 'Working Files' section
-					return input.resolve(true).then(model => {
-						if (input.getResource().toString() !== uri.toString()) {
-							throw new Error(`expected URI ${uri.toString()} BUT GOT ${input.getResource().toString()}`);
-						}
-						return this._proxy._acceptModelDirty(uri); // mark as dirty
-					}).then(() => {
-						return input;
-					});
-				});
-
-			default:
-				// create an input that talks back to the extension host
-				return TPromise.as(this._instantiationService.createInstance(MainThreadExtensionEditorInput, uri, this._proxy));
-		}
-	}
-
 	// --- from plugin host process
 
 	_trySaveDocument(uri: URI): TPromise<boolean> {
@@ -712,104 +679,68 @@ export class MainThreadDocuments {
 			return TPromise.wrapError('Uri must have scheme and path. One or both are missing in: ' + uri.toString());
 		}
 
-		return this.getEditorInput(uri).then(input => {
-			return this._editorService.resolveEditorModel(input).then(model => {
-				return true;
-			});
+		let promise: TPromise<boolean>;
+		switch (uri.scheme) {
+			case 'file':
+				promise = this._handleFileScheme(uri);
+				break;
+			case 'untitled':
+				promise = this._handleUnititledScheme(uri);
+				break;
+			default:
+				promise = this._handleAnyScheme(uri);
+				break;
+		}
+
+		return promise.then(success => {
+			if (!success) {
+				return TPromise.wrapError('cannot open ' + uri.toString());
+			}
 		}, err => {
 			return TPromise.wrapError('cannot open ' + uri.toString() + '. Detail: ' + toErrorMessage(err));
 		});
 	}
-}
 
-export class MainThreadExtensionEditorInput extends ResourceEditorInput {
-
-	private _documents: ExtHostModelService;
-	private _model: TPromise<MainThreadExtensionEditorModel>;
-
-	constructor(resource: URI, documents: ExtHostModelService, @IModelService modelService: IModelService,
-		@IModeService modeService: IModeService, @IInstantiationService instantiationService: IInstantiationService) {
-		super(resource.fsPath, undefined, resource, modelService, instantiationService);
-		this._documents = documents;
-	}
-
-	getId(): string {
-		return 'MainThreadExtensionEditorInput'
-	}
-
-	resolve(refresh?: boolean): TPromise<EditorModel> {
-		if (!this._model) {
-			this._model = this.instantiationService.createInstance(MainThreadExtensionEditorModel,
-				this.resource, this._documents).load();
-		}
-		return this._model;
-	}
-
-	dispose() {
-		this._model.then(value => value.dispose());
-		super.dispose();
-	}
-}
-
-class MainThreadExtensionEditorModel extends BaseTextEditorModel {
-
-	private static _refCountKey = '__extensionContent_refCountKey';
-
-	private _resource: URI;
-	private _documents: ExtHostModelService;
-
-	constructor(resource: URI, documents: ExtHostModelService, @IModelService modelService: IModelService,
-		@IModeService modeService: IModeService) {
-
-		super(modelService, modeService, resource);
-		this._resource = resource;
-		this._documents = documents;
-	}
-
-	load(): TPromise<MainThreadExtensionEditorModel> {
-
-		let textEditorModel: TPromise<EditorCommon.IModel>;
-
-		if (this.textEditorModel) {
-			textEditorModel = TPromise.as(this.textEditorModel);
-		} else {
-			textEditorModel = this._documents.$openTextDocumentContent(this._resource).then(value => {
-				return this.createTextEditorModel(value, this._resource);
-			}).then(() => {
-				return this.textEditorModel;
-			});
-		}
-
-		return textEditorModel.then(model => {
-			this._ref();
-			return this;
+	private _handleFileScheme(uri: URI): TPromise<boolean> {
+		return this._editorService.resolveEditorModel({ resource: uri }).then(model => {
+			return !!model;
 		});
 	}
 
-	dispose() {
-		if (this._unref()) {
-			this._documents.$closeTextDocumentContent(this._resource);
-			super.dispose();
+	private _handleUnititledScheme(uri: URI): TPromise<boolean> {
+		let asFileUri = URI.file(uri.fsPath);
+		return this._fileService.resolveFile(asFileUri).then(stats => {
+			// don't create a new file ontop of an existing file
+			return TPromise.wrapError<boolean>('file already exists on disk');
+		}, err => {
+			let input = this._untitledEditorService.createOrGet(asFileUri); // using file-uri makes it show in 'Working Files' section
+			return input.resolve(true).then(model => {
+				if (input.getResource().toString() !== uri.toString()) {
+					throw new Error(`expected URI ${uri.toString() } BUT GOT ${input.getResource().toString() }`);
+				}
+				return this._proxy._acceptModelDirty(uri); // mark as dirty
+			}).then(() => {
+				return true;
+			});
+		});
+	}
+
+	private _handleAnyScheme(uri: URI): TPromise<boolean> {
+
+		if (this._modelService.getModel(uri)) {
+			return TPromise.as(true);
 		}
-	}
 
-	protected getOrCreateMode(modeService: IModeService, mime: string, firstLineText?: string): TPromise<IMode> {
-		return modeService.getOrCreateModeByFilenameOrFirstLine(this._resource.fsPath, firstLineText);
-	}
+		return this._proxy.$openTextDocumentContent(uri).then(value => {
+			if (typeof value !== 'string') {
+				return TPromise.wrapError<boolean>('illegal value');
+			}
+			const firstLineText = value.substr(0, 1 + value.search(/\r?\n/));
+			const mode = this._modeService.getOrCreateModeByFilenameOrFirstLine(uri.fsPath, firstLineText);
+			return this._modelService.createModel(value, mode, uri);
 
-	private _ref(): void {
-		let count = this.textEditorModel.getProperty(MainThreadExtensionEditorModel._refCountKey);
-		this.textEditorModel.setProperty(MainThreadExtensionEditorModel._refCountKey, (count || 0) + 1);
-	}
-
-	private _unref(): boolean {
-		let count = this.textEditorModel.getProperty(MainThreadExtensionEditorModel._refCountKey);
-		if (typeof count === 'undefined') {
-			throw new Error('unref with count ' + count);
-		}
-		if (count === 1) {
+		}).then(() => {
 			return true;
-		}
-		this.textEditorModel.setProperty(MainThreadExtensionEditorModel._refCountKey, count - 1);
+		});
 	}
 }

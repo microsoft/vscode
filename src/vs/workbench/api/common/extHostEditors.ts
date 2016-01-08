@@ -9,7 +9,7 @@ import Event, {Emitter} from 'vs/base/common/event';
 import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {Remotable, IThreadService} from 'vs/platform/thread/common/thread';
-import {ExtHostModelService, MainThreadDocuments} from 'vs/workbench/api/common/extHostDocuments';
+import {ExtHostModelService} from 'vs/workbench/api/common/extHostDocuments';
 import {Selection, Range, Position, EditorOptions} from './extHostTypes';
 import {ISingleEditOperation, ISelection, IRange, IInternalIndentationOptions, IEditor, EditorType, ICommonCodeEditor, ICommonDiffEditor, IDecorationRenderOptions, IRangeWithMessage} from 'vs/editor/common/editorCommon';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
@@ -415,7 +415,6 @@ class ExtHostTextEditor implements vscode.TextEditor {
 export class MainThreadEditors {
 
 	private _proxy: ExtHostEditors;
-	private _documents: MainThreadDocuments;
 	private _workbenchEditorService: IWorkbenchEditorService;
 	private _editorTracker: MainThreadEditorsTracker;
 	private _toDispose: IDisposable[];
@@ -432,7 +431,6 @@ export class MainThreadEditors {
 		@IModelService modelService:IModelService
 	) {
 		this._proxy = threadService.getRemotable(ExtHostEditors);
-		this._documents = threadService.getRemotable(MainThreadDocuments);
 		this._workbenchEditorService = workbenchEditorService;
 		this._toDispose = [];
 		this._textEditorsListenersMap = Object.create(null);
@@ -530,12 +528,12 @@ export class MainThreadEditors {
 
 	_tryShowTextDocument(resource: URI, position: EditorPosition, preserveFocus: boolean): TPromise<string> {
 
-		return this._documents.getEditorInput(resource).then(input => {
-			// open editor first
-			return this._workbenchEditorService.openEditor(input, WorkbenchEditorOptions.create({ preserveFocus }),
-				position);
+		const input = {
+			resource,
+			options: { preserveFocus }
+		};
 
-		}).then(editor => {
+		return this._workbenchEditorService.openEditor(input, position).then(editor => {
 
 			return new TPromise<void>(c => {
 				// not very nice but the way it is: changes to the editor state aren't
