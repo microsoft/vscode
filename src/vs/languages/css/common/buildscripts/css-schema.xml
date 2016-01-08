@@ -4360,6 +4360,14 @@
         </value>
       </values>
     </entry>
+    <entry name="max-zoom" restriction="number, percentage, enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-device-adapt/#max-zoom-desc" syntax="@viewport { $(name): 400%; }">
+      <desc>@viewport descriptor. Specifies the largest allowed zoom factor.</desc>
+      <values>
+        <value name="auto" version="3.0" browsers="none">
+          <desc>The upper limit on zoom factor is UA dependant. </desc>
+        </value>
+      </values>
+    </entry>
     <entry name="min-block-size" restriction="length, percentage" version="3.0" browsers="FF41" ref="https://drafts.csswg.org/css-logical-props/#propdef-min-block-size" syntax="header { $(name): 200px; }">
       <desc>Logical 'min-width'. Mapping depends on the element’s 'writing-mode'.</desc>
     </entry>
@@ -4452,6 +4460,14 @@
         </value>
         <value name="luminosity" version="3.0" browsers="C41,FF32,O29">
           <desc>Creates a color with the luminosity of the source color and the hue and saturation of the backdrop color.</desc>
+        </value>
+      </values>
+    </entry>
+    <entry name="min-zoom" restriction="number, percentage, enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-device-adapt/#min-zoom-desc" syntax="@viewport { $(name): 100%; }">
+      <desc>@viewport descriptor. Specifies the smallest allowed zoom factor.</desc>
+      <values>
+        <value name="auto" version="3.0" browsers="none">
+          <desc>The lower limit on zoom factor is UA dependant. </desc>
         </value>
       </values>
     </entry>
@@ -6716,7 +6732,7 @@
       <desc>Logical 'bottom'. Mapping depends on the parent element’s 'writing-mode', 'direction', and 'text-orientation'.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all">
-          <desc>For non-replaced elements, the effect of this value depends on which of related properties have the value 'auto' as well</desc>
+          <desc>For non-replaced elements, the effect of this value depends on which of related properties have the value 'auto' as well.</desc>
         </value>
       </values>
     </entry>
@@ -6724,7 +6740,7 @@
       <desc>Logical 'top'. Mapping depends on the parent element’s 'writing-mode', 'direction', and 'text-orientation'.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all">
-          <desc>For non-replaced elements, the effect of this value depends on which of related properties have the value 'auto' as well</desc>
+          <desc>For non-replaced elements, the effect of this value depends on which of related properties have the value 'auto' as well.</desc>
         </value>
       </values>
     </entry>
@@ -6732,7 +6748,7 @@
       <desc>Logical 'right'. Mapping depends on the parent element’s 'writing-mode', 'direction', and 'text-orientation'.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all">
-          <desc>For non-replaced elements, the effect of this value depends on which of related properties have the value 'auto' as well</desc>
+          <desc>For non-replaced elements, the effect of this value depends on which of related properties have the value 'auto' as well.</desc>
         </value>
       </values>
     </entry>
@@ -6740,7 +6756,21 @@
       <desc>Logical 'left'. Mapping depends on the parent element’s 'writing-mode', 'direction', and 'text-orientation'.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all">
-          <desc>For non-replaced elements, the effect of this value depends on which of related properties have the value 'auto' as well</desc>
+          <desc>For non-replaced elements, the effect of this value depends on which of related properties have the value 'auto' as well.</desc>
+        </value>
+      </values>
+    </entry>
+    <entry name="orientation" restriction="enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-device-adapt/#orientation-desc" syntax="@viewport { $(name): landscape; }">
+      <desc>@viewport descriptor. Used to request that a document is displayed in portrait or landscape mode.</desc>
+      <values>
+        <value name="auto" version="3.0" browsers="all">
+          <desc>The UA automatically chooses the orientation based on the device’s normal mode of operation.</desc>
+        </value>
+        <value name="landscape" version="3.0" browsers="all">
+          <desc>The document should be locked to landscape presentation.</desc>
+        </value>
+        <value name="portrait" version="3.0" browsers="all">
+          <desc>The document should be locked to portrait presentation.</desc>
         </value>
       </values>
     </entry>
@@ -8432,6 +8462,17 @@
         </value>
         <value name="text" version="3.0" browsers="all">
           <desc>The element imposes no constraint on the selection.</desc>
+        </value>
+      </values>
+    </entry>
+    <entry name="user-zoom" restriction="enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-device-adapt/#user-zoom-desc" syntax="@viewport { $(name): zoom; }">
+      <desc>@viewport descriptor. Specifies if the zoom factor can be changed by user interaction or not.</desc>
+      <values>
+        <value name="fixed" version="3.0" browsers="all">
+          <desc>The user cannot interactively change the zoom factor.</desc>
+        </value>
+        <value name="zoom" version="3.0" browsers="all">
+          <desc>The user can interactively change the zoom factor.</desc>
         </value>
       </values>
     </entry>
