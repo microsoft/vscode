@@ -112,6 +112,10 @@
 	background-color: rgba(234, 92, 0, 0.3);
 }
 
+.monaco-editor .reference-zone-widget .monaco-count-badge {
+	margin-right: 12px;
+}
+
 /* dark room */
 
 .monaco-editor.vs-dark .reference-zone-widget .tree .block,

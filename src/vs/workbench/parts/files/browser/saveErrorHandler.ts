@@ -13,6 +13,7 @@ import URI from 'vs/base/common/uri';
 import {EditorModel} from 'vs/workbench/common/editor';
 import {guessMimeTypes} from 'vs/base/common/mime';
 import {EditorInputAction} from 'vs/workbench/browser/parts/editor/baseEditor';
+import {IModel} from 'vs/editor/common/editorCommon';
 import {ResourceEditorInput} from 'vs/workbench/browser/parts/editor/resourceEditorInput';
 import {DiffEditorInput} from 'vs/workbench/browser/parts/editor/diffEditorInput';
 import {DiffEditorModel} from 'vs/workbench/browser/parts/editor/diffEditorModel';
@@ -142,6 +143,7 @@ export class FileOnDiskEditorInput extends ResourceEditorInput {
 	private fileResource: URI;
 	private lastModified: number;
 	private mime: string;
+	private createdEditorModel: boolean;
 
 	constructor(
 		fileResource: URI,
@@ -175,12 +177,22 @@ export class FileOnDiskEditorInput extends ResourceEditorInput {
 			let codeEditorModel = this.modelService.getModel(this.resource);
 			if (!codeEditorModel) {
 				this.modelService.createModel(content.value, this.modeService.getOrCreateMode(this.mime), this.resource);
+				this.createdEditorModel = true;
 			} else {
 				codeEditorModel.setValue(content.value);
 			}
 
 			return super.resolve(refresh);
 		});
+	}
+
+	public dispose(): void {
+		if (this.createdEditorModel) {
+			this.modelService.destroyModel(this.resource);
+			this.createdEditorModel = false;
+		}
+
+		super.dispose();
 	}
 }
 

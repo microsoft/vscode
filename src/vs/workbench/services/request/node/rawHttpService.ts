@@ -9,9 +9,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { assign } from 'vs/base/common/objects';
 import { Url, parse as parseUrl } from 'url';
 import { request, IRequestOptions } from 'vs/base/node/request';
-
-import HttpProxyAgent = require('http-proxy-agent');
-import HttpsProxyAgent = require('https-proxy-agent');
+import { getProxyAgent } from 'vs/workbench/node/proxy';
 
 export interface IXHROptions extends IRequestOptions {
 	responseType?: string;
@@ -23,41 +21,18 @@ export interface IXHRResponse {
 	status: number;
 }
 
-let proxyConfiguration: string = null;
+let proxyUrl: string = null;
+let strictSSL: boolean = true;
 
-export function configure(proxyURI: string): void {
-	proxyConfiguration = proxyURI;
-}
-
-function getProxyURI(uri: Url): string {
-	let proxyURI = proxyConfiguration;
-	if (!proxyURI) {
-		if (uri.protocol === 'http:') {
-			proxyURI = process.env.HTTP_PROXY || process.env.http_proxy || null;
-		} else if (uri.protocol === 'https:') {
-			proxyURI = process.env.HTTPS_PROXY || process.env.https_proxy || process.env.HTTP_PROXY || process.env.http_proxy || null;
-		}
-	}
-	return proxyURI;
-}
-
-function getProxyAgent(uri: Url): any {
-	let proxyURI = getProxyURI(uri);
-	if (proxyURI) {
-		let proxyEndpoint = parseUrl(proxyURI);
-		switch (proxyEndpoint.protocol) {
-			case 'http:':
-			case 'https:':
-				return uri.protocol === 'http:' ? new HttpProxyAgent(proxyURI) : new HttpsProxyAgent(proxyURI);
-		}
-	}
-	return void 0;
+export function configure(_proxyUrl: string, _strictSSL: boolean): void {
+	proxyUrl = _proxyUrl;
+	strictSSL = _strictSSL;
 }
 
 export function xhr(options: IXHROptions): TPromise<IXHRResponse> {
-	let endpoint = parseUrl(options.url);
+	const agent = getProxyAgent(options.url, { proxyUrl, strictSSL });
 	options = assign({}, options);
-	options = assign(options, { agent: getProxyAgent(endpoint) });
+	options = assign(options, { agent });
 
 	return request(options).then(result => new TPromise<IXHRResponse>((c, e, p) => {
 		let res = result.res;
@@ -88,12 +63,10 @@ export function xhr(options: IXHROptions): TPromise<IXHRResponse> {
 			}
 		});
 	}, err => {
-		let endpoint = parseUrl(options.url);
-		let agent = getProxyAgent(endpoint);
 		let message: string;
 
 		if (agent) {
-			message = 'Unable to to connect to ' + options.url + ' through proxy ' + getProxyURI(endpoint) + '. Error: ' + err.message;
+			message = 'Unable to to connect to ' + options.url + ' through a proxy . Error: ' + err.message;
 		} else {
 			message = 'Unable to to connect to ' + options.url + '. Error: ' + err.message;
 		}

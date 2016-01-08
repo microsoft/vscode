@@ -127,7 +127,7 @@ export class ExtensionsService implements IExtensionsService {
 
 		const settings = TPromise.join([
 			UserSettings.getValue(this.contextService, 'http.proxy'),
-			UserSettings.getValue(this.contextService, 'http.proxy.strictSSL')
+			UserSettings.getValue(this.contextService, 'http.proxyStrictSSL')
 		]);
 
 		return settings

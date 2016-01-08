@@ -919,8 +919,13 @@ export var EventType = {
 	ANIMATION_ITERATION: Browser.isWebKit ? 'webkitAnimationIteration' : 'animationiteration'
 };
 
+export interface EventLike {
+	preventDefault(): void;
+	stopPropagation(): void;
+}
+
 export var EventHelper = {
-	stop: function (e:Event, cancelBubble?:boolean) {
+	stop: function (e:EventLike, cancelBubble?:boolean) {
 		if (e.preventDefault) {
 			e.preventDefault();
 		} else {
@@ -933,7 +938,7 @@ export var EventHelper = {
 				e.stopPropagation();
 			} else {
 				// IE8
-				e.cancelBubble = true;
+				(<any>e).cancelBubble = true;
 			}
 		}
 	}

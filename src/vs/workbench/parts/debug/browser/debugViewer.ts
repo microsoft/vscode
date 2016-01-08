@@ -846,6 +846,9 @@ export class BreakpointsRenderer implements tree.IRenderer {
 		data.filePath.textContent = labels.getPathLabel(paths.dirname(breakpoint.source.uri.fsPath), this.contextService);
 		data.checkbox.checked = breakpoint.enabled;
 		data.actionBar.context = breakpoint;
+		if (breakpoint.condition) {
+			data.breakpoint.title = breakpoint.condition;
+		}
 	}
 
 	public disposeTemplate(tree: tree.ITree, templateId: string, templateData: any): void {
