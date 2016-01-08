@@ -122,11 +122,8 @@ suite('workspace-namespace', () => {
 	test('registerTextDocumentContentProvider, simple', function() {
 
 		let registration = workspace.registerTextDocumentContentProvider('foo', {
-			open(uri) {
+			provideTextDocumentContent(uri) {
 				return uri.toString();
-			},
-			close() {
-				// nothing
 			}
 		});
 
@@ -143,29 +140,26 @@ suite('workspace-namespace', () => {
 
 		// built-in
 		assert.throws(function() {
-			workspace.registerTextDocumentContentProvider('untitled', { open() { return null; }, close() { } });
+			workspace.registerTextDocumentContentProvider('untitled', { provideTextDocumentContent() { return null; } });
 		});
 		// built-in
 		assert.throws(function() {
-			workspace.registerTextDocumentContentProvider('file', { open() { return null; }, close() { } });
+			workspace.registerTextDocumentContentProvider('file', { provideTextDocumentContent() { return null; } });
 		});
 
 		// duplicate registration
 		let registration = workspace.registerTextDocumentContentProvider('foo', {
-			open(uri) {
+			provideTextDocumentContent(uri) {
 				return uri.toString();
-			},
-			close() {
-				// nothing
 			}
 		});
 		assert.throws(function() {
-			workspace.registerTextDocumentContentProvider('foo', { open() { return null; }, close() { } });
+			workspace.registerTextDocumentContentProvider('foo', { provideTextDocumentContent() { return null; } });
 		});
 
 		// unregister & register
 		registration.dispose();
-		registration = workspace.registerTextDocumentContentProvider('foo', { open() { return null; }, close() { } });
+		registration = workspace.registerTextDocumentContentProvider('foo', { provideTextDocumentContent() { return null; } });
 		registration.dispose();
 
 		// missing scheme
@@ -178,13 +172,9 @@ suite('workspace-namespace', () => {
 
 	test('registerTextDocumentContentProvider, show virtual document', function() {
 
-		// duplicate registration
 		let registration = workspace.registerTextDocumentContentProvider('foo', {
-			open(uri) {
+			provideTextDocumentContent(uri) {
 				return 'I am virtual';
-			},
-			close() {
-				// nothing
 			}
 		});
 
@@ -195,6 +185,77 @@ suite('workspace-namespace', () => {
 				assert.equal(editor.document.getText(), 'I am virtual');
 				registration.dispose();
 			})
+		});
+	});
+
+	test('registerTextDocumentContentProvider, open/close document 1/2', function() {
+
+		let registration = workspace.registerTextDocumentContentProvider('foo', {
+			provideTextDocumentContent(uri) {
+				return 'I am virtual';
+			}
+		});
+
+		const uri = Uri.parse('foo://testing/path');
+
+		return workspace.openTextDocument(uri).then(doc => {
+
+			assert.ok(workspace.textDocuments.some(doc => doc.uri.toString() === uri.toString()));
+
+			return workspace.closeTextDocument(doc).then(value => {
+				assert.ok(value);
+				assert.ok(!workspace.textDocuments.some(doc => doc.uri.toString() === uri.toString()));
+				registration.dispose();
+			});
+		});
+	});
+
+	test('registerTextDocumentContentProvider, open/close document 2/2', function() {
+
+		let registration = workspace.registerTextDocumentContentProvider('foo', {
+			provideTextDocumentContent(uri) {
+				return 'I am virtual';
+			}
+		});
+
+		const uri = Uri.parse('foo://testing/path');
+
+		return workspace.openTextDocument(uri).then(first => {
+
+			assert.ok(workspace.textDocuments.some(doc => doc.uri.toString() === uri.toString()));
+
+			return workspace.openTextDocument(uri).then(second => {
+				registration.dispose();
+				assert.ok(first === second);
+
+				return workspace.closeTextDocument(first).then(value => {
+					assert.ok(value);
+
+					// should we reference count or not?
+					// assert.ok(workspace.textDocuments.some(doc => doc.uri.toString() === uri.toString()));
+				});
+			});
+		});
+	});
+
+	test('registerTextDocumentContentProvider, open/open document', function() {
+
+		let callCount = 0;
+		let registration = workspace.registerTextDocumentContentProvider('foo', {
+			provideTextDocumentContent(uri) {
+				callCount += 1;
+				return 'I am virtual';
+			}
+		});
+
+		const uri = Uri.parse('foo://testing/path');
+
+		return Promise.all([workspace.openTextDocument(uri), workspace.openTextDocument(uri)]).then(docs => {
+			let [first, second] = docs;
+			assert.ok(first === second);
+			assert.ok(workspace.textDocuments.some(doc => doc.uri.toString() === uri.toString()));
+			assert.equal(callCount, 1);
+			registration.dispose();
 		});
 	});
 

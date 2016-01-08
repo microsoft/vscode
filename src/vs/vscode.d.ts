@@ -1025,12 +1025,13 @@ declare namespace vscode {
 		onDidChange?: Event<Uri>;
 
 		/**
+		 * Provide textual content for a given uri.
 		 *
+		 * @param uri An uri which scheme matches the scheme this provider was [registered](#workspace.registerTextDocumentContentProvider) for.
+		 * @param token A cancellation token.
+		 * @return A string or a thenable that resolves to such.
 		 */
-		open(uri: Uri, token: CancellationToken): string | Thenable<string>;
-
-		// todo@joh make this optional?
-		close(uri: Uri, token: CancellationToken): any | Thenable<any>;
+		provideTextDocumentContent(uri: Uri, token: CancellationToken): string | Thenable<string>;
 	}
 
 	/**
@@ -3019,6 +3020,11 @@ declare namespace vscode {
 		 * @return A promise that resolves to a [document](#TextDocument).
 		 */
 		export function openTextDocument(fileName: string): Thenable<TextDocument>;
+
+		/**
+		 *
+		 */
+		export function closeTextDocument(document: TextDocument): Thenable<boolean>;
 
 		/**
 		 *

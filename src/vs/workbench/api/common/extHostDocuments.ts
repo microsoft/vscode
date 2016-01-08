@@ -66,6 +66,7 @@ export class ExtHostModelService {
 	public onDidSaveDocument: Event<BaseTextDocument>;
 
 	private _documents: { [modelUri: string]: ExtHostDocument; };
+	private _loadingDocuments: { [modelUri: string]: TPromise<ExtHostDocument> };
 	private _documentContentProviders: { [scheme: string]: vscode.TextDocumentContentProvider };
 
 	private _proxy: MainThreadDocuments;
@@ -86,6 +87,7 @@ export class ExtHostModelService {
 		this.onDidSaveDocument = this._onDidSaveDocumentEventEmitter.event;
 
 		this._documents = Object.create(null);
+		this._loadingDocuments = Object.create(null);
 		this._documentContentProviders = Object.create(null);
 	}
 
@@ -119,12 +121,26 @@ export class ExtHostModelService {
 		if (cached) {
 			return TPromise.as(cached);
 		}
-		return this._proxy._tryOpenDocument(uri).then(() => {
+
+		let promise = this._loadingDocuments[uri.toString()];
+		if (promise) {
+			return promise;
+		}
+
+		return this._loadingDocuments[uri.toString()] = this._proxy._tryOpenDocument(uri).then(() => {
+			delete this._loadingDocuments[uri.toString()];
 			return this._documents[uri.toString()];
+		}, err => {
+			delete this._loadingDocuments[uri.toString()];
+			return TPromise.wrapError(err);
 		});
 	}
 
-	registerTextDocumentContentProvider(scheme: string, provider: vscode.TextDocumentContentProvider): vscode.Disposable {
+	public closeDocument(document: vscode.TextDocument): TPromise<boolean> {
+		return this._proxy._tryCloseDocument(<URI> document.uri);
+	}
+
+	public registerTextDocumentContentProvider(scheme: string, provider: vscode.TextDocumentContentProvider): vscode.Disposable {
 		if (scheme === 'file' || scheme === 'untitled' || this._documentContentProviders[scheme]) {
 			throw new Error(`scheme '${scheme}' already registered`);
 		}
@@ -132,21 +148,17 @@ export class ExtHostModelService {
 		return new Disposable(() => delete this._documentContentProviders[scheme]);
 	}
 
-	$openTextDocumentContent(uri: URI): TPromise<string> {
+	$provideTextDocumentContent(uri: URI): TPromise<string> {
 		const provider = this._documentContentProviders[uri.scheme];
 		if (!provider) {
 			return TPromise.wrapError<string>(`unsupported uri-scheme: ${uri.scheme}`);
 		}
-		// todo@joh protected for !string results, slow provider etc
-		return asWinJsPromise(token => provider.open(uri, token));
-	}
-
-	$closeTextDocumentContent(uri: URI): TPromise<any> {
-		const provider = this._documentContentProviders[uri.scheme];
-		if (!provider) {
-			return TPromise.wrapError<string>(`unsupported uri-scheme: ${uri.scheme}`);
-		}
-		return asWinJsPromise(token => provider.close(uri, token));
+		return asWinJsPromise(token => provider.provideTextDocumentContent(uri, token)).then(value => {
+			if (typeof value !== 'string') {
+				return TPromise.wrapError('received illegal value from text document provider');
+			}
+			return value;
+		});
 	}
 
 	public _acceptModelAdd(data:IModelAddedData): void {
@@ -731,10 +743,7 @@ export class MainThreadDocuments {
 			return TPromise.as(true);
 		}
 
-		return this._proxy.$openTextDocumentContent(uri).then(value => {
-			if (typeof value !== 'string') {
-				return TPromise.wrapError<boolean>('illegal value');
-			}
+		return this._proxy.$provideTextDocumentContent(uri).then(value => {
 			const firstLineText = value.substr(0, 1 + value.search(/\r?\n/));
 			const mode = this._modeService.getOrCreateModeByFilenameOrFirstLine(uri.fsPath, firstLineText);
 			return this._modelService.createModel(value, mode, uri);
@@ -742,5 +751,10 @@ export class MainThreadDocuments {
 		}).then(() => {
 			return true;
 		});
+	}
+
+	_tryCloseDocument(uri: URI): TPromise<boolean> {
+		this._modelService.destroyModel(uri);
+		return TPromise.as(true);
 	}
 }
