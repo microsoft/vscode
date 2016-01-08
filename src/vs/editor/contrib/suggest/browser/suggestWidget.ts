@@ -375,26 +375,34 @@ enum State {
 class SuggestionDetails {
 
 	private el: HTMLElement;
-	private label: HTMLElement;
-	private documentation: HTMLElement;
+	private title: HTMLElement;
+	private type: HTMLElement;
+	private docs: HTMLElement;
 
 	constructor(container: HTMLElement) {
 		this.el = append(container, $('.details'));
-		this.label = append(this.el, $('.label'));
-		this.documentation = append(this.el, $('.docs'));
+		this.title = append(this.el, $('.title'));
+		const body = append(this.el, $('.body'));
+
+		this.type = append(body, $('p.type'));
+		this.docs = append(body, $('p.docs'));
 	}
 
-	get element() { return this.el; }
+	get element() {
+		return this.el;
+	}
 
 	render(item: CompletionItem): void {
 		if (!item) {
-			this.label.textContent = '';
-			this.documentation.textContent = '';
+			this.title.textContent = '';
+			this.type.textContent = '';
+			this.docs.textContent = '';
 			return;
 		}
 
-		this.label.innerText = item.suggestion.label;
-		this.documentation.innerText = item.suggestion.documentationLabel;
+		this.title.innerText = item.suggestion.label;
+		this.type.innerText = item.suggestion.typeLabel;
+		this.docs.innerText = item.suggestion.documentationLabel;
 	}
 
 	dispose(): void {

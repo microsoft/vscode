@@ -61,7 +61,7 @@
 	text-overflow: ellipsis;
 }
 
-.monaco-editor .suggest-widget .details > .docs,
+.monaco-editor .suggest-widget .details > .body > .docs,
 .monaco-editor .suggest-widget .monaco-tree .monaco-tree-row > .content .docs {
 	font-family:"Segoe UI", "SFUIText-Regular", "HelveticaNeue", sans-serif, "Droid Sans Fallback";
 	color: #A21B1B;
@@ -79,6 +79,10 @@
 .monaco-editor .suggest-widget .monaco-tree .monaco-tree-row > .content .type-label {
 	display: none;
 	margin-left: 0.8em;
+}
+
+.monaco-editor .suggest-widget .details > .body > .type,
+.monaco-editor .suggest-widget .monaco-tree .monaco-tree-row > .content .type-label {
 	font-size: 0.9em;
 	color: #0035DD;
 }
@@ -142,13 +146,17 @@
 	padding: 0 10px;
 }
 
-.monaco-editor .suggest-widget .details > .label {
+.monaco-editor .suggest-widget .details > .title {
 	padding-top: 2px;
 }
 
-.monaco-editor .suggest-widget .details > .docs {
+.monaco-editor .suggest-widget .details > .body {
 	flex: 2;
 	overflow-y: scroll;
+}
+
+.monaco-editor .suggest-widget .details > .body > p {
+	margin: 0;
 }
 
 /* Dark theme */
@@ -161,11 +169,13 @@
 	color: #219AE4;
 }
 
-.monaco-editor.vs-dark .suggest-widget .details > .docs,
+.monaco-editor.vs-dark .suggest-widget .details > .body > .docs,
 .monaco-editor.vs-dark .suggest-widget .monaco-tree .monaco-tree-row > .content .docs {
 	color: #C07A7A;
 }
 
+
+.monaco-editor.vs-dark .suggest-widget .details > .body > .type,
 .monaco-editor.vs-dark .suggest-widget .monaco-tree .monaco-tree-row > .content .type-label {
 	color: #4E94CE;
 }
@@ -203,11 +213,12 @@
 	color: #219AE4;
 }
 
-.monaco-editor.hc-black .suggest-widget .details > .docs,
+.monaco-editor.hc-black .suggest-widget .details > .body > .docs,
 .monaco-editor.hc-black .suggest-widget .monaco-tree .monaco-tree-row > .content .docs {
 	color: #C07A7A;
 }
 
+.monaco-editor.hc-black .suggest-widget .details > .body > .type,
 .monaco-editor.hc-black .suggest-widget .monaco-tree .monaco-tree-row > .content .type-label {
 	color: #4E94CE;
 }
