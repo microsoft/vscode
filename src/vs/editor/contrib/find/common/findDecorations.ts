@@ -121,6 +121,7 @@ export class FindDecorations implements Lifecycle.IDisposable {
 		if (moveCursor && this.decorationIndex >= 0 && this.decorationIndex < this.decorations.length) {
 			let range = this.editor.getModel().getDecorationRange(this.decorations[this.decorationIndex]);
 			this.editor.setSelection(range);
+			this.editor.revealRangeInCenterIfOutsideViewport(range);
 		}
 	}
 
