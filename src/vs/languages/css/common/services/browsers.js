@@ -771,7 +771,7 @@ exports.data ={
 		"properties": [
 			{
 				"name": "additive-symbols",
-				"desc": "Specifies the symbols used by the marker-construction algorithm specified by the system descriptor. Needs to be specified if the counter system is 'additive'.",
+				"desc": "@counter-style descriptor. Specifies the symbols used by the marker-construction algorithm specified by the system descriptor. Needs to be specified if the counter system is 'additive'.",
 				"browsers": "FF33",
 				"restriction": "integer, string, image, identifier"
 			},
@@ -2398,7 +2398,7 @@ exports.data ={
 			},
 			{
 				"name": "fallback",
-				"desc": "Specifies a fallback counter style to be used when the current counter style can’t create a representation for a given counter value.",
+				"desc": "@counter-style descriptor. Specifies a fallback counter style to be used when the current counter style can’t create a representation for a given counter value.",
 				"browsers": "FF33",
 				"restriction": "identifier"
 			},
@@ -6905,7 +6905,7 @@ exports.data ={
 			},
 			{
 				"name": "negative",
-				"desc": "Defines how to alter the representation when the counter value is negative.",
+				"desc": "@counter-style descriptor. Defines how to alter the representation when the counter value is negative.",
 				"browsers": "FF33",
 				"restriction": "image, identifier, string"
 			},
@@ -7595,7 +7595,7 @@ exports.data ={
 			},
 			{
 				"name": "pad",
-				"desc": "Specifies a “fixed-width” counter style, where representations shorter than the pad value are padded with a particular <symbol>",
+				"desc": "@counter-style descriptor. Specifies a “fixed-width” counter style, where representations shorter than the pad value are padded with a particular <symbol>",
 				"browsers": "FF33",
 				"restriction": "integer, image, string, identifier"
 			},
@@ -7825,7 +7825,7 @@ exports.data ={
 			},
 			{
 				"name": "prefix",
-				"desc": "Specifies a <symbol> that is prepended to the marker representation.",
+				"desc": "@counter-style descriptor. Specifies a <symbol> that is prepended to the marker representation.",
 				"browsers": "FF33",
 				"restriction": "image, string, identifier"
 			},
@@ -7838,7 +7838,7 @@ exports.data ={
 			},
 			{
 				"name": "range",
-				"desc": "Defines the ranges over which the counter style is defined.",
+				"desc": "@counter-style descriptor. Defines the ranges over which the counter style is defined.",
 				"browsers": "FF33",
 				"restriction": "integer, enum",
 				"values": [
@@ -8160,7 +8160,7 @@ exports.data ={
 			},
 			{
 				"name": "src",
-				"desc": "Specifies the resource containing font data. It is required, whether the font is downloadable or locally installed.",
+				"desc": "@font-face descriptor. Specifies the resource containing font data. It is required, whether the font is downloadable or locally installed.",
 				"restriction": "enum, url, identifier",
 				"values": [
 					{
@@ -8259,13 +8259,13 @@ exports.data ={
 			},
 			{
 				"name": "suffix",
-				"desc": "Specifies a <symbol> that is appended to the marker representation.",
+				"desc": "@counter-style descriptor. Specifies a <symbol> that is appended to the marker representation.",
 				"browsers": "FF33",
 				"restriction": "image, string, identifier"
 			},
 			{
 				"name": "system",
-				"desc": "Specifies which algorithm will be used to construct the counter’s representation based on the counter value.",
+				"desc": "@counter-style descriptor. Specifies which algorithm will be used to construct the counter’s representation based on the counter value.",
 				"browsers": "FF33",
 				"restriction": "enum, integer",
 				"values": [
@@ -8296,7 +8296,7 @@ exports.data ={
 			},
 			{
 				"name": "symbols",
-				"desc": "Specifies the symbols used by the marker-construction algorithm specified by the system descriptor.",
+				"desc": "@counter-style descriptor. Specifies the symbols used by the marker-construction algorithm specified by the system descriptor.",
 				"browsers": "FF33",
 				"restriction": "image, string, identifier"
 			},
@@ -8903,7 +8903,7 @@ exports.data ={
 			},
 			{
 				"name": "unicode-range",
-				"desc": "Range of Unicode characters supported by a given font. Initial value is U+0-10FFFF",
+				"desc": "@font-face descriptor. Range of Unicode characters supported by a given font. Initial value is U+0-10FFFF",
 				"restriction": "unicode-range"
 			},
 			{
