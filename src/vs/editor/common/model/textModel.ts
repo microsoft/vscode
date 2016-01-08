@@ -849,37 +849,12 @@ export class TextModel extends OrderGuaranteeEventEmitter implements EditorCommo
 		throw new Error('Unknown EOL preference');
 	}
 
-	private _toRegExp(searchString:string, isRegex:boolean, matchCase:boolean, wholeWord:boolean): RegExp {
-		if (searchString === '') {
-			return null;
-		}
-
-		// Try to create a RegExp out of the params
-		var regex:RegExp = null;
-		try {
-			regex = Strings.createRegExp(searchString, isRegex, matchCase, wholeWord);
-		} catch (err) {
-			return null;
-		}
-
-		// Guard against endless loop RegExps & wrap around try-catch as very long regexes produce an exception when executed the first time
-		try {
-			if (Strings.regExpLeadsToEndlessLoop(regex)) {
-				return null;
-			}
-		} catch (err) {
-			return null;
-		}
-
-		return regex;
-	}
-
 	public findMatches(searchString:string, rawSearchScope:any, isRegex:boolean, matchCase:boolean, wholeWord:boolean, limitResultCount:number = LIMIT_FIND_COUNT): EditorCommon.IEditorRange[] {
 		if (this._isDisposed) {
 			throw new Error('Model.findMatches: Model is disposed');
 		}
 
-		var regex = this._toRegExp(searchString, isRegex, matchCase, wholeWord);
+		var regex = Strings.createSafeRegExp(searchString, isRegex, matchCase, wholeWord);
 		if (!regex) {
 			return [];
 		}
@@ -899,7 +874,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements EditorCommo
 			throw new Error('Model.findNextMatch: Model is disposed');
 		}
 
-		var regex = this._toRegExp(searchString, isRegex, matchCase, wholeWord);
+		var regex = Strings.createSafeRegExp(searchString, isRegex, matchCase, wholeWord);
 		if (!regex) {
 			return null;
 		}

@@ -66,13 +66,6 @@ export class FindDecorations implements Lifecycle.IDisposable {
 		return (this.decorations.length > 0);
 	}
 
-	public getCurrentIndexRange(): EditorCommon.IEditorRange {
-		if (this.decorationIndex >= 0 && this.decorationIndex < this.decorations.length) {
-			return this.editor.getModel().getDecorationRange(this.decorations[this.decorationIndex]);
-		}
-		return null;
-	}
-
 	public setIndexToFirstAfterStartPosition(): void {
 		this._setDecorationIndex(this.indexAfterPosition(this.startPosition), false);
 	}

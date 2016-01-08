@@ -143,18 +143,13 @@ export class FindModelBoundToEditorModel {
 			return;
 		}
 
-		let model = this.editor.getModel();
-		let currentDecorationRange = this._decorations.getCurrentIndexRange();
 		let selection = this.editor.getSelection();
-
-		if (currentDecorationRange !== null &&
-			selection.startColumn === currentDecorationRange.startColumn &&
-			selection.endColumn === currentDecorationRange.endColumn &&
-			selection.startLineNumber === currentDecorationRange.startLineNumber &&
-			selection.endLineNumber === currentDecorationRange.endLineNumber) {
-
-			let matchedString = model.getValueInRange(selection);
-			let replaceString = this.getReplaceString(matchedString);
+		let selectionText = this.editor.getModel().getValueInRange(selection);
+		let regexp = Strings.createSafeRegExp(this._state.searchString, this._state.isRegex, this._state.matchCase, this._state.wholeWord);
+		let m = selectionText.match(regexp);
+		if (m && m[0].length === selectionText.length) {
+			// selection sits on a find match => replace it!
+			let replaceString = this.getReplaceString(selectionText);
 
 			let command = new ReplaceCommand(selection, replaceString);
 
@@ -163,6 +158,7 @@ export class FindModelBoundToEditorModel {
 			this._decorations.setStartPosition(new Position(selection.startLineNumber, selection.startColumn + replaceString.length));
 			this.research(true);
 		} else {
+			this._decorations.setStartPosition(this.editor.getPosition());
 			this.moveToNextMatch();
 		}
 	}

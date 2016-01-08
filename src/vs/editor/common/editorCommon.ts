@@ -1745,17 +1745,17 @@ export interface IModel extends IEditableTextModel, ITextModelWithMarkers, IToke
 	 * @param matchCase Force the matching to match lower/upper case exactly.
 	 * @param wholeWord Force the matching to match entire words only.
 	 * @param limitResultCount Limit the number of results
-	 * @return The ranges where the matches are. It is empty if not matches have been found.
+	 * @return The ranges where the matches are. It is empty if no matches have been found.
 	 */
 	findMatches(searchString:string, searchScope:IRange, isRegex:boolean, matchCase:boolean, wholeWord:boolean, limitResultCount?:number): IEditorRange[];
 	/**
-	 * Search the model.
+	 * Search the model for the next match. Loops to the beginning of the model if needed.
 	 * @param searchString The string used to search. If it is a regular expression, set `isRegex` to true.
 	 * @param searchStart Start the searching at the specified position.
 	 * @param isRegex Used to indicate that `searchString` is a regular expression.
 	 * @param matchCase Force the matching to match lower/upper case exactly.
 	 * @param wholeWord Force the matching to match entire words only.
-	 * @return The ranges where the matches are. It is empty if not matches have been found.
+	 * @return The range where the next match is. It is null if no next match has been found.
 	 */
 	findNextMatch(searchString:string, searchStart:IPosition, isRegex:boolean, matchCase:boolean, wholeWord:boolean): IEditorRange;
 
