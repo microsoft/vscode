@@ -451,7 +451,7 @@ class PatternInput {
 	}
 
 	public destroy(): void {
-		this.pattern.destroy();
+		this.pattern.dispose();
 		this.listenersToRemove.forEach((element) => {
 			element();
 		});
@@ -523,11 +523,11 @@ class PatternInput {
 	}
 
 	public isGlobPattern(): boolean {
-		return this.pattern.isChecked;
+		return this.pattern.checked;
 	}
 
 	public setIsGlobPattern(value: boolean): void {
-		this.pattern.setChecked(value);
+		this.pattern.checked = value;
 		this.setInputWidth();
 	}
 
@@ -550,15 +550,20 @@ class PatternInput {
 			}
 		});
 
-		this.pattern = new Checkbox('pattern', nls.localize('patternDescription', "Use Glob Patterns"), false, () => {
-			this.onOptionChange(null);
-			this.inputBox.focus();
-			this.setInputWidth();
+		this.pattern = new Checkbox({
+			actionClassName: 'pattern',
+			title: nls.localize('patternDescription', "Use Glob Patterns"),
+			isChecked: false,
+			onChange: () => {
+				this.onOptionChange(null);
+				this.inputBox.focus();
+				this.setInputWidth();
 
-			if (this.isGlobPattern()) {
-				this.showGlobHelp();
-			} else {
-				this.inputBox.hideMessage();
+				if (this.isGlobPattern()) {
+					this.showGlobHelp();
+				} else {
+					this.inputBox.hideMessage();
+				}
 			}
 		});
 

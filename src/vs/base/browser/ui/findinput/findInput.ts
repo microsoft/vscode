@@ -74,9 +74,9 @@ export class FindInput {
 	}
 
 	public destroy(): void {
-		this.regex.destroy();
-		this.wholeWords.destroy();
-		this.caseSensitive.destroy();
+		this.regex.dispose();
+		this.wholeWords.dispose();
+		this.caseSensitive.dispose();
 		this.listenersToRemove.forEach((element) => {
 			element();
 		});
@@ -144,29 +144,29 @@ export class FindInput {
 	}
 
 	public getCaseSensitive():boolean {
-		return this.caseSensitive.isChecked;
+		return this.caseSensitive.checked;
 	}
 
 	public setCaseSensitive(value:boolean): void {
-		this.caseSensitive.setChecked(value);
+		this.caseSensitive.checked = value;
 		this.setInputWidth();
 	}
 
 	public getWholeWords():boolean {
-		return this.wholeWords.isChecked;
+		return this.wholeWords.checked;
 	}
 
 	public setWholeWords(value:boolean): void {
-		this.wholeWords.setChecked(value);
+		this.wholeWords.checked = value;
 		this.setInputWidth();
 	}
 
 	public getRegex():boolean {
-		return this.regex.isChecked;
+		return this.regex.checked;
 	}
 
 	public setRegex(value:boolean): void {
-		this.regex.setChecked(value);
+		this.regex.checked = value;
 		this.setInputWidth();
 	}
 
@@ -193,23 +193,38 @@ export class FindInput {
 			}
 		});
 
-		this.regex = new Checkbox.Checkbox('regex', NLS_REGEX_CHECKBOX_LABEL + appendRegexLabel, false, () => {
-			this.onOptionChange(null);
-			this.inputBox.focus();
-			this.setInputWidth();
-			this.validate();
+		this.regex = new Checkbox.Checkbox({
+			actionClassName: 'regex',
+			title: NLS_REGEX_CHECKBOX_LABEL + appendRegexLabel,
+			isChecked: false,
+			onChange: () => {
+				this.onOptionChange(null);
+				this.inputBox.focus();
+				this.setInputWidth();
+				this.validate();
+			}
 		});
-		this.wholeWords = new Checkbox.Checkbox('whole-word', NLS_WHOLE_WORD_CHECKBOX_LABEL + appendWholeWordsLabel, false, () => {
-			this.onOptionChange(null);
-			this.inputBox.focus();
-			this.setInputWidth();
-			this.validate();
+		this.wholeWords = new Checkbox.Checkbox({
+			actionClassName: 'whole-word',
+			title: NLS_WHOLE_WORD_CHECKBOX_LABEL + appendWholeWordsLabel,
+			isChecked: false,
+			onChange: () => {
+				this.onOptionChange(null);
+				this.inputBox.focus();
+				this.setInputWidth();
+				this.validate();
+			}
 		});
-		this.caseSensitive = new Checkbox.Checkbox('case-sensitive', NLS_CASE_SENSITIVE_CHECKBOX_LABEL + appendCaseSensitiveLabel, false, () => {
-			this.onOptionChange(null);
-			this.inputBox.focus();
-			this.setInputWidth();
-			this.validate();
+		this.caseSensitive = new Checkbox.Checkbox({
+			actionClassName: 'case-sensitive',
+			title: NLS_CASE_SENSITIVE_CHECKBOX_LABEL + appendCaseSensitiveLabel,
+			isChecked: false,
+			onChange: () => {
+				this.onOptionChange(null);
+				this.inputBox.focus();
+				this.setInputWidth();
+				this.validate();
+			}
 		});
 		this.setInputWidth();
 

@@ -6,77 +6,81 @@
 'use strict';
 
 import 'vs/css!./checkbox';
-import nls = require('vs/nls');
-import Builder = require('vs/base/browser/builder');
-import mouse = require('vs/base/browser/mouseEvent');
-import keyboard = require('vs/base/browser/keyboardEvent');
+
+import * as nls from 'vs/nls';
+import {StandardMouseEvent} from 'vs/base/browser/mouseEvent';
+import {StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {KeyCode} from 'vs/base/common/keyCodes';
+import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
+import * as DomUtils from 'vs/base/browser/dom';
 
-var $ = Builder.$;
+export interface ICheckboxOpts {
+	actionClassName: string;
+	title: string;
+	isChecked: boolean;
+	onChange: () => void;
+}
 
-export class Checkbox {
+export class Checkbox implements IDisposable {
 
-	private actionClassName: string;
-	private title: string;
-	public isChecked: boolean;
-	private onChange: () => void;
-	private listenersToRemove: { (): void; }[];
+	private _opts: ICheckboxOpts;
+	private _toDispose: IDisposable[];
 	public domNode: HTMLElement;
 
-	constructor(actionClassName: string, title: string, isChecked: boolean, onChange: () => void) {
-		this.actionClassName = actionClassName;
-		this.title = title;
-		this.isChecked = isChecked;
-		this.onChange = onChange;
+	private _checked: boolean;
 
-		this.listenersToRemove = [];
+	constructor(opts:ICheckboxOpts) {
+		this._opts = opts;
+		this._checked = this._opts.isChecked;
+		this._toDispose = [];
 
 		this.domNode = document.createElement('div');
-		this.domNode.title = title;
-		this.render();
+		this.domNode.title = this._opts.title;
+		this.domNode.className = this._className();
+		this.domNode.tabIndex = 0;
+		this.domNode.setAttribute('role', 'checkbox');
+		this.domNode.setAttribute('aria-checked', String(this._checked));
+		this.domNode.setAttribute('aria-label', this._opts.title);
 
-		$(this.domNode).attr({
-			'aria-checked': 'false',
-			'aria-label': this.title,
-			'tabindex': 0,
-			'role': 'checkbox'
-		});
-
-		$(this.domNode).on('click', (e: MouseEvent) => {
-			var ev = new mouse.StandardMouseEvent(e);
-			this.isChecked = !this.isChecked;
-			this.render();
-			this.onChange();
+		this._toDispose.push(DomUtils.addDisposableListener(this.domNode, 'click', (e:MouseEvent) => {
+			var ev = new StandardMouseEvent(e);
+			this._checked = !this._checked;
+			this.domNode.className = this._className();
+			this._opts.onChange();
 			ev.preventDefault();
-		}, this.listenersToRemove);
+		}));
 
-		$(this.domNode).on('keydown', (browserEvent: KeyboardEvent) => {
-			var keyboardEvent = new keyboard.StandardKeyboardEvent(browserEvent);
+		this._toDispose.push(DomUtils.addDisposableListener(this.domNode, 'keydown', (browserEvent: KeyboardEvent) => {
+			var keyboardEvent = new StandardKeyboardEvent(browserEvent);
 			if (keyboardEvent.keyCode === KeyCode.Space || keyboardEvent.keyCode === KeyCode.Enter) {
-				this.isChecked = !this.isChecked;
-				this.render();
-				this.onChange();
+				this._checked = !this._checked;
+				this.domNode.className = this._className();
+				this._opts.onChange();
 				keyboardEvent.preventDefault();
 			}
-		}, this.listenersToRemove);
+		}));
+	}
+
+	public dispose(): void {
+		this._toDispose = disposeAll(this._toDispose);
 	}
 
 	public focus(): void {
 		this.domNode.focus();
 	}
 
-	private render(): void {
-		this.domNode.className = this.className();
+	public get checked(): boolean {
+		return this._checked;
 	}
 
-	public setChecked(newIsChecked: boolean): void {
-		this.isChecked = newIsChecked;
-		$(this.domNode).attr('aria-checked', this.isChecked);
-		this.render();
+	public set checked(newIsChecked:boolean) {
+		this._checked = newIsChecked;
+		this.domNode.setAttribute('aria-checked', String(this._checked));
+		this.domNode.className = this._className();
 	}
 
-	private className(): string {
-		return 'custom-checkbox ' + this.actionClassName + ' ' + (this.isChecked ? 'checked' : 'unchecked');
+	private _className(): string {
+		return 'custom-checkbox ' + this._opts.actionClassName + ' ' + (this._checked ? 'checked' : 'unchecked');
 	}
 
 	public width(): number {
@@ -85,16 +89,11 @@ export class Checkbox {
 
 	public enable(): void {
 		this.domNode.tabIndex = 0;
+		this.domNode.setAttribute('aria-disabled', String(false));
 	}
 
 	public disable(): void {
 		this.domNode.tabIndex = -1;
-	}
-
-	public destroy(): void {
-		this.listenersToRemove.forEach((element) => {
-			element();
-		});
-		this.listenersToRemove = [];
+		this.domNode.setAttribute('aria-disabled', String(true));
 	}
 }
