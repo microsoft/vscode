@@ -186,7 +186,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 
 	private startServer(): Promise {
 		if (!this.adapter.program) {
-			return Promise.wrapError(new Error(`No extension installed for '${ this.adapter.type }' debugging.`));
+			return Promise.wrapError(new Error(nls.localize('noDebugAdapterExtensionInstalled', "No extension installed for '{0}' debugging.", this.adapter.type)));
 		}
 
 		return this.getLaunchDetails().then(d => this.launchServer(d).then(() => {
@@ -210,7 +210,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 			if (launch.command === 'node') {
 				stdfork.fork(launch.argv[0], launch.argv.slice(1), {}, (err, child) => {
 					if (err) {
-						e(new Error(`Unable to launch debug adapter from ${ launch.argv[0] }.`));
+						e(new Error(nls.localize('unableToLaunchDebugAdapter', "Unable to launch debug adapter from {0}.", launch.argv[0])));
 					}
 					this.serverProcess = child;
 					c(true);
@@ -270,7 +270,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 				if (exists) {
 					c(null);
 				} else {
-					e(new Error(`DebugAdapter bin folder not found on path ${this.adapter.program}.`));
+					e(new Error(nls.localize('debugAdapterBinNotFound', "DebugAdapter bin folder not found on path {0}.", this.adapter.program)));
 				}
 			});
 		}).then(() => {
