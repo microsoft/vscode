@@ -11,7 +11,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, disposeAll } from 'vs/base/common/lifecycle';
 import { assign } from 'vs/base/common/objects';
 import Event, { Emitter } from 'vs/base/common/event';
-import { append, addClass, removeClass, toggleClass, emmet as $, hide, show } from 'vs/base/browser/dom';
+import { append, addClass, removeClass, toggleClass, emmet as $, hide, show, addDisposableListener } from 'vs/base/browser/dom';
 import * as Tree from 'vs/base/parts/tree/common/tree';
 import * as TreeImpl from 'vs/base/parts/tree/browser/treeImpl';
 import * as TreeDefaults from 'vs/base/parts/tree/browser/treeDefaults';
@@ -396,6 +396,7 @@ class SuggestionDetails {
 	private el: HTMLElement;
 	private title: HTMLElement;
 	private back: HTMLElement;
+	private body: HTMLElement;
 	private type: HTMLElement;
 	private docs: HTMLElement;
 
@@ -404,9 +405,10 @@ class SuggestionDetails {
 		const header = append(this.el, $('.header'));
 		this.title = append(header, $('span.title'));
 		this.back = append(header, $('span.go-back.octicon.octicon-x'));
-		const body = append(this.el, $('.body'));
-		this.type = append(body, $('p.type'));
-		this.docs = append(body, $('p.docs'));
+		this.body = append(this.el, $('.body'));
+		this.type = append(this.body, $('p.type'));
+		this.docs = append(this.body, $('p.docs'));
+		addDisposableListener(this.docs, 'mousewheel', e => e.stopPropagation());
 	}
 
 	get element() {
@@ -429,6 +431,22 @@ class SuggestionDetails {
 			e.stopPropagation();
 			this.widget.toggleDetails();
 		};
+	}
+
+	scrollDown(much = 8): void {
+		this.body.scrollTop += much;
+	}
+
+	scrollUp(much = 8): void {
+		this.body.scrollTop -= much;
+	}
+
+	pageDown(): void {
+		this.scrollDown(80);
+	}
+
+	pageUp(): void {
+		this.scrollUp(80);
 	}
 
 	dispose(): void {
@@ -809,8 +827,10 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 	public selectNextPage(): boolean {
 		switch (this.state) {
 			case State.Hidden:
-			case State.Details:
 				return false;
+			case State.Details:
+				this.details.pageDown();
+				return true;
 			case State.Loading:
 				return !this.isAuto;
 			default:
@@ -822,8 +842,10 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 	public selectNext(): boolean {
 		switch (this.state) {
 			case State.Hidden:
-			case State.Details:
 				return false;
+			case State.Details:
+				this.details.scrollDown();
+				return true;
 			case State.Loading:
 				return !this.isAuto;
 			default:
@@ -839,8 +861,10 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 	public selectPreviousPage(): boolean {
 		switch (this.state) {
 			case State.Hidden:
-			case State.Details:
 				return false;
+			case State.Details:
+				this.details.pageUp();
+				return true;
 			case State.Loading:
 				return !this.isAuto;
 			default:
@@ -852,8 +876,10 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 	public selectPrevious(): boolean {
 		switch (this.state) {
 			case State.Hidden:
-			case State.Details:
 				return false;
+			case State.Details:
+				this.details.scrollUp();
+				return true;
 			case State.Loading:
 				return !this.isAuto;
 			default:
