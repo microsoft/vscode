@@ -63,15 +63,17 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 
 	public showAt(range: editorcommon.IEditorRange): void {
 		const pos = range.getStartPosition();
-		const wordAtPosition = this.editor.getModel().getWordAtPosition(pos);
+		const model = this.editor.getModel();
+		const wordAtPosition = model.getWordAtPosition(pos);
 		const hoveringOver = wordAtPosition ? wordAtPosition.word : null;
 		const focusedStackFrame = this.debugService.getViewModel().getFocusedStackFrame();
-		if (!hoveringOver || !focusedStackFrame || (this.isVisible && hoveringOver === this.lastHoveringOver)) {
+		if (!hoveringOver || !focusedStackFrame || (this.isVisible && hoveringOver === this.lastHoveringOver) ||
+			(focusedStackFrame.source.uri.toString() !== model.getAssociatedResource().toString())) {
 			return;
 		}
 
 		// string magic to get the parents of the variable (a and b for a.b.foo)
-		const lineContent = this.editor.getModel().getLineContent(pos.lineNumber);
+		const lineContent = model.getLineContent(pos.lineNumber);
 		const namesToFind = lineContent.substring(0, lineContent.indexOf('.' + hoveringOver))
 			.split('.').map(word => word.trim()).filter(word => !!word);
 		namesToFind.push(hoveringOver);
