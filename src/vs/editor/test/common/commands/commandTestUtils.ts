@@ -11,34 +11,7 @@ import {Selection} from 'vs/editor/common/core/selection';
 import {Cursor} from 'vs/editor/common/controller/cursor';
 import EditorCommon = require('vs/editor/common/editorCommon');
 import {IMode} from 'vs/editor/common/modes';
-import {CommonEditorConfiguration, ICSSConfig} from 'vs/editor/common/config/commonEditorConfig';
-
-export class MockConfiguration extends CommonEditorConfiguration {
-
-	constructor(opts:any) {
-		super(opts);
-	}
-
-	protected getOuterWidth(): number {
-		return 100;
-	}
-
-	protected getOuterHeight(): number {
-		return 100;
-	}
-
-	protected readConfiguration(editorClassName: string, fontFamily: string, fontSize: number, lineHeight: number): ICSSConfig {
-		// Doesn't really matter
-		return {
-			typicalHalfwidthCharacterWidth: 10,
-			typicalFullwidthCharacterWidth: 20,
-			maxDigitWidth: 10,
-			lineHeight: 20,
-			font: 'mockFont',
-			fontSize: 20
-		};
-	}
-}
+import {MockConfiguration} from 'vs/editor/test/common/mocks/mockConfiguration';
 
 export function testCommand(
 	lines: string[],

@@ -12,7 +12,7 @@ import Range = require('vs/editor/common/core/range');
 import ModelModes = require('vs/editor/test/common/testModes');
 import Modes = require('vs/editor/common/modes');
 import EditorCommon = require('vs/editor/common/editorCommon');
-import {MockConfiguration} from 'vs/editor/test/common/commands/commandTestUtils';
+import {MockConfiguration} from 'vs/editor/test/common/mocks/mockConfiguration';
 import {EditOperation} from 'vs/editor/common/core/editOperation';
 
 var H = EditorCommon.Handler;

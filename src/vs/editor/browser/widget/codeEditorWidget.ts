@@ -20,7 +20,6 @@ import * as EditorBrowser from 'vs/editor/browser/editorBrowser';
 import {View} from 'vs/editor/browser/view/viewImpl';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
-import {IActionProvider} from 'vs/base/common/actions';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
 import {Range} from 'vs/editor/common/core/range';
 import {Position} from 'vs/editor/common/core/position';
@@ -31,7 +30,7 @@ import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingServic
 import {CommonCodeEditor} from 'vs/editor/common/commonCodeEditor';
 import {CommonEditorConfiguration, IIndentationGuesser} from 'vs/editor/common/config/commonEditorConfig';
 
-export class CodeEditorWidget extends CommonCodeEditor implements IActionProvider, EditorBrowser.ICodeEditor {
+export class CodeEditorWidget extends CommonCodeEditor implements EditorBrowser.ICodeEditor {
 
 	protected domElement:HTMLElement;
 	private focusTracker:DOM.IFocusTracker;

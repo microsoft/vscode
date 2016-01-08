@@ -15,7 +15,7 @@ import {SplitLinesCollection} from 'vs/editor/common/viewModel/splitLinesCollect
 import {ViewModel} from 'vs/editor/common/viewModel/viewModel';
 import * as Timer from 'vs/base/common/timer';
 import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
-import {IAction, isAction} from 'vs/base/common/actions';
+import {IActionProvider, IAction, isAction} from 'vs/base/common/actions';
 import {CursorMoveHelper} from 'vs/editor/common/controller/cursorMoveHelper';
 import {IViewModelHelper} from 'vs/editor/common/controller/oneCursor';
 import {IDisposable,disposeAll} from 'vs/base/common/lifecycle';
@@ -32,7 +32,7 @@ import {CommonEditorConfiguration, IIndentationGuesser} from 'vs/editor/common/c
 
 var EDITOR_ID = 0;
 
-export abstract class CommonCodeEditor extends EventEmitter.EventEmitter implements EditorCommon.ICommonCodeEditor {
+export abstract class CommonCodeEditor extends EventEmitter.EventEmitter implements IActionProvider, EditorCommon.ICommonCodeEditor {
 
 	protected domElement: IKeybindingScopeLocation;
 
@@ -78,6 +78,8 @@ export abstract class CommonCodeEditor extends EventEmitter.EventEmitter impleme
 		telemetryService: ITelemetryService
 	) {
 		super();
+
+		this.domElement = domElement;
 
 		this.id = (++EDITOR_ID);
 		this._codeEditorService = codeEditorService;

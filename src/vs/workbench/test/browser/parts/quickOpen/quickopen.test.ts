@@ -6,7 +6,8 @@
 'use strict';
 
 import * as assert from 'assert';
-import {TestKeybindingService, TestConfigurationService, TestContextService, TestStorageService, TestEventService, TestEditorService, TestQuickOpenService} from 'vs/workbench/test/browser/servicesTestUtils';
+import {TestConfigurationService, TestContextService, TestStorageService, TestEventService, TestEditorService, TestQuickOpenService} from 'vs/workbench/test/browser/servicesTestUtils';
+import {MockKeybindingService} from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import {Registry} from 'vs/platform/platform';
 import {EditorHistoryModel, EditorHistoryEntry} from 'vs/workbench/browser/parts/quickopen/editorHistoryModel';
 import {QuickOpenHandlerDescriptor, IQuickOpenRegistry, Extensions as QuickOpenExtensions} from 'vs/workbench/browser/quickopen';
@@ -216,7 +217,7 @@ suite('Workbench QuickOpen', () => {
 			null,
 			null,
 			contextService,
-			new TestKeybindingService()
+			new MockKeybindingService()
 		);
 
 		controller.create();

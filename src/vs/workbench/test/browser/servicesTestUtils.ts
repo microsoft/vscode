@@ -48,9 +48,6 @@ import {IRequestService} from 'vs/platform/request/common/request';
 import {BaseRequestService} from 'vs/platform/request/common/baseRequestService';
 import {ITelemetryService, ITelemetryInfo} from 'vs/platform/telemetry/common/telemetry';
 import {IWorkspaceContextService, IWorkspace, IConfiguration} from 'vs/platform/workspace/common/workspace';
-import {IKeybindingService, IKeybindingContextKey, IKeybindingItem} from 'vs/platform/keybinding/common/keybindingService';
-import {Keybinding} from 'vs/base/common/keyCodes';
-import {IHTMLContentElement} from 'vs/base/common/htmlContent';
 
 export const TestWorkspace: IWorkspace = {
 	resource: URI.file('C:\\testWorkspace'),
@@ -145,49 +142,6 @@ export class TestMessageService implements IMessageService {
 		return {
 			dispose: () => { /* Nothing to do here */ }
 		};
-	}
-}
-
-export class TestKeybindingService implements IKeybindingService {
-	public serviceId = IKeybindingService;
-
-	public dispose(): void { }
-	public setMessageService(messageService: IMessageService): void { }
-	public setInstantiationService(instantiationService: IInstantiationService): void { }
-	public setContext(key: string, value: any): void { }
-	public removeContext(key: string): void { }
-	public executeCommand(commandId: string, args: any): TPromise<any> { return; }
-
-	public createKey<T>(key: string, defaultValue: T): IKeybindingContextKey<T> {
-		return null;
-	}
-
-	public getLabelFor(keybinding:Keybinding): string {
-		return keybinding._toUSLabel();
-	}
-
-	public getHTMLLabelFor(keybinding:Keybinding): IHTMLContentElement[] {
-		return keybinding._toUSHTMLLabel();
-	}
-
-	public getElectronAcceleratorFor(keybinding:Keybinding): string {
-		return keybinding._toElectronAccelerator();
-	}
-
-	public createScoped(domNode: HTMLElement): IKeybindingService {
-		return this;
-	}
-
-	public getDefaultKeybindings(): string {
-		return null;
-	}
-
-	public lookupKeybindings(commandId: string): Keybinding[] {
-		return [];
-	}
-
-	public customKeybindingsCount(): number {
-		return 0;
 	}
 }
 
