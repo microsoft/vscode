@@ -4,16 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-count-badge {
-	min-width: 18px;
-	padding: 0 3px;
-	margin: 4px 13px 0 6px;
-	border-radius: 8px;
-	font-size: 11px;
-	line-height: 16px;
+	padding: 0.2em 0.4em;
+	border-radius: 1em;
+	font-size: 80%;
 	font-weight: normal;
 	text-align: center;
 	background: #BEBEBE;
 	color: #FFF;
+	display: inline;
 }
 
 .vs-dark .monaco-count-badge {

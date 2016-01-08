@@ -269,7 +269,10 @@ export class Renderer implements tree.IRenderer {
 		data.actionBar = new actionbar.ActionBar(container, { actionRunner: this.actionRunner });
 		data.actionBar.push(this.actionProvider.getActionsForGroupStatusType(statusType), { icon: true, label: false });
 		data.actionBar.addListener2('run', e => e.error && this.onError(e.error));
-		data.count = new countbadge.CountBadge(container);
+
+		const wrapper = dom.append(container, $('.count-badge-wrapper'));
+		data.count = new countbadge.CountBadge(wrapper);
+
 		data.root = dom.append(container, $('.status-group'));
 
 		switch (statusType) {

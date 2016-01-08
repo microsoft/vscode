@@ -65,9 +65,9 @@
 	cursor: default;
 }
 
-.git-viewlet > .changes-view > .status-view > .monaco-tree .monaco-tree-row .monaco-count-badge {
+.git-viewlet > .changes-view > .status-view > .monaco-tree .monaco-tree-row .count-badge-wrapper {
 	float: right;
-	margin-right: 12px;
+	padding-right: 12px;
 }
 
 .git-viewlet > .changes-view > .status-view > .monaco-tree .monaco-tree-row:hover .monaco-count-badge {
@@ -89,21 +89,17 @@
 }
 
 .git-viewlet > .changes-view > .status-view > .monaco-tree .monaco-tree-row .file-status .status {
-	position: absolute;
-	top: 4px;
-	height: 12px;
-	width: 6px;
-	line-height: 12px;
 	padding: 2px 4px;
 	font-family: Menlo, Monaco, Consolas, "Droid Sans Mono", "Inconsolata", "Courier New", monospace, "Droid Sans Fallback";
-	font-size: 9px;
+	font-size: 70%;
 	color: white;
 	text-align: center;
-	border-radius: 4px;
+	border-radius: 0.5em;
+	vertical-align: bottom;
 }
 
 .git-viewlet > .changes-view > .status-view > .monaco-tree .monaco-tree-row .file-status .name {
-	margin-left: 20px;
+	margin-left: 0.4em;
 }
 
 .git-viewlet > .changes-view > .status-view > .monaco-tree .monaco-tree-row .file-status.modified .status	{ background-color: #007ACC; }
