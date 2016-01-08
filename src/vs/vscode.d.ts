@@ -1828,6 +1828,60 @@ declare namespace vscode {
 	}
 
 	/**
+	 * Reasons for which completion can be triggered.
+	 */
+	export enum CompletionTriggerReason {
+
+		/**
+		 * Invoked by the user, e.g. by hitting `Ctrl+Space`
+		 */
+		OnManualInvocation = 1,
+
+		/**
+		 * When a trigger character was typed or when the configuration
+		 * is set to trigger on any character.
+		 */
+		OnType = 2
+	}
+
+	/**
+	 * Value-object that contains additional information when
+	 * requesting completions.
+	 */
+	export interface CompletionContext {
+
+		triggerReason: CompletionTriggerReason;
+
+		triggerCharacter: string;
+	}
+
+	/**
+	 * Represents a list of completions.
+	 */
+	export class CompletionList extends Array<CompletionItem> {
+
+		/**
+		 * This list is not complete yet.
+		 */
+		isIncomplete: boolean;
+
+		/**
+		 * This list should be shown exclusively to the user. When multiple
+		 * lists express exclusiveness the first wins.
+		 */
+		isExclusive: boolean;
+
+		/**
+		 * Creates a new completion list.
+		 *
+		 * @param context The completion context.
+		 * @param isIncomplete
+		 * @param isExclusive
+		 */
+		constructor(context: CompletionContext, isIncomplete?: boolean, isExclusive?: boolean);
+	}
+
+	/**
 	 * Completion item kinds.
 	 */
 	export enum CompletionItemKind {
@@ -1962,6 +2016,46 @@ declare namespace vscode {
 		 * `item`. When no result is returned, the given `item` will be used.
 		 */
 		resolveCompletionItem?(item: CompletionItem, token: CancellationToken): CompletionItem | Thenable<CompletionItem>;
+	}
+
+	/**
+	 * The completion item provider interface defines the contract between extensions and
+	 * the [IntelliSense](https://code.visualstudio.com/docs/editor/editingevolved#_intellisense).
+	 *
+	 * When computing *complete* completion items is expensive, providers can optionally implement
+	 * the `resolveCompletionItem`-function. In that case it is enough to return completion
+	 * items with a [label](#CompletionItem.label) from the
+	 * [provideCompletionItems](#CompletionItemProvider2.provideCompletionItems)-function. Subsequently,
+	 * when a completion item is shown in the UI and gains focus this provider is asked to resolve
+	 * the item, like adding [doc-comment](#CompletionItem.documentation) or [details](#CompletionItem.detail).
+	 */
+	export interface CompletionItemProvider2  {
+
+		/**
+		 * Provide completion items for the given position and document.
+		 *
+		 * @param document The document in which the command was invoked.
+		 * @param position The position at which the command was invoked.
+		 * @param context The completion context.
+		 * @param token A cancellation token.
+		 * @return An array of completions or a thenable that resolves to such. The lack of a result can be
+		 * signaled by returning `undefined`, `null`, an empty array.
+		 */
+		provideCompletionItems(document: TextDocument, position: Position, context: CompletionContext, token: CancellationToken): CompletionList | Thenable<CompletionList>;
+
+		/**
+		 * Given a completion item fill in more data, like [doc-comment](#CompletionItem.documentation)
+		 * or [details](#CompletionItem.detail).
+		 *
+		 * The editor will only resolve a completion item once.
+		 *
+		 * @param item A completion item currently active in the UI.
+		 * @param context The completion context.
+		 * @param token A cancellation token.
+		 * @return The resolved completion item or a thenable that resolves to of such. It is OK to return the given
+		 * `item`. When no result is returned, the given `item` will be used.
+		 */
+		resolveCompletionItem?(item: CompletionItem, context: CompletionContext, token: CancellationToken): CompletionItem | Thenable<CompletionItem>;
 	}
 
 	/**
@@ -3127,7 +3221,7 @@ declare namespace vscode {
 		 * @param triggerCharacters Trigger completion when the user types one of the characters, like `.` or `:`.
 		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
-		export function registerCompletionItemProvider(selector: DocumentSelector, provider: CompletionItemProvider, ...triggerCharacters: string[]): Disposable;
+		export function registerCompletionItemProvider(selector: DocumentSelector, provider: CompletionItemProvider | CompletionItemProvider2, ...triggerCharacters: string[]): Disposable;
 
 		/**
 		 * Register a code action provider.
@@ -3367,7 +3461,7 @@ declare namespace vscode {
 	}
 }
 
-// TS 1.6 & node_module
+// ts@^1.6.0 & node_module
 // export = vscode;
 
 // when used for JS*

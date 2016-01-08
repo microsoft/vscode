@@ -663,6 +663,25 @@ export class CompletionItem {
 	}
 }
 
+export enum CompletionTriggerReason {
+	OnManualInvocation = 1,
+	OnType = 2
+}
+
+export class CompletionList extends Array<CompletionItem> {
+
+	context: vscode.CompletionContext;
+	isIncomplete: boolean;
+	isExclusive: boolean;
+
+	constructor(context: vscode.CompletionContext, isIncomplete: boolean = false, isExclusive: boolean = false) {
+		super();
+		this.context = context;
+		this.isIncomplete = isIncomplete;
+		this.isExclusive = isExclusive;
+	}
+}
+
 export enum ViewColumn {
 	One = 1,
 	Two = 2,
