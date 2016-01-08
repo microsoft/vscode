@@ -188,56 +188,6 @@ suite('workspace-namespace', () => {
 		});
 	});
 
-	test('registerTextDocumentContentProvider, open/close document 1/2', function() {
-
-		let registration = workspace.registerTextDocumentContentProvider('foo', {
-			provideTextDocumentContent(uri) {
-				return 'I am virtual';
-			}
-		});
-
-		const uri = Uri.parse('foo://testing/path');
-
-		return workspace.openTextDocument(uri).then(doc => {
-
-			assert.ok(workspace.textDocuments.some(doc => doc.uri.toString() === uri.toString()));
-
-			return workspace.closeTextDocument(doc).then(value => {
-				assert.ok(value);
-				assert.ok(!workspace.textDocuments.some(doc => doc.uri.toString() === uri.toString()));
-				registration.dispose();
-			});
-		});
-	});
-
-	test('registerTextDocumentContentProvider, open/close document 2/2', function() {
-
-		let registration = workspace.registerTextDocumentContentProvider('foo', {
-			provideTextDocumentContent(uri) {
-				return 'I am virtual';
-			}
-		});
-
-		const uri = Uri.parse('foo://testing/path');
-
-		return workspace.openTextDocument(uri).then(first => {
-
-			assert.ok(workspace.textDocuments.some(doc => doc.uri.toString() === uri.toString()));
-
-			return workspace.openTextDocument(uri).then(second => {
-				registration.dispose();
-				assert.ok(first === second);
-
-				return workspace.closeTextDocument(first).then(value => {
-					assert.ok(value);
-
-					// should we reference count or not?
-					// assert.ok(workspace.textDocuments.some(doc => doc.uri.toString() === uri.toString()));
-				});
-			});
-		});
-	});
-
 	test('registerTextDocumentContentProvider, open/open document', function() {
 
 		let callCount = 0;
