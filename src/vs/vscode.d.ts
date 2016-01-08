@@ -3024,11 +3024,6 @@ declare namespace vscode {
 		/**
 		 *
 		 */
-		export function closeTextDocument(document: TextDocument): Thenable<boolean>;
-
-		/**
-		 *
-		 */
 		export function registerTextDocumentContentProvider(scheme: string, provider: TextDocumentContentProvider): Disposable;
 
 		/**

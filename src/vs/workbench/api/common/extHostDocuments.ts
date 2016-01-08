@@ -136,10 +136,6 @@ export class ExtHostModelService {
 		});
 	}
 
-	public closeDocument(document: vscode.TextDocument): TPromise<boolean> {
-		return this._proxy._tryCloseDocument(<URI> document.uri);
-	}
-
 	public registerTextDocumentContentProvider(scheme: string, provider: vscode.TextDocumentContentProvider): vscode.Disposable {
 		if (scheme === 'file' || scheme === 'untitled' || this._documentContentProviders[scheme]) {
 			throw new Error(`scheme '${scheme}' already registered`);
@@ -751,10 +747,5 @@ export class MainThreadDocuments {
 		}).then(() => {
 			return true;
 		});
-	}
-
-	_tryCloseDocument(uri: URI): TPromise<boolean> {
-		this._modelService.destroyModel(uri);
-		return TPromise.as(true);
 	}
 }
