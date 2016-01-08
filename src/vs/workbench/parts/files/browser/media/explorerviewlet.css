@@ -34,8 +34,8 @@
 }
 
 .explorer-viewlet .monaco-count-badge {
-	padding: 0 6px;
-	display: inline-block;
+	padding: 1px 6px;
+	margin-left: 6px;
 }
 
 .explorer-viewlet .explorer-empty-view {
