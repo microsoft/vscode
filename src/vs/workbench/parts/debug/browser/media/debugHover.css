@@ -37,7 +37,11 @@
 	height: 288px;
 }
 
-/* Disable tree hover highlight in debug hover tree. */
+.monaco-editor .debug-hover-widget .debug-hover-tree .monaco-tree .monaco-tree-row > .content {
+	-webkit-user-select: initial;
+}
+
+/* Disable tree highlight in debug hover tree. */
 .monaco-editor .debug-hover-widget .debug-hover-tree .monaco-tree .monaco-tree-rows > .monaco-tree-row:hover:not(.highlighted):not(.selected):not(.focused)  {
 	background-color: inherit;
 }
