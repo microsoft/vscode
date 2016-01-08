@@ -131,6 +131,7 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 	private doShow(position: editorcommon.IEditorPosition, expression: debug.IExpression): void {
 		if (expression.reference > 0) {
 			this.valueContainer.hidden = true;
+			this.setTreeHeight(expression);
 			this.treeContainer.hidden = false;
 			this.tree.setInput(expression).done(null, errors.onUnexpectedError);
 			this.tree.layout(this.treeContainer.clientHeight);
@@ -143,6 +144,16 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 		this.showAtPosition = position;
 		this.isVisible = true;
 		this.editor.layoutContentWidget(this);
+	}
+
+	private setTreeHeight(expression: debug.IExpression): void {
+		const maxHeight = 16 * 18;
+		this.treeContainer.style.height = `${maxHeight}px`
+		expression.getChildren(this.debugService).done(children => {
+			if (children.every(child => child.reference === 0)) {
+				this.treeContainer.style.height = `${Math.min(maxHeight, children.length * 18)}px`;
+			}
+		}), errors.onUnexpectedError;
 	}
 
 	public hide(): void {
