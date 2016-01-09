@@ -74,4 +74,4 @@ class LightBulpWidget implements EditorBrowser.IContentWidget, lifecycle.IDispos
 	}
 }
 
-export = LightBulpWidget;
+export {LightBulpWidget};

@@ -88,4 +88,4 @@ class DefineRewriter implements rewriter.ISyntaxRewriter {
 	static _typeOfPattern = ': typeof {0}';
 }
 
-export = DefineRewriter;
+export {DefineRewriter};

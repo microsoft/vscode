@@ -11,7 +11,7 @@ import * as Modes from 'vs/editor/common/modes';
 import * as ts from 'vs/languages/typescript/common/lib/typescriptServices';
 import * as converter from 'vs/languages/typescript/common/features/converter';
 import * as previewer from 'vs/languages/typescript/common/features/previewer';
-import * as Options from 'vs/languages/typescript/common/options';
+import {Options} from 'vs/languages/typescript/common/options';
 
 function getWordAtOffset(text: string, offset: number): string {
 	var endOffset = offset;

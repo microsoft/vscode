@@ -6,7 +6,7 @@
 
 import URI from 'vs/base/common/uri';
 import * as ts from 'vs/languages/typescript/common/lib/typescriptServices';
-import * as Options from 'vs/languages/typescript/common/options';
+import {Options} from 'vs/languages/typescript/common/options';
 import Severity from 'vs/base/common/severity';
 import * as EditorCommon from 'vs/editor/common/editorCommon';
 import * as converter from 'vs/languages/typescript/common/features/converter';

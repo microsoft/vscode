@@ -12,7 +12,7 @@ import * as quickfix from 'vs/languages/typescript/common/features/quickFix';
 import * as diagnostics from 'vs/languages/typescript/common/features/diagnostics';
 import * as ts from 'vs/languages/typescript/common/lib/typescriptServices';
 import * as utils from 'vs/languages/typescript/test/common/features/utils';
-import * as Options from 'vs/languages/typescript/common/options';
+import {Options} from 'vs/languages/typescript/common/options';
 
 suite('TS - quick fix', () => {
 

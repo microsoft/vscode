@@ -11,7 +11,7 @@ import * as types from 'vs/base/common/types';
 import * as EditorCommon from 'vs/editor/common/editorCommon';
 import * as collections from 'vs/base/common/collections';
 import * as ts from 'vs/languages/typescript/common/lib/typescriptServices';
-import * as Options from 'vs/languages/typescript/common/options';
+import {Options} from 'vs/languages/typescript/common/options';
 import * as rules from './rules';
 import * as layoutRules from './rules/layout';
 import * as typescriptRules from './rules/typescript';

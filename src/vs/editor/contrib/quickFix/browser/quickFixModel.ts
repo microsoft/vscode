@@ -17,7 +17,7 @@ import * as errors from 'vs/base/common/errors';
 import {Range} from 'vs/editor/common/core/range';
 import {IMarkerService, IMarker} from 'vs/platform/markers/common/markers';
 import {QuickFixRegistry, IQuickFix2, getQuickFixes} from '../common/quickFix';
-import * as LightBulpWidget from './lightBulpWidget';
+import {LightBulpWidget} from './lightBulpWidget';
 
 enum QuickFixSuggestState {
 	NOT_ACTIVE = 0,

@@ -66,4 +66,4 @@ namespace LineMap {
 	}
 }
 
-export = LineMap;
+export {LineMap};

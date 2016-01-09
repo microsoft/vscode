@@ -12,7 +12,7 @@ import * as typescript from 'vs/languages/typescript/common/typescript';
 import * as instantiation from 'vs/platform/instantiation/common/instantiationService';
 import * as project from 'vs/languages/typescript/common/project/projectService';
 import * as ts from 'vs/languages/typescript/common/lib/typescriptServices';
-import * as ProjectResolver from 'vs/languages/typescript.workbench/common/projectResolver';
+import {ProjectResolver} from 'vs/languages/typescript.workbench/common/projectResolver';
 import {NULL_THREAD_SERVICE} from 'vs/platform/test/common/nullThreadService';
 import * as markerService from 'vs/platform/markers/common/markerService';
 import * as eventEmitter from 'vs/base/common/eventEmitter';

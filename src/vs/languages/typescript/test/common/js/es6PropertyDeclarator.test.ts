@@ -7,7 +7,7 @@
 import * as assert from 'assert';
 import * as textEdits from 'vs/languages/typescript/common/js/textEdits';
 import * as rewriter from 'vs/languages/typescript/common/js/rewriting';
-import * as ES6PropertyDeclarator from 'vs/languages/typescript/common/js/es6PropertyDeclarator';
+import {ES6PropertyDeclarator} from 'vs/languages/typescript/common/js/es6PropertyDeclarator';
 import * as ts from 'vs/languages/typescript/common/lib/typescriptServices';
 
 function _assertEdits(a:rewriter.ISyntaxRewriter, value:string, ...edits:textEdits.Edit[]):void {

@@ -6,8 +6,8 @@
 'use strict';
 
 import { Url, parse as parseUrl } from 'url';
-import * as HttpProxyAgent from 'http-proxy-agent';
-import * as HttpsProxyAgent from 'https-proxy-agent';
+import {HttpProxyAgent} from 'http-proxy-agent';
+import {HttpsProxyAgent} from 'https-proxy-agent';
 
 function getAgent(rawRequestURL: string, proxyURL: string, strictSSL: boolean = true): any {
 	let requestURL = parseUrl(rawRequestURL);

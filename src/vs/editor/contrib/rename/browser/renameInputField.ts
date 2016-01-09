@@ -146,4 +146,4 @@ class RenameInputField implements EditorBrowser.IContentWidget, lifecycle.IDispo
 	}
 }
 
-export = RenameInputField;
+export {RenameInputField};

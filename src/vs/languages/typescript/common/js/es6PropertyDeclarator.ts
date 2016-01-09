@@ -79,4 +79,4 @@ class ES6PropertyDeclarator implements rewriter.ISyntaxRewriter {
 	}
 }
 
-export = ES6PropertyDeclarator;
+export {ES6PropertyDeclarator};

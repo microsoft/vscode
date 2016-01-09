@@ -17,7 +17,7 @@ import * as network from 'vs/base/common/network';
 import * as rewriting from 'vs/languages/typescript/common/js/rewriting';
 import * as EditorCommon from 'vs/editor/common/editorCommon';
 import * as textEdits from 'vs/languages/typescript/common/js/textEdits';
-import * as LineMap from 'vs/languages/typescript/common/lineMap';
+import {LineMap} from 'vs/languages/typescript/common/lineMap';
 import {Position} from 'vs/editor/common/core/position';
 
 export class Script {

@@ -11,7 +11,7 @@ import * as EditorCommon from 'vs/editor/common/editorCommon';
 import * as Modes from 'vs/editor/common/modes';
 import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
 import {EditorAction, Behaviour} from 'vs/editor/common/editorAction';
-import * as TokenSelectionSupport from './tokenSelectionSupport';
+import {TokenSelectionSupport} from './tokenSelectionSupport';
 import * as tokenTree from './tokenTree';
 import {Range} from 'vs/editor/common/core/range';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation'

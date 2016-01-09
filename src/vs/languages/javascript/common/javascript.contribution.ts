@@ -11,7 +11,7 @@ import * as ConfigurationRegistry from 'vs/platform/configuration/common/configu
 import {LanguageExtensions} from 'vs/editor/common/modes/languageExtensionPoint';
 import * as typescript from 'vs/languages/typescript/common/typescript';
 import * as extensions from 'vs/languages/javascript/common/javascript.extensions';
-import * as Options from 'vs/languages/typescript/common/options';
+import {Options} from 'vs/languages/typescript/common/options';
 import defaults = Options.javaScriptOptions;
 import * as Mime from 'vs/base/common/mime';
 

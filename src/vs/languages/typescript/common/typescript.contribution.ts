@@ -14,7 +14,7 @@ import * as typescript from 'vs/languages/typescript/common/typescript';
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import * as suggest from 'vs/editor/contrib/suggest/common/suggest';
 import * as EditorCommon from 'vs/editor/common/editorCommon';
-import * as options from 'vs/languages/typescript/common/options';
+import {Options as options} from 'vs/languages/typescript/common/options';
 import defaults = options.typeScriptOptions;
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 

@@ -136,4 +136,4 @@ namespace Options {
 	}
 }
 
-export = Options;
+export {Options};

@@ -72,4 +72,4 @@ class RequireRewriter implements rewriter.ISyntaxRewriter {
 	}
 }
 
-export = RequireRewriter;
+export {RequireRewriter};

@@ -46,4 +46,4 @@ function rename(project: projectService.IProject, resource: URI, position: Edito
 	return result;
 }
 
-export = rename;
+export {rename};

@@ -17,7 +17,7 @@ import * as EditorCommon from 'vs/editor/common/editorCommon';
 import * as EditorBrowser from 'vs/editor/browser/editorBrowser';
 import {BulkEdit, createBulkEdit} from 'vs/editor/common/services/bulkEdit';
 import * as supports from 'vs/editor/common/modes/supports';
-import * as RenameInputField from './renameInputField';
+import {RenameInputField} from './renameInputField';
 import Severity from 'vs/base/common/severity';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IMessageService} from 'vs/platform/message/common/message';

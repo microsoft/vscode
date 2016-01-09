@@ -26,4 +26,4 @@ class ShebangRewriter implements rewriter.ISyntaxRewriter {
 	}
 }
 
-export = ShebangRewriter;
+export {ShebangRewriter};

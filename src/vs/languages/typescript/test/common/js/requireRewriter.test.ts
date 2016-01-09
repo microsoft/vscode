@@ -6,7 +6,7 @@
 
 import * as assert from 'assert';
 import * as rewriting from 'vs/languages/typescript/common/js/rewriting';
-import * as RequireRewriter from 'vs/languages/typescript/common/js/requireRewriter';
+import {RequireRewriter} from 'vs/languages/typescript/common/js/requireRewriter';
 
 suite('JS* - Require Rewriter', () => {
 

@@ -57,4 +57,4 @@ class TokenSelectionSupport implements Modes.ILogicalSelectionSupport {
 
 }
 
-export = TokenSelectionSupport;
+export {TokenSelectionSupport};

@@ -13,7 +13,7 @@ import * as Modes from 'vs/editor/common/modes';
 import {AbstractModeWorker} from 'vs/editor/common/modes/abstractModeWorker';
 import * as objects from 'vs/base/common/objects';
 import * as ts from 'vs/languages/typescript/common/lib/typescriptServices';
-import * as Options from 'vs/languages/typescript/common/options';
+import {Options} from 'vs/languages/typescript/common/options';
 import * as typescript from 'vs/languages/typescript/common/typescript';
 import * as supports from 'vs/editor/common/modes/supports';
 import * as projectService from 'vs/languages/typescript/common/project/projectService';
@@ -29,7 +29,7 @@ import * as suggestions from 'vs/languages/typescript/common/features/suggestion
 import * as quickFix from 'vs/languages/typescript/common/features/quickFix';
 import * as diagnostics from 'vs/languages/typescript/common/features/diagnostics';
 import * as emitting from 'vs/languages/typescript/common/features/emitting';
-import * as rename from 'vs/languages/typescript/common/features/rename';
+import {rename} from 'vs/languages/typescript/common/features/rename';
 import {IResourceService, ResourceEvents, IResourceAddedEvent, IResourceRemovedEvent} from 'vs/editor/common/services/resourceService';
 import {IMarker, IMarkerService} from 'vs/platform/markers/common/markers';
 
