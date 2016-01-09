@@ -904,6 +904,41 @@ export class TextModel extends OrderGuaranteeEventEmitter implements EditorCommo
 		return null;
 	}
 
+	public findPreviousMatch(searchString:string, rawSearchStart:EditorCommon.IPosition, isRegex:boolean, matchCase:boolean, wholeWord:boolean): EditorCommon.IEditorRange {
+		if (this._isDisposed) {
+			throw new Error('Model.findPreviousMatch: Model is disposed');
+		}
+
+		var regex = Strings.createSafeRegExp(searchString, isRegex, matchCase, wholeWord);
+		if (!regex) {
+			return null;
+		}
+
+		var searchStart = this.validatePosition(rawSearchStart),
+			lineCount = this.getLineCount(),
+			startLineNumber = searchStart.lineNumber,
+			text: string,
+			r: EditorCommon.IEditorRange;
+
+		// Look in first line
+		text = this._lines[startLineNumber - 1].text.substring(0, searchStart.column - 1);
+		r = this._findLastMatchInLine(regex, text, startLineNumber);
+		if (r) {
+			return r;
+		}
+
+		for (var i = 1; i < lineCount; i++) {
+			var lineIndex = (lineCount + startLineNumber - i - 1) % lineCount;
+			text = this._lines[lineIndex].text;
+			r = this._findLastMatchInLine(regex, text, lineIndex + 1);
+			if (r) {
+				return r;
+			}
+		}
+
+		return null;
+	}
+
 	private _doFindMatches(searchRange:EditorCommon.IEditorRange, searchRegex:RegExp, limitResultCount:number): EditorCommon.IEditorRange[] {
 		var result:EditorCommon.IEditorRange[] = [],
 			text: string,
@@ -940,6 +975,19 @@ export class TextModel extends OrderGuaranteeEventEmitter implements EditorCommo
 			return null;
 		}
 		return new Range(lineNumber, m.index + 1 + deltaOffset, lineNumber, m.index + 1 + m[0].length + deltaOffset);
+	}
+
+	private _findLastMatchInLine(searchRegex:RegExp, text:string, lineNumber:number): EditorCommon.IEditorRange {
+		let bestResult: EditorCommon.IEditorRange = null;
+		let m:RegExpExecArray;
+		while ((m = searchRegex.exec(text))) {
+			let result = new Range(lineNumber, m.index + 1, lineNumber, m.index + 1 + m[0].length);
+			if (result.equalsRange(bestResult)) {
+				break;
+			}
+			bestResult = result;
+		}
+		return bestResult;
 	}
 
 	private _findMatchesInLine(searchRegex:RegExp, text:string, lineNumber:number, deltaOffset:number, counter:number, result:EditorCommon.IEditorRange[], limitResultCount:number): number {

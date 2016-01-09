@@ -4,104 +4,80 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Strings = require('vs/base/common/strings');
-import Events = require('vs/base/common/eventEmitter');
-import ReplaceAllCommand = require('./replaceAllCommand');
-import Lifecycle = require('vs/base/common/lifecycle');
-import Schedulers = require('vs/base/common/async');
-import {Range} from 'vs/editor/common/core/range';
-import {Position} from 'vs/editor/common/core/position';
-import {ReplaceCommand} from 'vs/editor/common/commands/replaceCommand';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import {IDisposable} from 'vs/base/common/lifecycle';
 
-export class FindDecorations implements Lifecycle.IDisposable {
-	private editor:EditorCommon.ICommonCodeEditor;
+export class FindDecorations implements IDisposable {
 
-	private decorations:string[];
-	private decorationIndex:number;
-	private findScopeDecorationId:string;
-	private highlightedDecorationId:string;
-	private startPosition:EditorCommon.IEditorPosition;
+	private _editor:EditorCommon.ICommonCodeEditor;
+	private _decorations:string[];
+	private _findScopeDecorationId:string;
+	private _highlightedDecorationId:string;
+	private _startPosition:EditorCommon.IEditorPosition;
 
 	constructor(editor:EditorCommon.ICommonCodeEditor) {
-		this.editor = editor;
-		this.decorations = [];
-		this.decorationIndex = 0;
-		this.findScopeDecorationId = null;
-		this.highlightedDecorationId = null;
-		this.startPosition = this.editor.getPosition();
+		this._editor = editor;
+		this._decorations = [];
+		this._findScopeDecorationId = null;
+		this._highlightedDecorationId = null;
+		this._startPosition = this._editor.getPosition();
 	}
 
 	public dispose(): void {
-		this.editor.deltaDecorations(this._allDecorations(), []);
+		this._editor.deltaDecorations(this._allDecorations(), []);
 
-		this.editor = null;
-		this.decorations = [];
-		this.decorationIndex = 0;
-		this.findScopeDecorationId = null;
-		this.highlightedDecorationId = null;
-		this.startPosition = null;
+		this._editor = null;
+		this._decorations = [];
+		this._findScopeDecorationId = null;
+		this._highlightedDecorationId = null;
+		this._startPosition = null;
 	}
 
 	public reset(): void {
-		this.decorations = [];
-		this.decorationIndex = -1;
-		this.findScopeDecorationId = null;
-		this.highlightedDecorationId = null;
+		this._decorations = [];
+		this._findScopeDecorationId = null;
+		this._highlightedDecorationId = null;
 	}
 
 	public getFindScope(): EditorCommon.IEditorRange {
-		if (this.findScopeDecorationId) {
-			return this.editor.getModel().getDecorationRange(this.findScopeDecorationId);
+		if (this._findScopeDecorationId) {
+			return this._editor.getModel().getDecorationRange(this._findScopeDecorationId);
 		}
 		return null;
 	}
 
+	public getStartPosition(): EditorCommon.IEditorPosition {
+		return this._startPosition;
+	}
+
 	public setStartPosition(newStartPosition:EditorCommon.IEditorPosition): void {
-		this.startPosition = newStartPosition;
-		this._setDecorationIndex(-1, false);
+		this._startPosition = newStartPosition;
+		this.setCurrentFindMatch(null);
 	}
 
-	public setIndexToFirstAfterStartPosition(): void {
-		this._setDecorationIndex(this.indexAfterPosition(this.startPosition), false);
-	}
-
-	public moveToFirstAfterStartPosition(): void {
-		this._setDecorationIndex(this.indexAfterPosition(this.startPosition), true);
-	}
-
-	public movePrev(): void {
-		if (this.decorationIndex === -1) {
-			this._setDecorationIndex(this.previousIndex(this.indexAfterPosition(this.startPosition)), true);
-		} else {
-			this._setDecorationIndex(this.previousIndex(this.decorationIndex), true);
-		}
-	}
-
-	public moveNext(): void {
-		if (this.decorationIndex === -1) {
-			this._setDecorationIndex(this.indexAfterPosition(this.startPosition), true);
-		} else {
-			this._setDecorationIndex(this.nextIndex(this.decorationIndex), true);
-		}
-	}
-
-	private _setDecorationIndex(newIndex:number, moveCursor:boolean): void {
-		this.decorationIndex = newIndex;
-		this.editor.changeDecorations((changeAccessor: EditorCommon.IModelDecorationsChangeAccessor) => {
-			if (this.highlightedDecorationId !== null) {
-				changeAccessor.changeDecorationOptions(this.highlightedDecorationId, FindDecorations.createFindMatchDecorationOptions(false));
-				this.highlightedDecorationId = null;
+	public setCurrentFindMatch(nextMatch:EditorCommon.IEditorRange): void {
+		let newCurrentDecorationId: string = null;
+		if (nextMatch) {
+			for (let i = 0, len = this._decorations.length; i < len; i++) {
+				let range = this._editor.getModel().getDecorationRange(this._decorations[i]);
+				if (nextMatch.equalsRange(range)) {
+					newCurrentDecorationId = this._decorations[i];
+					break;
+				}
 			}
-			if (moveCursor && this.decorationIndex >= 0 && this.decorationIndex < this.decorations.length) {
-				this.highlightedDecorationId = this.decorations[this.decorationIndex];
-				changeAccessor.changeDecorationOptions(this.highlightedDecorationId, FindDecorations.createFindMatchDecorationOptions(true));
-			}
-		});
-		if (moveCursor && this.decorationIndex >= 0 && this.decorationIndex < this.decorations.length) {
-			let range = this.editor.getModel().getDecorationRange(this.decorations[this.decorationIndex]);
-			this.editor.setSelection(range);
-			this.editor.revealRangeInCenterIfOutsideViewport(range);
+		}
+
+		if (this._highlightedDecorationId !== null || newCurrentDecorationId !== null) {
+			this._editor.changeDecorations((changeAccessor: EditorCommon.IModelDecorationsChangeAccessor) => {
+				if (this._highlightedDecorationId !== null) {
+					changeAccessor.changeDecorationOptions(this._highlightedDecorationId, FindDecorations.createFindMatchDecorationOptions(false));
+					this._highlightedDecorationId = null;
+				}
+				if (newCurrentDecorationId !== null) {
+					this._highlightedDecorationId = newCurrentDecorationId;
+					changeAccessor.changeDecorationOptions(this._highlightedDecorationId, FindDecorations.createFindMatchDecorationOptions(true));
+				}
+			});
 		}
 	}
 
@@ -118,60 +94,24 @@ export class FindDecorations implements Lifecycle.IDisposable {
 				options: FindDecorations.createFindScopeDecorationOptions()
 			});
 		}
-		let tmpDecorations = this.editor.deltaDecorations(this._allDecorations(), newDecorations);
+		let tmpDecorations = this._editor.deltaDecorations(this._allDecorations(), newDecorations);
 
 		if (findScope) {
-			this.findScopeDecorationId = tmpDecorations.shift();
+			this._findScopeDecorationId = tmpDecorations.shift();
 		} else {
-			this.findScopeDecorationId = null;
+			this._findScopeDecorationId = null;
 		}
-		this.decorations = tmpDecorations;
-		this.decorationIndex = -1;
-		this.highlightedDecorationId = null;
+		this._decorations = tmpDecorations;
+		this._highlightedDecorationId = null;
 	}
 
 	private _allDecorations(): string[] {
 		let result:string[] = [];
-		result = result.concat(this.decorations);
-		if (this.findScopeDecorationId) {
-			result.push(this.findScopeDecorationId);
+		result = result.concat(this._decorations);
+		if (this._findScopeDecorationId) {
+			result.push(this._findScopeDecorationId);
 		}
 		return result;
-	}
-
-	private indexAfterPosition(position:EditorCommon.IEditorPosition): number {
-		if (this.decorations.length === 0) {
-			return 0;
-		}
-		for (let i = 0, len = this.decorations.length; i < len; i++) {
-			let decorationId = this.decorations[i];
-			let r = this.editor.getModel().getDecorationRange(decorationId);
-			if (!r || r.startLineNumber < position.lineNumber) {
-				continue;
-			}
-			if (r.startLineNumber > position.lineNumber) {
-				return i;
-			}
-			if (r.startColumn < position.column) {
-				continue;
-			}
-			return i;
-		}
-		return 0;
-	}
-
-	private previousIndex(index:number): number {
-		if (this.decorations.length > 0) {
-			return (index - 1 + this.decorations.length) % this.decorations.length;
-		}
-		return 0;
-	}
-
-	private nextIndex(index:number): number {
-		if (this.decorations.length > 0) {
-			return (index + 1) % this.decorations.length;
-		}
-		return 0;
 	}
 
 	private static createFindMatchDecorationOptions(isCurrent:boolean): EditorCommon.IModelDecorationOptions {

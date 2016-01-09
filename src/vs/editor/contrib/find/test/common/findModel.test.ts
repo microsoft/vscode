@@ -75,7 +75,7 @@ suite('FindModel', () => {
 		return [rng.startLineNumber, rng.startColumn, rng.endLineNumber, rng.endColumn];
 	}
 
-	function _getFindState(editor:EditorCommon.ICommonCodeEditor): { findDecorations: number[][]; highlighted: number[][]; } {
+	function _getFindState(editor:EditorCommon.ICommonCodeEditor) {
 		let model = editor.getModel();
 		let currentFindMatches: EditorCommon.IRange[] = [];
 		let allFindMatches: EditorCommon.IRange[] = [];
@@ -459,6 +459,196 @@ suite('FindModel', () => {
 		findState.dispose();
 	});
 
+	findTest('find model next stays in scope', (editor, cursor) => {
+		let findState = new FindReplaceState();
+		findState.change({ searchString: 'hello', wholeWord: true, searchScope: new Range(7,1,9,1) }, false);
+		let findModel = new FindModelBoundToEditorModel(editor, findState);
+
+		assertFindState(
+			editor,
+			[1, 1, 1, 1],
+			null,
+			[
+				[7, 14, 7, 19],
+				[8, 14, 8, 19]
+			]
+		);
+
+		findModel.moveToNextMatch();
+		assertFindState(
+			editor,
+			[7, 14, 7, 19],
+			[7, 14, 7, 19],
+			[
+				[7, 14, 7, 19],
+				[8, 14, 8, 19]
+			]
+		);
+
+		findModel.moveToNextMatch();
+		assertFindState(
+			editor,
+			[8, 14, 8, 19],
+			[8, 14, 8, 19],
+			[
+				[7, 14, 7, 19],
+				[8, 14, 8, 19]
+			]
+		);
+
+		findModel.moveToNextMatch();
+		assertFindState(
+			editor,
+			[7, 14, 7, 19],
+			[7, 14, 7, 19],
+			[
+				[7, 14, 7, 19],
+				[8, 14, 8, 19]
+			]
+		);
+
+		findModel.dispose();
+		findState.dispose();
+	});
+
+	findTest('find model prev', (editor, cursor) => {
+		let findState = new FindReplaceState();
+		findState.change({ searchString: 'hello', wholeWord: true }, false);
+		let findModel = new FindModelBoundToEditorModel(editor, findState);
+
+		assertFindState(
+			editor,
+			[1, 1, 1, 1],
+			null,
+			[
+				[6, 14, 6, 19],
+				[6, 27, 6, 32],
+				[7, 14, 7, 19],
+				[8, 14, 8, 19]
+			]
+		);
+
+		findModel.moveToPrevMatch();
+		assertFindState(
+			editor,
+			[8, 14, 8, 19],
+			[8, 14, 8, 19],
+			[
+				[6, 14, 6, 19],
+				[6, 27, 6, 32],
+				[7, 14, 7, 19],
+				[8, 14, 8, 19]
+			]
+		);
+
+		findModel.moveToPrevMatch();
+		assertFindState(
+			editor,
+			[7, 14, 7, 19],
+			[7, 14, 7, 19],
+			[
+				[6, 14, 6, 19],
+				[6, 27, 6, 32],
+				[7, 14, 7, 19],
+				[8, 14, 8, 19]
+			]
+		);
+
+		findModel.moveToPrevMatch();
+		assertFindState(
+			editor,
+			[6, 27, 6, 32],
+			[6, 27, 6, 32],
+			[
+				[6, 14, 6, 19],
+				[6, 27, 6, 32],
+				[7, 14, 7, 19],
+				[8, 14, 8, 19]
+			]
+		);
+
+		findModel.moveToPrevMatch();
+		assertFindState(
+			editor,
+			[6, 14, 6, 19],
+			[6, 14, 6, 19],
+			[
+				[6, 14, 6, 19],
+				[6, 27, 6, 32],
+				[7, 14, 7, 19],
+				[8, 14, 8, 19]
+			]
+		);
+
+		findModel.moveToPrevMatch();
+		assertFindState(
+			editor,
+			[8, 14, 8, 19],
+			[8, 14, 8, 19],
+			[
+				[6, 14, 6, 19],
+				[6, 27, 6, 32],
+				[7, 14, 7, 19],
+				[8, 14, 8, 19]
+			]
+		);
+
+		findModel.dispose();
+		findState.dispose();
+	});
+
+	findTest('find model prev stays in scope', (editor, cursor) => {
+		let findState = new FindReplaceState();
+		findState.change({ searchString: 'hello', wholeWord: true, searchScope: new Range(7,1,9,1) }, false);
+		let findModel = new FindModelBoundToEditorModel(editor, findState);
+
+		assertFindState(
+			editor,
+			[1, 1, 1, 1],
+			null,
+			[
+				[7, 14, 7, 19],
+				[8, 14, 8, 19]
+			]
+		);
+
+		findModel.moveToPrevMatch();
+		assertFindState(
+			editor,
+			[8, 14, 8, 19],
+			[8, 14, 8, 19],
+			[
+				[7, 14, 7, 19],
+				[8, 14, 8, 19]
+			]
+		);
+
+		findModel.moveToPrevMatch();
+		assertFindState(
+			editor,
+			[7, 14, 7, 19],
+			[7, 14, 7, 19],
+			[
+				[7, 14, 7, 19],
+				[8, 14, 8, 19]
+			]
+		);
+
+		findModel.moveToPrevMatch();
+		assertFindState(
+			editor,
+			[8, 14, 8, 19],
+			[8, 14, 8, 19],
+			[
+				[7, 14, 7, 19],
+				[8, 14, 8, 19]
+			]
+		);
+
+		findModel.dispose();
+		findState.dispose();
+	});
+
 	findTest('find model next/prev with no matches', (editor, cursor) => {
 		let findState = new FindReplaceState();
 		findState.change({ searchString: 'helloo', wholeWord: true }, false);
@@ -549,27 +739,6 @@ suite('FindModel', () => {
 			editor,
 			[1, 1, 1, 1],
 			null,
-			[
-				[1, 1, 1, 1],
-				[2, 1, 2, 1],
-				[3, 1, 3, 1],
-				[4, 1, 4, 1],
-				[5, 1, 5, 1],
-				[6, 1, 6, 1],
-				[7, 1, 7, 1],
-				[8, 1, 8, 1],
-				[9, 1, 9, 1],
-				[10, 1, 10, 1],
-				[11, 1, 11, 1],
-				[12, 1, 12, 1],
-			]
-		);
-
-		findModel.moveToNextMatch();
-		assertFindState(
-			editor,
-			[1, 1, 1, 1],
-			[1, 1, 1, 1],
 			[
 				[1, 1, 1, 1],
 				[2, 1, 2, 1],

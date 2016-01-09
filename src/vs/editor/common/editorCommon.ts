@@ -1758,6 +1758,16 @@ export interface IModel extends IEditableTextModel, ITextModelWithMarkers, IToke
 	 * @return The range where the next match is. It is null if no next match has been found.
 	 */
 	findNextMatch(searchString:string, searchStart:IPosition, isRegex:boolean, matchCase:boolean, wholeWord:boolean): IEditorRange;
+	/**
+	 * Search the model for the previous match. Loops to the end of the model if needed.
+	 * @param searchString The string used to search. If it is a regular expression, set `isRegex` to true.
+	 * @param searchStart Start the searching at the specified position.
+	 * @param isRegex Used to indicate that `searchString` is a regular expression.
+	 * @param matchCase Force the matching to match lower/upper case exactly.
+	 * @param wholeWord Force the matching to match entire words only.
+	 * @return The range where the previous match is. It is null if no previous match has been found.
+	 */
+	findPreviousMatch(searchString:string, searchStart:IPosition, isRegex:boolean, matchCase:boolean, wholeWord:boolean): IEditorRange;
 
 	/**
 	 * Replace the entire text buffer value contained in this model.
