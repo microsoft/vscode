@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import marshalling = require('vs/base/common/marshalling');
-import platform = require('vs/base/common/platform');
+import * as marshalling from 'vs/base/common/marshalling';
+import * as platform from 'vs/base/common/platform';
 
 // see https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/encodeURIComponent
 function fixedEncodeURIComponent(str: string): string {

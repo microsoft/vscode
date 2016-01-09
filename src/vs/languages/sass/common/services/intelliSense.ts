@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import languageFacts = require('vs/languages/css/common/services/languageFacts');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
-import cssIntellisense = require('vs/languages/css/common/services/intelliSense');
-import nls = require('vs/nls');
-import nodes = require('vs/languages/css/common/parser/cssNodes');
+import * as languageFacts from 'vs/languages/css/common/services/languageFacts';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as Modes from 'vs/editor/common/modes';
+import * as cssIntellisense from 'vs/languages/css/common/services/intelliSense';
+import * as nls from 'vs/nls';
+import * as nodes from 'vs/languages/css/common/parser/cssNodes';
 
 export class SASSIntellisense extends cssIntellisense.CSSIntellisense {
 

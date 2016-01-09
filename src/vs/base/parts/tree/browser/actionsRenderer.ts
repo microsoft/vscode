@@ -5,15 +5,15 @@
 'use strict';
 
 import 'vs/css!./actionsRenderer';
-import Lifecycle = require('vs/base/common/lifecycle');
-import WinJS = require('vs/base/common/winjs.base');
-import Builder = require('vs/base/browser/builder');
-import Dom = require('vs/base/browser/dom');
-import Actions = require('vs/base/common/actions');
-import Events = require('vs/base/common/events');
-import ActionBar = require('vs/base/browser/ui/actionbar/actionbar');
-import TreeDefaults = require('./treeDefaults');
-import Tree = require('vs/base/parts/tree/common/tree');
+import * as Lifecycle from 'vs/base/common/lifecycle';
+import * as WinJS from 'vs/base/common/winjs.base';
+import * as Builder from 'vs/base/browser/builder';
+import * as Dom from 'vs/base/browser/dom';
+import * as Actions from 'vs/base/common/actions';
+import * as Events from 'vs/base/common/events';
+import * as ActionBar from 'vs/base/browser/ui/actionbar/actionbar';
+import * as TreeDefaults from './treeDefaults';
+import * as Tree from 'vs/base/parts/tree/common/tree';
 
 var $ = Builder.$;
 

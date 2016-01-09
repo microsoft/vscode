@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import errors = require('vs/base/common/errors');
-import types = require('vs/base/common/types');
+import * as errors from 'vs/base/common/errors';
+import * as types from 'vs/base/common/types';
 import {MessageList, Severity as BaseSeverity} from 'vs/base/browser/ui/messagelist/messageList';
 import {Identifiers} from 'vs/workbench/common/constants';
 import {StatusbarAlignment} from 'vs/workbench/browser/parts/statusbar/statusbar';

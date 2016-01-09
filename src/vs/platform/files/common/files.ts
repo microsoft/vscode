@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import winjs = require('vs/base/common/winjs.base');
-import paths = require('vs/base/common/paths');
+import * as winjs from 'vs/base/common/winjs.base';
+import * as paths from 'vs/base/common/paths';
 import URI from 'vs/base/common/uri';
-import glob = require('vs/base/common/glob');
-import events = require('vs/base/common/events');
+import * as glob from 'vs/base/common/glob';
+import * as events from 'vs/base/common/events';
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
 
 export var IFileService = createDecorator<IFileService>('fileService');

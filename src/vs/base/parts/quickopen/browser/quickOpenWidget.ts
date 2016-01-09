@@ -6,12 +6,12 @@
 
 import 'vs/css!./quickopen';
 import {Promise} from 'vs/base/common/winjs.base';
-import platform = require('vs/base/common/platform');
-import browser = require('vs/base/browser/browser');
+import * as platform from 'vs/base/common/platform';
+import * as browser from 'vs/base/browser/browser';
 import {EventType} from 'vs/base/common/events';
-import types = require('vs/base/common/types');
-import errors = require('vs/base/common/errors');
-import uuid = require('vs/base/common/uuid');
+import * as types from 'vs/base/common/types';
+import * as errors from 'vs/base/common/errors';
+import * as uuid from 'vs/base/common/uuid';
 import {IQuickNavigateConfiguration, IAutoFocus, IContext, IModel, Mode} from 'vs/base/parts/quickopen/common/quickOpen';
 import {Filter, Renderer, DataSource, IModelProvider} from 'vs/base/parts/quickopen/browser/quickOpenViewer';
 import {Dimension, Builder, $} from 'vs/base/browser/builder';
@@ -21,7 +21,7 @@ import {Tree} from 'vs/base/parts/tree/browser/treeImpl';
 import {ProgressBar} from 'vs/base/browser/ui/progressbar/progressbar';
 import {StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {DefaultController, ClickBehavior} from 'vs/base/parts/tree/browser/treeDefaults';
-import DOM = require('vs/base/browser/dom');
+import * as DOM from 'vs/base/browser/dom';
 import {IActionProvider} from 'vs/base/parts/tree/browser/actionsRenderer';
 import {KeyCode} from 'vs/base/common/keyCodes';
 

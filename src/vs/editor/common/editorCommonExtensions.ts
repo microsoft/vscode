@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 import {onUnexpectedError, illegalArgument} from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
 import {Position} from 'vs/editor/common/core/position';
@@ -13,7 +13,7 @@ import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {Registry} from 'vs/platform/platform';
 import {KeybindingsRegistry,ICommandDescriptor} from 'vs/platform/keybinding/common/keybindingsRegistry';
-import config = require('vs/editor/common/config/config');
+import * as config from 'vs/editor/common/config/config';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {SyncDescriptor1, createSyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
 import {KbExpr, ICommandHandler, IKeybindings} from 'vs/platform/keybinding/common/keybindingService';

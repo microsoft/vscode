@@ -6,14 +6,14 @@
 'use strict';
 
 import 'vs/css!./contextMenuHandler';
-import Builder = require('vs/base/browser/builder');
-import WinJS = require('vs/base/common/winjs.base');
-import Lifecycle = require('vs/base/common/lifecycle');
-import Mouse = require('vs/base/browser/mouseEvent');
-import Actions = require('vs/base/common/actions');
-import ActionBar = require('vs/base/browser/ui/actionbar/actionbar');
-import Menu = require('vs/base/browser/ui/menu/menu');
-import Events = require('vs/base/common/events');
+import * as Builder from 'vs/base/browser/builder';
+import * as WinJS from 'vs/base/common/winjs.base';
+import * as Lifecycle from 'vs/base/common/lifecycle';
+import * as Mouse from 'vs/base/browser/mouseEvent';
+import * as Actions from 'vs/base/common/actions';
+import * as ActionBar from 'vs/base/browser/ui/actionbar/actionbar';
+import * as Menu from 'vs/base/browser/ui/menu/menu';
+import * as Events from 'vs/base/common/events';
 import Severity from 'vs/base/common/severity';
 
 import {IContextViewService, IContextMenuDelegate} from './contextView';

@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import languageFacts = require('vs/languages/css/common/services/languageFacts');
-import lintRules = require('vs/languages/css/common/services/lintRules');
-import nodes = require('vs/languages/css/common/parser/cssNodes');
-import nls = require('vs/nls');
-import _level = require('vs/languages/css/common/level');
+import * as languageFacts from 'vs/languages/css/common/services/languageFacts';
+import * as lintRules from 'vs/languages/css/common/services/lintRules';
+import * as nodes from 'vs/languages/css/common/parser/cssNodes';
+import * as nls from 'vs/nls';
+import * as _level from 'vs/languages/css/common/level';
 
 class Element {
 

@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import modes = require('vs/editor/common/modes');
-import supports = require('vs/editor/common/modes/supports');
-import stream = require('vs/editor/common/modes/lineStream');
-import servicesUtil = require('vs/editor/test/common/servicesTestUtils');
+import * as modes from 'vs/editor/common/modes';
+import * as supports from 'vs/editor/common/modes/supports';
+import * as stream from 'vs/editor/common/modes/lineStream';
+import * as servicesUtil from 'vs/editor/test/common/servicesTestUtils';
 import {AbstractMode} from 'vs/editor/common/modes/abstractMode';
 import {AbstractState} from 'vs/editor/common/modes/abstractState';
 import {AbstractModeWorker} from 'vs/editor/common/modes/abstractModeWorker';

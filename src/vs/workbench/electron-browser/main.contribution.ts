@@ -6,12 +6,12 @@
 'use strict';
 
 import {Registry} from 'vs/platform/platform';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
 import {IConfigurationRegistry, Extensions as ConfigurationExtensions} from 'vs/platform/configuration/common/configurationRegistry';
 import {IWorkbenchActionRegistry, Extensions} from 'vs/workbench/browser/actionRegistry';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
-import platform = require('vs/base/common/platform');
+import * as platform from 'vs/base/common/platform';
 import {KbExpr} from 'vs/platform/keybinding/common/keybindingService';
 import {WorkbenchMessageService} from 'vs/workbench/services/message/browser/messageService';
 import {CloseEditorAction, ReloadWindowAction, ShowStartupPerformance, ZoomResetAction, ZoomOutAction, ZoomInAction, ToggleDevToolsAction, ToggleFullScreenAction, ToggleMenuBarAction, OpenRecentAction, CloseFolderAction, CloseWindowAction, NewWindowAction, CloseMessagesAction} from 'vs/workbench/electron-browser/actions';

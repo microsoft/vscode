@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
-import nodes = require('vs/languages/css/common/parser/cssNodes');
-import typeResolution = require('vs/languages/css/common/services/typeResolution');
-import _parser = require('vs/languages/css/common/parser/cssParser');
+import * as assert from 'assert';
+import * as nodes from 'vs/languages/css/common/parser/cssNodes';
+import * as typeResolution from 'vs/languages/css/common/services/typeResolution';
+import * as _parser from 'vs/languages/css/common/parser/cssParser';
 
 suite('CSS - types', () => {
 

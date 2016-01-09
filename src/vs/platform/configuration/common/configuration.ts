@@ -5,7 +5,7 @@
 
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
 import {IEventEmitter} from 'vs/base/common/eventEmitter';
-import winjs = require('vs/base/common/winjs.base');
+import * as winjs from 'vs/base/common/winjs.base';
 
 export var IConfigurationService = createDecorator<IConfigurationService>('configurationService');
 

@@ -5,7 +5,7 @@
 
 'use strict';
 
-import sd = require('string_decoder');
+import * as sd from 'string_decoder';
 
 /**
  * Convenient way to iterate over output line by line. This helper accommodates for the fact that

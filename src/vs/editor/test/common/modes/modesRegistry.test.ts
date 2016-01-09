@@ -7,11 +7,11 @@
 import 'vs/languages/plaintext/common/plaintext.contribution';
 import 'vs/languages/html/common/html.contribution';
 
-import assert = require('assert');
-import Platform = require('vs/platform/platform');
-import ModesExtensions = require('vs/editor/common/modes/modesRegistry');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
+import * as assert from 'assert';
+import * as Platform from 'vs/platform/platform';
+import * as ModesExtensions from 'vs/editor/common/modes/modesRegistry';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as Modes from 'vs/editor/common/modes';
 
 suite('Editor Modes - Modes Registry', () => {
 	test('Bug 12104: [f12] createModel not successfully handling mime type list?', () => {

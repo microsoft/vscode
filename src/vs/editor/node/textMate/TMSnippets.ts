@@ -4,22 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import {TPromise} from 'vs/base/common/winjs.base';
-import network = require('vs/base/common/network');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
-import snippets = require('vs/editor/contrib/snippet/common/snippet');
-import json = require('vs/base/common/json');
-import modesExt = require('vs/editor/common/modes/modesRegistry');
-import paths = require('vs/base/common/paths');
+import * as network from 'vs/base/common/network';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as Modes from 'vs/editor/common/modes';
+import * as snippets from 'vs/editor/contrib/snippet/common/snippet';
+import * as json from 'vs/base/common/json';
+import * as modesExt from 'vs/editor/common/modes/modesRegistry';
+import * as paths from 'vs/base/common/paths';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {IThreadService} from 'vs/platform/thread/common/thread';
 import {IPluginDescription} from 'vs/platform/plugins/common/plugins';
 import {PluginsRegistry, IMessageCollector} from 'vs/platform/plugins/common/pluginsRegistry';
 import {LanguageExtensions} from 'vs/editor/common/modes/languageExtensionPoint';
 
-import pfs = require('vs/base/node/pfs');
+import * as pfs from 'vs/base/node/pfs';
 
 export interface ITMSnippetsExtensionPoint {
 	language: string;

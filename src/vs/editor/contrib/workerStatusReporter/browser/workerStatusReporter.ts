@@ -7,10 +7,10 @@
 'use strict';
 
 import 'vs/css!./workerStatusReporter';
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Browser = require('vs/base/browser/browser');
-import lifecycle = require('vs/base/common/lifecycle');
+import * as EditorBrowser from 'vs/editor/browser/editorBrowser';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as Browser from 'vs/base/browser/browser';
+import * as lifecycle from 'vs/base/common/lifecycle';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import {IThreadService, IThreadServiceStatusListener, IThreadServiceStatus} from 'vs/platform/thread/common/thread';
 

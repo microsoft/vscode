@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
-import GotoLine = require('./gotoLine');
+import * as GotoLine from './gotoLine';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 
 // Contribute Ctrl+G to "Go to line" using quick open

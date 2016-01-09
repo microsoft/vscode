@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import path = require('path');
+import * as path from 'path';
 import * as cp from 'child_process';
 import ChildProcess = cp.ChildProcess;
 import exec = cp.exec;
@@ -14,7 +14,7 @@ import { PassThrough } from 'stream';
 
 import { fork } from './stdFork';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import { PPromise, Promise, TPromise, TValueCallback, TProgressCallback, ErrorCallback } from  'vs/base/common/winjs.base';
 import * as Types from 'vs/base/common/types';
 import { IStringDictionary } from 'vs/base/common/collections';

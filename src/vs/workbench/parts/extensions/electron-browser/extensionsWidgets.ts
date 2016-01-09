@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import Severity from 'vs/base/common/severity';
-import errors = require('vs/base/common/errors');
-import dom = require('vs/base/browser/dom');
-import lifecycle = require('vs/base/common/lifecycle');
+import * as errors from 'vs/base/common/errors';
+import * as dom from 'vs/base/browser/dom';
+import * as lifecycle from 'vs/base/common/lifecycle';
 import { Action } from 'vs/base/common/actions';
-import statusbar = require('vs/workbench/browser/parts/statusbar/statusbar');
+import * as statusbar from 'vs/workbench/browser/parts/statusbar/statusbar';
 import { IPluginService, IPluginStatus } from 'vs/platform/plugins/common/plugins';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService, CloseAction } from 'vs/platform/message/common/message';

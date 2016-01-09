@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import objects = require('vs/base/common/objects');
+import * as objects from 'vs/base/common/objects';
 
 interface Options {
 

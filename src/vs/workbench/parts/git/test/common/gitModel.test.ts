@@ -5,9 +5,9 @@
 'use strict';
 
 
-import assert = require('assert');
-import Git = require('vs/workbench/parts/git/common/git');
-import Model = require('vs/workbench/parts/git/common/gitModel');
+import * as assert from 'assert';
+import * as Git from 'vs/workbench/parts/git/common/git';
+import * as Model from 'vs/workbench/parts/git/common/gitModel';
 
 suite('Git - StatusModel', () => {
 	var model: Git.IStatusModel;

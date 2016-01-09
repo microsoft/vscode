@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
-import errors = require('vs/base/common/errors');
-import hash = require('vs/base/common/hash');
-import collections = require('vs/base/common/collections');
+import * as nls from 'vs/nls';
+import * as errors from 'vs/base/common/errors';
+import * as hash from 'vs/base/common/hash';
+import * as collections from 'vs/base/common/collections';
 import {TPromise} from 'vs/base/common/winjs.base';
-import objects = require('vs/base/common/objects');
-import strings = require('vs/base/common/strings');
-import exec = require('vs/workbench/parts/execution/common/execution');
+import * as objects from 'vs/base/common/objects';
+import * as strings from 'vs/base/common/strings';
+import * as exec from 'vs/workbench/parts/execution/common/execution';
 import uri from 'vs/base/common/uri';
 
-import cp = require('child_process');
+import * as cp from 'child_process';
 
 export class AbstractExecutionService implements exec.IExecutionService {
 	public serviceId = exec.IExecutionService;

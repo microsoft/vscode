@@ -3,24 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import path = require('path');
-import nls = require('vs/nls');
+import * as path from 'path';
+import * as nls from 'vs/nls';
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
-import objects = require('vs/base/common/objects');
+import * as objects from 'vs/base/common/objects';
 import uri from 'vs/base/common/uri';
 import { schemas } from 'vs/base/common/network';
-import paths = require('vs/base/common/paths');
+import * as paths from 'vs/base/common/paths';
 import Severity from 'vs/base/common/severity';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import editor = require('vs/editor/common/editorCommon');
-import pluginsRegistry = require('vs/platform/plugins/common/pluginsRegistry');
-import platform = require('vs/platform/platform');
-import jsonContributionRegistry = require('vs/platform/jsonschemas/common/jsonContributionRegistry');
+import * as editor from 'vs/editor/common/editorCommon';
+import * as pluginsRegistry from 'vs/platform/plugins/common/pluginsRegistry';
+import * as platform from 'vs/platform/platform';
+import * as jsonContributionRegistry from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IMessageService } from 'vs/platform/message/common/message';
-import debug = require('vs/workbench/parts/debug/common/debug');
+import * as debug from 'vs/workbench/parts/debug/common/debug';
 import { SystemVariables } from 'vs/workbench/parts/lib/node/systemVariables';
 import { Adapter } from 'vs/workbench/parts/debug/node/debugAdapter';
 import { IWorkspaceContextService } from 'vs/workbench/services/workspace/common/contextService';

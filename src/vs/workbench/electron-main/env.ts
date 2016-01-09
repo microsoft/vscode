@@ -5,18 +5,18 @@
 
 'use strict';
 
-import crypto = require('crypto');
-import fs = require('fs');
-import path = require('path');
-import os = require('os');
+import * as crypto from 'crypto';
+import * as fs from 'fs';
+import * as path from 'path';
+import * as os from 'os';
 import {app} from 'electron';
 
-import arrays = require('vs/base/common/arrays');
-import strings = require('vs/base/common/strings');
-import paths = require('vs/base/common/paths');
-import platform = require('vs/base/common/platform');
+import * as arrays from 'vs/base/common/arrays';
+import * as strings from 'vs/base/common/strings';
+import * as paths from 'vs/base/common/paths';
+import * as platform from 'vs/base/common/platform';
 import uri from 'vs/base/common/uri';
-import types = require('vs/base/common/types');
+import * as types from 'vs/base/common/types';
 
 export interface IUpdateInfo {
 	baseUrl: string;

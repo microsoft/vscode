@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import {IWorkbenchActionRegistry, Extensions} from 'vs/workbench/browser/actionRegistry';
 import {Registry} from 'vs/platform/platform';
 import {Action} from 'vs/base/common/actions';

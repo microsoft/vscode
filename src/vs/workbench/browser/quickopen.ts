@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import {TPromise} from 'vs/base/common/winjs.base';
-import filters = require('vs/base/common/filters');
-import arrays = require('vs/base/common/arrays');
-import strings = require('vs/base/common/strings');
-import types = require('vs/base/common/types');
-import errors = require('vs/base/common/errors');
+import * as filters from 'vs/base/common/filters';
+import * as arrays from 'vs/base/common/arrays';
+import * as strings from 'vs/base/common/strings';
+import * as types from 'vs/base/common/types';
+import * as errors from 'vs/base/common/errors';
 import {Registry} from 'vs/platform/platform';
 import {Mode, IContext, IAutoFocus, IModel} from 'vs/base/parts/quickopen/common/quickOpen';
 import {QuickOpenEntry, IHighlight, QuickOpenEntryGroup, QuickOpenModel} from 'vs/base/parts/quickopen/browser/quickOpenModel';

@@ -5,9 +5,9 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
-import nls = require('vs/nls');
-import types = require('vs/base/common/types');
-import errors = require('vs/base/common/errors');
+import * as nls from 'vs/nls';
+import * as types from 'vs/base/common/types';
+import * as errors from 'vs/base/common/errors';
 import {IContext, Mode, IAutoFocus} from 'vs/base/parts/quickopen/common/quickOpen';
 import {QuickOpenModel} from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import {Extensions as ActionExtensions} from 'vs/workbench/browser/actionRegistry';

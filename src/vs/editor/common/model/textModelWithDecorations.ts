@@ -5,12 +5,12 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
-import Strings = require('vs/base/common/strings');
+import * as Strings from 'vs/base/common/strings';
 import {IMode} from 'vs/editor/common/modes';
 import {TextModelWithTrackedRanges} from 'vs/editor/common/model/textModelWithTrackedRanges';
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 import {IHTMLContentElement} from 'vs/base/common/htmlContent';
-import Errors = require('vs/base/common/errors');
+import * as Errors from 'vs/base/common/errors';
 import {IdGenerator} from 'vs/editor/common/core/idGenerator';
 import {Range} from 'vs/editor/common/core/range';
 

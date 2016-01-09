@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import path = require('path');
+import * as path from 'path';
 import { TPromise, Promise } from 'vs/base/common/winjs.base';
-import mime = require('vs/base/node/mime');
-import pfs = require('vs/base/node/pfs');
+import * as mime from 'vs/base/node/mime';
+import * as pfs from 'vs/base/node/pfs';
 import { Repository, GitError } from 'vs/workbench/parts/git/node/git.lib';
 import { IRawGitService, RawServiceState, IRawStatus, IHead, GitErrorCodes, IPushOptions } from 'vs/workbench/parts/git/common/git';
 

@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import lifecycle = require('vs/base/common/lifecycle');
-import errors = require('vs/base/common/errors');
+import * as lifecycle from 'vs/base/common/lifecycle';
+import * as errors from 'vs/base/common/errors';
 import severity from 'vs/base/common/severity';
-import builder = require('vs/base/browser/builder');
-import actions = require('vs/base/common/actions');
-import events = require('vs/base/common/events');
-import actionbar = require('vs/base/browser/ui/actionbar/actionbar');
-import constants = require('vs/workbench/common/constants');
-import wbext = require('vs/workbench/common/contributions');
-import debug = require('vs/workbench/parts/debug/common/debug');
-import dbgactions = require('vs/workbench/parts/debug/electron-browser/debugActions');
+import * as builder from 'vs/base/browser/builder';
+import * as actions from 'vs/base/common/actions';
+import * as events from 'vs/base/common/events';
+import * as actionbar from 'vs/base/browser/ui/actionbar/actionbar';
+import * as constants from 'vs/workbench/common/constants';
+import * as wbext from 'vs/workbench/common/contributions';
+import * as debug from 'vs/workbench/parts/debug/common/debug';
+import * as dbgactions from 'vs/workbench/parts/debug/electron-browser/debugActions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';

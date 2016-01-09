@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
 import Severity from 'vs/base/common/severity';

@@ -5,21 +5,21 @@
 
 'use strict';
 
-import workbenchExt = require('vs/workbench/common/contributions');
-import paths = require('vs/base/common/paths');
-import arrays = require('vs/base/common/arrays');
-import async = require('vs/base/common/async');
-import Errors = require('vs/base/common/errors');
+import * as workbenchExt from 'vs/workbench/common/contributions';
+import * as paths from 'vs/base/common/paths';
+import * as arrays from 'vs/base/common/arrays';
+import * as async from 'vs/base/common/async';
+import * as Errors from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
-import winjs = require('vs/base/common/winjs.base');
-import extfs = require('vs/base/node/extfs');
-import lifecycle = require('vs/base/common/lifecycle');
-import tmsnippets = require('vs/editor/node/textMate/TMSnippets');
+import * as winjs from 'vs/base/common/winjs.base';
+import * as extfs from 'vs/base/node/extfs';
+import * as lifecycle from 'vs/base/common/lifecycle';
+import * as tmsnippets from 'vs/editor/node/textMate/TMSnippets';
 import {IFileService} from 'vs/platform/files/common/files';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 
-import fs = require('fs');
+import * as fs from 'fs';
 
 export class SnippetsTracker implements workbenchExt.IWorkbenchContribution {
 	private static FILE_WATCH_DELAY = 200;

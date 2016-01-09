@@ -6,11 +6,11 @@
 'use strict';
 
 import 'vs/css!./menu';
-import Lifecycle = require('vs/base/common/lifecycle');
-import Builder = require('vs/base/browser/builder');
-import Actions = require('vs/base/common/actions');
-import ActionBar = require('vs/base/browser/ui/actionbar/actionbar');
-import EventEmitter = require('vs/base/common/eventEmitter');
+import * as Lifecycle from 'vs/base/common/lifecycle';
+import * as Builder from 'vs/base/browser/builder';
+import * as Actions from 'vs/base/common/actions';
+import * as ActionBar from 'vs/base/browser/ui/actionbar/actionbar';
+import * as EventEmitter from 'vs/base/common/eventEmitter';
 
 var $ = Builder.$;
 

@@ -7,13 +7,13 @@
 
 import 'vs/css!./color';
 import {TPromise} from 'vs/base/common/winjs.base';
-import lifecycle = require('vs/base/common/lifecycle');
-import schedulers = require('vs/base/common/async');
-import dom = require('vs/base/browser/dom');
-import errors = require('vs/base/common/errors');
-import strings = require('vs/base/common/strings');
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as lifecycle from 'vs/base/common/lifecycle';
+import * as schedulers from 'vs/base/common/async';
+import * as dom from 'vs/base/browser/dom';
+import * as errors from 'vs/base/common/errors';
+import * as strings from 'vs/base/common/strings';
+import * as EditorBrowser from 'vs/editor/browser/editorBrowser';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {INullService} from 'vs/platform/instantiation/common/instantiation';
 

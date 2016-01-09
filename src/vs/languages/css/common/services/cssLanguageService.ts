@@ -5,12 +5,12 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import winjs = require('vs/base/common/winjs.base');
-import nodes = require('vs/languages/css/common/parser/cssNodes');
-import parser = require('vs/languages/css/common/parser/cssParser');
-import eventEmitter = require('vs/base/common/eventEmitter');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import resourceService = require('vs/editor/common/services/resourceService');
+import * as winjs from 'vs/base/common/winjs.base';
+import * as nodes from 'vs/languages/css/common/parser/cssNodes';
+import * as parser from 'vs/languages/css/common/parser/cssParser';
+import * as eventEmitter from 'vs/base/common/eventEmitter';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as resourceService from 'vs/editor/common/services/resourceService';
 
 interface Entry {
 	node:nodes.Stylesheet;

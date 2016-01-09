@@ -5,7 +5,7 @@
 
 'use strict';
 
-import net = require('net');
+import * as net from 'net';
 
 /**
  * Given a start point and a max number of retries, will find a port that

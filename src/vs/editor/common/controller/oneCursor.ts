@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Strings = require('vs/base/common/strings');
+import * as Strings from 'vs/base/common/strings';
 import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
 import {ShiftCommand} from 'vs/editor/common/commands/shiftCommand';
@@ -13,8 +13,8 @@ import {SurroundSelectionCommand} from 'vs/editor/common/commands/surroundSelect
 import {Selection} from 'vs/editor/common/core/selection';
 import {IEnterAction,IndentAction,IElectricAction} from 'vs/editor/common/modes';
 import {CursorMoveHelper, ICursorMoveHelperModel, IMoveResult} from 'vs/editor/common/controller/cursorMoveHelper';
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Errors = require('vs/base/common/errors');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as Errors from 'vs/base/common/errors';
 import {getEnterActionAtPosition} from 'vs/editor/common/modes/supports/onEnter';
 
 export interface IPostOperationRunnable {

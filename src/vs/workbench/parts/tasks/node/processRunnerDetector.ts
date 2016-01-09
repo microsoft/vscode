@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
-import WinJS = require('vs/base/common/winjs.base');
-import Strings = require('vs/base/common/strings');
-import Collections = require('vs/base/common/collections');
+import * as nls from 'vs/nls';
+import * as WinJS from 'vs/base/common/winjs.base';
+import * as Strings from 'vs/base/common/strings';
+import * as Collections from 'vs/base/common/collections';
 
 import { CommandOptions, resolveCommandOptions, Source, ErrorData } from 'vs/base/common/processes';
 import { LineProcess } from 'vs/base/node/processes';

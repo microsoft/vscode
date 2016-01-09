@@ -5,11 +5,11 @@
 
 'use strict';
 
-import assert = require('assert');
-import path = require('path');
+import * as assert from 'assert';
+import * as path from 'path';
 
-import mimeCommon = require('vs/base/common/mime');
-import mime = require('vs/base/node/mime');
+import * as mimeCommon from 'vs/base/common/mime';
+import * as mime from 'vs/base/node/mime';
 
 suite('Mime', () => {
 

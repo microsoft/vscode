@@ -5,12 +5,12 @@
 'use strict';
 
 import 'vs/css!./tree';
-import WinJS = require('vs/base/common/winjs.base');
-import TreeDefaults = require('vs/base/parts/tree/browser/treeDefaults');
-import Events = require('vs/base/common/eventEmitter');
-import Model = require('vs/base/parts/tree/common/treeModel');
-import View = require('./treeView');
-import _ = require('vs/base/parts/tree/common/tree');
+import * as WinJS from 'vs/base/common/winjs.base';
+import * as TreeDefaults from 'vs/base/parts/tree/browser/treeDefaults';
+import * as Events from 'vs/base/common/eventEmitter';
+import * as Model from 'vs/base/parts/tree/common/treeModel';
+import * as View from './treeView';
+import * as _ from 'vs/base/parts/tree/common/tree';
 import { INavigator, MappedNavigator } from 'vs/base/common/iterator';
 
 export class TreeContext implements _.ITreeContext {

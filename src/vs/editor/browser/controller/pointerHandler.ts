@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Mouse = require('vs/base/browser/mouseEvent');
-import DomUtils = require('vs/base/browser/dom');
-import Touch = require('vs/base/browser/touch');
-import MouseHandler = require('vs/editor/browser/controller/mouseHandler');
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Lifecycle = require('vs/base/common/lifecycle');
+import * as Mouse from 'vs/base/browser/mouseEvent';
+import * as DomUtils from 'vs/base/browser/dom';
+import * as Touch from 'vs/base/browser/touch';
+import * as MouseHandler from 'vs/editor/browser/controller/mouseHandler';
+import * as EditorBrowser from 'vs/editor/browser/editorBrowser';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as Lifecycle from 'vs/base/common/lifecycle';
 
 interface IThrottledGestureEvent {
 	translationX: number;

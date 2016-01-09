@@ -5,12 +5,12 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
-import lifecycle = require('vs/base/common/lifecycle');
-import hash = require('vs/base/common/bits/hash');
-import async = require('vs/base/common/async');
-import events = require('vs/base/common/eventEmitter');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
+import * as lifecycle from 'vs/base/common/lifecycle';
+import * as hash from 'vs/base/common/bits/hash';
+import * as async from 'vs/base/common/async';
+import * as events from 'vs/base/common/eventEmitter';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as Modes from 'vs/editor/common/modes';
 import {ParameterHintsRegistry, getParameterHints} from '../common/parameterHints';
 import {sequence} from 'vs/base/common/async';
 

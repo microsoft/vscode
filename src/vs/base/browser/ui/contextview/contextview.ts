@@ -7,10 +7,10 @@
 'use strict';
 
 import 'vs/css!./contextview';
-import Builder = require('vs/base/browser/builder');
-import DOM = require('vs/base/browser/dom');
-import Lifecycle = require('vs/base/common/lifecycle');
-import EventEmitter = require('vs/base/common/eventEmitter');
+import * as Builder from 'vs/base/browser/builder';
+import * as DOM from 'vs/base/browser/dom';
+import * as Lifecycle from 'vs/base/common/lifecycle';
+import * as EventEmitter from 'vs/base/common/eventEmitter';
 
 var $ = Builder.$;
 

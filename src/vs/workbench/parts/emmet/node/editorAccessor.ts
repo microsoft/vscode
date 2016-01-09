@@ -6,12 +6,12 @@
 'use strict';
 
 import {IPosition, Handler, ICommonCodeEditor} from 'vs/editor/common/editorCommon';
-import strings = require('vs/base/common/strings');
-import snippets = require('vs/editor/contrib/snippet/common/snippet');
+import * as strings from 'vs/base/common/strings';
+import * as snippets from 'vs/editor/contrib/snippet/common/snippet';
 import {Range} from 'vs/editor/common/core/range';
 import {ReplaceCommand} from 'vs/editor/common/commands/replaceCommand';
 
-import emmet = require('emmet');
+import * as emmet from 'emmet';
 
 export class EditorAccessor implements emmet.Editor {
 

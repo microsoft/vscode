@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
-import supports = require('vs/editor/common/modes/supports');
-import htmlMode = require('vs/languages/html/common/html');
-import winjs = require('vs/base/common/winjs.base');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as Modes from 'vs/editor/common/modes';
+import * as supports from 'vs/editor/common/modes/supports';
+import * as htmlMode from 'vs/languages/html/common/html';
+import * as winjs from 'vs/base/common/winjs.base';
 import {OnEnterSupport} from 'vs/editor/common/modes/supports/onEnter';
-import handlebarsTokenTypes = require('vs/languages/handlebars/common/handlebarsTokenTypes');
-import htmlWorker = require('vs/languages/html/common/htmlWorker');
+import * as handlebarsTokenTypes from 'vs/languages/handlebars/common/handlebarsTokenTypes';
+import * as htmlWorker from 'vs/languages/html/common/htmlWorker';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IThreadService} from 'vs/platform/thread/common/thread';
 import {IModeService} from 'vs/editor/common/services/modeService';

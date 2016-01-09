@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
+import * as assert from 'assert';
 import {
 	isValidVersionStr, isValidVersion,
 	parseVersion, IParsedVersion,

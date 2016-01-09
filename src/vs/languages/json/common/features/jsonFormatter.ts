@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Json = require('vs/base/common/json');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
+import * as Json from 'vs/base/common/json';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as Modes from 'vs/editor/common/modes';
 
 export function format(model: EditorCommon.IMirrorModel, range: EditorCommon.IRange, options: Modes.IFormattingOptions): EditorCommon.ISingleEditOperation[] {
 	var initialIndentLevel: number;

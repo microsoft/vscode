@@ -8,14 +8,14 @@
 
 import {ipcMain as ipc, app, shell, dialog, Menu, MenuItem} from 'electron';
 
-import nls = require('vs/nls');
-import platform = require('vs/base/common/platform');
-import arrays = require('vs/base/common/arrays');
-import windows = require('vs/workbench/electron-main/windows');
-import window = require('vs/workbench/electron-main/window');
-import env = require('vs/workbench/electron-main/env');
-import storage = require('vs/workbench/electron-main/storage');
-import um = require('vs/workbench/electron-main/update-manager');
+import * as nls from 'vs/nls';
+import * as platform from 'vs/base/common/platform';
+import * as arrays from 'vs/base/common/arrays';
+import * as windows from 'vs/workbench/electron-main/windows';
+import * as window from 'vs/workbench/electron-main/window';
+import * as env from 'vs/workbench/electron-main/env';
+import * as storage from 'vs/workbench/electron-main/storage';
+import * as um from 'vs/workbench/electron-main/update-manager';
 import {Keybinding} from 'vs/base/common/keyCodes';
 
 let UpdateManager = um.Instance;

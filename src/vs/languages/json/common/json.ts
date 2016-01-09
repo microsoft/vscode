@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as Modes from 'vs/editor/common/modes';
 import URI from 'vs/base/common/uri';
-import WinJS = require('vs/base/common/winjs.base');
-import supports = require('vs/editor/common/modes/supports');
-import Platform = require('vs/platform/platform');
-import nls = require('vs/nls');
-import jsonWorker = require('vs/languages/json/common/jsonWorker');
-import jsonSchema = require('vs/base/common/jsonSchema');
-import tokenization = require('vs/languages/json/common/features/tokenization');
-import jsonSchemaService = require('vs/languages/json/common/jsonSchemaService');
+import * as WinJS from 'vs/base/common/winjs.base';
+import * as supports from 'vs/editor/common/modes/supports';
+import * as Platform from 'vs/platform/platform';
+import * as nls from 'vs/nls';
+import * as jsonWorker from 'vs/languages/json/common/jsonWorker';
+import * as jsonSchema from 'vs/base/common/jsonSchema';
+import * as tokenization from 'vs/languages/json/common/features/tokenization';
+import * as jsonSchemaService from 'vs/languages/json/common/jsonSchemaService';
 import {AbstractMode, createWordRegExp} from 'vs/editor/common/modes/abstractMode';
 import {OneWorkerAttr, AllWorkersAttr} from 'vs/platform/thread/common/threadService';
 import {IThreadService, IThreadSynchronizableObject} from 'vs/platform/thread/common/thread';

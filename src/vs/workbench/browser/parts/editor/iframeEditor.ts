@@ -6,12 +6,12 @@
 'use strict';
 
 import 'vs/css!./media/iframeeditor';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import {Promise, TPromise} from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import {Dimension, Builder, $} from 'vs/base/browser/builder';
-import DOM = require('vs/base/browser/dom');
-import errors = require('vs/base/common/errors');
+import * as DOM from 'vs/base/browser/dom';
+import * as errors from 'vs/base/common/errors';
 import {EditorOptions, EditorInput} from 'vs/workbench/common/editor';
 import {EditorInputAction, BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {IFrameEditorInput} from 'vs/workbench/browser/parts/editor/iframeEditorInput';

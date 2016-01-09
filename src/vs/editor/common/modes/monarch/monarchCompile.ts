@@ -9,10 +9,10 @@
  * into a typed and checked ILexer definition.
  */
 
-import MonarchTypes = require('vs/editor/common/modes/monarch/monarchTypes');
-import MonarchCommonTypes = require('vs/editor/common/modes/monarch/monarchCommon');
-import Modes = require('vs/editor/common/modes');
-import Objects = require('vs/base/common/objects');
+import * as MonarchTypes from 'vs/editor/common/modes/monarch/monarchTypes';
+import * as MonarchCommonTypes from 'vs/editor/common/modes/monarch/monarchCommon';
+import * as Modes from 'vs/editor/common/modes';
+import * as Objects from 'vs/base/common/objects';
 
 /*
  * Type helpers

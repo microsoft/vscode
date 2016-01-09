@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import objects = require('vs/base/common/objects');
-import platform = require('vs/platform/platform');
-import types = require('vs/base/common/types');
-import json = require('vs/base/common/json');
+import * as objects from 'vs/base/common/objects';
+import * as platform from 'vs/platform/platform';
+import * as types from 'vs/base/common/types';
+import * as json from 'vs/base/common/json';
 
-import configurationRegistry = require('./configurationRegistry');
+import * as configurationRegistry from './configurationRegistry';
 
 export var CONFIG_DEFAULT_NAME = 'settings';
 

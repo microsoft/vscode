@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nodes = require('vs/languages/css/common/parser/cssNodes');
-import _symbols = require('vs/languages/css/common/parser/cssSymbols');
+import * as nodes from 'vs/languages/css/common/parser/cssNodes';
+import * as _symbols from 'vs/languages/css/common/parser/cssSymbols';
 
 export function findDeclaration(stylesheet:nodes.Node, offset:number):nodes.Node {
 

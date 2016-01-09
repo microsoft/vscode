@@ -7,9 +7,9 @@
 
 import {TPromise} from 'vs/base/common/winjs.base';
 import severity from 'vs/base/common/severity';
-import actions = require('vs/base/common/actions');
+import * as actions from 'vs/base/common/actions';
 import {Separator} from 'vs/base/browser/ui/actionbar/actionbar';
-import dom = require('vs/base/browser/dom');
+import * as dom from 'vs/base/browser/dom';
 import {$} from 'vs/base/browser/builder';
 import {IContextMenuService, IContextMenuDelegate} from 'vs/platform/contextview/browser/contextView';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';

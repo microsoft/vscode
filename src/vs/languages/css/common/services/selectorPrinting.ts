@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nodes = require('vs/languages/css/common/parser/cssNodes');
-import strings = require('vs/base/common/strings');
-import HtmlContent = require('vs/base/common/htmlContent');
+import * as nodes from 'vs/languages/css/common/parser/cssNodes';
+import * as strings from 'vs/base/common/strings';
+import * as HtmlContent from 'vs/base/common/htmlContent';
 
 export interface IElement {
 	name?:string;

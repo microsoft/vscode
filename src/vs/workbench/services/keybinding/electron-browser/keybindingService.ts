@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IJSONSchema} from 'vs/base/common/jsonSchema';
 import {IHTMLContentElement} from 'vs/base/common/htmlContent';

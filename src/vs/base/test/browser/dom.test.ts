@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import dom = require('vs/base/browser/dom');
+import * as dom from 'vs/base/browser/dom';
 
 suite('dom', () => {
 	test('hasClass', () => {

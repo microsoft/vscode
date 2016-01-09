@@ -6,14 +6,14 @@
 'use strict';
 
 import 'vs/css!./gitlessView';
-import nls = require('vs/nls');
-import git = require('vs/workbench/parts/git/common/git');
-import platform = require('vs/base/common/platform');
-import winjs = require('vs/base/common/winjs.base');
-import ee = require('vs/base/common/eventEmitter');
-import view = require('vs/workbench/parts/git/browser/views/view');
-import builder = require('vs/base/browser/builder');
-import actions = require('vs/base/common/actions');
+import * as nls from 'vs/nls';
+import * as git from 'vs/workbench/parts/git/common/git';
+import * as platform from 'vs/base/common/platform';
+import * as winjs from 'vs/base/common/winjs.base';
+import * as ee from 'vs/base/common/eventEmitter';
+import * as view from 'vs/workbench/parts/git/browser/views/view';
+import * as builder from 'vs/base/browser/builder';
+import * as actions from 'vs/base/common/actions';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {ISelection, Selection} from 'vs/platform/selection/common/selection';
 

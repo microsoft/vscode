@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict'
 
-import Platform = require('vs/platform/platform');
-import types = require('vs/base/common/types');
+import * as Platform from 'vs/platform/platform';
+import * as types from 'vs/base/common/types';
 import {TPromise} from 'vs/base/common/winjs.base';
-import thread = require('./thread');
+import * as thread from './thread';
 
 export var THREAD_SERVICE_PROPERTY_NAME = '__$$__threadService';
 

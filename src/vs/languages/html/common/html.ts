@@ -5,17 +5,17 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import modesExtensions = require('vs/editor/common/modes/modesRegistry');
-import supports = require('vs/editor/common/modes/supports');
-import arrays = require('vs/base/common/arrays');
-import strings = require('vs/base/common/strings');
-import Platform = require('vs/platform/platform');
+import * as modesExtensions from 'vs/editor/common/modes/modesRegistry';
+import * as supports from 'vs/editor/common/modes/supports';
+import * as arrays from 'vs/base/common/arrays';
+import * as strings from 'vs/base/common/strings';
+import * as Platform from 'vs/platform/platform';
 import { AsyncDescriptor2, createAsyncDescriptor2 } from 'vs/platform/instantiation/common/descriptors';
-import winjs = require('vs/base/common/winjs.base');
-import network = require('vs/base/common/network');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
-import htmlWorker = require('vs/languages/html/common/htmlWorker');
+import * as winjs from 'vs/base/common/winjs.base';
+import * as network from 'vs/base/common/network';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as Modes from 'vs/editor/common/modes';
+import * as htmlWorker from 'vs/languages/html/common/htmlWorker';
 import { AbstractMode, createWordRegExp } from 'vs/editor/common/modes/abstractMode';
 import { AbstractState } from 'vs/editor/common/modes/abstractState';
 import {OneWorkerAttr} from 'vs/platform/thread/common/threadService';

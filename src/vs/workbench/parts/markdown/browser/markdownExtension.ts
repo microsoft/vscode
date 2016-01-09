@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import errors = require('vs/base/common/errors');
-import types = require('vs/base/common/types');
+import * as errors from 'vs/base/common/errors';
+import * as types from 'vs/base/common/types';
 import URI from 'vs/base/common/uri';
 import {EventType} from 'vs/base/common/events';
 import {FileChangeType, FileChangesEvent, EventType as FileEventType} from 'vs/platform/files/common/files';
-import paths = require('vs/base/common/paths');
+import * as paths from 'vs/base/common/paths';
 import {EventType as EditorEventType, IModelContentChangedEvent} from 'vs/editor/common/editorCommon';
 import {Preferences} from 'vs/workbench/common/constants';
-import themes = require('vs/platform/theme/common/themes');
+import * as themes from 'vs/platform/theme/common/themes';
 import {IWorkbenchContribution} from 'vs/workbench/common/contributions';
 import {IFrameEditor} from 'vs/workbench/browser/parts/editor/iframeEditor';
 import {MarkdownEditorInput} from 'vs/workbench/parts/markdown/browser/markdownEditorInput';

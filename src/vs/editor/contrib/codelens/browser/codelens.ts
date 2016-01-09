@@ -7,18 +7,18 @@
 
 import 'vs/css!./codelens';
 import {TPromise} from 'vs/base/common/winjs.base';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import {format} from 'vs/base/common/strings';
-import lifecycle = require('vs/base/common/lifecycle');
-import schedulers = require('vs/base/common/async');
+import * as lifecycle from 'vs/base/common/lifecycle';
+import * as schedulers from 'vs/base/common/async';
 import Severity from 'vs/base/common/severity';
-import dom = require('vs/base/browser/dom');
-import errors = require('vs/base/common/errors');
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
+import * as dom from 'vs/base/browser/dom';
+import * as errors from 'vs/base/common/errors';
+import * as EditorBrowser from 'vs/editor/browser/editorBrowser';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as Modes from 'vs/editor/common/modes';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
-import referenceSearch = require('vs/editor/contrib/referenceSearch/browser/referenceSearch');
+import * as referenceSearch from 'vs/editor/contrib/referenceSearch/browser/referenceSearch';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';

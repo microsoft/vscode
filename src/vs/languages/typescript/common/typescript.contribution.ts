@@ -5,16 +5,16 @@
 'use strict';
 
 import 'vs/css!./typescript';
-import nls = require('vs/nls');
-import env = require('vs/base/common/flags');
-import platform = require('vs/platform/platform');
-import modesExtensions = require('vs/editor/common/modes/modesRegistry');
-import ConfigurationRegistry = require('vs/platform/configuration/common/configurationRegistry');
-import typescript = require('vs/languages/typescript/common/typescript');
+import * as nls from 'vs/nls';
+import * as env from 'vs/base/common/flags';
+import * as platform from 'vs/platform/platform';
+import * as modesExtensions from 'vs/editor/common/modes/modesRegistry';
+import * as ConfigurationRegistry from 'vs/platform/configuration/common/configurationRegistry';
+import * as typescript from 'vs/languages/typescript/common/typescript';
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
-import suggest = require('vs/editor/contrib/suggest/common/suggest');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import options = require('vs/languages/typescript/common/options');
+import * as suggest from 'vs/editor/contrib/suggest/common/suggest';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as options from 'vs/languages/typescript/common/options';
 import defaults = options.typeScriptOptions;
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 

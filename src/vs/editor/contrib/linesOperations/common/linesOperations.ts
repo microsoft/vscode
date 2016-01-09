@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
 import {EditorAction, HandlerEditorAction, Behaviour} from 'vs/editor/common/editorAction';
-import CopyLinesCommand = require('./copyLinesCommand');
-import DeleteLinesCommand = require('./deleteLinesCommand');
-import MoveLinesCommand = require('./moveLinesCommand');
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as CopyLinesCommand from './copyLinesCommand';
+import * as DeleteLinesCommand from './deleteLinesCommand';
+import * as MoveLinesCommand from './moveLinesCommand';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 import {TrimTrailingWhitespaceCommand} from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
 import {INullService} from 'vs/platform/instantiation/common/instantiation';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';

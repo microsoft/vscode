@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Strings = require('vs/base/common/strings');
-import Modes = require('vs/editor/common/modes');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Errors = require('vs/base/common/errors');
+import * as Strings from 'vs/base/common/strings';
+import * as Modes from 'vs/editor/common/modes';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as Errors from 'vs/base/common/errors';
 
 class InflatedToken implements Modes.IToken {
 	startIndex:number;

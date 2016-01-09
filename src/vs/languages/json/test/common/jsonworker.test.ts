@@ -4,20 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
-import jsonworker = require('vs/languages/json/common/jsonWorker');
-import jsonSchema = require('vs/base/common/jsonSchema');
-import resourceService = require('vs/editor/common/services/resourceServiceImpl');
+import * as assert from 'assert';
+import * as jsonworker from 'vs/languages/json/common/jsonWorker';
+import * as jsonSchema from 'vs/base/common/jsonSchema';
+import * as resourceService from 'vs/editor/common/services/resourceServiceImpl';
 import {IResourceService} from 'vs/editor/common/services/resourceService';
-import instantiationService = require('vs/platform/instantiation/common/instantiationService');
-import mirrorModel = require('vs/editor/common/model/mirrorModel');
+import * as instantiationService from 'vs/platform/instantiation/common/instantiationService';
+import * as mirrorModel from 'vs/editor/common/model/mirrorModel';
 import URI from 'vs/base/common/uri';
-import SchemaService = require('vs/languages/json/common/jsonSchemaService');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
-import WinJS = require('vs/base/common/winjs.base');
-import modesUtil = require('vs/editor/test/common/modesTestUtils');
-import strings = require('vs/base/common/strings');
+import * as SchemaService from 'vs/languages/json/common/jsonSchemaService';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as Modes from 'vs/editor/common/modes';
+import * as WinJS from 'vs/base/common/winjs.base';
+import * as modesUtil from 'vs/editor/test/common/modesTestUtils';
+import * as strings from 'vs/base/common/strings';
 
 suite('JSON - Worker', () => {
 

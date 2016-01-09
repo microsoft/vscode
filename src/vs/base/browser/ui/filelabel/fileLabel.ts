@@ -5,10 +5,10 @@
 'use strict';
 
 import 'vs/css!./filelabel';
-import dom = require('vs/base/browser/dom');
+import * as dom from 'vs/base/browser/dom';
 import uri from 'vs/base/common/uri';
-import paths = require('vs/base/common/paths');
-import types = require('vs/base/common/types');
+import * as paths from 'vs/base/common/paths';
+import * as types from 'vs/base/common/types';
 import {IWorkspaceProvider, getPathLabel} from 'vs/base/common/labels';
 
 export class FileLabel {

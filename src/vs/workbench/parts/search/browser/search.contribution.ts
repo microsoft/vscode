@@ -9,7 +9,7 @@ import 'vs/css!./media/search.contribution';
 import {Registry} from 'vs/platform/platform';
 import {IViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor, ToggleViewletAction} from 'vs/workbench/browser/viewlet';
 import {IConfigurationRegistry, Extensions as ConfigurationExtensions} from 'vs/platform/configuration/common/configurationRegistry';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import {IAction} from 'vs/base/common/actions';
 import {asFileResource} from 'vs/workbench/parts/files/common/files';
 import {SyncActionDescriptor, DeferredAction} from 'vs/platform/actions/common/actions';

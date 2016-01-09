@@ -5,9 +5,9 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import nodes = require('vs/languages/css/common/parser/cssNodes');
-import service = require('vs/languages/css/common/services/cssLanguageService');
-import languageFacts = require('vs/languages/css/common/services/languageFacts');
+import * as nodes from 'vs/languages/css/common/parser/cssNodes';
+import * as service from 'vs/languages/css/common/services/cssLanguageService';
+import * as languageFacts from 'vs/languages/css/common/services/languageFacts';
 
 export enum Type {
 	Url,

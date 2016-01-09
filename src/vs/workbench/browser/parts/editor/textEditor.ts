@@ -8,8 +8,8 @@
 import 'vs/css!./media/texteditor';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {Dimension, Builder} from 'vs/base/browser/builder';
-import objects = require('vs/base/common/objects');
-import errors = require('vs/base/common/errors');
+import * as objects from 'vs/base/common/objects';
+import * as errors from 'vs/base/common/errors';
 import {CodeEditorWidget} from 'vs/editor/browser/widget/codeEditorWidget';
 import {Preferences} from 'vs/workbench/common/constants';
 import {IEditorViewState} from 'vs/editor/common/editorCommon';

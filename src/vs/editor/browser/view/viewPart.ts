@@ -5,7 +5,7 @@
 'use strict';
 
 import {ViewEventHandler} from 'vs/editor/common/viewModel/viewEventHandler';
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
+import * as EditorBrowser from 'vs/editor/browser/editorBrowser';
 
 export interface IRunner {
 	(): void;

@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
-import DiffComputer = require('vs/editor/common/diff/diffComputer');
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as assert from 'assert';
+import * as DiffComputer from 'vs/editor/common/diff/diffComputer';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 
 function extractCharChangeRepresentation(change, expectedChange): EditorCommon.ICharChange {
 	var hasOriginal = expectedChange && expectedChange.originalStartLineNumber > 0;

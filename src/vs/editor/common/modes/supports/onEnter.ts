@@ -6,9 +6,9 @@
 
 import {handleEvent} from 'vs/editor/common/modes/supports';
 import {IEnterAction, IndentAction, IOnEnterSupport, ILineContext, IMode} from 'vs/editor/common/modes';
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Errors = require('vs/base/common/errors');
-import Strings = require('vs/base/common/strings');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as Errors from 'vs/base/common/errors';
+import * as Strings from 'vs/base/common/strings';
 import {Position} from 'vs/editor/common/core/position';
 
 export interface IBracketPair {

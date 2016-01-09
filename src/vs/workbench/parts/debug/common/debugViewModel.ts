@@ -2,8 +2,8 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import ee = require('vs/base/common/eventEmitter');
-import debug = require('vs/workbench/parts/debug/common/debug');
+import * as ee from 'vs/base/common/eventEmitter';
+import * as debug from 'vs/workbench/parts/debug/common/debug';
 
 export class ViewModel extends ee.EventEmitter implements debug.IViewModel, debug.ITreeElement {
 

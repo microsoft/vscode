@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
-import nodes = require('vs/languages/css/common/parser/cssNodes');
+import * as nls from 'vs/nls';
+import * as nodes from 'vs/languages/css/common/parser/cssNodes';
 
 export class SassIssueType implements nodes.IRule {
 	id: string;

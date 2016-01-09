@@ -5,7 +5,7 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
-import errors = require('vs/base/common/errors');
+import * as errors from 'vs/base/common/errors';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {BaseLifecycleService} from 'vs/platform/lifecycle/common/baseLifecycleService';
 import {IWindowService} from 'vs/workbench/services/window/electron-browser/windowService';

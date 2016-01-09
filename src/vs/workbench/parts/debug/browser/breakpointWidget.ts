@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import 'vs/css!../browser/media/breakpointWidget';
-import async = require('vs/base/common/async');
-import errors = require('vs/base/common/errors');
+import * as async from 'vs/base/common/async';
+import * as errors from 'vs/base/common/errors';
 import { CommonKeybindings, KeyCode } from 'vs/base/common/keyCodes';
-import platform = require('vs/base/common/platform');
-import lifecycle = require('vs/base/common/lifecycle');
-import dom = require('vs/base/browser/dom');
+import * as platform from 'vs/base/common/platform';
+import * as lifecycle from 'vs/base/common/lifecycle';
+import * as dom from 'vs/base/browser/dom';
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
-import editorbrowser = require('vs/editor/browser/editorBrowser');
+import * as editorbrowser from 'vs/editor/browser/editorBrowser';
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService, IKeybindingContextKey } from 'vs/platform/keybinding/common/keybindingService';
-import debug = require('vs/workbench/parts/debug/common/debug');
+import * as debug from 'vs/workbench/parts/debug/common/debug';
 
 const $ = dom.emmet;
 const CONTEXT_BREAKPOINT_WIDGET_VISIBLE = 'breakpointWidgetVisible';

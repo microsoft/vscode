@@ -7,7 +7,7 @@
 
 import {app} from 'electron';
 
-import env = require('vs/workbench/electron-main/env');
+import * as env from 'vs/workbench/electron-main/env';
 import {UserSettings} from 'vs/workbench/node/userSettings';
 
 export class SettingsManager extends UserSettings {

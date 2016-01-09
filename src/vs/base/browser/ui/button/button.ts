@@ -6,9 +6,9 @@
 'use strict';
 
 import 'vs/css!./button';
-import EventEmitter = require('vs/base/common/eventEmitter');
-import DOM = require('vs/base/browser/dom');
-import Builder = require('vs/base/browser/builder');
+import * as EventEmitter from 'vs/base/common/eventEmitter';
+import * as DOM from 'vs/base/browser/dom';
+import * as Builder from 'vs/base/browser/builder';
 
 var $ = Builder.$;
 

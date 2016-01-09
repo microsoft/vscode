@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Browser = require('vs/base/browser/browser');
-import Types = require('vs/base/common/types');
-import Emitter = require('vs/base/common/eventEmitter');
-import Lifecycle = require('vs/base/common/lifecycle');
-import mouseEvent = require('vs/base/browser/mouseEvent');
-import keyboardEvent = require('vs/base/browser/keyboardEvent');
-import errors = require('vs/base/common/errors');
-import browserService = require('vs/base/browser/browserService');
+import * as Browser from 'vs/base/browser/browser';
+import * as Types from 'vs/base/common/types';
+import * as Emitter from 'vs/base/common/eventEmitter';
+import * as Lifecycle from 'vs/base/common/lifecycle';
+import * as mouseEvent from 'vs/base/browser/mouseEvent';
+import * as keyboardEvent from 'vs/base/browser/keyboardEvent';
+import * as errors from 'vs/base/common/errors';
+import * as browserService from 'vs/base/browser/browserService';
 
 export type IKeyboardEvent = keyboardEvent.IKeyboardEvent;
 export type IMouseEvent = mouseEvent.IMouseEvent;

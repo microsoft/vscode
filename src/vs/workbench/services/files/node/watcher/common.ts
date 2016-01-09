@@ -6,7 +6,7 @@
 'use strict';
 
 import uri from 'vs/base/common/uri';
-import paths = require('vs/base/common/paths');
+import * as paths from 'vs/base/common/paths';
 import {FileChangeType, FileChangesEvent} from 'vs/platform/files/common/files';
 
 export interface IRawFileChange {

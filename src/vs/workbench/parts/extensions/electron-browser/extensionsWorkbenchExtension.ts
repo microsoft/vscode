@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import nls = require('vs/nls');
-import errors = require('vs/base/common/errors');
-import platform = require('vs/platform/platform');
+import * as nls from 'vs/nls';
+import * as errors from 'vs/base/common/errors';
+import * as platform from 'vs/platform/platform';
 import { Promise } from 'vs/base/common/winjs.base';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IExtensionsService, IGalleryService } from 'vs/workbench/parts/extensions/common/extensions';
@@ -14,7 +14,7 @@ import { IMessageService } from 'vs/platform/message/common/message';
 import Severity from 'vs/base/common/severity';
 import { IWorkspaceContextService } from 'vs/workbench/services/workspace/common/contextService';
 import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
-import wbaregistry = require('vs/workbench/browser/actionRegistry');
+import * as wbaregistry from 'vs/workbench/browser/actionRegistry';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { ListExtensionsAction, InstallExtensionAction, ListOutdatedExtensionsAction } from './extensionsActions';
 import { IQuickOpenRegistry, Extensions, QuickOpenHandlerDescriptor } from 'vs/workbench/browser/quickopen';

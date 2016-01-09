@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import winjs = require('vs/base/common/winjs.base');
-import platform = require('vs/platform/platform');
+import * as winjs from 'vs/base/common/winjs.base';
+import * as platform from 'vs/platform/platform';
 import URI from 'vs/base/common/uri';
-import ts = require('vs/languages/typescript/common/lib/typescriptServices');
+import * as ts from 'vs/languages/typescript/common/lib/typescriptServices';
 import {AsyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
 
 export enum ChangeKind {

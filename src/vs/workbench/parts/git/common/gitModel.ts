@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Lifecycle = require('vs/base/common/lifecycle');
-import Strings = require('vs/base/common/strings');
-import EventEmitter = require('vs/base/common/eventEmitter');
-import Git = require('vs/workbench/parts/git/common/git');
+import * as Lifecycle from 'vs/base/common/lifecycle';
+import * as Strings from 'vs/base/common/strings';
+import * as EventEmitter from 'vs/base/common/eventEmitter';
+import * as Git from 'vs/workbench/parts/git/common/git';
 
 export class FileStatus implements Git.IFileStatus {
 

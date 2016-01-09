@@ -4,24 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Platform = require('vs/base/common/platform');
-import Browser = require('vs/base/browser/browser');
-import Hash = require('vs/base/common/bits/hash');
-import WinJS = require('vs/base/common/winjs.base');
-import Lifecycle = require('vs/base/common/lifecycle');
-import DOM = require('vs/base/browser/dom');
-import EventEmitter = require('vs/base/common/eventEmitter');
-import Diff = require('vs/base/common/diff/diff');
-import Touch = require('vs/base/browser/touch');
-import Mouse = require('vs/base/browser/mouseEvent');
-import Keyboard = require('vs/base/browser/keyboardEvent');
-import Model = require('vs/base/parts/tree/common/treeModel');
-import dnd = require('./treeDnd');
+import * as Platform from 'vs/base/common/platform';
+import * as Browser from 'vs/base/browser/browser';
+import * as Hash from 'vs/base/common/bits/hash';
+import * as WinJS from 'vs/base/common/winjs.base';
+import * as Lifecycle from 'vs/base/common/lifecycle';
+import * as DOM from 'vs/base/browser/dom';
+import * as EventEmitter from 'vs/base/common/eventEmitter';
+import * as Diff from 'vs/base/common/diff/diff';
+import * as Touch from 'vs/base/browser/touch';
+import * as Mouse from 'vs/base/browser/mouseEvent';
+import * as Keyboard from 'vs/base/browser/keyboardEvent';
+import * as Model from 'vs/base/parts/tree/common/treeModel';
+import * as dnd from './treeDnd';
 import { IIterator, ArrayIterator, MappedIterator } from 'vs/base/common/iterator';
-import Scroll = require('vs/base/browser/ui/scrollbar/scrollableElement');
-import ScrollableElementImpl = require('vs/base/browser/ui/scrollbar/impl/scrollableElement');
+import * as Scroll from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import * as ScrollableElementImpl from 'vs/base/browser/ui/scrollbar/impl/scrollableElement';
 import { HeightMap } from 'vs/base/parts/tree/common/treeViewModel'
-import _ = require('vs/base/parts/tree/common/tree');
+import * as _ from 'vs/base/parts/tree/common/tree';
 import { IViewItem } from 'vs/base/parts/tree/common/treeViewModel';
 import {IScrollable} from 'vs/base/common/scrollable';
 import {KeyCode} from 'vs/base/common/keyCodes';

@@ -6,12 +6,12 @@
 'use strict';
 
 import {Promise, TPromise} from 'vs/base/common/winjs.base';
-import timer = require('vs/base/common/timer');
-import paths = require('vs/base/common/paths');
+import * as timer from 'vs/base/common/timer';
+import * as paths from 'vs/base/common/paths';
 import {Action} from 'vs/base/common/actions';
 import {IWindowService} from 'vs/workbench/services/window/electron-browser/windowService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {IWindowConfiguration} from 'vs/workbench/electron-browser/window';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';

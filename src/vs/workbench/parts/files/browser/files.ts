@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import strings = require('vs/base/common/strings');
+import * as strings from 'vs/base/common/strings';
 import {FileEditorInput} from 'vs/workbench/parts/files/common/files';
 import {EditorDescriptor, IEditorInputActionContext, EditorInputActionContributor} from 'vs/workbench/browser/parts/editor/baseEditor';
 

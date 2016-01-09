@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import strings = require('vs/base/common/strings');
-import rewriter = require('vs/languages/typescript/common/js/rewriting');
+import * as strings from 'vs/base/common/strings';
+import * as rewriter from 'vs/languages/typescript/common/js/rewriting';
 
 export class GlobalVariableCollector implements rewriter.ISyntaxRewriter {
 

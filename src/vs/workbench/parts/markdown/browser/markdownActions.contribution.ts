@@ -5,14 +5,14 @@
 
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import {Registry} from 'vs/platform/platform';
 import {IAction} from 'vs/base/common/actions';
 import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
 import {Scope, IActionBarRegistry, Extensions as ActionBarExtensions, ActionBarContributor} from 'vs/workbench/browser/actionBarRegistry';
 import {FileEditorInputActionContributor} from 'vs/workbench/parts/files/browser/files';
 import {asFileResource} from 'vs/workbench/parts/files/common/files';
-import strings = require('vs/base/common/strings');
+import * as strings from 'vs/base/common/strings';
 import {IEditorInputActionContext, IEditorInputAction} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {ShowWelcomeAction, OpenPreviewToSideAction, GlobalTogglePreviewMarkdownAction, PreviewMarkdownEditorInputAction, PreviewMarkdownAction} from 'vs/workbench/parts/markdown/browser/markdownActions';
 import {MARKDOWN_MIME, MARKDOWN_FILES} from 'vs/workbench/parts/markdown/browser/markdown';

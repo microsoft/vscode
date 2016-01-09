@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import MockDom = require('vs/base/test/browser/mockDom');
+import * as MockDom from 'vs/base/test/browser/mockDom';
 
 suite("MockDom", () => {
 	test('Create Element', () => {

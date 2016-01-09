@@ -5,10 +5,10 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
-import protocol = require('vs/base/common/worker/workerProtocol');
-import errors = require('vs/base/common/errors');
-import remote = require('vs/base/common/remote');
-import marshalling = require('vs/base/common/marshalling');
+import * as protocol from 'vs/base/common/worker/workerProtocol';
+import * as errors from 'vs/base/common/errors';
+import * as remote from 'vs/base/common/remote';
+import * as marshalling from 'vs/base/common/marshalling';
 
 interface IReplyCallbacks {
 	c: (value:any)=>void;

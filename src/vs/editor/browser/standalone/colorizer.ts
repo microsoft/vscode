@@ -5,10 +5,10 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
-import Schedulers = require('vs/base/common/async');
-import ViewLine = require('vs/editor/browser/viewParts/lines/viewLine');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
+import * as Schedulers from 'vs/base/common/async';
+import * as ViewLine from 'vs/editor/browser/viewParts/lines/viewLine';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as Modes from 'vs/editor/common/modes';
 import {IModeService} from 'vs/editor/common/services/modeService';
 
 export interface IColorizerOptions {

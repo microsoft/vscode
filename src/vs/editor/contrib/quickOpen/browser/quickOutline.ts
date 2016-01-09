@@ -7,18 +7,18 @@
 'use strict';
 
 import 'vs/css!./quickOutline';
-import nls = require('vs/nls');
-import Arrays = require('vs/base/common/arrays');
+import * as nls from 'vs/nls';
+import * as Arrays from 'vs/base/common/arrays';
 import {TPromise} from 'vs/base/common/winjs.base';
-import Errors = require('vs/base/common/errors');
-import Strings = require('vs/base/common/strings');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
-import Filters = require('vs/base/common/filters');
-import QuickOpenWidget = require('vs/base/parts/quickopen/browser/quickOpenWidget');
-import QuickOpenModel = require('vs/base/parts/quickopen/browser/quickOpenModel');
-import QuickOpen = require('vs/base/parts/quickopen/common/quickOpen');
-import EditorQuickOpen = require('./editorQuickOpen');
+import * as Errors from 'vs/base/common/errors';
+import * as Strings from 'vs/base/common/strings';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as Modes from 'vs/editor/common/modes';
+import * as Filters from 'vs/base/common/filters';
+import * as QuickOpenWidget from 'vs/base/parts/quickopen/browser/quickOpenWidget';
+import * as QuickOpenModel from 'vs/base/parts/quickopen/browser/quickOpenModel';
+import * as QuickOpen from 'vs/base/parts/quickopen/common/quickOpen';
+import * as EditorQuickOpen from './editorQuickOpen';
 import {Behaviour} from 'vs/editor/common/editorAction';
 import {INullService} from 'vs/platform/instantiation/common/instantiation';
 

@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import winjs = require('vs/base/common/winjs.base');
-import abstractThreadService = require('vs/platform/thread/common/abstractThreadService');
-import instantiationService = require('vs/platform/instantiation/common/instantiationService');
+import * as winjs from 'vs/base/common/winjs.base';
+import * as abstractThreadService from 'vs/platform/thread/common/abstractThreadService';
+import * as instantiationService from 'vs/platform/instantiation/common/instantiationService';
 import {SyncDescriptor0} from 'vs/platform/instantiation/common/descriptors';
 import {IThreadService, IThreadServiceStatusListener, IThreadSynchronizableObject, ThreadAffinity} from 'vs/platform/thread/common/thread';
 

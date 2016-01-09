@@ -5,9 +5,9 @@
 
 'use strict';
 
-import platform = require('vs/base/common/platform');
+import * as platform from 'vs/base/common/platform';
 import { TPromise } from 'vs/base/common/winjs.base';
-import cp = require('child_process');
+import * as cp from 'child_process';
 
 export interface IEnv {
 	[key: string]: string;

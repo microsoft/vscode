@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
-import ViewLineParts = require('vs/editor/common/viewLayout/viewLineParts');
+import * as assert from 'assert';
+import * as ViewLineParts from 'vs/editor/common/viewLayout/viewLineParts';
 
 suite('Editor ViewLayout - ViewLineParts', () => {
 

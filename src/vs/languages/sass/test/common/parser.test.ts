@@ -5,12 +5,12 @@
 
 'use strict';
 
-import _parser = require('vs/languages/sass/common/parser/sassParser');
+import * as _parser from 'vs/languages/sass/common/parser/sassParser';
 import nodes = require ('vs/languages/css/common/parser/cssNodes');
 import errors = require ('vs/languages/css/common/parser/cssErrors');
-import sassErrors = require('vs/languages/sass/common/parser/sassErrors');
+import * as sassErrors from 'vs/languages/sass/common/parser/sassErrors';
 
-import cssParserTests = require('vs/languages/css/test/common/parser.test');
+import * as cssParserTests from 'vs/languages/css/test/common/parser.test';
 
 
 function assertNode(text: string, parser: _parser.SassParser, f: ()=>nodes.Node):void {

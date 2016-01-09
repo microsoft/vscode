@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Errors = require('vs/base/common/errors');
-import Types = require('vs/base/common/types');
-import Platform = require('vs/base/common/platform');
+import * as Errors from 'vs/base/common/errors';
+import * as Types from 'vs/base/common/types';
+import * as Platform from 'vs/base/common/platform';
 import {TimeKeeper, IEventsListener, ITimerEvent} from 'vs/base/common/timer';
 import {safeStringify} from 'vs/base/common/objects';
 import {Registry} from 'vs/platform/platform';

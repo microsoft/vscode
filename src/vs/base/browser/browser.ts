@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import types = require('vs/base/common/types');
+import * as types from 'vs/base/common/types';
 import * as Platform from 'vs/base/common/platform';
 
 interface ISafeWindow {

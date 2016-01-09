@@ -6,10 +6,10 @@
 
 import {TPromise, Promise, xhr} from 'vs/base/common/winjs.base';
 import {ITimerEvent, nullEvent} from 'vs/base/common/timer';
-import async = require('vs/base/common/async');
-import http = require('vs/base/common/http');
-import strings = require('vs/base/common/strings');
-import nls = require('vs/nls');
+import * as async from 'vs/base/common/async';
+import * as http from 'vs/base/common/http';
+import * as strings from 'vs/base/common/strings';
+import * as nls from 'vs/nls';
 import {BaseRequestService} from 'vs/platform/request/common/baseRequestService';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IThreadService, IThreadSynchronizableObject} from 'vs/platform/thread/common/thread';

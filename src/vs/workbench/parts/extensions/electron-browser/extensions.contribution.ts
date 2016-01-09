@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import platform = require('vs/platform/platform');
+import * as platform from 'vs/platform/platform';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import statusbar = require('vs/workbench/browser/parts/statusbar/statusbar');
+import * as statusbar from 'vs/workbench/browser/parts/statusbar/statusbar';
 import { ExtensionsStatusbarItem } from 'vs/workbench/parts/extensions/electron-browser/extensionsWidgets';
 import { IGalleryService } from 'vs/workbench/parts/extensions/common/extensions';
 import { GalleryService } from 'vs/workbench/parts/extensions/node/vsoGalleryService';

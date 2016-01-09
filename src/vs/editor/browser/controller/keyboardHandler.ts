@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import EditorCommon = require('vs/editor/common/editorCommon');
-import keyboardController = require('vs/base/browser/keyboardController');
-import DomUtils = require('vs/base/browser/dom');
-import Platform = require('vs/base/common/platform');
-import Browser = require('vs/base/browser/browser');
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
-import EventEmitter = require('vs/base/common/eventEmitter');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as keyboardController from 'vs/base/browser/keyboardController';
+import * as DomUtils from 'vs/base/browser/dom';
+import * as Platform from 'vs/base/common/platform';
+import * as Browser from 'vs/base/browser/browser';
+import * as EditorBrowser from 'vs/editor/browser/editorBrowser';
+import * as EventEmitter from 'vs/base/common/eventEmitter';
 import {ViewEventHandler} from 'vs/editor/common/viewModel/viewEventHandler';
-import Schedulers = require('vs/base/common/async');
-import Lifecycle = require('vs/base/common/lifecycle');
-import Strings = require('vs/base/common/strings');
+import * as Schedulers from 'vs/base/common/async';
+import * as Lifecycle from 'vs/base/common/lifecycle';
+import * as Strings from 'vs/base/common/strings';
 import {Range} from 'vs/editor/common/core/range';
 import {Position} from 'vs/editor/common/core/position';
 import {CommonKeybindings} from 'vs/base/common/keyCodes';

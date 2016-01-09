@@ -15,7 +15,7 @@ import {SyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
 import {StringEditorInput} from 'vs/workbench/browser/parts/editor/stringEditorInput';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {NullTelemetryService} from 'vs/platform/telemetry/common/nullTelemetryService';
-import mime = require('vs/base/common/mime');
+import * as mime from 'vs/base/common/mime';
 
 let EditorRegistry: IEditorRegistry = Platform.Registry.as(Extensions.Editors);
 

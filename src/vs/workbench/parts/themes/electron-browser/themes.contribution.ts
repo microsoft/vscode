@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
-import winjs = require('vs/base/common/winjs.base');
-import actions = require('vs/base/common/actions');
-import Constants = require('vs/workbench/common/constants');
+import * as nls from 'vs/nls';
+import * as winjs from 'vs/base/common/winjs.base';
+import * as actions from 'vs/base/common/actions';
+import * as Constants from 'vs/workbench/common/constants';
 import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
-import platform = require('vs/platform/platform');
-import commonPlatform = require('vs/base/common/platform');
-import workbenchActionRegistry = require('vs/workbench/browser/actionRegistry');
-import Themes = require('vs/platform/theme/common/themes');
+import * as platform from 'vs/platform/platform';
+import * as commonPlatform from 'vs/base/common/platform';
+import * as workbenchActionRegistry from 'vs/workbench/browser/actionRegistry';
+import * as Themes from 'vs/platform/theme/common/themes';
 import {IQuickOpenService, IPickOpenEntry} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IThemeService, ITheme} from 'vs/workbench/services/themes/node/themeService';

@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
+import * as assert from 'assert';
 
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Model = require('vs/editor/common/model/model');
-import TU = require('vs/editor/test/common/commands/commandTestUtils');
-import TrimTrailingWhitespaceCommand = require('vs/editor/common/commands/trimTrailingWhitespaceCommand');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as Model from 'vs/editor/common/model/model';
+import * as TU from 'vs/editor/test/common/commands/commandTestUtils';
+import * as TrimTrailingWhitespaceCommand from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
 import {Selection} from 'vs/editor/common/core/selection';
 import {pos, withEditorModel} from 'vs/editor/test/common/editorTestUtils';
 

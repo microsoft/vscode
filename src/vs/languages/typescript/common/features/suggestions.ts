@@ -5,13 +5,13 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import collections = require('vs/base/common/collections');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
-import ts = require('vs/languages/typescript/common/lib/typescriptServices');
-import converter = require('vs/languages/typescript/common/features/converter');
-import previewer = require('vs/languages/typescript/common/features/previewer');
-import Options = require('vs/languages/typescript/common/options');
+import * as collections from 'vs/base/common/collections';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as Modes from 'vs/editor/common/modes';
+import * as ts from 'vs/languages/typescript/common/lib/typescriptServices';
+import * as converter from 'vs/languages/typescript/common/features/converter';
+import * as previewer from 'vs/languages/typescript/common/features/previewer';
+import * as Options from 'vs/languages/typescript/common/options';
 
 function getWordAtOffset(text: string, offset: number): string {
 	var endOffset = offset;

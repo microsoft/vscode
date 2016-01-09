@@ -5,10 +5,10 @@
 'use strict';
 
 import {Promise, TPromise} from 'vs/base/common/winjs.base';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import {Registry} from 'vs/platform/platform';
-import errors = require('vs/base/common/errors');
-import arrays = require('vs/base/common/arrays');
+import * as errors from 'vs/base/common/errors';
+import * as arrays from 'vs/base/common/arrays';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import {IAction, Action} from 'vs/base/common/actions';
 import {EditorAction, Behaviour} from 'vs/editor/common/editorAction';

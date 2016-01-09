@@ -5,7 +5,7 @@
 'use strict';
 
 import { MockDocument, MockWindow, MockElement } from 'vs/base/test/browser/mockDom';
-import browserService = require('vs/base/browser/browserService');
+import * as browserService from 'vs/base/browser/browserService';
 
 function mockedIsHTMLElement(o:any): boolean {
 	if (typeof HTMLElement === 'object') {

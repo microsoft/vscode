@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import assert = require('assert');
+import * as assert from 'assert';
 import uri from 'vs/base/common/uri';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 

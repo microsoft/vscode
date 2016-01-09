@@ -5,8 +5,8 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
-import nls = require('vs/nls');
-import types = require('vs/base/common/types');
+import * as nls from 'vs/nls';
+import * as types from 'vs/base/common/types';
 import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
 import {IEditorOptions, IEditorViewState} from 'vs/editor/common/editorCommon';
 import {DefaultConfig} from 'vs/editor/common/config/defaultConfig';

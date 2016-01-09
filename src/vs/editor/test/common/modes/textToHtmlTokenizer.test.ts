@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
+import * as assert from 'assert';
 import {tokenizeToHtmlContent} from 'vs/editor/common/modes/textToHtmlTokenizer';
 import {AbstractState} from 'vs/editor/common/modes/abstractState';
-import modes = require('vs/editor/common/modes');
-import supports = require('vs/editor/common/modes/supports');
+import * as modes from 'vs/editor/common/modes';
+import * as supports from 'vs/editor/common/modes/supports';
 
 suite('Editor Modes - textToHtmlTokenizer', () => {
 	test('TextToHtmlTokenizer', () => {

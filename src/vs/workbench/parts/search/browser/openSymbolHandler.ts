@@ -5,16 +5,16 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import {ThrottledDelayer} from 'vs/base/common/async';
 import URI from 'vs/base/common/uri';
 import {QuickOpenHandler, EditorQuickOpenEntry} from 'vs/workbench/browser/quickopen';
 import {QuickOpenModel, QuickOpenEntry, IHighlight} from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import {IAutoFocus} from 'vs/base/parts/quickopen/common/quickOpen';
-import filters = require('vs/base/common/filters');
+import * as filters from 'vs/base/common/filters';
 import {IRange} from 'vs/editor/common/editorCommon';
 import {EditorInput} from 'vs/workbench/common/editor';
-import labels = require('vs/base/common/labels');
+import * as labels from 'vs/base/common/labels';
 import {IWorkbenchEditorService, IFileInput} from 'vs/workbench/services/editor/common/editorService';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';

@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import winjs = require('vs/base/common/winjs.base');
-import marshalling = require('vs/base/common/marshalling');
-import remote = require('vs/base/common/remote');
-import errors = require('vs/base/common/errors');
+import * as winjs from 'vs/base/common/winjs.base';
+import * as marshalling from 'vs/base/common/marshalling';
+import * as remote from 'vs/base/common/remote';
+import * as errors from 'vs/base/common/errors';
 
 interface IRPCReply {
 	c: winjs.ValueCallback;

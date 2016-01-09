@@ -5,11 +5,11 @@
 
 import uri from 'vs/base/common/uri';
 import { TPromise, Promise } from 'vs/base/common/winjs.base';
-import ee = require('vs/base/common/eventEmitter');
+import * as ee from 'vs/base/common/eventEmitter';
 import severity from 'vs/base/common/severity';
 import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
-import editor = require('vs/editor/common/editorCommon');
-import editorbrowser = require('vs/editor/browser/editorBrowser');
+import * as editor from 'vs/editor/common/editorCommon';
+import * as editorbrowser from 'vs/editor/browser/editorBrowser';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 
 export var VIEWLET_ID = 'workbench.view.debug';

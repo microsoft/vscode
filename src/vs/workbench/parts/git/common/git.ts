@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import WinJS = require('vs/base/common/winjs.base');
-import WorkbenchEditorCommon = require('vs/workbench/common/editor');
-import EventEmitter = require('vs/base/common/eventEmitter');
-import Lifecycle = require('vs/base/common/lifecycle');
-import output = require('vs/workbench/parts/output/common/output');
+import * as WinJS from 'vs/base/common/winjs.base';
+import * as WorkbenchEditorCommon from 'vs/workbench/common/editor';
+import * as EventEmitter from 'vs/base/common/eventEmitter';
+import * as Lifecycle from 'vs/base/common/lifecycle';
+import * as output from 'vs/workbench/parts/output/common/output';
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation'
 
 // Model raw interfaces

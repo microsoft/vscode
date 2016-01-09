@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
+import * as assert from 'assert';
 import {Range} from 'vs/editor/common/core/range';
-import Position = require('vs/editor/common/core/position');
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as Position from 'vs/editor/common/core/position';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 import {EditableTextModel, IValidatedEditOperation} from 'vs/editor/common/model/editableTextModel';
 import {TextModel} from 'vs/editor/common/model/textModel';
 import {LineMarker, TextModelWithMarkers} from 'vs/editor/common/model/textModelWithMarkers';

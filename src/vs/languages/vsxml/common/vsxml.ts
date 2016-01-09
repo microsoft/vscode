@@ -11,12 +11,12 @@
 
 'use strict';
 
-import objects = require('vs/base/common/objects');
-import errors = require('vs/base/common/errors');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
+import * as objects from 'vs/base/common/objects';
+import * as errors from 'vs/base/common/errors';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as Modes from 'vs/editor/common/modes';
 import {AbstractState} from 'vs/editor/common/modes/abstractState';
-import vsxmlTokenTypes = require('vs/languages/vsxml/common/vsxmlTokenTypes');
+import * as vsxmlTokenTypes from 'vs/languages/vsxml/common/vsxmlTokenTypes';
 
 var separators = '<>"=/';
 var whitespace = '\t ';

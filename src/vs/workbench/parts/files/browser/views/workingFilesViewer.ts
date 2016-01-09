@@ -5,20 +5,20 @@
 'use strict';
 
 import {TPromise, Promise} from 'vs/base/common/winjs.base';
-import platform = require('vs/base/common/platform');
+import * as platform from 'vs/base/common/platform';
 import {$} from 'vs/base/browser/builder';
-import tree = require('vs/base/parts/tree/common/tree');
+import * as tree from 'vs/base/parts/tree/common/tree';
 import {FileLabel} from 'vs/base/browser/ui/filelabel/fileLabel';
 import {ExternalElementsDragAndDropData, ElementsDragAndDropData, DesktopDragAndDropData} from 'vs/base/parts/tree/browser/treeDnd';
 import {ClickBehavior, DefaultController, DefaultDragAndDrop} from 'vs/base/parts/tree/browser/treeDefaults';
-import errors = require('vs/base/common/errors');
-import mime = require('vs/base/common/mime');
+import * as errors from 'vs/base/common/errors';
+import * as mime from 'vs/base/common/mime';
 import uri from 'vs/base/common/uri';
-import paths = require('vs/base/common/paths');
+import * as paths from 'vs/base/common/paths';
 import {StandardMouseEvent, DragMouseEvent} from 'vs/base/browser/mouseEvent';
 import {StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {Separator} from 'vs/base/browser/ui/actionbar/actionbar';
-import actions = require('vs/base/common/actions');
+import * as actions from 'vs/base/common/actions';
 import {ActionsRenderer} from 'vs/base/parts/tree/browser/actionsRenderer';
 import {ContributableActionProvider} from 'vs/workbench/browser/actionBarRegistry';
 import {keybindingForAction, CloseWorkingFileAction, SelectResourceForCompareAction, CompareResourcesAction, SaveFileAsAction, SaveFileAction, RevertFileAction, OpenToSideAction} from 'vs/workbench/parts/files/browser/fileActions';

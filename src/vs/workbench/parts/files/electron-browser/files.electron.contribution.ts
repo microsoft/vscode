@@ -5,13 +5,13 @@
 
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import {Registry} from 'vs/platform/platform';
 import {IAction} from 'vs/base/common/actions';
 import {Scope, IActionBarRegistry, Extensions as ActionBarExtensions, ActionBarContributor} from 'vs/workbench/browser/actionBarRegistry';
 import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/browser/actionRegistry';
 import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
-import env = require('vs/base/common/platform');
+import * as env from 'vs/base/common/platform';
 import {ITextFileService, asFileResource} from 'vs/workbench/parts/files/common/files';
 import {IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions} from 'vs/workbench/common/contributions';
 import {GlobalNewFileAction, SaveFileAsAction} from 'vs/workbench/parts/files/browser/fileActions';

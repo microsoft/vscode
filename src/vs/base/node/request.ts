@@ -6,8 +6,8 @@
 'use strict';
 
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
-import https = require('https');
-import http = require('http');
+import * as https from 'https';
+import * as http from 'http';
 import { Url, parse as parseUrl } from 'url';
 import { createWriteStream } from 'fs';
 import { assign } from 'vs/base/common/objects';

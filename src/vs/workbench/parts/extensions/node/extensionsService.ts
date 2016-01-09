@@ -5,12 +5,12 @@
 
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import { tmpdir } from 'os';
 import * as path from 'path';
-import types = require('vs/base/common/types');
+import * as types from 'vs/base/common/types';
 import { ServiceEvent } from 'vs/base/common/service';
-import errors = require('vs/base/common/errors');
+import * as errors from 'vs/base/common/errors';
 import * as pfs from 'vs/base/node/pfs';
 import { assign } from 'vs/base/common/objects';
 import { flatten } from 'vs/base/common/arrays';

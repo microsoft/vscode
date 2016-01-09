@@ -7,8 +7,8 @@
 import * as assert from 'assert';
 import { $, Builder } from 'vs/base/browser/builder';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
-import BrowserService = require('vs/base/browser/browserService');
-import mockBrowserService = require('vs/base/test/browser/mockBrowserService');
+import * as BrowserService from 'vs/base/browser/browserService';
+import * as mockBrowserService from 'vs/base/test/browser/mockBrowserService';
 
 suite("HighlightedLabel", () => {
 	var label: HighlightedLabel;

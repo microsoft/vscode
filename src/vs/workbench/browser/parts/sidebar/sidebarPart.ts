@@ -7,16 +7,16 @@
 
 import 'vs/css!./media/sidebarpart';
 import {TPromise} from 'vs/base/common/winjs.base';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import {Registry} from 'vs/platform/platform';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import {Dimension, Builder, $} from 'vs/base/browser/builder';
-import uuid = require('vs/base/common/uuid');
-import events = require('vs/base/common/events');
-import timer = require('vs/base/common/timer');
-import strings = require('vs/base/common/strings');
-import types = require('vs/base/common/types');
-import errors = require('vs/base/common/errors');
+import * as uuid from 'vs/base/common/uuid';
+import * as events from 'vs/base/common/events';
+import * as timer from 'vs/base/common/timer';
+import * as strings from 'vs/base/common/strings';
+import * as types from 'vs/base/common/types';
+import * as errors from 'vs/base/common/errors';
 import {CONTEXT as ToolBarContext, ToolBar} from 'vs/base/browser/ui/toolbar/toolbar';
 import {IActionItem, ActionsOrientation} from 'vs/base/browser/ui/actionbar/actionbar';
 import {ProgressBar} from 'vs/base/browser/ui/progressbar/progressbar';

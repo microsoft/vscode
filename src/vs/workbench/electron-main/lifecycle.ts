@@ -5,12 +5,12 @@
 
 'use strict';
 
-import events = require('events');
+import * as events from 'events';
 import {ipcMain as ipc, app} from 'electron';
 
 import {TPromise, TValueCallback} from 'vs/base/common/winjs.base';
 import {ReadyState, VSCodeWindow} from 'vs/workbench/electron-main/window';
-import env = require('vs/workbench/electron-main/env');
+import * as env from 'vs/workbench/electron-main/env';
 
 const eventEmitter = new events.EventEmitter();
 

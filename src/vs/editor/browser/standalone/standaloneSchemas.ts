@@ -5,7 +5,7 @@
 
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import {IJSONSchema} from 'vs/base/common/jsonSchema';
 
 this.MonacoEditorSchemas = this.MonacoEditorSchemas || {};

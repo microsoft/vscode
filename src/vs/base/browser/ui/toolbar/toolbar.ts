@@ -6,14 +6,14 @@
 'use strict';
 
 import 'vs/css!./toolbar';
-import nls = require('vs/nls');
-import Lifecycle = require('vs/base/common/lifecycle');
-import Builder = require('vs/base/browser/builder');
-import Types = require('vs/base/common/types');
-import Actions = require('vs/base/common/actions');
-import ActionBar = require('vs/base/browser/ui/actionbar/actionbar');
-import Dropdown = require('vs/base/browser/ui/dropdown/dropdown');
-import EventEmitter = require('vs/base/common/eventEmitter');
+import * as nls from 'vs/nls';
+import * as Lifecycle from 'vs/base/common/lifecycle';
+import * as Builder from 'vs/base/browser/builder';
+import * as Types from 'vs/base/common/types';
+import * as Actions from 'vs/base/common/actions';
+import * as ActionBar from 'vs/base/browser/ui/actionbar/actionbar';
+import * as Dropdown from 'vs/base/browser/ui/dropdown/dropdown';
+import * as EventEmitter from 'vs/base/common/eventEmitter';
 
 var $ = <Builder.QuickBuilder> Builder.$;
 

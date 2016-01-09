@@ -6,15 +6,15 @@
 'use strict';
 
 import 'vs/css!./media/editorstatus';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import {Promise, TPromise} from 'vs/base/common/winjs.base';
 import { emmet as $, append, show, hide } from 'vs/base/browser/dom';
-import objects = require('vs/base/common/objects');
-import encoding = require('vs/base/common/bits/encoding');
-import strings = require('vs/base/common/strings');
-import types = require('vs/base/common/types');
+import * as objects from 'vs/base/common/objects';
+import * as encoding from 'vs/base/common/bits/encoding';
+import * as strings from 'vs/base/common/strings';
+import * as types from 'vs/base/common/types';
 import uri from 'vs/base/common/uri';
-import errors = require('vs/base/common/errors');
+import * as errors from 'vs/base/common/errors';
 import {IStatusbarItem} from 'vs/workbench/browser/parts/statusbar/statusbar';
 import {Action} from 'vs/base/common/actions';
 import {IEditorModesRegistry, Extensions} from 'vs/editor/common/modes/modesRegistry';

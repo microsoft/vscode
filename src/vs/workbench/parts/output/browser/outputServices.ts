@@ -5,7 +5,7 @@
 'use strict';
 
 import {Promise, TPromise} from 'vs/base/common/winjs.base';
-import strings = require('vs/base/common/strings');
+import * as strings from 'vs/base/common/strings';
 import Event, {Emitter} from 'vs/base/common/event';
 import {EditorOptions} from 'vs/workbench/common/editor';
 import {StringEditor} from 'vs/workbench/browser/parts/editor/stringEditor';

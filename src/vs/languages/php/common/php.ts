@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import WinJS = require('vs/base/common/winjs.base');
-import Network = require('vs/base/common/network');
-import objects = require('vs/base/common/objects');
-import supports = require('vs/editor/common/modes/supports');
-import platform = require('vs/platform/platform');
-import Arrays = require('vs/base/common/arrays');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
+import * as WinJS from 'vs/base/common/winjs.base';
+import * as Network from 'vs/base/common/network';
+import * as objects from 'vs/base/common/objects';
+import * as supports from 'vs/editor/common/modes/supports';
+import * as platform from 'vs/platform/platform';
+import * as Arrays from 'vs/base/common/arrays';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as Modes from 'vs/editor/common/modes';
 import {AbstractMode, isDigit, createWordRegExp} from 'vs/editor/common/modes/abstractMode';
 import {AbstractState} from 'vs/editor/common/modes/abstractState';
 import {OneWorkerAttr} from 'vs/platform/thread/common/threadService';

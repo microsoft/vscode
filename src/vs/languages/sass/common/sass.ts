@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Monarch = require('vs/editor/common/modes/monarch/monarch');
-import Types = require('vs/editor/common/modes/monarch/monarchTypes');
-import Compile = require('vs/editor/common/modes/monarch/monarchCompile');
-import winjs = require('vs/base/common/winjs.base');
+import * as Monarch from 'vs/editor/common/modes/monarch/monarch';
+import * as Types from 'vs/editor/common/modes/monarch/monarchTypes';
+import * as Compile from 'vs/editor/common/modes/monarch/monarchCompile';
+import * as winjs from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
-import sassWorker = require('vs/languages/sass/common/sassWorker');
-import supports = require('vs/editor/common/modes/supports');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as Modes from 'vs/editor/common/modes';
+import * as sassWorker from 'vs/languages/sass/common/sassWorker';
+import * as supports from 'vs/editor/common/modes/supports';
 import * as sassTokenTypes from 'vs/languages/sass/common/sassTokenTypes';
 import {AbstractMode} from 'vs/editor/common/modes/abstractMode';
 import {OneWorkerAttr} from 'vs/platform/thread/common/threadService';

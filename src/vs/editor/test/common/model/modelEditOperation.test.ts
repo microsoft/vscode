@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
-import Range = require('vs/editor/common/core/range');
-import Model = require('vs/editor/common/model/model');
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as assert from 'assert';
+import * as Range from 'vs/editor/common/core/range';
+import * as Model from 'vs/editor/common/model/model';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 
 suite('Editor Model - Model Edit Operation', () => {
 	var LINE1 = 'My First Line';

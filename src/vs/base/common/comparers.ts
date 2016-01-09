@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import strings = require('vs/base/common/strings');
+import * as strings from 'vs/base/common/strings';
 
 const FileNameMatch = /^(.*)\.([^.]*)|([^.]+)$/;
 

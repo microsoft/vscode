@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Browser = require('vs/base/browser/browser');
+import * as Browser from 'vs/base/browser/browser';
 
 export interface IBrowserServiceData {
 	document:Document;

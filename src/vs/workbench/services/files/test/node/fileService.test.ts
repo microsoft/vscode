@@ -5,20 +5,20 @@
 
 'use strict';
 
-import fs = require('fs');
-import path = require('path');
-import os = require('os');
-import assert = require('assert');
+import * as fs from 'fs';
+import * as path from 'path';
+import * as os from 'os';
+import * as assert from 'assert';
 
 import {FileService, IEncodingOverride} from 'vs/workbench/services/files/node/fileService';
 import {EventType, FileChangesEvent, FileOperationResult, IFileOperationResult} from 'vs/platform/files/common/files';
 import {nfcall} from 'vs/base/common/async';
 import uri from 'vs/base/common/uri';
-import uuid = require('vs/base/common/uuid');
-import extfs = require('vs/base/node/extfs');
-import encoding = require('vs/base/node/encoding');
+import * as uuid from 'vs/base/common/uuid';
+import * as extfs from 'vs/base/node/extfs';
+import * as encoding from 'vs/base/node/encoding';
 import {EventEmitter} from 'vs/base/common/eventEmitter';
-import utils = require('vs/workbench/services/files/test/node/utils');
+import * as utils from 'vs/workbench/services/files/test/node/utils';
 
 suite('FileService', () => {
 	let events: utils.TestEventService;

@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import platform = require('vs/base/common/platform');
-import bits = require('vs/base/common/bits/bits');
-import encoding = require('vs/base/common/bits/encoding');
-import types = require('vs/base/common/types');
+import * as platform from 'vs/base/common/platform';
+import * as bits from 'vs/base/common/bits/bits';
+import * as encoding from 'vs/base/common/bits/encoding';
+import * as types from 'vs/base/common/types';
 
 function copy(dest: Uint8Array, destIndex: number, src: Uint8Array, srcIndex: number, count: number): number {
 	for (var i = 0, len = Math.min(dest.byteLength - destIndex, src.byteLength - srcIndex, count); i < len; i++) {

@@ -5,7 +5,7 @@
 
 'use strict';
 
-import _parser = require('vs/languages/less/common/parser/lessParser');
+import * as _parser from 'vs/languages/less/common/parser/lessParser';
 import nodes = require ('vs/languages/css/common/parser/cssNodes');
 import errors = require ('vs/languages/css/common/parser/cssErrors');
 

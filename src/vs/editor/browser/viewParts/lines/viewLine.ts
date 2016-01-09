@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Browser = require('vs/base/browser/browser');
-import DomUtils = require('vs/base/browser/dom');
+import * as Browser from 'vs/base/browser/browser';
+import * as DomUtils from 'vs/base/browser/dom';
 
 import {IVisibleLineData} from 'vs/editor/browser/view/viewLayer';
 import {ILineParts, createLineParts} from 'vs/editor/common/viewLayout/viewLineParts';
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as EditorBrowser from 'vs/editor/browser/editorBrowser';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 
 export interface IViewLineData extends IVisibleLineData {
 	/**

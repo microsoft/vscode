@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import BrowserService = require('vs/base/browser/browserService');
+import * as BrowserService from 'vs/base/browser/browserService';
 import { MockBrowserServiceData } from 'vs/base/test/browser/mockBrowserService';
 
 suite("BrowserService", () => {

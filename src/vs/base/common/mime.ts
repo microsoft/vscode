@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import paths = require('vs/base/common/paths');
-import types = require('vs/base/common/types');
-import strings = require('vs/base/common/strings');
+import * as paths from 'vs/base/common/paths';
+import * as types from 'vs/base/common/types';
+import * as strings from 'vs/base/common/strings';
 
 export let MIME_TEXT = 'text/plain';
 export let MIME_BINARY = 'application/octet-stream';

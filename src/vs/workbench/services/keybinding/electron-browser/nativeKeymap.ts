@@ -7,7 +7,7 @@
 import * as nativeKeymap from 'native-keymap';
 import {KeyCode, Keybinding, IKeyBindingLabelProvider, MacUIKeyLabelProvider, ClassicUIKeyLabelProvider} from 'vs/base/common/keyCodes';
 import {lookupKeyCode, setExtractKeyCode} from 'vs/base/browser/keyboardEvent';
-import Platform = require('vs/base/common/platform');
+import * as Platform from 'vs/base/common/platform';
 
 let getNativeKeymap = (function() {
 	let called = false;

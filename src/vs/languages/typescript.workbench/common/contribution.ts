@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import env = require('vs/base/common/flags');
-import modesExt = require('vs/editor/common/modes/modesRegistry');
-import javascript = require('vs/languages/javascript/common/javascript.extensions');
-import typescript = require('vs/languages/typescript/common/typescript');
+import * as env from 'vs/base/common/flags';
+import * as modesExt from 'vs/editor/common/modes/modesRegistry';
+import * as javascript from 'vs/languages/javascript/common/javascript.extensions';
+import * as typescript from 'vs/languages/typescript/common/typescript';
 import {AsyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
 
 // contributes the project resolver logic to TypeScript and JavaScript

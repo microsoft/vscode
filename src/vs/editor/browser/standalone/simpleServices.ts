@@ -5,15 +5,15 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
-import Errors = require('vs/base/common/errors');
-import Network = require('vs/base/common/network');
+import * as Errors from 'vs/base/common/errors';
+import * as Network from 'vs/base/common/network';
 import URI from 'vs/base/common/uri';
-import EventEmitter = require('vs/base/common/eventEmitter');
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as EventEmitter from 'vs/base/common/eventEmitter';
+import * as EditorBrowser from 'vs/editor/browser/editorBrowser';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 import Severity from 'vs/base/common/severity';
-import Lifecycle = require('vs/base/common/lifecycle');
-import KeybindingService = require('vs/platform/keybinding/browser/keybindingServiceImpl');
+import * as Lifecycle from 'vs/base/common/lifecycle';
+import * as KeybindingService from 'vs/platform/keybinding/browser/keybindingServiceImpl';
 import {BaseRequestService} from 'vs/platform/request/common/baseRequestService';
 import {IEditorInput, IEditorService, IEditorOptions, Position, IEditor, IResourceInput, ITextEditorModel} from 'vs/platform/editor/common/editor';
 import {IMessageService, IConfirmation} from 'vs/platform/message/common/message';

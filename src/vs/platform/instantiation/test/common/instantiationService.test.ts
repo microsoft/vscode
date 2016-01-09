@@ -5,9 +5,9 @@
 'use strict';
 
 
-import assert = require('assert');
-import instantiation = require('vs/platform/instantiation/common/instantiation');
-import instantiationService = require('vs/platform/instantiation/common/instantiationService');
+import * as assert from 'assert';
+import * as instantiation from 'vs/platform/instantiation/common/instantiation';
+import * as instantiationService from 'vs/platform/instantiation/common/instantiationService';
 
 import {SyncDescriptor, createSyncDescriptor} from 'vs/platform/instantiation/common/descriptors'
 

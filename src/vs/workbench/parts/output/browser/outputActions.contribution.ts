@@ -6,7 +6,7 @@
 'use strict';
 
 import 'vs/css!./media/outputactions.contribution';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import {BaseActionItem} from 'vs/base/browser/ui/actionbar/actionbar';
 import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
 import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/browser/actionRegistry';

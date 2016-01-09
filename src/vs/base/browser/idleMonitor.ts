@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import DomUtils = require('vs/base/browser/dom');
-import Lifecycle = require('vs/base/common/lifecycle');
-import EventEmitter = require('vs/base/common/eventEmitter');
-import BrowserService = require('vs/base/browser/browserService');
+import * as DomUtils from 'vs/base/browser/dom';
+import * as Lifecycle from 'vs/base/common/lifecycle';
+import * as EventEmitter from 'vs/base/common/eventEmitter';
+import * as BrowserService from 'vs/base/browser/browserService';
 
 export enum UserStatus {
 	Idle,

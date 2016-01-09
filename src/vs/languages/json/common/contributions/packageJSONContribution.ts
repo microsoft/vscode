@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import HtmlContent = require('vs/base/common/htmlContent');
-import Strings = require('vs/base/common/strings');
-import WinJS = require('vs/base/common/winjs.base');
-import nls = require('vs/nls');
-import JSONWorker = require('vs/languages/json/common/jsonWorker');
+import * as HtmlContent from 'vs/base/common/htmlContent';
+import * as Strings from 'vs/base/common/strings';
+import * as WinJS from 'vs/base/common/winjs.base';
+import * as nls from 'vs/nls';
+import * as JSONWorker from 'vs/languages/json/common/jsonWorker';
 import {IRequestService} from 'vs/platform/request/common/request';
 import URI from 'vs/base/common/uri';
 import {JSONLocation} from 'vs/languages/json/common/parser/jsonLocation';

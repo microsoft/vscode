@@ -6,12 +6,12 @@
 'use strict';
 
 import 'vs/css!./viewCursors';
-import Browser = require('vs/base/browser/browser');
+import * as Browser from 'vs/base/browser/browser';
 
 import {ViewCursor} from 'vs/editor/browser/viewParts/viewCursors/viewCursor';
 import {ViewPart} from 'vs/editor/browser/view/viewPart';
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as EditorBrowser from 'vs/editor/browser/editorBrowser';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 
 enum RenderType {
 	Hidden,

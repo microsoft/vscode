@@ -10,7 +10,7 @@
 
 'use strict';
 
-import bits = require('./bits');
+import * as bits from './bits';
 
 export var UTF8 = 'utf8';
 

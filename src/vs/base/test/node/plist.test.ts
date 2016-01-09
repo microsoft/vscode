@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import plist = require('vs/base/node/plist');
+import * as plist from 'vs/base/node/plist';
 
 suite('PList Parser', () => {
 

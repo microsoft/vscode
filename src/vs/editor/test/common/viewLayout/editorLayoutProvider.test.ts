@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
-import EditorLayoutProvider = require('vs/editor/common/viewLayout/editorLayoutProvider');
+import * as assert from 'assert';
+import * as EditorLayoutProvider from 'vs/editor/common/viewLayout/editorLayoutProvider';
 import {IEditorLayoutInfo} from 'vs/editor/common/editorCommon';
 
 suite('Editor ViewLayout - EditorLayoutProvider', () => {

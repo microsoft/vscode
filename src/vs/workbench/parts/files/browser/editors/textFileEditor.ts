@@ -5,12 +5,12 @@
 'use strict';
 
 import {Promise, TPromise} from 'vs/base/common/winjs.base';
-import nls = require('vs/nls');
-import errors = require('vs/base/common/errors');
+import * as nls from 'vs/nls';
+import * as errors from 'vs/base/common/errors';
 import {MIME_BINARY, MIME_TEXT} from 'vs/base/common/mime';
-import labels = require('vs/base/common/labels');
-import types = require('vs/base/common/types');
-import paths = require('vs/base/common/paths');
+import * as labels from 'vs/base/common/labels';
+import * as types from 'vs/base/common/types';
+import * as paths from 'vs/base/common/paths';
 import {Action} from 'vs/base/common/actions';
 import {VIEWLET_ID, TEXT_FILE_EDITOR_ID, ITextFileService} from 'vs/workbench/parts/files/common/files';
 import {SaveErrorHandler} from 'vs/workbench/parts/files/browser/saveErrorHandler';

@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import errors = require('vs/base/common/errors');
-import DomUtils = require('vs/base/browser/dom');
+import * as errors from 'vs/base/common/errors';
+import * as DomUtils from 'vs/base/browser/dom';
 
 import {ViewPart} from 'vs/editor/browser/view/viewPart';
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as EditorBrowser from 'vs/editor/browser/editorBrowser';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 
 export interface IMyViewZone {
 	whitespaceId: number;

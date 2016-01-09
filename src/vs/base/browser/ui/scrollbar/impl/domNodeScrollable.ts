@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import DomUtils = require('vs/base/browser/dom');
+import * as DomUtils from 'vs/base/browser/dom';
 import {Gesture} from 'vs/base/browser/touch';
 import {EventEmitter} from 'vs/base/common/eventEmitter';
 import {IDisposable} from 'vs/base/common/lifecycle';

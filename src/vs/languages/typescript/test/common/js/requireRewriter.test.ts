@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
-import rewriting = require('vs/languages/typescript/common/js/rewriting');
-import RequireRewriter = require('vs/languages/typescript/common/js/requireRewriter');
+import * as assert from 'assert';
+import * as rewriting from 'vs/languages/typescript/common/js/rewriting';
+import * as RequireRewriter from 'vs/languages/typescript/common/js/requireRewriter';
 
 suite('JS* - Require Rewriter', () => {
 

@@ -5,10 +5,10 @@
 
 'use strict';
 
-import assert = require('assert');
-import path = require('path');
+import * as assert from 'assert';
+import * as path from 'path';
 
-import encoding = require('vs/base/node/encoding');
+import * as encoding from 'vs/base/node/encoding';
 
 suite('Encoding', () => {
 	test('detectBOM UTF-8', function(done: () => void) {

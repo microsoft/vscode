@@ -6,7 +6,7 @@
 
 import * as assert from 'assert';
 import {Match, FileMatch, SearchResult} from 'vs/workbench/parts/search/common/searchModel';
-import model = require('vs/editor/common/model/model');
+import * as model from 'vs/editor/common/model/model';
 import {Emitter} from 'vs/base/common/event';
 import {IModel} from 'vs/editor/common/editorCommon';
 import URI from 'vs/base/common/uri';

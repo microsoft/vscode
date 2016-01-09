@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import lifecycle = require('vs/base/common/lifecycle');
-import errors = require('vs/base/common/errors');
+import * as lifecycle from 'vs/base/common/lifecycle';
+import * as errors from 'vs/base/common/errors';
 import { Promise } from 'vs/base/common/winjs.base';
-import dom = require('vs/base/browser/dom');
+import * as dom from 'vs/base/browser/dom';
 import { IAction } from 'vs/base/common/actions';
 import { BaseActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IDebugService, ServiceEvents, State } from 'vs/workbench/parts/debug/common/debug';

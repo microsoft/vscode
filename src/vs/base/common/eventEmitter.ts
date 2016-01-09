@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Errors = require('vs/base/common/errors');
-import Lifecycle = require('vs/base/common/lifecycle');
+import * as Errors from 'vs/base/common/errors';
+import * as Lifecycle from 'vs/base/common/lifecycle';
 
 export interface IEmitterEvent {
 	getType():string;

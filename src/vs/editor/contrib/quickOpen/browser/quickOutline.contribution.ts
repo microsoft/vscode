@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
-import QuickOutline = require('./quickOutline');
+import * as QuickOutline from './quickOutline';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 
 // Contribute "Quick Outline" to context menu

@@ -7,17 +7,17 @@
 'use strict';
 
 import 'vs/css!./actionbar';
-import nls = require('vs/nls');
-import Lifecycle = require('vs/base/common/lifecycle');
-import WinJS = require('vs/base/common/winjs.base');
-import Builder = require('vs/base/browser/builder');
-import actions = require('vs/base/common/actions');
-import DomUtils = require('vs/base/browser/dom');
-import Events1 = require('vs/base/common/events');
-import Types = require('vs/base/common/types');
-import Events = require('vs/base/common/eventEmitter');
-import Touch = require('vs/base/browser/touch');
-import Keyboard = require('vs/base/browser/keyboardEvent');
+import * as nls from 'vs/nls';
+import * as Lifecycle from 'vs/base/common/lifecycle';
+import * as WinJS from 'vs/base/common/winjs.base';
+import * as Builder from 'vs/base/browser/builder';
+import * as actions from 'vs/base/common/actions';
+import * as DomUtils from 'vs/base/browser/dom';
+import * as Events1 from 'vs/base/common/events';
+import * as Types from 'vs/base/common/types';
+import * as Events from 'vs/base/common/eventEmitter';
+import * as Touch from 'vs/base/browser/touch';
+import * as Keyboard from 'vs/base/browser/keyboardEvent';
 import {CommonKeybindings} from 'vs/base/common/keyCodes';
 
 var $ = Builder.$;

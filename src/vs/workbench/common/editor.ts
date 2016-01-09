@@ -6,9 +6,9 @@
 
 import {TPromise} from 'vs/base/common/winjs.base';
 import {EventEmitter} from 'vs/base/common/eventEmitter';
-import types = require('vs/base/common/types');
+import * as types from 'vs/base/common/types';
 import URI from 'vs/base/common/uri';
-import objects = require('vs/base/common/objects');
+import * as objects from 'vs/base/common/objects';
 import {IEditor, IEditorViewState, IRange} from 'vs/editor/common/editorCommon';
 import {IEditorInput, IEditorModel, IEditorOptions, ITextInput} from 'vs/platform/editor/common/editor';
 

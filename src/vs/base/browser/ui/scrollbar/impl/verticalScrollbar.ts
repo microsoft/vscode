@@ -6,9 +6,9 @@
 
 import {AbstractScrollbar, ScrollbarState, IMouseMoveEventData} from 'vs/base/browser/ui/scrollbar/impl/abstractScrollbar';
 import {StandardMouseEvent, StandardMouseWheelEvent} from 'vs/base/browser/mouseEvent';
-import DomUtils = require('vs/base/browser/dom');
+import * as DomUtils from 'vs/base/browser/dom';
 import {IParent, IOptions, Visibility} from 'vs/base/browser/ui/scrollbar/impl/common';
-import Browser = require('vs/base/browser/browser');
+import * as Browser from 'vs/base/browser/browser';
 import {IScrollable} from 'vs/base/common/scrollable';
 
 export class VerticalScrollbar extends AbstractScrollbar {

@@ -5,18 +5,18 @@
 
 'use strict';
 
-import fs = require('fs');
-import path = require('path');
-import os = require('os');
-import assert = require('assert');
+import * as fs from 'fs';
+import * as path from 'path';
+import * as os from 'os';
+import * as assert from 'assert';
 
-import uuid = require('vs/base/common/uuid');
-import platform = require('vs/base/common/platform');
+import * as uuid from 'vs/base/common/uuid';
+import * as platform from 'vs/base/common/platform';
 import {FileChangeType, EventType, FileChangesEvent} from 'vs/platform/files/common/files';
 import uri from 'vs/base/common/uri';
-import extfs = require('vs/base/node/extfs');
-import eventEmitter = require('vs/base/common/eventEmitter');
-import utils = require('vs/workbench/services/files/test/node/utils');
+import * as extfs from 'vs/base/node/extfs';
+import * as eventEmitter from 'vs/base/common/eventEmitter';
+import * as utils from 'vs/workbench/services/files/test/node/utils';
 import {IRawFileChange, toFileChangesEvent, normalize} from 'vs/workbench/services/files/node/watcher/common';
 import {IEventService} from 'vs/platform/event/common/event';
 

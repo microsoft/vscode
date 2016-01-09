@@ -5,14 +5,14 @@
 'use strict';
 
 import 'vs/languages/handlebars/common/handlebars.contribution';
-import assert = require('assert');
-import handlebarsMode = require('vs/languages/handlebars/common/handlebars');
-import htmlMode = require('vs/languages/html/common/html');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
-import modesUtil = require('vs/editor/test/common/modesUtil');
+import * as assert from 'assert';
+import * as handlebarsMode from 'vs/languages/handlebars/common/handlebars';
+import * as htmlMode from 'vs/languages/html/common/html';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as Modes from 'vs/editor/common/modes';
+import * as modesUtil from 'vs/editor/test/common/modesUtil';
 import {htmlTokenTypes} from 'vs/languages/html/common/html';
-import handlebarsTokenTypes = require('vs/languages/handlebars/common/handlebarsTokenTypes');
+import * as handlebarsTokenTypes from 'vs/languages/handlebars/common/handlebarsTokenTypes';
 
 
 suite('Handlebars', () => {

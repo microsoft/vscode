@@ -4,19 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import paths = require('vs/base/common/paths');
-import winjs = require('vs/base/common/winjs.base');
-import eventEmitter = require('vs/base/common/eventEmitter');
-import objects = require('vs/base/common/objects');
-import errors = require('vs/base/common/errors');
+import * as paths from 'vs/base/common/paths';
+import * as winjs from 'vs/base/common/winjs.base';
+import * as eventEmitter from 'vs/base/common/eventEmitter';
+import * as objects from 'vs/base/common/objects';
+import * as errors from 'vs/base/common/errors';
 import uri from 'vs/base/common/uri';
-import model = require('./model');
-import lifecycle = require('vs/base/common/lifecycle');
-import collections = require('vs/base/common/collections');
+import * as model from './model';
+import * as lifecycle from 'vs/base/common/lifecycle';
+import * as collections from 'vs/base/common/collections';
 import {IConfigurationService, ConfigurationServiceEventTypes}  from './configuration';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import Files = require('vs/platform/files/common/files');
+import * as Files from 'vs/platform/files/common/files';
 import {IConfigurationRegistry, Extensions} from './configurationRegistry';
 import {Registry} from 'vs/platform/platform';
 

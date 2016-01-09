@@ -8,7 +8,7 @@ import * as EditorCommon from 'vs/editor/common/editorCommon';
 import {TPromise} from 'vs/base/common/winjs.base';
 import * as Objects from 'vs/base/common/objects';
 import {onUnexpectedError} from 'vs/base/common/errors';
-import EventEmitter = require('vs/base/common/eventEmitter');
+import * as EventEmitter from 'vs/base/common/eventEmitter';
 import {Cursor} from 'vs/editor/common/controller/cursor';
 import {CharacterHardWrappingLineMapperFactory} from 'vs/editor/common/viewModel/characterHardWrappingLineMapper';
 import {SplitLinesCollection} from 'vs/editor/common/viewModel/splitLinesCollection';

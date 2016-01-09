@@ -11,8 +11,8 @@ import {EditStack} from 'vs/editor/common/model/editStack';
 import {IChangedMarkers, ITextWithMarkers, ModelLine, ILineEdit, ILineMarker} from 'vs/editor/common/model/modelLine';
 import {TextModelWithDecorations, DeferredEventsBuilder} from 'vs/editor/common/model/textModelWithDecorations';
 import {IMode} from 'vs/editor/common/modes';
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Errors = require('vs/base/common/errors');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as Errors from 'vs/base/common/errors';
 
 export interface IDeltaSingleEditOperation {
 	original: IValidatedEditOperation;

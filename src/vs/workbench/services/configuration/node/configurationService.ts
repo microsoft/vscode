@@ -7,19 +7,19 @@
 
 import {TPromise, Promise} from 'vs/base/common/winjs.base';
 import uri from 'vs/base/common/uri';
-import strings = require('vs/base/common/strings');
-import platform = require('vs/base/common/platform');
-import paths = require('vs/base/common/paths');
-import extfs = require('vs/base/node/extfs');
+import * as strings from 'vs/base/common/strings';
+import * as platform from 'vs/base/common/platform';
+import * as paths from 'vs/base/common/paths';
+import * as extfs from 'vs/base/node/extfs';
 import {IConfigFile} from 'vs/platform/configuration/common/model';
-import objects = require('vs/base/common/objects');
+import * as objects from 'vs/base/common/objects';
 import {IStat, IContent, ConfigurationService as CommonConfigurationService} from 'vs/platform/configuration/common/configurationService';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {OptionsChangeEvent, EventType} from 'vs/workbench/common/events';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 
-import fs = require('fs');
+import * as fs from 'fs';
 
 export class ConfigurationService extends CommonConfigurationService {
 

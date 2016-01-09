@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
-import Objects = require('vs/base/common/objects');
+import * as nls from 'vs/nls';
+import * as Objects from 'vs/base/common/objects';
 import {EventEmitter} from 'vs/base/common/eventEmitter';
-import Strings = require('vs/base/common/strings');
+import * as Strings from 'vs/base/common/strings';
 import {Registry} from 'vs/platform/platform';
-import ConfigurationRegistry = require('vs/platform/configuration/common/configurationRegistry');
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as ConfigurationRegistry from 'vs/platform/configuration/common/configurationRegistry';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 import {DefaultConfig} from 'vs/editor/common/config/defaultConfig';
 import {HandlerDispatcher} from 'vs/editor/common/controller/handlerDispatcher';
 import {EditorLayoutProvider} from 'vs/editor/common/viewLayout/editorLayoutProvider';

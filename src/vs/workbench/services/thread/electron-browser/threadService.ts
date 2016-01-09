@@ -6,21 +6,21 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import {MainThreadService as CommonMainThreadService} from 'vs/platform/thread/common/mainThreadService';
-import pluginsIPC = require('vs/platform/plugins/common/ipcRemoteCom');
-import marshalling = require('vs/base/common/marshalling');
-import strings = require('vs/base/common/strings');
-import objects = require('vs/base/common/objects');
+import * as pluginsIPC from 'vs/platform/plugins/common/ipcRemoteCom';
+import * as marshalling from 'vs/base/common/marshalling';
+import * as strings from 'vs/base/common/strings';
+import * as objects from 'vs/base/common/objects';
 import uri from 'vs/base/common/uri';
-import errors = require('vs/base/common/errors');
+import * as errors from 'vs/base/common/errors';
 import {SyncDescriptor0} from 'vs/platform/instantiation/common/descriptors';
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {IWorkspaceContextService, IConfiguration} from 'vs/platform/workspace/common/workspace';
 import {IWindowService} from 'vs/workbench/services/window/electron-browser/windowService';
-import ports = require('vs/base/node/ports');
+import * as ports from 'vs/base/node/ports';
 
-import cp = require('child_process');
+import * as cp from 'child_process';
 import {ipcRenderer as ipc} from 'electron';
 
 export const PLUGIN_LOG_BROADCAST_CHANNEL = 'vscode:pluginLog';

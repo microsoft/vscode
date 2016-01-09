@@ -7,11 +7,11 @@
 
 import 'vs/css!./media/gotoSymbolHandler';
 import {TPromise} from 'vs/base/common/winjs.base';
-import nls = require('vs/nls');
-import arrays = require('vs/base/common/arrays');
-import errors = require('vs/base/common/errors');
-import types = require('vs/base/common/types');
-import strings = require('vs/base/common/strings');
+import * as nls from 'vs/nls';
+import * as arrays from 'vs/base/common/arrays';
+import * as errors from 'vs/base/common/errors';
+import * as types from 'vs/base/common/types';
+import * as strings from 'vs/base/common/strings';
 import {IContext, Mode, IAutoFocus} from 'vs/base/parts/quickopen/common/quickOpen';
 import {QuickOpenModel, IHighlight} from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import {Extensions as ActionExtensions} from 'vs/workbench/browser/actionRegistry';
@@ -19,7 +19,7 @@ import {Extensions as QuickOpenExtensions, QuickOpenHandler, EditorQuickOpenEntr
 import {QuickOpenAction} from 'vs/workbench/browser/actions/quickOpenAction';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
 import {TextEditorOptions, EditorOptions, EditorInput} from 'vs/workbench/common/editor';
-import filters = require('vs/base/common/filters');
+import * as filters from 'vs/base/common/filters';
 import {IEditor, IModelDecorationsChangeAccessor, OverviewRulerLane, IModelDeltaDecoration, IRange, IModel, ITokenizedModel, IDiffEditorModel, IEditorViewState} from 'vs/editor/common/editorCommon';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';

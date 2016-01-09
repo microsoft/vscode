@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import objects = require('vs/base/common/types');
-import collections = require('vs/base/common/collections');
+import * as objects from 'vs/base/common/types';
+import * as collections from 'vs/base/common/collections';
 
 export interface Node<T> {
 	data:T;

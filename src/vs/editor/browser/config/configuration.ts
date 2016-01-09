@@ -4,23 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
-import Env = require('vs/base/common/platform');
-import Browser = require('vs/base/browser/browser');
-import Objects = require('vs/base/common/objects');
-import EventEmitter = require('vs/base/common/eventEmitter');
-import Strings = require('vs/base/common/strings');
-import DomUtils = require('vs/base/browser/dom');
+import * as nls from 'vs/nls';
+import * as Env from 'vs/base/common/platform';
+import * as Browser from 'vs/base/browser/browser';
+import * as Objects from 'vs/base/common/objects';
+import * as EventEmitter from 'vs/base/common/eventEmitter';
+import * as Strings from 'vs/base/common/strings';
+import * as DomUtils from 'vs/base/browser/dom';
 
-import ConfigurationRegistry = require('vs/platform/configuration/common/configurationRegistry');
+import * as ConfigurationRegistry from 'vs/platform/configuration/common/configurationRegistry';
 
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 import {DefaultConfig} from 'vs/editor/common/config/defaultConfig';
 import {HandlerDispatcher} from 'vs/editor/common/controller/handlerDispatcher';
 
-import Config = require('vs/editor/common/config/config');
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
-import ElementSizeObserver = require('vs/editor/browser/config/elementSizeObserver');
+import * as Config from 'vs/editor/common/config/config';
+import * as EditorBrowser from 'vs/editor/browser/editorBrowser';
+import * as ElementSizeObserver from 'vs/editor/browser/config/elementSizeObserver';
 
 import {CommonEditorConfiguration, ICSSConfig} from 'vs/editor/common/config/commonEditorConfig';
 

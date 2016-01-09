@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
+import * as assert from 'assert';
 import {Model} from 'vs/editor/common/model/model';
 import {Range} from 'vs/editor/common/core/range';
 import {Selection} from 'vs/editor/common/core/selection';
 import {Position} from 'vs/editor/common/core/position';
 import {Cursor} from 'vs/editor/common/controller/cursor';
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 import {IMode} from 'vs/editor/common/modes';
 import {CommonEditorConfiguration, ICSSConfig} from 'vs/editor/common/config/commonEditorConfig';
 import {MockConfiguration} from 'vs/editor/test/common/mocks/mockConfiguration';

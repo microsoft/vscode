@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import network = require('vs/base/common/network');
+import * as network from 'vs/base/common/network';
 import URI from 'vs/base/common/uri';
-import strings = require('vs/base/common/strings');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
-import ts = require('vs/languages/typescript/common/lib/typescriptServices');
-import converter = require('vs/languages/typescript/common/features/converter');
-import nls = require('vs/nls');
-import arrays = require('vs/base/common/arrays');
+import * as strings from 'vs/base/common/strings';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as Modes from 'vs/editor/common/modes';
+import * as ts from 'vs/languages/typescript/common/lib/typescriptServices';
+import * as converter from 'vs/languages/typescript/common/features/converter';
+import * as nls from 'vs/nls';
+import * as arrays from 'vs/base/common/arrays';
 import {IMarker} from 'vs/platform/markers/common/markers';
 
 export function evaluate(languageService: ts.LanguageService, resource: URI, range: EditorCommon.IRange, quickFix: Modes.IQuickFix): Modes.IQuickFixResult {

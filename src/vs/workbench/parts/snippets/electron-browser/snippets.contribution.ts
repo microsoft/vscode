@@ -4,24 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
-import winjs = require('vs/base/common/winjs.base');
-import paths = require('vs/base/common/paths');
-import actions = require('vs/base/common/actions');
+import * as nls from 'vs/nls';
+import * as winjs from 'vs/base/common/winjs.base';
+import * as paths from 'vs/base/common/paths';
+import * as actions from 'vs/base/common/actions';
 import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
-import platform = require('vs/platform/platform');
-import workbenchActionRegistry = require('vs/workbench/browser/actionRegistry');
-import workbenchContributions = require('vs/workbench/common/contributions');
-import snippetsTracker = require('./snippetsTracker');
-import modesExtensions = require('vs/editor/common/modes/modesRegistry');
-import errors = require('vs/base/common/errors');
+import * as platform from 'vs/platform/platform';
+import * as workbenchActionRegistry from 'vs/workbench/browser/actionRegistry';
+import * as workbenchContributions from 'vs/workbench/common/contributions';
+import * as snippetsTracker from './snippetsTracker';
+import * as modesExtensions from 'vs/editor/common/modes/modesRegistry';
+import * as errors from 'vs/base/common/errors';
 import {IQuickOpenService, IPickOpenEntry} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import * as JSONContributionRegistry from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import {IJSONSchema} from 'vs/base/common/jsonSchema';
 
 import {ipcRenderer as ipc} from 'electron';
-import fs = require('fs');
+import * as fs from 'fs';
 
 class OpenSnippetsAction extends actions.Action {
 

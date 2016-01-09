@@ -4,24 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import {isFalsyOrEmpty} from 'vs/base/common/arrays';
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import Severity from 'vs/base/common/severity';
-import lifecycle = require('vs/base/common/lifecycle');
-import errors = require('vs/base/common/errors');
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as lifecycle from 'vs/base/common/lifecycle';
+import * as errors from 'vs/base/common/errors';
+import * as EditorBrowser from 'vs/editor/browser/editorBrowser';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 import {Range} from 'vs/editor/common/core/range';
 import {Position} from 'vs/editor/common/core/position';
-import Modes = require('vs/editor/common/modes');
+import * as Modes from 'vs/editor/common/modes';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
 import {EditorAction, Behaviour} from 'vs/editor/common/editorAction';
-import widget = require('./referenceSearchWidget');
-import model = require('./referenceSearchModel');
-import peekView = require('vs/editor/contrib/zoneWidget/browser/peekViewWidget');
+import * as widget from './referenceSearchWidget';
+import * as model from './referenceSearchModel';
+import * as peekView from 'vs/editor/contrib/zoneWidget/browser/peekViewWidget';
 import {IEditorService} from 'vs/platform/editor/common/editor';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IMessageService} from 'vs/platform/message/common/message';

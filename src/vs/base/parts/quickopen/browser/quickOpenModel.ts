@@ -4,21 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import WinJS = require('vs/base/common/winjs.base');
-import Types = require('vs/base/common/types');
+import * as WinJS from 'vs/base/common/winjs.base';
+import * as Types from 'vs/base/common/types';
 import URI from 'vs/base/common/uri';
-import Tree = require('vs/base/parts/tree/common/tree');
-import Filters = require('vs/base/common/filters');
-import Strings = require('vs/base/common/strings');
-import Paths = require('vs/base/common/paths');
+import * as Tree from 'vs/base/parts/tree/common/tree';
+import * as Filters from 'vs/base/common/filters';
+import * as Strings from 'vs/base/common/strings';
+import * as Paths from 'vs/base/common/paths';
 import {IQuickNavigateConfiguration, IModel, IDataSource, IFilter, IRenderer, IRunner, Mode} from 'vs/base/parts/quickopen/common/quickOpen';
-import ActionsRenderer = require('vs/base/parts/tree/browser/actionsRenderer');
-import Actions = require('vs/base/common/actions');
+import * as ActionsRenderer from 'vs/base/parts/tree/browser/actionsRenderer';
+import * as Actions from 'vs/base/common/actions';
 import {compareAnything} from 'vs/base/common/comparers';
-import ActionBar = require('vs/base/browser/ui/actionbar/actionbar');
-import TreeDefaults = require('vs/base/parts/tree/browser/treeDefaults');
-import HighlightedLabel = require('vs/base/browser/ui/highlightedlabel/highlightedLabel');
-import DOM = require('vs/base/browser/dom');
+import * as ActionBar from 'vs/base/browser/ui/actionbar/actionbar';
+import * as TreeDefaults from 'vs/base/parts/tree/browser/treeDefaults';
+import * as HighlightedLabel from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
+import * as DOM from 'vs/base/browser/dom';
 
 export interface IContext {
 	event: any;

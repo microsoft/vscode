@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Platform = require('vs/base/common/platform');
-import Browser = require('vs/base/browser/browser');
-import IframeUtils = require('vs/base/browser/iframe');
+import * as Platform from 'vs/base/common/platform';
+import * as Browser from 'vs/base/browser/browser';
+import * as IframeUtils from 'vs/base/browser/iframe';
 
 export interface IMouseEvent {
 	browserEvent:MouseEvent;

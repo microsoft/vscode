@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 'use strict';
-import assert = require('assert');
-import stream = require('vs/editor/common/modes/lineStream');
+import * as assert from 'assert';
+import * as stream from 'vs/editor/common/modes/lineStream';
 
 suite('Editor Modes - LineStream', () => {
 

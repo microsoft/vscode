@@ -5,8 +5,8 @@
 'use strict';
 
 import {Range} from 'vs/editor/common/core/range';
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Errors = require('vs/base/common/errors');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as Errors from 'vs/base/common/errors';
 
 interface IEditOperation {
 	operations: EditorCommon.IIdentifiedSingleEditOperation[];

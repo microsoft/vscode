@@ -6,10 +6,10 @@
 
 import {NullMode} from 'vs/editor/common/modes/nullMode';
 import {Range} from 'vs/editor/common/core/range';
-import Modes = require('vs/editor/common/modes');
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as Modes from 'vs/editor/common/modes';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 import {Arrays} from 'vs/editor/common/core/arrays';
-import Errors = require('vs/base/common/errors');
+import * as Errors from 'vs/base/common/errors';
 
 export interface ITextSource {
 

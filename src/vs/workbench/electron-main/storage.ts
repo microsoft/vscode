@@ -6,11 +6,11 @@
 
 'use strict';
 
-import path = require('path');
-import fs = require('fs');
-import events = require('events');
+import * as path from 'path';
+import * as fs from 'fs';
+import * as events from 'events';
 
-import env = require('vs/workbench/electron-main/env');
+import * as env from 'vs/workbench/electron-main/env';
 
 const dbPath = path.join(env.appHome, 'storage.json');
 let database: any = null;

@@ -7,7 +7,7 @@ import * as cp from 'child_process';
 import URI from 'vs/base/common/uri';
 import { assign } from 'vs/base/common/objects';
 import { IEnvironment } from 'vs/platform/workspace/common/workspace';
-import env = require('vs/workbench/electron-main/env');
+import * as env from 'vs/workbench/electron-main/env';
 import { manager as SettingsManager } from 'vs/workbench/electron-main/settings';
 import { Instance as UpdateManager } from 'vs/workbench/electron-main/update-manager';
 

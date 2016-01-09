@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 
-import paths = require('vs/base/common/paths');
-import Strings = require('vs/base/common/strings');
+import * as paths from 'vs/base/common/paths';
+import * as Strings from 'vs/base/common/strings';
 import {IThreadSynchronizableObject} from 'vs/platform/thread/common/thread';
 import {EverywhereAttr, registerThreadSynchronizableObject} from 'vs/platform/thread/common/threadService';
 import {IPluginDescription} from 'vs/platform/plugins/common/plugins';
 import {PluginsRegistry, IExtensionPointUser, IMessageCollector} from 'vs/platform/plugins/common/pluginsRegistry';
-import Mime = require('vs/base/common/mime');
-import Errors = require('vs/base/common/errors');
+import * as Mime from 'vs/base/common/mime';
+import * as Errors from 'vs/base/common/errors';
 import {AsyncDescriptor1, createAsyncDescriptor1} from 'vs/platform/instantiation/common/descriptors';
 import {IMode, IModeDescriptor} from 'vs/editor/common/modes';
 import Event, {Emitter} from 'vs/base/common/event';

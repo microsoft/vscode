@@ -13,7 +13,7 @@ import 'vs/editor/common/languages.common';
 import {WorkerServer} from 'vs/base/common/worker/workerServer';
 import {MarkerService} from 'vs/platform/markers/common/markerService';
 import {WorkerThreadService} from 'vs/platform/thread/common/workerThreadService';
-import InstantiationService = require('vs/platform/instantiation/common/instantiationService');
+import * as InstantiationService from 'vs/platform/instantiation/common/instantiationService';
 import {EventService} from 'vs/platform/event/common/eventService';
 import {WorkerTelemetryService} from 'vs/platform/telemetry/common/workerTelemetryService';
 import {TPromise} from 'vs/base/common/winjs.base';

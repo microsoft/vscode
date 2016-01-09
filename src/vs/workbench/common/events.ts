@@ -7,7 +7,7 @@
 import URI from 'vs/base/common/uri';
 import {Event} from 'vs/base/common/events';
 import {IEditorSelection} from 'vs/editor/common/editorCommon';
-import CommonEvents = require('vs/workbench/common/events');
+import * as CommonEvents from 'vs/workbench/common/events';
 import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {IEditor} from 'vs/platform/editor/common/editor';
 import {EditorInput, EditorOptions} from 'vs/workbench/common/editor';

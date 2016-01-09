@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
+import * as assert from 'assert';
 import {Range} from 'vs/editor/common/core/range';
 
 suite('Editor Core - Range', () => {

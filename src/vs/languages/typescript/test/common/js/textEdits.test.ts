@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
-import textEdits = require('vs/languages/typescript/common/js/textEdits');
+import * as assert from 'assert';
+import * as textEdits from 'vs/languages/typescript/common/js/textEdits';
 
 suite('JS* - TextEdits', () => {
 

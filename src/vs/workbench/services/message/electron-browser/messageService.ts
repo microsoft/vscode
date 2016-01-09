@@ -6,7 +6,7 @@
 'use strict';
 
 import {IWindowService} from 'vs/workbench/services/window/electron-browser/windowService';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import {WorkbenchMessageService} from 'vs/workbench/services/message/browser/messageService';
 import {IConfirmation} from 'vs/platform/message/common/message';
 import {isWindows} from 'vs/base/common/platform';

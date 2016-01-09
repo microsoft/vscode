@@ -5,17 +5,17 @@
 'use strict';
 
 import * as assert from 'assert';
-import IdleMonitor = require('vs/base/browser/idleMonitor');
-import AbstractTelemetryService = require('vs/platform/telemetry/common/abstractTelemetryService');
-import MainTelemetryService = require('vs/platform/telemetry/browser/mainTelemetryService');
-import TelemetryService = require('vs/platform/telemetry/common/telemetry');
-import InstantiationService = require('vs/platform/instantiation/common/instantiationService');
-import winjs = require('vs/base/common/winjs.base');
-import Errors = require('vs/base/common/errors');
+import * as IdleMonitor from 'vs/base/browser/idleMonitor';
+import * as AbstractTelemetryService from 'vs/platform/telemetry/common/abstractTelemetryService';
+import * as MainTelemetryService from 'vs/platform/telemetry/browser/mainTelemetryService';
+import * as TelemetryService from 'vs/platform/telemetry/common/telemetry';
+import * as InstantiationService from 'vs/platform/instantiation/common/instantiationService';
+import * as winjs from 'vs/base/common/winjs.base';
+import * as Errors from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
-import Timer = require('vs/base/common/timer');
-import Strings = require('vs/base/common/strings');
-import Platform = require('vs/platform/platform');
+import * as Timer from 'vs/base/common/timer';
+import * as Strings from 'vs/base/common/strings';
+import * as Platform from 'vs/platform/platform';
 import * as sinon from 'sinon';
 import {createSyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
 import {BaseRequestService} from 'vs/platform/request/common/baseRequestService';

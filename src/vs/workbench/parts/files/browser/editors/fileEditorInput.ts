@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import {Promise, TPromise} from 'vs/base/common/winjs.base';
 import {Registry} from 'vs/platform/platform';
-import types = require('vs/base/common/types');
-import paths = require('vs/base/common/paths');
+import * as types from 'vs/base/common/types';
+import * as paths from 'vs/base/common/paths';
 import {guessMimeTypes} from 'vs/base/common/mime';
-import labels = require('vs/base/common/labels');
+import * as labels from 'vs/base/common/labels';
 import URI from 'vs/base/common/uri';
-import strings = require('vs/base/common/strings');
-import assert = require('vs/base/common/assert');
+import * as strings from 'vs/base/common/strings';
+import * as assert from 'vs/base/common/assert';
 import {EditorModel, IInputStatus, EncodingMode} from 'vs/workbench/common/editor';
 import {IEditorRegistry, Extensions, EditorDescriptor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {BinaryEditorModel} from 'vs/workbench/browser/parts/editor/binaryEditorModel';

@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
-import ModesExtensions = require('vs/editor/common/modes/modesRegistry');
-import ConfigurationRegistry = require('vs/platform/configuration/common/configurationRegistry');
-import Platform = require('vs/platform/platform');
+import * as nls from 'vs/nls';
+import * as ModesExtensions from 'vs/editor/common/modes/modesRegistry';
+import * as ConfigurationRegistry from 'vs/platform/configuration/common/configurationRegistry';
+import * as Platform from 'vs/platform/platform';
 
 ModesExtensions.registerMode({
 	id: 'markdown',

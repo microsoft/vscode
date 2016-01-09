@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import htmlWorker = require('vs/languages/html/common/htmlWorker');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
-import htmlTags = require('vs/languages/html/common/htmlTags');
+import * as htmlWorker from 'vs/languages/html/common/htmlWorker';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as Modes from 'vs/editor/common/modes';
+import * as htmlTags from 'vs/languages/html/common/htmlTags';
 
 export function getRazorTagProvider() : htmlTags.IHTMLTagProvider {
 	var customTags : { [tag:string]: string[]} = {

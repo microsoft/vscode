@@ -6,10 +6,10 @@
 'use strict';
 
 import 'vs/css!./media/feedback';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import {Builder, $} from 'vs/base/browser/builder';
-import errors = require('vs/base/common/errors');
+import * as errors from 'vs/base/common/errors';
 import {Promise} from 'vs/base/common/winjs.base';
 import {Dropdown} from 'vs/base/browser/ui/dropdown/dropdown';
 import {IXHRResponse} from 'vs/base/common/http';

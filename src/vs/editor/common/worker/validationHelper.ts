@@ -5,7 +5,7 @@
 'use strict';
 
 import {IEmitterEvent} from 'vs/base/common/eventEmitter';
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 import {IResourceService, ResourceEvents, IResourceAddedEvent, IResourceRemovedEvent} from 'vs/editor/common/services/resourceService';
 import {RunOnceScheduler} from 'vs/base/common/async';
 import URI from 'vs/base/common/uri';

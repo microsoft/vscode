@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
-import Platform = require('vs/base/common/platform');
-import EventEmitter = require('vs/base/common/eventEmitter');
-import Schedulers = require('vs/base/common/async');
-import errors = require('vs/base/common/errors');
-import precision = require('vs/base/common/stopwatch');
+import * as nls from 'vs/nls';
+import * as Platform from 'vs/base/common/platform';
+import * as EventEmitter from 'vs/base/common/eventEmitter';
+import * as Schedulers from 'vs/base/common/async';
+import * as errors from 'vs/base/common/errors';
+import * as precision from 'vs/base/common/stopwatch';
 
 export var ENABLE_TIMER = false;
 var msWriteProfilerMark = Platform.globals['msWriteProfilerMark'];

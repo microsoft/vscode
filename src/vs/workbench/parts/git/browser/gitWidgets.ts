@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import nls = require('vs/nls');
-import strings = require('vs/base/common/strings');
+import * as nls from 'vs/nls';
+import * as strings from 'vs/base/common/strings';
 import { assign } from 'vs/base/common/objects';
 import { Delayer } from 'vs/base/common/async';
 import { emmet as $, append, show, hide, addClass, toggleClass } from 'vs/base/browser/dom';

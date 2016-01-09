@@ -5,10 +5,10 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
-import converter = require('vs/languages/typescript/common/features/converter');
-import ts = require('vs/languages/typescript/common/lib/typescriptServices');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as Modes from 'vs/editor/common/modes';
+import * as converter from 'vs/languages/typescript/common/features/converter';
+import * as ts from 'vs/languages/typescript/common/lib/typescriptServices';
 
 var outlineTypeTable: { [kind: string]: string } = Object.create(null);
 outlineTypeTable[ts.ScriptElementKind.moduleElement] = 'module';

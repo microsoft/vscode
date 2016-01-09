@@ -5,16 +5,16 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
-import nls = require('vs/nls');
-import Paths = require('vs/base/common/paths');
-import Themes = require('vs/platform/theme/common/themes');
+import * as nls from 'vs/nls';
+import * as Paths from 'vs/base/common/paths';
+import * as Themes from 'vs/platform/theme/common/themes';
 import {IThemeExtensionPoint} from 'vs/platform/theme/common/themeExtensionPoint';
 import {IPluginService} from 'vs/platform/plugins/common/plugins';
 import {PluginsRegistry, IMessageCollector} from 'vs/platform/plugins/common/pluginsRegistry';
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
 
-import plist = require('vs/base/node/plist');
-import pfs = require('vs/base/node/pfs');
+import * as plist from 'vs/base/node/plist';
+import * as pfs from 'vs/base/node/pfs';
 
 export let IThemeService = createDecorator<IThemeService>('themeService');
 

@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import assert = require('assert');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import MirrorModel = require('vs/editor/common/model/mirrorModel');
-import modesUtil = require('vs/editor/test/common/modesTestUtils');
+import * as assert from 'assert';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as MirrorModel from 'vs/editor/common/model/mirrorModel';
+import * as modesUtil from 'vs/editor/test/common/modesTestUtils';
 
 function equalRange(left, right) {
 	if(left.startLineNumber !== right.startLineNumber) {

@@ -5,12 +5,12 @@
 
 'use strict';
 
-import assert = require('assert');
-import parser = require('vs/languages/css/common/parser/cssParser');
-import nodes = require('vs/languages/css/common/parser/cssNodes');
-import objects = require('vs/base/common/objects');
-import selectorPrinter = require('vs/languages/css/common/services/selectorPrinting');
-import workerTests = require('./css-worker.test');
+import * as assert from 'assert';
+import * as parser from 'vs/languages/css/common/parser/cssParser';
+import * as nodes from 'vs/languages/css/common/parser/cssNodes';
+import * as objects from 'vs/base/common/objects';
+import * as selectorPrinter from 'vs/languages/css/common/services/selectorPrinting';
+import * as workerTests from './css-worker.test';
 
 function elementToString(element: selectorPrinter.IElement) : string {
 	var label = element.name || '';

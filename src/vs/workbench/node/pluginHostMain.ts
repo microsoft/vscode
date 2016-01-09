@@ -5,27 +5,27 @@
 
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 
 import 'vs/base/common/async';
 import 'vs/base/node/stdFork';
 import 'vs/languages/lib/common/wireProtocol';
 
-import pfs = require('vs/base/node/pfs');
+import * as pfs from 'vs/base/node/pfs';
 
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
-import paths = require('vs/base/common/paths');
+import * as paths from 'vs/base/common/paths';
 import {IPluginService, IPluginDescription} from 'vs/platform/plugins/common/plugins';
 import {PluginsRegistry, PluginsMessageCollector, IPluginsMessageCollector} from 'vs/platform/plugins/common/pluginsRegistry';
 import {ExtHostAPIImplementation} from 'vs/workbench/api/common/extHost.api.impl';
 import { create as createIPC, IPluginsIPC } from 'vs/platform/plugins/common/ipcRemoteCom';
 import {ExtHostModelService} from 'vs/workbench/api/common/extHostDocuments';
 import {IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import InstantiationService = require('vs/platform/instantiation/common/instantiationService');
+import * as InstantiationService from 'vs/platform/instantiation/common/instantiationService';
 import {PluginHostPluginService} from 'vs/platform/plugins/common/nativePluginService';
 import {PluginHostThreadService} from 'vs/platform/thread/common/pluginHostThreadService';
-import marshalling = require('vs/base/common/marshalling');
+import * as marshalling from 'vs/base/common/marshalling';
 import {ExtHostTelemetryService} from 'vs/workbench/api/common/extHostTelemetry';
 import {BaseRequestService} from 'vs/platform/request/common/baseRequestService';
 import {BaseWorkspaceContextService} from 'vs/platform/workspace/common/baseWorkspaceContextService';

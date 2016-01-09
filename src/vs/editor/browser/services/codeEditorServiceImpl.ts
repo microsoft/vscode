@@ -16,9 +16,9 @@ import {
 import {IHTMLContentElement} from 'vs/base/common/htmlContent';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
 import {AbstractCodeEditorService} from 'vs/editor/common/services/abstractCodeEditorService';
-import dom = require('vs/base/browser/dom');
-import objects = require('vs/base/common/objects');
-import strings = require('vs/base/common/strings');
+import * as dom from 'vs/base/browser/dom';
+import * as objects from 'vs/base/common/objects';
+import * as strings from 'vs/base/common/strings';
 import URI from 'vs/base/common/uri';
 
 export class CodeEditorServiceImpl extends AbstractCodeEditorService {

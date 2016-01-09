@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
+import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
-import Emit = require('vs/base/common/eventEmitter');
-import Service = require('vs/editor/common/services/resourceServiceImpl');
-import MirrorModel = require('vs/editor/common/model/mirrorModel');
-import resourceService = require('vs/editor/common/services/resourceService');
+import * as Emit from 'vs/base/common/eventEmitter';
+import * as Service from 'vs/editor/common/services/resourceServiceImpl';
+import * as MirrorModel from 'vs/editor/common/model/mirrorModel';
+import * as resourceService from 'vs/editor/common/services/resourceService';
 
 suite('Editor Services - ResourceService', () => {
 

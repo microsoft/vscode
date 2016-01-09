@@ -5,11 +5,11 @@
 'use strict';
 
 import {RunOnceScheduler} from 'vs/base/common/async';
-import strings = require('vs/base/common/strings');
+import * as strings from 'vs/base/common/strings';
 import URI from 'vs/base/common/uri';
-import paths = require('vs/base/common/paths');
-import lifecycle = require('vs/base/common/lifecycle');
-import collections = require('vs/base/common/collections');
+import * as paths from 'vs/base/common/paths';
+import * as lifecycle from 'vs/base/common/lifecycle';
+import * as collections from 'vs/base/common/collections';
 import {EventEmitter} from 'vs/base/common/eventEmitter';
 import {IModel, ITextModel, IModelDeltaDecoration, EventType, OverviewRulerLane, TrackedRangeStickiness, IModelDecorationOptions, IRange} from 'vs/editor/common/editorCommon';
 import {Range} from 'vs/editor/common/core/range';

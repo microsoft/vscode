@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import git = require('vs/workbench/parts/git/common/git');
-import winjs = require('vs/base/common/winjs.base');
+import * as git from 'vs/workbench/parts/git/common/git';
+import * as winjs from 'vs/base/common/winjs.base';
 
 export class GitOperation implements git.IGitOperation {
 

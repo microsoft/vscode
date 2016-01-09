@@ -8,7 +8,7 @@
 import * as assert from 'assert';
 import {Promise} from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
-import paths = require('vs/base/common/paths');
+import * as paths from 'vs/base/common/paths';
 import {FileEditorInput} from 'vs/workbench/parts/files/browser/editors/fileEditorInput';
 import {TextFileEditorModel, CACHE} from 'vs/workbench/parts/files/browser/editors/textFileEditorModel';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
@@ -16,7 +16,7 @@ import {create} from 'vs/platform/instantiation/common/instantiationService';
 import {TextFileService} from 'vs/workbench/parts/files/browser/textFileServices';
 import {EventType, LocalFileChangeEvent} from 'vs/workbench/parts/files/common/files';
 import {TestFileService, TestLifecycleService, TestPartService, TestEditorService, TestConfigurationService, TestUntitledEditorService, TestStorageService, TestTelemetryService, TestContextService, TestMessageService, TestEventService} from 'vs/workbench/test/browser/servicesTestUtils';
-import Severity = require('vs/base/common/severity');
+import * as Severity from 'vs/base/common/severity';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IMessageService, IConfirmation} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';

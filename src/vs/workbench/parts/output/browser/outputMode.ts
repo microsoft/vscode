@@ -5,7 +5,7 @@
 'use strict';
 
 import {MonarchMode} from 'vs/editor/common/modes/monarch/monarch';
-import types = require('vs/editor/common/modes/monarch/monarchTypes');
+import * as types from 'vs/editor/common/modes/monarch/monarchTypes';
 import {compile} from 'vs/editor/common/modes/monarch/monarchCompile';
 import {IModeDescriptor, IMode, IWorkerParticipant} from 'vs/editor/common/modes';
 import {AsyncDescriptor2, createAsyncDescriptor2} from 'vs/platform/instantiation/common/descriptors';

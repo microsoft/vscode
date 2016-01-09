@@ -5,9 +5,9 @@
 
 'use strict';
 
-import winjs = require('vs/base/common/winjs.base');
-import errors = require('vs/base/common/errors');
-import paths = require('vs/base/common/paths');
+import * as winjs from 'vs/base/common/winjs.base';
+import * as errors from 'vs/base/common/errors';
+import * as paths from 'vs/base/common/paths';
 import {IFileService} from 'vs/platform/files/common/files';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IWorkspaceContextService, IWorkspace} from 'vs/platform/workspace/common/workspace';

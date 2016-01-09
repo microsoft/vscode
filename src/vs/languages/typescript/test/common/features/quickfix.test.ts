@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
+import * as assert from 'assert';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as Modes from 'vs/editor/common/modes';
 import URI from 'vs/base/common/uri';
-import quickfix = require('vs/languages/typescript/common/features/quickFix');
-import diagnostics = require('vs/languages/typescript/common/features/diagnostics');
-import ts = require('vs/languages/typescript/common/lib/typescriptServices');
-import utils = require('vs/languages/typescript/test/common/features/utils');
-import Options = require('vs/languages/typescript/common/options');
+import * as quickfix from 'vs/languages/typescript/common/features/quickFix';
+import * as diagnostics from 'vs/languages/typescript/common/features/diagnostics';
+import * as ts from 'vs/languages/typescript/common/lib/typescriptServices';
+import * as utils from 'vs/languages/typescript/test/common/features/utils';
+import * as Options from 'vs/languages/typescript/common/options';
 
 suite('TS - quick fix', () => {
 

@@ -6,9 +6,9 @@
 
 'use strict';
 
-import env = require('vs/workbench/electron-main/env');
-import events = require('vs/base/common/eventEmitter');
-import platform = require('vs/base/common/platform');
+import * as env from 'vs/workbench/electron-main/env';
+import * as events from 'vs/base/common/eventEmitter';
+import * as platform from 'vs/base/common/platform';
 
 import { ipcMain as ipc, BrowserWindow } from 'electron';
 

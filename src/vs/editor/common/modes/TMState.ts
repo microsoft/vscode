@@ -5,8 +5,8 @@
 'use strict';
 
 import {AbstractState} from 'vs/editor/common/modes/abstractState';
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as Modes from 'vs/editor/common/modes';
 
 import {StackElement} from 'vscode-textmate';
 

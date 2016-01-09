@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import {CommonEditorRegistry, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
-import editorCommon = require('vs/editor/common/editorCommon');
+import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ExpandAbbreviationAction} from './emmetActions';
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {KeyCode} from 'vs/base/common/keyCodes';

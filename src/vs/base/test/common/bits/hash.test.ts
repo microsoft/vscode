@@ -7,7 +7,7 @@
 
 import * as assert from 'assert';
 import { SHA1 } from 'vs/base/common/bits/hash';
-import strings = require('vs/base/common/strings');
+import * as strings from 'vs/base/common/strings';
 
 suite('Hash', () => {
 	test('SHA1', function() {

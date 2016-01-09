@@ -5,12 +5,12 @@
 'use strict';
 
 import 'vs/languages/json/common/json.contribution';
-import jsonMode = require('vs/languages/json/common/json');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
-import modesUtil = require('vs/editor/test/common/modesUtil');
-import tokenization = require('vs/languages/json/common/features/tokenization');
-import jsonTokenTypes = require('vs/languages/json/common/features/jsonTokenTypes');
+import * as jsonMode from 'vs/languages/json/common/json';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as Modes from 'vs/editor/common/modes';
+import * as modesUtil from 'vs/editor/test/common/modesUtil';
+import * as tokenization from 'vs/languages/json/common/features/tokenization';
+import * as jsonTokenTypes from 'vs/languages/json/common/features/jsonTokenTypes';
 
 suite('JSON - tokenization', () => {
 

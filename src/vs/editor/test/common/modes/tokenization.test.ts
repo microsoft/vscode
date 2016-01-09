@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
+import * as assert from 'assert';
 import {TPromise} from 'vs/base/common/winjs.base';
-import modes = require('vs/editor/common/modes');
-import supports = require('vs/editor/common/modes/supports');
-import stream = require('vs/editor/common/modes/lineStream');
-import servicesUtil = require('vs/editor/test/common/servicesTestUtils');
+import * as modes from 'vs/editor/common/modes';
+import * as supports from 'vs/editor/common/modes/supports';
+import * as stream from 'vs/editor/common/modes/lineStream';
+import * as servicesUtil from 'vs/editor/test/common/servicesTestUtils';
 import {AbstractState} from 'vs/editor/common/modes/abstractState';
 import {tokenizeToHtmlContent} from 'vs/editor/common/modes/textToHtmlTokenizer';
 import {createLineContext} from 'vs/editor/test/common/modesTestUtils';
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 import {IDisposable, empty as EmptyDisposable} from 'vs/base/common/lifecycle';
 
 export class State extends AbstractState {

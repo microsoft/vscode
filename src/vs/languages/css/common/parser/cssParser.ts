@@ -6,10 +6,10 @@
 import types = require ('vs/base/common/types');
 import scanner = require ('./cssScanner');
 import nodes = require ('./cssNodes');
-import _level = require('vs/languages/css/common/level');
-import errors = require('./cssErrors');
-import languageFacts = require('vs/languages/css/common/services/languageFacts');
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as _level from 'vs/languages/css/common/level';
+import * as errors from './cssErrors';
+import * as languageFacts from 'vs/languages/css/common/services/languageFacts';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 
 export interface IMark {
 	prev: scanner.IToken;

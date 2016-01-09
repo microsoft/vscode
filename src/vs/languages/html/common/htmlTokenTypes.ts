@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import strings = require('vs/base/common/strings');
+import * as strings from 'vs/base/common/strings';
 
 export const DELIM_END = 'punctuation.definition.meta.tag.end.html';
 export const DELIM_START = 'punctuation.definition.meta.tag.begin.html';

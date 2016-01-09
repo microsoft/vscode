@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import rewriter = require('vs/languages/typescript/common/js/rewriting');
+import * as rewriter from 'vs/languages/typescript/common/js/rewriting';
 
 class ShebangRewriter implements rewriter.ISyntaxRewriter {
 

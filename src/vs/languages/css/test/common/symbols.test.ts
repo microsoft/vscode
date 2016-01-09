@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
-import symbols = require('vs/languages/css/common/parser/cssSymbols');
-import nodes = require('vs/languages/css/common/parser/cssNodes');
-import parser = require('vs/languages/css/common/parser/cssParser');
-import occurrences = require('vs/languages/css/common/services/occurrences');
-import workerTests = require('./css-worker.test');
+import * as assert from 'assert';
+import * as symbols from 'vs/languages/css/common/parser/cssSymbols';
+import * as nodes from 'vs/languages/css/common/parser/cssNodes';
+import * as parser from 'vs/languages/css/common/parser/cssParser';
+import * as occurrences from 'vs/languages/css/common/services/occurrences';
+import * as workerTests from './css-worker.test';
 
 export function assertScopesAndSymbols(p: parser.Parser, input:string, expected:string):void {
 	var global = createScope(p, input);

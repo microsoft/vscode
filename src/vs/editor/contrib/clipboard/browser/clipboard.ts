@@ -6,15 +6,15 @@
 'use strict';
 
 import 'vs/css!./clipboard';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import {ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
-import Lifecycle = require('vs/base/common/lifecycle');
+import * as Lifecycle from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
 import {EditorAction, Behaviour} from 'vs/editor/common/editorAction';
-import Browser = require('vs/base/browser/browser');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import config = require('vs/editor/common/config/config');
+import * as Browser from 'vs/base/browser/browser';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as config from 'vs/editor/common/config/config';
 import {IKeybindings} from 'vs/platform/keybinding/common/keybindingService';
 import {INullService} from 'vs/platform/instantiation/common/instantiation';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';

@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import strings = require('vs/base/common/strings');
-import paths = require('vs/base/common/paths');
-import rewriter = require('vs/languages/typescript/common/js/rewriting');
-import ts = require('vs/languages/typescript/common/lib/typescriptServices');
-import collections = require('vs/base/common/collections');
+import * as strings from 'vs/base/common/strings';
+import * as paths from 'vs/base/common/paths';
+import * as rewriter from 'vs/languages/typescript/common/js/rewriting';
+import * as ts from 'vs/languages/typescript/common/lib/typescriptServices';
+import * as collections from 'vs/base/common/collections';
 
 export class Node {
 	constructor(public offset:number, public length:number) {

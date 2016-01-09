@@ -6,9 +6,9 @@
 
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
-import tokenTree = require('./tokenTree');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
+import * as tokenTree from './tokenTree';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as Modes from 'vs/editor/common/modes';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {Range} from 'vs/editor/common/core/range';
 

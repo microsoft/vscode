@@ -5,7 +5,7 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import paths = require('vs/base/common/paths');
+import * as paths from 'vs/base/common/paths';
 import {IWorkspaceContextService, IWorkspace, IConfiguration} from './workspace';
 
 /**

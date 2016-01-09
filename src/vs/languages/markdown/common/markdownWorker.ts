@@ -4,18 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import WinJS = require('vs/base/common/winjs.base');
+import * as WinJS from 'vs/base/common/winjs.base';
 import {AbstractModeWorker} from 'vs/editor/common/modes/abstractModeWorker';
 import URI from 'vs/base/common/uri';
-import Types = require('vs/base/common/types');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
-import Strings = require('vs/base/common/strings');
-import Paths = require('vs/base/common/paths');
-import Marked = require('vs/languages/markdown/common/marked');
-import ModesExtensions = require('vs/editor/common/modes/modesRegistry');
+import * as Types from 'vs/base/common/types';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as Modes from 'vs/editor/common/modes';
+import * as Strings from 'vs/base/common/strings';
+import * as Paths from 'vs/base/common/paths';
+import * as Marked from 'vs/languages/markdown/common/marked';
+import * as ModesExtensions from 'vs/editor/common/modes/modesRegistry';
 import {tokenizeToString} from 'vs/editor/common/modes/textToHtmlTokenizer';
-import Platform = require('vs/platform/platform');
+import * as Platform from 'vs/platform/platform';
 import {isMacintosh} from 'vs/base/common/platform';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {IResourceService} from 'vs/editor/common/services/resourceService';

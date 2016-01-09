@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import {Remotable, IThreadService} from 'vs/platform/thread/common/thread';
 import {IMessageService} from 'vs/platform/message/common/message';
 import Severity from 'vs/base/common/severity';
 import {Action} from 'vs/base/common/actions';
 import {TPromise as Promise} from 'vs/base/common/winjs.base';
-import vscode = require('vscode');
+import * as vscode from 'vscode';
 
 export class ExtHostMessageService {
 

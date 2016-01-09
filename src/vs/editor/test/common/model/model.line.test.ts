@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
-import ModelLine = require('vs/editor/common/model/modelLine');
-import Modes = require('vs/editor/common/modes');
-import TextModelWithTokens = require('vs/editor/common/model/textModelWithTokens');
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as assert from 'assert';
+import * as ModelLine from 'vs/editor/common/model/modelLine';
+import * as Modes from 'vs/editor/common/modes';
+import * as TextModelWithTokens from 'vs/editor/common/model/textModelWithTokens';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 import {LineMarker} from 'vs/editor/common/model/textModelWithMarkers';
 
 function assertLineTokens(actual:EditorCommon.ILineTokens, expected:Modes.IToken[]): void {

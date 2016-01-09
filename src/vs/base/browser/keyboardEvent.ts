@@ -5,8 +5,8 @@
 
 "use strict";
 
-import Platform = require('vs/base/common/platform');
-import Browser = require('vs/base/browser/browser');
+import * as Platform from 'vs/base/common/platform';
+import * as Browser from 'vs/base/browser/browser';
 import {KeyMod, KeyCode, BinaryKeybindings} from 'vs/base/common/keyCodes';
 
 let KEY_CODE_MAP: {[keyCode:number]:KeyCode} = {};

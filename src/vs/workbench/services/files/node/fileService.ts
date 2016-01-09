@@ -5,30 +5,30 @@
 
 'use strict';
 
-import paths = require('path');
-import fs = require('fs');
-import os = require('os');
-import crypto = require('crypto');
-import assert = require('assert');
-import iconv = require('iconv-lite');
+import * as paths from 'path';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as crypto from 'crypto';
+import * as assert from 'assert';
+import * as iconv from 'iconv-lite';
 
-import files = require('vs/platform/files/common/files');
-import strings = require('vs/base/common/strings');
-import arrays = require('vs/base/common/arrays');
-import baseMime = require('vs/base/common/mime');
-import basePaths = require('vs/base/common/paths');
+import * as files from 'vs/platform/files/common/files';
+import * as strings from 'vs/base/common/strings';
+import * as arrays from 'vs/base/common/arrays';
+import * as baseMime from 'vs/base/common/mime';
+import * as basePaths from 'vs/base/common/paths';
 import {Promise, TPromise} from 'vs/base/common/winjs.base';
-import types = require('vs/base/common/types');
-import objects = require('vs/base/common/objects');
-import extfs = require('vs/base/node/extfs');
+import * as types from 'vs/base/common/types';
+import * as objects from 'vs/base/common/objects';
+import * as extfs from 'vs/base/node/extfs';
 import {nfcall, Limiter, ThrottledDelayer} from 'vs/base/common/async';
 import uri from 'vs/base/common/uri';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 
-import pfs = require('vs/base/node/pfs');
-import encoding = require('vs/base/node/encoding');
-import mime = require('vs/base/node/mime');
-import flow = require('vs/base/node/flow');
+import * as pfs from 'vs/base/node/pfs';
+import * as encoding from 'vs/base/node/encoding';
+import * as mime from 'vs/base/node/mime';
+import * as flow from 'vs/base/node/flow';
 import {FileWatcher as UnixWatcherService} from 'vs/workbench/services/files/node/watcher/unix/watcherService';
 import {FileWatcher as WindowsWatcherService} from 'vs/workbench/services/files/node/watcher/win32/watcherService';
 import {toFileChangesEvent, normalize, IRawFileChange} from 'vs/workbench/services/files/node/watcher/common';

@@ -6,12 +6,12 @@
 'use strict';
 
 import 'vs/css!./noworkspaceView';
-import nls = require('vs/nls');
-import winjs = require('vs/base/common/winjs.base');
-import ee = require('vs/base/common/eventEmitter');
-import view = require('vs/workbench/parts/git/browser/views/view');
-import builder = require('vs/base/browser/builder');
-import actions = require('vs/base/common/actions');
+import * as nls from 'vs/nls';
+import * as winjs from 'vs/base/common/winjs.base';
+import * as ee from 'vs/base/common/eventEmitter';
+import * as view from 'vs/workbench/parts/git/browser/views/view';
+import * as builder from 'vs/base/browser/builder';
+import * as actions from 'vs/base/common/actions';
 import {ISelection, Selection} from 'vs/platform/selection/common/selection';
 var $ = builder.$;
 

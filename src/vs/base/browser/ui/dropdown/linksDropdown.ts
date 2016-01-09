@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import WinJS = require('vs/base/common/winjs.base');
-import Platform = require('vs/base/common/platform');
-import Types = require('vs/base/common/types');
-import Actions = require('vs/base/common/actions');
-import Dropdown = require('vs/base/browser/ui/dropdown/dropdown');
+import * as WinJS from 'vs/base/common/winjs.base';
+import * as Platform from 'vs/base/common/platform';
+import * as Types from 'vs/base/common/types';
+import * as Actions from 'vs/base/common/actions';
+import * as Dropdown from 'vs/base/browser/ui/dropdown/dropdown';
 
 export interface ILinksDropdownMenuOptions extends Dropdown.IDropdownMenuOptions {
 	tooltip: string;

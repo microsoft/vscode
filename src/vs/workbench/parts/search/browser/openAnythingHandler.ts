@@ -6,14 +6,14 @@
 'use strict';
 
 import {Promise, TPromise} from 'vs/base/common/winjs.base';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import {ThrottledDelayer} from 'vs/base/common/async';
-import types = require('vs/base/common/types');
+import * as types from 'vs/base/common/types';
 import {isWindows} from 'vs/base/common/platform';
-import scorer = require('vs/base/common/scorer');
-import paths = require('vs/base/common/paths');
-import filters = require('vs/base/common/filters');
-import labels = require('vs/base/common/labels');
+import * as scorer from 'vs/base/common/scorer';
+import * as paths from 'vs/base/common/paths';
+import * as filters from 'vs/base/common/filters';
+import * as labels from 'vs/base/common/labels';
 import {IRange} from 'vs/editor/common/editorCommon';
 import {ListenerUnbind} from 'vs/base/common/eventEmitter';
 import {compareByPrefix} from 'vs/base/common/comparers';

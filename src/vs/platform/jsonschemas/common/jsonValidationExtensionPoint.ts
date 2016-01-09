@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import {IJSONSchema} from 'vs/base/common/jsonSchema';
 import {PluginsRegistry} from 'vs/platform/plugins/common/pluginsRegistry';
 import {Registry} from 'vs/platform/platform';
 import URI from 'vs/base/common/uri';
-import JSONContributionRegistry = require('vs/platform/jsonschemas/common/jsonContributionRegistry');
-import strings = require('vs/base/common/strings');
-import paths = require('vs/base/common/paths');
+import * as JSONContributionRegistry from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
+import * as strings from 'vs/base/common/strings';
+import * as paths from 'vs/base/common/paths';
 import {INullService} from 'vs/platform/instantiation/common/instantiation';
 
 interface IJSONValidationExtensionPoint {

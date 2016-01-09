@@ -4,20 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
+import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
-import glob = require('vs/base/common/glob');
-import winjs = require('vs/base/common/winjs.base');
-import typescript = require('vs/languages/typescript/common/typescript');
-import instantiation = require('vs/platform/instantiation/common/instantiationService');
-import project = require('vs/languages/typescript/common/project/projectService');
-import ts = require('vs/languages/typescript/common/lib/typescriptServices');
-import ProjectResolver = require('vs/languages/typescript.workbench/common/projectResolver');
+import * as glob from 'vs/base/common/glob';
+import * as winjs from 'vs/base/common/winjs.base';
+import * as typescript from 'vs/languages/typescript/common/typescript';
+import * as instantiation from 'vs/platform/instantiation/common/instantiationService';
+import * as project from 'vs/languages/typescript/common/project/projectService';
+import * as ts from 'vs/languages/typescript/common/lib/typescriptServices';
+import * as ProjectResolver from 'vs/languages/typescript.workbench/common/projectResolver';
 import {NULL_THREAD_SERVICE} from 'vs/platform/test/common/nullThreadService';
-import markerService = require('vs/platform/markers/common/markerService');
-import eventEmitter = require('vs/base/common/eventEmitter');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Files = require('vs/platform/files/common/files');
+import * as markerService from 'vs/platform/markers/common/markerService';
+import * as eventEmitter from 'vs/base/common/eventEmitter';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as Files from 'vs/platform/files/common/files';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IMessageService} from 'vs/platform/message/common/message';

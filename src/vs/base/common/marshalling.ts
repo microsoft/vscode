@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import objects = require('vs/base/common/objects');
-import types = require('vs/base/common/types');
+import * as objects from 'vs/base/common/objects';
+import * as types from 'vs/base/common/types';
 
 export interface IMarshallingContribution {
 

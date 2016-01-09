@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Model = require('vs/editor/common/model/model');
-import TU = require('vs/editor/test/common/commands/commandTestUtils');
-import ModelModes = require('vs/editor/test/common/testModes');
-import LineCommentCommand = require('vs/editor/contrib/comment/common/lineCommentCommand');
+import * as assert from 'assert';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as Model from 'vs/editor/common/model/model';
+import * as TU from 'vs/editor/test/common/commands/commandTestUtils';
+import * as ModelModes from 'vs/editor/test/common/testModes';
+import * as LineCommentCommand from 'vs/editor/contrib/comment/common/lineCommentCommand';
 import {Selection} from 'vs/editor/common/core/selection';
 
 suite('Editor Contrib - Line Comment Command', () => {

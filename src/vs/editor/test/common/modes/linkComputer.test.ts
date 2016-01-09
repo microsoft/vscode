@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
-import LinkComputer = require('vs/editor/common/modes/linkComputer');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
+import * as assert from 'assert';
+import * as LinkComputer from 'vs/editor/common/modes/linkComputer';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as Modes from 'vs/editor/common/modes';
 
 class SimpleLinkComputerTarget implements LinkComputer.ILinkComputerTarget {
 

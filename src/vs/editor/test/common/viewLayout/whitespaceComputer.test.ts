@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
-import WhitespaceComputer = require('vs/editor/common/viewLayout/whitespaceComputer');
+import * as assert from 'assert';
+import * as WhitespaceComputer from 'vs/editor/common/viewLayout/whitespaceComputer';
 
 suite('Editor ViewLayout - WhitespaceComputer', () => {
 

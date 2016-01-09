@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import URI from 'vs/base/common/uri';
-import network = require('vs/base/common/network');
-import strings = require('vs/base/common/strings');
-import errors = require('vs/base/common/errors');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
-import winjs = require('vs/base/common/winjs.base');
-import paths = require('vs/base/common/paths');
-import http = require('vs/base/common/http');
+import * as network from 'vs/base/common/network';
+import * as strings from 'vs/base/common/strings';
+import * as errors from 'vs/base/common/errors';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as Modes from 'vs/editor/common/modes';
+import * as winjs from 'vs/base/common/winjs.base';
+import * as paths from 'vs/base/common/paths';
+import * as http from 'vs/base/common/http';
 import {IFileService} from 'vs/platform/files/common/files';
 import {IRequestService} from 'vs/platform/request/common/request';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';

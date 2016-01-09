@@ -5,8 +5,8 @@
 
 'use strict';
 
-import languageDef = require('vs/editor/standalone-languages/lua');
-import T = require('vs/editor/standalone-languages/test/testUtil');
+import * as languageDef from 'vs/editor/standalone-languages/lua';
+import * as T from 'vs/editor/standalone-languages/test/testUtil';
 
 var Bracket = {
 	Open: 1,

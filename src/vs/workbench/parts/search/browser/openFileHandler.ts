@@ -5,10 +5,10 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import {ThrottledDelayer} from 'vs/base/common/async';
-import paths = require('vs/base/common/paths');
-import labels = require('vs/base/common/labels');
+import * as paths from 'vs/base/common/paths';
+import * as labels from 'vs/base/common/labels';
 import URI from 'vs/base/common/uri';
 import {IRange} from 'vs/editor/common/editorCommon';
 import {IAutoFocus} from 'vs/base/parts/quickopen/common/quickOpen';

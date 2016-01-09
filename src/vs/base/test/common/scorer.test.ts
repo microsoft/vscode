@@ -6,7 +6,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import scorer = require('vs/base/common/scorer');
+import * as scorer from 'vs/base/common/scorer';
 
 suite('Scorer', () => {
 

@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import Event, {Emitter} from 'vs/base/common/event';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import platform = require('vs/platform/platform');
-import objects = require('vs/base/common/objects');
-import strings = require('vs/base/common/strings');
+import * as platform from 'vs/platform/platform';
+import * as objects from 'vs/base/common/objects';
+import * as strings from 'vs/base/common/strings';
 import {IPluginDescription} from 'vs/platform/plugins/common/plugins';
 import {PluginsRegistry} from 'vs/platform/plugins/common/pluginsRegistry';
-import JSONContributionRegistry = require('vs/platform/jsonschemas/common/jsonContributionRegistry');
+import * as JSONContributionRegistry from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 
 
 export var Extensions = {

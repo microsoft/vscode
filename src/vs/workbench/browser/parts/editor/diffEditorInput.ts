@@ -5,7 +5,7 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
-import types = require('vs/base/common/types');
+import * as types from 'vs/base/common/types';
 import {isBinaryMime} from 'vs/base/common/mime';
 import {EventType} from 'vs/base/common/events';
 import {EditorModel, IFileEditorInput, EditorInput, IInputStatus, BaseDiffEditorInput} from 'vs/workbench/common/editor';

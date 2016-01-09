@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
-import cssWorker = require('vs/languages/css/common/cssWorker');
-import cssParser = require('vs/languages/css/common/parser/cssParser');
-import sassParser = require('./parser/sassParser');
-import sassIntellisense = require('./services/intelliSense');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as Modes from 'vs/editor/common/modes';
+import * as cssWorker from 'vs/languages/css/common/cssWorker';
+import * as cssParser from 'vs/languages/css/common/parser/cssParser';
+import * as sassParser from './parser/sassParser';
+import * as sassIntellisense from './services/intelliSense';
 
 export class SassWorker extends cssWorker.CSSWorker {
 

@@ -7,7 +7,7 @@
 
 import 'vs/css!./media/binarydiffeditor';
 import {TPromise} from 'vs/base/common/winjs.base';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import URI from 'vs/base/common/uri';
 import {Sash, ISashEvent, IVerticalSashLayoutProvider} from 'vs/base/browser/ui/sash/sash';
 import {Dimension, Builder, $} from 'vs/base/browser/builder';
