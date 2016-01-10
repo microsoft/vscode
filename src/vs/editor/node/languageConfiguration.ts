@@ -8,7 +8,7 @@ import {IModeService} from 'vs/editor/common/services/modeService';
 import {ILanguageExtensionPoint, LanguageExtensions} from 'vs/editor/common/modes/languageExtensionPoint';
 import {PluginsRegistry} from 'vs/platform/plugins/common/pluginsRegistry';
 import * as pfs from 'vs/base/node/pfs';
-import Supports = require ('vs/editor/common/modes/supports');
+import * as Supports from 'vs/editor/common/modes/supports';
 import {IOnEnterSupportOptions} from 'vs/editor/common/modes/supports/onEnter';
 import * as json from 'vs/base/common/json';
 import {ICharacterPairContribution} from 'vs/editor/common/modes';

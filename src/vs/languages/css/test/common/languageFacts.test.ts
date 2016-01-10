@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import * as languageFacts from 'vs/languages/css/common/services/languageFacts';
 import * as _parser from 'vs/languages/css/common/parser/cssParser';
-import nodes = require ('vs/languages/css/common/parser/cssNodes');
+import * as nodes from 'vs/languages/css/common/parser/cssNodes';
 import * as workerTests from './css-worker.test';
 
 export function assertColor(parser: _parser.Parser, text: string, selection: string, isColor: boolean):void {

@@ -6,8 +6,8 @@
 'use strict';
 
 import * as _parser from 'vs/languages/sass/common/parser/sassParser';
-import nodes = require ('vs/languages/css/common/parser/cssNodes');
-import errors = require ('vs/languages/css/common/parser/cssErrors');
+import * as nodes from 'vs/languages/css/common/parser/cssNodes';
+import * as errors from 'vs/languages/css/common/parser/cssErrors';
 import * as sassErrors from 'vs/languages/sass/common/parser/sassErrors';
 
 import * as cssParserTests from 'vs/languages/css/test/common/parser.test';

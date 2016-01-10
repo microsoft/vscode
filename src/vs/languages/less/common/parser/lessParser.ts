@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 'use strict';
-import lessScanner = require ('./lessScanner');
+import * as lessScanner from './lessScanner';
 import * as scanner from 'vs/languages/css/common/parser/cssScanner';
 import * as cssParser from 'vs/languages/css/common/parser/cssParser';
 import * as nodes from 'vs/languages/css/common/parser/cssNodes';

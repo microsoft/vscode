@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 'use strict';
-import types = require ('vs/base/common/types');
-import scanner = require ('./cssScanner');
-import nodes = require ('./cssNodes');
+import * as types from 'vs/base/common/types';
+import * as scanner from './cssScanner';
+import * as nodes from './cssNodes';
 import * as _level from 'vs/languages/css/common/level';
 import * as errors from './cssErrors';
 import * as languageFacts from 'vs/languages/css/common/services/languageFacts';

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 'use strict';
-import sassScanner = require ('./sassScanner');
+import * as sassScanner from './sassScanner';
 import * as sassErrors from './sassErrors';
 import * as scanner from 'vs/languages/css/common/parser/cssScanner';
 import * as cssParser from 'vs/languages/css/common/parser/cssParser';

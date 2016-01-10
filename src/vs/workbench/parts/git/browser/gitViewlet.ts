@@ -9,7 +9,7 @@ import 'vs/css!./media/gitViewlet';
 import * as winjs from 'vs/base/common/winjs.base';
 import * as lifecycle from 'vs/base/common/lifecycle';
 import * as eventemitter from 'vs/base/common/eventEmitter';
-import $ = require('vs/base/browser/builder');
+import * as $ from 'vs/base/browser/builder';
 import * as actions from 'vs/base/common/actions';
 import * as viewlet from 'vs/workbench/browser/viewlet';
 import * as git from 'vs/workbench/parts/git/common/git';

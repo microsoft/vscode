@@ -8,7 +8,7 @@
 import * as assert from 'assert';
 import * as _parser from 'vs/languages/css/common/parser/cssParser';
 import * as scanner from 'vs/languages/css/common/parser/cssScanner';
-import nodes = require ('vs/languages/css/common/parser/cssNodes');
+import * as nodes from 'vs/languages/css/common/parser/cssNodes';
 import * as errors from 'vs/languages/css/common/parser/cssErrors';
 export function assertNode(text: string, parser: _parser.Parser, f: ()=>nodes.Node):void {
 	var node = parser.internalParse(text, f);

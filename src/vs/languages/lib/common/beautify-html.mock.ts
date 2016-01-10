@@ -11,4 +11,4 @@ function mock_html_beautify(value:string, options:beautifyHtml.IBeautifyHTMLOpti
 var mock: typeof beautifyHtml = {
 	html_beautify: mock_html_beautify
 };
-export = mock;
+export { mock };

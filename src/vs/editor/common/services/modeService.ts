@@ -9,7 +9,7 @@ import * as EditorCommon from 'vs/editor/common/editorCommon';
 import {TPromise} from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import * as Modes from 'vs/editor/common/modes';
-import Supports = require ('vs/editor/common/modes/supports');
+import * as Supports from 'vs/editor/common/modes/supports';
 import * as MonarchTypes from 'vs/editor/common/modes/monarch/monarchTypes';
 import {IOnEnterSupportOptions} from 'vs/editor/common/modes/supports/onEnter';
 import {IDisposable} from 'vs/base/common/lifecycle';
