@@ -1335,4 +1335,42 @@ suite('FindModel', () => {
 		findModel.dispose();
 		findState.dispose();
 	});
+
+	findTest('issue #1914: NPE when there is only one find match', (editor, cursor) => {
+		let findState = new FindReplaceState();
+		findState.change({ searchString: 'cool.h' }, false);
+		let findModel = new FindModelBoundToEditorModel(editor, findState);
+
+		assertFindState(
+			editor,
+			[1, 1, 1, 1],
+			null,
+			[
+				[2, 11, 2, 17]
+			]
+		);
+
+		findModel.moveToNextMatch();
+		assertFindState(
+			editor,
+			[2, 11, 2, 17],
+			[2, 11, 2, 17],
+			[
+				[2, 11, 2, 17]
+			]
+		);
+
+		findModel.moveToNextMatch();
+		assertFindState(
+			editor,
+			[2, 11, 2, 17],
+			[2, 11, 2, 17],
+			[
+				[2, 11, 2, 17]
+			]
+		);
+
+		findModel.dispose();
+		findState.dispose();
+	});
 });

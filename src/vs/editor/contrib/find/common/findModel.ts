@@ -191,6 +191,10 @@ export class FindModelBoundToEditorModel {
 		let position = new Position(lineNumber, column);
 
 		let nextMatch = model.findPreviousMatch(this._state.searchString, position, this._state.isRegex, this._state.matchCase, this._state.wholeWord);
+		if (!nextMatch) {
+			// there is precisely one match and selection is on top of it
+			return;
+		}
 
 		if (!isRecursed && !searchRange.containsRange(nextMatch)) {
 			return this._moveToPrevMatch(nextMatch.getStartPosition(), true);
@@ -253,6 +257,11 @@ export class FindModelBoundToEditorModel {
 		let position = new Position(lineNumber, column);
 
 		let nextMatch = model.findNextMatch(this._state.searchString, position, this._state.isRegex, this._state.matchCase, this._state.wholeWord);
+
+		if (!nextMatch) {
+			// there is precisely one match and selection is on top of it
+			return;
+		}
 
 		if (!isRecursed && !searchRange.containsRange(nextMatch)) {
 			return this._moveToNextMatch(nextMatch.getEndPosition(), true);
