@@ -41,6 +41,12 @@ export class MockCodeEditor extends CommonCodeEditor {
 	getCursor(): Cursor {
 		return this.cursor;
 	}
+
+	public registerAndInstantiateContribution<T extends EditorCommon.IEditorContribution>(ctor:any): T {
+		let r = <T>this._instantiationService.createInstance(ctor, this);
+		this.contributions[r.getId()] = r;
+		return r;
+	}
 }
 
 export class MockScopeLocation implements IKeybindingScopeLocation {
@@ -48,7 +54,7 @@ export class MockScopeLocation implements IKeybindingScopeLocation {
 	removeAttribute(attr:string): void { }
 }
 
-export function withMockCodeEditor(text:string[], options:EditorCommon.ICodeEditorWidgetCreationOptions, callback:(editor:EditorCommon.ICommonCodeEditor, cursor:Cursor)=>void): void {
+export function withMockCodeEditor(text:string[], options:EditorCommon.ICodeEditorWidgetCreationOptions, callback:(editor:MockCodeEditor, cursor:Cursor)=>void): void {
 
 	let codeEditorService = new MockCodeEditorService();
 	let keybindingService = new MockKeybindingService();

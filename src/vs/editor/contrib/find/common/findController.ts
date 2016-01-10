@@ -173,14 +173,8 @@ export class CommonFindController extends Disposable implements EditorCommon.IEd
 		}
 	}
 
-	public startFromAction(withReplace:boolean): void {
-		this._start({
-			forceRevealReplace: withReplace,
-			seedSearchStringFromSelection: true,
-			seedSearchScopeFromSelection: true,
-			shouldFocus: withReplace ? FindStartFocusAction.FocusReplaceInput : FindStartFocusAction.FocusFindInput,
-			shouldAnimate: true
-		});
+	public start(opts:IFindStartOptions): void {
+		this._start(opts);
 	}
 
 	public moveToNextMatch(): boolean {
@@ -224,7 +218,13 @@ export class StartFindAction extends EditorAction {
 
 	public run(): TPromise<boolean> {
 		let controller = CommonFindController.getFindController(this.editor);
-		controller.startFromAction(false);
+		controller.start({
+			forceRevealReplace: false,
+			seedSearchStringFromSelection: true,
+			seedSearchScopeFromSelection: true,
+			shouldFocus: FindStartFocusAction.FocusFindInput,
+			shouldAnimate: true
+		});
 		return TPromise.as(true);
 	}
 }
@@ -238,7 +238,13 @@ export class NextMatchFindAction extends EditorAction {
 	public run(): TPromise<boolean> {
 		let controller = CommonFindController.getFindController(this.editor);
 		if (!controller.moveToNextMatch()) {
-			controller.startFromAction(false);
+			controller.start({
+				forceRevealReplace: false,
+				seedSearchStringFromSelection: (controller.getState().searchString.length === 0),
+				seedSearchScopeFromSelection: false,
+				shouldFocus: FindStartFocusAction.NoFocusChange,
+				shouldAnimate: true
+			});
 			controller.moveToNextMatch();
 		}
 		return TPromise.as(true);
@@ -254,7 +260,13 @@ export class PreviousMatchFindAction extends EditorAction {
 	public run(): TPromise<boolean> {
 		let controller = CommonFindController.getFindController(this.editor);
 		if (!controller.moveToPrevMatch()) {
-			controller.startFromAction(false);
+			controller.start({
+				forceRevealReplace: false,
+				seedSearchStringFromSelection: (controller.getState().searchString.length === 0),
+				seedSearchScopeFromSelection: false,
+				shouldFocus: FindStartFocusAction.NoFocusChange,
+				shouldAnimate: true
+			});
 			controller.moveToPrevMatch();
 		}
 		return TPromise.as(true);
@@ -269,7 +281,13 @@ export class StartFindReplaceAction extends EditorAction {
 
 	public run(): TPromise<boolean> {
 		let controller = CommonFindController.getFindController(this.editor);
-		controller.startFromAction(true);
+		controller.start({
+			forceRevealReplace: true,
+			seedSearchStringFromSelection: (controller.getState().searchString.length === 0),
+			seedSearchScopeFromSelection: true,
+			shouldFocus: FindStartFocusAction.FocusReplaceInput,
+			shouldAnimate: true
+		});
 		return TPromise.as(true);
 	}
 }
@@ -335,7 +353,7 @@ export function multiCursorFind(editor:EditorCommon.ICommonCodeEditor, changeFin
 	};
 }
 
-class SelectNextFindMatchAction extends EditorAction {
+export class SelectNextFindMatchAction extends EditorAction {
 	constructor(descriptor:EditorCommon.IEditorActionDescriptorData, editor:EditorCommon.ICommonCodeEditor, @INullService ns) {
 		super(descriptor, editor, Behaviour.WidgetFocus);
 	}
@@ -362,7 +380,7 @@ class SelectNextFindMatchAction extends EditorAction {
 	}
 }
 
-class AddSelectionToNextFindMatchAction extends SelectNextFindMatchAction {
+export class AddSelectionToNextFindMatchAction extends SelectNextFindMatchAction {
 	static ID = 'editor.action.addSelectionToNextFindMatch';
 
 	constructor(descriptor:EditorCommon.IEditorActionDescriptorData, editor:EditorCommon.ICommonCodeEditor, @INullService ns) {
@@ -384,7 +402,7 @@ class AddSelectionToNextFindMatchAction extends SelectNextFindMatchAction {
 	}
 }
 
-class MoveSelectionToNextFindMatchAction extends SelectNextFindMatchAction {
+export class MoveSelectionToNextFindMatchAction extends SelectNextFindMatchAction {
 	static ID = 'editor.action.moveSelectionToNextFindMatch';
 
 	constructor(descriptor:EditorCommon.IEditorActionDescriptorData, editor:EditorCommon.ICommonCodeEditor, @INullService ns) {
@@ -407,7 +425,7 @@ class MoveSelectionToNextFindMatchAction extends SelectNextFindMatchAction {
 	}
 }
 
-class SelectHighlightsAction extends EditorAction {
+export class SelectHighlightsAction extends EditorAction {
 	static ID = 'editor.action.selectHighlights';
 	static COMPAT_ID = 'editor.action.changeAll';
 
