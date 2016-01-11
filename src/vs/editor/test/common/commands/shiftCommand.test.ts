@@ -55,7 +55,7 @@ class DocBlockCommentMode implements Modes.IMode {
 				},
 				{
 					// e.g.  * ...|
-					beforeText: /^(\t|(\ \ ))*\ \*\ ([^\*]|\*(?!\/))*$/,
+					beforeText: /^(\t|(\ \ ))*\ \*(\ ([^\*]|\*(?!\/))*)?$/,
 					action: { indentAction: Modes.IndentAction.None, appendText: '* ' }
 				},
 				{
@@ -588,6 +588,31 @@ suite('Editor Commands - ShiftCommand', () => {
 				'function hello() {}'
 			],
 			new Selection(1,1,5,20)
+		);
+	});
+
+	test('issue #1609: Wrong indentation of block comments', () => {
+		testShiftCommandInDocBlockCommentMode(
+			[
+				'',
+				'/**',
+				' * test',
+				' *',
+				' * @type {number}',
+				' */',
+				'var foo = 0;'
+			],
+			new Selection(1,1,7,13),
+			[
+				'',
+				'\t/**',
+				'\t * test',
+				'\t *',
+				'\t * @type {number}',
+				'\t */',
+				'\tvar foo = 0;'
+			],
+			new Selection(1,1,7,14)
 		);
 	});
 
