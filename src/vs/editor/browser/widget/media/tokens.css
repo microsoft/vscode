@@ -346,7 +346,7 @@
 .monaco-editor.vs .token.meta.preprocessor.string				{ color: #A31515; }
 .monaco-editor.vs .token.meta.preprocessor.numeric				{ color: #09885A; }
 .monaco-editor.vs .token.meta.cast								{ color: #000000; }
-.monaco-editor.vs .token.meta.object.type							{ color: #000000; }
+.monaco-editor.vs .token.meta.object.type						{ color: #000000; }
 .monaco-editor.vs .token.meta.parameter.type					{ color: #000000; }
 .monaco-editor.vs .token.meta.parameter.type.variable			{ color: #000000; }
 .monaco-editor.vs .token.meta.dictionary.key					{ color: #0451A5; }
