@@ -5,34 +5,7 @@
 'use strict';
 
 import assert = require('assert');
-import {CommonEditorConfiguration, ICSSConfig} from 'vs/editor/common/config/commonEditorConfig';
-
-class MockConfiguration extends CommonEditorConfiguration {
-
-	constructor(opts:any) {
-		super(opts);
-	}
-
-	protected getOuterWidth(): number {
-		return 100;
-	}
-
-	protected getOuterHeight(): number {
-		return 100;
-	}
-
-	protected readConfiguration(editorClassName: string, fontFamily: string, fontSize: number, lineHeight: number): ICSSConfig {
-		// Doesn't really matter
-		return {
-			typicalHalfwidthCharacterWidth: 10,
-			typicalFullwidthCharacterWidth: 20,
-			maxDigitWidth: 10,
-			lineHeight: 20,
-			font: 'mockFont',
-			fontSize: 20
-		};
-	}
-}
+import {MockConfiguration} from 'vs/editor/test/common/mocks/mockConfiguration';
 
 suite('Editor Config - CommonEditorConfig', () => {
 	test('Configuration.normalizeIndentation', () => {

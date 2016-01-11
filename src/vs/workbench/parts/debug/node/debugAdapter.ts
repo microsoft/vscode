@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import nls = require('vs/nls');
 import paths = require('vs/base/common/paths');
 import platform = require('vs/base/common/platform');
 import debug = require('vs/workbench/parts/debug/common/debug');
@@ -82,20 +83,20 @@ export class Adapter {
 				}
 				attributes.properties.type = {
 					enum: [this.type],
-					description: 'Type of configuration.',
+					description: nls.localize('debugType', "Type of configuration.")
 				};
 				attributes.properties.name = {
 					type: 'string',
-					description: 'Name of configuration; appears in the launch configuration drop down menu.',
+					description: nls.localize('debugName', "Name of configuration; appears in the launch configuration drop down menu."),
 					default: 'Launch'
 				};
 				attributes.properties.request = {
 					enum: [request],
-					description: 'Request type of configuration. Can be "launch" or "attach".',
+					description: nls.localize('debugRequest', "Request type of configuration. Can be \"launch\" or \"attach\"."),
 				};
 				attributes.properties.preLaunchTask = {
 					type: 'string',
-					description: 'Task to run before debug session starts.'
+					description: nls.localize('debugPrelaunchTask', "Task to run before debug session starts.")
 				};
 
 				return attributes;

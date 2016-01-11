@@ -15,7 +15,7 @@ import nls = require('vs/nls');
 import {FileEditorInput} from 'vs/workbench/parts/files/common/files';
 import {EditorInputAction} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {EditorOptions, getUntitledOrFileResource} from 'vs/workbench/common/editor';
-import {MarkdownEditorInput} from 'vs/workbench/parts/markdown/browser/markdownEditorInput';
+import {MarkdownEditorInput} from 'vs/workbench/parts/markdown/common/markdownEditorInput';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';

@@ -10,7 +10,7 @@ import {Promise} from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
 import {FileEditorInput} from 'vs/workbench/parts/files/browser/editors/fileEditorInput';
-import {TextFileEditorModel, CACHE} from 'vs/workbench/parts/files/browser/editors/textFileEditorModel';
+import {TextFileEditorModel, CACHE} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {create} from 'vs/platform/instantiation/common/instantiationService';
 import {TextFileService} from 'vs/workbench/parts/files/browser/textFileServices';

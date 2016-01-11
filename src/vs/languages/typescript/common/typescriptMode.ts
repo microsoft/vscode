@@ -253,7 +253,7 @@ export class TypeScriptMode<W extends typescriptWorker.TypeScriptWorker2> extend
 				},
 				{
 					// e.g.  * ...|
-					beforeText: /^(\t|(\ \ ))*\ \*\ ([^\*]|\*(?!\/))*$/,
+					beforeText: /^(\t|(\ \ ))*\ \*(\ ([^\*]|\*(?!\/))*)?$/,
 					action: { indentAction: Modes.IndentAction.None, appendText: '* ' }
 				},
 				{

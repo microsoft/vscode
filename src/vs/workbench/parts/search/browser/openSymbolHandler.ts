@@ -15,7 +15,8 @@ import filters = require('vs/base/common/filters');
 import {IRange} from 'vs/editor/common/editorCommon';
 import {EditorInput} from 'vs/workbench/common/editor';
 import labels = require('vs/base/common/labels');
-import {IWorkbenchEditorService, IFileInput} from 'vs/workbench/services/editor/common/editorService';
+import {IResourceInput} from 'vs/platform/editor/common/editor';
+import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IModeService} from 'vs/editor/common/services/modeService';
@@ -65,8 +66,8 @@ class SymbolEntry extends EditorQuickOpenEntry {
 		return this.type;
 	}
 
-	public getInput(): IFileInput | EditorInput {
-		let input: IFileInput = {
+	public getInput(): IResourceInput | EditorInput {
+		let input: IResourceInput = {
 			resource: this.resource,
 		};
 

@@ -9,7 +9,7 @@ import nls = require('vs/nls');
 import types = require('vs/base/common/types');
 import {Action, IAction} from 'vs/base/common/actions';
 import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
-import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/browser/actionRegistry';
+import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/common/actionRegistry';
 import {Registry} from 'vs/platform/platform';
 import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {EditorInput, getUntitledOrFileResource, TextEditorOptions} from 'vs/workbench/common/editor';

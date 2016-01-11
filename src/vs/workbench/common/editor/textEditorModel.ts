@@ -22,6 +22,7 @@ import {IModelService} from 'vs/editor/common/services/modelService';
  */
 export abstract class BaseTextEditorModel extends EditorModel implements ITextEditorModel {
 	private textEditorModelHandle: URI;
+	private createdEditorModel: boolean;
 
 	constructor(
 		@IModelService private modelService: IModelService,
@@ -46,6 +47,7 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 		// To avoid flickering, give the mode at most 50ms to load. If the mode doesn't load in 50ms, proceed creating the model with a mode promise
 		return Promise.any([Promise.timeout(50), this.getOrCreateMode(this.modeService, mime, firstLineText)]).then(() => {
 			let model = this.modelService.createModel(value, this.getOrCreateMode(this.modeService, mime, firstLineText), resource);
+			this.createdEditorModel = true;
 
 			this.textEditorModelHandle = model.getAssociatedResource();
 
@@ -124,11 +126,12 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 	}
 
 	public dispose(): void {
-		if (this.textEditorModelHandle) {
+		if (this.textEditorModelHandle && this.createdEditorModel) {
 			this.modelService.destroyModel(this.textEditorModelHandle);
 		}
 
 		this.textEditorModelHandle = null;
+		this.createdEditorModel = false;
 
 		super.dispose();
 	}

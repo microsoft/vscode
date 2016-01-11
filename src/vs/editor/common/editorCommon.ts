@@ -1758,6 +1758,16 @@ export interface IModel extends IEditableTextModel, ITextModelWithMarkers, IToke
 	 * @return The range where the next match is. It is null if no next match has been found.
 	 */
 	findNextMatch(searchString:string, searchStart:IPosition, isRegex:boolean, matchCase:boolean, wholeWord:boolean): IEditorRange;
+	/**
+	 * Search the model for the previous match. Loops to the end of the model if needed.
+	 * @param searchString The string used to search. If it is a regular expression, set `isRegex` to true.
+	 * @param searchStart Start the searching at the specified position.
+	 * @param isRegex Used to indicate that `searchString` is a regular expression.
+	 * @param matchCase Force the matching to match lower/upper case exactly.
+	 * @param wholeWord Force the matching to match entire words only.
+	 * @return The range where the previous match is. It is null if no previous match has been found.
+	 */
+	findPreviousMatch(searchString:string, searchStart:IPosition, isRegex:boolean, matchCase:boolean, wholeWord:boolean): IEditorRange;
 
 	/**
 	 * Replace the entire text buffer value contained in this model.
@@ -3038,11 +3048,6 @@ export interface ICommonCodeEditor extends IEditor {
 	setValue(newValue: string): void;
 
 	/**
-	 * Returns the range that is currently centered in the view port.
-	 */
-	getCenteredRangeInViewport(): IEditorRange;
-
-	/**
 	 * Change the scrollTop of the editor's viewport.
 	 */
 	setScrollTop(newScrollTop: number): void;
@@ -3114,40 +3119,9 @@ export interface ICommonCodeEditor extends IEditor {
 	removeDecorations(decorationTypeKey:string): void;
 
 	/**
-	 * Get the horizontal position (left offset) for the column w.r.t to the beginning of the line.
-	 * This method works only if the line `lineNumber` is currently rendered (in the editor's viewport).
-	 * Use this method with caution.
-	 */
-	getOffsetForColumn(lineNumber: number, column: number): number;
-
-	/**
-	 * Get the vertical position (top offset) for the line w.r.t. to the first line.
-	 */
-	getTopForLineNumber(lineNumber: number): number;
-
-	/**
-	 * Get the vertical position (top offset) for the position w.r.t. to the first line.
-	 */
-	getTopForPosition(lineNumber: number, column: number): number;
-
-	/**
-	 * Get the visible position for `position`.
-	 * The result position takes scrolling into account and is relative to the top left corner of the editor.
-	 * Explanation 1: the results of this method will change for the same `position` if the user scrolls the editor.
-	 * Explanation 2: the results of this method will not change if the container of the editor gets repositioned.
-	 * Warning: the results of this method are innacurate for positions that are outside the current editor viewport.
-	 */
-	getScrolledVisiblePosition(position: IPosition): { top: number; left: number; height: number; };
-
-	/**
 	 * Get the layout info for the editor.
 	 */
 	getLayoutInfo(): IEditorLayoutInfo;
-
-	/**
-	 * Get the view zones.
-	 */
-	getWhitespaces(): IEditorWhitespace[];
 
 	/**
 	 * Prevent the editor from sending a widgetFocusLost event,

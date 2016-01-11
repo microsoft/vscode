@@ -573,6 +573,41 @@ export interface ICodeEditor extends EditorCommon.ICommonCodeEditor {
 	 * Change the view zones. View zones are lost when a new model is attached to the editor.
 	 */
 	changeViewZones(callback: (accessor: IViewZoneChangeAccessor) => void): void;
+
+	/**
+	 * Returns the range that is currently centered in the view port.
+	 */
+	getCenteredRangeInViewport(): EditorCommon.IEditorRange;
+
+	/**
+	 * Get the view zones.
+	 */
+	getWhitespaces(): EditorCommon.IEditorWhitespace[];
+	/**
+	 * Get the horizontal position (left offset) for the column w.r.t to the beginning of the line.
+	 * This method works only if the line `lineNumber` is currently rendered (in the editor's viewport).
+	 * Use this method with caution.
+	 */
+	getOffsetForColumn(lineNumber: number, column: number): number;
+
+	/**
+	 * Get the vertical position (top offset) for the line w.r.t. to the first line.
+	 */
+	getTopForLineNumber(lineNumber: number): number;
+
+	/**
+	 * Get the vertical position (top offset) for the position w.r.t. to the first line.
+	 */
+	getTopForPosition(lineNumber: number, column: number): number;
+
+	/**
+	 * Get the visible position for `position`.
+	 * The result position takes scrolling into account and is relative to the top left corner of the editor.
+	 * Explanation 1: the results of this method will change for the same `position` if the user scrolls the editor.
+	 * Explanation 2: the results of this method will not change if the container of the editor gets repositioned.
+	 * Warning: the results of this method are innacurate for positions that are outside the current editor viewport.
+	 */
+	getScrolledVisiblePosition(position: EditorCommon.IPosition): { top: number; left: number; height: number; };
 }
 
 /**

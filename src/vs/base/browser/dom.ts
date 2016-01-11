@@ -919,8 +919,13 @@ export var EventType = {
 	ANIMATION_ITERATION: Browser.isWebKit ? 'webkitAnimationIteration' : 'animationiteration'
 };
 
+export interface EventLike {
+	preventDefault(): void;
+	stopPropagation(): void;
+}
+
 export var EventHelper = {
-	stop: function (e:Event, cancelBubble?:boolean) {
+	stop: function (e:EventLike, cancelBubble?:boolean) {
 		if (e.preventDefault) {
 			e.preventDefault();
 		} else {
@@ -933,7 +938,7 @@ export var EventHelper = {
 				e.stopPropagation();
 			} else {
 				// IE8
-				e.cancelBubble = true;
+				(<any>e).cancelBubble = true;
 			}
 		}
 	}
@@ -1068,10 +1073,14 @@ export function emmet(description: string):HTMLElement {
 	return result;
 };
 
-export function show(element: HTMLElement): void {
-	element.style.display = null;
+export function show(...elements: HTMLElement[]): void {
+	for (const element of elements) {
+		element.style.display = null;
+	}
 }
 
-export function hide(element: HTMLElement): void {
-	element.style.display = 'none';
+export function hide(...elements: HTMLElement[]): void {
+	for (const element of elements) {
+		element.style.display = 'none';
+	}
 }

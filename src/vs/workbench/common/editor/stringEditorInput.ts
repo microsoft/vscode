@@ -7,7 +7,7 @@
 import {TPromise} from 'vs/base/common/winjs.base';
 import {MIME_TEXT} from 'vs/base/common/mime';
 import {EditorModel, EditorInput} from 'vs/workbench/common/editor';
-import {StringEditorModel} from 'vs/workbench/browser/parts/editor/stringEditorModel';
+import {StringEditorModel} from 'vs/workbench/common/editor/stringEditorModel';
 import URI from 'vs/base/common/uri';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 

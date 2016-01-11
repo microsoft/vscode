@@ -17,7 +17,7 @@ import {IMode} from 'vs/editor/common/modes';
 import {EventType as WorkbenchEventType, ResourceEvent} from 'vs/workbench/common/events';
 import {LocalFileChangeEvent, EventType as FileEventType, TextFileChangeEvent, ITextFileService, IAutoSaveConfiguration} from 'vs/workbench/parts/files/common/files';
 import {EncodingMode, EditorModel, IEncodingSupport} from 'vs/workbench/common/editor';
-import {BaseTextEditorModel} from 'vs/workbench/browser/parts/editor/textEditorModel';
+import {BaseTextEditorModel} from 'vs/workbench/common/editor/textEditorModel';
 import {IFileService, IFileStat, IFileOperationResult, FileOperationResult, IContent} from 'vs/platform/files/common/files';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';

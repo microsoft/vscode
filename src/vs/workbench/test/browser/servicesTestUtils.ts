@@ -14,7 +14,7 @@ import Paths = require('vs/base/common/paths');
 import Env = require('vs/base/common/flags');
 import URI from 'vs/base/common/uri';
 import MainTelemetryService = require('vs/platform/telemetry/browser/mainTelemetryService');
-import Storage = require('vs/workbench/browser/storage');
+import Storage = require('vs/workbench/common/storage');
 import WorkbenchEditorCommon = require('vs/workbench/common/editor');
 import Viewlet = require('vs/workbench/browser/viewlet');
 import InstantiationService = require('vs/platform/instantiation/common/instantiationService');
@@ -29,7 +29,7 @@ import Errors = require('vs/base/common/errors');
 import http = require('vs/base/common/http');
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
-import UntitledEditorService = require('vs/workbench/services/untitled/browser/untitledEditorService');
+import UntitledEditorService = require('vs/workbench/services/untitled/common/untitledEditorService');
 import WorkbenchEditorService = require('vs/workbench/services/editor/common/editorService');
 import QuickOpenService = require('vs/workbench/services/quickopen/common/quickOpenService');
 import ViewletService = require('vs/workbench/services/viewlet/common/viewletService');
@@ -38,7 +38,7 @@ import WorkspaceContextService = require('vs/workbench/services/workspace/common
 import ViewletCommon = require('vs/workbench/common/viewlet');
 import Files = require('vs/platform/files/common/files');
 import {BaseWorkspaceContextService} from 'vs/platform/workspace/common/baseWorkspaceContextService';
-import {IEditorInput, IEditorModel, IEditorOptions, ITextInput, Position, IEditor, IResourceInput, ITextEditorModel} from 'vs/platform/editor/common/editor';
+import {IEditorInput, IEditorModel, IEditorOptions, Position, IEditor, IResourceInput, ITextEditorModel} from 'vs/platform/editor/common/editor';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
@@ -48,9 +48,6 @@ import {IRequestService} from 'vs/platform/request/common/request';
 import {BaseRequestService} from 'vs/platform/request/common/baseRequestService';
 import {ITelemetryService, ITelemetryInfo} from 'vs/platform/telemetry/common/telemetry';
 import {IWorkspaceContextService, IWorkspace, IConfiguration} from 'vs/platform/workspace/common/workspace';
-import {IKeybindingService, IKeybindingContextKey, IKeybindingItem} from 'vs/platform/keybinding/common/keybindingService';
-import {Keybinding} from 'vs/base/common/keyCodes';
-import {IHTMLContentElement} from 'vs/base/common/htmlContent';
 
 export const TestWorkspace: IWorkspace = {
 	resource: URI.file('C:\\testWorkspace'),
@@ -145,49 +142,6 @@ export class TestMessageService implements IMessageService {
 		return {
 			dispose: () => { /* Nothing to do here */ }
 		};
-	}
-}
-
-export class TestKeybindingService implements IKeybindingService {
-	public serviceId = IKeybindingService;
-
-	public dispose(): void { }
-	public setMessageService(messageService: IMessageService): void { }
-	public setInstantiationService(instantiationService: IInstantiationService): void { }
-	public setContext(key: string, value: any): void { }
-	public removeContext(key: string): void { }
-	public executeCommand(commandId: string, args: any): TPromise<any> { return; }
-
-	public createKey<T>(key: string, defaultValue: T): IKeybindingContextKey<T> {
-		return null;
-	}
-
-	public getLabelFor(keybinding:Keybinding): string {
-		return keybinding._toUSLabel();
-	}
-
-	public getHTMLLabelFor(keybinding:Keybinding): IHTMLContentElement[] {
-		return keybinding._toUSHTMLLabel();
-	}
-
-	public getElectronAcceleratorFor(keybinding:Keybinding): string {
-		return keybinding._toElectronAccelerator();
-	}
-
-	public createScoped(domNode: HTMLElement): IKeybindingService {
-		return this;
-	}
-
-	public getDefaultKeybindings(): string {
-		return null;
-	}
-
-	public lookupKeybindings(commandId: string): Keybinding[] {
-		return [];
-	}
-
-	public customKeybindingsCount(): number {
-		return 0;
 	}
 }
 
@@ -443,7 +397,6 @@ export class TestEditorService implements WorkbenchEditorService.IWorkbenchEdito
 
 	public resolveEditorModel(input: IEditorInput, refresh?: boolean): TPromise<IEditorModel>;
 	public resolveEditorModel(input: IResourceInput, refresh?: boolean): TPromise<ITextEditorModel>;
-	public resolveEditorModel(input: WorkbenchEditorService.IFileInput, refresh?: boolean): TPromise<ITextEditorModel>;
 	public resolveEditorModel(input: any, refresh?: boolean): Promise {
 		this.callback('resolveEditorModel');
 
@@ -467,7 +420,7 @@ export class TestEditorService implements WorkbenchEditorService.IWorkbenchEdito
 		return TPromise.as(null);
 	}
 
-	public inputToType(input: ITextInput): TPromise<IEditorInput> {
+	public inputToType(input: IResourceInput): TPromise<IEditorInput> {
 		return Promise.as(null);
 	}
 }

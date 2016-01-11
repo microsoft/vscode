@@ -9,7 +9,7 @@ import {TimeKeeperRenderer} from 'vs/base/browser/ui/timer/timer';
 import {Registry} from 'vs/platform/platform';
 import {Action} from 'vs/base/common/actions';
 import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
-import {IWorkbenchActionRegistry, Extensions} from 'vs/workbench/browser/actionRegistry';
+import {IWorkbenchActionRegistry, Extensions} from 'vs/workbench/common/actionRegistry';
 import {INullService} from 'vs/platform/instantiation/common/instantiation';
 
 const ID = 'workbench.action.showPerfBox';

@@ -14,7 +14,7 @@ import {mkdirp} from 'vs/base/node/extfs';
 import {isString} from 'vs/base/common/types';
 import {Promise, TPromise} from 'vs/base/common/winjs.base';
 import {download, json } from 'vs/base/node/request';
-import { getProxyAgent } from 'vs/workbench/node/proxy';
+import { getProxyAgent } from 'vs/base/node/proxy';
 import {manager as Settings} from 'vs/workbench/electron-main/settings';
 import {manager as Lifecycle} from 'vs/workbench/electron-main/lifecycle';
 

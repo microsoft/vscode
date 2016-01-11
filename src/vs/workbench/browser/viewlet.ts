@@ -14,7 +14,7 @@ import {Dimension, Builder, $} from 'vs/base/browser/builder';
 import {IAction, IActionRunner, Action, ActionRunner} from 'vs/base/common/actions';
 import {IActionItem, ActionsOrientation} from 'vs/base/browser/ui/actionbar/actionbar';
 import {ITree, IFocusEvent, ISelectionEvent} from 'vs/base/parts/tree/common/tree';
-import {WorkbenchComponent} from 'vs/workbench/browser/component';
+import {WorkbenchComponent} from 'vs/workbench/common/component';
 import {ViewletEvent} from 'vs/workbench/common/events';
 import {prepareActions} from 'vs/workbench/browser/actionBarRegistry';
 import {ToolBar} from 'vs/base/browser/ui/toolbar/toolbar';

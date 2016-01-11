@@ -14,7 +14,7 @@ import { IMessageService } from 'vs/platform/message/common/message';
 import Severity from 'vs/base/common/severity';
 import { IWorkspaceContextService } from 'vs/workbench/services/workspace/common/contextService';
 import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
-import wbaregistry = require('vs/workbench/browser/actionRegistry');
+import wbaregistry = require('vs/workbench/common/actionRegistry');
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { ListExtensionsAction, InstallExtensionAction, ListOutdatedExtensionsAction } from './extensionsActions';
 import { IQuickOpenRegistry, Extensions, QuickOpenHandlerDescriptor } from 'vs/workbench/browser/quickopen';
@@ -63,8 +63,7 @@ export class ExtensionsWorkbenchExtension implements IWorkbenchContribution {
 					'vs/workbench/parts/extensions/electron-browser/extensionsQuickOpen',
 					'GalleryExtensionsHandler',
 					'ext install ',
-					nls.localize('galleryExtensionsCommands', "Install Gallery Extensions"),
-					true
+					nls.localize('galleryExtensionsCommands', "Install Gallery Extensions")
 				)
 			);
 
@@ -75,8 +74,7 @@ export class ExtensionsWorkbenchExtension implements IWorkbenchContribution {
 					'vs/workbench/parts/extensions/electron-browser/extensionsQuickOpen',
 					'OutdatedExtensionsHandler',
 					'ext update ',
-					nls.localize('outdatedExtensionsCommands', "Update Outdated Extensions"),
-					true
+					nls.localize('outdatedExtensionsCommands', "Update Outdated Extensions")
 				)
 			);
 		}

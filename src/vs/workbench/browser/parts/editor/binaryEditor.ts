@@ -12,7 +12,7 @@ import {Dimension, Builder, $} from 'vs/base/browser/builder';
 import {ResourceViewer} from 'vs/base/browser/ui/resourceviewer/resourceViewer';
 import {EditorModel, EditorInput, EditorOptions} from 'vs/workbench/common/editor';
 import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
-import {BinaryEditorModel} from 'vs/workbench/browser/parts/editor/binaryEditorModel';
+import {BinaryEditorModel} from 'vs/workbench/common/editor/binaryEditorModel';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 

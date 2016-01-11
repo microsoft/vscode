@@ -8,8 +8,8 @@ import nls = require('vs/nls');
 import URI from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
 import {EditorModel} from 'vs/workbench/common/editor';
-import {DerivedFrameEditorInput} from 'vs/workbench/parts/files/browser/editors/derivedFrameEditorInput';
-import IFrameEditorModel = require('vs/workbench/browser/parts/editor/iframeEditorModel');
+import {DerivedFrameEditorInput} from 'vs/workbench/parts/files/common/editors/derivedFrameEditorInput';
+import IFrameEditorModel = require('vs/workbench/common/editor/iframeEditorModel');
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 

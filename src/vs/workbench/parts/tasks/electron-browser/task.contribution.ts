@@ -53,7 +53,7 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 
-import workbenchActionRegistry = require('vs/workbench/browser/actionRegistry');
+import workbenchActionRegistry = require('vs/workbench/common/actionRegistry');
 import statusbar = require('vs/workbench/browser/parts/statusbar/statusbar');
 import QuickOpen = require('vs/workbench/browser/quickopen');
 

@@ -42,6 +42,6 @@ registerMode({
 	extensions: [],
 	aliases: [null],
 	mimetypes: [OUTPUT_MIME],
-	moduleId: 'vs/workbench/parts/output/browser/outputMode',
+	moduleId: 'vs/workbench/parts/output/common/outputMode',
 	ctorName: 'OutputMode'
 });

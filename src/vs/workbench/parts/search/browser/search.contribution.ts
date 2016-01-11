@@ -15,7 +15,7 @@ import {asFileResource} from 'vs/workbench/parts/files/common/files';
 import {SyncActionDescriptor, DeferredAction} from 'vs/platform/actions/common/actions';
 import {Separator} from 'vs/base/browser/ui/actionbar/actionbar';
 import {Scope, IActionBarRegistry, Extensions as ActionBarExtensions, ActionBarContributor} from 'vs/workbench/browser/actionBarRegistry';
-import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/browser/actionRegistry';
+import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/common/actionRegistry';
 import {QuickOpenHandlerDescriptor, IQuickOpenRegistry, Extensions as QuickOpenExtensions} from 'vs/workbench/browser/quickopen';
 import {QuickOpenAction} from 'vs/workbench/browser/actions/quickOpenAction';
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';

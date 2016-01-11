@@ -299,7 +299,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 			this.session.threads().then((response: DebugProtocol.ThreadsResponse) => {
 				const thread = response.body.threads.filter(t => t.id === threadId).pop();
 				if (!thread) {
-					throw new Error('Did not get a thread from debug adapter with id ' + threadId);
+					throw new Error(nls.localize('debugNoThread', "Did not get a thread from debug adapter with id {0}.", threadId));
 				}
 
 				this.model.rawUpdate({
@@ -496,7 +496,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 				});
 			}
 			if (!this.configurationManager.getAdapter()) {
-				return Promise.wrapError(new Error(`Configured debug type '${ configuration.type }' is not supported.`));
+				return Promise.wrapError(new Error(nls.localize('debugTypeNotSupported', "Configured debug type {0} is not supported.", configuration.type)));
 			}
 
 			return this.runPreLaunchTask(configuration).then(() => this.doCreateSession(configuration, openViewlet));
@@ -629,8 +629,12 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		this.setStateAndEmit(debug.State.Inactive);
 
 		// set breakpoints back to unverified since the session ended.
+		// source reference changes across sessions, so we do not use it to persist the source.
 		const data: {[id: string]: { line: number, verified: boolean } } = { };
-		this.model.getBreakpoints().forEach(bp => data[bp.getId()] = { line: bp.lineNumber, verified: false });
+		this.model.getBreakpoints().forEach(bp => {
+			delete bp.source.raw.sourceReference;
+			data[bp.getId()] = { line: bp.lineNumber, verified: false };
+		});
 		this.model.updateBreakpoints(data);
 
 		this.inDebugMode.reset();
@@ -698,7 +702,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 
 	private sourceIsUnavailable(source: Source, sideBySide: boolean): Promise {
 		this.model.sourceIsUnavailable(source);
-		const editorInput = this.getDebugStringEditorInput(source, 'Source is not available.', 'text/plain');
+		const editorInput = this.getDebugStringEditorInput(source, nls.localize('debugSourceNotAvailable', "Source is not available."), 'text/plain');
 
 		return this.editorService.openEditor(editorInput, wbeditorcommon.TextEditorOptions.create({ preserveFocus: true }), sideBySide);
 	}
@@ -779,17 +783,15 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 	}
 
 	private sendBreakpoints(modelUri: uri): Promise {
-		if (!this.session || !this.session.readyForBreakpoints) {
+		const breakpointsToSend = arrays.distinct(
+			this.model.getBreakpoints().filter(bp => this.model.areBreakpointsActivated() && bp.enabled && bp.source.uri.toString() === modelUri.toString()),
+			bp => `${ bp.desiredLineNumber }`
+		);
+		if (!this.session || !this.session.readyForBreakpoints || breakpointsToSend.length === 0) {
 			return Promise.as(null);
 		}
 
-		const breakpointsToSend = arrays.distinct(
-			this.model.getBreakpoints().filter(bp => this.model.areBreakpointsActivated() && bp.enabled && bp.source.uri.toString() === modelUri.toString()),
-			bp =>  `${ bp.desiredLineNumber }`
-		);
-
-
-		return this.session.setBreakpoints({ source: Source.toRawSource(modelUri, this.model), lines: breakpointsToSend.map(bp => bp.desiredLineNumber),
+		return this.session.setBreakpoints({ source: breakpointsToSend[0].source.raw, lines: breakpointsToSend.map(bp => bp.desiredLineNumber),
 			breakpoints: breakpointsToSend.map(bp => ({ line: bp.desiredLineNumber, condition: bp.condition })) }).then(response => {
 
 			const data: {[id: string]: { line: number, verified: boolean } } = { };

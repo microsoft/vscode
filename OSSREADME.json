@@ -57,7 +57,7 @@
 },
 {
 	"name": "electron",
-	"version": "0.35.5",
+	"version": "0.35.6",
 	"license": "MIT",
 	"repositoryURL": "https://github.com/atom/electron",
 	"isProd": true

@@ -114,20 +114,20 @@ export class ReplExpressionsRenderer implements tree.IRenderer {
 		// noop
 	}
 
-	public getHeight(tree:tree.ITree, element:any): number {
+	public getHeight(tree: tree.ITree, element: any): number {
 		return this.getHeightForString(element.value) + (element instanceof model.Expression ? this.getHeightForString(element.name) : 0);
 	}
 
 	private getHeightForString(s: string): number {
 		if (!s || !s.length || this.width <= 0 || this.characterWidth <= 0) {
-			return 22;
+			return 18;
 		}
 		let realLength = 0;
 		for (let i = 0; i < s.length; i++) {
 			realLength += strings.isFullWidthCharacter(s.charCodeAt(i)) ? 2 : 1;
 		}
 
-		return 22 * Math.ceil(realLength * this.characterWidth / this.width);
+		return 18 * Math.ceil(realLength * this.characterWidth / this.width);
 	}
 
 	public setWidth(fullWidth: number, characterWidth: number): void {

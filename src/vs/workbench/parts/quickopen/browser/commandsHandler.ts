@@ -16,7 +16,7 @@ import {toErrorMessage} from 'vs/base/common/errors';
 import {Mode, IContext, IAutoFocus} from 'vs/base/parts/quickopen/common/quickOpen';
 import {QuickOpenEntryGroup, IHighlight, QuickOpenModel} from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import {SyncActionDescriptor, IActionsService} from 'vs/platform/actions/common/actions';
-import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/browser/actionRegistry';
+import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/common/actionRegistry';
 import {Registry} from 'vs/platform/platform';
 import {Extensions as QuickOpenExtensions, QuickOpenHandler} from 'vs/workbench/browser/quickopen';
 import {QuickOpenAction} from 'vs/workbench/browser/actions/quickOpenAction';

@@ -7,7 +7,7 @@
 import {TPromise} from 'vs/base/common/winjs.base';
 import types = require('vs/base/common/types');
 import {ProgressBar} from 'vs/base/browser/ui/progressbar/progressbar';
-import {ScopedService} from 'vs/workbench/common/services';
+import {EditorEvent, EventType, ViewletEvent} from 'vs/workbench/common/events';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IProgressService, IProgressRunner} from 'vs/platform/progress/common/progress';
 
@@ -17,6 +17,52 @@ interface ProgressState {
 	worked?: number;
 	done?: boolean;
 	whilePromise?: TPromise<any>;
+}
+
+export abstract class ScopedService {
+	private _eventService: IEventService;
+	private scopeId: string;
+
+	constructor(eventService: IEventService, scopeId: string) {
+		this._eventService = eventService;
+		this.scopeId = scopeId;
+
+		this.registerListeners();
+	}
+
+	public get eventService(): IEventService {
+		return this._eventService;
+	}
+
+	public registerListeners(): void {
+		this.eventService.addListener(EventType.EDITOR_CLOSED, (e: EditorEvent) => {
+			if (e.editorId === this.scopeId) {
+				this.onScopeDeactivated();
+			}
+		});
+
+		this.eventService.addListener(EventType.EDITOR_OPENED, (e: EditorEvent) => {
+			if (e.editorId === this.scopeId) {
+				this.onScopeActivated();
+			}
+		});
+
+		this.eventService.addListener(EventType.VIEWLET_CLOSED, (e: ViewletEvent) => {
+			if (e.viewletId === this.scopeId) {
+				this.onScopeDeactivated();
+			}
+		});
+
+		this.eventService.addListener(EventType.VIEWLET_OPENED, (e: ViewletEvent) => {
+			if (e.viewletId === this.scopeId) {
+				this.onScopeActivated();
+			}
+		});
+	}
+
+	public abstract onScopeActivated(): void;
+
+	public abstract onScopeDeactivated(): void;
 }
 
 export class WorkbenchProgressService extends ScopedService implements IProgressService {

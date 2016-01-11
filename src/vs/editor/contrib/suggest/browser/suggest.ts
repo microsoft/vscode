@@ -157,7 +157,7 @@ export class SuggestController implements EditorCommon.IEditorContribution {
 		}
 	}
 
-	public hideSuggestWidget(): void {
+	public cancelSuggestWidget(): void {
 		if (this.widget) {
 			this.widget.cancel();
 		}
@@ -184,6 +184,12 @@ export class SuggestController implements EditorCommon.IEditorContribution {
 	public selectPrevPageSuggestion(): void {
 		if (this.widget) {
 			this.widget.selectPreviousPage();
+		}
+	}
+
+	public toggleSuggestionDetails(): void {
+		if (this.widget) {
+			this.widget.toggleDetails();
 		}
 	}
 }
@@ -219,7 +225,7 @@ CommonEditorRegistry.registerEditorCommand(ACCEPT_SELECTED_SUGGESTION_CMD, weigh
 });
 CommonEditorRegistry.registerEditorCommand('hideSuggestWidget', weight, { primary: KeyCode.Escape }, true, CONTEXT_SUGGEST_WIDGET_VISIBLE, (ctx, editor, args) => {
 	const controller = SuggestController.getSuggestController(editor);
-	controller.hideSuggestWidget();
+	controller.cancelSuggestWidget();
 });
 CommonEditorRegistry.registerEditorCommand('selectNextSuggestion', weight, { primary: KeyCode.DownArrow }, true, CONTEXT_SUGGEST_WIDGET_VISIBLE, (ctx, editor, args) => {
 	const controller = SuggestController.getSuggestController(editor);
@@ -236,5 +242,9 @@ CommonEditorRegistry.registerEditorCommand('selectPrevSuggestion', weight, { pri
 CommonEditorRegistry.registerEditorCommand('selectPrevPageSuggestion', weight, { primary: KeyCode.PageUp }, true, CONTEXT_SUGGEST_WIDGET_VISIBLE, (ctx, editor, args) => {
 	const controller = SuggestController.getSuggestController(editor);
 	controller.selectPrevPageSuggestion();
+});
+CommonEditorRegistry.registerEditorCommand('toggleSuggestionDetails', weight, { primary: KeyMod.CtrlCmd | KeyCode.Space, mac: { primary: KeyMod.WinCtrl | KeyCode.Space } }, true, CONTEXT_SUGGEST_WIDGET_VISIBLE, (ctx, editor, args) => {
+	const controller = SuggestController.getSuggestController(editor);
+	controller.toggleSuggestionDetails();
 });
 EditorBrowserRegistry.registerEditorContribution(SuggestController);

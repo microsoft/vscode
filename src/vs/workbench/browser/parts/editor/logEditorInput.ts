@@ -5,7 +5,7 @@
 'use strict';
 
 import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
-import {StringEditorInput} from 'vs/workbench/browser/parts/editor/stringEditorInput';
+import {StringEditorInput} from 'vs/workbench/common/editor/stringEditorInput';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';

@@ -100,7 +100,7 @@ function registerSupports(modeID: string, host: TypeScriptServiceClientHost, cli
 			},
 			{
 				// e.g.  * ...|
-				beforeText: /^(\t|(\ \ ))*\ \*\ ([^\*]|\*(?!\/))*$/,
+				beforeText: /^(\t|(\ \ ))*\ \*(\ ([^\*]|\*(?!\/))*)?$/,
 				action: { indentAction: IndentAction.None, appendText: '* ' }
 			},
 			{

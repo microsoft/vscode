@@ -5,7 +5,7 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import {IFrameEditorInput} from 'vs/workbench/browser/parts/editor/iframeEditorInput';
+import {IFrameEditorInput} from 'vs/workbench/common/editor/iframeEditorInput';
 
 /**
  * An editor input derived from IFrameEditorInput that is associated to a resource. This is an "abstract" class.

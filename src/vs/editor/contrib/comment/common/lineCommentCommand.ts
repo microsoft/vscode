@@ -232,10 +232,16 @@ export class LineCommentCommand implements EditorCommon.ICommand {
 	}
 
 	private _attemptRemoveBlockComment(model:EditorCommon.ITokenizedModel, s:EditorCommon.IEditorSelection, startToken: string, endToken: string): EditorCommon.IIdentifiedSingleEditOperation[] {
-		var startLineNumber = s.startLineNumber;
-		var endLineNumber = s.endLineNumber;
-		var startTokenIndex = model.getLineContent(startLineNumber).lastIndexOf(startToken, s.startColumn - 1 + endToken.length);
-		var endTokenIndex = model.getLineContent(endLineNumber).indexOf(endToken, s.endColumn - 1 - startToken.length);
+		let startLineNumber = s.startLineNumber;
+		let endLineNumber = s.endLineNumber;
+
+		let startTokenAllowedBeforeColumn = endToken.length + Math.max(
+			model.getLineFirstNonWhitespaceColumn(s.startLineNumber),
+			s.startColumn
+		);
+
+		let startTokenIndex = model.getLineContent(startLineNumber).lastIndexOf(startToken, startTokenAllowedBeforeColumn - 1);
+		let endTokenIndex = model.getLineContent(endLineNumber).indexOf(endToken, s.endColumn - 1 - startToken.length);
 
 		if (startTokenIndex !== -1 && endTokenIndex === -1) {
 			endTokenIndex = model.getLineContent(startLineNumber).indexOf(endToken, startTokenIndex + startToken.length);

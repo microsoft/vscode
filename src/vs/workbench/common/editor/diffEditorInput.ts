@@ -9,9 +9,9 @@ import types = require('vs/base/common/types');
 import {isBinaryMime} from 'vs/base/common/mime';
 import {EventType} from 'vs/base/common/events';
 import {EditorModel, IFileEditorInput, EditorInput, IInputStatus, BaseDiffEditorInput} from 'vs/workbench/common/editor';
-import {BaseTextEditorModel} from 'vs/workbench/browser/parts/editor/textEditorModel';
-import {DiffEditorModel} from 'vs/workbench/browser/parts/editor/diffEditorModel';
-import {TextDiffEditorModel} from 'vs/workbench/browser/parts/editor/textDiffEditorModel';
+import {BaseTextEditorModel} from 'vs/workbench/common/editor/textEditorModel';
+import {DiffEditorModel} from 'vs/workbench/common/editor/diffEditorModel';
+import {TextDiffEditorModel} from 'vs/workbench/common/editor/textDiffEditorModel';
 
 /**
  * The base editor input for the diff editor. It is made up of two editor inputs, the original version

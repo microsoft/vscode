@@ -29,7 +29,7 @@ import {IPartService, Parts} from 'vs/workbench/services/part/common/partService
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {IFileService, IFileStat} from 'vs/platform/files/common/files';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import wbar = require('vs/workbench/browser/actionRegistry');
+import wbar = require('vs/workbench/common/actionRegistry');
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { OpenChangeAction, SyncAction, PullAction, PushAction, PublishAction, StartGitBranchAction, StartGitCheckoutAction } from './gitActions';
 import Severity from 'vs/base/common/severity';

@@ -484,6 +484,7 @@ export class CommonKeybindings {
 	public static WINCTRL_ENTER: number = KeyMod.WinCtrl | KeyCode.Enter;
 
 	public static TAB: number = KeyCode.Tab;
+	public static SHIFT_TAB: number = KeyMod.Shift | KeyCode.Tab;
 	public static ESCAPE: number = KeyCode.Escape;
 	public static SPACE: number = KeyCode.Space;
 	public static DELETE: number = KeyCode.Delete;

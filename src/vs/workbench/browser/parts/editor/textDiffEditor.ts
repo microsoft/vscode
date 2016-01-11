@@ -17,12 +17,12 @@ import {IDiffEditorOptions, IEditorOptions} from 'vs/editor/common/editorCommon'
 import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
 import {TextEditorOptions, TextDiffEditorOptions, EditorModel, EditorInput, EditorOptions} from 'vs/workbench/common/editor';
-import {StringEditorInput} from 'vs/workbench/browser/parts/editor/stringEditorInput';
-import {ResourceEditorInput} from 'vs/workbench/browser/parts/editor/resourceEditorInput';
-import {DiffEditorInput} from 'vs/workbench/browser/parts/editor/diffEditorInput';
+import {StringEditorInput} from 'vs/workbench/common/editor/stringEditorInput';
+import {ResourceEditorInput} from 'vs/workbench/common/editor/resourceEditorInput';
+import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
 import {DiffNavigator} from 'vs/editor/contrib/diffNavigator/common/diffNavigator';
 import {DiffEditorWidget} from 'vs/editor/browser/widget/diffEditorWidget';
-import {TextDiffEditorModel} from 'vs/workbench/browser/parts/editor/textDiffEditorModel';
+import {TextDiffEditorModel} from 'vs/workbench/common/editor/textDiffEditorModel';
 import {DelegatingWorkbenchEditorService} from 'vs/workbench/services/editor/browser/editorService';
 import {IFileOperationResult, FileOperationResult} from 'vs/platform/files/common/files';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';

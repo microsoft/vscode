@@ -14,7 +14,7 @@ import types = require('vs/base/common/types');
 import strings = require('vs/base/common/strings');
 import {IContext, Mode, IAutoFocus} from 'vs/base/parts/quickopen/common/quickOpen';
 import {QuickOpenModel, IHighlight} from 'vs/base/parts/quickopen/browser/quickOpenModel';
-import {Extensions as ActionExtensions} from 'vs/workbench/browser/actionRegistry';
+import {Extensions as ActionExtensions} from 'vs/workbench/common/actionRegistry';
 import {Extensions as QuickOpenExtensions, QuickOpenHandler, EditorQuickOpenEntryGroup} from 'vs/workbench/browser/quickopen';
 import {QuickOpenAction} from 'vs/workbench/browser/actions/quickOpenAction';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';

@@ -33,13 +33,26 @@
 
 .monaco-editor .debug-hover-widget .debug-hover-tree {
 	line-height: 18px;
-	width: 330px;
-	height: 288px;
+	width: 310px;
 }
 
-/* Disable tree hover highlight in debug hover tree. */
+.monaco-editor .debug-hover-widget .debug-hover-tree .monaco-tree .monaco-tree-row > .content {
+	-webkit-user-select: initial;
+}
+
+/* Disable tree highlight in debug hover tree. */
 .monaco-editor .debug-hover-widget .debug-hover-tree .monaco-tree .monaco-tree-rows > .monaco-tree-row:hover:not(.highlighted):not(.selected):not(.focused)  {
 	background-color: inherit;
+}
+
+/* Allign twistie since hover tree is smaller */
+
+.monaco-editor .debug-hover-widget .debug-hover-tree  .monaco-tree .monaco-tree-rows > .monaco-tree-row.has-children > .content:before {
+	top: 6px;
+}
+
+.monaco-editor .debug-hover-widget .debug-hover-tree  .monaco-tree .monaco-tree-rows > .monaco-tree-row.has-children > .content:after {
+	top: 8px;
 }
 
 .monaco-editor .debug-hover-widget .debug-hover-tree .monaco-tree .monaco-tree-rows > .monaco-tree-row {

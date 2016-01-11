@@ -6,7 +6,7 @@
 
 import {TPromise} from 'vs/base/common/winjs.base';
 import {EditorModel, EditorInput} from 'vs/workbench/common/editor';
-import {ResourceEditorModel} from 'vs/workbench/browser/parts/editor/resourceEditorModel';
+import {ResourceEditorModel} from 'vs/workbench/common/editor/resourceEditorModel';
 import URI from 'vs/base/common/uri';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IModelService} from 'vs/editor/common/services/modelService';

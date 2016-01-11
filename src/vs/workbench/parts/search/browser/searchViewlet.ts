@@ -451,7 +451,7 @@ class PatternInput {
 	}
 
 	public destroy(): void {
-		this.pattern.destroy();
+		this.pattern.dispose();
 		this.listenersToRemove.forEach((element) => {
 			element();
 		});
@@ -523,11 +523,11 @@ class PatternInput {
 	}
 
 	public isGlobPattern(): boolean {
-		return this.pattern.isChecked;
+		return this.pattern.checked;
 	}
 
 	public setIsGlobPattern(value: boolean): void {
-		this.pattern.setChecked(value);
+		this.pattern.checked = value;
 		this.setInputWidth();
 	}
 
@@ -550,15 +550,20 @@ class PatternInput {
 			}
 		});
 
-		this.pattern = new Checkbox('pattern', nls.localize('patternDescription', "Use Glob Patterns"), false, () => {
-			this.onOptionChange(null);
-			this.inputBox.focus();
-			this.setInputWidth();
+		this.pattern = new Checkbox({
+			actionClassName: 'pattern',
+			title: nls.localize('patternDescription', "Use Glob Patterns"),
+			isChecked: false,
+			onChange: () => {
+				this.onOptionChange(null);
+				this.inputBox.focus();
+				this.setInputWidth();
 
-			if (this.isGlobPattern()) {
-				this.showGlobHelp();
-			} else {
-				this.inputBox.hideMessage();
+				if (this.isGlobPattern()) {
+					this.showGlobHelp();
+				} else {
+					this.inputBox.hideMessage();
+				}
 			}
 		});
 
@@ -697,8 +702,7 @@ export class SearchViewlet extends Viewlet {
 			builder = div;
 		});
 
-		let onKeyUp = (e: KeyboardEvent) => {
-			let keyboardEvent = new StandardKeyboardEvent(e);
+		let onStandardKeyUp = (keyboardEvent: StandardKeyboardEvent) => {
 			if (keyboardEvent.keyCode === KeyCode.Enter) {
 				this.onQueryChanged(true);
 			} else if (keyboardEvent.keyCode === KeyCode.Escape) {
@@ -710,6 +714,10 @@ export class SearchViewlet extends Viewlet {
 					this.currentRequest = null;
 				}
 			}
+		};
+
+		let onKeyUp = (e: KeyboardEvent) => {
+			onStandardKeyUp(new StandardKeyboardEvent(e));
 		};
 
 		this.queryBox = builder.div({ 'class': 'query-box' }, (div) => {
@@ -733,22 +741,21 @@ export class SearchViewlet extends Viewlet {
 					}
 				}
 			};
-			this.findInput = new FindInput(div.getHTMLElement(), this.contextViewService, options)
-				.on(dom.EventType.KEY_UP, onKeyUp)
-				.on(dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
-					let keyboardEvent = new StandardKeyboardEvent(e);
-					if (keyboardEvent.keyCode === KeyCode.DownArrow) {
-						dom.EventHelper.stop(e);
-						if (this.showsFileTypes()) {
-							this.toggleFileTypes(true);
-						} else {
-							this.selectTreeIfNotSelected(keyboardEvent);
-						}
+			this.findInput = new FindInput(div.getHTMLElement(), this.contextViewService, options);
+			this.findInput.onKeyUp(onStandardKeyUp);
+			this.findInput.onKeyDown((keyboardEvent:StandardKeyboardEvent) => {
+				if (keyboardEvent.keyCode === KeyCode.DownArrow) {
+					dom.EventHelper.stop(keyboardEvent);
+					if (this.showsFileTypes()) {
+						this.toggleFileTypes(true);
+					} else {
+						this.selectTreeIfNotSelected(keyboardEvent);
 					}
-				})
-				.on(FindInput.OPTION_CHANGE, (e) => {
-					this.onQueryChanged(true);
-				});
+				}
+			});
+			this.findInput.onDidOptionChange(() => {
+				this.onQueryChanged(true);
+			});
 			this.findInput.setValue(contentPattern);
 			this.findInput.setRegex(isRegex);
 			this.findInput.setCaseSensitive(isCaseSensitive);

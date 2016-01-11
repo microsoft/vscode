@@ -14,7 +14,7 @@ import {IDisposable} from 'vs/base/common/lifecycle';
 import {EncodingMode, EditorInput, IFileEditorInput} from 'vs/workbench/common/editor';
 import {IFileStat, IFilesConfiguration} from 'vs/platform/files/common/files';
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
-import {FileStat} from 'vs/workbench/parts/files/common/viewModel';
+import {FileStat} from 'vs/workbench/parts/files/common/explorerViewModel';
 
 /**
  * Explorer viewlet id.

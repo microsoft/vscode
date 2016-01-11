@@ -13,13 +13,14 @@ import URI from 'vs/base/common/uri';
 import {EditorModel} from 'vs/workbench/common/editor';
 import {guessMimeTypes} from 'vs/base/common/mime';
 import {EditorInputAction} from 'vs/workbench/browser/parts/editor/baseEditor';
-import {ResourceEditorInput} from 'vs/workbench/browser/parts/editor/resourceEditorInput';
-import {DiffEditorInput} from 'vs/workbench/browser/parts/editor/diffEditorInput';
-import {DiffEditorModel} from 'vs/workbench/browser/parts/editor/diffEditorModel';
+import {IModel} from 'vs/editor/common/editorCommon';
+import {ResourceEditorInput} from 'vs/workbench/common/editor/resourceEditorInput';
+import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
+import {DiffEditorModel} from 'vs/workbench/common/editor/diffEditorModel';
 import {FileEditorInput} from 'vs/workbench/parts/files/browser/editors/fileEditorInput';
 import {SaveFileAsAction, RevertFileAction, SaveFileAction} from 'vs/workbench/parts/files/browser/fileActions';
 import {IFileService, IFileOperationResult, FileOperationResult} from 'vs/platform/files/common/files';
-import {TextFileEditorModel, ISaveErrorHandler} from 'vs/workbench/parts/files/browser/editors/textFileEditorModel';
+import {TextFileEditorModel, ISaveErrorHandler} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
@@ -142,6 +143,7 @@ export class FileOnDiskEditorInput extends ResourceEditorInput {
 	private fileResource: URI;
 	private lastModified: number;
 	private mime: string;
+	private createdEditorModel: boolean;
 
 	constructor(
 		fileResource: URI,
@@ -175,12 +177,22 @@ export class FileOnDiskEditorInput extends ResourceEditorInput {
 			let codeEditorModel = this.modelService.getModel(this.resource);
 			if (!codeEditorModel) {
 				this.modelService.createModel(content.value, this.modeService.getOrCreateMode(this.mime), this.resource);
+				this.createdEditorModel = true;
 			} else {
 				codeEditorModel.setValue(content.value);
 			}
 
 			return super.resolve(refresh);
 		});
+	}
+
+	public dispose(): void {
+		if (this.createdEditorModel) {
+			this.modelService.destroyModel(this.resource);
+			this.createdEditorModel = false;
+		}
+
+		super.dispose();
 	}
 }
 

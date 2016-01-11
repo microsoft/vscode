@@ -10,7 +10,7 @@ import paths = require('vs/base/common/paths');
 import actions = require('vs/base/common/actions');
 import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
 import platform = require('vs/platform/platform');
-import workbenchActionRegistry = require('vs/workbench/browser/actionRegistry');
+import workbenchActionRegistry = require('vs/workbench/common/actionRegistry');
 import workbenchContributions = require('vs/workbench/common/contributions');
 import snippetsTracker = require('./snippetsTracker');
 import modesExtensions = require('vs/editor/common/modes/modesRegistry');
