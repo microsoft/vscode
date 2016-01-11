@@ -25,11 +25,7 @@ import {WordHelper} from 'vs/editor/common/model/textModelWithTokensHelpers';
 import {IFileService} from 'vs/platform/files/common/files';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {asWinJsPromise} from 'vs/base/common/async';
-import {EditorModel, EditorInput} from 'vs/workbench/common/editor';
-import {IEditorInput, IResourceInput} from 'vs/platform/editor/common/editor';
-import {IMode} from 'vs/editor/common/modes';
 import {IModeService} from 'vs/editor/common/services/modeService';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import * as weak from 'weak';
 
 export interface IModelAddedData {
@@ -41,14 +37,14 @@ export interface IModelAddedData {
 }
 
 const _modeId2WordDefinition: {
-	[modeId:string]: RegExp;
+	[modeId: string]: RegExp;
 } = Object.create(null);
 
-export function setWordDefinitionFor(modeId:string, wordDefinition:RegExp): void {
+export function setWordDefinitionFor(modeId: string, wordDefinition: RegExp): void {
 	_modeId2WordDefinition[modeId] = wordDefinition;
 }
 
-export function getWordDefinitionFor(modeId:string):RegExp {
+export function getWordDefinitionFor(modeId: string): RegExp {
 	return _modeId2WordDefinition[modeId];
 }
 
@@ -154,7 +150,7 @@ export class ExtHostModelService {
 		});
 	}
 
-	public _acceptModelAdd(initData:IModelAddedData): void {
+	public _acceptModelAdd(initData: IModelAddedData): void {
 		let data = new ExtHostDocumentData(this._proxy, initData.url, initData.value.lines, initData.value.EOL, initData.modeId, initData.versionId, initData.isDirty);
 		let key = data.document.uri.toString();
 		if (this._documentData[key]) {
@@ -164,7 +160,7 @@ export class ExtHostModelService {
 		this._onDidAddDocumentEventEmitter.fire(data.document);
 	}
 
-	public _acceptModelModeChanged(url: URI, oldModeId:string, newModeId:string): void {
+	public _acceptModelModeChanged(url: URI, oldModeId: string, newModeId: string): void {
 		let data = this._documentData[url.toString()];
 
 		// Treat a mode change as a remove + add
@@ -274,11 +270,11 @@ export class ExtHostDocumentData extends MirrorModel2 {
 		return this._documentRef && !weak.isDead(this._documentRef);
 	}
 
-	_acceptLanguageId(newLanguageId:string): void {
+	_acceptLanguageId(newLanguageId: string): void {
 		this._languageId = newLanguageId;
 	}
 
-	_acceptIsDirty(isDirty:boolean): void {
+	_acceptIsDirty(isDirty: boolean): void {
 		this._isDirty = isDirty;
 	}
 
@@ -365,7 +361,7 @@ export class ExtHostDocumentData extends MirrorModel2 {
 
 	// ---- range math
 
-	validateRange(range:vscode.Range): vscode.Range {
+	validateRange(range: vscode.Range): vscode.Range {
 		if (!(range instanceof Range)) {
 			throw new Error('Invalid argument');
 		}
@@ -379,7 +375,7 @@ export class ExtHostDocumentData extends MirrorModel2 {
 		return new Range(start.line, start.character, end.line, end.character);
 	}
 
-	validatePosition(position:vscode.Position): vscode.Position {
+	validatePosition(position: vscode.Position): vscode.Position {
 		if (!(position instanceof Position)) {
 			throw new Error('Invalid argument');
 		}
@@ -439,15 +435,15 @@ export class MainThreadDocuments {
 	private _fileService: IFileService;
 	private _untitledEditorService: IUntitledEditorService;
 	private _toDispose: IDisposable[];
-	private _modelToDisposeMap: {[modelUrl:string]:IDisposable;};
+	private _modelToDisposeMap: { [modelUrl: string]: IDisposable; };
 	private _proxy: ExtHostModelService;
-	private _modelIsSynced: {[modelId:string]:boolean;};
+	private _modelIsSynced: { [modelId: string]: boolean; };
 
 	constructor(
 		@IThreadService threadService: IThreadService,
 		@IModelService modelService: IModelService,
 		@IModeService modeService: IModeService,
-		@IEventService eventService:IEventService,
+		@IEventService eventService: IEventService,
 		@ITextFileService textFileService: ITextFileService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IFileService fileService: IFileService,
@@ -506,7 +502,7 @@ export class MainThreadDocuments {
 		});
 	}
 
-	private _onModelModeChanged(event: { model: EditorCommon.IModel; oldModeId: string;}): void {
+	private _onModelModeChanged(event: { model: EditorCommon.IModel; oldModeId: string; }): void {
 		let {model, oldModeId} = event;
 		let modelUrl = model.getAssociatedResource();
 		if (!this._modelIsSynced[modelUrl.toString()]) {
