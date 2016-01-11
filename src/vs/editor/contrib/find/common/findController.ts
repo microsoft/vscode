@@ -240,7 +240,7 @@ export class StartFindAction extends EditorAction {
 	}
 }
 
-abstract class MatchFindAction extends EditorAction {
+export abstract class MatchFindAction extends EditorAction {
 	constructor(descriptor:EditorCommon.IEditorActionDescriptorData, editor:EditorCommon.ICommonCodeEditor, @INullService ns) {
 		super(descriptor, editor, Behaviour.WidgetFocus);
 	}
@@ -275,7 +275,7 @@ export class PreviousMatchFindAction extends MatchFindAction {
 	}
 }
 
-abstract class SelectionMatchFindAction extends EditorAction {
+export abstract class SelectionMatchFindAction extends EditorAction {
 	constructor(descriptor:EditorCommon.IEditorActionDescriptorData, editor:EditorCommon.ICommonCodeEditor, @INullService ns) {
 		super(descriptor, editor, Behaviour.WidgetFocus);
 	}
