@@ -138,6 +138,7 @@ export class CSSIntellisense {
 			this.getLineProposals(entry, result);
 			this.getBoxProposals(entry, result);
 			this.getImageProposals(entry, result);
+			this.getTimingFunctionProposals(entry, result);
 			this.getBasicShapeProposals(entry, result);
 			this.getValueEnumProposals(entry, result);
 			this.getCSSWideKeywordProposals(entry, result);
@@ -353,6 +354,20 @@ export class CSSIntellisense {
 					label: image,
 					documentationLabel: languageFacts.imageFunctions[image],
 					codeSnippet: image,
+					type: 'function'
+				});
+			}
+		};
+		return result;
+	}
+
+	protected getTimingFunctionProposals(entry:languageFacts.IEntry, result:Modes.ISuggestion[]):Modes.ISuggestion[] {
+		if (entry.restrictions.indexOf('timing-function') !== -1) {
+			for (var timing in languageFacts.transitionTimingFunctions) {
+				result.push({
+					label: timing,
+					documentationLabel: languageFacts.transitionTimingFunctions[timing],
+					codeSnippet: timing,
 					type: 'function'
 				});
 			}

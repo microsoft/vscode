@@ -885,7 +885,7 @@ exports.data ={
 				"name": "animation",
 				"desc": "Shorthand property combines six of the animation properties into a single property.",
 				"browsers": "E,C43,FF16,IE10,O12.1,S9",
-				"restriction": "time, enum, identifier, number",
+				"restriction": "time, timing-function, enum, identifier, number",
 				"values": [
 					{
 						"name": "alternate"
@@ -901,29 +901,11 @@ exports.data ={
 						"desc": "Both forwards and backwards fill modes are applied."
 					},
 					{
-						"name": "cubic-bezier()"
-					},
-					{
-						"name": "ease"
-					},
-					{
-						"name": "ease-in"
-					},
-					{
-						"name": "ease-in-out"
-					},
-					{
-						"name": "ease-out"
-					},
-					{
 						"name": "forwards"
 					},
 					{
 						"name": "infinite",
 						"desc": "Causes the animation to repeat forever."
-					},
-					{
-						"name": "linear"
 					},
 					{
 						"name": "none",
@@ -936,15 +918,6 @@ exports.data ={
 					{
 						"name": "reverse",
 						"desc": "All iterations of the animation are played in the reverse direction from the way they were specified."
-					},
-					{
-						"name": "step-end"
-					},
-					{
-						"name": "steps(1, start)"
-					},
-					{
-						"name": "step-start"
 					}
 				]
 			},
@@ -1036,36 +1009,7 @@ exports.data ={
 				"name": "animation-timing-function",
 				"desc": "Describes how the animation will progress over one cycle of its duration.",
 				"browsers": "E,C43,FF16,IE10,O12.1,S9",
-				"restriction": "enum",
-				"values": [
-					{
-						"name": "cubic-bezier()"
-					},
-					{
-						"name": "ease"
-					},
-					{
-						"name": "ease-in"
-					},
-					{
-						"name": "ease-in-out"
-					},
-					{
-						"name": "ease-out"
-					},
-					{
-						"name": "linear"
-					},
-					{
-						"name": "step-end"
-					},
-					{
-						"name": "steps(1, start)"
-					},
-					{
-						"name": "step-start"
-					}
-				]
+				"restriction": "timing-function"
 			},
 			{
 				"name": "backface-visibility",
@@ -4311,7 +4255,7 @@ exports.data ={
 				"name": "-moz-animation",
 				"desc": "Shorthand property combines six of the animation properties into a single property.",
 				"browsers": "FF9",
-				"restriction": "time, enum, identifier, number",
+				"restriction": "time, enum, timing-function, identifier, number",
 				"values": [
 					{
 						"name": "alternate"
@@ -4327,29 +4271,11 @@ exports.data ={
 						"desc": "Both forwards and backwards fill modes are applied."
 					},
 					{
-						"name": "cubic-bezier()"
-					},
-					{
-						"name": "ease"
-					},
-					{
-						"name": "ease-in"
-					},
-					{
-						"name": "ease-in-out"
-					},
-					{
-						"name": "ease-out"
-					},
-					{
 						"name": "forwards"
 					},
 					{
 						"name": "infinite",
 						"desc": "Causes the animation to repeat forever."
-					},
-					{
-						"name": "linear"
 					},
 					{
 						"name": "none",
@@ -4362,15 +4288,6 @@ exports.data ={
 					{
 						"name": "reverse",
 						"desc": "All iterations of the animation are played in the reverse direction from the way they were specified."
-					},
-					{
-						"name": "step-end"
-					},
-					{
-						"name": "steps(1, start)"
-					},
-					{
-						"name": "step-start"
 					}
 				]
 			},
@@ -4440,36 +4357,7 @@ exports.data ={
 				"name": "-moz-animation-timing-function",
 				"desc": "Describes how the animation will progress over one cycle of its duration. See the 'transition-timing-function'.",
 				"browsers": "FF9",
-				"restriction": "enum",
-				"values": [
-					{
-						"name": "cubic-bezier()"
-					},
-					{
-						"name": "ease"
-					},
-					{
-						"name": "ease-in"
-					},
-					{
-						"name": "ease-in-out"
-					},
-					{
-						"name": "ease-out"
-					},
-					{
-						"name": "linear"
-					},
-					{
-						"name": "step-end"
-					},
-					{
-						"name": "steps(1, start)"
-					},
-					{
-						"name": "step-start"
-					}
-				]
+				"restriction": "timing-function"
 			},
 			{
 				"name": "-moz-appearance",
@@ -5225,42 +5113,15 @@ exports.data ={
 				"name": "-moz-transition",
 				"desc": "Shorthand property combines four of the transition properties into a single property.",
 				"browsers": "FF4",
-				"restriction": "time, property, enum",
+				"restriction": "time, property, timing-function, enum",
 				"values": [
 					{
 						"name": "all",
 						"desc": "Every property that is able to undergo a transition will do so."
 					},
 					{
-						"name": "cubic-bezier()"
-					},
-					{
-						"name": "ease"
-					},
-					{
-						"name": "ease-in"
-					},
-					{
-						"name": "ease-in-out"
-					},
-					{
-						"name": "ease-out"
-					},
-					{
-						"name": "linear"
-					},
-					{
 						"name": "none",
 						"desc": "No property will transition."
-					},
-					{
-						"name": "step-end"
-					},
-					{
-						"name": "steps(1, start)"
-					},
-					{
-						"name": "step-start"
 					}
 				]
 			},
@@ -5296,36 +5157,7 @@ exports.data ={
 				"name": "-moz-transition-timing-function",
 				"desc": "Describes how the intermediate values used during a transition will be calculated.",
 				"browsers": "FF4",
-				"restriction": "enum",
-				"values": [
-					{
-						"name": "cubic-bezier()"
-					},
-					{
-						"name": "ease"
-					},
-					{
-						"name": "ease-in"
-					},
-					{
-						"name": "ease-in-out"
-					},
-					{
-						"name": "ease-out"
-					},
-					{
-						"name": "linear"
-					},
-					{
-						"name": "step-end"
-					},
-					{
-						"name": "steps(1, start)"
-					},
-					{
-						"name": "step-start"
-					}
-				]
+				"restriction": "timing-function"
 			},
 			{
 				"name": "-moz-user-focus",
@@ -6913,7 +6745,7 @@ exports.data ={
 				"name": "-o-animation",
 				"desc": "Shorthand property combines six of the animation properties into a single property.",
 				"browsers": "O12",
-				"restriction": "time, enum, identifier, number",
+				"restriction": "time, enum, timing-function, identifier, number",
 				"values": [
 					{
 						"name": "alternate"
@@ -6929,29 +6761,11 @@ exports.data ={
 						"desc": "Both forwards and backwards fill modes are applied."
 					},
 					{
-						"name": "cubic-bezier()"
-					},
-					{
-						"name": "ease"
-					},
-					{
-						"name": "ease-in"
-					},
-					{
-						"name": "ease-in-out"
-					},
-					{
-						"name": "ease-out"
-					},
-					{
 						"name": "forwards"
 					},
 					{
 						"name": "infinite",
 						"desc": "Causes the animation to repeat forever."
-					},
-					{
-						"name": "linear"
 					},
 					{
 						"name": "none",
@@ -6964,15 +6778,6 @@ exports.data ={
 					{
 						"name": "reverse",
 						"desc": "All iterations of the animation are played in the reverse direction from the way they were specified."
-					},
-					{
-						"name": "step-end"
-					},
-					{
-						"name": "steps(1, start)"
-					},
-					{
-						"name": "step-start"
 					}
 				]
 			},
@@ -7064,36 +6869,7 @@ exports.data ={
 				"name": "-o-animation-timing-function",
 				"desc": "Describes how the animation will progress over one cycle of its duration. See the 'transition-timing-function'.",
 				"browsers": "O12",
-				"restriction": "enum",
-				"values": [
-					{
-						"name": "cubic-bezier()"
-					},
-					{
-						"name": "ease"
-					},
-					{
-						"name": "ease-in"
-					},
-					{
-						"name": "ease-in-out"
-					},
-					{
-						"name": "ease-out"
-					},
-					{
-						"name": "linear"
-					},
-					{
-						"name": "step-end"
-					},
-					{
-						"name": "steps(1, start)"
-					},
-					{
-						"name": "step-start"
-					}
-				]
+				"restriction": "timing-function"
 			},
 			{
 				"name": "object-fit",
@@ -7320,42 +7096,15 @@ exports.data ={
 				"name": "-o-transition",
 				"desc": "Shorthand property combines four of the transition properties into a single property.",
 				"browsers": "O11.5",
-				"restriction": "time, property, enum",
+				"restriction": "time, property, timing-function, enum",
 				"values": [
 					{
 						"name": "all",
 						"desc": "Every property that is able to undergo a transition will do so."
 					},
 					{
-						"name": "cubic-bezier()"
-					},
-					{
-						"name": "ease"
-					},
-					{
-						"name": "ease-in"
-					},
-					{
-						"name": "ease-in-out"
-					},
-					{
-						"name": "ease-out"
-					},
-					{
-						"name": "linear"
-					},
-					{
 						"name": "none",
 						"desc": "No property will transition."
-					},
-					{
-						"name": "step-end"
-					},
-					{
-						"name": "steps(1, start)"
-					},
-					{
-						"name": "step-start"
 					}
 				]
 			},
@@ -7391,36 +7140,7 @@ exports.data ={
 				"name": "-o-transition-timing-function",
 				"desc": "Describes how the intermediate values used during a transition will be calculated.",
 				"browsers": "O11.5",
-				"restriction": "enum",
-				"values": [
-					{
-						"name": "cubic-bezier()"
-					},
-					{
-						"name": "ease"
-					},
-					{
-						"name": "ease-in"
-					},
-					{
-						"name": "ease-in-out"
-					},
-					{
-						"name": "ease-out"
-					},
-					{
-						"name": "linear"
-					},
-					{
-						"name": "step-end"
-					},
-					{
-						"name": "steps(1, start)"
-					},
-					{
-						"name": "step-start"
-					}
-				]
+				"restriction": "timing-function"
 			},
 			{
 				"name": "offset-block-end",
@@ -8769,42 +8489,15 @@ exports.data ={
 				"name": "transition",
 				"desc": "Shorthand property combines four of the transition properties into a single property.",
 				"browsers": "E,FF16,IE10,O12.5",
-				"restriction": "time, property, enum",
+				"restriction": "time, property, timing-function, enum",
 				"values": [
 					{
 						"name": "all",
 						"desc": "Every property that is able to undergo a transition will do so."
 					},
 					{
-						"name": "cubic-bezier()"
-					},
-					{
-						"name": "ease"
-					},
-					{
-						"name": "ease-in"
-					},
-					{
-						"name": "ease-in-out"
-					},
-					{
-						"name": "ease-out"
-					},
-					{
-						"name": "linear"
-					},
-					{
 						"name": "none",
 						"desc": "No property will transition."
-					},
-					{
-						"name": "step-end"
-					},
-					{
-						"name": "steps(1, start)"
-					},
-					{
-						"name": "step-start"
 					}
 				]
 			},
@@ -8840,108 +8533,7 @@ exports.data ={
 				"name": "transition-timing-function",
 				"desc": "Describes how the intermediate values used during a transition will be calculated.",
 				"browsers": "E,FF16,IE10,O12.5",
-				"restriction": "enum",
-				"values": [
-					{
-						"name": "cubic-bezier()"
-					},
-					{
-						"name": "cubic-bezier(0.6, -0.28, 0.735, 0.045)"
-					},
-					{
-						"name": "cubic-bezier(0.68, -0.55, 0.265, 1.55)"
-					},
-					{
-						"name": "cubic-bezier(0.175, 0.885, 0.32, 1.275)"
-					},
-					{
-						"name": "cubic-bezier(0.6, 0.04, 0.98, 0.335)"
-					},
-					{
-						"name": "cubic-bezier(0.785, 0.135, 0.15, 0.86)"
-					},
-					{
-						"name": "cubic-bezier(0.075, 0.82, 0.165, 1)"
-					},
-					{
-						"name": "cubic-bezier(0.55, 0.055, 0.675, 0.19)"
-					},
-					{
-						"name": "cubic-bezier(0.645, 0.045, 0.355, 1)"
-					},
-					{
-						"name": "cubic-bezier(0.215, 0.610, 0.355, 1)"
-					},
-					{
-						"name": "cubic-bezier(0.95, 0.05, 0.795, 0.035)"
-					},
-					{
-						"name": "cubic-bezier(1, 0, 0, 1)"
-					},
-					{
-						"name": "cubic-bezier(0.19, 1, 0.22, 1)"
-					},
-					{
-						"name": "cubic-bezier(0.47, 0, 0.745, 0.715)"
-					},
-					{
-						"name": "cubic-bezier(0.445, 0.05, 0.55, 0.95)"
-					},
-					{
-						"name": "cubic-bezier(0.39, 0.575, 0.565, 1)"
-					},
-					{
-						"name": "cubic-bezier(0.55, 0.085, 0.68, 0.53)"
-					},
-					{
-						"name": "cubic-bezier(0.455, 0.03, 0.515, 0.955)"
-					},
-					{
-						"name": "cubic-bezier(0.25, 0.46, 0.45, 0.94)"
-					},
-					{
-						"name": "cubic-bezier(0.895, 0.03, 0.685, 0.22)"
-					},
-					{
-						"name": "cubic-bezier(0.77, 0, 0.175, 1)"
-					},
-					{
-						"name": "cubic-bezier(0.165, 0.84, 0.44, 1)"
-					},
-					{
-						"name": "cubic-bezier(0.755, 0.05, 0.855, 0.06)"
-					},
-					{
-						"name": "cubic-bezier(0.86, 0, 0.07, 1)"
-					},
-					{
-						"name": "cubic-bezier(0.23, 1, 0.320, 1)"
-					},
-					{
-						"name": "ease"
-					},
-					{
-						"name": "ease-in"
-					},
-					{
-						"name": "ease-in-out"
-					},
-					{
-						"name": "ease-out"
-					},
-					{
-						"name": "linear"
-					},
-					{
-						"name": "step-end"
-					},
-					{
-						"name": "steps(1, start)"
-					},
-					{
-						"name": "step-start"
-					}
-				]
+				"restriction": "timing-function"
 			},
 			{
 				"name": "unicode-bidi",
@@ -9279,7 +8871,7 @@ exports.data ={
 				"name": "-webkit-animation",
 				"desc": "Shorthand property combines six of the animation properties into a single property.",
 				"browsers": "C,S5",
-				"restriction": "time, enum, identifier, number",
+				"restriction": "time, enum, timing-function, identifier, number",
 				"values": [
 					{
 						"name": "alternate"
@@ -9295,29 +8887,11 @@ exports.data ={
 						"desc": "Both forwards and backwards fill modes are applied."
 					},
 					{
-						"name": "cubic-bezier()"
-					},
-					{
-						"name": "ease"
-					},
-					{
-						"name": "ease-in"
-					},
-					{
-						"name": "ease-in-out"
-					},
-					{
-						"name": "ease-out"
-					},
-					{
 						"name": "forwards"
 					},
 					{
 						"name": "infinite",
 						"desc": "Causes the animation to repeat forever."
-					},
-					{
-						"name": "linear"
 					},
 					{
 						"name": "none",
@@ -9330,15 +8904,6 @@ exports.data ={
 					{
 						"name": "reverse",
 						"desc": "All iterations of the animation are played in the reverse direction from the way they were specified."
-					},
-					{
-						"name": "step-end"
-					},
-					{
-						"name": "steps(1, start)"
-					},
-					{
-						"name": "step-start"
 					}
 				]
 			},
@@ -9430,36 +8995,7 @@ exports.data ={
 				"name": "-webkit-animation-timing-function",
 				"desc": "Describes how the animation will progress over one cycle of its duration. See the 'transition-timing-function'.",
 				"browsers": "C,S5",
-				"restriction": "enum",
-				"values": [
-					{
-						"name": "cubic-bezier()"
-					},
-					{
-						"name": "ease"
-					},
-					{
-						"name": "ease-in"
-					},
-					{
-						"name": "ease-in-out"
-					},
-					{
-						"name": "ease-out"
-					},
-					{
-						"name": "linear"
-					},
-					{
-						"name": "step-end"
-					},
-					{
-						"name": "steps(1, start)"
-					},
-					{
-						"name": "step-start"
-					}
-				]
+				"restriction": "timing-function"
 			},
 			{
 				"name": "-webkit-appearance",
@@ -10654,42 +10190,15 @@ exports.data ={
 				"name": "-webkit-transition",
 				"desc": "Shorthand property combines four of the transition properties into a single property.",
 				"browsers": "C,O12,S5",
-				"restriction": "time, property, enum",
+				"restriction": "time, property, timing-function, enum",
 				"values": [
 					{
 						"name": "all",
 						"desc": "Every property that is able to undergo a transition will do so."
 					},
 					{
-						"name": "cubic-bezier()"
-					},
-					{
-						"name": "ease"
-					},
-					{
-						"name": "ease-in"
-					},
-					{
-						"name": "ease-in-out"
-					},
-					{
-						"name": "ease-out"
-					},
-					{
-						"name": "linear"
-					},
-					{
 						"name": "none",
 						"desc": "No property will transition."
-					},
-					{
-						"name": "step-end"
-					},
-					{
-						"name": "steps(1, start)"
-					},
-					{
-						"name": "step-start"
 					}
 				]
 			},
@@ -10725,36 +10234,7 @@ exports.data ={
 				"name": "-webkit-transition-timing-function",
 				"desc": "Describes how the intermediate values used during a transition will be calculated.",
 				"browsers": "C,O12,S5",
-				"restriction": "enum",
-				"values": [
-					{
-						"name": "cubic-bezier()"
-					},
-					{
-						"name": "ease"
-					},
-					{
-						"name": "ease-in"
-					},
-					{
-						"name": "ease-in-out"
-					},
-					{
-						"name": "ease-out"
-					},
-					{
-						"name": "linear"
-					},
-					{
-						"name": "step-end"
-					},
-					{
-						"name": "steps(1, start)"
-					},
-					{
-						"name": "step-start"
-					}
-				]
+				"restriction": "timing-function"
 			},
 			{
 				"name": "-webkit-user-drag",
@@ -10972,16 +10452,7 @@ exports.descriptions = {
 	"alternate": "The animation cycle iterations that are odd counts are played in the normal direction, and the animation cycle iterations that are even counts are played in a reverse direction.",
 	"alternate-reverse": "The animation cycle iterations that are odd counts are played in the reverse direction, and the animation cycle iterations that are even counts are played in a normal direction.",
 	"backwards": "The beginning property value (as defined in the first @keyframes at-rule) is applied before the animation is displayed, during the period defined by 'animation-delay'.",
-	"cubic-bezier()": "Specifies a cubic-bezier curve. The four values specify points P1 and P2  of the curve as (x1, y1, x2, y2). All values must be in the range [0, 1].",
-	"ease": "Equivalent to cubic-bezier(0.25, 0.1, 0.25, 1.0).",
-	"ease-in": "Equivalent to cubic-bezier(0.42, 0, 1.0, 1.0).",
-	"ease-in-out": "Equivalent to cubic-bezier(0.42, 0, 0.58, 1.0).",
-	"ease-out": "Equivalent to cubic-bezier(0, 0, 0.58, 1.0).",
 	"forwards": "The final property value (as defined in the last @keyframes at-rule) is maintained after the animation completes.",
-	"linear": "Equivalent to cubic-bezier(0.0, 0.0, 1.0, 1.0).",
-	"step-end": "The step-end function is equivalent to steps(1, end).",
-	"steps(1, start)": "The first parameter specifies the number of intervals in the function. The second parameter, which is optional, is either the value 'start' or 'end'.",
-	"step-start": "The step-start function is equivalent to steps(1, start).",
 	"paused": "A running animation will be paused.",
 	"running": "Resume playback of a paused animation.",
 	"multiply": "The source color is multiplied by the destination color and replaces the destination.",
@@ -11380,30 +10851,6 @@ exports.descriptions = {
 	"perspective()": "Specifies a perspective projection matrix.",
 	"flat": "All children of this element are rendered flattened into the 2D plane of the element.",
 	"preserve-3d": "Flattening is not performed, so children maintain their position in 3D space.",
-	"cubic-bezier(0.6, -0.28, 0.735, 0.045)": "Ease-in Back. Overshoots.",
-	"cubic-bezier(0.68, -0.55, 0.265, 1.55)": "Ease-in-out Back. Overshoots.",
-	"cubic-bezier(0.175, 0.885, 0.32, 1.275)": "Ease-out Back. Overshoots.",
-	"cubic-bezier(0.6, 0.04, 0.98, 0.335)": "Ease-in Circular. Based on half circle.",
-	"cubic-bezier(0.785, 0.135, 0.15, 0.86)": "Ease-in-out Circular. Based on half circle.",
-	"cubic-bezier(0.075, 0.82, 0.165, 1)": "Ease-out Circular. Based on half circle.",
-	"cubic-bezier(0.55, 0.055, 0.675, 0.19)": "Ease-in Cubic. Based on power of three.",
-	"cubic-bezier(0.645, 0.045, 0.355, 1)": "Ease-in-out Cubic. Based on power of three.",
-	"cubic-bezier(0.215, 0.610, 0.355, 1)": "Ease-out Cubic. Based on power of three.",
-	"cubic-bezier(0.95, 0.05, 0.795, 0.035)": "Ease-in Exponential. Based on two to the power ten.",
-	"cubic-bezier(1, 0, 0, 1)": "Ease-in-out Exponential. Based on two to the power ten.",
-	"cubic-bezier(0.19, 1, 0.22, 1)": "Ease-out Exponential. Based on two to the power ten.",
-	"cubic-bezier(0.47, 0, 0.745, 0.715)": "Ease-in Sine.",
-	"cubic-bezier(0.445, 0.05, 0.55, 0.95)": "Ease-in-out Sine.",
-	"cubic-bezier(0.39, 0.575, 0.565, 1)": "Ease-out Sine.",
-	"cubic-bezier(0.55, 0.085, 0.68, 0.53)": "Ease-in Quadratic. Based on power of two.",
-	"cubic-bezier(0.455, 0.03, 0.515, 0.955)": "Ease-in-out Quadratic. Based on power of two.",
-	"cubic-bezier(0.25, 0.46, 0.45, 0.94)": "Ease-out Quadratic. Based on power of two.",
-	"cubic-bezier(0.895, 0.03, 0.685, 0.22)": "Ease-in Quartic. Based on power of four.",
-	"cubic-bezier(0.77, 0, 0.175, 1)": "Ease-in-out Quartic. Based on power of four.",
-	"cubic-bezier(0.165, 0.84, 0.44, 1)": "Ease-out Quartic. Based on power of four.",
-	"cubic-bezier(0.755, 0.05, 0.855, 0.06)": "Ease-in Quintic. Based on power of five.",
-	"cubic-bezier(0.86, 0, 0.07, 1)": "Ease-in-out Quintic. Based on power of five.",
-	"cubic-bezier(0.23, 1, 0.320, 1)": "Ease-out Quintic. Based on power of five.",
 	"bidi-override": "Inside the element, reordering is strictly in sequence according to the 'direction' property; the implicit part of the bidirectional algorithm is ignored.",
 	"embed": "If the element is inline-level, this value opens an additional level of embedding with respect to the bidirectional algorithm. The direction of this embedding level is given by the 'direction' property.",
 	"isolate-override": "This combines the isolation behavior of 'isolate' with the directional override behavior of 'bidi-override'",

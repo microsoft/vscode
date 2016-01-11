@@ -651,7 +651,7 @@
         </value>
       </values>
     </entry>
-    <entry name="animation" restriction="time, enum, identifier, number" version="3.0" browsers="E,C43,FF16,IE10,O12.1,S9" ref="http://www.w3.org/TR/css3-animations/#animation" syntax="div { $(name): movearound 4s ease 3 normal; }">
+    <entry name="animation" restriction="time, timing-function, enum, identifier, number" version="3.0" browsers="E,C43,FF16,IE10,O12.1,S9" ref="http://www.w3.org/TR/css3-animations/#animation" syntax="div { $(name): movearound 4s ease 3 normal; }">
       <desc>Shorthand property combines six of the animation properties into a single property.</desc>
       <values>
         <value name="alternate" version="3.0" browsers="all">
@@ -666,29 +666,11 @@
         <value name="both" version="3.0" browsers="all">
           <desc>Both forwards and backwards fill modes are applied.</desc>
         </value>
-        <value name="cubic-bezier()" version="3.0" browsers="all">
-          <desc>Specifies a cubic-bezier curve. The four values specify points P1 and P2  of the curve as (x1, y1, x2, y2). All values must be in the range [0, 1].</desc>
-        </value>
-        <value name="ease" version="3.0" browsers="all">
-          <desc>Equivalent to cubic-bezier(0.25, 0.1, 0.25, 1.0).</desc>
-        </value>
-        <value name="ease-in" version="3.0" browsers="all">
-          <desc>Equivalent to cubic-bezier(0.42, 0, 1.0, 1.0).</desc>
-        </value>
-        <value name="ease-in-out" version="3.0" browsers="all">
-          <desc>Equivalent to cubic-bezier(0.42, 0, 0.58, 1.0).</desc>
-        </value>
-        <value name="ease-out" version="3.0" browsers="all">
-          <desc>Equivalent to cubic-bezier(0, 0, 0.58, 1.0).</desc>
-        </value>
         <value name="forwards" version="3.0" browsers="all">
           <desc>The final property value (as defined in the last @keyframes at-rule) is maintained after the animation completes.</desc>
         </value>
         <value name="infinite" version="3.0" browsers="all">
           <desc>Causes the animation to repeat forever.</desc>
-        </value>
-        <value name="linear" version="3.0" browsers="all">
-          <desc>Equivalent to cubic-bezier(0.0, 0.0, 1.0, 1.0).</desc>
         </value>
         <value name="none" version="3.0" browsers="all">
           <desc>No animation is performed</desc>
@@ -698,15 +680,6 @@
         </value>
         <value name="reverse" version="3.0" browsers="all">
           <desc>All iterations of the animation are played in the reverse direction from the way they were specified.</desc>
-        </value>
-        <value name="step-end" version="3.0" browsers="all">
-          <desc>The step-end function is equivalent to steps(1, end).</desc>
-        </value>
-        <value name="steps(1, start)" version="3.0" browsers="all">
-          <desc>The first parameter specifies the number of intervals in the function. The second parameter, which is optional, is either the value 'start' or 'end'.</desc>
-        </value>
-        <value name="step-start" version="3.0" browsers="all">
-          <desc>The step-start function is equivalent to steps(1, start).</desc>
         </value>
       </values>
     </entry>
@@ -791,37 +764,8 @@
         </value>
       </values>
     </entry>
-    <entry name="animation-timing-function" restriction="enum" version="3.0" browsers="E,C43,FF16,IE10,O12.1,S9" ref="http://www.w3.org/TR/css3-animations/#animation-timing-function" syntax="div { $(name): ease; }">
+    <entry name="animation-timing-function" restriction="timing-function" version="3.0" browsers="E,C43,FF16,IE10,O12.1,S9" ref="http://www.w3.org/TR/css3-animations/#animation-timing-function" syntax="div { $(name): ease; }">
       <desc>Describes how the animation will progress over one cycle of its duration.</desc>
-      <values>
-        <value name="cubic-bezier()" version="3.0" browsers="all">
-          <desc>Specifies a cubic-bezier curve. The four values specify points P1 and P2  of the curve as (x1, y1, x2, y2). All values must be in the range [0, 1].</desc>
-        </value>
-        <value name="ease" version="3.0" browsers="all">
-          <desc>Equivalent to cubic-bezier(0.25, 0.1, 0.25, 1.0).</desc>
-        </value>
-        <value name="ease-in" version="3.0" browsers="all">
-          <desc>Equivalent to cubic-bezier(0.42, 0, 1.0, 1.0).</desc>
-        </value>
-        <value name="ease-in-out" version="3.0" browsers="all">
-          <desc>Equivalent to cubic-bezier(0.42, 0, 0.58, 1.0).</desc>
-        </value>
-        <value name="ease-out" version="3.0" browsers="all">
-          <desc>Equivalent to cubic-bezier(0, 0, 0.58, 1.0).</desc>
-        </value>
-        <value name="linear" version="3.0" browsers="all">
-          <desc>Equivalent to cubic-bezier(0.0, 0.0, 1.0, 1.0).</desc>
-        </value>
-        <value name="step-end" version="3.0" browsers="all">
-          <desc>The step-end function is equivalent to steps(1, end).</desc>
-        </value>
-        <value name="steps(1, start)" version="3.0" browsers="all">
-          <desc>The first parameter specifies the number of intervals in the function. The second parameter, which is optional, is either the value 'start' or 'end'.</desc>
-        </value>
-        <value name="step-start" version="3.0" browsers="all">
-          <desc>The step-start function is equivalent to steps(1, start).</desc>
-        </value>
-      </values>
     </entry>
     <entry name="backdrop-filter" restriction="enum, url" version="4.0" browsers="none" ref="https://drafts.fxtf.org/filters-2/#propdef-backdrop-filter" syntax="div { $(name): blur(2px); }">
       <desc>Applies a filter effect where the first filter in the list takes the element's background image as the input image.</desc>
@@ -4530,7 +4474,7 @@
         </value>
       </values>
     </entry>
-    <entry name="-moz-animation" restriction="time, enum, identifier, number" version="3.0" browsers="FF9" ref="http://www.w3.org/TR/css3-animations/#animation" syntax="div { $(name): movearound 4s ease 3 normal; }">
+    <entry name="-moz-animation" restriction="time, enum, timing-function, identifier, number" version="3.0" browsers="FF9" ref="http://www.w3.org/TR/css3-animations/#animation" syntax="div { $(name): movearound 4s ease 3 normal; }">
       <desc>Shorthand property combines six of the animation properties into a single property.</desc>
       <values>
         <value name="alternate" version="3.0" browsers="all">
@@ -4545,29 +4489,11 @@
         <value name="both" version="3.0" browsers="all">
           <desc>Both forwards and backwards fill modes are applied.</desc>
         </value>
-        <value name="cubic-bezier()" version="3.0" browsers="all">
-          <desc>Specifies a cubic-bezier curve. The four values specify points P1 and P2  of the curve as (x1, y1, x2, y2). All values must be in the range [0, 1].</desc>
-        </value>
-        <value name="ease" version="3.0" browsers="all">
-          <desc>Equivalent to cubic-bezier(0.25, 0.1, 0.25, 1.0).</desc>
-        </value>
-        <value name="ease-in" version="3.0" browsers="all">
-          <desc>Equivalent to cubic-bezier(0.42, 0, 1.0, 1.0).</desc>
-        </value>
-        <value name="ease-in-out" version="3.0" browsers="all">
-          <desc>Equivalent to cubic-bezier(0.42, 0, 0.58, 1.0).</desc>
-        </value>
-        <value name="ease-out" version="3.0" browsers="all">
-          <desc>Equivalent to cubic-bezier(0, 0, 0.58, 1.0).</desc>
-        </value>
         <value name="forwards" version="3.0" browsers="all">
           <desc>The final property value (as defined in the last @keyframes at-rule) is maintained after the animation completes.</desc>
         </value>
         <value name="infinite" version="3.0" browsers="all">
           <desc>Causes the animation to repeat forever.</desc>
-        </value>
-        <value name="linear" version="3.0" browsers="all">
-          <desc>Equivalent to cubic-bezier(0.0, 0.0, 1.0, 1.0).</desc>
         </value>
         <value name="none" version="3.0" browsers="all">
           <desc>No animation is performed</desc>
@@ -4577,15 +4503,6 @@
         </value>
         <value name="reverse" version="3.0" browsers="all">
           <desc>All iterations of the animation are played in the reverse direction from the way they were specified.</desc>
-        </value>
-        <value name="step-end" version="3.0" browsers="all">
-          <desc>The step-end function is equivalent to steps(1, end).</desc>
-        </value>
-        <value name="steps(1, start)" version="3.0" browsers="all">
-          <desc>The first parameter specifies the number of intervals in the function. The second parameter, which is optional, is either the value 'start' or 'end'.</desc>
-        </value>
-        <value name="step-start" version="3.0" browsers="all">
-          <desc>The step-start function is equivalent to steps(1, start).</desc>
         </value>
       </values>
     </entry>
@@ -4639,37 +4556,8 @@
         </value>
       </values>
     </entry>
-    <entry name="-moz-animation-timing-function" restriction="enum" version="3.0" browsers="FF9" ref="http://www.w3.org/TR/css3-animations/#animation-timing-function" syntax="div { $(name): ease; }">
+    <entry name="-moz-animation-timing-function" restriction="timing-function" version="3.0" browsers="FF9" ref="http://www.w3.org/TR/css3-animations/#animation-timing-function" syntax="div { $(name): ease; }">
       <desc>Describes how the animation will progress over one cycle of its duration. See the 'transition-timing-function'.</desc>
-      <values>
-        <value name="cubic-bezier()" version="3.0" browsers="all">
-          <desc>Specifies a cubic-bezier curve. The four values specify points P1 and P2  of the curve as (x1, y1, x2, y2). All values must be in the range [0, 1].</desc>
-        </value>
-        <value name="ease" version="3.0" browsers="all">
-          <desc>Equivalent to cubic-bezier(0.25, 0.1, 0.25, 1.0).</desc>
-        </value>
-        <value name="ease-in" version="3.0" browsers="all">
-          <desc>Equivalent to cubic-bezier(0.42, 0, 1.0, 1.0).</desc>
-        </value>
-        <value name="ease-in-out" version="3.0" browsers="all">
-          <desc>Equivalent to cubic-bezier(0.42, 0, 0.58, 1.0).</desc>
-        </value>
-        <value name="ease-out" version="3.0" browsers="all">
-          <desc>Equivalent to cubic-bezier(0, 0, 0.58, 1.0).</desc>
-        </value>
-        <value name="linear" version="3.0" browsers="all">
-          <desc>Equivalent to cubic-bezier(0.0, 0.0, 1.0, 1.0).</desc>
-        </value>
-        <value name="step-end" version="3.0" browsers="all">
-          <desc>The step-end function is equivalent to steps(1, end).</desc>
-        </value>
-        <value name="steps(1, start)" version="3.0" browsers="all">
-          <desc>The first parameter specifies the number of intervals in the function. The second parameter, which is optional, is either the value 'start' or 'end'.</desc>
-        </value>
-        <value name="step-start" version="3.0" browsers="all">
-          <desc>The step-start function is equivalent to steps(1, start).</desc>
-        </value>
-      </values>
     </entry>
     <entry name="-moz-appearance" restriction="enum" version="3.0" browsers="FF1" ref="https://developer.mozilla.org/en/CSS/-moz-appearance" syntax=".example { $(name): toolbarbutton; }">
       <desc>Used in Gecko (Firefox) to display an element using a platform-native styling based on the operating system's theme.</desc>
@@ -5131,41 +5019,14 @@
     <entry name="-moz-transform-origin" restriction="position, length, percentage" version="3.0" browsers="FF3.5" ref="http://www.w3.org/TR/css3-2d-transforms/#transform-origin" syntax=".album { $(name): 20% 40%; }">
       <desc>Establishes the origin of transformation for an element.</desc>
     </entry>
-    <entry name="-moz-transition" restriction="time, property, enum" version="3.0" browsers="FF4" ref="http://www.w3.org/TR/css3-transitions/#transition" syntax="div { $(name): background-color linear 1s; }">
+    <entry name="-moz-transition" restriction="time, property, timing-function, enum" version="3.0" browsers="FF4" ref="http://www.w3.org/TR/css3-transitions/#transition" syntax="div { $(name): background-color linear 1s; }">
       <desc>Shorthand property combines four of the transition properties into a single property.</desc>
       <values>
         <value name="all" version="3.0" browsers="all">
           <desc>Every property that is able to undergo a transition will do so.</desc>
         </value>
-        <value name="cubic-bezier()" version="3.0" browsers="all">
-          <desc>Specifies a cubic-bezier curve. The four values specify points P1 and P2  of the curve as (x1, y1, x2, y2). All values must be in the range [0, 1].</desc>
-        </value>
-        <value name="ease" version="3.0" browsers="all">
-          <desc>Equivalent to cubic-bezier(0.25, 0.1, 0.25, 1.0).</desc>
-        </value>
-        <value name="ease-in" version="3.0" browsers="all">
-          <desc>Equivalent to cubic-bezier(0.42, 0, 1.0, 1.0).</desc>
-        </value>
-        <value name="ease-in-out" version="3.0" browsers="all">
-          <desc>Equivalent to cubic-bezier(0.42, 0, 0.58, 1.0).</desc>
-        </value>
-        <value name="ease-out" version="3.0" browsers="all">
-          <desc>Equivalent to cubic-bezier(0, 0, 0.58, 1.0).</desc>
-        </value>
-        <value name="linear" version="3.0" browsers="all">
-          <desc>Equivalent to cubic-bezier(0.0, 0.0, 1.0, 1.0).</desc>
-        </value>
         <value name="none" version="3.0" browsers="all">
           <desc>No property will transition.</desc>
-        </value>
-        <value name="step-end" version="3.0" browsers="all">
-          <desc>The step-end function is equivalent to steps(1, end).</desc>
-        </value>
-        <value name="steps(1, start)" version="3.0" browsers="all">
-          <desc>The first parameter specifies the number of intervals in the function. The second parameter, which is optional, is either the value 'start' or 'end'.</desc>
-        </value>
-        <value name="step-start" version="3.0" browsers="all">
-          <desc>The step-start function is equivalent to steps(1, start).</desc>
         </value>
       </values>
     </entry>
@@ -5186,37 +5047,8 @@
         </value>
       </values>
     </entry>
-    <entry name="-moz-transition-timing-function" restriction="enum" version="3.0" browsers="FF4" ref="http://www.w3.org/TR/css3-transitions/#transition-timing-function" syntax="div { $(name): linear; }">
+    <entry name="-moz-transition-timing-function" restriction="timing-function" version="3.0" browsers="FF4" ref="http://www.w3.org/TR/css3-transitions/#transition-timing-function" syntax="div { $(name): linear; }">
       <desc>Describes how the intermediate values used during a transition will be calculated.</desc>
-      <values>
-        <value name="cubic-bezier()" version="3.0" browsers="all">
-          <desc>Specifies a cubic-bezier curve. The four values specify points P1 and P2  of the curve as (x1, y1, x2, y2). All values must be in the range [0, 1].</desc>
-        </value>
-        <value name="ease" version="3.0" browsers="all">
-          <desc>Equivalent to cubic-bezier(0.25, 0.1, 0.25, 1.0).</desc>
-        </value>
-        <value name="ease-in" version="3.0" browsers="all">
-          <desc>Equivalent to cubic-bezier(0.42, 0, 1.0, 1.0).</desc>
-        </value>
-        <value name="ease-in-out" version="3.0" browsers="all">
-          <desc>Equivalent to cubic-bezier(0.42, 0, 0.58, 1.0).</desc>
-        </value>
-        <value name="ease-out" version="3.0" browsers="all">
-          <desc>Equivalent to cubic-bezier(0, 0, 0.58, 1.0).</desc>
-        </value>
-        <value name="linear" version="3.0" browsers="all">
-          <desc>Equivalent to cubic-bezier(0.0, 0.0, 1.0, 1.0).</desc>
-        </value>
-        <value name="step-end" version="3.0" browsers="all">
-          <desc>The step-end function is equivalent to steps(1, end).</desc>
-        </value>
-        <value name="steps(1, start)" version="3.0" browsers="all">
-          <desc>The first parameter specifies the number of intervals in the function. The second parameter, which is optional, is either the value 'start' or 'end'.</desc>
-        </value>
-        <value name="step-start" version="3.0" browsers="all">
-          <desc>The step-start function is equivalent to steps(1, start).</desc>
-        </value>
-      </values>
     </entry>
     <entry name="-moz-user-focus" restriction="" version="" browsers="FF1.5" ref="https://developer.mozilla.org/en-US/docs/CSS/-moz-user-focus" syntax="div { $(name): ignore; }">
       <desc>Used to indicate whether the element can have focus.</desc>
@@ -6318,7 +6150,7 @@
     <entry name="negative" restriction="image, identifier, string" version="3.0" browsers="FF33" ref="http://www.w3.org/TR/css-counter-styles-3/#descdef-counter-style-negative" syntax="@counter-style { negative: '(' ')'; }">
       <desc>@counter-style descriptor. Defines how to alter the representation when the counter value is negative.</desc>
     </entry>
-    <entry name="-o-animation" restriction="time, enum, identifier, number" version="3.0" browsers="O12" ref="http://www.w3.org/TR/css3-animations/#animation" syntax="div { $(name): movearound 4s ease 3 normal; }">
+    <entry name="-o-animation" restriction="time, enum, timing-function, identifier, number" version="3.0" browsers="O12" ref="http://www.w3.org/TR/css3-animations/#animation" syntax="div { $(name): movearound 4s ease 3 normal; }">
       <desc>Shorthand property combines six of the animation properties into a single property.</desc>
       <values>
         <value name="alternate" version="3.0" browsers="all">
@@ -6333,29 +6165,11 @@
         <value name="both" version="3.0" browsers="all">
           <desc>Both forwards and backwards fill modes are applied.</desc>
         </value>
-        <value name="cubic-bezier()" version="3.0" browsers="all">
-          <desc>Specifies a cubic-bezier curve. The four values specify points P1 and P2  of the curve as (x1, y1, x2, y2). All values must be in the range [0, 1].</desc>
-        </value>
-        <value name="ease" version="3.0" browsers="all">
-          <desc>Equivalent to cubic-bezier(0.25, 0.1, 0.25, 1.0).</desc>
-        </value>
-        <value name="ease-in" version="3.0" browsers="all">
-          <desc>Equivalent to cubic-bezier(0.42, 0, 1.0, 1.0).</desc>
-        </value>
-        <value name="ease-in-out" version="3.0" browsers="all">
-          <desc>Equivalent to cubic-bezier(0.42, 0, 0.58, 1.0).</desc>
-        </value>
-        <value name="ease-out" version="3.0" browsers="all">
-          <desc>Equivalent to cubic-bezier(0, 0, 0.58, 1.0).</desc>
-        </value>
         <value name="forwards" version="3.0" browsers="all">
           <desc>The final property value (as defined in the last @keyframes at-rule) is maintained after the animation completes.</desc>
         </value>
         <value name="infinite" version="3.0" browsers="all">
           <desc>Causes the animation to repeat forever.</desc>
-        </value>
-        <value name="linear" version="3.0" browsers="all">
-          <desc>Equivalent to cubic-bezier(0.0, 0.0, 1.0, 1.0).</desc>
         </value>
         <value name="none" version="3.0" browsers="all">
           <desc>No animation is performed</desc>
@@ -6365,15 +6179,6 @@
         </value>
         <value name="reverse" version="3.0" browsers="all">
           <desc>All iterations of the animation are played in the reverse direction from the way they were specified.</desc>
-        </value>
-        <value name="step-end" version="3.0" browsers="all">
-          <desc>The step-end function is equivalent to steps(1, end).</desc>
-        </value>
-        <value name="steps(1, start)" version="3.0" browsers="all">
-          <desc>The first parameter specifies the number of intervals in the function. The second parameter, which is optional, is either the value 'start' or 'end'.</desc>
-        </value>
-        <value name="step-start" version="3.0" browsers="all">
-          <desc>The step-start function is equivalent to steps(1, start).</desc>
         </value>
       </values>
     </entry>
@@ -6444,37 +6249,8 @@
         </value>
       </values>
     </entry>
-    <entry name="-o-animation-timing-function" restriction="enum" version="3.0" browsers="O12" ref="http://www.w3.org/TR/css3-animations/#animation-timing-function" syntax="div { $(name): ease; }">
+    <entry name="-o-animation-timing-function" restriction="timing-function" version="3.0" browsers="O12" ref="http://www.w3.org/TR/css3-animations/#animation-timing-function" syntax="div { $(name): ease; }">
       <desc>Describes how the animation will progress over one cycle of its duration. See the 'transition-timing-function'.</desc>
-      <values>
-        <value name="cubic-bezier()" version="3.0" browsers="all">
-          <desc>Specifies a cubic-bezier curve. The four values specify points P1 and P2  of the curve as (x1, y1, x2, y2). All values must be in the range [0, 1].</desc>
-        </value>
-        <value name="ease" version="3.0" browsers="all">
-          <desc>Equivalent to cubic-bezier(0.25, 0.1, 0.25, 1.0).</desc>
-        </value>
-        <value name="ease-in" version="3.0" browsers="all">
-          <desc>Equivalent to cubic-bezier(0.42, 0, 1.0, 1.0).</desc>
-        </value>
-        <value name="ease-in-out" version="3.0" browsers="all">
-          <desc>Equivalent to cubic-bezier(0.42, 0, 0.58, 1.0).</desc>
-        </value>
-        <value name="ease-out" version="3.0" browsers="all">
-          <desc>Equivalent to cubic-bezier(0, 0, 0.58, 1.0).</desc>
-        </value>
-        <value name="linear" version="3.0" browsers="all">
-          <desc>Equivalent to cubic-bezier(0.0, 0.0, 1.0, 1.0).</desc>
-        </value>
-        <value name="step-end" version="3.0" browsers="all">
-          <desc>The step-end function is equivalent to steps(1, end).</desc>
-        </value>
-        <value name="steps(1, start)" version="3.0" browsers="all">
-          <desc>The first parameter specifies the number of intervals in the function. The second parameter, which is optional, is either the value 'start' or 'end'.</desc>
-        </value>
-        <value name="step-start" version="3.0" browsers="all">
-          <desc>The step-start function is equivalent to steps(1, start).</desc>
-        </value>
-      </values>
     </entry>
     <entry name="object-fit" restriction="enum" version="3.0" browsers="C32,FF36,O19,S7.1" ref="http://www.w3.org/TR/css-images/#object-fit" syntax="p { $(name): cover; }">
       <desc>Specifies how the contents of a replaced element should be scaled relative to the box established by its used height and width.</desc>
@@ -6641,41 +6417,14 @@
     <entry name="-o-transform-origin" restriction="positon, length, percentage" version="3.0" browsers="O10.5" ref="http://www.w3.org/TR/css3-2d-transforms/#transform-origin" syntax="div { $(name): 20% 40%; }">
       <desc>Establishes the origin of transformation for an element.</desc>
     </entry>
-    <entry name="-o-transition" restriction="time, property, enum" version="3.0" browsers="O11.5" ref="http://www.w3.org/TR/css3-transitions/#transition" syntax="div { $(name): background-color linear 1s; }">
+    <entry name="-o-transition" restriction="time, property, timing-function, enum" version="3.0" browsers="O11.5" ref="http://www.w3.org/TR/css3-transitions/#transition" syntax="div { $(name): background-color linear 1s; }">
       <desc>Shorthand property combines four of the transition properties into a single property.</desc>
       <values>
         <value name="all" version="3.0" browsers="all">
           <desc>Every property that is able to undergo a transition will do so.</desc>
         </value>
-        <value name="cubic-bezier()" version="3.0" browsers="all">
-          <desc>Specifies a cubic-bezier curve. The four values specify points P1 and P2  of the curve as (x1, y1, x2, y2). All values must be in the range [0, 1].</desc>
-        </value>
-        <value name="ease" version="3.0" browsers="all">
-          <desc>Equivalent to cubic-bezier(0.25, 0.1, 0.25, 1.0).</desc>
-        </value>
-        <value name="ease-in" version="3.0" browsers="all">
-          <desc>Equivalent to cubic-bezier(0.42, 0, 1.0, 1.0).</desc>
-        </value>
-        <value name="ease-in-out" version="3.0" browsers="all">
-          <desc>Equivalent to cubic-bezier(0.42, 0, 0.58, 1.0).</desc>
-        </value>
-        <value name="ease-out" version="3.0" browsers="all">
-          <desc>Equivalent to cubic-bezier(0, 0, 0.58, 1.0).</desc>
-        </value>
-        <value name="linear" version="3.0" browsers="all">
-          <desc>Equivalent to cubic-bezier(0.0, 0.0, 1.0, 1.0).</desc>
-        </value>
         <value name="none" version="3.0" browsers="all">
           <desc>No property will transition.</desc>
-        </value>
-        <value name="step-end" version="3.0" browsers="all">
-          <desc>The step-end function is equivalent to steps(1, end).</desc>
-        </value>
-        <value name="steps(1, start)" version="3.0" browsers="all">
-          <desc>The first parameter specifies the number of intervals in the function. The second parameter, which is optional, is either the value 'start' or 'end'.</desc>
-        </value>
-        <value name="step-start" version="3.0" browsers="all">
-          <desc>The step-start function is equivalent to steps(1, start).</desc>
         </value>
       </values>
     </entry>
@@ -6696,37 +6445,8 @@
         </value>
       </values>
     </entry>
-    <entry name="-o-transition-timing-function" restriction="enum" version="3.0" browsers="O11.5" ref="http://www.w3.org/TR/css3-transitions/#transition-timing-function" syntax="div { $(name): linear; }">
+    <entry name="-o-transition-timing-function" restriction="timing-function" version="3.0" browsers="O11.5" ref="http://www.w3.org/TR/css3-transitions/#transition-timing-function" syntax="div { $(name): linear; }">
       <desc>Describes how the intermediate values used during a transition will be calculated.</desc>
-      <values>
-        <value name="cubic-bezier()" version="3.0" browsers="all">
-          <desc>Specifies a cubic-bezier curve. The four values specify points P1 and P2  of the curve as (x1, y1, x2, y2). All values must be in the range [0, 1].</desc>
-        </value>
-        <value name="ease" version="3.0" browsers="all">
-          <desc>Equivalent to cubic-bezier(0.25, 0.1, 0.25, 1.0).</desc>
-        </value>
-        <value name="ease-in" version="3.0" browsers="all">
-          <desc>Equivalent to cubic-bezier(0.42, 0, 1.0, 1.0).</desc>
-        </value>
-        <value name="ease-in-out" version="3.0" browsers="all">
-          <desc>Equivalent to cubic-bezier(0.42, 0, 0.58, 1.0).</desc>
-        </value>
-        <value name="ease-out" version="3.0" browsers="all">
-          <desc>Equivalent to cubic-bezier(0, 0, 0.58, 1.0).</desc>
-        </value>
-        <value name="linear" version="3.0" browsers="all">
-          <desc>Equivalent to cubic-bezier(0.0, 0.0, 1.0, 1.0).</desc>
-        </value>
-        <value name="step-end" version="3.0" browsers="all">
-          <desc>The step-end function is equivalent to steps(1, end).</desc>
-        </value>
-        <value name="steps(1, start)" version="3.0" browsers="all">
-          <desc>The first parameter specifies the number of intervals in the function. The second parameter, which is optional, is either the value 'start' or 'end'.</desc>
-        </value>
-        <value name="step-start" version="3.0" browsers="all">
-          <desc>The step-start function is equivalent to steps(1, start).</desc>
-        </value>
-      </values>
     </entry>
     <entry name="offset-block-end" restriction="length, percentage" version="3.0" browsers="FF41" ref="https://drafts.csswg.org/css-logical-props/#logical-prop" syntax="article { $(name): 50px; }">
       <desc>Logical 'bottom'. Mapping depends on the parent element’s 'writing-mode', 'direction', and 'text-orientation'.</desc>
@@ -8334,41 +8054,14 @@
         </value>
       </values>
     </entry>
-    <entry name="transition" restriction="time, property, enum" version="3.0" browsers="E,FF16,IE10,O12.5" ref="http://www.w3.org/TR/css3-transitions/#transition" syntax="div { $(name): background-color linear 1s; }">
+    <entry name="transition" restriction="time, property, timing-function, enum" version="3.0" browsers="E,FF16,IE10,O12.5" ref="http://www.w3.org/TR/css3-transitions/#transition" syntax="div { $(name): background-color linear 1s; }">
       <desc>Shorthand property combines four of the transition properties into a single property.</desc>
       <values>
         <value name="all" version="3.0" browsers="all">
           <desc>Every property that is able to undergo a transition will do so.</desc>
         </value>
-        <value name="cubic-bezier()" version="3.0" browsers="all">
-          <desc>Specifies a cubic-bezier curve. The four values specify points P1 and P2  of the curve as (x1, y1, x2, y2). All values must be in the range [0, 1].</desc>
-        </value>
-        <value name="ease" version="3.0" browsers="all">
-          <desc>Equivalent to cubic-bezier(0.25, 0.1, 0.25, 1.0).</desc>
-        </value>
-        <value name="ease-in" version="3.0" browsers="all">
-          <desc>Equivalent to cubic-bezier(0.42, 0, 1.0, 1.0).</desc>
-        </value>
-        <value name="ease-in-out" version="3.0" browsers="all">
-          <desc>Equivalent to cubic-bezier(0.42, 0, 0.58, 1.0).</desc>
-        </value>
-        <value name="ease-out" version="3.0" browsers="all">
-          <desc>Equivalent to cubic-bezier(0, 0, 0.58, 1.0).</desc>
-        </value>
-        <value name="linear" version="3.0" browsers="all">
-          <desc>Equivalent to cubic-bezier(0.0, 0.0, 1.0, 1.0).</desc>
-        </value>
         <value name="none" version="3.0" browsers="all">
           <desc>No property will transition.</desc>
-        </value>
-        <value name="step-end" version="3.0" browsers="all">
-          <desc>The step-end function is equivalent to steps(1, end).</desc>
-        </value>
-        <value name="steps(1, start)" version="3.0" browsers="all">
-          <desc>The first parameter specifies the number of intervals in the function. The second parameter, which is optional, is either the value 'start' or 'end'.</desc>
-        </value>
-        <value name="step-start" version="3.0" browsers="all">
-          <desc>The step-start function is equivalent to steps(1, start).</desc>
         </value>
       </values>
     </entry>
@@ -8389,109 +8082,8 @@
         </value>
       </values>
     </entry>
-    <entry name="transition-timing-function" restriction="enum" version="3.0" browsers="E,FF16,IE10,O12.5" ref="http://www.w3.org/TR/css3-transitions/#transition-timing-function" syntax="div { $(name): linear; }">
+    <entry name="transition-timing-function" restriction="timing-function" version="3.0" browsers="E,FF16,IE10,O12.5" ref="http://www.w3.org/TR/css3-transitions/#transition-timing-function" syntax="div { $(name): linear; }">
       <desc>Describes how the intermediate values used during a transition will be calculated.</desc>
-      <values>
-        <value name="cubic-bezier()" version="3.0" browsers="all">
-          <desc>Specifies a cubic-bezier curve. The four values specify points P1 and P2  of the curve as (x1, y1, x2, y2). All values must be in the range [0, 1].</desc>
-        </value>
-        <value name="cubic-bezier(0.6, -0.28, 0.735, 0.045)" version="3.0" browsers="all">
-          <desc>Ease-in Back. Overshoots.</desc>
-        </value>
-        <value name="cubic-bezier(0.68, -0.55, 0.265, 1.55)" version="3.0" browsers="all">
-          <desc>Ease-in-out Back. Overshoots.</desc>
-        </value>
-        <value name="cubic-bezier(0.175, 0.885, 0.32, 1.275)" version="3.0" browsers="all">
-          <desc>Ease-out Back. Overshoots.</desc>
-        </value>
-        <value name="cubic-bezier(0.6, 0.04, 0.98, 0.335)" version="3.0" browsers="all">
-          <desc>Ease-in Circular. Based on half circle.</desc>
-        </value>
-        <value name="cubic-bezier(0.785, 0.135, 0.15, 0.86)" version="3.0" browsers="all">
-          <desc>Ease-in-out Circular. Based on half circle.</desc>
-        </value>
-        <value name="cubic-bezier(0.075, 0.82, 0.165, 1)" version="3.0" browsers="all">
-          <desc>Ease-out Circular. Based on half circle.</desc>
-        </value>
-        <value name="cubic-bezier(0.55, 0.055, 0.675, 0.19)" version="3.0" browsers="all">
-          <desc>Ease-in Cubic. Based on power of three.</desc>
-        </value>
-        <value name="cubic-bezier(0.645, 0.045, 0.355, 1)" version="3.0" browsers="all">
-          <desc>Ease-in-out Cubic. Based on power of three.</desc>
-        </value>
-        <value name="cubic-bezier(0.215, 0.610, 0.355, 1)" version="3.0" browsers="all">
-          <desc>Ease-out Cubic. Based on power of three.</desc>
-        </value>
-        <value name="cubic-bezier(0.95, 0.05, 0.795, 0.035)" version="3.0" browsers="all">
-          <desc>Ease-in Exponential. Based on two to the power ten.</desc>
-        </value>
-        <value name="cubic-bezier(1, 0, 0, 1)" version="3.0" browsers="all">
-          <desc>Ease-in-out Exponential. Based on two to the power ten.</desc>
-        </value>
-        <value name="cubic-bezier(0.19, 1, 0.22, 1)" version="3.0" browsers="all">
-          <desc>Ease-out Exponential. Based on two to the power ten.</desc>
-        </value>
-        <value name="cubic-bezier(0.47, 0, 0.745, 0.715)" version="3.0" browsers="all">
-          <desc>Ease-in Sine.</desc>
-        </value>
-        <value name="cubic-bezier(0.445, 0.05, 0.55, 0.95)" version="3.0" browsers="all">
-          <desc>Ease-in-out Sine.</desc>
-        </value>
-        <value name="cubic-bezier(0.39, 0.575, 0.565, 1)" version="3.0" browsers="all">
-          <desc>Ease-out Sine.</desc>
-        </value>
-        <value name="cubic-bezier(0.55, 0.085, 0.68, 0.53)" version="3.0" browsers="all">
-          <desc>Ease-in Quadratic. Based on power of two.</desc>
-        </value>
-        <value name="cubic-bezier(0.455, 0.03, 0.515, 0.955)" version="3.0" browsers="all">
-          <desc>Ease-in-out Quadratic. Based on power of two.</desc>
-        </value>
-        <value name="cubic-bezier(0.25, 0.46, 0.45, 0.94)" version="3.0" browsers="all">
-          <desc>Ease-out Quadratic. Based on power of two.</desc>
-        </value>
-        <value name="cubic-bezier(0.895, 0.03, 0.685, 0.22)" version="3.0" browsers="all">
-          <desc>Ease-in Quartic. Based on power of four.</desc>
-        </value>
-        <value name="cubic-bezier(0.77, 0, 0.175, 1)" version="3.0" browsers="all">
-          <desc>Ease-in-out Quartic. Based on power of four.</desc>
-        </value>
-        <value name="cubic-bezier(0.165, 0.84, 0.44, 1)" version="3.0" browsers="all">
-          <desc>Ease-out Quartic. Based on power of four.</desc>
-        </value>
-        <value name="cubic-bezier(0.755, 0.05, 0.855, 0.06)" version="3.0" browsers="all">
-          <desc>Ease-in Quintic. Based on power of five.</desc>
-        </value>
-        <value name="cubic-bezier(0.86, 0, 0.07, 1)" version="3.0" browsers="all">
-          <desc>Ease-in-out Quintic. Based on power of five.</desc>
-        </value>
-        <value name="cubic-bezier(0.23, 1, 0.320, 1)" version="3.0" browsers="all">
-          <desc>Ease-out Quintic. Based on power of five.</desc>
-        </value>
-        <value name="ease" version="3.0" browsers="all">
-          <desc>Equivalent to cubic-bezier(0.25, 0.1, 0.25, 1.0).</desc>
-        </value>
-        <value name="ease-in" version="3.0" browsers="all">
-          <desc>Equivalent to cubic-bezier(0.42, 0, 1.0, 1.0).</desc>
-        </value>
-        <value name="ease-in-out" version="3.0" browsers="all">
-          <desc>Equivalent to cubic-bezier(0.42, 0, 0.58, 1.0).</desc>
-        </value>
-        <value name="ease-out" version="3.0" browsers="all">
-          <desc>Equivalent to cubic-bezier(0, 0, 0.58, 1.0).</desc>
-        </value>
-        <value name="linear" version="3.0" browsers="all">
-          <desc>Equivalent to cubic-bezier(0.0, 0.0, 1.0, 1.0).</desc>
-        </value>
-        <value name="step-end" version="3.0" browsers="all">
-          <desc>The step-end function is equivalent to steps(1, end).</desc>
-        </value>
-        <value name="steps(1, start)" version="3.0" browsers="all">
-          <desc>The first parameter specifies the number of intervals in the function. The second parameter, which is optional, is either the value 'start' or 'end'.</desc>
-        </value>
-        <value name="step-start" version="3.0" browsers="all">
-          <desc>The step-start function is equivalent to steps(1, start).</desc>
-        </value>
-      </values>
     </entry>
     <entry name="unicode-bidi" restriction="enum" version="2.0" browsers="all" ref="http://www.w3.org/TR/css-writing-modes-3/#unicode-bidi" syntax="p { $(name): embed; }">
       <desc>The level of embedding with respect to the bidirectional algorithm.</desc>
@@ -9021,7 +8613,7 @@
         </value>
       </values>
     </entry>
-    <entry name="-webkit-animation" restriction="time, enum, identifier, number" version="3.0" browsers="C,S5" ref="http://www.w3.org/TR/css3-animations/#animation" syntax="div { $(name): movearound 4s ease 3 normal; }">
+    <entry name="-webkit-animation" restriction="time, enum, timing-function, identifier, number" version="3.0" browsers="C,S5" ref="http://www.w3.org/TR/css3-animations/#animation" syntax="div { $(name): movearound 4s ease 3 normal; }">
       <desc>Shorthand property combines six of the animation properties into a single property.</desc>
       <values>
         <value name="alternate" version="3.0" browsers="all">
@@ -9036,29 +8628,11 @@
         <value name="both" version="3.0" browsers="all">
           <desc>Both forwards and backwards fill modes are applied.</desc>
         </value>
-        <value name="cubic-bezier()" version="3.0" browsers="all">
-          <desc>Specifies a cubic-bezier curve. The four values specify points P1 and P2  of the curve as (x1, y1, x2, y2). All values must be in the range [0, 1].</desc>
-        </value>
-        <value name="ease" version="3.0" browsers="all">
-          <desc>Equivalent to cubic-bezier(0.25, 0.1, 0.25, 1.0).</desc>
-        </value>
-        <value name="ease-in" version="3.0" browsers="all">
-          <desc>Equivalent to cubic-bezier(0.42, 0, 1.0, 1.0).</desc>
-        </value>
-        <value name="ease-in-out" version="3.0" browsers="all">
-          <desc>Equivalent to cubic-bezier(0.42, 0, 0.58, 1.0).</desc>
-        </value>
-        <value name="ease-out" version="3.0" browsers="all">
-          <desc>Equivalent to cubic-bezier(0, 0, 0.58, 1.0).</desc>
-        </value>
         <value name="forwards" version="3.0" browsers="all">
           <desc>The final property value (as defined in the last @keyframes at-rule) is maintained after the animation completes.</desc>
         </value>
         <value name="infinite" version="3.0" browsers="all">
           <desc>Causes the animation to repeat forever.</desc>
-        </value>
-        <value name="linear" version="3.0" browsers="all">
-          <desc>Equivalent to cubic-bezier(0.0, 0.0, 1.0, 1.0).</desc>
         </value>
         <value name="none" version="3.0" browsers="all">
           <desc>No animation is performed</desc>
@@ -9068,15 +8642,6 @@
         </value>
         <value name="reverse" version="3.0" browsers="all">
           <desc>All iterations of the animation are played in the reverse direction from the way they were specified.</desc>
-        </value>
-        <value name="step-end" version="3.0" browsers="all">
-          <desc>The step-end function is equivalent to steps(1, end).</desc>
-        </value>
-        <value name="steps(1, start)" version="3.0" browsers="all">
-          <desc>The first parameter specifies the number of intervals in the function. The second parameter, which is optional, is either the value 'start' or 'end'.</desc>
-        </value>
-        <value name="step-start" version="3.0" browsers="all">
-          <desc>The step-start function is equivalent to steps(1, start).</desc>
         </value>
       </values>
     </entry>
@@ -9147,37 +8712,8 @@
         </value>
       </values>
     </entry>
-    <entry name="-webkit-animation-timing-function" restriction="enum" version="3.0" browsers="C,S5" ref="http://www.w3.org/TR/css3-animations/#animation-timing-function" syntax="div { $(name): ease; }">
+    <entry name="-webkit-animation-timing-function" restriction="timing-function" version="3.0" browsers="C,S5" ref="http://www.w3.org/TR/css3-animations/#animation-timing-function" syntax="div { $(name): ease; }">
       <desc>Describes how the animation will progress over one cycle of its duration. See the 'transition-timing-function'.</desc>
-      <values>
-        <value name="cubic-bezier()" version="3.0" browsers="all">
-          <desc>Specifies a cubic-bezier curve. The four values specify points P1 and P2  of the curve as (x1, y1, x2, y2). All values must be in the range [0, 1].</desc>
-        </value>
-        <value name="ease" version="3.0" browsers="all">
-          <desc>Equivalent to cubic-bezier(0.25, 0.1, 0.25, 1.0).</desc>
-        </value>
-        <value name="ease-in" version="3.0" browsers="all">
-          <desc>Equivalent to cubic-bezier(0.42, 0, 1.0, 1.0).</desc>
-        </value>
-        <value name="ease-in-out" version="3.0" browsers="all">
-          <desc>Equivalent to cubic-bezier(0.42, 0, 0.58, 1.0).</desc>
-        </value>
-        <value name="ease-out" version="3.0" browsers="all">
-          <desc>Equivalent to cubic-bezier(0, 0, 0.58, 1.0).</desc>
-        </value>
-        <value name="linear" version="3.0" browsers="all">
-          <desc>Equivalent to cubic-bezier(0.0, 0.0, 1.0, 1.0).</desc>
-        </value>
-        <value name="step-end" version="3.0" browsers="all">
-          <desc>The step-end function is equivalent to steps(1, end).</desc>
-        </value>
-        <value name="steps(1, start)" version="3.0" browsers="all">
-          <desc>The first parameter specifies the number of intervals in the function. The second parameter, which is optional, is either the value 'start' or 'end'.</desc>
-        </value>
-        <value name="step-start" version="3.0" browsers="all">
-          <desc>The step-start function is equivalent to steps(1, start).</desc>
-        </value>
-      </values>
     </entry>
     <entry name="-webkit-appearance" restriction="enum" version="3.0" browsers="C,S3" ref="http://css-infos.net/property/-webkit-appearance" syntax="h3 { $(name): button; }">
       <desc>Changes the appearance of buttons and other controls to resemble native controls.</desc>
@@ -9954,41 +9490,14 @@
         </value>
       </values>
     </entry>
-    <entry name="-webkit-transition" restriction="time, property, enum" version="3.0" browsers="C,O12,S5" ref="http://www.w3.org/TR/css3-transitions/#transition" syntax="div { $(name): background-color linear 1s; }">
+    <entry name="-webkit-transition" restriction="time, property, timing-function, enum" version="3.0" browsers="C,O12,S5" ref="http://www.w3.org/TR/css3-transitions/#transition" syntax="div { $(name): background-color linear 1s; }">
       <desc>Shorthand property combines four of the transition properties into a single property.</desc>
       <values>
         <value name="all" version="3.0" browsers="all">
           <desc>Every property that is able to undergo a transition will do so.</desc>
         </value>
-        <value name="cubic-bezier()" version="3.0" browsers="all">
-          <desc>Specifies a cubic-bezier curve. The four values specify points P1 and P2  of the curve as (x1, y1, x2, y2). All values must be in the range [0, 1].</desc>
-        </value>
-        <value name="ease" version="3.0" browsers="all">
-          <desc>Equivalent to cubic-bezier(0.25, 0.1, 0.25, 1.0).</desc>
-        </value>
-        <value name="ease-in" version="3.0" browsers="all">
-          <desc>Equivalent to cubic-bezier(0.42, 0, 1.0, 1.0).</desc>
-        </value>
-        <value name="ease-in-out" version="3.0" browsers="all">
-          <desc>Equivalent to cubic-bezier(0.42, 0, 0.58, 1.0).</desc>
-        </value>
-        <value name="ease-out" version="3.0" browsers="all">
-          <desc>Equivalent to cubic-bezier(0, 0, 0.58, 1.0).</desc>
-        </value>
-        <value name="linear" version="3.0" browsers="all">
-          <desc>Equivalent to cubic-bezier(0.0, 0.0, 1.0, 1.0).</desc>
-        </value>
         <value name="none" version="3.0" browsers="all">
           <desc>No property will transition.</desc>
-        </value>
-        <value name="step-end" version="3.0" browsers="all">
-          <desc>The step-end function is equivalent to steps(1, end).</desc>
-        </value>
-        <value name="steps(1, start)" version="3.0" browsers="all">
-          <desc>The first parameter specifies the number of intervals in the function. The second parameter, which is optional, is either the value 'start' or 'end'.</desc>
-        </value>
-        <value name="step-start" version="3.0" browsers="all">
-          <desc>The step-start function is equivalent to steps(1, start).</desc>
         </value>
       </values>
     </entry>
@@ -10009,37 +9518,8 @@
         </value>
       </values>
     </entry>
-    <entry name="-webkit-transition-timing-function" restriction="enum" version="3.0" browsers="C,O12,S5" ref="http://www.w3.org/TR/css3-transitions/#transition-timing-function" syntax="div { $(name): linear; }">
+    <entry name="-webkit-transition-timing-function" restriction="timing-function" version="3.0" browsers="C,O12,S5" ref="http://www.w3.org/TR/css3-transitions/#transition-timing-function" syntax="div { $(name): linear; }">
       <desc>Describes how the intermediate values used during a transition will be calculated.</desc>
-      <values>
-        <value name="cubic-bezier()" version="3.0" browsers="all">
-          <desc>Specifies a cubic-bezier curve. The four values specify points P1 and P2  of the curve as (x1, y1, x2, y2). All values must be in the range [0, 1].</desc>
-        </value>
-        <value name="ease" version="3.0" browsers="all">
-          <desc>Equivalent to cubic-bezier(0.25, 0.1, 0.25, 1.0).</desc>
-        </value>
-        <value name="ease-in" version="3.0" browsers="all">
-          <desc>Equivalent to cubic-bezier(0.42, 0, 1.0, 1.0).</desc>
-        </value>
-        <value name="ease-in-out" version="3.0" browsers="all">
-          <desc>Equivalent to cubic-bezier(0.42, 0, 0.58, 1.0).</desc>
-        </value>
-        <value name="ease-out" version="3.0" browsers="all">
-          <desc>Equivalent to cubic-bezier(0, 0, 0.58, 1.0).</desc>
-        </value>
-        <value name="linear" version="3.0" browsers="all">
-          <desc>Equivalent to cubic-bezier(0.0, 0.0, 1.0, 1.0).</desc>
-        </value>
-        <value name="step-end" version="3.0" browsers="all">
-          <desc>The step-end function is equivalent to steps(1, end).</desc>
-        </value>
-        <value name="steps(1, start)" version="3.0" browsers="all">
-          <desc>The first parameter specifies the number of intervals in the function. The second parameter, which is optional, is either the value 'start' or 'end'.</desc>
-        </value>
-        <value name="step-start" version="3.0" browsers="all">
-          <desc>The step-start function is equivalent to steps(1, start).</desc>
-        </value>
-      </values>
     </entry>
     <entry name="-webkit-user-drag" restriction="enum" version="3.0" browsers="S3" syntax="div { $(name): element; }">
       <values>

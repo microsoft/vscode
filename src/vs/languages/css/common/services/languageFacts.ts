@@ -268,6 +268,42 @@ export var imageFunctions : { [name:string]:string } = {
 	'repeating-radial-gradient()': 'Same as radial-gradient, except the color-stops are repeated infinitely in both directions, with their positions shifted by multiples of the difference between the last specified color-stop’s position and the first specified color-stop’s position.'
 };
 
+export var transitionTimingFunctions : { [name:string]:string } = {
+	'ease': 'Equivalent to cubic-bezier(0.25, 0.1, 0.25, 1.0).',
+	'ease-in': 'Equivalent to cubic-bezier(0.42, 0, 1.0, 1.0).',
+	'ease-in-out': 'Equivalent to cubic-bezier(0.42, 0, 0.58, 1.0).',
+	'ease-out': 'Equivalent to cubic-bezier(0, 0, 0.58, 1.0).',
+	'linear': 'Equivalent to cubic-bezier(0.0, 0.0, 1.0, 1.0).',
+	'step-end': 'Equivalent to steps(1, end).',
+	'step-start': 'Equivalent to steps(1, start).',
+	'steps()': 'The first parameter specifies the number of intervals in the function. The second parameter, which is optional, is either the value “start” or “end”.',
+	'cubic-bezier()': 'Specifies a cubic-bezier curve. The four values specify points P1 and P2  of the curve as (x1, y1, x2, y2).',
+	'cubic-bezier(0.6, -0.28, 0.735, 0.045)': 'Ease-in Back. Overshoots.',
+	'cubic-bezier(0.68, -0.55, 0.265, 1.55)': 'Ease-in-out Back. Overshoots.',
+	'cubic-bezier(0.175, 0.885, 0.32, 1.275)': 'Ease-out Back. Overshoots.',
+	'cubic-bezier(0.6, 0.04, 0.98, 0.335)': 'Ease-in Circular. Based on half circle.',
+	'cubic-bezier(0.785, 0.135, 0.15, 0.86)': 'Ease-in-out Circular. Based on half circle.',
+	'cubic-bezier(0.075, 0.82, 0.165, 1)': 'Ease-out Circular. Based on half circle.',
+	'cubic-bezier(0.55, 0.055, 0.675, 0.19)': 'Ease-in Cubic. Based on power of three.',
+	'cubic-bezier(0.645, 0.045, 0.355, 1)': 'Ease-in-out Cubic. Based on power of three.',
+	'cubic-bezier(0.215, 0.610, 0.355, 1)': 'Ease-out Cubic. Based on power of three.',
+	'cubic-bezier(0.95, 0.05, 0.795, 0.035)': 'Ease-in Exponential. Based on two to the power ten.',
+	'cubic-bezier(1, 0, 0, 1)': 'Ease-in-out Exponential. Based on two to the power ten.',
+	'cubic-bezier(0.19, 1, 0.22, 1)': 'Ease-out Exponential. Based on two to the power ten.',
+	'cubic-bezier(0.47, 0, 0.745, 0.715)': 'Ease-in Sine.',
+	'cubic-bezier(0.445, 0.05, 0.55, 0.95)': 'Ease-in-out Sine.',
+	'cubic-bezier(0.39, 0.575, 0.565, 1)': 'Ease-out Sine.',
+	'cubic-bezier(0.55, 0.085, 0.68, 0.53)': 'Ease-in Quadratic. Based on power of two.',
+	'cubic-bezier(0.455, 0.03, 0.515, 0.955)': 'Ease-in-out Quadratic. Based on power of two.',
+	'cubic-bezier(0.25, 0.46, 0.45, 0.94)': 'Ease-out Quadratic. Based on power of two.',
+	'cubic-bezier(0.895, 0.03, 0.685, 0.22)': 'Ease-in Quartic. Based on power of four.',
+	'cubic-bezier(0.77, 0, 0.175, 1)': 'Ease-in-out Quartic. Based on power of four.',
+	'cubic-bezier(0.165, 0.84, 0.44, 1)': 'Ease-out Quartic. Based on power of four.',
+	'cubic-bezier(0.755, 0.05, 0.855, 0.06)': 'Ease-in Quintic. Based on power of five.',
+	'cubic-bezier(0.86, 0, 0.07, 1)': 'Ease-in-out Quintic. Based on power of five.',
+	'cubic-bezier(0.23, 1, 0.320, 1)': 'Ease-out Quintic. Based on power of five.'
+};
+
 export var basicShapeFunctions : { [name:string]:string } = {
 	'circle()': 'Defines a circle.',
 	'ellipse()': 'Defines an ellipse.',
