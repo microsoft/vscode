@@ -6,7 +6,7 @@
 
 import {TPromise, Promise} from 'vs/base/common/winjs.base';
 import types = require('vs/base/common/types');
-import {EndOfLinePreference, IModel} from 'vs/editor/common/editorCommon';
+import {EndOfLinePreference, IModel, EventType} from 'vs/editor/common/editorCommon';
 import {IMode} from 'vs/editor/common/modes';
 import {EditorModel} from 'vs/workbench/common/editor';
 import {Registry} from 'vs/platform/platform';
@@ -32,10 +32,27 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 		super();
 
 		this.textEditorModelHandle = textEditorModelHandle;
+
+		if (textEditorModelHandle) {
+
+			// We need the resource to point to an existing model
+			let model = modelService.getModel(textEditorModelHandle);
+			if (!model) {
+				throw new Error(`Document with resource ${textEditorModelHandle.toString()} does not exist`);
+			}
+
+			// Since we did not create the model, we need to listen to it disposing
+			// and properly trigger our dispose function so that events get emitted
+			const unbind = model.addListener(EventType.ModelDispose, () => {
+				this.textEditorModelHandle = null; // make sure we do not dispose code editor model again
+				unbind();
+				this.dispose();
+			});
+		}
 	}
 
 	public get textEditorModel(): IModel {
-		return this.textEditorModelHandle ? this.modelService.getModel(this.textEditorModelHandle): null;
+		return this.textEditorModelHandle ? this.modelService.getModel(this.textEditorModelHandle) : null;
 	}
 
 	/**
@@ -78,7 +95,7 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 	 *
 	 * @param firstLineText optional first line of the text buffer to set the mode on. This can be used to guess a mode from content.
 	 */
-	protected getOrCreateMode(modeService:IModeService, mime: string, firstLineText?: string): TPromise<IMode> {
+	protected getOrCreateMode(modeService: IModeService, mime: string, firstLineText?: string): TPromise<IMode> {
 		return modeService.getOrCreateMode(mime);
 	}
 

@@ -8,6 +8,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {EditorModel, EditorInput} from 'vs/workbench/common/editor';
 import {ResourceEditorModel} from 'vs/workbench/common/editor/resourceEditorModel';
 import URI from 'vs/base/common/uri';
+import {EventType} from 'vs/base/common/events';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IModelService} from 'vs/editor/common/services/modelService';
 
@@ -53,18 +54,20 @@ export class ResourceEditorInput extends EditorInput {
 
 	public resolve(refresh?: boolean): TPromise<EditorModel> {
 
-		// We need the resource to point to an existing model
-		if (!this.modelService.getModel(this.resource)) {
-			return TPromise.wrapError(new Error(`Document with resource ${this.resource.toString()} does not exist`));
-		}
-
 		// Use Cached Model
 		if (this.cachedModel) {
 			return TPromise.as<EditorModel>(this.cachedModel);
 		}
 
-		//Otherwise Create Model and Load
+		//Otherwise Create Model and handle dispose event
 		let model = this.instantiationService.createInstance(ResourceEditorModel, this.resource);
+		const unbind = model.addListener(EventType.DISPOSE, () => {
+			this.cachedModel = null; // make sure we do not dispose model again
+			unbind();
+			this.dispose();
+		});
+
+		// Load it
 		return model.load().then((resolvedModel: ResourceEditorModel) => {
 			this.cachedModel = resolvedModel;
 
