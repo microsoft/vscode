@@ -8395,6 +8395,78 @@
         <value name="cubic-bezier()" version="3.0" browsers="all">
           <desc>Specifies a cubic-bezier curve. The four values specify points P1 and P2  of the curve as (x1, y1, x2, y2). All values must be in the range [0, 1].</desc>
         </value>
+        <value name="cubic-bezier(0.6, -0.28, 0.735, 0.045)" version="3.0" browsers="all">
+          <desc>Ease-in Back. Overshoots.</desc>
+        </value>
+        <value name="cubic-bezier(0.68, -0.55, 0.265, 1.55)" version="3.0" browsers="all">
+          <desc>Ease-in-out Back. Overshoots.</desc>
+        </value>
+        <value name="cubic-bezier(0.175, 0.885, 0.32, 1.275)" version="3.0" browsers="all">
+          <desc>Ease-out Back. Overshoots.</desc>
+        </value>
+        <value name="cubic-bezier(0.6, 0.04, 0.98, 0.335)" version="3.0" browsers="all">
+          <desc>Ease-in Circular. Based on half circle.</desc>
+        </value>
+        <value name="cubic-bezier(0.785, 0.135, 0.15, 0.86)" version="3.0" browsers="all">
+          <desc>Ease-in-out Circular. Based on half circle.</desc>
+        </value>
+        <value name="cubic-bezier(0.075, 0.82, 0.165, 1)" version="3.0" browsers="all">
+          <desc>Ease-out Circular. Based on half circle.</desc>
+        </value>
+        <value name="cubic-bezier(0.55, 0.055, 0.675, 0.19)" version="3.0" browsers="all">
+          <desc>Ease-in Cubic. Based on power of three.</desc>
+        </value>
+        <value name="cubic-bezier(0.645, 0.045, 0.355, 1)" version="3.0" browsers="all">
+          <desc>Ease-in-out Cubic. Based on power of three.</desc>
+        </value>
+        <value name="cubic-bezier(0.215, 0.610, 0.355, 1)" version="3.0" browsers="all">
+          <desc>Ease-out Cubic. Based on power of three.</desc>
+        </value>
+        <value name="cubic-bezier(0.95, 0.05, 0.795, 0.035)" version="3.0" browsers="all">
+          <desc>Ease-in Exponential. Based on two to the power ten.</desc>
+        </value>
+        <value name="cubic-bezier(1, 0, 0, 1)" version="3.0" browsers="all">
+          <desc>Ease-in-out Exponential. Based on two to the power ten.</desc>
+        </value>
+        <value name="cubic-bezier(0.19, 1, 0.22, 1)" version="3.0" browsers="all">
+          <desc>Ease-out Exponential. Based on two to the power ten.</desc>
+        </value>
+        <value name="cubic-bezier(0.47, 0, 0.745, 0.715)" version="3.0" browsers="all">
+          <desc>Ease-in Sine.</desc>
+        </value>
+        <value name="cubic-bezier(0.445, 0.05, 0.55, 0.95)" version="3.0" browsers="all">
+          <desc>Ease-in-out Sine.</desc>
+        </value>
+        <value name="cubic-bezier(0.39, 0.575, 0.565, 1)" version="3.0" browsers="all">
+          <desc>Ease-out Sine.</desc>
+        </value>
+        <value name="cubic-bezier(0.55, 0.085, 0.68, 0.53)" version="3.0" browsers="all">
+          <desc>Ease-in Quadratic. Based on power of two.</desc>
+        </value>
+        <value name="cubic-bezier(0.455, 0.03, 0.515, 0.955)" version="3.0" browsers="all">
+          <desc>Ease-in-out Quadratic. Based on power of two.</desc>
+        </value>
+        <value name="cubic-bezier(0.25, 0.46, 0.45, 0.94)" version="3.0" browsers="all">
+          <desc>Ease-out Quadratic. Based on power of two.</desc>
+        </value>
+        <value name="cubic-bezier(0.895, 0.03, 0.685, 0.22)" version="3.0" browsers="all">
+          <desc>Ease-in Quartic. Based on power of four.</desc>
+        </value>
+        <value name="cubic-bezier(0.77, 0, 0.175, 1)" version="3.0" browsers="all">
+          <desc>Ease-in-out Quartic. Based on power of four.</desc>
+        </value>
+        <value name="cubic-bezier(0.165, 0.84, 0.44, 1)" version="3.0" browsers="all">
+          <desc>Ease-out Quartic. Based on power of four.</desc>
+        </value>
+        <value name="cubic-bezier(0.755, 0.05, 0.855, 0.06)" version="3.0" browsers="all">
+          <desc>Ease-in Quintic. Based on power of five.</desc>
+        </value>
+        <value name="cubic-bezier(0.86, 0, 0.07, 1)" version="3.0" browsers="all">
+          <desc>Ease-in-out Quintic. Based on power of five.</desc>
+        </value>
+        <value name="cubic-bezier(0.23, 1, 0.320, 1)" version="3.0" browsers="all">
+          <desc>Ease-out Quintic. Based on power of five.</desc>
+        </value>
         <value name="ease" version="3.0" browsers="all">
           <desc>Equivalent to cubic-bezier(0.25, 0.1, 0.25, 1.0).</desc>
         </value>
