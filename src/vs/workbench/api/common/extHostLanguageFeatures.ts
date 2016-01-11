@@ -46,7 +46,7 @@ class OutlineAdapter implements IOutlineSupport {
 	}
 
 	getOutline(resource: URI): TPromise<IOutlineEntry[]> {
-		let doc = this._documents.getDocument(resource);
+		let doc = this._documents.getDocumentData(resource).document;
 		return asWinJsPromise(token => this._provider.provideDocumentSymbols(doc, token)).then(value => {
 			if (Array.isArray(value)) {
 				return value.map(TypeConverters.SymbolInformation.toOutlineEntry);
@@ -76,7 +76,7 @@ class CodeLensAdapter implements modes.ICodeLensSupport {
 	}
 
 	findCodeLensSymbols(resource: URI): TPromise<modes.ICodeLensSymbol[]> {
-		const doc = this._documents.getDocument(resource);
+		const doc = this._documents.getDocumentData(resource).document;
 		const version = doc.version;
 		const key = resource.toString();
 
@@ -180,7 +180,7 @@ class DeclarationAdapter implements modes.IDeclarationSupport {
 	}
 
 	findDeclaration(resource: URI, position: IPosition): TPromise<modes.IReference[]> {
-		let doc = this._documents.getDocument(resource);
+		let doc = this._documents.getDocumentData(resource).document;
 		let pos = TypeConverters.toPosition(position);
 		return asWinJsPromise(token => this._provider.provideDefinition(doc, pos, token)).then(value => {
 			if (Array.isArray(value)) {
@@ -214,7 +214,7 @@ class ExtraInfoAdapter implements modes.IExtraInfoSupport {
 
 	computeInfo(resource: URI, position: IPosition): TPromise<modes.IComputeExtraInfoResult> {
 
-		let doc = this._documents.getDocument(resource);
+		let doc = this._documents.getDocumentData(resource).document;
 		let pos = TypeConverters.toPosition(position);
 
 		return asWinJsPromise(token => this._provider.provideHover(doc, pos, token)).then(value => {
@@ -245,7 +245,7 @@ class OccurrencesAdapter implements modes.IOccurrencesSupport {
 
 	findOccurrences(resource: URI, position: IPosition): TPromise<modes.IOccurence[]> {
 
-		let doc = this._documents.getDocument(resource);
+		let doc = this._documents.getDocumentData(resource).document;
 		let pos = TypeConverters.toPosition(position);
 
 		return asWinJsPromise(token => this._provider.provideDocumentHighlights(doc, pos, token)).then(value => {
@@ -278,7 +278,7 @@ class ReferenceAdapter implements modes.IReferenceSupport {
 	}
 
 	findReferences(resource: URI, position: IPosition, includeDeclaration: boolean): TPromise<modes.IReference[]> {
-		let doc = this._documents.getDocument(resource);
+		let doc = this._documents.getDocumentData(resource).document;
 		let pos = TypeConverters.toPosition(position);
 
 		return asWinJsPromise(token => this._provider.provideReferences(doc, pos, { includeDeclaration }, token)).then(value => {
@@ -312,7 +312,7 @@ class QuickFixAdapter implements modes.IQuickFixSupport {
 
 	getQuickFixes(resource: URI, range: IRange, markers?: IMarker[]): TPromise<modes.IQuickFix[]> {
 
-		const doc = this._documents.getDocument(resource);
+		const doc = this._documents.getDocumentData(resource).document;
 		const ran = TypeConverters.toRange(range);
 		const diagnostics = markers.map(marker => {
 			const diag = new Diagnostic(TypeConverters.toRange(marker), marker.message);
@@ -355,7 +355,7 @@ class DocumentFormattingAdapter implements modes.IFormattingSupport {
 
 	formatDocument(resource: URI, options: modes.IFormattingOptions): TPromise<ISingleEditOperation[]> {
 
-		let doc = this._documents.getDocument(resource);
+		let doc = this._documents.getDocumentData(resource).document;
 
 		return asWinJsPromise(token => this._provider.provideDocumentFormattingEdits(doc, <any>options, token)).then(value => {
 			if (Array.isArray(value)) {
@@ -377,7 +377,7 @@ class RangeFormattingAdapter implements modes.IFormattingSupport {
 
 	formatRange(resource: URI, range: IRange, options: modes.IFormattingOptions): TPromise<ISingleEditOperation[]> {
 
-		let doc = this._documents.getDocument(resource);
+		let doc = this._documents.getDocumentData(resource).document;
 		let ran = TypeConverters.toRange(range);
 
 		return asWinJsPromise(token => this._provider.provideDocumentRangeFormattingEdits(doc, ran, <any>options, token)).then(value => {
@@ -402,7 +402,7 @@ class OnTypeFormattingAdapter implements modes.IFormattingSupport {
 
 	formatAfterKeystroke(resource: URI, position: IPosition, ch: string, options: modes.IFormattingOptions): TPromise<ISingleEditOperation[]> {
 
-		let doc = this._documents.getDocument(resource);
+		let doc = this._documents.getDocumentData(resource).document;
 		let pos = TypeConverters.toPosition(position);
 
 		return asWinJsPromise(token => this._provider.provideOnTypeFormattingEdits(doc, pos, ch, <any> options, token)).then(value => {
@@ -442,7 +442,7 @@ class RenameAdapter implements modes.IRenameSupport {
 
 	rename(resource: URI, position: IPosition, newName: string): TPromise<modes.IRenameResult> {
 
-		let doc = this._documents.getDocument(resource);
+		let doc = this._documents.getDocumentData(resource).document;
 		let pos = TypeConverters.toPosition(position);
 
 		return asWinJsPromise(token => this._provider.provideRenameEdits(doc, pos, newName, token)).then(value => {
@@ -497,7 +497,7 @@ class SuggestAdapter implements modes.ISuggestSupport {
 
 	suggest(resource: URI, position: IPosition): TPromise<modes.ISuggestResult[]> {
 
-		const doc = this._documents.getDocument(resource);
+		const doc = this._documents.getDocumentData(resource).document;
 		const pos = TypeConverters.toPosition(position);
 		const ran = doc.getWordRangeAtPosition(pos);
 
@@ -596,7 +596,7 @@ class ParameterHintsAdapter implements modes.IParameterHintsSupport {
 
 	getParameterHints(resource: URI, position: IPosition, triggerCharacter?: string): TPromise<modes.IParameterHints> {
 
-		const doc = this._documents.getDocument(resource);
+		const doc = this._documents.getDocumentData(resource).document;
 		const pos = TypeConverters.toPosition(position);
 
 		return asWinJsPromise(token => this._provider.provideSignatureHelp(doc, pos, token)).then(value => {

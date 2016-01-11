@@ -30,6 +30,7 @@ import {IEditorInput, IResourceInput} from 'vs/platform/editor/common/editor';
 import {IMode} from 'vs/editor/common/modes';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import * as weak from 'weak';
 
 export interface IModelAddedData {
 	url: URI;
@@ -92,38 +93,29 @@ export class ExtHostModelService {
 		this._documentContentProviders = Object.create(null);
 	}
 
-	public getDocuments(): vscode.TextDocument[] {
-		let r: vscode.TextDocument[] = [];
+	public getAllDocumentData(): ExtHostDocumentData[] {
+		const result: ExtHostDocumentData[] = [];
 		for (let key in this._documentData) {
-			r.push(this._documentData[key].document);
+			result.push(this._documentData[key]);
 		}
-		return r;
+		return result;
 	}
 
-	public getDocument(resource: vscode.Uri): vscode.TextDocument {
+	public getDocumentData(resource: vscode.Uri): ExtHostDocumentData {
 		if (!resource) {
-			return null;
+			return;
 		}
 		const data = this._documentData[resource.toString()];
 		if (data) {
-			return data.document;
+			return data;
 		}
 	}
 
-	public openDocument(uriOrFileName: vscode.Uri | string): TPromise<vscode.TextDocument> {
-
-		let uri: URI;
-		if (typeof uriOrFileName === 'string') {
-			uri = URI.file(uriOrFileName);
-		} else if (uriOrFileName instanceof URI) {
-			uri = <URI>uriOrFileName;
-		} else {
-			throw new Error('illegal argument - uriOrFileName');
-		}
+	public ensureDocumentData(uri: URI): TPromise<ExtHostDocumentData> {
 
 		let cached = this._documentData[uri.toString()];
 		if (cached) {
-			return TPromise.as(cached.document);
+			return TPromise.as(cached);
 		}
 
 		let promise = this._documentLoader[uri.toString()];
@@ -138,7 +130,7 @@ export class ExtHostModelService {
 			this._documentLoader[uri.toString()] = promise;
 		}
 
-		return promise.then(data => data.document);
+		return promise;
 	}
 
 	public registerTextDocumentContentProvider(scheme: string, provider: vscode.TextDocumentContentProvider): vscode.Disposable {
@@ -231,7 +223,7 @@ export class ExtHostDocumentData extends MirrorModel2 {
 	private _languageId: string;
 	private _isDirty: boolean;
 	private _textLines: vscode.TextLine[];
-	private _document: vscode.TextDocument;
+	private _documentRef: weak.WeakRef & vscode.TextDocument;
 
 	constructor(proxy: MainThreadDocuments, uri: URI, lines: string[], eol: string,
 		languageId: string, versionId: number, isDirty: boolean) {
@@ -250,27 +242,36 @@ export class ExtHostDocumentData extends MirrorModel2 {
 	}
 
 	get document(): vscode.TextDocument {
-		if (!this._document) {
-			const document = this;
-			this._document = {
-				get uri() { return document._uri },
-				get fileName() { return document._uri.fsPath },
-				get isUntitled() { return document._uri.scheme !== 'file' },
-				get languageId() { return document._languageId },
-				get version() { return document._versionId },
-				get isDirty() { return document._isDirty },
-				save() { return document._proxy._trySaveDocument(document._uri) },
-				getText(range?) { return range ? document._getTextInRange(range) : document.getText() },
-				get lineCount() { return document._lines.length },
-				lineAt(lineOrPos) { return document.lineAt(lineOrPos) },
-				offsetAt(pos) { return document.offsetAt(pos) },
-				positionAt(offset) { return document.positionAt(offset) },
-				validateRange(ran) { return document.validateRange(ran) },
-				validatePosition(pos) { return document.validatePosition(pos) },
-				getWordRangeAtPosition(pos){ return document.getWordRangeAtPosition(pos)}
-			}
+		// dereferences or creates the actual document for this
+		// document data. keeps a weak reference only such that
+		// we later when a document isn't needed anymore
+
+		if (!this.isDocumentReferenced) {
+			const data = this;
+			const doc = {
+				get uri() { return data._uri },
+				get fileName() { return data._uri.fsPath },
+				get isUntitled() { return data._uri.scheme !== 'file' },
+				get languageId() { return data._languageId },
+				get version() { return data._versionId },
+				get isDirty() { return data._isDirty },
+				save() { return data._proxy._trySaveDocument(data._uri) },
+				getText(range?) { return range ? data._getTextInRange(range) : data.getText() },
+				get lineCount() { return data._lines.length },
+				lineAt(lineOrPos) { return data.lineAt(lineOrPos) },
+				offsetAt(pos) { return data.offsetAt(pos) },
+				positionAt(offset) { return data.positionAt(offset) },
+				validateRange(ran) { return data.validateRange(ran) },
+				validatePosition(pos) { return data.validatePosition(pos) },
+				getWordRangeAtPosition(pos) { return data.getWordRangeAtPosition(pos) }
+			};
+			this._documentRef = weak(doc);
 		}
-		return this._document;
+		return weak.get(this._documentRef);
+	}
+
+	get isDocumentReferenced(): boolean {
+		return this._documentRef && !weak.isDead(this._documentRef);
 	}
 
 	_acceptLanguageId(newLanguageId:string): void {

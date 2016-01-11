@@ -244,16 +244,24 @@ export class ExtHostAPIImplementation {
 				return pluginHostFileSystemEvent.createFileSystemWatcher(pattern, ignoreCreate, ignoreChange, ignoreDelete);
 			},
 			get textDocuments() {
-				return pluginHostDocuments.getDocuments();
+				return pluginHostDocuments.getAllDocumentData().map(data => data.document);
 			},
 			set textDocuments(value) {
 				throw errors.readonly();
 			},
-			// createTextDocument(text: string, fileName?: string, language?: string): Thenable<vscode.TextDocument> {
-			// 	return pluginHostDocuments.createDocument(text, fileName, language);
-			// },
-			openTextDocument(uriOrFileName:vscode.Uri | string) {
-				return pluginHostDocuments.openDocument(uriOrFileName);
+			openTextDocument(uriOrFileName: vscode.Uri | string) {
+				let uri: URI;
+				if (typeof uriOrFileName === 'string') {
+					uri = URI.file(uriOrFileName);
+				} else if (uriOrFileName instanceof URI) {
+					uri = <URI>uriOrFileName;
+				} else {
+					throw new Error('illegal argument - uriOrFileName');
+				}
+				return pluginHostDocuments.ensureDocumentData(uri).then(() => {
+					const data = pluginHostDocuments.getDocumentData(uri);
+					return data && data.document;
+				});
 			},
 			registerTextDocumentContentProvider(scheme: string, provider: vscode.TextDocumentContentProvider) {
 				return pluginHostDocuments.registerTextDocumentContentProvider(scheme, provider);

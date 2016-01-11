@@ -9,7 +9,7 @@ import Event, {Emitter} from 'vs/base/common/event';
 import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {Remotable, IThreadService} from 'vs/platform/thread/common/thread';
-import {ExtHostModelService} from 'vs/workbench/api/common/extHostDocuments';
+import {ExtHostModelService, ExtHostDocumentData} from 'vs/workbench/api/common/extHostDocuments';
 import {Selection, Range, Position, EditorOptions} from './extHostTypes';
 import {ISingleEditOperation, ISelection, IRange, IInternalIndentationOptions, IEditor, EditorType, ICommonCodeEditor, ICommonDiffEditor, IDecorationRenderOptions, IRangeWithMessage} from 'vs/editor/common/editorCommon';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
@@ -94,7 +94,7 @@ export class ExtHostEditors {
 	// --- called from main thread
 
 	_acceptTextEditorAdd(data:ITextEditorAddData): void {
-		let document = this._modelService.getDocument(data.document);
+		let document = this._modelService.getDocumentData(data.document);
 		let newEditor = new ExtHostTextEditor(this._proxy, data.id, document, data.selections.map(TypeConverters.toSelection), data.options);
 		this._editors[data.id] = newEditor;
 	}
@@ -268,20 +268,20 @@ class ExtHostTextEditor implements vscode.TextEditor {
 	private _proxy: MainThreadEditors;
 	private _id: string;
 
-	private _document: vscode.TextDocument;
+	private _documentData: ExtHostDocumentData;
 	private _selections: Selection[];
 	private _options: TextEditorOptions;
 
-	constructor(proxy: MainThreadEditors, id: string, document: TextDocument, selections: Selection[], options: EditorOptions) {
+	constructor(proxy: MainThreadEditors, id: string, document: ExtHostDocumentData, selections: Selection[], options: EditorOptions) {
 		this._proxy = proxy;
 		this._id = id;
-		this._document = document;
+		this._documentData = document;
 		this._selections = selections;
 		this._options = options;
 	}
 
 	dispose() {
-		this._document = null;
+		this._documentData = null;
 	}
 
 	@deprecated('TextEditor.show') show(column: vscode.ViewColumn) {
@@ -295,7 +295,7 @@ class ExtHostTextEditor implements vscode.TextEditor {
 	// ---- the document
 
 	get document(): vscode.TextDocument {
-		return this._document;
+		return this._documentData.document;
 	}
 
 	set document(value) {
@@ -379,7 +379,7 @@ class ExtHostTextEditor implements vscode.TextEditor {
 	// ---- editing
 
 	edit(callback:(edit:TextEditorEdit)=>void): Thenable<boolean> {
-		let edit = new TextEditorEdit(this._document);
+		let edit = new TextEditorEdit(this._documentData.document);
 		callback(edit);
 		return this._applyEdit(edit);
 	}
