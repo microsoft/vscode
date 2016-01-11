@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {toErrorMessage} from 'vs/base/common/errors';
+import {toErrorMessage, onUnexpectedError} from 'vs/base/common/errors';
 import {IEmitterEvent} from 'vs/base/common/eventEmitter';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import * as EditorCommon from 'vs/editor/common/editorCommon';
@@ -148,6 +148,10 @@ export class ExtHostModelService {
 			}
 			return value;
 		});
+	}
+
+	$isDocumentReferenced(uri: URI): TPromise<boolean> {
+		return TPromise.as(this.getDocumentData(uri).isDocumentReferenced);
 	}
 
 	public _acceptModelAdd(initData: IModelAddedData): void {
@@ -602,9 +606,28 @@ export class MainThreadDocuments {
 		}
 
 		return this._proxy.$provideTextDocumentContent(uri).then(value => {
+
+			// create document from string
 			const firstLineText = value.substr(0, 1 + value.search(/\r?\n/));
 			const mode = this._modeService.getOrCreateModeByFilenameOrFirstLine(uri.fsPath, firstLineText);
-			return this._modelService.createModel(value, mode, uri);
+			const model = this._modelService.createModel(value, mode, uri);
+
+			// if neither the extension host nor an editor reference this
+			// document anymore we destroy the model to reclaim memory
+			const handle = setInterval(() => {
+				this._editorService.inputToType({ resource: uri }).then(input => {
+					if (!this._editorService.isVisible(input, true)) {
+						return this._proxy.$isDocumentReferenced(uri).then(referenced => {
+							if (!referenced) {
+								clearInterval(handle);
+								this._modelService.destroyModel(uri);
+							}
+						});
+					}
+				}, onUnexpectedError);
+			}, 30 * 1000);
+
+			return model;
 
 		}).then(() => {
 			return true;
