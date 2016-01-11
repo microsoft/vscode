@@ -30,6 +30,7 @@ import { ISuggestResult2 } from '../common/suggest';
 import URI from 'vs/base/common/uri';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { onUnexpectedError, isPromiseCanceledError, illegalArgument } from 'vs/base/common/errors';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 class CompletionItem {
 
@@ -267,7 +268,15 @@ interface ISuggestionTemplateData {
 
 class Renderer implements Tree.IRenderer {
 
-	constructor(private widget: SuggestWidget) {}
+	private triggerKeybindingLabel: string;
+
+	constructor(
+		private widget: SuggestWidget,
+		@IKeybindingService keybindingService: IKeybindingService
+	) {
+		const keybindings = keybindingService.lookupKeybindings('editor.action.triggerSuggest');
+		this.triggerKeybindingLabel = keybindings.length === 0 ? '' : ` (${keybindingService.getLabelFor(keybindings[0])})`;
+	}
 
 	public getHeight(tree: Tree.ITree, element: any): number {
 		if (element instanceof CompletionItem) {
@@ -304,7 +313,7 @@ class Renderer implements Tree.IRenderer {
 		const docs = append(text, $('.docs'));
 		data.documentation = append(docs, $('span.docs-text'));
 		data.documentationDetails = append(docs, $('span.docs-details.octicon.octicon-info'));
-		data.documentationDetails.title = nls.localize('readMore', "Read More...");
+		data.documentationDetails.title = nls.localize('readMore', "Read More...{0}", this.triggerKeybindingLabel);
 
 		return data;
 	}
@@ -405,6 +414,7 @@ class SuggestionDetails {
 		const header = append(this.el, $('.header'));
 		this.title = append(header, $('span.title'));
 		this.back = append(header, $('span.go-back.octicon.octicon-x'));
+		this.back.title = nls.localize('goback', "Go back");
 		this.body = append(this.el, $('.body'));
 		this.type = append(this.body, $('p.type'));
 		this.docs = append(this.body, $('p.docs'));
@@ -493,7 +503,8 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 		private editor: EditorBrowser.ICodeEditor,
 		private model: SuggestModel,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@ITelemetryService telemetryService: ITelemetryService
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		this.isAuto = false;
 		this.oldFocus = null;
@@ -514,9 +525,10 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 		this.messageElement = append(this.element, $('.message'));
 		this.treeElement = append(this.element, $('.tree'));
 		this.details = new SuggestionDetails(this.element, this);
+		this.renderer = instantiationService.createInstance(Renderer, this);
 
 		const configuration = {
-			renderer: this.renderer = new Renderer(this),
+			renderer: this.renderer,
 			dataSource: new DataSource(),
 			controller: new Controller(),
 			filter: new Filter(() => this.state),
@@ -947,7 +959,11 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 	}
 
 	public cancel(): void {
-		this.model.cancel();
+		if (this.state === State.Details) {
+			this.toggleDetails();
+		} else {
+			this.model.cancel();
+		}
 	}
 
 	public getPosition(): EditorBrowser.IContentWidgetPosition {

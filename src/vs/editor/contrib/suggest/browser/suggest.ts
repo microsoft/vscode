@@ -157,7 +157,7 @@ export class SuggestController implements EditorCommon.IEditorContribution {
 		}
 	}
 
-	public hideSuggestWidget(): void {
+	public cancelSuggestWidget(): void {
 		if (this.widget) {
 			this.widget.cancel();
 		}
@@ -225,7 +225,7 @@ CommonEditorRegistry.registerEditorCommand(ACCEPT_SELECTED_SUGGESTION_CMD, weigh
 });
 CommonEditorRegistry.registerEditorCommand('hideSuggestWidget', weight, { primary: KeyCode.Escape }, true, CONTEXT_SUGGEST_WIDGET_VISIBLE, (ctx, editor, args) => {
 	const controller = SuggestController.getSuggestController(editor);
-	controller.hideSuggestWidget();
+	controller.cancelSuggestWidget();
 });
 CommonEditorRegistry.registerEditorCommand('selectNextSuggestion', weight, { primary: KeyCode.DownArrow }, true, CONTEXT_SUGGEST_WIDGET_VISIBLE, (ctx, editor, args) => {
 	const controller = SuggestController.getSuggestController(editor);
