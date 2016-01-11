@@ -66,8 +66,8 @@ export class ExtHostModelService {
 	private _onDidSaveDocumentEventEmitter: Emitter<vscode.TextDocument>;
 	public onDidSaveDocument: Event<vscode.TextDocument>;
 
-	private _documents: { [modelUri: string]: ExtHostDocumentData; };
-	private _loadingDocuments: { [modelUri: string]: TPromise<ExtHostDocumentData> };
+	private _documentData: { [modelUri: string]: ExtHostDocumentData; };
+	private _documentLoader: { [modelUri: string]: TPromise<ExtHostDocumentData> };
 	private _documentContentProviders: { [scheme: string]: vscode.TextDocumentContentProvider };
 
 	private _proxy: MainThreadDocuments;
@@ -87,15 +87,15 @@ export class ExtHostModelService {
 		this._onDidSaveDocumentEventEmitter = new Emitter<vscode.TextDocument>();
 		this.onDidSaveDocument = this._onDidSaveDocumentEventEmitter.event;
 
-		this._documents = Object.create(null);
-		this._loadingDocuments = Object.create(null);
+		this._documentData = Object.create(null);
+		this._documentLoader = Object.create(null);
 		this._documentContentProviders = Object.create(null);
 	}
 
 	public getDocuments(): vscode.TextDocument[] {
 		let r: vscode.TextDocument[] = [];
-		for (let key in this._documents) {
-			r.push(this._documents[key]);
+		for (let key in this._documentData) {
+			r.push(this._documentData[key].document);
 		}
 		return r;
 	}
@@ -104,7 +104,10 @@ export class ExtHostModelService {
 		if (!resource) {
 			return null;
 		}
-		return this._documents[resource.toString()] || null;
+		const data = this._documentData[resource.toString()];
+		if (data) {
+			return data.document;
+		}
 	}
 
 	public openDocument(uriOrFileName: vscode.Uri | string): TPromise<vscode.TextDocument> {
@@ -118,23 +121,24 @@ export class ExtHostModelService {
 			throw new Error('illegal argument - uriOrFileName');
 		}
 
-		let cached = this._documents[uri.toString()];
+		let cached = this._documentData[uri.toString()];
 		if (cached) {
-			return TPromise.as(cached);
+			return TPromise.as(cached.document);
 		}
 
-		let promise = this._loadingDocuments[uri.toString()];
-		if (promise) {
-			return promise;
+		let promise = this._documentLoader[uri.toString()];
+		if (!promise) {
+			promise = this._proxy._tryOpenDocument(uri).then(() => {
+				delete this._documentLoader[uri.toString()];
+				return this._documentData[uri.toString()];
+			}, err => {
+				delete this._documentLoader[uri.toString()];
+				return TPromise.wrapError(err);
+			});
+			this._documentLoader[uri.toString()] = promise;
 		}
 
-		return this._loadingDocuments[uri.toString()] = this._proxy._tryOpenDocument(uri).then(() => {
-			delete this._loadingDocuments[uri.toString()];
-			return this._documents[uri.toString()];
-		}, err => {
-			delete this._loadingDocuments[uri.toString()];
-			return TPromise.wrapError(err);
-		});
+		return promise.then(data => data.document);
 	}
 
 	public registerTextDocumentContentProvider(scheme: string, provider: vscode.TextDocumentContentProvider): vscode.Disposable {
@@ -158,58 +162,58 @@ export class ExtHostModelService {
 		});
 	}
 
-	public _acceptModelAdd(data:IModelAddedData): void {
-		let document = new ExtHostDocumentData(this._proxy, data.url, data.value.lines, data.value.EOL, data.modeId, data.versionId, data.isDirty);
-		let key = document.uri.toString();
-		if (this._documents[key]) {
+	public _acceptModelAdd(initData:IModelAddedData): void {
+		let data = new ExtHostDocumentData(this._proxy, initData.url, initData.value.lines, initData.value.EOL, initData.modeId, initData.versionId, initData.isDirty);
+		let key = data.document.uri.toString();
+		if (this._documentData[key]) {
 			throw new Error('Document `' + key + '` already exists.');
 		}
-		this._documents[key] = document;
-		this._onDidAddDocumentEventEmitter.fire(document);
+		this._documentData[key] = data;
+		this._onDidAddDocumentEventEmitter.fire(data.document);
 	}
 
 	public _acceptModelModeChanged(url: URI, oldModeId:string, newModeId:string): void {
-		let document = this._documents[url.toString()];
+		let data = this._documentData[url.toString()];
 
 		// Treat a mode change as a remove + add
 
-		this._onDidRemoveDocumentEventEmitter.fire(document);
-		document._acceptLanguageId(newModeId);
-		this._onDidAddDocumentEventEmitter.fire(document);
+		this._onDidRemoveDocumentEventEmitter.fire(data.document);
+		data._acceptLanguageId(newModeId);
+		this._onDidAddDocumentEventEmitter.fire(data.document);
 	}
 
 	public _acceptModelSaved(url: URI): void {
-		let document = this._documents[url.toString()];
-		document._acceptIsDirty(false);
-		this._onDidSaveDocumentEventEmitter.fire(document);
+		let data = this._documentData[url.toString()];
+		data._acceptIsDirty(false);
+		this._onDidSaveDocumentEventEmitter.fire(data.document);
 	}
 
 	public _acceptModelDirty(url: URI): void {
-		let document = this._documents[url.toString()];
+		let document = this._documentData[url.toString()];
 		document._acceptIsDirty(true);
 	}
 
 	public _acceptModelReverted(url: URI): void {
-		let document = this._documents[url.toString()];
+		let document = this._documentData[url.toString()];
 		document._acceptIsDirty(false);
 	}
 
 	public _acceptModelRemoved(url: URI): void {
 		let key = url.toString();
-		if (!this._documents[key]) {
+		if (!this._documentData[key]) {
 			throw new Error('Document `' + key + '` does not exist.');
 		}
-		let document = this._documents[key];
-		delete this._documents[key];
-		this._onDidRemoveDocumentEventEmitter.fire(document);
-		document.dispose();
+		let data = this._documentData[key];
+		delete this._documentData[key];
+		this._onDidRemoveDocumentEventEmitter.fire(data.document);
+		data.dispose();
 	}
 
 	public _acceptModelChanged(url: URI, events: EditorCommon.IModelContentChangedEvent2[]): void {
-		let document = this._documents[url.toString()];
-		document.onEvents(events);
+		let data = this._documentData[url.toString()];
+		data.onEvents(events);
 		this._onDidChangeDocumentEventEmitter.fire({
-			document: document,
+			document: data.document,
 			contentChanges: events.map((e) => {
 				return {
 					range: TypeConverters.toRange(e.range),
@@ -221,12 +225,13 @@ export class ExtHostModelService {
 	}
 }
 
-export class ExtHostDocumentData extends MirrorModel2 implements vscode.TextDocument {
+export class ExtHostDocumentData extends MirrorModel2 {
 
 	private _proxy: MainThreadDocuments;
 	private _languageId: string;
 	private _isDirty: boolean;
 	private _textLines: vscode.TextLine[];
+	private _document: vscode.TextDocument;
 
 	constructor(proxy: MainThreadDocuments, uri: URI, lines: string[], eol: string,
 		languageId: string, versionId: number, isDirty: boolean) {
@@ -244,32 +249,28 @@ export class ExtHostDocumentData extends MirrorModel2 implements vscode.TextDocu
 		super.dispose();
 	}
 
-	get uri(): URI {
-		return this._uri;
-	}
-
-	get fileName(): string {
-		return this._uri.fsPath;
-	}
-
-	get isUntitled(): boolean {
-		return this._uri.scheme !== 'file';
-	}
-
-	get languageId(): string {
-		return this._languageId;
-	}
-
-	get version(): number {
-		return this._versionId;
-	}
-
-	get isDirty(): boolean {
-		return this._isDirty;
-	}
-
-	save(): Thenable<boolean> {
-		return this._proxy._trySaveDocument(this._uri);
+	get document(): vscode.TextDocument {
+		if (!this._document) {
+			const document = this;
+			this._document = {
+				get uri() { return document._uri },
+				get fileName() { return document._uri.fsPath },
+				get isUntitled() { return document._uri.scheme !== 'file' },
+				get languageId() { return document._languageId },
+				get version() { return document._versionId },
+				get isDirty() { return document._isDirty },
+				save() { return document._proxy._trySaveDocument(document._uri) },
+				getText(range?) { return range ? document._getTextInRange(range) : document.getText() },
+				get lineCount() { return document._lines.length },
+				lineAt(lineOrPos) { return document.lineAt(lineOrPos) },
+				offsetAt(pos) { return document.offsetAt(pos) },
+				positionAt(offset) { return document.positionAt(offset) },
+				validateRange(ran) { return document.validateRange(ran) },
+				validatePosition(pos) { return document.validatePosition(pos) },
+				getWordRangeAtPosition(pos){ return document.getWordRangeAtPosition(pos)}
+			}
+		}
+		return this._document;
 	}
 
 	_acceptLanguageId(newLanguageId:string): void {
@@ -280,15 +281,7 @@ export class ExtHostDocumentData extends MirrorModel2 implements vscode.TextDocu
 		this._isDirty = isDirty;
 	}
 
-	getText(range?: Range): string {
-		if (range) {
-			return this._getTextInRange(range);
-		} else {
-			return super.getText();
-		}
-	}
-
-	private _getTextInRange(_range: Range): string {
+	private _getTextInRange(_range: vscode.Range): string {
 		let range = this.validateRange(_range);
 
 		if (range.isEmpty) {
@@ -311,10 +304,6 @@ export class ExtHostDocumentData extends MirrorModel2 implements vscode.TextDocu
 		resultLines.push(this._lines[endLineIndex].substring(0, range.end.character));
 
 		return resultLines.join(lineEnding);
-	}
-
-	get lineCount(): number {
-		return this._lines.length;
 	}
 
 	lineAt(lineOrPosition: number | vscode.Position): vscode.TextLine {
@@ -353,13 +342,13 @@ export class ExtHostDocumentData extends MirrorModel2 implements vscode.TextDocu
 		return result;
 	}
 
-	offsetAt(position: Position): number {
+	offsetAt(position: vscode.Position): number {
 		position = this.validatePosition(position);
 		this._ensureLineStarts();
 		return this._lineStarts.getAccumulatedValue(position.line - 1) + position.character;
 	}
 
-	positionAt(offset: number): Position {
+	positionAt(offset: number): vscode.Position {
 		offset = Math.floor(offset);
 		offset = Math.max(0, offset);
 
@@ -375,7 +364,7 @@ export class ExtHostDocumentData extends MirrorModel2 implements vscode.TextDocu
 
 	// ---- range math
 
-	validateRange(range:Range): Range {
+	validateRange(range:vscode.Range): vscode.Range {
 		if (!(range instanceof Range)) {
 			throw new Error('Invalid argument');
 		}
@@ -386,10 +375,10 @@ export class ExtHostDocumentData extends MirrorModel2 implements vscode.TextDocu
 		if (start === range.start && end === range.end) {
 			return range;
 		}
-		return new Range(start, end);
+		return new Range(start.line, start.character, end.line, end.character);
 	}
 
-	validatePosition(position:Position): Position {
+	validatePosition(position:vscode.Position): vscode.Position {
 		if (!(position instanceof Position)) {
 			throw new Error('Invalid argument');
 		}
@@ -424,7 +413,7 @@ export class ExtHostDocumentData extends MirrorModel2 implements vscode.TextDocu
 		return new Position(line, character);
 	}
 
-	getWordRangeAtPosition(_position:Position): Range {
+	getWordRangeAtPosition(_position: vscode.Position): vscode.Range {
 		let position = this.validatePosition(_position);
 
 		let wordAtText = WordHelper._getWordAtText(
