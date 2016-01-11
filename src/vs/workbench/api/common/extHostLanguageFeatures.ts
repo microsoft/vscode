@@ -508,7 +508,7 @@ class SuggestAdapter implements modes.ISuggestSupport {
 
 			let defaultSuggestions: modes.ISuggestResult = {
 				suggestions: [],
-				currentWord: ran ? doc.getText(new Range(ran.start, pos)) : '',
+				currentWord: ran ? doc.getText(new Range(ran.start.line, ran.start.character, pos.line, pos.character)) : '',
 			};
 			let allSuggestions: modes.ISuggestResult[] = [defaultSuggestions];
 

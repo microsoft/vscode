@@ -7,7 +7,7 @@
 
 import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
-import {ExtHostDocument} from 'vs/workbench/api/common/extHostDocuments';
+import {ExtHostDocumentData} from 'vs/workbench/api/common/extHostDocuments';
 import {Position} from 'vs/workbench/api/common/extHostTypes';
 import {Range as CodeEditorRange} from 'vs/editor/common/core/range';
 import * as EditorCommon from 'vs/editor/common/editorCommon';
@@ -15,7 +15,7 @@ import * as EditorCommon from 'vs/editor/common/editorCommon';
 
 suite("PluginHostDocument", () => {
 
-	let doc: ExtHostDocument;
+	let doc: ExtHostDocumentData;
 
 	function assertPositionAt(offset: number, line: number, character: number) {
 		let position = doc.positionAt(offset);
@@ -30,7 +30,7 @@ suite("PluginHostDocument", () => {
 	}
 
 	setup(function() {
-		doc = new ExtHostDocument(undefined, URI.file(''), [
+		doc = new ExtHostDocumentData(undefined, URI.file(''), [
 			'This is line one', //16
 			'and this is line number two', //27
 			'it is followed by #3', //20
@@ -66,7 +66,7 @@ suite("PluginHostDocument", () => {
 		assert.equal(line.isEmptyOrWhitespace, false);
 		assert.equal(line.firstNonWhitespaceCharacterIndex, 0);
 
-		doc._acceptEvents([{
+		doc.onEvents([{
 			range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 },
 			text: '\t ',
 			isRedoing: undefined,
@@ -102,7 +102,7 @@ suite("PluginHostDocument", () => {
 
 	test('offsetAt, after remove', function() {
 
-		doc._acceptEvents([{
+		doc.onEvents([{
 			range: { startLineNumber: 1, startColumn: 3, endLineNumber: 1, endColumn: 6 },
 			text: '',
 			isRedoing: undefined,
@@ -118,7 +118,7 @@ suite("PluginHostDocument", () => {
 
 	test('offsetAt, after replace', function() {
 
-		doc._acceptEvents([{
+		doc.onEvents([{
 			range: { startLineNumber: 1, startColumn: 3, endLineNumber: 1, endColumn: 6 },
 			text: 'is could be',
 			isRedoing: undefined,
@@ -134,7 +134,7 @@ suite("PluginHostDocument", () => {
 
 	test('offsetAt, after insert line', function() {
 
-		doc._acceptEvents([{
+		doc.onEvents([{
 			range: { startLineNumber: 1, startColumn: 3, endLineNumber: 1, endColumn: 6 },
 			text: 'is could be\na line with number',
 			isRedoing: undefined,
@@ -153,7 +153,7 @@ suite("PluginHostDocument", () => {
 
 	test('offsetAt, after remove line', function() {
 
-		doc._acceptEvents([{
+		doc.onEvents([{
 			range: { startLineNumber: 1, startColumn: 3, endLineNumber: 2, endColumn: 6 },
 			text: '',
 			isRedoing: undefined,
@@ -193,7 +193,7 @@ suite("PluginHostDocument updates line mapping", () => {
 		return '(' + position.line + ',' + position.character + ')';
 	}
 
-	function assertDocumentLineMapping(doc:ExtHostDocument, direction:AssertDocumentLineMappingDirection): void {
+	function assertDocumentLineMapping(doc:ExtHostDocumentData, direction:AssertDocumentLineMappingDirection): void {
 		let allText = doc.getText();
 
 		let line = 0, character = 0, previousIsCarriageReturn = false;
@@ -234,10 +234,10 @@ suite("PluginHostDocument updates line mapping", () => {
 	}
 
 	function testLineMappingDirectionAfterEvents(lines:string[], eol: string, direction:AssertDocumentLineMappingDirection, events:EditorCommon.IModelContentChangedEvent2[]): void {
-		let myDocument = new ExtHostDocument(undefined, URI.file(''), lines.slice(0), eol, 'text', 1, false);
+		let myDocument = new ExtHostDocumentData(undefined, URI.file(''), lines.slice(0), eol, 'text', 1, false);
 		assertDocumentLineMapping(myDocument, direction);
 
-		myDocument._acceptEvents(events);
+		myDocument.onEvents(events);
 		assertDocumentLineMapping(myDocument, direction);
 	}
 
