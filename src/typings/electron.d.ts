@@ -476,6 +476,10 @@ declare module Electron {
 		 * @returns Whether the window is visible on all workspaces.
 		 */
 		isVisibleOnAllWorkspaces(): boolean;
+		/**
+		 * @returns Whether dev tools are focused or not.
+		 */
+		isDevToolsFocused(): boolean;
 	}
 
 	interface WebPreferences {
