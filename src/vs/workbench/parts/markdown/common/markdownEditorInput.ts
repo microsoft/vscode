@@ -9,7 +9,7 @@ import URI from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
 import labels = require('vs/base/common/labels');
 import {DerivedFrameEditorInput} from 'vs/workbench/parts/files/common/editors/derivedFrameEditorInput';
-import {MarkdownEditorModel} from 'vs/workbench/parts/markdown/browser/markdownEditorModel';
+import {MarkdownEditorModel} from 'vs/workbench/parts/markdown/common/markdownEditorModel';
 import {EditorModel} from 'vs/workbench/common/editor';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';

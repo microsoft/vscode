@@ -14,7 +14,7 @@ import {Preferences} from 'vs/workbench/common/constants';
 import {IModel} from 'vs/editor/common/editorCommon';
 import {IEmitOutput} from 'vs/editor/common/modes';
 import themes = require('vs/platform/theme/common/themes');
-import {MARKDOWN_MIME, MARKDOWN_MODE_ID} from 'vs/workbench/parts/markdown/browser/markdown';
+import {MARKDOWN_MIME, MARKDOWN_MODE_ID} from 'vs/workbench/parts/markdown/common/markdown';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
