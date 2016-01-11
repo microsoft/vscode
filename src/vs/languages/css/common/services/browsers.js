@@ -8903,8 +8903,253 @@ exports.data ={
 			},
 			{
 				"name": "unicode-range",
-				"desc": "@font-face descriptor. Range of Unicode characters supported by a given font. Initial value is U+0-10FFFF",
-				"restriction": "unicode-range"
+				"desc": "@font-face descriptor. Defines the set of Unicode codepoints that may be supported by the font face for which it is declared.",
+				"restriction": "unicode-range",
+				"values": [
+					{
+						"name": "U+26"
+					},
+					{
+						"name": "U+20-24F, U+2B0-2FF, U+370-4FF, U+1E00-1EFF, U+2000-20CF, U+2100-23FF, U+2500-26FF, U+E000-F8FF, U+FB00–FB4F"
+					},
+					{
+						"name": "U+20-17F, U+2B0-2FF, U+2000-206F, U+20A0-20CF, U+2100-21FF, U+2600-26FF"
+					},
+					{
+						"name": "U+20-2FF, U+370-4FF, U+1E00-20CF, U+2100-23FF, U+2500-26FF, U+FB00-FB4F, U+FFF0-FFFD"
+					},
+					{
+						"name": "U+20-4FF, U+530-58F, U+10A0-10FF, U+1E00-23FF, U+2440-245F, U+2500-26FF, U+FB00-FB4F, U+FE20-FE2F, U+FFF0-FFFD"
+					},
+					{
+						"name": "U+20-4FF, U+530-58F, U+10D0-10FF, U+1E00-23FF, U+2440-245F, U+2500-26FF, U+FB00-FB4F, U+FE20-FE2F, U+FFF0-FFFD"
+					},
+					{
+						"name": "U+00-7F"
+					},
+					{
+						"name": "U+80-FF"
+					},
+					{
+						"name": "U+100-17F"
+					},
+					{
+						"name": "U+180-24F"
+					},
+					{
+						"name": "U+1E00-1EFF"
+					},
+					{
+						"name": "U+250-2AF"
+					},
+					{
+						"name": "U+370-3FF"
+					},
+					{
+						"name": "U+1F00-1FFF"
+					},
+					{
+						"name": "U+400-4FF"
+					},
+					{
+						"name": "U+500-52F"
+					},
+					{
+						"name": "U+00-52F, U+1E00-1FFF, U+2200–22FF"
+					},
+					{
+						"name": "U+530–58F"
+					},
+					{
+						"name": "U+590–5FF"
+					},
+					{
+						"name": "U+600–6FF"
+					},
+					{
+						"name": "U+750–77F"
+					},
+					{
+						"name": "U+8A0–8FF"
+					},
+					{
+						"name": "U+700–74F"
+					},
+					{
+						"name": "U+900–97F"
+					},
+					{
+						"name": "U+980–9FF"
+					},
+					{
+						"name": "U+A00–A7F"
+					},
+					{
+						"name": "U+A80–AFF"
+					},
+					{
+						"name": "U+B00–B7F"
+					},
+					{
+						"name": "U+B80–BFF"
+					},
+					{
+						"name": "U+C00–C7F"
+					},
+					{
+						"name": "U+C80–CFF"
+					},
+					{
+						"name": "U+D00–D7F"
+					},
+					{
+						"name": "U+D80–DFF"
+					},
+					{
+						"name": "U+118A0–118FF"
+					},
+					{
+						"name": "U+E00–E7F"
+					},
+					{
+						"name": "U+1A20–1AAF"
+					},
+					{
+						"name": "U+AA80–AADF"
+					},
+					{
+						"name": "U+E80–EFF"
+					},
+					{
+						"name": "U+F00–FFF"
+					},
+					{
+						"name": "U+1000–109F"
+					},
+					{
+						"name": "U+10A0–10FF"
+					},
+					{
+						"name": "U+1200–137F"
+					},
+					{
+						"name": "U+1380–139F"
+					},
+					{
+						"name": "U+2D80–2DDF"
+					},
+					{
+						"name": "U+AB00–AB2F"
+					},
+					{
+						"name": "U+1780–17FF"
+					},
+					{
+						"name": "U+1800–18AF"
+					},
+					{
+						"name": "U+1B80–1BBF"
+					},
+					{
+						"name": "U+1CC0–1CCF"
+					},
+					{
+						"name": "U+4E00–9FD5"
+					},
+					{
+						"name": "U+3400–4DB5"
+					},
+					{
+						"name": "U+20000–2A6D6"
+					},
+					{
+						"name": "U+2A700–2B734"
+					},
+					{
+						"name": "U+2B740–2B81D"
+					},
+					{
+						"name": "U+2B820–2CEA1"
+					},
+					{
+						"name": "U+2F00–2FDF"
+					},
+					{
+						"name": "U+2E80–2EFF"
+					},
+					{
+						"name": "U+1100–11FF"
+					},
+					{
+						"name": "U+AC00–D7AF"
+					},
+					{
+						"name": "U+3040–309F"
+					},
+					{
+						"name": "U+30A0–30FF"
+					},
+					{
+						"name": "U+A5, U+4E00-9FFF, U+30??, U+FF00-FF9F"
+					},
+					{
+						"name": "U+A4D0–A4FF"
+					},
+					{
+						"name": "U+A000–A48F"
+					},
+					{
+						"name": "U+A490–A4CF"
+					},
+					{
+						"name": "U+2000-206F"
+					},
+					{
+						"name": "U+3000–303F"
+					},
+					{
+						"name": "U+2070–209F"
+					},
+					{
+						"name": "U+20A0–20CF"
+					},
+					{
+						"name": "U+2100–214F"
+					},
+					{
+						"name": "U+2150–218F"
+					},
+					{
+						"name": "U+2190–21FF"
+					},
+					{
+						"name": "U+2200–22FF"
+					},
+					{
+						"name": "U+2300–23FF"
+					},
+					{
+						"name": "U+E000-F8FF"
+					},
+					{
+						"name": "U+FB00–FB4F"
+					},
+					{
+						"name": "U+1F600–1F64F"
+					},
+					{
+						"name": "U+2600–26FF"
+					},
+					{
+						"name": "U+1F300–1F5FF"
+					},
+					{
+						"name": "U+1F900–1F9FF"
+					},
+					{
+						"name": "U+1F680–1F6FF"
+					}
+				]
 			},
 			{
 				"name": "vertical-align",
@@ -11079,6 +11324,87 @@ exports.descriptions = {
 	"embed": "If the element is inline-level, this value opens an additional level of embedding with respect to the bidirectional algorithm. The direction of this embedding level is given by the 'direction' property.",
 	"isolate-override": "This combines the isolation behavior of 'isolate' with the directional override behavior of 'bidi-override'",
 	"plaintext": "For the purposes of the Unicode bidirectional algorithm, the base directionality of each bidi paragraph for which the element forms the containing block is determined not by the element's computed 'direction'.",
+	"U+26": "Ampersand.",
+	"U+20-24F, U+2B0-2FF, U+370-4FF, U+1E00-1EFF, U+2000-20CF, U+2100-23FF, U+2500-26FF, U+E000-F8FF, U+FB00–FB4F": "WGL4 character set (Pan-European).",
+	"U+20-17F, U+2B0-2FF, U+2000-206F, U+20A0-20CF, U+2100-21FF, U+2600-26FF": "The Multilingual European Subset No. 1.",
+	"U+20-2FF, U+370-4FF, U+1E00-20CF, U+2100-23FF, U+2500-26FF, U+FB00-FB4F, U+FFF0-FFFD": "The Multilingual European Subset No. 2.",
+	"U+20-4FF, U+530-58F, U+10A0-10FF, U+1E00-23FF, U+2440-245F, U+2500-26FF, U+FB00-FB4F, U+FE20-FE2F, U+FFF0-FFFD": "The Multilingual European Subset No. 3A.",
+	"U+20-4FF, U+530-58F, U+10D0-10FF, U+1E00-23FF, U+2440-245F, U+2500-26FF, U+FB00-FB4F, U+FE20-FE2F, U+FFF0-FFFD": "The Multilingual European Subset No. 3B.",
+	"U+00-7F": "Basic Latin.",
+	"U+80-FF": "Latin-1 Supplement.",
+	"U+100-17F": "Latin Extended-A.",
+	"U+180-24F": "Latin Extended-B.",
+	"U+1E00-1EFF": "Latin Extended Additional.",
+	"U+250-2AF": "International Phonetic Alphabet Extensions.",
+	"U+370-3FF": "Greek and Coptic.",
+	"U+1F00-1FFF": "Greek Extended.",
+	"U+400-4FF": "Cyrillic.",
+	"U+500-52F": "Cyrillic Supplement.",
+	"U+00-52F, U+1E00-1FFF, U+2200–22FF": "Latin, Greek, Cyrillic, some punctuation and symbols.",
+	"U+530–58F": "Armenian.",
+	"U+590–5FF": "Hebrew.",
+	"U+600–6FF": "Arabic.",
+	"U+750–77F": "Arabic Supplement.",
+	"U+8A0–8FF": "Arabic Extended-A.",
+	"U+700–74F": "Syriac.",
+	"U+900–97F": "Devanagari.",
+	"U+980–9FF": "Bengali.",
+	"U+A00–A7F": "Gurmukhi.",
+	"U+A80–AFF": "Gujarati.",
+	"U+B00–B7F": "Oriya.",
+	"U+B80–BFF": "Tamil.",
+	"U+C00–C7F": "Telugu.",
+	"U+C80–CFF": "Kannada.",
+	"U+D00–D7F": "Malayalam.",
+	"U+D80–DFF": "Sinhala.",
+	"U+118A0–118FF": "Warang Citi.",
+	"U+E00–E7F": "Thai.",
+	"U+1A20–1AAF": "Tai Tham.",
+	"U+AA80–AADF": "Tai Viet.",
+	"U+E80–EFF": "Lao.",
+	"U+F00–FFF": "Tibetan.",
+	"U+1000–109F": "Myanmar (Burmese).",
+	"U+10A0–10FF": "Georgian.",
+	"U+1200–137F": "Ethiopic.",
+	"U+1380–139F": "Ethiopic Supplement.",
+	"U+2D80–2DDF": "Ethiopic Extended.",
+	"U+AB00–AB2F": "Ethiopic Extended-A.",
+	"U+1780–17FF": "Khmer.",
+	"U+1800–18AF": "Mongolian.",
+	"U+1B80–1BBF": "Sundanese.",
+	"U+1CC0–1CCF": "Sundanese Supplement.",
+	"U+4E00–9FD5": "CJK (Chinese, Japanese, Korean) Unified Ideographs.",
+	"U+3400–4DB5": "CJK Unified Ideographs Extension A.",
+	"U+20000–2A6D6": "CJK Unified Ideographs Extension B.",
+	"U+2A700–2B734": "CJK Unified Ideographs Extension C.",
+	"U+2B740–2B81D": "CJK Unified Ideographs Extension D.",
+	"U+2B820–2CEA1": "CJK Unified Ideographs Extension E.",
+	"U+2F00–2FDF": "Kangxi Radicals.",
+	"U+2E80–2EFF": "CJK Radicals Supplement.",
+	"U+1100–11FF": "Hangul Jamo.",
+	"U+AC00–D7AF": "Hangul Syllables.",
+	"U+3040–309F": "Hiragana.",
+	"U+30A0–30FF": "Katakana.",
+	"U+A5, U+4E00-9FFF, U+30??, U+FF00-FF9F": "Japanese Kanji, Hiragana and Katakana characters plus Yen/Yuan symbol.",
+	"U+A4D0–A4FF": "Lisu.",
+	"U+A000–A48F": "Yi Syllables.",
+	"U+A490–A4CF": "Yi Radicals.",
+	"U+2000-206F": "General Punctuation.",
+	"U+3000–303F": "CJK Symbols and Punctuation.",
+	"U+2070–209F": "Superscripts and Subscripts.",
+	"U+20A0–20CF": "Currency Symbols.",
+	"U+2100–214F": "Letterlike Symbols.",
+	"U+2150–218F": "Number Forms.",
+	"U+2190–21FF": "Arrows.",
+	"U+2200–22FF": "Mathematical Operators.",
+	"U+2300–23FF": "Miscellaneous Technical.",
+	"U+E000-F8FF": "Private Use Area.",
+	"U+FB00–FB4F": "Alphabetic Presentation Forms.",
+	"U+1F600–1F64F": "Emoji: Emoticons.",
+	"U+2600–26FF": "Emoji: Miscellaneous Symbols.",
+	"U+1F300–1F5FF": "Emoji: Miscellaneous Symbols and Pictographs.",
+	"U+1F900–1F9FF": "Emoji: Supplemental Symbols and Pictographs.",
+	"U+1F680–1F6FF": "Emoji: Transport and Map Symbols.",
 	"text-bottom": "Align the bottom of the box with the after-edge of the parent element's font.",
 	"text-top": "Align the top of the box with the before-edge of the parent element's font.",
 	"break": "If the content fits within the CSS Region, then this property has no effect.",

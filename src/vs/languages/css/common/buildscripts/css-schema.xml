@@ -8444,8 +8444,253 @@
         </value>
       </values>
     </entry>
-    <entry name="unicode-range" restriction="unicode-range" version="3.0" browsers="all" ref="http://www.w3.org/TR/css3-fonts/#unicode-range-desc" syntax="'urange' [, 'urange']*">
-      <desc>@font-face descriptor. Range of Unicode characters supported by a given font. Initial value is U+0-10FFFF</desc>
+    <entry name="unicode-range" restriction="unicode-range" version="3.0" browsers="all" ref="http://www.w3.org/TR/css3-fonts/#unicode-range-desc" syntax="@font-face { $(name): U+26; }">
+      <desc>@font-face descriptor. Defines the set of Unicode codepoints that may be supported by the font face for which it is declared.</desc>
+	  <values>
+        <value name="U+26" version="3.0" browsers="all">
+          <desc>Ampersand.</desc>
+        </value>
+        <value name="U+20-24F, U+2B0-2FF, U+370-4FF, U+1E00-1EFF, U+2000-20CF, U+2100-23FF, U+2500-26FF, U+E000-F8FF, U+FB00–FB4F" version="3.0" browsers="all">
+          <desc>WGL4 character set (Pan-European).</desc>
+        </value>
+        <value name="U+20-17F, U+2B0-2FF, U+2000-206F, U+20A0-20CF, U+2100-21FF, U+2600-26FF" version="3.0" browsers="all">
+          <desc>The Multilingual European Subset No. 1.</desc>
+        </value>
+        <value name="U+20-2FF, U+370-4FF, U+1E00-20CF, U+2100-23FF, U+2500-26FF, U+FB00-FB4F, U+FFF0-FFFD" version="3.0" browsers="all">
+          <desc>The Multilingual European Subset No. 2.</desc>
+        </value>
+        <value name="U+20-4FF, U+530-58F, U+10A0-10FF, U+1E00-23FF, U+2440-245F, U+2500-26FF, U+FB00-FB4F, U+FE20-FE2F, U+FFF0-FFFD" version="3.0" browsers="all">
+          <desc>The Multilingual European Subset No. 3A.</desc>
+        </value>
+        <value name="U+20-4FF, U+530-58F, U+10D0-10FF, U+1E00-23FF, U+2440-245F, U+2500-26FF, U+FB00-FB4F, U+FE20-FE2F, U+FFF0-FFFD" version="3.0" browsers="all">
+          <desc>The Multilingual European Subset No. 3B.</desc>
+        </value>
+        <value name="U+00-7F" version="3.0" browsers="all">
+          <desc>Basic Latin.</desc>
+        </value>
+        <value name="U+80-FF" version="3.0" browsers="all">
+          <desc>Latin-1 Supplement.</desc>
+        </value>
+        <value name="U+100-17F" version="3.0" browsers="all">
+          <desc>Latin Extended-A.</desc>
+        </value>
+        <value name="U+180-24F" version="3.0" browsers="all">
+          <desc>Latin Extended-B.</desc>
+        </value>
+        <value name="U+1E00-1EFF" version="3.0" browsers="all">
+          <desc>Latin Extended Additional.</desc>
+        </value>
+        <value name="U+250-2AF" version="3.0" browsers="all">
+          <desc>International Phonetic Alphabet Extensions.</desc>
+        </value>
+        <value name="U+370-3FF" version="3.0" browsers="all">
+          <desc>Greek and Coptic.</desc>
+        </value>
+        <value name="U+1F00-1FFF" version="3.0" browsers="all">
+          <desc>Greek Extended.</desc>
+        </value>
+        <value name="U+400-4FF" version="3.0" browsers="all">
+          <desc>Cyrillic.</desc>
+        </value>
+        <value name="U+500-52F" version="3.0" browsers="all">
+          <desc>Cyrillic Supplement.</desc>
+        </value>
+        <value name="U+00-52F, U+1E00-1FFF, U+2200–22FF" version="3.0" browsers="all">
+          <desc>Latin, Greek, Cyrillic, some punctuation and symbols.</desc>
+        </value>
+        <value name="U+530–58F" version="3.0" browsers="all">
+          <desc>Armenian.</desc>
+        </value>
+        <value name="U+590–5FF" version="3.0" browsers="all">
+          <desc>Hebrew.</desc>
+        </value>
+        <value name="U+600–6FF" version="3.0" browsers="all">
+          <desc>Arabic.</desc>
+        </value>
+        <value name="U+750–77F" version="3.0" browsers="all">
+          <desc>Arabic Supplement.</desc>
+        </value>
+        <value name="U+8A0–8FF" version="3.0" browsers="all">
+          <desc>Arabic Extended-A.</desc>
+        </value>
+        <value name="U+700–74F" version="3.0" browsers="all">
+          <desc>Syriac.</desc>
+        </value>
+        <value name="U+900–97F" version="3.0" browsers="all">
+          <desc>Devanagari.</desc>
+        </value>
+        <value name="U+980–9FF" version="3.0" browsers="all">
+          <desc>Bengali.</desc>
+        </value>
+        <value name="U+A00–A7F" version="3.0" browsers="all">
+          <desc>Gurmukhi.</desc>
+        </value>
+        <value name="U+A80–AFF" version="3.0" browsers="all">
+          <desc>Gujarati.</desc>
+        </value>
+        <value name="U+B00–B7F" version="3.0" browsers="all">
+          <desc>Oriya.</desc>
+        </value>
+        <value name="U+B80–BFF" version="3.0" browsers="all">
+          <desc>Tamil.</desc>
+        </value>
+        <value name="U+C00–C7F" version="3.0" browsers="all">
+          <desc>Telugu.</desc>
+        </value>
+        <value name="U+C80–CFF" version="3.0" browsers="all">
+          <desc>Kannada.</desc>
+        </value>
+        <value name="U+D00–D7F" version="3.0" browsers="all">
+          <desc>Malayalam.</desc>
+        </value>
+        <value name="U+D80–DFF" version="3.0" browsers="all">
+          <desc>Sinhala.</desc>
+        </value>
+        <value name="U+118A0–118FF" version="3.0" browsers="all">
+          <desc>Warang Citi.</desc>
+        </value>
+        <value name="U+E00–E7F" version="3.0" browsers="all">
+          <desc>Thai.</desc>
+        </value>
+        <value name="U+1A20–1AAF" version="3.0" browsers="all">
+          <desc>Tai Tham.</desc>
+        </value>
+        <value name="U+AA80–AADF" version="3.0" browsers="all">
+          <desc>Tai Viet.</desc>
+        </value>
+        <value name="U+E80–EFF" version="3.0" browsers="all">
+          <desc>Lao.</desc>
+        </value>
+        <value name="U+F00–FFF" version="3.0" browsers="all">
+          <desc>Tibetan.</desc>
+        </value>
+        <value name="U+1000–109F" version="3.0" browsers="all">
+          <desc>Myanmar (Burmese).</desc>
+        </value>
+        <value name="U+10A0–10FF" version="3.0" browsers="all">
+          <desc>Georgian.</desc>
+        </value>
+        <value name="U+1200–137F" version="3.0" browsers="all">
+          <desc>Ethiopic.</desc>
+        </value>
+        <value name="U+1380–139F" version="3.0" browsers="all">
+          <desc>Ethiopic Supplement.</desc>
+        </value>
+        <value name="U+2D80–2DDF" version="3.0" browsers="all">
+          <desc>Ethiopic Extended.</desc>
+        </value>
+        <value name="U+AB00–AB2F" version="3.0" browsers="all">
+          <desc>Ethiopic Extended-A.</desc>
+        </value>
+        <value name="U+1780–17FF" version="3.0" browsers="all">
+          <desc>Khmer.</desc>
+        </value>
+       <value name="U+1800–18AF" version="3.0" browsers="all">
+          <desc>Mongolian.</desc>
+        </value>
+       <value name="U+1B80–1BBF" version="3.0" browsers="all">
+          <desc>Sundanese.</desc>
+        </value>
+       <value name="U+1CC0–1CCF" version="3.0" browsers="all">
+          <desc>Sundanese Supplement.</desc>
+        </value>
+       <value name="U+4E00–9FD5" version="3.0" browsers="all">
+          <desc>CJK (Chinese, Japanese, Korean) Unified Ideographs.</desc>
+        </value>
+		<value name="U+3400–4DB5" version="3.0" browsers="all">
+          <desc>CJK Unified Ideographs Extension A.</desc>
+        </value>
+		<value name="U+20000–2A6D6" version="3.0" browsers="all">
+          <desc>CJK Unified Ideographs Extension B.</desc>
+        </value>
+		<value name="U+2A700–2B734" version="3.0" browsers="all">
+          <desc>CJK Unified Ideographs Extension C.</desc>
+        </value>
+		<value name="U+2B740–2B81D" version="3.0" browsers="all">
+          <desc>CJK Unified Ideographs Extension D.</desc>
+        </value>
+		<value name="U+2B820–2CEA1" version="3.0" browsers="all">
+          <desc>CJK Unified Ideographs Extension E.</desc>
+        </value>
+		<value name="U+2F00–2FDF" version="3.0" browsers="all">
+          <desc>Kangxi Radicals.</desc>
+        </value>
+		<value name="U+2E80–2EFF" version="3.0" browsers="all">
+          <desc>CJK Radicals Supplement.</desc>
+        </value>
+		<value name="U+1100–11FF" version="3.0" browsers="all">
+          <desc>Hangul Jamo.</desc>
+        </value>
+		<value name="U+AC00–D7AF" version="3.0" browsers="all">
+          <desc>Hangul Syllables.</desc>
+        </value>
+		<value name="U+3040–309F" version="3.0" browsers="all">
+          <desc>Hiragana.</desc>
+        </value>
+		<value name="U+30A0–30FF" version="3.0" browsers="all">
+          <desc>Katakana.</desc>
+        </value>
+		<value name="U+A5, U+4E00-9FFF, U+30??, U+FF00-FF9F" version="3.0" browsers="all">
+          <desc>Japanese Kanji, Hiragana and Katakana characters plus Yen/Yuan symbol.</desc>
+        </value>
+		<value name="U+A4D0–A4FF" version="3.0" browsers="all">
+          <desc>Lisu.</desc>
+        </value>
+		<value name="U+A000–A48F" version="3.0" browsers="all">
+          <desc>Yi Syllables.</desc>
+        </value>
+		<value name="U+A490–A4CF" version="3.0" browsers="all">
+          <desc>Yi Radicals.</desc>
+        </value>
+        <value name="U+2000-206F" version="3.0" browsers="all">
+          <desc>General Punctuation.</desc>
+        </value>
+		<value name="U+3000–303F" version="3.0" browsers="all">
+          <desc>CJK Symbols and Punctuation.</desc>
+        </value>
+        <value name="U+2070–209F" version="3.0" browsers="all">
+          <desc>Superscripts and Subscripts.</desc>
+        </value>
+        <value name="U+20A0–20CF" version="3.0" browsers="all">
+          <desc>Currency Symbols.</desc>
+        </value>
+        <value name="U+2100–214F" version="3.0" browsers="all">
+          <desc>Letterlike Symbols.</desc>
+        </value>
+        <value name="U+2150–218F" version="3.0" browsers="all">
+          <desc>Number Forms.</desc>
+        </value>
+        <value name="U+2190–21FF" version="3.0" browsers="all">
+          <desc>Arrows.</desc>
+        </value>
+        <value name="U+2200–22FF" version="3.0" browsers="all">
+          <desc>Mathematical Operators.</desc>
+        </value>
+        <value name="U+2300–23FF" version="3.0" browsers="all">
+          <desc>Miscellaneous Technical.</desc>
+        </value>
+        <value name="U+E000-F8FF" version="3.0" browsers="all">
+          <desc>Private Use Area.</desc>
+        </value>
+        <value name="U+FB00–FB4F" version="3.0" browsers="all">
+          <desc>Alphabetic Presentation Forms.</desc>
+        </value>
+        <value name="U+1F600–1F64F" version="3.0" browsers="all">
+          <desc>Emoji: Emoticons.</desc>
+        </value>
+        <value name="U+2600–26FF" version="3.0" browsers="all">
+          <desc>Emoji: Miscellaneous Symbols.</desc>
+        </value>
+        <value name="U+1F300–1F5FF" version="3.0" browsers="all">
+          <desc>Emoji: Miscellaneous Symbols and Pictographs.</desc>
+        </value>
+        <value name="U+1F900–1F9FF" version="3.0" browsers="all">
+          <desc>Emoji: Supplemental Symbols and Pictographs.</desc>
+        </value>
+        <value name="U+1F680–1F6FF" version="3.0" browsers="all">
+          <desc>Emoji: Transport and Map Symbols.</desc>
+        </value>
+      </values>
     </entry>
     <entry name="user-select" restriction="enum" version="3.0" browsers="none" ref="http://www.w3.org/TR/css-ui-4/#propdef-user-select" syntax="div { $(name): text; }">
       <desc>Controls the appearance of selection.</desc>
