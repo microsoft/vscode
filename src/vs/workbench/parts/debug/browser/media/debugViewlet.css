@@ -71,9 +71,6 @@
 	line-height: 18px;
 
 	-webkit-user-select: text;
-	-moz-user-select: text;
-	-o-user-select: text;
-	-ms-user-select: text;
 }
 
 .debug-viewlet .debug-message-box.exception {

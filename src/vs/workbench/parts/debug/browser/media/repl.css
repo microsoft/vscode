@@ -28,7 +28,7 @@
 .monaco-workbench .repl .repl-tree .monaco-tree .monaco-tree-row > .content {
 	line-height: 18px;
 	word-wrap: break-word;
-	-webkit-user-select: initial;
+	-webkit-user-select: text;
 }
 
 .monaco-workbench .repl .repl-tree .monaco-tree-row .input.expression.mac,
