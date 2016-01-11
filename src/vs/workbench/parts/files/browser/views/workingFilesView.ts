@@ -19,7 +19,7 @@ import errors = require('vs/base/common/errors');
 import {EventType as WorkbenchEventType, UntitledEditorEvent, EditorEvent} from 'vs/workbench/common/events';
 import {AdaptiveCollapsibleViewletView} from 'vs/workbench/browser/viewlet';
 import {CloseWorkingFileAction, SaveAllAction} from 'vs/workbench/parts/files/browser/fileActions';
-import {WorkingFileEntry} from 'vs/workbench/parts/files/browser/workingFilesModel';
+import {WorkingFileEntry} from 'vs/workbench/parts/files/common/workingFilesModel';
 import {WorkingFilesDragAndDrop, WorkingFilesSorter, WorkingFilesController, WorkingFilesDataSource, WorkingFilesRenderer, WorkingFilesActionProvider} from 'vs/workbench/parts/files/browser/views/workingFilesViewer';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IConfigurationService, IConfigurationServiceEvent, ConfigurationServiceEventTypes} from 'vs/platform/configuration/common/configuration';

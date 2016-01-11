@@ -14,11 +14,11 @@ import {AddToWorkingFiles, FocusWorkingFiles, OpenPreviousWorkingFile, OpenNextW
 import {RevertLocalChangesAction, AcceptLocalChangesAction, ConflictResolutionDiffEditorInput} from 'vs/workbench/parts/files/browser/saveErrorHandler';
 import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
 import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/common/actionRegistry';
-import {DerivedFrameEditorInput} from 'vs/workbench/parts/files/browser/editors/derivedFrameEditorInput';
+import {DerivedFrameEditorInput} from 'vs/workbench/parts/files/common/editors/derivedFrameEditorInput';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
-import {FileStat} from 'vs/workbench/parts/files/common/viewModel';
+import {FileStat} from 'vs/workbench/parts/files/common/explorerViewModel';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 
 class FilesViewerActionContributor extends ActionBarContributor {

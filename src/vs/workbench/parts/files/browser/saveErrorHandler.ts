@@ -20,7 +20,7 @@ import {DiffEditorModel} from 'vs/workbench/common/editor/diffEditorModel';
 import {FileEditorInput} from 'vs/workbench/parts/files/browser/editors/fileEditorInput';
 import {SaveFileAsAction, RevertFileAction, SaveFileAction} from 'vs/workbench/parts/files/browser/fileActions';
 import {IFileService, IFileOperationResult, FileOperationResult} from 'vs/platform/files/common/files';
-import {TextFileEditorModel, ISaveErrorHandler} from 'vs/workbench/parts/files/browser/editors/textFileEditorModel';
+import {TextFileEditorModel, ISaveErrorHandler} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
