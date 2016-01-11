@@ -8919,9 +8919,6 @@ exports.data ={
 						"name": "U+20-2FF, U+370-4FF, U+1E00-20CF, U+2100-23FF, U+2500-26FF, U+FB00-FB4F, U+FFF0-FFFD"
 					},
 					{
-						"name": "U+20-4FF, U+530-58F, U+10A0-10FF, U+1E00-23FF, U+2440-245F, U+2500-26FF, U+FB00-FB4F, U+FE20-FE2F, U+FFF0-FFFD"
-					},
-					{
 						"name": "U+20-4FF, U+530-58F, U+10D0-10FF, U+1E00-23FF, U+2440-245F, U+2500-26FF, U+FB00-FB4F, U+FE20-FE2F, U+FFF0-FFFD"
 					},
 					{
@@ -9060,18 +9057,6 @@ exports.data ={
 						"name": "U+3400–4DB5"
 					},
 					{
-						"name": "U+20000–2A6D6"
-					},
-					{
-						"name": "U+2A700–2B734"
-					},
-					{
-						"name": "U+2B740–2B81D"
-					},
-					{
-						"name": "U+2B820–2CEA1"
-					},
-					{
 						"name": "U+2F00–2FDF"
 					},
 					{
@@ -9133,6 +9118,9 @@ exports.data ={
 					},
 					{
 						"name": "U+FB00–FB4F"
+					},
+					{
+						"name": "U+FB50–FDFF"
 					},
 					{
 						"name": "U+1F600–1F64F"
@@ -11326,26 +11314,25 @@ exports.descriptions = {
 	"plaintext": "For the purposes of the Unicode bidirectional algorithm, the base directionality of each bidi paragraph for which the element forms the containing block is determined not by the element's computed 'direction'.",
 	"U+26": "Ampersand.",
 	"U+20-24F, U+2B0-2FF, U+370-4FF, U+1E00-1EFF, U+2000-20CF, U+2100-23FF, U+2500-26FF, U+E000-F8FF, U+FB00–FB4F": "WGL4 character set (Pan-European).",
-	"U+20-17F, U+2B0-2FF, U+2000-206F, U+20A0-20CF, U+2100-21FF, U+2600-26FF": "The Multilingual European Subset No. 1.",
-	"U+20-2FF, U+370-4FF, U+1E00-20CF, U+2100-23FF, U+2500-26FF, U+FB00-FB4F, U+FFF0-FFFD": "The Multilingual European Subset No. 2.",
-	"U+20-4FF, U+530-58F, U+10A0-10FF, U+1E00-23FF, U+2440-245F, U+2500-26FF, U+FB00-FB4F, U+FE20-FE2F, U+FFF0-FFFD": "The Multilingual European Subset No. 3A.",
-	"U+20-4FF, U+530-58F, U+10D0-10FF, U+1E00-23FF, U+2440-245F, U+2500-26FF, U+FB00-FB4F, U+FE20-FE2F, U+FFF0-FFFD": "The Multilingual European Subset No. 3B.",
-	"U+00-7F": "Basic Latin.",
-	"U+80-FF": "Latin-1 Supplement.",
-	"U+100-17F": "Latin Extended-A.",
-	"U+180-24F": "Latin Extended-B.",
-	"U+1E00-1EFF": "Latin Extended Additional.",
+	"U+20-17F, U+2B0-2FF, U+2000-206F, U+20A0-20CF, U+2100-21FF, U+2600-26FF": "The Multilingual European Subset No. 1. Latin. Covers ~44 languages.",
+	"U+20-2FF, U+370-4FF, U+1E00-20CF, U+2100-23FF, U+2500-26FF, U+FB00-FB4F, U+FFF0-FFFD": "The Multilingual European Subset No. 2. Latin, Greek, and Cyrillic. Covers ~128 language.",
+	"U+20-4FF, U+530-58F, U+10D0-10FF, U+1E00-23FF, U+2440-245F, U+2500-26FF, U+FB00-FB4F, U+FE20-FE2F, U+FFF0-FFFD": "The Multilingual European Subset No. 3. Covers all characters belonging to European scripts.",
+	"U+00-7F": "Basic Latin (ASCII).",
+	"U+80-FF": "Latin-1 Supplement. Accented characters for Western European languages, common punctuation characters, multiplication and division signs.",
+	"U+100-17F": "Latin Extended-A. Accented characters for for Czech, Dutch, Polish, and Turkish.",
+	"U+180-24F": "Latin Extended-B. Croatian, Slovenian, Romanian, Non-European and historic latin, Khoisan, Pinyin, Livonian, Sinology.",
+	"U+1E00-1EFF": "Latin Extended Additional. Vietnamese, German captial sharp s, Medievalist, Latin general use.",
 	"U+250-2AF": "International Phonetic Alphabet Extensions.",
 	"U+370-3FF": "Greek and Coptic.",
-	"U+1F00-1FFF": "Greek Extended.",
+	"U+1F00-1FFF": "Greek Extended. Accented characters for polytonic Greek.",
 	"U+400-4FF": "Cyrillic.",
-	"U+500-52F": "Cyrillic Supplement.",
+	"U+500-52F": "Cyrillic Supplement. Extra letters for Komi, Khanty, Chukchi, Mordvin, Kurdish, Aleut, Chuvash, Abkhaz, Azerbaijani, and Orok.",
 	"U+00-52F, U+1E00-1FFF, U+2200–22FF": "Latin, Greek, Cyrillic, some punctuation and symbols.",
 	"U+530–58F": "Armenian.",
 	"U+590–5FF": "Hebrew.",
 	"U+600–6FF": "Arabic.",
-	"U+750–77F": "Arabic Supplement.",
-	"U+8A0–8FF": "Arabic Extended-A.",
+	"U+750–77F": "Arabic Supplement. Additional letters for African languages, Khowar, Torwali, Burushaski, and early Persian.",
+	"U+8A0–8FF": "Arabic Extended-A. Additional letters for African languages, European and Central Asian languages, Rohingya, Berber, Arwi, and Koranic annotation signs.",
 	"U+700–74F": "Syriac.",
 	"U+900–97F": "Devanagari.",
 	"U+980–9FF": "Bengali.",
@@ -11366,21 +11353,17 @@ exports.descriptions = {
 	"U+1000–109F": "Myanmar (Burmese).",
 	"U+10A0–10FF": "Georgian.",
 	"U+1200–137F": "Ethiopic.",
-	"U+1380–139F": "Ethiopic Supplement.",
-	"U+2D80–2DDF": "Ethiopic Extended.",
-	"U+AB00–AB2F": "Ethiopic Extended-A.",
+	"U+1380–139F": "Ethiopic Supplement. Extra Syllables for Sebatbeit, and Tonal marks",
+	"U+2D80–2DDF": "Ethiopic Extended. Extra Syllables for Me'en, Blin, and Sebatbeit.",
+	"U+AB00–AB2F": "Ethiopic Extended-A. Extra characters for Gamo-Gofa-Dawro, Basketo, and Gumuz.",
 	"U+1780–17FF": "Khmer.",
 	"U+1800–18AF": "Mongolian.",
 	"U+1B80–1BBF": "Sundanese.",
-	"U+1CC0–1CCF": "Sundanese Supplement.",
-	"U+4E00–9FD5": "CJK (Chinese, Japanese, Korean) Unified Ideographs.",
-	"U+3400–4DB5": "CJK Unified Ideographs Extension A.",
-	"U+20000–2A6D6": "CJK Unified Ideographs Extension B.",
-	"U+2A700–2B734": "CJK Unified Ideographs Extension C.",
-	"U+2B740–2B81D": "CJK Unified Ideographs Extension D.",
-	"U+2B820–2CEA1": "CJK Unified Ideographs Extension E.",
+	"U+1CC0–1CCF": "Sundanese Supplement. Punctuation.",
+	"U+4E00–9FD5": "CJK (Chinese, Japanese, Korean) Unified Ideographs. Most common ideographs for modern Chinese and Japanese.",
+	"U+3400–4DB5": "CJK Unified Ideographs Extension A. Rare ideographs.",
 	"U+2F00–2FDF": "Kangxi Radicals.",
-	"U+2E80–2EFF": "CJK Radicals Supplement.",
+	"U+2E80–2EFF": "CJK Radicals Supplement. Alternative forms of Kangxi Radicals.",
 	"U+1100–11FF": "Hangul Jamo.",
 	"U+AC00–D7AF": "Hangul Syllables.",
 	"U+3040–309F": "Hiragana.",
@@ -11399,7 +11382,8 @@ exports.descriptions = {
 	"U+2200–22FF": "Mathematical Operators.",
 	"U+2300–23FF": "Miscellaneous Technical.",
 	"U+E000-F8FF": "Private Use Area.",
-	"U+FB00–FB4F": "Alphabetic Presentation Forms.",
+	"U+FB00–FB4F": "Alphabetic Presentation Forms. Ligatures for latin, Armenian, and Hebrew.",
+	"U+FB50–FDFF": "Arabic Presentation Forms-A. Contextual forms / ligatures for Persian, Urdu, Sindhi, Central Asian languages, etc, Arabic pedagogical symbols, word ligatures.",
 	"U+1F600–1F64F": "Emoji: Emoticons.",
 	"U+2600–26FF": "Emoji: Miscellaneous Symbols.",
 	"U+1F300–1F5FF": "Emoji: Miscellaneous Symbols and Pictographs.",

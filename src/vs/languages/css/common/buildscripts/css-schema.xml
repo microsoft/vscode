@@ -8454,31 +8454,28 @@
           <desc>WGL4 character set (Pan-European).</desc>
         </value>
         <value name="U+20-17F, U+2B0-2FF, U+2000-206F, U+20A0-20CF, U+2100-21FF, U+2600-26FF" version="3.0" browsers="all">
-          <desc>The Multilingual European Subset No. 1.</desc>
+          <desc>The Multilingual European Subset No. 1. Latin. Covers ~44 languages.</desc>
         </value>
         <value name="U+20-2FF, U+370-4FF, U+1E00-20CF, U+2100-23FF, U+2500-26FF, U+FB00-FB4F, U+FFF0-FFFD" version="3.0" browsers="all">
-          <desc>The Multilingual European Subset No. 2.</desc>
-        </value>
-        <value name="U+20-4FF, U+530-58F, U+10A0-10FF, U+1E00-23FF, U+2440-245F, U+2500-26FF, U+FB00-FB4F, U+FE20-FE2F, U+FFF0-FFFD" version="3.0" browsers="all">
-          <desc>The Multilingual European Subset No. 3A.</desc>
+          <desc>The Multilingual European Subset No. 2. Latin, Greek, and Cyrillic. Covers ~128 language.</desc>
         </value>
         <value name="U+20-4FF, U+530-58F, U+10D0-10FF, U+1E00-23FF, U+2440-245F, U+2500-26FF, U+FB00-FB4F, U+FE20-FE2F, U+FFF0-FFFD" version="3.0" browsers="all">
-          <desc>The Multilingual European Subset No. 3B.</desc>
+          <desc>The Multilingual European Subset No. 3. Covers all characters belonging to European scripts.</desc>
         </value>
         <value name="U+00-7F" version="3.0" browsers="all">
-          <desc>Basic Latin.</desc>
+          <desc>Basic Latin (ASCII).</desc>
         </value>
         <value name="U+80-FF" version="3.0" browsers="all">
-          <desc>Latin-1 Supplement.</desc>
+          <desc>Latin-1 Supplement. Accented characters for Western European languages, common punctuation characters, multiplication and division signs.</desc>
         </value>
         <value name="U+100-17F" version="3.0" browsers="all">
-          <desc>Latin Extended-A.</desc>
+          <desc>Latin Extended-A. Accented characters for for Czech, Dutch, Polish, and Turkish.</desc>
         </value>
         <value name="U+180-24F" version="3.0" browsers="all">
-          <desc>Latin Extended-B.</desc>
+          <desc>Latin Extended-B. Croatian, Slovenian, Romanian, Non-European and historic latin, Khoisan, Pinyin, Livonian, Sinology.</desc>
         </value>
         <value name="U+1E00-1EFF" version="3.0" browsers="all">
-          <desc>Latin Extended Additional.</desc>
+          <desc>Latin Extended Additional. Vietnamese, German captial sharp s, Medievalist, Latin general use.</desc>
         </value>
         <value name="U+250-2AF" version="3.0" browsers="all">
           <desc>International Phonetic Alphabet Extensions.</desc>
@@ -8487,13 +8484,13 @@
           <desc>Greek and Coptic.</desc>
         </value>
         <value name="U+1F00-1FFF" version="3.0" browsers="all">
-          <desc>Greek Extended.</desc>
+          <desc>Greek Extended. Accented characters for polytonic Greek.</desc>
         </value>
         <value name="U+400-4FF" version="3.0" browsers="all">
           <desc>Cyrillic.</desc>
         </value>
         <value name="U+500-52F" version="3.0" browsers="all">
-          <desc>Cyrillic Supplement.</desc>
+          <desc>Cyrillic Supplement. Extra letters for Komi, Khanty, Chukchi, Mordvin, Kurdish, Aleut, Chuvash, Abkhaz, Azerbaijani, and Orok.</desc>
         </value>
         <value name="U+00-52F, U+1E00-1FFF, U+2200–22FF" version="3.0" browsers="all">
           <desc>Latin, Greek, Cyrillic, some punctuation and symbols.</desc>
@@ -8508,10 +8505,10 @@
           <desc>Arabic.</desc>
         </value>
         <value name="U+750–77F" version="3.0" browsers="all">
-          <desc>Arabic Supplement.</desc>
+          <desc>Arabic Supplement. Additional letters for African languages, Khowar, Torwali, Burushaski, and early Persian.</desc>
         </value>
         <value name="U+8A0–8FF" version="3.0" browsers="all">
-          <desc>Arabic Extended-A.</desc>
+          <desc>Arabic Extended-A. Additional letters for African languages, European and Central Asian languages, Rohingya, Berber, Arwi, and Koranic annotation signs.</desc>
         </value>
         <value name="U+700–74F" version="3.0" browsers="all">
           <desc>Syriac.</desc>
@@ -8574,13 +8571,13 @@
           <desc>Ethiopic.</desc>
         </value>
         <value name="U+1380–139F" version="3.0" browsers="all">
-          <desc>Ethiopic Supplement.</desc>
+          <desc>Ethiopic Supplement. Extra Syllables for Sebatbeit, and Tonal marks</desc>
         </value>
         <value name="U+2D80–2DDF" version="3.0" browsers="all">
-          <desc>Ethiopic Extended.</desc>
+          <desc>Ethiopic Extended. Extra Syllables for Me'en, Blin, and Sebatbeit.</desc>
         </value>
         <value name="U+AB00–AB2F" version="3.0" browsers="all">
-          <desc>Ethiopic Extended-A.</desc>
+          <desc>Ethiopic Extended-A. Extra characters for Gamo-Gofa-Dawro, Basketo, and Gumuz.</desc>
         </value>
         <value name="U+1780–17FF" version="3.0" browsers="all">
           <desc>Khmer.</desc>
@@ -8592,31 +8589,19 @@
           <desc>Sundanese.</desc>
         </value>
        <value name="U+1CC0–1CCF" version="3.0" browsers="all">
-          <desc>Sundanese Supplement.</desc>
+          <desc>Sundanese Supplement. Punctuation.</desc>
         </value>
        <value name="U+4E00–9FD5" version="3.0" browsers="all">
-          <desc>CJK (Chinese, Japanese, Korean) Unified Ideographs.</desc>
+          <desc>CJK (Chinese, Japanese, Korean) Unified Ideographs. Most common ideographs for modern Chinese and Japanese.</desc>
         </value>
 		<value name="U+3400–4DB5" version="3.0" browsers="all">
-          <desc>CJK Unified Ideographs Extension A.</desc>
-        </value>
-		<value name="U+20000–2A6D6" version="3.0" browsers="all">
-          <desc>CJK Unified Ideographs Extension B.</desc>
-        </value>
-		<value name="U+2A700–2B734" version="3.0" browsers="all">
-          <desc>CJK Unified Ideographs Extension C.</desc>
-        </value>
-		<value name="U+2B740–2B81D" version="3.0" browsers="all">
-          <desc>CJK Unified Ideographs Extension D.</desc>
-        </value>
-		<value name="U+2B820–2CEA1" version="3.0" browsers="all">
-          <desc>CJK Unified Ideographs Extension E.</desc>
+          <desc>CJK Unified Ideographs Extension A. Rare ideographs.</desc>
         </value>
 		<value name="U+2F00–2FDF" version="3.0" browsers="all">
           <desc>Kangxi Radicals.</desc>
         </value>
 		<value name="U+2E80–2EFF" version="3.0" browsers="all">
-          <desc>CJK Radicals Supplement.</desc>
+          <desc>CJK Radicals Supplement. Alternative forms of Kangxi Radicals.</desc>
         </value>
 		<value name="U+1100–11FF" version="3.0" browsers="all">
           <desc>Hangul Jamo.</desc>
@@ -8673,7 +8658,10 @@
           <desc>Private Use Area.</desc>
         </value>
         <value name="U+FB00–FB4F" version="3.0" browsers="all">
-          <desc>Alphabetic Presentation Forms.</desc>
+          <desc>Alphabetic Presentation Forms. Ligatures for latin, Armenian, and Hebrew.</desc>
+        </value>
+        <value name="U+FB50–FDFF" version="3.0" browsers="all">
+          <desc>Arabic Presentation Forms-A. Contextual forms / ligatures for Persian, Urdu, Sindhi, Central Asian languages, etc, Arabic pedagogical symbols, word ligatures.</desc>
         </value>
         <value name="U+1F600–1F64F" version="3.0" browsers="all">
           <desc>Emoji: Emoticons.</desc>
