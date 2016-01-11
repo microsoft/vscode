@@ -7,30 +7,30 @@
 
 import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
-import {ExtHostDocument} from 'vs/workbench/api/common/extHostDocuments';
-import {Position} from 'vs/workbench/api/common/extHostTypes';
+import {ExtHostDocumentData} from 'vs/workbench/api/node/extHostDocuments';
+import {Position} from 'vs/workbench/api/node/extHostTypes';
 import {Range as CodeEditorRange} from 'vs/editor/common/core/range';
 import * as EditorCommon from 'vs/editor/common/editorCommon';
 
 
 suite("PluginHostDocument", () => {
 
-	let doc: ExtHostDocument;
+	let data: ExtHostDocumentData;
 
 	function assertPositionAt(offset: number, line: number, character: number) {
-		let position = doc.positionAt(offset);
+		let position = data.positionAt(offset);
 		assert.equal(position.line, line);
 		assert.equal(position.character, character);
 	}
 
 	function assertOffsetAt(line: number, character: number, offset: number) {
 		let pos = new Position(line, character);
-		let actual = doc.offsetAt(pos);
+		let actual = data.offsetAt(pos);
 		assert.equal(actual, offset);
 	}
 
 	setup(function() {
-		doc = new ExtHostDocument(undefined, URI.file(''), [
+		data = new ExtHostDocumentData(undefined, URI.file(''), [
 			'This is line one', //16
 			'and this is line number two', //27
 			'it is followed by #3', //20
@@ -40,33 +40,33 @@ suite("PluginHostDocument", () => {
 
 	test('readonly-ness', function() {
 
-		assert.throws(() => doc.uri = null);
-		assert.throws(() => doc.fileName = 'foofile');
-		assert.throws(() => doc.isDirty = false);
-		assert.throws(() => doc.isUntitled = false);
-		assert.throws(() => doc.languageId = 'dddd');
-		assert.throws(() => doc.lineCount = 9);
+		assert.throws(() => data.document.uri = null);
+		assert.throws(() => data.document.fileName = 'foofile');
+		assert.throws(() => data.document.isDirty = false);
+		assert.throws(() => data.document.isUntitled = false);
+		assert.throws(() => data.document.languageId = 'dddd');
+		assert.throws(() => data.document.lineCount = 9);
 	})
 
 	test('lines', function() {
 
-		assert.equal(doc.lineCount, 4);
-		assert.throws(() => doc.lineCount = 9);
+		assert.equal(data.document.lineCount, 4);
+		assert.throws(() => data.document.lineCount = 9);
 
-		assert.throws(() => doc.lineAt(-1));
-		assert.throws(() => doc.lineAt(doc.lineCount));
-		assert.throws(() => doc.lineAt(Number.MAX_VALUE));
-		assert.throws(() => doc.lineAt(Number.MIN_VALUE));
-		assert.throws(() => doc.lineAt(0.8));
+		assert.throws(() => data.lineAt(-1));
+		assert.throws(() => data.lineAt(data.document.lineCount));
+		assert.throws(() => data.lineAt(Number.MAX_VALUE));
+		assert.throws(() => data.lineAt(Number.MIN_VALUE));
+		assert.throws(() => data.lineAt(0.8));
 
-		let line = doc.lineAt(0);
+		let line = data.lineAt(0);
 		assert.equal(line.lineNumber, 0);
 		assert.equal(line.text.length, 16);
 		assert.equal(line.text, 'This is line one');
 		assert.equal(line.isEmptyOrWhitespace, false);
 		assert.equal(line.firstNonWhitespaceCharacterIndex, 0);
 
-		doc._acceptEvents([{
+		data.onEvents([{
 			range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 },
 			text: '\t ',
 			isRedoing: undefined,
@@ -80,7 +80,7 @@ suite("PluginHostDocument", () => {
 		assert.equal(line.firstNonWhitespaceCharacterIndex, 0);
 
 		// fetch line again
-		line = doc.lineAt(0);
+		line = data.lineAt(0);
 		assert.equal(line.text, '\t This is line one');
 		assert.equal(line.firstNonWhitespaceCharacterIndex, 2);
 	});
@@ -102,7 +102,7 @@ suite("PluginHostDocument", () => {
 
 	test('offsetAt, after remove', function() {
 
-		doc._acceptEvents([{
+		data.onEvents([{
 			range: { startLineNumber: 1, startColumn: 3, endLineNumber: 1, endColumn: 6 },
 			text: '',
 			isRedoing: undefined,
@@ -118,7 +118,7 @@ suite("PluginHostDocument", () => {
 
 	test('offsetAt, after replace', function() {
 
-		doc._acceptEvents([{
+		data.onEvents([{
 			range: { startLineNumber: 1, startColumn: 3, endLineNumber: 1, endColumn: 6 },
 			text: 'is could be',
 			isRedoing: undefined,
@@ -134,7 +134,7 @@ suite("PluginHostDocument", () => {
 
 	test('offsetAt, after insert line', function() {
 
-		doc._acceptEvents([{
+		data.onEvents([{
 			range: { startLineNumber: 1, startColumn: 3, endLineNumber: 1, endColumn: 6 },
 			text: 'is could be\na line with number',
 			isRedoing: undefined,
@@ -153,7 +153,7 @@ suite("PluginHostDocument", () => {
 
 	test('offsetAt, after remove line', function() {
 
-		doc._acceptEvents([{
+		data.onEvents([{
 			range: { startLineNumber: 1, startColumn: 3, endLineNumber: 2, endColumn: 6 },
 			text: '',
 			isRedoing: undefined,
@@ -189,11 +189,11 @@ enum AssertDocumentLineMappingDirection {
 
 suite("PluginHostDocument updates line mapping", () => {
 
-	function positionToStr(position:Position): string {
+	function positionToStr(position: { line: number; character: number;}): string {
 		return '(' + position.line + ',' + position.character + ')';
 	}
 
-	function assertDocumentLineMapping(doc:ExtHostDocument, direction:AssertDocumentLineMappingDirection): void {
+	function assertDocumentLineMapping(doc:ExtHostDocumentData, direction:AssertDocumentLineMappingDirection): void {
 		let allText = doc.getText();
 
 		let line = 0, character = 0, previousIsCarriageReturn = false;
@@ -234,10 +234,10 @@ suite("PluginHostDocument updates line mapping", () => {
 	}
 
 	function testLineMappingDirectionAfterEvents(lines:string[], eol: string, direction:AssertDocumentLineMappingDirection, events:EditorCommon.IModelContentChangedEvent2[]): void {
-		let myDocument = new ExtHostDocument(undefined, URI.file(''), lines.slice(0), eol, 'text', 1, false);
+		let myDocument = new ExtHostDocumentData(undefined, URI.file(''), lines.slice(0), eol, 'text', 1, false);
 		assertDocumentLineMapping(myDocument, direction);
 
-		myDocument._acceptEvents(events);
+		myDocument.onEvents(events);
 		assertDocumentLineMapping(myDocument, direction);
 	}
 

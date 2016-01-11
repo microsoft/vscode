@@ -7,15 +7,16 @@
 import {toErrorMessage} from 'vs/base/common/errors';
 import {IEmitterEvent} from 'vs/base/common/eventEmitter';
 import {IModelService} from 'vs/editor/common/services/modelService';
-import {PrefixSumComputer, IPrefixSumIndexOfResult} from 'vs/editor/common/viewModel/prefixSumComputer';
 import * as EditorCommon from 'vs/editor/common/editorCommon';
+import {IPrefixSumIndexOfResult} from 'vs/editor/common/viewModel/prefixSumComputer';
+import {MirrorModel2} from 'vs/editor/common/model/mirrorModel2';
 import {Remotable, IThreadService} from 'vs/platform/thread/common/thread';
 import Event, {Emitter} from 'vs/base/common/event';
 import URI from 'vs/base/common/uri';
 import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
-import {Range, Position} from 'vs/workbench/api/common/extHostTypes';
+import {Range, Position, Disposable} from 'vs/workbench/api/node/extHostTypes';
 import {IEventService} from 'vs/platform/event/common/event';
-import {IEditorService} from 'vs/platform/editor/common/editor';
+import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {EventType as FileEventType, LocalFileChangeEvent, ITextFileService} from 'vs/workbench/parts/files/common/files';
 import * as TypeConverters from './extHostTypeConverters';
 import {TPromise} from 'vs/base/common/winjs.base';
@@ -23,6 +24,13 @@ import * as vscode from 'vscode';
 import {WordHelper} from 'vs/editor/common/model/textModelWithTokensHelpers';
 import {IFileService} from 'vs/platform/files/common/files';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
+import {asWinJsPromise} from 'vs/base/common/async';
+import {EditorModel, EditorInput} from 'vs/workbench/common/editor';
+import {IEditorInput, IResourceInput} from 'vs/platform/editor/common/editor';
+import {IMode} from 'vs/editor/common/modes';
+import {IModeService} from 'vs/editor/common/services/modeService';
+import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import * as weak from 'weak';
 
 export interface IModelAddedData {
 	url: URI;
@@ -47,127 +55,157 @@ export function getWordDefinitionFor(modeId:string):RegExp {
 @Remotable.PluginHostContext('ExtHostModelService')
 export class ExtHostModelService {
 
-	private _onDidAddDocumentEventEmitter: Emitter<BaseTextDocument>;
-	public onDidAddDocument: Event<BaseTextDocument>;
+	private _onDidAddDocumentEventEmitter: Emitter<vscode.TextDocument>;
+	public onDidAddDocument: Event<vscode.TextDocument>;
 
-	private _onDidRemoveDocumentEventEmitter: Emitter<BaseTextDocument>;
-	public onDidRemoveDocument: Event<BaseTextDocument>;
+	private _onDidRemoveDocumentEventEmitter: Emitter<vscode.TextDocument>;
+	public onDidRemoveDocument: Event<vscode.TextDocument>;
 
 	private _onDidChangeDocumentEventEmitter: Emitter<vscode.TextDocumentChangeEvent>;
 	public onDidChangeDocument: Event<vscode.TextDocumentChangeEvent>;
 
-	private _onDidSaveDocumentEventEmitter: Emitter<BaseTextDocument>;
-	public onDidSaveDocument: Event<BaseTextDocument>;
+	private _onDidSaveDocumentEventEmitter: Emitter<vscode.TextDocument>;
+	public onDidSaveDocument: Event<vscode.TextDocument>;
 
-	private _documents: {[modelUri:string]:ExtHostDocument;};
+	private _documentData: { [modelUri: string]: ExtHostDocumentData; };
+	private _documentLoader: { [modelUri: string]: TPromise<ExtHostDocumentData> };
+	private _documentContentProviders: { [scheme: string]: vscode.TextDocumentContentProvider };
 
 	private _proxy: MainThreadDocuments;
 
 	constructor(@IThreadService threadService: IThreadService) {
 		this._proxy = threadService.getRemotable(MainThreadDocuments);
 
-		this._onDidAddDocumentEventEmitter = new Emitter<BaseTextDocument>();
+		this._onDidAddDocumentEventEmitter = new Emitter<vscode.TextDocument>();
 		this.onDidAddDocument = this._onDidAddDocumentEventEmitter.event;
 
-		this._onDidRemoveDocumentEventEmitter = new Emitter<BaseTextDocument>();
+		this._onDidRemoveDocumentEventEmitter = new Emitter<vscode.TextDocument>();
 		this.onDidRemoveDocument = this._onDidRemoveDocumentEventEmitter.event;
 
 		this._onDidChangeDocumentEventEmitter = new Emitter<vscode.TextDocumentChangeEvent>();
 		this.onDidChangeDocument = this._onDidChangeDocumentEventEmitter.event;
 
-		this._onDidSaveDocumentEventEmitter = new Emitter<BaseTextDocument>();
+		this._onDidSaveDocumentEventEmitter = new Emitter<vscode.TextDocument>();
 		this.onDidSaveDocument = this._onDidSaveDocumentEventEmitter.event;
 
-		this._documents = Object.create(null);
+		this._documentData = Object.create(null);
+		this._documentLoader = Object.create(null);
+		this._documentContentProviders = Object.create(null);
 	}
 
-	public getDocuments(): BaseTextDocument[] {
-		let r: BaseTextDocument[] = [];
-		for (let key in this._documents) {
-			r.push(this._documents[key]);
+	public getAllDocumentData(): ExtHostDocumentData[] {
+		const result: ExtHostDocumentData[] = [];
+		for (let key in this._documentData) {
+			result.push(this._documentData[key]);
 		}
-		return r;
+		return result;
 	}
 
-	public getDocument(resource: vscode.Uri): BaseTextDocument {
+	public getDocumentData(resource: vscode.Uri): ExtHostDocumentData {
 		if (!resource) {
-			return null;
+			return;
 		}
-		return this._documents[resource.toString()] || null;
+		const data = this._documentData[resource.toString()];
+		if (data) {
+			return data;
+		}
 	}
 
-	public openDocument(uriOrFileName: vscode.Uri | string): TPromise<vscode.TextDocument> {
+	public ensureDocumentData(uri: URI): TPromise<ExtHostDocumentData> {
 
-		let uri: URI;
-		if (typeof uriOrFileName === 'string') {
-			uri = URI.file(uriOrFileName);
-		} else if (uriOrFileName instanceof URI) {
-			uri = <URI>uriOrFileName;
-		} else {
-			throw new Error('illegal argument - uriOrFileName');
-		}
-
-		let cached = this._documents[uri.toString()];
+		let cached = this._documentData[uri.toString()];
 		if (cached) {
 			return TPromise.as(cached);
 		}
-		return this._proxy._tryOpenDocument(uri).then(() => {
-			return this._documents[uri.toString()];
+
+		let promise = this._documentLoader[uri.toString()];
+		if (!promise) {
+			promise = this._proxy._tryOpenDocument(uri).then(() => {
+				delete this._documentLoader[uri.toString()];
+				return this._documentData[uri.toString()];
+			}, err => {
+				delete this._documentLoader[uri.toString()];
+				return TPromise.wrapError(err);
+			});
+			this._documentLoader[uri.toString()] = promise;
+		}
+
+		return promise;
+	}
+
+	public registerTextDocumentContentProvider(scheme: string, provider: vscode.TextDocumentContentProvider): vscode.Disposable {
+		if (scheme === 'file' || scheme === 'untitled' || this._documentContentProviders[scheme]) {
+			throw new Error(`scheme '${scheme}' already registered`);
+		}
+		this._documentContentProviders[scheme] = provider;
+		return new Disposable(() => delete this._documentContentProviders[scheme]);
+	}
+
+	$provideTextDocumentContent(uri: URI): TPromise<string> {
+		const provider = this._documentContentProviders[uri.scheme];
+		if (!provider) {
+			return TPromise.wrapError<string>(`unsupported uri-scheme: ${uri.scheme}`);
+		}
+		return asWinJsPromise(token => provider.provideTextDocumentContent(uri, token)).then(value => {
+			if (typeof value !== 'string') {
+				return TPromise.wrapError('received illegal value from text document provider');
+			}
+			return value;
 		});
 	}
 
-	public _acceptModelAdd(data:IModelAddedData): void {
-		let document = new ExtHostDocument(this._proxy, data.url, data.value.lines, data.value.EOL, data.modeId, data.versionId, data.isDirty);
-		let key = document.uri.toString();
-		if (this._documents[key]) {
+	public _acceptModelAdd(initData:IModelAddedData): void {
+		let data = new ExtHostDocumentData(this._proxy, initData.url, initData.value.lines, initData.value.EOL, initData.modeId, initData.versionId, initData.isDirty);
+		let key = data.document.uri.toString();
+		if (this._documentData[key]) {
 			throw new Error('Document `' + key + '` already exists.');
 		}
-		this._documents[key] = document;
-		this._onDidAddDocumentEventEmitter.fire(document);
+		this._documentData[key] = data;
+		this._onDidAddDocumentEventEmitter.fire(data.document);
 	}
 
 	public _acceptModelModeChanged(url: URI, oldModeId:string, newModeId:string): void {
-		let document = this._documents[url.toString()];
+		let data = this._documentData[url.toString()];
 
 		// Treat a mode change as a remove + add
 
-		this._onDidRemoveDocumentEventEmitter.fire(document);
-		document._acceptLanguageId(newModeId);
-		this._onDidAddDocumentEventEmitter.fire(document);
+		this._onDidRemoveDocumentEventEmitter.fire(data.document);
+		data._acceptLanguageId(newModeId);
+		this._onDidAddDocumentEventEmitter.fire(data.document);
 	}
 
 	public _acceptModelSaved(url: URI): void {
-		let document = this._documents[url.toString()];
-		document._acceptIsDirty(false);
-		this._onDidSaveDocumentEventEmitter.fire(document);
+		let data = this._documentData[url.toString()];
+		data._acceptIsDirty(false);
+		this._onDidSaveDocumentEventEmitter.fire(data.document);
 	}
 
 	public _acceptModelDirty(url: URI): void {
-		let document = this._documents[url.toString()];
+		let document = this._documentData[url.toString()];
 		document._acceptIsDirty(true);
 	}
 
 	public _acceptModelReverted(url: URI): void {
-		let document = this._documents[url.toString()];
+		let document = this._documentData[url.toString()];
 		document._acceptIsDirty(false);
 	}
 
 	public _acceptModelRemoved(url: URI): void {
 		let key = url.toString();
-		if (!this._documents[key]) {
+		if (!this._documentData[key]) {
 			throw new Error('Document `' + key + '` does not exist.');
 		}
-		let document = this._documents[key];
-		delete this._documents[key];
-		this._onDidRemoveDocumentEventEmitter.fire(document);
-		document.dispose();
+		let data = this._documentData[key];
+		delete this._documentData[key];
+		this._onDidRemoveDocumentEventEmitter.fire(data.document);
+		data.dispose();
 	}
 
 	public _acceptModelChanged(url: URI, events: EditorCommon.IModelContentChangedEvent2[]): void {
-		let document = this._documents[url.toString()];
-		document._acceptEvents(events);
+		let data = this._documentData[url.toString()];
+		data.onEvents(events);
 		this._onDidChangeDocumentEventEmitter.fire({
-			document: document,
+			document: data.document,
 			contentChanges: events.map((e) => {
 				return {
 					range: TypeConverters.toRange(e.range),
@@ -179,69 +217,72 @@ export class ExtHostModelService {
 	}
 }
 
-export class BaseTextDocument implements vscode.TextDocument {
-	protected _uri: URI;
-	protected _lines: string[];
-	protected _eol: string;
-	protected _languageId: string;
-	protected _versionId: number;
-	protected _isDirty: boolean;
-	protected _textLines: vscode.TextLine[];
-	protected _lineStarts: PrefixSumComputer;
+export class ExtHostDocumentData extends MirrorModel2 {
 
-	constructor(uri: URI, lines: string[], eol: string, languageId: string, versionId: number, isDirty:boolean) {
-		this._uri = uri;
-		this._lines = lines;
-		this._textLines = [];
-		this._eol = eol;
+	private _proxy: MainThreadDocuments;
+	private _languageId: string;
+	private _isDirty: boolean;
+	private _textLines: vscode.TextLine[];
+	private _documentRef: weak.WeakRef & vscode.TextDocument;
+
+	constructor(proxy: MainThreadDocuments, uri: URI, lines: string[], eol: string,
+		languageId: string, versionId: number, isDirty: boolean) {
+
+		super(uri, lines, eol, versionId);
+		this._proxy = proxy;
 		this._languageId = languageId;
-		this._versionId = versionId;
 		this._isDirty = isDirty;
+		this._textLines = [];
 	}
 
 	dispose(): void {
-		this._lines.length = 0;
 		this._textLines.length = 0;
 		this._isDirty = false;
+		super.dispose();
 	}
 
-	get uri(): URI {
-		return this._uri;
-	}
+	get document(): vscode.TextDocument {
+		// dereferences or creates the actual document for this
+		// document data. keeps a weak reference only such that
+		// we later when a document isn't needed anymore
 
-	get fileName(): string {
-		return this._uri.fsPath;
-	}
-
-	get isUntitled(): boolean {
-		return this._uri.scheme !== 'file';
-	}
-
-	get languageId(): string {
-		return this._languageId;
-	}
-
-	get version(): number {
-		return this._versionId;
-	}
-
-	get isDirty(): boolean {
-		return this._isDirty;
-	}
-
-	save(): Thenable<boolean> {
-		return Promise.reject<boolean>('Not implemented');
-	}
-
-	getText(range?: Range): string {
-		if (range) {
-			return this._getTextInRange(range);
-		} else {
-			return this._lines.join(this._eol);
+		if (!this.isDocumentReferenced) {
+			const data = this;
+			const doc = {
+				get uri() { return data._uri },
+				get fileName() { return data._uri.fsPath },
+				get isUntitled() { return data._uri.scheme !== 'file' },
+				get languageId() { return data._languageId },
+				get version() { return data._versionId },
+				get isDirty() { return data._isDirty },
+				save() { return data._proxy._trySaveDocument(data._uri) },
+				getText(range?) { return range ? data._getTextInRange(range) : data.getText() },
+				get lineCount() { return data._lines.length },
+				lineAt(lineOrPos) { return data.lineAt(lineOrPos) },
+				offsetAt(pos) { return data.offsetAt(pos) },
+				positionAt(offset) { return data.positionAt(offset) },
+				validateRange(ran) { return data.validateRange(ran) },
+				validatePosition(pos) { return data.validatePosition(pos) },
+				getWordRangeAtPosition(pos) { return data.getWordRangeAtPosition(pos) }
+			};
+			this._documentRef = weak(doc);
 		}
+		return weak.get(this._documentRef);
 	}
 
-	private _getTextInRange(_range: Range): string {
+	get isDocumentReferenced(): boolean {
+		return this._documentRef && !weak.isDead(this._documentRef);
+	}
+
+	_acceptLanguageId(newLanguageId:string): void {
+		this._languageId = newLanguageId;
+	}
+
+	_acceptIsDirty(isDirty:boolean): void {
+		this._isDirty = isDirty;
+	}
+
+	private _getTextInRange(_range: vscode.Range): string {
 		let range = this.validateRange(_range);
 
 		if (range.isEmpty) {
@@ -264,10 +305,6 @@ export class BaseTextDocument implements vscode.TextDocument {
 		resultLines.push(this._lines[endLineIndex].substring(0, range.end.character));
 
 		return resultLines.join(lineEnding);
-	}
-
-	get lineCount(): number {
-		return this._lines.length;
 	}
 
 	lineAt(lineOrPosition: number | vscode.Position): vscode.TextLine {
@@ -306,13 +343,13 @@ export class BaseTextDocument implements vscode.TextDocument {
 		return result;
 	}
 
-	offsetAt(position: Position): number {
+	offsetAt(position: vscode.Position): number {
 		position = this.validatePosition(position);
 		this._ensureLineStarts();
 		return this._lineStarts.getAccumulatedValue(position.line - 1) + position.character;
 	}
 
-	positionAt(offset: number): Position {
+	positionAt(offset: number): vscode.Position {
 		offset = Math.floor(offset);
 		offset = Math.max(0, offset);
 
@@ -326,20 +363,9 @@ export class BaseTextDocument implements vscode.TextDocument {
 		return new Position(out.index, Math.min(out.remainder, lineLength));
 	}
 
-	private _ensureLineStarts(): void {
-		if (!this._lineStarts) {
-			const lineStartValues:number[] = [];
-			const eolLength = this._eol.length;
-			for (let i = 0, len = this._lines.length; i < len; i++) {
-				lineStartValues.push(this._lines[i].length + eolLength);
-			}
-			this._lineStarts = new PrefixSumComputer(lineStartValues);
-		}
-	}
-
 	// ---- range math
 
-	validateRange(range:Range): Range {
+	validateRange(range:vscode.Range): vscode.Range {
 		if (!(range instanceof Range)) {
 			throw new Error('Invalid argument');
 		}
@@ -350,10 +376,10 @@ export class BaseTextDocument implements vscode.TextDocument {
 		if (start === range.start && end === range.end) {
 			return range;
 		}
-		return new Range(start, end);
+		return new Range(start.line, start.character, end.line, end.character);
 	}
 
-	validatePosition(position:Position): Position {
+	validatePosition(position:vscode.Position): vscode.Position {
 		if (!(position instanceof Position)) {
 			throw new Error('Invalid argument');
 		}
@@ -388,7 +414,7 @@ export class BaseTextDocument implements vscode.TextDocument {
 		return new Position(line, character);
 	}
 
-	getWordRangeAtPosition(_position:Position): Range {
+	getWordRangeAtPosition(_position: vscode.Position): vscode.Range {
 		let position = this.validatePosition(_position);
 
 		let wordAtText = WordHelper._getWordAtText(
@@ -404,129 +430,12 @@ export class BaseTextDocument implements vscode.TextDocument {
 	}
 }
 
-export class ExtHostDocument extends BaseTextDocument {
-
-	private _proxy: MainThreadDocuments;
-
-	constructor(proxy: MainThreadDocuments, uri: URI, lines: string[],
-		eol: string, languageId: string, versionId: number, isDirty:boolean) {
-		super(uri, lines, eol, languageId, versionId, isDirty);
-		this._proxy = proxy;
-	}
-
-	save(): Thenable<boolean> {
-		return this._proxy._trySaveDocument(this._uri);
-	}
-
-	_acceptLanguageId(newLanguageId:string): void {
-		this._languageId = newLanguageId;
-	}
-
-	_acceptIsDirty(isDirty:boolean): void {
-		this._isDirty = isDirty;
-	}
-
-	_acceptEvents(events: EditorCommon.IModelContentChangedEvent2[]): void {
-		// Update my lines
-		let lastVersionId = -1;
-		for (let i = 0, len = events.length; i < len; i++) {
-			let e = events[i];
-
-			this._acceptDeleteRange(e.range);
-			this._acceptInsertText({
-				lineNumber: e.range.startLineNumber,
-				column: e.range.startColumn
-			}, e.text);
-			lastVersionId = Math.max(lastVersionId, e.versionId);
-		}
-		if (lastVersionId !== -1) {
-			this._versionId = lastVersionId;
-		}
-	}
-
-	/**
-	 * All changes to a line's text go through this method
-	 */
-	private _setLineText(lineIndex:number, newValue:string): void {
-		this._lines[lineIndex] = newValue;
-		if (this._lineStarts) {
-			// update prefix sum
-			this._lineStarts.changeValue(lineIndex, this._lines[lineIndex].length + this._eol.length);
-		}
-	}
-
-	private _acceptDeleteRange(range: EditorCommon.IRange): void {
-
-		if (range.startLineNumber === range.endLineNumber) {
-			if (range.startColumn === range.endColumn) {
-				// Nothing to delete
-				return;
-			}
-			// Delete text on the affected line
-			this._setLineText(range.startLineNumber - 1,
-				this._lines[range.startLineNumber - 1].substring(0, range.startColumn - 1)
-				+ this._lines[range.startLineNumber - 1].substring(range.endColumn - 1)
-			);
-			return;
-		}
-
-		// Take remaining text on last line and append it to remaining text on first line
-		this._setLineText(range.startLineNumber - 1,
-			this._lines[range.startLineNumber - 1].substring(0, range.startColumn - 1)
-			+ this._lines[range.endLineNumber - 1].substring(range.endColumn - 1)
-		);
-
-		// Delete middle lines
-		this._lines.splice(range.startLineNumber, range.endLineNumber - range.startLineNumber);
-		if (this._lineStarts) {
-			// update prefix sum
-			this._lineStarts.removeValues(range.startLineNumber, range.endLineNumber - range.startLineNumber);
-		}
-	}
-
-	private _acceptInsertText(position: EditorCommon.IPosition, insertText:string): void {
-		if (insertText.length === 0) {
-			// Nothing to insert
-			return;
-		}
-		let insertLines = insertText.split(/\r\n|\r|\n/);
-		if (insertLines.length === 1) {
-			// Inserting text on one line
-			this._setLineText(position.lineNumber - 1,
-				this._lines[position.lineNumber - 1].substring(0, position.column - 1)
-				+ insertLines[0]
-				+ this._lines[position.lineNumber - 1].substring(position.column - 1)
-			);
-			return;
-		}
-
-		// Append overflowing text from first line to the end of text to insert
-		insertLines[insertLines.length - 1] += this._lines[position.lineNumber - 1].substring(position.column - 1);
-
-		// Delete overflowing text from first line and insert text on first line
-		this._setLineText(position.lineNumber - 1,
-			this._lines[position.lineNumber - 1].substring(0, position.column - 1)
-			+ insertLines[0]
-		);
-
-		// Insert new lines & store lengths
-		let newLengths:number[] = new Array<number>(insertLines.length - 1);
-		for (let i = 1; i < insertLines.length; i++) {
-			this._lines.splice(position.lineNumber + i - 1, 0, insertLines[i]);
-			newLengths[i - 1] = insertLines[i].length + this._eol.length;
-		}
-
-		if (this._lineStarts) {
-			// update prefix sum
-			this._lineStarts.insertValues(position.lineNumber, newLengths);
-		}
-	}
-}
-
 @Remotable.MainContext('MainThreadDocuments')
 export class MainThreadDocuments {
+	private _modelService: IModelService;
+	private _modeService: IModeService;
 	private _textFileService: ITextFileService;
-	private _editorService: IEditorService;
+	private _editorService: IWorkbenchEditorService;
 	private _fileService: IFileService;
 	private _untitledEditorService: IUntitledEditorService;
 	private _toDispose: IDisposable[];
@@ -536,13 +445,16 @@ export class MainThreadDocuments {
 
 	constructor(
 		@IThreadService threadService: IThreadService,
-		@IModelService modelService:IModelService,
+		@IModelService modelService: IModelService,
+		@IModeService modeService: IModeService,
 		@IEventService eventService:IEventService,
 		@ITextFileService textFileService: ITextFileService,
-		@IEditorService editorService: IEditorService,
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IFileService fileService: IFileService,
 		@IUntitledEditorService untitledEditorService: IUntitledEditorService
 	) {
+		this._modelService = modelService;
+		this._modeService = modeService;
 		this._textFileService = textFileService;
 		this._editorService = editorService;
 		this._fileService = fileService;
@@ -650,7 +562,7 @@ export class MainThreadDocuments {
 				promise = this._handleUnititledScheme(uri);
 				break;
 			default:
-				promise = TPromise.wrapError<boolean>('unsupported URI-scheme: ' + uri.scheme);
+				promise = this._handleAnyScheme(uri);
 				break;
 		}
 
@@ -684,6 +596,22 @@ export class MainThreadDocuments {
 			}).then(() => {
 				return true;
 			});
+		});
+	}
+
+	private _handleAnyScheme(uri: URI): TPromise<boolean> {
+
+		if (this._modelService.getModel(uri)) {
+			return TPromise.as(true);
+		}
+
+		return this._proxy.$provideTextDocumentContent(uri).then(value => {
+			const firstLineText = value.substr(0, 1 + value.search(/\r?\n/));
+			const mode = this._modeService.getOrCreateModeByFilenameOrFirstLine(uri.fsPath, firstLineText);
+			return this._modelService.createModel(value, mode, uri);
+
+		}).then(() => {
+			return true;
 		});
 	}
 }

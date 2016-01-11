@@ -14,6 +14,7 @@ import {IDiffEditor, ICodeEditor} from 'vs/editor/browser/editorBrowser';
 import {ICommonCodeEditor, IModel, EditorType, IEditor as ICommonEditor} from 'vs/editor/common/editorCommon';
 import {BaseEditor, IEditorRegistry, Extensions} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {EditorInput, EditorOptions, IFileEditorInput, TextEditorOptions} from 'vs/workbench/common/editor';
+import {ResourceEditorInput} from 'vs/workbench/common/editor/resourceEditorInput';
 import {UntitledEditorInput} from 'vs/workbench/common/editor/untitledEditorInput';
 import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
@@ -286,6 +287,10 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 		// Base Text Editor Support for file resources
 		else if (this.fileInputDescriptor && URI.isURI(resourceInput.resource) && resourceInput.resource.scheme === network.schemas.file) {
 			return this.createFileInput(resourceInput.resource, resourceInput.mime);
+		}
+
+		else if (URI.isURI(resourceInput.resource)) {
+			return TPromise.as(this.instantiationService.createInstance(ResourceEditorInput, resourceInput.resource.fsPath, undefined, resourceInput.resource));
 		}
 
 		return TPromise.as<EditorInput>(null);

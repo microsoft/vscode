@@ -8,21 +8,21 @@ import {IBracketElectricCharacterContribution} from 'vs/editor/common/modes/supp
 import {score} from 'vs/editor/common/modes/languageSelector';
 import {Remotable, IThreadService} from 'vs/platform/thread/common/thread';
 import * as errors from 'vs/base/common/errors';
-import {ExtHostFileSystemEventService} from 'vs/workbench/api/common/extHostFileSystemEventService';
-import {ExtHostModelService, setWordDefinitionFor} from 'vs/workbench/api/common/extHostDocuments';
-import {ExtHostConfiguration} from 'vs/workbench/api/common/extHostConfiguration';
-import {ExtHostDiagnostics} from 'vs/workbench/api/common/extHostDiagnostics';
-import {ExtHostWorkspace} from 'vs/workbench/api/common/extHostWorkspace';
-import {ExtHostQuickOpen} from 'vs/workbench/api/common/extHostQuickOpen';
-import {ExtHostStatusBar} from 'vs/workbench/api/common/extHostStatusBar';
-import {ExtHostCommands} from 'vs/workbench/api/common/extHostCommands';
-import {ExtHostOutputService} from 'vs/workbench/api/common/extHostOutputService';
-import {ExtHostMessageService} from 'vs/workbench/api/common/extHostMessageService';
-import {ExtHostEditors} from 'vs/workbench/api/common/extHostEditors';
-import {ExtHostLanguages} from 'vs/workbench/api/common/extHostLanguages';
-import {ExtHostLanguageFeatures} from 'vs/workbench/api/common/extHostLanguageFeatures';
-import {registerApiCommands} from 'vs/workbench/api/common/extHostApiCommands';
-import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
+import {ExtHostFileSystemEventService} from 'vs/workbench/api/node/extHostFileSystemEventService';
+import {ExtHostModelService, setWordDefinitionFor} from 'vs/workbench/api/node/extHostDocuments';
+import {ExtHostConfiguration} from 'vs/workbench/api/node/extHostConfiguration';
+import {ExtHostDiagnostics} from 'vs/workbench/api/node/extHostDiagnostics';
+import {ExtHostWorkspace} from 'vs/workbench/api/node/extHostWorkspace';
+import {ExtHostQuickOpen} from 'vs/workbench/api/node/extHostQuickOpen';
+import {ExtHostStatusBar} from 'vs/workbench/api/node/extHostStatusBar';
+import {ExtHostCommands} from 'vs/workbench/api/node/extHostCommands';
+import {ExtHostOutputService} from 'vs/workbench/api/node/extHostOutputService';
+import {ExtHostMessageService} from 'vs/workbench/api/node/extHostMessageService';
+import {ExtHostEditors} from 'vs/workbench/api/node/extHostEditors';
+import {ExtHostLanguages} from 'vs/workbench/api/node/extHostLanguages';
+import {ExtHostLanguageFeatures} from 'vs/workbench/api/node/extHostLanguageFeatures';
+import {registerApiCommands} from 'vs/workbench/api/node/extHostApiCommands';
+import * as extHostTypes from 'vs/workbench/api/node/extHostTypes';
 import Modes = require('vs/editor/common/modes');
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {ICommentsSupportContribution, ITokenTypeClassificationSupportContribution} from 'vs/editor/common/modes/supports';
@@ -37,7 +37,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {CancellationTokenSource} from 'vs/base/common/cancellation';
 import vscode = require('vscode');
-import {TextEditorRevealType} from 'vs/workbench/api/common/mainThreadEditors';
+import {TextEditorRevealType} from 'vs/workbench/api/node/mainThreadEditors';
 import * as paths from 'vs/base/common/paths';
 
 /**
@@ -244,16 +244,27 @@ export class ExtHostAPIImplementation {
 				return pluginHostFileSystemEvent.createFileSystemWatcher(pattern, ignoreCreate, ignoreChange, ignoreDelete);
 			},
 			get textDocuments() {
-				return pluginHostDocuments.getDocuments();
+				return pluginHostDocuments.getAllDocumentData().map(data => data.document);
 			},
 			set textDocuments(value) {
 				throw errors.readonly();
 			},
-			// createTextDocument(text: string, fileName?: string, language?: string): Thenable<vscode.TextDocument> {
-			// 	return pluginHostDocuments.createDocument(text, fileName, language);
-			// },
-			openTextDocument(uriOrFileName:vscode.Uri | string) {
-				return pluginHostDocuments.openDocument(uriOrFileName);
+			openTextDocument(uriOrFileName: vscode.Uri | string) {
+				let uri: URI;
+				if (typeof uriOrFileName === 'string') {
+					uri = URI.file(uriOrFileName);
+				} else if (uriOrFileName instanceof URI) {
+					uri = <URI>uriOrFileName;
+				} else {
+					throw new Error('illegal argument - uriOrFileName');
+				}
+				return pluginHostDocuments.ensureDocumentData(uri).then(() => {
+					const data = pluginHostDocuments.getDocumentData(uri);
+					return data && data.document;
+				});
+			},
+			registerTextDocumentContentProvider(scheme: string, provider: vscode.TextDocumentContentProvider) {
+				return pluginHostDocuments.registerTextDocumentContentProvider(scheme, provider);
 			},
 			onDidOpenTextDocument: (listener, thisArgs?, disposables?) => {
 				return pluginHostDocuments.onDidAddDocument(listener, thisArgs, disposables);

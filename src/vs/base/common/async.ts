@@ -7,6 +7,26 @@
 import * as errors from 'vs/base/common/errors';
 import { Promise, TPromise, ValueCallback, ErrorCallback, ProgressCallback } from 'vs/base/common/winjs.base';
 import * as platform from 'vs/base/common/platform';
+import {CancellationToken, CancellationTokenSource} from 'vs/base/common/cancellation';
+
+
+function isThenable<T>(obj: any): obj is Thenable<T> {
+	return obj && typeof (<Thenable<any>>obj).then === 'function';
+}
+
+export function asWinJsPromise<T>(callback: (token: CancellationToken) => T | Thenable<T>): TPromise<T> {
+	let source = new CancellationTokenSource();
+	return new TPromise<T>((resolve, reject) => {
+		let item = callback(source.token);
+		if (isThenable<T>(item)) {
+			item.then(resolve, reject);
+		} else {
+			resolve(item);
+		}
+	}, () => {
+		source.cancel();
+	});
+}
 
 export interface ITask<T> {
 	(): T;

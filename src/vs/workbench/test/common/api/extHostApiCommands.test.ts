@@ -10,7 +10,7 @@ import {setUnexpectedErrorHandler, errorHandler} from 'vs/base/common/errors';
 import {create} from 'vs/base/common/types';
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
-import * as types from 'vs/workbench/api/common/extHostTypes';
+import * as types from 'vs/workbench/api/node/extHostTypes';
 import {Range as CodeEditorRange} from 'vs/editor/common/core/range';
 import * as EditorCommon from 'vs/editor/common/editorCommon';
 import {Model as EditorModel} from 'vs/editor/common/model/model';
@@ -22,10 +22,10 @@ import {IThreadService} from 'vs/platform/thread/common/thread';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {IModelService} from 'vs/editor/common/services/modelService';
-import {ExtHostLanguageFeatures, MainThreadLanguageFeatures} from 'vs/workbench/api/common/extHostLanguageFeatures';
-import {registerApiCommands} from 'vs/workbench/api/common/extHostApiCommands';
-import {ExtHostCommands, MainThreadCommands} from 'vs/workbench/api/common/extHostCommands';
-import {ExtHostModelService} from 'vs/workbench/api/common/extHostDocuments';
+import {ExtHostLanguageFeatures, MainThreadLanguageFeatures} from 'vs/workbench/api/node/extHostLanguageFeatures';
+import {registerApiCommands} from 'vs/workbench/api/node/extHostApiCommands';
+import {ExtHostCommands, MainThreadCommands} from 'vs/workbench/api/node/extHostCommands';
+import {ExtHostModelService} from 'vs/workbench/api/node/extHostDocuments';
 
 const defaultSelector = { scheme: 'far' };
 const model: EditorCommon.IModel = new EditorModel(

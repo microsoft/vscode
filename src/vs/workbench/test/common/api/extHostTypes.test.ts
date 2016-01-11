@@ -7,7 +7,7 @@
 
 import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
-import * as types from 'vs/workbench/api/common/extHostTypes';
+import * as types from 'vs/workbench/api/node/extHostTypes';
 
 function assertToJSON(a: any, expected: any) {
 	const raw = JSON.stringify(a);

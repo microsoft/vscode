@@ -12,7 +12,7 @@ import {EditableTextModel, IValidatedEditOperation} from 'vs/editor/common/model
 import {TextModel} from 'vs/editor/common/model/textModel';
 import {LineMarker, TextModelWithMarkers} from 'vs/editor/common/model/textModelWithMarkers';
 import {ILineMarker} from 'vs/editor/common/model/modelLine';
-import {ExtHostDocument} from 'vs/workbench/api/common/extHostDocuments';
+import {MirrorModel2} from 'vs/editor/common/model/mirrorModel2';
 import {MirrorModel, IMirrorModelEvents} from 'vs/editor/common/model/mirrorModel';
 
 suite('EditorModel - EditableTextModel._getInverseEdits', () => {
@@ -1185,7 +1185,7 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 		var mirrorModel1 = new MirrorModel(null, model.getVersionId(), model.toRawText(), null);
 		var mirrorModel1PrevVersionId = model.getVersionId();
 
-		var mirrorModel2 = new ExtHostDocument(null, null, model.toRawText().lines, model.toRawText().EOL, null, model.getVersionId(), false);
+		var mirrorModel2 = new MirrorModel2(null, model.toRawText().lines, model.toRawText().EOL, model.getVersionId());
 		var mirrorModel2PrevVersionId = model.getVersionId();
 
 		model.addListener(EditorCommon.EventType.ModelContentChanged, (e:EditorCommon.IModelContentChangedEvent) => {
@@ -1207,7 +1207,7 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 				console.warn('Model version id did not advance between edits (2)');
 			}
 			mirrorModel2PrevVersionId = versionId;
-			mirrorModel2._acceptEvents([e]);
+			mirrorModel2.onEvents([e]);
 		});
 
 		var assertMirrorModels = () => {

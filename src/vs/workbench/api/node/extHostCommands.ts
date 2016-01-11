@@ -9,9 +9,9 @@ import {validateConstraint} from 'vs/base/common/types';
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {IKeybindingService, ICommandHandlerDescription} from 'vs/platform/keybinding/common/keybindingService';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {ExtHostEditors} from 'vs/workbench/api/common/extHostEditors';
-import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
-import * as extHostTypeConverter from 'vs/workbench/api/common/extHostTypeConverters';
+import {ExtHostEditors} from 'vs/workbench/api/node/extHostEditors';
+import * as extHostTypes from 'vs/workbench/api/node/extHostTypes';
+import * as extHostTypeConverter from 'vs/workbench/api/node/extHostTypeConverters';
 import {cloneAndChange} from 'vs/base/common/objects';
 
 interface CommandHandler {

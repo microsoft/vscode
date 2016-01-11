@@ -29,6 +29,7 @@
     "vscode-debugprotocol": "^1.2.1",
     "vscode-textmate": "^1.0.9",
     "native-keymap": "^0.1.2",
+	"weak": "^1.0.1",
     "winreg": "0.0.12",
     "yauzl": "^2.3.1"
   },

@@ -449,6 +449,11 @@
       "from": "native-keymap@0.1.2",
       "resolved": "https://registry.npmjs.org/native-keymap/-/native-keymap-0.1.2.tgz"
     },
+    "weak":{
+      "version": "1.0.1",
+      "from": "weak@1.0.1",
+      "resolved": "https://registry.npmjs.org/weak/-/weak-1.0.1.tgz"
+    },
     "winreg": {
       "version": "0.0.12",
       "from": "winreg@0.0.12",
