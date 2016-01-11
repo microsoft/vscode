@@ -1,4 +1,3 @@
-
 /*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
@@ -9,6 +8,8 @@ declare namespace weak {
 		// tagging
 	}
 }
+
+declare const weak: WeakFunction;
 
 interface WeakFunction {
 	<T>(obj: T, callback?: () => any): T & weak.WeakRef;
@@ -21,8 +22,6 @@ interface WeakFunction {
 	isNearDeath(ref: weak.WeakRef): boolean;
 	isWeakRef(obj: any): boolean;
 }
-
-declare const weak: WeakFunction;
 
 declare module 'weak' {
 	export = weak;

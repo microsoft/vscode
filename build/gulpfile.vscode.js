@@ -33,7 +33,7 @@ var baseModules = [
 	'events', 'fs', 'getmac', 'glob', 'graceful-fs', 'http', 'http-proxy-agent',
 	'https', 'https-proxy-agent', 'iconv-lite', 'electron', 'net',
 	'os', 'path', 'readline', 'sax', 'semver', 'stream', 'string_decoder', 'url',
-	'vscode-textmate', 'winreg', 'yauzl', 'native-keymap'
+	'vscode-textmate', 'winreg', 'yauzl', 'native-keymap', 'weak'
 ];
 
 // Build
