@@ -30,6 +30,8 @@ export const FIND_IDS = {
 	ToggleRegexCommand: 'toggleFindRegex'
 }
 
+export const MATCHES_LIMIT = 999;
+
 export class FindModelBoundToEditorModel {
 
 	private _editor:EditorCommon.ICommonCodeEditor;
@@ -117,7 +119,7 @@ export class FindModelBoundToEditorModel {
 			findScope = new Range(findScope.startLineNumber, 1, findScope.endLineNumber, this._editor.getModel().getLineMaxColumn(findScope.endLineNumber));
 		}
 
-		let findMatches = this._findMatches(findScope);
+		let findMatches = this._findMatches(findScope, MATCHES_LIMIT);
 		this._decorations.set(findMatches, findScope);
 
 		this._state.change({ matchesCount: findMatches.length }, false);
@@ -317,7 +319,7 @@ export class FindModelBoundToEditorModel {
 		}
 	}
 
-	private _findMatches(findScope: EditorCommon.IEditorRange, limitResultCount?:number): EditorCommon.IEditorRange[] {
+	private _findMatches(findScope: EditorCommon.IEditorRange, limitResultCount:number): EditorCommon.IEditorRange[] {
 		let searchRange = FindModelBoundToEditorModel._getSearchRange(this._editor.getModel(), this._state.isReplaceRevealed, findScope);
 		return this._editor.getModel().findMatches(this._state.searchString, searchRange, this._state.isRegex, this._state.matchCase, this._state.wholeWord, limitResultCount);
 	}

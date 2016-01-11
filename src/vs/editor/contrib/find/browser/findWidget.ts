@@ -15,7 +15,7 @@ import {InputBox, IMessage as InputBoxMessage} from 'vs/base/browser/ui/inputbox
 import {FindInput} from 'vs/base/browser/ui/findinput/findInput';
 import * as EditorBrowser from 'vs/editor/browser/editorBrowser';
 import * as EditorCommon from 'vs/editor/common/editorCommon';
-import {FIND_IDS} from 'vs/editor/contrib/find/common/findModel';
+import {MATCHES_LIMIT, FIND_IDS} from 'vs/editor/contrib/find/common/findModel';
 import {CommonKeybindings} from 'vs/base/common/keyCodes';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {INewFindReplaceState, FindReplaceStateChangedEvent, FindReplaceState} from 'vs/editor/contrib/find/common/findState';
@@ -37,6 +37,7 @@ const NLS_REPLACE_INPUT_PLACEHOLDER = nls.localize('placeholder.replace', "Repla
 const NLS_REPLACE_BTN_LABEL = nls.localize('label.replaceButton', "Replace");
 const NLS_REPLACE_ALL_BTN_LABEL = nls.localize('label.replaceAllButton', "Replace All");
 const NLS_TOGGLE_REPLACE_MODE_BTN_LABEL = nls.localize('label.toggleReplaceButton', "Toggle Replace mode");
+const NLS_MATCHES_COUNT_LIMIT_TITLE = nls.localize('title.matchesCountLimit', "Only the first 999 results are highlighted, but all find operations work on the entire text.");
 
 export class FindWidget extends Widget implements EditorBrowser.IOverlayWidget {
 
@@ -173,6 +174,21 @@ export class FindWidget extends Widget implements EditorBrowser.IOverlayWidget {
 		if (e.searchString || e.matchesCount) {
 			let showRedOutline = (this._state.searchString.length > 0 && this._state.matchesCount === 0);
 			DomUtils.toggleClass(this._domNode, 'no-results', showRedOutline);
+
+			let showMatchesCount = (this._state.searchString.length > 0);
+
+			let matchesCount:string = String(this._state.matchesCount);
+			let matchesCountTitle = '';
+			if (this._state.matchesCount >= MATCHES_LIMIT) {
+				matchesCountTitle = NLS_MATCHES_COUNT_LIMIT_TITLE;
+				matchesCount += '+';
+			}
+
+			this._findInput.setMatchCountState({
+				isVisible: showMatchesCount,
+				count: matchesCount,
+				title: matchesCountTitle
+			});
 		}
 	}
 
