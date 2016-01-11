@@ -19,7 +19,7 @@ import {QuickOpenWidget} from 'vs/base/parts/quickopen/browser/quickOpenWidget';
 import {ContributableActionProvider} from 'vs/workbench/browser/actionBarRegistry';
 import {ITree, IElementCallback} from 'vs/base/parts/tree/common/tree';
 import {Registry} from 'vs/platform/platform';
-import {WorkbenchComponent} from 'vs/workbench/browser/component';
+import {WorkbenchComponent} from 'vs/workbench/common/component';
 import {EditorEvent, EventType} from 'vs/workbench/common/events';
 import Event, {Emitter} from 'vs/base/common/event';
 import {Identifiers} from 'vs/workbench/common/constants';
