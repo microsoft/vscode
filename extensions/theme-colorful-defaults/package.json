@@ -3,7 +3,7 @@
 	"displayName": "Colorful Default Themes - Please provide feedback in issue 1849",
 	"description": "The default VS Code Light and Dark themes with a touch of color. We are considering adding these to the default themes in the January release. Please provide feedback in issue 1849.",
 	"categories": [ "Themes" ],
-	"version": "0.1.6",
+	"version": "0.1.7",
 	"publisher": "aeschli",
 	"engines": { "vscode": "*" },
 	"contributes": {
