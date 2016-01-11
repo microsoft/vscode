@@ -26,7 +26,7 @@ import {ContextMenuService} from 'vs/workbench/services/contextview/electron-bro
 import {Preferences} from 'vs/workbench/common/constants';
 import timer = require('vs/base/common/timer');
 import {Workbench} from 'vs/workbench/browser/workbench';
-import {Storage} from 'vs/workbench/browser/storage';
+import {Storage, inMemoryLocalStorageInstance} from 'vs/workbench/common/storage';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {ElectronTelemetryService} from  'vs/platform/telemetry/electron-browser/electronTelemetryService';
 import {ElectronIntegration} from 'vs/workbench/electron-browser/integration';
@@ -269,7 +269,9 @@ export class WorkbenchShell {
 		];
 
 		this.windowService = new WindowService();
-		this.storageService = new Storage(this.contextService);
+
+		let disableWorkspaceStorage = this.configuration.env.pluginTestsPath || (!this.workspace && !this.configuration.env.pluginDevelopmentPath); // without workspace or in any plugin test, we use inMemory storage unless we develop a plugin where we want to preserve state
+		this.storageService = new Storage(this.contextService, window.localStorage, disableWorkspaceStorage ? inMemoryLocalStorageInstance : window.localStorage);
 
 		// no telemetry in a window for plugin development!
 		let enableTelemetry = this.configuration.env.isBuilt && !this.configuration.env.pluginDevelopmentPath ? !!this.configuration.env.enableTelemetry : false;

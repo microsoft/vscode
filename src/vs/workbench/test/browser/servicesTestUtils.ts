@@ -14,7 +14,7 @@ import Paths = require('vs/base/common/paths');
 import Env = require('vs/base/common/flags');
 import URI from 'vs/base/common/uri';
 import MainTelemetryService = require('vs/platform/telemetry/browser/mainTelemetryService');
-import Storage = require('vs/workbench/browser/storage');
+import Storage = require('vs/workbench/common/storage');
 import WorkbenchEditorCommon = require('vs/workbench/common/editor');
 import Viewlet = require('vs/workbench/browser/viewlet');
 import InstantiationService = require('vs/platform/instantiation/common/instantiationService');

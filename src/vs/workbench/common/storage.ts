@@ -22,7 +22,9 @@ export interface IStorage {
 }
 
 export class Storage extends EventEmitter implements IStorageService {
+
 	public serviceId = IStorageService;
+
 	private static COMMON_PREFIX = 'storage://';
 	private static GLOBAL_PREFIX = Storage.COMMON_PREFIX + 'global/';
 	private static WORKSPACE_PREFIX = Storage.COMMON_PREFIX + 'workspace/';
@@ -35,28 +37,13 @@ export class Storage extends EventEmitter implements IStorageService {
 	private toUnbind: { (): void; }[];
 	private workspaceKey: string;
 
-	constructor(contextService: IWorkspaceContextService, storageImpl?: IStorage) {
+	constructor(contextService: IWorkspaceContextService, globalStorage: IStorage, workspaceStorage = globalStorage) {
 		super();
 
 		let workspace = contextService.getWorkspace();
 
-		// Take provided storage impl if any
-		if (!!storageImpl) {
-			this.globalStorage = storageImpl;
-			this.workspaceStorage = storageImpl;
-		}
-
-		// Otherwise use browser storage
-		else {
-			this.globalStorage = window.localStorage;
-
-			const env = contextService.getConfiguration().env;
-			if (env.pluginTestsPath || (!workspace && !env.pluginDevelopmentPath)) {
-				this.workspaceStorage = inMemoryLocalStorageInstance; // without workspace or in any plugin test, we use inMemory storage unless we develop a plugin where we want to preserve state
-			} else {
-				this.workspaceStorage = window.localStorage;
-			}
-		}
+		this.globalStorage = globalStorage;
+		this.workspaceStorage = workspaceStorage;
 
 		this.toUnbind = [];
 
@@ -76,7 +63,17 @@ export class Storage extends EventEmitter implements IStorageService {
 			workspaceUri = workspace.resource.toString();
 		}
 
-		return workspaceUri ? Storage.calculateWorkspaceKey(workspaceUri) : Storage.NO_WORKSPACE_IDENTIFIER;
+		return workspaceUri ? this.calculateWorkspaceKey(workspaceUri) : Storage.NO_WORKSPACE_IDENTIFIER;
+	}
+
+	private calculateWorkspaceKey(workspaceUrl: string): string {
+		let root = 'file:///';
+		let index = workspaceUrl.indexOf(root);
+		if (index === 0) {
+			return strings.rtrim(workspaceUrl.substr(root.length), '/') + '/';
+		}
+
+		return workspaceUrl;
 	}
 
 	private cleanupWorkspaceScope(workspaceId: number, workspaceName: string): void {
@@ -224,16 +221,6 @@ export class Storage extends EventEmitter implements IStorageService {
 		}
 
 		return Storage.WORKSPACE_PREFIX + this.workspaceKey + key.toLowerCase();
-	}
-
-	private static calculateWorkspaceKey(workspaceUrl: string): string {
-		let root = window.location.protocol + '//' + window.location.host + '/';
-		let index = workspaceUrl.indexOf(root);
-		if (index === 0) {
-			return strings.rtrim(workspaceUrl.substr(root.length), '/') + '/';
-		}
-
-		return workspaceUrl;
 	}
 }
 
