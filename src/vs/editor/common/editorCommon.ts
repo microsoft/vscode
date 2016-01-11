@@ -339,6 +339,11 @@ export interface ICommonEditorOptions {
 	 */
 	cursorBlinking?:string;
 	/**
+	 * Control the cursor style, either 'block' or 'line'.
+	 * Defaults to 'line'.
+	 */
+	cursorStyle?:string;
+	/**
 	 * Should the cursor be hidden in the overview ruler.
 	 * Defaults to false.
 	 */
@@ -585,6 +590,7 @@ export interface IInternalEditorOptions {
 	scrollbar:IInternalEditorScrollbarOptions;
 	overviewRulerLanes:number;
 	cursorBlinking:string;
+	cursorStyle:string;
 	hideCursorInOverviewRuler:boolean;
 	scrollBeyondLastLine:boolean;
 	wrappingIndent: string;
@@ -676,6 +682,7 @@ export interface IConfigurationChangedEvent {
 	scrollbar:boolean;
 	overviewRulerLanes:boolean;
 	cursorBlinking:boolean;
+	cursorStyle:boolean;
 	hideCursorInOverviewRuler:boolean;
 	scrollBeyondLastLine:boolean;
 	wrappingIndent:boolean;
