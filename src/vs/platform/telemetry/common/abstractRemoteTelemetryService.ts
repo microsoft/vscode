@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import AbstractTelemetryService = require('vs/platform/telemetry/common/abstractTelemetryService');
+import * as AbstractTelemetryService from 'vs/platform/telemetry/common/abstractTelemetryService';
 import {OneWorkerAttr} from 'vs/platform/thread/common/threadService';
 import {ITelemetryService, ITelemetryInfo, ITelemetryAppender} from 'vs/platform/telemetry/common/telemetry';
 import {Remotable, IThreadService, ThreadAffinity} from 'vs/platform/thread/common/thread';

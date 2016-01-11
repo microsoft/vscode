@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import assert = require('assert');
+import * as assert from 'assert';
 import uri from 'vs/base/common/uri';
 import severity from 'vs/base/common/severity';
-import debugmodel = require('vs/workbench/parts/debug/common/debugModel');
+import * as debugmodel from 'vs/workbench/parts/debug/common/debugModel';
 
 suite('Debug - Model', () => {
 	var model: debugmodel.Model;

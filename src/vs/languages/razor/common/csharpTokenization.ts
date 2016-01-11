@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import objects = require('vs/base/common/objects');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
-import modesExtensions = require('vs/editor/common/modes/modesRegistry');
-import htmlMode = require('vs/languages/html/common/html');
-import VSXML = require('vs/languages/vsxml/common/vsxml');
+import * as objects from 'vs/base/common/objects';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as Modes from 'vs/editor/common/modes';
+import * as modesExtensions from 'vs/editor/common/modes/modesRegistry';
+import * as htmlMode from 'vs/languages/html/common/html';
+import * as VSXML from 'vs/languages/vsxml/common/vsxml';
 import {AbstractState} from 'vs/editor/common/modes/abstractState';
 import {isDigit} from 'vs/editor/common/modes/abstractMode';
-import razorTokenTypes = require('vs/languages/razor/common/razorTokenTypes');
+import * as razorTokenTypes from 'vs/languages/razor/common/razorTokenTypes';
 
 var htmlTokenTypes = htmlMode.htmlTokenTypes;
 

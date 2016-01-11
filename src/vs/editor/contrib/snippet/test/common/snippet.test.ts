@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
-import Snippet = require('vs/editor/contrib/snippet/common/snippet');
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as assert from 'assert';
+import * as Snippet from 'vs/editor/contrib/snippet/common/snippet';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 import {Range} from 'vs/editor/common/core/range';
 
 suite('Editor Contrib - Snippets', () => {

@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
-import Keyboard = require('vs/base/browser/keyboardEvent');
-import Builder = require('vs/base/browser/builder');
-import Strings = require('vs/base/common/strings');
-import Actions = require('vs/base/common/actions');
-import InputBox = require('vs/base/browser/ui/inputbox/inputBox');
-import ActionBar = require('vs/base/browser/ui/actionbar/actionbar');
-import git = require('vs/workbench/parts/git/common/git');
+import * as nls from 'vs/nls';
+import * as Keyboard from 'vs/base/browser/keyboardEvent';
+import * as Builder from 'vs/base/browser/builder';
+import * as Strings from 'vs/base/common/strings';
+import * as Actions from 'vs/base/common/actions';
+import * as InputBox from 'vs/base/browser/ui/inputbox/inputBox';
+import * as ActionBar from 'vs/base/browser/ui/actionbar/actionbar';
+import * as git from 'vs/workbench/parts/git/common/git';
 import {IContextViewService} from 'vs/platform/contextview/browser/contextView';
 import {CommonKeybindings} from 'vs/base/common/keyCodes';
 

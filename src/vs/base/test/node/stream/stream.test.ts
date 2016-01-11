@@ -5,12 +5,12 @@
 
 'use strict';
 
-import assert = require('assert');
-import path = require('path');
-import fs = require('fs');
+import * as assert from 'assert';
+import * as path from 'path';
+import * as fs from 'fs';
 
-import stream = require('vs/base/node/stream');
-import encoding = require('vs/base/node/encoding');
+import * as stream from 'vs/base/node/stream';
+import * as encoding from 'vs/base/node/encoding';
 
 var utf8Buffer = new Buffer([0xEF, 0xBB, 0xBF]);
 

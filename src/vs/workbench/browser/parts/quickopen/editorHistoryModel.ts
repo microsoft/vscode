@@ -5,11 +5,11 @@
 'use strict';
 
 import {Registry} from 'vs/platform/platform';
-import filters = require('vs/base/common/filters');
-import types = require('vs/base/common/types');
-import paths = require('vs/base/common/paths');
+import * as filters from 'vs/base/common/filters';
+import * as types from 'vs/base/common/types';
+import * as paths from 'vs/base/common/paths';
 import URI from 'vs/base/common/uri';
-import labels = require('vs/base/common/labels');
+import * as labels from 'vs/base/common/labels';
 import {EventType} from 'vs/base/common/events';
 import {Mode, IContext} from 'vs/base/parts/quickopen/common/quickOpen';
 import {QuickOpenEntry, QuickOpenModel, IHighlight} from 'vs/base/parts/quickopen/browser/quickOpenModel';

@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import rewriter = require('vs/languages/typescript/common/js/rewriting');
-import ts = require('vs/languages/typescript/common/lib/typescriptServices');
+import * as rewriter from 'vs/languages/typescript/common/js/rewriting';
+import * as ts from 'vs/languages/typescript/common/lib/typescriptServices';
 
 class DefineRewriter implements rewriter.ISyntaxRewriter {
 
@@ -88,4 +88,4 @@ class DefineRewriter implements rewriter.ISyntaxRewriter {
 	static _typeOfPattern = ': typeof {0}';
 }
 
-export = DefineRewriter;
+export {DefineRewriter};

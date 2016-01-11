@@ -5,19 +5,19 @@
 'use strict';
 
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import { IEventEmitter } from 'vs/base/common/eventEmitter';
 import { ITree } from 'vs/base/parts/tree/common/tree';
 import { IDisposable, disposeAll } from 'vs/base/common/lifecycle';
-import strings = require('vs/base/common/strings');
+import * as strings from 'vs/base/common/strings';
 import { isString } from 'vs/base/common/types';
 import { Action } from 'vs/base/common/actions';
 import { IDiffEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import model = require('vs/workbench/parts/git/common/gitModel');
-import inputs = require('vs/workbench/parts/git/browser/gitEditorInputs');
+import * as model from 'vs/workbench/parts/git/common/gitModel';
+import * as inputs from 'vs/workbench/parts/git/browser/gitEditorInputs';
 import { TextDiffEditorOptions } from 'vs/workbench/common/editor';
-import errors = require('vs/base/common/errors');
-import platform = require('vs/base/common/platform');
+import * as errors from 'vs/base/common/errors';
+import * as platform from 'vs/base/common/platform';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkspaceContextService } from 'vs/workbench/services/workspace/common/contextService';
 import { IEditor } from 'vs/platform/editor/common/editor';

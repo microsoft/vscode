@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
-import SplitLinesCollection = require('vs/editor/common/viewModel/splitLinesCollection');
-import CharacterHardWrappingLineMapper = require('vs/editor/common/viewModel/characterHardWrappingLineMapper');
-import PrefixSumComputer = require('vs/editor/common/viewModel/prefixSumComputer');
-import Position = require('vs/editor/common/core/position');
+import * as assert from 'assert';
+import * as SplitLinesCollection from 'vs/editor/common/viewModel/splitLinesCollection';
+import * as CharacterHardWrappingLineMapper from 'vs/editor/common/viewModel/characterHardWrappingLineMapper';
+import * as PrefixSumComputer from 'vs/editor/common/viewModel/prefixSumComputer';
+import * as Position from 'vs/editor/common/core/position';
 
 suite('Editor ViewModel - SplitLinesCollection', () => {
 	test('SplitLine', () => {

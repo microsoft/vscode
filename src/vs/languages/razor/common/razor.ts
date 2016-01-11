@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
-import supports = require('vs/editor/common/modes/supports');
-import htmlMode = require('vs/languages/html/common/html');
-import csharpTokenization = require('vs/languages/razor/common/csharpTokenization');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as Modes from 'vs/editor/common/modes';
+import * as supports from 'vs/editor/common/modes/supports';
+import * as htmlMode from 'vs/languages/html/common/html';
+import * as csharpTokenization from 'vs/languages/razor/common/csharpTokenization';
 import {AbstractMode, createWordRegExp} from 'vs/editor/common/modes/abstractMode';
 import {AsyncDescriptor2, createAsyncDescriptor2} from 'vs/platform/instantiation/common/descriptors';
 import {OnEnterSupport} from 'vs/editor/common/modes/supports/onEnter';
-import razorTokenTypes = require('vs/languages/razor/common/razorTokenTypes');
+import * as razorTokenTypes from 'vs/languages/razor/common/razorTokenTypes';
 import {RAZORWorker} from 'vs/languages/razor/common/razorWorker';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IThreadService} from 'vs/platform/thread/common/thread';

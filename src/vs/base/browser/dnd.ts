@@ -5,7 +5,7 @@
 
 'use strict';
 
-import Builder = require('vs/base/browser/builder');
+import * as Builder from 'vs/base/browser/builder';
 
 var $ = Builder.$;
 

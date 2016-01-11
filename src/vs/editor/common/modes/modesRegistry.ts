@@ -6,9 +6,9 @@
 
 import {TPromise} from 'vs/base/common/winjs.base';
 import {LanguageExtensions, ILegacyLanguageDefinition} from 'vs/editor/common/modes/languageExtensionPoint';
-import Modes = require('vs/editor/common/modes');
-import Strings = require('vs/base/common/strings');
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as Modes from 'vs/editor/common/modes';
+import * as Strings from 'vs/base/common/strings';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 import {Registry} from 'vs/platform/platform';
 import {AsyncDescriptor0, createAsyncDescriptor0} from 'vs/platform/instantiation/common/descriptors';
 import {IPluginDescription} from 'vs/platform/plugins/common/plugins';

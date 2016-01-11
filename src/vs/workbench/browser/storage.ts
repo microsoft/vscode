@@ -5,9 +5,9 @@
 'use strict';
 
 import {EventEmitter} from 'vs/base/common/eventEmitter';
-import types = require('vs/base/common/types');
-import errors = require('vs/base/common/errors');
-import strings = require('vs/base/common/strings');
+import * as types from 'vs/base/common/types';
+import * as errors from 'vs/base/common/errors';
+import * as strings from 'vs/base/common/strings';
 import {IStorageService, StorageScope, StorageEvent, StorageEventType} from 'vs/platform/storage/common/storage';
 import {IWorkspaceContextService, IWorkspace} from 'vs/platform/workspace/common/workspace';
 

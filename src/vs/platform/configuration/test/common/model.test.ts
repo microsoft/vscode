@@ -5,8 +5,8 @@
 'use strict';
 
 
-import assert = require('assert');
-import model = require('vs/platform/configuration/common/model');
+import * as assert from 'assert';
+import * as model from 'vs/platform/configuration/common/model';
 
 suite('ConfigurationService - Model', () => {
 

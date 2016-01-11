@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Arrays = require('vs/base/common/arrays');
-import Lifecycle = require('vs/base/common/lifecycle');
-import DomUtils = require('vs/base/browser/dom');
+import * as Arrays from 'vs/base/common/arrays';
+import * as Lifecycle from 'vs/base/common/lifecycle';
+import * as DomUtils from 'vs/base/browser/dom';
 
 export namespace EventType {
 	export var Tap = '-monaco-gesturetap';

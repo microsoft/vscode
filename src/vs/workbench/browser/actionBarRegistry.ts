@@ -6,8 +6,8 @@
 
 import {TPromise} from 'vs/base/common/winjs.base';
 import {Registry} from 'vs/platform/platform';
-import types = require('vs/base/common/types');
-import collections = require('vs/base/common/collections');
+import * as types from 'vs/base/common/types';
+import * as collections from 'vs/base/common/collections';
 import {Action, IAction} from 'vs/base/common/actions';
 import {BaseActionItem, Separator} from 'vs/base/browser/ui/actionbar/actionbar';
 import {IActionProvider} from 'vs/base/parts/tree/browser/actionsRenderer';

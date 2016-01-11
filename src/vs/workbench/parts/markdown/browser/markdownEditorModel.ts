@@ -5,15 +5,15 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import URI from 'vs/base/common/uri';
-import paths = require('vs/base/common/paths');
+import * as paths from 'vs/base/common/paths';
 import {IFrameEditorModel} from 'vs/workbench/browser/parts/editor/iframeEditorModel';
 import {EditorModel} from 'vs/workbench/common/editor';
 import {Preferences} from 'vs/workbench/common/constants';
 import {IModel} from 'vs/editor/common/editorCommon';
 import {IEmitOutput} from 'vs/editor/common/modes';
-import themes = require('vs/platform/theme/common/themes');
+import * as themes from 'vs/platform/theme/common/themes';
 import {MARKDOWN_MIME, MARKDOWN_MODE_ID} from 'vs/workbench/parts/markdown/browser/markdown';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';

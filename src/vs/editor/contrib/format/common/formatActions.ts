@@ -5,13 +5,13 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
-import EditorCommon = require('vs/editor/common/editorCommon');
-import lifecycle = require('vs/base/common/lifecycle');
-import arrays = require('vs/base/common/arrays');
-import nls = require('vs/nls');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as lifecycle from 'vs/base/common/lifecycle';
+import * as arrays from 'vs/base/common/arrays';
+import * as nls from 'vs/nls';
 import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
 import {EditorAction, Behaviour} from 'vs/editor/common/editorAction';
-import formatCommand = require('./formatCommand');
+import * as formatCommand from './formatCommand';
 import {Range} from 'vs/editor/common/core/range';
 import {INullService} from 'vs/platform/instantiation/common/instantiation';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';

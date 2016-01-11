@@ -7,13 +7,13 @@
 
 import 'vs/css!./hover';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
-import EventEmitter = require('vs/base/common/eventEmitter');
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Platform = require('vs/base/common/platform');
-import ModesContentHover = require('./modesContentHover');
-import ModesGlyphHover = require('./modesGlyphHover');
-import Keyboard = require('vs/base/browser/keyboardEvent');
+import * as EventEmitter from 'vs/base/common/eventEmitter';
+import * as EditorBrowser from 'vs/editor/browser/editorBrowser';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as Platform from 'vs/base/common/platform';
+import * as ModesContentHover from './modesContentHover';
+import * as ModesGlyphHover from './modesGlyphHover';
+import * as Keyboard from 'vs/base/browser/keyboardEvent';
 import {INullService} from 'vs/platform/instantiation/common/instantiation';
 import {KeyCode} from 'vs/base/common/keyCodes';
 

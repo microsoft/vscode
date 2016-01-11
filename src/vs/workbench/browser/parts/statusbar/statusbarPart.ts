@@ -6,9 +6,9 @@
 'use strict';
 
 import 'vs/css!./media/statusbarPart';
-import dom = require('vs/base/browser/dom');
-import types = require('vs/base/common/types');
-import nls = require('vs/nls');
+import * as dom from 'vs/base/browser/dom';
+import * as types from 'vs/base/common/types';
+import * as nls from 'vs/nls';
 import {toErrorMessage} from 'vs/base/common/errors';
 import {Promise} from 'vs/base/common/winjs.base';
 import {disposeAll, IDisposable} from 'vs/base/common/lifecycle';

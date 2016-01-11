@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import glob = require('vs/base/common/glob');
+import * as glob from 'vs/base/common/glob';
 
 suite('Glob', () => {
 	test('simple', function() {

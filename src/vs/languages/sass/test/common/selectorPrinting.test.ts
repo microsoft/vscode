@@ -5,8 +5,8 @@
 
 'use strict';
 
-import parser = require('vs/languages/sass/common/parser/sassParser');
-import selectorPrinterTest = require('vs/languages/css/test/common/selectorPrinting.test');
+import * as parser from 'vs/languages/sass/common/parser/sassParser';
+import * as selectorPrinterTest from 'vs/languages/css/test/common/selectorPrinting.test';
 
 suite('Sass - selector printing', () => {
 

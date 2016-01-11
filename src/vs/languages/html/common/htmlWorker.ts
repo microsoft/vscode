@@ -5,14 +5,14 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import winjs = require('vs/base/common/winjs.base');
+import * as winjs from 'vs/base/common/winjs.base';
 import {AbstractModeWorker} from 'vs/editor/common/modes/abstractModeWorker';
-import beautifyHTML = require('vs/languages/lib/common/beautify-html');
-import htmlTags = require('vs/languages/html/common/htmlTags');
-import network = require('vs/base/common/network');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
-import strings = require('vs/base/common/strings');
+import * as beautifyHTML from 'vs/languages/lib/common/beautify-html';
+import * as htmlTags from 'vs/languages/html/common/htmlTags';
+import * as network from 'vs/base/common/network';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as Modes from 'vs/editor/common/modes';
+import * as strings from 'vs/base/common/strings';
 import {Range} from 'vs/editor/common/core/range';
 import {Position} from 'vs/editor/common/core/position';
 import {IRequestService} from 'vs/platform/request/common/request';

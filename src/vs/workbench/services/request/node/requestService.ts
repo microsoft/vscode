@@ -6,17 +6,17 @@
 'use strict';
 
 import {TPromise, Promise, xhr} from 'vs/base/common/winjs.base';
-import http = require('vs/base/common/http');
+import * as http from 'vs/base/common/http';
 import {IConfigurationRegistry, Extensions} from 'vs/platform/configuration/common/configurationRegistry';
-import strings = require('vs/base/common/strings');
-import nls = require('vs/nls');
-import lifecycle = require('vs/base/common/lifecycle');
-import timer = require('vs/base/common/timer');
-import platform = require('vs/platform/platform');
-import async = require('vs/base/common/async');
+import * as strings from 'vs/base/common/strings';
+import * as nls from 'vs/nls';
+import * as lifecycle from 'vs/base/common/lifecycle';
+import * as timer from 'vs/base/common/timer';
+import * as platform from 'vs/platform/platform';
+import * as async from 'vs/base/common/async';
 import {IConfigurationService, IConfigurationServiceEvent, ConfigurationServiceEventTypes} from 'vs/platform/configuration/common/configuration';
 import {BaseRequestService} from 'vs/platform/request/common/baseRequestService';
-import rawHttpService = require('vs/workbench/services/request/node/rawHttpService');
+import * as rawHttpService from 'vs/workbench/services/request/node/rawHttpService';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import { IThreadSynchronizableObject} from 'vs/platform/thread/common/thread';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';

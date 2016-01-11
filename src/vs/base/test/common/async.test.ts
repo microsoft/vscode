@@ -6,7 +6,7 @@
 
 import * as assert from 'assert';
 import { Promise } from 'vs/base/common/winjs.base';
-import Async = require('vs/base/common/async');
+import * as Async from 'vs/base/common/async';
 
 suite('Async', () => {
 	test('Throttler - non async', function(done) {

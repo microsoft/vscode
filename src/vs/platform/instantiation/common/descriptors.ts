@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import errors = require('vs/base/common/errors');
-import objects = require('vs/base/common/objects');
-import marshalling = require('vs/base/common/marshalling');
-import hash = require('vs/base/common/hash');
-import instantiation = require('./instantiation');
+import * as errors from 'vs/base/common/errors';
+import * as objects from 'vs/base/common/objects';
+import * as marshalling from 'vs/base/common/marshalling';
+import * as hash from 'vs/base/common/hash';
+import * as instantiation from './instantiation';
 
 export class AbstractDescriptor<T> {
 

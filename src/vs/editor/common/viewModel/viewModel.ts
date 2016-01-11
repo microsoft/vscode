@@ -5,13 +5,13 @@
 'use strict';
 
 import {EventEmitter, IEventEmitter, IEmitterEvent, ListenerUnbind} from 'vs/base/common/eventEmitter';
-import Strings = require('vs/base/common/strings');
+import * as Strings from 'vs/base/common/strings';
 import {Selection} from 'vs/editor/common/core/selection';
 import {Range} from 'vs/editor/common/core/range';
 import {ViewModelDecorations} from 'vs/editor/common/viewModel/viewModelDecorations';
 import {ViewModelCursors} from 'vs/editor/common/viewModel/viewModelCursors';
 import {Position} from 'vs/editor/common/core/position';
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 
 export interface ILinesCollection {
 	setTabSize(newTabSize:number, emit:(evenType:string, payload:any)=>void): boolean;

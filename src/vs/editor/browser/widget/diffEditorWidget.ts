@@ -7,18 +7,18 @@
 
 import 'vs/css!./media/diffEditor';
 import {DefaultConfig} from 'vs/editor/common/config/defaultConfig';
-import Lifecycle = require('vs/base/common/lifecycle');
-import Objects = require('vs/base/common/objects');
-import CodeEditorWidget = require('vs/editor/browser/widget/codeEditorWidget');
-import DomUtils = require('vs/base/browser/dom');
-import EventEmitter = require('vs/base/common/eventEmitter');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
-import Actions = require('vs/base/common/actions');
-import Sash = require('vs/base/browser/ui/sash/sash');
-import ViewLine = require('vs/editor/browser/viewParts/lines/viewLine');
-import ViewLineParts = require('vs/editor/common/viewLayout/viewLineParts');
-import Schedulers = require('vs/base/common/async');
+import * as Lifecycle from 'vs/base/common/lifecycle';
+import * as Objects from 'vs/base/common/objects';
+import * as CodeEditorWidget from 'vs/editor/browser/widget/codeEditorWidget';
+import * as DomUtils from 'vs/base/browser/dom';
+import * as EventEmitter from 'vs/base/common/eventEmitter';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as EditorBrowser from 'vs/editor/browser/editorBrowser';
+import * as Actions from 'vs/base/common/actions';
+import * as Sash from 'vs/base/browser/ui/sash/sash';
+import * as ViewLine from 'vs/editor/browser/viewParts/lines/viewLine';
+import * as ViewLineParts from 'vs/editor/common/viewLayout/viewLineParts';
+import * as Schedulers from 'vs/base/common/async';
 import {Range} from 'vs/editor/common/core/range';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 

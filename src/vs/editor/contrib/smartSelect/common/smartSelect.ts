@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
-import Arrays = require('vs/base/common/arrays');
+import * as nls from 'vs/nls';
+import * as Arrays from 'vs/base/common/arrays';
 import {TPromise} from 'vs/base/common/winjs.base';
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as Modes from 'vs/editor/common/modes';
 import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
 import {EditorAction, Behaviour} from 'vs/editor/common/editorAction';
-import TokenSelectionSupport = require('./tokenSelectionSupport');
-import tokenTree = require('./tokenTree');
+import {TokenSelectionSupport} from './tokenSelectionSupport';
+import * as tokenTree from './tokenTree';
 import {Range} from 'vs/editor/common/core/range';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation'
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';

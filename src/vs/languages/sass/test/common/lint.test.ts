@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import lintRules = require('vs/languages/css/common/services/lintRules');
-import cssLintTest = require('vs/languages/css/test/common/lint.test');
-import parser = require('vs/languages/sass/common/parser/sassParser');
+import * as lintRules from 'vs/languages/css/common/services/lintRules';
+import * as cssLintTest from 'vs/languages/css/test/common/lint.test';
+import * as parser from 'vs/languages/sass/common/parser/sassParser';
 
 function assertFontFace(input:string, ...rules:lintRules.Rule[]) : void {
 	var p = new parser.SassParser();

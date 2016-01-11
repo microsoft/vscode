@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import URI from 'vs/base/common/uri';
-import paths = require('vs/base/common/paths');
-import labels = require('vs/base/common/labels');
+import * as paths from 'vs/base/common/paths';
+import * as labels from 'vs/base/common/labels';
 import {DerivedFrameEditorInput} from 'vs/workbench/parts/files/browser/editors/derivedFrameEditorInput';
 import {MarkdownEditorModel} from 'vs/workbench/parts/markdown/browser/markdownEditorModel';
 import {EditorModel} from 'vs/workbench/common/editor';

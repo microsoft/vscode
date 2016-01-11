@@ -7,10 +7,10 @@
 import 'vs/languages/css/common/css.contribution';
 import 'vs/languages/javascript/common/javascript.contribution';
 import 'vs/languages/less/common/less.contribution';
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
-import LESS = require('vs/languages/less/common/less');
-import modesUtil = require('vs/editor/test/common/modesUtil');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as Modes from 'vs/editor/common/modes';
+import * as LESS from 'vs/languages/less/common/less';
+import * as modesUtil from 'vs/editor/test/common/modesUtil';
 import * as lessTokenTypes from 'vs/languages/less/common/lessTokenTypes';
 
 suite('LESS-tokenization', () => {

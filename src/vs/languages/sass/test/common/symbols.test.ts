@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import parser = require('vs/languages/sass/common/parser/sassParser');
-import nodes = require('vs/languages/css/common/parser/cssNodes');
-import symbolsTest = require('vs/languages/css/test/common/symbols.test');
+import * as parser from 'vs/languages/sass/common/parser/sassParser';
+import * as nodes from 'vs/languages/css/common/parser/cssNodes';
+import * as symbolsTest from 'vs/languages/css/test/common/symbols.test';
 
 suite('Sass - Symbols', () => {
 

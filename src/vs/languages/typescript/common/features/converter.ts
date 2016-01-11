@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import EditorCommon = require('vs/editor/common/editorCommon');
-import ts = require('vs/languages/typescript/common/lib/typescriptServices');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as ts from 'vs/languages/typescript/common/lib/typescriptServices';
 
 /**
  * @returns The character offset of the {{position}} using the {{tree}}.

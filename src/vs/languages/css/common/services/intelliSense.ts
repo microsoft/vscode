@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nodes = require('vs/languages/css/common/parser/cssNodes');
-import cssSymbols = require('vs/languages/css/common/parser/cssSymbols');
-import languageFacts = require('vs/languages/css/common/services/languageFacts');
-import service = require('vs/languages/css/common/services/cssLanguageService');
+import * as nodes from 'vs/languages/css/common/parser/cssNodes';
+import * as cssSymbols from 'vs/languages/css/common/parser/cssSymbols';
+import * as languageFacts from 'vs/languages/css/common/services/languageFacts';
+import * as service from 'vs/languages/css/common/services/cssLanguageService';
 import URI from 'vs/base/common/uri';
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
-import nls = require('vs/nls');
-import scanner = require('vs/languages/css/common/parser/cssScanner');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as Modes from 'vs/editor/common/modes';
+import * as nls from 'vs/nls';
+import * as scanner from 'vs/languages/css/common/parser/cssScanner';
 
 export class CSSIntellisense {
 

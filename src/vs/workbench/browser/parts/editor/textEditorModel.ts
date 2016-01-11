@@ -5,7 +5,7 @@
 'use strict';
 
 import {TPromise, Promise} from 'vs/base/common/winjs.base';
-import types = require('vs/base/common/types');
+import * as types from 'vs/base/common/types';
 import {EndOfLinePreference, IModel} from 'vs/editor/common/editorCommon';
 import {IMode} from 'vs/editor/common/modes';
 import {EditorModel} from 'vs/workbench/common/editor';

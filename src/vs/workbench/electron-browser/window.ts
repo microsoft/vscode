@@ -5,15 +5,15 @@
 
 'use strict';
 
-import platform = require('vs/base/common/platform');
-import paths = require('vs/base/common/paths');
+import * as platform from 'vs/base/common/platform';
+import * as paths from 'vs/base/common/paths';
 import uri from 'vs/base/common/uri';
 import {Identifiers} from 'vs/workbench/common/constants';
 import {EventType, EditorEvent} from 'vs/workbench/common/events';
-import workbenchEditorCommon = require('vs/workbench/common/editor');
+import * as workbenchEditorCommon from 'vs/workbench/common/editor';
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import dom = require('vs/base/browser/dom');
+import * as dom from 'vs/base/browser/dom';
 import {IStorageService} from 'vs/platform/storage/common/storage';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';

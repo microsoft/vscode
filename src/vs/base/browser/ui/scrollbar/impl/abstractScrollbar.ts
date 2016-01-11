@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import DomUtils = require('vs/base/browser/dom');
+import * as DomUtils from 'vs/base/browser/dom';
 import {StandardMouseEvent} from 'vs/base/browser/mouseEvent';
 import {IMouseWheelEvent, IParent, Visibility, IScrollbar} from 'vs/base/browser/ui/scrollbar/impl/common';
 import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
 import {GlobalMouseMoveMonitor, IStandardMouseMoveEventData, standardMouseMoveMerger} from 'vs/base/browser/globalMouseMoveMonitor';
-import Browser = require('vs/base/browser/browser');
-import Platform = require('vs/base/common/platform');
+import * as Browser from 'vs/base/browser/browser';
+import * as Platform from 'vs/base/common/platform';
 
 export interface IMouseWheelEventFactory {
 	():IMouseWheelEvent;

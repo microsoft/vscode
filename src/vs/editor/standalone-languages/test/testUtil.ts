@@ -5,11 +5,11 @@
 
 'use strict';
 
-import types = require('../types');
-import assert = require('assert');
-import modesUtil = require('vs/editor/test/common/modesUtil');
-import monarchCompile = require('vs/editor/common/modes/monarch/monarchCompile');
-import MonarchDefinition = require('vs/editor/common/modes/monarch/monarchDefinition');
+import * as types from '../types';
+import * as assert from 'assert';
+import * as modesUtil from 'vs/editor/test/common/modesUtil';
+import * as monarchCompile from 'vs/editor/common/modes/monarch/monarchCompile';
+import * as MonarchDefinition from 'vs/editor/common/modes/monarch/monarchDefinition';
 import {OnEnterSupport} from 'vs/editor/common/modes/supports/onEnter';
 
 export enum Bracket {

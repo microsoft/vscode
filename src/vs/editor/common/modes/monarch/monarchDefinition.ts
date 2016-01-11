@@ -11,11 +11,11 @@
 
 import {TPromise} from 'vs/base/common/winjs.base';
 import {AbstractMode} from 'vs/editor/common/modes/abstractMode';
-import Supports = require('vs/editor/common/modes/supports');
-import MonarchCommonTypes = require('vs/editor/common/modes/monarch/monarchCommon');
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as Supports from 'vs/editor/common/modes/supports';
+import * as MonarchCommonTypes from 'vs/editor/common/modes/monarch/monarchCommon';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 import {IModelService} from 'vs/editor/common/services/modelService';
-import Modes = require('vs/editor/common/modes');
+import * as Modes from 'vs/editor/common/modes';
 import {IOnEnterSupportOptions} from 'vs/editor/common/modes/supports/onEnter';
 
 export function createCommentsSupport(lexer: MonarchCommonTypes.ILexer): Supports.ICommentsSupportContribution {

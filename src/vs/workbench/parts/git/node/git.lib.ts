@@ -4,18 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
-import extfs = require('vs/base/node/extfs');
+import * as extfs from 'vs/base/node/extfs';
 import { guessMimeTypes, isBinaryMime } from 'vs/base/common/mime';
 import { IDisposable, toDisposable, disposeAll } from 'vs/base/common/lifecycle';
-import objects = require('vs/base/common/objects');
-import uuid = require('vs/base/common/uuid');
-import nls = require('vs/nls');
-import strings = require('vs/base/common/strings');
+import * as objects from 'vs/base/common/objects';
+import * as uuid from 'vs/base/common/uuid';
+import * as nls from 'vs/nls';
+import * as strings from 'vs/base/common/strings';
 import { IRawFileStatus, IHead, ITag, IBranch, IRemote, GitErrorCodes, IPushOptions } from 'vs/workbench/parts/git/common/git';
 import { detectMimesFromStream } from 'vs/base/node/mime'
-import files = require('vs/platform/files/common/files');
+import * as files from 'vs/platform/files/common/files';
 import { spawn, ChildProcess } from 'child_process';
-import iconv = require('iconv-lite');
+import * as iconv from 'iconv-lite';
 
 export interface IExecutionResult {
 	exitCode: number;

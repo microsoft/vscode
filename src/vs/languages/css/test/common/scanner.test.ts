@@ -5,8 +5,8 @@
 
 'use strict';
 
-import assert = require('assert');
-import Scanner = require('vs/languages/css/common/parser/cssScanner');
+import * as assert from 'assert';
+import * as Scanner from 'vs/languages/css/common/parser/cssScanner';
 
 suite('CSS - Scanner', () => {
 

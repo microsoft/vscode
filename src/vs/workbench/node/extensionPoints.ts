@@ -5,12 +5,12 @@
 
 'use strict';
 
-import pfs = require('vs/base/node/pfs');
+import * as pfs from 'vs/base/node/pfs';
 import {IPluginDescription} from 'vs/platform/plugins/common/plugins';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {groupBy, values} from 'vs/base/common/collections';
-import paths = require('vs/base/common/paths');
-import json = require('vs/base/common/json');
+import * as paths from 'vs/base/common/paths';
+import * as json from 'vs/base/common/json';
 import {IPluginsMessageCollector} from 'vs/platform/plugins/common/pluginsRegistry';
 import {isValidPluginDescription} from 'vs/platform/plugins/node/pluginVersionValidator';
 import * as semver from 'semver';

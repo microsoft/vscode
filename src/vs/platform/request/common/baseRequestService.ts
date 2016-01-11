@@ -5,12 +5,12 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import strings = require('vs/base/common/strings');
-import Timer = require('vs/base/common/timer');
-import Async = require('vs/base/common/async');
-import http = require('vs/base/common/http');
-import winjs = require('vs/base/common/winjs.base');
-import objects = require('vs/base/common/objects');
+import * as strings from 'vs/base/common/strings';
+import * as Timer from 'vs/base/common/timer';
+import * as Async from 'vs/base/common/async';
+import * as http from 'vs/base/common/http';
+import * as winjs from 'vs/base/common/winjs.base';
+import * as objects from 'vs/base/common/objects';
 import {IRequestService} from 'vs/platform/request/common/request';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';

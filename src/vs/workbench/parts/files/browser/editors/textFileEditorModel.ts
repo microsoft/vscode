@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import {TPromise, Promise} from 'vs/base/common/winjs.base';
 import {onUnexpectedError, toErrorMessage} from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
 import {IDisposable} from 'vs/base/common/lifecycle';
-import paths = require('vs/base/common/paths');
-import diagnostics = require('vs/base/common/diagnostics');
-import types = require('vs/base/common/types');
+import * as paths from 'vs/base/common/paths';
+import * as diagnostics from 'vs/base/common/diagnostics';
+import * as types from 'vs/base/common/types';
 import {IModelContentChangedEvent, EventType as EditorEventType} from 'vs/editor/common/editorCommon';
 import {IMode} from 'vs/editor/common/modes';
 import {EventType as WorkbenchEventType, ResourceEvent} from 'vs/workbench/common/events';

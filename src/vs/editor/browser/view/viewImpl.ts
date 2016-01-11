@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 
-import Lifecycle = require('vs/base/common/lifecycle');
-import DomUtils = require('vs/base/browser/dom');
-import EventEmitter = require('vs/base/common/eventEmitter');
-import Errors = require('vs/base/common/errors');
-import Timer = require('vs/base/common/timer');
+import * as Lifecycle from 'vs/base/common/lifecycle';
+import * as DomUtils from 'vs/base/browser/dom';
+import * as EventEmitter from 'vs/base/common/eventEmitter';
+import * as Errors from 'vs/base/common/errors';
+import * as Timer from 'vs/base/common/timer';
 
 import {ViewEventHandler} from 'vs/editor/common/viewModel/viewEventHandler';
 import {KeyboardHandler} from 'vs/editor/browser/controller/keyboardHandler';
@@ -38,10 +38,10 @@ import {LineNumbersOverlay} from 'vs/editor/browser/viewParts/lineNumbers/lineNu
 import {ScrollDecorationViewPart} from 'vs/editor/browser/viewParts/scrollDecoration/scrollDecoration';
 // -- END VIEW PARTS
 
-import Browser = require('vs/base/browser/browser');
+import * as Browser from 'vs/base/browser/browser';
 
-import EditorCommon = require('vs/editor/common/editorCommon');
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as EditorBrowser from 'vs/editor/browser/editorBrowser';
 import {Range} from 'vs/editor/common/core/range';
 import {IKeybindingService, IKeybindingContextKey} from 'vs/platform/keybinding/common/keybindingService';
 

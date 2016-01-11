@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import strings = require('vs/base/common/strings');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import ts = require('vs/languages/typescript/common/lib/typescriptServices');
-import htmlContent = require('vs/base/common/htmlContent');
+import * as strings from 'vs/base/common/strings';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as ts from 'vs/languages/typescript/common/lib/typescriptServices';
+import * as htmlContent from 'vs/base/common/htmlContent';
 
 export function html(parts:ts.SymbolDisplayPart[], className:string = strings.empty):htmlContent.IHTMLContentElement {
 

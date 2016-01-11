@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import DomUtils = require('vs/base/browser/dom');
-import Lifecycle = require('vs/base/common/lifecycle');
+import * as DomUtils from 'vs/base/browser/dom';
+import * as Lifecycle from 'vs/base/common/lifecycle';
 
 export interface IKeyboardController {
 

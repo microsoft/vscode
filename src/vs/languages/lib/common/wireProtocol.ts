@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import stream = require('stream');
+import * as stream from 'stream';
 
 var DefaultSize:number = 8192;
 var ContentLength:string = 'Content-Length: ';

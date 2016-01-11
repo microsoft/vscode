@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Platform = require('vs/base/common/platform');
-import Browser = require('vs/base/browser/browser');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Mouse = require('vs/base/browser/mouseEvent');
-import DomUtils = require('vs/base/browser/dom');
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
-import EventEmitter = require('vs/base/common/eventEmitter');
-import MouseTarget = require('vs/editor/browser/controller/mouseTarget');
+import * as Platform from 'vs/base/common/platform';
+import * as Browser from 'vs/base/browser/browser';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as Mouse from 'vs/base/browser/mouseEvent';
+import * as DomUtils from 'vs/base/browser/dom';
+import * as EditorBrowser from 'vs/editor/browser/editorBrowser';
+import * as EventEmitter from 'vs/base/common/eventEmitter';
+import * as MouseTarget from 'vs/editor/browser/controller/mouseTarget';
 import {ViewEventHandler} from 'vs/editor/common/viewModel/viewEventHandler';
-import Lifecycle = require('vs/base/common/lifecycle');
-import GlobalMouseMoveMonitor = require('vs/base/browser/globalMouseMoveMonitor');
+import * as Lifecycle from 'vs/base/common/lifecycle';
+import * as GlobalMouseMoveMonitor from 'vs/base/browser/globalMouseMoveMonitor';
 import {Position} from 'vs/editor/common/core/position';
 import {Selection} from 'vs/editor/common/core/selection';
 

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
+import * as assert from 'assert';
 import {FindModelBoundToEditorModel, parseReplaceString} from 'vs/editor/contrib/find/common/findModel';
 import * as EditorCommon from 'vs/editor/common/editorCommon';
 import {withMockCodeEditor} from 'vs/editor/test/common/mocks/mockCodeEditor';

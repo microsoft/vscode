@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
-import http = require('vs/base/common/http');
-import winjs = require('vs/base/common/winjs.base');
-import SchemaService = require('vs/languages/json/common/jsonSchemaService');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Strings = require('vs/base/common/strings');
-import JsonSchema = require('vs/base/common/jsonSchema');
-import Json = require('vs/base/common/json');
-import Parser = require('vs/languages/json/common/parser/jsonParser');
-import pfs = require('vs/base/node/pfs');
-import path = require('path');
+import * as assert from 'assert';
+import * as http from 'vs/base/common/http';
+import * as winjs from 'vs/base/common/winjs.base';
+import * as SchemaService from 'vs/languages/json/common/jsonSchemaService';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as Strings from 'vs/base/common/strings';
+import * as JsonSchema from 'vs/base/common/jsonSchema';
+import * as Json from 'vs/base/common/json';
+import * as Parser from 'vs/languages/json/common/parser/jsonParser';
+import * as pfs from 'vs/base/node/pfs';
+import * as path from 'path';
 import {IRequestService} from 'vs/platform/request/common/request';
 
 suite('JSON - schema', () => {

@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import ee = require('vs/base/common/eventEmitter');
-import editorbrowser = require('vs/editor/browser/editorBrowser');
-import common = require('vs/editor/common/editorCommon');
-import git = require('vs/workbench/parts/git/common/git');
+import * as ee from 'vs/base/common/eventEmitter';
+import * as editorbrowser from 'vs/editor/browser/editorBrowser';
+import * as common from 'vs/editor/common/editorCommon';
+import * as git from 'vs/workbench/parts/git/common/git';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 
 import IGitService = git.IGitService;

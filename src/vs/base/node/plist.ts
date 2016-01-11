@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import sax = require('sax');
+import * as sax from 'sax';
 
 interface PListObject {
 	parent: PListObject;

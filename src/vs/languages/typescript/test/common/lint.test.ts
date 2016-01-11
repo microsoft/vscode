@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import types = require('vs/base/common/types');
-import ts = require('vs/languages/typescript/common/lib/typescriptServices');
-import lint = require('vs/languages/typescript/common/lint/lint');
-import layout = require('vs/languages/typescript/common/lint/rules/layout');
-import javascript = require('vs/languages/typescript/common/lint/rules/javascript');
-import typescript = require('vs/languages/typescript/common/lint/rules/typescript');
-import utils = require('./features/utils');
+import * as assert from 'assert';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as types from 'vs/base/common/types';
+import * as ts from 'vs/languages/typescript/common/lib/typescriptServices';
+import * as lint from 'vs/languages/typescript/common/lint/lint';
+import * as layout from 'vs/languages/typescript/common/lint/rules/layout';
+import * as javascript from 'vs/languages/typescript/common/lint/rules/javascript';
+import * as typescript from 'vs/languages/typescript/common/lint/rules/typescript';
+import * as utils from './features/utils';
 import {Range} from 'vs/editor/common/core/range';
 
 function _assertCheck(checker:lint.SimpleStyleRuleChecker, sourceFile:ts.SourceFile, numbers:number[]):void {

@@ -5,10 +5,10 @@
 
 'use strict';
 
-import assert = require('assert');
-import WinJS = require('vs/base/common/winjs.base');
-import TreeView = require('vs/base/parts/tree/browser/treeView');
-import Tree = require('vs/base/parts/tree/browser/treeImpl');
+import * as assert from 'assert';
+import * as WinJS from 'vs/base/common/winjs.base';
+import * as TreeView from 'vs/base/parts/tree/browser/treeView';
+import * as Tree from 'vs/base/parts/tree/browser/treeImpl';
 import { ArrayIterator } from 'vs/base/common/iterator';
 import { HeightMap, IViewItem } from 'vs/base/parts/tree/common/treeViewModel';
 

@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
-import nodes = require('vs/languages/css/common/parser/cssNodes');
-import _parser = require('vs/languages/css/common/parser/cssParser');
+import * as assert from 'assert';
+import * as nodes from 'vs/languages/css/common/parser/cssNodes';
+import * as _parser from 'vs/languages/css/common/parser/cssParser';
 
 export class PrintingVisitor implements nodes.IVisitor {
 

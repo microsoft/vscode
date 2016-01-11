@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import stream = require('stream');
-import uuid = require('vs/base/common/uuid');
-import ee = require('vs/base/common/eventEmitter');
+import * as stream from 'stream';
+import * as uuid from 'vs/base/common/uuid';
+import * as ee from 'vs/base/common/eventEmitter';
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
-import debug = require('vs/workbench/parts/debug/common/debug');
+import * as debug from 'vs/workbench/parts/debug/common/debug';
 
 export class V8Protocol extends ee.EventEmitter {
 

@@ -13,4 +13,4 @@ function noop(value:string): string {
 const mock:any = {
 	marked: noop
 };
-export = mock;
+export { mock };

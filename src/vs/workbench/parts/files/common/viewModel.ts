@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import assert = require('vs/base/common/assert');
-import types = require('vs/base/common/types');
+import * as assert from 'vs/base/common/assert';
+import * as types from 'vs/base/common/types';
 import URI from 'vs/base/common/uri';
 import {isLinux} from 'vs/base/common/platform';
-import paths = require('vs/base/common/paths');
+import * as paths from 'vs/base/common/paths';
 import {guessMimeTypes} from 'vs/base/common/mime';
 import {IFileStat} from 'vs/platform/files/common/files';
 

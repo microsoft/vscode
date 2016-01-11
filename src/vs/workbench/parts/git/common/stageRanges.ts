@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import editorbrowser = require('vs/editor/browser/editorBrowser');
-import editorcommon = require('vs/editor/common/editorCommon');
+import * as editorbrowser from 'vs/editor/browser/editorBrowser';
+import * as editorcommon from 'vs/editor/common/editorCommon';
 import {Range} from 'vs/editor/common/core/range';
 
 function sortChanges(changes:editorcommon.IChange[]):void {

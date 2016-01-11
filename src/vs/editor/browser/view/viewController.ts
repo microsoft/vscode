@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import EventEmitter = require('vs/base/common/eventEmitter');
-import DomUtils = require('vs/base/browser/dom');
+import * as EventEmitter from 'vs/base/common/eventEmitter';
+import * as DomUtils from 'vs/base/browser/dom';
 
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
-import Configuration = require('vs/editor/browser/config/configuration');
-import Position = require('vs/editor/common/core/position');
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as EditorBrowser from 'vs/editor/browser/editorBrowser';
+import * as Configuration from 'vs/editor/browser/config/configuration';
+import * as Position from 'vs/editor/common/core/position';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 
 export class ViewController implements EditorBrowser.IViewController {
 

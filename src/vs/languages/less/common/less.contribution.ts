@@ -5,11 +5,11 @@
 'use strict';
 
 import 'vs/css!vs/languages/css/common/css-hover';
-import platform = require('vs/platform/platform');
-import nls = require('vs/nls');
-import lintRules = require('vs/languages/css/common/services/lintRules');
-import modesExtensions = require('vs/editor/common/modes/modesRegistry');
-import ConfigurationRegistry = require('vs/platform/configuration/common/configurationRegistry');
+import * as platform from 'vs/platform/platform';
+import * as nls from 'vs/nls';
+import * as lintRules from 'vs/languages/css/common/services/lintRules';
+import * as modesExtensions from 'vs/editor/common/modes/modesRegistry';
+import * as ConfigurationRegistry from 'vs/platform/configuration/common/configurationRegistry';
 
 modesExtensions.registerMode({
 	id: 'less',

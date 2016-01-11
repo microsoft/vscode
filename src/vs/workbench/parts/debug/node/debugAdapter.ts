@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import nls = require('vs/nls');
-import paths = require('vs/base/common/paths');
-import platform = require('vs/base/common/platform');
-import debug = require('vs/workbench/parts/debug/common/debug');
+import * as nls from 'vs/nls';
+import * as paths from 'vs/base/common/paths';
+import * as platform from 'vs/base/common/platform';
+import * as debug from 'vs/workbench/parts/debug/common/debug';
 import { SystemVariables } from 'vs/workbench/parts/lib/node/systemVariables';
 
 export class Adapter {

@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import strings = require('vs/base/common/strings');
-import rules = require('vs/languages/typescript/common/lint/rules');
-import ts = require('vs/languages/typescript/common/lib/typescriptServices');
+import * as strings from 'vs/base/common/strings';
+import * as rules from 'vs/languages/typescript/common/lint/rules';
+import * as ts from 'vs/languages/typescript/common/lib/typescriptServices';
 
 /**
  * Do not skip curly brackets.

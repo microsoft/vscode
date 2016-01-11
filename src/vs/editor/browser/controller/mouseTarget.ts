@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Mouse = require('vs/base/browser/mouseEvent');
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as Mouse from 'vs/base/browser/mouseEvent';
+import * as EditorBrowser from 'vs/editor/browser/editorBrowser';
 import {Range as EditorRange} from 'vs/editor/common/core/range';
 import {Position} from 'vs/editor/common/core/position';
 

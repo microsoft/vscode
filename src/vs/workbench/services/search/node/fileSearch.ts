@@ -5,17 +5,17 @@
 
 'use strict';
 
-import fs = require('fs');
-import paths = require('path');
+import * as fs from 'fs';
+import * as paths from 'path';
 
-import filters = require('vs/base/common/filters');
-import arrays = require('vs/base/common/arrays');
-import strings = require('vs/base/common/strings');
-import glob = require('vs/base/common/glob');
+import * as filters from 'vs/base/common/filters';
+import * as arrays from 'vs/base/common/arrays';
+import * as strings from 'vs/base/common/strings';
+import * as glob from 'vs/base/common/glob';
 import {IProgress} from 'vs/platform/search/common/search';
 
-import extfs = require('vs/base/node/extfs');
-import flow = require('vs/base/node/flow');
+import * as extfs from 'vs/base/node/extfs';
+import * as flow from 'vs/base/node/flow';
 import {ISerializedFileMatch, IRawSearch, ISearchEngine} from 'vs/workbench/services/search/node/rawSearchService';
 
 export class FileWalker {

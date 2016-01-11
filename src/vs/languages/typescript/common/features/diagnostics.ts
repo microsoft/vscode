@@ -5,12 +5,12 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import ts = require('vs/languages/typescript/common/lib/typescriptServices');
-import Options = require('vs/languages/typescript/common/options');
+import * as ts from 'vs/languages/typescript/common/lib/typescriptServices';
+import {Options} from 'vs/languages/typescript/common/options';
 import Severity from 'vs/base/common/severity';
-import EditorCommon = require('vs/editor/common/editorCommon');
-import converter = require('vs/languages/typescript/common/features/converter');
-import lint = require('vs/languages/typescript/common/lint/lint');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as converter from 'vs/languages/typescript/common/features/converter';
+import * as lint from 'vs/languages/typescript/common/lint/lint';
 import {IMarkerData} from 'vs/platform/markers/common/markers';
 
 export function getSyntacticDiagnostics(languageService: ts.LanguageService, resource: URI, compilerOptions: ts.CompilerOptions, options: Options, isJavaScript:boolean): IMarkerData[]{

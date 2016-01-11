@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 'use strict';
-import sassScanner = require ('./sassScanner');
-import sassErrors = require('./sassErrors');
-import scanner = require('vs/languages/css/common/parser/cssScanner');
-import cssParser = require('vs/languages/css/common/parser/cssParser');
-import nodes = require('vs/languages/css/common/parser/cssNodes');
-import errors = require('vs/languages/css/common/parser/cssErrors');
+import * as sassScanner from './sassScanner';
+import * as sassErrors from './sassErrors';
+import * as scanner from 'vs/languages/css/common/parser/cssScanner';
+import * as cssParser from 'vs/languages/css/common/parser/cssParser';
+import * as nodes from 'vs/languages/css/common/parser/cssNodes';
+import * as errors from 'vs/languages/css/common/parser/cssErrors';
 
 /// <summary>
 /// A parser for Sass

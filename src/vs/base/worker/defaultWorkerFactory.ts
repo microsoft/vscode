@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import dom = require('vs/base/browser/dom');
-import env = require('vs/base/common/flags');
+import * as dom from 'vs/base/browser/dom';
+import * as env from 'vs/base/common/flags';
 import {IWorker, IWorkerCallback, IWorkerFactory} from 'vs/base/common/worker/workerClient';
 
 function defaultGetWorkerUrl(workerId:string, label:string): string {

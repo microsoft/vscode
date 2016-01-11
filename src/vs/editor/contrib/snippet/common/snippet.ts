@@ -5,10 +5,10 @@
 
 'use strict';
 
-import Collections = require('vs/base/common/collections');
-import Strings = require('vs/base/common/strings');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import EventEmitter = require('vs/base/common/eventEmitter');
+import * as Collections from 'vs/base/common/collections';
+import * as Strings from 'vs/base/common/strings';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as EventEmitter from 'vs/base/common/eventEmitter';
 import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {Range} from 'vs/editor/common/core/range';
 import {Selection} from 'vs/editor/common/core/selection';

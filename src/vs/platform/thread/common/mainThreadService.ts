@@ -5,14 +5,14 @@
 'use strict';
 
 import {TPromise, decoratePromise} from 'vs/base/common/winjs.base';
-import Worker = require('vs/base/common/worker/workerClient');
-import abstractThreadService = require('vs/platform/thread/common/abstractThreadService');
-import Env = require('vs/base/common/flags');
-import Platform = require('vs/base/common/platform');
-import errors = require('vs/base/common/errors');
-import Timer = require('vs/base/common/timer');
+import * as Worker from 'vs/base/common/worker/workerClient';
+import * as abstractThreadService from 'vs/platform/thread/common/abstractThreadService';
+import * as Env from 'vs/base/common/flags';
+import * as Platform from 'vs/base/common/platform';
+import * as errors from 'vs/base/common/errors';
+import * as Timer from 'vs/base/common/timer';
 import {IPluginDescription} from 'vs/platform/plugins/common/plugins';
-import remote = require('vs/base/common/remote');
+import * as remote from 'vs/base/common/remote';
 import {readThreadSynchronizableObjects} from 'vs/platform/thread/common/threadService';
 import {SyncDescriptor0} from 'vs/platform/instantiation/common/descriptors';
 import {IThreadService, IThreadServiceStatusListener, IThreadSynchronizableObject, ThreadAffinity, IThreadServiceStatus} from 'vs/platform/thread/common/thread';

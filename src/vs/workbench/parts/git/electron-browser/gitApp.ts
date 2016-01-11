@@ -6,10 +6,10 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Server } from 'vs/base/node/service.cp';
-import objects = require('vs/base/common/objects');
+import * as objects from 'vs/base/common/objects';
 import uri from 'vs/base/common/uri';
 import { GitErrorCodes } from 'vs/workbench/parts/git/common/git';
-import gitlib = require('vs/workbench/parts/git/node/git.lib');
+import * as gitlib from 'vs/workbench/parts/git/node/git.lib';
 import { RawGitService, DelayedRawGitService } from 'vs/workbench/parts/git/node/rawGitService';
 import { join, dirname, normalize } from 'path';
 import { tmpdir } from 'os';

@@ -11,10 +11,10 @@
 
 import {AbstractMode} from 'vs/editor/common/modes/abstractMode';
 import {AbstractModeWorker} from 'vs/editor/common/modes/abstractModeWorker';
-import Supports = require('vs/editor/common/modes/supports');
+import * as Supports from 'vs/editor/common/modes/supports';
 import {ILexer} from 'vs/editor/common/modes/monarch/monarchCommon';
-import Modes = require('vs/editor/common/modes');
-import MonarchDefinition = require('vs/editor/common/modes/monarch/monarchDefinition');
+import * as Modes from 'vs/editor/common/modes';
+import * as MonarchDefinition from 'vs/editor/common/modes/monarch/monarchDefinition';
 import {createTokenizationSupport} from 'vs/editor/common/modes/monarch/monarchLexer';
 import {OnEnterSupport} from 'vs/editor/common/modes/supports/onEnter';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';

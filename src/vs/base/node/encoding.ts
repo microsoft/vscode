@@ -5,7 +5,7 @@
 
 'use strict';
 
-import stream = require('vs/base/node/stream');
+import * as stream from 'vs/base/node/stream';
 
 export const UTF8 = 'utf8';
 export const UTF16be = 'utf16be';

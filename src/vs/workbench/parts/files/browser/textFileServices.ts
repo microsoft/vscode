@@ -6,7 +6,7 @@
 
 import {TPromise, Promise} from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
-import errors = require('vs/base/common/errors');
+import * as errors from 'vs/base/common/errors';
 import {ListenerUnbind} from 'vs/base/common/eventEmitter';
 import Event, {Emitter} from 'vs/base/common/event';
 import {FileEditorInput} from 'vs/workbench/parts/files/browser/editors/fileEditorInput';

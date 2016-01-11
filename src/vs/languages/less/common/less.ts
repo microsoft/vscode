@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import winjs = require('vs/base/common/winjs.base');
+import * as winjs from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
-import Monarch = require('vs/editor/common/modes/monarch/monarch');
-import Types = require('vs/editor/common/modes/monarch/monarchTypes');
-import Compile = require('vs/editor/common/modes/monarch/monarchCompile');
-import lessWorker = require('vs/languages/less/common/lessWorker');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as Modes from 'vs/editor/common/modes';
+import * as Monarch from 'vs/editor/common/modes/monarch/monarch';
+import * as Types from 'vs/editor/common/modes/monarch/monarchTypes';
+import * as Compile from 'vs/editor/common/modes/monarch/monarchCompile';
+import * as lessWorker from 'vs/languages/less/common/lessWorker';
 import * as lessTokenTypes from 'vs/languages/less/common/lessTokenTypes';
-import supports = require('vs/editor/common/modes/supports');
+import * as supports from 'vs/editor/common/modes/supports';
 import {AbstractMode} from 'vs/editor/common/modes/abstractMode';
 import {OneWorkerAttr} from 'vs/platform/thread/common/threadService';
 import {AsyncDescriptor2, createAsyncDescriptor2} from 'vs/platform/instantiation/common/descriptors';

@@ -6,11 +6,11 @@
 'use strict';
 
 import 'vs/css!./zoneWidget';
-import domUtils = require('vs/base/browser/dom');
-import Objects = require('vs/base/common/objects');
-import Events = require('vs/base/common/eventEmitter');
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as domUtils from 'vs/base/browser/dom';
+import * as Objects from 'vs/base/common/objects';
+import * as Events from 'vs/base/common/eventEmitter';
+import * as EditorBrowser from 'vs/editor/browser/editorBrowser';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 
 export interface IOptions {
 	showFrame?: boolean;

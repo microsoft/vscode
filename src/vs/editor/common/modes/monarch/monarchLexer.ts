@@ -11,10 +11,10 @@
 
 import {AbstractState} from 'vs/editor/common/modes/abstractState';
 import {LineStream} from 'vs/editor/common/modes/lineStream';
-import ModesRegistry = require('vs/editor/common/modes/modesRegistry');
-import Supports = require('vs/editor/common/modes/supports');
-import MonarchCommonTypes = require('vs/editor/common/modes/monarch/monarchCommon');
-import Modes = require('vs/editor/common/modes');
+import * as ModesRegistry from 'vs/editor/common/modes/modesRegistry';
+import * as Supports from 'vs/editor/common/modes/supports';
+import * as MonarchCommonTypes from 'vs/editor/common/modes/monarch/monarchCommon';
+import * as Modes from 'vs/editor/common/modes';
 import {Registry} from 'vs/platform/platform';
 import {IModeService} from 'vs/editor/common/services/modeService';
 

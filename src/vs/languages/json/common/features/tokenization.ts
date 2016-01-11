@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import json = require('vs/base/common/json');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
-import jsonTokenTypes = require('vs/languages/json/common/features/jsonTokenTypes');
+import * as json from 'vs/base/common/json';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as Modes from 'vs/editor/common/modes';
+import * as jsonTokenTypes from 'vs/languages/json/common/features/jsonTokenTypes';
 
 export function createTokenizationSupport(mode:Modes.IMode, supportComments:boolean):Modes.ITokenizationSupport {
 	return {

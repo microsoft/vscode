@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
-import WinJS = require('vs/base/common/winjs.base');
+import * as assert from 'assert';
+import * as WinJS from 'vs/base/common/winjs.base';
 import {DeferredAction} from 'vs/platform/actions/common/actions';
-import Actions = require('vs/base/common/actions');
-import EventEmitter = require('vs/base/common/eventEmitter');
-import InstantiationService = require('vs/platform/instantiation/common/instantiationService');
+import * as Actions from 'vs/base/common/actions';
+import * as EventEmitter from 'vs/base/common/eventEmitter';
+import * as InstantiationService from 'vs/platform/instantiation/common/instantiationService';
 import {AsyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
 import {IEventService} from 'vs/platform/event/common/event';
 

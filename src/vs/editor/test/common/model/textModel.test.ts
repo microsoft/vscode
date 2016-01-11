@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
-import TextModel = require('vs/editor/common/model/textModel');
-import Range = require('vs/editor/common/core/range');
-import Position = require('vs/editor/common/core/position');
+import * as assert from 'assert';
+import * as TextModel from 'vs/editor/common/model/textModel';
+import * as Range from 'vs/editor/common/core/range';
+import * as Position from 'vs/editor/common/core/position';
 
 function testGuessIndentation(expectedInsertSpaces:boolean, expectedTabSize:number, text:string[], msg?:string): void {
 	var m = new TextModel.TextModel([], TextModel.TextModel.toRawText(text.join('\n')));

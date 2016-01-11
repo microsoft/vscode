@@ -10,7 +10,7 @@ import {Range} from 'vs/editor/common/core/range';
 import {TextModelWithMarkers, INewMarker} from 'vs/editor/common/model/textModelWithMarkers';
 import {FullModelRetokenizer, IRetokenizeRequest} from 'vs/editor/common/model/textModelWithTokens';
 import {ILineMarker} from 'vs/editor/common/model/modelLine';
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 import {IdGenerator} from 'vs/editor/common/core/idGenerator';
 
 interface ITrackedRange {

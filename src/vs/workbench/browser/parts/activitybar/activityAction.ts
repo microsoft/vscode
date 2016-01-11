@@ -6,7 +6,7 @@
 'use strict';
 
 import 'vs/css!./media/activityaction';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import {Builder, $} from 'vs/base/browser/builder';
 import {DelayedDragHandler} from 'vs/base/browser/dnd';
 import {Action} from 'vs/base/common/actions';

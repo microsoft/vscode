@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
-import TMState = require('vs/editor/common/modes/TMState');
+import * as assert from 'assert';
+import * as TMState from 'vs/editor/common/modes/TMState';
 
 suite('Editor Modes - TMState', () => {
 	test('Bug #16982: Cannot read property \'length\' of null', () => {

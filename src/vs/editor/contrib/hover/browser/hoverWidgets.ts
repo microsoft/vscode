@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import DomUtils = require('vs/base/browser/dom');
+import * as EditorBrowser from 'vs/editor/browser/editorBrowser';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as DomUtils from 'vs/base/browser/dom';
 import {Position} from 'vs/editor/common/core/position';
 
 export class ContentHoverWidget implements EditorBrowser.IContentWidget {

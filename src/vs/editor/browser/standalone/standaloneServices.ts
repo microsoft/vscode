@@ -4,20 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 import {ModelServiceImpl} from 'vs/editor/common/services/modelServiceImpl';
-import InstantiationService = require('vs/platform/instantiation/common/instantiationService');
-import mainThreadService = require('vs/platform/thread/common/mainThreadService');
-import MarkerService = require('vs/platform/markers/common/markerService');
-import Env = require('vs/base/common/flags');
+import * as InstantiationService from 'vs/platform/instantiation/common/instantiationService';
+import * as mainThreadService from 'vs/platform/thread/common/mainThreadService';
+import * as MarkerService from 'vs/platform/markers/common/markerService';
+import * as Env from 'vs/base/common/flags';
 import URI from 'vs/base/common/uri';
-import MainTelemetryService = require('vs/platform/telemetry/browser/mainTelemetryService');
-import SimpleServices = require('vs/editor/browser/standalone/simpleServices');
-import Lifecycle = require('vs/base/common/lifecycle');
-import ContextViewService = require('vs/platform/contextview/browser/contextViewService');
-import ContextMenuService = require('vs/platform/contextview/browser/contextMenuService');
+import * as MainTelemetryService from 'vs/platform/telemetry/browser/mainTelemetryService';
+import * as SimpleServices from 'vs/editor/browser/standalone/simpleServices';
+import * as Lifecycle from 'vs/base/common/lifecycle';
+import * as ContextViewService from 'vs/platform/contextview/browser/contextViewService';
+import * as ContextMenuService from 'vs/platform/contextview/browser/contextMenuService';
 import {BaseWorkspaceContextService} from 'vs/platform/workspace/common/baseWorkspaceContextService';
-import _eventService = require('vs/platform/event/common/eventService');
+import * as _eventService from 'vs/platform/event/common/eventService';
 import {CodeEditorServiceImpl} from 'vs/editor/browser/services/codeEditorServiceImpl';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
 import {IModelService} from 'vs/editor/common/services/modelService';

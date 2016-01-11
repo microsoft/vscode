@@ -5,9 +5,9 @@
 'use strict';
 
 import * as assert from 'assert';
-import paths = require('vs/base/common/paths');
+import * as paths from 'vs/base/common/paths';
 import uri from 'vs/base/common/uri';
-import platform = require('vs/base/common/platform');
+import * as platform from 'vs/base/common/platform';
 
 suite('Paths', () => {
 	test('relative', () => {

@@ -5,10 +5,10 @@
 'use strict';
 
 import 'vs/languages/plaintext/common/plaintext.contribution';
-import EditorCommon = require('vs/editor/common/editorCommon');
-import plainText = require('vs/languages/plaintext/common/plaintext');
-import modesUtil = require('vs/editor/test/common/modesUtil');
-import Modes = require('vs/editor/common/modes');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as plainText from 'vs/languages/plaintext/common/plaintext';
+import * as modesUtil from 'vs/editor/test/common/modesUtil';
+import * as Modes from 'vs/editor/common/modes';
 
 suite('Syntax Highlighting - Plain Text', () => {
 

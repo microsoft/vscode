@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import nls = require('vs/nls');
-import actions = require('vs/base/common/actions');
-import lifecycle = require('vs/base/common/lifecycle');
+import * as nls from 'vs/nls';
+import * as actions from 'vs/base/common/actions';
+import * as lifecycle from 'vs/base/common/lifecycle';
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
-import editorCommon = require('vs/editor/common/editorCommon');
-import editorbrowser = require('vs/editor/browser/editorBrowser');
-import baseeditor = require('vs/workbench/browser/parts/editor/baseEditor');
+import * as editorCommon from 'vs/editor/common/editorCommon';
+import * as editorbrowser from 'vs/editor/browser/editorBrowser';
+import * as baseeditor from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorAction, Behaviour } from 'vs/editor/common/editorAction';
-import platform = require('vs/platform/platform');
-import wbaregistry = require('vs/workbench/browser/actionRegistry');
-import debug = require('vs/workbench/parts/debug/common/debug');
-import model = require('vs/workbench/parts/debug/common/debugModel');
+import * as platform from 'vs/platform/platform';
+import * as wbaregistry from 'vs/workbench/browser/actionRegistry';
+import * as debug from 'vs/workbench/parts/debug/common/debug';
+import * as model from 'vs/workbench/parts/debug/common/debugModel';
 import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybindingService';
 

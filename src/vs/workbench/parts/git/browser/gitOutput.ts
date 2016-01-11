@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import winjs = require('vs/base/common/winjs.base');
+import * as winjs from 'vs/base/common/winjs.base';
 import {IGitService, ServiceEvents} from 'vs/workbench/parts/git/common/git';
-import ext = require('vs/workbench/common/contributions');
+import * as ext from 'vs/workbench/common/contributions';
 import {IOutputService} from 'vs/workbench/parts/output/common/output';
 
 export class GitOutput implements ext.IWorkbenchContribution {

@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
-import nls = require('vs/nls');
-import lifecycle = require('vs/base/common/lifecycle');
-import ee = require('vs/base/common/eventEmitter');
+import * as nls from 'vs/nls';
+import * as lifecycle from 'vs/base/common/lifecycle';
+import * as ee from 'vs/base/common/eventEmitter';
 import uri from 'vs/base/common/uri';
-import uuid = require('vs/base/common/uuid');
+import * as uuid from 'vs/base/common/uuid';
 import severity from 'vs/base/common/severity';
-import types = require('vs/base/common/types');
-import arrays = require('vs/base/common/arrays');
-import debug = require('vs/workbench/parts/debug/common/debug');
+import * as types from 'vs/base/common/types';
+import * as arrays from 'vs/base/common/arrays';
+import * as debug from 'vs/workbench/parts/debug/common/debug';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 
 function resolveChildren(debugService: debug.IDebugService, parent: debug.IExpressionContainer): TPromise<Variable[]> {

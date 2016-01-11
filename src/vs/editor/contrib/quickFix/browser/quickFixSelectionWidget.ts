@@ -6,19 +6,19 @@
 'use strict';
 
 import 'vs/css!./quickFix';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import {TPromise} from 'vs/base/common/winjs.base';
-import Errors = require('vs/base/common/errors');
-import dom = require('vs/base/browser/dom');
-import Tree = require('vs/base/parts/tree/common/tree');
-import TreeImpl = require('vs/base/parts/tree/browser/treeImpl');
-import TreeDefaults = require('vs/base/parts/tree/browser/treeDefaults');
-import QuickFixModel = require('./quickFixModel');
-import Mouse = require('vs/base/browser/mouseEvent');
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import EventEmitter = require('vs/base/common/eventEmitter');
-import Timer = require('vs/base/common/timer');
+import * as Errors from 'vs/base/common/errors';
+import * as dom from 'vs/base/browser/dom';
+import * as Tree from 'vs/base/parts/tree/common/tree';
+import * as TreeImpl from 'vs/base/parts/tree/browser/treeImpl';
+import * as TreeDefaults from 'vs/base/parts/tree/browser/treeDefaults';
+import * as QuickFixModel from './quickFixModel';
+import * as Mouse from 'vs/base/browser/mouseEvent';
+import * as EditorBrowser from 'vs/editor/browser/editorBrowser';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as EventEmitter from 'vs/base/common/eventEmitter';
+import * as Timer from 'vs/base/common/timer';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IQuickFix2} from '../common/quickFix';
 

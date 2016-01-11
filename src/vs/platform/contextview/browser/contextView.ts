@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Lifecycle = require('vs/base/common/lifecycle');
+import * as Lifecycle from 'vs/base/common/lifecycle';
 import { IAction } from 'vs/base/common/actions';
-import ActionBar = require('vs/base/browser/ui/actionbar/actionbar');
+import * as ActionBar from 'vs/base/browser/ui/actionbar/actionbar';
 import { TPromise } from 'vs/base/common/winjs.base';
 import {Keybinding} from 'vs/base/common/keyCodes';
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';

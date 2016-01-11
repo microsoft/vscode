@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import strings = require('vs/base/common/strings');
-import paths = require('vs/base/common/paths');
+import * as strings from 'vs/base/common/strings';
+import * as paths from 'vs/base/common/paths';
 
 const CACHE: { [glob: string]: RegExp } = Object.create(null);
 

@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nodes = require('vs/languages/css/common/parser/cssNodes');
-import browsers = require('vs/languages/css/common/services/browsers');
-import strings = require('vs/base/common/strings');
+import * as nodes from 'vs/languages/css/common/parser/cssNodes';
+import * as browsers from 'vs/languages/css/common/services/browsers';
+import * as strings from 'vs/base/common/strings';
 
 export var colors : { [name:string]:string } = {
 	aliceblue: '#f0f8ff',

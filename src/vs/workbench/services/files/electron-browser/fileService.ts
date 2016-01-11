@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import {TPromise, Promise} from 'vs/base/common/winjs.base';
-import paths = require('vs/base/common/paths');
-import platform = require('vs/base/common/platform');
-import encoding = require('vs/base/common/bits/encoding');
-import errors = require('vs/base/common/errors');
-import strings = require('vs/base/common/strings');
+import * as paths from 'vs/base/common/paths';
+import * as platform from 'vs/base/common/platform';
+import * as encoding from 'vs/base/common/bits/encoding';
+import * as errors from 'vs/base/common/errors';
+import * as strings from 'vs/base/common/strings';
 import uri from 'vs/base/common/uri';
-import timer = require('vs/base/common/timer');
-import files = require('vs/platform/files/common/files');
+import * as timer from 'vs/base/common/timer';
+import * as files from 'vs/platform/files/common/files';
 import {FileService as NodeFileService, IFileServiceOptions, IEncodingOverride} from 'vs/workbench/services/files/node/fileService';
 import {IConfigurationService, IConfigurationServiceEvent, ConfigurationServiceEventTypes} from 'vs/platform/configuration/common/configuration';
 import {IEventService} from 'vs/platform/event/common/event';

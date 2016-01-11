@@ -7,19 +7,19 @@
 
 import 'vs/css!./media/searchviewlet';
 import {Promise, TPromise, PPromise} from 'vs/base/common/winjs.base';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import {EditorType} from 'vs/editor/common/editorCommon';
-import lifecycle = require('vs/base/common/lifecycle');
-import errors = require('vs/base/common/errors');
-import assert = require('vs/base/common/assert');
+import * as lifecycle from 'vs/base/common/lifecycle';
+import * as errors from 'vs/base/common/errors';
+import * as assert from 'vs/base/common/assert';
 import {IExpression, splitGlobAware} from 'vs/base/common/glob';
 import {isFunction} from 'vs/base/common/types';
 import URI from 'vs/base/common/uri';
-import strings = require('vs/base/common/strings');
-import dom = require('vs/base/browser/dom');
+import * as strings from 'vs/base/common/strings';
+import * as dom from 'vs/base/browser/dom';
 import {IAction, Action, IActionRunner} from 'vs/base/common/actions';
 import {StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
-import timer = require('vs/base/common/timer');
+import * as timer from 'vs/base/common/timer';
 import {Dimension, Builder, $} from 'vs/base/browser/builder';
 import {FileLabel} from 'vs/base/browser/ui/filelabel/fileLabel';
 import {FindInput} from 'vs/base/browser/ui/findinput/findInput';

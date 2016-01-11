@@ -48,14 +48,14 @@ import { IModel } from 'vs/editor/common/editorCommon';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 
-import jsonContributionRegistry = require('vs/platform/jsonschemas/common/jsonContributionRegistry');
+import * as jsonContributionRegistry from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 
-import workbenchActionRegistry = require('vs/workbench/browser/actionRegistry');
-import statusbar = require('vs/workbench/browser/parts/statusbar/statusbar');
-import QuickOpen = require('vs/workbench/browser/quickopen');
+import * as workbenchActionRegistry from 'vs/workbench/browser/actionRegistry';
+import * as statusbar from 'vs/workbench/browser/parts/statusbar/statusbar';
+import * as QuickOpen from 'vs/workbench/browser/quickopen';
 
 import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';

@@ -4,19 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert')
-import mm = require('vs/editor/common/model/mirrorModel');
-import html = require('vs/languages/html/common/html');
-import htmlWorker = require('vs/languages/html/common/htmlWorker');
-import Network = require('vs/base/common/network');
+import * as assert from 'assert'
+import * as mm from 'vs/editor/common/model/mirrorModel';
+import * as html from 'vs/languages/html/common/html';
+import * as htmlWorker from 'vs/languages/html/common/htmlWorker';
+import * as Network from 'vs/base/common/network';
 import URI from 'vs/base/common/uri';
-import ResourceService = require('vs/editor/common/services/resourceServiceImpl');
-import MarkerService = require('vs/platform/markers/common/markerService');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
-import WinJS = require('vs/base/common/winjs.base');
-import modesUtil = require('vs/editor/test/common/modesUtil');
-import servicesUtil2 = require('vs/editor/test/common/servicesTestUtils');
+import * as ResourceService from 'vs/editor/common/services/resourceServiceImpl';
+import * as MarkerService from 'vs/platform/markers/common/markerService';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as Modes from 'vs/editor/common/modes';
+import * as WinJS from 'vs/base/common/winjs.base';
+import * as modesUtil from 'vs/editor/test/common/modesUtil';
+import * as servicesUtil2 from 'vs/editor/test/common/servicesTestUtils';
 import {NULL_THREAD_SERVICE} from 'vs/platform/test/common/nullThreadService';
 import {IMarker} from 'vs/platform/markers/common/markers';
 

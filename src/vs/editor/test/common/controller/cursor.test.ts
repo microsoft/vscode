@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
-import Model = require('vs/editor/common/model/model');
-import Cursor = require('vs/editor/common/controller/cursor');
-import Position = require('vs/editor/common/core/position');
-import Range = require('vs/editor/common/core/range');
-import ModelModes = require('vs/editor/test/common/testModes');
-import Modes = require('vs/editor/common/modes');
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as assert from 'assert';
+import * as Model from 'vs/editor/common/model/model';
+import * as Cursor from 'vs/editor/common/controller/cursor';
+import * as Position from 'vs/editor/common/core/position';
+import * as Range from 'vs/editor/common/core/range';
+import * as ModelModes from 'vs/editor/test/common/testModes';
+import * as Modes from 'vs/editor/common/modes';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 import {MockConfiguration} from 'vs/editor/test/common/mocks/mockConfiguration';
 import {EditOperation} from 'vs/editor/common/core/editOperation';
 

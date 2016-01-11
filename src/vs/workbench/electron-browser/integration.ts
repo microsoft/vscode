@@ -5,10 +5,10 @@
 
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import {TPromise} from 'vs/base/common/winjs.base';
-import errors = require('vs/base/common/errors');
-import arrays = require('vs/base/common/arrays');
+import * as errors from 'vs/base/common/errors';
+import * as arrays from 'vs/base/common/arrays';
 import Severity from 'vs/base/common/severity';
 import {OpenGlobalSettingsAction} from 'vs/workbench/browser/actions/openSettings';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
@@ -22,7 +22,7 @@ import {IWindowService}from 'vs/workbench/services/window/electron-browser/windo
 import {IWindowConfiguration} from 'vs/workbench/electron-browser/window';
 import {IConfigurationService, IConfigurationServiceEvent, ConfigurationServiceEventTypes} from 'vs/platform/configuration/common/configuration';
 
-import win = require('vs/workbench/electron-browser/window');
+import * as win from 'vs/workbench/electron-browser/window';
 
 import {ipcRenderer as ipc, webFrame, remote} from 'electron';
 

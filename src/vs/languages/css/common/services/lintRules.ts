@@ -5,10 +5,10 @@
 'use strict';
 
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import nodes = require('vs/languages/css/common/parser/cssNodes');
-import nls = require('vs/nls');
-import configurationRegistry = require('vs/platform/configuration/common/configurationRegistry');
-import _level = require('vs/languages/css/common/level');
+import * as nodes from 'vs/languages/css/common/parser/cssNodes';
+import * as nls from 'vs/nls';
+import * as configurationRegistry from 'vs/platform/configuration/common/configurationRegistry';
+import * as _level from 'vs/languages/css/common/level';
 
 var Warning = 'warning';
 var Error = 'error';

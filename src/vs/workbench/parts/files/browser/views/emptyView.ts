@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
-import env = require('vs/base/common/platform');
-import DOM = require('vs/base/browser/dom');
+import * as nls from 'vs/nls';
+import * as env from 'vs/base/common/platform';
+import * as DOM from 'vs/base/browser/dom';
 import {Promise, TPromise} from 'vs/base/common/winjs.base';
 import {IAction, Action} from 'vs/base/common/actions';
 import {Button} from 'vs/base/browser/ui/button/button';

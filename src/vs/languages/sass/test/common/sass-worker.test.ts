@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
-import mm = require('vs/editor/common/model/mirrorModel');
-import sassWorker = require('vs/languages/sass/common/sassWorker');
+import * as assert from 'assert';
+import * as mm from 'vs/editor/common/model/mirrorModel';
+import * as sassWorker from 'vs/languages/sass/common/sassWorker';
 import URI from 'vs/base/common/uri';
-import ResourceService = require('vs/editor/common/services/resourceServiceImpl');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
-import WinJS = require('vs/base/common/winjs.base');
-import servicesUtil2 = require('vs/editor/test/common/servicesTestUtils');
-import modesUtil = require('vs/editor/test/common/modesTestUtils');
+import * as ResourceService from 'vs/editor/common/services/resourceServiceImpl';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as Modes from 'vs/editor/common/modes';
+import * as WinJS from 'vs/base/common/winjs.base';
+import * as servicesUtil2 from 'vs/editor/test/common/servicesTestUtils';
+import * as modesUtil from 'vs/editor/test/common/modesTestUtils';
 
 suite('SASS - Worker', () => {
 

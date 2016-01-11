@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
-import rewriter = require('vs/languages/typescript/common/js/rewriting');
-import ts = require('vs/languages/typescript/common/lib/typescriptServices');
-import importAndExportRewriter = require('vs/languages/typescript/common/js/importAndExportRewriter');
+import * as assert from 'assert';
+import * as rewriter from 'vs/languages/typescript/common/js/rewriting';
+import * as ts from 'vs/languages/typescript/common/lib/typescriptServices';
+import * as importAndExportRewriter from 'vs/languages/typescript/common/js/importAndExportRewriter';
 
 suite('JS* - importAndExportRewriter', () => {
 

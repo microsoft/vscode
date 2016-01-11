@@ -5,7 +5,7 @@
 
 'use strict';
 
-import events = require('vs/base/common/eventEmitter');
+import * as events from 'vs/base/common/eventEmitter';
 import { connect } from 'vs/base/node/service.net';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as fs from 'fs';

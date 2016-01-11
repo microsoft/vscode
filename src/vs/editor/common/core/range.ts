@@ -6,7 +6,7 @@
 'use strict';
 
 import {Position} from 'vs/editor/common/core/position';
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 
 export class Range implements EditorCommon.IEditorRange {
 

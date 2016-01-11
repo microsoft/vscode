@@ -6,9 +6,9 @@
 
 import {PPromise} from 'vs/base/common/winjs.base';
 import uri from 'vs/base/common/uri';
-import glob = require('vs/base/common/glob');
-import objects = require('vs/base/common/objects');
-import filters = require('vs/base/common/filters');
+import * as glob from 'vs/base/common/glob';
+import * as objects from 'vs/base/common/objects';
+import * as filters from 'vs/base/common/filters';
 import {Client} from 'vs/base/node/service.cp';
 import {IProgress, LineMatch, FileMatch, ISearchComplete, ISearchProgressItem, QueryType, IFileMatch, ISearchQuery, ISearchConfiguration, ISearchService} from 'vs/platform/search/common/search';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';

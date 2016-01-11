@@ -16,15 +16,15 @@ import 'vs/css!vs/workbench/browser/media/hc-black-theme';
 
 import {Promise, TPromise} from 'vs/base/common/winjs.base';
 import {Dimension, Builder, $} from 'vs/base/browser/builder';
-import objects = require('vs/base/common/objects');
-import dom = require('vs/base/browser/dom');
+import * as objects from 'vs/base/common/objects';
+import * as dom from 'vs/base/browser/dom';
 import {Emitter} from 'vs/base/common/event';
 import {IDisposable} from 'vs/base/common/lifecycle';
-import errors = require('vs/base/common/errors');
+import * as errors from 'vs/base/common/errors';
 import {ContextViewService} from 'vs/platform/contextview/browser/contextViewService';
 import {ContextMenuService} from 'vs/workbench/services/contextview/electron-browser/contextmenuService';
 import {Preferences} from 'vs/workbench/common/constants';
-import timer = require('vs/base/common/timer');
+import * as timer from 'vs/base/common/timer';
 import {Workbench} from 'vs/workbench/browser/workbench';
 import {Storage} from 'vs/workbench/browser/storage';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
@@ -71,7 +71,7 @@ import {MainThreadConfiguration} from 'vs/workbench/api/common/extHostConfigurat
 import {MainThreadLanguageFeatures} from 'vs/workbench/api/common/extHostLanguageFeatures';
 import {EventService} from 'vs/platform/event/common/eventService';
 import {IOptions} from 'vs/workbench/common/options';
-import themes = require('vs/platform/theme/common/themes');
+import * as themes from 'vs/platform/theme/common/themes';
 import {WorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {IStorageService, StorageScope, StorageEvent, StorageEventType} from 'vs/platform/storage/common/storage';
 import {MainThreadStorage} from 'vs/platform/storage/common/remotable.storage';

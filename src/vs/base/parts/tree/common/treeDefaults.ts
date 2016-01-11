@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import _ = require('vs/base/parts/tree/common/tree');
+import * as _ from 'vs/base/parts/tree/common/tree';
 
 export class DefaultFilter implements _.IFilter {
 

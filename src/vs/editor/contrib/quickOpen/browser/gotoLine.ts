@@ -6,13 +6,13 @@
 'use strict';
 
 import 'vs/css!./gotoLine';
-import nls = require('vs/nls');
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import QuickOpenWidget = require('vs/base/parts/quickopen/browser/quickOpenWidget');
-import QuickOpenModel = require('vs/base/parts/quickopen/browser/quickOpenModel');
-import QuickOpen = require('vs/base/parts/quickopen/common/quickOpen');
-import EditorQuickOpen = require('./editorQuickOpen');
+import * as nls from 'vs/nls';
+import * as EditorBrowser from 'vs/editor/browser/editorBrowser';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as QuickOpenWidget from 'vs/base/parts/quickopen/browser/quickOpenWidget';
+import * as QuickOpenModel from 'vs/base/parts/quickopen/browser/quickOpenModel';
+import * as QuickOpen from 'vs/base/parts/quickopen/common/quickOpen';
+import * as EditorQuickOpen from './editorQuickOpen';
 import {INullService} from 'vs/platform/instantiation/common/instantiation';
 
 interface ParseResult {

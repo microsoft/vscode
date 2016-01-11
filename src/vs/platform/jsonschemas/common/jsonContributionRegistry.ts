@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import {IJSONSchema} from 'vs/base/common/jsonSchema';
-import platform = require('vs/platform/platform');
+import * as platform from 'vs/platform/platform';
 import {IPluginDescription} from 'vs/platform/plugins/common/plugins';
 import {PluginsRegistry} from 'vs/platform/plugins/common/pluginsRegistry';
 import {IEventEmitter, EventEmitter} from 'vs/base/common/eventEmitter';

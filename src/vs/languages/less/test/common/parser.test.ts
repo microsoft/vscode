@@ -5,11 +5,11 @@
 
 'use strict';
 
-import _parser = require('vs/languages/less/common/parser/lessParser');
-import nodes = require ('vs/languages/css/common/parser/cssNodes');
-import errors = require ('vs/languages/css/common/parser/cssErrors');
+import * as _parser from 'vs/languages/less/common/parser/lessParser';
+import * as nodes from 'vs/languages/css/common/parser/cssNodes';
+import * as errors from 'vs/languages/css/common/parser/cssErrors';
 
-import cssParserTests = require ('vs/languages/css/test/common/parser.test');
+import * as cssParserTests from 'vs/languages/css/test/common/parser.test';
 
 
 function assertNode(text: string, parser: _parser.LessParser, f: ()=>nodes.Node):void {

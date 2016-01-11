@@ -6,8 +6,8 @@
 'use strict';
 
 import 'vs/css!./leftRightWidget';
-import Builder = require('vs/base/browser/builder');
-import Lifecycle = require('vs/base/common/lifecycle');
+import * as Builder from 'vs/base/browser/builder';
+import * as Lifecycle from 'vs/base/common/lifecycle';
 
 var $ = Builder.$;
 

@@ -5,10 +5,10 @@
 'use strict';
 
 import {Promise, TPromise} from 'vs/base/common/winjs.base';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import URI from 'vs/base/common/uri';
-import network = require('vs/base/common/network');
-import labels = require('vs/base/common/labels');
+import * as network from 'vs/base/common/network';
+import * as labels from 'vs/base/common/labels';
 import {Registry} from 'vs/platform/platform';
 import {Action} from 'vs/base/common/actions';
 import {IWorkbenchActionRegistry, Extensions} from 'vs/workbench/browser/actionRegistry';

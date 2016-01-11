@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import NLS = require('vs/nls');
+import * as NLS from 'vs/nls';
 
 import * as Objects from 'vs/base/common/objects';
 import { IStringDictionary, values } from 'vs/base/common/collections';

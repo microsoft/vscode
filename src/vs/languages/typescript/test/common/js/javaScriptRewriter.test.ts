@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
-import javaScriptRewriter = require('vs/languages/typescript/common/js/rewriting');
-import importAndExportRewriter = require('vs/languages/typescript/common/js/importAndExportRewriter');
-import globalVariableRewriter = require('vs/languages/typescript/common/js/globalVariableRewriter');
-import RequireRewriter = require('vs/languages/typescript/common/js/requireRewriter');
-import DefineRewriter = require('vs/languages/typescript/common/js/defineRewriter');
+import * as assert from 'assert';
+import * as javaScriptRewriter from 'vs/languages/typescript/common/js/rewriting';
+import * as importAndExportRewriter from 'vs/languages/typescript/common/js/importAndExportRewriter';
+import * as globalVariableRewriter from 'vs/languages/typescript/common/js/globalVariableRewriter';
+import {RequireRewriter} from 'vs/languages/typescript/common/js/requireRewriter';
+import {DefineRewriter} from 'vs/languages/typescript/common/js/defineRewriter';
 
 suite('JS* - JavaScript Rewriter', () => {
 

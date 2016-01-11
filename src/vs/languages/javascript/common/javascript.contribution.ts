@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
-import env = require('vs/base/common/flags');
-import platform = require('vs/platform/platform');
-import ConfigurationRegistry = require('vs/platform/configuration/common/configurationRegistry');
+import * as nls from 'vs/nls';
+import * as env from 'vs/base/common/flags';
+import * as platform from 'vs/platform/platform';
+import * as ConfigurationRegistry from 'vs/platform/configuration/common/configurationRegistry';
 import {LanguageExtensions} from 'vs/editor/common/modes/languageExtensionPoint';
-import typescript = require('vs/languages/typescript/common/typescript');
-import extensions = require('vs/languages/javascript/common/javascript.extensions');
-import Options = require('vs/languages/typescript/common/options');
+import * as typescript from 'vs/languages/typescript/common/typescript';
+import * as extensions from 'vs/languages/javascript/common/javascript.extensions';
+import {Options} from 'vs/languages/typescript/common/options';
 import defaults = Options.javaScriptOptions;
-import Mime = require('vs/base/common/mime');
+import * as Mime from 'vs/base/common/mime';
 
 if (!env.enableTypeScriptServiceModeForJS) {
 

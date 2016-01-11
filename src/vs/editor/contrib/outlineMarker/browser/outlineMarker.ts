@@ -7,12 +7,12 @@
 
 import 'vs/css!./outlineMarker';
 import {TPromise} from 'vs/base/common/winjs.base';
-import lifecycle = require('vs/base/common/lifecycle');
-import schedulers = require('vs/base/common/async');
-import errors = require('vs/base/common/errors');
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
+import * as lifecycle from 'vs/base/common/lifecycle';
+import * as schedulers from 'vs/base/common/async';
+import * as errors from 'vs/base/common/errors';
+import * as EditorBrowser from 'vs/editor/browser/editorBrowser';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as Modes from 'vs/editor/common/modes';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import {Range} from 'vs/editor/common/core/range';
 import {INullService} from 'vs/platform/instantiation/common/instantiation';

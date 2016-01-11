@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
-import Parser = require('vs/languages/json/common/parser/jsonParser');
-import SchemaService = require('vs/languages/json/common/jsonSchemaService');
-import JsonSchema = require('vs/base/common/jsonSchema');
+import * as assert from 'assert';
+import * as Parser from 'vs/languages/json/common/parser/jsonParser';
+import * as SchemaService from 'vs/languages/json/common/jsonSchemaService';
+import * as JsonSchema from 'vs/base/common/jsonSchema';
 
 suite('JSON - Parsing', () => {
 

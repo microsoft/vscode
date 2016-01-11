@@ -5,24 +5,24 @@
 
 'use strict';
 
-import winjs = require('vs/base/common/winjs.base');
+import * as winjs from 'vs/base/common/winjs.base';
 import {WorkbenchShell} from 'vs/workbench/electron-browser/shell';
 import {IOptions, IGlobalSettings} from 'vs/workbench/common/options';
-import errors = require('vs/base/common/errors');
-import platform = require('vs/base/common/platform');
-import paths = require('vs/base/common/paths');
-import timer = require('vs/base/common/timer');
+import * as errors from 'vs/base/common/errors';
+import * as platform from 'vs/base/common/platform';
+import * as paths from 'vs/base/common/paths';
+import * as timer from 'vs/base/common/timer';
 import {assign} from 'vs/base/common/objects';
 import uri from 'vs/base/common/uri';
-import strings = require('vs/base/common/strings');
+import * as strings from 'vs/base/common/strings';
 import {IResourceInput} from 'vs/platform/editor/common/editor';
 import {IEnv} from 'vs/base/node/env';
 import {IWorkspace, IConfiguration, IEnvironment} from 'vs/platform/workspace/common/workspace';
 
-import path = require('path');
-import fs = require('fs');
+import * as path from 'path';
+import * as fs from 'fs';
 
-import gracefulFs = require('graceful-fs');
+import * as gracefulFs from 'graceful-fs';
 gracefulFs.gracefulify(fs);
 
 export interface IPath {

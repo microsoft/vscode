@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 
-import paths = require('vs/base/common/paths');
-import errors = require('vs/base/common/errors');
+import * as paths from 'vs/base/common/paths';
+import * as errors from 'vs/base/common/errors';
 
-import Modes = require('vs/editor/common/modes');
-import supports = require('vs/editor/common/modes/supports');
-import collections = require('vs/base/common/collections');
-import textMate = require('vscode-textmate');
-import TMState = require('vs/editor/common/modes/TMState');
+import * as Modes from 'vs/editor/common/modes';
+import * as supports from 'vs/editor/common/modes/supports';
+import * as collections from 'vs/base/common/collections';
+import * as textMate from 'vscode-textmate';
+import * as TMState from 'vs/editor/common/modes/TMState';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {PluginsRegistry, IMessageCollector} from 'vs/platform/plugins/common/pluginsRegistry';
 import {ILanguageExtensionPoint, LanguageExtensions} from 'vs/editor/common/modes/languageExtensionPoint';

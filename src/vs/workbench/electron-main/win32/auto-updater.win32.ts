@@ -5,11 +5,11 @@
 
 'use strict';
 
-import events = require('events');
-import path = require('path');
-import os = require('os');
-import cp = require('child_process');
-import pfs = require('vs/base/node/pfs');
+import * as events from 'events';
+import * as path from 'path';
+import * as os from 'os';
+import * as cp from 'child_process';
+import * as pfs from 'vs/base/node/pfs';
 import {mkdirp} from 'vs/base/node/extfs';
 import {isString} from 'vs/base/common/types';
 import {Promise, TPromise} from 'vs/base/common/winjs.base';

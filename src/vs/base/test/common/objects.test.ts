@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import objects = require('vs/base/common/objects');
+import * as objects from 'vs/base/common/objects';
 
 var check = (one, other, msg) => {
 	assert(objects.equals(one, other), msg);

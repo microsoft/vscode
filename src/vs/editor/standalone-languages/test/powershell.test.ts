@@ -5,9 +5,9 @@
 
 'use strict';
 
-import assert = require('assert');
-import languageDef = require('vs/editor/standalone-languages/powershell');
-import T = require('vs/editor/standalone-languages/test/testUtil');
+import * as assert from 'assert';
+import * as languageDef from 'vs/editor/standalone-languages/powershell';
+import * as T from 'vs/editor/standalone-languages/test/testUtil';
 
 var Bracket = {
 	Open: 1,

@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 'use strict';
-import _parser = require('vs/languages/sass/common/parser/sassParser');
-import languageFactsTest = require('vs/languages/css/test/common/languageFacts.test');
+import * as _parser from 'vs/languages/sass/common/parser/sassParser';
+import * as languageFactsTest from 'vs/languages/css/test/common/languageFacts.test';
 
 suite('Sass language facts', () => {
 

@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import assert = require('assert');
-import paths = require('vs/base/common/paths');
-import platform = require('vs/base/common/platform');
+import * as assert from 'assert';
+import * as paths from 'vs/base/common/paths';
+import * as platform from 'vs/base/common/platform';
 import { Adapter } from 'vs/workbench/parts/debug/node/debugAdapter';
 
 suite('Debug - Adapter', () => {

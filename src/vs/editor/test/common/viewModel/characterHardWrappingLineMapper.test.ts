@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
-import CharacterHardWrappingLineMapper = require('vs/editor/common/viewModel/characterHardWrappingLineMapper');
-import SplitLinesCollection = require('vs/editor/common/viewModel/splitLinesCollection');
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as assert from 'assert';
+import * as CharacterHardWrappingLineMapper from 'vs/editor/common/viewModel/characterHardWrappingLineMapper';
+import * as SplitLinesCollection from 'vs/editor/common/viewModel/splitLinesCollection';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 
 function safeGetOutputLineCount(mapper:SplitLinesCollection.ILineMapping): number {
 	if (!mapper) {

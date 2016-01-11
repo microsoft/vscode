@@ -5,12 +5,12 @@
 'use strict';
 
 import {OrderGuaranteeEventEmitter} from 'vs/base/common/eventEmitter';
-import Strings = require('vs/base/common/strings');
+import * as Strings from 'vs/base/common/strings';
 import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
 import {ModelLine} from 'vs/editor/common/model/modelLine';
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Platform = require('vs/base/common/platform');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as Platform from 'vs/base/common/platform';
 import Event, {Emitter} from 'vs/base/common/event';
 
 var __space = ' '.charCodeAt(0);

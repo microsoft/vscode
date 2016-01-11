@@ -4,18 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import URI from 'vs/base/common/uri';
 import Severity from 'vs/base/common/severity';
-import types = require('vs/base/common/types');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import collections = require('vs/base/common/collections');
-import ts = require('vs/languages/typescript/common/lib/typescriptServices');
-import Options = require('vs/languages/typescript/common/options');
-import rules = require('./rules');
-import layoutRules = require('./rules/layout');
-import typescriptRules = require('./rules/typescript');
-import javascriptRules = require('./rules/javascript');
+import * as types from 'vs/base/common/types';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as collections from 'vs/base/common/collections';
+import * as ts from 'vs/languages/typescript/common/lib/typescriptServices';
+import {Options} from 'vs/languages/typescript/common/options';
+import * as rules from './rules';
+import * as layoutRules from './rules/layout';
+import * as typescriptRules from './rules/typescript';
+import * as javascriptRules from './rules/javascript';
 
 export interface IError {
 	message:string;

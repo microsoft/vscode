@@ -606,4 +606,4 @@ namespace glob2 {
 	}
 }
 
-export = ProjectResolver;
+export {ProjectResolver};

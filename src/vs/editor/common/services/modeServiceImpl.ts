@@ -7,21 +7,21 @@
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IModeService, IModeLookupResult} from 'vs/editor/common/services/modeService';
 import {IModelService} from 'vs/editor/common/services/modelService';
-import Modes = require('vs/editor/common/modes');
-import Supports = require ('vs/editor/common/modes/supports');
+import * as Modes from 'vs/editor/common/modes';
+import * as Supports from 'vs/editor/common/modes/supports';
 import {IPluginService} from 'vs/platform/plugins/common/plugins';
 import {FrankensteinMode} from 'vs/editor/common/modes/abstractMode';
 import {LanguageExtensions} from 'vs/editor/common/modes/languageExtensionPoint';
-import Errors = require('vs/base/common/errors');
-import MonarchTypes = require('vs/editor/common/modes/monarch/monarchTypes');
+import * as Errors from 'vs/base/common/errors';
+import * as MonarchTypes from 'vs/editor/common/modes/monarch/monarchTypes';
 import {Remotable, IThreadService, ThreadAffinity} from 'vs/platform/thread/common/thread';
-import Objects = require('vs/base/common/objects');
-import MonarchDefinition = require('vs/editor/common/modes/monarch/monarchDefinition');
+import * as Objects from 'vs/base/common/objects';
+import * as MonarchDefinition from 'vs/editor/common/modes/monarch/monarchDefinition';
 import {createTokenizationSupport} from 'vs/editor/common/modes/monarch/monarchLexer';
 import {compile} from 'vs/editor/common/modes/monarch/monarchCompile';
 import {Registry} from 'vs/platform/platform';
 import {IEditorModesRegistry, Extensions} from 'vs/editor/common/modes/modesRegistry';
-import MonarchCommonTypes = require('vs/editor/common/modes/monarch/monarchCommon');
+import * as MonarchCommonTypes from 'vs/editor/common/modes/monarch/monarchCommon';
 import {OnEnterSupport, IOnEnterSupportOptions} from 'vs/editor/common/modes/supports/onEnter';
 import {IDisposable, combinedDispose, empty as EmptyDisposable} from 'vs/base/common/lifecycle';
 

@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import SortedList = require('vs/base/common/sortedList');
+import * as SortedList from 'vs/base/common/sortedList';
 
 function getCuisineKeys(): string[] {
 	return ['german', 'swiss', 'french', 'italian', 'english','scotish', 'turksih', 'hungarian', 'serbian', 'swedish', 'russian',

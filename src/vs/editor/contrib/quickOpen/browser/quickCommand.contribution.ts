@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
-import Browser = require('vs/base/browser/browser');
+import * as nls from 'vs/nls';
+import * as Browser from 'vs/base/browser/browser';
 import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
-import QuickCommand = require('./quickCommand');
+import * as QuickCommand from './quickCommand';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 
 // Contribute "Quick Command" to context menu

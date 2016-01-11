@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import platform = require('vs/platform/platform');
-import typescript = require('vs/languages/typescript/common/typescript');
+import * as platform from 'vs/platform/platform';
+import * as typescript from 'vs/languages/typescript/common/typescript';
 import {AsyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
-import ts = require('vs/languages/typescript/common/lib/typescriptServices');
+import * as ts from 'vs/languages/typescript/common/lib/typescriptServices';
 
 export namespace Defaults {
 

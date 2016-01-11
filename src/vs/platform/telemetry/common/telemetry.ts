@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Lifecycle = require('vs/base/common/lifecycle');
-import Timer = require('vs/base/common/timer');
+import * as Lifecycle from 'vs/base/common/lifecycle';
+import * as Timer from 'vs/base/common/timer';
 import {createDecorator, ServiceIdentifier, IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 
 export var ID = 'telemetryService';

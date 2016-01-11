@@ -6,18 +6,18 @@
 'use strict';
 
 import 'vs/css!./links';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import {TPromise} from 'vs/base/common/winjs.base';
-import Platform = require('vs/base/common/platform');
-import Errors = require('vs/base/common/errors');
+import * as Platform from 'vs/base/common/platform';
+import * as Errors from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
-import Keyboard = require('vs/base/browser/keyboardEvent');
+import * as Keyboard from 'vs/base/browser/keyboardEvent';
 import {CommonEditorRegistry, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
 import {EditorAction, Behaviour} from 'vs/editor/common/editorAction';
-import EventEmitter = require('vs/base/common/eventEmitter');
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
+import * as EventEmitter from 'vs/base/common/eventEmitter';
+import * as EditorBrowser from 'vs/editor/browser/editorBrowser';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as Modes from 'vs/editor/common/modes';
 import {IEditorService, IResourceInput} from 'vs/platform/editor/common/editor';
 import {IRequestService} from 'vs/platform/request/common/request';
 import {IMessageService} from 'vs/platform/message/common/message';

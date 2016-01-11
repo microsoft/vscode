@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import lifecycle = require('vs/base/common/lifecycle');
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import DomUtils = require('vs/base/browser/dom');
-import eventEmitter = require('vs/base/common/eventEmitter');
+import * as lifecycle from 'vs/base/common/lifecycle';
+import * as EditorBrowser from 'vs/editor/browser/editorBrowser';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as DomUtils from 'vs/base/browser/dom';
+import * as eventEmitter from 'vs/base/common/eventEmitter';
 
 class LightBulpWidget implements EditorBrowser.IContentWidget, lifecycle.IDisposable {
 
@@ -74,4 +74,4 @@ class LightBulpWidget implements EditorBrowser.IContentWidget, lifecycle.IDispos
 	}
 }
 
-export = LightBulpWidget;
+export {LightBulpWidget};

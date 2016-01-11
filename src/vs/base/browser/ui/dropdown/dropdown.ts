@@ -6,15 +6,15 @@
 'use strict';
 
 import 'vs/css!./dropdown';
-import Builder = require('vs/base/browser/builder');
-import WinJS = require('vs/base/common/winjs.base');
-import Touch = require('vs/base/browser/touch');
-import Actions = require('vs/base/common/actions');
-import ActionBar = require('vs/base/browser/ui/actionbar/actionbar');
-import EventEmitter = require('vs/base/common/eventEmitter');
-import Lifecycle = require('vs/base/common/lifecycle');
-import ContextView = require('vs/base/browser/ui/contextview/contextview');
-import Menu = require('vs/base/browser/ui/menu/menu');
+import * as Builder from 'vs/base/browser/builder';
+import * as WinJS from 'vs/base/common/winjs.base';
+import * as Touch from 'vs/base/browser/touch';
+import * as Actions from 'vs/base/common/actions';
+import * as ActionBar from 'vs/base/browser/ui/actionbar/actionbar';
+import * as EventEmitter from 'vs/base/common/eventEmitter';
+import * as Lifecycle from 'vs/base/common/lifecycle';
+import * as ContextView from 'vs/base/browser/ui/contextview/contextview';
+import * as Menu from 'vs/base/browser/ui/menu/menu';
 
 var $ = Builder.$;
 

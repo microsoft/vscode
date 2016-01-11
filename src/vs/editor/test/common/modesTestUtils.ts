@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import modes = require('vs/editor/common/modes');
+import * as modes from 'vs/editor/common/modes';
 import {Arrays} from 'vs/editor/common/core/arrays';
 
 class SimpleTokenTypeClassificationMode implements modes.IMode {

@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
+import * as assert from 'assert';
 import {Range} from 'vs/editor/common/core/range';
-import TU = require('vs/editor/test/common/commands/commandTestUtils');
+import * as TU from 'vs/editor/test/common/commands/commandTestUtils';
 import {EditOperationsCommand} from 'vs/editor/contrib/format/common/formatCommand';
 import {Selection} from 'vs/editor/common/core/selection';
 import {Model} from 'vs/editor/common/model/model';
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 
 function editOp(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, text:string[]): EditorCommon.ISingleEditOperation {
 	return {

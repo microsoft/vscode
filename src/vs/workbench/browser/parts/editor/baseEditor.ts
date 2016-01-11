@@ -7,7 +7,7 @@
 import {TPromise} from 'vs/base/common/winjs.base';
 import {Action, IAction} from 'vs/base/common/actions';
 import {ActionBarContributor} from 'vs/workbench/browser/actionBarRegistry';
-import types = require('vs/base/common/types');
+import * as types from 'vs/base/common/types';
 import {Builder} from 'vs/base/browser/builder';
 import {Registry} from 'vs/platform/platform';
 import {Viewlet} from 'vs/workbench/browser/viewlet';

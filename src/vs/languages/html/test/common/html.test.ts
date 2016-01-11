@@ -6,13 +6,13 @@
 
 import 'vs/languages/html/common/html.contribution';
 import 'vs/languages/javascript/common/javascript.contribution';
-import assert = require('assert');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
-import htmlMode = require('vs/languages/html/common/html');
-import modesUtil = require('vs/editor/test/common/modesUtil');
+import * as assert from 'assert';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as Modes from 'vs/editor/common/modes';
+import * as htmlMode from 'vs/languages/html/common/html';
+import * as modesUtil from 'vs/editor/test/common/modesUtil';
 import {Model} from 'vs/editor/common/model/model';
-import Supports = require('vs/editor/common/modes/supports');
+import * as Supports from 'vs/editor/common/modes/supports';
 import {getTag, DELIM_END, DELIM_START, DELIM_ASSIGN, ATTRIB_NAME, ATTRIB_VALUE, COMMENT, DELIM_COMMENT, DELIM_DOCTYPE, DOCTYPE} from 'vs/languages/html/common/htmlTokenTypes';
 
 

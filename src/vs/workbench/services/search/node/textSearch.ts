@@ -5,12 +5,12 @@
 
 'use strict';
 
-import strings = require('vs/base/common/strings');
+import * as strings from 'vs/base/common/strings';
 
-import fs = require('fs');
-import iconv = require('iconv-lite');
+import * as fs from 'fs';
+import * as iconv from 'iconv-lite';
 
-import baseMime = require('vs/base/common/mime');
+import * as baseMime from 'vs/base/common/mime';
 import {ILineMatch, IProgress} from 'vs/platform/search/common/search';
 import {detectMimeAndEncodingFromBuffer, IMimeAndEncoding} from 'vs/base/node/mime';
 import {FileWalker} from 'vs/workbench/services/search/node/fileSearch';

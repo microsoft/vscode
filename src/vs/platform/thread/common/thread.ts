@@ -5,8 +5,8 @@
 'use strict'
 
 import {TPromise} from 'vs/base/common/winjs.base';
-import descriptors = require('vs/platform/instantiation/common/descriptors');
-import instantiation = require('vs/platform/instantiation/common/instantiation');
+import * as descriptors from 'vs/platform/instantiation/common/descriptors';
+import * as instantiation from 'vs/platform/instantiation/common/instantiation';
 import {IDisposable} from 'vs/base/common/lifecycle';
 
 // --- thread service (web workers)

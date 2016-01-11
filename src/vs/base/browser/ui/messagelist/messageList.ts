@@ -6,15 +6,15 @@
 'use strict';
 
 import 'vs/css!./messageList';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import {Promise} from 'vs/base/common/winjs.base';
 import {Builder, withElementById, $} from 'vs/base/browser/builder';
-import DOM = require('vs/base/browser/dom');
-import errors = require('vs/base/common/errors');
-import types = require('vs/base/common/types');
+import * as DOM from 'vs/base/browser/dom';
+import * as errors from 'vs/base/common/errors';
+import * as types from 'vs/base/common/types';
 import Event, {Emitter} from 'vs/base/common/event';
 import {Action} from 'vs/base/common/actions';
-import htmlRenderer = require('vs/base/browser/htmlContentRenderer');
+import * as htmlRenderer from 'vs/base/browser/htmlContentRenderer';
 
 export enum Severity {
 	Info,

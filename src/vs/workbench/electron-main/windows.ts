@@ -6,23 +6,23 @@
 
 'use strict';
 
-import events = require('events');
-import path = require('path');
-import fs = require('fs');
+import * as events from 'events';
+import * as path from 'path';
+import * as fs from 'fs';
 
 import {ipcMain as ipc, app, screen, crashReporter, BrowserWindow, dialog} from 'electron';
 
-import platform = require('vs/base/common/platform');
-import env = require('vs/workbench/electron-main/env');
-import window = require('vs/workbench/electron-main/window');
-import lifecycle = require('vs/workbench/electron-main/lifecycle');
-import nls = require('vs/nls');
-import paths = require('vs/base/common/paths');
-import json = require('vs/base/common/json');
-import arrays = require('vs/base/common/arrays');
-import objects = require('vs/base/common/objects');
-import storage = require('vs/workbench/electron-main/storage');
-import settings = require('vs/workbench/electron-main/settings');
+import * as platform from 'vs/base/common/platform';
+import * as env from 'vs/workbench/electron-main/env';
+import * as window from 'vs/workbench/electron-main/window';
+import * as lifecycle from 'vs/workbench/electron-main/lifecycle';
+import * as nls from 'vs/nls';
+import * as paths from 'vs/base/common/paths';
+import * as json from 'vs/base/common/json';
+import * as arrays from 'vs/base/common/arrays';
+import * as objects from 'vs/base/common/objects';
+import * as storage from 'vs/workbench/electron-main/storage';
+import * as settings from 'vs/workbench/electron-main/settings';
 import {Instance as UpdateManager, IUpdate} from 'vs/workbench/electron-main/update-manager';
 
 const eventEmitter = new events.EventEmitter();

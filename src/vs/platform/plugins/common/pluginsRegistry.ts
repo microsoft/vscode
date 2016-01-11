@@ -6,12 +6,12 @@
 
 import {IPluginDescription, IPointListener, IActivationEventListener, IMessage} from 'vs/platform/plugins/common/plugins';
 import {Registry} from 'vs/platform/platform';
-import Errors = require('vs/base/common/errors');
-import env = require('vs/base/common/flags');
+import * as Errors from 'vs/base/common/errors';
+import * as env from 'vs/base/common/flags';
 import * as JSONContributionRegistry from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import {IJSONSchema} from 'vs/base/common/jsonSchema';
-import nls = require('vs/nls');
-import paths = require('vs/base/common/paths');
+import * as nls from 'vs/nls';
+import * as paths from 'vs/base/common/paths';
 import Severity from 'vs/base/common/severity';
 
 export interface IMessageCollector {

@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import errors = require('vs/base/common/errors');
-import dom = require('vs/base/browser/dom');
+import * as errors from 'vs/base/common/errors';
+import * as dom from 'vs/base/browser/dom';
 import { ITree } from 'vs/base/parts/tree/common/tree';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { DefaultController, ICancelableEvent } from 'vs/base/parts/tree/browser/treeDefaults';
-import editorbrowser = require('vs/editor/browser/editorBrowser');
-import editorcommon = require('vs/editor/common/editorCommon');
+import * as editorbrowser from 'vs/editor/browser/editorBrowser';
+import * as editorcommon from 'vs/editor/common/editorCommon';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import debug = require('vs/workbench/parts/debug/common/debug');
-import viewer = require('vs/workbench/parts/debug/browser/debugViewer');
+import * as debug from 'vs/workbench/parts/debug/common/debug';
+import * as viewer from 'vs/workbench/parts/debug/browser/debugViewer';
 
 const $ = dom.emmet;
 const debugTreeOptions = {

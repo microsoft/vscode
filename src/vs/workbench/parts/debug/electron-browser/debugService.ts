@@ -3,25 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import nls = require('vs/nls');
-import lifecycle = require('vs/base/common/lifecycle');
-import mime = require('vs/base/common/mime');
-import ee = require('vs/base/common/eventEmitter');
+import * as nls from 'vs/nls';
+import * as lifecycle from 'vs/base/common/lifecycle';
+import * as mime from 'vs/base/common/mime';
+import * as ee from 'vs/base/common/eventEmitter';
 import uri from 'vs/base/common/uri';
-import arrays = require('vs/base/common/arrays');
-import types = require('vs/base/common/types');
-import errors = require('vs/base/common/errors');
+import * as arrays from 'vs/base/common/arrays';
+import * as types from 'vs/base/common/types';
+import * as errors from 'vs/base/common/errors';
 import severity from 'vs/base/common/severity';
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
-import editor = require('vs/editor/common/editorCommon');
-import editorbrowser = require('vs/editor/browser/editorBrowser');
-import wbeditorcommon = require('vs/workbench/common/editor');
-import debug = require('vs/workbench/parts/debug/common/debug');
-import session = require('vs/workbench/parts/debug/node/rawDebugSession');
-import model = require('vs/workbench/parts/debug/common/debugModel');
-import debuginputs = require('vs/workbench/parts/debug/browser/debugEditorInputs');
-import viewmodel = require('vs/workbench/parts/debug/common/debugViewModel');
-import debugactions = require('vs/workbench/parts/debug/electron-browser/debugActions');
+import * as editor from 'vs/editor/common/editorCommon';
+import * as editorbrowser from 'vs/editor/browser/editorBrowser';
+import * as wbeditorcommon from 'vs/workbench/common/editor';
+import * as debug from 'vs/workbench/parts/debug/common/debug';
+import * as session from 'vs/workbench/parts/debug/node/rawDebugSession';
+import * as model from 'vs/workbench/parts/debug/common/debugModel';
+import * as debuginputs from 'vs/workbench/parts/debug/browser/debugEditorInputs';
+import * as viewmodel from 'vs/workbench/parts/debug/common/debugViewModel';
+import * as debugactions from 'vs/workbench/parts/debug/electron-browser/debugActions';
 import { BreakpointWidget } from 'vs/workbench/parts/debug/browser/breakpointWidget';
 import { ConfigurationManager } from 'vs/workbench/parts/debug/node/debugConfigurationManager';
 import { Repl } from 'vs/workbench/parts/debug/browser/replEditor';

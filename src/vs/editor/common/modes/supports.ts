@@ -5,15 +5,15 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
-import Errors = require('vs/base/common/errors');
-import Strings = require('vs/base/common/strings');
+import * as Errors from 'vs/base/common/errors';
+import * as Strings from 'vs/base/common/strings';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {LineStream} from 'vs/editor/common/modes/lineStream';
 import {NullMode, NullState, nullTokenize} from 'vs/editor/common/modes/nullMode';
 import {Brackets} from 'vs/editor/common/modes/autoIndentation';
 import {DefaultFilter} from 'vs/editor/common/modes/modesFilters';
-import Modes = require('vs/editor/common/modes');
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as Modes from 'vs/editor/common/modes';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 import {IResourceService} from 'vs/editor/common/services/resourceService';
 import {Arrays} from 'vs/editor/common/core/arrays';
 import URI from 'vs/base/common/uri';

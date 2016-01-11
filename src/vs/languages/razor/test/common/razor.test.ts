@@ -5,11 +5,11 @@
 'use strict';
 
 import 'vs/languages/razor/common/razor.contribution';
-import razorMode = require('vs/languages/razor/common/razor');
-import modesUtil = require('vs/editor/test/common/modesUtil');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
-import razorTokenTypes = require('vs/languages/razor/common/razorTokenTypes');
+import * as razorMode from 'vs/languages/razor/common/razor';
+import * as modesUtil from 'vs/editor/test/common/modesUtil';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as Modes from 'vs/editor/common/modes';
+import * as razorTokenTypes from 'vs/languages/razor/common/razorTokenTypes';
 import {htmlTokenTypes} from 'vs/languages/html/common/html';
 
 suite('Syntax Highlighting - Razor', () => {

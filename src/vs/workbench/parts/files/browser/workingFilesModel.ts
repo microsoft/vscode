@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import arrays = require('vs/base/common/arrays');
+import * as arrays from 'vs/base/common/arrays';
 import uri from 'vs/base/common/uri';
 import Event, {Emitter} from 'vs/base/common/event';
-import paths = require('vs/base/common/paths');
-import errors = require('vs/base/common/errors');
-import labels = require('vs/base/common/labels');
+import * as paths from 'vs/base/common/paths';
+import * as errors from 'vs/base/common/errors';
+import * as labels from 'vs/base/common/labels';
 import {disposeAll, IDisposable} from 'vs/base/common/lifecycle';
 import {ITextFileService, IWorkingFilesModel, IWorkingFileModelChangeEvent, IWorkingFileEntry, EventType, LocalFileChangeEvent, WORKING_FILES_MODEL_ENTRY_CLASS_ID} from 'vs/workbench/parts/files/common/files';
 import {IFileStat, FileChangeType, FileChangesEvent, EventType as FileEventType} from 'vs/platform/files/common/files';

@@ -6,9 +6,9 @@
 'use strict';
 
 import 'vs/css!./timer';
-import Timer = require('vs/base/common/timer');
-import eventEmitter = require('vs/base/common/eventEmitter');
-import DomUtils = require('vs/base/browser/dom');
+import * as Timer from 'vs/base/common/timer';
+import * as eventEmitter from 'vs/base/common/eventEmitter';
+import * as DomUtils from 'vs/base/browser/dom';
 
 interface IUnmatchedStartTimerEvent {
 	event: Timer.ITimerEvent;

@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import lifecycle = require('vs/base/common/lifecycle');
-import editorcommon = require('vs/editor/common/editorCommon');
+import * as lifecycle from 'vs/base/common/lifecycle';
+import * as editorcommon from 'vs/editor/common/editorCommon';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IDebugService, ModelEvents, ViewModelEvents, IBreakpoint, IRawBreakpoint, State } from 'vs/workbench/parts/debug/common/debug';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';

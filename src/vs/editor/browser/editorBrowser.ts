@@ -5,14 +5,14 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
-import Actions = require('vs/base/common/actions');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import EventEmitter = require('vs/base/common/eventEmitter');
-import Lifecycle = require('vs/base/common/lifecycle');
-import DomUtils = require('vs/base/browser/dom');
-import Mouse = require('vs/base/browser/mouseEvent');
+import * as Actions from 'vs/base/common/actions';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as EventEmitter from 'vs/base/common/eventEmitter';
+import * as Lifecycle from 'vs/base/common/lifecycle';
+import * as DomUtils from 'vs/base/browser/dom';
+import * as Mouse from 'vs/base/browser/mouseEvent';
 
-import Instantiation = require('vs/platform/instantiation/common/instantiation');
+import * as Instantiation from 'vs/platform/instantiation/common/instantiation';
 
 export interface IDynamicViewOverlay extends Lifecycle.IDisposable {
 	shouldCallRender2(ctx:IRenderingContext): boolean;

@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import winjs = require('vs/base/common/winjs.base');
-import tokenization = require('vs/languages/typescript/common/features/tokenization');
-import javascriptWorker = require('vs/languages/javascript/common/javascriptWorker');
-import typescriptMode = require('vs/languages/typescript/common/typescriptMode');
-import typescript = require('vs/languages/typescript/common/typescript');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
-import supports = require('vs/editor/common/modes/supports');
-import extensions = require('vs/languages/javascript/common/javascript.extensions');
+import * as winjs from 'vs/base/common/winjs.base';
+import * as tokenization from 'vs/languages/typescript/common/features/tokenization';
+import * as javascriptWorker from 'vs/languages/javascript/common/javascriptWorker';
+import * as typescriptMode from 'vs/languages/typescript/common/typescriptMode';
+import * as typescript from 'vs/languages/typescript/common/typescript';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as Modes from 'vs/editor/common/modes';
+import * as supports from 'vs/editor/common/modes/supports';
+import * as extensions from 'vs/languages/javascript/common/javascript.extensions';
 import {createWordRegExp} from 'vs/editor/common/modes/abstractMode';
 import {AsyncDescriptor, AsyncDescriptor2, createAsyncDescriptor2} from 'vs/platform/instantiation/common/descriptors';
 import {OnEnterSupport} from 'vs/editor/common/modes/supports/onEnter';

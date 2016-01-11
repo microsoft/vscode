@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Arrays = require('vs/base/common/arrays');
+import * as Arrays from 'vs/base/common/arrays';
 
 export interface IIterator<TValue> {
 	current: TValue;

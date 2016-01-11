@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import scanner = require('vs/languages/css/common/parser/cssScanner');
+import * as scanner from 'vs/languages/css/common/parser/cssScanner';
 
 var _PRC = '%'.charCodeAt(0);
 var _LPA = '('.charCodeAt(0);

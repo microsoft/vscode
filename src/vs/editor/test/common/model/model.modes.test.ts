@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
+import * as assert from 'assert';
 import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
-import Model = require('vs/editor/common/model/model');
-import ModelModes = require('vs/editor/test/common/testModes');
+import * as Model from 'vs/editor/common/model/model';
+import * as ModelModes from 'vs/editor/test/common/testModes';
 import {EditOperation} from 'vs/editor/common/core/editOperation';
 
 // --------- utils

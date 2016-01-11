@@ -5,7 +5,7 @@
 'use strict';
 
 import {Registry} from 'vs/platform/platform';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import {StatusbarItemDescriptor, StatusbarAlignment, IStatusbarRegistry, Extensions as StatusExtensions} from 'vs/workbench/browser/parts/statusbar/statusbar';
 import {EditorDescriptor, IEditorRegistry, Extensions as EditorExtensions} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {StringEditorInput} from 'vs/workbench/browser/parts/editor/stringEditorInput';

@@ -7,12 +7,12 @@
 
 import 'vs/css!./media/quickopen';
 import {TPromise, Promise, ValueCallback} from 'vs/base/common/winjs.base';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import {Dimension, withElementById} from 'vs/base/browser/builder';
-import strings = require('vs/base/common/strings');
-import filters = require('vs/base/common/filters');
-import uuid = require('vs/base/common/uuid');
-import types = require('vs/base/common/types');
+import * as strings from 'vs/base/common/strings';
+import * as filters from 'vs/base/common/filters';
+import * as uuid from 'vs/base/common/uuid';
+import * as types from 'vs/base/common/types';
 import {Mode, IContext, IAutoFocus, IQuickNavigateConfiguration, IModel} from 'vs/base/parts/quickopen/common/quickOpen';
 import {QuickOpenEntryItem, QuickOpenEntry, QuickOpenModel, QuickOpenEntryGroup} from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import {QuickOpenWidget} from 'vs/base/parts/quickopen/browser/quickOpenWidget';
@@ -27,7 +27,7 @@ import {Scope} from 'vs/workbench/common/memento';
 import {QuickOpenHandler, QuickOpenHandlerDescriptor, IQuickOpenRegistry, Extensions} from 'vs/workbench/browser/quickopen';
 import {EditorHistoryModel} from 'vs/workbench/browser/parts/quickopen/editorHistoryModel';
 import {EditorInput} from 'vs/workbench/common/editor';
-import errors = require('vs/base/common/errors');
+import * as errors from 'vs/base/common/errors';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IPickOpenEntry, IInputOptions, IQuickOpenService, IPickOptions} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IPickOpenEntryItem} from 'vs/workbench/services/quickopen/common/quickOpenService';

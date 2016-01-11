@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import HoverOperation = require('./hoverOperation');
-import HoverWidget = require('./hoverWidgets');
+import * as EditorBrowser from 'vs/editor/browser/editorBrowser';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as HoverOperation from './hoverOperation';
+import * as HoverWidget from './hoverWidgets';
 
 export interface IHoverMessage {
 	value?: string;

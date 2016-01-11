@@ -7,10 +7,10 @@
 
 import 'vs/css!./media/commandsHandler';
 import {Promise, TPromise} from 'vs/base/common/winjs.base';
-import nls = require('vs/nls');
-import arrays = require('vs/base/common/arrays');
-import types = require('vs/base/common/types');
-import strings = require('vs/base/common/strings');
+import * as nls from 'vs/nls';
+import * as arrays from 'vs/base/common/arrays';
+import * as types from 'vs/base/common/types';
+import * as strings from 'vs/base/common/strings';
 import {IAction, Action} from 'vs/base/common/actions';
 import {toErrorMessage} from 'vs/base/common/errors';
 import {Mode, IContext, IAutoFocus} from 'vs/base/parts/quickopen/common/quickOpen';
@@ -20,7 +20,7 @@ import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workb
 import {Registry} from 'vs/platform/platform';
 import {Extensions as QuickOpenExtensions, QuickOpenHandler} from 'vs/workbench/browser/quickopen';
 import {QuickOpenAction} from 'vs/workbench/browser/actions/quickOpenAction';
-import filters = require('vs/base/common/filters');
+import * as filters from 'vs/base/common/filters';
 import {ICommonCodeEditor, IEditorActionDescriptorData} from 'vs/editor/common/editorCommon';
 import {EditorAction, Behaviour} from 'vs/editor/common/editorAction';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';

@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 'use strict';
-import strings = require('vs/base/common/strings');
-import htmlTags = require('vs/languages/html/common/htmlTags');
+import * as strings from 'vs/base/common/strings';
+import * as htmlTags from 'vs/languages/html/common/htmlTags';
 import {isTag, DELIM_END, DELIM_START, DELIM_ASSIGN, ATTRIB_NAME, ATTRIB_VALUE} from 'vs/languages/html/common/htmlTokenTypes';
 
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 
 export interface IHTMLScanner {
 	getTokenType(): string;

@@ -5,10 +5,10 @@
 'use strict';
 
 import uri from 'vs/base/common/uri';
-import platform = require('vs/base/common/platform');
-import types = require('vs/base/common/types');
-import strings = require('vs/base/common/strings');
-import paths = require('vs/base/common/paths');
+import * as platform from 'vs/base/common/platform';
+import * as types from 'vs/base/common/types';
+import * as strings from 'vs/base/common/strings';
+import * as paths from 'vs/base/common/paths';
 
 export interface ILabelProvider {
 

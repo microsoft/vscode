@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
+import * as assert from 'assert';
 import {testCommand} from 'vs/editor/test/common/commands/commandTestUtils';
 import {CommentMode} from 'vs/editor/test/common/testModes';
 import {BlockCommentCommand} from 'vs/editor/contrib/comment/common/blockCommentCommand';

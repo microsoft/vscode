@@ -7,10 +7,10 @@
 
 import {Promise} from 'vs/base/common/winjs.base';
 import {Action} from 'vs/base/common/actions';
-import nls = require('vs/nls');
-import paths = require('vs/base/common/paths');
-import labels = require('vs/base/common/labels');
-import platform = require('vs/base/common/platform');
+import * as nls from 'vs/nls';
+import * as paths from 'vs/base/common/paths';
+import * as labels from 'vs/base/common/labels';
+import * as platform from 'vs/base/common/platform';
 import uri from 'vs/base/common/uri';
 import severity from 'vs/base/common/severity';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';

@@ -2,18 +2,18 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import nls = require('vs/nls');
-import Objects = require('vs/base/common/objects');
-import Json = require('vs/base/common/json');
-import http = require('vs/base/common/http');
+import * as nls from 'vs/nls';
+import * as Objects from 'vs/base/common/objects';
+import * as Json from 'vs/base/common/json';
+import * as http from 'vs/base/common/http';
 import {IJSONSchema} from 'vs/base/common/jsonSchema';
-import Strings = require('vs/base/common/strings');
+import * as Strings from 'vs/base/common/strings';
 import URI from 'vs/base/common/uri';
-import Types = require('vs/base/common/types');
-import Parser = require('vs/languages/json/common/parser/jsonParser');
-import WinJS = require('vs/base/common/winjs.base');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import EventEmitter = require('vs/base/common/eventEmitter');
+import * as Types from 'vs/base/common/types';
+import * as Parser from 'vs/languages/json/common/parser/jsonParser';
+import * as WinJS from 'vs/base/common/winjs.base';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as EventEmitter from 'vs/base/common/eventEmitter';
 import {IResourceService, ResourceEvents, IResourceChangedEvent} from 'vs/editor/common/services/resourceService';
 import {IRequestService} from 'vs/platform/request/common/request';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';

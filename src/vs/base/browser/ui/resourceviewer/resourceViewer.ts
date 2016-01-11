@@ -6,12 +6,12 @@
 'use strict';
 
 import 'vs/css!./resourceviewer';
-import nls = require('vs/nls');
-import mimes = require('vs/base/common/mime');
+import * as nls from 'vs/nls';
+import * as mimes from 'vs/base/common/mime';
 import URI from 'vs/base/common/uri';
-import paths = require('vs/base/common/paths');
+import * as paths from 'vs/base/common/paths';
 import {Builder, $} from 'vs/base/browser/builder';
-import DOM = require('vs/base/browser/dom');
+import * as DOM from 'vs/base/browser/dom';
 import {IScrollableElement} from 'vs/base/browser/ui/scrollbar/scrollableElement';
 
 // Known media mimes that we can handle

@@ -5,8 +5,8 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import http = require('vs/base/common/http');
-import winjs = require('vs/base/common/winjs.base');
+import * as http from 'vs/base/common/http';
+import * as winjs from 'vs/base/common/winjs.base';
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
 
 export var IRequestService = createDecorator<IRequestService>('requestService');

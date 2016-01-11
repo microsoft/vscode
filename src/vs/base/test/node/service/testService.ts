@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import winjs = require('vs/base/common/winjs.base');
+import * as winjs from 'vs/base/common/winjs.base';
 
 export class TestService {
 	public pong(ping:string): winjs.TPromise<{ incoming:string, outgoing:string }> {

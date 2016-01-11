@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import collections = require('vs/base/common/collections');
-import strings = require('vs/base/common/strings');
-import uuid = require('vs/base/common/uuid');
-import eventsEmitter = require('vs/base/common/eventEmitter');
+import * as collections from 'vs/base/common/collections';
+import * as strings from 'vs/base/common/strings';
+import * as uuid from 'vs/base/common/uuid';
+import * as eventsEmitter from 'vs/base/common/eventEmitter';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IRange, IPosition, IModel} from 'vs/editor/common/editorCommon';
 import {IReference} from 'vs/editor/common/modes';

@@ -6,11 +6,11 @@
 
 'use strict';
 
-import fs = require('fs');
-import path = require('path');
+import * as fs from 'fs';
+import * as path from 'path';
 
-import json = require('vs/base/common/json');
-import objects = require('vs/base/common/objects');
+import * as json from 'vs/base/common/json';
+import * as objects from 'vs/base/common/objects';
 import {TPromise} from 'vs/base/common/winjs.base';
 import Event, {Emitter} from 'vs/base/common/event';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';

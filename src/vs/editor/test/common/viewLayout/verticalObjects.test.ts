@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
-import VerticalObjects = require('vs/editor/common/viewLayout/verticalObjects');
+import * as assert from 'assert';
+import * as VerticalObjects from 'vs/editor/common/viewLayout/verticalObjects';
 
 suite('Editor ViewLayout - VerticalObjects', () => {
 

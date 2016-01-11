@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
-import PrefixSumComputer = require('vs/editor/common/viewModel/prefixSumComputer');
+import * as assert from 'assert';
+import * as PrefixSumComputer from 'vs/editor/common/viewModel/prefixSumComputer';
 
 suite('Editor ViewModel - PrefixSumComputer', () => {
 

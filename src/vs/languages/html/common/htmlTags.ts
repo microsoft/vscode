@@ -7,9 +7,9 @@
  *  from or derived from HTML 5.1 W3C Working Draft (http://www.w3.org/TR/2015/WD-html51-20151008/.)"
  *--------------------------------------------------------------------------------------------*/
 
-import strings = require('vs/base/common/strings');
-import arrays = require('vs/base/common/arrays');
-import nls = require('vs/nls');
+import * as strings from 'vs/base/common/strings';
+import * as arrays from 'vs/base/common/arrays';
+import * as nls from 'vs/nls';
 import {isEmptyElement} from 'vs/languages/html/common/htmlEmptyTagsShared';
 
 export interface IHTMLTagProvider {

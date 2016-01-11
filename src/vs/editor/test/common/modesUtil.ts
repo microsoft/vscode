@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
+import * as assert from 'assert';
 import {TPromise} from 'vs/base/common/winjs.base';
-import servicesUtil = require('vs/editor/test/common/servicesTestUtils');
-import modes = require('vs/editor/common/modes');
-import monarchTypes = require('vs/editor/common/modes/monarch/monarchTypes');
-import monarchCompile = require('vs/editor/common/modes/monarch/monarchCompile');
-import monarchLexer = require('vs/editor/common/modes/monarch/monarchLexer');
+import * as servicesUtil from 'vs/editor/test/common/servicesTestUtils';
+import * as modes from 'vs/editor/common/modes';
+import * as monarchTypes from 'vs/editor/common/modes/monarch/monarchTypes';
+import * as monarchCompile from 'vs/editor/common/modes/monarch/monarchCompile';
+import * as monarchLexer from 'vs/editor/common/modes/monarch/monarchLexer';
 import {createLineContext} from 'vs/editor/test/common/modesTestUtils';
-import Supports = require('vs/editor/common/modes/supports');
+import * as Supports from 'vs/editor/common/modes/supports';
 import {Model} from 'vs/editor/common/model/model';
 
 export interface IRelaxedToken {

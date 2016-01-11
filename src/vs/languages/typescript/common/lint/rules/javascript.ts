@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import strings = require('vs/base/common/strings');
-import collections = require('vs/base/common/collections');
-import rules = require('vs/languages/typescript/common/lint/rules');
-import ts = require('vs/languages/typescript/common/lib/typescriptServices');
+import * as strings from 'vs/base/common/strings';
+import * as collections from 'vs/base/common/collections';
+import * as rules from 'vs/languages/typescript/common/lint/rules';
+import * as ts from 'vs/languages/typescript/common/lib/typescriptServices';
 
 /**
  * Use !== and === insteaf of != and ==.

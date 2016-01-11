@@ -4,18 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import {onUnexpectedError} from 'vs/base/common/errors';
-import quickFixSelectionWidget = require('./quickFixSelectionWidget');
-import quickFixModel = require('./quickFixModel');
+import * as quickFixSelectionWidget from './quickFixSelectionWidget';
+import * as quickFixModel from './quickFixModel';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
 import {EditorAction, Behaviour} from 'vs/editor/common/editorAction';
 import Severity from 'vs/base/common/severity';
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import codeEditorWidget = require('vs/editor/browser/widget/codeEditorWidget');
+import * as EditorBrowser from 'vs/editor/browser/editorBrowser';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as codeEditorWidget from 'vs/editor/browser/widget/codeEditorWidget';
 import {IKeybindingService, IKeybindingContextKey} from 'vs/platform/keybinding/common/keybindingService';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';

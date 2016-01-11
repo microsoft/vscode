@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
-import nodes = require('vs/languages/css/common/parser/cssNodes');
-import parser = require('vs/languages/css/common/parser/cssParser');
-import lint = require('vs/languages/css/common/services/lint');
-import lintRules = require('vs/languages/css/common/services/lintRules');
-import _level = require('vs/languages/css/common/level');
-import workerTests = require('./css-worker.test');
+import * as assert from 'assert';
+import * as nodes from 'vs/languages/css/common/parser/cssNodes';
+import * as parser from 'vs/languages/css/common/parser/cssParser';
+import * as lint from 'vs/languages/css/common/services/lint';
+import * as lintRules from 'vs/languages/css/common/services/lintRules';
+import * as _level from 'vs/languages/css/common/level';
+import * as workerTests from './css-worker.test';
 
 export function assertEntries(node:nodes.Node, rules:nodes.IRule[]) : void {
 

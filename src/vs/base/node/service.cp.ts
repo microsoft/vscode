@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import cp = require('child_process');
+import * as cp from 'child_process';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Promise} from 'vs/base/common/winjs.base';
 import { Delayer } from 'vs/base/common/async';

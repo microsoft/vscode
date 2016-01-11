@@ -5,12 +5,12 @@
 
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import {Promise, TPromise} from 'vs/base/common/winjs.base';
 import {Registry} from 'vs/platform/platform';
 import {IEditorModesRegistry, Extensions as ModesExtensions} from 'vs/editor/common/modes/modesRegistry';
-import paths = require('vs/base/common/paths');
-import strings = require('vs/base/common/strings');
+import * as paths from 'vs/base/common/paths';
+import * as strings from 'vs/base/common/strings';
 import {isWindows} from 'vs/base/common/platform';
 import URI from 'vs/base/common/uri';
 import {Action} from 'vs/base/common/actions';

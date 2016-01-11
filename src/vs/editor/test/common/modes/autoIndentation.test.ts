@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
-import autoIndentation = require('vs/editor/common/modes/autoIndentation');
-import modes = require('vs/editor/common/modes');
-import modesUtil = require('vs/editor/test/common/modesTestUtils');
+import * as assert from 'assert';
+import * as autoIndentation from 'vs/editor/common/modes/autoIndentation';
+import * as modes from 'vs/editor/common/modes';
+import * as modesUtil from 'vs/editor/test/common/modesTestUtils';
 
 suite('Editor Modes - Auto Indentation', () => {
 

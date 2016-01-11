@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
-import objects = require('vs/base/common/objects');
-import platform = require('vs/base/common/platform');
-import types = require('vs/base/common/types');
-import arrays = require('vs/base/common/arrays');
-import strings = require('vs/base/common/strings');
+import * as nls from 'vs/nls';
+import * as objects from 'vs/base/common/objects';
+import * as platform from 'vs/base/common/platform';
+import * as types from 'vs/base/common/types';
+import * as arrays from 'vs/base/common/arrays';
+import * as strings from 'vs/base/common/strings';
 import {IAction} from 'vs/base/common/actions';
 import {IXHRResponse} from 'vs/base/common/http';
 import Severity from 'vs/base/common/severity';

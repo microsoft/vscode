@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Lifecycle = require('vs/base/common/lifecycle');
-import DomUtils = require('vs/base/browser/dom');
-import Mouse = require('vs/base/browser/mouseEvent');
-import IframeUtils = require('vs/base/browser/iframe');
+import * as Lifecycle from 'vs/base/common/lifecycle';
+import * as DomUtils from 'vs/base/browser/dom';
+import * as Mouse from 'vs/base/browser/mouseEvent';
+import * as IframeUtils from 'vs/base/browser/iframe';
 
 export interface IStandardMouseMoveEventData {
 	leftButton:boolean;

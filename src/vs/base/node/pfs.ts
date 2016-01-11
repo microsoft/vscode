@@ -6,11 +6,11 @@
 'use strict';
 
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
-import extfs = require('vs/base/node/extfs');
-import paths = require('vs/base/common/paths');
+import * as extfs from 'vs/base/node/extfs';
+import * as paths from 'vs/base/common/paths';
 import { dirname, join } from 'path';
 import { nfcall } from 'vs/base/common/async';
-import fs = require('fs');
+import * as fs from 'fs';
 
 export function isRoot(path: string): boolean {
 	return path === dirname(path);

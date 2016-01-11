@@ -6,16 +6,16 @@
 'use strict';
 
 import 'vs/css!./media/sidebyside';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import {Registry} from 'vs/platform/platform';
 import {Scope, IActionBarRegistry, Extensions} from 'vs/workbench/browser/actionBarRegistry';
 import {IAction, Action} from 'vs/base/common/actions';
-import arrays = require('vs/base/common/arrays');
+import * as arrays from 'vs/base/common/arrays';
 import {EventEmitter} from 'vs/base/common/eventEmitter';
 import {StandardMouseEvent} from 'vs/base/browser/mouseEvent';
-import errors = require('vs/base/common/errors');
+import * as errors from 'vs/base/common/errors';
 import {isWindows} from 'vs/base/common/platform';
-import types = require('vs/base/common/types');
+import * as types from 'vs/base/common/types';
 import {Dimension, Builder, $} from 'vs/base/browser/builder';
 import {Sash, ISashEvent, IVerticalSashLayoutProvider} from 'vs/base/browser/ui/sash/sash';
 import {ProgressBar} from 'vs/base/browser/ui/progressbar/progressbar';
@@ -24,7 +24,7 @@ import {EditorInput, IInputStatus, TextEditorOptions} from 'vs/workbench/common/
 import {DiffEditorInput} from 'vs/workbench/browser/parts/editor/diffEditorInput';
 import {EventType as BaseEventType} from 'vs/base/common/events';
 import {EditorInputEvent, EventType as WorkbenchEventType} from 'vs/workbench/common/events';
-import DOM = require('vs/base/browser/dom');
+import * as DOM from 'vs/base/browser/dom';
 import {IActionItem, ActionsOrientation} from 'vs/base/browser/ui/actionbar/actionbar';
 import {ToolBar} from 'vs/base/browser/ui/toolbar/toolbar';
 import {IWorkbenchEditorService, EditorArrangement} from 'vs/workbench/services/editor/common/editorService';

@@ -5,8 +5,8 @@
 
 'use strict';
 
-import DOM = require('vs/base/browser/dom');
-import htmlContent = require('vs/base/common/htmlContent');
+import * as DOM from 'vs/base/browser/dom';
+import * as htmlContent from 'vs/base/common/htmlContent';
 
 /**
  * Deal with different types of content. See @renderHtml

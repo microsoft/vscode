@@ -6,12 +6,12 @@
 'use strict';
 
 import 'vs/css!./progressbar';
-import WinJS = require('vs/base/common/winjs.base');
-import Assert = require('vs/base/common/assert');
-import Browser = require('vs/base/browser/browser');
-import Builder = require('vs/base/browser/builder');
-import DOM = require('vs/base/browser/dom');
-import Uuid = require('vs/base/common/uuid');
+import * as WinJS from 'vs/base/common/winjs.base';
+import * as Assert from 'vs/base/common/assert';
+import * as Browser from 'vs/base/browser/browser';
+import * as Builder from 'vs/base/browser/builder';
+import * as DOM from 'vs/base/browser/dom';
+import * as Uuid from 'vs/base/common/uuid';
 
 const css_done = 'done';
 const css_active = 'active';

@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
-import EditorScrollable = require('vs/editor/common/viewLayout/editorScrollable');
+import * as assert from 'assert';
+import * as EditorScrollable from 'vs/editor/common/viewLayout/editorScrollable';
 
 suite('Editor ViewLayout - EditorScrollable', () => {
 

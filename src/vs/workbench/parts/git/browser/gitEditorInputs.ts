@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import winjs = require('vs/base/common/winjs.base');
-import lifecycle = require('vs/base/common/lifecycle');
-import async = require('vs/base/common/async');
-import WorkbenchEditorCommon = require('vs/workbench/common/editor');
-import stringei = require('vs/workbench/browser/parts/editor/stringEditorInput');
-import diffei = require('vs/workbench/browser/parts/editor/diffEditorInput');
-import git = require('vs/workbench/parts/git/common/git');
+import * as winjs from 'vs/base/common/winjs.base';
+import * as lifecycle from 'vs/base/common/lifecycle';
+import * as async from 'vs/base/common/async';
+import * as WorkbenchEditorCommon from 'vs/workbench/common/editor';
+import * as stringei from 'vs/workbench/browser/parts/editor/stringEditorInput';
+import * as diffei from 'vs/workbench/browser/parts/editor/diffEditorInput';
+import * as git from 'vs/workbench/parts/git/common/git';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IEditorInput} from 'vs/platform/editor/common/editor';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';

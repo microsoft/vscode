@@ -9,10 +9,10 @@ import 'vs/languages/html/common/html.contribution';
 import 'vs/languages/javascript/common/javascript.contribution';
 import 'vs/languages/css/common/css.contribution';
 
-import phpMode = require('vs/languages/php/common/php');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
-import modesUtil = require('vs/editor/test/common/modesUtil');
+import * as phpMode from 'vs/languages/php/common/php';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as Modes from 'vs/editor/common/modes';
+import * as modesUtil from 'vs/editor/test/common/modesUtil';
 import {htmlTokenTypes} from 'vs/languages/html/common/html';
 import {cssTokenTypes} from 'vs/languages/css/common/css';
 

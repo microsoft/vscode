@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import glob = require('vs/base/common/glob');
-import objects = require('vs/base/common/objects');
+import * as glob from 'vs/base/common/glob';
+import * as objects from 'vs/base/common/objects';
 import {TPromise} from 'vs/base/common/winjs.base';
-import search = require('vs/platform/search/common/search');
+import * as search from 'vs/platform/search/common/search';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 
 export function getExcludes(configuration: search.ISearchConfiguration): glob.IExpression {

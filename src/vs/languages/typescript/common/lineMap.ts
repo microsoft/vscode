@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import strings = require('vs/base/common/strings');
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as strings from 'vs/base/common/strings';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 
 interface LineMap {
 	getOffset(position: EditorCommon.IPosition): number;
@@ -66,4 +66,4 @@ namespace LineMap {
 	}
 }
 
-export = LineMap;
+export {LineMap};

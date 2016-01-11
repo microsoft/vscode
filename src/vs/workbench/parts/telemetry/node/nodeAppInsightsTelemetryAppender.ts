@@ -4,18 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import errors = require('vs/base/common/errors');
-import types = require('vs/base/common/types');
+import * as errors from 'vs/base/common/errors';
+import * as types from 'vs/base/common/types';
 import {safeStringify} from 'vs/base/common/objects';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
 import {ITelemetryAppender} from 'vs/platform/telemetry/common/telemetry';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 
-import winreg = require('winreg');
-import getmac = require('getmac');
-import crypto = require('crypto');
-import os = require('os');
-import appInsights = require('applicationinsights');
+import * as winreg from 'winreg';
+import * as getmac from 'getmac';
+import * as crypto from 'crypto';
+import * as os from 'os';
+import * as appInsights from 'applicationinsights';
 
 class StorageKeys {
 	public static sqmUserId: string = 'telemetry.sqm.userId';

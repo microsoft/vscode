@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import errors = require('vs/base/common/errors');
-import platform = require('vs/base/common/platform');
-import nls = require('vs/nls');
+import * as errors from 'vs/base/common/errors';
+import * as platform from 'vs/base/common/platform';
+import * as nls from 'vs/nls';
 import {EventType} from 'vs/base/common/events';
 import {IEditorSelection} from 'vs/editor/common/editorCommon';
 import {IEditor as IBaseEditor} from 'vs/platform/editor/common/editor';

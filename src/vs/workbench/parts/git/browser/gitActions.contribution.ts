@@ -4,36 +4,36 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
-import lifecycle = require('vs/base/common/lifecycle');
-import platform = require('vs/platform/platform');
-import abr = require('vs/workbench/browser/actionBarRegistry');
+import * as nls from 'vs/nls';
+import * as lifecycle from 'vs/base/common/lifecycle';
+import * as platform from 'vs/platform/platform';
+import * as abr from 'vs/workbench/browser/actionBarRegistry';
 import { Promise } from 'vs/base/common/winjs.base';
 import { basename } from 'vs/base/common/paths';
-import editorbrowser = require('vs/editor/browser/editorBrowser');
-import editorcommon = require('vs/editor/common/editorCommon');
+import * as editorbrowser from 'vs/editor/browser/editorBrowser';
+import * as editorcommon from 'vs/editor/common/editorCommon';
 import {TextModel} from 'vs/editor/common/model/textModel';
-import baseeditor = require('vs/workbench/browser/parts/editor/baseEditor');
-import WorkbenchEditorCommon = require('vs/workbench/common/editor');
-import tdeditor = require('vs/workbench/browser/parts/editor/textDiffEditor');
-import teditor = require('vs/workbench/browser/parts/editor/textEditor');
-import files = require('vs/workbench/parts/files/browser/files');
-import filesCommon = require('vs/workbench/parts/files/common/files');
-import gitcontrib = require('vs/workbench/parts/git/browser/gitWorkbenchContributions');
+import * as baseeditor from 'vs/workbench/browser/parts/editor/baseEditor';
+import * as WorkbenchEditorCommon from 'vs/workbench/common/editor';
+import * as tdeditor from 'vs/workbench/browser/parts/editor/textDiffEditor';
+import * as teditor from 'vs/workbench/browser/parts/editor/textEditor';
+import * as files from 'vs/workbench/parts/files/browser/files';
+import * as filesCommon from 'vs/workbench/parts/files/common/files';
+import * as gitcontrib from 'vs/workbench/parts/git/browser/gitWorkbenchContributions';
 import { IGitService, Status, IFileStatus, StatusType } from 'vs/workbench/parts/git/common/git';
-import gitei = require('vs/workbench/parts/git/browser/gitEditorInputs');
-import stageranges = require('vs/workbench/parts/git/common/stageRanges');
+import * as gitei from 'vs/workbench/parts/git/browser/gitEditorInputs';
+import * as stageranges from 'vs/workbench/parts/git/common/stageRanges';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
 import {IPartService, Parts} from 'vs/workbench/services/part/common/partService';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {IFileService, IFileStat} from 'vs/platform/files/common/files';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import wbar = require('vs/workbench/browser/actionRegistry');
+import * as wbar from 'vs/workbench/browser/actionRegistry';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { OpenChangeAction, SyncAction, PullAction, PushAction, PublishAction, StartGitBranchAction, StartGitCheckoutAction } from './gitActions';
 import Severity from 'vs/base/common/severity';
-import paths = require('vs/base/common/paths');
+import * as paths from 'vs/base/common/paths';
 import URI from 'vs/base/common/uri';
 
 function getStatus(gitService: IGitService, contextService: IWorkspaceContextService, input: WorkbenchEditorCommon.IFileEditorInput): IFileStatus {

@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import mime = require('vs/base/common/mime');
-import wbeditorcommon = require('vs/workbench/common/editor');
-import strinput = require('vs/workbench/browser/parts/editor/stringEditorInput');
+import * as mime from 'vs/base/common/mime';
+import * as wbeditorcommon from 'vs/workbench/common/editor';
+import * as strinput from 'vs/workbench/browser/parts/editor/stringEditorInput';
 import uri from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 

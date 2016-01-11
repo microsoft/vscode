@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import rewriter = require('vs/languages/typescript/common/js/rewriting');
-import ts = require('vs/languages/typescript/common/lib/typescriptServices');
+import * as rewriter from 'vs/languages/typescript/common/js/rewriting';
+import * as ts from 'vs/languages/typescript/common/lib/typescriptServices';
 
 export class AngularServiceRewriter implements rewriter.ISyntaxRewriter {
 

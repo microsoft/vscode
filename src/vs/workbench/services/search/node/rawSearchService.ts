@@ -5,13 +5,13 @@
 
 'use strict';
 
-import fs = require('fs');
+import * as fs from 'fs';
 
-import gracefulFs = require('graceful-fs');
+import * as gracefulFs from 'graceful-fs';
 gracefulFs.gracefulify(fs);
 
 import {PPromise} from 'vs/base/common/winjs.base';
-import glob = require('vs/base/common/glob');
+import * as glob from 'vs/base/common/glob';
 import {IProgress, ILineMatch, IPatternInfo} from 'vs/platform/search/common/search';
 import {FileWalker, Engine as FileSearchEngine} from 'vs/workbench/services/search/node/fileSearch';
 import {Engine as TextSearchEngine} from 'vs/workbench/services/search/node/textSearch';

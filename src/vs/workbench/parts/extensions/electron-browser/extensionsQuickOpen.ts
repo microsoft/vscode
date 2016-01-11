@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/extensions';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import { IDisposable, disposeAll } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as dom from 'vs/base/browser/dom';

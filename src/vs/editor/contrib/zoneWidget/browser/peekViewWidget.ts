@@ -6,16 +6,16 @@
 'use strict';
 
 import 'vs/css!./peekViewWidget';
-import nls = require('vs/nls');
-import actionbar = require('vs/base/browser/ui/actionbar/actionbar');
-import actions = require('vs/base/common/actions');
-import strings = require('vs/base/common/strings');
-import labels = require('vs/base/common/labels');
-import builder = require('vs/base/browser/builder');
-import dom = require('vs/base/browser/dom');
-import zoneWidget = require('./zoneWidget');
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as nls from 'vs/nls';
+import * as actionbar from 'vs/base/browser/ui/actionbar/actionbar';
+import * as actions from 'vs/base/common/actions';
+import * as strings from 'vs/base/common/strings';
+import * as labels from 'vs/base/common/labels';
+import * as builder from 'vs/base/browser/builder';
+import * as dom from 'vs/base/browser/dom';
+import * as zoneWidget from './zoneWidget';
+import * as EditorBrowser from 'vs/editor/browser/editorBrowser';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';

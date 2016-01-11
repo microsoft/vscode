@@ -5,7 +5,7 @@
 'use strict';
 
 import {EventEmitter, IEmitterEvent, ListenerUnbind, ListenerCallback} from 'vs/base/common/eventEmitter';
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 import {IResourceService, ResourceEvents, IResourceChangedEvent, IResourceAddedEvent, IResourceRemovedEvent} from 'vs/editor/common/services/resourceService';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';

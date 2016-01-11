@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import env = require('vs/base/common/platform');
+import * as env from 'vs/base/common/platform';
 import {WinExecutionService, MacExecutionService, LinuxExecutionService} from 'vs/workbench/parts/execution/electron-browser/executionService';
 import {WinTerminalService, MacTerminalService, LinuxTerminalService} from 'vs/workbench/parts/execution/electron-browser/terminalService';
 import {registerSingleton} from 'vs/platform/instantiation/common/extensions';

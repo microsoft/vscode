@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import {Promise} from 'vs/base/common/winjs.base';
 import {Registry} from 'vs/platform/platform';
-import baseplatform = require('vs/base/common/platform');
+import * as baseplatform from 'vs/base/common/platform';
 import {IAction, Action} from 'vs/base/common/actions';
 import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/browser/actionRegistry';
-import paths = require('vs/base/common/paths');
+import * as paths from 'vs/base/common/paths';
 import {Scope, IActionBarRegistry, Extensions as ActionBarExtensions, ActionBarContributor} from 'vs/workbench/browser/actionBarRegistry';
 import uri from 'vs/base/common/uri';
 import {asFileResource} from 'vs/workbench/parts/files/common/files';

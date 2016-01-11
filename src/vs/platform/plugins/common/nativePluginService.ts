@@ -6,7 +6,7 @@
 
 import {IPluginDescription, IMessage, IPluginStatus} from 'vs/platform/plugins/common/plugins';
 import {PluginsRegistry} from 'vs/platform/plugins/common/pluginsRegistry';
-import WinJS = require('vs/base/common/winjs.base');
+import * as WinJS from 'vs/base/common/winjs.base';
 import {Remotable, IThreadService} from 'vs/platform/thread/common/thread';
 import {ActivatedPlugin, AbstractPluginService, IPluginModule, IPluginContext, IPluginMemento, loadAMDModule} from 'vs/platform/plugins/common/abstractPluginService';
 import Severity from 'vs/base/common/severity';

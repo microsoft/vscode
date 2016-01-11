@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { ipcMain as ipc, BrowserWindow} from 'electron';
-import platform = require('vs/base/common/platform');
+import * as platform from 'vs/base/common/platform';
 import { TPromise } from 'vs/base/common/winjs.base';
 
 export interface ICredentials {

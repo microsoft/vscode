@@ -5,8 +5,8 @@
 'use strict';
 
 import {Promise} from 'vs/base/common/winjs.base';
-import nls = require('vs/nls');
-import types = require('vs/base/common/types');
+import * as nls from 'vs/nls';
+import * as types from 'vs/base/common/types';
 import {Action, IAction} from 'vs/base/common/actions';
 import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
 import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/browser/actionRegistry';

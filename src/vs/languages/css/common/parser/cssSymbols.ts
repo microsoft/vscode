@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nodes = require('./cssNodes');
-import arrays = require('vs/base/common/arrays');
+import * as nodes from './cssNodes';
+import * as arrays from 'vs/base/common/arrays';
 
 export class Scope {
 

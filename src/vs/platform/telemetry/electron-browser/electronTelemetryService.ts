@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import getmac = require('getmac');
-import crypto = require('crypto');
+import * as getmac from 'getmac';
+import * as crypto from 'crypto';
 
 import {MainTelemetryService, TelemetryServiceConfig} from 'vs/platform/telemetry/browser/mainTelemetryService';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
-import errors = require('vs/base/common/errors');
-import uuid = require('vs/base/common/uuid');
+import * as errors from 'vs/base/common/errors';
+import * as uuid from 'vs/base/common/uuid';
 
 class StorageKeys {
 		public static MachineId: string = 'telemetry.machineId';

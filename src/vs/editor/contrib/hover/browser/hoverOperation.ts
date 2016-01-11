@@ -5,8 +5,8 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
-import Schedulers = require('vs/base/common/async');
-import Errors = require('vs/base/common/errors');
+import * as Schedulers from 'vs/base/common/async';
+import * as Errors from 'vs/base/common/errors';
 
 export interface IHoverComputer<Result> {
 

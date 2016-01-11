@@ -5,12 +5,12 @@
 'use strict';
 
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 import {TPromise} from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
-import Modes = require('vs/editor/common/modes');
-import Supports = require ('vs/editor/common/modes/supports');
-import MonarchTypes = require('vs/editor/common/modes/monarch/monarchTypes');
+import * as Modes from 'vs/editor/common/modes';
+import * as Supports from 'vs/editor/common/modes/supports';
+import * as MonarchTypes from 'vs/editor/common/modes/monarch/monarchTypes';
 import {IOnEnterSupportOptions} from 'vs/editor/common/modes/supports/onEnter';
 import {IDisposable} from 'vs/base/common/lifecycle';
 

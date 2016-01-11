@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
-import ConfigurationRegistry = require('vs/platform/configuration/common/configurationRegistry');
-import Platform = require('vs/platform/platform');
-import modesExtensions = require('vs/editor/common/modes/modesRegistry');
+import * as nls from 'vs/nls';
+import * as ConfigurationRegistry from 'vs/platform/configuration/common/configurationRegistry';
+import * as Platform from 'vs/platform/platform';
+import * as modesExtensions from 'vs/editor/common/modes/modesRegistry';
 
 modesExtensions.registerMode({
 	id: 'json',

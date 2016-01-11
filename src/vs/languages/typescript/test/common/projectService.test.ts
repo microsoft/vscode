@@ -5,10 +5,10 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import assert = require('assert');
-import project = require('vs/languages/typescript/common/project/projectService');
-import ts = require('vs/languages/typescript/common/lib/typescriptServices');
-import typescript = require('vs/languages/typescript/common/typescript');
+import * as assert from 'assert';
+import * as project from 'vs/languages/typescript/common/project/projectService';
+import * as ts from 'vs/languages/typescript/common/lib/typescriptServices';
+import * as typescript from 'vs/languages/typescript/common/typescript';
 
 
 suite('TS - ProjectService', () => {

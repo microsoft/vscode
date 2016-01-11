@@ -5,14 +5,14 @@
 'use strict';
 
 import 'vs/css!vs/base/browser/ui/progressbar/progressbar';
-import nls = require('vs/nls');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
+import * as nls from 'vs/nls';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as Modes from 'vs/editor/common/modes';
 import {TPromise} from 'vs/base/common/winjs.base';
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
-import HoverOperation = require('./hoverOperation');
-import HoverWidget = require('./hoverWidgets');
-import HtmlContent = require('vs/base/common/htmlContent');
+import * as EditorBrowser from 'vs/editor/browser/editorBrowser';
+import * as HoverOperation from './hoverOperation';
+import * as HoverWidget from './hoverWidgets';
+import * as HtmlContent from 'vs/base/common/htmlContent';
 import {renderHtml} from 'vs/base/browser/htmlContentRenderer';
 import {tokenizeToHtmlContent} from 'vs/editor/common/modes/textToHtmlTokenizer';
 import {Range} from 'vs/editor/common/core/range';

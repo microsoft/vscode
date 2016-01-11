@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('vs/base/common/assert');
-import objects = require('vs/base/common/objects');
-import strings = require('vs/base/common/strings');
-import hash = require('vs/base/common/hash');
-import paths = require('vs/base/common/paths');
+import * as assert from 'vs/base/common/assert';
+import * as objects from 'vs/base/common/objects';
+import * as strings from 'vs/base/common/strings';
+import * as hash from 'vs/base/common/hash';
+import * as paths from 'vs/base/common/paths';
 import URI from 'vs/base/common/uri';
 
 var _colon = ':'.charCodeAt(0),

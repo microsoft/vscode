@@ -6,14 +6,14 @@
 'use strict';
 
 import 'vs/css!./sash';
-import Lifecycle = require('vs/base/common/lifecycle');
-import Builder = require('vs/base/browser/builder');
-import Browser = require('vs/base/browser/browser');
-import Types = require('vs/base/common/types');
-import DOM = require('vs/base/browser/dom');
-import Touch = require('vs/base/browser/touch');
-import Events = require('vs/base/common/eventEmitter');
-import Mouse = require('vs/base/browser/mouseEvent');
+import * as Lifecycle from 'vs/base/common/lifecycle';
+import * as Builder from 'vs/base/browser/builder';
+import * as Browser from 'vs/base/browser/browser';
+import * as Types from 'vs/base/common/types';
+import * as DOM from 'vs/base/browser/dom';
+import * as Touch from 'vs/base/browser/touch';
+import * as Events from 'vs/base/common/eventEmitter';
+import * as Mouse from 'vs/base/browser/mouseEvent';
 
 var $ = <Builder.QuickBuilder> Builder.$;
 

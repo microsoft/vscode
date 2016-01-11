@@ -14,8 +14,8 @@ import {DefaultFilter, and} from 'vs/editor/common/modes/modesFilters';
 import {TextModel} from 'vs/editor/common/model/textModel';
 import {WorkerInplaceReplaceSupport} from 'vs/editor/common/modes/supports';
 import {ValidationHelper} from 'vs/editor/common/worker/validationHelper';
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as Modes from 'vs/editor/common/modes';
 import {TPromise} from 'vs/base/common/winjs.base';
 
 export class AbstractModeWorker {

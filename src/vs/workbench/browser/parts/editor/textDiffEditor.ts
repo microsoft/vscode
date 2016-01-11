@@ -7,11 +7,11 @@
 
 import 'vs/css!./media/textdiffeditor';
 import {Promise, TPromise} from 'vs/base/common/winjs.base';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import {Builder} from 'vs/base/browser/builder';
 import {Action, IAction} from 'vs/base/common/actions';
 import {onUnexpectedError} from 'vs/base/common/errors';
-import types = require('vs/base/common/types');
+import * as types from 'vs/base/common/types';
 import {IDiffEditor} from 'vs/editor/browser/editorBrowser';
 import {IDiffEditorOptions, IEditorOptions} from 'vs/editor/common/editorCommon';
 import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';

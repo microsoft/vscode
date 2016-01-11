@@ -5,7 +5,7 @@
 
 'use strict';
 
-import net = require('net');
+import * as net from 'net';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Server as IPCServer, Client as IPCClient, IServiceCtor, IServiceMap, IMessagePassingProtocol } from 'vs/base/common/service';
 import { TPromise } from 'vs/base/common/winjs.base';

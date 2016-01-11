@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
-import textEdits = require('vs/languages/typescript/common/js/textEdits');
-import rewriter = require('vs/languages/typescript/common/js/rewriting');
-import ES6PropertyDeclarator = require('vs/languages/typescript/common/js/es6PropertyDeclarator');
-import ts = require('vs/languages/typescript/common/lib/typescriptServices');
+import * as assert from 'assert';
+import * as textEdits from 'vs/languages/typescript/common/js/textEdits';
+import * as rewriter from 'vs/languages/typescript/common/js/rewriting';
+import {ES6PropertyDeclarator} from 'vs/languages/typescript/common/js/es6PropertyDeclarator';
+import * as ts from 'vs/languages/typescript/common/lib/typescriptServices';
 
 function _assertEdits(a:rewriter.ISyntaxRewriter, value:string, ...edits:textEdits.Edit[]):void {
 

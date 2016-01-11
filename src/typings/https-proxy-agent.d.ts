@@ -19,5 +19,5 @@ declare module 'https-proxy-agent' {
 		constructor(opts: IHttpsProxyAgentOptions);
 	}
 
-	export = HttpsProxyAgent;
+	export {HttpsProxyAgent};
 }

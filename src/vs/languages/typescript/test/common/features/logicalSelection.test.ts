@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
+import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
-import logicalSelection = require('vs/languages/typescript/common/features/logicalSelection');
-import ts = require('vs/languages/typescript/common/lib/typescriptServices');
-import utils = require('vs/languages/typescript/test/common/features/utils');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as Modes from 'vs/editor/common/modes';
+import * as logicalSelection from 'vs/languages/typescript/common/features/logicalSelection';
+import * as ts from 'vs/languages/typescript/common/lib/typescriptServices';
+import * as utils from 'vs/languages/typescript/test/common/features/utils';
 
 suite('TS - logical selection', () => {
 

@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import arrays = require('vs/base/common/arrays');
-import network = require('vs/base/common/network');
-import strings = require('vs/base/common/strings');
-import collections = require('vs/base/common/collections');
+import * as arrays from 'vs/base/common/arrays';
+import * as network from 'vs/base/common/network';
+import * as strings from 'vs/base/common/strings';
+import * as collections from 'vs/base/common/collections';
 import URI from 'vs/base/common/uri';
 import Event, {Emitter} from 'vs/base/common/event';
 import Severity from 'vs/base/common/severity';

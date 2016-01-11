@@ -5,9 +5,9 @@
 
 'use strict';
 
-import assert = require('assert');
-import scanner = require('vs/languages/css/common/parser/cssScanner');
-import lessScanner = require('vs/languages/less/common/parser/lessScanner');
+import * as assert from 'assert';
+import * as scanner from 'vs/languages/css/common/parser/cssScanner';
+import * as lessScanner from 'vs/languages/less/common/parser/lessScanner';
 
 function assertSingleToken(source: string, len: number, offset: number, text: string, type: scanner.TokenType, ignoreWhitespace?:boolean):void {
 	var scan = new lessScanner.LessScanner();

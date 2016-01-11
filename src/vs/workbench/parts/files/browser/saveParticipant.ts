@@ -6,7 +6,7 @@
 
 import {IWorkbenchContribution} from 'vs/workbench/common/contributions';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
-import errors = require('vs/base/common/errors');
+import * as errors from 'vs/base/common/errors';
 import {TextFileChangeEvent, EventType} from 'vs/workbench/parts/files/common/files';
 import {IFilesConfiguration} from 'vs/platform/files/common/files';
 import {IPosition, IEditorSelection, IModel} from 'vs/editor/common/editorCommon';

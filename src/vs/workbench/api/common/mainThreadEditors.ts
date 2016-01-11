@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 import Event, {Emitter} from 'vs/base/common/event';
 import {IEditor} from 'vs/platform/editor/common/editor';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';

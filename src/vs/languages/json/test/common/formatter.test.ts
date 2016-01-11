@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 import {Range} from 'vs/editor/common/core/range';
 import {Model} from 'vs/editor/common/model/model';
-import ModesTestUtils = require('vs/editor/test/common/modesTestUtils');
-import Formatter = require('vs/languages/json/common/features/jsonFormatter');
-import MirrorModel = require('vs/editor/common/model/mirrorModel');
-import assert = require('assert');
+import * as ModesTestUtils from 'vs/editor/test/common/modesTestUtils';
+import * as Formatter from 'vs/languages/json/common/features/jsonFormatter';
+import * as MirrorModel from 'vs/editor/common/model/mirrorModel';
+import * as assert from 'assert';
 
 suite('JSON - formatter', () => {
 

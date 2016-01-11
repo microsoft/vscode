@@ -5,11 +5,11 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
-import remote = require('vs/base/common/remote');
-import descriptors = require('vs/platform/instantiation/common/descriptors');
+import * as remote from 'vs/base/common/remote';
+import * as descriptors from 'vs/platform/instantiation/common/descriptors';
 
-import abstractThreadService = require('./abstractThreadService');
-import threadService = require('./threadService');
+import * as abstractThreadService from './abstractThreadService';
+import * as threadService from './threadService';
 import {readThreadSynchronizableObjects} from 'vs/platform/thread/common/threadService';
 import {IThreadService, IThreadSynchronizableObject, ThreadAffinity, IThreadServiceStatusListener} from 'vs/platform/thread/common/thread';
 

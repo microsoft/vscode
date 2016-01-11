@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import arrays = require('vs/base/common/arrays');
+import * as arrays from 'vs/base/common/arrays';
 
 suite('Arrays', () => {
 	test('findFirst', function () {

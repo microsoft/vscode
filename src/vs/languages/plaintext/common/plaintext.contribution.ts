@@ -7,7 +7,7 @@
 // Load plain text in the main code
 
 import 'vs/languages/plaintext/common/plaintext';
-import modesExtensions = require('vs/editor/common/modes/modesRegistry');
+import * as modesExtensions from 'vs/editor/common/modes/modesRegistry';
 
 modesExtensions.registerMode({
 	id: 'plaintext',

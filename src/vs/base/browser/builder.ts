@@ -6,12 +6,12 @@
 
 import 'vs/css!./builder';
 import {Promise} from 'vs/base/common/winjs.base';
-import types = require('vs/base/common/types');
+import * as types from 'vs/base/common/types';
 import {IDisposable} from 'vs/base/common/lifecycle';
-import strings = require('vs/base/common/strings');
-import assert = require('vs/base/common/assert');
-import DOM = require('vs/base/browser/dom');
-import BrowserService = require('vs/base/browser/browserService');
+import * as strings from 'vs/base/common/strings';
+import * as assert from 'vs/base/common/assert';
+import * as DOM from 'vs/base/browser/dom';
+import * as BrowserService from 'vs/base/browser/browserService';
 
 /**
  * Welcome to the monaco builder. The recommended way to use it is:

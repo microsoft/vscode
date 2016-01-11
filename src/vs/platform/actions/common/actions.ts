@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Actions = require('vs/base/common/actions');
-import WinJS = require('vs/base/common/winjs.base');
-import Assert = require('vs/base/common/assert');
-import EventEmitter = require('vs/base/common/eventEmitter');
+import * as Actions from 'vs/base/common/actions';
+import * as WinJS from 'vs/base/common/winjs.base';
+import * as Assert from 'vs/base/common/assert';
+import * as EventEmitter from 'vs/base/common/eventEmitter';
 
-import Descriptors = require('vs/platform/instantiation/common/descriptors');
-import Instantiation = require('vs/platform/instantiation/common/instantiation');
+import * as Descriptors from 'vs/platform/instantiation/common/descriptors';
+import * as Instantiation from 'vs/platform/instantiation/common/instantiation';
 import {KbExpr, IKeybindings} from 'vs/platform/keybinding/common/keybindingService';
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
 

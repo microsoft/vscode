@@ -6,10 +6,10 @@
 
 import {TPromise, Promise} from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
-import network = require('vs/base/common/network');
+import * as network from 'vs/base/common/network';
 import {guessMimeTypes} from 'vs/base/common/mime';
 import {Registry} from 'vs/platform/platform';
-import types = require('vs/base/common/types');
+import * as types from 'vs/base/common/types';
 import {IDiffEditor, ICodeEditor} from 'vs/editor/browser/editorBrowser';
 import {ICommonCodeEditor, IModel, EditorType, IEditor as ICommonEditor} from 'vs/editor/common/editorCommon';
 import {BaseEditor, IEditorRegistry, Extensions} from 'vs/workbench/browser/parts/editor/baseEditor';

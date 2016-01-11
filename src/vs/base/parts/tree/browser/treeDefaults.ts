@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import platform = require('vs/base/common/platform');
-import touch = require('vs/base/browser/touch');
-import errors = require('vs/base/common/errors');
-import dom = require('vs/base/browser/dom');
-import mouse = require('vs/base/browser/mouseEvent');
-import keyboard = require('vs/base/browser/keyboardEvent');
-import _ = require('vs/base/parts/tree/common/tree');
+import * as platform from 'vs/base/common/platform';
+import * as touch from 'vs/base/browser/touch';
+import * as errors from 'vs/base/common/errors';
+import * as dom from 'vs/base/browser/dom';
+import * as mouse from 'vs/base/browser/mouseEvent';
+import * as keyboard from 'vs/base/browser/keyboardEvent';
+import * as _ from 'vs/base/parts/tree/common/tree';
 import {CommonKeybindings} from 'vs/base/common/keyCodes'
 
 export interface ILegacyTemplateData {

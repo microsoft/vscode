@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 
-import fs = require('fs');
-import path = require('path');
-import events = require('events');
+import * as fs from 'fs';
+import * as path from 'path';
+import * as events from 'events';
 
-import electron = require('electron');
-import platform = require('vs/base/common/platform');
-import env = require('vs/workbench/electron-main/env');
-import storage = require('vs/workbench/electron-main/storage');
-import settings = require('vs/workbench/electron-main/settings');
+import * as electron from 'electron';
+import * as platform from 'vs/base/common/platform';
+import * as env from 'vs/workbench/electron-main/env';
+import * as storage from 'vs/workbench/electron-main/storage';
+import * as settings from 'vs/workbench/electron-main/settings';
 import {Win32AutoUpdaterImpl} from 'vs/workbench/electron-main/win32/auto-updater.win32';
 import {manager as Lifecycle} from 'vs/workbench/electron-main/lifecycle';
 

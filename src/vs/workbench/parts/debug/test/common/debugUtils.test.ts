@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import debug = require('vs/workbench/parts/debug/common/debug');
-import assert = require('assert');
+import * as debug from 'vs/workbench/parts/debug/common/debug';
+import * as assert from 'assert';
 
 suite('Debug - Utils', () => {
 	test('formatPII', () => {

@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nodes = require('vs/languages/css/common/parser/cssNodes');
-import lessParser = require('vs/languages/less/common/parser/lessParser');
-import nodesTest = require('vs/languages/css/test/common/nodes.test');
+import * as nodes from 'vs/languages/css/common/parser/cssNodes';
+import * as lessParser from 'vs/languages/less/common/parser/lessParser';
+import * as nodesTest from 'vs/languages/css/test/common/nodes.test';
 
 export function assertNodes(fn:(input:string)=>nodes.Node, input:string, expected:string):void {
 	nodesTest.assertNodes(fn, input, expected);

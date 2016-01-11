@@ -4,19 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import WinJS = require('vs/base/common/winjs.base');
-import Monarch = require('vs/editor/common/modes/monarch/monarch');
-import Network = require('vs/base/common/network');
+import * as WinJS from 'vs/base/common/winjs.base';
+import * as Monarch from 'vs/editor/common/modes/monarch/monarch';
+import * as Network from 'vs/base/common/network';
 import URI from 'vs/base/common/uri';
-import Types = require('vs/editor/common/modes/monarch/monarchTypes');
-import Compile = require('vs/editor/common/modes/monarch/monarchCompile');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
-import MarkdownWorker = require('vs/languages/markdown/common/markdownWorker');
+import * as Types from 'vs/editor/common/modes/monarch/monarchTypes';
+import * as Compile from 'vs/editor/common/modes/monarch/monarchCompile';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as Modes from 'vs/editor/common/modes';
+import * as MarkdownWorker from 'vs/languages/markdown/common/markdownWorker';
 import {OneWorkerAttr} from 'vs/platform/thread/common/threadService';
 import {AsyncDescriptor2, createAsyncDescriptor2} from 'vs/platform/instantiation/common/descriptors';
 import {htmlTokenTypes} from 'vs/languages/html/common/html';
-import markdownTokenTypes = require('vs/languages/markdown/common/markdownTokenTypes');
+import * as markdownTokenTypes from 'vs/languages/markdown/common/markdownTokenTypes';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IThreadService} from 'vs/platform/thread/common/thread';

@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as Modes from 'vs/editor/common/modes';
 import URI from 'vs/base/common/uri';
-import Parser = require('./parser/jsonParser');
-import SchemaService = require('./jsonSchemaService');
-import Types = require('vs/base/common/types');
-import WinJS = require('vs/base/common/winjs.base');
-import JsonWorker = require('./jsonWorker');
-import JsonSchema = require('vs/base/common/jsonSchema');
-import nls = require('vs/nls');
-import errors = require('vs/base/common/errors');
+import * as Parser from './parser/jsonParser';
+import * as SchemaService from './jsonSchemaService';
+import * as Types from 'vs/base/common/types';
+import * as WinJS from 'vs/base/common/winjs.base';
+import * as JsonWorker from './jsonWorker';
+import * as JsonSchema from 'vs/base/common/jsonSchema';
+import * as nls from 'vs/nls';
+import * as errors from 'vs/base/common/errors';
 import {IRequestService} from 'vs/platform/request/common/request';
 
 export class JSONIntellisense {

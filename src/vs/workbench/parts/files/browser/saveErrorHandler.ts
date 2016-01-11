@@ -5,9 +5,9 @@
 'use strict';
 
 import {Promise, TPromise} from 'vs/base/common/winjs.base';
-import nls = require('vs/nls');
-import errors = require('vs/base/common/errors');
-import paths = require('vs/base/common/paths');
+import * as nls from 'vs/nls';
+import * as errors from 'vs/base/common/errors';
+import * as paths from 'vs/base/common/paths';
 import {Action} from 'vs/base/common/actions';
 import URI from 'vs/base/common/uri';
 import {EditorModel} from 'vs/workbench/common/editor';

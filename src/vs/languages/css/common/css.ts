@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import WinJS = require('vs/base/common/winjs.base');
-import supports = require('vs/editor/common/modes/supports');
-import objects = require('vs/base/common/objects');
+import * as WinJS from 'vs/base/common/winjs.base';
+import * as supports from 'vs/editor/common/modes/supports';
+import * as objects from 'vs/base/common/objects';
 import URI from 'vs/base/common/uri';
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as Modes from 'vs/editor/common/modes';
 import {OneWorkerAttr} from 'vs/platform/thread/common/threadService';
-import cssWorker = require('vs/languages/css/common/cssWorker');
-import cssTokenTypes = require('vs/languages/css/common/cssTokenTypes');
+import * as cssWorker from 'vs/languages/css/common/cssWorker';
+import * as cssTokenTypes from 'vs/languages/css/common/cssTokenTypes';
 import {AbstractMode} from 'vs/editor/common/modes/abstractMode';
 import {AbstractState} from 'vs/editor/common/modes/abstractState';
 import {AsyncDescriptor2, createAsyncDescriptor2} from 'vs/platform/instantiation/common/descriptors';

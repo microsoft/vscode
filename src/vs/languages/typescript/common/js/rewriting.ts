@@ -5,11 +5,11 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import EditorCommon = require('vs/editor/common/editorCommon');
-import strings = require('vs/base/common/strings');
-import ts = require('vs/languages/typescript/common/lib/typescriptServices');
-import textEdits = require('vs/languages/typescript/common/js/textEdits');
-import htmlContent = require('vs/base/common/htmlContent');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as strings from 'vs/base/common/strings';
+import * as ts from 'vs/languages/typescript/common/lib/typescriptServices';
+import * as textEdits from 'vs/languages/typescript/common/js/textEdits';
+import * as htmlContent from 'vs/base/common/htmlContent';
 
 export interface ITranslations {
 	getTranslator(resource: URI): ITranslator;

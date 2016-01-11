@@ -7,8 +7,8 @@
 import {Selection} from 'vs/editor/common/core/selection';
 import {OneCursor, IOneCursorState, IModeConfiguration, IViewModelHelper} from 'vs/editor/common/controller/oneCursor';
 import {IAutoClosingPair} from 'vs/editor/common/modes';
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Errors = require('vs/base/common/errors');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as Errors from 'vs/base/common/errors';
 
 export interface ICursorCollectionState {
 	primary: IOneCursorState;

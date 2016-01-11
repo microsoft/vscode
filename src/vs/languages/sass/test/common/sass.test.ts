@@ -5,9 +5,9 @@
 'use strict';
 
 import 'vs/languages/sass/common/sass.contribution';
-import SASS = require('vs/languages/sass/common/sass');
-import modesUtil = require('vs/editor/test/common/modesUtil');
-import Modes = require('vs/editor/common/modes');
+import * as SASS from 'vs/languages/sass/common/sass';
+import * as modesUtil from 'vs/editor/test/common/modesUtil';
+import * as Modes from 'vs/editor/common/modes';
 import * as sassTokenTypes from 'vs/languages/sass/common/sassTokenTypes';
 
 suite('Sass Colorizer', () => {

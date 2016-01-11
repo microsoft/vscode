@@ -5,19 +5,19 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
-import events = require('vs/base/common/eventEmitter');
-import timer = require('vs/base/common/timer');
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
-import lifecycle = require('vs/base/common/lifecycle');
+import * as events from 'vs/base/common/eventEmitter';
+import * as timer from 'vs/base/common/timer';
+import * as EditorBrowser from 'vs/editor/browser/editorBrowser';
+import * as lifecycle from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
-import EditorCommon = require('vs/editor/common/editorCommon');
-import arrays = require('vs/base/common/arrays');
-import schedulers = require('vs/base/common/async');
-import errors = require('vs/base/common/errors');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as arrays from 'vs/base/common/arrays';
+import * as schedulers from 'vs/base/common/async';
+import * as errors from 'vs/base/common/errors';
 import {Range} from 'vs/editor/common/core/range';
 import {IMarkerService, IMarker} from 'vs/platform/markers/common/markers';
 import {QuickFixRegistry, IQuickFix2, getQuickFixes} from '../common/quickFix';
-import LightBulpWidget = require('./lightBulpWidget');
+import {LightBulpWidget} from './lightBulpWidget';
 
 enum QuickFixSuggestState {
 	NOT_ACTIVE = 0,

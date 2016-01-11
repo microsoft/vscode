@@ -5,7 +5,7 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
-import collections = require('vs/base/common/collections');
+import * as collections from 'vs/base/common/collections';
 import {Registry} from 'vs/platform/platform';
 import {IAction} from 'vs/base/common/actions';
 import {KeybindingsRegistry,ICommandDescriptor} from 'vs/platform/keybinding/common/keybindingsRegistry';

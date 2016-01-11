@@ -10,7 +10,7 @@ import 'vs/css!./media/files.contribution';
 import URI from 'vs/base/common/uri';
 import {SUPPORTED_ENCODINGS} from 'vs/base/common/bits/encoding';
 import {IViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor, ToggleViewletAction} from 'vs/workbench/browser/viewlet';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
 import {Registry} from 'vs/platform/platform';
 import {IConfigurationRegistry, Extensions as ConfigurationExtensions} from 'vs/platform/configuration/common/configurationRegistry';

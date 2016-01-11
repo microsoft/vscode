@@ -5,9 +5,9 @@
 'use strict';
 
 import 'vs/languages/typescript/common/typescript.contribution';
-import assert = require('assert');
-import ts = require('vs/languages/typescript/common/lib/typescriptServices');
-import utils = require('./features/utils');
+import * as assert from 'assert';
+import * as ts from 'vs/languages/typescript/common/lib/typescriptServices';
+import * as utils from './features/utils';
 
 suite('TS - Mode', () => {
 

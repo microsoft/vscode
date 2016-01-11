@@ -3,24 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
-import actions = require('vs/base/common/actions');
-import strings = require('vs/base/common/strings');
+import * as actions from 'vs/base/common/actions';
+import * as strings from 'vs/base/common/strings';
 import URI from 'vs/base/common/uri';
 import { isMacintosh, isLinux, isWindows } from 'vs/base/common/platform';
-import actionbar = require('vs/base/browser/ui/actionbar/actionbar');
-import dom = require('vs/base/browser/dom');
-import errors = require('vs/base/common/errors');
+import * as actionbar from 'vs/base/browser/ui/actionbar/actionbar';
+import * as dom from 'vs/base/browser/dom';
+import * as errors from 'vs/base/common/errors';
 import severity from 'vs/base/common/severity';
-import mouse = require('vs/base/browser/mouseEvent');
-import tree = require('vs/base/parts/tree/common/tree');
-import renderer = require('vs/base/parts/tree/browser/actionsRenderer');
-import treedefaults = require('vs/base/parts/tree/browser/treeDefaults');
-import debug = require('vs/workbench/parts/debug/common/debug');
-import model = require('vs/workbench/parts/debug/common/debugModel');
-import debugviewer = require('vs/workbench/parts/debug/browser/debugViewer');
-import dbgactions = require('vs/workbench/parts/debug/electron-browser/debugActions');
+import * as mouse from 'vs/base/browser/mouseEvent';
+import * as tree from 'vs/base/parts/tree/common/tree';
+import * as renderer from 'vs/base/parts/tree/browser/actionsRenderer';
+import * as treedefaults from 'vs/base/parts/tree/browser/treeDefaults';
+import * as debug from 'vs/workbench/parts/debug/common/debug';
+import * as model from 'vs/workbench/parts/debug/common/debugModel';
+import * as debugviewer from 'vs/workbench/parts/debug/browser/debugViewer';
+import * as dbgactions from 'vs/workbench/parts/debug/electron-browser/debugActions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';

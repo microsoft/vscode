@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import strings = require('vs/base/common/strings');
-import arrays = require('vs/base/common/arrays');
-import collections = require('vs/base/common/collections');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
-import supports = require('vs/editor/common/modes/supports');
+import * as strings from 'vs/base/common/strings';
+import * as arrays from 'vs/base/common/arrays';
+import * as collections from 'vs/base/common/collections';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as Modes from 'vs/editor/common/modes';
+import * as supports from 'vs/editor/common/modes/supports';
 import {LineStream} from 'vs/editor/common/modes/lineStream';
-import ts = require('vs/languages/typescript/common/lib/typescriptServices');
+import * as ts from 'vs/languages/typescript/common/lib/typescriptServices';
 import {AbstractState} from 'vs/editor/common/modes/abstractState';
 
 export enum Language {

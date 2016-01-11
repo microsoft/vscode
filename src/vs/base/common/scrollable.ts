@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Lifecycle = require('vs/base/common/lifecycle');
+import * as Lifecycle from 'vs/base/common/lifecycle';
 
 export interface IScrollable {
 	getScrollHeight():number;

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import ts = require('vs/languages/typescript/common/lib/typescriptServices');
+import * as ts from 'vs/languages/typescript/common/lib/typescriptServices';
 
 export function fromValue(value: string): ts.IScriptSnapshot {
 

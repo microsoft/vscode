@@ -6,15 +6,15 @@
 'use strict';
 
 import {app, shell, dialog} from 'electron';
-import fs = require('fs');
-import nls = require('vs/nls');
+import * as fs from 'fs';
+import * as nls from 'vs/nls';
 import {assign} from 'vs/base/common/objects';
-import platform = require('vs/base/common/platform');
-import env = require('vs/workbench/electron-main/env');
-import windows = require('vs/workbench/electron-main/windows');
-import lifecycle = require('vs/workbench/electron-main/lifecycle');
-import menu = require('vs/workbench/electron-main/menus');
-import settings = require('vs/workbench/electron-main/settings');
+import * as platform from 'vs/base/common/platform';
+import * as env from 'vs/workbench/electron-main/env';
+import * as windows from 'vs/workbench/electron-main/windows';
+import * as lifecycle from 'vs/workbench/electron-main/lifecycle';
+import * as menu from 'vs/workbench/electron-main/menus';
+import * as settings from 'vs/workbench/electron-main/settings';
 import {Instance as UpdateManager} from 'vs/workbench/electron-main/update-manager';
 import {Server, serve, connect} from 'vs/base/node/service.net';
 import {getUserEnvironment} from 'vs/base/node/env';
