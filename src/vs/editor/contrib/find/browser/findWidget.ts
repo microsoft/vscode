@@ -95,6 +95,20 @@ export class FindWidget extends Widget implements EditorBrowser.IOverlayWidget {
 		this.focusTracker = this._register(DomUtils.trackFocus(this._findInput.inputBox.inputElement));
 		this.focusTracker.addFocusListener(() => this._reseedFindScope());
 
+		let updateCanReplace = () => {
+			let canReplace = !this._codeEditor.getConfiguration().readOnly;
+			DomUtils.toggleClass(this._domNode, 'can-replace', canReplace);
+			if (!canReplace) {
+				this._state.change({ isReplaceRevealed: false }, false);
+			}
+		};
+		this._register(this._codeEditor.addListener2(EditorCommon.EventType.ConfigurationChanged, (e:EditorCommon.IConfigurationChangedEvent) => {
+			if (e.readOnly) {
+				updateCanReplace();
+			}
+		}));
+		updateCanReplace();
+
 		this._codeEditor.addOverlayWidget(this);
 	}
 
@@ -512,10 +526,6 @@ export class FindWidget extends Widget implements EditorBrowser.IOverlayWidget {
 		this._domNode = document.createElement('div');
 		this._domNode.className = 'editor-widget find-widget';
 		this._domNode.setAttribute('aria-hidden', 'false');
-
-		if (!this._codeEditor.getConfiguration().readOnly) {
-			DomUtils.addClass(this._domNode, 'can-replace');
-		}
 
 		this._domNode.appendChild(this._toggleReplaceBtn.domNode);
 		this._domNode.appendChild(findPart);
