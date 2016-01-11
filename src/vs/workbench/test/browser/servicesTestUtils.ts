@@ -29,7 +29,7 @@ import Errors = require('vs/base/common/errors');
 import http = require('vs/base/common/http');
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
-import UntitledEditorService = require('vs/workbench/services/untitled/browser/untitledEditorService');
+import UntitledEditorService = require('vs/workbench/services/untitled/common/untitledEditorService');
 import WorkbenchEditorService = require('vs/workbench/services/editor/common/editorService');
 import QuickOpenService = require('vs/workbench/services/quickopen/common/quickOpenService');
 import ViewletService = require('vs/workbench/services/viewlet/common/viewletService');

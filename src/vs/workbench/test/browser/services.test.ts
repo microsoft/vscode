@@ -22,7 +22,7 @@ import {Viewlet} from 'vs/workbench/browser/viewlet';
 import {EventType} from 'vs/workbench/common/events';
 import {MainTelemetryService} from 'vs/platform/telemetry/browser/mainTelemetryService';
 import Severity from 'vs/base/common/severity';
-import {UntitledEditorService} from 'vs/workbench/services/untitled/browser/untitledEditorService';
+import {UntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {WorkbenchProgressService, ScopedService} from 'vs/workbench/services/progress/browser/progressService';
 import {EditorArrangement} from 'vs/workbench/services/editor/common/editorService';
 import {DelegatingWorkbenchEditorService, WorkbenchEditorService, IEditorPart} from 'vs/workbench/services/editor/browser/editorService';

@@ -91,8 +91,7 @@ import {IWorkspaceContextService, IConfiguration, IWorkspace} from 'vs/platform/
 import {IPluginService} from 'vs/platform/plugins/common/plugins';
 import {MainThreadModeServiceImpl} from 'vs/editor/common/services/modeServiceImpl';
 import {IModeService} from 'vs/editor/common/services/modeService';
-import {UntitledEditorService} from 'vs/workbench/services/untitled/browser/untitledEditorService';
-import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
+import {IUntitledEditorService, UntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {CrashReporter} from 'vs/workbench/electron-browser/crashReporter';
 import {IThemeService, ThemeService} from 'vs/workbench/services/themes/node/themeService';
 import { IServiceCtor, isServiceEvent } from 'vs/base/common/service';
