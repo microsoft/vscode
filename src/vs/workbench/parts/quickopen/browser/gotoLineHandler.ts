@@ -10,7 +10,7 @@ import types = require('vs/base/common/types');
 import errors = require('vs/base/common/errors');
 import {IContext, Mode, IAutoFocus} from 'vs/base/parts/quickopen/common/quickOpen';
 import {QuickOpenModel} from 'vs/base/parts/quickopen/browser/quickOpenModel';
-import {Extensions as ActionExtensions} from 'vs/workbench/browser/actionRegistry';
+import {Extensions as ActionExtensions} from 'vs/workbench/common/actionRegistry';
 import {Extensions as QuickOpenExtensions, QuickOpenHandler, EditorQuickOpenEntry} from 'vs/workbench/browser/quickopen';
 import {QuickOpenAction} from 'vs/workbench/browser/actions/quickOpenAction';
 import {TextEditorOptions, EditorOptions, EditorInput} from 'vs/workbench/common/editor';

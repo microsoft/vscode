@@ -9,7 +9,7 @@ import nls = require('vs/nls');
 import {Registry} from 'vs/platform/platform';
 import {Action} from 'vs/base/common/actions';
 import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
-import {IWorkbenchActionRegistry, Extensions} from 'vs/workbench/browser/actionRegistry';
+import {IWorkbenchActionRegistry, Extensions} from 'vs/workbench/common/actionRegistry';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 import {IHistoryService} from 'vs/workbench/services/history/common/history';
 

@@ -9,7 +9,7 @@ import nls = require('vs/nls');
 import {Registry} from 'vs/platform/platform';
 import {IAction} from 'vs/base/common/actions';
 import {Scope, IActionBarRegistry, Extensions as ActionBarExtensions, ActionBarContributor} from 'vs/workbench/browser/actionBarRegistry';
-import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/browser/actionRegistry';
+import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/common/actionRegistry';
 import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
 import env = require('vs/base/common/platform');
 import {ITextFileService, asFileResource} from 'vs/workbench/parts/files/common/files';

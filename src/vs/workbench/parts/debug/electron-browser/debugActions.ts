@@ -12,7 +12,7 @@ import editorbrowser = require('vs/editor/browser/editorBrowser');
 import baseeditor = require('vs/workbench/browser/parts/editor/baseEditor');
 import { EditorAction, Behaviour } from 'vs/editor/common/editorAction';
 import platform = require('vs/platform/platform');
-import wbaregistry = require('vs/workbench/browser/actionRegistry');
+import wbaregistry = require('vs/workbench/common/actionRegistry');
 import debug = require('vs/workbench/parts/debug/common/debug');
 import model = require('vs/workbench/parts/debug/common/debugModel');
 import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';

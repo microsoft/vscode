@@ -9,7 +9,7 @@ import {Registry} from 'vs/platform/platform';
 import nls = require('vs/nls');
 import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
 import {IConfigurationRegistry, Extensions as ConfigurationExtensions} from 'vs/platform/configuration/common/configurationRegistry';
-import {IWorkbenchActionRegistry, Extensions} from 'vs/workbench/browser/actionRegistry';
+import {IWorkbenchActionRegistry, Extensions} from 'vs/workbench/common/actionRegistry';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 import platform = require('vs/base/common/platform');
 import {KbExpr} from 'vs/platform/keybinding/common/keybindingService';

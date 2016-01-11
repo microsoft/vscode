@@ -9,7 +9,7 @@ import 'vs/css!./media/outputactions.contribution';
 import nls = require('vs/nls');
 import {BaseActionItem} from 'vs/base/browser/ui/actionbar/actionbar';
 import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
-import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/browser/actionRegistry';
+import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/common/actionRegistry';
 import {Registry} from 'vs/platform/platform';
 import {CommonEditorRegistry, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
 import {Scope, IActionBarRegistry, Extensions as ActionBarExtensions} from 'vs/workbench/browser/actionBarRegistry';

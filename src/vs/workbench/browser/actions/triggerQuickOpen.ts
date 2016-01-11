@@ -5,7 +5,7 @@
 'use strict';
 
 import nls = require('vs/nls');
-import {IWorkbenchActionRegistry, Extensions} from 'vs/workbench/browser/actionRegistry';
+import {IWorkbenchActionRegistry, Extensions} from 'vs/workbench/common/actionRegistry';
 import {Registry} from 'vs/platform/platform';
 import {Action} from 'vs/base/common/actions';
 import {Promise} from 'vs/base/common/winjs.base';

@@ -16,7 +16,7 @@ import strings = require('vs/base/common/strings');
 import {IEditorInputActionContext, IEditorInputAction} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {ShowWelcomeAction, OpenPreviewToSideAction, GlobalTogglePreviewMarkdownAction, PreviewMarkdownEditorInputAction, PreviewMarkdownAction} from 'vs/workbench/parts/markdown/browser/markdownActions';
 import {MARKDOWN_MIME, MARKDOWN_FILES} from 'vs/workbench/parts/markdown/browser/markdown';
-import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/browser/actionRegistry';
+import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/common/actionRegistry';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 

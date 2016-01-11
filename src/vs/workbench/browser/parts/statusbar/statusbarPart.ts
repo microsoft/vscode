@@ -18,7 +18,7 @@ import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingServic
 import {IAction} from 'vs/base/common/actions';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {Part} from 'vs/workbench/browser/part';
-import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/browser/actionRegistry';
+import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/common/actionRegistry';
 import {StatusbarAlignment, IStatusbarRegistry, Extensions, IStatusbarItem} from 'vs/workbench/browser/parts/statusbar/statusbar';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';

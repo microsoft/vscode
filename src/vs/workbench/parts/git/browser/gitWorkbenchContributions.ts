@@ -23,7 +23,7 @@ import viewlet = require('vs/workbench/browser/viewlet');
 import statusbar = require('vs/workbench/browser/parts/statusbar/statusbar');
 import platform = require('vs/platform/platform');
 import widgets = require('vs/workbench/parts/git/browser/gitWidgets');
-import wbar = require('vs/workbench/browser/actionRegistry');
+import wbar = require('vs/workbench/common/actionRegistry');
 import gitoutput = require('vs/workbench/parts/git/browser/gitOutput');
 import output = require('vs/workbench/parts/output/common/output');
 import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';

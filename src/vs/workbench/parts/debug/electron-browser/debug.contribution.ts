@@ -15,7 +15,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KbExpr, IKeybindings } from 'vs/platform/keybinding/common/keybindingService';
 import { EditorBrowserRegistry } from 'vs/editor/browser/editorBrowserExtensions';
-import wbaregistry = require('vs/workbench/browser/actionRegistry');
+import wbaregistry = require('vs/workbench/common/actionRegistry');
 import actionbarregistry = require('vs/workbench/browser/actionBarRegistry');
 import viewlet = require('vs/workbench/browser/viewlet');
 import wbext = require('vs/workbench/common/contributions');

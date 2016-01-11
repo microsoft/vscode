@@ -11,7 +11,7 @@ import network = require('vs/base/common/network');
 import labels = require('vs/base/common/labels');
 import {Registry} from 'vs/platform/platform';
 import {Action} from 'vs/base/common/actions';
-import {IWorkbenchActionRegistry, Extensions} from 'vs/workbench/browser/actionRegistry';
+import {IWorkbenchActionRegistry, Extensions} from 'vs/workbench/common/actionRegistry';
 import {StringEditorInput} from 'vs/workbench/browser/parts/editor/stringEditorInput';
 import {getDefaultValuesContent} from 'vs/platform/configuration/common/model';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
