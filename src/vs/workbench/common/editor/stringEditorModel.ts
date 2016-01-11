@@ -5,7 +5,7 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
-import {BaseTextEditorModel} from 'vs/workbench/browser/parts/editor/textEditorModel';
+import {BaseTextEditorModel} from 'vs/workbench/common/editor/textEditorModel';
 import {EditorModel} from 'vs/workbench/common/editor';
 import URI from 'vs/base/common/uri';
 import {Position} from 'vs/editor/common/core/position';

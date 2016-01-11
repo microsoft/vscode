@@ -16,7 +16,7 @@ import strings = require('vs/base/common/strings');
 import assert = require('vs/base/common/assert');
 import {EditorModel, IInputStatus, EncodingMode} from 'vs/workbench/common/editor';
 import {IEditorRegistry, Extensions, EditorDescriptor} from 'vs/workbench/browser/parts/editor/baseEditor';
-import {BinaryEditorModel} from 'vs/workbench/browser/parts/editor/binaryEditorModel';
+import {BinaryEditorModel} from 'vs/workbench/common/editor/binaryEditorModel';
 import {IFileOperationResult, FileOperationResult} from 'vs/platform/files/common/files';
 import {FileEditorDescriptor} from 'vs/workbench/parts/files/browser/files';
 import {ITextFileService, BINARY_FILE_EDITOR_ID, FILE_EDITOR_INPUT_ID, FileEditorInput as CommonFileEditorInput} from 'vs/workbench/parts/files/common/files';

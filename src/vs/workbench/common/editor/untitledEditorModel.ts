@@ -6,7 +6,7 @@
 
 import {TPromise} from 'vs/base/common/winjs.base';
 import {EditorModel, IEncodingSupport} from 'vs/workbench/common/editor';
-import {StringEditorModel} from 'vs/workbench/browser/parts/editor/stringEditorModel';
+import {StringEditorModel} from 'vs/workbench/common/editor/stringEditorModel';
 import URI from 'vs/base/common/uri';
 import {IModelContentChangedEvent, EventType, EndOfLinePreference} from 'vs/editor/common/editorCommon';
 import {EventType as WorkbenchEventType, UntitledEditorEvent, ResourceEvent} from 'vs/workbench/common/events';

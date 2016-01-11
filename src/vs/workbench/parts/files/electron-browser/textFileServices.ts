@@ -14,7 +14,7 @@ import strings = require('vs/base/common/strings');
 import {isWindows} from 'vs/base/common/platform';
 import URI from 'vs/base/common/uri';
 import {Action} from 'vs/base/common/actions';
-import {UntitledEditorModel} from 'vs/workbench/browser/parts/editor/untitledEditorModel';
+import {UntitledEditorModel} from 'vs/workbench/common/editor/untitledEditorModel';
 import {IEventService} from 'vs/platform/event/common/event';
 import {TextFileService as AbstractTextFileService} from 'vs/workbench/parts/files/browser/textFileServices';
 import {CACHE, TextFileEditorModel} from 'vs/workbench/parts/files/browser/editors/textFileEditorModel';

@@ -8,7 +8,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import URI from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
-import {IFrameEditorModel} from 'vs/workbench/browser/parts/editor/iframeEditorModel';
+import {IFrameEditorModel} from 'vs/workbench/common/editor/iframeEditorModel';
 import {EditorModel} from 'vs/workbench/common/editor';
 import {Preferences} from 'vs/workbench/common/constants';
 import {IModel} from 'vs/editor/common/editorCommon';

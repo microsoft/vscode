@@ -7,7 +7,6 @@
 import {TPromise} from 'vs/base/common/winjs.base';
 import {EditorModel, EditorInput} from 'vs/workbench/common/editor';
 import {Registry} from 'vs/platform/platform';
-import {IEditorRegistry, Extensions} from 'vs/workbench/browser/parts/editor/baseEditor';
 
 /**
  * An editor input to use with the IFrameEditor. The resolved IFrameEditorModel can either provide
@@ -57,11 +56,6 @@ export abstract class IFrameEditorInput extends EditorInput {
 
 		// Create Model and Load
 		else {
-			let descriptor = (<IEditorRegistry>Registry.as(Extensions.Editors)).getEditor(this);
-			if (!descriptor) {
-				throw new Error('Unable to find an editor in the registry for this input.');
-			}
-
 			let model = this.createModel();
 			modelPromise = model.load();
 		}

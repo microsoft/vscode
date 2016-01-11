@@ -7,7 +7,7 @@
 import URI from 'vs/base/common/uri';
 import {EventType} from 'vs/base/common/events';
 import arrays = require('vs/base/common/arrays');
-import {UntitledEditorInput} from 'vs/workbench/browser/parts/editor/untitledEditorInput';
+import {UntitledEditorInput} from 'vs/workbench/common/editor/untitledEditorInput';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 

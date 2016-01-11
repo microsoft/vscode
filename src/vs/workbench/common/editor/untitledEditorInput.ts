@@ -12,7 +12,7 @@ import labels = require('vs/base/common/labels');
 import paths = require('vs/base/common/paths');
 import {UntitledEditorInput as AbstractUntitledEditorInput, EditorModel, EncodingMode, IInputStatus} from 'vs/workbench/common/editor';
 import {Registry} from 'vs/platform/platform';
-import {UntitledEditorModel} from 'vs/workbench/browser/parts/editor/untitledEditorModel';
+import {UntitledEditorModel} from 'vs/workbench/common/editor/untitledEditorModel';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';

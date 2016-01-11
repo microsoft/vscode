@@ -12,7 +12,7 @@ import labels = require('vs/base/common/labels');
 import {Registry} from 'vs/platform/platform';
 import {Action} from 'vs/base/common/actions';
 import {IWorkbenchActionRegistry, Extensions} from 'vs/workbench/common/actionRegistry';
-import {StringEditorInput} from 'vs/workbench/browser/parts/editor/stringEditorInput';
+import {StringEditorInput} from 'vs/workbench/common/editor/stringEditorInput';
 import {getDefaultValuesContent} from 'vs/platform/configuration/common/model';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';

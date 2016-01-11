@@ -14,7 +14,7 @@ import {QuickOpenHandlerDescriptor, IQuickOpenRegistry, Extensions as QuickOpenE
 import {QuickOpenController} from 'vs/workbench/browser/parts/quickopen/quickOpenController';
 import {Mode} from 'vs/base/parts/quickopen/common/quickOpen';
 import {QuickOpenAction} from 'vs/workbench/browser/actions/quickOpenAction';
-import {StringEditorInput} from 'vs/workbench/browser/parts/editor/stringEditorInput';
+import {StringEditorInput} from 'vs/workbench/common/editor/stringEditorInput';
 import {EditorInput} from 'vs/workbench/common/editor';
 import {isEmptyObject} from 'vs/base/common/types';
 import {join} from 'vs/base/common/paths';
