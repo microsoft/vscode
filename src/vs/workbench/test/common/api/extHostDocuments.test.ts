@@ -7,8 +7,8 @@
 
 import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
-import {ExtHostDocumentData} from 'vs/workbench/api/common/extHostDocuments';
-import {Position} from 'vs/workbench/api/common/extHostTypes';
+import {ExtHostDocumentData} from 'vs/workbench/api/node/extHostDocuments';
+import {Position} from 'vs/workbench/api/node/extHostTypes';
 import {Range as CodeEditorRange} from 'vs/editor/common/core/range';
 import * as EditorCommon from 'vs/editor/common/editorCommon';
 

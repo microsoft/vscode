@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {ExtHostCommands} from 'vs/workbench/api/common/extHostCommands';
+import {ExtHostCommands} from 'vs/workbench/api/node/extHostCommands';
 import Severity from 'vs/base/common/severity';
 import {isFalsyOrEmpty} from 'vs/base/common/arrays';
 import {IDisposable} from 'vs/base/common/lifecycle';

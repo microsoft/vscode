@@ -10,7 +10,7 @@ import {Remotable, IThreadService} from 'vs/platform/thread/common/thread';
 import {IOutputService, OUTPUT_EDITOR_INPUT_ID} from 'vs/workbench/parts/output/common/output';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {Position} from 'vs/platform/editor/common/editor';
-import * as TypeConverters from 'vs/workbench/api/common/extHostTypeConverters';
+import * as TypeConverters from 'vs/workbench/api/node/extHostTypeConverters';
 
 export class ExtHostOutputChannel implements vscode.OutputChannel {
 
