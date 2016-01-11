@@ -48,6 +48,7 @@ export class ViewContentWidgets extends ViewPart {
 	private _contentLeft: number;
 
 	public domNode:HTMLElement;
+	public overflowingContentWidgetsDomNode:HTMLElement;
 	private _viewDomNode: HTMLElement;
 
 	constructor(context:EditorBrowser.IViewContext, viewDomNode:HTMLElement) {
@@ -60,6 +61,9 @@ export class ViewContentWidgets extends ViewPart {
 
 		this.domNode = document.createElement('div');
 		this.domNode.className = EditorBrowser.ClassNames.CONTENT_WIDGETS;
+
+		this.overflowingContentWidgetsDomNode = document.createElement('div');
+		this.overflowingContentWidgetsDomNode.className = EditorBrowser.ClassNames.OVERFLOWING_CONTENT_WIDGETS;
 	}
 
 	public dispose(): void {
@@ -147,7 +151,7 @@ export class ViewContentWidgets extends ViewPart {
 		domNode.setAttribute('widgetId', widget.getId());
 
 		if (widgetData.allowEditorOverflow) {
-			this._viewDomNode.appendChild(domNode);
+			this.overflowingContentWidgetsDomNode.appendChild(domNode);
 		} else {
 			this.domNode.appendChild(domNode);
 		}

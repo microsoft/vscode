@@ -120,6 +120,7 @@ var REGEX = (function() {
 		IS_CHILD_OF_VIEW_LINES: createRegExp(anyNode(), anyNode(), EditorBrowser.ClassNames.VIEW_LINES),
 		IS_CHILD_OF_SCROLLABLE_ELEMENT: createRegExp(nodeWithClass(EditorBrowser.ClassNames.SCROLLABLE_ELEMENT)),
 		IS_CHILD_OF_CONTENT_WIDGETS: createRegExp(anyNode(), anyNode(), EditorBrowser.ClassNames.CONTENT_WIDGETS),
+		IS_CHILD_OF_OVERFLOWING_CONTENT_WIDGETS: new RegExp('^' + EditorBrowser.ClassNames.OVERFLOWING_CONTENT_WIDGETS + '\\/'),
 		IS_CHILD_OF_OVERLAY_WIDGETS: createRegExp(EditorBrowser.ClassNames.OVERLAY_WIDGETS),
 		IS_CHILD_OF_VIEW_OVERLAYS: createRegExp(EditorBrowser.ClassNames.MARGIN_VIEW_OVERLAYS),
 		IS_CHILD_OF_VIEW_ZONES: createRegExp(anyNode(), anyNode(), EditorBrowser.ClassNames.VIEW_ZONES),
@@ -161,7 +162,7 @@ export class MouseTargetFactory {
 		var path = this.getClassNamePathTo(t, this.viewHelper.viewDomNode);
 
 		// Is it a content widget?
-		if (REGEX.IS_CHILD_OF_CONTENT_WIDGETS.test(path)) {
+		if (REGEX.IS_CHILD_OF_CONTENT_WIDGETS.test(path) || REGEX.IS_CHILD_OF_OVERFLOWING_CONTENT_WIDGETS.test(path)) {
 			return true;
 		}
 
@@ -197,7 +198,7 @@ export class MouseTargetFactory {
 		}
 
 		// Is it a content widget?
-		if (REGEX.IS_CHILD_OF_CONTENT_WIDGETS.test(path)) {
+		if (REGEX.IS_CHILD_OF_CONTENT_WIDGETS.test(path) || REGEX.IS_CHILD_OF_OVERFLOWING_CONTENT_WIDGETS.test(path)) {
 			return this.createMouseTargetFromContentWidgetsChild(t);
 		}
 

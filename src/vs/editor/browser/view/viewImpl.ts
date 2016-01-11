@@ -273,6 +273,7 @@ export class View extends ViewEventHandler implements EditorBrowser.IView, Lifec
 		this.overflowGuardContainer.appendChild(this.textArea);
 		this.overflowGuardContainer.appendChild(this.textAreaCover);
 		this.domNode.appendChild(this.overflowGuardContainer);
+		this.domNode.appendChild(this.contentWidgets.overflowingContentWidgetsDomNode);
 	}
 
 	private _flushAccumulatedAndRenderNow(): void {

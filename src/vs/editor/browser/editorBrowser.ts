@@ -149,6 +149,7 @@ export var ClassNames = {
 	VIEW_LINE: 'view-line',
 	SCROLLABLE_ELEMENT: 'editor-scrollable',
 	CONTENT_WIDGETS: 'contentWidgets',
+	OVERFLOWING_CONTENT_WIDGETS: 'overflowingContentWidgets',
 	OVERLAY_WIDGETS: 'overlayWidgets',
 	MARGIN_VIEW_OVERLAYS: 'margin-view-overlays',
 	LINE_NUMBERS: 'line-numbers',
