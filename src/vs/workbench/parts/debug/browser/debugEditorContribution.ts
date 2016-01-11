@@ -148,7 +148,7 @@ export class DebugEditorContribution implements editorcommon.IEditorContribution
 	// hover business
 
 	private onEditorMouseDown(mouseEvent: editorbrowser.IMouseEvent): void {
-		if (mouseEvent.target.type === editorcommon.MouseTargetType.OVERLAY_WIDGET && mouseEvent.target.detail === DebugHoverWidget.ID) {
+		if (mouseEvent.target.type === editorcommon.MouseTargetType.CONTENT_WIDGET && mouseEvent.target.detail === DebugHoverWidget.ID) {
 			return;
 		}
 
@@ -163,7 +163,7 @@ export class DebugEditorContribution implements editorcommon.IEditorContribution
 		const targetType = mouseEvent.target.type;
 		const stopKey = env.isMacintosh ? 'metaKey' : 'ctrlKey';
 
-		if (targetType === editorcommon.MouseTargetType.OVERLAY_WIDGET && mouseEvent.target.detail === DebugHoverWidget.ID && !(<any>mouseEvent.event)[stopKey]) {
+		if (targetType === editorcommon.MouseTargetType.CONTENT_WIDGET && mouseEvent.target.detail === DebugHoverWidget.ID && !(<any>mouseEvent.event)[stopKey]) {
 			// mouse moved on top of debug hover widget
 			return;
 		}
