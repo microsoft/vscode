@@ -549,7 +549,7 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 			editor.addListener2(EditorCommon.EventType.ModelModeChanged, () => this.onModelModeChanged()),
 			editor.addListener2(EditorCommon.EventType.ModelModeSupportChanged, (e: EditorCommon.IModeSupportChangedEvent) => e.suggestSupport && this.onModelModeChanged()),
 			SuggestRegistry.onDidChange(() => this.onModelModeChanged()),
-			// editor.addListener2(EditorCommon.EventType.EditorTextBlur, () => this.onEditorBlur()),
+			editor.addListener2(EditorCommon.EventType.EditorTextBlur, () => this.onEditorBlur()),
 			this.tree.addListener2('selection', e => this.onTreeSelection(e)),
 			this.tree.addListener2('focus', e => this.onTreeFocus(e)),
 			this.editor.addListener2(EditorCommon.EventType.CursorSelectionChanged, () => this.onCursorSelectionChanged()),
@@ -573,7 +573,7 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 
 	private onEditorBlur(): void {
 		TPromise.timeout(150).done(() => {
-			if (this.tree && !this.tree.isDOMFocused()) {
+			if (!this.editor.isFocused()) {
 				this.setState(State.Hidden);
 			}
 		});
