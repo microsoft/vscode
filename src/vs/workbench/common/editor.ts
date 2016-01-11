@@ -10,7 +10,7 @@ import types = require('vs/base/common/types');
 import URI from 'vs/base/common/uri';
 import objects = require('vs/base/common/objects');
 import {IEditor, IEditorViewState, IRange} from 'vs/editor/common/editorCommon';
-import {IEditorInput, IEditorModel, IEditorOptions, ITextInput} from 'vs/platform/editor/common/editor';
+import {IEditorInput, IEditorModel, IEditorOptions, IResourceInput} from 'vs/platform/editor/common/editor';
 
 /**
  * A simple bag for input related status that can be shown in the UI
@@ -308,23 +308,23 @@ export class TextEditorOptions extends EditorOptions {
 	private endColumn: number;
 	private editorViewState: IEditorViewState;
 
-	public static from(textInput: ITextInput): TextEditorOptions {
+	public static from(input: IResourceInput): TextEditorOptions {
 		let options: TextEditorOptions = null;
-		if (textInput && textInput.options) {
-			if (textInput.options.selection || textInput.options.forceOpen || textInput.options.preserveFocus) {
+		if (input && input.options) {
+			if (input.options.selection || input.options.forceOpen || input.options.preserveFocus) {
 				options = new TextEditorOptions();
 			}
 
-			if (textInput.options.selection) {
-				let selection = textInput.options.selection;
+			if (input.options.selection) {
+				let selection = input.options.selection;
 				options.selection(selection.startLineNumber, selection.startColumn, selection.endLineNumber, selection.endColumn);
 			}
 
-			if (textInput.options.forceOpen) {
+			if (input.options.forceOpen) {
 				options.forceOpen = true;
 			}
 
-			if (textInput.options.preserveFocus) {
+			if (input.options.preserveFocus) {
 				options.preserveFocus = true;
 			}
 		}

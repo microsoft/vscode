@@ -7,15 +7,7 @@
 import {TPromise} from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
-import {IEditorService, IEditor, IEditorInput, IEditorOptions, Position, IResourceInput, ITextInput, IEditorModel, ITextEditorModel} from 'vs/platform/editor/common/editor';
-
-export interface IFileInput extends ITextInput {
-
-	/**
-	 * The file resource of the file.
-	 */
-	resource: URI;
-}
+import {IEditorService, IEditor, IEditorInput, IEditorOptions, Position, IResourceInput, IEditorModel, ITextEditorModel} from 'vs/platform/editor/common/editor';
 
 export enum EditorArrangement {
 	MINIMIZE_OTHERS,
@@ -69,18 +61,11 @@ export interface IWorkbenchEditorService extends IEditorService {
 	openEditor(input: IResourceInput, sideBySide?: boolean): TPromise<IEditor>;
 
 	/**
-	 * Specific overload to open an instance of IFileInput.
-	 */
-	openEditor(input: IFileInput, position?: Position): TPromise<IEditor>;
-	openEditor(input: IFileInput, sideBySide?: boolean): TPromise<IEditor>;
-
-	/**
 	 * Opens the set of inputs replacing any other editor that is currently open. Use #openEditor() instead to open
 	 * a single editor.
 	 */
 	setEditors(inputs: IEditorInput[]): TPromise<IEditor[]>;
 	setEditors(inputs: IResourceInput[]): TPromise<IEditor[]>;
-	setEditors(inputs: IFileInput[]): TPromise<IEditor[]>;
 
 	/**
 	 * Closes the editor at the provided position. If position is not provided, the current active editor is closed.
@@ -120,11 +105,6 @@ export interface IWorkbenchEditorService extends IEditorService {
 	 * Specific overload to resolve a IResourceInput to an editor model with a text representation.
 	 */
 	resolveEditorModel(input: IResourceInput, refresh?: boolean): TPromise<ITextEditorModel>;
-
-	/**
-	 * Specific overload to resolve a IFileInput to an editor model with a text representation.
-	 */
-	resolveEditorModel(input: IFileInput, refresh?: boolean): TPromise<ITextEditorModel>;
 
 	/**
 	 * Allows to resolve an untyped input to a workbench typed instanceof editor input

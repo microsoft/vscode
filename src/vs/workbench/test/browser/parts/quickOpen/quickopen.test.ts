@@ -23,7 +23,7 @@ import URI from 'vs/base/common/uri';
 import {create} from 'vs/platform/instantiation/common/instantiationService';
 import {EventType, EditorEvent} from 'vs/workbench/common/events';
 import {Promise, TPromise} from 'vs/base/common/winjs.base';
-import {IEditorInput, IEditorModel, IEditorOptions, ITextInput, Position, IEditor, IResourceInput, ITextEditorModel} from 'vs/platform/editor/common/editor';
+import {IEditorInput, IEditorModel, IEditorOptions, Position, IEditor, IResourceInput, ITextEditorModel} from 'vs/platform/editor/common/editor';
 
 function toResource(path) {
 	return URI.file(join('C:\\', path));

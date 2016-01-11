@@ -17,7 +17,7 @@ import {EditorInput, EditorOptions, IFileEditorInput, TextEditorOptions} from 'v
 import {UntitledEditorInput} from 'vs/workbench/common/editor/untitledEditorInput';
 import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
-import {IWorkbenchEditorService, EditorArrangement, IFileInput} from 'vs/workbench/services/editor/common/editorService';
+import {IWorkbenchEditorService, EditorArrangement} from 'vs/workbench/services/editor/common/editorService';
 import {IEditorInput, IEditorModel, IEditorOptions, Position, IEditor, IResourceInput, ITextEditorModel} from 'vs/platform/editor/common/editor';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {AsyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
@@ -100,7 +100,6 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 
 	public setEditors(inputs: IEditorInput[], options?: IEditorOptions[]): TPromise<IEditor[]>;
 	public setEditors(inputs: IResourceInput[]): TPromise<IEditor[]>;
-	public setEditors(inputs: IFileInput[]): TPromise<IEditor[]>;
 	public setEditors(inputs: any[], options?: any[]): TPromise<IEditor[]> {
 		return Promise.join(inputs.map((input) => this.inputToType(input))).then((typedInputs) => {
 			return this.editorPart.setEditors(typedInputs, options || inputs.map(input => {
@@ -117,8 +116,6 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 	public openEditor(input: IEditorInput, options?: IEditorOptions, position?: Position): TPromise<IEditor>;
 	public openEditor(input: IResourceInput, position?: Position): TPromise<IEditor>;
 	public openEditor(input: IResourceInput, sideBySide?: boolean): TPromise<IEditor>;
-	public openEditor(input: IFileInput, position?: Position): TPromise<IEditor>;
-	public openEditor(input: IFileInput, sideBySide?: boolean): TPromise<IEditor>;
 	public openEditor(input: any, arg2?: any, arg3?: any): TPromise<IEditor> {
 
 		// Support for closing an opened editor at a position by passing null as input
@@ -218,7 +215,6 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 
 	public resolveEditorModel(input: IEditorInput, refresh?: boolean): TPromise<IEditorModel>;
 	public resolveEditorModel(input: IResourceInput, refresh?: boolean): TPromise<ITextEditorModel>;
-	public resolveEditorModel(input: IFileInput, refresh?: boolean): TPromise<ITextEditorModel>;
 	public resolveEditorModel(input: any, refresh?: boolean): TPromise<IEditorModel> {
 		return this.inputToType(input).then((workbenchInput: IEditorInput) => {
 			if (workbenchInput) {

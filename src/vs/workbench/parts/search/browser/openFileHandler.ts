@@ -17,7 +17,8 @@ import {QuickOpenHandler, EditorQuickOpenEntry} from 'vs/workbench/browser/quick
 import {QueryBuilder} from 'vs/workbench/parts/search/common/searchQuery';
 import {ITextFileService} from 'vs/workbench/parts/files/common/files';
 import {EditorInput} from 'vs/workbench/common/editor';
-import {IWorkbenchEditorService, IFileInput} from 'vs/workbench/services/editor/common/editorService';
+import {IResourceInput} from 'vs/platform/editor/common/editor';
+import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IMessageService} from 'vs/platform/message/common/message';
@@ -65,8 +66,8 @@ export class FileEntry extends EditorQuickOpenEntry {
 		this.range = range;
 	}
 
-	public getInput(): IFileInput | EditorInput {
-		let input: IFileInput = {
+	public getInput(): IResourceInput | EditorInput {
+		let input: IResourceInput = {
 			resource: this.resource,
 		};
 

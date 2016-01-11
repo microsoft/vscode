@@ -38,7 +38,7 @@ import WorkspaceContextService = require('vs/workbench/services/workspace/common
 import ViewletCommon = require('vs/workbench/common/viewlet');
 import Files = require('vs/platform/files/common/files');
 import {BaseWorkspaceContextService} from 'vs/platform/workspace/common/baseWorkspaceContextService';
-import {IEditorInput, IEditorModel, IEditorOptions, ITextInput, Position, IEditor, IResourceInput, ITextEditorModel} from 'vs/platform/editor/common/editor';
+import {IEditorInput, IEditorModel, IEditorOptions, Position, IEditor, IResourceInput, ITextEditorModel} from 'vs/platform/editor/common/editor';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
@@ -397,7 +397,6 @@ export class TestEditorService implements WorkbenchEditorService.IWorkbenchEdito
 
 	public resolveEditorModel(input: IEditorInput, refresh?: boolean): TPromise<IEditorModel>;
 	public resolveEditorModel(input: IResourceInput, refresh?: boolean): TPromise<ITextEditorModel>;
-	public resolveEditorModel(input: WorkbenchEditorService.IFileInput, refresh?: boolean): TPromise<ITextEditorModel>;
 	public resolveEditorModel(input: any, refresh?: boolean): Promise {
 		this.callback('resolveEditorModel');
 
@@ -421,7 +420,7 @@ export class TestEditorService implements WorkbenchEditorService.IWorkbenchEdito
 		return TPromise.as(null);
 	}
 
-	public inputToType(input: ITextInput): TPromise<IEditorInput> {
+	public inputToType(input: IResourceInput): TPromise<IEditorInput> {
 		return Promise.as(null);
 	}
 }
