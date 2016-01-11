@@ -190,6 +190,7 @@ export abstract class AbstractProcess<TProgressData> {
 			} else {
 				let childProcess: ChildProcess = null;
 				let closeHandler = (data: any) => {
+					console.log("Close received");
 					this.childProcess = null;
 					this.childProcessPromise = null;
 					this.handleClose(data, cc, pp, ee);
@@ -201,18 +202,6 @@ export abstract class AbstractProcess<TProgressData> {
 					}
 					cc(result);
 				}
-				let exitHandler = (data: any) => {
-					this.childProcess = null;
-					this.childProcessPromise = null;
-					this.handleExit(data, cc, pp, ee);
-					let result: SuccessData = {
-						terminated: this.terminateRequested
-					};
-					if (this.shell && Platform.isWindows && Types.isNumber(data))  {
-						result.cmdCode = <number>data;
-					}
-					cc(result);
-				};
 				if (this.shell && Platform.isWindows) {
 					let options: any = Objects.clone(this.options);
 					options.windowsVerbatimArguments = true;
@@ -259,7 +248,6 @@ export abstract class AbstractProcess<TProgressData> {
 								}
 								this.childProcess = childProcess;
 								this.childProcess.on('close', closeHandler);
-								this.childProcess.on('exit', exitHandler);
 								this.handleSpawn(childProcess, cc, pp, ee, false);
 								c(childProcess);
 							});
@@ -275,7 +263,6 @@ export abstract class AbstractProcess<TProgressData> {
 					});
 					if (childProcess.pid) {
 						this.childProcess.on('close', closeHandler);
-						this.childProcess.on('exit', exitHandler);
 						this.handleSpawn(childProcess, cc, pp, ee, true);
 					}
 				}
@@ -288,9 +275,6 @@ export abstract class AbstractProcess<TProgressData> {
 	protected abstract handleSpawn(childProcess: ChildProcess, cc: TValueCallback<SuccessData>, pp: TProgressCallback<TProgressData>, ee: ErrorCallback, sync: boolean): void;
 
 	protected handleClose(data: any, cc: TValueCallback<SuccessData>, pp: TProgressCallback<TProgressData>, ee: ErrorCallback): void {
-		// Default is to do nothing.
-	}
-	protected handleExit(data: any, cc: TValueCallback<SuccessData>, pp: TProgressCallback<TProgressData>, ee: ErrorCallback): void {
 		// Default is to do nothing.
 	}
 
@@ -395,16 +379,6 @@ export class LineProcess extends AbstractProcess<LineData> {
 				pp({ line: line, source: index === 0 ? Source.stdout : Source.stderr });
 			}
 		});
-	}
-
-	protected handleExit(data: any, cc: TValueCallback<SuccessData>, pp: TProgressCallback<LineData>, ee: ErrorCallback): void {
-		if (this.terminateRequested) {
-			[this.stdoutLineDecoder.end(), this.stderrLineDecoder.end()].forEach((line, index) => {
-				if (line) {
-					pp({ line: line, source: index === 0 ? Source.stdout : Source.stderr });
-				}
-			});
-		}
 	}
 }
 
