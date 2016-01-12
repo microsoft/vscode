@@ -643,6 +643,11 @@ declare namespace vscode {
 		color?: string;
 
 		/**
+		 * CSS styling property that will be applied to text enclosed by a decoration.
+		 */
+		letterSpacing?: string;
+
+		/**
 		 * An **absolute path** to an image to be rendered in the gutterIconPath.
 		 */
 		gutterIconPath?: string;

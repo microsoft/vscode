@@ -135,6 +135,7 @@ class DecorationRenderOptions implements IModelDecorationOptions {
 
 		textDecoration: 'text-decoration:{0};',
 		cursor: 'cursor:{0};',
+		letterSpacing: 'letter-spacing:{0};',
 
 		gutterIconPath: 'background:url(\'{0}\') center center no-repeat;',
 	};
@@ -202,6 +203,9 @@ class DecorationRenderOptions implements IModelDecorationOptions {
 		}
 		if (typeof opts.color !== 'undefined') {
 			cssTextArr.push(strings.format(this._CSS_MAP.color, opts.color));
+		}
+		if (typeof opts.letterSpacing !== 'undefined') {
+			cssTextArr.push(strings.format(this._CSS_MAP.letterSpacing, opts.letterSpacing));
 		}
 
 		return cssTextArr.join('');

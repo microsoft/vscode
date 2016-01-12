@@ -2985,6 +2985,7 @@ export interface IThemeDecorationRenderOptions {
 	textDecoration?: string;
 	cursor?: string;
 	color?: string;
+	letterSpacing?: string;
 
 	gutterIconPath?: string;
 
