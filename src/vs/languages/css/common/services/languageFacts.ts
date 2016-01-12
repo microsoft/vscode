@@ -411,7 +411,7 @@ export function getBrowserLabel(b: Browsers): string {
 		return null;
 	}
 	for (var curr in browserNames) {
-		if ((<any> b)[curr]) {
+		if (typeof (<any> b)[curr] === 'string') {
 			if (result.length > 0) {
 				result = result + ', ';
 			}
@@ -426,12 +426,12 @@ export function getBrowserLabel(b: Browsers): string {
 }
 
 export interface Browsers {
-	E:string;
-	FF:string;
-	IE:string;
-	O:string;
-	C:string;
-	S:string;
+	E?:string;
+	FF?:string;
+	IE?:string;
+	O?:string;
+	C?:string;
+	S?:string;
 	count:number;
 	all:boolean;
 }
@@ -451,7 +451,7 @@ export interface IEntry {
 }
 
 function evalBrowserEntry(browsers: string) {
-	var browserEntry : Browsers = { all: false, E: '', FF: '', S: '', C: '', IE: '', O: '', count: 0};
+	var browserEntry : Browsers = { all: false, count: 0};
 	var count = 0;
 	if (browsers) {
 		browsers.split(',').forEach(

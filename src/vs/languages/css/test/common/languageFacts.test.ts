@@ -30,9 +30,10 @@ suite('CSS language facts', () => {
 		assert.equal(b['FF'], '12');
 		assert.equal(b['IE'], '5');
 		assert.equal(b['E'], '');
+		assert.equal(b['C'], void 0);
 		assert.equal(b['count'], 3);
 
-		assert.equal(languageFacts.getBrowserLabel(alignLast.browsers) , 'Firefox 12, IE 5');
+		assert.equal(languageFacts.getBrowserLabel(alignLast.browsers) , 'Edge, Firefox 12, IE 5');
 
 		var r = alignLast.restrictions;
 
