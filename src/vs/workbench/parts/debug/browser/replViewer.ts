@@ -93,7 +93,7 @@ export class ReplExpressionsRenderer implements tree.IRenderer {
 	private static VALUE_OUTPUT_TEMPLATE_ID = 'outputValue';
 	private static KEY_VALUE_OUTPUT_TEMPLATE_ID = 'outputKeyValue';
 
-	private static FILE_LOCATION_PATTERNS:RegExp[] = [
+	private static FILE_LOCATION_PATTERNS: RegExp[] = [
 		// group 0: the full thing :)
 		// group 1: absolute path
 		// group 2: drive letter on windows with trailing backslash or leading slash on mac/linux
@@ -101,7 +101,7 @@ export class ReplExpressionsRenderer implements tree.IRenderer {
 		// group 4: column number
 		// eg: at Context.<anonymous> (c:\Users\someone\Desktop\mocha-runner\test\test.js:26:11)
 		/((\/|[a-zA-Z]:\\)[^\(\)<>\'\"\[\]]+):(\d+):(\d+)/
-	]
+	];
 
 	private width: number;
 	private characterWidth: number;

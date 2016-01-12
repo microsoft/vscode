@@ -81,28 +81,40 @@ export class Adapter {
 				if (!attributes.properties) {
 					attributes.properties = { };
 				}
-				attributes.properties.type = {
+				const properties = attributes.properties;
+				properties.type = {
 					enum: [this.type],
 					description: nls.localize('debugType', "Type of configuration.")
 				};
-				attributes.properties.name = {
+				properties.name = {
 					type: 'string',
 					description: nls.localize('debugName', "Name of configuration; appears in the launch configuration drop down menu."),
 					default: 'Launch'
 				};
-				attributes.properties.request = {
+				properties.request = {
 					enum: [request],
 					description: nls.localize('debugRequest', "Request type of configuration. Can be \"launch\" or \"attach\"."),
 				};
-				attributes.properties.preLaunchTask = {
+				properties.preLaunchTask = {
 					type: 'string',
 					description: nls.localize('debugPrelaunchTask', "Task to run before debug session starts.")
 				};
+				this.warnRelativePaths(properties.outDir);
+				this.warnRelativePaths(properties.program);
+				this.warnRelativePaths(properties.cwd);
+				this.warnRelativePaths(properties.runtimeExecutable);
 
 				return attributes;
 			});
 		}
 
 		return null;
+	}
+
+	private warnRelativePaths(attribute: any): void {
+		if (attribute) {
+			attribute.pattern = '^\\${.*}.*|^((\\/|[a-zA-Z]:\\\\)[^\\(\\)<>\\\'\\"\\[\\]]+)';
+			attribute.errorMessage = nls.localize('relativePathsNotConverted', "Relative paths will no longer be converted to absolute ones. Consider using ${workspaceRoot} as a prefix.");
+		}
 	}
 }

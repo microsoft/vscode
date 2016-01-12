@@ -19,7 +19,6 @@ import jsonContributionRegistry = require('vs/platform/jsonschemas/common/jsonCo
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IMessageService } from 'vs/platform/message/common/message';
 import debug = require('vs/workbench/parts/debug/common/debug');
 import { SystemVariables } from 'vs/workbench/parts/lib/node/systemVariables';
 import { Adapter } from 'vs/workbench/parts/debug/node/debugAdapter';
@@ -158,11 +157,10 @@ export class ConfigurationManager {
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IQuickOpenService private quickOpenService: IQuickOpenService,
-		@IMessageService private messageService: IMessageService
+		@IQuickOpenService private quickOpenService: IQuickOpenService
 	) {
 		this.systemVariables = this.contextService.getWorkspace() ? new SystemVariables(this.editorService, this.contextService) : null;
-		this.setConfiguration(configName, true);
+		this.setConfiguration(configName);
 		this.adapters = [];
 		this.registerListeners();
 		this.allModeIdsForBreakpoints = {};
@@ -226,7 +224,7 @@ export class ConfigurationManager {
 		return this.adapters.filter(adapter => adapter.type === this.configuration.type).pop();
 	}
 
-	public setConfiguration(name: string, silent = false): Promise {
+	public setConfiguration(name: string): Promise {
 		return this.loadLaunchConfig().then(config => {
 			if (!config || !config.configurations) {
 				this.configuration = null;
@@ -246,13 +244,13 @@ export class ConfigurationManager {
 				}
 
 				this.configuration.debugServer = config.debugServer;
-				this.configuration.outDir = this.resolvePath(this.configuration.outDir, silent);
+				this.configuration.outDir = this.resolvePath(this.configuration.outDir);
 				this.configuration.address = this.configuration.address || 'localhost';
-				this.configuration.program = this.resolvePath(this.configuration.program, silent);
+				this.configuration.program = this.resolvePath(this.configuration.program);
 				this.configuration.stopOnEntry = this.configuration.stopOnEntry === undefined ? false : this.configuration.stopOnEntry;
 				this.configuration.args = this.configuration.args && this.configuration.args.length > 0 ? this.systemVariables.resolve(this.configuration.args) : null;
-				this.configuration.cwd = this.resolvePath(this.configuration.cwd || '.', true);
-				this.configuration.runtimeExecutable = this.resolvePath(this.configuration.runtimeExecutable, silent);
+				this.configuration.cwd = this.resolvePath(this.configuration.cwd || '.');
+				this.configuration.runtimeExecutable = this.resolvePath(this.configuration.runtimeExecutable);
 				this.configuration.runtimeArgs = this.configuration.runtimeArgs && this.configuration.runtimeArgs.length > 0 ? this.configuration.runtimeArgs : null;
 			}
 		});
@@ -344,15 +342,12 @@ export class ConfigurationManager {
 		return !!this.allModeIdsForBreakpoints[modeId];
 	}
 
-	private resolvePath(p: string, silent: boolean): string {
+	private resolvePath(p: string): string {
 		if (!p) {
 			return null;
 		}
 		if (path.isAbsolute(p)) {
 			return paths.normalize(p, true);
-		}
-		if (!silent) {
-			this.messageService.show(Severity.Warning, 'Relative paths in \'launch.json\' will no longer be supported, use \'${workspaceRoot}/' + p + '\' instead.');
 		}
 
 		return paths.normalize(uri.file(paths.join(this.contextService.getWorkspace().resource.fsPath, p)).fsPath, true);
