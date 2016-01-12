@@ -2,9 +2,8 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-
 // file generated from css-schema.xml using css-exclude_generate_browserjs.js
-define(["require", "exports"], function(require, exports) {
+define(["require", "exports"], function(require, exports) {	
 
 exports.data ={
 	"css": {
@@ -982,14 +981,24 @@ exports.data ={
 				"desc": "Defines the number of times an animation cycle is played. The default value is one, meaning the animation will play from beginning to end once.",
 				"browsers": "E,C43,FF16,IE10,O12.1,S9",
 				"restriction": "number, enum",
-				"values": []
+				"values": [
+					{
+						"name": "infinite",
+						"desc": "Causes the animation to repeat forever."
+					}
+				]
 			},
 			{
 				"name": "animation-name",
 				"desc": "Defines a list of animations that apply. Each name is used to select the keyframe at-rule that provides the property values for the animation.",
 				"browsers": "E,C43,FF16,IE10,O12.1,S9",
 				"restriction": "identifier, enum",
-				"values": []
+				"values": [
+					{
+						"name": "none",
+						"desc": "No animation is performed"
+					}
+				]
 			},
 			{
 				"name": "animation-play-state",
@@ -1237,7 +1246,12 @@ exports.data ={
 				"desc": "Logical 'width'. Mapping depends on the element’s 'writing-mode'.",
 				"browsers": "FF41",
 				"restriction": "length, percentage",
-				"values": []
+				"values": [
+					{
+						"name": "auto",
+						"desc": "Depends on the values of other properties."
+					}
+				]
 			},
 			{
 				"name": "border",
@@ -1417,21 +1431,36 @@ exports.data ={
 				"desc": "Specifies inward offsets from the top, right, bottom, and left edges of the image, dividing it into nine regions: four corners, four edges and a middle.",
 				"browsers": "E,C16,FF15,IE11,O15,S6",
 				"restriction": "number, percentage",
-				"values": []
+				"values": [
+					{
+						"name": "fill",
+						"desc": "Causes the middle part of the border-image to be preserved."
+					}
+				]
 			},
 			{
 				"name": "border-image-source",
 				"desc": "Specifies an image to use instead of the border styles given by the 'border-style' properties and as an additional background layer for the element. If the value is 'none' or if the image cannot be displayed, the border styles will be used.",
 				"browsers": "E,C16,FF15,IE11,O15,S6",
 				"restriction": "image",
-				"values": []
+				"values": [
+					{
+						"name": "none",
+						"desc": "Use the border styles."
+					}
+				]
 			},
 			{
 				"name": "border-image-width",
 				"desc": "The four values of 'border-image-width' specify offsets that are used to divide the border image area into nine parts. They represent inward distances from the top, right, bottom, and left sides of the area, respectively.",
 				"browsers": "E,C16,FF15,IE11,O15,S6",
 				"restriction": "length, percentage, number",
-				"values": []
+				"values": [
+					{
+						"name": "auto",
+						"desc": "The border image width is the intrinsic width or height (whichever is applicable) of the corresponding image slice. If the image does not have the required intrinsic dimension then the corresponding border-width is used instead."
+					}
+				]
 			},
 			{
 				"name": "border-inline-end",
@@ -1581,7 +1610,12 @@ exports.data ={
 				"name": "bottom",
 				"desc": "Specifies how far an absolutely positioned box's bottom margin edge is offset above the bottom edge of the box's 'containing block'.",
 				"restriction": "length, percentage",
-				"values": []
+				"values": [
+					{
+						"name": "auto",
+						"desc": "For non-replaced elements, the effect of this value depends on which of related properties have the value 'auto' as well"
+					}
+				]
 			},
 			{
 				"name": "box-decoration-break",
@@ -1845,7 +1879,12 @@ exports.data ={
 				"desc": "Describes the optimal number of columns into which the content of the element will be flowed.",
 				"browsers": "E,IE10,O11.5,S9",
 				"restriction": "integer, enum",
-				"values": []
+				"values": [
+					{
+						"name": "auto",
+						"desc": "Determines the number of columns by the 'column-width' property and the element width."
+					}
+				]
 			},
 			{
 				"name": "column-fill",
@@ -1867,7 +1906,12 @@ exports.data ={
 				"desc": "Sets the gap between columns. If there is a column rule between columns, it will appear in the middle of the gap.",
 				"browsers": "E,IE10,O11.5,S9",
 				"restriction": "length, enum",
-				"values": []
+				"values": [
+					{
+						"name": "normal",
+						"desc": "User agent specific and typically equivalent to 1em."
+					}
+				]
 			},
 			{
 				"name": "column-rule",
@@ -1898,7 +1942,12 @@ exports.data ={
 				"desc": "A shorthand property which sets both 'column-width' and 'column-count'.",
 				"browsers": "E,IE10,O11.5,S9",
 				"restriction": "length, integer, enum",
-				"values": []
+				"values": [
+					{
+						"name": "auto",
+						"desc": "The width depends on the values of other properties."
+					}
+				]
 			},
 			{
 				"name": "column-span",
@@ -1962,14 +2011,24 @@ exports.data ={
 				"desc": "Manipulate the value of existing counters.",
 				"browsers": "E,C,FF1.5,IE8,O10.5,S3",
 				"restriction": "identifier, integer",
-				"values": []
+				"values": [
+					{
+						"name": "none",
+						"desc": "This element does not alter the value of any counters."
+					}
+				]
 			},
 			{
 				"name": "counter-reset",
 				"desc": "Property accepts one or more names of counters (identifiers), each one optionally followed by an integer. The integer gives the value that the counter is set to on each occurrence of the element.",
 				"browsers": "E,C,FF1.5,IE8,O10.5,S3",
 				"restriction": "identifier, integer",
-				"values": []
+				"values": [
+					{
+						"name": "none",
+						"desc": "The counter is not modified."
+					}
+				]
 			},
 			{
 				"name": "cursor",
@@ -3141,7 +3200,12 @@ exports.data ={
 				"desc": "The value of 'normal' implies that when rendering with OpenType fonts the language of the document is used to infer the OpenType language system, used to select language specific features when rendering.",
 				"browsers": "FF34",
 				"restriction": "string",
-				"values": []
+				"values": [
+					{
+						"name": "normal",
+						"desc": "Implies that when rendering with OpenType fonts the language of the document is used to infer the OpenType language system, used to select language specific features when rendering."
+					}
+				]
 			},
 			{
 				"name": "font-size",
@@ -3182,7 +3246,12 @@ exports.data ={
 				"desc": "Preserves the readability of text when font fallback occurs by adjusting the font-size so that the x-height is the same irregardless of the font used.",
 				"browsers": "E,FF3,IE10",
 				"restriction": "number",
-				"values": []
+				"values": [
+					{
+						"name": "none",
+						"desc": "Do not preserve the font’s x-height."
+					}
+				]
 			},
 			{
 				"name": "font-stretch",
@@ -3544,7 +3613,12 @@ exports.data ={
 				"name": "glyph-orientation-vertical",
 				"desc": "Controls glyph orientation when the inline-progression-direction is vertical.",
 				"restriction": "angle, number, enum",
-				"values": []
+				"values": [
+					{
+						"name": "auto",
+						"desc": "Sets the orientation based on the fullwidth or non-fullwidth characters and the most common orientation."
+					}
+				]
 			},
 			{
 				"name": "height",
@@ -3642,7 +3716,12 @@ exports.data ={
 				"desc": "Logical 'height'. Mapping depends on the element’s 'writing-mode'.",
 				"browsers": "FF41",
 				"restriction": "length, percentage",
-				"values": []
+				"values": [
+					{
+						"name": "auto",
+						"desc": "Depends on the values of other properties."
+					}
+				]
 			},
 			{
 				"name": "isolation",
@@ -3692,19 +3771,34 @@ exports.data ={
 				"name": "kerning",
 				"desc": "Indicates whether the user agent should adjust inter-glyph spacing based on kerning tables that are included in the relevant font or instead disable auto-kerning and set inter-character spacing to a specific length.",
 				"restriction": "length, enum",
-				"values": []
+				"values": [
+					{
+						"name": "auto",
+						"desc": "Indicates that the user agent should adjust inter-glyph spacing based on kerning tables that are included in the font that will be used."
+					}
+				]
 			},
 			{
 				"name": "left",
 				"desc": "Specifies how far an absolutely positioned box's left margin edge is offset to the right of the left edge of the box's 'containing block'.",
 				"restriction": "length, percentage",
-				"values": []
+				"values": [
+					{
+						"name": "auto",
+						"desc": "For non-replaced elements, the effect of this value depends on which of related properties have the value 'auto' as well"
+					}
+				]
 			},
 			{
 				"name": "letter-spacing",
 				"desc": "Specifies the minimum, maximum, and optimal spacing between grapheme clusters.",
 				"restriction": "length",
-				"values": []
+				"values": [
+					{
+						"name": "normal",
+						"desc": "The spacing is the normal spacing for the current font. It is typically zero-length."
+					}
+				]
 			},
 			{
 				"name": "lighting-color",
@@ -3716,7 +3810,12 @@ exports.data ={
 				"name": "line-height",
 				"desc": "Determines the block-progression dimension of the text content area of an inline box.",
 				"restriction": "number, length, percentage",
-				"values": []
+				"values": [
+					{
+						"name": "normal",
+						"desc": "Tells user agents to set the computed value to a 'reasonable' value based on the font size of the element."
+					}
+				]
 			},
 			{
 				"name": "list-style",
@@ -3788,7 +3887,12 @@ exports.data ={
 				"name": "list-style-image",
 				"desc": "Sets the image that will be used as the list item marker. When the image is available, it will replace the marker set with the 'list-style-type' marker.",
 				"restriction": "image",
-				"values": []
+				"values": [
+					{
+						"name": "none",
+						"desc": "The default contents of the of the list item’s marker are given by 'list-style-type' instead."
+					}
+				]
 			},
 			{
 				"name": "list-style-position",
@@ -3887,52 +3991,84 @@ exports.data ={
 				"desc": "Logical 'margin-bottom'. Mapping depends on the parent element’s 'writing-mode', 'direction', and 'text-orientation'.",
 				"browsers": "FF41",
 				"restriction": "length, percentage",
-				"values": []
+				"values": [
+					{
+						"name": "auto"
+					}
+				]
 			},
 			{
 				"name": "margin-block-start",
 				"desc": "Logical 'margin-top'. Mapping depends on the parent element’s 'writing-mode', 'direction', and 'text-orientation'.",
 				"browsers": "FF41",
 				"restriction": "length, percentage",
-				"values": []
+				"values": [
+					{
+						"name": "auto"
+					}
+				]
 			},
 			{
 				"name": "margin-bottom",
 				"desc": "Shorthand property to set values the thickness of the margin area. If left is omitted, it is the same as right. If bottom is omitted it is the same as top, if right is omitted it is the same as top. The value may not be negative.",
 				"restriction": "length, percentage",
-				"values": []
+				"values": [
+					{
+						"name": "auto"
+					}
+				]
 			},
 			{
 				"name": "margin-inline-end",
 				"desc": "Logical 'margin-right'. Mapping depends on the parent element’s 'writing-mode', 'direction', and 'text-orientation'.",
 				"browsers": "FF41",
 				"restriction": "length, percentage",
-				"values": []
+				"values": [
+					{
+						"name": "auto"
+					}
+				]
 			},
 			{
 				"name": "margin-inline-start",
 				"desc": "Logical 'margin-left'. Mapping depends on the parent element’s 'writing-mode', 'direction', and 'text-orientation'.",
 				"browsers": "FF41",
 				"restriction": "length, percentage",
-				"values": []
+				"values": [
+					{
+						"name": "auto"
+					}
+				]
 			},
 			{
 				"name": "margin-left",
 				"desc": "Shorthand property to set values the thickness of the margin area. If left is omitted, it is the same as right. If bottom is omitted it is the same as top, if right is omitted it is the same as top. The value may not be negative.",
 				"restriction": "length, percentage",
-				"values": []
+				"values": [
+					{
+						"name": "auto"
+					}
+				]
 			},
 			{
 				"name": "margin-right",
 				"desc": "Shorthand property to set values the thickness of the margin area. If left is omitted, it is the same as right. If bottom is omitted it is the same as top, if right is omitted it is the same as top. The value may not be negative.",
 				"restriction": "length, percentage",
-				"values": []
+				"values": [
+					{
+						"name": "auto"
+					}
+				]
 			},
 			{
 				"name": "margin-top",
 				"desc": "Shorthand property to set values the thickness of the margin area. If left is omitted, it is the same as right. If bottom is omitted it is the same as top, if right is omitted it is the same as top. The value may not be negative.",
 				"restriction": "length, percentage",
-				"values": []
+				"values": [
+					{
+						"name": "auto"
+					}
+				]
 			},
 			{
 				"name": "marker",
@@ -4013,7 +4149,12 @@ exports.data ={
 				"desc": "Logical 'max-width'. Mapping depends on the element’s 'writing-mode'.",
 				"browsers": "FF41",
 				"restriction": "length, percentage",
-				"values": []
+				"values": [
+					{
+						"name": "none",
+						"desc": "No limit on the width of the box."
+					}
+				]
 			},
 			{
 				"name": "max-height",
@@ -4044,7 +4185,12 @@ exports.data ={
 				"desc": "Logical 'max-height'. Mapping depends on the element’s 'writing-mode'.",
 				"browsers": "FF41",
 				"restriction": "length, percentage",
-				"values": []
+				"values": [
+					{
+						"name": "none",
+						"desc": "No limit on the height of the box."
+					}
+				]
 			},
 			{
 				"name": "max-width",
@@ -4330,14 +4476,24 @@ exports.data ={
 				"desc": "Defines the number of times an animation cycle is played. The default value is one, meaning the animation will play from beginning to end once.",
 				"browsers": "FF9",
 				"restriction": "number, enum",
-				"values": []
+				"values": [
+					{
+						"name": "infinite",
+						"desc": "Causes the animation to repeat forever."
+					}
+				]
 			},
 			{
 				"name": "-moz-animation-name",
 				"desc": "Defines a list of animations that apply. Each name is used to select the keyframe at-rule that provides the property values for the animation.",
 				"browsers": "FF9",
 				"restriction": "identifier, enum",
-				"values": []
+				"values": [
+					{
+						"name": "none",
+						"desc": "No animation is performed"
+					}
+				]
 			},
 			{
 				"name": "-moz-animation-play-state",
@@ -4590,7 +4746,11 @@ exports.data ={
 				"desc": "Determines the background painting area.",
 				"browsers": "FF1-3.6",
 				"restriction": "box, enum",
-				"values": []
+				"values": [
+					{
+						"name": "padding"
+					}
+				]
 			},
 			{
 				"name": "-moz-background-inline-policy",
@@ -4806,14 +4966,24 @@ exports.data ={
 				"desc": "Describes the optimal number of columns into which the content of the element will be flowed.",
 				"browsers": "FF3.5",
 				"restriction": "integer",
-				"values": []
+				"values": [
+					{
+						"name": "auto",
+						"desc": "Determines the number of columns by the 'column-width' property and the element width."
+					}
+				]
 			},
 			{
 				"name": "-moz-column-gap",
 				"desc": "Sets the gap between columns. If there is a column rule between columns, it will appear in the middle of the gap.",
 				"browsers": "FF3.5",
 				"restriction": "length",
-				"values": []
+				"values": [
+					{
+						"name": "normal",
+						"desc": "User agent specific and typically equivalent to 1em."
+					}
+				]
 			},
 			{
 				"name": "-moz-column-rule",
@@ -4844,14 +5014,24 @@ exports.data ={
 				"desc": "A shorthand property which sets both 'column-width' and 'column-count'.",
 				"browsers": "FF9",
 				"restriction": "length, integer",
-				"values": []
+				"values": [
+					{
+						"name": "auto",
+						"desc": "The width depends on the values of other properties."
+					}
+				]
 			},
 			{
 				"name": "-moz-column-width",
 				"desc": "This property describes the width of columns in multicol elements.",
 				"browsers": "FF3.5",
 				"restriction": "length",
-				"values": []
+				"values": [
+					{
+						"name": "auto",
+						"desc": "The width depends on the values of other properties."
+					}
+				]
 			},
 			{
 				"name": "-moz-font-feature-settings",
@@ -4924,7 +5104,12 @@ exports.data ={
 				"desc": "Applies the same transform as the perspective(<number>) transform function, except that it applies only to the positioned or transformed children of the element, not to the transform on the element itself.",
 				"browsers": "FF10",
 				"restriction": "length",
-				"values": []
+				"values": [
+					{
+						"name": "none",
+						"desc": "No perspective transform is applied."
+					}
+				]
 			},
 			{
 				"name": "-moz-perspective-origin",
@@ -5576,14 +5761,24 @@ exports.data ={
 				"desc": "Makes a block container a region and associates it with a named flow.",
 				"browsers": "E,IE10",
 				"restriction": "identifier",
-				"values": []
+				"values": [
+					{
+						"name": "none",
+						"desc": "The block container is not a CSS Region."
+					}
+				]
 			},
 			{
 				"name": "-ms-flow-into",
 				"desc": "Places an element or its contents into a named flow.",
 				"browsers": "E,IE10",
 				"restriction": "identifier",
-				"values": []
+				"values": [
+					{
+						"name": "none",
+						"desc": "The element is not moved to a named flow and normal CSS processing takes place."
+					}
+				]
 			},
 			{
 				"name": "-ms-grid-column",
@@ -5716,14 +5911,23 @@ exports.data ={
 				"desc": "Specifies the minimum number of characters in a hyphenated word.",
 				"browsers": "E,IE10",
 				"restriction": "integer",
-				"values": []
+				"values": [
+					{
+						"name": "auto",
+						"desc": "The user agent chooses a value that adapts to the current layout."
+					}
+				]
 			},
 			{
 				"name": "-ms-hyphenate-limit-lines",
 				"desc": "Indicates the maximum number of successive hyphenated lines in an element.",
 				"browsers": "E,IE10",
 				"restriction": "integer",
-				"values": []
+				"values": [
+					{
+						"name": "no-limit"
+					}
+				]
 			},
 			{
 				"name": "-ms-hyphenate-limit-zone",
@@ -5940,7 +6144,12 @@ exports.data ={
 				"desc": "Applies the same transform as the perspective(<number>) transform function, except that it applies only to the positioned or transformed children of the element, not to the transform on the element itself.",
 				"browsers": "IE10",
 				"restriction": "length",
-				"values": []
+				"values": [
+					{
+						"name": "none",
+						"desc": "No perspective transform is applied."
+					}
+				]
 			},
 			{
 				"name": "-ms-perspective-origin",
@@ -6041,14 +6250,22 @@ exports.data ={
 				"desc": "Gets or sets a shorthand value that sets values for the -ms-scroll-limit-x-min, -ms-scroll-limit-y-min, -ms-scroll-limit-x-max, and -ms-scroll-limit-y-max properties.",
 				"browsers": "E,IE10",
 				"restriction": "length",
-				"values": []
+				"values": [
+					{
+						"name": "auto"
+					}
+				]
 			},
 			{
 				"name": "-ms-scroll-limit-x-max",
 				"desc": "Gets or sets a value that specifies the maximum value for the scrollLeft property.",
 				"browsers": "E,IE10",
 				"restriction": "length",
-				"values": []
+				"values": [
+					{
+						"name": "auto"
+					}
+				]
 			},
 			{
 				"name": "-ms-scroll-limit-x-min",
@@ -6061,7 +6278,11 @@ exports.data ={
 				"desc": "Gets or sets a value that specifies the maximum value for the scrollTop property.",
 				"browsers": "E,IE10",
 				"restriction": "length",
-				"values": []
+				"values": [
+					{
+						"name": "auto"
+					}
+				]
 			},
 			{
 				"name": "-ms-scroll-limit-y-min",
@@ -6640,7 +6861,11 @@ exports.data ={
 				"desc": "Sets or retrieves the magnification scale of the object.",
 				"browsers": "IE8",
 				"restriction": "enum, integer, number, percentage",
-				"values": []
+				"values": [
+					{
+						"name": "normal"
+					}
+				]
 			},
 			{
 				"name": "-ms-zoom-animation",
@@ -6679,7 +6904,12 @@ exports.data ={
 				"desc": "Provides an input-method-neutral way of specifying the sequential navigation order (also known as 'tabbing order').",
 				"browsers": "O9.5",
 				"restriction": "number",
-				"values": []
+				"values": [
+					{
+						"name": "auto",
+						"desc": "The element's sequential navigation order is assigned automatically by the user agent."
+					}
+				]
 			},
 			{
 				"name": "nav-left",
@@ -6842,14 +7072,24 @@ exports.data ={
 				"desc": "Defines the number of times an animation cycle is played. The default value is one, meaning the animation will play from beginning to end once.",
 				"browsers": "O12",
 				"restriction": "number, enum",
-				"values": []
+				"values": [
+					{
+						"name": "infinite",
+						"desc": "Causes the animation to repeat forever."
+					}
+				]
 			},
 			{
 				"name": "-o-animation-name",
 				"desc": "Defines a list of animations that apply. Each name is used to select the keyframe at-rule that provides the property values for the animation.",
 				"browsers": "O12",
 				"restriction": "identifier, enum",
-				"values": []
+				"values": [
+					{
+						"name": "none",
+						"desc": "No animation is performed"
+					}
+				]
 			},
 			{
 				"name": "-o-animation-play-state",
@@ -7147,28 +7387,48 @@ exports.data ={
 				"desc": "Logical 'bottom'. Mapping depends on the parent element’s 'writing-mode', 'direction', and 'text-orientation'.",
 				"browsers": "FF41",
 				"restriction": "length, percentage",
-				"values": []
+				"values": [
+					{
+						"name": "auto",
+						"desc": "For non-replaced elements, the effect of this value depends on which of related properties have the value 'auto' as well."
+					}
+				]
 			},
 			{
 				"name": "offset-block-start",
 				"desc": "Logical 'top'. Mapping depends on the parent element’s 'writing-mode', 'direction', and 'text-orientation'.",
 				"browsers": "FF41",
 				"restriction": "length, percentage",
-				"values": []
+				"values": [
+					{
+						"name": "auto",
+						"desc": "For non-replaced elements, the effect of this value depends on which of related properties have the value 'auto' as well."
+					}
+				]
 			},
 			{
 				"name": "offset-inline-end",
 				"desc": "Logical 'right'. Mapping depends on the parent element’s 'writing-mode', 'direction', and 'text-orientation'.",
 				"browsers": "FF41",
 				"restriction": "length, percentage",
-				"values": []
+				"values": [
+					{
+						"name": "auto",
+						"desc": "For non-replaced elements, the effect of this value depends on which of related properties have the value 'auto' as well."
+					}
+				]
 			},
 			{
 				"name": "offset-inline-start",
 				"desc": "Logical 'left'. Mapping depends on the parent element’s 'writing-mode', 'direction', and 'text-orientation'.",
 				"browsers": "FF41",
 				"restriction": "length, percentage",
-				"values": []
+				"values": [
+					{
+						"name": "auto",
+						"desc": "For non-replaced elements, the effect of this value depends on which of related properties have the value 'auto' as well."
+					}
+				]
 			},
 			{
 				"name": "outline",
@@ -7465,7 +7725,12 @@ exports.data ={
 				"desc": "Applies the same transform as the perspective(<number>) transform function, except that it applies only to the positioned or transformed children of the element, not to the transform on the element itself.",
 				"browsers": "E,C36,FF16,IE10,O23,S9",
 				"restriction": "length, enum",
-				"values": []
+				"values": [
+					{
+						"name": "none",
+						"desc": "No perspective transform is applied."
+					}
+				]
 			},
 			{
 				"name": "perspective-origin",
@@ -7554,7 +7819,12 @@ exports.data ={
 				"desc": "Specifies quotation marks for any number of embedded quotations.",
 				"browsers": "E,C,FF1.5,IE8,O8,S5.1",
 				"restriction": "string",
-				"values": []
+				"values": [
+					{
+						"name": "none",
+						"desc": "The 'open-quote' and 'close-quote' values of the 'content' property produce no quotations marks, as if they were 'no-open-quote' and 'no-close-quote' respectively."
+					}
+				]
 			},
 			{
 				"name": "range",
@@ -7600,7 +7870,12 @@ exports.data ={
 				"name": "right",
 				"desc": "Specifies how far an absolutely positioned box's right margin edge is offset to the left of the right edge of the box's 'containing block'.",
 				"restriction": "length, percentage",
-				"values": []
+				"values": [
+					{
+						"name": "auto",
+						"desc": "For non-replaced elements, the effect of this value depends on which of related properties have the value 'auto' as well"
+					}
+				]
 			},
 			{
 				"name": "ruby-align",
@@ -7920,7 +8195,12 @@ exports.data ={
 				"name": "stroke-dasharray",
 				"desc": "Controls the pattern of dashes and gaps used to stroke paths.",
 				"restriction": "length, percentage, number, enum",
-				"values": []
+				"values": [
+					{
+						"name": "none",
+						"desc": "Indicates that no dashing is used."
+					}
+				]
 			},
 			{
 				"name": "stroke-dashoffset",
@@ -8344,7 +8624,12 @@ exports.data ={
 				"name": "top",
 				"desc": "Specifies how far an absolutely positioned box's top margin edge is offset below the top edge of the box's 'containing block'.",
 				"restriction": "length, percentage",
-				"values": []
+				"values": [
+					{
+						"name": "auto",
+						"desc": "For non-replaced elements, the effect of this value depends on which of related properties have the value 'auto' as well"
+					}
+				]
 			},
 			{
 				"name": "touch-action",
@@ -8968,14 +9253,24 @@ exports.data ={
 				"desc": "Defines the number of times an animation cycle is played. The default value is one, meaning the animation will play from beginning to end once.",
 				"browsers": "C,S5",
 				"restriction": "number, enum",
-				"values": []
+				"values": [
+					{
+						"name": "infinite",
+						"desc": "Causes the animation to repeat forever."
+					}
+				]
 			},
 			{
 				"name": "-webkit-animation-name",
 				"desc": "Defines a list of animations that apply. Each name is used to select the keyframe at-rule that provides the property values for the animation.",
 				"browsers": "C,S5",
 				"restriction": "identifier, enum",
-				"values": []
+				"values": [
+					{
+						"name": "none",
+						"desc": "No animation is performed"
+					}
+				]
 			},
 			{
 				"name": "-webkit-animation-play-state",
@@ -9663,14 +9958,24 @@ exports.data ={
 				"desc": "Describes the optimal number of columns into which the content of the element will be flowed.",
 				"browsers": "C,S3",
 				"restriction": "integer",
-				"values": []
+				"values": [
+					{
+						"name": "auto",
+						"desc": "Determines the number of columns by the 'column-width' property and the element width."
+					}
+				]
 			},
 			{
 				"name": "-webkit-column-gap",
 				"desc": "Sets the gap between columns. If there is a column rule between columns, it will appear in the middle of the gap.",
 				"browsers": "C,S3",
 				"restriction": "length",
-				"values": []
+				"values": [
+					{
+						"name": "normal",
+						"desc": "User agent specific and typically equivalent to 1em."
+					}
+				]
 			},
 			{
 				"name": "-webkit-column-rule",
@@ -9701,7 +10006,12 @@ exports.data ={
 				"desc": "A shorthand property which sets both 'column-width' and 'column-count'.",
 				"browsers": "C,S3",
 				"restriction": "length, integer",
-				"values": []
+				"values": [
+					{
+						"name": "auto",
+						"desc": "The width depends on the values of other properties."
+					}
+				]
 			},
 			{
 				"name": "-webkit-column-span",
@@ -9724,7 +10034,12 @@ exports.data ={
 				"desc": "This property describes the width of columns in multicol elements.",
 				"browsers": "C,S3",
 				"restriction": "length",
-				"values": []
+				"values": [
+					{
+						"name": "auto",
+						"desc": "The width depends on the values of other properties."
+					}
+				]
 			},
 			{
 				"name": "-webkit-filter",
@@ -9777,14 +10092,24 @@ exports.data ={
 				"desc": "Makes a block container a region and associates it with a named flow.",
 				"browsers": "S6.1",
 				"restriction": "identifier",
-				"values": []
+				"values": [
+					{
+						"name": "none",
+						"desc": "The block container is not a CSS Region."
+					}
+				]
 			},
 			{
 				"name": "-webkit-flow-into",
 				"desc": "Places an element or its contents into a named flow.",
 				"browsers": "S6.1",
 				"restriction": "identifier",
-				"values": []
+				"values": [
+					{
+						"name": "none",
+						"desc": "The element is not moved to a named flow and normal CSS processing takes place."
+					}
+				]
 			},
 			{
 				"name": "-webkit-font-feature-settings",
@@ -9899,7 +10224,11 @@ exports.data ={
 				"name": "-webkit-margin-start",
 				"browsers": "C,S3",
 				"restriction": "percentage, length",
-				"values": []
+				"values": [
+					{
+						"name": "auto"
+					}
+				]
 			},
 			{
 				"name": "-webkit-margin-top-collapse",
@@ -10007,7 +10336,12 @@ exports.data ={
 				"desc": "Applies the same transform as the perspective(<number>) transform function, except that it applies only to the positioned or transformed children of the element, not to the transform on the element itself.",
 				"browsers": "C,S4",
 				"restriction": "length",
-				"values": []
+				"values": [
+					{
+						"name": "none",
+						"desc": "No perspective transform is applied."
+					}
+				]
 			},
 			{
 				"name": "-webkit-perspective-origin",
@@ -10075,7 +10409,11 @@ exports.data ={
 				"name": "-webkit-touch-callout",
 				"browsers": "S3",
 				"restriction": "enum",
-				"values": []
+				"values": [
+					{
+						"name": "none"
+					}
+				]
 			},
 			{
 				"name": "-webkit-transform",
@@ -10380,7 +10718,12 @@ exports.data ={
 				"name": "word-spacing",
 				"desc": "Specifies additional spacing between “words”.",
 				"restriction": "length, percentage",
-				"values": []
+				"values": [
+					{
+						"name": "normal",
+						"desc": "No additional spacing is applied. Computes to zero."
+					}
+				]
 			},
 			{
 				"name": "word-wrap",
@@ -10426,14 +10769,23 @@ exports.data ={
 				"name": "z-index",
 				"desc": "For a positioned box, the 'z-index' property specifies the stack level of the box in the current stacking context and whether the box establishes a local stacking context.",
 				"restriction": "integer",
-				"values": []
+				"values": [
+					{
+						"name": "auto",
+						"desc": "The stack level of the generated box in the current stacking context is 0. The box does not establish a new stacking context unless it is the root element."
+					}
+				]
 			},
 			{
 				"name": "zoom",
 				"desc": "Non-standard. Specifies the magnification scale of the object. See 'transform: scale()' for a standards-based alternative.",
 				"browsers": "E,C,IE6,O15,S4",
 				"restriction": "enum, integer, number, percentage",
-				"values": []
+				"values": [
+					{
+						"name": "normal"
+					}
+				]
 			}
 		]
 	}
@@ -10782,6 +11134,7 @@ exports.descriptions = {
 	"rl": "Right-to-left direction. The flow orientation is vertical.",
 	"tb": "Top-to-bottom direction. The flow orientation is horizontal.",
 	"zoom": "The element is zoomable.",
+	"no-limit": "There is no limit.",
 	"mode": "Any of the range of mode values available to the -ms-layout-grid-mode property.",
 	"type": "Any of the range of type values available to the -ms-layout-grid-type property.",
 	"loose": "Default. Grid used for Japanese and Korean characters.",

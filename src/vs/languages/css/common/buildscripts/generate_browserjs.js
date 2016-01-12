@@ -220,7 +220,11 @@ function getProperties(obj) {
 
 function getValues(valArr, restriction, ruleName) {
 	if (!Array.isArray(valArr)) {
-		return [];
+		if (valArr.$) {
+			valArr = [ valArr ];
+		} else {
+			return [];
+		}
 	}
 	var vals = valArr.map(function (v) {
 		return {
