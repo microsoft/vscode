@@ -523,7 +523,7 @@ export class DiffEditorWidget extends EventEmitter.EventEmitter implements Edito
 		this.modifiedEditor.revealLinesInCenterIfOutsideViewport(startLineNumber, endLineNumber);
 	}
 
-	public revealRange(range: EditorCommon.IRange, revealVerticalInCenter:boolean = false, revealHorizontal:boolean = false): void {
+	public revealRange(range: EditorCommon.IRange, revealVerticalInCenter:boolean = false, revealHorizontal:boolean = true): void {
 		this.modifiedEditor.revealRange(range, revealVerticalInCenter, revealHorizontal);
 	}
 

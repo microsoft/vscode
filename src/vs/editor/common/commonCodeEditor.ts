@@ -458,7 +458,7 @@ export abstract class CommonCodeEditor extends EventEmitter.EventEmitter impleme
 		}, EditorCommon.VerticalRevealType.CenterIfOutsideViewport, false);
 	}
 
-	public revealRange(range: EditorCommon.IRange, revealVerticalInCenter:boolean = false, revealHorizontal:boolean = false): void {
+	public revealRange(range: EditorCommon.IRange, revealVerticalInCenter:boolean = false, revealHorizontal:boolean = true): void {
 		this._sendRevealRange(range, revealVerticalInCenter ? EditorCommon.VerticalRevealType.Center : EditorCommon.VerticalRevealType.Simple, revealHorizontal);
 	}
 
