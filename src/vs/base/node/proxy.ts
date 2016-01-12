@@ -7,6 +7,7 @@
 
 import { Url, parse as parseUrl } from 'url';
 import { isBoolean } from 'vs/base/common/types';
+import { assign } from 'vs/base/common/objects';
 import HttpProxyAgent = require('http-proxy-agent');
 import HttpsProxyAgent = require('https-proxy-agent');
 
@@ -39,13 +40,12 @@ export function getProxyAgent(rawRequestURL: string, options: IOptions = {}): an
 		return null;
 	}
 
-	if (requestURL.protocol === 'http:') {
-		return new HttpProxyAgent(proxyURL);
-	}
-
-	return new HttpsProxyAgent({
+	const opts = {
 		host: proxyEndpoint.hostname,
 		port: Number(proxyEndpoint.port),
+		auth: proxyEndpoint.auth,
 		rejectUnauthorized: isBoolean(options.strictSSL) ? options.strictSSL : true
-	});
+	};
+
+	return requestURL.protocol === 'http:' ? new HttpProxyAgent(opts) : new HttpsProxyAgent(opts);
 }
