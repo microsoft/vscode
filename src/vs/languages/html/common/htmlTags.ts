@@ -379,12 +379,15 @@ export function getHTML5TagProvider(): IHTMLTagProvider {
 				collector(handler, 'event');
 			});
 			if (tag) {
-				var attributes = HTML_TAGS[tag].attributes;
-				if (attributes) {
-					attributes.forEach(attr => {
-						var segments = attr.split(':');
-						collector(segments[0], segments[1]);
-					});
+				var tags = HTML_TAGS[tag];
+				if (tags) {
+					var attributes = tags.attributes;
+					if (attributes) {
+						attributes.forEach(attr => {
+							var segments = attr.split(':');
+							collector(segments[0], segments[1]);
+						});
+					}
 				}
 			}
 		},
@@ -405,9 +408,14 @@ export function getHTML5TagProvider(): IHTMLTagProvider {
 					}
 				});
 			};
-			var attributes = HTML_TAGS[tag].attributes;
-			if (attributes) {
-				processAttributes(attributes);
+			if (tag) {
+				var tags = HTML_TAGS[tag];
+				if (tags) {
+					var attributes = tags.attributes;
+					if (attributes) {
+						processAttributes(attributes);
+					}
+				}
 			}
 			processAttributes(globalAttributes); // no need to look in event handlers
 		}
