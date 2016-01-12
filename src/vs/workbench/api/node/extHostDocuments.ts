@@ -134,7 +134,23 @@ export class ExtHostModelService {
 			throw new Error(`scheme '${scheme}' already registered`);
 		}
 		this._documentContentProviders[scheme] = provider;
-		return new Disposable(() => delete this._documentContentProviders[scheme]);
+
+		let subscription: IDisposable;
+		if (typeof provider.onDidChange === 'function') {
+			subscription = provider.onDidChange(uri => {
+				if (this._documentData[uri.toString()]) {
+					this.$provideTextDocumentContent(<URI>uri).then(value => {
+						return this._proxy.$onVirtualDocumentChange(<URI>uri, value);
+					}, onUnexpectedError);
+				}
+			});
+		}
+		return new Disposable(() => {
+			delete this._documentContentProviders[scheme];
+			if (subscription) {
+				subscription.dispose();
+			}
+		});
 	}
 
 	$provideTextDocumentContent(uri: URI): TPromise<string> {
@@ -599,6 +615,8 @@ export class MainThreadDocuments {
 		});
 	}
 
+	// --- virtual document logic
+
 	private _handleAnyScheme(uri: URI): TPromise<boolean> {
 
 		if (this._modelService.getModel(uri)) {
@@ -632,5 +650,13 @@ export class MainThreadDocuments {
 		}).then(() => {
 			return true;
 		});
+	}
+
+	$onVirtualDocumentChange(uri: URI, value: string): TPromise<any> {
+		const model = this._modelService.getModel(uri);
+		if (model) {
+			model.setValue(value);
+			return;
+		}
 	}
 }
