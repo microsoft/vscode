@@ -356,9 +356,7 @@ export class WindowsManager {
 
 					// We found a closing '}' and the JSON does not contain errors
 					if (lastClosing > 0 && !errors.length) {
-						const hasOtherKeys = Object.getOwnPropertyNames(res).length > 0;
-
-						const migratedSettings = settingsRaw.substring(0, lastClosing) + '\n    // Migrated from previous File | Auto Save setting:\n' + (hasOtherKeys ? '    , "files.autoSaveDelay": 1\n' : '    "files.autoSaveDelay": 1\n') + '}';
+						const migratedSettings = settingsRaw.substring(0, lastClosing) + '\n    , // Migrated from previous File | Auto Save setting:\n    "files.autoSaveDelay": 1\n}';
 
 						fs.writeFileSync(env.appSettingsPath, migratedSettings);
 					}
