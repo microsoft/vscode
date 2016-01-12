@@ -13,6 +13,7 @@ import lifecycle = require('vs/base/common/lifecycle');
 import dom = require('vs/base/browser/dom');
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
+import editorcommon = require('vs/editor/common/editorCommon');
 import editorbrowser = require('vs/editor/browser/editorBrowser');
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
@@ -43,6 +44,7 @@ export class BreakpointWidget extends ZoneWidget {
 		this.breakpointWidgetVisible = keybindingService.createKey(CONTEXT_BREAKPOINT_WIDGET_VISIBLE, false);
 		this.breakpointWidgetVisible.set(true);
 		BreakpointWidget.INSTANCE = this;
+		this.toDispose.push(editor.addListener2(editorcommon.EventType.ModelChanged, () => this.dispose()));
 	}
 
 	public fillContainer(container: HTMLElement): void {

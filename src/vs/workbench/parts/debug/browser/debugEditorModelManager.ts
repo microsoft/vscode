@@ -7,7 +7,6 @@ import lifecycle = require('vs/base/common/lifecycle');
 import editorcommon = require('vs/editor/common/editorCommon');
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IDebugService, ModelEvents, ViewModelEvents, IBreakpoint, IRawBreakpoint, State } from 'vs/workbench/parts/debug/common/debug';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 
 function toMap(arr: string[]): { [key: string]: boolean; } {
@@ -48,7 +47,6 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 
 	constructor(
 		@IModelService private modelService: IModelService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IDebugService private debugService: IDebugService
 	) {
 		this.modelData = {};
