@@ -434,6 +434,7 @@ export interface Browsers {
 	S?:string;
 	count:number;
 	all:boolean;
+	onCodeComplete:boolean
 }
 
 export interface Value {
@@ -451,7 +452,7 @@ export interface IEntry {
 }
 
 function evalBrowserEntry(browsers: string) {
-	var browserEntry : Browsers = { all: false, count: 0};
+	var browserEntry : Browsers = { all: false, count: 0, onCodeComplete: false};
 	var count = 0;
 	if (browsers) {
 		browsers.split(',').forEach(
@@ -475,6 +476,7 @@ function evalBrowserEntry(browsers: string) {
 		count = Number.MAX_VALUE;
 	}
 	browserEntry.count = count;
+	browserEntry.onCodeComplete = count > 0; // to be refined
 	return browserEntry;
 };
 

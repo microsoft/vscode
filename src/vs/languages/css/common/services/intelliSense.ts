@@ -114,7 +114,7 @@ export class CSSIntellisense {
 		for (var key in properties) {
 			if (properties.hasOwnProperty(key)) {
 				var entry = properties[key];
-				if (entry.browsers.count > 1) { // only show if supported by more than one browser
+				if (entry.browsers.onCodeComplete) {
 					result.push({
 						label: entry.name,
 						documentationLabel: languageFacts.getEntryDescription(entry),
@@ -433,7 +433,7 @@ export class CSSIntellisense {
 
 	public getCompletionsForSelector(ruleSet: nodes.RuleSet, result:Modes.ISuggestion[]): Modes.ISuggestion[] {
 		languageFacts.getPseudoClasses().forEach((entry) => {
-			if (entry.browsers.count > 1) { // only show if supported by all browsers
+			if (entry.browsers.onCodeComplete) {
 				result.push({
 					label: entry.name,
 					codeSnippet: entry.name,
@@ -443,7 +443,7 @@ export class CSSIntellisense {
 			}
 		});
 		languageFacts.getPseudoElements().forEach((entry) => {
-			if (entry.browsers.count > 1) { // only show if supported by all browsers
+			if (entry.browsers.onCodeComplete) {
 				result.push({
 					label: entry.name,
 					codeSnippet: entry.name,
