@@ -14,13 +14,12 @@ import {Selection, Range, Position, EditorOptions} from './extHostTypes';
 import {ISingleEditOperation, ISelection, IRange, IInternalIndentationOptions, IEditor, EditorType, ICommonCodeEditor, ICommonDiffEditor, IDecorationRenderOptions, IRangeWithMessage} from 'vs/editor/common/editorCommon';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IEditor as IPlatformEditor, Position as EditorPosition} from 'vs/platform/editor/common/editor';
+import {Position as EditorPosition} from 'vs/platform/editor/common/editor';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {MainThreadEditorsTracker, TextEditorRevealType, MainThreadTextEditor, ITextEditorConfiguration} from 'vs/workbench/api/node/mainThreadEditors';
 import * as TypeConverters from './extHostTypeConverters';
 import {TextDocument, TextEditorSelectionChangeEvent, TextEditorOptionsChangeEvent, TextEditorOptions, ViewColumn} from 'vscode';
 import {EventType} from 'vs/workbench/common/events';
-import {EditorOptions as WorkbenchEditorOptions} from 'vs/workbench/common/editor';
 import {IEventService} from 'vs/platform/event/common/event';
 import {equals as arrayEquals} from 'vs/base/common/arrays';
 
@@ -93,13 +92,13 @@ export class ExtHostEditors {
 
 	// --- called from main thread
 
-	_acceptTextEditorAdd(data:ITextEditorAddData): void {
+	_acceptTextEditorAdd(data: ITextEditorAddData): void {
 		let document = this._modelService.getDocumentData(data.document);
 		let newEditor = new ExtHostTextEditor(this._proxy, data.id, document, data.selections.map(TypeConverters.toSelection), data.options);
 		this._editors[data.id] = newEditor;
 	}
 
-	_acceptOptionsChanged(id:string, opts:ITextEditorConfiguration): void {
+	_acceptOptionsChanged(id: string, opts: ITextEditorConfiguration): void {
 		let editor = this._editors[id];
 		editor._acceptOptions(opts);
 		this._onDidChangeTextEditorOptions.fire({
@@ -108,7 +107,7 @@ export class ExtHostEditors {
 		});
 	}
 
-	_acceptSelectionsChanged(id:string, _selections:ISelection[]): void {
+	_acceptSelectionsChanged(id: string, _selections: ISelection[]): void {
 		let selections = _selections.map(TypeConverters.toSelection);
 		let editor = this._editors[id];
 		editor._acceptSelections(selections);
@@ -118,7 +117,7 @@ export class ExtHostEditors {
 		});
 	}
 
-	_acceptActiveEditorAndVisibleEditors(id:string, visibleIds:string[]): void {
+	_acceptActiveEditorAndVisibleEditors(id: string, visibleIds: string[]): void {
 		this._visibleEditorIds = visibleIds;
 
 		if (this._activeEditorId === id) {
@@ -129,7 +128,7 @@ export class ExtHostEditors {
 		this._onDidChangeActiveTextEditor.fire(this.getActiveTextEditor());
 	}
 
-	_acceptTextEditorRemove(id:string): void {
+	_acceptTextEditorRemove(id: string): void {
 		// make sure the removed editor is not visible
 		let newVisibleEditors = this._visibleEditorIds.filter(visibleEditorId => visibleEditorId !== id);
 
@@ -148,7 +147,7 @@ export class ExtHostEditors {
 
 class TextEditorDecorationType implements vscode.TextEditorDecorationType {
 
-	private static LAST_ID = 0;
+	private static LAST_ID: number = 0;
 
 	private _proxy: MainThreadEditors;
 	public key: string;
@@ -251,7 +250,7 @@ function illegalArg(name: string) {
 	return new Error(`illgeal argument '${name}'`);
 }
 
-function deprecated(name:string, message:string = 'Refer to the documentation for further details.') {
+function deprecated(name: string, message: string = 'Refer to the documentation for further details.') {
 	return (target: Object, key: string, descriptor: TypedPropertyDescriptor<any>) => {
 		const originalMethod = descriptor.value;
 		descriptor.value = function(...args: any[]) {
@@ -345,7 +344,7 @@ class ExtHostTextEditor implements vscode.TextEditor {
 		this._trySetSelection(true);
 	}
 
-	setDecorations(decorationType: vscode.TextEditorDecorationType, ranges:Range[]|vscode.DecorationOptions[]): void {
+	setDecorations(decorationType: vscode.TextEditorDecorationType, ranges: Range[] | vscode.DecorationOptions[]): void {
 		this._runOnProxy(
 			() => this._proxy._trySetDecorations(
 				this._id,
@@ -356,7 +355,7 @@ class ExtHostTextEditor implements vscode.TextEditor {
 		);
 	}
 
-	revealRange(range: Range, revealType:vscode.TextEditorRevealType): void {
+	revealRange(range: Range, revealType: vscode.TextEditorRevealType): void {
 		this._runOnProxy(
 			() => this._proxy._tryRevealRange(
 				this._id,
@@ -372,20 +371,20 @@ class ExtHostTextEditor implements vscode.TextEditor {
 		return this._runOnProxy(() => this._proxy._trySetSelections(this._id, selection), silent);
 	}
 
-	_acceptSelections(selections:Selection[]): void {
+	_acceptSelections(selections: Selection[]): void {
 		this._selections = selections;
 	}
 
 	// ---- editing
 
-	edit(callback:(edit:TextEditorEdit)=>void): Thenable<boolean> {
+	edit(callback: (edit: TextEditorEdit) => void): Thenable<boolean> {
 		let edit = new TextEditorEdit(this._documentData.document);
 		callback(edit);
 		return this._applyEdit(edit);
 	}
 
-	_applyEdit(edit:TextEditorEdit): TPromise<boolean> {
-		let editData = edit.finalize();
+	_applyEdit(editBuilder: TextEditorEdit): TPromise<boolean> {
+		let editData = editBuilder.finalize();
 
 		// prepare data for serialization
 		let edits: ISingleEditOperation[] = editData.edits.map((edit) => {
@@ -401,7 +400,7 @@ class ExtHostTextEditor implements vscode.TextEditor {
 
 	// ---- util
 
-	private _runOnProxy(callback: () => TPromise<any>, silent:boolean): TPromise<ExtHostTextEditor> {
+	private _runOnProxy(callback: () => TPromise<any>, silent: boolean): TPromise<ExtHostTextEditor> {
 		return callback().then(() => this, err => {
 			if (!silent) {
 				return TPromise.wrapError(silent);
@@ -418,17 +417,17 @@ export class MainThreadEditors {
 	private _workbenchEditorService: IWorkbenchEditorService;
 	private _editorTracker: MainThreadEditorsTracker;
 	private _toDispose: IDisposable[];
-	private _textEditorsListenersMap: {[editorId:string]:IDisposable[];};
-	private _textEditorsMap: {[editorId:string]:MainThreadTextEditor;};
+	private _textEditorsListenersMap: { [editorId: string]: IDisposable[]; };
+	private _textEditorsMap: { [editorId: string]: MainThreadTextEditor; };
 	private _activeTextEditor: string;
 	private _visibleEditors: string[];
 
 	constructor(
 		@IThreadService threadService: IThreadService,
 		@IWorkbenchEditorService workbenchEditorService: IWorkbenchEditorService,
-		@ICodeEditorService editorService:ICodeEditorService,
-		@IEventService eventService:IEventService,
-		@IModelService modelService:IModelService
+		@ICodeEditorService editorService: ICodeEditorService,
+		@IEventService eventService: IEventService,
+		@IModelService modelService: IModelService
 	) {
 		this._proxy = threadService.getRemotable(ExtHostEditors);
 		this._workbenchEditorService = workbenchEditorService;
@@ -457,7 +456,7 @@ export class MainThreadEditors {
 		this._toDispose = disposeAll(this._toDispose);
 	}
 
-	private _onTextEditorAdd(textEditor:MainThreadTextEditor): void {
+	private _onTextEditorAdd(textEditor: MainThreadTextEditor): void {
 		let id = textEditor.getId();
 		let toDispose: IDisposable[] = [];
 		toDispose.push(textEditor.onConfigurationChanged((opts) => {
@@ -477,7 +476,7 @@ export class MainThreadEditors {
 		this._textEditorsMap[id] = textEditor;
 	}
 
-	private _onTextEditorRemove(textEditor:MainThreadTextEditor): void {
+	private _onTextEditorRemove(textEditor: MainThreadTextEditor): void {
 		let id = textEditor.getId();
 		disposeAll(this._textEditorsListenersMap[id]);
 		delete this._textEditorsListenersMap[id];
@@ -489,7 +488,7 @@ export class MainThreadEditors {
 		let visibleEditors = this._editorTracker.getVisibleTextEditorIds();
 		let activeEditor = this._findActiveTextEditorId();
 
-		if (activeEditor === this._activeTextEditor && arrayEquals(this._visibleEditors, visibleEditors, (a,b) => a === b)) {
+		if (activeEditor === this._activeTextEditor && arrayEquals(this._visibleEditors, visibleEditors, (a, b) => a === b)) {
 			// no change
 			return;
 		}
@@ -573,7 +572,7 @@ export class MainThreadEditors {
 			return this._workbenchEditorService.openEditor({
 				resource: model.getAssociatedResource(),
 				options: { preserveFocus: false }
-			}, position).then(() => { });
+			}, position).then(() => { return; });
 		}
 	}
 
@@ -583,7 +582,7 @@ export class MainThreadEditors {
 			let editors = this._workbenchEditorService.getVisibleEditors();
 			for (let editor of editors) {
 				if (mainThreadEditor.matches(editor)) {
-					return this._workbenchEditorService.closeEditor(editor).then(() => { });
+					return this._workbenchEditorService.closeEditor(editor).then(() => { return; });
 				}
 			}
 		}
@@ -597,7 +596,7 @@ export class MainThreadEditors {
 		return TPromise.as(null);
 	}
 
-	_trySetDecorations(id: string, key: string, ranges:IRangeWithMessage[]): TPromise<any> {
+	_trySetDecorations(id: string, key: string, ranges: IRangeWithMessage[]): TPromise<any> {
 		if (!this._textEditorsMap[id]) {
 			return TPromise.wrapError('TextEditor disposed');
 		}
@@ -605,14 +604,14 @@ export class MainThreadEditors {
 		return TPromise.as(null);
 	}
 
-	_tryRevealRange(id: string, range: IRange, revealType:TextEditorRevealType): TPromise<any> {
+	_tryRevealRange(id: string, range: IRange, revealType: TextEditorRevealType): TPromise<any> {
 		if (!this._textEditorsMap[id]) {
 			return TPromise.wrapError('TextEditor disposed');
 		}
 		this._textEditorsMap[id].revealRange(range, revealType);
 	}
 
-	_trySetOptions(id: string, options:IInternalIndentationOptions): TPromise<any> {
+	_trySetOptions(id: string, options: IInternalIndentationOptions): TPromise<any> {
 		if (!this._textEditorsMap[id]) {
 			return TPromise.wrapError('TextEditor disposed');
 		}
@@ -620,18 +619,18 @@ export class MainThreadEditors {
 		return TPromise.as(null);
 	}
 
-	_tryApplyEdits(id: string, modelVersionId: number, edits:ISingleEditOperation[]): TPromise<boolean> {
+	_tryApplyEdits(id: string, modelVersionId: number, edits: ISingleEditOperation[]): TPromise<boolean> {
 		if (!this._textEditorsMap[id]) {
 			return TPromise.wrapError('TextEditor disposed');
 		}
 		return TPromise.as(this._textEditorsMap[id].applyEdits(modelVersionId, edits));
 	}
 
-	_registerTextEditorDecorationType(key:string, options: IDecorationRenderOptions): void {
+	_registerTextEditorDecorationType(key: string, options: IDecorationRenderOptions): void {
 		this._editorTracker.registerTextEditorDecorationType(key, options);
 	}
 
-	_removeTextEditorDecorationType(key:string): void {
+	_removeTextEditorDecorationType(key: string): void {
 		this._editorTracker.removeTextEditorDecorationType(key);
 	}
 }
