@@ -18,7 +18,7 @@ import {IModelService} from 'vs/editor/common/services/modelService';
  */
 export class ResourceEditorInput extends EditorInput {
 
-	public static ID = 'workbench.editors.resourceEditorInput';
+	public static ID: string = 'workbench.editors.resourceEditorInput';
 
 	protected cachedModel: ResourceEditorModel;
 	protected resource: URI;
@@ -59,7 +59,7 @@ export class ResourceEditorInput extends EditorInput {
 			return TPromise.as<EditorModel>(this.cachedModel);
 		}
 
-		//Otherwise Create Model and handle dispose event
+		// Otherwise Create Model and handle dispose event
 		let model = this.instantiationService.createInstance(ResourceEditorModel, this.resource);
 		const unbind = model.addListener(EventType.DISPOSE, () => {
 			this.cachedModel = null; // make sure we do not dispose model again
