@@ -152,7 +152,7 @@ class TextEditorDecorationType implements vscode.TextEditorDecorationType {
 	private _proxy: MainThreadEditors;
 	public key: string;
 
-	constructor(proxy:MainThreadEditors, options: vscode.DecorationRenderOptions) {
+	constructor(proxy: MainThreadEditors, options: vscode.DecorationRenderOptions) {
 		this.key = 'TextEditorDecorationType' + (++TextEditorDecorationType.LAST_ID);
 		this._proxy = proxy;
 		this._proxy._registerTextEditorDecorationType(this.key, <any>options);
