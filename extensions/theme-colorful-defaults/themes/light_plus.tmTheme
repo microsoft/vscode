@@ -54,7 +54,7 @@
 			<key>name</key>
 			<string>Parameter name</string>
 			<key>scope</key>
-			<string>meta.parameter.type.variable, variable.parameter, meta.variable</string>
+			<string>meta.parameter.type.variable, variable.parameter, variable, variable.name</string>
 			<key>settings</key>
 			<dict>
 				<key>foreground</key>
