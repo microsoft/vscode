@@ -9,6 +9,7 @@ import URI from 'vs/base/common/uri';
 import network = require('vs/base/common/network');
 import {guessMimeTypes} from 'vs/base/common/mime';
 import {Registry} from 'vs/platform/platform';
+import {basename, dirname} from 'vs/base/common/paths';
 import types = require('vs/base/common/types');
 import {IDiffEditor, ICodeEditor} from 'vs/editor/browser/editorBrowser';
 import {ICommonCodeEditor, IModel, EditorType, IEditor as ICommonEditor} from 'vs/editor/common/editorCommon';
@@ -289,8 +290,12 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 			return this.createFileInput(resourceInput.resource, resourceInput.mime);
 		}
 
+		// Treat an URI as ResourceEditorInput
 		else if (URI.isURI(resourceInput.resource)) {
-			return TPromise.as(this.instantiationService.createInstance(ResourceEditorInput, resourceInput.resource.fsPath, undefined, resourceInput.resource));
+			return TPromise.as(this.instantiationService.createInstance(ResourceEditorInput,
+				basename(resourceInput.resource.fsPath),
+				dirname(resourceInput.resource.fsPath),
+				resourceInput.resource));
 		}
 
 		return TPromise.as<EditorInput>(null);
