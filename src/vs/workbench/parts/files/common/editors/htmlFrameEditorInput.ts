@@ -9,7 +9,7 @@ import URI from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
 import {EditorModel} from 'vs/workbench/common/editor';
 import {DerivedFrameEditorInput} from 'vs/workbench/parts/files/common/editors/derivedFrameEditorInput';
-import IFrameEditorModel = require('vs/workbench/common/editor/iframeEditorModel');
+import {IFrameEditorModel} from 'vs/workbench/common/editor/iframeEditorModel';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 
@@ -37,7 +37,7 @@ export class HTMLFrameEditorInput extends DerivedFrameEditorInput {
 	}
 
 	protected createModel(): EditorModel {
-		let model = new IFrameEditorModel.IFrameEditorModel(this.getResource());
+		let model = new IFrameEditorModel(this.getResource());
 		model.setUrl(this.getResource().toString());
 
 		return model;

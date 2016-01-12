@@ -204,7 +204,7 @@ export class IFrameEditor extends BaseEditor {
 			'	} catch (error) {}',
 			'});',
 
-		// disable dropping into iframe!
+			// disable dropping into iframe!
 			'window.document.addEventListener("dragover", function (e) {',
 			'	e.preventDefault();',
 			'});',
