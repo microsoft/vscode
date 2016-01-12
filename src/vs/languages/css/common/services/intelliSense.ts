@@ -133,7 +133,15 @@ export class CSSIntellisense {
 
 		if (entry) {
 			this.getColorProposals(entry, result);
+			this.getPositionProposals(entry, result);
+			this.getRepeatStyleProposals(entry, result);
+			this.getLineProposals(entry, result);
+			this.getBoxProposals(entry, result);
+			this.getImageProposals(entry, result);
+			this.getTimingFunctionProposals(entry, result);
+			this.getBasicShapeProposals(entry, result);
 			this.getValueEnumProposals(entry, result);
+			this.getCSSWideKeywordProposals(entry, result);
 			this.getUnitProposals(entry, result);
 		} else {
 			var existingValues = new Set();
@@ -163,6 +171,18 @@ export class CSSIntellisense {
 						type: type
 					});
 				}
+			});
+		}
+		return result;
+	}
+
+	public getCSSWideKeywordProposals(entry:languageFacts.IEntry, result:Modes.ISuggestion[]):Modes.ISuggestion[] {
+		for (var keywords in languageFacts.cssWideKeywords) {
+			result.push({
+				label: keywords,
+				documentationLabel: languageFacts.cssWideKeywords[keywords],
+				codeSnippet: keywords,
+				type: 'value'
 			});
 		}
 		return result;
@@ -226,7 +246,7 @@ export class CSSIntellisense {
 					label: color,
 					documentationLabel: languageFacts.colorKeywords[color],
 					codeSnippet: color,
-					type: 'function'
+					type: 'value'
 				});
 			}
 			var colorValues = new Set();
@@ -247,6 +267,124 @@ export class CSSIntellisense {
 					type: 'function'
 				});
 			});
+		};
+		return result;
+	}
+
+	protected getPositionProposals(entry:languageFacts.IEntry, result:Modes.ISuggestion[]):Modes.ISuggestion[] {
+		if (entry.restrictions.indexOf('position') !== -1) {
+			for (var position in languageFacts.positionKeywords) {
+				result.push({
+					label: position,
+					documentationLabel: languageFacts.positionKeywords[position],
+					codeSnippet: position,
+					type: 'value'
+				});
+			}
+		};
+		return result;
+	}
+
+	protected getRepeatStyleProposals(entry:languageFacts.IEntry, result:Modes.ISuggestion[]):Modes.ISuggestion[] {
+		if (entry.restrictions.indexOf('repeat') !== -1) {
+			for (var repeat in languageFacts.repeatStyleKeywords) {
+				result.push({
+					label: repeat,
+					documentationLabel: languageFacts.repeatStyleKeywords[repeat],
+					codeSnippet: repeat,
+					type: 'value'
+				});
+			}
+		};
+		return result;
+	}
+
+	protected getLineProposals(entry:languageFacts.IEntry, result:Modes.ISuggestion[]):Modes.ISuggestion[] {
+		if (entry.restrictions.indexOf('line-style') !== -1) {
+			for (var lineStyle in languageFacts.lineStyleKeywords) {
+				result.push({
+					label: lineStyle,
+					documentationLabel: languageFacts.lineStyleKeywords[lineStyle],
+					codeSnippet: lineStyle,
+					type: 'value'
+				});
+			}
+		};
+		if (entry.restrictions.indexOf('line-width') !== -1) {
+			languageFacts.lineWidthKeywords.forEach((lineWidth) => {
+				result.push({
+					label: lineWidth,
+					codeSnippet: lineWidth,
+					type: 'value'
+				});
+			});
+		};
+		return result;
+	}
+
+	protected getBoxProposals(entry:languageFacts.IEntry, result:Modes.ISuggestion[]):Modes.ISuggestion[] {
+		var geometryBox = entry.restrictions.indexOf('geometry-box');
+		if (geometryBox !== -1) {
+			for (var box in languageFacts.geometryBoxKeywords) {
+				result.push({
+					label: box,
+					documentationLabel: languageFacts.geometryBoxKeywords[box],
+					codeSnippet: box,
+					type: 'value'
+				});
+			}
+		};
+		if (entry.restrictions.indexOf('box') !== -1 || geometryBox !== -1) {
+			for (var box in languageFacts.boxKeywords) {
+				result.push({
+					label: box,
+					documentationLabel: languageFacts.boxKeywords[box],
+					codeSnippet: box,
+					type: 'value'
+				});
+			}
+		};
+		return result;
+	}
+
+	protected getImageProposals(entry:languageFacts.IEntry, result:Modes.ISuggestion[]):Modes.ISuggestion[] {
+		if (entry.restrictions.indexOf('image') !== -1) {
+			for (var image in languageFacts.imageFunctions) {
+				result.push({
+					label: image,
+					documentationLabel: languageFacts.imageFunctions[image],
+					codeSnippet: image,
+					type: 'function'
+				});
+			}
+		};
+		return result;
+	}
+
+	protected getTimingFunctionProposals(entry:languageFacts.IEntry, result:Modes.ISuggestion[]):Modes.ISuggestion[] {
+		if (entry.restrictions.indexOf('timing-function') !== -1) {
+			for (var timing in languageFacts.transitionTimingFunctions) {
+				result.push({
+					label: timing,
+					documentationLabel: languageFacts.transitionTimingFunctions[timing],
+					codeSnippet: timing,
+					type: 'function'
+				});
+			}
+		};
+		return result;
+	}
+
+	protected getBasicShapeProposals(entry:languageFacts.IEntry, result:Modes.ISuggestion[]):Modes.ISuggestion[] {
+		if (entry.restrictions.indexOf('shape') !== -1) {
+			for (var shape in languageFacts.basicShapeFunctions) {
+				result.push({
+					label: shape,
+					documentationLabel: languageFacts.basicShapeFunctions[shape],
+					codeSnippet: shape,
+					type: 'function'
+				});
+			}
 		};
 		return result;
 	}
@@ -315,6 +453,13 @@ export class CSSIntellisense {
 			}
 		});
 		languageFacts.html5Tags.forEach((entry) => {
+			result.push({
+				label: entry,
+				codeSnippet: entry,
+				type: 'keyword'
+			});
+		});
+		languageFacts.svgElements.forEach((entry) => {
 			result.push({
 				label: entry,
 				codeSnippet: entry,

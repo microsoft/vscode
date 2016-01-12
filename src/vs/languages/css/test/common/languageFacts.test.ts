@@ -29,7 +29,8 @@ suite('CSS language facts', () => {
 		var b = alignLast.browsers;
 		assert.equal(b['FF'], '12');
 		assert.equal(b['IE'], '5');
-		assert.equal(b['count'], 2);
+		assert.equal(b['E'], '');
+		assert.equal(b['count'], 3);
 
 		assert.equal(languageFacts.getBrowserLabel(alignLast.browsers) , 'Firefox 12, IE 5');
 
