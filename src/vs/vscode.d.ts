@@ -1017,6 +1017,15 @@ declare namespace vscode {
 		onDidDelete: Event<Uri>;
 	}
 
+	/**
+	 * A text document content provider allows to add readonly documents
+	 * to the editor, such as source from a dll or generated html from md.
+	 *
+	 * Content providers are [registered](#workbench.registerTextDocumentContentProvider)
+	 * for a [uri-scheme](#Uri.scheme). When a uri with that scheme is to
+	 * be [loaded](#workbench.openTextDocument) the content provider is
+	 * asked.
+	 */
 	export interface TextDocumentContentProvider {
 
 		/**
@@ -1026,6 +1035,10 @@ declare namespace vscode {
 
 		/**
 		 * Provide textual content for a given uri.
+		 *
+		 * The editor will use the returned string-content to create a readonly
+		 * [document](TextDocument). Resources allocated should be released when
+		 * the corresponding document has been [closed](#workbench.onDidCloseTextDocument).
 		 *
 		 * @param uri An uri which scheme matches the scheme this provider was [registered](#workspace.registerTextDocumentContentProvider) for.
 		 * @param token A cancellation token.
@@ -3022,7 +3035,13 @@ declare namespace vscode {
 		export function openTextDocument(fileName: string): Thenable<TextDocument>;
 
 		/**
+		 * Register a text document content provider.
 		 *
+		 * Only one provider can be registered per scheme.
+		 *
+		 * @param scheme The uri-scheme to register for.
+		 * @param provider A content provider.
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
 		export function registerTextDocumentContentProvider(scheme: string, provider: TextDocumentContentProvider): Disposable;
 
