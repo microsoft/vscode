@@ -19,6 +19,7 @@ const debugTreeOptions = {
 	indentPixels: 6,
 	twistiePixels: 12
 };
+const MAX_ELEMENTS_SHOWN = 18;
 
 export class DebugHoverWidget implements editorbrowser.IContentWidget {
 
@@ -43,6 +44,13 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 			renderer: this.instantiationService.createInstance(VariablesHoverRenderer),
 			controller: new DebugHoverController()
 		}, debugTreeOptions);
+		this.tree.addListener2('item:expanded', () => {
+			this.layoutTree();
+		});
+		this.tree.addListener2('item:collapsed', () => {
+			this.layoutTree();
+		});
+
 		this.valueContainer = dom.append(this.domNode, $('.debug-hover-value'));
 
 		this.isVisible = false;
@@ -133,10 +141,10 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 	private doShow(position: editorcommon.IEditorPosition, expression: debug.IExpression): void {
 		if (expression.reference > 0) {
 			this.valueContainer.hidden = true;
-			this.setTreeHeight(expression);
 			this.treeContainer.hidden = false;
-			this.tree.setInput(expression).done(null, errors.onUnexpectedError);
-			this.tree.layout(this.treeContainer.clientHeight);
+			this.tree.setInput(expression).then(() => {
+				this.layoutTree();
+			}).done(null, errors.onUnexpectedError);
 		} else {
 			this.treeContainer.hidden = true;
 			this.valueContainer.hidden = false;
@@ -148,14 +156,18 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 		this.editor.layoutContentWidget(this);
 	}
 
-	private setTreeHeight(expression: debug.IExpression): void {
-		const maxHeight = 16 * 18;
-		this.treeContainer.style.height = `${maxHeight}px`
-		expression.getChildren(this.debugService).done(children => {
-			if (children.every(child => child.reference === 0)) {
-				this.treeContainer.style.height = `${Math.min(maxHeight, children.length * 18)}px`;
-			}
-		}), errors.onUnexpectedError;
+	private layoutTree(): void {
+		const navigator = this.tree.getNavigator();
+		let visibleElementsCount = 0;
+		while (navigator.next()) {
+			visibleElementsCount++;
+		}
+		const height = Math.min(visibleElementsCount, MAX_ELEMENTS_SHOWN) * 18;
+
+		if (this.treeContainer.clientHeight !== height) {
+			this.treeContainer.style.height = `${ height }px`;
+			this.tree.layout();
+		}
 	}
 
 	public hide(): void {
