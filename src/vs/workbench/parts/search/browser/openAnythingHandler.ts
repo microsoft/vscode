@@ -158,7 +158,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 				let result = [...results[0].entries, ...results[1].entries];
 
 				// Sort
-				result.sort((elementA, elementB) => this.sort(elementA, elementB, searchValue));
+				result.sort((elementA, elementB) => QuickOpenEntry.compareByScore(elementA, elementB, searchValue, this.scorerCache));
 
 				// Apply Range
 				result.forEach((element) => {
@@ -280,7 +280,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 		}
 
 		// Sort
-		results.sort((elementA, elementB) => this.sort(elementA, elementB, searchValue));
+		results.sort((elementA, elementB) => QuickOpenEntry.compareByScore(elementA, elementB, searchValue, this.scorerCache));
 
 		// Apply Range
 		results.forEach((element) => {
@@ -293,56 +293,6 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 		const viewResults = results.length > OpenAnythingHandler.MAX_DISPLAYED_RESULTS ? results.slice(0, OpenAnythingHandler.MAX_DISPLAYED_RESULTS) : results;
 
 		return viewResults;
-	}
-
-	private sort(elementA: QuickOpenEntry, elementB: QuickOpenEntry, lookFor: string): number {
-		const labelA = elementA.getLabel();
-		const labelB = elementB.getLabel();
-
-		// treat prefix matches highest in any case
-		const prefixCompare = compareByPrefix(labelA, labelB, lookFor);
-		if (prefixCompare) {
-			return prefixCompare;
-		}
-
-		// Give higher importance to label score
-		const labelAScore = scorer.score(labelA, lookFor, this.scorerCache);
-		const labelBScore = scorer.score(labelB, lookFor, this.scorerCache);
-
-		// Useful for understanding the scoring
-		// elementA.setPrefix(labelAScore + ' ');
-		// elementB.setPrefix(labelBScore + ' ');
-
-		if (labelAScore !== labelBScore) {
-			return labelAScore > labelBScore ? -1 : 1;
-		}
-
-		// Score on full resource path comes next (can be null for symbols!)
-		let resourceA = elementA.getResource();
-		let resourceB = elementB.getResource();
-		if (resourceA && resourceB) {
-			const resourceAScore = scorer.score(resourceA.fsPath, lookFor, this.scorerCache);
-			const resourceBScore = scorer.score(resourceB.fsPath, lookFor, this.scorerCache);
-
-			// Useful for understanding the scoring
-			// elementA.setPrefix(elementA.getPrefix() + ' ' + resourceAScore + ': ');
-			// elementB.setPrefix(elementB.getPrefix() + ' ' + resourceBScore + ': ');
-
-			if (resourceAScore !== resourceBScore) {
-				return resourceAScore > resourceBScore ? -1 : 1;
-			}
-		}
-
-		// At this place, the scores are identical so we check for string lengths and favor shorter ones
-		if (labelA.length !== labelB.length) {
-			return labelA.length < labelB.length ? -1 : 1;
-		}
-
-		if (resourceA && resourceB && resourceA.fsPath.length !== resourceB.fsPath.length) {
-			return resourceA.fsPath.length < resourceB.fsPath.length ? -1 : 1;
-		}
-
-		return QuickOpenEntry.compare(elementA, elementB, lookFor);
 	}
 
 	public getGroupLabel(): string {
