@@ -196,11 +196,6 @@ configurationRegistry.registerConfiguration({
 					}
 				]
 			}
-		},
-		'filePicker.alternateFileNameMatching': {
-			'type': 'boolean',
-			'default': false,
-			'description': nls.localize('enableFuzzy', "Experimental support for fuzzy matching of file names in the file picker.")
 		}
 	}
 });

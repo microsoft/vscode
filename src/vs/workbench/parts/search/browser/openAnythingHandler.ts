@@ -51,8 +51,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 	private delayer: ThrottledDelayer<QuickOpenModel>;
 	private pendingSearch: TPromise<QuickOpenModel>;
 	private isClosed: boolean;
-	private scorerCache: {[key: string]: number};
-	private fuzzyMatchingEnabled: boolean;
+	private scorerCache: { [key: string]: number };
 	private configurationListenerUnbind: ListenerUnbind;
 
 	constructor(
@@ -73,19 +72,6 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 		this.resultsToSearchCache = Object.create(null);
 		this.scorerCache = Object.create(null);
 		this.delayer = new ThrottledDelayer<QuickOpenModel>(OpenAnythingHandler.SEARCH_DELAY);
-
-		this.updateFuzzyMatching(contextService.getOptions().globalSettings.settings);
-
-		this.registerListeners();
-	}
-
-	private registerListeners(): void {
-		this.configurationListenerUnbind = this.configurationService.addListener(ConfigurationServiceEventTypes.UPDATED, (e: IConfigurationServiceEvent) => this.updateFuzzyMatching(e.config));
-	}
-
-	private updateFuzzyMatching(configuration: ISearchConfiguration): void {
-		this.fuzzyMatchingEnabled = configuration.filePicker && configuration.filePicker.alternateFileNameMatching;
-		this.openFileHandler.setFuzzyMatchingEnabled(this.fuzzyMatchingEnabled);
 	}
 
 	public getResults(searchValue: string): TPromise<QuickOpenModel> {
@@ -172,7 +158,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 				let result = [...results[0].entries, ...results[1].entries];
 
 				// Sort
-				result.sort((elementA, elementB) => this.sort(elementA, elementB, searchValue, this.fuzzyMatchingEnabled));
+				result.sort((elementA, elementB) => this.sort(elementA, elementB, searchValue));
 
 				// Apply Range
 				result.forEach((element) => {
@@ -271,7 +257,6 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 
 		// Pattern match on results and adjust highlights
 		let results: QuickOpenEntry[] = [];
-		const searchInPath = this.fuzzyMatchingEnabled || searchValue.indexOf(paths.nativeSep) >= 0;
 		for (let i = 0; i < cachedEntries.length; i++) {
 			let entry = cachedEntries[i];
 
@@ -282,20 +267,20 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 
 			// Check if this entry is a match for the search value
 			const resource = entry.getResource(); // can be null for symbol results!
-			let targetToMatch = searchInPath && resource ? labels.getPathLabel(resource, this.contextService) : entry.getLabel();
-			if (!filters.matchesFuzzy(searchValue, targetToMatch, this.fuzzyMatchingEnabled)) {
+			let targetToMatch = resource ? labels.getPathLabel(resource, this.contextService) : entry.getLabel();
+			if (!filters.matchesFuzzy(searchValue, targetToMatch, true /* separate substring matching */)) {
 				continue;
 			}
 
 			// Apply highlights
-			const {labelHighlights, descriptionHighlights} = QuickOpenEntry.highlight(entry, searchValue, this.fuzzyMatchingEnabled);
+			const {labelHighlights, descriptionHighlights} = QuickOpenEntry.highlight(entry, searchValue, true /* fuzzy highlight */);
 			entry.setHighlights(labelHighlights, descriptionHighlights);
 
 			results.push(entry);
 		}
 
 		// Sort
-		results.sort((elementA, elementB) => this.sort(elementA, elementB, searchValue, this.fuzzyMatchingEnabled));
+		results.sort((elementA, elementB) => this.sort(elementA, elementB, searchValue));
 
 		// Apply Range
 		results.forEach((element) => {
@@ -310,55 +295,51 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 		return viewResults;
 	}
 
-	private sort(elementA: QuickOpenEntry, elementB: QuickOpenEntry, lookFor: string, enableFuzzyScoring: boolean): number {
+	private sort(elementA: QuickOpenEntry, elementB: QuickOpenEntry, lookFor: string): number {
+		const labelA = elementA.getLabel();
+		const labelB = elementB.getLabel();
 
-		// Fuzzy scoring is special
-		if (enableFuzzyScoring) {
-			const labelA = elementA.getLabel();
-			const labelB = elementB.getLabel();
+		// treat prefix matches highest in any case
+		const prefixCompare = compareByPrefix(labelA, labelB, lookFor);
+		if (prefixCompare) {
+			return prefixCompare;
+		}
 
-			// treat prefix matches highest in any case
-			const prefixCompare = compareByPrefix(labelA, labelB, lookFor);
-			if (prefixCompare) {
-				return prefixCompare;
-			}
+		// Give higher importance to label score
+		const labelAScore = scorer.score(labelA, lookFor, this.scorerCache);
+		const labelBScore = scorer.score(labelB, lookFor, this.scorerCache);
 
-			// Give higher importance to label score
-			const labelAScore = scorer.score(labelA, lookFor, this.scorerCache);
-			const labelBScore = scorer.score(labelB, lookFor, this.scorerCache);
+		// Useful for understanding the scoring
+		// elementA.setPrefix(labelAScore + ' ');
+		// elementB.setPrefix(labelBScore + ' ');
+
+		if (labelAScore !== labelBScore) {
+			return labelAScore > labelBScore ? -1 : 1;
+		}
+
+		// Score on full resource path comes next (can be null for symbols!)
+		let resourceA = elementA.getResource();
+		let resourceB = elementB.getResource();
+		if (resourceA && resourceB) {
+			const resourceAScore = scorer.score(resourceA.fsPath, lookFor, this.scorerCache);
+			const resourceBScore = scorer.score(resourceB.fsPath, lookFor, this.scorerCache);
 
 			// Useful for understanding the scoring
-			// elementA.setPrefix(labelAScore + ' ');
-			// elementB.setPrefix(labelBScore + ' ');
+			// elementA.setPrefix(elementA.getPrefix() + ' ' + resourceAScore + ': ');
+			// elementB.setPrefix(elementB.getPrefix() + ' ' + resourceBScore + ': ');
 
-			if (labelAScore !== labelBScore) {
-				return labelAScore > labelBScore ? -1 : 1;
+			if (resourceAScore !== resourceBScore) {
+				return resourceAScore > resourceBScore ? -1 : 1;
 			}
+		}
 
-			// Score on full resource path comes next (can be null for symbols!)
-			let resourceA = elementA.getResource();
-			let resourceB = elementB.getResource();
-			if (resourceA && resourceB) {
-				const resourceAScore = scorer.score(resourceA.fsPath, lookFor, this.scorerCache);
-				const resourceBScore = scorer.score(resourceB.fsPath, lookFor, this.scorerCache);
+		// At this place, the scores are identical so we check for string lengths and favor shorter ones
+		if (labelA.length !== labelB.length) {
+			return labelA.length < labelB.length ? -1 : 1;
+		}
 
-				// Useful for understanding the scoring
-				// elementA.setPrefix(elementA.getPrefix() + ' ' + resourceAScore + ': ');
-				// elementB.setPrefix(elementB.getPrefix() + ' ' + resourceBScore + ': ');
-
-				if (resourceAScore !== resourceBScore) {
-					return resourceAScore > resourceBScore ? -1 : 1;
-				}
-			}
-
-			// At this place, the scores are identical so we check for string lengths and favor shorter ones
-			if (labelA.length !== labelB.length) {
-				return labelA.length < labelB.length ? -1 : 1;
-			}
-
-			if (resourceA && resourceB && resourceA.fsPath.length !== resourceB.fsPath.length) {
-				return resourceA.fsPath.length < resourceB.fsPath.length ? -1 : 1;
-			}
+		if (resourceA && resourceB && resourceA.fsPath.length !== resourceB.fsPath.length) {
+			return resourceA.fsPath.length < resourceB.fsPath.length ? -1 : 1;
 		}
 
 		return QuickOpenEntry.compare(elementA, elementB, lookFor);

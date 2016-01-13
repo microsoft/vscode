@@ -28,14 +28,12 @@ export class FileWalker {
 	private resultCount: number;
 	private isCanceled: boolean;
 	private searchInPath: boolean;
-	private matchFuzzy: boolean;
 
 	private walkedPaths: { [path: string]: boolean; };
 
 	constructor(config: IRawSearch) {
 		this.config = config;
 		this.filePattern = config.filePattern;
-		this.matchFuzzy = config.matchFuzzy;
 		this.excludePattern = config.excludePattern;
 		this.includePattern = config.includePattern;
 		this.maxResults = config.maxResults || null;
@@ -231,7 +229,7 @@ export class FileWalker {
 
 		// Check for search pattern
 		if (this.filePattern) {
-			const res = filters.matchesFuzzy(this.filePattern, this.matchFuzzy || this.searchInPath ? path : name, this.matchFuzzy);
+			const res = filters.matchesFuzzy(this.filePattern, path, true /* separate substring matching */);
 
 			return !!res && res.length > 0;
 		}
