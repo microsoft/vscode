@@ -344,6 +344,11 @@ export interface ICommonEditorOptions {
 	 */
 	cursorStyle?:string;
 	/**
+	 * Enable font ligatures.
+	 * Defaults to false.
+	 */
+	fontLigatures?:boolean;
+	/**
 	 * Should the cursor be hidden in the overview ruler.
 	 * Defaults to false.
 	 */
@@ -591,6 +596,7 @@ export interface IInternalEditorOptions {
 	overviewRulerLanes:number;
 	cursorBlinking:string;
 	cursorStyle:string;
+	fontLigatures:boolean;
 	hideCursorInOverviewRuler:boolean;
 	scrollBeyondLastLine:boolean;
 	wrappingIndent: string;
@@ -683,6 +689,7 @@ export interface IConfigurationChangedEvent {
 	overviewRulerLanes:boolean;
 	cursorBlinking:boolean;
 	cursorStyle:boolean;
+	fontLigatures:boolean;
 	hideCursorInOverviewRuler:boolean;
 	scrollBeyondLastLine:boolean;
 	wrappingIndent:boolean;
