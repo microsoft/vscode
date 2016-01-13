@@ -179,7 +179,7 @@ export class QuickOpenEntry {
 		return compareAnything(nameA, nameB, lookFor);
 	}
 
-	public static compareByScore(elementA: QuickOpenEntry, elementB: QuickOpenEntry, lookFor: string, scorerCache: { [key: string]: number }): number {
+	public static compareByScore(elementA: QuickOpenEntry, elementB: QuickOpenEntry, lookFor: string, scorerCache?: { [key: string]: number }): number {
 		const labelA = elementA.getLabel();
 		const labelB = elementB.getLabel();
 
