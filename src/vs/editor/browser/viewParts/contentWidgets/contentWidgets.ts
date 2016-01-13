@@ -6,11 +6,11 @@
 'use strict';
 
 import 'vs/css!./contentWidgets';
-import DomUtils = require('vs/base/browser/dom');
 
+import * as DomUtils from 'vs/base/browser/dom';
 import {ViewPart} from 'vs/editor/browser/view/viewPart';
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as EditorBrowser from 'vs/editor/browser/editorBrowser';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 
 interface IWidgetData {
 	allowEditorOverflow: boolean;
@@ -109,7 +109,7 @@ export class ViewContentWidgets extends ViewPart {
 		this._requestModificationFrameBeforeRendering(() => {
 			// update the maxWidth on widgets nodes, such that `onReadAfterForcedLayout`
 			// below can read out the adjusted width/height of widgets
-			var widgetId:string;
+			let widgetId:string;
 			for (widgetId in this._widgets) {
 				if (this._widgets.hasOwnProperty(widgetId)) {
 					DomUtils.StyleMutator.setMaxWidth(this._widgets[widgetId].widget.getDomNode(), this._contentWidth);
@@ -135,7 +135,7 @@ export class ViewContentWidgets extends ViewPart {
 	// ---- end view event handlers
 
 	public addWidget(widget: EditorBrowser.IContentWidget): void {
-		var widgetData: IWidgetData = {
+		let widgetData: IWidgetData = {
 			allowEditorOverflow: widget.allowEditorOverflow || false,
 			widget: widget,
 			position: null,
@@ -144,7 +144,7 @@ export class ViewContentWidgets extends ViewPart {
 		};
 		this._widgets[widget.getId()] = widgetData;
 
-		var domNode = widget.getDomNode();
+		let domNode = widget.getDomNode();
 		domNode.style.position = 'absolute';
 		DomUtils.StyleMutator.setMaxWidth(domNode, this._contentWidth);
 		DomUtils.StyleMutator.setVisibility(domNode, 'hidden');
@@ -160,19 +160,19 @@ export class ViewContentWidgets extends ViewPart {
 	}
 
 	public setWidgetPosition(widget: EditorBrowser.IContentWidget, position: EditorCommon.IPosition, preference:EditorBrowser.ContentWidgetPositionPreference[]): void {
-		var widgetData = this._widgets[widget.getId()];
+		let widgetData = this._widgets[widget.getId()];
 		widgetData.position = position;
 		widgetData.preference = preference;
 		this.shouldRender = true;
 	}
 
 	public removeWidget(widget: EditorBrowser.IContentWidget): void {
-		var widgetId = widget.getId();
+		let widgetId = widget.getId();
 		if (this._widgets.hasOwnProperty(widgetId)) {
-			var widgetData = this._widgets[widgetId];
+			let widgetData = this._widgets[widgetId];
 			delete this._widgets[widgetId];
 
-			var domNode = widgetData.widget.getDomNode();
+			let domNode = widgetData.widget.getDomNode();
 			domNode.parentNode.removeChild(domNode);
 			domNode.removeAttribute('monaco-visible-content-widget');
 
@@ -182,32 +182,32 @@ export class ViewContentWidgets extends ViewPart {
 
 	private _layoutBoxInViewport(position:EditorCommon.IEditorPosition, domNode:HTMLElement, ctx:EditorBrowser.IRenderingContext): IBoxLayoutResult {
 
-		var visibleRange = ctx.visibleRangeForPosition(position);
+		let visibleRange = ctx.visibleRangeForPosition(position);
 
 		if (!visibleRange) {
 			return null;
 		}
 
-		var width = domNode.clientWidth;
-		var height = domNode.clientHeight;
+		let width = domNode.clientWidth;
+		let height = domNode.clientHeight;
 
 		// Our visible box is split horizontally by the current line => 2 boxes
 
 		// a) the box above the line
-		var aboveLineTop = visibleRange.top;
-		var heightAboveLine = aboveLineTop;
+		let aboveLineTop = visibleRange.top;
+		let heightAboveLine = aboveLineTop;
 
 		// b) the box under the line
-		var underLineTop = visibleRange.top + visibleRange.height;
-		var heightUnderLine = ctx.viewportHeight - underLineTop;
+		let underLineTop = visibleRange.top + visibleRange.height;
+		let heightUnderLine = ctx.viewportHeight - underLineTop;
 
-		var aboveTop = aboveLineTop - height;
-		var fitsAbove = (heightAboveLine >= height);
-		var belowTop = underLineTop;
-		var fitsBelow = (heightUnderLine >= height);
+		let aboveTop = aboveLineTop - height;
+		let fitsAbove = (heightAboveLine >= height);
+		let belowTop = underLineTop;
+		let fitsBelow = (heightUnderLine >= height);
 
 		// And its left
-		var actualLeft = visibleRange.left;
+		let actualLeft = visibleRange.left;
 		if (actualLeft + width > ctx.viewportLeft + ctx.viewportWidth) {
 			actualLeft = ctx.viewportLeft + ctx.viewportWidth - width;
 		}
@@ -225,45 +225,45 @@ export class ViewContentWidgets extends ViewPart {
 	}
 
 	private _layoutBoxInPage(position: EditorCommon.IEditorPosition, domNode: HTMLElement, ctx: EditorBrowser.IRenderingContext): IBoxLayoutResult {
-		var visibleRange = ctx.visibleRangeForPosition(position);
+		let visibleRange = ctx.visibleRangeForPosition(position);
 
 		if (!visibleRange) {
 			return null;
 		}
 
-		var left = visibleRange.left - ctx.viewportLeft;
-		if (left < 0 || left > this._contentWidth) {
+		let left0 = visibleRange.left - ctx.viewportLeft;
+		if (left0 < 0 || left0 > this._contentWidth) {
 			return null;
 		}
 
-		var width = domNode.clientWidth,
+		let width = domNode.clientWidth,
 			height = domNode.clientHeight;
 
-		var aboveTop = visibleRange.top - height,
+		let aboveTop = visibleRange.top - height,
 			belowTop = visibleRange.top + visibleRange.height,
-			left = left + this._contentLeft;
+			left = left0 + this._contentLeft;
 
-		var domNodePosition = DomUtils.getDomNodePosition(this._viewDomNode);
-		var absoluteAboveTop = domNodePosition.top + aboveTop - document.body.scrollTop - document.documentElement.scrollTop,
+		let domNodePosition = DomUtils.getDomNodePosition(this._viewDomNode);
+		let absoluteAboveTop = domNodePosition.top + aboveTop - document.body.scrollTop - document.documentElement.scrollTop,
 			absoluteBelowTop = domNodePosition.top + belowTop - document.body.scrollTop - document.documentElement.scrollTop,
 			absoluteLeft = domNodePosition.left + left - document.body.scrollLeft - document.documentElement.scrollLeft;
 
-		var INNER_WIDTH = window.innerWidth || document.documentElement.clientWidth || document.body.clientWidth,
+		let INNER_WIDTH = window.innerWidth || document.documentElement.clientWidth || document.body.clientWidth,
 			INNER_HEIGHT = window.innerHeight || document.documentElement.clientHeight || document.body.clientHeight;
 
 		// Leave some clearance to the bottom
-		var BOTTOM_PADDING = 22;
+		let BOTTOM_PADDING = 22;
 
-		var fitsAbove = (absoluteAboveTop >= 0),
+		let fitsAbove = (absoluteAboveTop >= 0),
 			fitsBelow = (absoluteBelowTop + height <= INNER_HEIGHT - BOTTOM_PADDING);
 
 		if (absoluteLeft + width + 20 > INNER_WIDTH) {
-			var delta = absoluteLeft - (INNER_WIDTH - width - 20);
+			let delta = absoluteLeft - (INNER_WIDTH - width - 20);
 			absoluteLeft -= delta;
 			left -= delta;
 		}
 		if (absoluteLeft < 0) {
-			var delta = absoluteLeft;
+			let delta = absoluteLeft;
 			absoluteLeft -= delta;
 			left -= delta;
 		}
@@ -278,7 +278,7 @@ export class ViewContentWidgets extends ViewPart {
 	}
 
 	private _prepareRenderWidgetAtExactPosition(position:EditorCommon.IEditorPosition, ctx:EditorBrowser.IRenderingContext): IMyWidgetRenderData {
-		var visibleRange = ctx.visibleRangeForPosition(position);
+		let visibleRange = ctx.visibleRangeForPosition(position);
 
 		if (!visibleRange) {
 			return null;
@@ -296,19 +296,19 @@ export class ViewContentWidgets extends ViewPart {
 		}
 
 		// Do not trust that widgets have a valid position
-		var validModelPosition = this._context.model.validateModelPosition(widgetData.position),
+		let validModelPosition = this._context.model.validateModelPosition(widgetData.position),
 			position = this._context.model.convertModelPositionToViewPosition(validModelPosition.lineNumber, validModelPosition.column),
 			pref:EditorBrowser.ContentWidgetPositionPreference,
 			pass:number,
 			i:number;
 
-		var placement: IBoxLayoutResult = null;
-		var fetchPlacement = () => {
+		let placement: IBoxLayoutResult = null;
+		let fetchPlacement = () => {
 			if (placement) {
 				return;
 			}
 
-			var domNode = widgetData.widget.getDomNode();
+			let domNode = widgetData.widget.getDomNode();
 			if (widgetData.allowEditorOverflow) {
 				placement = this._layoutBoxInPage(position, domNode, ctx);
 			} else {
@@ -352,7 +352,7 @@ export class ViewContentWidgets extends ViewPart {
 	}
 
 	_render(ctx:EditorBrowser.IRenderingContext): void {
-		var data:IMyRenderData = {},
+		let data:IMyRenderData = {},
 			renderData: IMyWidgetRenderData,
 			widgetId: string;
 
@@ -366,7 +366,7 @@ export class ViewContentWidgets extends ViewPart {
 		}
 
 		this._requestModificationFrame(() => {
-			var widgetId:string,
+			let widgetId:string,
 				widget:IWidgetData,
 				domNode: HTMLElement;
 
