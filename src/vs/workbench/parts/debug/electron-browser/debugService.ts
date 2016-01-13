@@ -782,15 +782,17 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 	}
 
 	private sendBreakpoints(modelUri: uri): Promise {
+		if (!this.session || !this.session.readyForBreakpoints) {
+			return Promise.as(null);
+		}
+
 		const breakpointsToSend = arrays.distinct(
 			this.model.getBreakpoints().filter(bp => this.model.areBreakpointsActivated() && bp.enabled && bp.source.uri.toString() === modelUri.toString()),
 			bp => `${ bp.desiredLineNumber }`
 		);
-		if (!this.session || !this.session.readyForBreakpoints || breakpointsToSend.length === 0) {
-			return Promise.as(null);
-		}
+		const rawSource = breakpointsToSend.length > 0 ? breakpointsToSend[0].source.raw : Source.toRawSource(modelUri, null);
 
-		return this.session.setBreakpoints({ source: breakpointsToSend[0].source.raw, lines: breakpointsToSend.map(bp => bp.desiredLineNumber),
+		return this.session.setBreakpoints({ source: rawSource, lines: breakpointsToSend.map(bp => bp.desiredLineNumber),
 			breakpoints: breakpointsToSend.map(bp => ({ line: bp.desiredLineNumber, condition: bp.condition })) }).then(response => {
 
 			const data: {[id: string]: { line: number, verified: boolean } } = { };
