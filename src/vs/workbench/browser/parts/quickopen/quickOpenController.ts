@@ -320,6 +320,10 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 					onType: (value: string) => {
 						userTypedValue = value;
 
+						if (options.onDidType) {
+							options.onDidType(value);
+						}
+
 						if (picks.length === 0) {
 							return;
 						}

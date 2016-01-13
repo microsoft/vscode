@@ -38,6 +38,12 @@ export interface IPickOptions {
 	 * an optional flag to include the detail when filtering the picks
 	 */
 	matchOnDetail?: boolean;
+
+	/**
+	 *
+	 */
+	onDidType?: (value: string) => any;
+
 }
 
 export interface IInputOptions {

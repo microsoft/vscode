@@ -161,6 +161,24 @@ export class MainThreadQuickOpen {
 	}
 
 	$input(options?: InputBoxOptions): Thenable<string> {
-		return this._quickOpenService.input(options);
+
+		let defaultItem = 'Insert text and press Enter or Escape';
+		let userValue: string;
+
+		return new TPromise((resolve, reject) => {
+
+			this._quickOpenService.pick([defaultItem], {
+				placeHolder: options.placeHolder,
+				autoFocus: true,
+				onDidType(value) {
+					userValue = value;
+					// console.log('TEXT')
+				}
+			}).then(item => {
+				resolve(item && userValue);
+			}, reject);
+		});
+
+		// return this._quickOpenService.input(options);
 	}
 }
