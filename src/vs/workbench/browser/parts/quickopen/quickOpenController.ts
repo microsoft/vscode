@@ -30,7 +30,6 @@ import {EditorInput} from 'vs/workbench/common/editor';
 import errors = require('vs/base/common/errors');
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IPickOpenEntry, IInputOptions, IQuickOpenService, IPickOptions} from 'vs/workbench/services/quickopen/common/quickOpenService';
-import {IPickOpenEntryItem} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
 import {IStorageService} from 'vs/platform/storage/common/storage';
 import {IEventService} from 'vs/platform/event/common/event';
@@ -45,6 +44,11 @@ const EDITOR_HISTORY_STORAGE_KEY = 'quickopen.editorhistory';
 const HELP_PREFIX = '?';
 const AUTO_SAVE_HISTORY_THRESHOLD = 5;
 const QUICK_OPEN_MODE = 'inQuickOpen';
+
+interface IPickOpenEntryItem extends IPickOpenEntry {
+	height?: number;
+	render?: (tree: ITree, container: HTMLElement, previousCleanupFn: IElementCallback) => IElementCallback;
+}
 
 export interface IInternalPickOptions extends IPickOptions {
 	inputMode?: boolean;

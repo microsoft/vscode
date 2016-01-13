@@ -6,10 +6,10 @@
 
 import {TPromise} from 'vs/base/common/winjs.base';
 import {Remotable, IThreadService} from 'vs/platform/thread/common/thread';
-import {IQuickOpenService, IPickOpenEntryItem, IPickOptions} from 'vs/workbench/services/quickopen/common/quickOpenService';
+import {IQuickOpenService, IPickOpenEntry, IPickOptions} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {QuickPickOptions, QuickPickItem, InputBoxOptions} from 'vscode';
 
-export interface MyQuickPickItems extends IPickOpenEntryItem {
+export interface MyQuickPickItems extends IPickOpenEntry {
 	handle: number;
 }
 
