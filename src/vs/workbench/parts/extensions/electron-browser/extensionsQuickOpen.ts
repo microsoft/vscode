@@ -56,6 +56,7 @@ interface ITemplateData {
 	root: HTMLElement;
 	displayName: HighlightedLabel;
 	version: HTMLElement;
+	installs: HTMLElement;
 	since: HTMLElement;
 	author: HTMLElement;
 	actionbar: ActionBar;
@@ -83,7 +84,7 @@ function extensionEquals(one: IExtension, other: IExtension): boolean {
  * Compare by Install count descending.
  */
 function extensionEntryCompare(one: IExtensionEntry, other: IExtensionEntry): number {
-	return other.extension.installCount - one.extension.installCount;
+	return other.extension.installs - one.extension.installs;
 }
 
 class OpenInGalleryAction extends Action {
@@ -185,6 +186,7 @@ class Renderer implements IRenderer<IExtensionEntry> {
 			since,
 			displayName: new HighlightedLabel(dom.append(firstRow, $('span.name'))),
 			version: dom.append(firstRow, $('span.version')),
+			installs: dom.append(firstRow, $('span.version')),
 			actionbar: new ActionBar(dom.append(secondRow, $('.actions'))),
 			description: new HighlightedLabel(dom.append(secondRow, $('span.description'))),
 			disposables: []
@@ -195,6 +197,7 @@ class Renderer implements IRenderer<IExtensionEntry> {
 		const extension = entry.extension;
 		const date = extension.galleryInformation ? extension.galleryInformation.date : null;
 		const publisher = extension.galleryInformation ? extension.galleryInformation.publisherDisplayName : extension.publisher;
+		const installs = extension.installs;
 		const actionOptions = { icon: true, label: false };
 
 		const updateActions = () => {
@@ -237,6 +240,7 @@ class Renderer implements IRenderer<IExtensionEntry> {
 		data.displayName.set(extension.displayName, entry.highlights.displayName);
 		data.displayName.element.title = extension.name;
 		data.version.textContent = extension.version;
+		data.installs.textContent = installs + '';
 		data.since.textContent = date ? since(new Date(date)) : '';
 		data.author.textContent = publisher;
 		data.description.set(extension.description, entry.highlights.description);

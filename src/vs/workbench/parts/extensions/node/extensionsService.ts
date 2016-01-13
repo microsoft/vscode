@@ -64,7 +64,8 @@ function createExtension(manifest: IExtensionManifest, galleryInformation?: IGal
 		displayName: manifest.displayName || manifest.name,
 		publisher: manifest.publisher,
 		version: manifest.version,
-		description: manifest.description || ''
+		description: manifest.description || '',
+		installs: 0
 	};
 
 	if (galleryInformation) {

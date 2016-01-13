@@ -62,7 +62,7 @@ export class GalleryService implements IGalleryService {
 	/**
 	 * Extracts install count statistic.
 	 */
-	private extractInstallCount(statistics: IGalleryExtensionStatistic[]): number {
+	private extractInstalls(statistics: IGalleryExtensionStatistic[]): number {
 		var result = 0;
 		statistics.forEach(stat => {
 			if (stat.statisticName === 'install') {
@@ -116,7 +116,7 @@ export class GalleryService implements IGalleryService {
 					publisher: extension.publisher.publisherName,
 					version: extension.versions[0].version,
 					description: extension.shortDescription || '',
-					installCount: this.extractInstallCount(extension.statistics),
+					installs: this.extractInstalls(extension.statistics),
 					galleryInformation: {
 						galleryApiUrl: this.extensionsGalleryUrl,
 						id: extension.extensionId,
