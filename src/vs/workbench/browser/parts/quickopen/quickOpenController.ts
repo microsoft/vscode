@@ -17,7 +17,7 @@ import {Mode, IContext, IAutoFocus, IQuickNavigateConfiguration, IModel} from 'v
 import {QuickOpenEntryItem, QuickOpenEntry, QuickOpenModel, QuickOpenEntryGroup} from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import {QuickOpenWidget} from 'vs/base/parts/quickopen/browser/quickOpenWidget';
 import {ContributableActionProvider} from 'vs/workbench/browser/actionBarRegistry';
-import {ITree, IElementCallback} from 'vs/base/parts/tree/common/tree';
+import {ITree, IElementCallback} from 'vs/base/parts/tree/browser/tree';
 import {Registry} from 'vs/platform/platform';
 import {WorkbenchComponent} from 'vs/workbench/common/component';
 import {EditorEvent, EventType} from 'vs/workbench/common/events';

@@ -7,7 +7,7 @@
 import {TPromise} from 'vs/base/common/winjs.base';
 import types = require('vs/base/common/types');
 import URI from 'vs/base/common/uri';
-import {ITree, IElementCallback} from 'vs/base/parts/tree/common/tree';
+import {ITree, IElementCallback} from 'vs/base/parts/tree/browser/tree';
 import filters = require('vs/base/common/filters');
 import strings = require('vs/base/common/strings');
 import paths = require('vs/base/common/paths');
