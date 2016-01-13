@@ -1059,14 +1059,19 @@ declare namespace vscode {
 	export interface QuickPickItem {
 
 		/**
-		 * A label. Will be rendered prominent.
+		 * A human readable string which is rendered prominent.
 		 */
 		label: string;
 
 		/**
-		 * A description. Will be rendered less prominent.
+		 * A human readable string which is rendered less prominent.
 		 */
 		description: string;
+
+		/**
+		 * A human readable string which is rendered less prominent.
+		 */
+		detail?: string;
 	}
 
 	/**
