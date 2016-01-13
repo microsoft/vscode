@@ -2,19 +2,16 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import nls = require('vs/nls');
 import {Promise, TPromise} from 'vs/base/common/winjs.base';
 import DOM = require('vs/base/browser/dom');
 import errors = require('vs/base/common/errors');
-import {IEventEmitter} from 'vs/base/common/eventEmitter';
 import {Registry} from 'vs/platform/platform';
 import {Dimension, Builder, $} from 'vs/base/browser/builder';
 import {IAction, IActionRunner, Action, ActionRunner} from 'vs/base/common/actions';
 import {IActionItem, ActionsOrientation} from 'vs/base/browser/ui/actionbar/actionbar';
 import {ITree, IFocusEvent, ISelectionEvent} from 'vs/base/parts/tree/common/tree';
-import {WorkbenchComponent} from 'vs/workbench/common/component';
 import {prepareActions} from 'vs/workbench/browser/actionBarRegistry';
 import {ToolBar} from 'vs/base/browser/ui/toolbar/toolbar';
 import {DelayedDragHandler} from 'vs/base/browser/dnd';
@@ -26,7 +23,7 @@ import {IViewlet} from 'vs/workbench/common/viewlet';
 import {Composite, CompositeDescriptor, CompositeRegistry} from 'vs/workbench/browser/composite';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IMessageService} from 'vs/platform/message/common/message';
-import {ISelection, Selection, StructuredSelection} from 'vs/platform/selection/common/selection';
+import {StructuredSelection} from 'vs/platform/selection/common/selection';
 import {INullService} from 'vs/platform/instantiation/common/instantiation';
 
 export abstract class Viewlet extends Composite implements IViewlet { }
