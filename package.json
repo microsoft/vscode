@@ -29,7 +29,7 @@
     "vscode-debugprotocol": "^1.2.1",
     "vscode-textmate": "^1.0.9",
     "native-keymap": "^0.1.2",
-	"weak": "^1.0.1",
+    "weak": "^1.0.1",
     "winreg": "0.0.12",
     "yauzl": "^2.3.1"
   },
@@ -39,6 +39,7 @@
     "clean-css": "3.4.6",
     "clone": "^1.0.2",
     "debounce": "^1.0.0",
+    "documentdb": "^1.5.1",
     "event-stream": "^3.1.7",
     "express": "^4.13.1",
     "ghooks": "^1.0.1",
