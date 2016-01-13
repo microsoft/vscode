@@ -23,9 +23,8 @@ import {CollapsibleView, CollapsibleState, FixedCollapsibleView} from 'vs/base/b
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IViewlet} from 'vs/workbench/common/viewlet';
-import {Composite} from 'vs/workbench/browser/composite';
+import {Composite, CompositeDescriptor} from 'vs/workbench/browser/composite';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
-import {AsyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {ISelection, Selection, StructuredSelection} from 'vs/platform/selection/common/selection';
 import {INullService} from 'vs/platform/instantiation/common/instantiation';
@@ -159,21 +158,7 @@ export abstract class ViewerViewlet extends Viewlet {
 /**
  * A viewlet descriptor is a leightweight descriptor of a viewlet in the monaco workbench.
  */
-export class ViewletDescriptor extends AsyncDescriptor<Viewlet> {
-	public id: string;
-	public name: string;
-	public cssClass: string;
-	public order: number;
-
-	constructor(moduleId: string, ctorName: string, id: string, name: string, cssClass?: string, order?: number) {
-		super(moduleId, ctorName);
-
-		this.id = id;
-		this.name = name;
-		this.cssClass = cssClass;
-		this.order = order;
-	}
-}
+export class ViewletDescriptor extends CompositeDescriptor<Viewlet> { }
 
 export const Extensions = {
 	Viewlets: 'workbench.contributions.viewlets'

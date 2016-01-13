@@ -17,6 +17,7 @@ import {DelayedDragHandler} from 'vs/base/browser/dnd';
 import {disposeAll, IDisposable} from 'vs/base/common/lifecycle';
 import {CollapsibleView, CollapsibleState, FixedCollapsibleView} from 'vs/base/browser/ui/splitview/splitview';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
+import {AsyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
 import {IComposite} from 'vs/workbench/common/composite';
 import {ISelection, Selection} from 'vs/platform/selection/common/selection';
 
@@ -201,5 +202,24 @@ export abstract class Composite extends WorkbenchComponent implements IComposite
 	 */
 	public getControl(): IEventEmitter {
 		return null;
+	}
+}
+
+/**
+ * A composite descriptor is a leightweight descriptor of a composite in the monaco workbench.
+ */
+export abstract class CompositeDescriptor<T> extends AsyncDescriptor<T> {
+	public id: string;
+	public name: string;
+	public cssClass: string;
+	public order: number;
+
+	constructor(moduleId: string, ctorName: string, id: string, name: string, cssClass?: string, order?: number) {
+		super(moduleId, ctorName);
+
+		this.id = id;
+		this.name = name;
+		this.cssClass = cssClass;
+		this.order = order;
 	}
 }
