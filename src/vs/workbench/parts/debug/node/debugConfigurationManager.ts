@@ -245,13 +245,9 @@ export class ConfigurationManager {
 
 				this.configuration.debugServer = config.debugServer;
 				this.configuration.outDir = this.resolvePath(this.configuration.outDir);
-				this.configuration.address = this.configuration.address || 'localhost';
 				this.configuration.program = this.resolvePath(this.configuration.program);
-				this.configuration.stopOnEntry = this.configuration.stopOnEntry === undefined ? false : this.configuration.stopOnEntry;
-				this.configuration.args = this.configuration.args && this.configuration.args.length > 0 ? this.systemVariables.resolve(this.configuration.args) : null;
 				this.configuration.cwd = this.resolvePath(this.configuration.cwd || '.');
 				this.configuration.runtimeExecutable = this.resolvePath(this.configuration.runtimeExecutable);
-				this.configuration.runtimeArgs = this.configuration.runtimeArgs && this.configuration.runtimeArgs.length > 0 ? this.configuration.runtimeArgs : null;
 			}
 		});
 	}
