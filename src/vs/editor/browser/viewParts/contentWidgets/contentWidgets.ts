@@ -232,12 +232,13 @@ export class ViewContentWidgets extends ViewPart {
 		}
 
 		let left0 = visibleRange.left - ctx.viewportLeft;
-		if (left0 < 0 || left0 > this._contentWidth) {
-			return null;
-		}
 
 		let width = domNode.clientWidth,
 			height = domNode.clientHeight;
+
+		if (left0 + width < 0 || left0 > this._contentWidth) {
+			return null;
+		}
 
 		let aboveTop = visibleRange.top - height,
 			belowTop = visibleRange.top + visibleRange.height,
