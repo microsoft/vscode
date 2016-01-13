@@ -130,18 +130,21 @@ export class ExtensionsService implements IExtensionsService {
 			UserSettings.getValue(this.contextService, 'http.proxyStrictSSL')
 		]);
 
-		return settings
-			.then(settings => ({ proxyUrl: settings[0], strictSSL: settings[1] }))
-			.then(options => getProxyAgent(url, options))
-			.then(agent => download(zipPath, { url, agent }))
-			.then(() => validate(zipPath, extension))
-			.then(manifest => { this._onInstallExtension.fire(manifest); return manifest; })
-			.then(manifest => extract(zipPath, extensionPath, { sourcePath: 'extension', overwrite: true }).then(() => manifest))
-			.then(manifest => {
-				manifest = assign({ __metadata: galleryInformation }, manifest);
-				return pfs.writeFile(manifestPath, JSON.stringify(manifest, null, '\t'));
-			})
-			.then(() => { this._onDidInstallExtension.fire(extension); return extension; });
+		return settings.then(settings => {
+			const proxyUrl: string = settings[0];
+			const strictSSL: boolean = settings[1];
+			const agent = getProxyAgent(url, { proxyUrl, strictSSL });
+
+			return download(zipPath, { url, agent, strictSSL })
+				.then(() => validate(zipPath, extension))
+				.then(manifest => { this._onInstallExtension.fire(manifest); return manifest; })
+				.then(manifest => extract(zipPath, extensionPath, { sourcePath: 'extension', overwrite: true }).then(() => manifest))
+				.then(manifest => {
+					manifest = assign({ __metadata: galleryInformation }, manifest);
+					return pfs.writeFile(manifestPath, JSON.stringify(manifest, null, '\t'));
+				})
+				.then(() => { this._onDidInstallExtension.fire(extension); return extension; });
+		});
 	}
 
 	private installFromZip(zipPath: string): TPromise<IExtension> {
