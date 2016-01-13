@@ -231,19 +231,17 @@ class SymbolEntry extends EditorQuickOpenEntryGroup {
 	private editorService: IWorkbenchEditorService;
 	private index: number;
 	private name: string;
-	private meta: string;
 	private type: string;
 	private icon: string;
 	private description: string;
 	private range: IRange;
 	private handler: GotoSymbolHandler;
 
-	constructor(index: number, name: string, meta: string, type: string, description: string, icon: string, range: IRange, highlights: IHighlight[], editorService: IWorkbenchEditorService, handler: GotoSymbolHandler) {
+	constructor(index: number, name: string, type: string, description: string, icon: string, range: IRange, highlights: IHighlight[], editorService: IWorkbenchEditorService, handler: GotoSymbolHandler) {
 		super();
 
 		this.index = index;
 		this.name = name;
-		this.meta = meta;
 		this.type = type;
 		this.icon = icon;
 		this.description = description;
@@ -259,10 +257,6 @@ class SymbolEntry extends EditorQuickOpenEntryGroup {
 
 	public getLabel(): string {
 		return this.name;
-	}
-
-	public getMeta(): string {
-		return this.meta;
 	}
 
 	public getIcon(): string {
@@ -460,7 +454,6 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 		for (let i = 0; i < flattened.length; i++) {
 			let element = flattened[i];
 			let label = strings.trim(element.label);
-			let meta: string = null;
 
 			// Show parent scope as description
 			let description: string = element.containerLabel;
@@ -470,7 +463,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 
 			// Add
 			let icon = element.icon || element.type;
-			results.push(new SymbolEntry(i, label, meta, element.type, description, icon, element.range, null, this.editorService, this));
+			results.push(new SymbolEntry(i, label, element.type, description, icon, element.range, null, this.editorService, this));
 		}
 
 		return results;
