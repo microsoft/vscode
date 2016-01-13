@@ -134,7 +134,7 @@ export class ExtHostAPIImplementation {
 		const pluginHostCommands = this._threadService.getRemotable(ExtHostCommands);
 		const pluginHostEditors = this._threadService.getRemotable(ExtHostEditors);
 		const pluginHostMessageService = new ExtHostMessageService(this._threadService, this.commands);
-		const pluginHostQuickOpen = new ExtHostQuickOpen(this._threadService);
+		const pluginHostQuickOpen = this._threadService.getRemotable(ExtHostQuickOpen);
 		const pluginHostStatusBar = new ExtHostStatusBar(this._threadService);
 		const extHostOutputService = new ExtHostOutputService(this._threadService);
 
