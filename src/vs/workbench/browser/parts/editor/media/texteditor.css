@@ -7,3 +7,7 @@
 .monaco-workbench > .editor > .content .inactive .monaco-editor .current-line {
 	border-width: 0;
 }
+
+.monaco-editor {
+	text-rendering: optimizeLegibility;
+}
