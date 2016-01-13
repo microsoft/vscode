@@ -9,7 +9,7 @@ import 'vs/css!./octicons/octicons';
 import {escape} from 'vs/base/common/strings';
 
 export function expand(text: string): string {
-	return text.replace(/\$\((\w+)\)/g, (match, g1) => {
+	return text.replace(/\$\(([^)]+)\)/g, (match, g1) => {
 		return `<span class="octicon octicon-${g1}"></span>`;
 	});
 }
