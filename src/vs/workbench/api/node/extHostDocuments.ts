@@ -168,7 +168,7 @@ export class ExtHostModelService {
 		});
 	}
 
-	$getUnferencedDocuments(): TPromise<URI[]> {
+	$getUnreferencedDocuments(): TPromise<URI[]> {
 		const result: URI[] = [];
 		for (let key in this._documentData) {
 			if (!this._documentData[key].isDocumentReferenced) {
@@ -648,7 +648,7 @@ export class MainThreadDocuments {
 	}
 
 	private _runDocumentCleanup(): void {
-		this._proxy.$getUnferencedDocuments().then(resources => {
+		this._proxy.$getUnreferencedDocuments().then(resources => {
 
 			const toBeDisposed: URI[] = [];
 			const promises = resources.map(resource => {
