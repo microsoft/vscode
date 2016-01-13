@@ -15,15 +15,20 @@ export interface MyQuickPickItems extends IPickOpenEntryItem {
 
 export type Item = string | QuickPickItem;
 
+@Remotable.PluginHostContext('ExtHostQuickOpen')
 export class ExtHostQuickOpen {
 
 	private _proxy: MainThreadQuickOpen;
+	private _onDidSelectItem: (handle: number) => void;
 
 	constructor(@IThreadService threadService: IThreadService) {
 		this._proxy = threadService.getRemotable(MainThreadQuickOpen);
 	}
 
 	show(itemsOrItemsPromise: Item[] | Thenable<Item[]>, options?: QuickPickOptions): Thenable<Item> {
+
+		// clear state from last invocation
+		this._onDidSelectItem = undefined;
 
 		let itemsPromise: Thenable<Item[]>;
 		if (!Array.isArray(itemsOrItemsPromise)) {
@@ -60,6 +65,14 @@ export class ExtHostQuickOpen {
 				});
 			}
 
+			// handle selection changes
+			if (options && typeof options.onDidSelectItem === 'function') {
+				this._onDidSelectItem = (handle) => {
+					options.onDidSelectItem(items[handle]);
+				}
+			}
+
+			// show items
 			this._proxy.$setItems(pickItems);
 
 			return quickPickWidget.then(handle => {
@@ -74,6 +87,12 @@ export class ExtHostQuickOpen {
 		});
 	}
 
+	$onItemSelected(handle: number): void {
+		if (this._onDidSelectItem) {
+			this._onDidSelectItem(handle);
+		}
+	}
+
 	input(options?: InputBoxOptions): Thenable<string> {
 		return this._proxy.$input(options);
 	}
@@ -82,13 +101,15 @@ export class ExtHostQuickOpen {
 @Remotable.MainContext('MainThreadQuickOpen')
 export class MainThreadQuickOpen {
 
+	private _proxy: ExtHostQuickOpen;
 	private _quickOpenService: IQuickOpenService;
 	private _doSetItems: (items: MyQuickPickItems[]) => any;
 	private _doSetError: (error: Error) => any;
 	private _contents: TPromise<MyQuickPickItems[]>;
 	private _token: number = 0;
 
-	constructor(@IQuickOpenService quickOpenService: IQuickOpenService) {
+	constructor( @IThreadService threadService: IThreadService, @IQuickOpenService quickOpenService: IQuickOpenService) {
+		this._proxy = threadService.getRemotable(ExtHostQuickOpen);
 		this._quickOpenService = quickOpenService;
 	}
 
@@ -113,6 +134,10 @@ export class MainThreadQuickOpen {
 		return this._quickOpenService.pick(this._contents, options).then(item => {
 			if (item) {
 				return item.handle;
+			}
+		}, undefined, progress => {
+			if (progress) {
+				this._proxy.$onItemSelected((<MyQuickPickItems>progress).handle);
 			}
 		});
 	}
