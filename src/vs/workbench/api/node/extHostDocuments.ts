@@ -148,7 +148,7 @@ export class ExtHostModelService {
 		}
 		return new Disposable(() => {
 			this._proxy.$unregisterTextContentProvider(scheme);
-			delete this._documentContentProviders[scheme];
+			this._documentContentProviders[scheme] = undefined; // keep the knowledge of that scheme
 			if (subscription) {
 				subscription.dispose();
 			}
@@ -171,8 +171,9 @@ export class ExtHostModelService {
 	$getUnreferencedDocuments(): TPromise<URI[]> {
 		const result: URI[] = [];
 		for (let key in this._documentData) {
-			if (!this._documentData[key].isDocumentReferenced) {
-				result.push(URI.parse(key));
+			let uri = URI.parse(key);
+			if (this._documentContentProviders[uri.scheme] && !this._documentData[key].isDocumentReferenced) {
+				result.push(uri);
 			}
 		}
 		return TPromise.as(result);
