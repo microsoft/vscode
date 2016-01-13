@@ -8,9 +8,8 @@ import {Promise, TPromise} from 'vs/base/common/winjs.base';
 import strings = require('vs/base/common/strings');
 import Event, {Emitter} from 'vs/base/common/event';
 import {EditorOptions} from 'vs/workbench/common/editor';
-import {StringEditor} from 'vs/workbench/browser/parts/editor/stringEditor';
 import {OUTPUT_MIME, DEFAULT_OUTPUT_CHANNEL, IOutputEvent, IOutputService} from 'vs/workbench/parts/output/common/output';
-import {OutputEditorInput} from 'vs/workbench/parts/output/browser/outputEditorInput';
+import {OutputEditorInput} from 'vs/workbench/parts/output/common/outputEditorInput';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IEditor, Position} from 'vs/platform/editor/common/editor';
 import {IEventService} from 'vs/platform/event/common/event';
@@ -172,21 +171,21 @@ export class OutputService implements IOutputService {
 			}
 
 			// Still reveal last line
-			existingOutputEditor.revealLastLine();
+			(<OutputEditorInput>existingOutputEditor.input).revealLastLine();
 
 			return Promise.as(existingOutputEditor);
 		}
 
 		// Otherwise open new
-		return this.editorService.openEditor(OutputEditorInput.getInstance(this.instantiationService, channel), preserveFocus ? EditorOptions.create({ preserveFocus: true }) : null, <any> sideBySide);
+		return this.editorService.openEditor(OutputEditorInput.getInstance(this.instantiationService, channel), preserveFocus ? EditorOptions.create({ preserveFocus: true }) : null, <any>sideBySide);
 	}
 
-	private findOutputEditor(channel: string): StringEditor {
+	private findOutputEditor(channel: string): IEditor {
 		let editors = this.editorService.getVisibleEditors();
 		for (let i = 0; i < editors.length; i++) {
 			let editor = editors[i];
 			if (editor.input instanceof OutputEditorInput && (<OutputEditorInput>editor.input).getChannel() === channel && (<OutputEditorInput>editor.input).getMime() === OUTPUT_MIME) {
-				return <StringEditor>editor;
+				return editor;
 			}
 		}
 

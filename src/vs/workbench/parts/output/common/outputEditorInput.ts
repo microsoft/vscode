@@ -7,7 +7,7 @@
 import {TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import {EditorModel} from 'vs/workbench/common/editor';
-import {LogEditorInput} from 'vs/workbench/browser/parts/editor/logEditorInput';
+import {LogEditorInput} from 'vs/workbench/common/editor/logEditorInput';
 import {OUTPUT_EDITOR_INPUT_ID, IOutputEvent, OUTPUT_MIME, IOutputService} from 'vs/workbench/parts/output/common/output';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';

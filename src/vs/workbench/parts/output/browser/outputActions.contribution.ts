@@ -15,7 +15,7 @@ import {CommonEditorRegistry, EditorActionDescriptor} from 'vs/editor/common/edi
 import {Scope, IActionBarRegistry, Extensions as ActionBarExtensions} from 'vs/workbench/browser/actionBarRegistry';
 import {Action} from 'vs/base/common/actions';
 import {IEditorInputAction, IEditorInputActionContext, EditorInputActionContributor} from 'vs/workbench/browser/parts/editor/baseEditor';
-import {OutputEditorInput} from 'vs/workbench/parts/output/browser/outputEditorInput';
+import {OutputEditorInput} from 'vs/workbench/parts/output/common/outputEditorInput';
 import {ClearOutputEditorAction, ToggleOutputAction, GlobalShowOutputAction, SwitchOutputActionItem, SwitchOutputAction, ClearOutputAction} from 'vs/workbench/parts/output/browser/outputActions';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';

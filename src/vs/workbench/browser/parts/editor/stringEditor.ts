@@ -13,7 +13,7 @@ import {DefaultConfig} from 'vs/editor/common/config/defaultConfig';
 import {EditorConfiguration} from 'vs/editor/common/config/commonEditorConfig';
 import {TextEditorOptions, EditorModel, EditorInput, EditorOptions} from 'vs/workbench/common/editor';
 import {BaseTextEditorModel} from 'vs/workbench/common/editor/textEditorModel';
-import {LogEditorInput} from 'vs/workbench/browser/parts/editor/logEditorInput';
+import {LogEditorInput} from 'vs/workbench/common/editor/logEditorInput';
 import {UntitledEditorInput} from 'vs/workbench/common/editor/untitledEditorInput';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
 import {UntitledEditorEvent, EventType} from 'vs/workbench/common/events';
