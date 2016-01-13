@@ -63,6 +63,10 @@ export class GalleryService implements IGalleryService {
 	 * Extracts install count statistic.
 	 */
 	private extractInstalls(statistics: IGalleryExtensionStatistic[]): number {
+		// Sometimes there are no statistics.
+		if (!statistics) {
+			return 0;
+		}
 		var result = 0;
 		statistics.forEach(stat => {
 			if (stat.statisticName === 'install') {

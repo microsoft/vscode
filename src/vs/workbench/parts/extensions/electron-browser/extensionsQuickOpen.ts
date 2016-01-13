@@ -57,7 +57,6 @@ interface ITemplateData {
 	displayName: HighlightedLabel;
 	version: HTMLElement;
 	installs: HTMLElement;
-	since: HTMLElement;
 	author: HTMLElement;
 	actionbar: ActionBar;
 	description: HighlightedLabel;
@@ -173,20 +172,22 @@ class Renderer implements IRenderer<IExtensionEntry> {
 	}
 
 	renderTemplate(templateId: string, container: HTMLElement): ITemplateData {
+		// Important to preserve order here.
 		const root = dom.append(container, $('.extension'));
 		const firstRow = dom.append(root, $('.row'));
 		const secondRow = dom.append(root, $('.row'));
 		const published = dom.append(firstRow, $('.published'));
-		const since = dom.append(published, $('span.since'));
+		const displayName = new HighlightedLabel(dom.append(firstRow, $('span.name')));
+		const installs = dom.append(firstRow, $('span.installs'));
+		const version = dom.append(published, $('span.version'));
 		const author = dom.append(published, $('span.author'));
 
 		return {
 			root,
 			author,
-			since,
-			displayName: new HighlightedLabel(dom.append(firstRow, $('span.name'))),
-			version: dom.append(firstRow, $('span.version')),
-			installs: dom.append(firstRow, $('span.version')),
+			displayName,
+			version,
+			installs,
 			actionbar: new ActionBar(dom.append(secondRow, $('.actions'))),
 			description: new HighlightedLabel(dom.append(secondRow, $('span.description'))),
 			disposables: []
@@ -240,8 +241,7 @@ class Renderer implements IRenderer<IExtensionEntry> {
 		data.displayName.set(extension.displayName, entry.highlights.displayName);
 		data.displayName.element.title = extension.name;
 		data.version.textContent = extension.version;
-		data.installs.textContent = installs + '';
-		data.since.textContent = date ? since(new Date(date)) : '';
+		data.installs.textContent = String(installs);
 		data.author.textContent = publisher;
 		data.description.set(extension.description, entry.highlights.description);
 		data.description.element.title = extension.description;
