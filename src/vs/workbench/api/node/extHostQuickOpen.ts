@@ -23,16 +23,16 @@ export class ExtHostQuickOpen {
 		this._proxy = threadService.getRemotable(MainThreadQuickOpen);
 	}
 
-	show(items: Item[] | Thenable<Item[]>, options?: QuickPickOptions): Thenable<Item> {
+	show(itemsOrItemsPromise: Item[] | Thenable<Item[]>, options?: QuickPickOptions): Thenable<Item> {
 
 		let itemsPromise: Thenable<Item[]>;
-		if (!Array.isArray(items)) {
-			itemsPromise = items;
+		if (!Array.isArray(itemsOrItemsPromise)) {
+			itemsPromise = itemsOrItemsPromise;
 		} else {
-			itemsPromise = TPromise.as(items);
+			itemsPromise = TPromise.as(itemsOrItemsPromise);
 		}
 
-		let quickPickWidget = this._proxy._show({
+		let quickPickWidget = this._proxy.$show({
 			autoFocus: { autoFocusFirstEntry: true },
 			placeHolder: options && options.placeHolder,
 			matchOnDescription: options && options.matchOnDescription
@@ -60,7 +60,7 @@ export class ExtHostQuickOpen {
 				});
 			}
 
-			this._proxy._setItems(pickItems);
+			this._proxy.$setItems(pickItems);
 
 			return quickPickWidget.then(handle => {
 				if (typeof handle === 'number') {
@@ -68,14 +68,14 @@ export class ExtHostQuickOpen {
 				}
 			});
 		}, (err) => {
-			this._proxy._setError(err);
+			this._proxy.$setError(err);
 
 			return TPromise.wrapError(err);
 		});
 	}
 
 	input(options?: InputBoxOptions): Thenable<string> {
-		return this._proxy._input(options);
+		return this._proxy.$input(options);
 	}
 }
 
@@ -86,13 +86,13 @@ export class MainThreadQuickOpen {
 	private _doSetItems: (items: MyQuickPickItems[]) => any;
 	private _doSetError: (error: Error) => any;
 	private _contents: TPromise<MyQuickPickItems[]>;
-	private _token = 0;
+	private _token: number = 0;
 
 	constructor(@IQuickOpenService quickOpenService: IQuickOpenService) {
 		this._quickOpenService = quickOpenService;
 	}
 
-	_show(options: IPickOptions): Thenable<number> {
+	$show(options: IPickOptions): Thenable<number> {
 
 		const myToken = ++this._token;
 
@@ -117,21 +117,21 @@ export class MainThreadQuickOpen {
 		});
 	}
 
-	_setItems(items: MyQuickPickItems[]): Thenable<any> {
+	$setItems(items: MyQuickPickItems[]): Thenable<any> {
 		if (this._doSetItems) {
 			this._doSetItems(items);
 			return;
 		}
 	}
 
-	_setError(error: Error): Thenable<any> {
+	$setError(error: Error): Thenable<any> {
 		if (this._doSetError) {
 			this._doSetError(error);
 			return;
 		}
 	}
 
-	_input(options?: InputBoxOptions): Thenable<string> {
+	$input(options?: InputBoxOptions): Thenable<string> {
 		return this._quickOpenService.input(options);
 	}
 }
