@@ -229,15 +229,15 @@ export class CommandEvent extends Event {
 }
 
 /**
- * Viewlet events are emitted when a viewlet opens or closes in the sidebar.
+ * Composite events are emitted when a composite opens or closes in the sidebar or panel.
  */
-export class ViewletEvent extends Event {
-	public viewletId: string;
+export class CompositeEvent extends Event {
+	public compositeId: string;
 
-	constructor(viewletId: string, originalEvent?: any) {
+	constructor(compositeId: string, originalEvent?: any) {
 		super(originalEvent);
 
-		this.viewletId = viewletId;
+		this.compositeId = compositeId;
 	}
 }
 

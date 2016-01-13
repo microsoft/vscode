@@ -15,7 +15,6 @@ import {IAction, IActionRunner, Action, ActionRunner} from 'vs/base/common/actio
 import {IActionItem, ActionsOrientation} from 'vs/base/browser/ui/actionbar/actionbar';
 import {ITree, IFocusEvent, ISelectionEvent} from 'vs/base/parts/tree/common/tree';
 import {WorkbenchComponent} from 'vs/workbench/common/component';
-import {ViewletEvent} from 'vs/workbench/common/events';
 import {prepareActions} from 'vs/workbench/browser/actionBarRegistry';
 import {ToolBar} from 'vs/base/browser/ui/toolbar/toolbar';
 import {DelayedDragHandler} from 'vs/base/browser/dnd';
@@ -24,195 +23,14 @@ import {CollapsibleView, CollapsibleState, FixedCollapsibleView} from 'vs/base/b
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IViewlet} from 'vs/workbench/common/viewlet';
+import {Composite} from 'vs/workbench/browser/composite';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {AsyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
 import {IMessageService} from 'vs/platform/message/common/message';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {ISelection, Selection, StructuredSelection} from 'vs/platform/selection/common/selection';
 import {INullService} from 'vs/platform/instantiation/common/instantiation';
-/**
- * Internal viewlet events to communicate with viewlet container.
- */
-export const EventType = {
-	INTERNAL_VIEWLET_TITLE_AREA_UPDATE: 'internalViewletTitleAreaUpdate'
-};
 
-/**
- * Viewlets are layed out in the sidebar part of the workbench. Only one viewlet can be open
- * at a time. Each viewlet has a minimized representation that is good enough to provide some
- * information about the state of the viewlet data.
- * The workbench will keep a viewlet alive after it has been created and show/hide it based on
- * user interaction. The lifecycle of a viewlet goes in the order create(), setVisible(true|false),
- * layout(), focus(), dispose(). During use of the workbench, a viewlet will often receive a setVisible,
- * layout and focus call, but only one create and dispose call.
- */
-export abstract class Viewlet extends WorkbenchComponent implements IViewlet {
-	private _telemetryData: any = {};
-	private visible: boolean;
-	private parent: Builder;
-
-	protected actionRunner: IActionRunner;
-
-	/**
-	 * Create a new viewlet with the given ID and context.
-	 */
-	constructor(id: string, @ITelemetryService private _telemetryService: ITelemetryService) {
-		super(id);
-
-		this.visible = false;
-	}
-
-	public getTitle(): string {
-		return null;
-	}
-
-	public get telemetryService(): ITelemetryService {
-		return this._telemetryService;
-	}
-
-	public get telemetryData(): any {
-		return this._telemetryData;
-	}
-
-	/**
-	 * Note: Clients should not call this method, the monaco workbench calls this
-	 * method. Calling it otherwise may result in unexpected behavior.
-	 *
-	 * Called to create this viewlet on the provided builder. This method is only
-	 * called once during the lifetime of the workbench.
-	 * Note that DOM-dependent calculations should be performed from the setVisible()
-	 * call. Only then the viewlet will be part of the DOM.
-	 */
-	public create(parent: Builder): TPromise<void> {
-		this.parent = parent;
-
-		return Promise.as(null);
-	}
-
-	/**
-	 * Returns the container this viewlet is being build in.
-	 */
-	public getContainer(): Builder {
-		return this.parent;
-	}
-
-	/**
-	 * Note: Clients should not call this method, the monaco workbench calls this
-	 * method. Calling it otherwise may result in unexpected behavior.
-	 *
-	 * Called to indicate that the viewlet has become visible or hidden. This method
-	 * is called more than once during workbench lifecycle depending on the user interaction.
-	 * The viewlet will be on-DOM if visible is set to true and off-DOM otherwise.
-	 *
-	 * The returned promise is complete when the viewlet is visible. As such it is valid
-	 * to do a long running operation from this call. Typically this operation should be
-	 * fast though because setVisible might be called many times during a session.
-	 */
-	public setVisible(visible: boolean): TPromise<void> {
-		this.visible = visible;
-
-		// Reset telemetry data when viewlet becomes visible
-		if (visible) {
-			this._telemetryData = {};
-			this._telemetryData.startTime = new Date();
-		}
-
-		// Send telemetry data when viewlet hides
-		else {
-			this._telemetryData.timeSpent = (Date.now() - this._telemetryData.startTime) / 1000;
-			delete this._telemetryData.startTime;
-
-			// Only submit telemetry data when not running from an integration test
-			if (this._telemetryService && this._telemetryService.publicLog) {
-				let eventName: string = 'viewletShown';
-				this._telemetryData.viewlet = this.getId();
-				this._telemetryService.publicLog(eventName, this._telemetryData);
-			}
-		}
-
-		return TPromise.as(null);
-	}
-
-	/**
-	 * Called when this viewlet should receive keyboard focus.
-	 */
-	public focus(): void {
-		// Subclasses can implement
-	}
-
-	/**
-	 * Layout the contents of this viewlet using the provided dimensions.
-	 */
-	public abstract layout(dimension: Dimension): void;
-
-	/**
-	 * Returns an array of actions to show in the action bar of the viewlet.
-	 */
-	public getActions(): IAction[] {
-		return [];
-	}
-
-	/**
-	 * Returns an array of actions to show in the action bar of the viewlet
-	 * in a less prominent way then action from getActions.
-	 */
-	public getSecondaryActions(): IAction[] {
-		return [];
-	}
-
-	/**
-	 * For any of the actions returned by this viewlet, provide an IActionItem in
-	 * cases where the implementor of the viewlet wants to override the presentation
-	 * of an action. Returns null to indicate that the action is not rendered through
-	 * an action item.
-	 */
-	public getActionItem(action: IAction): IActionItem {
-		return null;
-	}
-
-	/**
-	 * Returns the instance of IActionRunner to use with this viewlet for the viewlet
-	 * tool bar.
-	 */
-	public getActionRunner(): IActionRunner {
-		if (!this.actionRunner) {
-			this.actionRunner = new ActionRunner();
-		}
-
-		return this.actionRunner;
-	}
-
-	/**
-	 * Method for viewlet implementors to indicate to the viewlet container that the title or the actions
-	 * of the viewlet have changed. Calling this method will cause the container to ask for title (getTitle())
-	 * and actions (getActions(), getSecondaryActions()) if the viewlet is visible or the next time the viewlet
-	 * gets visible.
-	 */
-	protected updateTitleArea(): void {
-		this.emit(EventType.INTERNAL_VIEWLET_TITLE_AREA_UPDATE, new ViewletEvent(this.getId()));
-	}
-
-	/**
-	 * Returns an array of elements that are selected in the viewlet.
-	 */
-	public getSelection(): ISelection {
-		return Selection.EMPTY;
-	}
-
-	/**
-	 * Returns true if this viewlet is currently visible and false otherwise.
-	 */
-	public isVisible(): boolean {
-		return this.visible;
-	}
-
-	/**
-	 * Returns the underlying viewlet control or null if it is not accessible.
-	 */
-	public getControl(): IEventEmitter {
-		return null;
-	}
-}
+export abstract class Viewlet extends Composite implements IViewlet { }
 
 /**
  * Helper subtype of viewlet for those that use a tree inside.

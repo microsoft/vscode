@@ -15,7 +15,7 @@ import {ActionsOrientation, ActionBar, IActionItem} from 'vs/base/browser/ui/act
 import {Scope, IActionBarRegistry, Extensions as ActionBarExtensions, prepareActions} from 'vs/workbench/browser/actionBarRegistry';
 import {CONTEXT, ToolBar} from 'vs/base/browser/ui/toolbar/toolbar';
 import {Registry} from 'vs/platform/platform';
-import {ViewletEvent, EventType} from 'vs/workbench/common/events';
+import {CompositeEvent, EventType} from 'vs/workbench/common/events';
 import {ViewletDescriptor, IViewletRegistry, Extensions as ViewletExtensions} from 'vs/workbench/browser/viewlet';
 import {Part} from 'vs/workbench/browser/part';
 import {ActivityAction, ActivityActionItem} from 'vs/workbench/browser/parts/activitybar/activityAction';
@@ -61,28 +61,28 @@ export class ActivitybarPart extends Part implements IActivityService {
 	private registerListeners(): void {
 
 		// Activate viewlet action on opening of a viewlet
-		this.toUnbind.push(this.eventService.addListener(EventType.VIEWLET_OPENING, (e: ViewletEvent) => this.onViewletOpening(e)));
+		this.toUnbind.push(this.eventService.addListener(EventType.VIEWLET_OPENING, (e: CompositeEvent) => this.onViewletOpening(e)));
 
 		// Deactivate viewlet action on close
-		this.toUnbind.push(this.eventService.addListener(EventType.VIEWLET_CLOSED, (e: ViewletEvent) => this.onViewletClosed(e)));
+		this.toUnbind.push(this.eventService.addListener(EventType.VIEWLET_CLOSED, (e: CompositeEvent) => this.onViewletClosed(e)));
 	}
 
-	private onViewletOpening(e: ViewletEvent): void {
-		if (this.viewletIdToActions[e.viewletId]) {
-			this.viewletIdToActions[e.viewletId].activate();
+	private onViewletOpening(e: CompositeEvent): void {
+		if (this.viewletIdToActions[e.compositeId]) {
+			this.viewletIdToActions[e.compositeId].activate();
 
 			// There can only be one active viewlet action
 			for (let key in this.viewletIdToActions) {
-				if (this.viewletIdToActions.hasOwnProperty(key) && key !== e.viewletId) {
+				if (this.viewletIdToActions.hasOwnProperty(key) && key !== e.compositeId) {
 					this.viewletIdToActions[key].deactivate();
 				}
 			}
 		}
 	}
 
-	private onViewletClosed(e: ViewletEvent): void {
-		if (this.viewletIdToActions[e.viewletId]) {
-			this.viewletIdToActions[e.viewletId].deactivate();
+	private onViewletClosed(e: CompositeEvent): void {
+		if (this.viewletIdToActions[e.compositeId]) {
+			this.viewletIdToActions[e.compositeId].deactivate();
 		}
 	}
 

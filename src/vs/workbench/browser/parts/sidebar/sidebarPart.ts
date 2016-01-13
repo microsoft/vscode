@@ -23,8 +23,9 @@ import {ProgressBar} from 'vs/base/browser/ui/progressbar/progressbar';
 import {Scope, IActionBarRegistry, Extensions, prepareActions} from 'vs/workbench/browser/actionBarRegistry';
 import {Action, IAction} from 'vs/base/common/actions';
 import {Part} from 'vs/workbench/browser/part';
-import {EventType as WorkbenchEventType, ViewletEvent} from 'vs/workbench/common/events';
-import {Viewlet, EventType as ViewletEventType, IViewletRegistry, Extensions as ViewletExtensions} from 'vs/workbench/browser/viewlet';
+import {EventType as WorkbenchEventType, CompositeEvent} from 'vs/workbench/common/events';
+import {Viewlet, IViewletRegistry, Extensions as ViewletExtensions} from 'vs/workbench/browser/viewlet';
+import {EventType as ViewletEventType} from 'vs/workbench/browser/composite';
 import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/common/actionRegistry';
 import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
 import {WorkbenchProgressService} from 'vs/workbench/services/progress/browser/progressService';
@@ -130,7 +131,7 @@ export class SidebarPart extends Part implements IViewletService {
 		this.currentViewletOpenToken = currentViewletOpenToken;
 
 		// Emit Viewlet Opening Event
-		this.emit(WorkbenchEventType.VIEWLET_OPENING, new ViewletEvent(id));
+		this.emit(WorkbenchEventType.VIEWLET_OPENING, new CompositeEvent(id));
 
 		// Hide current
 		let hidePromise: TPromise<void>;
@@ -209,7 +210,7 @@ export class SidebarPart extends Part implements IViewletService {
 					this.instantiatedViewlets.push(viewlet);
 
 					// Register to title area update events from the viewlet
-					this.instantiatedViewletListeners.push(viewlet.addListener(ViewletEventType.INTERNAL_VIEWLET_TITLE_AREA_UPDATE, (e) => { this.onTitleAreaUpdate(e); }));
+					this.instantiatedViewletListeners.push(viewlet.addListener(ViewletEventType.INTERNAL_COMPOSITE_TITLE_AREA_UPDATE, (e) => { this.onTitleAreaUpdate(e); }));
 
 					// Remove from Promises Cache since Loaded
 					delete this.viewletLoaderPromises[id];
@@ -335,15 +336,15 @@ export class SidebarPart extends Part implements IViewletService {
 				}
 
 				// Emit Viewlet Opened Event
-				this.emit(WorkbenchEventType.VIEWLET_OPENED, new ViewletEvent(this.activeViewlet.getId()));
+				this.emit(WorkbenchEventType.VIEWLET_OPENED, new CompositeEvent(this.activeViewlet.getId()));
 			});
 		}, (error: any) => this.onError(error));
 	}
 
-	private onTitleAreaUpdate(e: ViewletEvent): void {
+	private onTitleAreaUpdate(e: CompositeEvent): void {
 
 		// Active Viewlet
-		if (this.activeViewlet && this.activeViewlet.getId() === e.viewletId) {
+		if (this.activeViewlet && this.activeViewlet.getId() === e.compositeId) {
 
 			// Title
 			this.updateTitle(this.activeViewlet.getId(), this.activeViewlet.getTitle());
@@ -356,7 +357,7 @@ export class SidebarPart extends Part implements IViewletService {
 
 		// Otherwise invalidate actions binding for next time when the viewlet becomes visible
 		else {
-			delete this.mapActionsBindingToViewlet[e.viewletId];
+			delete this.mapActionsBindingToViewlet[e.compositeId];
 		}
 	}
 
@@ -432,7 +433,7 @@ export class SidebarPart extends Part implements IViewletService {
 			}
 
 			// Emit Viewlet Closed Event
-			this.emit(WorkbenchEventType.VIEWLET_CLOSED, new ViewletEvent(viewlet.getId()));
+			this.emit(WorkbenchEventType.VIEWLET_CLOSED, new CompositeEvent(viewlet.getId()));
 		});
 	}
 
