@@ -197,7 +197,7 @@ class ViewletRegistry extends CompositeRegistry<Viewlet> implements IViewletRegi
 	}
 
 	public getViewlet(id: string): ViewletDescriptor {
-		return this.getComposit(id);
+		return this.getComposite(id);
 	}
 
 	public getViewlets(): ViewletDescriptor[] {

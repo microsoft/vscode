@@ -202,7 +202,7 @@ export abstract class Composite extends WorkbenchComponent implements IComposite
 /**
  * A composite descriptor is a leightweight descriptor of a composite in the monaco workbench.
  */
-export abstract class CompositeDescriptor<T> extends AsyncDescriptor<T> {
+export abstract class CompositeDescriptor<T extends Composite> extends AsyncDescriptor<T> {
 	public id: string;
 	public name: string;
 	public cssClass: string;
@@ -218,7 +218,7 @@ export abstract class CompositeDescriptor<T> extends AsyncDescriptor<T> {
 	}
 }
 
-export abstract class CompositeRegistry<T> {
+export abstract class CompositeRegistry<T extends Composite> {
 	private composits: CompositeDescriptor<T>[];
 
 	constructor() {
@@ -233,7 +233,7 @@ export abstract class CompositeRegistry<T> {
 		this.composits.push(descriptor);
 	}
 
-	protected getComposit(id: string): CompositeDescriptor<T> {
+	public getComposite(id: string): CompositeDescriptor<T> {
 		return this.compositById(id);
 	}
 

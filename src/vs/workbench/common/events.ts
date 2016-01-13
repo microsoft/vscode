@@ -97,12 +97,12 @@ export class EventType {
 	/**
 	 * Event type for when a viewlet is opened.
 	 */
-	static VIEWLET_OPENED = 'viewletOpened';
+	static COMPOSITE_OPENED = 'compositeOpened';
 
 	/**
-	 * Event type for when a viewlet is closed.
+	 * Event type for when a composite is closed.
 	 */
-	static VIEWLET_CLOSED = 'viewletClosed';
+	static COMPOSITE_CLOSED = 'compositeClosed';
 
 	/**
 	 * Event type for when the workbench has been fully created.

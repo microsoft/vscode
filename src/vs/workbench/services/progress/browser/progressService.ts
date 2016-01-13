@@ -47,13 +47,13 @@ export abstract class ScopedService {
 			}
 		});
 
-		this.eventService.addListener(EventType.VIEWLET_CLOSED, (e: CompositeEvent) => {
+		this.eventService.addListener(EventType.COMPOSITE_CLOSED, (e: CompositeEvent) => {
 			if (e.compositeId === this.scopeId) {
 				this.onScopeDeactivated();
 			}
 		});
 
-		this.eventService.addListener(EventType.VIEWLET_OPENED, (e: CompositeEvent) => {
+		this.eventService.addListener(EventType.COMPOSITE_OPENED, (e: CompositeEvent) => {
 			if (e.compositeId === this.scopeId) {
 				this.onScopeActivated();
 			}
