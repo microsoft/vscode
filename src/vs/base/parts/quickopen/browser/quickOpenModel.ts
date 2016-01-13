@@ -18,6 +18,7 @@ import {compareAnything} from 'vs/base/common/comparers';
 import ActionBar = require('vs/base/browser/ui/actionbar/actionbar');
 import TreeDefaults = require('vs/base/parts/tree/browser/treeDefaults');
 import HighlightedLabel = require('vs/base/browser/ui/highlightedlabel/highlightedLabel');
+import {OcticonLabel} from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 import DOM = require('vs/base/browser/dom');
 
 export interface IContext {
@@ -67,7 +68,7 @@ export class QuickOpenEntry {
 	}
 
 	/**
-	 * Meta information about the entry that is optional and can be shown to the right of the label
+	 * Meta information about the entry that is optional and can be shown below the label
 	 */
 	public getMeta(): string {
 		return null;
@@ -395,7 +396,7 @@ export interface IQuickOpenEntryTemplateData {
 	icon: HTMLSpanElement;
 	prefix: HTMLSpanElement;
 	label: HighlightedLabel.HighlightedLabel;
-	meta: HTMLSpanElement;
+	meta: OcticonLabel;
 	description: HighlightedLabel.HighlightedLabel;
 	actionBar: ActionBar.ActionBar;
 }
@@ -420,7 +421,9 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 		if (entry instanceof QuickOpenEntryItem) {
 			return (<QuickOpenEntryItem>entry).getHeight();
 		}
-
+		if (entry.getMeta()) {
+			return 44;
+		}
 		return 22;
 	}
 
@@ -482,26 +485,27 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 		// Label
 		let label = new HighlightedLabel.HighlightedLabel(entry);
 
-		// Meta
-		let meta = document.createElement('span');
-		entry.appendChild(meta);
-		DOM.addClass(meta, 'quick-open-entry-meta');
-
 		// Description
 		let descriptionContainer = document.createElement('span');
 		entry.appendChild(descriptionContainer);
 		DOM.addClass(descriptionContainer, 'quick-open-entry-description');
 		let description = new HighlightedLabel.HighlightedLabel(descriptionContainer);
 
+		// Meta
+		let metaContainer = document.createElement('div');
+		entry.appendChild(metaContainer);
+		DOM.addClass(metaContainer, 'quick-open-entry-meta');
+		let meta = new OcticonLabel(metaContainer);
+
 		return {
-			container: container,
-			icon: icon,
-			prefix: prefix,
-			label: label,
-			meta: meta,
-			description: description,
-			group: group,
-			actionBar: actionBar
+			container,
+			icon,
+			prefix,
+			label,
+			meta,
+			description,
+			group,
+			actionBar
 		};
 	}
 
@@ -566,8 +570,7 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 			data.label.set(entry.getLabel() || '', labelHighlights || []);
 
 			// Meta
-			let metaLabel = entry.getMeta() || '';
-			data.meta.textContent = metaLabel;
+			data.meta.text = entry.getMeta();
 
 			// Description
 			let descriptionHighlights = highlights[1];
