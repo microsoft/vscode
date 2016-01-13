@@ -79,10 +79,11 @@ function extensionEquals(one: IExtension, other: IExtension): boolean {
 	return one.publisher === other.publisher && one.name === other.name;
 }
 
+/**
+ * Compare by Install count descending.
+ */
 function extensionEntryCompare(one: IExtensionEntry, other: IExtensionEntry): number {
-	const oneName = one.extension.displayName || one.extension.name;
-	const otherName = other.extension.displayName || other.extension.name;
-	return oneName.localeCompare(otherName);
+	return other.extension.installCount - one.extension.installCount;
 }
 
 class OpenInGalleryAction extends Action {
