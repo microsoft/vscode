@@ -223,3 +223,41 @@ export abstract class CompositeDescriptor<T> extends AsyncDescriptor<T> {
 		this.order = order;
 	}
 }
+
+export abstract class CompositeRegistry<T> {
+	private composits: CompositeDescriptor<T>[];
+
+	constructor() {
+		this.composits = [];
+	}
+
+	protected registerComposite(descriptor: CompositeDescriptor<T>): void {
+		if (this.compositById(descriptor.id) !== null) {
+			return;
+		}
+
+		this.composits.push(descriptor);
+	}
+
+	protected getComposit(id: string): CompositeDescriptor<T> {
+		return this.compositById(id);
+	}
+
+	protected getComposits(): CompositeDescriptor<T>[] {
+		return this.composits.slice(0);
+	}
+
+	protected setComposits(compositsToSet: CompositeDescriptor<T>[]): void {
+		this.composits = compositsToSet;
+	}
+
+	private compositById(id: string): CompositeDescriptor<T> {
+		for (let i = 0; i < this.composits.length; i++) {
+			if (this.composits[i].id === id) {
+				return this.composits[i];
+			}
+		}
+
+		return null;
+	}
+}

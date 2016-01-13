@@ -23,7 +23,7 @@ import {CollapsibleView, CollapsibleState, FixedCollapsibleView} from 'vs/base/b
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IViewlet} from 'vs/workbench/common/viewlet';
-import {Composite, CompositeDescriptor} from 'vs/workbench/browser/composite';
+import {Composite, CompositeDescriptor, CompositeRegistry} from 'vs/workbench/browser/composite';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {ISelection, Selection, StructuredSelection} from 'vs/platform/selection/common/selection';
@@ -192,42 +192,23 @@ export interface IViewletRegistry {
 	getDefaultViewletId(): string;
 }
 
-class ViewletRegistry implements IViewletRegistry {
-	private viewlets: ViewletDescriptor[];
+class ViewletRegistry extends CompositeRegistry<Viewlet> implements IViewletRegistry {
 	private defaultViewletId: string;
 
-	constructor() {
-		this.viewlets = [];
-	}
-
 	public registerViewlet(descriptor: ViewletDescriptor): void {
-		if (this.viewletById(descriptor.id) !== null) {
-			return;
-		}
-
-		this.viewlets.push(descriptor);
+		super.registerComposite(descriptor);
 	}
 
 	public getViewlet(id: string): ViewletDescriptor {
-		return this.viewletById(id);
+		return this.getComposit(id);
 	}
 
 	public getViewlets(): ViewletDescriptor[] {
-		return this.viewlets.slice(0);
+		return this.getComposits();
 	}
 
 	public setViewlets(viewletsToSet: ViewletDescriptor[]): void {
-		this.viewlets = viewletsToSet;
-	}
-
-	private viewletById(id: string): ViewletDescriptor {
-		for (let i = 0; i < this.viewlets.length; i++) {
-			if (this.viewlets[i].id === id) {
-				return this.viewlets[i];
-			}
-		}
-
-		return null;
+		this.setComposits(viewletsToSet);
 	}
 
 	public setDefaultViewletId(id: string): void {
