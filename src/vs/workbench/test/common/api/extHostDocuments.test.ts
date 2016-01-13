@@ -69,6 +69,7 @@ suite("PluginHostDocument", () => {
 		data.onEvents([{
 			range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 },
 			text: '\t ',
+			eol: undefined,
 			isRedoing: undefined,
 			isUndoing: undefined,
 			versionId: undefined,
@@ -105,6 +106,7 @@ suite("PluginHostDocument", () => {
 		data.onEvents([{
 			range: { startLineNumber: 1, startColumn: 3, endLineNumber: 1, endColumn: 6 },
 			text: '',
+			eol: undefined,
 			isRedoing: undefined,
 			isUndoing: undefined,
 			versionId: undefined,
@@ -121,6 +123,7 @@ suite("PluginHostDocument", () => {
 		data.onEvents([{
 			range: { startLineNumber: 1, startColumn: 3, endLineNumber: 1, endColumn: 6 },
 			text: 'is could be',
+			eol: undefined,
 			isRedoing: undefined,
 			isUndoing: undefined,
 			versionId: undefined,
@@ -137,6 +140,7 @@ suite("PluginHostDocument", () => {
 		data.onEvents([{
 			range: { startLineNumber: 1, startColumn: 3, endLineNumber: 1, endColumn: 6 },
 			text: 'is could be\na line with number',
+			eol: undefined,
 			isRedoing: undefined,
 			isUndoing: undefined,
 			versionId: undefined,
@@ -156,6 +160,7 @@ suite("PluginHostDocument", () => {
 		data.onEvents([{
 			range: { startLineNumber: 1, startColumn: 3, endLineNumber: 2, endColumn: 6 },
 			text: '',
+			eol: undefined,
 			isRedoing: undefined,
 			isUndoing: undefined,
 			versionId: undefined,
@@ -222,10 +227,11 @@ suite("PluginHostDocument updates line mapping", () => {
 		}
 	}
 
-	function createChangeEvent(range:CodeEditorRange, text:string): EditorCommon.IModelContentChangedEvent2 {
+	function createChangeEvent(range:CodeEditorRange, text:string, eol?:string): EditorCommon.IModelContentChangedEvent2 {
 		return {
 			range: range,
 			text: text,
+			eol: eol,
 			isRedoing: undefined,
 			isUndoing: undefined,
 			versionId: undefined,
@@ -328,5 +334,23 @@ suite("PluginHostDocument updates line mapping", () => {
 			'it is followed by #3',
 			'and finished with the fourth.',
 		], [createChangeEvent(new CodeEditorRange(1, 3, 4, 30), 'some new text\nthat\nspans multiple lines')]);
+	});
+
+	test('after changing EOL to CRLF', () => {
+		testLineMappingAfterEvents([
+			'This is line one',
+			'and this is line number two',
+			'it is followed by #3',
+			'and finished with the fourth.',
+		], [createChangeEvent(new CodeEditorRange(1, 1, 1, 1), '', '\r\n')]);
+	});
+
+	test('after changing EOL to LF', () => {
+		testLineMappingAfterEvents([
+			'This is line one',
+			'and this is line number two',
+			'it is followed by #3',
+			'and finished with the fourth.',
+		], [createChangeEvent(new CodeEditorRange(1, 1, 1, 1), '', '\n')]);
 	});
 });
