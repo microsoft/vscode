@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as strings from 'vs/base/common/strings';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import {escape} from 'vs/base/common/strings';
+import {IDisposable} from 'vs/base/common/lifecycle';
 import * as dom from 'vs/base/browser/dom';
 import * as objects from 'vs/base/common/objects';
+import {expand as expandOcticons} from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 
 export interface IHighlight {
 	start: number;
@@ -60,19 +61,19 @@ export class HighlightedLabel implements IDisposable {
 			}
 			if (pos < highlight.start) {
 				htmlContent.push('<span>')
-				htmlContent.push(strings.escape(this.text.substring(pos, highlight.start)));
+				htmlContent.push(expandOcticons(escape(this.text.substring(pos, highlight.start))));
 				htmlContent.push('</span>')
 				pos = highlight.end;
 			}
 			htmlContent.push('<span class="highlight">')
-			htmlContent.push(strings.escape(this.text.substring(highlight.start, highlight.end)));
+			htmlContent.push(expandOcticons(escape(this.text.substring(highlight.start, highlight.end))));
 			htmlContent.push('</span>')
 			pos = highlight.end;
 		}
 
 		if (pos < this.text.length) {
 			htmlContent.push('<span>')
-			htmlContent.push(strings.escape(this.text.substring(pos)));
+			htmlContent.push(expandOcticons(escape(this.text.substring(pos))));
 			htmlContent.push('</span>')
 		}
 
