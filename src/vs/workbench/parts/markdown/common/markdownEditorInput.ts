@@ -15,7 +15,7 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 
 /**
- * An editor input derived from DerivedFrameEditorInput to show a rendered version of a markdown file.
+ * An editor input to show a rendered version of a markdown file.
  */
 export class MarkdownEditorInput extends DerivedFrameEditorInput {
 

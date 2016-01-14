@@ -10,7 +10,7 @@ import {Action, IAction} from 'vs/base/common/actions';
 import {ActionItem, BaseActionItem, Separator} from 'vs/base/browser/ui/actionbar/actionbar';
 import {Scope, IActionBarRegistry, Extensions as ActionBarExtensions, ActionBarContributor} from 'vs/workbench/browser/actionBarRegistry';
 import {IEditorInputActionContext, IEditorInputAction, EditorInputActionContributor} from 'vs/workbench/browser/parts/editor/baseEditor';
-import {AddToWorkingFiles, FocusWorkingFiles, OpenPreviousWorkingFile, OpenNextWorkingFile, CloseAllFilesAction, CloseFileAction, GlobalCompareResourcesAction, GlobalNewFolderAction, RevertFileAction, SaveFilesAction, SaveAllAction, SaveFileAction, ViewDerivedSourceEditorInputAction, RefreshDerivedFrameEditorInputAction, keybindingForAction, MoveFileToTrashAction, TriggerRenameFileAction, PasteFileAction, CopyFileAction, SelectResourceForCompareAction, CompareResourcesAction, NewFolderAction, NewFileAction, OpenToSideAction} from 'vs/workbench/parts/files/browser/fileActions';
+import {AddToWorkingFiles, FocusWorkingFiles, OpenPreviousWorkingFile, OpenNextWorkingFile, CloseAllFilesAction, CloseFileAction, GlobalCompareResourcesAction, GlobalNewFolderAction, RevertFileAction, SaveFilesAction, SaveAllAction, SaveFileAction, ViewSourceEditorInputAction, RefreshIFrameEditorInputAction, keybindingForAction, MoveFileToTrashAction, TriggerRenameFileAction, PasteFileAction, CopyFileAction, SelectResourceForCompareAction, CompareResourcesAction, NewFolderAction, NewFileAction, OpenToSideAction} from 'vs/workbench/parts/files/browser/fileActions';
 import {RevertLocalChangesAction, AcceptLocalChangesAction, ConflictResolutionDiffEditorInput} from 'vs/workbench/parts/files/browser/saveErrorHandler';
 import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
 import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/common/actionRegistry';
@@ -152,7 +152,7 @@ class ConflictResolutionActionContributor extends EditorInputActionContributor {
 	}
 }
 
-class DerivedFrameEditorActionContributor extends EditorInputActionContributor {
+class IFrameEditorActionContributor extends EditorInputActionContributor {
 
 	constructor( @IInstantiationService private instantiationService: IInstantiationService) {
 		super();
@@ -164,8 +164,8 @@ class DerivedFrameEditorActionContributor extends EditorInputActionContributor {
 
 	public getActionsForEditorInput(context: IEditorInputActionContext): IEditorInputAction[] {
 		return [
-			this.instantiationService.createInstance(RefreshDerivedFrameEditorInputAction),
-			this.instantiationService.createInstance(ViewDerivedSourceEditorInputAction)
+			this.instantiationService.createInstance(RefreshIFrameEditorInputAction),
+			this.instantiationService.createInstance(ViewSourceEditorInputAction)
 		];
 	}
 }
@@ -177,8 +177,8 @@ actionBarRegistry.registerActionBarContributor(Scope.VIEWER, FilesViewerActionCo
 // Contribute to Conflict Editor Inputs
 actionBarRegistry.registerActionBarContributor(Scope.EDITOR, ConflictResolutionActionContributor);
 
-// Contribute to Derived Frame Editor Inputs
-actionBarRegistry.registerActionBarContributor(Scope.EDITOR, DerivedFrameEditorActionContributor);
+// Contribute to IFrame Editor Inputs
+actionBarRegistry.registerActionBarContributor(Scope.EDITOR, IFrameEditorActionContributor);
 
 // Contribute Global Actions
 const category = nls.localize('filesCategory', "Files");

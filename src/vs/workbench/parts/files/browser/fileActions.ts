@@ -1746,13 +1746,13 @@ export class RevertFileAction extends Action {
 	}
 }
 
-export class ViewDerivedSourceEditorInputAction extends EditorInputAction {
+export class ViewSourceEditorInputAction extends EditorInputAction {
 
 	constructor(
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService
 	) {
-		super('workbench.files.action.openDerivedResourceFromEditor', nls.localize('viewSource', "View Source"), 'derived-frame-editor-action view-source');
+		super('workbench.files.action.viewSourceFromEditor', nls.localize('viewSource', "View Source"), 'iframe-editor-action view-source');
 	}
 
 	public run(event?: any): Promise {
@@ -1765,10 +1765,10 @@ export class ViewDerivedSourceEditorInputAction extends EditorInputAction {
 	}
 }
 
-export class RefreshDerivedFrameEditorInputAction extends EditorInputAction {
+export class RefreshIFrameEditorInputAction extends EditorInputAction {
 
 	constructor( @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
-		super('workbench.files.action.refreshDerivedFrameEditor', nls.localize('reload', "Reload"), 'derived-frame-editor-action refresh');
+		super('workbench.files.action.refreshIFrameEditor', nls.localize('reload', "Reload"), 'iframe-editor-action refresh');
 	}
 
 	public run(event?: any): Promise {
