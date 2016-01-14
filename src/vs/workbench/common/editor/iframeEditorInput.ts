@@ -7,30 +7,34 @@
 import {TPromise} from 'vs/base/common/winjs.base';
 import {EditorModel, EditorInput} from 'vs/workbench/common/editor';
 import {Registry} from 'vs/platform/platform';
+import URI from 'vs/base/common/uri';
 
 /**
- * An editor input to use with the IFrameEditor. The resolved IFrameEditorModel can either provide
- * a URL or HTML content to show inside the IFrameEditor.
+ * An editor input to use with the IFrameEditor.
  */
 export abstract class IFrameEditorInput extends EditorInput {
 
 	public static ID: string = 'workbench.editors.iFrameEditorInput';
 
+	private resource: URI;
 	private name: string;
 	private description: string;
-	private url: string;
 	private cachedModel: EditorModel;
 
-	constructor(name: string, description: string, url: string) {
+	constructor(resource: URI, name: string, description: string) {
 		super();
 
+		this.resource = resource;
 		this.name = name;
 		this.description = description;
-		this.url = url;
 	}
 
 	public getId(): string {
 		return IFrameEditorInput.ID;
+	}
+
+	public getResource(): URI {
+		return this.resource;
 	}
 
 	public getName(): string {
@@ -68,9 +72,14 @@ export abstract class IFrameEditorInput extends EditorInput {
 	}
 
 	/**
-	 * Subclasses can override this method to provide their own implementation.
+	 * Subclasses override this method to provide their own implementation.
 	 */
 	protected abstract createModel(): EditorModel;
+
+	/**
+	 * Subclasses override this method to create a new input from a given resource.
+	 */
+	public abstract createNew(resource: URI): IFrameEditorInput;
 
 	public matches(otherInput: any): boolean {
 		if (super.matches(otherInput) === true) {
@@ -81,9 +90,7 @@ export abstract class IFrameEditorInput extends EditorInput {
 			let otherIFrameEditorInput = <IFrameEditorInput>otherInput;
 
 			// Otherwise compare by properties
-			return otherIFrameEditorInput.url === this.url &&
-				otherIFrameEditorInput.name === this.name &&
-				otherIFrameEditorInput.description === this.description;
+			return otherIFrameEditorInput.resource.toString() === this.resource.toString();
 		}
 
 		return false;

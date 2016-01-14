@@ -35,7 +35,7 @@ import {FileStat, NewStatPlaceholder} from 'vs/workbench/parts/files/common/expl
 import {ExplorerView} from 'vs/workbench/parts/files/browser/views/explorerView';
 import {ExplorerViewlet} from 'vs/workbench/parts/files/browser/explorerViewlet';
 import {CACHE} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
-import {DerivedFrameEditorInput} from 'vs/workbench/parts/files/common/editors/derivedFrameEditorInput';
+import {IFrameEditorInput} from 'vs/workbench/common/editor/iframeEditorInput';
 import {IActionProvider} from 'vs/base/parts/tree/browser/actionsRenderer';
 import {WorkingFileEntry, WorkingFilesModel} from 'vs/workbench/parts/files/common/workingFilesModel';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
@@ -1756,11 +1756,11 @@ export class ViewSourceEditorInputAction extends EditorInputAction {
 	}
 
 	public run(event?: any): Promise {
-		let derivedFrameEditorInput = <DerivedFrameEditorInput>this.input;
+		let iFrameEditorInput = <IFrameEditorInput>this.input;
 		let sideBySide = !!(event && (event.ctrlKey || event.metaKey));
 
 		return this.editorService.openEditor({
-			resource: derivedFrameEditorInput.getResource()
+			resource: iFrameEditorInput.getResource()
 		}, sideBySide);
 	}
 }

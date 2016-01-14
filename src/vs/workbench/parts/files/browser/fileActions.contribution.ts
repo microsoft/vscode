@@ -14,7 +14,7 @@ import {AddToWorkingFiles, FocusWorkingFiles, OpenPreviousWorkingFile, OpenNextW
 import {RevertLocalChangesAction, AcceptLocalChangesAction, ConflictResolutionDiffEditorInput} from 'vs/workbench/parts/files/browser/saveErrorHandler';
 import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
 import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/common/actionRegistry';
-import {DerivedFrameEditorInput} from 'vs/workbench/parts/files/common/editors/derivedFrameEditorInput';
+import {IFrameEditorInput} from 'vs/workbench/common/editor/iframeEditorInput';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
@@ -159,7 +159,7 @@ class IFrameEditorActionContributor extends EditorInputActionContributor {
 	}
 
 	public hasActionsForEditorInput(context: IEditorInputActionContext): boolean {
-		return context.input instanceof DerivedFrameEditorInput;
+		return context.input instanceof IFrameEditorInput;
 	}
 
 	public getActionsForEditorInput(context: IEditorInputActionContext): IEditorInputAction[] {
