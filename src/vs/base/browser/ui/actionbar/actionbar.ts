@@ -368,6 +368,7 @@ export interface IActionItemProvider {
 export interface IActionBarOptions {
 	orientation?:ActionsOrientation;
 	context?:any;
+	disableTabIndex?:boolean;
 	actionItemProvider?:IActionItemProvider;
 	actionRunner?:actions.IActionRunner;
 }
@@ -424,7 +425,6 @@ export class ActionBar extends Events.EventEmitter implements actions.IActionRun
 
 		this.domNode = document.createElement('div');
 		this.domNode.className = 'monaco-action-bar';
-		this.domNode.tabIndex = 0;
 
 		var isVertical = this.options.orientation === ActionsOrientation.VERTICAL;
 
@@ -546,6 +546,10 @@ export class ActionBar extends Events.EventEmitter implements actions.IActionRun
 				this.actionsList.insertBefore(actionItemElement, this.actionsList.children[index++]);
 			}
 
+			if (!this.options.disableTabIndex && !this.domNode.hasAttribute('tabIndex')) {
+				this.domNode.tabIndex = 0; // make sure an action bar with actions participates in tab navigation
+			}
+
 			this.items.push(item);
 		});
 	}
@@ -556,6 +560,10 @@ export class ActionBar extends Events.EventEmitter implements actions.IActionRun
 			item.dispose();
 		}
 		$(this.actionsList).empty();
+
+		if (!this.options.disableTabIndex) {
+			this.domNode.removeAttribute('tabIndex'); // empty action bar does not participate in tab navigation
+		}
 	}
 
 	public length():number {
