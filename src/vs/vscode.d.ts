@@ -1059,14 +1059,19 @@ declare namespace vscode {
 	export interface QuickPickItem {
 
 		/**
-		 * A label. Will be rendered prominent.
+		 * A human readable string which is rendered prominent.
 		 */
 		label: string;
 
 		/**
-		 * A description. Will be rendered less prominent.
+		 * A human readable string which is rendered less prominent.
 		 */
 		description: string;
+
+		/**
+		 * A human readable string which is rendered less prominent.
+		 */
+		detail?: string;
 	}
 
 	/**
@@ -1077,6 +1082,11 @@ declare namespace vscode {
 		 * An optional flag to include the description when filtering the picks.
 		 */
 		matchOnDescription?: boolean;
+
+		/**
+		 * An optional flag to include the detail when filtering the picks.
+		 */
+		matchOnDetail?: boolean;
 
 		/**
 		 * An optional string to show as place holder in the input box to guide the user what to pick on.

@@ -269,7 +269,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 				let model = new QuickOpenModel();
 				let entries = picks.map((e) => {
 					if (typeof e === 'string') {
-						return new PickOpenEntry(e, null, () => progress(e));
+						return new PickOpenEntry(e, null, null, () => progress(e));
 					}
 
 					let entry = (<IPickOpenEntryItem>e);
@@ -278,7 +278,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 						return new PickOpenItem(entry.label, entry.description, entry.height, entry.render.bind(entry), () => progress(e));
 					}
 
-					return new PickOpenEntry(entry.label, entry.description, () => progress(e));
+					return new PickOpenEntry(entry.label, entry.description, entry.detail, () => progress(e));
 				});
 
 				if (picks.length === 0) {
@@ -338,16 +338,17 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 						else {
 							entries.forEach((entry) => {
 								let labelHighlights = filters.matchesFuzzy(value, entry.getLabel());
-								let descriptionHighlights: filters.IMatch[] = null;
-								if (options.matchOnDescription) {
-									descriptionHighlights = filters.matchesFuzzy(value, entry.getDescription());
-								}
+								let descriptionHighlights = options.matchOnDescription
+									&& filters.matchesFuzzy(value, entry.getDescription());
 
-								if (labelHighlights || descriptionHighlights) {
-									entry.setHighlights(labelHighlights, descriptionHighlights);
+								let detailHighlights = options.matchOnDetail && entry.getDetail()
+									&& filters.matchesFuzzy(value, entry.getDetail());
+
+								if (labelHighlights || descriptionHighlights || detailHighlights) {
+									entry.setHighlights(labelHighlights, descriptionHighlights, detailHighlights);
 									entry.setHidden(false);
 								} else {
-									entry.setHighlights(null, null);
+									entry.setHighlights(null, null, null);
 									entry.setHidden(true);
 								}
 							});
@@ -853,11 +854,13 @@ class PlaceholderQuickOpenEntry extends QuickOpenEntry {
 class PickOpenEntry extends PlaceholderQuickOpenEntry {
 	private _selected: boolean;
 	private description: string;
+	private detail: string;
 
-	constructor(label: string, description?: string, private onPreview?: () => void) {
+	constructor(label: string, description?: string, detail?: string, private onPreview?: () => void) {
 		super(label);
 
 		this.description = description;
+		this.detail = detail;
 	}
 
 	public get selected(): boolean {
@@ -866,6 +869,10 @@ class PickOpenEntry extends PlaceholderQuickOpenEntry {
 
 	public getDescription(): string {
 		return this.description;
+	}
+
+	public getDetail(): string {
+		return this.detail;
 	}
 
 	public run(mode: Mode, context: IContext): boolean {

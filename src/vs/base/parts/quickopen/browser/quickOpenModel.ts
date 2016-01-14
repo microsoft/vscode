@@ -18,6 +18,7 @@ import {compareAnything, compareByPrefix} from 'vs/base/common/comparers';
 import {ActionBar, IActionItem} from 'vs/base/browser/ui/actionbar/actionbar';
 import {LegacyRenderer, ILegacyTemplateData} from 'vs/base/parts/tree/browser/treeDefaults';
 import {HighlightedLabel} from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
+import {OcticonLabel} from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 import DOM = require('vs/base/browser/dom');
 import scorer = require('vs/base/common/scorer');
 
@@ -37,6 +38,7 @@ export class QuickOpenEntry {
 	private id: string;
 	private labelHighlights: IHighlight[];
 	private descriptionHighlights: IHighlight[];
+	private detailHighlights: IHighlight[];
 	private hidden: boolean;
 	private labelPrefix: string;
 
@@ -68,9 +70,9 @@ export class QuickOpenEntry {
 	}
 
 	/**
-	 * Meta information about the entry that is optional and can be shown to the right of the label
+	 * Detail information about the entry that is optional and can be shown below the label
 	 */
-	public getMeta(): string {
+	public getDetail(): string {
 		return null;
 	}
 
@@ -120,16 +122,17 @@ export class QuickOpenEntry {
 	/**
 	 * Allows to set highlight ranges that should show up for the entry label and optionally description if set.
 	 */
-	public setHighlights(labelHighlights: IHighlight[], descriptionHighlights?: IHighlight[]): void {
+	public setHighlights(labelHighlights: IHighlight[], descriptionHighlights?: IHighlight[], detailHighlights?: IHighlight[]): void {
 		this.labelHighlights = labelHighlights;
 		this.descriptionHighlights = descriptionHighlights;
+		this.detailHighlights = detailHighlights;
 	}
 
 	/**
 	 * Allows to return highlight ranges that should show up for the entry label and description.
 	 */
-	public getHighlights(): [IHighlight[] /* Label */, IHighlight[] /* Description */] {
-		return [this.labelHighlights, this.descriptionHighlights];
+	public getHighlights(): [IHighlight[] /* Label */, IHighlight[] /* Description */, IHighlight[] /* Detail */] {
+		return [this.labelHighlights, this.descriptionHighlights, this.detailHighlights];
 	}
 
 	/**
@@ -358,8 +361,8 @@ export class QuickOpenEntryGroup extends QuickOpenEntry {
 		return this.entry ? this.entry.getLabel() : super.getLabel();
 	}
 
-	public getMeta(): string {
-		return this.entry ? this.entry.getMeta() : super.getMeta();
+	public getDetail(): string {
+		return this.entry ? this.entry.getDetail() : super.getDetail();
 	}
 
 	public getResource(): URI {
@@ -378,7 +381,7 @@ export class QuickOpenEntryGroup extends QuickOpenEntry {
 		return this.entry;
 	}
 
-	public getHighlights(): [IHighlight[], IHighlight[]] {
+	public getHighlights(): [IHighlight[], IHighlight[], IHighlight[]] {
 		return this.entry ? this.entry.getHighlights() : super.getHighlights();
 	}
 
@@ -446,7 +449,7 @@ export interface IQuickOpenEntryTemplateData {
 	icon: HTMLSpanElement;
 	prefix: HTMLSpanElement;
 	label: HighlightedLabel;
-	meta: HTMLSpanElement;
+	detail: HighlightedLabel;
 	description: HighlightedLabel;
 	actionBar: ActionBar;
 }
@@ -471,7 +474,9 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 		if (entry instanceof QuickOpenEntryItem) {
 			return (<QuickOpenEntryItem>entry).getHeight();
 		}
-
+		if (entry.getDetail()) {
+			return 44;
+		}
 		return 22;
 	}
 
@@ -533,26 +538,27 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 		// Label
 		let label = new HighlightedLabel(entry);
 
-		// Meta
-		let meta = document.createElement('span');
-		entry.appendChild(meta);
-		DOM.addClass(meta, 'quick-open-entry-meta');
-
 		// Description
 		let descriptionContainer = document.createElement('span');
 		entry.appendChild(descriptionContainer);
 		DOM.addClass(descriptionContainer, 'quick-open-entry-description');
 		let description = new HighlightedLabel(descriptionContainer);
 
+		// Detail
+		let detailContainer = document.createElement('div');
+		entry.appendChild(detailContainer);
+		DOM.addClass(detailContainer, 'quick-open-entry-meta');
+		let detail = new HighlightedLabel(detailContainer);
+
 		return {
-			container: container,
-			icon: icon,
-			prefix: prefix,
-			label: label,
-			meta: meta,
-			description: description,
-			group: group,
-			actionBar: actionBar
+			container,
+			icon,
+			prefix,
+			label,
+			detail,
+			description,
+			group,
+			actionBar
 		};
 	}
 
@@ -603,7 +609,7 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 
 		// Normal Entry
 		if (entry instanceof QuickOpenEntry) {
-			let highlights = entry.getHighlights();
+			let [labelHighlights, descriptionHighlights, detailHighlights] = entry.getHighlights();
 
 			// Icon
 			let iconClass = entry.getIcon() ? ('quick-open-entry-icon ' + entry.getIcon()) : '';
@@ -613,16 +619,14 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 			let prefix = entry.getPrefix() || '';
 			data.prefix.textContent = prefix;
 
-			let labelHighlights = highlights[0];
-			data.label.set(entry.getLabel() || '', labelHighlights || []);
+			// Label
+			data.label.set(entry.getLabel(), labelHighlights || []);
 
 			// Meta
-			let metaLabel = entry.getMeta() || '';
-			data.meta.textContent = metaLabel;
+			data.detail.set(entry.getDetail(), detailHighlights);
 
 			// Description
-			let descriptionHighlights = highlights[1];
-			data.description.set(entry.getDescription() || '', descriptionHighlights || []);
+			data.description.set(entry.getDescription(), descriptionHighlights || []);
 		}
 	}
 
