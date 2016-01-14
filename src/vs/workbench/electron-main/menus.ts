@@ -486,15 +486,10 @@ export class VSCodeMenu {
 	}
 
 	private setViewMenu(viewMenu: Electron.Menu): void {
-
-		let explorer = this.createMenuItem(nls.localize('miViewExplorer', "&&Explorer"),
-		'workbench.view.explorer');
-		let search = this.createMenuItem(nls.localize('miViewSearch', "&&Search"),
-		'workbench.view.search');
-		let scc = this.createMenuItem(nls.localize('miViewSCC', "S&&ource Code Control"),
-		'workbench.view.git');
-		let debug = this.createMenuItem(nls.localize('miViewDebug', "&&Debug"),
-		'workbench.view.debug');
+		let explorer = this.createMenuItem(nls.localize('miViewExplorer', "&&Explorer"), 'workbench.view.explorer');
+		let search = this.createMenuItem(nls.localize('miViewSearch', "&&Search"), 'workbench.view.search');
+		let git = this.createMenuItem(nls.localize('miViewGit', "&&Git"), 'workbench.view.git');
+		let debug = this.createMenuItem(nls.localize('miViewDebug', "&&Debug"), 'workbench.view.debug');
 
 		let commands = this.createMenuItem(nls.localize('miCommandPalette', "&&Command Palette..."), 'workbench.action.showCommands');
 		let markers = this.createMenuItem(nls.localize('miMarker', "&&Errors and Warnings..."), 'workbench.action.showErrorsWarnings');
@@ -512,7 +507,7 @@ export class VSCodeMenu {
 		arrays.coalesce([
 			explorer,
 			search,
-			scc,
+			git,
 			debug,
 			__separator__(),
 			commands,
