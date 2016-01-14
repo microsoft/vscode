@@ -26,7 +26,6 @@ import {EventType as WorkbenchEventType, EditorEvent} from 'vs/workbench/common/
 import Files = require('vs/workbench/parts/files/common/files');
 import {IFileService, IFileStat, IImportResult} from 'vs/platform/files/common/files';
 import {EditorInputAction} from 'vs/workbench/browser/parts/editor/baseEditor';
-import {IFrameEditor} from 'vs/workbench/browser/parts/editor/iframeEditor';
 import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
 import workbenchEditorCommon = require('vs/workbench/common/editor');
 import {IEditorSelection} from 'vs/editor/common/editorCommon';
@@ -35,7 +34,6 @@ import {FileStat, NewStatPlaceholder} from 'vs/workbench/parts/files/common/expl
 import {ExplorerView} from 'vs/workbench/parts/files/browser/views/explorerView';
 import {ExplorerViewlet} from 'vs/workbench/parts/files/browser/explorerViewlet';
 import {CACHE} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
-import {IFrameEditorInput} from 'vs/workbench/common/editor/iframeEditorInput';
 import {IActionProvider} from 'vs/base/parts/tree/browser/actionsRenderer';
 import {WorkingFileEntry, WorkingFilesModel} from 'vs/workbench/parts/files/common/workingFilesModel';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
@@ -1743,41 +1741,6 @@ export class RevertFileAction extends Action {
 		}
 
 		return Promise.as(true);
-	}
-}
-
-export class ViewSourceEditorInputAction extends EditorInputAction {
-
-	constructor(
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
-	) {
-		super('workbench.files.action.viewSourceFromEditor', nls.localize('viewSource', "View Source"), 'iframe-editor-action view-source');
-	}
-
-	public run(event?: any): Promise {
-		let iFrameEditorInput = <IFrameEditorInput>this.input;
-		let sideBySide = !!(event && (event.ctrlKey || event.metaKey));
-
-		return this.editorService.openEditor({
-			resource: iFrameEditorInput.getResource()
-		}, sideBySide);
-	}
-}
-
-export class RefreshIFrameEditorInputAction extends EditorInputAction {
-
-	constructor( @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
-		super('workbench.files.action.refreshIFrameEditor', nls.localize('reload', "Reload"), 'iframe-editor-action refresh');
-	}
-
-	public run(event?: any): Promise {
-		let editor = this.editorService.getActiveEditor();
-		if (editor instanceof IFrameEditor) {
-			(<IFrameEditor>editor).reload(true);
-		}
-
-		return Promise.as(null);
 	}
 }
 
