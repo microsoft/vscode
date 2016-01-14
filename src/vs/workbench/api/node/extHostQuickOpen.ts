@@ -40,7 +40,8 @@ export class ExtHostQuickOpen {
 		let quickPickWidget = this._proxy.$show({
 			autoFocus: { autoFocusFirstEntry: true },
 			placeHolder: options && options.placeHolder,
-			matchOnDescription: options && options.matchOnDescription
+			matchOnDescription: options && options.matchOnDescription,
+			matchOnDetail: options && options.matchOnDetail
 		});
 
 		return itemsPromise.then(items => {
