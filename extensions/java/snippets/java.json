@@ -1,0 +1,94 @@
+{
+	"Main method": {
+		"prefix": "main",
+		"body": [
+			"public static void main(String[] args) {",
+			"	$1",
+			"}"
+		],
+		"description": "Main method"
+	},
+	"Print text to console": {
+		"prefix": "pl",
+		"body": [
+			"System.out.println($1);"
+		],
+		"description": "Print text to console"
+	},
+	"Print error to console": {
+		"prefix": "pe",
+		"body": [
+			"System.err.println($1);"
+		],
+		"description": "Print error to console"
+	},
+	"Print message to console": {
+		"prefix": "sout",
+		"body": [
+			"System.out.println($1);"
+		],
+		"description": "Print text to console"
+	},
+	"Print error message to console": {
+		"prefix": "serr",
+		"body": [
+			"System.err.println($1);"
+		],
+		"description": "Print error to console"
+	},
+	"try catch": {
+		"prefix": "try",
+		"body": [
+			"try {",
+			"	${1:block}",
+			"}",
+			"catch (${2:Exception} ${3:err}) {",
+			"	System.out.println(${3}.${getMessage()});",
+			"}"
+		],
+		"description": "Try catch statement"
+	},
+	"class declaration": {
+		"prefix": "class",
+		"body": [
+			"${1:public} class ${2:className} {",
+			"	$3",
+			"}"
+		],
+		"description": "Class declaration"
+	},
+	"Method declaration": {
+		"prefix": "method",
+		"body": [
+			"${1:public} ${2:String} ${3:methodName}(${4:String} ${5:arg}) {",
+			"	$6",
+			"	${7:return null;}",
+			"}"
+		],
+		"description": "Method declaration"
+	},
+	"Function declaration": {
+		"prefix": "func",
+		"body": [
+			"${1:public} ${2:String} ${3:funcName}(${4:String} ${5:arg}) {",
+			"	$6",
+			"	${7:return null;}",
+			"}"
+		],
+		"description": "Function declaration"
+	},
+	"Getter setter": {
+		"prefix": "getset",
+		"body": [
+			"${1:public} ${2:String} get${3:fieldName}() {",
+			"	$4",
+			"	return ${5:this.${3:myField}",
+			"}",
+			"",
+			"${1:public} void set${3:fieldName}(${7:String} ${8:args}) {",
+			"	this.${9:fieldName} = $8;",
+			"}"
+		],
+		"description": "Getter and setter methods"
+	}
+}

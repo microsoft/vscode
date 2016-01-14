@@ -14,6 +14,14 @@
 			"language": "java",
 			"scopeName": "source.java",
 			"path": "./syntaxes/Java.plist"
+		}],
+		"snippets": [{
+			"language": "java",
+			"path": "./snippets/java_imports.json"
+		},
+		{
+			"language": "java",
+			"path": "./snippets/java.json"
 		}]
 	}
 }
