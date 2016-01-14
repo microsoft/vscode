@@ -52,7 +52,7 @@ export class OpenExplorerViewletAction extends ToggleViewletAction {
 	'vs/workbench/parts/files/browser/explorerViewlet',
 	'ExplorerViewlet',
 	VIEWLET_ID,
-	nls.localize('explore', "Explore"),
+	nls.localize('explore', "Explorer"),
 	'explore',
 	0
 ));
