@@ -12,7 +12,7 @@ import { IDisposable, disposeAll } from 'vs/base/common/lifecycle';
 import { assign } from 'vs/base/common/objects';
 import Event, { Emitter } from 'vs/base/common/event';
 import { append, addClass, removeClass, toggleClass, emmet as $, hide, show, addDisposableListener } from 'vs/base/browser/dom';
-import * as Tree from 'vs/base/parts/tree/common/tree';
+import * as Tree from 'vs/base/parts/tree/browser/tree';
 import * as TreeImpl from 'vs/base/parts/tree/browser/treeImpl';
 import * as TreeDefaults from 'vs/base/parts/tree/browser/treeDefaults';
 import * as HighlightedLabel from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';

@@ -15,7 +15,7 @@ import uuid = require('vs/base/common/uuid');
 import {IQuickNavigateConfiguration, IAutoFocus, IContext, IModel, Mode} from 'vs/base/parts/quickopen/common/quickOpen';
 import {Filter, Renderer, DataSource, IModelProvider} from 'vs/base/parts/quickopen/browser/quickOpenViewer';
 import {Dimension, Builder, $} from 'vs/base/browser/builder';
-import {ISelectionEvent, IFocusEvent, ITree, ContextMenuEvent} from 'vs/base/parts/tree/common/tree';
+import {ISelectionEvent, IFocusEvent, ITree, ContextMenuEvent} from 'vs/base/parts/tree/browser/tree';
 import {InputBox} from 'vs/base/browser/ui/inputbox/inputBox';
 import {Tree} from 'vs/base/parts/tree/browser/treeImpl';
 import {ProgressBar} from 'vs/base/browser/ui/progressbar/progressbar';

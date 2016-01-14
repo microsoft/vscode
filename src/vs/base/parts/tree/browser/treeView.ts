@@ -15,14 +15,14 @@ import Diff = require('vs/base/common/diff/diff');
 import Touch = require('vs/base/browser/touch');
 import Mouse = require('vs/base/browser/mouseEvent');
 import Keyboard = require('vs/base/browser/keyboardEvent');
-import Model = require('vs/base/parts/tree/common/treeModel');
+import Model = require('vs/base/parts/tree/browser/treeModel');
 import dnd = require('./treeDnd');
 import { IIterator, ArrayIterator, MappedIterator } from 'vs/base/common/iterator';
 import Scroll = require('vs/base/browser/ui/scrollbar/scrollableElement');
 import ScrollableElementImpl = require('vs/base/browser/ui/scrollbar/impl/scrollableElement');
-import { HeightMap } from 'vs/base/parts/tree/common/treeViewModel'
-import _ = require('vs/base/parts/tree/common/tree');
-import { IViewItem } from 'vs/base/parts/tree/common/treeViewModel';
+import { HeightMap } from 'vs/base/parts/tree/browser/treeViewModel'
+import _ = require('vs/base/parts/tree/browser/tree');
+import { IViewItem } from 'vs/base/parts/tree/browser/treeViewModel';
 import {IScrollable} from 'vs/base/common/scrollable';
 import {KeyCode} from 'vs/base/common/keyCodes';
 

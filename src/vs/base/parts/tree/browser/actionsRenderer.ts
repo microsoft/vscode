@@ -13,7 +13,7 @@ import Actions = require('vs/base/common/actions');
 import Events = require('vs/base/common/events');
 import ActionBar = require('vs/base/browser/ui/actionbar/actionbar');
 import TreeDefaults = require('./treeDefaults');
-import Tree = require('vs/base/parts/tree/common/tree');
+import Tree = require('vs/base/parts/tree/browser/tree');
 
 var $ = Builder.$;
 

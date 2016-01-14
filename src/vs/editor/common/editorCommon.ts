@@ -1860,6 +1860,10 @@ export interface IModelContentChangedEvent2 {
 	 */
 	text: string;
 	/**
+	 * The end-of-line character.
+	 */
+	eol: string;
+	/**
 	 * The new version id the model has transitioned to.
 	 */
 	versionId: number;

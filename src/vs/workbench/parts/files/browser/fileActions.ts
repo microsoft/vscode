@@ -20,7 +20,7 @@ import {getPathLabel} from 'vs/base/common/labels';
 import diagnostics = require('vs/base/common/diagnostics');
 import {Action, IAction} from 'vs/base/common/actions';
 import {MessageType, IInputValidator} from 'vs/base/browser/ui/inputbox/inputBox';
-import {ITree, IHighlightEvent} from 'vs/base/parts/tree/common/tree';
+import {ITree, IHighlightEvent} from 'vs/base/parts/tree/browser/tree';
 import {disposeAll, IDisposable} from 'vs/base/common/lifecycle';
 import {EventType as WorkbenchEventType, EditorEvent} from 'vs/workbench/common/events';
 import Files = require('vs/workbench/parts/files/common/files');

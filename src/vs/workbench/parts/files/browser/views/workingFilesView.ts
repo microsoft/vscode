@@ -7,7 +7,7 @@
 import nls = require('vs/nls');
 import {TPromise} from 'vs/base/common/winjs.base';
 import {Builder, $} from 'vs/base/browser/builder';
-import tree = require('vs/base/parts/tree/common/tree');
+import tree = require('vs/base/parts/tree/browser/tree');
 import {Tree} from 'vs/base/parts/tree/browser/treeImpl';
 import {IAction, IActionRunner} from 'vs/base/common/actions';
 import workbenchEditorCommon = require('vs/workbench/common/editor');
