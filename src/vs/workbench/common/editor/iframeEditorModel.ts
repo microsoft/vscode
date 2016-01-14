@@ -22,7 +22,6 @@ export interface IFrameContents {
 export class IFrameEditorModel extends EditorModel {
 	private _resource: URI;
 
-	private url: string;
 	private head: string;
 	private body: string;
 	private tail: string;
