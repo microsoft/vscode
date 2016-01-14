@@ -134,12 +134,16 @@ export class BaseActionItem extends EventEmitter implements IActionItem {
 	}
 
 	public focus(): void {
-		this.builder.domFocus();
-		this.builder.addClass('focused');
+		if (this.builder) {
+			this.builder.domFocus();
+			this.builder.addClass('focused');
+		}
 	}
 
 	public blur(): void {
-		this.builder.removeClass('focused');
+		if (this.builder) {
+			this.builder.removeClass('focused');
+		}
 	}
 
 	public _updateEnabled(): void {
