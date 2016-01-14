@@ -338,16 +338,17 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 						else {
 							entries.forEach((entry) => {
 								let labelHighlights = filters.matchesFuzzy(value, entry.getLabel());
-								let descriptionHighlights: filters.IMatch[] = null;
-								if (options.matchOnDescription) {
-									descriptionHighlights = filters.matchesFuzzy(value, entry.getDescription());
-								}
+								let descriptionHighlights = options.matchOnDescription
+									&& filters.matchesFuzzy(value, entry.getDescription());
 
-								if (labelHighlights || descriptionHighlights) {
-									entry.setHighlights(labelHighlights, descriptionHighlights);
+								let detailHighlights = options.matchOnDetail && entry.getDetail()
+									&& filters.matchesFuzzy(value, entry.getDetail());
+
+								if (labelHighlights || descriptionHighlights || detailHighlights) {
+									entry.setHighlights(labelHighlights, descriptionHighlights, detailHighlights);
 									entry.setHidden(false);
 								} else {
-									entry.setHighlights(null, null);
+									entry.setHighlights(null, null, null);
 									entry.setHidden(true);
 								}
 							});

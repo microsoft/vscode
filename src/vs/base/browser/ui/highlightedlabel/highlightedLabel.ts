@@ -33,7 +33,10 @@ export class HighlightedLabel implements IDisposable {
 		return this.domNode;
 	}
 
-	set(text: string = '', highlights?: IHighlight[]) {
+	set(text: string, highlights: IHighlight[] = []) {
+		if (!text) {
+			text = '';
+		}
 		if (this.didEverRender && this.text === text && objects.equals(this.highlights, highlights)) {
 			return;
 		}

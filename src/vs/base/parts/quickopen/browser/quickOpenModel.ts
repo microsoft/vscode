@@ -38,6 +38,7 @@ export class QuickOpenEntry {
 	private id: string;
 	private labelHighlights: IHighlight[];
 	private descriptionHighlights: IHighlight[];
+	private detailHighlights: IHighlight[];
 	private hidden: boolean;
 	private labelPrefix: string;
 
@@ -121,16 +122,17 @@ export class QuickOpenEntry {
 	/**
 	 * Allows to set highlight ranges that should show up for the entry label and optionally description if set.
 	 */
-	public setHighlights(labelHighlights: IHighlight[], descriptionHighlights?: IHighlight[]): void {
+	public setHighlights(labelHighlights: IHighlight[], descriptionHighlights?: IHighlight[], detailHighlights?: IHighlight[]): void {
 		this.labelHighlights = labelHighlights;
 		this.descriptionHighlights = descriptionHighlights;
+		this.detailHighlights = detailHighlights;
 	}
 
 	/**
 	 * Allows to return highlight ranges that should show up for the entry label and description.
 	 */
-	public getHighlights(): [IHighlight[] /* Label */, IHighlight[] /* Description */] {
-		return [this.labelHighlights, this.descriptionHighlights];
+	public getHighlights(): [IHighlight[] /* Label */, IHighlight[] /* Description */, IHighlight[] /* Detail */] {
+		return [this.labelHighlights, this.descriptionHighlights, this.detailHighlights];
 	}
 
 	/**
@@ -379,7 +381,7 @@ export class QuickOpenEntryGroup extends QuickOpenEntry {
 		return this.entry;
 	}
 
-	public getHighlights(): [IHighlight[], IHighlight[]] {
+	public getHighlights(): [IHighlight[], IHighlight[], IHighlight[]] {
 		return this.entry ? this.entry.getHighlights() : super.getHighlights();
 	}
 
@@ -447,7 +449,7 @@ export interface IQuickOpenEntryTemplateData {
 	icon: HTMLSpanElement;
 	prefix: HTMLSpanElement;
 	label: HighlightedLabel;
-	detail: OcticonLabel;
+	detail: HighlightedLabel;
 	description: HighlightedLabel;
 	actionBar: ActionBar;
 }
@@ -543,10 +545,10 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 		let description = new HighlightedLabel(descriptionContainer);
 
 		// Detail
-		let metaContainer = document.createElement('div');
-		entry.appendChild(metaContainer);
-		DOM.addClass(metaContainer, 'quick-open-entry-meta');
-		let detail = new OcticonLabel(metaContainer);
+		let detailContainer = document.createElement('div');
+		entry.appendChild(detailContainer);
+		DOM.addClass(detailContainer, 'quick-open-entry-meta');
+		let detail = new HighlightedLabel(detailContainer);
 
 		return {
 			container,
@@ -607,7 +609,7 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 
 		// Normal Entry
 		if (entry instanceof QuickOpenEntry) {
-			let highlights = entry.getHighlights();
+			let [labelHighlights, descriptionHighlights, detailHighlights] = entry.getHighlights();
 
 			// Icon
 			let iconClass = entry.getIcon() ? ('quick-open-entry-icon ' + entry.getIcon()) : '';
@@ -617,15 +619,14 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 			let prefix = entry.getPrefix() || '';
 			data.prefix.textContent = prefix;
 
-			let labelHighlights = highlights[0];
-			data.label.set(entry.getLabel() || '', labelHighlights || []);
+			// Label
+			data.label.set(entry.getLabel(), labelHighlights || []);
 
 			// Meta
-			data.detail.text = entry.getDetail();
+			data.detail.set(entry.getDetail(), detailHighlights);
 
 			// Description
-			let descriptionHighlights = highlights[1];
-			data.description.set(entry.getDescription() || '', descriptionHighlights || []);
+			data.description.set(entry.getDescription(), descriptionHighlights || []);
 		}
 	}
 
