@@ -164,13 +164,11 @@ export class VisibleRange {
 	public top:number;
 	public left:number;
 	public width:number;
-	public height:number;
 
-	constructor(top:number, left:number, width:number, height:number) {
+	constructor(top:number, left:number, width:number) {
 		this.top = top;
 		this.left = left;
 		this.width = width;
-		this.height = height;
 	}
 }
 
@@ -219,14 +217,9 @@ export class LineVisibleRanges {
 
 export interface IRenderingContext extends IRestrictedRenderingContext {
 
-	heightInPxForLine(lineNumber:number): number;
-
-	visibleRangesForRange(range:EditorCommon.IRange, includeNewLines:boolean): VisibleRange[];
-
 	linesVisibleRangesForRange(range:EditorCommon.IRange, includeNewLines:boolean): LineVisibleRanges[];
 
 	visibleRangeForPosition(position:EditorCommon.IPosition): VisibleRange;
-	visibleRangeForPosition2(lineNumber:number, column:number): VisibleRange;
 }
 
 export interface IViewEventHandler {

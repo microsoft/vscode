@@ -366,7 +366,7 @@ export class View extends ViewEventHandler implements EditorBrowser.IView, Lifec
 					throw new Error('ViewImpl.pointerHandler.visibleRangeForPosition2: View is disposed');
 				}
 				this._flushAccumulatedAndRenderNow();
-				var visibleRanges = this.viewLines.visibleRangesForRange2(new Range(lineNumber, column, lineNumber, column), 0, false);
+				var visibleRanges = this.viewLines.visibleRangesForRange2(new Range(lineNumber, column, lineNumber, column), 0);
 				if (!visibleRanges) {
 					return null;
 				}
@@ -394,7 +394,7 @@ export class View extends ViewEventHandler implements EditorBrowser.IView, Lifec
 				this._flushAccumulatedAndRenderNow();
 				var linesViewPortData = this.layoutProvider.getLinesViewportData();
 				var correctionTop = 0;
-				var visibleRanges = this.viewLines.visibleRangesForRange2(new Range(lineNumber, column, lineNumber, column), linesViewPortData.visibleRangesDeltaTop, false);
+				var visibleRanges = this.viewLines.visibleRangesForRange2(new Range(lineNumber, column, lineNumber, column), linesViewPortData.visibleRangesDeltaTop);
 				if (!visibleRanges) {
 					return null;
 				}
@@ -568,7 +568,7 @@ export class View extends ViewEventHandler implements EditorBrowser.IView, Lifec
 					});
 					var viewPosition = this.context.model.convertModelPositionToViewPosition(modelPosition.lineNumber, modelPosition.column);
 					this._flushAccumulatedAndRenderNow();
-					var visibleRanges = this.viewLines.visibleRangesForRange2(new Range(viewPosition.lineNumber, viewPosition.column, viewPosition.lineNumber, viewPosition.column), 0, false);
+					var visibleRanges = this.viewLines.visibleRangesForRange2(new Range(viewPosition.lineNumber, viewPosition.column, viewPosition.lineNumber, viewPosition.column), 0);
 					if (!visibleRanges) {
 						return -1;
 					}
@@ -839,30 +839,14 @@ export class View extends ViewEventHandler implements EditorBrowser.IView, Lifec
 				return scrolledTop;
 			},
 
-			heightInPxForLine: (lineNumber:number) => {
-				return this.layoutProvider.heightInPxForLine(lineNumber);
-			},
-
 			getDecorationsInViewport: () => linesViewportData.getDecorationsInViewport(),
-
-			visibleRangesForRange: (range:EditorCommon.IRange, includeNewLines:boolean) => {
-				return this.viewLines.visibleRangesForRange2(range, deltaTop, includeNewLines);
-			},
 
 			linesVisibleRangesForRange: (range:EditorCommon.IRange, includeNewLines:boolean) => {
 				return this.viewLines.linesVisibleRangesForRange(range, includeNewLines);
 			},
 
 			visibleRangeForPosition: (position:EditorCommon.IPosition) => {
-				var visibleRanges = this.viewLines.visibleRangesForRange2(new Range(position.lineNumber, position.column, position.lineNumber, position.column), deltaTop, false);
-				if (!visibleRanges) {
-					return null;
-				}
-				return visibleRanges[0];
-			},
-
-			visibleRangeForPosition2: (lineNumber:number, column:number) => {
-				var visibleRanges = this.viewLines.visibleRangesForRange2(new Range(lineNumber, column, lineNumber, column), deltaTop, false);
+				var visibleRanges = this.viewLines.visibleRangesForRange2(new Range(position.lineNumber, position.column, position.lineNumber, position.column), deltaTop);
 				if (!visibleRanges) {
 					return null;
 				}

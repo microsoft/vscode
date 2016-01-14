@@ -9,7 +9,7 @@ import DomUtils = require('vs/base/browser/dom');
 
 import {IVisibleLineData} from 'vs/editor/browser/view/viewLayer';
 import {ILineParts, createLineParts} from 'vs/editor/common/viewLayout/viewLineParts';
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
+import {ClassNames, IViewContext, HorizontalRange} from 'vs/editor/browser/editorBrowser';
 import EditorCommon = require('vs/editor/common/editorCommon');
 
 export interface IViewLineData extends IVisibleLineData {
@@ -22,7 +22,7 @@ export interface IViewLineData extends IVisibleLineData {
 	/**
 	 * Visible ranges for a model range
 	 */
-	getVisibleRangesForRange(lineNumber:number, startColumn:number, endColumn:number, deltaLeft:number, endNode:HTMLElement): EditorBrowser.HorizontalRange[];
+	getVisibleRangesForRange(startColumn:number, endColumn:number, endNode:HTMLElement): HorizontalRange[];
 
 	/**
 	 * Returns the column for the text found at a specific offset inside a rendered dom node
@@ -37,7 +37,7 @@ export interface IViewLineData extends IVisibleLineData {
 
 class ViewLine implements IViewLineData {
 
-	protected _context:EditorBrowser.IViewContext;
+	protected _context:IViewContext;
 	private _domNode: HTMLElement;
 
 	private _lineParts: ILineParts;
@@ -50,7 +50,7 @@ class ViewLine implements IViewLineData {
 	private _lastRenderedPartIndex:number;
 	private _cachedWidth: number;
 
-	constructor(context:EditorBrowser.IViewContext) {
+	constructor(context:IViewContext) {
 		this._context = context;
 
 		this._domNode = null;
@@ -127,7 +127,7 @@ class ViewLine implements IViewLineData {
 		out.push('px;height:');
 		out.push(this._context.configuration.editor.lineHeight.toString());
 		out.push('px;" class="');
-		out.push(EditorBrowser.ClassNames.VIEW_LINE);
+		out.push(ClassNames.VIEW_LINE);
 		out.push('">');
 		out.push(this.getLineInnerHTML(lineNumber));
 		out.push('</div>');
@@ -195,7 +195,7 @@ class ViewLine implements IViewLineData {
 	/**
 	 * Visible ranges for a model range
 	 */
-	public getVisibleRangesForRange(lineNumber:number, startColumn:number, endColumn:number, deltaLeft:number, endNode:HTMLElement): EditorBrowser.HorizontalRange[] {
+	public getVisibleRangesForRange(startColumn:number, endColumn:number, endNode:HTMLElement): HorizontalRange[] {
 		var stopRenderingLineAfter = this._context.configuration.editor.stopRenderingLineAfter;
 
 		if (stopRenderingLineAfter !== -1 && startColumn > stopRenderingLineAfter && endColumn > stopRenderingLineAfter) {
@@ -211,16 +211,16 @@ class ViewLine implements IViewLineData {
 			endColumn = stopRenderingLineAfter;
 		}
 
-		return this._readVisibleRangesForRange(lineNumber, startColumn, endColumn, deltaLeft, endNode);
+		return this._readVisibleRangesForRange(startColumn, endColumn, endNode);
 	}
 
-	protected _readVisibleRangesForRange(lineNumber:number, startColumn:number, endColumn:number, deltaLeft:number, endNode:HTMLElement): EditorBrowser.HorizontalRange[] {
+	protected _readVisibleRangesForRange(startColumn:number, endColumn:number, endNode:HTMLElement): HorizontalRange[] {
 
-		var result:EditorBrowser.HorizontalRange[];
+		var result:HorizontalRange[];
 		if (startColumn === endColumn) {
-			result = this._readRawVisibleRangesForPosition(lineNumber, startColumn, deltaLeft, endNode);
+			result = this._readRawVisibleRangesForPosition(startColumn, endNode);
 		} else {
-			result = this._readRawVisibleRangesForRange(lineNumber, startColumn, endColumn, deltaLeft, endNode);
+			result = this._readRawVisibleRangesForRange(startColumn, endColumn, endNode);
 		}
 
 		if (!result || result.length <= 1) {
@@ -229,9 +229,9 @@ class ViewLine implements IViewLineData {
 
 		result.sort(compareVisibleRanges);
 
-		var output: EditorBrowser.HorizontalRange[] = [],
-			prevRange: EditorBrowser.HorizontalRange = result[0],
-			currRange: EditorBrowser.HorizontalRange;
+		var output: HorizontalRange[] = [],
+			prevRange: HorizontalRange = result[0],
+			currRange: HorizontalRange;
 
 		for (var i = 1, len = result.length; i < len; i++) {
 			currRange = result[i];
@@ -248,20 +248,20 @@ class ViewLine implements IViewLineData {
 		return output;
 	}
 
-	protected _readRawVisibleRangesForPosition(lineNumber:number, column:number, deltaLeft:number, endNode:HTMLElement): EditorBrowser.HorizontalRange[] {
+	protected _readRawVisibleRangesForPosition(column:number, endNode:HTMLElement): HorizontalRange[] {
 
 		if (this._charOffsetInPart.length === 0) {
 			// This line is empty
-			return [new EditorBrowser.HorizontalRange(0, 0)];
+			return [new HorizontalRange(0, 0)];
 		}
 
 		var partIndex = findIndexInArrayWithMax(this._lineParts, column - 1, this._lastRenderedPartIndex),
 			_charOffsetInPart = this._charOffsetInPart[column - 1];
 
-		return this._readRawVisibleRangesFrom(this._getReadingTarget(), partIndex, _charOffsetInPart, partIndex, _charOffsetInPart, deltaLeft, endNode);
+		return this._readRawVisibleRangesFrom(this._getReadingTarget(), partIndex, _charOffsetInPart, partIndex, _charOffsetInPart, endNode);
 	}
 
-	private _readRawVisibleRangesForRange(lineNumber:number, startColumn:number, endColumn:number, deltaLeft:number, endNode:HTMLElement): EditorBrowser.HorizontalRange[] {
+	private _readRawVisibleRangesForRange(startColumn:number, endColumn:number, endNode:HTMLElement): HorizontalRange[] {
 
 		if (startColumn === 1 && endColumn === this._charOffsetInPart.length) {
 			// This branch helps IE with bidi text & gives a performance boost to other browsers when reading visible ranges for an entire line
@@ -274,14 +274,14 @@ class ViewLine implements IViewLineData {
 			endPartIndex = findIndexInArrayWithMax(this._lineParts, endColumn - 1, this._lastRenderedPartIndex),
 			end_charOffsetInPart = this._charOffsetInPart[endColumn - 1];
 
-		return this._readRawVisibleRangesFrom(this._getReadingTarget(), startPartIndex, start_charOffsetInPart, endPartIndex, end_charOffsetInPart, deltaLeft, endNode);
+		return this._readRawVisibleRangesFrom(this._getReadingTarget(), startPartIndex, start_charOffsetInPart, endPartIndex, end_charOffsetInPart, endNode);
 	}
 
-	private _readRawVisibleRangeForEntireLine(): EditorBrowser.HorizontalRange {
-		return new EditorBrowser.HorizontalRange(0, this._getReadingTarget().offsetWidth);
+	private _readRawVisibleRangeForEntireLine(): HorizontalRange {
+		return new HorizontalRange(0, this._getReadingTarget().offsetWidth);
 	}
 
-	private _readRawVisibleRangesFrom(domNode:HTMLElement, startChildIndex:number, startOffset:number, endChildIndex:number, endOffset:number, deltaLeft:number, endNode:HTMLElement): EditorBrowser.HorizontalRange[] {
+	private _readRawVisibleRangesFrom(domNode:HTMLElement, startChildIndex:number, startOffset:number, endChildIndex:number, endOffset:number, endNode:HTMLElement): HorizontalRange[] {
 		var range = RangeUtil.createRange();
 
 		try {
@@ -316,10 +316,10 @@ class ViewLine implements IViewLineData {
 			range.setEnd(endElement, endOffset);
 
 			var clientRects = range.getClientRects(),
-				result:EditorBrowser.HorizontalRange[] = null;
+				result:HorizontalRange[] = null;
 
 			if (clientRects.length > 0) {
-				result = this._createRawVisibleRangesFromClientRects(clientRects, deltaLeft);
+				result = this._createRawVisibleRangesFromClientRects(clientRects);
 			}
 
 			return result;
@@ -332,15 +332,15 @@ class ViewLine implements IViewLineData {
 		}
 	}
 
-	protected _createRawVisibleRangesFromClientRects(clientRects:ClientRectList, deltaLeft:number): EditorBrowser.HorizontalRange[] {
+	protected _createRawVisibleRangesFromClientRects(clientRects:ClientRectList): HorizontalRange[] {
 		var clientRectsLength = clientRects.length,
 			cR:ClientRect,
 			i:number,
-			result:EditorBrowser.HorizontalRange[] = [];
+			result:HorizontalRange[] = [];
 
 		for (i = 0; i < clientRectsLength; i++) {
 			cR = clientRects[i];
-			result.push(new EditorBrowser.HorizontalRange(Math.max(0, cR.left - deltaLeft), cR.width));
+			result.push(new HorizontalRange(cR.left, cR.width));
 		}
 
 		return result;
@@ -434,21 +434,21 @@ class ViewLine implements IViewLineData {
 
 class IEViewLine extends ViewLine {
 
-	constructor(context:EditorBrowser.IViewContext) {
+	constructor(context:IViewContext) {
 		super(context);
 	}
 
-	protected _createRawVisibleRangesFromClientRects(clientRects:ClientRectList, deltaLeft:number): EditorBrowser.HorizontalRange[] {
+	protected _createRawVisibleRangesFromClientRects(clientRects:ClientRectList): HorizontalRange[] {
 		var clientRectsLength = clientRects.length,
 			cR:ClientRect,
 			i:number,
-			result:EditorBrowser.HorizontalRange[] = [],
+			result:HorizontalRange[] = [],
 			ratioX = screen.logicalXDPI / screen.deviceXDPI;
 
-		result = new Array<EditorBrowser.HorizontalRange>(clientRectsLength);
+		result = new Array<HorizontalRange>(clientRectsLength);
 		for (i = 0; i < clientRectsLength; i++) {
 			cR = clientRects[i];
-			result[i] = new EditorBrowser.HorizontalRange(Math.max(0, cR.left * ratioX - deltaLeft), cR.width * ratioX);
+			result[i] = new HorizontalRange(Math.max(0, cR.left * ratioX), cR.width * ratioX);
 		}
 
 		return result;
@@ -457,17 +457,17 @@ class IEViewLine extends ViewLine {
 
 class WebKitViewLine extends ViewLine {
 
-	constructor(context:EditorBrowser.IViewContext) {
+	constructor(context:IViewContext) {
 		super(context);
 	}
 
-	protected _readVisibleRangesForRange(lineNumber:number, startColumn:number, endColumn:number, deltaLeft:number, endNode:HTMLElement): EditorBrowser.HorizontalRange[] {
-		var output = super._readVisibleRangesForRange(lineNumber, startColumn, endColumn, deltaLeft, endNode);
+	protected _readVisibleRangesForRange(startColumn:number, endColumn:number, endNode:HTMLElement): HorizontalRange[] {
+		var output = super._readVisibleRangesForRange(startColumn, endColumn, endNode);
 
 		if (this._context.configuration.editor.fontLigatures && endColumn > 1 && startColumn === endColumn && endColumn === this._charOffsetInPart.length) {
 			if (output.length === 1) {
 				let lastSpanBoundingClientRect = (<HTMLElement>this._getReadingTarget().lastChild).getBoundingClientRect();
-				output[0].left = lastSpanBoundingClientRect.right - deltaLeft;
+				output[0].left = lastSpanBoundingClientRect.right;
 			}
 		}
 
@@ -480,9 +480,9 @@ class WebKitViewLine extends ViewLine {
 
 		// This is an attempt to patch things up
 		// Find position of previous column
-		var beforeEndVisibleRanges = this._readRawVisibleRangesForPosition(lineNumber, endColumn - 1, deltaLeft, endNode);
+		var beforeEndVisibleRanges = this._readRawVisibleRangesForPosition(endColumn - 1, endNode);
 		// Find position of last column
-		var endVisibleRanges = this._readRawVisibleRangesForPosition(lineNumber, endColumn, deltaLeft, endNode);
+		var endVisibleRanges = this._readRawVisibleRangesForPosition(endColumn, endNode);
 
 		if (beforeEndVisibleRanges && beforeEndVisibleRanges.length > 0 && endVisibleRanges && endVisibleRanges.length > 0) {
 			var beforeEndVisibleRange = beforeEndVisibleRanges[0];
@@ -523,7 +523,7 @@ class RangeUtil {
 	}
 }
 
-function compareVisibleRanges(a: EditorBrowser.HorizontalRange, b: EditorBrowser.HorizontalRange): number {
+function compareVisibleRanges(a: HorizontalRange, b: HorizontalRange): number {
 	return a.left - b.left;
 }
 
@@ -532,7 +532,7 @@ function findIndexInArrayWithMax(lineParts:ILineParts, desiredIndex: number, max
 	return r <= maxResult ? r : maxResult;
 }
 
-export var createLine: (context: EditorBrowser.IViewContext) => IViewLineData = (function() {
+export var createLine: (context: IViewContext) => IViewLineData = (function() {
 	if (window.screen && window.screen.deviceXDPI && (navigator.userAgent.indexOf('Trident/6.0') >= 0 || navigator.userAgent.indexOf('Trident/5.0') >= 0)) {
 		// IE11 doesn't need the screen.logicalXDPI / screen.deviceXDPI ratio multiplication
 		// for TextRange.getClientRects() anymore
@@ -543,15 +543,15 @@ export var createLine: (context: EditorBrowser.IViewContext) => IViewLineData = 
 	return createNormalLine;
 })();
 
-function createIELine(context: EditorBrowser.IViewContext): IViewLineData {
+function createIELine(context: IViewContext): IViewLineData {
 	return new IEViewLine(context);
 }
 
-function createWebKitLine(context: EditorBrowser.IViewContext): IViewLineData {
+function createWebKitLine(context: IViewContext): IViewLineData {
 	return new WebKitViewLine(context);
 }
 
-function createNormalLine(context: EditorBrowser.IViewContext): IViewLineData {
+function createNormalLine(context: IViewContext): IViewLineData {
 	return new ViewLine(context);
 }
 
