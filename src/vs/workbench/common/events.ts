@@ -95,6 +95,11 @@ export class EventType {
 	static VIEWLET_OPENING = 'viewletOpening';
 
 	/**
+	 * Event type for when a panel is about to open.
+	 */
+	static PANEL_OPENING = 'panelOpening';
+
+	/**
 	 * Event type for when a viewlet is opened.
 	 */
 	static COMPOSITE_OPENED = 'compositeOpened';

@@ -212,6 +212,12 @@ export class TestPartService implements PartService.IPartService {
 
 	public setSideBarHidden(hidden: boolean): void { }
 
+	public isPanelPartHidden(): boolean {
+		return false;
+	}
+
+	public setPanelPartHidden(hidden: boolean): void { }
+
 	public getSideBarPosition() {
 		return 0;
 	}

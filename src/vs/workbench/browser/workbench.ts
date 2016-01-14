@@ -80,6 +80,7 @@ export class Workbench implements IPartService {
 
 	private static sidebarPositionSettingKey = 'workbench.sidebar.position';
 	private static sidebarHiddenSettingKey = 'workbench.sidebar.hidden';
+	private static panelPartHiddenSettingKey = 'workbench.panelPart.hidden';
 
 	public serviceId = IPartService;
 
@@ -113,6 +114,7 @@ export class Workbench implements IPartService {
 	private creationPromiseComplete: ValueCallback;
 	private sideBarHidden: boolean;
 	private sideBarPosition: Position;
+	private panelPartHidden: boolean;
 	private editorBackgroundDelayer: Delayer<void>;
 
 	constructor(container: HTMLElement, workspace: IWorkspace, configuration: IConfiguration, options: IOptions, instantiationService: IInstantiationService) {
@@ -397,6 +399,9 @@ export class Workbench implements IPartService {
 			this.sideBarHidden = true; // can only hide sidebar if we dont have a default viewlet id
 		}
 
+		// Panel part visibility
+		this.panelPartHidden = this.storageService.getBoolean(Workbench.panelPartHiddenSettingKey, StorageScope.WORKSPACE, true);
+
 		// Sidebar position
 		let rawPosition = this.storageService.get(Workbench.sidebarPositionSettingKey, StorageScope.GLOBAL, 'left');
 		this.sideBarPosition = (rawPosition === 'left') ? Position.LEFT : Position.RIGHT;
@@ -498,6 +503,15 @@ export class Workbench implements IPartService {
 
 		// Remember in settings
 		this.storageService.store(Workbench.sidebarHiddenSettingKey, hidden ? 'true' : 'false', StorageScope.WORKSPACE);
+	}
+
+	public isPanelPartHidden(): boolean {
+		return this.panelPartHidden;
+	}
+
+	public setPanelPartHidden(hidden: boolean, skipLayout?:boolean): void {
+		this.panelPartHidden = hidden;
+		// TODO@Isidor
 	}
 
 	public getSideBarPosition(): Position {
