@@ -34,6 +34,7 @@ import {StatusbarPart} from 'vs/workbench/browser/parts/statusbar/statusbarPart'
 import {WorkbenchLayout, LayoutOptions} from 'vs/workbench/browser/layout';
 import {IActionBarRegistry, Extensions as ActionBarExtensions} from 'vs/workbench/browser/actionBarRegistry';
 import {ViewletRegistry, Extensions as ViewletExtensions} from 'vs/workbench/browser/viewlet';
+import {PanelRegistry, Extensions as PanelExtensions} from 'vs/workbench/browser/panel';
 import {QuickOpenController} from 'vs/workbench/browser/parts/quickopen/quickOpenController';
 import {getServices} from 'vs/platform/instantiation/common/extensions';
 import {AbstractKeybindingService} from 'vs/platform/keybinding/browser/keybindingServiceImpl';
@@ -539,7 +540,34 @@ export class Workbench implements IPartService {
 
 	public setPanelPartHidden(hidden: boolean, skipLayout?:boolean): void {
 		this.panelPartHidden = hidden;
-		// TODO@Isidor
+
+		// Layout
+		if (!skipLayout) {
+			this.workbenchLayout.layout(true);
+		}
+
+		// If panel part becomes hidden, also hide the current active panel if any
+		if (hidden && this.panelPart.getActivePanel()) {
+			this.panelPart.hideActivePanel();
+
+			// Pass Focus to Editor if Panel part is now hidden
+			let editor = this.editorPart.getActiveEditor();
+			if (editor) {
+				editor.focus();
+			}
+		}
+
+		// If panel part becomes visible, show last active panel or default panel
+		else if (!hidden && !this.panelPart.getActivePanel()) {
+			let registry = (<PanelRegistry>Registry.as(PanelExtensions.Panels));
+			let panelToOpen = this.panelPart.getLastActivePanelId() || registry.getDefaultPanelId();
+			if (panelToOpen) {
+				this.panelPart.openPanel(panelToOpen, true).done(null, errors.onUnexpectedError);
+			}
+		}
+
+		// Remember in settings
+		this.storageService.store(Workbench.panelPartHiddenSettingKey, hidden ? 'true' : 'false', StorageScope.WORKSPACE);
 	}
 
 	public getSideBarPosition(): Position {
