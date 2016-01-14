@@ -210,6 +210,14 @@ export class InputBox extends Widget {
 		this._hideMessage();
 	}
 
+	public setEnabled(enabled:boolean): void {
+		if (enabled) {
+			this.enable();
+		} else {
+			this.disable();
+		}
+	}
+
 	public get width():number {
 		return dom.getTotalWidth(this.input);
 	}
