@@ -57,6 +57,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider {
 	private activitybar: Part;
 	private editor: Part;
 	private sidebar: Part;
+	private panelPart: Part;
 	private statusbar: Part;
 	private quickopen: QuickOpenController;
 	private options: LayoutOptions;
@@ -68,13 +69,17 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider {
 	private startSidebarWidth: number;
 	private sidebarWidth: number;
 
+	// Take parts as an object bag since instatation service does not have typings for constructors with 9+ arguments
 	constructor(
 		parent: Builder,
 		workbenchContainer: Builder,
-		activitybar: Part,
-		editor: Part,
-		sidebar: Part,
-		statusbar: Part,
+		parts: {
+			activitybar: Part,
+			editor: Part,
+			sidebar: Part,
+			panel: Part,
+			statusbar: Part
+		},
 		quickopen: QuickOpenController,
 		options: LayoutOptions,
 		@IStorageService private storageService: IStorageService,
@@ -86,10 +91,11 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider {
 	) {
 		this.parent = parent;
 		this.workbenchContainer = workbenchContainer;
-		this.activitybar = activitybar;
-		this.editor = editor;
-		this.sidebar = sidebar;
-		this.statusbar = statusbar;
+		this.activitybar = parts.activitybar;
+		this.editor = parts.editor;
+		this.sidebar = parts.sidebar;
+		this.panelPart = parts.panel;
+		this.statusbar = parts.statusbar;
 		this.quickopen = quickopen;
 		this.options = options || new LayoutOptions();
 		this.toUnbind = [];

@@ -10,6 +10,7 @@ import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/comm
 export enum Parts {
 	ACTIVITYBAR_PART,
 	SIDEBAR_PART,
+	PANEL_PART,
 	EDITOR_PART,
 	STATUSBAR_PART
 }
