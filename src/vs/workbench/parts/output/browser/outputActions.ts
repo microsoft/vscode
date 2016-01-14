@@ -15,7 +15,7 @@ import {EditorAction, Behaviour} from 'vs/editor/common/editorAction';
 import {ICommonCodeEditor, IEditorActionDescriptorData} from 'vs/editor/common/editorCommon';
 import {EditorInputAction} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {IOutputChannelRegistry, Extensions, IOutputService, OUTPUT_EDITOR_INPUT_ID, OUTPUT_MODE_ID} from 'vs/workbench/parts/output/common/output';
-import {OutputEditorInput} from 'vs/workbench/parts/output/browser/outputEditorInput';
+import {OutputEditorInput} from 'vs/workbench/parts/output/common/outputEditorInput';
 import {SelectActionItem} from 'vs/base/browser/ui/actionbar/actionbar';
 import {IWorkbenchEditorService}  from 'vs/workbench/services/editor/common/editorService';
 import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';

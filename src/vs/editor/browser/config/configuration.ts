@@ -330,7 +330,7 @@ export class Configuration extends CommonEditorConfiguration {
 		super.dispose();
 	}
 
-	protected _getEditorClassName(theme:string): string {
+	protected _getEditorClassName(theme:string, fontLigatures:boolean): string {
 		var extra = '';
 		if (Browser.isIE11orEarlier) {
 			extra += 'ie ';
@@ -342,6 +342,9 @@ export class Configuration extends CommonEditorConfiguration {
 		}
 		if (Env.isMacintosh) {
 			extra += 'mac ';
+		}
+		if (fontLigatures) {
+			extra += 'enable-ligatures ';
 		}
 		return 'monaco-editor ' + extra + theme;
 	}

@@ -10,6 +10,7 @@ declare module 'https-proxy-agent' {
 	interface IHttpsProxyAgentOptions extends tls.ConnectionOptions {
 		host: string;
 		port: number;
+		auth?: string;
 		secureProxy?: boolean;
 		secureEndpoint?: boolean;
 	}

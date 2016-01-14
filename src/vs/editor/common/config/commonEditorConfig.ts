@@ -143,6 +143,7 @@ class InternalEditorOptionsHelper {
 			overviewRulerLanes: toInteger(opts.overviewRulerLanes, 0, 3),
 			cursorBlinking: opts.cursorBlinking,
 			cursorStyle: opts.cursorStyle,
+			fontLigatures: toBoolean(opts.fontLigatures),
 			hideCursorInOverviewRuler: toBoolean(opts.hideCursorInOverviewRuler),
 			scrollBeyondLastLine: toBoolean(opts.scrollBeyondLastLine),
 			wrappingIndent: opts.wrappingIndent,
@@ -240,6 +241,7 @@ class InternalEditorOptionsHelper {
 			overviewRulerLanes:				(prevOpts.overviewRulerLanes !== newOpts.overviewRulerLanes),
 			cursorBlinking:					(prevOpts.cursorBlinking !== newOpts.cursorBlinking),
 			cursorStyle:					(prevOpts.cursorStyle !== newOpts.cursorStyle),
+			fontLigatures:					(prevOpts.fontLigatures !== newOpts.fontLigatures),
 			hideCursorInOverviewRuler:		(prevOpts.hideCursorInOverviewRuler !== newOpts.hideCursorInOverviewRuler),
 			scrollBeyondLastLine:			(prevOpts.scrollBeyondLastLine !== newOpts.scrollBeyondLastLine),
 			wrappingIndent:					(prevOpts.wrappingIndent !== newOpts.wrappingIndent),
@@ -376,7 +378,7 @@ export interface IIndentationGuesser {
 	(tabSize:number): EditorCommon.IGuessedIndentation;
 }
 
-export class CommonEditorConfiguration extends EventEmitter implements EditorCommon.IConfiguration {
+export abstract class CommonEditorConfiguration extends EventEmitter implements EditorCommon.IConfiguration {
 
 	public handlerDispatcher:EditorCommon.IHandlerDispatcher;
 	public editor:EditorCommon.IInternalEditorOptions;
@@ -436,7 +438,7 @@ export class CommonEditorConfiguration extends EventEmitter implements EditorCom
 	private _computeInternalOptions(): EditorCommon.IInternalEditorOptions {
 		let opts = this._configWithDefaults.getEditorOptions();
 
-		let editorClassName = this._getEditorClassName(opts.theme);
+		let editorClassName = this._getEditorClassName(opts.theme, toBoolean(opts.fontLigatures));
 		let requestedFontFamily = opts.fontFamily || '';
 		let requestedFontSize = toInteger(opts.fontSize, 0, 100);
 		let requestedLineHeight = toInteger(opts.lineHeight, 0, 150);
@@ -467,10 +469,6 @@ export class CommonEditorConfiguration extends EventEmitter implements EditorCom
 	public updateOptions(newOptions:EditorCommon.IEditorOptions): void {
 		this._configWithDefaults.updateOptions(newOptions);
 		this._recomputeOptions();
-	}
-
-	protected _getEditorClassName(theme:string): string {
-		return 'monaco-editor';
 	}
 
 	public setIsDominatedByLongLines(isDominatedByLongLines:boolean): void {
@@ -603,19 +601,13 @@ export class CommonEditorConfiguration extends EventEmitter implements EditorCom
 		}
 	}
 
-	protected getOuterWidth(): number {
-		throw new Error('Not implemented');
-	}
+	protected abstract _getEditorClassName(theme:string, fontLigatures:boolean): string;
 
-	protected getOuterHeight(): number {
-		throw new Error('Not implemented');
-	}
+	protected abstract getOuterWidth(): number;
 
-	protected readConfiguration(editorClassName: string, fontFamily: string, fontSize: number, lineHeight: number): ICSSConfig {
-		throw new Error('Not implemented');
-	}
+	protected abstract getOuterHeight(): number;
 
-
+	protected abstract readConfiguration(editorClassName: string, fontFamily: string, fontSize: number, lineHeight: number): ICSSConfig;
 }
 
 /**
@@ -809,6 +801,11 @@ configurationRegistry.registerConfiguration({
 			'enum': ['block', 'line'],
 			'default': DefaultConfig.editor.cursorStyle,
 			'description': nls.localize('cursorStyle', "Controls the cursor style, accepted values are 'block' and 'line'")
+		},
+		'editor.fontLigatures' : {
+			'type': 'boolean',
+			'default': DefaultConfig.editor.fontLigatures,
+			'description': nls.localize('fontLigatures', "Enables font ligatures")
 		},
 		'editor.hideCursorInOverviewRuler' : {
 			'type': 'boolean',

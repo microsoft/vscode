@@ -274,16 +274,16 @@ suite('Validation - CSS', () => {
 	test('Value sets', function(testDone): any {
 		WinJS.Promise.join([
 			testValueSetFor('body { display: inline }', 'inline', 6, false).then(function(result:Modes.IInplaceReplaceSupportResult):void  {
-				assertReplaceResult(result, 'flexbox');
+				assertReplaceResult(result, 'flex');
 			}),
-			testValueSetFor('body { display: flexbox }', 'flexbox', 7, true).then(function(result:Modes.IInplaceReplaceSupportResult):void  {
+			testValueSetFor('body { display: flex }', 'flex', 7, true).then(function(result:Modes.IInplaceReplaceSupportResult):void  {
 				assertReplaceResult(result, 'inline');
 			}),
 			testValueSetFor('body { display: inline }', 'inline', 0, false).then(function(result:Modes.IInplaceReplaceSupportResult):void  {
-				assertReplaceResult(result, 'flexbox');
+				assertReplaceResult(result, 'flex');
 			}),
 			testValueSetFor('body { display: inline }', 'line', 0, false).then(function(result:Modes.IInplaceReplaceSupportResult):void  {
-				assertReplaceResult(result, 'flexbox');
+				assertReplaceResult(result, 'flex');
 			}),
 			testValueSetFor('body { display: inline }', 'display', 0, false).then(function(result:Modes.IInplaceReplaceSupportResult):void  {
 				assert.ok(!result);

@@ -88,7 +88,6 @@ export class OpenFileHandler extends QuickOpenHandler {
 	private queryBuilder: QueryBuilder;
 	private delayer: ThrottledDelayer<QuickOpenEntry[]>;
 	private isStandalone: boolean;
-	private fuzzyMatchingEnabled: boolean;
 
 	constructor(
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
@@ -111,10 +110,6 @@ export class OpenFileHandler extends QuickOpenHandler {
 		this.isStandalone = standalone;
 	}
 
-	public setFuzzyMatchingEnabled(enabled: boolean): void {
-		this.fuzzyMatchingEnabled = enabled;
-	}
-
 	public getResults(searchValue: string): TPromise<QuickOpenModel> {
 		searchValue = searchValue.trim();
 		let promise: TPromise<QuickOpenEntry[]>;
@@ -135,8 +130,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 		let query: IQueryOptions = {
 			folderResources: this.contextService.getWorkspace() ? [this.contextService.getWorkspace().resource] : [],
 			extraFileResources: this.textFileService.getWorkingFilesModel().getOutOfWorkspaceContextEntries().map(e => e.resource),
-			filePattern: searchValue,
-			matchFuzzy: this.fuzzyMatchingEnabled
+			filePattern: searchValue
 		};
 
 		return this.queryBuilder.file(query).then((query) => this.searchService.search(query)).then((complete) => {
@@ -152,7 +146,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 				let entry = this.instantiationService.createInstance(FileEntry, label, description, fileMatch.resource);
 
 				// Apply highlights
-				let {labelHighlights, descriptionHighlights} = QuickOpenEntry.highlight(entry, searchValue, this.fuzzyMatchingEnabled);
+				let {labelHighlights, descriptionHighlights} = QuickOpenEntry.highlight(entry, searchValue, true /* fuzzy highlight */);
 				entry.setHighlights(labelHighlights, descriptionHighlights);
 
 				results.push(entry);

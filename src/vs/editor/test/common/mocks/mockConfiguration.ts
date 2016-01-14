@@ -12,6 +12,10 @@ export class MockConfiguration extends CommonEditorConfiguration {
 		super(opts);
 	}
 
+	protected _getEditorClassName(theme:string, fontLigatures:boolean): string {
+		return '';
+	}
+
 	protected getOuterWidth(): number {
 		return 100;
 	}

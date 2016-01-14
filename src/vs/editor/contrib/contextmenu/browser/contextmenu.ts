@@ -113,9 +113,6 @@ class ContextMenuController implements EditorCommon.IEditorContribution {
 			return;
 		}
 
-		// Ensure selection is visible
-		this._editor.revealPosition(position);
-
 		// Find actions available for menu
 		var menuActions = this._getMenuActions();
 
@@ -182,7 +179,10 @@ class ContextMenuController implements EditorCommon.IEditorContribution {
 
 		var menuPosition = forcedPosition;
 		if (!menuPosition) {
+			// Ensure selection is visible
+			this._editor.revealPosition(this._editor.getPosition());
 
+			this._editor.render();
 			var cursorCoords = this._editor.getScrolledVisiblePosition(this._editor.getPosition());
 
 			// Translate to absolute editor position

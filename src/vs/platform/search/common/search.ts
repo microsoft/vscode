@@ -29,7 +29,6 @@ export interface IQueryOptions {
 	includePattern?: glob.IExpression;
 	maxResults?: number;
 	fileEncoding?: string;
-	matchFuzzy?: boolean;
 }
 
 export interface ISearchQuery extends IQueryOptions {
@@ -93,9 +92,5 @@ export class LineMatch implements ILineMatch {
 export interface ISearchConfiguration extends IFilesConfiguration {
 	search: {
 		exclude: glob.IExpression;
-	};
-
-	filePicker: {
-		alternateFileNameMatching: boolean;
 	};
 }

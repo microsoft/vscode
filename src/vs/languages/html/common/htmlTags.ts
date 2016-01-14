@@ -379,12 +379,15 @@ export function getHTML5TagProvider(): IHTMLTagProvider {
 				collector(handler, 'event');
 			});
 			if (tag) {
-				var attributes = HTML_TAGS[tag].attributes;
-				if (attributes) {
-					attributes.forEach(attr => {
-						var segments = attr.split(':');
-						collector(segments[0], segments[1]);
-					});
+				var tags = HTML_TAGS[tag];
+				if (tags) {
+					var attributes = tags.attributes;
+					if (attributes) {
+						attributes.forEach(attr => {
+							var segments = attr.split(':');
+							collector(segments[0], segments[1]);
+						});
+					}
 				}
 			}
 		},
@@ -405,9 +408,14 @@ export function getHTML5TagProvider(): IHTMLTagProvider {
 					}
 				});
 			};
-			var attributes = HTML_TAGS[tag].attributes;
-			if (attributes) {
-				processAttributes(attributes);
+			if (tag) {
+				var tags = HTML_TAGS[tag];
+				if (tags) {
+					var attributes = tags.attributes;
+					if (attributes) {
+						processAttributes(attributes);
+					}
+				}
 			}
 			processAttributes(globalAttributes); // no need to look in event handlers
 		}
@@ -422,10 +430,10 @@ export function getAngularTagProvider() : IHTMLTagProvider {
 		textarea: ['ng-model', 'ng-required', 'ng-minlength', 'ng-maxlength', 'ng-pattern', 'ng-trim']
 	};
 
-	var globalAttributes = 	['ng-app', 'ng-bind', 'ng-bindhtml', 'ng-bindtemplate', 'ng-blur', 'ng-change', 'ng-checked', 'ng-class', 'ng-classeven', 'ng-classodd',
+	var globalAttributes = 	['ng-app', 'ng-bind', 'ng-bind-html', 'ng-bind-template', 'ng-blur', 'ng-change', 'ng-checked', 'ng-class', 'ng-class-even', 'ng-class-odd',
 		'ng-click', 'ng-cloak', 'ng-controller', 'ng-copy', 'ng-csp', 'ng-cut', 'ng-dblclick', 'ng-disabled', 'ng-focus', 'ng-form', 'ng-hide', 'ng-href', 'ng-if',
-		'ng-include', 'ng-init', 'ng-jq', 'ng-keydown', 'ng-keypress', 'ng-keyup', 'ng-list', 'ng-modelOptions', 'ng-mousedown', 'ng-mouseenter', 'ng-mouseleave',
-		'ng-mousemove', 'ng-mouseover', 'ng-mouseup', 'ng-nonbindable', 'ng-open', 'ng-options', 'ng-paste', 'ng-pluralize', 'ng-readonly', 'ng-repeat', 'ng-selected',
+		'ng-include', 'ng-init', 'ng-jq', 'ng-keydown', 'ng-keypress', 'ng-keyup', 'ng-list', 'ng-model-options', 'ng-mousedown', 'ng-mouseenter', 'ng-mouseleave',
+		'ng-mousemove', 'ng-mouseover', 'ng-mouseup', 'ng-non-bindable', 'ng-open', 'ng-options', 'ng-paste', 'ng-pluralize', 'ng-readonly', 'ng-repeat', 'ng-selected',
 		'ng-show', 'ng-src', 'ng-srcset', 'ng-style', 'ng-submit', 'ng-switch', 'ng-transclude', 'ng-value'
 	];
 

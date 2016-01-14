@@ -360,6 +360,13 @@ export class CodeEditorWidget extends CommonCodeEditor implements EditorBrowser.
 		return this._view.getCodeEditorHelper().getOffsetForColumn(lineNumber, column);
 	}
 
+	public render(): void {
+		if (!this.hasView) {
+			return;
+		}
+		this._view.render(true);
+	}
+
 	_attachModel(model:EditorCommon.IModel): void {
 		this._view = null;
 
@@ -383,7 +390,7 @@ export class CodeEditorWidget extends CommonCodeEditor implements EditorBrowser.
 					}
 				}
 
-				this._view.render();
+				this._view.render(false);
 				this.hasView = true;
 			});
 		}

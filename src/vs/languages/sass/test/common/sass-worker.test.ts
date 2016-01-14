@@ -126,16 +126,16 @@ suite('SASS - Worker', () => {
 	test('Sass Value sets', function(testDone): any {
 		WinJS.Promise.join([
 			testValueSetFor('@mixin foo { display: inline }', 'inline', 6, false).then((result) => {
-				assertReplaceResult(result, 'flexbox');
+				assertReplaceResult(result, 'flex');
 			}),
-			testValueSetFor('@mixin foo($i) { display: flexbox }', 'flexbox', 7, true).then((result) => {
+			testValueSetFor('@mixin foo($i) { display: flex }', 'flex', 7, true).then((result) => {
 				assertReplaceResult(result, 'inline');
 			}),
 			testValueSetFor('.foo { .bar { display: inline } }', 'inline', 0, false).then((result) => {
-				assertReplaceResult(result, 'flexbox');
+				assertReplaceResult(result, 'flex');
 			}),
 			testValueSetFor('@mixin foo { display: inline }', 'line', 0, false).then((result) => {
-				assertReplaceResult(result, 'flexbox');
+				assertReplaceResult(result, 'flex');
 			}),
 
 			testValueSetFor('@mixin foo { display: inline }', 'display', 0, false).then((result) => {

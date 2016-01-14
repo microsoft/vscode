@@ -88,7 +88,7 @@ export interface IView extends Lifecycle.IDisposable {
 	getWhitespaces(): EditorCommon.IEditorWhitespace[];
 	renderOnce(callback:() => any): any;
 
-	render(): void;
+	render(now:boolean): void;
 
 	focus(): void;
 	isFocused(): boolean;
@@ -584,12 +584,18 @@ export interface ICodeEditor extends EditorCommon.ICommonCodeEditor {
 	 * Get the view zones.
 	 */
 	getWhitespaces(): EditorCommon.IEditorWhitespace[];
+
 	/**
 	 * Get the horizontal position (left offset) for the column w.r.t to the beginning of the line.
 	 * This method works only if the line `lineNumber` is currently rendered (in the editor's viewport).
 	 * Use this method with caution.
 	 */
 	getOffsetForColumn(lineNumber: number, column: number): number;
+
+	/**
+	 * Force an editor render now.
+	 */
+	render(): void;
 
 	/**
 	 * Get the vertical position (top offset) for the line w.r.t. to the first line.

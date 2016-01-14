@@ -6,6 +6,7 @@
 'use strict';
 
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
+import { isBoolean } from 'vs/base/common/types';
 import https = require('https');
 import http = require('http');
 import { Url, parse as parseUrl } from 'url';
@@ -22,6 +23,7 @@ export interface IRequestOptions {
 	data?: any;
 	agent?: any;
 	followRedirects?: number;
+	strictSSL?: boolean;
 }
 
 export interface IRequestResult {
@@ -41,7 +43,8 @@ export function request(options: IRequestOptions): TPromise<IRequestResult> {
 			path: endpoint.path,
 			method: options.type || 'GET',
 			headers: options.headers,
-			agent: options.agent
+			agent: options.agent,
+			rejectUnauthorized: isBoolean(options.strictSSL) ? options.strictSSL : true
 		};
 
 		if (options.user && options.password) {

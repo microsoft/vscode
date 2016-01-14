@@ -23,7 +23,6 @@ import {FILE_EDITOR_INPUT_ID, VIEWLET_ID} from 'vs/workbench/parts/files/common/
 import {FileTracker} from 'vs/workbench/parts/files/browser/fileTracker';
 import {SaveParticipant} from 'vs/workbench/parts/files/common/editors/saveParticipant';
 import {FileEditorInput} from 'vs/workbench/parts/files/browser/editors/fileEditorInput';
-import {HTMLFrameEditorInput} from 'vs/workbench/parts/files/common/editors/htmlFrameEditorInput';
 import {TextFileEditor} from 'vs/workbench/parts/files/browser/editors/textFileEditor';
 import {BinaryFileEditor} from 'vs/workbench/parts/files/browser/editors/binaryFileEditor';
 import {IInstantiationService, INullService} from 'vs/platform/instantiation/common/instantiation';
@@ -145,24 +144,6 @@ class FileEditorInputFactory implements IEditorInputFactory {
 }
 
 (<IEditorRegistry>Registry.as(EditorExtensions.Editors)).registerEditorInputFactory(FILE_EDITOR_INPUT_ID, FileEditorInputFactory);
-
-// Register HTML Frame Editor Input Factory
-class HTMLFrameEditorInputFactory implements IEditorInputFactory {
-
-	constructor(@INullService ns) {}
-
-	public serialize(editorInput: EditorInput): string {
-		let htmlInput = <HTMLFrameEditorInput>editorInput;
-
-		return htmlInput.getResource().toString();
-	}
-
-	public deserialize(instantiationService: IInstantiationService, resourceRaw: string): EditorInput {
-		return instantiationService.createInstance(HTMLFrameEditorInput, URI.parse(resourceRaw));
-	}
-}
-
-(<IEditorRegistry>Registry.as(EditorExtensions.Editors)).registerEditorInputFactory(HTMLFrameEditorInput.ID, HTMLFrameEditorInputFactory);
 
 // Register File Tracker
 (<IWorkbenchContributionsRegistry>Registry.as(WorkbenchExtensions.Workbench)).registerWorkbenchContribution(

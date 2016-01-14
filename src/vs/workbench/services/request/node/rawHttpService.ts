@@ -32,7 +32,7 @@ export function configure(_proxyUrl: string, _strictSSL: boolean): void {
 export function xhr(options: IXHROptions): TPromise<IXHRResponse> {
 	const agent = getProxyAgent(options.url, { proxyUrl, strictSSL });
 	options = assign({}, options);
-	options = assign(options, { agent });
+	options = assign(options, { agent, strictSSL });
 
 	return request(options).then(result => new TPromise<IXHRResponse>((c, e, p) => {
 		let res = result.res;

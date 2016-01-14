@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {ITree, IElementCallback} from 'vs/base/parts/tree/common/tree';
 import {TPromise} from 'vs/base/common/winjs.base';
 import Event from 'vs/base/common/event';
 import {IQuickNavigateConfiguration, IAutoFocus} from 'vs/base/parts/quickopen/common/quickOpen';
@@ -15,11 +14,6 @@ export interface IPickOpenEntry {
 	id?: string;
 	label: string;
 	description?: string;
-}
-
-export interface IPickOpenEntryItem extends IPickOpenEntry {
-	height?: number;
-	render?: (tree: ITree, container: HTMLElement, previousCleanupFn: IElementCallback) => IElementCallback;
 }
 
 export interface IPickOptions {

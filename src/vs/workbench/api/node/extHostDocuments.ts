@@ -24,8 +24,8 @@ import * as vscode from 'vscode';
 import {WordHelper} from 'vs/editor/common/model/textModelWithTokensHelpers';
 import {IFileService} from 'vs/platform/files/common/files';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
+import {ResourceEditorInput} from 'vs/workbench/common/editor/resourceEditorInput';
 import {asWinJsPromise} from 'vs/base/common/async';
-import {IModeService} from 'vs/editor/common/services/modeService';
 import * as weak from 'weak';
 
 export interface IModelAddedData {
@@ -134,7 +134,25 @@ export class ExtHostModelService {
 			throw new Error(`scheme '${scheme}' already registered`);
 		}
 		this._documentContentProviders[scheme] = provider;
-		return new Disposable(() => delete this._documentContentProviders[scheme]);
+		this._proxy.$registerTextContentProvider(scheme);
+
+		let subscription: IDisposable;
+		if (typeof provider.onDidChange === 'function') {
+			subscription = provider.onDidChange(uri => {
+				if (this._documentData[uri.toString()]) {
+					this.$provideTextDocumentContent(<URI>uri).then(value => {
+						return this._proxy.$onVirtualDocumentChange(<URI>uri, value);
+					}, onUnexpectedError);
+				}
+			});
+		}
+		return new Disposable(() => {
+			this._proxy.$unregisterTextContentProvider(scheme);
+			this._documentContentProviders[scheme] = undefined; // keep the knowledge of that scheme
+			if (subscription) {
+				subscription.dispose();
+			}
+		});
 	}
 
 	$provideTextDocumentContent(uri: URI): TPromise<string> {
@@ -150,8 +168,15 @@ export class ExtHostModelService {
 		});
 	}
 
-	$isDocumentReferenced(uri: URI): TPromise<boolean> {
-		return TPromise.as(this.getDocumentData(uri).isDocumentReferenced);
+	$getUnreferencedDocuments(): TPromise<URI[]> {
+		const result: URI[] = [];
+		for (let key in this._documentData) {
+			let uri = URI.parse(key);
+			if (this._documentContentProviders[uri.scheme] && !this._documentData[key].isDocumentReferenced) {
+				result.push(uri);
+			}
+		}
+		return TPromise.as(result);
 	}
 
 	public _acceptModelAdd(initData: IModelAddedData): void {
@@ -433,7 +458,6 @@ export class ExtHostDocumentData extends MirrorModel2 {
 @Remotable.MainContext('MainThreadDocuments')
 export class MainThreadDocuments {
 	private _modelService: IModelService;
-	private _modeService: IModeService;
 	private _textFileService: ITextFileService;
 	private _editorService: IWorkbenchEditorService;
 	private _fileService: IFileService;
@@ -442,11 +466,11 @@ export class MainThreadDocuments {
 	private _modelToDisposeMap: { [modelUrl: string]: IDisposable; };
 	private _proxy: ExtHostModelService;
 	private _modelIsSynced: { [modelId: string]: boolean; };
+	private _resourceContentProvider: { [scheme: string]: IDisposable };
 
 	constructor(
 		@IThreadService threadService: IThreadService,
 		@IModelService modelService: IModelService,
-		@IModeService modeService: IModeService,
 		@IEventService eventService: IEventService,
 		@ITextFileService textFileService: ITextFileService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
@@ -454,7 +478,6 @@ export class MainThreadDocuments {
 		@IUntitledEditorService untitledEditorService: IUntitledEditorService
 	) {
 		this._modelService = modelService;
-		this._modeService = modeService;
 		this._textFileService = textFileService;
 		this._editorService = editorService;
 		this._fileService = fileService;
@@ -477,7 +500,11 @@ export class MainThreadDocuments {
 			this._proxy._acceptModelDirty(e.getAfter().resource);
 		}));
 
+		const handle = setInterval(() => this._runDocumentCleanup(), 30 * 1000);
+		this._toDispose.push({ dispose() { clearInterval(handle) } });
+
 		this._modelToDisposeMap = Object.create(null);
+		this._resourceContentProvider = Object.create(null);
 	}
 
 	public dispose(): void {
@@ -555,14 +582,12 @@ export class MainThreadDocuments {
 
 		let promise: TPromise<boolean>;
 		switch (uri.scheme) {
-			case 'file':
-				promise = this._handleFileScheme(uri);
-				break;
 			case 'untitled':
 				promise = this._handleUnititledScheme(uri);
 				break;
+			case 'file':
 			default:
-				promise = this._handleAnyScheme(uri);
+				promise = this._handleAsResourceInput(uri);
 				break;
 		}
 
@@ -575,7 +600,7 @@ export class MainThreadDocuments {
 		});
 	}
 
-	private _handleFileScheme(uri: URI): TPromise<boolean> {
+	private _handleAsResourceInput(uri: URI): TPromise<boolean> {
 		return this._editorService.resolveEditorModel({ resource: uri }).then(model => {
 			return !!model;
 		});
@@ -599,38 +624,48 @@ export class MainThreadDocuments {
 		});
 	}
 
-	private _handleAnyScheme(uri: URI): TPromise<boolean> {
+	// --- virtual document logic
 
-		if (this._modelService.getModel(uri)) {
-			return TPromise.as(true);
-		}
-
-		return this._proxy.$provideTextDocumentContent(uri).then(value => {
-
-			// create document from string
-			const firstLineText = value.substr(0, 1 + value.search(/\r?\n/));
-			const mode = this._modeService.getOrCreateModeByFilenameOrFirstLine(uri.fsPath, firstLineText);
-			const model = this._modelService.createModel(value, mode, uri);
-
-			// if neither the extension host nor an editor reference this
-			// document anymore we destroy the model to reclaim memory
-			const handle = setInterval(() => {
-				this._editorService.inputToType({ resource: uri }).then(input => {
-					if (!this._editorService.isVisible(input, true)) {
-						return this._proxy.$isDocumentReferenced(uri).then(referenced => {
-							if (!referenced) {
-								clearInterval(handle);
-								this._modelService.destroyModel(uri);
-							}
-						});
-					}
-				}, onUnexpectedError);
-			}, 30 * 1000);
-
-			return model;
-
-		}).then(() => {
-			return true;
+	$registerTextContentProvider(scheme: string): void {
+		this._resourceContentProvider[scheme] = ResourceEditorInput.registerResourceContentProvider(scheme, {
+			provideTextContent: (uri: URI): TPromise<string> => {
+				return this._proxy.$provideTextDocumentContent(uri);
+			}
 		});
+	}
+
+	$unregisterTextContentProvider(scheme: string): void {
+		const registration = this._resourceContentProvider[scheme];
+		if (registration) {
+			registration.dispose();
+		}
+	}
+
+	$onVirtualDocumentChange(uri: URI, value: string): void {
+		const model = this._modelService.getModel(uri);
+		if (model) {
+			model.setValue(value);
+		}
+	}
+
+	private _runDocumentCleanup(): void {
+		this._proxy.$getUnreferencedDocuments().then(resources => {
+
+			const toBeDisposed: URI[] = [];
+			const promises = resources.map(resource => {
+				return this._editorService.inputToType({ resource }).then(input => {
+					if (!this._editorService.isVisible(input, true)) {
+						toBeDisposed.push(resource);
+					}
+				});
+			});
+
+			return TPromise.join(promises).then(() => {
+				for (let resource of toBeDisposed) {
+					this._modelService.destroyModel(resource);
+				}
+			});
+
+		}, onUnexpectedError);
 	}
 }

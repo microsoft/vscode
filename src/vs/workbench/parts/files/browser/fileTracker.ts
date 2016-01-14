@@ -17,7 +17,7 @@ import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
 import {LocalFileChangeEvent, VIEWLET_ID, EventType as FileEventType, IWorkingFilesModel, ITextFileService} from 'vs/workbench/parts/files/common/files';
 import {FileChangeType, FileChangesEvent, EventType as CommonFileEventType} from 'vs/platform/files/common/files';
 import {FileEditorInput} from 'vs/workbench/parts/files/browser/editors/fileEditorInput';
-import {DerivedFrameEditorInput} from 'vs/workbench/parts/files/common/editors/derivedFrameEditorInput';
+import {IFrameEditorInput} from 'vs/workbench/common/editor/iframeEditorInput';
 import {State, TextFileEditorModel, CACHE} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
 import {IFrameEditor} from 'vs/workbench/browser/parts/editor/iframeEditor';
 import {EventType as WorkbenchEventType, EditorInputEvent, UntitledEditorEvent} from 'vs/workbench/common/events';
@@ -267,10 +267,10 @@ export class FileTracker implements IWorkbenchContribution {
 				}
 			}
 
-			// Derived Frame Editor Input
-			else if (input instanceof DerivedFrameEditorInput) {
-				let derivedInput = <DerivedFrameEditorInput>input;
-				if (e.contains(derivedInput.getResource(), FileChangeType.UPDATED)) {
+			// IFrame Editor Input
+			else if (input instanceof IFrameEditorInput) {
+				let iFrameInput = <IFrameEditorInput>input;
+				if (e.contains(iFrameInput.getResource(), FileChangeType.UPDATED)) {
 					(<IFrameEditor>editor).reload();
 				}
 			}
@@ -309,8 +309,8 @@ export class FileTracker implements IWorkbenchContribution {
 			let inputResource: URI;
 			if (input instanceof FileEditorInput) {
 				inputResource = (<FileEditorInput>input).getResource();
-			} else if (input instanceof DerivedFrameEditorInput) {
-				inputResource = (<DerivedFrameEditorInput>input).getResource();
+			} else if (input instanceof IFrameEditorInput) {
+				inputResource = (<IFrameEditorInput>input).getResource();
 			}
 
 			// Editor Input with associated Resource
@@ -342,11 +342,11 @@ export class FileTracker implements IWorkbenchContribution {
 						editorInput = this.instantiationService.createInstance(FileEditorInput, reopenFileResource, mimeHint || MIME_UNKNOWN, void 0);
 					}
 
-					// Reopen Derived Input
-					else if (input instanceof DerivedFrameEditorInput) {
-						let derivedFrameInput = <DerivedFrameEditorInput>input;
+					// Reopen IFrame Input
+					else if (input instanceof IFrameEditorInput) {
+						let iFrameInput = <IFrameEditorInput>input;
 
-						editorInput = derivedFrameInput.createNew(reopenFileResource);
+						editorInput = iFrameInput.createNew(reopenFileResource);
 					}
 
 					if (editorInput) {
@@ -410,9 +410,9 @@ export class FileTracker implements IWorkbenchContribution {
 				inputsContainingPath.push(<FileEditorInput>element);
 			}
 
-			// Derived Frame Input
-			else if (element instanceof DerivedFrameEditorInput && this.containsResource(<DerivedFrameEditorInput>element, deletedResource)) {
-				inputsContainingPath.push(<DerivedFrameEditorInput>element);
+			// IFrame Input
+			else if (element instanceof IFrameEditorInput && this.containsResource(<IFrameEditorInput>element, deletedResource)) {
+				inputsContainingPath.push(<IFrameEditorInput>element);
 			}
 		}
 
@@ -432,9 +432,9 @@ export class FileTracker implements IWorkbenchContribution {
 				inputsContainingPath.push(<FileEditorInput>input);
 			}
 
-			// Derived Frame Input
-			else if (input instanceof DerivedFrameEditorInput && this.containsResource(<DerivedFrameEditorInput>input, deletedResource)) {
-				inputsContainingPath.push(<DerivedFrameEditorInput>input);
+			// IFrame Input
+			else if (input instanceof IFrameEditorInput && this.containsResource(<IFrameEditorInput>input, deletedResource)) {
+				inputsContainingPath.push(<IFrameEditorInput>input);
 			}
 		});
 
@@ -452,13 +452,13 @@ export class FileTracker implements IWorkbenchContribution {
 	}
 
 	private containsResource(input: FileEditorInput, resource: URI): boolean;
-	private containsResource(input: DerivedFrameEditorInput, resource: URI): boolean;
+	private containsResource(input: IFrameEditorInput, resource: URI): boolean;
 	private containsResource(input: EditorInput, resource: URI): boolean {
 		let fileResource: URI;
 		if (input instanceof FileEditorInput) {
 			fileResource = (<FileEditorInput>input).getResource();
 		} else {
-			fileResource = (<DerivedFrameEditorInput>input).getResource();
+			fileResource = (<IFrameEditorInput>input).getResource();
 		}
 
 		if (paths.isEqualOrParent(fileResource.fsPath, resource.fsPath)) {
@@ -497,15 +497,15 @@ export class FileTracker implements IWorkbenchContribution {
 		}
 
 		if (this.editorService.getVisibleEditors().some(e => {
-			if (e.input instanceof DerivedFrameEditorInput) {
-				let derivedInputResource = (<DerivedFrameEditorInput>e.input).getResource();
+			if (e.input instanceof IFrameEditorInput) {
+				let iFrameInputResource = (<IFrameEditorInput>e.input).getResource();
 
-				return derivedInputResource && derivedInputResource.toString() === textModel.getResource().toString();
+				return iFrameInputResource && iFrameInputResource.toString() === textModel.getResource().toString();
 			}
 
 			return false;
 		})) {
-			return false; // never dispose models that are used in derived frame inputs
+			return false; // never dispose models that are used in iframe inputs
 		}
 
 		return true;
