@@ -12,5 +12,6 @@
 		".build/**": true,
 		"out*/**": true,
 		"extensions/**/out/**": true
-	}
+	},
+	"tslint.rulesDirectory": "node_modules/tslint-microsoft-contrib"
 }
