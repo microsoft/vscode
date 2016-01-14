@@ -35,7 +35,6 @@ import {FileStat, NewStatPlaceholder} from 'vs/workbench/parts/files/common/expl
 import {ExplorerView} from 'vs/workbench/parts/files/browser/views/explorerView';
 import {ExplorerViewlet} from 'vs/workbench/parts/files/browser/explorerViewlet';
 import {CACHE} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
-import {HTMLFrameEditorInput} from 'vs/workbench/parts/files/common/editors/htmlFrameEditorInput';
 import {DerivedFrameEditorInput} from 'vs/workbench/parts/files/common/editors/derivedFrameEditorInput';
 import {IActionProvider} from 'vs/base/parts/tree/browser/actionsRenderer';
 import {WorkingFileEntry, WorkingFilesModel} from 'vs/workbench/parts/files/common/workingFilesModel';
@@ -964,65 +963,6 @@ export class FileImportedEvent extends Files.LocalFileChangeEvent {
 
 	public gotDeleted(): boolean {
 		return false;
-	}
-}
-
-// Preview HTML File
-export class PreviewHTMLAction extends Action {
-	private element: IFileStat;
-
-	constructor(
-		element: IFileStat,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@ITextFileService private textFileService: ITextFileService
-	) {
-		super('workbench.files.action.previewHTMLFromExplorer', nls.localize('openPreview', "Open Preview"));
-
-		this.element = element;
-		this.enabled = true;
-	}
-
-	public run(): Promise {
-		let htmlInput = this.instantiationService.createInstance(HTMLFrameEditorInput, this.element.resource);
-
-		let savePromise = Promise.as(null);
-		if (this.textFileService.isDirty(this.element.resource)) {
-			savePromise = this.textFileService.save(this.element.resource);
-		}
-
-		return savePromise.then(() => {
-			return this.editorService.openEditor(htmlInput);
-		});
-	}
-}
-
-export class PreviewHTMLEditorInputAction extends EditorInputAction {
-
-	constructor(
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@ITextFileService private textFileService: ITextFileService
-	) {
-		super('workbench.files.action.previewHTMLFromEditor', nls.localize('openPreview', "Open Preview"));
-
-		this.class = 'file-editor-action action-open-preview';
-	}
-
-	public run(event?: any): Promise {
-		let input = <Files.FileEditorInput>this.input;
-
-		let sideBySide = !!(event && (event.ctrlKey || event.metaKey));
-		let htmlInput = this.instantiationService.createInstance(HTMLFrameEditorInput, input.getResource());
-
-		let savePromise = Promise.as(null);
-		if (this.textFileService.isDirty(input.getResource())) {
-			savePromise = this.textFileService.save(input.getResource());
-		}
-
-		return savePromise.then(() => {
-			return this.editorService.openEditor(htmlInput, null, sideBySide);
-		});
 	}
 }
 
