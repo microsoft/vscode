@@ -1,0 +1,15 @@
+{
+	"name": "theme-wildlife",
+	"version": "0.1.0",
+	"publisher": "Taiwo Kareem",
+	"engines": { "vscode": "*" },
+	"contributes": {
+		"themes": [
+			{
+				"label": "Wildlife Dark",
+				"uiTheme": "vs-dark",
+				"path": "./themes/wildlife-dark.tmTheme"
+			}
+		]
+	}
+}
