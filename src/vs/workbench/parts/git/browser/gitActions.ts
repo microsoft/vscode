@@ -7,7 +7,7 @@
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import { IEventEmitter } from 'vs/base/common/eventEmitter';
-import { ITree } from 'vs/base/parts/tree/common/tree';
+import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { IDisposable, disposeAll } from 'vs/base/common/lifecycle';
 import strings = require('vs/base/common/strings');
 import { isString } from 'vs/base/common/types';

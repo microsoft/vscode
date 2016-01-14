@@ -13,6 +13,11 @@
 	-webkit-text-size-adjust: 100%;
 }
 
+.monaco-editor.enable-ligatures {
+	-webkit-font-feature-settings: "liga" on, "calt" on;
+	font-feature-settings: "liga" on, "calt" on;
+}
+
 .monaco-editor .overflow-guard {
 	position: relative;
 	overflow: hidden;
@@ -54,7 +59,7 @@
 	height: 0;
 }
 
-.monaco-editor.ime-input .inputarea, 
+.monaco-editor.ime-input .inputarea,
 .monaco-editor.ie.ime-input .inputarea,
 .monaco-editor.ff.ime-input .inputarea、 {
 	width: 500px;
@@ -143,5 +148,5 @@
 /* All widgets */
 /* I am not a big fan of this rule */
 .monaco-editor .editor-widget input {
-	color: inherit;	
+	color: inherit;
 }

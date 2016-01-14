@@ -66,7 +66,7 @@ export class ContentHoverWidget implements EditorBrowser.IContentWidget {
 		this._editor.layoutContentWidget(this);
 		// Simply force a synchronous render on the editor
 		// such that the widget does not really render with left = '0px'
-		this._editor.getOffsetForColumn(this._showAtPosition.lineNumber, this._showAtPosition.column);
+		this._editor.render();
 	}
 
 	public hide(): void {

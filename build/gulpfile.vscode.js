@@ -56,11 +56,11 @@ var vscodeResources = [
 	'out-build/vs/base/node/{stdForkStart.js,terminateProcess.sh}',
 	'out-build/vs/base/worker/workerMainCompatibility.html',
 	'out-build/vs/base/worker/workerMain.{js,js.map}',
+	'out-build/vs/base/browser/ui/octiconLabel/octicons/**',
 	'out-build/vs/editor/css/*.css',
 	'out-build/vs/languages/typescript/common/lib/lib.{d.ts,es6.d.ts}',
 	'out-build/vs/languages/markdown/common/*.css',
 	'out-build/vs/workbench/browser/media/*-theme.css',
-	'out-build/vs/workbench/browser/media/octicons/**',
 	'out-build/vs/workbench/electron-browser/index.html',
 	'out-build/vs/workbench/electron-main/bootstrap.js',
 	'out-build/vs/workbench/parts/debug/**/*.json',
@@ -108,7 +108,6 @@ var config = {
 	darwinBundleDocumentTypes: product.darwinBundleDocumentTypes,
 	darwinCredits: darwinCreditsTemplate ? new Buffer(darwinCreditsTemplate({ commit: commit, date: new Date().toISOString() })) : void 0,
 	winIcon: product.icons.application.ico,
-	win32ExeBasename: product.win32ExeBasename,
 	token: process.env['GITHUB_TOKEN'] || void 0
 };
 

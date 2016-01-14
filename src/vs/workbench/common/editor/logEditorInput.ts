@@ -4,9 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
+import {IEditor, ITextModel} from 'vs/editor/common/editorCommon';
 import {StringEditorInput} from 'vs/workbench/common/editor/stringEditorInput';
-import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 
@@ -58,15 +57,17 @@ export class LogEditorInput extends StringEditorInput {
 		return newValue;
 	}
 
-	private revealLastLine(): void {
+	/**
+	 * Reveals the last line on any editor that has this output set.
+	 */
+	public revealLastLine(): void {
 		let editors = this.editorService.getVisibleEditors();
 		for (let i = 0; i < editors.length; i++) {
 			let editor = editors[i];
-			if (editor.input === this && editor instanceof BaseTextEditor) {
-				let textEditor = <BaseTextEditor>editor;
-				let editorControl = <ICodeEditor>textEditor.getControl();
+			if (editor.input === this) {
+				let editorControl = <IEditor>editor.getControl();
 				if (editorControl) {
-					let model = editorControl.getModel();
+					let model = <ITextModel>editorControl.getModel();
 					if (model) {
 						let lastLine = model.getLineCount();
 						editorControl.revealLine(lastLine);

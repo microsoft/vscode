@@ -10,7 +10,7 @@ import {Promise } from 'vs/base/common/winjs.base';
 import * as Strings from 'vs/base/common/strings';
 import URI from 'vs/base/common/uri';
 import {StringEditorInput} from 'vs/workbench/common/editor/stringEditorInput';
-import {LogEditorInput} from 'vs/workbench/browser/parts/editor/logEditorInput';
+import {LogEditorInput} from 'vs/workbench/common/editor/logEditorInput';
 import {ResourceEditorInput} from 'vs/workbench/common/editor/resourceEditorInput';
 import {ResourceEditorModel} from 'vs/workbench/common/editor/resourceEditorModel';
 import {TestWorkspace, TestEditorService, MockRequestService} from 'vs/workbench/test/browser/servicesTestUtils';

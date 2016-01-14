@@ -6,9 +6,9 @@
 
 import {Registry} from 'vs/platform/platform';
 import {registerMode} from 'vs/editor/common/modes/modesRegistry';
-import {OutputService} from 'vs/workbench/parts/output/browser/outputServices';
+import {OutputService} from 'vs/workbench/parts/output/common/outputServices';
 import {OUTPUT_MIME, OUTPUT_MODE_ID, OUTPUT_EDITOR_INPUT_ID, IOutputService} from 'vs/workbench/parts/output/common/output';
-import {OutputEditorInput} from 'vs/workbench/parts/output/browser/outputEditorInput';
+import {OutputEditorInput} from 'vs/workbench/parts/output/common/outputEditorInput';
 import {IEditorRegistry, Extensions, IEditorInputFactory} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {EditorInput} from 'vs/workbench/common/editor';
 import {IInstantiationService, INullService} from 'vs/platform/instantiation/common/instantiation';

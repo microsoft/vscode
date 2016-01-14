@@ -160,36 +160,8 @@ export var colors : { [name:string]:string } = {
 };
 
 export var colorKeywords : { [name:string]:string } = {
-	'ActiveBorder': 'Active window border.',
-	'ActiveCaption': 'Active window caption.',
-	'AppWorkspace': 'Background color of multiple document interface.',
-	'Background': 'Desktop background.',
-	'ButtonFace': 'The face background color for 3-D elements that appear 3-D due to one layer of surrounding border.',
-	'ButtonHighlight': 'The color of the border facing the light source for 3-D elements that appear 3-D due to one layer of surrounding border.',
-	'ButtonShadow': 'The color of the border away from the light source for 3-D elements that appear 3-D due to one layer of surrounding border.',
-	'ButtonText': 'Text on push buttons.',
-	'CaptionText': 'Text in caption, size box, and scrollbar arrow box.',
 	'currentColor': 'The value of the \'color\' property. The computed value of the \'currentColor\' keyword is the computed value of the \'color\' property. If the \'currentColor\' keyword is set on the \'color\' property itself, it is treated as \'color:inherit\' at parse time.',
-	'GrayText': 'Grayed (disabled) text. This color is set to #000 if the current display driver does not support a solid gray color.',
-	'Highlight': 'Item(s) selected in a control.',
-	'HighlightText': 'Text of item(s) selected in a control.',
-	'InactiveBorder': 'Inactive window border.',
-	'InactiveCaption': 'Inactive window caption.',
-	'InactiveCaptionText': 'Color of text in an inactive caption.',
-	'InfoBackground': 'Background color for tooltip controls.',
-	'InfoText': 'Text color for tooltip controls.',
-	'Menu': 'Menu background.',
-	'MenuText': 'Text in menus.',
-	'Scrollbar': 'Scroll bar gray area.',
-	'ThreeDDarkShadow': 'The color of the darker (generally outer) of the two borders away from the light source for 3-D elements that appear 3-D due to two concentric layers of surrounding border.',
-	'ThreeDFace': 'The face background color for 3-D elements that appear 3-D due to two concentric layers of surrounding border.',
-	'ThreeDHighlight': 'The color of the lighter (generally outer) of the two borders facing the light source for 3-D elements that appear 3-D due to two concentric layers of surrounding border.',
-	'ThreeDLightShadow': 'The color of the darker (generally inner) of the two borders facing the light source for 3-D elements that appear 3-D due to two concentric layers of surrounding border.',
-	'ThreeDShadow': 'The color of the lighter (generally inner) of the two borders away from the light source for 3-D elements that appear 3-D due to two concentric layers of surrounding border.',
 	'transparent': 'Fully transparent. This keyword can be considered a shorthand for rgba(0,0,0,0) which is its computed value.',
-	'Window': 'Window background.',
-	'WindowFrame': 'Window frame.',
-	'WindowText': 'Text in windows.'
 };
 
 export var positionKeywords : { [name:string]:string } = {

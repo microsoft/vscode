@@ -1082,6 +1082,11 @@ declare namespace vscode {
 		 * An optional string to show as place holder in the input box to guide the user what to pick on.
 		 */
 		placeHolder?: string;
+
+		/**
+		 * An optional function that is invoked whenever an item is selected.
+		 */
+		onDidSelectItem?: <T extends QuickPickItem>(item: T | string) => any;
 	}
 
 	/**

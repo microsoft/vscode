@@ -73,8 +73,7 @@ suite('Search', () => {
 	test('Files: examples (fuzzy)', function(done: () => void) {
 		let engine = new FileSearchEngine({
 			rootFolders: rootfolders(),
-			filePattern: 'xl',
-			matchFuzzy: true
+			filePattern: 'xl'
 		});
 
 		let count = 0;

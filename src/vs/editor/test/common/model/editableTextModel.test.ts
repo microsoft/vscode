@@ -1284,6 +1284,35 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 			});
 		});
 	});
+
+	test('issue #1580: Changes in line endings are not correctly reflected in the extension host, leading to invalid offsets sent to external refactoring tools', () => {
+		let model = new EditableTextModel([], TextModel.toRawText('Hello\nWorld!'), null);
+		assert.equal(model.getEOL(), '\n');
+
+		let mirrorModel2 = new MirrorModel2(null, model.toRawText().lines, model.toRawText().EOL, model.getVersionId());
+		let mirrorModel2PrevVersionId = model.getVersionId();
+
+		model.addListener(EditorCommon.EventType.ModelContentChanged2, (e:EditorCommon.IModelContentChangedEvent2) => {
+			let versionId = e.versionId;
+			if (versionId < mirrorModel2PrevVersionId) {
+				console.warn('Model version id did not advance between edits (2)');
+			}
+			mirrorModel2PrevVersionId = versionId;
+			mirrorModel2.onEvents([e]);
+		});
+
+		let assertMirrorModels = () => {
+			model._assertLineNumbersOK();
+			assert.equal(mirrorModel2.getText(), model.getValue(), 'mirror model 2 text OK');
+			assert.equal(mirrorModel2.version, model.getVersionId(), 'mirror model 2 version OK');
+		};
+
+		model.setEOL(EditorCommon.EndOfLineSequence.CRLF);
+		assertMirrorModels();
+
+		model.dispose();
+		mirrorModel2.dispose();
+	});
 });
 
 interface ILightWeightMarker {

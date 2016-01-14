@@ -14,7 +14,7 @@ import strings = require('vs/base/common/strings');
 import {IAction, Action} from 'vs/base/common/actions';
 import {toErrorMessage} from 'vs/base/common/errors';
 import {Mode, IContext, IAutoFocus} from 'vs/base/parts/quickopen/common/quickOpen';
-import {QuickOpenEntryGroup, IHighlight, QuickOpenModel} from 'vs/base/parts/quickopen/browser/quickOpenModel';
+import {QuickOpenEntryGroup, IHighlight, QuickOpenModel, QuickOpenEntry} from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import {SyncActionDescriptor, IActionsService} from 'vs/platform/actions/common/actions';
 import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/common/actionRegistry';
 import {Registry} from 'vs/platform/platform';
@@ -228,8 +228,15 @@ export class CommandsHandler extends QuickOpenHandler {
 		// Remove duplicates
 		entries = arrays.distinct(entries, (entry) => entry.getLabel() + entry.getGroupLabel());
 
-		// Sort by name
-		entries = entries.sort(this.sort);
+		// Sort by name if there is no search running
+		if (!searchValue) {
+			entries = entries.sort((elementA, elementB) => strings.localeCompare(elementA.getLabel().toLowerCase(), elementB.getLabel().toLowerCase()));
+		}
+
+		// Otherwise sort by score
+		else {
+			entries = entries.sort((elementA, elementB) => QuickOpenEntry.compareByScore(elementA, elementB, searchValue));
+		}
 
 		return TPromise.as(new QuickOpenModel(entries));
 	}
@@ -274,7 +281,7 @@ export class CommandsHandler extends QuickOpenHandler {
 			let keys = this.keybindingService.lookupKeybindings(editorAction.id).map(k => this.keybindingService.getLabelFor(k));
 
 			if (action.label) {
-				let highlights = filters.matchesFuzzy(searchValue, action.label);
+				let highlights = filters.matchesFuzzy(searchValue, action.label, true /* separate substring matching */);
 				if (highlights) {
 					entries.push(this.instantiationService.createInstance(EditorActionCommandEntry, keys.length > 0 ? keys.join(', ') : '', action.label, highlights, action));
 				}
@@ -296,13 +303,6 @@ export class CommandsHandler extends QuickOpenHandler {
 		}
 
 		return entries;
-	}
-
-	private sort(elementA: QuickOpenEntryGroup, elementB: QuickOpenEntryGroup): number {
-		let elementAName = elementA.getLabel().toLowerCase();
-		let elementBName = elementB.getLabel().toLowerCase();
-
-		return strings.localeCompare(elementAName, elementBName);
 	}
 
 	public getAutoFocus(searchValue: string): IAutoFocus {

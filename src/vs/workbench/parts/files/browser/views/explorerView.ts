@@ -12,7 +12,7 @@ import errors = require('vs/base/common/errors');
 import paths = require('vs/base/common/paths');
 import {Action, IActionRunner} from 'vs/base/common/actions';
 import {prepareActions} from 'vs/workbench/browser/actionBarRegistry';
-import {ITree} from 'vs/base/parts/tree/common/tree';
+import {ITree} from 'vs/base/parts/tree/browser/tree';
 import {Tree} from 'vs/base/parts/tree/browser/treeImpl';
 import {EditorEvent, EventType as WorkbenchEventType} from 'vs/workbench/common/events';
 import {LocalFileChangeEvent, IFilesConfiguration} from 'vs/workbench/parts/files/common/files';

@@ -401,8 +401,10 @@ export class OpenRecentAction extends Action {
 			};
 		});
 
+		const hasWorkspace = !!this.contextService.getWorkspace();
+
 		return this.quickOpenService.pick(picks, {
-			autoFocus: { autoFocusSecondEntry: true },
+			autoFocus: { autoFocusFirstEntry: !hasWorkspace, autoFocusSecondEntry: hasWorkspace },
 			placeHolder: nls.localize('openRecentPlaceHolder', "Select a path to open"),
 			matchOnDescription: true
 		}).then(p => {

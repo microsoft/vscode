@@ -13,6 +13,7 @@ import {toErrorMessage} from 'vs/base/common/errors';
 import {Promise} from 'vs/base/common/winjs.base';
 import {disposeAll, IDisposable} from 'vs/base/common/lifecycle';
 import {Builder, $} from 'vs/base/browser/builder';
+import {OcticonLabel} from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 import {Registry} from 'vs/platform/platform';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {IAction} from 'vs/base/common/actions';
@@ -178,54 +179,8 @@ class StatusBarEntryItem implements IStatusbarItem {
 			textContainer = document.createElement('span');
 		}
 
-		// Text Value with support for icons
-		// For example: '${zap} Power is ${zap} on'
-		let textBuffer = '';
-		let iconBuffer = '';
-		let inPlaceholder = false;
-		let text = this.entry.text || '';
-		for (let i = 0, len = text.length; i < len; i++) {
-
-			// Opening $(...
-			if (text[i] === '$' && text[i + 1] === '(') {
-				inPlaceholder = true;
-				i++; // unread the opening '('
-
-				continue;
-			}
-
-			if (inPlaceholder) {
-
-				// Closing ...)
-				if (text[i] === ')') {
-					if (textBuffer) {
-						textContainer.appendChild(document.createTextNode(textBuffer));
-						textBuffer = '';
-					}
-
-					let iconContainer = document.createElement('span');
-					dom.addClass(iconContainer, `octicon octicon-${iconBuffer}`);
-					textContainer.appendChild(iconContainer);
-
-					iconBuffer = '';
-					inPlaceholder = false;
-				}
-
-				// Icon value
-				else {
-					iconBuffer += text[i];
-				}
-			}
-
-			// Any normal text
-			else {
-				textBuffer += text[i];
-			}
-		}
-
-		if (textBuffer) {
-			textContainer.appendChild(document.createTextNode(textBuffer));
-		}
+		// Label
+		new OcticonLabel(textContainer).text = this.entry.text;
 
 		// Tooltip
 		if (this.entry.tooltip) {

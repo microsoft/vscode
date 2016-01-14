@@ -14,7 +14,7 @@ import dom = require('vs/base/browser/dom');
 import errors = require('vs/base/common/errors');
 import severity from 'vs/base/common/severity';
 import mouse = require('vs/base/browser/mouseEvent');
-import tree = require('vs/base/parts/tree/common/tree');
+import tree = require('vs/base/parts/tree/browser/tree');
 import renderer = require('vs/base/parts/tree/browser/actionsRenderer');
 import treedefaults = require('vs/base/parts/tree/browser/treeDefaults');
 import debug = require('vs/workbench/parts/debug/common/debug');

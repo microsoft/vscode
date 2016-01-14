@@ -763,12 +763,15 @@ export class View extends ViewEventHandler implements EditorBrowser.IView, Lifec
 		});
 	}
 
-	public render(): void {
+	public render(now:boolean): void {
 		if (this._isDisposed) {
 			throw new Error('ViewImpl.render: View is disposed');
 		}
 		// Force a render with a layout event
 		this.layoutProvider.emitLayoutChangedEvent();
+		if (now) {
+			this._flushAccumulatedAndRenderNow();
+		}
 	}
 
 	public renderOnce(callback: () => any): any {
