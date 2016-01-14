@@ -278,7 +278,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 						return new PickOpenItem(entry.label, entry.description, entry.height, entry.render.bind(entry), () => progress(e));
 					}
 
-					return new PickOpenEntry(entry.label, entry.description, entry.meta, () => progress(e));
+					return new PickOpenEntry(entry.label, entry.description, entry.detail, () => progress(e));
 				});
 
 				if (picks.length === 0) {
@@ -853,13 +853,13 @@ class PlaceholderQuickOpenEntry extends QuickOpenEntry {
 class PickOpenEntry extends PlaceholderQuickOpenEntry {
 	private _selected: boolean;
 	private description: string;
-	private meta: string;
+	private detail: string;
 
-	constructor(label: string, description?: string, meta?: string, private onPreview?: () => void) {
+	constructor(label: string, description?: string, detail?: string, private onPreview?: () => void) {
 		super(label);
 
 		this.description = description;
-		this.meta = meta;
+		this.detail = detail;
 	}
 
 	public get selected(): boolean {
@@ -870,8 +870,8 @@ class PickOpenEntry extends PlaceholderQuickOpenEntry {
 		return this.description;
 	}
 
-	public getMeta(): string {
-		return this.meta;
+	public getDetail(): string {
+		return this.detail;
 	}
 
 	public run(mode: Mode, context: IContext): boolean {

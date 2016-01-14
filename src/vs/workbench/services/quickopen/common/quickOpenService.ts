@@ -14,7 +14,7 @@ export interface IPickOpenEntry {
 	id?: string;
 	label: string;
 	description?: string;
-	meta?: string;
+	detail?: string;
 }
 
 export interface IPickOptions {

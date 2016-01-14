@@ -69,9 +69,9 @@ export class QuickOpenEntry {
 	}
 
 	/**
-	 * Meta information about the entry that is optional and can be shown below the label
+	 * Detail information about the entry that is optional and can be shown below the label
 	 */
-	public getMeta(): string {
+	public getDetail(): string {
 		return null;
 	}
 
@@ -359,8 +359,8 @@ export class QuickOpenEntryGroup extends QuickOpenEntry {
 		return this.entry ? this.entry.getLabel() : super.getLabel();
 	}
 
-	public getMeta(): string {
-		return this.entry ? this.entry.getMeta() : super.getMeta();
+	public getDetail(): string {
+		return this.entry ? this.entry.getDetail() : super.getDetail();
 	}
 
 	public getResource(): URI {
@@ -447,7 +447,7 @@ export interface IQuickOpenEntryTemplateData {
 	icon: HTMLSpanElement;
 	prefix: HTMLSpanElement;
 	label: HighlightedLabel;
-	meta: OcticonLabel;
+	detail: OcticonLabel;
 	description: HighlightedLabel;
 	actionBar: ActionBar;
 }
@@ -472,7 +472,7 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 		if (entry instanceof QuickOpenEntryItem) {
 			return (<QuickOpenEntryItem>entry).getHeight();
 		}
-		if (entry.getMeta()) {
+		if (entry.getDetail()) {
 			return 44;
 		}
 		return 22;
@@ -542,18 +542,18 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 		DOM.addClass(descriptionContainer, 'quick-open-entry-description');
 		let description = new HighlightedLabel(descriptionContainer);
 
-		// Meta
+		// Detail
 		let metaContainer = document.createElement('div');
 		entry.appendChild(metaContainer);
 		DOM.addClass(metaContainer, 'quick-open-entry-meta');
-		let meta = new OcticonLabel(metaContainer);
+		let detail = new OcticonLabel(metaContainer);
 
 		return {
 			container,
 			icon,
 			prefix,
 			label,
-			meta,
+			detail,
 			description,
 			group,
 			actionBar
@@ -621,7 +621,7 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 			data.label.set(entry.getLabel() || '', labelHighlights || []);
 
 			// Meta
-			data.meta.text = entry.getMeta();
+			data.detail.text = entry.getDetail();
 
 			// Description
 			let descriptionHighlights = highlights[1];

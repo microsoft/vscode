@@ -51,20 +51,20 @@ export class ExtHostQuickOpen {
 				let item = items[handle];
 				let label: string;
 				let description: string;
-				let meta: string;
+				let detail: string;
 
 				if (typeof item === 'string') {
 					label = item;
 				} else {
 					label = item.label;
 					description = item.description;
-					meta = item.detail;
+					detail = item.detail;
 				}
 				pickItems.push({
 					label,
 					description,
 					handle,
-					meta
+					detail
 				});
 			}
 
