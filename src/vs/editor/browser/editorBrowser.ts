@@ -44,7 +44,7 @@ export interface ICodeEditorHelper {
 export interface IKeyboardHandlerHelper {
 	viewDomNode:HTMLElement;
 	textArea:HTMLTextAreaElement;
-	visibleRangeForPositionRelativeToEditor(lineNumber:number, column:number): IVisibleRange;
+	visibleRangeForPositionRelativeToEditor(lineNumber:number, column:number): VisibleRange;
 }
 
 export interface IPointerHandlerHelper {
@@ -70,7 +70,7 @@ export interface IPointerHandlerHelper {
 	 */
 	getPositionFromDOMInfo(spanNode:HTMLElement, offset:number): EditorCommon.IPosition;
 
-	visibleRangeForPosition2(lineNumber:number, column:number): IVisibleRange;
+	visibleRangeForPosition2(lineNumber:number, column:number): VisibleRange;
 	getLineWidth(lineNumber:number): number;
 }
 
@@ -159,11 +159,19 @@ export var ClassNames = {
 	VIEW_ZONES: 'view-zones'
 };
 
-export interface IVisibleRange {
-	top:number;
-	left:number;
-	width:number;
-	height:number;
+export class VisibleRange {
+
+	public top:number;
+	public left:number;
+	public width:number;
+	public height:number;
+
+	constructor(top:number, left:number, width:number, height:number) {
+		this.top = top;
+		this.left = left;
+		this.width = width;
+		this.height = height;
+	}
 }
 
 export interface IRestrictedRenderingContext {
@@ -187,26 +195,38 @@ export interface IRestrictedRenderingContext {
 	getDecorationsInViewport(): EditorCommon.IModelDecoration[];
 }
 
-export interface IHorizontalRange {
-	left:number;
-	width:number;
+export class HorizontalRange {
+
+	public left: number;
+	public width: number;
+
+	constructor(left:number, width:number) {
+		this.left = left;
+		this.width = width;
+	}
 }
 
-export interface ILineVisibleRanges {
-	lineNumber: number;
-	ranges: IHorizontalRange[];
+export class LineVisibleRanges {
+
+	public lineNumber: number;
+	public ranges: HorizontalRange[];
+
+	constructor(lineNumber:number, ranges:HorizontalRange[]) {
+		this.lineNumber = lineNumber;
+		this.ranges = ranges;
+	}
 }
 
 export interface IRenderingContext extends IRestrictedRenderingContext {
 
 	heightInPxForLine(lineNumber:number): number;
 
-	visibleRangesForRange(range:EditorCommon.IRange, includeNewLines:boolean): IVisibleRange[];
+	visibleRangesForRange(range:EditorCommon.IRange, includeNewLines:boolean): VisibleRange[];
 
-	linesVisibleRangesForRange(range:EditorCommon.IRange, includeNewLines:boolean): ILineVisibleRanges[];
+	linesVisibleRangesForRange(range:EditorCommon.IRange, includeNewLines:boolean): LineVisibleRanges[];
 
-	visibleRangeForPosition(position:EditorCommon.IPosition): IVisibleRange;
-	visibleRangeForPosition2(lineNumber:number, column:number): IVisibleRange;
+	visibleRangeForPosition(position:EditorCommon.IPosition): VisibleRange;
+	visibleRangeForPosition2(lineNumber:number, column:number): VisibleRange;
 }
 
 export interface IViewEventHandler {

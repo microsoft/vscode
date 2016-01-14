@@ -191,7 +191,7 @@ export class ViewLines extends ViewLayer {
 		return this._lines[lineIndex].getWidth();
 	}
 
-	public linesVisibleRangesForRange(range:EditorCommon.IRange, includeNewLines:boolean): EditorBrowser.ILineVisibleRanges[] {
+	public linesVisibleRangesForRange(range:EditorCommon.IRange, includeNewLines:boolean): EditorBrowser.LineVisibleRanges[] {
 		if (this.shouldRender) {
 			// Cannot read from the DOM because it is dirty
 			// i.e. the model & the dom are out of sync, so I'd be reading something stale
@@ -204,15 +204,14 @@ export class ViewLines extends ViewLayer {
 			return null;
 		}
 
-		var visibleRangesForLine:EditorBrowser.IVisibleRange[],
-			visibleRanges:EditorBrowser.ILineVisibleRanges[] = [],
+		var visibleRangesForLine:EditorBrowser.HorizontalRange[],
+			visibleRanges:EditorBrowser.LineVisibleRanges[] = [],
 			lineNumber:number,
 			lineIndex:number,
 			startColumn:number,
 			endColumn:number;
 
 		var boundingClientRect = this.domNode.getBoundingClientRect();
-		var clientRectDeltaTop = boundingClientRect.top;
 		var clientRectDeltaLeft = boundingClientRect.left;
 
 		var currentLineModelLineNumber:number,
@@ -231,7 +230,7 @@ export class ViewLines extends ViewLayer {
 
 			startColumn = lineNumber === range.startLineNumber ? range.startColumn : 1;
 			endColumn = lineNumber === range.endLineNumber ? range.endColumn : this._context.model.getLineMaxColumn(lineNumber);
-			visibleRangesForLine = this._lines[lineIndex].getVisibleRangesForRange(lineNumber, startColumn, endColumn, clientRectDeltaTop, 0, clientRectDeltaLeft, this.textRangeRestingSpot);
+			visibleRangesForLine = this._lines[lineIndex].getVisibleRangesForRange(lineNumber, startColumn, endColumn, clientRectDeltaLeft, this.textRangeRestingSpot);
 
 			if (visibleRangesForLine && visibleRangesForLine.length > 0) {
 				if (includeNewLines && lineNumber < originalEndLineNumber) {
@@ -243,10 +242,7 @@ export class ViewLines extends ViewLayer {
 					}
 				}
 
-				visibleRanges.push({
-					lineNumber: lineNumber,
-					ranges: visibleRangesForLine
-				});
+				visibleRanges.push(new EditorBrowser.LineVisibleRanges(lineNumber, visibleRangesForLine));
 			}
 		}
 
@@ -257,7 +253,7 @@ export class ViewLines extends ViewLayer {
 		return visibleRanges;
 	}
 
-	public visibleRangesForRange2(range:EditorCommon.IRange, deltaTop:number, correctionTop:number, includeNewLines:boolean): EditorBrowser.IVisibleRange[] {
+	public visibleRangesForRange2(range:EditorCommon.IRange, deltaTop:number, includeNewLines:boolean): EditorBrowser.VisibleRange[] {
 
 		if (this.shouldRender) {
 			// Cannot read from the DOM because it is dirty
@@ -271,8 +267,8 @@ export class ViewLines extends ViewLayer {
 			return null;
 		}
 
-		var visibleRangesForLine:EditorBrowser.IVisibleRange[],
-			visibleRanges:EditorBrowser.IVisibleRange[] = [],
+		var visibleRangesForLine:EditorBrowser.HorizontalRange[],
+			visibleRanges:EditorBrowser.VisibleRange[] = [],
 			lineNumber:number,
 			adjustedLineNumberVerticalOffset:number,
 			lineIndex:number,
@@ -281,7 +277,6 @@ export class ViewLines extends ViewLayer {
 			lineHeight = this._context.configuration.editor.lineHeight;
 
 		var boundingClientRect = this.domNode.getBoundingClientRect();
-		var clientRectDeltaTop = boundingClientRect.top;
 		var clientRectDeltaLeft = boundingClientRect.left;
 
 		var currentLineModelLineNumber:number,
@@ -300,16 +295,16 @@ export class ViewLines extends ViewLayer {
 
 			startColumn = lineNumber === range.startLineNumber ? range.startColumn : 1;
 			endColumn = lineNumber === range.endLineNumber ? range.endColumn : this._context.model.getLineMaxColumn(lineNumber);
-			visibleRangesForLine = this._lines[lineIndex].getVisibleRangesForRange(lineNumber, startColumn, endColumn, clientRectDeltaTop, correctionTop, clientRectDeltaLeft, this.textRangeRestingSpot);
-
+			visibleRangesForLine = this._lines[lineIndex].getVisibleRangesForRange(lineNumber, startColumn, endColumn, clientRectDeltaLeft, this.textRangeRestingSpot);
 
 			if (visibleRangesForLine && visibleRangesForLine.length > 0) {
 				adjustedLineNumberVerticalOffset = this._layoutProvider.getVerticalOffsetForLineNumber(lineNumber) - this._bigNumbersDelta + deltaTop;
+				let visibleRangesForLine2: EditorBrowser.VisibleRange[] = [];
+
 				for (var i = 0, len = visibleRangesForLine.length; i < len; i++) {
 					// Ranges must be positioned at lineHeight increments
 					// (overcome WebKit Range.getClientRects() rounding to integers)
-					visibleRangesForLine[i].top = adjustedLineNumberVerticalOffset;
-					visibleRangesForLine[i].height = lineHeight;
+					visibleRangesForLine2.push(new EditorBrowser.VisibleRange(adjustedLineNumberVerticalOffset, visibleRangesForLine[i].left, visibleRangesForLine[i].width, lineHeight));
 				}
 				if (includeNewLines && lineNumber < originalEndLineNumber) {
 					currentLineModelLineNumber = nextLineModelLineNumber;
@@ -320,7 +315,7 @@ export class ViewLines extends ViewLayer {
 					}
 				}
 
-				visibleRanges = visibleRanges.concat(visibleRangesForLine);
+				visibleRanges = visibleRanges.concat(visibleRangesForLine2);
 			}
 		}
 
@@ -472,7 +467,7 @@ export class ViewLines extends ViewLayer {
 			viewportStartX = viewport.left,
 			viewportEndX = viewportStartX + viewport.width;
 
-		var visibleRanges = this.visibleRangesForRange2(range, 0, 0, false),
+		var visibleRanges = this.visibleRangesForRange2(range, 0, false),
 			boxStartX = Number.MAX_VALUE,
 			boxEndX = 0;
 
@@ -485,7 +480,7 @@ export class ViewLines extends ViewLayer {
 		}
 
 		var i:number,
-			visibleRange:EditorBrowser.IVisibleRange;
+			visibleRange:EditorBrowser.VisibleRange;
 
 		for (i = 0; i < visibleRanges.length; i++) {
 			visibleRange = visibleRanges[i];

@@ -366,12 +366,7 @@ export class View extends ViewEventHandler implements EditorBrowser.IView, Lifec
 					throw new Error('ViewImpl.pointerHandler.visibleRangeForPosition2: View is disposed');
 				}
 				this._flushAccumulatedAndRenderNow();
-				var correctionTop = 0;
-				// FF is very weird
-//				if (Env.browser.canUseTranslate3d && Env.browser.isFirefox) {
-//					correctionTop = this.layoutProvider.getCurrentViewport().top;
-//				}
-				var visibleRanges = this.viewLines.visibleRangesForRange2(new Range(lineNumber, column, lineNumber, column), 0, correctionTop, false);
+				var visibleRanges = this.viewLines.visibleRangesForRange2(new Range(lineNumber, column, lineNumber, column), 0, false);
 				if (!visibleRanges) {
 					return null;
 				}
@@ -399,11 +394,7 @@ export class View extends ViewEventHandler implements EditorBrowser.IView, Lifec
 				this._flushAccumulatedAndRenderNow();
 				var linesViewPortData = this.layoutProvider.getLinesViewportData();
 				var correctionTop = 0;
-				// FF is very weird
-//				if (Env.browser.canUseTranslate3d && Env.browser.isFirefox) {
-//					correctionTop = this.layoutProvider.getCurrentViewport().top;
-//				}
-				var visibleRanges = this.viewLines.visibleRangesForRange2(new Range(lineNumber, column, lineNumber, column), linesViewPortData.visibleRangesDeltaTop, correctionTop, false);
+				var visibleRanges = this.viewLines.visibleRangesForRange2(new Range(lineNumber, column, lineNumber, column), linesViewPortData.visibleRangesDeltaTop, false);
 				if (!visibleRanges) {
 					return null;
 				}
@@ -577,7 +568,7 @@ export class View extends ViewEventHandler implements EditorBrowser.IView, Lifec
 					});
 					var viewPosition = this.context.model.convertModelPositionToViewPosition(modelPosition.lineNumber, modelPosition.column);
 					this._flushAccumulatedAndRenderNow();
-					var visibleRanges = this.viewLines.visibleRangesForRange2(new Range(viewPosition.lineNumber, viewPosition.column, viewPosition.lineNumber, viewPosition.column), 0, 0, false);
+					var visibleRanges = this.viewLines.visibleRangesForRange2(new Range(viewPosition.lineNumber, viewPosition.column, viewPosition.lineNumber, viewPosition.column), 0, false);
 					if (!visibleRanges) {
 						return -1;
 					}
@@ -824,11 +815,6 @@ export class View extends ViewEventHandler implements EditorBrowser.IView, Lifec
 		var vInfo = this.layoutProvider.getCurrentViewport();
 
 		var deltaTop = linesViewportData.visibleRangesDeltaTop;
-		var correctionTop = 0;
-		// FF is very weird
-//		if (Env.browser.canUseTranslate3d && Env.browser.isFirefox) {
-//			correctionTop = vInfo.top;
-//		}
 
 		var r:EditorBrowser.IRenderingContext = {
 			linesViewportData: linesViewportData,
@@ -860,7 +846,7 @@ export class View extends ViewEventHandler implements EditorBrowser.IView, Lifec
 			getDecorationsInViewport: () => linesViewportData.getDecorationsInViewport(),
 
 			visibleRangesForRange: (range:EditorCommon.IRange, includeNewLines:boolean) => {
-				return this.viewLines.visibleRangesForRange2(range, deltaTop, correctionTop, includeNewLines);
+				return this.viewLines.visibleRangesForRange2(range, deltaTop, includeNewLines);
 			},
 
 			linesVisibleRangesForRange: (range:EditorCommon.IRange, includeNewLines:boolean) => {
@@ -868,7 +854,7 @@ export class View extends ViewEventHandler implements EditorBrowser.IView, Lifec
 			},
 
 			visibleRangeForPosition: (position:EditorCommon.IPosition) => {
-				var visibleRanges = this.viewLines.visibleRangesForRange2(new Range(position.lineNumber, position.column, position.lineNumber, position.column), deltaTop, correctionTop, false);
+				var visibleRanges = this.viewLines.visibleRangesForRange2(new Range(position.lineNumber, position.column, position.lineNumber, position.column), deltaTop, false);
 				if (!visibleRanges) {
 					return null;
 				}
@@ -876,7 +862,7 @@ export class View extends ViewEventHandler implements EditorBrowser.IView, Lifec
 			},
 
 			visibleRangeForPosition2: (lineNumber:number, column:number) => {
-				var visibleRanges = this.viewLines.visibleRangesForRange2(new Range(lineNumber, column, lineNumber, column), deltaTop, correctionTop, false);
+				var visibleRanges = this.viewLines.visibleRangesForRange2(new Range(lineNumber, column, lineNumber, column), deltaTop, false);
 				if (!visibleRanges) {
 					return null;
 				}
