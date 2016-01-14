@@ -7,6 +7,7 @@ var gulp = require('gulp');
 var filter = require('gulp-filter');
 var es = require('event-stream');
 var path = require('path');
+var tslint = require("gulp-tslint");
 
 var all = [
 	'*',
@@ -136,6 +137,40 @@ var hygiene = exports.hygiene = function (some) {
 
 gulp.task('hygiene', function () {
 	return hygiene();
+});
+
+var allTypeScript = [
+	'src/**/*.ts',
+	'extensions/**/*.ts'
+];
+
+var tslintFilter = [
+	'**',
+	'!**/*.d.ts',
+	'!**/typings/**',
+	'!**/*.test.ts',
+	'!src/vs/editor/standalone-languages/test/**'
+];
+
+const lintReporter = function (output, file, options) {
+	//emits: src/helloWorld.c:5:3: warning: implicit declaration of function ‘prinft’
+	var relativeBase = file.base.substring(file.cwd.length + 1);
+	output.forEach(function(e) {
+		var message = relativeBase + e.name + ':' + (e.startPosition.line + 1) + ':' + (e.startPosition.character + 1) + ': ' + e.failure;
+		console.log('[tslint] ' + message);
+	});
+};
+
+gulp.task('tslint', function () {
+	gulp.src(allTypeScript)
+	.pipe(filter(tslintFilter))
+	.pipe(tslint({
+		rulesDirectory: "node_modules/tslint-microsoft-contrib"
+	}))
+	.pipe(tslint.report(lintReporter, {
+		summarizeFailureOutput: false,
+		emitError: false
+	}))
 });
 
 // this allows us to run this as a git pre-commit hook
