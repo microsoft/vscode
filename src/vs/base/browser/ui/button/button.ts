@@ -6,17 +6,15 @@
 'use strict';
 
 import 'vs/css!./button';
-import EventEmitter = require('vs/base/common/eventEmitter');
+import {EventEmitter} from 'vs/base/common/eventEmitter';
 import DOM = require('vs/base/browser/dom');
-import Builder = require('vs/base/browser/builder');
+import {Builder, $} from 'vs/base/browser/builder';
 
-var $ = Builder.$;
+export class Button extends EventEmitter {
 
-export class Button extends EventEmitter.EventEmitter {
+	private $el: Builder;
 
-	private $el: Builder.Builder;
-
-	constructor(container: Builder.Builder);
+	constructor(container: Builder);
 	constructor(container: HTMLElement);
 	constructor(container: any) {
 		super();

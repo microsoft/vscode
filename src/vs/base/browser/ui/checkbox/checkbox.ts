@@ -17,7 +17,7 @@ export interface ICheckboxOpts {
 	title: string;
 	isChecked: boolean;
 	onChange: () => void;
-	onKeyDown?: (e:StandardKeyboardEvent) => void;
+	onKeyDown?: (e: StandardKeyboardEvent) => void;
 }
 
 export class Checkbox extends Widget {
@@ -27,7 +27,7 @@ export class Checkbox extends Widget {
 
 	private _checked: boolean;
 
-	constructor(opts:ICheckboxOpts) {
+	constructor(opts: ICheckboxOpts) {
 		super();
 		this._opts = opts;
 		this._checked = this._opts.isChecked;
@@ -70,7 +70,7 @@ export class Checkbox extends Widget {
 		return this._checked;
 	}
 
-	public set checked(newIsChecked:boolean) {
+	public set checked(newIsChecked: boolean) {
 		this._checked = newIsChecked;
 		this.domNode.setAttribute('aria-checked', String(this._checked));
 		this.domNode.className = this._className();
