@@ -161,57 +161,40 @@ export const Extensions = {
 	Viewlets: 'workbench.contributions.viewlets'
 };
 
-export interface IViewletRegistry {
+export class ViewletRegistry extends CompositeRegistry<Viewlet> {
+	private defaultViewletId: string;
 
 	/**
 	 * Registers a viewlet to the platform.
 	 */
-	registerViewlet(descriptor: ViewletDescriptor): void;
-
-	/**
-	 * Returns the viewlet descriptor for the given id or null if none.
-	 */
-	getViewlet(id: string): ViewletDescriptor;
-
-	/**
-	 * Returns an array of registered viewlets known to the platform.
-	 */
-	getViewlets(): ViewletDescriptor[];
-
-	/**
-	 * Sets the id of the viewlet that should open on startup by default.
-	 */
-	setDefaultViewletId(id: string): void;
-
-	/**
-	 * Gets the id of the viewlet that should open on startup by default.
-	 */
-	getDefaultViewletId(): string;
-}
-
-class ViewletRegistry extends CompositeRegistry<Viewlet> implements IViewletRegistry {
-	private defaultViewletId: string;
-
 	public registerViewlet(descriptor: ViewletDescriptor): void {
 		super.registerComposite(descriptor);
 	}
 
+	/**
+	 * Returns the viewlet descriptor for the given id or null if none.
+	 */
 	public getViewlet(id: string): ViewletDescriptor {
 		return this.getComposite(id);
 	}
 
+	/**
+	 * Returns an array of registered viewlets known to the platform.
+	 */
 	public getViewlets(): ViewletDescriptor[] {
 		return this.getComposits();
 	}
 
-	public setViewlets(viewletsToSet: ViewletDescriptor[]): void {
-		this.setComposits(viewletsToSet);
-	}
-
+	/**
+	 * Sets the id of the viewlet that should open on startup by default.
+	 */
 	public setDefaultViewletId(id: string): void {
 		this.defaultViewletId = id;
 	}
 
+	/**
+	 * Gets the id of the viewlet that should open on startup by default.
+	 */
 	public getDefaultViewletId(): string {
 		return this.defaultViewletId;
 	}

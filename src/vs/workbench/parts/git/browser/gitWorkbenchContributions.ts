@@ -444,7 +444,7 @@ export function registerContributions(): void {
 	);
 
 	// Register Viewlet
-	(<viewlet.IViewletRegistry>platform.Registry.as(viewlet.Extensions.Viewlets)).registerViewlet(new viewlet.ViewletDescriptor(
+	(<viewlet.ViewletRegistry>platform.Registry.as(viewlet.Extensions.Viewlets)).registerViewlet(new viewlet.ViewletDescriptor(
 		'vs/workbench/parts/git/browser/gitViewlet',
 		'GitViewlet',
 		VIEWLET_ID,

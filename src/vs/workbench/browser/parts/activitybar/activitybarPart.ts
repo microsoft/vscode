@@ -16,7 +16,7 @@ import {Scope, IActionBarRegistry, Extensions as ActionBarExtensions, prepareAct
 import {CONTEXT, ToolBar} from 'vs/base/browser/ui/toolbar/toolbar';
 import {Registry} from 'vs/platform/platform';
 import {CompositeEvent, EventType} from 'vs/workbench/common/events';
-import {ViewletDescriptor, IViewletRegistry, Extensions as ViewletExtensions} from 'vs/workbench/browser/viewlet';
+import {ViewletDescriptor, ViewletRegistry, Extensions as ViewletExtensions} from 'vs/workbench/browser/viewlet';
 import {Part} from 'vs/workbench/browser/part';
 import {ActivityAction, ActivityActionItem} from 'vs/workbench/browser/parts/activitybar/activityAction';
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
@@ -124,7 +124,7 @@ export class ActivitybarPart extends Part implements IActivityService {
 
 		// Build Viewlet Actions in correct order
 		let activeViewlet = this.viewletService.getActiveViewlet();
-		let registry = (<IViewletRegistry>Registry.as(ViewletExtensions.Viewlets));
+		let registry = (<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets));
 		let viewletActions: Action[] = registry.getViewlets()
 			.sort((v1: ViewletDescriptor, v2: ViewletDescriptor) => v1.order - v2.order)
 			.map((viewlet: ViewletDescriptor) => {

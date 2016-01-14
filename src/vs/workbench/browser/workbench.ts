@@ -32,7 +32,7 @@ import {SidebarPart} from 'vs/workbench/browser/parts/sidebar/sidebarPart';
 import {StatusbarPart} from 'vs/workbench/browser/parts/statusbar/statusbarPart';
 import {WorkbenchLayout, LayoutOptions} from 'vs/workbench/browser/layout';
 import {IActionBarRegistry, Extensions as ActionBarExtensions} from 'vs/workbench/browser/actionBarRegistry';
-import {IViewletRegistry, Extensions as ViewletExtensions} from 'vs/workbench/browser/viewlet';
+import {ViewletRegistry, Extensions as ViewletExtensions} from 'vs/workbench/browser/viewlet';
 import {QuickOpenController} from 'vs/workbench/browser/parts/quickopen/quickOpenController';
 import {getServices} from 'vs/platform/instantiation/common/extensions';
 import {AbstractKeybindingService} from 'vs/platform/keybinding/browser/keybindingServiceImpl';
@@ -198,7 +198,7 @@ export class Workbench implements IPartService {
 			let viewletAndEditorPromises: Promise[] = [];
 
 			// Show default viewlet unless sidebar is hidden or we dont have a default viewlet
-			let registry = (<IViewletRegistry>Registry.as(ViewletExtensions.Viewlets));
+			let registry = (<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets));
 			let viewletId = registry.getDefaultViewletId();
 			if (!this.workbenchParams.configuration.env.isBuilt) {
 				viewletId = this.storageService.get(SidebarPart.activeViewletSettingsKey, StorageScope.WORKSPACE, registry.getDefaultViewletId()); // help developers and restore last view
@@ -392,7 +392,7 @@ export class Workbench implements IPartService {
 			this.sideBarHidden = true; // we hide sidebar in single-file-mode
 		}
 
-		let registry = (<IViewletRegistry>Registry.as(ViewletExtensions.Viewlets));
+		let registry = (<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets));
 		if (!registry.getDefaultViewletId()) {
 			this.sideBarHidden = true; // can only hide sidebar if we dont have a default viewlet id
 		}
@@ -489,7 +489,7 @@ export class Workbench implements IPartService {
 
 		// If sidebar becomes visible, show last active viewlet or default viewlet
 		else if (!hidden && !this.sidebarPart.getActiveViewlet()) {
-			let registry = (<IViewletRegistry>Registry.as(ViewletExtensions.Viewlets));
+			let registry = (<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets));
 			let viewletToOpen = this.sidebarPart.getLastActiveViewletId() || registry.getDefaultViewletId();
 			if (viewletToOpen) {
 				this.sidebarPart.openViewlet(viewletToOpen, true).done(null, errors.onUnexpectedError);

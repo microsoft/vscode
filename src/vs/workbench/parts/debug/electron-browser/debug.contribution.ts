@@ -57,7 +57,7 @@ CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(dbgactions.
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(dbgactions.RunToCursorAction, dbgactions.RunToCursorAction.ID, nls.localize('runToCursor', "Debug: Run to Cursor")));
 
 // register viewlet
-(<viewlet.IViewletRegistry>platform.Registry.as(viewlet.Extensions.Viewlets)).registerViewlet(new viewlet.ViewletDescriptor(
+(<viewlet.ViewletRegistry>platform.Registry.as(viewlet.Extensions.Viewlets)).registerViewlet(new viewlet.ViewletDescriptor(
 	'vs/workbench/parts/debug/browser/debugViewlet',
 	'DebugViewlet',
 	debug.VIEWLET_ID,

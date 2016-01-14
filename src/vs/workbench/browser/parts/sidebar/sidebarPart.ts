@@ -13,7 +13,7 @@ import strings = require('vs/base/common/strings');
 import {Action, IAction} from 'vs/base/common/actions';
 import {CompositePart} from 'vs/workbench/browser/parts/compositePart';
 import {EventType as WorkbenchEventType, CompositeEvent} from 'vs/workbench/common/events';
-import {Viewlet, IViewletRegistry, Extensions as ViewletExtensions} from 'vs/workbench/browser/viewlet';
+import {Viewlet, ViewletRegistry, Extensions as ViewletExtensions} from 'vs/workbench/browser/viewlet';
 import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/common/actionRegistry';
 import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
@@ -47,7 +47,7 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 		id: string
 	) {
 		super(messageService, storageService, eventService, telemetryService, contextMenuService, partService, keybindingService,
-			(<any>Registry.as(ViewletExtensions.Viewlets)), SidebarPart.activeViewletSettingsKey, id);
+			(<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets)), SidebarPart.activeViewletSettingsKey, id);
 	}
 
 	public openViewlet(id: string, focus?: boolean): TPromise<Viewlet> {
