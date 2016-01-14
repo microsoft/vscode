@@ -15,9 +15,9 @@ export interface IFrameContents {
 
 /**
  * An editor model that represents the resolved state for an iframe editor input. After the model has been
- * resolved it knows which URL or content to pass to the iframe editor. If a URL is being used, this will
- * be set as the iframe's URL. Otherwise the contents will be set directly into the iframe. In that case
- * the contents have to ensure that e.g. a base URL is set so that relative links or images can be resolved.
+ * resolved it knows which content to pass to the iframe editor. The contents will be set directly into the
+ * iframe. The contents have to ensure that e.g. a base URL is set so that relative links or images can be
+ * resolved.
  */
 export class IFrameEditorModel extends EditorModel {
 	private _resource: URI;
@@ -37,18 +37,6 @@ export class IFrameEditorModel extends EditorModel {
 		return this._resource;
 	}
 
-	public setUrl(url: string): void {
-		this.url = url;
-	}
-
-	public getUrl(): string {
-		return this.url;
-	}
-
-	public hasUrl(): boolean {
-		return !!this.url;
-	}
-
 	public setContents(head: string, body: string, tail: string): void {
 		this.head = head;
 		this.body = body;
@@ -61,9 +49,5 @@ export class IFrameEditorModel extends EditorModel {
 			body: this.body,
 			tail: this.tail
 		};
-	}
-
-	public hasContents(): boolean {
-		return !!this.head || !!this.body || !!this.tail;
 	}
 }

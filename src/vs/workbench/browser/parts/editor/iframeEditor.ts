@@ -22,12 +22,11 @@ import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 
 /**
- * An implementation of editor for embedding a URL into an IFrame by leveraging the IFrameEditorInput.
+ * An implementation of editor for showing HTML content in an IFrame by leveraging the IFrameEditorInput.
  */
 export class IFrameEditor extends BaseEditor {
 
 	public static ID = 'workbench.editors.iFrameEditor';
-	public static allowScriptExecutionSettingsKey = 'workbench.editor.allowIframeScriptExecution';
 
 	private static RESOURCE_PROPERTY = 'resource';
 
@@ -96,44 +95,19 @@ export class IFrameEditor extends BaseEditor {
 				return null;
 			}
 
-			let allowScriptExecution = this.storageService.getBoolean(IFrameEditor.allowScriptExecutionSettingsKey, StorageScope.WORKSPACE, false);
-
-			// Set IFrame contents directly
+			// Set IFrame contents
 			let iframeModel = <IFrameEditorModel>resolvedModel;
-			if (iframeModel.hasContents()) {
-				let isUpdate = !isNewInput && !!this.iframeBuilder.getProperty(IFrameEditor.RESOURCE_PROPERTY);
-				let contents = iframeModel.getContents();
+			let isUpdate = !isNewInput && !!this.iframeBuilder.getProperty(IFrameEditor.RESOURCE_PROPERTY);
+			let contents = iframeModel.getContents();
 
-				// Sanitize Script from content if script execution is not allowed
-				if (!allowScriptExecution) {
-					contents.body = DOM.removeScriptTags(contents.body);
-				}
+			// Crazy hack to get keybindings to bubble out of the iframe to us
+			contents.body = contents.body + this.enableKeybindings();
 
-				// Crazy hack to get keybindings to bubble out of the iframe to us
-				contents.body = contents.body + this.enableKeybindings();
-
-				// Set Contents
-				try {
-					this.setFrameContents(iframeModel.resource, isUpdate ? contents.body : [contents.head, contents.body, contents.tail].join('\n'), isUpdate /* body only */);
-				} catch (error) {
-					setTimeout(() => this.reload(true /* clear */), 1000); // retry in case of an error which indicates the iframe (only) might be on a different URL
-				}
-			}
-
-			// Set IFrame source location
-			else {
-
-				// Sandboxing (can only be applied when using a real source location)
-				if (allowScriptExecution) {
-					this.iframeBuilder.removeAttribute('sandbox');
-				} else {
-					this.iframeBuilder.attr({
-						'sandbox': 'allow-same-origin' // protect us from attacks (see http://www.w3schools.com/tags/att_iframe_sandbox.asp)
-					});
-				}
-
-				// Set URL
-				this.iframeBuilder.src(iframeModel.getUrl() + '?etag=' + new Date().getTime()); // make sure to bypass browser caches by appending current time
+			// Set Contents
+			try {
+				this.setFrameContents(iframeModel.resource, isUpdate ? contents.body : [contents.head, contents.body, contents.tail].join('\n'), isUpdate /* body only */);
+			} catch (error) {
+				setTimeout(() => this.reload(true /* clear */), 1000); // retry in case of an error which indicates the iframe (only) might be on a different URL
 			}
 		});
 	}
@@ -277,36 +251,5 @@ export class IFrameEditor extends BaseEditor {
 		this.iframeContainer.destroy();
 
 		super.dispose();
-	}
-}
-
-export class ToggleJavaScriptInIFrameEditorInputAction extends EditorInputAction {
-
-	constructor(
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IStorageService private storageService: IStorageService
-	) {
-		super('workbench.files.action.toggleJSInIFrameEditor', nls.localize('enableJavaScript', "Enable JavaScript"));
-	}
-
-	public get label(): string {
-		let allowScriptExecution = this.storageService.getBoolean(IFrameEditor.allowScriptExecutionSettingsKey, StorageScope.WORKSPACE, false);
-
-		if (allowScriptExecution) {
-			return nls.localize('disableJavaScript', "Disable JavaScript");
-		}
-
-		return nls.localize('enableJavaScript', "Enable JavaScript");
-	}
-
-	public run(event?: any): Promise {
-
-		// Apply globally
-		this.storageService.swap(IFrameEditor.allowScriptExecutionSettingsKey, true, false, StorageScope.WORKSPACE, false);
-
-		let options = new EditorOptions();
-		options.forceOpen = true; // force open since we open the same input again
-
-		return this.editorService.openEditor(this.input, options, this.position);
 	}
 }
