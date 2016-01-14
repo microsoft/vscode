@@ -5,4 +5,4 @@
 
 import {IComposite} from 'vs/workbench/common/composite';
 
-export interface IViewlet extends IComposite { }
+export interface IPanel extends IComposite { }
