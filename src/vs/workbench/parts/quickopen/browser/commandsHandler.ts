@@ -198,7 +198,7 @@ export class CommandsHandler extends QuickOpenHandler {
 	}
 
 	public getResults(searchValue: string): TPromise<QuickOpenModel> {
-		searchValue = searchValue.trim();
+		searchValue = searchValue.trim().replace(/ /g, ''); // since we match fuzzy, remove all whitespaces upfront
 
 		// Workbench Actions (if prefix asks for all commands)
 		let workbenchEntries: CommandEntry[] = [];
@@ -256,7 +256,7 @@ export class CommandsHandler extends QuickOpenHandler {
 					label = nls.localize('commandLabel', "{0}: {1}", category, label);
 				}
 
-				let highlights = filters.matchesFuzzy(searchValue, label);
+				let highlights = filters.matchesFuzzy(searchValue, label, true /* separate substring matching */);
 				if (highlights) {
 					entries.push(this.instantiationService.createInstance(CommandEntry, keys.length > 0 ? keys.join(', ') : '', label, highlights, actionDescriptor));
 				}
@@ -296,7 +296,7 @@ export class CommandsHandler extends QuickOpenHandler {
 
 		for (let action of actions) {
 			let keys = this.keybindingService.lookupKeybindings(action.id).map(k => this.keybindingService.getLabelFor(k));
-			let highlights = filters.matchesFuzzy(searchValue, action.label);
+			let highlights = filters.matchesFuzzy(searchValue, action.label, true /* separate substring matching */);
 			if (highlights) {
 				entries.push(this.instantiationService.createInstance(ActionCommandEntry, keys.join(', '), action.label, highlights, action));
 			}
