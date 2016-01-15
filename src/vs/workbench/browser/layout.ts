@@ -18,9 +18,10 @@ import {IContextViewService} from 'vs/platform/contextview/browser/contextView';
 import {IEventService} from 'vs/platform/event/common/event';
 
 const DEFAULT_MIN_PART_WIDTH = 170;
-const DEFAULT_MIN_PANEL_PART_WIDTH = 170;
+const DEFAULT_MIN_PANEL_PART_HEIGHT = 170;
 const HIDE_SIDEBAR_WIDTH_THRESHOLD = 50;
 const HIDE_PANEL_HEIGHT_THRESHOLD = 50;
+const PANEL_HEIGHT_SCREEN_LIMIT = 0.8;
 
 const LAYOUT_RELATED_PREFERENCES = [
 	Preferences.THEME
@@ -249,7 +250,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 			},
 
 			panelPart: {
-				minHeight: parseInt(panelPartStyle.getPropertyValue('min-height'), 10) || DEFAULT_MIN_PANEL_PART_WIDTH
+				minHeight: parseInt(panelPartStyle.getPropertyValue('min-height'), 10) || DEFAULT_MIN_PANEL_PART_HEIGHT
 			},
 
 			editor: {
@@ -308,7 +309,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		if (isPanelPartHidden) {
 			panelHeight = 0;
 		} else if (this.panelPartHeight > 0) {
-			panelHeight = Math.max(this.computedStyles.panelPart.minHeight, this.panelPartHeight);
+			panelHeight = Math.min(sidebarSize.height * PANEL_HEIGHT_SCREEN_LIMIT, Math.max(this.computedStyles.panelPart.minHeight, this.panelPartHeight));
 		} else {
 			panelHeight = sidebarSize.height * 0.4;
 		}
