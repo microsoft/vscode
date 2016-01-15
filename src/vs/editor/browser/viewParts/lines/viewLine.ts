@@ -22,7 +22,6 @@ export class ViewLine implements IVisibleLineData {
 	private _isMaybeInvalid: boolean;
 
 	protected _charOffsetInPart:number[];
-	private _hasOverflowed:boolean;
 	private _lastRenderedPartIndex:number;
 	private _cachedWidth: number;
 
@@ -33,7 +32,6 @@ export class ViewLine implements IVisibleLineData {
 		this._isMaybeInvalid = false;
 		this._lineParts = null;
 		this._charOffsetInPart = [];
-		this._hasOverflowed = false;
 		this._lastRenderedPartIndex = 0;
 	}
 
@@ -143,7 +141,6 @@ export class ViewLine implements IVisibleLineData {
 		});
 
 		this._charOffsetInPart = r.charOffsetInPart;
-		this._hasOverflowed = r.hasOverflowed;
 		this._lastRenderedPartIndex = r.lastRenderedPartIndex;
 
 		return r.output;
@@ -529,9 +526,7 @@ export interface IRenderLineInput {
 
 export interface IRenderLineOutput {
 	charOffsetInPart: number[];
-	hasOverflowed: boolean;
 	lastRenderedPartIndex: number;
-	partsCount: number;
 	output: string[];
 }
 
@@ -554,9 +549,7 @@ export function renderLine(input:IRenderLineInput): IRenderLineOutput {
 	if (lineTextLength === 0) {
 		return {
 			charOffsetInPart: [],
-			hasOverflowed: false,
 			lastRenderedPartIndex: 0,
-			partsCount: 0,
 			// This is basically for IE's hit test to work
 			output: ['<span><span>&nbsp;</span></span>']
 		};
@@ -564,13 +557,9 @@ export function renderLine(input:IRenderLineInput): IRenderLineOutput {
 
 	let result: IRenderLineOutput = {
 		charOffsetInPart: [],
-		hasOverflowed: false,
 		lastRenderedPartIndex: 0,
-		partsCount: 0,
 		output: []
 	};
-
-	let partsCount = 0;
 
 	result.output.push('<span>');
 	let partClassName: string,
@@ -589,7 +578,6 @@ export function renderLine(input:IRenderLineInput): IRenderLineOutput {
 	if (stopRenderingLineAfter !== -1 && lineTextLength > stopRenderingLineAfter - 1) {
 		append = lineText.substr(stopRenderingLineAfter - 1, 1);
 		lineTextLength = stopRenderingLineAfter - 1;
-		result.hasOverflowed = true;
 	}
 
 	for (let i = 0; i < lineTextLength; i++) {
@@ -599,7 +587,6 @@ export function renderLine(input:IRenderLineInput): IRenderLineOutput {
 			if (i > 0) {
 				result.output.push('</span>');
 			}
-			partsCount++;
 			result.output.push('<span class="');
 			partClassName = 'token ' + actualLineParts[partIndex].type.replace(/[^a-z0-9\-]/gi, ' ');
 			if (input.renderWhitespace) {
@@ -683,8 +670,6 @@ export function renderLine(input:IRenderLineInput): IRenderLineOutput {
 		result.output.push('&hellip;</span>');
 	}
 	result.output.push('</span>');
-
-	result.partsCount = partsCount;
 
 	return result;
 }
