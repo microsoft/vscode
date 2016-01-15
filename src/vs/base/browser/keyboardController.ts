@@ -15,6 +15,12 @@ export interface IKeyboardController {
 	addListener(type:'input', callback:(event:Event)=>void): ()=>void;
 	addListener(type:string, callback:(event:any)=>void): ()=>void;
 
+	addListener2(type:'keydown', callback:(event:DomUtils.IKeyboardEvent)=>void): Lifecycle.IDisposable;
+	addListener2(type:'keypress', callback:(event:DomUtils.IKeyboardEvent)=>void): Lifecycle.IDisposable;
+	addListener2(type:'keyup', callback:(event:DomUtils.IKeyboardEvent)=>void): Lifecycle.IDisposable;
+	addListener2(type:'input', callback:(event:Event)=>void): Lifecycle.IDisposable;
+	addListener2(type:string, callback:(event:any)=>void): Lifecycle.IDisposable;
+
 	dispose(): void;
 }
 
@@ -46,7 +52,20 @@ export class KeyboardController implements IKeyboardController, Lifecycle.IDispo
 	public addListener(type:string, callback:(event:DomUtils.IKeyboardEvent)=>void):()=>void {
 		this._listeners[type] = callback;
 		return () => {
+			if (!this._listeners) {
+				// disposed
+				return;
+			}
 			this._listeners[type] = null;
+		};
+	}
+
+	public addListener2(type:string, callback:(event:DomUtils.IKeyboardEvent)=>void): Lifecycle.IDisposable {
+		let unbind = this.addListener(type, callback);
+		return {
+			dispose: () => {
+				unbind();
+			}
 		};
 	}
 

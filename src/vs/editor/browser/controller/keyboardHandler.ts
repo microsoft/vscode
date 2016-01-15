@@ -13,11 +13,12 @@ import EditorBrowser = require('vs/editor/browser/editorBrowser');
 import EventEmitter = require('vs/base/common/eventEmitter');
 import {ViewEventHandler} from 'vs/editor/common/viewModel/viewEventHandler';
 import Schedulers = require('vs/base/common/async');
-import Lifecycle = require('vs/base/common/lifecycle');
+import * as Lifecycle from 'vs/base/common/lifecycle';
 import Strings = require('vs/base/common/strings');
 import {Range} from 'vs/editor/common/core/range';
 import {Position} from 'vs/editor/common/core/position';
 import {CommonKeybindings} from 'vs/base/common/keyCodes';
+import Event, {Emitter} from 'vs/base/common/event';
 
 enum ReadFromTextArea {
 	Type,
@@ -41,7 +42,7 @@ class TextAreaState {
 		return '[ <' + this.value + '>, selectionStart: ' + this.selectionStart + ', selectionEnd: ' + this.selectionEnd + ']';
 	}
 
-	public static fromTextArea(textArea:HTMLTextAreaElement, selectionToken:number): TextAreaState {
+	public static fromTextArea(textArea:TextAreaWrapper, selectionToken:number): TextAreaState {
 		return new TextAreaState(textArea.value, textArea.selectionStart, textArea.selectionEnd, selectionToken);
 	}
 
@@ -116,19 +117,13 @@ class TextAreaState {
 		return this.selectionToken;
 	}
 
-	public applyToTextArea(textArea:HTMLTextAreaElement, select:boolean): void {
+	public applyToTextArea(textArea:TextAreaWrapper, select:boolean): void {
+		// console.log('applyToTextArea: ' + this.toString());
 		if (textArea.value !== this.value) {
 			textArea.value = this.value;
 		}
 		if (select) {
-			try {
-				var scrollState = DomUtils.saveParentsScrollTop(textArea);
-				textArea.focus();
-				textArea.setSelectionRange(this.selectionStart, this.selectionEnd);
-				DomUtils.restoreParentsScrollTop(textArea, scrollState);
-			} catch(e) {
-				// Sometimes IE throws when setting selection (e.g. textarea is off-DOM)
-			}
+			textArea.setSelectionRange(this.selectionStart, this.selectionEnd);
 		}
 	}
 
@@ -159,16 +154,114 @@ class TextAreaState {
 	}
 }
 
+interface ITextAreaStyle {
+	top: string;
+	left: string;
+	width: string;
+	height: string;
+}
+
+class TextAreaWrapper extends Lifecycle.Disposable {
+
+	private _textArea: HTMLTextAreaElement;
+
+	private _onKeyDown = this._register(new Emitter<DomUtils.IKeyboardEvent>());
+	public onKeyDown: Event<DomUtils.IKeyboardEvent> = this._onKeyDown.event;
+
+	private _onKeyUp = this._register(new Emitter<DomUtils.IKeyboardEvent>());
+	public onKeyUp: Event<DomUtils.IKeyboardEvent> = this._onKeyUp.event;
+
+	private _onKeyPress = this._register(new Emitter<DomUtils.IKeyboardEvent>());
+	public onKeyPress: Event<DomUtils.IKeyboardEvent> = this._onKeyPress.event;
+
+	private _onCompositionStart = this._register(new Emitter<void>());
+	public onCompositionStart: Event<void> = this._onCompositionStart.event;
+
+	private _onCompositionEnd = this._register(new Emitter<void>());
+	public onCompositionEnd: Event<void> = this._onCompositionEnd.event;
+
+	private _onInput = this._register(new Emitter<void>());
+	public onInput: Event<void> = this._onInput.event;
+
+	private _onCut = this._register(new Emitter<ClipboardEvent>());
+	public onCut: Event<ClipboardEvent> = this._onCut.event;
+
+	private _onCopy = this._register(new Emitter<ClipboardEvent>());
+	public onCopy: Event<ClipboardEvent> = this._onCopy.event;
+
+	private _onPaste = this._register(new Emitter<ClipboardEvent>());
+	public onPaste: Event<ClipboardEvent> = this._onPaste.event;
+
+	constructor(textArea: HTMLTextAreaElement) {
+		super();
+		this._textArea = textArea;
+
+		let kbController = this._register(new keyboardController.KeyboardController(this._textArea));
+		this._register(kbController.addListener2('keydown', (e) => this._onKeyDown.fire(e)));
+		this._register(kbController.addListener2('keyup', (e) => this._onKeyUp.fire(e)));
+		this._register(kbController.addListener2('keypress', (e) => this._onKeyPress.fire(e)));
+
+		this._register(DomUtils.addDisposableListener(this._textArea, 'compositionstart', (e) => this._onCompositionStart.fire()));
+		this._register(DomUtils.addDisposableListener(this._textArea, 'compositionend', (e) => this._onCompositionEnd.fire()));
+		this._register(DomUtils.addDisposableListener(this._textArea, 'input', (e) => this._onInput.fire()));
+		this._register(DomUtils.addDisposableListener(this._textArea, 'cut', (e) => this._onCut.fire(e)));
+		this._register(DomUtils.addDisposableListener(this._textArea, 'copy', (e) => this._onCopy.fire(e)));
+		this._register(DomUtils.addDisposableListener(this._textArea, 'paste', (e) => this._onPaste.fire(e)));
+	}
+
+	public get value(): string {
+		return this._textArea.value;
+	}
+
+	public set value(value:string) {
+		this._textArea.value = value;
+	}
+
+	public get selectionStart(): number {
+		return this._textArea.selectionStart;
+	}
+
+	public get selectionEnd(): number {
+		return this._textArea.selectionEnd;
+	}
+
+	public setSelectionRange(selectionStart:number, selectionEnd:number): void {
+		try {
+			var scrollState = DomUtils.saveParentsScrollTop(this._textArea);
+			this._textArea.focus();
+			this._textArea.setSelectionRange(this.selectionStart, this.selectionEnd);
+			DomUtils.restoreParentsScrollTop(this._textArea, scrollState);
+		} catch(e) {
+			// Sometimes IE throws when setting selection (e.g. textarea is off-DOM)
+		}
+	}
+
+	public setStyle(style:ITextAreaStyle): void {
+		if (typeof style.top !== 'undefined') {
+			this._textArea.style.top = style.top;
+		}
+		if (typeof style.left !== 'undefined') {
+			this._textArea.style.left = style.left;
+		}
+		if (typeof style.width !== 'undefined') {
+			this._textArea.style.width = style.width;
+		}
+		if (typeof style.height !== 'undefined') {
+			this._textArea.style.height = style.height;
+		}
+	}
+}
+
 export class KeyboardHandler extends ViewEventHandler implements Lifecycle.IDisposable {
 
 	private context:EditorBrowser.IViewContext;
 	private viewController:EditorBrowser.IViewController;
 	private viewHelper:EditorBrowser.IKeyboardHandlerHelper;
-	private textArea:HTMLTextAreaElement;
+	private textArea:TextAreaWrapper;
 	private selection:EditorCommon.IEditorRange;
 	private hasFocus:boolean;
-	private kbController:keyboardController.IKeyboardController;
 	private listenersToRemove:EventEmitter.ListenerUnbind[];
+	private _toDispose:Lifecycle.IDisposable[];
 
 	private asyncReadFromTextArea: Schedulers.RunOnceScheduler;
 	private asyncSetSelectionToTextArea: Schedulers.RunOnceScheduler;
@@ -198,7 +291,7 @@ export class KeyboardHandler extends ViewEventHandler implements Lifecycle.IDisp
 
 		this.context = context;
 		this.viewController = viewController;
-		this.textArea = viewHelper.textArea;
+		this.textArea = new TextAreaWrapper(viewHelper.textArea);
 		this.viewHelper = viewHelper;
 		this.selection = new Range(1, 1, 1, 1);
 		this.cursorPosition = new Position(1, 1);
@@ -222,18 +315,16 @@ export class KeyboardHandler extends ViewEventHandler implements Lifecycle.IDisp
 		this.lastCompositionEndTime = 0;
 		this.lastValueWrittenToTheTextArea = '';
 
-		this.kbController = new keyboardController.KeyboardController(this.textArea);
-
 		this.listenersToRemove = [];
+		this._toDispose = [];
 
-		this.listenersToRemove.push(this.kbController.addListener('keydown', (e) => this._onKeyDown(e)));
-		this.listenersToRemove.push(this.kbController.addListener('keyup', (e) => this._onKeyUp(e)));
-		this.listenersToRemove.push(this.kbController.addListener('keypress', (e) => this._onKeyPress(e)));
-//		this.listenersToRemove.push(DomUtils.addListener(this.textArea, 'change', (e) => this._scheduleLookout(EditorCommon.Handler.Type)));
+		this._toDispose.push(this.textArea.onKeyDown((e) => this._onKeyDown(e)));
+		this._toDispose.push(this.textArea.onKeyUp((e) => this._onKeyUp(e)));
+		this._toDispose.push(this.textArea.onKeyPress((e) => this._onKeyPress(e)));
 
 		this.textareaIsShownAtCursor = false;
 
-		this.listenersToRemove.push(DomUtils.addListener(this.textArea, 'compositionstart', (e) => {
+		this._toDispose.push(this.textArea.onCompositionStart(() => {
 			var timeSinceLastCompositionEnd = (new Date().getTime()) - this.lastCompositionEndTime;
 			if (!this.textareaIsShownAtCursor) {
 				this.textareaIsShownAtCursor = true;
@@ -242,7 +333,7 @@ export class KeyboardHandler extends ViewEventHandler implements Lifecycle.IDisp
 			this.asyncReadFromTextArea.cancel();
 		}));
 
-		this.listenersToRemove.push(DomUtils.addListener(this.textArea, 'compositionend', (e) => {
+		this._toDispose.push(this.textArea.onCompositionEnd(() => {
 			if (this.textareaIsShownAtCursor) {
 				this.textareaIsShownAtCursor = false;
 				this.hideTextArea();
@@ -254,7 +345,7 @@ export class KeyboardHandler extends ViewEventHandler implements Lifecycle.IDisp
 		// on the iPad the text area is not fast enough to get the content of the keypress,
 		// so we leverage the input event instead
 		if (Browser.isIPad) {
-			this.listenersToRemove.push(DomUtils.addListener(this.textArea, 'input', (e) => {
+			this._toDispose.push(this.textArea.onInput(() => {
 				var myTime = (new Date()).getTime();
 				// A keypress will trigger an input event (very quickly)
 				var keyPressDeltaTime = myTime - this.lastKeyPressTime;
@@ -267,7 +358,7 @@ export class KeyboardHandler extends ViewEventHandler implements Lifecycle.IDisp
 
 		// on the mac the character viewer input generates an input event (no keypress)
 		// on windows, the Chinese IME, when set to insert wide punctuation generates an input event (no keypress)
-		this.listenersToRemove.push(this.kbController.addListener('input', (e) => {
+		this._toDispose.push(this.textArea.onInput(() => {
 			// Ignore input event if we are in composition mode
 			if (!this.textareaIsShownAtCursor) {
 				this._scheduleReadFromTextArea(ReadFromTextArea.Type);
@@ -276,7 +367,7 @@ export class KeyboardHandler extends ViewEventHandler implements Lifecycle.IDisp
 
 		if (Platform.isMacintosh) {
 
-			this.listenersToRemove.push(DomUtils.addListener(this.textArea, 'input', (e) => {
+			this._toDispose.push(this.textArea.onInput(() => {
 
 				// We are fishing for the input event that comes in the mac popover input method case
 
@@ -349,9 +440,9 @@ export class KeyboardHandler extends ViewEventHandler implements Lifecycle.IDisp
 
 
 
-		this.listenersToRemove.push(DomUtils.addListener(this.textArea, 'cut', (e) => this._onCut(e)));
-		this.listenersToRemove.push(DomUtils.addListener(this.textArea, 'copy', (e) => this._onCopy(e)));
-		this.listenersToRemove.push(DomUtils.addListener(this.textArea, 'paste', (e) => this._onPaste(e)));
+		this._toDispose.push(this.textArea.onCut((e) => this._onCut(e)));
+		this._toDispose.push(this.textArea.onCopy((e) => this._onCopy(e)));
+		this._toDispose.push(this.textArea.onPaste((e) => this._onPaste(e)));
 
 		this._writePlaceholderAndSelectTextArea();
 
@@ -364,7 +455,8 @@ export class KeyboardHandler extends ViewEventHandler implements Lifecycle.IDisp
 			element();
 		});
 		this.listenersToRemove = [];
-		this.kbController.dispose();
+		this._toDispose = Lifecycle.disposeAll(this._toDispose);
+		this.textArea.dispose();
 		this.asyncReadFromTextArea.dispose();
 		this.asyncSetSelectionToTextArea.dispose();
 		this.asyncTriggerCut.dispose();
@@ -401,18 +493,24 @@ export class KeyboardHandler extends ViewEventHandler implements Lifecycle.IDisp
 		var visibleRange1 = this.viewHelper.visibleRangeForPositionRelativeToEditor(interestingLineNumber, interestingColumn1);
 		var visibleRange2 = this.viewHelper.visibleRangeForPositionRelativeToEditor(interestingLineNumber, interestingColumn2);
 
+		let style: ITextAreaStyle = {
+			top: undefined,
+			left: undefined,
+			width: undefined,
+			height: undefined
+		};
 		if (Browser.isIE11orEarlier) {
 			// Position textarea at the beginning of the line
 			if (visibleRange1 && visibleRange2) {
-				this.textArea.style.top = visibleRange1.top + 'px';
-				this.textArea.style.left = this.contentLeft + visibleRange1.left - visibleRange2.left - this.scrollLeft + 'px';
-				this.textArea.style.width = this.contentWidth + 'px';
+				style.top = visibleRange1.top + 'px';
+				style.left = this.contentLeft + visibleRange1.left - visibleRange2.left - this.scrollLeft + 'px';
+				style.width = this.contentWidth + 'px';
 			}
 		} else {
 			// Position textarea at cursor location
 			if (visibleRange1) {
-				this.textArea.style.left = this.contentLeft + visibleRange1.left - this.scrollLeft + 'px';
-				this.textArea.style.top = visibleRange1.top + 'px';
+				style.left = this.contentLeft + visibleRange1.left - this.scrollLeft + 'px';
+				style.top = visibleRange1.top + 'px';
 			}
 
 			// Empty the textarea
@@ -422,15 +520,18 @@ export class KeyboardHandler extends ViewEventHandler implements Lifecycle.IDisp
 		}
 
 		// Show the textarea
-		this.textArea.style.height = this.context.configuration.editor.lineHeight + 'px';
+		style.height = this.context.configuration.editor.lineHeight + 'px';
+		this.textArea.setStyle(style);
 		DomUtils.addClass(this.viewHelper.viewDomNode, 'ime-input');
 	}
 
 	private hideTextArea(): void {
-		this.textArea.style.height = '';
-		this.textArea.style.width = '';
-		this.textArea.style.left = '0px';
-		this.textArea.style.top = '0px';
+		this.textArea.setStyle({
+			height: '',
+			width: '',
+			left: '0px',
+			top: '0px'
+		});
 		DomUtils.removeClass(this.viewHelper.viewDomNode, 'ime-input');
 	}
 
@@ -594,7 +695,7 @@ export class KeyboardHandler extends ViewEventHandler implements Lifecycle.IDisp
 
 	// ------------- Clipboard operations
 
-	private _onPaste(e:Event): void {
+	private _onPaste(e:ClipboardEvent): void {
 		if (e && (<any>e).clipboardData) {
 			e.preventDefault();
 			this.executePaste((<any>e).clipboardData.getData('text/plain'));
@@ -611,7 +712,7 @@ export class KeyboardHandler extends ViewEventHandler implements Lifecycle.IDisp
 		this.justHadAPaste = true;
 	}
 
-	private _onCopy(e:Event): void {
+	private _onCopy(e:ClipboardEvent): void {
 		this._ensureClipboardGetsEditorSelection(e);
 	}
 
@@ -619,13 +720,13 @@ export class KeyboardHandler extends ViewEventHandler implements Lifecycle.IDisp
 		this.viewController.cut('keyboard');
 	}
 
-	private _onCut(e:Event): void {
+	private _onCut(e:ClipboardEvent): void {
 		this._ensureClipboardGetsEditorSelection(e);
 		this.asyncTriggerCut.schedule();
 		this.justHadACut = true;
 	}
 
-	private _ensureClipboardGetsEditorSelection(e:Event): void {
+	private _ensureClipboardGetsEditorSelection(e:ClipboardEvent): void {
 		var whatToCopy = this._getPlainTextToCopy();
 		if (e && (<any>e).clipboardData) {
 			(<any>e).clipboardData.setData('text/plain', whatToCopy);
