@@ -36,6 +36,18 @@ export class MirrorModel2 {
 	}
 
 	onEvents(events: IModelContentChangedEvent2[]): void {
+		let newEOL: string = null;
+		for (let i = 0, len = events.length; i < len; i++) {
+			let e = events[i];
+			if (e.eol) {
+				newEOL = e.eol;
+			}
+		}
+		if (newEOL && newEOL !== this._eol) {
+			this._eol = newEOL;
+			this._lineStarts = null;
+		}
+
 		// Update my lines
 		let lastVersionId = -1;
 		for (let i = 0, len = events.length; i < len; i++) {

@@ -1059,14 +1059,19 @@ declare namespace vscode {
 	export interface QuickPickItem {
 
 		/**
-		 * A label. Will be rendered prominent.
+		 * A human readable string which is rendered prominent.
 		 */
 		label: string;
 
 		/**
-		 * A description. Will be rendered less prominent.
+		 * A human readable string which is rendered less prominent.
 		 */
 		description: string;
+
+		/**
+		 * A human readable string which is rendered less prominent.
+		 */
+		detail?: string;
 	}
 
 	/**
@@ -1079,9 +1084,19 @@ declare namespace vscode {
 		matchOnDescription?: boolean;
 
 		/**
+		 * An optional flag to include the detail when filtering the picks.
+		 */
+		matchOnDetail?: boolean;
+
+		/**
 		 * An optional string to show as place holder in the input box to guide the user what to pick on.
 		 */
 		placeHolder?: string;
+
+		/**
+		 * An optional function that is invoked whenever an item is selected.
+		 */
+		onDidSelectItem?: <T extends QuickPickItem>(item: T | string) => any;
 	}
 
 	/**
@@ -1124,6 +1139,16 @@ declare namespace vscode {
 		 * Set to true to show a password prompt that will not show the typed value.
 		 */
 		password?: boolean;
+
+		/**
+		 * An optional function that will be called to valide input and to give a hint
+		 * to the user.
+		 *
+		 * @param value The current value of the input box.
+		 * @return A human readable string which is presented as diagnostic message.
+		 * Return `undefined`, `null`, or the empty string when 'value' is valid.
+		 */
+		validateInput?: (value: string) => string;
 	}
 
 	/**

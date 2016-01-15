@@ -151,14 +151,14 @@ export class FileOnDiskEditorInput extends ResourceEditorInput {
 		name: string,
 		description: string,
 		@IModelService modelService: IModelService,
-		@IModeService modeService: IModeService,
+		@IModeService private modeService: IModeService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IFileService private fileService: IFileService
 	) {
 		// We create a new resource URI here that is different from the file resource because we represent the state of
 		// the file as it is on disk and not as it is (potentially cached) in Code. That allows us to have a different
 		// model for the left-hand comparision compared to the conflicting one in Code to the right.
-		super(name, description, URI.create('disk', null, fileResource.fsPath), modelService, modeService, instantiationService);
+		super(name, description, URI.create('disk', null, fileResource.fsPath), modelService, instantiationService);
 
 		this.fileResource = fileResource;
 		this.mime = mime;

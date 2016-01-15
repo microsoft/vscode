@@ -30,7 +30,8 @@ interface IMarkdownWorkerOutput extends IEmitOutput {
  */
 export class MarkdownEditorModel extends IFrameEditorModel {
 
-	constructor(resource: URI,
+	constructor(
+		resource: URI,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IStorageService private storageService: IStorageService

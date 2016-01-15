@@ -8,7 +8,7 @@
 import fs = require('fs');
 import paths = require('path');
 
-import filters = require('vs/base/common/filters');
+import scorer = require('vs/base/common/scorer');
 import arrays = require('vs/base/common/arrays');
 import strings = require('vs/base/common/strings');
 import glob = require('vs/base/common/glob');
@@ -21,6 +21,7 @@ import {ISerializedFileMatch, IRawSearch, ISearchEngine} from 'vs/workbench/serv
 export class FileWalker {
 	private config: IRawSearch;
 	private filePattern: string;
+	private normalizedFilePatternLowercase: string;
 	private excludePattern: glob.IExpression;
 	private includePattern: glob.IExpression;
 	private maxResults: number;
@@ -28,14 +29,12 @@ export class FileWalker {
 	private resultCount: number;
 	private isCanceled: boolean;
 	private searchInPath: boolean;
-	private matchFuzzy: boolean;
 
 	private walkedPaths: { [path: string]: boolean; };
 
 	constructor(config: IRawSearch) {
 		this.config = config;
 		this.filePattern = config.filePattern;
-		this.matchFuzzy = config.matchFuzzy;
 		this.excludePattern = config.excludePattern;
 		this.includePattern = config.includePattern;
 		this.maxResults = config.maxResults || null;
@@ -43,10 +42,12 @@ export class FileWalker {
 		this.resultCount = 0;
 		this.isLimitHit = false;
 
-		// Normalize file patterns to forward slashes
-		if (this.filePattern && this.filePattern.indexOf(paths.sep) >= 0) {
-			this.filePattern = strings.replaceAll(this.filePattern, '\\', '/');
-			this.searchInPath = true;
+		if (this.filePattern) {
+			if (this.filePattern.indexOf(paths.sep) >= 0) {
+				this.filePattern = strings.replaceAll(this.filePattern, '\\', '/'); // Normalize file patterns to forward slashes
+			}
+
+			this.normalizedFilePatternLowercase = strings.stripWildcards(this.filePattern).toLowerCase();
 		}
 	}
 
@@ -80,7 +81,7 @@ export class FileWalker {
 					}
 
 					// File: Check for match on file pattern and include pattern
-					this.matchFile(onResult, paths.basename(extraFilePath), extraFilePath, extraFilePath /* no workspace relative path */);
+					this.matchFile(onResult, extraFilePath, extraFilePath /* no workspace relative path */);
 				});
 			}
 
@@ -122,7 +123,7 @@ export class FileWalker {
 	}
 
 	private checkFilePatternRelativeMatch(basePath: string, clb: (matchPath: string) => void): void {
-		if (!this.filePattern || paths.isAbsolute(this.filePattern) || !this.searchInPath) {
+		if (!this.filePattern || paths.isAbsolute(this.filePattern)) {
 			return clb(null);
 		}
 
@@ -196,7 +197,7 @@ export class FileWalker {
 						return clb(null); // ignore file if its path matches with the file pattern because checkFilePatternRelativeMatch() takes care of those
 					}
 
-					this.matchFile(onResult, file, currentPath, relativeFilePath);
+					this.matchFile(onResult, currentPath, relativeFilePath);
 				}
 
 				// Unwind
@@ -211,8 +212,8 @@ export class FileWalker {
 		});
 	}
 
-	private matchFile(onResult: (result: ISerializedFileMatch) => void, basename: string, absolutePath: string, relativePath: string): void {
-		if (this.isFilePatternMatch(basename, relativePath) && (!this.includePattern || glob.match(this.includePattern, relativePath))) {
+	private matchFile(onResult: (result: ISerializedFileMatch) => void, absolutePath: string, relativePath: string): void {
+		if (this.isFilePatternMatch(relativePath) && (!this.includePattern || glob.match(this.includePattern, relativePath))) {
 			this.resultCount++;
 
 			if (this.maxResults && this.resultCount > this.maxResults) {
@@ -227,13 +228,11 @@ export class FileWalker {
 		}
 	}
 
-	private isFilePatternMatch(name: string, path: string): boolean {
+	private isFilePatternMatch(path: string): boolean {
 
 		// Check for search pattern
 		if (this.filePattern) {
-			const res = filters.matchesFuzzy(this.filePattern, this.matchFuzzy || this.searchInPath ? path : name, this.matchFuzzy);
-
-			return !!res && res.length > 0;
+			return scorer.matches(path, this.normalizedFilePatternLowercase);
 		}
 
 		// No patterns means we match all

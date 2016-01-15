@@ -58,7 +58,7 @@ export class Win32AutoUpdaterImpl extends events.EventEmitter {
 		this.emit('checking-for-update');
 
 		const proxyUrl = Settings.getValue('http.proxy');
-		const strictSSL = Settings.getValue('http.proxy.strictSSL', true);
+		const strictSSL = Settings.getValue('http.proxyStrictSSL', true);
 		const agent = getProxyAgent(this.url, { proxyUrl, strictSSL });
 
 		this.currentRequest = json<IUpdate>({ url: this.url, agent })
@@ -77,10 +77,11 @@ export class Win32AutoUpdaterImpl extends events.EventEmitter {
 								return TPromise.as(updatePackagePath);
 							}
 
+							const url = update.url;
 							const downloadPath = `${updatePackagePath}.tmp`;
-							const agent = getProxyAgent(update.url, { proxyUrl, strictSSL });
+							const agent = getProxyAgent(url, { proxyUrl, strictSSL });
 
-							return download(downloadPath, { url: update.url, agent })
+							return download(downloadPath, { url, agent, strictSSL })
 								.then(() => pfs.rename(downloadPath, updatePackagePath))
 								.then(() => updatePackagePath);
 						});

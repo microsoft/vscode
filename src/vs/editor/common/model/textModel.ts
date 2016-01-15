@@ -124,6 +124,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements EditorCommo
 			range: new Range(startLineNumber, startColumn, endLineNumber, endColumn),
 			rangeLength: rangeLength,
 			text: text,
+			eol: this._EOL,
 			versionId: this.getVersionId(),
 			isUndoing: isUndoing,
 			isRedoing: isRedoing

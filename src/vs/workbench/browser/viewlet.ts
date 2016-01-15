@@ -11,7 +11,7 @@ import {Registry} from 'vs/platform/platform';
 import {Dimension, Builder, $} from 'vs/base/browser/builder';
 import {IAction, IActionRunner, Action, ActionRunner} from 'vs/base/common/actions';
 import {IActionItem, ActionsOrientation} from 'vs/base/browser/ui/actionbar/actionbar';
-import {ITree, IFocusEvent, ISelectionEvent} from 'vs/base/parts/tree/common/tree';
+import {ITree, IFocusEvent, ISelectionEvent} from 'vs/base/parts/tree/browser/tree';
 import {prepareActions} from 'vs/workbench/browser/actionBarRegistry';
 import {ToolBar} from 'vs/base/browser/ui/toolbar/toolbar';
 import {DelayedDragHandler} from 'vs/base/browser/dnd';

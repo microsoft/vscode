@@ -6,7 +6,6 @@
 'use strict';
 
 import 'vs/css!./media/workbench';
-import 'vs/css!./media/octicons/octicons';
 import {TPromise, Promise, ValueCallback} from 'vs/base/common/winjs.base';
 import types = require('vs/base/common/types');
 import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';

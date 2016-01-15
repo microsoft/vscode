@@ -52,7 +52,7 @@ export interface IDataSource<T> {
 }
 
 /**
- * See vs/base/parts/tree/common/tree.ts - IRenderer
+ * See vs/base/parts/tree/browser/tree.ts - IRenderer
  */
 export interface IRenderer<T> {
 	getHeight(entry: T): number;

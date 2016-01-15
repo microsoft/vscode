@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {ITree, IElementCallback} from 'vs/base/parts/tree/common/tree';
 import {TPromise} from 'vs/base/common/winjs.base';
 import Event from 'vs/base/common/event';
 import {IQuickNavigateConfiguration, IAutoFocus} from 'vs/base/parts/quickopen/common/quickOpen';
@@ -15,11 +14,7 @@ export interface IPickOpenEntry {
 	id?: string;
 	label: string;
 	description?: string;
-}
-
-export interface IPickOpenEntryItem extends IPickOpenEntry {
-	height?: number;
-	render?: (tree: ITree, container: HTMLElement, previousCleanupFn: IElementCallback) => IElementCallback;
+	detail?: string;
 }
 
 export interface IPickOptions {
@@ -38,6 +33,11 @@ export interface IPickOptions {
 	 * an optional flag to include the description when filtering the picks
 	 */
 	matchOnDescription?: boolean;
+
+	/**
+	 * an optional flag to include the detail when filtering the picks
+	 */
+	matchOnDetail?: boolean;
 }
 
 export interface IInputOptions {
@@ -61,6 +61,11 @@ export interface IInputOptions {
 	 * set to true to show a password prompt that will not show the typed value
 	 */
 	password?: boolean;
+
+	/**
+	 * an optional function that is used to validate user input.
+	 */
+	validateInput?: (input: string) => TPromise<string>;
 }
 
 export var IQuickOpenService = createDecorator<IQuickOpenService>('quickOpenService');

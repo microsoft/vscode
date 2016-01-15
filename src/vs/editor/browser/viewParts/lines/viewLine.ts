@@ -56,7 +56,7 @@ class VisibleRange implements EditorBrowser.IVisibleRange {
 
 class ViewLine implements IViewLineData {
 
-	private _context:EditorBrowser.IViewContext;
+	protected _context:EditorBrowser.IViewContext;
 	private _domNode: HTMLElement;
 
 	private _lineParts: ILineParts;
@@ -192,7 +192,7 @@ class ViewLine implements IViewLineData {
 
 	// --- Reading from the DOM methods
 
-	private _getReadingTarget(): HTMLElement {
+	protected _getReadingTarget(): HTMLElement {
 		return <HTMLSpanElement>this._domNode.firstChild;
 	}
 
@@ -329,7 +329,7 @@ class ViewLine implements IViewLineData {
 			endChildIndex = Math.min(max, Math.max(min, endChildIndex));
 
 			// If crossing over to a span only to select offset 0, then use the previous span's maximum offset
-			// Chrome is stupid and doesn't handle 0 offsets well sometimes.
+			// Chrome is buggy and doesn't handle 0 offsets well sometimes.
 			if (startChildIndex !== endChildIndex) {
 				if (endChildIndex > 0 && endOffset === 0) {
 					endChildIndex--;
@@ -500,11 +500,18 @@ class WebKitViewLine extends ViewLine {
 	public _readVisibleRangesForRange(lineNumber:number, startColumn:number, endColumn:number, deltaTop:number, correctionTop:number, deltaLeft:number, endNode:HTMLElement): EditorBrowser.IVisibleRange[] {
 		var output = super._readVisibleRangesForRange(lineNumber, startColumn, endColumn, deltaTop, correctionTop, deltaLeft, endNode);
 
+		if (this._context.configuration.editor.fontLigatures && endColumn > 1 && startColumn === endColumn && endColumn === this._charOffsetInPart.length) {
+			if (output.length === 1) {
+				let lastSpanBoundingClientRect = (<HTMLElement>this._getReadingTarget().lastChild).getBoundingClientRect();
+				output[0].left = lastSpanBoundingClientRect.right - deltaLeft;
+			}
+		}
+
 		if (!output || output.length === 0 || startColumn === endColumn || (startColumn === 1 && endColumn === this._charOffsetInPart.length)) {
 			return output;
 		}
 
-		// WebKit is stupid and returns an expanded range (to contain words in some cases)
+		// WebKit is buggy and returns an expanded range (to contain words in some cases)
 		// The last client rect is enlarged (I think)
 
 		// This is an attempt to patch things up
@@ -533,7 +540,7 @@ class RangeUtil {
 
 	/**
 	 * Reusing the same range here
-	 * because IE is stupid and constantly freezes when using a large number
+	 * because IE is buggy and constantly freezes when using a large number
 	 * of ranges and calling .detach on them
 	 */
 	private static _handyReadyRange:Range;

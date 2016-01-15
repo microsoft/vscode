@@ -4,16 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
-import Objects = require('vs/base/common/objects');
-import {EventEmitter} from 'vs/base/common/eventEmitter';
-import Strings = require('vs/base/common/strings');
+import * as nls from 'vs/nls';
+import * as Objects from 'vs/base/common/objects';
+import Event, {Emitter} from 'vs/base/common/event';
+import * as Strings from 'vs/base/common/strings';
 import {Registry} from 'vs/platform/platform';
 import ConfigurationRegistry = require('vs/platform/configuration/common/configurationRegistry');
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 import {DefaultConfig} from 'vs/editor/common/config/defaultConfig';
 import {HandlerDispatcher} from 'vs/editor/common/controller/handlerDispatcher';
 import {EditorLayoutProvider} from 'vs/editor/common/viewLayout/editorLayoutProvider';
+import {Disposable} from 'vs/base/common/lifecycle';
 
 export class ConfigurationWithDefaults {
 
@@ -143,6 +144,7 @@ class InternalEditorOptionsHelper {
 			overviewRulerLanes: toInteger(opts.overviewRulerLanes, 0, 3),
 			cursorBlinking: opts.cursorBlinking,
 			cursorStyle: opts.cursorStyle,
+			fontLigatures: toBoolean(opts.fontLigatures),
 			hideCursorInOverviewRuler: toBoolean(opts.hideCursorInOverviewRuler),
 			scrollBeyondLastLine: toBoolean(opts.scrollBeyondLastLine),
 			wrappingIndent: opts.wrappingIndent,
@@ -193,8 +195,8 @@ class InternalEditorOptionsHelper {
 	}
 
 	private static _sanitizeScrollbarOpts(raw:EditorCommon.IEditorScrollbarOptions, mouseWheelScrollSensitivity:number): EditorCommon.IInternalEditorScrollbarOptions {
-		var horizontalScrollbarSize = toIntegerWithDefault(raw.horizontalScrollbarSize, 10);
-		var verticalScrollbarSize = toIntegerWithDefault(raw.verticalScrollbarSize, 14);
+		let horizontalScrollbarSize = toIntegerWithDefault(raw.horizontalScrollbarSize, 10);
+		let verticalScrollbarSize = toIntegerWithDefault(raw.verticalScrollbarSize, 14);
 		return {
 			vertical: toStringSet(raw.vertical, ['auto', 'visible', 'hidden'], 'auto'),
 			horizontal: toStringSet(raw.horizontal, ['auto', 'visible', 'hidden'], 'auto'),
@@ -240,6 +242,7 @@ class InternalEditorOptionsHelper {
 			overviewRulerLanes:				(prevOpts.overviewRulerLanes !== newOpts.overviewRulerLanes),
 			cursorBlinking:					(prevOpts.cursorBlinking !== newOpts.cursorBlinking),
 			cursorStyle:					(prevOpts.cursorStyle !== newOpts.cursorStyle),
+			fontLigatures:					(prevOpts.fontLigatures !== newOpts.fontLigatures),
 			hideCursorInOverviewRuler:		(prevOpts.hideCursorInOverviewRuler !== newOpts.hideCursorInOverviewRuler),
 			scrollBeyondLastLine:			(prevOpts.scrollBeyondLastLine !== newOpts.scrollBeyondLastLine),
 			wrappingIndent:					(prevOpts.wrappingIndent !== newOpts.wrappingIndent),
@@ -327,7 +330,7 @@ function toBooleanWithDefault(value:any, defaultValue:boolean): boolean {
 }
 
 function toFloat(source: any, defaultValue: number): number {
-	var r = parseFloat(source);
+	let r = parseFloat(source);
 	if (isNaN(r)) {
 		r = defaultValue;
 	}
@@ -335,7 +338,7 @@ function toFloat(source: any, defaultValue: number): number {
 }
 
 function toInteger(source:any, minimum?:number, maximum?:number): number {
-	var r = parseInt(source, 10);
+	let r = parseInt(source, 10);
 	if (isNaN(r)) {
 		r = 0;
 	}
@@ -376,7 +379,7 @@ export interface IIndentationGuesser {
 	(tabSize:number): EditorCommon.IGuessedIndentation;
 }
 
-export class CommonEditorConfiguration extends EventEmitter implements EditorCommon.IConfiguration {
+export abstract class CommonEditorConfiguration extends Disposable implements EditorCommon.IConfiguration {
 
 	public handlerDispatcher:EditorCommon.IHandlerDispatcher;
 	public editor:EditorCommon.IInternalEditorOptions;
@@ -388,10 +391,11 @@ export class CommonEditorConfiguration extends EventEmitter implements EditorCom
 	private _isDominatedByLongLines:boolean;
 	private _lineCount:number;
 
+	private _onDidChange = this._register(new Emitter<EditorCommon.IConfigurationChangedEvent>());
+	public onDidChange: Event<EditorCommon.IConfigurationChangedEvent> = this._onDidChange.event;
+
 	constructor(options:any, indentationGuesser:IIndentationGuesser = null) {
-		super([
-			EditorCommon.EventType.ConfigurationChanged
-		]);
+		super();
 		this._configWithDefaults = new ConfigurationWithDefaults(options);
 		this._indentationGuesser = indentationGuesser;
 		this._cachedGuessedIndentationTabSize = -1;
@@ -425,7 +429,7 @@ export class CommonEditorConfiguration extends EventEmitter implements EditorCom
 		}
 
 		if (hasChanged) {
-			this.emit(EditorCommon.EventType.ConfigurationChanged, changeEvent);
+			this._onDidChange.fire(changeEvent);
 		}
 	}
 
@@ -436,7 +440,7 @@ export class CommonEditorConfiguration extends EventEmitter implements EditorCom
 	private _computeInternalOptions(): EditorCommon.IInternalEditorOptions {
 		let opts = this._configWithDefaults.getEditorOptions();
 
-		let editorClassName = this._getEditorClassName(opts.theme);
+		let editorClassName = this._getEditorClassName(opts.theme, toBoolean(opts.fontLigatures));
 		let requestedFontFamily = opts.fontFamily || '';
 		let requestedFontSize = toInteger(opts.fontSize, 0, 100);
 		let requestedLineHeight = toInteger(opts.lineHeight, 0, 150);
@@ -467,10 +471,6 @@ export class CommonEditorConfiguration extends EventEmitter implements EditorCom
 	public updateOptions(newOptions:EditorCommon.IEditorOptions): void {
 		this._configWithDefaults.updateOptions(newOptions);
 		this._recomputeOptions();
-	}
-
-	protected _getEditorClassName(theme:string): string {
-		return 'monaco-editor';
 	}
 
 	public setIsDominatedByLongLines(isDominatedByLongLines:boolean): void {
@@ -554,7 +554,7 @@ export class CommonEditorConfiguration extends EventEmitter implements EditorCom
 	}
 
 	private _normalizeIndentationFromWhitespace(str:string): string {
-		var indentation = this.getIndentationOptions(),
+		let indentation = this.getIndentationOptions(),
 			spacesCnt = 0,
 			i:number;
 
@@ -566,9 +566,9 @@ export class CommonEditorConfiguration extends EventEmitter implements EditorCom
 			}
 		}
 
-		var result = '';
+		let result = '';
 		if (!indentation.insertSpaces) {
-			var tabsCnt = Math.floor(spacesCnt / indentation.tabSize);
+			let tabsCnt = Math.floor(spacesCnt / indentation.tabSize);
 			spacesCnt = spacesCnt % indentation.tabSize;
 			for (i = 0; i < tabsCnt; i++) {
 				result += '\t';
@@ -583,7 +583,7 @@ export class CommonEditorConfiguration extends EventEmitter implements EditorCom
 	}
 
 	public normalizeIndentation(str:string): string {
-		var firstNonWhitespaceIndex = Strings.firstNonWhitespaceIndex(str);
+		let firstNonWhitespaceIndex = Strings.firstNonWhitespaceIndex(str);
 		if (firstNonWhitespaceIndex === -1) {
 			firstNonWhitespaceIndex = str.length;
 		}
@@ -591,10 +591,10 @@ export class CommonEditorConfiguration extends EventEmitter implements EditorCom
 	}
 
 	public getOneIndent(): string {
-		var indentation = this.getIndentationOptions();
+		let indentation = this.getIndentationOptions();
 		if (indentation.insertSpaces) {
-			var result = '';
-			for (var i = 0; i < indentation.tabSize; i++) {
+			let result = '';
+			for (let i = 0; i < indentation.tabSize; i++) {
 				result += ' ';
 			}
 			return result;
@@ -603,19 +603,13 @@ export class CommonEditorConfiguration extends EventEmitter implements EditorCom
 		}
 	}
 
-	protected getOuterWidth(): number {
-		throw new Error('Not implemented');
-	}
+	protected abstract _getEditorClassName(theme:string, fontLigatures:boolean): string;
 
-	protected getOuterHeight(): number {
-		throw new Error('Not implemented');
-	}
+	protected abstract getOuterWidth(): number;
 
-	protected readConfiguration(editorClassName: string, fontFamily: string, fontSize: number, lineHeight: number): ICSSConfig {
-		throw new Error('Not implemented');
-	}
+	protected abstract getOuterHeight(): number;
 
-
+	protected abstract readConfiguration(editorClassName: string, fontFamily: string, fontSize: number, lineHeight: number): ICSSConfig;
 }
 
 /**
@@ -635,24 +629,24 @@ export class EditorConfiguration {
 			return;
 		}
 
-		var editors:EditorCommon.IEditor[] = editorOrArray;
+		let editors:EditorCommon.IEditor[] = editorOrArray;
 		if (!Array.isArray(editorOrArray)) {
 			editors = [editorOrArray];
 		}
 
-		for (var i = 0; i < editors.length; i++) {
-			var editor = editors[i];
+		for (let i = 0; i < editors.length; i++) {
+			let editor = editors[i];
 
 			// Editor Settings (Code Editor, Diff, Terminal)
 			if (editor && typeof editor.updateOptions === 'function') {
-				var type = editor.getEditorType();
+				let type = editor.getEditorType();
 				if (type !== EditorCommon.EditorType.ICodeEditor && type !== EditorCommon.EditorType.IDiffEditor) {
 					continue;
 				}
 
-				var editorConfig = config[EditorConfiguration.EDITOR_SECTION];
+				let editorConfig = config[EditorConfiguration.EDITOR_SECTION];
 				if (type === EditorCommon.EditorType.IDiffEditor) {
-					var diffEditorConfig = config[EditorConfiguration.DIFF_EDITOR_SECTION];
+					let diffEditorConfig = config[EditorConfiguration.DIFF_EDITOR_SECTION];
 					if (diffEditorConfig) {
 						if (!editorConfig) {
 							editorConfig = diffEditorConfig;
@@ -671,7 +665,7 @@ export class EditorConfiguration {
 	}
 }
 
-var configurationRegistry = <ConfigurationRegistry.IConfigurationRegistry>Registry.as(ConfigurationRegistry.Extensions.Configuration);
+let configurationRegistry = <ConfigurationRegistry.IConfigurationRegistry>Registry.as(ConfigurationRegistry.Extensions.Configuration);
 configurationRegistry.registerConfiguration({
 	'id': 'editor',
 	'order': 5,
@@ -809,6 +803,11 @@ configurationRegistry.registerConfiguration({
 			'enum': ['block', 'line'],
 			'default': DefaultConfig.editor.cursorStyle,
 			'description': nls.localize('cursorStyle', "Controls the cursor style, accepted values are 'block' and 'line'")
+		},
+		'editor.fontLigatures' : {
+			'type': 'boolean',
+			'default': DefaultConfig.editor.fontLigatures,
+			'description': nls.localize('fontLigatures', "Enables font ligatures")
 		},
 		'editor.hideCursorInOverviewRuler' : {
 			'type': 'boolean',

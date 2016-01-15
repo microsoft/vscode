@@ -108,7 +108,7 @@ export class ActivitybarPart extends Part implements IActivityService {
 		this.createViewletSwitcher($result.clone());
 
 		// Bottom Toolbar with action items for global actions
-		this.createGlobalToolBarArea($result.clone());
+		// this.createGlobalToolBarArea($result.clone()); // not used currently
 
 		return $result;
 	}
@@ -117,9 +117,9 @@ export class ActivitybarPart extends Part implements IActivityService {
 
 		// Viewlet switcher is on top
 		this.viewletSwitcherBar = new ActionBar(div, {
-			actionItemProvider: (action: Action) => this.activityActionItems[action.id]
+			actionItemProvider: (action: Action) => this.activityActionItems[action.id],
+			disableTabIndex: true // we handle this
 		});
-		this.viewletSwitcherBar.getContainer().removeAttribute('tabindex');
 		this.viewletSwitcherBar.getContainer().addClass('position-top');
 
 		// Build Viewlet Actions in correct order

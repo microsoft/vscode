@@ -6,36 +6,43 @@
 
 import {TPromise} from 'vs/base/common/winjs.base';
 import {Remotable, IThreadService} from 'vs/platform/thread/common/thread';
-import {IQuickOpenService, IPickOpenEntryItem, IPickOptions} from 'vs/workbench/services/quickopen/common/quickOpenService';
+import {IQuickOpenService, IPickOpenEntry, IPickOptions, IInputOptions} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {QuickPickOptions, QuickPickItem, InputBoxOptions} from 'vscode';
 
-export interface MyQuickPickItems extends IPickOpenEntryItem {
+export interface MyQuickPickItems extends IPickOpenEntry {
 	handle: number;
 }
 
 export type Item = string | QuickPickItem;
 
+@Remotable.PluginHostContext('ExtHostQuickOpen')
 export class ExtHostQuickOpen {
 
 	private _proxy: MainThreadQuickOpen;
+	private _onDidSelectItem: (handle: number) => void;
+	private _validateInput: (input: string) => string;
 
 	constructor(@IThreadService threadService: IThreadService) {
 		this._proxy = threadService.getRemotable(MainThreadQuickOpen);
 	}
 
-	show(items: Item[] | Thenable<Item[]>, options?: QuickPickOptions): Thenable<Item> {
+	show(itemsOrItemsPromise: Item[] | Thenable<Item[]>, options?: QuickPickOptions): Thenable<Item> {
+
+		// clear state from last invocation
+		this._onDidSelectItem = undefined;
 
 		let itemsPromise: Thenable<Item[]>;
-		if (!Array.isArray(items)) {
-			itemsPromise = items;
+		if (!Array.isArray(itemsOrItemsPromise)) {
+			itemsPromise = itemsOrItemsPromise;
 		} else {
-			itemsPromise = TPromise.as(items);
+			itemsPromise = TPromise.as(itemsOrItemsPromise);
 		}
 
-		let quickPickWidget = this._proxy._show({
+		let quickPickWidget = this._proxy.$show({
 			autoFocus: { autoFocusFirstEntry: true },
 			placeHolder: options && options.placeHolder,
-			matchOnDescription: options && options.matchOnDescription
+			matchOnDescription: options && options.matchOnDescription,
+			matchOnDetail: options && options.matchOnDetail
 		});
 
 		return itemsPromise.then(items => {
@@ -46,21 +53,32 @@ export class ExtHostQuickOpen {
 				let item = items[handle];
 				let label: string;
 				let description: string;
+				let detail: string;
 
 				if (typeof item === 'string') {
 					label = item;
 				} else {
 					label = item.label;
 					description = item.description;
+					detail = item.detail;
 				}
 				pickItems.push({
 					label,
 					description,
-					handle
+					handle,
+					detail
 				});
 			}
 
-			this._proxy._setItems(pickItems);
+			// handle selection changes
+			if (options && typeof options.onDidSelectItem === 'function') {
+				this._onDidSelectItem = (handle) => {
+					options.onDidSelectItem(items[handle]);
+				}
+			}
+
+			// show items
+			this._proxy.$setItems(pickItems);
 
 			return quickPickWidget.then(handle => {
 				if (typeof handle === 'number') {
@@ -68,31 +86,48 @@ export class ExtHostQuickOpen {
 				}
 			});
 		}, (err) => {
-			this._proxy._setError(err);
+			this._proxy.$setError(err);
 
 			return TPromise.wrapError(err);
 		});
 	}
 
+	$onItemSelected(handle: number): void {
+		if (this._onDidSelectItem) {
+			this._onDidSelectItem(handle);
+		}
+	}
+
+	// ---- input
+
 	input(options?: InputBoxOptions): Thenable<string> {
-		return this._proxy._input(options);
+		this._validateInput = options.validateInput;
+		return this._proxy.$input(options, typeof options.validateInput === 'function');
+	}
+
+	$validateInput(input: string): TPromise<string> {
+		if (this._validateInput) {
+			return TPromise.as(this._validateInput(input));
+		}
 	}
 }
 
 @Remotable.MainContext('MainThreadQuickOpen')
 export class MainThreadQuickOpen {
 
+	private _proxy: ExtHostQuickOpen;
 	private _quickOpenService: IQuickOpenService;
 	private _doSetItems: (items: MyQuickPickItems[]) => any;
 	private _doSetError: (error: Error) => any;
 	private _contents: TPromise<MyQuickPickItems[]>;
-	private _token = 0;
+	private _token: number = 0;
 
-	constructor(@IQuickOpenService quickOpenService: IQuickOpenService) {
+	constructor( @IThreadService threadService: IThreadService, @IQuickOpenService quickOpenService: IQuickOpenService) {
+		this._proxy = threadService.getRemotable(ExtHostQuickOpen);
 		this._quickOpenService = quickOpenService;
 	}
 
-	_show(options: IPickOptions): Thenable<number> {
+	$show(options: IPickOptions): Thenable<number> {
 
 		const myToken = ++this._token;
 
@@ -114,24 +149,46 @@ export class MainThreadQuickOpen {
 			if (item) {
 				return item.handle;
 			}
+		}, undefined, progress => {
+			if (progress) {
+				this._proxy.$onItemSelected((<MyQuickPickItems>progress).handle);
+			}
 		});
 	}
 
-	_setItems(items: MyQuickPickItems[]): Thenable<any> {
+	$setItems(items: MyQuickPickItems[]): Thenable<any> {
 		if (this._doSetItems) {
 			this._doSetItems(items);
 			return;
 		}
 	}
 
-	_setError(error: Error): Thenable<any> {
+	$setError(error: Error): Thenable<any> {
 		if (this._doSetError) {
 			this._doSetError(error);
 			return;
 		}
 	}
 
-	_input(options?: InputBoxOptions): Thenable<string> {
-		return this._quickOpenService.input(options);
+	// ---- input
+
+	$input(options: InputBoxOptions, validateInput: boolean): Thenable<string> {
+
+		const inputOptions: IInputOptions = Object.create(null);
+
+		if (options) {
+			inputOptions.password = options.password;
+			inputOptions.placeHolder = options.placeHolder;
+			inputOptions.prompt = options.prompt;
+			inputOptions.value = options.value;
+		}
+
+		if (validateInput) {
+			inputOptions.validateInput = (value) => {
+				return this._proxy.$validateInput(value);
+			}
+		}
+
+		return this._quickOpenService.input(inputOptions);
 	}
 }

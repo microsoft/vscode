@@ -10,7 +10,7 @@ import WinJS = require('vs/base/common/winjs.base');
 import TreeView = require('vs/base/parts/tree/browser/treeView');
 import Tree = require('vs/base/parts/tree/browser/treeImpl');
 import { ArrayIterator } from 'vs/base/common/iterator';
-import { HeightMap, IViewItem } from 'vs/base/parts/tree/common/treeViewModel';
+import { HeightMap, IViewItem } from 'vs/base/parts/tree/browser/treeViewModel';
 
 function makeItem(id, height):any {
 	return {

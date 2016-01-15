@@ -13,7 +13,7 @@ import * as dom from 'vs/base/browser/dom';
 import * as nls from 'vs/nls';
 import {ICommonCodeEditor, IEditorViewState} from 'vs/editor/common/editorCommon';
 import {PathLabelProvider} from 'vs/base/common/labels';
-import {ITree, IElementCallback} from 'vs/base/parts/tree/common/tree';
+import {ITree, IElementCallback} from 'vs/base/parts/tree/browser/tree';
 import Severity from 'vs/base/common/severity';
 import {QuickOpenHandler} from 'vs/workbench/browser/quickopen';
 import {QuickOpenAction} from 'vs/workbench/browser/actions/quickOpenAction';

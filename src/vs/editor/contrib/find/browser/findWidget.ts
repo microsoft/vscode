@@ -64,7 +64,6 @@ export class FindWidget extends Widget implements EditorBrowser.IOverlayWidget {
 	private _replaceBtn: SimpleButton;
 	private _replaceAllBtn: SimpleButton;
 
-	private _isReplaceEnabled: boolean;
 	private _isVisible: boolean;
 	private _isReplaceVisible: boolean;
 
@@ -86,28 +85,29 @@ export class FindWidget extends Widget implements EditorBrowser.IOverlayWidget {
 
 		this._isVisible = false;
 		this._isReplaceVisible = false;
-		this._isReplaceEnabled = false;
 
 		this._register(this._state.addChangeListener((e) => this._onStateChanged(e)));
 
 		this._buildDomNode();
+		this._updateButtons();
 
 		this.focusTracker = this._register(DomUtils.trackFocus(this._findInput.inputBox.inputElement));
 		this.focusTracker.addFocusListener(() => this._reseedFindScope());
 
-		let updateCanReplace = () => {
-			let canReplace = !this._codeEditor.getConfiguration().readOnly;
-			DomUtils.toggleClass(this._domNode, 'can-replace', canReplace);
-			if (!canReplace) {
-				this._state.change({ isReplaceRevealed: false }, false);
-			}
-		};
 		this._register(this._codeEditor.addListener2(EditorCommon.EventType.ConfigurationChanged, (e:EditorCommon.IConfigurationChangedEvent) => {
 			if (e.readOnly) {
-				updateCanReplace();
+				if (this._codeEditor.getConfiguration().readOnly) {
+					// Hide replace part if editor becomes read only
+					this._state.change({ isReplaceRevealed: false }, false);
+				}
+				this._updateButtons();
 			}
 		}));
-		updateCanReplace();
+		this._register(this._codeEditor.addListener2(EditorCommon.EventType.CursorSelectionChanged, () => {
+			if (this._isVisible) {
+				this._updateToggleSelectionFindButton();
+			}
+		}));
 
 		this._codeEditor.addOverlayWidget(this);
 	}
@@ -144,12 +144,7 @@ export class FindWidget extends Widget implements EditorBrowser.IOverlayWidget {
 	private _onStateChanged(e:FindReplaceStateChangedEvent): void {
 		if (e.searchString) {
 			this._findInput.setValue(this._state.searchString);
-
-			let findInputIsNonEmpty = (this._state.searchString.length > 0);
-			this._prevBtn.setEnabled(findInputIsNonEmpty);
-			this._nextBtn.setEnabled(findInputIsNonEmpty);
-			this._replaceBtn.setEnabled(findInputIsNonEmpty);
-			this._replaceAllBtn.setEnabled(findInputIsNonEmpty);
+			this._updateButtons();
 		}
 		if (e.replaceString) {
 			this._replaceInputBox.value = this._state.replaceString;
@@ -163,9 +158,15 @@ export class FindWidget extends Widget implements EditorBrowser.IOverlayWidget {
 		}
 		if (e.isReplaceRevealed) {
 			if (this._state.isReplaceRevealed) {
-				this._enableReplace();
+				if (!this._codeEditor.getConfiguration().readOnly && !this._isReplaceVisible) {
+					this._isReplaceVisible = true;
+					this._updateButtons();
+				}
 			} else {
-				this._disableReplace();
+				if (this._isReplaceVisible) {
+					this._isReplaceVisible = false;
+					this._updateButtons();
+				}
 			}
 		}
 		if (e.isRegex) {
@@ -206,6 +207,74 @@ export class FindWidget extends Widget implements EditorBrowser.IOverlayWidget {
 		}
 	}
 
+	// ----- actions
+
+	/**
+	 * If 'selection find' is ON we should not disable the button (its function is to cancel 'selection find').
+	 * If 'selection find' is OFF we enable the button only if there is a multi line selection.
+	 */
+	private _updateToggleSelectionFindButton(): void {
+		let selection = this._codeEditor.getSelection();
+		let isMultiLineSelection = selection ? (selection.startLineNumber !== selection.endLineNumber) : false;
+		let isChecked = this._toggleSelectionFind.checked;
+
+		this._toggleSelectionFind.setEnabled(this._isVisible && (isChecked || isMultiLineSelection));
+	}
+
+	private _updateButtons(): void {
+		this._findInput.setEnabled(this._isVisible);
+		this._replaceInputBox.setEnabled(this._isVisible && this._isReplaceVisible);
+		this._updateToggleSelectionFindButton();
+		this._closeBtn.setEnabled(this._isVisible);
+
+		let findInputIsNonEmpty = (this._state.searchString.length > 0);
+		this._prevBtn.setEnabled(this._isVisible && findInputIsNonEmpty);
+		this._nextBtn.setEnabled(this._isVisible && findInputIsNonEmpty);
+		this._replaceBtn.setEnabled(this._isVisible && this._isReplaceVisible && findInputIsNonEmpty);
+		this._replaceAllBtn.setEnabled(this._isVisible && this._isReplaceVisible && findInputIsNonEmpty);
+
+		DomUtils.toggleClass(this._domNode, 'replaceToggled', this._isReplaceVisible);
+		this._toggleReplaceBtn.toggleClass('collapse', !this._isReplaceVisible);
+		this._toggleReplaceBtn.toggleClass('expand', this._isReplaceVisible);
+		this._toggleReplaceBtn.setExpanded(this._isReplaceVisible);
+
+		let canReplace = !this._codeEditor.getConfiguration().readOnly;
+		this._toggleReplaceBtn.setEnabled(this._isVisible && canReplace);
+	}
+
+	private _reveal(animate:boolean): void {
+		if (!this._isVisible) {
+			this._isVisible = true;
+
+			this._updateButtons();
+
+			setTimeout(() => {
+				DomUtils.addClass(this._domNode, 'visible');
+				if (!animate) {
+					DomUtils.addClass(this._domNode, 'noanimation');
+					setTimeout(() => {
+						DomUtils.removeClass(this._domNode, 'noanimation');
+					}, 200);
+				}
+			}, 0);
+			this._codeEditor.layoutOverlayWidget(this);
+		}
+	}
+
+	private _hide(focusTheEditor:boolean): void {
+		if (this._isVisible) {
+			this._isVisible = false;
+
+			this._updateButtons();
+
+			DomUtils.removeClass(this._domNode, 'visible');
+			if (focusTheEditor) {
+				this._codeEditor.focus();
+			}
+			this._codeEditor.layoutOverlayWidget(this);
+		}
+	}
+
 	// ----- Public
 
 	public focusFindInput(): void {
@@ -218,30 +287,6 @@ export class FindWidget extends Widget implements EditorBrowser.IOverlayWidget {
 		this._replaceInputBox.select();
 		// Edge browser requires focus() in addition to select()
 		this._replaceInputBox.focus();
-	}
-
-	private _enableReplace(): void {
-		this._isReplaceEnabled = true;
-		if (!this._codeEditor.getConfiguration().readOnly && !this._isReplaceVisible) {
-			this._replaceInputBox.enable();
-			this._isReplaceVisible = true;
-			DomUtils.addClass(this._domNode, 'replaceToggled');
-			this._toggleReplaceBtn.toggleClass('collapse', false);
-			this._toggleReplaceBtn.toggleClass('expand', true);
-			this._toggleReplaceBtn.setExpanded(true);
-		}
-	}
-
-	private _disableReplace(): void {
-		this._isReplaceEnabled = false;
-		if (this._isReplaceVisible) {
-			this._replaceInputBox.disable();
-			DomUtils.removeClass(this._domNode, 'replaceToggled');
-			this._toggleReplaceBtn.toggleClass('expand', false);
-			this._toggleReplaceBtn.toggleClass('collapse', true);
-			this._toggleReplaceBtn.setExpanded(false);
-			this._isReplaceVisible = false;
-		}
 	}
 
 	private _onFindInputKeyDown(e:DomUtils.IKeyboardEvent): void {
@@ -363,8 +408,6 @@ export class FindWidget extends Widget implements EditorBrowser.IOverlayWidget {
 			}
 		}));
 
-		this._findInput.disable();
-
 		// Previous button
 		this._prevBtn = this._register(new SimpleButton({
 			label: NLS_PREVIOUS_MATCH_BTN_LABEL + this._keybindingLabelFor(FIND_IDS.PreviousMatchFindAction),
@@ -403,11 +446,6 @@ export class FindWidget extends Widget implements EditorBrowser.IOverlayWidget {
 				}
 			}
 		}));
-		this._toggleSelectionFind.disable();
-
-		this._codeEditor.addListener(EditorCommon.EventType.CursorSelectionChanged, () => {
-			this._updateToggleSelectionFindButton();
-		});
 
 		// Close button
 		this._closeBtn = this._register(new SimpleButton({
@@ -435,26 +473,6 @@ export class FindWidget extends Widget implements EditorBrowser.IOverlayWidget {
 		return findPart;
 	}
 
-	/**
-	 * If 'selection find' is ON we should not disable the button (its function is to cancel 'selection find').
-	 * If 'selection find' is OFF we enable the button only if there is a multi line selection.
-	 */
-	private _updateToggleSelectionFindButton(): void {
-		if (!this._isVisible) {
-			return;
-		}
-
-		if (!this._toggleSelectionFind.checked) {
-			let selection = this._codeEditor.getSelection();
-
-			if (selection.startLineNumber === selection.endLineNumber) {
-				this._toggleSelectionFind.disable();
-			} else {
-				this._toggleSelectionFind.enable();
-			}
-		}
-	}
-
 	private _buildReplacePart(): HTMLElement {
 		// Replace input
 		let replaceInput = document.createElement('div');
@@ -466,7 +484,6 @@ export class FindWidget extends Widget implements EditorBrowser.IOverlayWidget {
 		}));
 
 		this._register(DomUtils.addStandardDisposableListener(this._replaceInputBox.inputElement, 'keydown', (e) => this._onReplaceInputKeyDown(e)));
-		this._replaceInputBox.disable();
 
 		// Replace one button
 		this._replaceBtn = this._register(new SimpleButton({
@@ -531,59 +548,6 @@ export class FindWidget extends Widget implements EditorBrowser.IOverlayWidget {
 		this._domNode.appendChild(findPart);
 		this._domNode.appendChild(replacePart);
 	}
-
-	// ----- actions
-
-	private _reveal(animate:boolean): void {
-		if (!this._isVisible) {
-			this._findInput.enable();
-			if (this._isReplaceVisible) {
-				this._replaceInputBox.enable();
-			}
-
-			this._toggleSelectionFind.enable();
-			this._closeBtn.setEnabled(true);
-
-			let findInputIsNonEmpty = (this._state.searchString.length > 0);
-			this._prevBtn.setEnabled(findInputIsNonEmpty);
-			this._nextBtn.setEnabled(findInputIsNonEmpty);
-			this._replaceBtn.setEnabled(findInputIsNonEmpty);
-			this._replaceAllBtn.setEnabled(findInputIsNonEmpty);
-
-			this._isVisible = true;
-			setTimeout(() => {
-				DomUtils.addClass(this._domNode, 'visible');
-				if (!animate) {
-					DomUtils.addClass(this._domNode, 'noanimation');
-					setTimeout(() => {
-						DomUtils.removeClass(this._domNode, 'noanimation');
-					}, 200);
-				}
-			}, 0);
-			this._codeEditor.layoutOverlayWidget(this);
-		}
-	}
-
-	private _hide(focusTheEditor:boolean): void {
-		if (this._isVisible) {
-			this._findInput.disable();
-			this._replaceInputBox.disable();
-			this._toggleSelectionFind.disable();
-			this._closeBtn.setEnabled(false);
-
-			this._prevBtn.setEnabled(false);
-			this._nextBtn.setEnabled(false);
-			this._replaceBtn.setEnabled(false);
-			this._replaceAllBtn.setEnabled(false);
-
-			DomUtils.removeClass(this._domNode, 'visible');
-			this._isVisible = false;
-			if (focusTheEditor) {
-				this._codeEditor.focus();
-			}
-			this._codeEditor.layoutOverlayWidget(this);
-		}
-	}
 }
 
 interface ISimpleCheckboxOpts {
@@ -645,12 +609,20 @@ class SimpleCheckbox extends Widget {
 		this._checkbox.focus();
 	}
 
-	public enable(): void {
+	private enable(): void {
 		this._checkbox.removeAttribute('disabled');
 	}
 
-	public disable(): void {
+	private disable(): void {
 		this._checkbox.disabled = true;
+	}
+
+	public setEnabled(enabled:boolean): void {
+		if (enabled) {
+			this.enable();
+		} else {
+			this.disable();
+		}
 	}
 }
 

@@ -25,7 +25,7 @@ import {FileLabel} from 'vs/base/browser/ui/filelabel/fileLabel';
 import {FindInput} from 'vs/base/browser/ui/findinput/findInput';
 import {LeftRightWidget, IRenderer} from 'vs/base/browser/ui/leftRightWidget/leftRightWidget';
 import {CountBadge} from 'vs/base/browser/ui/countBadge/countBadge';
-import {ITree, IElementCallback, IFilter, ISorter, IDataSource} from 'vs/base/parts/tree/common/tree';
+import {ITree, IElementCallback, IFilter, ISorter, IDataSource} from 'vs/base/parts/tree/browser/tree';
 import {Tree} from 'vs/base/parts/tree/browser/treeImpl';
 import {ClickBehavior, DefaultController} from 'vs/base/parts/tree/browser/treeDefaults';
 import {ActionsRenderer} from 'vs/base/parts/tree/browser/actionsRenderer';

@@ -5,7 +5,7 @@
 
 import errors = require('vs/base/common/errors');
 import dom = require('vs/base/browser/dom');
-import { ITree } from 'vs/base/parts/tree/common/tree';
+import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { DefaultController, ICancelableEvent } from 'vs/base/parts/tree/browser/treeDefaults';
 import editorbrowser = require('vs/editor/browser/editorBrowser');

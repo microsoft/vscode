@@ -8,11 +8,11 @@
 import assert = require('assert');
 import lifecycle = require('vs/base/common/lifecycle');
 import ee = require('vs/base/common/eventEmitter');
-import _ = require('vs/base/parts/tree/common/tree');
+import _ = require('vs/base/parts/tree/browser/tree');
 import WinJS = require('vs/base/common/winjs.base');
 import Events = require('vs/base/common/eventEmitter');
-import model = require('vs/base/parts/tree/common/treeModel');
-import TreeDefaults = require('vs/base/parts/tree/common/treeDefaults');
+import model = require('vs/base/parts/tree/browser/treeModel');
+import TreeDefaults = require('vs/base/parts/tree/browser/treeDefaults');
 
 export class FakeRenderer {
 

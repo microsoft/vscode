@@ -14,7 +14,7 @@ import strings = require('vs/base/common/strings');
 import {IAction, Action} from 'vs/base/common/actions';
 import {toErrorMessage} from 'vs/base/common/errors';
 import {Mode, IContext, IAutoFocus} from 'vs/base/parts/quickopen/common/quickOpen';
-import {QuickOpenEntryGroup, IHighlight, QuickOpenModel} from 'vs/base/parts/quickopen/browser/quickOpenModel';
+import {QuickOpenEntryGroup, IHighlight, QuickOpenModel, QuickOpenEntry} from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import {SyncActionDescriptor, IActionsService} from 'vs/platform/actions/common/actions';
 import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/common/actionRegistry';
 import {Registry} from 'vs/platform/platform';
@@ -229,7 +229,7 @@ export class CommandsHandler extends QuickOpenHandler {
 		entries = arrays.distinct(entries, (entry) => entry.getLabel() + entry.getGroupLabel());
 
 		// Sort by name
-		entries = entries.sort(this.sort);
+		entries = entries.sort((elementA, elementB) => strings.localeCompare(elementA.getLabel().toLowerCase(), elementB.getLabel().toLowerCase()));
 
 		return TPromise.as(new QuickOpenModel(entries));
 	}
@@ -296,13 +296,6 @@ export class CommandsHandler extends QuickOpenHandler {
 		}
 
 		return entries;
-	}
-
-	private sort(elementA: QuickOpenEntryGroup, elementB: QuickOpenEntryGroup): number {
-		let elementAName = elementA.getLabel().toLowerCase();
-		let elementBName = elementB.getLabel().toLowerCase();
-
-		return strings.localeCompare(elementAName, elementBName);
 	}
 
 	public getAutoFocus(searchValue: string): IAutoFocus {
