@@ -4,38 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Browser = require('vs/base/browser/browser');
-import DomUtils = require('vs/base/browser/dom');
-
+import * as Browser from 'vs/base/browser/browser';
+import {StyleMutator} from 'vs/base/browser/dom';
 import {IVisibleLineData} from 'vs/editor/browser/view/viewLayer';
 import {ILineParts, createLineParts} from 'vs/editor/common/viewLayout/viewLineParts';
 import {ClassNames, IViewContext, HorizontalRange} from 'vs/editor/browser/editorBrowser';
-import EditorCommon = require('vs/editor/common/editorCommon');
+import {IModelDecoration, IConfigurationChangedEvent, ILineToken} from 'vs/editor/common/editorCommon';
 
-export interface IViewLineData extends IVisibleLineData {
-
-	/**
-	 * Width of the line in pixels
-	 */
-	getWidth(): number;
-
-	/**
-	 * Visible ranges for a model range
-	 */
-	getVisibleRangesForRange(startColumn:number, endColumn:number, endNode:HTMLElement): HorizontalRange[];
-
-	/**
-	 * Returns the column for the text found at a specific offset inside a rendered dom node
-	 */
-	getColumnOfNodeOffset(lineNumber:number, spanNode:HTMLElement, offset:number): number;
-
-	/**
-	 * Let the line know that decorations might have changed
-	 */
-	onModelDecorationsChanged(): void;
-}
-
-class ViewLine implements IViewLineData {
+export class ViewLine implements IVisibleLineData {
 
 	protected _context:IViewContext;
 	private _domNode: HTMLElement;
@@ -52,9 +28,7 @@ class ViewLine implements IViewLineData {
 
 	constructor(context:IViewContext) {
 		this._context = context;
-
 		this._domNode = null;
-
 		this._isInvalid = true;
 		this._isMaybeInvalid = false;
 		this._lineParts = null;
@@ -90,16 +64,22 @@ class ViewLine implements IViewLineData {
 	public onModelDecorationsChanged(): void {
 		this._isMaybeInvalid = true;
 	}
-	public onConfigurationChanged(e:EditorCommon.IConfigurationChangedEvent): void {
+	public onConfigurationChanged(e:IConfigurationChangedEvent): void {
 		this._isInvalid = true;
 	}
 
-	public shouldUpdateHTML(lineNumber:number, inlineDecorations:EditorCommon.IModelDecoration[]): boolean {
-		var newLineParts:ILineParts = null;
+	public shouldUpdateHTML(lineNumber:number, inlineDecorations:IModelDecoration[]): boolean {
+		let newLineParts:ILineParts = null;
 
 		if (this._isMaybeInvalid || this._isInvalid) {
 			// Compute new line parts only if there is some evidence that something might have changed
-			newLineParts = this._computeLineParts(lineNumber, inlineDecorations);
+			newLineParts = createLineParts(
+				lineNumber,
+				this._context.model.getLineContent(lineNumber),
+				this._context.model.getLineTokens(lineNumber),
+				inlineDecorations,
+				this._context.configuration.editor.renderWhitespace
+			);
 		}
 
 		// Decide if isMaybeInvalid flips isInvalid to true
@@ -135,29 +115,26 @@ class ViewLine implements IViewLineData {
 
 	public getLineInnerHTML(lineNumber: number): string {
 		this._isInvalid = false;
-		return this._renderMyLine(lineNumber, this._lineParts).join('');
+		return this._render(lineNumber, this._lineParts).join('');
 	}
 
 	public layoutLine(lineNumber:number, deltaTop:number): void {
-		var currentLineNumber = this._domNode.getAttribute('lineNumber');
-		if (currentLineNumber !== lineNumber.toString()) {
-			this._domNode.setAttribute('lineNumber', lineNumber.toString());
+		let desiredLineNumber = String(lineNumber);
+		let currentLineNumber = this._domNode.getAttribute('lineNumber');
+		if (currentLineNumber !== desiredLineNumber) {
+			this._domNode.setAttribute('lineNumber', desiredLineNumber);
 		}
-		DomUtils.StyleMutator.setTop(this._domNode, deltaTop);
-		DomUtils.StyleMutator.setHeight(this._domNode, this._context.configuration.editor.lineHeight);
+		StyleMutator.setTop(this._domNode, deltaTop);
+		StyleMutator.setHeight(this._domNode, this._context.configuration.editor.lineHeight);
 	}
 
 	// --- end IVisibleLineData
 
-	private _computeLineParts(lineNumber:number, inlineDecorations:EditorCommon.IModelDecoration[]): ILineParts {
-		return createLineParts(lineNumber, this._context.model.getLineContent(lineNumber), this._context.model.getLineTokens(lineNumber), inlineDecorations, this._context.configuration.editor.renderWhitespace);
-	}
+	private _render(lineNumber:number, lineParts:ILineParts): string[] {
 
-	private _renderMyLine(lineNumber:number, lineParts:ILineParts): string[] {
+		this._cachedWidth = -1;
 
-		this._bustReadingCache();
-
-		var r = renderLine({
+		let r = renderLine({
 			lineContent: this._context.model.getLineContent(lineNumber),
 			tabSize: this._context.configuration.getIndentationOptions().tabSize,
 			stopRenderingLineAfter: this._context.configuration.editor.stopRenderingLineAfter,
@@ -178,10 +155,6 @@ class ViewLine implements IViewLineData {
 		return <HTMLSpanElement>this._domNode.firstChild;
 	}
 
-	private _bustReadingCache(): void {
-		this._cachedWidth = -1;
-	}
-
 	/**
 	 * Width of the line in pixels
 	 */
@@ -196,7 +169,7 @@ class ViewLine implements IViewLineData {
 	 * Visible ranges for a model range
 	 */
 	public getVisibleRangesForRange(startColumn:number, endColumn:number, endNode:HTMLElement): HorizontalRange[] {
-		var stopRenderingLineAfter = this._context.configuration.editor.stopRenderingLineAfter;
+		let stopRenderingLineAfter = this._context.configuration.editor.stopRenderingLineAfter;
 
 		if (stopRenderingLineAfter !== -1 && startColumn > stopRenderingLineAfter && endColumn > stopRenderingLineAfter) {
 			// This range is obviously not visible
@@ -216,7 +189,7 @@ class ViewLine implements IViewLineData {
 
 	protected _readVisibleRangesForRange(startColumn:number, endColumn:number, endNode:HTMLElement): HorizontalRange[] {
 
-		var result:HorizontalRange[];
+		let result: HorizontalRange[];
 		if (startColumn === endColumn) {
 			result = this._readRawVisibleRangesForPosition(startColumn, endNode);
 		} else {
@@ -229,12 +202,11 @@ class ViewLine implements IViewLineData {
 
 		result.sort(compareVisibleRanges);
 
-		var output: HorizontalRange[] = [],
-			prevRange: HorizontalRange = result[0],
-			currRange: HorizontalRange;
+		let output: HorizontalRange[] = [];
+		let prevRange: HorizontalRange = result[0];
 
-		for (var i = 1, len = result.length; i < len; i++) {
-			currRange = result[i];
+		for (let i = 1, len = result.length; i < len; i++) {
+			let currRange = result[i];
 
 			if (prevRange.left + prevRange.width + 0.3 /* account for browser's rounding errors*/ >= currRange.left) {
 				prevRange.width = Math.max(prevRange.width, currRange.left + currRange.width - prevRange.left);
@@ -255,10 +227,10 @@ class ViewLine implements IViewLineData {
 			return [new HorizontalRange(0, 0)];
 		}
 
-		var partIndex = findIndexInArrayWithMax(this._lineParts, column - 1, this._lastRenderedPartIndex),
-			_charOffsetInPart = this._charOffsetInPart[column - 1];
+		let partIndex = findIndexInArrayWithMax(this._lineParts, column - 1, this._lastRenderedPartIndex);
+		let charOffsetInPart = this._charOffsetInPart[column - 1];
 
-		return this._readRawVisibleRangesFrom(this._getReadingTarget(), partIndex, _charOffsetInPart, partIndex, _charOffsetInPart, endNode);
+		return this._readRawVisibleRangesFrom(this._getReadingTarget(), partIndex, charOffsetInPart, partIndex, charOffsetInPart, endNode);
 	}
 
 	private _readRawVisibleRangesForRange(startColumn:number, endColumn:number, endNode:HTMLElement): HorizontalRange[] {
@@ -269,12 +241,12 @@ class ViewLine implements IViewLineData {
 			return [this._readRawVisibleRangeForEntireLine()];
 		}
 
-		var startPartIndex = findIndexInArrayWithMax(this._lineParts, startColumn - 1, this._lastRenderedPartIndex),
-			start_charOffsetInPart = this._charOffsetInPart[startColumn - 1],
-			endPartIndex = findIndexInArrayWithMax(this._lineParts, endColumn - 1, this._lastRenderedPartIndex),
-			end_charOffsetInPart = this._charOffsetInPart[endColumn - 1];
+		let startPartIndex = findIndexInArrayWithMax(this._lineParts, startColumn - 1, this._lastRenderedPartIndex);
+		let startCharOffsetInPart = this._charOffsetInPart[startColumn - 1];
+		let endPartIndex = findIndexInArrayWithMax(this._lineParts, endColumn - 1, this._lastRenderedPartIndex);
+		let endCharOffsetInPart = this._charOffsetInPart[endColumn - 1];
 
-		return this._readRawVisibleRangesFrom(this._getReadingTarget(), startPartIndex, start_charOffsetInPart, endPartIndex, end_charOffsetInPart, endNode);
+		return this._readRawVisibleRangesFrom(this._getReadingTarget(), startPartIndex, startCharOffsetInPart, endPartIndex, endCharOffsetInPart, endNode);
 	}
 
 	private _readRawVisibleRangeForEntireLine(): HorizontalRange {
@@ -282,11 +254,12 @@ class ViewLine implements IViewLineData {
 	}
 
 	private _readRawVisibleRangesFrom(domNode:HTMLElement, startChildIndex:number, startOffset:number, endChildIndex:number, endOffset:number, endNode:HTMLElement): HorizontalRange[] {
-		var range = RangeUtil.createRange();
+		let range = RangeUtil.createRange();
 
 		try {
 			// Panic check
-			var min = 0, max = domNode.children.length - 1;
+			let min = 0;
+			let max = domNode.children.length - 1;
 			if (min > max) {
 				return null;
 			}
@@ -302,8 +275,8 @@ class ViewLine implements IViewLineData {
 				}
 			}
 
-			var startElement = domNode.children[startChildIndex].firstChild,
-				endElement = domNode.children[endChildIndex].firstChild;
+			let startElement = domNode.children[startChildIndex].firstChild;
+			let endElement = domNode.children[endChildIndex].firstChild;
 
 			if (!startElement || !endElement) {
 				return null;
@@ -315,14 +288,12 @@ class ViewLine implements IViewLineData {
 			range.setStart(startElement, startOffset);
 			range.setEnd(endElement, endOffset);
 
-			var clientRects = range.getClientRects(),
-				result:HorizontalRange[] = null;
-
-			if (clientRects.length > 0) {
-				result = this._createRawVisibleRangesFromClientRects(clientRects);
+			let clientRects = range.getClientRects();
+			if (clientRects.length === 0) {
+				return null;
 			}
 
-			return result;
+			return this._createRawVisibleRangesFromClientRects(clientRects);
 
 		} catch (e) {
 			// This is life ...
@@ -333,26 +304,24 @@ class ViewLine implements IViewLineData {
 	}
 
 	protected _createRawVisibleRangesFromClientRects(clientRects:ClientRectList): HorizontalRange[] {
-		var clientRectsLength = clientRects.length,
-			cR:ClientRect,
-			i:number,
-			result:HorizontalRange[] = [];
-
-		for (i = 0; i < clientRectsLength; i++) {
-			cR = clientRects[i];
+		let result:HorizontalRange[] = [];
+		for (let i = 0, len = clientRects.length; i < len; i++) {
+			let cR = clientRects[i];
 			result.push(new HorizontalRange(cR.left, cR.width));
 		}
-
 		return result;
 	}
 
+	/**
+	 * Returns the column for the text found at a specific offset inside a rendered dom node
+	 */
 	public getColumnOfNodeOffset(lineNumber:number, spanNode:HTMLElement, offset:number): number {
-		var spanIndex = -1;
+		let spanIndex = -1;
 		while (spanNode) {
 			spanNode = <HTMLElement>spanNode.previousSibling;
 			spanIndex++;
 		}
-		var lineParts = this._lineParts.getParts();
+		let lineParts = this._lineParts.getParts();
 
 		if (spanIndex >= lineParts.length) {
 			return this._context.configuration.editor.stopRenderingLineAfter;
@@ -362,7 +331,9 @@ class ViewLine implements IViewLineData {
 			return lineParts[spanIndex].startIndex + 1;
 		}
 
-		var originalMin = lineParts[spanIndex].startIndex, originalMax:number, originalMaxStartOffset:number;
+		let originalMin = lineParts[spanIndex].startIndex;
+		let originalMax:number;
+		let originalMaxStartOffset:number;
 
 		if (spanIndex + 1 < lineParts.length) {
 			// Stop searching characters at the beginning of the next part
@@ -373,16 +344,15 @@ class ViewLine implements IViewLineData {
 			originalMaxStartOffset = this._charOffsetInPart[originalMax];
 		}
 
-
-		var min = originalMin,
-			mid:number,
-			max = originalMax;
+		let min = originalMin;
+		let max = originalMax;
 
 		if (this._context.configuration.editor.stopRenderingLineAfter !== -1) {
 			max = Math.min(this._context.configuration.editor.stopRenderingLineAfter - 1, originalMax);
 		}
 
-		var midStartOffset:number, nextStartOffset:number, prevStartOffset:number, a:number, b:number;
+		let nextStartOffset:number;
+		let prevStartOffset:number;
 
 		// Here are the variables and their relation plotted on an axis
 
@@ -392,9 +362,8 @@ class ViewLine implements IViewLineData {
 		// Everything in (a;b] will match mid
 
 		while (min < max) {
-			mid = Math.floor( (min + max) / 2 );
-
-			midStartOffset = this._charOffsetInPart[mid];
+			let mid = Math.floor( (min + max) / 2 );
+			let midStartOffset = this._charOffsetInPart[mid];
 
 			if (mid === originalMax) {
 				// Using Number.MAX_VALUE to ensure that any offset after midStartOffset will match mid
@@ -413,8 +382,8 @@ class ViewLine implements IViewLineData {
 				prevStartOffset = this._charOffsetInPart[mid - 1];
 			}
 
-			a = (prevStartOffset + midStartOffset) / 2;
-			b = (midStartOffset + nextStartOffset) / 2;
+			let a = (prevStartOffset + midStartOffset) / 2;
+			let b = (midStartOffset + nextStartOffset) / 2;
 
 			if (a < offset && offset <= b) {
 				// Hit!
@@ -439,16 +408,11 @@ class IEViewLine extends ViewLine {
 	}
 
 	protected _createRawVisibleRangesFromClientRects(clientRects:ClientRectList): HorizontalRange[] {
-		var clientRectsLength = clientRects.length,
-			cR:ClientRect,
-			i:number,
-			result:HorizontalRange[] = [],
-			ratioX = screen.logicalXDPI / screen.deviceXDPI;
-
-		result = new Array<HorizontalRange>(clientRectsLength);
-		for (i = 0; i < clientRectsLength; i++) {
-			cR = clientRects[i];
-			result[i] = new HorizontalRange(Math.max(0, cR.left * ratioX), cR.width * ratioX);
+		let ratioX = screen.logicalXDPI / screen.deviceXDPI;
+		let result:HorizontalRange[] = [];
+		for (let i = 0, len = clientRects.length; i < len; i++) {
+			let cR = clientRects[i];
+			result[i] = new HorizontalRange(cR.left * ratioX, cR.width * ratioX);
 		}
 
 		return result;
@@ -462,7 +426,7 @@ class WebKitViewLine extends ViewLine {
 	}
 
 	protected _readVisibleRangesForRange(startColumn:number, endColumn:number, endNode:HTMLElement): HorizontalRange[] {
-		var output = super._readVisibleRangesForRange(startColumn, endColumn, endNode);
+		let output = super._readVisibleRangesForRange(startColumn, endColumn, endNode);
 
 		if (this._context.configuration.editor.fontLigatures && endColumn > 1 && startColumn === endColumn && endColumn === this._charOffsetInPart.length) {
 			if (output.length === 1) {
@@ -480,15 +444,15 @@ class WebKitViewLine extends ViewLine {
 
 		// This is an attempt to patch things up
 		// Find position of previous column
-		var beforeEndVisibleRanges = this._readRawVisibleRangesForPosition(endColumn - 1, endNode);
+		let beforeEndVisibleRanges = this._readRawVisibleRangesForPosition(endColumn - 1, endNode);
 		// Find position of last column
-		var endVisibleRanges = this._readRawVisibleRangesForPosition(endColumn, endNode);
+		let endVisibleRanges = this._readRawVisibleRangesForPosition(endColumn, endNode);
 
 		if (beforeEndVisibleRanges && beforeEndVisibleRanges.length > 0 && endVisibleRanges && endVisibleRanges.length > 0) {
-			var beforeEndVisibleRange = beforeEndVisibleRanges[0];
-			var endVisibleRange = endVisibleRanges[0];
-			var isLTR = (beforeEndVisibleRange.left <= endVisibleRange.left);
-			var lastRange = output[output.length - 1];
+			let beforeEndVisibleRange = beforeEndVisibleRanges[0];
+			let endVisibleRange = endVisibleRanges[0];
+			let isLTR = (beforeEndVisibleRange.left <= endVisibleRange.left);
+			let lastRange = output[output.length - 1];
 
 			if (isLTR && lastRange.left < endVisibleRange.left) {
 				// Trim down the width of the last visible range to not go after the last column's position
@@ -528,11 +492,11 @@ function compareVisibleRanges(a: HorizontalRange, b: HorizontalRange): number {
 }
 
 function findIndexInArrayWithMax(lineParts:ILineParts, desiredIndex: number, maxResult:number): number {
-	var r = lineParts.findIndexOfOffset(desiredIndex);
+	let r = lineParts.findIndexOfOffset(desiredIndex);
 	return r <= maxResult ? r : maxResult;
 }
 
-export var createLine: (context: IViewContext) => IViewLineData = (function() {
+export let createLine: (context: IViewContext) => ViewLine = (function() {
 	if (window.screen && window.screen.deviceXDPI && (navigator.userAgent.indexOf('Trident/6.0') >= 0 || navigator.userAgent.indexOf('Trident/5.0') >= 0)) {
 		// IE11 doesn't need the screen.logicalXDPI / screen.deviceXDPI ratio multiplication
 		// for TextRange.getClientRects() anymore
@@ -543,15 +507,15 @@ export var createLine: (context: IViewContext) => IViewLineData = (function() {
 	return createNormalLine;
 })();
 
-function createIELine(context: IViewContext): IViewLineData {
+function createIELine(context: IViewContext): ViewLine {
 	return new IEViewLine(context);
 }
 
-function createWebKitLine(context: IViewContext): IViewLineData {
+function createWebKitLine(context: IViewContext): ViewLine {
 	return new WebKitViewLine(context);
 }
 
-function createNormalLine(context: IViewContext): IViewLineData {
+function createNormalLine(context: IViewContext): ViewLine {
 	return new ViewLine(context);
 }
 
@@ -560,7 +524,7 @@ export interface IRenderLineInput {
 	tabSize: number;
 	stopRenderingLineAfter: number;
 	renderWhitespace: boolean;
-	parts: EditorCommon.ILineToken[];
+	parts: ILineToken[];
 }
 
 export interface IRenderLineOutput {
@@ -571,20 +535,34 @@ export interface IRenderLineOutput {
 	output: string[];
 }
 
-var _space = ' '.charCodeAt(0);
-var _tab = '\t'.charCodeAt(0);
-var _lowerThan = '<'.charCodeAt(0);
-var _greaterThan = '>'.charCodeAt(0);
-var _ampersand = '&'.charCodeAt(0);
-var _carriageReturn = '\r'.charCodeAt(0);
-var _lineSeparator = '\u2028'.charCodeAt(0); //http://www.fileformat.info/info/unicode/char/2028/index.htm
-var _bom = 65279;
-var _replacementCharacter = '\ufffd';
+let _space = ' '.charCodeAt(0);
+let _tab = '\t'.charCodeAt(0);
+let _lowerThan = '<'.charCodeAt(0);
+let _greaterThan = '>'.charCodeAt(0);
+let _ampersand = '&'.charCodeAt(0);
+let _carriageReturn = '\r'.charCodeAt(0);
+let _lineSeparator = '\u2028'.charCodeAt(0); //http://www.fileformat.info/info/unicode/char/2028/index.htm
+let _bom = 65279;
+let _replacementCharacter = '\ufffd';
 
 export function renderLine(input:IRenderLineInput): IRenderLineOutput {
-	var lineText = input.lineContent;
+	const lineText = input.lineContent;
+	let lineTextLength = lineText.length;
+	const stopRenderingLineAfter = input.stopRenderingLineAfter;
+	const tabSize = input.tabSize;
 
-	var result: IRenderLineOutput = {
+	if (lineTextLength === 0) {
+		return {
+			charOffsetInPart: [],
+			hasOverflowed: false,
+			lastRenderedPartIndex: 0,
+			partsCount: 0,
+			// This is basically for IE's hit test to work
+			output: ['<span><span>&nbsp;</span></span>']
+		};
+	}
+
+	let result: IRenderLineOutput = {
 		charOffsetInPart: [],
 		hasOverflowed: false,
 		lastRenderedPartIndex: 0,
@@ -592,128 +570,117 @@ export function renderLine(input:IRenderLineInput): IRenderLineOutput {
 		output: []
 	};
 
-	var partsCount = 0;
+	let partsCount = 0;
 
 	result.output.push('<span>');
-	if (lineText.length > 0) {
-		var charCode: number,
-			i: number,
-			len = lineText.length,
-			partClassName: string,
-			partIndex = -1,
-			nextPartIndex = 0,
-			tabsCharDelta = 0,
-			charOffsetInPart = 0,
-			append = '',
-			tabSize = input.tabSize,
-			insertSpacesCount: number,
-			stopRenderingLineAfter = input.stopRenderingLineAfter,
-			renderWhitespace = false;
+	let partClassName: string,
+		partIndex = -1,
+		nextPartIndex = 0,
+		tabsCharDelta = 0,
+		charOffsetInPart = 0,
+		append = '',
+		renderWhitespace = false;
 
-		var actualLineParts = input.parts;
-		if (actualLineParts.length === 0) {
-			throw new Error('Cannot render non empty line without line parts!');
-		}
+	let actualLineParts = input.parts;
+	if (actualLineParts.length === 0) {
+		throw new Error('Cannot render non empty line without line parts!');
+	}
 
-		if (stopRenderingLineAfter !== -1 && len > stopRenderingLineAfter - 1) {
-			append = lineText.substr(stopRenderingLineAfter - 1, 1);
-			len = stopRenderingLineAfter - 1;
-			result.hasOverflowed = true;
-		}
+	if (stopRenderingLineAfter !== -1 && lineTextLength > stopRenderingLineAfter - 1) {
+		append = lineText.substr(stopRenderingLineAfter - 1, 1);
+		lineTextLength = stopRenderingLineAfter - 1;
+		result.hasOverflowed = true;
+	}
 
-		for (i = 0; i < len; i++) {
-			if (i === nextPartIndex) {
-				partIndex++;
-				nextPartIndex = (partIndex + 1 < actualLineParts.length ? actualLineParts[partIndex + 1].startIndex : Number.MAX_VALUE);
-				if (i > 0) {
-					result.output.push('</span>');
-				}
-				partsCount++;
-				result.output.push('<span class="');
-				partClassName = 'token ' + actualLineParts[partIndex].type.replace(/[^a-z0-9\-]/gi, ' ');
-				if (input.renderWhitespace) {
-					renderWhitespace = partClassName.indexOf('whitespace') >= 0;
-				}
-				result.output.push(partClassName);
-				result.output.push('">');
-
-				charOffsetInPart = 0;
+	for (let i = 0; i < lineTextLength; i++) {
+		if (i === nextPartIndex) {
+			partIndex++;
+			nextPartIndex = (partIndex + 1 < actualLineParts.length ? actualLineParts[partIndex + 1].startIndex : Number.MAX_VALUE);
+			if (i > 0) {
+				result.output.push('</span>');
 			}
-
-			result.charOffsetInPart[i] = charOffsetInPart;
-			charCode = lineText.charCodeAt(i);
-
-			switch (charCode) {
-				case _tab:
-					insertSpacesCount = tabSize - (i + tabsCharDelta) % tabSize;
-					tabsCharDelta += insertSpacesCount - 1;
-					charOffsetInPart += insertSpacesCount - 1;
-					if (insertSpacesCount > 0) {
-						result.output.push(renderWhitespace ? '&rarr;' : '&nbsp;');
-						insertSpacesCount--;
-					}
-					while (insertSpacesCount > 0) {
-						result.output.push('&nbsp;');
-						insertSpacesCount--;
-					}
-					break;
-
-				case _space:
-					result.output.push(renderWhitespace ? '&middot;' : '&nbsp;');
-					break;
-
-				case _lowerThan:
-					result.output.push('&lt;');
-					break;
-
-				case _greaterThan:
-					result.output.push('&gt;');
-					break;
-
-				case _ampersand:
-					result.output.push('&amp;');
-					break;
-
-				case 0:
-					result.output.push('&#00;');
-					break;
-
-				case _bom:
-				case _lineSeparator:
-					result.output.push(_replacementCharacter);
-					break;
-
-				case _carriageReturn:
-					// zero width space, because carriage return would introduce a line break
-					result.output.push('&#8203');
-					break;
-
-				default:
-					result.output.push(lineText.charAt(i));
-			}
-
-			charOffsetInPart ++;
-		}
-		result.output.push('</span>');
-
-		// When getting client rects for the last character, we will position the
-		// text range at the end of the span, insteaf of at the beginning of next span
-		result.charOffsetInPart[len] = charOffsetInPart;
-
-		// In case we stop rendering, we record here the index of the last span
-		// that should be used for getting client rects
-		result.lastRenderedPartIndex = partIndex;
-
-		if (append.length > 0) {
+			partsCount++;
 			result.output.push('<span class="');
+			partClassName = 'token ' + actualLineParts[partIndex].type.replace(/[^a-z0-9\-]/gi, ' ');
+			if (input.renderWhitespace) {
+				renderWhitespace = partClassName.indexOf('whitespace') >= 0;
+			}
 			result.output.push(partClassName);
-			result.output.push('" style="color:grey">');
-			result.output.push(append);
-			result.output.push('&hellip;</span>');
+			result.output.push('">');
+
+			charOffsetInPart = 0;
 		}
-	} else {
-		// This is basically for IE's hit test to work
-		result.output.push('<span>&nbsp;</span>');
+
+		result.charOffsetInPart[i] = charOffsetInPart;
+		let charCode = lineText.charCodeAt(i);
+
+		switch (charCode) {
+			case _tab:
+				let insertSpacesCount = tabSize - (i + tabsCharDelta) % tabSize;
+				tabsCharDelta += insertSpacesCount - 1;
+				charOffsetInPart += insertSpacesCount - 1;
+				if (insertSpacesCount > 0) {
+					result.output.push(renderWhitespace ? '&rarr;' : '&nbsp;');
+					insertSpacesCount--;
+				}
+				while (insertSpacesCount > 0) {
+					result.output.push('&nbsp;');
+					insertSpacesCount--;
+				}
+				break;
+
+			case _space:
+				result.output.push(renderWhitespace ? '&middot;' : '&nbsp;');
+				break;
+
+			case _lowerThan:
+				result.output.push('&lt;');
+				break;
+
+			case _greaterThan:
+				result.output.push('&gt;');
+				break;
+
+			case _ampersand:
+				result.output.push('&amp;');
+				break;
+
+			case 0:
+				result.output.push('&#00;');
+				break;
+
+			case _bom:
+			case _lineSeparator:
+				result.output.push(_replacementCharacter);
+				break;
+
+			case _carriageReturn:
+				// zero width space, because carriage return would introduce a line break
+				result.output.push('&#8203');
+				break;
+
+			default:
+				result.output.push(lineText.charAt(i));
+		}
+
+		charOffsetInPart ++;
+	}
+	result.output.push('</span>');
+
+	// When getting client rects for the last character, we will position the
+	// text range at the end of the span, insteaf of at the beginning of next span
+	result.charOffsetInPart[lineTextLength] = charOffsetInPart;
+
+	// In case we stop rendering, we record here the index of the last span
+	// that should be used for getting client rects
+	result.lastRenderedPartIndex = partIndex;
+
+	if (append.length > 0) {
+		result.output.push('<span class="');
+		result.output.push(partClassName);
+		result.output.push('" style="color:grey">');
+		result.output.push(append);
+		result.output.push('&hellip;</span>');
 	}
 	result.output.push('</span>');
 

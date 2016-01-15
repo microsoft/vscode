@@ -8,7 +8,7 @@ import Browser = require('vs/base/browser/browser');
 import DomUtils = require('vs/base/browser/dom');
 import Schedulers = require('vs/base/common/async');
 
-import {createLine, IViewLineData} from 'vs/editor/browser/viewParts/lines/viewLine';
+import {createLine, ViewLine} from 'vs/editor/browser/viewParts/lines/viewLine';
 import {IVisibleLineData, ViewLayer} from 'vs/editor/browser/view/viewLayer';
 import EditorBrowser = require('vs/editor/browser/editorBrowser');
 import EditorCommon = require('vs/editor/common/editorCommon');
@@ -27,7 +27,7 @@ export class ViewLines extends ViewLayer {
 	private static HORIZONTAL_EXTRA_PX = 30;
 
 	private _layoutProvider:EditorBrowser.ILayoutProvider;
-	_lines:IViewLineData[];
+	_lines:ViewLine[];
 
 	public textRangeRestingSpot:HTMLElement;
 
