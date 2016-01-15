@@ -5,7 +5,6 @@
 'use strict';
 
 import {Registry} from 'vs/platform/platform';
-import URI from 'vs/base/common/uri';
 import nls = require('vs/nls');
 import {Promise} from 'vs/base/common/winjs.base';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
@@ -16,8 +15,7 @@ import {StringEditor} from 'vs/workbench/browser/parts/editor/stringEditor';
 import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
 import {UntitledEditorInput} from 'vs/workbench/common/editor/untitledEditorInput';
 import {ResourceEditorInput} from 'vs/workbench/common/editor/resourceEditorInput';
-import {HtmlEditorInput} from 'vs/workbench/common/editor/htmlEditorInput';
-import {IInstantiationService, ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
+import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {TextDiffEditor} from 'vs/workbench/browser/parts/editor/textDiffEditor';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {BinaryResourceDiffEditor} from 'vs/workbench/browser/parts/editor/binaryDiffEditor';
@@ -29,7 +27,6 @@ import {Scope, IActionBarRegistry, Extensions as ActionBarExtensions, ActionBarC
 import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
 import {SyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
-import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 // Register String Editor
 (<IEditorRegistry>Registry.as(EditorExtensions.Editors)).registerEditor(
@@ -152,24 +149,3 @@ class IFrameEditorActionContributor extends EditorInputActionContributor {
 
 // Contribute to IFrame Editor Inputs
 actionBarRegistry.registerActionBarContributor(Scope.EDITOR, IFrameEditorActionContributor);
-
-// Register Commands
-KeybindingsRegistry.registerCommandDesc({
-	id: 'workbench.html.preview',
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(0),
-	description: {
-		description: 'Preview an html document.',
-		args: [{ name: 'uri', description: 'Uri of the document to preview.', constraint: URI }]
-	},
-	handler(accessor: ServicesAccessor, args: [URI]) {
-
-		let [resource] = args;
-		let name = resource.fsPath;
-		let input = accessor.get(IInstantiationService).createInstance(HtmlEditorInput, resource, name, undefined);
-
-		return accessor.get(IWorkbenchEditorService).openEditor(input)
-			.then(editor => true);
-	},
-	context: undefined,
-	primary: undefined
-});
