@@ -15,8 +15,10 @@ import {EditorOptions, EditorInput} from 'vs/workbench/common/editor';
 import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {Position} from 'vs/platform/editor/common/editor';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
+import {IStorageService, StorageEventType} from 'vs/platform/storage/common/storage';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {ResourceEditorModel} from 'vs/workbench/common/editor/resourceEditorModel';
+import {Preferences} from 'vs/workbench/common/constants';
 import {HtmlInput} from 'vs/workbench/parts/html/common/htmlInput';
 
 /**
@@ -26,20 +28,24 @@ export class HtmlPreviewPart extends BaseEditor {
 
 	static ID: string = 'workbench.editor.htmlPreviewPart';
 
-	private _iFrameElement: HTMLIFrameElement;
 	private _editorService: IWorkbenchEditorService;
+	private _storageService: IStorageService;
+	private _iFrameElement: HTMLIFrameElement;
 
 	private _model: IModel;
 	private _modelChangeUnbind: Function;
 	private _lastModelVersion: number;
+	private _themeChangeUnbind: Function;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
+		@IStorageService storageService: IStorageService
 	) {
 		super(HtmlPreviewPart.ID, telemetryService);
 
 		this._editorService = editorService;
+		this._storageService = storageService;
 	}
 
 	dispose(): void {
@@ -50,6 +56,8 @@ export class HtmlPreviewPart extends BaseEditor {
 		// unhook from model
 		this._modelChangeUnbind = cAll(this._modelChangeUnbind);
 		this._model = undefined;
+
+		this._themeChangeUnbind = cAll(this._themeChangeUnbind);
 	}
 
 	public createEditor(parent: Builder): void {
@@ -67,6 +75,12 @@ export class HtmlPreviewPart extends BaseEditor {
 		iFrameContainerElement.appendChild(this._iFrameElement);
 
 		parent.getHTMLElement().appendChild(iFrameContainerElement);
+
+		this._themeChangeUnbind = this._storageService.addListener(StorageEventType.STORAGE, event => {
+			if (event.key === Preferences.THEME && this.isVisible()) {
+				this._updateIFrameContent(true);
+			}
+		});
 	}
 
 	public layout(dimension: Dimension): void {
@@ -165,6 +179,8 @@ export class HtmlPreviewPart extends BaseEditor {
 		// diff a little against the current input and the new state
 		const parser = new DOMParser();
 		const newDocument = parser.parseFromString(html, 'text/html');
+		newDocument.head.appendChild(Integration.defaultStyle(this._iFrameElement.parentElement));
+
 		if (newDocument.head.innerHTML !== iFrameDocument.head.innerHTML) {
 			iFrameDocument.head.innerHTML = newDocument.head.innerHTML;
 		}
@@ -244,5 +260,17 @@ namespace Integration {
 			'</script></body></html>',
 		];
 		return all.join('\n');
+	}
+
+	export function defaultStyle(element: HTMLElement): HTMLStyleElement {
+		const styles = window.getComputedStyle(element);
+		const styleElement = document.createElement('style');
+		styleElement.innerHTML = `* {
+			color: ${styles.color};
+			background: ${styles.background};
+			font-family: ${styles.fontFamily};
+			font-size: ${styles.fontSize}
+		}`;
+		return styleElement;
 	}
 }
