@@ -38,7 +38,6 @@ export abstract class CommonCodeEditor extends EventEmitter.EventEmitter impleme
 
 	protected id:number;
 
-	_lifetimeListeners:EventEmitter.ListenerUnbind[];
 	_lifetimeDispose: IDisposable[];
 	_configuration:CommonEditorConfiguration;
 
@@ -97,7 +96,6 @@ export abstract class CommonCodeEditor extends EventEmitter.EventEmitter impleme
 		this._langIdKey = this._keybindingService.createKey<string>(EditorCommon.KEYBINDING_CONTEXT_EDITOR_LANGUAGE_ID, undefined);
 
 		// listeners that are kept during the whole editor lifetime
-		this._lifetimeListeners = [];
 		this._decorationTypeKeysToIds = {};
 
 		options = options || {};
@@ -116,7 +114,7 @@ export abstract class CommonCodeEditor extends EventEmitter.EventEmitter impleme
 		if (this._configuration.editor.tabFocusMode) {
 			this._editorTabMovesFocusKey.set(true);
 		}
-		this._lifetimeListeners.push(this._configuration.addListener(EditorCommon.EventType.ConfigurationChanged, (e) => this.emit(EditorCommon.EventType.ConfigurationChanged, e)));
+		this._lifetimeDispose.push(this._configuration.onDidChange((e) => this.emit(EditorCommon.EventType.ConfigurationChanged, e)));
 
 		this.forcedWidgetFocusCount = 0;
 
@@ -153,10 +151,6 @@ export abstract class CommonCodeEditor extends EventEmitter.EventEmitter impleme
 	public dispose(): void {
 		this._codeEditorService.removeCodeEditor(this);
 		this._lifetimeDispose = disposeAll(this._lifetimeDispose);
-		// unbind listeners
-		while(this._lifetimeListeners.length > 0) {
-			this._lifetimeListeners.pop()();
-		}
 
 		var contributionId:string;
 		for (contributionId in this.contributions) {

@@ -14,6 +14,7 @@ export interface IPickOpenEntry {
 	id?: string;
 	label: string;
 	description?: string;
+	detail?: string;
 }
 
 export interface IPickOptions {
@@ -32,6 +33,11 @@ export interface IPickOptions {
 	 * an optional flag to include the description when filtering the picks
 	 */
 	matchOnDescription?: boolean;
+
+	/**
+	 * an optional flag to include the detail when filtering the picks
+	 */
+	matchOnDetail?: boolean;
 }
 
 export interface IInputOptions {
@@ -55,6 +61,11 @@ export interface IInputOptions {
 	 * set to true to show a password prompt that will not show the typed value
 	 */
 	password?: boolean;
+
+	/**
+	 * an optional function that is used to validate user input.
+	 */
+	validateInput?: (input: string) => TPromise<string>;
 }
 
 export var IQuickOpenService = createDecorator<IQuickOpenService>('quickOpenService');

@@ -2429,7 +2429,9 @@ export interface IEditorStyling {
 	lineHeight: number;
 }
 
-export interface IConfiguration extends IEventEmitter {
+export interface IConfiguration {
+	onDidChange: Event<IConfigurationChangedEvent>;
+
 	editor:IInternalEditorOptions;
 
 	setLineCount(lineCount:number): void;

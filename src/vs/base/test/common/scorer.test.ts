@@ -41,4 +41,13 @@ suite('Scorer', () => {
 
 		assert.equal(Object.getOwnPropertyNames(cache).length, 2);
 	});
+
+	test("matches", function() {
+		assert.ok(scorer.matches('hello world', 'h'));
+		assert.ok(!scorer.matches('hello world', 'q'));
+		assert.ok(scorer.matches('hello world', 'hw'));
+		assert.ok(scorer.matches('hello world', 'horl'));
+		assert.ok(scorer.matches('hello world', 'd'));
+		assert.ok(!scorer.matches('hello world', 'wh'));
+	});
 });

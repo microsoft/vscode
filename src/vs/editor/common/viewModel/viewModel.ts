@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {EventEmitter, IEventEmitter, IEmitterEvent, ListenerUnbind} from 'vs/base/common/eventEmitter';
+import {EventEmitter, IEventEmitter, EmitterEvent, IEmitterEvent, ListenerUnbind} from 'vs/base/common/eventEmitter';
 import Strings = require('vs/base/common/strings');
 import {Selection} from 'vs/editor/common/core/selection';
 import {Range} from 'vs/editor/common/core/range';
 import {ViewModelDecorations} from 'vs/editor/common/viewModel/viewModelDecorations';
 import {ViewModelCursors} from 'vs/editor/common/viewModel/viewModelCursors';
+import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
 import {Position} from 'vs/editor/common/core/position';
 import EditorCommon = require('vs/editor/common/editorCommon');
 
@@ -38,6 +39,7 @@ export class ViewModel extends EventEmitter implements EditorCommon.IViewModel {
 	private model:EditorCommon.IModel;
 
 	private listenersToRemove:ListenerUnbind[];
+	private _toDispose: IDisposable[];
 	private lines:ILinesCollection;
 	private decorations:ViewModelDecorations;
 	private cursors:ViewModelCursors;
@@ -69,14 +71,18 @@ export class ViewModel extends EventEmitter implements EditorCommon.IViewModel {
 		this._updateShouldForceTokenization();
 
 		this.listenersToRemove = [];
+		this._toDispose = [];
 		this.listenersToRemove.push(this.model.addBulkListener((events:IEmitterEvent[]) => this.onEvents(events)));
-		this.listenersToRemove.push(this.configuration.addBulkListener((events:IEmitterEvent[]) => this.onEvents(events)));
+		this._toDispose.push(this.configuration.onDidChange((e) => {
+			this.onEvents([new EmitterEvent(EditorCommon.EventType.ConfigurationChanged, e)]);
+		}));
 	}
 
 	public dispose(): void {
 		this.listenersToRemove.forEach((element) => {
 			element();
 		});
+		this._toDispose = disposeAll(this._toDispose);
 		this.listenersToRemove = [];
 		this.decorations.dispose();
 		this.decorations = null;

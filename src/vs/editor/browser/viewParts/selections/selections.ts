@@ -10,6 +10,9 @@ import {ViewEventHandler} from 'vs/editor/common/viewModel/viewEventHandler';
 import EditorBrowser = require('vs/editor/browser/editorBrowser');
 import EditorCommon = require('vs/editor/common/editorCommon');
 
+type HorizontalRange = EditorBrowser.HorizontalRange;
+type LineVisibleRanges = EditorBrowser.LineVisibleRanges;
+
 interface IRenderResult {
 	[lineNumber:string]:string[];
 }
@@ -25,13 +28,36 @@ interface IVisibleRangeEndPointStyle {
 	bottom: CornerStyle;
 }
 
-interface IVisibleRangeWithStyle extends EditorBrowser.IHorizontalRange {
-	startStyle?: IVisibleRangeEndPointStyle;
-	endStyle?: IVisibleRangeEndPointStyle;
+class HorizontalRangeWithStyle {
+	public left: number;
+	public width: number;
+	public startStyle: IVisibleRangeEndPointStyle;
+	public endStyle: IVisibleRangeEndPointStyle;
+
+	constructor(other:HorizontalRange) {
+		this.left = other.left;
+		this.width = other.width;
+		this.startStyle = null;
+		this.endStyle = null;
+	}
 }
 
-interface ILineVisibleRangesWithStyle extends EditorBrowser.ILineVisibleRanges {
-	ranges: IVisibleRangeWithStyle[];
+class LineVisibleRangesWithStyle {
+	public lineNumber: number;
+	public ranges: HorizontalRangeWithStyle[];
+
+	constructor(lineNumber:number, ranges:HorizontalRangeWithStyle[]) {
+		this.lineNumber = lineNumber;
+		this.ranges = ranges;
+	}
+}
+
+function toStyledRange(item: HorizontalRange): HorizontalRangeWithStyle {
+	return new HorizontalRangeWithStyle(item);
+}
+
+function toStyled(item: LineVisibleRanges): LineVisibleRangesWithStyle {
+	return new LineVisibleRangesWithStyle(item.lineNumber, item.ranges.map(toStyledRange));
 }
 
 // TODO@Alex: Remove this once IE11 fixes Bug #524217
@@ -123,11 +149,11 @@ export class SelectionsOverlay extends ViewEventHandler implements EditorBrowser
 
 	// --- end event handlers
 
-	private _visibleRangesHaveGaps(linesVisibleRanges: EditorBrowser.ILineVisibleRanges[]): boolean {
+	private _visibleRangesHaveGaps(linesVisibleRanges: LineVisibleRangesWithStyle[]): boolean {
 
 		var i:number,
 			len:number,
-			lineVisibleRanges:EditorBrowser.ILineVisibleRanges;
+			lineVisibleRanges:LineVisibleRangesWithStyle;
 
 		for (i = 0, len = linesVisibleRanges.length; i < len; i++) {
 			lineVisibleRanges = linesVisibleRanges[i];
@@ -141,8 +167,8 @@ export class SelectionsOverlay extends ViewEventHandler implements EditorBrowser
 		return false;
 	}
 
-	private _enrichVisibleRangesWithStyle(linesVisibleRanges:ILineVisibleRangesWithStyle[], previousFrame:ILineVisibleRangesWithStyle[]): void {
-		var curLineRange: IVisibleRangeWithStyle,
+	private _enrichVisibleRangesWithStyle(linesVisibleRanges:LineVisibleRangesWithStyle[], previousFrame:LineVisibleRangesWithStyle[]): void {
+		var curLineRange: HorizontalRangeWithStyle,
 			curLeft: number,
 			curRight: number,
 			prevLeft: number,
@@ -154,8 +180,8 @@ export class SelectionsOverlay extends ViewEventHandler implements EditorBrowser
 			i:number,
 			len:number;
 
-		var previousFrameTop: IVisibleRangeWithStyle = null,
-			previousFrameBottom: IVisibleRangeWithStyle = null;
+		var previousFrameTop: HorizontalRangeWithStyle = null,
+			previousFrameBottom: HorizontalRangeWithStyle = null;
 
 		if (previousFrame && previousFrame.length > 0 && linesVisibleRanges.length > 0) {
 
@@ -246,10 +272,10 @@ export class SelectionsOverlay extends ViewEventHandler implements EditorBrowser
 		}
 	}
 
-	private _getVisibleRangesWithStyle(selection: EditorCommon.IEditorRange, ctx: EditorBrowser.IRenderingContext, previousFrame:ILineVisibleRangesWithStyle[]): ILineVisibleRangesWithStyle[] {
-		var linesVisibleRanges = ctx.linesVisibleRangesForRange(selection, true) || [];
-
-		var visibleRangesHaveGaps = this._visibleRangesHaveGaps(linesVisibleRanges);
+	private _getVisibleRangesWithStyle(selection: EditorCommon.IEditorRange, ctx: EditorBrowser.IRenderingContext, previousFrame:LineVisibleRangesWithStyle[]): LineVisibleRangesWithStyle[] {
+		let _linesVisibleRanges = ctx.linesVisibleRangesForRange(selection, true) || [];
+		let linesVisibleRanges = _linesVisibleRanges.map(toStyled);
+		let visibleRangesHaveGaps = this._visibleRangesHaveGaps(linesVisibleRanges);
 
 		if (!isIEWithZoomingIssuesNearRoundedBorders && !visibleRangesHaveGaps && this._context.configuration.editor.roundedSelection) {
 			this._enrichVisibleRangesWithStyle(linesVisibleRanges, previousFrame);
@@ -271,16 +297,16 @@ export class SelectionsOverlay extends ViewEventHandler implements EditorBrowser
 		lineOutput.push('px;"></div>');
 	}
 
-	private _actualRenderOneSelection(output:IRenderResult, visibleRanges:ILineVisibleRangesWithStyle[]): number {
+	private _actualRenderOneSelection(output:IRenderResult, visibleRanges:LineVisibleRangesWithStyle[]): number {
 		var visibleRangesHaveStyle = (visibleRanges.length > 0 && visibleRanges[0].ranges[0].startStyle),
-			lineVisibleRanges:ILineVisibleRangesWithStyle,
+			lineVisibleRanges:LineVisibleRangesWithStyle,
 			lineOutput: string[],
 			className:string,
 			lineHeight = this._context.configuration.editor.lineHeight.toString(),
 			i:number, len:number,
 			j:number, lenJ:number,
 			piecesCount = 0,
-			visibleRange:IVisibleRangeWithStyle;
+			visibleRange:HorizontalRangeWithStyle;
 
 		for (i = 0, len = visibleRanges.length; i < len; i++) {
 			lineVisibleRanges = visibleRanges[i];
@@ -357,7 +383,7 @@ export class SelectionsOverlay extends ViewEventHandler implements EditorBrowser
 		return piecesCount;
 	}
 
-	private _previousFrameVisibleRangesWithStyle: ILineVisibleRangesWithStyle[][] = [];
+	private _previousFrameVisibleRangesWithStyle: LineVisibleRangesWithStyle[][] = [];
 	public shouldCallRender2(ctx:EditorBrowser.IRenderingContext): boolean {
 		if (!this.shouldRender) {
 			return false;
@@ -366,10 +392,10 @@ export class SelectionsOverlay extends ViewEventHandler implements EditorBrowser
 
 		var output: IRenderResult = {},
 			selection:EditorCommon.IEditorRange,
-			visibleRangesWithStyle:ILineVisibleRangesWithStyle[],
+			visibleRangesWithStyle:LineVisibleRangesWithStyle[],
 			piecesCount = 0,
 			i:number,
-			thisFrameVisibleRangesWithStyle: ILineVisibleRangesWithStyle[][] = [];
+			thisFrameVisibleRangesWithStyle: LineVisibleRangesWithStyle[][] = [];
 
 		for (i = 0; i < this._selections.length; i++) {
 			selection = this._selections[i];

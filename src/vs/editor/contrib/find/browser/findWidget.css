@@ -142,7 +142,6 @@
 }
 
 .monaco-editor .find-widget .button.toggle {
-	display: none;
 	position: absolute;
 	top: 0;
 	left: 0;
@@ -155,8 +154,8 @@
 	box-sizing:			border-box;
 }
 
-.monaco-editor .find-widget.can-replace .button.toggle {
-	display: inherit;
+.monaco-editor .find-widget .button.toggle.disabled {
+	display: none;
 }
 
 .monaco-editor .find-widget .previous {

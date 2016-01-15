@@ -335,7 +335,6 @@ export class StartFindReplaceAction extends EditorAction {
 
 export interface IMultiCursorFindResult {
 	searchText:string;
-	isRegex:boolean;
 	matchCase:boolean;
 	wholeWord:boolean;
 
@@ -349,7 +348,6 @@ export function multiCursorFind(editor:EditorCommon.ICommonCodeEditor, changeFin
 		nextMatch: EditorCommon.IEditorSelection;
 
 	// In any case, if the find widget was ever opened, the options are taken from it
-	let isRegex = state.isRegex;
 	let wholeWord = state.wholeWord;
 	let matchCase = state.matchCase;
 
@@ -387,7 +385,6 @@ export function multiCursorFind(editor:EditorCommon.ICommonCodeEditor, changeFin
 
 	return {
 		searchText: searchText,
-		isRegex: isRegex,
 		matchCase: matchCase,
 		wholeWord: wholeWord,
 		nextMatch: nextMatch
@@ -411,7 +408,7 @@ export class SelectNextFindMatchAction extends EditorAction {
 		let allSelections = this.editor.getSelections();
 		let lastAddedSelection = allSelections[allSelections.length - 1];
 
-		let nextMatch = this.editor.getModel().findNextMatch(r.searchText, lastAddedSelection.getEndPosition(), r.isRegex, r.matchCase, r.wholeWord);
+		let nextMatch = this.editor.getModel().findNextMatch(r.searchText, lastAddedSelection.getEndPosition(), false, r.matchCase, r.wholeWord);
 
 		if (!nextMatch) {
 			return null;
@@ -488,7 +485,7 @@ export class SelectHighlightsAction extends EditorAction {
 			return TPromise.as(false);
 		}
 
-		let matches = this.editor.getModel().findMatches(r.searchText, true, r.isRegex, r.matchCase, r.wholeWord);
+		let matches = this.editor.getModel().findMatches(r.searchText, true, false, r.matchCase, r.wholeWord);
 
 		if (matches.length > 0) {
 			this.editor.setSelections(matches.map(m => Selection.createSelection(m.startLineNumber, m.startColumn, m.endLineNumber, m.endColumn)));
@@ -556,7 +553,7 @@ export class SelectionHighlighter extends Disposable implements EditorCommon.IEd
 			return;
 		}
 
-		let allMatches = model.findMatches(r.searchText, true, r.isRegex, r.matchCase, r.wholeWord);
+		let allMatches = model.findMatches(r.searchText, true, false, r.matchCase, r.wholeWord);
 		allMatches.sort(Range.compareRangesUsingStarts);
 
 		let selections = this.editor.getSelections();

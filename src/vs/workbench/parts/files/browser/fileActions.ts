@@ -26,7 +26,6 @@ import {EventType as WorkbenchEventType, EditorEvent} from 'vs/workbench/common/
 import Files = require('vs/workbench/parts/files/common/files');
 import {IFileService, IFileStat, IImportResult} from 'vs/platform/files/common/files';
 import {EditorInputAction} from 'vs/workbench/browser/parts/editor/baseEditor';
-import {IFrameEditor} from 'vs/workbench/browser/parts/editor/iframeEditor';
 import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
 import workbenchEditorCommon = require('vs/workbench/common/editor');
 import {IEditorSelection} from 'vs/editor/common/editorCommon';
@@ -35,8 +34,6 @@ import {FileStat, NewStatPlaceholder} from 'vs/workbench/parts/files/common/expl
 import {ExplorerView} from 'vs/workbench/parts/files/browser/views/explorerView';
 import {ExplorerViewlet} from 'vs/workbench/parts/files/browser/explorerViewlet';
 import {CACHE} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
-import {HTMLFrameEditorInput} from 'vs/workbench/parts/files/common/editors/htmlFrameEditorInput';
-import {DerivedFrameEditorInput} from 'vs/workbench/parts/files/common/editors/derivedFrameEditorInput';
 import {IActionProvider} from 'vs/base/parts/tree/browser/actionsRenderer';
 import {WorkingFileEntry, WorkingFilesModel} from 'vs/workbench/parts/files/common/workingFilesModel';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
@@ -967,65 +964,6 @@ export class FileImportedEvent extends Files.LocalFileChangeEvent {
 	}
 }
 
-// Preview HTML File
-export class PreviewHTMLAction extends Action {
-	private element: IFileStat;
-
-	constructor(
-		element: IFileStat,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@ITextFileService private textFileService: ITextFileService
-	) {
-		super('workbench.files.action.previewHTMLFromExplorer', nls.localize('openPreview', "Open Preview"));
-
-		this.element = element;
-		this.enabled = true;
-	}
-
-	public run(): Promise {
-		let htmlInput = this.instantiationService.createInstance(HTMLFrameEditorInput, this.element.resource);
-
-		let savePromise = Promise.as(null);
-		if (this.textFileService.isDirty(this.element.resource)) {
-			savePromise = this.textFileService.save(this.element.resource);
-		}
-
-		return savePromise.then(() => {
-			return this.editorService.openEditor(htmlInput);
-		});
-	}
-}
-
-export class PreviewHTMLEditorInputAction extends EditorInputAction {
-
-	constructor(
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@ITextFileService private textFileService: ITextFileService
-	) {
-		super('workbench.files.action.previewHTMLFromEditor', nls.localize('openPreview', "Open Preview"));
-
-		this.class = 'file-editor-action action-open-preview';
-	}
-
-	public run(event?: any): Promise {
-		let input = <Files.FileEditorInput>this.input;
-
-		let sideBySide = !!(event && (event.ctrlKey || event.metaKey));
-		let htmlInput = this.instantiationService.createInstance(HTMLFrameEditorInput, input.getResource());
-
-		let savePromise = Promise.as(null);
-		if (this.textFileService.isDirty(input.getResource())) {
-			savePromise = this.textFileService.save(input.getResource());
-		}
-
-		return savePromise.then(() => {
-			return this.editorService.openEditor(htmlInput, null, sideBySide);
-		});
-	}
-}
-
 // Copy File/Folder
 let fileToCopy: FileStat;
 export class CopyFileAction extends BaseFileAction {
@@ -1803,41 +1741,6 @@ export class RevertFileAction extends Action {
 		}
 
 		return Promise.as(true);
-	}
-}
-
-export class ViewDerivedSourceEditorInputAction extends EditorInputAction {
-
-	constructor(
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
-	) {
-		super('workbench.files.action.openDerivedResourceFromEditor', nls.localize('viewSource', "View Source"), 'derived-frame-editor-action view-source');
-	}
-
-	public run(event?: any): Promise {
-		let derivedFrameEditorInput = <DerivedFrameEditorInput>this.input;
-		let sideBySide = !!(event && (event.ctrlKey || event.metaKey));
-
-		return this.editorService.openEditor({
-			resource: derivedFrameEditorInput.getResource()
-		}, sideBySide);
-	}
-}
-
-export class RefreshDerivedFrameEditorInputAction extends EditorInputAction {
-
-	constructor( @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
-		super('workbench.files.action.refreshDerivedFrameEditor', nls.localize('reload', "Reload"), 'derived-frame-editor-action refresh');
-	}
-
-	public run(event?: any): Promise {
-		let editor = this.editorService.getActiveEditor();
-		if (editor instanceof IFrameEditor) {
-			(<IFrameEditor>editor).reload(true);
-		}
-
-		return Promise.as(null);
 	}
 }
 

@@ -164,9 +164,9 @@ export class ExtHostAPIImplementation {
 				});
 			},
 			executeCommand<T>(id: string, ...args: any[]): Thenable<T> {
-				return pluginHostCommands.executeCommand(id, args);
+				return pluginHostCommands.executeCommand(id, ...args);
 			},
-			getCommands(filterInternal: boolean = false):Thenable<string[]> {
+			getCommands(filterInternal: boolean = false): Thenable<string[]> {
 				return pluginHostCommands.getCommands(filterInternal);
 			}
 		};

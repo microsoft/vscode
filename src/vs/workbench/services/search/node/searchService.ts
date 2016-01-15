@@ -8,7 +8,8 @@ import {PPromise} from 'vs/base/common/winjs.base';
 import uri from 'vs/base/common/uri';
 import glob = require('vs/base/common/glob');
 import objects = require('vs/base/common/objects');
-import filters = require('vs/base/common/filters');
+import scorer = require('vs/base/common/scorer');
+import strings = require('vs/base/common/strings');
 import {Client} from 'vs/base/node/service.cp';
 import {IProgress, LineMatch, FileMatch, ISearchComplete, ISearchProgressItem, QueryType, IFileMatch, ISearchQuery, ISearchConfiguration, ISearchService} from 'vs/platform/search/common/search';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
@@ -154,8 +155,7 @@ export class SearchService implements ISearchService {
 				return false; // if we match on file pattern, we have to ignore non file resources
 			}
 
-			const res = filters.matchesFuzzy(filePattern, resource.fsPath);
-			if (!res || res.length === 0) {
+			if (!scorer.matches(resource.fsPath, strings.stripWildcards(filePattern).toLowerCase())) {
 				return false;
 			}
 		}

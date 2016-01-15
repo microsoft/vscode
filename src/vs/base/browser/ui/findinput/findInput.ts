@@ -107,6 +107,14 @@ export class FindInput extends Widget {
 		this.caseSensitive.disable();
 	}
 
+	public setEnabled(enabled:boolean): void {
+		if (enabled) {
+			this.enable();
+		} else {
+			this.disable();
+		}
+	}
+
 	public clear(): void {
 		this.clearValidation();
 		this.setValue('');

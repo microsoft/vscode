@@ -7,21 +7,19 @@
 
 import 'vs/css!./toolbar';
 import nls = require('vs/nls');
-import Lifecycle = require('vs/base/common/lifecycle');
-import Builder = require('vs/base/browser/builder');
-import Types = require('vs/base/common/types');
-import Actions = require('vs/base/common/actions');
-import ActionBar = require('vs/base/browser/ui/actionbar/actionbar');
-import Dropdown = require('vs/base/browser/ui/dropdown/dropdown');
-import EventEmitter = require('vs/base/common/eventEmitter');
-
-var $ = <Builder.QuickBuilder> Builder.$;
+import {IDisposable} from 'vs/base/common/lifecycle';
+import {Builder, $} from 'vs/base/browser/builder';
+import types = require('vs/base/common/types');
+import {Action, IActionRunner, IAction} from 'vs/base/common/actions';
+import {ActionBar, ActionsOrientation, IActionItemProvider, BaseActionItem} from 'vs/base/browser/ui/actionbar/actionbar';
+import {IContextMenuProvider, DropdownMenu, IActionProvider, ILabelRenderer, IDropdownMenuOptions} from 'vs/base/browser/ui/dropdown/dropdown';
+import {ListenerUnbind} from 'vs/base/common/eventEmitter';
 
 export var CONTEXT = 'context.toolbar';
 
 export interface IToolBarOptions {
-	orientation?: ActionBar.ActionsOrientation;
-	actionItemProvider?: ActionBar.IActionItemProvider;
+	orientation?: ActionsOrientation;
+	actionItemProvider?: IActionItemProvider;
 }
 
 /**
@@ -29,12 +27,12 @@ export interface IToolBarOptions {
  */
 export class ToolBar {
 	private options: IToolBarOptions;
-	private actionBar: ActionBar.ActionBar;
+	private actionBar: ActionBar;
 	private toggleMenuAction: ToggleMenuAction;
 	private toggleMenuActionItem: DropdownMenuActionItem;
 	private hasSecondaryActions: boolean;
 
-	constructor(container: HTMLElement, contextMenuProvider: Dropdown.IContextMenuProvider, options: IToolBarOptions = { orientation: ActionBar.ActionsOrientation.HORIZONTAL }) {
+	constructor(container: HTMLElement, contextMenuProvider: IContextMenuProvider, options: IToolBarOptions = { orientation: ActionsOrientation.HORIZONTAL }) {
 		this.options = options;
 		this.toggleMenuAction = new ToggleMenuAction();
 
@@ -42,9 +40,9 @@ export class ToolBar {
 		element.className = 'monaco-toolbar';
 		container.appendChild(element);
 
-		this.actionBar = new ActionBar.ActionBar($(element), {
+		this.actionBar = new ActionBar($(element), {
 			orientation: options.orientation,
-			actionItemProvider: (action: Actions.Action) => {
+			actionItemProvider: (action: Action) => {
 
 				// Return special action item for the toggle menu action
 				if (action.id === ToggleMenuAction.ID) {
@@ -60,7 +58,7 @@ export class ToolBar {
 						(<ToggleMenuAction>action).menuActions,
 						contextMenuProvider,
 						this.options.actionItemProvider,
-						this.options.orientation === ActionBar.ActionsOrientation.HORIZONTAL,
+						this.options.orientation === ActionsOrientation.HORIZONTAL,
 						this.actionRunner,
 						'toolbar-toggle-more'
 					);
@@ -73,19 +71,19 @@ export class ToolBar {
 		});
 	}
 
-	public set actionRunner(actionRunner: Actions.IActionRunner) {
+	public set actionRunner(actionRunner: IActionRunner) {
 		this.actionBar.actionRunner = actionRunner;
 	}
 
-	public get actionRunner(): Actions.IActionRunner {
+	public get actionRunner(): IActionRunner {
 		return this.actionBar.actionRunner;
 	}
 
-	public getContainer(): Builder.Builder {
+	public getContainer(): Builder {
 		return this.actionBar.getContainer();
 	}
 
-	public setActions(primaryActions: Actions.IAction[], secondaryActions?: Actions.IAction[]): () => void {
+	public setActions(primaryActions: IAction[], secondaryActions?: IAction[]): () => void {
 		return () => {
 			var primaryActionsToSet = primaryActions ? primaryActions.slice(0) : [];
 
@@ -101,7 +99,7 @@ export class ToolBar {
 		};
 	}
 
-	public addPrimaryAction(primaryActions: Actions.IAction): () => void {
+	public addPrimaryAction(primaryActions: IAction): () => void {
 		return () => {
 
 			// Add after the "..." action if we have secondary actions
@@ -127,11 +125,11 @@ export class ToolBar {
 	}
 }
 
-class ToggleMenuAction extends Actions.Action {
+class ToggleMenuAction extends Action {
 
 	public static ID = 'toolbar.toggle.more';
 
-	private _menuActions: Actions.IAction[];
+	private _menuActions: IAction[];
 
 	constructor() {
 		super(ToggleMenuAction.ID, nls.localize('more', "More"), null, true);
@@ -141,24 +139,24 @@ class ToggleMenuAction extends Actions.Action {
 		return this._menuActions;
 	}
 
-	public set menuActions(actions: Actions.IAction[]) {
+	public set menuActions(actions: IAction[]) {
 		this._menuActions = actions;
 	}
 }
 
-export class DropdownMenuActionItem extends ActionBar.BaseActionItem {
+export class DropdownMenuActionItem extends BaseActionItem {
 
 	private menuActionsOrProvider: any;
 	private animateClick: boolean;
-	private dropdownMenu: Dropdown.DropdownMenu;
-	private toUnbind: EventEmitter.ListenerUnbind;
-	private contextMenuProvider: Dropdown.IContextMenuProvider;
-	private actionItemProvider: ActionBar.IActionItemProvider;
+	private dropdownMenu: DropdownMenu;
+	private toUnbind: ListenerUnbind;
+	private contextMenuProvider: IContextMenuProvider;
+	private actionItemProvider: IActionItemProvider;
 	private clazz: string;
 
-	constructor(action: Actions.IAction, menuActions: Actions.IAction[], contextMenuProvider: Dropdown.IContextMenuProvider, actionItemProvider: ActionBar.IActionItemProvider, animateClick: boolean, actionRunner: Actions.IActionRunner, clazz: string);
-	constructor(action: Actions.IAction, actionProvider: Dropdown.IActionProvider, contextMenuProvider: Dropdown.IContextMenuProvider, actionItemProvider: ActionBar.IActionItemProvider, animateClick: boolean, actionRunner: Actions.IActionRunner, clazz: string);
-	constructor(action: Actions.IAction, menuActionsOrProvider: any, contextMenuProvider: Dropdown.IContextMenuProvider, actionItemProvider: ActionBar.IActionItemProvider, animateClick: boolean, actionRunner: Actions.IActionRunner, clazz: string) {
+	constructor(action: IAction, menuActions: IAction[], contextMenuProvider: IContextMenuProvider, actionItemProvider: IActionItemProvider, animateClick: boolean, actionRunner: IActionRunner, clazz: string);
+	constructor(action: IAction, actionProvider: IActionProvider, contextMenuProvider: IContextMenuProvider, actionItemProvider: IActionItemProvider, animateClick: boolean, actionRunner: IActionRunner, clazz: string);
+	constructor(action: IAction, menuActionsOrProvider: any, contextMenuProvider: IContextMenuProvider, actionItemProvider: IActionItemProvider, animateClick: boolean, actionRunner: IActionRunner, clazz: string) {
 		super(null, action);
 
 		this.menuActionsOrProvider = menuActionsOrProvider;
@@ -172,8 +170,8 @@ export class DropdownMenuActionItem extends ActionBar.BaseActionItem {
 	public render(container: HTMLElement): void {
 		super.render(container);
 
-		var labelRenderer: Dropdown.ILabelRenderer = (el: HTMLElement): Lifecycle.IDisposable => {
-			var e = Builder.$('a.action-label').attr({
+		var labelRenderer: ILabelRenderer = (el: HTMLElement): IDisposable => {
+			var e = $('a.action-label').attr({
 				tabIndex: '-1',
 				role: 'menuitem',
 				title: this._action.label || '',
@@ -199,19 +197,19 @@ export class DropdownMenuActionItem extends ActionBar.BaseActionItem {
 			return null;
 		};
 
-		var options: Dropdown.IDropdownMenuOptions = {
+		var options: IDropdownMenuOptions = {
 			contextMenuProvider: this.contextMenuProvider,
 			labelRenderer: labelRenderer
 		};
 
 		// Render the DropdownMenu around a simple action to toggle it
-		if (Types.isArray(this.menuActionsOrProvider)) {
+		if (types.isArray(this.menuActionsOrProvider)) {
 			options.actions = this.menuActionsOrProvider;
 		} else {
 			options.actionProvider = this.menuActionsOrProvider;
 		}
 
-		this.dropdownMenu = new Dropdown.DropdownMenu(container, options);
+		this.dropdownMenu = new DropdownMenu(container, options);
 
 		this.dropdownMenu.menuOptions = {
 			actionItemProvider: this.actionItemProvider,

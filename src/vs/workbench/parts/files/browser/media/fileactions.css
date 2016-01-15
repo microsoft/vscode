@@ -75,19 +75,19 @@
 	background: url('Preview_inverse.svg') center center no-repeat;
 }
 
-.monaco-workbench .derived-frame-editor-action.view-source {
+.monaco-workbench .iframe-editor-action.view-source {
 	background: url('ViewSource.svg') center center no-repeat;
 }
 
-.monaco-workbench.vs-dark .derived-frame-editor-action.view-source {
+.monaco-workbench.vs-dark .iframe-editor-action.view-source {
 	background: url('ViewSource_inverse.svg') center center no-repeat;
 }
 
-.monaco-workbench .derived-frame-editor-action.refresh {
+.monaco-workbench .iframe-editor-action.refresh {
 	background: url('Refresh.svg') center center no-repeat;
 }
 
-.monaco-workbench.vs-dark .derived-frame-editor-action.refresh {
+.monaco-workbench.vs-dark .iframe-editor-action.refresh {
 	background: url('Refresh_inverse.svg') center center no-repeat;
 }
 
@@ -141,13 +141,13 @@
 /* High Contrast Theming */
 .monaco-workbench.hc-black .explorer-action,
 .monaco-workbench.hc-black .quick-open-sidebyside,
-.monaco-workbench.hc-black .derived-frame-editor-action,
+.monaco-workbench.hc-black .iframe-editor-action,
 .monaco-workbench.hc-black .file-editor-action.action-open-preview {
 	background: none;
 }
 
 .monaco-workbench.hc-black .explorer-action:before,
-.monaco-workbench.hc-black .derived-frame-editor-action:before,
+.monaco-workbench.hc-black .iframe-editor-action:before,
 .monaco-workbench.hc-black .file-editor-action.action-open-preview:before {
 	position: absolute;
 	top: 12px;
@@ -184,11 +184,11 @@
 	content: url('SplitEditor_inverse.svg');
 }
 
-.monaco-workbench.hc-black .derived-frame-editor-action.view-source:before {
+.monaco-workbench.hc-black .iframe-editor-action.view-source:before {
 	content: url('ViewSource_inverse.svg');
 }
 
-.monaco-workbench.hc-black .derived-frame-editor-action.refresh:before {
+.monaco-workbench.hc-black .iframe-editor-action.refresh:before {
 	content: url('Refresh_inverse.svg');
 }
 

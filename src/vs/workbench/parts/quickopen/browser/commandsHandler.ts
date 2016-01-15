@@ -228,15 +228,8 @@ export class CommandsHandler extends QuickOpenHandler {
 		// Remove duplicates
 		entries = arrays.distinct(entries, (entry) => entry.getLabel() + entry.getGroupLabel());
 
-		// Sort by name if there is no search running
-		if (!searchValue) {
-			entries = entries.sort((elementA, elementB) => strings.localeCompare(elementA.getLabel().toLowerCase(), elementB.getLabel().toLowerCase()));
-		}
-
-		// Otherwise sort by score
-		else {
-			entries = entries.sort((elementA, elementB) => QuickOpenEntry.compareByScore(elementA, elementB, searchValue));
-		}
+		// Sort by name
+		entries = entries.sort((elementA, elementB) => strings.localeCompare(elementA.getLabel().toLowerCase(), elementB.getLabel().toLowerCase()));
 
 		return TPromise.as(new QuickOpenModel(entries));
 	}
@@ -281,7 +274,7 @@ export class CommandsHandler extends QuickOpenHandler {
 			let keys = this.keybindingService.lookupKeybindings(editorAction.id).map(k => this.keybindingService.getLabelFor(k));
 
 			if (action.label) {
-				let highlights = filters.matchesFuzzy(searchValue, action.label, true /* separate substring matching */);
+				let highlights = filters.matchesFuzzy(searchValue, action.label);
 				if (highlights) {
 					entries.push(this.instantiationService.createInstance(EditorActionCommandEntry, keys.length > 0 ? keys.join(', ') : '', action.label, highlights, action));
 				}

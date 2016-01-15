@@ -72,7 +72,7 @@ export class ScrollManager implements Lifecycle.IDisposable {
 		this.toDispose.push(this.scrollable.addInternalSizeChangeListener(() => {
 			this.scrollbar.onElementInternalDimensions();
 		}));
-		this.toDispose.push(this.configuration.addListener2(EditorCommon.EventType.ConfigurationChanged, (e:EditorCommon.IConfigurationChangedEvent) => {
+		this.toDispose.push(this.configuration.onDidChange((e:EditorCommon.IConfigurationChangedEvent) => {
 			this.scrollbar.updateClassName(this.configuration.editor.theme);
 			if (e.scrollbar) {
 				this.scrollbar.updateOptions(this.configuration.editor.scrollbar);

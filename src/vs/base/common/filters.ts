@@ -176,7 +176,7 @@ function _matchesCamelCase(word: string, camelCaseWord: string, i: number, j: nu
 // Heuristic to avoid computing camel case matcher for words that don't
 // look like camelCaseWords.
 function isCamelCaseWord(word: string): boolean {
-	if (word.length > 40) {
+	if (word.length > 60) {
 		return false;
 	}
 

@@ -6,7 +6,7 @@
 
 import {TPromise} from 'vs/base/common/winjs.base';
 import {Remotable, IThreadService} from 'vs/platform/thread/common/thread';
-import {IQuickOpenService, IPickOpenEntry, IPickOptions} from 'vs/workbench/services/quickopen/common/quickOpenService';
+import {IQuickOpenService, IPickOpenEntry, IPickOptions, IInputOptions} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {QuickPickOptions, QuickPickItem, InputBoxOptions} from 'vscode';
 
 export interface MyQuickPickItems extends IPickOpenEntry {
@@ -20,6 +20,7 @@ export class ExtHostQuickOpen {
 
 	private _proxy: MainThreadQuickOpen;
 	private _onDidSelectItem: (handle: number) => void;
+	private _validateInput: (input: string) => string;
 
 	constructor(@IThreadService threadService: IThreadService) {
 		this._proxy = threadService.getRemotable(MainThreadQuickOpen);
@@ -40,7 +41,8 @@ export class ExtHostQuickOpen {
 		let quickPickWidget = this._proxy.$show({
 			autoFocus: { autoFocusFirstEntry: true },
 			placeHolder: options && options.placeHolder,
-			matchOnDescription: options && options.matchOnDescription
+			matchOnDescription: options && options.matchOnDescription,
+			matchOnDetail: options && options.matchOnDetail
 		});
 
 		return itemsPromise.then(items => {
@@ -51,17 +53,20 @@ export class ExtHostQuickOpen {
 				let item = items[handle];
 				let label: string;
 				let description: string;
+				let detail: string;
 
 				if (typeof item === 'string') {
 					label = item;
 				} else {
 					label = item.label;
 					description = item.description;
+					detail = item.detail;
 				}
 				pickItems.push({
 					label,
 					description,
-					handle
+					handle,
+					detail
 				});
 			}
 
@@ -93,8 +98,17 @@ export class ExtHostQuickOpen {
 		}
 	}
 
+	// ---- input
+
 	input(options?: InputBoxOptions): Thenable<string> {
-		return this._proxy.$input(options);
+		this._validateInput = options.validateInput;
+		return this._proxy.$input(options, typeof options.validateInput === 'function');
+	}
+
+	$validateInput(input: string): TPromise<string> {
+		if (this._validateInput) {
+			return TPromise.as(this._validateInput(input));
+		}
 	}
 }
 
@@ -156,7 +170,25 @@ export class MainThreadQuickOpen {
 		}
 	}
 
-	$input(options?: InputBoxOptions): Thenable<string> {
-		return this._quickOpenService.input(options);
+	// ---- input
+
+	$input(options: InputBoxOptions, validateInput: boolean): Thenable<string> {
+
+		const inputOptions: IInputOptions = Object.create(null);
+
+		if (options) {
+			inputOptions.password = options.password;
+			inputOptions.placeHolder = options.placeHolder;
+			inputOptions.prompt = options.prompt;
+			inputOptions.value = options.value;
+		}
+
+		if (validateInput) {
+			inputOptions.validateInput = (value) => {
+				return this._proxy.$validateInput(value);
+			}
+		}
+
+		return this._quickOpenService.input(inputOptions);
 	}
 }
