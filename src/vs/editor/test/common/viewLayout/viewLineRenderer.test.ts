@@ -115,7 +115,7 @@ suite('viewLineRenderer.renderLine', () => {
 			'<span class="token 2">l</span>',
 			'<span class="token 3">l</span>',
 			'<span class="token 4">o</span>',
-			'<span class="token 4" style="color:grey"> &hellip;</span>' // bug, token should be 5, and space should be &nbsp;
+			'<span class="token 5">&nbsp;&hellip;</span>'
 		].join('');
 
 		assert.equal(_actual.output.join(''), '<span>' + expectedOutput + '</span>');

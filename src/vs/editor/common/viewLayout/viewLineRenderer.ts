@@ -20,21 +20,22 @@ export interface IRenderLineOutput {
 	output: string[];
 }
 
-let _space = ' '.charCodeAt(0);
-let _tab = '\t'.charCodeAt(0);
-let _lowerThan = '<'.charCodeAt(0);
-let _greaterThan = '>'.charCodeAt(0);
-let _ampersand = '&'.charCodeAt(0);
-let _carriageReturn = '\r'.charCodeAt(0);
-let _lineSeparator = '\u2028'.charCodeAt(0); //http://www.fileformat.info/info/unicode/char/2028/index.htm
-let _bom = 65279;
-let _replacementCharacter = '\ufffd';
+const _space = ' '.charCodeAt(0);
+const _tab = '\t'.charCodeAt(0);
+const _lowerThan = '<'.charCodeAt(0);
+const _greaterThan = '>'.charCodeAt(0);
+const _ampersand = '&'.charCodeAt(0);
+const _carriageReturn = '\r'.charCodeAt(0);
+const _lineSeparator = '\u2028'.charCodeAt(0); //http://www.fileformat.info/info/unicode/char/2028/index.htm
+const _bom = 65279;
 
 export function renderLine(input:IRenderLineInput): IRenderLineOutput {
 	const lineText = input.lineContent;
-	let lineTextLength = lineText.length;
-	const stopRenderingLineAfter = input.stopRenderingLineAfter;
+	const lineTextLength = lineText.length;
 	const tabSize = input.tabSize;
+	const actualLineParts = input.parts;
+	const renderWhitespace = input.renderWhitespace;
+	const charBreakIndex = (input.stopRenderingLineAfter === -1 ? lineTextLength : input.stopRenderingLineAfter - 1);
 
 	if (lineTextLength === 0) {
 		return {
@@ -45,121 +46,112 @@ export function renderLine(input:IRenderLineInput): IRenderLineOutput {
 		};
 	}
 
-	let result: IRenderLineOutput = {
-		charOffsetInPart: [],
-		lastRenderedPartIndex: 0,
-		output: []
-	};
-
-	result.output.push('<span>');
-	let partClassName: string,
-		partIndex = -1,
-		nextPartIndex = 0,
-		tabsCharDelta = 0,
-		charOffsetInPart = 0,
-		append = '',
-		renderWhitespace = false;
-
-	let actualLineParts = input.parts;
 	if (actualLineParts.length === 0) {
 		throw new Error('Cannot render non empty line without line parts!');
 	}
 
-	if (stopRenderingLineAfter !== -1 && lineTextLength > stopRenderingLineAfter - 1) {
-		append = lineText.substr(stopRenderingLineAfter - 1, 1);
-		lineTextLength = stopRenderingLineAfter - 1;
-	}
+	let charIndex = 0;
+	let out: string[] = [];
+	let charOffsetInPartArr: number[] = [];
+	let charOffsetInPart = 0;
 
-	for (let i = 0; i < lineTextLength; i++) {
-		if (i === nextPartIndex) {
-			partIndex++;
-			nextPartIndex = (partIndex + 1 < actualLineParts.length ? actualLineParts[partIndex + 1].startIndex : Number.MAX_VALUE);
-			if (i > 0) {
-				result.output.push('</span>');
-			}
-			result.output.push('<span class="');
-			partClassName = 'token ' + actualLineParts[partIndex].type.replace(/[^a-z0-9\-]/gi, ' ');
-			if (input.renderWhitespace) {
-				renderWhitespace = partClassName.indexOf('whitespace') >= 0;
-			}
-			result.output.push(partClassName);
-			result.output.push('">');
+	out.push('<span>');
+	for (let partIndex = 0, partIndexLen = actualLineParts.length; partIndex < partIndexLen; partIndex++) {
+		let part = actualLineParts[partIndex];
 
-			charOffsetInPart = 0;
+		out.push('<span class="');
+		out.push('token ');
+		out.push(part.type.replace(/[^a-z0-9\-]/gi, ' '));
+		out.push('">');
+
+		let partRendersWhitespace = false;
+		if (renderWhitespace) {
+			partRendersWhitespace = (/whitespace$/.test(part.type));
 		}
 
-		result.charOffsetInPart[i] = charOffsetInPart;
-		let charCode = lineText.charCodeAt(i);
-
-		switch (charCode) {
-			case _tab:
-				let insertSpacesCount = tabSize - (i + tabsCharDelta) % tabSize;
-				tabsCharDelta += insertSpacesCount - 1;
-				charOffsetInPart += insertSpacesCount - 1;
-				if (insertSpacesCount > 0) {
-					result.output.push(renderWhitespace ? '&rarr;' : '&nbsp;');
-					insertSpacesCount--;
-				}
-				while (insertSpacesCount > 0) {
-					result.output.push('&nbsp;');
-					insertSpacesCount--;
-				}
-				break;
-
-			case _space:
-				result.output.push(renderWhitespace ? '&middot;' : '&nbsp;');
-				break;
-
-			case _lowerThan:
-				result.output.push('&lt;');
-				break;
-
-			case _greaterThan:
-				result.output.push('&gt;');
-				break;
-
-			case _ampersand:
-				result.output.push('&amp;');
-				break;
-
-			case 0:
-				result.output.push('&#00;');
-				break;
-
-			case _bom:
-			case _lineSeparator:
-				result.output.push(_replacementCharacter);
-				break;
-
-			case _carriageReturn:
-				// zero width space, because carriage return would introduce a line break
-				result.output.push('&#8203');
-				break;
-
-			default:
-				result.output.push(lineText.charAt(i));
+		let toCharIndex = lineTextLength;
+		if (partIndex + 1 < partIndexLen) {
+			toCharIndex = Math.min(lineTextLength, actualLineParts[partIndex + 1].startIndex);
 		}
 
-		charOffsetInPart ++;
+		charOffsetInPart = 0;
+		let tabsCharDelta = 0;
+		for (; charIndex < toCharIndex; charIndex++) {
+			charOffsetInPartArr[charIndex] = charOffsetInPart;
+			let charCode = lineText.charCodeAt(charIndex);
+
+			switch (charCode) {
+				case _tab:
+					let insertSpacesCount = tabSize - (charIndex + tabsCharDelta) % tabSize;
+					tabsCharDelta += insertSpacesCount - 1;
+					charOffsetInPart += insertSpacesCount - 1;
+					if (insertSpacesCount > 0) {
+						out.push(partRendersWhitespace ? '&rarr;' : '&nbsp;');
+						insertSpacesCount--;
+					}
+					while (insertSpacesCount > 0) {
+						out.push('&nbsp;');
+						insertSpacesCount--;
+					}
+					break;
+
+				case _space:
+					out.push(partRendersWhitespace ? '&middot;' : '&nbsp;');
+					break;
+
+				case _lowerThan:
+					out.push('&lt;');
+					break;
+
+				case _greaterThan:
+					out.push('&gt;');
+					break;
+
+				case _ampersand:
+					out.push('&amp;');
+					break;
+
+				case 0:
+					out.push('&#00;');
+					break;
+
+				case _bom:
+				case _lineSeparator:
+					out.push('\ufffd');
+					break;
+
+				case _carriageReturn:
+					// zero width space, because carriage return would introduce a line break
+					out.push('&#8203');
+					break;
+
+				default:
+					out.push(lineText.charAt(charIndex));
+			}
+
+			charOffsetInPart ++;
+
+			if (charIndex >= charBreakIndex) {
+				out.push('&hellip;</span></span>');
+				charOffsetInPartArr[charOffsetInPartArr.length - 1]++;
+				return {
+					charOffsetInPart: charOffsetInPartArr,
+					lastRenderedPartIndex: partIndex,
+					output: out
+				};
+			}
+		}
+		out.push('</span>');
 	}
-	result.output.push('</span>');
+	out.push('</span>');
 
 	// When getting client rects for the last character, we will position the
 	// text range at the end of the span, insteaf of at the beginning of next span
-	result.charOffsetInPart[lineTextLength] = charOffsetInPart;
+	charOffsetInPartArr.push(charOffsetInPart);
 
-	// In case we stop rendering, we record here the index of the last span
-	// that should be used for getting client rects
-	result.lastRenderedPartIndex = partIndex;
-
-	if (append.length > 0) {
-		result.output.push('<span class="');
-		result.output.push(partClassName);
-		result.output.push('" style="color:grey">');
-		result.output.push(append);
-		result.output.push('&hellip;</span>');
-	}
-	result.output.push('</span>');
-
-	return result;
+	return {
+		charOffsetInPart: charOffsetInPartArr,
+		lastRenderedPartIndex: actualLineParts.length - 1,
+		output: out
+	};
 }
