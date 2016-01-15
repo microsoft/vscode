@@ -198,7 +198,7 @@ export class CommandsHandler extends QuickOpenHandler {
 	}
 
 	public getResults(searchValue: string): TPromise<QuickOpenModel> {
-		searchValue = searchValue.trim().replace(/ /g, ''); // since we match fuzzy, remove all whitespaces upfront
+		searchValue = searchValue.trim();
 
 		// Workbench Actions (if prefix asks for all commands)
 		let workbenchEntries: CommandEntry[] = [];
