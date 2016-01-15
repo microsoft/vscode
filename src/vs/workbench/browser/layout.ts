@@ -67,10 +67,10 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 	private options: LayoutOptions;
 	private toUnbind: { (): void; }[];
 	private computedStyles: ComputedStyles;
-	private editorHeight: number;
 	private workbenchSize: Dimension;
 	private sashX: Sash;
 	private sashY: Sash;
+	private editorHeight: number;
 	private startSidebarWidth: number;
 	private sidebarWidth: number;
 	private startPanelPartHeight: number;
@@ -386,13 +386,16 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		this.editor.getContainer().size(editorSize.width, editorSize.height);
 		this.panelPart.getContainer().size(panelDimension.width, panelDimension.height);
 
-		// TODO@Isidor absolutly position the panel part container
+		const editorBottom = this.computedStyles.statusbar.height + panelDimension.height;
 		if (isSidebarHidden) {
-			this.editor.getContainer().position(0, editorSize.remainderRight, panelDimension.height, editorSize.remainderLeft);
+			this.editor.getContainer().position(0, editorSize.remainderRight, editorBottom, editorSize.remainderLeft);
+			this.panelPart.getContainer().position(editorDimension.height, editorSize.remainderRight, this.computedStyles.statusbar.height, editorSize.remainderRight);
 		} else if (sidebarPosition === Position.LEFT) {
-			this.editor.getContainer().position(0, 0, 0, sidebarSize.width + activityBarSize.width);
+			this.editor.getContainer().position(0, 0, editorBottom, sidebarSize.width + activityBarSize.width);
+			this.panelPart.getContainer().position(editorDimension.height, 0, this.computedStyles.statusbar.height, sidebarSize.width + activityBarSize.width);
 		} else {
-			this.editor.getContainer().position(0, sidebarSize.width, 0, 0);
+			this.editor.getContainer().position(0, sidebarSize.width, editorBottom, 0);
+			this.panelPart.getContainer().position(editorDimension.height, sidebarSize.width, this.computedStyles.statusbar.height, 0);
 		}
 
 		// Activity Bar Part
@@ -429,6 +432,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		// Propagate to Part Layouts
 		this.editor.layout(new Dimension(editorSize.width, editorSize.height));
 		this.sidebar.layout(sidebarSize);
+		this.panelPart.layout(panelDimension);
 
 		// Propagate to Context View
 		if (this.contextViewService) {
