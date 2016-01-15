@@ -261,8 +261,15 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 			});
 		});
 
-		return this.doPick(entryPromise, options).then(item => {
-			return item && isAboutStrings ? item.label : item;
+		return new TPromise<string | IPickOpenEntry>((resolve, reject, progress) => {
+
+			function onItem(item: IPickOpenEntry): string | IPickOpenEntry {
+				return item && isAboutStrings ? item.label : item;
+			}
+
+			this.doPick(entryPromise, options).then(item => resolve(onItem(item)),
+				err => reject(err),
+				item => progress(onItem(item)));
 		});
 	}
 
