@@ -10,6 +10,9 @@ import { Delayer } from 'vs/base/common/async';
 import { clone, assign } from 'vs/base/common/objects';
 import { IServiceCtor, Server as IPCServer, Client as IPCClient, IServiceMap } from 'vs/base/common/service';
 
+// The amd loader has the global scope assigned to this.
+const globalRequire = this.require;
+
 export class Server extends IPCServer {
 	constructor() {
 		super({
@@ -118,6 +121,13 @@ export class Client implements IDisposable {
 
 				if (typeof this.options.debugBrk === 'number') {
 					forkOpts.execArgv = ['--nolazy', '--debug-brk=' + this.options.debugBrk];
+				}
+			}
+			if (globalRequire && typeof globalRequire.getConfig === 'function') {
+				let nlsConfig = globalRequire.getConfig()['vs/nls'];
+				if (nlsConfig) {
+					forkOpts.env = forkOpts.env || clone(process.env);
+					forkOpts.env['VSCODE_NLS_CONFIG'] = JSON.stringify(nlsConfig);
 				}
 			}
 
