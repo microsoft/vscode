@@ -4,9 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import URI from 'vs/base/common/uri';
 import {ResourceEditorInput} from 'vs/workbench/common/editor/resourceEditorInput';
 
 export class HtmlInput extends ResourceEditorInput {
 
 	// just a marker class
+
+	getResource(): URI {
+		return this.resource;
+	}
 }

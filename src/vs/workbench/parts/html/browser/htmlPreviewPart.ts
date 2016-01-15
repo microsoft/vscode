@@ -8,15 +8,11 @@
 // import 'vs/css!./media/iframeeditor';
 import {localize} from 'vs/nls';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {IModel} from 'vs/editor/common/editorCommon';
-import URI from 'vs/base/common/uri';
+import {IModel, EventType} from 'vs/editor/common/editorCommon';
 import {Dimension, Builder} from 'vs/base/browser/builder';
-import * as DOM from 'vs/base/browser/dom';
-import * as errors from 'vs/base/common/errors';
+import {cAll} from 'vs/base/common/lifecycle';
 import {EditorOptions, EditorInput} from 'vs/workbench/common/editor';
-import {EditorInputAction, BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
-import {IFrameEditorInput} from 'vs/workbench/common/editor/iframeEditorInput';
-import {IFrameEditorModel} from 'vs/workbench/common/editor/iframeEditorModel';
+import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {Position} from 'vs/platform/editor/common/editor';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
@@ -33,6 +29,10 @@ export class HtmlPreviewPart extends BaseEditor {
 	private _iFrameElement: HTMLIFrameElement;
 	private _editorService: IWorkbenchEditorService;
 
+	private _model: IModel;
+	private _modelChangeUnbind: Function;
+	private _lastModelVersion: number;
+
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService
@@ -46,6 +46,10 @@ export class HtmlPreviewPart extends BaseEditor {
 		// remove from dome
 		const element = this._iFrameElement.parentElement;
 		element.parentElement.removeChild(element);
+
+		// unhook from model
+		this._modelChangeUnbind = cAll(this._modelChangeUnbind);
+		this._model = undefined;
 	}
 
 	public createEditor(parent: Builder): void {
@@ -87,46 +91,92 @@ export class HtmlPreviewPart extends BaseEditor {
 		return this.input.getName();
 	}
 
+	public setVisible(visible: boolean, position?: Position): TPromise<void> {
+		return super.setVisible(visible, position).then(() => {
+			if (visible && this._model) {
+				this._modelChangeUnbind = this._model.addListener(EventType.ModelContentChanged2, () => this._updateIFrameContent());
+				this._updateIFrameContent();
+			} else {
+				this._modelChangeUnbind = cAll(this._modelChangeUnbind);
+			}
+		})
+	}
+
+	public changePosition(position: Position): void {
+		super.changePosition(position);
+
+		// reparenting an IFRAME into another DOM element yields weird results when the contents are made
+		// of a string and not a URL. to be on the safe side we reload the iframe when the position changes
+		// and we do it using a timeout of 0 to reload only after the position has been changed in the DOM
+		setTimeout(() => {
+			this._updateIFrameContent(true);
+		}, 0);
+	}
+
 	public setInput(input: EditorInput, options: EditorOptions): TPromise<void> {
+
+		this._model = undefined;
+		this._modelChangeUnbind = cAll(this._modelChangeUnbind);
+		this._lastModelVersion = -1;
 
 		if (!(input instanceof HtmlInput)) {
 			return TPromise.wrapError<void>('Invalid input');
 		}
 
 		return this._editorService.resolveEditorModel(input).then(model => {
-			let textModel: IModel;
 			if (model instanceof ResourceEditorModel) {
-				textModel = model.textEditorModel
+				this._model = model.textEditorModel
 			}
 
-			if (!textModel) {
+			if (!this._model) {
 				return TPromise.wrapError<void>(localize('html.voidInput', "Invalid editor input."));
 			}
 
-			let parser = new DOMParser();
-			let newDocument = parser.parseFromString(textModel.getValue(), 'text/html');
-			// newDocument.body.appendChild(KeybindingEnabler.script());
-
-			let iFrameDocument = this._iFrameElement.contentWindow.document;
-			if ((<HTMLElement>iFrameDocument.firstChild).innerHTML === '<head></head><body></body>') {
-				iFrameDocument.open('text/html', 'replace');
-				iFrameDocument.write(KeybindingEnabler.defaultHtml());
-				iFrameDocument.close();
-			}
-
-			if (newDocument.head.innerHTML !== iFrameDocument.head.innerHTML) {
-				iFrameDocument.head.innerHTML = newDocument.head.innerHTML;
-			}
-			if (newDocument.body.innerHTML !== iFrameDocument.body.innerHTML) {
-				iFrameDocument.body.innerHTML = newDocument.body.innerHTML;
-			}
+			this._modelChangeUnbind = this._model.addListener(EventType.ModelContentChanged2, () => this._updateIFrameContent());
+			this._updateIFrameContent();
 
 			return super.setInput(input, options);
 		});
 	}
+
+	private _updateIFrameContent(refresh: boolean = false): void {
+
+		if (!this._model || (!refresh && this._lastModelVersion === this._model.getVersionId())) {
+			// nothing to do
+			return;
+		}
+
+		const html = this._model.getValue();
+		const iFrameDocument = this._iFrameElement.contentDocument;
+
+		if (!iFrameDocument) {
+			// not visible anymore
+			return;
+		}
+
+		// the very first time we load just our script
+		// to integrate with the outside world
+		if ((<HTMLElement>iFrameDocument.firstChild).innerHTML === '<head></head><body></body>') {
+			iFrameDocument.open('text/html', 'replace');
+			iFrameDocument.write(Integration.defaultHtml());
+			iFrameDocument.close();
+		}
+
+		// diff a little against the current input and the new state
+		const parser = new DOMParser();
+		const newDocument = parser.parseFromString(html, 'text/html');
+		if (newDocument.head.innerHTML !== iFrameDocument.head.innerHTML) {
+			iFrameDocument.head.innerHTML = newDocument.head.innerHTML;
+		}
+		if (newDocument.body.innerHTML !== iFrameDocument.body.innerHTML) {
+			iFrameDocument.body.innerHTML = newDocument.body.innerHTML;
+		}
+
+		this._lastModelVersion = this._model.getVersionId();
+	}
 }
 
-namespace KeybindingEnabler {
+namespace Integration {
 
 	'use strict';
 
@@ -194,11 +244,5 @@ namespace KeybindingEnabler {
 			'</script></body></html>',
 		];
 		return all.join('\n');
-	}
-
-	export function script() {
-		let result = document.createElement('script');
-		result.innerHTML = scriptSource.join('\n');
-		return result;
 	}
 }
