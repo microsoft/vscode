@@ -61,6 +61,11 @@ export interface IInputOptions {
 	 * set to true to show a password prompt that will not show the typed value
 	 */
 	password?: boolean;
+
+	/**
+	 * an optional function that is used to validate user input.
+	 */
+	validateInput?: (input: string) => TPromise<string>;
 }
 
 export var IQuickOpenService = createDecorator<IQuickOpenService>('quickOpenService');

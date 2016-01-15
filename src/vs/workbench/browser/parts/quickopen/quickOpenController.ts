@@ -50,11 +50,15 @@ interface IPickOpenEntryItem extends IPickOpenEntry {
 	render?: (tree: ITree, container: HTMLElement, previousCleanupFn: IElementCallback) => IElementCallback;
 }
 
-export interface IInternalPickOptions extends IPickOptions {
-	inputMode?: boolean;
-	inputPrompt?: string;
-	inputValue?: string;
-	inputPassword?: boolean;
+interface IInternalPickOptions {
+	value?: string;
+	placeHolder?: string;
+	password?: boolean;
+	autoFocus?: IAutoFocus;
+	matchOnDescription?: boolean;
+	matchOnDetail?: boolean;
+	ignoreFocusLost?: boolean;
+	onDidType?: (value: string) => any;
 }
 
 export class QuickOpenController extends WorkbenchComponent implements IQuickOpenService {
@@ -175,28 +179,94 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 	}
 
 	public input(options?: IInputOptions): TPromise<string> {
-		if (!options) {
-			options = Object.create(null);
-		}
 
-		return this.pick([], {
-			inputValue: options.value,
-			placeHolder: options.placeHolder,
-			inputPrompt: options.prompt,
-			inputMode: true,
-			inputPassword: options.password,
-			autoFocus: { autoFocusFirstEntry: true }
+		const defaultMessage = options && options.prompt
+			? nls.localize('inputModeEntryDescription', "{0} (Press 'Enter' to confirm or 'Escape' to cancel)", options.prompt)
+			: nls.localize('inputModeEntry', "Press 'Enter' to confirm your input or 'Escape' to cancel");
+
+		let currentPick = defaultMessage;
+		let currentValidation = TPromise.as(true);
+		let lastValue = options && options.value;
+
+		const init = (resolve: (value: IPickOpenEntry | TPromise<IPickOpenEntry>) => any, reject: (value: any) => any) => {
+
+			// open quick pick with just one choise. we will recurse whenever
+			// the validation/success message changes
+			this.doPick(TPromise.as([{ label: currentPick }]), {
+				ignoreFocusLost: true,
+				autoFocus: { autoFocusFirstEntry: true },
+				password: options.password,
+				placeHolder: options.placeHolder,
+				value: options.value,
+				onDidType: (value) => {
+					lastValue = value;
+
+					if (options.validateInput) {
+						if (currentValidation) {
+							currentValidation.cancel();
+						}
+						currentValidation = TPromise.timeout(100).then(() => {
+							return options.validateInput(value).then(message => {
+								let newPick = message || defaultMessage;
+								if (newPick !== currentPick) {
+									currentPick = newPick;
+									resolve(new TPromise(init));
+								}
+								return !message;
+							})
+						}, err => {
+							// ignore
+						});
+					}
+				}
+			}).then(resolve, reject);
+		};
+
+		return new TPromise(init).then(item => {
+			return currentValidation.then(valid => {
+				if (valid && item) {
+					return lastValue;
+				}
+			});
 		});
 	}
 
-	public pick(picks: TPromise<string[]>, options?: IInternalPickOptions): TPromise<string>;
-	public pick<T extends IPickOpenEntry>(picks: TPromise<T[]>, options?: IInternalPickOptions): TPromise<string>;
-	public pick(picks: string[], options?: IInternalPickOptions): TPromise<string>;
-	public pick<T extends IPickOpenEntry>(picks: T[], options?: IInternalPickOptions): TPromise<T>;
-	public pick(arg1: any, options?: IInternalPickOptions): TPromise<any> {
+	public pick(picks: TPromise<string[]>, options?: IPickOptions): TPromise<string>;
+	public pick<T extends IPickOpenEntry>(picks: TPromise<T[]>, options?: IPickOptions): TPromise<string>;
+	public pick(picks: string[], options?: IPickOptions): TPromise<string>;
+	public pick<T extends IPickOpenEntry>(picks: T[], options?: IPickOptions): TPromise<T>;
+	public pick(arg1: string[] | TPromise<string[]> | IPickOpenEntry[] | TPromise<IPickOpenEntry[]>, options?: IPickOptions): TPromise<string | IPickOpenEntry> {
 		if (!options) {
 			options = Object.create(null);
 		}
+
+		let arrayPromise: TPromise<string[] | IPickOpenEntry[]>;
+		if (Array.isArray(arg1)) {
+			arrayPromise = TPromise.as(arg1);
+		} else if (TPromise.is(arg1)) {
+			arrayPromise = arg1;
+		} else {
+			throw new Error('illegal input');
+		}
+
+		let isAboutStrings = false;
+		let entryPromise = arrayPromise.then(elements => {
+			return (<Array<string | IPickOpenEntry>>elements).map(element => {
+				if (typeof element === 'string') {
+					isAboutStrings = true;
+					return <IPickOpenEntry>{ label: element };
+				} else {
+					return element;
+				}
+			});
+		});
+
+		return this.doPick(entryPromise, options).then(item => {
+			return item && isAboutStrings ? item.label : item;
+		});
+	}
+
+	private doPick(picksPromise: TPromise<IPickOpenEntry[]>, options: IInternalPickOptions): TPromise<IPickOpenEntry> {
 
 		let autoFocus = options.autoFocus;
 
@@ -232,27 +302,20 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 		}
 
 		// Respect input value
-		if (options.inputMode && options.inputValue) {
-			this.pickOpenWidget.setValue(options.inputValue);
+		if (options.value) {
+			this.pickOpenWidget.setValue(options.value);
 		}
 
 		// Respect password
-		this.pickOpenWidget.setPassword(options.inputMode && options.inputPassword);
+		this.pickOpenWidget.setPassword(options.password);
 
 		// Layout
 		if (this.layoutDimensions) {
 			this.pickOpenWidget.layout(this.layoutDimensions);
 		}
 
-		// Convert arg to promise as needed
-		let picksPromise: TPromise<any[]> = arg1;
-		if (!(Promise.is(arg1))) {
-			picksPromise = Promise.as(arg1);
-		}
-
 		return new TPromise<IPickOpenEntry | string>((complete, error, progress) => {
 			let picksPromiseDone = false;
-			let userTypedValue = options.inputValue || '';
 
 			// Resolve picks
 			picksPromise.then((picks) => {
@@ -268,9 +331,6 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 				// Model
 				let model = new QuickOpenModel();
 				let entries = picks.map((e) => {
-					if (typeof e === 'string') {
-						return new PickOpenEntry(e, null, null, () => progress(e));
-					}
 
 					let entry = (<IPickOpenEntryItem>e);
 
@@ -282,15 +342,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 				});
 
 				if (picks.length === 0) {
-					if (options.inputMode) {
-						if (options.inputPrompt) {
-							entries.push(new PickOpenEntry(nls.localize('inputModeEntryDescription', "{0} (Press 'Enter' to confirm or 'Escape' to cancel)", options.inputPrompt)));
-						} else {
-							entries.push(new PickOpenEntry(nls.localize('inputModeEntry', "Press 'Enter' to confirm your input or 'Escape' to cancel")));
-						}
-					} else {
-						entries.push(new PickOpenEntry(nls.localize('emptyPicks', "There are no entries to pick from")));
-					}
+					entries.push(new PickOpenEntry(nls.localize('emptyPicks', "There are no entries to pick from")));
 				}
 
 				model.setEntries(entries);
@@ -298,12 +350,9 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 				// Handlers
 				this.pickOpenWidget.setCallbacks({
 					onOk: () => {
-						if (options.inputMode) {
-							return complete(userTypedValue);
-						}
 
 						if (picks.length === 0) {
-							return null;
+							return complete(null);
 						}
 
 						let index = -1;
@@ -316,9 +365,14 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 						complete(picks[index] || null);
 					},
 					onCancel: () => complete(void 0),
-					onFocusLost: () => !!options.inputMode, // veto close on focus lost if we are in input mode
+					onFocusLost: () => options.ignoreFocusLost,
 					onType: (value: string) => {
-						userTypedValue = value;
+
+						// the caller takes care of all input
+						if (options.onDidType) {
+							options.onDidType(value);
+							return;
+						}
 
 						if (picks.length === 0) {
 							return;
