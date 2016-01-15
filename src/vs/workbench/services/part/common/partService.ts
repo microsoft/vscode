@@ -63,12 +63,12 @@ export interface IPartService {
 	/**
 	 * Checks if the panel part is currently hidden or not
 	 */
-	isPanelPartHidden(): boolean;
+	isPanelHidden(): boolean;
 
 	/**
 	 * Set panel part hidden or not
 	 */
-	setPanelPartHidden(hidden: boolean): void;
+	setPanelHidden(hidden: boolean): void;
 
 	/**
 	 * Gets the current side bar position. Note that the sidebar can be hidden too.

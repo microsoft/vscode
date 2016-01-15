@@ -82,7 +82,7 @@ export class Workbench implements IPartService {
 
 	private static sidebarPositionSettingKey = 'workbench.sidebar.position';
 	private static sidebarHiddenSettingKey = 'workbench.sidebar.hidden';
-	private static panelPartHiddenSettingKey = 'workbench.panelPart.hidden';
+	private static panelHiddenSettingKey = 'workbench.panel.hidden';
 
 	public serviceId = IPartService;
 
@@ -117,7 +117,7 @@ export class Workbench implements IPartService {
 	private creationPromiseComplete: ValueCallback;
 	private sideBarHidden: boolean;
 	private sideBarPosition: Position;
-	private panelPartHidden: boolean;
+	private panelHidden: boolean;
 	private editorBackgroundDelayer: Delayer<void>;
 
 	constructor(container: HTMLElement, workspace: IWorkspace, configuration: IConfiguration, options: IOptions, instantiationService: IInstantiationService) {
@@ -419,9 +419,9 @@ export class Workbench implements IPartService {
 		}
 
 		// Panel part visibility
-		this.panelPartHidden = this.storageService.getBoolean(Workbench.panelPartHiddenSettingKey, StorageScope.WORKSPACE, true);
+		this.panelHidden = this.storageService.getBoolean(Workbench.panelHiddenSettingKey, StorageScope.WORKSPACE, true);
 		if (!!this.workbenchParams.options.singleFileMode) {
-			this.panelPartHidden = true; // we hide panel part in single-file-mode
+			this.panelHidden = true; // we hide panel part in single-file-mode
 		}
 
 		// Sidebar position
@@ -484,7 +484,7 @@ export class Workbench implements IPartService {
 			return !this.sideBarHidden;
 		}
 		if (part === Parts.PANEL_PART) {
-			return !this.panelPartHidden;
+			return !this.panelHidden;
 		}
 
 		return true; // any other part cannot be hidden
@@ -533,12 +533,12 @@ export class Workbench implements IPartService {
 		this.storageService.store(Workbench.sidebarHiddenSettingKey, hidden ? 'true' : 'false', StorageScope.WORKSPACE);
 	}
 
-	public isPanelPartHidden(): boolean {
-		return this.panelPartHidden;
+	public isPanelHidden(): boolean {
+		return this.panelHidden;
 	}
 
-	public setPanelPartHidden(hidden: boolean, skipLayout?:boolean): void {
-		this.panelPartHidden = hidden;
+	public setPanelHidden(hidden: boolean, skipLayout?:boolean): void {
+		this.panelHidden = hidden;
 
 		// Layout
 		if (!skipLayout) {
@@ -566,7 +566,7 @@ export class Workbench implements IPartService {
 		}
 
 		// Remember in settings
-		this.storageService.store(Workbench.panelPartHiddenSettingKey, hidden ? 'true' : 'false', StorageScope.WORKSPACE);
+		this.storageService.store(Workbench.panelHiddenSettingKey, hidden ? 'true' : 'false', StorageScope.WORKSPACE);
 	}
 
 	public getSideBarPosition(): Position {

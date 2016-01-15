@@ -44,7 +44,7 @@ export class LayoutOptions {
 interface ComputedStyles {
 	activitybar: { minWidth: number; };
 	sidebar: { minWidth: number; };
-	panelPart: { minHeight: number; }
+	panel: { minHeight: number; }
 	editor: { minWidth: number; };
 	statusbar: { height: number; };
 }
@@ -55,7 +55,7 @@ interface ComputedStyles {
 export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontalSashLayoutProvider {
 
 	private static sashXWidthSettingsKey = 'workbench.sidebar.width';
-	private static sashYHeightSettingsKey = 'workbench.panelpart.height';
+	private static sashYHeightSettingsKey = 'workbench.panel.height';
 
 	private parent: Builder;
 	private workbenchContainer: Builder;
@@ -74,9 +74,9 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 	private startSidebarWidth: number;
 	private sidebarWidth: number;
 	private sidebarHeight: number;
-	private startPanelPartHeight: number;
-	private panelPartHeight: number;
-	private panelPartWidth: number;
+	private startPanelHeight: number;
+	private panelHeight: number;
+	private panelWidth: number;
 
 	// Take parts as an object bag since instatation service does not have typings for constructors with 9+ arguments
 	constructor(
@@ -118,7 +118,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		});
 
 		this.sidebarWidth = this.storageService.getInteger(WorkbenchLayout.sashXWidthSettingsKey, StorageScope.GLOBAL, -1);
-		this.panelPartHeight = this.storageService.getInteger(WorkbenchLayout.sashYHeightSettingsKey, StorageScope.GLOBAL, 0);
+		this.panelHeight = this.storageService.getInteger(WorkbenchLayout.sashYHeightSettingsKey, StorageScope.GLOBAL, 0);
 
 		this.registerListeners();
 		this.registerSashListeners();
@@ -139,7 +139,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		});
 
 		this.sashY.addListener('start', (e: ISashEvent) => {
-			this.startPanelPartHeight = this.panelPartHeight;
+			this.startPanelHeight = this.panelHeight;
 			startY = e.startY;
 		});
 
@@ -184,15 +184,15 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 
 		this.sashY.addListener('change', (e: ISashEvent) => {
 			let doLayout = false;
-			let isPanelPartHidden = this.partService.isPanelPartHidden();
-			let newSashHeight = this.startPanelPartHeight - (e.currentY - startY);
+			let isPanelHidden = this.partService.isPanelHidden();
+			let newSashHeight = this.startPanelHeight - (e.currentY - startY);
 
 			// Panel visible
-			if (!isPanelPartHidden) {
+			if (!isPanelHidden) {
 				// TODO@Isidor Automatically hide panel when a certain threshold is met
 
-				this.panelPartHeight = Math.max(this.computedStyles.panelPart.minHeight, newSashHeight); // Panel can not become smaller than MIN_PART_HEIGHT
-				doLayout = newSashHeight >= this.computedStyles.panelPart.minHeight;
+				this.panelHeight = Math.max(this.computedStyles.panel.minHeight, newSashHeight); // Panel can not become smaller than MIN_PART_HEIGHT
+				doLayout = newSashHeight >= this.computedStyles.panel.minHeight;
 			}
 			if (doLayout) {
 				this.layout();
@@ -203,7 +203,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 			this.storageService.store(WorkbenchLayout.sashXWidthSettingsKey, this.sidebarWidth, StorageScope.GLOBAL);
 		});
 		this.sashY.addListener('end', () => {
-			this.storageService.store(WorkbenchLayout.sashYHeightSettingsKey, this.panelPartHeight, StorageScope.GLOBAL);
+			this.storageService.store(WorkbenchLayout.sashYHeightSettingsKey, this.panelHeight, StorageScope.GLOBAL);
 		});
 	}
 
@@ -249,7 +249,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 				minWidth: parseInt(sidebarStyle.getPropertyValue('min-width'), 10) || DEFAULT_MIN_PART_WIDTH
 			},
 
-			panelPart: {
+			panel: {
 				minHeight: parseInt(panelPartStyle.getPropertyValue('min-height'), 10) || DEFAULT_MIN_PANEL_PART_HEIGHT
 			},
 
@@ -283,7 +283,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		this.workbenchSize = this.getWorkbenchArea();
 
 		const isSidebarHidden = this.partService.isSideBarHidden();
-		const isPanelPartHidden = this.partService.isPanelPartHidden();
+		const isPanelHidden = this.partService.isPanelHidden();
 		const sidebarPosition = this.partService.getSideBarPosition();
 
 		// Sidebar
@@ -306,15 +306,15 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 
 		// Panel part
 		let panelHeight: number;
-		if (isPanelPartHidden) {
+		if (isPanelHidden) {
 			panelHeight = 0;
-		} else if (this.panelPartHeight > 0) {
-			panelHeight = Math.min(sidebarSize.height * PANEL_HEIGHT_SCREEN_LIMIT, Math.max(this.computedStyles.panelPart.minHeight, this.panelPartHeight));
+		} else if (this.panelHeight > 0) {
+			panelHeight = Math.min(sidebarSize.height * PANEL_HEIGHT_SCREEN_LIMIT, Math.max(this.computedStyles.panel.minHeight, this.panelHeight));
 		} else {
 			panelHeight = sidebarSize.height * 0.4;
 		}
 		const panelDimension = new Dimension(this.workbenchSize.width - sidebarSize.width - activityBarSize.width, panelHeight);
-		this.panelPartWidth = panelDimension.width;
+		this.panelWidth = panelDimension.width;
 
 		// Editor
 		let editorSize = {
@@ -359,9 +359,9 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 			this.storageService.store(WorkbenchLayout.sashXWidthSettingsKey, this.sidebarWidth, StorageScope.GLOBAL);
 		}
 
-		if (!isPanelPartHidden) {
-			this.panelPartHeight = panelDimension.height;
-			this.storageService.store(WorkbenchLayout.sashYHeightSettingsKey, this.panelPartHeight, StorageScope.GLOBAL);
+		if (!isPanelHidden) {
+			this.panelHeight = panelDimension.height;
+			this.storageService.store(WorkbenchLayout.sashYHeightSettingsKey, this.panelHeight, StorageScope.GLOBAL);
 		}
 
 		// Workbench
@@ -419,7 +419,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 
 		// Sashes
 		this.sashX.layout();
-		isPanelPartHidden ? this.sashY.hide() : this.sashY.show();
+		isPanelHidden ? this.sashY.hide() : this.sashY.show();
 		this.sashY.layout();
 
 		// Propagate to Part Layouts
@@ -463,7 +463,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 	}
 
 	public getHorizontalSashTop(sash: Sash): number {
-		return this.sidebarHeight - this.panelPartHeight;
+		return this.sidebarHeight - this.panelHeight;
 	}
 
 	public getHorizontalSashLeft(sash: Sash): number {
@@ -471,7 +471,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 	}
 
 	public getHorizontalSashWidth(sash: Sash): number {
-		return this.panelPartWidth;
+		return this.panelWidth;
 	}
 
 	public dispose(): void {

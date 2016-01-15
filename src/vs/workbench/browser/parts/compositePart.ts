@@ -174,7 +174,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		// Fill Content and Actions
 		return createCompositePromise.then(() => {
 
-			// Make sure that the user meanwhile did not open another composite or closed the sidebar
+			// Make sure that the user meanwhile did not open another composite or closed the part containing the composite
 			if (!this.activeComposite || composite.getId() !== this.activeComposite.getId()) {
 				return;
 			}
@@ -222,7 +222,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 			// Indicate to composite that it is now visible
 			return composite.setVisible(true).then(() => {
 
-				// Make sure that the user meanwhile did not open another composite or closed the sidebar
+				// Make sure that the user meanwhile did not open another composite or closed the part containing the composite
 				if (!this.activeComposite || composite.getId() !== this.activeComposite.getId()) {
 					return;
 				}

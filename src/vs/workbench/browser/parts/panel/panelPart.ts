@@ -50,10 +50,10 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		}
 
 		// First check if panel part is hidden and show if so
-		if (this.partService.isPanelPartHidden()) {
+		if (this.partService.isPanelHidden()) {
 			try {
 				this.blockOpeningPanel = true;
-				this.partService.setPanelPartHidden(false);
+				this.partService.setPanelHidden(false);
 			} finally {
 				this.blockOpeningPanel = false;
 			}
