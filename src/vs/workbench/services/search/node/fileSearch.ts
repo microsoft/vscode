@@ -8,7 +8,7 @@
 import fs = require('fs');
 import paths = require('path');
 
-import filters = require('vs/base/common/filters');
+import scorer = require('vs/base/common/scorer');
 import arrays = require('vs/base/common/arrays');
 import strings = require('vs/base/common/strings');
 import glob = require('vs/base/common/glob');
@@ -21,6 +21,7 @@ import {ISerializedFileMatch, IRawSearch, ISearchEngine} from 'vs/workbench/serv
 export class FileWalker {
 	private config: IRawSearch;
 	private filePattern: string;
+	private normalizedFilePatternLowercase: string;
 	private excludePattern: glob.IExpression;
 	private includePattern: glob.IExpression;
 	private maxResults: number;
@@ -41,9 +42,12 @@ export class FileWalker {
 		this.resultCount = 0;
 		this.isLimitHit = false;
 
-		// Normalize file patterns to forward slashes
-		if (this.filePattern && this.filePattern.indexOf(paths.sep) >= 0) {
-			this.filePattern = strings.replaceAll(this.filePattern, '\\', '/');
+		if (this.filePattern) {
+			if (this.filePattern.indexOf(paths.sep) >= 0) {
+				this.filePattern = strings.replaceAll(this.filePattern, '\\', '/'); // Normalize file patterns to forward slashes
+			}
+
+			this.normalizedFilePatternLowercase = strings.stripWildcards(this.filePattern).toLowerCase();
 		}
 	}
 
@@ -228,9 +232,7 @@ export class FileWalker {
 
 		// Check for search pattern
 		if (this.filePattern) {
-			const res = filters.matchesFuzzy(this.filePattern, path, true /* separate substring matching */);
-
-			return !!res && res.length > 0;
+			return scorer.matches(path, this.normalizedFilePatternLowercase);
 		}
 
 		// No patterns means we match all
