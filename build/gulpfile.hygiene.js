@@ -152,9 +152,9 @@ var tslintFilter = [
 	'!src/vs/editor/standalone-languages/test/**'
 ];
 
-const lintReporter = function (output, file, options) {
+var lintReporter = function (output, file, options) {
 	//emits: src/helloWorld.c:5:3: warning: implicit declaration of function ‘prinft’
-	var relativeBase = file.base.substring(file.cwd.length + 1);
+	var relativeBase = file.base.substring(file.cwd.length + 1).replace('\\', '/');
 	output.forEach(function(e) {
 		var message = relativeBase + e.name + ':' + (e.startPosition.line + 1) + ':' + (e.startPosition.character + 1) + ': ' + e.failure;
 		console.log('[tslint] ' + message);
