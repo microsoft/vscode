@@ -102,7 +102,7 @@ export class Emitter<T> {
 	 * To be kept private to fire an event to
 	 * subscribers
 	 */
-	fire(event: T): any {
+	fire(event?: T): any {
 		if (this._callbacks) {
 			this._callbacks.invoke.call(this._callbacks, event);
 		}
@@ -119,7 +119,7 @@ export class Emitter<T> {
 
 /**
  * Creates an Event which is backed-up by the event emitter. This allows
- * to use the existing eventing pattern and is likely using less memeory.
+ * to use the existing eventing pattern and is likely using less memory.
  * Sample:
  *
  * 	class Document {

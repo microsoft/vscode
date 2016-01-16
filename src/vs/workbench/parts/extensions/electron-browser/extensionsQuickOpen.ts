@@ -3,32 +3,32 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./extensions';
+import 'vs/css!./media/extensions';
 
 import nls = require('vs/nls');
 import { IDisposable, disposeAll } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as dom from 'vs/base/browser/dom';
+import Severity from 'vs/base/common/severity';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { Mode, IModel, IDataSource, IRenderer, IRunner, IFilter, IContext } from 'vs/base/parts/quickopen/browser/quickOpen';
+import { IAutoFocus, Mode, IModel, IDataSource, IRenderer, IRunner, IFilter, IContext } from 'vs/base/parts/quickopen/common/quickOpen';
 import { since } from 'vs/base/common/dates';
 import { matchesContiguousSubString } from 'vs/base/common/filters';
 import { QuickOpenHandler } from 'vs/workbench/browser/quickopen';
-import { IAutoFocus } from 'vs/base/parts/quickopen/browser/quickOpen';
 import { IHighlight } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { IExtensionsService, IGalleryService, IExtension } from 'vs/workbench/parts/extensions/common/extensions';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { InstallAction, UninstallAction } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
 import { IMessageService } from 'vs/platform/message/common/message';
-import { IWorkspaceContextService } from 'vs/workbench/services/workspace/common/contextService';
-import Severity from 'vs/base/common/severity';
-import { IQuickOpenService } from 'vs/workbench/services/quickopen/browser/quickOpenService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IWorkspaceContextService } from 'vs/workbench/services/workspace/common/contextService';
+import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { Action } from 'vs/base/common/actions';
+import * as semver from 'semver';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import remote = require('remote');
-const shell = remote.require('shell');
+import { shell } from 'electron';
+
 const $ = dom.emmet;
 
 const InstallLabel = nls.localize('install', "Install Extension");
@@ -79,10 +79,19 @@ function extensionEquals(one: IExtension, other: IExtension): boolean {
 	return one.publisher === other.publisher && one.name === other.name;
 }
 
+function extensionEntryCompare(one: IExtensionEntry, other: IExtensionEntry): number {
+	const oneName = one.extension.displayName || one.extension.name;
+	const otherName = other.extension.displayName || other.extension.name;
+	return oneName.localeCompare(otherName);
+}
+
 class OpenInGalleryAction extends Action {
 
 	constructor(
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
+		private promptToInstall: boolean,
+		@IMessageService protected messageService: IMessageService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IInstantiationService protected instantiationService: IInstantiationService
 	) {
 		super('extensions.open-in-gallery', 'Readme', '', true);
 	}
@@ -90,111 +99,33 @@ class OpenInGalleryAction extends Action {
 	public run(extension: IExtension): TPromise<any> {
 		const url = `${this.contextService.getConfiguration().env.extensionsGallery.itemUrl}/${ extension.publisher }.${ extension.name }`;
 		shell.openExternal(url);
-		return TPromise.as(null);
-	}
-}
 
-class InstallAction extends Action {
-
-	constructor(
-		label: string,
-		@IQuickOpenService protected quickOpenService: IQuickOpenService,
-		@IExtensionsService protected extensionsService: IExtensionsService,
-		@IMessageService protected messageService: IMessageService,
-		@ITelemetryService protected telemetryService: ITelemetryService,
-		@IInstantiationService protected instantiationService: IInstantiationService
-	) {
-		super('extensions.install', label, 'octicon octicon-cloud-download', true);
-	}
-
-	public run(extension: IExtension): TPromise<any> {
-		this.enabled = false;
-
-		return this.extensionsService
-			.install(extension)
-			.then(() => this.onSuccess(extension), err => this.onError(err, extension))
-			.then(() => this.enabled = true)
-			.then(() => null);
-	}
-
-	private onSuccess(extension: IExtension) {
-		this.reportTelemetry(extension, true);
-		this.messageService.show(
-			Severity.Info,
-			{
-				message: nls.localize('success', "{0} {1} was successfully installed. Restart to enable it.", extension.displayName, extension.version),
-				actions: [this.instantiationService.createInstance(ReloadWindowAction, ReloadWindowAction.ID, nls.localize('restartNow', "Restart Now"))]
-			}
-		);
-	}
-
-	private onError(err: Error, extension: IExtension) {
-		this.reportTelemetry(extension, false);
-		this.messageService.show(Severity.Error, err);
-	}
-
-	private reportTelemetry(extension: IExtension, success: boolean) {
-		this.telemetryService.publicLog('extensionGallery:install', {
-			success,
-			id: extension.galleryInformation ? extension.galleryInformation.id : null,
-			name: extension.name,
-			publisherId: extension.galleryInformation ? extension.galleryInformation.publisherId : null,
-			publisherName: extension.publisher,
-			publisherDisplayName: extension.galleryInformation ? extension.galleryInformation.publisherDisplayName : null
-		});
-	}
-}
-
-class UninstallAction extends Action {
-
-	constructor(
-		@IQuickOpenService protected quickOpenService: IQuickOpenService,
-		@IExtensionsService protected extensionsService: IExtensionsService,
-		@IMessageService protected messageService: IMessageService,
-		@ITelemetryService protected telemetryService: ITelemetryService,
-		@IInstantiationService protected instantiationService: IInstantiationService
-	) {
-		super('extensions.uninstall', nls.localize('uninstall', "Uninstall Extension"), 'octicon octicon-x', true);
-	}
-
-	public run(extension: IExtension): TPromise<any> {
-		if (!window.confirm(nls.localize('deleteSure', "Are you sure you want to uninstall the '{0}' extension?", extension.displayName))) {
+		if (!this.promptToInstall) {
 			return TPromise.as(null);
 		}
 
-		this.enabled = false;
+		const hideMessage = this.messageService.show(Severity.Info, {
+			message: nls.localize('installPrompt', "Would you like to install '{0}'?", extension.displayName),
+			actions: [
+				new Action('cancelaction', nls.localize('cancel', 'Cancel')),
+				new Action('installNow', nls.localize('installNow', 'Install Now'), null, true, () => {
+					hideMessage();
 
-		return this.extensionsService.uninstall(extension)
-			.then(() => this.onSuccess(extension), err => this.onError(err, extension))
-			.then(() => this.enabled = true)
-			.then(() => null);
-	}
+					const hideInstallMessage = this.messageService.show(Severity.Info, nls.localize('nowInstalling', "'{0}' is being installed...", extension.displayName));
 
-	private onSuccess(extension: IExtension) {
-		this.reportTelemetry(extension, true);
-		this.messageService.show(
-			Severity.Info,
-			{
-				message: nls.localize('success', "{0} was successfully uninstalled. Restart to deactivate it.", extension.displayName),
-				actions: [this.instantiationService.createInstance(ReloadWindowAction, ReloadWindowAction.ID, nls.localize('restartNow2', "Restart Now"))]
-			}
-		);
-	}
-
-	private onError(err: Error, extension: IExtension) {
-		this.reportTelemetry(extension, false);
-		this.messageService.show(Severity.Error, err);
-	}
-
-	private reportTelemetry(extension: IExtension, success: boolean) {
-		this.telemetryService.publicLog('extensionGallery:uninstall', {
-			success,
-			id: extension.galleryInformation ? extension.galleryInformation.id : null,
-			name: extension.name,
-			publisherId: extension.galleryInformation ? extension.galleryInformation.publisherId : null,
-			publisherName: extension.publisher,
-			publisherDisplayName: extension.galleryInformation ? extension.galleryInformation.publisherDisplayName : null
+					const action = this.instantiationService.createInstance(InstallAction, '');
+					return action.run(extension).then(r => {
+						hideInstallMessage();
+						return TPromise.as(r);
+					}, e => {
+						hideInstallMessage();
+						return TPromise.wrapError(e);
+					});
+				})
+			]
 		});
+
+		return TPromise.as(null);
 	}
 }
 
@@ -269,7 +200,7 @@ class Renderer implements IRenderer<IExtensionEntry> {
 			data.actionbar.clear();
 
 			if (entry.extension.galleryInformation) {
-				data.actionbar.push(this.instantiationService.createInstance(OpenInGalleryAction), { label: true, icon: false });
+				data.actionbar.push(this.instantiationService.createInstance(OpenInGalleryAction, entry.state !== ExtensionState.Installed), { label: true, icon: false });
 			}
 
 			switch (entry.state) {
@@ -303,6 +234,7 @@ class Renderer implements IRenderer<IExtensionEntry> {
 		data.disposables.push(this.extensionsService.onDidUninstallExtension(e => onExtensionStateChange(e, ExtensionState.Uninstalled)));
 
 		data.displayName.set(extension.displayName, entry.highlights.displayName);
+		data.displayName.element.title = extension.name;
 		data.version.textContent = extension.version;
 		data.since.textContent = date ? since(new Date(date)) : '';
 		data.author.textContent = publisher;
@@ -323,10 +255,10 @@ class DataSource implements IDataSource<IExtensionEntry> {
 		const extension = entry.extension;
 
 		if (extension.galleryInformation) {
-			return extension.galleryInformation.id;
+			return `${ extension.galleryInformation.id }-${ extension.version }`;
 		}
 
-		return `local@${ extension.publisher }.${extension.name}@${ extension.path || '' }`;
+		return `local@${ extension.publisher }.${ extension.name }-${ extension.version }@${ extension.path || '' }`;
 	}
 
 	getLabel(entry: IExtensionEntry): string {
@@ -358,7 +290,7 @@ class LocalExtensionsModel implements IModel<IExtensionEntry> {
 				highlights,
 				state: ExtensionState.Installed
 			}))
-			.sort((a, b) => a.extension.name.localeCompare(b.extension.name));
+			.sort(extensionEntryCompare);
 	}
 }
 
@@ -431,7 +363,7 @@ class GalleryExtensionsModel implements IModel<IExtensionEntry> {
 						: ExtensionState.Uninstalled
 				};
 			})
-			.sort((a, b) => a.extension.name.localeCompare(b.extension.name));
+			.sort(extensionEntryCompare);
 	}
 }
 
@@ -467,6 +399,78 @@ export class GalleryExtensionsHandler extends QuickOpenHandler {
 
 	getEmptyLabel(input: string): string {
 		return nls.localize('noExtensionsToInstall', "No extensions found");
+	}
+
+	getAutoFocus(searchValue: string): IAutoFocus {
+		return { autoFocusFirstEntry: true };
+	}
+}
+
+class OutdatedExtensionsModel implements IModel<IExtensionEntry> {
+
+	public dataSource = new DataSource();
+	public renderer: IRenderer<IExtensionEntry>;
+	public runner: IRunner<IExtensionEntry>;
+	public entries: IExtensionEntry[];
+
+	constructor(
+		private galleryExtensions: IExtension[],
+		private localExtensions: IExtension[],
+		@IInstantiationService instantiationService: IInstantiationService
+	) {
+		this.renderer = instantiationService.createInstance(Renderer);
+		this.runner = instantiationService.createInstance(InstallRunner);
+		this.entries = [];
+	}
+
+	public set input(input: string) {
+		this.entries = this.galleryExtensions
+			.map(extension => ({ extension, highlights: getHighlights(input, extension) }))
+			.filter(({ extension, highlights }) => {
+				const local = this.localExtensions.filter(local => extensionEquals(local, extension))[0];
+				return local && semver.lt(local.version, extension.version) && !!highlights;
+			})
+			.map(({ extension, highlights }: { extension: IExtension, highlights: IHighlights }) => ({
+				extension,
+				highlights,
+				state: ExtensionState.Outdated
+			}))
+			.sort(extensionEntryCompare);
+	}
+}
+
+export class OutdatedExtensionsHandler extends QuickOpenHandler {
+
+	private modelPromise: TPromise<OutdatedExtensionsModel>;
+
+	constructor(
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IExtensionsService private extensionsService: IExtensionsService,
+		@IGalleryService private galleryService: IGalleryService,
+		@ITelemetryService private telemetryService: ITelemetryService
+	) {
+		super();
+	}
+
+	getResults(input: string): TPromise<IModel<IExtensionEntry>> {
+		if (!this.modelPromise) {
+			this.telemetryService.publicLog('extensionGallery:open');
+			this.modelPromise = TPromise.join<any>([this.galleryService.query(), this.extensionsService.getInstalled()])
+				.then(result => this.instantiationService.createInstance(OutdatedExtensionsModel, result[0], result[1]));
+		}
+
+		return this.modelPromise.then(model => {
+			model.input = input;
+			return model;
+		});
+	}
+
+	onClose(canceled: boolean): void {
+		this.modelPromise = null;
+	}
+
+	getEmptyLabel(input: string): string {
+		return nls.localize('noOutdatedExtensions', "No outdated extensions found");
 	}
 
 	getAutoFocus(searchValue: string): IAutoFocus {

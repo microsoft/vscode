@@ -11,19 +11,15 @@ import Position = require('vs/editor/common/core/position');
 
 function testGuessIndentation(expectedInsertSpaces:boolean, expectedTabSize:number, text:string[], msg?:string): void {
 	var m = new TextModel.TextModel([], TextModel.TextModel.toRawText(text.join('\n')));
-	var r = m.guessIndentation(1773);
+	var r = m.guessIndentation(1337);
 	m.dispose();
 
 	assert.equal(r.insertSpaces, expectedInsertSpaces, msg);
-	if (expectedInsertSpaces) {
-		assert.equal(r.tabSize, expectedTabSize, msg);
-	} else {
-		assert.equal(r.tabSize, 1773, msg);
-	}
+	assert.equal(r.tabSize, expectedTabSize, msg);
 }
 
-function guessesTabs(text:string[], msg?:string): void {
-	testGuessIndentation(false, 0, text, msg);
+function guessesTabs(expectedTabSize:number, text:string[], msg?:string): void {
+	testGuessIndentation(false, expectedTabSize, text, msg);
 }
 
 function guessesSpaces(expectedTabSize:number, text:string[], msg?:string): void {
@@ -63,27 +59,112 @@ suite('Editor Model - TextModel', () => {
 
 	test('guess indentation 1', () => {
 
-		// Defaults to tabs
-		guessesTabs([
+		guessesSpaces(1337, [
+			'x',
+			'x',
+			'x',
+			'x',
+			'x',
 			'x',
 			'x'
-		]);
+		], 'no clues');
 
-		// Gives preference to tabs
-		guessesTabs([
+		guessesTabs(1337, [
 			'\tx',
+			'x',
+			'x',
+			'x',
+			'x',
+			'x',
 			'x'
-		]);
-		guessesTabs([
+		], 'no spaces, 1xTAB');
+
+		guessesSpaces(2, [
+			'  x',
+			'x',
+			'x',
+			'x',
+			'x',
+			'x',
+			'x'
+		], '1x2');
+
+		guessesTabs(1337, [
+			'\tx',
+			'\tx',
+			'\tx',
+			'\tx',
+			'\tx',
+			'\tx',
+			'\tx'
+		], '7xTAB');
+
+		guessesSpaces(2, [
+			'\tx',
+			'  x',
+			'\tx',
+			'  x',
+			'\tx',
+			'  x',
+			'\tx',
+			'  x',
+		], '4x2, 4xTAB');
+		guessesTabs(1337, [
+			'\tx',
+			' x',
+			'\tx',
+			' x',
+			'\tx',
+			' x',
 			'\tx',
 			' x'
-		]);
-		guessesTabs([
+		], '4x1, 4xTAB');
+		guessesTabs(2, [
 			'\tx',
-			'  x'
-		]);
+			'\tx',
+			'  x',
+			'\tx',
+			'  x',
+			'\tx',
+			'  x',
+			'\tx',
+			'  x',
+		], '4x2, 5xTAB');
+		guessesTabs(2, [
+			'\tx',
+			'\tx',
+			'x',
+			'\tx',
+			'x',
+			'\tx',
+			'x',
+			'\tx',
+			'  x',
+		], '1x2, 5xTAB');
+		guessesTabs(4, [
+			'\tx',
+			'\tx',
+			'x',
+			'\tx',
+			'x',
+			'\tx',
+			'x',
+			'\tx',
+			'    x',
+		], '1x4, 5xTAB');
+		guessesTabs(2, [
+			'\tx',
+			'\tx',
+			'x',
+			'\tx',
+			'x',
+			'\tx',
+			'  x',
+			'\tx',
+			'    x',
+		], '1x2, 1x4, 5xTAB');
 
-		guessesTabs([
+		guessesSpaces(1337, [
 			'x',
 			' x',
 			' x',
@@ -93,79 +174,161 @@ suite('Editor Model - TextModel', () => {
 			' x',
 			' x'
 		], '7x1 - 1 space is never guessed as an indentation');
-		guessesTabs([
+		guessesSpaces(1337, [
 			'',
 			'  ',
 			'    ',
 			'      ',
+			'        ',
+			'          ',
+			'            ',
+			'              ',
 		], 'whitespace lines don\'t count');
 		guessesSpaces(4, [
 			'x',
 			'   x',
 			'   x',
-			'    x'
-		], 'odd number is not allowed: 2x3, 1x4');
+			'    x',
+			'x',
+			'   x',
+			'   x',
+			'    x',
+			'x',
+			'   x',
+			'   x',
+			'    x',
+		], 'odd number is not allowed: 6x3, 3x4');
 		guessesSpaces(4, [
 			'x',
 			'     x',
 			'     x',
-			'    x'
-		], 'odd number is not allowed: 2x5, 1x4');
+			'    x',
+			'x',
+			'     x',
+			'     x',
+			'    x',
+			'x',
+			'     x',
+			'     x',
+			'    x',
+		], 'odd number is not allowed: 6x5, 3x4');
 		guessesSpaces(4, [
 			'x',
 			'       x',
 			'       x',
-			'    x'
-		], 'odd number is not allowed: 2x7, 1x4');
+			'    x',
+			'x',
+			'       x',
+			'       x',
+			'    x',
+			'x',
+			'       x',
+			'       x',
+			'    x',
+		], 'odd number is not allowed: 6x7, 3x4');
 		guessesSpaces(2, [
 			'x',
 			'  x',
 			'  x',
 			'  x',
-			'  x'
-		], '4x2');
+			'  x',
+			'x',
+			'  x',
+			'  x',
+			'  x',
+			'  x',
+		], '8x2');
 
 		guessesSpaces(2, [
 			'x',
 			'  x',
 			'  x',
-		], '2x2');
+			'x',
+			'  x',
+			'  x',
+			'x',
+			'  x',
+			'  x',
+			'x',
+			'  x',
+			'  x',
+		], '8x2');
 		guessesSpaces(2, [
 			'x',
 			'  x',
 			'    x',
-		], '1x2, 1x4');
+			'x',
+			'  x',
+			'    x',
+			'x',
+			'  x',
+			'    x',
+			'x',
+			'  x',
+			'    x',
+		], '4x2, 4x4');
 		guessesSpaces(2, [
 			'x',
 			'  x',
 			'  x',
 			'    x',
-		], '2x2, 1x4');
+			'x',
+			'  x',
+			'  x',
+			'    x',
+			'x',
+			'  x',
+			'  x',
+			'    x',
+		], '6x2, 3x4');
 		guessesSpaces(2, [
 			'x',
 			'  x',
 			'  x',
 			'    x',
 			'    x',
-		], '2x2, 2x4');
+			'x',
+			'  x',
+			'  x',
+			'    x',
+			'    x',
+		], '4x2, 4x4');
 		guessesSpaces(2, [
 			'x',
 			'  x',
 			'    x',
 			'    x',
-		], '1x2, 2x4');
+			'x',
+			'  x',
+			'    x',
+			'    x',
+		], '2x2, 4x4');
 		guessesSpaces(4, [
 			'x',
 			'    x',
 			'    x',
-		], '2x4');
+			'x',
+			'    x',
+			'    x',
+			'x',
+			'    x',
+			'    x',
+			'x',
+			'    x',
+			'    x',
+		], '8x4');
 		guessesSpaces(2, [
 			'x',
 			'  x',
 			'    x',
 			'    x',
 			'      x',
-		], '1x2, 2x4, 1x6');
+			'x',
+			'  x',
+			'    x',
+			'    x',
+			'      x',
+		], '2x2, 4x4, 2x6');
 		guessesSpaces(2, [
 			'x',
 			'  x',
@@ -182,7 +345,13 @@ suite('Editor Model - TextModel', () => {
 			'    x',
 			'     x',
 			'        x',
-		], '3x4, 1x5, 1x8');
+			'x',
+			'    x',
+			'    x',
+			'    x',
+			'     x',
+			'        x',
+		], '6x4, 2x5, 2x8');
 		guessesSpaces(4, [
 			'x',
 			'    x',
@@ -200,7 +369,14 @@ suite('Editor Model - TextModel', () => {
 			'     x',
 			'        x',
 			'        x',
-		], '3x4, 1x5, 2x8');
+			'x',
+			'x',
+			'    x',
+			'    x',
+			'     x',
+			'        x',
+			'        x',
+		], '6x4, 2x5, 4x8');
 		guessesSpaces(4, [
 			'x',
 			' x',

@@ -13,14 +13,14 @@ import actionbar = require('vs/base/browser/ui/actionbar/actionbar');
 import constants = require('vs/workbench/common/constants');
 import wbext = require('vs/workbench/common/contributions');
 import debug = require('vs/workbench/parts/debug/common/debug');
-import dbgactions = require('vs/workbench/parts/debug/browser/debugActions');
+import dbgactions = require('vs/workbench/parts/debug/electron-browser/debugActions');
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 import IDebugService = debug.IDebugService;
 
-var $ = builder.$;
+const $ = builder.$;
 
 export class DebugActionsWidget implements wbext.IWorkbenchContribution {
 	private static ID = 'debug.actionsWidget';
@@ -59,12 +59,12 @@ export class DebugActionsWidget implements wbext.IWorkbenchContribution {
 			this.onDebugStateChange();
 		}));
 		this.toDispose.push(this.actionBar.actionRunner.addListener2(events.EventType.RUN, (e: any) => {
-			// Check for Error
+			// check for error
 			if (e.error && !errors.isPromiseCanceledError(e.error)) {
 				this.messageService.show(severity.Error, e.error);
 			}
 
-			// Log in telemetry
+			// log in telemetry
 			if (this.telemetryService) {
 				this.telemetryService.publicLog('workbenchActionExecuted', { id: e.action.id, from: 'debugActionsWidget' });
 			}

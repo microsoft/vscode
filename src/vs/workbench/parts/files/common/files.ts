@@ -5,17 +5,16 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
-import {Event, PropertyChangeEvent} from 'vs/base/common/events';
+import {Event as BaseEvent, PropertyChangeEvent} from 'vs/base/common/events';
 import URI from 'vs/base/common/uri';
+import Event from 'vs/base/common/event';
 import {guessMimeTypes} from 'vs/base/common/mime';
-import {EventProvider} from 'vs/base/common/eventProvider';
 import {IModel, IEditorOptions} from 'vs/editor/common/editorCommon';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import {EncodingMode, EditorInput, IFileEditorInput} from 'vs/workbench/common/editor';
-import {IFileStat, FileChangesEvent, IFilesConfiguration} from 'vs/platform/files/common/files';
+import {IFileStat, IFilesConfiguration} from 'vs/platform/files/common/files';
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
-import {ISearchService} from 'vs/platform/search/common/search';
-import {FileStat} from 'vs/workbench/parts/files/browser/views/explorerViewModel';
+import {FileStat} from 'vs/workbench/parts/files/common/explorerViewModel';
 
 /**
  * Explorer viewlet id.
@@ -79,9 +78,9 @@ export interface IWorkingFileModelChangeEvent {
 
 export interface IWorkingFilesModel {
 
-	onModelChange: EventProvider<(event: IWorkingFileModelChangeEvent) => void>;
+	onModelChange: Event<IWorkingFileModelChangeEvent>;
 
-	onWorkingFileChange: EventProvider<(file: IWorkingFileEntry) => void>;
+	onWorkingFileChange: Event<IWorkingFileEntry>;
 
 	getEntries(excludeOutOfContext?: boolean): IWorkingFileEntry[];
 
@@ -198,7 +197,7 @@ export const EventType = {
  */
 export class LocalFileChangeEvent extends PropertyChangeEvent {
 
-	constructor(before?: IFileStat, after?: IFileStat, originalEvent?: Event) {
+	constructor(before?: IFileStat, after?: IFileStat, originalEvent?: BaseEvent) {
 		super(null, before, after, originalEvent);
 	}
 
@@ -250,8 +249,9 @@ export class LocalFileChangeEvent extends PropertyChangeEvent {
  */
 export class TextFileChangeEvent extends LocalFileChangeEvent {
 	private _model: IModel;
+	private _isAutoSaved: boolean;
 
-	constructor(model: IModel, before: IFileStat, after: IFileStat = before, originalEvent?: Event) {
+	constructor(model: IModel, before: IFileStat, after: IFileStat = before, originalEvent?: BaseEvent) {
 		super(before, after, originalEvent);
 
 		this._model = model;
@@ -259,6 +259,14 @@ export class TextFileChangeEvent extends LocalFileChangeEvent {
 
 	public get model(): IModel {
 		return this._model;
+	}
+
+	public setAutoSaved(autoSaved: boolean): void {
+		this._isAutoSaved = autoSaved;
+	}
+
+	public get isAutoSaved(): boolean {
+		return this._isAutoSaved;
 	}
 }
 
@@ -280,6 +288,11 @@ export interface IResult {
 	success?: boolean;
 }
 
+export interface IAutoSaveConfiguration {
+	autoSaveDelay: number;
+	autoSaveFocusChange: boolean;
+}
+
 export var ITextFileService = createDecorator<ITextFileService>(TEXT_FILE_SERVICE_ID);
 
 export interface ITextFileService extends IDisposable {
@@ -294,7 +307,7 @@ export interface ITextFileService extends IDisposable {
 	isDirty(resource?: URI): boolean;
 
 	/**
-	 * Returs all resources that are currently dirty matching the provided resource or all dirty resources.
+	 * Returns all resources that are currently dirty matching the provided resource or all dirty resources.
 	 *
 	 * @param resource the resource to check for being dirty. If it is not specified, will check for
 	 * all dirty resources.
@@ -342,7 +355,7 @@ export interface ITextFileService extends IDisposable {
 	revertAll(resources?: URI[], force?: boolean): TPromise<ITextFileOperationResult>;
 
 	/**
-	 * Brings up the confirm dialog to either save, dont save or cancel.
+	 * Brings up the confirm dialog to either save, don't save or cancel.
 	 *
 	 * @param resource the resource of the file to ask for confirmation.
 	 */
@@ -352,4 +365,19 @@ export interface ITextFileService extends IDisposable {
 	 * Provides access to the list of working files.
 	 */
 	getWorkingFilesModel(): IWorkingFilesModel;
+
+	/**
+	 * Checks if the user configured auto save to be enabled or not
+	 */
+	isAutoSaveEnabled(): boolean;
+
+	/**
+	 * Convinient fast access to the configured auto save settings.
+	 */
+	getAutoSaveConfiguration(): IAutoSaveConfiguration;
+
+	/**
+	 * Event is fired with the auto save configuration whenever it changes.
+	 */
+	onAutoSaveConfigurationChange: Event<IAutoSaveConfiguration>;
 }

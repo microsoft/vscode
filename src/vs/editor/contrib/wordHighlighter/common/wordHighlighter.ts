@@ -5,17 +5,47 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
+import URI from 'vs/base/common/uri';
 import * as EditorCommon from 'vs/editor/common/editorCommon';
 import {IOccurrencesSupport, IOccurence} from 'vs/editor/common/modes';
 import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {Range} from 'vs/editor/common/core/range';
-import {onUnexpectedError} from 'vs/base/common/errors';
+import {onUnexpectedError, illegalArgument} from 'vs/base/common/errors';
 import {INullService} from 'vs/platform/instantiation/common/instantiation';
 import {sequence} from 'vs/base/common/async';
+import {IModelService} from 'vs/editor/common/services/modelService';
 import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
 
-const DocumentHighlighterRegistry = new LanguageFeatureRegistry<IOccurrencesSupport>('occurrencesSupport');
-export default DocumentHighlighterRegistry;
+export const OccurrencesRegistry = new LanguageFeatureRegistry<IOccurrencesSupport>('occurrencesSupport');
+
+export function getOccurrencesAtPosition(model: EditorCommon.IModel, position: EditorCommon.IPosition):TPromise<IOccurence[]> {
+
+	const resource = model.getAssociatedResource();
+	const orderedByScore = OccurrencesRegistry.ordered(model);
+	let foundResult = false;
+
+	// in order of score ask the occurrences provider
+	// until someone response with a good result
+	// (good = none empty array)
+	return sequence(orderedByScore.map(provider => {
+		return () => {
+			if (!foundResult) {
+				return provider.findOccurrences(resource, position).then(data => {
+					if (Array.isArray(data) && data.length > 0) {
+						foundResult = true;
+						return data;
+					}
+				}, err => {
+					onUnexpectedError(err);
+				});
+			}
+		}
+	})).then(values => {
+		return values[0]
+	});
+}
+
+CommonEditorRegistry.registerDefaultLanguageCommand('_executeDocumentHighlights', getOccurrencesAtPosition);
 
 class WordHighlighter {
 
@@ -99,7 +129,7 @@ class WordHighlighter {
 		}
 
 		// no providers for this model
-		if(!DocumentHighlighterRegistry.has(this.model)) {
+		if(!OccurrencesRegistry.has(this.model)) {
 			this._stopAll();
 			return;
 		}
@@ -175,25 +205,7 @@ class WordHighlighter {
 			var myRequestId = ++this.workerRequestTokenId;
 			this.workerRequestCompleted = false;
 
-			let foundResult = false;
-			let orderedByScore = DocumentHighlighterRegistry.ordered(this.model);
-			let resource = this.model.getAssociatedResource();
-			let position = this.editor.getPosition();
-
-			// in order of score ask the occurrences provider
-			// until someone response with a good result
-			// (good = none empty array)
-			this.workerRequest = sequence(orderedByScore.map(provider => {
-				return () => {
-					if (!foundResult) {
-						return provider.findOccurrences(resource, position).then(data => {
-							if (Array.isArray(data) && data.length > 0) {
-								return data;
-							}
-						});
-					}
-				}
-			})).then(values => values[0]);
+			this.workerRequest = getOccurrencesAtPosition(this.model, this.editor.getPosition());
 
 			this.workerRequest.then(data => {
 				if (myRequestId === this.workerRequestTokenId) {

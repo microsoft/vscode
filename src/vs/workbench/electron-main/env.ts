@@ -9,13 +9,12 @@ import crypto = require('crypto');
 import fs = require('fs');
 import path = require('path');
 import os = require('os');
-import app = require('app');
+import {app} from 'electron';
 
 import arrays = require('vs/base/common/arrays');
-import objects = require('vs/base/common/objects');
 import strings = require('vs/base/common/strings');
-import platform = require('vs/base/common/platform');
 import paths = require('vs/base/common/paths');
+import platform = require('vs/base/common/platform');
 import uri from 'vs/base/common/uri';
 import types = require('vs/base/common/types');
 
@@ -30,8 +29,9 @@ export interface IProductConfiguration {
 		application: {
 			png: string;
 		}
-	},
+	};
 	win32AppUserModelId: string;
+	win32MutexName: string;
 	dataFolderName: string;
 	downloadUrl: string;
 	updateUrl: string;
@@ -43,25 +43,24 @@ export interface IProductConfiguration {
 		serviceUrl: string;
 		itemUrl: string;
 	};
-	crashReporter: ICrashReporterConfigBrowser;
+	crashReporter: Electron.CrashReporterStartOptions;
 	welcomePage: string;
 	enableTelemetry: boolean;
 	aiConfig: {
 		key: string;
 		asimovKey: string;
-	},
+	};
 	sendASmile: {
-		submitUrl: string,
 		reportIssueUrl: string,
 		requestFeatureUrl: string
-	},
-	documentationUrl: string,
-	releaseNotesUrl: string,
-	twitterUrl: string,
-	requestFeatureUrl: string,
-	reportIssueUrl: string,
-	licenseUrl: string,
-	privacyStatementUrl: string
+	};
+	documentationUrl: string;
+	releaseNotesUrl: string;
+	twitterUrl: string;
+	requestFeatureUrl: string;
+	reportIssueUrl: string;
+	licenseUrl: string;
+	privacyStatementUrl: string;
 }
 
 export const isBuilt = !process.env.VSCODE_DEV;
@@ -106,10 +105,17 @@ if (!fs.existsSync(userPluginsHome)) {
 	fs.mkdirSync(userPluginsHome);
 }
 
+// Helper to identify if we have plugin tests to run from the command line without debugger
+export const isTestingFromCli = cliArgs.pluginTestsPath && !cliArgs.debugBrkPluginHost;
+
 export function log(...a: any[]): void {
 	if (cliArgs.verboseLogging) {
 		console.log.apply(null, a);
 	}
+}
+
+export interface IProcessEnvironment {
+	[key: string]: string;
 }
 
 export interface ICommandLineArguments {
@@ -117,6 +123,7 @@ export interface ICommandLineArguments {
 	debugPluginHostPort: number;
 	debugBrkPluginHost: boolean;
 	logPluginHostCommunication: boolean;
+	disablePlugins: boolean;
 
 	pluginHomePath: string;
 	pluginDevelopmentPath: string;
@@ -195,7 +202,8 @@ function parseCli(): ICommandLineArguments {
 		gotoLineMode: gotoLineMode,
 		pluginHomePath: normalizePath(parseString(args, '--extensionHomePath')),
 		pluginDevelopmentPath: normalizePath(parseString(args, '--extensionDevelopmentPath')),
-		pluginTestsPath: normalizePath(parseString(args, '--extensionTestsPath'))
+		pluginTestsPath: normalizePath(parseString(args, '--extensionTestsPath')),
+		disablePlugins: !!opts['disableExtensions'] || !!opts['disable-extensions']
 	};
 }
 
@@ -254,37 +262,61 @@ function parseOpts(argv: string[]): OptionBag {
 }
 
 function parsePathArguments(argv: string[], gotoLineMode?: boolean): string[] {
-	return arrays.distinct(					// no duplicates
-		argv.filter(a => !(/^-/.test(a))) 	// find arguments without leading "-"
-			.map((arg) => {						// resolve to path
-				let pathCandidate = arg;
+	return arrays.coalesce(							// no invalid paths
+		arrays.distinct(							// no duplicates
+			argv.filter(a => !(/^-/.test(a))) 		// arguments without leading "-"
+				.map((arg) => {
+					let pathCandidate = arg;
 
-				let parsedPath: IParsedPath;
-				if (gotoLineMode) {
-					parsedPath = parseLineAndColumnAware(arg);
-					pathCandidate = parsedPath.path;
-				}
+					let parsedPath: IParsedPath;
+					if (gotoLineMode) {
+						parsedPath = parseLineAndColumnAware(arg);
+						pathCandidate = parsedPath.path;
+					}
 
-				let realPath: string;
-				try {
-					realPath = fs.realpathSync(pathCandidate);
-				} catch (error) {
-					// in case of an error, assume the user wants to create this file
-					// if the path is relative, we join it to the cwd
-					realPath = path.normalize(path.isAbsolute(pathCandidate) ? pathCandidate : path.join(process.cwd(), pathCandidate));
-				}
+					if (pathCandidate) {
+						pathCandidate = massagePath(pathCandidate);
+					}
 
-				if (gotoLineMode) {
-					parsedPath.path = realPath;
-					return toLineAndColumnPath(parsedPath);
-				}
+					let realPath: string;
+					try {
+						realPath = fs.realpathSync(pathCandidate);
+					} catch (error) {
+						// in case of an error, assume the user wants to create this file
+						// if the path is relative, we join it to the cwd
+						realPath = path.normalize(path.isAbsolute(pathCandidate) ? pathCandidate : path.join(process.cwd(), pathCandidate));
+					}
 
-				return realPath;
-			}),
-		(element) => {
-			return element && (platform.isWindows || platform.isMacintosh) ? element.toLowerCase() : element; // only linux is case sensitive on the fs
-		}
+					if (!paths.isValidBasename(path.basename(realPath))) {
+						return null; // do not allow invalid file names
+					}
+
+					if (gotoLineMode) {
+						parsedPath.path = realPath;
+						return toLineAndColumnPath(parsedPath);
+					}
+
+					return realPath;
+				}),
+			(element) => {
+				return element && (platform.isWindows || platform.isMacintosh) ? element.toLowerCase() : element; // only linux is case sensitive on the fs
+			}
+		)
 	);
+}
+
+function massagePath(path: string): string {
+	if (platform.isWindows) {
+		path = strings.rtrim(path, '"'); // https://github.com/Microsoft/vscode/issues/1498
+	}
+
+	// Trim whitespaces
+	path = strings.trim(strings.trim(path, ' '), '\t');
+
+	// Remove trailing dots
+	path = strings.rtrim(path, '.');
+
+	return path;
 }
 
 function normalizePath(p?: string): string {
@@ -321,7 +353,7 @@ function parseString(argv: string[], key: string, defaultValue?: string, fallbac
 
 export function getPlatformIdentifier(): string {
 	if (process.platform === 'linux') {
-		return `linux-${ process.arch }`;
+		return `linux-${process.arch}`;
 	}
 
 	return process.platform;
@@ -355,7 +387,7 @@ export function parseLineAndColumnAware(rawPath: string): IParsedPath {
 		path: path,
 		line: line !== null ? line : void 0,
 		column: column !== null ? column : line !== null ? 1 : void 0 // if we have a line, make sure column is also set
-	}
+	};
 }
 
 export function toLineAndColumnPath(parsedPath: IParsedPath): string {

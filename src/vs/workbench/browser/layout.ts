@@ -6,7 +6,7 @@
 
 import {Dimension, Builder, Box} from 'vs/base/browser/builder';
 import {Preferences} from 'vs/workbench/common/constants';
-import {EditorEvent, EventType} from 'vs/workbench/browser/events';
+import {EditorEvent, EventType} from 'vs/workbench/common/events';
 import {Part} from 'vs/workbench/browser/part';
 import {QuickOpenController} from 'vs/workbench/browser/parts/quickopen/quickOpenController';
 import {Sash, ISashEvent, IVerticalSashLayoutProvider} from 'vs/base/browser/ui/sash/sash';
@@ -14,7 +14,7 @@ import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/edito
 import {IPartService, Position} from 'vs/workbench/services/part/common/partService';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {IStorageService, StorageScope, StorageEventType} from 'vs/platform/storage/common/storage';
-import {IContextViewService, IContextMenuService} from 'vs/platform/contextview/browser/contextView';
+import {IContextViewService} from 'vs/platform/contextview/browser/contextView';
 import {IEventService} from 'vs/platform/event/common/event';
 
 const DEFAULT_MIN_PART_WIDTH = 170;

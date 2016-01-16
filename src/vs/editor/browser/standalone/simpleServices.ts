@@ -7,6 +7,7 @@
 import {TPromise} from 'vs/base/common/winjs.base';
 import Errors = require('vs/base/common/errors');
 import Network = require('vs/base/common/network');
+import URI from 'vs/base/common/uri';
 import EventEmitter = require('vs/base/common/eventEmitter');
 import EditorBrowser = require('vs/editor/browser/editorBrowser');
 import EditorCommon = require('vs/editor/common/editorCommon');
@@ -20,7 +21,7 @@ import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IKeybindingContextKey, IKeybindingItem, ICommandHandler, ICommandsMap} from 'vs/platform/keybinding/common/keybindingService';
 import {AbstractPluginService} from 'vs/platform/plugins/common/abstractPluginService';
-import {IOSupport} from 'vs/platform/keybinding/common/commonKeybindingResolver';
+import {IOSupport} from 'vs/platform/keybinding/common/keybindingResolver';
 import {PluginsRegistry, PluginsMessageCollector} from 'vs/platform/plugins/common/pluginsRegistry';
 
 export class SimpleEditor implements IEditor {
@@ -137,7 +138,7 @@ export class SimpleEditorService implements IEditorService {
 
 	private findModel(editor:EditorCommon.ICommonCodeEditor, data:IResourceInput): EditorCommon.IModel {
 		var model = editor.getModel();
-		if(!model.getAssociatedResource().equals(data.resource)) {
+		if(model.getAssociatedResource().toString() !== data.resource.toString()) {
 			return null;
 		}
 
@@ -207,10 +208,6 @@ export class SimpleEditorRequestService extends BaseRequestService {
 	constructor(contextService: IWorkspaceContextService, telemetryService?: ITelemetryService) {
 		super(contextService, telemetryService);
 	}
-
-	public getPath(service:string, requestUrl:Network.URL):string {
-		return requestUrl.toString(); // Standalone Editor talks about  URLs that never have a path
-	}
 }
 
 export class StandaloneKeybindingService extends KeybindingService.KeybindingService {
@@ -274,5 +271,9 @@ export class SimplePluginService extends AbstractPluginService {
 			default:
 				console.log(msg);
 		}
+	}
+
+	public deactivate(pluginId:string): void {
+		// nothing to do
 	}
 }

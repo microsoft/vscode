@@ -8,34 +8,8 @@ import assert = require('vs/base/common/assert');
 import objects = require('vs/base/common/objects');
 import strings = require('vs/base/common/strings');
 import hash = require('vs/base/common/hash');
-import marshalling = require('vs/base/common/marshalling');
 import paths = require('vs/base/common/paths');
 import URI from 'vs/base/common/uri';
-
-interface ISerializedURL {
-	$isURL: boolean;
-	$value: string;
-}
-
-marshalling.registerMarshallingContribution({
-
-	canSerialize: (obj:any): boolean => {
-		return obj instanceof URL;
-	},
-
-	serialize: (url:URL, serialize:(obj:any)=>any): ISerializedURL => {
-		return url._toSerialized();
-	},
-
-	canDeserialize: (obj:ISerializedURL): boolean => {
-		return obj.$isURL;
-	},
-
-	deserialize: (obj:ISerializedURL, deserialize:(obj:any)=>any): any => {
-		return new URL(obj.$value);
-	}
-});
-
 
 var _colon = ':'.charCodeAt(0),
 	_slash = '/'.charCodeAt(0),
@@ -289,7 +263,7 @@ export class URL extends URI implements objects.IEqualable {
 	/**
 	 * Creates a new URL from the provided value
 	 * by decoding it first.
-	 * @param value A encoded url value.
+	 * @param value An encoded url value.
 	 */
 	public static fromEncoded(value:string):URL {
 		return new URL(decodeURIComponent(value));
@@ -300,7 +274,13 @@ export class URL extends URI implements objects.IEqualable {
 	}
 
 	public static fromUri(value: URI): URL {
-		return new URL(value);
+		if (!value) {
+			return <any>value;
+		} else if (value instanceof URL) {
+			return value;
+		} else {
+			return new URL(value);
+		}
 	}
 
 	private _spec:string;
@@ -309,7 +289,7 @@ export class URL extends URI implements objects.IEqualable {
 
 	constructor(spec: string);
 	constructor(spec: URI);
-	constructor(stringOrURI: any) {
+	constructor(stringOrURI: string|URI) {
 		super();
 		assert.ok(!!stringOrURI, 'spec must not be null');
 		if(typeof stringOrURI === 'string') {
@@ -354,7 +334,7 @@ export class URL extends URI implements objects.IEqualable {
 	}
 
 	/**
-	 * Strip out the hash part of the URL
+	 * Strips out the hash part of the URL.
 	 * http://www.test.com:8000/this/that/theother.html?query=foo for http://www.test.com:8000/this/that/theother.html?query=foo#hash
 	 */
 	public toUnique():string {
@@ -441,21 +421,13 @@ export class URL extends URI implements objects.IEqualable {
 	public toJSON(): any {
 		return this.toString();
 	}
-
-	public _toSerialized(): any {
-		return {
-			$isURL: true,
-			// TODO@Alex: implement derived resources (embedded mirror models) better
-			$value: this.toString().replace(/URL_MARSHAL_REMOVE.*$/, '')
-		};
-	}
 }
 
 export namespace schemas {
 
 	/**
 	 * A schema that is used for models that exist in memory
-	 * only and that have no correspondance on a server or such.
+	 * only and that have no correspondence on a server or such.
 	 */
 	export var inMemory:string = 'inmemory';
 

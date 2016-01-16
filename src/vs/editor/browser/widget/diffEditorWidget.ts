@@ -16,11 +16,11 @@ import EditorCommon = require('vs/editor/common/editorCommon');
 import EditorBrowser = require('vs/editor/browser/editorBrowser');
 import Actions = require('vs/base/common/actions');
 import Sash = require('vs/base/browser/ui/sash/sash');
-import ViewLine = require('vs/editor/browser/viewParts/lines/viewLine');
 import ViewLineParts = require('vs/editor/common/viewLayout/viewLineParts');
 import Schedulers = require('vs/base/common/async');
 import {Range} from 'vs/editor/common/core/range';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import {renderLine} from 'vs/editor/common/viewLayout/viewLineRenderer';
 
 interface IEditorScrollEvent {
 	scrollLeft: number;
@@ -253,6 +253,14 @@ export class DiffEditorWidget extends EventEmitter.EventEmitter implements Edito
 		} else {
 			this._setStrategy(new DiffEdtorWidgetInline(this._createDataSource(), this._enableSplitViewResizing));
 		}
+	}
+
+	public get ignoreTrimWhitespace(): boolean {
+		return this._ignoreTrimWhitespace;
+	}
+
+	public get renderSideBySide(): boolean {
+		return this._renderSideBySide;
 	}
 
 	private static _getClassName(theme:string, renderSideBySide:boolean): string {
@@ -515,7 +523,7 @@ export class DiffEditorWidget extends EventEmitter.EventEmitter implements Edito
 		this.modifiedEditor.revealLinesInCenterIfOutsideViewport(startLineNumber, endLineNumber);
 	}
 
-	public revealRange(range: EditorCommon.IRange, revealVerticalInCenter:boolean = false, revealHorizontal:boolean = false): void {
+	public revealRange(range: EditorCommon.IRange, revealVerticalInCenter:boolean = false, revealHorizontal:boolean = true): void {
 		this.modifiedEditor.revealRange(range, revealVerticalInCenter, revealHorizontal);
 	}
 
@@ -1764,7 +1772,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 
 		parts = ViewLineParts.createLineParts(lineNumber, lineContent, lineTokens, decorations, config.renderWhitespace);
 
-		var r = ViewLine.renderLine({
+		var r = renderLine({
 			lineContent: lineContent,
 			tabSize: indentation.tabSize,
 			stopRenderingLineAfter: config.stopRenderingLineAfter,

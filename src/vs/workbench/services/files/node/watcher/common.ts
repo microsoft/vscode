@@ -5,11 +5,9 @@
 
 'use strict';
 
-import arrays = require('vs/base/common/arrays');
 import uri from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
 import {FileChangeType, FileChangesEvent} from 'vs/platform/files/common/files';
-import {IEventService} from 'vs/platform/event/common/event';
 
 export interface IRawFileChange {
 	type: FileChangeType;
@@ -28,7 +26,7 @@ export function toFileChangesEvent(changes: IRawFileChange[]): FileChangesEvent 
 }
 
 /**
- * Given events that occured, applies some rules to normalize the events
+ * Given events that occurred, applies some rules to normalize the events
  */
 export function normalize(changes: IRawFileChange[]): IRawFileChange[] {
 

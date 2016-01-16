@@ -8,28 +8,27 @@
 import 'vs/css!./media/editorstatus';
 import nls = require('vs/nls');
 import {Promise, TPromise} from 'vs/base/common/winjs.base';
-import react = require('lib/react');
+import { emmet as $, append, show, hide } from 'vs/base/browser/dom';
 import objects = require('vs/base/common/objects');
 import encoding = require('vs/base/common/bits/encoding');
 import strings = require('vs/base/common/strings');
 import types = require('vs/base/common/types');
 import uri from 'vs/base/common/uri';
 import errors = require('vs/base/common/errors');
-import Severity from 'vs/base/common/severity';
 import {IStatusbarItem} from 'vs/workbench/browser/parts/statusbar/statusbar';
 import {Action} from 'vs/base/common/actions';
 import {IEditorModesRegistry, Extensions} from 'vs/editor/common/modes/modesRegistry';
 import {Registry} from 'vs/platform/platform';
-import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
-import {UntitledEditorInput} from 'vs/workbench/browser/parts/editor/untitledEditorInput';
-import {EncodingMode, IEncodingSupport, asFileEditorInput, getUntitledOrFileResource} from 'vs/workbench/common/editor';
-import {toDisposable, IDisposable} from 'vs/base/common/lifecycle';
-import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
+import {UntitledEditorInput} from 'vs/workbench/common/editor/untitledEditorInput';
+import {IFileEditorInput, EncodingMode, IEncodingSupport, asFileEditorInput, getUntitledOrFileResource} from 'vs/workbench/common/editor';
+import {IDisposable, combinedDispose} from 'vs/base/common/lifecycle';
+import {ICodeEditor, IDiffEditor} from 'vs/editor/browser/editorBrowser';
 import {EndOfLineSequence, ITokenizedModel, EditorType, IEditorSelection, ITextModel, IDiffEditorModel, IEditor} from 'vs/editor/common/editorCommon';
-import {EventType, EditorEvent, TextEditorSelectionEvent, ResourceEvent} from 'vs/workbench/browser/events';
+import {EventType, ResourceEvent, EditorEvent, TextEditorSelectionEvent} from 'vs/workbench/common/events';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
+import {IEditor as IBaseEditor} from 'vs/platform/editor/common/editor';
 import {IWorkbenchEditorService}  from 'vs/workbench/services/editor/common/editorService';
-import {IQuickOpenService, IPickOpenEntry} from 'vs/workbench/services/quickopen/browser/quickOpenService';
+import {IQuickOpenService, IPickOpenEntry} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IFilesConfiguration} from 'vs/platform/files/common/files';
@@ -53,20 +52,17 @@ function getTextModel(editorWidget: IEditor): ITextModel {
 	return textModel;
 }
 
+function asFileOrUntitledEditorInput(input: any): UntitledEditorInput|IFileEditorInput {
+	if (input instanceof UntitledEditorInput) {
+		return input;
+	}
+
+	return asFileEditorInput(input, true /* support diff editor */);
+}
+
 interface IEditorSelectionStatus {
 	selections?: IEditorSelection[];
 	charactersSelected?: number;
-}
-
-interface IProps {
-	eventService: IEventService;
-	editorService: IWorkbenchEditorService;
-	quickOpenService: IQuickOpenService;
-	onModeClick: () => void;
-	onSelectionClick: () => void;
-	onEOLClick: () => void;
-	onEncodingClick: () => void;
-	onTabFocusModeClick: () => void;
 }
 
 interface IState {
@@ -77,33 +73,33 @@ interface IState {
 	tabFocusMode: boolean;
 }
 
-class WidgetSpec extends react.BaseComponent<IProps, IState> {
+const nlsSingleSelectionRange = nls.localize('singleSelectionRange', "Ln {0}, Col {1} ({2} selected)");
+const nlsSingleSelection = nls.localize('singleSelection', "Ln {0}, Col {1}");
+const nlsMultiSelectionRange = nls.localize('multiSelectionRange', "{0} selections ({1} characters selected)");
+const nlsMultiSelection = nls.localize('multiSelection', "{0} selections");
+const nlsEOLLF = nls.localize('endOfLineLineFeed', "LF");
+const nlsEOLCRLF = nls.localize('endOfLineCarriageReturnLineFeed', "CRLF");
+const nlsTabFocusMode = nls.localize('tabFocusModeEnabled', "Accessibility Mode On");
 
-	private static nlsSingleSelectionRange = nls.localize('singleSelectionRange', "Ln {0}, Col {1} ({2} selected)");
-	private static nlsSingleSelection = nls.localize('singleSelection', "Ln {0}, Col {1}");
-	private static nlsMultiSelectionRange = nls.localize('multiSelectionRange', "{0} selections ({1} characters selected)");
-	private static nlsMultiSelection = nls.localize('multiSelection', "{0} selections");
+export class EditorStatus implements IStatusbarItem {
 
-	public static nlsEOLLF = nls.localize('endOfLineLineFeed', "LF");
-	public static nlsEOLCRLF = nls.localize('endOfLineCarriageReturnLineFeed', "CRLF");
-
-	private static nlsTabFocusMode = nls.localize('tabFocusModeEnabled', "Accessibility Mode On");
-
+	private state: IState;
+	private element: HTMLElement;
+	private tabFocusModeElement: HTMLElement;
+	private selectionElement: HTMLElement;
+	private encodingElement: HTMLElement;
+	private eolElement: HTMLElement;
+	private modeElement: HTMLElement;
 	private toDispose: IDisposable[];
 
-	public componentDidMount(): void {
-		this.toDispose = [
-			this.props.eventService.addListener2(EventType.EDITOR_INPUT_CHANGED, (e: EditorEvent) => this.onEditorInputChange(e.editor)),
-			this.props.eventService.addListener2(EventType.RESOURCE_ENCODING_CHANGED, (e: ResourceEvent) => this.onResourceEncodingChange(e.resource)),
-			this.props.eventService.addListener2(EventType.TEXT_EDITOR_SELECTION_CHANGED, (e: TextEditorSelectionEvent) => this.onSelectionChange(e.editor)),
-			this.props.eventService.addListener2(EventType.TEXT_EDITOR_MODE_CHANGED, (e: EditorEvent) => this.onModeChange(e.editor)),
-			this.props.eventService.addListener2(EventType.TEXT_EDITOR_CONTENT_CHANGED, (e: EditorEvent) => this.onEOLChange(e.editor)),
-			this.props.eventService.addListener2(EventType.TEXT_EDITOR_CONFIGURATION_CHANGED, (e: EditorEvent) => this.onTabFocusModeChange(e.editor)),
-		];
-	}
-
-	public getInitialState(): IState {
-		return {
+	constructor(
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IQuickOpenService private quickOpenService: IQuickOpenService,
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IEventService private eventService: IEventService
+	) {
+		this.toDispose = [];
+		this.state = {
 			selectionStatus: null,
 			mode: null,
 			encoding: null,
@@ -112,74 +108,85 @@ class WidgetSpec extends react.BaseComponent<IProps, IState> {
 		};
 	}
 
-	public render(): react.ReactHTMLElement {
-		let children: react.ReactHTMLElement[] = [];
+	public render(container: HTMLElement): IDisposable {
+		this.element = append(container, $('.editor-statusbar-item'));
 
-		if (this.state.tabFocusMode && this.state.tabFocusMode === true) {
-			children.push(react.createElement('a', {
-				className: 'editor-status-tabfocusmode',
-				title: nls.localize('disableTabMode', "Disable Accessibility Mode"),
-				onClick: this.onTabFocusModeClick
-			}, WidgetSpec.nlsTabFocusMode));
+		this.tabFocusModeElement = append(this.element, $('a.editor-status-tabfocusmode'));
+		this.tabFocusModeElement.title = nls.localize('disableTabMode', "Disable Accessibility Mode");
+		this.tabFocusModeElement.onclick = () => this.onTabFocusModeClick();
+		this.tabFocusModeElement.textContent = nlsTabFocusMode;
+
+		this.selectionElement = append(this.element, $('a.editor-status-selection'));
+		this.selectionElement.title = nls.localize('gotoLine', "Go to Line");
+		this.selectionElement.onclick = () => this.onSelectionClick();
+
+		this.encodingElement = append(this.element, $('a.editor-status-encoding'));
+		this.encodingElement.title = nls.localize('selectEncoding', "Select Encoding");
+		this.encodingElement.onclick = () => this.onEncodingClick();
+
+		this.eolElement = append(this.element, $('a.editor-status-eol'));
+		this.eolElement.title = nls.localize('selectEOL', "Select End of Line Sequence");
+		this.eolElement.onclick = () => this.onEOLClick();
+
+		this.modeElement = append(this.element, $('a.editor-status-mode'));
+		this.modeElement.title = nls.localize('selectLanguageMode', "Select Language Mode");
+		this.modeElement.onclick = () => this.onModeClick();
+
+		this.setState(this.state);
+
+		this.toDispose.push(
+			this.eventService.addListener2(EventType.EDITOR_INPUT_CHANGED, (e: EditorEvent) => this.onEditorInputChange(e.editor)),
+			this.eventService.addListener2(EventType.RESOURCE_ENCODING_CHANGED, (e: ResourceEvent) => this.onResourceEncodingChange(e.resource)),
+			this.eventService.addListener2(EventType.TEXT_EDITOR_SELECTION_CHANGED, (e: TextEditorSelectionEvent) => this.onSelectionChange(e.editor)),
+			this.eventService.addListener2(EventType.TEXT_EDITOR_MODE_CHANGED, (e: EditorEvent) => this.onModeChange(e.editor)),
+			this.eventService.addListener2(EventType.TEXT_EDITOR_CONTENT_CHANGED, (e: EditorEvent) => this.onEOLChange(e.editor)),
+			this.eventService.addListener2(EventType.TEXT_EDITOR_CONFIGURATION_CHANGED, (e: EditorEvent) => this.onTabFocusModeChange(e.editor))
+		);
+
+		return combinedDispose(...this.toDispose);
+	}
+
+	private setState(state: IState): void {
+		this.state = state;
+
+		if (state.tabFocusMode && state.tabFocusMode === true) {
+			show(this.tabFocusModeElement);
+		} else {
+			hide(this.tabFocusModeElement);
 		}
 
 		let selectionLabel = this.getSelectionLabel();
 		if (selectionLabel) {
-			children.push(react.createElement('a', {
-				className: 'editor-status-selection',
-				title: nls.localize('gotoLine', "Go to Line"),
-				onClick: this.onSelectionClick
-			}, selectionLabel));
+			this.selectionElement.textContent = selectionLabel;
+			show(this.selectionElement);
+		} else {
+			hide(this.selectionElement);
 		}
 
-		if (this.state.encoding) {
-			children.push(react.createElement('a', {
-				className: 'editor-status-encoding',
-				title: nls.localize('selectEncoding', "Select Encoding"),
-				onClick: this.onEncodingClick
-			}, this.state.encoding));
+		if (state.encoding) {
+			this.encodingElement.textContent = state.encoding;
+			show(this.encodingElement);
+		} else {
+			hide(this.encodingElement);
 		}
 
-		if (this.state.EOL) {
-			children.push(react.createElement('a', {
-				className: 'editor-status-eol',
-				title: nls.localize('selectEOL', "Select End of Line Sequence"),
-				onClick: this.onEOLClick
-			}, (this.state.EOL === '\r\n' ? WidgetSpec.nlsEOLCRLF : WidgetSpec.nlsEOLLF)));
+		if (state.EOL) {
+			this.eolElement.textContent = state.EOL === '\r\n' ? nlsEOLCRLF : nlsEOLLF;
+			show(this.eolElement);
+		} else {
+			hide(this.eolElement);
 		}
 
-		if (this.state.mode) {
-			children.push(react.createElement('a', {
-				className: 'editor-status-mode',
-				title: nls.localize('selectLanguageMode', "Select Language Mode"),
-				onClick: this.onModeClick
-			}, this.state.mode));
+		if (state.mode) {
+			this.modeElement.textContent = state.mode;
+			show(this.modeElement);
+		} else {
+			hide(this.modeElement);
 		}
-
-		return react.createElement('div', {
-			className: 'editor-statusbar-item',
-			children: children
-		});
 	}
 
-	private onModeClick(): void {
-		this.props.onModeClick();
-	}
-
-	private onSelectionClick(): void {
-		this.props.onSelectionClick();
-	}
-
-	private onEOLClick(): void {
-		this.props.onEOLClick();
-	}
-
-	private onEncodingClick(): void {
-		this.props.onEncodingClick();
-	}
-
-	private onTabFocusModeClick(): void {
-		this.props.onTabFocusModeClick();
+	private updateState(update: any): void {
+		this.setState(objects.assign({}, this.state, update));
 	}
 
 	private getSelectionLabel(): string {
@@ -191,20 +198,52 @@ class WidgetSpec extends react.BaseComponent<IProps, IState> {
 
 		if (info.selections.length === 1) {
 			if (info.charactersSelected) {
-				return strings.format(WidgetSpec.nlsSingleSelectionRange, info.selections[0].positionLineNumber, info.selections[0].positionColumn, info.charactersSelected);
+				return strings.format(nlsSingleSelectionRange, info.selections[0].positionLineNumber, info.selections[0].positionColumn, info.charactersSelected);
 			} else {
-				return strings.format(WidgetSpec.nlsSingleSelection, info.selections[0].positionLineNumber, info.selections[0].positionColumn);
+				return strings.format(nlsSingleSelection, info.selections[0].positionLineNumber, info.selections[0].positionColumn);
 			}
 		} else {
 			if (info.charactersSelected) {
-				return strings.format(WidgetSpec.nlsMultiSelectionRange, info.selections.length, info.charactersSelected);
+				return strings.format(nlsMultiSelectionRange, info.selections.length, info.charactersSelected);
 			} else {
-				return strings.format(WidgetSpec.nlsMultiSelection, info.selections.length);
+				return strings.format(nlsMultiSelection, info.selections.length);
 			}
 		}
 	}
 
-	private onEditorInputChange(e: BaseEditor): void {
+	private onModeClick(): void {
+		let action = this.instantiationService.createInstance(ChangeModeAction, ChangeModeAction.ID, ChangeModeAction.LABEL);
+
+		action.run().done(null, errors.onUnexpectedError);
+		action.dispose();
+	}
+
+	private onSelectionClick(): void {
+		this.quickOpenService.show(':'); // "Go to line"
+	}
+
+	private onEOLClick(): void {
+		let action = this.instantiationService.createInstance(ChangeEOLAction, ChangeEOLAction.ID, ChangeEOLAction.LABEL);
+
+		action.run().done(null, errors.onUnexpectedError);
+		action.dispose();
+	}
+
+	private onEncodingClick(): void {
+		let action = this.instantiationService.createInstance(ChangeEncodingAction, ChangeEncodingAction.ID, ChangeEncodingAction.LABEL);
+
+		action.run().done(null, errors.onUnexpectedError);
+		action.dispose();
+	}
+
+	private onTabFocusModeClick(): void {
+		let activeEditor = this.editorService.getActiveEditor();
+		if (activeEditor instanceof BaseTextEditor && isCodeEditorWithTabFocusMode(activeEditor)) {
+			(<ICodeEditor>activeEditor.getControl()).updateOptions({ tabFocusMode: false });
+		}
+	}
+
+	private onEditorInputChange(e: IBaseEditor): void {
 		this.onSelectionChange(e);
 		this.onModeChange(e);
 		this.onEOLChange(e);
@@ -212,7 +251,7 @@ class WidgetSpec extends react.BaseComponent<IProps, IState> {
 		this.onTabFocusModeChange(e);
 	}
 
-	private onModeChange(e: BaseEditor): void {
+	private onModeChange(e: IBaseEditor): void {
 		if (e && !this.isActiveEditor(e)) {
 			return;
 		}
@@ -239,7 +278,7 @@ class WidgetSpec extends react.BaseComponent<IProps, IState> {
 		this.updateState(info);
 	}
 
-	private onSelectionChange(e: BaseEditor): void {
+	private onSelectionChange(e: IBaseEditor): void {
 		if (e && !this.isActiveEditor(e)) {
 			return;
 		}
@@ -276,7 +315,7 @@ class WidgetSpec extends react.BaseComponent<IProps, IState> {
 		this.updateState({ selectionStatus: info });
 	}
 
-	private onEOLChange(e: BaseEditor): void {
+	private onEOLChange(e: IBaseEditor): void {
 		if (e && !this.isActiveEditor(e)) {
 			return;
 		}
@@ -295,7 +334,7 @@ class WidgetSpec extends react.BaseComponent<IProps, IState> {
 		this.updateState(info);
 	}
 
-	private onEncodingChange(e: BaseEditor): void {
+	private onEncodingChange(e: IBaseEditor): void {
 		if (e && !this.isActiveEditor(e)) {
 			return;
 		}
@@ -304,7 +343,7 @@ class WidgetSpec extends react.BaseComponent<IProps, IState> {
 
 		// We only support text based editors
 		if (e instanceof BaseTextEditor) {
-			let encodingSupport: IEncodingSupport = <any>e.input;
+			let encodingSupport: IEncodingSupport = <any>asFileOrUntitledEditorInput(e.input);
 			if (encodingSupport && types.isFunction(encodingSupport.getEncoding)) {
 				let rawEncoding = encodingSupport.getEncoding();
 				let encodingInfo = encoding.SUPPORTED_ENCODINGS[rawEncoding];
@@ -319,11 +358,17 @@ class WidgetSpec extends react.BaseComponent<IProps, IState> {
 		this.updateState(info);
 	}
 
-	private onResourceEncodingChange(r: uri): void {
-		this.onEncodingChange(this.getActiveEditor(r));
+	private onResourceEncodingChange(resource: uri): void {
+		let activeEditor = this.editorService.getActiveEditor();
+		if (activeEditor) {
+			let activeResource = getUntitledOrFileResource(activeEditor.input, true);
+			if (activeResource && activeResource.toString() === resource.toString()) {
+				return this.onEncodingChange(<IBaseEditor>activeEditor); // only update if the encoding changed for the active resource
+			}
+		}
 	}
 
-	private onTabFocusModeChange(e: BaseEditor): void {
+	private onTabFocusModeChange(e: IBaseEditor): void {
 		if (e && !this.isActiveEditor(e)) {
 			return;
 		}
@@ -338,100 +383,29 @@ class WidgetSpec extends react.BaseComponent<IProps, IState> {
 		this.updateState(info);
 	}
 
-	private isActiveEditor(e: BaseEditor): boolean {
-		let activeEditor = this.props.editorService.getActiveEditor();
+	private isActiveEditor(e: IBaseEditor): boolean {
+		let activeEditor = this.editorService.getActiveEditor();
 
 		return activeEditor && e && activeEditor === e;
-	}
-
-	private getActiveEditor(resource: uri): BaseEditor {
-		let activeEditor = this.props.editorService.getActiveEditor();
-		if (activeEditor) {
-			let r = getUntitledOrFileResource(activeEditor.input);
-			if (r && r.toString() === resource.toString()) {
-				return <BaseEditor>activeEditor;
-			}
-		}
-
-		return null;
-	}
-
-	private updateState(update: any, callback?: () => void): void {
-		this.setState(objects.mixin(update, this.state, false), callback);
-	}
-}
-
-let EditorStatusWidget = react.createFactoryForTS<IProps>(WidgetSpec.prototype);
-
-export class EditorStatus implements IStatusbarItem {
-
-	constructor(
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IQuickOpenService private quickOpenService: IQuickOpenService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IEventService private eventService: IEventService
-	) {
-	}
-
-	public render(container: HTMLElement): IDisposable {
-		react.render(
-			EditorStatusWidget({
-				editorService: this.editorService,
-				eventService: this.eventService,
-				quickOpenService: this.quickOpenService,
-				onModeClick: () => this.onModeClick(),
-				onSelectionClick: () => this.onSelectionClick(),
-				onEOLClick: () => this.onEOLClick(),
-				onTabFocusModeClick: () => this.onTabFocusModeClick(),
-				onEncodingClick: () => this.onEncodingClick()
-			}),
-			container
-		);
-
-		return toDisposable(() => react.unmountComponentAtNode(container));
-	}
-
-	private onModeClick(): void {
-		let action = this.instantiationService.createInstance(ChangeModeAction, ChangeModeAction.ID, ChangeModeAction.LABEL);
-
-		action.run().done(null, errors.onUnexpectedError);
-		action.dispose();
-	}
-
-	private onSelectionClick(): void {
-		this.quickOpenService.show(':'); // "Go to line"
-	}
-
-	private onEOLClick(): void {
-		let action = this.instantiationService.createInstance(ChangeEOLAction, ChangeEOLAction.ID, ChangeEOLAction.LABEL);
-
-		action.run().done(null, errors.onUnexpectedError);
-		action.dispose();
-	}
-
-	private onEncodingClick(): void {
-		let action = this.instantiationService.createInstance(ChangeEncodingAction, ChangeEncodingAction.ID, ChangeEncodingAction.LABEL);
-
-		action.run().done(null, errors.onUnexpectedError);
-		action.dispose();
-	}
-
-	private onTabFocusModeClick(): void {
-		let activeEditor = this.editorService.getActiveEditor();
-		if (activeEditor instanceof BaseTextEditor && isCodeEditorWithTabFocusMode(activeEditor)) {
-			(<ICodeEditor>activeEditor.getControl()).updateOptions({ tabFocusMode: false });
-		}
 	}
 }
 
 function isCodeEditorWithTabFocusMode(e: BaseTextEditor): boolean {
 	let editorWidget = e.getControl();
+	if (editorWidget.getEditorType() === EditorType.IDiffEditor) {
+		editorWidget = (<IDiffEditor>editorWidget).getModifiedEditor();
+	}
+
 	return (editorWidget.getEditorType() === EditorType.ICodeEditor &&
 		(<ICodeEditor>editorWidget).getConfiguration().tabFocusMode);
 }
 
 function isWritableCodeEditor(e: BaseTextEditor): boolean {
 	let editorWidget = e.getControl();
+	if (editorWidget.getEditorType() === EditorType.IDiffEditor) {
+		editorWidget = (<IDiffEditor>editorWidget).getModifiedEditor();
+	}
+
 	return (editorWidget.getEditorType() === EditorType.ICodeEditor &&
 		!(<ICodeEditor>editorWidget).getConfiguration().readOnly);
 }
@@ -548,8 +522,8 @@ export class ChangeEOLAction extends Action {
 		let textModel = getTextModel(editorWidget);
 
 		let EOLOptions: IChangeEOLEntry[] = [
-			{ label: WidgetSpec.nlsEOLLF, eol: EndOfLineSequence.LF },
-			{ label: WidgetSpec.nlsEOLCRLF, eol: EndOfLineSequence.CRLF },
+			{ label: nlsEOLLF, eol: EndOfLineSequence.LF },
+			{ label: nlsEOLCRLF, eol: EndOfLineSequence.CRLF },
 		];
 
 		let selectedIndex = (textModel.getEOL() === '\n') ? 0 : 1;
@@ -588,7 +562,7 @@ export class ChangeEncodingAction extends Action {
 			return this.quickOpenService.pick([{ label: nls.localize('noEditor', "No text editor active at this time") }]);
 		}
 
-		let encodingSupport: IEncodingSupport = <any>activeEditor.input;
+		let encodingSupport: IEncodingSupport = <any>asFileOrUntitledEditorInput(activeEditor.input);
 		if (!types.areFunctions(encodingSupport.setEncoding, encodingSupport.getEncoding)) {
 			return this.quickOpenService.pick([{ label: nls.localize('noFileEditor', "No file active at this time") }]);
 		}
@@ -597,7 +571,7 @@ export class ChangeEncodingAction extends Action {
 		let saveWithEncodingPick: IPickOpenEntry = { label: nls.localize('saveWithEncoding', "Save with Encoding") };
 		let reopenWithEncodingPick: IPickOpenEntry = { label: nls.localize('reopenWithEncoding', "Reopen with Encoding") };
 
-		if (activeEditor.input instanceof UntitledEditorInput) {
+		if (encodingSupport instanceof UntitledEditorInput) {
 			pickActionPromise = Promise.as(saveWithEncodingPick);
 		} else if (!isWritableCodeEditor(<BaseTextEditor>activeEditor)) {
 			pickActionPromise = Promise.as(reopenWithEncodingPick);
@@ -642,11 +616,9 @@ export class ChangeEncodingAction extends Action {
 					}).then((encoding) => {
 						if (encoding) {
 							activeEditor = this.editorService.getActiveEditor();
-							encodingSupport = <any>activeEditor.input;
+							encodingSupport = <any>asFileOrUntitledEditorInput(activeEditor.input);
 							if (encodingSupport && types.areFunctions(encodingSupport.setEncoding, encodingSupport.getEncoding) && encodingSupport.getEncoding() !== encoding.id) {
-
-								// Set new encoding
-								encodingSupport.setEncoding(encoding.id, isReopenWithEncoding ? EncodingMode.Decode : EncodingMode.Encode);
+								encodingSupport.setEncoding(encoding.id, isReopenWithEncoding ? EncodingMode.Decode : EncodingMode.Encode); // Set new encoding
 							}
 						}
 					});

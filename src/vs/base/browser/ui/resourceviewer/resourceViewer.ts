@@ -7,8 +7,8 @@
 
 import 'vs/css!./resourceviewer';
 import nls = require('vs/nls');
-import strings = require('vs/base/common/strings');
 import mimes = require('vs/base/common/mime');
+import URI from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
 import {Builder, $} from 'vs/base/browser/builder';
 import DOM = require('vs/base/browser/dom');
@@ -61,7 +61,7 @@ const mapExtToMediaMimes = {
 	'.flv': 'video/x-flv',
 	'.avi': 'video/x-msvideo',
 	'.movie': 'video/x-sgi-movie'
-}
+};
 
 /**
  * Helper to actually render the given resource into the provided container. Will adjust scrollbar (if provided) automatically based on loading
@@ -69,16 +69,16 @@ const mapExtToMediaMimes = {
  */
 export class ResourceViewer {
 
-	public static show(name: string, url: string, container: Builder, scrollbar?: IScrollableElement): void {
+	public static show(name: string, resource: URI, container: Builder, scrollbar?: IScrollableElement): void {
 
 		// Ensure CSS class
 		$(container).addClass('monaco-resource-viewer');
 
 		// Lookup media mime if any
 		let mime: string;
-		const ext = paths.extname(url);
+		const ext = paths.extname(resource.toString());
 		if (ext) {
-			mime = mapExtToMediaMimes[ext];
+			mime = mapExtToMediaMimes[ext.toLowerCase()];
 		}
 
 		if (!mime) {
@@ -91,7 +91,7 @@ export class ResourceViewer {
 				.empty()
 				.style({ paddingLeft: '20px' }) // restore CSS value in case the user saw a PDF before where we remove padding
 				.img({
-					src: url + '?' + new Date().getTime() // We really want to avoid the browser from caching this resource, so we add a fake query param that is unique
+					src: resource.toString() + '?' + new Date().getTime() // We really want to avoid the browser from caching this resource, so we add a fake query param that is unique
 				}).on(DOM.EventType.LOAD, () => {
 					if (scrollbar) {
 						scrollbar.onElementInternalDimensions();
@@ -101,12 +101,12 @@ export class ResourceViewer {
 
 		// Embed Object (only PDF for now)
 		else if (false /* PDF is currently not supported in Electron it seems */ && mime.indexOf('pdf') >= 0) {
-			var object = $(container)
+			$(container)
 				.empty()
 				.style({ padding: 0, margin: 0 }) // We really do not want any paddings or margins when displaying PDFs
 				.element('object')
 				.attr({
-					data: url + '?' + new Date().getTime(), // We really want to avoid the browser from caching this resource, so we add a fake query param that is unique
+					data: resource.toString() + '?' + new Date().getTime(), // We really want to avoid the browser from caching this resource, so we add a fake query param that is unique
 					width: '100%',
 					height: '100%',
 					type: mime
@@ -120,7 +120,7 @@ export class ResourceViewer {
 				.style({ paddingLeft: '20px' }) // restore CSS value in case the user saw a PDF before where we remove padding
 				.element('audio')
 				.attr({
-					src: url + '?' + new Date().getTime(), // We really want to avoid the browser from caching this resource, so we add a fake query param that is unique
+					src: resource.toString() + '?' + new Date().getTime(), // We really want to avoid the browser from caching this resource, so we add a fake query param that is unique
 					text: nls.localize('missingAudioSupport', "Sorry but playback of audio files is not supported."),
 					controls: 'controls'
 				}).on(DOM.EventType.LOAD, () => {
@@ -132,12 +132,12 @@ export class ResourceViewer {
 
 		// Embed Video (if supported in browser)
 		else if (mime.indexOf('video/') >= 0) {
-			var video = $(container)
+			$(container)
 				.empty()
 				.style({ paddingLeft: '20px' }) // restore CSS value in case the user saw a PDF before where we remove padding
 				.element('video')
 				.attr({
-					src: url + '?' + new Date().getTime(), // We really want to avoid the browser from caching this resource, so we add a fake query param that is unique
+					src: resource.toString() + '?' + new Date().getTime(), // We really want to avoid the browser from caching this resource, so we add a fake query param that is unique
 					text: nls.localize('missingVideoSupport', "Sorry but playback of video files is not supported."),
 					controls: 'controls'
 				}).on(DOM.EventType.LOAD, () => {

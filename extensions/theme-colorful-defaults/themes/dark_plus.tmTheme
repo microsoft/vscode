@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>name</key>
+	<string>Dark+</string>
+	<key>settings</key>
+	<array>
+		<dict>
+			<key>name</key>
+			<string>Function declarations</string>
+			<key>scope</key>
+			<string>entity.name.function, entity.method.name</string>
+			<key>settings</key>
+			<dict>
+				<key>foreground</key>
+				<string>#DCDCAA</string>
+			</dict>
+		</dict>
+		<dict>
+			<key>name</key>
+			<string>Types declaration and references</string>
+			<key>scope</key>
+			<string>meta.parameter.type, name.class, storage.type, meta.return.type, meta.object.type, return-type, meta.cast, new.storage.type.ts, cast.storage.type.ts, heritage.storage.type.ts, annotation.storage.type.ts, var.annotation.type.ts, field.storage.type.ts</string>
+			<key>settings</key>
+			<dict>
+				<key>foreground</key>
+				<string>#4EC9B0</string>
+			</dict>
+		</dict>
+		<dict>
+			<key>name</key>
+			<string>TS storage type workaround</string>
+			<key>scope</key>
+			<string>storage.type.ts</string>
+			<key>settings</key>
+			<dict>
+				<key>foreground</key>
+				<string>#569CD6</string>
+			</dict>
+		</dict>
+		<dict>
+			<key>name</key>
+			<string>Control flow keywords</string>
+			<key>scope</key>
+			<string>keyword.control, meta.preprocessor</string>
+			<key>settings</key>
+			<dict>
+				<key>foreground</key>
+				<string>#C586C0</string>
+			</dict>
+		</dict>
+		<dict>
+			<key>name</key>
+			<string>Variable and parameter name</string>
+			<key>scope</key>
+			<string>meta.parameter.type.variable, variable.parameter, variable, variable.name</string>
+			<key>settings</key>
+			<dict>
+				<key>foreground</key>
+				<string>#9CDCFE</string>
+			</dict>
+		</dict>
+	</array>
+</dict>
+</plist>

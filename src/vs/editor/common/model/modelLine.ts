@@ -235,6 +235,25 @@ export class ModelLine {
 		}
 	}
 
+	// private _printMarkers(): string {
+	// 	if (!this._markers) {
+	// 		return '[]';
+	// 	}
+	// 	if (this._markers.length === 0) {
+	// 		return '[]';
+	// 	}
+
+	// 	var markers = this._markers;
+
+	// 	var printMarker = (m:ILineMarker) => {
+	// 		if (m.stickToPreviousCharacter) {
+	// 			return '|' + m.column;
+	// 		}
+	// 		return m.column + '|';
+	// 	}
+	// 	return '[' + markers.map(printMarker).join(', ') + ']';
+	// }
+
 	private _createMarkersAdjuster(changedMarkers:IChangedMarkers): IMarkersAdjuster {
 		if (!this._markers) {
 			return NO_OP_MARKERS_ADJUSTER;
@@ -243,19 +262,19 @@ export class ModelLine {
 			return NO_OP_MARKERS_ADJUSTER;
 		}
 
+		this._markers.sort(ModelLine._compareMarkers);
+
 		var markers = this._markers;
 		var markersLength = markers.length;
 		var markersIndex = 0;
 		var marker = markers[markersIndex];
 
-		// var printMarkers = () => {
-		// 	return '[' + markers.map( m => m.column).join(', ') + ']';
-		// };
+		// console.log('------------- INITIAL MARKERS: ' + this._printMarkers());
 
-		let adjust = (toColumn:number, delta:number, minimumAllowedColumn:number, isReplace:boolean, forceMoveMarkers:boolean) => {
+		let adjust = (toColumn:number, delta:number, minimumAllowedColumn:number, forceStickToPrevious:boolean, forceMoveMarkers:boolean) => {
 			// console.log('------------------------------');
-			// console.log('adjust called: toColumn: ' + toColumn + ', delta: ' + delta + ', minimumAllowedColumn: ' + minimumAllowedColumn + ', isReplace: ' + isReplace + ', forceMoveMarkers:' + forceMoveMarkers);
-			// console.log('BEFORE::: markersIndex: ' + markersIndex + ' : ' + printMarkers());
+			// console.log('adjust called: toColumn: ' + toColumn + ', delta: ' + delta + ', minimumAllowedColumn: ' + minimumAllowedColumn + ', forceStickToPrevious: ' + forceStickToPrevious + ', forceMoveMarkers:' + forceMoveMarkers);
+			// console.log('BEFORE::: markersIndex: ' + markersIndex + ' : ' + this._printMarkers());
 			while (
 				markersIndex < markersLength
 				&& (
@@ -263,7 +282,7 @@ export class ModelLine {
 					|| (
 						!forceMoveMarkers
 						&& marker.column === toColumn
-						&& (isReplace || marker.stickToPreviousCharacter)
+						&& (forceStickToPrevious || marker.stickToPreviousCharacter)
 					)
 				)
 			) {
@@ -282,11 +301,13 @@ export class ModelLine {
 					marker = markers[markersIndex];
 				}
 			}
-			// console.log('AFTER::: markersIndex: ' + markersIndex + ' : ' + printMarkers());
+			// console.log('AFTER::: markersIndex: ' + markersIndex + ' : ' + this._printMarkers());
 		};
 
 		let finish = (delta:number, lineTextLength:number) => {
 			adjust(Number.MAX_VALUE, delta, 1, false, false);
+
+			// console.log('------------- FINAL MARKERS: ' + this._printMarkers());
 		};
 
 		return {
@@ -296,39 +317,46 @@ export class ModelLine {
 	}
 
 	public applyEdits(changedMarkers: IChangedMarkers, edits:ILineEdit[]): number {
-		// console.log('--> applyEdits: ' + JSON.stringify(edits));
-		var deltaColumn = 0;
-		var resultText = this.text;
+		let deltaColumn = 0;
+		let resultText = this.text;
 
-		var tokensAdjuster = this._createTokensAdjuster();
-		var markersAdjuster = this._createMarkersAdjuster(changedMarkers);
+		let tokensAdjuster = this._createTokensAdjuster();
+		let markersAdjuster = this._createMarkersAdjuster(changedMarkers);
 
-		for (var i = 0, len = edits.length; i < len; i++) {
-			let _oldStartColumn = edits[i].startColumn;
-			let _oldEndColumn = edits[i].endColumn;
-			// console.log('_oldStartColumn: ' + _oldStartColumn + ', _oldEndColumn: ' + _oldEndColumn);
-			let startColumn = deltaColumn + edits[i].startColumn;
-			let endColumn = deltaColumn + edits[i].endColumn;
-			let text = edits[i].text;
+		for (let i = 0, len = edits.length; i < len; i++) {
+			let edit = edits[i];
+
+			// console.log();
+			// console.log('=============================');
+			// console.log('EDIT #' + i + ' [ ' + edit.startColumn + ' -> ' + edit.endColumn + ' ] : <<<' + edit.text + '>>>, forceMoveMarkers: ' + edit.forceMoveMarkers);
+			// console.log('deltaColumn: ' + deltaColumn);
+
+			let startColumn = deltaColumn + edit.startColumn;
+			let endColumn = deltaColumn + edit.endColumn;
+			let deletingCnt = endColumn - startColumn;
+			let insertingCnt = edit.text.length;
 
 			// Adjust tokens & markers before this edit
-			tokensAdjuster.adjust(_oldStartColumn - 1, deltaColumn, 1);
-			markersAdjuster.adjust(_oldStartColumn - 1 + 1, deltaColumn, 1, startColumn !== endColumn, edits[i].forceMoveMarkers);
+			// console.log('Adjust tokens & markers before this edit');
+			tokensAdjuster.adjust(edit.startColumn - 1, deltaColumn, 1);
+			markersAdjuster.adjust(edit.startColumn, deltaColumn, 1, deletingCnt > 0, edit.forceMoveMarkers);
 
 			// Adjust tokens & markers for the common part of this edit
-			let commonLength = Math.min(endColumn - startColumn, text.length);
+			let commonLength = Math.min(deletingCnt, insertingCnt);
 			if (commonLength > 0) {
-				tokensAdjuster.adjust(_oldStartColumn - 1 + commonLength, deltaColumn, startColumn);
-				markersAdjuster.adjust(_oldStartColumn - 1 + 1 + commonLength, deltaColumn, startColumn, true, edits[i].forceMoveMarkers);
+				// console.log('Adjust tokens & markers for the common part of this edit');
+				tokensAdjuster.adjust(edit.startColumn - 1 + commonLength, deltaColumn, startColumn);
+				markersAdjuster.adjust(edit.startColumn + commonLength, deltaColumn, startColumn, deletingCnt > insertingCnt, edit.forceMoveMarkers);
 			}
 
 			// Perform the edit & update `deltaColumn`
-			resultText = resultText.substring(0, startColumn - 1) + text + resultText.substring(endColumn - 1);
-			deltaColumn += text.length - (endColumn - startColumn);
+			resultText = resultText.substring(0, startColumn - 1) + edit.text + resultText.substring(endColumn - 1);
+			deltaColumn += insertingCnt - deletingCnt;
 
 			// Adjust tokens & markers inside this edit
-			tokensAdjuster.adjust(_oldEndColumn, deltaColumn, startColumn);
-			markersAdjuster.adjust(_oldEndColumn + 1, deltaColumn, startColumn, false, edits[i].forceMoveMarkers);
+			// console.log('Adjust tokens & markers inside this edit');
+			tokensAdjuster.adjust(edit.endColumn, deltaColumn, startColumn);
+			markersAdjuster.adjust(edit.endColumn, deltaColumn, startColumn, false, edit.forceMoveMarkers);
 		}
 
 		// Wrap up tokens & markers; adjust remaining if needed
@@ -342,13 +370,14 @@ export class ModelLine {
 	}
 
 	public split(changedMarkers: IChangedMarkers, splitColumn:number, forceMoveMarkers:boolean): ModelLine {
-		// console.log('--> split: ' + splitColumn);
+		// console.log('--> split @ ' + splitColumn + '::: ' + this._printMarkers());
 		var myText = this.text.substring(0, splitColumn - 1);
 		var otherText = this.text.substring(splitColumn - 1);
 
 		var otherMarkers: ILineMarker[] = null;
 
 		if (this._markers) {
+			this._markers.sort(ModelLine._compareMarkers);
 			for (let i = 0, len = this._markers.length; i < len; i++) {
 				let marker = this._markers[i];
 
@@ -391,7 +420,8 @@ export class ModelLine {
 	}
 
 	public append(changedMarkers: IChangedMarkers, other:ModelLine): void {
-		// console.log('--> append: ');
+		// console.log('--> append: THIS :: ' + this._printMarkers());
+		// console.log('--> append: OTHER :: ' + this._printMarkers());
 		var thisTextLength = this.text.length;
 		this._setText(this.text + other.text);
 
@@ -453,8 +483,6 @@ export class ModelLine {
 		} else {
 			this._markers.push(marker);
 		}
-
-		this._markers.sort(ModelLine._compareMarkers);
 	}
 
 	public addMarkers(markers:ILineMarker[]): void {
@@ -474,8 +502,6 @@ export class ModelLine {
 		} else {
 			this._markers = this._markers.concat(markers);
 		}
-
-		this._markers.sort(ModelLine._compareMarkers);
 	}
 
 	private static _compareMarkers(a:ILineMarker, b:ILineMarker): number {

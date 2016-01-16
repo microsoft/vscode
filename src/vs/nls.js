@@ -2,6 +2,17 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------------------------
+ *---------------------------------------------------------------------------------------------
+ *---------------------------------------------------------------------------------------------
+ *---------------------------------------------------------------------------------------------
+ *---------------------------------------------------------------------------------------------
+ * Please make sure to make edits in the .ts file at https://github.com/Microsoft/vscode-loader/
+ *---------------------------------------------------------------------------------------------
+ *---------------------------------------------------------------------------------------------
+ *---------------------------------------------------------------------------------------------
+ *---------------------------------------------------------------------------------------------
+ *--------------------------------------------------------------------------------------------*/
 /// <reference path="declares.ts" />
 /// <reference path="loader.ts" />
 'use strict';
@@ -11,7 +22,7 @@ var NLSLoaderPlugin;
     var global = _nlsPluginGlobal;
     var Resources = global.Plugin && global.Plugin.Resources ? global.Plugin.Resources : undefined;
     var DEFAULT_TAG = 'i-default';
-    var IS_PSEUDO = (global && global.document && global.document.URL.match(/[^\?]*\?[^\#]*pseudo=true/));
+    var IS_PSEUDO = (global && global.document && global.document.location && global.document.location.hash.indexOf('pseudo=true') >= 0);
     var slice = Array.prototype.slice;
     function _format(message, args) {
         var result;

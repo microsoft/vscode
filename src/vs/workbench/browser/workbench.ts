@@ -6,7 +6,6 @@
 'use strict';
 
 import 'vs/css!./media/workbench';
-import 'vs/css!./media/octicons/octicons';
 import {TPromise, Promise, ValueCallback} from 'vs/base/common/winjs.base';
 import types = require('vs/base/common/types');
 import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
@@ -19,7 +18,7 @@ import timer = require('vs/base/common/timer');
 import errors = require('vs/base/common/errors');
 import {Registry} from 'vs/platform/platform';
 import {Identifiers, Preferences} from 'vs/workbench/common/constants';
-import {EventType} from 'vs/workbench/browser/events';
+import {EventType} from 'vs/workbench/common/events';
 import {IOptions} from 'vs/workbench/common/options';
 import {IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions} from 'vs/workbench/common/contributions';
 import {IEditorRegistry, Extensions as EditorExtensions} from 'vs/workbench/browser/parts/editor/baseEditor';
@@ -34,23 +33,22 @@ import {WorkbenchLayout, LayoutOptions} from 'vs/workbench/browser/layout';
 import {IActionBarRegistry, Extensions as ActionBarExtensions} from 'vs/workbench/browser/actionBarRegistry';
 import {IViewletRegistry, Extensions as ViewletExtensions} from 'vs/workbench/browser/viewlet';
 import {QuickOpenController} from 'vs/workbench/browser/parts/quickopen/quickOpenController';
-import {WorkspaceStats} from 'vs/platform/telemetry/common/workspaceStats';
 import {getServices} from 'vs/platform/instantiation/common/extensions';
 import {AbstractKeybindingService} from 'vs/platform/keybinding/browser/keybindingServiceImpl';
-import {UntitledEditorService, IUntitledEditorService} from 'vs/workbench/services/untitled/browser/untitledEditorService';
+import {IUntitledEditorService, UntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {WorkbenchEditorService} from 'vs/workbench/services/editor/browser/editorService';
 import {Position, Parts, IPartService} from 'vs/workbench/services/part/common/partService';
 import {DEFAULT_THEME_ID} from 'vs/platform/theme/common/themes';
 import {IWorkspaceContextService as IWorkbenchWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {IStorageService, StorageScope, StorageEvent, StorageEventType} from 'vs/platform/storage/common/storage';
-import {IWorkspaceContextService, IWorkspace, IConfiguration} from 'vs/platform/workspace/common/workspace';
+import {IWorkspace, IConfiguration} from 'vs/platform/workspace/common/workspace';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IActivityService} from 'vs/workbench/services/activity/common/activityService';
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
 import {WorkbenchMessageService} from 'vs/workbench/services/message/browser/messageService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService'
-import {IQuickOpenService} from 'vs/workbench/services/quickopen/browser/quickOpenService';
+import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IHistoryService} from 'vs/workbench/services/history/common/history';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
@@ -60,7 +58,7 @@ import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IThreadService} from 'vs/platform/thread/common/thread';
 import {IPluginService} from 'vs/platform/plugins/common/plugins';
 import {AbstractThreadService} from 'vs/platform/thread/common/abstractThreadService';
-import {IStatusbarService} from 'vs/workbench/services/statusbar/statusbarService';
+import {IStatusbarService} from 'vs/workbench/services/statusbar/common/statusbarService';
 
 interface WorkbenchParams {
 	workspace?: IWorkspace;
@@ -71,6 +69,7 @@ interface WorkbenchParams {
 
 export interface IWorkbenchCallbacks {
 	onServicesCreated?: () => void;
+	onWorkbenchStarted?: () => void;
 }
 
 /**
@@ -199,9 +198,14 @@ export class Workbench implements IPartService {
 
 			// Show default viewlet unless sidebar is hidden or we dont have a default viewlet
 			let registry = (<IViewletRegistry>Registry.as(ViewletExtensions.Viewlets));
-			if (!this.sideBarHidden && !!registry.getDefaultViewletId()) {
-				let viewletTimerEvent = timer.start(timer.Topic.STARTUP, strings.format('Opening Viewlet: {0}', registry.getDefaultViewletId()));
-				viewletAndEditorPromises.push(this.sidebarPart.openViewlet(registry.getDefaultViewletId(), false).then(() => viewletTimerEvent.stop()));
+			let viewletId = registry.getDefaultViewletId();
+			if (!this.workbenchParams.configuration.env.isBuilt) {
+				viewletId = this.storageService.get(SidebarPart.activeViewletSettingsKey, StorageScope.WORKSPACE, registry.getDefaultViewletId()); // help developers and restore last view
+			}
+
+			if (!this.sideBarHidden && !!viewletId) {
+				let viewletTimerEvent = timer.start(timer.Topic.STARTUP, strings.format('Opening Viewlet: {0}', viewletId));
+				viewletAndEditorPromises.push(this.sidebarPart.openViewlet(viewletId, false).then(() => viewletTimerEvent.stop()));
 			}
 
 			// Check for configured options to open files on startup and resolve if any or open untitled for empty workbench
@@ -247,26 +251,9 @@ export class Workbench implements IPartService {
 				this.eventService.emit(EventType.WORKBENCH_CREATED);
 				this.creationPromiseComplete(true);
 
-				// Log to telemetry service
-				let windowSize = {
-					innerHeight: window.innerHeight,
-					innerWidth: window.innerWidth,
-					outerHeight: window.outerHeight,
-					outerWidth: window.outerWidth
-				};
-
-				this.telemetryService.publicLog('workspaceLoad',
-					{
-						userAgent: navigator.userAgent,
-						windowSize: windowSize,
-						autoSaveEnabled: this.contextService.isAutoSaveEnabled && this.contextService.isAutoSaveEnabled(),
-						emptyWorkbench: !this.contextService.getWorkspace(),
-						customKeybindingsCount: this.keybindingService.customKeybindingsCount(),
-						theme: this.currentTheme
-					});
-
-				let workspaceStats: WorkspaceStats = <WorkspaceStats>this.instantiationService.createInstance(WorkspaceStats);
-				workspaceStats.reportWorkspaceTags();
+				if (this.callbacks && this.callbacks.onWorkbenchStarted) {
+					this.callbacks.onWorkbenchStarted();
+				}
 			}, errors.onUnexpectedError);
 		} catch (error) {
 
@@ -294,7 +281,7 @@ export class Workbench implements IPartService {
 		let threadService = this.instantiationService.getInstance(IThreadService);
 		let pluginService = this.instantiationService.getInstance(IPluginService);
 		this.lifecycleService = this.instantiationService.getInstance(ILifecycleService);
-		this.lifecycleService.onShutdown.add(this.shutdownComponents, this);
+		this.toDispose.push(this.lifecycleService.onShutdown(this.shutdownComponents, this));
 		let contextMenuService = this.instantiationService.getInstance(IContextMenuService);
 		this.untitledEditorService = this.instantiationService.getInstance(IUntitledEditorService);
 
@@ -565,9 +552,6 @@ export class Workbench implements IPartService {
 
 		// Dispose all
 		this.toDispose = disposeAll(this.toDispose);
-
-		// Unhook listener
-		this.lifecycleService.onShutdown.remove(this.shutdownComponents, this);
 
 		// Event
 		this.eventService.emit(EventType.WORKBENCH_DISPOSED);

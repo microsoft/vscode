@@ -23,9 +23,9 @@ import {ProgressBar} from 'vs/base/browser/ui/progressbar/progressbar';
 import {Scope, IActionBarRegistry, Extensions, prepareActions} from 'vs/workbench/browser/actionBarRegistry';
 import {Action, IAction} from 'vs/base/common/actions';
 import {Part} from 'vs/workbench/browser/part';
-import {EventType as WorkbenchEventType, ViewletEvent} from 'vs/workbench/browser/events';
+import {EventType as WorkbenchEventType, ViewletEvent} from 'vs/workbench/common/events';
 import {Viewlet, EventType as ViewletEventType, IViewletRegistry, Extensions as ViewletExtensions} from 'vs/workbench/browser/viewlet';
-import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/browser/actionRegistry';
+import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/common/actionRegistry';
 import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
 import {WorkbenchProgressService} from 'vs/workbench/services/progress/browser/progressService';
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
@@ -39,10 +39,11 @@ import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {IProgressService} from 'vs/platform/progress/common/progress';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
-import {KeybindingsUtils} from 'vs/platform/keybinding/common/keybindingsUtils';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 
 export class SidebarPart extends Part implements IViewletService {
+
+	public static activeViewletSettingsKey = 'workbench.sidebar.activeviewletid';
 
 	public serviceId = IViewletService;
 
@@ -216,10 +217,8 @@ export class SidebarPart extends Part implements IViewletService {
 					return viewlet;
 				});
 
-				// Report progress for slow loading promises if workbench is already created and thus this is user initiated
-				if (this.partService.isCreated()) {
-					progressService.showWhile(loaderPromise, 800);
-				}
+				// Report progress for slow loading viewlets
+				progressService.showWhile(loaderPromise, this.partService.isCreated() ? 800 : 3200 /* less ugly initial startup */);
 
 				// Add to Promise Cache until Loaded
 				this.viewletLoaderPromises[id] = loaderPromise;
@@ -235,6 +234,9 @@ export class SidebarPart extends Part implements IViewletService {
 
 		// Remember Viewlet
 		this.activeViewlet = viewlet;
+
+		// Store in preferences
+		this.storageService.store(SidebarPart.activeViewletSettingsKey, this.activeViewlet.getId(), StorageScope.WORKSPACE);
 
 		// Remember
 		this.lastActiveViewletId = this.activeViewlet.getId();
@@ -265,10 +267,10 @@ export class SidebarPart extends Part implements IViewletService {
 			createViewletPromise = TPromise.as(null);
 		}
 
-		// Report progress for slow loading promises (but only if we did not create the viewlet before already and only if this is user initiated)
+		// Report progress for slow loading viewlets (but only if we did not create the viewlet before already)
 		let progressService = this.mapProgressServiceToViewlet[viewlet.getId()];
-		if (progressService && !viewletContainer && this.partService.isCreated()) {
-			this.mapProgressServiceToViewlet[viewlet.getId()].showWhile(createViewletPromise, 800);
+		if (progressService && !viewletContainer) {
+			this.mapProgressServiceToViewlet[viewlet.getId()].showWhile(createViewletPromise, this.partService.isCreated() ? 800 : 3200 /* less ugly initial startup */);
 		}
 
 		// Fill Content and Actions
@@ -369,7 +371,7 @@ export class SidebarPart extends Part implements IViewletService {
 		}
 
 		let keybinding: string = null;
-		let keys = this.keybindingService.lookupKeybindings(viewletId).map(k => k.toLabel());
+		let keys = this.keybindingService.lookupKeybindings(viewletId).map(k => this.keybindingService.getLabelFor(k));
 		if (keys && keys.length) {
 			keybinding = keys[0];
 		}

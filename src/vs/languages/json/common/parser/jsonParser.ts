@@ -9,6 +9,7 @@ import Arrays = require('vs/base/common/arrays');
 import Types = require('vs/base/common/types');
 import Json = require('vs/base/common/json');
 import JsonSchema = require('vs/base/common/jsonSchema');
+import {JSONLocation} from './jsonLocation';
 import SchemaService = require('vs/languages/json/common/jsonSchemaService');
 
 export interface IRange {
@@ -36,20 +37,14 @@ export class ASTNode {
 		this.parent = parent;
 	}
 
-	public getPath():string[] {
-		var path:string[] = [];
-		if (this.parent) {
-			path = this.parent.getPath();
-
-			if (this.name) {
-				path.push(this.name);
-			}
-
-			return path;
-		} else {
-			return path;
+	public getNodeLocation(): JSONLocation {
+		var path = this.parent ? this.parent.getNodeLocation() : new JSONLocation([]);
+		if (this.name) {
+			path = path.append(this.name);
 		}
+		return path;
 	}
+
 
 	public getChildNodes(): ASTNode[] {
 		return [];
@@ -113,8 +108,6 @@ export class ASTNode {
 					location: { start: this.start, end: this.end },
 					message: nls.localize('typeArrayMismatchWarning', 'Incorrect type. Expected one of {0}', schema.type.join())
 				});
-			} else if (schema.type.length > 0) {
-				validationResult.typeMatch = true;
 			}
 		}
 		else if (schema.type) {
@@ -123,8 +116,6 @@ export class ASTNode {
 					location: { start: this.start, end: this.end },
 					message: nls.localize('typeMismatchWarning', 'Incorrect type. Expected "{0}"', schema.type)
 				});
-			} else {
-				validationResult.typeMatch = true;
 			}
 		}
 		if (Array.isArray(schema.allOf)) {
@@ -212,6 +203,8 @@ export class ASTNode {
 					location: { start: this.start, end: this.end },
 					message: nls.localize('enumWarning', 'Value is not an accepted value. Valid values: {0}', JSON.stringify(schema.enum))
 				});
+			} else {
+				validationResult.enumValueMatch = true;
 			}
 		}
 
@@ -717,14 +710,14 @@ export class ValidationResult {
 
 	public propertiesMatches: number;
 	public propertiesValueMatches: number;
-	public typeMatch: boolean;
+	public enumValueMatch: boolean;
 
 	constructor() {
 		this.errors = [];
 		this.warnings = [];
 		this.propertiesMatches = 0;
 		this.propertiesValueMatches = 0;
-		this.typeMatch = false;
+		this.enumValueMatch = false;
 	}
 
 	public hasErrors():boolean {
@@ -745,7 +738,7 @@ export class ValidationResult {
 	public mergePropertyMatch(propertyValidationResult: ValidationResult) : void {
 		this.merge(propertyValidationResult);
 		this.propertiesMatches++;
-		if (!propertyValidationResult.hasErrors()) {
+		if (propertyValidationResult.enumValueMatch || !propertyValidationResult.hasErrors() && propertyValidationResult.propertiesMatches) {
 			this.propertiesValueMatches++;
 		}
 	}
@@ -755,8 +748,8 @@ export class ValidationResult {
 		if (hasErrors !== other.hasErrors()) {
 			return hasErrors ? -1 : 1;
 		}
-		if (this.typeMatch !== other.typeMatch) {
-			return other.typeMatch ? -1 : 1;
+		if (this.enumValueMatch !== other.enumValueMatch) {
+			return other.enumValueMatch ? -1 : 1;
 		}
 		if (this.propertiesValueMatches !== other.propertiesValueMatches) {
 			return this.propertiesValueMatches - other.propertiesValueMatches;
@@ -781,16 +774,8 @@ export class JSONDocument {
 		return this.validationResult.errors;
 	}
 
-	public set errors(errors:IError[]) {
-		this.validationResult.errors = errors;
-	}
-
 	public get warnings():IError[] {
 		return this.validationResult.warnings;
-	}
-
-	public set warnings(warnings:IError[]) {
-		this.validationResult.warnings = warnings;
 	}
 
 	public getNodeFromOffset(offset:number):ASTNode {
@@ -935,7 +920,7 @@ export class JSONParser {
 
 			_scanner.scan(); // consume ColonToken
 
-			if (!node.setValue(_parseValue(node, node.key.getValue()))) {
+			if (!node.setValue(_parseValue(node, key.value))) {
 				return _error(nls.localize('ValueExpected', 'Value expected'), node, [], [Json.SyntaxKind.CloseBraceToken, Json.SyntaxKind.CommaToken]);
 			}
 			node.end = node.value.end;
@@ -1023,7 +1008,7 @@ export class JSONParser {
 
 		_scanner.scan();
 
-		_doc.root = _parseValue(null, 'root');
+		_doc.root = _parseValue(null, null);
 		if (!_doc.root) {
 			_error(nls.localize('Invalid symbol', 'Expected a JSON object, array or literal'));
 		} else if (_scanner.getToken() !== Json.SyntaxKind.EOF) {

@@ -131,7 +131,11 @@ export class Server {
 			if (!method) {
 				promise = Promise.wrapError(new Error(`${ request.name } is not a valid method on ${ request.serviceName }`));
 			} else {
-				promise = method.call(service, ...request.args)
+				try {
+					promise = method.call(service, ...request.args);
+				} catch (err) {
+					promise = Promise.wrapError(err);
+				}
 			}
 
 			if (!Promise.is(promise)) {
@@ -155,7 +159,7 @@ export class Server {
 				this.protocol.send(<IRawResponse> { id, data: {
 					message: data.message,
 					name: data.name,
-					stack: data.stack.split('\n')
+					stack: data.stack ? data.stack.split('\n') : void 0
 				}, type: ResponseType.Error });
 			} else {
 				this.protocol.send(<IRawResponse> { id, data, type: ResponseType.ErrorObj });
@@ -282,17 +286,24 @@ export class Client {
 	}
 
 	private bufferRequest(request: IRequest): Promise {
+		let flushedRequest: Promise = null;
+
 		return new Promise((c, e, p) => {
 			this.bufferedRequests.push(request);
 
 			request.flush = () => {
 				request.flush = null;
-				this.doRequest(request).done(c, e, p);
+				flushedRequest = this.doRequest(request).then(c, e, p);
 			};
 		}, () => {
 			request.flush = null;
 
 			if (this.state !== ServiceState.Uninitialized) {
+				if (flushedRequest) {
+					flushedRequest.cancel();
+					flushedRequest = null;
+				}
+
 				return;
 			}
 

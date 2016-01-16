@@ -4,7 +4,7 @@
     "name": "Microsoft Corp."
   },
   "homepage": "http://typescriptlang.org/",
-  "version": "1.6.2",
+  "version": "1.7.5",
   "license": "Apache-2.0",
   "description": "TypeScript is a language for application scale JavaScript development",
   "keywords": [
@@ -19,7 +19,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Microsoft/TypeScript.git"
+    "url": "https://github.com/Microsoft/TypeScript.git"
   },
   "main": "./lib/typescript.js",
   "typings": "./lib/typescript.d.ts",
@@ -37,7 +37,8 @@
     "browserify": "latest",
     "istanbul": "latest",
     "mocha-fivemat-progress-reporter": "latest",
-    "tslint": "latest"
+    "tslint": "~2",
+    "tsd": "latest"
   },
   "scripts": {
     "pretest": "jake tests",
@@ -45,7 +46,10 @@
     "build": "npm run build:compiler && npm run build:tests",
     "build:compiler": "jake local",
     "build:tests": "jake tests",
-    "clean": "jake clean"
+    "clean": "jake clean",
+    "jake": "jake",
+    "lint": "jake lint",
+    "setup-hooks": "node scripts/link-hooks.js"
   },
   "browser": {
     "buffer": false,
@@ -53,10 +57,10 @@
     "os": false,
     "path": false
   },
-  "gitHead": "a44d8e76c68e7c685cef3d34943158021acd04e5",
-  "_id": "typescript@1.6.2",
-  "_shasum": "5b27254abeb111027cbf9450d3431bc5843191dd",
-  "_from": "typescript@>=1.6.2 <2.0.0",
+  "gitHead": "1a8406d8b05e8efea768a1788cc9024f9425a1e5",
+  "_id": "typescript@1.7.5",
+  "_shasum": "a80fc231d9b95afeb9d10f0589560428dd0a045e",
+  "_from": "typescript@*",
   "_npmVersion": "2.0.0",
   "_npmUser": {
     "name": "typescript",
@@ -69,10 +73,9 @@
     }
   ],
   "dist": {
-    "shasum": "5b27254abeb111027cbf9450d3431bc5843191dd",
-    "tarball": "http://registry.npmjs.org/typescript/-/typescript-1.6.2.tgz"
+    "shasum": "a80fc231d9b95afeb9d10f0589560428dd0a045e",
+    "tarball": "http://registry.npmjs.org/typescript/-/typescript-1.7.5.tgz"
   },
   "directories": {},
-  "_resolved": "https://registry.npmjs.org/typescript/-/typescript-1.6.2.tgz",
-  "readme": "ERROR: No README data found!"
+  "_resolved": "https://registry.npmjs.org/typescript/-/typescript-1.7.5.tgz"
 }

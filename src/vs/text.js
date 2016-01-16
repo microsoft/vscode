@@ -2,6 +2,17 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------------------------
+ *---------------------------------------------------------------------------------------------
+ *---------------------------------------------------------------------------------------------
+ *---------------------------------------------------------------------------------------------
+ *---------------------------------------------------------------------------------------------
+ * Please make sure to make edits in the .ts file at https://github.com/Microsoft/vscode-loader/
+ *---------------------------------------------------------------------------------------------
+ *---------------------------------------------------------------------------------------------
+ *---------------------------------------------------------------------------------------------
+ *---------------------------------------------------------------------------------------------
+ *--------------------------------------------------------------------------------------------*/
 /// <reference path="declares.ts" />
 /// <reference path="loader.ts" />
 'use strict';
@@ -164,8 +175,8 @@ var TextLoaderPlugin;
     TextLoaderPlugin.Utilities = Utilities;
     (function () {
         var textLoader = null;
-        var isAtomShell = (typeof process !== 'undefined' && typeof process.versions !== 'undefined' && typeof process.versions['electron'] !== 'undefined');
-        if (typeof process !== 'undefined' && process.versions && !!process.versions.node && !isAtomShell) {
+        var isElectron = (typeof process !== 'undefined' && typeof process.versions !== 'undefined' && typeof process.versions['electron'] !== 'undefined');
+        if (typeof process !== 'undefined' && process.versions && !!process.versions.node && !isElectron) {
             textLoader = new NodeTextLoader();
         }
         else {

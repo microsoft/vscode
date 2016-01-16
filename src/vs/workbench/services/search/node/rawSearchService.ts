@@ -17,8 +17,9 @@ import {FileWalker, Engine as FileSearchEngine} from 'vs/workbench/services/sear
 import {Engine as TextSearchEngine} from 'vs/workbench/services/search/node/textSearch';
 
 export interface IRawSearch {
-	rootPaths: string[];
-	filePatterns: IPatternInfo[];
+	rootFolders: string[];
+	extraFiles?: string[];
+	filePattern?: string;
 	excludePattern?: glob.IExpression;
 	includePattern?: glob.IExpression;
 	contentPattern?: IPatternInfo;
@@ -52,21 +53,18 @@ export interface ISerializedSearchProgressItem extends ISerializedFileMatch, IPr
 export class SearchService implements IRawSearchService {
 
 	public fileSearch(config: IRawSearch): PPromise<ISerializedSearchComplete, ISerializedSearchProgressItem> {
-		config.filePatterns = config.filePatterns && config.filePatterns.length > 0 ? config.filePatterns : [{ pattern: '' /* All files */ }];
-
 		let engine = new FileSearchEngine(config);
 
 		return this.doSearch(engine);
 	}
 
 	public textSearch(config: IRawSearch): PPromise<ISerializedSearchComplete, ISerializedSearchProgressItem> {
-		config.filePatterns = config.filePatterns && config.filePatterns.length > 0 ? config.filePatterns : [{ pattern: '' /* All files */ }];
-
 		let engine = new TextSearchEngine(config, new FileWalker({
-			rootPaths: config.rootPaths,
+			rootFolders: config.rootFolders,
+			extraFiles: config.extraFiles,
 			includePattern: config.includePattern,
 			excludePattern: config.excludePattern,
-			filePatterns: config.filePatterns
+			filePattern: config.filePattern
 		}));
 
 		return this.doSearch(engine);

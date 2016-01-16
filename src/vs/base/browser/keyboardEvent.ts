@@ -72,6 +72,23 @@ let KEY_CODE_MAP: {[keyCode:number]:KeyCode} = {};
 
 	KEY_CODE_MAP[93] = KeyCode.ContextMenu;
 
+	KEY_CODE_MAP[96] = KeyCode.NUMPAD_0;
+	KEY_CODE_MAP[97] = KeyCode.NUMPAD_1;
+	KEY_CODE_MAP[98] = KeyCode.NUMPAD_2;
+	KEY_CODE_MAP[99] = KeyCode.NUMPAD_3;
+	KEY_CODE_MAP[100] = KeyCode.NUMPAD_4;
+	KEY_CODE_MAP[101] = KeyCode.NUMPAD_5;
+	KEY_CODE_MAP[102] = KeyCode.NUMPAD_6;
+	KEY_CODE_MAP[103] = KeyCode.NUMPAD_7;
+	KEY_CODE_MAP[104] = KeyCode.NUMPAD_8;
+	KEY_CODE_MAP[105] = KeyCode.NUMPAD_9;
+	KEY_CODE_MAP[106] = KeyCode.NUMPAD_MULTIPLY;
+	KEY_CODE_MAP[107] = KeyCode.NUMPAD_ADD;
+	KEY_CODE_MAP[108] = KeyCode.NUMPAD_SEPARATOR;
+	KEY_CODE_MAP[109] = KeyCode.NUMPAD_SUBTRACT;
+	KEY_CODE_MAP[110] = KeyCode.NUMPAD_DECIMAL;
+	KEY_CODE_MAP[111] = KeyCode.NUMPAD_DIVIDE;
+
 	KEY_CODE_MAP[112] = KeyCode.F1;
 	KEY_CODE_MAP[113] = KeyCode.F2;
 	KEY_CODE_MAP[114] = KeyCode.F3;
@@ -84,6 +101,13 @@ let KEY_CODE_MAP: {[keyCode:number]:KeyCode} = {};
 	KEY_CODE_MAP[121] = KeyCode.F10;
 	KEY_CODE_MAP[122] = KeyCode.F11;
 	KEY_CODE_MAP[123] = KeyCode.F12;
+	KEY_CODE_MAP[124] = KeyCode.F13;
+	KEY_CODE_MAP[125] = KeyCode.F14;
+	KEY_CODE_MAP[126] = KeyCode.F15;
+	KEY_CODE_MAP[127] = KeyCode.F16;
+	KEY_CODE_MAP[128] = KeyCode.F17;
+	KEY_CODE_MAP[129] = KeyCode.F18;
+	KEY_CODE_MAP[130] = KeyCode.F19;
 
 	KEY_CODE_MAP[144] = KeyCode.NumLock;
 	KEY_CODE_MAP[145] = KeyCode.ScrollLock;
@@ -99,6 +123,9 @@ let KEY_CODE_MAP: {[keyCode:number]:KeyCode} = {};
 	KEY_CODE_MAP[220] = KeyCode.US_BACKSLASH;
 	KEY_CODE_MAP[221] = KeyCode.US_CLOSE_SQUARE_BRACKET;
 	KEY_CODE_MAP[222] = KeyCode.US_QUOTE;
+	KEY_CODE_MAP[223] = KeyCode.OEM_8;
+
+	KEY_CODE_MAP[226] = KeyCode.OEM_102;
 
 	if (Browser.isIE11orEarlier) {
 		KEY_CODE_MAP[91] = KeyCode.Meta;
@@ -125,20 +152,21 @@ interface INormalizedKeyCode {
 	key: string;
 }
 
-function extractKeyCode(e:KeyboardEvent): INormalizedKeyCode {
+export function lookupKeyCode(e:KeyboardEvent): KeyCode {
+	return KEY_CODE_MAP[e.keyCode] || KeyCode.Unknown;
+}
+
+let extractKeyCode = function extractKeyCode(e:KeyboardEvent): KeyCode {
 	if (e.charCode) {
 		// "keypress" events mostly
 		let char = String.fromCharCode(e.charCode).toUpperCase();
-		return {
-			keyCode: KeyCode.fromString(char),
-			key: char
-		};
+		return KeyCode.fromString(char);
 	}
-	let keyCode = KEY_CODE_MAP[e.keyCode] || KeyCode.Unknown;
-	return {
-		keyCode: keyCode,
-		key: KeyCode.toString(keyCode)
-	};
+	return lookupKeyCode(e);
+}
+
+export function setExtractKeyCode(newExtractKeyCode:(e:KeyboardEvent)=>KeyCode): void {
+	extractKeyCode = newExtractKeyCode;
 }
 
 export interface IKeyboardEvent {
@@ -159,6 +187,11 @@ export interface IKeyboardEvent {
 	stopPropagation(): void;
 }
 
+const ctrlKeyMod = (Platform.isMacintosh ? KeyMod.WinCtrl : KeyMod.CtrlCmd);
+const altKeyMod = KeyMod.Alt;
+const shiftKeyMod = KeyMod.Shift;
+const metaKeyMod = (Platform.isMacintosh ? KeyMod.CtrlCmd : KeyMod.WinCtrl);
+
 export class StandardKeyboardEvent implements IKeyboardEvent {
 
 	public browserEvent: KeyboardEvent;
@@ -170,44 +203,40 @@ export class StandardKeyboardEvent implements IKeyboardEvent {
 	public metaKey: boolean;
 	public keyCode: KeyCode;
 
-	private key: string;
-	private __asKeybinding: number;
+	private _asKeybinding: number;
 
 	constructor(source:StandardKeyboardEvent|KeyboardEvent) {
 		if (source instanceof StandardKeyboardEvent) {
-			let e = <StandardKeyboardEvent>source;
-
 			this.browserEvent = null;
-			this.ctrlKey = e.ctrlKey;
-			this.shiftKey = e.shiftKey;
-			this.altKey = e.altKey;
-			this.metaKey = e.metaKey;
-			this.target = e.target;
-			this.key = e.key;
-			this.keyCode = e.keyCode;
-			this.__asKeybinding = e.__asKeybinding;
+			this.target = source.target;
+
+			this.ctrlKey = source.ctrlKey;
+			this.shiftKey = source.shiftKey;
+			this.altKey = source.altKey;
+			this.metaKey = source.metaKey;
+			this.keyCode = source.keyCode;
+
+			this._asKeybinding = source._asKeybinding;
 		} else {
 			let e = <KeyboardEvent>source;
 
 			this.browserEvent = e;
+			this.target = e.target || (<any>e).targetNode;
+
 			this.ctrlKey = e.ctrlKey;
 			this.shiftKey = e.shiftKey;
 			this.altKey = e.altKey;
 			this.metaKey = e.metaKey;
-			this.target = e.target || (<any>e).targetNode;
-
-			let standardKeyCode = extractKeyCode(e);
-			this.key = standardKeyCode.key;
-			this.keyCode = standardKeyCode.keyCode;
+			this.keyCode = extractKeyCode(e);
 
 			// console.info(e.type + ": keyCode: " + e.keyCode + ", which: " + e.which + ", charCode: " + e.charCode + ", detail: " + e.detail + " ====> " + this.key + ' -- ' + KeyCode[this.keyCode]);
 
-			this.ctrlKey = this.ctrlKey || this.key === 'Ctrl';
-			this.altKey = this.altKey || this.key === 'Alt';
-			this.shiftKey = this.shiftKey || this.key === 'Shift';
-			this.metaKey = this.metaKey || this.key === 'Meta';
+			this.ctrlKey = this.ctrlKey || this.keyCode === KeyCode.Ctrl;
+			this.altKey = this.altKey || this.keyCode === KeyCode.Alt;
+			this.shiftKey = this.shiftKey || this.keyCode === KeyCode.Shift;
+			this.metaKey = this.metaKey || this.keyCode === KeyCode.Meta;
 
-			this.__asKeybinding = this._asKeybinding();
+			this._asKeybinding = this._computeKeybinding();
 		}
 	}
 
@@ -228,56 +257,31 @@ export class StandardKeyboardEvent implements IKeyboardEvent {
 	}
 
 	public asKeybinding(): number {
-		return this.__asKeybinding;
+		return this._asKeybinding;
 	}
 
 	public equals(other:number): boolean {
-		return (this.__asKeybinding === other);
+		return (this._asKeybinding === other);
 	}
 
-	private _asKeybinding(): number {
-		var ctrlCmd = false,
-			shift = false,
-			alt = false,
-			winCtrl = false,
-			key = KeyCode.Unknown;
-
-		if (this.ctrlKey) {
-			if (Platform.isMacintosh) {
-				winCtrl = true;
-			} else {
-				ctrlCmd = true;
-			}
-		}
-		if (this.shiftKey) {
-			shift = true;
-		}
-		if (this.altKey) {
-			alt = true;
-		}
-		if (this.metaKey) {
-			if (Platform.isMacintosh) {
-				ctrlCmd = true;
-			} else {
-				winCtrl = true;
-			}
-		}
+	private _computeKeybinding(): number {
+		let key = KeyCode.Unknown;
 		if (this.keyCode !== KeyCode.Ctrl && this.keyCode !== KeyCode.Shift && this.keyCode !== KeyCode.Alt && this.keyCode !== KeyCode.Meta) {
 			key = this.keyCode;
 		}
 
 		let result = 0;
-		if (ctrlCmd) {
-			result |= KeyMod.CtrlCmd;
+		if (this.ctrlKey) {
+			result |= ctrlKeyMod;
 		}
-		if (shift) {
-			result |= KeyMod.Shift;
+		if (this.altKey) {
+			result |= altKeyMod;
 		}
-		if (alt) {
-			result |= KeyMod.Alt;
+		if (this.shiftKey) {
+			result |= shiftKeyMod;
 		}
-		if (winCtrl) {
-			result |= KeyMod.WinCtrl;
+		if (this.metaKey) {
+			result |= metaKeyMod;
 		}
 		result |= key;
 

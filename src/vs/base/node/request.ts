@@ -6,13 +6,12 @@
 'use strict';
 
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
+import { isBoolean } from 'vs/base/common/types';
 import https = require('https');
 import http = require('http');
 import { Url, parse as parseUrl } from 'url';
 import { createWriteStream } from 'fs';
 import { assign } from 'vs/base/common/objects';
-import HttpProxyAgent = require('http-proxy-agent');
-import HttpsProxyAgent = require('https-proxy-agent');
 
 export interface IRequestOptions {
 	type?: string;
@@ -24,6 +23,7 @@ export interface IRequestOptions {
 	data?: any;
 	agent?: any;
 	followRedirects?: number;
+	strictSSL?: boolean;
 }
 
 export interface IRequestResult {
@@ -32,25 +32,26 @@ export interface IRequestResult {
 }
 
 export function request(options: IRequestOptions): TPromise<IRequestResult> {
-	var req: http.ClientRequest;
+	let req: http.ClientRequest;
 
 	return new TPromise<IRequestResult>((c, e) => {
-		var endpoint = parseUrl(options.url);
+		let endpoint = parseUrl(options.url);
 
-		var opts: https.RequestOptions = {
+		let opts: https.RequestOptions = {
 			hostname: endpoint.hostname,
 			port: endpoint.port ? parseInt(endpoint.port) : (endpoint.protocol === 'https:' ? 443 : 80),
 			path: endpoint.path,
 			method: options.type || 'GET',
 			headers: options.headers,
-			agent: options.agent
+			agent: options.agent,
+			rejectUnauthorized: isBoolean(options.strictSSL) ? options.strictSSL : true
 		};
 
 		if (options.user && options.password) {
 			opts.auth = options.user + ':' + options.password;
 		}
 
-		var protocol = endpoint.protocol === 'https:' ? https : http;
+		let protocol = endpoint.protocol === 'https:' ? https : http;
 		req = protocol.request(opts, (res: http.ClientResponse) => {
 			if (res.statusCode >= 300 && res.statusCode < 400 && options.followRedirects && options.followRedirects > 0 && res.headers['location']) {
 				c(<any> request(assign({}, options, {
@@ -95,41 +96,9 @@ export function json<T>(opts: IRequestOptions): TPromise<T> {
 			return e('Response doesn\'t appear to be JSON');
 		}
 
-		var buffer: string[] = [];
+		let buffer: string[] = [];
 		pair.res.on('data', d => buffer.push(d));
 		pair.res.on('end', () => c(JSON.parse(buffer.join(''))));
 		pair.res.on('error', e);
 	}));
-}
-
-function getSystemProxyURI(requestURL: Url): string {
-	if (requestURL.protocol === 'http:') {
-		return process.env.HTTP_PROXY || process.env.http_proxy || null;
-	} else if (requestURL.protocol === 'https:') {
-		return process.env.HTTPS_PROXY || process.env.https_proxy || process.env.HTTP_PROXY || process.env.http_proxy || null;
-	}
-
-	return null;
-}
-
-export function getProxyAgent(rawRequestURL: string, proxyURL: string): any {
-	let requestURL = parseUrl(rawRequestURL);
-	let proxyEndpoint = parseUrl(proxyURL);
-
-	if (!/^https?:$/.test(proxyEndpoint.protocol)) {
-		return null;
-	}
-
-	return requestURL.protocol === 'http:' ? new HttpProxyAgent(proxyURL) : new HttpsProxyAgent(proxyURL);
-}
-
-export function getSystemProxyAgent(rawRequestURL: string): any {
-	let requestURL = parseUrl(rawRequestURL);
-	let proxyURL = getSystemProxyURI(requestURL);
-
-	if (!proxyURL) {
-		return null;
-	}
-
-	return getProxyAgent(rawRequestURL, proxyURL);
 }

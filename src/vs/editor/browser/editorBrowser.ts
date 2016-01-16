@@ -44,7 +44,7 @@ export interface ICodeEditorHelper {
 export interface IKeyboardHandlerHelper {
 	viewDomNode:HTMLElement;
 	textArea:HTMLTextAreaElement;
-	visibleRangeForPositionRelativeToEditor(lineNumber:number, column:number): IVisibleRange;
+	visibleRangeForPositionRelativeToEditor(lineNumber:number, column:number): VisibleRange;
 }
 
 export interface IPointerHandlerHelper {
@@ -70,7 +70,7 @@ export interface IPointerHandlerHelper {
 	 */
 	getPositionFromDOMInfo(spanNode:HTMLElement, offset:number): EditorCommon.IPosition;
 
-	visibleRangeForPosition2(lineNumber:number, column:number): IVisibleRange;
+	visibleRangeForPosition2(lineNumber:number, column:number): VisibleRange;
 	getLineWidth(lineNumber:number): number;
 }
 
@@ -88,7 +88,7 @@ export interface IView extends Lifecycle.IDisposable {
 	getWhitespaces(): EditorCommon.IEditorWhitespace[];
 	renderOnce(callback:() => any): any;
 
-	render(): void;
+	render(now:boolean): void;
 
 	focus(): void;
 	isFocused(): boolean;
@@ -149,7 +149,9 @@ export var ClassNames = {
 	VIEW_LINE: 'view-line',
 	SCROLLABLE_ELEMENT: 'editor-scrollable',
 	CONTENT_WIDGETS: 'contentWidgets',
+	OVERFLOWING_CONTENT_WIDGETS: 'overflowingContentWidgets',
 	OVERLAY_WIDGETS: 'overlayWidgets',
+	MARGIN_VIEW_OVERLAYS: 'margin-view-overlays',
 	LINE_NUMBERS: 'line-numbers',
 	GLYPH_MARGIN: 'glyph-margin',
 	SCROLL_DECORATION: 'scroll-decoration',
@@ -157,11 +159,17 @@ export var ClassNames = {
 	VIEW_ZONES: 'view-zones'
 };
 
-export interface IVisibleRange {
-	top:number;
-	left:number;
-	width:number;
-	height:number;
+export class VisibleRange {
+
+	public top:number;
+	public left:number;
+	public width:number;
+
+	constructor(top:number, left:number, width:number) {
+		this.top = top;
+		this.left = left;
+		this.width = width;
+	}
 }
 
 export interface IRestrictedRenderingContext {
@@ -185,26 +193,33 @@ export interface IRestrictedRenderingContext {
 	getDecorationsInViewport(): EditorCommon.IModelDecoration[];
 }
 
-export interface IHorizontalRange {
-	left:number;
-	width:number;
+export class HorizontalRange {
+
+	public left: number;
+	public width: number;
+
+	constructor(left:number, width:number) {
+		this.left = left;
+		this.width = width;
+	}
 }
 
-export interface ILineVisibleRanges {
-	lineNumber: number;
-	ranges: IHorizontalRange[];
+export class LineVisibleRanges {
+
+	public lineNumber: number;
+	public ranges: HorizontalRange[];
+
+	constructor(lineNumber:number, ranges:HorizontalRange[]) {
+		this.lineNumber = lineNumber;
+		this.ranges = ranges;
+	}
 }
 
 export interface IRenderingContext extends IRestrictedRenderingContext {
 
-	heightInPxForLine(lineNumber:number): number;
+	linesVisibleRangesForRange(range:EditorCommon.IRange, includeNewLines:boolean): LineVisibleRanges[];
 
-	visibleRangesForRange(range:EditorCommon.IRange, includeNewLines:boolean): IVisibleRange[];
-
-	linesVisibleRangesForRange(range:EditorCommon.IRange, includeNewLines:boolean): ILineVisibleRanges[];
-
-	visibleRangeForPosition(position:EditorCommon.IPosition): IVisibleRange;
-	visibleRangeForPosition2(lineNumber:number, column:number): IVisibleRange;
+	visibleRangeForPosition(position:EditorCommon.IPosition): VisibleRange;
 }
 
 export interface IViewEventHandler {
@@ -572,6 +587,47 @@ export interface ICodeEditor extends EditorCommon.ICommonCodeEditor {
 	 * Change the view zones. View zones are lost when a new model is attached to the editor.
 	 */
 	changeViewZones(callback: (accessor: IViewZoneChangeAccessor) => void): void;
+
+	/**
+	 * Returns the range that is currently centered in the view port.
+	 */
+	getCenteredRangeInViewport(): EditorCommon.IEditorRange;
+
+	/**
+	 * Get the view zones.
+	 */
+	getWhitespaces(): EditorCommon.IEditorWhitespace[];
+
+	/**
+	 * Get the horizontal position (left offset) for the column w.r.t to the beginning of the line.
+	 * This method works only if the line `lineNumber` is currently rendered (in the editor's viewport).
+	 * Use this method with caution.
+	 */
+	getOffsetForColumn(lineNumber: number, column: number): number;
+
+	/**
+	 * Force an editor render now.
+	 */
+	render(): void;
+
+	/**
+	 * Get the vertical position (top offset) for the line w.r.t. to the first line.
+	 */
+	getTopForLineNumber(lineNumber: number): number;
+
+	/**
+	 * Get the vertical position (top offset) for the position w.r.t. to the first line.
+	 */
+	getTopForPosition(lineNumber: number, column: number): number;
+
+	/**
+	 * Get the visible position for `position`.
+	 * The result position takes scrolling into account and is relative to the top left corner of the editor.
+	 * Explanation 1: the results of this method will change for the same `position` if the user scrolls the editor.
+	 * Explanation 2: the results of this method will not change if the container of the editor gets repositioned.
+	 * Warning: the results of this method are innacurate for positions that are outside the current editor viewport.
+	 */
+	getScrolledVisiblePosition(position: EditorCommon.IPosition): { top: number; left: number; height: number; };
 }
 
 /**

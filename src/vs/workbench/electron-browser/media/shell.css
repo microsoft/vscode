@@ -37,14 +37,6 @@
 	text-decoration: none;
 }
 
-.monaco-shell a:hover, .monaco-shell .hover {
-	color: #4080D0;
-}
-
-.monaco-shell a:hover, .monaco-shell .hover {
-	text-decoration: underline;
-}
-
 .monaco-shell a.plain {
 	color: inherit;
 	text-decoration: none;

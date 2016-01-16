@@ -7,7 +7,7 @@
 import {TPromise} from 'vs/base/common/winjs.base';
 
 /**
- * Returns whether the provided parameter is a JavaScript Array or not.
+ * @returns whether the provided parameter is a JavaScript Array or not.
  */
 export function isArray(array: any): array is any[] {
 	if (Array.isArray) {
@@ -22,7 +22,7 @@ export function isArray(array: any): array is any[] {
 }
 
 /**
- * Returns whether the provided parameter is a JavaScript String or not.
+ * @returns whether the provided parameter is a JavaScript String or not.
  */
 export function isString(str: any): str is string {
 	if (typeof (str) === 'string' || str instanceof String) {
@@ -33,15 +33,14 @@ export function isString(str: any): str is string {
 }
 
 /**
- * Returns whether the provided parameter is a JavaScript Array and each element in the
- * array is a string.
+ * @returns whether the provided parameter is a JavaScript Array and each element in the array is a string.
  */
 export function isStringArray(value: any): value is string[] {
 	return isArray(value) && (<any[]>value).every(elem => isString(elem));
 }
 
 /**
- * Returns whether the provided parameter is a JavaScript Object or not.
+ * @returns whether the provided parameter is a JavaScript Object or not.
  */
 export function isObject(obj: any): obj is any {
 
@@ -54,7 +53,7 @@ export function isObject(obj: any): obj is any {
 }
 
 /**
- * Returns whether the provided parameter is a JavaScript Number or not.
+ * @returns whether the provided parameter is a JavaScript Number or not.
  */
 export function isNumber(obj: any): obj is number {
 	if ((typeof (obj) === 'number' || obj instanceof Number) && !isNaN(obj)) {
@@ -65,38 +64,38 @@ export function isNumber(obj: any): obj is number {
 }
 
 /**
- * Returns whether the provided parameter is a JavaScript Boolean or not.
+ * @returns whether the provided parameter is a JavaScript Boolean or not.
  */
 export function isBoolean(obj: any): obj is boolean {
 	return obj === true || obj === false;
 }
 
 /**
- * Returns whether the provided parameter is undefined.
+ * @returns whether the provided parameter is undefined.
  */
 export function isUndefined(obj: any): boolean {
 	return typeof (obj) === 'undefined';
 }
 
 /**
- * Returns whether the provided parameter is undefined or null.
+ * @returns whether the provided parameter is undefined or null.
  */
 export function isUndefinedOrNull(obj: any): boolean {
 	return isUndefined(obj) || obj === null;
 }
 
 
-var hasOwnProperty = Object.prototype.hasOwnProperty;
+const hasOwnProperty = Object.prototype.hasOwnProperty;
 
 /**
- * Returns whether the provided parameter is an empty JavaScript Object or not.
+ * @returns whether the provided parameter is an empty JavaScript Object or not.
  */
 export function isEmptyObject(obj: any): obj is any {
 	if (!isObject(obj)) {
 		return false;
 	}
 
-	for (var key in obj) {
+	for (let key in obj) {
 		if (hasOwnProperty.call(obj, key)) {
 			return false;
 		}
@@ -106,17 +105,46 @@ export function isEmptyObject(obj: any): obj is any {
 }
 
 /**
- * Returns whether the provided parameter is a JavaScript Function or not.
+ * @returns whether the provided parameter is a JavaScript Function or not.
  */
 export function isFunction(obj: any): obj is Function {
 	return Object.prototype.toString.call(obj) === '[object Function]';
 }
 
 /**
- * Returns whether the provided parameters is are JavaScript Function or not.
+ * @returns whether the provided parameters is are JavaScript Function or not.
  */
 export function areFunctions(...objects: any[]): boolean {
 	return objects && objects.length > 0 && objects.every((object) => isFunction(object));
+}
+
+export type TypeConstraint = string | Function;
+
+export function validateConstraints(args: any[], constraints: TypeConstraint[]): void {
+	const len = Math.min(args.length, constraints.length);
+	for (let i = 0; i < len; i++) {
+		validateConstraint(args[i], constraints[i]);
+	}
+}
+
+export function validateConstraint(arg: any, constraint: TypeConstraint): void {
+
+	if (typeof constraint === 'string') {
+		if (typeof arg !== constraint) {
+			throw new Error(`argument does not match constraint: typeof ${constraint}`);
+		}
+	} else if (typeof constraint === 'function') {
+		if (arg instanceof constraint) {
+			return;
+		}
+		if (arg && arg.constructor === constraint) {
+			return;
+		}
+		if (constraint.length === 1 && constraint.call(undefined, arg) === true) {
+			return;
+		}
+		throw new Error(`argument does not match one of these constraints: arg instanceof constraint, arg.constructor === constraint, nor constraint(arg) === true`);
+	}
 }
 
 /**
@@ -124,7 +152,7 @@ export function areFunctions(...objects: any[]): boolean {
  * any additional argument supplied.
  */
 export function create(ctor: Function, ...args: any[]): any {
-	var obj = Object.create(ctor.prototype);
+	let obj = Object.create(ctor.prototype);
 	ctor.apply(obj, args);
 
 	return obj;

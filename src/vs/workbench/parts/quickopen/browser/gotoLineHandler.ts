@@ -5,30 +5,28 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
-import env = require('vs/base/common/platform');
 import nls = require('vs/nls');
 import types = require('vs/base/common/types');
 import errors = require('vs/base/common/errors');
-import {IContext, Mode, IAutoFocus} from 'vs/base/parts/quickopen/browser/quickOpen';
-import {QuickOpenEntry, QuickOpenModel} from 'vs/base/parts/quickopen/browser/quickOpenModel';
-import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
-import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/browser/actionRegistry';
-import {Registry} from 'vs/platform/platform';
-import {QuickOpenHandlerDescriptor, IQuickOpenRegistry, Extensions as QuickOpenExtensions, QuickOpenHandler, EditorQuickOpenEntry} from 'vs/workbench/browser/quickopen';
+import {IContext, Mode, IAutoFocus} from 'vs/base/parts/quickopen/common/quickOpen';
+import {QuickOpenModel} from 'vs/base/parts/quickopen/browser/quickOpenModel';
+import {Extensions as ActionExtensions} from 'vs/workbench/common/actionRegistry';
+import {Extensions as QuickOpenExtensions, QuickOpenHandler, EditorQuickOpenEntry} from 'vs/workbench/browser/quickopen';
 import {QuickOpenAction} from 'vs/workbench/browser/actions/quickOpenAction';
 import {TextEditorOptions, EditorOptions, EditorInput} from 'vs/workbench/common/editor';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
 import {IEditor, IModelDecorationsChangeAccessor, OverviewRulerLane, IModelDeltaDecoration, IRange, IEditorViewState, ITextModel, IDiffEditorModel} from 'vs/editor/common/editorCommon';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {Position} from 'vs/platform/editor/common/editor';
-import {IQuickOpenService} from 'vs/workbench/services/quickopen/browser/quickOpenService';
-import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
+import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 
-const ACTION_ID = 'workbench.action.gotoLine';
-const ACTION_LABEL = nls.localize('gotoLine', "Go to Line...");
-const GOTO_LINE_PREFIX = ':';
+export const GOTO_LINE_PREFIX = ':';
 
 export class GotoLineAction extends QuickOpenAction {
+
+	public static ID = 'workbench.action.gotoLine';
+	public static LABEL = nls.localize('gotoLine', "Go to Line...");
+
 	constructor(actionId: string, actionLabel: string, @IQuickOpenService quickOpenService: IQuickOpenService) {
 		super(actionId, actionLabel, GOTO_LINE_PREFIX, quickOpenService);
 	}
@@ -227,7 +225,7 @@ export class GotoLineHandler extends QuickOpenHandler {
 						}
 					}
 				}
-			]
+			];
 
 			let decorations = changeAccessor.deltaDecorations(deleteDecorations, newDecorations);
 			let lineHighlightId = decorations[0];
@@ -282,26 +280,3 @@ export class GotoLineHandler extends QuickOpenHandler {
 		};
 	}
 }
-
-// Register Action
-let registry = <IWorkbenchActionRegistry>Registry.as(ActionExtensions.WorkbenchActions);
-registry.registerWorkbenchAction(new SyncActionDescriptor(GotoLineAction, ACTION_ID, ACTION_LABEL, {
-	primary: KeyMod.CtrlCmd | KeyCode.KEY_G,
-	mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_G }
-}));
-
-// Register Quick Open Handler
-(<IQuickOpenRegistry>Registry.as(QuickOpenExtensions.Quickopen)).registerQuickOpenHandler(
-	new QuickOpenHandlerDescriptor(
-		'vs/workbench/parts/quickopen/browser/gotoLineHandler',
-		'GotoLineHandler',
-		GOTO_LINE_PREFIX,
-		[
-			{
-				prefix: GOTO_LINE_PREFIX,
-				needsEditor: true,
-				description: env.isMacintosh ? nls.localize('gotoLineDescriptionMac', "Go to Line") : nls.localize('gotoLineDescriptionWin', "Go to Line")
-			},
-		]
-	)
-);

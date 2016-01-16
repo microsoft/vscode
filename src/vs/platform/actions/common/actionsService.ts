@@ -116,7 +116,7 @@ export default class ActionsService implements IActionsService {
 			let label = command.category ? localize('category.label', "{0}: {1}", command.category, command.title) : command.title;
 			let action = new Action(command.command, label, undefined, true, () => {
 				return this._pluginService.activateByEvent(activationEvent).then(() => {
-					this._keybindingsService.executeCommand(command.command);
+					return this._keybindingsService.executeCommand(command.command);
 				});
 			});
 			this._extensionsActions.push(action);

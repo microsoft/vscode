@@ -56,7 +56,7 @@ class BackwardIterator {
 				this.offset = this.line.length - 1;
 				return _NL;
 			}
-			this.lineNumber = 0;
+			this.lineNumber = -1;
 			return BOF;
 		}
 		var ch = this.line.charCodeAt(this.offset);
@@ -70,24 +70,20 @@ class BackwardIterator {
 export default class PHPSignatureHelpProvider implements SignatureHelpProvider {
 
 	public provideSignatureHelp(document: TextDocument, position: Position, token: CancellationToken): Promise<SignatureHelp> {
-		console.log('provideSignatureHelp');
 		var iterator = new BackwardIterator(document, position.character - 1, position.line);
 
 		var paramCount = this.readArguments(iterator);
 		if (paramCount < 0) {
-			console.log('paramCount ' + 0);
 			return null;
 		}
 
 		var ident = this.readIdent(iterator);
 		if (!ident) {
-			console.log('ident ' + ident);
 			return null;
 		}
 
 		var entry = phpGlobals.globalfunctions[ident] || phpGlobals.keywords[ident];
 		if (!entry || !entry.signature) {
-			console.log('no entry ');
 			return null;
 		}
 		var paramsString = entry.signature.substring(0, entry.signature.lastIndexOf(')') + 1);
@@ -98,12 +94,10 @@ export default class PHPSignatureHelpProvider implements SignatureHelpProvider {
 		while ((match = re.exec(paramsString)) !== null) {
 			signatureInfo.parameters.push({ label: match[0], documentation: ''});
 		}
-
 		let ret = new SignatureHelp();
 		ret.signatures.push(signatureInfo);
 		ret.activeSignature = 0;
 		ret.activeParameter = Math.min(paramCount, signatureInfo.parameters.length - 1);
-		console.log(ret);
 		return Promise.resolve(ret);
 	}
 

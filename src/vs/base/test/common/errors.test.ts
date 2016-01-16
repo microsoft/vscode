@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { toErrorMessage, getHttpStatus } from 'vs/base/common/errors';
+import { toErrorMessage } from 'vs/base/common/errors';
 
 suite('Errors', () => {
 	test("Get Error Message", function () {
@@ -43,17 +43,5 @@ suite('Errors', () => {
 		assert(toErrorMessage());
 		assert(toErrorMessage(null));
 		assert(toErrorMessage({}));
-	});
-
-	test("Get HTTP Status", function () {
-		assert.strictEqual(getHttpStatus(null), -1);
-
-		var error: any = new Error();
-		error.status = 404;
-		assert.strictEqual(getHttpStatus(error), 404);
-
-		var foo = [];
-		foo.push(error);
-		assert.strictEqual(getHttpStatus(foo), 404);
 	});
 });

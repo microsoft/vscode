@@ -25,7 +25,8 @@ suite('JSON - schema', () => {
 		'http://schema.management.azure.com/schemas/2015-01-01/Microsoft.Resources.json': 'Microsoft.Resources.json',
 		'http://schema.management.azure.com/schemas/2014-04-01-preview/Microsoft.Sql.json': 'Microsoft.Sql.json',
 		'http://schema.management.azure.com/schemas/2014-06-01/Microsoft.Web.json': 'Microsoft.Web.json',
-		'http://schema.management.azure.com/schemas/2014-04-01/SuccessBricks.ClearDB.json': 'SuccessBricks.ClearDB.json'
+		'http://schema.management.azure.com/schemas/2014-04-01/SuccessBricks.ClearDB.json': 'SuccessBricks.ClearDB.json',
+		'http://schema.management.azure.com/schemas/2015-08-01/Microsoft.Compute.json': 'Microsoft.Compute.json'
 	}
 
 	var requestServiceMock = <IRequestService> {
@@ -335,6 +336,55 @@ suite('JSON - schema', () => {
 		});
 	});
 
+	test('Schema contributions', function(testDone) {
+		var service = new SchemaService.JSONSchemaService(requestServiceMock);
+
+		service.setSchemaContributions({ schemas: {
+			"http://myschemastore/myschemabar" : {
+				id: 'main',
+				type: 'object',
+				properties: {
+					foo: {
+						type: 'string'
+					}
+				}
+			}
+		}, schemaAssociations: {
+			'*.bar': ['http://myschemastore/myschemabar', 'http://myschemastore/myschemafoo']
+		}});
+
+		var id2 = 'http://myschemastore/myschemafoo';
+		var schema2:JsonSchema.IJSONSchema = {
+			type: 'object',
+			properties: {
+				child: {
+					type: 'string'
+				}
+			}
+		};
+
+		service.registerExternalSchema(id2, null, schema2);
+
+		service.getSchemaForResource('main.bar', null).then(resolvedSchema => {
+			assert.deepEqual(resolvedSchema.errors, []);
+			assert.equal(2, resolvedSchema.schema.allOf.length);
+
+			service.clearExternalSchemas();
+			return service.getSchemaForResource('main.bar', null).then(resolvedSchema => {
+				assert.equal(resolvedSchema.errors.length, 1);
+				assert.ok(resolvedSchema.errors[0].indexOf("Problems loading reference 'http://myschemastore/myschemafoo'") === 0);
+
+				service.clearExternalSchemas();
+				service.registerExternalSchema(id2, null, schema2);
+				return service.getSchemaForResource('main.bar', null).then(resolvedSchema => {
+					assert.equal(resolvedSchema.errors.length, 0);
+				});
+			});
+		}).done(() => testDone(), (error) => {
+			testDone(error);
+		});
+	});
+
 	test('Resolving circular $refs', function(testDone) {
 
 		var service : SchemaService.IJSONSchemaService = new SchemaService.JSONSchemaService(requestServiceMock);
@@ -406,6 +456,78 @@ suite('JSON - schema', () => {
 			document.validate(resolveSchema.schema, matchingSchemas);
 			assert.deepEqual(document.errors, []);
 			assert.equal(document.warnings.length, 1);
+		}).done(() => testDone(), (error) => {
+			testDone(error);
+		});
+
+	});
+
+	test('Validate Azure Resource Dfinition', function(testDone) {
+
+
+		var service : SchemaService.IJSONSchemaService = new SchemaService.JSONSchemaService(requestServiceMock);
+
+		var input = {
+			"$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+			"contentVersion": "1.0.0.0",
+			"resources": [
+				{
+					"apiVersion": "2015-06-15",
+					"type": "Microsoft.Compute/virtualMachines",
+					"name": "a",
+					"location": "West US",
+					"properties": {
+						"hardwareProfile": {
+							"vmSize": "Small"
+						},
+						"osProfile": {
+							"computername": "a",
+							"adminUsername": "a",
+							"adminPassword": "a"
+						},
+						"storageProfile": {
+							"imageReference": {
+								"publisher": "a",
+								"offer": "a",
+								"sku": "a",
+								"version": "latest"
+							},
+							"osDisk": {
+								"name": "osdisk",
+								"vhd": {
+									"uri": "[concat('http://', 'b','.blob.core.windows.net/',variables('vmStorageAccountContainerName'),'/',variables('OSDiskName'),'.vhd')]"
+								},
+								"caching": "ReadWrite",
+								"createOption": "FromImage"
+							}
+						},
+						"networkProfile": {
+							"networkInterfaces": [
+								{
+									"id": "[resourceId('Microsoft.Network/networkInterfaces',variables('nicName'))]"
+								}
+							]
+						},
+						"diagnosticsProfile": {
+							"bootDiagnostics": {
+								"enabled": "true",
+								"storageUri": "[concat('http://',parameters('newStorageAccountName'),'.blob.core.windows.net')]"
+							}
+						}
+					}
+				}
+			]
+		}
+		var parser = new Parser.JSONParser();
+		var document = parser.parse(JSON.stringify(input));
+
+		service.getSchemaForResource('file://doc/mydoc.json', document).then(resolvedSchema => {
+			assert.deepEqual(resolvedSchema.errors, []);
+
+			document.validate(resolvedSchema.schema);
+
+			assert.equal(document.warnings.length, 1);
+			assert.equal(document.warnings[0].message, 'Missing property "computerName"');
 		}).done(() => testDone(), (error) => {
 			testDone(error);
 		});

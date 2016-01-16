@@ -5,21 +5,26 @@
 
 'use strict';
 
+import nls = require('vs/nls');
 import {TPromise} from 'vs/base/common/winjs.base';
 import errors = require('vs/base/common/errors');
 import arrays = require('vs/base/common/arrays');
+import Severity from 'vs/base/common/severity';
+import {OpenGlobalSettingsAction} from 'vs/workbench/browser/actions/openSettings';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
+import {IMessageService, CloseAction} from 'vs/platform/message/common/message';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {IWorkspaceContextService}from 'vs/workbench/services/workspace/common/contextService';
 import {IWindowService}from 'vs/workbench/services/window/electron-browser/windowService';
+import {IWindowConfiguration} from 'vs/workbench/electron-browser/window';
+import {IConfigurationService, IConfigurationServiceEvent, ConfigurationServiceEventTypes} from 'vs/platform/configuration/common/configuration';
 
 import win = require('vs/workbench/electron-browser/window');
 
-import remote = require('remote');
-import ipc = require('ipc');
+import {ipcRenderer as ipc, webFrame, remote} from 'electron';
 
 export class ElectronIntegration {
 
@@ -29,8 +34,10 @@ export class ElectronIntegration {
 		@IPartService private partService: IPartService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@ITelemetryService private telemetryService: ITelemetryService,
+		@IConfigurationService private configurationService: IConfigurationService,
 		@IKeybindingService private keybindingService: IKeybindingService,
-		@IStorageService private storageService: IStorageService
+		@IStorageService private storageService: IStorageService,
+		@IMessageService private messageService: IMessageService
 	) {
 	}
 
@@ -41,12 +48,12 @@ export class ElectronIntegration {
 		this.windowService.registerWindow(activeWindow);
 
 		// Support runAction event
-		ipc.on('vscode:runAction', (actionId: string) => {
-			this.keybindingService.executeCommand(actionId, { from: 'menu' });
+		ipc.on('vscode:runAction', (event, actionId: string) => {
+			this.keybindingService.executeCommand(actionId, { from: 'menu' }).done(undefined, err => this.messageService.show(Severity.Error, err));
 		});
 
 		// Support options change
-		ipc.on('vscode:optionsChange', (options: string) => {
+		ipc.on('vscode:optionsChange', (event, options: string) => {
 			let optionsData = JSON.parse(options);
 			for (let key in optionsData) {
 				if (optionsData.hasOwnProperty(key)) {
@@ -57,7 +64,7 @@ export class ElectronIntegration {
 		});
 
 		// Support resolve keybindings event
-		ipc.on('vscode:resolveKeybindings', (rawActionIds: string) => {
+		ipc.on('vscode:resolveKeybindings', (event, rawActionIds: string) => {
 			let actionIds: string[] = [];
 			try {
 				actionIds = JSON.parse(rawActionIds);
@@ -73,11 +80,11 @@ export class ElectronIntegration {
 			}, () => errors.onUnexpectedError);
 		});
 
-		ipc.on('vscode:telemetry', ({ eventName, data }) => {
+		ipc.on('vscode:telemetry', (event, { eventName, data }) => {
 			this.telemetryService.publicLog(eventName, data);
 		});
 
-		ipc.on('vscode:reportError', (error) => {
+		ipc.on('vscode:reportError', (event, error) => {
 			if (error) {
 				let errorParsed = JSON.parse(error);
 				errorParsed.mainProcess = true;
@@ -91,20 +98,72 @@ export class ElectronIntegration {
 		});
 
 		// Theme changes
-		ipc.on('vscode:changeTheme', (theme:string) => {
+		ipc.on('vscode:changeTheme', (event, theme: string) => {
 			this.storageService.store('workbench.theme', theme, StorageScope.GLOBAL);
 		});
+
+		// Configuration changes
+		let previousConfiguredZoomLevel: number;
+		this.configurationService.addListener(ConfigurationServiceEventTypes.UPDATED, (e: IConfigurationServiceEvent) => {
+			let windowConfig: IWindowConfiguration = e.config;
+
+			let newZoomLevel = 0;
+			if (windowConfig.window && typeof windowConfig.window.zoomLevel === 'number') {
+				newZoomLevel = windowConfig.window.zoomLevel;
+
+				// Leave early if the configured zoom level did not change (https://github.com/Microsoft/vscode/issues/1536)
+				if (previousConfiguredZoomLevel === newZoomLevel) {
+					return;
+				}
+
+				previousConfiguredZoomLevel = newZoomLevel;
+			}
+
+			if (webFrame.getZoomLevel() !== newZoomLevel) {
+				webFrame.setZoomLevel(newZoomLevel);
+			}
+		});
+
+		// Auto Save Info (TODO@Ben remove me in a couple of versions)
+		ipc.on('vscode:showAutoSaveInfo', () => {
+			this.messageService.show(
+				Severity.Info, {
+					message: nls.localize('autoSaveInfo', "The **File | Auto Save** option moved into settings and **files.autoSaveDelay: 1** will be added to preserve it."),
+					actions: [
+						CloseAction,
+						this.instantiationService.createInstance(OpenGlobalSettingsAction, OpenGlobalSettingsAction.ID, OpenGlobalSettingsAction.LABEL)
+					]
+				});
+		});
+
+		ipc.on('vscode:showAutoSaveError', () => {
+			this.messageService.show(
+				Severity.Warning, {
+					message: nls.localize('autoSaveError', "Unable to write to settings. Please add **files.autoSaveDelay: 1** to settings.json."),
+					actions: [
+						CloseAction,
+						this.instantiationService.createInstance(OpenGlobalSettingsAction, OpenGlobalSettingsAction.ID, OpenGlobalSettingsAction.LABEL)
+					]
+				});
+		});
+
 	}
 
 	private resolveKeybindings(actionIds: string[]): TPromise<{ id: string; binding: number; }[]> {
 		return this.partService.joinCreation().then(() => {
 			return arrays.coalesce(actionIds.map((id) => {
 				let bindings = this.keybindingService.lookupKeybindings(id);
-				if (bindings.length) {
-					return {
-						id: id,
-						binding: bindings[0].value	// take first user configured binding
-					};
+
+				// return the first binding that can be represented by electron
+				for (let i = 0; i < bindings.length; i++) {
+					let binding = bindings[i];
+					let electronAccelerator = this.keybindingService.getElectronAcceleratorFor(binding);
+					if (electronAccelerator) {
+						return {
+							id: id,
+							binding: binding.value
+						};
+					}
 				}
 
 				return null;

@@ -14,22 +14,19 @@ import nls = require('vs/nls');
 import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
 import {Registry} from 'vs/platform/platform';
 import {IConfigurationRegistry, Extensions as ConfigurationExtensions} from 'vs/platform/configuration/common/configurationRegistry';
-import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/browser/actionRegistry';
+import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/common/actionRegistry';
 import {IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions} from 'vs/workbench/common/contributions';
 import {IEditorRegistry, Extensions as EditorExtensions, IEditorInputFactory} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {EditorInput, IFileEditorInput} from 'vs/workbench/common/editor';
 import {FileEditorDescriptor} from 'vs/workbench/parts/files/browser/files';
 import {FILE_EDITOR_INPUT_ID, VIEWLET_ID} from 'vs/workbench/parts/files/common/files';
 import {FileTracker} from 'vs/workbench/parts/files/browser/fileTracker';
-import {SaveParticipant} from 'vs/workbench/parts/files/browser/saveParticipant';
+import {SaveParticipant} from 'vs/workbench/parts/files/common/editors/saveParticipant';
 import {FileEditorInput} from 'vs/workbench/parts/files/browser/editors/fileEditorInput';
-import {HTMLFrameEditorInput} from 'vs/workbench/parts/files/browser/editors/htmlFrameEditorInput';
 import {TextFileEditor} from 'vs/workbench/parts/files/browser/editors/textFileEditor';
 import {BinaryFileEditor} from 'vs/workbench/parts/files/browser/editors/binaryFileEditor';
 import {IInstantiationService, INullService} from 'vs/platform/instantiation/common/instantiation';
 import {SyncDescriptor, AsyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
-import {registerSingleton} from 'vs/platform/instantiation/common/extensions';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IKeybindings} from 'vs/platform/keybinding/common/keybindingService';
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
@@ -55,7 +52,7 @@ export class OpenExplorerViewletAction extends ToggleViewletAction {
 	'vs/workbench/parts/files/browser/explorerViewlet',
 	'ExplorerViewlet',
 	VIEWLET_ID,
-	nls.localize('explore', "Explore"),
+	nls.localize('explore', "Explorer"),
 	'explore',
 	0
 ));
@@ -75,7 +72,7 @@ let openViewletKb: IKeybindings = {
 // Register file editors
 (<IEditorRegistry>Registry.as(EditorExtensions.Editors)).registerEditor(
 	new FileEditorDescriptor(
-		TextFileEditor.ID, // explicit dependency because we dont want these editors lazy loaded
+		TextFileEditor.ID, // explicit dependency because we don't want these editors lazy loaded
 		nls.localize('textFileEditor', "Text File Editor"),
 		'vs/workbench/parts/files/browser/editors/textFileEditor',
 		'TextFileEditor',
@@ -95,7 +92,7 @@ let openViewletKb: IKeybindings = {
 
 (<IEditorRegistry>Registry.as(EditorExtensions.Editors)).registerEditor(
 	new FileEditorDescriptor(
-		BinaryFileEditor.ID, // explicit dependency because we dont want these editors lazy loaded
+		BinaryFileEditor.ID, // explicit dependency because we don't want these editors lazy loaded
 		nls.localize('binaryFileEditor', "Binary File Editor"),
 		'vs/workbench/parts/files/browser/editors/binaryFileEditor',
 		'BinaryFileEditor',
@@ -147,24 +144,6 @@ class FileEditorInputFactory implements IEditorInputFactory {
 }
 
 (<IEditorRegistry>Registry.as(EditorExtensions.Editors)).registerEditorInputFactory(FILE_EDITOR_INPUT_ID, FileEditorInputFactory);
-
-// Register HTML Frame Editor Input Factory
-class HTMLFrameEditorInputFactory implements IEditorInputFactory {
-
-	constructor(@INullService ns) {}
-
-	public serialize(editorInput: EditorInput): string {
-		let htmlInput = <HTMLFrameEditorInput>editorInput;
-
-		return htmlInput.getResource().toString();
-	}
-
-	public deserialize(instantiationService: IInstantiationService, resourceRaw: string): EditorInput {
-		return instantiationService.createInstance(HTMLFrameEditorInput, URI.parse(resourceRaw));
-	}
-}
-
-(<IEditorRegistry>Registry.as(EditorExtensions.Editors)).registerEditorInputFactory(HTMLFrameEditorInput.ID, HTMLFrameEditorInputFactory);
 
 // Register File Tracker
 (<IWorkbenchContributionsRegistry>Registry.as(WorkbenchExtensions.Workbench)).registerWorkbenchContribution(
@@ -220,6 +199,16 @@ configurationRegistry.registerConfiguration({
 			'type': 'boolean',
 			'default': false,
 			'description': nls.localize('trimTrailingWhitespace', "When enabled, will trim trailing whitespace when you save a file.")
+		},
+		'files.autoSaveDelay': {
+			'type': 'number',
+			'default': 0,
+			'description': nls.localize('autoSaveDelay', "When set to a positive number, will automatically save dirty editors after configured seconds.")
+		},
+		'files.autoSaveFocusChange': {
+			'type': 'boolean',
+			'default': false,
+			'description': nls.localize('autoSaveFocusChange', "When enabled, will automatically save dirty editors when they lose focus or are closed.")
 		}
 	}
 });

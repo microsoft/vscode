@@ -113,6 +113,7 @@ export class LanguageServiceHost implements ts.LanguageServiceHost {
 		this._compilerOptions = options || ts.getDefaultCompilerOptions();
 		this._compilerOptions.allowNonTsExtensions = true; // because of JS* and mirror model we need this
 		this._compilerOptions.module = ts.ModuleKind.CommonJS; // because of JS*
+		this._compilerOptions.target = options && options.target !== undefined ? options.target : ts.ScriptTarget.Latest; // because of JS*
 	}
 
 	getCompilationSettings(): ts.CompilerOptions {
@@ -369,6 +370,9 @@ export class ProjectService {
 	}
 
 	_syncProject(kind: typescript.ChangeKind, resource: URI, files: URI[], options: ts.CompilerOptions): void {
+
+		// console.log('SYNC project ', typescript.ChangeKind[kind], resource.fsPath, files.map(f => f.fsPath), options);
+
 		var projectFolderName = paths.dirname(resource.fsPath);
 		if (kind === typescript.ChangeKind.Added || kind === typescript.ChangeKind.Changed) {
 			// replace/update the project when it was added/changed

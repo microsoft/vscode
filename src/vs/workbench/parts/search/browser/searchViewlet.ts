@@ -25,14 +25,14 @@ import {FileLabel} from 'vs/base/browser/ui/filelabel/fileLabel';
 import {FindInput} from 'vs/base/browser/ui/findinput/findInput';
 import {LeftRightWidget, IRenderer} from 'vs/base/browser/ui/leftRightWidget/leftRightWidget';
 import {CountBadge} from 'vs/base/browser/ui/countBadge/countBadge';
-import {ITree, IElementCallback, IFilter, ISorter, IDataSource} from 'vs/base/parts/tree/common/tree';
+import {ITree, IElementCallback, IFilter, ISorter, IDataSource} from 'vs/base/parts/tree/browser/tree';
 import {Tree} from 'vs/base/parts/tree/browser/treeImpl';
 import {ClickBehavior, DefaultController} from 'vs/base/parts/tree/browser/treeDefaults';
 import {ActionsRenderer} from 'vs/base/parts/tree/browser/actionsRenderer';
 import {ContributableActionProvider} from 'vs/workbench/browser/actionBarRegistry';
 import {Scope} from 'vs/workbench/common/memento';
 import {OpenGlobalSettingsAction} from 'vs/workbench/browser/actions/openSettings';
-import {UntitledEditorEvent, EventType as WorkbenchEventType} from 'vs/workbench/browser/events';
+import {UntitledEditorEvent, EventType as WorkbenchEventType} from 'vs/workbench/common/events';
 import {ITextFileService} from 'vs/workbench/parts/files/common/files';
 import {FileChangeType, FileChangesEvent, EventType as FileEventType} from 'vs/platform/files/common/files';
 import {Viewlet} from 'vs/workbench/browser/viewlet';
@@ -210,7 +210,7 @@ class SearchRenderer extends ActionsRenderer {
 	}
 
 	public getContentHeight(tree: ITree, element: any): number {
-		return 24;
+		return 22;
 	}
 
 	public renderContents(tree: ITree, element: FileMatchOrMatch, domElement: HTMLElement, previousCleanupFn: IElementCallback): IElementCallback {
@@ -451,7 +451,7 @@ class PatternInput {
 	}
 
 	public destroy(): void {
-		this.pattern.destroy();
+		this.pattern.dispose();
 		this.listenersToRemove.forEach((element) => {
 			element();
 		});
@@ -523,11 +523,11 @@ class PatternInput {
 	}
 
 	public isGlobPattern(): boolean {
-		return this.pattern.isChecked;
+		return this.pattern.checked;
 	}
 
 	public setIsGlobPattern(value: boolean): void {
-		this.pattern.setChecked(value);
+		this.pattern.checked = value;
 		this.setInputWidth();
 	}
 
@@ -550,15 +550,20 @@ class PatternInput {
 			}
 		});
 
-		this.pattern = new Checkbox('pattern', nls.localize('patternDescription', "Use Glob Patterns"), false, () => {
-			this.onOptionChange(null);
-			this.inputBox.focus();
-			this.setInputWidth();
+		this.pattern = new Checkbox({
+			actionClassName: 'pattern',
+			title: nls.localize('patternDescription', "Use Glob Patterns"),
+			isChecked: false,
+			onChange: () => {
+				this.onOptionChange(null);
+				this.inputBox.focus();
+				this.setInputWidth();
 
-			if (this.isGlobPattern()) {
-				this.showGlobHelp();
-			} else {
-				this.inputBox.hideMessage();
+				if (this.isGlobPattern()) {
+					this.showGlobHelp();
+				} else {
+					this.inputBox.hideMessage();
+				}
 			}
 		});
 
@@ -697,8 +702,7 @@ export class SearchViewlet extends Viewlet {
 			builder = div;
 		});
 
-		let onKeyUp = (e: KeyboardEvent) => {
-			let keyboardEvent = new StandardKeyboardEvent(e);
+		let onStandardKeyUp = (keyboardEvent: StandardKeyboardEvent) => {
 			if (keyboardEvent.keyCode === KeyCode.Enter) {
 				this.onQueryChanged(true);
 			} else if (keyboardEvent.keyCode === KeyCode.Escape) {
@@ -710,6 +714,10 @@ export class SearchViewlet extends Viewlet {
 					this.currentRequest = null;
 				}
 			}
+		};
+
+		let onKeyUp = (e: KeyboardEvent) => {
+			onStandardKeyUp(new StandardKeyboardEvent(e));
 		};
 
 		this.queryBox = builder.div({ 'class': 'query-box' }, (div) => {
@@ -733,22 +741,21 @@ export class SearchViewlet extends Viewlet {
 					}
 				}
 			};
-			this.findInput = new FindInput(div.getHTMLElement(), this.contextViewService, options)
-				.on(dom.EventType.KEY_UP, onKeyUp)
-				.on(dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
-					let keyboardEvent = new StandardKeyboardEvent(e);
-					if (keyboardEvent.keyCode === KeyCode.DownArrow) {
-						dom.EventHelper.stop(e);
-						if (this.showsFileTypes()) {
-							this.toggleFileTypes(true);
-						} else {
-							this.selectTreeIfNotSelected(keyboardEvent);
-						}
+			this.findInput = new FindInput(div.getHTMLElement(), this.contextViewService, options);
+			this.findInput.onKeyUp(onStandardKeyUp);
+			this.findInput.onKeyDown((keyboardEvent:StandardKeyboardEvent) => {
+				if (keyboardEvent.keyCode === KeyCode.DownArrow) {
+					dom.EventHelper.stop(keyboardEvent);
+					if (this.showsFileTypes()) {
+						this.toggleFileTypes(true);
+					} else {
+						this.selectTreeIfNotSelected(keyboardEvent);
 					}
-				})
-				.on(FindInput.OPTION_CHANGE, (e) => {
-					this.onQueryChanged(true);
-				});
+				}
+			});
+			this.findInput.onDidOptionChange(() => {
+				this.onQueryChanged(true);
+			});
 			this.findInput.setValue(contentPattern);
 			this.findInput.setRegex(isRegex);
 			this.findInput.setCaseSensitive(isCaseSensitive);
@@ -929,7 +936,7 @@ export class SearchViewlet extends Viewlet {
 			this.viewModel.toggleHighlights(visible);
 		}
 
-		// Open focussed element from results in case the editor area is otherwise empty
+		// Open focused element from results in case the editor area is otherwise empty
 		if (visible && !this.editorService.getActiveEditorInput()) {
 			let focus = this.tree.getFocus();
 			if (focus) {
@@ -1110,13 +1117,9 @@ export class SearchViewlet extends Viewlet {
 
 		let includes: IExpression = this.inputPatternIncludes.getGlob();
 
-		let rootResources: URI[] = this.textFileService.getWorkingFilesModel().getOutOfWorkspaceContextEntries().map(e => e.resource);
-		if (this.contextService.getWorkspace()) {
-			rootResources.push(this.contextService.getWorkspace().resource);
-		}
-
 		let options: IQueryOptions = {
-			rootResources: rootResources,
+			folderResources: this.contextService.getWorkspace() ? [this.contextService.getWorkspace().resource] : [],
+			extraFileResources: this.textFileService.getWorkingFilesModel().getOutOfWorkspaceContextEntries().map(e => e.resource),
 			excludePattern: excludes,
 			includePattern: includes,
 			maxResults: SearchViewlet.MAX_TEXT_RESULTS,
@@ -1124,6 +1127,8 @@ export class SearchViewlet extends Viewlet {
 
 		this.queryBuilder.text(content, options)
 			.then(query => this.onQueryTriggered(query, patternExcludes, patternIncludes), errors.onUnexpectedError);
+
+		this.findInput.focus(); // focus back to input field
 	}
 
 	private onQueryTriggered(query: ISearchQuery, excludePattern: string, includePattern: string): void {
@@ -1146,6 +1151,7 @@ export class SearchViewlet extends Viewlet {
 		this.disposeModel();
 		this.showEmptyStage();
 
+		let handledMatches: {[id: string]: boolean} = Object.create(null);
 		let autoExpand = (alwaysExpandIfOneResult: boolean) => {
 			// Auto-expand / collapse based on number of matches:
 			// - alwaysExpandIfOneResult: expand file results if we have just one file result and less than 50 matches on a file
@@ -1153,6 +1159,12 @@ export class SearchViewlet extends Viewlet {
 			if (this.viewModel) {
 				let matches = this.viewModel.matches();
 				matches.forEach((match) => {
+					if (handledMatches[match.id()]) {
+						return; // if we once handled a result, do not do it again to keep results stable (the user might have expanded/collapsed meanwhile)
+					}
+
+					handledMatches[match.id()] = true;
+
 					let length = match.matches().length;
 					if (length < 10 || (alwaysExpandIfOneResult && matches.length === 1 && length < 50)) {
 						this.tree.expand(match).done(null, errors.onUnexpectedError);
@@ -1165,17 +1177,26 @@ export class SearchViewlet extends Viewlet {
 
 		let timerEvent = timer.start(timer.Topic.WORKBENCH, 'Search');
 		let isDone = false;
-		let onComplete = (complete: ISearchComplete) => {
+		let onComplete = (completed?: ISearchComplete) => {
 			timerEvent.stop();
 			isDone = true;
 
 			// Complete up to 100% as needed
-			progressRunner.worked(progressTotal - progressWorked);
-			setTimeout(() => progressRunner.done(), 200);
+			if (completed) {
+				progressRunner.worked(progressTotal - progressWorked);
+				setTimeout(() => progressRunner.done(), 200);
+			} else {
+				progressRunner.done();
+			}
 
 			// Show the final results
-			this.viewModel = this.viewModel || this.instantiationService.createInstance(SearchResult, query.contentPattern);
-			this.viewModel.append(complete.results);
+			if (!this.viewModel) {
+				this.viewModel = this.instantiationService.createInstance(SearchResult, query.contentPattern);
+
+				if (completed) {
+					this.viewModel.append(completed.results);
+				}
+			}
 
 			this.tree.refresh().then(() => {
 				autoExpand(true);
@@ -1190,7 +1211,7 @@ export class SearchViewlet extends Viewlet {
 			this.actionRegistry['collapseAll'].enabled = hasResults;
 			this.actionRegistry['clearSearchResults'].enabled = hasResults;
 
-			if (complete.limitHit) {
+			if (completed && completed.limitHit) {
 				this.findInput.showMessage({
 					content: nls.localize('searchMaxResultsWarning', "The result set only contains a subset of all matches. Please be more specific in your search to narrow down the results."),
 					type: MessageType.WARNING
@@ -1202,10 +1223,12 @@ export class SearchViewlet extends Viewlet {
 				let hasIncludes = !!includePattern;
 				let message: string;
 
-				if (hasIncludes && hasExcludes) {
-					message = nls.localize('noResultsIncludesExcludes', "No results found matching '{0}' excluding '{1}' - ", includePattern, excludePattern);
+				if (!completed) {
+					message = nls.localize('searchCanceled', "Search was canceled before any results could be found - ");
+				} else if (hasIncludes && hasExcludes) {
+					message = nls.localize('noResultsIncludesExcludes', "No results found in '{0}' excluding '{1}' - ", includePattern, excludePattern);
 				} else if (hasIncludes) {
-					message = nls.localize('noResultsIncludes', "No results found matching '{0}' - ", includePattern);
+					message = nls.localize('noResultsIncludes', "No results found in '{0}' - ", includePattern);
 				} else if (hasExcludes) {
 					message = nls.localize('noResultsExcludes', "No results found excluding '{0}' - ", excludePattern);
 				} else {
@@ -1216,10 +1239,19 @@ export class SearchViewlet extends Viewlet {
 				this.results.hide();
 				let div = this.messages.empty().show().asContainer().div({ 'class': 'message', text: message });
 
-				if (hasIncludes || hasExcludes) {
+				if (!completed) {
 					$(div).a({
 						'class': ['pointer', 'prominent'],
-						text: nls.localize('rerunSearch.message', "Search again in all files")
+						text: nls.localize('rerunSearch.message', "Search again")
+					}).on(dom.EventType.CLICK, (e: MouseEvent) => {
+						dom.EventHelper.stop(e, false);
+
+						this.onQueryChanged(true);
+					});
+				} else if (hasIncludes || hasExcludes) {
+					$(div).a({
+						'class': ['pointer', 'prominent'],
+						text: nls.localize('rerunSearchInAll.message', "Search again in all files")
 					}).on(dom.EventType.CLICK, (e: MouseEvent) => {
 						dom.EventHelper.stop(e, false);
 
@@ -1248,13 +1280,15 @@ export class SearchViewlet extends Viewlet {
 		};
 
 		let onError = (e: any) => {
-			this.loading = false;
-			isDone = true;
-			progressRunner.done();
-			progressTimer.stop();
-			doneTimer.stop();
+			if (errors.isPromiseCanceledError(e)) {
+				onComplete(null);
+			} else {
+				this.loading = false;
+				isDone = true;
+				progressRunner.done();
+				progressTimer.stop();
+				doneTimer.stop();
 
-			if (!e || e.message !== 'Canceled') {
 				this.messageService.show(2 /* ERROR */, e);
 			}
 		};
@@ -1287,7 +1321,7 @@ export class SearchViewlet extends Viewlet {
 					}).done(null, errors.onUnexpectedError);
 				}
 
-				this.viewModel.append(matches);
+				this.viewModel.append([p]);
 				progressTimer.stop();
 			}
 		};
@@ -1323,6 +1357,11 @@ export class SearchViewlet extends Viewlet {
 				this.tree.refresh().then(() => {
 					autoExpand(false);
 				}).done(null, errors.onUnexpectedError);
+
+				// since we have results now, enable some actions
+				if (!this.actionRegistry['collapseAll'].enabled) {
+					this.actionRegistry['collapseAll'].enabled = true;
+				}
 			}
 		}, 200);
 

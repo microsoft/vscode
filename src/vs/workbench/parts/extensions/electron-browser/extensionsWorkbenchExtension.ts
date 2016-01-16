@@ -13,14 +13,13 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IMessageService } from 'vs/platform/message/common/message';
 import Severity from 'vs/base/common/severity';
 import { IWorkspaceContextService } from 'vs/workbench/services/workspace/common/contextService';
-import { IPath } from 'vs/workbench/electron-main/window';
 import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
-import wbaregistry = require('vs/workbench/browser/actionRegistry');
+import wbaregistry = require('vs/workbench/common/actionRegistry');
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { ListExtensionsAction, InstallExtensionAction } from './extensionsActions';
+import { ListExtensionsAction, InstallExtensionAction, ListOutdatedExtensionsAction } from './extensionsActions';
 import { IQuickOpenRegistry, Extensions, QuickOpenHandlerDescriptor } from 'vs/workbench/browser/quickopen';
 
-import ipc = require('ipc');
+import {ipcRenderer as ipc} from 'electron';
 
 interface IInstallExtensionsRequest {
 	extensionsToInstall: string[];
@@ -52,7 +51,7 @@ export class ExtensionsWorkbenchExtension implements IWorkbenchContribution {
 				'vs/workbench/parts/extensions/electron-browser/extensionsQuickOpen',
 				'LocalExtensionsHandler',
 				'ext ',
-				nls.localize('localExtensionsCommands', "Local Extensions Commands")
+				nls.localize('localExtensionsCommands', "Show Local Extensions")
 			)
 		);
 
@@ -64,15 +63,25 @@ export class ExtensionsWorkbenchExtension implements IWorkbenchContribution {
 					'vs/workbench/parts/extensions/electron-browser/extensionsQuickOpen',
 					'GalleryExtensionsHandler',
 					'ext install ',
-					nls.localize('galleryExtensionsCommands', "Gallery Extensions Commands"),
-					true
+					nls.localize('galleryExtensionsCommands', "Install Gallery Extensions")
+				)
+			);
+
+			actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ListOutdatedExtensionsAction, ListOutdatedExtensionsAction.ID, ListOutdatedExtensionsAction.LABEL), extensionsCategory);
+
+			(<IQuickOpenRegistry>platform.Registry.as(Extensions.Quickopen)).registerQuickOpenHandler(
+				new QuickOpenHandlerDescriptor(
+					'vs/workbench/parts/extensions/electron-browser/extensionsQuickOpen',
+					'OutdatedExtensionsHandler',
+					'ext update ',
+					nls.localize('outdatedExtensionsCommands', "Update Outdated Extensions")
 				)
 			);
 		}
 	}
 
 	private registerListeners(): void {
-		ipc.on('vscode:installExtensions', (request: IInstallExtensionsRequest) => {
+		ipc.on('vscode:installExtensions', (event, request: IInstallExtensionsRequest) => {
 			if (request.extensionsToInstall) {
 				this.install(request.extensionsToInstall).done(null, errors.onUnexpectedError);
 			}

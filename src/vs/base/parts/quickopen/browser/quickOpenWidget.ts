@@ -12,10 +12,10 @@ import {EventType} from 'vs/base/common/events';
 import types = require('vs/base/common/types');
 import errors = require('vs/base/common/errors');
 import uuid = require('vs/base/common/uuid');
-import {IQuickNavigateConfiguration, IAutoFocus, IContext, IModel, Mode} from 'vs/base/parts/quickopen/browser/quickOpen';
+import {IQuickNavigateConfiguration, IAutoFocus, IContext, IModel, Mode} from 'vs/base/parts/quickopen/common/quickOpen';
 import {Filter, Renderer, DataSource, IModelProvider} from 'vs/base/parts/quickopen/browser/quickOpenViewer';
 import {Dimension, Builder, $} from 'vs/base/browser/builder';
-import {ISelectionEvent, IFocusEvent, ITree} from 'vs/base/parts/tree/common/tree';
+import {ISelectionEvent, IFocusEvent, ITree, ContextMenuEvent} from 'vs/base/parts/tree/browser/tree';
 import {InputBox} from 'vs/base/browser/ui/inputbox/inputBox';
 import {Tree} from 'vs/base/parts/tree/browser/treeImpl';
 import {ProgressBar} from 'vs/base/browser/ui/progressbar/progressbar';
@@ -47,10 +47,21 @@ export interface IQuickOpenUsageLogger {
 	publicLog(eventName: string, data?: any): void;
 }
 
+export class QuickOpenController extends DefaultController {
+
+	public onContextMenu(tree:ITree, element: any, event:ContextMenuEvent):boolean {
+		if (platform.isMacintosh) {
+			return this.onLeftClick(tree, element, event); // https://github.com/Microsoft/vscode/issues/1011
+		}
+
+		return super.onContextMenu(tree, element, event);
+	}
+}
+
 export class QuickOpenWidget implements IModelProvider {
 
 	public static MAX_WIDTH = 600;				// Max total width of quick open widget
-	public static MAX_ITEMS_HEIGHT = 20 * 24;	// Max height of item list below input field
+	public static MAX_ITEMS_HEIGHT = 20 * 22;	// Max height of item list below input field
 
 	private options: IQuickOpenOptions;
 	private builder: Builder;
@@ -152,7 +163,7 @@ export class QuickOpenWidget implements IModelProvider {
 			}, (div: Builder) => {
 				this.tree = new Tree(div.getHTMLElement(), {
 					dataSource: new DataSource(this),
-					controller: new DefaultController({ clickBehavior: ClickBehavior.ON_MOUSE_UP }),
+					controller: new QuickOpenController({ clickBehavior: ClickBehavior.ON_MOUSE_UP }),
 					renderer: new Renderer(this),
 					filter: new Filter(this)
 				}, {
@@ -201,6 +212,10 @@ export class QuickOpenWidget implements IModelProvider {
 					let quickNavKeys = this.quickNavigateConfiguration.keybindings;
 					let wasTriggerKeyPressed = keyCode === KeyCode.Enter || quickNavKeys.some((k) => {
 						if (k.hasShift() && keyCode === KeyCode.Shift) {
+							if (keyboardEvent.ctrlKey || keyboardEvent.altKey || keyboardEvent.metaKey) {
+								return false; // this is an optimistic check for the shift key being used to navigate back in quick open
+							}
+
 							return true;
 						}
 
@@ -339,7 +354,7 @@ export class QuickOpenWidget implements IModelProvider {
 		// Reveal
 		focus = this.tree.getFocus();
 		if (focus) {
-			revealToTop ? this.tree.reveal(focus, 0) : this.tree.reveal(focus);
+			revealToTop ? this.tree.reveal(focus, 0).done(null, errors.onUnexpectedError) : this.tree.reveal(focus).done(null, errors.onUnexpectedError);
 		}
 	}
 
@@ -404,7 +419,7 @@ export class QuickOpenWidget implements IModelProvider {
 			hide = this.model.runner.run(value, Mode.OPEN, context);
 		}
 
-		// add telemetry when an item is acceptted, logging the index of the item in the list and the length of the list
+		// add telemetry when an item is accepted, logging the index of the item in the list and the length of the list
 		// to measure the rate of the success and the relevance of the order
 		if (this.usageLogger) {
 			let indexOfAcceptedElement = this.model.entries.indexOf(value);
@@ -539,7 +554,7 @@ export class QuickOpenWidget implements IModelProvider {
 			let entryToFocus = caseSensitiveMatch || caseInsensitiveMatch;
 			if (entryToFocus) {
 				this.tree.setFocus(entryToFocus);
-				this.tree.reveal(entryToFocus, 0);
+				this.tree.reveal(entryToFocus, 0).done(null, errors.onUnexpectedError);
 
 				return;
 			}
@@ -548,14 +563,14 @@ export class QuickOpenWidget implements IModelProvider {
 		// Second check for auto focus of first entry
 		if (autoFocus.autoFocusFirstEntry) {
 			this.tree.focusFirst();
-			this.tree.reveal(this.tree.getFocus(), 0);
+			this.tree.reveal(this.tree.getFocus(), 0).done(null, errors.onUnexpectedError);
 		}
 
 		// Third check for specific index option
 		else if (typeof autoFocus.autoFocusIndex === 'number') {
 			if (entries.length > autoFocus.autoFocusIndex) {
 				this.tree.focusNth(autoFocus.autoFocusIndex);
-				this.tree.reveal(this.tree.getFocus());
+				this.tree.reveal(this.tree.getFocus()).done(null, errors.onUnexpectedError);
 			}
 		}
 
@@ -594,12 +609,12 @@ export class QuickOpenWidget implements IModelProvider {
 		// Apply
 		this.treeContainer.style({ height: newHeight });
 
-		// Return instantly if we dont CSS transition or the height is the same as old
+		// Return instantly if we don't CSS transition or the height is the same as old
 		if (!this.treeContainer.hasClass('transition') || oldHeight === newHeight) {
 			return Promise.as(null);
 		}
 
-		// Otherwise return promise that only fullfills when the CSS transition has ended
+		// Otherwise return promise that only fulfills when the CSS transition has ended
 		return new Promise((c, e) => {
 			let unbind: { (): void; }[] = [];
 			let complete = false;
@@ -678,7 +693,7 @@ export class QuickOpenWidget implements IModelProvider {
 		this.tree.setInput(null);
 
 		// Reset Tree Height
-		this.treeContainer.style({ height: (this.options.minItemsToShow ? this.options.minItemsToShow * 24 : 0) + 'px' });
+		this.treeContainer.style({ height: (this.options.minItemsToShow ? this.options.minItemsToShow * 22 : 0) + 'px' });
 
 		// Clear any running Progress
 		this.progressBar.stop().getContainer().hide();

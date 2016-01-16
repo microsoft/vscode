@@ -5,7 +5,7 @@
 'use strict';
 
 import assert = require('assert');
-import Network = require('vs/base/common/network');
+import URI from 'vs/base/common/uri';
 import Emit = require('vs/base/common/eventEmitter');
 import Service = require('vs/editor/common/services/resourceServiceImpl');
 import MirrorModel = require('vs/editor/common/model/mirrorModel');
@@ -17,18 +17,18 @@ suite('Editor Services - ResourceService', () => {
 
 		var service = new Service.ResourceService();
 
-		service.insert(new Network.URL('test://1'), MirrorModel.createMirrorModelFromString(null, 1, 'hi', null));
+		service.insert(URI.parse('test://1'), MirrorModel.createMirrorModelFromString(null, 1, 'hi', null));
 		assert.equal(service.all().length, 1);
 
-		service.insert(new Network.URL('test://2'), MirrorModel.createMirrorModelFromString(null, 1, 'hi', null));
+		service.insert(URI.parse('test://2'), MirrorModel.createMirrorModelFromString(null, 1, 'hi', null));
 		assert.equal(service.all().length, 2);
 
-		assert.ok(service.contains(new Network.URL('test://1')));
-		assert.ok(service.contains(new Network.URL('test://2')));
+		assert.ok(service.contains(URI.parse('test://1')));
+		assert.ok(service.contains(URI.parse('test://2')));
 
-		service.remove(new Network.URL('test://1'));
-		service.remove(new Network.URL('test://1'));
-		service.remove(new Network.URL('test://2'));
+		service.remove(URI.parse('test://1'));
+		service.remove(URI.parse('test://1'));
+		service.remove(URI.parse('test://2'));
 		assert.equal(service.all().length, 0);
 	});
 
@@ -37,7 +37,7 @@ suite('Editor Services - ResourceService', () => {
 
 		var eventCnt = 0;
 
-		var url = new Network.URL('far');
+		var url = URI.parse('far');
 		var element = MirrorModel.createMirrorModelFromString(null, 1, 'hi', null);
 		var service = new Service.ResourceService();
 		service.addListener(resourceService.ResourceEvents.ADDED, () => {
@@ -58,7 +58,7 @@ suite('Editor Services - ResourceService', () => {
 
 		var eventCnt = 0;
 
-		var url = new Network.URL('far');
+		var url = URI.parse('far');
 		var element = MirrorModel.createMirrorModelFromString(null, 1, 'hi', null);
 		var event = {};
 

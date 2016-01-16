@@ -41,7 +41,7 @@ export class ViewCursors extends ViewPart {
 		this._secondaryCursors = [];
 
 		this._domNode = document.createElement('div');
-		this._domNode.className = EditorBrowser.ClassNames.VIEW_CURSORS_LAYER;
+		this._updateDomClassName();
 		if (Browser.canUseTranslate3d) {
 			this._domNode.style.transform = 'translate3d(0px, 0px, 0px)';
 		}
@@ -136,6 +136,10 @@ export class ViewCursors extends ViewPart {
 	}
 	public onConfigurationChanged(e:EditorCommon.IConfigurationChangedEvent): boolean {
 		this._primaryCursor.onConfigurationChanged(e);
+		this._updateBlinking();
+		if (e.cursorStyle) {
+			this._updateDomClassName();
+		}
 		for (var i = 0, len = this._secondaryCursors.length; i < len; i++) {
 			this._secondaryCursors[i].onConfigurationChanged(e);
 		}
@@ -172,7 +176,16 @@ export class ViewCursors extends ViewPart {
 	private _getRenderType(): RenderType {
 		if (this._editorHasFocus) {
 			if (this._primaryCursor.getIsInEditableRange() && !this._context.configuration.editor.readOnly) {
-				return RenderType.Blink;
+				switch (this._context.configuration.editor.cursorBlinking) {
+					case ("blink"):
+						return RenderType.Blink;
+					case ("visible"):
+						return RenderType.Visible;
+					case ("hidden"):
+						return RenderType.Hidden;
+					default:
+						return RenderType.Blink;
+				}
 			}
 			return RenderType.Visible;
 		}
@@ -198,6 +211,26 @@ export class ViewCursors extends ViewPart {
 		}
 	}
 // --- end blinking logic
+
+	private _updateDomClassName(): void {
+		this._domNode.className = this._getClassName();
+	}
+
+	private _getClassName(): string {
+		let result = EditorBrowser.ClassNames.VIEW_CURSORS_LAYER;
+		let extraClassName: string;
+		switch (this._context.configuration.editor.cursorStyle) {
+			case 'line':
+				extraClassName = 'cursor-line-style';
+				break;
+			case 'block':
+				extraClassName = 'cursor-block-style';
+				break;
+			default:
+				extraClassName = 'cursor-line-style';
+		}
+		return result + ' ' + extraClassName;
+	}
 
 	private _blink(): void {
 		if (this._isVisible) {

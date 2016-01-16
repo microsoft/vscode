@@ -759,6 +759,38 @@ suite('Editor Contrib - Line Comment As Block Comment 2', () => {
 			new Selection(5, 10, 5, 10)
 		);
 	});
+
+	test('issue #993: Remove comment does not work consistently in HTML', () => {
+		testLineCommentCommand(
+			[
+				'     asd qwe',
+				'     asd qwe',
+				''
+			],
+			new Selection(1, 1, 3, 1),
+			[
+				'     <!@#asd qwe',
+				'     asd qwe#@!>',
+				''
+			],
+			new Selection(1, 1, 3, 1)
+		);
+
+		testLineCommentCommand(
+			[
+				'     <!@#asd qwe',
+				'     asd qwe#@!>',
+				''
+			],
+			new Selection(1, 1, 3, 1),
+			[
+				'     asd qwe',
+				'     asd qwe',
+				''
+			],
+			new Selection(1, 1, 3, 1)
+		);
+	});
 });
 
 

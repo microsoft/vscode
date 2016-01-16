@@ -5,15 +5,18 @@
 'use strict';
 
 import EditorCommon = require('vs/editor/common/editorCommon');
+import {onUnexpectedError, illegalArgument} from 'vs/base/common/errors';
+import URI from 'vs/base/common/uri';
+import {Position} from 'vs/editor/common/core/position';
 import {ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
+import {IModelService} from 'vs/editor/common/services/modelService';
 import {Registry} from 'vs/platform/platform';
-import Errors = require('vs/base/common/errors');
 import {KeybindingsRegistry,ICommandDescriptor} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import config = require('vs/editor/common/config/config');
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {SyncDescriptor1, createSyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
-import {IKeybindingContextRule, ICommandHandler, IKeybindings} from 'vs/platform/keybinding/common/keybindingService';
+import {KbExpr, ICommandHandler, IKeybindings} from 'vs/platform/keybinding/common/keybindingService';
 
 // --- Keybinding extensions to make it more concise to express keybindings conditions
 export enum ContextKey {
@@ -84,6 +87,38 @@ export module CommonEditorRegistry {
 
 		KeybindingsRegistry.registerCommandDesc(commandDesc);
 	}
+
+	export function registerLanguageCommand(id: string, handler: (accessor: ServicesAccessor, args: { [n: string]: any }) => any) {
+		KeybindingsRegistry.registerCommandDesc({
+			id,
+			handler(accessor, args: any[]) {
+				if (args && args.length > 1 || typeof args[0] !== 'object') {
+					throw illegalArgument();
+				}
+				return handler(accessor, args && args[0]);
+			},
+			weight: KeybindingsRegistry.WEIGHT.editorContrib(),
+			primary: undefined,
+			context: undefined,
+		});
+	}
+
+	export function registerDefaultLanguageCommand(id: string, handler: (model: EditorCommon.IModel, position: EditorCommon.IPosition, args: { [n: string]: any }) => any) {
+		registerLanguageCommand(id, function(accessor, args) {
+
+			const {resource, position} = args;
+			if (!URI.isURI(resource) || !Position.isIPosition(position)) {
+				throw illegalArgument();
+			}
+
+			const model = accessor.get(IModelService).getModel(resource);
+			if (!model) {
+				throw illegalArgument();
+			}
+
+			return handler(model, position, args);
+		});
+	}
 }
 
 class SimpleEditorContributionDescriptor implements EditorCommon.ICommonEditorContributionDescriptor {
@@ -141,15 +176,11 @@ class EditorContributionRegistry {
 			}
 		}
 
-		var context: IKeybindingContextRule[] = null;
+		var context: KbExpr = null;
 		if (desc.kbOpts.context === ContextKey.EditorTextFocus) {
-			context = [{
-				key: EditorCommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS
-			}];
+			context = KbExpr.has(EditorCommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS);
 		} else if (desc.kbOpts.context === ContextKey.EditorFocus) {
-			context = [{
-				key: EditorCommon.KEYBINDING_CONTEXT_EDITOR_FOCUS
-			}];
+			context = KbExpr.has(EditorCommon.KEYBINDING_CONTEXT_EDITOR_FOCUS);
 		}
 
 		var commandDesc: ICommandDescriptor = {
@@ -193,7 +224,7 @@ function triggerEditorActionGlobal(actionId: string, accessor: ServicesAccessor,
 		var action = activeEditor.getAction(actionId);
 		if (action) {
 			accessor.get(ITelemetryService).publicLog('editorActionInvoked', {name: action.label} );
-			action.run().done(null, Errors.onUnexpectedError);
+			action.run().done(null, onUnexpectedError);
 		}
 		return;
 	}
@@ -201,17 +232,15 @@ function triggerEditorActionGlobal(actionId: string, accessor: ServicesAccessor,
 
 var defaultEditorActionKeybindingOptions:IEditorActionKeybindingOptions = { primary: null, context: ContextKey.EditorTextFocus };
 
-function contextRule(needsTextFocus: boolean, needsKey: string): IKeybindingContextRule[]{
-	if (needsTextFocus) {
-		return [
-			{ key: EditorCommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS },
-			{ key: needsKey }
-		];
+function contextRule(needsTextFocus: boolean, needsKey: string): KbExpr {
+
+	let base = KbExpr.has(needsTextFocus ? EditorCommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS : EditorCommon.KEYBINDING_CONTEXT_EDITOR_FOCUS);
+
+	if (needsKey) {
+		return KbExpr.and(base, KbExpr.has(needsKey));
 	}
-	return [
-		{ key: EditorCommon.KEYBINDING_CONTEXT_EDITOR_FOCUS },
-		{ key: needsKey }
-	];
+
+	return base;
 }
 
 function createCommandHandler(commandId: string, handler: IEditorCommandHandler): ICommandHandler {

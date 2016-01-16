@@ -69,7 +69,7 @@ export function intersectChangeAndSelection(change:editorcommon.IChange, selecti
 }
 
 /**
- * Returns all selected changes (there can be mulitple selections due to mulitple cursors).
+ * Returns all selected changes (there can be multiple selections due to multiple cursors).
  * If a change is partially selected, the selected part of the change will be returned.
  */
 export function getSelectedChanges(changes:editorcommon.IChange[], selections:editorcommon.IEditorSelection[]):editorcommon.IChange[] {

@@ -11,10 +11,9 @@ import Filters = require('vs/base/common/filters');
 import { TPromise } from 'vs/base/common/winjs.base';
 import Severity from 'vs/base/common/severity';
 import Quickopen = require('vs/workbench/browser/quickopen');
-import QuickOpen = require('vs/base/parts/quickopen/browser/quickOpen');
+import QuickOpen = require('vs/base/parts/quickopen/common/quickOpen');
 import Model = require('vs/base/parts/quickopen/browser/quickOpenModel');
-import Common = require('vs/base/parts/quickopen/browser/quickOpen');
-import {IQuickOpenService} from 'vs/workbench/services/quickopen/browser/quickOpenService';
+import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 
 import { ITaskService, TaskDescription } from 'vs/workbench/parts/tasks/common/taskService';
 
@@ -74,7 +73,7 @@ export class QuickOpenHandler extends Quickopen.QuickOpenHandler {
 		return true;
 	}
 
-	public getAutoFocus(input:string): Common.IAutoFocus {
+	public getAutoFocus(input:string): QuickOpen.IAutoFocus {
 		return {
 			autoFocusFirstEntry: !!input
 		};

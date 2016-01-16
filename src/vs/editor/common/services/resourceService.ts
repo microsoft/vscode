@@ -7,9 +7,7 @@
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
 import {ListenerUnbind, ListenerCallback, IEventEmitter, IEmitterEvent} from 'vs/base/common/eventEmitter';
 import EditorCommon = require('vs/editor/common/editorCommon');
-import {EventProvider} from 'vs/base/common/eventProvider';
 import URI from 'vs/base/common/uri';
-import {URL} from 'vs/base/common/network';
 import {IDisposable} from 'vs/base/common/lifecycle';
 
 // Resource Service
@@ -21,17 +19,17 @@ export var ResourceEvents = {
 };
 
 export interface IResourceAddedEvent {
-	url: URL;
+	url: URI;
 	addedElement: EditorCommon.IMirrorModel;
 }
 
 export interface IResourceRemovedEvent {
-	url: URL;
+	url: URI;
 	removedElement: EditorCommon.IMirrorModel;
 }
 
 export interface IResourceChangedEvent {
-	url: URL;
+	url: URI;
 	originalEvents: IEmitterEvent[];
 }
 

@@ -8,245 +8,129 @@
 import fs = require('fs');
 import paths = require('path');
 
-import types = require('vs/base/common/types');
+import scorer = require('vs/base/common/scorer');
 import arrays = require('vs/base/common/arrays');
 import strings = require('vs/base/common/strings');
 import glob = require('vs/base/common/glob');
-import {IProgress, IPatternInfo} from 'vs/platform/search/common/search';
+import {IProgress} from 'vs/platform/search/common/search';
 
 import extfs = require('vs/base/node/extfs');
 import flow = require('vs/base/node/flow');
 import {ISerializedFileMatch, IRawSearch, ISearchEngine} from 'vs/workbench/services/search/node/rawSearchService';
 
-export class CamelCaseExp implements IExpression {
-	private pattern: string;
-
-	constructor(pattern: string) {
-		this.pattern = pattern.toLowerCase();
-	}
-
-	public test(value: string): boolean {
-		if (value.length === 0) {
-			return false;
-		}
-
-		let pattern = this.pattern.toLowerCase();
-		let result: boolean;
-		let i = 0;
-
-		while (i < value.length && !(result = matches(pattern, value, 0, i))) {
-			i = nextAnchor(value, i + 1);
-		}
-
-		return result;
-	}
-}
-
-function isUpper(c: string): boolean {
-	let code = c.charCodeAt(0);
-
-	return 65 <= code && code <= 90;
-}
-
-function isNumber(c: string): boolean {
-	let code = c.charCodeAt(0);
-
-	return 48 <= code && code <= 57;
-}
-
-function nextAnchor(value: string, start: number): number {
-	let c: string;
-	for (let i = start; i < value.length; i++) {
-		c = value[i];
-		if (isUpper(c) || isNumber(c)) {
-			return i;
-		}
-	}
-
-	return value.length;
-}
-
-function matches(pattern: string, value: string, patternIndex: number, valueIndex: number): boolean {
-	if (patternIndex === pattern.length) {
-		return true;
-	}
-
-	if (valueIndex === value.length) {
-		return false;
-	}
-
-	if (pattern[patternIndex] !== value[valueIndex].toLowerCase()) {
-		return false;
-	}
-
-	let nextUpperIndex = valueIndex + 1;
-	let result = matches(pattern, value, patternIndex + 1, valueIndex + 1);
-	while (!result && (nextUpperIndex = nextAnchor(value, nextUpperIndex)) < value.length) {
-		result = matches(pattern, value, patternIndex + 1, nextUpperIndex);
-		nextUpperIndex++;
-	}
-
-	return result;
-}
-
-function isCamelCasePattern(pattern: string): boolean {
-	return (/^\w[\w.]*$/).test(pattern);
-}
-
-export interface IExpression {
-	test: (value: string) => boolean;
-}
-
-export class FilePatterns {
-
-	private static DOT = '.'.charCodeAt(0);
-
-	private expressions: IExpression[];
-
-	constructor(expressions: IPatternInfo[]) {
-		this.expressions = [];
-
-		for (let i = 0; i < expressions.length; i++) {
-			let expression = expressions[i];
-			let exp: IExpression;
-
-			// Match all
-			if (!expression.pattern) {
-				exp = { test: () => true };
-			}
-
-			// RegExp
-			else if (expression.isRegExp) {
-				try {
-					exp = new RegExp(expression.pattern, 'i');
-				} catch (e) {
-					if (e instanceof SyntaxError) {
-						exp = { test: () => true };
-					} else {
-						throw e;
-					}
-				}
-			}
-
-			// Camelcase
-			else if (isCamelCasePattern(expression.pattern)) {
-				exp = new CamelCaseExp(expression.pattern);
-			}
-
-			// String
-			else {
-				if (expression.pattern.charCodeAt(0) === FilePatterns.DOT) {
-					expression.pattern = '*' + expression.pattern; // convert a .<something> to a *.<something> query
-				}
-
-				// escape to regular expressions
-				expression.pattern = strings.anchorPattern(strings.convertSimple2RegExpPattern(expression.pattern), true, false);
-
-				exp = new RegExp(expression.pattern, 'i');
-			}
-
-			this.expressions.push(exp);
-		}
-	}
-
-	public static hasPatterns(expressions: IPatternInfo[]): boolean {
-		return expressions && expressions.length > 0 && expressions.some(e => !!e.pattern);
-	}
-
-	public test(value: string): IExpression {
-		for (let i = 0; i < this.expressions.length; i++) {
-			let exp = this.expressions[i];
-			if (exp.test(value)) {
-				return exp;
-			}
-		}
-
-		return null;
-	}
-}
-
 export class FileWalker {
-
-	private static ENOTDIR = 'ENOTDIR';
-
 	private config: IRawSearch;
-	private patterns: FilePatterns;
+	private filePattern: string;
+	private normalizedFilePatternLowercase: string;
 	private excludePattern: glob.IExpression;
 	private includePattern: glob.IExpression;
 	private maxResults: number;
 	private isLimitHit: boolean;
 	private resultCount: number;
 	private isCanceled: boolean;
+	private searchInPath: boolean;
 
 	private walkedPaths: { [path: string]: boolean; };
 
 	constructor(config: IRawSearch) {
 		this.config = config;
-		this.patterns = FilePatterns.hasPatterns(config.filePatterns) && new FilePatterns(config.filePatterns);
+		this.filePattern = config.filePattern;
 		this.excludePattern = config.excludePattern;
 		this.includePattern = config.includePattern;
 		this.maxResults = config.maxResults || null;
 		this.walkedPaths = Object.create(null);
-	}
-
-	private resetState(): void {
-		this.walkedPaths = Object.create(null); // reset
 		this.resultCount = 0;
 		this.isLimitHit = false;
+
+		if (this.filePattern) {
+			if (this.filePattern.indexOf(paths.sep) >= 0) {
+				this.filePattern = strings.replaceAll(this.filePattern, '\\', '/'); // Normalize file patterns to forward slashes
+			}
+
+			this.normalizedFilePatternLowercase = strings.stripWildcards(this.filePattern).toLowerCase();
+		}
 	}
 
 	public cancel(): void {
 		this.isCanceled = true;
 	}
 
-	public walk(rootPaths: string[], onResult: (result: ISerializedFileMatch) => void, done: (error: Error, isLimitHit: boolean) => void): void {
+	public walk(rootFolders: string[], extraFiles: string[], onResult: (result: ISerializedFileMatch) => void, done: (error: Error, isLimitHit: boolean) => void): void {
 
-		// Reset state
-		this.resetState();
+		// Support that the file pattern is a full path to a file that exists
+		this.checkFilePatternAbsoluteMatch((exists) => {
+			if (this.isCanceled) {
+				return done(null, this.isLimitHit);
+			}
 
-		// For each source
-		flow.parallel(rootPaths, (absolutePath, perEntryCallback) => {
+			// Report result from file pattern if matching
+			if (exists) {
+				onResult({ path: this.filePattern });
 
-			// Try to Read as folder
-			extfs.readdir(absolutePath, (error: Error, files: string[]) => {
-				if (this.isCanceled || this.isLimitHit) {
-					return perEntryCallback(null, null);
-				}
+				// Optimization: a match on an absolute path is a good result and we do not
+				// continue walking the entire root paths array for other matches because
+				// it is very unlikely that another file would match on the full absolute path
+				return done(null, this.isLimitHit);
+			}
 
-				// Handle Directory
-				if (!error) {
-					return this.doWalk(absolutePath, '', files, onResult, perEntryCallback);
-				}
+			// For each extra file
+			if (extraFiles) {
+				extraFiles.forEach(extraFilePath => {
+					if (glob.match(this.excludePattern, extraFilePath)) {
+						return; // excluded
+					}
 
-				// Not a folder - deal with file result then
-				if ((<any>error).code === FileWalker.ENOTDIR && !this.isCanceled && !this.isLimitHit) {
+					// File: Check for match on file pattern and include pattern
+					this.matchFile(onResult, extraFilePath, extraFilePath /* no workspace relative path */);
+				});
+			}
 
-					// Check exclude pattern
-					if (glob.match(this.excludePattern, absolutePath)) {
+			// For each root folder
+			flow.parallel(rootFolders, (absolutePath, perEntryCallback) => {
+				extfs.readdir(absolutePath, (error: Error, files: string[]) => {
+					if (error || this.isCanceled || this.isLimitHit) {
 						return perEntryCallback(null, null);
 					}
 
-					// Check for match on file pattern and include pattern
-					if ((!this.patterns || this.patterns.test(paths.basename(absolutePath))) && (!this.includePattern || glob.match(this.includePattern, absolutePath))) {
-						this.resultCount++;
-
-						if (this.maxResults && this.resultCount > this.maxResults) {
-							this.isLimitHit = true;
+					// Support relative paths to files from a root resource
+					return this.checkFilePatternRelativeMatch(absolutePath, (match) => {
+						if (this.isCanceled || this.isLimitHit) {
+							return perEntryCallback(null, null);
 						}
 
-						if (!this.isLimitHit) {
-							onResult({
-								path: absolutePath
-							});
+						// Report result from file pattern if matching
+						if (match) {
+							onResult({ path: match });
 						}
-					}
-				}
 
-				// Unwind
-				return perEntryCallback(null, null);
+						return this.doWalk(absolutePath, '', files, onResult, perEntryCallback);
+					});
+				});
+			}, (err, result) => {
+				done(err ? err[0] : null, this.isLimitHit);
 			});
-		}, (err, result) => {
-			done(err ? err[0] : null, this.isLimitHit);
+		});
+	}
+
+	private checkFilePatternAbsoluteMatch(clb: (exists: boolean) => void): void {
+		if (!this.filePattern || !paths.isAbsolute(this.filePattern)) {
+			return clb(false);
+		}
+
+		return fs.stat(this.filePattern, (error, stat) => {
+			return clb(!error && !stat.isDirectory()); // only existing files
+		});
+	}
+
+	private checkFilePatternRelativeMatch(basePath: string, clb: (matchPath: string) => void): void {
+		if (!this.filePattern || paths.isAbsolute(this.filePattern)) {
+			return clb(null);
+		}
+
+		const absolutePath = paths.join(basePath, this.filePattern);
+
+		return fs.stat(absolutePath, (error, stat) => {
+			return clb(!error && !stat.isDirectory() ? absolutePath : null); // only existing files
 		});
 	}
 
@@ -264,7 +148,7 @@ export class FileWalker {
 			// to ignore filtering by siblings because the user seems to know what she
 			// is searching for and we want to include the result in that case anyway
 			let siblings = files;
-			if (this.config.filePatterns && this.config.filePatterns.length === 1 && this.config.filePatterns[0].pattern === file) {
+			if (this.config.filePattern === file) {
 				siblings = [];
 			}
 
@@ -274,47 +158,46 @@ export class FileWalker {
 				return clb(null);
 			}
 
-			// Try to read dir
+			// Use lstat to detect links
 			let currentPath = paths.join(absolutePath, file);
-			extfs.readdir(currentPath, (error: Error, children: string[]): void => {
+			fs.lstat(currentPath, (error, lstat) => {
+				if (error || this.isCanceled || this.isLimitHit) {
+					return clb(null);
+				}
 
-				// Handle directory
-				if (!error) {
+				// Directory: Follow directories
+				if (lstat.isDirectory()) {
 
 					// to really prevent loops with links we need to resolve the real path of them
-					return this.realPathLink(currentPath, (error, realpath) => {
-						if (error) {
-							return clb(null); // ignore errors
+					return this.realPathIfNeeded(currentPath, lstat, (error, realpath) => {
+						if (error || this.isCanceled || this.isLimitHit) {
+							return clb(null);
 						}
 
 						if (this.walkedPaths[realpath]) {
 							return clb(null); // escape when there are cycles (can happen with symlinks)
-						} else {
-							this.walkedPaths[realpath] = true; // remember as walked
 						}
 
+						this.walkedPaths[realpath] = true; // remember as walked
+
 						// Continue walking
-						this.doWalk(currentPath, relativeFilePath, children, onResult, clb);
+						return extfs.readdir(currentPath, (error: Error, children: string[]): void => {
+							if (error || this.isCanceled || this.isLimitHit) {
+								return clb(null);
+							}
+
+							this.doWalk(currentPath, relativeFilePath, children, onResult, clb);
+						});
 					});
 				}
 
-				// Handle file if we are not canceled and have not hit the limit yet
-				if ((<any>error).code === FileWalker.ENOTDIR && !this.isCanceled && !this.isLimitHit) {
-
-					// Check for match on file pattern and include pattern
-					if ((!this.patterns || this.patterns.test(file)) && (!this.includePattern || glob.match(this.includePattern, relativeFilePath, children))) {
-						this.resultCount++;
-
-						if (this.maxResults && this.resultCount > this.maxResults) {
-							this.isLimitHit = true;
-						}
-
-						if (!this.isLimitHit) {
-							onResult({
-								path: currentPath
-							});
-						}
+				// File: Check for match on file pattern and include pattern
+				else {
+					if (relativeFilePath === this.filePattern) {
+						return clb(null); // ignore file if its path matches with the file pattern because checkFilePatternRelativeMatch() takes care of those
 					}
+
+					this.matchFile(onResult, currentPath, relativeFilePath);
 				}
 
 				// Unwind
@@ -329,38 +212,62 @@ export class FileWalker {
 		});
 	}
 
-	private realPathLink(path: string, clb: (error: Error, realpath?: string) => void): void {
-		return fs.lstat(path, (error, lstat) => {
-			if (error) {
-				return clb(error);
+	private matchFile(onResult: (result: ISerializedFileMatch) => void, absolutePath: string, relativePath: string): void {
+		if (this.isFilePatternMatch(relativePath) && (!this.includePattern || glob.match(this.includePattern, relativePath))) {
+			this.resultCount++;
+
+			if (this.maxResults && this.resultCount > this.maxResults) {
+				this.isLimitHit = true;
 			}
 
-			if (lstat.isSymbolicLink()) {
-				return fs.realpath(path, (error, realpath) => {
-					if (error) {
-						return clb(error);
-					}
-
-					return clb(null, realpath);
+			if (!this.isLimitHit) {
+				onResult({
+					path: absolutePath
 				});
 			}
+		}
+	}
 
-			return clb(null, path);
-		});
+	private isFilePatternMatch(path: string): boolean {
+
+		// Check for search pattern
+		if (this.filePattern) {
+			return scorer.matches(path, this.normalizedFilePatternLowercase);
+		}
+
+		// No patterns means we match all
+		return true;
+	}
+
+	private realPathIfNeeded(path: string, lstat: fs.Stats, clb: (error: Error, realpath?: string) => void): void {
+		if (lstat.isSymbolicLink()) {
+			return fs.realpath(path, (error, realpath) => {
+				if (error) {
+					return clb(error);
+				}
+
+				return clb(null, realpath);
+			});
+		}
+
+		return clb(null, path);
 	}
 }
 
 export class Engine implements ISearchEngine {
-	private rootPaths: string[];
+	private rootFolders: string[];
+	private extraFiles: string[];
 	private walker: FileWalker;
 
 	constructor(config: IRawSearch) {
-		this.rootPaths = config.rootPaths;
+		this.rootFolders = config.rootFolders;
+		this.extraFiles = config.extraFiles;
+
 		this.walker = new FileWalker(config);
 	}
 
 	public search(onResult: (result: ISerializedFileMatch) => void, onProgress: (progress: IProgress) => void, done: (error: Error, isLimitHit: boolean) => void): void {
-		this.walker.walk(this.rootPaths, onResult, done);
+		this.walker.walk(this.rootFolders, this.extraFiles, onResult, done);
 	}
 
 	public cancel(): void {

@@ -27,12 +27,12 @@ import {IFileOperationResult, FileOperationResult, IFileStat, IFileService} from
 import {FileEditorInput} from 'vs/workbench/parts/files/browser/editors/fileEditorInput';
 import {DuplicateFileAction, ImportFileAction, PasteFileAction, keybindingForAction, IEditableData, IFileViewletState} from 'vs/workbench/parts/files/browser/fileActions';
 import {EditorOptions} from 'vs/workbench/common/editor';
-import Tree = require('vs/base/parts/tree/common/tree');
+import Tree = require('vs/base/parts/tree/browser/tree');
 import labels = require('vs/base/common/labels');
 import {DesktopDragAndDropData, ExternalElementsDragAndDropData} from 'vs/base/parts/tree/browser/treeDnd';
 import {ClickBehavior, DefaultController} from 'vs/base/parts/tree/browser/treeDefaults';
 import {ActionsRenderer} from 'vs/base/parts/tree/browser/actionsRenderer';
-import {FileStat, NewStatPlaceholder} from 'vs/workbench/parts/files/browser/views/explorerViewModel';
+import {FileStat, NewStatPlaceholder} from 'vs/workbench/parts/files/common/explorerViewModel';
 import {DragMouseEvent, StandardMouseEvent} from 'vs/base/browser/mouseEvent';
 import {StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
@@ -84,7 +84,7 @@ export class FileDataSource implements Tree.IDataSource {
 				// Convert to view model
 				let modelDirStat = FileStat.create(dirStat);
 
-				// Add childs to folder
+				// Add children to folder
 				for (let i = 0; i < modelDirStat.children.length; i++) {
 					stat.addChild(modelDirStat.children[i]);
 				}
@@ -98,9 +98,7 @@ export class FileDataSource implements Tree.IDataSource {
 				return []; // we could not resolve any children because of an error
 			});
 
-			if (this.partService.isCreated()) {
-				this.progressService.showWhile(promise, 800);
-			}
+			this.progressService.showWhile(promise, this.partService.isCreated() ? 800 : 3200 /* less ugly initial startup */);
 
 			return promise;
 		}
@@ -271,7 +269,7 @@ export class FileRenderer extends ActionsRenderer implements Tree.IRenderer {
 	}
 
 	public getContentHeight(tree: Tree.ITree, element: any): number {
-		return 24;
+		return 22;
 	}
 
 	public renderContents(tree: Tree.ITree, stat: FileStat, domElement: HTMLElement, previousCleanupFn: Tree.IElementCallback): Tree.IElementCallback {
@@ -869,7 +867,7 @@ export class FileDragAndDrop implements Tree.IDragAndDrop {
 							let confirm: IConfirmation = {
 								message: nls.localize('confirmOverwriteMessage', "'{0}' already exists in the destination folder. Do you want to replace it?", source.name),
 								detail: nls.localize('irreversible', "This action is irreversible!"),
-								primaryButton: nls.localize('replaceButtonLabel', "Replace")
+								primaryButton: nls.localize('replaceButtonLabel', "&&Replace")
 							};
 
 							if (this.messageService.confirm(confirm)) {

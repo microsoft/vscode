@@ -14,97 +14,87 @@ import strings = require('vs/base/common/strings');
 import {isWindows} from 'vs/base/common/platform';
 import URI from 'vs/base/common/uri';
 import {Action} from 'vs/base/common/actions';
-import {UntitledEditorModel} from 'vs/workbench/browser/parts/editor/untitledEditorModel';
-import {TextFileService as BrowserTextFileService} from 'vs/workbench/parts/files/browser/textFileServices';
-import {CACHE, TextFileEditorModel} from 'vs/workbench/parts/files/browser/editors/textFileEditorModel';
+import {UntitledEditorModel} from 'vs/workbench/common/editor/untitledEditorModel';
+import {IEventService} from 'vs/platform/event/common/event';
+import {TextFileService as AbstractTextFileService} from 'vs/workbench/parts/files/browser/textFileServices';
+import {CACHE, TextFileEditorModel} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
 import {ITextFileOperationResult, ConfirmResult} from 'vs/workbench/parts/files/common/files';
-import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/browser/actionRegistry';
+import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/common/actionRegistry';
 import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
-import {IUntitledEditorService} from 'vs/workbench/services/untitled/browser/untitledEditorService';
-import {IMessageService, Severity} from 'vs/platform/message/common/message'
+import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {IFileService} from 'vs/platform/files/common/files';
 import {IInstantiationService, INullService} from 'vs/platform/instantiation/common/instantiation';
-import {IEventService} from 'vs/platform/event/common/event';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
+import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
+import {IConfigurationService, IConfigurationServiceEvent, ConfigurationServiceEventTypes} from 'vs/platform/configuration/common/configuration';
 
-import remote = require('remote');
-import ipc = require('ipc');
+import {remote} from 'electron';
 
-const Dialog = remote.require('dialog');
-
-export class TextFileService extends BrowserTextFileService {
+export class TextFileService extends AbstractTextFileService {
 
 	constructor(
-		@IEventService eventService: IEventService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
-		@IInstantiationService private instantiationService: IInstantiationService,
+		@IInstantiationService instantiationService: IInstantiationService,
 		@IFileService private fileService: IFileService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
-		@ILifecycleService lifecycleService: ILifecycleService
+		@ILifecycleService lifecycleService: ILifecycleService,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IEventService eventService: IEventService
 	) {
-		super(eventService, contextService, instantiationService, lifecycleService);
+		super(contextService, instantiationService, configurationService, telemetryService, lifecycleService, eventService);
 
-		this.registerAutoSaveActions();
-	}
-
-	protected onOptionsChanged(): void {
-		super.onOptionsChanged();
-
-		this.registerAutoSaveActions();
-	}
-
-	private registerAutoSaveActions(): void {
-		let workbenchActionsRegistry = <IWorkbenchActionRegistry>Registry.as(ActionExtensions.WorkbenchActions);
-		workbenchActionsRegistry.unregisterWorkbenchAction(ToggleAutoSaveAction.ID);
-		workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleAutoSaveAction, ToggleAutoSaveAction.ID, this.contextService.isAutoSaveEnabled() ? nls.localize('disableAutoSave', "Disable Auto Save") : nls.localize('enableAutoSave', "Enable Auto Save")), nls.localize('filesCategory', "Files"));
+		this.init();
 	}
 
 	public beforeShutdown(): boolean | TPromise<boolean> {
 		super.beforeShutdown();
 
-		if (!!this.contextService.getConfiguration().env.pluginDevelopmentPath) {
-			return false; // no veto when we are in plugin dev mode because we want to reload often
-		}
-
 		// Dirty files need treatment on shutdown
 		if (this.getDirty().length) {
-			let confirm = this.confirmSave();
 
-			// Save
-			if (confirm === ConfirmResult.SAVE) {
-				return this.saveAll(true /* includeUntitled */).then((result) => {
-
-					// Dispose saved untitled ones to not leave them around as dirty
-					result.results.forEach((res) => {
-						if (res.success && res.source.scheme === 'untitled') {
-							let input = this.untitledEditorService.get(res.source);
-							if (input) {
-								input.dispose();
-							}
-						}
-					});
-
-					if (result.results.some((r) => !r.success)) {
-						return true; // veto if some saves failed
+			// If auto save is enabled, save all files and then check again for dirty files
+			if (this.isAutoSaveEnabled()) {
+				return this.saveAll(false /* files only */).then(() => {
+					if (this.getDirty().length) {
+						return this.confirmBeforeShutdown(); // we still have dirty files around, so confirm normally
 					}
 
-					return false; // no veto
+					return false; // all good, no veto
 				});
 			}
 
-			// Don't Save
-			else if (confirm === ConfirmResult.DONT_SAVE) {
-				return false; // no veto
-			}
-
-			// Cancel
-			else if (confirm === ConfirmResult.CANCEL) {
-				return true; // veto
-			}
+			// Otherwise just confirm what to do
+			return this.confirmBeforeShutdown();
 		}
 
 		return false; // no veto
+	}
+
+	private confirmBeforeShutdown(): boolean | TPromise<boolean> {
+		let confirm = this.confirmSave();
+
+		// Save
+		if (confirm === ConfirmResult.SAVE) {
+			return this.saveAll(true /* includeUntitled */).then((result) => {
+				if (result.results.some((r) => !r.success)) {
+					return true; // veto if some saves failed
+				}
+
+				return false; // no veto
+			});
+		}
+
+		// Don't Save
+		else if (confirm === ConfirmResult.DONT_SAVE) {
+			return false; // no veto
+		}
+
+		// Cancel
+		else if (confirm === ConfirmResult.CANCEL) {
+			return true; // veto
+		}
 	}
 
 	public revertAll(resources?: URI[], force?: boolean): TPromise<ITextFileOperationResult> {
@@ -156,6 +146,10 @@ export class TextFileService extends BrowserTextFileService {
 	}
 
 	public confirmSave(resource?: URI): ConfirmResult {
+		if (!!this.contextService.getConfiguration().env.pluginDevelopmentPath) {
+			return ConfirmResult.DONT_SAVE; // no veto when we are in plugin dev mode because we cannot assum we run interactive (e.g. tests)
+		}
+
 		let resourcesToConfirm = this.getDirty(resource);
 		if (resourcesToConfirm.length === 0) {
 			return ConfirmResult.DONT_SAVE;
@@ -171,29 +165,42 @@ export class TextFileService extends BrowserTextFileService {
 			message.push('');
 		}
 
-		let opts: remote.IMessageBoxOptions = {
+		// Button order
+		// Windows: Save | Don't Save | Cancel
+		// Mac/Linux: Save | Cancel | Don't
+
+		const save = { label: resourcesToConfirm.length > 1 ? this.mnemonicLabel(nls.localize('saveAll', "&&Save All")) : this.mnemonicLabel(nls.localize('save', "&&Save")), result: ConfirmResult.SAVE };
+		const dontSave = { label: this.mnemonicLabel(nls.localize('dontSave', "Do&&n't Save")), result: ConfirmResult.DONT_SAVE };
+		const cancel = { label: nls.localize('cancel', "Cancel"), result: ConfirmResult.CANCEL };
+
+		const buttons = [save];
+		if (isWindows) {
+			buttons.push(dontSave, cancel);
+		} else {
+			buttons.push(cancel, dontSave);
+		}
+
+		let opts: Electron.Dialog.ShowMessageBoxOptions = {
 			title: this.contextService.getConfiguration().env.appName,
 			message: message.join('\n'),
 			type: 'warning',
 			detail: nls.localize('saveChangesDetail', "Your changes will be lost if you don't save them."),
-			buttons: [
-				resourcesToConfirm.length > 1 ? nls.localize('saveAll', "Save All") : nls.localize('save', "Save"),
-				nls.localize('cancel', "Cancel"),
-				nls.localize('dontSave', "Don't Save")
-			],
+			buttons: buttons.map(b => b.label),
 			noLink: true,
-			cancelId: 1
+			cancelId: buttons.indexOf(cancel)
 		};
 
-		let res = Dialog.showMessageBox(remote.getCurrentWindow(), opts);
-		switch (res) {
-			case 0:
-				return ConfirmResult.SAVE;
-			case 1:
-				return ConfirmResult.CANCEL;
+		const choice = remote.dialog.showMessageBox(remote.getCurrentWindow(), opts);
+
+		return buttons[choice].result;
+	}
+
+	private mnemonicLabel(label: string): string {
+		if (!isWindows) {
+			return label.replace(/&&/g, ''); // no mnemonic support on mac/linux in buttons yet
 		}
 
-		return ConfirmResult.DONT_SAVE;
+		return label.replace(/&&/g, '&');
 	}
 
 	public saveAll(includeUntitled?: boolean): TPromise<ITextFileOperationResult>;
@@ -233,7 +240,7 @@ export class TextFileService extends BrowserTextFileService {
 			if (untitled) {
 				let targetPath: string;
 
-				// Untitled with associated file path dont need to prompt
+				// Untitled with associated file path don't need to prompt
 				if (this.untitledEditorService.hasAssociatedFilePath(untitled.getResource())) {
 					targetPath = untitled.getResource().fsPath;
 				}
@@ -326,13 +333,22 @@ export class TextFileService extends BrowserTextFileService {
 
 			// We have a model: Use it (can be null e.g. if this file is binary and not a text file or was never opened before)
 			if (model) {
-				return this.fileService.updateContent(target, model.getValue(), { charset: model.getEncoding() }).then(() => {
-					return target;
-				});
+				return this.fileService.updateContent(target, model.getValue(), { charset: model.getEncoding() });
 			}
 
 			// Otherwise we can only copy
-			return this.fileService.copyFile(resource, target).then(() => target);
+			return this.fileService.copyFile(resource, target);
+		}).then(() => {
+
+			// Add target to working files because this is an operation that indicates activity
+			this.getWorkingFilesModel().addEntry(target);
+
+			// Revert the source
+			return this.revert(resource).then(() => {
+
+				// Done: return target
+				return target;
+			});
 		});
 	}
 
@@ -347,32 +363,28 @@ export class TextFileService extends BrowserTextFileService {
 
 	private promptForPathAsync(defaultPath?: string): TPromise<string> {
 		return new TPromise<string>((c, e) => {
-			Dialog.showSaveDialog(remote.getCurrentWindow(), this.getSaveDialogOptions(defaultPath ? paths.normalize(defaultPath, true) : void 0), (path) => {
-				if (path && isWindows) {
-					path = strings.rtrim(path, '.*'); // Bug on Windows: When "All Files" is picked, the path gets an extra ".*"
-				}
-
+			remote.dialog.showSaveDialog(remote.getCurrentWindow(), this.getSaveDialogOptions(defaultPath ? paths.normalize(defaultPath, true) : void 0), (path) => {
 				c(path);
 			});
 		});
 	}
 
 	private promptForPathSync(defaultPath?: string): string {
-		let path = Dialog.showSaveDialog(remote.getCurrentWindow(), this.getSaveDialogOptions(defaultPath ? paths.normalize(defaultPath, true) : void 0));
-		if (path && isWindows) {
-			path = strings.rtrim(path, '.*'); // Bug on Windows: When "All Files" is picked, the path gets an extra ".*"
-		}
-
-		return path;
+		return remote.dialog.showSaveDialog(remote.getCurrentWindow(), this.getSaveDialogOptions(defaultPath ? paths.normalize(defaultPath, true) : void 0));
 	}
 
-	private getSaveDialogOptions(defaultPath?: string): remote.ISaveDialogOptions {
-		let options: remote.ISaveDialogOptions = {
+	private getSaveDialogOptions(defaultPath?: string): Electron.Dialog.SaveDialogOptions {
+		let options: Electron.Dialog.SaveDialogOptions = {
 			defaultPath: defaultPath
 		};
 
-		// Filters are only working well on Windows it seems
-		if (!isWindows) {
+		// Filters are working flaky in Electron and there are bugs. On Windows they are working
+		// somewhat but we see issues:
+		// - https://github.com/atom/electron/issues/3556
+		// - https://github.com/Microsoft/vscode/issues/451
+		// - Bug on Windows: When "All Files" is picked, the path gets an extra ".*"
+		// Until these issues are resolved, we disable the dialog file extension filtering.
+		if (true) {
 			return options;
 		}
 
@@ -413,20 +425,5 @@ export class TextFileService extends BrowserTextFileService {
 		options.filters = filters;
 
 		return options;
-	}
-}
-
-class ToggleAutoSaveAction extends Action {
-
-	public static ID = 'workbench.action.files.toggleAutoSave';
-
-	constructor(id: string, label: string, @INullService ns) {
-		super(id, label);
-	}
-
-	public run(): Promise {
-		ipc.send('vscode:toggleAutoSave');
-
-		return Promise.as(true);
 	}
 }

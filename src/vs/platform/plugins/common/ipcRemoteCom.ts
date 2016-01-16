@@ -23,7 +23,7 @@ var pendingRPCReplies: { [msgId: string]: IRPCReply; } = {};
 
 function createRPC(serializeAndSend:(obj:any)=>void): IRPCFunc {
 	var lastMessageId = 0;
-	
+
 	return function rpc(rpcId: string, method: string, args: any[]): winjs.TPromise<any> {
 		var req = String(++lastMessageId);
 		var reply: IRPCReply = {
@@ -61,7 +61,7 @@ export function create(send:(obj:string)=>void): IPluginsIPC {
 	var rpc = createRPC(serializeAndSend);
 	var bigHandler: remote.IManyHandler = null;
 	var invokedHandlers: { [req: string]: winjs.TPromise<any>; } = Object.create(null);
-	
+
 	var r: IPluginsIPC = {
 		callOnRemote: rpc,
 		registerBigHandler: (_bigHandler: remote.IManyHandler): void => {
@@ -69,7 +69,7 @@ export function create(send:(obj:string)=>void): IPluginsIPC {
 		},
 		handle: (rawmsg) => {
 			var msg = marshalling.demarshallObject(rawmsg, proxiesMarshalling);
-			
+
 			if (msg.seq) {
 				if (!pendingRPCReplies.hasOwnProperty(msg.seq)) {
 					console.warn('Got reply to unknown seq');
@@ -93,22 +93,22 @@ export function create(send:(obj:string)=>void): IPluginsIPC {
 				}
 				return;
 			}
-			
+
 			if (msg.err) {
 				console.error(msg.err);
 				return;
 			}
 
 			var rpcId = msg.rpcId;
-			
+
 			if (!bigHandler) {
 				throw new Error('got message before big handler attached!');
 			}
-			
+
 			var req = msg.req;
-			
+
 			invokedHandlers[req] = invokeHandler(rpcId, msg.method, msg.args);
-			
+
 			invokedHandlers[req].then((r) => {
 				delete invokedHandlers[req];
 				serializeAndSend({
@@ -124,13 +124,13 @@ export function create(send:(obj:string)=>void): IPluginsIPC {
 			});
 		}
 	};
-	
+
 	var proxiesMarshalling = new remote.ProxiesMarshallingContribution(r);
-	
+
 	function serializeAndSend(msg:any): void {
 		send(marshalling.marshallObject(msg, proxiesMarshalling));
 	}
-	
+
 	function invokeHandler(rpcId:string, method:string, args:any[]): winjs.TPromise<any> {
 		try {
 			return winjs.TPromise.as(bigHandler.handle(rpcId, method, args));
@@ -138,7 +138,7 @@ export function create(send:(obj:string)=>void): IPluginsIPC {
 			return winjs.TPromise.wrapError(err);
 		}
 	}
-	
+
 	return r;
 };
 

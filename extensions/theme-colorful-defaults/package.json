@@ -1,0 +1,25 @@
+{
+	"name": "theme-colorful-defaults",
+	"displayName": "Colorful Default Themes - Please provide feedback in issue 1849",
+	"description": "The default VS Code Light and Dark themes with a touch of color. We are considering adding these to the default themes in the January release. Please provide feedback in issue 1849.",
+	"categories": [ "Themes" ],
+	"version": "0.1.8",
+	"publisher": "aeschli",
+	"engines": { "vscode": "*" },
+	"contributes": {
+		"themes": [
+			{
+				"label": "Dark+",
+				"description": "Default dark theme with a touch of color",
+				"uiTheme": "vs-dark",
+				"path": "./themes/dark_plus.tmTheme"
+			},
+			{
+				"label": "Light+",
+				"description": "Default light theme with a touch of color",
+				"uiTheme": "vs",
+				"path": "./themes/light_plus.tmTheme"
+			}
+		]
+	}
+}

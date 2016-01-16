@@ -6,12 +6,12 @@
 
 import {Registry} from 'vs/platform/platform';
 import filters = require('vs/base/common/filters');
-import strings = require('vs/base/common/strings');
 import types = require('vs/base/common/types');
+import paths = require('vs/base/common/paths');
 import URI from 'vs/base/common/uri';
+import labels = require('vs/base/common/labels');
 import {EventType} from 'vs/base/common/events';
-import comparers = require('vs/base/common/comparers');
-import {Mode, IContext} from 'vs/base/parts/quickopen/browser/quickOpen';
+import {Mode, IContext} from 'vs/base/parts/quickopen/common/quickOpen';
 import {QuickOpenEntry, QuickOpenModel, IHighlight} from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import {EditorInput, getUntitledOrFileResource} from 'vs/workbench/common/editor';
 import {IEditorRegistry, Extensions} from 'vs/workbench/browser/parts/editor/baseEditor';
@@ -31,37 +31,33 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 		editorService: IWorkbenchEditorService,
 		private contextService: IWorkspaceContextService,
 		input: EditorInput,
-		highlights: IHighlight[],
+		labelHighlights: IHighlight[],
+		descriptionHighlights: IHighlight[],
 		model: EditorHistoryModel
 	) {
 		super(editorService);
 
 		this.input = input;
 		this.model = model;
+		this.resource = getUntitledOrFileResource(input);
 
-		let resource = getUntitledOrFileResource(input);
-		if (resource) {
-			this.resource = resource;
-		} else {
-			let inputWithResource: { getResource(): URI } = <any>input;
-			if (types.isFunction(inputWithResource.getResource)) {
-				this.resource = inputWithResource.getResource();
-			}
-		}
-
-		this.setHighlights(highlights);
+		this.setHighlights(labelHighlights, descriptionHighlights);
 	}
 
-	public clone(highlights: IHighlight[]): EditorHistoryEntry {
-		return new EditorHistoryEntry(this.editorService, this.contextService, this.input, highlights, this.model);
+	public clone(labelHighlights: IHighlight[], descriptionHighlights?: IHighlight[]): EditorHistoryEntry {
+		return new EditorHistoryEntry(this.editorService, this.contextService, this.input, labelHighlights, descriptionHighlights, this.model);
+	}
+
+	public getPrefix(): string {
+		let status = this.input.getStatus();
+		if (status && status.decoration) {
+			return `${status.decoration} `;
+		}
+
+		return void 0;
 	}
 
 	public getLabel(): string {
-		let status = this.input.getStatus();
-		if (status && status.decoration) {
-			return status.decoration + ' ' + this.input.getName();
-		}
-
 		return this.input.getName();
 	}
 
@@ -130,7 +126,7 @@ export class EditorHistoryModel extends QuickOpenModel {
 
 		// Remove any existing entry and add to the beginning
 		this.remove(entry);
-		this.entries.unshift(new EditorHistoryEntry(this.editorService, this.contextService, entry, null, this));
+		this.entries.unshift(new EditorHistoryEntry(this.editorService, this.contextService, entry, null, null, this));
 
 		// Respect max entries setting
 		if (this.entries.length > MAX_ENTRIES) {
@@ -204,28 +200,27 @@ export class EditorHistoryModel extends QuickOpenModel {
 
 	public getResults(searchValue: string): QuickOpenEntry[] {
 		searchValue = searchValue.trim();
+		const searchInPath = searchValue.indexOf(paths.nativeSep) >= 0;
 
 		let results: QuickOpenEntry[] = [];
 		for (let i = 0; i < this.entries.length; i++) {
-			let entry = this.entries[i];
+			let entry = <EditorHistoryEntry>this.entries[i];
 			if (!entry.getResource()) {
 				continue; //For now, only support to match on inputs that provide resource information
 			}
 
-			let highlights = filters.matchesFuzzy(searchValue, (<EditorHistoryEntry>entry).getInput().getName());
-			if (highlights) {
-				results.push((<EditorHistoryEntry>entry).clone(highlights));
+			// Check if this entry is a match for the search value
+			let targetToMatch = searchInPath ? labels.getPathLabel(entry.getResource(), this.contextService) : entry.getLabel();
+			if (!filters.matchesFuzzy(searchValue, targetToMatch)) {
+				continue;
 			}
+
+			// Apply highlights
+			const {labelHighlights, descriptionHighlights} = QuickOpenEntry.highlight(entry, searchValue);
+			results.push(entry.clone(labelHighlights, descriptionHighlights));
 		}
 
-		// If user is searching, use the same sorting that is used for other quick open handlers
-		if (searchValue) {
-			let normalizedSearchValue = strings.stripWildcards(searchValue.toLowerCase());
-
-			return results.sort((elementA, elementB) => comparers.compareAnything((<EditorHistoryEntry>elementA).getInput().getName(), (<EditorHistoryEntry>elementB).getInput().getName(), normalizedSearchValue));
-		}
-
-		// Leave default "most recently used" order if user is not actually searching
-		return results;
+		// Sort
+		return results.sort((elementA: EditorHistoryEntry, elementB: EditorHistoryEntry) => QuickOpenEntry.compare(elementA, elementB, searchValue));
 	}
 }

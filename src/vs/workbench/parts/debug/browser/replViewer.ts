@@ -6,31 +6,27 @@
 import nls = require('vs/nls');
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
 import actions = require('vs/base/common/actions');
-import lifecycle = require('vs/base/common/lifecycle');
-import types = require('vs/base/common/types');
 import strings = require('vs/base/common/strings');
 import URI from 'vs/base/common/uri';
-import async = require('vs/base/common/async');
 import { isMacintosh, isLinux, isWindows } from 'vs/base/common/platform';
 import actionbar = require('vs/base/browser/ui/actionbar/actionbar');
 import dom = require('vs/base/browser/dom');
 import errors = require('vs/base/common/errors');
 import severity from 'vs/base/common/severity';
 import mouse = require('vs/base/browser/mouseEvent');
-import inputbox = require('vs/base/browser/ui/inputbox/inputBox');
-import tree = require('vs/base/parts/tree/common/tree');
+import tree = require('vs/base/parts/tree/browser/tree');
 import renderer = require('vs/base/parts/tree/browser/actionsRenderer');
 import treedefaults = require('vs/base/parts/tree/browser/treeDefaults');
 import debug = require('vs/workbench/parts/debug/common/debug');
 import model = require('vs/workbench/parts/debug/common/debugModel');
 import debugviewer = require('vs/workbench/parts/debug/browser/debugViewer');
-import dbgactions = require('vs/workbench/parts/debug/browser/debugActions');
+import dbgactions = require('vs/workbench/parts/debug/electron-browser/debugActions');
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
-var $ = dom.emmet;
+const $ = dom.emmet;
 
 function getExpressionClassName(): string {
 	return isMacintosh ? '.expression.mac' : '.expression.win-linux'
@@ -97,15 +93,18 @@ export class ReplExpressionsRenderer implements tree.IRenderer {
 	private static VALUE_OUTPUT_TEMPLATE_ID = 'outputValue';
 	private static KEY_VALUE_OUTPUT_TEMPLATE_ID = 'outputKeyValue';
 
-	private static FILE_LOCATION_PATTERNS:RegExp[] = [
+	private static FILE_LOCATION_PATTERNS: RegExp[] = [
 		// group 0: the full thing :)
 		// group 1: absolute path
-		// group 2: drive letter on windows or leading slash
+		// group 2: drive letter on windows with trailing backslash or leading slash on mac/linux
 		// group 3: line number
 		// group 4: column number
 		// eg: at Context.<anonymous> (c:\Users\someone\Desktop\mocha-runner\test\test.js:26:11)
-		/((\/|[a-zA-Z]:)[^\(\)<>\'\"\[\]]+):(\d+):(\d+)/
-	]
+		/((\/|[a-zA-Z]:\\)[^\(\)<>\'\"\[\]]+):(\d+):(\d+)/
+	];
+
+	private width: number;
+	private characterWidth: number;
 
 	constructor(
 		@debug.IDebugService private debugService: debug.IDebugService,
@@ -115,8 +114,25 @@ export class ReplExpressionsRenderer implements tree.IRenderer {
 		// noop
 	}
 
-	public getHeight(tree:tree.ITree, element:any): number {
-		return element instanceof model.Expression ? 48 : 24;
+	public getHeight(tree: tree.ITree, element: any): number {
+		return this.getHeightForString(element.value) + (element instanceof model.Expression ? this.getHeightForString(element.name) : 0);
+	}
+
+	private getHeightForString(s: string): number {
+		if (!s || !s.length || this.width <= 0 || this.characterWidth <= 0) {
+			return 18;
+		}
+		let realLength = 0;
+		for (let i = 0; i < s.length; i++) {
+			realLength += strings.isFullWidthCharacter(s.charCodeAt(i)) ? 2 : 1;
+		}
+
+		return 18 * Math.ceil(realLength * this.characterWidth / this.width);
+	}
+
+	public setWidth(fullWidth: number, characterWidth: number): void {
+		this.width = fullWidth;
+		this.characterWidth = characterWidth;
 	}
 
 	public getTemplateId(tree: tree.ITree, element: any): string {
@@ -185,7 +201,7 @@ export class ReplExpressionsRenderer implements tree.IRenderer {
 
 	public renderElement(tree: tree.ITree, element: any, templateId: string, templateData: any): void {
 		if (templateId === ReplExpressionsRenderer.VARIABLE_TEMPLATE_ID) {
-			debugviewer.renderVariable(tree, element, templateData, this.debugService.getState() === debug.State.Inactive);
+			debugviewer.renderVariable(tree, element, templateData, this.debugService.getState() === debug.State.Inactive, false);
 		} else if (templateId === ReplExpressionsRenderer.INPUT_OUTPUT_PAIR_TEMPLATE_ID) {
 			this.renderInputOutputPair(tree, element, templateData);
 		} else if (templateId === ReplExpressionsRenderer.VALUE_OUTPUT_TEMPLATE_ID) {
@@ -197,7 +213,7 @@ export class ReplExpressionsRenderer implements tree.IRenderer {
 
 	private renderInputOutputPair(tree: tree.ITree, expression: debug.IExpression, templateData: IInputOutputPairTemplateData): void {
 		templateData.input.textContent = expression.name;
-		debugviewer.renderExpressionValue(tree, expression, this.debugService.getState() === debug.State.Inactive, templateData.value);
+		debugviewer.renderExpressionValue(expression, this.debugService.getState() === debug.State.Inactive, templateData.value);
 		if (expression.reference > 0) {
 			templateData.annotation.className = 'annotation octicon octicon-info';
 			templateData.annotation.title = nls.localize('stateCapture', "Object state is captured from first evaluation");
@@ -206,7 +222,7 @@ export class ReplExpressionsRenderer implements tree.IRenderer {
 
 	private renderOutputValue(output: model.ValueOutputElement, templateData: IValueOutputTemplateData): void {
 
-		// Counter
+		// counter
 		if (output.counter > 1) {
 			templateData.counter.textContent = String(output.counter);
 			templateData.counter.className = (output.severity === severity.Warning) ? 'counter warn' : (output.severity === severity.Error) ? 'counter error' : 'counter info';
@@ -215,14 +231,14 @@ export class ReplExpressionsRenderer implements tree.IRenderer {
 			templateData.counter.className = 'counter';
 		}
 
-		// Group
+		// group
 		if (output.grouped) {
 			dom.addClass(templateData.container, 'grouped');
 		} else {
 			dom.removeClass(templateData.container, 'grouped');
 		}
 
-		// Value
+		// value
 		dom.clearNode(templateData.value);
 		let result = this.handleANSIOutput(output.value);
 		if (typeof result === 'string') {
@@ -241,7 +257,7 @@ export class ReplExpressionsRenderer implements tree.IRenderer {
 
 		for (let i = 0, len = text.length; i < len; i++) {
 
-			// Start of ANSI escape sequence (see http://ascii-table.com/ansi-escape-sequences.php)
+			// start of ANSI escape sequence (see http://ascii-table.com/ansi-escape-sequences.php)
 			if (text.charCodeAt(i) === 27) {
 				let index = i;
 				let chr = (++index < len ? text.charAt(index) : null);
@@ -263,7 +279,7 @@ export class ReplExpressionsRenderer implements tree.IRenderer {
 						code = '0';
 					}
 
-					if (chr === 'm') { // Set text color/mode.
+					if (chr === 'm') { // set text color/mode.
 
 						// only respect text-foreground ranges and ignore the values for "black" & "white" because those
 						// only make sense in combination with text-background ranges which we currently not support
@@ -280,7 +296,7 @@ export class ReplExpressionsRenderer implements tree.IRenderer {
 							tokensContainer = document.createElement('span');
 						}
 
-						// Flush text buffer if we have any
+						// flush text buffer if we have any
 						if (buffer) {
 							this.insert(this.handleLinks(buffer), currentToken || tokensContainer);
 							buffer = '';
@@ -294,13 +310,13 @@ export class ReplExpressionsRenderer implements tree.IRenderer {
 				}
 			}
 
-			// Normal text
+			// normal text
 			else {
 				buffer += text[i];
 			}
 		}
 
-		// Flush remaining text buffer if we have any
+		// flush remaining text buffer if we have any
 		if (buffer) {
 			let res = this.handleLinks(buffer);
 			if (typeof res !== 'string' || currentToken) {
@@ -382,17 +398,17 @@ export class ReplExpressionsRenderer implements tree.IRenderer {
 
 	private renderOutputKeyValue(tree: tree.ITree, output: model.KeyValueOutputElement, templateData: IKeyValueOutputTemplateData): void {
 
-		// Key
+		// key
 		if (output.key) {
 			templateData.key.textContent = `${output.key}:`;
 		} else {
 			templateData.key.textContent = '';
 		}
 
-		// Value
-		debugviewer.renderExpressionValue(tree, output.value, false, templateData.value);
+		// value
+		debugviewer.renderExpressionValue(output.value, false, templateData.value);
 
-		// Annotation if any
+		// annotation if any
 		if (output.annotation) {
 			templateData.annotation.className = 'annotation octicon octicon-info';
 			templateData.annotation.title = output.annotation;
@@ -401,7 +417,7 @@ export class ReplExpressionsRenderer implements tree.IRenderer {
 			templateData.annotation.title = '';
 		}
 
-		// Group
+		// group
 		if (output.grouped) {
 			dom.addClass(templateData.container, 'grouped');
 		} else {
@@ -414,10 +430,18 @@ export class ReplExpressionsRenderer implements tree.IRenderer {
 	}
 }
 
-export class ReplExpressionsActionProvider extends debugviewer.SimpleActionProvider {
+export class ReplExpressionsActionProvider implements renderer.IActionProvider {
 
 	constructor(private instantiationService: IInstantiationService) {
-		super();
+		// noop
+	}
+
+	public hasActions(tree: tree.ITree, element: any): boolean {
+		return false;
+	}
+
+	public getActions(tree: tree.ITree, element: any): TPromise<actions.IAction[]> {
+		return Promise.as([]);
 	}
 
 	public hasSecondaryActions(tree: tree.ITree, element: any): boolean {
@@ -425,7 +449,7 @@ export class ReplExpressionsActionProvider extends debugviewer.SimpleActionProvi
 	}
 
 	public getSecondaryActions(tree: tree.ITree, element: any): TPromise<actions.IAction[]> {
-		var actions: actions.IAction[] = [];
+		const actions: actions.IAction[] = [];
 		if (element instanceof model.Variable || element instanceof model.Expression) {
 			actions.push(this.instantiationService.createInstance(dbgactions.AddToWatchExpressionsAction, dbgactions.AddToWatchExpressionsAction.ID, dbgactions.AddToWatchExpressionsAction.LABEL, element));
 			actions.push(new actionbar.Separator());
@@ -438,6 +462,10 @@ export class ReplExpressionsActionProvider extends debugviewer.SimpleActionProvi
 
 		actions.push(this.instantiationService.createInstance(dbgactions.ClearReplAction));
 		return Promise.as(actions);
+	}
+
+	public getActionItem(tree: tree.ITree, element: any, action: actions.IAction): actionbar.IActionItem {
+		return null;
 	}
 }
 
@@ -457,7 +485,7 @@ export class ReplExpressionsController extends debugviewer.BaseDebugController {
 
 	/* protected */ public onLeftClick(tree: tree.ITree, element: any, eventish: treedefaults.ICancelableEvent, origin: string = 'mouse'): boolean {
 		const mouseEvent = <mouse.StandardMouseEvent> eventish;
-		// Input and output are one element in the tree => we only expand if the user clicked on the output.
+		// input and output are one element in the tree => we only expand if the user clicked on the output.
 		if ((element.reference > 0 || (element instanceof model.KeyValueOutputElement && element.getChildren().length > 0)) && mouseEvent.target.className.indexOf('input expression') === -1) {
 			super.onLeftClick(tree, element, eventish, origin);
 			tree.clearFocus();
@@ -466,7 +494,7 @@ export class ReplExpressionsController extends debugviewer.BaseDebugController {
 
 		const selection = window.getSelection();
 		if (selection.type !== 'Range' || this.lastSelectedString === selection.toString()) {
-			// Only focus the input if the user is not currently selecting.
+			// only focus the input if the user is not currently selecting.
 			this.replInput.focus();
 		}
 		this.lastSelectedString = selection.toString();

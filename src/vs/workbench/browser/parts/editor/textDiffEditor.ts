@@ -10,24 +10,25 @@ import {Promise, TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import {Builder} from 'vs/base/browser/builder';
 import {Action, IAction} from 'vs/base/common/actions';
+import {onUnexpectedError} from 'vs/base/common/errors';
 import types = require('vs/base/common/types');
 import {IDiffEditor} from 'vs/editor/browser/editorBrowser';
 import {IDiffEditorOptions, IEditorOptions} from 'vs/editor/common/editorCommon';
 import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
 import {TextEditorOptions, TextDiffEditorOptions, EditorModel, EditorInput, EditorOptions} from 'vs/workbench/common/editor';
-import {StringEditorInput} from 'vs/workbench/browser/parts/editor/stringEditorInput';
-import {ResourceEditorInput} from 'vs/workbench/browser/parts/editor/resourceEditorInput';
-import {DiffEditorInput} from 'vs/workbench/browser/parts/editor/diffEditorInput';
+import {StringEditorInput} from 'vs/workbench/common/editor/stringEditorInput';
+import {ResourceEditorInput} from 'vs/workbench/common/editor/resourceEditorInput';
+import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
 import {DiffNavigator} from 'vs/editor/contrib/diffNavigator/common/diffNavigator';
 import {DiffEditorWidget} from 'vs/editor/browser/widget/diffEditorWidget';
-import {TextDiffEditorModel} from 'vs/workbench/browser/parts/editor/textDiffEditorModel';
+import {TextDiffEditorModel} from 'vs/workbench/common/editor/textDiffEditorModel';
 import {DelegatingWorkbenchEditorService} from 'vs/workbench/services/editor/browser/editorService';
 import {IFileOperationResult, FileOperationResult} from 'vs/platform/files/common/files';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {IStorageService} from 'vs/platform/storage/common/storage';
-import {IConfigurationService, IConfigurationServiceEvent, ConfigurationServiceEventTypes} from 'vs/platform/configuration/common/configuration';
+import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IMessageService} from 'vs/platform/message/common/message';
@@ -57,7 +58,7 @@ export class TextDiffEditor extends BaseTextEditor {
 		@IModeService modeService: IModeService
 	) {
 		super(TextDiffEditor.ID, telemetryService, instantiationService, contextService, storageService, messageService, configurationService, eventService, editorService, modeService);
-}
+	}
 
 	public getTitle(): string {
 		if (this.input) {
@@ -101,11 +102,11 @@ export class TextDiffEditor extends BaseTextEditor {
 		});
 
 		// Create a special child of instantiator that will delegate all calls to openEditor() to the same diff editor if the input matches with the modified one
-		let sideEditorInstantiator = this.instantiationService.createChild({
+		let diffEditorInstantiator = this.instantiationService.createChild({
 			editorService: delegatingService
 		});
 
-		return sideEditorInstantiator.createInstance(DiffEditorWidget, parent.getHTMLElement(), this.getCodeEditorOptions());
+		return diffEditorInstantiator.createInstance(DiffEditorWidget, parent.getHTMLElement(), this.getCodeEditorOptions());
 	}
 
 	public setInput(input: EditorInput, options: EditorOptions): TPromise<void> {
@@ -136,8 +137,8 @@ export class TextDiffEditor extends BaseTextEditor {
 		return this.editorService.resolveEditorModel(input, true /* Reload */).then((resolvedModel: EditorModel) => {
 
 			// Assert Model Instance
-			if (!(resolvedModel instanceof TextDiffEditorModel)) {
-				return TPromise.wrapError<void>(nls.localize('cannotDiffBinary', "At least one of the resources to compare seems to be binary and this is currently not supported"));
+			if (!(resolvedModel instanceof TextDiffEditorModel) && this.openAsBinary(input, options)) {
+				return null;
 			}
 
 			// Assert that the current input is still the one we expect. This prevents a race condition when loading a diff takes long and another input was set meanwhile
@@ -174,9 +175,9 @@ export class TextDiffEditor extends BaseTextEditor {
 			diffEditor.updateOptions(this.getCodeEditorOptions());
 		}, (error) => {
 
-			// In case we tried to open a file and the response indicates that this is not a text file, bail out to the user.
-			if (this.isFileBinaryError(error)) {
-				return Promise.wrapError(nls.localize('cannotDiffBinary', "At least one of the resources to compare seems to be binary and this is currently not supported"));
+			// In case we tried to open a file and the response indicates that this is not a text file, fallback to binary diff.
+			if (this.isFileBinaryError(error) && this.openAsBinary(input, options)) {
+				return null;
 			}
 
 			// Otherwise make sure the error bubbles up
@@ -184,8 +185,23 @@ export class TextDiffEditor extends BaseTextEditor {
 		});
 	}
 
+	private openAsBinary(input: EditorInput, options: EditorOptions): boolean {
+		if (input instanceof DiffEditorInput) {
+			let originalInput = input.originalInput;
+			let modifiedInput = input.modifiedInput;
+
+			let binaryDiffInput = new DiffEditorInput(input.getName(), input.getDescription(), originalInput, modifiedInput, true);
+
+			this.editorService.openEditor(binaryDiffInput, options, this.position).done(null, onUnexpectedError);
+
+			return true;
+		}
+
+		return false;
+	}
+
 	protected getCodeEditorOptions(): IEditorOptions {
-		let options:IDiffEditorOptions = super.getCodeEditorOptions();
+		let options: IDiffEditorOptions = super.getCodeEditorOptions();
 
 		let input = this.input;
 		if (input && types.isFunction((<DiffEditorInput>input).getModifiedInput)) {
@@ -232,6 +248,36 @@ export class TextDiffEditor extends BaseTextEditor {
 			this.previousDiffAction,
 			this.nextDiffAction
 		];
+	}
+
+	public getSecondaryActions(): IAction[] {
+		let actions = super.getSecondaryActions();
+
+		const control = this.getControl();
+
+		let inlineModeActive = control && !control.renderSideBySide;
+		let inlineLabel = nls.localize('inlineDiffLabel', "Switch to Inline View");
+		let sideBySideLabel = nls.localize('sideBySideDiffLabel', "Switch to Side by Side View");
+
+		// Action to toggle editor mode from inline to side by side
+		let toggleEditorModeAction = new Action('toggle.diff.editorMode', inlineModeActive ? sideBySideLabel : inlineLabel, null, true, () => {
+			this.getControl().updateOptions(<IDiffEditorOptions>{
+				renderSideBySide: inlineModeActive
+			});
+
+			inlineModeActive = !inlineModeActive;
+			toggleEditorModeAction.label = inlineModeActive ? sideBySideLabel : inlineLabel;
+
+			return Promise.as(true);
+		});
+
+		toggleEditorModeAction.order = 50; // Closer to the end
+
+		actions.push(...[
+			toggleEditorModeAction
+		]);
+
+		return actions;
 	}
 
 	public getControl(): IDiffEditor {

@@ -11,7 +11,7 @@ import collections = require('vs/base/common/collections');
 import {Action, IAction} from 'vs/base/common/actions';
 import {BaseActionItem, Separator} from 'vs/base/browser/ui/actionbar/actionbar';
 import {IActionProvider} from 'vs/base/parts/tree/browser/actionsRenderer';
-import {ITree} from 'vs/base/parts/tree/common/tree';
+import {ITree} from 'vs/base/parts/tree/browser/tree';
 import {IInstantiationService, IConstructorSignature0, INewConstructorSignature0} from 'vs/platform/instantiation/common/instantiation';
 
 /**

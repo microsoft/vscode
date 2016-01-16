@@ -7,10 +7,8 @@
  */
 declare module DebugProtocol {
 
-	//---- V8 inspired protocol
-
-	/** Base class of V8 requests, responses, and events. */
-	export interface V8Message {
+	/** Base class of requests, responses, and events. */
+	export interface ProtocolMessage {
 		/** Sequence number */
 		seq: number;
 		/** One of "request", "response", or "event" */
@@ -18,7 +16,7 @@ declare module DebugProtocol {
 	}
 
 	/** Client-initiated request */
-	export interface Request extends V8Message {
+	export interface Request extends ProtocolMessage {
 		/** The command to execute */
 		command: string;
 		/** Object containing arguments for the command */
@@ -26,7 +24,7 @@ declare module DebugProtocol {
 	}
 
 	/** Server-initiated event */
-	export interface Event extends V8Message {
+	export interface Event extends ProtocolMessage {
 		/** Type of event */
 		event: string;
 		/** Event-specific information */
@@ -34,7 +32,7 @@ declare module DebugProtocol {
 	}
 
 	/** Server-initiated response to client request */
-	export interface Response extends V8Message {
+	export interface Response extends ProtocolMessage {
 		/** Sequence number of the corresponding request */
 		request_seq: number;
 		/** Outcome of the request */
@@ -50,7 +48,14 @@ declare module DebugProtocol {
 	//---- Events
 
 	/** Event message for "initialized" event type.
-		The event indicates that the debugee is ready to accept SetBreakpoint calls.
+		This event indicates that the debug adapter is ready to accept configuration requests (e.g. SetBreakpointsRequest, SetExceptionBreakpointsRequest).
+		A debug adapter is expected to send this event when it is ready to accept configuration requests.
+		The sequence of events/requests is as follows:
+		- adapters sends InitializedEvent (at any time)
+		- frontend sends zero or more SetBreakpointsRequest
+		- frontend sends one SetExceptionBreakpointsRequest (in the future 'zero or one')
+		- frontend sends other configuration requests that are added in the future
+		- frontend sends one ConfigurationDoneRequest
 	*/
 	export interface InitializedEvent extends Event {
 	}
@@ -65,7 +70,7 @@ declare module DebugProtocol {
 			reason: string;
 			/** The thread which was stopped. */
 			threadId?: number;
-			/** Additonal information. E.g. if reason is 'exception', text contains the exception name. */
+			/** Additional information. E.g. if reason is 'exception', text contains the exception name. */
 			text?: string;
 		};
 	}
@@ -103,10 +108,12 @@ declare module DebugProtocol {
 	*/
 	export interface OutputEvent extends Event {
 		body: {
-			/** The category of output (such as: 'console', 'stdout', 'stderr'). If not specified, 'console' is assumed. */
+			/** The category of output (such as: 'console', 'stdout', 'stderr', 'telemetry'). If not specified, 'console' is assumed. */
 			category?: string;
-			/** The output */
+			/** The output to report. */
 			output: string;
+			/** Optional data to report. For the 'telemetry' category the data will be sent to telemetry, for the other categories the data is shown in JSON format. */
+			data?: any;
 		};
 	}
 
@@ -137,8 +144,28 @@ declare module DebugProtocol {
 		/** Determines in what format paths are specified. Possible values are 'path' or 'uri'. The default is 'path', which is the native format. */
 		pathFormat?: string;
 	}
-	/** Response to Initialize request. */
+	/** Response to Initialize request.
+	 *  It contains information about the features implemented by a debug adapter.
+	*/
 	export interface InitializeResponse extends Response {
+		/** The debug adapter supports the configurationDoneRequest. */
+		supportsConfigurationDoneRequest?: boolean;
+		/** The debug adapter supports a (side effect free) evaluate request for data hovers. */
+		supportEvaluateForHovers?: boolean;
+	}
+
+	/** ConfigurationDone request; value of command field is "configurationDone".
+		The client of the debug protocol must send this request at the end of the sequence of configuration requests (which was started by the InitializedEvent)
+	*/
+	export interface ConfigurationDoneRequest extends Request {
+		arguments?: ConfigurationDoneArguments;
+	}
+	/** Arguments for "configurationDone" request. */
+	export interface ConfigurationDoneArguments {
+		/* The configurationDone request has no standardized attributes. */
+	}
+	/** Response to "configurationDone" request. This is just an acknowledgement, so no body field is required. */
+	export interface ConfigurationDoneResponse extends Response {
 	}
 
 	/** Launch request; value of command field is "launch".
@@ -191,8 +218,10 @@ declare module DebugProtocol {
 	export interface SetBreakpointsArguments {
 		/** The source location of the breakpoints; either source.path or source.reference must be specified. */
 		source: Source;
-		/** The code locations of the breakpoints */
-		lines: number[];
+		/** The code locations of the breakpoints. */
+		breakpoints?: SourceBreakpoint[];
+		/** Deprecated: The code locations of the breakpoints. */
+		lines?: number[];
 	}
 	/** Response to "setBreakpoints" request.
 		Returned is information about each breakpoint created by this request.
@@ -400,10 +429,12 @@ declare module DebugProtocol {
 	}
 	/** Arguments for "evaluate" request. */
 	export interface EvaluateArguments {
-		/** The expression to evaluate */
+		/** The expression to evaluate. */
 		expression: string;
-		/** Evaluate the expression in the context of this stack frame. If not specified, the expression is evaluated in the global context. */
+		/** Evaluate the expression in the scope of this stack frame. If not specified, the expression is evaluated in the global scope. */
 		frameId?: number;
+		/** The context in which the evaluate request is run. Possible values are 'watch' if evaluate is run in a watch, 'repl' if run from the REPL console, or 'hover' if run from a data hover. */
+		context?: string;
 	}
 	/** Response to "evaluate" request. */
 	export interface EvaluateResponse extends Response {
@@ -426,9 +457,9 @@ declare module DebugProtocol {
 		format: string;
 		/** An object used as a dictionary for looking up the variables in the format string. */
 		variables?: { [key: string]: string };
-		/** if true send to telemetry (Experimental) */
+		/** if true send to telemetry */
 		sendTelemetry?: boolean;
-		/** if true show user (Experimental) */
+		/** if true show user */
 		showUser?: boolean;
 	}
 
@@ -440,7 +471,7 @@ declare module DebugProtocol {
 		name: string;
 	}
 
-	/** A Source .*/
+	/** A Source is a descriptor for source code. It is returned from the debug adapter as part of a StackFrame and it is used by clients when specifying breakpoints. */
 	export interface Source {
 		/** The short name of the source. Every source returned from the debug adapter has a name. When specifying a source to the debug adapter this name is optional. */
 		name?: string;
@@ -448,6 +479,10 @@ declare module DebugProtocol {
 		path?: string;
 		/** If sourceReference > 0 the contents of the source can be retrieved through the SourceRequest. A sourceReference is only valid for a session, so it must not be used to persist a source. */
 		sourceReference?: number;
+		/** The (optional) origin of this source: possible values "internal module", "inlined content from source map", etc. */
+		origin?: string;
+		/** Optional data that a debug adapter might want to loop through the client. The client should leave the data intact and persist it across sessions. The client should not interpret the data. */
+		adapterData?: any;
 	}
 
 	/** A Stackframe contains the source location. */
@@ -486,12 +521,25 @@ declare module DebugProtocol {
 		variablesReference: number;
 	}
 
+	/** Properties of a breakpoint passed to the setBreakpoints request.
+	*/
+	export interface SourceBreakpoint {
+		/** The source line of the breakpoint. */
+		line: number;
+		/** An optional source column of the breakpoint. */
+		column?: number;
+		/** An optional expression for conditional breakpoints. */
+		condition?: string;
+	}
+
 	/** Information about a Breakpoint created in the setBreakpoints request.
 	*/
 	export interface Breakpoint {
 		/** If true breakpoint could be set (but not necessarily at the correct location). */
 		verified: boolean;
-		/** The actual location of the breakpoint. */
+		/** The actual line of the breakpoint. */
 		line: number;
+		/** The actual column of the breakpoint. */
+		column?: number;
 	}
 }

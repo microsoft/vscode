@@ -19,7 +19,7 @@ import keyboard = require('vs/base/browser/keyboardEvent');
 import mouse = require('vs/base/browser/mouseEvent');
 import builder = require('vs/base/browser/builder');
 import labels = require('vs/base/common/labels');
-import tree = require('vs/base/parts/tree/common/tree');
+import tree = require('vs/base/parts/tree/browser/tree');
 import treeWidget = require('vs/base/parts/tree/browser/treeImpl');
 import treeDefaults = require('vs/base/parts/tree/browser/treeDefaults');
 import leftRightWidget = require('vs/base/browser/ui/leftRightWidget/leftRightWidget');
@@ -602,9 +602,12 @@ export class ReferenceWidget extends peekViewWidget.PeekViewWidget {
 		}, errors.onUnexpectedError);
 
 		// show in tree
-		this.tree.reveal(reference);
-		this.tree.setSelection([reference]);
-		this.tree.setFocus(reference);
+		this.tree.reveal(reference)
+			.then(() => {
+				this.tree.setSelection([reference]);
+				this.tree.setFocus(reference);
+			})
+			.done(null, errors.onUnexpectedError);
 	}
 
 	public dispose(): void {

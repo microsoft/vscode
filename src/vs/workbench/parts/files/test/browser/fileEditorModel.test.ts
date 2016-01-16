@@ -10,12 +10,12 @@ import {Promise} from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
 import {FileEditorInput} from 'vs/workbench/parts/files/browser/editors/fileEditorInput';
-import {TextFileEditorModel, CACHE} from 'vs/workbench/parts/files/browser/editors/textFileEditorModel';
+import {TextFileEditorModel, CACHE} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {create} from 'vs/platform/instantiation/common/instantiationService';
 import {TextFileService} from 'vs/workbench/parts/files/browser/textFileServices';
 import {EventType, LocalFileChangeEvent} from 'vs/workbench/parts/files/common/files';
-import {TestFileService, TestPartService, TestEditorService, TestUntitledEditorService, TestStorageService, TestTelemetryService, TestContextService, TestMessageService, TestEventService} from 'vs/workbench/test/browser/servicesTestUtils';
+import {TestFileService, TestLifecycleService, TestPartService, TestEditorService, TestConfigurationService, TestUntitledEditorService, TestStorageService, TestTelemetryService, TestContextService, TestMessageService, TestEventService} from 'vs/workbench/test/browser/servicesTestUtils';
 import Severity = require('vs/base/common/severity');
 import {IEventService} from 'vs/platform/event/common/event';
 import {IMessageService, IConfirmation} from 'vs/platform/message/common/message';
@@ -48,10 +48,14 @@ suite('Files - TextFileEditorModel', () => {
 			editorService: new TestEditorService(),
 			partService: new TestPartService(),
 			modeService: createMockModeService(),
-			modelService: createMockModelService()
+			modelService: createMockModelService(),
+			lifecycleService: new TestLifecycleService(),
+			configurationService: new TestConfigurationService()
 		});
 
 		textFileService = <TextFileService>baseInstantiationService.createInstance(<any>TextFileService);
+
+		baseInstantiationService.registerService('textFileService', textFileService);
 	});
 
 	teardown(() => {
@@ -88,7 +92,7 @@ suite('Files - TextFileEditorModel', () => {
 	});
 
 	test("Load does not trigger save", function(done) {
-		let m1 = baseInstantiationService.createInstance(TextFileEditorModel, toResource("/path/index.txt"), "text/plain", "utf8");
+		let m1 = baseInstantiationService.createInstance(TextFileEditorModel, toResource("/path/index.txt"), "utf8");
 
 		eventService.addListener('files:internalFileChanged', () => {
 			assert.ok(false);
@@ -112,7 +116,7 @@ suite('Files - TextFileEditorModel', () => {
 	});
 
 	test("Load returns dirty model as long as model is dirty", function(done) {
-		let m1 = baseInstantiationService.createInstance(TextFileEditorModel, toResource("/path/index_async.txt"), "text/plain", "utf8");
+		let m1 = baseInstantiationService.createInstance(TextFileEditorModel, toResource("/path/index_async.txt"), "utf8");
 
 		m1.load().then(() => {
 			m1.textEditorModel.setValue("foo");
@@ -135,7 +139,7 @@ suite('Files - TextFileEditorModel', () => {
 			eventCounter++;
 		});
 
-		let m1 = baseInstantiationService.createInstance(TextFileEditorModel, toResource("/path/index_async.txt"), "text/plain", "utf8");
+		let m1 = baseInstantiationService.createInstance(TextFileEditorModel, toResource("/path/index_async.txt"), "utf8");
 
 		m1.load().then(() => {
 			m1.textEditorModel.setValue("foo");
@@ -155,7 +159,7 @@ suite('Files - TextFileEditorModel', () => {
 	});
 
 	test("Conflict Resolution Mode", function(done) {
-		let m1 = baseInstantiationService.createInstance(TextFileEditorModel, toResource("/path/index_async.txt"), "text/plain", "utf8");
+		let m1 = baseInstantiationService.createInstance(TextFileEditorModel, toResource("/path/index_async.txt"), "utf8");
 
 		m1.load().then(() => {
 			m1.setConflictResolutionMode();
@@ -181,10 +185,10 @@ suite('Files - TextFileEditorModel', () => {
 
 	test("Auto Save triggered when model changes", function(done) {
 		let eventCounter = 0;
-		let m1 = baseInstantiationService.createInstance(TextFileEditorModel, toResource("/path/index.txt"), "text/plain", "utf8");
+		let m1 = baseInstantiationService.createInstance(TextFileEditorModel, toResource("/path/index.txt"), "utf8");
 
-		(<any>m1).autoSaveDelay = 10;
-		(<any>m1).autoSaveEnabled = true;
+		(<any>m1).autoSaveAfterMillies = 10;
+		(<any>m1).autoSaveAfterMilliesEnabled = true;
 
 		eventService.addListener(EventType.FILE_DIRTY, () => {
 			eventCounter++;
@@ -204,38 +208,6 @@ suite('Files - TextFileEditorModel', () => {
 				m1.dispose();
 
 				done();
-			});
-		});
-	});
-
-	test("Change after auto save triggered will cause another autosave and twice the events", function(done) {
-		let eventCounter = 0;
-		let m1 = baseInstantiationService.createInstance(TextFileEditorModel, toResource("/path/index.txt"), "text/plain", "utf8");
-
-		(<any>m1).autoSaveDelay = 10;
-		(<any>m1).autoSaveEnabled = true;
-
-		eventService.addListener(EventType.FILE_DIRTY, (e: LocalFileChangeEvent) => {
-			eventCounter++;
-		});
-
-		eventService.addListener(EventType.FILE_SAVED, (e: LocalFileChangeEvent) => {
-			eventCounter++;
-		});
-
-		m1.load().then(() => {
-			m1.textEditorModel.setValue("foo");
-
-			return Promise.timeout(50).then(() => {
-				m1.textEditorModel.setValue("bar");
-
-				return Promise.timeout(20).then(() => {
-					m1.dispose();
-					assert.ok(!m1.isDirty());
-					assert.equal(eventCounter, 4);
-
-					done();
-				});
 			});
 		});
 	});
@@ -301,7 +273,7 @@ suite('Files - TextFileEditorModel', () => {
 
 	test("Save Participant", function(done) {
 		let eventCounter = 0;
-		let m1 = baseInstantiationService.createInstance(TextFileEditorModel, toResource("/path/index_async.txt"), "text/plain", "utf8");
+		let m1 = baseInstantiationService.createInstance(TextFileEditorModel, toResource("/path/index_async.txt"), "utf8");
 
 		eventService.addListener(EventType.FILE_SAVED, (e) => {
 			assert.equal(m1.getValue(), "bar");

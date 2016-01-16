@@ -12,7 +12,7 @@ import Range = require('vs/editor/common/core/range');
 import ModelModes = require('vs/editor/test/common/testModes');
 import Modes = require('vs/editor/common/modes');
 import EditorCommon = require('vs/editor/common/editorCommon');
-import {MockConfiguration} from 'vs/editor/test/common/commands/commandTestUtils';
+import {MockConfiguration} from 'vs/editor/test/common/mocks/mockConfiguration';
 import {EditOperation} from 'vs/editor/common/core/editOperation';
 
 var H = EditorCommon.Handler;
@@ -649,6 +649,45 @@ suite('Editor Controller - Cursor', () => {
 		cursorEqual(thisCursor, 5, LINE5.length + 1, 1, 1);
 	});
 
+	test('expandLineSelection', () => {
+		//              0          1         2
+		//              01234 56789012345678 0
+		// var LINE1 = '    \tMy First Line\t ';
+		moveTo(thisCursor, 1, 1);
+		cursorCommand(thisCursor, H.ExpandLineSelection);
+		cursorEqual(thisCursor, 1, LINE1.length + 1, 1, 1);
+
+		moveTo(thisCursor, 1, 2);
+		cursorCommand(thisCursor, H.ExpandLineSelection);
+		cursorEqual(thisCursor, 1, LINE1.length + 1, 1, 1);
+
+		moveTo(thisCursor, 1, 5);
+		cursorCommand(thisCursor, H.ExpandLineSelection);
+		cursorEqual(thisCursor, 1, LINE1.length + 1, 1, 1);
+
+		moveTo(thisCursor, 1, 19);
+		cursorCommand(thisCursor, H.ExpandLineSelection);
+		cursorEqual(thisCursor, 1, LINE1.length + 1, 1, 1);
+
+		moveTo(thisCursor, 1, 20);
+		cursorCommand(thisCursor, H.ExpandLineSelection);
+		cursorEqual(thisCursor, 1, LINE1.length + 1, 1, 1);
+
+		moveTo(thisCursor, 1, 21);
+		cursorCommand(thisCursor, H.ExpandLineSelection);
+		cursorEqual(thisCursor, 1, LINE1.length + 1, 1, 1);
+		cursorCommand(thisCursor, H.ExpandLineSelection);
+		cursorEqual(thisCursor, 2, LINE2.length + 1, 1, 1);
+		cursorCommand(thisCursor, H.ExpandLineSelection);
+		cursorEqual(thisCursor, 3, LINE3.length + 1, 1, 1);
+		cursorCommand(thisCursor, H.ExpandLineSelection);
+		cursorEqual(thisCursor, 4, LINE4.length + 1, 1, 1);
+		cursorCommand(thisCursor, H.ExpandLineSelection);
+		cursorEqual(thisCursor, 5, LINE5.length + 1, 1, 1);
+		cursorCommand(thisCursor, H.ExpandLineSelection);
+		cursorEqual(thisCursor, 5, LINE5.length + 1, 1, 1);
+	});
+
 	// --------- eventing
 
 	test('no move doesn\'t trigger event', () => {
@@ -717,7 +756,10 @@ suite('Editor Controller - Cursor', () => {
 
 	test('Bug 9121: Auto indent + undo + redo is funky', () => {
 		var model = new Model.Model('', thisHighlighter);
-		var cursor = new Cursor.Cursor(1, new MockConfiguration(null), model, null, false);
+		var cursor = new Cursor.Cursor(1, new MockConfiguration({
+			tabSize: 4,
+			insertSpaces: false
+		}), model, null, false);
 		cursorCommand(cursor, H.Type, { text: '\n' }, null, 'keyboard');
 		assert.equal(model.getValue(EditorCommon.EndOfLinePreference.LF), '\n', 'assert1');
 
@@ -771,6 +813,31 @@ suite('Editor Controller - Cursor', () => {
 suite('Editor Controller - Cursor Configuration', () => {
 
 	var thisHighlighter = new ModelModes.CursorMode();
+
+	test('issue #183: jump to matching bracket position', () => {
+		let mode = new ModelModes.BracketMode();
+		let model = new Model.Model([
+			'var x = (3 + (5-7));'
+		].join('\n'), mode);
+		let cursor = new Cursor.Cursor(1, new MockConfiguration(null), model, null, false);
+
+		// ensure is tokenized
+		model.getLineContext(1);
+
+		moveTo(cursor, 1, 20);
+
+		cursorCommand(cursor, H.JumpToBracket, null, null, 'keyboard');
+		cursorEqual(cursor, 1, 10);
+
+		cursorCommand(cursor, H.JumpToBracket, null, null, 'keyboard');
+		cursorEqual(cursor, 1, 20);
+
+		cursorCommand(cursor, H.JumpToBracket, null, null, 'keyboard');
+		cursorEqual(cursor, 1, 10);
+
+		cursor.dispose();
+		model.dispose();
+	});
 
 	test('Cursor honors insertSpaces configuration on new line', () => {
 		var text = '    \tMy First Line\t \n' + '\tMy Second Line\n' + '    Third Line\n' + '\n' + '1';

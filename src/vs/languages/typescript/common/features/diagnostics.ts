@@ -93,6 +93,8 @@ export function createDiagnosticClassifier(options: Options): DiagnosticClassifi
 	map[2403] = Severity.fromValue(options.validate.lint.redeclaredVariables);
 	map[2304] = Severity.fromValue(options.validate.lint.undeclaredVariables);
 	map[2339] = Severity.fromValue(options.validate.lint.unknownProperty);
+	map[2459] = Severity.fromValue(options.validate.lint.unknownProperty);
+	map[2460] = Severity.fromValue(options.validate.lint.unknownProperty);
 	map[2306] = Severity.fromValue(options.validate.lint.unknownModule);
 	map[2307] = Severity.fromValue(options.validate.lint.unknownModule);
 	map[2322] = Severity.fromValue(options.validate.lint.forcedTypeConversion);
@@ -279,7 +281,7 @@ function _getJavaScriptSemanticDiagnostics(sourceFile: ts.SourceFile, options: t
 			case ts.SyntaxKind.Decorator:
 				if(!options.experimentalDecorators) {
 					let diag = createDiagnosticForNode(node);
-					diag.messageText = 'Decorators is an experimental feature which must be enabled explicitly. Use a jsconfig.json-file and the \'experimentalDecorators\' switch.';
+					diag.messageText = 'Decorators is an experimental feature which must be enabled explicitly. Use a jsconfig.json file and the \'experimentalDecorators\' switch.';
 					diag.category = ts.DiagnosticCategory.Warning;
 					diagnostics.push(diag);
 				}
@@ -340,7 +342,7 @@ function _getJavaScriptSemanticDiagnostics(sourceFile: ts.SourceFile, options: t
 			length,
 			messageText: !target
 				? 'This can only be used in ts files.'
-				: 'This can only be used with ES6. Make sure to have a jsconfig.json-file which sets the target to ES6.',
+				: 'This can only be used with ES6. Make sure to have a jsconfig.json file which sets the target to ES6.',
 			category: ts.DiagnosticCategory.Error,
 			code: -1
 		};

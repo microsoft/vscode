@@ -12,7 +12,7 @@ import URI from 'vs/base/common/uri';
 import {join} from 'vs/base/common/paths';
 import {validateFileName} from 'vs/workbench/parts/files/browser/fileActions';
 import {LocalFileChangeEvent} from 'vs/workbench/parts/files/common/files';
-import {FileStat} from 'vs/workbench/parts/files/browser/views/explorerViewModel';
+import {FileStat} from 'vs/workbench/parts/files/common/explorerViewModel';
 
 function createStat(path, name, isFolder, hasChildren, size, mtime, mime) {
 	return new FileStat(toResource(path), isFolder, hasChildren, name, mtime);
@@ -214,6 +214,32 @@ suite('Files - View Model', () => {
 		assert.strictEqual(s1.find(toResource('foobar')), null);
 
 		assert.strictEqual(s1.find(toResource('/')), s1);
+	});
+
+	test("Find with mixed case", function() {
+		let d = new Date().getTime();
+
+		let s1 = createStat("/", "/", true, false, 8096, d, "text/plain");
+		let s2 = createStat("/path", "path", true, false, 8096, d, "text/plain");
+		let s3 = createStat("/path/to", "to", true, false, 8096, d, "text/plain");
+		let s4 = createStat("/path/to/stat", "stat", true, false, 8096, d, "text/plain");
+
+		let child1 = createStat("/path/to/stat/foo", "foo", true, false, 8096, d, "text/plain");
+		let child2 = createStat("/path/to/stat/foo/bar.html", "bar.html", false, false, 8096, d, "text/html");
+
+		s1.addChild(s2);
+		s2.addChild(s3);
+		s3.addChild(s4);
+		s4.addChild(child1);
+		child1.addChild(child2);
+
+		if (isLinux) { // linux is case sensitive
+			assert.ok(!s1.find(toResource('/path/to/stat/Foo')));
+			assert.ok(!s1.find(toResource('/Path/to/stat/foo/bar.html')));
+		} else {
+			assert.ok(s1.find(toResource('/path/to/stat/Foo')));
+			assert.ok(s1.find(toResource('/Path/to/stat/foo/bar.html')));
+		}
 	});
 
 	test("Validate File Name (For Create)", function() {

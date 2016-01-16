@@ -7,13 +7,13 @@
 import * as assert from 'assert';
 import { marshallObject, demarshallObject } from 'vs/base/common/marshalling';
 import { ProxiesMarshallingContribution } from 'vs/base/common/remote';
-import { Promise} from 'vs/base/common/winjs.base';
+import { TPromise} from 'vs/base/common/winjs.base';
 
 suite('Remote', () => {
 	test('bug #17587:[plugin] Language plugin can\'t define a TokenTypeClassificationSupport#wordDefinition', () => {
 
 		var contrib = new ProxiesMarshallingContribution({
-			callOnRemote: () => Promise.as(true)
+			callOnRemote: () => TPromise.as(true)
 		});
 
 		var initial = {

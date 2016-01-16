@@ -123,6 +123,10 @@ class MockPluginService extends AbstractPluginService {
 				console.log(msg);
 		}
 	}
+
+	public deactivate(pluginId:string): void {
+		// nothing to do
+	}
 }
 class MockModelService extends ModelServiceImpl {}
 

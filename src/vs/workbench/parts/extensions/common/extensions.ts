@@ -20,6 +20,7 @@ export interface IExtensionManifest {
 export interface IGalleryInformation {
 	galleryApiUrl: string;
 	id: string;
+	downloadUrl: string;
 	publisherId: string;
 	publisherDisplayName: string;
 	date: string;
@@ -49,5 +50,5 @@ export interface IExtensionsService {
 	install(extension: IExtension): TPromise<IExtension>;
 	install(zipPath: string): TPromise<IExtension>;
 	uninstall(extension: IExtension): TPromise<void>;
-	getInstalled(): TPromise<IExtension[]>;
+	getInstalled(includeDuplicateVersions?: boolean): TPromise<IExtension[]>;
 }

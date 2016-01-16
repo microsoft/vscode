@@ -44,6 +44,10 @@ export class Mode implements modes.IMode {
 	public getId(): string {
 		return "testMode";
 	}
+
+	public toSimplifiedMode(): modes.IMode {
+		return this;
+	}
 }
 
 
@@ -112,6 +116,10 @@ export class SwitchingMode implements modes.IMode {
 
 	public getId():string {
 		return this._id;
+	}
+
+	public toSimplifiedMode(): modes.IMode {
+		return this;
 	}
 
 	public addSupportChangedListener(callback: (e: EditorCommon.IModeSupportChangedEvent) => void): IDisposable {

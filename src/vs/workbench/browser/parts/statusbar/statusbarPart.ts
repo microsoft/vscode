@@ -10,20 +10,21 @@ import dom = require('vs/base/browser/dom');
 import types = require('vs/base/common/types');
 import nls = require('vs/nls');
 import {toErrorMessage} from 'vs/base/common/errors';
-import {Promise, TPromise} from 'vs/base/common/winjs.base';
+import {Promise} from 'vs/base/common/winjs.base';
 import {disposeAll, IDisposable} from 'vs/base/common/lifecycle';
 import {Builder, $} from 'vs/base/browser/builder';
+import {OcticonLabel} from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 import {Registry} from 'vs/platform/platform';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
-import {IAction, Action} from 'vs/base/common/actions';
+import {IAction} from 'vs/base/common/actions';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {Part} from 'vs/workbench/browser/part';
-import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/browser/actionRegistry';
+import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/common/actionRegistry';
 import {StatusbarAlignment, IStatusbarRegistry, Extensions, IStatusbarItem} from 'vs/workbench/browser/parts/statusbar/statusbar';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
-import {IStatusbarService, IStatusbarEntry} from 'vs/workbench/services/statusbar/statusbarService';
+import {IStatusbarService, IStatusbarEntry} from 'vs/workbench/services/statusbar/common/statusbarService';
 
 export class StatusbarPart extends Part implements IStatusbarService {
 
@@ -178,54 +179,8 @@ class StatusBarEntryItem implements IStatusbarItem {
 			textContainer = document.createElement('span');
 		}
 
-		// Text Value with support for icons
-		// For example: '${zap} Power is ${zap} on'
-		let textBuffer = '';
-		let iconBuffer = '';
-		let inPlaceholder = false;
-		let text = this.entry.text || '';
-		for (let i = 0, len = text.length; i < len; i++) {
-
-			// Opening $(...
-			if (text[i] === '$' && text[i + 1] === '(') {
-				inPlaceholder = true;
-				i++; // unread the opening '('
-
-				continue;
-			}
-
-			if (inPlaceholder) {
-
-				// Closing ...)
-				if (text[i] === ')') {
-					if (textBuffer) {
-						textContainer.appendChild(document.createTextNode(textBuffer));
-						textBuffer = '';
-					}
-
-					let iconContainer = document.createElement('span');
-					dom.addClass(iconContainer, `octicon octicon-${iconBuffer}`);
-					textContainer.appendChild(iconContainer);
-
-					iconBuffer = '';
-					inPlaceholder = false;
-				}
-
-				// Icon value
-				else {
-					iconBuffer += text[i];
-				}
-			}
-
-			// Any normal text
-			else {
-				textBuffer += text[i];
-			}
-		}
-
-		if (textBuffer) {
-			textContainer.appendChild(document.createTextNode(textBuffer));
-		}
+		// Label
+		new OcticonLabel(textContainer).text = this.entry.text;
 
 		// Tooltip
 		if (this.entry.tooltip) {
@@ -285,7 +240,7 @@ class StatusBarEntryItem implements IStatusbarItem {
 
 		// Fallback to the keybinding service for any other case
 		else {
-			this.keybindingService.executeCommand(id);
+			this.keybindingService.executeCommand(id).done(undefined, err => this.messageService.show(Severity.Error, toErrorMessage(err)));
 		}
 	}
 }

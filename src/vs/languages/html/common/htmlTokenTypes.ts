@@ -6,9 +6,9 @@
 
 import strings = require('vs/base/common/strings');
 
-export const DELIM_END = 'punctuation.tag.end.html';
-export const DELIM_START = 'punctuation.tag.begin.html';
-export const DELIM_ASSIGN = 'tag.assign.html';
+export const DELIM_END = 'punctuation.definition.meta.tag.end.html';
+export const DELIM_START = 'punctuation.definition.meta.tag.begin.html';
+export const DELIM_ASSIGN = 'meta.tag.assign.html';
 export const ATTRIB_NAME = 'entity.other.attribute-name.html';
 export const ATTRIB_VALUE = 'string.html';
 export const COMMENT = 'comment.html.content';

@@ -4,28 +4,26 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
-
 /**
  * The empty string.
  */
-export var empty = '';
+export const empty = '';
 
 /**
- * Returns the provided number with the given number of preceeding zeros.
+ * @returns the provided number with the given number of preceding zeros.
  */
 export function pad(n: number, l: number, char: string = '0'): string {
-	var str = '' + n;
-	var r = [str];
+	let str = '' + n;
+	let r = [str];
 
-	for (var i = str.length; i < l; i++) {
+	for (let i = str.length; i < l; i++) {
 		r.push(char);
 	}
 
 	return r.reverse().join('');
 }
 
-var _formatRegexp = /{(\d+)}/g;
+const _formatRegexp = /{(\d+)}/g;
 
 /**
  * Helper to produce a string with a variable number of arguments. Insert variable segments
@@ -37,8 +35,8 @@ export function format(value: string, ...args: any[]): string {
 	if (args.length === 0) {
 		return value;
 	}
-	return value.replace(_formatRegexp, function (match, group) {
-		var idx = parseInt(group, 10);
+	return value.replace(_formatRegexp, function(match, group) {
+		let idx = parseInt(group, 10);
 		return isNaN(idx) || idx < 0 || idx >= args.length ?
 			match :
 			args[idx];
@@ -46,57 +44,11 @@ export function format(value: string, ...args: any[]): string {
 }
 
 /**
- * Simple, non-language-aware date formatter.
- */
-export function formatDate(date: Date = new Date()): string {
-	return nls.localize(
-		{
-			key: 'format.date',
-			comment: [
-				'{0} represents the month as a 2 digit number',
-				'{1} represents the day as a 2 digit number',
-				'{2} represents the year as a 4 digit number',
-				'{3} represents the hours as a 2 digit number',
-				'{4} represents the minutes as a 2 digit number',
-				'{5} represents the seconds as a 2 digit number'
-			]
-		},
-		"{0}-{1}-{2} {3}:{4}:{5}",
-		pad(date.getMonth() + 1, 2),
-		pad(date.getDate(), 2),
-		pad(date.getFullYear(), 4),
-		pad(date.getHours(), 2),
-		pad(date.getMinutes(), 2),
-		pad(date.getSeconds(), 2)
-	);
-}
-
-/**
- * Simple, non-language-aware time formatter.
- */
-export function formatTime(date: Date = new Date()): string {
-	return nls.localize(
-		{
-			key: 'format.time',
-			comment: [
-				'{0} represents the hours as a 2 digit number',
-				'{1} represents the minutes as a 2 digit number',
-				'{2} represents the seconds as a 2 digit number'
-			]
-		},
-		"{0}:{1}:{2}",
-		pad(date.getHours(), 2),
-		pad(date.getMinutes(), 2),
-		pad(date.getSeconds(), 2)
-	);
-}
-
-/**
  * Converts HTML characters inside the string to use entities instead. Makes the string safe from
  * being used e.g. in HTMLElement.innerHTML.
  */
 export function escape(html: string): string {
-	return html.replace(/[<|>|&]/g, function (match) {
+	return html.replace(/[<|>|&]/g, function(match) {
 		switch (match) {
 			case '<': return '&lt;';
 			case '>': return '&gt;';
@@ -114,24 +66,24 @@ export function escapeRegExpCharacters(value: string): string {
 }
 
 /**
- * Searches for all occurances of needle in haystack and replaces them with replacement.
+ * Searches for all occurrences of needle in haystack and replaces them with replacement.
  */
 export function replaceAll(haystack: string, needle: string, replacement: string): string {
 	return haystack.replace(new RegExp(escapeRegExpCharacters(needle.toString()), 'g'), replacement);
 }
 
 /**
- * Removes all occurances of needle from the beginning and end of haystack.
+ * Removes all occurrences of needle from the beginning and end of haystack.
  * @param haystack string to trim
  * @param needle the thing to trim (default is a blank)
  */
 export function trim(haystack: string, needle: string = ' '): string {
-	var trimmed = ltrim(haystack, needle);
+	let trimmed = ltrim(haystack, needle);
 	return rtrim(trimmed, needle);
 }
 
 /**
- * Removes all occurances of needle from the beginning of haystack.
+ * Removes all occurrences of needle from the beginning of haystack.
  * @param haystack string to trim
  * @param needle the thing to trim
  */
@@ -140,12 +92,12 @@ export function ltrim(haystack?: string, needle?: string): string {
 		return haystack;
 	}
 
-	var needleLen = needle.length;
+	let needleLen = needle.length;
 	if (needleLen === 0 || haystack.length === 0) {
 		return haystack;
 	}
 
-	var offset = 0,
+	let offset = 0,
 		idx = -1;
 
 	while ((idx = haystack.indexOf(needle, offset)) === offset) {
@@ -155,7 +107,7 @@ export function ltrim(haystack?: string, needle?: string): string {
 }
 
 /**
- * Removes all occurances of needle from the end of haystack.
+ * Removes all occurrences of needle from the end of haystack.
  * @param haystack string to trim
  * @param needle the thing to trim
  */
@@ -164,14 +116,14 @@ export function rtrim(haystack?: string, needle?: string): string {
 		return haystack;
 	}
 
-	var needleLen = needle.length,
+	let needleLen = needle.length,
 		haystackLen = haystack.length;
 
 	if (needleLen === 0 || haystackLen === 0) {
 		return haystack;
 	}
 
-	var offset = haystackLen,
+	let offset = haystackLen,
 		idx = -1;
 
 	while (true) {
@@ -186,13 +138,6 @@ export function rtrim(haystack?: string, needle?: string): string {
 	}
 
 	return haystack.substring(0, offset);
-}
-
-/**
- * Removes all occurances of whitespaces from the beginning and end of haystack.
- */
-export function trimWhitespace(haystack: string): string {
-	return haystack.replace(/(^\s+|\s+$)/g, '');
 }
 
 export function convertSimple2RegExpPattern(pattern: string): string {
@@ -211,7 +156,7 @@ export function startsWith(haystack: string, needle: string): boolean {
 		return false;
 	}
 
-	for (var i = 0; i < needle.length; i++) {
+	for (let i = 0; i < needle.length; i++) {
 		if (haystack[i] !== needle[i]) {
 			return false;
 		}
@@ -224,7 +169,7 @@ export function startsWith(haystack: string, needle: string): boolean {
  * Determines if haystack ends with needle.
  */
 export function endsWith(haystack: string, needle: string): boolean {
-	var diff = haystack.length - needle.length;
+	let diff = haystack.length - needle.length;
 	if (diff > 0) {
 		return haystack.lastIndexOf(needle) === haystack.length - needle.length;
 	} else if (diff === 0) {
@@ -232,10 +177,6 @@ export function endsWith(haystack: string, needle: string): boolean {
 	} else {
 		return false;
 	}
-}
-
-export function splice(haystack: string, offset: number, length: number, value: string = ''): string {
-	return haystack.substring(0, offset) + value + haystack.substring(offset + length);
 }
 
 export function createRegExp(searchString: string, isRegex: boolean, matchCase: boolean, wholeWord: boolean): RegExp {
@@ -253,7 +194,7 @@ export function createRegExp(searchString: string, isRegex: boolean, matchCase: 
 			searchString = searchString + '\\b';
 		}
 	}
-	var modifiers = 'g';
+	let modifiers = 'g';
 	if (!matchCase) {
 		modifiers += 'i';
 	}
@@ -261,11 +202,44 @@ export function createRegExp(searchString: string, isRegex: boolean, matchCase: 
 	return new RegExp(searchString, modifiers);
 }
 
+/**
+ * Create a regular expression only if it is valid and it doesn't lead to endless loop.
+ */
+export function createSafeRegExp(searchString:string, isRegex:boolean, matchCase:boolean, wholeWord:boolean): RegExp {
+		if (searchString === '') {
+			return null;
+		}
+
+		// Try to create a RegExp out of the params
+		var regex:RegExp = null;
+		try {
+			regex = createRegExp(searchString, isRegex, matchCase, wholeWord);
+		} catch (err) {
+			return null;
+		}
+
+		// Guard against endless loop RegExps & wrap around try-catch as very long regexes produce an exception when executed the first time
+		try {
+			if (regExpLeadsToEndlessLoop(regex)) {
+				return null;
+			}
+		} catch (err) {
+			return null;
+		}
+
+		return regex;
+	}
+
 export function regExpLeadsToEndlessLoop(regexp: RegExp): boolean {
+	// Exit early if it's one of these special cases which are meant to match
+	// against an empty string
+	if (regexp.source === "^" || regexp.source === "^$" || regexp.source === "$") {
+		return false;
+	}
+
 	// We check against an empty string. If the regular expression doesn't advance
 	// (e.g. ends in an endless loop) it will match an empty string.
-
-	var match = regexp.exec('');
+	let match = regexp.exec('');
 	return (match && <any>regexp.lastIndex === 0);
 }
 
@@ -273,10 +247,11 @@ export function regExpLeadsToEndlessLoop(regexp: RegExp): boolean {
  * The normalize() method returns the Unicode Normalization Form of a given string. The form will be
  * the Normalization Form Canonical Composition.
  *
- * See: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/normalize
+ * @see {@link https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/normalize}
  */
-export var canNormalize = typeof ((<any>'').normalize) === 'function';
-export function normalizeNFC(str: string, cache?:{[str: string]: string}): string {
+export let canNormalize = typeof ((<any>'').normalize) === 'function';
+const nonAsciiCharactersPattern = /[^\u0000-\u0080]/;
+export function normalizeNFC(str: string, cache?: { [str: string]: string }): string {
 	if (!canNormalize || !str) {
 		return str;
 	}
@@ -285,29 +260,18 @@ export function normalizeNFC(str: string, cache?:{[str: string]: string}): strin
 		return cache[str];
 	}
 
-	var res = (<any>str).normalize('NFC');
+	let res: string;
+	if (nonAsciiCharactersPattern.test(str)) {
+		res = (<any>str).normalize('NFC');
+	} else {
+		res = str;
+	}
 
 	if (cache) {
 		cache[str] = res;
 	}
 
 	return res;
-}
-
-export function encodeURIPart(haystack: string, keepSlashes?: boolean): string {
-	if (!haystack) {
-		return haystack;
-	}
-
-	if (!keepSlashes) {
-		return encodeURIComponent(haystack);
-	} else {
-		var parts = haystack.split('/');
-		for (var i = 0, len = parts.length; i < len; i++) {
-			parts[i] = encodeURIComponent(parts[i]);
-		}
-		return parts.join('/');
-	}
 }
 
 export function isCamelCasePattern(pattern: string): boolean {
@@ -336,21 +300,6 @@ export function assertRegExp(pattern: string, modifiers: string): void {
 	}
 }
 
-export function normalizePath(path?: string): string {
-
-	// No path provided, assume root
-	if (!path) {
-		return '';
-	}
-
-	// Paths must not start with a slash because they are always relative to the workspace root
-	if (path.indexOf('/') === 0) {
-		path = path.substring(1);
-	}
-
-	return encodeURIPart(path, true);
-}
-
 export function colorize(code: number, value: string): string {
 	return '\x1b[' + code + 'm' + value + '\x1b[0m';
 };
@@ -360,7 +309,7 @@ export function colorize(code: number, value: string): string {
  * If string is empty or contains only whitespaces, returns -1
  */
 export function firstNonWhitespaceIndex(str: string): number {
-	for (var i = 0, len = str.length; i < len; i++) {
+	for (let i = 0, len = str.length; i < len; i++) {
 		if (str.charAt(i) !== ' ' && str.charAt(i) !== '\t') {
 			return i;
 		}
@@ -373,7 +322,7 @@ export function firstNonWhitespaceIndex(str: string): number {
  * If the string contains only whitespaces, returns entire string
  */
 export function getLeadingWhitespace(str: string): string {
-	for (var i = 0, len = str.length; i < len; i++) {
+	for (let i = 0, len = str.length; i < len; i++) {
 		if (str.charAt(i) !== ' ' && str.charAt(i) !== '\t') {
 			return str.substring(0, i);
 		}
@@ -386,7 +335,7 @@ export function getLeadingWhitespace(str: string): string {
  * If string is empty or contains only whitespaces, returns -1
  */
 export function lastNonWhitespaceIndex(str: string): number {
-	for (var i = str.length - 1; i >= 0; i--) {
+	for (let i = str.length - 1; i >= 0; i--) {
 		if (str.charAt(i) !== ' ' && str.charAt(i) !== '\t') {
 			return i;
 		}
@@ -404,23 +353,23 @@ function isAsciiChar(code: number): boolean {
 
 export function equalsIgnoreCase(a: string, b: string): boolean {
 
-	var len1 = a.length,
+	let len1 = a.length,
 		len2 = b.length;
 
 	if (len1 !== len2) {
 		return false;
 	}
 
-	for (var i = 0; i < len1; i++) {
+	for (let i = 0; i < len1; i++) {
 
-		var codeA = a.charCodeAt(i),
+		let codeA = a.charCodeAt(i),
 			codeB = b.charCodeAt(i);
 
 		if (codeA === codeB) {
 			continue;
 
 		} else if (isAsciiChar(codeA) && isAsciiChar(codeB)) {
-			var diff = Math.abs(codeA - codeB);
+			let diff = Math.abs(codeA - codeB);
 			if (diff !== 0 && diff !== 32) {
 				return false;
 			}
@@ -435,11 +384,11 @@ export function equalsIgnoreCase(a: string, b: string): boolean {
 }
 
 /**
- * Returns the length of the common prefix of the two strings.
+ * @returns the length of the common prefix of the two strings.
  */
 export function commonPrefixLength(a: string, b: string): number {
 
-	var i: number,
+	let i: number,
 		len = Math.min(a.length, b.length);
 
 	for (i = 0; i < len; i++) {
@@ -452,15 +401,15 @@ export function commonPrefixLength(a: string, b: string): number {
 }
 
 /**
- * Returns the length of the common suffix of the two strings.
+ * @returns the length of the common suffix of the two strings.
  */
 export function commonSuffixLength(a: string, b: string): number {
 
-	var i: number,
+	let i: number,
 		len = Math.min(a.length, b.length);
 
-	var aLastIndex = a.length - 1;
-	var bLastIndex = b.length - 1;
+	let aLastIndex = a.length - 1;
+	let bLastIndex = b.length - 1;
 
 	for (i = 0; i < len; i++) {
 		if (a.charCodeAt(aLastIndex - i) !== b.charCodeAt(bLastIndex - i)) {
@@ -477,9 +426,9 @@ export function commonSuffixLength(a: string, b: string): number {
 // Code points U+0000 to U+D7FF and U+E000 to U+FFFF are represented on a single character
 // Code points U+10000 to U+10FFFF are represented on two consecutive characters
 //export function getUnicodePoint(str:string, index:number, len:number):number {
-//	var chrCode = str.charCodeAt(index);
+//	let chrCode = str.charCodeAt(index);
 //	if (0xD800 <= chrCode && chrCode <= 0xDBFF && index + 1 < len) {
-//		var nextChrCode = str.charCodeAt(index + 1);
+//		let nextChrCode = str.charCodeAt(index + 1);
 //		if (0xDC00 <= nextChrCode && nextChrCode <= 0xDFFF) {
 //			return (chrCode - 0xD800) << 10 + (nextChrCode - 0xDC00) + 0x10000;
 //		}
@@ -487,14 +436,60 @@ export function commonSuffixLength(a: string, b: string): number {
 //	return chrCode;
 //}
 //export function isLeadSurrogate(chr:string) {
-//	var chrCode = chr.charCodeAt(0);
+//	let chrCode = chr.charCodeAt(0);
 //	return ;
 //}
 //
 //export function isTrailSurrogate(chr:string) {
-//	var chrCode = chr.charCodeAt(0);
+//	let chrCode = chr.charCodeAt(0);
 //	return 0xDC00 <= chrCode && chrCode <= 0xDFFF;
 //}
+
+export function isFullWidthCharacter(charCode:number): boolean {
+	// Do a cheap trick to better support wrapping of wide characters, treat them as 2 columns
+	// http://jrgraphix.net/research/unicode_blocks.php
+	//          2E80 — 2EFF   CJK Radicals Supplement
+	//          2F00 — 2FDF   Kangxi Radicals
+	//          2FF0 — 2FFF   Ideographic Description Characters
+	//          3000 — 303F   CJK Symbols and Punctuation
+	//          3040 — 309F   Hiragana
+	//          30A0 — 30FF   Katakana
+	//          3100 — 312F   Bopomofo
+	//          3130 — 318F   Hangul Compatibility Jamo
+	//          3190 — 319F   Kanbun
+	//          31A0 — 31BF   Bopomofo Extended
+	//          31F0 — 31FF   Katakana Phonetic Extensions
+	//          3200 — 32FF   Enclosed CJK Letters and Months
+	//          3300 — 33FF   CJK Compatibility
+	//          3400 — 4DBF   CJK Unified Ideographs Extension A
+	//          4DC0 — 4DFF   Yijing Hexagram Symbols
+	//          4E00 — 9FFF   CJK Unified Ideographs
+	//          A000 — A48F   Yi Syllables
+	//          A490 — A4CF   Yi Radicals
+	//          AC00 — D7AF   Hangul Syllables
+	// [IGNORE] D800 — DB7F   High Surrogates
+	// [IGNORE] DB80 — DBFF   High Private Use Surrogates
+	// [IGNORE] DC00 — DFFF   Low Surrogates
+	// [IGNORE] E000 — F8FF   Private Use Area
+	//          F900 — FAFF   CJK Compatibility Ideographs
+	// [IGNORE] FB00 — FB4F   Alphabetic Presentation Forms
+	// [IGNORE] FB50 — FDFF   Arabic Presentation Forms-A
+	// [IGNORE] FE00 — FE0F   Variation Selectors
+	// [IGNORE] FE20 — FE2F   Combining Half Marks
+	// [IGNORE] FE30 — FE4F   CJK Compatibility Forms
+	// [IGNORE] FE50 — FE6F   Small Form Variants
+	// [IGNORE] FE70 — FEFF   Arabic Presentation Forms-B
+	//          FF00 — FFEF   Halfwidth and Fullwidth Forms
+	//               [https://en.wikipedia.org/wiki/Halfwidth_and_fullwidth_forms]
+	//               of which FF01 - FF5E fullwidth ASCII of 21 to 7E
+	// [IGNORE]    and FF65 - FFDC halfwidth of Katakana and Hangul
+	// [IGNORE] FFF0 — FFFF   Specials
+	return (
+		(charCode >= 0x2E80 && charCode <= 0xD7AF)
+		|| (charCode >= 0xF900 && charCode <= 0xFAFF)
+		|| (charCode >= 0xFF01 && charCode <= 0xFF5E)
+	);
+}
 
 /**
  * Computes the difference score for two strings. More similar strings have a higher score.
@@ -507,15 +502,15 @@ export function commonSuffixLength(a: string, b: string): number {
  * @param second a string
  */
 export function difference(first: string, second: string, maxLenDelta: number = 4): number {
-	var lengthDifference = Math.abs(first.length - second.length);
+	let lengthDifference = Math.abs(first.length - second.length);
 	// We only compute score if length of the currentWord and length of entry.name are similar.
 	if (lengthDifference > maxLenDelta) {
 		return 0;
 	}
-	// Initiliaze LCS (largest common subsequence) matrix.
-	var LCS: number[][] = [];
-	var zeroArray: number[] = [];
-	var i: number, j: number;
+	// Initialize LCS (largest common subsequence) matrix.
+	let LCS: number[][] = [];
+	let zeroArray: number[] = [];
+	let i: number, j: number;
 	for (i = 0; i < second.length + 1; ++i) {
 		zeroArray.push(0);
 	}
@@ -539,7 +534,7 @@ export function difference(first: string, second: string, maxLenDelta: number = 
  * line. There is always one entry which is zero.
  */
 export function computeLineStarts(text: string): number[] {
-	var regexp = /\r\n|\r|\n/g,
+	let regexp = /\r\n|\r|\n/g,
 		ret: number[] = [0],
 		match: RegExpExecArray;
 	while ((match = regexp.exec(text))) {
@@ -558,10 +553,10 @@ export function lcut(text: string, n: number): string {
 		return text;
 	}
 
-	var segments = text.split(/\b/),
+	let segments = text.split(/\b/),
 		count = 0;
 
-	for (var i = segments.length - 1; i >= 0; i--) {
+	for (let i = segments.length - 1; i >= 0; i--) {
 		count += segments[i].length;
 
 		if (count > n) {
@@ -575,10 +570,10 @@ export function lcut(text: string, n: number): string {
 
 // Escape codes
 // http://en.wikipedia.org/wiki/ANSI_escape_code
-var EL = /\x1B\x5B[12]?K/g; // Erase in line
-var LF = /\xA/g; // line feed
-var COLOR_START = /\x1b\[\d+m/g; // Color
-var COLOR_END = /\x1b\[0?m/g; // Color
+const EL = /\x1B\x5B[12]?K/g; // Erase in line
+const LF = /\xA/g; // line feed
+const COLOR_START = /\x1b\[\d+m/g; // Color
+const COLOR_END = /\x1b\[0?m/g; // Color
 
 export function removeAnsiEscapeCodes(str: string): string {
 	if (str) {
@@ -593,9 +588,9 @@ export function removeAnsiEscapeCodes(str: string): string {
 
 // -- UTF-8 BOM
 
-var __utf8_bom = 65279;
+const __utf8_bom = 65279;
 
-export var UTF8_BOM_CHARACTER = String.fromCharCode(__utf8_bom);
+export const UTF8_BOM_CHARACTER = String.fromCharCode(__utf8_bom);
 
 export function startsWithUTF8BOM(str: string): boolean {
 	return (str && str.length > 0 && str.charCodeAt(0) === __utf8_bom);

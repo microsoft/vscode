@@ -25,7 +25,7 @@ import {IKeybindingService, IKeybindingContextKey} from 'vs/platform/keybinding/
 import {IEventService} from 'vs/platform/event/common/event';
 import {IEditorService} from 'vs/platform/editor/common/editor';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
-import {RenameRegistry} from '../common/rename';
+import {RenameRegistry, rename} from '../common/rename';
 
 export class RenameAction extends EditorAction {
 
@@ -145,42 +145,12 @@ export class RenameAction extends EditorAction {
 
 		// start recording of file changes so that we can figure out if a file that
 		// is to be renamed conflicts with another (concurrent) modification
-		let sourceModel = this.editor.getModel().getAssociatedResource();
-		let sourceSelections = this.editor.getSelections();
+		let edit = createBulkEdit(this._eventService, this._editorService, <EditorBrowser.ICodeEditor>this.editor);
 
-		let supports = RenameRegistry.ordered(this.editor.getModel());
-		let hasResult = false;
-		let rejects: string[] = [];
-
-		let factory = supports.map(support => {
-			return () => {
-				if (!hasResult) {
-					return support.rename(sourceModel, this.editor.getPosition(), newName).then(result => {
-						if (!result) {
-							// ignore
-						} else if (!result.rejectReason) {
-							hasResult = true;
-							return result;
-						} else {
-							rejects.push(result.rejectReason);
-						}
-					});
-				}
-			};
-		});
-
-		let edit = createBulkEdit(this._eventService, this._editorService,
-			<EditorBrowser.ICodeEditor>this.editor);
-
-		return sequence(factory).then(values => {
-
-			let result = values[0];
-			if (rejects.length > 0) {
-				return TPromise.wrapError(rejects.join('\n'));
-			} else if (!result) {
-				return TPromise.wrapError(nls.localize('no result', "No result."));
+		return rename(this.editor.getModel(), this.editor.getPosition(), newName).then(result => {
+			if (result.rejectReason) {
+				return TPromise.wrapError(result.rejectReason);
 			}
-
 			edit.add(result.edits);
 			return edit;
 		});

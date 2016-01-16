@@ -29,13 +29,19 @@ class InsertCursorBelow extends HandlerEditorAction {
 
 
 // register actions
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(InsertCursorAbove, InsertCursorAbove.ID, nls.localize('mutlicursor.insertAbove', "Insert Cursor Above"), {
+CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(InsertCursorAbove, InsertCursorAbove.ID, nls.localize('mutlicursor.insertAbove', "Add Cursor Above"), {
 	context: ContextKey.EditorTextFocus,
 	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.UpArrow,
-	linux: { primary: KeyMod.CtrlCmd| KeyMod.WinCtrl | KeyCode.UpArrow }
+	linux: {
+		primary: KeyMod.Shift | KeyMod.Alt | KeyCode.UpArrow,
+		secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.UpArrow]
+	}
 }));
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(InsertCursorBelow, InsertCursorBelow.ID, nls.localize('mutlicursor.insertBelow', "Insert Cursor Below"), {
+CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(InsertCursorBelow, InsertCursorBelow.ID, nls.localize('mutlicursor.insertBelow', "Add Cursor Below"), {
 	context: ContextKey.EditorTextFocus,
 	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.DownArrow,
-	linux: { primary: KeyMod.CtrlCmd| KeyMod.WinCtrl | KeyCode.DownArrow }
+	linux: {
+		primary: KeyMod.Shift | KeyMod.Alt | KeyCode.DownArrow,
+		secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.DownArrow]
+	}
 }));

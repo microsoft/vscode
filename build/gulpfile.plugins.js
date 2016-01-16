@@ -21,6 +21,7 @@ var glob = require('glob');
 var fs = require('fs');
 var JSONC = require('json-comments');
 
+var quiet = !!process.env['VSCODE_BUILD_QUIET'];
 var extensionsPath = path.join(path.dirname(__dirname), 'extensions');
 
 function getTSConfig(plugin) {
@@ -32,20 +33,24 @@ function getTSConfig(plugin) {
 	}
 
 	var pluginRoot = path.join(extensionsPath, plugin.desc.name);
+	var options = null;
 
 	if (match[2]) {
-		return path.join(pluginRoot, match[2]);
+		options = require(path.join(pluginRoot, match[2])).compilerOptions;
+	} else {
+		options = {
+			noLib: true,
+			target: 'ES5',
+			module: 'amd',
+			declaration: false,
+			sourceMap: true,
+			rootDir: path.join(pluginRoot, 'src'),
+			sourceRoot: util.toFileUri(path.join(pluginRoot, 'src'))
+		};
 	}
 
-	return {
-		noLib: true,
-		target: 'ES5',
-		module: 'amd',
-		declaration: false,
-		sourceMap: true,
-		rootDir: path.join(pluginRoot, 'src'),
-		sourceRoot: util.toFileUri(path.join(pluginRoot, 'src'))
-	};
+	options.verbose = !quiet;
+	return options;
 }
 
 function noop() {}
@@ -76,97 +81,77 @@ function readAllPlugins() {
 
 var tasks = readAllPlugins()
 	.map(function (plugin) {
+		var options = getTSConfig(plugin);
+
+		if (!options) {
+			return null;
+		}
+
 		var name = plugin.desc.name;
 		var pluginRoot = path.join(extensionsPath, name);
-
 		var clean = 'clean-plugin:' + name;
 		var compile = 'compile-plugin:' + name;
 		var watch = 'watch-plugin:' + name;
-		var npmInstall = 'npm-install-plugin:' + name;
 
-		var hasnpmTask = (plugin.desc.dependencies && Object.keys(plugin.desc.dependencies).length > 0);
+		var sources = 'extensions/' + name + '/src/**';
+		var deps = [
+			'src/vs/vscode.d.ts',
+			'src/typings/mocha.d.ts',
+			'extensions/declares.d.ts',
+			'extensions/node.d.ts',
+			'extensions/lib.core.d.ts'
+		];
 
-		if (hasnpmTask) {
-			gulp.task(npmInstall, function (cb) {
-				cp.exec('npm install', { cwd: pluginRoot }, cb);
-			});
-		}
+		var pipeline = (function () {
+			var reporter = quiet ? null : createReporter();
+			var compilation = tsb.create(options, null, null, quiet ? null : function (err) { reporter(err.toString()); });
 
-		var options = getTSConfig(plugin);
-		
-		if (options) {
-			var sources = 'extensions/' + name + '/src/**';
-			var deps = [
-				'src/vs/vscode.d.ts',
-				'src/typings/mocha.d.ts',
-				'extensions/declares.d.ts',
-				'extensions/node.d.ts',
-				'extensions/lib.core.d.ts'
-			];
+			return function () {
+				var input = es.through();
+				var tsFilter = filter(['**/*.ts', '!**/lib/lib*.d.ts'], { restore: true });
 
-			var pipeline = (function () {
-				var reporter = createReporter();
-				var compilation = tsb.create(options, true, null, function (err) { reporter(err.toString()); });
+				var output = input
+					.pipe(tsFilter)
+					.pipe(compilation())
+					.pipe(tsFilter.restore)
+					.pipe(quiet ? es.through() : reporter());
 
-				return function () {
-					var input = es.through();
-					var tsFilter = filter(['**/*.ts', '!**/lib/lib*.d.ts'], { restore: true });
+				return es.duplex(input, output);
+			};
+		})();
 
-					var output = input
-						.pipe(tsFilter)
-						.pipe(compilation())
-						.pipe(tsFilter.restore)
-						.pipe(reporter());
+		var sourcesRoot = path.join(pluginRoot, 'src');
+		var sourcesOpts = { cwd: path.dirname(__dirname), base: sourcesRoot };
+		var depsOpts = { cwd: path.dirname(__dirname)	};
 
-					return es.duplex(input, output);
-				};
-			})();
+		gulp.task(clean, function (cb) {
+			rimraf(path.join(pluginRoot, 'out'), cb);
+		});
 
-			var sourcesRoot = path.join(pluginRoot, 'src');
-			var sourcesOpts = { cwd: path.dirname(__dirname), base: sourcesRoot };
-			var depsOpts = { cwd: path.dirname(__dirname)	};
+		gulp.task(compile, [clean], function () {
+			var src = es.merge(gulp.src(sources, sourcesOpts), gulp.src(deps, depsOpts));
 
-			gulp.task(clean, function (cb) {
-				rimraf(path.join(pluginRoot, 'out'), cb);
-			});
+			return src
+				.pipe(pipeline())
+				.pipe(gulp.dest('extensions/' + name + '/out'));
+		});
 
-			gulp.task(compile, hasnpmTask ? [clean, npmInstall] : [clean], function () {
-				var src = es.merge(gulp.src(sources, sourcesOpts), gulp.src(deps, depsOpts));
+		gulp.task(watch, [clean], function () {
+			var src = es.merge(gulp.src(sources, sourcesOpts), gulp.src(deps, depsOpts));
+			var watchSrc = es.merge(watcher(sources, sourcesOpts), watcher(deps, depsOpts));
 
-				return src
-					.pipe(pipeline())
-					.pipe(gulp.dest('extensions/' + name + '/out'));
-			});
-
-			gulp.task(watch, [clean], function () {
-				var src = es.merge(gulp.src(sources, sourcesOpts), gulp.src(deps, depsOpts));
-				var watchSrc = es.merge(watcher(sources, sourcesOpts), watcher(deps, depsOpts));
-
-				return watchSrc
-					.pipe(util.incremental(pipeline, src))
-					.pipe(gulp.dest('extensions/' + name + '/out'));
-			});
-		} else {
-			if (hasnpmTask) {
-				gulp.task(clean, noop);
-				gulp.task(compile, [npmInstall], noop);
-				gulp.task(watch, noop);
-			} else {
-				return null;
-			}
-		}
+			return watchSrc
+				.pipe(util.incremental(pipeline, src))
+				.pipe(gulp.dest('extensions/' + name + '/out'));
+		});
 
 		return {
 			clean: clean,
 			compile: compile,
 			watch: watch
 		};
-	});
-
-// remove null tasks
-tasks = tasks.filter(function(task) {
-	return !!task;
-})
+	})
+	.filter(function(task) { return !!task; });
 
 gulp.task('clean-plugins', tasks.map(function (t) { return t.clean; }));
 gulp.task('compile-plugins', tasks.map(function (t) { return t.compile; }));

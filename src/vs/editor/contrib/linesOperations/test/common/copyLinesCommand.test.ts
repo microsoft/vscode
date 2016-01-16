@@ -107,6 +107,50 @@ suite('Editor Contrib - Copy Lines Command', () => {
 		);
 	});
 
+	test('issue #1322: copy line up', function () {
+		testCopyLinesUpCommand(
+			[
+				'first',
+				'second line',
+				'third line',
+				'fourth line',
+				'fifth'
+			],
+			new Selection(3, 11, 3, 11),
+			[
+				'first',
+				'second line',
+				'third line',
+				'third line',
+				'fourth line',
+				'fifth'
+			],
+			new Selection(3, 11, 3, 11)
+		);
+	});
+
+	test('issue #1322: copy last line up', function () {
+		testCopyLinesUpCommand(
+			[
+				'first',
+				'second line',
+				'third line',
+				'fourth line',
+				'fifth'
+			],
+			new Selection(5, 6, 5, 6),
+			[
+				'first',
+				'second line',
+				'third line',
+				'fourth line',
+				'fifth',
+				'fifth'
+			],
+			new Selection(5, 6, 5, 6)
+		);
+	});
+
 	test('copy many lines up', function () {
 		testCopyLinesUpCommand(
 			[

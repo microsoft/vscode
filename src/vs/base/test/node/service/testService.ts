@@ -13,4 +13,10 @@ export class TestService {
 			outgoing: 'pong'
 		});
 	}
+
+	public cancelMe(): winjs.TPromise<boolean> {
+		return winjs.Promise.timeout(100).then(() => {
+			return true;
+		});
+	}
 }

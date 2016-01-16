@@ -117,7 +117,6 @@ export var language = <ILanguage> {
 		'union',
 		'unsigned',
 		'using',
-		'value',
 		'virtual',
 		'void',
 		'volatile',

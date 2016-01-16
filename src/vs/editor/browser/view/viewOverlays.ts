@@ -216,9 +216,8 @@ export class MarginViewOverlays extends ViewOverlays {
 		this._glyphMarginWidth = 0;
 		this._scrollHeight = layoutProvider.getScrollHeight();
 
-		this.domNode.className = 'margin-view-overlays monaco-editor-background';
+		this.domNode.className = EditorBrowser.ClassNames.MARGIN_VIEW_OVERLAYS + ' monaco-editor-background';
 		DomUtils.StyleMutator.setWidth(this.domNode, 1);
-		this._updateDomNodeHeight();
 		this._hasVerticalScroll = true;
 	}
 
@@ -258,7 +257,6 @@ export class MarginViewOverlays extends ViewOverlays {
 
 		this._requestModificationFrame(() => {
 			DomUtils.StyleMutator.setWidth(this.domNode, layoutInfo.contentLeft);
-			this._updateDomNodeHeight();
 
 			var glyphMargin = this._getGlyphMarginDomNode();
 			if (glyphMargin) {
@@ -288,9 +286,6 @@ export class MarginViewOverlays extends ViewOverlays {
 			}
 			this._hasVerticalScroll = false;
 		}
-	}
-
-	private _updateDomNodeHeight(): void {
 		var height = Math.min(this._layoutProvider.getTotalHeight(), 1000000);
 		DomUtils.StyleMutator.setHeight(this.domNode, height);
 	}

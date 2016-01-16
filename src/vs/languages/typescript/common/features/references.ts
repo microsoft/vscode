@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import network = require('vs/base/common/network');
 import URI from 'vs/base/common/uri';
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
@@ -31,7 +30,7 @@ export function find(project: projectService.IProject, resource: URI, position: 
 		return (includeDecl || !isDeclaration(targetFile, info.textSpan.start));
 	}).map(info => {
 		var r:Modes.IReference = {
-			resource: network.URL.fromValue(info.fileName),
+			resource: URI.parse(info.fileName),
 			range: project.host.getScriptLineMap(info.fileName).getRangeFromSpan(info.textSpan)
 		};
 		return r;

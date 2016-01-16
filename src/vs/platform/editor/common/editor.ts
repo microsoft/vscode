@@ -33,15 +33,12 @@ export interface ITextEditorModel extends IEditorModel {
 	textEditorModel: any;
 }
 
-export interface IResourceInput extends ITextInput {
+export interface IResourceInput {
 
 	/**
 	 * The resource URL of the resource to open.
 	 */
 	resource: URI;
-}
-
-export interface ITextInput {
 
 	/**
 	 * The mime type of the text input if known.

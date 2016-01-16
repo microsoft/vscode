@@ -15,10 +15,9 @@ import Strings = require('vs/base/common/strings');
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
 import Filters = require('vs/base/common/filters');
-import QuickOpenCommon = require('vs/base/parts/quickopen/browser/quickOpen');
 import QuickOpenWidget = require('vs/base/parts/quickopen/browser/quickOpenWidget');
 import QuickOpenModel = require('vs/base/parts/quickopen/browser/quickOpenModel');
-import QuickOpen = require('vs/base/parts/quickopen/browser/quickOpen');
+import QuickOpen = require('vs/base/parts/quickopen/common/quickOpen');
 import EditorQuickOpen = require('./editorQuickOpen');
 import {Behaviour} from 'vs/editor/common/editorAction';
 import {INullService} from 'vs/platform/instantiation/common/instantiation';
@@ -27,18 +26,16 @@ var SCOPE_PREFIX = ':';
 
 class SymbolEntry extends QuickOpenModel.QuickOpenEntryGroup {
 	private name:string;
-	private meta:string;
 	private type: string;
 	private description: string;
 	private range:EditorCommon.IRange;
 	private editor:EditorCommon.ICommonCodeEditor;
 	private decorator:EditorQuickOpen.IDecorator;
 
-	constructor(name:string, meta:string, type:string, description:string, range:EditorCommon.IRange, highlights:QuickOpenModel.IHighlight[], editor:EditorCommon.ICommonCodeEditor, decorator:EditorQuickOpen.IDecorator) {
+	constructor(name:string, type:string, description:string, range:EditorCommon.IRange, highlights:QuickOpenModel.IHighlight[], editor:EditorCommon.ICommonCodeEditor, decorator:EditorQuickOpen.IDecorator) {
 		super();
 
 		this.name = name;
-		this.meta = meta;
 		this.type = type;
 		this.description = description;
 		this.range = range;
@@ -49,10 +46,6 @@ class SymbolEntry extends QuickOpenModel.QuickOpenEntryGroup {
 
 	public getLabel():string {
 		return this.name;
-	}
-
-	public getMeta():string {
-		return this.meta;
 	}
 
 	public getIcon():string {
@@ -71,8 +64,8 @@ class SymbolEntry extends QuickOpenModel.QuickOpenEntryGroup {
 		return this.range;
 	}
 
-	public run(mode:QuickOpenCommon.Mode, context:QuickOpenModel.IContext):boolean {
-		if (mode === QuickOpenCommon.Mode.OPEN) {
+	public run(mode:QuickOpen.Mode, context:QuickOpenModel.IContext):boolean {
+		if (mode === QuickOpen.Mode.OPEN) {
 			return this.runOpen(context);
 		}
 
@@ -211,18 +204,6 @@ export class QuickOutlineAction extends EditorQuickOpen.BaseEditorQuickOpenActio
 		for (var i = 0; i < flattened.length; i++) {
 			var element = flattened[i];
 			var label = Strings.trim(element.label);
-			var meta:string = null;
-
-			// Parse out parameters from method/function if present
-			if (element.type === 'method' || element.type === 'function') {
-				var indexOf = label.indexOf('(');
-				if (indexOf > 0) {
-					meta = label.substr(indexOf);
-					label = label.substr(0, indexOf);
-				} else {
-					meta = '()'; // otherwise make clear this is a method by adding ()
-				}
-			}
 
 			// Check for meatch
 			var highlights = Filters.matchesFuzzy(normalizedSearchValue, label);
@@ -235,7 +216,7 @@ export class QuickOutlineAction extends EditorQuickOpen.BaseEditorQuickOpenActio
 				}
 
 				// Add
-				results.push(new SymbolEntry(label, meta, element.type, description, element.range, highlights, this.editor, this));
+				results.push(new SymbolEntry(label, element.type, description, element.range, highlights, this.editor, this));
 			}
 		}
 

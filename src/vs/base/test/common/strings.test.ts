@@ -81,17 +81,6 @@ suite('Strings', () => {
 		assert.strictEqual(strings.escape("<foo>Hello</foo>"), "&lt;foo&gt;Hello&lt;/foo&gt;");
 	});
 
-
-	test("formatDate", function () {
-		assert(strings.formatDate());
-		assert(strings.formatDate(new Date()));
-	});
-
-	test("formatTime", function () {
-		assert(strings.formatTime());
-		assert(strings.formatTime(new Date()));
-	});
-
 	test("startsWith", function () {
 		assert(strings.startsWith("foo", "f"));
 		assert(strings.startsWith("foo", "fo"));
@@ -100,13 +89,6 @@ suite('Strings', () => {
 		assert(!strings.startsWith("", "f"));
 		assert(strings.startsWith("foo", ""));
 		assert(strings.startsWith("", ""));
-	});
-
-	test("splice", function () {
-		assert.equal(strings.splice('boo', 1, 2, 'far'), 'bfar');
-		assert.equal(strings.splice('boo', 0, 2), 'o');
-		assert.equal(strings.splice('boo', 0, 3, 'far'), 'far');
-		assert.equal(strings.splice('boo', 3, 0, 'far'), 'boofar');
 	});
 
 	test("endsWith", function () {
@@ -156,20 +138,12 @@ suite('Strings', () => {
 	});
 
 	test("trimWhitespace", function () {
-		assert.strictEqual(strings.trimWhitespace(" foo "), "foo");
-		assert.strictEqual(strings.trimWhitespace("	 foo	"), "foo");
-		assert.strictEqual(strings.trimWhitespace("  foo"), "foo");
-		assert.strictEqual(strings.trimWhitespace("bar  "), "bar");
-		assert.strictEqual(strings.trimWhitespace("   "), "");
-		assert.strictEqual(strings.trimWhitespace(" 	  "), "");
-	});
-
-	test("uri encode with slashes", function () {
-		var str = strings.encodeURIPart("hello &/ world");
-		assert.strictEqual(str, "hello%20%26%2F%20world");
-
-		str = strings.encodeURIPart("hello &/ world", true);
-		assert.strictEqual(str, "hello%20%26/%20world");
+		assert.strictEqual(" foo ".trim(), "foo");
+		assert.strictEqual("	 foo	".trim(), "foo");
+		assert.strictEqual("  foo".trim(), "foo");
+		assert.strictEqual("bar  ".trim(), "bar");
+		assert.strictEqual("   ".trim(), "");
+		assert.strictEqual(" 	  ".trim(), "");
 	});
 
 	test("localeCompare", function() {

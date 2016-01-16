@@ -5,92 +5,94 @@
 'use strict';
 
 import 'vs/css!./findInput';
-import nls = require('vs/nls');
-import Builder = require('vs/base/browser/builder');
-import mouse = require('vs/base/browser/mouseEvent');
-import keyboard = require('vs/base/browser/keyboardEvent');
-import InputBox = require('vs/base/browser/ui/inputbox/inputBox');
-import Checkbox = require('vs/base/browser/ui/checkbox/checkbox');
-import ContextView = require('vs/base/browser/ui/contextview/contextview');
 
-var $ = Builder.$;
+import * as nls from 'vs/nls';
+import * as dom from 'vs/base/browser/dom';
+import {IMessage as InputBoxMessage, IInputValidator, InputBox} from 'vs/base/browser/ui/inputbox/inputBox';
+import {Checkbox} from 'vs/base/browser/ui/checkbox/checkbox';
+import {IContextViewProvider} from 'vs/base/browser/ui/contextview/contextview';
+import {Widget} from 'vs/base/browser/ui/widget';
+import Event, {Emitter} from 'vs/base/common/event';
+import {StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
+import {StandardMouseEvent} from 'vs/base/browser/mouseEvent';
 
-export interface IOptions {
+export interface IFindInputOptions {
 	placeholder?:string;
 	width?:number;
-	validation?:InputBox.IInputValidator;
+	validation?:IInputValidator;
 	label:string;
+
+	appendCaseSensitiveLabel?: string;
+	appendWholeWordsLabel?: string;
+	appendRegexLabel?: string;
 }
 
-export class FindInput {
+export interface IMatchCountState {
+	count: string;
+	isVisible: boolean;
+	title: string;
+}
+
+const NLS_REGEX_CHECKBOX_LABEL = nls.localize('regexDescription', "Use Regular Expression");
+const NLS_WHOLE_WORD_CHECKBOX_LABEL = nls.localize('wordsDescription', "Match Whole Word");
+const NLS_CASE_SENSITIVE_CHECKBOX_LABEL = nls.localize('caseDescription', "Match Case");
+const NLS_DEFAULT_LABEL = nls.localize('defaultLabel', "input");
+
+export class FindInput extends Widget {
 
 	static OPTION_CHANGE:string = 'optionChange';
 
-	private contextViewProvider: ContextView.IContextViewProvider;
-	private onOptionChange:(event:Event)=>void;
+	private contextViewProvider: IContextViewProvider;
 	private width:number;
 	private placeholder:string;
-	private validation:InputBox.IInputValidator;
+	private validation:IInputValidator;
 	private label:string;
 
-	private listenersToRemove:{():void;}[];
-	private regex:Checkbox.Checkbox;
-	private wholeWords:Checkbox.Checkbox;
-	private caseSensitive:Checkbox.Checkbox;
+	private regex:Checkbox;
+	private wholeWords:Checkbox;
+	private caseSensitive:Checkbox;
+	private matchCount: MatchCount;
 	public domNode: HTMLElement;
-	public validationNode: Builder.Builder;
-	private inputNode:HTMLInputElement;
-	private inputBox:InputBox.InputBox;
+	public inputBox:InputBox;
 
-	constructor(parent:HTMLElement, contextViewProvider: ContextView.IContextViewProvider, options?:IOptions) {
+	private _onDidOptionChange = this._register(new Emitter<void>());
+	public onDidOptionChange: Event<void> = this._onDidOptionChange.event;
+
+	private _onKeyDown = this._register(new Emitter<StandardKeyboardEvent>());
+	public onKeyDown: Event<StandardKeyboardEvent> = this._onKeyDown.event;
+
+	private _onKeyUp = this._register(new Emitter<StandardKeyboardEvent>());
+	public onKeyUp: Event<StandardKeyboardEvent> = this._onKeyUp.event;
+
+	private _onCaseSensitiveKeyDown = this._register(new Emitter<StandardKeyboardEvent>());
+	public onCaseSensitiveKeyDown: Event<StandardKeyboardEvent> = this._onCaseSensitiveKeyDown.event;
+
+	constructor(parent:HTMLElement, contextViewProvider: IContextViewProvider, options?:IFindInputOptions) {
+		super();
 		this.contextViewProvider = contextViewProvider;
-		this.onOptionChange = null;
 		this.width = options.width || 100;
 		this.placeholder = options.placeholder || '';
 		this.validation = options.validation;
-		this.label = options.label || nls.localize('defaultLabel', "input");
+		this.label = options.label || NLS_DEFAULT_LABEL;
 
-		this.listenersToRemove = [];
 		this.regex = null;
 		this.wholeWords = null;
 		this.caseSensitive = null;
 		this.domNode = null;
-		this.inputNode = null;
 		this.inputBox = null;
-		this.validationNode = null;
 
-		this.buildDomNode();
+		this.buildDomNode(options.appendCaseSensitiveLabel || '', options.appendWholeWordsLabel || '', options.appendRegexLabel || '');
 
 		if(Boolean(parent)) {
 			parent.appendChild(this.domNode);
 		}
-	}
 
-	public destroy(): void {
-		this.regex.destroy();
-		this.wholeWords.destroy();
-		this.caseSensitive.destroy();
-		this.listenersToRemove.forEach((element) => {
-			element();
-		});
-		this.listenersToRemove = [];
-	}
-
-	public on(eventType:string, handler:(event:Event)=>void): FindInput {
-		switch(eventType) {
-			case 'keydown':
-			case 'keyup':
-				$(this.inputBox.inputElement).on(eventType, handler);
-				break;
-			case FindInput.OPTION_CHANGE:
-				this.onOptionChange = handler;
-				break;
-		}
-		return this;
+		this.onkeydown(this.inputBox.inputElement, (e) => this._onKeyDown.fire(e));
+		this.onkeyup(this.inputBox.inputElement, (e) => this._onKeyUp.fire(e));
 	}
 
 	public enable(): void {
-		$(this.domNode).removeClass('disabled');
+		dom.removeClass(this.domNode, 'disabled');
 		this.inputBox.enable();
 		this.regex.enable();
 		this.wholeWords.enable();
@@ -98,11 +100,19 @@ export class FindInput {
 	}
 
 	public disable(): void {
-		$(this.domNode).addClass('disabled');
+		dom.addClass(this.domNode, 'disabled');
 		this.inputBox.disable();
 		this.regex.disable();
 		this.wholeWords.disable();
 		this.caseSensitive.disable();
+	}
+
+	public setEnabled(enabled:boolean): void {
+		if (enabled) {
+			this.enable();
+		} else {
+			this.disable();
+		}
 	}
 
 	public clear(): void {
@@ -128,6 +138,11 @@ export class FindInput {
 		}
 	}
 
+	public setMatchCountState(state:IMatchCountState): void {
+		this.matchCount.setState(state);
+		this.setInputWidth();
+	}
+
 	public select(): void {
 		this.inputBox.select();
 	}
@@ -137,29 +152,29 @@ export class FindInput {
 	}
 
 	public getCaseSensitive():boolean {
-		return this.caseSensitive.isChecked;
+		return this.caseSensitive.checked;
 	}
 
 	public setCaseSensitive(value:boolean): void {
-		this.caseSensitive.setChecked(value);
+		this.caseSensitive.checked = value;
 		this.setInputWidth();
 	}
 
 	public getWholeWords():boolean {
-		return this.wholeWords.isChecked;
+		return this.wholeWords.checked;
 	}
 
 	public setWholeWords(value:boolean): void {
-		this.wholeWords.setChecked(value);
+		this.wholeWords.checked = value;
 		this.setInputWidth();
 	}
 
 	public getRegex():boolean {
-		return this.regex.isChecked;
+		return this.regex.checked;
 	}
 
 	public setRegex(value:boolean): void {
-		this.regex.setChecked(value);
+		this.regex.checked = value;
 		this.setInputWidth();
 	}
 
@@ -168,46 +183,72 @@ export class FindInput {
 	}
 
 	private setInputWidth(): void {
-		var w = this.width - this.caseSensitive.width() - this.wholeWords.width() - this.regex.width();
+		let w = this.width - this.matchCount.width() - this.caseSensitive.width() - this.wholeWords.width() - this.regex.width();
 		this.inputBox.width = w;
 	}
 
-	private buildDomNode(): void {
+	private buildDomNode(appendCaseSensitiveLabel:string, appendWholeWordsLabel: string, appendRegexLabel: string): void {
 		this.domNode = document.createElement('div');
 		this.domNode.style.width = this.width + 'px';
-		$(this.domNode).addClass('monaco-findInput');
+		dom.addClass(this.domNode, 'monaco-findInput');
 
-		this.inputBox = new InputBox.InputBox(this.domNode, this.contextViewProvider, {
+		this.inputBox = this._register(new InputBox(this.domNode, this.contextViewProvider, {
 			placeholder: this.placeholder || '',
 			ariaLabel: this.label || '',
 			validationOptions: {
 				validation: this.validation || null,
 				showMessage: true
 			}
-		});
+		}));
 
-		this.regex = new Checkbox.Checkbox('regex', nls.localize('regexDescription', "Use Regular Expression"), false, () => {
-			this.onOptionChange(null);
-			this.inputBox.focus();
-			this.setInputWidth();
-			this.validate();
-		});
-		this.wholeWords = new Checkbox.Checkbox('whole-word', nls.localize('wordsDescription', "Match Whole Word"), false, () => {
-			this.onOptionChange(null);
-			this.inputBox.focus();
-			this.setInputWidth();
-			this.validate();
-		});
-		this.caseSensitive = new Checkbox.Checkbox('case-sensitive', nls.localize('caseDescription', "Match Case"), false, () => {
-			this.onOptionChange(null);
-			this.inputBox.focus();
-			this.setInputWidth();
-			this.validate();
-		});
+		this.regex = this._register(new Checkbox({
+			actionClassName: 'regex',
+			title: NLS_REGEX_CHECKBOX_LABEL + appendRegexLabel,
+			isChecked: false,
+			onChange: () => {
+				this._onDidOptionChange.fire();
+				this.inputBox.focus();
+				this.setInputWidth();
+				this.validate();
+			}
+		}));
+		this.wholeWords = this._register(new Checkbox({
+			actionClassName: 'whole-word',
+			title: NLS_WHOLE_WORD_CHECKBOX_LABEL + appendWholeWordsLabel,
+			isChecked: false,
+			onChange: () => {
+				this._onDidOptionChange.fire();
+				this.inputBox.focus();
+				this.setInputWidth();
+				this.validate();
+			}
+		}));
+		this.caseSensitive = this._register(new Checkbox({
+			actionClassName: 'case-sensitive',
+			title: NLS_CASE_SENSITIVE_CHECKBOX_LABEL + appendCaseSensitiveLabel,
+			isChecked: false,
+			onChange: () => {
+				this._onDidOptionChange.fire();
+				this.inputBox.focus();
+				this.setInputWidth();
+				this.validate();
+			},
+			onKeyDown: (e) => {
+				this._onCaseSensitiveKeyDown.fire(e);
+			}
+		}));
+		this.matchCount = this._register(new MatchCount({
+			onClick: (e) => {
+				this.inputBox.focus();
+				e.preventDefault();
+			}
+		}));
+
 		this.setInputWidth();
 
-		var controls = document.createElement('div');
+		let controls = document.createElement('div');
 		controls.className = 'controls';
+		controls.appendChild(this.matchCount.domNode);
 		controls.appendChild(this.caseSensitive.domNode);
 		controls.appendChild(this.wholeWords.domNode);
 		controls.appendChild(this.regex.domNode);
@@ -219,7 +260,7 @@ export class FindInput {
 		this.inputBox.validate();
 	}
 
-	public showMessage(message: InputBox.IMessage): void {
+	public showMessage(message: InputBoxMessage): void {
 		this.inputBox.showMessage(message);
 	}
 
@@ -229,5 +270,45 @@ export class FindInput {
 
 	private clearValidation(): void {
 		this.inputBox.hideMessage();
+	}
+}
+
+interface IMatchCountOpts {
+	onClick: (e:StandardMouseEvent) => void;
+}
+
+class MatchCount extends Widget {
+
+	public domNode: HTMLElement;
+	private isVisible: boolean;
+
+	constructor(opts:IMatchCountOpts) {
+		super();
+		this.domNode = document.createElement('div');
+		this.domNode.className = 'matchCount';
+
+		this.setState({
+			isVisible: false,
+			count: '0',
+			title: ''
+		});
+		this.onclick(this.domNode, opts.onClick);
+	}
+
+	public width(): number {
+		return this.isVisible ? 30 : 0;
+	}
+
+	public setState(state:IMatchCountState): void {
+		dom.clearNode(this.domNode);
+		this.domNode.appendChild(document.createTextNode(state.count));
+		this.domNode.title = state.title;
+
+		this.isVisible = state.isVisible;
+		if (this.isVisible) {
+			this.domNode.style.display = 'block';
+		} else {
+			this.domNode.style.display = 'none';
+		}
 	}
 }

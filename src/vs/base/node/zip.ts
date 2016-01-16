@@ -27,7 +27,7 @@ interface IOptions {
 }
 
 function modeFromEntry(entry: Entry) {
-	var attr = entry.externalFileAttributes >> 16 || 33188;
+	let attr = entry.externalFileAttributes >> 16 || 33188;
 
 	return [448 /* S_IRWXU */, 56 /* S_IRWXG */, 7 /* S_IRWXO */]
 		.map(mask => attr & mask)
@@ -44,7 +44,7 @@ function extractEntry(zipfile: ZipFile, entry: Entry, targetPath: string, option
 	return ninvoke(zipfile, zipfile.openReadStream, entry)
 		.then(ostream => mkdirp(targetDirName)
 			.then(() => new Promise((c, e) => {
-				var istream = createWriteStream(targetFileName, { mode });
+				let istream = createWriteStream(targetFileName, { mode });
 				istream.once('finish', () => c(null));
 				istream.once('error', e);
 				ostream.once('error', e);

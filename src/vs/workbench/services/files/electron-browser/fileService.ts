@@ -7,12 +7,10 @@
 import nls = require('vs/nls');
 import {TPromise, Promise} from 'vs/base/common/winjs.base';
 import paths = require('vs/base/common/paths');
-import env = require('vs/base/common/flags');
 import platform = require('vs/base/common/platform');
 import encoding = require('vs/base/common/bits/encoding');
 import errors = require('vs/base/common/errors');
 import strings = require('vs/base/common/strings');
-import arrays = require('vs/base/common/arrays');
 import uri from 'vs/base/common/uri';
 import timer = require('vs/base/common/timer');
 import files = require('vs/platform/files/common/files');
@@ -21,9 +19,7 @@ import {IConfigurationService, IConfigurationServiceEvent, ConfigurationServiceE
 import {IEventService} from 'vs/platform/event/common/event';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 
-import remote = require('remote');
-
-const Shell = remote.require('shell');
+import {shell} from 'electron';
 
 export class FileService implements files.IFileService {
 	public serviceId = files.IFileService;
@@ -48,7 +44,7 @@ export class FileService implements files.IFileService {
 				encodingOverride.push({ resource: uri.file(paths.join(this.contextService.getWorkspace().resource.fsPath, '.vscode')), encoding: encoding.UTF8 });
 			}
 
-			let doNotWatch = ['**/.git/objects/**']; 	// this folder does the heavy duty for git and we dont need to watch it
+			let doNotWatch = ['**/.git/objects/**']; 	// this folder does the heavy duty for git and we don't need to watch it
 			if (platform.isLinux) {
 				doNotWatch.push('**/node_modules/**'); 	// Linux does not have a good watching implementation, so we exclude more
 			}
@@ -64,7 +60,7 @@ export class FileService implements files.IFileService {
 
 			// create service
 			let workspace = this.contextService.getWorkspace();
-			return new NodeFileService(workspace ? workspace.resource.fsPath : void 0, this.eventService, fileServiceConfig)
+			return new NodeFileService(workspace ? workspace.resource.fsPath : void 0, this.eventService, fileServiceConfig);
 		});
 
 		// Listeners
@@ -178,7 +174,7 @@ export class FileService implements files.IFileService {
 
 		let absolutePath = resource.fsPath;
 
-		let result = Shell.moveItemToTrash(absolutePath);
+		let result = shell.moveItemToTrash(absolutePath);
 		if (!result) {
 			return TPromise.wrapError(new Error(nls.localize('trashFailed', "Failed to move '{0}' to the trash", paths.basename(absolutePath))));
 		}

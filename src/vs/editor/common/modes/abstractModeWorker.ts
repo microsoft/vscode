@@ -5,7 +5,7 @@
 'use strict';
 
 import {IEventEmitter} from 'vs/base/common/eventEmitter';
-import {URL} from 'vs/base/common/network';
+import URI from 'vs/base/common/uri';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
 import {IResourceService} from 'vs/editor/common/services/resourceService';
 import {computeLinks} from 'vs/editor/common/modes/linkComputer';
@@ -18,20 +18,10 @@ import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
 import {TPromise} from 'vs/base/common/winjs.base';
 
-function isIValidateParticipant(thing:any):boolean {
-	return typeof (<Modes.IValidateParticipant> thing).validate === 'function';
-}
-
-function isISuggestParticipant(thing:any):boolean {
-	return typeof (<Modes.ISuggestParticipant> thing).suggest === 'function' || typeof (<Modes.ISuggestParticipant> thing).filter === 'function';
-}
-
 export class AbstractModeWorker {
 
-	static filter: Modes.IFilter = DefaultFilter;
+	static filter: Modes.ISuggestionFilter = DefaultFilter;
 
-	private _validationParticipants:Modes.IValidateParticipant[] = [];
-	private _suggestParticipants:Modes.ISuggestParticipant[] = [];
 	private _participants:Modes.IWorkerParticipant[] = [];
 
 	public resourceService:IResourceService;
@@ -57,10 +47,6 @@ export class AbstractModeWorker {
 			(resource) => this._shouldIncludeModelInValidation(resource),
 			500
 		);
-
-		// add contributed participants
-		this._validationParticipants = this._getWorkerParticipants<Modes.IValidateParticipant>(p => isIValidateParticipant(p));
-		this._suggestParticipants = this._getWorkerParticipants<Modes.ISuggestParticipant>(p => isISuggestParticipant(p));
 
 		this.inplaceReplaceSupport = this._createInPlaceReplaceSupport();
 	}
@@ -88,18 +74,15 @@ export class AbstractModeWorker {
 		return TPromise.as(null);
 	}
 
-	private _newValidate(changed:URL[], notChanged:URL[], dueToConfigurationChange:boolean): void {
+	private _newValidate(changed:URI[], notChanged:URI[], dueToConfigurationChange:boolean): void {
 		this.doValidateOnChange(changed, notChanged, dueToConfigurationChange);
-		for (var i = 0; i < changed.length; i++) {
-			this.triggerValidateParticipation(changed[i], this._getContextForValidationParticipants(changed[i]));
-		}
 	}
 
-	public _getContextForValidationParticipants(resource:URL):any {
+	public _getContextForValidationParticipants(resource:URI):any {
 		return null;
 	}
 
-	public doValidateOnChange(changed:URL[], notChanged:URL[], dueToConfigurationChange:boolean): void {
+	public doValidateOnChange(changed:URI[], notChanged:URI[], dueToConfigurationChange:boolean): void {
 		if (dueToConfigurationChange) {
 			for (var i = 0; i < changed.length; i++) {
 				this.doValidate(changed[i]);
@@ -114,81 +97,48 @@ export class AbstractModeWorker {
 		}
 	}
 
-	public triggerValidateParticipation(resource:URL, context:any=null):void {
-
-		var model = this.resourceService.get(resource);
-		this._validationParticipants.forEach(participant => {
-			try {
-				participant.validate(model, this.markerService, context);
-			} catch(e) {
-				/// We should install a watch dog here. If a participant fails
-				/// too often we should shut the participant down.
-			}
-		});
-	}
-
-	public doValidate(resource:URL): void {
+	public doValidate(resource:URI): void {
 		return null;
 	}
 
 	// ---- suggestion ---------------------------------------------------------------------------------------
 
-	public suggest(resource:URL, position:EditorCommon.IPosition):TPromise<Modes.ISuggestions[]> {
+	public suggest(resource: URI, position: EditorCommon.IPosition): TPromise<Modes.ISuggestResult[]> {
 
-		return this._getSuggestContext(resource).then((context) => {
-			var promises = [ this.doSuggest(resource, position) ];
-			promises.push.apply(promises, this._participantSuggests(resource, position, context));
-			return TPromise.join(promises);
+		return this.doSuggest(resource, position).then(value => {
 
-		}).then((values) => {
-			// filter suggestions
-			var accept = this.getSuggestionFilterMain(),
-				result:Modes.ISuggestions[] = [];
-
-			for (var i = 0, len = values.length; i < len; i++) {
-				var value = values[i];
-				if(!value) {
-					continue;
-				}
-				result.push(<Modes.ISuggestions> {
-					currentWord: value.currentWord,
-					suggestions: value.suggestions.filter((element) => accept(values[i].currentWord, element)),
-					incomplete: value.incomplete,
-					overwriteBefore: value.overwriteBefore,
-					overwriteAfter: value.overwriteAfter
-				});
+			if (!value) {
+				return;
 			}
+			// filter suggestions
+			var accept = this.getSuggestionFilter(),
+				result: Modes.ISuggestResult[] = [];
+
+			result.push(<Modes.ISuggestResult>{
+				currentWord: value.currentWord,
+				suggestions: value.suggestions.filter((element) => !!accept(value.currentWord, element)),
+				incomplete: value.incomplete
+			});
 			return result;
 
 		}, (error) => {
-			return <Modes.ISuggestions[]> [{
+			return <Modes.ISuggestResult[]>[{
 				currentWord: '',
 				suggestions: []
 			}];
 		});
 	}
 
-	public _participantSuggests(resource:URL, position:EditorCommon.IPosition, context:any):TPromise<Modes.ISuggestions>[] {
-		return this._suggestParticipants.map((participant) => {
-			try {
-				return participant.suggest(resource, position, context);
-			} catch(e) {
-				/// We should install a watch dog here. If a participant fails
-				/// too often we should shut the participant down.
-			}
-		});
-	}
-
-	public _getSuggestContext(resource:URL):TPromise<any> {
+	public _getSuggestContext(resource:URI):TPromise<any> {
 		return TPromise.as(undefined);
 	}
 
-	public doSuggest(resource:URL, position:EditorCommon.IPosition):TPromise<Modes.ISuggestions> {
+	public doSuggest(resource:URI, position:EditorCommon.IPosition):TPromise<Modes.ISuggestResult> {
 
 		var model = this.resourceService.get(resource),
 			currentWord = model.getWordUntilPosition(position).word;
 
-		var result:Modes.ISuggestions = {
+		var result:Modes.ISuggestResult = {
 			currentWord: currentWord,
 			suggestions: []
 		};
@@ -198,7 +148,7 @@ export class AbstractModeWorker {
 		return TPromise.as(result);
 	}
 
-	public suggestWords(resource:URL, position:EditorCommon.IPosition, mustHaveCurrentWord:boolean):Modes.ISuggestion[] {
+	public suggestWords(resource:URI, position:EditorCommon.IPosition, mustHaveCurrentWord:boolean):Modes.ISuggestion[] {
 		var modelMirror = this.resourceService.get(resource);
 		var currentWord = modelMirror.getWordUntilPosition(position).word;
 		var allWords = modelMirror.getAllUniqueWords(currentWord);
@@ -219,54 +169,17 @@ export class AbstractModeWorker {
 		});
 	}
 
-	public suggestSnippets(resource:URL, position:EditorCommon.IPosition):Modes.ISuggestion[] {
+	public suggestSnippets(resource:URI, position:EditorCommon.IPosition):Modes.ISuggestion[] {
 		return [];
 	}
 
-	private getSuggestionFilterMain():Modes.IFilter {
-		var filter = this.getSuggestionFilter();
-
-		// Collect Suggestion Participants
-		this._suggestParticipants.forEach((participant:any) => {
-			if (typeof participant.filter === 'function') {
-				filter = and(filter, (<Modes.ISuggestParticipant>participant).filter);
-			}
-		});
-
-		return filter;
-	}
-
-	public getSuggestionFilter():Modes.IFilter {
+	public getSuggestionFilter():Modes.ISuggestionFilter {
 		return AbstractModeWorker.filter;
-	}
-
-	// ---- occurrences ---------------------------------------------------------------
-
-	public findOccurrences(resource:URL, position:EditorCommon.IPosition, strict?:boolean):TPromise<Modes.IOccurence[]> {
-
-		var model = this.resourceService.get(resource),
-			wordAtPosition = model.getWordAtPosition(position),
-			currentWord = (wordAtPosition ? wordAtPosition.word : ''),
-			result:Modes.IOccurence[] = [];
-
-		var words = model.getAllWordsWithRange(),
-			upperBound = Math.min(1000, words.length); // Limit find occurences to 1000 occurences
-
-		for(var i = 0; i < upperBound; i++) {
-			if(words[i].text === currentWord) {
-				result.push({
-					range: words[i].range,
-					kind: 'text'
-				});
-			}
-		}
-
-		return TPromise.as(result);
 	}
 
 	// ---- diff --------------------------------------------------------------------------
 
-	public computeDiff(original:URL, modified:URL, ignoreTrimWhitespace:boolean):TPromise<EditorCommon.ILineChange[]> {
+	public computeDiff(original:URI, modified:URI, ignoreTrimWhitespace:boolean):TPromise<EditorCommon.ILineChange[]> {
 		var originalModel = this.resourceService.get(original);
 		var modifiedModel = this.resourceService.get(modified);
 		if (originalModel !== null && modifiedModel !== null) {
@@ -284,7 +197,7 @@ export class AbstractModeWorker {
 
 	// ---- dirty diff --------------------------------------------------------------------
 
-	public computeDirtyDiff(resource:URL, ignoreTrimWhitespace:boolean):TPromise<EditorCommon.IChange[]> {
+	public computeDirtyDiff(resource:URI, ignoreTrimWhitespace:boolean):TPromise<EditorCommon.IChange[]> {
 		var model = this.resourceService.get(resource);
 		var original = <string> model.getProperty('original');
 
@@ -305,7 +218,7 @@ export class AbstractModeWorker {
 
 	// ---- link detection ------------------------------------------------------------------
 
-	public computeLinks(resource:URL):TPromise<Modes.ILink[]> {
+	public computeLinks(resource:URI):TPromise<Modes.ILink[]> {
 		var model = this.resourceService.get(resource),
 			links = computeLinks(model);
 

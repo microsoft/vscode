@@ -9,11 +9,21 @@
 
 .monaco-editor .cursors-layer > .cursor {
 	position: absolute;
-	width: 2px;
 	cursor: text;
 }
-
 .monaco-editor .cursors-layer > .cursor.secondary {
-	width: 1px;
 	opacity: 0.6;
+}
+
+/* -- line-style -- */
+.monaco-editor .cursors-layer.cursor-line-style > .cursor {
+	width: 2px;
+}
+.monaco-editor .cursors-layer.cursor-line-style > .cursor.secondary {
+	width: 1px;
+}
+
+/* -- block-style -- */
+.monaco-editor .cursors-layer.cursor-block-style > .cursor {
+	width: 1ch;
 }

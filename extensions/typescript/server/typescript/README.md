@@ -27,10 +27,10 @@ npm install -g typescript@next
 There are many ways to [contribute](https://github.com/Microsoft/TypeScript/blob/master/CONTRIBUTING.md) to TypeScript.
 * [Submit bugs](https://github.com/Microsoft/TypeScript/issues) and help us verify fixes as they are checked in.
 * Review the [source code changes](https://github.com/Microsoft/TypeScript/pulls).
-* Engage with other TypeScript users and developers on [StackOverflow](http://stackoverflow.com/questions/tagged/typescript). 
+* Engage with other TypeScript users and developers on [StackOverflow](http://stackoverflow.com/questions/tagged/typescript).
 * Join the [#typescript](http://twitter.com/#!/search/realtime/%23typescript) discussion on Twitter.
 * [Contribute bug fixes](https://github.com/Microsoft/TypeScript/blob/master/CONTRIBUTING.md).
-* Read the language specification ([docx](http://go.microsoft.com/fwlink/?LinkId=267121), [pdf](http://go.microsoft.com/fwlink/?LinkId=267238)).
+* Read the language specification ([docx](https://github.com/Microsoft/TypeScript/blob/master/doc/TypeScript%20Language%20Specification.docx?raw=true), [pdf](https://github.com/Microsoft/TypeScript/blob/master/doc/TypeScript%20Language%20Specification.pdf?raw=true), [md](https://github.com/Microsoft/TypeScript/blob/master/doc/spec.md)).
 
 
 ## Documentation
@@ -66,19 +66,19 @@ npm install
 Use one of the following to build and test:
 
 ```
-jake local            # Build the compiler into built/local 
-jake clean            # Delete the built compiler 
+jake local            # Build the compiler into built/local
+jake clean            # Delete the built compiler
 jake LKG              # Replace the last known good with the built one.
                       # Bootstrapping step to be executed when the built compiler reaches a stable state.
-jake tests            # Build the test infrastructure using the built compiler. 
-jake runtests         # Run tests using the built compiler and test infrastructure. 
-                      # You can override the host or specify a test for this command. 
-                      # Use host=<hostName> or tests=<testPath>. 
+jake tests            # Build the test infrastructure using the built compiler.
+jake runtests         # Run tests using the built compiler and test infrastructure.
+                      # You can override the host or specify a test for this command.
+                      # Use host=<hostName> or tests=<testPath>.
 jake runtests-browser # Runs the tests using the built run.js file. Syntax is jake runtests. Optional
                         parameters 'host=', 'tests=[regex], reporter=[list|spec|json|<more>]'.
 jake baseline-accept  # This replaces the baseline test results with the results obtained from jake runtests.
 jake lint             # Runs tslint on the TypeScript source.
-jake -T               # List the above commands. 
+jake -T               # List the above commands.
 ```
 
 

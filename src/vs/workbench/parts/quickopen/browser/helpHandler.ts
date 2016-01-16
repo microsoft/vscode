@@ -9,13 +9,13 @@ import nls = require('vs/nls');
 import {Builder, $} from 'vs/base/browser/builder';
 import types = require('vs/base/common/types');
 import {Registry} from 'vs/platform/platform';
-import {Mode, IContext, IAutoFocus} from 'vs/base/parts/quickopen/browser/quickOpen';
-import {QuickOpenEntry, QuickOpenEntryItem, QuickOpenModel} from 'vs/base/parts/quickopen/browser/quickOpenModel';
-import {ITree, IElementCallback} from 'vs/base/parts/tree/common/tree';
-import {QuickOpenHandlerDescriptor, IQuickOpenRegistry, Extensions, QuickOpenHandler} from 'vs/workbench/browser/quickopen';
-import {IQuickOpenService} from 'vs/workbench/services/quickopen/browser/quickOpenService';
+import {Mode, IContext, IAutoFocus} from 'vs/base/parts/quickopen/common/quickOpen';
+import {QuickOpenEntryItem, QuickOpenModel} from 'vs/base/parts/quickopen/browser/quickOpenModel';
+import {ITree, IElementCallback} from 'vs/base/parts/tree/browser/tree';
+import {IQuickOpenRegistry, Extensions, QuickOpenHandler} from 'vs/workbench/browser/quickopen';
+import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 
-const HELP_PREFIX = '?';
+export const HELP_PREFIX = '?';
 
 class HelpEntry extends QuickOpenEntryItem {
 	private prefix: string;
@@ -43,7 +43,7 @@ class HelpEntry extends QuickOpenEntryItem {
 	}
 
 	public getHeight(): number {
-		return 24;
+		return 22;
 	}
 
 	public getGroupLabel(): string {
@@ -183,13 +183,3 @@ export class HelpHandler extends QuickOpenHandler {
 		};
 	}
 }
-
-// Register Quick Open Handler
-(<IQuickOpenRegistry>Registry.as(Extensions.Quickopen)).registerQuickOpenHandler(
-	new QuickOpenHandlerDescriptor(
-		'vs/workbench/parts/quickopen/browser/helpHandler',
-		'HelpHandler',
-		HELP_PREFIX,
-		nls.localize('helpDescription', "Show Help")
-	)
-);

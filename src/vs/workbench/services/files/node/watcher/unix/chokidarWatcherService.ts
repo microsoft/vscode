@@ -6,7 +6,6 @@
 'use strict';
 
 import chokidar = require('chokidar');
-import paths = require('path');
 import fs = require('fs');
 
 import gracefulFs = require('graceful-fs');
@@ -16,8 +15,6 @@ import {Promise} from 'vs/base/common/winjs.base';
 import {FileChangeType} from 'vs/platform/files/common/files';
 import {ThrottledDelayer} from 'vs/base/common/async';
 import strings = require('vs/base/common/strings');
-import basePaths = require('vs/base/common/paths');
-import arrays = require('vs/base/common/arrays');
 
 import {IWatcherRequest, WatcherService} from 'vs/workbench/services/files/node/watcher/unix/watcherService';
 import watcher = require('vs/workbench/services/files/node/watcher/common');

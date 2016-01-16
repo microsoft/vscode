@@ -9,10 +9,8 @@ import {IConfigurationRegistry, Extensions} from 'vs/platform/configuration/comm
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {Registry} from 'vs/platform/platform';
-import platform = require('vs/base/common/platform');
 
-import crashReporter = require('crash-reporter');
-import ipc = require('ipc');
+import {ipcRenderer as ipc, crashReporter} from 'electron';
 
 let TELEMETRY_SECTION_ID = 'telemetry';
 
@@ -52,7 +50,7 @@ export class CrashReporter {
 		this.config = null;
 	}
 
-	public start(rawConfiguration:ICrashReporterConfigRenderer): void {
+	public start(rawConfiguration:Electron.CrashReporterStartOptions): void {
 		if (!this.isStarted) {
 			if (!this.config) {
 				this.configurationService.loadConfiguration(TELEMETRY_SECTION_ID).done((c) => {
@@ -69,7 +67,7 @@ export class CrashReporter {
 		}
 	}
 
-	private doStart(rawConfiguration:ICrashReporterConfigRenderer): void {
+	private doStart(rawConfiguration:Electron.CrashReporterStartOptions): void {
 		const config = this.toConfiguration(rawConfiguration);
 
 		crashReporter.start(config);
@@ -78,7 +76,7 @@ export class CrashReporter {
 		ipc.send('vscode:startCrashReporter', config);
 	}
 
-	private toConfiguration(rawConfiguration:ICrashReporterConfigRenderer): ICrashReporterConfigRenderer {
+	private toConfiguration(rawConfiguration:Electron.CrashReporterStartOptions): Electron.CrashReporterStartOptions {
 		return JSON.parse(JSON.stringify(rawConfiguration, (key, value) => {
 			if (value === '$(sessionId)') {
 				return this.sessionId;

@@ -104,7 +104,7 @@ export class LineCommentCommand implements EditorCommon.ICommand {
 
 	/**
 	 * Analyze lines and decide which lines are relevant and what the toggle should do.
-	 * Also, build up several offsets and lengths usefull in the generation of editor operations.
+	 * Also, build up several offsets and lengths useful in the generation of editor operations.
 	 */
 	public static _analyzeLines(type:Type, model:ISimpleModel, lines:ILinePreflightData[], startLineNumber:number): IPreflightData {
 		var lineData: ILinePreflightData,
@@ -206,7 +206,7 @@ export class LineCommentCommand implements EditorCommon.ICommand {
 	}
 
 	/**
-	 * Given a succesfull analysis, execute either insert line comments, either remove line comments
+	 * Given a successful analysis, execute either insert line comments, either remove line comments
 	 */
 	private _executeLineComments(model:ISimpleModel, builder:EditorCommon.IEditOperationBuilder, data:IPreflightData, s:EditorCommon.IEditorSelection): void {
 
@@ -232,10 +232,16 @@ export class LineCommentCommand implements EditorCommon.ICommand {
 	}
 
 	private _attemptRemoveBlockComment(model:EditorCommon.ITokenizedModel, s:EditorCommon.IEditorSelection, startToken: string, endToken: string): EditorCommon.IIdentifiedSingleEditOperation[] {
-		var startLineNumber = s.startLineNumber;
-		var endLineNumber = s.endLineNumber;
-		var startTokenIndex = model.getLineContent(startLineNumber).lastIndexOf(startToken, s.startColumn - 1 + endToken.length);
-		var endTokenIndex = model.getLineContent(endLineNumber).indexOf(endToken, s.endColumn - 1 - startToken.length);
+		let startLineNumber = s.startLineNumber;
+		let endLineNumber = s.endLineNumber;
+
+		let startTokenAllowedBeforeColumn = endToken.length + Math.max(
+			model.getLineFirstNonWhitespaceColumn(s.startLineNumber),
+			s.startColumn
+		);
+
+		let startTokenIndex = model.getLineContent(startLineNumber).lastIndexOf(startToken, startTokenAllowedBeforeColumn - 1);
+		let endTokenIndex = model.getLineContent(endLineNumber).indexOf(endToken, s.endColumn - 1 - startToken.length);
 
 		if (startTokenIndex !== -1 && endTokenIndex === -1) {
 			endTokenIndex = model.getLineContent(startLineNumber).indexOf(endToken, startTokenIndex + startToken.length);
@@ -267,7 +273,7 @@ export class LineCommentCommand implements EditorCommon.ICommand {
 	}
 
 	/**
-	 * Given an unsuccesfull analysis, delegate to the block comment command
+	 * Given an unsuccessful analysis, delegate to the block comment command
 	 */
 	private _executeBlockComment(model:EditorCommon.ITokenizedModel, builder:EditorCommon.IEditOperationBuilder, s:EditorCommon.IEditorSelection): void {
 		var commentsSupport = model.getModeAtPosition(s.startLineNumber, s.startColumn).commentsSupport;

@@ -6,9 +6,9 @@
 /* global __filename, __dirname, global, process */
 
 // Perf measurements
-global.vscodeStart = new Date().getTime();
+global.vscodeStart = Date.now();
 
-var app = require('app');
+var app = require('electron').app;
 var path = require('path');
 
 // Change cwd if given via env variable

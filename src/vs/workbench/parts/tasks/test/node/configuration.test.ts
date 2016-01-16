@@ -73,6 +73,7 @@ class TaskBuilder {
 			suppressTaskName: false,
 			echoCommand: false,
 			isWatching: false,
+			promptOnClose: true,
 			problemMatchers: []
 		};
 	}
@@ -99,6 +100,11 @@ class TaskBuilder {
 
 	public isWatching(value: boolean): TaskBuilder {
 		this.result.isWatching = value;
+		return this;
+	}
+
+	public promptOnClose(value: boolean): TaskBuilder {
+		this.result.promptOnClose = value;
 		return this;
 	}
 
@@ -269,6 +275,51 @@ suite('Tasks Configuration parsing tests', () => {
 			builder
 		);
 	});
+
+	test('tasks: global promptOnClose default', () => {
+		let builder = new ConfiguationBuilder('tsc');
+		builder.task('tsc').
+			suppressTaskName(true);
+		testGobalCommand(
+			{
+				version: '0.1.0',
+				command: "tsc",
+				promptOnClose: true
+			},
+			builder
+		);
+	});
+
+	test('tasks: global promptOnClose', () => {
+		let builder = new ConfiguationBuilder('tsc');
+		builder.task('tsc').
+			suppressTaskName(true).
+			promptOnClose(false);
+		testGobalCommand(
+			{
+				version: '0.1.0',
+				command: "tsc",
+				promptOnClose: false
+			},
+			builder
+		);
+	})
+
+	test('tasks: global promptOnClose default watching', () => {
+		let builder = new ConfiguationBuilder('tsc');
+		builder.task('tsc').
+			suppressTaskName(true).
+			isWatching(true).
+			promptOnClose(false);
+		testGobalCommand(
+			{
+				version: '0.1.0',
+				command: "tsc",
+				isWatching: true
+			},
+			builder
+		);
+	})
 
 	test('tasks: global show output never', () => {
 		let builder = new ConfiguationBuilder('tsc');
@@ -578,7 +629,8 @@ suite('Tasks Configuration parsing tests', () => {
 			showOutput(TaskSystem.ShowOutput.Never).
 			echoCommand(true).
 			args(['--p']).
-			isWatching(true);
+			isWatching(true).
+			promptOnClose(false);
 
 		let result = testConfiguration(external, builder);
 		assert.ok(result.defaultTestTaskIdentifier);
@@ -756,6 +808,53 @@ suite('Tasks Configuration parsing tests', () => {
 		testConfiguration(external, builder);
 	});
 
+	test('tasks: prompt on close default', () => {
+		let external: ExternalTaskRunnerConfiguration = {
+			version: '0.1.0',
+			command: 'tsc',
+			tasks: [
+				{
+					taskName: 'taskName'
+				}
+			]
+		};
+		let builder = new ConfiguationBuilder('tsc');
+		builder.task('taskName').promptOnClose(true);
+		testConfiguration(external, builder);
+	});
+
+	test('tasks: prompt on close watching', () => {
+		let external: ExternalTaskRunnerConfiguration = {
+			version: '0.1.0',
+			command: 'tsc',
+			tasks: [
+				{
+					taskName: 'taskName',
+					isWatching: true
+				}
+			]
+		};
+		let builder = new ConfiguationBuilder('tsc');
+		builder.task('taskName').isWatching(true).promptOnClose(false);
+		testConfiguration(external, builder);
+	});
+
+	test('tasks: prompt on close set', () => {
+		let external: ExternalTaskRunnerConfiguration = {
+			version: '0.1.0',
+			command: 'tsc',
+			tasks: [
+				{
+					taskName: 'taskName',
+					promptOnClose: false
+				}
+			]
+		};
+		let builder = new ConfiguationBuilder('tsc');
+		builder.task('taskName').promptOnClose(false);
+		testConfiguration(external, builder);
+	});
+
 	test('tasks: two tasks', () => {
 		let external: ExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
@@ -847,6 +946,7 @@ suite('Tasks Configuration parsing tests', () => {
 		assert.strictEqual(actual.suppressTaskName, expected.suppressTaskName, 'suppressTaskName');
 		assert.strictEqual(actual.echoCommand, expected.echoCommand, 'echoCommand');
 		assert.strictEqual(actual.isWatching, expected.isWatching, 'isWatching');
+		assert.strictEqual(actual.promptOnClose, expected.promptOnClose, 'promptOnClose');
 		assert.strictEqual(typeof actual.problemMatchers, typeof expected.problemMatchers);
 		if (actual.problemMatchers && expected.problemMatchers) {
 			assert.strictEqual(actual.problemMatchers.length, expected.problemMatchers.length);

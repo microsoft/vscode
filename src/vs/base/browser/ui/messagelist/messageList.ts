@@ -12,8 +12,7 @@ import {Builder, withElementById, $} from 'vs/base/browser/builder';
 import DOM = require('vs/base/browser/dom');
 import errors = require('vs/base/common/errors');
 import types = require('vs/base/common/types');
-import {EventProvider} from 'vs/base/common/eventProvider';
-import {EventSource} from 'vs/base/common/eventSource';
+import Event, {Emitter} from 'vs/base/common/event';
 import {Action} from 'vs/base/common/actions';
 import htmlRenderer = require('vs/base/browser/htmlContentRenderer');
 
@@ -61,8 +60,8 @@ export class MessageList {
 	private options: IMessageListOptions;
 	private usageLogger: IUsageLogger;
 
-	private _onMessagesShowing: EventSource<() => void>;
-	private _onMessagesCleared: EventSource<() => void>;
+	private _onMessagesShowing: Emitter<void>;
+	private _onMessagesCleared: Emitter<void>;
 
 	constructor(containerElementId: string, usageLogger?: IUsageLogger, options: IMessageListOptions = { purgeInterval: MessageList.DEFAULT_MESSAGE_PURGER_INTERVAL, maxMessages: MessageList.DEFAULT_MAX_MESSAGES, maxMessageLength: MessageList.DEFAULT_MAX_MESSAGE_LENGTH }) {
 		this.messages = [];
@@ -71,16 +70,16 @@ export class MessageList {
 		this.usageLogger = usageLogger;
 		this.options = options;
 
-		this._onMessagesShowing = new EventSource<() => void>();
-		this._onMessagesCleared = new EventSource<() => void>();
+		this._onMessagesShowing = new Emitter<void>();
+		this._onMessagesCleared = new Emitter<void>();
 	}
 
-	public get onMessagesShowing(): EventProvider<() => void> {
-		return this._onMessagesShowing.value;
+	public get onMessagesShowing(): Event<void> {
+		return this._onMessagesShowing.event;
 	}
 
-	public get onMessagesCleared(): EventProvider<() => void> {
-		return this._onMessagesCleared.value;
+	public get onMessagesCleared(): Event<void> {
+		return this._onMessagesCleared.event;
 	}
 
 	public showMessage(severity: Severity, message: string): () => void;
@@ -130,8 +129,8 @@ export class MessageList {
 		// Trigger Auto-Purge of messages to keep list small
 		this.purgeMessages();
 
-		// Store in Memory
-		this.messages.push({
+		// Store in Memory (new messages come first so that they show up on top)
+		this.messages.unshift({
 			id: id,
 			text: message,
 			severity: severity,

@@ -13,7 +13,7 @@ import {Cursor} from 'vs/editor/common/controller/cursor';
 import EditorCommon = require('vs/editor/common/editorCommon');
 import {IMode} from 'vs/editor/common/modes';
 import {CommonEditorConfiguration, ICSSConfig} from 'vs/editor/common/config/commonEditorConfig';
-import {MockConfiguration} from 'vs/editor/test/common/commands/commandTestUtils';
+import {MockConfiguration} from 'vs/editor/test/common/mocks/mockConfiguration';
 import {EditOperation} from 'vs/editor/common/core/editOperation';
 import {ModelLine, ILineEdit} from 'vs/editor/common/model/modelLine';
 
@@ -74,6 +74,28 @@ suite('Editor Side Editing - collapsed selection', () => {
 				'fourth'
 			],
 			new Selection(1,1,1,11)
+		);
+	});
+
+	test('replace at selection 2', () => {
+		testCommand(
+			[
+				'first',
+				'second line',
+				'third line',
+				'fourth'
+			],
+			new Selection(1,1,1,6),
+			[
+				EditOperation.replace(new Selection(1,1,1,6), 'something')
+			],
+			[
+				'something',
+				'second line',
+				'third line',
+				'fourth'
+			],
+			new Selection(1,1,1,10)
 		);
 	});
 

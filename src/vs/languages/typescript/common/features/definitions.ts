@@ -30,7 +30,7 @@ export function findDeclaration(project: projectService.IProject, resource: URI,
 	}
 
 	return {
-		resource: network.URL.fromValue(info.fileName),
+		resource: URI.parse(info.fileName),
 		range: project.host.getScriptLineMap(info.fileName).getRangeFromSpan(info.textSpan)
 	};
 }

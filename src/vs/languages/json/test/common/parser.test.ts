@@ -104,7 +104,7 @@ suite('JSON - Parsing', () => {
 		var node = result.getNodeFromOffset(1);
 
 		assert.equal(node.type, 'object');
-		assert.deepEqual(node.getPath(), []);
+		assert.deepEqual(node.getNodeLocation().getSegments(), []);
 
 		assert.strictEqual(result.getNodeFromOffset(2), null);
 
@@ -114,8 +114,7 @@ suite('JSON - Parsing', () => {
 		node = result.getNodeFromOffset(2);
 
 		assert.equal(node.type, 'null');
-		assert.equal(node.name, '0');
-		assert.deepEqual(node.getPath(), ['0']);
+		assert.deepEqual(node.getNodeLocation().getSegments(), ['0']);
 
 		result = parser.parse('{"a":true}');
 		assert.strictEqual(result.errors.length, 0);
@@ -124,7 +123,7 @@ suite('JSON - Parsing', () => {
 
 		assert.equal(node.type, 'string');
 		assert.equal((<Parser.StringASTNode>node).isKey, true);
-		assert.deepEqual(node.getPath(), ['a']);
+		assert.deepEqual(node.getNodeLocation().getSegments(), ['a']);
 
 		node = result.getNodeFromOffset(4);
 
@@ -141,8 +140,7 @@ suite('JSON - Parsing', () => {
 		node = result.getNodeFromOffset(5);
 
 		assert.equal(node.type, 'boolean');
-		assert.equal(node.name, 'a');
-		assert.deepEqual(node.getPath(), ['a']);
+		assert.deepEqual(node.getNodeLocation().getSegments(), ['a']);
 
 	});
 
@@ -155,14 +153,14 @@ suite('JSON - Parsing', () => {
 		assert.strictEqual(result.errors.length, 0);
 
 		var node = result.getNodeFromOffset(content.indexOf('key2') + 2);
-		var path = node.getPath();
+		var location = node.getNodeLocation();
 
-		assert.deepEqual(path, ['key', 'key2']);
+		assert.deepEqual(location.getSegments(), ['key', 'key2']);
 
 		node = result.getNodeFromOffset(content.indexOf('42') + 1);
-		path = node.getPath();
+		location = node.getNodeLocation();
 
-		assert.deepEqual(path, ['key', 'key2']);
+		assert.deepEqual(location.getSegments(), ['key', 'key2']);
 	});
 
 	test('Nested AST in Array', function() {
@@ -173,9 +171,9 @@ suite('JSON - Parsing', () => {
 		assert.strictEqual(result.errors.length, 0);
 
 		var node = result.getNodeFromOffset(17);
-		var path = node.getPath();
+		var location = node.getNodeLocation();
 
-		assert.deepEqual(path, ['key', '0', 'key2']);
+		assert.deepEqual(location.getSegments(), ['key', '0', 'key2']);
 
 	});
 
@@ -227,7 +225,8 @@ suite('JSON - Parsing', () => {
 	test('Validate types', function() {
 
 		var parser = new Parser.JSONParser();
-		var result = parser.parse('{"number": 3.4, "integer": 42, "string": "some string", "boolean":true, "null":null, "object":{}, "array":[1, 2]}');
+		var str = '{"number": 3.4, "integer": 42, "string": "some string", "boolean":true, "null":null, "object":{}, "array":[1, 2]}';
+		var result = parser.parse(str);
 
 		assert.strictEqual(result.errors.length, 0);
 
@@ -237,13 +236,14 @@ suite('JSON - Parsing', () => {
 
 		assert.strictEqual(result.warnings.length, 0);
 
+		result = parser.parse(str);
 		result.validate({
 			type: 'array'
 		});
 
 		assert.strictEqual(result.warnings.length, 1);
 
-		result.warnings = [];
+		result = parser.parse(str);
 
 		result.validate({
 			type: 'object',
@@ -274,6 +274,7 @@ suite('JSON - Parsing', () => {
 
 		assert.strictEqual(result.warnings.length, 0);
 
+		result = parser.parse(str);
 		result.validate({
 			type: 'object',
 			properties: {
@@ -302,8 +303,8 @@ suite('JSON - Parsing', () => {
 		});
 
 		assert.strictEqual(result.warnings.length, 7);
-		result.warnings = [];
 
+		result = parser.parse(str);
 		result.validate({
 			type: 'object',
 			properties: {
@@ -314,8 +315,8 @@ suite('JSON - Parsing', () => {
 		});
 
 		assert.strictEqual(result.warnings.length, 1);
-		result.warnings = [];
 
+		result = parser.parse(str);
 		result.validate({
 			type: 'object',
 			properties: {
@@ -327,6 +328,7 @@ suite('JSON - Parsing', () => {
 
 		assert.strictEqual(result.warnings.length, 0);
 
+		result = parser.parse(str);
 		result.validate({
 			type: 'object',
 			properties: {
@@ -341,6 +343,7 @@ suite('JSON - Parsing', () => {
 
 		assert.strictEqual(result.warnings.length, 0);
 
+		result = parser.parse(str);
 		result.validate({
 			type: 'object',
 			properties: {
@@ -370,6 +373,7 @@ suite('JSON - Parsing', () => {
 
 		assert.strictEqual(result.warnings.length, 0);
 
+		result = parser.parse('{"integer": 42, "string": "some string", "boolean":true}');
 		result.validate({
 			type: 'object',
 			required: ['notpresent']
@@ -396,6 +400,7 @@ suite('JSON - Parsing', () => {
 
 		assert.strictEqual(result.warnings.length, 0);
 
+		result = parser.parse('[1, 2, 3]');
 		result.validate({
 			type: 'array',
 			items: {
@@ -405,8 +410,8 @@ suite('JSON - Parsing', () => {
 		});
 
 		assert.strictEqual(result.warnings.length, 1);
-		result.warnings = [];
 
+		result = parser.parse('[1, 2, 3]');
 		result.validate({
 			type: 'array',
 			items: {
@@ -439,6 +444,7 @@ suite('JSON - Parsing', () => {
 
 		assert.strictEqual(result.warnings.length, 0);
 
+		result = parser.parse('{"one":"test"}');
 		result.validate({
 			type: 'object',
 			properties: {
@@ -450,8 +456,8 @@ suite('JSON - Parsing', () => {
 		});
 
 		assert.strictEqual(result.warnings.length, 1);
-		result.warnings = [];
 
+		result = parser.parse('{"one":"test"}');
 		result.validate({
 			type: 'object',
 			properties: {
@@ -463,8 +469,8 @@ suite('JSON - Parsing', () => {
 		});
 
 		assert.strictEqual(result.warnings.length, 1);
-		result.warnings = [];
 
+		result = parser.parse('{"one":"test"}');
 		result.validate({
 			type: 'object',
 			properties: {
@@ -477,6 +483,7 @@ suite('JSON - Parsing', () => {
 
 		assert.strictEqual(result.warnings.length, 0);
 
+		result = parser.parse('{"one":"test"}');
 		result.validate({
 			type: 'object',
 			properties: {
@@ -511,6 +518,8 @@ suite('JSON - Parsing', () => {
 
 		assert.strictEqual(result.warnings.length, 0);
 
+		result = parser.parse('{"one": 13.45e+1}');
+
 		result.validate({
 			type: 'object',
 			properties: {
@@ -522,8 +531,8 @@ suite('JSON - Parsing', () => {
 		});
 
 		assert.strictEqual(result.warnings.length, 1, 'below minimum');
-		result.warnings = [];
 
+		result = parser.parse('{"one": 13.45e+1}');
 		result.validate({
 			type: 'object',
 			properties: {
@@ -535,8 +544,8 @@ suite('JSON - Parsing', () => {
 		});
 
 		assert.strictEqual(result.warnings.length, 1, 'above maximum');
-		result.warnings = [];
 
+		result = parser.parse('{"one": 13.45e+1}');
 		result.validate({
 			type: 'object',
 			properties: {
@@ -549,8 +558,8 @@ suite('JSON - Parsing', () => {
 		});
 
 		assert.strictEqual(result.warnings.length, 1, 'at exclusive mininum');
-		result.warnings = [];
 
+		result = parser.parse('{"one": 13.45e+1}');
 		result.validate({
 			type: 'object',
 			properties: {
@@ -563,8 +572,8 @@ suite('JSON - Parsing', () => {
 		});
 
 		assert.strictEqual(result.warnings.length, 1, 'at exclusive maximum');
-		result.warnings = [];
 
+		result = parser.parse('{"one": 13.45e+1}');
 		result.validate({
 			type: 'object',
 			properties: {

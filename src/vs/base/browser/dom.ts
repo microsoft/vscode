@@ -919,8 +919,13 @@ export var EventType = {
 	ANIMATION_ITERATION: Browser.isWebKit ? 'webkitAnimationIteration' : 'animationiteration'
 };
 
+export interface EventLike {
+	preventDefault(): void;
+	stopPropagation(): void;
+}
+
 export var EventHelper = {
-	stop: function (e:Event, cancelBubble?:boolean) {
+	stop: function (e:EventLike, cancelBubble?:boolean) {
 		if (e.preventDefault) {
 			e.preventDefault();
 		} else {
@@ -933,7 +938,7 @@ export var EventHelper = {
 				e.stopPropagation();
 			} else {
 				// IE8
-				e.cancelBubble = true;
+				(<any>e).cancelBubble = true;
 			}
 		}
 	}
@@ -1046,25 +1051,6 @@ export function removeScriptTags(html:string):string {
 	return div.innerHTML;
 };
 
-export function parseSearch():{[key:string]:string} {
-	var result:{[key:string]:string} = {};
-	var search = window.location.search;
-	if (search) {
-		var params = search.split(/[?&]/);
-		for (var i = 0; i < params.length; i++) {
-			var param = params[i];
-			if (param) {
-				var keyValue = param.split('=');
-				if (keyValue.length === 2) {
-					result[keyValue[0]] = decodeURIComponent(keyValue[1]);
-				}
-			}
-		}
-	}
-
-	return result;
-}
-
 export function append<T extends Node>(parent: HTMLElement, child: T): T {
 	parent.appendChild(child);
 	return child;
@@ -1086,3 +1072,15 @@ export function emmet(description: string):HTMLElement {
 
 	return result;
 };
+
+export function show(...elements: HTMLElement[]): void {
+	for (const element of elements) {
+		element.style.display = null;
+	}
+}
+
+export function hide(...elements: HTMLElement[]): void {
+	for (const element of elements) {
+		element.style.display = 'none';
+	}
+}

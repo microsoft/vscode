@@ -18,7 +18,7 @@ function fixedEncodeURIComponent(str: string): string {
  * (http://tools.ietf.org/html/rfc3986#section-3) with minimal validation
  * and encoding.
  *
- *     foo://example.com:8042/over/there?name=ferret#nose
+ *       foo://example.com:8042/over/there?name=ferret#nose
  *       \_/   \______________/\_________/ \_________/ \__/
  *        |           |            |            |        |
  *     scheme     authority       path        query   fragment
@@ -91,7 +91,7 @@ export default class URI {
 	private _fsPath: string;
 
 	/**
-	 * Retuns a string representing the corresponding file system path of this URI.
+	 * Returns a string representing the corresponding file system path of this URI.
 	 * Will handle UNC paths and normalize windows drive letters to lower-case. Also
 	 * uses the platform specific path separator. Will *not* validate the path for
 	 * invalid characters and semantics. Will *not* look at the scheme of this URI.
@@ -174,7 +174,7 @@ export default class URI {
 
 		var ret = URI._parse(path);
 		if (ret.scheme || ret.fragment || ret.query) {
-			throw new Error();
+			throw new Error('Path contains a scheme, fragment or a query. Can not convert it to a file uri.');
 		}
 
 		ret = ret.with('file', undefined,
@@ -296,9 +296,9 @@ export default class URI {
 			_authority: this._authority,
 			_path: this._path,
 			_query: this._query,
-			_fragment: this._fragment,
+			_fragment: this._fragment.replace(/URL_MARSHAL_REMOVE.*$/, ''), // TODO@Alex: implement derived resources (embedded mirror models) better
 			_fsPath: this._fsPath,
-			_formatted: this._formatted
+			_formatted: this._formatted && this._formatted.replace(/#?URL_MARSHAL_REMOVE.*$/, ''), // TODO@Alex: implement derived resources (embedded mirror models) better
 		};
 	}
 

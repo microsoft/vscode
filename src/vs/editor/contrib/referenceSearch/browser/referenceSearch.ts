@@ -30,7 +30,7 @@ import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IKeybindingService, IKeybindingContextKey, ICommandHandler} from 'vs/platform/keybinding/common/keybindingService';
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
-import ReferenceSearchRegistry from '../common/referenceSearch';
+import {ReferenceRegistry, findReferences} from '../common/referenceSearch';
 import IPeekViewService = peekView.IPeekViewService;
 
 export class FindReferencesController implements EditorCommon.IEditorContribution {
@@ -265,7 +265,7 @@ export class ReferenceAction extends EditorAction {
 	}
 
 	public isSupported():boolean {
-		return ReferenceSearchRegistry.has(this.editor.getModel()) && super.isSupported();
+		return ReferenceRegistry.has(this.editor.getModel()) && super.isSupported();
 	}
 
 	public getEnablementState():boolean {
@@ -278,7 +278,7 @@ export class ReferenceAction extends EditorAction {
 		let context = model.getLineContext(position.lineNumber);
 		let offset = position.column - 1;
 
-		return ReferenceSearchRegistry.all(model).some(support => {
+		return ReferenceRegistry.all(model).some(support => {
 			return support.canFindReferences(context, offset);
 		});
 	}
@@ -292,22 +292,6 @@ export class ReferenceAction extends EditorAction {
 	}
 }
 
-function findReferences(model: EditorCommon.IModel, position: EditorCommon.IPosition): TPromise<Modes.IReference[]> {
-	let references: Modes.IReference[] = [];
-
-	// collect references from all providers
-	let promises = ReferenceSearchRegistry.all(model).map(provider => {
-		return provider.findReferences(model.getAssociatedResource(), position, true).then(result => {
-			if (Array.isArray(result)) {
-				references.push(...result);
-			}
-		}, err => {
-			errors.onUnexpectedError(err);
-		});
-	});
-
-	return TPromise.join(promises).then(() => references);
-}
 
 let findReferencesCommand: ICommandHandler = (accessor, args) => {
 
@@ -349,7 +333,7 @@ let showReferencesCommand: ICommandHandler = (accessor, args:[URI, EditorCommon.
 
 		let controller = FindReferencesController.getController(control);
 		let range = Position.asEmptyRange(args[1]);
-		return TPromise.as(controller.processRequest(Range.lift(range), TPromise.as(args[2])));
+		return TPromise.as(controller.processRequest(Range.lift(range), TPromise.as(args[2]))).then(() => true);
 	});
 };
 
@@ -365,15 +349,23 @@ KeybindingsRegistry.registerCommandDesc({
 	id: 'editor.action.findReferences',
 	handler: findReferencesCommand,
 	weight: CommonEditorRegistry.commandWeight(50),
-	context: [],
+	context: null,
 	primary: undefined
 });
 KeybindingsRegistry.registerCommandDesc({
 	id: 'editor.action.showReferences',
 	handler: showReferencesCommand,
 	weight: CommonEditorRegistry.commandWeight(50),
-	context: [],
-	primary: undefined
+	context: null,
+	primary: undefined,
+	description: {
+		description: 'Show references at a position in a file',
+		args: [
+			{ name: 'uri', description: 'The text document in which to show references', constraint: URI },
+			{ name: 'position', description: 'The position at which to show', constraint: Position.isIPosition },
+			{ name: 'locations', description: 'An array of locations.', constraint: Array },
+		]
+	}
 });
 CommonEditorRegistry.registerEditorCommand('closeReferenceSearch', CommonEditorRegistry.commandWeight(50), { primary: KeyCode.Escape }, false, CONTEXT_REFERENCE_SEARCH_VISIBLE, (accessor, editor, args) => {
 	var outerEditor = peekView.getOuterEditor(accessor, args);

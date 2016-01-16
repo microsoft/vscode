@@ -27,9 +27,14 @@ export function onStore<T>(clb: (key: string, oldValue: T, newValue: T) => void)
 	return () => eventEmitter.removeListener(EventTypes.STORE, clb);
 }
 
-export function getItem<T>(key: string): T {
+export function getItem<T>(key: string, defaultValue?: T): T {
 	if (!database) {
 		database = load();
+	}
+
+	const res = database[key];
+	if (typeof res === 'undefined') {
+		return defaultValue;
 	}
 
 	return database[key];

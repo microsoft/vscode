@@ -25,7 +25,7 @@ function getParentWindowIfSameOrigin(w:Window): Window {
 	if (!w.parent || w.parent === w) {
 		return null;
 	}
-	
+
 	// Cannot really tell if we have access to the parent window unless we try to access something in it
 	try {
 		var location = w.location;
@@ -38,7 +38,7 @@ function getParentWindowIfSameOrigin(w:Window): Window {
 		hasDifferentOriginAncestorFlag = true;
 		return null;
 	}
-	
+
 	return w.parent;
 }
 
@@ -97,34 +97,34 @@ export function hasDifferentOriginAncestor(): boolean {
  * Returns the position of `childWindow` relative to `ancestorWindow`
  */
 export function getPositionOfChildWindowRelativeToAncestorWindow(childWindow:Window, ancestorWindow:any) {
-	
+
 	if (!ancestorWindow || childWindow === ancestorWindow) {
 		return {
 			top: 0,
 			left: 0
 		};
 	}
-	
+
 	var top = 0, left = 0;
-	
+
 	var windowChain = getSameOriginWindowChain();
-	
+
 	for (var i = 0; i < windowChain.length; i++) {
 		var windowChainEl = windowChain[i];
-		
+
 		if (windowChainEl.window === ancestorWindow) {
 			break;
 		}
-		
+
 		if (!windowChainEl.iframeElement) {
 			break;
 		}
-		
+
 		var boundingRect = windowChainEl.iframeElement.getBoundingClientRect();
 		top += boundingRect.top;
 		left += boundingRect.left;
 	}
-	
+
 	return {
 		top: top,
 		left: left

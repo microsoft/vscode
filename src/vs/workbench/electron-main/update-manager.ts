@@ -8,9 +8,11 @@ import fs = require('fs');
 import path = require('path');
 import events = require('events');
 
+import electron = require('electron');
 import platform = require('vs/base/common/platform');
 import env = require('vs/workbench/electron-main/env');
 import storage = require('vs/workbench/electron-main/storage');
+import settings = require('vs/workbench/electron-main/settings');
 import {Win32AutoUpdaterImpl} from 'vs/workbench/electron-main/win32/auto-updater.win32';
 import {manager as Lifecycle} from 'vs/workbench/electron-main/lifecycle';
 
@@ -36,12 +38,14 @@ export interface IUpdate {
 	quitAndUpdate: () => void;
 }
 
-interface IAutoUpdater extends IEventEmitter {
-	setFeedUrl(url: string): void;
+interface IAutoUpdater extends NodeJS.EventEmitter {
+	setFeedURL(url: string): void;
 	checkForUpdates(): void;
 }
 
 export class UpdateManager extends events.EventEmitter {
+
+	private static DEFAULT_UPDATE_CHANNEL = 'stable';
 
 	private _state: State;
 	private explicitState: ExplicitState;
@@ -64,7 +68,7 @@ export class UpdateManager extends events.EventEmitter {
 		if (platform.isWindows) {
 			this.raw = new Win32AutoUpdaterImpl();
 		} else if (platform.isMacintosh) {
-			this.raw = <any>require.__$__nodeRequire('auto-updater'); // https://github.com/atom/electron/issues/3194
+			this.raw = electron.autoUpdater;
 		}
 
 		if (this.raw) {
@@ -138,7 +142,7 @@ export class UpdateManager extends events.EventEmitter {
 		this._channel = channel;
 		this._feedUrl = feedUrl;
 
-		this.raw.setFeedUrl(feedUrl);
+		this.raw.setFeedURL(feedUrl);
 		this.setState(State.Idle);
 
 		// Check for updates on startup after 30 seconds
@@ -181,11 +185,12 @@ export class UpdateManager extends events.EventEmitter {
 	}
 
 	private static getUpdateChannel(): string {
-		let channel = storage.getItem<string>('updateChannel');
-
+		let channel = settings.manager.getValue('update.channel');
 		if (!channel) {
-			channel = 'stable';
-			storage.setItem('updateChannel', channel);
+			channel = storage.getItem<string>('updateChannel'); // TODO@Ben this should be removed after a couple of versions
+			if (!channel) {
+				channel = UpdateManager.DEFAULT_UPDATE_CHANNEL;
+			}
 		}
 
 		return channel;

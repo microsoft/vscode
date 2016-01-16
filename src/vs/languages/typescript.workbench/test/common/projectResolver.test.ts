@@ -62,7 +62,6 @@ function createModelService(): IModelService {
 		onModelAdded: undefined,
 		onModelRemoved: undefined,
 		onModelModeChanged: undefined,
-		removeModel: undefined,
 		destroyModel: undefined
 	}
 }

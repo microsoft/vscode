@@ -1,7 +1,7 @@
-/* --------------------------------------------------------------------------------------------
- * Copyright (c) Microsoft Corporation. All rights reserved.
- * Licensed under the MIT License. See License.txt in the project root for license information.
- * ------------------------------------------------------------------------------------------ */
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
 
 /* --------------------------------------------------------------------------------------------
  * Includes code from typescript-sublime-plugin project, obtained from
@@ -9,7 +9,7 @@
  * ------------------------------------------------------------------------------------------ */
 'use strict';
 
-import { languages, workspace, Uri, ExtensionContext, IndentAction, Diagnostic, DiagnosticCollection, Range } from 'vscode';
+import { languages, commands, workspace, Uri, ExtensionContext, IndentAction, Diagnostic, DiagnosticCollection, Range } from 'vscode';
 
 import * as Proto from './protocol';
 import TypeScriptServiceClient from './typescriptServiceClient';
@@ -33,14 +33,24 @@ export function activate(context: ExtensionContext): void {
 
 	let MODE_ID_TS = 'typescript';
 	let MODE_ID_TSX = 'typescriptreact';
-	let MY_PLUGIN_ID = 'vs.language.typescript';
+	let MODE_ID_JS = 'javascript';
+	let MODE_ID_JSX = 'javascriptreact';
 
 	let clientHost = new TypeScriptServiceClientHost();
 	let client = clientHost.serviceClient;
+
+	context.subscriptions.push(commands.registerCommand('typescript.reloadProjects', () => {
+		clientHost.reloadProjects();
+	}));
 	// Register the supports for both TS and TSX so that we can have separate grammars but share the mode
 	client.onReady().then(() => {
 		registerSupports(MODE_ID_TS, clientHost, client);
 		registerSupports(MODE_ID_TSX, clientHost, client);
+		let useSalsa = !!process.env['CODE_TSJS'] || !!process.env['VSCODE_TSJS']
+		if (useSalsa) {
+			registerSupports(MODE_ID_JS, clientHost, client);
+			registerSupports(MODE_ID_JSX, clientHost, client);
+		}
 	}, () => {
 		// Nothing to do here. The client did show a message;
 	})
@@ -53,7 +63,7 @@ function registerSupports(modeID: string, host: TypeScriptServiceClientHost, cli
 	languages.registerDocumentHighlightProvider(modeID, new DocumentHighlightProvider(client));
 	languages.registerReferenceProvider(modeID, new ReferenceProvider(client));
 	languages.registerDocumentSymbolProvider(modeID, new DocumentSymbolProvider(client));
-	languages.registerSignatureHelpProvider(modeID, new SignatureHelpProvider(client), '(', ';');
+	languages.registerSignatureHelpProvider(modeID, new SignatureHelpProvider(client), '(', ',');
 	languages.registerRenameProvider(modeID, new RenameProvider(client));
 	languages.registerDocumentRangeFormattingEditProvider(modeID, new FormattingProvider(client));
 	languages.registerOnTypeFormattingEditProvider(modeID, new FormattingProvider(client), ';', '}', '\n');
@@ -90,7 +100,7 @@ function registerSupports(modeID: string, host: TypeScriptServiceClientHost, cli
 			},
 			{
 				// e.g.  * ...|
-				beforeText: /^(\t|(\ \ ))*\ \*\ ([^\*]|\*(?!\/))*$/,
+				beforeText: /^(\t|(\ \ ))*\ \*(\ ([^\*]|\*(?!\/))*)?$/,
 				action: { indentAction: IndentAction.None, appendText: '* ' }
 			},
 			{
@@ -115,7 +125,8 @@ function registerSupports(modeID: string, host: TypeScriptServiceClientHost, cli
 				{ open: '[', close: ']' },
 				{ open: '(', close: ')' },
 				{ open: '"', close: '"', notIn: ['string'] },
-				{ open: '\'', close: '\'', notIn: ['string', 'comment'] }
+				{ open: '\'', close: '\'', notIn: ['string', 'comment'] },
+				{ open: '`', close: '`', notIn: ['string', 'comment'] }
 			]
 		}
 	});
@@ -149,7 +160,9 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 			this.triggerAllDiagnostics();
 		};
 		let handleProjectChange = () => {
-			this.triggerAllDiagnostics();
+			setTimeout(() => {
+				this.triggerAllDiagnostics();
+			}, 1500);
 		}
 		let watcher = workspace.createFileSystemWatcher('**/tsconfig.json');
 		watcher.onDidCreate(handleProjectCreateOrDelete);
@@ -162,6 +175,11 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 
 	public get serviceClient(): TypeScriptServiceClient {
 		return this.client;
+	}
+
+	public reloadProjects(): void {
+		this.client.execute('reloadProjects', null, false);
+		this.triggerAllDiagnostics();
 	}
 
 	public addBufferSyncSupport(support: BufferSyncSupport): void {

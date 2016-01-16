@@ -5,13 +5,14 @@
 'use strict';
 
 import winjs = require('vs/base/common/winjs.base');
-import network = require('vs/base/common/network');
+import URI from 'vs/base/common/uri';
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
 import Monarch = require('vs/editor/common/modes/monarch/monarch');
 import Types = require('vs/editor/common/modes/monarch/monarchTypes');
 import Compile = require('vs/editor/common/modes/monarch/monarchCompile');
 import lessWorker = require('vs/languages/less/common/lessWorker');
+import * as lessTokenTypes from 'vs/languages/less/common/lessTokenTypes';
 import supports = require('vs/editor/common/modes/supports');
 import {AbstractMode} from 'vs/editor/common/modes/abstractMode';
 import {OneWorkerAttr} from 'vs/platform/thread/common/threadService';
@@ -54,20 +55,20 @@ export var language: Types.ILanguage = <Types.ILanguage> {
 			{ include: '@keyword' },
 			{ include: '@strings' },
 			{ include: '@numbers' },
-			['[*_]?[a-zA-Z\\-\\s]+(?=:.*(;|(\\\\$)))', 'support.type.property-name', '@attribute'],
+			['[*_]?[a-zA-Z\\-\\s]+(?=:.*(;|(\\\\$)))', lessTokenTypes.TOKEN_PROPERTY, '@attribute'],
 
 			['url(\\-prefix)?\\(', { token: 'function', bracket: '@open', next: '@urldeclaration'}],
 
 			['[{}()\\[\\]]', '@brackets'],
 			['[,:;]', 'punctuation'],
 
-			['#@identifierPlus', 'entity.other.attribute-name.id'],
-			['&', 'entity.other.attribute-name.placeholder-selector'],
+			['#@identifierPlus', lessTokenTypes.TOKEN_SELECTOR + '.id'],
+			['&', lessTokenTypes.TOKEN_SELECTOR_TAG],
 
-			['\\.@identifierPlus(?=\\()', 'entity.other.attribute-name.class', '@attribute'],
-			['\\.@identifierPlus', 'entity.other.attribute-name.class'],
+			['\\.@identifierPlus(?=\\()', lessTokenTypes.TOKEN_SELECTOR + '.class', '@attribute'],
+			['\\.@identifierPlus', lessTokenTypes.TOKEN_SELECTOR + '.class'],
 
-			['@identifierPlus', 'entity.name.tag'],
+			['@identifierPlus', lessTokenTypes.TOKEN_SELECTOR_TAG],
 			{ include: '@operators' },
 
 			['@(@identifier(?=[:,\\)]))', 'variable', '@attribute'],
@@ -111,9 +112,9 @@ export var language: Types.ILanguage = <Types.ILanguage> {
 
 			{ include: '@keyword' },
 
-			['[a-zA-Z\\-]+(?=\\()', 'meta.property-value', '@attribute'],
+			['[a-zA-Z\\-]+(?=\\()', lessTokenTypes.TOKEN_VALUE, '@attribute'],
 			['>', 'operator', '@pop'],
-			['@identifier', 'meta.property-value'],
+			['@identifier', lessTokenTypes.TOKEN_VALUE],
 			{ include: '@operators' },
 			['@(@identifier)', 'variable'],
 
@@ -124,7 +125,7 @@ export var language: Types.ILanguage = <Types.ILanguage> {
 			['[,=:]', 'punctuation'],
 
 			['\\s', ''],
-			['.', 'meta.property-value']
+			['.', lessTokenTypes.TOKEN_VALUE]
 		],
 
 		comments: [
@@ -138,12 +139,12 @@ export var language: Types.ILanguage = <Types.ILanguage> {
 		],
 
 		numbers: [
-			<any[]>['(\\d*\\.)?\\d+([eE][\\-+]?\\d+)?', { token: 'meta.property-value.numeric', next: '@units' }],
-			['#[0-9a-fA-F_]+(?!\\w)', 'meta.property-value.rgb-value']
+			<any[]>['(\\d*\\.)?\\d+([eE][\\-+]?\\d+)?', { token: lessTokenTypes.TOKEN_VALUE + '.numeric', next: '@units' }],
+			['#[0-9a-fA-F_]+(?!\\w)', lessTokenTypes.TOKEN_VALUE + '.rgb-value']
 		],
 
 		units: [
-			['((em|ex|ch|rem|vw|vh|vm|cm|mm|in|px|pt|pc|deg|grad|rad|turn|s|ms|Hz|kHz|%)\\b)?', 'meta.property-value.unit', '@pop']
+			['((em|ex|ch|rem|vw|vh|vm|cm|mm|in|px|pt|pc|deg|grad|rad|turn|s|ms|Hz|kHz|%)\\b)?', lessTokenTypes.TOKEN_VALUE + '.unit', '@pop']
 		],
 
 		strings: [
@@ -197,11 +198,11 @@ export class LESSMode extends Monarch.MonarchMode<lessWorker.LessWorker> impleme
 
 		this.extraInfoSupport = this;
 		this.referenceSupport = new supports.ReferenceSupport(this, {
-			tokens: ['support.type.property-name.less', 'meta.property-value.less', 'variable.less', 'entity.other.attribute-name.class.less', 'entity.other.attribute-name.id.less', 'selector.less'],
+			tokens: [lessTokenTypes.TOKEN_PROPERTY + '.less', lessTokenTypes.TOKEN_VALUE + '.less', 'variable.less', lessTokenTypes.TOKEN_SELECTOR + '.class.less', lessTokenTypes.TOKEN_SELECTOR + '.id.less', 'selector.less'],
 			findReferences: (resource, position, /*unused*/includeDeclaration) => this.findReferences(resource, position)});
 		this.logicalSelectionSupport = this;
 		this.declarationSupport = new supports.DeclarationSupport(this, {
-			tokens: ['variable.less', 'entity.other.attribute-name.class.less', 'entity.other.attribute-name.id.less', 'selector.less'],
+			tokens: ['variable.less', lessTokenTypes.TOKEN_SELECTOR + '.class.less', lessTokenTypes.TOKEN_SELECTOR + '.id.less', 'selector.less'],
 			findDeclaration: (resource, position) => this.findDeclaration(resource, position)});
 		this.outlineSupport = this;
 
@@ -225,32 +226,32 @@ export class LESSMode extends Monarch.MonarchMode<lessWorker.LessWorker> impleme
 	}
 
 	static $findReferences = OneWorkerAttr(LESSMode, LESSMode.prototype.findReferences);
-	public findReferences(resource:network.URL, position:EditorCommon.IPosition):winjs.TPromise<Modes.IReference[]> {
+	public findReferences(resource:URI, position:EditorCommon.IPosition):winjs.TPromise<Modes.IReference[]> {
 		return this._worker((w) => w.findReferences(resource, position));
 	}
 
 	static $getRangesToPosition = OneWorkerAttr(LESSMode, LESSMode.prototype.getRangesToPosition);
-	public getRangesToPosition(resource:network.URL, position:EditorCommon.IPosition):winjs.TPromise<Modes.ILogicalSelectionEntry[]> {
+	public getRangesToPosition(resource:URI, position:EditorCommon.IPosition):winjs.TPromise<Modes.ILogicalSelectionEntry[]> {
 		return this._worker((w) => w.getRangesToPosition(resource, position));
 	}
 
 	static $computeInfo = OneWorkerAttr(LESSMode, LESSMode.prototype.computeInfo);
-	public computeInfo(resource:network.URL, position:EditorCommon.IPosition): winjs.TPromise<Modes.IComputeExtraInfoResult> {
+	public computeInfo(resource:URI, position:EditorCommon.IPosition): winjs.TPromise<Modes.IComputeExtraInfoResult> {
 		return this._worker((w) => w.computeInfo(resource, position));
 	}
 
 	static $getOutline = OneWorkerAttr(LESSMode, LESSMode.prototype.getOutline);
-	public getOutline(resource:network.URL):winjs.TPromise<Modes.IOutlineEntry[]> {
+	public getOutline(resource:URI):winjs.TPromise<Modes.IOutlineEntry[]> {
 		return this._worker((w) => w.getOutline(resource));
 	}
 
 	static $findDeclaration = OneWorkerAttr(LESSMode, LESSMode.prototype.findDeclaration);
-	public findDeclaration(resource:network.URL, position:EditorCommon.IPosition):winjs.TPromise<Modes.IReference> {
+	public findDeclaration(resource:URI, position:EditorCommon.IPosition):winjs.TPromise<Modes.IReference> {
 		return this._worker((w) => w.findDeclaration(resource, position));
 	}
 
 	static $findColorDeclarations = OneWorkerAttr(LESSMode, LESSMode.prototype.findColorDeclarations);
-	public findColorDeclarations(resource:network.URL):winjs.TPromise<{range:EditorCommon.IRange; value:string; }[]> {
+	public findColorDeclarations(resource:URI):winjs.TPromise<{range:EditorCommon.IRange; value:string; }[]> {
 		return this._worker((w) => w.findColorDeclarations(resource));
 	}
 }

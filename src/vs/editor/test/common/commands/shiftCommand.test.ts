@@ -11,6 +11,8 @@ import EditorCommon = require('vs/editor/common/editorCommon');
 import {withEditorModel} from 'vs/editor/test/common/editorTestUtils';
 import {Selection} from 'vs/editor/common/core/selection';
 import {Cursor} from 'vs/editor/common/controller/cursor';
+import * as Modes from 'vs/editor/common/modes';
+import {OnEnterSupport} from 'vs/editor/common/modes/supports/onEnter';
 
 function testShiftCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
 	TU.testCommand(lines, null, selection, (sel) => new ShiftCommand(sel, {
@@ -22,6 +24,69 @@ function testShiftCommand(lines: string[], selection: Selection, expectedLines: 
 
 function testUnshiftCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
 	TU.testCommand(lines, null, selection, (sel) => new ShiftCommand(sel, {
+		isUnshift: true,
+		tabSize: 4,
+		oneIndent: '\t'
+	}), expectedLines, expectedSelection);
+}
+
+class DocBlockCommentMode implements Modes.IMode {
+
+	public onEnterSupport: Modes.IOnEnterSupport;
+
+	constructor() {
+		this.onEnterSupport = new OnEnterSupport(this.getId(), {
+			brackets: [
+				{ open: '(', close: ')' },
+				{ open: '{', close: '}' },
+				{ open: '[', close: ']' }
+			],
+			regExpRules: [
+				{
+					// e.g. /** | */
+					beforeText: /^\s*\/\*\*(?!\/)([^\*]|\*(?!\/))*$/,
+					afterText: /^\s*\*\/$/,
+					action: { indentAction: Modes.IndentAction.IndentOutdent, appendText: ' * ' }
+				},
+				{
+					// e.g. /** ...|
+					beforeText: /^\s*\/\*\*(?!\/)([^\*]|\*(?!\/))*$/,
+					action: { indentAction: Modes.IndentAction.None, appendText: ' * ' }
+				},
+				{
+					// e.g.  * ...|
+					beforeText: /^(\t|(\ \ ))*\ \*(\ ([^\*]|\*(?!\/))*)?$/,
+					action: { indentAction: Modes.IndentAction.None, appendText: '* ' }
+				},
+				{
+					// e.g.  */|
+					beforeText: /^(\t|(\ \ ))*\ \*\/\s*$/,
+					action: { indentAction: Modes.IndentAction.None, removeText: 1 }
+				}
+			]
+		});
+	}
+
+	public getId(): string {
+		return 'docBlockCommentMode';
+	}
+
+	public toSimplifiedMode(): Modes.IMode {
+		return this;
+	}
+
+}
+
+function testShiftCommandInDocBlockCommentMode(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
+	TU.testCommand(lines, new DocBlockCommentMode(), selection, (sel) => new ShiftCommand(sel, {
+		isUnshift: false,
+		tabSize: 4,
+		oneIndent: '\t'
+	}), expectedLines, expectedSelection);
+}
+
+function testUnshiftCommandInDocBlockCommentMode(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
+	TU.testCommand(lines, new DocBlockCommentMode(), selection, (sel) => new ShiftCommand(sel, {
 		isUnshift: true,
 		tabSize: 4,
 		oneIndent: '\t'
@@ -212,10 +277,50 @@ suite('Editor Commands - ShiftCommand', () => {
 				'My First Line',
 				'\t\tMy Second Line',
 				'    Third Line',
-				'\t',
+				'',
 				'\t123'
 			],
-			new Selection(4, 2, 5, 3)
+			new Selection(4, 1, 5, 3)
+		);
+	});
+
+	test('issue #1120 TAB should not indent empty lines in a multi-line selection', () => {
+		testShiftCommand(
+			[
+				'My First Line',
+				'\t\tMy Second Line',
+				'    Third Line',
+				'',
+				'123'
+			],
+			new Selection(1, 1, 5, 2),
+			[
+				'\tMy First Line',
+				'\t\t\tMy Second Line',
+				'\t\tThird Line',
+				'',
+				'\t123'
+			],
+			new Selection(1, 2, 5, 3)
+		);
+
+		testShiftCommand(
+			[
+				'My First Line',
+				'\t\tMy Second Line',
+				'    Third Line',
+				'',
+				'123'
+			],
+			new Selection(4, 1, 5, 1),
+			[
+				'My First Line',
+				'\t\tMy Second Line',
+				'    Third Line',
+				'\t',
+				'123'
+			],
+			new Selection(4, 2, 5, 1)
 		);
 	});
 
@@ -399,7 +504,7 @@ suite('Editor Commands - ShiftCommand', () => {
 				'\tMy First Line',
 				'\tMy Second Line',
 				'\tThird Line',
-				'\t',
+				'',
 				'\t123'
 			],
 			new Selection(1, 2, 5, 5)
@@ -424,6 +529,90 @@ suite('Editor Commands - ShiftCommand', () => {
 				'123'
 			],
 			new Selection(2, 1, 2, 1)
+		);
+	});
+
+	test('issue #348: indenting around doc block comments', () => {
+		testShiftCommandInDocBlockCommentMode(
+			[
+				'',
+				'/**',
+				' * a doc comment',
+				' */',
+				'function hello() {}'
+			],
+			new Selection(1,1,5,20),
+			[
+				'',
+				'\t/**',
+				'\t * a doc comment',
+				'\t */',
+				'\tfunction hello() {}'
+			],
+			new Selection(1,1,5,21)
+		);
+
+		testUnshiftCommandInDocBlockCommentMode(
+			[
+				'',
+				'/**',
+				' * a doc comment',
+				' */',
+				'function hello() {}'
+			],
+			new Selection(1,1,5,20),
+			[
+				'',
+				'/**',
+				' * a doc comment',
+				' */',
+				'function hello() {}'
+			],
+			new Selection(1,1,5,20)
+		);
+
+		testUnshiftCommandInDocBlockCommentMode(
+			[
+				'\t',
+				'\t/**',
+				'\t * a doc comment',
+				'\t */',
+				'\tfunction hello() {}'
+			],
+			new Selection(1,1,5,21),
+			[
+				'',
+				'/**',
+				' * a doc comment',
+				' */',
+				'function hello() {}'
+			],
+			new Selection(1,1,5,20)
+		);
+	});
+
+	test('issue #1609: Wrong indentation of block comments', () => {
+		testShiftCommandInDocBlockCommentMode(
+			[
+				'',
+				'/**',
+				' * test',
+				' *',
+				' * @type {number}',
+				' */',
+				'var foo = 0;'
+			],
+			new Selection(1,1,7,13),
+			[
+				'',
+				'\t/**',
+				'\t * test',
+				'\t *',
+				'\t * @type {number}',
+				'\t */',
+				'\tvar foo = 0;'
+			],
+			new Selection(1,1,7,14)
 		);
 	});
 

@@ -6,40 +6,35 @@
 'use strict';
 
 import 'vs/css!./media/gotoSymbolHandler';
-import {Promise, TPromise} from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import arrays = require('vs/base/common/arrays');
-import env = require('vs/base/common/platform');
 import errors = require('vs/base/common/errors');
 import types = require('vs/base/common/types');
 import strings = require('vs/base/common/strings');
-import {IContext, Mode, IAutoFocus} from 'vs/base/parts/quickopen/browser/quickOpen';
+import {IContext, Mode, IAutoFocus} from 'vs/base/parts/quickopen/common/quickOpen';
 import {QuickOpenModel, IHighlight} from 'vs/base/parts/quickopen/browser/quickOpenModel';
-import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
-import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/browser/actionRegistry';
-import {Registry} from 'vs/platform/platform';
-import {QuickOpenHandlerDescriptor, IQuickOpenRegistry, Extensions as QuickOpenExtensions, QuickOpenHandler, EditorQuickOpenEntryGroup} from 'vs/workbench/browser/quickopen';
+import {Extensions as ActionExtensions} from 'vs/workbench/common/actionRegistry';
+import {Extensions as QuickOpenExtensions, QuickOpenHandler, EditorQuickOpenEntryGroup} from 'vs/workbench/browser/quickopen';
 import {QuickOpenAction} from 'vs/workbench/browser/actions/quickOpenAction';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
 import {TextEditorOptions, EditorOptions, EditorInput} from 'vs/workbench/common/editor';
 import filters = require('vs/base/common/filters');
-import {ICommonCodeEditor, IEditorActionDescriptorData, IEditor, IModelDecorationsChangeAccessor, OverviewRulerLane, IModelDeltaDecoration, IRange, IModel, ITokenizedModel, IDiffEditorModel, IEditorViewState} from 'vs/editor/common/editorCommon';
-import {IOutlineEntry} from 'vs/editor/common/modes';
-import {EditorAction, Behaviour} from 'vs/editor/common/editorAction';
+import {IEditor, IModelDecorationsChangeAccessor, OverviewRulerLane, IModelDeltaDecoration, IRange, IModel, ITokenizedModel, IDiffEditorModel, IEditorViewState} from 'vs/editor/common/editorCommon';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IQuickOpenService} from 'vs/workbench/services/quickopen/browser/quickOpenService';
+import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {Position} from 'vs/platform/editor/common/editor';
-import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
-import QuickOpenRegistry from 'vs/editor/contrib/quickOpen/common/quickOpen';
+import {OutlineRegistry, getOutlineEntries} from 'vs/editor/contrib/quickOpen/common/quickOpen';
 
-const ACTION_ID = 'workbench.action.gotoSymbol';
-const ACTION_LABEL = nls.localize('gotoSymbol', "Go to Symbol...");
-
-const GOTO_SYMBOL_PREFIX = '@';
-const SCOPE_PREFIX = ':';
+export const GOTO_SYMBOL_PREFIX = '@';
+export const SCOPE_PREFIX = ':';
 
 export class GotoSymbolAction extends QuickOpenAction {
+
+	public static ID = 'workbench.action.gotoSymbol';
+	public static LABEL = nls.localize('gotoSymbol', "Go to Symbol...");
+
 	constructor(actionId: string, actionLabel: string, @IQuickOpenService quickOpenService: IQuickOpenService) {
 		super(actionId, actionLabel, GOTO_SYMBOL_PREFIX, quickOpenService);
 	}
@@ -236,19 +231,17 @@ class SymbolEntry extends EditorQuickOpenEntryGroup {
 	private editorService: IWorkbenchEditorService;
 	private index: number;
 	private name: string;
-	private meta: string;
 	private type: string;
 	private icon: string;
 	private description: string;
 	private range: IRange;
 	private handler: GotoSymbolHandler;
 
-	constructor(index: number, name: string, meta: string, type: string, description: string, icon: string, range: IRange, highlights: IHighlight[], editorService: IWorkbenchEditorService, handler: GotoSymbolHandler) {
+	constructor(index: number, name: string, type: string, description: string, icon: string, range: IRange, highlights: IHighlight[], editorService: IWorkbenchEditorService, handler: GotoSymbolHandler) {
 		super();
 
 		this.index = index;
 		this.name = name;
-		this.meta = meta;
 		this.type = type;
 		this.icon = icon;
 		this.description = description;
@@ -264,10 +257,6 @@ class SymbolEntry extends EditorQuickOpenEntryGroup {
 
 	public getLabel(): string {
 		return this.name;
-	}
-
-	public getMeta(): string {
-		return this.meta;
 	}
 
 	public getIcon(): string {
@@ -432,7 +421,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 
 
 			if (model && types.isFunction((<ITokenizedModel>model).getMode)) {
-				canRun = QuickOpenRegistry.has(<IModel> model);
+				canRun = OutlineRegistry.has(<IModel>model);
 			}
 		}
 
@@ -465,7 +454,6 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 		for (let i = 0; i < flattened.length; i++) {
 			let element = flattened[i];
 			let label = strings.trim(element.label);
-			let meta: string = null;
 
 			// Show parent scope as description
 			let description: string = element.containerLabel;
@@ -475,7 +463,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 
 			// Add
 			let icon = element.icon || element.type;
-			results.push(new SymbolEntry(i, label, meta, element.type, description, icon, element.range, null, this.editorService, this));
+			results.push(new SymbolEntry(i, label, element.type, description, icon, element.range, null, this.editorService, this));
 		}
 
 		return results;
@@ -527,34 +515,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 					return TPromise.as(this.outlineToModelCache[modelId]);
 				}
 
-				let groupLabels: { [n: string]: string } = Object.create(null);
-				let entries: IOutlineEntry[] = [];
-				let resource = (<IModel>model).getAssociatedResource();
-				let promises = QuickOpenRegistry.all(<IModel>model).map(support => {
-
-					if (support.outlineGroupLabel) {
-						for (var key in support.outlineGroupLabel) {
-							if (Object.prototype.hasOwnProperty.call(support.outlineGroupLabel, key)) {
-								groupLabels[key] = support.outlineGroupLabel[key];
-							}
-						}
-					}
-
-					return support.getOutline(resource).then(result => {
-						if (Array.isArray(result)) {
-							entries.push(...result);
-						}
-					}, err => {
-						errors.onUnexpectedError(err);
-					});
-				});
-
-				return TPromise.join(promises).then(() => {
-
-					let outline = {
-						entries,
-						outlineGroupLabel: groupLabels
-					};
+				return getOutlineEntries(<IModel>model).then(outline => {
 
 					let model = new OutlineModel(outline, this.toQuickOpenEntries(outline));
 
@@ -655,28 +616,3 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 		this.activeOutlineRequest = null;
 	}
 }
-
-// Register Action
-let registry = <IWorkbenchActionRegistry>Registry.as(ActionExtensions.WorkbenchActions);
-registry.registerWorkbenchAction(new SyncActionDescriptor(GotoSymbolAction, ACTION_ID, ACTION_LABEL, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_O }));
-
-// Register Quick Outline Handler
-(<IQuickOpenRegistry>Registry.as(QuickOpenExtensions.Quickopen)).registerQuickOpenHandler(
-	new QuickOpenHandlerDescriptor(
-		'vs/workbench/parts/quickopen/browser/gotoSymbolHandler',
-		'GotoSymbolHandler',
-		GOTO_SYMBOL_PREFIX,
-		[
-			{
-				prefix: GOTO_SYMBOL_PREFIX,
-				needsEditor: true,
-				description: env.isMacintosh ? nls.localize('gotoSymbolDescriptionNormalMac', "Go to Symbol") : nls.localize('gotoSymbolDescriptionNormalWin', "Go to Symbol")
-			},
-			{
-				prefix: GOTO_SYMBOL_PREFIX + SCOPE_PREFIX,
-				needsEditor: true,
-				description: nls.localize('gotoSymbolDescriptionScoped', "Go to Symbol by Category")
-			}
-		]
-	)
-);

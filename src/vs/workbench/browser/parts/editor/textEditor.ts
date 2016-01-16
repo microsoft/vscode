@@ -13,7 +13,7 @@ import errors = require('vs/base/common/errors');
 import {CodeEditorWidget} from 'vs/editor/browser/widget/codeEditorWidget';
 import {Preferences} from 'vs/workbench/common/constants';
 import {IEditorViewState} from 'vs/editor/common/editorCommon';
-import {EventType as WorkbenchEventType, EditorEvent, TextEditorSelectionEvent, OptionsChangeEvent} from 'vs/workbench/browser/events';
+import {OptionsChangeEvent, EventType as WorkbenchEventType, EditorEvent, TextEditorSelectionEvent} from 'vs/workbench/common/events';
 import {Scope} from 'vs/workbench/common/memento';
 import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {EditorConfiguration} from 'vs/editor/common/config/commonEditorConfig';
@@ -136,12 +136,10 @@ export abstract class BaseTextEditor extends BaseEditor {
 		this._editorContainer = parent;
 		this.editorControl = this.createEditorControl(parent);
 
-		// Hook Listener for Selection changes (and only react to api, mouse or keyboard source, not any internal source of the editor)
+		// Hook Listener for Selection changes
 		this.toUnbind.push(this.editorControl.addListener(EventType.CursorPositionChanged, (event: ICursorPositionChangedEvent) => {
-			if (event.source === 'api' || event.source === 'mouse' || event.source === 'keyboard') {
-				let selection = this.editorControl.getSelection();
-				this.eventService.emit(WorkbenchEventType.TEXT_EDITOR_SELECTION_CHANGED, new TextEditorSelectionEvent(selection, this, this.getId(), this.input, null, this.position, event));
-			}
+			let selection = this.editorControl.getSelection();
+			this.eventService.emit(WorkbenchEventType.TEXT_EDITOR_SELECTION_CHANGED, new TextEditorSelectionEvent(selection, this, this.getId(), this.input, null, this.position, event));
 		}));
 
 		// Hook Listener for mode changes

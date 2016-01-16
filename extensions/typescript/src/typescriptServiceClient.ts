@@ -1,7 +1,8 @@
-/* --------------------------------------------------------------------------------------------
- * Copyright (c) Microsoft Corporation. All rights reserved.
- * Licensed under the MIT License. See License.txt in the project root for license information.
- * ------------------------------------------------------------------------------------------ */
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
 'use strict';
 
 import * as cp from 'child_process';
@@ -39,7 +40,7 @@ interface RequestItem {
 
 export default class TypeScriptServiceClient implements ITypescriptServiceClient {
 
-	public static Trace: boolean = false;
+	public static Trace: boolean = process.env.TSS_TRACE || false;
 
 	private host: ITypescriptServiceClientHost;
 	private pathSeparator: string;
@@ -115,6 +116,11 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 				modulePath = path.join(this.tsdk, 'tsserver.js');
 			} else if (workspace.rootPath) {
 				modulePath = path.join(workspace.rootPath, this.tsdk, 'tsserver.js');
+			}
+		} else if (!!process.env['CODE_TSJS'] || !!process.env['VSCODE_TSJS']) {
+			let candidate = path.join(workspace.rootPath, 'node_modules', 'typescript', 'lib', 'tsserver.js');
+			if (fs.existsSync(candidate)) {
+				modulePath = candidate;
 			}
 		}
 		if (!fs.existsSync(modulePath)) {

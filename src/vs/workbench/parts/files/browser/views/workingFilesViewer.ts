@@ -4,17 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
 import {TPromise, Promise} from 'vs/base/common/winjs.base';
 import platform = require('vs/base/common/platform');
 import {$} from 'vs/base/browser/builder';
-import tree = require('vs/base/parts/tree/common/tree');
+import tree = require('vs/base/parts/tree/browser/tree');
 import {FileLabel} from 'vs/base/browser/ui/filelabel/fileLabel';
 import {ExternalElementsDragAndDropData, ElementsDragAndDropData, DesktopDragAndDropData} from 'vs/base/parts/tree/browser/treeDnd';
 import {ClickBehavior, DefaultController, DefaultDragAndDrop} from 'vs/base/parts/tree/browser/treeDefaults';
 import errors = require('vs/base/common/errors');
 import mime = require('vs/base/common/mime');
-import severity from 'vs/base/common/severity';
 import uri from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
 import {StandardMouseEvent, DragMouseEvent} from 'vs/base/browser/mouseEvent';
@@ -24,10 +22,9 @@ import actions = require('vs/base/common/actions');
 import {ActionsRenderer} from 'vs/base/parts/tree/browser/actionsRenderer';
 import {ContributableActionProvider} from 'vs/workbench/browser/actionBarRegistry';
 import {keybindingForAction, CloseWorkingFileAction, SelectResourceForCompareAction, CompareResourcesAction, SaveFileAsAction, SaveFileAction, RevertFileAction, OpenToSideAction} from 'vs/workbench/parts/files/browser/fileActions';
-import files = require('vs/workbench/parts/files/browser/files');
-import {asFileResource} from 'vs/workbench/parts/files/common/files';
-import {WorkingFileEntry, WorkingFilesModel} from 'vs/workbench/parts/files/browser/workingFilesModel';
-import {IUntitledEditorService} from 'vs/workbench/services/untitled/browser/untitledEditorService';
+import {asFileResource, ITextFileService} from 'vs/workbench/parts/files/common/files';
+import {WorkingFileEntry, WorkingFilesModel} from 'vs/workbench/parts/files/common/workingFilesModel';
+import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
@@ -39,7 +36,7 @@ const ROOT_ID = '__WORKING_FILES_ROOT';
 
 export class WorkingFilesDataSource implements tree.IDataSource {
 
-	constructor(@INullService ns) {}
+	constructor( @INullService ns) { }
 
 	public getId(tree: tree.ITree, element: any): string {
 		if (element instanceof WorkingFileEntry) {
@@ -72,7 +69,7 @@ export class WorkingFilesDataSource implements tree.IDataSource {
 
 export class WorkingFilesSorter implements tree.ISorter {
 
-	constructor(@INullService ns) {}
+	constructor( @INullService ns) { }
 
 	public compare(tree: tree.ITree, element: any, otherElement: any): number {
 		return WorkingFilesModel.compare(element, otherElement);
@@ -81,7 +78,7 @@ export class WorkingFilesSorter implements tree.ISorter {
 
 export class WorkingFilesRenderer extends ActionsRenderer {
 
-	public static FILE_ITEM_HEIGHT = 24;
+	public static FILE_ITEM_HEIGHT = 22;
 
 	constructor(
 		model: WorkingFilesModel,
@@ -122,8 +119,8 @@ export class WorkingFilesActionProvider extends ContributableActionProvider {
 
 	constructor(model: WorkingFilesModel,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IUntitledEditorService private untitledEditorService: IUntitledEditorService
+		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
+		@ITextFileService private textFileService: ITextFileService
 	) {
 		super();
 
@@ -134,7 +131,7 @@ export class WorkingFilesActionProvider extends ContributableActionProvider {
 		return element instanceof WorkingFileEntry || super.hasActions(tree, element);
 	}
 
-	// we dont call into super here because we put only one primary action to the left (Remove/Dirty Indicator)
+	// we don't call into super here because we put only one primary action to the left (Remove/Dirty Indicator)
 	public getActions(tree: tree.ITree, element: WorkingFileEntry): TPromise<actions.IAction[]> {
 		let actions: actions.IAction[] = [];
 
@@ -158,7 +155,7 @@ export class WorkingFilesActionProvider extends ContributableActionProvider {
 				actions.unshift(openToSideAction); // be on top
 
 				// Files: Save / Revert
-				let autoSaveEnabled = this.contextService.isAutoSaveEnabled();
+				let autoSaveEnabled = this.textFileService.isAutoSaveEnabled();
 				if ((!autoSaveEnabled || element.dirty) && element.isFile) {
 					actions.push(new Separator());
 
@@ -307,7 +304,6 @@ export class WorkingFilesDragAndDrop extends DefaultDragAndDrop {
 }
 
 export class WorkingFilesController extends DefaultController {
-	private didCatchEnterDown: boolean;
 	private actionProvider: WorkingFilesActionProvider;
 	private model: WorkingFilesModel;
 
@@ -319,17 +315,30 @@ export class WorkingFilesController extends DefaultController {
 	) {
 		super({ clickBehavior: ClickBehavior.ON_MOUSE_DOWN });
 
-		this.didCatchEnterDown = false;
 		this.model = model;
 		this.actionProvider = provider;
 
 		this.downKeyBindingDispatcher.set(CommonKeybindings.ENTER, this.onEnterDown.bind(this));
-		this.upKeyBindingDispatcher.set(CommonKeybindings.ENTER, this.onEnterUp.bind(this));
 		if (platform.isMacintosh) {
 			this.upKeyBindingDispatcher.set(CommonKeybindings.WINCTRL_ENTER, this.onModifierEnterUp.bind(this)); // Mac: somehow Cmd+Enter does not work
 		} else {
 			this.upKeyBindingDispatcher.set(CommonKeybindings.CTRLCMD_ENTER, this.onModifierEnterUp.bind(this)); // Mac: somehow Cmd+Enter does not work
 		}
+	}
+
+	/* protected */ public onClick(tree: tree.ITree, element: any, event: StandardMouseEvent): boolean {
+
+		// Close working file on middle mouse click
+		if (element instanceof WorkingFileEntry && event.browserEvent && event.browserEvent.button === 1 /* Middle Button */) {
+			const closeAction = this.instantiationService.createInstance(CloseWorkingFileAction, this.model, element);
+			closeAction.run().done(() => {
+				closeAction.dispose();
+			}, errors.onUnexpectedError);
+
+			return true;
+		}
+
+		return super.onClick(tree, element, event);
 	}
 
 	/* protected */ public onLeftClick(tree: tree.ITree, element: any, event: StandardMouseEvent, origin: string = 'mouse'): boolean {
@@ -390,23 +399,6 @@ export class WorkingFilesController extends DefaultController {
 			this.openEditor(<WorkingFileEntry>element, false, false);
 		}
 
-		this.didCatchEnterDown = true;
-
-		return true;
-	}
-
-	private onEnterUp(tree: tree.ITree, event: StandardKeyboardEvent): boolean {
-		if (!this.didCatchEnterDown) {
-			return false;
-		}
-
-		let element = tree.getFocus();
-		if (element) {
-			this.openEditor(<WorkingFileEntry>element, false, false);
-		}
-
-		this.didCatchEnterDown = false;
-
 		return true;
 	}
 
@@ -415,8 +407,6 @@ export class WorkingFilesController extends DefaultController {
 		if (element) {
 			this.openEditor(<WorkingFileEntry>element, false, true);
 		}
-
-		this.didCatchEnterDown = false;
 
 		return true;
 	}

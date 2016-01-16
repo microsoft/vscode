@@ -11,6 +11,7 @@ import assert = require('assert');
 
 import {StatResolver} from 'vs/workbench/services/files/node/fileService';
 import uri from 'vs/base/common/uri';
+import {isLinux} from 'vs/base/common/platform';
 import utils = require('vs/workbench/services/files/test/node/utils');
 
 function create(relativePath: string): StatResolver {
@@ -102,6 +103,36 @@ suite('Stat Resolver', () => {
 			assert.ok(deep);
 			assert.ok(deep.hasChildren);
 			assert.equal(deep.children.length, 4);
+		})
+		.done(() => done(), done);
+	});
+
+	test('resolve directory - resolveTo single directory - mixed casing', function(done: () => void) {
+		let resolver = create('/');
+
+		resolver.resolve({ resolveTo: [toResource('other/Deep')] }).then(result => {
+			assert.ok(result);
+			assert.ok(result.children);
+			assert.ok(result.hasChildren);
+			assert.ok(result.isDirectory);
+
+			let children = result.children;
+			assert.equal(children.length, 4);
+
+			let other = utils.getByName(result, 'other');
+			assert.ok(other);
+			assert.ok(other.hasChildren);
+
+			let deep = utils.getByName(other, 'deep');
+			if (isLinux) { // Linux has case sensitive file system
+				assert.ok(deep);
+				assert.ok(deep.hasChildren);
+				assert.ok(!deep.children); // not resolved because we got instructed to resolve other/Deep with capital D
+			} else {
+				assert.ok(deep);
+				assert.ok(deep.hasChildren);
+				assert.equal(deep.children.length, 4);
+			}
 		})
 		.done(() => done(), done);
 	});

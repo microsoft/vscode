@@ -2,6 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
 'use strict';
 
 import {IPosition, Handler, ICommonCodeEditor} from 'vs/editor/common/editorCommon';
@@ -18,7 +19,7 @@ export class EditorAccessor implements emmet.Editor {
 
 	lineStarts: number[] = null;
 
-	emmetSupportedModes = ['html', 'razor', 'css', 'less', 'sass', 'xml', 'xsl', 'jade', 'handlebars', '.hbs'];
+	emmetSupportedModes = ['html', 'razor', 'css', 'less', 'scss', 'xml', 'xsl', 'jade', 'handlebars', 'hbs', 'jsx', 'tsx'];
 
 	constructor(editor: ICommonCodeEditor) {
 		this.editor = editor;
@@ -83,7 +84,7 @@ export class EditorAccessor implements emmet.Editor {
 			}
 		}
 
-		// shift colum by +1 since they are 1 based
+		// shift column by +1 since they are 1 based
 		let range = new Range(startPosition.lineNumber, startPosition.column + 1, endPosition.lineNumber, endPosition.column + 1);
 		let deletePreviousChars = 0;
 
@@ -114,8 +115,14 @@ export class EditorAccessor implements emmet.Editor {
 		let position = this.editor.getSelection().getStartPosition();
 		let mode = this.editor.getModel().getModeAtPosition(position.lineNumber, position.column);
 		let syntax = mode.getId().split('.').pop();
-		if (syntax === 'razor' || syntax === 'handlebars') { // treat like html
+		if (syntax === 'razor' || syntax === 'handlebars') { // treat razor and handlebars like html
 			return 'html';
+		}
+		if (syntax === 'typescriptreact' || syntax == 'javascriptreact') { // treat like tsx like jsx
+			return 'jsx';
+		}
+		if (syntax === 'sass') { // sass is really sccs... map it to scss
+			return'scss';
 		}
 		return syntax;
 	}

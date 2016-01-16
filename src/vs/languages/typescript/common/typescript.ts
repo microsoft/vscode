@@ -64,7 +64,7 @@ export class DefaultProjectResolver implements IProjectResolver2 {
 		files: [],
 		options: undefined
 	};
-	
+
 	setConsumer(consumer: IProjectConsumer) {
 		this._consumer = consumer;
 	}
@@ -91,7 +91,7 @@ export class DefaultProjectResolver implements IProjectResolver2 {
 		let resource = filePath
 			? URI.file(filePath)
 			: URI.create('extralib', undefined, Date.now().toString());
-		
+
 		this._needsProjectUpdate = true;
 		this._projectChange.files.push(resource);
 		this._fileChanges.push({ kind: ChangeKind.Added, resource, content });

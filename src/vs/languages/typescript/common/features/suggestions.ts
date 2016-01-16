@@ -15,7 +15,7 @@ import Options = require('vs/languages/typescript/common/options');
 
 function getWordAtOffset(text: string, offset: number): string {
 	var endOffset = offset;
-	while(offset > 0 && /\w|\$/.test(text.charAt(offset - 1))) {
+	while(offset > 0 && /(-?\d*\.\d\w*)|([^\`\~\!\@\#\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s])/.test(text.charAt(offset - 1))) {
 		offset -= 1;
 	}
 	return text.substring(offset, endOffset);
@@ -26,7 +26,7 @@ function suggestionHashFn(suggestion:Modes.ISuggestion):string {
 }
 
 export function computeSuggestions(languageService: ts.LanguageService, resource: URI,
-	position: EditorCommon.IPosition, options: Options): Modes.ISuggestions {
+	position: EditorCommon.IPosition, options: Options): Modes.ISuggestResult {
 
 	var filename = resource.toString(),
 		sourceFile = languageService.getSourceFile(filename),

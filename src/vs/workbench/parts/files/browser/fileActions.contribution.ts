@@ -7,28 +7,25 @@
 import nls = require('vs/nls');
 import {Registry} from 'vs/platform/platform';
 import {Action, IAction} from 'vs/base/common/actions';
-import paths = require('vs/base/common/paths');
 import {ActionItem, BaseActionItem, Separator} from 'vs/base/browser/ui/actionbar/actionbar';
 import {Scope, IActionBarRegistry, Extensions as ActionBarExtensions, ActionBarContributor} from 'vs/workbench/browser/actionBarRegistry';
 import {IEditorInputActionContext, IEditorInputAction, EditorInputActionContributor} from 'vs/workbench/browser/parts/editor/baseEditor';
-import {AddToWorkingFiles, OpenPreviousWorkingFile, OpenNextWorkingFile, CloseAllFilesAction, CloseFileAction, GlobalCompareResourcesAction, GlobalNewFolderAction, RevertFileAction, SaveFilesAction, SaveAllAction, SaveFileAction, ViewDerivedSourceEditorInputAction, RefreshDerivedFrameEditorInputAction, keybindingForAction, MoveFileToTrashAction, TriggerRenameFileAction, PasteFileAction, CopyFileAction, SelectResourceForCompareAction, CompareResourcesAction, NewFolderAction, NewFileAction, OpenToSideAction} from 'vs/workbench/parts/files/browser/fileActions';
+import {AddToWorkingFiles, FocusWorkingFiles, OpenPreviousWorkingFile, OpenNextWorkingFile, CloseAllFilesAction, CloseFileAction, GlobalCompareResourcesAction, GlobalNewFolderAction, RevertFileAction, SaveFilesAction, SaveAllAction, SaveFileAction, keybindingForAction, MoveFileToTrashAction, TriggerRenameFileAction, PasteFileAction, CopyFileAction, SelectResourceForCompareAction, CompareResourcesAction, NewFolderAction, NewFileAction, OpenToSideAction} from 'vs/workbench/parts/files/browser/fileActions';
 import {RevertLocalChangesAction, AcceptLocalChangesAction, ConflictResolutionDiffEditorInput} from 'vs/workbench/parts/files/browser/saveErrorHandler';
 import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
-import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/browser/actionRegistry';
-import {DerivedFrameEditorInput} from 'vs/workbench/parts/files/browser/editors/derivedFrameEditorInput';
-import {KeybindingsUtils} from 'vs/platform/keybinding/common/keybindingsUtils';
+import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/common/actionRegistry';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {FileStat} from 'vs/workbench/parts/files/browser/views/explorerViewModel';
+import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
+import {FileStat} from 'vs/workbench/parts/files/common/explorerViewModel';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
-
-const HTML_MIME = 'text/html';
 
 class FilesViewerActionContributor extends ActionBarContributor {
 
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IKeybindingService private keybindingService: IKeybindingService
 	) {
 		super();
 	}
@@ -45,8 +42,6 @@ class FilesViewerActionContributor extends ActionBarContributor {
 		let tree = context.viewer;
 		let actions: IAction[] = [];
 		let separateOpen = false;
-
-		let extension = stat.isDirectory ? null : paths.extname(stat.name);
 
 		// Open side by side
 		if (!stat.isDirectory) {
@@ -130,7 +125,7 @@ class FilesViewerActionContributor extends ActionBarContributor {
 			// Any other item with keybinding
 			let keybinding = keybindingForAction(action.id);
 			if (keybinding) {
-				return new ActionItem(context, action, { label: true, keybinding: keybinding.toLabel() });
+				return new ActionItem(context, action, { label: true, keybinding: this.keybindingService.getLabelFor(keybinding) });
 			}
 		}
 
@@ -156,33 +151,12 @@ class ConflictResolutionActionContributor extends EditorInputActionContributor {
 	}
 }
 
-class DerivedFrameEditorActionContributor extends EditorInputActionContributor {
-
-	constructor( @IInstantiationService private instantiationService: IInstantiationService) {
-		super();
-	}
-
-	public hasActionsForEditorInput(context: IEditorInputActionContext): boolean {
-		return context.input instanceof DerivedFrameEditorInput;
-	}
-
-	public getActionsForEditorInput(context: IEditorInputActionContext): IEditorInputAction[] {
-		return [
-			this.instantiationService.createInstance(RefreshDerivedFrameEditorInputAction),
-			this.instantiationService.createInstance(ViewDerivedSourceEditorInputAction)
-		];
-	}
-}
-
 // Contribute to Viewers that show Files
 let actionBarRegistry = <IActionBarRegistry>Registry.as(ActionBarExtensions.Actionbar);
 actionBarRegistry.registerActionBarContributor(Scope.VIEWER, FilesViewerActionContributor);
 
 // Contribute to Conflict Editor Inputs
 actionBarRegistry.registerActionBarContributor(Scope.EDITOR, ConflictResolutionActionContributor);
-
-// Contribute to Derived Frame Editor Inputs
-actionBarRegistry.registerActionBarContributor(Scope.EDITOR, DerivedFrameEditorActionContributor);
 
 // Contribute Global Actions
 const category = nls.localize('filesCategory', "Files");
@@ -199,3 +173,4 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(CloseAllFilesAction, C
 registry.registerWorkbenchAction(new SyncActionDescriptor(OpenNextWorkingFile, OpenNextWorkingFile.ID, OpenNextWorkingFile.LABEL, { primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.DownArrow) }), category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(OpenPreviousWorkingFile, OpenPreviousWorkingFile.ID, OpenPreviousWorkingFile.LABEL, { primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.UpArrow) }), category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(AddToWorkingFiles, AddToWorkingFiles.ID, AddToWorkingFiles.LABEL, { primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.Enter) }), category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(FocusWorkingFiles, FocusWorkingFiles.ID, FocusWorkingFiles.LABEL, { primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_E) }), category);

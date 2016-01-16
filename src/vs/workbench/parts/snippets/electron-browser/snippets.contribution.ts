@@ -10,17 +10,17 @@ import paths = require('vs/base/common/paths');
 import actions = require('vs/base/common/actions');
 import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
 import platform = require('vs/platform/platform');
-import workbenchActionRegistry = require('vs/workbench/browser/actionRegistry');
+import workbenchActionRegistry = require('vs/workbench/common/actionRegistry');
 import workbenchContributions = require('vs/workbench/common/contributions');
 import snippetsTracker = require('./snippetsTracker');
 import modesExtensions = require('vs/editor/common/modes/modesRegistry');
 import errors = require('vs/base/common/errors');
-import {IQuickOpenService, IPickOpenEntry} from 'vs/workbench/services/quickopen/browser/quickOpenService';
+import {IQuickOpenService, IPickOpenEntry} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import * as JSONContributionRegistry from 'vs/languages/json/common/jsonContributionRegistry';
+import * as JSONContributionRegistry from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import {IJSONSchema} from 'vs/base/common/jsonSchema';
 
-import ipc = require('ipc');
+import {ipcRenderer as ipc} from 'electron';
 import fs = require('fs');
 
 class OpenSnippetsAction extends actions.Action {

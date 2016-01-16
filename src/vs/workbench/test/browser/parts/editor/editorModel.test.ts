@@ -7,11 +7,11 @@
 
 import * as assert from 'assert';
 import {EditorModel} from 'vs/workbench/common/editor';
-import {BaseTextEditorModel} from 'vs/workbench/browser/parts/editor/textEditorModel';
-import {TextDiffEditorModel} from 'vs/workbench/browser/parts/editor/textDiffEditorModel';
-import {DiffEditorInput} from 'vs/workbench/browser/parts/editor/diffEditorInput';
-import {StringEditorInput} from 'vs/workbench/browser/parts/editor/stringEditorInput';
-import {StringEditorModel} from 'vs/workbench/browser/parts/editor/stringEditorModel';
+import {BaseTextEditorModel} from 'vs/workbench/common/editor/textEditorModel';
+import {TextDiffEditorModel} from 'vs/workbench/common/editor/textDiffEditorModel';
+import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
+import {StringEditorInput} from 'vs/workbench/common/editor/stringEditorInput';
+import {StringEditorModel} from 'vs/workbench/common/editor/stringEditorModel';
 import * as InstantiationService from 'vs/platform/instantiation/common/instantiationService';
 import {createMockModelService, createMockModeService} from 'vs/editor/test/common/servicesTestUtils';
 
@@ -35,7 +35,7 @@ suite("Workbench - EditorModel", () => {
 		let m = new MyTextEditorModel(modelService, modeService);
 		m.load().then(function(model: any) {
 			assert(model === m);
-			return model.createTextEditorModel("foo", "text/plain").then(function() {
+			return model.createTextEditorModel("foo", null, "text/plain").then(function() {
 				assert.strictEqual(m.isResolved(), true);
 			});
 		}).done(() => {

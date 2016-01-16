@@ -14,13 +14,13 @@ interface PListObject {
 
 export function parse<T>(content: string) : { value: T; errors: string[]; } {
 
-	var errors : string[] = [];
-	var currObject : PListObject = null;
-	var result : any = null;
+	let errors : string[] = [];
+	let currObject : PListObject = null;
+	let result : any = null;
 
-	var text = null;
+	let text = null;
 
-	var parser = sax.parser(false, { lowercase: true });
+	let parser = sax.parser(false, { lowercase: true });
 	parser.onerror = (e) => {
 		errors.push(e.message);
 	};
@@ -42,10 +42,10 @@ export function parse<T>(content: string) : { value: T; errors: string[]; } {
 				break;
 		}
 		text = '';
-	}
+	};
 
 	parser.onclosetag = (tagName:  string) => {
-		var value;
+		let value;
 		switch (tagName) {
 			case 'key':
 				if (!currObject || Array.isArray(currObject.value)) {

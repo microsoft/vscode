@@ -25,19 +25,22 @@ var util = require('./lib/util');
 var buildfile = require('../src/buildfile');
 var common = require('./gulpfile.common');
 var root = path.dirname(__dirname);
-var commit = process.env['BUILD_SOURCEVERSION'] || require('./lib/git').getVersion(root);
+var build = path.join(root, '.build');
+var commit = util.getVersion(root);
 
 var baseModules = [
-	'app', 'applicationinsights', 'assert', 'auto-updater', 'browser-window',
-	'child_process', 'chokidar', 'crash-reporter', 'crypto', 'dialog', 'emmet',
+	'applicationinsights', 'assert', 'child_process', 'chokidar', 'crypto', 'emmet',
 	'events', 'fs', 'getmac', 'glob', 'graceful-fs', 'http', 'http-proxy-agent',
-	'https', 'https-proxy-agent', 'iconv-lite', 'ipc', 'menu', 'menu-item', 'net',
-	'original-fs', 'os', 'path', 'readline', 'remote', 'sax', 'screen', 'semver',
-	'shell', 'stream', 'string_decoder', 'url', 'vscode-textmate', 'web-frame', 'winreg',
-	'yauzl'
+	'https', 'https-proxy-agent', 'iconv-lite', 'electron', 'net',
+	'os', 'path', 'readline', 'sax', 'semver', 'stream', 'string_decoder', 'url',
+	'vscode-textmate', 'winreg', 'yauzl', 'native-keymap', 'weak'
 ];
 
 // Build
+
+var builtInExtensions = {
+	'jrieken.vscode-omnisharp': '0.3.0',
+};
 
 var vscodeEntryPoints = _.flatten([
 	buildfile.entrypoint('vs/workbench/workbench.main'),
@@ -53,11 +56,11 @@ var vscodeResources = [
 	'out-build/vs/base/node/{stdForkStart.js,terminateProcess.sh}',
 	'out-build/vs/base/worker/workerMainCompatibility.html',
 	'out-build/vs/base/worker/workerMain.{js,js.map}',
+	'out-build/vs/base/browser/ui/octiconLabel/octicons/**',
 	'out-build/vs/editor/css/*.css',
 	'out-build/vs/languages/typescript/common/lib/lib.{d.ts,es6.d.ts}',
 	'out-build/vs/languages/markdown/common/*.css',
 	'out-build/vs/workbench/browser/media/*-theme.css',
-	'out-build/vs/workbench/browser/media/octicons/**',
 	'out-build/vs/workbench/electron-browser/index.html',
 	'out-build/vs/workbench/electron-main/bootstrap.js',
 	'out-build/vs/workbench/parts/debug/**/*.json',
@@ -71,16 +74,24 @@ var vscodeResources = [
 	'!**/test/**'
 ];
 
+var BUNDLED_FILE_HEADER = [
+	'/*!--------------------------------------------------------',
+	' * Copyright (C) Microsoft Corporation. All rights reserved.',
+	' *--------------------------------------------------------*/'
+].join('\n');
+
 gulp.task('clean-optimized-vscode', util.rimraf('out-vscode'));
-gulp.task('optimize-vscode', ['clean-optimized-vscode', 'compile-build', 'compile-plugins'], common.optimizeTask(
-	vscodeEntryPoints,
-	vscodeResources,
-	common.loaderConfig(baseModules),
-	'out-vscode'
-));
+gulp.task('optimize-vscode', ['clean-optimized-vscode', 'compile-build', 'compile-plugins'], common.optimizeTask({
+	entryPoints: vscodeEntryPoints,
+	otherSources: [],
+	resources: vscodeResources,
+	loaderConfig: common.loaderConfig(baseModules),
+	header: BUNDLED_FILE_HEADER,
+	out: 'out-vscode'
+}));
 
 gulp.task('clean-minified-vscode', util.rimraf('out-vscode-min'));
-gulp.task('minify-vscode', ['clean-minified-vscode', 'optimize-vscode'], common.minifyTask('out-vscode'));
+gulp.task('minify-vscode', ['clean-minified-vscode', 'optimize-vscode'], common.minifyTask('out-vscode', false));
 
 // Package
 var product = JSON.parse(fs.readFileSync(path.join(root, 'product.json'), 'utf8'));
@@ -97,14 +108,13 @@ var config = {
 	darwinBundleDocumentTypes: product.darwinBundleDocumentTypes,
 	darwinCredits: darwinCreditsTemplate ? new Buffer(darwinCreditsTemplate({ commit: commit, date: new Date().toISOString() })) : void 0,
 	winIcon: product.icons.application.ico,
-	win32ExeBasename: product.win32ExeBasename,
 	token: process.env['GITHUB_TOKEN'] || void 0
 };
 
 gulp.task('electron', function () {
 	// Force windows to use ia32
-	var arch = (process.platform === 'win32' ? 'ia32' : process.arch);
-	return electron.dest(path.join(path.dirname(root), 'Electron-Build'), _.extend({}, config, { arch: arch }));
+	var arch = process.env.VSCODE_ELECTRON_PLATFORM || (process.platform === 'win32' ? 'ia32' : process.arch);
+	return electron.dest(path.join(build, 'electron'), _.extend({}, config, { arch: arch }));
 });
 
 function mixinProduct() {
@@ -154,11 +164,7 @@ function packageTask(platform, arch, opts) {
 			'!extensions/*/src/**',
 			'!extensions/*/out/**/test/**',
 			'!extensions/typescript/bin/**',
-			'!extensions/csharp-o/node_modules/del/**',
-			'!extensions/csharp-o/node_modules/gulp/**',
-			'!extensions/csharp-o/node_modules/gulp-decompress/**',
-			'!extensions/csharp-o/node_modules/gulp-download/**',
-			'!extensions/csharp-o/node_modules/typescript/**'
+			'!extensions/vscode-api-tests/**'
 		], { base: '.' });
 
 		var pluginHostSourceMap = gulp.src(out + '/vs/workbench/node/pluginHostProcess.js.map', { base: '.' })
@@ -174,12 +180,15 @@ function packageTask(platform, arch, opts) {
 		var license = gulp.src(['Credits_*', 'LICENSE.txt', 'ThirdPartyNotices.txt'], { base: '.' });
 		var api = gulp.src('src/vs/vscode.d.ts').pipe(rename('out/vs/vscode.d.ts'));
 
-		var depsSrc = _.flatten(Object.keys(packagejson.dependencies)
-			.map(function (d) { return ['node_modules/' + d + '/**', '!node_modules/' + d + '/**/{test,tests}/**']; }));
+		var depsSrc = _.flatten(Object.keys(packagejson.dependencies).concat(Object.keys(packagejson.optionalDependencies))
+			.map(function (d) { return ['node_modules/' + d + '/**', '!node_modules/' + d + '/**/{test,tests}/**']; })
+		);
 
 		var deps = gulp.src(depsSrc, { base: '.', dot: true })
 			.pipe(util.cleanNodeModule('fsevents', ['binding.gyp', 'fsevents.cc', 'build/**', 'src/**', 'test/**'], true))
-			.pipe(util.cleanNodeModule('oniguruma', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], true));
+			.pipe(util.cleanNodeModule('alexandrudima-oniguruma', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], true))
+			.pipe(util.cleanNodeModule('windows-mutex', ['binding.gyp', 'build/**', 'src/**'], true))
+			.pipe(util.cleanNodeModule('native-keymap', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], true));
 
 		var resources = gulp.src('resources/*', { base: '.' });
 
@@ -189,6 +198,11 @@ function packageTask(platform, arch, opts) {
 			resources = es.merge(resources, gulp.src(product.icons.application.png, { base: '.' }));
 		}
 
+		var extraExtensions = util.downloadExtensions(builtInExtensions)
+			.pipe(rename(function (p) {
+				p.dirname = path.posix.join('extensions', p.dirname);
+			}));
+
 		var all = es.merge(
 			api,
 			packageJson,
@@ -196,13 +210,14 @@ function packageTask(platform, arch, opts) {
 			license,
 			sources,
 			deps,
+			extraExtensions,
 			resources
 		).pipe(util.skipDirectories());
 
 		var result = all
 			.pipe(util.fixWin32DirectoryPermissions())
 			.pipe(electron(_.extend({}, config, { platform: platform, arch: arch })))
-			.pipe(filter(['**', '!LICENSE', '!version']));
+			.pipe(filter(['**', '!LICENSE', '!LICENSES.chromium.html', '!version']));
 
 		if (platform === 'win32') {
 			result = es.merge(result, gulp.src('resources/win32/bin/**', { base: 'resources/win32' }));

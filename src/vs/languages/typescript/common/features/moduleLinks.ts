@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import network = require('vs/base/common/network');
+import URI from 'vs/base/common/uri';
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
 import ts = require('vs/languages/typescript/common/lib/typescriptServices');
@@ -104,7 +104,7 @@ export function findLink(sourceFile:ts.SourceFile, filename:string, position:Edi
 	}
 
 	return <Modes.IReference> {
-		resource: new network.URL(candidate),
+		resource: URI.parse(candidate),
 		range: { startLineNumber: 1, startColumn: 1, endLineNumber: Number.MAX_VALUE, endColumn: Number.MAX_VALUE }
 	};
 }

@@ -8,7 +8,7 @@ import nls = require('vs/nls');
 import env = require('vs/base/common/flags');
 import platform = require('vs/platform/platform');
 import ConfigurationRegistry = require('vs/platform/configuration/common/configurationRegistry');
-import modesExtensions = require('vs/editor/common/modes/modesRegistry');
+import {LanguageExtensions} from 'vs/editor/common/modes/languageExtensionPoint';
 import typescript = require('vs/languages/typescript/common/typescript');
 import extensions = require('vs/languages/javascript/common/javascript.extensions');
 import Options = require('vs/languages/typescript/common/options');
@@ -17,7 +17,7 @@ import Mime = require('vs/base/common/mime');
 
 if (!env.enableTypeScriptServiceModeForJS) {
 
-	modesExtensions.registerMode({
+	LanguageExtensions.registerCompatMode({
 		id: 'javascript',
 		extensions: ['.js', '.es6'],
 		firstLine: '^#!.*\\bnode',
@@ -27,7 +27,6 @@ if (!env.enableTypeScriptServiceModeForJS) {
 		moduleId: 'vs/languages/javascript/common/javascript',
 		ctorName: 'JSMode'
 	});
-	modesExtensions.registerWorkerParticipant('javascript', 'vs/languages/typescript/common/participants/filenameSuggestions', 'FilenameSuggestions');
 
 	// ----- Registration and Configuration --------------------------------------------------------
 
@@ -62,7 +61,7 @@ if (!env.enableTypeScriptServiceModeForJS) {
 					'javascript.validate.enable': {
 						'type': 'boolean',
 						'default': true,
-						'description': nls.localize('vsclint', "Controls VSCode's Javascript validation. If set to false both syntax and sematic validation is disabled"),
+						'description': nls.localize('vsclint', "Controls VSCode's JavaScript validation. If set to false both syntax and semantic validation is disabled"),
 					},
 					'javascript.validate.semanticValidation': {
 						'type': 'boolean',
@@ -103,7 +102,7 @@ if (!env.enableTypeScriptServiceModeForJS) {
 					'javascript.validate.lint.unknownTypeOfResults': {
 						'enum': ['ignore', 'warning', 'error'],
 						'default': defaults.validate.lint.unknownTypeOfResults,
-						'description': nls.localize('lint.unknownTypeOfResults', "Unexpected output of the 'typeof'-operator."),
+						'description': nls.localize('lint.unknownTypeOfResults', "Unexpected output of the 'typeof' operator."),
 					},
 					'javascript.validate.lint.semicolonsInsteadOfBlocks': {
 						'enum': ['ignore', 'warning', 'error'],
@@ -141,7 +140,7 @@ if (!env.enableTypeScriptServiceModeForJS) {
 					'javascript.validate.lint.parametersDontMatchSignature': {
 						'enum': ['ignore', 'warning', 'error'],
 						'default': defaults.validate.lint.parametersDontMatchSignature,
-						'description': nls.localize('lint.parametersDontMatchSignature', "Parameter don't match a function signature"),
+						'description': nls.localize('lint.parametersDontMatchSignature', "Parameters don't match a function signature"),
 					},
 					'javascript.validate.lint.redeclaredVariables': {
 						'enum': ['ignore', 'warning', 'error'],
@@ -171,7 +170,7 @@ if (!env.enableTypeScriptServiceModeForJS) {
 					'javascript.validate.lint.mixedTypesArithmetics': {
 						'enum': ['ignore', 'warning', 'error'],
 						'default': defaults.validate.lint.mixedTypesArithmetics,
-						'description': nls.localize('lint.mixedTypesArithmetics', "Only use numbers for arthimetic operations."),
+						'description': nls.localize('lint.mixedTypesArithmetics', "Only use numbers for arithmetic operations."),
 					},
 					'javascript.validate.lint.primitivesInInstanceOf': {
 						'enum': ['ignore', 'warning', 'error'],
@@ -181,12 +180,19 @@ if (!env.enableTypeScriptServiceModeForJS) {
 					'javascript.validate.lint.newOnReturningFunctions': {
 						'enum': ['ignore', 'warning', 'error'],
 						'default': defaults.validate.lint.newOnReturningFunctions,
-						'description': nls.localize('lint.newOnReturningFunctions', "Function with return-statement used as constructor."),
+						'description': nls.localize('lint.newOnReturningFunctions', "Function with return statement used as constructor."),
 					}
 				}
 			}
 		]
 	});
 } else {
-	Mime.registerTextMimeByFilename('.js', 'text/typescript');
+	LanguageExtensions.registerLanguage({
+		id: 'javascript',
+		extensions: ['.js', '.es6'],
+		firstLine: '^#!.*\\bnode',
+		filenames: ['jakefile'],
+		aliases: ['JavaScript', 'javascript', 'js'],
+		mimetypes: ['text/javascript']
+	});
 }

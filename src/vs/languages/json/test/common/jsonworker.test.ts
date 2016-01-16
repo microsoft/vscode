@@ -11,7 +11,7 @@ import resourceService = require('vs/editor/common/services/resourceServiceImpl'
 import {IResourceService} from 'vs/editor/common/services/resourceService';
 import instantiationService = require('vs/platform/instantiation/common/instantiationService');
 import mirrorModel = require('vs/editor/common/model/mirrorModel');
-import network = require('vs/base/common/network');
+import URI from 'vs/base/common/uri';
 import SchemaService = require('vs/languages/json/common/jsonSchemaService');
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
@@ -32,7 +32,7 @@ suite('JSON - Worker', () => {
 		}
 	};
 
-	function mockWorkerEnv(url: network.URL, content: string): { worker: jsonworker.JSONWorker; model: EditorCommon.IMirrorModel; } {
+	function mockWorkerEnv(url: URI, content: string): { worker: jsonworker.JSONWorker; model: EditorCommon.IMirrorModel; } {
 		var mm = mirrorModel.createMirrorModelFromString(null, 1, content, modesUtil.createMockMode('mock.mode.id'), url);
 
 		var resourceModelMock: IResourceService = new resourceService.ResourceService();
@@ -50,13 +50,12 @@ suite('JSON - Worker', () => {
 		if (schema) {
 			var id = "http://myschemastore/test1";
 			var schemaService = <SchemaService.JSONSchemaService> (<any>worker).schemaService;
-			schemaService.addPreloadedFileSchema(id, schema);
-			schemaService.registerExternalSchema(id, [ "*.json" ]);
+			schemaService.registerExternalSchema(id, [ "*.json" ], schema);
 		}
 	}
 
-	var testSuggestionsFor = function(value:string, stringAfter:string, schema?:jsonSchema.IJSONSchema):WinJS.TPromise<Modes.ISuggestions> {
-		var url = new network.URL('test://test.json');
+	var testSuggestionsFor = function(value:string, stringAfter:string, schema?:jsonSchema.IJSONSchema):WinJS.TPromise<Modes.ISuggestResult> {
+		var url = URI.parse('test://test.json');
 		var env = mockWorkerEnv(url, value);
 		prepareSchemaServer(schema, env.worker);
 
@@ -66,14 +65,14 @@ suite('JSON - Worker', () => {
 	};
 
 	function testComputeInfo(content:string, schema:jsonSchema.IJSONSchema, position:EditorCommon.IPosition):WinJS.TPromise<Modes.IComputeExtraInfoResult> {
-		var url = new network.URL('test://test.json');
+		var url = URI.parse('test://test.json');
 		var env = mockWorkerEnv(url, content);
 		prepareSchemaServer(schema, env.worker);
 		return env.worker.computeInfo(url, position);
 	}
 
 	var testValueSetFor = function(value:string, schema:jsonSchema.IJSONSchema, selection:string, selectionLength: number, up: boolean):WinJS.TPromise<Modes.IInplaceReplaceSupportResult> {
-		var url = new network.URL('test://test.json');
+		var url = URI.parse('test://test.json');
 		var env = mockWorkerEnv(url, value);
 		prepareSchemaServer(schema, env.worker);
 
@@ -84,12 +83,12 @@ suite('JSON - Worker', () => {
 	};
 
 	function getOutline(content: string):WinJS.TPromise<Modes.IOutlineEntry[]> {
-		var url = new network.URL('test');
+		var url = URI.parse('test');
 		var workerEnv = mockWorkerEnv(url, content);
 		return workerEnv.worker.getOutline(url);
 	};
 
-	var assertSuggestion= function(completion:Modes.ISuggestions, label:string, documentationLabel?: string) {
+	var assertSuggestion= function(completion:Modes.ISuggestResult, label:string, documentationLabel?: string) {
 		var matches = completion.suggestions.filter(function(suggestion: Modes.ISuggestion) {
 			return suggestion.label === label && (!documentationLabel || suggestion.documentationLabel === documentationLabel);
 		}).length;
@@ -179,9 +178,8 @@ suite('JSON - Worker', () => {
 				assertSuggestion(result, 'name');
 			}),
 			testSuggestionsFor('[ { "name": "John", "address": { "street" : "MH Road", "number" : 5 } }, { "name": "Jack", "address": { "street" : "100 Feet Road", /**/ }', '/**/').then((result) => {
-				assert.strictEqual(result.suggestions.length, 2);
+				assert.strictEqual(result.suggestions.length, 1);
 				assertSuggestion(result, 'number');
-				assertSuggestion(result, 'street');
 			})
 		]).done(() => testDone(), (errors:any[]) => {
 			testDone(errors.reduce((e1, e2) => e1 || e2));
@@ -216,8 +214,7 @@ suite('JSON - Worker', () => {
 				assertSuggestion(result, '"xoo"');
 			}),
 			testSuggestionsFor('[ { "data": "foo" }, { "data": "bar" }, { "data": "xoo"  /**/ } ]', '/**/').then((result) => {
-				assert.strictEqual(result.suggestions.length, 1);
-				assertSuggestion(result, 'data');
+				assert.strictEqual(result.suggestions.length, 0);
 			})
 		]).done(() => testDone(), (errors:any[]) => {
 			testDone(errors.reduce((e1, e2) => e1 || e2));
@@ -260,8 +257,7 @@ suite('JSON - Worker', () => {
 				assertSuggestion(result, 'a', 'A');
 			}),
 			testSuggestionsFor('{ "a" = 1;/**/}', '/**/', schema).then((result) => {
-				assert.strictEqual(result.suggestions.length, 3);
-				assertSuggestion(result, 'a', 'A');
+				assert.strictEqual(result.suggestions.length, 2);
 				assertSuggestion(result, 'b', 'B');
 				assertSuggestion(result, 'c', 'C');
 			})
@@ -375,8 +371,7 @@ suite('JSON - Worker', () => {
 				assertSuggestion(result, 'd', 'D');
 			}),
 			testSuggestionsFor('{ "a": "", /**/}', '/**/', schema).then((result) => {
-				assert.strictEqual(result.suggestions.length, 2);
-				assertSuggestion(result, 'a', 'A');
+				assert.strictEqual(result.suggestions.length, 1);
 				assertSuggestion(result, 'b', 'B');
 			})
 		]).done(() => testDone(), (errors:any[]) => {
@@ -417,8 +412,7 @@ suite('JSON - Worker', () => {
 				assertSuggestion(result, 'c');
 			}),
 			testSuggestionsFor('{ "type": "appartment", /**/}', '/**/', schema).then((result) => {
-				assert.strictEqual(result.suggestions.length, 2);
-				assertSuggestion(result, 'type');
+				assert.strictEqual(result.suggestions.length, 1);
 				assertSuggestion(result, 'c');
 			})
 		]).done(() => testDone(), (errors:any[]) => {
@@ -480,9 +474,8 @@ suite('JSON - Worker', () => {
 				assertSuggestion(result, 'd', 'D');
 			}),
 			testSuggestionsFor('{ "b1": "", /**/}', '/**/', schema).then((result) => {
-				assert.strictEqual(result.suggestions.length, 3);
+				assert.strictEqual(result.suggestions.length, 2);
 				assertSuggestion(result, 'a', 'A');
-				assertSuggestion(result, 'b1', 'B1');
 				assertSuggestion(result, 'b2', 'B2');
 			})
 		]).done(() => testDone(), (errors:any[]) => {
@@ -490,6 +483,92 @@ suite('JSON - Worker', () => {
 		});
 	});
 
+	test('JSON suggest with oneOf and enums', function(testDone) {
+
+		var schema:jsonSchema.IJSONSchema = {
+			oneOf: [{
+				type: 'object',
+				properties: {
+					'type' : {
+						type: 'string',
+						enum: [ '1', '2' ]
+					},
+					'a' : {
+						type: 'object',
+						properties: {
+							'x': {
+								type: 'string'
+							},
+							'y': {
+								type: 'string'
+							}
+						},
+						"required" : [ 'x', 'y']
+					},
+					'b': {}
+				},
+			}, {
+				type: 'object',
+				properties: {
+					'type' : {
+						type: 'string',
+						enum: [ '3' ]
+					},
+					'a' : {
+						type: 'object',
+						properties: {
+							'x': {
+								type: 'string'
+							},
+							'z': {
+								type: 'string'
+							}
+						},
+						"required" : [ 'x', 'z']
+					},
+					'c': {}
+				},
+			}]
+		};
+		WinJS.Promise.join([
+			testSuggestionsFor('{/**/}', '/**/', schema).then((result) => {
+				assert.strictEqual(result.suggestions.length, 4);
+				assertSuggestion(result, 'type');
+				assertSuggestion(result, 'a');
+				assertSuggestion(result, 'b');
+				assertSuggestion(result, 'c');
+			}),
+			testSuggestionsFor('{ "type": /**/}', '/**/', schema).then((result) => {
+				assert.strictEqual(result.suggestions.length, 3);
+				assertSuggestion(result, '"1"');
+				assertSuggestion(result, '"2"');
+				assertSuggestion(result, '"3"');
+			}),
+			testSuggestionsFor('{ "a": { "x": "", "y": "" }, "type": /**/}', '/**/', schema).then((result) => {
+				assert.strictEqual(result.suggestions.length, 2);
+				assertSuggestion(result, '"1"');
+				assertSuggestion(result, '"2"');
+			}),
+			testSuggestionsFor('{ "type": "1", "a" : { /**/ }', '/**/', schema).then((result) => {
+				assert.strictEqual(result.suggestions.length, 2);
+				assertSuggestion(result, 'x');
+				assertSuggestion(result, 'y');
+			}),
+			testSuggestionsFor('{ "type": "1", "a" : { "x": "", "z":"" }, /**/', '/**/', schema).then((result) => {
+				// both alternatives have errors: intellisense proposes all options
+				assert.strictEqual(result.suggestions.length, 2);
+				assertSuggestion(result, 'b');
+				assertSuggestion(result, 'c');
+			}),
+			testSuggestionsFor('{ "a" : { "x": "", "z":"" }, /**/', '/**/', schema).then((result) => {
+				assert.strictEqual(result.suggestions.length, 2);
+				assertSuggestion(result, 'type');
+				assertSuggestion(result, 'c');
+			}),
+		]).done(() => testDone(), (errors:any[]) => {
+			testDone(errors.reduce((e1, e2) => e1 || e2));
+		});
+	});
 
 	test('JSON Compute Info', function(testDone) {
 

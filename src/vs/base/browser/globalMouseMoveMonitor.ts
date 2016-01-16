@@ -38,45 +38,45 @@ export function standardMouseMoveMerger(lastEvent:IStandardMouseMoveEventData, c
 }
 
 export class GlobalMouseMoveMonitor<R> implements Lifecycle.IDisposable {
-	
+
 	private hooks:Lifecycle.IDisposable[];
 	private mouseMoveEventMerger:IEventMerger<R>;
 	private mouseMoveCallback:IMouseMoveCallback<R>;
 	private onStopCallback:IOnStopCallback;
-	
+
 	constructor() {
 		this.hooks = [];
 		this.mouseMoveEventMerger = null;
 		this.mouseMoveCallback = null;
 		this.onStopCallback = null;
 	}
-	
+
 	public dispose(): void {
 		this.stopMonitoring(false);
 	}
-	
+
 	public stopMonitoring(invokeStopCallback:boolean): void {
 		if (!this.isMonitoring()) {
 			// Not monitoring
 			return;
 		}
-		
+
 		// Unhook
 		this.hooks = Lifecycle.disposeAll(this.hooks);
 		this.mouseMoveEventMerger = null;
 		this.mouseMoveCallback = null;
 		var onStopCallback = this.onStopCallback;
 		this.onStopCallback = null;
-		
+
 		if (invokeStopCallback) {
 			onStopCallback();
 		}
 	}
-	
+
 	public isMonitoring() {
 		return this.hooks.length > 0;
 	}
-	
+
 	public startMonitoring(
 				mouseMoveEventMerger:IEventMerger<R>,
 				mouseMoveCallback:IMouseMoveCallback<R>,
@@ -89,7 +89,7 @@ export class GlobalMouseMoveMonitor<R> implements Lifecycle.IDisposable {
 		this.mouseMoveEventMerger = mouseMoveEventMerger;
 		this.mouseMoveCallback = mouseMoveCallback;
 		this.onStopCallback = onStopCallback;
-		
+
 		var windowChain = IframeUtils.getSameOriginWindowChain();
 		for (var i = 0; i < windowChain.length; i++) {
 			this.hooks.push(DomUtils.addDisposableThrottledListener(windowChain[i].window.document, 'mousemove', 
@@ -98,7 +98,7 @@ export class GlobalMouseMoveMonitor<R> implements Lifecycle.IDisposable {
 			));
 			this.hooks.push(DomUtils.addDisposableListener(windowChain[i].window.document, 'mouseup', (e:MouseEvent) => this.stopMonitoring(true)));
 		}
-		
+
 		if (IframeUtils.hasDifferentOriginAncestor()) {
 			var lastSameOriginAncestor = windowChain[windowChain.length - 1];
 			// We might miss a mouse up if it happens outside the iframe

@@ -15,7 +15,7 @@ import {ActionsOrientation, ActionBar, IActionItem} from 'vs/base/browser/ui/act
 import {Scope, IActionBarRegistry, Extensions as ActionBarExtensions, prepareActions} from 'vs/workbench/browser/actionBarRegistry';
 import {CONTEXT, ToolBar} from 'vs/base/browser/ui/toolbar/toolbar';
 import {Registry} from 'vs/platform/platform';
-import {ViewletEvent, EventType} from 'vs/workbench/browser/events';
+import {ViewletEvent, EventType} from 'vs/workbench/common/events';
 import {ViewletDescriptor, IViewletRegistry, Extensions as ViewletExtensions} from 'vs/workbench/browser/viewlet';
 import {Part} from 'vs/workbench/browser/part';
 import {ActivityAction, ActivityActionItem} from 'vs/workbench/browser/parts/activitybar/activityAction';
@@ -28,7 +28,6 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
-import {KeybindingsUtils} from 'vs/platform/keybinding/common/keybindingsUtils';
 
 export class ActivitybarPart extends Part implements IActivityService {
 	public serviceId = IActivityService;
@@ -109,7 +108,7 @@ export class ActivitybarPart extends Part implements IActivityService {
 		this.createViewletSwitcher($result.clone());
 
 		// Bottom Toolbar with action items for global actions
-		this.createGlobalToolBarArea($result.clone());
+		// this.createGlobalToolBarArea($result.clone()); // not used currently
 
 		return $result;
 	}
@@ -118,9 +117,9 @@ export class ActivitybarPart extends Part implements IActivityService {
 
 		// Viewlet switcher is on top
 		this.viewletSwitcherBar = new ActionBar(div, {
-			actionItemProvider: (action: Action) => this.activityActionItems[action.id]
+			actionItemProvider: (action: Action) => this.activityActionItems[action.id],
+			disableTabIndex: true // we handle this
 		});
-		this.viewletSwitcherBar.getContainer().removeAttribute('tabindex');
 		this.viewletSwitcherBar.getContainer().addClass('position-top');
 
 		// Build Viewlet Actions in correct order
@@ -132,7 +131,7 @@ export class ActivitybarPart extends Part implements IActivityService {
 				let action = this.instantiationService.createInstance(ViewletActivityAction, viewlet.id + '.activity-bar-action', viewlet);
 
 				let keybinding: string = null;
-				let keys = this.keybindingService.lookupKeybindings(viewlet.id).map(k => k.toLabel());
+				let keys = this.keybindingService.lookupKeybindings(viewlet.id).map(k => this.keybindingService.getLabelFor(k));
 				if (keys && keys.length) {
 					keybinding = keys[0];
 				}
@@ -202,7 +201,7 @@ export class ActivitybarPart extends Part implements IActivityService {
 		return actions.map((action: Action) => {
 			if (primary) {
 				let keybinding: string = null;
-				let keys = this.keybindingService.lookupKeybindings(action.id).map(k => k.toLabel());
+				let keys = this.keybindingService.lookupKeybindings(action.id).map(k => this.keybindingService.getLabelFor(k));
 				if (keys && keys.length) {
 					keybinding = keys[0];
 				}

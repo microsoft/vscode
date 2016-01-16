@@ -9,6 +9,7 @@ import mm = require('vs/editor/common/model/mirrorModel');
 import html = require('vs/languages/html/common/html');
 import htmlWorker = require('vs/languages/html/common/htmlWorker');
 import Network = require('vs/base/common/network');
+import URI from 'vs/base/common/uri';
 import ResourceService = require('vs/editor/common/services/resourceServiceImpl');
 import MarkerService = require('vs/platform/markers/common/markerService');
 import EditorCommon = require('vs/editor/common/editorCommon');
@@ -30,7 +31,7 @@ suite('HTML - worker', () => {
 		});
 	});
 
-	var mockHtmlWorkerEnv = function (url: Network.URL, content: string): { worker: htmlWorker.HTMLWorker; model: mm.MirrorModel; markers: IMarker[]; } {
+	var mockHtmlWorkerEnv = function (url: URI, content: string): { worker: htmlWorker.HTMLWorker; model: mm.MirrorModel; markers: IMarker[]; } {
 		var resourceService = new ResourceService.ResourceService();
 
 		var model = mm.createMirrorModelFromString(null, 0, content, mode, url);
@@ -50,19 +51,19 @@ suite('HTML - worker', () => {
 		return { worker: worker, model: model, markers: markers };
 	};
 
-	var testSuggestionsFor = function(value:string):WinJS.TPromise<Modes.ISuggestions> {
+	var testSuggestionsFor = function(value:string):WinJS.TPromise<Modes.ISuggestResult> {
 
 		var idx = value.indexOf('|');
 		var content = value.substr(0, idx) + value.substr(idx + 1);
 
-		var url = new Network.URL('test://1');
+		var url = URI.parse('test://1');
 		var env = mockHtmlWorkerEnv(url, content);
 
 		var position = env.model.getPositionFromOffset(idx);
 		return env.worker.suggest(url, position).then(result => result[0]);
 	};
 
-	var assertSuggestion = function(completion: Modes.ISuggestions, label: string, type?: string, codeSnippet?: string) {
+	var assertSuggestion = function(completion: Modes.ISuggestResult, label: string, type?: string, codeSnippet?: string) {
 		var proposalsFound = completion.suggestions.filter(function(suggestion: Modes.ISuggestion) {
 			return suggestion.label === label && (!type || suggestion.type === type) && (!codeSnippet || suggestion.codeSnippet === codeSnippet);
 		});
@@ -230,6 +231,77 @@ suite('HTML - worker', () => {
 		});
 	});
 
+	test('Intellisense aria', function(testDone): any {
+		function assertAriaAttributes(completion) {
+			assertSuggestion(completion, 'aria-activedescendant');
+			assertSuggestion(completion, 'aria-atomic');
+			assertSuggestion(completion, 'aria-autocomplete');
+			assertSuggestion(completion, 'aria-busy');
+			assertSuggestion(completion, 'aria-checked');
+			assertSuggestion(completion, 'aria-colcount');
+			assertSuggestion(completion, 'aria-colindex');
+			assertSuggestion(completion, 'aria-colspan');
+			assertSuggestion(completion, 'aria-controls');
+			assertSuggestion(completion, 'aria-current');
+			assertSuggestion(completion, 'aria-describedat');
+			assertSuggestion(completion, 'aria-describedby');
+			assertSuggestion(completion, 'aria-disabled');
+			assertSuggestion(completion, 'aria-dropeffect');
+			assertSuggestion(completion, 'aria-errormessage');
+			assertSuggestion(completion, 'aria-expanded');
+			assertSuggestion(completion, 'aria-flowto');
+			assertSuggestion(completion, 'aria-grabbed');
+			assertSuggestion(completion, 'aria-haspopup');
+			assertSuggestion(completion, 'aria-hidden');
+			assertSuggestion(completion, 'aria-invalid');
+			assertSuggestion(completion, 'aria-kbdshortcuts');
+			assertSuggestion(completion, 'aria-label');
+			assertSuggestion(completion, 'aria-labelledby');
+			assertSuggestion(completion, 'aria-level');
+			assertSuggestion(completion, 'aria-live');
+			assertSuggestion(completion, 'aria-modal');
+			assertSuggestion(completion, 'aria-multiline');
+			assertSuggestion(completion, 'aria-multiselectable');
+			assertSuggestion(completion, 'aria-orientation');
+			assertSuggestion(completion, 'aria-owns');
+			assertSuggestion(completion, 'aria-placeholder');
+			assertSuggestion(completion, 'aria-posinset');
+			assertSuggestion(completion, 'aria-pressed');
+			assertSuggestion(completion, 'aria-readonly');
+			assertSuggestion(completion, 'aria-relevant');
+			assertSuggestion(completion, 'aria-required');
+			assertSuggestion(completion, 'aria-roledescription');
+			assertSuggestion(completion, 'aria-rowcount');
+			assertSuggestion(completion, 'aria-rowindex');
+			assertSuggestion(completion, 'aria-rowspan');
+			assertSuggestion(completion, 'aria-selected');
+			assertSuggestion(completion, 'aria-setsize');
+			assertSuggestion(completion, 'aria-sort');
+			assertSuggestion(completion, 'aria-valuemax');
+			assertSuggestion(completion, 'aria-valuemin');
+			assertSuggestion(completion, 'aria-valuenow');
+			assertSuggestion(completion, 'aria-valuetext');
+		}
+		WinJS.Promise.join([
+			testSuggestionsFor('<div  |> </div >').then((completion) => {
+				assert.equal(completion.currentWord, '');
+				assertAriaAttributes(completion);
+			}),
+
+			testSuggestionsFor('<span  |> </span >').then((completion) => {
+				assert.equal(completion.currentWord, '');
+				assertAriaAttributes(completion);
+			}),
+
+			testSuggestionsFor('<input  |> </input >').then((completion) => {
+				assert.equal(completion.currentWord, '');
+				assertAriaAttributes(completion);
+			})
+		]).done(() => testDone(), (errors:any[]) => {
+			testDone(errors.reduce((e1, e2) => e1 || e2));
+		});
+	});
+
 	test('Intellisense Angular', function(testDone): any {
 		WinJS.Promise.join([
 			testSuggestionsFor('<body  |> </body >').then((completion) => {
@@ -255,11 +327,11 @@ suite('HTML - worker', () => {
 	});
 
 	function testLinkCreation(modelUrl:string, rootUrl:string, tokenContent:string, expected:string): void {
-		var _modelUrl = new Network.URL(modelUrl);
-		var _rootUrl = rootUrl === null ? null : new Network.URL(rootUrl);
+		var _modelUrl = URI.parse(modelUrl);
+		var _rootUrl = rootUrl === null ? null : URI.parse(rootUrl);
 		var actual = htmlWorker.HTMLWorker._getWorkspaceUrl(_modelUrl, _rootUrl, tokenContent);
-		var _actual = actual === null ? null : new Network.URL(actual);
-		var _expected = expected === null ? null : new Network.URL(expected);
+		var _actual = actual === null ? null : URI.parse(actual);
+		var _expected = expected === null ? null : URI.parse(expected);
 		assert.equal(String(_actual), String(_expected));
 	}
 

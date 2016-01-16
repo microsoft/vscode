@@ -7,17 +7,30 @@ else
 	ROOT=$(dirname $(dirname $(readlink -f $0)))
 fi
 
-# Configuration
-export NODE_ENV=development
-export VSCODE_DEV=1
-export ELECTRON_ENABLE_LOGGING=1
-export ELECTRON_ENABLE_STACK_DUMPING=1
+function code() {
+	cd $ROOT
 
-# Prepare
-cd $ROOT ; node node_modules/gulp/bin/gulp.js electron
+	# Node modules
+	test -d node_modules || ./scripts/npm.sh install
 
-if [[ "$OSTYPE" == "darwin"* ]]; then
-	cd $ROOT; ../Electron-Build/Electron.app/Contents/MacOS/Electron . $*
-else
-	cd $ROOT; ../Electron-Build/electron . $*
-fi
+	# Get electron
+	node node_modules/gulp/bin/gulp.js electron
+
+	# Build
+	test -d out || gulp compile
+
+	# Configuration
+	export NODE_ENV=development
+	export VSCODE_DEV=1
+	export ELECTRON_ENABLE_LOGGING=1
+	export ELECTRON_ENABLE_STACK_DUMPING=1
+
+	# Launch Code
+	if [[ "$OSTYPE" == "darwin"* ]]; then
+		./.build/electron/Electron.app/Contents/MacOS/Electron . $*
+	else
+		./.build/electron/electron . $*
+	fi
+}
+
+code $*

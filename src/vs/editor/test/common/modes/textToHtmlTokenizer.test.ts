@@ -84,4 +84,8 @@ class Mode implements modes.IMode {
 	public getId(): string {
 		return "testMode";
 	}
+
+	public toSimplifiedMode(): modes.IMode {
+		return this;
+	}
 }

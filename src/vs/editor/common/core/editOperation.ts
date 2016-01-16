@@ -35,4 +35,13 @@ export class EditOperation {
 			forceMoveMarkers: false
 		};
 	}
+
+	public static replaceMove(range:EditorCommon.IEditorRange, text:string): EditorCommon.IIdentifiedSingleEditOperation {
+		return {
+			identifier: null,
+			range: range,
+			text: text,
+			forceMoveMarkers: true
+		};
+	}
 }

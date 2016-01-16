@@ -216,8 +216,8 @@ export class SearchResult extends EventEmitter {
 		this._query = query;
 
 		if (this._query) {
-			this._modelService.onModelAdded.add(this._onModelAdded, this, this._disposables);
-			this._modelService.onModelRemoved.add(this._onModelRemoved, this, this._disposables);
+			this._modelService.onModelAdded(this._onModelAdded, this, this._disposables);
+			this._modelService.onModelRemoved(this._onModelRemoved, this, this._disposables);
 		}
 	}
 

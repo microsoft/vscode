@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { Promise } from 'vs/base/common/winjs.base';
+import { Promise, TPromise } from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import { IEventEmitter } from 'vs/base/common/eventEmitter';
-import { ITree } from 'vs/base/parts/tree/common/tree';
+import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { IDisposable, disposeAll } from 'vs/base/common/lifecycle';
 import strings = require('vs/base/common/strings');
 import { isString } from 'vs/base/common/types';
@@ -28,6 +28,7 @@ import Severity from 'vs/base/common/severity';
 import { IGitService, IFileStatus, Status, StatusType, ServiceState,
 	IModel, IBranch, GitErrorCodes, ServiceOperations }
 	from 'vs/workbench/parts/git/common/git';
+import {IQuickOpenService, IPickOpenEntry} from 'vs/workbench/services/quickopen/common/quickOpenService';
 
 function flatten(context?: any, preferFocus = false): IFileStatus[] {
 	if (!context) {
@@ -406,7 +407,7 @@ export abstract class BaseUndoAction extends GitAction {
 				});
 			});
 		}).then(null, (errors: any[]): Promise => {
-			console.error('One or more errors occured', errors);
+			console.error('One or more errors occurred', errors);
 			return Promise.wrapError(errors[0]);
 		});
 	}
@@ -434,7 +435,7 @@ export abstract class BaseUndoAction extends GitAction {
 				detail: count === 1
 					? nls.localize('confirmUndoAllOne', "There are unstaged changes in {0} file.\n\nThis action is irreversible!", count)
 					: nls.localize('confirmUndoAllMultiple', "There are unstaged changes in {0} files.\n\nThis action is irreversible!", count),
-				primaryButton: nls.localize('cleanChangesLabel', "Clean Changes")
+				primaryButton: nls.localize('cleanChangesLabel', "&&Clean Changes")
 			};
 		}
 
@@ -443,7 +444,7 @@ export abstract class BaseUndoAction extends GitAction {
 		return {
 			message: nls.localize('confirmUndo', "Are you sure you want to clean changes in '{0}'?", label),
 			detail: nls.localize('irreversible', "This action is irreversible!"),
-			primaryButton: nls.localize('cleanChangesLabel', "Clean Changes")
+			primaryButton: nls.localize('cleanChangesLabel', "&&Clean Changes")
 		};
 	}
 
@@ -819,9 +820,14 @@ export class SmartCommitAction extends BaseCommitAction {
 export class PullAction extends GitAction {
 
 	static ID = 'workbench.action.pull';
+	static LABEL = nls.localize('pull', "Pull");
 
-	constructor(@IGitService gitService: IGitService) {
-		super(PullAction.ID, nls.localize('pull', "Pull"), 'git-action pull', gitService);
+	constructor(
+		id = PullAction.ID,
+		label = PullAction.LABEL,
+		@IGitService gitService: IGitService
+	) {
+		super(id, label, 'git-action pull', gitService);
 	}
 
 	protected isEnabled():boolean {
@@ -844,7 +850,11 @@ export class PullAction extends GitAction {
 	}
 
 	public run(context?: any):Promise {
-		return this.gitService.pull().then(null, (err) => {
+		return this.pull();
+	}
+
+	protected pull(rebase = false): Promise {
+		return this.gitService.pull(rebase).then(null, (err) => {
 			if (err.gitErrorCode === GitErrorCodes.DirtyWorkTree) {
 				return Promise.wrapError(errors.create(nls.localize('dirtyTreePull', "Can't pull. Please commit or stage your work first."), { severity: Severity.Warning }));
 			} else if (err.gitErrorCode === GitErrorCodes.AuthenticationFailed) {
@@ -856,12 +866,31 @@ export class PullAction extends GitAction {
 	}
 }
 
+export class PullWithRebaseAction extends PullAction {
+
+	static ID = 'workbench.action.pull.rebase';
+	static LABEL = nls.localize('pullWithRebase', "Pull (Rebase)");
+
+	constructor(@IGitService gitService: IGitService) {
+		super(PullWithRebaseAction.ID, PullWithRebaseAction.LABEL, gitService);
+	}
+
+	public run(context?: any):Promise {
+		return this.pull(true);
+	}
+}
+
 export class PushAction extends GitAction {
 
 	static ID = 'workbench.action.push';
+	static LABEL = nls.localize('push', "Push");
 
-	constructor(@IGitService gitService: IGitService) {
-		super(PushAction.ID, nls.localize('push', "Push"), 'git-action push', gitService);
+	constructor(
+		id: string = PushAction.ID,
+		label: string = PushAction.LABEL,
+		@IGitService gitService: IGitService
+	) {
+		super(id, label, 'git-action push', gitService);
 	}
 
 	protected isEnabled():boolean {
@@ -895,6 +924,78 @@ export class PushAction extends GitAction {
 
 			return Promise.wrapError(err);
 		});
+	}
+}
+
+export class PublishAction extends GitAction {
+
+	static ID = 'workbench.action.publish';
+	static LABEL = nls.localize('publish', "Publish");
+
+	constructor(
+		id: string = PublishAction.ID,
+		label: string = PublishAction.LABEL,
+		@IGitService gitService: IGitService,
+		@IQuickOpenService private quickOpenService: IQuickOpenService,
+		@IMessageService private messageService: IMessageService
+	) {
+		super(id, label, 'git-action publish', gitService);
+	}
+
+	protected isEnabled():boolean {
+		if (!super.isEnabled()) {
+			return false;
+		}
+
+		if (!this.gitService.isIdle()) {
+			return false;
+		}
+
+		const model = this.gitService.getModel();
+
+		if (model.getRemotes().length === 0) {
+			return false;
+		}
+
+		const HEAD = model.getHEAD();
+
+		if (!HEAD || !HEAD.name || HEAD.upstream) {
+			return false;
+		}
+
+		return true;
+	}
+
+	public run(context?: any):Promise {
+		const model = this.gitService.getModel();
+		const remotes = model.getRemotes();
+		const branchName = model.getHEAD().name;
+		let promise: TPromise<string>;
+
+		if (remotes.length === 1) {
+			const remoteName = remotes[0].name;
+
+			const result = this.messageService.confirm({
+				message: nls.localize('confirmPublishMessage', "Are you sure you want to publish '{0}' to '{1}'?", branchName, remoteName),
+				primaryButton: nls.localize('confirmPublishMessageButton', "&&Publish")
+			});
+
+			promise = TPromise.as(result ? remoteName : null);
+		} else {
+			promise = this.quickOpenService.pick(remotes.map(r => r.name), {
+				placeHolder: nls.localize('publishPickMessage', "Pick a remote to publish the branch '{0}' to:", branchName)
+			});
+		}
+
+		return promise
+			.then(remote => remote && this.gitService.push(remote, branchName, { setUpstream: true }))
+			.then(null, err => {
+				if (err.gitErrorCode === GitErrorCodes.AuthenticationFailed) {
+					return Promise.wrapError(errors.create(nls.localize('authFailed', "Authentication failed on the git remote.")));
+				}
+
+				return Promise.wrapError(err);
+			});
 	}
 }
 
@@ -941,9 +1042,10 @@ export abstract class BaseSyncAction extends GitAction {
 export class SyncAction extends BaseSyncAction {
 
 	static ID = 'workbench.action.sync';
+	static LABEL = nls.localize('sync', "Sync");
 
-	constructor(@IGitService gitService: IGitService) {
-		super(SyncAction.ID, nls.localize('sync', "Sync"), 'git-action sync', gitService);
+	constructor(id: string, label: string, @IGitService gitService: IGitService) {
+		super(id, label, 'git-action sync', gitService);
 	}
 }
 
@@ -1020,5 +1122,39 @@ export class UndoLastCommitAction extends GitAction {
 
 	public run():Promise {
 		return this.gitService.reset('HEAD~');
+	}
+}
+
+export class StartGitCheckoutAction extends Action {
+
+	public static ID = 'workbench.action.git.startGitCheckout';
+	public static LABEL = nls.localize('checkout', "Checkout");
+	private quickOpenService: IQuickOpenService;
+
+	constructor(id: string, label: string, @IQuickOpenService quickOpenService: IQuickOpenService) {
+		super(id, label);
+		this.quickOpenService = quickOpenService;
+	}
+
+	public run(event?:any): Promise {
+		this.quickOpenService.show('git checkout ');
+		return Promise.as(null);
+	}
+}
+
+export class StartGitBranchAction extends Action {
+
+	public static ID = 'workbench.action.git.startGitBranch';
+	public static LABEL = nls.localize('branch2', "Branch");
+	private quickOpenService: IQuickOpenService;
+
+	constructor(id: string, label: string, @IQuickOpenService quickOpenService: IQuickOpenService) {
+		super(id, label);
+		this.quickOpenService = quickOpenService;
+	}
+
+	public run(event?:any): Promise {
+		this.quickOpenService.show('git branch ');
+		return Promise.as(null);
 	}
 }

@@ -5,8 +5,7 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
-import nls = require('vs/nls');
-import {EventProvider} from 'vs/base/common/eventProvider';
+import Event from 'vs/base/common/event';
 import {Registry} from 'vs/platform/platform';
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
 import {IEditor, Position} from 'vs/platform/editor/common/editor';
@@ -51,7 +50,7 @@ export var IOutputService = createDecorator<IOutputService>(OUTPUT_SERVICE_ID);
  * The output service to manage output from the various processes running.
  */
 export interface IOutputService {
-	serviceId: ServiceIdentifier<any>
+	serviceId: ServiceIdentifier<any>;
 	/**
 	 * Appends output to the given channel.
 	 */
@@ -90,12 +89,12 @@ export interface IOutputService {
 	/**
 	 * Allows to register on Output events
 	 */
-	onOutput: EventProvider<(event: IOutputEvent) => void>;
+	onOutput: Event<IOutputEvent>;
 
 	/**
 	 * Allows to register on a new Output channel getting filled with output
 	 */
-	onOutputChannel: EventProvider<(channel: string) => void>;
+	onOutputChannel: Event<string>;
 }
 
 export interface IOutputChannelRegistry {

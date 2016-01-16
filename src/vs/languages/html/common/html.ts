@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import URI from 'vs/base/common/uri';
 import modesExtensions = require('vs/editor/common/modes/modesRegistry');
 import supports = require('vs/editor/common/modes/supports');
 import arrays = require('vs/base/common/arrays');
@@ -23,6 +24,7 @@ import {OnEnterSupport} from 'vs/editor/common/modes/supports/onEnter';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IThreadService } from 'vs/platform/thread/common/thread';
 import * as htmlTokenTypes from 'vs/languages/html/common/htmlTokenTypes';
+import {EMPTY_ELEMENTS} from 'vs/languages/html/common/htmlEmptyTagsShared';
 
 export { htmlTokenTypes }; // export to be used by Razor. We are the main module, so Razor should get ot from use.
 
@@ -38,15 +40,8 @@ export enum States {
 	AttributeValue
 }
 
-// list of empty elements - for performance reasons we won't open a bracket for them
-var emptyElements:string[] = ['area', 'base', 'basefont', 'br', 'col', 'command', 'embed', 'frame', 'hr', 'img', 'input', 'isindex', 'keygen', 'link', 'meta', 'param', 'source', 'track', 'wbr'];
-
-function isEmptyElement(e: string) : boolean {
-	return arrays.binarySearch(emptyElements, e,(s1: string, s2: string) => s1.localeCompare(s2)) >= 0;
-}
-
-// list of element that embedd other content
-var tagsEmbeddingContent:any = ['script', 'style'];
+// list of elements that embed other content
+var tagsEmbeddingContent:string[] = ['script', 'style'];
 
 
 
@@ -282,6 +277,7 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode<W> i
 	public characterPairSupport: Modes.ICharacterPairSupport;
 
 	public extraInfoSupport:Modes.IExtraInfoSupport;
+	public occurrencesSupport:Modes.IOccurrencesSupport;
 	public referenceSupport: Modes.IReferenceSupport;
 	public logicalSelectionSupport: Modes.ILogicalSelectionSupport;
 	public formattingSupport: Modes.IFormattingSupport;
@@ -307,7 +303,7 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode<W> i
 				brackets: [],
 				regexBrackets:[
 					{	tokenType: htmlTokenTypes.getTag('$1'),
-						open: /<(?!(?:area|base|basefont|br|col|command|embed|frame|hr|img|input|link|meta|param|source|track|wbr))(\w[\w\d]*)([^\/>]*(?!\/)>)[^<]*$/i,
+						open: new RegExp(`<(?!(?:${EMPTY_ELEMENTS.join("|")}))(\\w[\\w\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
 						closeComplete: '</$1>',
 						close: /<\/(\w[\w\d]*)\s*>$/i }],
 				caseInsensitive:true,
@@ -316,6 +312,7 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode<W> i
 
 		this.formattingSupport = this;
 		this.extraInfoSupport = this;
+		this.occurrencesSupport = this;
 		this.referenceSupport = new supports.ReferenceSupport(this, {
 			tokens: ['invalid'],
 			findReferences: (resource, position, includeDeclaration) => this.findReferences(resource, position, includeDeclaration)});
@@ -459,53 +456,48 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode<W> i
 		return createAsyncDescriptor2('vs/languages/html/common/htmlWorker', 'HTMLWorker');
 	}
 
-	static $formatDocument = OneWorkerAttr(HTMLMode, HTMLMode.prototype.formatDocument);
-	public formatDocument(resource:network.URL, options:Modes.IFormattingOptions):winjs.TPromise<EditorCommon.ISingleEditOperation[]> {
-		return this._worker((w) => w.format(resource, null, options));
-	}
-
 	static $formatRange = OneWorkerAttr(HTMLMode, HTMLMode.prototype.formatRange);
-	public formatRange(resource:network.URL, range:EditorCommon.IRange, options:Modes.IFormattingOptions):winjs.TPromise<EditorCommon.ISingleEditOperation[]> {
+	public formatRange(resource:URI, range:EditorCommon.IRange, options:Modes.IFormattingOptions):winjs.TPromise<EditorCommon.ISingleEditOperation[]> {
 		return this._worker((w) => w.format(resource, range, options));
 	}
 
 	static $computeInfo = OneWorkerAttr(HTMLMode, HTMLMode.prototype.computeInfo);
-	public computeInfo(resource:network.URL, position:EditorCommon.IPosition): winjs.TPromise<Modes.IComputeExtraInfoResult> {
+	public computeInfo(resource:URI, position:EditorCommon.IPosition): winjs.TPromise<Modes.IComputeExtraInfoResult> {
 		return this._worker((w) => w.computeInfo(resource, position));
 	}
 
 	static $findReferences = OneWorkerAttr(HTMLMode, HTMLMode.prototype.findReferences);
-	public findReferences(resource:network.URL, position:EditorCommon.IPosition, includeDeclaration:boolean): winjs.TPromise<Modes.IReference[]> {
+	public findReferences(resource:URI, position:EditorCommon.IPosition, includeDeclaration:boolean): winjs.TPromise<Modes.IReference[]> {
 		return this._worker((w) => w.findReferences(resource, position, includeDeclaration));
 	}
 
 	static $getRangesToPosition = OneWorkerAttr(HTMLMode, HTMLMode.prototype.getRangesToPosition);
-	public getRangesToPosition(resource:network.URL, position:EditorCommon.IPosition):winjs.TPromise<Modes.ILogicalSelectionEntry[]> {
+	public getRangesToPosition(resource:URI, position:EditorCommon.IPosition):winjs.TPromise<Modes.ILogicalSelectionEntry[]> {
 		return this._worker((w) => w.getRangesToPosition(resource, position));
 	}
 
 	static $findDeclaration = OneWorkerAttr(HTMLMode, HTMLMode.prototype.findDeclaration);
-	public findDeclaration(resource:network.URL, position:EditorCommon.IPosition):winjs.TPromise<Modes.IReference> {
+	public findDeclaration(resource:URI, position:EditorCommon.IPosition):winjs.TPromise<Modes.IReference> {
 		return this._worker((w) => w.findDeclaration(resource, position));
 	}
 
 	static $findOccurrences = OneWorkerAttr(HTMLMode, HTMLMode.prototype.findOccurrences);
-	public findOccurrences(resource:network.URL, position:EditorCommon.IPosition, strict:boolean = false): winjs.TPromise<Modes.IOccurence[]> {
+	public findOccurrences(resource:URI, position:EditorCommon.IPosition, strict:boolean = false): winjs.TPromise<Modes.IOccurence[]> {
 		return this._worker((w) => w.findOccurrences(resource, position, strict));
 	}
 
 	static $suggest = OneWorkerAttr(HTMLMode, HTMLMode.prototype.suggest);
-	public suggest(resource:network.URL, position:EditorCommon.IPosition):winjs.TPromise<Modes.ISuggestions[]> {
+	public suggest(resource:URI, position:EditorCommon.IPosition):winjs.TPromise<Modes.ISuggestResult[]> {
 		return this._worker((w) => w.suggest(resource, position));
 	}
 
 	static $findColorDeclarations = OneWorkerAttr(HTMLMode, HTMLMode.prototype.findColorDeclarations);
-	public findColorDeclarations(resource:network.URL):winjs.TPromise<{range:EditorCommon.IRange; value:string; }[]> {
+	public findColorDeclarations(resource:URI):winjs.TPromise<{range:EditorCommon.IRange; value:string; }[]> {
 		return this._worker((w) => w.findColorDeclarations(resource));
 	}
 
 	static $getParameterHints = OneWorkerAttr(HTMLMode, HTMLMode.prototype.getParameterHints);
-	public getParameterHints(resource:network.URL, position:EditorCommon.IPosition):winjs.TPromise<Modes.IParameterHints> {
+	public getParameterHints(resource:URI, position:EditorCommon.IPosition):winjs.TPromise<Modes.IParameterHints> {
 		return this._worker((w) => w.getParameterHints(resource, position));
 	}
 }

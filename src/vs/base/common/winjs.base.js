@@ -28,7 +28,7 @@ define(['./winjs.base.raw', 'vs/base/common/errors'], function (raw, __Errors__)
 			return;
 		}
 
-		// Indicate that this error was orignated and needs to be handled
+		// Indicate that this error was originated and needs to be handled
 		outstandingPromiseErrors[id] = details;
 
 		// The first time the queue fills up this iteration, schedule a timeout to

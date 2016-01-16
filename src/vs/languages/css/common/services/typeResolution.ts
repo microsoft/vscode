@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import URI from 'vs/base/common/uri';
 import nodes = require('vs/languages/css/common/parser/cssNodes');
 import service = require('vs/languages/css/common/services/cssLanguageService');
-import network = require('vs/base/common/network');
 import languageFacts = require('vs/languages/css/common/services/languageFacts');
 
 export enum Type {
@@ -54,7 +54,7 @@ export class MultiType implements IType {
 	}
 }
 
-export function typeAtPosition(service:service.ILanguageService, resource:network.URL, offset:number):IType {
+export function typeAtPosition(service:service.ILanguageService, resource:URI, offset:number):IType {
 
 	return null;
 }

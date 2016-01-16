@@ -1,0 +1,42 @@
+{
+	"name": "json",
+	"version": "0.1.0",
+	"publisher": "vscode",
+	"engines": {
+		"vscode": "*"
+	},
+	"contributes": {
+		"languages": [
+			{
+				"id": "json",
+				"aliases": [
+					"JSON",
+					"json"
+				],
+				"extensions": [
+					".json",
+					".bowerrc",
+					".jshintrc",
+					".jscsrc",
+					".eslintrc"
+				],
+				"mimetypes": [
+					"application/json"
+				]
+			}
+		],
+		"grammars": [
+			{
+				"language": "json",
+				"scopeName": "source.json",
+				"path": "./syntaxes/JSON.tmLanguage"
+			}
+		],
+		"jsonValidation": [
+			{
+				"fileMatch": "*.schema.json",
+				"url": "http://json-schema.org/draft-04/schema#"
+			}
+		]
+	}
+}

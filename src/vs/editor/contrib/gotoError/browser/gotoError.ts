@@ -24,7 +24,6 @@ import Modes = require('vs/editor/common/modes');
 import EditorBrowser = require('vs/editor/browser/editorBrowser');
 import HtmlContentRenderer = require('vs/base/browser/htmlContentRenderer');
 import {Emitter} from 'vs/base/common/event';
-import CodeEditorWidget = require('vs/editor/browser/widget/codeEditorWidget');
 import {Position} from 'vs/editor/common/core/position';
 import {IMarkerService, IMarker} from 'vs/platform/markers/common/markers';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
@@ -250,7 +249,11 @@ class MarkerNavigationWidget extends ZoneWidget.ZoneWidget {
 		}
 
 		// update label and show
-		this._element.text(strings.format('({0}/{1}) ', this._model.indexOf(marker) + 1, this._model.length()));
+		let text = strings.format('({0}/{1}) ', this._model.indexOf(marker) + 1, this._model.length());
+		if (marker.source) {
+			text = `${text}[${marker.source}] `;
+		}
+		this._element.text(text);
 		var htmlElem = this._element.getHTMLElement();
 		HtmlContentRenderer.renderHtml2(marker.message).forEach((node) => {
 			htmlElem.appendChild(node);
@@ -276,9 +279,9 @@ class MarkerNavigationWidget extends ZoneWidget.ZoneWidget {
 							}
 							container.span({
 								class: 'quickfixentry',
-								text: fix.label
+								text: fix.command.title
 							}).on(DOM.EventType.CLICK,() => {
-								mode.quickFixSupport.runQuickFixAction(this.editor.getModel().getAssociatedResource(), marker, fix.id).then(result => {
+								mode.quickFixSupport.runQuickFixAction(this.editor.getModel().getAssociatedResource(), marker, fix).then(result => {
 									return bulkEdit(this._eventService, this._editorService, this.editor, result.edits);
 								});
 								return true;
@@ -348,7 +351,8 @@ class MarkerController implements EditorCommon.IEditorContribution {
 	private _callOnClose: lifecycle.IDisposable[] = [];
 	private _markersNavigationVisible: IKeybindingContextKey<boolean>;
 
-	constructor(editor:EditorBrowser.ICodeEditor, @IMarkerService markerService: IMarkerService, @IKeybindingService keybindingService: IKeybindingService,
+	constructor(
+		editor: EditorBrowser.ICodeEditor, @IMarkerService markerService: IMarkerService, @IKeybindingService keybindingService: IKeybindingService,
 		@IEventService eventService: IEventService, @IEditorService editorService: IEditorService) {
 		this.markerService = markerService;
 		this.eventService = eventService;
@@ -399,7 +403,7 @@ class MarkerController implements EditorCommon.IEditorContribution {
 	}
 
 	private _onMarkerChanged(changedResources: URI[]): void {
-		if(!changedResources.some(r => this.editor.getModel().getAssociatedResource().equals(r))) {
+		if(!changedResources.some(r => this.editor.getModel().getAssociatedResource().toString() === r.toString())) {
 			return;
 		}
 		this._model.setMarkers(this._getMarkers());

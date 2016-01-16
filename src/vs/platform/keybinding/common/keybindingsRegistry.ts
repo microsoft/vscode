@@ -5,19 +5,20 @@
 'use strict';
 
 import {Registry} from 'vs/platform/platform';
-import {ICommandHandler, ICommandsMap, IKeybindingItem, IKeybindings, IKeybindingContextRule} from 'vs/platform/keybinding/common/keybindingService';
-import {KeybindingsUtils} from 'vs/platform/keybinding/common/keybindingsUtils';
+import {TypeConstraint, validateConstraints} from 'vs/base/common/types';
+import {ICommandHandler, ICommandHandlerDescription, ICommandsMap, IKeybindingItem, IKeybindings, KbExpr} from 'vs/platform/keybinding/common/keybindingService';
 import {KeyMod, KeyCode, BinaryKeybindings} from 'vs/base/common/keyCodes';
 import Platform = require('vs/base/common/platform');
 
 export interface ICommandRule extends IKeybindings {
 	id: string;
 	weight: number;
-	context: IKeybindingContextRule[];
+	context: KbExpr;
 }
 
 export interface ICommandDescriptor extends ICommandRule {
 	handler: ICommandHandler;
+	description?: string | ICommandHandlerDescription;
 }
 
 export interface IKeybindingsRegistry {
@@ -25,9 +26,6 @@ export interface IKeybindingsRegistry {
 	registerCommandDesc(desc: ICommandDescriptor): void;
 	getCommands(): ICommandsMap;
 	getDefaultKeybindings(): IKeybindingItem[];
-
-	KEYBINDING_CONTEXT_OPERATOR_EQUAL: string;
-	KEYBINDING_CONTEXT_OPERATOR_NOT_EQUAL: string;
 
 	WEIGHT: {
 		editorCore(importance?: number): number;
@@ -42,9 +40,6 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 
 	private _keybindings: IKeybindingItem[];
 	private _commands: ICommandsMap;
-
-	public KEYBINDING_CONTEXT_OPERATOR_EQUAL = 'equal';
-	public KEYBINDING_CONTEXT_OPERATOR_NOT_EQUAL = 'not_equal';
 
 	public WEIGHT = {
 		editorCore: (importance: number = 0): number => {
@@ -69,8 +64,29 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 		this._commands = Object.create(null);
 	}
 
+	/**
+	 * Take current platform into account and reduce to primary & secondary.
+	 */
+	private static bindToCurrentPlatform(kb:IKeybindings): { primary?: number; secondary?: number[]; } {
+		if (Platform.isWindows) {
+			if (kb && kb.win) {
+				return kb.win;
+			}
+		} else if (Platform.isMacintosh) {
+			if (kb && kb.mac) {
+				return kb.mac;
+			}
+		} else {
+			if (kb && kb.linux) {
+				return kb.linux;
+			}
+		}
+
+		return kb;
+	}
+
 	public registerCommandRule(rule:ICommandRule): void {
-		var actualKb = KeybindingsUtils.bindToCurrentPlatform(rule);
+		let actualKb = KeybindingsRegistryImpl.bindToCurrentPlatform(rule);
 
 		if (actualKb && actualKb.primary) {
 			this.registerDefaultKeybinding(actualKb.primary, rule.id, rule.weight, 0, rule.context);
@@ -88,24 +104,39 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 		// 	console.warn('Duplicate handler for command: ' + desc.id);
 		// }
 		// this._commands[desc.id] = desc.handler;
-		this._commands[desc.id] = desc.handler;
+
+		let handler = desc.handler;
+		let description = desc.description || handler.description;
+
+		// add argument validation if rich command metadata is provided
+		if (typeof description === 'object') {
+			let constraints: TypeConstraint[] = [];
+			for (let arg of description.args) {
+				constraints.push(arg.constraint);
+			}
+			handler = function(accesor, args) {
+				validateConstraints(args, constraints);
+				return desc.handler(accesor, args);
+			};
+		}
+
+		// make sure description is there
+		handler.description = description;
+
+		// register handler
+		this._commands[desc.id] = handler;
 	}
 
 	public getCommands(): ICommandsMap {
 		return this._commands;
 	}
 
-	private registerDefaultKeybinding(keybinding: number, commandId:string, weight1: number, weight2:number, context:IKeybindingContextRule[]): void {
+	private registerDefaultKeybinding(keybinding: number, commandId:string, weight1: number, weight2:number, context:KbExpr): void {
 		if (Platform.isWindows) {
 			if (BinaryKeybindings.hasCtrlCmd(keybinding) && !BinaryKeybindings.hasShift(keybinding) && BinaryKeybindings.hasAlt(keybinding) && !BinaryKeybindings.hasWinCtrl(keybinding)) {
 				if (/^[A-Z0-9\[\]\|\;\'\,\.\/\`]$/.test(KeyCode.toString(BinaryKeybindings.extractKeyCode(keybinding)))) {
 					console.warn('Ctrl+Alt+ keybindings should not be used by default under Windows. Offender: ', keybinding, ' for ', commandId);
 				}
-			}
-		}
-		if (Platform.isLinux) {
-			if (!BinaryKeybindings.hasCtrlCmd(keybinding) && !BinaryKeybindings.hasShift(keybinding) && BinaryKeybindings.hasAlt(keybinding) && !BinaryKeybindings.hasWinCtrl(keybinding)) {
-				console.warn('Alt+ keybindings should not be used by default under Linux. Offender: ', keybinding, ' for ', commandId);
 			}
 		}
 		this._keybindings.push({
@@ -121,10 +152,10 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 		return this._keybindings;
 	}
 }
-export var KeybindingsRegistry:IKeybindingsRegistry = new KeybindingsRegistryImpl();
+export let KeybindingsRegistry:IKeybindingsRegistry = new KeybindingsRegistryImpl();
 
 // Define extension point ids
-export var Extensions = {
+export let Extensions = {
 	EditorModes: 'platform.keybindingsRegistry'
 };
 Registry.add(Extensions.EditorModes, KeybindingsRegistry);

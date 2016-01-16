@@ -5,7 +5,7 @@
 'use strict';
 
 import {KeybindingsRegistry,ICommandDescriptor} from 'vs/platform/keybinding/common/keybindingsRegistry';
-import {IKeybindingContextRule, IKeybindings} from 'vs/platform/keybinding/common/keybindingService';
+import {KbExpr, IKeybindings} from 'vs/platform/keybinding/common/keybindingService';
 import {ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
 import {IEditorService} from 'vs/platform/editor/common/editor';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
@@ -60,12 +60,12 @@ function triggerEditorHandler(handlerId: string, accessor: ServicesAccessor, arg
 	});
 }
 
-function registerCoreCommand(handlerId: string, kb: IKeybindings, weight: number = KeybindingsRegistry.WEIGHT.editorCore(), context?: IKeybindingContextRule[]) {
+function registerCoreCommand(handlerId: string, kb: IKeybindings, weight: number = KeybindingsRegistry.WEIGHT.editorCore(), context?: KbExpr) {
 	var desc: ICommandDescriptor = {
 		id: handlerId,
 		handler: triggerEditorHandler.bind(null, handlerId),
 		weight: weight,
-		context: (context ? context : [{ key: EditorCommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS}]),
+		context: (context ? context : KbExpr.has(EditorCommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS)),
 		primary: kb.primary,
 		secondary: kb.secondary,
 		win: kb.win,
@@ -155,7 +155,8 @@ registerCoreCommand(H.CursorUp, {
 registerCoreCommand(H.CursorUpSelect, {
 	primary: KeyMod.Shift | KeyCode.UpArrow,
 	secondary: [getWordNavigationKB(true, KeyCode.UpArrow)],
-	mac: { primary: KeyMod.Shift | KeyCode.UpArrow }
+	mac: { primary: KeyMod.Shift | KeyCode.UpArrow },
+	linux: { primary: KeyMod.Shift | KeyCode.UpArrow }
 });
 registerCoreCommand(H.CursorDown, {
 	primary: KeyCode.DownArrow,
@@ -164,8 +165,10 @@ registerCoreCommand(H.CursorDown, {
 registerCoreCommand(H.CursorDownSelect, {
 	primary: KeyMod.Shift | KeyCode.DownArrow,
 	secondary: [getWordNavigationKB(true, KeyCode.DownArrow)],
-	mac: { primary: KeyMod.Shift | KeyCode.DownArrow }
+	mac: { primary: KeyMod.Shift | KeyCode.DownArrow },
+	linux: { primary: KeyMod.Shift | KeyCode.DownArrow }
 });
+
 registerCoreCommand(H.CursorPageUp, {
 	primary: KeyCode.PageUp
 });
@@ -194,19 +197,38 @@ registerCoreCommand(H.CursorEndSelect, {
 	primary: KeyMod.Shift | KeyCode.End,
 	mac: { primary: KeyMod.Shift | KeyCode.End, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.RightArrow] }
 });
+registerCoreCommand(H.ExpandLineSelection, {
+	primary: KeyMod.CtrlCmd | KeyCode.KEY_I
+});
+
+registerCoreCommand(H.ScrollLineUp, {
+	primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
+	mac: { primary: KeyMod.WinCtrl | KeyCode.PageUp}
+});
+registerCoreCommand(H.ScrollLineDown, {
+	primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
+	mac: { primary: KeyMod.WinCtrl | KeyCode.PageDown}
+});
+
+registerCoreCommand(H.ScrollPageUp, {
+	primary: KeyMod.CtrlCmd | KeyCode.PageUp
+});
+registerCoreCommand(H.ScrollPageDown, {
+	primary: KeyMod.CtrlCmd | KeyCode.PageDown
+});
 
 registerCoreCommand(H.Tab, {
 	primary: KeyCode.Tab
-}, KeybindingsRegistry.WEIGHT.editorCore(), [
-	{ key: EditorCommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS },
-	{ key: EditorCommon.KEYBINDING_CONTEXT_EDITOR_TAB_MOVES_FOCUS, operator: KeybindingsRegistry.KEYBINDING_CONTEXT_OPERATOR_NOT_EQUAL, operand: true }
-]);
+}, KeybindingsRegistry.WEIGHT.editorCore(), KbExpr.and(
+	KbExpr.has(EditorCommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS),
+	KbExpr.not(EditorCommon.KEYBINDING_CONTEXT_EDITOR_TAB_MOVES_FOCUS)
+));
 registerCoreCommand(H.Outdent, {
 	primary: KeyMod.Shift | KeyCode.Tab
-}, KeybindingsRegistry.WEIGHT.editorCore(), [
-	{ key: EditorCommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS },
-	{ key: EditorCommon.KEYBINDING_CONTEXT_EDITOR_TAB_MOVES_FOCUS, operator: KeybindingsRegistry.KEYBINDING_CONTEXT_OPERATOR_NOT_EQUAL, operand: true }
-]);
+}, KeybindingsRegistry.WEIGHT.editorCore(), KbExpr.and(
+	KbExpr.has(EditorCommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS),
+	KbExpr.not(EditorCommon.KEYBINDING_CONTEXT_EDITOR_TAB_MOVES_FOCUS)
+));
 
 registerCoreCommand(H.DeleteLeft, {
 	primary: KeyCode.Backspace,
@@ -241,16 +263,16 @@ registerWordCommand(H.DeleteWordRight, false, KeyCode.Delete);
 
 registerCoreCommand(H.CancelSelection, {
 	primary: KeyCode.Escape
-}, KeybindingsRegistry.WEIGHT.editorCore(), [
-	{ key: EditorCommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS },
-	{ key: EditorCommon.KEYBINDING_CONTEXT_EDITOR_HAS_NON_EMPTY_SELECTION }
-]);
+}, KeybindingsRegistry.WEIGHT.editorCore(), KbExpr.and(
+	KbExpr.has(EditorCommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS),
+	KbExpr.has(EditorCommon.KEYBINDING_CONTEXT_EDITOR_HAS_NON_EMPTY_SELECTION)
+));
 registerCoreCommand(H.RemoveSecondaryCursors, {
 	primary: KeyCode.Escape
-}, KeybindingsRegistry.WEIGHT.editorCore(1), [
-	{ key: EditorCommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS },
-	{ key: EditorCommon.KEYBINDING_CONTEXT_EDITOR_HAS_MULTIPLE_SELECTIONS }
-]);
+}, KeybindingsRegistry.WEIGHT.editorCore(1), KbExpr.and(
+	KbExpr.has(EditorCommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS),
+	KbExpr.has(EditorCommon.KEYBINDING_CONTEXT_EDITOR_HAS_MULTIPLE_SELECTIONS)
+));
 
 registerCoreCommand(H.CursorTop, {
 	primary: KeyMod.CtrlCmd | KeyCode.Home,

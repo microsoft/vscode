@@ -5,6 +5,7 @@
 'use strict';
 
 import nls = require('vs/nls');
+import URI from 'vs/base/common/uri';
 import network = require('vs/base/common/network');
 import strings = require('vs/base/common/strings');
 import errors = require('vs/base/common/errors');
@@ -33,8 +34,8 @@ export class QuickFixMainActions {
 		this._contextService = contextService;
 	}
 
-	public evaluate(resource: network.URL, range: EditorCommon.IRange, id: any) : winjs.TPromise<Modes.IQuickFixResult> {
-		var command = JSON.parse(id);
+	public evaluate(resource: URI, range: EditorCommon.IRange, quickFix: Modes.IQuickFix) : winjs.TPromise<Modes.IQuickFixResult> {
+		var [command] = quickFix.command.arguments;
 		switch (command.type) {
 			case 'typedefinitions': {
 				return this.evaluateAddTypeDefinitionProposal(command.name, resource);
@@ -43,12 +44,12 @@ export class QuickFixMainActions {
 		return winjs.Promise.as(null);
 	}
 
-	public evaluateAddTypeDefinitionProposal(typingsReference: string, resource: network.URL): winjs.TPromise<Modes.IQuickFixResult> {
+	public evaluateAddTypeDefinitionProposal(typingsReference: string, resource: URI): winjs.TPromise<Modes.IQuickFixResult> {
 		var dtsFile = 'typings/' + typingsReference;
 		var dtsFileResource = this._contextService.toResource(dtsFile);
 		var jsConfigResource = this._contextService.toResource('jsconfig.json');
 		if (!dtsFileResource || !jsConfigResource) {
-			return;
+			return winjs.Promise.as(null);
 		}
 
 		var resourcePath = this._contextService.toWorkspaceRelativePath(resource);

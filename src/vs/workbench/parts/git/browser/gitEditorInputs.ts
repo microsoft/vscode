@@ -8,9 +8,8 @@ import winjs = require('vs/base/common/winjs.base');
 import lifecycle = require('vs/base/common/lifecycle');
 import async = require('vs/base/common/async');
 import WorkbenchEditorCommon = require('vs/workbench/common/editor');
-import resourceei = require('vs/workbench/browser/parts/editor/resourceEditorInput');
-import stringei = require('vs/workbench/browser/parts/editor/stringEditorInput');
-import diffei = require('vs/workbench/browser/parts/editor/diffEditorInput');
+import stringei = require('vs/workbench/common/editor/stringEditorInput');
+import diffei = require('vs/workbench/common/editor/diffEditorInput');
 import git = require('vs/workbench/parts/git/common/git');
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IEditorInput} from 'vs/platform/editor/common/editor';
@@ -23,7 +22,7 @@ export interface IEditorInputWithStatus {
 }
 
 export function isGitEditorInput(input: IEditorInput): boolean {
-	return input instanceof GitDiffEditorInput || input instanceof GitIndexEditorInput || input instanceof NativeGitIndexStringEditorInput;
+	return input instanceof GitDiffEditorInput || input instanceof NativeGitIndexStringEditorInput;
 }
 
 export class GitDiffEditorInput
@@ -91,29 +90,6 @@ export class GitIndexDiffEditorInput extends GitDiffEditorInput {
 	}
 }
 
-export class GitIndexEditorInput
-	extends resourceei.ResourceEditorInput
-	implements IEditorInputWithStatus
-{
-	public static ID = 'Monaco.IDE.UI.Viewlets.GitViewlet.GitIndexEditorInput';
-
-	private status: git.IFileStatus;
-
-	constructor(name: any, description:string, url: string, mime: string, status: git.IFileStatus, @IInstantiationService instantiationService: IInstantiationService) {
-		super(name, description, url, mime, void 0, void 0, void 0, instantiationService);
-
-		this.status = status;
-	}
-
-	public getId(): string {
-		return GitIndexEditorInput.ID;
-	}
-
-	public getFileStatus(): git.IFileStatus {
-		return this.status;
-	}
-}
-
 export class NativeGitIndexStringEditorInput
 	extends stringei.StringEditorInput
 	implements IEditorInputWithStatus
@@ -125,7 +101,7 @@ export class NativeGitIndexStringEditorInput
 	private status: git.IFileStatus;
 	private path: string;
 	private treeish: string;
-	private delayer: async.ThrottledDelayer;
+	private delayer: async.ThrottledDelayer<WorkbenchEditorCommon.EditorModel>;
 	private toDispose: lifecycle.IDisposable[];
 
 	constructor(name: any, description: string, mime: string, status: git.IFileStatus, path: string, treeish: string,
@@ -140,7 +116,7 @@ export class NativeGitIndexStringEditorInput
 		this.status = status;
 		this.path = path;
 		this.treeish = treeish;
-		this.delayer = new async.ThrottledDelayer(1000);
+		this.delayer = new async.ThrottledDelayer<WorkbenchEditorCommon.EditorModel>(1000);
 
 		this.toDispose = [];
 		this.toDispose.push(this.gitService.addListener2(git.ServiceEvents.STATE_CHANGED, () => this.onGitServiceStateChange()));
@@ -148,7 +124,7 @@ export class NativeGitIndexStringEditorInput
 	}
 
 	public getId(): string {
-		return GitIndexEditorInput.ID;
+		return NativeGitIndexStringEditorInput.ID;
 	}
 
 	public getFileStatus(): git.IFileStatus {

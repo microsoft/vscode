@@ -7,7 +7,7 @@ var path = require('path');
 var gulp = require('gulp');
 var sourcemaps = require('gulp-sourcemaps');
 var filter = require('gulp-filter');
-var minifyCSS = require('gulp-minify-css');
+var minifyCSS = require('gulp-cssnano');
 var uglify = require('gulp-uglify');
 var es = require('event-stream');
 var concat = require('gulp-concat');
@@ -31,8 +31,7 @@ exports.loaderConfig = function (emptyPaths) {
 		paths: {
 			'vs': 'out-build/vs',
 			'vs/extensions': 'extensions',
-			'vscode': 'empty:',
-			'lib': 'out-build/lib'
+			'vscode': 'empty:'
 		},
 		'vs/text': {
 			paths: {
@@ -47,13 +46,27 @@ exports.loaderConfig = function (emptyPaths) {
 
 var IS_OUR_COPYRIGHT_REGEXP = /Copyright \(C\) Microsoft Corporation/i;
 
-function loader() {
+function loader(bundledFileHeader) {
+	var isFirst = true;
 	return gulp.src([
 		'out-build/vs/loader.js',
 		'out-build/vs/css.js',
 		'out-build/vs/nls.js',
 		'out-build/vs/text.js'
 	], { base: 'out-build' })
+		.pipe(es.through(function(data) {
+			if (isFirst) {
+				isFirst = false;
+				this.emit('data', new File({
+					path: 'fake',
+					base: '',
+					contents: new Buffer(bundledFileHeader)
+				}));
+				this.emit('data', data);
+			} else {
+				this.emit('data', data);
+			}
+		}))
 		.pipe(util.loadSourcemaps())
 		.pipe(concat('vs/loader.js'))
 		.pipe(es.mapSync(function (f) {
@@ -62,86 +75,100 @@ function loader() {
 		}));
 }
 
-function toBundleStream(bundles) {
-	return es.merge(bundles.map(function(bundle) {
-		var useSourcemaps = /\.js$/.test(bundle.dest) && !/\.nls\.js$/.test(bundle.dest);
-		var sources = bundle.sources.map(function(source) {
-			var root = source.path ? path.dirname(__dirname).replace(/\\/g, '/') : '';
-			var base = source.path ? root + '/out-build' : '';
+function toConcatStream(bundledFileHeader, sources, dest) {
+	var useSourcemaps = /\.js$/.test(dest) && !/\.nls\.js$/.test(dest);
 
-			return new File({
-				path: source.path ? root + '/' + source.path.replace(/\\/g, '/') : 'fake',
-				base: base,
-				contents: new Buffer(source.contents)
-			});
+	// If a bundle ends up including in any of the sources our copyright, then
+	// insert a fake source at the beginning of each bundle with our copyright
+	var containsOurCopyright = false;
+	for (var i = 0, len = sources.length; i < len; i++) {
+		var fileContents = sources[i].contents;
+		if (IS_OUR_COPYRIGHT_REGEXP.test(fileContents)) {
+			containsOurCopyright = true;
+			break;
+		}
+	}
+
+	if (containsOurCopyright) {
+		sources.unshift({
+			path: null,
+			contents: bundledFileHeader
 		});
+	}
 
-		return es.readArray(sources)
-			.pipe(useSourcemaps ? util.loadSourcemaps() : es.through())
-			.pipe(concat(bundle.dest));
+	var treatedSources = sources.map(function(source) {
+		var root = source.path ? path.dirname(__dirname).replace(/\\/g, '/') : '';
+		var base = source.path ? root + '/out-build' : '';
+
+		return new File({
+			path: source.path ? root + '/' + source.path.replace(/\\/g, '/') : 'fake',
+			base: base,
+			contents: new Buffer(source.contents)
+		});
+	});
+
+	return es.readArray(treatedSources)
+		.pipe(useSourcemaps ? util.loadSourcemaps() : es.through())
+		.pipe(concat(dest));
+}
+
+function toBundleStream(bundledFileHeader, bundles) {
+	return es.merge(bundles.map(function(bundle) {
+		return toConcatStream(bundledFileHeader, bundle.sources, bundle.dest);
 	}));
 }
 
-exports.optimizeTask = function(entryPoints, resources, loaderConfig, out) {
+/**
+ * opts:
+ * - entryPoints (for AMD files, will get bundled and get Copyright treatment)
+ * - otherSources (for non-AMD files that should get Copyright treatment)
+ * - resources (svg, etc.)
+ * - loaderConfig
+ * - header (basically the Copyright treatment)
+ * - out (out folder name)
+ */
+exports.optimizeTask = function(opts) {
+	var entryPoints = opts.entryPoints;
+	var otherSources = opts.otherSources;
+	var resources = opts.resources;
+	var loaderConfig = opts.loaderConfig;
+	var bundledFileHeader = opts.header;
+	var out = opts.out;
+
 	return function() {
-		var bundles = es.through();
+		var bundlesStream = es.through();
 
 		bundle.bundle(entryPoints, loaderConfig, function(err, result) {
-			if (err) { return bundles.emit('error', JSON.stringify(err)); }
+			if (err) { return bundlesStream.emit('error', JSON.stringify(err)); }
 
-			// If a bundle ends up including in any of the sources our copyright, then
-			// insert a fake source at the beginning of each bundle with our copyright
-			result.forEach(function(b) {
-				var containsOurCopyright = false;
-				for (var i = 0, len = b.sources.length; i < len; i++) {
-					var fileContents = b.sources[i].contents;
-					if (IS_OUR_COPYRIGHT_REGEXP.test(fileContents)) {
-						containsOurCopyright = true;
-						break;
-					}
-				}
-
-				if (containsOurCopyright) {
-					b.sources.unshift({
-						path: null,
-						contents: [
-							'/*!--------------------------------------------------------',
-							' * Copyright (C) Microsoft Corporation. All rights reserved.',
-							' *--------------------------------------------------------*/'
-						].join('\r\n')
-					});
-				}
-			});
-
-			var bundleInformation = result.map(function (b) {
-				return {
-					dest: b.dest,
-					sources: b.sources.filter(function (s) {
-						return !!s.path;
-					}).map(function (s) {
-						return path.relative('out-build', s.path);
-					})
-				}
-			});
-
-			var info = es.readArray([new File({
-				path: 'bundles.json',
-				contents: new Buffer(JSON.stringify(bundleInformation), 'utf8')
-			})]);
-
-			es.merge(toBundleStream(result), info).pipe(bundles);
+			toBundleStream(bundledFileHeader, result).pipe(bundlesStream);
 		});
 
+		var otherSourcesStream = es.through();
+		var otherSourcesStreamArr = [];
+
+		gulp.src(otherSources, { base: 'out-build' })
+			.pipe(es.through(function (data) {
+				otherSourcesStreamArr.push(toConcatStream(bundledFileHeader, [data], data.relative));
+			}, function () {
+				if (!otherSourcesStreamArr.length) {
+					setTimeout(function () { otherSourcesStream.emit('end'); }, 0);
+				} else {
+					es.merge(otherSourcesStreamArr).pipe(otherSourcesStream);
+				}
+			}));
+
 		var result = es.merge(
-			loader(),
-			bundles,
+			loader(bundledFileHeader),
+			bundlesStream,
+			otherSourcesStream,
 			gulp.src(resources, { base: 'out-build' })
 		);
 
 		return result
 			.pipe(sourcemaps.write('./', {
 				sourceRoot: null,
-				addComment: false,
+				addComment: true,
 				includeContent: true
 			}))
 			.pipe(gulp.dest(out));
@@ -202,7 +229,7 @@ function uglifyWithCopyrights() {
 	});
 }
 
-exports.minifyTask = function (src) {
+exports.minifyTask = function (src, addSourceMapsComment) {
 	return function() {
 		var jsFilter = filter('**/*.js', { restore: true });
 		var cssFilter = filter('**/*.css', { restore: true });
@@ -218,7 +245,7 @@ exports.minifyTask = function (src) {
 			.pipe(sourcemaps.write('./', {
 				sourceRoot: null,
 				includeContent: true,
-				addComment: false
+				addComment: addSourceMapsComment
 			}))
 			.pipe(gulp.dest(src + '-min'));
 	};

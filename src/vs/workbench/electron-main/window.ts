@@ -6,17 +6,15 @@
 'use strict';
 
 import path = require('path');
+import os = require('os');
 
-import Shell = require('shell');
-import screen = require('screen');
-import BrowserWindow = require('browser-window');
+import {shell, screen, BrowserWindow} from 'electron';
 
 import {TPromise, TValueCallback} from 'vs/base/common/winjs.base';
 import platform = require('vs/base/common/platform');
 import objects = require('vs/base/common/objects');
 import env = require('vs/workbench/electron-main/env');
 import storage = require('vs/workbench/electron-main/storage');
-import {IEnv} from 'vs/base/node/env';
 
 export interface IWindowState {
 	width?: number;
@@ -24,6 +22,11 @@ export interface IWindowState {
 	x?: number;
 	y?: number;
 	mode?: WindowMode;
+}
+
+export interface IWindowCreationOptions {
+	state: IWindowState;
+	isPluginDevelopmentHost: boolean;
 }
 
 export enum WindowMode {
@@ -103,8 +106,7 @@ export interface IWindowConfiguration extends env.ICommandLineArguments {
 	filesToOpen?: IPath[];
 	filesToCreate?: IPath[];
 	extensionsToInstall: string[];
-	autoSaveDelay?: number;
-	crashReporter: ICrashReporterConfigBrowser;
+	crashReporter: Electron.CrashReporterStartOptions;
 	extensionsGallery: {
 		serviceUrl: string;
 		itemUrl: string;
@@ -113,13 +115,12 @@ export interface IWindowConfiguration extends env.ICommandLineArguments {
 	releaseNotesUrl: string;
 	productDownloadUrl: string;
 	enableTelemetry: boolean;
-	userEnv: IEnv,
+	userEnv: env.IProcessEnvironment,
 	aiConfig: {
 		key: string;
 		asimovKey: string;
 	},
 	sendASmile: {
-		submitUrl: string,
 		reportIssueUrl: string,
 		requestFeatureUrl: string
 	}
@@ -129,11 +130,15 @@ const enableDebugLogging = false;
 
 export class VSCodeWindow {
 
+	public static menuBarHiddenKey = 'menuBarHidden';
+	public static themeStorageKey = 'theme'; // TODO@Ben this key is only used to find out if a window can be shown instantly because of light theme, remove once we have support for bg color
+
 	private static MIN_WIDTH = 200;
 	private static MIN_HEIGHT = 120;
 
 	private showTimeoutHandle: any;
-	private _win: BrowserWindow;
+	private _id: number;
+	private _win: Electron.BrowserWindow;
 	private _lastFocusTime: number;
 	private _readyState: ReadyState;
 	private _isPluginDevelopmentHost: boolean;
@@ -145,29 +150,30 @@ export class VSCodeWindow {
 	private currentConfig: IWindowConfiguration;
 	private pendingLoadConfig: IWindowConfiguration;
 
-	constructor(state?: IWindowState, isPluginDevelopmentHost?: boolean, usesLightTheme?: boolean) {
+	constructor(config: IWindowCreationOptions) {
 		this._lastFocusTime = -1;
 		this._readyState = ReadyState.NONE;
-		this._isPluginDevelopmentHost = isPluginDevelopmentHost;
+		this._isPluginDevelopmentHost = config.isPluginDevelopmentHost;
 		this.whenReadyCallbacks = [];
 
 		// Load window state
-		this.restoreWindowState(state);
+		this.restoreWindowState(config.state);
 
 		// For VS theme we can show directly because background is white
+		const usesLightTheme = /vs($| )/.test(storage.getItem<string>(VSCodeWindow.themeStorageKey));
 		let showDirectly = usesLightTheme;
 		if (showDirectly && !global.windowShow) {
 			global.windowShow = new Date().getTime();
 		}
 
-		let options: IBrowserWindowOptions = {
+		let options: Electron.BrowserWindowOptions = {
 			width: this.windowState.width,
 			height: this.windowState.height,
 			x: this.windowState.x,
 			y: this.windowState.y,
-			'background-color': usesLightTheme ? '#FFFFFF' : '#1E1E1E',
-			'min-width': VSCodeWindow.MIN_WIDTH,
-			'min-height': VSCodeWindow.MIN_HEIGHT,
+			backgroundColor: usesLightTheme ? '#FFFFFF' : '#1E1E1E',
+			minWidth: VSCodeWindow.MIN_WIDTH,
+			minHeight: VSCodeWindow.MIN_HEIGHT,
 			show: showDirectly && this.currentWindowMode !== WindowMode.Maximized, // in case we are maximized, only show later after the call to maximize (see below)
 			title: env.product.nameLong
 		};
@@ -178,6 +184,7 @@ export class VSCodeWindow {
 
 		// Create the browser window.
 		this._win = new BrowserWindow(options);
+		this._id = this._win.id;
 
 		if (showDirectly && this.currentWindowMode === WindowMode.Maximized) {
 			this.win.maximize();
@@ -191,6 +198,10 @@ export class VSCodeWindow {
 			this._lastFocusTime = new Date().getTime(); // since we show directly, we need to set the last focus time too
 		}
 
+		if (storage.getItem<boolean>(VSCodeWindow.menuBarHiddenKey, false)) {
+			this.setMenuBarVisibility(false); // respect configured menu bar visibility
+		}
+
 		this.registerListeners();
 	}
 
@@ -202,20 +213,33 @@ export class VSCodeWindow {
 		return this.currentConfig;
 	}
 
-	public get win(): BrowserWindow {
+	public get id(): number {
+		return this._id;
+	}
+
+	public get win(): Electron.BrowserWindow {
 		return this._win;
 	}
 
-	public restore(): void {
+	public focus(): void {
 		if (!this._win) {
 			return;
 		}
 
-		if (this._win.isMinimized()) {
-			this._win.restore();
+		// Windows 10: https://github.com/Microsoft/vscode/issues/929
+		if (platform.isWindows && os.release() && os.release().indexOf('10.') === 0 && !this._win.isFocused()) {
+			this._win.minimize();
+			this._win.focus();
 		}
 
-		this._win.focus();
+		// Mac / Linux / Windows 7 & 8
+		else {
+			if (this._win.isMinimized()) {
+				this._win.restore();
+			}
+
+			this._win.focus();
+		}
 	}
 
 	public get lastFocusTime(): number {
@@ -291,9 +315,9 @@ export class VSCodeWindow {
 
 			// Support navigation via mouse buttons 4/5
 			if (cmd === 'browser-backward') {
-				this._win.webContents.send('vscode:runAction', 'workbench.action.navigateBack');
+				this.send('vscode:runAction', 'workbench.action.navigateBack');
 			} else if (cmd === 'browser-forward') {
-				this._win.webContents.send('vscode:runAction', 'workbench.action.navigateForward');
+				this.send('vscode:runAction', 'workbench.action.navigateForward');
 			}
 		});
 
@@ -301,7 +325,7 @@ export class VSCodeWindow {
 		this._win.webContents.on('new-window', (event: Event, url: string) => {
 			event.preventDefault();
 
-			Shell.openExternal(url);
+			shell.openExternal(url);
 		});
 
 		// Window Focus
@@ -343,7 +367,7 @@ export class VSCodeWindow {
 		}
 
 		// Load URL
-		this._win.loadUrl(this.getUrl(config));
+		this._win.loadURL(this.getUrl(config));
 
 		// Make window visible if it did not open in N seconds because this indicates an error
 		if (!config.isBuilt) {
@@ -351,7 +375,7 @@ export class VSCodeWindow {
 				if (this._win && !this._win.isVisible() && !this._win.isMinimized()) {
 					this._win.show();
 					this._win.focus();
-					this._win.openDevTools();
+					this._win.webContents.openDevTools();
 				}
 			}, 10000);
 		}
@@ -364,7 +388,6 @@ export class VSCodeWindow {
 		delete configuration.filesToOpen;
 		delete configuration.filesToCreate;
 		delete configuration.extensionsToInstall;
-		configuration.autoSaveDelay = storage.getItem<number>('autoSaveDelay') || -1 /* Disabled by default */;
 
 		// Some configuration things get inherited if the window is being reloaded and we are
 		// in plugin development mode. These options are all development related.
@@ -515,7 +538,7 @@ export class VSCodeWindow {
 		return null;
 	}
 
-	public getBounds(): IBounds {
+	public getBounds(): Electron.Bounds {
 		let pos = this.win.getPosition();
 		let dimension = this.win.getSize();
 
@@ -523,10 +546,33 @@ export class VSCodeWindow {
 	}
 
 	public toggleFullScreen(): void {
-		let isFullScreen = this.win.isFullScreen();
+		let willBeFullScreen = !this.win.isFullScreen();
 
-		this.win.setFullScreen(!isFullScreen);
-		this.win.setMenuBarVisibility(isFullScreen);
+		this.win.setFullScreen(willBeFullScreen);
+
+		// Windows & Linux: Hide the menu bar but still allow to bring it up by pressing the Alt key
+		if (platform.isWindows || platform.isLinux) {
+			if (willBeFullScreen) {
+				this.setMenuBarVisibility(false);
+			} else {
+				this.setMenuBarVisibility(!storage.getItem<boolean>(VSCodeWindow.menuBarHiddenKey, false)); // restore as configured
+			}
+		}
+	}
+
+	public setMenuBarVisibility(visible: boolean): void {
+		this.win.setMenuBarVisibility(visible);
+		this.win.setAutoHideMenuBar(!visible);
+	}
+
+	public sendWhenReady(channel: string, ...args: any[]): void {
+		this.ready().then(() => {
+			this.send(channel, ...args);
+		});
+	}
+
+	public send(channel: string, ...args: any[]): void {
+		this._win.webContents.send(channel, ...args);
 	}
 
 	public dispose(): void {

@@ -4,5 +4,5 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-export const TOKEN_VALUE = 'meta.property-value.constant.other.json';
+export const TOKEN_VALUE = 'support.property-value.constant.other.json';
 export const TOKEN_KEY = 'support.type.property-name.json';

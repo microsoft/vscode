@@ -9,7 +9,7 @@ import EditorCommon = require('vs/editor/common/editorCommon');
 import Builder = require('vs/base/browser/builder');
 import QuickOpenWidget = require('vs/base/parts/quickopen/browser/quickOpenWidget');
 import QuickOpenModel = require('vs/base/parts/quickopen/browser/quickOpenModel');
-import QuickOpen = require('vs/base/parts/quickopen/browser/quickOpen');
+import QuickOpen = require('vs/base/parts/quickopen/common/quickOpen');
 
 var $ = Builder.$;
 

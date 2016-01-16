@@ -21,6 +21,57 @@ function equalRange(left, right) {
 	assert.ok(true, 'ranges');
 };
 
+function contentChangedFlushEvent(detail: EditorCommon.IRawText): EditorCommon.IModelContentChangedFlushEvent {
+	return {
+		changeType: EditorCommon.EventType.ModelContentChangedFlush,
+		isRedoing: false,
+		isUndoing: false,
+		versionId: 0,
+		detail: detail
+	};
+}
+
+function contentChangedLinesDeletedEvent(fromLineNumber: number, toLineNumber: number): EditorCommon.IModelContentChangedLinesDeletedEvent {
+	return {
+		changeType: EditorCommon.EventType.ModelContentChangedLinesDeleted,
+		isRedoing: false,
+		isUndoing: false,
+		versionId: 0,
+		fromLineNumber: fromLineNumber,
+		toLineNumber: toLineNumber
+	};
+}
+
+function contentChangedLinesInsertedEvent(fromLineNumber: number, toLineNumber: number, detail: string): EditorCommon.IModelContentChangedLinesInsertedEvent {
+	return {
+		changeType: EditorCommon.EventType.ModelContentChangedLinesInserted,
+		isRedoing: false,
+		isUndoing: false,
+		versionId: 0,
+		fromLineNumber: fromLineNumber,
+		toLineNumber: toLineNumber,
+		detail: detail
+	};
+}
+
+function contentChangedLineChanged(lineNumber: number, detail: string): EditorCommon.IModelContentChangedLineChangedEvent {
+	return {
+		changeType: EditorCommon.EventType.ModelContentChangedLineChanged,
+		isRedoing: false,
+		isUndoing: false,
+		versionId: 0,
+		lineNumber: lineNumber,
+		detail: detail
+	};
+}
+
+function mirrorModelEvents(contentChanged:EditorCommon.IModelContentChangedEvent[]): MirrorModel.IMirrorModelEvents {
+	return {
+		propertiesChanged: null,
+		contentChanged: contentChanged
+	};
+}
+
 suite('Editor Model - MirrorModel', () => {
 
 	var mirrorModel:MirrorModel.MirrorModel;
@@ -46,19 +97,16 @@ suite('Editor Model - MirrorModel', () => {
 		assert.equal(mirrorModel.getLineStart(2), 6);
 		assert.equal(mirrorModel.getLineStart(3), 12);
 
-		var e = {
-			type: EditorCommon.EventType.ModelContentChanged,
-			changeType: EditorCommon.EventType.ModelContentChangedFlush,
-			detail: {
-				lines: [
-					'foo',
-					'bar'
-				],
-				BOM: '',
-				EOL: '\n'
-			}
-		};
-		mirrorModel.onEvents([e]);
+		mirrorModel.onEvents(mirrorModelEvents([contentChangedFlushEvent({
+			length: -1,
+			lines: [
+				'foo',
+				'bar'
+			],
+			BOM: '',
+			EOL: '\n'
+		})]));
+
 		assert.equal(mirrorModel.getLineStart(1), 0);
 		assert.equal(mirrorModel.getLineStart(2), 4);
 	});
@@ -170,14 +218,9 @@ suite('Editor Model - MirrorModel Eventing', () => {
 	});
 
 	test('delete single line', () => {
-		var e = {
-			type: EditorCommon.EventType.ModelContentChanged,
-			changeType: EditorCommon.EventType.ModelContentChangedLinesDeleted,
-			fromLineNumber: 3,
-			toLineNumber: 3
-		};
 		assert.equal(mirrorModel.getLineContent(3), 'line three');
-		mirrorModel.onEvents([e]);
+
+		mirrorModel.onEvents(mirrorModelEvents([contentChangedLinesDeletedEvent(3, 3)]));
 
 		assert.equal(mirrorModel.getLineContent(3), 'line four');
 		var words = mirrorModel.getAllWords();
@@ -191,13 +234,8 @@ suite('Editor Model - MirrorModel Eventing', () => {
 	});
 
 	test('delete multiple lines', () => {
-		var e = {
-			type: EditorCommon.EventType.ModelContentChanged,
-			changeType: EditorCommon.EventType.ModelContentChangedLinesDeleted,
-			fromLineNumber: 1,
-			toLineNumber: 2
-		};
-		mirrorModel.onEvents([e]);
+		mirrorModel.onEvents(mirrorModelEvents([contentChangedLinesDeletedEvent(1, 2)]));
+
 		assert.equal(mirrorModel.getLineContent(1), 'line three');
 		assert.equal(mirrorModel.getLineContent(2), 'line four');
 		var words = mirrorModel.getAllWords();
@@ -220,13 +258,8 @@ suite('Editor Model - MirrorModel Eventing', () => {
 	});
 
 	test('delete all lines', () => {
-		var e = {
-			type: EditorCommon.EventType.ModelContentChanged,
-			changeType: EditorCommon.EventType.ModelContentChangedLinesDeleted,
-			fromLineNumber: 1,
-			toLineNumber: 4
-		};
-		mirrorModel.onEvents([e]);
+		mirrorModel.onEvents(mirrorModelEvents([contentChangedLinesDeletedEvent(1, 4)]));
+
 		var words = mirrorModel.getAllWords();
 		assert.equal(words.length, 0);
 		var wordsWithRanges = mirrorModel.getAllWordsWithRange();
@@ -234,16 +267,10 @@ suite('Editor Model - MirrorModel Eventing', () => {
 	});
 
 	test('add single lines', () => {
-		var e = {
-			type: EditorCommon.EventType.ModelContentChanged,
-			changeType: EditorCommon.EventType.ModelContentChangedLinesInserted,
-			fromLineNumber: 1,
-			toLineNumber: 1,
-			detail: 'foo bar\nbar foo'
-		};
-
 		assert.equal(mirrorModel.getLineContent(1), 'line one');
-		mirrorModel.onEvents([e]);
+
+		mirrorModel.onEvents(mirrorModelEvents([contentChangedLinesInsertedEvent(1, 1, 'foo bar\nbar foo')]));
+
 		assert.equal(mirrorModel.getLineContent(1), 'foo bar');
 		assert.equal(mirrorModel.getLineContent(2), 'line one');
 
@@ -257,16 +284,10 @@ suite('Editor Model - MirrorModel Eventing', () => {
 
 
 	test('add multiple lines', () => {
-		var e = {
-			type: EditorCommon.EventType.ModelContentChanged,
-			changeType: EditorCommon.EventType.ModelContentChangedLinesInserted,
-			fromLineNumber: 1,
-			toLineNumber: 2,
-			detail: 'foo bar\nbar foo'
-		};
-
 		assert.equal(mirrorModel.getLineContent(1), 'line one');
-		mirrorModel.onEvents([e]);
+
+		mirrorModel.onEvents(mirrorModelEvents([contentChangedLinesInsertedEvent(1, 2, 'foo bar\nbar foo')]));
+
 		assert.equal(mirrorModel.getLineContent(1), 'foo bar');
 		assert.equal(mirrorModel.getLineContent(2), 'bar foo');
 		assert.equal(mirrorModel.getLineContent(3), 'line one');
@@ -284,16 +305,11 @@ suite('Editor Model - MirrorModel Eventing', () => {
 	});
 
 	test('change line', () => {
-		var e = {
-			type: EditorCommon.EventType.ModelContentChanged,
-			changeType: EditorCommon.EventType.ModelContentChangedLineChanged,
-			lineNumber: 1,
-			detail: 'foobar'
-		};
 		assert.equal(mirrorModel.getLineContent(1), 'line one');
 		var wordsWithRanges = mirrorModel.getAllWordsWithRange();
 		assert.equal(wordsWithRanges.length, 8);
-		mirrorModel.onEvents([e]);
+
+		mirrorModel.onEvents(mirrorModelEvents([contentChangedLineChanged(1, 'foobar')]));
 
 		assert.equal(mirrorModel.getLineContent(1), 'foobar');
 		wordsWithRanges = mirrorModel.getAllWordsWithRange();
@@ -305,19 +321,17 @@ suite('Editor Model - MirrorModel Eventing', () => {
 	test('flush model', () => {
 		assert.equal(mirrorModel.getLineContent(1), 'line one');
 		assert.equal(mirrorModel.getLineContent(2), 'line two');
-		var e = {
-			type: EditorCommon.EventType.ModelContentChanged,
-			changeType: EditorCommon.EventType.ModelContentChangedFlush,
-			detail: {
-				lines: [
-					'foo',
-					'bar'
-				],
-				BOM: '',
-				EOL: '\n'
-			}
-		};
-		mirrorModel.onEvents([e]);
+
+		mirrorModel.onEvents(mirrorModelEvents([contentChangedFlushEvent({
+			length: -1,
+			lines: [
+				'foo',
+				'bar'
+			],
+			BOM: '',
+			EOL: '\n'
+		})]));
+
 		assert.equal(mirrorModel.getLineContent(1), 'foo');
 		assert.equal(mirrorModel.getLineContent(2), 'bar');
 		var wordsWithRanges = mirrorModel.getAllWordsWithRange();

@@ -8,11 +8,12 @@ import Monarch = require('vs/editor/common/modes/monarch/monarch');
 import Types = require('vs/editor/common/modes/monarch/monarchTypes');
 import Compile = require('vs/editor/common/modes/monarch/monarchCompile');
 import winjs = require('vs/base/common/winjs.base');
-import Network = require('vs/base/common/network');
+import URI from 'vs/base/common/uri';
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
 import sassWorker = require('vs/languages/sass/common/sassWorker');
 import supports = require('vs/editor/common/modes/supports');
+import * as sassTokenTypes from 'vs/languages/sass/common/sassTokenTypes';
 import {AbstractMode} from 'vs/editor/common/modes/abstractMode';
 import {OneWorkerAttr} from 'vs/platform/thread/common/threadService';
 import {AsyncDescriptor2, createAsyncDescriptor2} from 'vs/platform/instantiation/common/descriptors';
@@ -47,9 +48,9 @@ export var language = <Types.ILanguage>{
 	tokenizer: {
 		root: [
 			{ include: '@selector' },
-			['[@](charset|namespace)', { token: 'keyword.control.at-rule', next: '@declarationbody'}],
-			['[@](function)', { token: 'keyword.control.at-rule', next: '@functiondeclaration'}],
-			['[@](mixin)', { token: 'keyword.control.at-rule', next: '@mixindeclaration'}],
+			['[@](charset|namespace)', { token: sassTokenTypes.TOKEN_AT_KEYWORD, next: '@declarationbody'}],
+			['[@](function)', { token: sassTokenTypes.TOKEN_AT_KEYWORD, next: '@functiondeclaration'}],
+			['[@](mixin)', { token: sassTokenTypes.TOKEN_AT_KEYWORD, next: '@mixindeclaration'}],
 		],
 
 		selector: [
@@ -57,29 +58,29 @@ export var language = <Types.ILanguage>{
 			{ include: '@import' },
 			{ include: '@variabledeclaration' },
 			{ include: '@warndebug' }, // sass: log statements
-			['[@](include)', { token: 'keyword.control.at-rule', next: '@includedeclaration'}], // sass: include statement
-			['[@](keyframes|-webkit-keyframes|-moz-keyframes|-o-keyframes)', { token: 'keyword.control.at-rule', next: '@keyframedeclaration'}],
-			['[@](page|content|font-face|-moz-document)', { token: 'keyword.control.at-rule'}], // sass: placeholder for includes
+			['[@](include)', { token: sassTokenTypes.TOKEN_AT_KEYWORD, next: '@includedeclaration'}], // sass: include statement
+			['[@](keyframes|-webkit-keyframes|-moz-keyframes|-o-keyframes)', { token: sassTokenTypes.TOKEN_AT_KEYWORD, next: '@keyframedeclaration'}],
+			['[@](page|content|font-face|-moz-document)', { token: sassTokenTypes.TOKEN_AT_KEYWORD}], // sass: placeholder for includes
 			['url(\\-prefix)?\\(', { token: 'support.function.name', bracket: '@open', next: '@urldeclaration'}],
 			{ include: '@controlstatement' }, // sass control statements
 			{ include: '@selectorname' },
-			['[&\\*]', 'entity.name.tag'], // selector symbols
+			['[&\\*]', sassTokenTypes.TOKEN_SELECTOR_TAG], // selector symbols
 			['[>\\+,]', 'punctuation'], // selector operators
 			['\\[', { token: 'punctuation.bracket', bracket: '@open', next: '@selectorattribute' }],
 			['{', { token: 'punctuation.curly', bracket: '@open', next: '@selectorbody' }],
 		],
 
 		selectorbody: [
-			['[*_]?@identifier@ws:(?=(\\s|\\d|[^{;}]*[;}]))', 'support.type.property-name', '@rulevalue'], // rule definition: to distinguish from a nested selector check for whitespace, number or a semicolon
+			['[*_]?@identifier@ws:(?=(\\s|\\d|[^{;}]*[;}]))', sassTokenTypes.TOKEN_PROPERTY, '@rulevalue'], // rule definition: to distinguish from a nested selector check for whitespace, number or a semicolon
 			{ include: '@selector'}, // sass: nested selectors
-			['[@](extend)', { token: 'keyword.control.at-rule', next: '@extendbody'}], // sass: extend other selectors
-			['[@](return)', { token: 'keyword.control.at-rule', next: '@declarationbody'}],
+			['[@](extend)', { token: sassTokenTypes.TOKEN_AT_KEYWORD, next: '@extendbody'}], // sass: extend other selectors
+			['[@](return)', { token: sassTokenTypes.TOKEN_AT_KEYWORD, next: '@declarationbody'}],
 			['}', { token: 'punctuation.curly', bracket: '@close', next: '@pop'}],
 		],
 
 		selectorname: [
 			['#{', { token: 'support.function.interpolation', bracket: '@open', next: '@variableinterpolation' }], // sass: interpolation
-			['(\\.|#(?=[^{])|%|(@identifier)|:)+', 'entity.other.attribute-name'], // selector (.foo, div, ...)
+			['(\\.|#(?=[^{])|%|(@identifier)|:)+', sassTokenTypes.TOKEN_SELECTOR], // selector (.foo, div, ...)
 		],
 
 		selectorattribute: [
@@ -111,17 +112,17 @@ export var language = <Types.ILanguage>{
 		],
 
 		nestedproperty: [
-			['[*_]?@identifier@ws:', 'support.type.property-name', '@rulevalue'],
+			['[*_]?@identifier@ws:', sassTokenTypes.TOKEN_PROPERTY, '@rulevalue'],
 			{ include: '@comments' },
 			['}', { token: 'punctuation.curly', bracket: '@close', next: '@pop'}],
 		],
 
 		warndebug: [
-			['[@](warn|debug)', { token: 'keyword.control.at-rule', next: '@declarationbody'}],
+			['[@](warn|debug)', { token: sassTokenTypes.TOKEN_AT_KEYWORD, next: '@declarationbody'}],
 		],
 
 		import: [
-			['[@](import)', { token: 'keyword.control.at-rule', next: '@declarationbody'}],
+			['[@](import)', { token: sassTokenTypes.TOKEN_AT_KEYWORD, next: '@declarationbody'}],
 		],
 
 		variabledeclaration: [ // sass variables
@@ -174,7 +175,7 @@ export var language = <Types.ILanguage>{
 		],
 
 		name: [
-			['@identifier', 'meta.property-value'],
+			['@identifier', sassTokenTypes.TOKEN_VALUE],
 		],
 
 		numbers: [
@@ -200,7 +201,7 @@ export var language = <Types.ILanguage>{
 		],
 
 		parameterdeclaration: [
-			['\\$@identifier@ws:', 'support.type.property-name'],
+			['\\$@identifier@ws:', sassTokenTypes.TOKEN_PROPERTY],
 			['\\.\\.\\.', 'keyword.operator'], // var args in declaration
 			[',', 'punctuation'],
 			{ include: '@term' },
@@ -237,7 +238,7 @@ export var language = <Types.ILanguage>{
 		],
 
 		functionbody: [
-			['[@](return)', { token: 'keyword.control.at-rule'}],
+			['[@](return)', { token: sassTokenTypes.TOKEN_AT_KEYWORD}],
 			{ include: '@variabledeclaration' },
 			{ include: '@term' },
 			{ include: '@controlstatement' },
@@ -250,7 +251,7 @@ export var language = <Types.ILanguage>{
 		],
 
 		functionarguments: [
-			['\\$@identifier@ws:', 'support.type.property-name'],
+			['\\$@identifier@ws:', sassTokenTypes.TOKEN_PROPERTY],
 			['[,]', 'punctuation'],
 			{ include: '@term' },
 			['\\)', { token: 'support.function.name', bracket: '@close', next: '@pop'}],
@@ -299,11 +300,11 @@ export class SASSMode extends Monarch.MonarchMode<sassWorker.SassWorker> impleme
 
 		this.extraInfoSupport = this;
 		this.referenceSupport = new supports.ReferenceSupport(this, {
-			tokens: ['support.type.property-name.sass', 'meta.property-value.sass', 'variable.decl.sass', 'variable.ref.sass', 'support.function.name.sass', 'support.type.property-name.sass', 'entity.other.attribute-name.sass'],
+			tokens: [sassTokenTypes.TOKEN_PROPERTY + '.sass', sassTokenTypes.TOKEN_VALUE + '.sass', 'variable.decl.sass', 'variable.ref.sass', 'support.function.name.sass', sassTokenTypes.TOKEN_PROPERTY + '.sass', sassTokenTypes.TOKEN_SELECTOR + '.sass'],
 			findReferences: (resource, position, /*unused*/includeDeclaration) => this.findReferences(resource, position)});
 		this.logicalSelectionSupport = this;
 		this.declarationSupport = new supports.DeclarationSupport(this, {
-			tokens: ['variable.decl.sass', 'variable.ref.sass', 'support.function.name.sass', 'support.type.property-name.sass', 'entity.other.attribute-name.sass'],
+			tokens: ['variable.decl.sass', 'variable.ref.sass', 'support.function.name.sass', sassTokenTypes.TOKEN_PROPERTY + '.sass', sassTokenTypes.TOKEN_SELECTOR + '.sass'],
 			findDeclaration: (resource, position) => this.findDeclaration(resource, position)});
 		this.outlineSupport = this;
 
@@ -327,32 +328,32 @@ export class SASSMode extends Monarch.MonarchMode<sassWorker.SassWorker> impleme
 	}
 
 	static $findReferences = OneWorkerAttr(SASSMode, SASSMode.prototype.findReferences);
-	public findReferences(resource:Network.URL, position:EditorCommon.IPosition):winjs.TPromise<Modes.IReference[]> {
+	public findReferences(resource:URI, position:EditorCommon.IPosition):winjs.TPromise<Modes.IReference[]> {
 		return this._worker((w) => w.findReferences(resource, position));
 	}
 
 	static $getRangesToPosition = OneWorkerAttr(SASSMode, SASSMode.prototype.getRangesToPosition);
-	public getRangesToPosition(resource:Network.URL, position:EditorCommon.IPosition):winjs.TPromise<Modes.ILogicalSelectionEntry[]> {
+	public getRangesToPosition(resource:URI, position:EditorCommon.IPosition):winjs.TPromise<Modes.ILogicalSelectionEntry[]> {
 		return this._worker((w) => w.getRangesToPosition(resource, position));
 	}
 
 	static $computeInfo = OneWorkerAttr(SASSMode, SASSMode.prototype.computeInfo);
-	public computeInfo(resource:Network.URL, position:EditorCommon.IPosition): winjs.TPromise<Modes.IComputeExtraInfoResult> {
+	public computeInfo(resource:URI, position:EditorCommon.IPosition): winjs.TPromise<Modes.IComputeExtraInfoResult> {
 		return this._worker((w) => w.computeInfo(resource, position));
 	}
 
 	static $getOutline = OneWorkerAttr(SASSMode, SASSMode.prototype.getOutline);
-	public getOutline(resource:Network.URL):winjs.TPromise<Modes.IOutlineEntry[]> {
+	public getOutline(resource:URI):winjs.TPromise<Modes.IOutlineEntry[]> {
 		return this._worker((w) => w.getOutline(resource));
 	}
 
 	static $findDeclaration = OneWorkerAttr(SASSMode, SASSMode.prototype.findDeclaration);
-	public findDeclaration(resource:Network.URL, position:EditorCommon.IPosition):winjs.TPromise<Modes.IReference> {
+	public findDeclaration(resource:URI, position:EditorCommon.IPosition):winjs.TPromise<Modes.IReference> {
 		return this._worker((w) => w.findDeclaration(resource, position));
 	}
 
 	static $findColorDeclarations = OneWorkerAttr(SASSMode, SASSMode.prototype.findColorDeclarations);
-	public findColorDeclarations(resource:Network.URL):winjs.TPromise<{range:EditorCommon.IRange; value:string; }[]> {
+	public findColorDeclarations(resource:URI):winjs.TPromise<{range:EditorCommon.IRange; value:string; }[]> {
 		return this._worker((w) => w.findColorDeclarations(resource));
 	}
 }

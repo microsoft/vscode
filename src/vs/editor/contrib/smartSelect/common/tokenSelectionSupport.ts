@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import network = require('vs/base/common/network');
+import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import tokenTree = require('./tokenTree');
 import EditorCommon = require('vs/editor/common/editorCommon');
@@ -20,7 +20,7 @@ class TokenSelectionSupport implements Modes.ILogicalSelectionSupport {
 		this._modelService = modelService;
 	}
 
-	public getRangesToPosition(resource: network.URL, position: EditorCommon.IPosition): TPromise<Modes.ILogicalSelectionEntry[]> {
+	public getRangesToPosition(resource: URI, position: EditorCommon.IPosition): TPromise<Modes.ILogicalSelectionEntry[]> {
 		var model = this._modelService.getModel(resource),
 			entries: Modes.ILogicalSelectionEntry[] = [];
 

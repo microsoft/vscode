@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import URI from 'vs/base/common/uri';
 import Severity from 'vs/base/common/severity';
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
@@ -28,9 +29,10 @@ import errors = require('vs/base/common/errors');
 import {IMarkerService, IMarkerData} from 'vs/platform/markers/common/markers';
 import {IRequestService} from 'vs/platform/request/common/request';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {ISchemaContributions} from 'vs/languages/json/common/jsonContributionRegistry';
+import {ISchemaContributions} from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import {IResourceService} from 'vs/editor/common/services/resourceService';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import {JSONLocation} from './parser/jsonLocation';
 
 export interface IOptionsSchema {
 	/**
@@ -63,10 +65,10 @@ export interface ISuggestionsCollector {
 }
 
 export interface IJSONWorkerContribution {
-	getInfoContribution(contributionId: string, propertyKey: string) : WinJS.TPromise<HtmlContent.IHTMLContentElement[]>;
-	collectPropertySuggestions(contributionId: string, currentWord: string, addValue: boolean, isLast:boolean, result: ISuggestionsCollector) : WinJS.Promise;
-	collectValueSuggestions(contributionId: string, propertyKey: string, result: ISuggestionsCollector): WinJS.Promise;
-	collectDefaultSuggestions(contributionId: string, result: ISuggestionsCollector): WinJS.Promise;
+	getInfoContribution(resource: URI, location: JSONLocation) : WinJS.TPromise<HtmlContent.IHTMLContentElement[]>;
+	collectPropertySuggestions(resource: URI, location: JSONLocation, currentWord: string, addValue: boolean, isLast:boolean, result: ISuggestionsCollector) : WinJS.Promise;
+	collectValueSuggestions(resource: URI, location: JSONLocation, propertyKey: string, result: ISuggestionsCollector): WinJS.Promise;
+	collectDefaultSuggestions(resource: URI, result: ISuggestionsCollector): WinJS.Promise;
 }
 
 export class JSONWorker extends AbstractModeWorker implements Modes.IExtraInfoSupport {
@@ -137,7 +139,7 @@ export class JSONWorker extends AbstractModeWorker implements Modes.IExtraInfoSu
 		return WinJS.TPromise.as(true);
 	}
 
-	public doValidate(resource:Network.URL):void {
+	public doValidate(resource:URI):void {
 		var modelMirror = this.resourceService.get(resource);
 		var parser = new Parser.JSONParser();
 		var content = modelMirror.getValue();
@@ -161,19 +163,25 @@ export class JSONWorker extends AbstractModeWorker implements Modes.IExtraInfoSu
 					result.validate(schema.schema);
 				}
 			}
+			var added : { [signature:string]: boolean} = {};
+			var markerData: IMarkerData[] = [];
 
-			var markerData = result.errors.concat(result.warnings).map((error, idx) => {
-
-				var startPosition = modelMirror.getPositionFromOffset(error.location.start);
-				var endPosition = modelMirror.getPositionFromOffset(error.location.end);
-				return < IMarkerData> {
-					message: error.message,
-					severity: idx >= result.errors.length ? Severity.Warning : Severity.Error,
-					startLineNumber: startPosition.lineNumber,
-					startColumn: startPosition.column,
-					endLineNumber: endPosition.lineNumber,
-					endColumn: endPosition.column
-				};
+			result.errors.concat(result.warnings).forEach((error, idx) => {
+				// remove duplicated messages
+				var signature = error.location.start + ' ' + error.location.end + ' ' + error.message;
+				if (!added[signature]) {
+					added[signature] = true;
+					var startPosition = modelMirror.getPositionFromOffset(error.location.start);
+					var endPosition = modelMirror.getPositionFromOffset(error.location.end);
+					markerData.push({
+						message: error.message,
+						severity: idx >= result.errors.length ? Severity.Warning : Severity.Error,
+						startLineNumber: startPosition.lineNumber,
+						startColumn: startPosition.column,
+						endLineNumber: endPosition.lineNumber,
+						endColumn: endPosition.column
+					});
+				}
 			});
 
 			this.markerService.changeOne(this._getMode().getId(), resource, markerData);
@@ -182,13 +190,13 @@ export class JSONWorker extends AbstractModeWorker implements Modes.IExtraInfoSu
 	}
 
 
-	public doSuggest(resource:Network.URL, position:EditorCommon.IPosition):WinJS.TPromise<Modes.ISuggestions> {
+	public doSuggest(resource:URI, position:EditorCommon.IPosition):WinJS.TPromise<Modes.ISuggestResult> {
 		var modelMirror = this.resourceService.get(resource);
 
 		return this.jsonIntellisense.doSuggest(resource, modelMirror, position);
 	}
 
-	public computeInfo(resource:Network.URL, position:EditorCommon.IPosition): WinJS.TPromise<Modes.IComputeExtraInfoResult> {
+	public computeInfo(resource:URI, position:EditorCommon.IPosition): WinJS.TPromise<Modes.IComputeExtraInfoResult> {
 
 		var modelMirror = this.resourceService.get(resource);
 
@@ -228,13 +236,12 @@ export class JSONWorker extends AbstractModeWorker implements Modes.IExtraInfoSu
 					return true;
 				});
 
-				if (contributonId && node.name) {
-					for (var i= this.contributions.length -1; i >= 0; i--) {
-						var contribution = this.contributions[i];
-						var promise = contribution.getInfoContribution(contributonId, node.name);
-						if (promise) {
-							return promise.then((htmlContent) => { return this.createInfoResult(htmlContent, originalNode, modelMirror); } );
-						}
+				var location = node.getNodeLocation();
+				for (var i= this.contributions.length -1; i >= 0; i--) {
+					var contribution = this.contributions[i];
+					var promise = contribution.getInfoContribution(resource, location);
+					if (promise) {
+						return promise.then((htmlContent) => { return this.createInfoResult(htmlContent, originalNode, modelMirror); } );
 					}
 				}
 
@@ -260,7 +267,7 @@ export class JSONWorker extends AbstractModeWorker implements Modes.IExtraInfoSu
 	}
 
 
-	public getOutline(resource:Network.URL):WinJS.TPromise<Modes.IOutlineEntry[]> {
+	public getOutline(resource:URI):WinJS.TPromise<Modes.IOutlineEntry[]> {
 		var modelMirror = this.resourceService.get(resource);
 
 		var parser = new Parser.JSONParser();
@@ -316,12 +323,12 @@ export class JSONWorker extends AbstractModeWorker implements Modes.IExtraInfoSu
 		return supports.ReplaceSupport.valueSetReplace(['true', 'false'], value, up);
 	}
 
-	public format(resource: Network.URL, range: EditorCommon.IRange, options: Modes.IFormattingOptions): WinJS.TPromise<EditorCommon.ISingleEditOperation[]> {
+	public format(resource: URI, range: EditorCommon.IRange, options: Modes.IFormattingOptions): WinJS.TPromise<EditorCommon.ISingleEditOperation[]> {
 		var model = this.resourceService.get(resource);
 		return WinJS.TPromise.as(JSONFormatter.format(model, range, options));
 	}
 
-	public navigateValueSetFallback(resource:Network.URL, range:EditorCommon.IRange, up:boolean):WinJS.TPromise<Modes.IInplaceReplaceSupportResult> {
+	public navigateValueSetFallback(resource:URI, range:EditorCommon.IRange, up:boolean):WinJS.TPromise<Modes.IInplaceReplaceSupportResult> {
 		var modelMirror = this.resourceService.get(resource);
 		var offset = modelMirror.getOffsetFromPosition({ lineNumber: range.startLineNumber, column: range.startColumn });
 
@@ -349,28 +356,28 @@ export class JSONWorker extends AbstractModeWorker implements Modes.IExtraInfoSu
 						}
 					};
 
-					return this.jsonIntellisense.getValueSuggestions(schema, doc, node.parent, node.start, collector).then(() => {
-						var range = modelMirror.getRangeFromOffsetAndLength(node.start, node.end - node.start);
-						var text = modelMirror.getValueInRange(range);
-						for (var i = 0, len = proposals.length; i < len; i++) {
-							if (Strings.equalsIgnoreCase(proposals[i].label, text)) {
-								var nextIdx = i;
-								if (up) {
-									nextIdx = (i + 1) % len;
-								} else {
-									nextIdx =  i - 1;
-									if (nextIdx < 0) {
-										nextIdx = len - 1;
-									}
+					this.jsonIntellisense.getValueSuggestions(resource, schema, doc, node.parent, node.start, collector);
+					
+					var range = modelMirror.getRangeFromOffsetAndLength(node.start, node.end - node.start);
+					var text = modelMirror.getValueInRange(range);
+					for (var i = 0, len = proposals.length; i < len; i++) {
+						if (Strings.equalsIgnoreCase(proposals[i].label, text)) {
+							var nextIdx = i;
+							if (up) {
+								nextIdx = (i + 1) % len;
+							} else {
+								nextIdx =  i - 1;
+								if (nextIdx < 0) {
+									nextIdx = len - 1;
 								}
-								return {
-									value: proposals[nextIdx].label,
-									range: range
-								};
 							}
+							return {
+								value: proposals[nextIdx].label,
+								range: range
+							};
 						}
-						return null;
-					});
+					}
+					return null;
 				}
 			});
 		}

@@ -7,7 +7,7 @@
 import assert = require('assert');
 import mm = require('vs/editor/common/model/mirrorModel');
 import sassWorker = require('vs/languages/sass/common/sassWorker');
-import Network = require('vs/base/common/network');
+import URI from 'vs/base/common/uri';
 import ResourceService = require('vs/editor/common/services/resourceServiceImpl');
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
@@ -17,7 +17,7 @@ import modesUtil = require('vs/editor/test/common/modesTestUtils');
 
 suite('SASS - Worker', () => {
 
-	var mockSASSWorkerEnv = function (url:Network.URL, content: string) : { worker: sassWorker.SassWorker; model: mm.MirrorModel } {
+	var mockSASSWorkerEnv = function (url:URI, content: string) : { worker: sassWorker.SassWorker; model: mm.MirrorModel } {
 		var resourceService = new ResourceService.ResourceService();
 		var model = mm.createMirrorModelFromString(null, 0, content, modesUtil.createMockMode('mock.mode.id', /(#?-?\d*\.\d\w*%?)|([$@#!]?[\w-?]+%?)|[$@#!]/g), url);
 		resourceService.insert(url, model);
@@ -30,8 +30,8 @@ suite('SASS - Worker', () => {
 		return { worker: worker, model: model };
 	};
 
-	var testSuggestionsFor = function(value:string, stringBefore:string):WinJS.TPromise<Modes.ISuggestions> {
-		var url = new Network.URL('test://1');
+	var testSuggestionsFor = function(value:string, stringBefore:string):WinJS.TPromise<Modes.ISuggestResult> {
+		var url = URI.parse('test://1');
 		var env = mockSASSWorkerEnv(url, value);
 
 		var idx = stringBefore ? value.indexOf(stringBefore) + stringBefore.length : 0;
@@ -40,7 +40,7 @@ suite('SASS - Worker', () => {
 	};
 
 	var testValueSetFor = function(value:string, selection:string, selectionLength: number, up: boolean):WinJS.TPromise<Modes.IInplaceReplaceSupportResult> {
-		var url = new Network.URL('test://1');
+		var url = URI.parse('test://1');
 		var env = mockSASSWorkerEnv(url, value);
 
 		var pos = env.model.getPositionFromOffset(value.indexOf(selection));
@@ -50,7 +50,7 @@ suite('SASS - Worker', () => {
 	};
 
 	var testOccurrences = function(value:string, tokenBefore:string):WinJS.TPromise<{ occurrences: Modes.IOccurence[]; model: mm.MirrorModel }> {
-		var url = new Network.URL('test://1');
+		var url = URI.parse('test://1');
 		var env = mockSASSWorkerEnv(url, value);
 
 		var pos = env.model.getPositionFromOffset(value.indexOf(tokenBefore) + tokenBefore.length);
@@ -58,7 +58,7 @@ suite('SASS - Worker', () => {
 		return env.worker.findOccurrences(url, pos).then((occurrences) => { return { occurrences: occurrences, model: env.model}; });
 	};
 
-	var assertSuggestion= function(completion:Modes.ISuggestions, label:string, type?:string) {
+	var assertSuggestion= function(completion:Modes.ISuggestResult, label:string, type?:string) {
 		var proposalsFound = completion.suggestions.filter(function(suggestion: Modes.ISuggestion) {
 			return suggestion.label === label && (!type || suggestion.type === type);
 		});
@@ -112,6 +112,11 @@ suite('SASS - Worker', () => {
 			testSuggestionsFor('.foo { .', '{ .').then((completion) => {
 				assert.equal(completion.currentWord, '');
 				assertSuggestion(completion, '.foo');
+			}),
+			// issue #250
+			testSuggestionsFor('.foo { display: block;', 'block;').then((completion) => {
+				assert.equal(completion.currentWord, '');
+				assert.equal(0, completion.suggestions.length);
 			})
 		]).done(() => testDone(), (errors:any[]) => {
 			testDone(errors.reduce((e1, e2) => e1 || e2));
@@ -121,16 +126,16 @@ suite('SASS - Worker', () => {
 	test('Sass Value sets', function(testDone): any {
 		WinJS.Promise.join([
 			testValueSetFor('@mixin foo { display: inline }', 'inline', 6, false).then((result) => {
-				assertReplaceResult(result, 'flexbox');
+				assertReplaceResult(result, 'flex');
 			}),
-			testValueSetFor('@mixin foo($i) { display: flexbox }', 'flexbox', 7, true).then((result) => {
+			testValueSetFor('@mixin foo($i) { display: flex }', 'flex', 7, true).then((result) => {
 				assertReplaceResult(result, 'inline');
 			}),
 			testValueSetFor('.foo { .bar { display: inline } }', 'inline', 0, false).then((result) => {
-				assertReplaceResult(result, 'flexbox');
+				assertReplaceResult(result, 'flex');
 			}),
 			testValueSetFor('@mixin foo { display: inline }', 'line', 0, false).then((result) => {
-				assertReplaceResult(result, 'flexbox');
+				assertReplaceResult(result, 'flex');
 			}),
 
 			testValueSetFor('@mixin foo { display: inline }', 'display', 0, false).then((result) => {

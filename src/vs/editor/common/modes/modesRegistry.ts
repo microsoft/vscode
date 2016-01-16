@@ -152,10 +152,10 @@ export function registerSnippets(modeId: string, path: string, snippets: Modes.I
 	}
 	snippetsByMode[path] = snippets;
 }
-export function getSnippets(model: EditorCommon.IModel, position: EditorCommon.IPosition): Modes.ISuggestions {
+export function getSnippets(model: EditorCommon.IModel, position: EditorCommon.IPosition): Modes.ISuggestResult {
 	var word = model.getWordAtPosition(position);
 	var currentPrefix = word ? word.word.substring(0, position.column - word.startColumn) : '';
-	var result : Modes.ISuggestions = {
+	var result : Modes.ISuggestResult = {
 		currentWord: currentPrefix,
 		suggestions: []
 	}

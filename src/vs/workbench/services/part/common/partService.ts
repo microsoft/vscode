@@ -5,7 +5,7 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
-import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation'
+import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
 
 export enum Parts {
 	ACTIVITYBAR_PART,
@@ -40,7 +40,7 @@ export interface IPartService {
 	joinCreation(): TPromise<boolean>;
 
 	/**
-	 * Returns wether the given part has the keyboard focus or not.
+	 * Returns whether the given part has the keyboard focus or not.
 	 */
 	hasFocus(part: Parts): boolean;
 

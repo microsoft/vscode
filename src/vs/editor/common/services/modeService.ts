@@ -6,7 +6,6 @@
 
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
 import EditorCommon = require('vs/editor/common/editorCommon');
-import {EventProvider} from 'vs/base/common/eventProvider';
 import {TPromise} from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import Modes = require('vs/editor/common/modes');

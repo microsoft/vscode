@@ -9,7 +9,6 @@ import 'vs/css!./media/fileactions';
 import {Promise, TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import {isWindows, isLinux, isMacintosh} from 'vs/base/common/platform';
-import {$} from 'vs/base/browser/builder';
 import {sequence, ITask} from 'vs/base/common/async';
 import {MIME_TEXT, isUnspecific, isBinaryMime, guessMimeTypes} from 'vs/base/common/mime';
 import paths = require('vs/base/common/paths');
@@ -21,33 +20,31 @@ import {getPathLabel} from 'vs/base/common/labels';
 import diagnostics = require('vs/base/common/diagnostics');
 import {Action, IAction} from 'vs/base/common/actions';
 import {MessageType, IInputValidator} from 'vs/base/browser/ui/inputbox/inputBox';
-import {ITree, IHighlightEvent} from 'vs/base/parts/tree/common/tree';
+import {ITree, IHighlightEvent} from 'vs/base/parts/tree/browser/tree';
 import {disposeAll, IDisposable} from 'vs/base/common/lifecycle';
-import {EventType as WorkbenchEventType, EditorEvent} from 'vs/workbench/browser/events';
+import {EventType as WorkbenchEventType, EditorEvent} from 'vs/workbench/common/events';
 import Files = require('vs/workbench/parts/files/common/files');
 import {IFileService, IFileStat, IImportResult} from 'vs/platform/files/common/files';
 import {EditorInputAction} from 'vs/workbench/browser/parts/editor/baseEditor';
-import {IFrameEditor} from 'vs/workbench/browser/parts/editor/iframeEditor';
-import {DiffEditorInput} from 'vs/workbench/browser/parts/editor/diffEditorInput';
+import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
 import workbenchEditorCommon = require('vs/workbench/common/editor');
+import {IEditorSelection} from 'vs/editor/common/editorCommon';
 import {FileEditorInput} from 'vs/workbench/parts/files/browser/editors/fileEditorInput';
-import {FileStat, NewStatPlaceholder} from 'vs/workbench/parts/files/browser/views/explorerViewModel';
+import {FileStat, NewStatPlaceholder} from 'vs/workbench/parts/files/common/explorerViewModel';
 import {ExplorerView} from 'vs/workbench/parts/files/browser/views/explorerView';
 import {ExplorerViewlet} from 'vs/workbench/parts/files/browser/explorerViewlet';
-import {CACHE} from 'vs/workbench/parts/files/browser/editors/textFileEditorModel';
-import {HTMLFrameEditorInput} from 'vs/workbench/parts/files/browser/editors/htmlFrameEditorInput';
-import {DerivedFrameEditorInput} from 'vs/workbench/parts/files/browser/editors/derivedFrameEditorInput';
+import {CACHE} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
 import {IActionProvider} from 'vs/base/parts/tree/browser/actionsRenderer';
-import {WorkingFileEntry, WorkingFilesModel} from 'vs/workbench/parts/files/browser/workingFilesModel';
-import {IUntitledEditorService} from 'vs/workbench/services/untitled/browser/untitledEditorService';
+import {WorkingFileEntry, WorkingFilesModel} from 'vs/workbench/parts/files/common/workingFilesModel';
+import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IQuickOpenService} from 'vs/workbench/services/quickopen/browser/quickOpenService';
+import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {IStorageService} from 'vs/platform/storage/common/storage';
 import {IResourceInput, Position} from 'vs/platform/editor/common/editor';
 import {IEventService} from 'vs/platform/event/common/event';
-import {IInstantiationService, IConstructorSignature2, INewConstructorSignature2, INewConstructorSignature1, INullService} from 'vs/platform/instantiation/common/instantiation';
+import {IInstantiationService, INewConstructorSignature2, INullService} from 'vs/platform/instantiation/common/instantiation';
 import {IMessageService, IMessageWithAction, IConfirmation, Severity, CancelAction} from 'vs/platform/message/common/message';
 import {IProgressService, IProgressRunner} from 'vs/platform/progress/common/progress';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
@@ -288,7 +285,7 @@ export abstract class BaseRenameAction extends BaseFileAction {
 		name = getWellFormedFileName(name);
 		let existingName = getWellFormedFileName(this.element.name);
 
-		// Return early if name is invalid or didnt change
+		// Return early if name is invalid or didn't change
 		if (name === existingName || this.validateFileName(this.element.parent, name)) {
 			return Promise.as(null);
 		}
@@ -709,13 +706,13 @@ export class BaseDeleteFileAction extends BaseFileAction {
 			confirm = {
 				message: this.element.isDirectory ? nls.localize('confirmMoveTrashMessageFolder', "Are you sure you want to delete '{0}' and its contents?", this.element.name) : nls.localize('confirmMoveTrashMessageFile', "Are you sure you want to delete '{0}'?", this.element.name),
 				detail: isWindows ? nls.localize('undoBin', "You can restore from the recycle bin.") : nls.localize('undoTrash', "You can restore from the trash."),
-				primaryButton: isWindows ? nls.localize('deleteButtonLabelRecycleBin', "Move to Recycle Bin") : nls.localize('deleteButtonLabelTrash', "Move to Trash")
+				primaryButton: isWindows ? nls.localize('deleteButtonLabelRecycleBin', "&&Move to Recycle Bin") : nls.localize('deleteButtonLabelTrash', "&&Move to Trash")
 			};
 		} else {
 			confirm = {
 				message: this.element.isDirectory ? nls.localize('confirmDeleteMessageFolder', "Are you sure you want to permanently delete '{0}' and its contents?", this.element.name) : nls.localize('confirmDeleteMessageFile', "Are you sure you want to permanently delete '{0}'?", this.element.name),
 				detail: nls.localize('irreversible', "This action is irreversible!"),
-				primaryButton: nls.localize('deleteButtonLabel', "Delete")
+				primaryButton: nls.localize('deleteButtonLabel', "&&Delete")
 			};
 		}
 
@@ -879,7 +876,7 @@ export class ImportFileAction extends BaseFileAction {
 						let confirm: IConfirmation = {
 							message: nls.localize('confirmOverwrite', "A file or folder with the same name already exists in the destination folder. Do you want to replace it?"),
 							detail: nls.localize('irreversible', "This action is irreversible!"),
-							primaryButton: nls.localize('replaceButtonLabel', "Replace")
+							primaryButton: nls.localize('replaceButtonLabel', "&&Replace")
 						};
 
 						overwrite = this.messageService.confirm(confirm);
@@ -964,65 +961,6 @@ export class FileImportedEvent extends Files.LocalFileChangeEvent {
 
 	public gotDeleted(): boolean {
 		return false;
-	}
-}
-
-// Preview HTML File
-export class PreviewHTMLAction extends Action {
-	private element: IFileStat;
-
-	constructor(
-		element: IFileStat,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@ITextFileService private textFileService: ITextFileService
-	) {
-		super('workbench.files.action.previewHTMLFromExplorer', nls.localize('openPreview', "Open Preview"));
-
-		this.element = element;
-		this.enabled = true;
-	}
-
-	public run(): Promise {
-		let htmlInput = this.instantiationService.createInstance(HTMLFrameEditorInput, this.element.resource);
-
-		let savePromise = Promise.as(null);
-		if (this.textFileService.isDirty(this.element.resource)) {
-			savePromise = this.textFileService.save(this.element.resource);
-		}
-
-		return savePromise.then(() => {
-			return this.editorService.openEditor(htmlInput);
-		});
-	}
-}
-
-export class PreviewHTMLEditorInputAction extends EditorInputAction {
-
-	constructor(
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@ITextFileService private textFileService: ITextFileService
-	) {
-		super('workbench.files.action.previewHTMLFromEditor', nls.localize('openPreview', "Open Preview"));
-
-		this.class = 'file-editor-action action-open-preview';
-	}
-
-	public run(event?: any): Promise {
-		let input = <Files.FileEditorInput>this.input;
-
-		let sideBySide = !!(event && (event.ctrlKey || event.metaKey));
-		let htmlInput = this.instantiationService.createInstance(HTMLFrameEditorInput, input.getResource());
-
-		let savePromise = Promise.as(null);
-		if (this.textFileService.isDirty(input.getResource())) {
-			savePromise = this.textFileService.save(input.getResource());
-		}
-
-		return savePromise.then(() => {
-			return this.editorService.openEditor(htmlInput, null, sideBySide);
-		});
 	}
 }
 
@@ -1527,9 +1465,16 @@ export abstract class BaseSaveFileAction extends BaseActionWithErrorReporting {
 					encodingOfSource = textModel && textModel.getEncoding(); // text model can be null e.g. if this is a binary file!
 				}
 
-				let savePromise: TPromise<URI>;
+				let selectionOfSource: IEditorSelection;
+				if (positionsOfSource.length) {
+					const activeEditor = this.editorService.getActiveEditor();
+					if (activeEditor && positionsOfSource.indexOf(activeEditor.position) >= 0) {
+						selectionOfSource = <IEditorSelection>activeEditor.getSelection();
+					}
+				}
 
 				// Special case: an untitled file with associated path gets saved directly unless "saveAs" is true
+				let savePromise: TPromise<URI>;
 				if (!this.isSaveAs() && source.scheme === 'untitled' && this.untitledEditorService.hasAssociatedFilePath(source)) {
 					savePromise = this.textFileService.save(source).then((result) => {
 						if (result) {
@@ -1550,30 +1495,29 @@ export abstract class BaseSaveFileAction extends BaseActionWithErrorReporting {
 						return;
 					}
 
-					// Add to working files
-					this.textFileService.getWorkingFilesModel().addEntry(target);
-
 					// Reopen editors for the resource based on the positions
 					let reopenPromise = Promise.as(null);
 					if (target.toString() !== source.toString() && positionsOfSource.length) {
 						let targetInput = this.instantiationService.createInstance(FileEditorInput, target, mimeOfSource, encodingOfSource);
 
-						reopenPromise = this.editorService.openEditor(targetInput, null, positionsOfSource[0]).then(() => {
+						let options: workbenchEditorCommon.TextEditorOptions;
+						if (selectionOfSource) {
+							options = new workbenchEditorCommon.TextEditorOptions();
+							options.selection(selectionOfSource.startLineNumber, selectionOfSource.startColumn, selectionOfSource.endLineNumber, selectionOfSource.endColumn);
+						}
+
+						reopenPromise = this.editorService.openEditor(targetInput, options, positionsOfSource[0]).then(() => {
 							if (positionsOfSource.length > 1) {
-								return this.editorService.openEditor(targetInput, null, positionsOfSource[1]).then(() => {
+								return this.editorService.openEditor(targetInput, options, positionsOfSource[1]).then(() => {
 									if (positionsOfSource.length > 2) {
-										return this.editorService.openEditor(targetInput, null, positionsOfSource[2]);
+										return this.editorService.openEditor(targetInput, options, positionsOfSource[2]);
 									}
 								});
 							}
 						});
 					}
 
-					return reopenPromise.then(() => {
-
-						// Revert source
-						this.textFileService.revert(source);
-					});
+					return reopenPromise;
 				});
 			}
 
@@ -1653,15 +1597,16 @@ export abstract class BaseSaveAllAction extends BaseActionWithErrorReporting {
 
 	protected doRun(): TPromise<boolean> {
 
+		// Store mimes per untitled file to restore later
+		const mapUntitledToProperties: { [resource: string]: { mime: string; encoding: string; } } = Object.create(null);
+		this.textFileService.getDirty()
+			.filter(r => r.scheme === 'untitled')			// All untitled resources^
+			.map(r => this.untitledEditorService.get(r))	// Mapped to their inputs
+			.filter(i => !!i)								// If possible :)
+			.forEach(i => mapUntitledToProperties[i.getResource().toString()] = { mime: i.getMime(), encoding: i.getEncoding() });
+
 		// Save all
 		return this.textFileService.saveAll(this.includeUntitled()).then((result) => {
-
-			// add all targets to working files
-			result.results.forEach((res) => {
-				if (res.success && res.target) {
-					this.textFileService.getWorkingFilesModel().addEntry(res.target);
-				}
-			});
 
 			// all saved - now try to reopen saved untitled ones
 			if (this.includeUntitled()) {
@@ -1674,12 +1619,12 @@ export abstract class BaseSaveAllAction extends BaseActionWithErrorReporting {
 						let positions = findSaveAsPositions(this.editorService, res.source);
 
 						let mimeOfSource: string;
-						let selectedMime = this.untitledEditorService.get(res.source).getMime();
+						let selectedMime = mapUntitledToProperties[res.source.toString()] && mapUntitledToProperties[res.source.toString()].mime;
 						if (!isUnspecific(selectedMime)) {
 							mimeOfSource = [selectedMime, MIME_TEXT].join(', ');
 						}
 
-						let encodingOfSource: string = this.untitledEditorService.get(res.source).getEncoding();
+						let encodingOfSource: string = mapUntitledToProperties[res.source.toString()] && mapUntitledToProperties[res.source.toString()].encoding;
 
 						let targetInput = this.instantiationService.createInstance(FileEditorInput, res.target, mimeOfSource, encodingOfSource);
 
@@ -1708,17 +1653,7 @@ export abstract class BaseSaveAllAction extends BaseActionWithErrorReporting {
 					});
 				}
 
-				// After reopen, revert untitled ones
-				return reopenPromise.then(() => {
-					return Promise.join(untitledResults.map((res) => {
-						let revertPromise = Promise.as(null);
-						if (res.success) {
-							revertPromise = this.textFileService.revert(res.source);
-						}
-
-						return revertPromise;
-					}));
-				});
+				return reopenPromise;
 			}
 		});
 	}
@@ -1756,7 +1691,6 @@ export class SaveAllAction extends BaseSaveAllAction {
 	protected includeUntitled(): boolean {
 		return true;
 	}
-
 }
 
 export class SaveFilesAction extends BaseSaveAllAction {
@@ -1807,41 +1741,6 @@ export class RevertFileAction extends Action {
 		}
 
 		return Promise.as(true);
-	}
-}
-
-export class ViewDerivedSourceEditorInputAction extends EditorInputAction {
-
-	constructor(
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
-	) {
-		super('workbench.files.action.openDerivedResourceFromEditor', nls.localize('viewSource', "View Source"), 'derived-frame-editor-action view-source');
-	}
-
-	public run(event?: any): Promise {
-		let derivedFrameEditorInput = <DerivedFrameEditorInput>this.input;
-		let sideBySide = !!(event && (event.ctrlKey || event.metaKey));
-
-		return this.editorService.openEditor({
-			resource: derivedFrameEditorInput.getResource()
-		}, sideBySide);
-	}
-}
-
-export class RefreshDerivedFrameEditorInputAction extends EditorInputAction {
-
-	constructor( @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
-		super('workbench.files.action.refreshDerivedFrameEditor', nls.localize('reload', "Reload"), 'derived-frame-editor-action refresh');
-	}
-
-	public run(event?: any): Promise {
-		let editor = this.editorService.getActiveEditor();
-		if (editor instanceof IFrameEditor) {
-			(<IFrameEditor>editor).reload(true);
-		}
-
-		return Promise.as(null);
 	}
 }
 
@@ -1898,6 +1797,7 @@ export class CloseWorkingFileAction extends Action {
 
 	private model: WorkingFilesModel;
 	private element: WorkingFileEntry;
+	private listenerToDispose: IDisposable;
 
 	constructor(
 		model: WorkingFilesModel,
@@ -1915,7 +1815,7 @@ export class CloseWorkingFileAction extends Action {
 
 		if (this.model) {
 			this.enabled = (this.model.count() > 0);
-			this.model.onModelChange.add(this.onModelChange, this);
+			this.listenerToDispose = this.model.onModelChange(this.onModelChange, this);
 		}
 	}
 
@@ -2000,8 +1900,9 @@ export class CloseWorkingFileAction extends Action {
 	}
 
 	public dispose(): void {
-		if (this.model) {
-			this.model.onModelChange.remove(this.onModelChange, this);
+		if (this.listenerToDispose) {
+			this.listenerToDispose.dispose();
+			delete this.listenerToDispose;
 		}
 
 		super.dispose();
@@ -2068,8 +1969,8 @@ export class CloseFileAction extends Action {
 
 			// Otherwise just dispose
 			else {
-				if (input instanceof workbenchEditorCommon.DiffEditorInput) {
-					input = (<workbenchEditorCommon.DiffEditorInput>input).getModifiedInput();
+				if (input instanceof DiffEditorInput) {
+					input = (<DiffEditorInput>input).getModifiedInput();
 				}
 
 				// File Input
@@ -2229,6 +2130,27 @@ export class AddToWorkingFiles extends Action {
 	}
 }
 
+export class FocusWorkingFiles extends Action {
+
+	public static ID = 'workbench.files.action.focusWorkingFiles';
+	public static LABEL = nls.localize('focusWorkingFiles', "Focus on Working Files");
+
+	constructor(
+		id: string,
+		label: string,
+		@IViewletService private viewletService: IViewletService
+	) {
+		super(id, label);
+	}
+
+	public run(): Promise {
+		return this.viewletService.openViewlet(Files.VIEWLET_ID, true).then((viewlet: ExplorerViewlet) => {
+			viewlet.getWorkingFilesView().expand();
+			viewlet.getWorkingFilesView().focus();
+		});
+	}
+}
+
 export function keybindingForAction(id: string): Keybinding {
 	switch (id) {
 		case GlobalNewFileAction.ID:
@@ -2255,9 +2177,6 @@ export function keybindingForAction(id: string): Keybinding {
 	return null;
 }
 
-// See also http://en.wikipedia.org/wiki/Filename#Reserved_characters_and_words
-let INVALID_FILE_CHARS = isWindows ? ['/', '\\', ':', '*', '?', '\'', '<', '>', '|'] : ['/', '\\'];
-
 export function validateFileName(parent: IFileStat, name: string, allowOverwriting: boolean = false): string {
 
 	// Produce a well formed file name
@@ -2281,11 +2200,9 @@ export function validateFileName(parent: IFileStat, name: string, allowOverwriti
 		}
 	}
 
-	// Invalid File Char
-	for (let i = 0; i < INVALID_FILE_CHARS.length; i++) {
-		if (name.indexOf(INVALID_FILE_CHARS[i]) >= 0) {
-			return nls.localize('invalidFileNameError', "The name **{0}** contains characters that are not valid as a file or folder name. Please choose a different name.", name);
-		}
+	// Invalid File name
+	if (!paths.isValidBasename(name)) {
+		return nls.localize('invalidFileNameError', "The name **{0}** is not valid as a file or folder name. Please choose a different name.", name);
 	}
 
 	// Max length restriction (on Windows)

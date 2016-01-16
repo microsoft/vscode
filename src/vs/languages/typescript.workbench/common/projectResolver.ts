@@ -4,29 +4,27 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import glob = require('vs/base/common/glob');
-import nls = require('vs/nls');
-import objects = require('vs/base/common/objects');
-import typescript = require('vs/languages/typescript/common/typescript');
-import lifecycle = require('vs/base/common/lifecycle');
-import errors = require('vs/base/common/errors');
-import collections = require('vs/base/common/collections');
-import async = require('vs/base/common/async');
-import winjs = require('vs/base/common/winjs.base');
+import * as glob from 'vs/base/common/glob';
+import * as nls from 'vs/nls';
+import * as objects from 'vs/base/common/objects';
+import * as typescript from 'vs/languages/typescript/common/typescript';
+import * as lifecycle from 'vs/base/common/lifecycle';
+import * as errors from 'vs/base/common/errors';
+import * as collections from 'vs/base/common/collections';
+import * as async from 'vs/base/common/async';
+import * as winjs from 'vs/base/common/winjs.base';
 import Severity from 'vs/base/common/severity';
 import URI from 'vs/base/common/uri';
-import paths = require('vs/base/common/paths');
-import services = require('vs/platform/services');
-import ts = require('vs/languages/typescript/common/lib/typescriptServices');
-import editorCommon = require('vs/editor/common/editorCommon');
+import * as paths from 'vs/base/common/paths';
+import * as ts from 'vs/languages/typescript/common/lib/typescriptServices';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {IEventService} from 'vs/platform/event/common/event';
-import Files = require('vs/platform/files/common/files');
+import * as Files from 'vs/platform/files/common/files';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {ISearchService, QueryType} from 'vs/platform/search/common/search';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {IWorkspace} from 'vs/platform/workspace/common/workspace';
+import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 
 interface $ProjectPerf {
 	start: number;
@@ -35,15 +33,18 @@ interface $ProjectPerf {
 	projects: number;
 }
 
+const defaultExcludeSegments: string[] = [
+	'/.git/',
+	'/node_modules/',
+	'/bower_components/',
+	'/jspm_packages/',
+	'/tmp/',
+	'/temp/',
+]
+
 class ProjectFileEventListener {
 
-	private static _ignores = [
-		paths.normalize('/node_modules/', true),
-		paths.normalize('/.git/', true),
-		paths.normalize('/bower_components/', true),
-		paths.normalize('/tmp/', true),
-		paths.normalize('/temp/', true),
-	];
+	private static _ignores = defaultExcludeSegments.map(s => paths.normalize(s, true));
 
 	private _excludes: string[];
 	private _includes: string[];
@@ -106,6 +107,9 @@ class VirtualProjectFileEventListener extends ProjectFileEventListener {
 
 class ProjectResolver implements typescript.IProjectResolver2 {
 
+	private static _defaultExcludePattern = `{${defaultExcludeSegments.map(s => `**${s}**`).join(',')}}`;
+	private static _defaultExcludePatternForVirtualProject = `{**/lib*.d.ts,${defaultExcludeSegments.map(s => `**${s}**`).join(',')}}`;
+
 	private _fileService: Files.IFileService;
 	private _searchService: ISearchService;
 	private _eventService: IEventService;
@@ -125,19 +129,29 @@ class ProjectResolver implements typescript.IProjectResolver2 {
 	private _pendingFiles: { [r: string]: { resource: URI; kind: typescript.ChangeKind } } = Object.create(null);
 	private _unbindListener: Function;
 
-	constructor(ctx: services.IServicesContext, configuration: { files: string; projects: string; maxFilesPerProject: number;}, consumer: typescript.IProjectConsumer) {
-		this._fileService = ctx['fileService'];
-		this._searchService = ctx['searchService'];
-		this._eventService = ctx['eventService'];
-		this._markerService = ctx['markerService'];
-		this._messageService = ctx['messageService'];
-		this._modelService = ctx['modelService'];
-		this._telemetryService = ctx['telemetryService'];
-		this._workspace = ctx['contextService'].getWorkspace() && (<IWorkspace> ctx['contextService'].getWorkspace()).resource;
+	constructor(configuration: { files: string; projects: string; maxFilesPerProject: number; },
+		consumer: typescript.IProjectConsumer,
+		@Files.IFileService fileService: Files.IFileService,
+		@ISearchService searchService: ISearchService,
+		@IEventService eventService: IEventService,
+		@IMarkerService markerService: IMarkerService,
+		@IMessageService messageService: IMessageService,
+		@IModelService modelService: IModelService,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IWorkspaceContextService contextService: IWorkspaceContextService
+	) {
+		this._fileService = fileService;
+		this._searchService = searchService;
+		this._eventService = eventService;
+		this._markerService = markerService;
+		this._messageService = messageService;
+		this._modelService = modelService;
+		this._telemetryService = telemetryService;
+		this._workspace = contextService.getWorkspace() && contextService.getWorkspace().resource;
 		this._consumer = consumer;
 		this._configuration = configuration;
 
-		this._fileChangesHandler = new async.RunOnceScheduler(this._processFileChangesEvents.bind(this), 1500);
+		this._fileChangesHandler = new async.RunOnceScheduler(this._processFileChangesEvents.bind(this), 1000);
 		this._unbindListener = this._eventService.addListener(Files.EventType.FILE_CHANGES,
 			this._onFileChangesEvent.bind(this));
 	}
@@ -291,17 +305,18 @@ class ProjectResolver implements typescript.IProjectResolver2 {
 		includePattern[globPattern] = true;
 
 		let excludePattern: glob.IExpression = Object.create(null);
-		excludePattern['{**/node_modules/**,**/.git/**,**/bower_components/**,**/tmp/**,**/temp**}'] = true;
+		excludePattern[ProjectResolver._defaultExcludePattern] = true;
 
 		// add custom exclude patterns
 		if(Array.isArray(excludes)) {
-			for(let exclude of excludes) {
-				excludePattern[`/${exclude}/**`] = true;
+			for (let exclude of excludes) {
+				exclude = exclude.replace(/^[\\\/]/, '').replace(/[\\\/]$/, '');
+				excludePattern[`${exclude}/**`] = true;
 			}
 		}
 
 		return this._searchService.search({
-			rootResources: [root],
+			folderResources: [root],
 			type: QueryType.File,
 			maxResults,
 			includePattern,
@@ -432,12 +447,15 @@ class ProjectResolver implements typescript.IProjectResolver2 {
 		this._projectFileEventListener[typescript.virtualProjectResource.toString()] =
 			new VirtualProjectFileEventListener(undefined, undefined, undefined);
 
+		let excludePattern: glob.IExpression = Object.create(null);
+		excludePattern[ProjectResolver._defaultExcludePatternForVirtualProject] = true;
+
 		return this._searchService.search({
-			rootResources: [this._workspace],
+			folderResources: [this._workspace],
 			type: QueryType.File,
 			maxResults: 50,
 			includePattern: { '**/*.d.ts': true },
-			excludePattern: { '{**/lib*.d.ts,**/node_modules/**,**/.git/**,**/bower_components/**,**/tmp/**,**/temp/**}': true },
+			excludePattern
 		}).then(result => {
 
 			let files: URI[] = [];
@@ -554,7 +572,6 @@ class ProjectResolver implements typescript.IProjectResolver2 {
 namespace glob2 {
 
 	const prefix1 = '**/*.';
-	const prefix2 = '**/';
 
 	export function match(pattern: string, path: string): boolean {
 		if (pattern[0] === '{' && pattern[pattern.length - 1] === '}') {
@@ -570,19 +587,17 @@ namespace glob2 {
 		let offset = -1;
 		if (pattern.indexOf(prefix1) === 0) {
 			offset = prefix1.length;
-		} else if (pattern.indexOf(prefix2) === 0) {
-			offset = prefix2.length;
 		}
 		if (offset === -1) {
 			return glob.match(pattern, path);
 		}
 		let suffix = pattern.substring(offset);
-		if (suffix.indexOf('*') !== -1) {
+		if (suffix.match(/[.\\\/*]/)) {
 			return glob.match(pattern, path);
 		}
 
 		// endWith check
-		offset = path.indexOf(suffix);
+		offset = path.lastIndexOf(suffix);
 		if (offset === -1) {
 			return false;
 		} else {

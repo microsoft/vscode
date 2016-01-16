@@ -53,10 +53,10 @@ export class AbstractProblemCollector extends EventEmitter implements IDisposabl
 		this.activeMatcher = null;
 		this.openModels = Object.create(null);
 		this.modelListeners = [];
-		this.modelService.onModelAdded.add((model) => {
+		this.modelService.onModelAdded((model) => {
 			this.openModels[model.getAssociatedResource().toString()] = true;
 		}, this, this.modelListeners);
-		this.modelService.onModelRemoved.add((model) => {
+		this.modelService.onModelRemoved((model) => {
 			delete this.openModels[model.getAssociatedResource().toString()];
 		}, this, this.modelListeners);
 		this.modelService.getModels().forEach(model => this.openModels[model.getAssociatedResource().toString()] = true);
@@ -204,12 +204,12 @@ export class StartStopProblemCollector extends AbstractProblemCollector implemen
 				this.currentResource = resource;
 				this.currentResourceAsString = resourceAsString;
 			}
-			let markerDatas = this.markers[owner];
-			if (!markerDatas) {
-				markerDatas = [];
-				this.markers[owner] = markerDatas;
+			let markerData = this.markers[owner];
+			if (!markerData) {
+				markerData = [];
+				this.markers[owner] = markerData;
 			}
-			markerDatas.push(markerMatch.marker);
+			markerData.push(markerMatch.marker);
 		} else {
 			this.reportedResourcesWithMarkers[owner][resourceAsString] = resource;
 		}
@@ -257,7 +257,7 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 	private markers: IStringDictionary<IMarkerData[]>;
 
 	// Cleaning state
-	private ignoreOpenByOwner: IStringDictionary<boolean>;
+	private ignoreOpenResourcesByOwner: IStringDictionary<boolean>;
 	private resourcesToClean: IStringDictionary<IStringDictionary<URI>>;
 
 	constructor(problemMatchers: ProblemMatcher[], markerService: IMarkerService, modelService: IModelService) {
@@ -266,7 +266,7 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 		this.markerService = markerService;
 		this.resetCurrentResource();
 		this.resourcesToClean = Object.create(null);
-		this.ignoreOpenByOwner = Object.create(null);
+		this.ignoreOpenResourcesByOwner = Object.create(null);
 		this.watchingBeginsPatterns = [];
 		this.watchingEndsPatterns = [];
 		this.problemMatchers.forEach(matcher => {
@@ -283,13 +283,13 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 				this.emit(ProblemCollectorEvents.WatchingBeginDetected, {});
 				this.recordResourcesToClean(matcher.owner);
 			}
-			let value: boolean = this.ignoreOpenByOwner[matcher.owner];
+			let value: boolean = this.ignoreOpenResourcesByOwner[matcher.owner];
 			if (!value) {
-				this.ignoreOpenByOwner[matcher.owner] = (matcher.applyTo === ApplyToKind.closedDocuments);
+				this.ignoreOpenResourcesByOwner[matcher.owner] = (matcher.applyTo === ApplyToKind.closedDocuments);
 			} else {
 				let newValue = value && (matcher.applyTo === ApplyToKind.closedDocuments);
 				if (newValue != value) {
-					this.ignoreOpenByOwner[matcher.owner] = newValue;
+					this.ignoreOpenResourcesByOwner[matcher.owner] = newValue;
 				}
 			}
 		})
@@ -316,12 +316,12 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 				this.currentResource = resource;
 				this.currentResourceAsString = resourceAsString;
 			}
-			let markerDatas = this.markers[owner];
-			if (!markerDatas) {
-				markerDatas = [];
-				this.markers[owner] = markerDatas;
+			let markerData = this.markers[owner];
+			if (!markerData) {
+				markerData = [];
+				this.markers[owner] = markerData;
 			}
-			markerDatas.push(markerMatch.marker);
+			markerData.push(markerMatch.marker);
 		} else {
 			this.removeResourceToClean(owner, resourceAsString);
 		}
@@ -395,7 +395,8 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 		let resourceSet = this.resourcesToClean[owner];
 		if (resourceSet) {
 			let toClean = Object.keys(resourceSet).map(key => resourceSet[key]).filter(resource => {
-				return this.ignoreOpenByOwner[owner] && !this.isOpen(resource);
+				// Check whether we need to ignore open documents for this owner.
+				return this.ignoreOpenResourcesByOwner[owner] ? !this.isOpen(resource) : true;
 			});
 			this.markerService.remove(owner, toClean);
 			if (remove) {

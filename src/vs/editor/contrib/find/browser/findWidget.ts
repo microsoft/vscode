@@ -6,118 +6,118 @@
 'use strict';
 
 import 'vs/css!./findWidget';
-import nls = require('vs/nls');
-import Errors = require('vs/base/common/errors');
-import EventEmitter = require('vs/base/common/eventEmitter');
-import DomUtils = require('vs/base/browser/dom');
-import ContextView = require('vs/base/browser/ui/contextview/contextview');
-import Keyboard = require('vs/base/browser/keyboardEvent');
-import InputBox = require('vs/base/browser/ui/inputbox/inputBox');
-import Findinput = require('vs/base/browser/ui/findinput/findInput');
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import FindModel = require('./findModel');
-import Lifecycle = require('vs/base/common/lifecycle');
+
+import * as nls from 'vs/nls';
+import * as Errors from 'vs/base/common/errors';
+import * as DomUtils from 'vs/base/browser/dom';
+import {IContextViewProvider} from 'vs/base/browser/ui/contextview/contextview';
+import {InputBox, IMessage as InputBoxMessage} from 'vs/base/browser/ui/inputbox/inputBox';
+import {FindInput} from 'vs/base/browser/ui/findinput/findInput';
+import * as EditorBrowser from 'vs/editor/browser/editorBrowser';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import {MATCHES_LIMIT, FIND_IDS} from 'vs/editor/contrib/find/common/findModel';
 import {CommonKeybindings} from 'vs/base/common/keyCodes';
-
-export interface IUserInputEvent {
-	jumpToNextMatch: boolean;
-}
-
-export interface IFindWidget {
-	dispose(): void;
-
-	setModel(newFindModel:FindModel.IFindModel): void;
-	setSearchString(searchString:string): void;
-	getState(): FindModel.IFindState;
-
-	addUserInputEventListener(callback:(e:IUserInputEvent)=>void): Lifecycle.IDisposable;
-	addClosedEventListener(callback:()=>void): Lifecycle.IDisposable;
-}
+import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
+import {INewFindReplaceState, FindReplaceStateChangedEvent, FindReplaceState} from 'vs/editor/contrib/find/common/findState';
+import {Widget} from 'vs/base/browser/ui/widget';
 
 export interface IFindController {
-	enableSelectionFind(): void;
-	disableSelectionFind(): void;
 	replace(): void;
 	replaceAll(): void;
 }
 
-export class FindWidget extends EventEmitter.EventEmitter implements EditorBrowser.IOverlayWidget, IFindWidget {
+const NLS_FIND_INPUT_LABEL = nls.localize('label.find', "Find");
+const NLS_FIND_INPUT_PLACEHOLDER = nls.localize('placeholder.find', "Find");
+const NLS_PREVIOUS_MATCH_BTN_LABEL = nls.localize('label.previousMatchButton', "Previous match");
+const NLS_NEXT_MATCH_BTN_LABEL = nls.localize('label.nextMatchButton', "Next match");
+const NLS_TOGGLE_SELECTION_FIND_TITLE = nls.localize('label.toggleSelectionFind', "Find in selection");
+const NLS_CLOSE_BTN_LABEL = nls.localize('label.closeButton', "Close");
+const NLS_REPLACE_INPUT_LABEL = nls.localize('label.replace', "Replace");
+const NLS_REPLACE_INPUT_PLACEHOLDER = nls.localize('placeholder.replace', "Replace");
+const NLS_REPLACE_BTN_LABEL = nls.localize('label.replaceButton', "Replace");
+const NLS_REPLACE_ALL_BTN_LABEL = nls.localize('label.replaceAllButton', "Replace All");
+const NLS_TOGGLE_REPLACE_MODE_BTN_LABEL = nls.localize('label.toggleReplaceButton', "Toggle Replace mode");
+const NLS_MATCHES_COUNT_LIMIT_TITLE = nls.localize('title.matchesCountLimit', "Only the first 999 results are highlighted, but all find operations work on the entire text.");
 
-	private static _USER_CLOSED_EVENT = 'close';
-	private static _USER_INPUT_EVENT = 'userInputEvent';
+export class FindWidget extends Widget implements EditorBrowser.IOverlayWidget {
 
 	private static ID = 'editor.contrib.findWidget';
 	private static PART_WIDTH = 275;
 	private static FIND_INPUT_AREA_WIDTH = FindWidget.PART_WIDTH - 54;
 	private static REPLACE_INPUT_AREA_WIDTH = FindWidget.FIND_INPUT_AREA_WIDTH;
 
-	private _codeEditor:EditorBrowser.ICodeEditor;
+	private _codeEditor: EditorBrowser.ICodeEditor;
+	private _state: FindReplaceState;
 	private _controller: IFindController;
+	private _contextViewProvider: IContextViewProvider;
+	private _keybindingService: IKeybindingService;
 
-	private _domNode:HTMLElement;
-	private _findInput:Findinput.FindInput;
-	private _replaceInputBox:InputBox.InputBox;
+	private _domNode: HTMLElement;
+	private _findInput: FindInput;
+	private _replaceInputBox: InputBox;
 
-	private _toggleReplaceBtn:SimpleButton;
-	private _prevBtn:SimpleButton;
-	private _nextBtn:SimpleButton;
-	private _toggleSelectionFind:Checkbox;
-	private _closeBtn:SimpleButton;
-	private _replaceBtn:SimpleButton;
-	private _replaceAllBtn:SimpleButton;
+	private _toggleReplaceBtn: SimpleButton;
+	private _prevBtn: SimpleButton;
+	private _nextBtn: SimpleButton;
+	private _toggleSelectionFind: SimpleCheckbox;
+	private _closeBtn: SimpleButton;
+	private _replaceBtn: SimpleButton;
+	private _replaceAllBtn: SimpleButton;
 
-	private _isReplaceEnabled:boolean;
-	private _isVisible:boolean;
-	private _isReplaceVisible:boolean;
+	private _isVisible: boolean;
+	private _isReplaceVisible: boolean;
 
-	private _toDispose:Lifecycle.IDisposable[];
+	private focusTracker: DomUtils.IFocusTracker;
 
-	private _model:FindModel.IFindModel;
-	private _modelListenersToDispose:Lifecycle.IDisposable[];
-
-	private _contextViewProvider:ContextView.IContextViewProvider;
-
-	private focusTracker:DomUtils.IFocusTracker;
-
-	constructor(codeEditor:EditorBrowser.ICodeEditor, controller:IFindController, contextViewProvider:ContextView.IContextViewProvider) {
-		super([
-			FindWidget._USER_INPUT_EVENT,
-			FindWidget._USER_CLOSED_EVENT,
-		]);
+	constructor(
+		codeEditor: EditorBrowser.ICodeEditor,
+		controller: IFindController,
+		state: FindReplaceState,
+		contextViewProvider: IContextViewProvider,
+		keybindingService: IKeybindingService
+	) {
+		super();
 		this._codeEditor = codeEditor;
 		this._controller = controller;
+		this._state = state;
 		this._contextViewProvider = contextViewProvider;
+		this._keybindingService = keybindingService;
 
 		this._isVisible = false;
 		this._isReplaceVisible = false;
-		this._isReplaceEnabled = false;
-		this._toDispose = [];
 
-		this._model = null;
-		this._modelListenersToDispose = [];
+		this._register(this._state.addChangeListener((e) => this._onStateChanged(e)));
 
 		this._buildDomNode();
+		this._updateButtons();
 
-		this.focusTracker = DomUtils.trackFocus(this._domNode);
+		this.focusTracker = this._register(DomUtils.trackFocus(this._findInput.inputBox.inputElement));
+		this.focusTracker.addFocusListener(() => this._reseedFindScope());
+
+		this._register(this._codeEditor.addListener2(EditorCommon.EventType.ConfigurationChanged, (e:EditorCommon.IConfigurationChangedEvent) => {
+			if (e.readOnly) {
+				if (this._codeEditor.getConfiguration().readOnly) {
+					// Hide replace part if editor becomes read only
+					this._state.change({ isReplaceRevealed: false }, false);
+				}
+				this._updateButtons();
+			}
+		}));
+		this._register(this._codeEditor.addListener2(EditorCommon.EventType.CursorSelectionChanged, () => {
+			if (this._isVisible) {
+				this._updateToggleSelectionFindButton();
+			}
+		}));
 
 		this._codeEditor.addOverlayWidget(this);
-
-		this.focusTracker.addFocusListener(() => {
-			var selection = this._codeEditor.getSelection();
-			if (selection.startLineNumber !== selection.endLineNumber) {
-				// Search in selection
-				this._controller.enableSelectionFind();
-			}
-		});
 	}
 
-	public dispose(): void {
-		this.focusTracker.dispose();
-		this._removeModel();
-		this._findInput.destroy();
-		this._replaceInputBox.dispose();
-		this._toDispose = Lifecycle.disposeAll(this._toDispose);
+	private _reseedFindScope(): void {
+		let selection = this._codeEditor.getSelection();
+		if (selection.startLineNumber !== selection.endLineNumber) {
+			// Reseed find scope
+			this._state.change({ searchScope: selection }, true);
+		}
 	}
 
 	// ----- IOverlayWidget API
@@ -139,174 +139,244 @@ export class FindWidget extends EventEmitter.EventEmitter implements EditorBrows
 		return null;
 	}
 
-	public setSearchString(searchString:string): void {
-		this._findInput.setValue(searchString);
+	// ----- React to state changes
+
+	private _onStateChanged(e:FindReplaceStateChangedEvent): void {
+		if (e.searchString) {
+			this._findInput.setValue(this._state.searchString);
+			this._updateButtons();
+		}
+		if (e.replaceString) {
+			this._replaceInputBox.value = this._state.replaceString;
+		}
+		if (e.isRevealed) {
+			if (this._state.isRevealed) {
+				this._reveal(true);
+			} else {
+				this._hide(true);
+			}
+		}
+		if (e.isReplaceRevealed) {
+			if (this._state.isReplaceRevealed) {
+				if (!this._codeEditor.getConfiguration().readOnly && !this._isReplaceVisible) {
+					this._isReplaceVisible = true;
+					this._updateButtons();
+				}
+			} else {
+				if (this._isReplaceVisible) {
+					this._isReplaceVisible = false;
+					this._updateButtons();
+				}
+			}
+		}
+		if (e.isRegex) {
+			this._findInput.setRegex(this._state.isRegex);
+		}
+		if (e.wholeWord) {
+			this._findInput.setWholeWords(this._state.wholeWord);
+		}
+		if (e.matchCase) {
+			this._findInput.setCaseSensitive(this._state.matchCase);
+		}
+		if (e.searchScope) {
+			if (this._state.searchScope) {
+				this._toggleSelectionFind.checked = true;
+			} else {
+				this._toggleSelectionFind.checked = false;
+			}
+			this._updateToggleSelectionFindButton();
+		}
+		if (e.searchString || e.matchesCount) {
+			let showRedOutline = (this._state.searchString.length > 0 && this._state.matchesCount === 0);
+			DomUtils.toggleClass(this._domNode, 'no-results', showRedOutline);
+
+			let showMatchesCount = (this._state.searchString.length > 0);
+
+			let matchesCount:string = String(this._state.matchesCount);
+			let matchesCountTitle = '';
+			if (this._state.matchesCount >= MATCHES_LIMIT) {
+				matchesCountTitle = NLS_MATCHES_COUNT_LIMIT_TITLE;
+				matchesCount += '+';
+			}
+
+			this._findInput.setMatchCountState({
+				isVisible: showMatchesCount,
+				count: matchesCount,
+				title: matchesCountTitle
+			});
+		}
 	}
 
-	private _setState(state:FindModel.IFindState, selectionFindEnabled:boolean): void {
-		this._findInput.setValue(state.searchString);
-		this._findInput.setCaseSensitive(state.properties.matchCase);
-		this._findInput.setWholeWords(state.properties.wholeWord);
-		this._findInput.setRegex(state.properties.isRegex);
-		this._toggleSelectionFind.checkbox.disabled = !selectionFindEnabled;
-		this._toggleSelectionFind.checkbox.checked = selectionFindEnabled;
+	// ----- actions
 
-		this._replaceInputBox.value = state.replaceString;
-		if (state.isReplaceRevealed) {
-			this._enableReplace(false);
-		} else {
-			this._disableReplace(false);
+	/**
+	 * If 'selection find' is ON we should not disable the button (its function is to cancel 'selection find').
+	 * If 'selection find' is OFF we enable the button only if there is a multi line selection.
+	 */
+	private _updateToggleSelectionFindButton(): void {
+		let selection = this._codeEditor.getSelection();
+		let isMultiLineSelection = selection ? (selection.startLineNumber !== selection.endLineNumber) : false;
+		let isChecked = this._toggleSelectionFind.checked;
+
+		this._toggleSelectionFind.setEnabled(this._isVisible && (isChecked || isMultiLineSelection));
+	}
+
+	private _updateButtons(): void {
+		this._findInput.setEnabled(this._isVisible);
+		this._replaceInputBox.setEnabled(this._isVisible && this._isReplaceVisible);
+		this._updateToggleSelectionFindButton();
+		this._closeBtn.setEnabled(this._isVisible);
+
+		let findInputIsNonEmpty = (this._state.searchString.length > 0);
+		this._prevBtn.setEnabled(this._isVisible && findInputIsNonEmpty);
+		this._nextBtn.setEnabled(this._isVisible && findInputIsNonEmpty);
+		this._replaceBtn.setEnabled(this._isVisible && this._isReplaceVisible && findInputIsNonEmpty);
+		this._replaceAllBtn.setEnabled(this._isVisible && this._isReplaceVisible && findInputIsNonEmpty);
+
+		DomUtils.toggleClass(this._domNode, 'replaceToggled', this._isReplaceVisible);
+		this._toggleReplaceBtn.toggleClass('collapse', !this._isReplaceVisible);
+		this._toggleReplaceBtn.toggleClass('expand', this._isReplaceVisible);
+		this._toggleReplaceBtn.setExpanded(this._isReplaceVisible);
+
+		let canReplace = !this._codeEditor.getConfiguration().readOnly;
+		this._toggleReplaceBtn.setEnabled(this._isVisible && canReplace);
+	}
+
+	private _reveal(animate:boolean): void {
+		if (!this._isVisible) {
+			this._isVisible = true;
+
+			this._updateButtons();
+
+			setTimeout(() => {
+				DomUtils.addClass(this._domNode, 'visible');
+				if (!animate) {
+					DomUtils.addClass(this._domNode, 'noanimation');
+					setTimeout(() => {
+						DomUtils.removeClass(this._domNode, 'noanimation');
+					}, 200);
+				}
+			}, 0);
+			this._codeEditor.layoutOverlayWidget(this);
 		}
-		this._onFindValueChange();
+	}
+
+	private _hide(focusTheEditor:boolean): void {
+		if (this._isVisible) {
+			this._isVisible = false;
+
+			this._updateButtons();
+
+			DomUtils.removeClass(this._domNode, 'visible');
+			if (focusTheEditor) {
+				this._codeEditor.focus();
+			}
+			this._codeEditor.layoutOverlayWidget(this);
+		}
 	}
 
 	// ----- Public
 
-	public getState(): FindModel.IFindState {
-		var result:FindModel.IFindState = {
-			searchString: this._findInput.getValue(),
-			replaceString: this._replaceInputBox.value,
-			properties: {
-				isRegex: this._findInput.getRegex(),
-				wholeWord: this._findInput.getWholeWords(),
-				matchCase: this._findInput.getCaseSensitive()
-			},
-			isReplaceRevealed: this._isReplaceEnabled
-		};
-		return result;
+	public focusFindInput(): void {
+		this._findInput.select();
+		// Edge browser requires focus() in addition to select()
+		this._findInput.focus();
 	}
 
-	public setModel(newFindModel:FindModel.IFindModel): void {
-		this._removeModel();
-		if (newFindModel) {
-			// We have a new model! :)
-			this._model = newFindModel;
-			this._modelListenersToDispose.push(this._model.addStartEventListener((e:FindModel.IFindStartEvent) => {
-				this._reveal(e.shouldFocus);
-				this._setState(e.state, e.selectionFindEnabled);
-				if (e.shouldFocus) {
-					this._findInput.select();
-					// Edge browser requires focus() in addition to select()
-					this._findInput.focus();
-				}
-			}));
-			this._modelListenersToDispose.push(this._model.addMatchesUpdatedEventListener((e:FindModel.IFindMatchesEvent) => {
-				DomUtils.toggleClass(this._domNode, 'no-results', this._findInput.getValue() !== '' && e.count === 0);
-			}));
-		} else {
-			// No model :(
-			this._hide(false);
-		}
+	public focusReplaceInput(): void {
+		this._replaceInputBox.select();
+		// Edge browser requires focus() in addition to select()
+		this._replaceInputBox.focus();
 	}
-
-	private _removeModel(): void {
-		if (this._model !== null) {
-			this._modelListenersToDispose = Lifecycle.disposeAll(this._modelListenersToDispose);
-			this._model = null;
-		}
-	}
-
-	private _enableReplace(sendEvent:boolean): void {
-		this._isReplaceEnabled = true;
-		if (!this._codeEditor.getConfiguration().readOnly && !this._isReplaceVisible) {
-			this._replaceInputBox.enable();
-			this._isReplaceVisible = true;
-			DomUtils.addClass(this._domNode, 'replaceToggled');
-			this._toggleReplaceBtn.toggleClass('collapse', false);
-			this._toggleReplaceBtn.toggleClass('expand', true);
-			this._toggleReplaceBtn.setExpanded(true);
-		}
-		if (sendEvent) {
-			this._emitUserInputEvent(false);
-		}
-	}
-
-	private _disableReplace(sendEvent:boolean): void {
-		this._isReplaceEnabled = false;
-		if (this._isReplaceVisible) {
-			this._replaceInputBox.disable();
-			DomUtils.removeClass(this._domNode, 'replaceToggled');
-			this._toggleReplaceBtn.toggleClass('expand', false);
-			this._toggleReplaceBtn.toggleClass('collapse', true);
-			this._toggleReplaceBtn.setExpanded(false);
-			this._isReplaceVisible = false;
-		}
-		if (sendEvent) {
-			this._emitUserInputEvent(false);
-		}
-	}
-
-	// ----- initialization
 
 	private _onFindInputKeyDown(e:DomUtils.IKeyboardEvent): void {
 
-		var handled = false;
+		switch (e.asKeybinding()) {
+			case CommonKeybindings.ENTER:
+				this._codeEditor.getAction(FIND_IDS.NextMatchFindAction).run().done(null, Errors.onUnexpectedError);
+				e.preventDefault();
+				return;
 
-		if (e.equals(CommonKeybindings.ENTER)) {
-			this._codeEditor.getAction(FindModel.NEXT_MATCH_FIND_ID).run().done(null, Errors.onUnexpectedError);
-			handled = true;
-		} else if (e.equals(CommonKeybindings.SHIFT_ENTER)) {
-			this._codeEditor.getAction(FindModel.PREVIOUS_MATCH_FIND_ID).run().done(null, Errors.onUnexpectedError);
-			handled = true;
-		} else if (e.equals(CommonKeybindings.TAB)) {
-			if (this._isReplaceVisible) {
-				this._replaceInputBox.focus();
-			} else {
-				this._findInput.focusOnCaseSensitive();
-			}
-			handled = true;
+			case CommonKeybindings.SHIFT_ENTER:
+				this._codeEditor.getAction(FIND_IDS.PreviousMatchFindAction).run().done(null, Errors.onUnexpectedError);
+				e.preventDefault();
+				return;
+
+			case CommonKeybindings.TAB:
+				if (this._isReplaceVisible) {
+					this._replaceInputBox.focus();
+				} else {
+					this._findInput.focusOnCaseSensitive();
+				}
+				e.preventDefault();
+				return;
+
+			case CommonKeybindings.CTRLCMD_DOWN_ARROW:
+				this._codeEditor.focus();
+				e.preventDefault();
+				return;
 		}
 
-		if (handled) {
-			e.preventDefault();
-		} else {
-			setTimeout(() => {
-				this._onFindValueChange();
-				this._emitUserInputEvent(true);
-			}, 10);
-		}
+		// getValue() is not updated right away
+		setTimeout(() => {
+			this._state.change({ searchString: this._findInput.getValue() }, true);
+		}, 10);
 	}
 
 	private _onReplaceInputKeyDown(e:DomUtils.IKeyboardEvent): void {
 
-		var handled = false;
+		switch (e.asKeybinding()) {
+			case CommonKeybindings.ENTER:
+				this._controller.replace();
+				e.preventDefault();
+				return;
 
-		if (e.equals(CommonKeybindings.ENTER)) {
-			this._controller.replace();
-			handled = true;
-		} else if (e.equals(CommonKeybindings.CTRLCMD_ENTER)) {
-			this._controller.replaceAll();
-			handled = true;
-		} else if (e.equals(CommonKeybindings.TAB)) {
-			this._findInput.focusOnCaseSensitive();
-			handled = true;
+			case CommonKeybindings.CTRLCMD_ENTER:
+				this._controller.replaceAll();
+				e.preventDefault();
+				return;
+
+			case CommonKeybindings.TAB:
+				this._findInput.focusOnCaseSensitive();
+				e.preventDefault();
+				return;
+
+			case CommonKeybindings.SHIFT_TAB:
+				this._findInput.focus();
+				e.preventDefault();
+				return;
+
+			case CommonKeybindings.CTRLCMD_DOWN_ARROW:
+				this._codeEditor.focus();
+				e.preventDefault();
+				return;
 		}
 
-		if (handled) {
-			e.preventDefault();
-		} else {
-			setTimeout(() => {
-				this._emitUserInputEvent(true);
-			}, 10);
-		}
+		setTimeout(() => {
+			this._state.change({ replaceString: this._replaceInputBox.value }, false);
+		}, 10);
 	}
 
-	private _onFindValueChange(): void {
-		var findInputIsNonEmpty = (this._findInput.getValue().length > 0);
+	// ----- initialization
 
-		this._prevBtn.setEnabled(findInputIsNonEmpty);
-		this._nextBtn.setEnabled(findInputIsNonEmpty);
-		this._replaceBtn.setEnabled(findInputIsNonEmpty);
-		this._replaceAllBtn.setEnabled(findInputIsNonEmpty);
+	private _keybindingLabelFor(actionId:string): string {
+		let keybindings = this._keybindingService.lookupKeybindings(actionId);
+		if (keybindings.length === 0) {
+			return '';
+		}
+		return ' (' + this._keybindingService.getLabelFor(keybindings[0]) + ')';
 	}
 
 	private _buildFindPart(): HTMLElement {
 		// Find input
-		this._findInput = new Findinput.FindInput(null, this._contextViewProvider, {
+		this._findInput = this._register(new FindInput(null, this._contextViewProvider, {
 			width: FindWidget.FIND_INPUT_AREA_WIDTH,
-			label: nls.localize('label.find', "Find"),
-			placeholder: nls.localize('placeholder.find', "Find"),
-			validation: (value:string): InputBox.IMessage => {
+			label: NLS_FIND_INPUT_LABEL,
+			placeholder: NLS_FIND_INPUT_PLACEHOLDER,
+			appendCaseSensitiveLabel: this._keybindingLabelFor(FIND_IDS.ToggleCaseSensitiveCommand),
+			appendWholeWordsLabel: this._keybindingLabelFor(FIND_IDS.ToggleWholeWordCommand),
+			appendRegexLabel: this._keybindingLabelFor(FIND_IDS.ToggleRegexCommand),
+			validation: (value:string): InputBoxMessage => {
 				if (value.length === 0) {
 					return null;
 				}
@@ -320,127 +390,127 @@ export class FindWidget extends EventEmitter.EventEmitter implements EditorBrows
 					return { content: e.message };
 				}
 			}
-		}).on('keydown', (browserEvent:KeyboardEvent) => {
-			this._onFindInputKeyDown(new Keyboard.StandardKeyboardEvent(browserEvent));
-		}).on(Findinput.FindInput.OPTION_CHANGE, () => {
-			this._emitUserInputEvent(true);
-		});
-
-		this._findInput.disable();
+		}));
+		this._register(this._findInput.onKeyDown((e) => this._onFindInputKeyDown(e)));
+		this._register(this._findInput.onDidOptionChange(() => {
+			this._state.change({
+				isRegex: this._findInput.getRegex(),
+				wholeWord: this._findInput.getWholeWords(),
+				matchCase: this._findInput.getCaseSensitive()
+			}, true);
+		}));
+		this._register(this._findInput.onCaseSensitiveKeyDown((e) => {
+			if (e.equals(CommonKeybindings.SHIFT_TAB)) {
+				if (this._isReplaceVisible) {
+					this._replaceInputBox.focus();
+					e.preventDefault();
+				}
+			}
+		}));
 
 		// Previous button
-		this._prevBtn = new SimpleButton(
-			nls.localize('label.previousMatchButton', "Previous match (Shift+F3)"),
-			'previous'
-		).onTrigger(() => {
-			this._codeEditor.getAction(FindModel.PREVIOUS_MATCH_FIND_ID).run().done(null, Errors.onUnexpectedError);
-		});
-		this._toDispose.push(this._prevBtn);
+		this._prevBtn = this._register(new SimpleButton({
+			label: NLS_PREVIOUS_MATCH_BTN_LABEL + this._keybindingLabelFor(FIND_IDS.PreviousMatchFindAction),
+			className: 'previous',
+			onTrigger: () => {
+				this._codeEditor.getAction(FIND_IDS.PreviousMatchFindAction).run().done(null, Errors.onUnexpectedError);
+			},
+			onKeyDown: (e) => {}
+		}));
 
 		// Next button
-		this._nextBtn = new SimpleButton(
-			nls.localize('label.nextMatchButton', "Next match (F3)"),
-			'next'
-		).onTrigger(() => {
-			this._codeEditor.getAction(FindModel.NEXT_MATCH_FIND_ID).run().done(null, Errors.onUnexpectedError);
-		});
-		this._toDispose.push(this._nextBtn);
+		this._nextBtn = this._register(new SimpleButton({
+			label: NLS_NEXT_MATCH_BTN_LABEL + this._keybindingLabelFor(FIND_IDS.NextMatchFindAction),
+			className: 'next',
+			onTrigger: () => {
+				this._codeEditor.getAction(FIND_IDS.NextMatchFindAction).run().done(null, Errors.onUnexpectedError);
+			},
+			onKeyDown: (e) => {}
+		}));
 
-		var findPart = document.createElement('div');
+		let findPart = document.createElement('div');
 		findPart.className = 'find-part';
 		findPart.appendChild(this._findInput.domNode);
 		findPart.appendChild(this._prevBtn.domNode);
 		findPart.appendChild(this._nextBtn.domNode);
 
 		// Toggle selection button
-		this._toggleSelectionFind = new Checkbox(findPart, nls.localize('label.toggleSelectionFind', "Find in selection"));
-		this._toggleSelectionFind.disable();
-		this._toDispose.push(DomUtils.addStandardDisposableListener(this._toggleSelectionFind.checkbox, 'change', (e) => {
-			if (this._toggleSelectionFind.checkbox.checked) {
-				this._controller.enableSelectionFind();
-			} else {
-				this._controller.disableSelectionFind();
-				this._updateToggleSelectionFindButton();
+		this._toggleSelectionFind = this._register(new SimpleCheckbox({
+			parent: findPart,
+			title: NLS_TOGGLE_SELECTION_FIND_TITLE,
+			onChange: () => {
+				if (this._toggleSelectionFind.checked) {
+					this._reseedFindScope();
+				} else {
+					this._state.change({ searchScope: null }, true);
+				}
 			}
 		}));
-		this._toDispose.push(this._toggleSelectionFind);
-
-		this._codeEditor.addListener(EditorCommon.EventType.CursorSelectionChanged, () => {
-			this._updateToggleSelectionFindButton();
-		});
 
 		// Close button
-		this._closeBtn = new SimpleButton(
-			nls.localize('label.closeButton', "Close (Escape)"),
-			'close-fw'
-			).onTrigger(() => {
-			this._hide(true);
-			this._emitClosedEvent();
-		}).onKeyDown((e) => {
-			if (this._isReplaceVisible) {
-				this._replaceBtn.focus();
-				e.preventDefault();
+		this._closeBtn = this._register(new SimpleButton({
+			label: NLS_CLOSE_BTN_LABEL + this._keybindingLabelFor(FIND_IDS.CloseFindWidgetCommand),
+			className: 'close-fw',
+			onTrigger: () => {
+				this._state.change({ isRevealed: false }, false);
+			},
+			onKeyDown: (e) => {
+				if (e.equals(CommonKeybindings.TAB)) {
+					if (this._isReplaceVisible) {
+						if (this._replaceBtn.isEnabled()) {
+							this._replaceBtn.focus();
+						} else {
+							this._codeEditor.focus();
+						}
+						e.preventDefault();
+					}
+				}
 			}
-		});
-		this._toDispose.push(this._closeBtn);
+		}));
 
 		findPart.appendChild(this._closeBtn.domNode);
 
 		return findPart;
 	}
 
-	/**
-	 * If 'selection find' is ON we should not disable the button (its function is to cancel 'selection find').
-	 * If 'selection find' is OFF we enable the button only if there is a multi line selection.
-	 */
-	private _updateToggleSelectionFindButton(): void {
-		if (!this._isVisible) {
-			return;
-		}
-
-		if (!this._toggleSelectionFind.checkbox.checked) {
-			var selection = this._codeEditor.getSelection();
-
-			if (selection.startLineNumber === selection.endLineNumber) {
-				this._toggleSelectionFind.disable();
-			} else {
-				this._toggleSelectionFind.enable();
-			}
-		}
-	}
-
 	private _buildReplacePart(): HTMLElement {
 		// Replace input
-		var replaceInput = document.createElement('div');
+		let replaceInput = document.createElement('div');
 		replaceInput.className = 'replace-input';
 		replaceInput.style.width = FindWidget.REPLACE_INPUT_AREA_WIDTH + 'px';
-		this._replaceInputBox = new InputBox.InputBox(replaceInput, null, {
-			ariaLabel: nls.localize('label.replace', "Replace"),
-			placeholder: nls.localize('placeholder.replace', "Replace")
-		});
+		this._replaceInputBox = this._register(new InputBox(replaceInput, null, {
+			ariaLabel: NLS_REPLACE_INPUT_LABEL,
+			placeholder: NLS_REPLACE_INPUT_PLACEHOLDER
+		}));
 
-		this._toDispose.push(DomUtils.addStandardDisposableListener(this._replaceInputBox.inputElement, 'keydown', (e) => this._onReplaceInputKeyDown(e)));
-		this._replaceInputBox.disable();
+		this._register(DomUtils.addStandardDisposableListener(this._replaceInputBox.inputElement, 'keydown', (e) => this._onReplaceInputKeyDown(e)));
 
 		// Replace one button
-		this._replaceBtn = new SimpleButton(
-			nls.localize('label.replaceButton', "Replace"),
-			'replace'
-		).onTrigger(() => {
-			this._controller.replace();
-		});
-		this._toDispose.push(this._replaceBtn);
+		this._replaceBtn = this._register(new SimpleButton({
+			label: NLS_REPLACE_BTN_LABEL,
+			className: 'replace',
+			onTrigger: () => {
+				this._controller.replace();
+			},
+			onKeyDown: (e) => {
+				if (e.equals(CommonKeybindings.SHIFT_TAB)) {
+					this._closeBtn.focus();
+					e.preventDefault();
+				}
+			}
+		}));
 
 		// Replace all button
-		this._replaceAllBtn = new SimpleButton(
-			nls.localize('label.replaceAllButton', "Replace All"),
-			'replace-all'
-		).onTrigger(() => {
-			this._controller.replaceAll();
-		});
-		this._toDispose.push(this._replaceAllBtn);
+		this._replaceAllBtn = this._register(new SimpleButton({
+			label: NLS_REPLACE_ALL_BTN_LABEL,
+			className: 'replace-all',
+			onTrigger: () => {
+				this._controller.replaceAll();
+			},
+			onKeyDown: (e) => {}
+		}));
 
-		var replacePart = document.createElement('div');
+		let replacePart = document.createElement('div');
 		replacePart.className = 'replace-part';
 		replacePart.appendChild(replaceInput);
 		replacePart.appendChild(this._replaceBtn.domNode);
@@ -451,205 +521,154 @@ export class FindWidget extends EventEmitter.EventEmitter implements EditorBrows
 
 	private _buildDomNode(): void {
 		// Find part
-		var findPart = this._buildFindPart();
+		let findPart = this._buildFindPart();
 
 		// Replace part
-		var replacePart = this._buildReplacePart();
+		let replacePart = this._buildReplacePart();
 
 		// Toggle replace button
-		this._toggleReplaceBtn = new SimpleButton(
-			nls.localize('label.toggleReplaceButton', "Toggle Replace mode"),
-			'toggle left'
-		).onTrigger(() => {
-			if (this._isReplaceVisible) {
-				this._disableReplace(true);
-			} else {
-				this._enableReplace(true);
-			}
-		});
+		this._toggleReplaceBtn = this._register(new SimpleButton({
+			label: NLS_TOGGLE_REPLACE_MODE_BTN_LABEL,
+			className: 'toggle left',
+			onTrigger: () => {
+				this._state.change({ isReplaceRevealed: !this._isReplaceVisible }, true);
+			},
+			onKeyDown: (e) => {}
+		}));
 		this._toggleReplaceBtn.toggleClass('expand', this._isReplaceVisible);
 		this._toggleReplaceBtn.toggleClass('collapse', !this._isReplaceVisible);
 		this._toggleReplaceBtn.setExpanded(this._isReplaceVisible);
-		this._toDispose.push(this._toggleReplaceBtn);
 
 		// Widget
 		this._domNode = document.createElement('div');
 		this._domNode.className = 'editor-widget find-widget';
 		this._domNode.setAttribute('aria-hidden', 'false');
 
-		if (!this._codeEditor.getConfiguration().readOnly) {
-			DomUtils.addClass(this._domNode, 'can-replace');
-		}
-
 		this._domNode.appendChild(this._toggleReplaceBtn.domNode);
 		this._domNode.appendChild(findPart);
 		this._domNode.appendChild(replacePart);
 	}
-
-	// ----- actions
-
-	private _reveal(animate:boolean): void {
-		if (!this._isVisible) {
-			this._findInput.enable();
-			if (this._isReplaceVisible) {
-				this._replaceInputBox.enable();
-			}
-
-			this._toggleSelectionFind.enable();
-			this._closeBtn.setEnabled(true);
-
-			this._onFindValueChange();
-
-			this._isVisible = true;
-			window.setTimeout(() => {
-				DomUtils.addClass(this._domNode, 'visible');
-				if (!animate) {
-					DomUtils.addClass(this._domNode, 'noanimation');
-					window.setTimeout(() => {
-						DomUtils.removeClass(this._domNode, 'noanimation');
-					}, 200);
-				}
-			}, 0);
-			this._codeEditor.layoutOverlayWidget(this);
-		}
-	}
-
-	private _hide(focusTheEditor:boolean): void {
-		if (this._isVisible) {
-			this._findInput.disable();
-			this._replaceInputBox.disable();
-			this._toggleSelectionFind.disable();
-			this._closeBtn.setEnabled(false);
-
-			this._prevBtn.setEnabled(false);
-			this._nextBtn.setEnabled(false);
-			this._replaceBtn.setEnabled(false);
-			this._replaceAllBtn.setEnabled(false);
-
-			DomUtils.removeClass(this._domNode, 'visible');
-			this._isVisible = false;
-			if (focusTheEditor) {
-				this._codeEditor.focus();
-			}
-			this._codeEditor.layoutOverlayWidget(this);
-		}
-	}
-
-	public addUserInputEventListener(callback:(e:IUserInputEvent)=>void): Lifecycle.IDisposable {
-		return this.addListener2(FindWidget._USER_INPUT_EVENT, callback);
-	}
-
-	private _emitUserInputEvent(jumpToNextMatch:boolean): void {
-		var e:IUserInputEvent = {
-			jumpToNextMatch: jumpToNextMatch
-		};
-		this.emit(FindWidget._USER_INPUT_EVENT, e);
-	}
-
-	public addClosedEventListener(callback:()=>void): Lifecycle.IDisposable {
-		return this.addListener2(FindWidget._USER_CLOSED_EVENT, callback);
-	}
-
-	private _emitClosedEvent(): void {
-		this.emit(FindWidget._USER_CLOSED_EVENT);
-	}
 }
 
-export class Checkbox implements Lifecycle.IDisposable {
+interface ISimpleCheckboxOpts {
+	parent: HTMLElement;
+	title: string;
+	onChange: () => void;
+}
 
-	private static COUNTER = 0;
-	private _domNode:HTMLElement;
-	private _checkbox:HTMLInputElement;
-	private label:HTMLLabelElement;
+class SimpleCheckbox extends Widget {
 
-	constructor(parent: HTMLElement, title: string) {
+	private static _COUNTER = 0;
+
+	private _opts: ISimpleCheckboxOpts;
+	private _domNode: HTMLElement;
+	private _checkbox: HTMLInputElement;
+	private _label: HTMLLabelElement;
+
+	constructor(opts:ISimpleCheckboxOpts) {
+		super();
+		this._opts = opts;
+
 		this._domNode = document.createElement('div');
 		this._domNode.className = 'monaco-checkbox';
-		this._domNode.title = title;
+		this._domNode.title = this._opts.title;
 
 		this._checkbox = document.createElement('input');
 		this._checkbox.type = 'checkbox';
 		this._checkbox.className = 'checkbox';
-		this._checkbox.id = 'checkbox-' + Checkbox.COUNTER++;
+		this._checkbox.id = 'checkbox-' + SimpleCheckbox._COUNTER++;
 
-		this.label = document.createElement('label');
-		this.label.className = 'label';
+		this._label = document.createElement('label');
+		this._label.className = 'label';
 		// Connect the label and the checkbox. Checkbox will get checked when the label recieves a click.
-		this.label.htmlFor = this._checkbox.id;
+		this._label.htmlFor = this._checkbox.id;
 
 		this._domNode.appendChild(this._checkbox);
-		this._domNode.appendChild(this.label);
+		this._domNode.appendChild(this._label);
 
-		parent.appendChild(this._domNode);
+		this._opts.parent.appendChild(this._domNode);
+
+		this.onchange(this._checkbox, (e) => {
+			this._opts.onChange();
+		});
 	}
 
 	public get domNode(): HTMLElement {
 		return this._domNode;
 	}
 
-	public get checkbox(): HTMLInputElement {
-		return this._checkbox;
+	public get checked(): boolean {
+		return this._checkbox.checked;
+	}
+
+	public set checked(newValue:boolean) {
+		this._checkbox.checked = newValue;
 	}
 
 	public focus(): void {
 		this._checkbox.focus();
 	}
 
-	public enable(): void {
+	private enable(): void {
 		this._checkbox.removeAttribute('disabled');
 	}
 
-	public disable(): void {
+	private disable(): void {
 		this._checkbox.disabled = true;
 	}
 
-	public dispose(): void {
-		this._domNode = null;
-		this._checkbox = null;
-		this.label = null;
+	public setEnabled(enabled:boolean): void {
+		if (enabled) {
+			this.enable();
+		} else {
+			this.disable();
+		}
 	}
 }
 
-class SimpleButton implements Lifecycle.IDisposable {
+interface ISimpleButtonOpts {
+	label: string;
+	className: string;
+	onTrigger: ()=>void;
+	onKeyDown: (e:DomUtils.IKeyboardEvent)=>void;
+}
 
-	private _onTrigger:()=>void;
-	private _onKeyDown:(e:DomUtils.IKeyboardEvent)=>void;
-	private _domNode:HTMLElement;
-	private _toDispose:Lifecycle.IDisposable[];
+class SimpleButton extends Widget {
 
-	constructor(label:string, className:string) {
+	private _opts: ISimpleButtonOpts;
+	private _domNode: HTMLElement;
 
-		this._onTrigger = null;
-		this._onKeyDown = null;
+	constructor(opts:ISimpleButtonOpts) {
+		super();
+		this._opts = opts;
 
 		this._domNode = document.createElement('div');
-		this._domNode.title = label;
-		this._domNode.tabIndex = -1;
-		this._domNode.className = 'button ' + className;
+		this._domNode.title = this._opts.label;
+		this._domNode.tabIndex = 0;
+		this._domNode.className = 'button ' + this._opts.className;
 		this._domNode.setAttribute('role', 'button');
-		this._domNode.setAttribute('aria-label', label);
+		this._domNode.setAttribute('aria-label', this._opts.label);
 
-		this._toDispose = [];
-		this._toDispose.push(DomUtils.addStandardDisposableListener(this._domNode, 'click', (e) => {
-			this._invokeOnTrigger();
+		this.onclick(this._domNode, (e) => {
+			this._opts.onTrigger();
 			e.preventDefault();
-		}));
-		this._toDispose.push(DomUtils.addStandardDisposableListener(this._domNode, 'keydown', (e) => {
+		});
+		this.onkeydown(this._domNode, (e) => {
 			if (e.equals(CommonKeybindings.SPACE) || e.equals(CommonKeybindings.ENTER)) {
-				this._invokeOnTrigger();
+				this._opts.onTrigger();
 				e.preventDefault();
 				return;
 			}
-			this._invokeOnKeyDown(e);
-		}));
-	}
-
-	public dispose(): void {
-		this._toDispose = Lifecycle.disposeAll(this._toDispose);
+			this._opts.onKeyDown(e);
+		});
 	}
 
 	public get domNode(): HTMLElement {
 		return this._domNode;
+	}
+
+	public isEnabled(): boolean {
+		return (this._domNode.tabIndex >= 0);
 	}
 
 	public focus(): void {
@@ -668,27 +687,5 @@ class SimpleButton implements Lifecycle.IDisposable {
 
 	public toggleClass(className:string, shouldHaveIt:boolean): void {
 		DomUtils.toggleClass(this._domNode, className, shouldHaveIt);
-	}
-
-	public onTrigger(onTrigger:()=>void): SimpleButton {
-		this._onTrigger = onTrigger;
-		return this;
-	}
-
-	public onKeyDown(onKeyDown:(e:DomUtils.IKeyboardEvent)=>void): SimpleButton {
-		this._onKeyDown = onKeyDown;
-		return this;
-	}
-
-	private _invokeOnTrigger(): void {
-		if (this._onTrigger) {
-			this._onTrigger();
-		}
-	}
-
-	private _invokeOnKeyDown(e:DomUtils.IKeyboardEvent): void {
-		if (this._onKeyDown) {
-			this._onKeyDown(e);
-		}
 	}
 }

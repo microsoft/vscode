@@ -21,7 +21,7 @@ import {Promise, TPromise} from 'vs/base/common/winjs.base';
 import types = require('vs/base/common/types');
 import objects = require('vs/base/common/objects');
 import extfs = require('vs/base/node/extfs');
-import { nfcall, Limiter, ThrottledDelayer } from 'vs/base/common/async';
+import {nfcall, Limiter, ThrottledDelayer} from 'vs/base/common/async';
 import uri from 'vs/base/common/uri';
 import nls = require('vs/nls');
 
@@ -70,7 +70,7 @@ export class FileService implements files.IFileService {
 	public serviceId = files.IFileService;
 
 	private static FS_EVENT_DELAY = 50; // aggregate and only emit events when changes have stopped for this duration (in ms)
-	private static MAX_FILE_SIZE = 100 * 1024 * 1024;  // do not try to load larger files than that
+	private static MAX_FILE_SIZE = 50 * 1024 * 1024;  // do not try to load larger files than that
 	private static MAX_DEGREE_OF_PARALLEL_FS_OPS = 10; // degree of parallel fs calls that we accept at the same time
 
 	private basePath: string;
@@ -82,7 +82,7 @@ export class FileService implements files.IFileService {
 	private workspaceWatcherToDispose: () => void;
 
 	private activeFileChangesWatchers: { [resource: string]: fs.FSWatcher; };
-	private fileChangesWatchDelayer: ThrottledDelayer;
+	private fileChangesWatchDelayer: ThrottledDelayer<void>;
 	private undeliveredRawFileChangesEvents: IRawFileChange[];
 
 	constructor(basePath: string, eventEmitter: IEventService, options: IFileServiceOptions) {
@@ -117,7 +117,7 @@ export class FileService implements files.IFileService {
 		}
 
 		this.activeFileChangesWatchers = Object.create(null);
-		this.fileChangesWatchDelayer = new ThrottledDelayer(FileService.FS_EVENT_DELAY);
+		this.fileChangesWatchDelayer = new ThrottledDelayer<void>(FileService.FS_EVENT_DELAY);
 		this.undeliveredRawFileChangesEvents = [];
 	}
 
@@ -212,7 +212,7 @@ export class FileService implements files.IFileService {
 		});
 	}
 
-	public updateContent(resource:uri, value:string, options:files.IUpdateContentOptions = Object.create(null)): TPromise<files.IFileStat> {
+	public updateContent(resource: uri, value: string, options: files.IUpdateContentOptions = Object.create(null)): TPromise<files.IFileStat> {
 		let absolutePath = this.toAbsolutePath(resource);
 
 		// 1.) check file
@@ -359,7 +359,7 @@ export class FileService implements files.IFileService {
 			return this.doMoveOrCopyFile(sourcePath, targetPath, true, true).then((exists) => {
 
 				// 3.) resolve
-				return this.resolve(targetResource).then((stat) => <files.IImportResult> { isNew: !exists, stat: stat });
+				return this.resolve(targetResource).then((stat) => <files.IImportResult>{ isNew: !exists, stat: stat });
 			});
 		});
 	}
@@ -372,7 +372,7 @@ export class FileService implements files.IFileService {
 
 	// Helpers
 
-	private toAbsolutePath(arg1: uri|files.IFileStat): string {
+	private toAbsolutePath(arg1: uri | files.IFileStat): string {
 		let resource: uri;
 		if (uri.isURI(arg1)) {
 			resource = <uri>arg1;
@@ -419,15 +419,34 @@ export class FileService implements files.IFileService {
 			}
 
 			// 2.) read contents
-			return pfs.readFile(absolutePath).then((contents: NodeBuffer) => {
+			return new Promise((c, e) => {
+				let done = false;
+				let chunks: NodeBuffer[] = [];
 				let fileEncoding = this.getEncoding(model.resource, enc);
 
-				// Handle encoding
-				let content: files.IContent = <any>model;
-				content.value = iconv.decode(contents, fileEncoding); // decode takes care of stripping any BOMs from the file content
-				content.charset = fileEncoding; // make sure to store the charset in the model to restore it later when writing
+				const reader = fs.createReadStream(absolutePath).pipe(iconv.decodeStream(fileEncoding)); // decode takes care of stripping any BOMs from the file content
 
-				return content;
+				reader.on('data', (buf) => {
+					chunks.push(buf);
+				});
+
+				reader.on('error', (error) => {
+					if (!done) {
+						done = true;
+						e(error);
+					}
+				});
+
+				reader.on('end', () => {
+					let content: files.IContent = <any>model;
+					content.value = chunks.join('');
+					content.charset = fileEncoding; // make sure to store the charset in the model to restore it later when writing
+
+					if (!done) {
+						done = true;
+						c(content);
+					}
+				});
 			});
 		});
 	}
@@ -467,7 +486,7 @@ export class FileService implements files.IFileService {
 		return null;
 	}
 
-	private checkFile(absolutePath: string, options:files.IUpdateContentOptions): TPromise<boolean /* exists */> {
+	private checkFile(absolutePath: string, options: files.IUpdateContentOptions): TPromise<boolean /* exists */> {
 		return pfs.exists(absolutePath).then((exists) => {
 			if (exists) {
 				return pfs.stat(absolutePath).then((stat: fs.Stats) => {
@@ -540,7 +559,7 @@ export class FileService implements files.IFileService {
 					path: fsPath
 				});
 
-				// handle emit through delayer to accomodate for bulk changes
+				// handle emit through delayer to accommodate for bulk changes
 				this.fileChangesWatchDelayer.trigger(() => {
 					let buffer = this.undeliveredRawFileChangesEvents;
 					this.undeliveredRawFileChangesEvents = [];
@@ -636,9 +655,10 @@ export class StatResolver {
 			}
 
 			return new TPromise((c, e) => {
+
 				// Load children
 				this.resolveChildren(this.resource.fsPath, absoluteTargetPaths, options && options.resolveSingleChildDescendants, (children) => {
-					children = arrays.coalesce(children); // we dont want those null childs (could be permission denied when reading a child)
+					children = arrays.coalesce(children); // we don't want those null children (could be permission denied when reading a child)
 					fileStat.hasChildren = children && children.length > 0;
 					fileStat.children = children || [];
 
@@ -677,7 +697,7 @@ export class StatResolver {
 						fileStat = fsstat;
 
 						if (fileStat.isDirectory()) {
-							fs.readdir(fileResource.fsPath, (error, result) => {
+							extfs.readdir(fileResource.fsPath, (error, result) => {
 								this(null, result ? result.length : 0);
 							});
 						} else {
@@ -706,14 +726,14 @@ export class StatResolver {
 						let resolveFolderChildren = false;
 						if (files.length === 1 && resolveSingleChildDescendants) {
 							resolveFolderChildren = true;
-						} else if (childCount > 0 && absoluteTargetPaths && absoluteTargetPaths.some((targetPath) => targetPath.indexOf(fileResource.fsPath) === 0)) {
+						} else if (childCount > 0 && absoluteTargetPaths && absoluteTargetPaths.some((targetPath) => basePaths.isEqualOrParent(targetPath, fileResource.fsPath))) {
 							resolveFolderChildren = true;
 						}
 
 						// Continue resolving children based on condition
 						if (resolveFolderChildren) {
 							$this.resolveChildren(fileResource.fsPath, absoluteTargetPaths, resolveSingleChildDescendants, (children) => {
-								children = arrays.coalesce(children);  // we dont want those null childs
+								children = arrays.coalesce(children);  // we don't want those null children
 								childStat.hasChildren = children && children.length > 0;
 								childStat.children = children || [];
 

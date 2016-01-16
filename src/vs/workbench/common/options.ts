@@ -29,18 +29,12 @@ export interface IOptions {
 	/**
 	 * Instructs the workbench to install the extensions from the provided local paths.
 	 */
-	extensionsToInstall?: string[]
+	extensionsToInstall?: string[];
 
 	/**
 	 * A boolean flag indicating if the workbench is in file mode where some UI gets hidden. Does not override an existing setting by the user.
 	 */
 	singleFileMode?: boolean;
-
-	/**
-	 * A number indicating the auto save delay in ms. A time of -1 indicates that
-	 * auto save indicates that auto save is turned off completly.
-	 */
-	autoSaveDelay?: number;
 
 	/**
 	 * A flag turning the workbench into readonly mode preventing file modifications.
