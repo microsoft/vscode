@@ -121,7 +121,7 @@ function cursorEqual(cursor: Cursor.Cursor, posLineNumber: number, posColumn: nu
 suite('Editor Controller - Cursor', () => {
 	var LINE1 = '    \tMy First Line\t ';
 	var LINE2 = '\tMy Second Line';
-	var LINE3 = '    Third Line';
+	var LINE3 = '    Third Line💩';
 	var LINE4 = '';
 	var LINE5 = '1';
 
@@ -215,6 +215,13 @@ suite('Editor Controller - Cursor', () => {
 		cursorEqual(thisCursor, 1, 2);
 	});
 
+	test('move left with surrogate pair', () => {
+		moveTo(thisCursor, 3, 17);
+		cursorEqual(thisCursor, 3, 17);
+		moveLeft(thisCursor);
+		cursorEqual(thisCursor, 3, 15);
+	});
+
 	test('move left goes to previous row', () => {
 		moveTo(thisCursor, 2, 1);
 		cursorEqual(thisCursor, 2, 1);
@@ -283,6 +290,13 @@ suite('Editor Controller - Cursor', () => {
 		cursorEqual(thisCursor, 1, 4);
 	});
 
+	test('move right with surrogate pair', () => {
+		moveTo(thisCursor, 3, 15);
+		cursorEqual(thisCursor, 3, 15);
+		moveRight(thisCursor);
+		cursorEqual(thisCursor, 3, 17);
+	});
+
 	test('move right goes to next row', () => {
 		moveTo(thisCursor, 1, 21);
 		cursorEqual(thisCursor, 1, 21);
@@ -310,7 +324,7 @@ suite('Editor Controller - Cursor', () => {
 			[2, 11],
 			[2, 16],
 			[3, 10],
-			[3, 15],
+			[3, 17],
 			[4, 1],
 			[5, 2],
 			[5, 2],
@@ -573,7 +587,7 @@ suite('Editor Controller - Cursor', () => {
 		moveRight(thisCursor, true);
 		moveRight(thisCursor, true);
 		deleteWordLeft(thisCursor);
-		assert.equal(thisModel.getLineContent(3), '    Thd Line');
+		assert.equal(thisModel.getLineContent(3), '    Thd Line💩');
 		cursorEqual(thisCursor, 3, 7);
 	});
 
@@ -587,7 +601,7 @@ suite('Editor Controller - Cursor', () => {
 	test('delete word left for caret at end of whitespace', () => {
 		moveTo(thisCursor, 3, 11);
 		deleteWordLeft(thisCursor);
-		assert.equal(thisModel.getLineContent(3), '    ThirdLine');
+		assert.equal(thisModel.getLineContent(3), '    ThirdLine💩');
 		cursorEqual(thisCursor, 3, 10);
 	});
 
@@ -610,7 +624,7 @@ suite('Editor Controller - Cursor', () => {
 		moveRight(thisCursor, true);
 		moveRight(thisCursor, true);
 		deleteWordRight(thisCursor);
-		assert.equal(thisModel.getLineContent(3), '    Thd Line');
+		assert.equal(thisModel.getLineContent(3), '    Thd Line💩');
 		cursorEqual(thisCursor, 3, 7);
 	});
 
@@ -624,7 +638,7 @@ suite('Editor Controller - Cursor', () => {
 	test('delete word right for caret at beggining of whitespace', () => {
 		moveTo(thisCursor, 3, 1);
 		deleteWordRight(thisCursor);
-		assert.equal(thisModel.getLineContent(3), 'Third Line');
+		assert.equal(thisModel.getLineContent(3), 'Third Line💩');
 		cursorEqual(thisCursor, 3, 1);
 	});
 
