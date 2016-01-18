@@ -7,6 +7,7 @@ var gulp = require('gulp');
 var filter = require('gulp-filter');
 var es = require('event-stream');
 var path = require('path');
+var tslint = require('gulp-tslint');
 
 var all = [
 	'*',
@@ -55,7 +56,7 @@ var indentationFilter = [
 	'!extensions/**/themes/**',
 ];
 
-var copyrightFilterList = [
+var copyrightFilter = [
 	'**',
 	'!**/*.json',
 	'!**/*.html',
@@ -69,12 +70,43 @@ var copyrightFilterList = [
 	'!src/vs/editor/standalone-languages/swift.ts',
 ];
 
+var tslintFilter = [
+	'src/**/*.ts',
+	'extensions/**/*.ts',
+	'!**/*.d.ts',
+	'!**/typings/**',
+	'!**/*.test.ts',
+	'!src/vs/editor/standalone-languages/test/**'
+];
+
 var copyrightHeader = [
 	'/*---------------------------------------------------------------------------------------------',
 	' *  Copyright (c) Microsoft Corporation. All rights reserved.',
 	' *  Licensed under the MIT License. See License.txt in the project root for license information.',
 	' *--------------------------------------------------------------------------------------------*/'
 ].join('\n');
+
+/**
+ * Reports tslint erros in the format:
+ * src/helloWorld.c:5:3: warning: implicit declaration of function ‘prinft’
+ */
+var lintReporter = function (output, file, options) {
+	var relativeBase = file.base.substring(file.cwd.length + 1).replace('\\', '/');
+	output.forEach(function (e) {
+		var message = relativeBase + e.name + ':' + (e.startPosition.line + 1) + ':' + (e.startPosition.character + 1) + ': ' + e.failure;
+		console.log('[tslint] ' + message);
+	});
+};
+
+gulp.task('tslint', function () {
+	return gulp.src(all, { base: '.' })
+		.pipe(filter(tslintFilter))
+		.pipe(tslint({ rulesDirectory: 'node_modules/tslint-microsoft-contrib' }))
+		.pipe(tslint.report(lintReporter, {
+			summarizeFailureOutput: false,
+			emitError: false
+		}));
+});
 
 var hygiene = exports.hygiene = function (some) {
 	var errorCount = 0;
@@ -92,7 +124,7 @@ var hygiene = exports.hygiene = function (some) {
 		file.contents
 			.toString('utf8')
 			.split(/\r\n|\r|\n/)
-			.forEach(function(line, i) {
+			.forEach(function (line, i) {
 				if (/^\s*$/.test(line)) {
 					// empty or whitespace lines are OK
 				} else if (/^[\t]*[^\s]/.test(line)) {
@@ -123,7 +155,7 @@ var hygiene = exports.hygiene = function (some) {
 		.pipe(eol)
 		.pipe(filter(indentationFilter))
 		.pipe(indentation)
-		.pipe(filter(copyrightFilterList))
+		.pipe(filter(copyrightFilter))
 		.pipe(copyrights)
 		.pipe(es.through(null, function () {
 			if (errorCount > 0) {

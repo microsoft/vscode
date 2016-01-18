@@ -26,6 +26,25 @@
 			}
 		},
 		{
+			"taskName": "tslint",
+			"args": [],
+			"problemMatcher": {
+				"owner": "tslint",
+				"fileLocation": [
+					"relative",
+					"${workspaceRoot}"
+				],
+				"severity": "warning",
+				"pattern": {
+					"regexp": "^\\[tslint\\] (.*):(\\d+):(\\d+):\\s+(.*)$",
+					"file": 1,
+					"line": 2,
+					"column": 3,
+					"message": 4
+				}
+			}
+		},
+		{
 			"taskName": "test",
 			"args": [
 				"--no-color"
