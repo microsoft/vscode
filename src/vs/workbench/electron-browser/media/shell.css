@@ -50,16 +50,18 @@
 .monaco-shell a[tabindex="0"]:focus,
 .monaco-shell div[tabindex="0"]:focus,
 .monaco-shell select:focus,
+.monaco-shell input[type="button"]:focus,
 .monaco-shell iframe[tabindex="0"]:focus {
 	outline: 2px auto -webkit-focus-ring-color;
 	outline-offset: -2px;
 	opacity: 1 !important; /* prevent components from dimming focus feedback */
 }
 
-.monaco-shell a[tabindex="0"]:active, a[tabindex="0"]:hover,
-.monaco-shell div[tabindex="0"]:active, div[tabindex="0"]:hover,
-.monaco-shell select:active, select:hover,
-.monaco-shell iframe[tabindex="0"]:active, iframe[tabindex="0"]:hover {
+.monaco-shell a[tabindex="0"]:active, .monaco-shell a[tabindex="0"]:hover,
+.monaco-shell div[tabindex="0"]:active, .monaco-shell div[tabindex="0"]:hover,
+.monaco-shell select:active, .monaco-shell select:hover,
+.monaco-shell input[type="button"]:active, .monaco-shell input[type="button"]:hover,
+.monaco-shell iframe[tabindex="0"]:active, .monaco-shell iframe[tabindex="0"]:hover {
 	outline: 0;
 	opacity: inherit;
 }
