@@ -5,7 +5,6 @@
 'use strict';
 
 import EditorCommon = require('vs/editor/common/editorCommon');
-import DomUtils = require('vs/base/browser/dom');
 import Platform = require('vs/base/common/platform');
 import Browser = require('vs/base/browser/browser');
 import EditorBrowser = require('vs/editor/browser/editorBrowser');
@@ -26,8 +25,8 @@ enum ReadFromTextArea {
 export interface ITextEditor {
 	getModel(): ISimpleModel;
 
-	emitKeyDown(e:DomUtils.IKeyboardEvent): void;
-	emitKeyUp(e:DomUtils.IKeyboardEvent): void;
+	emitKeyDown(e:IKeyboardEventWrapper): void;
+	emitKeyUp(e:IKeyboardEventWrapper): void;
 	paste(source:string, txt:string, pasteOnNewLine:boolean): void;
 	type(source:string, txt:string): void;
 	replacePreviousChar(source:string, txt:string): void;
@@ -352,13 +351,12 @@ export class TextAreaHandler implements Lifecycle.IDisposable {
 	}
 
 	private _onKeyDown(e:IKeyboardEventWrapper): void {
-		let actual = <DomUtils.IKeyboardEvent>e.actual;
-		if (actual.equals(CommonKeybindings.ESCAPE)) {
+		if (e.equals(CommonKeybindings.ESCAPE)) {
 			// Prevent default always for `Esc`, otherwise it will generate a keypress
 			// See http://msdn.microsoft.com/en-us/library/ie/ms536939(v=vs.85).aspx
-			actual.preventDefault();
+			e.preventDefault();
 		}
-		this.editor.emitKeyDown(actual);
+		this.editor.emitKeyDown(e);
 		// Work around for issue spotted in electron on the mac
 		// TODO@alex: check if this issue exists after updating electron
 		// Steps:
@@ -373,7 +371,7 @@ export class TextAreaHandler implements Lifecycle.IDisposable {
 		//  => focus moves out while keydown is not finished
 		setTimeout(() => {
 			// cancel reading if previous keydown was canceled, but a keypress/input were still generated
-			if (actual.browserEvent && actual.browserEvent.defaultPrevented) {
+			if (e.isDefaultPrevented()) {
 				// this._scheduleReadFromTextArea
 				this.asyncReadFromTextArea.cancel();
 				this.asyncSetSelectionToTextArea.schedule();
@@ -382,7 +380,7 @@ export class TextAreaHandler implements Lifecycle.IDisposable {
 	}
 
 	private _onKeyUp(e:IKeyboardEventWrapper): void {
-		this.editor.emitKeyUp(<DomUtils.IKeyboardEvent>e.actual);
+		this.editor.emitKeyUp(e);
 	}
 
 	private _onKeyPress(): void {

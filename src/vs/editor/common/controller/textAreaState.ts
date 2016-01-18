@@ -22,7 +22,10 @@ export interface IClipboardEvent {
 }
 
 export interface IKeyboardEventWrapper {
-	actual: any;
+	_actual: any;
+	equals(keybinding:number): boolean;
+	preventDefault(): void;
+	isDefaultPrevented(): boolean;
 }
 
 export interface ITextAreaWrapper {

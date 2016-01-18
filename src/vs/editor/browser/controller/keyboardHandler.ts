@@ -73,12 +73,26 @@ class ClipboardEventWrapper implements IClipboardEvent {
 
 class KeyboardEventWrapper implements IKeyboardEventWrapper {
 
-	public actual: DomUtils.IKeyboardEvent;
+	public _actual: DomUtils.IKeyboardEvent;
 
 	constructor(actual:DomUtils.IKeyboardEvent) {
-		this.actual = actual;
+		this._actual = actual;
 	}
 
+	public equals(keybinding:number): boolean {
+		return this._actual.equals(keybinding);
+	}
+
+	public preventDefault(): void {
+		this._actual.preventDefault();
+	}
+
+	public isDefaultPrevented(): boolean {
+		if (this._actual.browserEvent) {
+			return this._actual.browserEvent.defaultPrevented;
+		}
+		return false;
+	}
 }
 
 class TextAreaWrapper extends Lifecycle.Disposable implements ITextAreaWrapper {
@@ -201,8 +215,8 @@ export class KeyboardHandler extends ViewEventHandler implements Lifecycle.IDisp
 
 		this.textAreaHandler = new TextAreaHandler(this.textArea, {
 			getModel: (): ISimpleModel => this.context.model,
-			emitKeyDown: (e:DomUtils.IKeyboardEvent): void => this.viewController.emitKeyDown(e),
-			emitKeyUp: (e:DomUtils.IKeyboardEvent): void => this.viewController.emitKeyUp(e),
+			emitKeyDown: (e:IKeyboardEventWrapper): void => this.viewController.emitKeyDown(<DomUtils.IKeyboardEvent>e._actual),
+			emitKeyUp: (e:IKeyboardEventWrapper): void => this.viewController.emitKeyUp(<DomUtils.IKeyboardEvent>e._actual),
 			paste: (source:string, txt:string, pasteOnNewLine:boolean): void => this.viewController.paste(source, txt, pasteOnNewLine),
 			type: (source:string, txt:string): void => this.viewController.type(source, txt),
 			replacePreviousChar: (source:string, txt:string): void => this.viewController.replacePreviousChar(source, txt),
