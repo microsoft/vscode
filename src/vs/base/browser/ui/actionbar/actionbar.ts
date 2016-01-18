@@ -662,9 +662,8 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 	}
 
 	private doTrigger(event): void {
-		//nothing to focus
 		if (typeof this.focusedItem === 'undefined') {
-			return;
+			return; //nothing to focus
 		}
 
 		// trigger action
