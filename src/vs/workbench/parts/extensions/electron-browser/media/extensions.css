@@ -29,13 +29,16 @@
 }
 
 .quick-open-widget .extension .installs {
-	font-family: Menlo, Monaco, Consolas, "Droid Sans Mono", "Courier New", monospace, "Droid Sans Fallback";
+	margin-left: 6px;
+	padding: 1px 3px;
+	border-radius: 3px;
+	background-color: rgba(132, 132, 132, 0.3);
 	font-size: smaller;
+	opacity: 0.7;
 }
 
-.quick-open-widget .extension .installs {
-	padding-left: 6px;
-	opacity: 0.7;
+.quick-open-widget .extension .installs:before {
+	margin-right: 2px;
 }
 
 .quick-open-widget .extension .published {

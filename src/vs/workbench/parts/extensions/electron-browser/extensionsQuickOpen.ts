@@ -79,9 +79,6 @@ function extensionEquals(one: IExtension, other: IExtension): boolean {
 	return one.publisher === other.publisher && one.name === other.name;
 }
 
-/**
- * Compare by Install count descending.
- */
 function extensionEntryCompare(one: IExtensionEntry, other: IExtensionEntry): number {
 	return other.extension.installs - one.extension.installs;
 }
@@ -178,7 +175,7 @@ class Renderer implements IRenderer<IExtensionEntry> {
 		const secondRow = dom.append(root, $('.row'));
 		const published = dom.append(firstRow, $('.published'));
 		const displayName = new HighlightedLabel(dom.append(firstRow, $('span.name')));
-		const installs = dom.append(firstRow, $('span.installs'));
+		const installs = dom.append(firstRow, $('span.installs.octicon.octicon-cloud-download'));
 		const version = dom.append(published, $('span.version'));
 		const author = dom.append(published, $('span.author'));
 
@@ -198,7 +195,6 @@ class Renderer implements IRenderer<IExtensionEntry> {
 		const extension = entry.extension;
 		const date = extension.galleryInformation ? extension.galleryInformation.date : null;
 		const publisher = extension.galleryInformation ? extension.galleryInformation.publisherDisplayName : extension.publisher;
-		const installs = extension.installs;
 		const actionOptions = { icon: true, label: false };
 
 		const updateActions = () => {
@@ -241,7 +237,16 @@ class Renderer implements IRenderer<IExtensionEntry> {
 		data.displayName.set(extension.displayName, entry.highlights.displayName);
 		data.displayName.element.title = extension.name;
 		data.version.textContent = extension.version;
-		data.installs.textContent = String(installs);
+		data.installs.textContent = String(extension.installs);
+
+		if (!extension.installs) {
+			data.installs.title = nls.localize('installCountZero', "{0} wasn't downloaded yet.", extension.displayName);
+		} else if (extension.installs === 1) {
+			data.installs.title = nls.localize('installCountOne', "{0} was downloaded once.", extension.displayName);
+		} else {
+			data.installs.title = nls.localize('installCountMultiple', "{0} was downloaded {1} times.", extension.displayName, extension.installs);
+		}
+
 		data.author.textContent = publisher;
 		data.description.set(extension.description, entry.highlights.description);
 		data.description.element.title = extension.description;
