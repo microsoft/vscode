@@ -397,7 +397,9 @@ export class ActionBar extends EventEmitter implements actions.IActionRunner {
 
 	// Items
 	public items: IActionItem[];
+
 	private focusedItem: number;
+	private focusTracker: DOM.IFocusTracker;
 
 	// Elements
 	public domNode: HTMLElement;
@@ -428,7 +430,6 @@ export class ActionBar extends EventEmitter implements actions.IActionRunner {
 		this.domNode.className = 'monaco-action-bar';
 
 		var isVertical = this.options.orientation === ActionsOrientation.VERTICAL;
-
 		if (isVertical) {
 			this.domNode.className += ' vertical';
 		}
@@ -443,7 +444,7 @@ export class ActionBar extends EventEmitter implements actions.IActionRunner {
 				this.focusNext();
 			} else if (event.equals(CommonKeybindings.ESCAPE)) {
 				this.cancel();
-			} else if (event.equals(CommonKeybindings.ENTER)) {
+			} else if (event.equals(CommonKeybindings.ENTER) || event.equals(CommonKeybindings.SPACE)) {
 				// Nothing, just staying out of the else branch
 			} else {
 				eventHandled = false;
@@ -464,17 +465,28 @@ export class ActionBar extends EventEmitter implements actions.IActionRunner {
 		$(this.domNode).on(DOM.EventType.KEY_UP, (e: KeyboardEvent) => {
 			var event = new StandardKeyboardEvent(e);
 
-			if (event.equals(CommonKeybindings.ENTER)) {
+			if (event.equals(CommonKeybindings.ENTER) || event.equals(CommonKeybindings.SPACE)) {
 				this.doTrigger(event);
 				event.preventDefault();
 				event.stopPropagation();
 			}
 		});
 
-		var focusTracker = DOM.trackFocus(this.domNode);
-		focusTracker.addBlurListener((e: Event) => {
+		this.focusTracker = DOM.trackFocus(this.domNode);
+		this.focusTracker.addBlurListener((e: Event) => {
 			if (document.activeElement === this.domNode || !DOM.isAncestor(document.activeElement, this.domNode)) {
 				this.emit('blur', e);
+				this.focusedItem = undefined;
+			}
+		});
+
+		this.focusTracker.addFocusListener((e: Event) => {
+			for (var i = 0; i < this.actionsList.children.length; i++) {
+				var elem = this.actionsList.children[i];
+				if (DOM.isAncestor(document.activeElement, elem)) {
+					this.focusedItem = i;
+					break;
+				}
 			}
 		});
 
@@ -671,6 +683,11 @@ export class ActionBar extends EventEmitter implements actions.IActionRunner {
 			this.clear();
 		}
 		this.items = null;
+
+		if (this.focusTracker) {
+			this.focusTracker.dispose();
+			this.focusTracker = null;
+		}
 
 		this.toDispose = lifecycle.disposeAll(this.toDispose);
 

@@ -118,6 +118,7 @@ export class ActivitybarPart extends Part implements IActivityService {
 		// Viewlet switcher is on top
 		this.viewletSwitcherBar = new ActionBar(div, {
 			actionItemProvider: (action: Action) => this.activityActionItems[action.id],
+			orientation: ActionsOrientation.VERTICAL
 		});
 		this.viewletSwitcherBar.getContainer().addClass('position-top');
 
