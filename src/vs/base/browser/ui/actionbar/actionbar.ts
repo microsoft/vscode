@@ -224,7 +224,7 @@ export class ActionItem extends BaseActionItem {
 	public render(container: HTMLElement): void {
 		super.render(container);
 
-		this.$e = $('a.action-label').attr('tabIndex', '0').appendTo(this.builder);
+		this.$e = $('a.action-label').appendTo(this.builder);
 		this.$e.attr({ role: 'menuitem' });
 
 		if (this.options.label && this.options.keybinding) {
@@ -288,9 +288,11 @@ export class ActionItem extends BaseActionItem {
 		if (this.getAction().enabled) {
 			this.builder.removeClass('disabled');
 			this.$e.removeClass('disabled');
+			this.$e.attr({ tabindex: 0 });
 		} else {
 			this.builder.addClass('disabled');
 			this.$e.addClass('disabled');
+			this.$e.removeAttribute('tabindex');
 		}
 	}
 
