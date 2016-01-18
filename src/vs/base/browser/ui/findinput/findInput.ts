@@ -61,6 +61,9 @@ export class FindInput extends Widget {
 	private _onKeyDown = this._register(new Emitter<StandardKeyboardEvent>());
 	public onKeyDown: Event<StandardKeyboardEvent> = this._onKeyDown.event;
 
+	private _onInput = this._register(new Emitter<void>());
+	public onInput: Event<void> = this._onInput.event;
+
 	private _onKeyUp = this._register(new Emitter<StandardKeyboardEvent>());
 	public onKeyUp: Event<StandardKeyboardEvent> = this._onKeyUp.event;
 
@@ -89,6 +92,7 @@ export class FindInput extends Widget {
 
 		this.onkeydown(this.inputBox.inputElement, (e) => this._onKeyDown.fire(e));
 		this.onkeyup(this.inputBox.inputElement, (e) => this._onKeyUp.fire(e));
+		this.oninput(this.inputBox.inputElement, (e) => this._onInput.fire());
 	}
 
 	public enable(): void {
