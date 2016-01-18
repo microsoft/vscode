@@ -11,7 +11,7 @@ import nls = require('vs/nls');
 import lifecycle = require('vs/base/common/lifecycle');
 import {Promise} from 'vs/base/common/winjs.base';
 import {Builder, $} from 'vs/base/browser/builder';
-import actions = require('vs/base/common/actions');
+import {IAction, IActionRunner, Action, ActionRunner} from 'vs/base/common/actions';
 import DOM = require('vs/base/browser/dom');
 import {EventType as CommonEventType} from 'vs/base/common/events';
 import types = require('vs/base/common/types');
@@ -21,7 +21,7 @@ import {StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {CommonKeybindings} from 'vs/base/common/keyCodes';
 
 export interface IActionItem extends IEventEmitter {
-	actionRunner: actions.IActionRunner;
+	actionRunner: IActionRunner;
 	setActionContext(context: any): void;
 	render(element: HTMLElement): void;
 	isEnabled(): boolean;
@@ -33,21 +33,22 @@ export interface IActionItem extends IEventEmitter {
 export class BaseActionItem extends EventEmitter implements IActionItem {
 
 	public builder: Builder;
-	private gesture: Gesture;
-	private _actionRunner: actions.IActionRunner;
 	public _callOnDispose: Function[];
 	public _context: any;
-	public _action: actions.IAction;
+	public _action: IAction;
 
-	constructor(context: any, action: actions.IAction) {
+	private gesture: Gesture;
+	private _actionRunner: IActionRunner;
+
+	constructor(context: any, action: IAction) {
 		super();
 
 		this._callOnDispose = [];
 		this._context = context || this;
 		this._action = action;
 
-		if (action instanceof actions.Action) {
-			var l = (<actions.Action>action).addBulkListener((events: IEmitterEvent[]) => {
+		if (action instanceof Action) {
+			let l = (<Action>action).addBulkListener((events: IEmitterEvent[]) => {
 
 				if (!this.builder) {
 					// we have not been rendered yet, so there
@@ -58,20 +59,20 @@ export class BaseActionItem extends EventEmitter implements IActionItem {
 				events.forEach((event: IEmitterEvent) => {
 
 					switch (event.getType()) {
-						case actions.Action.ENABLED:
+						case Action.ENABLED:
 							this._updateEnabled();
 							break;
-						case actions.Action.LABEL:
+						case Action.LABEL:
 							this._updateLabel();
 							this._updateTooltip();
 							break;
-						case actions.Action.TOOLTIP:
+						case Action.TOOLTIP:
 							this._updateTooltip();
 							break;
-						case actions.Action.CLASS:
+						case Action.CLASS:
 							this._updateClass();
 							break;
-						case actions.Action.CHECKED:
+						case Action.CHECKED:
 							this._updateChecked();
 							break;
 						default:
@@ -88,15 +89,15 @@ export class BaseActionItem extends EventEmitter implements IActionItem {
 		return this._callOnDispose;
 	}
 
-	public set actionRunner(actionRunner: actions.IActionRunner) {
+	public set actionRunner(actionRunner: IActionRunner) {
 		this._actionRunner = actionRunner;
 	}
 
-	public get actionRunner(): actions.IActionRunner {
+	public get actionRunner(): IActionRunner {
 		return this._actionRunner;
 	}
 
-	public getAction(): actions.IAction {
+	public getAction(): IAction {
 		return this._action;
 	}
 
@@ -187,8 +188,7 @@ export class BaseActionItem extends EventEmitter implements IActionItem {
 	}
 }
 
-export class Separator extends actions.Action {
-
+export class Separator extends Action {
 
 	public static ID = 'actions.monaco.separator';
 
@@ -212,7 +212,7 @@ export class ActionItem extends BaseActionItem {
 	private cssClass: string;
 	private options: IActionItemOptions;
 
-	constructor(context: any, action: actions.IAction, options: IActionItemOptions = {}) {
+	constructor(context: any, action: IAction, options: IActionItemOptions = {}) {
 		super(context, action);
 
 		this.options = options;
@@ -250,7 +250,7 @@ export class ActionItem extends BaseActionItem {
 	}
 
 	public _updateTooltip(): void {
-		var title: string = null;
+		let title: string = null;
 
 		if (this.getAction().tooltip) {
 			title = this.getAction().tooltip;
@@ -307,24 +307,24 @@ export class ProgressItem extends BaseActionItem {
 
 	public render(parent: HTMLElement): void {
 
-		var container = document.createElement('div');
+		let container = document.createElement('div');
 		$(container).addClass('progress-item');
 
-		var label = document.createElement('div');
+		let label = document.createElement('div');
 		$(label).addClass('label');
 		label.textContent = this.getAction().label;
 		label.title = this.getAction().label;
 		super.render(label);
 
-		var progress = document.createElement('div');
+		let progress = document.createElement('div');
 		progress.textContent = '\u2026';
 		$(progress).addClass('tag', 'progress');
 
-		var done = document.createElement('div');
+		let done = document.createElement('div');
 		done.textContent = '\u2713';
 		$(done).addClass('tag', 'done');
 
-		var error = document.createElement('div');
+		let error = document.createElement('div');
 		error.textContent = '!';
 		$(error).addClass('tag', 'error');
 
@@ -364,17 +364,17 @@ export enum ActionsOrientation {
 }
 
 export interface IActionItemProvider {
-	(action: actions.IAction): IActionItem;
+	(action: IAction): IActionItem;
 }
 
 export interface IActionBarOptions {
 	orientation?: ActionsOrientation;
 	context?: any;
 	actionItemProvider?: IActionItemProvider;
-	actionRunner?: actions.IActionRunner;
+	actionRunner?: IActionRunner;
 }
 
-var defaultOptions: IActionBarOptions = {
+let defaultOptions: IActionBarOptions = {
 	orientation: ActionsOrientation.HORIZONTAL,
 	context: null
 };
@@ -383,7 +383,7 @@ export interface IActionOptions extends IActionItemOptions {
 	index?: number;
 }
 
-export class ActionBar extends EventEmitter implements actions.IActionRunner {
+export class ActionBar extends EventEmitter implements IActionRunner {
 
 	private static nlsActionBarAccessibleLabel = nls.localize('actionBarAccessibleLabel', "Action Bar");
 
@@ -392,7 +392,7 @@ export class ActionBar extends EventEmitter implements actions.IActionRunner {
 	};
 
 	public options: IActionBarOptions;
-	private _actionRunner: actions.IActionRunner;
+	private _actionRunner: IActionRunner;
 	private _context: any;
 
 	// Items
@@ -417,7 +417,7 @@ export class ActionBar extends EventEmitter implements actions.IActionRunner {
 		this._actionRunner = this.options.actionRunner;
 
 		if (!this._actionRunner) {
-			this._actionRunner = new actions.ActionRunner();
+			this._actionRunner = new ActionRunner();
 			this.toDispose.push(this._actionRunner);
 		}
 
@@ -429,14 +429,14 @@ export class ActionBar extends EventEmitter implements actions.IActionRunner {
 		this.domNode = document.createElement('div');
 		this.domNode.className = 'monaco-action-bar';
 
-		var isVertical = this.options.orientation === ActionsOrientation.VERTICAL;
+		let isVertical = this.options.orientation === ActionsOrientation.VERTICAL;
 		if (isVertical) {
 			this.domNode.className += ' vertical';
 		}
 
 		$(this.domNode).on(DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
-			var event = new StandardKeyboardEvent(e);
-			var eventHandled = true;
+			let event = new StandardKeyboardEvent(e);
+			let eventHandled = true;
 
 			if (event.equals(isVertical ? CommonKeybindings.UP_ARROW : CommonKeybindings.LEFT_ARROW)) {
 				this.focusPrevious();
@@ -463,7 +463,7 @@ export class ActionBar extends EventEmitter implements actions.IActionRunner {
 		});
 
 		$(this.domNode).on(DOM.EventType.KEY_UP, (e: KeyboardEvent) => {
-			var event = new StandardKeyboardEvent(e);
+			let event = new StandardKeyboardEvent(e);
 
 			if (event.equals(CommonKeybindings.ENTER) || event.equals(CommonKeybindings.SPACE)) {
 				this.doTrigger(event);
@@ -481,8 +481,8 @@ export class ActionBar extends EventEmitter implements actions.IActionRunner {
 		});
 
 		this.focusTracker.addFocusListener((e: Event) => {
-			for (var i = 0; i < this.actionsList.children.length; i++) {
-				var elem = this.actionsList.children[i];
+			for (let i = 0; i < this.actionsList.children.length; i++) {
+				let elem = this.actionsList.children[i];
 				if (DOM.isAncestor(document.activeElement, elem)) {
 					this.focusedItem = i;
 					break;
@@ -509,11 +509,11 @@ export class ActionBar extends EventEmitter implements actions.IActionRunner {
 		this.items.forEach(i => i.setActionContext(context));
 	}
 
-	public get actionRunner(): actions.IActionRunner {
+	public get actionRunner(): IActionRunner {
 		return this._actionRunner;
 	}
 
-	public set actionRunner(actionRunner: actions.IActionRunner) {
+	public set actionRunner(actionRunner: IActionRunner) {
 		if (actionRunner) {
 			this._actionRunner = actionRunner;
 			this.items.forEach(item => item.actionRunner = actionRunner);
@@ -524,21 +524,21 @@ export class ActionBar extends EventEmitter implements actions.IActionRunner {
 		return $(this.domNode);
 	}
 
-	public push(actions: actions.IAction, options?: IActionOptions): void;
-	public push(actions: actions.IAction[], options?: IActionOptions): void;
+	public push(actions: IAction, options?: IActionOptions): void;
+	public push(actions: IAction[], options?: IActionOptions): void;
 	public push(actions: any, options: IActionOptions = {}): void {
 		if (!Array.isArray(actions)) {
 			actions = [actions];
 		}
 
-		var index = types.isNumber(options.index) ? options.index : null;
+		let index = types.isNumber(options.index) ? options.index : null;
 
-		actions.forEach((action: actions.IAction) => {
-			var actionItemElement = document.createElement('li');
+		actions.forEach((action: IAction) => {
+			let actionItemElement = document.createElement('li');
 			actionItemElement.className = 'action-item';
 			actionItemElement.setAttribute('role', 'presentation');
 
-			var item: IActionItem = null;
+			let item: IActionItem = null;
 
 			if (this.options.actionItemProvider) {
 				item = this.options.actionItemProvider(action);
@@ -564,7 +564,7 @@ export class ActionBar extends EventEmitter implements actions.IActionRunner {
 	}
 
 	public clear(): void {
-		var item: IActionItem;
+		let item: IActionItem;
 		while (item = this.items.pop()) {
 			item.dispose();
 		}
@@ -596,8 +596,8 @@ export class ActionBar extends EventEmitter implements actions.IActionRunner {
 			this.focusedItem = this.items.length - 1;
 		}
 
-		var startIndex = this.focusedItem;
-		var item: IActionItem;
+		let startIndex = this.focusedItem;
+		let item: IActionItem;
 
 		do {
 			this.focusedItem = (this.focusedItem + 1) % this.items.length;
@@ -616,8 +616,8 @@ export class ActionBar extends EventEmitter implements actions.IActionRunner {
 			this.focusedItem = 0;
 		}
 
-		var startIndex = this.focusedItem;
-		var item: IActionItem;
+		let startIndex = this.focusedItem;
+		let item: IActionItem;
 
 		do {
 			this.focusedItem = this.focusedItem - 1;
@@ -642,10 +642,10 @@ export class ActionBar extends EventEmitter implements actions.IActionRunner {
 			return;
 		}
 
-		for (var i = 0; i < this.items.length; i++) {
-			var item = this.items[i];
+		for (let i = 0; i < this.items.length; i++) {
+			let item = this.items[i];
 
-			var actionItem = <any>item;
+			let actionItem = <any>item;
 
 			if (i === this.focusedItem) {
 				if (types.isFunction(actionItem.focus)) {
@@ -666,7 +666,7 @@ export class ActionBar extends EventEmitter implements actions.IActionRunner {
 		}
 
 		// trigger action
-		var actionItem = (<BaseActionItem>this.items[this.focusedItem]);
+		let actionItem = (<BaseActionItem>this.items[this.focusedItem]);
 		this.run(actionItem._action, actionItem._context || event).done();
 	}
 
@@ -674,7 +674,7 @@ export class ActionBar extends EventEmitter implements actions.IActionRunner {
 		this.emit(CommonEventType.CANCEL);
 	}
 
-	public run(action: actions.IAction, context?: any): Promise {
+	public run(action: IAction, context?: any): Promise {
 		return this._actionRunner.run(action, context);
 	}
 
@@ -703,7 +703,7 @@ export class SelectActionItem extends BaseActionItem {
 	private selected: number;
 	private toDispose: lifecycle.IDisposable[];
 
-	constructor(ctx: any, action: actions.IAction, options: string[], selected: number) {
+	constructor(ctx: any, action: IAction, options: string[], selected: number) {
 		super(ctx, action);
 
 		this.select = document.createElement('select');
@@ -749,7 +749,7 @@ export class SelectActionItem extends BaseActionItem {
 	}
 
 	private createOption(value: string): HTMLOptionElement {
-		var option = document.createElement('option');
+		let option = document.createElement('option');
 		option.value = value;
 		option.text = value;
 
