@@ -20,20 +20,79 @@ import {Position} from 'vs/editor/common/core/position';
 import {CommonKeybindings} from 'vs/base/common/keyCodes';
 import Event, {Emitter} from 'vs/base/common/event';
 import {TextAreaHandler} from 'vs/editor/browser/controller/textAreaHandler';
-import {ITextAreaWrapper, ITextAreaStyle, ISimpleModel} from 'vs/editor/browser/controller/textAreaState';
+import {ITextAreaWrapper, IClipboardEvent, IKeyboardEventWrapper, ITextAreaStyle, ISimpleModel} from 'vs/editor/browser/controller/textAreaState';
+
+class ClipboardEventWrapper implements IClipboardEvent {
+
+	private _event:ClipboardEvent;
+
+	constructor(event:ClipboardEvent) {
+		this._event = event;
+	}
+
+	public canUseTextData(): boolean {
+		if (this._event.clipboardData) {
+			return true;
+		}
+		if ((<any>window).clipboardData) {
+			return true;
+		}
+		return false;
+	}
+
+	public setTextData(text:string): void {
+		if (this._event.clipboardData) {
+			this._event.clipboardData.setData('text/plain', text);
+			this._event.preventDefault();
+			return;
+		}
+
+		if ((<any>window).clipboardData) {
+			(<any>window).clipboardData.setData('Text', text);
+			this._event.preventDefault();
+			return;
+		}
+
+		throw new Error('ClipboardEventWrapper.setTextData: Cannot use text data!');
+	}
+
+	public getTextData(): string {
+		if (this._event.clipboardData) {
+			this._event.preventDefault();
+			return this._event.clipboardData.getData('text/plain');
+		}
+
+		if ((<any>window).clipboardData) {
+			this._event.preventDefault();
+			return (<any>window).clipboardData.getData('Text');
+		}
+
+		throw new Error('ClipboardEventWrapper.getTextData: Cannot use text data!');
+	}
+}
+
+class KeyboardEventWrapper implements IKeyboardEventWrapper {
+
+	public actual: DomUtils.IKeyboardEvent;
+
+	constructor(actual:DomUtils.IKeyboardEvent) {
+		this.actual = actual;
+	}
+
+}
 
 class TextAreaWrapper extends Lifecycle.Disposable implements ITextAreaWrapper {
 
 	private _textArea: HTMLTextAreaElement;
 
-	private _onKeyDown = this._register(new Emitter<DomUtils.IKeyboardEvent>());
-	public onKeyDown: Event<DomUtils.IKeyboardEvent> = this._onKeyDown.event;
+	private _onKeyDown = this._register(new Emitter<IKeyboardEventWrapper>());
+	public onKeyDown: Event<IKeyboardEventWrapper> = this._onKeyDown.event;
 
-	private _onKeyUp = this._register(new Emitter<DomUtils.IKeyboardEvent>());
-	public onKeyUp: Event<DomUtils.IKeyboardEvent> = this._onKeyUp.event;
+	private _onKeyUp = this._register(new Emitter<IKeyboardEventWrapper>());
+	public onKeyUp: Event<IKeyboardEventWrapper> = this._onKeyUp.event;
 
-	private _onKeyPress = this._register(new Emitter<DomUtils.IKeyboardEvent>());
-	public onKeyPress: Event<DomUtils.IKeyboardEvent> = this._onKeyPress.event;
+	private _onKeyPress = this._register(new Emitter<IKeyboardEventWrapper>());
+	public onKeyPress: Event<IKeyboardEventWrapper> = this._onKeyPress.event;
 
 	private _onCompositionStart = this._register(new Emitter<void>());
 	public onCompositionStart: Event<void> = this._onCompositionStart.event;
@@ -44,30 +103,30 @@ class TextAreaWrapper extends Lifecycle.Disposable implements ITextAreaWrapper {
 	private _onInput = this._register(new Emitter<void>());
 	public onInput: Event<void> = this._onInput.event;
 
-	private _onCut = this._register(new Emitter<ClipboardEvent>());
-	public onCut: Event<ClipboardEvent> = this._onCut.event;
+	private _onCut = this._register(new Emitter<IClipboardEvent>());
+	public onCut: Event<IClipboardEvent> = this._onCut.event;
 
-	private _onCopy = this._register(new Emitter<ClipboardEvent>());
-	public onCopy: Event<ClipboardEvent> = this._onCopy.event;
+	private _onCopy = this._register(new Emitter<IClipboardEvent>());
+	public onCopy: Event<IClipboardEvent> = this._onCopy.event;
 
-	private _onPaste = this._register(new Emitter<ClipboardEvent>());
-	public onPaste: Event<ClipboardEvent> = this._onPaste.event;
+	private _onPaste = this._register(new Emitter<IClipboardEvent>());
+	public onPaste: Event<IClipboardEvent> = this._onPaste.event;
 
 	constructor(textArea: HTMLTextAreaElement) {
 		super();
 		this._textArea = textArea;
 
 		let kbController = this._register(new keyboardController.KeyboardController(this._textArea));
-		this._register(kbController.addListener2('keydown', (e) => this._onKeyDown.fire(e)));
-		this._register(kbController.addListener2('keyup', (e) => this._onKeyUp.fire(e)));
-		this._register(kbController.addListener2('keypress', (e) => this._onKeyPress.fire(e)));
+		this._register(kbController.addListener2('keydown', (e) => this._onKeyDown.fire(new KeyboardEventWrapper(e))));
+		this._register(kbController.addListener2('keyup', (e) => this._onKeyUp.fire(new KeyboardEventWrapper(e))));
+		this._register(kbController.addListener2('keypress', (e) => this._onKeyPress.fire(new KeyboardEventWrapper(e))));
 
 		this._register(DomUtils.addDisposableListener(this._textArea, 'compositionstart', (e) => this._onCompositionStart.fire()));
 		this._register(DomUtils.addDisposableListener(this._textArea, 'compositionend', (e) => this._onCompositionEnd.fire()));
 		this._register(DomUtils.addDisposableListener(this._textArea, 'input', (e) => this._onInput.fire()));
-		this._register(DomUtils.addDisposableListener(this._textArea, 'cut', (e) => this._onCut.fire(e)));
-		this._register(DomUtils.addDisposableListener(this._textArea, 'copy', (e) => this._onCopy.fire(e)));
-		this._register(DomUtils.addDisposableListener(this._textArea, 'paste', (e) => this._onPaste.fire(e)));
+		this._register(DomUtils.addDisposableListener(this._textArea, 'cut', (e:ClipboardEvent) => this._onCut.fire(new ClipboardEventWrapper(e))));
+		this._register(DomUtils.addDisposableListener(this._textArea, 'copy', (e:ClipboardEvent) => this._onCopy.fire(new ClipboardEventWrapper(e))));
+		this._register(DomUtils.addDisposableListener(this._textArea, 'paste', (e:ClipboardEvent) => this._onPaste.fire(new ClipboardEventWrapper(e))));
 	}
 
 	public get value(): string {
