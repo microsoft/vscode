@@ -14,6 +14,8 @@ import objects = require('vs/base/common/objects');
 import dom = require('vs/base/browser/dom');
 import numbers = require('vs/base/common/numbers');
 import sash = require('vs/base/browser/ui/sash/sash');
+import {StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
+import {CommonKeybindings} from 'vs/base/common/keyCodes';
 
 export enum Orientation {
 	VERTICAL,
@@ -185,6 +187,7 @@ export class AbstractCollapsibleView extends HeaderView {
 
 	protected state: CollapsibleState;
 	private headerClickListener: () => void;
+	private headerKeyListener: () => void;
 
 	constructor(opts: ICollapsibleViewOptions) {
 		super(opts);
@@ -198,7 +201,25 @@ export class AbstractCollapsibleView extends HeaderView {
 		dom.addClass(this.header, 'collapsible');
 		dom.addClass(this.body, 'collapsible');
 
-		this.headerClickListener = dom.addListener(this.header, 'click', () => this.toggleExpansion());
+		// Keyboard access
+		this.header.setAttribute('tabindex', '0');
+		this.headerKeyListener = dom.addListener(this.header, dom.EventType.KEY_DOWN, (e) => {
+			let event = new StandardKeyboardEvent(e);
+			let eventHandled = false;
+			if (event.equals(CommonKeybindings.ENTER) || event.equals(CommonKeybindings.SPACE) || event.equals(CommonKeybindings.LEFT_ARROW) || event.equals(CommonKeybindings.RIGHT_ARROW)) {
+				this.toggleExpansion();
+				eventHandled = true;
+			} else if (event.equals(CommonKeybindings.ESCAPE)) {
+				this.header.blur();
+				eventHandled = true;
+			}
+
+			if (eventHandled) {
+				dom.EventHelper.stop(event, true);
+			}
+		});
+
+		this.headerClickListener = dom.addListener(this.header, dom.EventType.CLICK, () => this.toggleExpansion());
 	}
 
 	public layout(size: number, orientation: Orientation): void {
@@ -255,6 +276,11 @@ export class AbstractCollapsibleView extends HeaderView {
 		if (this.headerClickListener) {
 			this.headerClickListener();
 			this.headerClickListener = null;
+		}
+
+		if (this.headerKeyListener) {
+			this.headerKeyListener();
+			this.headerKeyListener = null;
 		}
 
 		super.dispose();
