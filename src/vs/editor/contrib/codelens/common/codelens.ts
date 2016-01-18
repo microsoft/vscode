@@ -7,12 +7,10 @@
 
 import {onUnexpectedError, illegalArgument} from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
-import {IAction, Action} from 'vs/base/common/actions';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {IModel, IRange, IPosition} from 'vs/editor/common/editorCommon';
-import {Range} from 'vs/editor/common/core/range';
-import {ICodeLensSupport, ICodeLensSymbol, ICommand} from 'vs/editor/common/modes';
+import {IModel} from 'vs/editor/common/editorCommon';
+import {ICodeLensSupport, ICodeLensSymbol} from 'vs/editor/common/modes';
 import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
 
@@ -23,7 +21,7 @@ export interface ICodeLensData {
 	support: ICodeLensSupport;
 }
 
-export function getCodeLensData(model: IModel):TPromise<ICodeLensData[]> {
+export function getCodeLensData(model: IModel): TPromise<ICodeLensData[]> {
 
 	const symbols: ICodeLensData[] = [];
 	const promises = CodeLensRegistry.all(model).map(support => {
