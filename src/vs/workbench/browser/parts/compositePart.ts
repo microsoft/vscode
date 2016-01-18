@@ -3,8 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import {TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
+import timer = require('vs/base/common/timer');
+import uuid = require('vs/base/common/uuid');
+import {TPromise} from 'vs/base/common/winjs.base';
 import {Registry} from 'vs/platform/platform';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import {Dimension, Builder, $} from 'vs/base/browser/builder';
@@ -51,6 +53,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 	private progressBar: ProgressBar;
 	private contentAreaSize: Dimension;
 	private telemetryActionsListener: IDisposable;
+	private currentCompositeOpenToken: string;
 
 	constructor(
 		private messageService: IMessageService,
@@ -62,6 +65,8 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		private keybindingService: IKeybindingService,
 		private registry: CompositeRegistry<T>,
 		private activeCompositeSettingsKey: string,
+		private nameForTelemetry: string,
+		private compositeCssClass: string,
 		id: string
 	) {
 		super(id);
@@ -78,6 +83,81 @@ export abstract class CompositePart<T extends Composite> extends Part {
 
 	public setInstantiationService(service: IInstantiationService): void {
 		this.instantiationService = service;
+	}
+
+	protected openComposite(id: string, focus?: boolean): TPromise<Composite> {
+		// Check if composite already visible and just focus in that case
+		if (this.activeComposite && this.activeComposite.getId() === id) {
+			if (focus) {
+				this.activeComposite.focus();
+			}
+
+			// Fullfill promise with composite that is being opened
+			return TPromise.as(this.activeComposite);
+		}
+
+		// Open
+		return this.doOpenComposite(id, focus);
+	}
+
+	private doOpenComposite(id: string, focus?: boolean): TPromise<Composite> {
+		let timerEvent = timer.start(timer.Topic.WORKBENCH, strings.format('Open Composite {0}', id.substr(id.lastIndexOf('.') + 1)));
+
+		// Use a generated token to avoid race conditions from long running promises
+		let currentCompositeOpenToken = uuid.generateUuid();
+		this.currentCompositeOpenToken = currentCompositeOpenToken;
+
+		// Emit Composite Opening Event
+		this.emit(WorkbenchEventType.COMPOSITE_OPENING, new CompositeEvent(id));
+
+		// Hide current
+		let hidePromise: TPromise<void>;
+		if (this.activeComposite) {
+			hidePromise = this.hideActiveComposite();
+		} else {
+			hidePromise = TPromise.as(null);
+		}
+
+		return hidePromise.then(() => {
+
+			// Update Title
+			this.updateTitle(id);
+
+			// Create composite
+			return this.createComposite(id, true).then((composite: Composite) => {
+
+				// Check if another composite opened meanwhile and return in that case
+				if ((this.currentCompositeOpenToken !== currentCompositeOpenToken) || (this.activeComposite && this.activeComposite.getId() !== composite.getId())) {
+					timerEvent.stop();
+
+					return TPromise.as(null);
+				}
+
+				// Check if composite already visible and just focus in that case
+				if (this.activeComposite && this.activeComposite.getId() === composite.getId()) {
+					if (focus) {
+						composite.focus();
+					}
+
+					timerEvent.stop();
+
+					// Fullfill promise with composite that is being opened
+					return TPromise.as(composite);
+				}
+
+				// Show Composite and Focus
+				return this.showComposite(composite).then(() => {
+					if (focus) {
+						composite.focus();
+					}
+
+					timerEvent.stop();
+
+					// Fullfill promise with composite that is being opened
+					return composite;
+				});
+			});
+		});
 	}
 
 	protected createComposite(id: string, isActive?: boolean): TPromise<Composite> {
@@ -150,7 +230,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 
 			// Build Container off-DOM
 			compositeContainer = $().div({
-				'class': 'viewlet',
+				'class': this.compositeCssClass,
 				id: composite.getId()
 			}, (div: Builder) => {
 				createCompositePromise = composite.create(div);
@@ -215,7 +295,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 
 				// Log in telemetry
 				if (this.telemetryService) {
-					this.telemetryService.publicLog('workbenchActionExecuted', { id: e.action.id, from: 'sideBar' });
+					this.telemetryService.publicLog('workbenchActionExecuted', { id: e.action.id, from: this.nameForTelemetry });
 				}
 			});
 

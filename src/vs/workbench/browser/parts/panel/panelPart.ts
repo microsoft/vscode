@@ -4,8 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import {TPromise} from 'vs/base/common/winjs.base';
-import timer = require('vs/base/common/timer');
-import uuid = require('vs/base/common/uuid');
 import strings = require('vs/base/common/strings');
 import {Registry} from 'vs/platform/platform';
 import {IPanel} from 'vs/workbench/common/panel';
@@ -26,9 +24,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	public static activePanelSettingsKey = 'workbench.panelpart.activepanelid';
 
 	public serviceId = IPanelService;
-
 	private blockOpeningPanel: boolean;
-	private currentPanelOpenToken: string;
 
 	constructor(
 		messageService: IMessageService,
@@ -41,7 +37,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		id: string
 	) {
 		super(messageService, storageService, eventService, telemetryService, contextMenuService, partService, keybindingService,
-			(<PanelRegistry>Registry.as(PanelExtensions.Panels)), PanelPart.activePanelSettingsKey, id);
+			(<PanelRegistry>Registry.as(PanelExtensions.Panels)), PanelPart.activePanelSettingsKey, 'panel', 'panel', id);
 	}
 
 	public openPanel(id: string, focus?: boolean): TPromise<Panel> {
@@ -49,7 +45,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			return TPromise.as(null); // Workaround against a potential race condition
 		}
 
-		// First check if panel part is hidden and show if so
+		// First check if panel is hidden and show if so
 		if (this.partService.isPanelHidden()) {
 			try {
 				this.blockOpeningPanel = true;
@@ -59,78 +55,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			}
 		}
 
-		// Check if panel already visible and just focus in that case
-		if (this.activePanel && this.activePanel.getId() === id) {
-			if (focus) {
-				this.activePanel.focus();
-			}
-
-			// Fullfill promise with panel that is being opened
-			return TPromise.as(this.activePanel);
-		}
-
-		// Open
-		return this.doOpenPanel(id, focus);
-	}
-
-	private doOpenPanel(id: string, focus?: boolean): TPromise<Panel> {
-		let timerEvent = timer.start(timer.Topic.WORKBENCH, strings.format('Open Panel {0}', id.substr(id.lastIndexOf('.') + 1)));
-
-		// Use a generated token to avoid race conditions from long running promises
-		let currentPanelOpenToken = uuid.generateUuid();
-		this.currentPanelOpenToken = currentPanelOpenToken;
-
-		// Emit Panel Opening Event
-		this.emit(WorkbenchEventType.PANEL_OPENING, new CompositeEvent(id));
-
-		// Hide current
-		let hidePromise: TPromise<void>;
-		if (this.activePanel) {
-			hidePromise = this.hideActivePanel();
-		} else {
-			hidePromise = TPromise.as(null);
-		}
-
-		return hidePromise.then(() => {
-
-			// Update Title
-			this.updateTitle(id);
-
-			// Create panel
-			return this.createPanel(id, true).then((panel: Panel) => {
-
-				// Check if another panel opened meanwhile and return in that case
-				if ((this.currentPanelOpenToken !== currentPanelOpenToken) || (this.activePanel && this.activePanel.getId() !== panel.getId())) {
-					timerEvent.stop();
-
-					return TPromise.as(null);
-				}
-
-				// Check if panel already visible and just focus in that case
-				if (this.activePanel && this.activePanel.getId() === panel.getId()) {
-					if (focus) {
-						panel.focus();
-					}
-
-					timerEvent.stop();
-
-					// Fullfill promise with panel that is being opened
-					return TPromise.as(panel);
-				}
-
-				// Show Panel and Focus
-				return this.showPanel(panel).then(() => {
-					if (focus) {
-						panel.focus();
-					}
-
-					timerEvent.stop();
-
-					// Fullfill promise with panel that is being opened
-					return panel;
-				});
-			});
-		});
+		return this.openComposite(id, focus);
 	}
 
 	private get activePanel(): IPanel {

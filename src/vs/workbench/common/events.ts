@@ -90,14 +90,9 @@ export class EventType {
 	static TEXT_EDITOR_CONFIGURATION_CHANGED = 'textEditorOptionsChanged';
 
 	/**
-	 * Event type for when a viewlet is about to open.
+	 * Event type for when a composite is about to open.
 	 */
-	static VIEWLET_OPENING = 'viewletOpening';
-
-	/**
-	 * Event type for when a panel is about to open.
-	 */
-	static PANEL_OPENING = 'panelOpening';
+	static COMPOSITE_OPENING = 'compositeOpening';
 
 	/**
 	 * Event type for when a viewlet is opened.

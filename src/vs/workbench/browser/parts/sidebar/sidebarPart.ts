@@ -7,8 +7,6 @@ import 'vs/css!./media/sidebarpart';
 import {TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import {Registry} from 'vs/platform/platform';
-import uuid = require('vs/base/common/uuid');
-import timer = require('vs/base/common/timer');
 import strings = require('vs/base/common/strings');
 import {Action, IAction} from 'vs/base/common/actions';
 import {CompositePart} from 'vs/workbench/browser/parts/compositePart';
@@ -47,7 +45,7 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 		id: string
 	) {
 		super(messageService, storageService, eventService, telemetryService, contextMenuService, partService, keybindingService,
-			(<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets)), SidebarPart.activeViewletSettingsKey, id);
+			(<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets)), SidebarPart.activeViewletSettingsKey, 'sideBar', 'viewlet', id);
 	}
 
 	public openViewlet(id: string, focus?: boolean): TPromise<Viewlet> {
@@ -65,78 +63,7 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 			}
 		}
 
-		// Check if viewlet already visible and just focus in that case
-		if (this.activeViewlet && this.activeViewlet.getId() === id) {
-			if (focus) {
-				this.activeViewlet.focus();
-			}
-
-			// Fullfill promise with viewlet that is being opened
-			return TPromise.as(this.activeViewlet);
-		}
-
-		// Open
-		return this.doOpenViewlet(id, focus);
-	}
-
-	private doOpenViewlet(id: string, focus?: boolean): TPromise<Viewlet> {
-		let timerEvent = timer.start(timer.Topic.WORKBENCH, strings.format('Open Viewlet {0}', id.substr(id.lastIndexOf('.') + 1)));
-
-		// Use a generated token to avoid race conditions from long running promises
-		let currentViewletOpenToken = uuid.generateUuid();
-		this.currentViewletOpenToken = currentViewletOpenToken;
-
-		// Emit Viewlet Opening Event
-		this.emit(WorkbenchEventType.VIEWLET_OPENING, new CompositeEvent(id));
-
-		// Hide current
-		let hidePromise: TPromise<void>;
-		if (this.activeViewlet) {
-			hidePromise = this.hideActiveViewlet();
-		} else {
-			hidePromise = TPromise.as(null);
-		}
-
-		return hidePromise.then(() => {
-
-			// Update Title
-			this.updateTitle(id);
-
-			// Create viewlet
-			return this.createViewlet(id, true).then((viewlet: Viewlet) => {
-
-				// Check if another viewlet opened meanwhile and return in that case
-				if ((this.currentViewletOpenToken !== currentViewletOpenToken) || (this.activeViewlet && this.activeViewlet.getId() !== viewlet.getId())) {
-					timerEvent.stop();
-
-					return TPromise.as(null);
-				}
-
-				// Check if viewlet already visible and just focus in that case
-				if (this.activeViewlet && this.activeViewlet.getId() === viewlet.getId()) {
-					if (focus) {
-						viewlet.focus();
-					}
-
-					timerEvent.stop();
-
-					// Fullfill promise with viewlet that is being opened
-					return TPromise.as(viewlet);
-				}
-
-				// Show Viewlet and Focus
-				return this.showViewlet(viewlet).then(() => {
-					if (focus) {
-						viewlet.focus();
-					}
-
-					timerEvent.stop();
-
-					// Fullfill promise with viewlet that is being opened
-					return viewlet;
-				});
-			});
-		});
+		return this.openComposite(id, focus);
 	}
 
 	private get activeViewlet(): IViewlet {
