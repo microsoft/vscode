@@ -585,10 +585,8 @@ class TextParser implements IParserState {
 		switch(char) {
 			case '<':
 				return new TagParser();
-				break;
 			case '>':
 				return new ErrorState('Unexpected >');
-				break;
 			default:
 				this.textContent += char;
 				return this;
@@ -631,7 +629,6 @@ class TagParser implements IParserState {
 			case '/':
 				this.isClosing = true;
 				return this;
-				break;
 			case '>':
 				if(this.tagName) {
 					return new TextParser();
@@ -639,7 +636,6 @@ class TagParser implements IParserState {
 				else {
 					return new ErrorState('No tag name specified');
 				}
-				break;
 			case ' ':
 				if(this.tagName) {
 					if(this.isClosing) {
@@ -708,15 +704,12 @@ class AttributeParser implements IParserState {
 				} else {
 					return this;
 				}
-				break;
 			case '=':
 				this.inValue = true;
 				return new AttributeValueParser(this);
-				break;
 			case '>':
 				stream.back();
 				return this.tag;
-				break;
 			default:
 				if(this.inValue === false) {
 					this.attributeName += char;

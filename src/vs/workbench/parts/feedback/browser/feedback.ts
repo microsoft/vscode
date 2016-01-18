@@ -283,7 +283,7 @@ export class FeedbackDropdown extends Dropdown {
 	}
 
 	protected resetForm(): void {
-		this.feedbackDescriptionInput ? this.feedbackDescriptionInput.value = '' : null;
+		if (this.feedbackDescriptionInput) this.feedbackDescriptionInput.value = '';
 		this.sentiment = 1;
 		this.aliasEnabled = false;
 	}

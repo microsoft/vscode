@@ -223,7 +223,7 @@ export class Sash extends Events.EventEmitter {
 			style = { top: horizontalProvider.getHorizontalSashTop(this) - (this.size / 2) + 'px' };
 
 			if (horizontalProvider.getHorizontalSashLeft) {
-				horizontalProvider.getHorizontalSashLeft(this) + 'px';
+				style.left = horizontalProvider.getHorizontalSashLeft(this) + 'px';
 			}
 
 			if (horizontalProvider.getHorizontalSashWidth) {

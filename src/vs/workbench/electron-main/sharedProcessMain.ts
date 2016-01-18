@@ -30,7 +30,7 @@ interface IInitData {
 }
 
 function quit(err?: Error) {
-	err && console.error(err);
+	if (err) console.error(err);
 	process.exit(err ? 1 : 0);
 }
 
