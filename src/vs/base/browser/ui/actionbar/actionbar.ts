@@ -440,9 +440,9 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 			let event = new StandardKeyboardEvent(e);
 			let eventHandled = true;
 
-			if (event.equals(isVertical ? CommonKeybindings.UP_ARROW : CommonKeybindings.LEFT_ARROW)) {
+			if (event.equals(CommonKeybindings.UP_ARROW) || event.equals(CommonKeybindings.LEFT_ARROW)) {
 				this.focusPrevious();
-			} else if (event.equals(isVertical ? CommonKeybindings.DOWN_ARROW : CommonKeybindings.RIGHT_ARROW)) {
+			} else if (event.equals(CommonKeybindings.DOWN_ARROW) || event.equals(CommonKeybindings.RIGHT_ARROW)) {
 				this.focusNext();
 			} else if (event.equals(CommonKeybindings.ESCAPE)) {
 				this.cancel();
@@ -467,10 +467,16 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 		$(this.domNode).on(DOM.EventType.KEY_UP, (e: KeyboardEvent) => {
 			let event = new StandardKeyboardEvent(e);
 
+			// Run action on Enter/Space
 			if (event.equals(CommonKeybindings.ENTER) || event.equals(CommonKeybindings.SPACE)) {
 				this.doTrigger(event);
 				event.preventDefault();
 				event.stopPropagation();
+			}
+
+			// Recompute focused item
+			else if (event.equals(CommonKeybindings.TAB)) {
+				this.updateFocusedItem();
 			}
 		});
 
@@ -482,15 +488,7 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 			}
 		});
 
-		this.focusTracker.addFocusListener((e: Event) => {
-			for (let i = 0; i < this.actionsList.children.length; i++) {
-				let elem = this.actionsList.children[i];
-				if (DOM.isAncestor(document.activeElement, elem)) {
-					this.focusedItem = i;
-					break;
-				}
-			}
-		});
+		this.focusTracker.addFocusListener(() => this.updateFocusedItem());
 
 		this.actionsList = document.createElement('ul');
 		this.actionsList.className = 'actions-container';
@@ -500,6 +498,16 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 
 		container = (container instanceof Builder) ? container.getHTMLElement() : container;
 		container.appendChild(this.domNode);
+	}
+
+	private updateFocusedItem(): void {
+		for (let i = 0; i < this.actionsList.children.length; i++) {
+			let elem = this.actionsList.children[i];
+			if (DOM.isAncestor(document.activeElement, elem)) {
+				this.focusedItem = i;
+				break;
+			}
+		}
 	}
 
 	public get context(): any {
