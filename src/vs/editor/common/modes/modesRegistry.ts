@@ -153,11 +153,18 @@ export function registerSnippets(modeId: string, path: string, snippets: Modes.I
 	snippetsByMode[path] = snippets;
 }
 export function getSnippets(model: EditorCommon.IModel, position: EditorCommon.IPosition): Modes.ISuggestResult {
+
 	var word = model.getWordAtPosition(position);
 	var currentPrefix = word ? word.word.substring(0, position.column - word.startColumn) : '';
 	var result : Modes.ISuggestResult = {
 		currentWord: currentPrefix,
 		suggestions: []
+	}
+
+	let tokens = model.getLineTokens(position.lineNumber);
+	let idx = tokens.findIndexOfOffset(position.column - 1);
+	if (tokens.getTokenType(idx).indexOf('comment') >= 0) {
+		return result;
 	}
 
 	// to avoid that snippets are too prominent in the intellisense proposals:
