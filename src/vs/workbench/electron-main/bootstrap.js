@@ -46,6 +46,8 @@ function uriFromPath(_path) {
 	return encodeURI('file://' + pathName);
 }
 
+
+// Duplicated in ../index.html for the renderes.
 function getNLSConfiguration() {
 	var locale = undefined;
 	var localeOpts = '--locale';
