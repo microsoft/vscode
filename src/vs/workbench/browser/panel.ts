@@ -3,9 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import nls = require('vs/nls');
+import {Promise} from 'vs/base/common/winjs.base';
+import {Action} from 'vs/base/common/actions';
 import {Registry} from 'vs/platform/platform';
 import {IPanel} from 'vs/workbench/common/panel';
 import {Composite, CompositeDescriptor, CompositeRegistry} from 'vs/workbench/browser/composite';
+import {IPartService} from 'vs/workbench/services/part/common/partService';
 
 export abstract class Panel extends Composite implements IPanel { }
 
@@ -56,5 +60,23 @@ export class PanelRegistry extends CompositeRegistry<Panel> {
 export const Extensions = {
 	Panels: 'workbench.contributions.panels'
 };
+
+export class ClosePanelAction extends Action {
+	static ID = 'workbench.action.closePanelAction';
+	static LABEL = nls.localize('closePanel', "Close");
+
+	constructor(
+		id: string,
+		name: string,
+		@IPartService private partService: IPartService
+	) {
+		super(id, name, 'close-editor-action');
+	}
+
+	public run(): Promise {
+		this.partService.setPanelHidden(!this.partService.isPanelHidden());
+		return Promise.as(true);
+	}
+}
 
 Registry.add(Extensions.Panels, new PanelRegistry());
