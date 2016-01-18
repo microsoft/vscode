@@ -28,12 +28,12 @@
 	opacity: 0.6;
 }
 
-.quick-open-widget .extension .version {
+.quick-open-widget .extension .installs {
 	font-family: Menlo, Monaco, Consolas, "Droid Sans Mono", "Courier New", monospace, "Droid Sans Fallback";
 	font-size: smaller;
 }
 
-.quick-open-widget .extension .version {
+.quick-open-widget .extension .installs {
 	padding-left: 6px;
 	opacity: 0.7;
 }
@@ -44,7 +44,7 @@
 	font-size: smaller;
 }
 
-.quick-open-widget .extension .published > .since {
+.quick-open-widget .extension .published > .version {
 	opacity: 0.6;
 	margin-right: 0.5em;
 }

@@ -15,6 +15,7 @@ export interface IExtensionManifest {
 	version: string;
 	displayName?: string;
 	description?: string;
+	installs: number;
 }
 
 export interface IGalleryInformation {

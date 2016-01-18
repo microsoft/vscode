@@ -33,6 +33,12 @@ export interface IGalleryExtension {
 	publisher: { displayName: string, publisherId: string, publisherName: string; };
 	versions: IGalleryExtensionVersion[];
 	galleryApiUrl: string;
+	statistics: IGalleryExtensionStatistic[];
+}
+
+export interface IGalleryExtensionStatistic {
+	statisticName: string;
+	value: number;
 }
 
 export class GalleryService implements IGalleryService {
@@ -53,10 +59,32 @@ export class GalleryService implements IGalleryService {
 		return `${ this.extensionsGalleryUrl }${ path }`;
 	}
 
+	/**
+	 * Extracts install count statistic.
+	 */
+	private extractInstalls(statistics: IGalleryExtensionStatistic[]): number {
+		// Sometimes there are no statistics.
+		if (!statistics) {
+			return 0;
+		}
+		var result = 0;
+		statistics.forEach(stat => {
+			if (stat.statisticName === 'install') {
+				result = stat.value;
+			}
+		})
+		return result;
+	}
+
 	public isEnabled(): boolean {
 		return !!this.extensionsGalleryUrl;
 	}
 
+	/**
+	 * Queries VS Code Extension marketplace for extensions.
+	 *
+	 * Sorts by install count.
+	 */
 	public query(): TPromise<IExtension[]> {
 		if (!this.extensionsGalleryUrl) {
 			return TPromise.wrapError(new Error('No extension gallery service configured.'));
@@ -69,7 +97,7 @@ export class GalleryService implements IGalleryService {
 					value: 'vscode'
 				}]
 			}],
-			flags: 0x1 | 0x4 | 0x80
+			flags: 0x1 | 0x4 | 0x80 | 0x100
 		});
 
 		const request = {
@@ -92,13 +120,14 @@ export class GalleryService implements IGalleryService {
 					publisher: extension.publisher.publisherName,
 					version: extension.versions[0].version,
 					description: extension.shortDescription || '',
+					installs: this.extractInstalls(extension.statistics),
 					galleryInformation: {
 						galleryApiUrl: this.extensionsGalleryUrl,
 						id: extension.extensionId,
 						downloadUrl: `${ extension.versions[0].assetUri }/Microsoft.VisualStudio.Services.VSIXPackage?install=true`,
 						publisherId: extension.publisher.publisherId,
 						publisherDisplayName: extension.publisher.displayName,
-						date: extension.versions[0].lastUpdated
+						date: extension.versions[0].lastUpdated,
 					}
 				}));
 			});
