@@ -32,12 +32,25 @@ function getEnvironment(): IEnvironment {
 	return configuration;
 }
 
+// The amd loader has the global scope assigned to this.
+const globalRequire = this.require;
+
 export function spawnSharedProcess(): cp.ChildProcess {
-	const result = cp.fork(boostrapPath, ['--type=SharedProcess'], {
+	// Make sure the nls configuration travels to the plugin host.
+	const opts = {
 		env: assign(assign({}, process.env), {
 			AMD_ENTRYPOINT: 'vs/workbench/electron-main/sharedProcessMain'
 		})
-	});
+	};
+
+	if (globalRequire && typeof globalRequire.getConfig === 'function') {
+		let nlsConfig = globalRequire.getConfig()['vs/nls'];
+		if (nlsConfig) {
+			opts.env['VSCODE_NLS_CONFIG'] = JSON.stringify(nlsConfig);
+		}
+	}
+
+	const result = cp.fork(boostrapPath, ['--type=SharedProcess'], opts);
 
 	// handshake
 	result.once('message', () => {

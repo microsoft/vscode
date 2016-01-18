@@ -26,6 +26,9 @@ import {ipcRenderer as ipc} from 'electron';
 export const PLUGIN_LOG_BROADCAST_CHANNEL = 'vscode:pluginLog';
 export const PLUGIN_ATTACH_BROADCAST_CHANNEL = 'vscode:pluginAttach';
 
+// The amd loader has the global scope assigned to this.
+const globalRequire = this.require;
+
 // Enable to see detailed message communication between window and plugin host
 const logPluginHostCommunication = false;
 
@@ -110,6 +113,14 @@ class PluginHostProcessManager {
 		let opts: any = {
 			env: objects.mixin(objects.clone(process.env), { AMD_ENTRYPOINT: 'vs/workbench/node/pluginHostProcess', PIPE_LOGGING: 'true', VERBOSE_LOGGING: true })
 		};
+
+		// Make sure the nls configuration travels to the plugin host.
+		if (globalRequire && typeof globalRequire.getConfig === 'function') {
+			let nlsConfig = globalRequire.getConfig()['vs/nls'];
+			if (nlsConfig) {
+				opts.env['VSCODE_NLS_CONFIG'] = JSON.stringify(nlsConfig);
+			}
+		}
 
 		// Help in case we fail to start it
 		if (isDev) {

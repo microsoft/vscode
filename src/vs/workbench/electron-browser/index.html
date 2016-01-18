@@ -11,6 +11,7 @@
 
 		<!-- Helpers -->
 		<script type="text/javascript">
+			var fs = require('fs');
 			var path = require('path');
 			var electron = require('electron');
 			var remote = electron.remote;
@@ -96,6 +97,33 @@
 
 				process.on('uncaughtException', function(error) { onError(error, enableDeveloperTools) });
 			}
+
+			function getNlsPluginConfiguration(configuration) {
+				var locale = configuration.locale;
+				if (locale === 'pseudo') {
+					return { availableLanguages: {}, pseudo: true }
+				}
+				if (!configuration.isBuilt) {
+					return { availableLanguages: {} };
+				}
+				// We have a built version so we have extracted nls file. Try to find
+				// the right file to use.
+				locale = locale || window.navigator.language;
+				while (locale) {
+					var candidate = path.join(__dirname, '..', 'workbench.main.nls.') + locale + '.js';
+					if (fs.existsSync(candidate)) {
+						return { availableLanguages: { '*': locale } };
+					} else {
+						var index = locale.lastIndexOf('-');
+						if (index > 0) {
+							locale = locale.substring(0, index);
+						} else {
+							locale = null;
+						}
+					}
+				}
+				return { availableLanguages: {} };
+			}
 		</script>
 
 		<!-- Startup Code -->
@@ -133,14 +161,20 @@
 
 			// Load the loader and start loading the workbench
 			var rootUrl = uriFromPath(configuration.appRoot) + '/out';
+			// In the bundled version the nls plugin is packaged with the loader so the NLS Plugins
+			// loads as soon as the loader loads. To be able to have pseudo trnastation
 			createScript(rootUrl + '/vs/loader.js', function() {
+				var nlsConfig = getNlsPluginConfiguration(configuration);
 				require.config({
 					baseUrl: rootUrl,
-					'vs/nls': {
-						availableLanguages: {}
-					},
+					'vs/nls': nlsConfig,
 					recordStats: configuration.enablePerformance
 				});
+				if (nlsConfig.pseudo) {
+					require(['vs/nls'], function(nlsPlugin) {
+						nlsPlugin.setPseudoTranslation(nlsConfig.pseudo);
+					});
+				}
 
 				var hasWorkspaceContext = configuration.workspacePath;
 

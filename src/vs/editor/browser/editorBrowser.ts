@@ -44,7 +44,7 @@ export interface ICodeEditorHelper {
 export interface IKeyboardHandlerHelper {
 	viewDomNode:HTMLElement;
 	textArea:HTMLTextAreaElement;
-	visibleRangeForPositionRelativeToEditor(lineNumber:number, column:number): VisibleRange;
+	visibleRangeForPositionRelativeToEditor(lineNumber:number, column:number): EditorCommon.VisibleRange;
 }
 
 export interface IPointerHandlerHelper {
@@ -70,7 +70,7 @@ export interface IPointerHandlerHelper {
 	 */
 	getPositionFromDOMInfo(spanNode:HTMLElement, offset:number): EditorCommon.IPosition;
 
-	visibleRangeForPosition2(lineNumber:number, column:number): VisibleRange;
+	visibleRangeForPosition2(lineNumber:number, column:number): EditorCommon.VisibleRange;
 	getLineWidth(lineNumber:number): number;
 }
 
@@ -159,19 +159,6 @@ export var ClassNames = {
 	VIEW_ZONES: 'view-zones'
 };
 
-export class VisibleRange {
-
-	public top:number;
-	public left:number;
-	public width:number;
-
-	constructor(top:number, left:number, width:number) {
-		this.top = top;
-		this.left = left;
-		this.width = width;
-	}
-}
-
 export interface IRestrictedRenderingContext {
 	linesViewportData:EditorCommon.IViewLinesViewportData;
 
@@ -193,33 +180,11 @@ export interface IRestrictedRenderingContext {
 	getDecorationsInViewport(): EditorCommon.IModelDecoration[];
 }
 
-export class HorizontalRange {
-
-	public left: number;
-	public width: number;
-
-	constructor(left:number, width:number) {
-		this.left = left;
-		this.width = width;
-	}
-}
-
-export class LineVisibleRanges {
-
-	public lineNumber: number;
-	public ranges: HorizontalRange[];
-
-	constructor(lineNumber:number, ranges:HorizontalRange[]) {
-		this.lineNumber = lineNumber;
-		this.ranges = ranges;
-	}
-}
-
 export interface IRenderingContext extends IRestrictedRenderingContext {
 
-	linesVisibleRangesForRange(range:EditorCommon.IRange, includeNewLines:boolean): LineVisibleRanges[];
+	linesVisibleRangesForRange(range:EditorCommon.IRange, includeNewLines:boolean): EditorCommon.LineVisibleRanges[];
 
-	visibleRangeForPosition(position:EditorCommon.IPosition): VisibleRange;
+	visibleRangeForPosition(position:EditorCommon.IPosition): EditorCommon.VisibleRange;
 }
 
 export interface IViewEventHandler {

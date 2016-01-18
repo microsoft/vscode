@@ -123,12 +123,23 @@ function uriFromPath(_path) {
 	return encodeURI('file://' + pathName);
 }
 
+var nlsConfig = undefined;
+if (process.env.VSCODE_NLS_CONFIG) {
+	nlsConfig = JSON.parse(process.env.VSCODE_NLS_CONFIG);
+}
+
 loader.config({
 	baseUrl: uriFromPath(path.join(__dirname)),
 	catchError: true,
 	nodeRequire: require,
-	nodeMain: __filename
+	nodeMain: __filename,
+	'vs/nls': nlsConfig || { availableLanguages: {} }
 });
+if (nlsConfig && nlsConfig.pseudo) {
+	loader(['vs/nls'], function(nlsPlugin) {
+		nlsPlugin.setPseudoTranslation(nlsConfig.pseudo);
+	});
+}
 
 var entrypoint = process.env.AMD_ENTRYPOINT;
 if (entrypoint) {

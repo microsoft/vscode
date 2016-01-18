@@ -4,11 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import EditorCommon = require('vs/editor/common/editorCommon');
-import DomUtils = require('vs/base/browser/dom');
-import Browser = require('vs/base/browser/browser');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 import {Range} from 'vs/editor/common/core/range';
-import Event, {Emitter} from 'vs/base/common/event';
+import Event from 'vs/base/common/event';
 
 export interface ITextAreaStyle {
 	top: string;
@@ -17,16 +15,29 @@ export interface ITextAreaStyle {
 	height: string;
 }
 
+export interface IClipboardEvent {
+	canUseTextData(): boolean;
+	setTextData(text:string): void;
+	getTextData(): string;
+}
+
+export interface IKeyboardEventWrapper {
+	_actual: any;
+	equals(keybinding:number): boolean;
+	preventDefault(): void;
+	isDefaultPrevented(): boolean;
+}
+
 export interface ITextAreaWrapper {
-	onKeyDown: Event<DomUtils.IKeyboardEvent>;
-	onKeyUp: Event<DomUtils.IKeyboardEvent>;
-	onKeyPress: Event<DomUtils.IKeyboardEvent>;
+	onKeyDown: Event<IKeyboardEventWrapper>;
+	onKeyUp: Event<IKeyboardEventWrapper>;
+	onKeyPress: Event<IKeyboardEventWrapper>;
 	onCompositionStart: Event<void>;
 	onCompositionEnd: Event<void>;
 	onInput: Event<void>;
-	onCut: Event<ClipboardEvent>;
-	onCopy: Event<ClipboardEvent>;
-	onPaste: Event<ClipboardEvent>;
+	onCut: Event<IClipboardEvent>;
+	onCopy: Event<IClipboardEvent>;
+	onPaste: Event<IClipboardEvent>;
 
 	value: string;
 	selectionStart: number;
@@ -61,7 +72,17 @@ export class TextAreaState {
 	}
 
 	public toString(): string {
-		return '[ <' + this.value + '>, selectionStart: ' + this.selectionStart + ', selectionEnd: ' + this.selectionEnd + ']';
+		return '[ <' + this.value + '>, selectionStart: ' + this.selectionStart + ', selectionEnd: ' + this.selectionEnd + ', isInOverwriteMode: ' + this.isInOverwriteMode + ', selectionToken: ' + this.selectionToken + ']';
+	}
+
+	public equals(other:TextAreaState): boolean {
+		return (
+			this.value === other.value
+			&& this.selectionStart === other.selectionStart
+			&& this.selectionEnd === other.selectionEnd
+			&& this.isInOverwriteMode === other.isInOverwriteMode
+			&& this.selectionToken === other.selectionToken
+		);
 	}
 
 	public static fromTextArea(textArea:ITextAreaWrapper, selectionToken:number): TextAreaState {
@@ -69,15 +90,10 @@ export class TextAreaState {
 	}
 
 	public static fromEditorSelectionAndPreviousState(model:ISimpleModel, selection:EditorCommon.IEditorRange, previousSelectionToken:number): TextAreaState {
-		if (Browser.isIPad) {
-			// Do not place anything in the textarea for the iPad
-			return new TextAreaState('', 0, 0, false, selectionStartLineNumber);
-		}
+		let LIMIT_CHARS = 100;
+		let PADDING_LINES_COUNT = 0;
 
-		var LIMIT_CHARS = 100;
-		var PADDING_LINES_COUNT = 0;
-
-		var selectionStartLineNumber = selection.startLineNumber,
+		let selectionStartLineNumber = selection.startLineNumber,
 			selectionStartColumn = selection.startColumn,
 			selectionEndLineNumber = selection.endLineNumber,
 			selectionEndColumn = selection.endColumn,
@@ -90,8 +106,8 @@ export class TextAreaState {
 		}
 
 		// `pretext` contains the text before the selection
-		var pretext = '';
-		var startLineNumber = Math.max(1, selectionStartLineNumber - PADDING_LINES_COUNT);
+		let pretext = '';
+		let startLineNumber = Math.max(1, selectionStartLineNumber - PADDING_LINES_COUNT);
 		if (startLineNumber < selectionStartLineNumber) {
 			pretext = model.getValueInRange(new Range(startLineNumber, 1, selectionStartLineNumber, 1), EditorCommon.EndOfLinePreference.LF);
 		}
@@ -102,8 +118,8 @@ export class TextAreaState {
 
 
 		// `posttext` contains the text after the selection
-		var posttext = '';
-		var endLineNumber = Math.min(selectionEndLineNumber + PADDING_LINES_COUNT, model.getLineCount());
+		let posttext = '';
+		let endLineNumber = Math.min(selectionEndLineNumber + PADDING_LINES_COUNT, model.getLineCount());
 		posttext += model.getValueInRange(new Range(selectionEndLineNumber, selectionEndColumn, selectionEndLineNumber, selectionEndLineNumberMaxColumn), EditorCommon.EndOfLinePreference.LF);
 		if (endLineNumber > selectionEndLineNumber) {
 			posttext = '\n' + model.getValueInRange(new Range(selectionEndLineNumber + 1, 1, endLineNumber, model.getLineMaxColumn(endLineNumber)), EditorCommon.EndOfLinePreference.LF);
@@ -114,7 +130,7 @@ export class TextAreaState {
 
 
 		// `text` contains the text of the selection
-		var text = model.getValueInRange(new Range(selectionStartLineNumber, selectionStartColumn, selectionEndLineNumber, selectionEndColumn), EditorCommon.EndOfLinePreference.LF);
+		let text = model.getValueInRange(new Range(selectionStartLineNumber, selectionStartColumn, selectionEndLineNumber, selectionEndColumn), EditorCommon.EndOfLinePreference.LF);
 		if (text.length > 2 * LIMIT_CHARS) {
 			text = text.substring(0, LIMIT_CHARS) + String.fromCharCode(8230) + text.substring(text.length - LIMIT_CHARS, text.length);
 		}
@@ -150,6 +166,9 @@ export class TextAreaState {
 	}
 
 	public extractNewText(previousState:TextAreaState): string {
+		// console.log('-----------')
+		// console.log('prev:' + String(previousState));
+		// console.log('curr:' + String(this));
 		if (this.selectionStart !== this.selectionEnd) {
 			// There is a selection in the textarea => ignore input
 			return '';
@@ -157,14 +176,14 @@ export class TextAreaState {
 		if (!previousState) {
 			return this.value;
 		}
-		var previousPrefix = previousState.value.substring(0, previousState.selectionStart);
-		var previousSuffix = previousState.value.substring(previousState.selectionEnd, previousState.value.length);
+		let previousPrefix = previousState.value.substring(0, previousState.selectionStart);
+		let previousSuffix = previousState.value.substring(previousState.selectionEnd, previousState.value.length);
 
 		if (this.isInOverwriteMode) {
 			previousSuffix = previousSuffix.substr(1);
 		}
 
-		var value = this.value;
+		let value = this.value;
 		if (value.substring(0, previousPrefix.length) === previousPrefix) {
 			value = value.substring(previousPrefix.length);
 		}

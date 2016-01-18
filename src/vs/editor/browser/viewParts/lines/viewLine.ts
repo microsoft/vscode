@@ -8,8 +8,8 @@ import * as Browser from 'vs/base/browser/browser';
 import {StyleMutator} from 'vs/base/browser/dom';
 import {IVisibleLineData} from 'vs/editor/browser/view/viewLayer';
 import {ILineParts, createLineParts} from 'vs/editor/common/viewLayout/viewLineParts';
-import {ClassNames, IViewContext, HorizontalRange} from 'vs/editor/browser/editorBrowser';
-import {IModelDecoration, IConfigurationChangedEvent} from 'vs/editor/common/editorCommon';
+import {ClassNames, IViewContext} from 'vs/editor/browser/editorBrowser';
+import {IModelDecoration, IConfigurationChangedEvent, HorizontalRange} from 'vs/editor/common/editorCommon';
 import {renderLine} from 'vs/editor/common/viewLayout/viewLineRenderer';
 
 export class ViewLine implements IVisibleLineData {

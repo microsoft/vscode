@@ -191,7 +191,7 @@ export class ViewLines extends ViewLayer {
 		return this._lines[lineIndex].getWidth();
 	}
 
-	public linesVisibleRangesForRange(range:EditorCommon.IRange, includeNewLines:boolean): EditorBrowser.LineVisibleRanges[] {
+	public linesVisibleRangesForRange(range:EditorCommon.IRange, includeNewLines:boolean): EditorCommon.LineVisibleRanges[] {
 		if (this.shouldRender) {
 			// Cannot read from the DOM because it is dirty
 			// i.e. the model & the dom are out of sync, so I'd be reading something stale
@@ -204,8 +204,8 @@ export class ViewLines extends ViewLayer {
 			return null;
 		}
 
-		var visibleRangesForLine:EditorBrowser.HorizontalRange[],
-			visibleRanges:EditorBrowser.LineVisibleRanges[] = [],
+		var visibleRangesForLine:EditorCommon.HorizontalRange[],
+			visibleRanges:EditorCommon.LineVisibleRanges[] = [],
 			lineNumber:number,
 			lineIndex:number,
 			startColumn:number,
@@ -249,7 +249,7 @@ export class ViewLines extends ViewLayer {
 				}
 			}
 
-			visibleRanges.push(new EditorBrowser.LineVisibleRanges(lineNumber, visibleRangesForLine));
+			visibleRanges.push(new EditorCommon.LineVisibleRanges(lineNumber, visibleRangesForLine));
 		}
 
 		if (visibleRanges.length === 0) {
@@ -259,7 +259,7 @@ export class ViewLines extends ViewLayer {
 		return visibleRanges;
 	}
 
-	public visibleRangesForRange2(range:EditorCommon.IRange, deltaTop:number): EditorBrowser.VisibleRange[] {
+	public visibleRangesForRange2(range:EditorCommon.IRange, deltaTop:number): EditorCommon.VisibleRange[] {
 
 		if (this.shouldRender) {
 			// Cannot read from the DOM because it is dirty
@@ -272,7 +272,7 @@ export class ViewLines extends ViewLayer {
 			return null;
 		}
 
-		let result:EditorBrowser.VisibleRange[] = [];
+		let result:EditorCommon.VisibleRange[] = [];
 		let boundingClientRect = this.domNode.getBoundingClientRect();
 		let clientRectDeltaLeft = boundingClientRect.left;
 
@@ -293,7 +293,7 @@ export class ViewLines extends ViewLayer {
 
 			let adjustedLineNumberVerticalOffset = this._layoutProvider.getVerticalOffsetForLineNumber(lineNumber) - this._bigNumbersDelta + deltaTop;
 			for (let i = 0, len = visibleRangesForLine.length; i < len; i++) {
-				result.push(new EditorBrowser.VisibleRange(adjustedLineNumberVerticalOffset, Math.max(0, visibleRangesForLine[i].left - clientRectDeltaLeft), visibleRangesForLine[i].width));
+				result.push(new EditorCommon.VisibleRange(adjustedLineNumberVerticalOffset, Math.max(0, visibleRangesForLine[i].left - clientRectDeltaLeft), visibleRangesForLine[i].width));
 			}
 		}
 
@@ -458,7 +458,7 @@ export class ViewLines extends ViewLayer {
 		}
 
 		var i:number,
-			visibleRange:EditorBrowser.VisibleRange;
+			visibleRange:EditorCommon.VisibleRange;
 
 		for (i = 0; i < visibleRanges.length; i++) {
 			visibleRange = visibleRanges[i];

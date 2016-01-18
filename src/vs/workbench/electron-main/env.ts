@@ -143,6 +143,8 @@ export interface ICommandLineArguments {
 	openInSameWindow?: boolean;
 
 	gotoLineMode?: boolean;
+
+	locale?: string;
 }
 
 function parseCli(): ICommandLineArguments {
@@ -203,7 +205,8 @@ function parseCli(): ICommandLineArguments {
 		pluginHomePath: normalizePath(parseString(args, '--extensionHomePath')),
 		pluginDevelopmentPath: normalizePath(parseString(args, '--extensionDevelopmentPath')),
 		pluginTestsPath: normalizePath(parseString(args, '--extensionTestsPath')),
-		disablePlugins: !!opts['disableExtensions'] || !!opts['disable-extensions']
+		disablePlugins: !!opts['disableExtensions'] || !!opts['disable-extensions'],
+		locale: parseString(args, '--locale')
 	};
 }
 
