@@ -46,7 +46,7 @@ class TextAreaState {
 		return new TextAreaState(textArea.value, textArea.selectionStart, textArea.selectionEnd, selectionToken);
 	}
 
-	public static fromEditorSelectionAndPreviousState(model:EditorCommon.IViewModel, selection:EditorCommon.IEditorRange, previousSelectionToken:number): TextAreaState {
+	public static fromEditorSelectionAndPreviousState(model:ISimpleModel, selection:EditorCommon.IEditorRange, previousSelectionToken:number): TextAreaState {
 		if (Browser.isIPad) {
 			// Do not place anything in the textarea for the iPad
 			return new TextAreaState('', 0, 0, selectionStartLineNumber);
@@ -252,13 +252,37 @@ class TextAreaWrapper extends Lifecycle.Disposable {
 	}
 }
 
-export class KeyboardHandler extends ViewEventHandler implements Lifecycle.IDisposable {
+interface ITextEditor {
+	getModel(): ISimpleModel;
 
-	private context:EditorBrowser.IViewContext;
-	private viewController:EditorBrowser.IViewController;
-	private viewHelper:EditorBrowser.IKeyboardHandlerHelper;
+	emitKeyDown(e:DomUtils.IKeyboardEvent): void;
+	emitKeyUp(e:DomUtils.IKeyboardEvent): void;
+	paste(source:string, txt:string, pasteOnNewLine:boolean): void;
+	type(source:string, txt:string): void;
+	replacePreviousChar(source:string, txt:string): void;
+	cut(source:string): void;
+
+	visibleRangeForPositionRelativeToEditor(lineNumber:number, column1:number, column2:number): { column1: EditorBrowser.VisibleRange; column2: EditorBrowser.VisibleRange; };
+	startIME(): void;
+	stopIME(): void;
+}
+
+interface ISimpleModel {
+	getLineMaxColumn(lineNumber:number): number;
+	getValueInRange(range:EditorCommon.IRange, eol:EditorCommon.EndOfLinePreference): string;
+	getModelLineContent(lineNumber:number): string;
+	getLineCount(): number;
+	convertViewPositionToModelPosition(viewLineNumber:number, viewColumn:number): EditorCommon.IEditorPosition;
+}
+
+class TextAreaHandler extends ViewEventHandler implements Lifecycle.IDisposable {
+
 	private textArea:TextAreaWrapper;
+	private editor:ITextEditor;
+	private configuration:EditorCommon.IConfiguration;
+
 	private selection:EditorCommon.IEditorRange;
+	private selections:EditorCommon.IEditorRange[];
 	private hasFocus:boolean;
 	private listenersToRemove:EventEmitter.ListenerUnbind[];
 	private _toDispose:Lifecycle.IDisposable[];
@@ -286,14 +310,14 @@ export class KeyboardHandler extends ViewEventHandler implements Lifecycle.IDisp
 	private lastCopiedValue: string;
 	private lastCopiedValueIsFromEmptySelection: boolean;
 
-	constructor(context:EditorBrowser.IViewContext, viewController:EditorBrowser.IViewController, viewHelper:EditorBrowser.IKeyboardHandlerHelper) {
+	constructor(textArea:TextAreaWrapper, editor:ITextEditor, configuration:EditorCommon.IConfiguration) {
 		super();
 
-		this.context = context;
-		this.viewController = viewController;
-		this.textArea = new TextAreaWrapper(viewHelper.textArea);
-		this.viewHelper = viewHelper;
+		this.textArea = textArea;
+		this.editor = editor;
+		this.configuration = configuration;
 		this.selection = new Range(1, 1, 1, 1);
+		this.selections = [new Range(1, 1, 1, 1)];
 		this.cursorPosition = new Position(1, 1);
 		this.contentLeft = 0;
 		this.contentWidth = 0;
@@ -446,17 +470,15 @@ export class KeyboardHandler extends ViewEventHandler implements Lifecycle.IDisp
 
 		this._writePlaceholderAndSelectTextArea();
 
-		this.context.addEventHandler(this);
 	}
 
 	public dispose(): void {
-		this.context.removeEventHandler(this);
+
 		this.listenersToRemove.forEach((element) => {
 			element();
 		});
 		this.listenersToRemove = [];
 		this._toDispose = Lifecycle.disposeAll(this._toDispose);
-		this.textArea.dispose();
 		this.asyncReadFromTextArea.dispose();
 		this.asyncSetSelectionToTextArea.dispose();
 		this.asyncTriggerCut.dispose();
@@ -481,17 +503,9 @@ export class KeyboardHandler extends ViewEventHandler implements Lifecycle.IDisp
 			interestingColumn2 = interestingColumn1;
 		}
 
-		// Ensure range is in viewport
-		var revealInterestingColumn1Event:EditorCommon.IViewRevealRangeEvent = {
-			range: new Range(interestingLineNumber, interestingColumn1, interestingLineNumber, interestingColumn1),
-			verticalType: EditorCommon.VerticalRevealType.Simple,
-			revealHorizontal: true
-		};
-		this.context.privateViewEventBus.emit(EditorCommon.ViewEventNames.RevealRangeEvent, revealInterestingColumn1Event);
-
-		// Find range pixel position
-		var visibleRange1 = this.viewHelper.visibleRangeForPositionRelativeToEditor(interestingLineNumber, interestingColumn1);
-		var visibleRange2 = this.viewHelper.visibleRangeForPositionRelativeToEditor(interestingLineNumber, interestingColumn2);
+		let visibleRanges = this.editor.visibleRangeForPositionRelativeToEditor(interestingLineNumber, interestingColumn1, interestingColumn2);
+		var visibleRange1 = visibleRanges.column1;
+		var visibleRange2 = visibleRanges.column2;
 
 		let style: ITextAreaStyle = {
 			top: undefined,
@@ -520,9 +534,9 @@ export class KeyboardHandler extends ViewEventHandler implements Lifecycle.IDisp
 		}
 
 		// Show the textarea
-		style.height = this.context.configuration.editor.lineHeight + 'px';
+		style.height = this.configuration.editor.lineHeight + 'px';
 		this.textArea.setStyle(style);
-		DomUtils.addClass(this.viewHelper.viewDomNode, 'ime-input');
+		this.editor.startIME();
 	}
 
 	private hideTextArea(): void {
@@ -532,7 +546,7 @@ export class KeyboardHandler extends ViewEventHandler implements Lifecycle.IDisp
 			left: '0px',
 			top: '0px'
 		});
-		DomUtils.removeClass(this.viewHelper.viewDomNode, 'ime-input');
+		this.editor.stopIME();
 	}
 
 	// --- begin event handlers
@@ -552,6 +566,7 @@ export class KeyboardHandler extends ViewEventHandler implements Lifecycle.IDisp
 
 	public onCursorSelectionChanged(e:EditorCommon.IViewCursorSelectionChangedEvent): boolean {
 		this.selection = e.selection;
+		this.selections = [e.selection].concat(e.secondarySelections);
 		this.asyncSetSelectionToTextArea.schedule();
 		return false;
 	}
@@ -589,7 +604,7 @@ export class KeyboardHandler extends ViewEventHandler implements Lifecycle.IDisp
 			// See http://msdn.microsoft.com/en-us/library/ie/ms536939(v=vs.85).aspx
 			e.preventDefault();
 		}
-		this.viewController.emitKeyDown(e);
+		this.editor.emitKeyDown(e);
 		// Work around for issue spotted in electron on the mac
 		// TODO@alex: check if this issue exists after updating electron
 		// Steps:
@@ -613,7 +628,7 @@ export class KeyboardHandler extends ViewEventHandler implements Lifecycle.IDisp
 	}
 
 	private _onKeyUp(e:DomUtils.IKeyboardEvent): void {
-		this.viewController.emitKeyUp(e);
+		this.editor.emitKeyUp(e);
 	}
 
 	private _onKeyPress(e:DomUtils.IKeyboardEvent): void {
@@ -669,7 +684,7 @@ export class KeyboardHandler extends ViewEventHandler implements Lifecycle.IDisp
 		if (Browser.enableEmptySelectionClipboard) {
 			pasteOnNewLine = (txt === this.lastCopiedValue && this.lastCopiedValueIsFromEmptySelection);
 		}
-		this.viewController.paste('keyboard', txt, pasteOnNewLine);
+		this.editor.paste('keyboard', txt, pasteOnNewLine);
 	}
 
 	private executeType(txt:string): void {
@@ -677,18 +692,18 @@ export class KeyboardHandler extends ViewEventHandler implements Lifecycle.IDisp
 			return;
 		}
 
-		this.viewController.type('keyboard', txt);
+		this.editor.type('keyboard', txt);
 	}
 
 	private executeReplacePreviousChar(txt: string): void {
-		this.viewController.replacePreviousChar('keyboard', txt);
+		this.editor.replacePreviousChar('keyboard', txt);
 	}
 
 	private _writePlaceholderAndSelectTextArea(): void {
 		if (!this.textareaIsShownAtCursor) {
 			// Do not write to the textarea if it is visible.
 			var previousSelectionToken = this.previousSetTextAreaState ? this.previousSetTextAreaState.getSelectionToken() : 0;
-			var newState = TextAreaState.fromEditorSelectionAndPreviousState(this.context.model, this.selection, previousSelectionToken);
+			var newState = TextAreaState.fromEditorSelectionAndPreviousState(this.editor.getModel(), this.selection, previousSelectionToken);
 			this.setTextAreaState(newState, true);
 		}
 	}
@@ -717,7 +732,7 @@ export class KeyboardHandler extends ViewEventHandler implements Lifecycle.IDisp
 	}
 
 	private _triggerCut(): void {
-		this.viewController.cut('keyboard');
+		this.editor.cut('keyboard');
 	}
 
 	private _onCut(e:ClipboardEvent): void {
@@ -748,7 +763,7 @@ export class KeyboardHandler extends ViewEventHandler implements Lifecycle.IDisp
 				this.lastCopiedValue = whatToCopy;
 			}
 
-			var selections = this.context.model.getSelections();
+			var selections = this.selections;
 			this.lastCopiedValueIsFromEmptySelection = (selections.length === 1 && selections[0].isEmpty());
 		}
 	}
@@ -756,87 +771,114 @@ export class KeyboardHandler extends ViewEventHandler implements Lifecycle.IDisp
 	private _getPlainTextToCopy(): string {
 		var newLineCharacter = (Platform.isWindows ? '\r\n' : '\n');
 		var eolPref = (Platform.isWindows ? EditorCommon.EndOfLinePreference.CRLF : EditorCommon.EndOfLinePreference.LF);
-		var selections = this.context.model.getSelections();
+		var selections = this.selections;
+		let model = this.editor.getModel();
 
 		if (selections.length === 1) {
 			var range:EditorCommon.IEditorRange = selections[0];
 			if (range.isEmpty()) {
 				if (Browser.enableEmptySelectionClipboard) {
-					var modelLineNumber = this.context.model.convertViewPositionToModelPosition(range.startLineNumber, 1).lineNumber;
-					return this.context.model.getModelLineContent(modelLineNumber) + newLineCharacter;
+					var modelLineNumber = model.convertViewPositionToModelPosition(range.startLineNumber, 1).lineNumber;
+					return model.getModelLineContent(modelLineNumber) + newLineCharacter;
 				} else {
 					return '';
 				}
 			}
 
-			return this.context.model.getValueInRange(range, eolPref);
+			return model.getValueInRange(range, eolPref);
 		} else {
 			selections = selections.slice(0).sort(Range.compareRangesUsingStarts);
 			var result: string[] = [];
 			for (var i = 0; i < selections.length; i++) {
-				result.push(this.context.model.getValueInRange(selections[i], eolPref));
+				result.push(model.getValueInRange(selections[i], eolPref));
 			}
 
 			return result.join(newLineCharacter);
 		}
-
 	}
-
-//	private static _getHTMLLine(model:Editor.IModel, lineNumber:number, startColumn:number, endColumn:number, output:string[]): void {
-//		var lineText = model.getLineContent(lineNumber);
-//		var tokens = model.getLineTokens(lineNumber);
-//
-//		if (lineText.length > 0) {
-//			var charCode:number,
-//				i:number,
-//				len = lineText.length,
-//				tokenIndex = -1,
-//				nextTokenIndex = (tokens.length > tokenIndex + 1 ? tokens[tokenIndex + 1].startIndex : len);
-//
-//			for (i = 0; i < len; i++) {
-//				if (i === nextTokenIndex) {
-//					tokenIndex++;
-//					nextTokenIndex = (tokens.length > tokenIndex + 1 ? tokens[tokenIndex + 1].startIndex : len);
-//					if (i > 0) {
-//						output.push('</span>');
-//					}
-//					output.push('<span class="token ');
-//					output.push(tokens[tokenIndex].type.replace(/[^a-z0-9]/gi, ' '));
-//					output.push('">');
-//				}
-//
-//				charCode = lineText.charCodeAt(i);
-//
-//				if (charCode === _lowerThan) {
-//					output.push('&lt;');
-//				} else if (charCode === _greaterThan) {
-//					output.push('&gt;');
-//				} else if (charCode === _ampersand) {
-//					output.push('&amp;');
-//				} else {
-//					output.push(lineText.charAt(i));
-//				}
-//			}
-//		}
-//	}
-//
-//	private _getHTMLToCopy(): string {
-//		var range:Editor.IEditorRange = this.context.cursor.getSelection();
-//		var append = '';
-//		if (range.isEmpty()) {
-//			var lineNumber = range.startLineNumber;
-//			range = new Range(lineNumber, 1, lineNumber, this.context.model.getLineMaxColumn(lineNumber));
-//			append = '\n';
-//		}
-//
-//		var r:string[] = [];
-//		for (var i = range.startLineNumber; i <= range.endLineNumber; i++) {
-//			KeyboardHandler._getHTMLLine(this.context.model, i, 1, this.context.model.getLineMaxColumn(i), r);
-//		}
-//
-//		console.log(r.join('') + append);
-//
-//		return r.join('') + append;
-//	}
 }
 
+export class KeyboardHandler extends ViewEventHandler implements Lifecycle.IDisposable {
+
+	private context:EditorBrowser.IViewContext;
+	private viewController:EditorBrowser.IViewController;
+	private viewHelper:EditorBrowser.IKeyboardHandlerHelper;
+	private textArea:TextAreaWrapper;
+	private textAreaHandler:TextAreaHandler;
+
+	constructor(context:EditorBrowser.IViewContext, viewController:EditorBrowser.IViewController, viewHelper:EditorBrowser.IKeyboardHandlerHelper) {
+		super();
+
+		this.context = context;
+		this.viewController = viewController;
+		this.textArea = new TextAreaWrapper(viewHelper.textArea);
+		this.viewHelper = viewHelper;
+
+		this.textAreaHandler = new TextAreaHandler(this.textArea, {
+			getModel: (): ISimpleModel => this.context.model,
+			emitKeyDown: (e:DomUtils.IKeyboardEvent): void => this.viewController.emitKeyDown(e),
+			emitKeyUp: (e:DomUtils.IKeyboardEvent): void => this.viewController.emitKeyUp(e),
+			paste: (source:string, txt:string, pasteOnNewLine:boolean): void => this.viewController.paste(source, txt, pasteOnNewLine),
+			type: (source:string, txt:string): void => this.viewController.type(source, txt),
+			replacePreviousChar: (source:string, txt:string): void => this.viewController.replacePreviousChar(source, txt),
+			cut: (source:string): void => this.viewController.cut(source),
+			visibleRangeForPositionRelativeToEditor: (lineNumber:number, column1:number, column2:number): { column1: EditorBrowser.VisibleRange; column2: EditorBrowser.VisibleRange; } => {
+				var revealInterestingColumn1Event:EditorCommon.IViewRevealRangeEvent = {
+					range: new Range(lineNumber, column1, lineNumber, column1),
+					verticalType: EditorCommon.VerticalRevealType.Simple,
+					revealHorizontal: true
+				};
+				this.context.privateViewEventBus.emit(EditorCommon.ViewEventNames.RevealRangeEvent, revealInterestingColumn1Event);
+
+				// Find range pixel position
+				var visibleRange1 = this.viewHelper.visibleRangeForPositionRelativeToEditor(lineNumber, column1);
+				var visibleRange2 = this.viewHelper.visibleRangeForPositionRelativeToEditor(lineNumber, column2);
+
+				return {
+					column1: visibleRange1,
+					column2: visibleRange2
+				}
+			},
+			startIME: (): void => {
+				DomUtils.addClass(this.viewHelper.viewDomNode, 'ime-input');
+			},
+			stopIME: (): void => {
+				DomUtils.removeClass(this.viewHelper.viewDomNode, 'ime-input');
+			}
+		}, this.context.configuration);
+
+		this.context.addEventHandler(this);
+	}
+
+	public dispose(): void {
+		this.context.removeEventHandler(this);
+		this.textAreaHandler.dispose();
+		this.textArea.dispose();
+	}
+
+	public onScrollChanged(e:EditorCommon.IScrollEvent): boolean {
+		this.textAreaHandler.onScrollChanged(e);
+		return false;
+	}
+
+	public onViewFocusChanged(isFocused:boolean): boolean {
+		this.textAreaHandler.onViewFocusChanged(isFocused);
+		return false;
+	}
+
+	public onCursorSelectionChanged(e:EditorCommon.IViewCursorSelectionChangedEvent): boolean {
+		this.textAreaHandler.onCursorSelectionChanged(e);
+		return false;
+	}
+
+	public onCursorPositionChanged(e:EditorCommon.IViewCursorPositionChangedEvent): boolean {
+		this.textAreaHandler.onCursorPositionChanged(e);
+		return false;
+	}
+
+	public onLayoutChanged(layoutInfo:EditorCommon.IEditorLayoutInfo): boolean {
+		this.textAreaHandler.onLayoutChanged(layoutInfo);
+		return false;
+	}
+
+}
