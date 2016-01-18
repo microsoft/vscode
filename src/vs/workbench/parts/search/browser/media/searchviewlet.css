@@ -35,10 +35,19 @@
 
 .search-viewlet .query-details .more {
 	position: absolute;
-	top: -0.5em;
 	right: 0;
 	margin-right: 0.5em;
 	cursor: pointer;
+	width: 16px;
+	height: 16px;
+}
+
+.monaco-workbench.vs-dark .search-viewlet .query-details .more {
+	background: url('ellipsis-inverse.svg') center center no-repeat;
+}
+
+.monaco-workbench.vs .search-viewlet .query-details .more {
+	background: url('ellipsis.svg') center center no-repeat;
 }
 
 .search-viewlet .query-details .file-types {
