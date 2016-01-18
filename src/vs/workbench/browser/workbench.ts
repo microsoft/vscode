@@ -214,6 +214,11 @@ export class Workbench implements IPartService {
 				viewletAndEditorPromises.push(this.sidebarPart.openViewlet(viewletId, false).then(() => viewletTimerEvent.stop()));
 			}
 
+			if (!this.panelHidden) {
+				const panelId = this.storageService.get(PanelPart.activePanelSettingsKey, StorageScope.WORKSPACE);
+				viewletAndEditorPromises.push(this.panelPart.openPanel(panelId, false));
+			}
+
 			// Check for configured options to open files on startup and resolve if any or open untitled for empty workbench
 			let editorTimerEvent = timer.start(timer.Topic.STARTUP, strings.format('Restoring Editor(s)'));
 			let resolveEditorInputsPromise: TPromise<EditorInput[]> = Promise.as(null);
