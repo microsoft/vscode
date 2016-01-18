@@ -69,7 +69,17 @@ export class TextAreaState {
 	}
 
 	public toString(): string {
-		return '[ <' + this.value + '>, selectionStart: ' + this.selectionStart + ', selectionEnd: ' + this.selectionEnd + ']';
+		return '[ <' + this.value + '>, selectionStart: ' + this.selectionStart + ', selectionEnd: ' + this.selectionEnd + ', isInOverwriteMode: ' + this.isInOverwriteMode + ', selectionToken: ' + this.selectionToken + ']';
+	}
+
+	public equals(other:TextAreaState): boolean {
+		return (
+			this.value === other.value
+			&& this.selectionStart === other.selectionStart
+			&& this.selectionEnd === other.selectionEnd
+			&& this.isInOverwriteMode === other.isInOverwriteMode
+			&& this.selectionToken === other.selectionToken
+		);
 	}
 
 	public static fromTextArea(textArea:ITextAreaWrapper, selectionToken:number): TextAreaState {
@@ -153,6 +163,9 @@ export class TextAreaState {
 	}
 
 	public extractNewText(previousState:TextAreaState): string {
+		// console.log('-----------')
+		// console.log('prev:' + String(previousState));
+		// console.log('curr:' + String(this));
 		if (this.selectionStart !== this.selectionEnd) {
 			// There is a selection in the textarea => ignore input
 			return '';
