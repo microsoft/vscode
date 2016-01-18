@@ -6,8 +6,11 @@
 import nls = require('vs/nls');
 import {Promise} from 'vs/base/common/winjs.base';
 import {Action} from 'vs/base/common/actions';
+import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 import {Registry} from 'vs/platform/platform';
+import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
 import {IPanel} from 'vs/workbench/common/panel';
+import {IWorkbenchActionRegistry, Extensions as WorkbenchExtensions} from 'vs/workbench/common/actionRegistry';
 import {Composite, CompositeDescriptor, CompositeRegistry} from 'vs/workbench/browser/composite';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
 
@@ -74,9 +77,29 @@ export class ClosePanelAction extends Action {
 	}
 
 	public run(): Promise {
+		this.partService.setPanelHidden(false);
+		return Promise.as(true);
+	}
+}
+
+export class TogglePanelAction extends Action {
+	static ID = 'workbench.action.togglePanelAction';
+	static LABEL = nls.localize('togglePanel', "Toggle Panel Visibility");
+
+	constructor(
+		id: string,
+		name: string,
+		@IPartService private partService: IPartService
+	) {
+		super(id, name);
+	}
+
+	public run(): Promise {
 		this.partService.setPanelHidden(!this.partService.isPanelHidden());
 		return Promise.as(true);
 	}
 }
 
 Registry.add(Extensions.Panels, new PanelRegistry());
+let actionRegistry = <IWorkbenchActionRegistry>Registry.as(WorkbenchExtensions.WorkbenchActions);
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(TogglePanelAction, TogglePanelAction.ID, TogglePanelAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_D }), nls.localize('view', "View"));
