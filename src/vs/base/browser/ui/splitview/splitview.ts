@@ -115,7 +115,7 @@ export class HeaderView extends View {
 		this.header = document.createElement('div');
 		this.header.className = 'header';
 
-		var headerSize = this.headerSize + 'px';
+		let headerSize = this.headerSize + 'px';
 
 		if (orientation === Orientation.HORIZONTAL) {
 			this.header.style.width = headerSize;
@@ -148,7 +148,7 @@ export class HeaderView extends View {
 	}
 
 	private layoutBodyContainer(orientation: Orientation): void {
-		var size = `calc(100% - ${this.headerSize}px)`;
+		let size = `calc(100% - ${this.headerSize}px)`;
 
 		if (orientation === Orientation.HORIZONTAL) {
 			this.body.style.width = size;
@@ -321,8 +321,7 @@ function sum(a: number, b: number): number { return a + b; }
 
 export class SplitView implements
 	sash.IHorizontalSashLayoutProvider,
-	sash.IVerticalSashLayoutProvider
-{
+	sash.IVerticalSashLayoutProvider {
 	private orientation: Orientation;
 	private el: HTMLElement;
 	private size: number;
@@ -333,9 +332,9 @@ export class SplitView implements
 	private sashOrientation: sash.Orientation;
 	private sashes: sash.Sash[];
 	private sashesListeners: lifecycle.IDisposable[];
-	private measureContainerSize: ()=>number;
-	private layoutViewElement: (viewElement: HTMLElement, size: number)=>void;
-	private eventWrapper: (event: sash.ISashEvent)=>ISashEvent;
+	private measureContainerSize: () => number;
+	private layoutViewElement: (viewElement: HTMLElement, size: number) => void;
+	private eventWrapper: (event: sash.ISashEvent) => ISashEvent;
 	private animationTimeout: number;
 
 	private state: IState;
@@ -386,10 +385,10 @@ export class SplitView implements
 			throw new Error('Initial weight must be a positive number.');
 		}
 
-		var viewCount = this.views.length;
+		let viewCount = this.views.length;
 
 		// Create view container
-		var viewElement = document.createElement('div');
+		let viewElement = document.createElement('div');
 		dom.addClass(viewElement, 'split-view-view');
 		this.viewElements.splice(index, 0, viewElement);
 
@@ -409,7 +408,7 @@ export class SplitView implements
 
 		// Add sash
 		if (this.views.length > 2) {
-			var s = new sash.Sash(this.el, this, { orientation: this.sashOrientation });
+			let s = new sash.Sash(this.el, this, { orientation: this.sashOrientation });
 			this.sashes.splice(index - 1, 0, s);
 			this.sashesListeners.push(s.addListener2('start', e => this.onSashStart(s, this.eventWrapper(e))));
 			this.sashesListeners.push(s.addListener2('change', e => this.onSashChange(s, this.eventWrapper(e))));
@@ -420,17 +419,17 @@ export class SplitView implements
 	}
 
 	public removeView(view: View): void {
-		var index = this.views.indexOf(view);
+		let index = this.views.indexOf(view);
 
 		if (index < 0) {
 			return;
 		}
 
-		var deadView = new DeadView(view);
+		let deadView = new DeadView(view);
 		this.views[index] = deadView;
 		this.onViewChange(deadView, 0);
 
-		var sashIndex = Math.max(index - 1, 0);
+		let sashIndex = Math.max(index - 1, 0);
 		this.sashes[sashIndex].dispose();
 		this.sashes.splice(sashIndex, 1);
 
@@ -456,11 +455,11 @@ export class SplitView implements
 
 		size = Math.max(size, this.views.reduce((t, v) => t + v.minimumSize, 0));
 
-		var diff = Math.abs(this.size - size);
-		var up = numbers.countToArray(this.views.length - 1, -1);
+		let diff = Math.abs(this.size - size);
+		let up = numbers.countToArray(this.views.length - 1, -1);
 
-		var collapses = this.views.map(v => v.size - v.minimumSize);
-		var expands = this.views.map(v => v.maximumSize - v.size);
+		let collapses = this.views.map(v => v.size - v.minimumSize);
+		let expands = this.views.map(v => v.maximumSize - v.size);
 
 		if (size < this.size) {
 			this.expandCollapse(Math.min(diff, collapses.reduce(sum, 0)), collapses, expands, up, []);
@@ -473,17 +472,17 @@ export class SplitView implements
 	}
 
 	private onSashStart(sash: sash.Sash, event: ISashEvent): void {
-		var i = this.sashes.indexOf(sash);
-		var collapses = this.views.map(v => v.size - v.minimumSize);
-		var expands = this.views.map(v => v.maximumSize - v.size);
+		let i = this.sashes.indexOf(sash);
+		let collapses = this.views.map(v => v.size - v.minimumSize);
+		let expands = this.views.map(v => v.maximumSize - v.size);
 
-		var up = numbers.countToArray(i, -1);
-		var down = numbers.countToArray(i + 1, this.views.length);
+		let up = numbers.countToArray(i, -1);
+		let down = numbers.countToArray(i + 1, this.views.length);
 
-		var collapsesUp = up.map(i => collapses[i]);
-		var collapsesDown = down.map(i => collapses[i]);
-		var expandsUp = up.map(i => expands[i]);
-		var expandsDown = down.map(i => expands[i]);
+		let collapsesUp = up.map(i => collapses[i]);
+		let collapsesDown = down.map(i => collapses[i]);
+		let expandsUp = up.map(i => expands[i]);
+		let expandsDown = down.map(i => expands[i]);
 
 		this.state = {
 			start: event.start,
@@ -498,10 +497,10 @@ export class SplitView implements
 	}
 
 	private onSashChange(sash: sash.Sash, event: ISashEvent): void {
-		var i = this.sashes.indexOf(sash);
-		var diff = event.current - this.state.start;
+		let i = this.sashes.indexOf(sash);
+		let diff = event.current - this.state.start;
 
-		for (var i = 0; i < this.views.length; i++) {
+		for (let i = 0; i < this.views.length; i++) {
 			this.views[i].size = this.state.sizes[i];
 		}
 
@@ -516,25 +515,25 @@ export class SplitView implements
 
 	// Main algorithm
 	private expandCollapse(collapse: number, collapses: number[], expands: number[], collapseIndexes: number[], expandIndexes: number[]): void {
-		var totalCollapse = collapse;
-		var totalExpand = totalCollapse;
+		let totalCollapse = collapse;
+		let totalExpand = totalCollapse;
 
 		collapseIndexes.forEach(i => {
-			var collapse = Math.min(collapses[i], totalCollapse);
+			let collapse = Math.min(collapses[i], totalCollapse);
 			totalCollapse -= collapse;
 			this.views[i].size -= collapse;
 		});
 
 		expandIndexes.forEach(i => {
-			var expand = Math.min(expands[i], totalExpand);
+			let expand = Math.min(expands[i], totalExpand);
 			totalExpand -= expand;
 			this.views[i].size += expand;
 		});
 	}
 
 	private initialLayout(): void {
-		var totalWeight = 0;
-		var fixedSize = 0;
+		let totalWeight = 0;
+		let fixedSize = 0;
 
 		this.views.forEach((v, i) => {
 			if (v.sizing === ViewSizing.Flexible) {
@@ -544,7 +543,7 @@ export class SplitView implements
 			}
 		});
 
-		var flexibleSize = this.size - fixedSize;
+		let flexibleSize = this.size - fixedSize;
 
 		this.views.forEach((v, i) => {
 			if (v.sizing === ViewSizing.Flexible) {
@@ -555,7 +554,7 @@ export class SplitView implements
 		});
 
 		// Leftover
-		var index = this.getLastFlexibleViewIndex();
+		let index = this.getLastFlexibleViewIndex();
 		if (index >= 0) {
 			this.views[index].size += this.size - this.views.reduce((t, v) => t + v.size, 0);
 		}
@@ -565,7 +564,7 @@ export class SplitView implements
 	}
 
 	private getLastFlexibleViewIndex(exceptIndex: number = null): number {
-		for (var i = this.views.length - 1; i >= 0; i--) {
+		for (let i = this.views.length - 1; i >= 0; i--) {
 			if (exceptIndex === i) {
 				continue;
 			}
@@ -578,7 +577,7 @@ export class SplitView implements
 	}
 
 	private layoutViews(): void {
-		for (var i = 0; i < this.views.length; i++) {
+		for (let i = 0; i < this.views.length; i++) {
 			// Layout the view elements
 			this.layoutViewElement(this.viewElements[i], this.views[i].size);
 
@@ -590,18 +589,18 @@ export class SplitView implements
 		this.sashes.forEach(s => s.layout());
 
 		// Update sashes enablement
-		var previous = false;
-		var collapsesDown = this.views.map(v => previous = (v.size - v.minimumSize > 0) || previous);
+		let previous = false;
+		let collapsesDown = this.views.map(v => previous = (v.size - v.minimumSize > 0) || previous);
 
 		previous = false;
-		var expandsDown = this.views.map(v => previous = (v.maximumSize - v.size > 0) || previous);
+		let expandsDown = this.views.map(v => previous = (v.maximumSize - v.size > 0) || previous);
 
-		var reverseViews = this.views.slice().reverse();
+		let reverseViews = this.views.slice().reverse();
 		previous = false;
-		var collapsesUp = reverseViews.map(v => previous = (v.size - v.minimumSize > 0) || previous).reverse();
+		let collapsesUp = reverseViews.map(v => previous = (v.size - v.minimumSize > 0) || previous).reverse();
 
 		previous = false;
-		var expandsUp = reverseViews.map(v => previous = (v.maximumSize - v.size > 0) || previous).reverse();
+		let expandsUp = reverseViews.map(v => previous = (v.maximumSize - v.size > 0) || previous).reverse();
 
 		this.sashes.forEach((s, i) => {
 			if ((collapsesDown[i] && expandsUp[i + 1]) || (expandsDown[i] && collapsesUp[i + 1])) {
@@ -631,16 +630,16 @@ export class SplitView implements
 
 		this.setupAnimation();
 
-		var index = this.views.indexOf(view);
-		var diff = Math.abs(size - view.size);
-		var up = numbers.countToArray(index - 1, -1);
-		var down = numbers.countToArray(index + 1, this.views.length);
-		var downUp = down.concat(up);
+		let index = this.views.indexOf(view);
+		let diff = Math.abs(size - view.size);
+		let up = numbers.countToArray(index - 1, -1);
+		let down = numbers.countToArray(index + 1, this.views.length);
+		let downUp = down.concat(up);
 
-		var collapses = this.views.map(v => Math.max(v.size - v.minimumSize, 0));
-		var expands = this.views.map(v => Math.max(v.maximumSize - v.size, 0));
+		let collapses = this.views.map(v => Math.max(v.size - v.minimumSize, 0));
+		let expands = this.views.map(v => Math.max(v.maximumSize - v.size, 0));
 
-		var collapse: number, collapseIndexes: number[], expandIndexes: number[];
+		let collapse: number, collapseIndexes: number[], expandIndexes: number[];
 
 		if (size < view.size) {
 			collapse = Math.min(downUp.reduce((t, i) => t + expands[i], 0), diff);
@@ -688,10 +687,10 @@ export class SplitView implements
 	}
 
 	private getSashPosition(sash: sash.Sash): number {
-		var index = this.sashes.indexOf(sash);
-		var position = 0;
+		let index = this.sashes.indexOf(sash);
+		let position = 0;
 
-		for (var i = 0; i <= index; i++) {
+		for (let i = 0; i <= index; i++) {
 			position += this.views[i].size;
 		}
 
