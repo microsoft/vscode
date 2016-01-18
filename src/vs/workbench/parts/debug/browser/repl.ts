@@ -7,24 +7,22 @@ import 'vs/css!./media/repl';
 import { TPromise, Promise } from 'vs/base/common/winjs.base';
 import errors = require('vs/base/common/errors');
 import lifecycle = require('vs/base/common/lifecycle');
+import actions = require('vs/base/common/actions');
 import builder = require('vs/base/browser/builder');
 import dom = require('vs/base/browser/dom');
 import platform = require('vs/base/common/platform');
 import tree = require('vs/base/parts/tree/browser/tree');
 import treeimpl = require('vs/base/parts/tree/browser/treeImpl');
-import wbeditorcommon = require('vs/workbench/common/editor');
-import baseeditor = require('vs/workbench/browser/parts/editor/baseEditor');
-import editorinputs = require('vs/workbench/parts/debug/browser/debugEditorInputs');
 import viewer = require('vs/workbench/parts/debug/browser/replViewer');
 import debug = require('vs/workbench/parts/debug/common/debug');
 import debugactions = require('vs/workbench/parts/debug/electron-browser/debugActions');
 import replhistory = require('vs/workbench/parts/debug/common/replHistory');
+import { Panel } from 'vs/workbench/browser/panel';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService, INullService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceContextService } from 'vs/workbench/services/workspace/common/contextService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { CommonKeybindings } from 'vs/base/common/keyCodes';
 
 const $ = dom.emmet;
@@ -37,9 +35,9 @@ const replTreeOptions = {
 
 const HISTORY_STORAGE_KEY = 'debug.repl.history';
 
-export class Repl extends baseeditor.BaseEditor {
+export class Repl extends Panel {
 
-	public static ID = 'workbench.editors.replEditor';
+	public static ID = 'workbench.panel.repl';
 	private static HALF_WIDTH_TYPICAL = 'n';
 
 	private static HISTORY: replhistory.ReplHistory;
@@ -60,21 +58,18 @@ export class Repl extends baseeditor.BaseEditor {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IContextViewService private contextViewService: IContextViewService,
-		@IStorageService private storageService: IStorageService,
-		@ILifecycleService lifecycleService: ILifecycleService
+		@IStorageService private storageService: IStorageService
 	) {
 		super(Repl.ID, telemetryService);
 
 		this.toDispose = [];
-
-		this.registerListeners(lifecycleService);
+		this.registerListeners();
 	}
 
-	private registerListeners(lifecycleService: ILifecycleService): void {
+	private registerListeners(): void {
 		this.toDispose.push(this.debugService.getModel().addListener2(debug.ModelEvents.REPL_ELEMENTS_UPDATED, (re: debug.ITreeElement|debug.ITreeElement[]) => {
 			this.onReplElementsUpdated(re);
 		}));
-		lifecycleService.onShutdown(this.onShutdown, this);
 	}
 
 	private onReplElementsUpdated(re: debug.ITreeElement | debug.ITreeElement[]): void {
@@ -96,7 +91,8 @@ export class Repl extends baseeditor.BaseEditor {
 		}
 	}
 
-	public createEditor(parent: builder.Builder): void {
+	public create(parent: builder.Builder): TPromise<void> {
+		super.create(parent);
 		const container = dom.append(parent.getHTMLElement(), $('.repl'));
 		// inherit the background color from selected theme.
 		dom.addClass(container, 'monaco-editor-background');
@@ -139,18 +135,8 @@ export class Repl extends baseeditor.BaseEditor {
 		if (!Repl.HISTORY) {
 			Repl.HISTORY = new replhistory.ReplHistory(JSON.parse(this.storageService.get(HISTORY_STORAGE_KEY, StorageScope.WORKSPACE, '[]')));
 		}
-	}
 
-	public setInput(input: wbeditorcommon.EditorInput, options: wbeditorcommon.EditorOptions) : TPromise<void> {
-		return super.setInput(input, options).then(() => {
-			if (!this.tree) {
-				return;
-			}
-
-			if (!this.tree.getInput()) {
-				this.tree.setInput(this.debugService.getModel())
-			}
-		});
+		return this.tree.setInput(this.debugService.getModel());
 	}
 
 	public layout(dimension: builder.Dimension): void {
@@ -169,7 +155,12 @@ export class Repl extends baseeditor.BaseEditor {
 		return this.tree.reveal(element);
 	}
 
-	private onShutdown(): void {
+	public getActions(): actions.IAction[] {
+		// TODO@isidor
+		return [];
+	}
+
+	public shutdown(): void {
 		this.storageService.store(HISTORY_STORAGE_KEY, JSON.stringify(Repl.HISTORY.save()), StorageScope.WORKSPACE);
 	}
 
@@ -178,35 +169,5 @@ export class Repl extends baseeditor.BaseEditor {
 		this.toDispose = lifecycle.disposeAll(this.toDispose);
 
 		super.dispose();
-	}
-}
-
-export class ReplEditorActionContributor extends baseeditor.EditorInputActionContributor {
-
-	constructor(@IInstantiationService private instantiationService: IInstantiationService) {
-		super();
-	}
-
-	public hasActionsForEditorInput(context: baseeditor.IEditorInputActionContext): boolean {
-		return context.input instanceof editorinputs.ReplEditorInput;
-	}
-
-	public getActionsForEditorInput(context: baseeditor.IEditorInputActionContext): baseeditor.IEditorInputAction[] {
-		return [this.instantiationService.createInstance(debugactions.ClearReplAction)];
-	}
-}
-
-export class ReplInputFactory implements baseeditor.IEditorInputFactory {
-
-	constructor(@INullService ns) {
-		// noop
-	}
-
-	public serialize(editorInput: wbeditorcommon.EditorInput): string {
-		return editorInput.getId();
-	}
-
-	public deserialize(instantiationService: IInstantiationService, resourceRaw: string): wbeditorcommon.EditorInput {
-		return editorinputs.ReplEditorInput.getInstance();
 	}
 }

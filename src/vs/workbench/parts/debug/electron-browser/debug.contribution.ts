@@ -18,13 +18,14 @@ import { EditorBrowserRegistry } from 'vs/editor/browser/editorBrowserExtensions
 import wbaregistry = require('vs/workbench/common/actionRegistry');
 import actionbarregistry = require('vs/workbench/browser/actionBarRegistry');
 import viewlet = require('vs/workbench/browser/viewlet');
+import panel = require('vs/workbench/browser/panel');
 import wbext = require('vs/workbench/common/contributions');
 import baseeditor = require('vs/workbench/browser/parts/editor/baseEditor');
 import * as debug from 'vs/workbench/parts/debug/common/debug';
 import { DebugEditorModelManager } from 'vs/workbench/parts/debug/browser/debugEditorModelManager'
 import dbgactions = require('vs/workbench/parts/debug/electron-browser/debugActions');
 import editorinputs = require('vs/workbench/parts/debug/browser/debugEditorInputs');
-import repleditor = require('vs/workbench/parts/debug/browser/replEditor');
+import repl = require('vs/workbench/parts/debug/browser/repl');
 import debugwidget = require('vs/workbench/parts/debug/browser/debugActionsWidget');
 import service = require('vs/workbench/parts/debug/electron-browser/debugService');
 import { DebugEditorContribution } from 'vs/workbench/parts/debug/browser/debugEditorContribution';
@@ -70,14 +71,15 @@ const openViewletKb: IKeybindings = {
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_D
 };
 
-// register repl editor
-platform.Registry.as(baseeditor.Extensions.Editors).registerEditor(
-	new baseeditor.EditorDescriptor(repleditor.Repl.ID, 'Repl', 'vs/workbench/parts/debug/browser/replEditor', 'Repl'),
-	new SyncDescriptor(editorinputs.ReplEditorInput));
-
-let actionBarRegistry = <actionbarregistry.IActionBarRegistry> platform.Registry.as(actionbarregistry.Extensions.Actionbar);
-actionBarRegistry.registerActionBarContributor(actionbarregistry.Scope.EDITOR, repleditor.ReplEditorActionContributor);
-(<baseeditor.IEditorRegistry>platform.Registry.as(baseeditor.Extensions.Editors)).registerEditorInputFactory(editorinputs.ReplEditorInput.ID, repleditor.ReplInputFactory);
+// register repl panel
+(<panel.PanelRegistry>platform.Registry.as(panel.Extensions.Panels)).registerPanel(new panel.PanelDescriptor(
+	'vs/workbench/parts/debug/browser/repl',
+	'Repl',
+	repl.Repl.ID,
+	nls.localize('debugConsole', "Debug Console"),
+	'repl',
+	40
+));
 
 // register action to open viewlet
 const registry = (<wbaregistry.IWorkbenchActionRegistry> platform.Registry.as(wbaregistry.Extensions.WorkbenchActions));
