@@ -709,36 +709,6 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 	}
 
 	public revealRepl(inBackground: boolean = false): Promise {
-		let editors = this.editorService.getVisibleEditors();
-
-		// first check if repl is already opened
-		for (let i = 0; i < editors.length; i++) {
-			let editor = editors[i];
-			if (editor.input instanceof debuginputs.ReplEditorInput) {
-				if (!inBackground) {
-					return this.editorService.focusEditor(editor);
-				}
-
-				return Promise.as(null);
-			}
-		}
-
-		// then find a position but try to not replace an existing file editor in any of the positions
-		let position = Position.LEFT;
-		let lastIndex = editors.length - 1;
-		if (editors.length === 3) {
-			position = wbeditorcommon.asFileEditorInput(editors[lastIndex].input, true) ? null : Position.RIGHT;
-		} else if (editors.length === 2) {
-			position = wbeditorcommon.asFileEditorInput(editors[lastIndex].input, true) ? Position.RIGHT : Position.CENTER;
-		} else if (editors.length) {
-			position = wbeditorcommon.asFileEditorInput(editors[lastIndex].input, true) ? Position.CENTER : Position.LEFT;
-		}
-
-		if (position === null) {
-			return Promise.as(null); // could not find a good position, return
-		}
-
-		// open repl
 		return this.panelService.openPanel(Repl.ID, !inBackground).then((repl: Repl) => {
 			const elements = this.model.getReplElements();
 			if (!inBackground && elements.length > 0) {
