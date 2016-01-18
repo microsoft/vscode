@@ -213,7 +213,7 @@ export class KeyboardHandler extends ViewEventHandler implements Lifecycle.IDisp
 		this.textArea = new TextAreaWrapper(viewHelper.textArea);
 		this.viewHelper = viewHelper;
 
-		this.textAreaHandler = new TextAreaHandler(this.textArea, {
+		this.textAreaHandler = new TextAreaHandler(Platform, Browser, this.textArea, {
 			getModel: (): ISimpleModel => this.context.model,
 			emitKeyDown: (e:IKeyboardEventWrapper): void => this.viewController.emitKeyDown(<DomUtils.IKeyboardEvent>e._actual),
 			emitKeyUp: (e:IKeyboardEventWrapper): void => this.viewController.emitKeyUp(<DomUtils.IKeyboardEvent>e._actual),
@@ -256,27 +256,27 @@ export class KeyboardHandler extends ViewEventHandler implements Lifecycle.IDisp
 	}
 
 	public onScrollChanged(e:EditorCommon.IScrollEvent): boolean {
-		this.textAreaHandler.onScrollChanged(e);
+		this.textAreaHandler.setScrollLeft(e.scrollLeft);
 		return false;
 	}
 
 	public onViewFocusChanged(isFocused:boolean): boolean {
-		this.textAreaHandler.onViewFocusChanged(isFocused);
+		this.textAreaHandler.setHasFocus(isFocused);
 		return false;
 	}
 
 	public onCursorSelectionChanged(e:EditorCommon.IViewCursorSelectionChangedEvent): boolean {
-		this.textAreaHandler.onCursorSelectionChanged(e);
+		this.textAreaHandler.setCursorSelections(e.selection, e.secondarySelections);
 		return false;
 	}
 
 	public onCursorPositionChanged(e:EditorCommon.IViewCursorPositionChangedEvent): boolean {
-		this.textAreaHandler.onCursorPositionChanged(e);
+		this.textAreaHandler.setCursorPosition(e.position);
 		return false;
 	}
 
 	public onLayoutChanged(layoutInfo:EditorCommon.IEditorLayoutInfo): boolean {
-		this.textAreaHandler.onLayoutChanged(layoutInfo);
+		this.textAreaHandler.setLayoutInfo(layoutInfo.contentLeft, layoutInfo.contentWidth);
 		return false;
 	}
 
