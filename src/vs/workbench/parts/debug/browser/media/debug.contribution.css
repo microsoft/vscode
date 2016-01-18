@@ -66,6 +66,11 @@
 	background: #CC6633 !important;
 }
 
+/* Panel */
+.monaco-workbench.debugging > .part.panel > .title {
+	border-top-color: #CC6633
+}
+
 /* Actionbar actions */
 
 .monaco-workbench .debug-action.configure {

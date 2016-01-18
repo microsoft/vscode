@@ -76,7 +76,7 @@ const openViewletKb: IKeybindings = {
 	'vs/workbench/parts/debug/browser/repl',
 	'Repl',
 	repl.Repl.ID,
-	nls.localize('debugConsole', "Debug Console"),
+	nls.localize('debugConsole', "DEBUG CONSOLE"),
 	'repl',
 	40
 ));

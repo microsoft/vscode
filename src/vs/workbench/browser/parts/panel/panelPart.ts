@@ -6,6 +6,7 @@
 import 'vs/css!./media/panelPart';
 import {TPromise} from 'vs/base/common/winjs.base';
 import strings = require('vs/base/common/strings');
+import {Builder} from 'vs/base/browser/builder';
 import {Registry} from 'vs/platform/platform';
 import {IPanel} from 'vs/workbench/common/panel';
 import {EventType as WorkbenchEventType, CompositeEvent} from 'vs/workbench/common/events';
@@ -57,6 +58,13 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		}
 
 		return this.openComposite(id, focus);
+	}
+
+	public createTitleArea(parent: Builder): Builder {
+		const result = super.createTitleArea(parent);
+		result.addClass('monaco-editor-background');
+		
+		return result;
 	}
 
 	private get activePanel(): IPanel {

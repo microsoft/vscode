@@ -13,6 +13,7 @@ import {IPanel} from 'vs/workbench/common/panel';
 import {IWorkbenchActionRegistry, Extensions as WorkbenchExtensions} from 'vs/workbench/common/actionRegistry';
 import {Composite, CompositeDescriptor, CompositeRegistry} from 'vs/workbench/browser/composite';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
+import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 
 export abstract class Panel extends Composite implements IPanel { }
 
@@ -89,9 +90,10 @@ export class TogglePanelAction extends Action {
 	constructor(
 		id: string,
 		name: string,
-		@IPartService private partService: IPartService
+		@IPartService private partService: IPartService,
+		@IWorkspaceContextService contextService: IWorkspaceContextService
 	) {
-		super(id, name);
+		super(id, name, null, !!contextService.getWorkspace());
 	}
 
 	public run(): Promise {
