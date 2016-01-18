@@ -79,7 +79,14 @@ export function create(send:(obj:string)=>void): IPluginsIPC {
 				delete pendingRPCReplies[msg.seq];
 
 				if (msg.err) {
-					reply.e(msg.err);
+					let err = msg.err;
+					if (msg.err.$isError) {
+						err = new Error();
+						err.name = msg.err.name;
+						err.message = msg.err.message;
+						err.stack = msg.err.stack;
+					}
+					reply.e(err);
 					return;
 				}
 
