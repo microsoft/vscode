@@ -19,7 +19,8 @@ import {Range} from 'vs/editor/common/core/range';
 import {Position} from 'vs/editor/common/core/position';
 import {CommonKeybindings} from 'vs/base/common/keyCodes';
 import Event, {Emitter} from 'vs/base/common/event';
-import {ITextAreaWrapper, ITextAreaStyle, ISimpleModel, TextAreaHandler} from 'vs/editor/browser/controller/textAreaHandler';
+import {TextAreaHandler} from 'vs/editor/browser/controller/textAreaHandler';
+import {ITextAreaWrapper, ITextAreaStyle, ISimpleModel} from 'vs/editor/browser/controller/textAreaState';
 
 class TextAreaWrapper extends Lifecycle.Disposable implements ITextAreaWrapper {
 
