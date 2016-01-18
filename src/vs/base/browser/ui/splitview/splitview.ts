@@ -186,8 +186,10 @@ export enum CollapsibleState {
 export class AbstractCollapsibleView extends HeaderView {
 
 	protected state: CollapsibleState;
+
 	private headerClickListener: () => void;
 	private headerKeyListener: () => void;
+	private focusTracker: dom.IFocusTracker;
 
 	constructor(opts: ICollapsibleViewOptions) {
 		super(opts);
@@ -219,7 +221,19 @@ export class AbstractCollapsibleView extends HeaderView {
 			}
 		});
 
+		// Mouse access
 		this.headerClickListener = dom.addListener(this.header, dom.EventType.CLICK, () => this.toggleExpansion());
+
+		// Track state of focus in header so that other components can adjust styles based on that
+		// (for example show or hide actions based on the state of being focused or not)
+		this.focusTracker = dom.trackFocus(this.header);
+		this.focusTracker.addFocusListener(() => {
+			dom.addClass(this.header, 'focused');
+		});
+
+		this.focusTracker.addBlurListener(() => {
+			setTimeout(() => dom.removeClass(this.header, 'focused')); // delay to give other components a chance to react
+		});
 	}
 
 	public layout(size: number, orientation: Orientation): void {
@@ -281,6 +295,11 @@ export class AbstractCollapsibleView extends HeaderView {
 		if (this.headerKeyListener) {
 			this.headerKeyListener();
 			this.headerKeyListener = null;
+		}
+
+		if (this.focusTracker) {
+			this.focusTracker.dispose();
+			this.focusTracker = null;
 		}
 
 		super.dispose();
