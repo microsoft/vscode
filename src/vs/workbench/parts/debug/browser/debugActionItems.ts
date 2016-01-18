@@ -49,6 +49,18 @@ export class SelectConfigActionItem extends BaseActionItem {
 		this.setOptions().done(null, errors.onUnexpectedError);
 	}
 
+	public focus(): void {
+		if (this.select) {
+			this.select.focus();
+		}
+	}
+
+	public blur(): void {
+		if (this.select) {
+			this.select.blur();
+		}
+	}
+
 	private setOptions(): Promise {
 		let previousSelectedIndex = this.select.selectedIndex;
 		this.select.options.length = 0;

@@ -137,13 +137,12 @@ export class BaseActionItem extends EventEmitter implements IActionItem {
 	public focus(): void {
 		if (this.builder) {
 			this.builder.domFocus();
-			this.builder.addClass('focused');
 		}
 	}
 
 	public blur(): void {
 		if (this.builder) {
-			this.builder.removeClass('focused');
+			this.builder.domBlur();
 		}
 	}
 
@@ -475,7 +474,7 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 			}
 
 			// Recompute focused item
-			else if (event.equals(CommonKeybindings.TAB)) {
+			else if (event.equals(CommonKeybindings.TAB) || event.equals(CommonKeybindings.SHIFT_TAB)) {
 				this.updateFocusedItem();
 			}
 		});
@@ -741,6 +740,18 @@ export class SelectActionItem extends BaseActionItem {
 		this.toDispose.push(DOM.addStandardDisposableListener(this.select, 'change', (e) => {
 			this.actionRunner.run(this._action, e.target.value).done();
 		}));
+	}
+
+	public focus(): void {
+		if (this.select) {
+			this.select.focus();
+		}
+	}
+
+	public blur(): void {
+		if (this.select) {
+			this.select.blur();
+		}
 	}
 
 	public render(container: HTMLElement): void {
