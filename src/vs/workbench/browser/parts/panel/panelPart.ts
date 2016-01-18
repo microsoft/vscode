@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/css!./media/panelPart';
 import {TPromise} from 'vs/base/common/winjs.base';
 import strings = require('vs/base/common/strings');
 import {Registry} from 'vs/platform/platform';
