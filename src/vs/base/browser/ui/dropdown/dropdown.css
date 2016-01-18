@@ -22,10 +22,6 @@
 	vertical-align: top;
 }
 
-.dropdown > .dropdown-action > .action-label {
-	outline: none;
-}
-
 .dropdown > .dropdown-action > .action-label:hover {
 	color: inherit;
 	text-decoration: none;

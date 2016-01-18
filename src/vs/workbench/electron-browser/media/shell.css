@@ -47,6 +47,21 @@
 	text-decoration: none;
 }
 
+.monaco-shell a[tabindex="0"]:focus,
+.monaco-shell div[tabindex="0"]:focus,
+.monaco-shell select:focus,
+.monaco-shell iframe[tabindex="0"]:focus {
+	outline: 2px auto -webkit-focus-ring-color;
+	outline-offset: -2px;
+}
+
+.monaco-shell a[tabindex="0"]:active, a[tabindex="0"]:hover,
+.monaco-shell div[tabindex="0"]:active, div[tabindex="0"]:hover,
+.monaco-shell select:active, select:hover,
+.monaco-shell iframe[tabindex="0"]:active, iframe[tabindex="0"]:hover {
+	outline: 0;
+}
+
 .monaco-shell a.prominent {
 	text-decoration: underline;
 }

@@ -172,7 +172,7 @@ export class DropdownMenuActionItem extends BaseActionItem {
 
 		var labelRenderer: ILabelRenderer = (el: HTMLElement): IDisposable => {
 			var e = $('a.action-label').attr({
-				tabIndex: '-1',
+				tabIndex: '0',
 				role: 'menuitem',
 				title: this._action.label || '',
 				class: this.clazz

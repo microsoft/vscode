@@ -15,7 +15,3 @@
 	-webkit-overflow-scrolling: touch;
 	overflow: auto;
 }
-
-.monaco-workbench .iframe-container:focus {
-	outline: 0;
-}

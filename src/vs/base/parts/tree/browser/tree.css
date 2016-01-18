@@ -15,10 +15,6 @@
 	position: relative;
 }
 
-.monaco-tree:focus {
-	outline: 0;
-}
-
 .monaco-tree > .monaco-scrollable-element {
 	height: 100%;
 }

@@ -28,10 +28,6 @@
 	background-color: black;
 }
 
-.monaco-checkbox .checkbox:focus + .label {
-	outline: auto 5px rgb(229, 151, 0);
-}
-
 /* Find widget */
 .monaco-editor .find-widget {
 	position: absolute;
