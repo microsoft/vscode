@@ -72,7 +72,7 @@
 	background: url('configure.svg') center center no-repeat;
 }
 
-.monaco-workbench .debug-action.open-repl {
+.monaco-workbench .debug-action.toggle-repl {
 	background: url('repl.svg') center center no-repeat;
 }
 
@@ -269,7 +269,7 @@
 	background: url('configure-inverse.svg') center center no-repeat;
 }
 
-.monaco-workbench.vs-dark .debug-action.open-repl {
+.monaco-workbench.vs-dark .debug-action.toggle-repl {
 	background: url('repl-inverse.svg') center center no-repeat;
 }
 
@@ -336,7 +336,7 @@
 	width: 16px;
 }
 
-.monaco-workbench.hc-black .debug-action.open-repl:before {
+.monaco-workbench.hc-black .debug-action.toggle-repl:before {
 	content: url('repl-inverse.svg');
 }
 
