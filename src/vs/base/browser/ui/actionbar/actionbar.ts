@@ -439,9 +439,9 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 			let event = new StandardKeyboardEvent(e);
 			let eventHandled = true;
 
-			if (event.equals(CommonKeybindings.UP_ARROW) || event.equals(CommonKeybindings.LEFT_ARROW)) {
+			if (event.equals(isVertical ? CommonKeybindings.UP_ARROW : CommonKeybindings.LEFT_ARROW)) {
 				this.focusPrevious();
-			} else if (event.equals(CommonKeybindings.DOWN_ARROW) || event.equals(CommonKeybindings.RIGHT_ARROW)) {
+			} else if (event.equals(isVertical ? CommonKeybindings.DOWN_ARROW : CommonKeybindings.RIGHT_ARROW)) {
 				this.focusNext();
 			} else if (event.equals(CommonKeybindings.ESCAPE)) {
 				this.cancel();
