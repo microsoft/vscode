@@ -8,6 +8,7 @@ import 'vs/css!./media/extensions';
 import nls = require('vs/nls');
 import { IDisposable, disposeAll } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { isNumber } from 'vs/base/common/types';
 import * as dom from 'vs/base/browser/dom';
 import Severity from 'vs/base/common/severity';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -56,7 +57,7 @@ interface ITemplateData {
 	root: HTMLElement;
 	displayName: HighlightedLabel;
 	version: HTMLElement;
-	since: HTMLElement;
+	installCount: HTMLElement;
 	author: HTMLElement;
 	actionbar: ActionBar;
 	description: HighlightedLabel;
@@ -80,9 +81,15 @@ function extensionEquals(one: IExtension, other: IExtension): boolean {
 }
 
 function extensionEntryCompare(one: IExtensionEntry, other: IExtensionEntry): number {
-	const oneName = one.extension.displayName || one.extension.name;
-	const otherName = other.extension.displayName || other.extension.name;
-	return oneName.localeCompare(otherName);
+	const oneInstallCount = one.extension.galleryInformation ? one.extension.galleryInformation.installCount : 0;
+	const otherInstallCount = other.extension.galleryInformation ? other.extension.galleryInformation.installCount : 0;
+	const diff = otherInstallCount - oneInstallCount;
+
+	if (diff !== 0) {
+		return diff;
+	}
+
+	return one.extension.displayName.localeCompare(other.extension.displayName);
 }
 
 class OpenInGalleryAction extends Action {
@@ -171,19 +178,22 @@ class Renderer implements IRenderer<IExtensionEntry> {
 	}
 
 	renderTemplate(templateId: string, container: HTMLElement): ITemplateData {
+		// Important to preserve order here.
 		const root = dom.append(container, $('.extension'));
 		const firstRow = dom.append(root, $('.row'));
 		const secondRow = dom.append(root, $('.row'));
 		const published = dom.append(firstRow, $('.published'));
-		const since = dom.append(published, $('span.since'));
+		const displayName = new HighlightedLabel(dom.append(firstRow, $('span.name')));
+		const installCount = dom.append(firstRow, $('span.installCount'));
+		const version = dom.append(published, $('span.version'));
 		const author = dom.append(published, $('span.author'));
 
 		return {
 			root,
 			author,
-			since,
-			displayName: new HighlightedLabel(dom.append(firstRow, $('span.name'))),
-			version: dom.append(firstRow, $('span.version')),
+			displayName,
+			version,
+			installCount,
 			actionbar: new ActionBar(dom.append(secondRow, $('.actions'))),
 			description: new HighlightedLabel(dom.append(secondRow, $('span.description'))),
 			disposables: []
@@ -194,6 +204,7 @@ class Renderer implements IRenderer<IExtensionEntry> {
 		const extension = entry.extension;
 		const date = extension.galleryInformation ? extension.galleryInformation.date : null;
 		const publisher = extension.galleryInformation ? extension.galleryInformation.publisherDisplayName : extension.publisher;
+		const installCount = extension.galleryInformation ? extension.galleryInformation.installCount : null;
 		const actionOptions = { icon: true, label: false };
 
 		const updateActions = () => {
@@ -236,7 +247,25 @@ class Renderer implements IRenderer<IExtensionEntry> {
 		data.displayName.set(extension.displayName, entry.highlights.displayName);
 		data.displayName.element.title = extension.name;
 		data.version.textContent = extension.version;
-		data.since.textContent = date ? since(new Date(date)) : '';
+
+		if (isNumber(installCount)) {
+			data.installCount.textContent = String(installCount);
+			dom.addClass(data.installCount, 'octicon');
+			dom.addClass(data.installCount, 'octicon-cloud-download');
+
+			if (!installCount) {
+				data.installCount.title = nls.localize('installCountZero', "{0} wasn't downloaded yet.", extension.displayName);
+			} else if (installCount === 1) {
+				data.installCount.title = nls.localize('installCountOne', "{0} was downloaded once.", extension.displayName);
+			} else {
+				data.installCount.title = nls.localize('installCountMultiple', "{0} was downloaded {1} times.", extension.displayName, installCount);
+			}
+		} else {
+			data.installCount.textContent = '';
+			dom.removeClass(data.installCount, 'octicon');
+			dom.removeClass(data.installCount, 'octicon-cloud-download');
+		}
+
 		data.author.textContent = publisher;
 		data.description.set(extension.description, entry.highlights.description);
 		data.description.element.title = extension.description;

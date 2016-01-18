@@ -33,6 +33,21 @@ export interface IGalleryExtension {
 	publisher: { displayName: string, publisherId: string, publisherName: string; };
 	versions: IGalleryExtensionVersion[];
 	galleryApiUrl: string;
+	statistics: IGalleryExtensionStatistics[];
+}
+
+export interface IGalleryExtensionStatistics {
+	statisticName: string;
+	value: number;
+}
+
+function getInstallCount(statistics: IGalleryExtensionStatistics[]): number {
+	if (!statistics) {
+		return 0;
+	}
+
+	const result = statistics.filter(s => s.statisticName === 'install')[0];
+	return result ? result.value : 0;
 }
 
 export class GalleryService implements IGalleryService {
@@ -69,7 +84,7 @@ export class GalleryService implements IGalleryService {
 					value: 'vscode'
 				}]
 			}],
-			flags: 0x1 | 0x4 | 0x80
+			flags: 0x1 | 0x4 | 0x80 | 0x100
 		});
 
 		const request = {
@@ -98,7 +113,8 @@ export class GalleryService implements IGalleryService {
 						downloadUrl: `${ extension.versions[0].assetUri }/Microsoft.VisualStudio.Services.VSIXPackage?install=true`,
 						publisherId: extension.publisher.publisherId,
 						publisherDisplayName: extension.publisher.displayName,
-						date: extension.versions[0].lastUpdated
+						installCount: getInstallCount(extension.statistics),
+						date: extension.versions[0].lastUpdated,
 					}
 				}));
 			});
