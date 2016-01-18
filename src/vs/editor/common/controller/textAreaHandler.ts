@@ -7,7 +7,6 @@
 import {IEditorRange, IEditorPosition, EndOfLinePreference} from 'vs/editor/common/editorCommon';
 import {RunOnceScheduler} from 'vs/base/common/async';
 import {Disposable} from 'vs/base/common/lifecycle';
-import {commonPrefixLength, commonSuffixLength} from 'vs/base/common/strings';
 import {Range} from 'vs/editor/common/core/range';
 import {Position} from 'vs/editor/common/core/position';
 import {CommonKeybindings} from 'vs/base/common/keyCodes';
@@ -83,17 +82,12 @@ export class TextAreaHandler extends Disposable {
 	private asyncSetSelectionToTextArea: RunOnceScheduler;
 	private asyncTriggerCut: RunOnceScheduler;
 
-	// keypress, paste & composition end also trigger an input event
-	// the popover input method on macs triggers only an input event
-	// in this case the expectInputTime would be too much in the past
-	private justHadAPaste:boolean;
-	private justHadACut:boolean;
 	private lastKeyPressTime:number;
 	private lastCompositionEndTime:number;
 	private lastValueWrittenToTheTextArea:string;
 	private cursorPosition:IEditorPosition;
 
-	private previousSetTextAreaState:TextAreaState;
+	private textAreaState:TextAreaState;
 	private textareaIsShownAtCursor: boolean;
 
 	private lastCopiedValue: string;
@@ -115,12 +109,10 @@ export class TextAreaHandler extends Disposable {
 
 		this.lastCopiedValue = null;
 		this.lastCopiedValueIsFromEmptySelection = false;
-		this.previousSetTextAreaState = null;
+		this.textAreaState = TextAreaState.EMPTY;
 
 		this.hasFocus = false;
 
-		this.justHadAPaste = false;
-		this.justHadACut = false;
 		this.lastKeyPressTime = 0;
 		this.lastCompositionEndTime = 0;
 		this.lastValueWrittenToTheTextArea = '';
@@ -144,7 +136,7 @@ export class TextAreaHandler extends Disposable {
 			let shouldEmptyTextArea = (timeSinceLastCompositionEnd >= 100);
 			if (shouldEmptyTextArea) {
 				if (!this.Browser.isIE11orEarlier) {
-					this.setTextAreaState(new TextAreaState('', 0, 0, false, 0), false);
+					this.setTextAreaState(TextAreaState.EMPTY);
 				}
 			}
 
@@ -155,7 +147,7 @@ export class TextAreaHandler extends Disposable {
 			if (this.Browser.isIE11orEarlier) {
 				// Ensure selection start is in viewport
 				showAtLineNumber = this.selection.startLineNumber;
-				showAtColumn = (this.selection.startColumn - this.previousSetTextAreaState.getSelectionStart());
+				showAtColumn = (this.selection.startColumn - this.textAreaState.getSelectionStart());
 			} else {
 				showAtLineNumber = this.cursorPosition.lineNumber;
 				showAtColumn = this.cursorPosition.column;
@@ -173,6 +165,7 @@ export class TextAreaHandler extends Disposable {
 			if (!this.textareaIsShownAtCursor) {
 				return;
 			}
+			this.textareaIsShownAtCursor = false;
 
 			this._onCompositionEnd.fire();
 		}));
@@ -202,20 +195,26 @@ export class TextAreaHandler extends Disposable {
 
 		if (this.Platform.isMacintosh) {
 
+			// keypress, cut, paste & composition end also trigger an input event
+			// the popover input method on macs triggers only an input event
+			// in this case we need to filter and only match the popoer input method
+
+			let justHadACutOrPaste = false;
+			this._register(this.textArea.onPaste((e) => {
+				justHadACutOrPaste = true;
+			}));
+			this._register(this.textArea.onCut((e) => {
+				justHadACutOrPaste = true;
+			}));
+
 			this._register(this.textArea.onInput(() => {
 
 				// We are fishing for the input event that comes in the mac popover input method case
 
-
 				// A paste will trigger an input event, but the event might happen very late
-				if (this.justHadAPaste) {
-					this.justHadAPaste = false;
-					return;
-				}
-
 				// A cut will trigger an input event, but the event might happen very late
-				if (this.justHadACut) {
-					this.justHadACut = false;
+				if (justHadACutOrPaste) {
+					justHadACutOrPaste = false;
 					return;
 				}
 
@@ -238,39 +237,24 @@ export class TextAreaHandler extends Disposable {
 					return;
 				}
 
-				// Ignore if the textarea has selection
-				if (this.textArea.selectionStart !== this.textArea.selectionEnd) {
-					return;
-				}
-
 				// In Chrome, only the first character gets replaced, while in Safari the entire line gets replaced
-				let typedText:string;
-				let textAreaValue = this.textArea.value;
-
 				if (!this.Browser.isChrome) {
 					// TODO: Also check this on Safari & FF before removing this
 					return;
 				}
 
-				if (this.lastValueWrittenToTheTextArea.length !== textAreaValue.length) {
+				this.textAreaState = this.textAreaState.fromTextArea(this.textArea);
+				let replacedChar = this.textAreaState.extractMacReplacedText();
+
+				if (!replacedChar) {
 					return;
 				}
-
-				let prefixLength = commonPrefixLength(this.lastValueWrittenToTheTextArea, textAreaValue);
-				let suffixLength = commonSuffixLength(this.lastValueWrittenToTheTextArea, textAreaValue);
-
-				if (prefixLength + suffixLength + 1 !== textAreaValue.length) {
-					return;
-				}
-
-				typedText = textAreaValue.charAt(prefixLength);
 
 				this._onType.fire({
-					text: typedText,
+					text: replacedChar,
 					replacePreviousCharacter: true
 				});
 
-				this.previousSetTextAreaState = TextAreaState.fromTextArea(this.textArea, 0);
 				this.asyncSetSelectionToTextArea.schedule();
 			}));
 		}
@@ -280,7 +264,6 @@ export class TextAreaHandler extends Disposable {
 		this._register(this.textArea.onCut((e) => {
 			this._ensureClipboardGetsEditorSelection(e);
 			this.asyncTriggerCut.schedule();
-			this.justHadACut = true;
 		}));
 
 		this._register(this.textArea.onCopy((e) => {
@@ -293,15 +276,13 @@ export class TextAreaHandler extends Disposable {
 			} else {
 				if (this.textArea.selectionStart !== this.textArea.selectionEnd) {
 					// Clean up the textarea, to get a clean paste
-					this.setTextAreaState(new TextAreaState('', 0, 0, false, 0), false);
+					this.setTextAreaState(TextAreaState.EMPTY);
 				}
 				this._scheduleReadFromTextArea(ReadFromTextArea.Paste);
 			}
-			this.justHadAPaste = true;
 		}));
 
 		this._writePlaceholderAndSelectTextArea();
-
 	}
 
 	public dispose(): void {
@@ -332,18 +313,15 @@ export class TextAreaHandler extends Disposable {
 
 	// --- end event handlers
 
-	private setTextAreaState(textAreaState:TextAreaState, select:boolean): void {
-		// IE doesn't like calling select on a hidden textarea and the textarea is hidden during the tests
-		let shouldSetSelection = select && this.hasFocus;
-
-		if (!shouldSetSelection) {
-			textAreaState.resetSelection();
+	private setTextAreaState(textAreaState:TextAreaState): void {
+		if (!this.hasFocus) {
+			textAreaState = textAreaState.resetSelection();
 		}
 
 		this.lastValueWrittenToTheTextArea = textAreaState.getValue();
-		textAreaState.applyToTextArea(this.textArea, shouldSetSelection);
+		textAreaState.applyToTextArea(this.textArea, this.hasFocus);
 
-		this.previousSetTextAreaState = textAreaState;
+		this.textAreaState = textAreaState;
 	}
 
 	private _onKeyDownHandler(e:IKeyboardEventWrapper): void {
@@ -402,9 +380,8 @@ export class TextAreaHandler extends Disposable {
 	 * Read text from textArea and trigger `command` on the editor
 	 */
 	private _readFromTextArea(command:ReadFromTextArea): void {
-		let previousSelectionToken = this.previousSetTextAreaState ? this.previousSetTextAreaState.getSelectionToken() : 0;
-		let observedState = TextAreaState.fromTextArea(this.textArea, previousSelectionToken);
-		let txt = observedState.extractNewText(this.previousSetTextAreaState);
+		this.textAreaState = this.textAreaState.fromTextArea(this.textArea);
+		let txt = this.textAreaState.extractNewText();
 
 		if (command === ReadFromTextArea.Type) {
 			if (txt !== '') {
@@ -418,7 +395,6 @@ export class TextAreaHandler extends Disposable {
 			this.executePaste(txt);
 		}
 
-		this.previousSetTextAreaState = observedState;
 		this.asyncSetSelectionToTextArea.schedule();
 	}
 
@@ -440,15 +416,12 @@ export class TextAreaHandler extends Disposable {
 	private _writePlaceholderAndSelectTextArea(): void {
 		if (!this.textareaIsShownAtCursor) {
 			// Do not write to the textarea if it is visible.
-			let previousSelectionToken = this.previousSetTextAreaState ? this.previousSetTextAreaState.getSelectionToken() : 0;
-			let newState: TextAreaState;
 			if (this.Browser.isIPad) {
 				// Do not place anything in the textarea for the iPad
-				newState = new TextAreaState('', 0, 0, false, 0);
+				this.setTextAreaState(TextAreaState.EMPTY);
 			} else {
-				newState = TextAreaState.fromEditorSelectionAndPreviousState(this.model, this.selection, previousSelectionToken);
+				this.setTextAreaState(this.textAreaState.fromEditorSelection(this.model, this.selection));
 			}
-			this.setTextAreaState(newState, true);
 		}
 	}
 
@@ -459,7 +432,7 @@ export class TextAreaHandler extends Disposable {
 		if (e.canUseTextData()) {
 			e.setTextData(whatToCopy);
 		} else {
-			this.setTextAreaState(new TextAreaState(whatToCopy, 0, whatToCopy.length, false, 0), true);
+			this.setTextAreaState(this.textAreaState.fromText(whatToCopy));
 		}
 
 		if (this.Browser.enableEmptySelectionClipboard) {

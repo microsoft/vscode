@@ -7,6 +7,7 @@
 import * as EditorCommon from 'vs/editor/common/editorCommon';
 import {Range} from 'vs/editor/common/core/range';
 import Event from 'vs/base/common/event';
+import {commonPrefixLength, commonSuffixLength} from 'vs/base/common/strings';
 
 export interface IClipboardEvent {
 	canUseTextData(): boolean;
@@ -49,18 +50,27 @@ export interface ISimpleModel {
 }
 
 export class TextAreaState {
+
+	public static EMPTY = new TextAreaState(null, '', 0, 0, false, 0);
+
+	private previousState:TextAreaState;
 	private value:string;
 	private selectionStart:number;
 	private selectionEnd:number;
 	private isInOverwriteMode:boolean;
 	private selectionToken:number;
 
-	constructor(value:string, selectionStart:number, selectionEnd:number, isInOverwriteMode:boolean, selectionToken:number) {
+	constructor(previousState:TextAreaState, value:string, selectionStart:number, selectionEnd:number, isInOverwriteMode:boolean, selectionToken:number) {
+		this.previousState = previousState ? previousState.shallowClone() : null;
 		this.value = value;
 		this.selectionStart = selectionStart;
 		this.selectionEnd = selectionEnd;
 		this.isInOverwriteMode = isInOverwriteMode;
 		this.selectionToken = selectionToken;
+	}
+
+	private shallowClone(): TextAreaState {
+		return new TextAreaState(null, this.value, this.selectionStart, this.selectionEnd, this.isInOverwriteMode, this.selectionToken);
 	}
 
 	public toString(): string {
@@ -77,11 +87,11 @@ export class TextAreaState {
 		);
 	}
 
-	public static fromTextArea(textArea:ITextAreaWrapper, selectionToken:number): TextAreaState {
-		return new TextAreaState(textArea.value, textArea.selectionStart, textArea.selectionEnd, textArea.isInOverwriteMode(), selectionToken);
+	public fromTextArea(textArea:ITextAreaWrapper): TextAreaState {
+		return new TextAreaState(this, textArea.value, textArea.selectionStart, textArea.selectionEnd, textArea.isInOverwriteMode(), this.selectionToken);
 	}
 
-	public static fromEditorSelectionAndPreviousState(model:ISimpleModel, selection:EditorCommon.IEditorRange, previousSelectionToken:number): TextAreaState {
+	public fromEditorSelection(model:ISimpleModel, selection:EditorCommon.IEditorRange): TextAreaState {
 		let LIMIT_CHARS = 100;
 		let PADDING_LINES_COUNT = 0;
 
@@ -92,7 +102,7 @@ export class TextAreaState {
 			selectionEndLineNumberMaxColumn = model.getLineMaxColumn(selectionEndLineNumber);
 
 		// If the selection is empty and we have switched line numbers, expand selection to full line (helps Narrator trigger a full line read)
-		if (selection.isEmpty() && previousSelectionToken !== selectionStartLineNumber) {
+		if (selection.isEmpty() && this.selectionToken !== selectionStartLineNumber) {
 			selectionStartColumn = 1;
 			selectionEndColumn = selectionEndLineNumberMaxColumn;
 		}
@@ -127,24 +137,23 @@ export class TextAreaState {
 			text = text.substring(0, LIMIT_CHARS) + String.fromCharCode(8230) + text.substring(text.length - LIMIT_CHARS, text.length);
 		}
 
-		return new TextAreaState(pretext + text + posttext, pretext.length, pretext.length + text.length, false, selectionStartLineNumber);
+		return new TextAreaState(this, pretext + text + posttext, pretext.length, pretext.length + text.length, false, selectionStartLineNumber);
+	}
+
+	public fromText(text:string): TextAreaState {
+		return new TextAreaState(this, text, 0, text.length, false, 0)
+	}
+
+	public resetSelection(): TextAreaState {
+		return new TextAreaState(this.previousState, this.value, this.value.length, this.value.length, this.isInOverwriteMode, this.selectionToken);
 	}
 
 	public getSelectionStart(): number {
 		return this.selectionStart;
 	}
 
-	public resetSelection(): void {
-		this.selectionStart = this.value.length;
-		this.selectionEnd = this.value.length;
-	}
-
 	public getValue(): string {
 		return this.value;
-	}
-
-	public getSelectionToken(): number {
-		return this.selectionToken;
 	}
 
 	public applyToTextArea(textArea:ITextAreaWrapper, select:boolean): void {
@@ -157,7 +166,7 @@ export class TextAreaState {
 		}
 	}
 
-	public extractNewText(previousState:TextAreaState): string {
+	public extractNewText(): string {
 		// console.log('-----------')
 		// console.log('prev:' + String(previousState));
 		// console.log('curr:' + String(this));
@@ -165,11 +174,11 @@ export class TextAreaState {
 			// There is a selection in the textarea => ignore input
 			return '';
 		}
-		if (!previousState) {
+		if (!this.previousState) {
 			return this.value;
 		}
-		let previousPrefix = previousState.value.substring(0, previousState.selectionStart);
-		let previousSuffix = previousState.value.substring(previousState.selectionEnd, previousState.value.length);
+		let previousPrefix = this.previousState.value.substring(0, this.previousState.selectionStart);
+		let previousSuffix = this.previousState.value.substring(this.previousState.selectionEnd, this.previousState.value.length);
 
 		if (this.isInOverwriteMode) {
 			previousSuffix = previousSuffix.substr(1);
@@ -183,5 +192,27 @@ export class TextAreaState {
 			value = value.substring(0, value.length - previousSuffix.length);
 		}
 		return value;
+	}
+
+	public extractMacReplacedText(): string {
+		// Ignore if the textarea has selection
+		if (this.selectionStart !== this.selectionEnd) {
+			return '';
+		}
+		if (!this.previousState) {
+			return '';
+		}
+		if (this.previousState.value.length !== this.value.length) {
+			return '';
+		}
+
+		let prefixLength = commonPrefixLength(this.previousState.value, this.value);
+		let suffixLength = commonSuffixLength(this.previousState.value, this.value);
+
+		if (prefixLength + suffixLength + 1 !== this.value.length) {
+			return '';
+		}
+
+		return this.value.charAt(prefixLength);
 	}
 }
