@@ -179,7 +179,12 @@ export class HtmlPreviewPart extends BaseEditor {
 		// diff a little against the current input and the new state
 		const parser = new DOMParser();
 		const newDocument = parser.parseFromString(html, 'text/html');
-		newDocument.head.appendChild(Integration.defaultStyle(this._iFrameElement.parentElement));
+		const styleElement = Integration.defaultStyle(this._iFrameElement.parentElement);
+		if (newDocument.head.hasChildNodes()) {
+			newDocument.head.insertBefore(styleElement, newDocument.head.firstChild);
+		} else {
+			newDocument.head.appendChild(styleElement)
+		}
 
 		if (newDocument.head.innerHTML !== iFrameDocument.head.innerHTML) {
 			iFrameDocument.head.innerHTML = newDocument.head.innerHTML;
