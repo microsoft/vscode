@@ -19,7 +19,7 @@ import {Range} from 'vs/editor/common/core/range';
 import {Position} from 'vs/editor/common/core/position';
 import {CommonKeybindings} from 'vs/base/common/keyCodes';
 import Event, {Emitter} from 'vs/base/common/event';
-import {TextAreaHandler} from 'vs/editor/browser/controller/textAreaHandler';
+import {TextAreaHandler} from 'vs/editor/common/controller/textAreaHandler';
 import {ITextAreaWrapper, IClipboardEvent, IKeyboardEventWrapper, ITextAreaStyle, ISimpleModel} from 'vs/editor/common/controller/textAreaState';
 
 class ClipboardEventWrapper implements IClipboardEvent {

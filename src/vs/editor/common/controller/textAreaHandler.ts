@@ -83,6 +83,8 @@ export class TextAreaHandler extends Disposable {
 
 	constructor(Platform:IPlatform, Browser:IBrowser, textArea:ITextAreaWrapper, editor:ITextEditor, configuration:IConfiguration) {
 		super();
+		this.Platform = Platform;
+		this.Browser = Browser;
 		this.textArea = textArea;
 		this.editor = editor;
 		this.configuration = configuration;
