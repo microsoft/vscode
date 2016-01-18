@@ -429,8 +429,6 @@ class GlobalOpenChangeAction extends OpenChangeAction {
 				});
 			});
 		});
-
-		return Promise.as(true);
 	}
 }
 

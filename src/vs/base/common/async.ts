@@ -281,7 +281,7 @@ export class ShallowCancelThenPromise<T> extends TPromise<T> {
 			progressCallback: ProgressCallback;
 
 		super((c, e, p) => {
-			completeCallback = c,
+			completeCallback = c;
 			errorCallback = e;
 			progressCallback = p;
 		}, () => {

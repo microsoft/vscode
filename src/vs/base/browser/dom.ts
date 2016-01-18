@@ -1067,8 +1067,8 @@ export function emmet(description: string):HTMLElement {
 	}
 
 	var result = document.createElement(match[1] || 'div');
-	match[3] && (result.id = match[3]);
-	match[4] && (result.className = match[4].replace(/\./g, ' ').trim());
+	if (match[3]) result.id = match[3];
+	if (match[4]) result.className = match[4].replace(/\./g, ' ').trim();
 
 	return result;
 };

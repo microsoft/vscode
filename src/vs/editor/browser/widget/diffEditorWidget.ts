@@ -1344,7 +1344,7 @@ class DiffEdtorWidgetSideBySide extends DiffEditorWidgetStyle implements IDiffEd
 		var sashPosition = Math.floor((sashRatio || 0.5) * contentWidth);
 		var midPoint = Math.floor(0.5 * contentWidth);
 
-		var sashPosition = this._disableSash ? midPoint : sashPosition || midPoint;
+		sashPosition = this._disableSash ? midPoint : sashPosition || midPoint;
 
 		if (contentWidth > DiffEdtorWidgetSideBySide.MINIMUM_EDITOR_WIDTH * 2) {
 			if (sashPosition < DiffEdtorWidgetSideBySide.MINIMUM_EDITOR_WIDTH) {

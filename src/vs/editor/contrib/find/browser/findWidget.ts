@@ -384,7 +384,7 @@ export class FindWidget extends Widget implements EditorBrowser.IOverlayWidget {
 					return null;
 				}
 				try {
-					new RegExp(value);
+					let r = new RegExp(value);
 					return null;
 				} catch (e) {
 					return { content: e.message };

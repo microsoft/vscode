@@ -232,12 +232,14 @@ class DefineKeybindingLauncherWidget implements EditorBrowser.IOverlayWidget {
 
 	private _domNode: HTMLElement;
 	private _toDispose: IDisposable[];
+	private _isVisible: boolean;
 
 	constructor(editor:EditorBrowser.ICodeEditor, keybindingService:IKeybindingService, onLaunch:()=>void) {
 		this._editor = editor;
 		this._domNode = document.createElement('div');
 		this._domNode.className = 'defineKeybindingLauncher';
 		this._domNode.style.display = 'none';
+		this._isVisible = false;
 		let keybinding = keybindingService.lookupKeybindings(DefineKeybindingAction.ID);
 		let extra = '';
 		if (keybinding.length > 0) {
@@ -259,11 +261,21 @@ class DefineKeybindingLauncherWidget implements EditorBrowser.IOverlayWidget {
 	}
 
 	public show(): void {
+		if (this._isVisible) {
+			return;
+		}
 		this._domNode.style.display = 'block';
+		this._isVisible = true;
+		this._editor.layoutOverlayWidget(this);
 	}
 
 	public hide(): void {
+		if (!this._isVisible) {
+			return;
+		}
 		this._domNode.style.display = 'none';
+		this._isVisible = false;
+		this._editor.layoutOverlayWidget(this);
 	}
 
 	// ----- IOverlayWidget API
@@ -278,7 +290,7 @@ class DefineKeybindingLauncherWidget implements EditorBrowser.IOverlayWidget {
 
 	public getPosition(): EditorBrowser.IOverlayWidgetPosition {
 		return {
-			preference: EditorBrowser.OverlayWidgetPositionPreference.BOTTOM_RIGHT_CORNER
+			preference: this._isVisible ? EditorBrowser.OverlayWidgetPositionPreference.BOTTOM_RIGHT_CORNER : null
 		};
 	}
 }

@@ -974,6 +974,4 @@ function _asHTML(keybinding:number, labelProvider:IKeyBindingLabelProvider, Plat
 		className: 'monaco-kb',
 		children: result
 	}]
-
-	return result;
 }
