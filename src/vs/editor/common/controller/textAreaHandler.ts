@@ -12,6 +12,7 @@ import {Range} from 'vs/editor/common/core/range';
 import {Position} from 'vs/editor/common/core/position';
 import {CommonKeybindings} from 'vs/base/common/keyCodes';
 import {IKeyboardEventWrapper, ITextAreaWrapper, IClipboardEvent, ITextAreaStyle, ISimpleModel, TextAreaState} from 'vs/editor/common/controller/textAreaState';
+import Event, {Emitter} from 'vs/base/common/event';
 
 enum ReadFromTextArea {
 	Type,
@@ -20,17 +21,6 @@ enum ReadFromTextArea {
 
 export interface ITextEditor {
 	getModel(): ISimpleModel;
-
-	emitKeyDown(e:IKeyboardEventWrapper): void;
-	emitKeyUp(e:IKeyboardEventWrapper): void;
-	paste(source:string, txt:string, pasteOnNewLine:boolean): void;
-	type(source:string, txt:string): void;
-	replacePreviousChar(source:string, txt:string): void;
-	cut(source:string): void;
-
-	visibleRangeForPositionRelativeToEditor(lineNumber:number, column1:number, column2:number): { column1: VisibleRange; column2: VisibleRange; };
-	startIME(): void;
-	stopIME(): void;
 }
 
 export interface IPlatform {
@@ -46,7 +36,43 @@ export interface IBrowser {
 	enableEmptySelectionClipboard: boolean;
 }
 
+export interface IPasteData {
+	text: string;
+	pasteOnNewLine: boolean;
+}
+
+export interface ITypeData {
+	text: string;
+	replacePreviousCharacter: boolean;
+}
+
+export interface ICompositionStartData {
+	showAtLineNumber: number;
+	showAtColumn: number;
+}
+
 export class TextAreaHandler extends Disposable {
+
+	private _onKeyDown = this._register(new Emitter<IKeyboardEventWrapper>());
+	public onKeyDown: Event<IKeyboardEventWrapper> = this._onKeyDown.event;
+
+	private _onKeyUp = this._register(new Emitter<IKeyboardEventWrapper>());
+	public onKeyUp: Event<IKeyboardEventWrapper> = this._onKeyUp.event;
+
+	private _onCut = this._register(new Emitter<void>());
+	public onCut: Event<void> = this._onCut.event;
+
+	private _onPaste = this._register(new Emitter<IPasteData>());
+	public onPaste: Event<IPasteData> = this._onPaste.event;
+
+	private _onType = this._register(new Emitter<ITypeData>());
+	public onType: Event<ITypeData> = this._onType.event;
+
+	private _onCompositionStart = this._register(new Emitter<ICompositionStartData>());
+	public onCompositionStart: Event<ICompositionStartData> = this._onCompositionStart.event;
+
+	private _onCompositionEnd = this._register(new Emitter<void>());
+	public onCompositionEnd: Event<void> = this._onCompositionEnd.event;
 
 	private Platform:IPlatform;
 	private Browser:IBrowser;
@@ -71,9 +97,6 @@ export class TextAreaHandler extends Disposable {
 	private lastCompositionEndTime:number;
 	private lastValueWrittenToTheTextArea:string;
 	private cursorPosition:IEditorPosition;
-	private contentLeft:number;
-	private contentWidth:number;
-	private scrollLeft:number;
 
 	private previousSetTextAreaState:TextAreaState;
 	private textareaIsShownAtCursor: boolean;
@@ -91,9 +114,6 @@ export class TextAreaHandler extends Disposable {
 		this.selection = new Range(1, 1, 1, 1);
 		this.selections = [new Range(1, 1, 1, 1)];
 		this.cursorPosition = new Position(1, 1);
-		this.contentLeft = 0;
-		this.contentWidth = 0;
-		this.scrollLeft = 0;
 
 		this.asyncReadFromTextArea = new RunOnceScheduler(null, 0);
 		this.asyncSetSelectionToTextArea = new RunOnceScheduler(() => this._writePlaceholderAndSelectTextArea(), 0);
@@ -111,9 +131,9 @@ export class TextAreaHandler extends Disposable {
 		this.lastCompositionEndTime = 0;
 		this.lastValueWrittenToTheTextArea = '';
 
-		this._register(this.textArea.onKeyDown((e) => this._onKeyDown(e)));
-		this._register(this.textArea.onKeyUp((e) => this._onKeyUp(e)));
-		this._register(this.textArea.onKeyPress((e) => this._onKeyPress()));
+		this._register(this.textArea.onKeyDown((e) => this._onKeyDownHandler(e)));
+		this._register(this.textArea.onKeyUp((e) => this._onKeyUpHandler(e)));
+		this._register(this.textArea.onKeyPress((e) => this._onKeyPressHandler()));
 
 		this.textareaIsShownAtCursor = false;
 
@@ -121,7 +141,16 @@ export class TextAreaHandler extends Disposable {
 			let timeSinceLastCompositionEnd = (new Date().getTime()) - this.lastCompositionEndTime;
 			if (!this.textareaIsShownAtCursor) {
 				this.textareaIsShownAtCursor = true;
-				this.showTextAreaAtCursor(timeSinceLastCompositionEnd >= 100);
+
+				// In IE we cannot set .value when handling 'compositionstart' because the entire composition will get canceled.
+				let shouldEmptyTextArea = (timeSinceLastCompositionEnd >= 100);
+				if (shouldEmptyTextArea) {
+					if (!this.Browser.isIE11orEarlier) {
+						this.setTextAreaState(new TextAreaState('', 0, 0, false, 0), false);
+					}
+				}
+
+				this.showTextAreaAtCursor();
 			}
 			this.asyncReadFromTextArea.cancel();
 		}));
@@ -230,9 +259,9 @@ export class TextAreaHandler extends Disposable {
 			}));
 		}
 
-		this._register(this.textArea.onCut((e) => this._onCut(e)));
-		this._register(this.textArea.onCopy((e) => this._onCopy(e)));
-		this._register(this.textArea.onPaste((e) => this._onPaste(e)));
+		this._register(this.textArea.onCut((e) => this._onCutHandler(e)));
+		this._register(this.textArea.onCopy((e) => this._onCopyHandler(e)));
+		this._register(this.textArea.onPaste((e) => this._onPasteHandler(e)));
 
 		this._writePlaceholderAndSelectTextArea();
 
@@ -245,76 +274,32 @@ export class TextAreaHandler extends Disposable {
 		super.dispose();
 	}
 
-	private showTextAreaAtCursor(emptyIt:boolean): void {
+	private showTextAreaAtCursor(): void {
 
-		let interestingLineNumber:number,
-			interestingColumn1:number,
-			interestingColumn2:number;
+		let showAtLineNumber: number;
+		let showAtColumn: number;
 
 		// In IE we cannot set .value when handling 'compositionstart' because the entire composition will get canceled.
 		if (this.Browser.isIE11orEarlier) {
 			// Ensure selection start is in viewport
-			interestingLineNumber = this.selection.startLineNumber;
-			interestingColumn1 = this.selection.startColumn;
-			interestingColumn2 = this.previousSetTextAreaState.getSelectionStart() + 1;
+			showAtLineNumber = this.selection.startLineNumber;
+			showAtColumn = (this.selection.startColumn - this.previousSetTextAreaState.getSelectionStart());
 		} else {
-			// Ensure primary cursor is in viewport
-			interestingLineNumber = this.cursorPosition.lineNumber;
-			interestingColumn1 = this.cursorPosition.column;
-			interestingColumn2 = interestingColumn1;
+			showAtLineNumber = this.cursorPosition.lineNumber;
+			showAtColumn = this.cursorPosition.column;
 		}
 
-		let visibleRanges = this.editor.visibleRangeForPositionRelativeToEditor(interestingLineNumber, interestingColumn1, interestingColumn2);
-		let visibleRange1 = visibleRanges.column1;
-		let visibleRange2 = visibleRanges.column2;
-
-		let style: ITextAreaStyle = {
-			top: undefined,
-			left: undefined,
-			width: undefined,
-			height: undefined
-		};
-		if (this.Browser.isIE11orEarlier) {
-			// Position textarea at the beginning of the line
-			if (visibleRange1 && visibleRange2) {
-				style.top = visibleRange1.top + 'px';
-				style.left = this.contentLeft + visibleRange1.left - visibleRange2.left - this.scrollLeft + 'px';
-				style.width = this.contentWidth + 'px';
-			}
-		} else {
-			// Position textarea at cursor location
-			if (visibleRange1) {
-				style.left = this.contentLeft + visibleRange1.left - this.scrollLeft + 'px';
-				style.top = visibleRange1.top + 'px';
-			}
-
-			// Empty the textarea
-			if (emptyIt) {
-				this.setTextAreaState(new TextAreaState('', 0, 0, false, 0), false);
-			}
-		}
-
-		// Show the textarea
-		style.height = this.configuration.editor.lineHeight + 'px';
-		this.textArea.setStyle(style);
-		this.editor.startIME();
+		this._onCompositionStart.fire({
+			showAtLineNumber: showAtLineNumber,
+			showAtColumn: showAtColumn
+		});
 	}
 
 	private hideTextArea(): void {
-		this.textArea.setStyle({
-			height: '',
-			width: '',
-			left: '0px',
-			top: '0px'
-		});
-		this.editor.stopIME();
+		this._onCompositionEnd.fire();
 	}
 
 	// --- begin event handlers
-
-	public setScrollLeft(scrollLeft:number): void {
-		this.scrollLeft = scrollLeft;
-	}
 
 	public setHasFocus(isFocused:boolean): void {
 		this.hasFocus = isFocused;
@@ -333,11 +318,6 @@ export class TextAreaHandler extends Disposable {
 		this.cursorPosition = primary;
 	}
 
-	public setLayoutInfo(contentLeft:number, contentWidth:number): void {
-		this.contentLeft = contentLeft;
-		this.contentWidth = contentWidth;
-	}
-
 	// --- end event handlers
 
 	private setTextAreaState(textAreaState:TextAreaState, select:boolean): void {
@@ -354,13 +334,13 @@ export class TextAreaHandler extends Disposable {
 		this.previousSetTextAreaState = textAreaState;
 	}
 
-	private _onKeyDown(e:IKeyboardEventWrapper): void {
+	private _onKeyDownHandler(e:IKeyboardEventWrapper): void {
 		if (e.equals(CommonKeybindings.ESCAPE)) {
 			// Prevent default always for `Esc`, otherwise it will generate a keypress
 			// See http://msdn.microsoft.com/en-us/library/ie/ms536939(v=vs.85).aspx
 			e.preventDefault();
 		}
-		this.editor.emitKeyDown(e);
+		this._onKeyDown.fire(e);
 		// Work around for issue spotted in electron on the mac
 		// TODO@alex: check if this issue exists after updating electron
 		// Steps:
@@ -383,11 +363,11 @@ export class TextAreaHandler extends Disposable {
 		}, 0);
 	}
 
-	private _onKeyUp(e:IKeyboardEventWrapper): void {
-		this.editor.emitKeyUp(e);
+	private _onKeyUpHandler(e:IKeyboardEventWrapper): void {
+		this._onKeyUp.fire(e);
 	}
 
-	private _onKeyPress(): void {
+	private _onKeyPressHandler(): void {
 		if (!this.hasFocus) {
 			// Sometimes, when doing Alt-Tab, in FF, a 'keypress' is sent before a 'focus'
 			return;
@@ -440,7 +420,10 @@ export class TextAreaHandler extends Disposable {
 		if (this.Browser.enableEmptySelectionClipboard) {
 			pasteOnNewLine = (txt === this.lastCopiedValue && this.lastCopiedValueIsFromEmptySelection);
 		}
-		this.editor.paste('keyboard', txt, pasteOnNewLine);
+		this._onPaste.fire({
+			text: txt,
+			pasteOnNewLine: pasteOnNewLine
+		});
 	}
 
 	private executeType(txt:string): void {
@@ -448,11 +431,17 @@ export class TextAreaHandler extends Disposable {
 			return;
 		}
 
-		this.editor.type('keyboard', txt);
+		this._onType.fire({
+			text: txt,
+			replacePreviousCharacter: false
+		});
 	}
 
 	private executeReplacePreviousChar(txt: string): void {
-		this.editor.replacePreviousChar('keyboard', txt);
+		this._onType.fire({
+			text: txt,
+			replacePreviousCharacter: true
+		});
 	}
 
 	private _writePlaceholderAndSelectTextArea(): void {
@@ -472,7 +461,7 @@ export class TextAreaHandler extends Disposable {
 
 	// ------------- Clipboard operations
 
-	private _onPaste(e:IClipboardEvent): void {
+	private _onPasteHandler(e:IClipboardEvent): void {
 		if (e.canUseTextData()) {
 			this.executePaste(e.getTextData());
 		} else {
@@ -485,15 +474,15 @@ export class TextAreaHandler extends Disposable {
 		this.justHadAPaste = true;
 	}
 
-	private _onCopy(e:IClipboardEvent): void {
+	private _onCopyHandler(e:IClipboardEvent): void {
 		this._ensureClipboardGetsEditorSelection(e);
 	}
 
 	private _triggerCut(): void {
-		this.editor.cut('keyboard');
+		this._onCut.fire();
 	}
 
-	private _onCut(e:IClipboardEvent): void {
+	private _onCutHandler(e:IClipboardEvent): void {
 		this._ensureClipboardGetsEditorSelection(e);
 		this.asyncTriggerCut.schedule();
 		this.justHadACut = true;

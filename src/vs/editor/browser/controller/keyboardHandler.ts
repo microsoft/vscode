@@ -162,7 +162,7 @@ class TextAreaWrapper extends Lifecycle.Disposable implements ITextAreaWrapper {
 	public setSelectionRange(selectionStart:number, selectionEnd:number): void {
 		// console.log('setSelectionRange: ' + selectionStart + ', ' + selectionEnd);
 		try {
-			var scrollState = DomUtils.saveParentsScrollTop(this._textArea);
+			let scrollState = DomUtils.saveParentsScrollTop(this._textArea);
 			this._textArea.focus();
 			this._textArea.setSelectionRange(selectionStart, selectionEnd);
 			DomUtils.restoreParentsScrollTop(this._textArea, scrollState);
@@ -204,6 +204,11 @@ export class KeyboardHandler extends ViewEventHandler implements Lifecycle.IDisp
 	private viewHelper:EditorBrowser.IKeyboardHandlerHelper;
 	private textArea:TextAreaWrapper;
 	private textAreaHandler:TextAreaHandler;
+	private _toDispose:Lifecycle.IDisposable[];
+
+	private contentLeft:number;
+	private contentWidth:number;
+	private scrollLeft:number;
 
 	constructor(context:EditorBrowser.IViewContext, viewController:EditorBrowser.IViewController, viewHelper:EditorBrowser.IKeyboardHandlerHelper) {
 		super();
@@ -213,38 +218,71 @@ export class KeyboardHandler extends ViewEventHandler implements Lifecycle.IDisp
 		this.textArea = new TextAreaWrapper(viewHelper.textArea);
 		this.viewHelper = viewHelper;
 
+		this.contentLeft = 0;
+		this.contentWidth = 0;
+		this.scrollLeft = 0;
+
 		this.textAreaHandler = new TextAreaHandler(Platform, Browser, this.textArea, {
 			getModel: (): ISimpleModel => this.context.model,
-			emitKeyDown: (e:IKeyboardEventWrapper): void => this.viewController.emitKeyDown(<DomUtils.IKeyboardEvent>e._actual),
-			emitKeyUp: (e:IKeyboardEventWrapper): void => this.viewController.emitKeyUp(<DomUtils.IKeyboardEvent>e._actual),
-			paste: (source:string, txt:string, pasteOnNewLine:boolean): void => this.viewController.paste(source, txt, pasteOnNewLine),
-			type: (source:string, txt:string): void => this.viewController.type(source, txt),
-			replacePreviousChar: (source:string, txt:string): void => this.viewController.replacePreviousChar(source, txt),
-			cut: (source:string): void => this.viewController.cut(source),
-			visibleRangeForPositionRelativeToEditor: (lineNumber:number, column1:number, column2:number): { column1: EditorCommon.VisibleRange; column2: EditorCommon.VisibleRange; } => {
-				var revealInterestingColumn1Event:EditorCommon.IViewRevealRangeEvent = {
-					range: new Range(lineNumber, column1, lineNumber, column1),
-					verticalType: EditorCommon.VerticalRevealType.Simple,
-					revealHorizontal: true
-				};
-				this.context.privateViewEventBus.emit(EditorCommon.ViewEventNames.RevealRangeEvent, revealInterestingColumn1Event);
-
-				// Find range pixel position
-				var visibleRange1 = this.viewHelper.visibleRangeForPositionRelativeToEditor(lineNumber, column1);
-				var visibleRange2 = this.viewHelper.visibleRangeForPositionRelativeToEditor(lineNumber, column2);
-
-				return {
-					column1: visibleRange1,
-					column2: visibleRange2
-				}
-			},
-			startIME: (): void => {
-				DomUtils.addClass(this.viewHelper.viewDomNode, 'ime-input');
-			},
-			stopIME: (): void => {
-				DomUtils.removeClass(this.viewHelper.viewDomNode, 'ime-input');
-			}
 		}, this.context.configuration);
+
+		this._toDispose = [];
+		this._toDispose.push(this.textAreaHandler.onKeyDown((e) => this.viewController.emitKeyDown(<DomUtils.IKeyboardEvent>e._actual)));
+		this._toDispose.push(this.textAreaHandler.onKeyUp((e) => this.viewController.emitKeyUp(<DomUtils.IKeyboardEvent>e._actual)));
+		this._toDispose.push(this.textAreaHandler.onPaste((e) => this.viewController.paste('keyboard', e.text, e.pasteOnNewLine)));
+		this._toDispose.push(this.textAreaHandler.onCut((e) => this.viewController.cut('keyboard')));
+		this._toDispose.push(this.textAreaHandler.onType((e) => {
+			if (e.replacePreviousCharacter) {
+				this.viewController.replacePreviousChar('keyboard', e.text);
+			} else {
+				this.viewController.type('keyboard', e.text);
+			}
+		}));
+		this._toDispose.push(this.textAreaHandler.onCompositionStart((e) => {
+			let lineNumber = e.showAtLineNumber;
+			let column = e.showAtColumn;
+
+			let revealPositionEvent:EditorCommon.IViewRevealRangeEvent = {
+				range: new Range(lineNumber, column, lineNumber, column),
+				verticalType: EditorCommon.VerticalRevealType.Simple,
+				revealHorizontal: true
+			};
+			this.context.privateViewEventBus.emit(EditorCommon.ViewEventNames.RevealRangeEvent, revealPositionEvent);
+
+			// Find range pixel position
+			let visibleRange = this.viewHelper.visibleRangeForPositionRelativeToEditor(lineNumber, column);
+
+			let style: ITextAreaStyle = {
+				top: undefined,
+				left: undefined,
+				width: undefined,
+				height: undefined
+			};
+
+			if (visibleRange) {
+				style.top = visibleRange.top + 'px';
+				style.left = this.contentLeft + visibleRange.left - this.scrollLeft + 'px';
+			}
+
+			if (Browser.isIE11orEarlier) {
+				style.width = this.contentWidth + 'px';
+			}
+
+			// Show the textarea
+			style.height = this.context.configuration.editor.lineHeight + 'px';
+			this.textArea.setStyle(style);
+			DomUtils.addClass(this.viewHelper.viewDomNode, 'ime-input');
+		}));
+		this._toDispose.push(this.textAreaHandler.onCompositionEnd((e) => {
+			this.textArea.setStyle({
+				height: '',
+				width: '',
+				left: '0px',
+				top: '0px'
+			});
+			DomUtils.removeClass(this.viewHelper.viewDomNode, 'ime-input');
+		}));
+
 
 		this.context.addEventHandler(this);
 	}
@@ -253,10 +291,11 @@ export class KeyboardHandler extends ViewEventHandler implements Lifecycle.IDisp
 		this.context.removeEventHandler(this);
 		this.textAreaHandler.dispose();
 		this.textArea.dispose();
+		this._toDispose = Lifecycle.disposeAll(this._toDispose);
 	}
 
 	public onScrollChanged(e:EditorCommon.IScrollEvent): boolean {
-		this.textAreaHandler.setScrollLeft(e.scrollLeft);
+		this.scrollLeft = e.scrollLeft;
 		return false;
 	}
 
@@ -276,7 +315,8 @@ export class KeyboardHandler extends ViewEventHandler implements Lifecycle.IDisp
 	}
 
 	public onLayoutChanged(layoutInfo:EditorCommon.IEditorLayoutInfo): boolean {
-		this.textAreaHandler.setLayoutInfo(layoutInfo.contentLeft, layoutInfo.contentWidth);
+		this.contentLeft = layoutInfo.contentLeft;
+		this.contentWidth = layoutInfo.contentWidth;
 		return false;
 	}
 
