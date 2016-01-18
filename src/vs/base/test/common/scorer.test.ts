@@ -49,5 +49,6 @@ suite('Scorer', () => {
 		assert.ok(scorer.matches('hello world', 'horl'));
 		assert.ok(scorer.matches('hello world', 'd'));
 		assert.ok(!scorer.matches('hello world', 'wh'));
+		assert.ok(!scorer.matches('d', 'dd'));
 	});
 });
