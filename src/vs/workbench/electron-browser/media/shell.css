@@ -51,6 +51,7 @@
 .monaco-shell div[tabindex="0"]:focus,
 .monaco-shell select:focus,
 .monaco-shell input[type="button"]:focus,
+.monaco-shell input[type="checkbox"]:focus,
 .monaco-shell iframe[tabindex="0"]:focus {
 	outline: 2px auto -webkit-focus-ring-color;
 	outline-offset: -2px;
@@ -61,6 +62,7 @@
 .monaco-shell div[tabindex="0"]:active, .monaco-shell div[tabindex="0"]:hover,
 .monaco-shell select:active, .monaco-shell select:hover,
 .monaco-shell input[type="button"]:active, .monaco-shell input[type="button"]:hover,
+.monaco-shell input[type="checkbox"]:active, .monaco-shell input[type="checkbox"]:hover,
 .monaco-shell iframe[tabindex="0"]:active, .monaco-shell iframe[tabindex="0"]:hover {
 	outline: 0;
 	opacity: inherit;
