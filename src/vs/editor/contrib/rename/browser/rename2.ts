@@ -27,22 +27,6 @@ import {RenameRegistry, rename} from '../common/rename';
 // ---  register actions and commands
 
 const CONTEXT_RENAME_INPUT_VISIBLE = 'renameInputVisible';
-const weight = CommonEditorRegistry.commandWeight(99);
-
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(RenameAction, RenameAction.ID, nls.localize('rename.label', "Rename Symbol"), {
-	context: ContextKey.EditorTextFocus,
-	primary: KeyCode.F2
-}));
-
-CommonEditorRegistry.registerEditorCommand('acceptRenameInput', weight, { primary: KeyCode.Enter }, false, CONTEXT_RENAME_INPUT_VISIBLE, (ctx, editor, args) => {
-	const action = <RenameAction>editor.getAction(RenameAction.ID);
-	action.acceptRenameInput();
-});
-
-CommonEditorRegistry.registerEditorCommand('cancelRenameInput', weight, { primary: KeyCode.Escape }, false, CONTEXT_RENAME_INPUT_VISIBLE, (ctx, editor, args) => {
-	const action = <RenameAction>editor.getAction(RenameAction.ID);
-	action.cancelRenameInput();
-});
 
 // ---- action implementation
 
@@ -175,3 +159,20 @@ export class RenameAction extends EditorAction {
 		});
 	}
 }
+
+const weight = CommonEditorRegistry.commandWeight(99);
+
+CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(RenameAction, RenameAction.ID, nls.localize('rename.label', "Rename Symbol"), {
+	context: ContextKey.EditorTextFocus,
+	primary: KeyCode.F2
+}));
+
+CommonEditorRegistry.registerEditorCommand('acceptRenameInput', weight, { primary: KeyCode.Enter }, false, CONTEXT_RENAME_INPUT_VISIBLE, (ctx, editor, args) => {
+	const action = <RenameAction>editor.getAction(RenameAction.ID);
+	action.acceptRenameInput();
+});
+
+CommonEditorRegistry.registerEditorCommand('cancelRenameInput', weight, { primary: KeyCode.Escape }, false, CONTEXT_RENAME_INPUT_VISIBLE, (ctx, editor, args) => {
+	const action = <RenameAction>editor.getAction(RenameAction.ID);
+	action.cancelRenameInput();
+});
