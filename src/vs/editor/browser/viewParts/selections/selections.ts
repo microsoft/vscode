@@ -10,8 +10,8 @@ import {ViewEventHandler} from 'vs/editor/common/viewModel/viewEventHandler';
 import EditorBrowser = require('vs/editor/browser/editorBrowser');
 import EditorCommon = require('vs/editor/common/editorCommon');
 
-type HorizontalRange = EditorBrowser.HorizontalRange;
-type LineVisibleRanges = EditorBrowser.LineVisibleRanges;
+type HorizontalRange = EditorCommon.HorizontalRange;
+type LineVisibleRanges = EditorCommon.LineVisibleRanges;
 
 interface IRenderResult {
 	[lineNumber:string]:string[];

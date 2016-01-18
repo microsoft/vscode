@@ -221,7 +221,7 @@ export class KeyboardHandler extends ViewEventHandler implements Lifecycle.IDisp
 			type: (source:string, txt:string): void => this.viewController.type(source, txt),
 			replacePreviousChar: (source:string, txt:string): void => this.viewController.replacePreviousChar(source, txt),
 			cut: (source:string): void => this.viewController.cut(source),
-			visibleRangeForPositionRelativeToEditor: (lineNumber:number, column1:number, column2:number): { column1: EditorBrowser.VisibleRange; column2: EditorBrowser.VisibleRange; } => {
+			visibleRangeForPositionRelativeToEditor: (lineNumber:number, column1:number, column2:number): { column1: EditorCommon.VisibleRange; column2: EditorCommon.VisibleRange; } => {
 				var revealInterestingColumn1Event:EditorCommon.IViewRevealRangeEvent = {
 					range: new Range(lineNumber, column1, lineNumber, column1),
 					verticalType: EditorCommon.VerticalRevealType.Simple,

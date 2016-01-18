@@ -3359,3 +3359,38 @@ export var Handler = {
 	ScrollPageUp:				'scrollPageUp',
 	ScrollPageDown:				'scrollPageDown'
 };
+
+export class VisibleRange {
+
+	public top:number;
+	public left:number;
+	public width:number;
+
+	constructor(top:number, left:number, width:number) {
+		this.top = top;
+		this.left = left;
+		this.width = width;
+	}
+}
+
+export class HorizontalRange {
+
+	public left: number;
+	public width: number;
+
+	constructor(left:number, width:number) {
+		this.left = left;
+		this.width = width;
+	}
+}
+
+export class LineVisibleRanges {
+
+	public lineNumber: number;
+	public ranges: HorizontalRange[];
+
+	constructor(lineNumber:number, ranges:HorizontalRange[]) {
+		this.lineNumber = lineNumber;
+		this.ranges = ranges;
+	}
+}

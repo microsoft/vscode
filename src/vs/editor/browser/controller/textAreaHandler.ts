@@ -32,7 +32,7 @@ export interface ITextEditor {
 	replacePreviousChar(source:string, txt:string): void;
 	cut(source:string): void;
 
-	visibleRangeForPositionRelativeToEditor(lineNumber:number, column1:number, column2:number): { column1: EditorBrowser.VisibleRange; column2: EditorBrowser.VisibleRange; };
+	visibleRangeForPositionRelativeToEditor(lineNumber:number, column1:number, column2:number): { column1: EditorCommon.VisibleRange; column2: EditorCommon.VisibleRange; };
 	startIME(): void;
 	stopIME(): void;
 }
