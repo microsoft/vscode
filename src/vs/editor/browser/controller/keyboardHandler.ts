@@ -113,6 +113,14 @@ class TextAreaWrapper extends Lifecycle.Disposable implements ITextAreaWrapper {
 			this._textArea.style.height = style.height;
 		}
 	}
+
+	public isInOverwriteMode(): boolean {
+		// In IE, pressing Insert will bring the typing into overwrite mode
+		if (Browser.isIE11orEarlier && document.queryCommandValue('OverWrite')) {
+			return true;
+		}
+		return false;
+	}
 }
 
 

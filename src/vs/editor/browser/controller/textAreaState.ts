@@ -6,15 +6,8 @@
 
 import EditorCommon = require('vs/editor/common/editorCommon');
 import DomUtils = require('vs/base/browser/dom');
-import Platform = require('vs/base/common/platform');
 import Browser = require('vs/base/browser/browser');
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
-import Schedulers = require('vs/base/common/async');
-import * as Lifecycle from 'vs/base/common/lifecycle';
-import Strings = require('vs/base/common/strings');
 import {Range} from 'vs/editor/common/core/range';
-import {Position} from 'vs/editor/common/core/position';
-import {CommonKeybindings} from 'vs/base/common/keyCodes';
 import Event, {Emitter} from 'vs/base/common/event';
 
 export interface ITextAreaStyle {
@@ -41,6 +34,7 @@ export interface ITextAreaWrapper {
 
 	setSelectionRange(selectionStart:number, selectionEnd:number): void;
 	setStyle(style:ITextAreaStyle): void;
+	isInOverwriteMode(): boolean;
 }
 
 export interface ISimpleModel {
@@ -55,12 +49,14 @@ export class TextAreaState {
 	private value:string;
 	private selectionStart:number;
 	private selectionEnd:number;
+	private isInOverwriteMode:boolean;
 	private selectionToken:number;
 
-	constructor(value:string, selectionStart:number, selectionEnd:number, selectionToken:number) {
+	constructor(value:string, selectionStart:number, selectionEnd:number, isInOverwriteMode:boolean, selectionToken:number) {
 		this.value = value;
 		this.selectionStart = selectionStart;
 		this.selectionEnd = selectionEnd;
+		this.isInOverwriteMode = isInOverwriteMode;
 		this.selectionToken = selectionToken;
 	}
 
@@ -69,13 +65,13 @@ export class TextAreaState {
 	}
 
 	public static fromTextArea(textArea:ITextAreaWrapper, selectionToken:number): TextAreaState {
-		return new TextAreaState(textArea.value, textArea.selectionStart, textArea.selectionEnd, selectionToken);
+		return new TextAreaState(textArea.value, textArea.selectionStart, textArea.selectionEnd, textArea.isInOverwriteMode(), selectionToken);
 	}
 
 	public static fromEditorSelectionAndPreviousState(model:ISimpleModel, selection:EditorCommon.IEditorRange, previousSelectionToken:number): TextAreaState {
 		if (Browser.isIPad) {
 			// Do not place anything in the textarea for the iPad
-			return new TextAreaState('', 0, 0, selectionStartLineNumber);
+			return new TextAreaState('', 0, 0, false, selectionStartLineNumber);
 		}
 
 		var LIMIT_CHARS = 100;
@@ -123,7 +119,7 @@ export class TextAreaState {
 			text = text.substring(0, LIMIT_CHARS) + String.fromCharCode(8230) + text.substring(text.length - LIMIT_CHARS, text.length);
 		}
 
-		return new TextAreaState(pretext + text + posttext, pretext.length, pretext.length + text.length, selectionStartLineNumber);
+		return new TextAreaState(pretext + text + posttext, pretext.length, pretext.length + text.length, false, selectionStartLineNumber);
 	}
 
 	public getSelectionStart(): number {
@@ -164,8 +160,7 @@ export class TextAreaState {
 		var previousPrefix = previousState.value.substring(0, previousState.selectionStart);
 		var previousSuffix = previousState.value.substring(previousState.selectionEnd, previousState.value.length);
 
-		// In IE, pressing Insert will bring the typing into overwrite mode
-		if (Browser.isIE11orEarlier && document.queryCommandValue('OverWrite')) {
+		if (this.isInOverwriteMode) {
 			previousSuffix = previousSuffix.substr(1);
 		}
 

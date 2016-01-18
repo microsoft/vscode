@@ -282,7 +282,7 @@ export class TextAreaHandler implements Lifecycle.IDisposable {
 
 			// Empty the textarea
 			if (emptyIt) {
-				this.setTextAreaState(new TextAreaState('', 0, 0, 0), false);
+				this.setTextAreaState(new TextAreaState('', 0, 0, false, 0), false);
 			}
 		}
 
@@ -473,7 +473,7 @@ export class TextAreaHandler implements Lifecycle.IDisposable {
 		} else {
 			if (this.textArea.selectionStart !== this.textArea.selectionEnd) {
 				// Clean up the textarea, to get a clean paste
-				this.setTextAreaState(new TextAreaState('', 0, 0, 0), false);
+				this.setTextAreaState(new TextAreaState('', 0, 0, false, 0), false);
 			}
 			this._scheduleReadFromTextArea(ReadFromTextArea.Paste);
 		}
@@ -504,7 +504,7 @@ export class TextAreaHandler implements Lifecycle.IDisposable {
 			(<any>window).clipboardData.setData('Text', whatToCopy);
 			e.preventDefault();
 		} else {
-			this.setTextAreaState(new TextAreaState(whatToCopy, 0, whatToCopy.length, 0), true);
+			this.setTextAreaState(new TextAreaState(whatToCopy, 0, whatToCopy.length, false, 0), true);
 		}
 
 		if (Browser.enableEmptySelectionClipboard) {
