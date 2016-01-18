@@ -7,29 +7,48 @@
 
 import 'vs/css!./rename';
 import {TPromise} from 'vs/base/common/winjs.base';
-import nls = require('vs/nls');
-import {sequence} from 'vs/base/common/async';
-import errors = require('vs/base/common/errors');
-import URI from 'vs/base/common/uri';
+import * as nls from 'vs/nls';
+import * as errors from 'vs/base/common/errors';
 import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
 import {EditorAction, Behaviour} from 'vs/editor/common/editorAction';
-import EditorCommon = require('vs/editor/common/editorCommon');
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as EditorBrowser from 'vs/editor/browser/editorBrowser';
 import {BulkEdit, createBulkEdit} from 'vs/editor/common/services/bulkEdit';
-import supports = require('vs/editor/common/modes/supports');
-import RenameInputField = require('./renameInputField');
+import * as supports from 'vs/editor/common/modes/supports';
+import RenameInputField from './renameInputField';
 import Severity from 'vs/base/common/severity';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {IKeybindingService, IKeybindingContextKey} from 'vs/platform/keybinding/common/keybindingService';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IEditorService} from 'vs/platform/editor/common/editor';
-import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
+import {KeyCode} from 'vs/base/common/keyCodes';
 import {RenameRegistry, rename} from '../common/rename';
+
+// ---  register actions and commands
+
+const CONTEXT_RENAME_INPUT_VISIBLE = 'renameInputVisible';
+const weight = CommonEditorRegistry.commandWeight(99);
+
+CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(RenameAction, RenameAction.ID, nls.localize('rename.label', "Rename Symbol"), {
+	context: ContextKey.EditorTextFocus,
+	primary: KeyCode.F2
+}));
+
+CommonEditorRegistry.registerEditorCommand('acceptRenameInput', weight, { primary: KeyCode.Enter }, false, CONTEXT_RENAME_INPUT_VISIBLE, (ctx, editor, args) => {
+	const action = <RenameAction>editor.getAction(RenameAction.ID);
+	action.acceptRenameInput();
+});
+
+CommonEditorRegistry.registerEditorCommand('cancelRenameInput', weight, { primary: KeyCode.Escape }, false, CONTEXT_RENAME_INPUT_VISIBLE, (ctx, editor, args) => {
+	const action = <RenameAction>editor.getAction(RenameAction.ID);
+	action.cancelRenameInput();
+});
+
+// ---- action implementation
 
 export class RenameAction extends EditorAction {
 
-	public static ID = 'editor.action.rename';
+	public static ID: string = 'editor.action.rename';
 
 	private _messageService: IMessageService;
 	private _eventService: IEventService;
@@ -39,7 +58,7 @@ export class RenameAction extends EditorAction {
 
 	constructor(descriptor: EditorCommon.IEditorActionDescriptorData, editor: EditorBrowser.ICodeEditor,
 		@IMessageService messageService: IMessageService, @IKeybindingService keybindingService: IKeybindingService,
-		@IEventService eventService:IEventService, @IEditorService editorService:IEditorService) {
+		@IEventService eventService: IEventService, @IEditorService editorService: IEditorService) {
 		super(descriptor, editor, Behaviour.WidgetFocus | Behaviour.Writeable | Behaviour.ShowInContextMenu | Behaviour.UpdateOnCursorPositionChange);
 
 		this._messageService = messageService;
@@ -80,14 +99,14 @@ export class RenameAction extends EditorAction {
 
 	public run(event?: any): TPromise<any> {
 
-		var selection = this.editor.getSelection(),
+		const selection = this.editor.getSelection(),
 			word = this.editor.getModel().getWordAtPosition(selection.getStartPosition());
 
 		if (!word) {
 			return;
 		}
 
-		var lineNumber = selection.startLineNumber,
+		let lineNumber = selection.startLineNumber,
 			selectionStart = 0,
 			selectionEnd = word.word.length,
 			wordRange: EditorCommon.IRange;
@@ -156,20 +175,3 @@ export class RenameAction extends EditorAction {
 		});
 	}
 }
-
-var CONTEXT_RENAME_INPUT_VISIBLE = 'renameInputVisible';
-
-// register actions
-var weight = CommonEditorRegistry.commandWeight(99);
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(RenameAction, RenameAction.ID, nls.localize('rename.label', "Rename Symbol"), {
-	context: ContextKey.EditorTextFocus,
-	primary: KeyCode.F2
-}));
-CommonEditorRegistry.registerEditorCommand('acceptRenameInput', weight, { primary: KeyCode.Enter }, false, CONTEXT_RENAME_INPUT_VISIBLE, (ctx, editor, args) => {
-	var action = <RenameAction>editor.getAction(RenameAction.ID);
-	action.acceptRenameInput();
-});
-CommonEditorRegistry.registerEditorCommand('cancelRenameInput', weight, { primary: KeyCode.Escape }, false, CONTEXT_RENAME_INPUT_VISIBLE, (ctx, editor, args) => {
-	var action = <RenameAction>editor.getAction(RenameAction.ID);
-	action.cancelRenameInput();
-});
