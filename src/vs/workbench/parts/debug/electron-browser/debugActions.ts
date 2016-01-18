@@ -629,6 +629,22 @@ export class RemoveAllWatchExpressionsAction extends AbstractDebugAction {
 	}
 }
 
+export class ClearReplAction extends AbstractDebugAction {
+	static ID = 'workbench.debug.panel.action.clearReplAction';
+	static LABEL = nls.localize('clearRepl', "Clear Console");
+	
+	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
+		super(id, label, 'debug-action clear-repl', debugService, keybindingService);
+	}
+
+	public run(): Promise {
+		this.debugService.clearReplExpressions();
+
+		// focus back to repl
+		return this.debugService.revealRepl();
+	}
+}
+
 export class ToggleReplAction extends actions.Action {
 	static ID = 'workbench.debug.action.toggleRepl';
 	static LABEL = nls.localize('toggleRepl', "Debug Console");
@@ -651,19 +667,5 @@ export class ToggleReplAction extends actions.Action {
 		}
 
 		return this.debugService.revealRepl();
-	}
-}
-
-export class ClearReplAction extends baseeditor.EditorInputAction {
-
-	constructor(@IDebugService private debugService: IDebugService) {
-		super('editor.action.clearRepl', nls.localize('clearRepl', "Clear Console"), 'debug-action clear-repl');
-	}
-
-	public run(): Promise {
-		this.debugService.clearReplExpressions();
-		this.debugService.revealRepl(); // focus back to repl
-
-		return Promise.as(null);
 	}
 }

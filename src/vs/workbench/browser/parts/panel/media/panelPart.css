@@ -8,5 +8,5 @@
 }
 
 .monaco-workbench > .part.panel > .title {
-	display: -webkit-box;
+	display: inherit;
 }

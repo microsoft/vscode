@@ -17,7 +17,7 @@ import viewer = require('vs/workbench/parts/debug/browser/replViewer');
 import debug = require('vs/workbench/parts/debug/common/debug');
 import debugactions = require('vs/workbench/parts/debug/electron-browser/debugActions');
 import replhistory = require('vs/workbench/parts/debug/common/replHistory');
-import { Panel } from 'vs/workbench/browser/panel';
+import { Panel, ClosePanelAction } from 'vs/workbench/browser/panel';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService, INullService } from 'vs/platform/instantiation/common/instantiation';
@@ -50,6 +50,7 @@ export class Repl extends Panel {
 	private treeContainer: HTMLElement;
 	private replInput: HTMLInputElement;
 	private refreshTimeoutHandle: number;
+	private actions: actions.IAction[];
 
 	constructor(
 		@debug.IDebugService private debugService: debug.IDebugService,
@@ -156,8 +157,18 @@ export class Repl extends Panel {
 	}
 
 	public getActions(): actions.IAction[] {
-		// TODO@isidor
-		return [];
+		if (!this.actions) {
+			this.actions = [
+				this.instantiationService.createInstance(debugactions.ClearReplAction, debugactions.ClearReplAction.ID, debugactions.ClearReplAction.LABEL),
+				this.instantiationService.createInstance(ClosePanelAction, ClosePanelAction.ID, ClosePanelAction.LABEL)
+			];
+
+			this.actions.forEach(a => {
+				this.toDispose.push(a);
+			});
+		}
+
+		return this.actions;
 	}
 
 	public shutdown(): void {
