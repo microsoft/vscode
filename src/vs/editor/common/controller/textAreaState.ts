@@ -8,13 +8,6 @@ import * as EditorCommon from 'vs/editor/common/editorCommon';
 import {Range} from 'vs/editor/common/core/range';
 import Event from 'vs/base/common/event';
 
-export interface ITextAreaStyle {
-	top: string;
-	left: string;
-	width: string;
-	height: string;
-}
-
 export interface IClipboardEvent {
 	canUseTextData(): boolean;
 	setTextData(text:string): void;
@@ -44,7 +37,6 @@ export interface ITextAreaWrapper {
 	selectionEnd: number;
 
 	setSelectionRange(selectionStart:number, selectionEnd:number): void;
-	setStyle(style:ITextAreaStyle): void;
 	isInOverwriteMode(): boolean;
 }
 

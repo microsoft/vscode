@@ -20,7 +20,7 @@ import {Position} from 'vs/editor/common/core/position';
 import {CommonKeybindings} from 'vs/base/common/keyCodes';
 import Event, {Emitter} from 'vs/base/common/event';
 import {TextAreaHandler} from 'vs/editor/common/controller/textAreaHandler';
-import {ITextAreaWrapper, IClipboardEvent, IKeyboardEventWrapper, ITextAreaStyle, ISimpleModel} from 'vs/editor/common/controller/textAreaState';
+import {ITextAreaWrapper, IClipboardEvent, IKeyboardEventWrapper, ISimpleModel} from 'vs/editor/common/controller/textAreaState';
 
 class ClipboardEventWrapper implements IClipboardEvent {
 
@@ -143,6 +143,10 @@ class TextAreaWrapper extends Lifecycle.Disposable implements ITextAreaWrapper {
 		this._register(DomUtils.addDisposableListener(this._textArea, 'paste', (e:ClipboardEvent) => this._onPaste.fire(new ClipboardEventWrapper(e))));
 	}
 
+	public get actual(): HTMLTextAreaElement {
+		return this._textArea;
+	}
+
 	public get value(): string {
 		return this._textArea.value;
 	}
@@ -169,21 +173,6 @@ class TextAreaWrapper extends Lifecycle.Disposable implements ITextAreaWrapper {
 		} catch(e) {
 			// Sometimes IE throws when setting selection (e.g. textarea is off-DOM)
 			console.log('an error has been thrown!');
-		}
-	}
-
-	public setStyle(style:ITextAreaStyle): void {
-		if (typeof style.top !== 'undefined') {
-			this._textArea.style.top = style.top;
-		}
-		if (typeof style.left !== 'undefined') {
-			this._textArea.style.left = style.left;
-		}
-		if (typeof style.width !== 'undefined') {
-			this._textArea.style.width = style.width;
-		}
-		if (typeof style.height !== 'undefined') {
-			this._textArea.style.height = style.height;
 		}
 	}
 
@@ -222,9 +211,7 @@ export class KeyboardHandler extends ViewEventHandler implements Lifecycle.IDisp
 		this.contentWidth = 0;
 		this.scrollLeft = 0;
 
-		this.textAreaHandler = new TextAreaHandler(Platform, Browser, this.textArea, {
-			getModel: (): ISimpleModel => this.context.model,
-		}, this.context.configuration);
+		this.textAreaHandler = new TextAreaHandler(Platform, Browser, this.textArea, this.context.model);
 
 		this._toDispose = [];
 		this._toDispose.push(this.textAreaHandler.onKeyDown((e) => this.viewController.emitKeyDown(<DomUtils.IKeyboardEvent>e._actual)));
@@ -252,34 +239,24 @@ export class KeyboardHandler extends ViewEventHandler implements Lifecycle.IDisp
 			// Find range pixel position
 			let visibleRange = this.viewHelper.visibleRangeForPositionRelativeToEditor(lineNumber, column);
 
-			let style: ITextAreaStyle = {
-				top: undefined,
-				left: undefined,
-				width: undefined,
-				height: undefined
-			};
-
 			if (visibleRange) {
-				style.top = visibleRange.top + 'px';
-				style.left = this.contentLeft + visibleRange.left - this.scrollLeft + 'px';
+				this.textArea.actual.style.top = visibleRange.top + 'px';
+				this.textArea.actual.style.left = this.contentLeft + visibleRange.left - this.scrollLeft + 'px';
 			}
 
 			if (Browser.isIE11orEarlier) {
-				style.width = this.contentWidth + 'px';
+				this.textArea.actual.style.width = this.contentWidth + 'px';
 			}
 
 			// Show the textarea
-			style.height = this.context.configuration.editor.lineHeight + 'px';
-			this.textArea.setStyle(style);
+			this.textArea.actual.style.height = this.context.configuration.editor.lineHeight + 'px';
 			DomUtils.addClass(this.viewHelper.viewDomNode, 'ime-input');
 		}));
 		this._toDispose.push(this.textAreaHandler.onCompositionEnd((e) => {
-			this.textArea.setStyle({
-				height: '',
-				width: '',
-				left: '0px',
-				top: '0px'
-			});
+			this.textArea.actual.style.height = '';
+			this.textArea.actual.style.width = '';
+			this.textArea.actual.style.left = '0px';
+			this.textArea.actual.style.top = '0px';
 			DomUtils.removeClass(this.viewHelper.viewDomNode, 'ime-input');
 		}));
 
