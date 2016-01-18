@@ -140,7 +140,7 @@ export class LayoutProvider extends ViewEventHandler implements Lifecycle.IDispo
 
 		var oldScrollWidth = this.scrollable.getScrollWidth();
 		this.scrollable.setScrollWidth(newScrollWidth);
-		var newScrollWidth = this.scrollable.getScrollWidth();
+		newScrollWidth = this.scrollable.getScrollWidth();
 
 		if (newScrollWidth !== oldScrollWidth) {
 			this.privateViewEventBus.emit(EditorCommon.EventType.ViewScrollWidthChanged, newScrollWidth);
