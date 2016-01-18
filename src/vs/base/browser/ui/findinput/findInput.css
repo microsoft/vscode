@@ -15,10 +15,6 @@
 	height: 25px;
 }
 
-.monaco-findInput .monaco-inputbox > .wrapper > .input {
-	outline: none;
-}
-
 .fl:after {
 	clear: both;
 	content: '';

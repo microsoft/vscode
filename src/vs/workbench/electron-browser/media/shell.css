@@ -68,6 +68,10 @@
 	opacity: inherit;
 }
 
+.monaco-shell input[type="text"], .monaco-shell textarea {
+	outline: 0; /* do not show outline in input fields and textarea */
+}
+
 .monaco-shell a.prominent {
 	text-decoration: underline;
 }
