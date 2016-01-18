@@ -198,7 +198,7 @@ export class ViewContentWidgets extends ViewPart {
 		let heightAboveLine = aboveLineTop;
 
 		// b) the box under the line
-		let underLineTop = visibleRange.top + visibleRange.height;
+		let underLineTop = visibleRange.top + this._context.configuration.editor.lineHeight;
 		let heightUnderLine = ctx.viewportHeight - underLineTop;
 
 		let aboveTop = aboveLineTop - height;
@@ -241,7 +241,7 @@ export class ViewContentWidgets extends ViewPart {
 		}
 
 		let aboveTop = visibleRange.top - height,
-			belowTop = visibleRange.top + visibleRange.height,
+			belowTop = visibleRange.top + this._context.configuration.editor.lineHeight,
 			left = left0 + this._contentLeft;
 
 		let domNodePosition = DomUtils.getDomNodePosition(this._viewDomNode);

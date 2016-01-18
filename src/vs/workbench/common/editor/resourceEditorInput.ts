@@ -12,15 +12,13 @@ import URI from 'vs/base/common/uri';
 import {EventType} from 'vs/base/common/events';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IModelService} from 'vs/editor/common/services/modelService';
-import {IModeService} from 'vs/editor/common/services/modeService';
 import {IDisposable} from 'vs/base/common/lifecycle';
 
 /**
  *
  */
 export interface IResourceEditorContentProvider {
-	provideTextContent(resource: URI): TPromise<string>;
-	// onDidChange
+	provideTextContent(resource: URI): TPromise<IModel>;
 }
 
 /**
@@ -40,7 +38,7 @@ export class ResourceEditorInput extends EditorInput {
 		return { dispose() { delete ResourceEditorInput.registry[scheme] } };
 	}
 
-	private static getOrCreateModel(modelService: IModelService, modeService: IModeService, resource: URI): TPromise<IModel> {
+	private static getOrCreateModel(modelService: IModelService, resource: URI): TPromise<IModel> {
 		const model = modelService.getModel(resource);
 		if (model) {
 			return TPromise.as(model);
@@ -61,11 +59,7 @@ export class ResourceEditorInput extends EditorInput {
 			// twice
 			ResourceEditorInput.loadingModels[resource.toString()] = loadingModel = new TPromise<IModel>((resolve, reject) => {
 
-				provider.provideTextContent(resource).then(value => {
-					const firstLineText = value.substr(0, 1 + value.search(/\r?\n/));
-					const mode = modeService.getOrCreateModeByFilenameOrFirstLine(resource.fsPath, firstLineText);
-					return modelService.createModel(value, mode, resource);
-				}).then(resolve, reject);
+				provider.provideTextContent(resource).then(resolve, reject);
 
 			}, function() {
 				// no cancellation when caching promises
@@ -93,7 +87,6 @@ export class ResourceEditorInput extends EditorInput {
 		description: string,
 		resource: URI,
 		@IModelService protected modelService: IModelService,
-		@IModeService protected modeService: IModeService,
 		@IInstantiationService protected instantiationService: IInstantiationService
 	) {
 		super();
@@ -123,7 +116,7 @@ export class ResourceEditorInput extends EditorInput {
 		}
 
 		// Otherwise Create Model and handle dispose event
-		return ResourceEditorInput.getOrCreateModel(this.modelService, this.modeService, this.resource).then(() => {
+		return ResourceEditorInput.getOrCreateModel(this.modelService, this.resource).then(() => {
 			let model = this.instantiationService.createInstance(ResourceEditorModel, this.resource);
 			const unbind = model.addListener(EventType.DISPOSE, () => {
 				this.cachedModel = null; // make sure we do not dispose model again

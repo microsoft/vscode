@@ -6,10 +6,10 @@
 
 import {TPromise} from 'vs/base/common/winjs.base';
 import Schedulers = require('vs/base/common/async');
-import ViewLine = require('vs/editor/browser/viewParts/lines/viewLine');
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
 import {IModeService} from 'vs/editor/common/services/modeService';
+import {IRenderLineOutput, renderLine} from 'vs/editor/common/viewLayout/viewLineRenderer';
 
 export interface IColorizerOptions {
 	tabSize?: number;
@@ -90,7 +90,7 @@ export function colorize(modeService:IModeService, text:string, mimeType:string,
 }
 
 export function colorizeLine(line:string, tokens:EditorCommon.ILineToken[], tabSize:number = 4): string {
-	var renderResult = ViewLine.renderLine({
+	var renderResult = renderLine({
 		lineContent: line,
 		parts: tokens,
 		stopRenderingLineAfter: -1,
@@ -120,7 +120,7 @@ function actualColorize(lines:string[], mode:Modes.IMode, tabSize:number): IActu
 		length:number,
 		line: string,
 		tokenizeResult: Modes.ILineTokens,
-		renderResult: ViewLine.IRenderLineOutput,
+		renderResult: IRenderLineOutput,
 		retokenize: TPromise<void>[] = [];
 
 	for (i = 0, length = lines.length; i < length; i++) {
@@ -131,7 +131,7 @@ function actualColorize(lines:string[], mode:Modes.IMode, tabSize:number): IActu
 			retokenize.push(tokenizeResult.retokenize);
 		}
 
-		renderResult = ViewLine.renderLine({
+		renderResult = renderLine({
 			lineContent: line,
 			parts: tokenizeResult.tokens,
 			stopRenderingLineAfter: -1,

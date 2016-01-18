@@ -35,7 +35,7 @@ export class EmbeddedCodeEditorWidget extends CodeEditorWidget.CodeEditorWidget 
 		// Overwrite parent's options
 		super.updateOptions(this._overwriteOptions);
 
-		this._lifetimeListeners.push(parentEditor.addListener(EditorCommon.EventType.ConfigurationChanged, (e:EditorCommon.IConfigurationChangedEvent) => this._onParentConfigurationChanged(e)));
+		this._lifetimeDispose.push(parentEditor.addListener2(EditorCommon.EventType.ConfigurationChanged, (e:EditorCommon.IConfigurationChangedEvent) => this._onParentConfigurationChanged(e)));
 	}
 
 	private _onParentConfigurationChanged(e:EditorCommon.IConfigurationChangedEvent): void {

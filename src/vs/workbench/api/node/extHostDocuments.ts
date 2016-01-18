@@ -23,6 +23,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import * as vscode from 'vscode';
 import {WordHelper} from 'vs/editor/common/model/textModelWithTokensHelpers';
 import {IFileService} from 'vs/platform/files/common/files';
+import {IModeService} from 'vs/editor/common/services/modeService';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {ResourceEditorInput} from 'vs/workbench/common/editor/resourceEditorInput';
 import {asWinJsPromise} from 'vs/base/common/async';
@@ -458,6 +459,7 @@ export class ExtHostDocumentData extends MirrorModel2 {
 @Remotable.MainContext('MainThreadDocuments')
 export class MainThreadDocuments {
 	private _modelService: IModelService;
+	private _modeService: IModeService;
 	private _textFileService: ITextFileService;
 	private _editorService: IWorkbenchEditorService;
 	private _fileService: IFileService;
@@ -471,6 +473,7 @@ export class MainThreadDocuments {
 	constructor(
 		@IThreadService threadService: IThreadService,
 		@IModelService modelService: IModelService,
+		@IModeService modeService: IModeService,
 		@IEventService eventService: IEventService,
 		@ITextFileService textFileService: ITextFileService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
@@ -478,6 +481,7 @@ export class MainThreadDocuments {
 		@IUntitledEditorService untitledEditorService: IUntitledEditorService
 	) {
 		this._modelService = modelService;
+		this._modeService = modeService;
 		this._textFileService = textFileService;
 		this._editorService = editorService;
 		this._fileService = fileService;
@@ -628,8 +632,12 @@ export class MainThreadDocuments {
 
 	$registerTextContentProvider(scheme: string): void {
 		this._resourceContentProvider[scheme] = ResourceEditorInput.registerResourceContentProvider(scheme, {
-			provideTextContent: (uri: URI): TPromise<string> => {
-				return this._proxy.$provideTextDocumentContent(uri);
+			provideTextContent: (uri: URI): TPromise<EditorCommon.IModel> => {
+				return this._proxy.$provideTextDocumentContent(uri).then(value => {
+					const firstLineText = value.substr(0, 1 + value.search(/\r?\n/));
+					const mode = this._modeService.getOrCreateModeByFilenameOrFirstLine(uri.fsPath, firstLineText);
+					return this._modelService.createModel(value, mode, uri);
+				});
 			}
 		});
 	}

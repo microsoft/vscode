@@ -14,6 +14,7 @@ import scorer = require('vs/base/common/scorer');
 import paths = require('vs/base/common/paths');
 import filters = require('vs/base/common/filters');
 import labels = require('vs/base/common/labels');
+import strings = require('vs/base/common/strings');
 import {IRange} from 'vs/editor/common/editorCommon';
 import {ListenerUnbind} from 'vs/base/common/eventEmitter';
 import {compareByPrefix} from 'vs/base/common/comparers';
@@ -43,7 +44,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 	private static SYMBOL_SEARCH_SUBSEQUENT_TIMEOUT = 100;
 	private static SEARCH_DELAY = 300; // This delay accommodates for the user typing a word and then stops typing to start searching
 
-	private static MAX_DISPLAYED_RESULTS = 1024;
+	private static MAX_DISPLAYED_RESULTS = 512;
 
 	private openSymbolHandler: OpenSymbolHandler;
 	private openFileHandler: OpenFileHandler;
@@ -257,6 +258,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 
 		// Pattern match on results and adjust highlights
 		let results: QuickOpenEntry[] = [];
+		const normalizedSearchValueLowercase = strings.stripWildcards(searchValue).toLowerCase();
 		for (let i = 0; i < cachedEntries.length; i++) {
 			let entry = cachedEntries[i];
 
@@ -268,7 +270,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 			// Check if this entry is a match for the search value
 			const resource = entry.getResource(); // can be null for symbol results!
 			let targetToMatch = resource ? labels.getPathLabel(resource, this.contextService) : entry.getLabel();
-			if (!filters.matchesFuzzy(searchValue, targetToMatch, true /* separate substring matching */)) {
+			if (!scorer.matches(targetToMatch, normalizedSearchValueLowercase)) {
 				continue;
 			}
 

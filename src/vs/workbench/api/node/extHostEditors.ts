@@ -20,6 +20,7 @@ import {MainThreadEditorsTracker, TextEditorRevealType, MainThreadTextEditor, IT
 import * as TypeConverters from './extHostTypeConverters';
 import {TextDocument, TextEditorSelectionChangeEvent, TextEditorOptionsChangeEvent, TextEditorOptions, ViewColumn} from 'vscode';
 import {EventType} from 'vs/workbench/common/events';
+import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IEventService} from 'vs/platform/event/common/event';
 import {equals as arrayEquals} from 'vs/base/common/arrays';
 
@@ -415,6 +416,7 @@ export class MainThreadEditors {
 
 	private _proxy: ExtHostEditors;
 	private _workbenchEditorService: IWorkbenchEditorService;
+	private _telemetryService: ITelemetryService;
 	private _editorTracker: MainThreadEditorsTracker;
 	private _toDispose: IDisposable[];
 	private _textEditorsListenersMap: { [editorId: string]: IDisposable[]; };
@@ -425,12 +427,14 @@ export class MainThreadEditors {
 	constructor(
 		@IThreadService threadService: IThreadService,
 		@IWorkbenchEditorService workbenchEditorService: IWorkbenchEditorService,
+		@ITelemetryService telemetryService: ITelemetryService,
 		@ICodeEditorService editorService: ICodeEditorService,
 		@IEventService eventService: IEventService,
 		@IModelService modelService: IModelService
 	) {
 		this._proxy = threadService.getRemotable(ExtHostEditors);
 		this._workbenchEditorService = workbenchEditorService;
+		this._telemetryService = telemetryService;
 		this._toDispose = [];
 		this._textEditorsListenersMap = Object.create(null);
 		this._textEditorsMap = Object.create(null);
@@ -566,6 +570,9 @@ export class MainThreadEditors {
 	}
 
 	_tryShowEditor(id: string, position: EditorPosition): TPromise<void> {
+		// check how often this is used
+		this._telemetryService.publicLog('api.deprecated', { function: 'TextEditor.show' });
+
 		let mainThreadEditor = this._textEditorsMap[id];
 		if (mainThreadEditor) {
 			let model = mainThreadEditor.getModel();
@@ -577,6 +584,9 @@ export class MainThreadEditors {
 	}
 
 	_tryHideEditor(id: string): TPromise<void> {
+		// check how often this is used
+		this._telemetryService.publicLog('api.deprecated', { function: 'TextEditor.hide' });
+
 		let mainThreadEditor = this._textEditorsMap[id];
 		if (mainThreadEditor) {
 			let editors = this._workbenchEditorService.getVisibleEditors();
