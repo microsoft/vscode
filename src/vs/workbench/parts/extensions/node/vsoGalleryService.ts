@@ -120,13 +120,13 @@ export class GalleryService implements IGalleryService {
 					publisher: extension.publisher.publisherName,
 					version: extension.versions[0].version,
 					description: extension.shortDescription || '',
-					installs: this.extractInstalls(extension.statistics),
 					galleryInformation: {
 						galleryApiUrl: this.extensionsGalleryUrl,
 						id: extension.extensionId,
 						downloadUrl: `${ extension.versions[0].assetUri }/Microsoft.VisualStudio.Services.VSIXPackage?install=true`,
 						publisherId: extension.publisher.publisherId,
 						publisherDisplayName: extension.publisher.displayName,
+						installCount: this.extractInstalls(extension.statistics),
 						date: extension.versions[0].lastUpdated,
 					}
 				}));

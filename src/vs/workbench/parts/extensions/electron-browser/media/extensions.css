@@ -28,7 +28,7 @@
 	opacity: 0.6;
 }
 
-.quick-open-widget .extension .installs {
+.quick-open-widget .extension .installCount:not(:empty) {
 	margin-left: 6px;
 	padding: 1px 3px;
 	border-radius: 3px;
@@ -37,7 +37,7 @@
 	opacity: 0.7;
 }
 
-.quick-open-widget .extension .installs:before {
+.quick-open-widget .extension .installCount:not(:empty):before {
 	margin-right: 2px;
 }
 
