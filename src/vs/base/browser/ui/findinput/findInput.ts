@@ -15,6 +15,7 @@ import {Widget} from 'vs/base/browser/ui/widget';
 import Event, {Emitter} from 'vs/base/common/event';
 import {StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {StandardMouseEvent} from 'vs/base/browser/mouseEvent';
+import {CommonKeybindings} from 'vs/base/common/keyCodes';
 
 export interface IFindInputOptions {
 	placeholder?:string;
@@ -243,6 +244,38 @@ export class FindInput extends Widget {
 				e.preventDefault();
 			}
 		}));
+
+		// Arrow-Key support to navigate between options
+		let indexes = [this.caseSensitive.domNode, this.wholeWords.domNode, this.regex.domNode];
+		this.domNode.addEventListener(dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+			let event = new StandardKeyboardEvent(e);
+			let eventHandled = false;
+
+			if (event.equals(CommonKeybindings.LEFT_ARROW) || event.equals(CommonKeybindings.RIGHT_ARROW) || event.equals(CommonKeybindings.ESCAPE)) {
+				let index = indexes.indexOf(<HTMLElement>document.activeElement);
+				if (index >= 0) {
+					let newIndex: number;
+					if (event.equals(CommonKeybindings.RIGHT_ARROW)) {
+						newIndex = (index + 1) % indexes.length;
+					} else if (event.equals(CommonKeybindings.LEFT_ARROW)) {
+						if (index === 0) {
+							newIndex = indexes.length - 1;
+						} else {
+							newIndex = index - 1;
+						}
+					}
+
+					if (event.equals(CommonKeybindings.ESCAPE)) {
+						indexes[index].blur();
+					} else if (newIndex >= 0) {
+						indexes[newIndex].focus();
+					}
+
+					event.preventDefault();
+					event.stopPropagation();
+				}
+			}
+		});
 
 		this.setInputWidth();
 
