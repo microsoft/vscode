@@ -15,7 +15,6 @@ import * as TypeConverters from 'vs/workbench/api/node/extHostTypeConverters';
 import {Range, DocumentHighlightKind, Disposable, Diagnostic, SignatureHelp} from 'vs/workbench/api/node/extHostTypes';
 import {IPosition, IRange, ISingleEditOperation} from 'vs/editor/common/editorCommon';
 import * as modes from 'vs/editor/common/modes';
-import {CancellationTokenSource} from 'vs/base/common/cancellation';
 import {ExtHostModelService} from 'vs/workbench/api/node/extHostDocuments';
 import {IMarkerService, IMarker} from 'vs/platform/markers/common/markers';
 import {ExtHostCommands} from 'vs/workbench/api/node/extHostCommands';
@@ -31,7 +30,7 @@ import {FormatRegistry, FormatOnTypeRegistry} from 'vs/editor/contrib/format/com
 import {CodeLensRegistry} from 'vs/editor/contrib/codelens/common/codelens';
 import {ParameterHintsRegistry} from 'vs/editor/contrib/parameterHints/common/parameterHints';
 import {SuggestRegistry} from 'vs/editor/contrib/suggest/common/suggest';
-import {asWinJsPromise} from 'vs/base/common/async';
+import {asWinJsPromise, ShallowCancelThenPromise} from 'vs/base/common/async';
 
 // --- adapter
 
@@ -83,7 +82,7 @@ class CodeLensAdapter implements modes.ICodeLensSupport {
 		// from cache
 		let entry = this._cache[key];
 		if (entry && entry.version === version) {
-			return entry.data.then(cached => cached.symbols);
+			return new ShallowCancelThenPromise(entry.data.then(cached => cached.symbols));
 		}
 
 		const newCodeLensData = asWinJsPromise(token => this._provider.provideCodeLenses(doc, token)).then(lenses => {
@@ -113,13 +112,13 @@ class CodeLensAdapter implements modes.ICodeLensSupport {
 			data: newCodeLensData
 		};
 
-		return newCodeLensData.then(newCached => {
+		return new ShallowCancelThenPromise(newCodeLensData.then(newCached => {
 			if (entry) {
 				// only now dispose old commands et al
 				entry.data.then(oldCached => disposeAll(oldCached.disposables));
 			}
 			return newCached && newCached.symbols;
-		});
+		}));
 
 	}
 

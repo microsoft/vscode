@@ -5,7 +5,7 @@
 
 'use strict';
 
-import {onUnexpectedError, illegalArgument} from 'vs/base/common/errors';
+import {onUnexpectedError, illegalArgument, isPromiseCanceledError} from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {TPromise} from 'vs/base/common/winjs.base';
@@ -33,7 +33,9 @@ export function getCodeLensData(model: IModel): TPromise<ICodeLensData[]> {
 				symbols.push({ symbol, support });
 			}
 		}, err => {
-			onUnexpectedError(err);
+			if (!isPromiseCanceledError(err)) {
+				onUnexpectedError(err);
+			}
 		});
 	});
 
