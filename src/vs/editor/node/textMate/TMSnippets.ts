@@ -126,7 +126,8 @@ class TMSnippetsAdaptor {
 						type: 'snippet',
 						label: prefix,
 						documentationLabel: snippet['description'] || description,
-						codeSnippet: convertedSnippet
+						codeSnippet: convertedSnippet,
+						noAutoAccept: true
 					});
 				}
 			}
