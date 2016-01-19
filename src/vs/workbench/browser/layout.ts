@@ -189,11 +189,30 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 
 			// Panel visible
 			if (!isPanelHidden) {
-				// TODO@Isidor Automatically hide panel when a certain threshold is met
+				// Automatically hide panel when a certain threshold is met
+				if (newSashHeight + HIDE_PANEL_HEIGHT_THRESHOLD < this.computedStyles.panel.minHeight) {
+					let dragCompensation = DEFAULT_MIN_PANEL_PART_HEIGHT - HIDE_PANEL_HEIGHT_THRESHOLD;
+					this.partService.setPanelHidden(true);
+					startY = Math.min(this.sidebarHeight - this.computedStyles.statusbar.height, e.currentY + dragCompensation);
+					this.panelHeight = this.startPanelHeight; // when restoring panel, restore to the panel width we started from
+				}
 
-				this.panelHeight = Math.max(this.computedStyles.panel.minHeight, newSashHeight); // Panel can not become smaller than MIN_PART_HEIGHT
-				doLayout = newSashHeight >= this.computedStyles.panel.minHeight;
+				// Otherwise size the panel accordingly
+				else {
+					this.panelHeight = Math.max(this.computedStyles.panel.minHeight, newSashHeight); // Panel can not become smaller than MIN_PART_HEIGHT
+					doLayout = newSashHeight >= this.computedStyles.panel.minHeight;
+				}
 			}
+
+			// Panel hidden
+			else {
+				if (startY - e.currentY >= this.computedStyles.panel.minHeight) {
+					this.startPanelHeight = 0;
+					this.panelHeight = this.computedStyles.panel.minHeight;
+					this.partService.setPanelHidden(false);
+				}
+			}
+
 			if (doLayout) {
 				this.layout();
 			}
@@ -420,7 +439,6 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 
 		// Sashes
 		this.sashX.layout();
-		isPanelHidden ? this.sashY.hide() : this.sashY.show();
 		this.sashY.layout();
 
 		// Propagate to Part Layouts
@@ -464,7 +482,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 	}
 
 	public getHorizontalSashTop(sash: Sash): number {
-		return this.sidebarHeight - this.panelHeight;
+		return this.partService.isPanelHidden() ? this.sidebarHeight : this.sidebarHeight - this.panelHeight;
 	}
 
 	public getHorizontalSashLeft(sash: Sash): number {
