@@ -8,6 +8,7 @@ Intellisense, auto-completion, rename references, view references, go to definit
 * Viewing references
 * Going to definitins
 * View signature and similar by hovering over a function or method
+* Debugging is still a work in progress (Alpha stage)
 
 Open the python file and start using it. 
 
