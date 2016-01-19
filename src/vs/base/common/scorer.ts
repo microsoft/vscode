@@ -48,10 +48,10 @@ export function score(target: string, query: string, cache?: {[id: string]: numb
 	const queryLower = query.toLowerCase();
 
 	let index = 0;
-	let lastIndexOf = 0;
+	let lastIndexOf = -1;
 	let score = 0;
 	while (index < queryLen) {
-		var indexOf = targetLower.indexOf(queryLower[index], lastIndexOf);
+		var indexOf = targetLower.indexOf(queryLower[index], lastIndexOf + 1);
 		if (indexOf < 0) {
 			score = 0; // This makes sure that the query is contained in the target
 			break;
@@ -108,15 +108,15 @@ export function matches(target: string, queryLower: string): boolean {
 	const targetLower = target.toLowerCase();
 
 	let index = 0;
-	let lastIndexOf = 0;
+	let lastIndexOf = -1;
 	while (index < queryLen) {
-		var indexOf = targetLower.indexOf(queryLower[index], lastIndexOf);
+		var indexOf = targetLower.indexOf(queryLower[index], lastIndexOf + 1);
 		if (indexOf < 0) {
 			return false;
 		}
 
 		lastIndexOf = indexOf;
-		
+
 		index++;
 	}
 

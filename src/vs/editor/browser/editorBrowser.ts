@@ -44,7 +44,7 @@ export interface ICodeEditorHelper {
 export interface IKeyboardHandlerHelper {
 	viewDomNode:HTMLElement;
 	textArea:HTMLTextAreaElement;
-	visibleRangeForPositionRelativeToEditor(lineNumber:number, column:number): IVisibleRange;
+	visibleRangeForPositionRelativeToEditor(lineNumber:number, column:number): EditorCommon.VisibleRange;
 }
 
 export interface IPointerHandlerHelper {
@@ -70,7 +70,7 @@ export interface IPointerHandlerHelper {
 	 */
 	getPositionFromDOMInfo(spanNode:HTMLElement, offset:number): EditorCommon.IPosition;
 
-	visibleRangeForPosition2(lineNumber:number, column:number): IVisibleRange;
+	visibleRangeForPosition2(lineNumber:number, column:number): EditorCommon.VisibleRange;
 	getLineWidth(lineNumber:number): number;
 }
 
@@ -159,13 +159,6 @@ export var ClassNames = {
 	VIEW_ZONES: 'view-zones'
 };
 
-export interface IVisibleRange {
-	top:number;
-	left:number;
-	width:number;
-	height:number;
-}
-
 export interface IRestrictedRenderingContext {
 	linesViewportData:EditorCommon.IViewLinesViewportData;
 
@@ -187,26 +180,11 @@ export interface IRestrictedRenderingContext {
 	getDecorationsInViewport(): EditorCommon.IModelDecoration[];
 }
 
-export interface IHorizontalRange {
-	left:number;
-	width:number;
-}
-
-export interface ILineVisibleRanges {
-	lineNumber: number;
-	ranges: IHorizontalRange[];
-}
-
 export interface IRenderingContext extends IRestrictedRenderingContext {
 
-	heightInPxForLine(lineNumber:number): number;
+	linesVisibleRangesForRange(range:EditorCommon.IRange, includeNewLines:boolean): EditorCommon.LineVisibleRanges[];
 
-	visibleRangesForRange(range:EditorCommon.IRange, includeNewLines:boolean): IVisibleRange[];
-
-	linesVisibleRangesForRange(range:EditorCommon.IRange, includeNewLines:boolean): ILineVisibleRanges[];
-
-	visibleRangeForPosition(position:EditorCommon.IPosition): IVisibleRange;
-	visibleRangeForPosition2(lineNumber:number, column:number): IVisibleRange;
+	visibleRangeForPosition(position:EditorCommon.IPosition): EditorCommon.VisibleRange;
 }
 
 export interface IViewEventHandler {

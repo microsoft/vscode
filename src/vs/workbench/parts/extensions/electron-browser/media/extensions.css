@@ -28,14 +28,17 @@
 	opacity: 0.6;
 }
 
-.quick-open-widget .extension .version {
-	font-family: Menlo, Monaco, Consolas, "Droid Sans Mono", "Courier New", monospace, "Droid Sans Fallback";
+.quick-open-widget .extension .installCount:not(:empty) {
+	margin-left: 6px;
+	padding: 1px 3px;
+	border-radius: 3px;
+	background-color: rgba(132, 132, 132, 0.3);
 	font-size: smaller;
+	opacity: 0.7;
 }
 
-.quick-open-widget .extension .version {
-	padding-left: 6px;
-	opacity: 0.7;
+.quick-open-widget .extension .installCount:not(:empty):before {
+	margin-right: 2px;
 }
 
 .quick-open-widget .extension .published {
@@ -44,7 +47,7 @@
 	font-size: smaller;
 }
 
-.quick-open-widget .extension .published > .since {
+.quick-open-widget .extension .published > .version {
 	opacity: 0.6;
 	margin-right: 0.5em;
 }

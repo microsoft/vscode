@@ -453,7 +453,9 @@ export class TestQuickOpenService implements QuickOpenService.IQuickOpenService 
 	}
 
 	show(prefix?: string, quickNavigateConfiguration?: any): Promise {
-		this.callback && this.callback(prefix);
+		if (this.callback) {
+			this.callback(prefix);
+		}
 
 		return Promise.as(true);
 	}

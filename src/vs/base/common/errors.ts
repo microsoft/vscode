@@ -95,17 +95,19 @@ export interface IConnectionErrorData {
 }
 
 export function transformErrorForSerialization(error: any): any {
-	if (!(error instanceof Error)) {
-		return error;
+	if (error instanceof Error) {
+		let {name, message} = error;
+		let stack: string = (<any>error).stacktrace || (<any>error).stack
+		return {
+			$isError: true,
+			name,
+			message,
+			stack
+		};
 	}
-	let data: any = {};
-	if (error.stacktrace) {
-		data.stack = error.stacktrace;
-	} else if (error.stack) {
-		data.stack = error.stack;
-	}
-	data.message = error.toString();
-	return data;
+
+	// return as is
+	return error;
 }
 
 /**

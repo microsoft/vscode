@@ -23,6 +23,7 @@ export interface IGalleryInformation {
 	downloadUrl: string;
 	publisherId: string;
 	publisherDisplayName: string;
+	installCount: number;
 	date: string;
 }
 

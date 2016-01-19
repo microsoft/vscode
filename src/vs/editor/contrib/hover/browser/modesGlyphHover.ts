@@ -80,7 +80,7 @@ export class ModesGlyphHoverWidget extends HoverWidget.GlyphHoverWidget {
 	constructor(editor: EditorBrowser.ICodeEditor) {
 		super(ModesGlyphHoverWidget.ID, editor);
 
-		this._lastLineNumber === -1;
+		this._lastLineNumber = -1;
 
 		this._computer = new MarginComputer(this._editor);
 

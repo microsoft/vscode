@@ -64,8 +64,8 @@ export function request(options: IRequestOptions): TPromise<IRequestResult> {
 		});
 		req.on('error', e);
 
-		options.timeout && req.setTimeout(options.timeout);
-		options.data && req.write(options.data);
+		if (options.timeout) req.setTimeout(options.timeout);
+		if (options.data) req.write(options.data);
 
 		req.end();
 	},
