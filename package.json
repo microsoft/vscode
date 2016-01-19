@@ -1,0 +1,40 @@
+{
+    "name": "python",
+    "displayName": "Python",
+    "description": "Python Auto complete",
+    "version": "0.0.1",
+    "publisher": "donjayamanne",
+    "license": "SEE LICENSE IN LICENSE or README.MD",
+    "homepage": "https://github.com/DonJayamanne/pythonVSCode/blob/master/README.md",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/DonJayamanne/pythonVSCode"
+    },
+    "bugs": {
+        "url": "https://github.com/DonJayamanne/pythonVSCode/issues"
+    },
+    "icon": "images/icon.png",
+    "galleryBanner": {
+        "color": "#0000FF",
+        "theme": "dark"
+    },
+    "engines": {
+        "vscode": "^0.10.1"
+    },
+    "categories": [
+        "Languages"
+    ],
+    "activationEvents": [
+        "onLanguage:python"
+    ],
+    "main": "./out/src/extension",
+    "contributes": {},
+    "scripts": {
+        "vscode:prepublish": "node ./node_modules/vscode/bin/compile",
+        "compile": "node ./node_modules/vscode/bin/compile -watch -p ./"
+    },
+    "devDependencies": {
+        "typescript": "^1.6.2",
+        "vscode": "0.10.x"
+    }
+}
