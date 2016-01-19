@@ -24,6 +24,7 @@ export interface IJSONSchema {
 	uniqueItems?:boolean;
 	additionalItems?:boolean;
 	pattern?:string;
+	errorMessage?: string;
 	minLength?:number;
 	maxLength?:number;
 	minimum?:number;
