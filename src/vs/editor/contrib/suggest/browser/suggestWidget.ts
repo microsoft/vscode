@@ -36,7 +36,7 @@ class CompletionItem {
 
 	private static _idPool: number = 0;
 
-	id: string;
+	id: number;
 	suggestion: ISuggestion;
 	highlights: IMatch[];
 	support: ISuggestSupport;
@@ -45,7 +45,7 @@ class CompletionItem {
 	private _resolveDetails: TPromise<CompletionItem>
 
 	constructor(public group: CompletionGroup, suggestion: ISuggestion, container: ISuggestResult2) {
-		this.id = '_completion_item_#' + CompletionItem._idPool++;
+		this.id = CompletionItem._idPool++;
 		this.support = container.support;
 		this.suggestion = suggestion;
 		this.container = container;
@@ -168,7 +168,7 @@ class DataSource implements Tree.IDataSource {
 		} else if (element instanceof CompletionModel) {
 			return 'root';
 		} else if (element instanceof CompletionItem) {
-			return (<CompletionItem>element).id;
+			return (<CompletionItem>element).id.toString();
 		}
 
 		throw illegalArgument('element');
