@@ -58,7 +58,7 @@
 	opacity: 1 !important; /* prevent components from dimming focus feedback */
 }
 
-.monaco-shell a[tabindex="0"]:active, .monaco-shell a[tabindex="0"]:hover,
+/*.monaco-shell a[tabindex="0"]:active, .monaco-shell a[tabindex="0"]:hover,
 .monaco-shell div[tabindex="0"]:active, .monaco-shell div[tabindex="0"]:hover,
 .monaco-shell select:active, .monaco-shell select:hover,
 .monaco-shell input[type="button"]:active, .monaco-shell input[type="button"]:hover,
@@ -66,7 +66,7 @@
 .monaco-shell iframe[tabindex="0"]:active, .monaco-shell iframe[tabindex="0"]:hover {
 	outline: 0;
 	opacity: inherit;
-}
+}*/
 
 .monaco-shell input[type="text"], .monaco-shell textarea {
 	outline: 0; /* do not show outline in input fields and textarea */
