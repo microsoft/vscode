@@ -28,10 +28,12 @@ import {HistoryService} from 'vs/workbench/services/history/browser/history';
 import {ActivitybarPart} from 'vs/workbench/browser/parts/activitybar/activitybarPart';
 import {EditorPart} from 'vs/workbench/browser/parts/editor/editorPart';
 import {SidebarPart} from 'vs/workbench/browser/parts/sidebar/sidebarPart';
+import {PanelPart} from 'vs/workbench/browser/parts/panel/panelPart';
 import {StatusbarPart} from 'vs/workbench/browser/parts/statusbar/statusbarPart';
 import {WorkbenchLayout, LayoutOptions} from 'vs/workbench/browser/layout';
 import {IActionBarRegistry, Extensions as ActionBarExtensions} from 'vs/workbench/browser/actionBarRegistry';
-import {IViewletRegistry, Extensions as ViewletExtensions} from 'vs/workbench/browser/viewlet';
+import {ViewletRegistry, Extensions as ViewletExtensions} from 'vs/workbench/browser/viewlet';
+import {PanelRegistry, Extensions as PanelExtensions} from 'vs/workbench/browser/panel';
 import {QuickOpenController} from 'vs/workbench/browser/parts/quickopen/quickOpenController';
 import {getServices} from 'vs/platform/instantiation/common/extensions';
 import {AbstractKeybindingService} from 'vs/platform/keybinding/browser/keybindingServiceImpl';
@@ -46,6 +48,7 @@ import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingServic
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IActivityService} from 'vs/workbench/services/activity/common/activityService';
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
+import {IPanelService} from 'vs/workbench/services/panel/common/panelService';
 import {WorkbenchMessageService} from 'vs/workbench/services/message/browser/messageService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService'
 import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
@@ -79,6 +82,7 @@ export class Workbench implements IPartService {
 
 	private static sidebarPositionSettingKey = 'workbench.sidebar.position';
 	private static sidebarHiddenSettingKey = 'workbench.sidebar.hidden';
+	private static panelHiddenSettingKey = 'workbench.panel.hidden';
 
 	public serviceId = IPartService;
 
@@ -91,6 +95,7 @@ export class Workbench implements IPartService {
 	private workbenchShutdown: boolean;
 	private activitybarPart: ActivitybarPart;
 	private sidebarPart: SidebarPart;
+	private panelPart: PanelPart;
 	private editorPart: EditorPart;
 	private statusbarPart: StatusbarPart;
 	private quickOpen: QuickOpenController;
@@ -112,6 +117,7 @@ export class Workbench implements IPartService {
 	private creationPromiseComplete: ValueCallback;
 	private sideBarHidden: boolean;
 	private sideBarPosition: Position;
+	private panelHidden: boolean;
 	private editorBackgroundDelayer: Delayer<void>;
 
 	constructor(container: HTMLElement, workspace: IWorkspace, configuration: IConfiguration, options: IOptions, instantiationService: IInstantiationService) {
@@ -193,11 +199,11 @@ export class Workbench implements IPartService {
 			// Register Emitters
 			this.registerEmitters();
 
-			// Load viewlet and editors in parallel
-			let viewletAndEditorPromises: Promise[] = [];
+			// Load composits and editors in parallel
+			let compositeAndEditorPromises: Promise[] = [];
 
 			// Show default viewlet unless sidebar is hidden or we dont have a default viewlet
-			let registry = (<IViewletRegistry>Registry.as(ViewletExtensions.Viewlets));
+			let registry = (<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets));
 			let viewletId = registry.getDefaultViewletId();
 			if (!this.workbenchParams.configuration.env.isBuilt) {
 				viewletId = this.storageService.get(SidebarPart.activeViewletSettingsKey, StorageScope.WORKSPACE, registry.getDefaultViewletId()); // help developers and restore last view
@@ -205,7 +211,12 @@ export class Workbench implements IPartService {
 
 			if (!this.sideBarHidden && !!viewletId) {
 				let viewletTimerEvent = timer.start(timer.Topic.STARTUP, strings.format('Opening Viewlet: {0}', viewletId));
-				viewletAndEditorPromises.push(this.sidebarPart.openViewlet(viewletId, false).then(() => viewletTimerEvent.stop()));
+				compositeAndEditorPromises.push(this.sidebarPart.openViewlet(viewletId, false).then(() => viewletTimerEvent.stop()));
+			}
+
+			if (!this.panelHidden) {
+				const panelId = this.storageService.get(PanelPart.activePanelSettingsKey, StorageScope.WORKSPACE);
+				compositeAndEditorPromises.push(this.panelPart.openPanel(panelId, false));
 			}
 
 			// Check for configured options to open files on startup and resolve if any or open untitled for empty workbench
@@ -238,7 +249,7 @@ export class Workbench implements IPartService {
 			}
 
 			// Restore editor state (either from last session or with given inputs)
-			viewletAndEditorPromises.push(resolveEditorInputsPromise.then((inputs) => {
+			compositeAndEditorPromises.push(resolveEditorInputsPromise.then((inputs) => {
 				return this.editorPart.restoreEditorState(inputs, options).then(() => {
 					this.onEditorOpenedOrClosed(); // make sure we show the proper background in the editor area
 					editorTimerEvent.stop();
@@ -246,7 +257,7 @@ export class Workbench implements IPartService {
 			}));
 
 			// Flag workbench as created once done
-			Promise.join(viewletAndEditorPromises).then(() => {
+			Promise.join(compositeAndEditorPromises).then(() => {
 				this.workbenchCreated = true;
 				this.eventService.emit(EventType.WORKBENCH_CREATED);
 				this.creationPromiseComplete(true);
@@ -302,6 +313,21 @@ export class Workbench implements IPartService {
 		this.toDispose.push(this.sidebarPart);
 		this.toShutdown.push(this.sidebarPart);
 		this.instantiationService.addSingleton(IViewletService, this.sidebarPart);
+
+		// Panel service (panel part)
+		this.panelPart = new PanelPart(
+			messageService,
+			this.storageService,
+			this.eventService,
+			this.telemetryService,
+			contextMenuService,
+			this,
+			this.keybindingService,
+			Identifiers.PANEL_PART
+		);
+		this.toDispose.push(this.panelPart);
+		this.toShutdown.push(this.panelPart);
+		this.instantiationService.addSingleton(IPanelService, this.panelPart);
 
 		// Activity service (activitybar part)
 		this.activitybarPart = new ActivitybarPart(
@@ -372,6 +398,7 @@ export class Workbench implements IPartService {
 		this.statusbarPart.setInstantiationService(this.instantiationService);
 		this.activitybarPart.setInstantiationService(this.instantiationService);
 		this.sidebarPart.setInstantiationService(this.instantiationService);
+		this.panelPart.setInstantiationService(this.instantiationService);
 		this.editorPart.setInstantiationService(this.instantiationService);
 		(<UntitledEditorService>this.untitledEditorService).setInstantiationService(this.instantiationService);
 		this.editorService.setInstantiationService(this.instantiationService);
@@ -391,9 +418,17 @@ export class Workbench implements IPartService {
 			this.sideBarHidden = true; // we hide sidebar in single-file-mode
 		}
 
-		let registry = (<IViewletRegistry>Registry.as(ViewletExtensions.Viewlets));
-		if (!registry.getDefaultViewletId()) {
+		let viewletRegistry = (<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets));
+		if (!viewletRegistry.getDefaultViewletId()) {
 			this.sideBarHidden = true; // can only hide sidebar if we dont have a default viewlet id
+		}
+
+		// Panel part visibility
+		let panelRegistry = (<PanelRegistry>Registry.as(PanelExtensions.Panels));
+		this.panelHidden = this.storageService.getBoolean(Workbench.panelHiddenSettingKey, StorageScope.WORKSPACE, true);
+		if (!!this.workbenchParams.options.singleFileMode || !panelRegistry.getDefaultPanelId()) {
+			// we hide panel part in single-file-mode or if there is no default panel
+			this.panelHidden = true;
 		}
 
 		// Sidebar position
@@ -433,6 +468,9 @@ export class Workbench implements IPartService {
 			case Parts.SIDEBAR_PART:
 				container = this.sidebarPart.getContainer();
 				break;
+			case Parts.PANEL_PART:
+				container = this.panelPart.getContainer();
+				break;
 			case Parts.EDITOR_PART:
 				container = this.editorPart.getContainer();
 				break;
@@ -451,6 +489,9 @@ export class Workbench implements IPartService {
 	public isVisible(part: Parts): boolean {
 		if (part === Parts.SIDEBAR_PART) {
 			return !this.sideBarHidden;
+		}
+		if (part === Parts.PANEL_PART) {
+			return !this.panelHidden;
 		}
 
 		return true; // any other part cannot be hidden
@@ -488,7 +529,7 @@ export class Workbench implements IPartService {
 
 		// If sidebar becomes visible, show last active viewlet or default viewlet
 		else if (!hidden && !this.sidebarPart.getActiveViewlet()) {
-			let registry = (<IViewletRegistry>Registry.as(ViewletExtensions.Viewlets));
+			let registry = (<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets));
 			let viewletToOpen = this.sidebarPart.getLastActiveViewletId() || registry.getDefaultViewletId();
 			if (viewletToOpen) {
 				this.sidebarPart.openViewlet(viewletToOpen, true).done(null, errors.onUnexpectedError);
@@ -497,6 +538,42 @@ export class Workbench implements IPartService {
 
 		// Remember in settings
 		this.storageService.store(Workbench.sidebarHiddenSettingKey, hidden ? 'true' : 'false', StorageScope.WORKSPACE);
+	}
+
+	public isPanelHidden(): boolean {
+		return this.panelHidden;
+	}
+
+	public setPanelHidden(hidden: boolean, skipLayout?:boolean): void {
+		this.panelHidden = hidden;
+
+		// Layout
+		if (!skipLayout) {
+			this.workbenchLayout.layout(true);
+		}
+
+		// If panel part becomes hidden, also hide the current active panel if any
+		if (hidden && this.panelPart.getActivePanel()) {
+			this.panelPart.hideActivePanel();
+
+			// Pass Focus to Editor if Panel part is now hidden
+			let editor = this.editorPart.getActiveEditor();
+			if (editor) {
+				editor.focus();
+			}
+		}
+
+		// If panel part becomes visible, show last active panel or default panel
+		else if (!hidden && !this.panelPart.getActivePanel()) {
+			let registry = (<PanelRegistry>Registry.as(PanelExtensions.Panels));
+			let panelToOpen = this.panelPart.getLastActivePanelId() || registry.getDefaultPanelId();
+			if (panelToOpen) {
+				this.panelPart.openPanel(panelToOpen, true).done(null, errors.onUnexpectedError);
+			}
+		}
+
+		// Remember in settings
+		this.storageService.store(Workbench.panelHiddenSettingKey, hidden ? 'true' : 'false', StorageScope.WORKSPACE);
 	}
 
 	public getSideBarPosition(): Position {
@@ -579,6 +656,7 @@ export class Workbench implements IPartService {
 		this.hookPartListeners(this.activitybarPart);
 		this.hookPartListeners(this.editorPart);
 		this.hookPartListeners(this.sidebarPart);
+		this.hookPartListeners(this.panelPart);
 
 		// Storage Emitter
 		this.toDispose.push(this.toDisposable(this.eventService.addEmitter(this.storageService)));
@@ -632,10 +710,13 @@ export class Workbench implements IPartService {
 		this.workbenchLayout = this.instantiationService.createInstance(WorkbenchLayout,
 			$(this.container),							// Parent
 			this.workbench,								// Workbench Container
-			this.activitybarPart,						// Activity Bar
-			this.editorPart,							// Editor
-			this.sidebarPart,							// Sidebar
-			this.statusbarPart,							// Statusbar
+			{
+				activitybar: this.activitybarPart,		// Activity Bar
+				editor: this.editorPart,				// Editor
+				sidebar: this.sidebarPart,				// Sidebar
+				panel: this.panelPart,					// Panel Part
+				statusbar: this.statusbarPart,			// Statusbar
+			},
 			this.quickOpen,								// Quickopen
 			options										// Layout Options
 		);
@@ -670,6 +751,7 @@ export class Workbench implements IPartService {
 		// Create Parts
 		this.createActivityBarPart();
 		this.createSidebarPart();
+		this.createPanelPart();
 		this.createEditorPart();
 		this.createStatusbarPart();
 
@@ -718,6 +800,16 @@ export class Workbench implements IPartService {
 		this.sidebarPart.create(sidebarPartContainer);
 	}
 
+	private createPanelPart(): void {
+		let panelPartContainer = $(this.workbench)
+			.div({
+				'class': ['part', 'panel'],
+				id: Identifiers.PANEL_PART
+			});
+
+		this.panelPart.create(panelPartContainer);
+	}
+
 	private createEditorPart(): void {
 		let editorContainer = $(this.workbench)
 			.div({
@@ -751,6 +843,12 @@ export class Workbench implements IPartService {
 		assert.ok(this.workbenchStarted, 'Workbench is not started. Call startup() first.');
 
 		return this.sidebarPart;
+	}
+
+	public getPanelPart(): PanelPart {
+		assert.ok(this.workbenchStarted, 'Workbench is not started. Call startup() first.');
+
+		return this.panelPart;
 	}
 
 	public getInstantiationService(): IInstantiationService {
