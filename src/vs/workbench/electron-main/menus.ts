@@ -493,6 +493,7 @@ export class VSCodeMenu {
 
 		let commands = this.createMenuItem(nls.localize('miCommandPalette', "&&Command Palette..."), 'workbench.action.showCommands');
 		let markers = this.createMenuItem(nls.localize('miMarker', "&&Errors and Warnings..."), 'workbench.action.showErrorsWarnings');
+
 		let output = this.createMenuItem(nls.localize('miToggleOutput', "Toggle &&Output"), 'workbench.action.output.toggleOutput');
 		let debugConsole = this.createMenuItem(nls.localize('miToggleDebugConsole', "Toggle De&&bug Console"), 'workbench.debug.action.toggleRepl');
 
@@ -514,6 +515,7 @@ export class VSCodeMenu {
 			__separator__(),
 			commands,
 			markers,
+			__separator__(),
 			output,
 			debugConsole,
 			__separator__(),
