@@ -22,60 +22,19 @@
         "vscode": "^0.10.1"
     },
     "categories": [
-        "Languages",
-         "Debuggers"
+        "Languages"
     ],
     "activationEvents": [
         "onLanguage:python"
     ],
     "main": "./out/src/extension",
-    "contributes": {
-        "debuggers": [{
-            "type": "pythonDebugger",
-            "label": "Python Debugger",
-
-            "enableBreakpointsFor": { "languageIds": ["python"] },
-
-            "program": "./out/debugger.js",
-            "runtime": "node",
-
-            "configurationAttributes": {
-                "launch": {
-                    "required": ["program"],
-                    "properties": {
-                        "program": {
-                            "type": "string",
-                            "description": "Workspace relative path to a text file.",
-                            "default": "test.py"
-                        },
-                        "stopOnEntry": {
-                            "type": "boolean",
-                            "description": "Automatically stop after launch.",
-                            "default": true
-                        }
-                    }
-                }
-            },
-
-            "initialConfigurations": [
-                {
-                    "name": "Python Debugger",
-                    "type": "pythonDebugger",
-                    "request": "launch",
-                    "program": "test.py",
-                    "stopOnEntry": true
-                }
-            ]
-        }]
+    "contributes": {        
     },
     "scripts": {
         "vscode:prepublish": "node ./node_modules/vscode/bin/compile",
         "compile": "node ./node_modules/vscode/bin/compile -watch -p ./"
     },
     "dependencies": {
-        "pty.js": "^0.3.0",
-        "vscode-debugadapter": "^1.0.1",
-        "vscode-debugprotocol": "^1.0.1"
     },
     "devDependencies": {
         "typescript": "^1.6.2",
