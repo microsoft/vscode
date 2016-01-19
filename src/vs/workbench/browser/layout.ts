@@ -350,6 +350,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		if (editorSize.width < editorMinWidth) {
 			let diff = editorMinWidth - editorSize.width;
 			editorSize.width = editorMinWidth;
+			panelDimension.width = editorMinWidth;
 			sidebarSize.width -= diff;
 			sidebarSize.width = Math.max(DEFAULT_MIN_PART_WIDTH, sidebarSize.width);
 		}
