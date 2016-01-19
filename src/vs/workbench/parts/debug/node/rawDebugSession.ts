@@ -174,7 +174,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 
 	private connectServer(port: number): Promise {
 		return new Promise((c, e) => {
-			this.socket = net.createConnection(port, null, () => {
+			this.socket = net.createConnection(port, '127.0.0.1', () => {
 				this.connect(this.socket, <any>this.socket);
 				c(null);
 			});
