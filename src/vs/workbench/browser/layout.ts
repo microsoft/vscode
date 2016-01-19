@@ -381,7 +381,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		const editorBottom = this.computedStyles.statusbar.height + panelDimension.height;
 		if (isSidebarHidden) {
 			this.editor.getContainer().position(0, editorSize.remainderRight, editorBottom, editorSize.remainderLeft);
-			this.panelPart.getContainer().position(editorDimension.height, editorSize.remainderRight, this.computedStyles.statusbar.height, editorSize.remainderRight);
+			this.panelPart.getContainer().position(editorDimension.height, editorSize.remainderRight, this.computedStyles.statusbar.height, editorSize.remainderLeft);
 		} else if (sidebarPosition === Position.LEFT) {
 			this.editor.getContainer().position(0, 0, editorBottom, sidebarSize.width + activityBarSize.width);
 			this.panelPart.getContainer().position(editorDimension.height, 0, this.computedStyles.statusbar.height, sidebarSize.width + activityBarSize.width);
