@@ -78,7 +78,7 @@ export class ClosePanelAction extends Action {
 	}
 
 	public run(): Promise {
-		this.partService.setPanelHidden(false);
+		this.partService.setPanelHidden(true);
 		return Promise.as(true);
 	}
 }
