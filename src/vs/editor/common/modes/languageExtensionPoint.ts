@@ -62,6 +62,14 @@ let languagesExtPoint = PluginsRegistry.registerExtensionPoint<ILanguageExtensio
 					type: 'string'
 				}
 			},
+			prefixes: {
+				description: nls.localize('vscode.extension.contributes.languages.prefixes', 'File name prefixes associated to the language.'),
+				default: ['foo*'],
+				type: 'array',
+				item: {
+					type: 'string'
+				}
+			},
 			mimetypes: {
 				description: nls.localize('vscode.extension.contributes.languages.mimetypes', 'Mime types associated to the language.'),
 				type: 'array',
@@ -85,6 +93,7 @@ export interface ILanguageExtensionPoint {
 	id: string;
 	extensions?: string[];
 	filenames?: string[];
+	prefixes?: string[];
 	firstLine?: string;
 	aliases?: string[];
 	mimetypes?: string[];
@@ -320,15 +329,21 @@ class LanguageExtensionPointHandler implements IThreadSynchronizableObject<ILang
 			this.mime2LanguageId[primaryMime] = lang.id;
 		}
 
-		if (typeof lang.extensions !== 'undefined' && Array.isArray(lang.extensions)) {
-			for (var i = 0; i < lang.extensions.length; i++) {
-				Mime.registerTextMimeByFilename(lang.extensions[i], primaryMime);
+		if (Array.isArray(lang.extensions)) {
+			for (let extension of lang.extensions) {
+				Mime.registerTextMimeByFilename(extension, primaryMime);
 			}
 		}
 
-		if (typeof lang.filenames !== 'undefined' && Array.isArray(lang.filenames)) {
-			for (var i = 0; i < lang.filenames.length; i++) {
-				Mime.registerTextMimeByFilename(lang.filenames[i], primaryMime);
+		if (Array.isArray(lang.filenames)) {
+			for (let filename of lang.filenames) {
+				Mime.registerTextMimeByFilename(filename, primaryMime);
+			}
+		}
+
+		if (Array.isArray(lang.prefixes)) {
+			for (let prefix of lang.prefixes) {
+				Mime.registerTextMimeByFilename(prefix, primaryMime);
 			}
 		}
 
