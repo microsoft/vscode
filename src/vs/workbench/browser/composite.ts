@@ -23,8 +23,9 @@ export const EventType = {
 };
 
 /**
- * Composites are layed out in the sidebar part of the workbench. Only one composite can be open
- * at a time. Each composite has a minimized representation that is good enough to provide some
+ * Composites are layed out in the sidebar and panel part of the workbench. At a time only one composite
+ * can be open in the sidebar, and only one composite can be open in the panel.
+ * Each composite has a minimized representation that is good enough to provide some
  * information about the state of the composite data.
  * The workbench will keep a composite alive after it has been created and show/hide it based on
  * user interaction. The lifecycle of a composite goes in the order create(), setVisible(true|false),

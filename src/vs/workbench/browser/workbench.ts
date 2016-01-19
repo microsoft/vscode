@@ -199,8 +199,8 @@ export class Workbench implements IPartService {
 			// Register Emitters
 			this.registerEmitters();
 
-			// Load viewlet and editors in parallel
-			let viewletAndEditorPromises: Promise[] = [];
+			// Load composits and editors in parallel
+			let compositeAndEditorPromises: Promise[] = [];
 
 			// Show default viewlet unless sidebar is hidden or we dont have a default viewlet
 			let registry = (<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets));
@@ -211,12 +211,12 @@ export class Workbench implements IPartService {
 
 			if (!this.sideBarHidden && !!viewletId) {
 				let viewletTimerEvent = timer.start(timer.Topic.STARTUP, strings.format('Opening Viewlet: {0}', viewletId));
-				viewletAndEditorPromises.push(this.sidebarPart.openViewlet(viewletId, false).then(() => viewletTimerEvent.stop()));
+				compositeAndEditorPromises.push(this.sidebarPart.openViewlet(viewletId, false).then(() => viewletTimerEvent.stop()));
 			}
 
 			if (!this.panelHidden) {
 				const panelId = this.storageService.get(PanelPart.activePanelSettingsKey, StorageScope.WORKSPACE);
-				viewletAndEditorPromises.push(this.panelPart.openPanel(panelId, false));
+				compositeAndEditorPromises.push(this.panelPart.openPanel(panelId, false));
 			}
 
 			// Check for configured options to open files on startup and resolve if any or open untitled for empty workbench
@@ -249,7 +249,7 @@ export class Workbench implements IPartService {
 			}
 
 			// Restore editor state (either from last session or with given inputs)
-			viewletAndEditorPromises.push(resolveEditorInputsPromise.then((inputs) => {
+			compositeAndEditorPromises.push(resolveEditorInputsPromise.then((inputs) => {
 				return this.editorPart.restoreEditorState(inputs, options).then(() => {
 					this.onEditorOpenedOrClosed(); // make sure we show the proper background in the editor area
 					editorTimerEvent.stop();
@@ -257,7 +257,7 @@ export class Workbench implements IPartService {
 			}));
 
 			// Flag workbench as created once done
-			Promise.join(viewletAndEditorPromises).then(() => {
+			Promise.join(compositeAndEditorPromises).then(() => {
 				this.workbenchCreated = true;
 				this.eventService.emit(EventType.WORKBENCH_CREATED);
 				this.creationPromiseComplete(true);
@@ -418,15 +418,17 @@ export class Workbench implements IPartService {
 			this.sideBarHidden = true; // we hide sidebar in single-file-mode
 		}
 
-		let registry = (<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets));
-		if (!registry.getDefaultViewletId()) {
+		let viewletRegistry = (<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets));
+		if (!viewletRegistry.getDefaultViewletId()) {
 			this.sideBarHidden = true; // can only hide sidebar if we dont have a default viewlet id
 		}
 
 		// Panel part visibility
+		let panelRegistry = (<PanelRegistry>Registry.as(PanelExtensions.Panels));
 		this.panelHidden = this.storageService.getBoolean(Workbench.panelHiddenSettingKey, StorageScope.WORKSPACE, true);
-		if (!!this.workbenchParams.options.singleFileMode) {
-			this.panelHidden = true; // we hide panel part in single-file-mode
+		if (!!this.workbenchParams.options.singleFileMode || !panelRegistry.getDefaultPanelId()) {
+			// we hide panel part in single-file-mode or if there is no default panel
+			this.panelHidden = true;
 		}
 
 		// Sidebar position

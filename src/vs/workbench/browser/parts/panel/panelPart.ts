@@ -4,10 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/panelPart';
-import {TPromise} from 'vs/base/common/winjs.base';
+import nls = require('vs/nls');
+import {TPromise, Promise} from 'vs/base/common/winjs.base';
+import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 import strings = require('vs/base/common/strings');
+import {Action} from 'vs/base/common/actions';
 import {Builder} from 'vs/base/browser/builder';
 import {Registry} from 'vs/platform/platform';
+import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
+import {IWorkbenchActionRegistry, Extensions as WorkbenchExtensions} from 'vs/workbench/common/actionRegistry';
 import {IPanel} from 'vs/workbench/common/panel';
 import {EventType as WorkbenchEventType, CompositeEvent} from 'vs/workbench/common/events';
 import {CompositePart} from 'vs/workbench/browser/parts/compositePart';
@@ -19,6 +24,7 @@ import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
+import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 
 export class PanelPart extends CompositePart<Panel> implements IPanelService {
@@ -63,7 +69,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	public createTitleArea(parent: Builder): Builder {
 		const result = super.createTitleArea(parent);
 		result.addClass('monaco-editor-background');
-		
+
 		return result;
 	}
 
@@ -91,3 +97,45 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		return this.hideActiveComposite();
 	}
 }
+
+
+export class ClosePanelAction extends Action {
+	static ID = 'workbench.action.closePanelAction';
+	static LABEL = nls.localize('closePanel', "Close");
+
+	constructor(
+		id: string,
+		name: string,
+		@IPartService private partService: IPartService
+	) {
+		super(id, name, 'close-editor-action');
+	}
+
+	public run(): Promise {
+		this.partService.setPanelHidden(true);
+		return Promise.as(true);
+	}
+}
+
+export class TogglePanelAction extends Action {
+	static ID = 'workbench.action.togglePanelAction';
+	static LABEL = nls.localize('togglePanel', "Toggle Panel Visibility");
+
+	constructor(
+		id: string,
+		name: string,
+		@IPartService private partService: IPartService,
+		@IWorkspaceContextService contextService: IWorkspaceContextService
+	) {
+		super(id, name, null, !!contextService.getWorkspace());
+	}
+
+	public run(): Promise {
+		this.partService.setPanelHidden(!this.partService.isPanelHidden());
+		return Promise.as(true);
+	}
+}
+
+Registry.add(PanelExtensions.Panels, new PanelRegistry());
+let actionRegistry = <IWorkbenchActionRegistry>Registry.as(WorkbenchExtensions.WorkbenchActions);
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(TogglePanelAction, TogglePanelAction.ID, TogglePanelAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_L }), nls.localize('view', "View"));
