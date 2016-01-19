@@ -3,7 +3,7 @@
 // Definitions by: Vadim Macagon <https://github.com/enlight/>
 // Definitions: https://github.com/borisyankov/DefinitelyTyped
 
-/// <reference path="../node/node.d.ts" />
+/// <reference path="node.d.ts" />
 
 declare module 'pty.js' {
     /** Options that can be used when creating a new pseudo-terminal. */
