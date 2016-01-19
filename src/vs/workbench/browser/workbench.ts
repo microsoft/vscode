@@ -544,7 +544,7 @@ export class Workbench implements IPartService {
 		return this.panelHidden;
 	}
 
-	public setPanelHidden(hidden: boolean, skipLayout?:boolean): void {
+	public setPanelHidden(hidden: boolean, skipLayout?: boolean): void {
 		this.panelHidden = hidden;
 
 		// Layout

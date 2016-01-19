@@ -62,7 +62,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 	private activitybar: Part;
 	private editor: Part;
 	private sidebar: Part;
-	private panelPart: Part;
+	private panel: Part;
 	private statusbar: Part;
 	private quickopen: QuickOpenController;
 	private options: LayoutOptions;
@@ -103,7 +103,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		this.activitybar = parts.activitybar;
 		this.editor = parts.editor;
 		this.sidebar = parts.sidebar;
-		this.panelPart = parts.panel;
+		this.panel = parts.panel;
 		this.statusbar = parts.statusbar;
 		this.quickopen = quickopen;
 		this.options = options || new LayoutOptions();
@@ -246,7 +246,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 			this.computeStyle();
 			this.editor.getLayout().computeStyle();
 			this.sidebar.getLayout().computeStyle();
-			this.panelPart.getLayout().computeStyle();
+			this.panel.getLayout().computeStyle();
 
 			// Trigger Layout
 			this.layout();
@@ -255,7 +255,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 
 	private computeStyle(): void {
 		const sidebarStyle = this.sidebar.getContainer().getComputedStyle();
-		const panelPartStyle = this.panelPart.getContainer().getComputedStyle();
+		const panelStyle = this.panel.getContainer().getComputedStyle();
 		const editorStyle = this.editor.getContainer().getComputedStyle();
 		const activitybarStyle = this.activitybar.getContainer().getComputedStyle();
 
@@ -269,7 +269,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 			},
 
 			panel: {
-				minHeight: parseInt(panelPartStyle.getPropertyValue('min-height'), 10) || DEFAULT_MIN_PANEL_PART_HEIGHT
+				minHeight: parseInt(panelStyle.getPropertyValue('min-height'), 10) || DEFAULT_MIN_PANEL_PART_HEIGHT
 			},
 
 			editor: {
@@ -292,7 +292,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 			this.computeStyle();
 			this.editor.getLayout().computeStyle();
 			this.sidebar.getLayout().computeStyle();
-			this.panelPart.getLayout().computeStyle();
+			this.panel.getLayout().computeStyle();
 		}
 
 		if (!this.computedStyles) {
@@ -396,18 +396,18 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 
 		// Editor Part and Panel part
 		this.editor.getContainer().size(editorSize.width, editorSize.height);
-		this.panelPart.getContainer().size(panelDimension.width, panelDimension.height);
+		this.panel.getContainer().size(panelDimension.width, panelDimension.height);
 
 		const editorBottom = this.computedStyles.statusbar.height + panelDimension.height;
 		if (isSidebarHidden) {
 			this.editor.getContainer().position(0, editorSize.remainderRight, editorBottom, editorSize.remainderLeft);
-			this.panelPart.getContainer().position(editorDimension.height, editorSize.remainderRight, this.computedStyles.statusbar.height, editorSize.remainderLeft);
+			this.panel.getContainer().position(editorDimension.height, editorSize.remainderRight, this.computedStyles.statusbar.height, editorSize.remainderLeft);
 		} else if (sidebarPosition === Position.LEFT) {
 			this.editor.getContainer().position(0, 0, editorBottom, sidebarSize.width + activityBarSize.width);
-			this.panelPart.getContainer().position(editorDimension.height, 0, this.computedStyles.statusbar.height, sidebarSize.width + activityBarSize.width);
+			this.panel.getContainer().position(editorDimension.height, 0, this.computedStyles.statusbar.height, sidebarSize.width + activityBarSize.width);
 		} else {
 			this.editor.getContainer().position(0, sidebarSize.width, editorBottom, 0);
-			this.panelPart.getContainer().position(editorDimension.height, sidebarSize.width, this.computedStyles.statusbar.height, 0);
+			this.panel.getContainer().position(editorDimension.height, sidebarSize.width, this.computedStyles.statusbar.height, 0);
 		}
 
 		// Activity Bar Part
@@ -444,7 +444,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		// Propagate to Part Layouts
 		this.editor.layout(new Dimension(editorSize.width, editorSize.height));
 		this.sidebar.layout(sidebarSize);
-		this.panelPart.layout(panelDimension);
+		this.panel.layout(panelDimension);
 
 		// Propagate to Context View
 		if (this.contextViewService) {
