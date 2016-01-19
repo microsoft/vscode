@@ -1,0 +1,26 @@
+def connect(database, timeout=None, isolation_level=None, detect_types=None, factory=None):
+    return Connection()
+
+
+class Connection():
+    def cursor(self):
+        return Cursor()
+
+
+class Cursor():
+    def cursor(self):
+        return Cursor()
+
+    def fetchone(self):
+        return Row()
+
+    def fetchmany(self, size=cursor.arraysize):
+        return [self.fetchone()]
+
+    def fetchall(self):
+        return [self.fetchone()]
+
+
+class Row():
+    def keys(self):
+        return ['']

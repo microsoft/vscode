@@ -1,0 +1,259 @@
+"""
+Pure Python implementation of some builtins.
+This code is not going to be executed anywhere.
+These implementations are not always correct, but should work as good as
+possible for the auto completion.
+"""
+
+
+def next(iterator, default=None):
+    if random.choice([0, 1]):
+        if hasattr("next"):
+            return iterator.next()
+        else:
+            return iterator.__next__()
+    else:
+        if default is not None:
+            return default
+
+
+def iter(collection, sentinel=None):
+    if sentinel:
+        yield collection()
+    else:
+        for c in collection:
+            yield c
+
+
+def range(start, stop=None, step=1):
+    return [0]
+
+
+class file():
+    def __iter__(self):
+        yield ''
+    def next(self):
+        return ''
+
+
+class xrange():
+    # Attention: this function doesn't exist in Py3k (there it is range).
+    def __iter__(self):
+        yield 1
+
+    def count(self):
+        return 1
+
+    def index(self):
+        return 1
+
+
+def open(file, mode='r', buffering=-1, encoding=None, errors=None, newline=None, closefd=True):
+    import io
+    return io.TextIOWrapper(file, mode, buffering, encoding, errors, newline, closefd)
+
+
+def open_python2(name, mode=None, buffering=None):
+    return file(name, mode, buffering)
+
+
+#--------------------------------------------------------
+# descriptors
+#--------------------------------------------------------
+class property():
+    def __init__(self, fget, fset=None, fdel=None, doc=None):
+        self.fget = fget
+        self.fset = fset
+        self.fdel = fdel
+        self.__doc__ = doc
+
+    def __get__(self, obj, cls):
+        return self.fget(obj)
+
+    def __set__(self, obj, value):
+        self.fset(obj, value)
+
+    def __delete__(self, obj):
+        self.fdel(obj)
+
+    def setter(self, func):
+        self.fset = func
+        return self
+
+    def getter(self, func):
+        self.fget = func
+        return self
+
+    def deleter(self, func):
+        self.fdel = func
+        return self
+
+
+class staticmethod():
+    def __init__(self, func):
+        self.__func = func
+
+    def __get__(self, obj, cls):
+        return self.__func
+
+
+class classmethod():
+    def __init__(self, func):
+        self.__func = func
+
+    def __get__(self, obj, cls):
+        def _method(*args, **kwargs):
+            return self.__func(cls, *args, **kwargs)
+        return _method
+
+
+#--------------------------------------------------------
+# array stuff
+#--------------------------------------------------------
+class list():
+    def __init__(self, iterable=[]):
+        self.__iterable = []
+        for i in iterable:
+            self.__iterable += [i]
+
+    def __iter__(self):
+        for i in self.__iterable:
+            yield i
+
+    def __getitem__(self, y):
+        return self.__iterable[y]
+
+    def pop(self):
+        return self.__iterable[-1]
+
+
+class tuple():
+    def __init__(self, iterable=[]):
+        self.__iterable = []
+        for i in iterable:
+            self.__iterable += [i]
+
+    def __iter__(self):
+        for i in self.__iterable:
+            yield i
+
+    def __getitem__(self, y):
+        return self.__iterable[y]
+
+    def index(self):
+        return 1
+
+    def count(self):
+        return 1
+
+
+class set():
+    def __init__(self, iterable=[]):
+        self.__iterable = iterable
+
+    def __iter__(self):
+        for i in self.__iterable:
+            yield i
+
+    def pop(self):
+        return list(self.__iterable)[-1]
+
+    def copy(self):
+        return self
+
+    def difference(self, other):
+        return self - other
+
+    def intersection(self, other):
+        return self & other
+
+    def symmetric_difference(self, other):
+        return self ^ other
+
+    def union(self, other):
+        return self | other
+
+
+class frozenset():
+    def __init__(self, iterable=[]):
+        self.__iterable = iterable
+
+    def __iter__(self):
+        for i in self.__iterable:
+            yield i
+
+    def copy(self):
+        return self
+
+
+class dict():
+    def __init__(self, **elements):
+        self.__elements = elements
+
+    def clear(self):
+        # has a strange docstr
+        pass
+
+    def get(self, k, d=None):
+        # TODO implement
+        try:
+            #return self.__elements[k]
+            pass
+        except KeyError:
+            return d
+
+    def setdefault(self, k, d):
+        # TODO maybe also return the content
+        return d
+
+
+class enumerate():
+    def __init__(self, sequence, start=0):
+        self.__sequence = sequence
+
+    def __iter__(self):
+        for i in self.__sequence:
+            yield 1, i
+
+    def __next__(self):
+        return next(self.__iter__())
+
+    def next(self):
+        return next(self.__iter__())
+
+
+class reversed():
+    def __init__(self, sequence):
+        self.__sequence = sequence
+
+    def __iter__(self):
+        for i in self.__sequence:
+            yield i
+
+    def __next__(self):
+        return next(self.__iter__())
+
+    def next(self):
+        return next(self.__iter__())
+
+
+def sorted(iterable, cmp=None, key=None, reverse=False):
+    return iterable
+
+
+#--------------------------------------------------------
+# basic types
+#--------------------------------------------------------
+class int():
+    def __init__(self, x, base=None):
+        pass
+
+
+class str():
+    def __init__(self, obj):
+        pass
+
+
+class type():
+    def mro():
+        return [object]

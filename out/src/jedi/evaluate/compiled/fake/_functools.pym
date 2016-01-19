@@ -1,0 +1,9 @@
+class partial():
+    def __init__(self, func, *args, **keywords):
+        self.__func = func
+        self.__args = args
+        self.__keywords = keywords
+
+    def __call__(self, *args, **kwargs):
+        # TODO should be **dict(self.__keywords, **kwargs)
+        return self.__func(*(self.__args + args), **self.__keywords)

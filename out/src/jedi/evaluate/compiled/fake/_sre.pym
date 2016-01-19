@@ -1,0 +1,99 @@
+def compile():
+    class SRE_Match():
+        endpos = int()
+        lastgroup = int()
+        lastindex = int()
+        pos = int()
+        string = str()
+        regs = ((int(), int()),)
+
+        def __init__(self, pattern):
+            self.re = pattern
+
+        def start(self):
+            return int()
+
+        def end(self):
+            return int()
+
+        def span(self):
+            return int(), int()
+
+        def expand(self):
+            return str()
+
+        def group(self, nr):
+            return str()
+
+        def groupdict(self):
+            return {str(): str()}
+
+        def groups(self):
+            return (str(),)
+
+    class SRE_Pattern():
+        flags = int()
+        groupindex = {}
+        groups = int()
+        pattern = str()
+
+        def findall(self, string, pos=None, endpos=None):
+            """
+            findall(string[, pos[, endpos]]) --> list.
+            Return a list of all non-overlapping matches of pattern in string.
+            """
+            return [str()]
+
+        def finditer(self, string, pos=None, endpos=None):
+            """
+            finditer(string[, pos[, endpos]]) --> iterator.
+            Return an iterator over all non-overlapping matches for the
+            RE pattern in string. For each match, the iterator returns a
+            match object.
+            """
+            yield SRE_Match(self)
+
+        def match(self, string, pos=None, endpos=None):
+            """
+            match(string[, pos[, endpos]]) --> match object or None.
+            Matches zero or more characters at the beginning of the string
+            pattern
+            """
+            return SRE_Match(self)
+
+        def scanner(self, string, pos=None, endpos=None):
+            pass
+
+        def search(self, string, pos=None, endpos=None):
+            """
+            search(string[, pos[, endpos]]) --> match object or None.
+            Scan through string looking for a match, and return a corresponding
+            MatchObject instance. Return None if no position in the string matches.
+            """
+            return SRE_Match(self)
+
+        def split(self, string, maxsplit=0]):
+            """
+            split(string[, maxsplit = 0])  --> list.
+            Split string by the occurrences of pattern.
+            """
+            return [str()]
+
+        def sub(self, repl, string, count=0):
+            """
+            sub(repl, string[, count = 0]) --> newstring
+            Return the string obtained by replacing the leftmost non-overlapping
+            occurrences of pattern in string by the replacement repl.
+            """
+            return str()
+
+        def subn(self, repl, string, count=0):
+            """
+            subn(repl, string[, count = 0]) --> (newstring, number of subs)
+            Return the tuple (new_string, number_of_subs_made) found by replacing
+            the leftmost non-overlapping occurrences of pattern with the
+            replacement repl.
+            """
+            return (str(), int())
+
+    return SRE_Pattern()

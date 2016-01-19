@@ -1,2 +1,8 @@
-out
+!/out/src/jedi/*
+!/out/src/completion.py
+out/src/*.js
+out/src/*.map
+out/src/providers/*.js
+out/src/providers/*.map
+out/test
 node_modules
