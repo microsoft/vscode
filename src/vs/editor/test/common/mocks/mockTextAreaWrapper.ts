@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {ITextAreaWrapper, IClipboardEvent, IKeyboardEventWrapper, ITextAreaStyle} from 'vs/editor/common/controller/textAreaState';
+import {ITextAreaWrapper, IClipboardEvent, IKeyboardEventWrapper} from 'vs/editor/common/controller/textAreaState';
 import Event, {Emitter} from 'vs/base/common/event';
 import {Disposable} from 'vs/base/common/lifecycle';
 
@@ -40,7 +40,6 @@ export class MockTextAreaWrapper extends Disposable implements ITextAreaWrapper 
 	public _value: string;
 	public _selectionStart: number;
 	public _selectionEnd: number;
-	public _lastSetStyle: ITextAreaStyle;
 	public _isInOverwriteMode: boolean;
 
 	constructor() {
@@ -48,7 +47,6 @@ export class MockTextAreaWrapper extends Disposable implements ITextAreaWrapper 
 		this._value = '';
 		this._selectionStart = 0;
 		this._selectionEnd = 0;
-		this._lastSetStyle = null;
 		this._isInOverwriteMode = false;
 	}
 
@@ -85,10 +83,6 @@ export class MockTextAreaWrapper extends Disposable implements ITextAreaWrapper 
 		}
 		this._selectionStart = selectionStart;
 		this._selectionEnd = selectionEnd;
-	}
-
-	public setStyle(style:ITextAreaStyle): void {
-		this._lastSetStyle = style;
 	}
 
 	public isInOverwriteMode(): boolean {

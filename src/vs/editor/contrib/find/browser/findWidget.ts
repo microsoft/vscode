@@ -316,11 +316,6 @@ export class FindWidget extends Widget implements EditorBrowser.IOverlayWidget {
 				e.preventDefault();
 				return;
 		}
-
-		// getValue() is not updated right away
-		setTimeout(() => {
-			this._state.change({ searchString: this._findInput.getValue() }, true);
-		}, 10);
 	}
 
 	private _onReplaceInputKeyDown(e:DomUtils.IKeyboardEvent): void {
@@ -351,10 +346,6 @@ export class FindWidget extends Widget implements EditorBrowser.IOverlayWidget {
 				e.preventDefault();
 				return;
 		}
-
-		setTimeout(() => {
-			this._state.change({ replaceString: this._replaceInputBox.value }, false);
-		}, 10);
 	}
 
 	// ----- initialization
@@ -392,6 +383,9 @@ export class FindWidget extends Widget implements EditorBrowser.IOverlayWidget {
 			}
 		}));
 		this._register(this._findInput.onKeyDown((e) => this._onFindInputKeyDown(e)));
+		this._register(this._findInput.onInput(() => {
+			this._state.change({ searchString: this._findInput.getValue() }, true);
+		}));
 		this._register(this._findInput.onDidOptionChange(() => {
 			this._state.change({
 				isRegex: this._findInput.getRegex(),
@@ -484,6 +478,9 @@ export class FindWidget extends Widget implements EditorBrowser.IOverlayWidget {
 		}));
 
 		this._register(DomUtils.addStandardDisposableListener(this._replaceInputBox.inputElement, 'keydown', (e) => this._onReplaceInputKeyDown(e)));
+		this._register(DomUtils.addStandardDisposableListener(this._replaceInputBox.inputElement, 'input', (e) => {
+			this._state.change({ replaceString: this._replaceInputBox.value }, false);
+		}));
 
 		// Replace one button
 		this._replaceBtn = this._register(new SimpleButton({

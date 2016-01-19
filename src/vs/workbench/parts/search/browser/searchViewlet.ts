@@ -987,7 +987,7 @@ export class SearchViewlet extends Viewlet {
 
 	public layout(dimension: Dimension): void {
 		this.size = dimension;
-		Promise.timeout(10).done(() => { this.reLayout(); }, errors.onUnexpectedError);
+		this.reLayout();
 	}
 
 	public getControl(): ITree {

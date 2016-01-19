@@ -527,6 +527,8 @@ export class AdaptiveCollapsibleViewletView extends FixedCollapsibleView impleme
 	protected actionRunner: IActionRunner;
 	protected isDisposed: boolean;
 
+	private dragHandler: DelayedDragHandler
+
 	constructor(
 		actionRunner: IActionRunner,
 		initialBodySize: number,
@@ -560,7 +562,7 @@ export class AdaptiveCollapsibleViewletView extends FixedCollapsibleView impleme
 		this.toolBar.setActions(prepareActions(this.getActions()), prepareActions(this.getSecondaryActions()))();
 
 		// Expand on drag over
-		new DelayedDragHandler(container, () => {
+		this.dragHandler = new DelayedDragHandler(container, () => {
 			if (!this.isExpanded()) {
 				this.expand();
 			}
@@ -629,6 +631,8 @@ export class AdaptiveCollapsibleViewletView extends FixedCollapsibleView impleme
 		this.treeContainer = null;
 		this.tree.dispose();
 
+		this.dragHandler.dispose();
+
 		this.toDispose = disposeAll(this.toDispose);
 
 		if (this.toolBar) {
@@ -647,6 +651,8 @@ export class CollapsibleViewletView extends CollapsibleView implements IViewletV
 	protected toolBar: ToolBar;
 	protected actionRunner: IActionRunner;
 	protected isDisposed: boolean;
+
+	private dragHandler: DelayedDragHandler;
 
 	constructor(
 		actionRunner: IActionRunner,
@@ -679,7 +685,7 @@ export class CollapsibleViewletView extends CollapsibleView implements IViewletV
 		this.toolBar.setActions(prepareActions(this.getActions()), prepareActions(this.getSecondaryActions()))();
 
 		// Expand on drag over
-		new DelayedDragHandler(container, () => {
+		this.dragHandler = new DelayedDragHandler(container, () => {
 			if (!this.isExpanded()) {
 				this.expand();
 			}
@@ -747,6 +753,8 @@ export class CollapsibleViewletView extends CollapsibleView implements IViewletV
 		this.isDisposed = true;
 		this.treeContainer = null;
 		this.tree.dispose();
+		
+		this.dragHandler.dispose();
 
 		this.toDispose = disposeAll(this.toDispose);
 
