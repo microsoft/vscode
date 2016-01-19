@@ -79,6 +79,7 @@ export class UpdateManager extends events.EventEmitter {
 	private initRaw(): void {
 		this.raw.on('error', (event: any, message: string) => {
 			this.emit('error', event, message);
+			this.setState(State.Idle);
 		});
 
 		this.raw.on('checking-for-update', () => {
