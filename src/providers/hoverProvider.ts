@@ -29,7 +29,10 @@ export class PythonHoverProvider implements vscode.HoverProvider {
 
             var source = document.getText();//fs.realpathSync(filename).toString();
             var range = document.getWordRangeAtPosition(position);
-            var columnIndex = (range === undefined || range === null || range.isEmpty) ? position.character : range.end.character;
+            if (range == undefined || range.isEmpty){
+                return resolve();
+            }
+            var columnIndex = range.end.character;
             var cmd: proxy.ICommand = {
                 id: new Date().getTime().toString(),
                 command: proxy.CommandType.Completions,
