@@ -24,6 +24,9 @@ NOTE: Path to Python is assumed to be in the current environment path.
 ## Source
 
 [Github](https://github.com/DonJayamanne/pythonVSCode)
+
+## Issues/Feedback
+[Gitbub Issues](https://github.com/DonJayamanne/pythonVSCode/issues)
                 
 ## License
 
