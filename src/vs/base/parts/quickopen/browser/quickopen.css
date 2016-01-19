@@ -33,6 +33,7 @@
 
 .quick-open-widget .quick-open-input .monaco-inputbox {
 	width: 100%;
+	height: 25px;
 }
 
 .quick-open-widget .quick-open-tree {
