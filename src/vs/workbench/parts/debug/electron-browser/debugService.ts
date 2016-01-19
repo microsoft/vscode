@@ -709,7 +709,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 	}
 
 	public revealRepl(inBackground: boolean = false): Promise {
-		return this.panelService.openPanel(Repl.ID, !inBackground).then((repl: Repl) => {
+		return this.panelService.openPanel(debug.REPL_ID, !inBackground).then((repl: Repl) => {
 			const elements = this.model.getReplElements();
 			if (!inBackground && elements.length > 0) {
 				return repl.reveal(elements[elements.length - 1]);

@@ -25,7 +25,6 @@ import * as debug from 'vs/workbench/parts/debug/common/debug';
 import { DebugEditorModelManager } from 'vs/workbench/parts/debug/browser/debugEditorModelManager'
 import dbgactions = require('vs/workbench/parts/debug/electron-browser/debugActions');
 import editorinputs = require('vs/workbench/parts/debug/browser/debugEditorInputs');
-import repl = require('vs/workbench/parts/debug/browser/repl');
 import debugwidget = require('vs/workbench/parts/debug/browser/debugActionsWidget');
 import service = require('vs/workbench/parts/debug/electron-browser/debugService');
 import { DebugEditorContribution } from 'vs/workbench/parts/debug/browser/debugEditorContribution';
@@ -75,7 +74,7 @@ const openViewletKb: IKeybindings = {
 (<panel.PanelRegistry>platform.Registry.as(panel.Extensions.Panels)).registerPanel(new panel.PanelDescriptor(
 	'vs/workbench/parts/debug/browser/repl',
 	'Repl',
-	repl.Repl.ID,
+	debug.REPL_ID,
 	nls.localize('debugConsole', "DEBUG CONSOLE"),
 	'repl',
 	40

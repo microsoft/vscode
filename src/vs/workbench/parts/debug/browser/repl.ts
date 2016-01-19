@@ -37,7 +37,6 @@ const HISTORY_STORAGE_KEY = 'debug.repl.history';
 
 export class Repl extends Panel {
 
-	public static ID = 'workbench.panel.repl';
 	private static HALF_WIDTH_TYPICAL = 'n';
 
 	private static HISTORY: replhistory.ReplHistory;
@@ -61,7 +60,7 @@ export class Repl extends Panel {
 		@IContextViewService private contextViewService: IContextViewService,
 		@IStorageService private storageService: IStorageService
 	) {
-		super(Repl.ID, telemetryService);
+		super(debug.REPL_ID, telemetryService);
 
 		this.toDispose = [];
 		this.registerListeners();
