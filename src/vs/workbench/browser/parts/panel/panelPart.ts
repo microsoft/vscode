@@ -100,7 +100,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
 
 export class ClosePanelAction extends Action {
-	static ID = 'workbench.action.closePanelAction';
+	static ID = 'workbench.action.closePanel';
 	static LABEL = nls.localize('closePanel', "Close");
 
 	constructor(
@@ -118,7 +118,7 @@ export class ClosePanelAction extends Action {
 }
 
 export class TogglePanelAction extends Action {
-	static ID = 'workbench.action.togglePanelAction';
+	static ID = 'workbench.action.togglePanel';
 	static LABEL = nls.localize('togglePanel', "Toggle Panel Visibility");
 
 	constructor(
