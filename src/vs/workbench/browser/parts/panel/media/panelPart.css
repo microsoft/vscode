@@ -9,5 +9,9 @@
 
 .monaco-workbench > .part.panel > .title {
 	display: block;
-	border-top: 1px solid #007ACC
+	border-top: 1px solid #007ACC;
+}
+
+.monaco-workbench.no-workspace > .part.panel > .title {
+	border-color: #68217A;
 }
