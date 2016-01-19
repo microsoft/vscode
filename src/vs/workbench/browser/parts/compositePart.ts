@@ -67,6 +67,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		private activeCompositeSettingsKey: string,
 		private nameForTelemetry: string,
 		private compositeCssClass: string,
+		private actionContributionScope: string,
 		id: string
 	) {
 		super(id);
@@ -366,8 +367,8 @@ export abstract class CompositePart<T extends Composite> extends Part {
 
 		// From Contributions
 		let actionBarRegistry = <IActionBarRegistry>Registry.as(Extensions.Actionbar);
-		primaryActions.push(...actionBarRegistry.getActionBarActionsForContext(Scope.VIEW, composite));
-		secondaryActions.push(...actionBarRegistry.getSecondaryActionBarActionsForContext(Scope.VIEW, composite));
+		primaryActions.push(...actionBarRegistry.getActionBarActionsForContext(this.actionContributionScope, composite));
+		secondaryActions.push(...actionBarRegistry.getSecondaryActionBarActionsForContext(this.actionContributionScope, composite));
 
 		// Return fn to set into toolbar
 		return this.toolBar.setActions(prepareActions(primaryActions), prepareActions(secondaryActions));
@@ -454,7 +455,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		// Check Registry
 		if (!actionItem) {
 			let actionBarRegistry = <IActionBarRegistry>Registry.as(Extensions.Actionbar);
-			actionItem = actionBarRegistry.getActionItemForContext(Scope.VIEW, ToolBarContext, action);
+			actionItem = actionBarRegistry.getActionItemForContext(this.actionContributionScope, ToolBarContext, action);
 		}
 
 		return actionItem;

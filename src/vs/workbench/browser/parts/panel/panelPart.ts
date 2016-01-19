@@ -11,6 +11,7 @@ import strings = require('vs/base/common/strings');
 import {Action} from 'vs/base/common/actions';
 import {Builder} from 'vs/base/browser/builder';
 import {Registry} from 'vs/platform/platform';
+import {Scope} from 'vs/workbench/browser/actionBarRegistry';
 import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
 import {IWorkbenchActionRegistry, Extensions as WorkbenchExtensions} from 'vs/workbench/common/actionRegistry';
 import {IPanel} from 'vs/workbench/common/panel';
@@ -44,8 +45,21 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		keybindingService: IKeybindingService,
 		id: string
 	) {
-		super(messageService, storageService, eventService, telemetryService, contextMenuService, partService, keybindingService,
-			(<PanelRegistry>Registry.as(PanelExtensions.Panels)), PanelPart.activePanelSettingsKey, 'panel', 'panel', id);
+		super(
+			messageService,
+			storageService,
+			eventService,
+			telemetryService,
+			contextMenuService,
+			partService,
+			keybindingService,
+			(<PanelRegistry>Registry.as(PanelExtensions.Panels)),
+			PanelPart.activePanelSettingsKey,
+			'panel',
+			'panel',
+			Scope.PANEL,
+			id
+		);
 	}
 
 	public openPanel(id: string, focus?: boolean): TPromise<Panel> {

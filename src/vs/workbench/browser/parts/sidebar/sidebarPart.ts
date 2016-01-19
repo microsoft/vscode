@@ -17,6 +17,7 @@ import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {IViewlet} from 'vs/workbench/common/viewlet';
+import {Scope} from 'vs/workbench/browser/actionBarRegistry';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IEventService} from 'vs/platform/event/common/event';
@@ -44,8 +45,21 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 		keybindingService: IKeybindingService,
 		id: string
 	) {
-		super(messageService, storageService, eventService, telemetryService, contextMenuService, partService, keybindingService,
-			(<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets)), SidebarPart.activeViewletSettingsKey, 'sideBar', 'viewlet', id);
+		super(
+			messageService,
+			storageService,
+			eventService,
+			telemetryService,
+			contextMenuService,
+			partService,
+			keybindingService,
+			(<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets)),
+			SidebarPart.activeViewletSettingsKey,
+			'sideBar',
+			'viewlet',
+			Scope.VIEWLET,
+			id
+		);
 	}
 
 	public openViewlet(id: string, focus?: boolean): TPromise<Viewlet> {
