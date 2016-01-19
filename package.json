@@ -1,7 +1,7 @@
 {
     "name": "python",
     "displayName": "Python",
-    "description": "Python Auto complete",
+    "description": "Python Auto complete and debugging (debugging is still a work in progress)",
     "version": "0.0.1",
     "publisher": "donjayamanne",
     "license": "SEE LICENSE IN LICENSE or README.MD",
@@ -22,16 +22,60 @@
         "vscode": "^0.10.1"
     },
     "categories": [
-        "Languages"
+        "Languages",
+         "Debuggers"
     ],
     "activationEvents": [
         "onLanguage:python"
     ],
     "main": "./out/src/extension",
-    "contributes": {},
+    "contributes": {
+        "debuggers": [{
+            "type": "pythonDebugger",
+            "label": "Python Debugger",
+
+            "enableBreakpointsFor": { "languageIds": ["python"] },
+
+            "program": "./out/debugger.js",
+            "runtime": "node",
+
+            "configurationAttributes": {
+                "launch": {
+                    "required": ["program"],
+                    "properties": {
+                        "program": {
+                            "type": "string",
+                            "description": "Workspace relative path to a text file.",
+                            "default": "test.py"
+                        },
+                        "stopOnEntry": {
+                            "type": "boolean",
+                            "description": "Automatically stop after launch.",
+                            "default": true
+                        }
+                    }
+                }
+            },
+
+            "initialConfigurations": [
+                {
+                    "name": "Python Debugger",
+                    "type": "pythonDebugger",
+                    "request": "launch",
+                    "program": "test.py",
+                    "stopOnEntry": true
+                }
+            ]
+        }]
+    },
     "scripts": {
         "vscode:prepublish": "node ./node_modules/vscode/bin/compile",
         "compile": "node ./node_modules/vscode/bin/compile -watch -p ./"
+    },
+    "dependencies": {
+        "pty.js": "^0.3.0",
+        "vscode-debugadapter": "^1.0.1",
+        "vscode-debugprotocol": "^1.0.1"
     },
     "devDependencies": {
         "typescript": "^1.6.2",

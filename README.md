@@ -13,11 +13,11 @@ Open the python file and start using it.
 
 NOTE: Path to Python is assumed to be in the current environment path.
  
-![Image of File History](https://raw.githubusercontent.com/DonJayamanne/pythonVSCode/master/images/fileHistoryCommand.gif)
+![Image of Generate Features](https://raw.githubusercontent.com/DonJayamanne/pythonVSCode/master/images/general.gif)
 
-![Image of another instance of File History](https://raw.githubusercontent.com/DonJayamanne/pythonVSCode/master/images/fileHistoryCommandMore.gif)
+![Image of Go To Definition](https://raw.githubusercontent.com/DonJayamanne/pythonVSCode/master/images/goToDef.gif)
 
-![Image of Line History](https://raw.githubusercontent.com/DonJayamanne/pythonVSCode/master/images/lineHistoryCommand.gif)
+![Image of Renaming and Find all References](https://raw.githubusercontent.com/DonJayamanne/pythonVSCode/master/images/rename.gif)
 
 
 ## Source
