@@ -412,12 +412,18 @@ export enum FileOperationResult {
 	FILE_TOO_LARGE
 }
 
+export const AutoSaveModes = {
+	OFF: 'off',
+	AFTER_DELAY: 'afterDelay',
+	ON_FOCUS_CHANGE: 'onFocusChange'
+}
+
 export interface IFilesConfiguration {
 	files: {
 		exclude: glob.IExpression;
 		encoding: string;
 		trimTrailingWhitespace: boolean;
+		autoSave: string;
 		autoSaveDelay: number;
-		autoSaveFocusChange: boolean;
 	};
 }
