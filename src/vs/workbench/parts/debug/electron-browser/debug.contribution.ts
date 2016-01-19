@@ -79,6 +79,7 @@ const openViewletKb: IKeybindings = {
 	'repl',
 	40
 ));
+(<panel.PanelRegistry>platform.Registry.as(panel.Extensions.Panels)).setDefaultPanelId(debug.REPL_ID);
 
 // register action to open viewlet
 const registry = (<wbaregistry.IWorkbenchActionRegistry> platform.Registry.as(wbaregistry.Extensions.WorkbenchActions));
