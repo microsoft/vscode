@@ -97,8 +97,6 @@ export class Repl extends Panel {
 	public create(parent: builder.Builder): TPromise<void> {
 		super.create(parent);
 		const container = dom.append(parent.getHTMLElement(), $('.repl'));
-		// inherit the background color from selected theme.
-		dom.addClass(container, 'monaco-editor-background');
 		this.treeContainer = dom.append(container, $('.repl-tree'));
 		const replInputContainer = dom.append(container, $(platform.isWindows ? '.repl-input-wrapper.windows' : platform.isMacintosh ? '.repl-input-wrapper.mac' : '.repl-input-wrapper.linux'));
 		this.replInput = <HTMLInputElement>dom.append(replInputContainer, $('input.repl-input'));

@@ -80,13 +80,6 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		return this.openComposite(id, focus);
 	}
 
-	public createTitleArea(parent: Builder): Builder {
-		const result = super.createTitleArea(parent);
-		result.addClass('monaco-editor-background');
-
-		return result;
-	}
-
 	private get activePanel(): IPanel {
 		return this.getActivePanel();
 	}
