@@ -9,6 +9,7 @@ import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegi
 import {IInstantiationService, ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import URI from 'vs/base/common/uri';
+import {Position as EditorPosition} from 'vs/platform/editor/common/editor';
 import {HtmlInput} from '../common/htmlInput';
 import {HtmlPreviewPart} from 'vs/workbench/parts/html/browser/htmlPreviewPart';
 import {Registry} from 'vs/platform/platform';
@@ -27,19 +28,15 @@ import {SyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
 // --- Register Commands
 
 KeybindingsRegistry.registerCommandDesc({
-	id: 'workbench.html.preview',
+	id: '_workbench.previewHtml',
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(0),
-	description: {
-		description: 'Preview an html document.',
-		args: [{ name: 'uri', description: 'Uri of the document to preview.', constraint: URI }]
-	},
-	handler(accessor: ServicesAccessor, args: [URI]) {
+	handler(accessor: ServicesAccessor, args: [URI, EditorPosition]) {
 
-		let [resource] = args;
+		let [resource, position] = args;
 		let name = resource.fsPath;
 		let input = accessor.get(IInstantiationService).createInstance(HtmlInput, name, undefined, resource);
 
-		return accessor.get(IWorkbenchEditorService).openEditor(input)
+		return accessor.get(IWorkbenchEditorService).openEditor(input, null, position)
 			.then(editor => true);
 	},
 	context: undefined,
