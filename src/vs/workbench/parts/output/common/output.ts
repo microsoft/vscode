@@ -26,6 +26,11 @@ export const OUTPUT_MODE_ID = 'Log';
 export const OUTPUT_EDITOR_INPUT_ID = 'vs.output';
 
 /**
+ * Output panel id
+ */
+export const OUTPUT_PANEL_ID = 'workbench.panel.output';
+
+/**
  * Output from any not defined channel is here
  */
 export const DEFAULT_OUTPUT_CHANNEL = '';
