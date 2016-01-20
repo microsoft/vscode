@@ -100,14 +100,20 @@ var darwinCreditsTemplate = product.darwinCredits && _.template(fs.readFileSync(
 var config = {
 	version: packagejson.electronVersion,
 	productAppName: product.nameLong,
-	companyName: product.companyName,
-	copyright: product.copyright,
-	darwinIcon: product.icons.application.icns,
+	companyName: 'Microsoft Corporation',
+	copyright: 'Copyright (C) 2015 Microsoft. All rights reserved',
+	darwinIcon: 'resources/darwin/code.icns',
 	darwinBundleIdentifier: product.darwinBundleIdentifier,
-	darwinApplicationCategoryType: product.darwinApplicationCategoryType, // Finder: View-->Arrange by Application Category
-	darwinBundleDocumentTypes: product.darwinBundleDocumentTypes,
+	darwinApplicationCategoryType: 'public.app-category.developer-tools',
+	darwinBundleDocumentTypes: [{
+		name: product.nameLong + ' document',
+		role: 'Editor',
+		ostypes: ["TEXT", "utxt", "TUTX", "****"],
+		extensions: ["ascx", "asp", "aspx", "bash", "bash_login", "bash_logout", "bash_profile", "bashrc", "bat", "bowerrc", "c", "cc", "clj", "cljs", "cljx", "clojure", "cmd", "coffee", "config", "cpp", "cs", "cshtml", "csproj", "css", "csx", "ctp", "cxx", "dockerfile", "dot", "dtd", "editorconfig", "edn", "eyaml", "eyml", "fs", "fsi", "fsscript", "fsx", "gemspec", "gitattributes", "gitconfig", "gitignore", "go", "h", "handlebars", "hbs", "hh", "hpp", "htm", "html", "hxx", "ini", "jade", "jav", "java", "js", "jscsrc", "jshintrc", "jshtm", "json", "jsp", "less", "lua", "m", "makefile", "markdown", "md", "mdoc", "mdown", "mdtext", "mdtxt", "mdwn", "mkd", "mkdn", "ml", "mli", "nqp", "p6", "php", "phtml", "pl", "pl6", "pm", "pm6", "pod", "pp", "profile", "properties", "ps1", "psd1", "psgi", "psm1", "py", "r", "rb", "rhistory", "rprofile", "rs", "rt", "scss", "sh", "shtml", "sql", "svg", "svgz", "t", "ts", "txt", "vb", "wxi", "wxl", "wxs", "xaml", "xml", "yaml", "yml", "zsh"],
+		iconFile: 'resources/darwin/code_file.icns'
+	}],
 	darwinCredits: darwinCreditsTemplate ? new Buffer(darwinCreditsTemplate({ commit: commit, date: new Date().toISOString() })) : void 0,
-	winIcon: product.icons.application.ico,
+	winIcon: 'resources/win32/code.ico',
 	token: process.env['GITHUB_TOKEN'] || void 0
 };
 
@@ -175,7 +181,8 @@ function packageTask(platform, arch, opts) {
 			pluginHostSourceMap
 		).pipe(util.handleAzureJson({ platform: platform }));
 
-		var packageJson = gulp.src(['package.json'], { base: '.' }).pipe(json({ name: product.nameShort }));
+		var packageJson = gulp.src(['package.json'], { base: '.' })
+			.pipe(json({ name: product.nameShort }));
 
 		var license = gulp.src(['Credits_*', 'LICENSE.txt', 'ThirdPartyNotices.txt'], { base: '.' });
 		var api = gulp.src('src/vs/vscode.d.ts').pipe(rename('out/vs/vscode.d.ts'));
@@ -193,9 +200,9 @@ function packageTask(platform, arch, opts) {
 		var resources = gulp.src('resources/*', { base: '.' });
 
 		if (platform === 'win32') {
-			resources = es.merge(resources, gulp.src(product.icons.file.ico, { base: '.' }));
+			resources = es.merge(resources, gulp.src('resources/win32/code_file.ico', { base: '.' }));
 		} else if (platform === 'linux') {
-			resources = es.merge(resources, gulp.src(product.icons.application.png, { base: '.' }));
+			resources = es.merge(resources, gulp.src('resources/linux/code.png', { base: '.' }));
 		}
 
 		var extraExtensions = util.downloadExtensions(builtInExtensions)
