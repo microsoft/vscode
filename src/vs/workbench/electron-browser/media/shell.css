@@ -47,6 +47,8 @@
 	text-decoration: none;
 }
 
+/* START Keyboard Focus Indication Styles */
+
 .monaco-shell [tabindex="0"]:focus,
 .monaco-shell select:focus,
 .monaco-shell input[type="button"]:focus,
@@ -65,6 +67,12 @@
 	outline: 0; /* tree indicates focus not via outline but through the focussed item */
 }
 
+.monaco-shell .monaco-tree.focused .monaco-tree-rows:empty {
+	outline: 2px auto -webkit-focus-ring-color; /* we still need to handle the empty tree case */
+	outline-offset: -2px;
+}
+
+/* END Keyboard Focus Indication Styles */
 
 .monaco-shell a.prominent {
 	text-decoration: underline;

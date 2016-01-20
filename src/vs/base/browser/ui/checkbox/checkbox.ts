@@ -90,7 +90,7 @@ export class Checkbox extends Widget {
 	}
 
 	public disable(): void {
-		this.domNode.tabIndex = -1;
+		this.domNode.removeAttribute('tabIndex');
 		this.domNode.setAttribute('aria-disabled', String(true));
 	}
 }

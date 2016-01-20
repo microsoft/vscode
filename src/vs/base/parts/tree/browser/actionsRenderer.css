@@ -24,6 +24,7 @@
 }
 
 .monaco-tree .monaco-tree-row:hover:not(.highlighted) > .content.actions > .primary-action-bar,
+.monaco-tree.focused .monaco-tree-row.focused > .content.actions > .primary-action-bar,
 .monaco-tree .monaco-tree-row > .content.actions.more > .primary-action-bar {
 	display: inherit;
 }
