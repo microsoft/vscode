@@ -33,6 +33,7 @@ exports.collectModules= function(excludes) {
 		createModuleDescription('vs/workbench/parts/output/common/outputWorker', languageWorkerExcludes),
 
 		createModuleDescription('vs/workbench/parts/debug/browser/debugViewlet', excludes),
+		createModuleDescription('vs/workbench/parts/debug/browser/repl', excludes),
 
 		createModuleDescription('vs/workbench/services/search/node/searchApp', []),
 		createModuleDescription('vs/workbench/services/files/node/watcher/unix/watcherApp', []),
