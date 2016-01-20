@@ -733,8 +733,8 @@ export class WindowsManager {
 			WindowsManager.WINDOWS.push(vscodeWindow);
 
 			// Window Events
-			vscodeWindow.win.webContents.on('crashed', () => this.onWindowError(vscodeWindow.win, WindowError.CRASHED));
-			vscodeWindow.win.on('unresponsive', () => this.onWindowError(vscodeWindow.win, WindowError.UNRESPONSIVE));
+			vscodeWindow.win.webContents.on('crashed', () => this.onWindowError(vscodeWindow, WindowError.CRASHED));
+			vscodeWindow.win.on('unresponsive', () => this.onWindowError(vscodeWindow, WindowError.UNRESPONSIVE));
 			vscodeWindow.win.on('close', () => this.onBeforeWindowClose(vscodeWindow));
 			vscodeWindow.win.on('closed', () => this.onWindowClosed(vscodeWindow));
 
@@ -1000,38 +1000,42 @@ export class WindowsManager {
 		return WindowsManager.WINDOWS.length;
 	}
 
-	private onWindowError(win: Electron.BrowserWindow, error: WindowError): void {
+	private onWindowError(vscodeWindow: window.VSCodeWindow, error: WindowError): void {
 		console.error(error === WindowError.CRASHED ? '[VS Code]: render process crashed!' : '[VS Code]: detected unresponsive');
 
 		// Unresponsive
 		if (error === WindowError.UNRESPONSIVE) {
-			dialog.showMessageBox(win, {
+			dialog.showMessageBox(vscodeWindow.win, {
 				title: env.product.nameLong,
 				type: 'warning',
-				buttons: [nls.localize('exit', "Exit"), nls.localize('wait', "Keep Waiting")],
-				message: nls.localize('appStalled', "{0} is no longer responding", env.product.nameLong),
-				detail: nls.localize('appStalledDetail', "Would you like to exit {0} or just keep waiting?", env.product.nameLong),
+				buttons: [nls.localize('reload', "Reload"), nls.localize('wait', "Keep Waiting"), nls.localize('close', "Close")],
+				message: nls.localize('appStalled', "The window is no longer responding"),
+				detail: nls.localize('appStalledDetail', "You can reload or close the window or keep waiting."),
 				noLink: true
 			}, (result) => {
 				if (result === 0) {
-					win.destroy(); // make sure to destroy the window as otherwise quit will just not do anything
-					app.quit();
+					vscodeWindow.reload();
+				} else if (result === 2) {
+					vscodeWindow.win.destroy(); // make sure to destroy the window as it is unresponsive
 				}
 			});
 		}
 
 		// Crashed
 		else {
-			dialog.showMessageBox(win, {
+			dialog.showMessageBox(vscodeWindow.win, {
 				title: env.product.nameLong,
 				type: 'warning',
-				buttons: [nls.localize('exit', "Exit")],
-				message: nls.localize('appCrashed', "{0} has crashed", env.product.nameLong),
-				detail: nls.localize('appCrashedDetail', "We are sorry for the inconvenience! Please restart {0}.", env.product.nameLong),
+				buttons: [nls.localize('reload', "Reload"), nls.localize('close', "Close")],
+				message: nls.localize('appCrashed', "The window has crashed"),
+				detail: nls.localize('appCrashedDetail', "We are sorry for the inconvenience! Do you want to reload or close the window?"),
 				noLink: true
 			}, (result) => {
-				win.destroy(); // make sure to destroy the window as otherwise quit will just not do anything
-				app.quit();
+				if (result === 0) {
+					vscodeWindow.reload();
+				} else if (result === 1) {
+					vscodeWindow.win.destroy(); // make sure to destroy the window as it has crashed
+				}
 			});
 		}
 	}

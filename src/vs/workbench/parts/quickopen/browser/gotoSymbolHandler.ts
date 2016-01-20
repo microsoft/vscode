@@ -204,26 +204,33 @@ class OutlineModel extends QuickOpenModel {
 	}
 
 	private renderGroupLabel(type: string, count: number, outline: Outline): string {
-		if (outline.outlineGroupLabel) {
-			let label = outline.outlineGroupLabel[type];
-			if (label) {
-				return nls.localize('grouplabel', "{0} ({1})", label, count);
-			}
-		}
-		switch (type) {
-			case 'module': return nls.localize('modules', "modules ({0})", count);
-			case 'class': return nls.localize('class', "classes ({0})", count);
-			case 'interface': return nls.localize('interface', "interfaces ({0})", count);
-			case 'method': return nls.localize('method', "methods ({0})", count);
-			case 'function': return nls.localize('function', "functions ({0})", count);
-			case 'property': return nls.localize('property', "properties ({0})", count);
-			case 'variable': return nls.localize('variable', "variables ({0})", count);
-			case 'var': return nls.localize('variable2', "variables ({0})", count);
-			case 'constructor': return nls.localize('_constructor', "constructors ({0})", count);
-			case 'call': return nls.localize('call', "calls ({0})", count);
+
+		let pattern = outline.outlineGroupLabel[type] || OutlineModel.getDefaultGroupLabelPatterns()[type];
+		if (pattern) {
+			return strings.format(pattern, count);
 		}
 
 		return type;
+	}
+
+	private static getDefaultGroupLabelPatterns(): { [type: string]: string } {
+		const result: { [type: string]: string } = Object.create(null);
+		result['method'] = nls.localize('method', "methods ({0})");
+		result['function'] = nls.localize('function', "functions ({0})");
+		result['constructor'] = <any> nls.localize('_constructor', "constructors ({0})");
+		result['variable'] = nls.localize('variable', "variables ({0})");
+		result['class'] = nls.localize('class', "classes ({0})");
+		result['interface'] = nls.localize('interface', "interfaces ({0})");
+		result['module'] = nls.localize('modules', "modules ({0})");
+		result['property'] = nls.localize('property', "properties ({0})");
+		result['enum'] = nls.localize('enum', "enumerations ({0})");
+		result['string'] = nls.localize('string', "strings ({0})");
+		result['rule'] = nls.localize('rule', "rules ({0})");
+		result['file'] = nls.localize('file', "files ({0})");
+		result['array'] = nls.localize('array', "arrays ({0})");
+		result['number'] = nls.localize('number', "numbers ({0})");
+		result['boolean'] = nls.localize('boolean', "booleans ({0})");
+		return result;
 	}
 }
 
