@@ -61,10 +61,6 @@
 	font-size: 13px;
 }
 
-.monaco-editor .reference-zone-widget .tree .monaco-tree {
-	outline: none;
-}
-
 .monaco-editor .reference-zone-widget .tree .monaco-tree.focused .monaco-tree-rows > .monaco-tree-row.selected:not(.highlighted) {
 	background-color: rgba(51, 153, 255, .2);
 	color: #6C6C6C !important;

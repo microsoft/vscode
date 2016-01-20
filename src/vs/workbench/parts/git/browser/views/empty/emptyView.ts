@@ -12,6 +12,7 @@ import EventEmitter = require('vs/base/common/eventEmitter');
 import DOM = require('vs/base/browser/dom');
 import Errors = require('vs/base/common/errors');
 import Keyboard = require('vs/base/browser/keyboardEvent');
+import {Button} from 'vs/base/browser/ui/button/button';
 import WinJS = require('vs/base/common/winjs.base');
 import Builder = require('vs/base/browser/builder');
 import Actions = require('vs/base/common/actions');
@@ -28,53 +29,6 @@ import {ISelection, Selection} from 'vs/platform/selection/common/selection';
 import IGitService = git.IGitService;
 
 var $ = Builder.$;
-
-export class Button extends EventEmitter.EventEmitter {
-
-	private $el: Builder.Builder;
-
-	constructor(container: Builder.Builder);
-	constructor(container: HTMLElement);
-	constructor(container: any) {
-		super();
-
-		this.$el = $('a.button.clone').href('#').appendTo(container);
-
-		this.$el.on('click', (e) => {
-			if (!this.enabled) {
-				DOM.EventHelper.stop(e);
-				return;
-			}
-
-			this.emit('click', e);
-		});
-	}
-
-	public set label(value: string) {
-		this.$el.text(value);
-	}
-
-	public set enabled(value: boolean) {
-		if (value) {
-			this.$el.removeClass('disabled');
-		} else {
-			this.$el.addClass('disabled');
-		}
-	}
-
-	public get enabled() {
-		return !this.$el.hasClass('disabled');
-	}
-
-	public dispose(): void {
-		if (this.$el) {
-			this.$el.dispose();
-			this.$el = null;
-		}
-
-		super.dispose();
-	}
-}
 
 export class EmptyView extends EventEmitter.EventEmitter implements GitView.IView {
 

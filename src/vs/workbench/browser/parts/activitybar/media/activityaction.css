@@ -82,8 +82,7 @@
 }
 
 .monaco-workbench > .activitybar > .content .monaco-action-bar .action-item .action-label.active,
-.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item:hover .action-label,
-.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item .action-label:focus {
+.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item:hover .action-label {
 	opacity: 1;
 }
 

@@ -47,6 +47,25 @@
 	text-decoration: none;
 }
 
+.monaco-shell [tabindex="0"]:focus,
+.monaco-shell select:focus,
+.monaco-shell input[type="button"]:focus,
+.monaco-shell input[type="submit"]:focus,
+.monaco-shell input[type="checkbox"]:focus {
+	outline: 2px auto -webkit-focus-ring-color;
+	outline-offset: -2px;
+	opacity: 1 !important; /* prevent components from dimming focus feedback */
+}
+
+.monaco-shell input[type="text"], .monaco-shell textarea {
+	outline: 0; /* do not show outline in input fields and textarea */
+}
+
+.monaco-shell .monaco-tree:focus {
+	outline: 0; /* tree indicates focus not via outline but through the focussed item */
+}
+
+
 .monaco-shell a.prominent {
 	text-decoration: underline;
 }

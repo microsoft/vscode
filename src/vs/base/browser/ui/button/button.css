@@ -12,6 +12,7 @@
 	text-align: center;
 	color: white;
 	background: #007ACC;
+	cursor: pointer;
 }
 
 .monaco-button.disabled {

@@ -6,23 +6,21 @@
 'use strict';
 
 import 'vs/css!./leftRightWidget';
-import Builder = require('vs/base/browser/builder');
-import Lifecycle = require('vs/base/common/lifecycle');
-
-var $ = Builder.$;
+import {Builder, $} from 'vs/base/browser/builder';
+import {IDisposable} from 'vs/base/common/lifecycle';
 
 export interface IRenderer {
-	(container:HTMLElement): Lifecycle.IDisposable;
+	(container: HTMLElement): IDisposable;
 }
 
 export class LeftRightWidget {
 
-	private $el: Builder.Builder;
-	private toDispose: Lifecycle.IDisposable[];
+	private $el: Builder;
+	private toDispose: IDisposable[];
 
-	constructor (container:Builder.Builder, renderLeftFn:IRenderer, renderRightFn:IRenderer);
-	constructor (container:HTMLElement, renderLeftFn:IRenderer, renderRightFn:IRenderer);
-	constructor (container:any, renderLeftFn:IRenderer, renderRightFn:IRenderer) {
+	constructor(container: Builder, renderLeftFn: IRenderer, renderRightFn: IRenderer);
+	constructor(container: HTMLElement, renderLeftFn: IRenderer, renderRightFn: IRenderer);
+	constructor(container: any, renderLeftFn: IRenderer, renderRightFn: IRenderer) {
 		this.$el = $('.monaco-left-right-widget').appendTo(container);
 
 		this.toDispose = [

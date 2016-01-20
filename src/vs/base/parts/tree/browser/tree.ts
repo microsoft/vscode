@@ -310,12 +310,6 @@ export interface ITree extends Events.IEventEmitter {
 	hasTrait(trait: string, element: any): boolean;
 
 	/**
-	 * Allows to render an invisible fake row, for measurement purposes.
-	 * Returns whatever fn(...) returns.
-	 */
-	withFakeRow(fn:(container:HTMLElement)=>any):any;
-
-	/**
 	 * Returns a navigator which allows to discover the visible and
 	 * expanded elements in the tree.
 	 */

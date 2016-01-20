@@ -100,6 +100,7 @@ export class Repl extends Panel {
 		this.treeContainer = dom.append(container, $('.repl-tree'));
 		const replInputContainer = dom.append(container, $(platform.isWindows ? '.repl-input-wrapper.windows' : platform.isMacintosh ? '.repl-input-wrapper.mac' : '.repl-input-wrapper.linux'));
 		this.replInput = <HTMLInputElement>dom.append(replInputContainer, $('input.repl-input'));
+		this.replInput.type = 'text';
 
 		dom.addStandardDisposableListener(this.replInput, 'keydown', (e: dom.IKeyboardEvent) => {
 			let trimmedValue = this.replInput.value.trim();

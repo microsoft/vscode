@@ -139,6 +139,7 @@ export class IFrameEditor extends BaseEditor {
 			'<script>',
 			'var ignoredKeys = [9 /* tab */, 32 /* space */, 33 /* page up */, 34 /* page down */, 38 /* up */, 40 /* down */];',
 			'var ignoredCtrlCmdKeys = [65 /* a */, 67 /* c */];',
+			'var ignoredShiftKeys = [9 /* tab */];',
 			'window.document.body.addEventListener("keydown", function(event) {',		// Listen to keydown events in the iframe
 			'	try {',
 			'		if (ignoredKeys.some(function(i) { return i === event.keyCode; })) {',
@@ -150,6 +151,12 @@ export class IFrameEditor extends BaseEditor {
 			'		if (ignoredCtrlCmdKeys.some(function(i) { return i === event.keyCode; })) {',
 			'			if (event.ctrlKey || event.metaKey) {',
 			'				return;',													// we want some ctrl/cmd keys to be supported (e.g. Ctrl+C for copy)
+			'			}',
+			'		}',
+			'',
+			'		if (ignoredShiftKeys.some(function(i) { return i === event.keyCode; })) {',
+			'			if (event.shiftKey) {',
+			'				return;',													// we want some shift keys to be supported (e.g. Shift+Tab for copy)
 			'			}',
 			'		}',
 			'',

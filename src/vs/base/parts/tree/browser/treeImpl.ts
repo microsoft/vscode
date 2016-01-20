@@ -307,10 +307,6 @@ export class Tree extends Events.EventEmitter implements _.ITree {
 		return this.model.hasTrait(trait, element);
 	}
 
-	public withFakeRow(fn:(container:HTMLElement)=>any):any {
-		return this.view.withFakeRow(fn);
-	}
-
 	getNavigator(): INavigator<any> {
 		return new MappedNavigator(this.model.getNavigator(), i => i && i.getElement());
 	}
