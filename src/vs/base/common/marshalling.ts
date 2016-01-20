@@ -124,16 +124,16 @@ export function marshallObject(obj: any, dynamicContrib: IMarshallingContributio
 }
 
 export function marshallObjectAndStringify(obj: any, dynamicContrib: IMarshallingContribution = null): string {
-	return JSON.stringify(marshallObject(obj));
+	return JSON.stringify(marshallObject(obj, dynamicContrib));
 }
 
 export function demarshallObject(data: any, dynamicContrib: IMarshallingContribution = null) {
 	currentDynamicContrib = dynamicContrib;
-	const r =deserialize(data);
+	const r = deserialize(data);
 	currentDynamicContrib = null;
 	return r;
 }
 
-export function parseAndDemarshallObject(serialized:string, dynamicContrib:IMarshallingContribution = null): any {
-	return demarshallObject(JSON.parse(serialized));
+export function parseAndDemarshallObject(serialized: string, dynamicContrib: IMarshallingContribution = null): any {
+	return demarshallObject(JSON.parse(serialized), dynamicContrib);
 }
