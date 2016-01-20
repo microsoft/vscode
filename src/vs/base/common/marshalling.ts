@@ -114,16 +114,26 @@ registerMarshallingContribution({
 
 });
 
-export function marshallObject(obj:any, dynamicContrib:IMarshallingContribution = null): string {
+
+
+export function marshallObject(obj: any, dynamicContrib: IMarshallingContribution = null): string {
 	currentDynamicContrib = dynamicContrib;
-	var r = JSON.stringify(serialize(obj));
+	const r = serialize(obj);
 	currentDynamicContrib = null;
 	return r;
 }
 
-export function demarshallObject(serialized:string, dynamicContrib:IMarshallingContribution = null): any {
+export function marshallObjectAndStringify(obj: any, dynamicContrib: IMarshallingContribution = null): string {
+	return JSON.stringify(marshallObject(obj));
+}
+
+export function demarshallObject(data: any, dynamicContrib: IMarshallingContribution = null) {
 	currentDynamicContrib = dynamicContrib;
-	var r = deserialize(JSON.parse(serialized));
+	const r =deserialize(data);
 	currentDynamicContrib = null;
 	return r;
+}
+
+export function parseAndDemarshallObject(serialized:string, dynamicContrib:IMarshallingContribution = null): any {
+	return demarshallObject(JSON.parse(serialized));
 }

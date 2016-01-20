@@ -122,11 +122,11 @@ export class WorkerServer {
 	}
 
 	public onmessage(msg:string): void {
-		this._onmessage(marshalling.demarshallObject(msg, this._proxiesMarshalling));
+		this._onmessage(marshalling.parseAndDemarshallObject(msg, this._proxiesMarshalling));
 	}
 
 	private _postMessage(msg:protocol.IServerMessage): void {
-		this._postSerializedMessage(marshalling.marshallObject(msg, this._proxiesMarshalling));
+		this._postSerializedMessage(marshalling.marshallObjectAndStringify(msg, this._proxiesMarshalling));
 	}
 
 	private _onmessage(msg:protocol.IClientMessage): void {
