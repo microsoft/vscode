@@ -20,7 +20,7 @@ var remote = require('gulp-remote-src');
 var File = require('vinyl');
 var rimraf = require('rimraf');
 var _ = require('underscore');
-var packagejson = require('../package.json');
+var packageJson = require('../package.json');
 var util = require('./lib/util');
 var buildfile = require('../src/buildfile');
 var common = require('./gulpfile.common');
@@ -98,7 +98,7 @@ var product = JSON.parse(fs.readFileSync(path.join(root, 'product.json'), 'utf8'
 var darwinCreditsTemplate = product.darwinCredits && _.template(fs.readFileSync(path.join(root, product.darwinCredits), 'utf8'));
 
 var config = {
-	version: packagejson.electronVersion,
+	version: packageJson.electronVersion,
 	productAppName: product.nameLong,
 	companyName: 'Microsoft Corporation',
 	copyright: 'Copyright (C) 2015 Microsoft. All rights reserved',
@@ -181,13 +181,22 @@ function packageTask(platform, arch, opts) {
 			pluginHostSourceMap
 		).pipe(util.handleAzureJson({ platform: platform }));
 
-		var packageJson = gulp.src(['package.json'], { base: '.' })
-			.pipe(json({ name: product.nameShort }));
+		var version = packageJson.version;
+		var quality = product.quality;
+
+		if (quality && quality !== 'stable') {
+			version += '-' + quality;
+		}
+
+		var packageJsonStream = gulp.src(['package.json'], { base: '.' }).pipe(json({
+			name: product.nameShort,
+			version: version
+		}));
 
 		var license = gulp.src(['Credits_*', 'LICENSE.txt', 'ThirdPartyNotices.txt'], { base: '.' });
 		var api = gulp.src('src/vs/vscode.d.ts').pipe(rename('out/vs/vscode.d.ts'));
 
-		var depsSrc = _.flatten(Object.keys(packagejson.dependencies).concat(Object.keys(packagejson.optionalDependencies))
+		var depsSrc = _.flatten(Object.keys(packageJson.dependencies).concat(Object.keys(packageJson.optionalDependencies))
 			.map(function (d) { return ['node_modules/' + d + '/**', '!node_modules/' + d + '/**/{test,tests}/**']; })
 		);
 
@@ -212,7 +221,7 @@ function packageTask(platform, arch, opts) {
 
 		var all = es.merge(
 			api,
-			packageJson,
+			packageJsonStream,
 			mixinProduct(),
 			license,
 			sources,
