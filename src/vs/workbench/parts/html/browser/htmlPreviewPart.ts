@@ -203,7 +203,7 @@ namespace Integration {
 
 	const scriptSource = [
 		'var ignoredKeys = [32 /* space */, 33 /* page up */, 34 /* page down */, 38 /* up */, 40 /* down */];',
-		'var ignoredCtrlCmdKeys = [67 /* c */];',
+		'var ignoredCtrlCmdKeys = [65 /* a */, 67 /* c */];',
 		'window.document.body.addEventListener("keydown", function(event) {',		// Listen to keydown events in the iframe
 		'	try {',
 		'		if (ignoredKeys.some(function(i) { return i === event.keyCode; })) {',
