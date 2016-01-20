@@ -57,3 +57,5 @@ export class PanelRegistry extends CompositeRegistry<Panel> {
 export const Extensions = {
 	Panels: 'workbench.contributions.panels'
 };
+
+Registry.add(Extensions.Panels, new PanelRegistry());

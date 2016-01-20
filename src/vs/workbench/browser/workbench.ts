@@ -203,10 +203,10 @@ export class Workbench implements IPartService {
 			let compositeAndEditorPromises: Promise[] = [];
 
 			// Show default viewlet unless sidebar is hidden or we dont have a default viewlet
-			let registry = (<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets));
-			let viewletId = registry.getDefaultViewletId();
+			let viewletRegistry = (<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets));
+			let viewletId = viewletRegistry.getDefaultViewletId();
 			if (!this.workbenchParams.configuration.env.isBuilt) {
-				viewletId = this.storageService.get(SidebarPart.activeViewletSettingsKey, StorageScope.WORKSPACE, registry.getDefaultViewletId()); // help developers and restore last view
+				viewletId = this.storageService.get(SidebarPart.activeViewletSettingsKey, StorageScope.WORKSPACE, viewletRegistry.getDefaultViewletId()); // help developers and restore last view
 			}
 
 			if (!this.sideBarHidden && !!viewletId) {
@@ -214,8 +214,9 @@ export class Workbench implements IPartService {
 				compositeAndEditorPromises.push(this.sidebarPart.openViewlet(viewletId, false).then(() => viewletTimerEvent.stop()));
 			}
 
-			if (!this.panelHidden) {
-				const panelId = this.storageService.get(PanelPart.activePanelSettingsKey, StorageScope.WORKSPACE);
+			let panelRegistry = (<PanelRegistry>Registry.as(PanelExtensions.Panels));
+			const panelId = this.storageService.get(PanelPart.activePanelSettingsKey, StorageScope.WORKSPACE, panelRegistry.getDefaultPanelId());
+			if (!this.panelHidden && !!panelId) {
 				compositeAndEditorPromises.push(this.panelPart.openPanel(panelId, false));
 			}
 

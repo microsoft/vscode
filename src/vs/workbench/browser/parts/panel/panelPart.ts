@@ -150,6 +150,5 @@ export class TogglePanelAction extends Action {
 	}
 }
 
-Registry.add(PanelExtensions.Panels, new PanelRegistry());
 let actionRegistry = <IWorkbenchActionRegistry>Registry.as(WorkbenchExtensions.WorkbenchActions);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(TogglePanelAction, TogglePanelAction.ID, TogglePanelAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_L }), nls.localize('view', "View"));
