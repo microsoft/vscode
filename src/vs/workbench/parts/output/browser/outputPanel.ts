@@ -9,10 +9,35 @@ import builder = require('vs/base/browser/builder');
 import {IEditorOptions} from 'vs/editor/common/editorCommon';
 import {EditorInput, EditorOptions} from 'vs/workbench/common/editor';
 import {StringEditor} from 'vs/workbench/browser/parts/editor/stringEditor';
+import {OUTPUT_PANEL_ID} from 'vs/workbench/parts/output/common/output';
+import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
+import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
+import {IStorageService} from 'vs/platform/storage/common/storage';
+import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
+import {IEventService} from 'vs/platform/event/common/event';
+import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import {IMessageService} from 'vs/platform/message/common/message';
+import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
+import {IModeService} from 'vs/editor/common/services/modeService';
 
 // TODO@Isidor trim and append need to reveal last line
 
 export class OutputPanel extends StringEditor {
+
+	constructor(
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IWorkspaceContextService contextService: IWorkspaceContextService,
+		@IStorageService storageService: IStorageService,
+		@IMessageService messageService: IMessageService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IEventService eventService: IEventService,
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
+		@IModeService modeService: IModeService
+	) {
+		super(OUTPUT_PANEL_ID, telemetryService, instantiationService, contextService, storageService,
+			messageService, configurationService, eventService, editorService, modeService);
+	}
 
 	public create(parent: builder.Builder): TPromise<void> {
 		super.createEditor(parent);

@@ -14,64 +14,13 @@ import {IAction, Action} from 'vs/base/common/actions';
 import {EditorAction, Behaviour} from 'vs/editor/common/editorAction';
 import {ICommonCodeEditor, IEditorActionDescriptorData} from 'vs/editor/common/editorCommon';
 import {EditorInputAction} from 'vs/workbench/browser/parts/editor/baseEditor';
-import {IOutputChannelRegistry, Extensions, IOutputService, OUTPUT_EDITOR_INPUT_ID, OUTPUT_MODE_ID} from 'vs/workbench/parts/output/common/output';
+import {IOutputChannelRegistry, Extensions, IOutputService, OUTPUT_EDITOR_INPUT_ID, OUTPUT_MODE_ID, OUTPUT_PANEL_ID} from 'vs/workbench/parts/output/common/output';
 import {OutputEditorInput} from 'vs/workbench/parts/output/common/outputEditorInput';
 import {SelectActionItem} from 'vs/base/browser/ui/actionbar/actionbar';
-import {IWorkbenchEditorService}  from 'vs/workbench/services/editor/common/editorService';
 import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
+import {IPartService} from 'vs/workbench/services/part/common/partService';
+import {IPanelService} from 'vs/workbench/services/panel/common/panelService';
 import {IInstantiationService, INullService} from 'vs/platform/instantiation/common/instantiation';
-
-export class GlobalShowOutputAction extends Action {
-
-	public static ID = 'workbench.action.output.showOutput';
-	public static LABEL = nls.localize('showOutput', "Show Output");
-
-	constructor(
-		id: string,
-		label: string,
-		@IOutputService private outputService: IOutputService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IQuickOpenService private quickOpenService: IQuickOpenService
-	) {
-		super(id, label);
-
-		this.order = 20; // Allow other actions to position before or after
-		this.class = 'output-action showoutput';
-	}
-
-	public run(event?: any): Promise {
-		let channelToOpen: string = null;
-
-		// Check for previously opened output
-		let channels = <OutputEditorInput[]>this.quickOpenService.getEditorHistory().filter((i) => i instanceof OutputEditorInput);
-		if (channels.length > 0) {
-
-			// See if output is already opened and just focus it
-			let editors = this.editorService.getVisibleEditors();
-			if (editors.some((e) => {
-				if (e.input instanceof OutputEditorInput) {
-					this.editorService.focusEditor(e);
-
-					return true;
-				}
-
-				return false;
-			})) {
-				return Promise.as(null);
-			}
-
-			// Otherwise pick a channel from the list
-			channelToOpen = channels[0].getChannel();
-		}
-
-		// Fallback to any contributed channel otherwise if we don't have history
-		else {
-			channelToOpen = (<IOutputChannelRegistry>Registry.as(Extensions.OutputChannels)).getChannels()[0];
-		}
-
-		return this.outputService.showOutput(channelToOpen, false /* Do not preserve Focus */);
-	}
-}
 
 export class ToggleOutputAction extends Action {
 
@@ -80,33 +29,22 @@ export class ToggleOutputAction extends Action {
 
 	constructor(
 		id: string, label: string,
-		@IQuickOpenService private quickOpenService: IQuickOpenService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IPartService private partService: IPartService,
+		@IPanelService private panelService: IPanelService,
+		@IOutputService private outputService: IOutputService
 	) {
 		super(id, label);
 	}
 
 	public run(event?: any): Promise {
-		let activeInput = this.editorService.getActiveEditorInput();
+		const panel = this.panelService.getActivePanel();
+		if (panel && panel.getId() === OUTPUT_PANEL_ID) {
+			this.partService.setPanelHidden(true);
 
-		// Restore Previous Non-Output Editor
-		if (activeInput instanceof OutputEditorInput) {
-			let history = this.quickOpenService.getEditorHistory();
-			for (let i = 1; i < history.length; i++) {
-				if (!(history[i] instanceof OutputEditorInput)) {
-					return this.editorService.openEditor(history[i]);
-				}
-			}
+			return Promise.as(null);
 		}
 
-		// Show Output
-		else {
-			let action = this.instantiationService.createInstance(GlobalShowOutputAction, GlobalShowOutputAction.ID, GlobalShowOutputAction.LABEL);
-			action.run().done(() => action.dispose(), errors.onUnexpectedError);
-		}
-
-		return Promise.as(true);
+		return this.outputService.showOutput();
 	}
 }
 
@@ -131,7 +69,7 @@ export class ClearOutputEditorAction extends EditorAction {
 	constructor(
 		descriptor: IEditorActionDescriptorData,
 		editor: ICommonCodeEditor,
-		@IWorkbenchEditorService private myEditorService: IWorkbenchEditorService
+		@IOutputService private outputService: IOutputService
 	) {
 		super(descriptor, editor, Behaviour.WidgetFocus | Behaviour.ShowInContextMenu);
 	}
@@ -148,14 +86,7 @@ export class ClearOutputEditorAction extends EditorAction {
 	}
 
 	public run(): TPromise<boolean> {
-		let input = this.myEditorService.getActiveEditorInput();
-		if (input && input.getId() === OUTPUT_EDITOR_INPUT_ID) {
-			let outputEditorInput = <OutputEditorInput>input;
-			outputEditorInput.clearOutput();
-
-			return Promise.as(true);
-		}
-
+		this.outputService.clearOutput(this.outputService.getActiveChannel());
 		return TPromise.as(false);
 	}
 }

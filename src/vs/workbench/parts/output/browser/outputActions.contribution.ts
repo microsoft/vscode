@@ -16,7 +16,7 @@ import {Scope, IActionBarRegistry, Extensions as ActionBarExtensions} from 'vs/w
 import {Action} from 'vs/base/common/actions';
 import {IEditorInputAction, IEditorInputActionContext, EditorInputActionContributor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {OutputEditorInput} from 'vs/workbench/parts/output/common/outputEditorInput';
-import {ClearOutputEditorAction, ToggleOutputAction, GlobalShowOutputAction, SwitchOutputActionItem, SwitchOutputAction, ClearOutputAction} from 'vs/workbench/parts/output/browser/outputActions';
+import {ClearOutputEditorAction, ToggleOutputAction, SwitchOutputActionItem, SwitchOutputAction, ClearOutputAction} from 'vs/workbench/parts/output/browser/outputActions';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 
@@ -51,8 +51,7 @@ class OutputEditorActionContributor extends EditorInputActionContributor {
 let actionRegistry = <IWorkbenchActionRegistry>Registry.as(ActionExtensions.WorkbenchActions);
 let actionBarRegistry = <IActionBarRegistry>Registry.as(ActionBarExtensions.Actionbar);
 
-// register show output action globally
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(GlobalShowOutputAction, GlobalShowOutputAction.ID, GlobalShowOutputAction.LABEL), nls.localize('viewCategory', "View"));
+// register toggle output action globally
 
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleOutputAction, ToggleOutputAction.ID, ToggleOutputAction.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_U,
