@@ -431,9 +431,6 @@ export class View extends ViewEventHandler implements EditorBrowser.IView, Lifec
 		if (e.stylingInfo) {
 			Configuration.applyEditorStyling(this.domNode, this.context.configuration.editor.stylingInfo);
 		}
-		// Give textarea same font size & line height as editor, for the IME case (when the textarea is visible)
-		DomUtils.StyleMutator.setFontSize(this.textArea, this.context.configuration.editor.fontSize);
-		DomUtils.StyleMutator.setLineHeight(this.textArea, this.context.configuration.editor.lineHeight);
 		return false;
 	}
 	public onScrollChanged(e:EditorCommon.IScrollEvent): boolean {
@@ -619,12 +616,7 @@ export class View extends ViewEventHandler implements EditorBrowser.IView, Lifec
 		if (this._isDisposed) {
 			throw new Error('ViewImpl.focus: View is disposed');
 		}
-		// Chrome does not trigger the focus event at all if focus is in url bar and clicking into the editor
-		// Calling .focus() and then .select() seems to be a good workaround for Chrome in this case
-		var state = DomUtils.saveParentsScrollTop(this.textArea);
-		this.textArea.focus();
-		DomUtils.selectTextInInputElement(this.textArea);
-		DomUtils.restoreParentsScrollTop(this.textArea, state);
+		this.keyboardHandler.focusTextArea();
 
 		// IE does not trigger the focus event immediately, so we must help it a little bit
 		this._setHasFocus(true);
