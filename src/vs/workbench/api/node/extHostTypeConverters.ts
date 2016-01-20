@@ -198,9 +198,11 @@ export namespace SymbolKind {
 				return 'class';
 			case types.SymbolKind.Interface:
 				return 'interface';
-			case types.SymbolKind.Module:
 			case types.SymbolKind.Namespace:
+				return 'namespace';
 			case types.SymbolKind.Package:
+				return 'package';
+			case types.SymbolKind.Module:
 				return 'module';
 			case types.SymbolKind.Property:
 				return 'property';
@@ -234,9 +236,11 @@ export namespace SymbolKind {
 				return types.SymbolKind.Class;
 			case 'interface':
 				return types.SymbolKind.Interface;
+			case 'namespace':
+				return types.SymbolKind.Namespace;
+			case 'package':
+				return types.SymbolKind.Package;
 			case 'module':
-			// case types.SymbolKind.Namespace:
-			// case types.SymbolKind.Package:
 				return types.SymbolKind.Module;
 			case 'property':
 				return types.SymbolKind.Property;

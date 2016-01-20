@@ -221,6 +221,8 @@ class OutlineModel extends QuickOpenModel {
 		result['variable'] = nls.localize('variable', "variables ({0})");
 		result['class'] = nls.localize('class', "classes ({0})");
 		result['interface'] = nls.localize('interface', "interfaces ({0})");
+		result['namespace'] = nls.localize('namespace', "namespaces ({0})");
+		result['package'] = nls.localize('package', "packages ({0})");
 		result['module'] = nls.localize('modules', "modules ({0})");
 		result['property'] = nls.localize('property', "properties ({0})");
 		result['enum'] = nls.localize('enum', "enumerations ({0})");
