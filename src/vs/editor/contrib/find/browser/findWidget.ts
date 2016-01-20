@@ -484,7 +484,7 @@ export class FindWidget extends Widget implements EditorBrowser.IOverlayWidget {
 
 		// Replace one button
 		this._replaceBtn = this._register(new SimpleButton({
-			label: NLS_REPLACE_BTN_LABEL,
+			label: NLS_REPLACE_BTN_LABEL + this._keybindingLabelFor(FIND_IDS.ReplaceOneAction),
 			className: 'replace',
 			onTrigger: () => {
 				this._controller.replace();
@@ -499,7 +499,7 @@ export class FindWidget extends Widget implements EditorBrowser.IOverlayWidget {
 
 		// Replace all button
 		this._replaceAllBtn = this._register(new SimpleButton({
-			label: NLS_REPLACE_ALL_BTN_LABEL,
+			label: NLS_REPLACE_ALL_BTN_LABEL + this._keybindingLabelFor(FIND_IDS.ReplaceAllAction),
 			className: 'replace-all',
 			onTrigger: () => {
 				this._controller.replaceAll();

@@ -27,7 +27,9 @@ export const FIND_IDS = {
 	CloseFindWidgetCommand: 'closeFindWidget',
 	ToggleCaseSensitiveCommand: 'toggleFindCaseSensitive',
 	ToggleWholeWordCommand: 'toggleFindWholeWord',
-	ToggleRegexCommand: 'toggleFindRegex'
+	ToggleRegexCommand: 'toggleFindRegex',
+	ReplaceOneAction: 'editor.action.replaceOne',
+	ReplaceAllAction: 'editor.action.replaceAll'
 }
 
 export const MATCHES_LIMIT = 999;
