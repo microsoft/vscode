@@ -232,6 +232,8 @@ class OutlineModel extends QuickOpenModel {
 		result['array'] = nls.localize('array', "arrays ({0})");
 		result['number'] = nls.localize('number', "numbers ({0})");
 		result['boolean'] = nls.localize('boolean', "booleans ({0})");
+		result['object'] = nls.localize('object', "objects ({0})");
+		result['key'] = nls.localize('key', "keys ({0})");
 		return result;
 	}
 }

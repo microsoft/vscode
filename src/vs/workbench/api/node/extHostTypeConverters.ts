@@ -218,6 +218,12 @@ export namespace SymbolKind {
 				return 'number';
 			case types.SymbolKind.Boolean:
 				return 'boolean';
+			case types.SymbolKind.Object:
+				return 'object';
+			case types.SymbolKind.Key:
+				return 'key';
+			case types.SymbolKind.Null:
+				return 'null';
 		}
 		return 'property';
 	}
@@ -256,6 +262,12 @@ export namespace SymbolKind {
 				return types.SymbolKind.Number;
 			case 'boolean':
 				return types.SymbolKind.Boolean;
+			case 'object':
+				return types.SymbolKind.Object;
+			case 'key':
+				return types.SymbolKind.Key;
+			case 'null':
+				return types.SymbolKind.Null;
 		}
 		return types.SymbolKind.Property;
 	}
