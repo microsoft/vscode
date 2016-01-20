@@ -9,6 +9,7 @@
 
 .monaco-workbench > .part.panel > .title {
 	display: block;
+	text-transform: uppercase;
 	border-top: 1px solid #007ACC;
 }
 
