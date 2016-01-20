@@ -214,7 +214,7 @@ class ConfigureTaskRunnerAction extends Action {
 					forceOpen: true
 				}
 			}, sideBySide).then((value) => {
-				this.outputService.showOutput(TaskService.OutputChannel, true, true);
+				this.outputService.showOutput(TaskService.OutputChannel, true);
 				return value;
 			});
 		}, (error) => {
@@ -531,7 +531,7 @@ class TaskService extends EventEmitter implements ITaskService {
 					}
 					if (isAffected) {
 						this.outputService.append(TaskService.OutputChannel, nls.localize('TaskSystem.invalidTaskJson', 'Error: The content of the tasks.json file has syntax errors. Please correct them before executing a task.\n'));
-						this.outputService.showOutput(TaskService.OutputChannel, true, true);
+						this.outputService.showOutput(TaskService.OutputChannel, true);
 						return TPromise.wrapError({});
 					}
 				}
@@ -605,7 +605,7 @@ class TaskService extends EventEmitter implements ITaskService {
 				result = false;
 				this.outputService.append(TaskService.OutputChannel, line + '\n');
 			});
-			this.outputService.showOutput(TaskService.OutputChannel, true, true);
+			this.outputService.showOutput(TaskService.OutputChannel, true);
 		}
 		return result;
 	}
@@ -761,7 +761,7 @@ class TaskService extends EventEmitter implements ITaskService {
 			this.messageService.show(Severity.Error, nls.localize('TaskSystem.unknownError', 'An error has occurred while running a task. See task log for details.'));
 		}
 		if (showOutput) {
-			this.outputService.showOutput(TaskService.OutputChannel, false, true);
+			this.outputService.showOutput(TaskService.OutputChannel, true);
 		}
 	}
 }

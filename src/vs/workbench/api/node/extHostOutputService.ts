@@ -47,8 +47,8 @@ export class ExtHostOutputChannel implements vscode.OutputChannel {
 		this._proxy.clear(this._name);
 	}
 
-	show(column?: vscode.ViewColumn, preserveFocus?: boolean): void {
-		this._proxy.reveal(this._name, TypeConverters.fromViewColumn(column), preserveFocus);
+	show(preserveFocus?: boolean): void {
+		this._proxy.reveal(this._name, preserveFocus);
 	}
 
 	hide(): void {
@@ -95,8 +95,8 @@ export class MainThreadOutputService {
 		return undefined;
 	}
 
-	public reveal(channel: string, position: Position, preserveFocus: boolean): TPromise<void> {
-		this._outputService.showOutput(channel, position, preserveFocus);
+	public reveal(channel: string, preserveFocus: boolean): TPromise<void> {
+		this._outputService.showOutput(channel, preserveFocus);
 		return undefined;
 	}
 

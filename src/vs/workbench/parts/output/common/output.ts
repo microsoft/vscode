@@ -89,7 +89,7 @@ export interface IOutputService {
 	 * The optional channel allows to show the output for a specific channel. If you leave the
 	 * channel out, you show the default channels output.
 	 */
-	showOutput(channel?: string, sideBySide?: boolean|Position, preserveFocus?: boolean): TPromise<IEditor>;
+	showOutput(channel?: string, preserveFocus?: boolean): TPromise<IEditor>;
 
 	/**
 	 * Allows to register on Output events
@@ -100,6 +100,11 @@ export interface IOutputService {
 	 * Allows to register on a new Output channel getting filled with output
 	 */
 	onOutputChannel: Event<string>;
+
+	/**
+	 * Reveals the last line on the editor that has the passed channel set as output.
+	 */
+	revealLastLine(): void;
 }
 
 export interface IOutputChannelRegistry {

@@ -69,9 +69,7 @@ export class GlobalShowOutputAction extends Action {
 			channelToOpen = (<IOutputChannelRegistry>Registry.as(Extensions.OutputChannels)).getChannels()[0];
 		}
 
-		let sideBySide = !!(event && (event.ctrlKey || event.metaKey));
-
-		return this.outputService.showOutput(channelToOpen, sideBySide, false /* Do not preserve Focus */);
+		return this.outputService.showOutput(channelToOpen, false /* Do not preserve Focus */);
 	}
 }
 
