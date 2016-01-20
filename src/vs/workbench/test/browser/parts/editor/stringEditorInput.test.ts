@@ -10,7 +10,6 @@ import {Promise } from 'vs/base/common/winjs.base';
 import * as Strings from 'vs/base/common/strings';
 import URI from 'vs/base/common/uri';
 import {StringEditorInput} from 'vs/workbench/common/editor/stringEditorInput';
-import {LogEditorInput} from 'vs/workbench/common/editor/logEditorInput';
 import {ResourceEditorInput} from 'vs/workbench/common/editor/resourceEditorInput';
 import {ResourceEditorModel} from 'vs/workbench/common/editor/resourceEditorModel';
 import {TestWorkspace, TestEditorService, MockRequestService} from 'vs/workbench/test/browser/servicesTestUtils';
@@ -109,17 +108,6 @@ suite("Workbench - StringEditorInput", () => {
 
 		assert.strictEqual(promiseEditorInput.matches(promiseEditorInput2), true);
 		assert.strictEqual(stringEditorInput.matches(stringEditorInput2), true);
-	});
-
-	test("LogEditorInput", function() {
-		let inst = InstantiationService.create({});
-
-		let logEditorInput = inst.createInstance(LogEditorInput, "name", 'description', "value\nvalue\nvalue", "mime", false);
-		let logEditorInput2 = inst.createInstance(LogEditorInput, "name", 'description', "value\nvalue\nvalue", "mime", false);
-		let stringEditorInput = inst.createInstance(StringEditorInput, "name", 'description', "value", "mime", false);
-
-		assert.strictEqual(logEditorInput.matches(stringEditorInput), false);
-		assert.strictEqual(logEditorInput.matches(logEditorInput2), true);
 	});
 
 	test("ResourceEditorInput", function(done) {

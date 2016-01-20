@@ -13,7 +13,6 @@ import {DefaultConfig} from 'vs/editor/common/config/defaultConfig';
 import {EditorConfiguration} from 'vs/editor/common/config/commonEditorConfig';
 import {TextEditorOptions, EditorModel, EditorInput, EditorOptions} from 'vs/workbench/common/editor';
 import {BaseTextEditorModel} from 'vs/workbench/common/editor/textEditorModel';
-import {LogEditorInput} from 'vs/workbench/common/editor/logEditorInput';
 import {UntitledEditorInput} from 'vs/workbench/common/editor/untitledEditorInput';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
 import {UntitledEditorEvent, EventType} from 'vs/workbench/common/events';
@@ -132,11 +131,6 @@ export class StringEditor extends BaseTextEditor {
 
 			// Apply options again because input has changed
 			textEditor.updateOptions(this.getCodeEditorOptions());
-
-			// Auto reveal last line for log editors
-			if (input instanceof LogEditorInput) {
-				this.revealLastLine();
-			}
 		});
 	}
 
@@ -156,18 +150,12 @@ export class StringEditor extends BaseTextEditor {
 		let options = super.getCodeEditorOptions();
 
 		let input = this.getInput();
-		let isLog = input instanceof LogEditorInput;
 		let isUntitled = input instanceof UntitledEditorInput;
 
 		options.readOnly = !isUntitled; 				// all string editors are readonly except for the untitled one
 
-		if (isLog) {
-			options.wrappingColumn = 0;					// all log editors wrap
-			options.lineNumbers = false;				// all log editors hide line numbers
-		} else {
-			options.wrappingColumn = this.defaultWrappingColumn; 	// otherwise make sure to restore the defaults
-			options.lineNumbers = this.defaultLineNumbers; 			// otherwise make sure to restore the defaults
-		}
+		options.wrappingColumn = this.defaultWrappingColumn; 	// otherwise make sure to restore the defaults
+		options.lineNumbers = this.defaultLineNumbers; 			// otherwise make sure to restore the defaults
 
 		return options;
 	}
@@ -186,15 +174,6 @@ export class StringEditor extends BaseTextEditor {
 
 	public supportsSplitEditor(): boolean {
 		return true;
-	}
-
-	public focus(): void {
-		super.focus();
-
-		// Auto reveal last line for log editors
-		if (this.getInput() instanceof LogEditorInput) {
-			this.revealLastLine();
-		}
 	}
 
 	public clearInput(): void {

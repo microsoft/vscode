@@ -14,6 +14,7 @@ import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/edito
 import {IEditor, Position} from 'vs/platform/editor/common/editor';
 import {IEventService} from 'vs/platform/event/common/event';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
+import {OutputPanel} from 'vs/workbench/parts/output/browser/outputPanel';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 
 export class OutputService implements IOutputService {
@@ -171,7 +172,7 @@ export class OutputService implements IOutputService {
 			}
 
 			// Still reveal last line
-			(<OutputEditorInput>existingOutputEditor.input).revealLastLine();
+			(<OutputPanel>existingOutputEditor).revealLastLine();
 
 			return Promise.as(existingOutputEditor);
 		}

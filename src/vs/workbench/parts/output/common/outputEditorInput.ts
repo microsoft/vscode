@@ -7,15 +7,14 @@
 import {TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import {EditorModel} from 'vs/workbench/common/editor';
-import {LogEditorInput} from 'vs/workbench/common/editor/logEditorInput';
+import {StringEditorInput} from 'vs/workbench/common/editor/stringEditorInput';
 import {OUTPUT_EDITOR_INPUT_ID, IOutputEvent, OUTPUT_MIME, IOutputService} from 'vs/workbench/parts/output/common/output';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 
 /**
  * Output Editor Input
  */
-export class OutputEditorInput extends LogEditorInput {
+export class OutputEditorInput extends StringEditorInput {
 
 	private static instances: { [channel: string]: OutputEditorInput; } = Object.create(null);
 	private static MAX_OUTPUT_LINES = 10000; // Max. number of output lines to show in output
@@ -41,10 +40,9 @@ export class OutputEditorInput extends LogEditorInput {
 	constructor(
 		channel: string,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IOutputService private outputService: IOutputService
 	) {
-		super(nls.localize('output', "Output"), channel ? nls.localize('outputChannel', "for '{0}'", channel) : '', '', OUTPUT_MIME, true, instantiationService, editorService);
+		super(nls.localize('output', "Output"), channel ? nls.localize('outputChannel', "for '{0}'", channel) : '', '', OUTPUT_MIME, true, instantiationService);
 
 		this.channel = channel;
 		this.toUnbind = [];
