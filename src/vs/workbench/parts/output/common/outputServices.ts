@@ -7,12 +7,11 @@ import {Promise, TPromise} from 'vs/base/common/winjs.base';
 import strings = require('vs/base/common/strings');
 import Event, {Emitter} from 'vs/base/common/event';
 import {EditorOptions} from 'vs/workbench/common/editor';
-import {OUTPUT_MIME, DEFAULT_OUTPUT_CHANNEL, IOutputEvent, IOutputService} from 'vs/workbench/parts/output/common/output';
+import {OUTPUT_MIME, DEFAULT_OUTPUT_CHANNEL, IOutputEvent, IOutputService, OUTPUT_PANEL_ID} from 'vs/workbench/parts/output/common/output';
 import {OutputEditorInput} from 'vs/workbench/parts/output/common/outputEditorInput';
 import {IEditor, Position} from 'vs/platform/editor/common/editor';
 import {IEventService} from 'vs/platform/event/common/event';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
-import {OUTPUT_PANEL_ID} from 'vs/workbench/parts/output/common/output';
 import {OutputPanel} from 'vs/workbench/parts/output/browser/outputPanel';
 import {IPanelService} from 'vs/workbench/services/panel/common/panelService';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
@@ -157,6 +156,14 @@ export class OutputService implements IOutputService {
 		return Object.keys(this.receivedOutput);
 	}
 
+	public getActiveChannel(): string {
+		if (!this.outputPanel || !this.outputPanel.getInput()) {
+			return null;
+		}
+
+		return (<OutputEditorInput>this.outputPanel.getInput()).getChannel();
+	}
+
 	public clearOutput(channel = DEFAULT_OUTPUT_CHANNEL): void {
 		this.receivedOutput[channel] = '';
 
@@ -166,7 +173,8 @@ export class OutputService implements IOutputService {
 	public showOutput(channel: string = DEFAULT_OUTPUT_CHANNEL, preserveFocus?: boolean): TPromise<IEditor> {
 		return this.panelService.openPanel(OUTPUT_PANEL_ID, !preserveFocus).then((panel: OutputPanel) => {
 			this.outputPanel = panel;
-			return this.setChannel(channel).then(() => this.outputPanel);
+			return this.outputPanel.setInput(OutputEditorInput.getInstance(this.instantiationService, channel), EditorOptions.create({ preserveFocus: true })).
+				then(() => this.outputPanel);
 		});
 	}
 
@@ -174,15 +182,6 @@ export class OutputService implements IOutputService {
 		if (this.outputPanel) {
 			this.outputPanel.revealLastLine();
 		}
-	}
-
-	private setChannel(channel: string): Promise {
-		const input = OutputEditorInput.getInstance(this.instantiationService, channel);
-		if (this.outputPanel.getInput().getId() !== input.getId()) {
-			return this.outputPanel.setInput(input, EditorOptions.create({ preserveFocus: true }));
-		}
-
-		return Promise.as(null);
 	}
 
 	public dispose(): void {

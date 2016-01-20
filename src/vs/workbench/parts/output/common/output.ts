@@ -76,6 +76,11 @@ export interface IOutputService {
 	getChannels(): string[];
 
 	/**
+	 * Returns the name of the currently opened channel.
+	 */
+	getActiveChannel(): string;
+
+	/**
 	 * Clears all received output.
 	 *
 	 * The optional channel allows to clear the output for a specific channel. If you leave the
