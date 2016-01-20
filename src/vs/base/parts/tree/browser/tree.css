@@ -147,14 +147,6 @@
 	opacity: 0.3;
 }
 
-/* Fake row */
-.monaco-tree .monaco-tree-rows > .monaco-tree-row.fake {
-	position: absolute;
-	visibility: hidden;
-	top: -1000px;
-	left: -1000px;
-	z-index: -100;
-}
 
 /* Bare row */
 .monaco-tree.bare .monaco-tree-wrapper.drop-target,
