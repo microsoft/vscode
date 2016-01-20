@@ -145,6 +145,19 @@ class ExtHostApiCommands {
 			],
 			returns: 'A promise that resolves to an array of TextEdits.'
 		});
+
+
+		this._register('vscode.previewHtml', (uri: URI, position?: vscode.ViewColumn) => {
+			return this._commands.executeCommand('_workbench.previewHtml', uri,
+				typeof position === 'number' ? typeConverters.fromViewColumn(position) : void 0);
+
+		}, {
+			description: 'Preview an html document.',
+			args: [
+				{ name: 'uri', description: 'Uri of the document to preview.', constraint: URI },
+				{ name: 'column', description: '(optional) Column in which to preview.' },
+			]
+		});
 	}
 
 	// --- command impl

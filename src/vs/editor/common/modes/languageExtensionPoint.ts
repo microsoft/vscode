@@ -62,9 +62,9 @@ let languagesExtPoint = PluginsRegistry.registerExtensionPoint<ILanguageExtensio
 					type: 'string'
 				}
 			},
-			prefixes: {
-				description: nls.localize('vscode.extension.contributes.languages.prefixes', 'File name prefixes associated to the language.'),
-				default: ['foo*'],
+			filenamePatterns: {
+				description: nls.localize('vscode.extension.contributes.languages.filenamePatterns', 'File name glob patterns associated to the language.'),
+				default: ['bar*foo.txt'],
 				type: 'array',
 				item: {
 					type: 'string'
@@ -93,7 +93,7 @@ export interface ILanguageExtensionPoint {
 	id: string;
 	extensions?: string[];
 	filenames?: string[];
-	prefixes?: string[];
+	filenamePatterns?: string[];
 	firstLine?: string;
 	aliases?: string[];
 	mimetypes?: string[];
@@ -341,9 +341,9 @@ class LanguageExtensionPointHandler implements IThreadSynchronizableObject<ILang
 			}
 		}
 
-		if (Array.isArray(lang.prefixes)) {
-			for (let prefix of lang.prefixes) {
-				Mime.registerTextMimeByFilename(prefix, primaryMime);
+		if (Array.isArray(lang.filenamePatterns)) {
+			for (let filenamePattern of lang.filenamePatterns) {
+				Mime.registerTextMimeByFilename(filenamePattern, primaryMime);
 			}
 		}
 

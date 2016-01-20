@@ -198,9 +198,11 @@ export namespace SymbolKind {
 				return 'class';
 			case types.SymbolKind.Interface:
 				return 'interface';
-			case types.SymbolKind.Module:
 			case types.SymbolKind.Namespace:
+				return 'namespace';
 			case types.SymbolKind.Package:
+				return 'package';
+			case types.SymbolKind.Module:
 				return 'module';
 			case types.SymbolKind.Property:
 				return 'property';
@@ -216,6 +218,12 @@ export namespace SymbolKind {
 				return 'number';
 			case types.SymbolKind.Boolean:
 				return 'boolean';
+			case types.SymbolKind.Object:
+				return 'object';
+			case types.SymbolKind.Key:
+				return 'key';
+			case types.SymbolKind.Null:
+				return 'null';
 		}
 		return 'property';
 	}
@@ -234,9 +242,11 @@ export namespace SymbolKind {
 				return types.SymbolKind.Class;
 			case 'interface':
 				return types.SymbolKind.Interface;
+			case 'namespace':
+				return types.SymbolKind.Namespace;
+			case 'package':
+				return types.SymbolKind.Package;
 			case 'module':
-			// case types.SymbolKind.Namespace:
-			// case types.SymbolKind.Package:
 				return types.SymbolKind.Module;
 			case 'property':
 				return types.SymbolKind.Property;
@@ -252,6 +262,12 @@ export namespace SymbolKind {
 				return types.SymbolKind.Number;
 			case 'boolean':
 				return types.SymbolKind.Boolean;
+			case 'object':
+				return types.SymbolKind.Object;
+			case 'key':
+				return types.SymbolKind.Key;
+			case 'null':
+				return types.SymbolKind.Null;
 		}
 		return types.SymbolKind.Property;
 	}

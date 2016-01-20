@@ -9,14 +9,19 @@
 .monaco-workbench .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.variable,
 .monaco-workbench .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.class,
 .monaco-workbench .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.interface,
+.monaco-workbench .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.object,
+.monaco-workbench .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.namespace,
+.monaco-workbench .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.package,
 .monaco-workbench .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.module,
 .monaco-workbench .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.property,
 .monaco-workbench .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.enum,
+.monaco-workbench .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.key,
 .monaco-workbench .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.string,
 .monaco-workbench .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.rule,
 .monaco-workbench .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.file,
 .monaco-workbench .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.array,
 .monaco-workbench .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.number,
+.monaco-workbench .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.null,
 .monaco-workbench .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.boolean {
 	background-image: url('symbol-sprite.svg');
 	background-repeat: no-repeat;
@@ -28,14 +33,19 @@
 .monaco-workbench.vs .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.variable 			{ background-position: -22px -4px; }
 .monaco-workbench.vs .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.class 			{ background-position: -43px -3px; }
 .monaco-workbench.vs .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.interface 		{ background-position: -63px -4px; }
+.monaco-workbench.vs .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.object,
+.monaco-workbench.vs .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.namespace,
+.monaco-workbench.vs .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.package,
 .monaco-workbench.vs .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.module 			{ background-position: -82px -4px; }
 .monaco-workbench.vs .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.property 			{ background-position: -102px -3px; }
 .monaco-workbench.vs .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.enum		 		{ background-position: -122px -3px; }
+.monaco-workbench.vs .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.key,
 .monaco-workbench.vs .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.string		 	{ background-position: -202px -3px; }
 .monaco-workbench.vs .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.rule		 		{ background-position: -242px -4px; }
 .monaco-workbench.vs .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.file		 		{ background-position: -262px -4px; }
 .monaco-workbench.vs .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.array		 		{ background-position: -302px -4px; }
 .monaco-workbench.vs .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.number		 	{ background-position: -322px -4px; }
+.monaco-workbench.vs .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.null,
 .monaco-workbench.vs .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.boolean		 	{ background-position: -343px -4px; }
 
 .monaco-workbench.vs-dark .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.method,
@@ -44,14 +54,19 @@
 .monaco-workbench.vs-dark .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.variable 	{ background-position: -22px -24px; }
 .monaco-workbench.vs-dark .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.class 		{ background-position: -43px -23px; }
 .monaco-workbench.vs-dark .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.interface 	{ background-position: -63px -24px; }
+.monaco-workbench.vs-dark .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.object,
+.monaco-workbench.vs-dark .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.namespace,
+.monaco-workbench.vs-dark .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.package,
 .monaco-workbench.vs-dark .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.module 		{ background-position: -82px -24px; }
 .monaco-workbench.vs-dark .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.property 	{ background-position: -102px -23px; }
+.monaco-workbench.vs-dark .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.key,
 .monaco-workbench.vs-dark .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.string		{ background-position: -202px -23px; }
 .monaco-workbench.vs-dark .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.enum		 	{ background-position: -122px -23px; }
 .monaco-workbench.vs-dark .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.rule		 	{ background-position: -242px -24px; }
 .monaco-workbench.vs-dark .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.file		 	{ background-position: -262px -24px; }
 .monaco-workbench.vs-dark .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.array		{ background-position: -302px -24px; }
 .monaco-workbench.vs-dark .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.number		{ background-position: -322px -24px; }
+.monaco-workbench.vs-dark .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.null,
 .monaco-workbench.vs-dark .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.boolean		{ background-position: -342px -24px; }
 
 /* High Contrast Theming */
@@ -62,14 +77,19 @@
 .monaco-workbench.hc-black .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.variable,
 .monaco-workbench.hc-black .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.class,
 .monaco-workbench.hc-black .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.interface,
+.monaco-workbench.hc-black .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.object,
+.monaco-workbench.hc-black .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.namespace,
+.monaco-workbench.hc-black .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.package,
 .monaco-workbench.hc-black .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.module,
 .monaco-workbench.hc-black .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.property,
 .monaco-workbench.hc-black .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.enum,
+.monaco-workbench.hc-black .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.key,
 .monaco-workbench.hc-black .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.string,
 .monaco-workbench.hc-black .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.rule,
 .monaco-workbench.hc-black .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.file,
 .monaco-workbench.hc-black .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.array,
 .monaco-workbench.hc-black .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.number,
+.monaco-workbench.hc-black .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.null,
 .monaco-workbench.hc-black .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.boolean {
 	background: none;
 	display: inline;
@@ -81,14 +101,19 @@
 .monaco-workbench.hc-black .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.variable:before,
 .monaco-workbench.hc-black .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.class:before,
 .monaco-workbench.hc-black .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.interface:before,
+.monaco-workbench.hc-black .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.object:before,
+.monaco-workbench.hc-black .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.namespace:before,
+.monaco-workbench.hc-black .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.package:before,
 .monaco-workbench.hc-black .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.module:before,
 .monaco-workbench.hc-black .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.property:before,
 .monaco-workbench.hc-black .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.enum:before,
+.monaco-workbench.hc-black .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.key:before,
 .monaco-workbench.hc-black .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.string:before,
 .monaco-workbench.hc-black .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.rule:before,
 .monaco-workbench.hc-black .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.file:before,
 .monaco-workbench.hc-black .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.array:before,
 .monaco-workbench.hc-black .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.number:before,
+.monaco-workbench.hc-black .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.null:before,
 .monaco-workbench.hc-black .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.boolean:before {
 	height: 16px;
 	width: 16px;
@@ -116,6 +141,9 @@
 	content: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiI+PHBhdGggZmlsbD0iIzc1QkVGRiIgZD0iTTExLjUgNGMtMS43NTkgMC0zLjIwNCAxLjMwOC0zLjQ0OSAzaC0zLjEyMmMtLjIyMy0uODYxLS45OTgtMS41LTEuOTI5LTEuNS0xLjEwNCAwLTIgLjg5NS0yIDIgMCAxLjEwNC44OTYgMiAyIDIgLjkzMSAwIDEuNzA2LS42MzkgMS45MjktMS41aDMuMTIyYy4yNDUgMS42OTEgMS42OSAzIDMuNDQ5IDMgMS45MyAwIDMuNS0xLjU3IDMuNS0zLjUgMC0xLjkzMS0xLjU3LTMuNS0zLjUtMy41em0wIDVjLS44MjcgMC0xLjUtLjY3NC0xLjUtMS41IDAtLjgyOC42NzMtMS41IDEuNS0xLjVzMS41LjY3MiAxLjUgMS41YzAgLjgyNi0uNjczIDEuNS0xLjUgMS41eiIvPjwvc3ZnPg==");
 }
 
+.monaco-workbench.hc-black .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.object:before,
+.monaco-workbench.hc-black .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.namespace:before,
+.monaco-workbench.hc-black .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.package:before,
 .monaco-workbench.hc-black .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.module:before {
 	content: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiI+PHBhdGggZmlsbD0iI0M1QzVDNSIgZD0iTTkgMTF2LTFjMC0uODM0LjQ5Ni0xLjczOCAxLTItLjUwNC0uMjctMS0xLjE2OC0xLTJ2LTFjMC0uODQtLjU4NC0xLTEtMXYtMWMyLjA4MyAwIDIgMS4xNjYgMiAydjFjMCAuOTY5LjcwMy45OCAxIDF2MmMtLjMyMi4wMi0xIC4wNTMtMSAxdjFjMCAuODM0LjA4MyAyLTIgMnYtMWMuODMzIDAgMS0xIDEtMXptLTYgMHYtMWMwLS44MzQtLjQ5Ni0xLjczOC0xLTIgLjUwNC0uMjcgMS0xLjE2OCAxLTJ2LTFjMC0uODQuNTg0LTEgMS0xdi0xYy0yLjA4MyAwLTIgMS4xNjYtMiAydjFjMCAuOTY5LS43MDMuOTgtMSAxdjJjLjMyMi4wMiAxIC4wNTMgMSAxdjFjMCAuODM0LS4wODMgMiAyIDJ2LTFjLS44MzMgMC0xLTEtMS0xeiIvPjwvc3ZnPg==");
 	margin-left: 2px;

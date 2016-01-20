@@ -536,6 +536,9 @@ export enum SymbolKind {
 	Number,
 	Boolean,
 	Array,
+	Object,
+	Key,
+	Null
 }
 
 export class SymbolInformation {

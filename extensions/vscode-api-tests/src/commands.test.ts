@@ -49,7 +49,7 @@ suite("commands namespace tests", () => {
 
 		let virtualDocumentUri = Uri.parse('speciale://authority/path')
 
-		return commands.executeCommand('workbench.html.preview', virtualDocumentUri).then(success => {
+		return commands.executeCommand('vscode.previewHtml', virtualDocumentUri).then(success => {
 			assert.ok(success);
 			registration.dispose();
 		});

@@ -1453,7 +1453,10 @@ declare namespace vscode {
 		String,
 		Number,
 		Boolean,
-		Array
+		Array,
+		Object,
+		Key,
+		Null
 	}
 
 	/**
