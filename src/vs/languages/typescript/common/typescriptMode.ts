@@ -229,7 +229,6 @@ export class TypeScriptMode<W extends typescriptWorker.TypeScriptWorker2> extend
 		this.suggestSupport = new supports.SuggestSupport(this, {
 			triggerCharacters: ['.'],
 			excludeTokens: ['string', 'comment', 'number'],
-			sortBy: [{type:'reference', partSeparator: '/'}],
 			suggest: (resource, position) => this.suggest(resource, position),
 			getSuggestionDetails: (resource, position, suggestion) => this.getSuggestionDetails(resource, position, suggestion)});
 

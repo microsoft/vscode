@@ -57,8 +57,8 @@ export interface IPluginsIPC extends remote.IRemoteCom {
 	handle(msg: string): void;
 }
 
-export function create(send:(obj:string)=>void): IPluginsIPC {
-	var rpc = createRPC(serializeAndSend);
+export function create(send: (obj: string) => void): IPluginsIPC {
+	var rpc = createRPC(marshallAndSend);
 	var bigHandler: remote.IManyHandler = null;
 	var invokedHandlers: { [req: string]: winjs.TPromise<any>; } = Object.create(null);
 
@@ -118,13 +118,13 @@ export function create(send:(obj:string)=>void): IPluginsIPC {
 
 			invokedHandlers[req].then((r) => {
 				delete invokedHandlers[req];
-				serializeAndSend({
+				marshallAndSend({
 					seq: req,
 					res: r
 				});
 			},(err) => {
 				delete invokedHandlers[req];
-				serializeAndSend({
+				marshallAndSend({
 					seq: req,
 					err: errors.transformErrorForSerialization(err)
 				});
@@ -134,7 +134,7 @@ export function create(send:(obj:string)=>void): IPluginsIPC {
 
 	var proxiesMarshalling = new remote.ProxiesMarshallingContribution(r);
 
-	function serializeAndSend(msg:any): void {
+	function marshallAndSend(msg:any): void {
 		send(marshalling.marshallObject(msg, proxiesMarshalling));
 	}
 

@@ -128,7 +128,7 @@ export class ElectronIntegration {
 		ipc.on('vscode:showAutoSaveInfo', () => {
 			this.messageService.show(
 				Severity.Info, {
-					message: nls.localize('autoSaveInfo', "The **File | Auto Save** option moved into settings and **files.autoSaveDelay: 1** will be added to preserve it."),
+					message: nls.localize('autoSaveInfo', "The **File | Auto Save** option moved into settings and **files.autoSave: \"afterDelay\"** will be added to preserve it."),
 					actions: [
 						CloseAction,
 						this.instantiationService.createInstance(OpenGlobalSettingsAction, OpenGlobalSettingsAction.ID, OpenGlobalSettingsAction.LABEL)
@@ -139,7 +139,7 @@ export class ElectronIntegration {
 		ipc.on('vscode:showAutoSaveError', () => {
 			this.messageService.show(
 				Severity.Warning, {
-					message: nls.localize('autoSaveError', "Unable to write to settings. Please add **files.autoSaveDelay: 1** to settings.json."),
+					message: nls.localize('autoSaveError', "Unable to write to settings. Please add **files.autoSave: \"afterDelay\"** to settings.json."),
 					actions: [
 						CloseAction,
 						this.instantiationService.createInstance(OpenGlobalSettingsAction, OpenGlobalSettingsAction.ID, OpenGlobalSettingsAction.LABEL)

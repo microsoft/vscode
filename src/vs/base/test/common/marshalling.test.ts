@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { IMarshallingContribution, marshallObject, demarshallObject } from 'vs/base/common/marshalling';
+import { IMarshallingContribution, marshallObjectAndStringify, parseAndDemarshallObject } from 'vs/base/common/marshalling';
 
 class ObjWithRegExp {
 
@@ -38,7 +38,7 @@ suite('Marshalling', () => {
 		};
 
 		var initial = new ObjWithRegExp(/test/g);
-		var transported = <ObjWithRegExp>demarshallObject(marshallObject(initial, simpleMarshallingContrib), simpleMarshallingContrib);
+		var transported = <ObjWithRegExp>parseAndDemarshallObject(marshallObjectAndStringify(initial, simpleMarshallingContrib), simpleMarshallingContrib);
 
 		assert(transported instanceof ObjWithRegExp);
 		assert(transported.member instanceof RegExp);

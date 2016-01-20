@@ -7,6 +7,8 @@
 require('events').EventEmitter.defaultMaxListeners = 100;
 
 var gulp = require('gulp');
+var json = require('gulp-json-editor');
+var buffer = require('gulp-buffer');
 var tsb = require('gulp-tsb');
 var filter = require('gulp-filter');
 var mocha = require('gulp-mocha');
@@ -22,6 +24,7 @@ var path = require('path');
 var bom = require('gulp-bom');
 var sourcemaps = require('gulp-sourcemaps');
 var _ = require('underscore');
+var assign = require('object-assign');
 var quiet = !!process.env['VSCODE_BUILD_QUIET'];
 
 var rootDir = path.join(__dirname, 'src');
@@ -119,12 +122,27 @@ gulp.task('test', function () {
 		.once('end', function () { process.exit(); });
 });
 
+function rebase(count) {
+	return rename(function (f) {
+		var parts = f.dirname.split(/[\/\\]/);
+		f.dirname = parts.slice(count).join(path.sep);
+	});
+}
+
 gulp.task('mixin', function () {
 	var repo = process.env['VSCODE_MIXIN_REPO'];
 
 	if (!repo) {
+		console.log('Missing VSCODE_MIXIN_REPO, skipping mixin');
 		return;
 	}
+
+	var quality = process.env['VSCODE_QUALITY'];
+
+	// if (!quality) {
+	// 	console.log('Missing VSCODE_QUALITY, skipping mixin');
+	// 	return;
+	// }
 
 	var url = 'https://github.com/' + repo + '/archive/master.zip';
 	var opts = { base: '' };
@@ -136,11 +154,30 @@ gulp.task('mixin', function () {
 	}
 
 	console.log('Mixing in sources from \'' + url + '\':');
-	return remote(url, opts)
+
+	var all = remote(url, opts)
 		.pipe(zip.src())
-		.pipe(rename(function (f) {
-			f.dirname = f.dirname.replace(/^[^\/\\]+[\/\\]?/, '');
-		}))
+		.pipe(rebase(1));
+
+	if (quality) {
+		var build = all.pipe(filter('build/**'));
+		var productJsonFilter = filter('product.json', { restore: true });
+
+		var mixin = all
+			.pipe(filter('quality/' + quality + '/**'))
+			.pipe(rebase(2))
+			.pipe(productJsonFilter)
+			.pipe(buffer())
+			.pipe(json(function (patch) {
+				var original = require('./product.json');
+				return assign(original, patch);
+			}))
+			.pipe(productJsonFilter.restore);
+
+		all = es.merge(build, mixin);
+	}
+
+	return all
 		.pipe(es.mapSync(function (f) {
 			console.log(f.relative);
 			return f;

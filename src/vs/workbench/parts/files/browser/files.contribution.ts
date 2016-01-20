@@ -9,7 +9,7 @@ import 'vs/css!./media/files.contribution';
 
 import URI from 'vs/base/common/uri';
 import {SUPPORTED_ENCODINGS} from 'vs/base/common/bits/encoding';
-import {IViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor, ToggleViewletAction} from 'vs/workbench/browser/viewlet';
+import {ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor, ToggleViewletAction} from 'vs/workbench/browser/viewlet';
 import nls = require('vs/nls');
 import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
 import {Registry} from 'vs/platform/platform';
@@ -19,6 +19,7 @@ import {IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions} from
 import {IEditorRegistry, Extensions as EditorExtensions, IEditorInputFactory} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {EditorInput, IFileEditorInput} from 'vs/workbench/common/editor';
 import {FileEditorDescriptor} from 'vs/workbench/parts/files/browser/files';
+import {AutoSaveModes} from 'vs/platform/files/common/files';
 import {FILE_EDITOR_INPUT_ID, VIEWLET_ID} from 'vs/workbench/parts/files/common/files';
 import {FileTracker} from 'vs/workbench/parts/files/browser/fileTracker';
 import {SaveParticipant} from 'vs/workbench/parts/files/common/editors/saveParticipant';
@@ -48,7 +49,7 @@ export class OpenExplorerViewletAction extends ToggleViewletAction {
 }
 
 // Register Viewlet
-(<IViewletRegistry>Registry.as(ViewletExtensions.Viewlets)).registerViewlet(new ViewletDescriptor(
+(<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets)).registerViewlet(new ViewletDescriptor(
 	'vs/workbench/parts/files/browser/explorerViewlet',
 	'ExplorerViewlet',
 	VIEWLET_ID,
@@ -57,7 +58,7 @@ export class OpenExplorerViewletAction extends ToggleViewletAction {
 	0
 ));
 
-(<IViewletRegistry>Registry.as(ViewletExtensions.Viewlets)).setDefaultViewletId(VIEWLET_ID);
+(<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets)).setDefaultViewletId(VIEWLET_ID);
 
 let openViewletKb: IKeybindings = {
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_E
@@ -79,9 +80,9 @@ let openViewletKb: IKeybindings = {
 		[
 			'text/*',
 
-		// In case the mime type is unknown, we prefer the text file editor over the binary editor to leave a chance
-		// of opening a potential text file properly. The resolution of the file in the text file editor will fail
-		// early on in case the file is actually binary, to prevent downloading a potential large binary file.
+			// In case the mime type is unknown, we prefer the text file editor over the binary editor to leave a chance
+			// of opening a potential text file properly. The resolution of the file in the text file editor will fail
+			// early on in case the file is actually binary, to prevent downloading a potential large binary file.
 			'application/unknown'
 		]
 	),
@@ -124,7 +125,7 @@ interface ISerializedFileInput {
 // Register Editor Input Factory
 class FileEditorInputFactory implements IEditorInputFactory {
 
-	constructor(@INullService ns) {}
+	constructor(@INullService ns) { }
 
 	public serialize(editorInput: EditorInput): string {
 		let fileEditorInput = <FileEditorInput>editorInput;
@@ -200,15 +201,16 @@ configurationRegistry.registerConfiguration({
 			'default': false,
 			'description': nls.localize('trimTrailingWhitespace', "When enabled, will trim trailing whitespace when you save a file.")
 		},
+		'files.autoSave': {
+			'type': 'string',
+			'enum': [AutoSaveModes.OFF, AutoSaveModes.AFTER_DELAY, AutoSaveModes.ON_FOCUS_CHANGE],
+			'default': AutoSaveModes.OFF,
+			'description': nls.localize('autoSave', "Controls auto save of dirty files. Accepted values:  \"{0}\", \"{1}\", \"{2}\". If set to \"{3}\" you can configure the delay in \"files.autoSaveDelay\".", AutoSaveModes.OFF, AutoSaveModes.AFTER_DELAY, AutoSaveModes.ON_FOCUS_CHANGE, AutoSaveModes.AFTER_DELAY)
+		},
 		'files.autoSaveDelay': {
 			'type': 'number',
-			'default': 0,
-			'description': nls.localize('autoSaveDelay', "When set to a positive number, will automatically save dirty editors after configured seconds.")
-		},
-		'files.autoSaveFocusChange': {
-			'type': 'boolean',
-			'default': false,
-			'description': nls.localize('autoSaveFocusChange', "When enabled, will automatically save dirty editors when they lose focus or are closed.")
+			'default': 1000,
+			'description': nls.localize('autoSaveDelay', "Controls the delay in ms after which a dirty file is saved automatically. Only applies when \"files.autoSave\" is set to \"{0}\"", AutoSaveModes.AFTER_DELAY)
 		}
 	}
 });

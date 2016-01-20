@@ -15,8 +15,8 @@ import {ActionsOrientation, ActionBar, IActionItem} from 'vs/base/browser/ui/act
 import {Scope, IActionBarRegistry, Extensions as ActionBarExtensions, prepareActions} from 'vs/workbench/browser/actionBarRegistry';
 import {CONTEXT, ToolBar} from 'vs/base/browser/ui/toolbar/toolbar';
 import {Registry} from 'vs/platform/platform';
-import {ViewletEvent, EventType} from 'vs/workbench/common/events';
-import {ViewletDescriptor, IViewletRegistry, Extensions as ViewletExtensions} from 'vs/workbench/browser/viewlet';
+import {CompositeEvent, EventType} from 'vs/workbench/common/events';
+import {ViewletDescriptor, ViewletRegistry, Extensions as ViewletExtensions} from 'vs/workbench/browser/viewlet';
 import {Part} from 'vs/workbench/browser/part';
 import {ActivityAction, ActivityActionItem} from 'vs/workbench/browser/parts/activitybar/activityAction';
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
@@ -61,28 +61,28 @@ export class ActivitybarPart extends Part implements IActivityService {
 	private registerListeners(): void {
 
 		// Activate viewlet action on opening of a viewlet
-		this.toUnbind.push(this.eventService.addListener(EventType.VIEWLET_OPENING, (e: ViewletEvent) => this.onViewletOpening(e)));
+		this.toUnbind.push(this.eventService.addListener(EventType.COMPOSITE_OPENING, (e: CompositeEvent) => this.onCompositeOpening(e)));
 
 		// Deactivate viewlet action on close
-		this.toUnbind.push(this.eventService.addListener(EventType.VIEWLET_CLOSED, (e: ViewletEvent) => this.onViewletClosed(e)));
+		this.toUnbind.push(this.eventService.addListener(EventType.COMPOSITE_CLOSED, (e: CompositeEvent) => this.onCompositeClosed(e)));
 	}
 
-	private onViewletOpening(e: ViewletEvent): void {
-		if (this.viewletIdToActions[e.viewletId]) {
-			this.viewletIdToActions[e.viewletId].activate();
+	private onCompositeOpening(e: CompositeEvent): void {
+		if (this.viewletIdToActions[e.compositeId]) {
+			this.viewletIdToActions[e.compositeId].activate();
 
 			// There can only be one active viewlet action
 			for (let key in this.viewletIdToActions) {
-				if (this.viewletIdToActions.hasOwnProperty(key) && key !== e.viewletId) {
+				if (this.viewletIdToActions.hasOwnProperty(key) && key !== e.compositeId) {
 					this.viewletIdToActions[key].deactivate();
 				}
 			}
 		}
 	}
 
-	private onViewletClosed(e: ViewletEvent): void {
-		if (this.viewletIdToActions[e.viewletId]) {
-			this.viewletIdToActions[e.viewletId].deactivate();
+	private onCompositeClosed(e: CompositeEvent): void {
+		if (this.viewletIdToActions[e.compositeId]) {
+			this.viewletIdToActions[e.compositeId].deactivate();
 		}
 	}
 
@@ -124,7 +124,7 @@ export class ActivitybarPart extends Part implements IActivityService {
 
 		// Build Viewlet Actions in correct order
 		let activeViewlet = this.viewletService.getActiveViewlet();
-		let registry = (<IViewletRegistry>Registry.as(ViewletExtensions.Viewlets));
+		let registry = (<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets));
 		let viewletActions: Action[] = registry.getViewlets()
 			.sort((v1: ViewletDescriptor, v2: ViewletDescriptor) => v1.order - v2.order)
 			.map((viewlet: ViewletDescriptor) => {

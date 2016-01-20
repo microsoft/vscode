@@ -454,7 +454,7 @@ export class StringASTNode extends ASTNode {
 			if (!regex.test(this.value)) {
 				validationResult.warnings.push({
 					location: { start: this.start, end: this.end },
-					message: nls.localize('patternWarning', 'String does not match the pattern of "{0}"', schema.pattern)
+					message: schema.errorMessage || nls.localize('patternWarning', 'String does not match the pattern of "{0}"', schema.pattern)
 				});
 			}
 		}

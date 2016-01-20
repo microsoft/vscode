@@ -15,7 +15,7 @@ import {IResult, ITextFileOperationResult, ConfirmResult, ITextFileService, IAut
 import {EventType} from 'vs/workbench/common/events';
 import {WorkingFilesModel} from 'vs/workbench/parts/files/common/workingFilesModel';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
-import {IFilesConfiguration, IFileOperationResult, FileOperationResult} from 'vs/platform/files/common/files';
+import {IFilesConfiguration, IFileOperationResult, FileOperationResult, AutoSaveModes} from 'vs/platform/files/common/files';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 import {IEventService} from 'vs/platform/event/common/event';
@@ -100,8 +100,23 @@ export abstract class TextFileService implements ITextFileService {
 	private onConfigurationChange(configuration: IFilesConfiguration): void {
 		const wasAutoSaveEnabled = this.isAutoSaveEnabled();
 
-		this.configuredAutoSaveDelay = configuration && configuration.files && configuration.files.autoSaveDelay;
-		this.configuredAutoSaveOnFocusChange = configuration && configuration.files && configuration.files.autoSaveFocusChange;
+		const autoSaveMode = (configuration && configuration.files && configuration.files.autoSave) || AutoSaveModes.OFF;
+		switch (autoSaveMode) {
+			case AutoSaveModes.AFTER_DELAY:
+				this.configuredAutoSaveDelay = configuration && configuration.files && configuration.files.autoSaveDelay;
+				this.configuredAutoSaveOnFocusChange = false;
+				break;
+
+			case AutoSaveModes.ON_FOCUS_CHANGE:
+				this.configuredAutoSaveDelay = void 0;
+				this.configuredAutoSaveOnFocusChange = true;
+				break;
+
+			default:
+				this.configuredAutoSaveDelay = void 0;
+				this.configuredAutoSaveOnFocusChange = false;
+				break;
+		}
 
 		// Emit as event
 		this._onAutoSaveConfigurationChange.fire(this.getAutoSaveConfiguration());

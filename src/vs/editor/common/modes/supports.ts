@@ -711,23 +711,13 @@ export interface ISuggestContribution {
 	triggerCharacters: string[];
 	disableAutoTrigger?: boolean;
 	excludeTokens: string[];
-
-	sortBy?: ISortingTypeAndSeparator[];
-
 	suggest: (resource: URI, position: EditorCommon.IPosition) => TPromise<Modes.ISuggestResult[]>;
 	getSuggestionDetails? : (resource:URI, position:EditorCommon.IPosition, suggestion:Modes.ISuggestion) => TPromise<Modes.ISuggestion>;
-}
-
-export interface ISortingTypeAndSeparator {
-	type: string;
-	partSeparator?: string;
 }
 
 export class SuggestSupport extends AbstractSupport implements Modes.ISuggestSupport {
 
 	private contribution: ISuggestContribution;
-	private sortByType: string[];
-	private separatorForType: string[]; // Must have identical size to the above
 
 	public suggest : (resource:URI, position:EditorCommon.IPosition) => TPromise<Modes.ISuggestResult[]>;
 	public getSuggestionDetails : (resource:URI, position:EditorCommon.IPosition, suggestion:Modes.ISuggestion) => TPromise<Modes.ISuggestion>;
@@ -739,15 +729,6 @@ export class SuggestSupport extends AbstractSupport implements Modes.ISuggestSup
 
 		if (typeof contribution.getSuggestionDetails === 'function') {
 			this.getSuggestionDetails = (resource, position, suggestion) => contribution.getSuggestionDetails(resource, position, suggestion);
-		}
-
-		this.sortByType = [];
-		this.separatorForType = [];
-		if (Array.isArray(contribution.sortBy) && contribution.sortBy.length > 0) {
-			for (var i = 0; i < contribution.sortBy.length; ++i) {
-				this.sortByType.push(contribution.sortBy[i].type);
-				this.separatorForType.push(contribution.sortBy[i].partSeparator);
-			}
 		}
 	}
 
@@ -774,62 +755,6 @@ export class SuggestSupport extends AbstractSupport implements Modes.ISuggestSup
 
 	public getFilter(): Modes.ISuggestionFilter {
 		return DefaultFilter;
-	}
-
-	public getSorter(): Modes.ISuggestionCompare {
-		return (one, other) => {
-			if (this.sortByType.length > 0) {
-				var oneTypeIndex = this.sortByType.indexOf(one.type);
-				var otherTypeIndex = this.sortByType.indexOf(other.type);
-
-				if (oneTypeIndex < 0) {
-					oneTypeIndex = this.sortByType.length;
-				}
-				if (otherTypeIndex < 0) {
-					otherTypeIndex = this.sortByType.length;
-				}
-
-				if (oneTypeIndex < otherTypeIndex) {
-					return -1;
-				}
-				if (otherTypeIndex < oneTypeIndex) {
-					return 1;
-				}
-
-				// TypeIndices are equal
-				if (oneTypeIndex < this.sortByType.length) {
-					var separator = this.separatorForType[oneTypeIndex];
-					var oneParts = ((typeof separator === 'string' && separator.length > 0) ? one.label.split(separator) : [one.label]);
-					var otherParts = ((typeof separator === 'string' && separator.length > 0) ? other.label.split(separator) : [other.label]);
-
-					if (oneParts.length < otherParts.length) {
-						return -1;
-					} else if (oneParts.length > otherParts.length) {
-						return 1;
-					} else {
-						for (var i = 0; i < oneParts.length; i++) {
-							var result = Strings.localeCompare(oneParts[i], otherParts[i]);
-
-							if (result !== 0) {
-								return result;
-							}
-						}
-
-						return 0;
-					}
-				}
-			}
-
-			let cmp = 0;
-			if (one.sortText && other.sortText) {
-				cmp = one.sortText.localeCompare(other.sortText);
-			}
-			if (!cmp) {
-				cmp = Strings.localeCompare(one.label.toLowerCase(), other.label.toLowerCase());
-			}
-
-			return Strings.localeCompare(one.documentationLabel || '', other.documentationLabel || '');
-		};
 	}
 
 	public getTriggerCharacters(): string[] {

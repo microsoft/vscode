@@ -3,9 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import mime = require('vs/base/common/mime');
-import wbeditorcommon = require('vs/workbench/common/editor');
 import strinput = require('vs/workbench/common/editor/stringEditorInput');
 import uri from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -26,32 +24,5 @@ export class DebugStringEditorInput extends strinput.StringEditorInput {
 
 	public getResource(): uri {
 		return this.resourceUrl;
-	}
-}
-
-export class ReplEditorInput extends wbeditorcommon.EditorInput {
-
-	private static instance: ReplEditorInput;
-	public static ID = 'workbench.editors.replEditorInput';
-	public static NAME = 'Debug Console';
-
-	public static getInstance(): ReplEditorInput {
-		if (!ReplEditorInput.instance) {
-			ReplEditorInput.instance = new ReplEditorInput();
-		}
-
-		return ReplEditorInput.instance;
-	}
-
-	public getId(): string {
-		return ReplEditorInput.ID;
-	}
-
-	public getName(): string {
-		return ReplEditorInput.NAME;
-	}
-
-	public resolve(refresh?: boolean): TPromise<wbeditorcommon.EditorModel> {
-		return TPromise.as(null);
 	}
 }

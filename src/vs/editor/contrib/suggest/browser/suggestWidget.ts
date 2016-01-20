@@ -24,7 +24,7 @@ import * as Timer from 'vs/base/common/timer';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { SuggestRegistry, CONTEXT_SUGGESTION_SUPPORTS_ACCEPT_ON_KEY } from '../common/suggest';
 import { IKeybindingService, IKeybindingContextKey } from 'vs/platform/keybinding/common/keybindingService';
-import { ISuggestSupport, ISuggestResult, ISuggestion, ISuggestionCompare, ISuggestionFilter } from 'vs/editor/common/modes';
+import { ISuggestSupport, ISuggestResult, ISuggestion, ISuggestionFilter } from 'vs/editor/common/modes';
 import { DefaultFilter, IMatch } from 'vs/editor/common/modes/modesFilters';
 import { ISuggestResult2 } from '../common/suggest';
 import URI from 'vs/base/common/uri';
@@ -36,7 +36,7 @@ class CompletionItem {
 
 	private static _idPool: number = 0;
 
-	id: string;
+	id: number;
 	suggestion: ISuggestion;
 	highlights: IMatch[];
 	support: ISuggestSupport;
@@ -45,7 +45,7 @@ class CompletionItem {
 	private _resolveDetails: TPromise<CompletionItem>
 
 	constructor(public group: CompletionGroup, suggestion: ISuggestion, container: ISuggestResult2) {
-		this.id = '_completion_item_#' + CompletionItem._idPool++;
+		this.id = CompletionItem._idPool++;
 		this.support = container.support;
 		this.suggestion = suggestion;
 		this.container = container;
@@ -70,14 +70,11 @@ class CompletionItem {
 	}
 }
 
-const defaultCompare: ISuggestionCompare = (a, b) => (a.sortText || a.label).localeCompare((b.sortText || b.label));
-
 class CompletionGroup {
 
 	incomplete: boolean;
 	items: CompletionItem[];
 	size: number;
-	compare: ISuggestionCompare;
 	filter: ISuggestionFilter;
 
 	constructor(public model: CompletionModel, public index: number, raw: ISuggestResult2[]) {
@@ -94,14 +91,12 @@ class CompletionGroup {
 			);
 		}, []);
 
-		this.compare = defaultCompare;
 		this.filter = DefaultFilter;
 
 		if (this.items.length > 0) {
 			const [first] = this.items;
 
 			if (first.support) {
-				this.compare = first.support.getSorter && first.support.getSorter() || this.compare;
 				this.filter = first.support.getFilter && first.support.getFilter() || this.filter;
 			}
 		}
@@ -173,7 +168,7 @@ class DataSource implements Tree.IDataSource {
 		} else if (element instanceof CompletionModel) {
 			return 'root';
 		} else if (element instanceof CompletionItem) {
-			return (<CompletionItem>element).id;
+			return (<CompletionItem>element).id.toString();
 		}
 
 		throw illegalArgument('element');
@@ -248,7 +243,11 @@ class Sorter implements Tree.ISorter {
 			return result;
 		}
 
-		return group.compare(item.suggestion, otherItem.suggestion);
+		return Sorter.suggestionCompare(item.suggestion, otherItem.suggestion);
+	}
+
+	private static suggestionCompare(a: ISuggestion, b: ISuggestion): number {
+		return (a.sortText || a.label).localeCompare((b.sortText || b.label));
 	}
 }
 

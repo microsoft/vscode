@@ -254,13 +254,13 @@ export class WorkerClient {
 	}
 
 	private _postMessage(msg:any): void {
-		this._worker.postMessage(marshalling.marshallObject(msg, this._proxiesMarshalling));
+		this._worker.postMessage(marshalling.marshallObjectAndStringify(msg, this._proxiesMarshalling));
 	}
 
 	private _onSerializedMessage(msg:string): void {
 		var message:protocol.IServerMessage = null;
 		try {
-			message = marshalling.demarshallObject(msg, this._proxiesMarshalling);
+			message = marshalling.parseAndDemarshallObject(msg, this._proxiesMarshalling);
 		} catch (e) {
 			// nothing
 		}

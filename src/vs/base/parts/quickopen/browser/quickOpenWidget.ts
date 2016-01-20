@@ -16,7 +16,8 @@ import {IQuickNavigateConfiguration, IAutoFocus, IContext, IModel, Mode} from 'v
 import {Filter, Renderer, DataSource, IModelProvider} from 'vs/base/parts/quickopen/browser/quickOpenViewer';
 import {Dimension, Builder, $} from 'vs/base/browser/builder';
 import {ISelectionEvent, IFocusEvent, ITree, ContextMenuEvent} from 'vs/base/parts/tree/browser/tree';
-import {InputBox} from 'vs/base/browser/ui/inputbox/inputBox';
+import {InputBox, MessageType} from 'vs/base/browser/ui/inputbox/inputBox';
+import Severity from 'vs/base/common/severity';
 import {Tree} from 'vs/base/parts/tree/browser/treeImpl';
 import {ProgressBar} from 'vs/base/browser/ui/progressbar/progressbar';
 import {StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
@@ -49,7 +50,7 @@ export interface IQuickOpenUsageLogger {
 
 export class QuickOpenController extends DefaultController {
 
-	public onContextMenu(tree:ITree, element: any, event:ContextMenuEvent):boolean {
+	public onContextMenu(tree: ITree, element: any, event: ContextMenuEvent): boolean {
 		if (platform.isMacintosh) {
 			return this.onLeftClick(tree, element, event); // https://github.com/Microsoft/vscode/issues/1011
 		}
@@ -111,9 +112,9 @@ export class QuickOpenWidget implements IModelProvider {
 					this.hide(true);
 				}
 			})
-			.on(DOM.EventType.CONTEXT_MENU, (e: Event) => DOM.EventHelper.stop(e, true)) // Do this to fix an issue on Mac where the menu goes into the way
-			.on(DOM.EventType.FOCUS, (e: Event) => this.gainingFocus(), null, true)
-			.on(DOM.EventType.BLUR, (e: Event) => this.loosingFocus(e), null, true);
+				.on(DOM.EventType.CONTEXT_MENU, (e: Event) => DOM.EventHelper.stop(e, true)) // Do this to fix an issue on Mac where the menu goes into the way
+				.on(DOM.EventType.FOCUS, (e: Event) => this.gainingFocus(), null, true)
+				.on(DOM.EventType.BLUR, (e: Event) => this.loosingFocus(e), null, true);
 
 			// Progress Bar
 			this.progressBar = new ProgressBar(div.clone());
@@ -258,7 +259,7 @@ export class QuickOpenWidget implements IModelProvider {
 				clone();
 		})
 
-		// Widget Attributes
+			// Widget Attributes
 			.addClass('quick-open-widget')
 			.addClass((browser.isIE10orEarlier) ? ' no-shadow' : '')
 			.build(this.container);
@@ -747,6 +748,18 @@ export class QuickOpenWidget implements IModelProvider {
 
 	public getInput(): IModel<any> {
 		return this.tree.getInput();
+	}
+
+	public showInputDecoration(decoration: Severity): void {
+		if (this.inputBox) {
+			this.inputBox.showMessage({ type: decoration === Severity.Info ? MessageType.INFO : decoration === Severity.Warning ? MessageType.WARNING : MessageType.ERROR, content: '' });
+		}
+	}
+
+	public clearInputDecoration(): void {
+		if (this.inputBox) {
+			this.inputBox.hideMessage();
+		}
 	}
 
 	public runFocus(): boolean {

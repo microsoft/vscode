@@ -410,10 +410,10 @@ suite('Workbench UI Services', () => {
 		eventService.emit(EventType.EDITOR_CLOSED, { editorId: 'test.scopeId' });
 		assert(!service.isActive);
 
-		eventService.emit(EventType.VIEWLET_OPENED, { viewletId: 'test.scopeId' });
+		eventService.emit(EventType.COMPOSITE_OPENED, { compositeId: 'test.scopeId' });
 		assert(service.isActive);
 
-		eventService.emit(EventType.VIEWLET_CLOSED, { viewletId: 'test.scopeId' });
+		eventService.emit(EventType.COMPOSITE_CLOSED, { compositeId: 'test.scopeId' });
 		assert(!service.isActive);
 	});
 

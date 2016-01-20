@@ -71,12 +71,12 @@ export function generateKnownFilenames(onlyExtensions: boolean = true): any {
 /**
  * Allow to register extra text mimes dynamically based on filename
  */
-export function registerTextMimeByFilename(nameOrExtension: string, mime: string): void {
-	if (nameOrExtension && mime) {
-		if (registeredTextMimesByFilename[nameOrExtension] && registeredTextMimesByFilename[nameOrExtension] !== mime) {
-			console.warn('Overwriting filename <<' + nameOrExtension + '>> to now point to mime <<' + mime + '>>');
+export function registerTextMimeByFilename(nameOrExtensionOrPrefix: string, mime: string): void {
+	if (nameOrExtensionOrPrefix && mime) {
+		if (registeredTextMimesByFilename[nameOrExtensionOrPrefix] && registeredTextMimesByFilename[nameOrExtensionOrPrefix] !== mime) {
+			console.warn('Overwriting filename <<' + nameOrExtensionOrPrefix + '>> to now point to mime <<' + mime + '>>');
 		}
-		registeredTextMimesByFilename[nameOrExtension] = mime;
+		registeredTextMimesByFilename[nameOrExtensionOrPrefix] = mime;
 	}
 }
 
@@ -142,21 +142,29 @@ export function guessMimeTypes(path: string, firstLine?: string): string[] {
 
 	let exactNameMatch: string;
 	let extensionMatch: string;
+	let prefixMatch: string;
 
 	// Check for dynamically registered match based on filename and extension
-	for (let nameOrExtension in registeredTextMimesByFilename) {
-		let nameOrExtensionLower:string = nameOrExtension.toLowerCase();
+	for (let nameOrExtensionOrPrefix in registeredTextMimesByFilename) {
+		let nameOrExtensionOrPrefixLower: string = nameOrExtensionOrPrefix.toLowerCase();
 
 		// First exact name match
-		if (!exactNameMatch && filename === nameOrExtensionLower) {
-			exactNameMatch = nameOrExtension;
+		if (!exactNameMatch && filename === nameOrExtensionOrPrefixLower) {
+			exactNameMatch = nameOrExtensionOrPrefix;
 			break; // take it!
 		}
 
 		// Longest extension match
-		if (nameOrExtension[0] === '.' && strings.endsWith(filename, nameOrExtensionLower)) {
-			if (!extensionMatch || nameOrExtensionLower.length > extensionMatch.length) {
-				extensionMatch = nameOrExtension;
+		if (nameOrExtensionOrPrefix[0] === '.' && strings.endsWith(filename, nameOrExtensionOrPrefixLower)) {
+			if (!extensionMatch || nameOrExtensionOrPrefixLower.length > extensionMatch.length) {
+				extensionMatch = nameOrExtensionOrPrefix;
+			}
+		}
+
+		// Longest prefix match
+		if (nameOrExtensionOrPrefixLower.slice(-1) === '*' && strings.startsWith(filename, nameOrExtensionOrPrefixLower.slice(0, -1))) {
+			if (!prefixMatch || nameOrExtensionOrPrefixLower.length > prefixMatch.length) {
+				prefixMatch = nameOrExtensionOrPrefix;
 			}
 		}
 	}
@@ -166,9 +174,14 @@ export function guessMimeTypes(path: string, firstLine?: string): string[] {
 		return [registeredTextMimesByFilename[exactNameMatch], MIME_TEXT];
 	}
 
-	// 3.) Match on extension comes last
+	// 3.) Match on extension comes next
 	if (extensionMatch) {
 		return [registeredTextMimesByFilename[extensionMatch], MIME_TEXT];
+	}
+
+	// 4.) Match on prefix
+	if (prefixMatch) {
+		return [registeredTextMimesByFilename[prefixMatch], MIME_TEXT];
 	}
 
 	return [MIME_UNKNOWN];

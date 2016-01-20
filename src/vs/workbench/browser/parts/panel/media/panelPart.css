@@ -3,6 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import {IComposite} from 'vs/workbench/common/composite';
+.monaco-workbench > .panel > .content > .panel {
+	height: 100%;
+}
 
-export interface IViewlet extends IComposite { }
+.monaco-workbench > .part.panel > .title {
+	display: block;
+	border-top: 1px solid #007ACC;
+}
+
+.monaco-workbench.no-workspace > .part.panel > .title {
+	border-color: #68217A;
+}

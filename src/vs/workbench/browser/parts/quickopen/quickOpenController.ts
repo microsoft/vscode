@@ -53,6 +53,7 @@ interface IPickOpenEntryItem extends IPickOpenEntry {
 interface IInternalPickOptions {
 	value?: string;
 	placeHolder?: string;
+	inputDecoration?: Severity;
 	password?: boolean;
 	autoFocus?: IAutoFocus;
 	matchOnDescription?: boolean;
@@ -179,13 +180,13 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 	}
 
 	public input(options?: IInputOptions): TPromise<string> {
-
 		const defaultMessage = options && options.prompt
 			? nls.localize('inputModeEntryDescription', "{0} (Press 'Enter' to confirm or 'Escape' to cancel)", options.prompt)
 			: nls.localize('inputModeEntry', "Press 'Enter' to confirm your input or 'Escape' to cancel");
 
 		let currentPick = defaultMessage;
 		let currentValidation = TPromise.as(true);
+		let inputDecoration: Severity;
 		let lastValue = options && options.value;
 
 		const init = (resolve: (value: IPickOpenEntry | TPromise<IPickOpenEntry>) => any, reject: (value: any) => any) => {
@@ -198,6 +199,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 				password: options.password,
 				placeHolder: options.placeHolder,
 				value: options.value,
+				inputDecoration: inputDecoration,
 				onDidType: (value) => {
 					lastValue = value;
 
@@ -207,6 +209,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 						}
 						currentValidation = TPromise.timeout(100).then(() => {
 							return options.validateInput(value).then(message => {
+								inputDecoration = !!message ? Severity.Error : void 0;
 								let newPick = message || defaultMessage;
 								if (newPick !== currentPick) {
 									currentPick = newPick;
@@ -274,7 +277,6 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 	}
 
 	private doPick(picksPromise: TPromise<IPickOpenEntry[]>, options: IInternalPickOptions): TPromise<IPickOpenEntry> {
-
 		let autoFocus = options.autoFocus;
 
 		// Use a generated token to avoid race conditions from long running promises
@@ -315,6 +317,13 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 
 		// Respect password
 		this.pickOpenWidget.setPassword(options.password);
+
+		// Input decoration
+		if (!types.isUndefinedOrNull(options.inputDecoration)) {
+			this.pickOpenWidget.showInputDecoration(options.inputDecoration);
+		} else {
+			this.pickOpenWidget.clearInputDecoration();
+		}
 
 		// Layout
 		if (this.layoutDimensions) {

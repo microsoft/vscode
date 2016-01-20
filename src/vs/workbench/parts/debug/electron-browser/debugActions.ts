@@ -15,6 +15,8 @@ import platform = require('vs/platform/platform');
 import wbaregistry = require('vs/workbench/common/actionRegistry');
 import debug = require('vs/workbench/parts/debug/common/debug');
 import model = require('vs/workbench/parts/debug/common/debugModel');
+import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybindingService';
 
@@ -626,30 +628,44 @@ export class RemoveAllWatchExpressionsAction extends AbstractDebugAction {
 	}
 }
 
-export class OpenReplAction extends actions.Action {
-	static ID = 'workbench.debug.action.openRepl';
-	static LABEL = nls.localize('openRepl', "Open Console");
+export class ClearReplAction extends AbstractDebugAction {
+	static ID = 'workbench.debug.panel.action.clearReplAction';
+	static LABEL = nls.localize('clearRepl', "Clear Console");
 
-	constructor(id: string, label: string, @IDebugService private debugService: IDebugService) {
-		super(id, label, 'debug-action open-repl', true);
-		this.enabled = this.debugService.getState() !== debug.State.Disabled;
-	}
-
-	public run(): Promise {
-		return this.debugService.revealRepl();
-	}
-}
-
-export class ClearReplAction extends baseeditor.EditorInputAction {
-
-	constructor(@IDebugService private debugService: IDebugService) {
-		super('editor.action.clearRepl', nls.localize('clearRepl', "Clear Console"), 'debug-action clear-repl');
+	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
+		super(id, label, 'debug-action clear-repl', debugService, keybindingService);
 	}
 
 	public run(): Promise {
 		this.debugService.clearReplExpressions();
-		this.debugService.revealRepl(); // focus back to repl
 
-		return Promise.as(null);
+		// focus back to repl
+		return this.debugService.revealRepl();
+	}
+}
+
+export class ToggleReplAction extends AbstractDebugAction {
+	static ID = 'workbench.debug.action.toggleRepl';
+	static LABEL = nls.localize('toggleRepl', "Debug Console");
+
+	constructor(id: string, label: string,
+		@IDebugService debugService: IDebugService,
+		@IPartService private partService: IPartService,
+		@IPanelService private panelService: IPanelService,
+		@IKeybindingService keybindingService: IKeybindingService
+	) {
+		super(id, label, 'debug-action toggle-repl', debugService, keybindingService);
+		this.enabled = this.debugService.getState() !== debug.State.Disabled;
+	}
+
+	public run(): Promise {
+		const panel = this.panelService.getActivePanel();
+		if (panel && panel.getId() === debug.REPL_ID) {
+			this.partService.setPanelHidden(true);
+
+			return Promise.as(null);
+		}
+
+		return this.debugService.revealRepl();
 	}
 }

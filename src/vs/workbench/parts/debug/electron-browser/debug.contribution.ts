@@ -18,13 +18,13 @@ import { EditorBrowserRegistry } from 'vs/editor/browser/editorBrowserExtensions
 import wbaregistry = require('vs/workbench/common/actionRegistry');
 import actionbarregistry = require('vs/workbench/browser/actionBarRegistry');
 import viewlet = require('vs/workbench/browser/viewlet');
+import panel = require('vs/workbench/browser/panel');
 import wbext = require('vs/workbench/common/contributions');
 import baseeditor = require('vs/workbench/browser/parts/editor/baseEditor');
 import * as debug from 'vs/workbench/parts/debug/common/debug';
 import { DebugEditorModelManager } from 'vs/workbench/parts/debug/browser/debugEditorModelManager'
 import dbgactions = require('vs/workbench/parts/debug/electron-browser/debugActions');
 import editorinputs = require('vs/workbench/parts/debug/browser/debugEditorInputs');
-import repleditor = require('vs/workbench/parts/debug/browser/replEditor');
 import debugwidget = require('vs/workbench/parts/debug/browser/debugActionsWidget');
 import service = require('vs/workbench/parts/debug/electron-browser/debugService');
 import { DebugEditorContribution } from 'vs/workbench/parts/debug/browser/debugEditorContribution';
@@ -57,7 +57,7 @@ CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(dbgactions.
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(dbgactions.RunToCursorAction, dbgactions.RunToCursorAction.ID, nls.localize('runToCursor', "Debug: Run to Cursor")));
 
 // register viewlet
-(<viewlet.IViewletRegistry>platform.Registry.as(viewlet.Extensions.Viewlets)).registerViewlet(new viewlet.ViewletDescriptor(
+(<viewlet.ViewletRegistry>platform.Registry.as(viewlet.Extensions.Viewlets)).registerViewlet(new viewlet.ViewletDescriptor(
 	'vs/workbench/parts/debug/browser/debugViewlet',
 	'DebugViewlet',
 	debug.VIEWLET_ID,
@@ -70,14 +70,16 @@ const openViewletKb: IKeybindings = {
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_D
 };
 
-// register repl editor
-platform.Registry.as(baseeditor.Extensions.Editors).registerEditor(
-	new baseeditor.EditorDescriptor(repleditor.Repl.ID, 'Repl', 'vs/workbench/parts/debug/browser/replEditor', 'Repl'),
-	new SyncDescriptor(editorinputs.ReplEditorInput));
-
-let actionBarRegistry = <actionbarregistry.IActionBarRegistry> platform.Registry.as(actionbarregistry.Extensions.Actionbar);
-actionBarRegistry.registerActionBarContributor(actionbarregistry.Scope.EDITOR, repleditor.ReplEditorActionContributor);
-(<baseeditor.IEditorRegistry>platform.Registry.as(baseeditor.Extensions.Editors)).registerEditorInputFactory(editorinputs.ReplEditorInput.ID, repleditor.ReplInputFactory);
+// register repl panel
+(<panel.PanelRegistry>platform.Registry.as(panel.Extensions.Panels)).registerPanel(new panel.PanelDescriptor(
+	'vs/workbench/parts/debug/browser/repl',
+	'Repl',
+	debug.REPL_ID,
+	nls.localize('debugConsole', "DEBUG CONSOLE"),
+	'repl',
+	40
+));
+(<panel.PanelRegistry>platform.Registry.as(panel.Extensions.Panels)).setDefaultPanelId(debug.REPL_ID);
 
 // register action to open viewlet
 const registry = (<wbaregistry.IWorkbenchActionRegistry> platform.Registry.as(wbaregistry.Extensions.WorkbenchActions));
@@ -97,7 +99,7 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(dbgactions.StopDebugAc
 registry.registerWorkbenchAction(new SyncActionDescriptor(dbgactions.ContinueAction, dbgactions.ContinueAction.ID, dbgactions.ContinueAction.LABEL, { primary: KeyCode.F5 }, KbExpr.has(debug.CONTEXT_IN_DEBUG_MODE)), debugCategory);
 registry.registerWorkbenchAction(new SyncActionDescriptor(dbgactions.PauseAction, dbgactions.PauseAction.ID, dbgactions.PauseAction.LABEL), debugCategory);
 registry.registerWorkbenchAction(new SyncActionDescriptor(dbgactions.ConfigureAction, dbgactions.ConfigureAction.ID, dbgactions.ConfigureAction.LABEL), debugCategory);
-registry.registerWorkbenchAction(new SyncActionDescriptor(dbgactions.OpenReplAction, dbgactions.OpenReplAction.ID, dbgactions.OpenReplAction.LABEL), debugCategory);
+registry.registerWorkbenchAction(new SyncActionDescriptor(dbgactions.ToggleReplAction, dbgactions.ToggleReplAction.ID, dbgactions.ToggleReplAction.LABEL, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_I,}), debugCategory);
 
 // register service
 registerSingleton(IDebugService, service.DebugService);

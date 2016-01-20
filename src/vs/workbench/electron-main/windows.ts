@@ -344,7 +344,7 @@ export class WindowsManager {
 
 				// Initial settings file
 				if (!fs.existsSync(env.appSettingsPath)) {
-					fs.writeFileSync(env.appSettingsPath, JSON.stringify({ 'files.autoSaveDelay': 1 }, null, '    '));
+					fs.writeFileSync(env.appSettingsPath, JSON.stringify({ 'files.autoSave': 'afterDelay' }, null, '    '));
 				}
 
 				// Update existing settings file
@@ -356,7 +356,7 @@ export class WindowsManager {
 
 					// We found a closing '}' and the JSON does not contain errors
 					if (lastClosing > 0 && !errors.length) {
-						const migratedSettings = settingsRaw.substring(0, lastClosing) + '\n    , // Migrated from previous File | Auto Save setting:\n    "files.autoSaveDelay": 1\n}';
+						const migratedSettings = settingsRaw.substring(0, lastClosing) + '\n    , // Migrated from previous "File | Auto Save" setting:\n    "files.autoSave": "afterDelay"\n}';
 
 						fs.writeFileSync(env.appSettingsPath, migratedSettings);
 					}

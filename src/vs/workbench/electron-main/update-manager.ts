@@ -79,6 +79,7 @@ export class UpdateManager extends events.EventEmitter {
 	private initRaw(): void {
 		this.raw.on('error', (event: any, message: string) => {
 			this.emit('error', event, message);
+			this.setState(State.Idle);
 		});
 
 		this.raw.on('checking-for-update', () => {
@@ -185,6 +186,10 @@ export class UpdateManager extends events.EventEmitter {
 	}
 
 	private static getUpdateChannel(): string {
+		if (env.quality) {
+			return env.quality;
+		}
+
 		let channel = settings.manager.getValue('update.channel');
 		if (!channel) {
 			channel = storage.getItem<string>('updateChannel'); // TODO@Ben this should be removed after a couple of versions
@@ -205,11 +210,11 @@ export class UpdateManager extends events.EventEmitter {
 			return null;
 		}
 
-		if (!env.updateInfo || !env.updateInfo.baseUrl || !env.product.commit) {
+		if (!env.updateUrl || !env.product.commit) {
 			return null;
 		}
 
-		return `${ env.updateInfo.baseUrl }/api/update/${ env.getPlatformIdentifier() }/${ channel }/${ env.product.commit }`;
+		return `${ env.updateUrl }/api/update/${ env.getPlatformIdentifier() }/${ channel }/${ env.product.commit }`;
 	}
 }
 

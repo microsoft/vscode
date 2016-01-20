@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { marshallObject, demarshallObject } from 'vs/base/common/marshalling';
+import { marshallObjectAndStringify, parseAndDemarshallObject } from 'vs/base/common/marshalling';
 import { ProxiesMarshallingContribution } from 'vs/base/common/remote';
 import { TPromise} from 'vs/base/common/winjs.base';
 
@@ -20,7 +20,7 @@ suite('Remote', () => {
 			$__CREATE__PROXY__REQUEST: 'myId',
 			member: /test/g
 		};
-		var transported = demarshallObject(marshallObject(initial, contrib), contrib);
+		var transported = parseAndDemarshallObject(marshallObjectAndStringify(initial, contrib), contrib);
 
 		assert.equal(transported.$__IS_REMOTE_OBJ, true);
 		assert(transported.member instanceof RegExp);

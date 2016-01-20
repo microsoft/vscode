@@ -42,14 +42,26 @@ function connectToRenderer(): TPromise<IRendererConnection> {
 				remoteCom.handle(msg);
 			});
 
-			// Print a console message when rejection isn't handled. For details
+			// Print a console message when rejection isn't handled within N seconds. For details:
 			// see https://nodejs.org/api/process.html#process_event_unhandledrejection
 			// and https://nodejs.org/api/process.html#process_event_rejectionhandled
-			process.on('unhandledRejection', function(reason, promise) {
-				// 'promise' seems to be undefined all the time and
-				// that's why we cannot use the rejectionhandled event
-				console.warn('potentially unhandled rejected promise', promise);
-				onUnexpectedError(reason);
+			const unhandledPromises: Promise<any>[] = [];
+			process.on('unhandledRejection', (reason, promise) => {
+				unhandledPromises.push(promise);
+				setTimeout(() => {
+					const idx = unhandledPromises.indexOf(promise);
+					if (idx >= 0) {
+						unhandledPromises.splice(idx, 1);
+						console.warn('rejected promise not handled with 1 second');
+						onUnexpectedError(reason);
+					}
+				}, 1000);
+			});
+			process.on('rejectionHandled', promise => {
+				const idx = unhandledPromises.indexOf(promise);
+				if (idx >= 0) {
+					unhandledPromises.splice(idx, 1);
+				}
 			});
 
 			// Print a console message when an exception isn't handled.
