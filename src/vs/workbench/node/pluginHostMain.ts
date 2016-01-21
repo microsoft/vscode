@@ -61,12 +61,12 @@ export function exit(code?: number) {
 export function createServices(remoteCom: IPluginsIPC, initData: IInitData, sharedProcessClient: Client): IInstantiationService {
 	// the init data is not demarshalled
 	initData = marshalling.deserialize(initData);
-
+	
 	let contextService = new BaseWorkspaceContextService(initData.contextService.workspace, initData.contextService.configuration, initData.contextService.options);
 	let threadService = new PluginHostThreadService(remoteCom);
 	threadService.setInstantiationService(InstantiationService.create({ threadService: threadService }));
-	let telemetryServiceInstance = new ExtHostTelemetryService(threadService);
-	let requestService = new BaseRequestService(contextService, telemetryServiceInstance);
+	let telemetryService = new ExtHostTelemetryService(threadService);
+	let requestService = new BaseRequestService(contextService, telemetryService);
 	let modelService = threadService.getRemotable(ExtHostModelService);
 
 	let pluginService = new PluginHostPluginService(threadService);
@@ -78,7 +78,7 @@ export function createServices(remoteCom: IPluginsIPC, initData: IInitData, shar
 		threadService: threadService,
 		modeService: modeService,
 		pluginService: pluginService,
-		telemetryService: ExtHostTelemetryService
+		telemetryService: telemetryService
 	};
 	let instantiationService = InstantiationService.create(_services);
 	threadService.setInstantiationService(instantiationService);

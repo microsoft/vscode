@@ -14,6 +14,24 @@ declare namespace vscode {
 	 */
 	export var version: string;
 
+	export const env: {
+		/**
+		 * locale, like de-ch, en-us
+		 */
+		locale: string;
+
+		/**
+		 * A unique UUID that identifies the machine
+		 */
+		machineId: string;
+
+		/**
+		 * A unique UUID that identifies the session
+		 */
+		sessionId: string;
+	}
+
+
 	/**
 	 * Represents a reference to a command. Provides a title which
 	 * will be used to represent a command in the UI and, optionally,
