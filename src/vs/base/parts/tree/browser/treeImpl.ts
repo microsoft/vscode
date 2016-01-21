@@ -243,7 +243,11 @@ export class Tree extends Events.EventEmitter implements _.ITree {
 	}
 
 	public setFocus(element?:any, eventPayload?:any): void {
-		this.model.setFocus(element, eventPayload);
+		if (!element) {
+			this.model.focusFirst(eventPayload); // a tree always has a focused item
+		} else {
+			this.model.setFocus(element, eventPayload);
+		}
 	}
 
 	public isFocused(element:any):boolean {
