@@ -236,13 +236,15 @@ export class ModesContentHoverWidget extends HoverWidget.ContentHoverWidget {
 
 			if(msg.htmlContent && msg.htmlContent.length > 0) {
 				msg.htmlContent.forEach((content) => {
-					container.appendChild(renderHtml(content, undefined, (modeId, value) => {
-						let mode: Modes.IMode;
-						let model = this._editor.getModel();
-						if (!model.isDisposed()) {
-							mode = model.getMode();
+					container.appendChild(renderHtml(content, {
+						codeBlockRenderer: (modeId, value) => {
+							let mode: Modes.IMode;
+							let model = this._editor.getModel();
+							if (!model.isDisposed()) {
+								mode = model.getMode();
+							}
+							return tokenizeToHtmlContent(value, model.getMode());
 						}
-						return tokenizeToHtmlContent(value, model.getMode());
 					}));
 				});
 			} else {
