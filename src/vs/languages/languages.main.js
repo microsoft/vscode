@@ -7,7 +7,6 @@ define([
 	"vs/languages/handlebars/common/handlebars.contribution",
 	"vs/languages/html/common/html.contribution",
 	"vs/languages/javascript/common/javascript.contribution",
-	"vs/languages/json/common/json.contribution",
 	"vs/languages/markdown/common/markdown.contribution",
 	"vs/languages/php/common/php.contribution",
 	"vs/languages/plaintext/common/plaintext.contribution",
