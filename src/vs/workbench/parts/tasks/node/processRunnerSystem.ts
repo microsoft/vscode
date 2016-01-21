@@ -76,7 +76,7 @@ export class ProcessRunnerSystem extends EventEmitter implements ITaskSystem {
 		this.defaultTestTaskIdentifier = parseResult.defaultTestTaskIdentifier;
 
 		if (!this.validationStatus.isOK()) {
-			this.outputService.showOutput(this.outputChannel, false, true);
+			this.outputService.showOutput(this.outputChannel, true);
 		}
 	}
 
@@ -394,7 +394,7 @@ export class ProcessRunnerSystem extends EventEmitter implements ITaskSystem {
 	}
 
 	private showOutput(): void {
-		this.outputService.showOutput(this.outputChannel, true, true);
+		this.outputService.showOutput(this.outputChannel, true);
 	}
 
 	private clearOutput(): void {

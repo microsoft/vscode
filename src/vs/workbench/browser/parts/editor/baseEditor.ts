@@ -11,7 +11,7 @@ import types = require('vs/base/common/types');
 import {Builder} from 'vs/base/browser/builder';
 import {EventType, EditorEvent} from 'vs/workbench/common/events';
 import {Registry} from 'vs/platform/platform';
-import {Viewlet} from 'vs/workbench/browser/viewlet';
+import {Panel} from 'vs/workbench/browser/panel';
 import {EditorInput, IFileEditorInput, EditorOptions} from 'vs/workbench/common/editor';
 import {IEditor, Position, POSITIONS} from 'vs/platform/editor/common/editor';
 import {IInstantiationService, IConstructorSignature0} from 'vs/platform/instantiation/common/instantiation';
@@ -30,7 +30,7 @@ import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
  *
  * This class is only intended to be subclassed and not instantiated.
  */
-export abstract class BaseEditor extends Viewlet implements IEditor {
+export abstract class BaseEditor extends Panel implements IEditor {
 	private _input: EditorInput;
 	private _options: EditorOptions;
 	private _position: Position;

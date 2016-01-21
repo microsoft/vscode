@@ -12,10 +12,10 @@ import editor = require('vs/editor/common/editorCommon');
 import editorbrowser = require('vs/editor/browser/editorBrowser');
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 
-export var VIEWLET_ID = 'workbench.view.debug';
-export var REPL_ID = 'workbench.panel.repl';
-export var DEBUG_SERVICE_ID = 'debugService';
-export var CONTEXT_IN_DEBUG_MODE = 'inDebugMode';
+export const VIEWLET_ID = 'workbench.view.debug';
+export const REPL_ID = 'workbench.panel.repl';
+export const DEBUG_SERVICE_ID = 'debugService';
+export const CONTEXT_IN_DEBUG_MODE = 'inDebugMode';
 
 // raw
 

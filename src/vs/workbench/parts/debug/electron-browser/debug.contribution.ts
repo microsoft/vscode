@@ -76,8 +76,7 @@ const openViewletKb: IKeybindings = {
 	'Repl',
 	debug.REPL_ID,
 	nls.localize('debugConsole', "Debug Console"),
-	'repl',
-	40
+	'repl'
 ));
 (<panel.PanelRegistry>platform.Registry.as(panel.Extensions.Panels)).setDefaultPanelId(debug.REPL_ID);
 
