@@ -111,6 +111,18 @@ export function fromViewColumn(column?: vscode.ViewColumn): EditorPosition {
 	return editorColumn;
 }
 
+export function toViewColumn(position?: EditorPosition): vscode.ViewColumn {
+	if (typeof position !== 'number') {
+		return;
+	}
+	if (position === EditorPosition.LEFT) {
+		return <number> types.ViewColumn.One;
+	} else if (position === EditorPosition.CENTER) {
+		return <number> types.ViewColumn.Two;
+	} else if (position === EditorPosition.RIGHT) {
+		return <number> types.ViewColumn.Three;
+	}
+}
 
 export function fromFormattedString(value: vscode.MarkedString): IHTMLContentElement {
 	if (typeof value === 'string') {

@@ -70,6 +70,11 @@ export class EventType {
 	static EDITOR_SET_INPUT_ERROR = 'editorSetInputError';
 
 	/**
+	 * Event type for when the editor position has been changed
+	 */
+	static EDITOR_POSITION_CHANGED = 'editorPositionChanged';
+
+	/**
 	 * An event type that fires when a text editor changes its selection.
 	 */
 	static TEXT_EDITOR_SELECTION_CHANGED = 'textEditorSelectionChanged';

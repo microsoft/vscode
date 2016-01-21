@@ -23,12 +23,18 @@ import {EventType} from 'vs/workbench/common/events';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IEventService} from 'vs/platform/event/common/event';
 import {equals as arrayEquals} from 'vs/base/common/arrays';
+import {equals as objectEquals} from 'vs/base/common/objects';
 
 export interface ITextEditorAddData {
 	id: string;
 	document: URI;
 	options: ITextEditorConfiguration;
 	selections: ISelection[];
+	editorPosition: EditorPosition;
+}
+
+export interface ITextEditorPositionData {
+	[id: string]: EditorPosition;
 }
 
 @Remotable.PluginHostContext('ExtHostEditors')
@@ -95,7 +101,7 @@ export class ExtHostEditors {
 
 	_acceptTextEditorAdd(data: ITextEditorAddData): void {
 		let document = this._modelService.getDocumentData(data.document);
-		let newEditor = new ExtHostTextEditor(this._proxy, data.id, document, data.selections.map(TypeConverters.toSelection), data.options);
+		let newEditor = new ExtHostTextEditor(this._proxy, data.id, document, data.selections.map(TypeConverters.toSelection), data.options, TypeConverters.toViewColumn(data.editorPosition));
 		this._editors[data.id] = newEditor;
 	}
 
@@ -127,6 +133,16 @@ export class ExtHostEditors {
 		}
 		this._activeEditorId = id;
 		this._onDidChangeActiveTextEditor.fire(this.getActiveTextEditor());
+	}
+
+	_acceptEditorPositionData(data: ITextEditorPositionData): void {
+		for (let id in data) {
+			let editor = this._editors[id];
+			let value = TypeConverters.toViewColumn(data[id]);
+			if (editor.viewColumn !== value) {
+				editor._acceptViewColumn(value);
+			}
+		}
 	}
 
 	_acceptTextEditorRemove(id: string): void {
@@ -271,13 +287,15 @@ class ExtHostTextEditor implements vscode.TextEditor {
 	private _documentData: ExtHostDocumentData;
 	private _selections: Selection[];
 	private _options: TextEditorOptions;
+	private _viewColumn: vscode.ViewColumn;
 
-	constructor(proxy: MainThreadEditors, id: string, document: ExtHostDocumentData, selections: Selection[], options: EditorOptions) {
+	constructor(proxy: MainThreadEditors, id: string, document: ExtHostDocumentData, selections: Selection[], options: EditorOptions, viewColumn: vscode.ViewColumn) {
 		this._proxy = proxy;
 		this._id = id;
 		this._documentData = document;
 		this._selections = selections;
 		this._options = options;
+		this._viewColumn = viewColumn;
 	}
 
 	dispose() {
@@ -317,6 +335,20 @@ class ExtHostTextEditor implements vscode.TextEditor {
 
 	_acceptOptions(options: EditorOptions): void {
 		this._options = options;
+	}
+
+	// ---- view column
+
+	get viewColumn(): vscode.ViewColumn {
+		return this._viewColumn;
+	}
+
+	set viewColumn(value) {
+		throw readonly('viewColumn');
+	}
+
+	_acceptViewColumn(value: vscode.ViewColumn) {
+		this._viewColumn = value;
 	}
 
 	// ---- selections
@@ -423,6 +455,7 @@ export class MainThreadEditors {
 	private _textEditorsMap: { [editorId: string]: MainThreadTextEditor; };
 	private _activeTextEditor: string;
 	private _visibleEditors: string[];
+	private _editorPositionData: ITextEditorPositionData;
 
 	constructor(
 		@IThreadService threadService: IThreadService,
@@ -440,6 +473,7 @@ export class MainThreadEditors {
 		this._textEditorsMap = Object.create(null);
 		this._activeTextEditor = null;
 		this._visibleEditors = [];
+		this._editorPositionData = null;
 
 		this._editorTracker = new MainThreadEditorsTracker(editorService, modelService);
 		this._toDispose.push(this._editorTracker);
@@ -450,6 +484,7 @@ export class MainThreadEditors {
 		this._toDispose.push(this._editorTracker.onDidUpdateTextEditors(() => this._updateActiveAndVisibleTextEditors()));
 		this._toDispose.push(this._editorTracker.onChangedFocusedTextEditor((focusedTextEditorId) => this._updateActiveAndVisibleTextEditors()));
 		this._toDispose.push(eventService.addListener2(EventType.EDITOR_INPUT_CHANGED, () => this._updateActiveAndVisibleTextEditors()));
+		this._toDispose.push(eventService.addListener2(EventType.EDITOR_POSITION_CHANGED, () => this._updateActiveAndVisibleTextEditors()));
 	}
 
 	public dispose(): void {
@@ -473,7 +508,8 @@ export class MainThreadEditors {
 			id: id,
 			document: textEditor.getModel().getAssociatedResource(),
 			options: textEditor.getConfiguration(),
-			selections: textEditor.getSelections()
+			selections: textEditor.getSelections(),
+			editorPosition: this._findEditorPosition(textEditor)
 		});
 
 		this._textEditorsListenersMap[id] = toDispose;
@@ -489,16 +525,22 @@ export class MainThreadEditors {
 	}
 
 	private _updateActiveAndVisibleTextEditors(): void {
+
+		// active and visible editors
 		let visibleEditors = this._editorTracker.getVisibleTextEditorIds();
 		let activeEditor = this._findActiveTextEditorId();
-
-		if (activeEditor === this._activeTextEditor && arrayEquals(this._visibleEditors, visibleEditors, (a, b) => a === b)) {
-			// no change
-			return;
+		if (activeEditor !== this._activeTextEditor || !arrayEquals(this._visibleEditors, visibleEditors, (a, b) => a === b)) {
+			this._activeTextEditor = activeEditor;
+			this._visibleEditors = visibleEditors;
+			this._proxy._acceptActiveEditorAndVisibleEditors(this._activeTextEditor, this._visibleEditors);
 		}
-		this._activeTextEditor = activeEditor;
-		this._visibleEditors = visibleEditors;
-		this._proxy._acceptActiveEditorAndVisibleEditors(this._activeTextEditor, this._visibleEditors);
+
+		// editor columns
+		let editorPositionData = this._getTextEditorPositionData();
+		if (!objectEquals(this._editorPositionData, editorPositionData)) {
+			this._editorPositionData = editorPositionData;
+			this._proxy._acceptEditorPositionData(this._editorPositionData);
+		}
 	}
 
 	private _findActiveTextEditorId(): string {
@@ -525,6 +567,33 @@ export class MainThreadEditors {
 
 		// Must be a diff editor => use the modified side
 		return this._editorTracker.findTextEditorIdFor((<ICommonDiffEditor>editor).getModifiedEditor());
+	}
+
+	private _findEditorPosition(editor: MainThreadTextEditor): EditorPosition {
+		for (let workbenchEditor of this._workbenchEditorService.getVisibleEditors()) {
+			if (editor.matches(workbenchEditor)) {
+				return workbenchEditor.position;
+			}
+		}
+	}
+
+	private _getTextEditorPositionData(): ITextEditorPositionData {
+		let result: ITextEditorPositionData = Object.create(null);
+		for (let workbenchEditor of this._workbenchEditorService.getVisibleEditors()) {
+			let editor = <IEditor>workbenchEditor.getControl();
+			// Substitute for (editor instanceof ICodeEditor)
+			if (!editor || typeof editor.getEditorType !== 'function') {
+				// Not a text editor...
+				continue;
+			}
+			if (editor.getEditorType() === EditorType.ICodeEditor) {
+				let id = this._editorTracker.findTextEditorIdFor(<ICommonCodeEditor>editor);
+				if (id) {
+					result[id] = workbenchEditor.position;
+				}
+			}
+		}
+		return result;
 	}
 
 	// --- from plugin host process

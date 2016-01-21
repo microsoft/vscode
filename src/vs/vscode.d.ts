@@ -726,6 +726,12 @@ declare namespace vscode {
 		options: TextEditorOptions;
 
 		/**
+		 * The column in which this editor shows. Will be `undefined` in case this
+		 * isn't one of the three main editors, e.g an embedded editor.
+		 */
+		viewColumn: ViewColumn;
+
+		/**
 		 * Perform an edit on the document associated with this text editor.
 		 *
 		 * The given callback-function is invoked with an [edit-builder](#TextEditorEdit) which must
