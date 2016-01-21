@@ -130,8 +130,14 @@ export class QuickOpenWidget implements IModelProvider {
 				DOM.addDisposableListener(this.inputBox.inputElement, DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 					let keyboardEvent: StandardKeyboardEvent = new StandardKeyboardEvent(e);
 
+
+					// Do not handle Tab: It is used to navigate between elements without mouse
+					if (keyboardEvent.keyCode === KeyCode.Tab) {
+						return;
+					}
+
 					// Pass tree navigation keys to the tree but leave focus in input field
-					if (keyboardEvent.keyCode === KeyCode.Tab || keyboardEvent.keyCode === KeyCode.DownArrow || keyboardEvent.keyCode === KeyCode.UpArrow || keyboardEvent.keyCode === KeyCode.PageDown || keyboardEvent.keyCode === KeyCode.PageUp) {
+					else if (keyboardEvent.keyCode === KeyCode.Tab || keyboardEvent.keyCode === KeyCode.DownArrow || keyboardEvent.keyCode === KeyCode.UpArrow || keyboardEvent.keyCode === KeyCode.PageDown || keyboardEvent.keyCode === KeyCode.PageUp) {
 						DOM.EventHelper.stop(e, true);
 
 						this.navigateInTree(keyboardEvent.keyCode, keyboardEvent.shiftKey);
@@ -825,7 +831,6 @@ export class QuickOpenWidget implements IModelProvider {
 
 		const relatedTarget = (<any>e).relatedTarget;
 		if (!this.quickNavigateConfiguration && DOM.isAncestor(relatedTarget, this.builder.getHTMLElement())) {
-			this.inputBox.focus(); // user clicked somewhere into quick open, so we restore focus to input
 			return;
 		}
 
