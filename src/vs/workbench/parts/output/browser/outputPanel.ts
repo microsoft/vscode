@@ -40,9 +40,13 @@ export class OutputPanel extends StringEditor {
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IModeService modeService: IModeService
 	) {
-		super(OUTPUT_PANEL_ID, telemetryService, instantiationService, contextService, storageService,
+		super(telemetryService, instantiationService, contextService, storageService,
 			messageService, configurationService, eventService, editorService, modeService);
 		this.toDispose = [];
+	}
+
+	public getId(): string {
+		return OUTPUT_PANEL_ID;
 	}
 
 	public getActions(): IAction[] {

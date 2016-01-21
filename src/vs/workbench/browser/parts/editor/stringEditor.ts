@@ -39,7 +39,6 @@ export class StringEditor extends BaseTextEditor {
 	private mapResourceToEditorViewState: { [resource: string]: IEditorViewState; };
 
 	constructor(
-		id: string,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
@@ -50,8 +49,7 @@ export class StringEditor extends BaseTextEditor {
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IModeService modeService: IModeService
 	) {
-
-		super(id, telemetryService, instantiationService, contextService, storageService, messageService, configurationService, eventService, editorService, modeService);
+		super(StringEditor.ID, telemetryService, instantiationService, contextService, storageService, messageService, configurationService, eventService, editorService, modeService);
 
 		this.defaultWrappingColumn = DefaultConfig.editor.wrappingColumn;
 		this.defaultLineNumbers = DefaultConfig.editor.lineNumbers;
