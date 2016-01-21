@@ -9,7 +9,7 @@
  * ------------------------------------------------------------------------------------------ */
 'use strict';
 
-import { languages, commands, workspace, Uri, ExtensionContext, IndentAction, Diagnostic, DiagnosticCollection, Range } from 'vscode';
+import { languages, commands, workspace, window, Uri, ExtensionContext, IndentAction, Diagnostic, DiagnosticCollection, Range } from 'vscode';
 
 import * as Proto from './protocol';
 import TypeScriptServiceClient from './typescriptServiceClient';
@@ -29,6 +29,8 @@ import BufferSyncSupport from './features/bufferSyncSupport';
 import CompletionItemProvider from './features/completionItemProvider';
 import WorkspaceSymbolProvider from './features/workspaceSymbolProvider';
 
+import * as SalsaStatus from './utils/salsaStatus';
+
 export function activate(context: ExtensionContext): void {
 
 	let MODE_ID_TS = 'typescript';
@@ -42,6 +44,9 @@ export function activate(context: ExtensionContext): void {
 	context.subscriptions.push(commands.registerCommand('typescript.reloadProjects', () => {
 		clientHost.reloadProjects();
 	}));
+
+	window.onDidChangeActiveTextEditor(SalsaStatus.showHideStatus, null, context.subscriptions);
+
 	// Register the supports for both TS and TSX so that we can have separate grammars but share the mode
 	client.onReady().then(() => {
 		registerSupports(MODE_ID_TS, clientHost, client);
