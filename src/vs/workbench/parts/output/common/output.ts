@@ -99,11 +99,6 @@ export interface IOutputService {
 	 * Allows to register on a new Output channel getting filled with output
 	 */
 	onOutputChannel: Event<string>;
-
-	/**
-	 * Reveals the last line on the currently opened channel.
-	 */
-	revealLastLine(): void;
 }
 
 export interface IOutputChannelRegistry {

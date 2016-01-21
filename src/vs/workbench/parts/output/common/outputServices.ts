@@ -23,11 +23,11 @@ export class OutputService implements IOutputService {
 	private static OUTPUT_DELAY = 300; // delay in ms to accumulate output before emitting an event about it
 
 	private receivedOutput: { [channel: string]: string; };
-	private outputPanel: OutputPanel;
 
 	private sendOutputEventsTimerId: number;
 	private lastSentOutputEventsTime: number;
 	private bufferedOutput: { [channel: string]: string; };
+	private activeChannel: string;
 
 	private _onOutput: Emitter<IOutputEvent>;
 	private _onOutputChannel: Emitter<string>;
@@ -146,11 +146,7 @@ export class OutputService implements IOutputService {
 	}
 
 	public getActiveChannel(): string {
-		if (!this.outputPanel || !this.outputPanel.getInput()) {
-			return null;
-		}
-
-		return (<OutputEditorInput>this.outputPanel.getInput()).getChannel();
+		return this.activeChannel;
 	}
 
 	public clearOutput(channel: string): void {
@@ -160,17 +156,11 @@ export class OutputService implements IOutputService {
 	}
 
 	public showOutput(channel: string, preserveFocus?: boolean): TPromise<IEditor> {
-		return this.panelService.openPanel(OUTPUT_PANEL_ID, !preserveFocus).then((panel: OutputPanel) => {
-			this.outputPanel = panel;
-			return this.outputPanel.setInput(OutputEditorInput.getInstance(this.instantiationService, channel), EditorOptions.create({ preserveFocus: true })).
-				then(() => this.outputPanel);
+		this.activeChannel = channel;
+		return this.panelService.openPanel(OUTPUT_PANEL_ID, !preserveFocus).then((outputPanel: OutputPanel) => {
+			return outputPanel.setInput(OutputEditorInput.getInstance(this.instantiationService, channel), EditorOptions.create({ preserveFocus: preserveFocus })).
+				then(() => outputPanel);
 		});
-	}
-
-	public revealLastLine(): void {
-		if (this.outputPanel) {
-			this.outputPanel.revealLastLine();
-		}
 	}
 
 	public dispose(): void {

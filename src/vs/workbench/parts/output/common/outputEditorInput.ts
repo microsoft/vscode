@@ -8,8 +8,10 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import {EditorModel} from 'vs/workbench/common/editor';
 import {StringEditorInput} from 'vs/workbench/common/editor/stringEditorInput';
-import {OUTPUT_EDITOR_INPUT_ID, IOutputEvent, OUTPUT_MIME, IOutputService} from 'vs/workbench/parts/output/common/output';
+import {OUTPUT_EDITOR_INPUT_ID, OUTPUT_PANEL_ID, IOutputEvent, OUTPUT_MIME, IOutputService} from 'vs/workbench/parts/output/common/output';
+import {OutputPanel} from 'vs/workbench/parts/output/browser/outputPanel';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import {IPanelService} from 'vs/workbench/services/panel/common/panelService';
 
 /**
  * Output Editor Input
@@ -40,7 +42,8 @@ export class OutputEditorInput extends StringEditorInput {
 	constructor(
 		channel: string,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IOutputService private outputService: IOutputService
+		@IOutputService private outputService: IOutputService,
+		@IPanelService private panelService: IPanelService
 	) {
 		super(nls.localize('output', "Output"), channel ? nls.localize('outputChannel', "for '{0}'", channel) : '', '', OUTPUT_MIME, true, instantiationService);
 
@@ -56,8 +59,9 @@ export class OutputEditorInput extends StringEditorInput {
 			if (e.output) {
 				this.append(e.output);
 				this.trim(OutputEditorInput.MAX_OUTPUT_LINES);
-				if (this.outputService.getActiveChannel() === this.channel) {
-					this.outputService.revealLastLine();
+				const panel = this.panelService.getActivePanel();
+				if (panel.getId() === OUTPUT_PANEL_ID && this.outputService.getActiveChannel() === this.channel) {
+					(<OutputPanel>panel).revealLastLine();
 				}
 			} else if (e.output === null) {
 				this.clearValue(); // special output indicates we should clear
