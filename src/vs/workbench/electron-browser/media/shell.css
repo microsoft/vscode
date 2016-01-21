@@ -96,6 +96,10 @@
 	outline-offset: -2px;
 }
 
+.monaco-shell .quick-open-widget .quick-open-tree .monaco-tree-rows {
+	outline: 0 !important; /* quick open is special because focus is always in the input field */
+}
+
 .monaco-shell input[type="text"], .monaco-shell textarea {
 	outline: 0; /* do not show outline in input fields and textarea */
 }
