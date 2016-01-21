@@ -126,7 +126,7 @@ export function toViewColumn(position?: EditorPosition): vscode.ViewColumn {
 
 export function fromFormattedString(value: vscode.MarkedString): IHTMLContentElement {
 	if (typeof value === 'string') {
-		return { formattedText: value };
+		return { markdown: value };
 	} else if (typeof value === 'object') {
 		return { code: value };
 	}
@@ -136,8 +136,8 @@ export function toFormattedString(value: IHTMLContentElement): vscode.MarkedStri
 	if (typeof value.code === 'string') {
 		return value.code;
 	}
-	let {formattedText, text} = value;
-	return formattedText || text || '<???>';
+	let {markdown, text} = value;
+	return markdown || text || '<???>';
 }
 
 function isMarkedStringArr(something: vscode.MarkedString | vscode.MarkedString[]): something is vscode.MarkedString[] {

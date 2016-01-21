@@ -7,6 +7,7 @@
 
 import DOM = require('vs/base/browser/dom');
 import {IHTMLContentElement} from 'vs/base/common/htmlContent';
+import {marked} from 'vs/base/common/marked/marked';
 
 
 export type RenderableContent = string | IHTMLContentElement | IHTMLContentElement[];
@@ -18,18 +19,23 @@ export interface RenderOptions {
 
 /**
  * Create html nodes for the given content element.
- * formattedText property supports **bold**, __italics__, and [[actions]]
+ *
  * @param content a html element description
  * @param actionCallback a callback function for any action links in the string. Argument is the zero-based index of the clicked action.
  */
 export function renderHtml(content: RenderableContent, options: RenderOptions = {}): Node {
 	if (typeof content === 'string') {
-		return _renderHtml({ text: content }, options);
+		return _renderHtml({ isText: true, text: content }, options);
 	} else if (Array.isArray(content)) {
 		return _renderHtml({ children: content }, options);
 	} else if (content) {
 		return _renderHtml(content, options);
 	}
+}
+
+const renderer = new marked.Renderer();
+renderer.link = function(href, title, text): string {
+	return `<a href="#" data-href="${href}" title="${title || text}">${text}</a>`
 }
 
 function _renderHtml(content: IHTMLContentElement, options: RenderOptions = {}): Node {
@@ -68,6 +74,15 @@ function _renderHtml(content: IHTMLContentElement, options: RenderOptions = {}):
 	}
 	if (content.formattedText) {
 		renderFormattedText(element, parseFormattedText(content.formattedText), actionCallback);
+	}
+	if (content.markdown) {
+		const options = { sanitize: true, tables: false, silent: true, renderer };
+		element.innerHTML = marked(content.markdown, options);
+		DOM.addStandardDisposableListener(element, 'click', (event) => {
+			if (event.target.tagName === 'A') {
+				console.log(event.target, event.target.dataset['href']);
+			}
+		});
 	}
 
 	return element;
