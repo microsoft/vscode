@@ -132,7 +132,11 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		let useSalsa = !!process.env['CODE_TSJS'] || !!process.env['VSCODE_TSJS'];
 		if (useSalsa) {
 			let versionOK = this.isTypeScriptVersionOkForSalsa(modulePath);
-			SalsaStatus.show("(Salsa)", modulePath, !versionOK);
+			let tooltip = modulePath;
+			if (!versionOK) {
+				tooltip = tooltip + ' does not support Salsa!'
+			}
+			SalsaStatus.show("(Salsa)", tooltip, !versionOK);
 		}
 
 		this.servicePromise = new Promise<cp.ChildProcess>((resolve, reject) => {
@@ -202,7 +206,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		if (!desc.version) {
 			return true;
 		}
-		return desc.version.indexOf('1.8') >= 0;
+		return desc.version.indexOf('1.7') >= 0;
 	}
 
 	private serviceExited(restart: boolean): void {
