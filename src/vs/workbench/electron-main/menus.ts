@@ -576,10 +576,9 @@ export class VSCodeMenu {
 		});
 
 		arrays.coalesce([
-			env.product.welcomePage ? this.createMenuItem(nls.localize('miShowWelcome', "&&Show Welcome"), 'workbench.action.markdown.showWelcome') : null,
 			env.product.documentationUrl ? new MenuItem({ label: mnemonicLabel(nls.localize('miDocumentation', "&&Documentation")), click: () => openUrl(env.product.documentationUrl, 'openDocumentationUrl') }) : null,
 			env.product.releaseNotesUrl ? new MenuItem({ label: mnemonicLabel(nls.localize('miReleaseNotes', "&&Release Notes")), click: () => openUrl(env.product.releaseNotesUrl, 'openReleaseNotesUrl') }) : null,,
-			(env.product.welcomePage || env.product.documentationUrl || env.product.releaseNotesUrl) ? __separator__() : null,
+			(env.product.documentationUrl || env.product.releaseNotesUrl) ? __separator__() : null,
 			env.product.twitterUrl ? new MenuItem({ label: mnemonicLabel(nls.localize('miTwitter', "&&Join us on Twitter")), click: () => openUrl(env.product.twitterUrl, 'openTwitterUrl') }) : null,
 			env.product.requestFeatureUrl ? new MenuItem({ label: mnemonicLabel(nls.localize('miUserVoice', "&&Request Features")), click: () => openUrl(env.product.requestFeatureUrl, 'openUserVoiceUrl') }) : null,
 			env.product.reportIssueUrl ? new MenuItem({ label: mnemonicLabel(nls.localize('miReportIssues', "Report &&Issues")), click: () => openUrl(env.product.reportIssueUrl, 'openReportIssues') }) : null,
