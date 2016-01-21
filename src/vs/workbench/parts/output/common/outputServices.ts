@@ -6,15 +6,19 @@
 import {Promise, TPromise} from 'vs/base/common/winjs.base';
 import strings = require('vs/base/common/strings');
 import Event, {Emitter} from 'vs/base/common/event';
-import {EditorOptions} from 'vs/workbench/common/editor';
-import {OUTPUT_MIME, IOutputEvent, IOutputService, OUTPUT_PANEL_ID} from 'vs/workbench/parts/output/common/output';
-import {OutputEditorInput} from 'vs/workbench/parts/output/common/outputEditorInput';
 import {IEditor, Position} from 'vs/platform/editor/common/editor';
 import {IEventService} from 'vs/platform/event/common/event';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
+import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
+import {Registry} from 'vs/platform/platform';
+import {EditorOptions} from 'vs/workbench/common/editor';
+import {IOutputEvent, IOutputService, Extensions, OUTPUT_PANEL_ID, IOutputChannelRegistry} from 'vs/workbench/parts/output/common/output';
+import {OutputEditorInput} from 'vs/workbench/parts/output/common/outputEditorInput';
 import {OutputPanel} from 'vs/workbench/parts/output/browser/outputPanel';
 import {IPanelService} from 'vs/workbench/services/panel/common/panelService';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+
+const OUTPUT_ACTIVE_CHANNEL_KEY = 'output.activechannel';
 
 export class OutputService implements IOutputService {
 	public serviceId = IOutputService;
@@ -33,6 +37,7 @@ export class OutputService implements IOutputService {
 	private _onOutputChannel: Emitter<string>;
 
 	constructor(
+		@IStorageService private storageService: IStorageService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IEventService private eventService: IEventService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
@@ -42,10 +47,12 @@ export class OutputService implements IOutputService {
 		this._onOutputChannel = new Emitter<string>();
 
 		this.receivedOutput = Object.create(null);
-
 		this.bufferedOutput = Object.create(null);
 		this.sendOutputEventsTimerId = -1;
 		this.lastSentOutputEventsTime = -1;
+
+		this.activeChannel = this.storageService.get(OUTPUT_ACTIVE_CHANNEL_KEY, StorageScope.WORKSPACE,
+			(<IOutputChannelRegistry>Registry.as(Extensions.OutputChannels)).getChannels().pop());
 
 		this.registerListeners();
 	}
@@ -157,6 +164,8 @@ export class OutputService implements IOutputService {
 
 	public showOutput(channel: string, preserveFocus?: boolean): TPromise<IEditor> {
 		this.activeChannel = channel;
+		this.storageService.store(OUTPUT_ACTIVE_CHANNEL_KEY, this.activeChannel, StorageScope.WORKSPACE);
+
 		return this.panelService.openPanel(OUTPUT_PANEL_ID, !preserveFocus).then((outputPanel: OutputPanel) => {
 			return outputPanel.setInput(OutputEditorInput.getInstance(this.instantiationService, channel), EditorOptions.create({ preserveFocus: preserveFocus })).
 				then(() => outputPanel);
