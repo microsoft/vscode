@@ -6,7 +6,7 @@
 import lifecycle = require('vs/base/common/lifecycle');
 import {TPromise} from 'vs/base/common/winjs.base';
 import {Action, IAction} from 'vs/base/common/actions';
-import builder = require('vs/base/browser/builder');
+import {Builder} from 'vs/base/browser/builder';
 import {IActionItem} from 'vs/base/browser/ui/actionbar/actionbar';
 import {IEditorOptions} from 'vs/editor/common/editorCommon';
 import {IModeService} from 'vs/editor/common/services/modeService';
@@ -18,7 +18,8 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {IMessageService} from 'vs/platform/message/common/message';
 import {EditorInput, EditorOptions} from 'vs/workbench/common/editor';
 import {StringEditor} from 'vs/workbench/browser/parts/editor/stringEditor';
-import {OUTPUT_PANEL_ID} from 'vs/workbench/parts/output/common/output';
+import {OUTPUT_PANEL_ID, IOutputService} from 'vs/workbench/parts/output/common/output';
+import {OutputEditorInput} from 'vs/workbench/parts/output/common/outputEditorInput';
 import {SwitchOutputAction, SwitchOutputActionItem, ClearOutputAction} from 'vs/workbench/parts/output/browser/outputActions';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {ClosePanelAction} from 'vs/workbench/browser/parts/panel/panelPart';
@@ -38,7 +39,8 @@ export class OutputPanel extends StringEditor {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IEventService eventService: IEventService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
-		@IModeService modeService: IModeService
+		@IModeService modeService: IModeService,
+		@IOutputService private outputService: IOutputService
 	) {
 		super(telemetryService, instantiationService, contextService, storageService,
 			messageService, configurationService, eventService, editorService, modeService);
@@ -83,6 +85,11 @@ export class OutputPanel extends StringEditor {
 
 	public setInput(input: EditorInput, options: EditorOptions): TPromise<void> {
 		return super.setInput(input, options).then(() => this.revealLastLine());
+	}
+
+	public create(parent: Builder): TPromise<void> {
+		return super.create(parent)
+			.then(() => this.setInput(OutputEditorInput.getInstance(this.instantiationService, this.outputService.getActiveChannel()), null));
 	}
 
 	public focus(): void {
