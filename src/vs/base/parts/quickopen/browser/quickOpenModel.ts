@@ -182,7 +182,7 @@ export class QuickOpenEntry {
 		return compareAnything(nameA, nameB, lookFor);
 	}
 
-	public static compareByScore(elementA: QuickOpenEntry, elementB: QuickOpenEntry, lookFor: string, scorerCache?: { [key: string]: number }): number {
+	public static compareByScore(elementA: QuickOpenEntry, elementB: QuickOpenEntry, lookFor: string, lookForNormalizedLower: string, scorerCache?: { [key: string]: number }): number {
 		const labelA = elementA.getLabel();
 		const labelB = elementB.getLabel();
 
@@ -229,7 +229,12 @@ export class QuickOpenEntry {
 			return resourceA.fsPath.length < resourceB.fsPath.length ? -1 : 1;
 		}
 
-		return QuickOpenEntry.compare(elementA, elementB, lookFor);
+		// Finally compare by label or resource path
+		if (labelA === labelB && resourceA && resourceB) {
+			return compareAnything(resourceA.fsPath, resourceB.fsPath, lookForNormalizedLower);
+		}
+
+		return compareAnything(labelA, labelB, lookForNormalizedLower);
 	}
 
 	/**
