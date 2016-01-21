@@ -34,8 +34,6 @@ export class StringEditor extends BaseTextEditor {
 
 	public static ID = 'workbench.editors.stringEditor';
 
-	private defaultWrappingColumn: number;
-	private defaultLineNumbers: boolean;
 	private mapResourceToEditorViewState: { [resource: string]: IEditorViewState; };
 
 	constructor(
@@ -50,9 +48,6 @@ export class StringEditor extends BaseTextEditor {
 		@IModeService modeService: IModeService
 	) {
 		super(StringEditor.ID, telemetryService, instantiationService, contextService, storageService, messageService, configurationService, eventService, editorService, modeService);
-
-		this.defaultWrappingColumn = DefaultConfig.editor.wrappingColumn;
-		this.defaultLineNumbers = DefaultConfig.editor.lineNumbers;
 
 		this.mapResourceToEditorViewState = Object.create(null);
 
@@ -133,18 +128,6 @@ export class StringEditor extends BaseTextEditor {
 		});
 	}
 
-	protected applyConfiguration(configuration: any): void {
-
-		// Remember some settings that we overwrite from #getCodeEditorOptions()
-		let editorConfig = configuration && configuration[EditorConfiguration.EDITOR_SECTION];
-		if (editorConfig) {
-			this.defaultWrappingColumn = editorConfig.wrappingColumn;
-			this.defaultLineNumbers = editorConfig.lineNumbers;
-		}
-
-		super.applyConfiguration(configuration);
-	}
-
 	protected getCodeEditorOptions(): IEditorOptions {
 		let options = super.getCodeEditorOptions();
 
@@ -152,9 +135,6 @@ export class StringEditor extends BaseTextEditor {
 		let isUntitled = input instanceof UntitledEditorInput;
 
 		options.readOnly = !isUntitled; 				// all string editors are readonly except for the untitled one
-
-		options.wrappingColumn = this.defaultWrappingColumn; 	// otherwise make sure to restore the defaults
-		options.lineNumbers = this.defaultLineNumbers; 			// otherwise make sure to restore the defaults
 
 		return options;
 	}
