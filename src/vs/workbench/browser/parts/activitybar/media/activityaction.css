@@ -29,6 +29,23 @@
 	text-shadow: 0 1px 0 rgba(0, 0, 0, 0.8);
 }
 
+.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item .action-label:focus:before {
+	content: "";
+	position: absolute;
+	top: 4px;
+	height: 32px;
+	width: 0;
+	border-left: 2px solid #1E8AE5;
+}
+
+.monaco-workbench > .activitybar.left > .content .monaco-action-bar .action-item .action-label:focus:before {
+	left: 1px;
+}
+
+.monaco-workbench > .activitybar.right > .content .monaco-action-bar .action-item .action-label:focus:before {
+	right: 1px;
+}
+
 .monaco-workbench > .activitybar > .content .monaco-action-bar .action-label > .label {
 	-ms-flex: 1 1 auto;
 	flex: 1 1 auto;
@@ -86,7 +103,7 @@
 	opacity: 1;
 }
 
-.monaco-workbench.vs > .activitybar.left:not(.help) > .content > .monaco-action-bar.position-top .action-label.active:after {
+.monaco-workbench.vs > .activitybar.left > .content > .monaco-action-bar.position-top .action-label.active:after {
 	content: '';
 	position: absolute;
 	top: 15px;
@@ -98,7 +115,7 @@
 	border-right: 5px solid #F6F6F6;
 }
 
-.monaco-workbench.vs-dark > .activitybar.left:not(.help) > .content > .monaco-action-bar.position-top .action-label.active:after {
+.monaco-workbench.vs-dark > .activitybar.left > .content > .monaco-action-bar.position-top .action-label.active:after {
 	content: '';
 	position: absolute;
 	top: 15px;
@@ -110,7 +127,7 @@
 	border-right: 5px solid #252526;
 }
 
-.monaco-workbench.vs > .activitybar.right:not(.help) > .content > .monaco-action-bar.position-top .action-label.active:before {
+.monaco-workbench.vs > .activitybar.right > .content > .monaco-action-bar.position-top .action-label.active:before {
 	content: '';
 	position: absolute;
 	top: 15px;
@@ -122,7 +139,7 @@
 	border-left: 5px solid #F6F6F6;
 }
 
-.monaco-workbench.vs-dark > .activitybar.right:not(.help) > .content > .monaco-action-bar.position-top .action-label.active:before {
+.monaco-workbench.vs-dark > .activitybar.right > .content > .monaco-action-bar.position-top .action-label.active:before {
 	content: '';
 	position: absolute;
 	top: 15px;

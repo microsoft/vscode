@@ -73,6 +73,10 @@
 	outline-offset: -2px;
 }
 
+.monaco-shell .activitybar [tabindex="0"]:focus {
+	outline: 0; /* activity bar indicates focus customly */
+}
+
 /* END Keyboard Focus Indication Styles */
 
 .monaco-shell a.prominent {
