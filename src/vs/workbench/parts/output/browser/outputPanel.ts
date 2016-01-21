@@ -3,24 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import lifecycle = require('vs/base/common/lifecycle');
 import {TPromise} from 'vs/base/common/winjs.base';
-import actions = require('vs/base/common/actions');
+import {Action, IAction} from 'vs/base/common/actions';
 import builder = require('vs/base/browser/builder');
+import {IActionItem} from 'vs/base/browser/ui/actionbar/actionbar';
 import {IEditorOptions} from 'vs/editor/common/editorCommon';
-import {EditorInput, EditorOptions} from 'vs/workbench/common/editor';
-import {StringEditor} from 'vs/workbench/browser/parts/editor/stringEditor';
-import {OUTPUT_PANEL_ID} from 'vs/workbench/parts/output/common/output';
+import {IModeService} from 'vs/editor/common/services/modeService';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {IStorageService} from 'vs/platform/storage/common/storage';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IMessageService} from 'vs/platform/message/common/message';
+import {EditorInput, EditorOptions} from 'vs/workbench/common/editor';
+import {StringEditor} from 'vs/workbench/browser/parts/editor/stringEditor';
+import {OUTPUT_PANEL_ID} from 'vs/workbench/parts/output/common/output';
+import {SwitchOutputAction, SwitchOutputActionItem, ClearOutputAction} from 'vs/workbench/parts/output/browser/outputActions';
+import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
+import {ClosePanelAction} from 'vs/workbench/browser/parts/panel/panelPart';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IModeService} from 'vs/editor/common/services/modeService';
 
 export class OutputPanel extends StringEditor {
+
+	private toDispose: lifecycle.IDisposable[];
+	private actions: IAction[];
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -35,10 +42,31 @@ export class OutputPanel extends StringEditor {
 	) {
 		super(OUTPUT_PANEL_ID, telemetryService, instantiationService, contextService, storageService,
 			messageService, configurationService, eventService, editorService, modeService);
+		this.toDispose = [];
 	}
 
-	public getActions(): actions.IAction[] {
-		return [];
+	public getActions(): IAction[] {
+		if (!this.actions) {
+			this.actions = [
+				this.instantiationService.createInstance(SwitchOutputAction),
+				this.instantiationService.createInstance(ClearOutputAction),
+				this.instantiationService.createInstance(ClosePanelAction, ClosePanelAction.ID, ClosePanelAction.LABEL)
+			];
+
+			this.actions.forEach(a => {
+				this.toDispose.push(a);
+			});
+		}
+
+		return this.actions;
+	}
+
+	public getActionItem(action: Action): IActionItem {
+		if (action.id === SwitchOutputAction.ID) {
+			return this.instantiationService.createInstance(SwitchOutputActionItem, action, this.input);
+		}
+
+		return super.getActionItem(action);
 	}
 
 	protected getCodeEditorOptions(): IEditorOptions {
@@ -56,5 +84,10 @@ export class OutputPanel extends StringEditor {
 	public focus(): void {
 		super.focus();
 		this.revealLastLine();
+	}
+
+	public dispose(): void {
+		this.toDispose = lifecycle.disposeAll(this.toDispose);
+		super.dispose();
 	}
 }
