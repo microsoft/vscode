@@ -30,7 +30,8 @@
 				],
 				"mimetypes": [
 					"application/json"
-				]
+				],
+				"configuration": "./json.configuration.json"
 			}
 		],
 		"grammars": [
