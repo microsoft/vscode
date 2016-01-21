@@ -22,7 +22,7 @@ import {IThreadService} from 'vs/platform/thread/common/thread';
 
 export function registerApiCommands(threadService: IThreadService) {
 	const commands = threadService.getRemotable(ExtHostCommands);
-	new ExtHostApiCommands(commands);
+	new ExtHostApiCommands(commands).registerCommands();
 }
 
 class ExtHostApiCommands {
@@ -32,7 +32,9 @@ class ExtHostApiCommands {
 
 	constructor(commands: ExtHostCommands) {
 		this._commands = commands;
+	}
 
+	registerCommands() {
 		this._register('vscode.executeWorkspaceSymbolProvider', this._executeWorkspaceSymbolProvider, {
 			description: 'Execute all workspace symbol provider.',
 			args: [{ name: 'query', constraint: String }],

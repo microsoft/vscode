@@ -211,7 +211,9 @@ export class DropdownMenuActionItem extends BaseActionItem {
 	}
 
 	public show(): void {
-		this.dropdownMenu && this.dropdownMenu.show();
+		if (this.dropdownMenu) {
+			this.dropdownMenu.show();
+		}
 	}
 
 	public dispose(): void {
