@@ -12,7 +12,7 @@ import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
 import Strings = require('vs/base/common/strings');
 import Paths = require('vs/base/common/paths');
-import Marked = require('vs/languages/markdown/common/marked');
+import Marked = require('vs/base/common/marked/marked');
 import ModesExtensions = require('vs/editor/common/modes/modesRegistry');
 import {tokenizeToString} from 'vs/editor/common/modes/textToHtmlTokenizer';
 import Platform = require('vs/platform/platform');
