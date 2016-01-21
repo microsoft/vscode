@@ -56,6 +56,9 @@ export class OutputEditorInput extends StringEditorInput {
 			if (e.output) {
 				this.append(e.output);
 				this.trim(OutputEditorInput.MAX_OUTPUT_LINES);
+				if (this.outputService.getActiveChannel() === this.channel) {
+					this.outputService.revealLastLine();
+				}
 			} else if (e.output === null) {
 				this.clearValue(); // special output indicates we should clear
 			}

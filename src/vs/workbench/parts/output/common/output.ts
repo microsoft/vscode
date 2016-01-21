@@ -107,7 +107,7 @@ export interface IOutputService {
 	onOutputChannel: Event<string>;
 
 	/**
-	 * Reveals the last line on the editor that has the passed channel set as output.
+	 * Reveals the last line on the currently opened channel.
 	 */
 	revealLastLine(): void;
 }
