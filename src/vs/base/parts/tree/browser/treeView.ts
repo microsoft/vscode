@@ -1489,6 +1489,10 @@ export class TreeView extends HeightMap implements IScrollable {
 		if (!this.context.options.alwaysFocused) {
 			DOM.addClass(this.domNode, 'focused');
 		}
+
+		if (this.model && !this.model.getFocus()) {
+			this.model.focusFirst(); // a tree with focus always shows this on the first element
+		}
 	}
 
 	private onBlur(e: FocusEvent): void {
