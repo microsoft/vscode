@@ -206,7 +206,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		if (!desc.version) {
 			return true;
 		}
-		return desc.version.indexOf('1.7') >= 0;
+		return desc.version.indexOf('1.8') >= 0;
 	}
 
 	private serviceExited(restart: boolean): void {
