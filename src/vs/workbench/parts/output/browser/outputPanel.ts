@@ -20,8 +20,6 @@ import {IMessageService} from 'vs/platform/message/common/message';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IModeService} from 'vs/editor/common/services/modeService';
 
-// TODO@Isidor trim and append need to reveal last line
-
 export class OutputPanel extends StringEditor {
 
 	constructor(
@@ -39,21 +37,12 @@ export class OutputPanel extends StringEditor {
 			messageService, configurationService, eventService, editorService, modeService);
 	}
 
-	public create(parent: builder.Builder): TPromise<void> {
-		super.createEditor(parent);
-		return TPromise.as(null);
-	}
-
-	public layout(dimension: builder.Dimension): void {
-		super.layout(dimension);
-	}
-
 	public getActions(): actions.IAction[] {
 		return [];
 	}
 
 	protected getCodeEditorOptions(): IEditorOptions {
-		let options = super.getCodeEditorOptions();
+		const options = super.getCodeEditorOptions();
 		options.wrappingColumn = 0;				// all log editors wrap
 		options.lineNumbers = false;				// all log editors hide line numbers
 
