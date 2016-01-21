@@ -174,7 +174,6 @@ export class OutputService implements IOutputService {
 	}
 
 	public dispose(): void {
-		this.outputPanel.dispose();
 		if (this.sendOutputEventsTimerId !== -1) {
 			clearTimeout(this.sendOutputEventsTimerId);
 			this.sendOutputEventsTimerId = -1;
