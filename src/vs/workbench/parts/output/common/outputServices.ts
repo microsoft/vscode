@@ -51,8 +51,8 @@ export class OutputService implements IOutputService {
 		this.sendOutputEventsTimerId = -1;
 		this.lastSentOutputEventsTime = -1;
 
-		this.activeChannel = this.storageService.get(OUTPUT_ACTIVE_CHANNEL_KEY, StorageScope.WORKSPACE,
-			(<IOutputChannelRegistry>Registry.as(Extensions.OutputChannels)).getChannels().pop());
+		const channels = (<IOutputChannelRegistry>Registry.as(Extensions.OutputChannels)).getChannels();
+		this.activeChannel = this.storageService.get(OUTPUT_ACTIVE_CHANNEL_KEY, StorageScope.WORKSPACE, channels && channels.length > 0 ? channels[0] : null);
 
 		this.registerListeners();
 	}
