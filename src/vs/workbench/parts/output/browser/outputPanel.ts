@@ -63,7 +63,7 @@ export class OutputPanel extends StringEditor {
 
 	public getActionItem(action: Action): IActionItem {
 		if (action.id === SwitchOutputAction.ID) {
-			return this.instantiationService.createInstance(SwitchOutputActionItem, action, this.input);
+			return this.instantiationService.createInstance(SwitchOutputActionItem, action);
 		}
 
 		return super.getActionItem(action);

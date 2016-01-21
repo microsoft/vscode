@@ -84,12 +84,6 @@ export class OutputEditorInput extends StringEditorInput {
 		});
 	}
 
-	public clearOutput(): void {
-		if (this.outputService) {
-			this.outputService.clearOutput(this.channel);
-		}
-	}
-
 	public getChannel(): string {
 		return this.channel;
 	}
