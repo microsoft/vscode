@@ -693,6 +693,9 @@ export class TreeView extends HeightMap implements IScrollable {
 				case 'item:removeTrait':
 					this.onItemRemoveTrait(data);
 					break;
+				case 'focus':
+					this.onModelFocusChange();
+					break;
 			}
 		}
 
@@ -1047,6 +1050,10 @@ export class TreeView extends HeightMap implements IScrollable {
 			}
 			delete this.highlightedItemWasDraggable;
 		}
+	}
+
+	private onModelFocusChange(): void {
+		DOM.toggleClass(this.domNode, 'no-item-focus', !this.model || !this.model.getFocus());
 	}
 
 	// HeightMap "events"

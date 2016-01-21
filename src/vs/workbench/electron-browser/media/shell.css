@@ -67,8 +67,9 @@
 	outline: 0; /* tree indicates focus not via outline but through the focussed item */
 }
 
-.monaco-shell .monaco-tree.focused .monaco-tree-rows:empty {
-	outline: 2px auto -webkit-focus-ring-color; /* we still need to handle the empty tree case */
+.monaco-shell .monaco-tree.focused .monaco-tree-rows:empty,
+.monaco-shell .monaco-tree.focused.no-item-focus .monaco-tree-rows {
+	outline: 2px auto -webkit-focus-ring-color; /* we still need to handle the empty tree or no focus item case */
 	outline-offset: -2px;
 }
 
