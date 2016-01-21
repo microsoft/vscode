@@ -7,7 +7,7 @@ import {Promise, TPromise} from 'vs/base/common/winjs.base';
 import strings = require('vs/base/common/strings');
 import Event, {Emitter} from 'vs/base/common/event';
 import {EditorOptions} from 'vs/workbench/common/editor';
-import {OUTPUT_MIME, DEFAULT_OUTPUT_CHANNEL, IOutputEvent, IOutputService, OUTPUT_PANEL_ID} from 'vs/workbench/parts/output/common/output';
+import {OUTPUT_MIME, IOutputEvent, IOutputService, OUTPUT_PANEL_ID} from 'vs/workbench/parts/output/common/output';
 import {OutputEditorInput} from 'vs/workbench/parts/output/common/outputEditorInput';
 import {IEditor, Position} from 'vs/platform/editor/common/editor';
 import {IEventService} from 'vs/platform/event/common/event';
@@ -62,18 +62,7 @@ export class OutputService implements IOutputService {
 		this.lifecycleService.onShutdown(this.dispose, this);
 	}
 
-	public append(channelOrOutput: string, output?: string): void {
-		let channel: string = DEFAULT_OUTPUT_CHANNEL;
-		if (output) {
-			channel = channelOrOutput;
-		} else {
-			output = channelOrOutput;
-		}
-
-		this.doAppend(channel, output);
-	}
-
-	private doAppend(channel: string, output: string): void {
+	public append(channel: string, output: string): void {
 
 		// Initialize
 		if (!this.receivedOutput[channel]) {
@@ -148,7 +137,7 @@ export class OutputService implements IOutputService {
 		this.bufferedOutput = Object.create(null);
 	}
 
-	public getOutput(channel = DEFAULT_OUTPUT_CHANNEL): string {
+	public getOutput(channel: string): string {
 		return this.receivedOutput[channel] || '';
 	}
 
@@ -164,13 +153,13 @@ export class OutputService implements IOutputService {
 		return (<OutputEditorInput>this.outputPanel.getInput()).getChannel();
 	}
 
-	public clearOutput(channel = DEFAULT_OUTPUT_CHANNEL): void {
+	public clearOutput(channel: string): void {
 		this.receivedOutput[channel] = '';
 
 		this._onOutput.fire({ channel: channel, output: null /* indicator to clear output */ });
 	}
 
-	public showOutput(channel: string = DEFAULT_OUTPUT_CHANNEL, preserveFocus?: boolean): TPromise<IEditor> {
+	public showOutput(channel: string, preserveFocus?: boolean): TPromise<IEditor> {
 		return this.panelService.openPanel(OUTPUT_PANEL_ID, !preserveFocus).then((panel: OutputPanel) => {
 			this.outputPanel = panel;
 			return this.outputPanel.setInput(OutputEditorInput.getInstance(this.instantiationService, channel), EditorOptions.create({ preserveFocus: true })).

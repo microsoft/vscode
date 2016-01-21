@@ -40,7 +40,7 @@ export class ToggleOutputAction extends Action {
 			return Promise.as(null);
 		}
 
-		return this.outputService.showOutput();
+		return this.outputService.showOutput(this.outputService.getActiveChannel());
 	}
 }
 
@@ -108,15 +108,14 @@ export class SwitchOutputActionItem extends SelectActionItem {
 		action: IAction,
 		@IOutputService private outputService: IOutputService
 	) {
-		super(null, action, SwitchOutputActionItem.getChannels(outputService), SwitchOutputActionItem.getChannels(outputService).indexOf(outputService.getActiveChannel()));
-
+		super(null, action, SwitchOutputActionItem.getChannels(outputService), Math.max(0, SwitchOutputActionItem.getChannels(outputService).indexOf(outputService.getActiveChannel())));
 
 		this.outputListenerDispose = this.outputService.onOutputChannel(this.onOutputChannel, this);
 	}
 
 	private onOutputChannel(): void {
 		let channels = SwitchOutputActionItem.getChannels(this.outputService);
-		let selected = channels.indexOf(this.outputService.getActiveChannel());
+		let selected = Math.max(0, channels.indexOf(this.outputService.getActiveChannel()));
 
 		this.setOptions(channels, selected);
 	}

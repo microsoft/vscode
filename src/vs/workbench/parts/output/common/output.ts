@@ -30,11 +30,6 @@ export const OUTPUT_EDITOR_INPUT_ID = 'vs.output';
  */
 export const OUTPUT_PANEL_ID = 'workbench.panel.output';
 
-/**
- * Output from any not defined channel is here
- */
-export const DEFAULT_OUTPUT_CHANNEL = '';
-
 export const Extensions = {
 	OutputChannels: 'workbench.contributions.outputChannels'
 };
@@ -59,7 +54,6 @@ export interface IOutputService {
 	/**
 	 * Appends output to the given channel.
 	 */
-	append(output: string): void;
 	append(channel: string, output: string): void;
 
 	/**
@@ -68,7 +62,7 @@ export interface IOutputService {
 	 * The optional channel allows to ask for output for a specific channel. If you leave the
 	 * channel out, you get the default channels output.
 	 */
-	getOutput(channel?: string): string;
+	getOutput(channel: string): string;
 
 	/**
 	 * Returns all channels that received output in the current session.
@@ -86,7 +80,7 @@ export interface IOutputService {
 	 * The optional channel allows to clear the output for a specific channel. If you leave the
 	 * channel out, you get clear the default channels output.
 	 */
-	clearOutput(channel?: string): void;
+	clearOutput(channel: string): void;
 
 	/**
 	 * Opens the output for the given channel
@@ -94,7 +88,7 @@ export interface IOutputService {
 	 * The optional channel allows to show the output for a specific channel. If you leave the
 	 * channel out, you show the default channels output.
 	 */
-	showOutput(channel?: string, preserveFocus?: boolean): TPromise<IEditor>;
+	showOutput(channel: string, preserveFocus?: boolean): TPromise<IEditor>;
 
 	/**
 	 * Allows to register on Output events
