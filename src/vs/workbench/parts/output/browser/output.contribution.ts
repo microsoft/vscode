@@ -36,8 +36,7 @@ registerMode({
 	'OutputPanel',
 	OUTPUT_PANEL_ID,
 	nls.localize('output', "Output"),
-	'output',
-	40
+	'output'
 ));
 
 // register toggle output action globally
