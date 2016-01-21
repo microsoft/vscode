@@ -9,12 +9,12 @@
 
 declare namespace vscode {
 
-	export const env: {
-		/**
-		 * The version of the editor.
-		 */
-		version: string;
+	/**
+	 * The version of the editor.
+	*/
+	export var version: string;
 
+	export const env: {
 		/**
 		 * locale, like de-ch, en-us
 		 */

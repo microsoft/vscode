@@ -57,6 +57,7 @@ export class ExtHostAPIImplementation {
 	private _pluginService: IPluginService;
 	private _telemetryService: ITelemetryService;
 
+	version: typeof vscode.version;
 	env: typeof vscode.env;
 	Uri: typeof vscode.Uri;
 	Location: typeof vscode.Location;
@@ -102,9 +103,9 @@ export class ExtHostAPIImplementation {
 		this._telemetryService = telemetryService;
 		this._proxy = threadService.getRemotable(MainProcessVSCodeAPIHelper);
 
+		this.version = contextService.getConfiguration().env.version;
 		this._telemetryService.getTelemetryInfo().then((info) => {
 			this.env = {
-				version:contextService.getConfiguration().env.version,
 				machineId: info.machineId,
 				sessionId: info.sessionId,
 				locale: null
