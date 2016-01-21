@@ -2,6 +2,13 @@
 	"rules": {
 		"no-unused-expression": true,
 		"no-unreachable": true,
-		"no-duplicate-variable": true
+		"no-duplicate-variable": true,
+		"no-unexternalized-strings": [
+			true,
+			{
+				"signatures": ["localize", "nls.localize"],
+				"messageIndex": 1
+			}
+		]
 	}
 }
