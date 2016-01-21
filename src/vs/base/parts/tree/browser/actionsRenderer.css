@@ -47,7 +47,6 @@
 .monaco-tree.focused .monaco-tree-row.focused:not(.highlighted) > .content.actions > .primary-action-bar 	{ background-color: #DCEBFC; }
 .monaco-tree.focused .monaco-tree-row.selected:not(.highlighted) > .content.actions > .primary-action-bar 	{ background-color: #4FA7FF; color: white; }
 .monaco-tree.focused .monaco-tree-row.focused.selected:not(.highlighted) > .content.actions > .primary-action-bar 	{ background-color: #3399FF; color: white; }
-.monaco-tree .monaco-tree-row.focused:not(.highlighted) > .content.actions > .primary-action-bar 			{ background-color: #eaeaea; }
 .monaco-tree .monaco-tree-row.selected:not(.highlighted) > .content.actions > .primary-action-bar  		{ background-color: #CCCEDB; }
 .monaco-tree .monaco-tree-row:hover:not(.highlighted):not(.selected):not(.focused) > .content.actions > .primary-action-bar  			{ background-color: #F0F0F0; }
 .monaco-tree .monaco-tree-row.drop-target > .content.actions > .primary-action-bar							{ background-color: #DDECFF; }
@@ -57,7 +56,6 @@
 .vs-dark .monaco-tree.focused .monaco-tree-row.focused:not(.highlighted) > .content.actions > .primary-action-bar 		{ background-color: #073655; }
 .vs-dark .monaco-tree.focused .monaco-tree-row.selected:not(.highlighted) > .content.actions > .primary-action-bar 	{ background-color: #0E639C; color: white; }
 .vs-dark .monaco-tree.focused .monaco-tree-row.focused.selected:not(.highlighted) > .content.actions > .primary-action-bar 	{ background-color: #094771; color: white; }
-.vs-dark .monaco-tree .monaco-tree-row.focused:not(.highlighted) > .content.actions > .primary-action-bar 				{ background-color: #2f3334; }
 .vs-dark .monaco-tree .monaco-tree-row.selected:not(.highlighted) > .content.actions > .primary-action-bar  			{ background-color: #3F3F46; }
 .vs-dark .monaco-tree .monaco-tree-row:hover:not(.highlighted):not(.selected):not(.focused) > .content.actions > .primary-action-bar  				{ background-color: #2A2D2E; }
 .vs-dark .monaco-tree .monaco-tree-row.drop-target > .content.actions > .primary-action-bar							{ background-color: #383B3D; }
@@ -66,7 +64,6 @@
 /* High Contrast Theming */
 .hc-black .monaco-tree.focused .monaco-tree-row.focused:not(.highlighted) > .content.actions > .primary-action-bar,
 .hc-black .monaco-tree.focused .monaco-tree-row.selected:not(.highlighted) > .content.actions > .primary-action-bar,
-.hc-black .monaco-tree .monaco-tree-row.focused:not(.highlighted) > .content.actions > .primary-action-bar,
 .hc-black .monaco-tree .monaco-tree-row.selected:not(.highlighted) > .content.actions > .primary-action-bar,
 .hc-black .monaco-tree .monaco-tree-row:hover:not(.highlighted):not(.selected):not(.focused) > .content.actions > .primary-action-bar,
 .hc-black .monaco-tree .monaco-tree-row.drop-target > .content.actions > .primary-action-bar,
