@@ -1,8 +1,8 @@
 {
     "name": "python",
     "displayName": "Python",
-    "description": "Python debugging, auto complete, go to definition, peek definition, signature view, rename symbol, etc",
-    "version": "0.0.3",
+    "description": "Python auto complete and linting",
+    "version": "0.0.1",
     "publisher": "donjayamanne",
     "license": "SEE LICENSE IN LICENSE or README.MD",
     "homepage": "https://github.com/DonJayamanne/pythonVSCode/blob/master/README.md",
@@ -23,12 +23,13 @@
     },
     "categories": [
         "Languages",
-        "Debuggers"
+        "Linters"
     ],
     "activationEvents": [
-        "onLanguage:python"
+        "onLanguage:python",
+        "onLanguage:plaintext"
     ],
-    "main": "./out/client/extension",
+    "main": "../../out/client/extension",
     "contributes": {
         "debuggers": [
             {
@@ -70,16 +71,26 @@
                     }
                 ]
             }
-        ]
+        ],
+        "configuration": {
+            "type": "object",
+            "title": "Python Configuration",
+            "properties": {
+                "python.maxNumberOfProblems": {
+                    "type": "number",
+                    "default": 100,
+                    "description": "Controls the maximum number of problems produced by the server."
+                }
+            }
+        }
     },
     "scripts": {
         "vscode:prepublish": "node ./node_modules/vscode/bin/compile",
-        "compile": "node ./node_modules/vscode/bin/compile  -watch -p ./ && installServerIntoExtension ./out ./src/server/package.json ./src/server/tsconfig.json"
+        "compile": "node ./node_modules/vscode/bin/compile -watch -p ./"
     },
     "dependencies": {
         "vscode-debugadapter": "^1.0.1",
         "vscode-debugprotocol": "^1.0.1",
-        "vscode-languageserver": "^1.1.0",
         "vscode-languageclient": "^1.1.0"
     },
     "devDependencies": {

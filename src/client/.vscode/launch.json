@@ -12,15 +12,23 @@
             ],
             "stopOnEntry": false,
             "sourceMaps": true,
-            "outDir": "out/src",
+            "outDir": "../../out/client",
             "preLaunchTask": "npm"
         },
         {
-            "name": "Attach",
+            "name": "Attach to python debug server",
             "type": "node",
-            "request": "attach",
+            "request": "launch",
+            "runtimeArgs": [
+                "--harmony"
+            ],
+            "program": "../../out/client/debugger/main.js",
+            "stopOnEntry": false,
+            "args": [
+                "--server=4711"
+            ],
             "sourceMaps": true,
-            "port": 6004
+            "outDir": "../../out/client"
         }
     ]
 }

@@ -1,12 +1,16 @@
 {
-	"compilerOptions": {
-		"module": "commonjs",
-		"target": "es5",
-		"outDir": "out",
-		"noLib": true,
-		"sourceMap": true
-	},
-	"exclude": [
-		"node_modules"
-	]
+    "compilerOptions": {
+        "module": "commonjs",
+        "target": "es6",
+        "outDir": "./out",
+        "noLib": true,
+        "sourceMap": true
+    },
+    "exclude": [
+        "node_modules",
+        "src/server/node_modules",
+        "src/client/node_modules",
+        "src/server/src/typings",
+        "src/client/src/typings"
+    ]
 }

@@ -8,11 +8,13 @@ Intellisense, auto-completion, rename references, view references, go to definit
 * Viewing references
 * Going to definitins
 * View signature and similar by hovering over a function or method
-* Debugging is still a work in progress (Alpha stage)
+* Debugging using PDB (work in progress, please remove any and all issues)
 
 Open the python file and start using it. 
 
-NOTE: Path to Python is assumed to be in the current environment path.
+## Requirements
+* Python is installed on the current system
+* Path to Python is assumed to be in the current environment path.
  
 ![Image of Generate Features](https://raw.githubusercontent.com/DonJayamanne/pythonVSCode/master/images/general.gif)
 
@@ -20,6 +22,8 @@ NOTE: Path to Python is assumed to be in the current environment path.
 
 ![Image of Renaming and Find all References](https://raw.githubusercontent.com/DonJayamanne/pythonVSCode/master/images/rename.gif)
 
+
+## Debugging Instructions
 
 ## Source
 
