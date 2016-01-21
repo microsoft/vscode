@@ -535,8 +535,8 @@ class CSSimpleHTML extends CSState {
 				this.state = htmlMode.States.OpeningStartTag;
 				return { type: htmlTokenTypes.DELIM_START, bracket: Modes.Bracket.Open };
 
-			case htmlMode.States.OpeningEndTag:
-				var tagName = this.nextName(stream);
+			case htmlMode.States.OpeningEndTag: {
+				let tagName = this.nextName(stream);
 				if (tagName.length > 0) {
 					return {
 						type: htmlTokenTypes.getTag(tagName),
@@ -549,9 +549,10 @@ class CSSimpleHTML extends CSState {
 				}
 				stream.advanceUntil('>', false);
 				return { type: '' };
+			}
 
-			case htmlMode.States.OpeningStartTag:
-				var tagName = this.nextName(stream);
+			case htmlMode.States.OpeningStartTag: {
+				let tagName = this.nextName(stream);
 				if (tagName.length > 0) {
 					this.state = htmlMode.States.WithinTag;
 					return {
@@ -560,6 +561,7 @@ class CSSimpleHTML extends CSState {
 					};
 				}
 				break;
+			}
 
 			case htmlMode.States.WithinTag:
 				if (stream.skipWhitespace().length > 0) {

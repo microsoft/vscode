@@ -198,7 +198,7 @@ export function createScanner(text:string, ignoreTrivia:boolean = false):JSONSca
 	function scanNext():SyntaxKind {
 
 		value = '';
-		scanError = ScanError.None,
+		scanError = ScanError.None;
 
 		tokenOffset = pos;
 

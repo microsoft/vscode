@@ -157,7 +157,7 @@ function tokenize(mode:Modes.IMode, comments:boolean, line:string, state:JSONSta
 				lastWasColon = false;
 				break;
 			case json.SyntaxKind.StringLiteral:
-				type = lastWasColon ? jsonTokenTypes.TOKEN_VALUE_STRING : jsonTokenTypes.TOKEN_PROPERTY_NAME,
+				type = lastWasColon ? jsonTokenTypes.TOKEN_VALUE_STRING : jsonTokenTypes.TOKEN_PROPERTY_NAME;
 				lastWasColon = false;
 				break;
 			case json.SyntaxKind.NumericLiteral:
