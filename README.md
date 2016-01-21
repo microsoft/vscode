@@ -9,6 +9,8 @@ Intellisense, auto-completion, rename references, view references, go to definit
 * Going to definitins
 * View signature and similar by hovering over a function or method
 * Debugging using PDB (work in progress, please remove any and all issues)
+* Debugging with support for local variables, expressions, watch window, stack information, break points
+*   (currently you cannot removed any added breakpoints, this will be fixed in a future release)
 
 Open the python file and start using it. 
 
@@ -24,6 +26,7 @@ Open the python file and start using it.
 
 
 ## Debugging Instructions
+* Use the Python debugger, set the name of the startup program
 
 ## Source
 
