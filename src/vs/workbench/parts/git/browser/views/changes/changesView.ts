@@ -409,12 +409,12 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 			const resource = fileInput.getResource();
 
 			const workspaceRoot = this.contextService.getWorkspace().resource.fsPath;
-			if (!paths.isEqualOrParent(resource.fsPath, workspaceRoot)) {
+			if (!workspaceRoot || !paths.isEqualOrParent(resource.fsPath, workspaceRoot)) {
 				return null; // out of workspace not yet supported
 			}
 
 			const repositoryRoot = this.gitService.getModel().getRepositoryRoot();
-			if (!paths.isEqualOrParent(resource.fsPath, repositoryRoot)) {
+			if (!repositoryRoot || !paths.isEqualOrParent(resource.fsPath, repositoryRoot)) {
 				return null; // out of repository not supported
 			}
 

@@ -333,6 +333,12 @@ export class AdaptiveCollapsibleViewletView extends FixedCollapsibleView impleme
 		});
 	}
 
+	protected changeState(state: CollapsibleState): void {
+		changeState(state, this.tree);
+
+		super.changeState(state);
+	}
+
 	protected renderViewTree(container: HTMLElement): HTMLElement {
 		return renderViewTree(container);
 	}
@@ -434,6 +440,12 @@ export class CollapsibleViewletView extends CollapsibleView implements IViewletV
 		this.toDispose = [];
 	}
 
+	protected changeState(state: CollapsibleState): void {
+		changeState(state, this.tree);
+
+		super.changeState(state);
+	}
+
 	public create(): TPromise<void> {
 		return Promise.as(null);
 	}
@@ -517,7 +529,7 @@ export class CollapsibleViewletView extends CollapsibleView implements IViewletV
 		this.isDisposed = true;
 		this.treeContainer = null;
 		this.tree.dispose();
-		
+
 		this.dragHandler.dispose();
 
 		this.toDispose = disposeAll(this.toDispose);
@@ -536,6 +548,19 @@ function renderViewTree(container: HTMLElement): HTMLElement {
 	container.appendChild(treeContainer);
 
 	return treeContainer;
+}
+
+function changeState(state: CollapsibleState, tree: ITree): void {
+	if (!tree) {
+		return;
+	}
+
+	if (state == CollapsibleState.EXPANDED) {
+		$(tree.getHTMLElement()).show();
+		tree.DOMFocus(); // make the tree have focus once a view gets expanded
+	} else {
+		$(tree.getHTMLElement()).hide(); // make sure the tree goes out of the tabindex world by hiding it
+	}
 }
 
 function focus(tree: ITree): void {

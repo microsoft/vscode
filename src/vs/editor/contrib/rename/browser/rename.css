@@ -25,8 +25,3 @@
 .monaco-editor.vs-dark .rename-box .rename-input {
 	border: 1px solid #0E639C;
 }
-
-.monaco-editor .rename-box .rename-input,
-.monaco-editor .rename-box .rename-input:focus {
-	outline: none;
-}

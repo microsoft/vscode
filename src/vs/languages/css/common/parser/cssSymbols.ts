@@ -40,7 +40,7 @@ export class Scope {
 			return this.findInScope(offset, length);
 		}
 		return null;
-	}	
+	}
 
 	private findInScope(offset: number, length: number = 0): Scope {
 		// find the first scope child that has an offset larger than offset + length
@@ -67,7 +67,7 @@ export class Scope {
 			var symbol = this.symbols[index];
 			if (symbol.name === name && symbol.type === type) {
 				return symbol;
-			}			
+			}
 		}
 		return null;
 	}
@@ -141,33 +141,35 @@ export class ScopeBuilder implements nodes.IVisitor {
 				return true;
 			case nodes.NodeType.VariableDeclaration:
 				this.addSymbol(node, (<nodes.VariableDeclaration> node).getName(), nodes.ReferenceType.Variable);
-				return true;				
+				return true;
 			case nodes.NodeType.Ruleset:
 				return this.visitRuleSet(<nodes.RuleSet> node);
 			case nodes.NodeType.MixinDeclaration:
 				this.addSymbol(node, (<nodes.MixinDeclaration> node).getName(), nodes.ReferenceType.Mixin);
-				return true;	
+				return true;
 			case nodes.NodeType.FunctionDeclaration:
 				this.addSymbol(node, (<nodes.FunctionDeclaration> node).getName(), nodes.ReferenceType.Function);
-				return true;	
-			case nodes.NodeType.FunctionParameter:
+				return true;
+			case nodes.NodeType.FunctionParameter: {
 				// parameters are part of the body scope
-				var scopeNode = (<nodes.BodyDeclaration> node.getParent()).getDeclarations();
+				let scopeNode = (<nodes.BodyDeclaration> node.getParent()).getDeclarations();
 				if (scopeNode) {
 					this.addSymbolToChildScope(scopeNode, node, (<nodes.FunctionParameter> node).getName(), nodes.ReferenceType.Variable);
 				}
-				return true;		
+				return true;
+			}
 			case nodes.NodeType.Declarations:
 				this.addScope(node);
 				return true;
 			case nodes.NodeType.For:
-			case nodes.NodeType.Each:
+			case nodes.NodeType.Each: {
 				var forOrEachNode = <nodes.ForStatement | nodes.EachStatement> node;
-				var scopeNode = forOrEachNode.getDeclarations();
+				let scopeNode = forOrEachNode.getDeclarations();
 				if (scopeNode) {
 					this.addSymbolToChildScope(scopeNode, forOrEachNode.variable, forOrEachNode.variable.getName(), nodes.ReferenceType.Variable);
 				}
-				return true;						
+				return true;
+			}
 		}
 		return true;
 	}
@@ -245,7 +247,7 @@ export class Symbols {
 		return null;
 	}
 
-	private evaluateReferenceTypes(node: nodes.Node) : nodes.ReferenceType[] {	
+	private evaluateReferenceTypes(node: nodes.Node) : nodes.ReferenceType[] {
 		if (node instanceof nodes.Identifier) {
 			var referenceTypes = (<nodes.Identifier> node).referenceTypes;
 			if (referenceTypes) {
@@ -258,7 +260,7 @@ export class Symbols {
 					if ((propertyName === 'animation' || propertyName === 'animation-name')
 						&& decl.getValue() && decl.getValue().offset === node.offset) {
 						return [ nodes.ReferenceType.Keyframe ];
-					}	
+					}
 				}
 			}
 		} else if (node instanceof nodes.Variable) {
@@ -285,7 +287,7 @@ export class Symbols {
 
 		var referenceTypes = this.evaluateReferenceTypes(node);
 		if (referenceTypes) {
-			return this.internalFindSymbol(node, referenceTypes); 
+			return this.internalFindSymbol(node, referenceTypes);
 		}
 		return null;
 	}
@@ -299,7 +301,7 @@ export class Symbols {
 		}
 		if (symbol.name.length !== node.length || symbol.name !== node.getText()) {
 			return false;
-		}		
+		}
 
 		var referenceTypes = this.evaluateReferenceTypes(node);
 		if (!referenceTypes || referenceTypes.indexOf(symbol.type) === -1) {
@@ -320,6 +322,6 @@ export class Symbols {
 			}
 			scope = scope.parent;
 		}
-		return null;	
+		return null;
 	}
 }

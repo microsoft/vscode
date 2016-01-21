@@ -390,9 +390,6 @@ export class TreeView extends HeightMap implements IScrollable {
 	private lastPointerType:string;
 	private lastClickTimeStamp: number = 0;
 
-	private fakeRow: HTMLElement;
-	private fakeContent: HTMLElement;
-
 	private _viewHeight: number;
 	private renderTop: number;
 	private renderHeight: number;
@@ -479,15 +476,6 @@ export class TreeView extends HeightMap implements IScrollable {
 
 		this.rowsContainer = document.createElement('div');
 		this.rowsContainer.className = 'monaco-tree-rows';
-
-		this.fakeRow = document.createElement('div');
-		this.fakeRow.className = 'monaco-tree-row fake';
-
-		this.fakeContent = document.createElement('div');
-		this.fakeContent.className = 'content';
-
-		this.fakeRow.appendChild(this.fakeContent);
-		this.rowsContainer.appendChild(this.fakeRow);
 
 		var focusTracker = DOM.trackFocus(this.domNode);
 		focusTracker.addFocusListener((e: FocusEvent) => this.onFocus(e));
@@ -705,6 +693,9 @@ export class TreeView extends HeightMap implements IScrollable {
 				case 'item:removeTrait':
 					this.onItemRemoveTrait(data);
 					break;
+				case 'focus':
+					this.onModelFocusChange();
+					break;
 			}
 		}
 
@@ -729,10 +720,6 @@ export class TreeView extends HeightMap implements IScrollable {
 
 		this.scrollTop = scrollTop;
 		this.scrollableElement.onElementInternalDimensions();
-	}
-
-	public withFakeRow(fn:(container:HTMLElement)=>any):any {
-		return fn(this.fakeContent);
 	}
 
 	public focusNextPage(eventPayload?:any): void {
@@ -1063,6 +1050,10 @@ export class TreeView extends HeightMap implements IScrollable {
 			}
 			delete this.highlightedItemWasDraggable;
 		}
+	}
+
+	private onModelFocusChange(): void {
+		DOM.toggleClass(this.domNode, 'no-item-focus', !this.model || !this.model.getFocus());
 	}
 
 	// HeightMap "events"

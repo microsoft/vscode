@@ -49,7 +49,8 @@
 	height: 16px;
 }
 
-.git-viewlet > .changes-view > .status-view > .monaco-tree .monaco-tree-row:hover .content .monaco-action-bar {
+.git-viewlet > .changes-view > .status-view > .monaco-tree .monaco-tree-row:hover .content .monaco-action-bar,
+.git-viewlet > .changes-view > .status-view > .monaco-tree.focused .monaco-tree-row.focused .content .monaco-action-bar {
 	display: block;
 }
 

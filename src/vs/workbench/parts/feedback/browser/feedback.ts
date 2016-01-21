@@ -106,7 +106,7 @@ export class FeedbackDropdown extends Dropdown {
 
 		$('h2.title').text(nls.localize("label.sendASmile", "Let us know how we're doing")).appendTo($form);
 
-		this.invoke($('div.cancel'), () => {
+		this.invoke($('div.cancel').attr('tabindex', '0'), () => {
 			this.hide();
 		}).appendTo($form);
 
@@ -146,10 +146,10 @@ export class FeedbackDropdown extends Dropdown {
 
 		let $contactUsContainer = $('div.channels').appendTo($contactUs);
 
-		$('div').append($('a').attr('target', '_blank').attr('href', this.reportIssueLink).text(nls.localize("submit a bug", "Submit a bug")))
+		$('div').append($('a').attr('target', '_blank').attr('href', this.reportIssueLink).text(nls.localize("submit a bug", "Submit a bug")).attr('tabindex', '0'))
 			.appendTo($contactUsContainer);
 
-		$('div').append($('a').attr('target', '_blank').attr('href', this.requestFeatureLink).text(nls.localize("request a missing feature", "Request a missing feature")))
+		$('div').append($('a').attr('target', '_blank').attr('href', this.requestFeatureLink).text(nls.localize("request a missing feature", "Request a missing feature")).attr('tabindex', '0'))
 			.appendTo($contactUsContainer);
 
 		let $charCounter = $('span.char-counter').text('(' + FeedbackDropdown.MAX_FEEDBACK_CHARS + ' ' + nls.localize("characters left", "characters left") + ')');

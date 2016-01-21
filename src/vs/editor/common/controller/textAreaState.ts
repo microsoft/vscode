@@ -49,104 +49,37 @@ export interface ISimpleModel {
 	convertViewPositionToModelPosition(viewLineNumber:number, viewColumn:number): EditorCommon.IEditorPosition;
 }
 
-export class TextAreaState {
+export abstract class TextAreaState {
 
-	public static EMPTY = new TextAreaState(null, '', 0, 0, false, 0);
+	protected previousState:TextAreaState;
+	protected value:string;
+	protected selectionStart:number;
+	protected selectionEnd:number;
+	protected isInOverwriteMode:boolean;
 
-	private previousState:TextAreaState;
-	private value:string;
-	private selectionStart:number;
-	private selectionEnd:number;
-	private isInOverwriteMode:boolean;
-	private selectionToken:number;
-
-	constructor(previousState:TextAreaState, value:string, selectionStart:number, selectionEnd:number, isInOverwriteMode:boolean, selectionToken:number) {
+	constructor(previousState:TextAreaState, value:string, selectionStart:number, selectionEnd:number, isInOverwriteMode:boolean) {
 		this.previousState = previousState ? previousState.shallowClone() : null;
 		this.value = value;
 		this.selectionStart = selectionStart;
 		this.selectionEnd = selectionEnd;
 		this.isInOverwriteMode = isInOverwriteMode;
-		this.selectionToken = selectionToken;
 	}
 
-	private shallowClone(): TextAreaState {
-		return new TextAreaState(null, this.value, this.selectionStart, this.selectionEnd, this.isInOverwriteMode, this.selectionToken);
-	}
+	protected abstract shallowClone(): TextAreaState;
 
-	public toString(): string {
-		return '[ <' + this.value + '>, selectionStart: ' + this.selectionStart + ', selectionEnd: ' + this.selectionEnd + ', isInOverwriteMode: ' + this.isInOverwriteMode + ', selectionToken: ' + this.selectionToken + ']';
-	}
+	public abstract toEmpty(): TextAreaState;
 
-	public equals(other:TextAreaState): boolean {
-		return (
-			this.value === other.value
-			&& this.selectionStart === other.selectionStart
-			&& this.selectionEnd === other.selectionEnd
-			&& this.isInOverwriteMode === other.isInOverwriteMode
-			&& this.selectionToken === other.selectionToken
-		);
-	}
+	public abstract toString(): string;
 
-	public fromTextArea(textArea:ITextAreaWrapper): TextAreaState {
-		return new TextAreaState(this, textArea.value, textArea.selectionStart, textArea.selectionEnd, textArea.isInOverwriteMode(), this.selectionToken);
-	}
+	public abstract equals(other:TextAreaState): boolean;
 
-	public fromEditorSelection(model:ISimpleModel, selection:EditorCommon.IEditorRange): TextAreaState {
-		let LIMIT_CHARS = 100;
-		let PADDING_LINES_COUNT = 0;
+	public abstract fromTextArea(textArea:ITextAreaWrapper): TextAreaState;
 
-		let selectionStartLineNumber = selection.startLineNumber,
-			selectionStartColumn = selection.startColumn,
-			selectionEndLineNumber = selection.endLineNumber,
-			selectionEndColumn = selection.endColumn,
-			selectionEndLineNumberMaxColumn = model.getLineMaxColumn(selectionEndLineNumber);
+	public abstract fromEditorSelection(model:ISimpleModel, selection:EditorCommon.IEditorRange);
 
-		// If the selection is empty and we have switched line numbers, expand selection to full line (helps Narrator trigger a full line read)
-		if (selection.isEmpty() && this.selectionToken !== selectionStartLineNumber) {
-			selectionStartColumn = 1;
-			selectionEndColumn = selectionEndLineNumberMaxColumn;
-		}
+	public abstract fromText(text:string): TextAreaState;
 
-		// `pretext` contains the text before the selection
-		let pretext = '';
-		let startLineNumber = Math.max(1, selectionStartLineNumber - PADDING_LINES_COUNT);
-		if (startLineNumber < selectionStartLineNumber) {
-			pretext = model.getValueInRange(new Range(startLineNumber, 1, selectionStartLineNumber, 1), EditorCommon.EndOfLinePreference.LF);
-		}
-		pretext += model.getValueInRange(new Range(selectionStartLineNumber, 1, selectionStartLineNumber, selectionStartColumn), EditorCommon.EndOfLinePreference.LF);
-		if (pretext.length > LIMIT_CHARS) {
-			pretext = pretext.substring(pretext.length - LIMIT_CHARS, pretext.length);
-		}
-
-
-		// `posttext` contains the text after the selection
-		let posttext = '';
-		let endLineNumber = Math.min(selectionEndLineNumber + PADDING_LINES_COUNT, model.getLineCount());
-		posttext += model.getValueInRange(new Range(selectionEndLineNumber, selectionEndColumn, selectionEndLineNumber, selectionEndLineNumberMaxColumn), EditorCommon.EndOfLinePreference.LF);
-		if (endLineNumber > selectionEndLineNumber) {
-			posttext = '\n' + model.getValueInRange(new Range(selectionEndLineNumber + 1, 1, endLineNumber, model.getLineMaxColumn(endLineNumber)), EditorCommon.EndOfLinePreference.LF);
-		}
-		if (posttext.length > LIMIT_CHARS) {
-			posttext = posttext.substring(0, LIMIT_CHARS);
-		}
-
-
-		// `text` contains the text of the selection
-		let text = model.getValueInRange(new Range(selectionStartLineNumber, selectionStartColumn, selectionEndLineNumber, selectionEndColumn), EditorCommon.EndOfLinePreference.LF);
-		if (text.length > 2 * LIMIT_CHARS) {
-			text = text.substring(0, LIMIT_CHARS) + String.fromCharCode(8230) + text.substring(text.length - LIMIT_CHARS, text.length);
-		}
-
-		return new TextAreaState(this, pretext + text + posttext, pretext.length, pretext.length + text.length, false, selectionStartLineNumber);
-	}
-
-	public fromText(text:string): TextAreaState {
-		return new TextAreaState(this, text, 0, text.length, false, 0)
-	}
-
-	public resetSelection(): TextAreaState {
-		return new TextAreaState(this.previousState, this.value, this.value.length, this.value.length, this.isInOverwriteMode, this.selectionToken);
-	}
+	public abstract resetSelection(): TextAreaState;
 
 	public getSelectionStart(): number {
 		return this.selectionStart;
@@ -156,8 +89,8 @@ export class TextAreaState {
 		return this.value;
 	}
 
-	public applyToTextArea(textArea:ITextAreaWrapper, select:boolean): void {
-		// console.log('applyToTextArea: ' + this.toString());
+	public applyToTextArea(reason:string, textArea:ITextAreaWrapper, select:boolean): void {
+		// console.log(Date.now() + ': applyToTextArea ' + reason + ': ' + this.toString());
 		if (textArea.value !== this.value) {
 			textArea.value = this.value;
 		}
@@ -214,5 +147,156 @@ export class TextAreaState {
 		}
 
 		return this.value.charAt(prefixLength);
+	}
+}
+
+export class IENarratorTextAreaState extends TextAreaState {
+	public static EMPTY = new IENarratorTextAreaState(null, '', 0, 0, false, 0);
+
+	private selectionToken:number;
+
+	constructor(previousState:TextAreaState, value:string, selectionStart:number, selectionEnd:number, isInOverwriteMode:boolean, selectionToken:number) {
+		super(previousState, value, selectionStart, selectionEnd, isInOverwriteMode);
+		this.selectionToken = selectionToken;
+	}
+
+	protected shallowClone(): TextAreaState {
+		return new IENarratorTextAreaState(null, this.value, this.selectionStart, this.selectionEnd, this.isInOverwriteMode, this.selectionToken);
+	}
+
+	public toEmpty(): TextAreaState {
+		return IENarratorTextAreaState.EMPTY;
+	}
+
+	public toString(): string {
+		return '[ <' + this.value + '>, selectionStart: ' + this.selectionStart + ', selectionEnd: ' + this.selectionEnd + ', isInOverwriteMode: ' + this.isInOverwriteMode + ', selectionToken: ' + this.selectionToken + ']';
+	}
+
+	public equals(other:TextAreaState): boolean {
+		if (other instanceof IENarratorTextAreaState) {
+			return (
+				this.value === other.value
+				&& this.selectionStart === other.selectionStart
+				&& this.selectionEnd === other.selectionEnd
+				&& this.isInOverwriteMode === other.isInOverwriteMode
+				&& this.selectionToken === other.selectionToken
+			);
+		}
+		return false;
+	}
+
+	public fromTextArea(textArea:ITextAreaWrapper): TextAreaState {
+		return new IENarratorTextAreaState(this, textArea.value, textArea.selectionStart, textArea.selectionEnd, textArea.isInOverwriteMode(), this.selectionToken);
+	}
+
+	public fromEditorSelection(model:ISimpleModel, selection:EditorCommon.IEditorRange): TextAreaState {
+		let LIMIT_CHARS = 100;
+		let PADDING_LINES_COUNT = 0;
+
+		let selectionStartLineNumber = selection.startLineNumber,
+			selectionStartColumn = selection.startColumn,
+			selectionEndLineNumber = selection.endLineNumber,
+			selectionEndColumn = selection.endColumn,
+			selectionEndLineNumberMaxColumn = model.getLineMaxColumn(selectionEndLineNumber);
+
+		// If the selection is empty and we have switched line numbers, expand selection to full line (helps Narrator trigger a full line read)
+		if (selection.isEmpty() && this.selectionToken !== selectionStartLineNumber) {
+			selectionStartColumn = 1;
+			selectionEndColumn = selectionEndLineNumberMaxColumn;
+		}
+
+		// `pretext` contains the text before the selection
+		let pretext = '';
+		let startLineNumber = Math.max(1, selectionStartLineNumber - PADDING_LINES_COUNT);
+		if (startLineNumber < selectionStartLineNumber) {
+			pretext = model.getValueInRange(new Range(startLineNumber, 1, selectionStartLineNumber, 1), EditorCommon.EndOfLinePreference.LF);
+		}
+		pretext += model.getValueInRange(new Range(selectionStartLineNumber, 1, selectionStartLineNumber, selectionStartColumn), EditorCommon.EndOfLinePreference.LF);
+		if (pretext.length > LIMIT_CHARS) {
+			pretext = pretext.substring(pretext.length - LIMIT_CHARS, pretext.length);
+		}
+
+
+		// `posttext` contains the text after the selection
+		let posttext = '';
+		let endLineNumber = Math.min(selectionEndLineNumber + PADDING_LINES_COUNT, model.getLineCount());
+		posttext += model.getValueInRange(new Range(selectionEndLineNumber, selectionEndColumn, selectionEndLineNumber, selectionEndLineNumberMaxColumn), EditorCommon.EndOfLinePreference.LF);
+		if (endLineNumber > selectionEndLineNumber) {
+			posttext = '\n' + model.getValueInRange(new Range(selectionEndLineNumber + 1, 1, endLineNumber, model.getLineMaxColumn(endLineNumber)), EditorCommon.EndOfLinePreference.LF);
+		}
+		if (posttext.length > LIMIT_CHARS) {
+			posttext = posttext.substring(0, LIMIT_CHARS);
+		}
+
+
+		// `text` contains the text of the selection
+		let text = model.getValueInRange(new Range(selectionStartLineNumber, selectionStartColumn, selectionEndLineNumber, selectionEndColumn), EditorCommon.EndOfLinePreference.LF);
+		if (text.length > 2 * LIMIT_CHARS) {
+			text = text.substring(0, LIMIT_CHARS) + String.fromCharCode(8230) + text.substring(text.length - LIMIT_CHARS, text.length);
+		}
+
+		return new IENarratorTextAreaState(this, pretext + text + posttext, pretext.length, pretext.length + text.length, false, selectionStartLineNumber);
+	}
+
+	public fromText(text:string): TextAreaState {
+		return new IENarratorTextAreaState(this, text, 0, text.length, false, 0)
+	}
+
+	public resetSelection(): TextAreaState {
+		return new IENarratorTextAreaState(this.previousState, this.value, this.value.length, this.value.length, this.isInOverwriteMode, this.selectionToken);
+	}
+}
+
+export class NVDATextAreaState extends TextAreaState {
+	public static EMPTY = new NVDATextAreaState(null, '', 0, 0, false);
+
+	constructor(previousState:TextAreaState, value:string, selectionStart:number, selectionEnd:number, isInOverwriteMode:boolean) {
+		super(previousState, value, selectionStart, selectionEnd, isInOverwriteMode);
+	}
+
+	protected shallowClone(): TextAreaState {
+		return new NVDATextAreaState(null, this.value, this.selectionStart, this.selectionEnd, this.isInOverwriteMode);
+	}
+
+	public toEmpty(): TextAreaState {
+		return NVDATextAreaState.EMPTY;
+	}
+
+	public toString(): string {
+		return '[ <ENTIRE TEXT' + /*this.value +*/ '>, selectionStart: ' + this.selectionStart + ', selectionEnd: ' + this.selectionEnd + ', isInOverwriteMode: ' + this.isInOverwriteMode + ']';
+	}
+
+	public equals(other:TextAreaState): boolean {
+		if (other instanceof NVDATextAreaState) {
+			return (
+				this.value === other.value
+				&& this.selectionStart === other.selectionStart
+				&& this.selectionEnd === other.selectionEnd
+				&& this.isInOverwriteMode === other.isInOverwriteMode
+			);
+		}
+		return false;
+	}
+
+	public fromTextArea(textArea:ITextAreaWrapper): TextAreaState {
+		return new NVDATextAreaState(this, textArea.value, textArea.selectionStart, textArea.selectionEnd, textArea.isInOverwriteMode());
+	}
+
+	public fromEditorSelection(model:ISimpleModel, selection:EditorCommon.IEditorRange): TextAreaState {
+		let pretext = model.getValueInRange(new Range(1, 1, selection.startLineNumber, selection.startColumn), EditorCommon.EndOfLinePreference.LF);
+		let text = model.getValueInRange(selection, EditorCommon.EndOfLinePreference.LF);
+		let lastLine = model.getLineCount();
+		let lastLineMaxColumn = model.getLineMaxColumn(lastLine);
+		let posttext = model.getValueInRange(new Range(selection.endLineNumber, selection.endColumn, lastLine, lastLineMaxColumn), EditorCommon.EndOfLinePreference.LF);
+
+		return new NVDATextAreaState(this, pretext + text + posttext, pretext.length, pretext.length + text.length, false);
+	}
+
+	public fromText(text:string): TextAreaState {
+		return new NVDATextAreaState(this, text, 0, text.length, false)
+	}
+
+	public resetSelection(): TextAreaState {
+		return new NVDATextAreaState(this.previousState, this.value, this.value.length, this.value.length, this.isInOverwriteMode);
 	}
 }

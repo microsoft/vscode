@@ -22,7 +22,7 @@ import {IThreadService} from 'vs/platform/thread/common/thread';
 
 export function registerApiCommands(threadService: IThreadService) {
 	const commands = threadService.getRemotable(ExtHostCommands);
-	new ExtHostApiCommands(commands);
+	new ExtHostApiCommands(commands).registerCommands();
 }
 
 class ExtHostApiCommands {
@@ -32,7 +32,9 @@ class ExtHostApiCommands {
 
 	constructor(commands: ExtHostCommands) {
 		this._commands = commands;
+	}
 
+	registerCommands() {
 		this._register('vscode.executeWorkspaceSymbolProvider', this._executeWorkspaceSymbolProvider, {
 			description: 'Execute all workspace symbol provider.',
 			args: [{ name: 'query', constraint: String }],
@@ -144,6 +146,19 @@ class ExtHostApiCommands {
 				{ name: 'options', description: 'Formatting options' }
 			],
 			returns: 'A promise that resolves to an array of TextEdits.'
+		});
+
+
+		this._register('vscode.previewHtml', (uri: URI, position?: vscode.ViewColumn) => {
+			return this._commands.executeCommand('_workbench.previewHtml', uri,
+				typeof position === 'number' ? typeConverters.fromViewColumn(position) : void 0);
+
+		}, {
+			description: 'Preview an html document.',
+			args: [
+				{ name: 'uri', description: 'Uri of the document to preview.', constraint: URI },
+				{ name: 'column', description: '(optional) Column in which to preview.' },
+			]
 		});
 	}
 

@@ -71,7 +71,6 @@ export class HtmlPreviewPart extends BaseEditor {
 		// Container for IFrame
 		const iFrameContainerElement = document.createElement('div');
 		iFrameContainerElement.className = 'iframe-container monaco-editor-background'; // Inherit the background color from selected theme
-		iFrameContainerElement.tabIndex = 0;
 		iFrameContainerElement.appendChild(this._iFrameElement);
 
 		parent.getHTMLElement().appendChild(iFrameContainerElement);
@@ -202,8 +201,9 @@ namespace Integration {
 	'use strict';
 
 	const scriptSource = [
-		'var ignoredKeys = [32 /* space */, 33 /* page up */, 34 /* page down */, 38 /* up */, 40 /* down */];',
+		'var ignoredKeys = [9 /* tab */, 32 /* space */, 33 /* page up */, 34 /* page down */, 38 /* up */, 40 /* down */];',
 		'var ignoredCtrlCmdKeys = [65 /* a */, 67 /* c */];',
+		'var ignoredShiftKeys = [9 /* tab */];',
 		'window.document.body.addEventListener("keydown", function(event) {',		// Listen to keydown events in the iframe
 		'	try {',
 		'		if (ignoredKeys.some(function(i) { return i === event.keyCode; })) {',
@@ -215,6 +215,12 @@ namespace Integration {
 		'		if (ignoredCtrlCmdKeys.some(function(i) { return i === event.keyCode; })) {',
 		'			if (event.ctrlKey || event.metaKey) {',
 		'				return;',													// we want some ctrl/cmd keys to be supported (e.g. Ctrl+C for copy)
+		'			}',
+		'		}',
+		'',
+		'		if (ignoredShiftKeys.some(function(i) { return i === event.keyCode; })) {',
+		'			if (event.shiftKey) {',
+		'				return;',													// we want some shift keys to be supported (e.g. Shift+Tab for copy)
 		'			}',
 		'		}',
 		'',
@@ -255,7 +261,7 @@ namespace Integration {
 		'});',
 		'window.document.body.addEventListener("drop", function (e) {',
 		'	e.preventDefault();',
-		'});',
+		'});'
 	];
 
 	export function defaultHtml() {

@@ -752,8 +752,8 @@ export class Workbench implements IPartService {
 		// Create Parts
 		this.createActivityBarPart();
 		this.createSidebarPart();
-		this.createPanelPart();
 		this.createEditorPart();
+		this.createPanelPart();
 		this.createStatusbarPart();
 
 		// Create QuickOpen
@@ -804,7 +804,7 @@ export class Workbench implements IPartService {
 	private createPanelPart(): void {
 		let panelPartContainer = $(this.workbench)
 			.div({
-				'class': ['part', 'panel'],
+				'class': ['part', 'panel', 'monaco-editor-background'],
 				id: Identifiers.PANEL_PART
 			});
 

@@ -27,10 +27,13 @@ function fifo(array:any[], size:number) {
 	}
 }
 
-export function register(what:string, fn:Function):(...args:any[])=>void {
-	return () => {
-		// Intentional empty, disable for now because it is leaking memory
-	};
+export function register(what: string, fn: Function): (...args: any[]) => void {
+
+	if (true) {
+		return () => {
+			// Intentional empty, disable for now because it is leaking memory
+		};
+	}
 
 	// register switch
 	var flag = switches[what] || false;

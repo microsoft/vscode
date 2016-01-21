@@ -1008,9 +1008,9 @@ export class WindowsManager {
 			dialog.showMessageBox(vscodeWindow.win, {
 				title: env.product.nameLong,
 				type: 'warning',
-				buttons: [nls.localize('reload', "Reload"), nls.localize('wait', "Keep Waiting"), nls.localize('close', "Close")],
+				buttons: [nls.localize('reopen', "Reopen"), nls.localize('wait', "Keep Waiting"), nls.localize('close', "Close")],
 				message: nls.localize('appStalled', "The window is no longer responding"),
-				detail: nls.localize('appStalledDetail', "You can reload or close the window or keep waiting."),
+				detail: nls.localize('appStalledDetail', "You can reopen or close the window or keep waiting."),
 				noLink: true
 			}, (result) => {
 				if (result === 0) {
@@ -1026,9 +1026,9 @@ export class WindowsManager {
 			dialog.showMessageBox(vscodeWindow.win, {
 				title: env.product.nameLong,
 				type: 'warning',
-				buttons: [nls.localize('reload', "Reload"), nls.localize('close', "Close")],
+				buttons: [nls.localize('reopen', "Reopen"), nls.localize('close', "Close")],
 				message: nls.localize('appCrashed', "The window has crashed"),
-				detail: nls.localize('appCrashedDetail', "We are sorry for the inconvenience! Do you want to reload or close the window?"),
+				detail: nls.localize('appCrashedDetail', "We are sorry for the inconvenience! You can reopen the window to continue where you left off."),
 				noLink: true
 			}, (result) => {
 				if (result === 0) {

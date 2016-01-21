@@ -118,7 +118,7 @@ export class ActivitybarPart extends Part implements IActivityService {
 		// Viewlet switcher is on top
 		this.viewletSwitcherBar = new ActionBar(div, {
 			actionItemProvider: (action: Action) => this.activityActionItems[action.id],
-			disableTabIndex: true // we handle this
+			orientation: ActionsOrientation.VERTICAL
 		});
 		this.viewletSwitcherBar.getContainer().addClass('position-top');
 
@@ -159,7 +159,6 @@ export class ActivitybarPart extends Part implements IActivityService {
 			actionItemProvider: (action: Action) => this.activityActionItems[action.id],
 			orientation: ActionsOrientation.VERTICAL
 		});
-		this.globalToolBar.getContainer().removeAttribute('tabindex');
 		this.globalToolBar.getContainer().addClass('global');
 
 		this.globalToolBar.actionRunner.addListener(events.EventType.RUN, (e: any) => {

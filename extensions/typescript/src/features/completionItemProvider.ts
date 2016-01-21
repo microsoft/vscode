@@ -21,7 +21,7 @@ class MyCompletionItem extends CompletionItem {
 
 	constructor(entry: CompletionEntry) {
 		super(entry.name);
-		this.sortText = `${entry.name}-${entry.sortText}`; // tsserver sortText is "0" and "1" which is not good when comparing to snippets for instance
+		this.sortText = entry.sortText;
 		this.kind = MyCompletionItem.convertKind(entry.kind);
 	}
 

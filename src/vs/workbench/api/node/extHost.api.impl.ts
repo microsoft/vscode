@@ -191,6 +191,9 @@ export class ExtHostAPIImplementation {
 			onDidChangeTextEditorOptions: (listener: (e: vscode.TextEditorOptionsChangeEvent) => any, thisArgs?: any, disposables?: extHostTypes.Disposable[]) => {
 				return pluginHostEditors.onDidChangeTextEditorOptions(listener, thisArgs, disposables);
 			},
+			onDidChangeTextEditorViewColumn(listener, thisArg?, disposables?) {
+				return pluginHostEditors.onDidChangeTextEditorViewColumn(listener, thisArg, disposables);
+			},
 			showInformationMessage: (message, ...items) => {
 				return pluginHostMessageService.showMessage(Severity.Info, message, items);
 			},

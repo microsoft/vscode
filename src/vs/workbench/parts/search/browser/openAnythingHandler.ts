@@ -68,7 +68,6 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 		this.openFileHandler = instantiationService.createInstance(OpenFileHandler);
 
 		this.openSymbolHandler.setStandalone(false);
-		this.openFileHandler.setStandalone(false);
 
 		this.resultsToSearchCache = Object.create(null);
 		this.scorerCache = Object.create(null);
@@ -159,7 +158,8 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 				let result = [...results[0].entries, ...results[1].entries];
 
 				// Sort
-				result.sort((elementA, elementB) => QuickOpenEntry.compareByScore(elementA, elementB, searchValue, this.scorerCache));
+				const normalizedSearchValue = strings.stripWildcards(searchValue).toLowerCase();
+				result.sort((elementA, elementB) => QuickOpenEntry.compareByScore(elementA, elementB, searchValue, normalizedSearchValue, this.scorerCache));
 
 				// Apply Range
 				result.forEach((element) => {
@@ -173,6 +173,14 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 
 				// Cap the number of results to make the view snappy
 				const viewResults = result.length > OpenAnythingHandler.MAX_DISPLAYED_RESULTS ? result.slice(0, OpenAnythingHandler.MAX_DISPLAYED_RESULTS) : result;
+
+				// Apply highlights to file entries
+				viewResults.forEach(entry => {
+					if (entry instanceof FileEntry) {
+						const {labelHighlights, descriptionHighlights} = QuickOpenEntry.highlight(entry, searchValue, true /* fuzzy highlight */);
+						entry.setHighlights(labelHighlights, descriptionHighlights);
+					}
+				});
 
 				return TPromise.as<QuickOpenModel>(new QuickOpenModel(viewResults));
 			}, (error: Error) => {
@@ -274,15 +282,11 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 				continue;
 			}
 
-			// Apply highlights
-			const {labelHighlights, descriptionHighlights} = QuickOpenEntry.highlight(entry, searchValue, true /* fuzzy highlight */);
-			entry.setHighlights(labelHighlights, descriptionHighlights);
-
 			results.push(entry);
 		}
 
 		// Sort
-		results.sort((elementA, elementB) => QuickOpenEntry.compareByScore(elementA, elementB, searchValue, this.scorerCache));
+		results.sort((elementA, elementB) => QuickOpenEntry.compareByScore(elementA, elementB, searchValue, normalizedSearchValueLowercase, this.scorerCache));
 
 		// Apply Range
 		results.forEach((element) => {
@@ -293,6 +297,12 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 
 		// Cap the number of results to make the view snappy
 		const viewResults = results.length > OpenAnythingHandler.MAX_DISPLAYED_RESULTS ? results.slice(0, OpenAnythingHandler.MAX_DISPLAYED_RESULTS) : results;
+
+		// Apply highlights
+		viewResults.forEach(entry => {
+			const {labelHighlights, descriptionHighlights} = QuickOpenEntry.highlight(entry, searchValue, true /* fuzzy highlight */);
+			entry.setHighlights(labelHighlights, descriptionHighlights);
+		});
 
 		return viewResults;
 	}

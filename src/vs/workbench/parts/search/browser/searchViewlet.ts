@@ -743,7 +743,7 @@ export class SearchViewlet extends Viewlet {
 			};
 			this.findInput = new FindInput(div.getHTMLElement(), this.contextViewService, options);
 			this.findInput.onKeyUp(onStandardKeyUp);
-			this.findInput.onKeyDown((keyboardEvent:StandardKeyboardEvent) => {
+			this.findInput.onKeyDown((keyboardEvent: StandardKeyboardEvent) => {
 				if (keyboardEvent.keyCode === KeyCode.DownArrow) {
 					dom.EventHelper.stop(keyboardEvent);
 					if (this.showsFileTypes()) {
@@ -763,10 +763,18 @@ export class SearchViewlet extends Viewlet {
 		}).style({ position: 'relative' }).getHTMLElement();
 
 		this.queryDetails = builder.div({ 'class': ['query-details', 'separator'] }, (builder) => {
-			builder.div({ 'class': 'more', text: '\u2026'/*, href: '#'*/ }).on(dom.EventType.CLICK, (e) => {
-				dom.EventHelper.stop(e);
-				this.toggleFileTypes();
-			});
+			builder.div({ 'class': 'more', 'tabindex': 0, 'role': 'menuitem', 'title': nls.localize('moreSearch', "Toggle Search Details") })
+				.on(dom.EventType.CLICK, (e) => {
+					dom.EventHelper.stop(e);
+					this.toggleFileTypes();
+				}).on(dom.EventType.KEY_UP, (e: KeyboardEvent) => {
+					let event = new StandardKeyboardEvent(e);
+
+					if (event.equals(CommonKeybindings.ENTER) || event.equals(CommonKeybindings.SPACE)) {
+						dom.EventHelper.stop(e);
+						this.toggleFileTypes();
+					}
+				});
 
 			//folder includes list
 			builder.div({ 'class': 'file-types' }, (builder) => {
@@ -1041,7 +1049,10 @@ export class SearchViewlet extends Viewlet {
 			this.inputPatternIncludes.select();
 		} else {
 			dom.removeClass(this.queryDetails, cls);
+			this.findInput.focus();
+			this.findInput.select();
 		}
+
 		if (!skipLayout && this.size) {
 			this.layout(this.size);
 		}
@@ -1151,7 +1162,7 @@ export class SearchViewlet extends Viewlet {
 		this.disposeModel();
 		this.showEmptyStage();
 
-		let handledMatches: {[id: string]: boolean} = Object.create(null);
+		let handledMatches: { [id: string]: boolean } = Object.create(null);
 		let autoExpand = (alwaysExpandIfOneResult: boolean) => {
 			// Auto-expand / collapse based on number of matches:
 			// - alwaysExpandIfOneResult: expand file results if we have just one file result and less than 50 matches on a file

@@ -8,13 +8,13 @@ import assert = require('assert');
 import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
 import {EndOfLinePreference, IEditorRange, IRange, IEditorPosition} from 'vs/editor/common/editorCommon';
-import {ISimpleModel, TextAreaState} from 'vs/editor/common/controller/textAreaState';
+import {ISimpleModel, TextAreaState, IENarratorTextAreaState} from 'vs/editor/common/controller/textAreaState';
 import {MockTextAreaWrapper} from 'vs/editor/test/common/mocks/mockTextAreaWrapper';
 
 suite('TextAreaState', () => {
 
 	function assertTextAreaState(actual:TextAreaState, value:string, selectionStart:number, selectionEnd:number, isInOverwriteMode:boolean, selectionToken:number): void {
-		let desired = new TextAreaState(null, value, selectionStart, selectionEnd, isInOverwriteMode, selectionToken);
+		let desired = new IENarratorTextAreaState(null, value, selectionStart, selectionEnd, isInOverwriteMode, selectionToken);
 		assert.ok(desired.equals(actual), desired.toString() + ' == ' + actual.toString());
 	}
 
@@ -24,7 +24,7 @@ suite('TextAreaState', () => {
 		textArea._selectionStart = 1;
 		textArea._selectionEnd = 12;
 		textArea._isInOverwriteMode = false;
-		let actual = TextAreaState.EMPTY.fromTextArea(textArea);
+		let actual = IENarratorTextAreaState.EMPTY.fromTextArea(textArea);
 
 		assertTextAreaState(actual, 'Hello world!', 1, 12, false, 0);
 		assert.equal(actual.getValue(), 'Hello world!');
@@ -43,22 +43,22 @@ suite('TextAreaState', () => {
 		textArea._selectionEnd = 12;
 		textArea._isInOverwriteMode = false;
 
-		let state = new TextAreaState(null, 'Hi world!', 2, 2, false, 0);
-		state.applyToTextArea(textArea, false);
+		let state = new IENarratorTextAreaState(null, 'Hi world!', 2, 2, false, 0);
+		state.applyToTextArea('test', textArea, false);
 
 		assert.equal(textArea._value, 'Hi world!');
 		assert.equal(textArea._selectionStart, 9);
 		assert.equal(textArea._selectionEnd, 9);
 
-		state = new TextAreaState(null, 'Hi world!', 3, 3, false, 0);
-		state.applyToTextArea(textArea, false);
+		state = new IENarratorTextAreaState(null, 'Hi world!', 3, 3, false, 0);
+		state.applyToTextArea('test', textArea, false);
 
 		assert.equal(textArea._value, 'Hi world!');
 		assert.equal(textArea._selectionStart, 9);
 		assert.equal(textArea._selectionEnd, 9);
 
-		state = new TextAreaState(null, 'Hi world!', 0, 2, false, 0);
-		state.applyToTextArea(textArea, true);
+		state = new IENarratorTextAreaState(null, 'Hi world!', 0, 2, false, 0);
+		state.applyToTextArea('test', textArea, true);
 
 		assert.equal(textArea._value, 'Hi world!');
 		assert.equal(textArea._selectionStart, 0);
@@ -74,7 +74,7 @@ suite('TextAreaState', () => {
 		textArea._selectionEnd = selectionEnd;
 		textArea._isInOverwriteMode = isInOverwriteMode;
 
-		let newState = (prevState || TextAreaState.EMPTY).fromTextArea(textArea);
+		let newState = (prevState || IENarratorTextAreaState.EMPTY).fromTextArea(textArea);
 
 		let actual = newState.extractNewText();
 
@@ -103,7 +103,7 @@ suite('TextAreaState', () => {
 
 	test('extractNewText - typing does not cause a selection', () => {
 		testExtractNewText(
-			new TextAreaState(null, '', 0, 0, false, 0),
+			new IENarratorTextAreaState(null, '', 0, 0, false, 0),
 			'a',
 			0, 1, false,
 			''
@@ -112,7 +112,7 @@ suite('TextAreaState', () => {
 
 	test('extractNewText - had the textarea empty', () => {
 		testExtractNewText(
-			new TextAreaState(null, '', 0, 0, false, 0),
+			new IENarratorTextAreaState(null, '', 0, 0, false, 0),
 			'a',
 			1, 1, false,
 			'a'
@@ -121,7 +121,7 @@ suite('TextAreaState', () => {
 
 	test('extractNewText - had the entire line selected', () => {
 		testExtractNewText(
-			new TextAreaState(null, 'Hello world!', 0, 12, false, 0),
+			new IENarratorTextAreaState(null, 'Hello world!', 0, 12, false, 0),
 			'H',
 			1, 1, false,
 			'H'
@@ -130,7 +130,7 @@ suite('TextAreaState', () => {
 
 	test('extractNewText - had previous text 1', () => {
 		testExtractNewText(
-			new TextAreaState(null, 'Hello world!', 12, 12, false, 0),
+			new IENarratorTextAreaState(null, 'Hello world!', 12, 12, false, 0),
 			'Hello world!a',
 			13, 13, false,
 			'a'
@@ -139,7 +139,7 @@ suite('TextAreaState', () => {
 
 	test('extractNewText - had previous text 2', () => {
 		testExtractNewText(
-			new TextAreaState(null, 'Hello world!', 0, 0, false, 0),
+			new IENarratorTextAreaState(null, 'Hello world!', 0, 0, false, 0),
 			'aHello world!',
 			1, 1, false,
 			'a'
@@ -148,7 +148,7 @@ suite('TextAreaState', () => {
 
 	test('extractNewText - had previous text 3', () => {
 		testExtractNewText(
-			new TextAreaState(null, 'Hello world!', 6, 11, false, 0),
+			new IENarratorTextAreaState(null, 'Hello world!', 6, 11, false, 0),
 			'Hello other!',
 			11, 11, false,
 			'other'
@@ -157,7 +157,7 @@ suite('TextAreaState', () => {
 
 	test('extractNewText - IME', () => {
 		testExtractNewText(
-			new TextAreaState(null, '', 0, 0, false, 0),
+			new IENarratorTextAreaState(null, '', 0, 0, false, 0),
 			'これは',
 			3, 3, false,
 			'これは'
@@ -166,7 +166,7 @@ suite('TextAreaState', () => {
 
 	test('extractNewText - isInOverwriteMode', () => {
 		testExtractNewText(
-			new TextAreaState(null, 'Hello world!', 0, 0, false, 0),
+			new IENarratorTextAreaState(null, 'Hello world!', 0, 0, false, 0),
 			'Aello world!',
 			1, 1, true,
 			'A'
@@ -180,7 +180,7 @@ suite('TextAreaState', () => {
 		textArea._selectionEnd = selectionEnd;
 		textArea._isInOverwriteMode = isInOverwriteMode;
 
-		let newState = (prevState || TextAreaState.EMPTY).fromTextArea(textArea);
+		let newState = (prevState || IENarratorTextAreaState.EMPTY).fromTextArea(textArea);
 
 		let actual = newState.extractMacReplacedText();
 
@@ -191,7 +191,7 @@ suite('TextAreaState', () => {
 
 	test('extractMacReplacedText - does nothing if there is selection', () => {
 		testExtractMacReplacedText(
-			new TextAreaState(null, 'Hello world!', 0, 0, false, 0),
+			new IENarratorTextAreaState(null, 'Hello world!', 0, 0, false, 0),
 			'Hellö world!',
 			4, 5, false,
 			''
@@ -200,7 +200,7 @@ suite('TextAreaState', () => {
 
 	test('extractMacReplacedText - does nothing if there is more than one extra char', () => {
 		testExtractMacReplacedText(
-			new TextAreaState(null, 'Hello world!', 0, 0, false, 0),
+			new IENarratorTextAreaState(null, 'Hello world!', 0, 0, false, 0),
 			'Hellöö world!',
 			6, 6, false,
 			''
@@ -209,7 +209,7 @@ suite('TextAreaState', () => {
 
 	test('extractMacReplacedText - does nothing if there is more than one changed char', () => {
 		testExtractMacReplacedText(
-			new TextAreaState(null, 'Hello world!', 0, 0, false, 0),
+			new IENarratorTextAreaState(null, 'Hello world!', 0, 0, false, 0),
 			'Helöö world!',
 			6, 6, false,
 			''
@@ -218,7 +218,7 @@ suite('TextAreaState', () => {
 
 	test('extractMacReplacedText', () => {
 		testExtractMacReplacedText(
-			new TextAreaState(null, 'Hello world!', 0, 0, false, 0),
+			new IENarratorTextAreaState(null, 'Hello world!', 0, 0, false, 0),
 			'Hellö world!',
 			5, 5, false,
 			'ö'
@@ -227,7 +227,7 @@ suite('TextAreaState', () => {
 
 	function testFromEditorSelectionAndPreviousState(eol:string, lines:string[], range:Range, prevSelectionToken:number): TextAreaState {
 		let model = new SimpleModel(lines, eol);
-		let previousState = new TextAreaState(null, '', 0, 0, false, prevSelectionToken);
+		let previousState = new IENarratorTextAreaState(null, '', 0, 0, false, prevSelectionToken);
 		return previousState.fromEditorSelection(model, range);
 	}
 

@@ -300,7 +300,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 				let p = this.callbacks[response.request_seq];
 				if (p) {
 					if (TypeScriptServiceClient.Trace) {
-						console.log('TypeScript Service: request ' + response.command + '(' + response.request_seq + ') took ' + (Date.now() - p.start) + 'ms. Success: ' + response.success);
+						console.log('TypeScript Service: request ' + response.command + '(' + response.request_seq + ') took ' + (Date.now() - p.start) + 'ms. Success: ' + response.success + ((!response.success) ? ('. Message: ' + response.message) : ''));
 					}
 					delete this.callbacks[response.request_seq];
 					this.pendingResponses--;

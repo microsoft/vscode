@@ -240,23 +240,23 @@ export class KeyboardHandler extends ViewEventHandler implements Lifecycle.IDisp
 			let visibleRange = this.viewHelper.visibleRangeForPositionRelativeToEditor(lineNumber, column);
 
 			if (visibleRange) {
-				this.textArea.actual.style.top = visibleRange.top + 'px';
-				this.textArea.actual.style.left = this.contentLeft + visibleRange.left - this.scrollLeft + 'px';
+				DomUtils.StyleMutator.setTop(this.textArea.actual, visibleRange.top);
+				DomUtils.StyleMutator.setLeft(this.textArea.actual, this.contentLeft + visibleRange.left - this.scrollLeft);
 			}
 
 			if (Browser.isIE11orEarlier) {
-				this.textArea.actual.style.width = this.contentWidth + 'px';
+				DomUtils.StyleMutator.setWidth(this.textArea.actual, this.contentWidth);
 			}
 
 			// Show the textarea
-			this.textArea.actual.style.height = this.context.configuration.editor.lineHeight + 'px';
+			DomUtils.StyleMutator.setHeight(this.textArea.actual, this.context.configuration.editor.lineHeight);
 			DomUtils.addClass(this.viewHelper.viewDomNode, 'ime-input');
 		}));
 		this._toDispose.push(this.textAreaHandler.onCompositionEnd((e) => {
 			this.textArea.actual.style.height = '';
 			this.textArea.actual.style.width = '';
-			this.textArea.actual.style.left = '0px';
-			this.textArea.actual.style.top = '0px';
+			DomUtils.StyleMutator.setLeft(this.textArea.actual, 0);
+			DomUtils.StyleMutator.setTop(this.textArea.actual, 0);
 			DomUtils.removeClass(this.viewHelper.viewDomNode, 'ime-input');
 		}));
 
@@ -269,6 +269,17 @@ export class KeyboardHandler extends ViewEventHandler implements Lifecycle.IDisp
 		this.textAreaHandler.dispose();
 		this.textArea.dispose();
 		this._toDispose = Lifecycle.disposeAll(this._toDispose);
+	}
+
+	public focusTextArea(): void {
+		this.textAreaHandler.writePlaceholderAndSelectTextAreaSync();
+	}
+
+	public onConfigurationChanged(e: EditorCommon.IConfigurationChangedEvent): boolean {
+		// Give textarea same font size & line height as editor, for the IME case (when the textarea is visible)
+		DomUtils.StyleMutator.setFontSize(this.textArea.actual, this.context.configuration.editor.fontSize);
+		DomUtils.StyleMutator.setLineHeight(this.textArea.actual, this.context.configuration.editor.lineHeight);
+		return false;
 	}
 
 	public onScrollChanged(e:EditorCommon.IScrollEvent): boolean {

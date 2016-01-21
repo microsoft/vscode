@@ -10,7 +10,7 @@ import {Disposable} from 'vs/base/common/lifecycle';
 import {Range} from 'vs/editor/common/core/range';
 import {Position} from 'vs/editor/common/core/position';
 import {CommonKeybindings} from 'vs/base/common/keyCodes';
-import {IKeyboardEventWrapper, ITextAreaWrapper, IClipboardEvent, ISimpleModel, TextAreaState} from 'vs/editor/common/controller/textAreaState';
+import {IKeyboardEventWrapper, ITextAreaWrapper, IClipboardEvent, ISimpleModel, TextAreaState, IENarratorTextAreaState, NVDATextAreaState} from 'vs/editor/common/controller/textAreaState';
 import Event, {Emitter} from 'vs/base/common/event';
 
 enum ReadFromTextArea {
@@ -79,7 +79,6 @@ export class TextAreaHandler extends Disposable {
 	private hasFocus:boolean;
 
 	private asyncReadFromTextArea: RunOnceScheduler;
-	private asyncSetSelectionToTextArea: RunOnceScheduler;
 	private asyncTriggerCut: RunOnceScheduler;
 
 	private lastKeyPressTime:number;
@@ -104,12 +103,12 @@ export class TextAreaHandler extends Disposable {
 		this.cursorPosition = new Position(1, 1);
 
 		this.asyncReadFromTextArea = new RunOnceScheduler(null, 0);
-		this.asyncSetSelectionToTextArea = new RunOnceScheduler(() => this._writePlaceholderAndSelectTextArea(), 0);
 		this.asyncTriggerCut = new RunOnceScheduler(() => this._onCut.fire(), 0);
 
 		this.lastCopiedValue = null;
 		this.lastCopiedValueIsFromEmptySelection = false;
-		this.textAreaState = TextAreaState.EMPTY;
+		this.textAreaState = IENarratorTextAreaState.EMPTY;
+		// this.textAreaState = NVDATextAreaState.EMPTY;
 
 		this.hasFocus = false;
 
@@ -136,7 +135,7 @@ export class TextAreaHandler extends Disposable {
 			let shouldEmptyTextArea = (timeSinceLastCompositionEnd >= 100);
 			if (shouldEmptyTextArea) {
 				if (!this.Browser.isIE11orEarlier) {
-					this.setTextAreaState(TextAreaState.EMPTY);
+					this.setTextAreaState('compositionstart', this.textAreaState.toEmpty());
 				}
 			}
 
@@ -254,8 +253,6 @@ export class TextAreaHandler extends Disposable {
 					text: replacedChar,
 					replacePreviousCharacter: true
 				});
-
-				this.asyncSetSelectionToTextArea.schedule();
 			}));
 		}
 
@@ -276,18 +273,17 @@ export class TextAreaHandler extends Disposable {
 			} else {
 				if (this.textArea.selectionStart !== this.textArea.selectionEnd) {
 					// Clean up the textarea, to get a clean paste
-					this.setTextAreaState(TextAreaState.EMPTY);
+					this.setTextAreaState('paste', this.textAreaState.toEmpty());
 				}
 				this._scheduleReadFromTextArea(ReadFromTextArea.Paste);
 			}
 		}));
 
-		this._writePlaceholderAndSelectTextArea();
+		this._writePlaceholderAndSelectTextArea('ctor');
 	}
 
 	public dispose(): void {
 		this.asyncReadFromTextArea.dispose();
-		this.asyncSetSelectionToTextArea.dispose();
 		this.asyncTriggerCut.dispose();
 		super.dispose();
 	}
@@ -295,16 +291,20 @@ export class TextAreaHandler extends Disposable {
 	// --- begin event handlers
 
 	public setHasFocus(isFocused:boolean): void {
+		if (this.hasFocus === isFocused) {
+			// no change
+			return;
+		}
 		this.hasFocus = isFocused;
 		if (this.hasFocus) {
-			this.asyncSetSelectionToTextArea.schedule();
+			this._writePlaceholderAndSelectTextArea('focusgain');
 		}
 	}
 
 	public setCursorSelections(primary: IEditorRange, secondary: IEditorRange[]): void {
 		this.selection = primary;
 		this.selections = [primary].concat(secondary);
-		this.asyncSetSelectionToTextArea.schedule();
+		this._writePlaceholderAndSelectTextArea('selection changed');
 	}
 
 	public setCursorPosition(primary: IEditorPosition): void {
@@ -313,13 +313,13 @@ export class TextAreaHandler extends Disposable {
 
 	// --- end event handlers
 
-	private setTextAreaState(textAreaState:TextAreaState): void {
+	private setTextAreaState(reason:string, textAreaState:TextAreaState): void {
 		if (!this.hasFocus) {
 			textAreaState = textAreaState.resetSelection();
 		}
 
 		this.lastValueWrittenToTheTextArea = textAreaState.getValue();
-		textAreaState.applyToTextArea(this.textArea, this.hasFocus);
+		textAreaState.applyToTextArea(reason, this.textArea, this.hasFocus);
 
 		this.textAreaState = textAreaState;
 	}
@@ -346,9 +346,7 @@ export class TextAreaHandler extends Disposable {
 		setTimeout(() => {
 			// cancel reading if previous keydown was canceled, but a keypress/input were still generated
 			if (e.isDefaultPrevented()) {
-				// this._scheduleReadFromTextArea
 				this.asyncReadFromTextArea.cancel();
-				this.asyncSetSelectionToTextArea.schedule();
 			}
 		}, 0);
 	}
@@ -371,7 +369,6 @@ export class TextAreaHandler extends Disposable {
 	// ------------- Operations that are always executed asynchronously
 
 	private _scheduleReadFromTextArea(command:ReadFromTextArea): void {
-		this.asyncSetSelectionToTextArea.cancel();
 		this.asyncReadFromTextArea.setRunner(() => this._readFromTextArea(command));
 		this.asyncReadFromTextArea.schedule();
 	}
@@ -394,8 +391,6 @@ export class TextAreaHandler extends Disposable {
 		} else {
 			this.executePaste(txt);
 		}
-
-		this.asyncSetSelectionToTextArea.schedule();
 	}
 
 	private executePaste(txt:string): void {
@@ -413,14 +408,18 @@ export class TextAreaHandler extends Disposable {
 		});
 	}
 
-	private _writePlaceholderAndSelectTextArea(): void {
+	public writePlaceholderAndSelectTextAreaSync(): void {
+		this._writePlaceholderAndSelectTextArea('focusTextArea');
+	}
+
+	private _writePlaceholderAndSelectTextArea(reason:string): void {
 		if (!this.textareaIsShownAtCursor) {
 			// Do not write to the textarea if it is visible.
 			if (this.Browser.isIPad) {
 				// Do not place anything in the textarea for the iPad
-				this.setTextAreaState(TextAreaState.EMPTY);
+				this.setTextAreaState(reason, this.textAreaState.toEmpty());
 			} else {
-				this.setTextAreaState(this.textAreaState.fromEditorSelection(this.model, this.selection));
+				this.setTextAreaState(reason, this.textAreaState.fromEditorSelection(this.model, this.selection));
 			}
 		}
 	}
@@ -432,7 +431,7 @@ export class TextAreaHandler extends Disposable {
 		if (e.canUseTextData()) {
 			e.setTextData(whatToCopy);
 		} else {
-			this.setTextAreaState(this.textAreaState.fromText(whatToCopy));
+			this.setTextAreaState('copy or cut', this.textAreaState.fromText(whatToCopy));
 		}
 
 		if (this.Browser.enableEmptySelectionClipboard) {
