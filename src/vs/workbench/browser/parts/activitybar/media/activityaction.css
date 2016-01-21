@@ -35,7 +35,19 @@
 	top: 4px;
 	height: 32px;
 	width: 0;
-	border-left: 2px solid #1E8AE5;
+	border-left: 2px solid;
+}
+
+.monaco-workbench.vs > .activitybar > .content .monaco-action-bar .action-item .action-label:focus:before {
+	border-left-color: #1E8AE5;
+}
+
+.monaco-workbench.vs-dark > .activitybar > .content .monaco-action-bar .action-item .action-label:focus:before {
+	border-left-color: #1E8AE5;
+}
+
+.monaco-workbench.hc-black > .activitybar > .content .monaco-action-bar .action-item .action-label:focus:before {
+	border-left-color: #DF740C;
 }
 
 .monaco-workbench > .activitybar.left > .content .monaco-action-bar .action-item .action-label:focus:before {
@@ -176,7 +188,6 @@
 /* High Contrast Theming */
 .monaco-workbench.hc-black > .activitybar > .content .monaco-action-bar .action-label,
 .monaco-workbench.hc-black > .activitybar > .content .monaco-action-bar .action-label.active {
-	background: none;
 	opacity: 1;
 }
 

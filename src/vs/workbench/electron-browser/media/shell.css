@@ -49,14 +49,51 @@
 
 /* START Keyboard Focus Indication Styles */
 
-.monaco-shell [tabindex="0"]:focus,
-.monaco-shell select:focus,
-.monaco-shell input[type="button"]:focus,
-.monaco-shell input[type="submit"]:focus,
-.monaco-shell input[type="checkbox"]:focus {
-	outline: 2px auto -webkit-focus-ring-color;
-	outline-offset: -2px;
+.monaco-shell.vs [tabindex="0"]:focus,
+.monaco-shell.vs select:focus,
+.monaco-shell.vs input[type="button"]:focus,
+.monaco-shell.vs input[type="submit"]:focus,
+.monaco-shell.vs input[type="checkbox"]:focus {
+	outline: 1px auto #1E8AE5;
+	outline-offset: -3px;
 	opacity: 1 !important; /* prevent components from dimming focus feedback */
+}
+
+.monaco-shell.vs-dark [tabindex="0"]:focus,
+.monaco-shell.vs-dark select:focus,
+.monaco-shell.vs-dark input[type="button"]:focus,
+.monaco-shell.vs-dark input[type="submit"]:focus,
+.monaco-shell.vs-dark input[type="checkbox"]:focus {
+	outline: 1px auto #1E8AE5;
+	outline-offset: -3px;
+	opacity: 1 !important; /* prevent components from dimming focus feedback */
+}
+
+.monaco-shell.hc-black [tabindex="0"]:focus,
+.monaco-shell.hc-black select:focus,
+.monaco-shell.hc-black input[type="button"]:focus,
+.monaco-shell.hc-black input[type="submit"]:focus,
+.monaco-shell.hc-black input[type="checkbox"]:focus {
+	outline: 2px auto #DF740C;
+	outline-offset: -2px;
+}
+
+.monaco-shell.vs .monaco-tree.focused .monaco-tree-rows:empty,
+.monaco-shell.vs .monaco-tree.focused.no-item-focus .monaco-tree-rows {
+	outline: 1px auto #1E8AE5; /* we still need to handle the empty tree or no focus item case */
+	outline-offset: -3px;
+}
+
+.monaco-shell.vs-dark .monaco-tree.focused .monaco-tree-rows:empty,
+.monaco-shell.vs-dark .monaco-tree.focused.no-item-focus .monaco-tree-rows {
+	outline: 1px auto #1E8AE5; /* we still need to handle the empty tree or no focus item case */
+	outline-offset: -3px;
+}
+
+.monaco-shell.hc-black .monaco-tree.focused .monaco-tree-rows:empty,
+.monaco-shell.hc-black .monaco-tree.focused.no-item-focus .monaco-tree-rows {
+	outline: 2px auto #DF740C; /* we still need to handle the empty tree or no focus item case */
+	outline-offset: -2px;
 }
 
 .monaco-shell input[type="text"], .monaco-shell textarea {
@@ -64,17 +101,11 @@
 }
 
 .monaco-shell .monaco-tree:focus {
-	outline: 0; /* tree indicates focus not via outline but through the focussed item */
-}
-
-.monaco-shell .monaco-tree.focused .monaco-tree-rows:empty,
-.monaco-shell .monaco-tree.focused.no-item-focus .monaco-tree-rows {
-	outline: 2px auto -webkit-focus-ring-color; /* we still need to handle the empty tree or no focus item case */
-	outline-offset: -2px;
+	outline: 0 !important; /* tree indicates focus not via outline but through the focussed item */
 }
 
 .monaco-shell .activitybar [tabindex="0"]:focus {
-	outline: 0; /* activity bar indicates focus customly */
+	outline: 0 !important; /* activity bar indicates focus customly */
 }
 
 /* END Keyboard Focus Indication Styles */

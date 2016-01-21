@@ -71,7 +71,6 @@ export class HtmlPreviewPart extends BaseEditor {
 		// Container for IFrame
 		const iFrameContainerElement = document.createElement('div');
 		iFrameContainerElement.className = 'iframe-container monaco-editor-background'; // Inherit the background color from selected theme
-		iFrameContainerElement.tabIndex = 0;
 		iFrameContainerElement.appendChild(this._iFrameElement);
 
 		parent.getHTMLElement().appendChild(iFrameContainerElement);
