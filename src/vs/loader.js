@@ -65,7 +65,7 @@ var AMDLoader;
             return haystack.length >= needle.length && haystack.substr(haystack.length - needle.length) === needle;
         };
         Utilities.containsQueryString = function (url) {
-            return url.indexOf('?') >= 0;
+            return /[^\#]\?/gi.test(url);
         };
         /**
          * Does `url` start with http:// or https:// or / ?
