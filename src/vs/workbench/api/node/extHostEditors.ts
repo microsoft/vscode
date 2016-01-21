@@ -18,7 +18,7 @@ import {Position as EditorPosition} from 'vs/platform/editor/common/editor';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {MainThreadEditorsTracker, TextEditorRevealType, MainThreadTextEditor, ITextEditorConfiguration} from 'vs/workbench/api/node/mainThreadEditors';
 import * as TypeConverters from './extHostTypeConverters';
-import {TextDocument, TextEditorSelectionChangeEvent, TextEditorOptionsChangeEvent, TextEditorOptions, ViewColumn} from 'vscode';
+import {TextDocument, TextEditorSelectionChangeEvent, TextEditorOptionsChangeEvent, TextEditorOptions, TextEditorViewColumnChangeEvent, ViewColumn} from 'vscode';
 import {EventType} from 'vs/workbench/common/events';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IEventService} from 'vs/platform/event/common/event';
@@ -46,6 +46,9 @@ export class ExtHostEditors {
 	public onDidChangeTextEditorOptions: Event<TextEditorOptionsChangeEvent>;
 	private _onDidChangeTextEditorOptions: Emitter<TextEditorOptionsChangeEvent>;
 
+	public onDidChangeTextEditorViewColumn: Event<TextEditorViewColumnChangeEvent>;
+	private _onDidChangeTextEditorViewColumn: Emitter<TextEditorViewColumnChangeEvent>;
+
 	private _editors: { [id: string]: ExtHostTextEditor };
 	private _proxy: MainThreadEditors;
 	private _onDidChangeActiveTextEditor: Emitter<vscode.TextEditor>;
@@ -61,6 +64,9 @@ export class ExtHostEditors {
 
 		this._onDidChangeTextEditorOptions = new Emitter<TextEditorOptionsChangeEvent>();
 		this.onDidChangeTextEditorOptions = this._onDidChangeTextEditorOptions.event;
+
+		this._onDidChangeTextEditorViewColumn = new Emitter<TextEditorViewColumnChangeEvent>();
+		this.onDidChangeTextEditorViewColumn = this._onDidChangeTextEditorViewColumn.event;
 
 		this._modelService = threadService.getRemotable(ExtHostModelService);
 		this._proxy = threadService.getRemotable(MainThreadEditors);
@@ -137,10 +143,11 @@ export class ExtHostEditors {
 
 	_acceptEditorPositionData(data: ITextEditorPositionData): void {
 		for (let id in data) {
-			let editor = this._editors[id];
-			let value = TypeConverters.toViewColumn(data[id]);
-			if (editor.viewColumn !== value) {
-				editor._acceptViewColumn(value);
+			let textEditor = this._editors[id];
+			let viewColumn = TypeConverters.toViewColumn(data[id]);
+			if (textEditor.viewColumn !== viewColumn) {
+				textEditor._acceptViewColumn(viewColumn);
+				this._onDidChangeTextEditorViewColumn.fire({ textEditor, viewColumn });
 			}
 		}
 	}

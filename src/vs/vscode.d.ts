@@ -510,6 +510,20 @@ declare namespace vscode {
 	}
 
 	/**
+	 * Represents an event describing the change of a [text editor's view column](#TextEditor.viewColumn).
+	 */
+	export interface TextEditorViewColumnChangeEvent {
+		/**
+		 * The [text editor](#TextEditor) for which the options have changed.
+		 */
+		textEditor: TextEditor;
+		/**
+		 * The new value for the [text editor's view column](#TextEditor.viewColumn).
+		 */
+		viewColumn: ViewColumn;
+	}
+
+	/**
 	 * Represents a [text editor](#TextEditor)'s [options](#TextEditor.options).
 	 */
 	export interface TextEditorOptions {
@@ -2770,6 +2784,11 @@ declare namespace vscode {
 		 * An [event](#Event) which fires when the options of an editor have changed.
 		 */
 		export const onDidChangeTextEditorOptions: Event<TextEditorOptionsChangeEvent>;
+
+		/**
+		 * An [event](#Event) which fires when the view column of an editor das changed.
+		 */
+		export const onDidChangeTextEditorViewColumn: Event<TextEditorViewColumnChangeEvent>
 
 		/**
 		 * Show the given document in a text editor. A [column](#ViewColumn) can be provided

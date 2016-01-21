@@ -6,7 +6,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import {workspace, window, ViewColumn} from 'vscode';
+import {workspace, window, ViewColumn, TextEditor} from 'vscode';
 import {join} from 'path';
 import {cleanUp, pathEquals} from './utils';
 
@@ -37,6 +37,25 @@ suite("window namespace tests", () => {
 				assert.equal(editor.viewColumn, ViewColumn.Three);
 			});
 			return Promise.all([p1, p2, p3]);
+		});
+	});
+
+	test('editor, onDidChangeTextEditorViewColumn', () => {
+
+		let actualTextEditor: TextEditor;
+		let actualViewColumn: ViewColumn;
+
+		let registration = window.onDidChangeTextEditorViewColumn(event => {
+			actualTextEditor = event.textEditor;
+			actualViewColumn = event.viewColumn;
+		});
+
+		return workspace.openTextDocument(join(workspace.rootPath, './far.js')).then(doc => {
+			return window.showTextDocument(doc, ViewColumn.One).then(editor => {
+				assert.ok(actualTextEditor === editor);
+				assert.ok(actualViewColumn === editor.viewColumn);
+				registration.dispose();
+			});
 		});
 	});
 });
