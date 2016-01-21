@@ -29,15 +29,24 @@
 	text-shadow: 0 1px 0 rgba(0, 0, 0, 0.8);
 }
 
-.monaco-workbench > .activitybar.left > .content .monaco-action-bar .action-item .action-label:focus:before,
-.monaco-workbench > .activitybar.right > .content .monaco-action-bar .action-item .action-label:focus:after {
+.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item .action-label:focus:after,
+.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item .action-label:focus:before {
 	content: "";
 	position: absolute;
 	top: 4px;
-	left: 1px;
 	height: 32px;
 	width: 0;
-	border-left: 2px solid #39F;
+	border-left: 2px solid #1E8AE5;
+}
+
+.monaco-workbench > .activitybar.left > .content .monaco-action-bar .action-item .action-label:focus:after,
+.monaco-workbench > .activitybar.left > .content .monaco-action-bar .action-item .action-label:focus:before {
+	left: 1px;
+}
+
+.monaco-workbench > .activitybar.right > .content .monaco-action-bar .action-item .action-label:focus:after,
+.monaco-workbench > .activitybar.right > .content .monaco-action-bar .action-item .action-label:focus:before {
+	right: 1px;
 }
 
 .monaco-workbench > .activitybar > .content .monaco-action-bar .action-label > .label {
