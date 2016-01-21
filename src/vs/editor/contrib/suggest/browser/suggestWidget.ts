@@ -247,7 +247,15 @@ class Sorter implements Tree.ISorter {
 	}
 
 	private static suggestionCompare(a: ISuggestion, b: ISuggestion): number {
-		return (a.sortText || a.label).localeCompare((b.sortText || b.label));
+		let cmp = 0;
+		if (typeof a.sortText === 'string' && typeof b.sortText === 'string') {
+			cmp = a.sortText.localeCompare(b.sortText);
+		}
+		if (cmp === 0) {
+			cmp = a.label.localeCompare(b.label);
+
+		}
+		return cmp;
 	}
 }
 
