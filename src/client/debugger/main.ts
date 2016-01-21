@@ -8,7 +8,6 @@ import {DebugProtocol} from 'vscode-debugprotocol';
 import {readFileSync} from 'fs';
 import {basename} from 'path';
 import * as path from 'path';
-// import * as pty from 'pty.js';
 import * as os from 'os';
 import * as fs from 'fs';
 import * as child_process from 'child_process';
@@ -57,7 +56,6 @@ function parseWhere(data: string[]): IStackInfo {
     var line = lineParts.length === 1 ? lineParts[0] : lineParts[1];
     var parts = line.match(/(.*)\((\d+)\)(.*)/);
     var src = data[data.length - 1].split(/\s+/)[1];
-    //var src = lines[1].split(/\s+/)[1];
     var currentStack: IStackInfo = {
         fileName: parts[1],
         lineNumber: parseInt(parts[2], 10),
@@ -95,7 +93,6 @@ class MockDebugSession extends DebugSession {
         super(debuggerLinesStartAt1, isServer === true);
         this._sourceFile = null;
         //this._sourceLines = [];
-        
         this._currentLine = 0;
         this._breakPoints = {};
         this._variableHandles = new Handles<string>();
@@ -113,8 +110,7 @@ class MockDebugSession extends DebugSession {
     protected launchRequest(response: DebugProtocol.LaunchResponse, args: LaunchRequestArguments): void {
         this._sourceFile = args.program;
         //this._sourceLines = readFileSync(this._sourceFile).toString().split('\n');
-        console.log("YAYA");
-
+ 
         if (args.stopOnEntry) {
             this.launchResponse = response;
         } else {
@@ -123,9 +119,10 @@ class MockDebugSession extends DebugSession {
         }
         var fileDir = path.dirname(this._sourceFile);
 
-        this.pdbRunner = new PdbRunner(this._sourceFile);
+        this.pdbRunner = new PdbRunner(this._sourceFile, this);
 
         this.pdbRunner.pdbLoaded.then(() => {
+            this.sendResponse(this.launchResponse);
             this.sendEvent(new StoppedEvent("entry", MockDebugSession.THREAD_ID));
         });
     }
@@ -211,7 +208,7 @@ class MockDebugSession extends DebugSession {
             }
         });
     }
-  
+
     protected setBreakPointsRequest(response: DebugProtocol.SetBreakpointsResponse, args: DebugProtocol.SetBreakpointsArguments): void {
         this.pdbRunner.pdbLoaded.then(() => {
             var breakpoints = [];
@@ -224,7 +221,7 @@ class MockDebugSession extends DebugSession {
                         newPositions.push(line);
                         breakpoints.push({ verified: true, line: line });
                         counter = counter + 1;
-                        if (counter === args.lines.length){
+                        if (counter === args.lines.length) {
                             resolve();
                         }
                     });

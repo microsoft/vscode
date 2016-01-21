@@ -10,6 +10,7 @@ import * as os from 'os';
 import * as fs from 'fs';
 import * as child_process from 'child_process';
 import * as StringDecoder from 'string_decoder';
+import {DebugSession, InitializedEvent, TerminatedEvent, StoppedEvent, OutputEvent, Thread, StackFrame, Scope, Source, Handles} from 'vscode-debugadapter';
 
 
 function ignoreEmpty(line) {
@@ -38,10 +39,16 @@ export class PdbRunner {
 
     private pythonProc: child_process.ChildProcess;//pty.Terminal;
     private _sourceFile: string;
+    private debugSession: DebugSession;
 
-    public constructor(sourceFile: string) {
+    public constructor(sourceFile: string, debugSession: DebugSession) {
         this._sourceFile = sourceFile;
+        this.debugSession = debugSession;
         this.initProc();
+    }
+
+    private sendRemoteConsoleLog(msg) {
+        this.debugSession.sendEvent(new OutputEvent(msg));
     }
 
     private initProc() {
@@ -50,9 +57,9 @@ export class PdbRunner {
             cwd: fileDir
         });
         
-        // pipe the main process input to the child process
-        process.stdin.pipe(this.pythonProc.stdin);
-        this.pythonProc.stdout.pipe(process.stdout);
+        // // pipe the main process input to the child process
+        // process.stdin.pipe(this.pythonProc.stdin);
+        // this.pythonProc.stdout.pipe(process.stdout);
 
         //Watch out for pdb successfully loaded
         this.pdbLoaded = new Promise<any>((resolve) => {
@@ -66,22 +73,18 @@ export class PdbRunner {
         this.pythonProc.stdout.on("data", (data) => {
             that.onDataReceived(data);
         });
-        // this.pythonProc.stdout.on("error", (data) => {
-        //     var x = "" + data;
-        //     var y = "" + data;
-        // });
-        // this.pythonProc.stdout.on("exit", (data) => {
-        //     var x = "" + data;
-        //     var y = "" + data;
-        // });
-        // this.pythonProc.stdout.on("close", (data) => {
-        //     var x = "" + data;
-        //     var y = "" + data;
-        // });
-        // this.pythonProc.stderr.on("data", (data)=>{
-        //     var x = "" + data;
-        //     var y = "" + data;
-        // });
+        this.pythonProc.stdout.on("error", (data) => {
+            that.sendRemoteConsoleLog("Pdb Error " + data);
+        });
+        this.pythonProc.stdout.on("exit", (data) => {
+            that.sendRemoteConsoleLog("Pdb Exit " + data);
+        });
+        this.pythonProc.stdout.on("close", (data) => {
+            that.sendRemoteConsoleLog("Pdb Closed " + data);
+        });
+        this.pythonProc.stderr.on("data", (data) => {
+            that.sendRemoteConsoleLog("Pdb Error Data" + data);
+        });
     }
 
     public sendCmd(command: IPdbCommand): Promise<string[]> {
