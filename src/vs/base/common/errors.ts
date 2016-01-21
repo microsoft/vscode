@@ -233,7 +233,7 @@ export class ConnectionError implements Error {
 // Bug: Can not subclass a JS Type. Do it manually (as done in WinJS.Class.derive)
 objects.derive(Error, ConnectionError);
 
-function _xhrToErrorMessage(xhr: IConnectionErrorData, verbose: boolean): string {
+function xhrToErrorMessage(xhr: IConnectionErrorData, verbose: boolean): string {
 	let ce = new ConnectionError(xhr);
 	if (verbose) {
 		return ce.verboseMessage;
@@ -242,16 +242,26 @@ function _xhrToErrorMessage(xhr: IConnectionErrorData, verbose: boolean): string
 	}
 }
 
-function _exceptionToErrorMessage(exception: any, verbose: boolean): string {
-	if (verbose && exception.message && (exception.stack || exception.stacktrace)) {
-		return nls.localize('stackTrace.format', "{0}: {1}", exception.message, exception.stack || exception.stacktrace);
-	}
-
+function exceptionToErrorMessage(exception: any, verbose: boolean): string {
 	if (exception.message) {
-		return exception.message;
+		if (verbose && (exception.stack || exception.stacktrace)) {
+			return nls.localize('stackTrace.format', "{0}: {1}", detectSystemErrorMessage(exception), exception.stack || exception.stacktrace);
+		}
+
+		return detectSystemErrorMessage(exception);
 	}
 
 	return nls.localize('error.defaultMessage', "An unknown error occurred. Please consult the log for more details.");
+}
+
+function detectSystemErrorMessage(exception: any): string {
+
+	// See https://nodejs.org/api/errors.html#errors_class_system_error
+	if (typeof exception.code === 'string' && typeof exception.errno === 'number' && typeof exception.syscall === 'string') {
+		return nls.localize('nodeExceptionMessage', "A system error occured ({0})", exception.message);
+	}
+
+	return exception.message;
 }
 
 /**
@@ -280,7 +290,7 @@ export function toErrorMessage(error: any = null, verbose: boolean = false): str
 	}
 
 	if (!types.isUndefinedOrNull(error.status)) {
-		return _xhrToErrorMessage(error, verbose);
+		return xhrToErrorMessage(error, verbose);
 	}
 
 	if (error.detail) {
@@ -288,33 +298,33 @@ export function toErrorMessage(error: any = null, verbose: boolean = false): str
 
 		if (detail.error) {
 			if (detail.error && !types.isUndefinedOrNull(detail.error.status)) {
-				return _xhrToErrorMessage(detail.error, verbose);
+				return xhrToErrorMessage(detail.error, verbose);
 			}
 
 			if (types.isArray(detail.error)) {
 				for (let i = 0; i < detail.error.length; i++) {
 					if (detail.error[i] && !types.isUndefinedOrNull(detail.error[i].status)) {
-						return _xhrToErrorMessage(detail.error[i], verbose);
+						return xhrToErrorMessage(detail.error[i], verbose);
 					}
 				}
 			}
 
 			else {
-				return _exceptionToErrorMessage(detail.error, verbose);
+				return exceptionToErrorMessage(detail.error, verbose);
 			}
 		}
 
 		if (detail.exception) {
 			if (!types.isUndefinedOrNull(detail.exception.status)) {
-				return _xhrToErrorMessage(detail.exception, verbose);
+				return xhrToErrorMessage(detail.exception, verbose);
 			}
 
-			return _exceptionToErrorMessage(detail.exception, verbose);
+			return exceptionToErrorMessage(detail.exception, verbose);
 		}
 	}
 
 	if (error.stack) {
-		return _exceptionToErrorMessage(error, verbose);
+		return exceptionToErrorMessage(error, verbose);
 	}
 
 	if (error.message) {
@@ -324,7 +334,7 @@ export function toErrorMessage(error: any = null, verbose: boolean = false): str
 	return nls.localize('error.defaultMessage', "An unknown error occurred. Please consult the log for more details.");
 }
 
-let canceledName = 'Canceled';
+const canceledName = 'Canceled';
 
 /**
  * Checks if the given error is a promise in canceled state

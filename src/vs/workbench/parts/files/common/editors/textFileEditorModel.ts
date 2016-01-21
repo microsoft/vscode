@@ -42,7 +42,7 @@ class DefaultSaveErrorHandler implements ISaveErrorHandler {
 	constructor( @IMessageService private messageService: IMessageService) { }
 
 	public onSaveError(error: any, model: TextFileEditorModel): void {
-		this.messageService.show(Severity.Error, nls.localize('genericSaveError', "Failed to save '{0}' ({1})", paths.basename(model.getResource().fsPath), toErrorMessage(error, false)));
+		this.messageService.show(Severity.Error, nls.localize('genericSaveError', "Failed to save '{0}': {1}", paths.basename(model.getResource().fsPath), toErrorMessage(error, false)));
 	}
 }
 
