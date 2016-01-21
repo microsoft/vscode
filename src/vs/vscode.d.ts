@@ -11,7 +11,7 @@ declare namespace vscode {
 
 	/**
 	 * The version of the editor.
-	*/
+	 */
 	export var version: string;
 
 	export const env: {
