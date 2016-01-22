@@ -113,10 +113,11 @@
 	box-sizing: border-box;
 }
 
-.monaco-workbench .repl .repl-input {
+.monaco-workbench .repl .repl-input-wrapper .repl-input {
 	width: 100%;
 	border: 0;
 	padding: 0;
+	line-height: 22px;
 	font-family: Monaco, Menlo, Consolas, "Droid Sans Mono", "Inconsolata", "Courier New", monospace, "Droid Sans Fallback";
 }
 
@@ -145,7 +146,6 @@
 .monaco-workbench .repl .repl-input-wrapper {
 	border-top: 1px solid rgba(128, 128, 128, 0.35);
 	box-sizing: border-box;
-	line-height: 22px;
 }
 
 .monaco-workbench .repl .repl-input-wrapper:before {
@@ -162,20 +162,23 @@
 	font-size: 12px;
 }
 
-.monaco-workbench .repl .repl-input.win {
+.monaco-workbench .repl .repl-input-wrapper.win {
 	font-size: 14px;
 }
 
-.monaco-workbench .repl .repl-input.linux {
+.monaco-workbench .repl .repl-input-wrapper.linux {
 	font-size: 14px;
 }
 
 .monaco-workbench .repl .repl-input-wrapper.linux:before {
 	content: '\276f';
+	font-size: 9px;
+	line-height: 22px;
 }
 
 .monaco-workbench .repl .repl-input-wrapper.mac:before {
 	content: '\276f';
+	line-height: 22px;
 }
 
 .monaco-workbench .repl .repl-input {
