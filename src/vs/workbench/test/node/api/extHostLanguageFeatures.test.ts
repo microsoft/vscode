@@ -400,8 +400,8 @@ suite('ExtHostLanguageFeatures', function() {
 				getExtraInfoAtPosition(model, { lineNumber: 1, column: 1 }).then(value => {
 					assert.equal(value.length, 2);
 					let [first, second] = value;
-					assert.equal(first.htmlContent[0].formattedText, 'registered second');
-					assert.equal(second.htmlContent[0].formattedText, 'registered first');
+					assert.equal(first.htmlContent[0].markdown, 'registered second');
+					assert.equal(second.htmlContent[0].markdown, 'registered first');
 					done();
 				});
 			});
