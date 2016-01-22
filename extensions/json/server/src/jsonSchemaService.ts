@@ -37,9 +37,13 @@ export interface IJSONSchemaService {
 	getSchemaForResource(resource: string, document: Parser.JSONDocument): Thenable<ResolvedSchema>;
 }
 
+export interface ISchemaAssociations {
+	[pattern: string]: string[];
+}
+
 export interface ISchemaContributions {
 	schemas?: { [id: string]: IJSONSchema };
-	schemaAssociations?: { [pattern: string]: string[] };
+	schemaAssociations?: ISchemaAssociations;
 }
 
 export interface ISchemaHandle {

@@ -6,11 +6,23 @@
 
 import * as path from 'path';
 
-import {workspace, Disposable, ExtensionContext} from 'vscode';
-import {LanguageClient, LanguageClientOptions, SettingMonitor, ServerOptions, TransportKind, NotificationType} from 'vscode-languageclient';
+import {workspace, Disposable, ExtensionContext, extensions, Uri} from 'vscode';
+import {LanguageClient, LanguageClientOptions, RequestType, SettingMonitor, ServerOptions, TransportKind, NotificationType} from 'vscode-languageclient';
 
 namespace TelemetryNotification {
 	export const type: NotificationType<{ key: string, data: any }> = { get method() { return 'telemetry'; } };
+}
+
+namespace VSCodeContentRequest {
+	export const type: RequestType<string, string, any> = { get method() { return 'vscode/content'; } };
+}
+
+export interface ISchemaAssociations {
+	[pattern: string]: string[];
+}
+
+namespace SchemaAssociationNotification {
+	export const type: NotificationType<ISchemaAssociations> = { get method() { return 'json/schemaAssociations'; } };
 }
 
 export function activate(context: ExtensionContext) {
@@ -45,9 +57,43 @@ export function activate(context: ExtensionContext) {
 		// to be done
 	});
 
+	// handle content request
+	client.onRequest(VSCodeContentRequest.type, (uri: string) => {
+		return workspace.openTextDocument(uri).then(doc => doc.getText());
+	});
+
 	let disposable = client.start();
+
+	client.sendNotification(SchemaAssociationNotification.type, getSchemaAssociation(context));
 
 	// Push the disposable to the context's subscriptions so that the
 	// client can be deactivated on extension deactivation
 	context.subscriptions.push(disposable);
+}
+
+function getSchemaAssociation(context: ExtensionContext) : ISchemaAssociations {
+	var associations : ISchemaAssociations = {};
+	extensions.all.forEach(extension => {
+		var packageJSON = extension.packageJSON;
+		if (packageJSON && packageJSON.contributes && packageJSON.contributes.jsonValidation) {
+			var jsonValidation = packageJSON.contributes.jsonValidation;
+			if (Array.isArray(jsonValidation)) {
+				jsonValidation.forEach(jv => {
+					var {fileMatch, url} = jv;
+					if (fileMatch && url) {
+						if (url[0] === '.' && url[1] === '.') {
+							url = context.asAbsolutePath(url);
+						}
+						var association = associations[fileMatch];
+						if (!association) {
+							association = [];
+							associations[fileMatch] = association;
+						}
+						association.push(url);
+					}
+				});
+			}
+		}
+	})
+	return associations;
 }

@@ -10,7 +10,7 @@ import {
 	TextDocuments, ITextDocument, Diagnostic, DiagnosticSeverity,
 	InitializeParams, InitializeResult, TextDocumentIdentifier, TextDocumentPosition,
 	CompletionItem, CompletionItemKind, Files, Hover, SymbolInformation, TextEdit, DocumentFormattingParams,
-	DocumentRangeFormattingParams, NotificationType
+	DocumentRangeFormattingParams, NotificationType, RequestType
 } from 'vscode-languageserver';
 
 import {xhr, IXHROptions, IXHRResponse} from './utils/httpRequest';
@@ -19,7 +19,7 @@ import fs = require('fs');
 import URI from './utils/uri';
 import Strings = require('./utils/strings');
 import {create as createLinesModel, LinesModel} from './utils/lines';
-import {IWorkspaceContextService, ITelemetryService, JSONSchemaService, ISchemaContributions} from './jsonSchemaService';
+import {IWorkspaceContextService, ITelemetryService, JSONSchemaService, ISchemaContributions, ISchemaAssociations} from './jsonSchemaService';
 import {parse as parseJSON, ObjectASTNode, JSONDocument} from './jsonParser';
 import {JSONCompletion} from './jsonCompletion';
 import {JSONHover} from './jsonHover';
@@ -29,6 +29,14 @@ import {schemaContributions} from './configuration';
 
 namespace TelemetryNotification {
 	export const type: NotificationType<{ key: string, data: any }> = { get method() { return 'telemetry'; } };
+}
+
+namespace SchemaAssociationNotification {
+	export const type: NotificationType<ISchemaAssociations> = { get method() { return 'json/schemaAssociations'; } };
+}
+
+namespace VSCodeContentRequest {
+	export const type: RequestType<string, string, any> = { get method() { return 'vscode/content'; } };
 }
 
 // Create a connection for the server. The connection uses for
@@ -42,11 +50,10 @@ let documents: TextDocuments = new TextDocuments();
 // for open, change and close text document events
 documents.listen(connection);
 
-
 // After the server has started the client sends an initilize request. The server receives
 // in the passed params the rootPath of the workspace plus the client capabilites.
 let workspaceRoot: URI;
-connection.onInitialize((params): InitializeResult => {
+connection.onInitialize((params: InitializeResult) => {
 	workspaceRoot = URI.parse(params.rootPath);
 	return {
 		capabilities: {
@@ -76,13 +83,25 @@ let telemetry = {
 	}
 }
 
-let request = (options: IXHROptions): Promise<IXHRResponse>  => {
-	if (options.url.indexOf('file://') === 0) {
+let request = (options: IXHROptions): Thenable<IXHRResponse>  => {
+	if (Strings.startsWith(options.url, 'file://')) {
 		let fsPath = URI.parse(options.url).fsPath;
 		return new Promise<IXHRResponse>((c, e) => {
 			fs.readFile(fsPath, 'UTF-8', (err, result) => {
 				err ? e({ responseText: '', status: 404 }) : c({ responseText: result.toString(), status: 200 })
 			});
+		});
+	} else if (Strings.startsWith(options.url, 'vscode-schema://')) {
+		return connection.sendRequest(VSCodeContentRequest.type, options.url).then(responseText => {
+			return {
+				responseText: responseText,
+				status: 200
+			};
+		}, error => {
+			return {
+				responseText: error.message,
+				status: 404
+			}
 		});
 	}
 	return xhr(options);
@@ -103,20 +122,47 @@ documents.onDidChangeContent((change) => {
 
 // The settings interface describe the server relevant settings part
 interface Settings {
-	json: JSONSettings;
+	json: {
+		schemas: JSONSchemaSettings[]
+	};
 }
 
-interface JSONSettings {
-	schemas: [{ fileMatch: string[], url: string, schema: any }];
+interface JSONSchemaSettings {
+	fileMatch: string[],
+	url: string,
+	schema?: any;
 }
+
+let jsonConfigurationSettings : JSONSchemaSettings[] = void 0;
+let schemaAssociations : ISchemaAssociations = void 0;
 
 // The settings have changed. Is send on server activation as well.
 connection.onDidChangeConfiguration((change) => {
-	let jsonSettings = (<Settings>change.settings).json;
+	var jsonSettings = (<Settings>change.settings).json;
+	jsonConfigurationSettings = jsonSettings && jsonSettings.schemas;
+	updateConfiguration();
+});
 
-	if (jsonSettings && jsonSettings.schemas) {
-		jsonSchemaService.clearExternalSchemas();
-		jsonSettings.schemas.forEach((schema) => {
+// The jsonValidation extension configuration has changed
+connection.onNotification(SchemaAssociationNotification.type, (associations) => {
+	schemaAssociations = associations;
+	updateConfiguration();
+});
+
+function updateConfiguration() {
+	jsonSchemaService.clearExternalSchemas();
+	if (schemaAssociations) {
+		for (var pattern in schemaAssociations) {
+			let association = schemaAssociations[pattern];
+			if (Array.isArray(association)) {
+				association.forEach(url => {
+					jsonSchemaService.registerExternalSchema(url, [pattern]);
+				})
+			}
+		}
+	}
+	if (jsonConfigurationSettings) {
+		jsonConfigurationSettings.forEach((schema) => {
 			if (schema.url && (schema.fileMatch || schema.schema)) {
 				let url = schema.url;
 				if (!Strings.startsWith(url, 'http://') && !Strings.startsWith(url, 'https://') && !Strings.startsWith(url, 'file://')) {
@@ -131,10 +177,10 @@ connection.onDidChangeConfiguration((change) => {
 			}
 		});
 	}
-
 	// Revalidate any open text documents
 	documents.all().forEach(validateTextDocument);
-});
+}
+
 
 function validateTextDocument(textDocument: ITextDocument): void {
 	let jsonDocument = getJSONDocument(textDocument);
