@@ -6,7 +6,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import {workspace, window, ViewColumn, TextEditor} from 'vscode';
+import {workspace, window, commands, ViewColumn, TextEditor, TextEditorViewColumnChangeEvent, Uri} from 'vscode';
 import {join} from 'path';
 import {cleanUp, pathEquals} from './utils';
 
@@ -42,20 +42,38 @@ suite("window namespace tests", () => {
 
 	test('editor, onDidChangeTextEditorViewColumn', () => {
 
-		let actualTextEditor: TextEditor;
-		let actualViewColumn: ViewColumn;
+		let actualEvent: TextEditorViewColumnChangeEvent;
 
-		let registration = window.onDidChangeTextEditorViewColumn(event => {
-			actualTextEditor = event.textEditor;
-			actualViewColumn = event.viewColumn;
+		let registration1 = workspace.registerTextDocumentContentProvider('bikes', {
+			provideTextDocumentContent() {
+				return 'mountainbiking,roadcycling';
+			}
+		})
+
+		let registration2 = window.onDidChangeTextEditorViewColumn(event => {
+			actualEvent = event;
 		});
 
-		return workspace.openTextDocument(join(workspace.rootPath, './far.js')).then(doc => {
-			return window.showTextDocument(doc, ViewColumn.One).then(editor => {
-				assert.ok(actualTextEditor === editor);
-				assert.ok(actualViewColumn === editor.viewColumn);
-				registration.dispose();
-			});
+		return Promise.all([
+			workspace.openTextDocument(Uri.parse('bikes://testing/one')).then(doc => window.showTextDocument(doc, ViewColumn.One)),
+			workspace.openTextDocument(Uri.parse('bikes://testing/two')).then(doc => window.showTextDocument(doc, ViewColumn.Two))
+		]).then(editors => {
+
+			let [one, two] = editors;
+
+			return new Promise(resolve => {
+				// close editor 1, wait a little for the event to bubble
+				one.hide();
+				setTimeout(() => resolve(), 10);
+
+			}).then(() => {
+				assert.ok(actualEvent);
+				assert.ok(actualEvent.textEditor === two);
+				assert.ok(actualEvent.viewColumn === two.viewColumn);
+
+				registration1.dispose();
+				registration2.dispose();
+			})
 		});
 	});
 });
