@@ -16,6 +16,7 @@ import { workspace, window, Uri, CancellationToken }  from 'vscode';
 import * as Proto from './protocol';
 import { ITypescriptServiceClient, ITypescriptServiceClientHost }  from './typescriptService';
 
+import * as SalsaStatus from './utils/salsaStatus';
 
 let isWin = /^win/.test(process.platform);
 let isDarwin = /^darwin/.test(process.platform);
@@ -111,13 +112,15 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 
 	private startService(resendModels: boolean = false): void {
 		let modulePath = path.join(__dirname, '..', 'server', 'typescript', 'lib', 'tsserver.js');
+		let useSalsa = !!process.env['CODE_TSJS'] || !!process.env['VSCODE_TSJS'];
+
 		if (this.tsdk) {
 			if ((<any>path).isAbsolute(this.tsdk)) {
 				modulePath = path.join(this.tsdk, 'tsserver.js');
 			} else if (workspace.rootPath) {
 				modulePath = path.join(workspace.rootPath, this.tsdk, 'tsserver.js');
 			}
-		} else if (!!process.env['CODE_TSJS'] || !!process.env['VSCODE_TSJS']) {
+		} else if (useSalsa) {
 			let candidate = path.join(workspace.rootPath, 'node_modules', 'typescript', 'lib', 'tsserver.js');
 			if (fs.existsSync(candidate)) {
 				modulePath = candidate;
@@ -127,6 +130,18 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			window.showErrorMessage(`The path ${path.dirname(modulePath)} doesn't point to a valid tsserver install. TypeScript language features will be disabled.`);
 			return;
 		}
+
+		if (useSalsa) {
+			let versionOK = this.isTypeScriptVersionOkForSalsa(modulePath);
+			let tooltip = modulePath;
+			if (!versionOK) {
+				tooltip = `${tooltip} does not support Salsa!`;
+			} else {
+				tooltip = `${tooltip} does support Salsa.`;
+			}
+			SalsaStatus.show('(Salsa)', tooltip, !versionOK);
+		}
+
 		this.servicePromise = new Promise<cp.ChildProcess>((resolve, reject) => {
 			try {
 				let options: electron.IForkOptions = {
@@ -171,6 +186,30 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		if (resendModels) {
 			this.host.populateService();
 		}
+	}
+
+	private isTypeScriptVersionOkForSalsa(serverPath: string): boolean {
+		let p = serverPath.split(path.sep);
+		if (p.length <= 2) {
+			return true; // assume OK, cannot check
+		}
+		let p2 = p.slice(0, -2);
+		let modulePath = p2.join(path.sep);
+		let fileName = path.join(modulePath, 'package.json');
+		if (!fs.existsSync(fileName)) {
+			return true; // assume OK, cannot check
+		}
+		let contents = fs.readFileSync(fileName).toString();
+		let desc = null;
+		try {
+			desc = JSON.parse(contents);
+		} catch(err) {
+			return true;
+		}
+		if (!desc.version) {
+			return true;
+		}
+		return desc.version.indexOf('1.8') >= 0;
 	}
 
 	private serviceExited(restart: boolean): void {
