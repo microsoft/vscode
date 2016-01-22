@@ -144,16 +144,9 @@ declare module DebugProtocol {
 		/** Determines in what format paths are specified. Possible values are 'path' or 'uri'. The default is 'path', which is the native format. */
 		pathFormat?: string;
 	}
-	/** Response to Initialize request.
-	 *  It contains information about the features implemented by a debug adapter.
-	*/
+	/** Response to Initialize request. */
 	export interface InitializeResponse extends Response {
-		body: {
-			/** The debug adapter supports the configurationDoneRequest. */
-			supportsConfigurationDoneRequest?: boolean;
-			/** The debug adapter supports a (side effect free) evaluate request for data hovers. */
-			supportEvaluateForHovers?: boolean;
-		}
+		body: Capabilites;
 	}
 
 	/** ConfigurationDone request; value of command field is "configurationDone".
@@ -543,5 +536,14 @@ declare module DebugProtocol {
 		line: number;
 		/** The actual column of the breakpoint. */
 		column?: number;
+	}
+
+	/** Information about the features implemented by a debug adapter.
+    */
+	export interface Capabilites {
+		/** The debug adapter supports the configurationDoneRequest. */
+		supportsConfigurationDoneRequest?: boolean;
+		/** The debug adapter supports a (side effect free) evaluate request for data hovers. */
+		supportEvaluateForHovers?: boolean;
 	}
 }
