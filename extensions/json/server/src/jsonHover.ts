@@ -10,8 +10,6 @@ import SchemaService = require('./jsonSchemaService');
 
 import {Hover, ITextDocument, TextDocumentPosition, Range, MarkedString, RemoteConsole} from 'vscode-languageserver';
 
-import {LinesModel} from './utils/lines';
-
 export class JSONHover {
 
 	private schemaService: SchemaService.IJSONSchemaService;
@@ -20,9 +18,9 @@ export class JSONHover {
 		this.schemaService = schemaService;
 	}
 
-	public doHover(document: ITextDocument, textDocumentPosition: TextDocumentPosition, lines: LinesModel, doc: Parser.JSONDocument): Thenable<Hover> {
+	public doHover(document: ITextDocument, textDocumentPosition: TextDocumentPosition, doc: Parser.JSONDocument): Thenable<Hover> {
 
-		let offset = lines.offsetAt(textDocumentPosition.position);
+		let offset = document.offsetAt(textDocumentPosition.position);
 		let node = doc.getNodeFromOffset(offset);
 		let originalNode = node;
 
@@ -56,7 +54,7 @@ export class JSONHover {
 				});
 
 				if (description) {
-					let range = Range.create(lines.positionAt(node.start), lines.positionAt(node.end));
+					let range = Range.create(document.positionAt(node.start), document.positionAt(node.end));
 					let result: Hover = {
 						contents: [description],
 						range: range

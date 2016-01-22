@@ -10,7 +10,6 @@ import SchemaService = require('../jsonSchemaService');
 import JsonSchema = require('../json-toolbox/jsonSchema');
 import {JSONCompletion} from '../jsonCompletion';
 import {IXHROptions, IXHRResponse} from '../utils/httpRequest';
-import {create as createLinesModel} from '../utils/lines';
 
 import {CompletionItem, CompletionItemKind, CompletionOptions, ITextDocument, TextDocumentIdentifier, TextDocumentPosition, Range, Position, TextEdit} from 'vscode-languageserver';
 
@@ -40,9 +39,8 @@ suite('JSON Completion', () => {
 
 		var document = ITextDocument.create(uri, value);
 		var textDocumentLocation = TextDocumentPosition.create(uri, Position.create(0, idx));
-		var lines = createLinesModel(value);
 		var jsonDoc = Parser.parse(value);
-		return completionProvider.doSuggest(document, textDocumentLocation, lines, jsonDoc);
+		return completionProvider.doSuggest(document, textDocumentLocation, jsonDoc);
 	};
 
 

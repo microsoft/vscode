@@ -6,32 +6,31 @@
 
 import Json = require('./json-toolbox/json');
 import {ITextDocument, Range, Position, FormattingOptions, TextEdit} from 'vscode-languageserver';
-import {LinesModel} from './utils/lines';
 
-export function format(document: ITextDocument, lines: LinesModel, range: Range, options: FormattingOptions): TextEdit[] {
+export function format(document: ITextDocument, range: Range, options: FormattingOptions): TextEdit[] {
 	const documentText = document.getText();
 	let initialIndentLevel: number;
 	let value: string;
 	let rangeOffset: number;
 	if (range) {
 		let startPosition = Position.create(range.start.line, 0);
-		rangeOffset = lines.offsetAt(startPosition);
+		rangeOffset = document.offsetAt(startPosition);
 
-		let endOffset = lines.offsetAt(Position.create(range.end.line + 1, 0));
-		let endLineStart = lines.offsetAt(Position.create(range.end.line, 0));
+		let endOffset = document.offsetAt(Position.create(range.end.line + 1, 0));
+		let endLineStart = document.offsetAt(Position.create(range.end.line, 0));
 		while (endOffset > endLineStart && isEOL(documentText, endOffset - 1)) {
 			endOffset--;
 		}
-		range = Range.create(startPosition, lines.positionAt(endOffset));
+		range = Range.create(startPosition, document.positionAt(endOffset));
 		value = documentText.substring(rangeOffset, endOffset);
 		initialIndentLevel = computeIndentLevel(value, 0, options);
 	} else {
 		value = documentText;
-		range = Range.create(Position.create(0, 0), lines.positionAt(value.length));
+		range = Range.create(Position.create(0, 0), document.positionAt(value.length));
 		initialIndentLevel = 0;
 		rangeOffset = 0;
 	}
-	let eol = getEOL(document, lines);
+	let eol = getEOL(document);
 
 	let lineBreak = false;
 	let indentLevel = 0;
@@ -59,7 +58,7 @@ export function format(document: ITextDocument, lines: LinesModel, range: Range,
 	let editOperations: TextEdit[] = [];
 	function addEdit(text: string, startOffset: number, endOffset: number) {
 		if (documentText.substring(startOffset, endOffset) !== text) {
-			let replaceRange = Range.create(lines.positionAt(startOffset), lines.positionAt(endOffset));
+			let replaceRange = Range.create(document.positionAt(startOffset), document.positionAt(endOffset));
 			editOperations.push(TextEdit.replace(replaceRange, text));
 		}
 	}
@@ -162,10 +161,10 @@ function computeIndentLevel(content: string, offset: number, options: Formatting
 	return Math.floor(nChars / tabSize);
 }
 
-function getEOL(document: ITextDocument, lines: LinesModel): string {
+function getEOL(document: ITextDocument): string {
 	let text = document.getText();
-	if (lines.lineCount > 1) {
-		let to = lines.offsetAt(Position.create(1, 0));
+	if (document.lineCount > 1) {
+		let to = document.offsetAt(Position.create(1, 0));
 		let from = to;
 		while (from > 0 && isEOL(text, from - 1)) {
 			from--;

@@ -10,7 +10,6 @@ import SchemaService = require('../jsonSchemaService');
 import JsonSchema = require('../json-toolbox/jsonSchema');
 import {JSONCompletion} from '../jsonCompletion';
 import {IXHROptions, IXHRResponse} from '../utils/httpRequest';
-import {create as createLinesModel} from '../utils/lines';
 import {JSONDocumentSymbols} from '../jsonDocumentSymbols';
 
 import {SymbolInformation, SymbolKind, TextDocumentIdentifier, ITextDocument, TextDocumentPosition, Range, Position, TextEdit} from 'vscode-languageserver';
@@ -23,9 +22,8 @@ suite('JSON Document Symbols', () => {
 		var symbolProvider = new JSONDocumentSymbols();
 
 		var document = ITextDocument.create(uri, value);
-		var lines = createLinesModel(value);
 		var jsonDoc = Parser.parse(value);
-		return symbolProvider.compute(document, lines, jsonDoc);
+		return symbolProvider.compute(document, jsonDoc);
 	}
 
 	var assertOutline: any = function(actual: SymbolInformation[], expected: any[], message: string) {

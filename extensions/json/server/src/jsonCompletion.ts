@@ -13,8 +13,6 @@ import nls = require('./utils/nls');
 
 import {CompletionItem, CompletionItemKind, CompletionOptions, ITextDocument, TextDocumentIdentifier, TextDocumentPosition, Range, TextEdit} from 'vscode-languageserver';
 
-import {LinesModel} from './utils/lines';
-
 export interface ISuggestionsCollector {
 	add(suggestion: CompletionItem): void;
 	error(message: string): void;
@@ -28,16 +26,16 @@ export class JSONCompletion {
 		this.schemaService = schemaService;
 	}
 
-	public doSuggest(document: ITextDocument, textDocumentPosition: TextDocumentPosition, lines: LinesModel, doc: Parser.JSONDocument): Thenable<CompletionItem[]> {
+	public doSuggest(document: ITextDocument, textDocumentPosition: TextDocumentPosition, doc: Parser.JSONDocument): Thenable<CompletionItem[]> {
 
-		var offset = lines.offsetAt(textDocumentPosition.position);
+		var offset = document.offsetAt(textDocumentPosition.position);
 		var node = doc.getNodeFromOffsetEndInclusive(offset);
 
 		var overwriteRange = null;
 		var result: CompletionItem[] = [];
 
 		if (node && (node.type === 'string' || node.type === 'number' || node.type === 'boolean' || node.type === 'null')) {
-			overwriteRange = Range.create(lines.positionAt(node.start), lines.positionAt(node.end));
+			overwriteRange = Range.create(document.positionAt(node.start), document.positionAt(node.end));
 		}
 
 		var proposed: { [key: string]: boolean } = {};

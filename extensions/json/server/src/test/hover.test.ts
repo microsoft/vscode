@@ -10,7 +10,6 @@ import SchemaService = require('../jsonSchemaService');
 import JsonSchema = require('../json-toolbox/jsonSchema');
 import {JSONCompletion} from '../jsonCompletion';
 import {IXHROptions, IXHRResponse} from '../utils/httpRequest';
-import {create as createLinesModel} from '../utils/lines';
 import {JSONHover} from '../jsonHover';
 
 import {Hover, ITextDocument, TextDocumentIdentifier, TextDocumentPosition, Range, Position, TextEdit} from 'vscode-languageserver';
@@ -27,9 +26,8 @@ suite('JSON Hover', () => {
 
 		var document = ITextDocument.create(uri, value);
 		var textDocumentLocation = TextDocumentPosition.create(uri, position);
-		var lines = createLinesModel(value);
 		var jsonDoc = Parser.parse(value);
-		return hoverProvider.doHover(document, textDocumentLocation, lines, jsonDoc);
+		return hoverProvider.doHover(document, textDocumentLocation, jsonDoc);
 	}
 
 	var requestService = function(options: IXHROptions): Promise<IXHRResponse> {

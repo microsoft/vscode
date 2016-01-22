@@ -18,7 +18,6 @@ import path = require('path');
 import fs = require('fs');
 import URI from './utils/uri';
 import Strings = require('./utils/strings');
-import {create as createLinesModel, LinesModel} from './utils/lines';
 import {IWorkspaceContextService, ITelemetryService, JSONSchemaService, ISchemaContributions, ISchemaAssociations} from './jsonSchemaService';
 import {parse as parseJSON, ObjectASTNode, JSONDocument} from './jsonParser';
 import {JSONCompletion} from './jsonCompletion';
@@ -201,7 +200,6 @@ function validateTextDocument(textDocument: ITextDocument): void {
 		}
 
 		let diagnostics: Diagnostic[] = [];
-		let lineModel = getLinesModel(textDocument);
 		let added: { [signature: string]: boolean } = {};
 		jsonDocument.errors.concat(jsonDocument.warnings).forEach((error, idx) => {
 			// remove duplicated messages
@@ -209,8 +207,8 @@ function validateTextDocument(textDocument: ITextDocument): void {
 			if (!added[signature]) {
 				added[signature] = true;
 				let range = {
-					start: lineModel.positionAt(error.location.start),
-					end: lineModel.positionAt(error.location.end)
+					start: textDocument.positionAt(error.location.start),
+					end: textDocument.positionAt(error.location.end)
 				};
 				diagnostics.push({
 					severity: idx >= jsonDocument.errors.length ? DiagnosticSeverity.Warning : DiagnosticSeverity.Error,
@@ -237,46 +235,36 @@ connection.onDidChangeWatchedFiles((change) => {
 	}
 });
 
-
-function getLinesModel(document: ITextDocument): LinesModel {
-	return createLinesModel(document.getText());
-}
-
 function getJSONDocument(document: ITextDocument): JSONDocument {
 	return parseJSON(document.getText());
 }
 
 connection.onCompletion((textDocumentPosition: TextDocumentPosition): Thenable<CompletionItem[]> => {
 	let document = documents.get(textDocumentPosition.uri);
-	let lines = getLinesModel(document);
 	let jsonDocument = getJSONDocument(document);
-	return jsonCompletion.doSuggest(document, textDocumentPosition, lines, jsonDocument);
+	return jsonCompletion.doSuggest(document, textDocumentPosition, jsonDocument);
 });
 
 connection.onHover((textDocumentPosition: TextDocumentPosition): Thenable<Hover> => {
 	let document = documents.get(textDocumentPosition.uri);
-	let lines = getLinesModel(document);
 	let jsonDocument = getJSONDocument(document);
-	return jsonHover.doHover(document, textDocumentPosition, lines, jsonDocument);
+	return jsonHover.doHover(document, textDocumentPosition, jsonDocument);
 });
 
 connection.onDocumentSymbol((textDocumentIdentifier: TextDocumentIdentifier): Thenable<SymbolInformation[]> => {
 	let document = documents.get(textDocumentIdentifier.uri);
-	let lines = getLinesModel(document);
 	let jsonDocument = getJSONDocument(document);
-	return jsonDocumentSymbols.compute(document, lines, jsonDocument);
+	return jsonDocumentSymbols.compute(document, jsonDocument);
 });
 
 connection.onDocumentFormatting((formatParams: DocumentFormattingParams) => {
 	let document = documents.get(formatParams.textDocument.uri);
-	let lines = getLinesModel(document);
-	return formatJSON(document, lines, null, formatParams.options);
+	return formatJSON(document, null, formatParams.options);
 });
 
 connection.onDocumentRangeFormatting((formatParams: DocumentRangeFormattingParams) => {
 	let document = documents.get(formatParams.textDocument.uri);
-	let lines = getLinesModel(document);
-	return formatJSON(document, lines, formatParams.range, formatParams.options);
+	return formatJSON(document, formatParams.range, formatParams.options);
 });
 
 // Listen on the connection

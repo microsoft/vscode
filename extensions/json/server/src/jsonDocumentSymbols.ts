@@ -10,14 +10,12 @@ import Strings = require('./utils/strings');
 
 import {SymbolInformation, SymbolKind, ITextDocument, Range, Location} from 'vscode-languageserver';
 
-import {LinesModel} from './utils/lines';
-
 export class JSONDocumentSymbols {
 
 	constructor() {
 	}
 
-	public compute(document: ITextDocument, lines: LinesModel, doc: Parser.JSONDocument): Promise<SymbolInformation[]> {
+	public compute(document: ITextDocument, doc: Parser.JSONDocument): Promise<SymbolInformation[]> {
 
 		let root = doc.root;
 		if (!root) {
@@ -33,7 +31,7 @@ export class JSONDocumentSymbols {
 					if (item.type === 'object') {
 						let property = (<Parser.ObjectASTNode>item).getFirstProperty('key');
 						if (property && property.value) {
-							let location = Location.create(document.uri, Range.create(lines.positionAt(item.start), lines.positionAt(item.end)));
+							let location = Location.create(document.uri, Range.create(document.positionAt(item.start), document.positionAt(item.end)));
 							result.push({ name: property.value.getValue(), kind: SymbolKind.Function, location: location });
 						}
 					}
@@ -51,7 +49,7 @@ export class JSONDocumentSymbols {
 				let objectNode = <Parser.ObjectASTNode>node;
 
 				objectNode.properties.forEach((property: Parser.PropertyASTNode) => {
-					let location = Location.create(document.uri, Range.create(lines.positionAt(property.start), lines.positionAt(property.end)));
+					let location = Location.create(document.uri, Range.create(document.positionAt(property.start), document.positionAt(property.end)));
 					let valueNode = property.value;
 					if (valueNode) {
 						let childContainerName = containerName ? containerName + '.' + property.key.name : property.key.name;

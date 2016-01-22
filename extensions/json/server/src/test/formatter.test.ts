@@ -5,10 +5,7 @@
 'use strict';
 
 import Json = require('../json-toolbox/json');
-import {
-ITextDocument, DocumentFormattingParams, Range, Position, FormattingOptions, TextEdit
-} from 'vscode-languageserver';
-import {LinesModel, create as createLinesModel} from '../utils/lines';
+import {ITextDocument, DocumentFormattingParams, Range, Position, FormattingOptions, TextEdit} from 'vscode-languageserver';
 import Formatter = require('../jsonFormatter');
 import assert = require('assert');
 
@@ -18,29 +15,26 @@ suite('JSON Formatter', () => {
 		let range: Range = null;
 		let uri = 'test://test.json';
 
-		let lines = createLinesModel(unformatted);
-
 		let rangeStart = unformatted.indexOf('|');
 		let rangeEnd = unformatted.lastIndexOf('|');
 		if (rangeStart !== -1 && rangeEnd !== -1) {
 			// remove '|'
+			var unformattedDoc = ITextDocument.create(uri, unformatted);
 			unformatted = unformatted.substring(0, rangeStart) + unformatted.substring(rangeStart + 1, rangeEnd) + unformatted.substring(rangeEnd + 1);
-			let startPos = lines.positionAt(rangeStart);
-			let endPos = lines.positionAt(rangeEnd);
+			let startPos = unformattedDoc.positionAt(rangeStart);
+			let endPos = unformattedDoc.positionAt(rangeEnd);
 			range = Range.create(startPos, endPos);
-
-			lines = createLinesModel(unformatted);
 		}
 
 		var document = ITextDocument.create(uri, unformatted);
-		let edits = Formatter.format(document, lines, range, { tabSize: 2, insertSpaces: insertSpaces });
+		let edits = Formatter.format(document, range, { tabSize: 2, insertSpaces: insertSpaces });
 
 		let formatted = unformatted;
-		let sortedEdits = edits.sort((a, b) => lines.offsetAt(b.range.start) - lines.offsetAt(a.range.start));
+		let sortedEdits = edits.sort((a, b) => document.offsetAt(b.range.start) - document.offsetAt(a.range.start));
 		let lastOffset = formatted.length;
 		sortedEdits.forEach(e => {
-			let startOffset = lines.offsetAt(e.range.start);
-			let endOffset = lines.offsetAt(e.range.end);
+			let startOffset = document.offsetAt(e.range.start);
+			let endOffset = document.offsetAt(e.range.end);
 			assert.ok(startOffset <= endOffset);
 			assert.ok(endOffset <= lastOffset);
 			formatted = formatted.substring(0, startOffset) + e.newText + formatted.substring(endOffset, formatted.length);
