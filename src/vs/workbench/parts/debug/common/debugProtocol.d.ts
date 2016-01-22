@@ -148,10 +148,12 @@ declare module DebugProtocol {
 	 *  It contains information about the features implemented by a debug adapter.
 	*/
 	export interface InitializeResponse extends Response {
-		/** The debug adapter supports the configurationDoneRequest. */
-		supportsConfigurationDoneRequest?: boolean;
-		/** The debug adapter supports a (side effect free) evaluate request for data hovers. */
-		supportEvaluateForHovers?: boolean;
+		body: {
+			/** The debug adapter supports the configurationDoneRequest. */
+			supportsConfigurationDoneRequest?: boolean;
+			/** The debug adapter supports a (side effect free) evaluate request for data hovers. */
+			supportEvaluateForHovers?: boolean;
+		}
 	}
 
 	/** ConfigurationDone request; value of command field is "configurationDone".
