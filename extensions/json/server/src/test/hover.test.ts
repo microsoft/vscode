@@ -17,7 +17,7 @@ import {Hover, ITextDocument, TextDocumentIdentifier, TextDocumentPosition, Rang
 
 suite('JSON Hover', () => {
 
-	function testComputeInfo(value: string, schema: JsonSchema.IJSONSchema, position: Position): Promise<Hover> {
+	function testComputeInfo(value: string, schema: JsonSchema.IJSONSchema, position: Position): Thenable<Hover> {
 		var uri = 'test://test.json';
 
 		var schemaService = new SchemaService.JSONSchemaService(requestService);
@@ -25,10 +25,7 @@ suite('JSON Hover', () => {
 		var id = "http://myschemastore/test1";
 		schemaService.registerExternalSchema(id, ["*.json"], schema);
 
-		var document = {
-			getText: () => value,
-			uri: uri
-		}
+		var document = ITextDocument.create(uri, value);
 		var textDocumentLocation = TextDocumentPosition.create(uri, position);
 		var lines = createLinesModel(value);
 		var jsonDoc = Parser.parse(value);

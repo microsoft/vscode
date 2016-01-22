@@ -27,7 +27,7 @@ suite('JSON Completion', () => {
 		assert.equal(matches, 1, label + " should only existing once");
 	};
 
-	var testSuggestionsFor = function(value: string, stringAfter: string, schema?: JsonSchema.IJSONSchema): Promise<CompletionItem[]> {
+	var testSuggestionsFor = function(value: string, stringAfter: string, schema?: JsonSchema.IJSONSchema): Thenable<CompletionItem[]> {
 		var uri = 'test://test.json';
 		var idx = stringAfter ? value.indexOf(stringAfter) : 0;
 
@@ -38,10 +38,7 @@ suite('JSON Completion', () => {
 			schemaService.registerExternalSchema(id, ["*.json"], schema);
 		}
 
-		var document = {
-			getText: () => value,
-			uri: uri
-		}
+		var document = ITextDocument.create(uri, value);
 		var textDocumentLocation = TextDocumentPosition.create(uri, Position.create(0, idx));
 		var lines = createLinesModel(value);
 		var jsonDoc = Parser.parse(value);

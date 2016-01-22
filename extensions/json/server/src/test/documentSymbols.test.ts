@@ -13,7 +13,7 @@ import {IXHROptions, IXHRResponse} from '../utils/httpRequest';
 import {create as createLinesModel} from '../utils/lines';
 import {JSONDocumentSymbols} from '../jsonDocumentSymbols';
 
-import {SymbolInformation, SymbolKind, TextDocumentIdentifier, TextDocumentPosition, Range, Position, TextEdit} from 'vscode-languageserver';
+import {SymbolInformation, SymbolKind, TextDocumentIdentifier, ITextDocument, TextDocumentPosition, Range, Position, TextEdit} from 'vscode-languageserver';
 
 suite('JSON Document Symbols', () => {
 
@@ -22,10 +22,7 @@ suite('JSON Document Symbols', () => {
 
 		var symbolProvider = new JSONDocumentSymbols();
 
-		var document = {
-			getText: () => value,
-			uri: uri
-		}
+		var document = ITextDocument.create(uri, value);
 		var lines = createLinesModel(value);
 		var jsonDoc = Parser.parse(value);
 		return symbolProvider.compute(document, lines, jsonDoc);

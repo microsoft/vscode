@@ -20,7 +20,7 @@ export class JSONHover {
 		this.schemaService = schemaService;
 	}
 
-	public doHover(document: ITextDocument, textDocumentPosition: TextDocumentPosition, lines: LinesModel, doc: Parser.JSONDocument): Promise<Hover> {
+	public doHover(document: ITextDocument, textDocumentPosition: TextDocumentPosition, lines: LinesModel, doc: Parser.JSONDocument): Thenable<Hover> {
 
 		let offset = lines.offsetAt(textDocumentPosition.position);
 		let node = doc.getNodeFromOffset(offset);

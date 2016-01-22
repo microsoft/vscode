@@ -53,7 +53,7 @@ documents.listen(connection);
 // After the server has started the client sends an initilize request. The server receives
 // in the passed params the rootPath of the workspace plus the client capabilites.
 let workspaceRoot: URI;
-connection.onInitialize((params: InitializeResult) => {
+connection.onInitialize((params: InitializeParams): InitializeResult => {
 	workspaceRoot = URI.parse(params.rootPath);
 	return {
 		capabilities: {

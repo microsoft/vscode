@@ -28,7 +28,7 @@ export class JSONCompletion {
 		this.schemaService = schemaService;
 	}
 
-	public doSuggest(document: ITextDocument, textDocumentPosition: TextDocumentPosition, lines: LinesModel, doc: Parser.JSONDocument): Promise<CompletionItem[]> {
+	public doSuggest(document: ITextDocument, textDocumentPosition: TextDocumentPosition, lines: LinesModel, doc: Parser.JSONDocument): Thenable<CompletionItem[]> {
 
 		var offset = lines.offsetAt(textDocumentPosition.position);
 		var node = doc.getNodeFromOffsetEndInclusive(offset);

@@ -18,7 +18,6 @@ suite('JSON Formatter', () => {
 		let range: Range = null;
 		let uri = 'test://test.json';
 
-
 		let lines = createLinesModel(unformatted);
 
 		let rangeStart = unformatted.indexOf('|');
@@ -33,10 +32,7 @@ suite('JSON Formatter', () => {
 			lines = createLinesModel(unformatted);
 		}
 
-		let document = {
-			getText: () => unformatted,
-			uri: uri
-		}
+		var document = ITextDocument.create(uri, unformatted);
 		let edits = Formatter.format(document, lines, range, { tabSize: 2, insertSpaces: insertSpaces });
 
 		let formatted = unformatted;
