@@ -112,13 +112,15 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 
 	private startService(resendModels: boolean = false): void {
 		let modulePath = path.join(__dirname, '..', 'server', 'typescript', 'lib', 'tsserver.js');
+		let useSalsa = !!process.env['CODE_TSJS'] || !!process.env['VSCODE_TSJS'];
+
 		if (this.tsdk) {
 			if ((<any>path).isAbsolute(this.tsdk)) {
 				modulePath = path.join(this.tsdk, 'tsserver.js');
 			} else if (workspace.rootPath) {
 				modulePath = path.join(workspace.rootPath, this.tsdk, 'tsserver.js');
 			}
-		} else if (!!process.env['CODE_TSJS'] || !!process.env['VSCODE_TSJS']) {
+		} else if (useSalsa) {
 			let candidate = path.join(workspace.rootPath, 'node_modules', 'typescript', 'lib', 'tsserver.js');
 			if (fs.existsSync(candidate)) {
 				modulePath = candidate;
@@ -129,14 +131,15 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			return;
 		}
 
-		let useSalsa = !!process.env['CODE_TSJS'] || !!process.env['VSCODE_TSJS'];
 		if (useSalsa) {
 			let versionOK = this.isTypeScriptVersionOkForSalsa(modulePath);
 			let tooltip = modulePath;
 			if (!versionOK) {
-				tooltip = tooltip + ' does not support Salsa!'
+				tooltip = `${tooltip} does not support Salsa!`;
+			} else {
+				tooltip = `${tooltip} does support Salsa.`;
 			}
-			SalsaStatus.show("(Salsa)", tooltip, !versionOK);
+			SalsaStatus.show('(Salsa)', tooltip, !versionOK);
 		}
 
 		this.servicePromise = new Promise<cp.ChildProcess>((resolve, reject) => {
