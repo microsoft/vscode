@@ -22,7 +22,6 @@ import {OUTPUT_PANEL_ID, IOutputService} from 'vs/workbench/parts/output/common/
 import {OutputEditorInput} from 'vs/workbench/parts/output/common/outputEditorInput';
 import {SwitchOutputAction, SwitchOutputActionItem, ClearOutputAction} from 'vs/workbench/parts/output/browser/outputActions';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
-import {ClosePanelAction} from 'vs/workbench/browser/parts/panel/panelPart';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 
 export class OutputPanel extends StringEditor {
@@ -55,8 +54,7 @@ export class OutputPanel extends StringEditor {
 		if (!this.actions) {
 			this.actions = [
 				this.instantiationService.createInstance(SwitchOutputAction),
-				this.instantiationService.createInstance(ClearOutputAction),
-				this.instantiationService.createInstance(ClosePanelAction, ClosePanelAction.ID, ClosePanelAction.LABEL)
+				this.instantiationService.createInstance(ClearOutputAction)
 			];
 
 			this.actions.forEach(a => {

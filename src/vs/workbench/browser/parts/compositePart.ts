@@ -38,7 +38,7 @@ import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingServic
 
 export abstract class CompositePart<T extends Composite> extends Part {
 
-	private instantiationService: IInstantiationService;
+	protected instantiationService: IInstantiationService;
 	private activeCompositeListeners: { (): void; }[];
 	private instantiatedCompositeListeners: { (): void; }[];
 	private mapCompositeToCompositeContainer: { [compositeId: string]: Builder; };
@@ -365,6 +365,10 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		let primaryActions: IAction[] = composite.getActions();
 		let secondaryActions: IAction[] = composite.getSecondaryActions();
 
+		// From Part
+		primaryActions.push(...this.getActions());
+		secondaryActions.push(...this.getSecondaryActions());
+
 		// From Contributions
 		let actionBarRegistry = <IActionBarRegistry>Registry.as(Extensions.Actionbar);
 		primaryActions.push(...actionBarRegistry.getActionBarActionsForContext(this.actionContributionScope, composite));
@@ -472,6 +476,14 @@ export abstract class CompositePart<T extends Composite> extends Part {
 
 	private onError(error: any): void {
 		this.messageService.show(Severity.Error, types.isString(error) ? new Error(error) : error);
+	}
+
+	protected getActions(): IAction[] {
+		return [];
+	}
+
+	protected getSecondaryActions(): IAction[] {
+		return [];
 	}
 
 	public layout(dimension: Dimension): Dimension[] {

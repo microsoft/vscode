@@ -18,7 +18,6 @@ import debug = require('vs/workbench/parts/debug/common/debug');
 import debugactions = require('vs/workbench/parts/debug/electron-browser/debugActions');
 import replhistory = require('vs/workbench/parts/debug/common/replHistory');
 import { Panel } from 'vs/workbench/browser/panel';
-import { ClosePanelAction } from 'vs/workbench/browser/parts/panel/panelPart';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -162,8 +161,7 @@ export class Repl extends Panel {
 	public getActions(): actions.IAction[] {
 		if (!this.actions) {
 			this.actions = [
-				this.instantiationService.createInstance(debugactions.ClearReplAction, debugactions.ClearReplAction.ID, debugactions.ClearReplAction.LABEL),
-				this.instantiationService.createInstance(ClosePanelAction, ClosePanelAction.ID, ClosePanelAction.LABEL)
+				this.instantiationService.createInstance(debugactions.ClearReplAction, debugactions.ClearReplAction.ID, debugactions.ClearReplAction.LABEL)
 			];
 
 			this.actions.forEach(a => {

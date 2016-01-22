@@ -8,7 +8,7 @@ import nls = require('vs/nls');
 import {TPromise, Promise} from 'vs/base/common/winjs.base';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 import strings = require('vs/base/common/strings');
-import {Action} from 'vs/base/common/actions';
+import {Action, IAction} from 'vs/base/common/actions';
 import {Builder} from 'vs/base/browser/builder';
 import {Registry} from 'vs/platform/platform';
 import {Scope} from 'vs/workbench/browser/actionBarRegistry';
@@ -92,6 +92,10 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		return this.showComposite(panel);
 	}
 
+	protected getActions(): IAction[] {
+		return [this.instantiationService.createInstance(ClosePanelAction, ClosePanelAction.ID, ClosePanelAction.LABEL)]
+	}
+
 	public getActivePanel(): IPanel {
 		return this.getActiveComposite();
 	}
@@ -106,7 +110,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 }
 
 
-export class ClosePanelAction extends Action {
+class ClosePanelAction extends Action {
 	static ID = 'workbench.action.closePanel';
 	static LABEL = nls.localize('closePanel', "Close");
 
@@ -124,7 +128,7 @@ export class ClosePanelAction extends Action {
 	}
 }
 
-export class TogglePanelAction extends Action {
+class TogglePanelAction extends Action {
 	static ID = 'workbench.action.togglePanel';
 	static LABEL = nls.localize('togglePanel', "Toggle Panel Visibility");
 
