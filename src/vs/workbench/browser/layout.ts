@@ -486,7 +486,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 	}
 
 	public getHorizontalSashLeft(sash: Sash): number {
-		return this.getVerticalSashLeft(sash);
+		return this.partService.getSideBarPosition() === Position.LEFT ? this.getVerticalSashLeft(sash) : 0;
 	}
 
 	public getHorizontalSashWidth(sash: Sash): number {
