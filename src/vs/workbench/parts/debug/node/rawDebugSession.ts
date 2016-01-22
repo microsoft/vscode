@@ -25,6 +25,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 	private startTime: number;
 	private stopServerPending: boolean;
 	public isAttach: boolean;
+	public capablities: DebugProtocol.InitializeResponse;
 
 	constructor(
 		private messageService: IMessageService,
@@ -65,7 +66,10 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 	}
 
 	public initialize(args: DebugProtocol.InitializeRequestArguments): TPromise<DebugProtocol.InitializeResponse> {
-		return this.send('initialize', args);
+		return this.send('initialize', args).then(response => {
+			this.capablities = response;
+			return response;
+		});
 	}
 
 	public launch(args: DebugProtocol.LaunchRequestArguments): TPromise<DebugProtocol.LaunchResponse> {
