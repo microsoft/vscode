@@ -12,7 +12,7 @@
 }
 
 .monaco-workbench .repl .repl-tree {
-	height: calc(100% - 18px);
+	height: calc(100% - 22px);
 }
 
 .monaco-workbench .repl .surveyor {
@@ -118,7 +118,6 @@
 	border: 0;
 	padding: 0;
 	font-family: Monaco, Menlo, Consolas, "Droid Sans Mono", "Inconsolata", "Courier New", monospace, "Droid Sans Fallback";
-	line-height: 18px;
 }
 
 .monaco-workbench .repl .repl-tree .monaco-tree .monaco-tree-rows > .monaco-tree-row {
@@ -146,6 +145,7 @@
 .monaco-workbench .repl .repl-input-wrapper {
 	border-top: 1px solid rgba(128, 128, 128, 0.35);
 	box-sizing: border-box;
+	line-height: 22px;
 }
 
 .monaco-workbench .repl .repl-input-wrapper:before {
@@ -159,15 +159,15 @@
 }
 
 .monaco-workbench .repl .repl-input-wrapper.mac {
-	font-size: 11px;
+	font-size: 12px;
 }
 
 .monaco-workbench .repl .repl-input.win {
-	font-size: 13px;
+	font-size: 14px;
 }
 
 .monaco-workbench .repl .repl-input.linux {
-	font-size: 13px;
+	font-size: 14px;
 }
 
 .monaco-workbench .repl .repl-input-wrapper.linux:before {
