@@ -16,6 +16,7 @@ export abstract class AbstractGettingStarted implements IWorkbenchContribution {
 	protected static hideWelcomeSettingskey = 'workbench.hide.welcome';
 
 	protected welcomePageURL: string;
+	protected appName: string;
 
 	constructor(
 		@IStorageService private storageService: IStorageService,
@@ -23,6 +24,8 @@ export abstract class AbstractGettingStarted implements IWorkbenchContribution {
 		@ITelemetryService private telemetryService: ITelemetryService
 	) {
 		const env = contextService.getConfiguration().env;
+		this.appName = env.appName;
+
 		if (env.welcomePage) {
 			this.welcomePageURL =  env.welcomePage;
 			this.handleWelcome();
@@ -43,7 +46,7 @@ export abstract class AbstractGettingStarted implements IWorkbenchContribution {
 	}
 
 	private getUrl(telemetryInfo: ITelemetryInfo): string {
-		return `${this.welcomePageURL}&&from=vscode&&id=${telemetryInfo.machineId}`;
+		return `${this.welcomePageURL}&&from=${this.appName}&&id=${telemetryInfo.machineId}`;
 	}
 
 	protected openExternal(url: string) {

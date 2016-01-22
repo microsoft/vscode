@@ -23,6 +23,8 @@ suite('Workbench - GettingStarted', () => {
 	let instantiation: IInstantiationService = null;
 	let welcomePageEnvConfig: string = null;
 	let hideWelcomeSettingsValue: string = null;
+	let machineId: string = null;
+	let appName: string = null;
 
 	suiteSetup(() => {
 		instantiation = create({
@@ -30,13 +32,14 @@ suite('Workbench - GettingStarted', () => {
 				getConfiguration: () => {
 					return {
 						env: {
-							welcomePage: welcomePageEnvConfig
+							welcomePage: welcomePageEnvConfig,
+							appName: appName
 						}
 					}
 				}
 			},
 			telemetryService: {
-				getTelemetryInfo: () => Promise.as({ machineId: 'machineId' })
+				getTelemetryInfo: () => Promise.as({ machineId: machineId })
 			},
 			storageService: {
 				get: () => hideWelcomeSettingsValue,
@@ -52,6 +55,7 @@ suite('Workbench - GettingStarted', () => {
 	setup(() => {
 		welcomePageEnvConfig = null;
 		hideWelcomeSettingsValue = null;
+		appName = null;
 	});
 
 	test('disabled by default', function() {
@@ -60,9 +64,11 @@ suite('Workbench - GettingStarted', () => {
 	});
 
 	test('base case', function() {
-		welcomePageEnvConfig = 'url';
+		welcomePageEnvConfig = 'base url';
+		appName = 'some app';
+		machineId = '123';
 		let gettingStarted = instantiation.createInstance(TestGettingStarted);
-		assert(gettingStarted.lastUrl === 'url&&from=vscode&&id=machineId', 'a page is opened when welcomePage is configured && first run');
+		assert(gettingStarted.lastUrl === `${welcomePageEnvConfig}&&from=${appName}&&id=${machineId}`, 'a page is opened when welcomePage is configured && first run');
 		assert(hideWelcomeSettingsValue !== null, 'a flag is set to hide welcome page');
 	});
 
