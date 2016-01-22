@@ -55,7 +55,6 @@ export class ExtHostAPIImplementation {
 	private _threadService: IThreadService;
 	private _proxy: MainProcessVSCodeAPIHelper;
 	private _pluginService: IPluginService;
-	private _telemetryService: ITelemetryService;
 
 	version: typeof vscode.version;
 	env: typeof vscode.env;
@@ -100,18 +99,9 @@ export class ExtHostAPIImplementation {
 	) {
 		this._pluginService = pluginService;
 		this._threadService = threadService;
-		this._telemetryService = telemetryService;
 		this._proxy = threadService.getRemotable(MainProcessVSCodeAPIHelper);
 
 		this.version = contextService.getConfiguration().env.version;
-		this._telemetryService.getTelemetryInfo().then((info) => {
-			this.env = {
-				machineId: info.machineId,
-				sessionId: info.sessionId,
-				locale: null
-			}
-		});
-
 		this.Uri = URI;
 		this.Location = extHostTypes.Location;
 		this.Diagnostic = <any> extHostTypes.Diagnostic;
@@ -150,6 +140,17 @@ export class ExtHostAPIImplementation {
 		const pluginHostQuickOpen = this._threadService.getRemotable(ExtHostQuickOpen);
 		const pluginHostStatusBar = new ExtHostStatusBar(this._threadService);
 		const extHostOutputService = new ExtHostOutputService(this._threadService);
+
+		// env namespace
+		this.env = {
+			machineId: undefined,
+			sessionId: undefined,
+			// locale: undefined
+		}
+		telemetryService.getTelemetryInfo().then(info => {
+			this.env.machineId = info.machineId;
+			this.env.sessionId = info.sessionId;
+		}, errors.onUnexpectedError);
 
 		// commands namespace
 		this.commands = {

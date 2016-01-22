@@ -12,25 +12,7 @@ declare namespace vscode {
 	/**
 	 * The version of the editor.
 	 */
-	export var version: string;
-
-	export const env: {
-		/**
-		 * locale, like de-ch, en-us
-		 */
-		locale: string;
-
-		/**
-		 * A unique UUID that identifies the machine
-		 */
-		machineId: string;
-
-		/**
-		 * A unique UUID that identifies the session
-		 */
-		sessionId: string;
-	}
-
+	export const version: string;
 
 	/**
 	 * Represents a reference to a command. Provides a title which
@@ -2672,6 +2654,23 @@ declare namespace vscode {
 		 * @param value A value. MUST not contain cyclic references.
 		 */
 		update(key: string, value: any): Thenable<void>;
+	}
+
+	/**
+	 * Namespace describing the environment the editor runs in.
+	 */
+	export namespace env {
+
+		/**
+		 * A unique identifier for the computer.
+		 */
+		export let machineId: string;
+
+		/**
+		 * A unique identifier for the current session.
+		 * Changes each time the editor is started.
+		 */
+		export let sessionId: string;
 	}
 
 	/**
