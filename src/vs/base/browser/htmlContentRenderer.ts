@@ -7,14 +7,16 @@
 
 import DOM = require('vs/base/browser/dom');
 import {IHTMLContentElement} from 'vs/base/common/htmlContent';
-import {marked} from 'vs/base/common/marked/marked';
-
+import {TPromise} from 'vs/base/common/winjs.base';
+// import {WorkerClient} from 'vs/base/common/worker/workerClient';
+// import {DefaultWorkerFactory} from 'vs/base/worker/defaultWorkerFactory';
+import {marked, MarkedOptions} from 'vs/base/common/marked/marked';
 
 export type RenderableContent = string | IHTMLContentElement | IHTMLContentElement[];
 
 export interface RenderOptions {
-	actionCallback?: (index: number, event: DOM.IMouseEvent) => void;
-	codeBlockRenderer?: (modeId: string, value: string) => IHTMLContentElement;
+	actionCallback?: (content: string, event?: DOM.IMouseEvent) => void;
+	codeBlockRenderer?: (modeId: string, value: string) => string;
 }
 
 /**
@@ -31,11 +33,6 @@ export function renderHtml(content: RenderableContent, options: RenderOptions = 
 	} else if (content) {
 		return _renderHtml(content, options);
 	}
-}
-
-const renderer = new marked.Renderer();
-renderer.link = function(href, title, text): string {
-	return `<a href="#" data-href="${href}" title="${title || text}">${text}</a>`
 }
 
 function _renderHtml(content: IHTMLContentElement, options: RenderOptions = {}): Node {
@@ -64,8 +61,8 @@ function _renderHtml(content: IHTMLContentElement, options: RenderOptions = {}):
 		});
 	}
 	if (content.code && codeBlockRenderer) {
-		let child = codeBlockRenderer(content.code.language, content.code.value);
-		element.appendChild(renderHtml(child, options));
+		let html = codeBlockRenderer(content.code.language, content.code.value);
+		element.innerHTML = html;
 	}
 	if (content.children) {
 		content.children.forEach((child) => {
@@ -76,12 +73,33 @@ function _renderHtml(content: IHTMLContentElement, options: RenderOptions = {}):
 		renderFormattedText(element, parseFormattedText(content.formattedText), actionCallback);
 	}
 	if (content.markdown) {
-		const options = { sanitize: true, tables: false, silent: true, renderer };
-		element.innerHTML = marked(content.markdown, options);
-		DOM.addStandardDisposableListener(element, 'click', (event) => {
-			if (event.target.tagName === 'A') {
-				console.log(event.target, event.target.dataset['href']);
+		const renderer = new marked.Renderer();
+		renderer.link = (href, title, text): string => {
+			return `<a href="#" data-href="${href}" title="${title || text}">${text}</a>`
+		}
+
+		let highlight: (code: string, lang: string) => string;
+		if (options.codeBlockRenderer) {
+			highlight = (code, lang) => {
+				return options.codeBlockRenderer(lang, code);
 			}
+		}
+
+		if (options.actionCallback) {
+			DOM.addStandardDisposableListener(element, 'click', event => {
+				if (event.target.tagName === 'A') {
+					const href = event.target.dataset['href'];
+					if (href) {
+						options.actionCallback(href, event);
+					}
+				}
+			});
+		}
+
+		element.innerHTML = marked(content.markdown, {
+			sanitize: true,
+			renderer,
+			highlight
 		});
 	}
 
@@ -126,6 +144,42 @@ function getSafeTagName(tagName: string): string {
 	}
 	return null;
 }
+
+// // --- markdown worker renderer
+
+// namespace marked {
+
+// 	const workerFactory = new DefaultWorkerFactory();
+// 	let worker: WorkerClient;
+// 	let workerDisposeHandle: number;
+
+// 	export function html(source: string): TPromise<string> {
+
+// 		const t1 = Date.now();
+// 		if (!worker) {
+// 			worker = new WorkerClient(workerFactory, 'vs/base/common/marked/simpleMarkedWorker', (msg) => msg.type, client => { shutdown(); });
+// 		}
+
+// 		function shutdown() {
+// 			if (worker) {
+// 				worker.dispose();
+// 				worker = undefined;
+// 			}
+// 		}
+
+// 		// re-schedule termination
+// 		clearTimeout(workerDisposeHandle);
+// 		workerDisposeHandle = setTimeout(shutdown, 1000 * 5);
+
+// 		return worker.request('markdownToHtml', { source, hightlight: false }).then(html => {
+// 			console.log(`t1: ${Date.now() - t1}ms`);
+// 			return html;
+// 		});
+// 	}
+
+// }
+
+// --- formatted string parsing
 
 class StringStream {
 	private source: string;
@@ -173,7 +227,7 @@ interface IFormatParseTree {
 	children?: IFormatParseTree[];
 }
 
-function renderFormattedText(element: Node, treeNode: IFormatParseTree, actionCallback?: (index: number, event: DOM.IMouseEvent) => void) {
+function renderFormattedText(element: Node, treeNode: IFormatParseTree, actionCallback?: (content: string, event?: DOM.IMouseEvent) => void) {
 	var child: Node;
 
 	if (treeNode.type === FormatType.Text) {
@@ -189,7 +243,7 @@ function renderFormattedText(element: Node, treeNode: IFormatParseTree, actionCa
 		var a = document.createElement('a');
 		a.href = '#';
 		DOM.addStandardDisposableListener(a, 'click', (event) => {
-			actionCallback(treeNode.index, event);
+			actionCallback(String(treeNode.index), event);
 		});
 
 		child = a;

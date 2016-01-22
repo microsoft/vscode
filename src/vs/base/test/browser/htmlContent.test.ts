@@ -117,8 +117,8 @@ suite("HtmlContent", () => {
 		var result:HTMLElement = <any> renderHtml({
 			formattedText: '[[action]]'
 		}, {
-			actionCallback(index) {
-				assert.strictEqual(index, 0);
+			actionCallback(content) {
+				assert.strictEqual(content, '0');
 				callbackCalled = true;
 			}
 		});
@@ -135,8 +135,8 @@ suite("HtmlContent", () => {
 		var result:HTMLElement = <any> renderHtml({
 			formattedText: '__**[[action]]**__'
 		}, {
-			actionCallback(index) {
-				assert.strictEqual(index, 0);
+			actionCallback(content) {
+				assert.strictEqual(content, '0');
 				callbackCalled = true;
 			}
 		});

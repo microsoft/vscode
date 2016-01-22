@@ -5,6 +5,7 @@
 'use strict';
 
 import 'vs/css!vs/base/browser/ui/progressbar/progressbar';
+import URI from 'vs/base/common/uri';
 import nls = require('vs/nls');
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
@@ -14,7 +15,7 @@ import HoverOperation = require('./hoverOperation');
 import HoverWidget = require('./hoverWidgets');
 import HtmlContent = require('vs/base/common/htmlContent');
 import {renderHtml} from 'vs/base/browser/htmlContentRenderer';
-import {tokenizeToHtmlContent} from 'vs/editor/common/modes/textToHtmlTokenizer';
+import {tokenizeToString} from 'vs/editor/common/modes/textToHtmlTokenizer';
 import {Range} from 'vs/editor/common/core/range';
 import {ExtraInfoRegistry, getExtraInfoAtPosition} from '../common/hover';
 
@@ -237,13 +238,21 @@ export class ModesContentHoverWidget extends HoverWidget.ContentHoverWidget {
 			if(msg.htmlContent && msg.htmlContent.length > 0) {
 				msg.htmlContent.forEach((content) => {
 					container.appendChild(renderHtml(content, {
+						// actionCallback: (content) => {
+						// 	try {
+						// 		let resource = URI.parse(content);
+						// 		this.editorService.openEditor({resource});
+						// 	} catch (e) {
+						// 		// ignore
+						// 	}
+						// },
 						codeBlockRenderer: (modeId, value) => {
 							let mode: Modes.IMode;
 							let model = this._editor.getModel();
 							if (!model.isDisposed()) {
 								mode = model.getMode();
 							}
-							return tokenizeToHtmlContent(value, model.getMode());
+							return tokenizeToString(value, model.getMode());
 						}
 					}));
 				});
