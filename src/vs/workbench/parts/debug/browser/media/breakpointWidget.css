@@ -6,6 +6,7 @@
 .monaco-editor .zone-widget .zone-widget-container.breakpoint-widget {
 	border-top-color: #E89208;
 	border-bottom-color: #E89208;
+	height: 32px;
 }
 
 .monaco-editor .breakpoint-widget .input {
