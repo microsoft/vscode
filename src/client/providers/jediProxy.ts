@@ -8,10 +8,14 @@ var proc: child_process.ChildProcess;
 
 var previousData = "";
 function spawnProcess(dir: string) {
-    proc = child_process.spawn("python", ["-u", "completion.py"], {
-        cwd: dir
-    });
-
+    try {
+        proc = child_process.spawn("python", ["-u", "completion.py"], {
+            cwd: dir
+        });
+    }
+    catch (ex) {
+        var x = "";
+    }
     proc.stderr.on("data", (data) => {
         console.error("Error " + data);
     });
@@ -21,17 +25,17 @@ function spawnProcess(dir: string) {
     });
 
     proc.stdout.on("data", (data) => {
-        var dataStr = previousData = previousData + data + ""  
-        var responses:any[];
-        try{
+        var dataStr = previousData = previousData + data + ""
+        var responses: any[];
+        try {
             responses = dataStr.split("\n").filter(line=> line.length > 0).map(resp=> JSON.parse(resp));
             previousData = "";
         }
-        catch (ex){
+        catch (ex) {
             console.log(ex.message);
             return;
-        }        
-        
+        }
+
         responses.forEach((response) => {
             if (response["argments"]) {
                 var index = commandQueue.indexOf(cmd.id);

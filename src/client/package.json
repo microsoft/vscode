@@ -1,100 +1,101 @@
 {
-    "name": "python",
-    "displayName": "Python",
-    "description": "Python auto complete and linting",
-    "version": "0.0.1",
-    "publisher": "donjayamanne",
-    "license": "SEE LICENSE IN LICENSE or README.MD",
-    "homepage": "https://github.com/DonJayamanne/pythonVSCode/blob/master/README.md",
-    "repository": {
-        "type": "git",
-        "url": "https://github.com/DonJayamanne/pythonVSCode"
-    },
-    "bugs": {
-        "url": "https://github.com/DonJayamanne/pythonVSCode/issues"
-    },
-    "icon": "images/icon.png",
-    "galleryBanner": {
-        "color": "#0000FF",
-        "theme": "dark"
-    },
-    "engines": {
-        "vscode": "^0.10.1"
-    },
-    "categories": [
-        "Languages",
-        "Linters"
-    ],
-    "activationEvents": [
-        "onLanguage:python",
-        "onLanguage:plaintext"
-    ],
-    "main": "../../out/client/extension",
-    "contributes": {
-        "debuggers": [
-            {
-                "type": "python",
-                "label": "Python",
-                "enableBreakpointsFor": {
-                    "languageIds": [
-                        "python"
-                    ]
-                },
-                "program": "./out/client/debugger/main.js",
-                "runtime": "node",
-                "configurationAttributes": {
-                    "launch": {
-                        "required": [
-                            "program"
-                        ],
-                        "properties": {
-                            "program": {
-                                "type": "string",
-                                "description": "Workspace relative path to a text file.",
-                                "default": "__init__.py"
-                            },
-                            "stopOnEntry": {
-                                "type": "boolean",
-                                "description": "Automatically stop after launch.",
-                                "default": true
-                            }
-                        }
-                    }
-                },
-                "initialConfigurations": [
-                    {
-                        "name": "Python",
-                        "type": "python",
-                        "request": "launch",
-                        "program": "__init__.py",
-                        "stopOnEntry": true
-                    }
-                ]
-            }
-        ],
-        "configuration": {
-            "type": "object",
-            "title": "Python Configuration",
+  "name": "python",
+  "displayName": "Python",
+  "description": "Python auto complete and linting",
+  "version": "0.0.1",
+  "publisher": "donjayamanne",
+  "license": "SEE LICENSE IN LICENSE or README.MD",
+  "homepage": "https://github.com/DonJayamanne/pythonVSCode/blob/master/README.md",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/DonJayamanne/pythonVSCode"
+  },
+  "bugs": {
+    "url": "https://github.com/DonJayamanne/pythonVSCode/issues"
+  },
+  "icon": "images/icon.png",
+  "galleryBanner": {
+    "color": "#0000FF",
+    "theme": "dark"
+  },
+  "engines": {
+    "vscode": "^0.10.1"
+  },
+  "categories": [
+    "Languages",
+    "Linters"
+  ],
+  "activationEvents": [
+    "onLanguage:python",
+    "onLanguage:plaintext"
+  ],
+  "main": "../../out/client/extension",
+  "contributes": {
+    "debuggers": [
+      {
+        "type": "python",
+        "label": "Python",
+        "enableBreakpointsFor": {
+          "languageIds": [
+            "python"
+          ]
+        },
+        "program": "./out/client/debugger/main.js",
+        "runtime": "node",
+        "configurationAttributes": {
+          "launch": {
+            "required": [
+              "program"
+            ],
             "properties": {
-                "python.maxNumberOfProblems": {
-                    "type": "number",
-                    "default": 100,
-                    "description": "Controls the maximum number of problems produced by the server."
-                }
+              "program": {
+                "type": "string",
+                "description": "Workspace relative path to a text file.",
+                "default": "__init__.py"
+              },
+              "stopOnEntry": {
+                "type": "boolean",
+                "description": "Automatically stop after launch.",
+                "default": true
+              }
             }
+          }
+        },
+        "initialConfigurations": [
+          {
+            "name": "Python",
+            "type": "python",
+            "request": "launch",
+            "program": "__init__.py",
+            "stopOnEntry": true
+          }
+        ]
+      }
+    ],
+    "configuration": {
+      "type": "object",
+      "title": "Python Configuration",
+      "properties": {
+        "python.maxNumberOfProblems": {
+          "type": "number",
+          "default": 100,
+          "description": "Controls the maximum number of problems produced by the server."
         }
-    },
-    "scripts": {
-        "vscode:prepublish": "node ./node_modules/vscode/bin/compile",
-        "compile": "node ./node_modules/vscode/bin/compile -watch -p ./"
-    },
-    "dependencies": {
-        "vscode-debugadapter": "^1.0.1",
-        "vscode-debugprotocol": "^1.0.1",
-        "vscode-languageclient": "^1.1.0"
-    },
-    "devDependencies": {
-        "typescript": "^1.6.2",
-        "vscode": "0.10.x"
+      }
     }
+  },
+  "scripts": {
+    "vscode:prepublish": "node ./node_modules/vscode/bin/compile",
+    "compile": "node ./node_modules/vscode/bin/compile -watch -p ./"
+  },
+  "dependencies": {
+    "tmp": "0.0.28",
+    "vscode-debugadapter": "^1.0.1",
+    "vscode-debugprotocol": "^1.0.1",
+    "vscode-languageclient": "^1.1.0"
+  },
+  "devDependencies": {
+    "typescript": "^1.6.2",
+    "vscode": "0.10.x"
+  }
 }

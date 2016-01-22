@@ -31,6 +31,7 @@ export interface IPdbCommand {
 interface IPdbRunnerCommand extends IPdbCommand {
     promise: Promise<string[]>
     promiseResolve: (data: string[]) => void
+    completed: boolean
 }
 
 export class PdbRunner {
@@ -53,10 +54,14 @@ export class PdbRunner {
 
     private initProc() {
         var fileDir = path.dirname(this._sourceFile);
-        this.pythonProc = child_process.spawn("python", ["-u", "-m", "pdb", this._sourceFile], {
-            cwd: fileDir
-        });
-        
+        try {
+            this.pythonProc = child_process.spawn("python", ["-u", "-m", "pdb", this._sourceFile], {
+                cwd: fileDir
+            });
+        }
+        catch (ex) {
+            var y = "";
+        }
         // // pipe the main process input to the child process
         // process.stdin.pipe(this.pythonProc.stdin);
         // this.pythonProc.stdout.pipe(process.stdout);
@@ -94,22 +99,51 @@ export class PdbRunner {
                 pdbCmd.promise = new Promise<string[]>(resolve=> {
                     pdbCmd.promiseResolve = resolve;
                 });
-                pdbCmd.promise.then(resolve);
+                pdbCmd.completed = false;
+                pdbCmd.promise.then((d) => {
+                    pdbCmd.completed = true;
+                    resolve(d);
+                });
+                if (this.executingCommands.length > 1) {
+                    var y = "";
+                }
 
-                if (this.executingCommands.length === 0) {
-                    this.executingCommands.push(pdbCmd);
-                    this.pythonProc.stdin.write(pdbCmd.commandLine + "\n");
-                }
-                else {
-                    var promises = this.pendingCommands.map(cmd=> cmd.promise);
-                    this.pendingCommands.push(pdbCmd);
-                    Promise.all(promises).then(() => {
-                        this.executingCommands.push(pdbCmd);
-                        this.pythonProc.stdin.write(pdbCmd.commandLine + "\n");
-                    });
-                }
+                this.pendingCommands.push(pdbCmd);
+                this.invokeNextCommand();
+                //                 if (this.executingCommands.length === 0) {
+                //                     this.executingCommands.push(pdbCmd);
+                //                     this.pythonProc.stdin.write(pdbCmd.commandLine + "\n");
+                //                 }
+                //                 else {
+                //                     var promises = this.pendingCommands.map(cmd=> cmd.promise);
+                //                     var promiseCount = promises.length;
+                //                     this.pendingCommands.push(pdbCmd);
+                //                     Promise.all(promises).then(() => {
+                //                         var x = promiseCount;
+                //                         if (this.executingCommands.length > 0) {
+                //                             var y = "";
+                //                         }
+                // 
+                //                         this.executingCommands.push(pdbCmd);
+                //                         this.pythonProc.stdin.write(pdbCmd.commandLine + "\n");
+                //                     });
+                //                 }
             });
         });
+    }
+ 
+    private invokeNextCommand() {
+        if (this.pendingCommands.length === 0) {
+            return;
+        }
+        if (this.executingCommands.length > 0) {
+            var y = "";
+            return;
+        }
+
+        var cmd = this.pendingCommands[0];
+        this.executingCommands.push(cmd);
+        this.pythonProc.stdin.write(cmd.commandLine + "\n");
     }
 
     private outputBuffer: string = "";
@@ -119,7 +153,9 @@ export class PdbRunner {
     private pdbLoadedResolve: () => void;
     private onDataReceived(data) {
         console.log(data + "");
-
+        if (this.executingCommands.length > 1) {
+            var y = "";
+        }
         this.outputBuffer = this.outputBuffer + new Buffer(data).toString('utf-8');
         var lines = this.outputBuffer.split(/(\r?\n)/g).filter(line=> line.length > 0 && line !== os.EOL && line !== "\n" && line !== "\r").map(line=> line.trim());
         if (lines.length === 0) {
@@ -152,9 +188,10 @@ export class PdbRunner {
             
             //Remove (Pdb) prompt
             lines.pop();
-            this.pendingCommands.pop();
+            this.pendingCommands.shift();
             this.executingCommands.pop();
             lastCmd.promiseResolve.call(lastCmd.callbackScope, lines);
+            this.invokeNextCommand();
         }
     }
 }

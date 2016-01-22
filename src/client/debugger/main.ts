@@ -14,7 +14,9 @@ import * as child_process from 'child_process';
 import * as StringDecoder from 'string_decoder';
 import {PdbRunner, IPdbCommand} from './pdb';
 
-const PDB_LABELS_COMMAND = "import json; print(json.dumps({k:v for k,v in locals().items() if type(v) in (int, str, bool, unicode, float)}, skipkeys=True))";
+const PDB_LOCALS_COMMAND = "import json; print(json.dumps({k:v for k,v in locals().items() if type(v) in (int, str, bool, unicode, float)}, skipkeys=True))";
+const PDB_ARGS_COMMAND = "args";
+const PDB_GLOBALS_COMMAND = "import json; print(json.dumps({k:v for k,v in globals().items() if type(v) in (int, str, bool, unicode, float)}, skipkeys=True))";
 
 /**
  * This interface should always match the schema found in the mock-debug extension manifest.
@@ -69,8 +71,12 @@ interface ICommandToExecute {
     command?: string
     responseProtocol?: DebugProtocol.Response
 }
+interface IBreakpoint {
+    line: number
+    fileName: string
+}
 
-class MockDebugSession extends DebugSession {
+class PythonDebugSession extends DebugSession {
 
     // we don't support multiple threads, so we can use a hardcoded ID for the default thread
     private static THREAD_ID = 1;
@@ -115,7 +121,7 @@ class MockDebugSession extends DebugSession {
             this.launchResponse = response;
         } else {
             // we just start to run until we hit a breakpoint or an exception
-            this.continueRequest(response, { threadId: MockDebugSession.THREAD_ID });
+            this.continueRequest(response, { threadId: PythonDebugSession.THREAD_ID });
         }
         var fileDir = path.dirname(this._sourceFile);
 
@@ -123,7 +129,7 @@ class MockDebugSession extends DebugSession {
 
         this.pdbRunner.pdbLoaded.then(() => {
             this.sendResponse(this.launchResponse);
-            this.sendEvent(new StoppedEvent("entry", MockDebugSession.THREAD_ID));
+            this.sendEvent(new StoppedEvent("entry", PythonDebugSession.THREAD_ID));
         });
     }
 
@@ -151,7 +157,12 @@ class MockDebugSession extends DebugSession {
             });
 
             function onCommandResponse(data: string[]) {
-                if (command.name === "locals") {
+                if (command.name === "listLocalGlobalList") {
+                    var line = data[0].substring("set([".length);
+                    var varNames = line.substring(0, line.length - 2).replace(/'/g, "").split(",").map(item=> item.trim());
+                    return resolve.call(this, varNames);
+                }
+                if (command.name === "locals" || command.name === "globals") {
                     var variables = [];
                     try {
                         var variablesAsJson = <Object>JSON.parse(data.join());
@@ -166,7 +177,24 @@ class MockDebugSession extends DebugSession {
                     }
                     catch (ex) {
                     }
-                    resolve.call(this, { variables: variables, id: callbackData });
+                    return resolve.call(this, { variables: variables, id: callbackData });
+                }
+                if (command.name === "args") {
+                    var variables = [];
+                    try {
+                        variables = data.map(v=> {
+                            var startOfEquals = v.indexOf("=");
+
+                            return {
+                                name: v.substring(0, startOfEquals),
+                                value: v.substring(startOfEquals + 1),
+                                variablesReference: 0
+                            }
+                        });
+                    }
+                    catch (ex) {
+                    }
+                    return resolve.call(this, { variables: variables, id: callbackData });
                 }
 
                 if (command.name === "next" || command.name === "where" || command.name === "step" || command.name === "continue" || command.name === "return") {
@@ -194,11 +222,11 @@ class MockDebugSession extends DebugSession {
                                 if (data.length > 0 && data[0].indexOf("Error:") > 0) {
                                     var error = data[0];
                                     this.sendErrorResponse(command.responseProtocol, 1, error);
-                                    this.sendEvent(new StoppedEvent("exception", MockDebugSession.THREAD_ID));
+                                    this.sendEvent(new StoppedEvent("exception", PythonDebugSession.THREAD_ID));
                                 }
                                 else {
                                     this.sendResponse(command.responseProtocol);
-                                    this.sendEvent(new StoppedEvent(command.name, MockDebugSession.THREAD_ID));
+                                    this.sendEvent(new StoppedEvent(command.name, PythonDebugSession.THREAD_ID));
                                 }
                             }
                         }
@@ -209,29 +237,72 @@ class MockDebugSession extends DebugSession {
         });
     }
 
+    private registeredBreakPoints: IBreakpoint[] = [];
     protected setBreakPointsRequest(response: DebugProtocol.SetBreakpointsResponse, args: DebugProtocol.SetBreakpointsArguments): void {
         this.pdbRunner.pdbLoaded.then(() => {
             var breakpoints = [];
             var that = [];
+            var errorMessages: string[] = [];
+            var successfullyAddedRemoved = false;
             new Promise(resolve=> {
-                var newPositions = [];
-                var counter = 0;
-                args.lines.forEach(line=> {
-                    this.sendCommand("break", undefined, undefined, undefined, `break ${args.source.path}:${line}`).then(() => {
-                        newPositions.push(line);
-                        breakpoints.push({ verified: true, line: line });
-                        counter = counter + 1;
-                        if (counter === args.lines.length) {
-                            resolve();
+                var linesInThisFile = this.registeredBreakPoints.filter(b=> b.fileName === args.source.path).map(l=> l.line);
+                var linesToAdd = args.lines.filter(line=> linesInThisFile.indexOf(line) === -1);
+                var linesToRemove = linesInThisFile.filter(line=> args.lines.indexOf(line) === -1);
+                var promises = [];
+                linesToAdd.forEach(line=> {
+                    var prom = this.sendCommand("break", undefined, undefined, undefined, `break ${args.source.path}:${line}`).then((resp) => {
+                        var respMsg = <string>resp[0];
+                        if (respMsg.indexOf("**") === 0) {
+                            //this.sendErrorResponse(response, 2000, respMsg);
+                            errorMessages.push(respMsg);
+                            breakpoints.push({ verified: false, line: line });
+                            //return;
                         }
+                        else {
+                            breakpoints.push({ verified: true, line: line });
+                            successfullyAddedRemoved = true;
+                            this.registeredBreakPoints.push({
+                                line: line,
+                                fileName: args.source.path
+                            })
+                        }
+                        // if (counter === args.lines.length) {
+                        //     resolve();
+                        // }
                     });
-                })
-            }).then(() => {
+
+                    promises.push(prom);
+                }); 
+
+                linesToRemove.forEach(line=> {
+                    var prom = this.sendCommand("clear", undefined, undefined, undefined, `clear ${args.source.path}:${line}`).then((resp) => {
+                        successfullyAddedRemoved = true;
+                        var itemToRemove = this.registeredBreakPoints.filter(b=> b.fileName === args.source.path && b.line === line)[0];
+                        var indexToRemove = this.registeredBreakPoints.indexOf(itemToRemove);
+                        this.registeredBreakPoints.splice(indexToRemove, 1);
+                    });
+
+                    promises.push(prom);
+                });
+
+                Promise.all(promises).then(() => {
+                    resolve();
+                });
+            }).then(() => { 
+                
+                //Ok now get the list of items that need to be removed
+                
                 // send back the actual breakpoints
                 response.body = {
                     breakpoints: breakpoints
                 };
-                this.sendResponse(response);
+
+                if (successfullyAddedRemoved) {
+                    this.sendResponse(response);
+                }
+                else {
+                    this.sendErrorResponse(response, 2000, errorMessages.join());
+                }
             });
         });
     }
@@ -241,7 +312,7 @@ class MockDebugSession extends DebugSession {
         // return the default thread
         response.body = {
             threads: [
-                new Thread(MockDebugSession.THREAD_ID, "thread 1")
+                new Thread(PythonDebugSession.THREAD_ID, "thread 1")
             ]
         };
         this.sendResponse(response);
@@ -295,37 +366,82 @@ class MockDebugSession extends DebugSession {
     }
 
     private variablesRefId: number;
+    private argumentsRefId: number;
+    private globalsRefId: number;
+    private variableCommandDefs: any = {};
     protected scopesRequest(response: DebugProtocol.ScopesResponse, args: DebugProtocol.ScopesArguments): void {
         const frameReference = args.frameId;
         const scopes = new Array<Scope>();
 
         this.variablesRefId = this._variableHandles.create("local_" + frameReference);
+        this.argumentsRefId = this._variableHandles.create("args_" + frameReference);
+        this.globalsRefId = this._variableHandles.create("glob_" + frameReference);
 
         scopes.push(new Scope("Local", this.variablesRefId, false));
-        //scopes.push(new Scope("Closure", this._variableHandles.create("closure_" + frameReference), false));
-        // scopes.push(new Scope("Global", this._variableHandles.create("global_" + frameReference), true));
+        scopes.push(new Scope("Arguments", this.argumentsRefId, false));
+        scopes.push(new Scope("Globals", this.globalsRefId, false));
+
+        this.variableCommandDefs[this.variablesRefId] = { "cmd": "locals", "commandLine": PDB_LOCALS_COMMAND, "listCmd": "print({k for k,v in locals().items()})" };
+        this.variableCommandDefs[this.argumentsRefId] = { "cmd": "args", "commandLine": PDB_ARGS_COMMAND, "listCmd": "" };
+        this.variableCommandDefs[this.globalsRefId] = { "cmd": "globals", "commandLine": PDB_GLOBALS_COMMAND, "listCmd": "print({k for k,v in globals().items()})" };
 
         response.body = {
             scopes: scopes
         };
         this.sendResponse(response);
     }
-
-    private lastRequestedVariableId: string;
     protected variablesRequest(response: DebugProtocol.VariablesResponse, args: DebugProtocol.VariablesArguments): void {
         if (!this.pdbRunner.readyToAcceptCommands) {
             return
         }
 
-        var cmd = this.variablesRefId === args.variablesReference ? "locals" : "locals";
-        //this._variableHandles.get(args.variablesReference);
-        //var newid = this._variableHandles.get(args.variablesReference);
-        this.sendCommand("locals", undefined, undefined, undefined, PDB_LABELS_COMMAND, args.variablesReference).then((resp) => {
+        var cmdDetails = this.variableCommandDefs[args.variablesReference];
+
+        this.sendCommand(cmdDetails.cmd, undefined, undefined, undefined, cmdDetails.commandLine, args.variablesReference).then((resp) => {
             var variables = <any[]>resp.variables;
+            
+            //Ensure all variables are strings
+            //Displaying objects isn't supported (unfortunately)
+            var variableNames = [];
+            variables.forEach(v=> {
+                v.value = v.value + "";
+                variableNames.push(v.name);
+            })
+
             response.body = {
                 variables: variables
             };
-            this.sendResponse(response);
+             
+            //Now some complex variables will be ignored, lets get those as well
+            if (cmdDetails.listCmd.length > 0) {
+                this.sendCommand("listLocalGlobalList", undefined, undefined, undefined, cmdDetails.listCmd).then((resp) => {
+                    //Now find missing items
+                    var missingItems = (<string[]>resp).filter(vName=> variableNames.indexOf(vName) === -1);
+
+                    var promises = [];
+                    missingItems.forEach(vName=> {
+                        var p = this.sendCommand("Print Value", undefined, undefined, undefined, "p " + vName).then((resp) => {
+                            if (Array.isArray(resp)) {
+                                response.body.variables.push({
+                                    name: vName,
+                                    value: (<string[]>resp).join(),
+                                    variablesReference: 0
+                                });
+                            }
+                        });
+
+                        promises.push(p);
+                    });
+
+                    Promise.all(promises).then(() => {
+                        this.sendResponse(response);
+                    });
+                });
+
+            }
+            else {
+                this.sendResponse(response);
+            }
         });
     }
 
@@ -376,4 +492,4 @@ class MockDebugSession extends DebugSession {
 
 }
 
-DebugSession.run(MockDebugSession);
+DebugSession.run(PythonDebugSession);
