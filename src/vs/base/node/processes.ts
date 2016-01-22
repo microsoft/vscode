@@ -190,7 +190,6 @@ export abstract class AbstractProcess<TProgressData> {
 			} else {
 				let childProcess: ChildProcess = null;
 				let closeHandler = (data: any) => {
-					console.log("Close received");
 					this.childProcess = null;
 					this.childProcessPromise = null;
 					this.handleClose(data, cc, pp, ee);
