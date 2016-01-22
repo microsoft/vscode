@@ -9,15 +9,13 @@ import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/c
 import {IStorageService, StorageScope, StorageEvent, StorageEventType} from 'vs/platform/storage/common/storage';
 import {ITelemetryService, ITelemetryInfo} from 'vs/platform/telemetry/common/telemetry';
 
-import { shell } from 'electron';
-
 /**
  * This extensions handles the first launch expereince for new users
  */
-export class GettingStarted implements IWorkbenchContribution {
-	private static hideWelcomeSettingskey = 'workbench.hide.welcome';
+export abstract class AbstractGettingStarted implements IWorkbenchContribution {
+	protected static hideWelcomeSettingskey = 'workbench.hide.welcome';
 
-	private welcomePageURL: string;
+	protected welcomePageURL: string;
 
 	constructor(
 		@IStorageService private storageService: IStorageService,
@@ -32,13 +30,13 @@ export class GettingStarted implements IWorkbenchContribution {
 	}
 
 	private handleWelcome(): void {
-		let firstStartup = !this.storageService.get(GettingStarted.hideWelcomeSettingskey);
+		let firstStartup = !this.storageService.get(AbstractGettingStarted.hideWelcomeSettingskey);
 
 		if (firstStartup && this.welcomePageURL) {
 			this.telemetryService.getTelemetryInfo().then(info=>{
 				let url = this.getUrl(info);
-				shell.openExternal(url);
-				this.storageService.store(GettingStarted.hideWelcomeSettingskey, true);
+				this.openExternal(url);
+				this.storageService.store(AbstractGettingStarted.hideWelcomeSettingskey, true);
 			});
 		}
 
@@ -46,6 +44,10 @@ export class GettingStarted implements IWorkbenchContribution {
 
 	private getUrl(telemetryInfo: ITelemetryInfo): string {
 		return `${this.welcomePageURL}&&from=vscode&&id=${telemetryInfo.machineId}`;
+	}
+
+	protected openExternal(url: string) {
+		throw new Error('implement me');
 	}
 
 	public getId(): string {
