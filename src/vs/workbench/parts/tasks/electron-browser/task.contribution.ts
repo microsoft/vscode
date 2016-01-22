@@ -970,6 +970,11 @@ if (Env.enableTasks) {
 							'enum': ['error', 'warning', 'info'],
 							'description': nls.localize('JsonSchema.problemMatcher.severity', 'The default severity for captures problems. Is used if the pattern doesn\' define a match group for severity.')
 						},
+						'applyTo': {
+							'type': 'string',
+							'enum': ['allDocuments', 'openDocuments', 'closedDocuments'],
+							'description': nls.localize('JsonSchema.problemMatcher.applyTo', 'Controls if a problem reported on a text document is applied only to open, closed or all documents.')
+						},
 						'pattern': {
 							'$ref': '#/definitions/patternType',
 							'description': nls.localize('JsonSchema.problemMatcher.pattern', 'A problem pattern or the name of a predefined problem pattern. Can be omitted if base is specified.')
