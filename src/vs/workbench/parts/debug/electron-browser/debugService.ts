@@ -703,7 +703,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 
 	private sourceIsUnavailable(source: Source, sideBySide: boolean): Promise {
 		this.model.sourceIsUnavailable(source);
-		const editorInput = this.getDebugStringEditorInput(source, nls.localize('debugSourceNotAvailable', "Source is not available."), 'text/plain');
+		const editorInput = this.getDebugStringEditorInput(source, nls.localize('debugSourceNotAvailable', "Source {0} is not available.", source.uri.fsPath), 'text/plain');
 
 		return this.editorService.openEditor(editorInput, wbeditorcommon.TextEditorOptions.create({ preserveFocus: true }), sideBySide);
 	}
