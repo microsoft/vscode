@@ -18,7 +18,9 @@ import {renderHtml} from 'vs/base/browser/htmlContentRenderer';
 import {tokenizeToString} from 'vs/editor/common/modes/textToHtmlTokenizer';
 import {Range} from 'vs/editor/common/core/range';
 import {ExtraInfoRegistry, getExtraInfoAtPosition} from '../common/hover';
-
+import {IEditorService} from 'vs/platform/editor/common/editor';
+import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
+import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 class ModesContentComputer implements HoverOperation.IHoverComputer<Modes.IComputeExtraInfoResult[]> {
 
@@ -122,13 +124,17 @@ export class ModesContentHoverWidget extends HoverWidget.ContentHoverWidget {
 	private _hoverOperation: HoverOperation.HoverOperation<Modes.IComputeExtraInfoResult[]>;
 	private _highlightDecorations:string[];
 	private _isChangingDecorations: boolean;
+	private _editorService: IEditorService;
+	private _keybindingService: IKeybindingService;
 
-	constructor(editor: EditorBrowser.ICodeEditor) {
+	constructor(editor: EditorBrowser.ICodeEditor, editorService: IEditorService, keybindingService: IKeybindingService) {
 		super(ModesContentHoverWidget.ID, editor);
 
 		this._computer = new ModesContentComputer(this._editor);
 		this._highlightDecorations = [];
 		this._isChangingDecorations = false;
+		this._editorService = editorService;
+		this._keybindingService = keybindingService;
 
 		this._hoverOperation = new HoverOperation.HoverOperation(
 			this._computer,
@@ -238,14 +244,23 @@ export class ModesContentHoverWidget extends HoverWidget.ContentHoverWidget {
 			if(msg.htmlContent && msg.htmlContent.length > 0) {
 				msg.htmlContent.forEach((content) => {
 					container.appendChild(renderHtml(content, {
-						// actionCallback: (content) => {
-						// 	try {
-						// 		let resource = URI.parse(content);
-						// 		this.editorService.openEditor({resource});
-						// 	} catch (e) {
-						// 		// ignore
-						// 	}
-						// },
+						actionCallback: (content) => {
+
+							let promise: TPromise<any>;
+							if (KeybindingsRegistry.getCommands()[content]) {
+								promise = this._keybindingService.executeCommand(content);
+							} else {
+								try {
+									let resource = URI.parse(content);
+									promise = this._editorService.openEditor({resource});
+								} catch (e) {
+									// ignore
+								}
+							}
+							if (promise) {
+								promise.then(undefined, err => console.log(err));
+							}
+						},
 						codeBlockRenderer: (modeId, value) => {
 							let mode: Modes.IMode;
 							let model = this._editor.getModel();

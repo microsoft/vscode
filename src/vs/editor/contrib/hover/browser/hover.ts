@@ -14,7 +14,8 @@ import Platform = require('vs/base/common/platform');
 import ModesContentHover = require('./modesContentHover');
 import ModesGlyphHover = require('./modesGlyphHover');
 import Keyboard = require('vs/base/browser/keyboardEvent');
-import {INullService} from 'vs/platform/instantiation/common/instantiation';
+import {IEditorService} from 'vs/platform/editor/common/editor';
+import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {KeyCode} from 'vs/base/common/keyCodes';
 
 class ModesHoverController implements EditorCommon.IEditorContribution {
@@ -27,7 +28,10 @@ class ModesHoverController implements EditorCommon.IEditorContribution {
 	private _contentWidget: ModesContentHover.ModesContentHoverWidget;
 	private _glyphWidget: ModesGlyphHover.ModesGlyphHoverWidget;
 
-	constructor(editor:EditorBrowser.ICodeEditor, @INullService ns) {
+	constructor(editor: EditorBrowser.ICodeEditor,
+		@IEditorService editorService: IEditorService,
+		@IKeybindingService keybindingService: IKeybindingService
+	) {
 		this._editor = editor;
 
 		this._toUnhook = [];
@@ -41,7 +45,7 @@ class ModesHoverController implements EditorCommon.IEditorContribution {
 			this._toUnhook.push(this._editor.addListener(EditorCommon.EventType.ModelDecorationsChanged, () => this._onModelDecorationsChanged()));
 			this._toUnhook.push(this._editor.addListener('scroll', () => this._hideWidgets()));
 
-			this._contentWidget = new ModesContentHover.ModesContentHoverWidget(editor);
+			this._contentWidget = new ModesContentHover.ModesContentHoverWidget(editor, editorService, keybindingService);
 			this._glyphWidget = new ModesGlyphHover.ModesGlyphHoverWidget(editor);
 		}
 	}
