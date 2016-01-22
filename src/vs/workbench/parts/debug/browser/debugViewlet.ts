@@ -472,6 +472,14 @@ export class DebugViewlet extends viewlet.Viewlet {
 		}
 	}
 
+	public focus(): void {
+		super.focus();
+		
+		if (this.views.length > 0) {
+			(<VariablesView>this.views[0]).focus();
+		}
+	}
+
 	public getActions(): actions.IAction[] {
 		if (this.debugService.getState() === debug.State.Disabled) {
 			return [];
@@ -499,10 +507,6 @@ export class DebugViewlet extends viewlet.Viewlet {
 		}
 
 		return null;
-	}
-
-	public getSecondaryActions(): actions.IAction[] {
-		return [];
 	}
 
 	private onDebugServiceStateChange(): void {
