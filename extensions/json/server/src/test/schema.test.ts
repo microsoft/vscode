@@ -34,7 +34,7 @@ suite('JSON Schema', () => {
 		var fileName = fixureDocuments[uri];
 		if (fileName) {
 			return new Promise<IXHRResponse>((c, e) => {
-				var fixturePath = path.join(__dirname, '../../../server/src/tests/fixtures', fileName);
+				var fixturePath = path.join(__dirname, '../../src/test/fixtures', fileName);
 				fs.readFile(fixturePath, 'UTF-8', (err, result) => {
 					err ? e({ responseText: '', status: 404 }) : c({ responseText: result.toString(), status: 200 })
 				});
