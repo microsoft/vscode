@@ -78,9 +78,8 @@ function _renderHtml(content: IHTMLContentElement, options: RenderOptions = {}):
 			return `<a href="#" data-href="${href}" title="${title || text}">${text}</a>`
 		}
 
-		let highlight: (code: string, lang: string) => string;
 		if (options.codeBlockRenderer) {
-			highlight = (code, lang) => {
+			renderer.code = (code, lang) => {
 				return options.codeBlockRenderer(lang, code);
 			}
 		}
@@ -98,8 +97,7 @@ function _renderHtml(content: IHTMLContentElement, options: RenderOptions = {}):
 
 		element.innerHTML = marked(content.markdown, {
 			sanitize: true,
-			renderer,
-			highlight
+			renderer
 		});
 	}
 
