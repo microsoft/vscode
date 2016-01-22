@@ -53,7 +53,7 @@ class MyCompletionItem extends CompletionItem {
 				return CompletionItemKind.Interface;
 		}
 
-		return CompletionItemKind.Property;
+		return CompletionItemKind.Variable;
 	}
 }
 
