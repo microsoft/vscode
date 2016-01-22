@@ -55,13 +55,15 @@ export class FindDecorations implements IDisposable {
 		this.setCurrentFindMatch(null);
 	}
 
-	public setCurrentFindMatch(nextMatch:EditorCommon.IEditorRange): void {
+	public setCurrentFindMatch(nextMatch:EditorCommon.IEditorRange): number {
 		let newCurrentDecorationId: string = null;
+		let matchPosition = 0;
 		if (nextMatch) {
 			for (let i = 0, len = this._decorations.length; i < len; i++) {
 				let range = this._editor.getModel().getDecorationRange(this._decorations[i]);
 				if (nextMatch.equalsRange(range)) {
 					newCurrentDecorationId = this._decorations[i];
+					matchPosition = (i + 1);
 					break;
 				}
 			}
@@ -79,6 +81,8 @@ export class FindDecorations implements IDisposable {
 				}
 			});
 		}
+
+		return matchPosition;
 	}
 
 	public set(matches:EditorCommon.IEditorRange[], findScope:EditorCommon.IEditorRange): void {

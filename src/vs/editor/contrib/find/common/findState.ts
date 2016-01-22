@@ -20,6 +20,7 @@ export interface FindReplaceStateChangedEvent {
 	wholeWord: boolean;
 	matchCase: boolean;
 	searchScope: boolean;
+	matchesPosition: boolean;
 	matchesCount: boolean;
 }
 
@@ -32,6 +33,7 @@ export interface INewFindReplaceState {
 	wholeWord?: boolean;
 	matchCase?: boolean;
 	searchScope?: EditorCommon.IEditorRange;
+	matchesPosition?: number;
 	matchesCount?: number;
 }
 
@@ -47,6 +49,7 @@ export class FindReplaceState implements IDisposable {
 	private _wholeWord: boolean;
 	private _matchCase: boolean;
 	private _searchScope: EditorCommon.IEditorRange;
+	private _matchesPosition: number;
 	private _matchesCount: number;
 	private _eventEmitter: EventEmitter;
 
@@ -58,6 +61,7 @@ export class FindReplaceState implements IDisposable {
 	public get wholeWord(): boolean { return this._wholeWord; }
 	public get matchCase(): boolean { return this._matchCase; }
 	public get searchScope(): EditorCommon.IEditorRange { return this._searchScope; }
+	public get matchesPosition(): number { return this._matchesPosition; }
 	public get matchesCount(): number { return this._matchesCount; }
 
 	constructor() {
@@ -69,6 +73,7 @@ export class FindReplaceState implements IDisposable {
 		this._wholeWord = false;
 		this._matchCase = false;
 		this._searchScope = null;
+		this._matchesPosition = 0;
 		this._matchesCount = 0;
 		this._eventEmitter = new EventEmitter();
 	}
@@ -92,6 +97,7 @@ export class FindReplaceState implements IDisposable {
 			wholeWord: false,
 			matchCase: false,
 			searchScope: false,
+			matchesPosition: false,
 			matchesCount: false
 		};
 		let somethingChanged = false;
@@ -152,13 +158,29 @@ export class FindReplaceState implements IDisposable {
 				somethingChanged = true;
 			}
 		}
+		if (typeof newState.matchesPosition !== 'undefined') {
+			if (this._matchesPosition !== newState.matchesPosition) {
+				this._matchesPosition = newState.matchesPosition;
+				changeEvent.matchesPosition = true;
+				somethingChanged = true;
+			}
+		}
 		if (typeof newState.matchesCount !== 'undefined') {
 			if (this._matchesCount !== newState.matchesCount) {
 				this._matchesCount = newState.matchesCount;
 				changeEvent.matchesCount = true;
 				somethingChanged = true;
+
+				if (this._matchesCount === 0) {
+					this._matchesPosition = 0;
+					changeEvent.matchesPosition = true;
+				} else if (this._matchesPosition > this._matchesCount) {
+					this._matchesPosition = this._matchesCount;
+					changeEvent.matchesPosition = true;
+				}
 			}
 		}
+
 
 		if (somethingChanged) {
 			this._eventEmitter.emit(FindReplaceState._CHANGED_EVENT, changeEvent);

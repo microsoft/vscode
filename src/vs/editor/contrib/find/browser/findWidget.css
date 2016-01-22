@@ -110,6 +110,19 @@
 .monaco-editor .find-widget.no-results .monaco-findInput .monaco-inputbox {
 	border-color: #E51400;
 }
+.monaco-editor .find-widget.no-results .matchesCount {
+	background-color: rgba(255,0,0,0.5);
+}
+
+.monaco-editor .find-widget .matchesCount {
+	display: inline-block;
+	margin: 0 1px 0 3px;
+	padding: 0 2px 0 2px;
+	position: relative;
+	min-width: 77px;
+	top: 2px;
+	text-align: center;
+}
 
 .monaco-editor .find-widget .button {
 	width: 20px;

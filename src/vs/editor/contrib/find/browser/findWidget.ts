@@ -10,6 +10,7 @@ import 'vs/css!./findWidget';
 import * as nls from 'vs/nls';
 import * as Errors from 'vs/base/common/errors';
 import * as DomUtils from 'vs/base/browser/dom';
+import * as Strings from 'vs/base/common/strings';
 import {IContextViewProvider} from 'vs/base/browser/ui/contextview/contextview';
 import {InputBox, IMessage as InputBoxMessage} from 'vs/base/browser/ui/inputbox/inputBox';
 import {FindInput} from 'vs/base/browser/ui/findinput/findInput';
@@ -38,6 +39,7 @@ const NLS_REPLACE_BTN_LABEL = nls.localize('label.replaceButton', "Replace");
 const NLS_REPLACE_ALL_BTN_LABEL = nls.localize('label.replaceAllButton', "Replace All");
 const NLS_TOGGLE_REPLACE_MODE_BTN_LABEL = nls.localize('label.toggleReplaceButton', "Toggle Replace mode");
 const NLS_MATCHES_COUNT_LIMIT_TITLE = nls.localize('title.matchesCountLimit', "Only the first 999 results are highlighted, but all find operations work on the entire text.");
+const NLS_MATCHES_LOCATION = nls.localize('label.matchesLocation', "{0} of {1}");
 
 export class FindWidget extends Widget implements EditorBrowser.IOverlayWidget {
 
@@ -57,6 +59,7 @@ export class FindWidget extends Widget implements EditorBrowser.IOverlayWidget {
 	private _replaceInputBox: InputBox;
 
 	private _toggleReplaceBtn: SimpleButton;
+	private _matchesCount: HTMLElement;
 	private _prevBtn: SimpleButton;
 	private _nextBtn: SimpleButton;
 	private _toggleSelectionFind: SimpleCheckbox;
@@ -186,25 +189,37 @@ export class FindWidget extends Widget implements EditorBrowser.IOverlayWidget {
 			}
 			this._updateToggleSelectionFindButton();
 		}
-		if (e.searchString || e.matchesCount) {
+		if (e.searchString || e.matchesCount || e.matchesPosition) {
 			let showRedOutline = (this._state.searchString.length > 0 && this._state.matchesCount === 0);
 			DomUtils.toggleClass(this._domNode, 'no-results', showRedOutline);
 
-			let showMatchesCount = (this._state.searchString.length > 0);
+			this._updateMatchesCount();
+		}
+	}
 
+	private _updateMatchesCount(): void {
+		if (this._state.matchesCount >= MATCHES_LIMIT) {
+			this._matchesCount.title = NLS_MATCHES_COUNT_LIMIT_TITLE;
+		} else {
+			this._matchesCount.title = '';
+		}
+
+		// remove previous content
+		if (this._matchesCount.firstChild) {
+			this._matchesCount.removeChild(this._matchesCount.firstChild);
+		}
+
+		let label: string;
+		if (this._state.searchString.length > 0) {
 			let matchesCount:string = String(this._state.matchesCount);
-			let matchesCountTitle = '';
 			if (this._state.matchesCount >= MATCHES_LIMIT) {
-				matchesCountTitle = NLS_MATCHES_COUNT_LIMIT_TITLE;
 				matchesCount += '+';
 			}
-
-			this._findInput.setMatchCountState({
-				isVisible: showMatchesCount,
-				count: matchesCount,
-				title: matchesCountTitle
-			});
+			label = Strings.format(NLS_MATCHES_LOCATION, this._state.matchesPosition, matchesCount);
+		} else {
+			label = Strings.format(NLS_MATCHES_LOCATION, 0, 0);
 		}
+		this._matchesCount.appendChild(document.createTextNode(label));
 	}
 
 	// ----- actions
@@ -402,6 +417,10 @@ export class FindWidget extends Widget implements EditorBrowser.IOverlayWidget {
 			}
 		}));
 
+		this._matchesCount = document.createElement('div');
+		this._matchesCount.className = 'matchesCount';
+		this._updateMatchesCount();
+
 		// Previous button
 		this._prevBtn = this._register(new SimpleButton({
 			label: NLS_PREVIOUS_MATCH_BTN_LABEL + this._keybindingLabelFor(FIND_IDS.PreviousMatchFindAction),
@@ -425,6 +444,7 @@ export class FindWidget extends Widget implements EditorBrowser.IOverlayWidget {
 		let findPart = document.createElement('div');
 		findPart.className = 'find-part';
 		findPart.appendChild(this._findInput.domNode);
+		findPart.appendChild(this._matchesCount);
 		findPart.appendChild(this._prevBtn.domNode);
 		findPart.appendChild(this._nextBtn.domNode);
 

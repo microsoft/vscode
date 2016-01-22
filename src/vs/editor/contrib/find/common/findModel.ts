@@ -192,19 +192,20 @@ export class FindModelBoundToEditorModel {
 
 		let position = new Position(lineNumber, column);
 
-		let nextMatch = model.findPreviousMatch(this._state.searchString, position, this._state.isRegex, this._state.matchCase, this._state.wholeWord);
-		if (!nextMatch) {
+		let prevMatch = model.findPreviousMatch(this._state.searchString, position, this._state.isRegex, this._state.matchCase, this._state.wholeWord);
+		if (!prevMatch) {
 			// there is precisely one match and selection is on top of it
 			return;
 		}
 
-		if (!isRecursed && !searchRange.containsRange(nextMatch)) {
-			return this._moveToPrevMatch(nextMatch.getStartPosition(), true);
+		if (!isRecursed && !searchRange.containsRange(prevMatch)) {
+			return this._moveToPrevMatch(prevMatch.getStartPosition(), true);
 		}
 
-		this._decorations.setCurrentFindMatch(nextMatch);
-		this._editor.setSelection(nextMatch);
-		this._editor.revealRangeInCenterIfOutsideViewport(nextMatch);
+		let matchesPosition = this._decorations.setCurrentFindMatch(prevMatch);
+		this._state.change({ matchesPosition: matchesPosition }, false);
+		this._editor.setSelection(prevMatch);
+		this._editor.revealRangeInCenterIfOutsideViewport(prevMatch);
 	}
 
 	public moveToPrevMatch(): void {
@@ -269,7 +270,8 @@ export class FindModelBoundToEditorModel {
 			return this._moveToNextMatch(nextMatch.getEndPosition(), true);
 		}
 
-		this._decorations.setCurrentFindMatch(nextMatch);
+		let matchesPosition = this._decorations.setCurrentFindMatch(nextMatch);
+		this._state.change({ matchesPosition: matchesPosition }, false);
 		this._editor.setSelection(nextMatch);
 		this._editor.revealRangeInCenterIfOutsideViewport(nextMatch);
 	}
