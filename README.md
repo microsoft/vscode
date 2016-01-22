@@ -4,14 +4,14 @@ Linting, Debugging, Intellisense, auto-completion, code formatting, rename refer
 ##Features
 * Linting (using PyLint)
 * Intellisense and auto completion
-* Code formatting (using AutoPep8)
+* Code formatting (using Autopep8)
 * Renaming
 * Viewing references
 * Going to definitins
 * View signature and similar by hovering over a function or method
 * Debugging using PDB (work in progress, please remove any and all issues)
-* Debugging with support for local variables, expressions, watch window, stack information, break points
-*   (currently you cannot removed any added breakpoints, this will be fixed in a future release)
+* Debugging with support for local & global variables, arguments, expressions, watch window, stack information, break points
+
 * Sorting imports
 
 ## Issues, Feedback and Suggestions
@@ -23,7 +23,7 @@ Linting, Debugging, Intellisense, auto-completion, code formatting, rename refer
 * Pylint is installed for linting
 * - Install Pylint as follows:
 * - pip install pylint
-* AutoPep8 is installed for code formatting 
+* Autopep8 is installed for code formatting 
 * - Install AutoPep8 as follows (ensure pep8 is installed):
 * - pip install pep8
 * - pip install --upgrade autopep8
@@ -38,10 +38,11 @@ Linting, Debugging, Intellisense, auto-completion, code formatting, rename refer
 ## Chang Log
 ### Version 0.0.4
 * Added support for linting using Pylint (configuring pylint is coming soon)
-* Added support for sorting Imports
+* Added support for sorting Imports (Using the command "Pythong: Sort Imports")
 * Added support for code formatting using Autopep8 (configuring autopep8 is coming soon)
+* Added ability to view global variables, arguments, add and remove break points
 ### Version 0.0.3
-* Added support for debugging using PDB (currently you cannot delete a breakpoint, this will be fixed soon)
+* Added support for debugging using PDB
 
 
 ## Debugging Instructions
