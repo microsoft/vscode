@@ -117,7 +117,7 @@ export var debuggersExtPoint = pluginsRegistry.PluginsRegistry.registerExtension
 
 // debug general schema
 
-export var schemaId = 'local://schemas/launch';
+export var schemaId = 'vscode://schemas/launch';
 const schema: IJSONSchema = {
 	id: schemaId,
 	type: 'object',
