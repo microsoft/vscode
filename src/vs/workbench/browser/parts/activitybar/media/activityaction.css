@@ -39,11 +39,11 @@
 }
 
 .monaco-workbench.vs > .activitybar > .content .monaco-action-bar .action-item .action-label:focus:before {
-	border-left-color: #1E8AE5;
+	border-left-color: #007ACC;
 }
 
 .monaco-workbench.vs-dark > .activitybar > .content .monaco-action-bar .action-item .action-label:focus:before {
-	border-left-color: #1E8AE5;
+	border-left-color: #007ACC;
 }
 
 .monaco-workbench.hc-black > .activitybar > .content .monaco-action-bar .action-item .action-label:focus:before {

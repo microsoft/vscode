@@ -24,8 +24,8 @@ a:focus,
 input:focus,
 select:focus,
 textarea:focus {
-	outline: 2px auto -webkit-focus-ring-color;
-	outline-offset: -2px;
+	outline: 1px solid -webkit-focus-ring-color;
+	outline-offset: -1px;
 }
 
 hr {

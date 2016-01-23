@@ -844,6 +844,7 @@ export class SearchViewlet extends Viewlet {
 					actions: [this.instantiationService.createInstance(ConfigureGlobalExclusionsAction)]
 				});
 				this.inputPatternGlobalExclusions.inputElement.readOnly = true;
+				$(this.inputPatternGlobalExclusions.inputElement).attr('aria-readonly', 'true');
 				$(this.inputPatternGlobalExclusions.inputElement).addClass('disabled');
 			}).hide();
 		}).getHTMLElement();

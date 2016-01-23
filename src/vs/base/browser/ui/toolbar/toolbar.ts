@@ -184,6 +184,7 @@ export class DropdownMenuActionItem extends BaseActionItem {
 			this.builder = $('a.action-label').attr({
 				tabIndex: '0',
 				role: 'button',
+				'aria-haspopup': 'true',
 				title: this._action.label || '',
 				class: this.clazz
 			});

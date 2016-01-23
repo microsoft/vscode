@@ -54,8 +54,8 @@
 .monaco-shell.vs input[type="button"]:focus,
 .monaco-shell.vs input[type="submit"]:focus,
 .monaco-shell.vs input[type="checkbox"]:focus {
-	outline: 1px auto #1E8AE5;
-	outline-offset: -3px;
+	outline: 1px solid rgba(0, 122, 204, 0.4);
+	outline-offset: -1px;
 	opacity: 1 !important; /* prevent components from dimming focus feedback */
 }
 
@@ -64,8 +64,8 @@
 .monaco-shell.vs-dark input[type="button"]:focus,
 .monaco-shell.vs-dark input[type="submit"]:focus,
 .monaco-shell.vs-dark input[type="checkbox"]:focus {
-	outline: 1px auto #1E8AE5;
-	outline-offset: -3px;
+	outline: 1px solid rgba(14, 99, 156, 0.6);
+	outline-offset: -1px;
 	opacity: 1 !important; /* prevent components from dimming focus feedback */
 }
 
@@ -74,25 +74,25 @@
 .monaco-shell.hc-black input[type="button"]:focus,
 .monaco-shell.hc-black input[type="submit"]:focus,
 .monaco-shell.hc-black input[type="checkbox"]:focus {
-	outline: 2px auto #DF740C;
+	outline: 2px solid #DF740C;
 	outline-offset: -2px;
 }
 
 .monaco-shell.vs .monaco-tree.focused:focus .monaco-tree-rows:empty,
 .monaco-shell.vs .monaco-tree.focused:focus.no-item-focus .monaco-tree-rows {
-	outline: 1px auto #1E8AE5; /* we still need to handle the empty tree or no focus item case */
-	outline-offset: -2px;
+	outline: 1px solid rgba(0, 122, 204, 0.4); /* we still need to handle the empty tree or no focus item case */
+	outline-offset: -1px;
 }
 
 .monaco-shell.vs-dark .monaco-tree.focused:focus .monaco-tree-rows:empty,
 .monaco-shell.vs-dark .monaco-tree.focused.no-item-focus:focus .monaco-tree-rows {
-	outline: 1px auto #1E8AE5; /* we still need to handle the empty tree or no focus item case */
-	outline-offset: -2px;
+	outline: 1px solid rgba(14, 99, 156, 0.6); /* we still need to handle the empty tree or no focus item case */
+	outline-offset: -1px;
 }
 
 .monaco-shell.hc-black .monaco-tree.focused:focus .monaco-tree-rows:empty,
 .monaco-shell.hc-black .monaco-tree.focused.no-item-focus:focus .monaco-tree-rows {
-	outline: 2px auto #DF740C; /* we still need to handle the empty tree or no focus item case */
+	outline: 2px solid #DF740C; /* we still need to handle the empty tree or no focus item case */
 	outline-offset: -2px;
 }
 
