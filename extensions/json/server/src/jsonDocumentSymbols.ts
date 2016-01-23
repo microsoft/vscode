@@ -24,7 +24,7 @@ export class JSONDocumentSymbols {
 
 		// special handling for key bindings
 		let resourceString = document.uri;
-		if ((resourceString === 'inmemory://defaults/keybindings.json') || Strings.endsWith(resourceString.toLowerCase(), '/user/keybindings.json')) {
+		if ((resourceString === 'vscode://defaultsettings/keybindings.json') || Strings.endsWith(resourceString.toLowerCase(), '/user/keybindings.json')) {
 			if (root.type === 'array') {
 				let result: SymbolInformation[] = [];
 				(<Parser.ArrayASTNode>root).items.forEach((item) => {

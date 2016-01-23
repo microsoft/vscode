@@ -282,7 +282,7 @@ export class WorkbenchKeybindingService extends KeybindingService {
 	}
 }
 
-let schemaId = 'local://schemas/keybindings';
+let schemaId = 'vscode://schemas/keybindings';
 let schema : IJSONSchema = {
 	'id': schemaId,
 	'type': 'array',
@@ -309,5 +309,5 @@ let schema : IJSONSchema = {
 
 let schemaRegistry = <JSONContributionRegistry.IJSONContributionRegistry>Registry.as(JSONContributionRegistry.Extensions.JSONContribution);
 schemaRegistry.registerSchema(schemaId, schema);
-schemaRegistry.addSchemaFileAssociation('inmemory://defaults/keybindings.json', schemaId);
+schemaRegistry.addSchemaFileAssociation('vscode://defaultsettings/keybindings.json', schemaId);
 schemaRegistry.addSchemaFileAssociation('%APP_SETTINGS_HOME%/keybindings.json', schemaId);
