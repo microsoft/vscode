@@ -50,15 +50,24 @@ export interface IConfigurationNode {
 	definitions?: { [path: string]: IJSONSchema; };
 }
 
+const schemaId = 'vscode://schemas/settings';
+const contributionRegistry = <JSONContributionRegistry.IJSONContributionRegistry>platform.Registry.as(JSONContributionRegistry.Extensions.JSONContribution);
+
 class ConfigurationRegistry implements IConfigurationRegistry {
 	private configurationContributors: IConfigurationNode[];
-	private hasJSONContributions: boolean;
+	private configurationSchema: IJSONSchema;
 	private _onDidRegisterConfiguration: Emitter<IConfigurationRegistry>;
 
 	constructor() {
 		this.configurationContributors = [];
-		this.hasJSONContributions = false;
+		this.configurationSchema = { anyOf: [] };
 		this._onDidRegisterConfiguration = new Emitter<IConfigurationRegistry>();
+
+		contributionRegistry.registerSchema(schemaId, this.configurationSchema);
+
+		contributionRegistry.addSchemaFileAssociation('vscode://defaultsettings/settings.json', schemaId);
+		contributionRegistry.addSchemaFileAssociation('%APP_SETTINGS_HOME%/settings.json', schemaId);
+		contributionRegistry.addSchemaFileAssociation('/.vscode/settings.json', schemaId);
 	}
 
 	public get onDidRegisterConfiguration() {
@@ -77,17 +86,9 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 	}
 
 	private registerJSONConfiguration(configuration: IConfigurationNode) {
-		var schemaId = strings.format('local://schemas/settings/{0}', configuration.id);
-
 		var schema = <IJSONSchema> objects.clone(configuration);
-		schema.id = schemaId;
-
-		var contributionRegistry = <JSONContributionRegistry.IJSONContributionRegistry>platform.Registry.as(JSONContributionRegistry.Extensions.JSONContribution);
-		contributionRegistry.registerSchema(schemaId, schema);
-
-		contributionRegistry.addSchemaFileAssociation('inmemory://defaults/settings.json', schemaId);
-		contributionRegistry.addSchemaFileAssociation('%APP_SETTINGS_HOME%/settings.json', schemaId);
-		contributionRegistry.addSchemaFileAssociation('/.vscode/settings.json', schemaId);
+		this.configurationSchema.anyOf.push(schema);
+		contributionRegistry.registerSchema(schemaId, this.configurationSchema);
 	}
 }
 
