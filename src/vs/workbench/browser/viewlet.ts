@@ -304,7 +304,8 @@ export class AdaptiveCollapsibleViewletView extends FixedCollapsibleView impleme
 		super({
 			expandedBodySize: initialBodySize,
 			headerSize: 22,
-			initialState: collapsed ? CollapsibleState.COLLAPSED : CollapsibleState.EXPANDED
+			initialState: collapsed ? CollapsibleState.COLLAPSED : CollapsibleState.EXPANDED,
+			ariaHeaderLabel: viewName
 		});
 
 		this.actionRunner = actionRunner;
@@ -320,7 +321,8 @@ export class AdaptiveCollapsibleViewletView extends FixedCollapsibleView impleme
 		// Tool bar
 		this.toolBar = new ToolBar($('div.actions').appendTo(container).getHTMLElement(), this.contextMenuService, {
 			orientation: ActionsOrientation.HORIZONTAL,
-			actionItemProvider: (action) => { return this.getActionItem(action); }
+			actionItemProvider: (action) => { return this.getActionItem(action); },
+			ariaLabel: nls.localize('viewToolbarAriaLabel', "{0} actions", this.viewName)
 		});
 		this.toolBar.actionRunner = this.actionRunner;
 		this.toolBar.setActions(prepareActions(this.getActions()), prepareActions(this.getSecondaryActions()))();
@@ -429,7 +431,8 @@ export class CollapsibleViewletView extends CollapsibleView implements IViewletV
 	) {
 		super({
 			minimumSize: 2 * 22,
-			initialState: collapsed ? CollapsibleState.COLLAPSED : CollapsibleState.EXPANDED
+			initialState: collapsed ? CollapsibleState.COLLAPSED : CollapsibleState.EXPANDED,
+			ariaHeaderLabel: viewName
 		});
 
 		this.actionRunner = actionRunner;
@@ -451,7 +454,8 @@ export class CollapsibleViewletView extends CollapsibleView implements IViewletV
 		// Tool bar
 		this.toolBar = new ToolBar($('div.actions').appendTo(container).getHTMLElement(), this.contextMenuService, {
 			orientation: ActionsOrientation.HORIZONTAL,
-			actionItemProvider: (action) => { return this.getActionItem(action); }
+			actionItemProvider: (action) => { return this.getActionItem(action); },
+			ariaLabel: nls.localize('viewToolbarAriaLabel', "{0} actions", this.viewName)
 		});
 		this.toolBar.actionRunner = this.actionRunner;
 		this.toolBar.setActions(prepareActions(this.getActions()), prepareActions(this.getSecondaryActions()))();

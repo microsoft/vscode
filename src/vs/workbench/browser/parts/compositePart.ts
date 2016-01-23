@@ -357,6 +357,8 @@ export abstract class CompositePart<T extends Composite> extends Part {
 
 		this.titleLabel.safeInnerHtml(compositeTitle);
 		this.titleLabel.title(keybinding ? nls.localize('compositeTitleTooltip', "{0} ({1})", compositeTitle, keybinding) : compositeTitle);
+
+		this.toolBar.setAriaLabel(nls.localize('ariaCompositeToolbarLabel',"{0} actions", compositeTitle));
 	}
 
 	private collectCompositeActions(composite: Composite): () => void {

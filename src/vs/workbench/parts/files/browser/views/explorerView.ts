@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import nls = require('vs/nls');
 import {Promise, TPromise} from 'vs/base/common/winjs.base';
 import {Builder, $} from 'vs/base/browser/builder';
 import URI from 'vs/base/common/uri';
@@ -74,7 +75,7 @@ export class ExplorerView extends CollapsibleViewletView {
 		@IPartService private partService: IPartService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
-		super(actionRunner, false, 'explorerView', messageService, contextMenuService);
+		super(actionRunner, false, nls.localize('explorerSection', "Explorer Section"), messageService, contextMenuService);
 
 		this.workspace = contextService.getWorkspace();
 

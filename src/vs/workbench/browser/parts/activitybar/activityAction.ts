@@ -72,7 +72,7 @@ export class ActivityActionItem extends BaseActionItem {
 
 		this.$e = $('a.action-label').attr({
 			tabIndex: '0',
-			role: 'menuitem'
+			role: 'button'
 		}).appendTo(this.builder);
 
 		if (this.cssClass) {

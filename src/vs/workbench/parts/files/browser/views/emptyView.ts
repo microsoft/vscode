@@ -22,7 +22,8 @@ export class EmptyView extends CollapsibleView {
 
 	constructor(@IInstantiationService private instantiationService: IInstantiationService) {
 		super({
-			minimumSize: 2 * 22
+			minimumSize: 2 * 22,
+			ariaHeaderLabel: nls.localize('explorerSection', "Explorer Section")
 		});
 	}
 

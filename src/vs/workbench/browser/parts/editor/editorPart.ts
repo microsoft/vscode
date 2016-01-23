@@ -305,7 +305,7 @@ export class EditorPart extends Part implements IEditorPart {
 					'class': 'editor-container',
 					id: editorDescriptor.getId(),
 					'role': 'presentation',
-					'aria-label': nls.localize('editorAccessibleLabel', "Editor")
+					'aria-label': nls.localize('editorAccessibleLabel', "Editor Container")
 				}, (div) => {
 					newlyCreatedEditorContainerBuilder = div;
 				});

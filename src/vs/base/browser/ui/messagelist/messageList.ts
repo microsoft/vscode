@@ -199,7 +199,7 @@ export class MessageList {
 			messageActions.forEach((action) => {
 				let clazz = (total > 1 || delta < 0) ? 'message-right-side multiple' : 'message-right-side';
 				li.div({ class: clazz }, (div) => {
-					div.a({ class: 'action-button', tabindex: '0' }).text(action.label).on([DOM.EventType.CLICK, DOM.EventType.KEY_DOWN], (e) => {
+					div.a({ class: 'action-button', tabindex: '0', role: 'button' }).text(action.label).on([DOM.EventType.CLICK, DOM.EventType.KEY_DOWN], (e) => {
 						if (e instanceof KeyboardEvent) {
 							let event = new StandardKeyboardEvent(e);
 							if (!event.equals(CommonKeybindings.ENTER) && !event.equals(CommonKeybindings.SPACE)) {

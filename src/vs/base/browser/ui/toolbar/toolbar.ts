@@ -21,6 +21,7 @@ export const CONTEXT = 'context.toolbar';
 export interface IToolBarOptions {
 	orientation?: ActionsOrientation;
 	actionItemProvider?: IActionItemProvider;
+	ariaLabel?: string;
 }
 
 /**
@@ -43,6 +44,7 @@ export class ToolBar {
 
 		this.actionBar = new ActionBar($(element), {
 			orientation: options.orientation,
+			ariaLabel: options.ariaLabel,
 			actionItemProvider: (action: Action) => {
 
 				// Return special action item for the toggle menu action
@@ -81,6 +83,10 @@ export class ToolBar {
 
 	public getContainer(): Builder {
 		return this.actionBar.getContainer();
+	}
+
+	public setAriaLabel(label: string): void {
+		this.actionBar.setAriaLabel(label);
 	}
 
 	public setActions(primaryActions: IAction[], secondaryActions?: IAction[]): () => void {
@@ -177,7 +183,7 @@ export class DropdownMenuActionItem extends BaseActionItem {
 		let labelRenderer: ILabelRenderer = (el: HTMLElement): IDisposable => {
 			this.builder = $('a.action-label').attr({
 				tabIndex: '0',
-				role: 'menuitem',
+				role: 'button',
 				title: this._action.label || '',
 				class: this.clazz
 			});

@@ -21,7 +21,10 @@ export class Button extends EventEmitter {
 	constructor(container: any) {
 		super();
 
-		this.$el = $('a.monaco-button').attr('tabindex', '0').appendTo(container);
+		this.$el = $('a.monaco-button').attr({
+			'tabindex': '0',
+			'role': 'button'
+		}).appendTo(container);
 
 		this.$el.on(DOM.EventType.CLICK, (e) => {
 			if (!this.enabled) {
@@ -60,8 +63,10 @@ export class Button extends EventEmitter {
 	public set enabled(value: boolean) {
 		if (value) {
 			this.$el.removeClass('disabled');
+			this.$el.attr('aria-disabled', String(false));
 		} else {
 			this.$el.addClass('disabled');
+			this.$el.attr('aria-disabled', String(true));
 		}
 	}
 

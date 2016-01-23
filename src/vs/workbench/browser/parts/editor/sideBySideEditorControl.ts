@@ -1034,7 +1034,8 @@ export class SideBySideEditorControl extends EventEmitter implements IVerticalSa
 			// Toolbar
 			this.editorActionsToolbar[position] = new ToolBar(div.getHTMLElement(), this.contextMenuService, {
 				actionItemProvider: (action: Action) => this.actionItemProvider(action, position),
-				orientation: ActionsOrientation.HORIZONTAL
+				orientation: ActionsOrientation.HORIZONTAL,
+				ariaLabel: nls.localize('araLabelEditorActions', "Editor actions")
 			});
 
 			// Action Run Handling

@@ -55,7 +55,7 @@ export class WorkingFilesView extends AdaptiveCollapsibleViewletView {
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
-		super(actionRunner, WorkingFilesView.computeExpandedBodySize(textFileService.getWorkingFilesModel()), !!settings[WorkingFilesView.MEMENTO_COLLAPSED], 'workingFilesView', messageService, contextMenuService);
+		super(actionRunner, WorkingFilesView.computeExpandedBodySize(textFileService.getWorkingFilesModel()), !!settings[WorkingFilesView.MEMENTO_COLLAPSED], nls.localize('workingFilesSection', "Working Files Section"), messageService, contextMenuService);
 
 		this.settings = settings;
 		this.model = this.textFileService.getWorkingFilesModel();
