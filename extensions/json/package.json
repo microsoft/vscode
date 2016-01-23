@@ -45,6 +45,42 @@
 			{
 				"fileMatch": "*.schema.json",
 				"url": "http://json-schema.org/draft-04/schema#"
+			},
+			{
+				"fileMatch": "package.json",
+				"url": "vscode://schemas/vscode-extensions"
+			},
+			{
+				"fileMatch": "vscode://defaultsettings/keybindings.json",
+				"url": "vscode://schemas/keybindings"
+			},
+			{
+				"fileMatch": "%APP_SETTINGS_HOME%/keybindings.json",
+				"url": "vscode://schemas/keybindings"
+			},
+			{
+				"fileMatch": "vscode://defaultsettings/settings.json",
+				"url": "vscode://schemas/settings"
+			},
+			{
+				"fileMatch": "%APP_SETTINGS_HOME%/settings.json",
+				"url": "vscode://schemas/settings"
+			},
+			{
+				"fileMatch": "/.vscode/settings.json",
+				"url": "vscode://schemas/settings"
+			},
+			{
+				"fileMatch": "/.vscode/launch.json",
+				"url": "vscode://schemas/launch"
+			},
+			{
+				"fileMatch": "/.vscode/tasks.json",
+				"url": "vscode://schemas/tasks"
+			},
+			{
+				"fileMatch": "%APP_SETTINGS_HOME%/snippets/*.json",
+				"url": "vscode://schemas/snippets"
 			}
 		],
         "configuration": {
