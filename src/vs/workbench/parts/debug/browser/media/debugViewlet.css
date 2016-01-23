@@ -120,8 +120,27 @@
 	font-size: 11px;
 }
 
+/* Animation of changed values in Debug viewlet */
+@keyframes debugViewletValueChanged {
+	0% { background-color: rgba(86, 156, 214, 0) }
+	5% { background-color: rgba(86, 156, 214, .75) }
+	100% { background-color: rgba(86, 156, 214, .3) }
+}
+
+@keyframes debugViewletValueChangedDark {
+	0% { background-color: rgba(86, 156, 214, 0) }
+	5% { background-color: rgba(86, 156, 214, .5) }
+	100% { background-color: rgba(86, 156, 214, .2) }
+}
+
 .debug-viewlet .monaco-tree-row .expression .value.changed {
-	color: #E51400;
+	padding: 2px;
+	margin: 4px;
+	border-radius: 4px;
+	background-color: rgba(86, 156, 214, .5);
+	animation-name: debugViewletValueChanged;
+	animation-duration: .75s;
+	animation-fill-mode: forwards;
 }
 
 .debug-viewlet .monaco-inputbox {
@@ -155,7 +174,7 @@
 }
 
 .vs-dark .debug-viewlet .monaco-tree-row .expression .value.changed {
-	color: #c10;
+	animation-name: debugViewletValueChanged;
 }
 
 /* Breakpoints */
