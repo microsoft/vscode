@@ -317,7 +317,7 @@ class PluginsRegistryImpl implements IPluginsRegistry {
 		let result = new ExtensionPoint<T>(extensionPoint, this);
 		this._extensionPoints[extensionPoint] = result;
 
-		(<any>schema).properties.contributes.properties[extensionPoint] = jsonSchema;
+		schema.properties['contributes'].properties[extensionPoint] = jsonSchema;
 		schemaRegistry.registerSchema(schemaId, schema);
 
 		return result;
@@ -439,7 +439,7 @@ var Extensions = {
 Registry.add(Extensions.PluginsRegistry, new PluginsRegistryImpl());
 export var PluginsRegistry:IPluginsRegistry = Registry.as(Extensions.PluginsRegistry);
 
-var schemaId = 'local://schemas/vscode-extension';
+var schemaId = 'vscode://schemas/vscode-extensions';
 var schema : IJSONSchema = {
 	default: {
 		'name': '{{name}}',
