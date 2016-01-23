@@ -15,6 +15,8 @@ import types = require('vs/base/common/types');
 import Event, {Emitter} from 'vs/base/common/event';
 import {Action} from 'vs/base/common/actions';
 import htmlRenderer = require('vs/base/browser/htmlContentRenderer');
+import {StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
+import {CommonKeybindings} from 'vs/base/common/keyCodes';
 
 export enum Severity {
 	Info,
@@ -197,7 +199,14 @@ export class MessageList {
 			messageActions.forEach((action) => {
 				let clazz = (total > 1 || delta < 0) ? 'message-right-side multiple' : 'message-right-side';
 				li.div({ class: clazz }, (div) => {
-					div.a({ class: 'action-button' }).text(action.label).on('click', (e) => {
+					div.a({ class: 'action-button', tabindex: '0' }).text(action.label).on([DOM.EventType.CLICK, DOM.EventType.KEY_DOWN], (e) => {
+						if (e instanceof KeyboardEvent) {
+							let event = new StandardKeyboardEvent(e);
+							if (!event.equals(CommonKeybindings.ENTER) && !event.equals(CommonKeybindings.SPACE)) {
+								return; // Only handle Enter/Escape for keyboard access
+							}
+						}
+
 						DOM.EventHelper.stop(e, true);
 
 						if (this.usageLogger) {

@@ -79,14 +79,6 @@
 	text-decoration: none;
 }
 
-.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item.active {
-	-ms-transform: none;
-	-webkit-transform: none;
-	-moz-transform: none;
-	-o-transform: none;
-	transform: none;
-}
-
 .monaco-workbench > .activitybar > .content .monaco-action-bar .badge {
 	position: absolute;
 	top: 0;
@@ -113,54 +105,6 @@
 .monaco-workbench > .activitybar > .content .monaco-action-bar .action-item .action-label.active,
 .monaco-workbench > .activitybar > .content .monaco-action-bar .action-item:hover .action-label {
 	opacity: 1;
-}
-
-.monaco-workbench.vs > .activitybar.left > .content > .monaco-action-bar.position-top .action-label.active:after {
-	content: '';
-	position: absolute;
-	top: 15px;
-	right: 0;
-	width: 0;
-	height: 0;
-	border-top: 5px solid transparent;
-	border-bottom: 5px solid transparent;
-	border-right: 5px solid #F6F6F6;
-}
-
-.monaco-workbench.vs-dark > .activitybar.left > .content > .monaco-action-bar.position-top .action-label.active:after {
-	content: '';
-	position: absolute;
-	top: 15px;
-	right: 0;
-	width: 0;
-	height: 0;
-	border-top: 5px solid transparent;
-	border-bottom: 5px solid transparent;
-	border-right: 5px solid #252526;
-}
-
-.monaco-workbench.vs > .activitybar.right > .content > .monaco-action-bar.position-top .action-label.active:before {
-	content: '';
-	position: absolute;
-	top: 15px;
-	left: 0;
-	width: 0;
-	height: 0;
-	border-top: 5px solid transparent;
-	border-bottom: 5px solid transparent;
-	border-left: 5px solid #F6F6F6;
-}
-
-.monaco-workbench.vs-dark > .activitybar.right > .content > .monaco-action-bar.position-top .action-label.active:before {
-	content: '';
-	position: absolute;
-	top: 15px;
-	left: 0;
-	width: 0;
-	height: 0;
-	border-top: 5px solid transparent;
-	border-bottom: 5px solid transparent;
-	border-left: 5px solid #252526;
 }
 
 /* Right  aligned */

@@ -334,7 +334,7 @@ export class AdaptiveCollapsibleViewletView extends FixedCollapsibleView impleme
 	}
 
 	protected changeState(state: CollapsibleState): void {
-		changeState(state, this.tree);
+		updateTreeVisibility(this.tree, state === CollapsibleState.EXPANDED, true /* focus if expanded */);
 
 		super.changeState(state);
 	}
@@ -354,11 +354,7 @@ export class AdaptiveCollapsibleViewletView extends FixedCollapsibleView impleme
 	public setVisible(visible: boolean): TPromise<void> {
 		this.isVisible = visible;
 
-		if (visible) {
-			this.tree.onVisible();
-		} else {
-			this.tree.onHidden();
-		}
+		updateTreeVisibility(this.tree, this.state === CollapsibleState.EXPANDED);
 
 		return Promise.as(null);
 	}
@@ -441,7 +437,7 @@ export class CollapsibleViewletView extends CollapsibleView implements IViewletV
 	}
 
 	protected changeState(state: CollapsibleState): void {
-		changeState(state, this.tree);
+		updateTreeVisibility(this.tree, state === CollapsibleState.EXPANDED, true /* focus if expanded */);
 
 		super.changeState(state);
 	}
@@ -483,11 +479,7 @@ export class CollapsibleViewletView extends CollapsibleView implements IViewletV
 	public setVisible(visible: boolean): TPromise<void> {
 		this.isVisible = visible;
 
-		if (visible) {
-			this.tree.onVisible();
-		} else {
-			this.tree.onHidden();
-		}
+		updateTreeVisibility(this.tree, this.state === CollapsibleState.EXPANDED);
 
 		return Promise.as(null);
 	}
@@ -550,16 +542,25 @@ function renderViewTree(container: HTMLElement): HTMLElement {
 	return treeContainer;
 }
 
-function changeState(state: CollapsibleState, tree: ITree): void {
+function updateTreeVisibility(tree: ITree, isVisible: boolean, focusIfVisible?: boolean): void {
 	if (!tree) {
 		return;
 	}
 
-	if (state == CollapsibleState.EXPANDED) {
+	if (isVisible) {
 		$(tree.getHTMLElement()).show();
-		tree.DOMFocus(); // make the tree have focus once a view gets expanded
 	} else {
 		$(tree.getHTMLElement()).hide(); // make sure the tree goes out of the tabindex world by hiding it
+	}
+
+	if (focusIfVisible && isVisible) {
+		tree.DOMFocus();
+	}
+
+	if (isVisible) {
+		tree.onVisible();
+	} else {
+		tree.onHidden();
 	}
 }
 

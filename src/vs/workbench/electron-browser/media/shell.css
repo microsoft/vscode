@@ -78,26 +78,22 @@
 	outline-offset: -2px;
 }
 
-.monaco-shell.vs .monaco-tree.focused .monaco-tree-rows:empty,
-.monaco-shell.vs .monaco-tree.focused.no-item-focus .monaco-tree-rows {
+.monaco-shell.vs .monaco-tree.focused:focus .monaco-tree-rows:empty,
+.monaco-shell.vs .monaco-tree.focused:focus.no-item-focus .monaco-tree-rows {
 	outline: 1px auto #1E8AE5; /* we still need to handle the empty tree or no focus item case */
-	outline-offset: -3px;
-}
-
-.monaco-shell.vs-dark .monaco-tree.focused .monaco-tree-rows:empty,
-.monaco-shell.vs-dark .monaco-tree.focused.no-item-focus .monaco-tree-rows {
-	outline: 1px auto #1E8AE5; /* we still need to handle the empty tree or no focus item case */
-	outline-offset: -3px;
-}
-
-.monaco-shell.hc-black .monaco-tree.focused .monaco-tree-rows:empty,
-.monaco-shell.hc-black .monaco-tree.focused.no-item-focus .monaco-tree-rows {
-	outline: 2px auto #DF740C; /* we still need to handle the empty tree or no focus item case */
 	outline-offset: -2px;
 }
 
-.monaco-shell .quick-open-widget .quick-open-tree .monaco-tree-rows {
-	outline: 0 !important; /* quick open is special because focus is always in the input field */
+.monaco-shell.vs-dark .monaco-tree.focused:focus .monaco-tree-rows:empty,
+.monaco-shell.vs-dark .monaco-tree.focused.no-item-focus:focus .monaco-tree-rows {
+	outline: 1px auto #1E8AE5; /* we still need to handle the empty tree or no focus item case */
+	outline-offset: -2px;
+}
+
+.monaco-shell.hc-black .monaco-tree.focused:focus .monaco-tree-rows:empty,
+.monaco-shell.hc-black .monaco-tree.focused.no-item-focus:focus .monaco-tree-rows {
+	outline: 2px auto #DF740C; /* we still need to handle the empty tree or no focus item case */
+	outline-offset: -2px;
 }
 
 .monaco-shell input[type="text"], .monaco-shell textarea {
@@ -109,7 +105,11 @@
 }
 
 .monaco-shell .activitybar [tabindex="0"]:focus {
-	outline: 0 !important; /* activity bar indicates focus customly */
+	outline: 0; /* activity bar indicates focus custom */
+}
+
+.monaco-shell .part.editor .binary-container:focus {
+	outline: 0; /* binary container indicates focus custom */
 }
 
 /* END Keyboard Focus Indication Styles */

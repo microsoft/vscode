@@ -317,7 +317,7 @@ export class FileRenderer extends ActionsRenderer implements Tree.IRenderer {
 
 			var toDispose = [
 				inputBox,
-				DOM.addStandardDisposableListener(inputBox.inputElement, 'keydown', (e: DOM.IKeyboardEvent) => {
+				DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_DOWN, (e: DOM.IKeyboardEvent) => {
 					if (e.equals(CommonKeybindings.ENTER)) {
 						if (inputBox.validate() && !disposed) {
 							commit();
