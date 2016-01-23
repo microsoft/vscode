@@ -134,12 +134,15 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		if (useSalsa) {
 			let versionOK = this.isTypeScriptVersionOkForSalsa(modulePath);
 			let tooltip = modulePath;
+			let label;
 			if (!versionOK) {
+				label = '(Salsa !)';
 				tooltip = `${tooltip} does not support Salsa!`;
 			} else {
+				label = '(Salsa 💃)';
 				tooltip = `${tooltip} does support Salsa.`;
 			}
-			SalsaStatus.show('(Salsa)', tooltip, !versionOK);
+			SalsaStatus.show(label, tooltip, !versionOK);
 		}
 
 		this.servicePromise = new Promise<cp.ChildProcess>((resolve, reject) => {
@@ -209,6 +212,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		if (!desc.version) {
 			return true;
 		}
+		// just use a string compare, don't want to add a dependency on semver
 		return desc.version.indexOf('1.8') >= 0;
 	}
 
