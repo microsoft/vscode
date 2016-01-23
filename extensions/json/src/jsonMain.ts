@@ -58,8 +58,13 @@ export function activate(context: ExtensionContext) {
 	});
 
 	// handle content request
-	client.onRequest(VSCodeContentRequest.type, (uri: string) => {
-		return workspace.openTextDocument(uri).then(doc => doc.getText());
+	client.onRequest(VSCodeContentRequest.type, (uriPath: string) => {
+		var uri = Uri.parse(uriPath);
+		return workspace.openTextDocument(uri).then(doc => {
+			return doc.getText();
+		}, error => {
+			return Promise.reject(error)
+		});
 	});
 
 	let disposable = client.start();
@@ -84,6 +89,11 @@ function getSchemaAssociation(context: ExtensionContext) : ISchemaAssociations {
 						if (url[0] === '.' && url[1] === '.') {
 							url = context.asAbsolutePath(url);
 						}
+						if (fileMatch[0] === '%') {
+							fileMatch = fileMatch.replace(/%APP_SETTINGS_HOME%/, '/User');
+						} else if (fileMatch.charAt(0) !== '/' && !fileMatch.match(/\w+:\/\//)) {
+							fileMatch = '/' + fileMatch;
+						}
 						var association = associations[fileMatch];
 						if (!association) {
 							association = [];
@@ -94,6 +104,6 @@ function getSchemaAssociation(context: ExtensionContext) : ISchemaAssociations {
 				});
 			}
 		}
-	})
+	});
 	return associations;
 }
