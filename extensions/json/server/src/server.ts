@@ -90,7 +90,7 @@ let request = (options: IXHROptions): Thenable<IXHRResponse>  => {
 				err ? e({ responseText: '', status: 404 }) : c({ responseText: result.toString(), status: 200 })
 			});
 		});
-	} else if (Strings.startsWith(options.url, 'vscode-schema://')) {
+	} else if (Strings.startsWith(options.url, 'vscode://')) {
 		return connection.sendRequest(VSCodeContentRequest.type, options.url).then(responseText => {
 			return {
 				responseText: responseText,
