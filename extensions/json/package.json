@@ -122,6 +122,6 @@
 		}
 	},
 	"dependencies": {
-		"vscode-languageclient": "^1.1.0"
+		"vscode-languageclient": "next"
 	}
 }
