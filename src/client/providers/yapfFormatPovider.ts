@@ -9,13 +9,18 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as child_process from 'child_process';
 
-export class PythonAutoPep8FormattingEditProvider implements vscode.DocumentFormattingEditProvider {
-    public constructor() {
+export class PythonYapfFormattingEditProvider implements vscode.DocumentFormattingEditProvider {
+    private rootDir:string= "";
+    public constructor(rootDir) {
+        this.rootDir = rootDir;
     }
 
     public provideDocumentFormattingEdits(document: vscode.TextDocument, options: vscode.FormattingOptions, token: vscode.CancellationToken): Thenable<vscode.TextEdit[]> {
-        var autopep8Path = vscode.workspace.getConfiguration("python").get<string>("formatting.autopep8Path", "autopep8");
+        var yapfPath = vscode.workspace.getConfiguration("python").get<string>("formatting.yapfPath", "");
         var fileDir = path.dirname(document.uri.fsPath);
+        if (yapfPath.trim().length === 0){
+            yapfPath = "python " + path.join(this.rootDir, "pythonFiles", "formatYapf.py");
+        }
         return new Promise<vscode.TextEdit[]>((resolve, reject) => {
             var filePath = document.uri.fsPath;
             if (!fs.existsSync(filePath)) {
@@ -23,8 +28,8 @@ export class PythonAutoPep8FormattingEditProvider implements vscode.DocumentForm
                 return resolve([]);
             }
 
-            child_process.exec(`${autopep8Path} "${filePath}"`, {cwd:fileDir}, (error, stdout, stderr) => {
-                if ((error || stderr) && (typeof stdout !== "string" || stdout.length === 0)) {
+            child_process.exec(`${yapfPath} "${filePath}"`, {cwd:fileDir}, (error, stdout, stderr) => {
+                if ((error || stderr) && (typeof stdout !== "string" || stdout.length === 0) {
                     var errorMsg = (error && error.message) ? error.message : (stderr && stderr.length > 0 ? stderr.toString("utf-8") : "");
                     vscode.window.showErrorMessage(`There was an error in formatting the document. View the console log for details. ${errorMsg}`);
                     console.error(errorMsg);

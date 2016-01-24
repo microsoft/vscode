@@ -89,6 +89,7 @@
     "compile": "node ./node_modules/vscode/bin/compile -watch -p ./"
   },
   "dependencies": {
+    "named-js-regexp": "^1.3.1",
     "tmp": "0.0.28",
     "vscode-debugadapter": "^1.0.1",
     "vscode-debugprotocol": "^1.0.1",

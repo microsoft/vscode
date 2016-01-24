@@ -8,7 +8,11 @@ import {PythonDefinitionProvider} from './providers/definitionProvider';
 import {PythonReferenceProvider} from './providers/referenceProvider';
 import {PythonRenameProvider} from './providers/renameProvider';
 import {PythonAutoPep8FormattingEditProvider} from './providers/autoPep8FormatProvider';
+import {PythonYapfFormattingEditProvider} from './providers/yapfFormatPovider';
 import * as sortImports from './sortImports';
+import {PythonMacPlintProvider} from './providers/macLintProvider';
+import {PythonSymbolProvider} from './providers/symbolProvider';
+
 //import * as activateLanguageClient from './client/extension';
 import * as languageClient from './languageClient';
 import * as path from 'path';
@@ -23,6 +27,7 @@ export function activate(context: vscode.ExtensionContext) {
 
     languageClient.activate(context);
     //activateLanguageClient.activate(context);
+    var pthonConfig = vscode.workspace.getConfiguration("python");
     
     context.subscriptions.push(vscode.languages.registerRenameProvider(PYTHON, new PythonRenameProvider(rootDir)));
     context.subscriptions.push(vscode.languages.registerHoverProvider(PYTHON, new PythonHoverProvider(rootDir)));
@@ -30,7 +35,22 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(vscode.languages.registerDefinitionProvider(PYTHON, new PythonDefinitionProvider(rootDir)));
     context.subscriptions.push(vscode.languages.registerReferenceProvider(PYTHON, new PythonReferenceProvider(rootDir)));
     context.subscriptions.push(vscode.languages.registerCompletionItemProvider(PYTHON, new PythonCompletionItemProvider(rootDir), '.'));
-    context.subscriptions.push(vscode.languages.registerDocumentFormattingEditProvider(PYTHON, new PythonAutoPep8FormattingEditProvider()))
+    context.subscriptions.push(vscode.languages.registerDocumentSymbolProvider(PYTHON, new PythonSymbolProvider(rootDir)));
+    
+    var formatProvider = pthonConfig.get<string>("formatting.provider");
+    if (formatProvider.toUpperCase() === "AUTOPEP8"){
+        context.subscriptions.push(vscode.languages.registerDocumentFormattingEditProvider(PYTHON, new PythonAutoPep8FormattingEditProvider()));
+    }
+    else {
+        context.subscriptions.push(vscode.languages.registerDocumentFormattingEditProvider(PYTHON, new PythonYapfFormattingEditProvider(rootDir)));
+    }
+    
+    var isWin = /^win/.test(process.platform);
+    if (!isWin){
+        //var moreTriggerCharacter:string = , ".", "#", ")", "", "\n", "\r", "\r\n", "=", ",", "{", "}";
+        var disposables = new PythonMacPlintProvider().register(rootDir);
+        disposables.forEach(d=>context.subscriptions.push(d));    
+    }
 }
 
 // this method is called when your extension is deactivated

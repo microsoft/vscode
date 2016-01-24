@@ -63,8 +63,6 @@ export class PythonCompletionItemProvider implements vscode.CompletionItemProvid
                 source: source
             };
 
-            console.log(cmd.lineIndex.toString() + ":" + cmd.columnIndex.toString());
-
             function onRejected(error) {
                 if (token.isCancellationRequested) {
                     return resolve([]);

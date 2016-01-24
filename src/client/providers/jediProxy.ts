@@ -78,6 +78,27 @@ function spawnProcess(dir: string) {
                         }
                         break;
                     }
+                    case CommandType.Symbols: {
+                        var defs = <any[]>response['results'];
+                        if (defs.length > 0) {
+                            var defResults:ISymbolResult = {
+                                requestId:cmd.id,
+                                definitions:[]
+                            }
+                            defResults.definitions = defs.map(def=> {
+                             return <IDefinition>{
+                                    columnIndex: <number>def.column,
+                                    fileName: <string>def.fileName,
+                                    lineIndex: <number>def.line,
+                                    text: <string>def.text,
+                                    type: <string>def.type
+                                };
+                            });
+
+                            cmd.resolve(defResults);
+                        }
+                        break;
+                    }
                     case CommandType.Usages: {
                         var defs = <any[]>response['results'];
                         if (defs.length > 0) {
@@ -131,7 +152,8 @@ export enum CommandType {
     Arguments,
     Completions,
     Usages,
-    Definitions
+    Definitions,
+    Symbols
 }
 
 export interface ICommand {
@@ -161,6 +183,9 @@ export interface IDefinitionResult extends ICommandResult {
 export interface IReferenceResult extends ICommandResult {
     references: IReference[];
 }
+export interface ISymbolResult extends ICommandResult {
+    definitions:IDefinition[]
+}
 export interface IReference {
     name: string,
     fileName: string,
@@ -188,6 +213,10 @@ var commandQueue: string[] = [];
 export function sendCommand(cmd: ICommand): Promise<ICommandResult> {
     return new Promise<ICommandResult>((resolve, reject) => {
         var payload = createPayload(cmd);
+        if (cmd.command === CommandType.Symbols){
+            delete payload.column;
+            delete payload.line;
+        }
         cmd.resolve = resolve;
         cmd.reject = reject;
         proc.stdin.write(JSON.stringify(payload) + "\n");
@@ -201,6 +230,7 @@ commandNames[CommandType.Arguments] = "arguments";
 commandNames[CommandType.Completions] = "completions";
 commandNames[CommandType.Definitions] = "definitions";
 commandNames[CommandType.Usages] = "usages";
+commandNames[CommandType.Symbols] = "names";
 
 var started: boolean = false;
 export function initialize(dir: string) {

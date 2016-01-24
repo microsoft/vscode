@@ -1,15 +1,15 @@
 # Python
 Linting, Debugging, Intellisense, auto-completion, code formatting, rename references, view references, go to definition, and the like
+Works on both Windows and Mac.
 
 ##Features
-* Linting (using PyLint)
+* Linting (using PyLint and/or Pep8 with support for configuration files)
 * Intellisense and auto completion
-* Code formatting (using Autopep8)
+* Code formatting (using Autopep8 or yapf, defaults to autopep8, with support for configuration files)
 * Renaming
 * Viewing references
-* Going to definitins
+* Going to definitions
 * View signature and similar by hovering over a function or method
-* Debugging using PDB (work in progress, please remove any and all issues)
 * Debugging with support for local & global variables, arguments, expressions, watch window, stack information, break points
 
 * Sorting imports
@@ -20,9 +20,11 @@ Linting, Debugging, Intellisense, auto-completion, code formatting, rename refer
 ## Requirements
 * Python is installed on the current system
 * Path to Python is assumed to be in the current environment path.
-* Pylint is installed for linting
+* Pylint is installed for linting (optional, this can be turned off)
 * - Install Pylint as follows:
 * - pip install pylint
+* Pep8 is installed for linting (optional, this can be turned off)
+* - pip install pep8
 * Autopep8 is installed for code formatting 
 * - Install AutoPep8 as follows (ensure pep8 is installed):
 * - pip install pep8

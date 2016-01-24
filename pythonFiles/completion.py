@@ -274,6 +274,13 @@ class JediCompletion(object):
             sys.path.insert(0, path)
         lookup = request.get('lookup', 'completions')
 
+        if lookup == 'names':
+            return self._write_response(self._serialize_definitions(
+                jedi.api.names(
+                    source=request['source'], 
+                    path=request.get('path', '')), 
+                request['id']))
+                
         script = jedi.api.Script(
             source=request['source'], line=request['line'] + 1,
             column=request['column'], path=request.get('path', ''))

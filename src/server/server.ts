@@ -17,7 +17,7 @@ import * as pylinter from './linters/pylint';
 // Create a connection for the server. The connection uses 
 // stdin / stdout for message passing
 let connection: IConnection = createConnection(new IPCMessageReader(process), new IPCMessageWriter(process));
-
+var itHappened = "";
 // Create a simple text document manager. The text document manager
 // supports full document sync only
 let documents: TextDocuments = new TextDocuments();
@@ -58,25 +58,69 @@ interface Settings {
 interface PythonSettings {
     maxNumberOfProblems: number;
 }
-
-// hold the maxNumberOfProblems setting
-let maxNumberOfProblems: number = 100;
+var pythonSettings:any = {};
 // The settings have changed. Is send on server activation
 // as well.
 connection.onDidChangeConfiguration((change) => {
     let settings = <Settings>change.settings;
-    maxNumberOfProblems = settings.python.maxNumberOfProblems || 100;
+    pythonSettings = settings.python;
     // Revalidate any open text documents
-    documents.all().forEach(validateTextDocument);
+    documents.all().forEach(validateTextDocument);   
+    
 });
 
 function validateTextDocument(textDocument: ITextDocument): void {
     let diagnostics: Diagnostic[] = [];
-
-    new pylinter.PyLinter().run(textDocument, maxNumberOfProblems).then((d) => {
-        connection.sendDiagnostics({ uri: textDocument.uri, diagnostics: d });
-    });
+    var isWin = /^win/.test(process.platform);
+    if (!isWin){
+        return;
+    }
+    if (pythonSettings.linting.enabled || (pythonSettings.linting.pylintEnabled && pythonSettings.linting.pep8Enabled)){
+        return;
+    }
+    
+    var pep8Messages = [];
+    var pylintMessages = [];
+    var pep8Done = false;
+    var pylintDone= false;
+    if (pythonSettings.linting.pylintEnabled){
+        new pylinter.Linter().run(textDocument, pythonSettings, false).then((d) => {
+            pylintDone = true;
+            if (pythonSettings.linting.pep8Enabled){
+                d.forEach(d=>d.message = d.message + " (pylint)");
+                if (pep8Done){
+                    d.forEach(d=>pep8Messages.push(d));
+                    connection.sendDiagnostics({ uri: textDocument.uri, diagnostics: pep8Messages });                
+                }
+                else {
+                    pylintMessages = d;
+                }
+            }
+            else {
+                connection.sendDiagnostics({ uri: textDocument.uri, diagnostics: d });
+            }
+        });
+    }
+    if (pythonSettings.linting.pep8Enabled){
+        new pylinter.Linter().run(textDocument, pythonSettings, false).then((d) => {
+            pylintDone = true;
+            if (pythonSettings.linting.pylintEnabled){
+                d.forEach(d=>d.message = d.message + " (pep8)");
+                if (pylintDone){
+                    d.forEach(d=>pylintMessages.push(d));
+                    connection.sendDiagnostics({ uri: textDocument.uri, diagnostics: pylintMessages });                
+                }
+                else {
+                    pep8Messages = d;
+                }
+            }
+            else {
+                connection.sendDiagnostics({ uri: textDocument.uri, diagnostics: d });
+            }
+        });
+    }
 }
+// 
 
 connection.onDidChangeWatchedFiles((change) => {
     // Monitored files have change in VSCode
