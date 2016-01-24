@@ -2,3 +2,4 @@
 --ui tdd
 --reporter dot
 test/all.js
+extensions/**/test/*.test.js

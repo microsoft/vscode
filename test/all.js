@@ -142,7 +142,7 @@ function main() {
 		}));
 	} else {
 		loadTasks.push(loadClientTests);
-		loadTasks.push(loadPluginTests);
+		//loadTasks.push(loadPluginTests);
 	}
 
 	async.parallel(loadTasks, function (err) {
