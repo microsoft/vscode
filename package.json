@@ -1,8 +1,8 @@
 {
     "name": "python",
     "displayName": "Python",
-    "description": "Python debugging, linting, auto complete, code formatting, sorting imports, go to definition, peek definition, signature view, rename symbol, etc",
-    "version": "0.0.4",
+    "description": "Linting, Debugging, Intellisense, auto-completion, code formatting, snippets, and more.",
+    "version": "0.1.0",
     "publisher": "donjayamanne",
     "license": "SEE LICENSE IN LICENSE or README.MD",
     "homepage": "https://github.com/DonJayamanne/pythonVSCode/blob/master/README.md",
