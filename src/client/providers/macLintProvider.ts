@@ -79,10 +79,10 @@ export class PythonMacPlintProvider {
         var config = vscode.workspace.getConfiguration("python");
         this.maxNumberOfErrorsToReport = config.get<number>("linting.maxNumberOfProblems", 100);
         PYLINT_CATEGORY_MAPPING["convention"] = getEnumValue(config.get<string>("linting.pylintCategorySeverity.convention", "Hint"));        
-        PYLINT_CATEGORY_MAPPING["refactor"] = getEnumValue(config.get<string>("linting.pylintCategorySeverity.convention", "Hint"));
-        PYLINT_CATEGORY_MAPPING["warning"] = getEnumValue(config.get<string>("linting.pylintCategorySeverity.convention", "Warning"));
-        PYLINT_CATEGORY_MAPPING["error"] = getEnumValue(config.get<string>("linting.pylintCategorySeverity.convention", "Error"));
-        PYLINT_CATEGORY_MAPPING["fatal"] = getEnumValue(config.get<string>("linting.pylintCategorySeverity.convention", "Error"));
+        PYLINT_CATEGORY_MAPPING["refactor"] = getEnumValue(config.get<string>("linting.pylintCategorySeverity.refactor", "Hint"));
+        PYLINT_CATEGORY_MAPPING["warning"] = getEnumValue(config.get<string>("linting.pylintCategorySeverity.warning", "Warning"));
+        PYLINT_CATEGORY_MAPPING["error"] = getEnumValue(config.get<string>("linting.pylintCategorySeverity.error", "Error"));
+        PYLINT_CATEGORY_MAPPING["fatal"] = getEnumValue(config.get<string>("linting.pylintCategorySeverity.fatal", "Error"));
         
         this.lintEnabled = config.get<boolean>("linting.enabled", true);
         this.pylintEnabled = config.get<boolean>("linting.pylintEnabled", true);

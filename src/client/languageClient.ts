@@ -42,7 +42,7 @@ export function activate(context: ExtensionContext) {
     var disposable = pythonLanguageClient.start();
     
     //Send info as soon as it starts
-	var config = workspace.getConfiguration("python");
+	var config = workspace.getConfiguration(); 
     pythonLanguageClient.notifyConfigurationChanged(config)    
 
     var isWin = /^win/.test(process.platform);    

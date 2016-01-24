@@ -29,7 +29,7 @@ export class PythonYapfFormattingEditProvider implements vscode.DocumentFormatti
             }
 
             child_process.exec(`${yapfPath} "${filePath}"`, {cwd:fileDir}, (error, stdout, stderr) => {
-                if ((error || stderr) && (typeof stdout !== "string" || stdout.length === 0) {
+                if ((error || stderr) && (typeof stdout !== "string" || stdout.length === 0)) {
                     var errorMsg = (error && error.message) ? error.message : (stderr && stderr.length > 0 ? stderr.toString("utf-8") : "");
                     vscode.window.showErrorMessage(`There was an error in formatting the document. View the console log for details. ${errorMsg}`);
                     console.error(errorMsg);

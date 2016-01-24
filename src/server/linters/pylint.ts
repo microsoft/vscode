@@ -54,12 +54,21 @@ function uriToPath(pathValue: string): string {
 
     return path.normalize(decodeURIComponent(pathValue));
 }
+function getEnumValue(name:string):DiagnosticSeverity{
+    return DiagnosticSeverity[name];
+}
 
 export class Linter {
     public constructor(){
         
     }
     run(textDocument: ITextDocument, settings: any, isPep8:boolean): Promise<Diagnostic[]> {
+        PYLINT_CATEGORY_MAPPING["convention"] = getEnumValue(settings.linting.pylintCategorySeverity.convention);        
+        PYLINT_CATEGORY_MAPPING["refactor"] = getEnumValue(settings.linting.pylintCategorySeverity.refactor);
+        PYLINT_CATEGORY_MAPPING["warning"] = getEnumValue(settings.linting.pylintCategorySeverity.warning);
+        PYLINT_CATEGORY_MAPPING["error"] = getEnumValue(settings.linting.pylintCategorySeverity.error);
+        PYLINT_CATEGORY_MAPPING["fatal"] = getEnumValue(settings.linting.pylintCategorySeverity.fatal);
+        
         var filePath = uriToPath(textDocument.uri);
         var txtDocumentLines = textDocument.getText().split(/\r?\n/g);
         var dir = path.dirname(filePath); 
@@ -103,7 +112,7 @@ export class Linter {
                     console.error(msg);
                     return resolve([]);
                 }
-                var diagnostics: vscode.Diagnostic[] = [];
+                var diagnostics: Diagnostic[] = [];
                 outputLines.forEach(line=> {
                     if (diagnostics.length >= maxNumberOfProblems) {
                         return;

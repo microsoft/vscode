@@ -1,0 +1,81 @@
+{
+    "class": {
+        "prefix": "class",
+        "body": [
+            "class ${name}${bases}:",
+            "\t${selected}"
+        ],
+        "description": "Code snippet for a class definition"
+    },
+    "def": {
+        "prefix": "def",
+        "body": [
+            "def ${name}(${args}):",
+            "\t${selected}"
+        ],
+        "description": "Code snippet for a function definition"
+    },
+    "except (try/except)": {
+        "prefix": "except",
+        "body": [
+            "try:",
+            "\tpass",
+            "except ${exception}:",
+            "\t${selected}"
+        ],
+        "description": "Code snippet for a try statement"
+    },
+    "for": {
+        "prefix": "for",
+        "body": [
+            "for ${var} in ${expr}:",
+            "\t${selected}"
+        ],
+        "description": "Code snippet for a for loop"
+    },
+    "if": {
+        "prefix": "if",
+        "body": [
+            "if ${condition}:",
+            "\t${selected}"
+        ],
+        "description": "Code snippet for an if statement"
+    },
+    "main function": {
+        "prefix": "main",
+        "body": [
+            "def main():",
+            "\t${selected}",
+            "",
+            "if __name__ == \"__main__\":",
+            "\tsys.exit(int(main() or 0))"
+        ],
+        "description": "Code snippet for a main function"
+    },
+    "try": {
+        "prefix": "try",
+        "body": [
+            "try:",
+            "\t${selected}",
+            "except ${exception}:",
+            "\t$0pass"
+        ],
+        "description": "Code snippet for a try statement"
+    },
+    "while": {
+        "prefix": "while",
+        "body": [
+            "while ${condition}:",
+            "\t${selected}"
+        ],
+        "description": "Code snippet for a while loop"
+    },
+    "with": {
+        "prefix": "with",
+        "body": [
+            "with ${ctx}:",
+            "\t${selected}"
+        ],
+        "description": "Code snippet for a with statement"
+    }
+}

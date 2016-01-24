@@ -58,39 +58,39 @@ interface Settings {
 interface PythonSettings {
     maxNumberOfProblems: number;
 }
-var pythonSettings:any = {};
+var pythonSettings: any = {};
 // The settings have changed. Is send on server activation
 // as well.
 connection.onDidChangeConfiguration((change) => {
     let settings = <Settings>change.settings;
     pythonSettings = settings.python;
     // Revalidate any open text documents
-    documents.all().forEach(validateTextDocument);   
-    
+    documents.all().forEach(validateTextDocument);
+
 });
 
 function validateTextDocument(textDocument: ITextDocument): void {
     let diagnostics: Diagnostic[] = [];
     var isWin = /^win/.test(process.platform);
-    if (!isWin){
+    if (!isWin) {
         return;
     }
-    if (pythonSettings.linting.enabled || (pythonSettings.linting.pylintEnabled && pythonSettings.linting.pep8Enabled)){
+    if (!pythonSettings.linting.enabled || (!pythonSettings.linting.pylintEnabled && !pythonSettings.linting.pep8Enabled)) {
         return;
     }
-    
+
     var pep8Messages = [];
     var pylintMessages = [];
     var pep8Done = false;
-    var pylintDone= false;
-    if (pythonSettings.linting.pylintEnabled){
+    var pylintDone = false;
+    if (pythonSettings.linting.pylintEnabled) {
         new pylinter.Linter().run(textDocument, pythonSettings, false).then((d) => {
             pylintDone = true;
-            if (pythonSettings.linting.pep8Enabled){
-                d.forEach(d=>d.message = d.message + " (pylint)");
-                if (pep8Done){
-                    d.forEach(d=>pep8Messages.push(d));
-                    connection.sendDiagnostics({ uri: textDocument.uri, diagnostics: pep8Messages });                
+            if (pythonSettings.linting.pep8Enabled) {
+                d.forEach(d=> d.message = d.message + " (pylint)");
+                if (pep8Done) {
+                    d.forEach(d=> pep8Messages.push(d));
+                    connection.sendDiagnostics({ uri: textDocument.uri, diagnostics: pep8Messages });
                 }
                 else {
                     pylintMessages = d;
@@ -101,14 +101,14 @@ function validateTextDocument(textDocument: ITextDocument): void {
             }
         });
     }
-    if (pythonSettings.linting.pep8Enabled){
+    if (pythonSettings.linting.pep8Enabled) {
         new pylinter.Linter().run(textDocument, pythonSettings, false).then((d) => {
             pylintDone = true;
-            if (pythonSettings.linting.pylintEnabled){
-                d.forEach(d=>d.message = d.message + " (pep8)");
-                if (pylintDone){
-                    d.forEach(d=>pylintMessages.push(d));
-                    connection.sendDiagnostics({ uri: textDocument.uri, diagnostics: pylintMessages });                
+            if (pythonSettings.linting.pylintEnabled) {
+                d.forEach(d=> d.message = d.message + " (pep8)");
+                if (pylintDone) {
+                    d.forEach(d=> pylintMessages.push(d));
+                    connection.sendDiagnostics({ uri: textDocument.uri, diagnostics: pylintMessages });
                 }
                 else {
                     pep8Messages = d;
