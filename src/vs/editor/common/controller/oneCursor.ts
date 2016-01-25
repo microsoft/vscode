@@ -1226,14 +1226,11 @@ export class OneCursorOp {
 		return this.actualType(cursor, ch, false, ctx);
 	}
 
-	public static replacePreviousChar(cursor:OneCursor, txt: string, ctx: IOneCursorOperationContext): boolean {
-		var pos = cursor.getPosition();
-		var range: EditorCommon.IEditorRange;
-		if (pos.column > 1) {
-			range = new Range(pos.lineNumber, pos.column - 1, pos.lineNumber, pos.column);
-		} else {
-			range = new Range(pos.lineNumber, pos.column, pos.lineNumber, pos.column);
-		}
+	public static replacePreviousChar(cursor:OneCursor, txt: string, replaceCharCnt:number, ctx: IOneCursorOperationContext): boolean {
+		let pos = cursor.getPosition();
+		let range: EditorCommon.IEditorRange;
+		let startColumn = Math.max(1, pos.column - replaceCharCnt);
+		range = new Range(pos.lineNumber, startColumn, pos.lineNumber, pos.column);
 		ctx.executeCommand = new ReplaceCommand(range, txt);
 		return true;
 	}

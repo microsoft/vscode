@@ -50,21 +50,21 @@ export class MockTextAreaWrapper extends Disposable implements ITextAreaWrapper 
 		this._isInOverwriteMode = false;
 	}
 
-	public get value(): string {
+	public getValue(): string {
 		return this._value;
 	}
 
-	public set value(value:string) {
+	public setValue(reason:string, value:string): void {
 		this._value = value;
 		this._selectionStart = this._value.length;
 		this._selectionEnd = this._value.length;
 	}
 
-	public get selectionStart(): number {
+	public getSelectionStart(): number {
 		return this._selectionStart;
 	}
 
-	public get selectionEnd(): number {
+	public getSelectionEnd(): number {
 		return this._selectionEnd;
 	}
 

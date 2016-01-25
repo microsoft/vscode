@@ -147,19 +147,21 @@ class TextAreaWrapper extends Lifecycle.Disposable implements ITextAreaWrapper {
 		return this._textArea;
 	}
 
-	public get value(): string {
+	public getValue(): string {
+		// console.log('current value: ' + this._textArea.value);
 		return this._textArea.value;
 	}
 
-	public set value(value:string) {
+	public setValue(reason:string, value:string): void {
+		// console.log('reason: ' + reason + ', current value: ' + this._textArea.value + ' => new value: ' + value);
 		this._textArea.value = value;
 	}
 
-	public get selectionStart(): number {
+	public getSelectionStart(): number {
 		return this._textArea.selectionStart;
 	}
 
-	public get selectionEnd(): number {
+	public getSelectionEnd(): number {
 		return this._textArea.selectionEnd;
 	}
 
@@ -219,8 +221,8 @@ export class KeyboardHandler extends ViewEventHandler implements Lifecycle.IDisp
 		this._toDispose.push(this.textAreaHandler.onPaste((e) => this.viewController.paste('keyboard', e.text, e.pasteOnNewLine)));
 		this._toDispose.push(this.textAreaHandler.onCut((e) => this.viewController.cut('keyboard')));
 		this._toDispose.push(this.textAreaHandler.onType((e) => {
-			if (e.replacePreviousCharacter) {
-				this.viewController.replacePreviousChar('keyboard', e.text);
+			if (e.replaceCharCnt) {
+				this.viewController.replacePreviousChar('keyboard', e.text, e.replaceCharCnt);
 			} else {
 				this.viewController.type('keyboard', e.text);
 			}

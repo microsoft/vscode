@@ -10,7 +10,7 @@ import {Disposable} from 'vs/base/common/lifecycle';
 import {Range} from 'vs/editor/common/core/range';
 import {Position} from 'vs/editor/common/core/position';
 import {CommonKeybindings} from 'vs/base/common/keyCodes';
-import {IKeyboardEventWrapper, ITextAreaWrapper, IClipboardEvent, ISimpleModel, TextAreaState, IENarratorTextAreaState, NVDATextAreaState} from 'vs/editor/common/controller/textAreaState';
+import {IKeyboardEventWrapper, ITextAreaWrapper, IClipboardEvent, ISimpleModel, TextAreaState, IENarratorTextAreaState, NVDATextAreaState, ITypeData} from 'vs/editor/common/controller/textAreaState';
 import Event, {Emitter} from 'vs/base/common/event';
 
 enum ReadFromTextArea {
@@ -34,11 +34,6 @@ export interface IBrowser {
 export interface IPasteData {
 	text: string;
 	pasteOnNewLine: boolean;
-}
-
-export interface ITypeData {
-	text: string;
-	replacePreviousCharacter: boolean;
 }
 
 export interface ICompositionStartData {
@@ -78,12 +73,9 @@ export class TextAreaHandler extends Disposable {
 	private selections:IEditorRange[];
 	private hasFocus:boolean;
 
-	private asyncReadFromTextArea: RunOnceScheduler;
 	private asyncTriggerCut: RunOnceScheduler;
 
-	private lastKeyPressTime:number;
 	private lastCompositionEndTime:number;
-	private lastValueWrittenToTheTextArea:string;
 	private cursorPosition:IEditorPosition;
 
 	private textAreaState:TextAreaState;
@@ -91,6 +83,8 @@ export class TextAreaHandler extends Disposable {
 
 	private lastCopiedValue: string;
 	private lastCopiedValueIsFromEmptySelection: boolean;
+
+	private _nextCommand: ReadFromTextArea;
 
 	constructor(Platform:IPlatform, Browser:IBrowser, textArea:ITextAreaWrapper, model:ISimpleModel) {
 		super();
@@ -101,8 +95,8 @@ export class TextAreaHandler extends Disposable {
 		this.selection = new Range(1, 1, 1, 1);
 		this.selections = [new Range(1, 1, 1, 1)];
 		this.cursorPosition = new Position(1, 1);
+		this._nextCommand = ReadFromTextArea.Type;
 
-		this.asyncReadFromTextArea = new RunOnceScheduler(null, 0);
 		this.asyncTriggerCut = new RunOnceScheduler(() => this._onCut.fire(), 0);
 
 		this.lastCopiedValue = null;
@@ -112,19 +106,16 @@ export class TextAreaHandler extends Disposable {
 
 		this.hasFocus = false;
 
-		this.lastKeyPressTime = 0;
 		this.lastCompositionEndTime = 0;
-		this.lastValueWrittenToTheTextArea = '';
 
 		this._register(this.textArea.onKeyDown((e) => this._onKeyDownHandler(e)));
 		this._register(this.textArea.onKeyUp((e) => this._onKeyUp.fire(e)));
-		this._register(this.textArea.onKeyPress((e) => this._onKeyPressHandler()));
+		this._register(this.textArea.onKeyPress((e) => this._onKeyPressHandler(e)));
 
 		this.textareaIsShownAtCursor = false;
 
 		this._register(this.textArea.onCompositionStart(() => {
 			let timeSinceLastCompositionEnd = (new Date().getTime()) - this.lastCompositionEndTime;
-			this.asyncReadFromTextArea.cancel();
 			if (this.textareaIsShownAtCursor) {
 				return;
 			}
@@ -158,9 +149,25 @@ export class TextAreaHandler extends Disposable {
 			});
 		}));
 
+		let readFromTextArea = () => {
+			this.textAreaState = this.textAreaState.fromTextArea(this.textArea);
+			let typeInput = this.textAreaState.deduceInput();
+			// console.log('==> DEDUCED INPUT: ' + JSON.stringify(typeInput));
+			if (this._nextCommand === ReadFromTextArea.Type) {
+				if (typeInput.text !== '') {
+					this._onType.fire(typeInput);
+				}
+			} else {
+				this.executePaste(typeInput.text);
+				this._nextCommand = ReadFromTextArea.Type;
+			}
+		};
+
 		this._register(this.textArea.onCompositionEnd(() => {
+			// console.log('onCompositionEnd: ' + this.textArea.getValue());
+			readFromTextArea();
+
 			this.lastCompositionEndTime = (new Date()).getTime();
-			this._scheduleReadFromTextArea(ReadFromTextArea.Type);
 			if (!this.textareaIsShownAtCursor) {
 				return;
 			}
@@ -169,92 +176,15 @@ export class TextAreaHandler extends Disposable {
 			this._onCompositionEnd.fire();
 		}));
 
-		// on the iPad the text area is not fast enough to get the content of the keypress,
-		// so we leverage the input event instead
-		if (this.Browser.isIPad) {
-			this._register(this.textArea.onInput(() => {
-				let myTime = (new Date()).getTime();
-				// A keypress will trigger an input event (very quickly)
-				let keyPressDeltaTime = myTime - this.lastKeyPressTime;
-				if (keyPressDeltaTime <= 500) {
-					this._scheduleReadFromTextArea(ReadFromTextArea.Type);
-					this.lastKeyPressTime = 0;
-				}
-			}));
-		}
-
-		// on the mac the character viewer input generates an input event (no keypress)
-		// on windows, the Chinese IME, when set to insert wide punctuation generates an input event (no keypress)
 		this._register(this.textArea.onInput(() => {
-			// Ignore input event if we are in composition mode
-			if (!this.textareaIsShownAtCursor) {
-				this._scheduleReadFromTextArea(ReadFromTextArea.Type);
+			// console.log('onInput: ' + this.textArea.getValue());
+			if (this.textareaIsShownAtCursor) {
+				// console.log('::ignoring input event because the textarea is shown at cursor: ' + this.textArea.getValue());
+				return;
 			}
+
+			readFromTextArea();
 		}));
-
-		if (this.Platform.isMacintosh) {
-
-			// keypress, cut, paste & composition end also trigger an input event
-			// the popover input method on macs triggers only an input event
-			// in this case we need to filter and only match the popoer input method
-
-			let justHadACutOrPaste = false;
-			this._register(this.textArea.onPaste((e) => {
-				justHadACutOrPaste = true;
-			}));
-			this._register(this.textArea.onCut((e) => {
-				justHadACutOrPaste = true;
-			}));
-
-			this._register(this.textArea.onInput(() => {
-
-				// We are fishing for the input event that comes in the mac popover input method case
-
-				// A paste will trigger an input event, but the event might happen very late
-				// A cut will trigger an input event, but the event might happen very late
-				if (justHadACutOrPaste) {
-					justHadACutOrPaste = false;
-					return;
-				}
-
-				let myTime = (new Date()).getTime();
-
-				// A keypress will trigger an input event (very quickly)
-				let keyPressDeltaTime = myTime - this.lastKeyPressTime;
-				if (keyPressDeltaTime <= 500) {
-					return;
-				}
-
-				// A composition end will trigger an input event (very quickly)
-				let compositionEndDeltaTime = myTime - this.lastCompositionEndTime;
-				if (compositionEndDeltaTime <= 500) {
-					return;
-				}
-
-				// Ignore input if we are in the middle of a composition
-				if (this.textareaIsShownAtCursor) {
-					return;
-				}
-
-				// In Chrome, only the first character gets replaced, while in Safari the entire line gets replaced
-				if (!this.Browser.isChrome) {
-					// TODO: Also check this on Safari & FF before removing this
-					return;
-				}
-
-				this.textAreaState = this.textAreaState.fromTextArea(this.textArea);
-				let replacedChar = this.textAreaState.extractMacReplacedText();
-
-				if (!replacedChar) {
-					return;
-				}
-
-				this._onType.fire({
-					text: replacedChar,
-					replacePreviousCharacter: true
-				});
-			}));
-		}
 
 		// --- Clipboard operations
 
@@ -271,11 +201,11 @@ export class TextAreaHandler extends Disposable {
 			if (e.canUseTextData()) {
 				this.executePaste(e.getTextData());
 			} else {
-				if (this.textArea.selectionStart !== this.textArea.selectionEnd) {
+				if (this.textArea.getSelectionStart() !== this.textArea.getSelectionEnd()) {
 					// Clean up the textarea, to get a clean paste
 					this.setTextAreaState('paste', this.textAreaState.toEmpty());
 				}
-				this._scheduleReadFromTextArea(ReadFromTextArea.Paste);
+				this._nextCommand = ReadFromTextArea.Paste;
 			}
 		}));
 
@@ -283,7 +213,6 @@ export class TextAreaHandler extends Disposable {
 	}
 
 	public dispose(): void {
-		this.asyncReadFromTextArea.dispose();
 		this.asyncTriggerCut.dispose();
 		super.dispose();
 	}
@@ -318,9 +247,7 @@ export class TextAreaHandler extends Disposable {
 			textAreaState = textAreaState.resetSelection();
 		}
 
-		this.lastValueWrittenToTheTextArea = textAreaState.getValue();
 		textAreaState.applyToTextArea(reason, this.textArea, this.hasFocus);
-
 		this.textAreaState = textAreaState;
 	}
 
@@ -331,67 +258,16 @@ export class TextAreaHandler extends Disposable {
 			e.preventDefault();
 		}
 		this._onKeyDown.fire(e);
-		// Work around for issue spotted in electron on the mac
-		// TODO@alex: check if this issue exists after updating electron
-		// Steps:
-		//  * enter a line at an offset
-		//  * go down to a line with [
-		//  * go up, go left, go right
-		//  => press ctrl+h => a keypress is generated even though the keydown is prevent defaulted
-		// Another case would be if focus goes outside the app on keydown (spotted under windows)
-		// Steps:
-		//  * press Ctrl+K
-		//  * press R
-		//  => focus moves out while keydown is not finished
-		setTimeout(() => {
-			// cancel reading if previous keydown was canceled, but a keypress/input were still generated
-			if (e.isDefaultPrevented()) {
-				this.asyncReadFromTextArea.cancel();
-			}
-		}, 0);
 	}
 
-	private _onKeyPressHandler(): void {
+	private _onKeyPressHandler(e:IKeyboardEventWrapper): void {
 		if (!this.hasFocus) {
 			// Sometimes, when doing Alt-Tab, in FF, a 'keypress' is sent before a 'focus'
 			return;
 		}
-
-		this.lastKeyPressTime = (new Date()).getTime();
-
-		// on the iPad the text area is not fast enough to get the content of the keypress,
-		// so we leverage the input event instead
-		if (!this.Browser.isIPad) {
-			this._scheduleReadFromTextArea(ReadFromTextArea.Type);
-		}
 	}
 
 	// ------------- Operations that are always executed asynchronously
-
-	private _scheduleReadFromTextArea(command:ReadFromTextArea): void {
-		this.asyncReadFromTextArea.setRunner(() => this._readFromTextArea(command));
-		this.asyncReadFromTextArea.schedule();
-	}
-
-	/**
-	 * Read text from textArea and trigger `command` on the editor
-	 */
-	private _readFromTextArea(command:ReadFromTextArea): void {
-		this.textAreaState = this.textAreaState.fromTextArea(this.textArea);
-		let txt = this.textAreaState.extractNewText();
-
-		if (command === ReadFromTextArea.Type) {
-			if (txt !== '') {
-				// console.log("deduced input:", txt);
-				this._onType.fire({
-					text: txt,
-					replacePreviousCharacter: false
-				});
-			}
-		} else {
-			this.executePaste(txt);
-		}
-	}
 
 	private executePaste(txt:string): void {
 		if(txt === '') {

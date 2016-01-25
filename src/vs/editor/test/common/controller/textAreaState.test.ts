@@ -67,6 +67,160 @@ suite('TextAreaState', () => {
 		textArea.dispose();
 	});
 
+	function testDeduceInput(prevState:TextAreaState, value:string, selectionStart:number, selectionEnd:number, isInOverwriteMode: boolean, expected:string, expectedCharReplaceCnt: number): void {
+		let textArea = new MockTextAreaWrapper();
+		textArea._value = value;
+		textArea._selectionStart = selectionStart;
+		textArea._selectionEnd = selectionEnd;
+		textArea._isInOverwriteMode = isInOverwriteMode;
+
+		let newState = (prevState || IENarratorTextAreaState.EMPTY).fromTextArea(textArea);
+
+		let actual = newState.deduceInput();
+
+		assert.equal(actual.text, expected);
+		assert.equal(actual.replaceCharCnt, expectedCharReplaceCnt);
+
+		textArea.dispose();
+	}
+
+	test('deduceInput - Japanese typing sennsei and accepting', () => {
+		// manual test:
+		// - choose keyboard layout: Japanese -> Hiragama
+		// - type sennsei
+		// - accept with Enter
+		// - expected: せんせい
+
+		// s
+		// PREVIOUS STATE: [ <>, selectionStart: 0, selectionEnd: 0, isInOverwriteMode: false, selectionToken: 0]
+		// CURRENT STATE: [ <ｓ>, selectionStart: 0, selectionEnd: 1, isInOverwriteMode: false, selectionToken: 0]
+		testDeduceInput(
+			new IENarratorTextAreaState(null, '', 0, 0, false, 0),
+			'ｓ',
+			0, 1, false,
+			'ｓ', 0
+		);
+
+		// e
+		// PREVIOUS STATE: [ <ｓ>, selectionStart: 0, selectionEnd: 1, isInOverwriteMode: false, selectionToken: 0]
+		// CURRENT STATE: [ <せ>, selectionStart: 0, selectionEnd: 1, isInOverwriteMode: false, selectionToken: 0]
+		testDeduceInput(
+			new IENarratorTextAreaState(null, 'ｓ', 0, 1, false, 0),
+			'せ',
+			0, 1, false,
+			'せ', 1
+		);
+
+		// n
+		// PREVIOUS STATE: [ <せ>, selectionStart: 0, selectionEnd: 1, isInOverwriteMode: false, selectionToken: 0]
+		// CURRENT STATE: [ <せｎ>, selectionStart: 0, selectionEnd: 2, isInOverwriteMode: false, selectionToken: 0]
+		testDeduceInput(
+			new IENarratorTextAreaState(null, 'せ', 0, 1, false, 0),
+			'せｎ',
+			0, 2, false,
+			'せｎ', 1
+		);
+
+		// n
+		// PREVIOUS STATE: [ <せｎ>, selectionStart: 0, selectionEnd: 2, isInOverwriteMode: false, selectionToken: 0]
+		// CURRENT STATE: [ <せん>, selectionStart: 0, selectionEnd: 2, isInOverwriteMode: false, selectionToken: 0]
+		testDeduceInput(
+			new IENarratorTextAreaState(null, 'せｎ', 0, 2, false, 0),
+			'せん',
+			0, 2, false,
+			'せん', 2
+		);
+
+		// s
+		// PREVIOUS STATE: [ <せん>, selectionStart: 0, selectionEnd: 2, isInOverwriteMode: false, selectionToken: 0]
+		// CURRENT STATE: [ <せんｓ>, selectionStart: 0, selectionEnd: 3, isInOverwriteMode: false, selectionToken: 0]
+		testDeduceInput(
+			new IENarratorTextAreaState(null, 'せん', 0, 2, false, 0),
+			'せんｓ',
+			0, 3, false,
+			'せんｓ', 2
+		);
+
+		// e
+		// PREVIOUS STATE: [ <せんｓ>, selectionStart: 0, selectionEnd: 3, isInOverwriteMode: false, selectionToken: 0]
+		// CURRENT STATE: [ <せんせ>, selectionStart: 0, selectionEnd: 3, isInOverwriteMode: false, selectionToken: 0]
+		testDeduceInput(
+			new IENarratorTextAreaState(null, 'せんｓ', 0, 3, false, 0),
+			'せんせ',
+			0, 3, false,
+			'せんせ', 3
+		);
+
+		// no-op? [was recorded]
+		// PREVIOUS STATE: [ <せんせ>, selectionStart: 0, selectionEnd: 3, isInOverwriteMode: false, selectionToken: 0]
+		// CURRENT STATE: [ <せんせ>, selectionStart: 0, selectionEnd: 3, isInOverwriteMode: false, selectionToken: 0]
+		testDeduceInput(
+			new IENarratorTextAreaState(null, 'せんせ', 0, 3, false, 0),
+			'せんせ',
+			0, 3, false,
+			'せんせ', 3
+		);
+
+		// i
+		// PREVIOUS STATE: [ <せんせ>, selectionStart: 0, selectionEnd: 3, isInOverwriteMode: false, selectionToken: 0]
+		// CURRENT STATE: [ <せんせい>, selectionStart: 0, selectionEnd: 4, isInOverwriteMode: false, selectionToken: 0]
+		testDeduceInput(
+			new IENarratorTextAreaState(null, 'せんせ', 0, 3, false, 0),
+			'せんせい',
+			0, 4, false,
+			'せんせい', 3
+		);
+
+		// ENTER (accept)
+		// PREVIOUS STATE: [ <せんせい>, selectionStart: 0, selectionEnd: 4, isInOverwriteMode: false, selectionToken: 0]
+		// CURRENT STATE: [ <せんせい>, selectionStart: 4, selectionEnd: 4, isInOverwriteMode: false, selectionToken: 0]
+		testDeduceInput(
+			new IENarratorTextAreaState(null, 'せんせい', 0, 4, false, 0),
+			'せんせい',
+			4, 4, false,
+			'', 0
+		);
+	});
+
+	test('deduceInput - Japanese typing sennsei and choosing different suggestion', () => {
+		// manual test:
+		// - choose keyboard layout: Japanese -> Hiragama
+		// - type sennsei
+		// - arrow down (choose next suggestion)
+		// - accept with Enter
+		// - expected: せんせい
+
+		// sennsei
+		// PREVIOUS STATE: [ <せんせい>, selectionStart: 0, selectionEnd: 4, isInOverwriteMode: false, selectionToken: 0]
+		// CURRENT STATE: [ <せんせい>, selectionStart: 0, selectionEnd: 4, isInOverwriteMode: false, selectionToken: 0]
+		testDeduceInput(
+			new IENarratorTextAreaState(null, 'せんせい', 0, 4, false, 0),
+			'せんせい',
+			0, 4, false,
+			'せんせい', 4
+		);
+
+		// arrow down
+		// CURRENT STATE: [ <先生>, selectionStart: 0, selectionEnd: 2, isInOverwriteMode: false, selectionToken: 0]
+		// PREVIOUS STATE: [ <せんせい>, selectionStart: 0, selectionEnd: 4, isInOverwriteMode: false, selectionToken: 0]
+		testDeduceInput(
+			new IENarratorTextAreaState(null, 'せんせい', 0, 4, false, 0),
+			'先生',
+			0, 2, false,
+			'先生', 4
+		);
+
+		// ENTER (accept)
+		// PREVIOUS STATE: [ <先生>, selectionStart: 0, selectionEnd: 2, isInOverwriteMode: false, selectionToken: 0]
+		// CURRENT STATE: [ <先生>, selectionStart: 2, selectionEnd: 2, isInOverwriteMode: false, selectionToken: 0]
+		testDeduceInput(
+			new IENarratorTextAreaState(null, '先生', 0, 2, false, 0),
+			'先生',
+			2, 2, false,
+			'', 0
+		);
+	});
+
 	function testExtractNewText(prevState:TextAreaState, value:string, selectionStart:number, selectionEnd:number, isInOverwriteMode: boolean, expected:string): void {
 		let textArea = new MockTextAreaWrapper();
 		textArea._value = value;
