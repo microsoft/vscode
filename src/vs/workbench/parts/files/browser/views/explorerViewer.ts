@@ -27,7 +27,7 @@ import {IFileOperationResult, FileOperationResult, IFileStat, IFileService} from
 import {FileEditorInput} from 'vs/workbench/parts/files/browser/editors/fileEditorInput';
 import {DuplicateFileAction, ImportFileAction, PasteFileAction, keybindingForAction, IEditableData, IFileViewletState} from 'vs/workbench/parts/files/browser/fileActions';
 import {EditorOptions} from 'vs/workbench/common/editor';
-import Tree = require('vs/base/parts/tree/browser/tree');
+import {IDataSource, ITree, IElementCallback, IAccessibilityProvider, IRenderer, ContextMenuEvent, ISorter, IFilter, IDragAndDrop, IDragAndDropData, IDragOverReaction, DRAG_OVER_ACCEPT, DRAG_OVER_ACCEPT_BUBBLE_DOWN, DRAG_OVER_ACCEPT_BUBBLE_DOWN_COPY, DRAG_OVER_ACCEPT_BUBBLE_UP, DRAG_OVER_ACCEPT_BUBBLE_UP_COPY, DRAG_OVER_REJECT} from 'vs/base/parts/tree/browser/tree';
 import labels = require('vs/base/common/labels');
 import {DesktopDragAndDropData, ExternalElementsDragAndDropData} from 'vs/base/parts/tree/browser/treeDnd';
 import {ClickBehavior, DefaultController} from 'vs/base/parts/tree/browser/treeDefaults';
@@ -47,7 +47,7 @@ import {IProgressService} from 'vs/platform/progress/common/progress';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {Keybinding, CommonKeybindings} from 'vs/base/common/keyCodes';
 
-export class FileDataSource implements Tree.IDataSource {
+export class FileDataSource implements IDataSource {
 	private workspace: IWorkspace;
 
 	constructor(
@@ -60,15 +60,15 @@ export class FileDataSource implements Tree.IDataSource {
 		this.workspace = contextService.getWorkspace();
 	}
 
-	public getId(tree: Tree.ITree, stat: FileStat): string {
+	public getId(tree: ITree, stat: FileStat): string {
 		return stat.getId();
 	}
 
-	public hasChildren(tree: Tree.ITree, stat: FileStat): boolean {
+	public hasChildren(tree: ITree, stat: FileStat): boolean {
 		return stat.isDirectory;
 	}
 
-	public getChildren(tree: Tree.ITree, stat: FileStat): TPromise<FileStat[]> {
+	public getChildren(tree: ITree, stat: FileStat): TPromise<FileStat[]> {
 
 		// Return early if stat is already resolved
 		if (stat.isDirectoryResolved) {
@@ -104,7 +104,7 @@ export class FileDataSource implements Tree.IDataSource {
 		}
 	}
 
-	public getParent(tree: Tree.ITree, stat: FileStat): TPromise<FileStat> {
+	public getParent(tree: ITree, stat: FileStat): TPromise<FileStat> {
 		if (!stat) {
 			return Promise.as(null); // can be null if nothing selected in the tree
 		}
@@ -135,7 +135,7 @@ export class FileActionProvider extends ContributableActionProvider {
 		this.state = state;
 	}
 
-	public hasActions(tree: Tree.ITree, stat: FileStat): boolean {
+	public hasActions(tree: ITree, stat: FileStat): boolean {
 		if (stat instanceof NewStatPlaceholder) {
 			return false;
 		}
@@ -143,7 +143,7 @@ export class FileActionProvider extends ContributableActionProvider {
 		return super.hasActions(tree, stat);
 	}
 
-	public getActions(tree: Tree.ITree, stat: FileStat): TPromise<Actions.IAction[]> {
+	public getActions(tree: ITree, stat: FileStat): TPromise<Actions.IAction[]> {
 		if (stat instanceof NewStatPlaceholder) {
 			return Promise.as([]);
 		}
@@ -151,7 +151,7 @@ export class FileActionProvider extends ContributableActionProvider {
 		return super.getActions(tree, stat);
 	}
 
-	public hasSecondaryActions(tree: Tree.ITree, stat: FileStat): boolean {
+	public hasSecondaryActions(tree: ITree, stat: FileStat): boolean {
 		if (stat instanceof NewStatPlaceholder) {
 			return false;
 		}
@@ -159,7 +159,7 @@ export class FileActionProvider extends ContributableActionProvider {
 		return super.hasSecondaryActions(tree, stat);
 	}
 
-	public getSecondaryActions(tree: Tree.ITree, stat: FileStat): TPromise<Actions.IAction[]> {
+	public getSecondaryActions(tree: ITree, stat: FileStat): TPromise<Actions.IAction[]> {
 		if (stat instanceof NewStatPlaceholder) {
 			return Promise.as([]);
 		}
@@ -167,9 +167,9 @@ export class FileActionProvider extends ContributableActionProvider {
 		return super.getSecondaryActions(tree, stat);
 	}
 
-	public runAction(tree: Tree.ITree, stat: FileStat, action: Actions.IAction, context?: any): Promise;
-	public runAction(tree: Tree.ITree, stat: FileStat, actionID: string, context?: any): Promise;
-	public runAction(tree: Tree.ITree, stat: FileStat, arg: any, context: any = {}): Promise {
+	public runAction(tree: ITree, stat: FileStat, action: Actions.IAction, context?: any): Promise;
+	public runAction(tree: ITree, stat: FileStat, actionID: string, context?: any): Promise;
+	public runAction(tree: ITree, stat: FileStat, arg: any, context: any = {}): Promise {
 		context = objects.mixin({
 			viewletState: this.state,
 			stat: stat
@@ -252,7 +252,7 @@ export class ActionRunner extends Actions.ActionRunner implements Actions.IActio
 }
 
 // Explorer Renderer
-export class FileRenderer extends ActionsRenderer implements Tree.IRenderer {
+export class FileRenderer extends ActionsRenderer implements IRenderer {
 	private state: FileViewletState;
 
 	constructor(
@@ -268,11 +268,11 @@ export class FileRenderer extends ActionsRenderer implements Tree.IRenderer {
 		this.state = state;
 	}
 
-	public getContentHeight(tree: Tree.ITree, element: any): number {
+	public getContentHeight(tree: ITree, element: any): number {
 		return 22;
 	}
 
-	public renderContents(tree: Tree.ITree, stat: FileStat, domElement: HTMLElement, previousCleanupFn: Tree.IElementCallback): Tree.IElementCallback {
+	public renderContents(tree: ITree, stat: FileStat, domElement: HTMLElement, previousCleanupFn: IElementCallback): IElementCallback {
 		let el = $(domElement).clearChildren();
 		let item = $('.explorer-item').addClass(this.iconClass(stat)).appendTo(el);
 
@@ -351,9 +351,9 @@ export class FileRenderer extends ActionsRenderer implements Tree.IRenderer {
 }
 
 // Explorer Accessibility Provider
-export class FileAccessibilityProvider implements Tree.IAccessibilityProvider {
+export class FileAccessibilityProvider implements IAccessibilityProvider {
 
-	public getAriaLabel(tree: Tree.ITree, stat: FileStat): string {
+	public getAriaLabel(tree: ITree, stat: FileStat): string {
 		return stat.name;
 	}
 }
@@ -402,7 +402,7 @@ export class FileController extends DefaultController {
 		this.state = state;
 	}
 
-	/* protected */ public onLeftClick(tree: Tree.ITree, stat: FileStat, event: StandardMouseEvent, origin: string = 'mouse'): boolean {
+	/* protected */ public onLeftClick(tree: ITree, stat: FileStat, event: StandardMouseEvent, origin: string = 'mouse'): boolean {
 		let payload = { origin: origin };
 		let isDoubleClick = (origin === 'mouse' && event.detail === 2);
 
@@ -474,7 +474,7 @@ export class FileController extends DefaultController {
 		return true;
 	}
 
-	public onContextMenu(tree: Tree.ITree, stat: FileStat, event: Tree.ContextMenuEvent): boolean {
+	public onContextMenu(tree: ITree, stat: FileStat, event: ContextMenuEvent): boolean {
 		if (event.target && event.target.tagName && event.target.tagName.toLowerCase() === 'input') {
 			return false;
 		}
@@ -510,7 +510,7 @@ export class FileController extends DefaultController {
 		return true;
 	}
 
-	private onEnterDown(tree: Tree.ITree, event: StandardKeyboardEvent): boolean {
+	private onEnterDown(tree: ITree, event: StandardKeyboardEvent): boolean {
 		if (tree.getHighlight()) {
 			return false;
 		}
@@ -537,7 +537,7 @@ export class FileController extends DefaultController {
 		return true;
 	}
 
-	private onEnterUp(tree: Tree.ITree, event: StandardKeyboardEvent): boolean {
+	private onEnterUp(tree: ITree, event: StandardKeyboardEvent): boolean {
 		if (!this.didCatchEnterDown || tree.getHighlight()) {
 			return false;
 		}
@@ -552,7 +552,7 @@ export class FileController extends DefaultController {
 		return true;
 	}
 
-	private onModifierEnterUp(tree: Tree.ITree, event: StandardKeyboardEvent): boolean {
+	private onModifierEnterUp(tree: ITree, event: StandardKeyboardEvent): boolean {
 		if (tree.getHighlight()) {
 			return false;
 		}
@@ -567,7 +567,7 @@ export class FileController extends DefaultController {
 		return true;
 	}
 
-	private onCopy(tree: Tree.ITree, event: StandardKeyboardEvent): boolean {
+	private onCopy(tree: ITree, event: StandardKeyboardEvent): boolean {
 		let stat: FileStat = tree.getFocus();
 		if (stat) {
 			this.runAction(tree, stat, 'workbench.files.action.copyFile').done();
@@ -578,7 +578,7 @@ export class FileController extends DefaultController {
 		return false;
 	}
 
-	private onPaste(tree: Tree.ITree, event: StandardKeyboardEvent): boolean {
+	private onPaste(tree: ITree, event: StandardKeyboardEvent): boolean {
 		let stat: FileStat = tree.getFocus() || tree.getInput() /* root */;
 		if (stat) {
 			let pasteAction = this.instantiationService.createInstance(PasteFileAction, tree, stat);
@@ -606,7 +606,7 @@ export class FileController extends DefaultController {
 		}
 	}
 
-	private onF2(tree: Tree.ITree, event: StandardKeyboardEvent): boolean {
+	private onF2(tree: ITree, event: StandardKeyboardEvent): boolean {
 		let stat: FileStat = tree.getFocus();
 
 		if (stat) {
@@ -618,7 +618,7 @@ export class FileController extends DefaultController {
 		return false;
 	}
 
-	private onDelete(tree: Tree.ITree, event: StandardKeyboardEvent): boolean {
+	private onDelete(tree: ITree, event: StandardKeyboardEvent): boolean {
 		let useTrash = !event.shiftKey;
 		let stat: FileStat = tree.getFocus();
 		if (stat) {
@@ -630,15 +630,15 @@ export class FileController extends DefaultController {
 		return false;
 	}
 
-	private runAction(tree: Tree.ITree, stat: FileStat, id: string): Promise {
+	private runAction(tree: ITree, stat: FileStat, id: string): Promise {
 		return this.state.actionProvider.runAction(tree, stat, id);
 	}
 }
 
 // Explorer Sorter
-export class FileSorter implements Tree.ISorter {
+export class FileSorter implements ISorter {
 
-	public compare(tree: Tree.ITree, statA: FileStat, statB: FileStat): number {
+	public compare(tree: ITree, statA: FileStat, statB: FileStat): number {
 		if (statA.isDirectory && !statB.isDirectory) {
 			return -1;
 		}
@@ -664,7 +664,7 @@ export class FileSorter implements Tree.ISorter {
 }
 
 // Explorer Filter
-export class FileFilter implements Tree.IFilter {
+export class FileFilter implements IFilter {
 	private hiddenExpression: glob.IExpression;
 
 	constructor( @IWorkspaceContextService private contextService: IWorkspaceContextService) {
@@ -680,7 +680,7 @@ export class FileFilter implements Tree.IFilter {
 		return needsRefresh;
 	}
 
-	public isVisible(tree: Tree.ITree, stat: FileStat): boolean {
+	public isVisible(tree: ITree, stat: FileStat): boolean {
 		return this.doIsVisible(stat);
 	}
 
@@ -701,7 +701,7 @@ export class FileFilter implements Tree.IFilter {
 }
 
 // Explorer Drag And Drop Controller
-export class FileDragAndDrop implements Tree.IDragAndDrop {
+export class FileDragAndDrop implements IDragAndDrop {
 
 	constructor(
 		@IMessageService private messageService: IMessageService,
@@ -714,11 +714,11 @@ export class FileDragAndDrop implements Tree.IDragAndDrop {
 	) {
 	}
 
-	public getDragURI(tree: Tree.ITree, stat: FileStat): string {
+	public getDragURI(tree: ITree, stat: FileStat): string {
 		return stat.resource && stat.resource.toString();
 	}
 
-	public onDragStart(tree: Tree.ITree, data: Tree.IDragAndDropData, originalEvent: DragMouseEvent): void {
+	public onDragStart(tree: ITree, data: IDragAndDropData, originalEvent: DragMouseEvent): void {
 		let sources: FileStat[] = data.getData();
 		let source: FileStat = null;
 		if (sources.length > 0) {
@@ -739,12 +739,12 @@ export class FileDragAndDrop implements Tree.IDragAndDrop {
 		}
 	}
 
-	public onDragOver(tree: Tree.ITree, data: Tree.IDragAndDropData, target: FileStat, originalEvent: DragMouseEvent): Tree.IDragOverReaction {
+	public onDragOver(tree: ITree, data: IDragAndDropData, target: FileStat, originalEvent: DragMouseEvent): IDragOverReaction {
 		let isCopy = originalEvent && ((originalEvent.ctrlKey && !platform.isMacintosh) || (originalEvent.altKey && platform.isMacintosh));
 		let fromDesktop = data instanceof DesktopDragAndDropData;
 
 		if (this.contextService.getOptions().readOnly) {
-			return Tree.DRAG_OVER_REJECT;
+			return DRAG_OVER_REJECT;
 		}
 
 		// Desktop DND
@@ -758,20 +758,20 @@ export class FileDragAndDrop implements Tree.IDragAndDrop {
 			}
 
 			if (typesArray.length === 0 || !typesArray.some((type) => { return type === 'Files'; })) {
-				return Tree.DRAG_OVER_REJECT;
+				return DRAG_OVER_REJECT;
 			}
 		}
 
 		// Other-Tree DND
 		else if (data instanceof ExternalElementsDragAndDropData) {
-			return Tree.DRAG_OVER_REJECT;
+			return DRAG_OVER_REJECT;
 		}
 
 		// In-Explorer DND
 		else {
 			let sources: FileStat[] = data.getData();
 			if (!Array.isArray(sources)) {
-				return Tree.DRAG_OVER_REJECT;
+				return DRAG_OVER_REJECT;
 			}
 
 			if (sources.some((source) => {
@@ -793,23 +793,23 @@ export class FileDragAndDrop implements Tree.IDragAndDrop {
 
 				return false;
 			})) {
-				return Tree.DRAG_OVER_REJECT;
+				return DRAG_OVER_REJECT;
 			}
 		}
 
 		// All
 		if (target.isDirectory) {
-			return fromDesktop || isCopy ? Tree.DRAG_OVER_ACCEPT_BUBBLE_DOWN_COPY : Tree.DRAG_OVER_ACCEPT_BUBBLE_DOWN;
+			return fromDesktop || isCopy ? DRAG_OVER_ACCEPT_BUBBLE_DOWN_COPY : DRAG_OVER_ACCEPT_BUBBLE_DOWN;
 		}
 
 		if (target.resource.toString() !== this.contextService.getWorkspace().resource.toString()) {
-			return fromDesktop || isCopy ? Tree.DRAG_OVER_ACCEPT_BUBBLE_UP_COPY : Tree.DRAG_OVER_ACCEPT_BUBBLE_UP;
+			return fromDesktop || isCopy ? DRAG_OVER_ACCEPT_BUBBLE_UP_COPY : DRAG_OVER_ACCEPT_BUBBLE_UP;
 		}
 
-		return Tree.DRAG_OVER_REJECT;
+		return DRAG_OVER_REJECT;
 	}
 
-	public drop(tree: Tree.ITree, data: Tree.IDragAndDropData, target: FileStat, originalEvent: DragMouseEvent): void {
+	public drop(tree: ITree, data: IDragAndDropData, target: FileStat, originalEvent: DragMouseEvent): void {
 		let promise: Promise = Promise.as(null);
 
 		// Desktop DND (Import file)
