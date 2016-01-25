@@ -11,7 +11,7 @@ import {ITree, IElementCallback} from 'vs/base/parts/tree/browser/tree';
 import filters = require('vs/base/common/filters');
 import strings = require('vs/base/common/strings');
 import paths = require('vs/base/common/paths');
-import {IQuickNavigateConfiguration, IModel, IDataSource, IFilter, IRenderer, IRunner, Mode} from 'vs/base/parts/quickopen/common/quickOpen';
+import {IQuickNavigateConfiguration, IModel, IDataSource, IFilter, IAccessiblityProvider, IRenderer, IRunner, Mode} from 'vs/base/parts/quickopen/common/quickOpen';
 import {IActionProvider} from 'vs/base/parts/tree/browser/actionsRenderer';
 import {Action, IAction, IActionRunner} from 'vs/base/common/actions';
 import {compareAnything, compareByPrefix} from 'vs/base/common/comparers';
@@ -654,6 +654,7 @@ export class QuickOpenModel implements
 	private _renderer: IRenderer<QuickOpenEntry>;
 	private _filter: IFilter<QuickOpenEntry>;
 	private _runner: IRunner<QuickOpenEntry>;
+	private _accessibilityProvider: IAccessiblityProvider<QuickOpenEntry>;
 
 	constructor(entries: QuickOpenEntry[] = [], actionProvider: IActionProvider = new NoActionProvider()) {
 		this._entries = entries;
@@ -661,6 +662,7 @@ export class QuickOpenModel implements
 		this._renderer = new Renderer(actionProvider);
 		this._filter = this;
 		this._runner = this;
+		this._accessibilityProvider = this;
 	}
 
 	public get entries() { return this._entries; }
@@ -668,6 +670,7 @@ export class QuickOpenModel implements
 	public get renderer() { return this._renderer; }
 	public get filter() { return this._filter; }
 	public get runner() { return this._runner; }
+	public get accessibilityProvider() { return this._accessibilityProvider; }
 
 	public set entries(entries: QuickOpenEntry[]) {
 		this._entries = entries;
@@ -709,6 +712,10 @@ export class QuickOpenModel implements
 	}
 
 	getLabel(entry: QuickOpenEntry): string {
+		return entry.getLabel();
+	}
+
+	getAriaLabel(entry: QuickOpenEntry): string {
 		return entry.getLabel();
 	}
 

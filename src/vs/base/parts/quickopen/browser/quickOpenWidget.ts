@@ -14,7 +14,7 @@ import types = require('vs/base/common/types');
 import errors = require('vs/base/common/errors');
 import uuid = require('vs/base/common/uuid');
 import {IQuickNavigateConfiguration, IAutoFocus, IContext, IModel, Mode} from 'vs/base/parts/quickopen/common/quickOpen';
-import {Filter, Renderer, DataSource, IModelProvider} from 'vs/base/parts/quickopen/browser/quickOpenViewer';
+import {Filter, Renderer, DataSource, IModelProvider, AccessibilityProvider} from 'vs/base/parts/quickopen/browser/quickOpenViewer';
 import {Dimension, Builder, $} from 'vs/base/browser/builder';
 import {ISelectionEvent, IFocusEvent, ITree, ContextMenuEvent} from 'vs/base/parts/tree/browser/tree';
 import {InputBox, MessageType} from 'vs/base/browser/ui/inputbox/inputBox';
@@ -173,7 +173,8 @@ export class QuickOpenWidget implements IModelProvider {
 					dataSource: new DataSource(this),
 					controller: new QuickOpenController({ clickBehavior: ClickBehavior.ON_MOUSE_UP }),
 					renderer: new Renderer(this),
-					filter: new Filter(this)
+					filter: new Filter(this),
+					accessibilityProvider: new AccessibilityProvider(this)
 				}, {
 					twistiePixels: 11,
 					indentPixels: 0,
