@@ -88,7 +88,7 @@ class ModesHoverController implements EditorCommon.IEditorContribution {
 		if (this._editor.getConfiguration().hover && targetType === EditorCommon.MouseTargetType.CONTENT_TEXT) {
 			this._glyphWidget.hide();
 			this._contentWidget.startShowingAt(mouseEvent.target.range);
-		} else if (this._editor.getConfiguration().hover && targetType === EditorCommon.MouseTargetType.GUTTER_GLYPH_MARGIN) {
+		} else if (targetType === EditorCommon.MouseTargetType.GUTTER_GLYPH_MARGIN) {
 			this._contentWidget.hide();
 			this._glyphWidget.startShowingAt(mouseEvent.target.position.lineNumber);
 		} else {
