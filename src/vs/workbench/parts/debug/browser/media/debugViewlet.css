@@ -169,7 +169,8 @@
 	background: url("add-focus.svg") center center no-repeat;
 }
 
-.vs-dark .debug-viewlet .debug-action.add-watch-expression {
+.vs-dark .debug-viewlet .debug-action.add-watch-expression,
+.vs-dark .debug-viewlet .debug-action.add-function-breakpoint {
 	background: url('add-inverse.svg') center center no-repeat;
 }
 
