@@ -540,7 +540,6 @@ export class CollapsibleViewletView extends CollapsibleView implements IViewletV
 
 function renderViewTree(container: HTMLElement): HTMLElement {
 	let treeContainer = document.createElement('div');
-	DOM.addClass(treeContainer, 'explorer-view-content');
 	container.appendChild(treeContainer);
 
 	return treeContainer;

@@ -469,6 +469,12 @@ export class DebugViewlet extends viewlet.Viewlet {
 		return Promise.as(null);
 	}
 
+	public setVisible(visible: boolean): TPromise<void> {
+		return super.setVisible(visible).then(() => {
+			return Promise.join(this.views.map((view) => view.setVisible(visible)));
+		});
+	}
+
 	public layout(dimension: builder.Dimension): void {
 		if (this.splitView) {
 			this.splitView.layout(dimension.height);
