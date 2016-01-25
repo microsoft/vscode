@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import nls = require('vs/nls');
 import lifecycle = require('vs/base/common/lifecycle');
 import editorcommon = require('vs/editor/common/editorCommon');
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -247,38 +248,46 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 	}
 
 	private createBreakpointDecorations(breakpoints: IBreakpoint[]): editorcommon.IModelDeltaDecoration[] {
-		const activated = this.debugService.getModel().areBreakpointsActivated();
-		const state = this.debugService.getState();
-		const debugActive = state === State.Running || state === State.Stopped || state === State.Initializing;
 		return breakpoints.map((breakpoint) => {
 			return {
-				options: (!breakpoint.enabled || !activated) ? DebugEditorModelManager.BREAKPOINT_DISABLED_DECORATION :
-					debugActive && !breakpoint.verified ? DebugEditorModelManager.BREAKPOINT_UNVERIFIED_DECORATION :
-					breakpoint.condition ? DebugEditorModelManager.CONDITIONAL_BREAKPOINT_DECORATION : DebugEditorModelManager.BREAKPOINT_DECORATION,
+				options: this.getBreakpointDecorationOptions(breakpoint),
 				range: createRange(breakpoint.lineNumber, 1, breakpoint.lineNumber, 2)
 			};
 		});
+	}
+
+	private getBreakpointDecorationOptions(breakpoint: IBreakpoint): editorcommon.IModelDecorationOptions {
+		const activated = this.debugService.getModel().areBreakpointsActivated();
+		const state = this.debugService.getState();
+		const debugActive = state === State.Running || state === State.Stopped || state === State.Initializing;
+		const result = (!breakpoint.enabled || !activated) ? DebugEditorModelManager.BREAKPOINT_DISABLED_DECORATION :
+			debugActive && !breakpoint.verified ? DebugEditorModelManager.BREAKPOINT_UNVERIFIED_DECORATION :
+			!breakpoint.condition ? DebugEditorModelManager.BREAKPOINT_DECORATION : null;
+
+		return result ? result : {
+			glyphMarginClassName: 'debug-breakpoint-conditional-glyph',
+			hoverMessage: breakpoint.condition,
+			stickiness: editorcommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
+		}
 	}
 
 	// editor decorations
 
 	private static BREAKPOINT_DECORATION: editorcommon.IModelDecorationOptions = {
 		glyphMarginClassName: 'debug-breakpoint-glyph',
-		stickiness: editorcommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
-	};
-
-	private static CONDITIONAL_BREAKPOINT_DECORATION: editorcommon.IModelDecorationOptions = {
-		glyphMarginClassName: 'debug-breakpoint-conditional-glyph',
+		hoverMessage: nls.localize('breakpointHover', "Breakpoint"),
 		stickiness: editorcommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
 	};
 
 	private static BREAKPOINT_DISABLED_DECORATION: editorcommon.IModelDecorationOptions = {
 		glyphMarginClassName: 'debug-breakpoint-glyph-disabled',
+		hoverMessage: nls.localize('breakpointDisabledHover', "Disabled Breakpoint"),
 		stickiness: editorcommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
 	};
 
 	private static BREAKPOINT_UNVERIFIED_DECORATION: editorcommon.IModelDecorationOptions = {
 		glyphMarginClassName: 'debug-breakpoint-glyph-unverified',
+		hoverMessage: nls.localize('breakpointDisabledHover', "Unverified Breakpoint"),
 		stickiness: editorcommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
 	};
 
