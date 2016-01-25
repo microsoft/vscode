@@ -160,33 +160,14 @@ class CompletionModel {
 	}
 }
 
-// To be used as a tree element when we want to show a message
-export class Message {
-	constructor(public parent: MessageRoot, public message: string) {
-		// nothing to do
-	}
-}
-
-export class MessageRoot {
-	public child: Message;
-
-	constructor(message: string) {
-		this.child = new Message(this, message);
-	}
-}
-
 function isRoot(element: any): boolean {
-	return element instanceof MessageRoot || element instanceof CompletionModel;
+	return element instanceof CompletionModel;
 }
 
 class DataSource implements Tree.IDataSource {
 
 	public getId(tree: Tree.ITree, element: any): string {
-		if (element instanceof MessageRoot) {
-			return 'messageroot';
-		} else if (element instanceof Message) {
-			return 'message' + element.message;
-		} else if (element instanceof CompletionModel) {
+		if (element instanceof CompletionModel) {
 			return 'root';
 		} else if (element instanceof CompletionItem) {
 			return (<CompletionItem>element).id.toString();
@@ -198,17 +179,13 @@ class DataSource implements Tree.IDataSource {
 	public getParent(tree: Tree.ITree, element: any): TPromise<any> {
 		if (isRoot(element)) {
 			return TPromise.as(null);
-		} else if (element instanceof Message) {
-			return TPromise.as(element.parent);
 		}
 
 		return TPromise.as((<CompletionItem>element).group.model);
 	}
 
 	public getChildren(tree: Tree.ITree, element: any): TPromise<any[]> {
-		if (element instanceof MessageRoot) {
-			return TPromise.as([element.child]);
-		} else if (element instanceof CompletionModel) {
+		if (element instanceof CompletionModel) {
 			return TPromise.as((<CompletionModel>element).items);
 		}
 
@@ -225,11 +202,7 @@ class Controller extends TreeDefaults.DefaultController {
 	/* protected */ public onLeftClick(tree: Tree.ITree, element: any, event: Mouse.StandardMouseEvent): boolean {
 		event.preventDefault();
 		event.stopPropagation();
-
-		if (!(element instanceof Message)) {
-			tree.setSelection([element], { origin: 'mouse' });
-		}
-
+		tree.setSelection([element], { origin: 'mouse' });
 		return true;
 	}
 }
@@ -241,8 +214,6 @@ class Filter implements Tree.IFilter {
 	isVisible(tree: Tree.ITree, element: any): boolean {
 		if (isRoot(element)) {
 			return false;
-		} else if (element instanceof Message) {
-			return true;
 		}
 
 		const item: CompletionItem = element;
@@ -290,7 +261,7 @@ class Renderer implements Tree.IRenderer {
 	}
 
 	public getTemplateId(tree: Tree.ITree, element: any): string {
-		return (element instanceof Message) ? 'message' : 'suggestion';
+		return 'suggestion';
 	}
 
 	public renderTemplate(tree: Tree.ITree, templateId: string, container: HTMLElement): any {
@@ -587,7 +558,7 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 
 		const element = e.selection[0];
 
-		if (!element.hasOwnProperty('suggestions') && !(element instanceof MessageRoot) && !(element instanceof Message)) {
+		if (!element.hasOwnProperty('suggestions')) {
 			const item: CompletionItem = element;
 			const navigator = this.tree.getNavigator();
 
