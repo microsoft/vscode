@@ -56,7 +56,7 @@ function editorLoaderConfig(removeAllOSS) {
 	var result = common.loaderConfig();
 
 	// never ship marked in editor
-	result.paths['vs/languages/markdown/common/marked'] = 'out-build/vs/languages/markdown/common/marked.mock';
+	result.paths['vs/base/common/marked/marked'] = 'out-build/vs/base/common/marked/marked.mock';
 
 	if (removeAllOSS) {
 		result.paths['vs/languages/lib/common/beautify-html'] = 'out-build/vs/languages/lib/common/beautify-html.mock';

@@ -50,10 +50,6 @@ suite("window namespace tests", () => {
 			}
 		})
 
-		let registration2 = window.onDidChangeTextEditorViewColumn(event => {
-			actualEvent = event;
-		});
-
 		return Promise.all([
 			workspace.openTextDocument(Uri.parse('bikes://testing/one')).then(doc => window.showTextDocument(doc, ViewColumn.One)),
 			workspace.openTextDocument(Uri.parse('bikes://testing/two')).then(doc => window.showTextDocument(doc, ViewColumn.Two))
@@ -62,9 +58,15 @@ suite("window namespace tests", () => {
 			let [one, two] = editors;
 
 			return new Promise(resolve => {
+
+				let registration2 = window.onDidChangeTextEditorViewColumn(event => {
+					actualEvent = event;
+					registration2.dispose();
+					resolve();
+				});
+
 				// close editor 1, wait a little for the event to bubble
 				one.hide();
-				setTimeout(() => resolve(), 10);
 
 			}).then(() => {
 				assert.ok(actualEvent);
@@ -72,7 +74,6 @@ suite("window namespace tests", () => {
 				assert.ok(actualEvent.viewColumn === two.viewColumn);
 
 				registration1.dispose();
-				registration2.dispose();
 			})
 		});
 	});

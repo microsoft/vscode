@@ -5,7 +5,7 @@
 
 require.config({
 	shim: {
-		'vs/languages/markdown/common/raw.marked': {
+		'vs/base/common/marked/raw.marked': {
 			exports: function () {
 				return this.marked;
 			}

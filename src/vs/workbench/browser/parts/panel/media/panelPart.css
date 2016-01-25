@@ -13,6 +13,14 @@
 	border-top: 1px solid #007ACC;
 }
 
+.monaco-workbench.vs > .part.panel > .title > .title-label span {
+	color: #6f6f6f;
+}
+
+.monaco-workbench.vs-dark > .part.panel > .title > .title-label span {
+	color: #bbbbbb;
+}
+
 .monaco-workbench.no-workspace > .part.panel > .title {
 	border-color: #68217A;
 }

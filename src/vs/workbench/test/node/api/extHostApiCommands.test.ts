@@ -245,8 +245,11 @@ suite('ExtHostLanguageFeatureCommands', function() {
 		}, []));
 
 		threadService.sync().then(() => {
-			commands.executeCommand<vscode.CompletionItem[]>('vscode.executeCompletionItemProvider', model.getAssociatedResource(), new types.Position(0, 4)).then(values => {
+			commands.executeCommand<vscode.CompletionList>('vscode.executeCompletionItemProvider', model.getAssociatedResource(), new types.Position(0, 4)).then(list => {
 				try {
+					assert.ok(list instanceof types.CompletionList);
+					let values = list.items;
+					assert.ok(Array.isArray(values));
 					assert.equal(values.length, 4);
 					let [first, second, third, forth] = values;
 					assert.equal(first.label, 'item1');
@@ -282,6 +285,24 @@ suite('ExtHostLanguageFeatureCommands', function() {
 				}
 			}, done);
 		}, done);
+	});
+
+	test('Suggest, return CompletionList !array', function(done) {
+		disposables.push(extHost.registerCompletionItemProvider(defaultSelector, <vscode.CompletionItemProvider>{
+			provideCompletionItems(): any {
+				let a = new types.CompletionItem('item1');
+				let b = new types.CompletionItem('item2');
+				return new types.CompletionList(<any> [a,b], true);
+			}
+		}, []));
+
+		threadService.sync().then(() => {
+			return commands.executeCommand<vscode.CompletionList>('vscode.executeCompletionItemProvider', model.getAssociatedResource(), new types.Position(0, 4)).then(list => {
+				assert.ok(list instanceof types.CompletionList);
+				assert.equal(list.isIncomplete, true);
+				done();
+			});
+		});
 	});
 
 	// --- quickfix
