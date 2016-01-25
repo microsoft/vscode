@@ -16,6 +16,7 @@ class ConfigClass implements IConfiguration {
 
 	constructor() {
 		this.editor = {
+			_screenReaderNVDA: false,
 			lineNumbers: true,
 			selectOnLineNumbers: true,
 			lineNumbersMinChars: 5,

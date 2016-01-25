@@ -272,6 +272,7 @@ export function wrappingIndentFromString(wrappingIndent:string): WrappingIndent 
  * Configuration options for the editor. Common between configuring the editor and the options the editor has computed
  */
 export interface ICommonEditorOptions {
+	_screenReaderNVDA?: boolean;
 	/**
 	 * Control the rendering of line numbers.
 	 * If it is a function, it will be invoked when rendering a line number and the return value will be rendered.
@@ -583,6 +584,7 @@ export interface IEditorWrappingInfo {
  * Internal configuration options (transformed or computed) for the editor.
  */
 export interface IInternalEditorOptions {
+	_screenReaderNVDA: boolean;
 
 	// ---- Options that are transparent - get no massaging
 	lineNumbers:any;
@@ -667,6 +669,8 @@ export interface IInternalEditorOptions {
  * An event describing that the configuration of the editor has changed.
  */
 export interface IConfigurationChangedEvent {
+	_screenReaderNVDA: boolean;
+
 	layoutInfo:boolean;
 	stylingInfo:boolean;
 	wrappingInfo:boolean;

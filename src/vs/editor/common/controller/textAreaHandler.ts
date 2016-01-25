@@ -10,7 +10,10 @@ import {Disposable} from 'vs/base/common/lifecycle';
 import {Range} from 'vs/editor/common/core/range';
 import {Position} from 'vs/editor/common/core/position';
 import {CommonKeybindings} from 'vs/base/common/keyCodes';
-import {IKeyboardEventWrapper, ITextAreaWrapper, IClipboardEvent, ISimpleModel, TextAreaState, IENarratorTextAreaState, NVDATextAreaState, ITypeData} from 'vs/editor/common/controller/textAreaState';
+import {
+	IKeyboardEventWrapper, ITextAreaWrapper, IClipboardEvent, ISimpleModel,
+	TextAreaState, createTextAreaState, ITypeData, TextAreaStrategy
+} from 'vs/editor/common/controller/textAreaState';
 import Event, {Emitter} from 'vs/base/common/event';
 
 enum ReadFromTextArea {
@@ -86,7 +89,7 @@ export class TextAreaHandler extends Disposable {
 
 	private _nextCommand: ReadFromTextArea;
 
-	constructor(Platform:IPlatform, Browser:IBrowser, textArea:ITextAreaWrapper, model:ISimpleModel) {
+	constructor(Platform:IPlatform, Browser:IBrowser, strategy:TextAreaStrategy, textArea:ITextAreaWrapper, model:ISimpleModel) {
 		super();
 		this.Platform = Platform;
 		this.Browser = Browser;
@@ -101,8 +104,7 @@ export class TextAreaHandler extends Disposable {
 
 		this.lastCopiedValue = null;
 		this.lastCopiedValueIsFromEmptySelection = false;
-		this.textAreaState = IENarratorTextAreaState.EMPTY;
-		// this.textAreaState = NVDATextAreaState.EMPTY;
+		this.textAreaState = createTextAreaState(strategy);
 
 		this.hasFocus = false;
 
@@ -218,6 +220,10 @@ export class TextAreaHandler extends Disposable {
 	}
 
 	// --- begin event handlers
+
+	public setStrategy(strategy:TextAreaStrategy): void {
+		this.textAreaState = this.textAreaState.toStrategy(strategy);
+	}
 
 	public setHasFocus(isFocused:boolean): void {
 		if (this.hasFocus === isFocused) {

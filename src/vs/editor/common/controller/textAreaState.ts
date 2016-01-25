@@ -55,6 +55,18 @@ export interface ITypeData {
 	replaceCharCnt: number;
 }
 
+export enum TextAreaStrategy {
+	IENarrator,
+	NVDA
+}
+
+export function createTextAreaState(strategy:TextAreaStrategy): TextAreaState {
+	if (strategy === TextAreaStrategy.IENarrator) {
+		return IENarratorTextAreaState.EMPTY;
+	}
+	return NVDATextAreaState.EMPTY;
+}
+
 export abstract class TextAreaState {
 
 	protected previousState:TextAreaState;
@@ -76,6 +88,8 @@ export abstract class TextAreaState {
 	public abstract toEmpty(): TextAreaState;
 
 	public abstract toString(): string;
+
+	public abstract toStrategy(strategy:TextAreaStrategy): TextAreaState;
 
 	public abstract equals(other:TextAreaState): boolean;
 
@@ -196,6 +210,13 @@ export class IENarratorTextAreaState extends TextAreaState {
 		return '[ <' + this.value + '>, selectionStart: ' + this.selectionStart + ', selectionEnd: ' + this.selectionEnd + ', isInOverwriteMode: ' + this.isInOverwriteMode + ', selectionToken: ' + this.selectionToken + ']';
 	}
 
+	public toStrategy(strategy:TextAreaStrategy): TextAreaState {
+		if (strategy === TextAreaStrategy.IENarrator) {
+			return this;
+		}
+		return new NVDATextAreaState(this.previousState, this.value, this.selectionStart, this.selectionEnd, this.isInOverwriteMode);
+	}
+
 	public equals(other:TextAreaState): boolean {
 		if (other instanceof IENarratorTextAreaState) {
 			return (
@@ -288,6 +309,13 @@ export class NVDATextAreaState extends TextAreaState {
 
 	public toString(): string {
 		return '[ <ENTIRE TEXT' + /*this.value +*/ '>, selectionStart: ' + this.selectionStart + ', selectionEnd: ' + this.selectionEnd + ', isInOverwriteMode: ' + this.isInOverwriteMode + ']';
+	}
+
+	public toStrategy(strategy:TextAreaStrategy): TextAreaState {
+		if (strategy === TextAreaStrategy.NVDA) {
+			return this;
+		}
+		return new IENarratorTextAreaState(this.previousState, this.value, this.selectionStart, this.selectionEnd, this.isInOverwriteMode, 0);
 	}
 
 	public equals(other:TextAreaState): boolean {

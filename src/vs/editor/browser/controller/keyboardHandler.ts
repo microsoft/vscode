@@ -20,7 +20,7 @@ import {Position} from 'vs/editor/common/core/position';
 import {CommonKeybindings} from 'vs/base/common/keyCodes';
 import Event, {Emitter} from 'vs/base/common/event';
 import {TextAreaHandler} from 'vs/editor/common/controller/textAreaHandler';
-import {ITextAreaWrapper, IClipboardEvent, IKeyboardEventWrapper, ISimpleModel} from 'vs/editor/common/controller/textAreaState';
+import {ITextAreaWrapper, IClipboardEvent, IKeyboardEventWrapper, ISimpleModel, TextAreaStrategy} from 'vs/editor/common/controller/textAreaState';
 
 class ClipboardEventWrapper implements IClipboardEvent {
 
@@ -213,7 +213,7 @@ export class KeyboardHandler extends ViewEventHandler implements Lifecycle.IDisp
 		this.contentWidth = 0;
 		this.scrollLeft = 0;
 
-		this.textAreaHandler = new TextAreaHandler(Platform, Browser, this.textArea, this.context.model);
+		this.textAreaHandler = new TextAreaHandler(Platform, Browser, this._getStrategy(), this.textArea, this.context.model);
 
 		this._toDispose = [];
 		this._toDispose.push(this.textAreaHandler.onKeyDown((e) => this.viewController.emitKeyDown(<DomUtils.IKeyboardEvent>e._actual)));
@@ -273,6 +273,13 @@ export class KeyboardHandler extends ViewEventHandler implements Lifecycle.IDisp
 		this._toDispose = Lifecycle.disposeAll(this._toDispose);
 	}
 
+	private _getStrategy(): TextAreaStrategy {
+		if (this.context.configuration.editor._screenReaderNVDA) {
+			return TextAreaStrategy.NVDA;
+		}
+		return TextAreaStrategy.IENarrator;
+	}
+
 	public focusTextArea(): void {
 		this.textAreaHandler.writePlaceholderAndSelectTextAreaSync();
 	}
@@ -281,6 +288,9 @@ export class KeyboardHandler extends ViewEventHandler implements Lifecycle.IDisp
 		// Give textarea same font size & line height as editor, for the IME case (when the textarea is visible)
 		DomUtils.StyleMutator.setFontSize(this.textArea.actual, this.context.configuration.editor.fontSize);
 		DomUtils.StyleMutator.setLineHeight(this.textArea.actual, this.context.configuration.editor.lineHeight);
+		if (e._screenReaderNVDA) {
+			this.textAreaHandler.setStrategy(this._getStrategy());
+		}
 		return false;
 	}
 
