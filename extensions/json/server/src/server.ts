@@ -61,7 +61,6 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 	if (params.initializationOptions) {
 		let proxy = params.initializationOptions['proxy'];
 		let proxyStrictSSL = params.initializationOptions['proxyStrictSSL'];
-		connection.console.log('proxy ' + proxy + ' strict ' + proxyStrictSSL);
 		configureHttpRequests(proxy, proxyStrictSSL);
 	}
 
