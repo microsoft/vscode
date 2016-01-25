@@ -232,6 +232,22 @@ export class ViewItem implements IViewItem {
 		this.element.draggable = this.draggable;
 		this.element.style.height = this.height + 'px';
 
+		// ARIA
+		this.element.setAttribute('role', 'treeitem');
+		if (this.model.hasTrait('focused')) {
+			this.element.setAttribute('aria-selected', 'true');
+			this.element.setAttribute('id', btoa(this.model.id));
+		} else {
+			this.element.setAttribute('aria-selected', 'false');
+			this.element.removeAttribute('id');
+		}
+		if (this.model.hasChildren()) {
+			this.element.setAttribute('aria-expanded', String(this.model.isExpanded()));
+		} else {
+			this.element.removeAttribute('aria-expanded');
+		}
+		this.element.setAttribute('aria-level', String(this.model.getDepth()));
+
 		if (this.context.options.paddingOnRow) {
 			this.element.style.paddingLeft = this.context.options.twistiePixels + ((this.model.getDepth() - 1) * this.context.options.indentPixels) + 'px';
 		} else {
@@ -442,6 +458,7 @@ export class TreeView extends HeightMap implements IScrollable {
 
 		this.domNode = document.createElement('div');
 		this.domNode.className = 'monaco-tree';
+		this.domNode.setAttribute('role', 'tree');
 		this.domNode.tabIndex = 0;
 
 		if (this.context.options.alwaysFocused) {
@@ -1053,7 +1070,16 @@ export class TreeView extends HeightMap implements IScrollable {
 	}
 
 	private onModelFocusChange(): void {
-		DOM.toggleClass(this.domNode, 'no-item-focus', !this.model || !this.model.getFocus());
+		const focus = this.model && this.model.getFocus();
+
+		DOM.toggleClass(this.domNode, 'no-item-focus', !focus);
+
+		// ARIA
+		if (focus) {
+			this.domNode.setAttribute('aria-activedescendant', btoa(this.context.dataSource.getId(this.context.tree, focus)));
+		} else {
+			this.domNode.removeAttribute('aria-activedescendant');
+		}
 	}
 
 	// HeightMap "events"
@@ -1502,6 +1528,8 @@ export class TreeView extends HeightMap implements IScrollable {
 		if (!this.context.options.alwaysFocused) {
 			DOM.removeClass(this.domNode, 'focused');
 		}
+
+		this.domNode.removeAttribute('aria-activedescendant'); // ARIA
 	}
 
 	// MS specific DOM Events
