@@ -65,7 +65,6 @@ export class ScrollableElement implements ScrollableElementInt.IScrollableElemen
 
 		this.domNode = document.createElement('div');
 		this.domNode.className = 'monaco-scrollable-element ' + this.options.className;
-		this.domNode.setAttribute('aria-hidden', 'true');
 		this.domNode.setAttribute('role', 'presentation');
 		this.domNode.style.position = 'relative';
 		this.domNode.style.overflow = 'hidden';

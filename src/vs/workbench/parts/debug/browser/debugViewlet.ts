@@ -41,9 +41,12 @@ function renderViewTree(container: HTMLElement): HTMLElement {
 	return treeContainer;
 }
 
-const debugTreeOptions = {
-	indentPixels: 8,
-	twistiePixels: 20
+const debugTreeOptions = (ariaLabel: string) => {
+	return <tree.ITreeOptions> {
+		indentPixels: 8,
+		twistiePixels: 20,
+		ariaLabel
+	};
 };
 
 const $ = builder.$;
@@ -75,7 +78,7 @@ class VariablesView extends viewlet.CollapsibleViewletView {
 			dataSource: new viewer.VariablesDataSource(this.debugService),
 			renderer: this.instantiationService.createInstance(viewer.VariablesRenderer),
 			controller: new viewer.BaseDebugController(this.debugService, this.contextMenuService, new viewer.VariablesActionProvider(this.instantiationService))
-		}, debugTreeOptions);
+		}, debugTreeOptions(nls.localize('variablesAriaTreeLabel', "Variables")));
 
 		const viewModel = this.debugService.getViewModel();
 
@@ -143,7 +146,7 @@ class WatchExpressionsView extends viewlet.CollapsibleViewletView {
 			dataSource: new viewer.WatchExpressionsDataSource(this.debugService),
 			renderer: this.instantiationService.createInstance(viewer.WatchExpressionsRenderer, actionProvider, this.actionRunner),
 			controller: new viewer.WatchExpressionsController(this.debugService, this.contextMenuService, actionProvider)
-		}, debugTreeOptions);
+		}, debugTreeOptions(nls.localize('watchAriaTreeLabel', "Watch Expressions")));
 
 		this.tree.setInput(this.debugService.getModel());
 
@@ -212,7 +215,7 @@ class CallStackView extends viewlet.CollapsibleViewletView {
 		this.tree = new treeimpl.Tree(this.treeContainer, {
 			dataSource: new viewer.CallStackDataSource(),
 			renderer: this.instantiationService.createInstance(viewer.CallStackRenderer)
-		}, debugTreeOptions);
+		}, debugTreeOptions(nls.localize('callStackAriaLabel', "Call Stack")));
 
 		const debugModel = this.debugService.getModel();
 
@@ -347,7 +350,7 @@ class BreakpointsView extends viewlet.AdaptiveCollapsibleViewletView {
 					return first.desiredLineNumber - second.desiredLineNumber;
 				}
 			}
-		}, debugTreeOptions);
+		}, debugTreeOptions(nls.localize('breakpointsAriaTreeLabel', "Breakpoints")));
 
 		const debugModel = this.debugService.getModel();
 
@@ -464,6 +467,12 @@ export class DebugViewlet extends viewlet.Viewlet {
 		}
 
 		return Promise.as(null);
+	}
+
+	public setVisible(visible: boolean): TPromise<void> {
+		return super.setVisible(visible).then(() => {
+			return Promise.join(this.views.map((view) => view.setVisible(visible)));
+		});
 	}
 
 	public layout(dimension: builder.Dimension): void {

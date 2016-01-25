@@ -293,9 +293,10 @@ export class WorkingFilesView extends AdaptiveCollapsibleViewletView {
 			controller: controller,
 			dnd: dnd
 		}, {
-				indentPixels: 0,
-				twistiePixels: 8
-			});
+			indentPixels: 0,
+			twistiePixels: 8,
+			ariaLabel: nls.localize('treeAriaLabel', "Working Files")
+		});
 
 		this.tree.setInput(this.model);
 

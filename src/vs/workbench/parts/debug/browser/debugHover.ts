@@ -5,6 +5,7 @@
 
 import errors = require('vs/base/common/errors');
 import dom = require('vs/base/browser/dom');
+import * as nls from 'vs/nls';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { DefaultController, ICancelableEvent } from 'vs/base/parts/tree/browser/treeDefaults';
@@ -17,7 +18,8 @@ import viewer = require('vs/workbench/parts/debug/browser/debugViewer');
 const $ = dom.emmet;
 const debugTreeOptions = {
 	indentPixels: 6,
-	twistiePixels: 15
+	twistiePixels: 15,
+	ariaLabel: nls.localize('treeAriaLabel', "Debug Hover")
 };
 const MAX_ELEMENTS_SHOWN = 18;
 

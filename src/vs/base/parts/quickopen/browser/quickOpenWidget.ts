@@ -5,6 +5,7 @@
 'use strict';
 
 import 'vs/css!./quickopen';
+import nls = require('vs/nls');
 import {Promise} from 'vs/base/common/winjs.base';
 import platform = require('vs/base/common/platform');
 import browser = require('vs/base/browser/browser');
@@ -174,11 +175,12 @@ export class QuickOpenWidget implements IModelProvider {
 					renderer: new Renderer(this),
 					filter: new Filter(this)
 				}, {
-						twistiePixels: 11,
-						indentPixels: 0,
-						alwaysFocused: true,
-						verticalScrollMode: 'visible'
-					});
+					twistiePixels: 11,
+					indentPixels: 0,
+					alwaysFocused: true,
+					verticalScrollMode: 'visible',
+					ariaLabel: nls.localize('treeAriaLabel', "Quick Picker")
+				});
 
 				// Handle Focus and Selection event
 				this.toUnbind.push(this.tree.addListener(EventType.FOCUS, (event: IFocusEvent) => {

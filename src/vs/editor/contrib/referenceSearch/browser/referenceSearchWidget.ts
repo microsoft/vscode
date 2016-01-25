@@ -458,7 +458,8 @@ export class ReferenceWidget extends peekViewWidget.PeekViewWidget {
 
 			var options = {
 				allowHorizontalScroll: false,
-				twistiePixels: 20
+				twistiePixels: 20,
+				ariaLabel: nls.localize('treeAriaLabel', "References")
 			};
 			this.tree = new treeWidget.Tree(div.getHTMLElement(), config, options);
 

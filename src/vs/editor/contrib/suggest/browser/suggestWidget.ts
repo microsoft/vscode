@@ -546,7 +546,8 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 			twistiePixels: 0,
 			alwaysFocused: true,
 			verticalScrollMode: 'visible',
-			useShadows: false
+			useShadows: false,
+			ariaLabel: nls.localize('treeAriaLabel', "Suggestions")
 		};
 
 		this.tree = new TreeImpl.Tree(this.treeElement, configuration, options);
