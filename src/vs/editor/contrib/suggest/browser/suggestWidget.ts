@@ -42,14 +42,14 @@ function completionItemCompare(item: CompletionItem, otherItem: CompletionItem):
 	let result = 0;
 
 	if (typeof suggestion.sortText === 'string' && typeof otherSuggestion.sortText === 'string') {
-		result = suggestion.sortText.localeCompare(otherSuggestion.sortText);
+		result = suggestion.sortText < otherSuggestion.sortText ? -1 : 1;
 	}
 
 	if (result !== 0) {
 		return result;
 	}
 
-	return suggestion.label.localeCompare(otherSuggestion.label);
+	return suggestion.label < otherSuggestion.label ? -1 : 1;
 }
 
 class CompletionItem {
