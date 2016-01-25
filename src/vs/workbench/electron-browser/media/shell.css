@@ -56,7 +56,6 @@
 .monaco-shell.vs input[type="checkbox"]:focus {
 	outline: 1px solid rgba(0, 122, 204, 0.4);
 	outline-offset: -1px;
-	opacity: 1 !important; /* prevent components from dimming focus feedback */
 }
 
 .monaco-shell.vs-dark [tabindex="0"]:focus,
@@ -66,7 +65,6 @@
 .monaco-shell.vs-dark input[type="checkbox"]:focus {
 	outline: 1px solid rgba(14, 99, 156, 0.6);
 	outline-offset: -1px;
-	opacity: 1 !important; /* prevent components from dimming focus feedback */
 }
 
 .monaco-shell.hc-black [tabindex="0"]:focus,
@@ -110,7 +108,8 @@
 .monaco-shell input[type="submit"]:active,
 .monaco-shell input[type="checkbox"]:active,
 .monaco-shell .monaco-tree.focused:active .monaco-tree-rows:empty,
-.monaco-shell .monaco-tree.focused.no-item-focus:active .monaco-tree-rows {
+.monaco-shell .monaco-tree.focused.no-item-focus:active .monaco-tree-rows,
+.monaco-shell .monaco-action-bar .action-label:hover {
 	outline: 0 !important; /* fixes some flashing outlines from showing up when clicking */
 }
 
