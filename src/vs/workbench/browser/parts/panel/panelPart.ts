@@ -135,10 +135,9 @@ class TogglePanelAction extends Action {
 	constructor(
 		id: string,
 		name: string,
-		@IPartService private partService: IPartService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService
+		@IPartService private partService: IPartService
 	) {
-		super(id, name, null, !!contextService.getWorkspace());
+		super(id, name, null);
 	}
 
 	public run(): Promise {
