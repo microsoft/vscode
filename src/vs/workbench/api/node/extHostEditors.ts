@@ -94,7 +94,7 @@ export class ExtHostEditors {
 			if (editor) {
 				return editor;
 			} else {
-				throw new Error('Failed to create editor.');
+				throw new Error('Failed to create editor with id: ' + id);
 			}
 		});
 	}
@@ -631,7 +631,7 @@ export class MainThreadEditors {
 				});
 				handle = setTimeout(() => {
 					contd();
-				}, 250);
+				}, 1000);
 
 			}).then(() => {
 				// find the editor we have just opened and return the
