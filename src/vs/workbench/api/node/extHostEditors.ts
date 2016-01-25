@@ -631,7 +631,7 @@ export class MainThreadEditors {
 				});
 				handle = setTimeout(() => {
 					contd();
-				}, 100);
+				}, 250);
 
 			}).then(() => {
 				// find the editor we have just opened and return the
