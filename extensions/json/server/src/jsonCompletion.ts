@@ -12,7 +12,7 @@ import JsonSchema = require('./json-toolbox/jsonSchema');
 import nls = require('./utils/nls');
 import {IJSONWorkerContribution} from './jsonContributions';
 
-import {CompletionItem, CompletionItemKind, CompletionOptions, ITextDocument, TextDocumentIdentifier, TextDocumentPosition, Range, TextEdit} from 'vscode-languageserver';
+import {CompletionItem, CompletionItemKind, CompletionList, CompletionOptions, ITextDocument, TextDocumentIdentifier, TextDocumentPosition, Range, TextEdit} from 'vscode-languageserver';
 
 export interface ISuggestionsCollector {
 	add(suggestion: CompletionItem): void;
@@ -30,13 +30,16 @@ export class JSONCompletion {
 		this.contributions = contributions;
 	}
 
-	public doSuggest(document: ITextDocument, textDocumentPosition: TextDocumentPosition, doc: Parser.JSONDocument): Thenable<CompletionItem[]> {
+	public doSuggest(document: ITextDocument, textDocumentPosition: TextDocumentPosition, doc: Parser.JSONDocument): Thenable<CompletionList> {
 
 		let offset = document.offsetAt(textDocumentPosition.position);
 		let node = doc.getNodeFromOffsetEndInclusive(offset);
 		
 		let overwriteRange = null;
-		let result: CompletionItem[] = [];
+		let result: CompletionList = {
+			items: [],
+			isIncomplete: false
+		}
 
 		if (node && (node.type === 'string' || node.type === 'number' || node.type === 'boolean' || node.type === 'null')) {
 			overwriteRange = Range.create(document.positionAt(node.start), document.positionAt(node.end));
@@ -51,11 +54,11 @@ export class JSONCompletion {
 						suggestion.textEdit = TextEdit.replace(overwriteRange, suggestion.insertText);
 					}
 					
-					result.push(suggestion);
+					result.items.push(suggestion);
 				}
 			},
 			setAsIncomplete: () => {
-				
+				result.isIncomplete = true;
 			},
 			error: (message: string) => {
 				console.log(message);

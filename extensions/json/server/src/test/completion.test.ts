@@ -40,7 +40,7 @@ suite('JSON Completion', () => {
 		var document = ITextDocument.create(uri, value);
 		var textDocumentLocation = TextDocumentPosition.create(uri, Position.create(0, idx));
 		var jsonDoc = Parser.parse(value);
-		return completionProvider.doSuggest(document, textDocumentLocation, jsonDoc);
+		return completionProvider.doSuggest(document, textDocumentLocation, jsonDoc).then(list => list.items);
 	};
 
 

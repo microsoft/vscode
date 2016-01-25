@@ -8,7 +8,7 @@ import {
 	IPCMessageReader, IPCMessageWriter,
 	createConnection, IConnection, TextDocumentSyncKind,
 	TextDocuments, ITextDocument, Diagnostic, DiagnosticSeverity,
-	InitializeParams, InitializeResult, TextDocumentIdentifier, TextDocumentPosition,
+	InitializeParams, InitializeResult, TextDocumentIdentifier, TextDocumentPosition, CompletionList,
 	CompletionItem, CompletionItemKind, Files, Hover, SymbolInformation, TextEdit, DocumentFormattingParams,
 	DocumentRangeFormattingParams, NotificationType, RequestType
 } from 'vscode-languageserver';
@@ -257,7 +257,7 @@ function getJSONDocument(document: ITextDocument): JSONDocument {
 	return parseJSON(document.getText());
 }
 
-connection.onCompletion((textDocumentPosition: TextDocumentPosition): Thenable<CompletionItem[]> => {
+connection.onCompletion((textDocumentPosition: TextDocumentPosition): Thenable<CompletionList> => {
 	let document = documents.get(textDocumentPosition.uri);
 	let jsonDocument = getJSONDocument(document);
 	return jsonCompletion.doSuggest(document, textDocumentPosition, jsonDocument);
