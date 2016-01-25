@@ -32,6 +32,26 @@ import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { onUnexpectedError, isPromiseCanceledError, illegalArgument } from 'vs/base/common/errors';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
+function completionGroupCompare(one: CompletionGroup, other: CompletionGroup): number {
+	return one.index - other.index;
+}
+
+function completionItemCompare(item: CompletionItem, otherItem: CompletionItem): number {
+	const suggestion = item.suggestion;
+	const otherSuggestion = otherItem.suggestion;
+	let result = 0;
+
+	if (typeof suggestion.sortText === 'string' && typeof otherSuggestion.sortText === 'string') {
+		result = suggestion.sortText.localeCompare(otherSuggestion.sortText);
+	}
+
+	if (result !== 0) {
+		return result;
+	}
+
+	return suggestion.label.localeCompare(otherSuggestion.label);
+}
+
 class CompletionItem {
 
 	private static _idPool: number = 0;
@@ -89,7 +109,7 @@ class CompletionGroup {
 				result.suggestions
 					.map(suggestion => new CompletionItem(this, suggestion, result))
 			);
-		}, []);
+		}, []).sort(completionItemCompare);
 
 		this.filter = DefaultFilter;
 
@@ -127,7 +147,8 @@ class CompletionModel {
 				this.size += group.size;
 
 				return group;
-			});
+			})
+			.sort(completionGroupCompare);
 	}
 
 	get items(): CompletionItem[] {
@@ -229,32 +250,6 @@ class Filter implements Tree.IFilter {
 		const currentWord = item.group.model.currentWord;
 		item.highlights = filter(currentWord, item.suggestion);
 		return !isFalsyOrEmpty(item.highlights);
-	}
-}
-
-class Sorter implements Tree.ISorter {
-
-	compare(tree: Tree.ITree, item: CompletionItem, otherItem: CompletionItem): number {
-		const group = item.group;
-		const otherGroup = otherItem.group;
-		const result = group.index - otherGroup.index
-
-		if (result !== 0) {
-			return result;
-		}
-
-		return Sorter.suggestionCompare(item.suggestion, otherItem.suggestion);
-	}
-
-	private static suggestionCompare(a: ISuggestion, b: ISuggestion): number {
-		let cmp = 0;
-		if (typeof a.sortText === 'string' && typeof b.sortText === 'string') {
-			cmp = a.sortText.localeCompare(b.sortText);
-		}
-		if (cmp === 0) {
-			cmp = a.label.localeCompare(b.label);
-		}
-		return cmp;
 	}
 }
 
@@ -537,8 +532,7 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 			renderer: this.renderer,
 			dataSource: new DataSource(),
 			controller: new Controller(),
-			filter: new Filter(() => this.state),
-			sorter: new Sorter()
+			filter: new Filter(() => this.state)
 		};
 
 		const options = {
