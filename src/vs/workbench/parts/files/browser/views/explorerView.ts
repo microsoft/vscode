@@ -314,8 +314,8 @@ export class ExplorerView extends CollapsibleViewletView {
 			filter: this.filter,
 			dnd: dnd
 		}, {
-				autoExpandSingleChildren: true
-			});
+			autoExpandSingleChildren: true
+		});
 
 		this.toDispose.push(lifecycle.toDisposable(() => renderer.dispose()));
 

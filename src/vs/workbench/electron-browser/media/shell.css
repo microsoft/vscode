@@ -104,12 +104,18 @@
 	outline: 0 !important; /* tree indicates focus not via outline but through the focussed item */
 }
 
-.monaco-shell .activitybar [tabindex="0"]:focus {
-	outline: 0; /* activity bar indicates focus custom */
+.monaco-shell [tabindex="0"]:active,
+.monaco-shell select:active,
+.monaco-shell input[type="button"]:active,
+.monaco-shell input[type="submit"]:active,
+.monaco-shell input[type="checkbox"]:active,
+.monaco-shell .monaco-tree.focused:active .monaco-tree-rows:empty,
+.monaco-shell .monaco-tree.focused.no-item-focus:active .monaco-tree-rows {
+	outline: 0 !important; /* fixes some flashing outlines from showing up when clicking */
 }
 
-.monaco-shell .part.editor .binary-container:focus {
-	outline: 0; /* binary container indicates focus custom */
+.monaco-shell .activitybar [tabindex="0"]:focus {
+	outline: 0; /* activity bar indicates focus custom */
 }
 
 /* END Keyboard Focus Indication Styles */

@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-editor .debug-hover-widget {
-	padding: 0 3px 0 3px;
 	border: 1px solid #CCC;
 	position: absolute;
 	margin-top: -1px;

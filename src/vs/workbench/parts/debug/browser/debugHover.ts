@@ -17,7 +17,7 @@ import viewer = require('vs/workbench/parts/debug/browser/debugViewer');
 const $ = dom.emmet;
 const debugTreeOptions = {
 	indentPixels: 6,
-	twistiePixels: 12
+	twistiePixels: 15
 };
 const MAX_ELEMENTS_SHOWN = 18;
 
@@ -42,7 +42,7 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 		this.tree = new Tree(this.treeContainer, {
 			dataSource: new viewer.VariablesDataSource(this.debugService),
 			renderer: this.instantiationService.createInstance(VariablesHoverRenderer),
-			controller: new DebugHoverController()
+			controller: new DebugHoverController(editor)
 		}, debugTreeOptions);
 		this.tree.addListener2('item:expanded', () => {
 			this.layoutTree();
@@ -194,11 +194,16 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 
 class DebugHoverController extends DefaultController {
 
+	constructor(private editor: editorbrowser.ICodeEditor) {
+		super();
+	}
+
 	/* protected */ public onLeftClick(tree: ITree, element: any, eventish: ICancelableEvent, origin: string = 'mouse'): boolean {
 		if (element.reference > 0) {
 			super.onLeftClick(tree, element, eventish, origin);
 			tree.clearFocus();
 			tree.deselect(element);
+			this.editor.focus();
 		}
 
 		return true;
