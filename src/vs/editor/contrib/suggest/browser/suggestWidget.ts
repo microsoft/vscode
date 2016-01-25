@@ -90,19 +90,14 @@ class CompletionItem {
 			)
 			.then(() => this);
 	}
-
-	filter(): boolean {
-		const filter = this.group.filter;
-		const currentWord = this.group.model.currentWord;
-		this.highlights = filter(currentWord, this.suggestion);
-		return !isFalsyOrEmpty(this.highlights);
-	}
 }
 
 class CompletionGroup {
 
 	incomplete: boolean;
 	private _items: CompletionItem[];
+	private cache: CompletionItem[];
+	private cacheCurrentWord: string;
 	size: number;
 	filter: ISuggestionFilter;
 
@@ -131,8 +126,32 @@ class CompletionGroup {
 		}
 	}
 
-	get items(): CompletionItem[] {
-		return this._items.filter(i => i.filter());
+	getItems(currentWord: string): CompletionItem[] {
+		if (currentWord === this.cacheCurrentWord) {
+			return this.cache;
+		}
+
+		let set: CompletionItem[];
+
+		// try to narrow down when possible, instead of always filtering everything
+		if (this.cacheCurrentWord && currentWord.substr(0, this.cacheCurrentWord.length) === this.cacheCurrentWord) {
+			set = this.cache;
+		} else {
+			set = this._items;
+		}
+
+		const result = set.filter(item => {
+			item.highlights = this.filter(currentWord, item.suggestion);
+			return !isFalsyOrEmpty(item.highlights);
+		});
+
+		// let's only cache stuff that actually has results
+		if (result.length > 0) {
+			this.cacheCurrentWord = currentWord;
+			this.cache = result;
+		}
+
+		return result;
 	}
 }
 
@@ -142,8 +161,9 @@ class CompletionModel {
 	size: number;
 	private groups: CompletionGroup[];
 	private cache: CompletionItem[];
+	private cacheCurrentWord: string;
 
-	constructor(public raw: ISuggestResult2[][], private _currentWord: string) {
+	constructor(public raw: ISuggestResult2[][], public currentWord: string) {
 		this.incomplete = false;
 		this.size = 0;
 
@@ -160,21 +180,20 @@ class CompletionModel {
 			.sort(completionGroupCompare);
 	}
 
-	set currentWord(value: string) {
-		this._currentWord = value;
-		this.cache = null;
-	}
-
-	get currentWord(): string {
-		return this._currentWord;
-	}
-
 	get items(): CompletionItem[] {
-		if (!this.cache) {
-			this.cache = this.groups.reduce((r, groups) => r.concat(groups.items), []);
+		if (this.cacheCurrentWord === this.currentWord) {
+			return this.cache;
 		}
 
-		return this.cache;
+		const result = this.groups.reduce((r, groups) => r.concat(groups.getItems(this.currentWord)), []);
+
+		// let's only cache stuff that actually has results
+		if (result.length > 0) {
+			this.cache = result;
+			this.cacheCurrentWord = this.currentWord;
+		}
+
+		return result;
 	}
 }
 
