@@ -900,7 +900,25 @@ suite('ExtHostLanguageFeatures', function() {
 
 			suggest(model, { lineNumber: 1, column: 1 }, ',').then(value => {
 				assert.equal(value.length, 1);
+				assert.equal(value[0][0].incomplete, undefined);
 				done();
+			});
+		});
+	});
+
+	test('Suggest, CompletionList', function() {
+
+		disposables.push(extHost.registerCompletionItemProvider(defaultSelector, <vscode.CompletionItemProvider>{
+			provideCompletionItems(): any {
+				return new types.CompletionList([<any> new types.CompletionItem('hello')], true);
+			}
+		}, []));
+
+		return threadService.sync().then(() => {
+
+			suggest(model, { lineNumber: 1, column: 1 }, ',').then(value => {
+				assert.equal(value.length, 1);
+				assert.equal(value[0][0].incomplete, true);
 			});
 		});
 	});

@@ -82,6 +82,7 @@ export class ExtHostAPIImplementation {
 	SignatureHelp: typeof vscode.SignatureHelp;
 	CompletionItem: typeof vscode.CompletionItem;
 	CompletionItemKind: typeof vscode.CompletionItemKind;
+	CompletionList: typeof vscode.CompletionList;
 	IndentAction: typeof vscode.IndentAction;
 	OverviewRulerLane: typeof vscode.OverviewRulerLane;
 	TextEditorRevealType: typeof vscode.TextEditorRevealType;
@@ -124,6 +125,7 @@ export class ExtHostAPIImplementation {
 		this.SignatureHelp = extHostTypes.SignatureHelp;
 		this.CompletionItem = <any>extHostTypes.CompletionItem;
 		this.CompletionItemKind = <any>extHostTypes.CompletionItemKind;
+		this.CompletionList = extHostTypes.CompletionList;
 		this.ViewColumn = <any>extHostTypes.ViewColumn;
 		this.StatusBarAlignment = <any>extHostTypes.StatusBarAlignment;
 		this.IndentAction = <any>Modes.IndentAction;

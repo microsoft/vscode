@@ -640,7 +640,7 @@ export enum CompletionItemKind {
 export class CompletionItem {
 
 	label: string;
-	kind: CompletionItemKind;
+	kind: CompletionItemKind
 	detail: string;
 	documentation: string;
 	sortText: string;
@@ -663,6 +663,18 @@ export class CompletionItem {
 			insertText: this.insertText,
 			textEdit: this.textEdit
 		};
+	}
+}
+
+export class CompletionList {
+
+	isIncomplete: boolean;
+
+	items: vscode.CompletionItem[];
+
+	constructor(items: vscode.CompletionItem[] = [], isIncomplete: boolean = false) {
+		this.items = items;
+		this.isIncomplete = isIncomplete;
 	}
 }
 

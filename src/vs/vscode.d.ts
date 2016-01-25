@@ -2010,6 +2010,32 @@ declare namespace vscode {
 	}
 
 	/**
+	 * Represents a collection of [completion items](#CompletionItem) to be presented
+	 * in the editor.
+	 */
+	class CompletionList {
+
+		/**
+		 * This list it not complete. Further typing should result in recomputing
+		 * this list.
+		 */
+		isIncomplete: boolean;
+
+		/**
+		 * The completion items.
+		 */
+		items: CompletionItem[];
+
+		/**
+		 * Creates a new completion list.
+		 *
+		 * @param items The completion items.
+		 * @param isIncomplete The list is not complete.
+		 */
+		constructor(items?: CompletionItem[], isIncomplete?: boolean);
+	}
+
+	/**
 	 * The completion item provider interface defines the contract between extensions and
 	 * the [IntelliSense](https://code.visualstudio.com/docs/editor/editingevolved#_intellisense).
 	 *
@@ -2028,10 +2054,10 @@ declare namespace vscode {
 		 * @param document The document in which the command was invoked.
 		 * @param position The position at which the command was invoked.
 		 * @param token A cancellation token.
-		 * @return An array of completions or a thenable that resolves to such. The lack of a result can be
-		 * signaled by returning `undefined`, `null`, an empty array.
+		 * @return An array of completions, a [completion list](#CompletionList), or a thenable that resolves to either.
+		 * The lack of a result can be signaled by returning `undefined`, `null`, or an empty array.
 		 */
-		provideCompletionItems(document: TextDocument, position: Position, token: CancellationToken): CompletionItem[] | Thenable<CompletionItem[]>;
+		provideCompletionItems(document: TextDocument, position: Position, token: CancellationToken): CompletionItem[] | Thenable<CompletionItem[]> | CompletionList | Thenable<CompletionList>;
 
 		/**
 		 * Given a completion item fill in more data, like [doc-comment](#CompletionItem.documentation)

@@ -103,7 +103,7 @@ class ExtHostApiCommands {
 				{ name: 'uri', description: 'Uri of a text document', constraint: URI },
 				{ name: 'position', description: 'Position in a text document', constraint: types.Position }
 			],
-			returns: 'A promise that resolves to an array of CompletionItem-instances.'
+			returns: 'A promise that resolves to a CompletionList-instance.'
 		});
 		this._register('vscode.executeCodeActionProvider', this._executeCodeActionProvider, {
 			description: 'Execute code action provider.',
@@ -265,7 +265,7 @@ class ExtHostApiCommands {
 		});
 	}
 
-	private _executeCompletionItemProvider(resource: URI, position: types.Position, triggerCharacter: string): Thenable<types.CompletionItem[]> {
+	private _executeCompletionItemProvider(resource: URI, position: types.Position, triggerCharacter: string): Thenable<types.CompletionItem[]|types.CompletionList> {
 		const args = {
 			resource,
 			position: position && typeConverters.fromPosition(position),
@@ -274,15 +274,17 @@ class ExtHostApiCommands {
 		return this._commands.executeCommand<modes.ISuggestResult[][]>('_executeCompletionItemProvider', args).then(value => {
 			if (value) {
 				let items: types.CompletionItem[] = [];
+				let incomplete: boolean;
 				for (let group of value) {
 					for (let suggestions of group) {
+						incomplete = suggestions.incomplete || incomplete;
 						for (let suggestion of suggestions.suggestions) {
 							const item = typeConverters.Suggest.to(suggestions, position, suggestion);
 							items.push(item);
 						}
 					}
 				}
-				return items;
+				return new types.CompletionList(<any>items, incomplete);
 			}
 		});
 	}
