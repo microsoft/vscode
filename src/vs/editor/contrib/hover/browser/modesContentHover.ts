@@ -207,7 +207,7 @@ export class ModesContentHoverWidget extends HoverWidget.ContentHoverWidget {
 	public _withResult(result: Modes.IComputeExtraInfoResult[], complete:boolean): void {
 		this._messages = result;
 
-		if (this._messages.length > 0) {
+		if (this._lastRange && this._messages.length > 0) {
 			this._renderMessages(this._lastRange, this._messages);
 		} else if(complete) {
 			this.hide();
