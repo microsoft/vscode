@@ -39,17 +39,13 @@ function completionGroupCompare(one: CompletionGroup, other: CompletionGroup): n
 function completionItemCompare(item: CompletionItem, otherItem: CompletionItem): number {
 	const suggestion = item.suggestion;
 	const otherSuggestion = otherItem.suggestion;
-	let result = 0;
 
-	if (typeof suggestion.sortText === 'string' && typeof otherSuggestion.sortText === 'string') {
-		result = suggestion.sortText < otherSuggestion.sortText ? -1 : 1;
-	}
+	// TODO@jrieken
+	// if (typeof suggestion.sortText === 'string' && typeof otherSuggestion.sortText === 'string') {
+	// 	return suggestion.sortText < otherSuggestion.sortText ? -1 : 1;
+	// }
 
-	if (result !== 0) {
-		return result;
-	}
-
-	return suggestion.label < otherSuggestion.label ? -1 : 1;
+	return suggestion.label.toLowerCase() < otherSuggestion.label.toLowerCase() ? -1 : 1;
 }
 
 class CompletionItem {
