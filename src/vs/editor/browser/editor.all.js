@@ -33,6 +33,7 @@ define([
 	'vs/editor/contrib/snippet/browser/snippet',
 	'vs/editor/contrib/suggest/browser/suggest',
 	'vs/editor/contrib/toggleTabFocusMode/common/toggleTabFocusMode',
+	'vs/editor/contrib/toggleWordWrap/common/toggleWordWrap',
 	'vs/editor/contrib/wordHighlighter/common/wordHighlighter',
 	'vs/editor/contrib/workerStatusReporter/browser/workerStatusReporter',
 	'vs/editor/contrib/defineKeybinding/browser/defineKeybinding',
