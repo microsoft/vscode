@@ -86,5 +86,5 @@ CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(InsertCurso
 }));
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(InsertCursorAtEndOfEachLineSelected, InsertCursorAtEndOfEachLineSelected.ID, nls.localize('mutlicursor.insertAtEndOfEachLineSelected', "Create multiple cursors from selected lines"), {
 	context: ContextKey.EditorTextFocus,
-	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_I
+	primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_I
 }));
