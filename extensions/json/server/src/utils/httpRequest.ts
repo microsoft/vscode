@@ -22,7 +22,7 @@ export interface IXHROptions {
 	agent?: any;
 	strictSSL?: boolean;    
 	responseType?: string;
-	followRedirects: number;
+	followRedirects?: number;
 }
 
 export interface IXHRResponse {
@@ -47,6 +47,9 @@ export function xhr(options: IXHROptions): Promise<IXHRResponse> {
 	const agent = getProxyAgent(options.url, { proxyUrl, strictSSL });
 	options = assign({}, options);
 	options = assign(options, { agent, strictSSL });
+	if (typeof options.followRedirects !== 'number') {
+		options.followRedirects = 5;
+	}
 
 	return request(options).then(result => new Promise<IXHRResponse>((c, e) => {
 		let res = result.res;

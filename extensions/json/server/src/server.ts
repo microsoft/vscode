@@ -25,6 +25,10 @@ import {JSONHover} from './jsonHover';
 import {JSONDocumentSymbols} from './jsonDocumentSymbols';
 import {format as formatJSON} from './jsonFormatter';
 import {schemaContributions} from './configuration';
+import {BowerJSONContribution} from './jsoncontributions/bowerJSONContribution';
+import {PackageJSONContribution} from './jsoncontributions/packageJSONContribution';
+import {ProjectJSONContribution} from './jsoncontributions/projectJSONContribution';
+import {GlobPatternContribution} from './jsoncontributions/globPatternContribution';
 
 namespace TelemetryNotification {
 	export const type: NotificationType<{ key: string, data: any }> = { get method() { return 'telemetry'; } };
@@ -106,11 +110,18 @@ let request = (options: IXHROptions): Thenable<IXHRResponse>  => {
 	return xhr(options);
 }
 
+let contributions = [
+	new ProjectJSONContribution(request),
+	new PackageJSONContribution(request),
+	new BowerJSONContribution(request),
+	new GlobPatternContribution()
+];
+
 let jsonSchemaService = new JSONSchemaService(request, workspaceContext, telemetry);
 jsonSchemaService.setSchemaContributions(schemaContributions);
 
-let jsonCompletion = new JSONCompletion(jsonSchemaService);
-let jsonHover = new JSONHover(jsonSchemaService);
+let jsonCompletion = new JSONCompletion(jsonSchemaService, contributions);
+let jsonHover = new JSONHover(jsonSchemaService, contributions);
 let jsonDocumentSymbols = new JSONDocumentSymbols();
 
 // The content of a text document has changed. This event is emitted

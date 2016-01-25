@@ -7,15 +7,18 @@
 
 import Parser = require('./jsonParser');
 import SchemaService = require('./jsonSchemaService');
+import {IJSONWorkerContribution} from './jsonContributions';
 
 import {Hover, ITextDocument, TextDocumentPosition, Range, MarkedString, RemoteConsole} from 'vscode-languageserver';
 
 export class JSONHover {
 
 	private schemaService: SchemaService.IJSONSchemaService;
+	private contributions: IJSONWorkerContribution[];
 
-	constructor(schemaService: SchemaService.IJSONSchemaService) {
+	constructor(schemaService: SchemaService.IJSONSchemaService, contributions: IJSONWorkerContribution[] = []) {
 		this.schemaService = schemaService;
+		this.contributions = contributions;
 	}
 
 	public doHover(document: ITextDocument, textDocumentPosition: TextDocumentPosition, doc: Parser.JSONDocument): Thenable<Hover> {
@@ -52,14 +55,27 @@ export class JSONHover {
 					}
 					return true;
 				});
-
-				if (description) {
+				
+				function createHover(contents: MarkedString[]) {
 					let range = Range.create(document.positionAt(node.start), document.positionAt(node.end));
 					let result: Hover = {
-						contents: [description],
+						contents: contents,
 						range: range
 					};
 					return result;
+				}
+				
+				let location = node.getNodeLocation();
+				for (let i = this.contributions.length - 1; i >= 0; i--) {
+					let contribution = this.contributions[i];
+					let promise = contribution.getInfoContribution(textDocumentPosition.uri, location);
+					if (promise) {
+						return promise.then(htmlContent => createHover(htmlContent));
+					}
+				}
+
+				if (description) {
+					return createHover([description]);
 				}
 			}
 			return void 0;
