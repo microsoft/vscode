@@ -126,11 +126,10 @@ export class QuickOpenWidget implements IModelProvider {
 				this.inputContainer = inputContainer;
 				this.inputBox = new InputBox(inputContainer.getHTMLElement(), null, {
 					placeholder: this.options.inputPlaceHolder || '',
-					ariaLabel: this.options.inputAriaLabel
+					ariaLabel: nls.localize('quickOpenAriaLabel', "Type to narrow down results, then press Tab to jump into the result list and make a pick.")
 				});
 				DOM.addDisposableListener(this.inputBox.inputElement, DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 					let keyboardEvent: StandardKeyboardEvent = new StandardKeyboardEvent(e);
-
 
 					// Do not handle Tab: It is used to navigate between elements without mouse
 					if (keyboardEvent.keyCode === KeyCode.Tab) {
