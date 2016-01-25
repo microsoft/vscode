@@ -671,51 +671,57 @@ export interface IInternalEditorOptions {
 export interface IConfigurationChangedEvent {
 	_screenReaderNVDA: boolean;
 
-	layoutInfo:boolean;
-	stylingInfo:boolean;
-	wrappingInfo:boolean;
-	indentInfo:boolean;
-	observedOuterWidth:boolean;
-	observedOuterHeight:boolean;
-	lineHeight:boolean;
-	pageSize:boolean;
-	typicalHalfwidthCharacterWidth:boolean;
-	typicalFullwidthCharacterWidth:boolean;
-	fontSize:boolean;
-	lineNumbers:boolean;
-	selectOnLineNumbers:boolean;
-	glyphMargin:boolean;
-	revealHorizontalRightPadding:boolean;
-	roundedSelection:boolean;
-	theme:boolean;
-	readOnly:boolean;
-	scrollbar:boolean;
-	overviewRulerLanes:boolean;
-	cursorBlinking:boolean;
-	cursorStyle:boolean;
-	fontLigatures:boolean;
-	hideCursorInOverviewRuler:boolean;
-	scrollBeyondLastLine:boolean;
-	wrappingIndent:boolean;
+	// ---- Options that are transparent - get no massaging
+	lineNumbers: boolean;
+	selectOnLineNumbers: boolean;
+	glyphMargin: boolean;
+	revealHorizontalRightPadding: boolean;
+	roundedSelection: boolean;
+	theme: boolean;
+	readOnly: boolean;
+	scrollbar: boolean;
+	overviewRulerLanes: boolean;
+	cursorBlinking: boolean;
+	cursorStyle: boolean;
+	fontLigatures: boolean;
+	hideCursorInOverviewRuler: boolean;
+	scrollBeyondLastLine: boolean;
+	wrappingIndent: boolean;
 	wordWrapBreakBeforeCharacters: boolean;
 	wordWrapBreakAfterCharacters: boolean;
 	wordWrapBreakObtrusiveCharacters: boolean;
-	tabFocusMode:boolean;
-	stopLineTokenizationAfter:boolean;
-	stopRenderingLineAfter:boolean;
-	longLineBoundary:boolean;
-	forcedTokenizationBoundary:boolean;
-	hover:boolean;
-	contextmenu:boolean;
-	quickSuggestions:boolean;
-	quickSuggestionsDelay:boolean;
-	iconsInSuggestions:boolean;
-	autoClosingBrackets:boolean;
-	formatOnType:boolean;
-	suggestOnTriggerCharacters:boolean;
-	selectionHighlight:boolean;
+	tabFocusMode: boolean;
+	stopLineTokenizationAfter: boolean;
+	stopRenderingLineAfter: boolean;
+	longLineBoundary: boolean;
+	forcedTokenizationBoundary: boolean;
+
+	// ---- Options that are transparent - get no massaging
+	hover: boolean;
+	contextmenu: boolean;
+	quickSuggestions: boolean;
+	quickSuggestionsDelay: boolean;
+	iconsInSuggestions: boolean;
+	autoClosingBrackets: boolean;
+	formatOnType: boolean;
+	suggestOnTriggerCharacters: boolean;
+	selectionHighlight: boolean;
 	outlineMarkers: boolean;
 	referenceInfos: boolean;
+	renderWhitespace: boolean;
+
+	// ---- Options that are computed
+	layoutInfo: boolean;
+	stylingInfo: boolean;
+	wrappingInfo: boolean;
+	indentInfo: boolean;
+	observedOuterWidth: boolean;
+	observedOuterHeight: boolean;
+	lineHeight: boolean;
+	pageSize: boolean;
+	typicalHalfwidthCharacterWidth: boolean;
+	typicalFullwidthCharacterWidth: boolean;
+	fontSize: boolean;
 }
 
 /**

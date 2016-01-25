@@ -221,17 +221,8 @@ class InternalEditorOptionsHelper {
 
 	public static createConfigurationChangedEvent(prevOpts:EditorCommon.IInternalEditorOptions, newOpts:EditorCommon.IInternalEditorOptions): EditorCommon.IConfigurationChangedEvent {
 		return {
-			layoutInfo: 						(!EditorLayoutProvider.layoutEqual(prevOpts.layoutInfo, newOpts.layoutInfo)),
-			stylingInfo: 					(!this._stylingInfoEqual(prevOpts.stylingInfo, newOpts.stylingInfo)),
-			wrappingInfo:					(!this._wrappingInfoEqual(prevOpts.wrappingInfo, newOpts.wrappingInfo)),
-			indentInfo:						(!this._indentInfoEqual(prevOpts.indentInfo, newOpts.indentInfo)),
-			observedOuterWidth:				(prevOpts.observedOuterWidth !== newOpts.observedOuterWidth),
-			observedOuterHeight:				(prevOpts.observedOuterHeight !== newOpts.observedOuterHeight),
-			lineHeight:						(prevOpts.lineHeight !== newOpts.lineHeight),
-			pageSize:						(prevOpts.pageSize !== newOpts.pageSize),
-			typicalHalfwidthCharacterWidth:	(prevOpts.typicalHalfwidthCharacterWidth !== newOpts.typicalHalfwidthCharacterWidth),
-			typicalFullwidthCharacterWidth:	(prevOpts.typicalFullwidthCharacterWidth !== newOpts.typicalFullwidthCharacterWidth),
-			fontSize:						(prevOpts.fontSize !== newOpts.fontSize),
+			_screenReaderNVDA:				(prevOpts._screenReaderNVDA !== newOpts._screenReaderNVDA),
+
 			lineNumbers:						(prevOpts.lineNumbers !== newOpts.lineNumbers),
 			selectOnLineNumbers:				(prevOpts.selectOnLineNumbers !== newOpts.selectOnLineNumbers),
 			glyphMargin:						(prevOpts.glyphMargin !== newOpts.glyphMargin),
@@ -242,7 +233,6 @@ class InternalEditorOptionsHelper {
 			scrollbar:						(!this._scrollbarOptsEqual(prevOpts.scrollbar, newOpts.scrollbar)),
 			overviewRulerLanes:				(prevOpts.overviewRulerLanes !== newOpts.overviewRulerLanes),
 			cursorBlinking:					(prevOpts.cursorBlinking !== newOpts.cursorBlinking),
-			_screenReaderNVDA:				(prevOpts._screenReaderNVDA !== newOpts._screenReaderNVDA),
 			cursorStyle:						(prevOpts.cursorStyle !== newOpts.cursorStyle),
 			fontLigatures:					(prevOpts.fontLigatures !== newOpts.fontLigatures),
 			hideCursorInOverviewRuler:		(prevOpts.hideCursorInOverviewRuler !== newOpts.hideCursorInOverviewRuler),
@@ -256,6 +246,7 @@ class InternalEditorOptionsHelper {
 			stopRenderingLineAfter:			(prevOpts.stopRenderingLineAfter !== newOpts.stopRenderingLineAfter),
 			longLineBoundary:				(prevOpts.longLineBoundary !== newOpts.longLineBoundary),
 			forcedTokenizationBoundary:		(prevOpts.forcedTokenizationBoundary !== newOpts.forcedTokenizationBoundary),
+
 			hover:							(prevOpts.hover !== newOpts.hover),
 			contextmenu:						(prevOpts.contextmenu !== newOpts.contextmenu),
 			quickSuggestions:				(prevOpts.quickSuggestions !== newOpts.quickSuggestions),
@@ -266,7 +257,20 @@ class InternalEditorOptionsHelper {
 			suggestOnTriggerCharacters:		(prevOpts.suggestOnTriggerCharacters !== newOpts.suggestOnTriggerCharacters),
 			selectionHighlight:				(prevOpts.selectionHighlight !== newOpts.selectionHighlight),
 			outlineMarkers:					(prevOpts.outlineMarkers !== newOpts.outlineMarkers),
-			referenceInfos:					(prevOpts.referenceInfos !== newOpts.referenceInfos)
+			referenceInfos:					(prevOpts.referenceInfos !== newOpts.referenceInfos),
+			renderWhitespace:				(prevOpts.renderWhitespace !== newOpts.renderWhitespace),
+
+			layoutInfo: 						(!EditorLayoutProvider.layoutEqual(prevOpts.layoutInfo, newOpts.layoutInfo)),
+			stylingInfo: 					(!this._stylingInfoEqual(prevOpts.stylingInfo, newOpts.stylingInfo)),
+			wrappingInfo:					(!this._wrappingInfoEqual(prevOpts.wrappingInfo, newOpts.wrappingInfo)),
+			indentInfo:						(!this._indentInfoEqual(prevOpts.indentInfo, newOpts.indentInfo)),
+			observedOuterWidth:				(prevOpts.observedOuterWidth !== newOpts.observedOuterWidth),
+			observedOuterHeight:				(prevOpts.observedOuterHeight !== newOpts.observedOuterHeight),
+			lineHeight:						(prevOpts.lineHeight !== newOpts.lineHeight),
+			pageSize:						(prevOpts.pageSize !== newOpts.pageSize),
+			typicalHalfwidthCharacterWidth:	(prevOpts.typicalHalfwidthCharacterWidth !== newOpts.typicalHalfwidthCharacterWidth),
+			typicalFullwidthCharacterWidth:	(prevOpts.typicalFullwidthCharacterWidth !== newOpts.typicalFullwidthCharacterWidth),
+			fontSize:						(prevOpts.fontSize !== newOpts.fontSize)
 		};
 	}
 
