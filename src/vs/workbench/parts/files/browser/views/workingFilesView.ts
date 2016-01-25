@@ -20,7 +20,7 @@ import {EventType as WorkbenchEventType, UntitledEditorEvent, EditorEvent} from 
 import {AdaptiveCollapsibleViewletView} from 'vs/workbench/browser/viewlet';
 import {CloseWorkingFileAction, SaveAllAction} from 'vs/workbench/parts/files/browser/fileActions';
 import {WorkingFileEntry} from 'vs/workbench/parts/files/common/workingFilesModel';
-import {WorkingFilesDragAndDrop, WorkingFilesSorter, WorkingFilesController, WorkingFilesDataSource, WorkingFilesRenderer, WorkingFilesActionProvider} from 'vs/workbench/parts/files/browser/views/workingFilesViewer';
+import {WorkingFilesDragAndDrop, WorkingFilesSorter, WorkingFilesController, WorkingFilesDataSource, WorkingFilesRenderer, WorkingFilesAccessibilityProvider, WorkingFilesActionProvider} from 'vs/workbench/parts/files/browser/views/workingFilesViewer';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IConfigurationService, IConfigurationServiceEvent, ConfigurationServiceEventTypes} from 'vs/platform/configuration/common/configuration';
 import {IEditorInput} from 'vs/platform/editor/common/editor';
@@ -285,13 +285,15 @@ export class WorkingFilesView extends AdaptiveCollapsibleViewletView {
 		let controller = this.instantiationService.createInstance(WorkingFilesController, this.model, actionProvider);
 		let sorter = this.instantiationService.createInstance(WorkingFilesSorter);
 		let dnd = this.instantiationService.createInstance(WorkingFilesDragAndDrop, this.model);
+		let accessibility = this.instantiationService.createInstance(WorkingFilesAccessibilityProvider);
 
 		this.tree = new Tree(container.getHTMLElement(), {
 			dataSource: dataSource,
 			renderer: renderer,
 			sorter: sorter,
 			controller: controller,
-			dnd: dnd
+			dnd: dnd,
+			accessibilityProvider: accessibility
 		}, {
 			indentPixels: 0,
 			twistiePixels: 8,

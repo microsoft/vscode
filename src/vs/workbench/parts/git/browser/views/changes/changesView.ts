@@ -169,6 +169,7 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 			renderer: renderer,
 			filter: new Viewer.Filter(),
 			sorter: new Viewer.Sorter(),
+			accessibilityProvider: new Viewer.AccessibilityProvider(),
 			dnd: dnd,
 			controller: controller
 		}, {

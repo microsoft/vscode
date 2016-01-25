@@ -350,6 +350,14 @@ export class FileRenderer extends ActionsRenderer implements Tree.IRenderer {
 	}
 }
 
+// Explorer Accessibility Provider
+export class FileAccessibilityProvider implements Tree.IAccessibilityProvider {
+
+	public getAriaLabel(tree: Tree.ITree, stat: FileStat): string {
+		return stat.name;
+	}
+}
+
 // Explorer Controller
 export class FileController extends DefaultController {
 	private didCatchEnterDown: boolean;

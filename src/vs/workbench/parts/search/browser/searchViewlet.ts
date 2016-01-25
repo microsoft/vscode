@@ -16,6 +16,7 @@ import {IExpression, splitGlobAware} from 'vs/base/common/glob';
 import {isFunction} from 'vs/base/common/types';
 import URI from 'vs/base/common/uri';
 import strings = require('vs/base/common/strings');
+import paths = require('vs/base/common/paths');
 import dom = require('vs/base/browser/dom');
 import {IAction, Action, IActionRunner} from 'vs/base/common/actions';
 import {StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
@@ -25,7 +26,7 @@ import {FileLabel} from 'vs/base/browser/ui/filelabel/fileLabel';
 import {FindInput} from 'vs/base/browser/ui/findinput/findInput';
 import {LeftRightWidget, IRenderer} from 'vs/base/browser/ui/leftRightWidget/leftRightWidget';
 import {CountBadge} from 'vs/base/browser/ui/countBadge/countBadge';
-import {ITree, IElementCallback, IFilter, ISorter, IDataSource} from 'vs/base/parts/tree/browser/tree';
+import {ITree, IElementCallback, IFilter, ISorter, IDataSource, IAccessibilityProvider} from 'vs/base/parts/tree/browser/tree';
 import {Tree} from 'vs/base/parts/tree/browser/treeImpl';
 import {ClickBehavior, DefaultController} from 'vs/base/parts/tree/browser/treeDefaults';
 import {ActionsRenderer} from 'vs/base/parts/tree/browser/actionsRenderer';
@@ -125,9 +126,28 @@ export class SearchSorter implements ISorter {
 	public compare(tree: ITree, elementA: FileMatchOrMatch, elementB: FileMatchOrMatch): number {
 		if (elementA instanceof FileMatch && elementB instanceof FileMatch) {
 			return strings.localeCompare(elementA.resource().fsPath, elementB.resource().fsPath) || strings.localeCompare(elementA.name(), elementB.name());
+		}
 
-		} else if (elementA instanceof Match && elementB instanceof Match) {
+		if (elementA instanceof Match && elementB instanceof Match) {
 			return Range.compareRangesUsingStarts(elementA.range(), elementB.range());
+		}
+	}
+}
+
+export class SearchAccessibilityProvider implements IAccessibilityProvider {
+
+	constructor(@IWorkspaceContextService private contextService: IWorkspaceContextService) {
+	}
+
+	public getAriaLabel(tree: ITree, element: FileMatchOrMatch): string {
+		if (element instanceof FileMatch) {
+			const path = this.contextService.toWorkspaceRelativePath(element.resource()) || element.resource().fsPath;
+
+			return nls.localize('fileMatchAriaLabel', "{0} matches in file {1} of folder {2}", element.count(), element.name(), paths.dirname(path));
+		}
+
+		if (element instanceof Match) {
+			return element.text();
 		}
 	}
 }
@@ -862,10 +882,11 @@ export class SearchViewlet extends Viewlet {
 				renderer: renderer,
 				sorter: new SearchSorter(),
 				filter: new SearchFilter(),
-				controller: new SearchController()
+				controller: new SearchController(),
+				accessibilityProvider: this.instantiationService.createInstance(SearchAccessibilityProvider)
 			}, {
-				ariaLabel: nls.localize('treeAriaLabel', "Search Results")
-			});
+					ariaLabel: nls.localize('treeAriaLabel', "Search Results")
+				});
 
 			this.toUnbind.push(() => renderer.dispose());
 

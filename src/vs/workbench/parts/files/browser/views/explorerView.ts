@@ -20,7 +20,7 @@ import {LocalFileChangeEvent, IFilesConfiguration} from 'vs/workbench/parts/file
 import {IFileStat, IResolveFileOptions, FileChangeType, FileChangesEvent, IFileChange, EventType as FileEventType, IFileService} from 'vs/platform/files/common/files';
 import {FileImportedEvent, RefreshViewExplorerAction, NewFolderAction, NewFileAction} from 'vs/workbench/parts/files/browser/fileActions';
 import {FileEditorInput} from 'vs/workbench/parts/files/browser/editors/fileEditorInput';
-import {FileDragAndDrop, FileFilter, FileSorter, FileController, FileRenderer, FileDataSource, FileViewletState} from 'vs/workbench/parts/files/browser/views/explorerViewer';
+import {FileDragAndDrop, FileFilter, FileSorter, FileController, FileRenderer, FileDataSource, FileViewletState, FileAccessibilityProvider} from 'vs/workbench/parts/files/browser/views/explorerViewer';
 import lifecycle = require('vs/base/common/lifecycle');
 import DOM = require('vs/base/browser/dom');
 import {CollapseAction, CollapsibleViewletView} from 'vs/workbench/browser/viewlet';
@@ -305,6 +305,7 @@ export class ExplorerView extends CollapsibleViewletView {
 		let sorter = new FileSorter();
 		this.filter = this.instantiationService.createInstance(FileFilter);
 		let dnd = this.instantiationService.createInstance(FileDragAndDrop);
+		let accessibility = this.instantiationService.createInstance(FileAccessibilityProvider);
 
 		this.explorerViewer = new Tree(container.getHTMLElement(), {
 			dataSource: dataSource,
@@ -312,7 +313,8 @@ export class ExplorerView extends CollapsibleViewletView {
 			controller: controller,
 			sorter: sorter,
 			filter: this.filter,
-			dnd: dnd
+			dnd: dnd,
+			accessibilityProvider: accessibility
 		}, {
 			autoExpandSingleChildren: true,
 			ariaLabel: nls.localize('treeAriaLabel', "Files Explorer")

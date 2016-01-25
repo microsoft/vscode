@@ -114,6 +114,15 @@ export class WorkingFilesRenderer extends ActionsRenderer {
 	}
 }
 
+export class WorkingFilesAccessibilityProvider implements tree.IAccessibilityProvider {
+
+	getAriaLabel(tree: tree.ITree, element: any): string {
+		let entry = <WorkingFileEntry>element;
+
+		return paths.basename(entry.resource.fsPath);
+	}
+}
+
 export class WorkingFilesActionProvider extends ContributableActionProvider {
 	private model: WorkingFilesModel;
 
