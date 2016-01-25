@@ -814,7 +814,7 @@ if (Env.enableTasks) {
 	(<IWorkbenchContributionsRegistry>Registry.as(WorkbenchExtensions.Workbench)).registerWorkbenchContribution(TaskServiceParticipant);
 
 	// tasks.json validation
-	let schemaId = 'local://schemas/tasks';
+	let schemaId = 'vscode://schemas/tasks';
 	let schema : IJSONSchema =
 		{
 			'id': schemaId,

@@ -68,6 +68,8 @@ define([
 
 	'vs/workbench/parts/snippets/electron-browser/snippets.contribution',
 
+	'vs/workbench/parts/contentprovider/common/contentprovider.contribution',
+
 	'vs/workbench/parts/telemetry/node/appInsights.telemetry.contribution',
 
 	'vs/workbench/parts/themes/electron-browser/themes.contribution',

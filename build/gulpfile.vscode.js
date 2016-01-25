@@ -170,7 +170,12 @@ function packageTask(platform, arch, opts) {
 			'!extensions/*/src/**',
 			'!extensions/*/out/**/test/**',
 			'!extensions/typescript/bin/**',
-			'!extensions/vscode-api-tests/**'
+			'!extensions/vscode-api-tests/**',
+			'!extensions/json/server/.vscode/**',
+			'!extensions/json/server/src/**',
+			'!extensions/json/server/out/**/test/**',
+			'!extensions/json/server/test/**',
+			'!extensions/json/server/typings/**',
 		], { base: '.' });
 
 		var pluginHostSourceMap = gulp.src(out + '/vs/workbench/node/pluginHostProcess.js.map', { base: '.' })

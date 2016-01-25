@@ -279,7 +279,7 @@ export class JSONWorker extends AbstractModeWorker implements Modes.IExtraInfoSu
 
 		// special handling for key bindings
 		var resourceString = resource.toString();
-		if ((resourceString === 'inmemory://defaults/keybindings.json') || Strings.endsWith(resourceString.toLowerCase(), '/user/keybindings.json')) {
+		if ((resourceString === 'vscode://defaultsettings/keybindings.json') || Strings.endsWith(resourceString.toLowerCase(), '/user/keybindings.json')) {
 			if (root.type === 'array') {
 				var result : Modes.IOutlineEntry[] = [];
 				(<Parser.ArrayASTNode> root).items.forEach((item) => {
@@ -357,7 +357,7 @@ export class JSONWorker extends AbstractModeWorker implements Modes.IExtraInfoSu
 					};
 
 					this.jsonIntellisense.getValueSuggestions(resource, schema, doc, node.parent, node.start, collector);
-					
+
 					var range = modelMirror.getRangeFromOffsetAndLength(node.start, node.end - node.start);
 					var text = modelMirror.getValueInRange(range);
 					for (var i = 0, len = proposals.length; i < len; i++) {
