@@ -233,13 +233,16 @@ export class ViewItem implements IViewItem {
 		this.element.style.height = this.height + 'px';
 
 		// ARIA
+		const base64Id = btoa(this.model.id);
 		this.element.setAttribute('role', 'treeitem');
 		if (this.model.hasTrait('focused')) {
 			this.element.setAttribute('aria-selected', 'true');
-			this.element.setAttribute('id', btoa(this.model.id));
+			this.element.setAttribute('id', base64Id);
+			this.element.setAttribute('aria-labelledby', base64Id); // force screen reader to compute label from children (helps NVDA at least)
 		} else {
 			this.element.setAttribute('aria-selected', 'false');
 			this.element.removeAttribute('id');
+			this.element.removeAttribute('aria-labelledby');
 		}
 		if (this.model.hasChildren()) {
 			this.element.setAttribute('aria-expanded', String(this.model.isExpanded()));
