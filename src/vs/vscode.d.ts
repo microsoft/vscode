@@ -2013,7 +2013,7 @@ declare namespace vscode {
 	 * Represents a collection of [completion items](#CompletionItem) to be presented
 	 * in the editor.
 	 */
-	class CompletionList {
+	export class CompletionList {
 
 		/**
 		 * This list it not complete. Further typing should result in recomputing
