@@ -253,7 +253,6 @@ class Sorter implements Tree.ISorter {
 		}
 		if (cmp === 0) {
 			cmp = a.label.localeCompare(b.label);
-
 		}
 		return cmp;
 	}
