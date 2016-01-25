@@ -147,27 +147,75 @@ suite('workspace-namespace', () => {
 			workspace.registerTextDocumentContentProvider('file', { provideTextDocumentContent() { return null; } });
 		});
 
-		// duplicate registration
-		let registration = workspace.registerTextDocumentContentProvider('foo', {
-			provideTextDocumentContent(uri) {
-				return uri.toString();
-			}
-		});
-		assert.throws(function() {
-			workspace.registerTextDocumentContentProvider('foo', { provideTextDocumentContent() { return null; } });
-		});
-
-		// unregister & register
-		registration.dispose();
-		registration = workspace.registerTextDocumentContentProvider('foo', { provideTextDocumentContent() { return null; } });
-		registration.dispose();
-
 		// missing scheme
 		return workspace.openTextDocument(Uri.parse('notThere://foo/far/boo/bar')).then(() => {
 			assert.ok(false, 'expected failure')
 		}, err => {
 			// expected
 		})
+	});
+
+	test('registerTextDocumentContentProvider, multiple', function() {
+
+		// duplicate registration
+		let registration1 = workspace.registerTextDocumentContentProvider('foo', {
+			provideTextDocumentContent(uri) {
+				if (uri.authority === 'foo') {
+					return '1'
+				}
+			}
+		});
+		let registration2 = workspace.registerTextDocumentContentProvider('foo', {
+			provideTextDocumentContent(uri) {
+				if (uri.authority === 'bar') {
+					return '2'
+				}
+			}
+		});
+
+		return Promise.all([
+			workspace.openTextDocument(Uri.parse('foo://foo/bla')).then(doc => { assert.equal(doc.getText(), '1') }),
+			workspace.openTextDocument(Uri.parse('foo://bar/bla')).then(doc => { assert.equal(doc.getText(), '2') })
+		]).then(() => {
+			registration1.dispose();
+			registration2.dispose();
+		});
+	});
+
+	test('registerTextDocumentContentProvider, evil provider', function() {
+
+		// duplicate registration
+		let registration1 = workspace.registerTextDocumentContentProvider('foo', {
+			provideTextDocumentContent(uri) {
+				return '1';
+			}
+		});
+		let registration2 = workspace.registerTextDocumentContentProvider('foo', {
+			provideTextDocumentContent(uri): string {
+				throw new Error('fail')
+			}
+		});
+
+		return workspace.openTextDocument(Uri.parse('foo://foo/bla')).then(doc => {
+			assert.equal(doc.getText(), '1');
+			registration1.dispose();
+			registration2.dispose();
+		});
+	});
+
+	test('registerTextDocumentContentProvider, invalid text', function() {
+
+		let registration = workspace.registerTextDocumentContentProvider('foo', {
+			provideTextDocumentContent(uri) {
+				return <any> 123
+			}
+		});
+		return workspace.openTextDocument(Uri.parse('foo://auth/path')).then(() => {
+			assert.ok(false, 'expected failure')
+		}, err => {
+			// expected
+			registration.dispose();
+		});
 	});
 
 	test('registerTextDocumentContentProvider, show virtual document', function() {
