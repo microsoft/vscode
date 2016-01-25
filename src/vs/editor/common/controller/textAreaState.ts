@@ -172,56 +172,6 @@ export abstract class TextAreaState {
 			replaceCharCnt: replacePreviousCharacters
 		};
 	}
-
-	public extractNewText(): string {
-		// console.log('-----------')
-		// console.log('prev:' + String(previousState));
-		// console.log('curr:' + String(this));
-		if (this.selectionStart !== this.selectionEnd) {
-			// There is a selection in the textarea => ignore input
-			return '';
-		}
-		if (!this.previousState) {
-			return this.value;
-		}
-		let previousPrefix = this.previousState.value.substring(0, this.previousState.selectionStart);
-		let previousSuffix = this.previousState.value.substring(this.previousState.selectionEnd, this.previousState.value.length);
-
-		if (this.isInOverwriteMode) {
-			previousSuffix = previousSuffix.substr(1);
-		}
-
-		let value = this.value;
-		if (value.substring(0, previousPrefix.length) === previousPrefix) {
-			value = value.substring(previousPrefix.length);
-		}
-		if (value.substring(value.length - previousSuffix.length, value.length) === previousSuffix) {
-			value = value.substring(0, value.length - previousSuffix.length);
-		}
-		return value;
-	}
-
-	public extractMacReplacedText(): string {
-		// Ignore if the textarea has selection
-		if (this.selectionStart !== this.selectionEnd) {
-			return '';
-		}
-		if (!this.previousState) {
-			return '';
-		}
-		if (this.previousState.value.length !== this.value.length) {
-			return '';
-		}
-
-		let prefixLength = commonPrefixLength(this.previousState.value, this.value);
-		let suffixLength = commonSuffixLength(this.previousState.value, this.value);
-
-		if (prefixLength + suffixLength + 1 !== this.value.length) {
-			return '';
-		}
-
-		return this.value.charAt(prefixLength);
-	}
 }
 
 export class IENarratorTextAreaState extends TextAreaState {

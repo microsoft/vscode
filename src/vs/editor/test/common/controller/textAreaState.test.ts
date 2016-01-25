@@ -221,161 +221,129 @@ suite('TextAreaState', () => {
 		);
 	});
 
-	function testExtractNewText(prevState:TextAreaState, value:string, selectionStart:number, selectionEnd:number, isInOverwriteMode: boolean, expected:string): void {
-		let textArea = new MockTextAreaWrapper();
-		textArea._value = value;
-		textArea._selectionStart = selectionStart;
-		textArea._selectionEnd = selectionEnd;
-		textArea._isInOverwriteMode = isInOverwriteMode;
-
-		let newState = (prevState || IENarratorTextAreaState.EMPTY).fromTextArea(textArea);
-
-		let actual = newState.extractNewText();
-
-		assert.equal(actual, expected);
-
-		textArea.dispose();
-	}
-
 	test('extractNewText - no previous state with selection', () => {
-		testExtractNewText(
+		testDeduceInput(
 			null,
 			'a',
 			0, 1, false,
-			''
+			'a', 0
 		);
 	});
 
 	test('extractNewText - no previous state without selection', () => {
-		testExtractNewText(
+		testDeduceInput(
 			null,
 			'a',
 			1, 1, false,
-			'a'
+			'a', 0
 		);
 	});
 
 	test('extractNewText - typing does not cause a selection', () => {
-		testExtractNewText(
+		testDeduceInput(
 			new IENarratorTextAreaState(null, '', 0, 0, false, 0),
 			'a',
 			0, 1, false,
-			''
+			'a', 0
 		);
 	});
 
 	test('extractNewText - had the textarea empty', () => {
-		testExtractNewText(
+		testDeduceInput(
 			new IENarratorTextAreaState(null, '', 0, 0, false, 0),
 			'a',
 			1, 1, false,
-			'a'
+			'a', 0
 		);
 	});
 
 	test('extractNewText - had the entire line selected', () => {
-		testExtractNewText(
+		testDeduceInput(
 			new IENarratorTextAreaState(null, 'Hello world!', 0, 12, false, 0),
 			'H',
 			1, 1, false,
-			'H'
+			'H', 0
 		);
 	});
 
 	test('extractNewText - had previous text 1', () => {
-		testExtractNewText(
+		testDeduceInput(
 			new IENarratorTextAreaState(null, 'Hello world!', 12, 12, false, 0),
 			'Hello world!a',
 			13, 13, false,
-			'a'
+			'a', 0
 		);
 	});
 
 	test('extractNewText - had previous text 2', () => {
-		testExtractNewText(
+		testDeduceInput(
 			new IENarratorTextAreaState(null, 'Hello world!', 0, 0, false, 0),
 			'aHello world!',
 			1, 1, false,
-			'a'
+			'a', 0
 		);
 	});
 
 	test('extractNewText - had previous text 3', () => {
-		testExtractNewText(
+		testDeduceInput(
 			new IENarratorTextAreaState(null, 'Hello world!', 6, 11, false, 0),
 			'Hello other!',
 			11, 11, false,
-			'other'
+			'other', 0
 		);
 	});
 
 	test('extractNewText - IME', () => {
-		testExtractNewText(
+		testDeduceInput(
 			new IENarratorTextAreaState(null, '', 0, 0, false, 0),
 			'これは',
 			3, 3, false,
-			'これは'
+			'これは', 0
 		);
 	});
 
 	test('extractNewText - isInOverwriteMode', () => {
-		testExtractNewText(
+		testDeduceInput(
 			new IENarratorTextAreaState(null, 'Hello world!', 0, 0, false, 0),
 			'Aello world!',
 			1, 1, true,
-			'A'
+			'A', 0
 		);
 	});
 
-	function testExtractMacReplacedText(prevState:TextAreaState, value:string, selectionStart:number, selectionEnd:number, isInOverwriteMode: boolean, expected:string): void {
-		let textArea = new MockTextAreaWrapper();
-		textArea._value = value;
-		textArea._selectionStart = selectionStart;
-		textArea._selectionEnd = selectionEnd;
-		textArea._isInOverwriteMode = isInOverwriteMode;
-
-		let newState = (prevState || IENarratorTextAreaState.EMPTY).fromTextArea(textArea);
-
-		let actual = newState.extractMacReplacedText();
-
-		assert.equal(actual, expected);
-
-		textArea.dispose();
-	}
-
 	test('extractMacReplacedText - does nothing if there is selection', () => {
-		testExtractMacReplacedText(
-			new IENarratorTextAreaState(null, 'Hello world!', 0, 0, false, 0),
+		testDeduceInput(
+			new IENarratorTextAreaState(null, 'Hello world!', 5, 5, false, 0),
 			'Hellö world!',
 			4, 5, false,
-			''
+			'ö', 0
 		);
 	});
 
 	test('extractMacReplacedText - does nothing if there is more than one extra char', () => {
-		testExtractMacReplacedText(
-			new IENarratorTextAreaState(null, 'Hello world!', 0, 0, false, 0),
+		testDeduceInput(
+			new IENarratorTextAreaState(null, 'Hello world!', 5, 5, false, 0),
 			'Hellöö world!',
-			6, 6, false,
-			''
+			5, 5, false,
+			'öö', 1
 		);
 	});
 
 	test('extractMacReplacedText - does nothing if there is more than one changed char', () => {
-		testExtractMacReplacedText(
-			new IENarratorTextAreaState(null, 'Hello world!', 0, 0, false, 0),
+		testDeduceInput(
+			new IENarratorTextAreaState(null, 'Hello world!', 5, 5, false, 0),
 			'Helöö world!',
-			6, 6, false,
-			''
+			5, 5, false,
+			'öö', 2
 		);
 	});
 
 	test('extractMacReplacedText', () => {
-		testExtractMacReplacedText(
-			new IENarratorTextAreaState(null, 'Hello world!', 0, 0, false, 0),
+		testDeduceInput(
+			new IENarratorTextAreaState(null, 'Hello world!', 5, 5, false, 0),
 			'Hellö world!',
 			5, 5, false,
-			'ö'
+			'ö', 1
 		);
 	});
 
