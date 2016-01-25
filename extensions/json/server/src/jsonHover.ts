@@ -56,14 +56,14 @@ export class JSONHover {
 					return true;
 				});
 				
-				function createHover(contents: MarkedString[]) {
+				var createHover = (contents: MarkedString[]) => {
 					let range = Range.create(document.positionAt(node.start), document.positionAt(node.end));
 					let result: Hover = {
 						contents: contents,
 						range: range
 					};
 					return result;
-				}
+				};
 				
 				let location = node.getNodeLocation();
 				for (let i = this.contributions.length - 1; i >= 0; i--) {
