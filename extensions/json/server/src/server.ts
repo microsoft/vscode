@@ -13,7 +13,7 @@ import {
 	DocumentRangeFormattingParams, NotificationType, RequestType
 } from 'vscode-languageserver';
 
-import {xhr, IXHROptions, IXHRResponse} from './utils/httpRequest';
+import {xhr, IXHROptions, IXHRResponse, configure as configureHttpRequests} from './utils/httpRequest';
 import path = require('path');
 import fs = require('fs');
 import URI from './utils/uri';
@@ -58,6 +58,14 @@ documents.listen(connection);
 let workspaceRoot: URI;
 connection.onInitialize((params: InitializeParams): InitializeResult => {
 	workspaceRoot = URI.parse(params.rootPath);
+	if (params.initializationOptions) {
+		let proxy = params.initializationOptions['proxy'];
+		let proxyStrictSSL = params.initializationOptions['proxyStrictSSL'];
+		connection.console.log('proxy ' + proxy + ' strict ' + proxyStrictSSL);
+		configureHttpRequests(proxy, proxyStrictSSL);
+	}
+
+
 	return {
 		capabilities: {
 			// Tell the client that the server works in FULL text document sync mode

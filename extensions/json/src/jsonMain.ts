@@ -48,6 +48,10 @@ export function activate(context: ExtensionContext) {
 			configurationSection: 'json',
 
 			fileEvents: workspace.createFileSystemWatcher('**/.json')
+		},
+		initializationOptions: {
+			proxy: workspace.getConfiguration().get('http.proxy'),
+			proxyStrictSSL: workspace.getConfiguration().get('http.proxyStrictSSL'),
 		}
 	}
 
