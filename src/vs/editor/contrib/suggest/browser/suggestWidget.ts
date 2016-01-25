@@ -167,7 +167,9 @@ function isRoot(element: any): boolean {
 class DataSource implements Tree.IDataSource {
 
 	public getId(tree: Tree.ITree, element: any): string {
-		if (element instanceof CompletionModel) {
+		if (!element) {
+			return 'empty';
+		} else if (isRoot(element)) {
 			return 'root';
 		} else if (element instanceof CompletionItem) {
 			return (<CompletionItem>element).id.toString();
@@ -185,7 +187,7 @@ class DataSource implements Tree.IDataSource {
 	}
 
 	public getChildren(tree: Tree.ITree, element: any): TPromise<any[]> {
-		if (element instanceof CompletionModel) {
+		if (isRoot(element)) {
 			return TPromise.as((<CompletionModel>element).items);
 		}
 
@@ -928,6 +930,7 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 		this._onDidVisibilityChange.fire(false);
 		removeClass(this.element, 'visible');
 		this.editor.layoutContentWidget(this);
+		this.tree.setInput(null);
 	}
 
 	public cancel(): void {
