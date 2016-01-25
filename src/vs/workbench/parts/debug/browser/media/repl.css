@@ -70,24 +70,6 @@
 	margin-right: 6px;
 }
 
-.monaco-workbench .repl .repl-tree .monaco-tree .monaco-tree-row:nth-child(n+3) > .content.output.grouped {
-	border-top: none; /* do not separate grouped output */
-}
-
-.monaco-workbench .repl .repl-tree .monaco-tree .monaco-tree-row:nth-child(n+3) .content.input-output-pair,
-.monaco-workbench .repl .repl-tree .monaco-tree .monaco-tree-row:nth-child(n+3) > .content.output {
-	border-top: 1px solid rgba(231, 231, 231, 0.5);
-}
-
-.monaco-workbench.vs-dark .repl .repl-tree .monaco-tree .monaco-tree-row:nth-child(n+3) .content.input-output-pair,
-.monaco-workbench.vs-dark .repl .repl-tree .monaco-tree .monaco-tree-row:nth-child(n+3) > .content.output {
-	border-top: 1px solid rgba(128, 128, 128, 0.3);
-}
-
-.monaco-workbench.vs-dark .repl .repl-tree .monaco-tree .monaco-tree-row:nth-child(n+3) > .content.output.grouped {
-	border-top: none; /* do not separate grouped output */
-}
-
 /* Allign twistie since repl tree is smaller and sometimes has paired elements */
 
 .monaco-workbench .repl .repl-tree .monaco-tree .monaco-tree-rows > .monaco-tree-row.has-children > .content:before {
