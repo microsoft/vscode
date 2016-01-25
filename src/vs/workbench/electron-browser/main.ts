@@ -49,6 +49,9 @@ export function startup(environment: IMainEnvironment, globalSettings: IGlobalSe
 		env: environment
 	};
 
+	// Inherit navigator language
+	environment.language = navigator.language;
+
 	// Shell Options
 	let filesToOpen = environment.filesToOpen && environment.filesToOpen.length ? toInputs(environment.filesToOpen) : null;
 	let filesToCreate = environment.filesToCreate && environment.filesToCreate.length ? toInputs(environment.filesToCreate) : null;

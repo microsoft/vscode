@@ -39,7 +39,7 @@ import {CancellationTokenSource} from 'vs/base/common/cancellation';
 import vscode = require('vscode');
 import {TextEditorRevealType} from 'vs/workbench/api/node/mainThreadEditors';
 import * as paths from 'vs/base/common/paths';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
+import {ITelemetryService, ITelemetryInfo} from 'vs/platform/telemetry/common/telemetry';
 
 /**
  * This class implements the API described in vscode.d.ts,
@@ -144,15 +144,13 @@ export class ExtHostAPIImplementation {
 		const extHostOutputService = new ExtHostOutputService(this._threadService);
 
 		// env namespace
-		this.env = {
-			machineId: undefined,
-			sessionId: undefined,
-			// locale: undefined
-		}
-		telemetryService.getTelemetryInfo().then(info => {
-			this.env.machineId = info.machineId;
-			this.env.sessionId = info.sessionId;
-		}, errors.onUnexpectedError);
+		let telemetryInfo: ITelemetryInfo;
+		this.env = Object.freeze({
+			get machineId() { return telemetryInfo.machineId },
+			get sessionId() { return telemetryInfo.sessionId },
+			get language() { return contextService.getConfiguration().env.language }
+		});
+		telemetryService.getTelemetryInfo().then(info => telemetryInfo = info, errors.onUnexpectedError);
 
 		// commands namespace
 		this.commands = {

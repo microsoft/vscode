@@ -2688,13 +2688,24 @@ declare namespace vscode {
 	export namespace env {
 
 		/**
+		 * Represents the preferred user-language, like `de-CH`, `fr`, or `en-US`.
+		 *
+		 * @readonly
+		 */
+		export let language: string;
+
+		/**
 		 * A unique identifier for the computer.
+		 *
+		 * @readonly
 		 */
 		export let machineId: string;
 
 		/**
 		 * A unique identifier for the current session.
 		 * Changes each time the editor is started.
+		 *
+		 * @readonly
 		 */
 		export let sessionId: string;
 	}
