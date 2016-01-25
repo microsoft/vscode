@@ -129,12 +129,16 @@ export abstract class AbstractThreadService implements remote.IManyHandler {
 		this._finishInstance(instance);
 	}
 
-	public handle(rpcId:string, method:string, args:any[]): any {
+	public handle(rpcId:string, methodName:string, args:any[]): any {
 		if (!this._localObjMap[rpcId]) {
 			throw new Error('Unknown actor ' + rpcId);
 		}
-		var actor = this._localObjMap[rpcId];
-		return actor[method].apply(actor, args);
+		let actor = this._localObjMap[rpcId];
+		let method = actor[methodName];
+		if (typeof method !== 'function') {
+			throw new Error('Unknown method ' + methodName + ' on actor ' + rpcId);
+		}
+		return method.apply(actor, args);
 	}
 
 	protected _getOrCreateProxyInstance(remoteCom: remote.IProxyHelper, id: string, descriptor: SyncDescriptor0<any>): any {
