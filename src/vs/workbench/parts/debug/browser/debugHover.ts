@@ -32,7 +32,7 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 	private domNode: HTMLElement;
 	private isVisible: boolean;
 	private tree: ITree;
-	private showAtPosition: editorcommon.IPosition;
+	private showAtPosition: editorcommon.IEditorPosition;
 	private lastHoveringOver: string;
 	private highlightDecorations: string[];
 	private treeContainer: HTMLElement;
@@ -140,8 +140,8 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 		this.doShow(pos, variables[0]);
 	}
 
-	private doShow(position: editorcommon.IEditorPosition, expression: debug.IExpression): void {
-		if (expression.reference > 0) {
+	private doShow(position: editorcommon.IEditorPosition, expression: debug.IExpression, forceValueHover = false): void {
+		if (expression.reference > 0 && !forceValueHover) {
 			this.valueContainer.hidden = true;
 			this.treeContainer.hidden = false;
 			this.tree.setInput(expression).then(() => {
@@ -164,11 +164,16 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 		while (navigator.next()) {
 			visibleElementsCount++;
 		}
-		const height = Math.min(visibleElementsCount, MAX_ELEMENTS_SHOWN) * 18;
 
-		if (this.treeContainer.clientHeight !== height) {
-			this.treeContainer.style.height = `${ height }px`;
-			this.tree.layout();
+		if (visibleElementsCount === 0) {
+			this.doShow(this.showAtPosition, this.tree.getInput(), true);
+		} else {
+			const height = Math.min(visibleElementsCount, MAX_ELEMENTS_SHOWN) * 18;
+
+			if (this.treeContainer.clientHeight !== height) {
+				this.treeContainer.style.height = `${ height }px`;
+				this.tree.layout();
+			}
 		}
 	}
 
