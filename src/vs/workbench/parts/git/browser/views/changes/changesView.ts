@@ -173,7 +173,8 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 			controller: controller
 		}, {
 			indentPixels: 0,
-			twistiePixels: 20
+			twistiePixels: 20,
+			ariaLabel: nls.localize('treeAriaLabel', "Changes View")
 		});
 
 		this.tree.setInput(this.gitService.getModel().getStatus());

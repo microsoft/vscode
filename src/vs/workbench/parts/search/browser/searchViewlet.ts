@@ -863,6 +863,8 @@ export class SearchViewlet extends Viewlet {
 				sorter: new SearchSorter(),
 				filter: new SearchFilter(),
 				controller: new SearchController()
+			}, {
+				ariaLabel: nls.localize('treeAriaLabel', "Search Results")
 			});
 
 			this.toUnbind.push(() => renderer.dispose());
