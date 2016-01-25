@@ -931,55 +931,61 @@ export class TreeView extends HeightMap implements IScrollable {
 				afterModelItems.push(childItem);
 			}
 
-			var lcs = new Diff.LcsDiff({
-				getLength: () => previousChildrenIds.length,
-				getElementHash: (i:number) => previousChildrenIds[i]
-			}, {
-				getLength: () => afterModelItems.length,
-				getElementHash: (i:number) => afterModelItems[i].id
-			}, null);
+			let skipDiff = Math.abs(previousChildrenIds.length - afterModelItems.length) > 1000;
+			let diff: Diff.IDiffChange[];
+			let doToInsertItemsAlreadyExist: boolean;
 
-			var diff = lcs.ComputeDiff();
+			if (!skipDiff) {
+				const lcs = new Diff.LcsDiff({
+					getLength: () => previousChildrenIds.length,
+					getElementHash: (i:number) => previousChildrenIds[i]
+				}, {
+					getLength: () => afterModelItems.length,
+					getElementHash: (i:number) => afterModelItems[i].id
+				}, null);
 
-			// this means that the result of the diff algorithm would result
-			// in inserting items that were already registered. this can only
-			// happen if the data provider returns bad ids OR if the sorting
-			// of the elements has changed
-			var doToInsertItemsAlreadyExist = diff.some(d => {
-				if (d.modifiedLength > 0) {
-					for (var i = d.modifiedStart, len = d.modifiedStart + d.modifiedLength; i < len; i++) {
-						if (this.items.hasOwnProperty(afterModelItems[i].id)) {
-							return true;
+				diff = lcs.ComputeDiff();
+
+				// this means that the result of the diff algorithm would result
+				// in inserting items that were already registered. this can only
+				// happen if the data provider returns bad ids OR if the sorting
+				// of the elements has changed
+				doToInsertItemsAlreadyExist = diff.some(d => {
+					if (d.modifiedLength > 0) {
+						for (var i = d.modifiedStart, len = d.modifiedStart + d.modifiedLength; i < len; i++) {
+							if (this.items.hasOwnProperty(afterModelItems[i].id)) {
+								return true;
+							}
 						}
 					}
-				}
-				return false;
-			});
+					return false;
+				});
+			}
 
 			// 50 is an optimization number, at some point we're better off
 			// just replacing everything
-			if (!doToInsertItemsAlreadyExist && diff.length < 50) {
-				for (var i = 0, len = diff.length; i < len; i++) {
-					var diffChange = diff[i];
+			if (!skipDiff && !doToInsertItemsAlreadyExist && diff.length < 50) {
+				for (let i = 0, len = diff.length; i < len; i++) {
+					const diffChange = diff[i];
 
 					if (diffChange.originalLength > 0) {
 						this.onRemoveItems(new ArrayIterator(previousChildrenIds, diffChange.originalStart, diffChange.originalStart + diffChange.originalLength));
 					}
 
 					if (diffChange.modifiedLength > 0) {
-						var beforeItem = afterModelItems[diffChange.modifiedStart - 1] || item;
+						let beforeItem = afterModelItems[diffChange.modifiedStart - 1] || item;
 						beforeItem = beforeItem.getDepth() > 0 ? beforeItem : null;
 
 						this.onInsertItems(new ArrayIterator(afterModelItems, diffChange.modifiedStart, diffChange.modifiedStart + diffChange.modifiedLength), beforeItem ? beforeItem.id : null);
 					}
 				}
 
-			} else if (diff.length) {
+			} else if (skipDiff || diff.length) {
 				this.onRemoveItems(new ArrayIterator(previousChildrenIds));
 				this.onInsertItems(new ArrayIterator(afterModelItems));
 			}
 
-			if (diff.length) {
+			if (skipDiff || diff.length) {
 				this.onRowsChanged();
 			}
 		}
