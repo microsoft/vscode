@@ -150,7 +150,7 @@ export class Position {
 	}
 
 	toJSON(): any {
-		return [this.line, this.character];
+		return { line: this.line, character: this.character };
 	}
 }
 
