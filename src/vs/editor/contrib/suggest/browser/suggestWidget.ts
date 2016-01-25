@@ -88,12 +88,19 @@ class CompletionItem {
 			)
 			.then(() => this);
 	}
+
+	filter(): boolean {
+		const filter = this.group.filter;
+		const currentWord = this.group.model.currentWord;
+		this.highlights = filter(currentWord, this.suggestion);
+		return !isFalsyOrEmpty(this.highlights);
+	}
 }
 
 class CompletionGroup {
 
 	incomplete: boolean;
-	items: CompletionItem[];
+	private _items: CompletionItem[];
 	size: number;
 	filter: ISuggestionFilter;
 
@@ -101,7 +108,7 @@ class CompletionGroup {
 		this.incomplete = false;
 		this.size = 0;
 
-		this.items = raw.reduce<CompletionItem[]>((items, result) => {
+		this._items = raw.reduce<CompletionItem[]>((items, result) => {
 			this.incomplete = result.incomplete || this.incomplete;
 			this.size += result.suggestions.length;
 
@@ -113,8 +120,8 @@ class CompletionGroup {
 
 		this.filter = DefaultFilter;
 
-		if (this.items.length > 0) {
-			const [first] = this.items;
+		if (this._items.length > 0) {
+			const [first] = this._items;
 
 			if (first.support) {
 				this.filter = first.support.getFilter && first.support.getFilter() || this.filter;
@@ -122,8 +129,8 @@ class CompletionGroup {
 		}
 	}
 
-	get visibleCount(): number {
-		return this.items.reduce((r, i) => r + (isFalsyOrEmpty(this.filter(this.model.currentWord, i.suggestion)) ? 0 : 1), 0);
+	get items(): CompletionItem[] {
+		return this._items.filter(i => i.filter());
 	}
 }
 
@@ -131,10 +138,10 @@ class CompletionModel {
 
 	incomplete: boolean;
 	size: number;
-
 	private groups: CompletionGroup[];
+	private cache: CompletionItem[];
 
-	constructor(public raw: ISuggestResult2[][], public currentWord: string) {
+	constructor(public raw: ISuggestResult2[][], private _currentWord: string) {
 		this.incomplete = false;
 		this.size = 0;
 
@@ -151,12 +158,21 @@ class CompletionModel {
 			.sort(completionGroupCompare);
 	}
 
-	get items(): CompletionItem[] {
-		return this.groups.reduce((r, groups) => r.concat(groups.items), []);
+	set currentWord(value: string) {
+		this._currentWord = value;
+		this.cache = null;
 	}
 
-	get visibleCount(): number {
-		return this.groups.reduce((r, g) => r + g.visibleCount, 0);
+	get currentWord(): string {
+		return this._currentWord;
+	}
+
+	get items(): CompletionItem[] {
+		if (!this.cache) {
+			this.cache = this.groups.reduce((r, groups) => r.concat(groups.items), []);
+		}
+
+		return this.cache;
 	}
 }
 
@@ -206,23 +222,6 @@ class Controller extends TreeDefaults.DefaultController {
 		event.stopPropagation();
 		tree.setSelection([element], { origin: 'mouse' });
 		return true;
-	}
-}
-
-class Filter implements Tree.IFilter {
-
-	constructor(private getState: () => State) { }
-
-	isVisible(tree: Tree.ITree, element: any): boolean {
-		if (isRoot(element)) {
-			return false;
-		}
-
-		const item: CompletionItem = element;
-		const filter = item.group.filter;
-		const currentWord = item.group.model.currentWord;
-		item.highlights = filter(currentWord, item.suggestion);
-		return !isFalsyOrEmpty(item.highlights);
 	}
 }
 
@@ -504,8 +503,7 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 		const configuration = {
 			renderer: this.renderer,
 			dataSource: new DataSource(),
-			controller: new Controller(),
-			filter: new Filter(() => this.state)
+			controller: new Controller()
 		};
 
 		const options = {
@@ -689,12 +687,12 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 		if (model && model.raw === e.suggestions) {
 			const oldCurrentWord = model.currentWord;
 			model.currentWord = e.currentWord;
-			visibleCount = model.visibleCount;
+			visibleCount = model.items.length;
 
 			if (!e.auto && visibleCount === 0) {
 				model.currentWord = oldCurrentWord;
 
-				if (model.visibleCount > 0) {
+				if (model.items.length > 0) {
 					this.setState(State.Frozen);
 				} else {
 					this.setState(State.Empty);
@@ -706,7 +704,7 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 			}
 		} else {
 			model = new CompletionModel(e.suggestions, e.currentWord);
-			visibleCount = model.visibleCount;
+			visibleCount = model.items.length;
 			promise = this.tree.setInput(model);
 		}
 
