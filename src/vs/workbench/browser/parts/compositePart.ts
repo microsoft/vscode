@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/css!./media/compositePart';
 import nls = require('vs/nls');
 import timer = require('vs/base/common/timer');
 import uuid = require('vs/base/common/uuid');
@@ -231,7 +232,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 
 			// Build Container off-DOM
 			compositeContainer = $().div({
-				'class': this.compositeCssClass,
+				'class': ['composite', this.compositeCssClass],
 				id: composite.getId()
 			}, (div: Builder) => {
 				createCompositePromise = composite.create(div);
@@ -425,7 +426,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 
 		// Title Area Container
 		let titleArea = $(parent).div({
-			'class': 'title'
+			'class': ['composite', 'title']
 		});
 
 		// Right Actions Container

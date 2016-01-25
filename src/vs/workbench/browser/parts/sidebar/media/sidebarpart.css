@@ -3,22 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench > .sidebar > .title {
-	display: block !important; /* Enable Title visibility */
-}
-
-.monaco-workbench > .sidebar > .title > .title-label span {
-	text-transform: uppercase;
-}
-
-.monaco-workbench.vs > .sidebar > .title > .title-label span {
-	color: #6f6f6f;
-}
-
-.monaco-workbench.vs-dark > .sidebar > .title > .title-label span {
-	color: #bbbbbb;
-}
-
 .monaco-workbench > .sidebar > .title > .title-actions {
 	background-color: rgb(243, 243, 243);
 }
@@ -34,10 +18,6 @@
 .monaco-workbench.nosidebar > .sidebar {
 	display: none !important;
 	visibility: hidden !important;
-}
-
-.monaco-workbench > .sidebar > .content > .viewlet {
-	height: 100%;
 }
 
 .monaco-workbench .viewlet .collapsible.header .title {
