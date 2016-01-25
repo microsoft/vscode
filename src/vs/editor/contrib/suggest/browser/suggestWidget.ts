@@ -40,10 +40,16 @@ function completionItemCompare(item: CompletionItem, otherItem: CompletionItem):
 	const suggestion = item.suggestion;
 	const otherSuggestion = otherItem.suggestion;
 
-	// TODO@jrieken
-	// if (typeof suggestion.sortText === 'string' && typeof otherSuggestion.sortText === 'string') {
-	// 	return suggestion.sortText < otherSuggestion.sortText ? -1 : 1;
-	// }
+	if (typeof suggestion.sortText === 'string' && typeof otherSuggestion.sortText === 'string') {
+		const one = suggestion.sortText.toLowerCase();
+		const other = otherSuggestion.sortText.toLowerCase();
+
+		if (one < other) {
+			return -1;
+		} else if (one > other) {
+			return 1;
+		}
+	}
 
 	return suggestion.label.toLowerCase() < otherSuggestion.label.toLowerCase() ? -1 : 1;
 }
