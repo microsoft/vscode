@@ -83,8 +83,8 @@ class CompletionItem {
 		return this._resolveDetails = this.support
 			.getSuggestionDetails(resource, position, this.suggestion)
 			.then(
-			value => this.suggestion = assign(this.suggestion, value),
-			err => isPromiseCanceledError(err) ? this._resolveDetails = null : onUnexpectedError(err)
+				value => this.suggestion = assign(this.suggestion, value),
+				err => isPromiseCanceledError(err) ? this._resolveDetails = null : onUnexpectedError(err)
 			)
 			.then(() => this);
 	}
