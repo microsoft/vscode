@@ -233,15 +233,22 @@ export class ViewItem implements IViewItem {
 		this.element.style.height = this.height + 'px';
 
 		// ARIA
-		const base64Id = btoa(this.model.id);
 		this.element.setAttribute('role', 'treeitem');
 		if (this.model.hasTrait('focused')) {
+			const base64Id = btoa(this.model.id);
+			const ariaLabel = this.context.accessibilityProvider.getAriaLabel(this.context.tree, this.model.getElement());
+
 			this.element.setAttribute('aria-selected', 'true');
 			this.element.setAttribute('id', base64Id);
-			this.element.setAttribute('aria-labelledby', base64Id); // force screen reader to compute label from children (helps NVDA at least)
+			if (ariaLabel) {
+				this.element.setAttribute('aria-label', ariaLabel);
+			} else {
+				this.element.setAttribute('aria-labelledby', base64Id); // force screen reader to compute label from children (helps NVDA at least)
+			}
 		} else {
 			this.element.setAttribute('aria-selected', 'false');
 			this.element.removeAttribute('id');
+			this.element.removeAttribute('aria-label');
 			this.element.removeAttribute('aria-labelledby');
 		}
 		if (this.model.hasChildren()) {
@@ -448,6 +455,7 @@ export class TreeView extends HeightMap implements IScrollable {
 			filter: context.filter,
 			sorter: context.sorter,
 			tree: context.tree,
+			accessibilityProvider: context.accessibilityProvider,
 			options: context.options,
 			cache: new RowCache(context)
 		};

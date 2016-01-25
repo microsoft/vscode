@@ -385,6 +385,21 @@ export interface IRenderer {
 	disposeTemplate(tree: ITree, templateId: string, templateData: any): void;
 }
 
+export interface IAccessibilityProvider {
+
+	/**
+	 * Given an element in the tree, return the ARIA label that should be associated with the
+	 * item. This helps screen readers to provide a meaningful label for the currently focused
+	 * tree element.
+	 *
+	 * Returning null will not disable ARIA for the element. Instead it is up to the screen reader
+	 * to compute a meaningful label based on the contents of the element in the DOM
+	 *
+	 * See also: https://www.w3.org/TR/wai-aria/states_and_properties#aria-label
+	 */
+	getAriaLabel(tree: ITree, element: any): string;
+}
+
 export /* abstract */ class ContextMenuEvent {
 
 	private _posx: number;
@@ -593,6 +608,7 @@ export interface ITreeConfiguration {
 	dnd?: IDragAndDrop;
 	filter?: IFilter;
 	sorter?: ISorter;
+	accessibilityProvider?: IAccessibilityProvider;
 }
 
 export interface ITreeOptions {

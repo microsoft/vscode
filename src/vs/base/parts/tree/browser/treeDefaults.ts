@@ -405,3 +405,10 @@ export class DefaultSorter implements _.ISorter {
 		return 0;
 	}
 }
+
+export class DefaultAccessibilityProvider implements _.IAccessibilityProvider {
+
+	getAriaLabel(tree: _.ITree, element: any): string {
+		return null;
+	}
+}
