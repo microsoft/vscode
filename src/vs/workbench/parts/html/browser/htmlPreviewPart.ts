@@ -15,11 +15,12 @@ import {EditorOptions, EditorInput} from 'vs/workbench/common/editor';
 import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {Position} from 'vs/platform/editor/common/editor';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {IStorageService, StorageEventType} from 'vs/platform/storage/common/storage';
+import {IStorageService, StorageEventType, StorageScope} from 'vs/platform/storage/common/storage';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {ResourceEditorModel} from 'vs/workbench/common/editor/resourceEditorModel';
 import {Preferences} from 'vs/workbench/common/constants';
 import {HtmlInput} from 'vs/workbench/parts/html/common/htmlInput';
+import {DEFAULT_THEME_ID, isLightTheme} from 'vs/platform/theme/common/themes';
 
 /**
  * An implementation of editor for showing HTML content in an IFrame by leveraging the IFrameEditorInput.
@@ -178,7 +179,7 @@ export class HtmlPreviewPart extends BaseEditor {
 		// diff a little against the current input and the new state
 		const parser = new DOMParser();
 		const newDocument = parser.parseFromString(html, 'text/html');
-		const styleElement = Integration.defaultStyle(this._iFrameElement.parentElement);
+		const styleElement = Integration.defaultStyle(this._iFrameElement.parentElement, this._storageService.get(Preferences.THEME, StorageScope.GLOBAL, DEFAULT_THEME_ID));
 		if (newDocument.head.hasChildNodes()) {
 			newDocument.head.insertBefore(styleElement, newDocument.head.firstChild);
 		} else {
@@ -273,15 +274,58 @@ namespace Integration {
 		return all.join('\n');
 	}
 
-	export function defaultStyle(element: HTMLElement): HTMLStyleElement {
+	const defaultLightScrollbarStyle = [
+		'::-webkit-scrollbar-thumb {',
+		'	background-color: rgba(100, 100, 100, 0.4);',
+		'}',
+		'::-webkit-scrollbar-thumb:hover {',
+		'	background-color: rgba(100, 100, 100, 0.7);',
+		'}',
+		'::-webkit-scrollbar-thumb:active {',
+		'	background-color: rgba(0, 0, 0, 0.6);',
+		'}'
+	].join('\n');
+
+	const defaultDarkScrollbarStyle = [
+		'::-webkit-scrollbar-thumb {',
+		'	background-color: rgba(121, 121, 121, 0.4);',
+		'}',
+		'::-webkit-scrollbar-thumb:hover {',
+		'	background-color: rgba(100, 100, 100, 0.7);',
+		'}',
+		'::-webkit-scrollbar-thumb:active {',
+		'	background-color: rgba(85, 85, 85, 0.8);',
+		'}'
+	].join('\n')
+
+	export function defaultStyle(element: HTMLElement, themeId: string): HTMLStyleElement {
 		const styles = window.getComputedStyle(element);
 		const styleElement = document.createElement('style');
+
 		styleElement.innerHTML = `* {
 			color: ${styles.color};
 			background: ${styles.background};
 			font-family: ${styles.fontFamily};
-			font-size: ${styles.fontSize}
-		}`;
+			font-size: ${styles.fontSize};
+		}
+		img {
+			max-width: 100%;
+			max-height: 100%;
+		}
+		a:focus,
+		input:focus,
+		select:focus,
+		textarea:focus {
+			outline: 1px solid -webkit-focus-ring-color;
+			outline-offset: -1px;
+		}
+		::-webkit-scrollbar {
+			width: 14px;
+			height: 14px;
+		}
+		${isLightTheme(themeId)
+			? defaultLightScrollbarStyle
+			: defaultDarkScrollbarStyle}`;
 		return styleElement;
 	}
 }
