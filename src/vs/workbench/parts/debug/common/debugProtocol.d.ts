@@ -448,6 +448,8 @@ declare module DebugProtocol {
 	export interface Capabilites {
 		/** The debug adapter supports the configurationDoneRequest. */
 		supportsConfigurationDoneRequest?: boolean;
+		/** The debug adapter supports functionBreakpoints. */
+		supportsFunctionBreakpoints?: boolean;
 		/** The debug adapter supports a (side effect free) evaluate request for data hovers. */
 		supportEvaluateForHovers?: boolean;
 	}
