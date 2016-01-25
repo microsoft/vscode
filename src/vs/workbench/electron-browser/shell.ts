@@ -94,7 +94,6 @@ import {IModeService} from 'vs/editor/common/services/modeService';
 import {IUntitledEditorService, UntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {CrashReporter} from 'vs/workbench/electron-browser/crashReporter';
 import {IThemeService, ThemeService} from 'vs/workbench/services/themes/node/themeService';
-import {WorkbenchContentProvider} from 'vs/workbench/services/contentprovider/common/workbenchContentProvider';
 import { IServiceCtor, isServiceEvent } from 'vs/base/common/service';
 import { connect, Client } from 'vs/base/node/service.net';
 import { IExtensionsService } from 'vs/workbench/parts/extensions/common/extensions';
@@ -218,9 +217,6 @@ export class WorkbenchShell {
 				this.onWorkbenchStarted();
 			}
 		});
-
-		// content service
-		this.workbench.getInstantiationService().createInstance(WorkbenchContentProvider).start();
 
 		// Electron integration
 		this.workbench.getInstantiationService().createInstance(ElectronIntegration).integrate(this.container);

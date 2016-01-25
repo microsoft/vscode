@@ -12,10 +12,12 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {IModel} from 'vs/editor/common/editorCommon';
 import JSONContributionRegistry = require('vs/platform/jsonschemas/common/jsonContributionRegistry');
 import {Registry} from 'vs/platform/platform';
+import {IWorkbenchContribution} from 'vs/workbench/common/contributions';
+import {IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions} from 'vs/workbench/common/contributions';
 
 let schemaRegistry = <JSONContributionRegistry.IJSONContributionRegistry>Registry.as(JSONContributionRegistry.Extensions.JSONContribution);
 
-export class WorkbenchContentProvider {
+export class WorkbenchContentProvider implements IWorkbenchContribution {
 
 	private modelService: IModelService;
 	private modeService: IModeService;
@@ -26,9 +28,15 @@ export class WorkbenchContentProvider {
 	) {
 		this.modelService = modelService;
 		this.modeService = modeService;
+
+		this.start();
 	}
 
-	public start(): void {
+	public getId(): string {
+		return 'vs.contentprovider';
+	}
+
+	private start(): void {
 		ResourceEditorInput.registerResourceContentProvider("vscode", {
 			provideTextContent: (uri: URI): TPromise<IModel> => {
 				if (uri.scheme !== 'vscode') {
@@ -48,3 +56,5 @@ export class WorkbenchContentProvider {
 		});
 	}
 }
+
+(<IWorkbenchContributionsRegistry>Registry.as(WorkbenchExtensions.Workbench)).registerWorkbenchContribution(WorkbenchContentProvider);
