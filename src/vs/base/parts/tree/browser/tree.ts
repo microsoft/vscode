@@ -605,6 +605,7 @@ export interface ITreeOptions {
 	bare?:boolean;
 	useShadows?:boolean;
 	paddingOnRow?:boolean;
+	ariaLabel?:string;
 }
 
 export interface ITreeContext extends ITreeConfiguration {

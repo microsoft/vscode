@@ -461,8 +461,13 @@ export class TreeView extends HeightMap implements IScrollable {
 
 		this.domNode = document.createElement('div');
 		this.domNode.className = 'monaco-tree';
-		this.domNode.setAttribute('role', 'tree');
 		this.domNode.tabIndex = 0;
+
+		// ARIA
+		this.domNode.setAttribute('role', 'tree');
+		if (this.context.options.ariaLabel) {
+			this.domNode.setAttribute('aria-label', this.context.options.ariaLabel);
+		}
 
 		if (this.context.options.alwaysFocused) {
 			DOM.addClass(this.domNode, 'focused');

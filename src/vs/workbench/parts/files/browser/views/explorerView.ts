@@ -314,7 +314,8 @@ export class ExplorerView extends CollapsibleViewletView {
 			filter: this.filter,
 			dnd: dnd
 		}, {
-			autoExpandSingleChildren: true
+			autoExpandSingleChildren: true,
+			ariaLabel: nls.localize('explorerTreeAriaLabel', "Explorer Files Tree")
 		});
 
 		this.toDispose.push(lifecycle.toDisposable(() => renderer.dispose()));
