@@ -239,7 +239,7 @@ function packageTask(platform, arch, opts) {
 			result = es.merge(result, gulp.src('resources/win32/bin/**', { base: 'resources/win32' }));
 		}
 
-		return result.pipe(opts.zip ? electron.zfsdest(destination + '.zip') : symdest(destination));
+		return result.pipe(symdest(destination));
 	};
 }
 
@@ -260,18 +260,6 @@ gulp.task('vscode-darwin-min', ['minify-vscode', 'clean-vscode-darwin'], package
 gulp.task('vscode-linux-ia32-min', ['minify-vscode', 'clean-vscode-linux-ia32'], packageTask('linux', 'ia32', { minified: true }));
 gulp.task('vscode-linux-x64-min', ['minify-vscode', 'clean-vscode-linux-x64'], packageTask('linux', 'x64', { minified: true }));
 gulp.task('vscode-linux-arm-min', ['minify-vscode', 'clean-vscode-linux-arm'], packageTask('linux', 'arm', { minified: true }));
-
-gulp.task('vscode-win32-zip', ['optimize-vscode'], packageTask('win32', null, { zip: true }));
-gulp.task('vscode-darwin-zip', ['optimize-vscode'], packageTask('darwin', null, { zip: true }));
-gulp.task('vscode-linux-ia32-zip', ['optimize-vscode'], packageTask('linux', 'ia32', { zip: true }));
-gulp.task('vscode-linux-x64-zip', ['optimize-vscode'], packageTask('linux', 'x64', { zip: true }));
-gulp.task('vscode-linux-arm-zip', ['optimize-vscode'], packageTask('linux', 'arm', { zip: true }));
-
-gulp.task('vscode-win32-zip-min', ['minify-vscode'], packageTask('win32', null, { zip: true, minified: true }));
-gulp.task('vscode-darwin-zip-min', ['minify-vscode'], packageTask('darwin', null, { zip: true, minified: true }));
-gulp.task('vscode-linux-zip-ia32-min', ['minify-vscode'], packageTask('linux', 'ia32', { zip: true, minified: true }));
-gulp.task('vscode-linux-zip-x64-min', ['minify-vscode'], packageTask('linux', 'x64', { zip: true, minified: true }));
-gulp.task('vscode-linux-zip-arm-min', ['minify-vscode'], packageTask('linux', 'arm', { zip: true, minified: true }));
 
 // Sourcemaps
 
