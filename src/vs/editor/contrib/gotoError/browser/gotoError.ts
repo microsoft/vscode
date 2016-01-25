@@ -255,9 +255,7 @@ class MarkerNavigationWidget extends ZoneWidget.ZoneWidget {
 		}
 		this._element.text(text);
 		var htmlElem = this._element.getHTMLElement();
-		HtmlContentRenderer.renderHtml2(marker.message).forEach((node) => {
-			htmlElem.appendChild(node);
-		});
+		htmlElem.appendChild(HtmlContentRenderer.renderHtml(marker.message));
 
 		var mode = this.editor.getModel().getMode();
 		this._quickFixSection.hide();

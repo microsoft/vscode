@@ -1333,9 +1333,9 @@ declare namespace vscode {
 	}
 
 	/**
-	 * FormattedString can be used to render text with a tiny subset of markdown. FormattedString
-	 * is either a string that supports **bold** and __italic__ or a code-block that
-	 * provides a language and a code Snippet.
+	 * MarkedString can be used to render human readable text. It is either a markdown string
+	 * or a code-block that provides a language and a code snippet. Note that
+	 * markdown strings will be sanitized - that means html will be escaped.
 	 */
 	export type MarkedString = string | { language: string; value: string };
 
