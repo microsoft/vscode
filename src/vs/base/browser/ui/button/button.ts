@@ -22,7 +22,7 @@ export class Button extends EventEmitter {
 		super();
 
 		this.$el = $('a.monaco-button').attr({
-			'tabindex': '0',
+			'tabIndex': '0',
 			'role': 'button'
 		}).appendTo(container);
 
@@ -63,10 +63,14 @@ export class Button extends EventEmitter {
 	public set enabled(value: boolean) {
 		if (value) {
 			this.$el.removeClass('disabled');
-			this.$el.attr('aria-disabled', String(false));
+			this.$el.attr({
+				'aria-disabled': 'false',
+				'tabIndex': '0'
+			});
 		} else {
 			this.$el.addClass('disabled');
 			this.$el.attr('aria-disabled', String(true));
+			this.$el.removeAttribute('tabIndex');
 		}
 	}
 
