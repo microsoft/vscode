@@ -948,7 +948,9 @@ export class TreeView extends HeightMap implements IScrollable {
 				return false;
 			});
 
-			if (!doToInsertItemsAlreadyExist) {
+			// 50 is an optimization number, at some point we're better off
+			// just replacing everything
+			if (!doToInsertItemsAlreadyExist && diff.length < 50) {
 				for (var i = 0, len = diff.length; i < len; i++) {
 					var diffChange = diff[i];
 
