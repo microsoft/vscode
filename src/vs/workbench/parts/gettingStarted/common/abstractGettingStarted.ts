@@ -26,7 +26,7 @@ export abstract class AbstractGettingStarted implements IWorkbenchContribution {
 		const env = contextService.getConfiguration().env;
 		this.appName = env.appName;
 
-		if (env.welcomePage) {
+		if (env.welcomePage && !env.pluginTestsPath /* do not open a browser when we run tests */) {
 			this.welcomePageURL =  env.welcomePage;
 			this.handleWelcome();
 		}
@@ -42,7 +42,6 @@ export abstract class AbstractGettingStarted implements IWorkbenchContribution {
 				this.storageService.store(AbstractGettingStarted.hideWelcomeSettingskey, true);
 			});
 		}
-
 	}
 
 	private getUrl(telemetryInfo: ITelemetryInfo): string {
