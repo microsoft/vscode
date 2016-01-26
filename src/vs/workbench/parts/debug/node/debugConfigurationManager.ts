@@ -315,9 +315,13 @@ export class ConfigurationManager {
 			} catch (error) { }
 
 			return null;
-		}, err => null).then(program => {
+		}, err => null).then((program: string) => {
 			adapter.initialConfigurations.forEach(config => {
 				if (program && config.program) {
+					if (!path.isAbsolute(program)) {
+						program = '${workspaceRoot}' + (program.charAt(0) === '.' ? program.slice(1) : program);
+					}
+
 					config.program = program;
 				}
 			});
