@@ -133,14 +133,13 @@ export class UpdateManager extends events.EventEmitter {
 			return; // already initialized
 		}
 
-		let channel = UpdateManager.getUpdateChannel();
-		let feedUrl = UpdateManager.getUpdateFeedUrl(channel);
+		let feedUrl = UpdateManager.getUpdateFeedUrl(env.quality);
 
 		if (!feedUrl) {
 			return; // updates not available
 		}
 
-		this._channel = channel;
+		this._channel = env.quality;
 		this._feedUrl = feedUrl;
 
 		this.raw.setFeedURL(feedUrl);
@@ -183,22 +182,6 @@ export class UpdateManager extends events.EventEmitter {
 		this._state = state;
 		this._availableUpdate = availableUpdate;
 		this.emit('change');
-	}
-
-	private static getUpdateChannel(): string {
-		if (env.quality) {
-			return env.quality;
-		}
-
-		let channel = settings.manager.getValue('update.channel');
-		if (!channel) {
-			channel = storage.getItem<string>('updateChannel'); // TODO@Ben this should be removed after a couple of versions
-			if (!channel) {
-				channel = UpdateManager.DEFAULT_UPDATE_CHANNEL;
-			}
-		}
-
-		return channel;
 	}
 
 	private static getUpdateFeedUrl(channel: string): string {
