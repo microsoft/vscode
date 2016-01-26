@@ -90,8 +90,8 @@ function getSchemaAssociation(context: ExtensionContext) : ISchemaAssociations {
 				jsonValidation.forEach(jv => {
 					var {fileMatch, url} = jv;
 					if (fileMatch && url) {
-						if (url[0] === '.' && url[1] === '.') {
-							url = context.asAbsolutePath(url);
+						if (url[0] === '.' && url[1] === '/') {
+							url = path.join(extension.extensionPath, url);
 						}
 						if (fileMatch[0] === '%') {
 							fileMatch = fileMatch.replace(/%APP_SETTINGS_HOME%/, '/User');
