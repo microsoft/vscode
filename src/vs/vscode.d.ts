@@ -2469,10 +2469,19 @@ declare namespace vscode {
 
 		/**
 		 * Reveal this channel in the UI.
-		 * @param column @deprecated **This argument is deprecated.** The column in which to show the channel, default in [one](#ViewColumn.One).
+		 * @deprecated **This method is deprecated.**
+		 *
+		 * @param column The column in which to show the channel, default in [one](#ViewColumn.One).
 		 * @param preserveFocus When `true` the channel will not take focus.
 		 */
 		show(column?: ViewColumn, preserveFocus?: boolean): void;
+
+		/**
+		 * Reveal this channel in the UI.
+		 *
+		 * @param preserveFocus When `true` the channel will not take focus.
+		 */
+		show(preservceFocus?: boolean): void;
 
 		/**
 		 * Hide this channel from the UI.

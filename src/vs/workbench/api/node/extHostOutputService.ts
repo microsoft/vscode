@@ -47,7 +47,11 @@ export class ExtHostOutputChannel implements vscode.OutputChannel {
 		this._proxy.clear(this._name);
 	}
 
-	show(column?: vscode.ViewColumn, preserveFocus?: boolean): void {
+	show(columnOrPreserveFocus?: vscode.ViewColumn | boolean, preserveFocus?: boolean): void {
+		if (typeof columnOrPreserveFocus === 'boolean') {
+			preserveFocus = columnOrPreserveFocus;
+		}
+		
 		this._proxy.reveal(this._name, preserveFocus);
 	}
 
