@@ -353,12 +353,11 @@ export class WindowsManager {
 					const lastClosing = settingsRaw.lastIndexOf('}');
 					const errors = [];
 					const res = json.parse(settingsRaw, errors);
+					const hasOtherKeys = Object.getOwnPropertyNames(res).length > 0;
 
 					// We found a closing '}' and the JSON does not contain errors
 					if (lastClosing > 0 && !errors.length) {
-						const migratedSettings = settingsRaw.substring(0, lastClosing) + '\n    , // Migrated from previous "File | Auto Save" setting:\n    "files.autoSave": "afterDelay"\n}';
-
-						fs.writeFileSync(env.appSettingsPath, migratedSettings);
+						fs.writeFileSync(env.appSettingsPath, settingsRaw.substring(0, lastClosing) + '\n    ' + (hasOtherKeys ? ', ' : '') + '// Migrated from previous "File | Auto Save" setting:\n    "files.autoSave": "afterDelay"\n}');
 					}
 
 					// Otherwise inform user that we cannot migrate the settings
