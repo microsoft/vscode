@@ -20,7 +20,7 @@ export interface IXHROptions {
 	timeout?: number;
 	data?: any;
 	agent?: any;
-	strictSSL?: boolean;    
+	strictSSL?: boolean;
 	responseType?: string;
 	followRedirects?: number;
 }
@@ -133,8 +133,12 @@ function request(options: IXHROptions): Promise<IRequestResult> {
 		});
 		req.on('error', e);
 
-		options.timeout && req.setTimeout(options.timeout);
-		options.data && req.write(options.data);
+		if (options.timeout) {
+			req.setTimeout(options.timeout);
+		}
+		if (options.data) {
+			req.write(options.data);
+		}
 
 		req.end();
 	});
