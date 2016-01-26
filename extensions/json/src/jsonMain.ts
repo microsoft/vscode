@@ -45,13 +45,8 @@ export function activate(context: ExtensionContext) {
 		documentSelector: ['json'],
 		synchronize: {
 			// Synchronize the setting section 'json' to the server
-			configurationSection: 'json',
-
+			configurationSection: ['json.schemas', 'http.proxy', 'http.proxyStrictSSL'],
 			fileEvents: workspace.createFileSystemWatcher('**/.json')
-		},
-		initializationOptions: {
-			proxy: workspace.getConfiguration().get('http.proxy'),
-			proxyStrictSSL: workspace.getConfiguration().get('http.proxyStrictSSL'),
 		}
 	}
 

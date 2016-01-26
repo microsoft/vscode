@@ -58,13 +58,6 @@ documents.listen(connection);
 let workspaceRoot: URI;
 connection.onInitialize((params: InitializeParams): InitializeResult => {
 	workspaceRoot = URI.parse(params.rootPath);
-	if (params.initializationOptions) {
-		let proxy = params.initializationOptions['proxy'];
-		let proxyStrictSSL = params.initializationOptions['proxyStrictSSL'];
-		configureHttpRequests(proxy, proxyStrictSSL);
-	}
-
-
 	return {
 		capabilities: {
 			// Tell the client that the server works in FULL text document sync mode
@@ -141,7 +134,11 @@ documents.onDidChangeContent((change) => {
 interface Settings {
 	json: {
 		schemas: JSONSchemaSettings[]
-	};
+	},
+	http : {
+		proxy: string,
+		proxyStrictSSL: boolean
+	}
 }
 
 interface JSONSchemaSettings {
@@ -155,8 +152,10 @@ let schemaAssociations : ISchemaAssociations = void 0;
 
 // The settings have changed. Is send on server activation as well.
 connection.onDidChangeConfiguration((change) => {
-	var jsonSettings = (<Settings>change.settings).json;
-	jsonConfigurationSettings = jsonSettings && jsonSettings.schemas;
+	var settings = <Settings>change.settings
+	configureHttpRequests(settings.http && settings.http.proxy, settings.http && settings.http.proxyStrictSSL);
+	
+	jsonConfigurationSettings = settings.json && settings.json.schemas;
 	updateConfiguration();
 });
 
