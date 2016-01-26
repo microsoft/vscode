@@ -138,7 +138,7 @@ export class FileTracker implements IWorkbenchContribution {
 		let dirtyCount = this.textFileService.getDirty().length;
 		this.lastDirtyCount = dirtyCount;
 		if (dirtyCount > 0) {
-			this.activityService.showActivity(VIEWLET_ID, new NumberBadge(dirtyCount, (num) => nls.localize('dirtyFiles', "{0} unsaved files")), 'explorer-viewlet-label');
+			this.activityService.showActivity(VIEWLET_ID, new NumberBadge(dirtyCount, (num) => nls.localize('dirtyFiles', "{0} unsaved files", dirtyCount)), 'explorer-viewlet-label');
 		} else {
 			this.activityService.clearActivity(VIEWLET_ID);
 		}
