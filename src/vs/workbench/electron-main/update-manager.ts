@@ -133,13 +133,14 @@ export class UpdateManager extends events.EventEmitter {
 			return; // already initialized
 		}
 
-		let feedUrl = UpdateManager.getUpdateFeedUrl(env.quality);
+		const quality = env.quality || 'stable';
+		let feedUrl = UpdateManager.getUpdateFeedUrl(quality);
 
 		if (!feedUrl) {
 			return; // updates not available
 		}
 
-		this._channel = env.quality;
+		this._channel = quality;
 		this._feedUrl = feedUrl;
 
 		this.raw.setFeedURL(feedUrl);
