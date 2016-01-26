@@ -213,7 +213,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			return true;
 		}
 		// just use a string compare, don't want to add a dependency on semver
-		return desc.version.indexOf('1.8') >= 0;
+		return desc.version.indexOf('1.8') >= 0 || desc.version.indexOf('1.9') >= 0 ;
 	}
 
 	private serviceExited(restart: boolean): void {
