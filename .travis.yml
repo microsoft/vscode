@@ -16,7 +16,6 @@ addons:
       - g++-4.9-multilib
       - zip
       - libgtk2.0-0
-  firefox: latest
 
 before_install:
   - git submodule update --init --recursive
