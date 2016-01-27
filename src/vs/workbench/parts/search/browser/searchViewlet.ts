@@ -767,7 +767,7 @@ export class SearchViewlet extends Viewlet {
 				if (keyboardEvent.keyCode === KeyCode.DownArrow) {
 					dom.EventHelper.stop(keyboardEvent);
 					if (this.showsFileTypes()) {
-						this.toggleFileTypes(true);
+						this.toggleFileTypes(true, true);
 					} else {
 						this.selectTreeIfNotSelected(keyboardEvent);
 					}
@@ -786,7 +786,7 @@ export class SearchViewlet extends Viewlet {
 			builder.div({ 'class': 'more', 'tabindex': 0, 'role': 'button', 'title': nls.localize('moreSearch', "Toggle Search Details") })
 				.on(dom.EventType.CLICK, (e) => {
 					dom.EventHelper.stop(e);
-					this.toggleFileTypes();
+					this.toggleFileTypes(true);
 				}).on(dom.EventType.KEY_UP, (e: KeyboardEvent) => {
 					let event = new StandardKeyboardEvent(e);
 
@@ -918,7 +918,7 @@ export class SearchViewlet extends Viewlet {
 		});
 
 		if (filePatterns !== '' || patternExclusions !== '' || patternIncludes !== '') {
-			this.toggleFileTypes(true, true);
+			this.toggleFileTypes(true, true, true);
 		}
 
 		this.configurationService.loadConfiguration().then((configuration) => {
@@ -1062,19 +1062,23 @@ export class SearchViewlet extends Viewlet {
 		return dom.hasClass(this.queryDetails, 'more');
 	}
 
-	public toggleFileTypes(show?: boolean, skipLayout?: boolean): void {
+	public toggleFileTypes(moveFocus?: boolean, show?: boolean, skipLayout?: boolean): void {
 		let cls = 'more';
 		show = typeof show === 'undefined' ? !dom.hasClass(this.queryDetails, cls) : Boolean(show);
 		skipLayout = Boolean(skipLayout);
 
 		if (show) {
 			dom.addClass(this.queryDetails, cls);
-			this.inputPatternIncludes.focus();
-			this.inputPatternIncludes.select();
+			if (moveFocus) {
+				this.inputPatternIncludes.focus();
+				this.inputPatternIncludes.select();
+			}
 		} else {
 			dom.removeClass(this.queryDetails, cls);
-			this.findInput.focus();
-			this.findInput.select();
+			if (moveFocus) {
+				this.findInput.focus();
+				this.findInput.select();
+			}
 		}
 
 		if (!skipLayout && this.size) {
@@ -1084,7 +1088,7 @@ export class SearchViewlet extends Viewlet {
 
 	public searchInFolder(resource: URI): void {
 		if (!this.showsFileTypes()) {
-			this.toggleFileTypes(true, false);
+			this.toggleFileTypes(true, true);
 		}
 
 		let workspaceRelativePath = this.contextService.toWorkspaceRelativePath(resource);
