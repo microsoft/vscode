@@ -1360,6 +1360,10 @@ export class OneCursorOp {
 			return false;
 		}
 
+		if (!cursor.getSelection().isEmpty()) {
+			return false;
+		}
+
 		let position = cursor.getPosition();
 
 		var lineText = cursor.model.getLineContent(position.lineNumber);

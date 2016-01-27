@@ -755,9 +755,47 @@ suite('Editor Controller - Cursor', () => {
 		thisModel.applyEdits([EditOperation.delete(new Range(2, 1, 2, 2))]);
 		cursorEqual(thisCursor, 2, 15, 1, 1);
 	});
+});
 
-	// --------- bugs
+class TestMode {
+	public getId():string {
+		return 'testing';
+	}
 
+	public toSimplifiedMode(): Modes.IMode {
+		return this;
+	}
+}
+
+class SurroundingMode extends TestMode {
+	public characterPairSupport: Modes.ICharacterPairSupport;
+
+	constructor() {
+		super();
+		this.characterPairSupport = new CharacterPairSupport(this, {
+			autoClosingPairs: [{ open: '(', close: ')' }]
+		});
+	}
+}
+
+class OnEnterMode extends TestMode {
+	public electricCharacterSupport: Modes.IElectricCharacterSupport;
+
+	constructor(indentAction: Modes.IndentAction) {
+		super();
+		this.electricCharacterSupport = {
+			getElectricCharacters: ():string[] => null,
+			onElectricCharacter: (context:Modes.ILineContext, offset:number): Modes.IElectricAction => null,
+			onEnter: (context:Modes.ILineContext, offset:number): Modes.IEnterAction => {
+				return {
+					indentAction: indentAction
+				};
+			}
+		};
+	}
+}
+
+suite('Editor Controller - Regression tests', () => {
 	test('Bug 9121: Auto indent + undo + redo is funky', () => {
 		usingCursor({
 			text: [
@@ -812,47 +850,6 @@ suite('Editor Controller - Cursor', () => {
 			assert.equal(model.getValue(EndOfLinePreference.LF), 'x', 'assert15');
 		});
 	});
-});
-
-class TestMode {
-	public getId():string {
-		return 'testing';
-	}
-
-	public toSimplifiedMode(): Modes.IMode {
-		return this;
-	}
-}
-
-class SurroundingMode extends TestMode {
-	public characterPairSupport: Modes.ICharacterPairSupport;
-
-	constructor() {
-		super();
-		this.characterPairSupport = new CharacterPairSupport(this, {
-			autoClosingPairs: [{ open: '(', close: ')' }]
-		});
-	}
-}
-
-class OnEnterMode extends TestMode {
-	public electricCharacterSupport: Modes.IElectricCharacterSupport;
-
-	constructor(indentAction: Modes.IndentAction) {
-		super();
-		this.electricCharacterSupport = {
-			getElectricCharacters: ():string[] => null,
-			onElectricCharacter: (context:Modes.ILineContext, offset:number): Modes.IElectricAction => null,
-			onEnter: (context:Modes.ILineContext, offset:number): Modes.IEnterAction => {
-				return {
-					indentAction: indentAction
-				};
-			}
-		};
-	}
-}
-
-suite('Editor Controller - Cursor Configuration', () => {
 
 	test('issue #183: jump to matching bracket position', () => {
 		usingCursor({
@@ -875,25 +872,6 @@ suite('Editor Controller - Cursor Configuration', () => {
 
 			cursorCommand(cursor, H.JumpToBracket, null, null, 'keyboard');
 			cursorEqual(cursor, 1, 10);
-		});
-	});
-
-	test('Cursor honors insertSpaces configuration on new line', () => {
-		usingCursor({
-			text: [
-				'    \tMy First Line\t ',
-				'\tMy Second Line',
-				'    Third Line',
-				'',
-				'1'
-			],
-			mode: null,
-			config: { insertSpaces: true, tabSize: 4 }
-		}, (model, cursor) => {
-			cursorCommand(cursor, H.MoveTo, { position: new Position(1, 21) }, null, 'keyboard');
-			cursorCommand(cursor, H.Type, { text: '\n' }, null, 'keyboard');
-			assert.equal(model.getLineContent(1), '    \tMy First Line\t ');
-			assert.equal(model.getLineContent(2), '        ');
 		});
 	});
 
@@ -1037,6 +1015,69 @@ suite('Editor Controller - Cursor Configuration', () => {
 		model.dispose();
 	});
 
+	test('Bug #11476: Double bracket surrounding + undo is broken', () => {
+		usingCursor({
+			text: [
+				'hello'
+			],
+			mode: new SurroundingMode(),
+			config: { insertSpaces: true }
+		}, (model, cursor) => {
+			moveTo(cursor, 1, 3, false);
+			moveTo(cursor, 1, 5, true);
+			cursorEqual(cursor, 1, 5, 1, 3);
+
+			cursorCommand(cursor, H.Type, { text: '(' }, null, 'keyboard');
+			cursorEqual(cursor, 1, 6, 1, 4);
+
+			cursorCommand(cursor, H.Type, { text: '(' }, null, 'keyboard');
+			cursorEqual(cursor, 1, 7, 1, 5);
+		});
+	});
+
+	test('issue #1140: Backspace stops prematurely', () => {
+		usingCursor({
+			text: [
+				'function baz() {',
+				'  return 1;',
+				'};'
+			],
+			mode: new SurroundingMode(),
+			config: { insertSpaces: true }
+		}, (model, cursor) => {
+			moveTo(cursor, 3, 2, false);
+			moveTo(cursor, 1, 14, true);
+			cursorEqual(cursor, 1, 14, 3, 2);
+
+			cursorCommand(cursor, H.DeleteLeft);
+			cursorEqual(cursor, 1, 14, 1, 14);
+			assert.equal(model.getLineCount(), 1);
+			assert.equal(model.getLineContent(1), 'function baz(;');
+		});
+	});
+});
+
+suite('Editor Controller - Cursor Configuration', () => {
+
+	test('Cursor honors insertSpaces configuration on new line', () => {
+		usingCursor({
+			text: [
+				'    \tMy First Line\t ',
+				'\tMy Second Line',
+				'    Third Line',
+				'',
+				'1'
+			],
+			mode: null,
+			config: { insertSpaces: true, tabSize: 4 }
+		}, (model, cursor) => {
+			cursorCommand(cursor, H.MoveTo, { position: new Position(1, 21) }, null, 'keyboard');
+			cursorCommand(cursor, H.Type, { text: '\n' }, null, 'keyboard');
+			assert.equal(model.getLineContent(1), '    \tMy First Line\t ');
+			assert.equal(model.getLineContent(2), '        ');
+		});
+	});
+
 	test('Cursor honors insertSpaces configuration on tab', () => {
 		usingCursor({
 			text: [
@@ -1102,26 +1143,6 @@ suite('Editor Controller - Cursor Configuration', () => {
 			cursorCommand(cursor, H.MoveTo, { position: new Position(2, 14) }, null, 'keyboard');
 			cursorCommand(cursor, H.Tab, null, null, 'keyboard');
 			assert.equal(model.getLineContent(2), 'My Second Lin             e123');
-		});
-	});
-
-	test('Bug #11476: Double bracket surrounding + undo is broken', () => {
-		usingCursor({
-			text: [
-				'hello'
-			],
-			mode: new SurroundingMode(),
-			config: { insertSpaces: true }
-		}, (model, cursor) => {
-			moveTo(cursor, 1, 3, false);
-			moveTo(cursor, 1, 5, true);
-			cursorEqual(cursor, 1, 5, 1, 3);
-
-			cursorCommand(cursor, H.Type, { text: '(' }, null, 'keyboard');
-			cursorEqual(cursor, 1, 6, 1, 4);
-
-			cursorCommand(cursor, H.Type, { text: '(' }, null, 'keyboard');
-			cursorEqual(cursor, 1, 7, 1, 5);
 		});
 	});
 
