@@ -197,7 +197,11 @@ export class IFrameEditor extends BaseEditor {
 			'window.document.body.addEventListener("drop", function (e) {',
 			'	e.preventDefault();',
 			'});',
-			'</script>'
+
+			// disable navigating to some URL!
+			'window.onbeforeunload = function () {',
+			'	return false;',
+			'};'
 		].join('\n');
 	}
 
@@ -210,7 +214,7 @@ export class IFrameEditor extends BaseEditor {
 	}
 
 	private clearIFrame(): void {
-		this.iframeBuilder.src('about:blank');
+		this.setFrameContents(null, '', true);
 		this.iframeBuilder.removeProperty(IFrameEditor.RESOURCE_PROPERTY);
 	}
 
