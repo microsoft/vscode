@@ -77,6 +77,9 @@ function _renderHtml(content: IHTMLContentElement, options: RenderOptions = {}):
 		renderer.link = (href, title, text): string => {
 			return `<a href="#" data-href="${href}" title="${title || text}">${text}</a>`
 		}
+		renderer.paragraph = (text): string => {
+			return `<div>${text}</div>`;
+		}
 
 		if (options.codeBlockRenderer) {
 			renderer.code = (code, lang) => {
