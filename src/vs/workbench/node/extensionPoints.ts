@@ -42,6 +42,17 @@ export class PluginScanner {
 				});
 				return null;
 			}
+			// This is a workaround to enable Salsa and avoid TS extension loading
+			// for JavaScript (see https://github.com/Microsoft/vscode/issues/2225)
+			if (pluginDescFromFile.name === 'typescript' && pluginDescFromFile.publisher === 'vscode' && (!!process.env['CODE_TSJS'] || !!process.env['VSCODE_TSJS'])) {
+				pluginDescFromFile.activationEvents = pluginDescFromFile.activationEvents || [];
+				if (pluginDescFromFile.activationEvents.indexOf('onLanguage:javascript') === -1) {
+					pluginDescFromFile.activationEvents.push('onLanguage:javascript');
+				}
+				if (pluginDescFromFile.activationEvents.indexOf('onLanguage:javascriptreact') === -1) {
+					pluginDescFromFile.activationEvents.push('onLanguage:javascriptreact');
+				}
+			}
 			return pluginDescFromFile;
 		}).then((pluginDescFromFile) => {
 			if (pluginDescFromFile === null) {
