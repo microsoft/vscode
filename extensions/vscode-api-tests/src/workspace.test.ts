@@ -6,7 +6,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import {workspace, TextDocument, window, Position, Uri, CancellationTokenSource, Disposable} from 'vscode';
+import {workspace, TextDocument, window, Position, Uri, EventEmitter, CancellationTokenSource, Disposable} from 'vscode';
 import {createRandomFile, deleteFile, cleanUp, pathEquals} from './utils';
 import {join, basename} from 'path';
 import * as fs from 'fs';
@@ -286,26 +286,16 @@ suite('workspace-namespace', () => {
 	test('registerTextDocumentContentProvider, change event', function() {
 
 		let callCount = 0;
-		let listeners: Function[] = [];
+		let emitter = new EventEmitter<Uri>();
+
 		let registration = workspace.registerTextDocumentContentProvider('foo', {
-			onDidChange(callback, thisArg, disposables) {
-				let actual = thisArg ? callback.bind(thisArg) : callback;
-				listeners.push(actual);
-				let subscription = new Disposable(() => {
-					const idx = listeners.indexOf(actual);
-					listeners.splice(idx, 1);
-				});
-				if (Array.isArray(disposables)) {
-					disposables.push(subscription);
-				}
-				return subscription;
-			},
+			onDidChange: emitter.event,
 			provideTextDocumentContent(uri) {
 				return 'call' + (callCount++);
 			}
 		});
 
-		const uri = Uri.parse('foo://testing/path2');
+		const uri = Uri.parse('foo://testing/path3');
 
 		return workspace.openTextDocument(uri).then(doc => {
 
@@ -320,7 +310,7 @@ suite('workspace-namespace', () => {
 					resolve();
 				});
 
-				listeners.forEach(l => l(doc.uri));
+				emitter.fire(doc.uri);
 
 				registration.dispose();
 			});

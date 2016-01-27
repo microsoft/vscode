@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import {Emitter} from 'vs/base/common/event';
 import {IBracketElectricCharacterContribution} from 'vs/editor/common/modes/supports';
 import {score} from 'vs/editor/common/modes/languageSelector';
 import {Remotable, IThreadService} from 'vs/platform/thread/common/thread';
@@ -71,6 +72,7 @@ export class ExtHostAPIImplementation {
 	Range: typeof vscode.Range;
 	Selection: typeof vscode.Selection;
 	CancellationTokenSource: typeof vscode.CancellationTokenSource;
+	EventEmitter: typeof vscode.EventEmitter;
 	Hover: typeof vscode.Hover;
 	DocumentHighlightKind: typeof vscode.DocumentHighlightKind;
 	DocumentHighlight: typeof vscode.DocumentHighlight;
@@ -106,7 +108,8 @@ export class ExtHostAPIImplementation {
 		this.Uri = URI;
 		this.Location = extHostTypes.Location;
 		this.Diagnostic = <any> extHostTypes.Diagnostic;
-		this.DiagnosticSeverity = <any> extHostTypes.DiagnosticSeverity;
+		this.DiagnosticSeverity = <any>extHostTypes.DiagnosticSeverity;
+		this.EventEmitter = Emitter;
 		this.Disposable = extHostTypes.Disposable;
 		this.TextEdit = extHostTypes.TextEdit;
 		this.WorkspaceEdit = extHostTypes.WorkspaceEdit;
