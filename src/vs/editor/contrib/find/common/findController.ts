@@ -674,7 +674,7 @@ registerFindCommand(FIND_IDS.ToggleRegexCommand, x => x.toggleRegex(), {
 	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_R }
 });
 registerFindCommand(FIND_IDS.ReplaceOneAction, x => x.replace(), {
-	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_H
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_1
 });
 registerFindCommand(FIND_IDS.ReplaceAllAction, x => x.replaceAll(), {
 	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Enter
