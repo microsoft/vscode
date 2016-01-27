@@ -33,6 +33,7 @@ export class Kind {
 	public static alias:string = 'alias';
 	public static const:string = 'const';
 	public static let:string = 'let';
+	public static warning:string = 'warning';
 }
 
 export class KindModifier {
