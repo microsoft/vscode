@@ -644,6 +644,7 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 	}
 
 	private setState(state: State): void {
+		const shouldLayout = this.state !== state;
 		this.state = state;
 
 		toggleClass(this.element, 'frozen', state === State.Frozen);
@@ -653,33 +654,39 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 				hide(this.messageElement, this.details.element);
 				show(this.treeElement);
 				this.hide();
-				return;
+				break;
 			case State.Loading:
 				this.messageElement.innerText = SuggestWidget.LOADING_MESSAGE;
 				hide(this.treeElement, this.details.element);
 				show(this.messageElement);
+				this.show();
 				break;
 			case State.Empty:
 				this.messageElement.innerText = SuggestWidget.NO_SUGGESTIONS_MESSAGE;
 				hide(this.treeElement, this.details.element);
 				show(this.messageElement);
+				this.show();
 				break;
 			case State.Open:
 				hide(this.messageElement, this.details.element);
 				show(this.treeElement);
+				this.show();
 				break;
 			case State.Frozen:
 				hide(this.messageElement, this.details.element);
 				show(this.treeElement);
+				this.show();
 				break;
 			case State.Details:
 				hide(this.messageElement, this.treeElement);
 				show(this.details.element);
+				this.show();
 				break;
 		}
 
-		this.updateWidgetHeight();
-		this.show();
+		if (shouldLayout) {
+			this.editor.layoutContentWidget(this);
+		}
 	}
 
 	private onDidTrigger(e: ITriggerEvent) {
@@ -941,20 +948,19 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 		this.editor.focus();
 	}
 
-	public show(): void {
+	private show(): void {
+		this.updateWidgetHeight();
 		this._onDidVisibilityChange.fire(true);
 		this.tree.layout();
 		this.renderDetails();
-		this.editor.layoutContentWidget(this);
 		TPromise.timeout(100).done(() => {
 			addClass(this.element, 'visible');
 		});
 	}
 
-	public hide(): void {
+	private hide(): void {
 		this._onDidVisibilityChange.fire(false);
 		removeClass(this.element, 'visible');
-		this.editor.layoutContentWidget(this);
 		this.tree.setInput(null);
 	}
 
