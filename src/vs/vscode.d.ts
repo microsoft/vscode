@@ -1004,7 +1004,7 @@ declare namespace vscode {
 	 * to subscribe to. One emitter always owns one event.
 	 *
 	 * Use this class if you want to provide event from within your extension, for instance
-	 * inside a [TextDocumentContentProvider](#TextDocumentContentProvider)mor when providing
+	 * inside a [TextDocumentContentProvider](#TextDocumentContentProvider) or when providing
 	 * API to other extensions.
 	 */
 	export class EventEmitter<T> {
