@@ -31,6 +31,7 @@ import URI from 'vs/base/common/uri';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { onUnexpectedError, isPromiseCanceledError, illegalArgument } from 'vs/base/common/errors';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/impl/scrollableElement';
 
 function completionGroupCompare(one: CompletionGroup, other: CompletionGroup): number {
 	return one.index - other.index;
@@ -399,6 +400,7 @@ class SuggestionDetails {
 	private el: HTMLElement;
 	private title: HTMLElement;
 	private back: HTMLElement;
+	private scrollable: ScrollableElement;
 	private body: HTMLElement;
 	private type: HTMLElement;
 	private docs: HTMLElement;
@@ -409,10 +411,11 @@ class SuggestionDetails {
 		this.title = append(header, $('span.title'));
 		this.back = append(header, $('span.go-back.octicon.octicon-mail-reply'));
 		this.back.title = nls.localize('goback', "Go back");
-		this.body = append(this.el, $('.body'));
+		this.body = $('.body');
+		this.scrollable = new ScrollableElement(this.body, {});
+		append(this.el, this.scrollable.getDomNode());
 		this.type = append(this.body, $('p.type'));
 		this.docs = append(this.body, $('p.docs'));
-		addDisposableListener(this.docs, 'mousewheel', e => e.stopPropagation());
 	}
 
 	get element() {
@@ -435,6 +438,9 @@ class SuggestionDetails {
 			e.stopPropagation();
 			this.widget.toggleDetails();
 		};
+
+		this.scrollable.onElementDimensions();
+		this.scrollable.onElementInternalDimensions();
 	}
 
 	scrollDown(much = 8): void {
