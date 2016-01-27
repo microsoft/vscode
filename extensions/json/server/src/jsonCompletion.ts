@@ -34,7 +34,7 @@ export class JSONCompletion {
 
 		let offset = document.offsetAt(textDocumentPosition.position);
 		let node = doc.getNodeFromOffsetEndInclusive(offset);
-		
+
 		let overwriteRange = null;
 		let result: CompletionList = {
 			items: [],
@@ -53,7 +53,7 @@ export class JSONCompletion {
 					if (overwriteRange) {
 						suggestion.textEdit = TextEdit.replace(overwriteRange, suggestion.insertText);
 					}
-					
+
 					result.items.push(suggestion);
 				}
 			},
@@ -67,7 +67,7 @@ export class JSONCompletion {
 
 		return this.schemaService.getSchemaForResource(textDocumentPosition.uri, doc).then((schema) => {
 			let collectionPromises: Thenable<any>[] = [];
-			
+
 			let addValue = true;
 			let currentKey = '';
 			let currentWord = '';
@@ -102,7 +102,7 @@ export class JSONCompletion {
 						proposed[p.key.value] = true;
 					}
 				});
-				
+
 				let isLast = properties.length === 0 || offset >= properties[properties.length - 1].start;
 				if (schema) {
 					// property proposals with schema
@@ -111,7 +111,7 @@ export class JSONCompletion {
 					// property proposals without schema
 					this.getSchemaLessPropertySuggestions(doc, node, collector);
 				}
-				
+
 				let location = node.getNodeLocation();
 				this.contributions.forEach((contribution) => {
 					let collectPromise = contribution.collectPropertySuggestions(textDocumentPosition.uri, location, this.getCurrentWord(document, offset), addValue, isLast, collector);
@@ -293,12 +293,12 @@ export class JSONCompletion {
 	}
 
 	private addBooleanSuggestion(value: boolean, collector: ISuggestionsCollector): void {
-		collector.add({ kind: this.getSuggestionKind('boolean'), label: value ? 'true' : 'false', insertText: this.getSnippetForValue(value), documentation: '' });
+		collector.add({ kind: this.getSuggestionKind('boolean'), label: value ? 'true' : 'false', insertText: this.getTextForValue(value), documentation: '' });
 	}
 
 	private addEnumSuggestion(schema: JsonSchema.IJSONSchema, collector: ISuggestionsCollector): void {
 		if (Array.isArray(schema.enum)) {
-			schema.enum.forEach((enm) => collector.add({ kind: this.getSuggestionKind(schema.type), label: this.getLabelForValue(enm), insertText: this.getSnippetForValue(enm), documentation: '' }));
+			schema.enum.forEach((enm) => collector.add({ kind: this.getSuggestionKind(schema.type), label: this.getLabelForValue(enm), insertText: this.getTextForValue(enm), documentation: '' }));
 		} else if (schema.type === 'boolean') {
 			this.addBooleanSuggestion(true, collector);
 			this.addBooleanSuggestion(false, collector);
@@ -319,7 +319,7 @@ export class JSONCompletion {
 			collector.add({
 				kind: this.getSuggestionKind(schema.type),
 				label: this.getLabelForValue(schema.default),
-				insertText: this.getSnippetForValue(schema.default),
+				insertText: this.getTextForValue(schema.default),
 				detail: nls.localize('json.suggest.default', 'Default value'),
 			});
 		}
@@ -341,6 +341,10 @@ export class JSONCompletion {
 			return label.substr(0, 57).trim() + '...';
 		}
 		return label;
+	}
+
+	private getTextForValue(value: any): string {
+		return JSON.stringify(value, null, '\t');
 	}
 
 	private getSnippetForValue(value: any): string {
@@ -435,7 +439,7 @@ export class JSONCompletion {
 	private getSnippetForSimilarProperty(key: string, templateValue: Parser.ASTNode): string {
 		return '"' + key + '"';
 	}
-	
+
 	private getCurrentWord(document: ITextDocument, offset: number) {
 		var i = offset - 1;
 		var text = document.getText();
