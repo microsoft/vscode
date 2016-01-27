@@ -78,11 +78,17 @@ function createExtension(manifest: IExtensionManifest, galleryInformation?: IGal
 	return extension;
 }
 
+function getExtensionId(extension: IExtension): string {
+	return `${ extension.publisher }.${ extension.name }-${ extension.version }`;
+}
+
 export class ExtensionsService implements IExtensionsService {
 
 	public serviceId = IExtensionsService;
 
 	private extensionsPath: string;
+	private obsoletePath: string;
+	private obsoleteFileLimiter: Limiter<void>;
 
 	private _onInstallExtension = new Emitter<IExtensionManifest>();
 	@ServiceEvent onInstallExtension = this._onInstallExtension.event;
@@ -101,6 +107,8 @@ export class ExtensionsService implements IExtensionsService {
 	) {
 		const env = contextService.getConfiguration().env;
 		this.extensionsPath = env.userPluginsHome;
+		this.obsoletePath = path.join(this.extensionsPath, '.obsolete');
+		this.obsoleteFileLimiter = new Limiter(1);
 	}
 
 	public install(extension: IExtension): TPromise<IExtension>;
@@ -122,7 +130,7 @@ export class ExtensionsService implements IExtensionsService {
 
 		const url = galleryInformation.downloadUrl;
 		const zipPath = path.join(tmpdir(), galleryInformation.id);
-		const extensionPath = path.join(this.extensionsPath, `${ extension.publisher }.${ extension.name }-${ extension.version }`);
+		const extensionPath = path.join(this.extensionsPath, getExtensionId(extension));
 		const manifestPath = path.join(extensionPath, 'package.json');
 
 		const settings = TPromise.join([
@@ -149,7 +157,7 @@ export class ExtensionsService implements IExtensionsService {
 
 	private installFromZip(zipPath: string): TPromise<IExtension> {
 		return validate(zipPath).then(manifest => {
-			const extensionPath = path.join(this.extensionsPath, `${ manifest.publisher }.${ manifest.name }-${ manifest.version }`);
+			const extensionPath = path.join(this.extensionsPath, getExtensionId(manifest));
 			this._onInstallExtension.fire(manifest);
 
 			return extract(zipPath, extensionPath, { sourcePath: 'extension', overwrite: true })
@@ -159,12 +167,14 @@ export class ExtensionsService implements IExtensionsService {
 	}
 
 	public uninstall(extension: IExtension): TPromise<void> {
-		const extensionPath = this.getInstallationPath(extension);
+		const extensionPath = extension.path || path.join(this.extensionsPath, getExtensionId(extension));
 
 		return pfs.exists(extensionPath)
 			.then(exists => exists ? null : Promise.wrapError(new Error(nls.localize('notExists', "Could not find extension"))))
 			.then(() => this._onUninstallExtension.fire(extension))
+			.then(() => this.setObsolete(extension))
 			.then(() => pfs.rimraf(extensionPath))
+			.then(() => this.unsetObsolete(extension))
 			.then(() => this._onDidUninstallExtension.fire(extension));
 	}
 
@@ -181,36 +191,85 @@ export class ExtensionsService implements IExtensionsService {
 		});
 	}
 
-	private getDeprecated(): TPromise<IExtension[]> {
-		return this.getAllInstalled().then(plugins => {
-			const byId = values(groupBy(plugins, p => `${ p.publisher }.${ p.name }`));
-			return flatten(byId.map(p => p.sort((a, b) => semver.rcompare(a.version, b.version)).slice(1)));
-		});
-	}
-
 	private getAllInstalled(): TPromise<IExtension[]> {
 		const limiter = new Limiter(10);
 
-		return pfs.readdir(this.extensionsPath)
-			.then<IExtension[]>(extensions => Promise.join(extensions.map(e => {
-				const extensionPath = path.join(this.extensionsPath, e);
+		return this.getObsoleteExtensions()
+			.then(obsolete => {
+				return pfs.readdir(this.extensionsPath)
+					.then(extensions => extensions.filter(e => !obsolete[e]))
+					.then<IExtension[]>(extensions => Promise.join(extensions.map(e => {
+						const extensionPath = path.join(this.extensionsPath, e);
 
-				return limiter.queue(
-					() => pfs.readFile(path.join(extensionPath, 'package.json'), 'utf8')
-						.then(raw => parseManifest(raw))
-						.then(manifest => createExtension(manifest, (<any> manifest).__metadata, extensionPath))
-						.then(null, () => null)
-				);
-			})))
-			.then(result => result.filter(a => !!a));
+						return limiter.queue(
+							() => pfs.readFile(path.join(extensionPath, 'package.json'), 'utf8')
+								.then(raw => parseManifest(raw))
+								.then(manifest => createExtension(manifest, (<any> manifest).__metadata, extensionPath))
+								.then(null, () => null)
+						);
+					})))
+					.then(result => result.filter(a => !!a));
+			});
 	}
 
-	private getInstallationPath(extension: IExtension): string {
-		return extension.path || path.join(this.extensionsPath, `${ extension.publisher }.${ extension.name }-${ extension.version }`);
+	private getExtensionId(extension: IExtension): string {
+		return `${ extension.publisher }.${ extension.name }-${ extension.version }`;
 	}
 
 	public removeDeprecatedExtensions(): TPromise<void> {
-		return this.getDeprecated()
-			.then<void>(extensions => TPromise.join(extensions.filter(e => !!e.path).map(e => pfs.rimraf(e.path))));
-		}
+		const outdated = this.getAllInstalled()
+			.then(plugins => {
+				const byId = values(groupBy(plugins, p => `${ p.publisher }.${ p.name }`));
+				const extensions = flatten(byId.map(p => p.sort((a, b) => semver.rcompare(a.version, b.version)).slice(1)));
+
+				return extensions
+					.filter(e => !!e.path)
+					.map(e => getExtensionId(e));
+			});
+
+		const obsolete = this.getObsoleteExtensions()
+			.then(obsolete => Object.keys(obsolete));
+
+		return TPromise.join([outdated, obsolete])
+			.then(result => flatten(result))
+			.then<void>(extensionsIds => {
+				return TPromise.join(extensionsIds.map(id => {
+					return pfs.rimraf(path.join(this.extensionsPath, id))
+						.then(() => this.doUpdateObsoleteExtensions(obsolete => delete obsolete[id]));
+				}));
+			});
+	}
+
+	private setObsolete(extension: IExtension): TPromise<void> {
+		const id = getExtensionId(extension);
+		return this.doUpdateObsoleteExtensions(obsolete => assign(obsolete, { [id]: true }));
+	}
+
+	private unsetObsolete(extension: IExtension): TPromise<void> {
+		const id = getExtensionId(extension);
+		return this.doUpdateObsoleteExtensions<void>(obsolete => delete obsolete[id]);
+	}
+
+	private getObsoleteExtensions(): TPromise<{ [id:string]: boolean; }> {
+		return this.doUpdateObsoleteExtensions(obsolete => obsolete);
+	}
+
+	private doUpdateObsoleteExtensions<T>(fn: (obsolete: { [id:string]: boolean; }) => T): TPromise<T> {
+		return this.obsoleteFileLimiter.queue(() => {
+			let result: T = null;
+			return pfs.readFile(this.obsoletePath, 'utf8')
+				.then(null, err => err.code === 'ENOENT' ? TPromise.as('{}') : TPromise.wrapError(err))
+				.then<{ [id: string]: boolean }>(raw => JSON.parse(raw))
+				.then(obsolete => { result = fn(obsolete); return obsolete; })
+				.then(obsolete => {
+					if (Object.keys(obsolete).length === 0) {
+						return pfs.rimraf(this.obsoletePath);
+					} else {
+						const raw = JSON.stringify(obsolete);
+						return pfs.writeFile(this.obsoletePath, raw);
+					}
+				})
+				.then(() => result);
+		});
+	}
 }

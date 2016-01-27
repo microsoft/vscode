@@ -101,17 +101,29 @@ export class PluginScanner {
 		isBuiltin:boolean
 	) : TPromise<IPluginDescription[]>
 	{
-		return pfs.readDirsInDir(absoluteFolderPath)
-			.then(folders => TPromise.join(folders.map(f => this.scanPlugin(version, collector, paths.join(absoluteFolderPath, f), isBuiltin))))
-			.then(plugins => plugins.filter(item => item !== null))
-			.then(plugins => {
-				const pluginsById = values(groupBy(plugins, p => p.id));
-				return pluginsById.map(p => p.sort((a, b) => semver.rcompare(a.version, b.version))[0]);
-			})
-			.then(null, err => {
-				collector.error(absoluteFolderPath, err);
-				return [];
-			});
+		let obsolete = TPromise.as({});
+
+		if (!isBuiltin) {
+			obsolete = pfs.readFile(paths.join(absoluteFolderPath, '.obsolete'), 'utf8')
+				.then(raw => JSON.parse(raw))
+				.then(null, err => ({}));
+		}
+
+		return obsolete.then(obsolete => {
+			return pfs.readDirsInDir(absoluteFolderPath)
+				.then(folders => TPromise.join(folders.map(f => this.scanPlugin(version, collector, paths.join(absoluteFolderPath, f), isBuiltin))))
+				.then(plugins => plugins.filter(item => item !== null))
+				// TODO: align with extensionsService
+				.then(plugins => plugins.filter(p => !obsolete[`${ p.publisher }.${ p.name }-${ p.version }`]))
+				.then(plugins => {
+					const pluginsById = values(groupBy(plugins, p => p.id));
+					return pluginsById.map(p => p.sort((a, b) => semver.rcompare(a.version, b.version))[0]);
+				})
+				.then(null, err => {
+					collector.error(absoluteFolderPath, err);
+					return [];
+				});
+		});
 	}
 
 	/**
