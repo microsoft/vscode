@@ -176,6 +176,8 @@ function packageTask(platform, arch, opts) {
 			'!extensions/json/server/out/**/test/**',
 			'!extensions/json/server/test/**',
 			'!extensions/json/server/typings/**',
+			'!extensions/json/server/node_modules/typescript/**',
+			'!extensions/json/server/node_modules/mocha/**'
 		], { base: '.' });
 
 		var pluginHostSourceMap = gulp.src(out + '/vs/workbench/node/pluginHostProcess.js.map', { base: '.' })
