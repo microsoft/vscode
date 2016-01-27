@@ -94,7 +94,7 @@ gulp.task('clean-minified-vscode', util.rimraf('out-vscode-min'));
 gulp.task('minify-vscode', ['clean-minified-vscode', 'optimize-vscode'], common.minifyTask('out-vscode', false));
 
 // Package
-var product = JSON.parse(fs.readFileSync(path.join(root, 'product.json'), 'utf8'));
+var product = require('../product.json');
 var darwinCreditsTemplate = product.darwinCredits && _.template(fs.readFileSync(path.join(root, product.darwinCredits), 'utf8'));
 
 var config = {
@@ -242,7 +242,12 @@ function packageTask(platform, arch, opts) {
 			.pipe(filter(['**', '!LICENSE', '!LICENSES.chromium.html', '!version']));
 
 		if (platform === 'win32') {
-			result = es.merge(result, gulp.src('resources/win32/bin/**', { base: 'resources/win32' }));
+			var shortcutFilter = filter('bin/*.cmd', { restore: true });
+
+			result = es.merge(result, gulp.src('resources/win32/bin/**', { base: 'resources/win32' }))
+				.pipe(shortcutFilter)
+				.pipe(rename(function (f) { f.basename = product.win32ShortcutName; }))
+				.pipe(shortcutFilter.restore);
 		}
 
 		return result.pipe(symdest(destination));

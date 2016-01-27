@@ -2,6 +2,7 @@
 	"nameShort": "Code [OSS Build]",
 	"nameLong": "Code [OSS Build]",
 	"win32MutexName": "vscodeoss",
+	"win32ShortcutName": "code-oss",
 	"licenseUrl": "https://github.com/Microsoft/vscode/blob/master/LICENSE.txt",
 	"darwinBundleIdentifier": "com.visualstudio.code.oss",
 	"welcomePage": "http://go.microsoft.com/fwlink/?LinkId=723048"
