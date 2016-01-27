@@ -36,6 +36,7 @@
 .explorer-viewlet .monaco-count-badge {
 	padding: 1px 6px;
 	margin-left: 6px;
+	border-radius: 0; /* goes better when ellipsis shows up on narrow sidebar */
 }
 
 .explorer-viewlet .explorer-empty-view {

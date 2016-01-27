@@ -241,7 +241,7 @@ export class AbstractCollapsibleView extends HeaderView {
 		});
 
 		this.focusTracker.addBlurListener(() => {
-			setTimeout(() => dom.removeClass(this.header, 'focused')); // delay to give other components a chance to react
+			dom.removeClass(this.header, 'focused');
 		});
 	}
 

@@ -185,7 +185,8 @@ export class WorkingFilesView extends AdaptiveCollapsibleViewletView {
 		if (dirty === 0) {
 			$(this.dirtyCountElement).hide();
 		} else {
-			$(this.dirtyCountElement).show().text(nls.localize('dirtyCounter', "{0} unsaved", dirty));
+			const label = nls.localize('dirtyCounter', "{0} unsaved", dirty);
+			$(this.dirtyCountElement).show().text(label).title(label);
 		}
 	}
 
