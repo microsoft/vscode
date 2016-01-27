@@ -1,6 +1,7 @@
 {
-	"nameShort": "Code [OSS Build]",
-	"nameLong": "Code [OSS Build]",
+	"nameShort": "Code - OSS",
+	"nameLong": "Code - OSS",
+	"dataFolderName": ".vscode-oss",
 	"win32MutexName": "vscodeoss",
 	"win32ShortcutName": "code-oss",
 	"licenseUrl": "https://github.com/Microsoft/vscode/blob/master/LICENSE.txt",
