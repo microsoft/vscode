@@ -191,6 +191,10 @@
 	margin-left: 0.8em;
 }
 
+.debug-viewlet .debug-breakpoints .breakpoint > .checkbox.win-linux {
+	vertical-align: middle;
+}
+
 .debug-viewlet .debug-action.remove {
 	background: url('remove.svg') center center no-repeat;
 }
