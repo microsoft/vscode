@@ -5,50 +5,95 @@
 'use strict';
 
 import assert = require('assert');
-import Model = require('vs/editor/common/model/model');
-import Cursor = require('vs/editor/common/controller/cursor');
-import Position = require('vs/editor/common/core/position');
-import Range = require('vs/editor/common/core/range');
+import {Model} from 'vs/editor/common/model/model';
+import {Cursor} from 'vs/editor/common/controller/cursor';
+import {Position} from 'vs/editor/common/core/position';
+import {Range} from 'vs/editor/common/core/range';
 import ModelModes = require('vs/editor/test/common/testModes');
 import Modes = require('vs/editor/common/modes');
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 import {MockConfiguration} from 'vs/editor/test/common/mocks/mockConfiguration';
 import {EditOperation} from 'vs/editor/common/core/editOperation';
+import {AbstractState} from 'vs/editor/common/modes/abstractState';
+import supports = require('vs/editor/common/modes/supports');
 
-var H = EditorCommon.Handler;
+let H = EditorCommon.Handler;
 
 // --------- utils
 
+export class CursorState extends AbstractState {
+
+	constructor(mode:CursorMode) {
+		super(mode);
+	}
+
+	public makeClone():CursorState {
+		return this;
+	}
+
+	public equals(other: Modes.IState):boolean {
+		return this === other;
+	}
+
+	public tokenize(stream:Modes.IStream):Modes.ITokenizationResult {
+		stream.advanceToEOS();
+		return { type: 'foooooo' };
+	}
+}
+
+export class CursorMode extends ModelModes.AbstractIndentingMode {
+
+	public tokenizationSupport: Modes.ITokenizationSupport;
+	public electricCharacterSupport: Modes.IElectricCharacterSupport;
+
+	constructor() {
+		super();
+		this.tokenizationSupport = new supports.TokenizationSupport(this, this, false, false);
+		this.electricCharacterSupport = this;
+	}
+
+	public getInitialState():Modes.IState {
+		return new CursorState(this);
+	}
+
+	public getElectricCharacters():string[] {
+		return null;
+	}
+
+	public onEnter(context:Modes.ILineContext, offset:number):Modes.IEnterAction {
+		return null;
+	}
+}
 
 
-function cursorCommand(cursor: Cursor.Cursor, command: string, extraData?: any, sizeProvider?: { pageSize: number; }, overwriteSource?: string) {
+function cursorCommand(cursor: Cursor, command: string, extraData?: any, sizeProvider?: { pageSize: number; }, overwriteSource?: string) {
 	if (sizeProvider) {
 		cursor.configuration.editor.pageSize = sizeProvider.pageSize;
 	}
 	cursor.configuration.handlerDispatcher.trigger(overwriteSource || 'tests', command, extraData);
 }
 
-function moveTo(cursor: Cursor.Cursor, lineNumber: number, column: number, inSelectionMode: boolean = false) {
-	cursorCommand(cursor, inSelectionMode ? H.MoveToSelect : H.MoveTo, { position: new Position.Position(lineNumber, column) });
+function moveTo(cursor: Cursor, lineNumber: number, column: number, inSelectionMode: boolean = false) {
+	cursorCommand(cursor, inSelectionMode ? H.MoveToSelect : H.MoveTo, { position: new Position(lineNumber, column) });
 }
 
-function moveLeft(cursor: Cursor.Cursor, inSelectionMode: boolean = false) {
+function moveLeft(cursor: Cursor, inSelectionMode: boolean = false) {
 	cursorCommand(cursor, inSelectionMode ? H.CursorLeftSelect : H.CursorLeft);
 }
 
-function moveWordLeft(cursor: Cursor.Cursor, inSelectionMode: boolean = false) {
+function moveWordLeft(cursor: Cursor, inSelectionMode: boolean = false) {
 	cursorCommand(cursor, inSelectionMode ? H.CursorWordLeftSelect : H.CursorWordLeft);
 }
 
-function moveRight(cursor: Cursor.Cursor, inSelectionMode: boolean = false) {
+function moveRight(cursor: Cursor, inSelectionMode: boolean = false) {
 	cursorCommand(cursor, inSelectionMode ? H.CursorRightSelect : H.CursorRight);
 }
 
-function moveWordRight(cursor: Cursor.Cursor, inSelectionMode: boolean = false) {
+function moveWordRight(cursor: Cursor, inSelectionMode: boolean = false) {
 	cursorCommand(cursor, inSelectionMode ? H.CursorWordRightSelect : H.CursorWordRight);
 }
 
-function moveDown(cursor: Cursor.Cursor, linesCount: number, inSelectionMode: boolean = false) {
+function moveDown(cursor: Cursor, linesCount: number, inSelectionMode: boolean = false) {
 	if (linesCount === 1) {
 		cursorCommand(cursor, inSelectionMode ? H.CursorDownSelect : H.CursorDown);
 	} else {
@@ -56,7 +101,7 @@ function moveDown(cursor: Cursor.Cursor, linesCount: number, inSelectionMode: bo
 	}
 }
 
-function moveUp(cursor: Cursor.Cursor, linesCount: number, inSelectionMode: boolean = false) {
+function moveUp(cursor: Cursor, linesCount: number, inSelectionMode: boolean = false) {
 	if (linesCount === 1) {
 		cursorCommand(cursor, inSelectionMode ? H.CursorUpSelect : H.CursorUp);
 	} else {
@@ -64,27 +109,27 @@ function moveUp(cursor: Cursor.Cursor, linesCount: number, inSelectionMode: bool
 	}
 }
 
-function moveToBeginningOfLine(cursor: Cursor.Cursor, inSelectionMode: boolean = false) {
+function moveToBeginningOfLine(cursor: Cursor, inSelectionMode: boolean = false) {
 	cursorCommand(cursor, inSelectionMode ? H.CursorHomeSelect : H.CursorHome);
 }
 
-function moveToEndOfLine(cursor: Cursor.Cursor, inSelectionMode: boolean = false) {
+function moveToEndOfLine(cursor: Cursor, inSelectionMode: boolean = false) {
 	cursorCommand(cursor, inSelectionMode ?  H.CursorEndSelect : H.CursorEnd);
 }
 
-function moveToBeginningOfBuffer(cursor: Cursor.Cursor, inSelectionMode: boolean = false) {
+function moveToBeginningOfBuffer(cursor: Cursor, inSelectionMode: boolean = false) {
 	cursorCommand(cursor, inSelectionMode ? H.CursorTopSelect : H.CursorTop);
 }
 
-function moveToEndOfBuffer(cursor: Cursor.Cursor, inSelectionMode: boolean = false) {
+function moveToEndOfBuffer(cursor: Cursor, inSelectionMode: boolean = false) {
 	cursorCommand(cursor, inSelectionMode ? H.CursorBottomSelect : H.CursorBottom);
 }
 
-function deleteWordLeft(cursor: Cursor.Cursor) {
+function deleteWordLeft(cursor: Cursor) {
 	cursorCommand(cursor, H.DeleteWordLeft);
 }
 
-function deleteWordRight(cursor: Cursor.Cursor) {
+function deleteWordRight(cursor: Cursor) {
 	cursorCommand(cursor, H.DeleteWordRight);
 }
 
@@ -112,35 +157,35 @@ function selectionEqual(selection:EditorCommon.ISelection, posLineNumber: number
 	}, 'selection equal');
 }
 
-function cursorEqual(cursor: Cursor.Cursor, posLineNumber: number, posColumn: number, selLineNumber: number = posLineNumber, selColumn: number = posColumn) {
+function cursorEqual(cursor: Cursor, posLineNumber: number, posColumn: number, selLineNumber: number = posLineNumber, selColumn: number = posColumn) {
 	positionEqual(cursor.getPosition(), posLineNumber, posColumn);
 	selectionEqual(cursor.getSelection(), posLineNumber, posColumn, selLineNumber, selColumn);
 }
 
 
 suite('Editor Controller - Cursor', () => {
-	var LINE1 = '    \tMy First Line\t ';
-	var LINE2 = '\tMy Second Line';
-	var LINE3 = '    Third Line💩';
-	var LINE4 = '';
-	var LINE5 = '1';
+	let LINE1 = '    \tMy First Line\t ';
+	let LINE2 = '\tMy Second Line';
+	let LINE3 = '    Third Line💩';
+	let LINE4 = '';
+	let LINE5 = '1';
 
-	var thisHighlighter = new ModelModes.CursorMode();
-	var thisModel: Model.Model;
-	var thisConfiguration: MockConfiguration;
-	var thisCursor: Cursor.Cursor;
+	let thisHighlighter = new CursorMode();
+	let thisModel: Model;
+	let thisConfiguration: MockConfiguration;
+	let thisCursor: Cursor;
 
 	setup(() => {
-		var text =
+		let text =
 			LINE1 + '\r\n' +
 			LINE2 + '\n' +
 			LINE3 + '\n' +
 			LINE4 + '\r\n' +
 			LINE5;
 
-		thisModel = new Model.Model(text, thisHighlighter);
+		thisModel = new Model(text, thisHighlighter);
 		thisConfiguration = new MockConfiguration(null);
-		thisCursor = new Cursor.Cursor(1, thisConfiguration, thisModel, null, false);
+		thisCursor = new Cursor(1, thisConfiguration, thisModel, null, false);
 	});
 
 	teardown(() => {
@@ -240,7 +285,7 @@ suite('Editor Controller - Cursor', () => {
 
 	test('move word left', () => {
 		moveTo(thisCursor, 5, 2);
-		var expectedStops = [
+		let expectedStops = [
 			[5, 1],
 			[4, 1],
 			[3, 11],
@@ -257,10 +302,10 @@ suite('Editor Controller - Cursor', () => {
 			[1, 1],
 		];
 
-		var actualStops:number[][] = [];
-		for (var i = 0; i < expectedStops.length; i++) {
+		let actualStops:number[][] = [];
+		for (let i = 0; i < expectedStops.length; i++) {
 			moveWordLeft(thisCursor);
-			var pos = thisCursor.getPosition();
+			let pos = thisCursor.getPosition();
 			actualStops.push([pos.lineNumber, pos.column]);
 		}
 
@@ -315,7 +360,7 @@ suite('Editor Controller - Cursor', () => {
 
 	test('move word right', () => {
 		moveTo(thisCursor, 1, 1);
-		var expectedStops = [
+		let expectedStops = [
 			[1, 8],
 			[1, 14],
 			[1, 19],
@@ -330,16 +375,14 @@ suite('Editor Controller - Cursor', () => {
 			[5, 2],
 		];
 
-		var actualStops:number[][] = [];
-		for (var i = 0; i < expectedStops.length; i++) {
+		let actualStops:number[][] = [];
+		for (let i = 0; i < expectedStops.length; i++) {
 			moveWordRight(thisCursor);
-			var pos = thisCursor.getPosition();
+			let pos = thisCursor.getPosition();
 			actualStops.push([pos.lineNumber, pos.column]);
 		}
 
 		assert.deepEqual(actualStops, expectedStops);
-
-
 	});
 
 	test('move word right selection', () => {
@@ -575,13 +618,6 @@ suite('Editor Controller - Cursor', () => {
 
 	// --------- delete word left/right
 
-	//	Model looks like:
-	//	var LINE1 = '    \tMy First Line\t ';
-	//	var LINE2 = '\tMy Second Line';
-	//	var LINE3 = '    Third Line';
-	//	var LINE4 = '';
-	//	var LINE5 = '1';
-
 	test('delete word left for non-empty selection', () => {
 		moveTo(thisCursor, 3, 7);
 		moveRight(thisCursor, true);
@@ -666,7 +702,7 @@ suite('Editor Controller - Cursor', () => {
 	test('expandLineSelection', () => {
 		//              0          1         2
 		//              01234 56789012345678 0
-		// var LINE1 = '    \tMy First Line\t ';
+		// let LINE1 = '    \tMy First Line\t ';
 		moveTo(thisCursor, 1, 1);
 		cursorCommand(thisCursor, H.ExpandLineSelection);
 		cursorEqual(thisCursor, 1, LINE1.length + 1, 1, 1);
@@ -715,7 +751,7 @@ suite('Editor Controller - Cursor', () => {
 	});
 
 	test('move eventing', () => {
-		var events = 0;
+		let events = 0;
 		thisCursor.addListener(EditorCommon.EventType.CursorPositionChanged, (e) => {
 			events++;
 			positionEqual(e.position, 1, 2);
@@ -729,7 +765,7 @@ suite('Editor Controller - Cursor', () => {
 	});
 
 	test('move in selection mode eventing', () => {
-		var events = 0;
+		let events = 0;
 		thisCursor.addListener(EditorCommon.EventType.CursorPositionChanged, (e) => {
 			events++;
 			positionEqual(e.position, 1, 2);
@@ -748,7 +784,7 @@ suite('Editor Controller - Cursor', () => {
 		moveTo(thisCursor, 2, 1, true);
 		cursorEqual(thisCursor, 2, 1, 1, 1);
 
-		var savedState = JSON.stringify(thisCursor.saveState());
+		let savedState = JSON.stringify(thisCursor.saveState());
 
 		moveTo(thisCursor, 1, 1, false);
 		cursorEqual(thisCursor, 1, 1);
@@ -762,15 +798,15 @@ suite('Editor Controller - Cursor', () => {
 	test('Independent model edit 1', () => {
 		moveTo(thisCursor, 2, 16, true);
 
-		thisModel.applyEdits([EditOperation.delete(new Range.Range(2, 1, 2, 2))]);
+		thisModel.applyEdits([EditOperation.delete(new Range(2, 1, 2, 2))]);
 		cursorEqual(thisCursor, 2, 15, 1, 1);
 	});
 
 	// --------- bugs
 
 	test('Bug 9121: Auto indent + undo + redo is funky', () => {
-		var model = new Model.Model('', thisHighlighter);
-		var cursor = new Cursor.Cursor(1, new MockConfiguration({
+		let model = new Model('', thisHighlighter);
+		let cursor = new Cursor(1, new MockConfiguration({
 			tabSize: 4,
 			insertSpaces: false
 		}), model, null, false);
@@ -826,14 +862,14 @@ suite('Editor Controller - Cursor', () => {
 
 suite('Editor Controller - Cursor Configuration', () => {
 
-	var thisHighlighter = new ModelModes.CursorMode();
+	let thisHighlighter = new CursorMode();
 
 	test('issue #183: jump to matching bracket position', () => {
 		let mode = new ModelModes.BracketMode();
-		let model = new Model.Model([
-			'var x = (3 + (5-7));'
+		let model = new Model([
+			'let x = (3 + (5-7));'
 		].join('\n'), mode);
-		let cursor = new Cursor.Cursor(1, new MockConfiguration(null), model, null, false);
+		let cursor = new Cursor(1, new MockConfiguration(null), model, null, false);
 
 		// ensure is tokenized
 		model.getLineContext(1);
@@ -854,11 +890,11 @@ suite('Editor Controller - Cursor Configuration', () => {
 	});
 
 	test('Cursor honors insertSpaces configuration on new line', () => {
-		var text = '    \tMy First Line\t \n' + '\tMy Second Line\n' + '    Third Line\n' + '\n' + '1';
-		var model = new Model.Model(text, thisHighlighter);
-		var cursor = new Cursor.Cursor(1, new MockConfiguration({ insertSpaces: true, tabSize: 4 }), model, null, false);
+		let text = '    \tMy First Line\t \n' + '\tMy Second Line\n' + '    Third Line\n' + '\n' + '1';
+		let model = new Model(text, thisHighlighter);
+		let cursor = new Cursor(1, new MockConfiguration({ insertSpaces: true, tabSize: 4 }), model, null, false);
 
-		cursorCommand(cursor, H.MoveTo, { position: new Position.Position(1, 21) }, null, 'keyboard');
+		cursorCommand(cursor, H.MoveTo, { position: new Position(1, 21) }, null, 'keyboard');
 		cursorCommand(cursor, H.Type, { text: '\n' }, null, 'keyboard');
 		assert.equal(model.getLineContent(1), '    \tMy First Line\t ');
 		assert.equal(model.getLineContent(2), '        ');
@@ -868,7 +904,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 	});
 
 	test('bug #16543: Tab should indent to correct indentation spot immediately', () => {
-		var text = [
+		let text = [
 			'function baz() {',
 			'\tfunction hello() { // something here',
 			'\t',
@@ -876,9 +912,9 @@ suite('Editor Controller - Cursor Configuration', () => {
 			'\t}',
 			'}'
 		];
-		var mode = new ModelModes.IndentingMode();
-		var model = new Model.Model(text.join('\n'), mode);
-		var cursor = new Cursor.Cursor(1, new MockConfiguration({ insertSpaces: false, tabSize: 4 }), model, null, false);
+		let mode = new ModelModes.IndentingMode();
+		let model = new Model(text.join('\n'), mode);
+		let cursor = new Cursor(1, new MockConfiguration({ insertSpaces: false, tabSize: 4 }), model, null, false);
 
 		moveTo(cursor, 4, 1, false);
 		cursorEqual(cursor, 4, 1, 4, 1);
@@ -891,11 +927,11 @@ suite('Editor Controller - Cursor Configuration', () => {
 	});
 
 	test('Bug 18276:[editor] Indentation broken when selection is empty', () => {
-		var text = [
+		let text = [
 			'function baz() {'
 		];
-		var model = new Model.Model(text.join('\n'), null);
-		var cursor = new Cursor.Cursor(1, new MockConfiguration({ insertSpaces: false, tabSize: 4 }), model, null, false);
+		let model = new Model(text.join('\n'), null);
+		let cursor = new Cursor(1, new MockConfiguration({ insertSpaces: false, tabSize: 4 }), model, null, false);
 
 		moveTo(cursor, 1, 2, false);
 		cursorEqual(cursor, 1, 2, 1, 2);
@@ -912,11 +948,11 @@ suite('Editor Controller - Cursor Configuration', () => {
 	});
 
 	test('bug #16815:Shift+Tab doesn\'t go back to tabstop', () => {
-		var text = [
+		let text = [
 			'     function baz() {'
 		];
-		var model = new Model.Model(text.join('\n'), null);
-		var cursor = new Cursor.Cursor(1, new MockConfiguration({ insertSpaces: true, tabSize: 4 }), model, null, false);
+		let model = new Model(text.join('\n'), null);
+		let cursor = new Cursor(1, new MockConfiguration({ insertSpaces: true, tabSize: 4 }), model, null, false);
 
 		moveTo(cursor, 1, 6, false);
 		cursorEqual(cursor, 1, 6, 1, 6);
@@ -930,11 +966,11 @@ suite('Editor Controller - Cursor Configuration', () => {
 	});
 
 	test('Bug #18293:[regression][editor] Can\'t outdent whitespace line', () => {
-		var text = [
+		let text = [
 			'      '
 		];
-		var model = new Model.Model(text.join('\n'), null);
-		var cursor = new Cursor.Cursor(1, new MockConfiguration({ insertSpaces: true, tabSize: 4 }), model, null, false);
+		let model = new Model(text.join('\n'), null);
+		let cursor = new Cursor(1, new MockConfiguration({ insertSpaces: true, tabSize: 4 }), model, null, false);
 
 		moveTo(cursor, 1, 7, false);
 		cursorEqual(cursor, 1, 7, 1, 7);
@@ -948,7 +984,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 	});
 
 	test('Bug #16657: [editor] Tab on empty line of zero indentation moves cursor to position (1,1)', () => {
-		var text = [
+		let text = [
 			'function baz() {',
 			'\tfunction hello() { // something here',
 			'\t',
@@ -957,8 +993,8 @@ suite('Editor Controller - Cursor Configuration', () => {
 			'}',
 			''
 		];
-		var model = new Model.Model(text.join('\n'), null);
-		var cursor = new Cursor.Cursor(1, new MockConfiguration({ insertSpaces: false, tabSize: 4 }), model, null, false);
+		let model = new Model(text.join('\n'), null);
+		let cursor = new Cursor(1, new MockConfiguration({ insertSpaces: false, tabSize: 4 }), model, null, false);
 
 		moveTo(cursor, 7, 1, false);
 		cursorEqual(cursor, 7, 1, 7, 1);
@@ -973,12 +1009,12 @@ suite('Editor Controller - Cursor Configuration', () => {
 
 	test('bug #16740: [editor] Cut line doesn\'t quite cut the last line', () => {
 		// Part 1 => there is text on the last line
-		var text = [
+		let text = [
 			'asdasd',
 			'qwerty'
 		];
-		var model = new Model.Model(text.join('\n'), null);
-		var cursor = new Cursor.Cursor(1, new MockConfiguration({ insertSpaces: false, tabSize: 4 }), model, null, true);
+		let model = new Model(text.join('\n'), null);
+		let cursor = new Cursor(1, new MockConfiguration({ insertSpaces: false, tabSize: 4 }), model, null, true);
 
 		moveTo(cursor, 2, 1, false);
 		cursorEqual(cursor, 2, 1, 2, 1);
@@ -995,8 +1031,8 @@ suite('Editor Controller - Cursor Configuration', () => {
 			'asdasd',
 			''
 		];
-		model = new Model.Model(text.join('\n'), null);
-		cursor = new Cursor.Cursor(1, new MockConfiguration({ insertSpaces: false, tabSize: 4 }), model, null, true);
+		model = new Model(text.join('\n'), null);
+		cursor = new Cursor(1, new MockConfiguration({ insertSpaces: false, tabSize: 4 }), model, null, true);
 
 		moveTo(cursor, 2, 1, false);
 		cursorEqual(cursor, 2, 1, 2, 1);
@@ -1014,61 +1050,61 @@ suite('Editor Controller - Cursor Configuration', () => {
 	});
 
 	test('Cursor honors insertSpaces configuration on tab', () => {
-		var text = '    \tMy First Line\t \n' + 'My Second Line123\n' + '    Third Line\n' + '\n' + '1';
-		var model = new Model.Model(text, thisHighlighter);
-		var cursor = new Cursor.Cursor(1, new MockConfiguration({ insertSpaces: true, tabSize:13 }), model, null, false);
+		let text = '    \tMy First Line\t \n' + 'My Second Line123\n' + '    Third Line\n' + '\n' + '1';
+		let model = new Model(text, thisHighlighter);
+		let cursor = new Cursor(1, new MockConfiguration({ insertSpaces: true, tabSize:13 }), model, null, false);
 
 		// Tab on column 1
-		cursorCommand(cursor, H.MoveTo, { position: new Position.Position(2, 1) }, null, 'keyboard');
+		cursorCommand(cursor, H.MoveTo, { position: new Position(2, 1) }, null, 'keyboard');
 		cursorCommand(cursor, H.Tab, null, null, 'keyboard');
 		assert.equal(model.getLineContent(2), '             My Second Line123');
 		cursorCommand(cursor, H.Undo, null, null, 'keyboard');
 
 		// Tab on column 2
 		assert.equal(model.getLineContent(2), 'My Second Line123');
-		cursorCommand(cursor, H.MoveTo, { position: new Position.Position(2, 2) }, null, 'keyboard');
+		cursorCommand(cursor, H.MoveTo, { position: new Position(2, 2) }, null, 'keyboard');
 		cursorCommand(cursor, H.Tab, null, null, 'keyboard');
 		assert.equal(model.getLineContent(2), 'M            y Second Line123');
 		cursorCommand(cursor, H.Undo, null, null, 'keyboard');
 
 		// Tab on column 3
 		assert.equal(model.getLineContent(2), 'My Second Line123');
-		cursorCommand(cursor, H.MoveTo, { position: new Position.Position(2, 3) }, null, 'keyboard');
+		cursorCommand(cursor, H.MoveTo, { position: new Position(2, 3) }, null, 'keyboard');
 		cursorCommand(cursor, H.Tab, null, null, 'keyboard');
 		assert.equal(model.getLineContent(2), 'My            Second Line123');
 		cursorCommand(cursor, H.Undo, null, null, 'keyboard');
 
 		// Tab on column 4
 		assert.equal(model.getLineContent(2), 'My Second Line123');
-		cursorCommand(cursor, H.MoveTo, { position: new Position.Position(2, 4) }, null, 'keyboard');
+		cursorCommand(cursor, H.MoveTo, { position: new Position(2, 4) }, null, 'keyboard');
 		cursorCommand(cursor, H.Tab, null, null, 'keyboard');
 		assert.equal(model.getLineContent(2), 'My           Second Line123');
 		cursorCommand(cursor, H.Undo, null, null, 'keyboard');
 
 		// Tab on column 5
 		assert.equal(model.getLineContent(2), 'My Second Line123');
-		cursorCommand(cursor, H.MoveTo, { position: new Position.Position(2, 5) }, null, 'keyboard');
+		cursorCommand(cursor, H.MoveTo, { position: new Position(2, 5) }, null, 'keyboard');
 		cursorCommand(cursor, H.Tab, null, null, 'keyboard');
 		assert.equal(model.getLineContent(2), 'My S         econd Line123');
 		cursorCommand(cursor, H.Undo, null, null, 'keyboard');
 
 		// Tab on column 5
 		assert.equal(model.getLineContent(2), 'My Second Line123');
-		cursorCommand(cursor, H.MoveTo, { position: new Position.Position(2, 5) }, null, 'keyboard');
+		cursorCommand(cursor, H.MoveTo, { position: new Position(2, 5) }, null, 'keyboard');
 		cursorCommand(cursor, H.Tab, null, null, 'keyboard');
 		assert.equal(model.getLineContent(2), 'My S         econd Line123');
 		cursorCommand(cursor, H.Undo, null, null, 'keyboard');
 
 		// Tab on column 13
 		assert.equal(model.getLineContent(2), 'My Second Line123');
-		cursorCommand(cursor, H.MoveTo, { position: new Position.Position(2, 13) }, null, 'keyboard');
+		cursorCommand(cursor, H.MoveTo, { position: new Position(2, 13) }, null, 'keyboard');
 		cursorCommand(cursor, H.Tab, null, null, 'keyboard');
 		assert.equal(model.getLineContent(2), 'My Second Li ne123');
 		cursorCommand(cursor, H.Undo, null, null, 'keyboard');
 
 		// Tab on column 14
 		assert.equal(model.getLineContent(2), 'My Second Line123');
-		cursorCommand(cursor, H.MoveTo, { position: new Position.Position(2, 14) }, null, 'keyboard');
+		cursorCommand(cursor, H.MoveTo, { position: new Position(2, 14) }, null, 'keyboard');
 		cursorCommand(cursor, H.Tab, null, null, 'keyboard');
 		assert.equal(model.getLineContent(2), 'My Second Lin             e123');
 
@@ -1077,9 +1113,9 @@ suite('Editor Controller - Cursor Configuration', () => {
 	});
 
 	test('Bug #11476: Double bracket surrounding + undo is broken', () => {
-		var text = 'hello';
-		var model = new Model.Model(text, new ModelModes.SurroundingMode());
-		var cursor = new Cursor.Cursor(1, new MockConfiguration({ insertSpaces: true }), model, null, false);
+		let text = 'hello';
+		let model = new Model(text, new ModelModes.SurroundingMode());
+		let cursor = new Cursor(1, new MockConfiguration({ insertSpaces: true }), model, null, false);
 
 		moveTo(cursor, 1, 3, false);
 		moveTo(cursor, 1, 5, true);
@@ -1096,10 +1132,10 @@ suite('Editor Controller - Cursor Configuration', () => {
 	});
 
 	test('Enter auto-indents with insertSpaces setting 1', () => {
-		var text = '\thello';
-		var mode = new ModelModes.IndentingMode();
-		var model = new Model.Model(text, mode);
-		var cursor = new Cursor.Cursor(1, new MockConfiguration({ insertSpaces: true, tabSize: 4 }), model, null, false);
+		let text = '\thello';
+		let mode = new ModelModes.IndentingMode();
+		let model = new Model(text, mode);
+		let cursor = new Cursor(1, new MockConfiguration({ insertSpaces: true, tabSize: 4 }), model, null, false);
 
 		moveTo(cursor, 1, 7, false);
 		cursorEqual(cursor, 1, 7, 1, 7);
@@ -1112,10 +1148,10 @@ suite('Editor Controller - Cursor Configuration', () => {
 	});
 
 	test('Enter auto-indents with insertSpaces setting 2', () => {
-		var text = '\thello';
-		var mode = new ModelModes.NonIndentingMode();
-		var model = new Model.Model(text, mode);
-		var cursor = new Cursor.Cursor(1, new MockConfiguration({ insertSpaces: true, tabSize: 4 }), model, null, false);
+		let text = '\thello';
+		let mode = new ModelModes.NonIndentingMode();
+		let model = new Model(text, mode);
+		let cursor = new Cursor(1, new MockConfiguration({ insertSpaces: true, tabSize: 4 }), model, null, false);
 
 		moveTo(cursor, 1, 7, false);
 		cursorEqual(cursor, 1, 7, 1, 7);
@@ -1128,10 +1164,10 @@ suite('Editor Controller - Cursor Configuration', () => {
 	});
 
 	test('Enter auto-indents with insertSpaces setting 3', () => {
-		var text = '\thell()';
-		var mode = new ModelModes.IndentOutdentMode();
-		var model = new Model.Model(text, mode);
-		var cursor = new Cursor.Cursor(1, new MockConfiguration({ insertSpaces: true, tabSize: 4 }), model, null, false);
+		let text = '\thell()';
+		let mode = new ModelModes.IndentOutdentMode();
+		let model = new Model(text, mode);
+		let cursor = new Cursor(1, new MockConfiguration({ insertSpaces: true, tabSize: 4 }), model, null, false);
 
 		moveTo(cursor, 1, 7, false);
 		cursorEqual(cursor, 1, 7, 1, 7);
@@ -1144,8 +1180,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 	});
 
 	test('Insert line before', () => {
-
-		var testInsertLineBefore = (lineNumber:number, column:number, callback:(model:Model.Model, cursor:Cursor.Cursor) => void) => {
+		let testInsertLineBefore = (lineNumber:number, column:number, callback:(model:Model, cursor:Cursor) => void) => {
 			usingCursor([
 				'First line',
 				'Second line',
@@ -1185,8 +1220,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 	});
 
 	test('Insert line after', () => {
-
-		var testInsertLineAfter = (lineNumber:number, column:number, callback:(model:Model.Model, cursor:Cursor.Cursor) => void) => {
+		let testInsertLineAfter = (lineNumber:number, column:number, callback:(model:Model, cursor:Cursor) => void) => {
 			usingCursor([
 				'First line',
 				'Second line',
@@ -1231,11 +1265,11 @@ interface ICursorOpts {
 	config: any;
 }
 
-function usingCursor(text:string[], opts:ICursorOpts, callback:(model:Model.Model, cursor:Cursor.Cursor)=>void): void {
+function usingCursor(text:string[], opts:ICursorOpts, callback:(model:Model, cursor:Cursor)=>void): void {
 	opts = opts || <any>{};
-	var model = new Model.Model(text.join('\n'), opts.mode);
-	var config = new MockConfiguration(opts.config);
-	var cursor = new Cursor.Cursor(1, config, model, null, false);
+	let model = new Model(text.join('\n'), opts.mode);
+	let config = new MockConfiguration(opts.config);
+	let cursor = new Cursor(1, config, model, null, false);
 
 	callback(model, cursor);
 

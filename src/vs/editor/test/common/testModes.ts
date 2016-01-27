@@ -52,26 +52,6 @@ export class CommentMode extends AbstractMode<AbstractModeWorker> {
 	}
 }
 
-export class CursorState extends AbstractState {
-
-	constructor(mode:CursorMode) {
-		super(mode);
-	}
-
-	public makeClone():CursorState {
-		return this;
-	}
-
-	public equals(other: modes.IState):boolean {
-		return this === other;
-	}
-
-	public tokenize(stream:modes.IStream):modes.ITokenizationResult {
-		stream.advanceToEOS();
-		return { type: 'foooooo' };
-	}
-}
-
 export class TestingMode implements modes.IMode {
 	public getId():string {
 		return 'testing';
@@ -82,7 +62,7 @@ export class TestingMode implements modes.IMode {
 	}
 }
 
-export class AbstractIndentingMode extends TestingMode {
+export abstract class AbstractIndentingMode extends TestingMode {
 
 	public getElectricCharacters():string[] {
 		return null;
@@ -146,29 +126,7 @@ export class IndentOutdentMode extends AbstractIndentingMode {
 	}
 }
 
-export class CursorMode extends AbstractIndentingMode {
 
-	public tokenizationSupport: modes.ITokenizationSupport;
-	public electricCharacterSupport: modes.IElectricCharacterSupport;
-
-	constructor() {
-		super();
-		this.tokenizationSupport = new supports.TokenizationSupport(this, this, false, false);
-		this.electricCharacterSupport = this;
-	}
-
-	public getInitialState():modes.IState {
-		return new CursorState(this);
-	}
-
-	public getElectricCharacters():string[] {
-		return null;
-	}
-
-	public onEnter(context:modes.ILineContext, offset:number):modes.IEnterAction {
-		return null;
-	}
-}
 
 export class SurroundingState extends AbstractState {
 
