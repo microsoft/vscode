@@ -133,8 +133,10 @@ export class StringEditor extends BaseTextEditor {
 
 		let input = this.getInput();
 		let isUntitled = input instanceof UntitledEditorInput;
+		let isReadonly = !isUntitled; // all string editors are readonly except for the untitled one
 
-		options.readOnly = !isUntitled; 				// all string editors are readonly except for the untitled one
+		options.readOnly = isReadonly;
+		options.tabFocusMode = isReadonly;
 
 		return options;
 	}
