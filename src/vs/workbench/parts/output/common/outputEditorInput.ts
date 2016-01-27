@@ -60,7 +60,7 @@ export class OutputEditorInput extends StringEditorInput {
 				this.append(e.output);
 				this.trim(OutputEditorInput.MAX_OUTPUT_LINES);
 				const panel = this.panelService.getActivePanel();
-				if (panel.getId() === OUTPUT_PANEL_ID && this.outputService.getActiveChannel() === this.channel) {
+				if (panel && panel.getId() === OUTPUT_PANEL_ID && this.outputService.getActiveChannel() === this.channel) {
 					(<OutputPanel>panel).revealLastLine();
 				}
 			} else if (e.output === null) {
