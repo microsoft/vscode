@@ -283,6 +283,10 @@ class DataSource implements IDataSource<IExtensionEntry> {
 	getId(entry: IExtensionEntry): string {
 		const extension = entry.extension;
 
+		if (!extension) {
+			throw new Error(`Not an extension entry. Found ${ Object.keys(entry).slice(5) },... instead.`);
+		}
+
 		if (extension.galleryInformation) {
 			return `${ extension.galleryInformation.id }-${ extension.version }`;
 		}
