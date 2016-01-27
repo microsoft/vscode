@@ -35,13 +35,13 @@ const $ = dom.emmet;
 const booleanRegex = /^true|false$/i;
 const stringRegex = /^(['"]).*\1$/;
 
-export function renderExpressionValue(arg2: debug.IExpression|string, debugInactive: boolean, container: HTMLElement): void {
-	let value = typeof arg2 === 'string' ? arg2 : arg2.value;
+export function renderExpressionValue(expressionOrValue: debug.IExpression|string, debugInactive: boolean, container: HTMLElement, showChanged: boolean): void {
+	let value = typeof expressionOrValue === 'string' ? expressionOrValue : expressionOrValue.value;
 
 	// remove stale classes
 	container.className = 'value';
 	// when resolving expressions we represent errors from the server as a variable with name === null.
-	if (value === null || ((arg2 instanceof model.Expression || arg2 instanceof model.Variable) && !arg2.available)) {
+	if (value === null || ((expressionOrValue instanceof model.Expression || expressionOrValue instanceof model.Variable) && !expressionOrValue.available)) {
 		dom.addClass(container, 'unavailable');
 		debugInactive ? dom.removeClass(container, 'error') : dom.addClass(container, 'error');
 	} else if (!isNaN(+value)) {
@@ -52,6 +52,10 @@ export function renderExpressionValue(arg2: debug.IExpression|string, debugInact
 		dom.addClass(container, 'string');
 	}
 
+	if (showChanged && (<any>expressionOrValue).valueChanged) {
+		// value changed color has priority over other colors.
+		container.className = 'value changed';
+	}
 	container.textContent = value;
 	container.title = value;
 }
@@ -62,11 +66,7 @@ export function renderVariable(tree: tree.ITree, variable: model.Variable, data:
 	}
 
 	if (variable.value) {
-		renderExpressionValue(variable, debugInactive, data.value);
-		if (variable.valueChanged && showChanged) {
-			// value changed color has priority over other colors.
-			data.value.className = 'value changed';
-		}
+		renderExpressionValue(variable, debugInactive, data.value, showChanged);
 	} else {
 		data.value.textContent = '';
 		data.value.title = '';
@@ -570,7 +570,7 @@ export class WatchExpressionsRenderer implements tree.IRenderer {
 		if (templateId === WatchExpressionsRenderer.WATCH_EXPRESSION_TEMPLATE_ID) {
 			this.renderWatchExpression(tree, element, templateData);
 		} else {
-			this.renderExpression(tree, element, templateData);
+			renderVariable(tree, element, templateData, this.debugService.getState() === debug.State.Inactive, true);
 		}
 	}
 
@@ -581,13 +581,9 @@ export class WatchExpressionsRenderer implements tree.IRenderer {
 		}
 		data.actionBar.context = watchExpression;
 
-		this.renderExpression(tree, watchExpression, data);
-	}
-
-	private renderExpression(tree: tree.ITree, expression: debug.IExpression, data: IVariableTemplateData): void {
-		data.name.textContent = `${expression.name}:`;
-		if (expression.value) {
-			renderExpressionValue(expression, this.debugService.getState() === debug.State.Inactive, data.value);
+		data.name.textContent = `${watchExpression.name}:`;
+		if (watchExpression.value) {
+			renderExpressionValue(watchExpression, this.debugService.getState() === debug.State.Inactive, data.value, true);
 		}
 	}
 

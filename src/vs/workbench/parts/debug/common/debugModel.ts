@@ -145,11 +145,14 @@ export class KeyValueOutputElement extends OutputElement {
 	}
 }
 
+// TODO@Isidor move common code for expression and variable into a super class
 export class Expression implements debug.IExpression {
 	static DEFAULT_VALUE = 'not available';
+	public static allValues: { [id: string]: string } = {};
 
 	public reference: number;
 	public available: boolean;
+	public valueChanged: boolean;
 	private _value: string;
 	private children: TPromise<debug.IExpression[]>;
 
@@ -166,6 +169,8 @@ export class Expression implements debug.IExpression {
 
 	public set value(value: string) {
 		this._value = massageValue(value);
+		this.valueChanged = Expression.allValues[this.getId()] && Expression.allValues[this.getId()] !== value;
+		Expression.allValues[this.getId()] = value;
 	}
 
 	public getId(): string {
@@ -341,6 +346,7 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 			if (removeThreads) {
 				this.threads = {};
 				Variable.allValues = {};
+				Expression.allValues = {};
 			} else {
 				for (let ref in this.threads) {
 					if (this.threads.hasOwnProperty(ref)) {
@@ -612,7 +618,7 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 					if (!rsf) {
 						return new StackFrame(data.threadId, 0, new Source({ name: 'unknown' }), nls.localize('unknownStack', "Unknown stack location"), undefined, undefined);
 					}
-					
+
 					return new StackFrame(data.threadId, rsf.id, rsf.source ? new Source(rsf.source) : new Source({ name: 'unknown' }), rsf.name, rsf.line, rsf.column);
 				});
 
