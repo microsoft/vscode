@@ -53,6 +53,7 @@
 .monaco-shell.vs select:focus,
 .monaco-shell.vs input[type="button"]:focus,
 .monaco-shell.vs input[type="submit"]:focus,
+.monaco-shell.vs input[type="text"]:focus, .monaco-shell.vs textarea:focus,
 .monaco-shell.vs input[type="checkbox"]:focus {
 	outline: 1px solid rgba(0, 122, 204, 0.4);
 	outline-offset: -1px;
@@ -62,6 +63,7 @@
 .monaco-shell.vs-dark select:focus,
 .monaco-shell.vs-dark input[type="button"]:focus,
 .monaco-shell.vs-dark input[type="submit"]:focus,
+.monaco-shell.vs-dark input[type="text"]:focus, .monaco-shell.vs-dark textarea:focus,
 .monaco-shell.vs-dark input[type="checkbox"]:focus {
 	outline: 1px solid rgba(14, 99, 156, 0.6);
 	outline-offset: -1px;
@@ -71,6 +73,7 @@
 .monaco-shell.hc-black select:focus,
 .monaco-shell.hc-black input[type="button"]:focus,
 .monaco-shell.hc-black input[type="submit"]:focus,
+.monaco-shell.hc-black input[type="text"]:focus, .monaco-shell.hc-black textarea:focus,
 .monaco-shell.hc-black input[type="checkbox"]:focus {
 	outline: 2px solid #DF740C;
 	outline-offset: -2px;
@@ -92,10 +95,6 @@
 .monaco-shell.hc-black .monaco-tree.focused.no-item-focus:focus .monaco-tree-rows {
 	outline: 2px solid #DF740C; /* we still need to handle the empty tree or no focus item case */
 	outline-offset: -2px;
-}
-
-.monaco-shell input[type="text"], .monaco-shell textarea {
-	outline: 0; /* do not show outline in input fields and textarea */
 }
 
 .monaco-shell .monaco-tree:focus {
