@@ -407,7 +407,7 @@ class SuggestionDetails {
 		this.el = append(container, $('.details'));
 		const header = append(this.el, $('.header'));
 		this.title = append(header, $('span.title'));
-		this.back = append(header, $('span.go-back.octicon.octicon-x'));
+		this.back = append(header, $('span.go-back.octicon.octicon-mail-reply'));
 		this.back.title = nls.localize('goback', "Go back");
 		this.body = append(this.el, $('.body'));
 		this.type = append(this.body, $('p.type'));
