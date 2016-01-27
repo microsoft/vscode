@@ -644,7 +644,7 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 	}
 
 	private setState(state: State): void {
-		const shouldLayout = this.state !== state;
+		const stateChanged = this.state !== state;
 		this.state = state;
 
 		toggleClass(this.element, 'frozen', state === State.Frozen);
@@ -654,6 +654,7 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 				hide(this.messageElement, this.details.element);
 				show(this.treeElement);
 				this.hide();
+				if (stateChanged) this.tree.setInput(null);
 				break;
 			case State.Loading:
 				this.messageElement.innerText = SuggestWidget.LOADING_MESSAGE;
@@ -684,7 +685,7 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 				break;
 		}
 
-		if (shouldLayout) {
+		if (stateChanged) {
 			this.editor.layoutContentWidget(this);
 		}
 	}
@@ -961,7 +962,6 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 	private hide(): void {
 		this._onDidVisibilityChange.fire(false);
 		removeClass(this.element, 'visible');
-		this.tree.setInput(null);
 	}
 
 	public cancel(): void {
