@@ -81,14 +81,12 @@
 	outline-offset: -2px;
 }
 
-.monaco-shell.vs .monaco-tree.focused:focus .monaco-tree-rows:empty,
-.monaco-shell.vs .monaco-tree.focused:focus.no-item-focus .monaco-tree-rows {
+.monaco-shell.vs .monaco-tree.focused.no-item-focus:focus {
 	outline: 1px solid rgba(0, 122, 204, 0.4); /* we still need to handle the empty tree or no focus item case */
 	outline-offset: -1px;
 }
 
-.monaco-shell.vs-dark .monaco-tree.focused:focus .monaco-tree-rows:empty,
-.monaco-shell.vs-dark .monaco-tree.focused.no-item-focus:focus .monaco-tree-rows {
+.monaco-shell.vs-dark .monaco-tree.focused.no-item-focus:focus {
 	outline: 1px solid rgba(14, 99, 156, 0.6); /* we still need to handle the empty tree or no focus item case */
 	outline-offset: -1px;
 }
@@ -99,8 +97,8 @@
 	outline-offset: -2px;
 }
 
-.monaco-shell .monaco-tree:focus {
-	outline: 0 !important; /* tree indicates focus not via outline but through the focussed item */
+.monaco-shell .monaco-tree.focused:focus {
+	outline: 0; /* tree indicates focus not via outline but through the focussed item */
 }
 
 .monaco-shell [tabindex="0"]:active,
