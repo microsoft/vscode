@@ -37,7 +37,7 @@ class ExtHostApiCommands {
 	registerCommands() {
 		this._register('vscode.executeWorkspaceSymbolProvider', this._executeWorkspaceSymbolProvider, {
 			description: 'Execute all workspace symbol provider.',
-			args: [{ name: 'query', constraint: String }],
+			args: [{ name: 'query', description: 'Search string', constraint: String }],
 			returns: 'A promise that resolves to an array of SymbolInformation-instances.'
 
 		});
@@ -50,7 +50,7 @@ class ExtHostApiCommands {
 			returns: 'A promise that resolves to an array of Location-instances.'
 		});
 		this._register('vscode.executeHoverProvider', this._executeHoverProvider, {
-			description: 'Execute all definition provider.',
+			description: 'Execute all hover provider.',
 			args: [
 				{ name: 'uri', description: 'Uri of a text document', constraint: URI },
 				{ name: 'position', description: 'Position of a symbol', constraint: types.Position }
