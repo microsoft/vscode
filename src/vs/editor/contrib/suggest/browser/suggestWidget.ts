@@ -428,7 +428,7 @@ class SuggestionDetails {
 		}
 
 		this.title.innerText = item.suggestion.label;
-		this.type.innerText = item.suggestion.typeLabel;
+		this.type.innerText = item.suggestion.typeLabel || '';
 		this.docs.innerText = item.suggestion.documentationLabel;
 		this.back.onclick = e => {
 			e.preventDefault();
