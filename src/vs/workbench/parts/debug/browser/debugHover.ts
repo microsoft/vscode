@@ -151,6 +151,7 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 			this.treeContainer.hidden = true;
 			this.valueContainer.hidden = false;
 			viewer.renderExpressionValue(expression, false, this.valueContainer, false);
+			this.valueContainer.title = '';
 		}
 
 		this.showAtPosition = position;
