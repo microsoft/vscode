@@ -29,6 +29,8 @@ import { IGitService, IFileStatus, Status, StatusType, ServiceState,
 	IModel, IBranch, GitErrorCodes, ServiceOperations }
 	from 'vs/workbench/parts/git/common/git';
 import {IQuickOpenService, IPickOpenEntry} from 'vs/workbench/services/quickopen/common/quickOpenService';
+import paths = require('vs/base/common/paths');
+import URI from 'vs/base/common/uri';
 
 function flatten(context?: any, preferFocus = false): IFileStatus[] {
 	if (!context) {
@@ -166,17 +168,14 @@ export class OpenFileAction extends GitAction {
 			return Promise.wrapError(new Error('Can\'t open file which is has been deleted.'));
 		}
 
-		var path = this.getPath(status);
+		const resource = URI.file(paths.join(this.gitService.getModel().getRepositoryRoot(), this.getPath(status)));
 
-		return this.fileService.resolveFile(this.contextService.toResource(path)).then((stat: IFileStat) => {
-			return this.editorService.openEditor({
+		return this.fileService.resolveFile(resource)
+			.then(stat => this.editorService.openEditor({
 				resource: stat.resource,
 				mime: stat.mime,
-				options: {
-					forceOpen: true
-				}
-			});
-		});
+				options: { forceOpen: true }
+			}));
 	}
 }
 
