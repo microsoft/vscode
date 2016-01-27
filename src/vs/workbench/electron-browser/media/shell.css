@@ -57,6 +57,7 @@
 .monaco-shell.vs input[type="checkbox"]:focus {
 	outline: 1px solid rgba(0, 122, 204, 0.4);
 	outline-offset: -1px;
+	opacity: 1 !important;
 }
 
 .monaco-shell.vs-dark [tabindex="0"]:focus,
@@ -67,6 +68,7 @@
 .monaco-shell.vs-dark input[type="checkbox"]:focus {
 	outline: 1px solid rgba(14, 99, 156, 0.6);
 	outline-offset: -1px;
+	opacity: 1 !important;
 }
 
 .monaco-shell.hc-black [tabindex="0"]:focus,
