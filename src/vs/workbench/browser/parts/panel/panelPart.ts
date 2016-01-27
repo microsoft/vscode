@@ -80,18 +80,6 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		return this.openComposite(id, focus);
 	}
 
-	private get activePanel(): IPanel {
-		return this.getActivePanel();
-	}
-
-	private createPanel(id: string, isActive?: boolean): TPromise<Panel> {
-		return this.createComposite(id, isActive);
-	}
-
-	private showPanel(panel: Panel): TPromise<void> {
-		return this.showComposite(panel);
-	}
-
 	protected getActions(): IAction[] {
 		return [this.instantiationService.createInstance(ClosePanelAction, ClosePanelAction.ID, ClosePanelAction.LABEL)]
 	}

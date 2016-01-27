@@ -80,18 +80,6 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 		return this.openComposite(id, focus);
 	}
 
-	private get activeViewlet(): IViewlet {
-		return this.getActiveViewlet();
-	}
-
-	private createViewlet(id: string, isActive?: boolean): TPromise<Viewlet> {
-		return this.createComposite(id, isActive);
-	}
-
-	private showViewlet(viewlet: Viewlet): TPromise<void> {
-		return this.showComposite(viewlet);
-	}
-
 	public getActiveViewlet(): IViewlet {
 		return this.getActiveComposite();
 	}
