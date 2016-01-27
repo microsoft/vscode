@@ -6,10 +6,11 @@
 import 'vs/css!./media/panelPart';
 import nls = require('vs/nls');
 import {TPromise, Promise} from 'vs/base/common/winjs.base';
-import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
+import {KeyMod, KeyCode, CommonKeybindings} from 'vs/base/common/keyCodes';
 import strings = require('vs/base/common/strings');
 import {Action, IAction} from 'vs/base/common/actions';
 import {Builder} from 'vs/base/browser/builder';
+import dom = require('vs/base/browser/dom');
 import {Registry} from 'vs/platform/platform';
 import {Scope} from 'vs/workbench/browser/actionBarRegistry';
 import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
@@ -60,6 +61,17 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			Scope.PANEL,
 			id
 		);
+	}
+
+	public create(parent: Builder): void {
+		super.create(parent);
+		
+		dom.addStandardDisposableListener(this.getContainer().getHTMLElement(), 'keyup', (e: dom.IKeyboardEvent) => {
+			if (e.equals(CommonKeybindings.ESCAPE)) {
+				this.partService.setPanelHidden(true);
+				e.preventDefault();
+			}
+		});
 	}
 
 	public openPanel(id: string, focus?: boolean): TPromise<Panel> {

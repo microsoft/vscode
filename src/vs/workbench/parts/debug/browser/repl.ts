@@ -19,7 +19,6 @@ import debugactions = require('vs/workbench/parts/debug/electron-browser/debugAc
 import replhistory = require('vs/workbench/parts/debug/common/replHistory');
 import { Panel } from 'vs/workbench/browser/panel';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService, INullService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceContextService } from 'vs/workbench/services/workspace/common/contextService';
@@ -59,8 +58,7 @@ export class Repl extends Panel {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IContextViewService private contextViewService: IContextViewService,
-		@IStorageService private storageService: IStorageService,
-		@IPartService private partService: IPartService
+		@IStorageService private storageService: IStorageService
 	) {
 		super(debug.REPL_ID, telemetryService);
 
@@ -108,6 +106,7 @@ export class Repl extends Panel {
 				this.debugService.addReplExpression(trimmedValue);
 				Repl.HISTORY.evaluated(trimmedValue);
 				this.replInput.value = '';
+				e.preventDefault();
 			} else if (e.equals(CommonKeybindings.UP_ARROW) || e.equals(CommonKeybindings.DOWN_ARROW)) {
 				const historyInput = e.equals(CommonKeybindings.UP_ARROW) ? Repl.HISTORY.previous() : Repl.HISTORY.next();
 				if (historyInput) {
@@ -116,8 +115,6 @@ export class Repl extends Panel {
 					// always leave cursor at the end.
 					e.preventDefault();
 				}
-			} else if (e.equals(CommonKeybindings.ESCAPE)) {
-				this.partService.setPanelHidden(true);
 			}
 		});
 
