@@ -75,6 +75,32 @@ suite('workspace-namespace', () => {
 		});
 	});
 
+	test('openTextDocument, uri scheme/auth/path', function() {
+
+		let registration = workspace.registerTextDocumentContentProvider('sc', {
+			provideTextDocumentContent() {
+				return 'SC';
+			}
+		});
+
+		return Promise.all([
+			workspace.openTextDocument(Uri.parse('sc://auth')).then(doc => {
+				assert.equal(doc.uri.authority, 'auth');
+				assert.equal(doc.uri.path, '');
+			}),
+			workspace.openTextDocument(Uri.parse('sc:///path')).then(doc => {
+				assert.equal(doc.uri.authority, '');
+				assert.equal(doc.uri.path, '/path');
+			}),
+			workspace.openTextDocument(Uri.parse('sc://auth/path')).then(doc => {
+				assert.equal(doc.uri.authority, 'auth');
+				assert.equal(doc.uri.path, '/path');
+			})
+		]).then(() => {
+			registration.dispose();
+		});
+	})
+
 	test('events: onDidOpenTextDocument, onDidChangeTextDocument, onDidSaveTextDocument', () => {
 		return createRandomFile().then(file => {
 			let disposables = [];

@@ -581,8 +581,8 @@ export class MainThreadDocuments {
 
 	_tryOpenDocument(uri: URI): TPromise<any> {
 
-		if (!uri.scheme || !uri.fsPath) {
-			return TPromise.wrapError('Uri must have scheme and path. One or both are missing in: ' + uri.toString());
+		if (!uri.scheme || !(uri.fsPath || uri.authority)) {
+			return TPromise.wrapError(`Invalid uri. Scheme and authority or path must be set.`);
 		}
 
 		let promise: TPromise<boolean>;
