@@ -107,8 +107,7 @@
 .monaco-shell input[type="submit"]:active,
 .monaco-shell input[type="checkbox"]:active,
 .monaco-shell .monaco-tree.focused:active .monaco-tree-rows:empty,
-.monaco-shell .monaco-tree.focused.no-item-focus:active .monaco-tree-rows,
-.monaco-shell .monaco-action-bar .action-label:hover {
+.monaco-shell .monaco-tree.focused.no-item-focus:active .monaco-tree-rows {
 	outline: 0 !important; /* fixes some flashing outlines from showing up when clicking */
 }
 
