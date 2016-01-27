@@ -217,7 +217,7 @@ export class AbstractCollapsibleView extends HeaderView {
 		this.headerKeyListener = dom.addListener(this.header, dom.EventType.KEY_DOWN, (e) => {
 			let event = new StandardKeyboardEvent(e);
 			let eventHandled = false;
-			if (event.equals(CommonKeybindings.ENTER) || event.equals(CommonKeybindings.SPACE) || event.equals(CommonKeybindings.LEFT_ARROW) || event.equals(CommonKeybindings.RIGHT_ARROW)) {
+			if (event.equals(CommonKeybindings.ENTER) || event.equals(CommonKeybindings.SPACE) || (event.equals(CommonKeybindings.LEFT_ARROW) && this.state === CollapsibleState.EXPANDED) || (event.equals(CommonKeybindings.RIGHT_ARROW) && this.state === CollapsibleState.COLLAPSED)) {
 				this.toggleExpansion();
 				eventHandled = true;
 			} else if (event.equals(CommonKeybindings.ESCAPE)) {
