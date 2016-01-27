@@ -12,7 +12,7 @@ import {Tree} from 'vs/base/parts/tree/browser/treeImpl';
 import {IAction, IActionRunner} from 'vs/base/common/actions';
 import workbenchEditorCommon = require('vs/workbench/common/editor');
 import {CollapsibleState} from 'vs/base/browser/ui/splitview/splitview';
-import {IWorkingFileEntry, IWorkingFilesModel, IWorkingFileModelChangeEvent, LocalFileChangeEvent, EventType as FileEventType, IFilesConfiguration, ITextFileService} from 'vs/workbench/parts/files/common/files';
+import {IWorkingFileEntry, IWorkingFilesModel, IWorkingFileModelChangeEvent, LocalFileChangeEvent, EventType as FileEventType, IFilesConfiguration, ITextFileService, AutoSaveMode} from 'vs/workbench/parts/files/common/files';
 import dom = require('vs/base/browser/dom');
 import {IDisposable} from 'vs/base/common/lifecycle';
 import errors = require('vs/base/common/errors');
@@ -148,8 +148,8 @@ export class WorkingFilesView extends AdaptiveCollapsibleViewletView {
 	}
 
 	private onTextFileDirty(e: LocalFileChangeEvent): void {
-		if (!this.textFileService.isAutoSaveEnabled()) {
-			this.updateDirtyIndicator(); // no indication needed when auto save is turned off and we didn't show dirty
+		if (this.textFileService.getAutoSaveMode() !== AutoSaveMode.AFTER_SHORT_DELAY) {
+			this.updateDirtyIndicator(); // no indication needed when auto save is enabled for short delay
 		}
 	}
 

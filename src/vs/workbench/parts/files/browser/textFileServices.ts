@@ -11,11 +11,11 @@ import {ListenerUnbind} from 'vs/base/common/eventEmitter';
 import Event, {Emitter} from 'vs/base/common/event';
 import {FileEditorInput} from 'vs/workbench/parts/files/browser/editors/fileEditorInput';
 import {CACHE, TextFileEditorModel} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
-import {IResult, ITextFileOperationResult, ConfirmResult, ITextFileService, IAutoSaveConfiguration} from 'vs/workbench/parts/files/common/files';
+import {IResult, ITextFileOperationResult, ConfirmResult, ITextFileService, IAutoSaveConfiguration, AutoSaveMode} from 'vs/workbench/parts/files/common/files';
 import {EventType} from 'vs/workbench/common/events';
 import {WorkingFilesModel} from 'vs/workbench/parts/files/common/workingFilesModel';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
-import {IFilesConfiguration, IFileOperationResult, FileOperationResult, AutoSaveModes} from 'vs/platform/files/common/files';
+import {IFilesConfiguration, IFileOperationResult, FileOperationResult, AutoSaveConfiguration} from 'vs/platform/files/common/files';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 import {IEventService} from 'vs/platform/event/common/event';
@@ -98,16 +98,16 @@ export abstract class TextFileService implements ITextFileService {
 	}
 
 	private onConfigurationChange(configuration: IFilesConfiguration): void {
-		const wasAutoSaveEnabled = this.isAutoSaveEnabled();
+		const wasAutoSaveEnabled = (this.getAutoSaveMode() !== AutoSaveMode.OFF);
 
-		const autoSaveMode = (configuration && configuration.files && configuration.files.autoSave) || AutoSaveModes.OFF;
+		const autoSaveMode = (configuration && configuration.files && configuration.files.autoSave) || AutoSaveConfiguration.OFF;
 		switch (autoSaveMode) {
-			case AutoSaveModes.AFTER_DELAY:
+			case AutoSaveConfiguration.AFTER_DELAY:
 				this.configuredAutoSaveDelay = configuration && configuration.files && configuration.files.autoSaveDelay;
 				this.configuredAutoSaveOnFocusChange = false;
 				break;
 
-			case AutoSaveModes.ON_FOCUS_CHANGE:
+			case AutoSaveConfiguration.ON_FOCUS_CHANGE:
 				this.configuredAutoSaveDelay = void 0;
 				this.configuredAutoSaveOnFocusChange = true;
 				break;
@@ -122,7 +122,7 @@ export abstract class TextFileService implements ITextFileService {
 		this._onAutoSaveConfigurationChange.fire(this.getAutoSaveConfiguration());
 
 		// save all dirty when enabling auto save
-		if (!wasAutoSaveEnabled && this.isAutoSaveEnabled()) {
+		if (!wasAutoSaveEnabled && this.getAutoSaveMode() !== AutoSaveMode.OFF) {
 			this.saveAll().done(null, errors.onUnexpectedError);
 		}
 	}
@@ -248,8 +248,16 @@ export abstract class TextFileService implements ITextFileService {
 		return this.workingFilesModel;
 	}
 
-	public isAutoSaveEnabled(): boolean {
-		return this.configuredAutoSaveDelay && this.configuredAutoSaveDelay > 0 || this.configuredAutoSaveOnFocusChange;
+	public getAutoSaveMode(): AutoSaveMode {
+		if (this.configuredAutoSaveOnFocusChange) {
+			return AutoSaveMode.ON_FOCUS_CHANGE;
+		}
+
+		if (this.configuredAutoSaveDelay && this.configuredAutoSaveDelay > 0) {
+			return this.configuredAutoSaveDelay <= 1000 ? AutoSaveMode.AFTER_SHORT_DELAY :  AutoSaveMode.AFTER_LONG_DELAY;
+		}
+
+		return AutoSaveMode.OFF;
 	}
 
 	public getAutoSaveConfiguration(): IAutoSaveConfiguration {

@@ -412,7 +412,7 @@ export enum FileOperationResult {
 	FILE_TOO_LARGE
 }
 
-export const AutoSaveModes = {
+export const AutoSaveConfiguration = {
 	OFF: 'off',
 	AFTER_DELAY: 'afterDelay',
 	ON_FOCUS_CHANGE: 'onFocusChange'

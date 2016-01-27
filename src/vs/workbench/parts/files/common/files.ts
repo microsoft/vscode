@@ -293,6 +293,13 @@ export interface IAutoSaveConfiguration {
 	autoSaveFocusChange: boolean;
 }
 
+export enum AutoSaveMode {
+	OFF,
+	AFTER_SHORT_DELAY,
+	AFTER_LONG_DELAY,
+	ON_FOCUS_CHANGE
+}
+
 export var ITextFileService = createDecorator<ITextFileService>(TEXT_FILE_SERVICE_ID);
 
 export interface ITextFileService extends IDisposable {
@@ -367,12 +374,12 @@ export interface ITextFileService extends IDisposable {
 	getWorkingFilesModel(): IWorkingFilesModel;
 
 	/**
-	 * Checks if the user configured auto save to be enabled or not
+	 * Convinient fast access to the current auto save mode.
 	 */
-	isAutoSaveEnabled(): boolean;
+	getAutoSaveMode(): AutoSaveMode;
 
 	/**
-	 * Convinient fast access to the configured auto save settings.
+	 * Convinient fast access to the raw configured auto save settings.
 	 */
 	getAutoSaveConfiguration(): IAutoSaveConfiguration;
 

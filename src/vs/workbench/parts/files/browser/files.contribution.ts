@@ -19,7 +19,7 @@ import {IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions} from
 import {IEditorRegistry, Extensions as EditorExtensions, IEditorInputFactory} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {EditorInput, IFileEditorInput} from 'vs/workbench/common/editor';
 import {FileEditorDescriptor} from 'vs/workbench/parts/files/browser/files';
-import {AutoSaveModes} from 'vs/platform/files/common/files';
+import {AutoSaveConfiguration} from 'vs/platform/files/common/files';
 import {FILE_EDITOR_INPUT_ID, VIEWLET_ID} from 'vs/workbench/parts/files/common/files';
 import {FileTracker} from 'vs/workbench/parts/files/browser/fileTracker';
 import {SaveParticipant} from 'vs/workbench/parts/files/common/editors/saveParticipant';
@@ -203,14 +203,14 @@ configurationRegistry.registerConfiguration({
 		},
 		'files.autoSave': {
 			'type': 'string',
-			'enum': [AutoSaveModes.OFF, AutoSaveModes.AFTER_DELAY, AutoSaveModes.ON_FOCUS_CHANGE],
-			'default': AutoSaveModes.OFF,
-			'description': nls.localize('autoSave', "Controls auto save of dirty files. Accepted values:  \"{0}\", \"{1}\", \"{2}\". If set to \"{3}\" you can configure the delay in \"files.autoSaveDelay\".", AutoSaveModes.OFF, AutoSaveModes.AFTER_DELAY, AutoSaveModes.ON_FOCUS_CHANGE, AutoSaveModes.AFTER_DELAY)
+			'enum': [AutoSaveConfiguration.OFF, AutoSaveConfiguration.AFTER_DELAY, AutoSaveConfiguration.ON_FOCUS_CHANGE],
+			'default': AutoSaveConfiguration.OFF,
+			'description': nls.localize('autoSave', "Controls auto save of dirty files. Accepted values:  \"{0}\", \"{1}\", \"{2}\". If set to \"{3}\" you can configure the delay in \"files.autoSaveDelay\".", AutoSaveConfiguration.OFF, AutoSaveConfiguration.AFTER_DELAY, AutoSaveConfiguration.ON_FOCUS_CHANGE, AutoSaveConfiguration.AFTER_DELAY)
 		},
 		'files.autoSaveDelay': {
 			'type': 'number',
 			'default': 1000,
-			'description': nls.localize('autoSaveDelay', "Controls the delay in ms after which a dirty file is saved automatically. Only applies when \"files.autoSave\" is set to \"{0}\"", AutoSaveModes.AFTER_DELAY)
+			'description': nls.localize('autoSaveDelay', "Controls the delay in ms after which a dirty file is saved automatically. Only applies when \"files.autoSave\" is set to \"{0}\"", AutoSaveConfiguration.AFTER_DELAY)
 		}
 	}
 });

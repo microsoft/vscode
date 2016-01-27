@@ -14,7 +14,7 @@ import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
 import {EditorInput, EditorOptions} from 'vs/workbench/common/editor';
 import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
-import {LocalFileChangeEvent, VIEWLET_ID, EventType as FileEventType, IWorkingFilesModel, ITextFileService} from 'vs/workbench/parts/files/common/files';
+import {LocalFileChangeEvent, VIEWLET_ID, EventType as FileEventType, IWorkingFilesModel, ITextFileService, AutoSaveMode} from 'vs/workbench/parts/files/common/files';
 import {FileChangeType, FileChangesEvent, EventType as CommonFileEventType} from 'vs/platform/files/common/files';
 import {FileEditorInput} from 'vs/workbench/parts/files/browser/editors/fileEditorInput';
 import {IFrameEditorInput} from 'vs/workbench/common/editor/iframeEditorInput';
@@ -84,8 +84,8 @@ export class FileTracker implements IWorkbenchContribution {
 	private onTextFileDirty(e: LocalFileChangeEvent): void {
 		this.emitInputStateChangeEvent(e.getAfter().resource);
 
-		if (!this.textFileService.isAutoSaveEnabled()) {
-			this.updateActivityBadge(); // no indication needed when auto save is turned off and we didn't show dirty
+		if (this.textFileService.getAutoSaveMode() !== AutoSaveMode.AFTER_SHORT_DELAY) {
+			this.updateActivityBadge(); // no indication needed when auto save is enabled for short delay
 		}
 	}
 
