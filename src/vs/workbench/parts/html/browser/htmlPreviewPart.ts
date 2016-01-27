@@ -262,12 +262,7 @@ namespace Integration {
 		'});',
 		'window.document.body.addEventListener("drop", function (e) {',
 		'	e.preventDefault();',
-		'});',
-
-		// disable navigating to some URL!
-		'window.onbeforeunload = function () {',
-		'	return false;',
-		'};'
+		'});'
 	];
 
 	export function defaultHtml() {
