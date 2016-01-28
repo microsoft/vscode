@@ -139,10 +139,10 @@ gulp.task('mixin', function () {
 
 	var quality = process.env['VSCODE_QUALITY'];
 
-	// if (!quality) {
-	// 	console.log('Missing VSCODE_QUALITY, skipping mixin');
-	// 	return;
-	// }
+	if (!quality) {
+		console.log('Missing VSCODE_QUALITY, skipping mixin');
+		return;
+	}
 
 	var url = 'https://github.com/' + repo + '/archive/master.zip';
 	var opts = { base: '' };
