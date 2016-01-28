@@ -115,9 +115,9 @@ export class QuickOpenWidget implements IModelProvider {
 					this.hide(true);
 				}
 			})
-				.on(DOM.EventType.CONTEXT_MENU, (e: Event) => DOM.EventHelper.stop(e, true)) // Do this to fix an issue on Mac where the menu goes into the way
-				.on(DOM.EventType.FOCUS, (e: Event) => this.gainingFocus(), null, true)
-				.on(DOM.EventType.BLUR, (e: Event) => this.loosingFocus(e), null, true);
+			.on(DOM.EventType.CONTEXT_MENU, (e: Event) => DOM.EventHelper.stop(e, true)) // Do this to fix an issue on Mac where the menu goes into the way
+			.on(DOM.EventType.FOCUS, (e: Event) => this.gainingFocus(), null, true)
+			.on(DOM.EventType.BLUR, (e: Event) => this.loosingFocus(e), null, true);
 
 			// Progress Bar
 			this.progressBar = new ProgressBar(div.clone());
@@ -204,84 +204,84 @@ export class QuickOpenWidget implements IModelProvider {
 					}
 				}));
 			}).
-				on(DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
-					let keyboardEvent: StandardKeyboardEvent = new StandardKeyboardEvent(e);
+			on(DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+				let keyboardEvent: StandardKeyboardEvent = new StandardKeyboardEvent(e);
 
-					// Only handle when in quick navigation mode
-					if (!this.quickNavigateConfiguration) {
-						return;
+				// Only handle when in quick navigation mode
+				if (!this.quickNavigateConfiguration) {
+					return;
+				}
+
+				// Support keyboard navigation in quick navigation mode
+				if (keyboardEvent.keyCode === KeyCode.DownArrow || keyboardEvent.keyCode === KeyCode.UpArrow || keyboardEvent.keyCode === KeyCode.PageDown || keyboardEvent.keyCode === KeyCode.PageUp) {
+					DOM.EventHelper.stop(e, true);
+
+					this.navigateInTree(keyboardEvent.keyCode);
+				}
+			}).
+			on(DOM.EventType.KEY_UP, (e: KeyboardEvent) => {
+				let keyboardEvent: StandardKeyboardEvent = new StandardKeyboardEvent(e);
+				let keyCode = keyboardEvent.keyCode;
+
+				// Only handle when in quick navigation mode
+				if (!this.quickNavigateConfiguration) {
+					return;
+				}
+
+				// Select element when keys are pressed that signal it
+				let quickNavKeys = this.quickNavigateConfiguration.keybindings;
+				let wasTriggerKeyPressed = keyCode === KeyCode.Enter || quickNavKeys.some((k) => {
+					if (k.hasShift() && keyCode === KeyCode.Shift) {
+						if (keyboardEvent.ctrlKey || keyboardEvent.altKey || keyboardEvent.metaKey) {
+							return false; // this is an optimistic check for the shift key being used to navigate back in quick open
+						}
+
+						return true;
 					}
 
-					// Support keyboard navigation in quick navigation mode
-					if (keyboardEvent.keyCode === KeyCode.DownArrow || keyboardEvent.keyCode === KeyCode.UpArrow || keyboardEvent.keyCode === KeyCode.PageDown || keyboardEvent.keyCode === KeyCode.PageUp) {
-						DOM.EventHelper.stop(e, true);
-
-						this.navigateInTree(keyboardEvent.keyCode);
-					}
-				}).
-				on(DOM.EventType.KEY_UP, (e: KeyboardEvent) => {
-					let keyboardEvent: StandardKeyboardEvent = new StandardKeyboardEvent(e);
-					let keyCode = keyboardEvent.keyCode;
-
-					// Only handle when in quick navigation mode
-					if (!this.quickNavigateConfiguration) {
-						return;
+					if (k.hasAlt() && keyCode === KeyCode.Alt) {
+						return true;
 					}
 
-					// Select element when keys are pressed that signal it
-					let quickNavKeys = this.quickNavigateConfiguration.keybindings;
-					let wasTriggerKeyPressed = keyCode === KeyCode.Enter || quickNavKeys.some((k) => {
-						if (k.hasShift() && keyCode === KeyCode.Shift) {
-							if (keyboardEvent.ctrlKey || keyboardEvent.altKey || keyboardEvent.metaKey) {
-								return false; // this is an optimistic check for the shift key being used to navigate back in quick open
-							}
-
+					// Mac is a bit special
+					if (platform.isMacintosh) {
+						if (k.hasCtrlCmd() && keyCode === KeyCode.Meta) {
 							return true;
 						}
 
-						if (k.hasAlt() && keyCode === KeyCode.Alt) {
+						if (k.hasWinCtrl() && keyCode === KeyCode.Ctrl) {
+							return true;
+						}
+					}
+
+					// Windows/Linux are not :)
+					else {
+						if (k.hasCtrlCmd() && keyCode === KeyCode.Ctrl) {
 							return true;
 						}
 
-						// Mac is a bit special
-						if (platform.isMacintosh) {
-							if (k.hasCtrlCmd() && keyCode === KeyCode.Meta) {
-								return true;
-							}
-
-							if (k.hasWinCtrl() && keyCode === KeyCode.Ctrl) {
-								return true;
-							}
-						}
-
-						// Windows/Linux are not :)
-						else {
-							if (k.hasCtrlCmd() && keyCode === KeyCode.Ctrl) {
-								return true;
-							}
-
-							if (k.hasWinCtrl() && keyCode === KeyCode.Meta) {
-								return true;
-							}
-						}
-
-						return false;
-					});
-
-					if (wasTriggerKeyPressed) {
-						let focus = this.tree.getFocus();
-						if (focus) {
-							this.elementSelected(focus, e);
+						if (k.hasWinCtrl() && keyCode === KeyCode.Meta) {
+							return true;
 						}
 					}
-				}).
-				clone();
+
+					return false;
+				});
+
+				if (wasTriggerKeyPressed) {
+					let focus = this.tree.getFocus();
+					if (focus) {
+						this.elementSelected(focus, e);
+					}
+				}
+			}).
+			clone();
 		})
 
-			// Widget Attributes
-			.addClass('quick-open-widget')
-			.addClass((browser.isIE10orEarlier) ? ' no-shadow' : '')
-			.build(this.container);
+		// Widget Attributes
+		.addClass('quick-open-widget')
+		.addClass((browser.isIE10orEarlier) ? ' no-shadow' : '')
+		.build(this.container);
 
 		// Support layout
 		if (this.layoutDimensions) {
@@ -811,6 +811,7 @@ export class QuickOpenWidget implements IModelProvider {
 
 		const relatedTarget = (<any>e).relatedTarget;
 		if (!this.quickNavigateConfiguration && DOM.isAncestor(relatedTarget, this.builder.getHTMLElement())) {
+			this.inputBox.focus(); // user clicked somewhere into quick open, so we restore focus to input
 			return;
 		}
 
