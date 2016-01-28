@@ -128,7 +128,7 @@ export class ElectronIntegration {
 		ipc.on('vscode:showAutoSaveInfo', () => {
 			this.messageService.show(
 				Severity.Info, {
-					message: nls.localize('autoSaveInfo', "The **File | Auto Save** option moved into settings and **files.autoSave: \"afterDelay\"** will be added to preserve it."),
+					message: nls.localize('autoSaveInfo', "The enabled **File | Auto Save** menu option has become a setting **files.autoSave** with the value **afterDelay**."),
 					actions: [
 						CloseAction,
 						this.instantiationService.createInstance(OpenGlobalSettingsAction, OpenGlobalSettingsAction.ID, OpenGlobalSettingsAction.LABEL)
