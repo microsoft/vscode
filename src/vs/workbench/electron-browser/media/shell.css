@@ -91,10 +91,15 @@
 	outline-offset: -1px;
 }
 
-.monaco-shell.hc-black .monaco-tree.focused:focus .monaco-tree-rows:empty,
-.monaco-shell.hc-black .monaco-tree.focused.no-item-focus:focus .monaco-tree-rows {
+.monaco-shell.hc-black .monaco-tree.focused.no-item-focus:focus {
 	outline: 2px solid #DF740C; /* we still need to handle the empty tree or no focus item case */
 	outline-offset: -2px;
+}
+
+.monaco-shell .monaco-inputbox.info input[type="text"]:focus,
+.monaco-shell .monaco-inputbox.warning input[type="text"]:focus,
+.monaco-shell .monaco-inputbox.error input[type="text"]:focus {
+	outline: 0; /* outline is not going well with decoration */
 }
 
 .monaco-shell .monaco-tree.focused:focus {
@@ -106,8 +111,7 @@
 .monaco-shell input[type="button"]:active,
 .monaco-shell input[type="submit"]:active,
 .monaco-shell input[type="checkbox"]:active,
-.monaco-shell .monaco-tree.focused:active .monaco-tree-rows:empty,
-.monaco-shell .monaco-tree.focused.no-item-focus:active .monaco-tree-rows {
+.monaco-shell .monaco-tree.focused.no-item-focus:active {
 	outline: 0 !important; /* fixes some flashing outlines from showing up when clicking */
 }
 

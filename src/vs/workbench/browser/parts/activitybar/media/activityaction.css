@@ -36,7 +36,7 @@
 	top: 4px;
 	height: 32px;
 	width: 0;
-	border-left: 3px solid;
+	border-left: 2px solid;
 }
 
 .monaco-workbench.vs > .activitybar > .content .monaco-action-bar .badge:active:before,
