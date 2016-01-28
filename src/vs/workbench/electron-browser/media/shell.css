@@ -51,6 +51,7 @@
 
 .monaco-shell.vs [tabindex="0"]:focus,
 .monaco-shell.vs .synthetic-focus,
+.monaco-shell.vs select:focus,
 .monaco-shell.vs input[type="button"]:focus,
 .monaco-shell.vs input[type="submit"]:focus,
 .monaco-shell.vs input[type="text"]:focus, .monaco-shell.vs textarea:focus,
