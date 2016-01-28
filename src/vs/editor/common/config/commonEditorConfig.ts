@@ -131,6 +131,13 @@ class InternalEditorOptionsHelper {
 			};
 		}
 
+		let readOnly = toBoolean(opts.readOnly);
+
+		let tabFocusMode = toBoolean(opts.tabFocusMode);
+		if (readOnly) {
+			tabFocusMode = true;
+		}
+
 		return {
 			// ---- Options that are transparent - get no massaging
 			lineNumbers: lineNumbers,
@@ -139,7 +146,7 @@ class InternalEditorOptionsHelper {
 			revealHorizontalRightPadding: toInteger(opts.revealHorizontalRightPadding, 0),
 			roundedSelection: toBoolean(opts.roundedSelection),
 			theme: opts.theme,
-			readOnly: toBoolean(opts.readOnly),
+			readOnly: readOnly,
 			scrollbar: scrollbar,
 			overviewRulerLanes: toInteger(opts.overviewRulerLanes, 0, 3),
 			cursorBlinking: opts.cursorBlinking,
@@ -152,7 +159,7 @@ class InternalEditorOptionsHelper {
 			wordWrapBreakBeforeCharacters: opts.wordWrapBreakBeforeCharacters,
 			wordWrapBreakAfterCharacters: opts.wordWrapBreakAfterCharacters,
 			wordWrapBreakObtrusiveCharacters: opts.wordWrapBreakObtrusiveCharacters,
-			tabFocusMode: toBoolean(opts.tabFocusMode),
+			tabFocusMode: tabFocusMode,
 			stopLineTokenizationAfter: stopLineTokenizationAfter,
 			stopRenderingLineAfter: stopRenderingLineAfter,
 			longLineBoundary: toInteger(opts.longLineBoundary),

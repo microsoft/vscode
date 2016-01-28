@@ -136,7 +136,6 @@ export class StringEditor extends BaseTextEditor {
 		let isReadonly = !isUntitled; // all string editors are readonly except for the untitled one
 
 		options.readOnly = isReadonly;
-		options.tabFocusMode = isReadonly;
 
 		return options;
 	}

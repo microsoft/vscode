@@ -776,7 +776,6 @@ export class DiffEditorWidget extends EventEmitter.EventEmitter implements Edito
 		var clonedOptions:EditorCommon.IDiffEditorOptions = Objects.clone(options || {});
 		clonedOptions.wrappingColumn = -1;
 		clonedOptions.readOnly = true;
-		clonedOptions.tabFocusMode = true;
 		clonedOptions.automaticLayout = false;
 		clonedOptions.scrollbar = clonedOptions.scrollbar || {};
 		clonedOptions.scrollbar.vertical = 'visible';
