@@ -39,6 +39,8 @@ export interface IJSONSchema {
 	not?:IJSONSchema;
 	enum?:any[];
 	format?: string;
+	
+	errorMessage?:string; // VS code internal
 }
 
 export interface IJSONSchemaMap {
