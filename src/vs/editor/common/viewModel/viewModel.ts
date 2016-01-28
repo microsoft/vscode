@@ -423,6 +423,10 @@ export class ViewModel extends EventEmitter implements EditorCommon.IViewModel {
 		return this.decorations.getAllDecorations();
 	}
 
+	public getEOL(): string {
+		return this.model.getEOL();
+	}
+
 	public getValueInRange(range:EditorCommon.IRange, eol:EditorCommon.EndOfLinePreference): string {
 		var modelRange = this.convertViewRangeToModelRange(range);
 		return this.model.getValueInRange(modelRange, eol);

@@ -213,7 +213,7 @@ export class KeyboardHandler extends ViewEventHandler implements Lifecycle.IDisp
 		this.contentWidth = 0;
 		this.scrollLeft = 0;
 
-		this.textAreaHandler = new TextAreaHandler(Platform, Browser, this._getStrategy(), this.textArea, this.context.model);
+		this.textAreaHandler = new TextAreaHandler(Browser, this._getStrategy(), this.textArea, this.context.model);
 
 		this._toDispose = [];
 		this._toDispose.push(this.textAreaHandler.onKeyDown((e) => this.viewController.emitKeyDown(<DomUtils.IKeyboardEvent>e._actual)));

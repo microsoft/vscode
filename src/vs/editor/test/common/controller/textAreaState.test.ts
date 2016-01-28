@@ -423,6 +423,10 @@ class SimpleModel implements ISimpleModel {
 		throw new Error('Unknown EOL preference');
 	}
 
+	public getEOL(): string {
+		return this._eol;
+	}
+
 	public getValueInRange(range:IRange, eol:EndOfLinePreference): string {
 		if (Range.isEmpty(range)) {
 			return '';

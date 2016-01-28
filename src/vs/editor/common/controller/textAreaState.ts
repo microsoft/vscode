@@ -44,6 +44,7 @@ export interface ITextAreaWrapper {
 
 export interface ISimpleModel {
 	getLineMaxColumn(lineNumber:number): number;
+	getEOL(): string;
 	getValueInRange(range:EditorCommon.IRange, eol:EditorCommon.EndOfLinePreference): string;
 	getModelLineContent(lineNumber:number): string;
 	getLineCount(): number;

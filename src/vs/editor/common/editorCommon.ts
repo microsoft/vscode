@@ -2517,6 +2517,7 @@ export interface IViewModel extends IEventEmitter, IDisposable {
 	getDecorationsResolver(startLineNumber:number, endLineNumber:number): IViewModelDecorationsResolver;
 	getLineRenderLineNumber(lineNumber:number): string;
 	getAllDecorations(): IModelDecoration[];
+	getEOL(): string;
 	getValueInRange(range:IRange, eol:EndOfLinePreference): string;
 	dispose(): void;
 

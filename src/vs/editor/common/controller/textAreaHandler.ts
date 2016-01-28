@@ -21,11 +21,6 @@ enum ReadFromTextArea {
 	Paste
 }
 
-export interface IPlatform {
-	isMacintosh: boolean;
-	isWindows: boolean;
-}
-
 export interface IBrowser {
 	isIPad: boolean;
 	isChrome: boolean;
@@ -67,7 +62,6 @@ export class TextAreaHandler extends Disposable {
 	private _onCompositionEnd = this._register(new Emitter<void>());
 	public onCompositionEnd: Event<void> = this._onCompositionEnd.event;
 
-	private Platform:IPlatform;
 	private Browser:IBrowser;
 	private textArea:ITextAreaWrapper;
 	private model:ISimpleModel;
@@ -89,9 +83,8 @@ export class TextAreaHandler extends Disposable {
 
 	private _nextCommand: ReadFromTextArea;
 
-	constructor(Platform:IPlatform, Browser:IBrowser, strategy:TextAreaStrategy, textArea:ITextAreaWrapper, model:ISimpleModel) {
+	constructor(Browser:IBrowser, strategy:TextAreaStrategy, textArea:ITextAreaWrapper, model:ISimpleModel) {
 		super();
-		this.Platform = Platform;
 		this.Browser = Browser;
 		this.textArea = textArea;
 		this.model = model;
@@ -331,8 +324,7 @@ export class TextAreaHandler extends Disposable {
 	}
 
 	private _getPlainTextToCopy(): string {
-		let newLineCharacter = (this.Platform.isWindows ? '\r\n' : '\n');
-		let eolPref = (this.Platform.isWindows ? EndOfLinePreference.CRLF : EndOfLinePreference.LF);
+		let newLineCharacter = this.model.getEOL();
 		let selections = this.selections;
 
 		if (selections.length === 1) {
@@ -346,12 +338,12 @@ export class TextAreaHandler extends Disposable {
 				}
 			}
 
-			return this.model.getValueInRange(range, eolPref);
+			return this.model.getValueInRange(range, EndOfLinePreference.TextDefined);
 		} else {
 			selections = selections.slice(0).sort(Range.compareRangesUsingStarts);
 			let result: string[] = [];
 			for (let i = 0; i < selections.length; i++) {
-				result.push(this.model.getValueInRange(selections[i], eolPref));
+				result.push(this.model.getValueInRange(selections[i], EndOfLinePreference.TextDefined));
 			}
 
 			return result.join(newLineCharacter);
