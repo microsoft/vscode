@@ -13,6 +13,7 @@ import {IConfigurationService} from 'vs/platform/configuration/common/configurat
 import {IMessageService} from 'vs/platform/message/common/message';
 
 import cp = require('child_process');
+import processes = require('vs/base/node/processes');
 
 export class WinTerminalService implements ITerminalService {
 	public serviceId = ITerminalService;
@@ -24,7 +25,7 @@ export class WinTerminalService implements ITerminalService {
 	}
 
 	public openTerminal(path: string): void {
-		cp.spawn('cmd.exe', ['/c', 'start', '/wait'], { cwd: path });
+		cp.spawn(processes.getWindowsShell(), ['/c', 'start', '/wait'], { cwd: path });
 	}
 }
 
