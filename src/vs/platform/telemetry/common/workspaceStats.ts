@@ -92,6 +92,9 @@ export class WorkspaceStats {
 					tags['workspace.android.cpp'] = true;
 				}
 
+				tags['workspace.reactNative'] = this.searchArray(names, /^android$/i) && this.searchArray(names, /^ios$/i) &&
+												this.searchArray(names, /^index\.android\.js$/i) &&this.searchArray(names, /^index\.ios\.js$/i);
+
 				return tags;
 			}, error => { errors.onUnexpectedError(error); return null; });
 		} else {
