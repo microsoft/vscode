@@ -29,12 +29,12 @@
 .monaco-workbench .viewlet .collapsible.header .actions {
 	float: right;
 	padding-right: 8px;
-	opacity: 0; /* use opacity so that actions are still keyboard accessible */
+	width: 0; /* not using display: none for keyboard a11y reasons */
 }
 
 .monaco-workbench .viewlet .collapsible.header:hover .actions,
 .monaco-workbench .viewlet .collapsible.header.focused .actions {
-	opacity: 1; /* use opacity so that actions are still keyboard accessible */
+	width: initial;
 }
 
 .monaco-workbench .viewlet .collapsible.header .actions .action-label {
