@@ -12,6 +12,7 @@ import {JSONCompletion} from '../jsonCompletion';
 import {IXHROptions, IXHRResponse} from '../utils/httpRequest';
 
 import {CompletionItem, CompletionItemKind, CompletionOptions, ITextDocument, TextDocumentIdentifier, TextDocumentPosition, Range, Position, TextEdit} from 'vscode-languageserver';
+import {applyEdits} from './textEditSupport';
 
 suite('JSON Completion', () => {
 
@@ -19,14 +20,18 @@ suite('JSON Completion', () => {
 		return Promise.reject<IXHRResponse>({ responseText: '', status: 404 });
 	}
 
-	var assertSuggestion = function(completions: CompletionItem[], label: string, documentation?: string) {
+	var assertSuggestion = function(completions: CompletionItem[], label: string, documentation?: string, document?: ITextDocument, resultText?: string) {
 		var matches = completions.filter(function(completion: CompletionItem) {
 			return completion.label === label && (!documentation || completion.documentation === documentation);
-		}).length;
-		assert.equal(matches, 1, label + " should only existing once");
+		});
+		assert.equal(matches.length, 1, label + " should only existing once");
+		if (document && resultText) {
+			assert.equal(applyEdits(document, [ matches[0].textEdit ]), resultText);
+		}
 	};
+	
 
-	var testSuggestionsFor = function(value: string, stringAfter: string, schema?: JsonSchema.IJSONSchema): Thenable<CompletionItem[]> {
+	var testSuggestionsFor = function(value: string, stringAfter: string, schema: JsonSchema.IJSONSchema, test: (items: CompletionItem[], document: ITextDocument) => void) : Thenable<void> {
 		var uri = 'test://test.json';
 		var idx = stringAfter ? value.indexOf(stringAfter) : 0;
 
@@ -40,32 +45,35 @@ suite('JSON Completion', () => {
 		var document = ITextDocument.create(uri, value);
 		var textDocumentLocation = TextDocumentPosition.create(uri, Position.create(0, idx));
 		var jsonDoc = Parser.parse(value);
-		return completionProvider.doSuggest(document, textDocumentLocation, jsonDoc).then(list => list.items);
+		return completionProvider.doSuggest(document, textDocumentLocation, jsonDoc).then(list => list.items).then(completions => {
+			test(completions, document);
+			return null;
+		})
 	};
 
 
 
 	test('Complete keys no schema', function(testDone) {
 		Promise.all([
-			testSuggestionsFor('[ { "name": "John", "age": 44 }, { /**/ }', '/**/').then((result) => {
+			testSuggestionsFor('[ { "name": "John", "age": 44 }, { /**/ }', '/**/', null, result => {
 				assert.strictEqual(result.length, 2);
 				assertSuggestion(result, 'name');
 				assertSuggestion(result, 'age');
 			}),
-			testSuggestionsFor('[ { "name": "John", "age": 44 }, { "/**/ }', '/**/').then((result) => {
+			testSuggestionsFor('[ { "name": "John", "age": 44 }, { "/**/ }', '/**/', null, result => {
 				assert.strictEqual(result.length, 2);
 				assertSuggestion(result, 'name');
 				assertSuggestion(result, 'age');
 			}),
-			testSuggestionsFor('[ { "name": "John", "age": 44 }, { "n/**/ }', '/**/').then((result) => {
+			testSuggestionsFor('[ { "name": "John", "age": 44 }, { "n/**/ }', '/**/', null, result => {
 				assert.strictEqual(result.length, 2);
 				assertSuggestion(result, 'name');
 			}),
-			testSuggestionsFor('[ { "name": "John", "age": 44 }, { "name/**/" }', '/**/').then((result) => {
+			testSuggestionsFor('[ { "name": "John", "age": 44 }, { "name/**/" }', '/**/', null, result => {
 				assert.strictEqual(result.length, 2);
 				assertSuggestion(result, 'name');
 			}),
-			testSuggestionsFor('[ { "name": "John", "address": { "street" : "MH Road", "number" : 5 } }, { "name": "Jack", "address": { "street" : "100 Feet Road", /**/ }', '/**/').then((result) => {
+			testSuggestionsFor('[ { "name": "John", "address": { "street" : "MH Road", "number" : 5 } }, { "name": "Jack", "address": { "street" : "100 Feet Road", /**/ }', '/**/', null, result => {
 				assert.strictEqual(result.length, 1);
 				assertSuggestion(result, 'number');
 			})
@@ -74,33 +82,33 @@ suite('JSON Completion', () => {
 
 	test('Complete values no schema', function(testDone) {
 		Promise.all([
-			testSuggestionsFor('[ { "name": "John", "age": 44 }, { "name": /**/', '/**/').then((result) => {
+			testSuggestionsFor('[ { "name": "John", "age": 44 }, { "name": /**/', '/**/', null, result => {
 				assert.strictEqual(result.length, 1);
 				assertSuggestion(result, '"John"');
 			}),
-			testSuggestionsFor('[ { "data": { "key": 1, "data": true } }, { "data": /**/', '/**/').then((result) => {
+			testSuggestionsFor('[ { "data": { "key": 1, "data": true } }, { "data": /**/', '/**/', null, result => {
 				assert.strictEqual(result.length, 3);
 				assertSuggestion(result, '{}');
 				assertSuggestion(result, 'true');
 				assertSuggestion(result, 'false');
 			}),
-			testSuggestionsFor('[ { "data": "foo" }, { "data": "bar" }, { "data": "/**/" } ]', '/**/').then((result) => {
+			testSuggestionsFor('[ { "data": "foo" }, { "data": "bar" }, { "data": "/**/" } ]', '/**/', null, result => {
 				assert.strictEqual(result.length, 3);
 				assertSuggestion(result, '"foo"');
 				assertSuggestion(result, '"bar"');
 				assertSuggestion(result, '"/**/"');
 			}),
-			testSuggestionsFor('[ { "data": "foo" }, { "data": "bar" }, { "data": "f/**/" } ]', '/**/').then((result) => {
+			testSuggestionsFor('[ { "data": "foo" }, { "data": "bar" }, { "data": "f/**/" } ]', '/**/', null, result => {
 				assert.strictEqual(result.length, 3);
 				assertSuggestion(result, '"foo"');
 				assertSuggestion(result, '"bar"');
 				assertSuggestion(result, '"f/**/"');
 			}),
-			testSuggestionsFor('[ { "data": "foo" }, { "data": "bar" }, { "data": "xoo"/**/ } ]', '/**/').then((result) => {
+			testSuggestionsFor('[ { "data": "foo" }, { "data": "bar" }, { "data": "xoo"/**/ } ]', '/**/', null, result => {
 				assert.strictEqual(result.length, 3);
 				assertSuggestion(result, '"xoo"');
 			}),
-			testSuggestionsFor('[ { "data": "foo" }, { "data": "bar" }, { "data": "xoo"  /**/ } ]', '/**/').then((result) => {
+			testSuggestionsFor('[ { "data": "foo" }, { "data": "bar" }, { "data": "xoo"  /**/ } ]', '/**/', null, result => {
 				assert.strictEqual(result.length, 0);
 			})
 		]).then(() => testDone(), (error) => testDone(error));
@@ -125,23 +133,27 @@ suite('JSON Completion', () => {
 			}
 		};
 		Promise.all([
-			testSuggestionsFor('{/**/}', '/**/', schema).then((result) => {
+			testSuggestionsFor('{/**/}', '/**/', schema, result => {
 				assert.strictEqual(result.length, 3);
 				assertSuggestion(result, 'a', 'A');
 				assertSuggestion(result, 'b', 'B');
 				assertSuggestion(result, 'c', 'C');
 			}),
-			testSuggestionsFor('{ "/**/}', '/**/', schema).then((result) => {
+			testSuggestionsFor('{ "/**/}', '/**/', schema, result => {
 				assert.strictEqual(result.length, 3);
 				assertSuggestion(result, 'a', 'A');
 				assertSuggestion(result, 'b', 'B');
 				assertSuggestion(result, 'c', 'C');
 			}),
-			testSuggestionsFor('{ "a/**/}', '/**/', schema).then((result) => {
+			testSuggestionsFor('{ "a/**/}', '/**/', schema, (result, document) => {
 				assert.strictEqual(result.length, 3);
-				assertSuggestion(result, 'a', 'A');
+				assertSuggestion(result, 'a', 'A', document, '{ "a": {{0}}');
 			}),
-			testSuggestionsFor('{ "a" = 1;/**/}', '/**/', schema).then((result) => {
+			testSuggestionsFor('{ a/**/}', '/**/', schema, (result, document) => {
+				assert.strictEqual(result.length, 3);
+				assertSuggestion(result, 'a', 'A', document, '{ "a": {{0}}/**/}');
+			}),
+			testSuggestionsFor('{ "a" = 1;/**/}', '/**/', schema, result => {
 				assert.strictEqual(result.length, 2);
 				assertSuggestion(result, 'b', 'B');
 				assertSuggestion(result, 'c', 'C');
@@ -161,20 +173,20 @@ suite('JSON Completion', () => {
 			}
 		};
 		Promise.all([
-			testSuggestionsFor('{ "a": /**/ }', '/**/', schema).then((result) => {
+			testSuggestionsFor('{ "a": /**/ }', '/**/', schema, result => {
 				assert.strictEqual(result.length, 3);
 				assertSuggestion(result, '"John"');
 				assertSuggestion(result, '"Jeff"');
 				assertSuggestion(result, '"George"');
 			}),
 
-			testSuggestionsFor('{ "a": "J/**/ }', '/**/', schema).then((result) => {
+			testSuggestionsFor('{ "a": "J/**/ }', '/**/', schema, result => {
 				assert.strictEqual(result.length, 3);
 				assertSuggestion(result, '"John"');
 				assertSuggestion(result, '"Jeff"');
 			}),
 
-			testSuggestionsFor('{ "a": "John"/**/ }', '/**/', schema).then((result) => {
+			testSuggestionsFor('{ "a": "John"/**/ }', '/**/', schema, result => {
 				assert.strictEqual(result.length, 3);
 				assertSuggestion(result, '"John"');
 			})
@@ -202,7 +214,7 @@ suite('JSON Completion', () => {
 				}]
 		};
 		Promise.all([
-			testSuggestionsFor(content, '/**/', schema).then((result) => {
+			testSuggestionsFor(content, '/**/', schema, result => {
 				assert.strictEqual(result.length, 2);
 				assertSuggestion(result, 'a', 'A');
 				assertSuggestion(result, 'b', 'B');
@@ -242,14 +254,14 @@ suite('JSON Completion', () => {
 				}]
 		};
 		Promise.all([
-			testSuggestionsFor('{/**/}', '/**/', schema).then((result) => {
+			testSuggestionsFor('{/**/}', '/**/', schema, result => {
 				assert.strictEqual(result.length, 4);
 				assertSuggestion(result, 'a', 'A');
 				assertSuggestion(result, 'b', 'B');
 				assertSuggestion(result, 'c', 'C');
 				assertSuggestion(result, 'd', 'D');
 			}),
-			testSuggestionsFor('{ "a": "", /**/}', '/**/', schema).then((result) => {
+			testSuggestionsFor('{ "a": "", /**/}', '/**/', schema, result => {
 				assert.strictEqual(result.length, 1);
 				assertSuggestion(result, 'b', 'B');
 			})
@@ -282,13 +294,13 @@ suite('JSON Completion', () => {
 				}]
 		};
 		Promise.all([
-			testSuggestionsFor('{/**/}', '/**/', schema).then((result) => {
+			testSuggestionsFor('{/**/}', '/**/', schema, result => {
 				assert.strictEqual(result.length, 3);
 				assertSuggestion(result, 'type');
 				assertSuggestion(result, 'b');
 				assertSuggestion(result, 'c');
 			}),
-			testSuggestionsFor('{ "type": "appartment", /**/}', '/**/', schema).then((result) => {
+			testSuggestionsFor('{ "type": "appartment", /**/}', '/**/', schema, result => {
 				assert.strictEqual(result.length, 1);
 				assertSuggestion(result, 'c');
 			})
@@ -340,7 +352,7 @@ suite('JSON Completion', () => {
 				}]
 		};
 		Promise.all([
-			testSuggestionsFor('{/**/}', '/**/', schema).then((result) => {
+			testSuggestionsFor('{/**/}', '/**/', schema, result => {
 				assert.strictEqual(result.length, 5);
 				assertSuggestion(result, 'a', 'A');
 				assertSuggestion(result, 'b1', 'B1');
@@ -348,7 +360,7 @@ suite('JSON Completion', () => {
 				assertSuggestion(result, 'c', 'C');
 				assertSuggestion(result, 'd', 'D');
 			}),
-			testSuggestionsFor('{ "b1": "", /**/}', '/**/', schema).then((result) => {
+			testSuggestionsFor('{ "b1": "", /**/}', '/**/', schema, result => {
 				assert.strictEqual(result.length, 2);
 				assertSuggestion(result, 'a', 'A');
 				assertSuggestion(result, 'b2', 'B2');
@@ -404,36 +416,36 @@ suite('JSON Completion', () => {
 				}]
 		};
 		Promise.all([
-			testSuggestionsFor('{/**/}', '/**/', schema).then((result) => {
+			testSuggestionsFor('{/**/}', '/**/', schema, result => {
 				assert.strictEqual(result.length, 4);
 				assertSuggestion(result, 'type');
 				assertSuggestion(result, 'a');
 				assertSuggestion(result, 'b');
 				assertSuggestion(result, 'c');
 			}),
-			testSuggestionsFor('{ "type": /**/}', '/**/', schema).then((result) => {
+			testSuggestionsFor('{ "type": /**/}', '/**/', schema, result => {
 				assert.strictEqual(result.length, 3);
 				assertSuggestion(result, '"1"');
 				assertSuggestion(result, '"2"');
 				assertSuggestion(result, '"3"');
 			}),
-			testSuggestionsFor('{ "a": { "x": "", "y": "" }, "type": /**/}', '/**/', schema).then((result) => {
+			testSuggestionsFor('{ "a": { "x": "", "y": "" }, "type": /**/}', '/**/', schema, result => {
 				assert.strictEqual(result.length, 2);
 				assertSuggestion(result, '"1"');
 				assertSuggestion(result, '"2"');
 			}),
-			testSuggestionsFor('{ "type": "1", "a" : { /**/ }', '/**/', schema).then((result) => {
+			testSuggestionsFor('{ "type": "1", "a" : { /**/ }', '/**/', schema, result => {
 				assert.strictEqual(result.length, 2);
 				assertSuggestion(result, 'x');
 				assertSuggestion(result, 'y');
 			}),
-			testSuggestionsFor('{ "type": "1", "a" : { "x": "", "z":"" }, /**/', '/**/', schema).then((result) => {
+			testSuggestionsFor('{ "type": "1", "a" : { "x": "", "z":"" }, /**/', '/**/', schema, result => {
 				// both alternatives have errors: intellisense proposes all options
 				assert.strictEqual(result.length, 2);
 				assertSuggestion(result, 'b');
 				assertSuggestion(result, 'c');
 			}),
-			testSuggestionsFor('{ "a" : { "x": "", "z":"" }, /**/', '/**/', schema).then((result) => {
+			testSuggestionsFor('{ "a" : { "x": "", "z":"" }, /**/', '/**/', schema, result => {
 				assert.strictEqual(result.length, 2);
 				assertSuggestion(result, 'type');
 				assertSuggestion(result, 'c');

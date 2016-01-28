@@ -35,6 +35,7 @@ export class JSONCompletion {
 		let offset = document.offsetAt(textDocumentPosition.position);
 		let node = doc.getNodeFromOffsetEndInclusive(offset);
 
+		let currentWord = this.getCurrentWord(document, offset);
 		let overwriteRange = null;
 		let result: CompletionList = {
 			items: [],
@@ -43,6 +44,8 @@ export class JSONCompletion {
 
 		if (node && (node.type === 'string' || node.type === 'number' || node.type === 'boolean' || node.type === 'null')) {
 			overwriteRange = Range.create(document.positionAt(node.start), document.positionAt(node.end));
+		} else {
+			overwriteRange = Range.create(document.positionAt(offset - currentWord.length), textDocumentPosition.position);
 		}
 
 		let proposed: { [key: string]: boolean } = {};
@@ -70,7 +73,7 @@ export class JSONCompletion {
 
 			let addValue = true;
 			let currentKey = '';
-			let currentWord = '';
+			
 			let currentProperty: Parser.PropertyASTNode = null;
 			if (node) {
 
@@ -80,12 +83,10 @@ export class JSONCompletion {
 						addValue = !(node.parent && ((<Parser.PropertyASTNode>node.parent).value));
 						currentProperty = node.parent ? <Parser.PropertyASTNode>node.parent : null;
 						currentKey = document.getText().substring(node.start + 1, node.end - 1);
-						currentWord = document.getText().substring(node.start + 1, offset);
 						if (node.parent) {
 							node = node.parent.parent;
 						}
 					}
-
 				}
 			}
 
@@ -114,7 +115,7 @@ export class JSONCompletion {
 
 				let location = node.getNodeLocation();
 				this.contributions.forEach((contribution) => {
-					let collectPromise = contribution.collectPropertySuggestions(textDocumentPosition.uri, location, this.getCurrentWord(document, offset), addValue, isLast, collector);
+					let collectPromise = contribution.collectPropertySuggestions(textDocumentPosition.uri, location, currentWord, addValue, isLast, collector);
 					if (collectPromise) {
 						collectionPromises.push(collectPromise);
 					}

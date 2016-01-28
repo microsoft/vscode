@@ -8,6 +8,7 @@ import Json = require('../json-toolbox/json');
 import {ITextDocument, DocumentFormattingParams, Range, Position, FormattingOptions, TextEdit} from 'vscode-languageserver';
 import Formatter = require('../jsonFormatter');
 import assert = require('assert');
+import {applyEdits} from './textEditSupport';
 
 suite('JSON Formatter', () => {
 
@@ -28,18 +29,7 @@ suite('JSON Formatter', () => {
 
 		var document = ITextDocument.create(uri, unformatted);
 		let edits = Formatter.format(document, range, { tabSize: 2, insertSpaces: insertSpaces });
-
-		let formatted = unformatted;
-		let sortedEdits = edits.sort((a, b) => document.offsetAt(b.range.start) - document.offsetAt(a.range.start));
-		let lastOffset = formatted.length;
-		sortedEdits.forEach(e => {
-			let startOffset = document.offsetAt(e.range.start);
-			let endOffset = document.offsetAt(e.range.end);
-			assert.ok(startOffset <= endOffset);
-			assert.ok(endOffset <= lastOffset);
-			formatted = formatted.substring(0, startOffset) + e.newText + formatted.substring(endOffset, formatted.length);
-			lastOffset = startOffset;
-		})
+		let formatted  = applyEdits(document, edits);
 		assert.equal(formatted, expected);
 	}
 
