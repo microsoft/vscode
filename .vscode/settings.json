@@ -3,8 +3,7 @@
 	"files.trimTrailingWhitespace": true,
 	"files.exclude": {
 		".git": true,
-		"**/.DS_Store": true,
-		"**/coverage": true
+		"**/.DS_Store": true
 	},
 	"search.exclude": {
 		"**/node_modules/**": true,
