@@ -451,7 +451,7 @@ declare module DebugProtocol {
 		/** The debug adapter supports functionBreakpoints. */
 		supportsFunctionBreakpoints?: boolean;
 		/** The debug adapter supports a (side effect free) evaluate request for data hovers. */
-		supportEvaluateForHovers?: boolean;
+		supportsEvaluateForHovers?: boolean;
 	}
 
 	/** A structured message object. Used to return errors from requests. */
