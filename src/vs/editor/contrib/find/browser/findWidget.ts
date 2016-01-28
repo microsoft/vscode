@@ -40,6 +40,7 @@ const NLS_REPLACE_ALL_BTN_LABEL = nls.localize('label.replaceAllButton', "Replac
 const NLS_TOGGLE_REPLACE_MODE_BTN_LABEL = nls.localize('label.toggleReplaceButton', "Toggle Replace mode");
 const NLS_MATCHES_COUNT_LIMIT_TITLE = nls.localize('title.matchesCountLimit', "Only the first 999 results are highlighted, but all find operations work on the entire text.");
 const NLS_MATCHES_LOCATION = nls.localize('label.matchesLocation', "{0} of {1}");
+const NLS_NO_RESULTS = nls.localize('label.noResults', "No results");
 
 export class FindWidget extends Widget implements EditorBrowser.IOverlayWidget {
 
@@ -210,14 +211,18 @@ export class FindWidget extends Widget implements EditorBrowser.IOverlayWidget {
 		}
 
 		let label: string;
-		if (this._state.searchString.length > 0) {
+		if (this._state.matchesCount > 0) {
 			let matchesCount:string = String(this._state.matchesCount);
 			if (this._state.matchesCount >= MATCHES_LIMIT) {
 				matchesCount += '+';
 			}
-			label = Strings.format(NLS_MATCHES_LOCATION, this._state.matchesPosition, matchesCount);
+			let matchesPosition:string = String(this._state.matchesPosition);
+			if (matchesPosition === '0') {
+				matchesPosition = '?';
+			}
+			label = Strings.format(NLS_MATCHES_LOCATION, matchesPosition, matchesCount);
 		} else {
-			label = Strings.format(NLS_MATCHES_LOCATION, 0, 0);
+			label = NLS_NO_RESULTS;
 		}
 		this._matchesCount.appendChild(document.createTextNode(label));
 	}

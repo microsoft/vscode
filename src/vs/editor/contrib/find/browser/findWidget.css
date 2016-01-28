@@ -118,10 +118,11 @@
 	font-family: "Segoe UI", "SFUIText-Light", "HelveticaNeue-Light", sans-serif, "Droid Sans Fallback";
 	display: inline-block;
 	margin: 0 1px 0 3px;
-	padding: 0 2px 0 2px;
+	padding: 2px 2px 0 2px;
 	position: relative;
 	min-width: 69px;
-	top: 2px;
+	top: 1px;
+	height: 23px;
 	text-align: center;
 }
 
