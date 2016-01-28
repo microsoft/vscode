@@ -25,11 +25,6 @@ export interface IUpdateInfo {
 export interface IProductConfiguration {
 	nameShort: string;
 	nameLong: string;
-	icons: {
-		application: {
-			png: string;
-		}
-	};
 	win32AppUserModelId: string;
 	win32MutexName: string;
 	dataFolderName: string;

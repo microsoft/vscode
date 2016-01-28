@@ -178,8 +178,9 @@ export class VSCodeWindow {
 			title: env.product.nameLong
 		};
 
-		if (platform.isLinux && env.product.icons && env.product.icons.application && env.product.icons.application.png) {
-			options.icon = path.join(env.appRoot, env.product.icons.application.png); // Windows and Mac are better off using the embedded icon(s)
+		if (platform.isLinux) {
+			// Windows and Mac are better off using the embedded icon(s)
+			options.icon = path.join(env.appRoot, 'resources/linux/code.png');
 		}
 
 		// Create the browser window.
