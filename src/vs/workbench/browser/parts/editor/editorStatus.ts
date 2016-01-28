@@ -395,9 +395,12 @@ function isCodeEditorWithTabFocusMode(e: BaseTextEditor): boolean {
 	if (editorWidget.getEditorType() === EditorType.IDiffEditor) {
 		editorWidget = (<IDiffEditor>editorWidget).getModifiedEditor();
 	}
+	if (editorWidget.getEditorType() !== EditorType.ICodeEditor) {
+		return false;
+	}
 
-	return (editorWidget.getEditorType() === EditorType.ICodeEditor &&
-		(<ICodeEditor>editorWidget).getConfiguration().tabFocusMode);
+	let editorConfig = (<ICodeEditor>editorWidget).getConfiguration();
+	return editorConfig.tabFocusMode && !editorConfig.readOnly;
 }
 
 function isWritableCodeEditor(e: BaseTextEditor): boolean {
