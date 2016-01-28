@@ -22,6 +22,7 @@ import {IWorkspaceContextService, ITelemetryService, JSONSchemaService, ISchemaC
 import {parse as parseJSON, ObjectASTNode, JSONDocument} from './jsonParser';
 import {JSONCompletion} from './jsonCompletion';
 import {JSONHover} from './jsonHover';
+import {IJSONSchema} from './json-toolbox/jsonSchema';
 import {JSONDocumentSymbols} from './jsonDocumentSymbols';
 import {format as formatJSON} from './jsonFormatter';
 import {schemaContributions} from './configuration';
@@ -142,9 +143,9 @@ interface Settings {
 }
 
 interface JSONSchemaSettings {
-	fileMatch: string[],
-	url: string,
-	schema?: any;
+	fileMatch?: string[],
+	url?: string,
+	schema?: IJSONSchema;
 }
 
 let jsonConfigurationSettings : JSONSchemaSettings[] = void 0;
@@ -179,8 +180,14 @@ function updateConfiguration() {
 	}
 	if (jsonConfigurationSettings) {
 		jsonConfigurationSettings.forEach((schema) => {
-			if (schema.url && (schema.fileMatch || schema.schema)) {
+			if (schema.fileMatch) {
 				let url = schema.url;
+				if (!url && schema.schema) {
+					url = schema.schema.id;
+					if (!url) {
+						url = 'vscode://schemas/custom/' + encodeURIComponent(schema.fileMatch.join('&'));
+					}
+				}
 				if (!Strings.startsWith(url, 'http://') && !Strings.startsWith(url, 'https://') && !Strings.startsWith(url, 'file://')) {
 					let resourceURL = workspaceContext.toResource(url);
 					if (resourceURL) {
