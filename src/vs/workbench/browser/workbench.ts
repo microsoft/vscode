@@ -785,7 +785,8 @@ export class Workbench implements IPartService {
 		let activitybarPartContainer = $(this.workbench)
 			.div({
 				'class': ['part', 'activitybar', this.sideBarPosition === Position.LEFT ? 'left' : 'right'],
-				id: Identifiers.ACTIVITYBAR_PART
+				id: Identifiers.ACTIVITYBAR_PART,
+				role: 'navigation'
 			});
 
 		this.activitybarPart.create(activitybarPartContainer);
@@ -795,7 +796,8 @@ export class Workbench implements IPartService {
 		let sidebarPartContainer = $(this.workbench)
 			.div({
 				'class': ['part', 'sidebar', this.sideBarPosition === Position.LEFT ? 'left' : 'right'],
-				id: Identifiers.SIDEBAR_PART
+				id: Identifiers.SIDEBAR_PART,
+				role: 'complementary'
 			});
 
 		this.sidebarPart.create(sidebarPartContainer);
@@ -805,7 +807,8 @@ export class Workbench implements IPartService {
 		let panelPartContainer = $(this.workbench)
 			.div({
 				'class': ['part', 'panel', 'monaco-editor-background'],
-				id: Identifiers.PANEL_PART
+				id: Identifiers.PANEL_PART,
+				role: 'complementary'
 			});
 
 		this.panelPart.create(panelPartContainer);
@@ -815,7 +818,8 @@ export class Workbench implements IPartService {
 		let editorContainer = $(this.workbench)
 			.div({
 				'class': ['part', 'editor', 'monaco-editor-background'],
-				id: Identifiers.EDITOR_PART
+				id: Identifiers.EDITOR_PART,
+				role: 'main'
 			});
 
 		this.editorPart.create(editorContainer);
@@ -824,7 +828,8 @@ export class Workbench implements IPartService {
 	private createStatusbarPart(): void {
 		let statusbarContainer = $(this.workbench).div({
 			'class': ['part', 'statusbar'],
-			id: Identifiers.STATUSBAR_PART
+			id: Identifiers.STATUSBAR_PART,
+			role: 'contentinfo'
 		});
 
 		this.statusbarPart.create(statusbarContainer);
