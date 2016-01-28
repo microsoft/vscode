@@ -281,64 +281,52 @@ export class FileRenderer extends ActionsRenderer implements IRenderer {
 		if (!editableData) {
 			let label = $('.explorer-item-label').appendTo(item);
 			$('a.plain').text(stat.name).appendTo(label);
+			return null;
 		}
 
 		// Input field (when creating a new file or folder or renaming)
-		else {
-			let inputBox = new InputBox(item.getHTMLElement(), this.contextViewService, {
-				validationOptions: {
-					validation: editableData.validator,
-					showMessage: true
-				}
-			});
 
-			let value = stat.name || '';
-			let lastDot = value.lastIndexOf('.');
+		let inputBox = new InputBox(item.getHTMLElement(), this.contextViewService, {
+			validationOptions: {
+				validation: editableData.validator,
+				showMessage: true
+			}
+		});
 
-			inputBox.value = value;
-			inputBox.select({ start: 0, end: lastDot > 0 && !stat.isDirectory ? lastDot : value.length });
-			inputBox.focus();
+		let value = stat.name || '';
+		let lastDot = value.lastIndexOf('.');
 
-			let disposed = false;
+		inputBox.value = value;
+		inputBox.select({ start: 0, end: lastDot > 0 && !stat.isDirectory ? lastDot : value.length });
+		inputBox.focus();
 
-			let wrapUp = async.once<any, void>(() => {
-				if (!disposed) {
-					disposed = true;
-					tree.clearHighlight();
-					tree.DOMFocus();
-					lifecycle.disposeAll(toDispose);
-				}
-			});
-
-			let commit = async.once<any, void>(() => {
+		let done = async.once<boolean, void>(commit => {
+			if (commit) {
 				this.state.actionProvider.runAction(tree, stat, editableData.action, { value: inputBox.value });
-				wrapUp();
-			});
+			}
 
-			var toDispose = [
-				inputBox,
-				DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_DOWN, (e: DOM.IKeyboardEvent) => {
-					if (e.equals(CommonKeybindings.ENTER)) {
-						if (inputBox.validate() && !disposed) {
-							commit();
-						}
-					} else if (e.equals(CommonKeybindings.ESCAPE)) {
-						wrapUp();
+			tree.clearHighlight();
+			tree.DOMFocus();
+			lifecycle.disposeAll(toDispose);
+		});
+
+		var toDispose = [
+			inputBox,
+			DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_DOWN, (e: DOM.IKeyboardEvent) => {
+				if (e.equals(CommonKeybindings.ENTER)) {
+					if (inputBox.validate()) {
+						done(true);
 					}
-				}),
-				DOM.addDisposableListener(inputBox.inputElement, 'blur', () => {
-					if (inputBox.isInputValid() && !disposed) {
-						commit();
-					} else {
-						wrapUp();
-					}
-				})
-			];
+				} else if (e.equals(CommonKeybindings.ESCAPE)) {
+					done(false);
+				}
+			}),
+			DOM.addDisposableListener(inputBox.inputElement, 'blur', () => {
+				done(inputBox.isInputValid());
+			})
+		];
 
-			return wrapUp;
-		}
-
-		return null;
+		return () => done(true);
 	}
 
 	private iconClass(element: FileStat): string {
