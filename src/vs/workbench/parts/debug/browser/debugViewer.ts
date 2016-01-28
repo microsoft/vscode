@@ -789,7 +789,10 @@ export class BreakpointsRenderer implements tree.IRenderer {
 
 		data.checkbox = <HTMLInputElement> $('input');
 		data.checkbox.type = 'checkbox';
-		data.checkbox.className = isMacintosh ? 'checkbox' : 'checkbox.win-linux'
+		if (!isMacintosh) {
+			data.checkbox.className = 'checkbox-win-linux';
+		}
+
 		dom.append(data.breakpoint, data.checkbox);
 
 		data.name = dom.append(data.breakpoint, $('span.name'));
