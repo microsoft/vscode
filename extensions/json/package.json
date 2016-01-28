@@ -112,7 +112,7 @@
                                 "description": "An array of file patterns to match against when resolving JSON files to schemas."
                             },
                             "schema": {
-                                "type": "object",
+                                "$ref": "http://json-schema.org/draft-04/schema#",
                                 "description": "The schema definition for the given URL. The schema only needs to be provided to avoid accesses to the schema URL."
                             }
                         }
