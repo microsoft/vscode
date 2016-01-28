@@ -230,14 +230,10 @@ export class ViewLines extends ViewLayer {
 
 			startColumn = lineNumber === range.startLineNumber ? range.startColumn : 1;
 			endColumn = lineNumber === range.endLineNumber ? range.endColumn : this._context.model.getLineMaxColumn(lineNumber);
-			visibleRangesForLine = this._lines[lineIndex].getVisibleRangesForRange(startColumn, endColumn, this.textRangeRestingSpot);
+			visibleRangesForLine = this._lines[lineIndex].getVisibleRangesForRange(startColumn, endColumn, clientRectDeltaLeft, this.textRangeRestingSpot);
 
 			if (!visibleRangesForLine || visibleRangesForLine.length === 0) {
 				continue;
-			}
-
-			for (let i = 0, len = visibleRangesForLine.length; i < len; i++) {
-				visibleRangesForLine[i].left = Math.max(0, visibleRangesForLine[i].left - clientRectDeltaLeft);
 			}
 
 			if (includeNewLines && lineNumber < originalEndLineNumber) {
@@ -285,7 +281,7 @@ export class ViewLines extends ViewLayer {
 
 			let startColumn = lineNumber === range.startLineNumber ? range.startColumn : 1;
 			let endColumn = lineNumber === range.endLineNumber ? range.endColumn : this._context.model.getLineMaxColumn(lineNumber);
-			let visibleRangesForLine = this._lines[lineIndex].getVisibleRangesForRange(startColumn, endColumn, this.textRangeRestingSpot);
+			let visibleRangesForLine = this._lines[lineIndex].getVisibleRangesForRange(startColumn, endColumn, clientRectDeltaLeft, this.textRangeRestingSpot);
 
 			if (!visibleRangesForLine || visibleRangesForLine.length === 0) {
 				continue;
@@ -293,7 +289,7 @@ export class ViewLines extends ViewLayer {
 
 			let adjustedLineNumberVerticalOffset = this._layoutProvider.getVerticalOffsetForLineNumber(lineNumber) - this._bigNumbersDelta + deltaTop;
 			for (let i = 0, len = visibleRangesForLine.length; i < len; i++) {
-				result.push(new EditorCommon.VisibleRange(adjustedLineNumberVerticalOffset, Math.max(0, visibleRangesForLine[i].left - clientRectDeltaLeft), visibleRangesForLine[i].width));
+				result.push(new EditorCommon.VisibleRange(adjustedLineNumberVerticalOffset, visibleRangesForLine[i].left, visibleRangesForLine[i].width));
 			}
 		}
 
