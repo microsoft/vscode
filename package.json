@@ -30,7 +30,8 @@
     ],
     "activationEvents": [
         "onLanguage:python",
-        "onCommand:python.sortImports"
+        "onCommand:python.sortImports",
+        "onCommand:python.runtests"
     ],
     "main": "./out/client/extension",
     "contributes": {
@@ -44,6 +45,10 @@
             {
                 "command": "python.sortImports",
                 "title": "Python: Sort Imports"
+            },
+            {
+                "command": "python.runtests",
+                "title": "Python: Run Unit Tests"
             }
         ],
         "debuggers": [
@@ -91,6 +96,11 @@
             "type": "object",
             "title": "Python Configuration",
             "properties": {
+                "python.pythonPath": {
+                    "type": "string",
+                    "default": "python",
+                    "description": "Path to Python, you can use a custom version of Python by modifying this setting to include the full path."
+                },
                 "python.linting.enabled": {
                     "type": "boolean",
                     "default": true,
@@ -105,6 +115,11 @@
                     "type": "boolean",
                     "default": false,
                     "description": "Whether to lint Python files using pep8"
+                },
+                "python.linting.flake8Enabled": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Whether to lint Python files using flake8"
                 },
                 "python.linting.lintOnTextChange": {
                     "type": "boolean",
@@ -124,27 +139,57 @@
                 "python.linting.pylintCategorySeverity.convention": {
                     "type": "string",
                     "default": "Hint",
-                    "description": "Severity of Pylint message type 'Convention/C'. Possible values include Error, Hint, Warning and Information."
+                    "description": "Severity of Pylint message type 'Convention/C'.",
+                    "enum": [
+                        "Hint",
+                        "Error",
+                        "Information",
+                        "Warning"
+                    ]
                 },
                 "python.linting.pylintCategorySeverity.refactor": {
                     "type": "string",
                     "default": "Hint",
-                    "description": "Severity of Pylint message type 'Refactor/R'. Possible values include Error, Hint, Warning and Information."
+                    "description": "Severity of Pylint message type 'Refactor/R'.",
+                    "enum": [
+                        "Hint",
+                        "Error",
+                        "Information",
+                        "Warning"
+                    ]
                 },
                 "python.linting.pylintCategorySeverity.warning": {
                     "type": "string",
                     "default": "Warning",
-                    "description": "Severity of Pylint message type 'Warning/W'. Possible values include Error, Hint, Warning and Information."
+                    "description": "Severity of Pylint message type 'Warning/W'.",
+                    "enum": [
+                        "Hint",
+                        "Error",
+                        "Information",
+                        "Warning"
+                    ]
                 },
                 "python.linting.pylintCategorySeverity.error": {
                     "type": "string",
                     "default": "Error",
-                    "description": "Severity of Pylint message type 'Error/E'. Possible values include Error, Hint, Warning and Information."
+                    "description": "Severity of Pylint message type 'Error/E'.",
+                    "enum": [
+                        "Hint",
+                        "Error",
+                        "Information",
+                        "Warning"
+                    ]
                 },
                 "python.linting.pylintCategorySeverity.fatal": {
                     "type": "string",
                     "default": "Error",
-                    "description": "Severity of Pylint message type 'Fatal/F'. Possible values include Error, Hint, Warning and Information."
+                    "description": "Severity of Pylint message type 'Fatal/F'.",
+                    "enum": [
+                        "Hint",
+                        "Error",
+                        "Information",
+                        "Warning"
+                    ]
                 },
                 "python.linting.pylintPath": {
                     "type": "string",
@@ -156,10 +201,19 @@
                     "default": "pep8",
                     "description": "Path to pep8, you can use a custom version of pep8 by modifying this setting to include the full path."
                 },
+                "python.linting.flake8Path": {
+                    "type": "string",
+                    "default": "flake8",
+                    "description": "Path to flake8, you can use a custom version of flake8 by modifying this setting to include the full path."
+                },
                 "python.formatting.provider": {
                     "type": "string",
                     "default": "autopep8",
-                    "description": "Provider for formatting. Possible options include 'autopep8' and 'yapf'."
+                    "description": "Provider for formatting. Possible options include 'autopep8' and 'yapf'.",
+                    "enum": [
+                        "autopep8",
+                        "yapf"
+                    ]
                 },
                 "python.formatting.autopep8Path": {
                     "type": "string",
@@ -170,6 +224,26 @@
                     "type": "string",
                     "default": "",
                     "description": "Path to yapf, you can use a custom version of yapf by modifying this setting to include the full path."
+                },
+                "python.autoComplete.extraPaths": {
+                    "type": "array",
+                    "default": [],
+                    "description": "List of paths to libraries and the like that need to be imported by auto complete engine. E.g. when using Google App SDK, the paths are not in system path, hence need to be added into this list."
+                },
+                "python.unitTest.nosetestsEnabled": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Whether to enable or disable unit testing using nosetests."
+                },
+                "python.unitTest.nosetestPath": {
+                    "type": "string",
+                    "default": "nosetests",
+                    "description": "Path to nosetests, you can use a custom version of nosetests by modifying this setting to include the full path."
+                },
+                "python.unitTest.unittestEnabled": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Whether to enable or disable unit testing using standard unittest (built into Python)."
                 }
             }
         }

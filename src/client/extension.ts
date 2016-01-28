@@ -1,56 +1,54 @@
+'use strict';
+
 // The module 'vscode' contains the VS Code extensibility API
 // Import the module and reference it with the alias vscode in your code below
 import * as vscode from 'vscode';
 import {PythonCompletionItemProvider} from './providers/completionProvider';
-import {PythonSignatureHelpProvider} from './providers/signatureProvider';
 import {PythonHoverProvider} from './providers/hoverProvider';
 import {PythonDefinitionProvider} from './providers/definitionProvider';
 import {PythonReferenceProvider} from './providers/referenceProvider';
 import {PythonRenameProvider} from './providers/renameProvider';
-import {PythonAutoPep8FormattingEditProvider} from './providers/autoPep8FormatProvider';
-import {PythonYapfFormattingEditProvider} from './providers/yapfFormatPovider';
+import {PythonFormattingEditProvider} from './providers/formatProvider';
 import * as sortImports from './sortImports';
-import {PythonMacPlintProvider} from './providers/macLintProvider';
+import {LintProvider} from './providers/lintProvider';
 import {PythonSymbolProvider} from './providers/symbolProvider';
-
-//import * as activateLanguageClient from './client/extension';
-import * as languageClient from './languageClient';
+// import * as languageClient from './languageClient';
 import * as path from 'path';
+import * as settings from './common/configSettings'
+import {activateUnitTestProvider} from './providers/testProvider';
+
+// import {PythonSignatureHelpProvider} from './providers/signatureProvider';
+// import {PythonIndentFormatProvider} from './providers/indentFormatProvider';
+
 const PYTHON: vscode.DocumentFilter = { language: 'python', scheme: 'file' }
- 
+let outChannel: vscode.OutputChannel;
+  
 // this method is called when your extension is activated
 // your extension is activated the very first time the command is executed
 export function activate(context: vscode.ExtensionContext) {
-    sortImports.activate(context);
- 
     var rootDir = context.asAbsolutePath(".");
+    var pythonSettings = new settings.PythonSettings();
+    outChannel = vscode.window.createOutputChannel('Python');
+    outChannel.clear();
 
-    languageClient.activate(context);
-    //activateLanguageClient.activate(context);
-    var pthonConfig = vscode.workspace.getConfiguration("python");
-    
-    context.subscriptions.push(vscode.languages.registerRenameProvider(PYTHON, new PythonRenameProvider(rootDir)));
-    context.subscriptions.push(vscode.languages.registerHoverProvider(PYTHON, new PythonHoverProvider(rootDir)));
-    context.subscriptions.push(vscode.languages.registerSignatureHelpProvider(PYTHON, new PythonSignatureHelpProvider(rootDir), '('));
-    context.subscriptions.push(vscode.languages.registerDefinitionProvider(PYTHON, new PythonDefinitionProvider(rootDir)));
-    context.subscriptions.push(vscode.languages.registerReferenceProvider(PYTHON, new PythonReferenceProvider(rootDir)));
-    context.subscriptions.push(vscode.languages.registerCompletionItemProvider(PYTHON, new PythonCompletionItemProvider(rootDir), '.'));
-    context.subscriptions.push(vscode.languages.registerDocumentSymbolProvider(PYTHON, new PythonSymbolProvider(rootDir)));
-    
-    var formatProvider = pthonConfig.get<string>("formatting.provider");
-    if (formatProvider.toUpperCase() === "AUTOPEP8"){
-        context.subscriptions.push(vscode.languages.registerDocumentFormattingEditProvider(PYTHON, new PythonAutoPep8FormattingEditProvider()));
-    }
-    else {
-        context.subscriptions.push(vscode.languages.registerDocumentFormattingEditProvider(PYTHON, new PythonYapfFormattingEditProvider(rootDir)));
-    }
-    
-    var isWin = /^win/.test(process.platform);
-    if (!isWin){
-        //var moreTriggerCharacter:string = , ".", "#", ")", "", "\n", "\r", "\r\n", "=", ",", "{", "}";
-        var disposables = new PythonMacPlintProvider().register(rootDir);
-        disposables.forEach(d=>context.subscriptions.push(d));    
-    }
+    sortImports.activate(context);
+    activateUnitTestProvider(context, pythonSettings, outChannel);
+
+    context.subscriptions.push(vscode.languages.registerRenameProvider(PYTHON, new PythonRenameProvider(context)));
+    context.subscriptions.push(vscode.languages.registerHoverProvider(PYTHON, new PythonHoverProvider(context)));
+    context.subscriptions.push(vscode.languages.registerDefinitionProvider(PYTHON, new PythonDefinitionProvider(context)));
+    context.subscriptions.push(vscode.languages.registerReferenceProvider(PYTHON, new PythonReferenceProvider(context)));
+    context.subscriptions.push(vscode.languages.registerCompletionItemProvider(PYTHON, new PythonCompletionItemProvider(context), '.'));
+    context.subscriptions.push(vscode.languages.registerDocumentSymbolProvider(PYTHON, new PythonSymbolProvider(context)));
+    // context.subscriptions.push(vscode.languages.registerSignatureHelpProvider(PYTHON, new PythonSignatureHelpProvider(context), '('));
+
+    context.subscriptions.push(vscode.languages.registerDocumentFormattingEditProvider(PYTHON, new PythonFormattingEditProvider(context, pythonSettings, outChannel)));
+
+    // var isWin = /^win/.test(process.platform);
+    // if (!isWin) {
+    context.subscriptions.push(new LintProvider(context, pythonSettings, outChannel));//).register(rootDir);
+    //disposables.forEach(d=> context.subscriptions.push(d));
+    // }
 }
 
 // this method is called when your extension is deactivated

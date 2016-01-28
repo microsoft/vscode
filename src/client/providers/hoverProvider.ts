@@ -4,18 +4,25 @@
 
 'use strict';
 
-import vscode = require('vscode');
-import cp = require('child_process');
-import { dirname, basename } from 'path';
+import * as vscode from 'vscode';
 import * as proxy from './jediProxy';
-import * as fs from 'fs';
+
+function parseData(data: proxy.ICompletionResult) {
+    if (data && data.items.length > 0) {
+        var definition = data.items[0];
+
+        var txt = definition.description || definition.text;
+        return new vscode.Hover({ language: "python", value: txt });
+    }
+    return null;
+}
 
 export class PythonHoverProvider implements vscode.HoverProvider {
-    public constructor(rootDir: string) {
-        proxy.initialize(rootDir);
-    }
+    private jediProxyHandler: proxy.JediProxyHandler<proxy.ICompletionResult, vscode.Hover>;
 
-    private gocodeConfigurationComplete = false;
+    public constructor(context: vscode.ExtensionContext) {
+        this.jediProxyHandler = new proxy.JediProxyHandler(context, null, parseData);
+    }
 
     public provideHover(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken): Thenable<vscode.Hover> {
         return new Promise<vscode.Hover>((resolve, reject) => {
@@ -27,70 +34,21 @@ export class PythonHoverProvider implements vscode.HoverProvider {
                 return resolve();
             }
 
-            var source = document.getText();//fs.realpathSync(filename).toString();
+            var source = document.getText();
             var range = document.getWordRangeAtPosition(position);
-            if (range == undefined || range.isEmpty){
+            if (range == undefined || range.isEmpty) {
                 return resolve();
             }
             var columnIndex = range.end.character;
-            var cmd: proxy.ICommand = {
-                id: new Date().getTime().toString(),
+            var cmd: proxy.ICommand<proxy.ICompletionResult> = {
                 command: proxy.CommandType.Completions,
                 fileName: filename,
                 columnIndex: columnIndex,
                 lineIndex: position.line,
-                reject: onRejected,
-                resolve: onResolved,
                 source: source
             };
 
-            var cmdArgs: proxy.ICommand = {
-                id: new Date().getTime().toString() + "X",
-                command: proxy.CommandType.Arguments,
-                fileName: filename,
-                columnIndex: columnIndex + 1,
-                lineIndex: position.line,
-                reject: onRejected,
-                resolve: onResolved,
-                source: source
-            };
-
-            function onRejected(error) {
-                var y = "";
-            }
-
-            var definition: proxy.IAutoCompleteItem = null;
-
-            function onResolved(data: proxy.ICompletionResult) {
-                if (token.isCancellationRequested) {
-                    return resolve()
-                }
-                if (data && data.items.length > 0) {
-                    definition = data.items[0];
-
-                    var txt = definition.description || definition.text;
-                    var item = new vscode.Hover({ language: "python", value: txt });
-
-                    resolve(item);
-                }
-                else {
-                    resolve();
-                }
-            }
-            function onResolvedArgs(data: proxy.ICompletionResult) {
-                if (token.isCancellationRequested) {
-                    return resolve()
-                }
-                if (data && data.items.length > 0) {
-                    definition = data.items[0];
-                    resolve();
-                }
-                else {
-                    resolve();
-                }
-            }
-            proxy.sendCommand(cmd).then(onResolved, onRejected);
-            //proxy.sendCommand(cmdArgs).then(onResolvedArgs, onRejected);
+            this.jediProxyHandler.sendCommand(cmd, resolve, token);
         });
     }
 }

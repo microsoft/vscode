@@ -1,19 +1,20 @@
 # Python
-Linting, Debugging, Intellisense, auto-completion, code formatting, snippets, and more.
+Linting, Debugging, Intellisense, auto-completion, code formatting, snippets, unit testing, and more.
 Works on both Windows and Mac.
 
 ##Features
-* Linting (PyLint, Pep8 with support for config files)
+* Linting (PyLint, Pep8, Flake8 with config files)
 * Intellisense and autocompletion
-* Code formatting (autopep8, yapf, with support for config files)
+* Code formatting (autopep8, yapf, with config files)
 * Renaming, Viewing references, Going to definitions, Go to Symbols
 * View signature and similar by hovering over a function or method
 * Debugging with support for local & global variables, arguments, expressions, watch window, stack information, break points
+* Unit testing (unittests and nosetests, with config files)
 * Sorting imports
 * Snippets
 
-## Issues, Feedback and Suggestions
-[Gitbub Issues](https://github.com/DonJayamanne/pythonVSCode/issues)
+## Issues and Feature Requests
+[Github Issues](https://github.com/DonJayamanne/pythonVSCode/issues)
 
 ## Feature Details (with confiuration)
 * IDE Features
@@ -25,26 +26,30 @@ Works on both Windows and Mac.
 * Intellisense and Autocomplete
 * - Full intellisense
 * - Support for docstring
+* - Ability to include custom module paths (e.g. include paths for libraries like Google App Engine, etc)
+* - - Use the setting python.autoComplete.extraPaths = []
 * Code formatting
 * - Use either yapf or autopep8 for code formatting (defaults to autopep8)
 * - auutopep8 configuration files supported
 * - yapf configuration files supported
 * Linting
 * - It can be turned off (default is turn it on and use pylint)
-* - pylint can be turned off
-* - pyliny configuaration files supported
-* - pep8 can be turned off
-* - pep8 configuaration files supported
+* - pylint can be turned on/off (default is on), supports standard configuaration files
+* - pep8 can be turned on/off (default is off), supports standard configuaration files
+* - flake8 can be turned on/off (default is on), supports standard configuaration files
 * - Different categories of errors reported by pylint can be configured as warnings, errors, information or hits
-* - Path to pylint and pep8 can be configured
-* - Path to pep8 can be configured through config
+* - Path to pylint, pep8 and flake8 and pep8 can be configured
 * Debuggging
-* - Local and Global variables
-* - Arguments
 * - Watch window
 * - Evaluate Expressions
 * - Step through code (Step in, Step out, Continue)
 * - Add/remove break points
+* - Local variables, Global variables and arguments (experimental, still needs some polishing)
+* Unit Testing
+* - unittests (default is on)
+* - nosetests (default is off)
+* - Test resutls are displayed in the "Python" output window
+* - Future release will display results in a more structured manner integrated into the IDE
 * Snippets
 
 
@@ -56,18 +61,29 @@ Works on both Windows and Mac.
 
 ## Requirements
 * Python is installed on the current system
-* Pylint is installed for linting (optional, this can be turned off)
-* - Install Pylint as follows:
+* - Path to python can be configured
+* Pylint is installed for linting (optional)
 * - pip install pylint
-* Pep8 is installed for linting (optional, this can be turned off)
+* Pep8 is installed for linting (optional)
 * - pip install pep8
-* Autopep8 is installed for code formatting 
-* - Install AutoPep8 as follows (ensure pep8 is installed):
+* Flake8 is installed for linting (optional)
+* - pip install flake8
+* Autopep8 is installed for code formatting (optional) 
 * - pip install pep8
 * - pip install --upgrade autopep8
-
+* Yapf is installed for code formatting (optional)
+* - pip install yapf
+* nosetests for unit testing  (optional)
+* - pip install nose
 
 ## Change Log
+
+### Version 0.1.1
+* Added support for linting using flake8
+* Added support for unit testing using unittest and nosetest
+* Added support for custom module paths for improved intellisense and autocomplete
+* Modifications to debugger to display console output (generated using 'print' and the like)
+* Modifications to debugger to accept arguments
 
 ### Version 0.1.0
 * Fixed linting of files on Mac

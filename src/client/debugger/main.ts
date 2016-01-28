@@ -17,6 +17,7 @@ import {PdbRunner, IPdbCommand} from './pdb';
 const PDB_LOCALS_COMMAND = "import json; print(json.dumps({k:v for k,v in locals().items() if type(v) in (int, str, bool, unicode, float)}, skipkeys=True))";
 const PDB_ARGS_COMMAND = "args";
 const PDB_GLOBALS_COMMAND = "import json; print(json.dumps({k:v for k,v in globals().items() if type(v) in (int, str, bool, unicode, float)}, skipkeys=True))";
+const PDB_PRINT_OBJECT_COMMAND = "import json; json.dumps(VARNAME, default=lambda o:o.__dict__, sort_keys=True)"
 
 /**
  * This interface should always match the schema found in the mock-debug extension manifest.
@@ -26,6 +27,8 @@ export interface LaunchRequestArguments {
     program: string;
     /** Automatically stop target after launch. If not specified, target does not stop. */
     stopOnEntry?: boolean;
+    args: string[];
+    pythonPath: string;
 }
 
 interface ICommand {
@@ -34,14 +37,14 @@ interface ICommand {
     promptResponse?: string;
     commandLineDetected?: boolean;
     commandLine: string;
-    responseProtocol?: DebugProtocol.Response
+    responseProtocol?: DebugProtocol.Response;
 }
 
 interface IStackInfo {
-    fileName: string,
-    lineNumber: number,
-    function: string
-    source: string
+    fileName: string;
+    lineNumber: number;
+    function: string;
+    source: string;
 }
 
 function ignoreEmpty(line) {
@@ -76,6 +79,18 @@ interface IBreakpoint {
     fileName: string
 }
 
+interface DebugVariable {
+    name: string;
+    addr: number;
+    type: string;
+    realType: string;
+    //kind: GoReflectKind;
+    value: string;
+    len: number;
+    cap: number;
+    children: DebugVariable[];
+    unreadable: string;
+}
 class PythonDebugSession extends DebugSession {
 
     // we don't support multiple threads, so we can use a hardcoded ID for the default thread
@@ -92,7 +107,6 @@ class PythonDebugSession extends DebugSession {
     private _sourceFile: string;
     //private _sourceLines: string[];
     private _breakPoints: any;
-    private _variableHandles: Handles<string>;
 
 
     public constructor(debuggerLinesStartAt1: boolean, isServer: boolean) {
@@ -120,12 +134,19 @@ class PythonDebugSession extends DebugSession {
         if (args.stopOnEntry) {
             this.launchResponse = response;
         } else {
+            this.launchResponse = response;
             // we just start to run until we hit a breakpoint or an exception
-            this.continueRequest(response, { threadId: PythonDebugSession.THREAD_ID });
+            // this.continueRequest(response, { threadId: PythonDebugSession.THREAD_ID });
         }
         var fileDir = path.dirname(this._sourceFile);
 
-        this.pdbRunner = new PdbRunner(this._sourceFile, this);
+        var pythonPath = "python";
+        if (typeof args.pythonPath === "string" && args.pythonPath.trim().length > 0) {
+            pythonPath = args.pythonPath;
+        }
+        var programArgs = Array.isArray(args.args) ? args.args : [];
+
+        this.pdbRunner = new PdbRunner(this._sourceFile, this, null, programArgs, pythonPath, args.stopOnEntry);
 
         this.pdbRunner.pdbLoaded.then(() => {
             this.sendResponse(this.launchResponse);
@@ -156,11 +177,34 @@ class PythonDebugSession extends DebugSession {
                 onCommandResponse.call(that, data);
             });
 
+            function extractConsoleOutput(data: string[], command: string): string[] {
+                if (command !== "next" && command !== "step" && command !== "continue" && command !== "return") {
+                    return [];
+                }
+                var reversedLines = [].concat(data).reverse();
+                var outputLines = [];
+                for (var counter = 0; counter < data.length; counter++) {
+                    var line = data[counter].trim();
+                    if (line === "(pdb)" || line.indexOf("->") === 0 || line.indexOf(">") === 0) {
+                        break;
+                    }
+                    if (line.indexOf("Error:") > 0 || line === "--Return--" || line === "--Call--") {
+                        break;
+                    }
+                    if (line === "The program finished and will be restarted") {
+                        break;
+                    }
+                    outputLines.push(data[counter]);
+                }
+
+                return outputLines;
+            }
+
             function onCommandResponse(data: string[]) {
                 if (command.name === "listLocalGlobalList") {
                     var line = data[0].substring("set([".length);
                     var varNames = line.substring(0, line.length - 2).replace(/'/g, "").split(",").map(item=> item.trim());
-                    return resolve.call(this, varNames);
+                    return resolve.call(that, varNames);
                 }
                 if (command.name === "locals" || command.name === "globals") {
                     var variables = [];
@@ -177,7 +221,7 @@ class PythonDebugSession extends DebugSession {
                     }
                     catch (ex) {
                     }
-                    return resolve.call(this, { variables: variables, id: callbackData });
+                    return resolve.call(that, { variables: variables, id: callbackData });
                 }
                 if (command.name === "args") {
                     var variables = [];
@@ -194,45 +238,52 @@ class PythonDebugSession extends DebugSession {
                     }
                     catch (ex) {
                     }
-                    return resolve.call(this, { variables: variables, id: callbackData });
+                    return resolve.call(that, { variables: variables, id: callbackData });
                 }
 
                 if (command.name === "next" || command.name === "where" || command.name === "step" || command.name === "continue" || command.name === "return") {
+                    //Extract any output that may have been sent by the program to the console window
+                    var consoleOutput = extractConsoleOutput(data, command.name);
+                    if (consoleOutput.length > 0) {
+                        that.sendEvent(new OutputEvent(consoleOutput.join("\n") + "\n"));
+                    }
+                    
                     //Check if this is the end 
                     if (data.length > 0 && (data[0] === "--Return--")) {
-                        this.sendResponse(command.responseProtocol);
+                        that.sendResponse(command.responseProtocol);
                         try {
                             var stack = parseWhere(data);
                         }
                         catch (ex) {
-                            this.sendEvent(new TerminatedEvent());
-                            return resolve.call(this, data);
+                            that.sendEvent(new TerminatedEvent());
+                            return resolve.call(that, data);
                         }
                     }
                     if (data.filter(l=> l === "The program finished and will be restarted").length > 0) {
-                        this.sendResponse(command.responseProtocol);
-                        this.sendEvent(new TerminatedEvent());
+                        that.sendResponse(command.responseProtocol);
+                        that.sendEvent(new TerminatedEvent());
                     }
                     else {
                         var stack = parseWhere(data);
-                        var ln = this._currentLine = stack.lineNumber - 1;
+                        var ln = that._currentLine = stack.lineNumber - 1;
                         if (command.responseProtocol) {
                             if (command.name === "next" || command.name === "step" || command.name === "continue" || command.name === "return" || command.name === "where") {
                                 //Check if there are any errors in the current stack
                                 if (data.length > 0 && data[0].indexOf("Error:") > 0) {
                                     var error = data[0];
-                                    this.sendErrorResponse(command.responseProtocol, 1, error);
-                                    this.sendEvent(new StoppedEvent("exception", PythonDebugSession.THREAD_ID));
+                                    that.sendErrorResponse(command.responseProtocol, 1, error);
+                                    that.sendEvent(new StoppedEvent("exception", PythonDebugSession.THREAD_ID));
                                 }
                                 else {
-                                    this.sendResponse(command.responseProtocol);
-                                    this.sendEvent(new StoppedEvent(command.name, PythonDebugSession.THREAD_ID));
+                                    that.sendResponse(command.responseProtocol);
+                                    that.sendEvent(new StoppedEvent(command.name, PythonDebugSession.THREAD_ID));
                                 }
                             }
                         }
                     }
                 }
-                resolve.call(this, data);
+
+                resolve.call(that, data);
             }
         });
     }
@@ -272,7 +323,7 @@ class PythonDebugSession extends DebugSession {
                     });
 
                     promises.push(prom);
-                }); 
+                });
 
                 linesToRemove.forEach(line=> {
                     var prom = this.sendCommand("clear", undefined, undefined, undefined, `clear ${args.source.path}:${line}`).then((resp) => {
@@ -369,6 +420,8 @@ class PythonDebugSession extends DebugSession {
     private argumentsRefId: number;
     private globalsRefId: number;
     private variableCommandDefs: any = {};
+    private _variableHandles: Handles<string>;
+
     protected scopesRequest(response: DebugProtocol.ScopesResponse, args: DebugProtocol.ScopesArguments): void {
         const frameReference = args.frameId;
         const scopes = new Array<Scope>();
@@ -412,36 +465,49 @@ class PythonDebugSession extends DebugSession {
                 variables: variables
             };
              
-            //Now some complex variables will be ignored, lets get those as well
-            if (cmdDetails.listCmd.length > 0) {
-                this.sendCommand("listLocalGlobalList", undefined, undefined, undefined, cmdDetails.listCmd).then((resp) => {
-                    //Now find missing items
-                    var missingItems = (<string[]>resp).filter(vName=> variableNames.indexOf(vName) === -1);
-
-                    var promises = [];
-                    missingItems.forEach(vName=> {
-                        var p = this.sendCommand("Print Value", undefined, undefined, undefined, "p " + vName).then((resp) => {
-                            if (Array.isArray(resp)) {
-                                response.body.variables.push({
-                                    name: vName,
-                                    value: (<string[]>resp).join(),
-                                    variablesReference: 0
-                                });
-                            }
-                        });
-
-                        promises.push(p);
-                    });
-
-                    Promise.all(promises).then(() => {
-                        this.sendResponse(response);
-                    });
-                });
-
-            }
-            else {
-                this.sendResponse(response);
-            }
+            //             //Now some complex variables will be ignored, lets get those as well
+            //             if (cmdDetails.listCmd.length > 0) {
+            //                 this.sendCommand("listLocalGlobalList", undefined, undefined, undefined, cmdDetails.listCmd).then((resp) => {
+            //                     //Now find missing items
+            //                     var missingItems = (<string[]>resp).filter(vName=> variableNames.indexOf(vName) === -1);
+            // 
+            //                     var promises = [];
+            //                     missingItems.forEach(vName=> {
+            //                         var statement = "p " + vName;
+            //                         statement = PDB_PRINT_OBJECT_COMMAND.replace("VARNAME", vName);
+            //                         var p = new Promise<any>((resolve) => {
+            //                             this.sendCommand("Print Value", undefined, undefined, undefined, statement).then((resp) => {
+            //                                 try {
+            //                                     var varJson = (<string[]>resp).join();
+            //                                     varJson = varJson.substring(1, varJson.length - 1);
+            //                                     var varObj = JSON.parse(varJson);
+            //                                     if (typeof varObj === "object" && varObj !== null && Object.keys(varObj).length > 0) {
+            //                                         response.body.variables.push({
+            //                                             name: vName,
+            //                                             value: varObj,
+            //                                             variablesReference: 0
+            //                                         });
+            //                                     }
+            //                                 }
+            //                                 catch (ex) {
+            // 
+            //                                 }
+            //                                 resolve();
+            //                             });
+            //                         });
+            // 
+            //                         promises.push(p);
+            //                     });
+            // 
+            //                     Promise.all(promises).then(() => {
+            //                         this.sendResponse(response);
+            //                     });
+            //                 });
+            // 
+            //             }
+            //             else {
+            this.sendResponse(response);
+            // }
         });
     }
 

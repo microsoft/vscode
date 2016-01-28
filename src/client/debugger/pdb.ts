@@ -11,7 +11,7 @@ import * as fs from 'fs';
 import * as child_process from 'child_process';
 import * as StringDecoder from 'string_decoder';
 import {DebugSession, InitializedEvent, TerminatedEvent, StoppedEvent, OutputEvent, Thread, StackFrame, Scope, Source, Handles} from 'vscode-debugadapter';
-
+import * as settings from './../common/configSettings';
 
 function ignoreEmpty(line) {
     return line.trim() !== "" && line.trim() !== "(Pdb)" && line.trim() !== "\n" && line.trim() !== "\r" && line.trim() !== "\r\n";
@@ -20,7 +20,6 @@ function ignorePrefix(line) {
     line = line.trim();
     return line !== "->" && line !== ">" && line;
 }
-
 
 export interface IPdbCommand {
     commandLine: string
@@ -41,10 +40,17 @@ export class PdbRunner {
     private pythonProc: child_process.ChildProcess;//pty.Terminal;
     private _sourceFile: string;
     private debugSession: DebugSession;
-
-    public constructor(sourceFile: string, debugSession: DebugSession) {
+    private settings: settings.IPythonSettings;
+    private debugArgs: string[];
+    private pythonPath: string;
+    private stopOnEntry: boolean;
+    public constructor(sourceFile: string, debugSession: DebugSession, settings: settings.IPythonSettings, args: string[], pythonPath: string, stopOnEntry?: boolean) {
         this._sourceFile = sourceFile;
         this.debugSession = debugSession;
+        this.settings = settings;
+        this.debugArgs = args;
+        this.pythonPath = pythonPath;
+        this.stopOnEntry = stopOnEntry === true;
         this.initProc();
     }
 
@@ -55,12 +61,28 @@ export class PdbRunner {
     private initProc() {
         var fileDir = path.dirname(this._sourceFile);
         try {
-            this.pythonProc = child_process.spawn("python", ["-u", "-m", "pdb", this._sourceFile], {
+            //If there's a space in file path, use double quotes
+            var sourceFile = this._sourceFile;
+            if (this._sourceFile.indexOf(" ") > 0) {
+                sourceFile = `"${sourceFile}"`;
+            }
+
+            var procArgs = [];
+            // if (this.stopOnEntry) {
+            procArgs = ["-u", "-m", "pdb", sourceFile];
+            // }
+            // else {
+            //     procArgs = ["-u", "pdb", sourceFile];
+            // }
+
+            procArgs = procArgs.concat(this.debugArgs);
+            this.pythonProc = child_process.spawn(this.pythonPath, procArgs, {
                 cwd: fileDir
             });
         }
         catch (ex) {
             var y = "";
+            this.sendRemoteConsoleLog(ex.message);
         }
         // // pipe the main process input to the child process
         // process.stdin.pipe(this.pythonProc.stdin);
@@ -110,28 +132,10 @@ export class PdbRunner {
 
                 this.pendingCommands.push(pdbCmd);
                 this.invokeNextCommand();
-                //                 if (this.executingCommands.length === 0) {
-                //                     this.executingCommands.push(pdbCmd);
-                //                     this.pythonProc.stdin.write(pdbCmd.commandLine + "\n");
-                //                 }
-                //                 else {
-                //                     var promises = this.pendingCommands.map(cmd=> cmd.promise);
-                //                     var promiseCount = promises.length;
-                //                     this.pendingCommands.push(pdbCmd);
-                //                     Promise.all(promises).then(() => {
-                //                         var x = promiseCount;
-                //                         if (this.executingCommands.length > 0) {
-                //                             var y = "";
-                //                         }
-                // 
-                //                         this.executingCommands.push(pdbCmd);
-                //                         this.pythonProc.stdin.write(pdbCmd.commandLine + "\n");
-                //                     });
-                //                 }
             });
         });
     }
- 
+
     private invokeNextCommand() {
         if (this.pendingCommands.length === 0) {
             return;

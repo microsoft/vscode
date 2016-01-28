@@ -21,6 +21,21 @@
             "request": "attach",
             "sourceMaps": true,
             "port": 6004
+        },
+        {
+            "name": "Attach to python debug server",
+            "type": "node",
+            "request": "launch",
+            "runtimeArgs": [
+                "--harmony"
+            ],
+            "program": "./out/client/debugger/main.js",
+            "stopOnEntry": false,
+            "args": [
+                "--server=4711"
+            ],
+            "sourceMaps": true,
+            "outDir": "./out/client"
         }
     ]
 }
