@@ -12,7 +12,7 @@
 		},
 		{
 			"id": "cpp",
-			"extensions": [ ".cpp", ".cc", ".cxx", ".hpp", ".hh", ".hxx", ".h", ".mm" ],
+			"extensions": [ ".cpp", ".cc", ".cxx", ".hpp", ".hh", ".hxx", ".h", ".mm", ".ino" ],
 			"aliases": [ "C++", "Cpp", "cpp"],
 			"configuration": "./cpp.configuration.json"
 		}],
