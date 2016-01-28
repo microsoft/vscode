@@ -68,7 +68,7 @@ export class EmptyView extends CollapsibleView {
 		return Promise.as(null);
 	}
 
-	public focus(): void {
+	public focusBody(): void {
 		// Ignore
 	}
 

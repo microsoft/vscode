@@ -93,6 +93,10 @@ export class View extends ee.EventEmitter {
 		// to implement
 	}
 
+	public focus(): void {
+		// to implement
+	}
+
 	public layout(size: number, orientation: Orientation): void {
 		// to optionally implement
 	}
@@ -223,6 +227,12 @@ export class AbstractCollapsibleView extends HeaderView {
 			} else if (event.equals(CommonKeybindings.ESCAPE)) {
 				this.header.blur();
 				eventHandled = true;
+			} else if (event.equals(CommonKeybindings.UP_ARROW)) {
+				this.emit('focusPrevious');
+				eventHandled = true;
+			} else if (event.equals(CommonKeybindings.DOWN_ARROW)) {
+				this.emit('focusNext');
+				eventHandled = true;
 			}
 
 			if (eventHandled) {
@@ -243,6 +253,12 @@ export class AbstractCollapsibleView extends HeaderView {
 		this.focusTracker.addBlurListener(() => {
 			dom.removeClass(this.header, 'focused');
 		});
+	}
+
+	public focus(): void {
+		if (this.header) {
+			this.header.focus();
+		}
 	}
 
 	public layout(size: number, orientation: Orientation): void {
@@ -387,6 +403,8 @@ export class SplitView implements
 	private viewElements: HTMLElement[];
 	private views: View[];
 	private viewChangeListeners: lifecycle.IDisposable[];
+	private viewFocusPreviousListeners: lifecycle.IDisposable[];
+	private viewFocusNextListeners: lifecycle.IDisposable[];
 	private initialWeights: number[];
 	private sashOrientation: sash.Orientation;
 	private sashes: sash.Sash[];
@@ -412,6 +430,8 @@ export class SplitView implements
 		this.viewElements = [];
 		this.views = [];
 		this.viewChangeListeners = [];
+		this.viewFocusPreviousListeners = [];
+		this.viewFocusNextListeners = [];
 		this.initialWeights = [];
 		this.sashes = [];
 		this.sashesListeners = [];
@@ -475,6 +495,9 @@ export class SplitView implements
 
 		this.viewChangeListeners.splice(index, 0, view.addListener2('change', size => this.onViewChange(view, size)));
 		this.onViewChange(view, view.minimumSize);
+
+		this.viewFocusPreviousListeners.splice(index, 0, view.addListener2('focusPrevious', () => index > 0 && this.views[index - 1].focus()));
+		this.viewFocusNextListeners.splice(index, 0, view.addListener2('focusNext', () => index < this.views.length && this.views[index + 1].focus()));
 	}
 
 	public removeView(view: View): void {
@@ -494,6 +517,12 @@ export class SplitView implements
 
 		this.viewChangeListeners[index].dispose();
 		this.viewChangeListeners.splice(index, 1);
+
+		this.viewFocusPreviousListeners[index].dispose();
+		this.viewFocusPreviousListeners.splice(index, 1);
+
+		this.viewFocusNextListeners[index].dispose();
+		this.viewFocusNextListeners.splice(index, 1);
 
 		this.views.splice(index, 1);
 		this.el.removeChild(this.viewElements[index]);

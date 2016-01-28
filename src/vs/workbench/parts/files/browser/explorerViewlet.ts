@@ -116,9 +116,9 @@ export class ExplorerViewlet extends Viewlet {
 		super.focus();
 
 		if (this.explorerView) {
-			this.explorerView.focus();
+			this.explorerView.focusBody();
 		} else if (this.workingFilesView) {
-			this.workingFilesView.focus();
+			this.workingFilesView.focusBody();
 		}
 	}
 

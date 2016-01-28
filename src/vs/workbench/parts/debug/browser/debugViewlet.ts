@@ -485,7 +485,7 @@ export class DebugViewlet extends viewlet.Viewlet {
 		super.focus();
 
 		if (this.views.length > 0) {
-			(<VariablesView>this.views[0]).focus();
+			(<VariablesView>this.views[0]).focusBody();
 		}
 	}
 

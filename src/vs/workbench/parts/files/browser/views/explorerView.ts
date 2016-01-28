@@ -196,8 +196,8 @@ export class ExplorerView extends CollapsibleViewletView {
 		}
 	}
 
-	public focus(): void {
-		super.focus();
+	public focusBody(): void {
+		super.focusBody();
 
 		// Open the focused element in the editor if there is currently no file opened
 		let input = this.editorService.getActiveEditorInput();

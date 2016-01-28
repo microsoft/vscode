@@ -361,7 +361,7 @@ export class AdaptiveCollapsibleViewletView extends FixedCollapsibleView impleme
 		return Promise.as(null);
 	}
 
-	public focus(): void {
+	public focusBody(): void {
 		focus(this.tree);
 	}
 
@@ -488,7 +488,7 @@ export class CollapsibleViewletView extends CollapsibleView implements IViewletV
 		return Promise.as(null);
 	}
 
-	public focus(): void {
+	public focusBody(): void {
 		focus(this.tree);
 	}
 
