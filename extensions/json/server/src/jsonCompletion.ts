@@ -207,8 +207,10 @@ export class JSONCompletion {
 
 	private getSchemaLessValueSuggestions(doc: Parser.JSONDocument, node: Parser.ASTNode, offset: number, document: ITextDocument, collector: ISuggestionsCollector): void {
 		let collectSuggestionsForValues = (value: Parser.ASTNode) => {
-			let content = this.getMatchingSnippet(value, document);
-			collector.add({ kind: this.getSuggestionKind(value.type), label: content, insertText: content, documentation: '' });
+			if (!value.contains(offset)) {
+				let content = this.getMatchingSnippet(value, document);
+				collector.add({ kind: this.getSuggestionKind(value.type), label: content, insertText: content, documentation: '' });
+			}
 			if (value.type === 'boolean') {
 				this.addBooleanSuggestion(!value.getValue(), collector);
 			}
