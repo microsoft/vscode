@@ -79,7 +79,7 @@ const nlsMultiSelectionRange = nls.localize('multiSelectionRange', "{0} selectio
 const nlsMultiSelection = nls.localize('multiSelection', "{0} selections");
 const nlsEOLLF = nls.localize('endOfLineLineFeed', "LF");
 const nlsEOLCRLF = nls.localize('endOfLineCarriageReturnLineFeed', "CRLF");
-const nlsTabFocusMode = nls.localize('tabFocusModeEnabled', "Accessibility Mode On");
+const nlsTabFocusMode = nls.localize('tabFocusModeEnabled', "Tab moves focus");
 
 export class EditorStatus implements IStatusbarItem {
 
