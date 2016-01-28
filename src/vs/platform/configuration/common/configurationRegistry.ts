@@ -60,7 +60,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 
 	constructor() {
 		this.configurationContributors = [];
-		this.configurationSchema = { anyOf: [] };
+		this.configurationSchema = { allOf: [] };
 		this._onDidRegisterConfiguration = new Emitter<IConfigurationRegistry>();
 
 		contributionRegistry.registerSchema(schemaId, this.configurationSchema);
@@ -87,7 +87,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 
 	private registerJSONConfiguration(configuration: IConfigurationNode) {
 		var schema = <IJSONSchema> objects.clone(configuration);
-		this.configurationSchema.anyOf.push(schema);
+		this.configurationSchema.allOf.push(schema);
 		contributionRegistry.registerSchema(schemaId, this.configurationSchema);
 	}
 }
