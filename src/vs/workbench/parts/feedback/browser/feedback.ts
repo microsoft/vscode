@@ -104,7 +104,7 @@ export class FeedbackDropdown extends Dropdown {
 
 		this.feedbackForm = <HTMLFormElement>$form.getHTMLElement();
 
-		$('h2.title').text(nls.localize("label.sendASmile", "Let us know how we're doing")).appendTo($form);
+		$('h2.title').text(nls.localize("label.sendASmile", "Tweet us your feedback")).appendTo($form);
 
 		this.invoke($('div.cancel').attr('tabindex', '0'), () => {
 			this.hide();
@@ -172,7 +172,7 @@ export class FeedbackDropdown extends Dropdown {
 
 		let $buttons = $('div.form-buttons').appendTo($form);
 
-		this.sendButton = this.invoke($('input.send').type('submit').attr('disabled', '').value(nls.localize('send', "Send")).appendTo($buttons), () => {
+		this.sendButton = this.invoke($('input.send').type('submit').attr('disabled', '').value(nls.localize('tweet', "Tweet")).appendTo($buttons), () => {
 			if (this.isSendingFeedback) {
 				return;
 			}

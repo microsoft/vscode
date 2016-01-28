@@ -304,7 +304,8 @@ export class AdaptiveCollapsibleViewletView extends FixedCollapsibleView impleme
 		super({
 			expandedBodySize: initialBodySize,
 			headerSize: 22,
-			initialState: collapsed ? CollapsibleState.COLLAPSED : CollapsibleState.EXPANDED
+			initialState: collapsed ? CollapsibleState.COLLAPSED : CollapsibleState.EXPANDED,
+			ariaHeaderLabel: viewName
 		});
 
 		this.actionRunner = actionRunner;
@@ -320,7 +321,8 @@ export class AdaptiveCollapsibleViewletView extends FixedCollapsibleView impleme
 		// Tool bar
 		this.toolBar = new ToolBar($('div.actions').appendTo(container).getHTMLElement(), this.contextMenuService, {
 			orientation: ActionsOrientation.HORIZONTAL,
-			actionItemProvider: (action) => { return this.getActionItem(action); }
+			actionItemProvider: (action) => { return this.getActionItem(action); },
+			ariaLabel: nls.localize('viewToolbarAriaLabel', "{0} actions", this.viewName)
 		});
 		this.toolBar.actionRunner = this.actionRunner;
 		this.toolBar.setActions(prepareActions(this.getActions()), prepareActions(this.getSecondaryActions()))();
@@ -334,7 +336,7 @@ export class AdaptiveCollapsibleViewletView extends FixedCollapsibleView impleme
 	}
 
 	protected changeState(state: CollapsibleState): void {
-		changeState(state, this.tree);
+		updateTreeVisibility(this.tree, state === CollapsibleState.EXPANDED);
 
 		super.changeState(state);
 	}
@@ -354,11 +356,7 @@ export class AdaptiveCollapsibleViewletView extends FixedCollapsibleView impleme
 	public setVisible(visible: boolean): TPromise<void> {
 		this.isVisible = visible;
 
-		if (visible) {
-			this.tree.onVisible();
-		} else {
-			this.tree.onHidden();
-		}
+		updateTreeVisibility(this.tree, this.state === CollapsibleState.EXPANDED);
 
 		return Promise.as(null);
 	}
@@ -433,7 +431,8 @@ export class CollapsibleViewletView extends CollapsibleView implements IViewletV
 	) {
 		super({
 			minimumSize: 2 * 22,
-			initialState: collapsed ? CollapsibleState.COLLAPSED : CollapsibleState.EXPANDED
+			initialState: collapsed ? CollapsibleState.COLLAPSED : CollapsibleState.EXPANDED,
+			ariaHeaderLabel: viewName
 		});
 
 		this.actionRunner = actionRunner;
@@ -441,7 +440,7 @@ export class CollapsibleViewletView extends CollapsibleView implements IViewletV
 	}
 
 	protected changeState(state: CollapsibleState): void {
-		changeState(state, this.tree);
+		updateTreeVisibility(this.tree, state === CollapsibleState.EXPANDED);
 
 		super.changeState(state);
 	}
@@ -455,7 +454,8 @@ export class CollapsibleViewletView extends CollapsibleView implements IViewletV
 		// Tool bar
 		this.toolBar = new ToolBar($('div.actions').appendTo(container).getHTMLElement(), this.contextMenuService, {
 			orientation: ActionsOrientation.HORIZONTAL,
-			actionItemProvider: (action) => { return this.getActionItem(action); }
+			actionItemProvider: (action) => { return this.getActionItem(action); },
+			ariaLabel: nls.localize('viewToolbarAriaLabel', "{0} actions", this.viewName)
 		});
 		this.toolBar.actionRunner = this.actionRunner;
 		this.toolBar.setActions(prepareActions(this.getActions()), prepareActions(this.getSecondaryActions()))();
@@ -483,11 +483,7 @@ export class CollapsibleViewletView extends CollapsibleView implements IViewletV
 	public setVisible(visible: boolean): TPromise<void> {
 		this.isVisible = visible;
 
-		if (visible) {
-			this.tree.onVisible();
-		} else {
-			this.tree.onHidden();
-		}
+		updateTreeVisibility(this.tree, this.state === CollapsibleState.EXPANDED);
 
 		return Promise.as(null);
 	}
@@ -544,22 +540,26 @@ export class CollapsibleViewletView extends CollapsibleView implements IViewletV
 
 function renderViewTree(container: HTMLElement): HTMLElement {
 	let treeContainer = document.createElement('div');
-	DOM.addClass(treeContainer, 'explorer-view-content');
 	container.appendChild(treeContainer);
 
 	return treeContainer;
 }
 
-function changeState(state: CollapsibleState, tree: ITree): void {
+function updateTreeVisibility(tree: ITree, isVisible: boolean): void {
 	if (!tree) {
 		return;
 	}
 
-	if (state == CollapsibleState.EXPANDED) {
+	if (isVisible) {
 		$(tree.getHTMLElement()).show();
-		tree.DOMFocus(); // make the tree have focus once a view gets expanded
 	} else {
 		$(tree.getHTMLElement()).hide(); // make sure the tree goes out of the tabindex world by hiding it
+	}
+
+	if (isVisible) {
+		tree.onVisible();
+	} else {
+		tree.onHidden();
 	}
 }
 

@@ -182,7 +182,7 @@ class DefaultSettingsInput extends StringEditorInput {
 	}
 
 	protected getResource(): URI {
-		return URI.create(network.schemas.inMemory, 'defaults', '/settings.json'); // URI is used to register JSON schema support
+		return URI.create('vscode', 'defaultsettings', '/settings.json'); // URI is used to register JSON schema support
 	}
 }
 
@@ -201,7 +201,7 @@ class DefaultKeybindingsInput extends StringEditorInput {
 	}
 
 	protected getResource(): URI {
-		return URI.create(network.schemas.inMemory, 'defaults', '/keybindings.json'); // URI is used to register JSON schema support
+		return URI.create('vscode', 'defaultsettings', '/keybindings.json'); // URI is used to register JSON schema support
 	}
 }
 

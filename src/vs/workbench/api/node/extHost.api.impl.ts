@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import {Emitter} from 'vs/base/common/event';
 import {IBracketElectricCharacterContribution} from 'vs/editor/common/modes/supports';
 import {score} from 'vs/editor/common/modes/languageSelector';
 import {Remotable, IThreadService} from 'vs/platform/thread/common/thread';
@@ -39,7 +40,7 @@ import {CancellationTokenSource} from 'vs/base/common/cancellation';
 import vscode = require('vscode');
 import {TextEditorRevealType} from 'vs/workbench/api/node/mainThreadEditors';
 import * as paths from 'vs/base/common/paths';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
+import {ITelemetryService, ITelemetryInfo} from 'vs/platform/telemetry/common/telemetry';
 
 /**
  * This class implements the API described in vscode.d.ts,
@@ -71,6 +72,7 @@ export class ExtHostAPIImplementation {
 	Range: typeof vscode.Range;
 	Selection: typeof vscode.Selection;
 	CancellationTokenSource: typeof vscode.CancellationTokenSource;
+	EventEmitter: typeof vscode.EventEmitter;
 	Hover: typeof vscode.Hover;
 	DocumentHighlightKind: typeof vscode.DocumentHighlightKind;
 	DocumentHighlight: typeof vscode.DocumentHighlight;
@@ -82,6 +84,7 @@ export class ExtHostAPIImplementation {
 	SignatureHelp: typeof vscode.SignatureHelp;
 	CompletionItem: typeof vscode.CompletionItem;
 	CompletionItemKind: typeof vscode.CompletionItemKind;
+	CompletionList: typeof vscode.CompletionList;
 	IndentAction: typeof vscode.IndentAction;
 	OverviewRulerLane: typeof vscode.OverviewRulerLane;
 	TextEditorRevealType: typeof vscode.TextEditorRevealType;
@@ -105,7 +108,8 @@ export class ExtHostAPIImplementation {
 		this.Uri = URI;
 		this.Location = extHostTypes.Location;
 		this.Diagnostic = <any> extHostTypes.Diagnostic;
-		this.DiagnosticSeverity = <any> extHostTypes.DiagnosticSeverity;
+		this.DiagnosticSeverity = <any>extHostTypes.DiagnosticSeverity;
+		this.EventEmitter = Emitter;
 		this.Disposable = extHostTypes.Disposable;
 		this.TextEdit = extHostTypes.TextEdit;
 		this.WorkspaceEdit = extHostTypes.WorkspaceEdit;
@@ -124,6 +128,7 @@ export class ExtHostAPIImplementation {
 		this.SignatureHelp = extHostTypes.SignatureHelp;
 		this.CompletionItem = <any>extHostTypes.CompletionItem;
 		this.CompletionItemKind = <any>extHostTypes.CompletionItemKind;
+		this.CompletionList = extHostTypes.CompletionList;
 		this.ViewColumn = <any>extHostTypes.ViewColumn;
 		this.StatusBarAlignment = <any>extHostTypes.StatusBarAlignment;
 		this.IndentAction = <any>Modes.IndentAction;
@@ -142,15 +147,13 @@ export class ExtHostAPIImplementation {
 		const extHostOutputService = new ExtHostOutputService(this._threadService);
 
 		// env namespace
-		this.env = {
-			machineId: undefined,
-			sessionId: undefined,
-			// locale: undefined
-		}
-		telemetryService.getTelemetryInfo().then(info => {
-			this.env.machineId = info.machineId;
-			this.env.sessionId = info.sessionId;
-		}, errors.onUnexpectedError);
+		let telemetryInfo: ITelemetryInfo;
+		this.env = Object.freeze({
+			get machineId() { return telemetryInfo.machineId },
+			get sessionId() { return telemetryInfo.sessionId },
+			get language() { return contextService.getConfiguration().env.language }
+		});
+		telemetryService.getTelemetryInfo().then(info => telemetryInfo = info, errors.onUnexpectedError);
 
 		// commands namespace
 		this.commands = {

@@ -46,7 +46,7 @@ class SelectThemeAction extends actions.Action {
 
 			let picks: IPickOpenEntry[] = [];
 			Themes.getBaseThemes(commonPlatform.isWindows).forEach(baseTheme => {
-				picks.push({ label: Themes.toLabel(baseTheme), id: Themes.toId(baseTheme), description: nls.localize('themes.defaultTheme', "Default color theme") });
+				picks.push({ label: Themes.toLabel(baseTheme), id: Themes.toId(baseTheme) });
 			});
 
 			let contributedThemesById : { [id:string]: ITheme } = {};

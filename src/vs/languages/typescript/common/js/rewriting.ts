@@ -175,7 +175,7 @@ export function decodeVariableNames(name: string|htmlContent.IHTMLContentElement
 		var stack = name.slice(0);
 		while (stack.length) {
 			var element = stack.shift();
-			element.text = element.text && _doDecodeVariableName(element.text, sourceFile);
+			element.markdown = element.markdown && _doDecodeVariableName(element.markdown, sourceFile);
 			if(element.children){
 				stack.push.apply(stack, element.children);
 			}

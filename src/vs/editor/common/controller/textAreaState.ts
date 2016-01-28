@@ -33,9 +33,10 @@ export interface ITextAreaWrapper {
 	onCopy: Event<IClipboardEvent>;
 	onPaste: Event<IClipboardEvent>;
 
-	value: string;
-	selectionStart: number;
-	selectionEnd: number;
+	getValue(): string;
+	setValue(reason:string, value:string): void;
+	getSelectionStart(): number;
+	getSelectionEnd(): number;
 
 	setSelectionRange(selectionStart:number, selectionEnd:number): void;
 	isInOverwriteMode(): boolean;
@@ -47,6 +48,23 @@ export interface ISimpleModel {
 	getModelLineContent(lineNumber:number): string;
 	getLineCount(): number;
 	convertViewPositionToModelPosition(viewLineNumber:number, viewColumn:number): EditorCommon.IEditorPosition;
+}
+
+export interface ITypeData {
+	text: string;
+	replaceCharCnt: number;
+}
+
+export enum TextAreaStrategy {
+	IENarrator,
+	NVDA
+}
+
+export function createTextAreaState(strategy:TextAreaStrategy): TextAreaState {
+	if (strategy === TextAreaStrategy.IENarrator) {
+		return IENarratorTextAreaState.EMPTY;
+	}
+	return NVDATextAreaState.EMPTY;
 }
 
 export abstract class TextAreaState {
@@ -71,6 +89,8 @@ export abstract class TextAreaState {
 
 	public abstract toString(): string;
 
+	public abstract toStrategy(strategy:TextAreaStrategy): TextAreaState;
+
 	public abstract equals(other:TextAreaState): boolean;
 
 	public abstract fromTextArea(textArea:ITextAreaWrapper): TextAreaState;
@@ -91,62 +111,80 @@ export abstract class TextAreaState {
 
 	public applyToTextArea(reason:string, textArea:ITextAreaWrapper, select:boolean): void {
 		// console.log(Date.now() + ': applyToTextArea ' + reason + ': ' + this.toString());
-		if (textArea.value !== this.value) {
-			textArea.value = this.value;
+		if (textArea.getValue() !== this.value) {
+			textArea.setValue(reason, this.value);
 		}
 		if (select) {
 			textArea.setSelectionRange(this.selectionStart, this.selectionEnd);
 		}
 	}
 
-	public extractNewText(): string {
-		// console.log('-----------')
-		// console.log('prev:' + String(previousState));
-		// console.log('curr:' + String(this));
-		if (this.selectionStart !== this.selectionEnd) {
-			// There is a selection in the textarea => ignore input
-			return '';
-		}
+	public deduceInput(): ITypeData {
 		if (!this.previousState) {
-			return this.value;
-		}
-		let previousPrefix = this.previousState.value.substring(0, this.previousState.selectionStart);
-		let previousSuffix = this.previousState.value.substring(this.previousState.selectionEnd, this.previousState.value.length);
-
-		if (this.isInOverwriteMode) {
-			previousSuffix = previousSuffix.substr(1);
+			// This is the EMPTY state
+			return {
+				text: '',
+				replaceCharCnt: 0
+			};
 		}
 
-		let value = this.value;
-		if (value.substring(0, previousPrefix.length) === previousPrefix) {
-			value = value.substring(previousPrefix.length);
-		}
-		if (value.substring(value.length - previousSuffix.length, value.length) === previousSuffix) {
-			value = value.substring(0, value.length - previousSuffix.length);
-		}
-		return value;
-	}
+		// console.log('------------------------deduceInput');
+		// console.log('CURRENT STATE: ' + this.toString());
+		// console.log('PREVIOUS STATE: ' + this.previousState.toString());
 
-	public extractMacReplacedText(): string {
-		// Ignore if the textarea has selection
-		if (this.selectionStart !== this.selectionEnd) {
-			return '';
-		}
-		if (!this.previousState) {
-			return '';
-		}
-		if (this.previousState.value.length !== this.value.length) {
-			return '';
+		let previousValue = this.previousState.value;
+		let previousSelectionStart = this.previousState.selectionStart;
+		let previousSelectionEnd = this.previousState.selectionEnd;
+		let currentValue = this.value;
+		let currentSelectionStart = this.selectionStart;
+		let currentSelectionEnd = this.selectionEnd;
+
+		// Strip the previous suffix from the value (without interfering with the current selection)
+		let previousSuffix = previousValue.substring(previousSelectionEnd);
+		let currentSuffix = currentValue.substring(currentSelectionEnd);
+		let suffixLength = commonSuffixLength(previousSuffix, currentSuffix);
+		currentValue = currentValue.substring(0, currentValue.length - suffixLength);
+		previousValue = previousValue.substring(0, previousValue.length - suffixLength);
+
+		let previousPrefix = previousValue.substring(0, previousSelectionStart);
+		let currentPrefix = currentValue.substring(0, currentSelectionStart);
+		let prefixLength = commonPrefixLength(previousPrefix, currentPrefix);
+		currentValue = currentValue.substring(prefixLength);
+		previousValue = previousValue.substring(prefixLength);
+		currentSelectionStart -= prefixLength;
+		previousSelectionStart -= prefixLength;
+		currentSelectionEnd -= prefixLength;
+		previousSelectionEnd -= prefixLength;
+
+		// console.log('AFTER DIFFING CURRENT STATE: <' + currentValue + '>, selectionStart: ' + currentSelectionStart + ', selectionEnd: ' + currentSelectionEnd);
+		// console.log('AFTER DIFFING PREVIOUS STATE: <' + previousValue + '>, selectionStart: ' + previousSelectionStart + ', selectionEnd: ' + previousSelectionEnd);
+
+		if (currentSelectionStart === currentSelectionEnd) {
+			// composition accept case
+			// [blahblah] => blahblah|
+			if (previousValue === currentValue && previousSelectionStart === 0 && previousSelectionEnd === previousValue.length && currentSelectionStart === currentValue.length) {
+				return {
+					text: '',
+					replaceCharCnt: 0
+				};
+			}
+
+			// no current selection
+			let replacePreviousCharacters = (previousPrefix.length - prefixLength);
+			// console.log('REMOVE PREVIOUS: ' + (previousPrefix.length - prefixLength) + ' chars');
+
+			return {
+				text: currentValue,
+				replaceCharCnt: replacePreviousCharacters
+			};
 		}
 
-		let prefixLength = commonPrefixLength(this.previousState.value, this.value);
-		let suffixLength = commonSuffixLength(this.previousState.value, this.value);
-
-		if (prefixLength + suffixLength + 1 !== this.value.length) {
-			return '';
-		}
-
-		return this.value.charAt(prefixLength);
+		// there is a current selection => composition case
+		let replacePreviousCharacters = previousSelectionEnd - previousSelectionStart;
+		return {
+			text: currentValue,
+			replaceCharCnt: replacePreviousCharacters
+		};
 	}
 }
 
@@ -172,6 +210,13 @@ export class IENarratorTextAreaState extends TextAreaState {
 		return '[ <' + this.value + '>, selectionStart: ' + this.selectionStart + ', selectionEnd: ' + this.selectionEnd + ', isInOverwriteMode: ' + this.isInOverwriteMode + ', selectionToken: ' + this.selectionToken + ']';
 	}
 
+	public toStrategy(strategy:TextAreaStrategy): TextAreaState {
+		if (strategy === TextAreaStrategy.IENarrator) {
+			return this;
+		}
+		return new NVDATextAreaState(this.previousState, this.value, this.selectionStart, this.selectionEnd, this.isInOverwriteMode);
+	}
+
 	public equals(other:TextAreaState): boolean {
 		if (other instanceof IENarratorTextAreaState) {
 			return (
@@ -186,7 +231,7 @@ export class IENarratorTextAreaState extends TextAreaState {
 	}
 
 	public fromTextArea(textArea:ITextAreaWrapper): TextAreaState {
-		return new IENarratorTextAreaState(this, textArea.value, textArea.selectionStart, textArea.selectionEnd, textArea.isInOverwriteMode(), this.selectionToken);
+		return new IENarratorTextAreaState(this, textArea.getValue(), textArea.getSelectionStart(), textArea.getSelectionEnd(), textArea.isInOverwriteMode(), this.selectionToken);
 	}
 
 	public fromEditorSelection(model:ISimpleModel, selection:EditorCommon.IEditorRange): TextAreaState {
@@ -266,6 +311,13 @@ export class NVDATextAreaState extends TextAreaState {
 		return '[ <ENTIRE TEXT' + /*this.value +*/ '>, selectionStart: ' + this.selectionStart + ', selectionEnd: ' + this.selectionEnd + ', isInOverwriteMode: ' + this.isInOverwriteMode + ']';
 	}
 
+	public toStrategy(strategy:TextAreaStrategy): TextAreaState {
+		if (strategy === TextAreaStrategy.NVDA) {
+			return this;
+		}
+		return new IENarratorTextAreaState(this.previousState, this.value, this.selectionStart, this.selectionEnd, this.isInOverwriteMode, 0);
+	}
+
 	public equals(other:TextAreaState): boolean {
 		if (other instanceof NVDATextAreaState) {
 			return (
@@ -279,7 +331,7 @@ export class NVDATextAreaState extends TextAreaState {
 	}
 
 	public fromTextArea(textArea:ITextAreaWrapper): TextAreaState {
-		return new NVDATextAreaState(this, textArea.value, textArea.selectionStart, textArea.selectionEnd, textArea.isInOverwriteMode());
+		return new NVDATextAreaState(this, textArea.getValue(), textArea.getSelectionStart(), textArea.getSelectionEnd(), textArea.isInOverwriteMode());
 	}
 
 	public fromEditorSelection(model:ISimpleModel, selection:EditorCommon.IEditorRange): TextAreaState {

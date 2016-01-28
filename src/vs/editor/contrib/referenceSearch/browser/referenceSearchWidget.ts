@@ -350,8 +350,11 @@ class Renderer extends treeDefaults.LegacyRenderer {
 				preview = oneReference.parent.preview.preview(oneReference.range);
 
 			oneReferenceContainer.innerHtml(
-				strings.format('<span>{0}</span><span class="referenceMatch">{1}</span><span>{2}</span>',
-				preview.before, preview.inside, preview.after)).appendTo(container);
+				strings.format(
+					'<span>{0}</span><span class="referenceMatch">{1}</span><span>{2}</span>',
+					strings.escape(preview.before),
+					strings.escape(preview.inside),
+					strings.escape(preview.after))).appendTo(container);
 		}
 
 		return null;
@@ -455,7 +458,8 @@ export class ReferenceWidget extends peekViewWidget.PeekViewWidget {
 
 			var options = {
 				allowHorizontalScroll: false,
-				twistiePixels: 20
+				twistiePixels: 20,
+				ariaLabel: nls.localize('treeAriaLabel', "References")
 			};
 			this.tree = new treeWidget.Tree(div.getHTMLElement(), config, options);
 

@@ -238,7 +238,8 @@ export class QuickFixSelectionWidget implements EditorBrowser.IContentWidget {
 			twistiePixels: 0,
 			alwaysFocused: true,
 			verticalScrollMode: 'visible',
-			useShadows: false
+			useShadows: false,
+			ariaLabel: nls.localize('treeAriaLabel', "Quick Fix")
 		});
 
 		this.listenersToRemove.push(this.tree.addListener('selection', (e:Tree.ISelectionEvent) => {

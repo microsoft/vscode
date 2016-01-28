@@ -180,7 +180,7 @@ function isCamelCaseWord(word: string): boolean {
 		return false;
 	}
 
-	let upper = 0, lower = 0, alpha = 0, code = 0;
+	let upper = 0, lower = 0, alpha = 0, numeric = 0, code = 0;
 
 	for (let i = 0; i < word.length; i++) {
 		code = word.charCodeAt(i);
@@ -188,13 +188,15 @@ function isCamelCaseWord(word: string): boolean {
 		if (isUpper(code)) upper++;
 		if (isLower(code)) lower++;
 		if (isAlphanumeric(code)) alpha++;
+		if (isNumber(code)) numeric++;
 	}
 
 	let upperPercent = upper / word.length;
 	let lowerPercent = lower / word.length;
 	let alphaPercent = alpha / word.length;
+	let numericPercent = numeric / word.length;
 
-	return lowerPercent > 0.2 && upperPercent < 0.8 && alphaPercent > 0.6;
+	return lowerPercent > 0.2 && upperPercent < 0.8 && alphaPercent > 0.6 && numericPercent < 0.2;
 }
 
 // Heuristic to avoid computing camel case matcher for words that don't

@@ -41,9 +41,12 @@ function renderViewTree(container: HTMLElement): HTMLElement {
 	return treeContainer;
 }
 
-const debugTreeOptions = {
-	indentPixels: 8,
-	twistiePixels: 20
+const debugTreeOptions = (ariaLabel: string) => {
+	return <tree.ITreeOptions> {
+		indentPixels: 8,
+		twistiePixels: 20,
+		ariaLabel
+	};
 };
 
 const $ = builder.$;
@@ -58,7 +61,7 @@ class VariablesView extends viewlet.CollapsibleViewletView {
 		@IDebugService private debugService: IDebugService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
-		super(actionRunner, !!settings[VariablesView.MEMENTO], 'variablesView', messageService, contextMenuService);
+		super(actionRunner, !!settings[VariablesView.MEMENTO], nls.localize('variablesSection', "Variables Section"), messageService, contextMenuService);
 	}
 
 	public renderHeader(container: HTMLElement): void {
@@ -75,7 +78,7 @@ class VariablesView extends viewlet.CollapsibleViewletView {
 			dataSource: new viewer.VariablesDataSource(this.debugService),
 			renderer: this.instantiationService.createInstance(viewer.VariablesRenderer),
 			controller: new viewer.BaseDebugController(this.debugService, this.contextMenuService, new viewer.VariablesActionProvider(this.instantiationService))
-		}, debugTreeOptions);
+		}, debugTreeOptions(nls.localize('variablesAriaTreeLabel', "Variables")));
 
 		const viewModel = this.debugService.getViewModel();
 
@@ -119,7 +122,7 @@ class WatchExpressionsView extends viewlet.CollapsibleViewletView {
 		@IDebugService private debugService: IDebugService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
-		super(actionRunner, !!settings[WatchExpressionsView.MEMENTO], 'expressionsView', messageService, contextMenuService);
+		super(actionRunner, !!settings[WatchExpressionsView.MEMENTO], nls.localize('expressionsSection', "Expressions Section"), messageService, contextMenuService);
 		this.toDispose.push(this.debugService.getModel().addListener2(debug.ModelEvents.WATCH_EXPRESSIONS_UPDATED, (we) => {
 			// only expand when a new watch expression is added.
 			if (we instanceof model.Expression) {
@@ -143,7 +146,7 @@ class WatchExpressionsView extends viewlet.CollapsibleViewletView {
 			dataSource: new viewer.WatchExpressionsDataSource(this.debugService),
 			renderer: this.instantiationService.createInstance(viewer.WatchExpressionsRenderer, actionProvider, this.actionRunner),
 			controller: new viewer.WatchExpressionsController(this.debugService, this.contextMenuService, actionProvider)
-		}, debugTreeOptions);
+		}, debugTreeOptions(nls.localize('watchAriaTreeLabel', "Watch Expressions")));
 
 		this.tree.setInput(this.debugService.getModel());
 
@@ -195,7 +198,7 @@ class CallStackView extends viewlet.CollapsibleViewletView {
 		@IDebugService private debugService: IDebugService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
-		super(actionRunner, !!settings[CallStackView.MEMENTO], 'callStackView', messageService, contextMenuService);
+		super(actionRunner, !!settings[CallStackView.MEMENTO], nls.localize('callstackSection', "Call Stack Section"), messageService, contextMenuService);
 	}
 
 	public renderHeader(container: HTMLElement): void {
@@ -212,7 +215,7 @@ class CallStackView extends viewlet.CollapsibleViewletView {
 		this.tree = new treeimpl.Tree(this.treeContainer, {
 			dataSource: new viewer.CallStackDataSource(),
 			renderer: this.instantiationService.createInstance(viewer.CallStackRenderer)
-		}, debugTreeOptions);
+		}, debugTreeOptions(nls.localize('callStackAriaLabel', "Call Stack")));
 
 		const debugModel = this.debugService.getModel();
 
@@ -303,7 +306,7 @@ class BreakpointsView extends viewlet.AdaptiveCollapsibleViewletView {
 	) {
 		super(actionRunner, BreakpointsView.getExpandedBodySize(
 			debugService.getModel().getBreakpoints().length + debugService.getModel().getFunctionBreakpoints().length + debugService.getModel().getExceptionBreakpoints().length),
-			!!settings[BreakpointsView.MEMENTO], 'breakpointsView', messageService, contextMenuService);
+			!!settings[BreakpointsView.MEMENTO], nls.localize('breakpointsSection', "Breakpoints Section"), messageService, contextMenuService);
 
 		this.toDispose.push(this.debugService.getModel().addListener2(debug.ModelEvents.BREAKPOINTS_UPDATED,() => this.onBreakpointsChange()));
 	}
@@ -347,7 +350,7 @@ class BreakpointsView extends viewlet.AdaptiveCollapsibleViewletView {
 					return first.desiredLineNumber - second.desiredLineNumber;
 				}
 			}
-		}, debugTreeOptions);
+		}, debugTreeOptions(nls.localize('breakpointsAriaTreeLabel', "Breakpoints")));
 
 		const debugModel = this.debugService.getModel();
 
@@ -381,7 +384,7 @@ class BreakpointsView extends viewlet.AdaptiveCollapsibleViewletView {
 
 	public getActions(): actions.IAction[] {
 		return [
-			this.instantiationService.createInstance(debugactions.AddFunctionBreakpointAction, debugactions.AddFunctionBreakpointAction.ID, debugactions.AddFunctionBreakpointAction.LABEL),
+			// this.instantiationService.createInstance(debugactions.AddFunctionBreakpointAction, debugactions.AddFunctionBreakpointAction.ID, debugactions.AddFunctionBreakpointAction.LABEL),
 			this.instantiationService.createInstance(debugactions.ReapplyBreakpointsAction, debugactions.ReapplyBreakpointsAction.ID, debugactions.ReapplyBreakpointsAction.LABEL),
 			this.instantiationService.createInstance(debugactions.ToggleBreakpointsActivatedAction, debugactions.ToggleBreakpointsActivatedAction.ID, debugactions.ToggleBreakpointsActivatedAction.LABEL),
 			this.instantiationService.createInstance(debugactions.RemoveAllBreakpointsAction, debugactions.RemoveAllBreakpointsAction.ID, debugactions.RemoveAllBreakpointsAction.LABEL)
@@ -466,9 +469,23 @@ export class DebugViewlet extends viewlet.Viewlet {
 		return Promise.as(null);
 	}
 
+	public setVisible(visible: boolean): TPromise<void> {
+		return super.setVisible(visible).then(() => {
+			return Promise.join(this.views.map((view) => view.setVisible(visible)));
+		});
+	}
+
 	public layout(dimension: builder.Dimension): void {
 		if (this.splitView) {
 			this.splitView.layout(dimension.height);
+		}
+	}
+
+	public focus(): void {
+		super.focus();
+
+		if (this.views.length > 0) {
+			(<VariablesView>this.views[0]).focus();
 		}
 	}
 
@@ -499,10 +516,6 @@ export class DebugViewlet extends viewlet.Viewlet {
 		}
 
 		return null;
-	}
-
-	public getSecondaryActions(): actions.IAction[] {
-		return [];
 	}
 
 	private onDebugServiceStateChange(): void {

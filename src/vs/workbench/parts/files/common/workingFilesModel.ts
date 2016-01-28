@@ -11,7 +11,7 @@ import paths = require('vs/base/common/paths');
 import errors = require('vs/base/common/errors');
 import labels = require('vs/base/common/labels');
 import {disposeAll, IDisposable} from 'vs/base/common/lifecycle';
-import {ITextFileService, IWorkingFilesModel, IWorkingFileModelChangeEvent, IWorkingFileEntry, EventType, LocalFileChangeEvent, WORKING_FILES_MODEL_ENTRY_CLASS_ID} from 'vs/workbench/parts/files/common/files';
+import {ITextFileService, IWorkingFilesModel, IWorkingFileModelChangeEvent, IWorkingFileEntry, EventType, LocalFileChangeEvent, WORKING_FILES_MODEL_ENTRY_CLASS_ID, AutoSaveMode} from 'vs/workbench/parts/files/common/files';
 import {IFileStat, FileChangeType, FileChangesEvent, EventType as FileEventType} from 'vs/platform/files/common/files';
 import {UntitledEditorEvent, EventType as WorkbenchEventType, EditorEvent} from 'vs/workbench/common/events';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
@@ -85,8 +85,8 @@ export class WorkingFilesModel implements IWorkingFilesModel {
 	}
 
 	private onTextFileDirty(e: LocalFileChangeEvent): void {
-		if (!this.textFileService.isAutoSaveEnabled()) {
-			this.updateDirtyState(e.getAfter().resource, true); // no indication needed when auto save is turned off and we didn't show dirty
+		if (this.textFileService.getAutoSaveMode() !== AutoSaveMode.AFTER_SHORT_DELAY) {
+			this.updateDirtyState(e.getAfter().resource, true); // no indication needed when auto save is enabled for short delay
 		} else {
 			this.addEntry(e.getAfter().resource);
 		}

@@ -39,7 +39,7 @@ var baseModules = [
 // Build
 
 var builtInExtensions = {
-	'jrieken.vscode-omnisharp': '0.3.0',
+	'jrieken.vscode-omnisharp': '0.3.1',
 };
 
 var vscodeEntryPoints = _.flatten([
@@ -94,7 +94,7 @@ gulp.task('clean-minified-vscode', util.rimraf('out-vscode-min'));
 gulp.task('minify-vscode', ['clean-minified-vscode', 'optimize-vscode'], common.minifyTask('out-vscode', false));
 
 // Package
-var product = JSON.parse(fs.readFileSync(path.join(root, 'product.json'), 'utf8'));
+var product = require('../product.json');
 var darwinCreditsTemplate = product.darwinCredits && _.template(fs.readFileSync(path.join(root, product.darwinCredits), 'utf8'));
 
 var config = {
@@ -170,7 +170,14 @@ function packageTask(platform, arch, opts) {
 			'!extensions/*/src/**',
 			'!extensions/*/out/**/test/**',
 			'!extensions/typescript/bin/**',
-			'!extensions/vscode-api-tests/**'
+			'!extensions/vscode-api-tests/**',
+			'!extensions/json/server/.vscode/**',
+			'!extensions/json/server/src/**',
+			'!extensions/json/server/out/**/test/**',
+			'!extensions/json/server/test/**',
+			'!extensions/json/server/typings/**',
+			'!extensions/json/server/node_modules/typescript/**',
+			'!extensions/json/server/node_modules/mocha/**'
 		], { base: '.' });
 
 		var pluginHostSourceMap = gulp.src(out + '/vs/workbench/node/pluginHostProcess.js.map', { base: '.' })
@@ -204,7 +211,8 @@ function packageTask(platform, arch, opts) {
 			.pipe(util.cleanNodeModule('fsevents', ['binding.gyp', 'fsevents.cc', 'build/**', 'src/**', 'test/**'], true))
 			.pipe(util.cleanNodeModule('alexandrudima-oniguruma', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], true))
 			.pipe(util.cleanNodeModule('windows-mutex', ['binding.gyp', 'build/**', 'src/**'], true))
-			.pipe(util.cleanNodeModule('native-keymap', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], true));
+			.pipe(util.cleanNodeModule('native-keymap', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], true))
+			.pipe(util.cleanNodeModule('weak', ['binding.gyp', 'build/**', 'src/**'], true));
 
 		var resources = gulp.src('resources/*', { base: '.' });
 
@@ -236,10 +244,15 @@ function packageTask(platform, arch, opts) {
 			.pipe(filter(['**', '!LICENSE', '!LICENSES.chromium.html', '!version']));
 
 		if (platform === 'win32') {
-			result = es.merge(result, gulp.src('resources/win32/bin/**', { base: 'resources/win32' }));
+			var shortcutFilter = filter('bin/*.cmd', { restore: true });
+
+			result = es.merge(result, gulp.src('resources/win32/bin/**', { base: 'resources/win32' }))
+				.pipe(shortcutFilter)
+				.pipe(rename(function (f) { f.basename = product.win32ShortcutName; }))
+				.pipe(shortcutFilter.restore);
 		}
 
-		return result.pipe(opts.zip ? electron.zfsdest(destination + '.zip') : symdest(destination));
+		return result.pipe(symdest(destination));
 	};
 }
 
@@ -260,18 +273,6 @@ gulp.task('vscode-darwin-min', ['minify-vscode', 'clean-vscode-darwin'], package
 gulp.task('vscode-linux-ia32-min', ['minify-vscode', 'clean-vscode-linux-ia32'], packageTask('linux', 'ia32', { minified: true }));
 gulp.task('vscode-linux-x64-min', ['minify-vscode', 'clean-vscode-linux-x64'], packageTask('linux', 'x64', { minified: true }));
 gulp.task('vscode-linux-arm-min', ['minify-vscode', 'clean-vscode-linux-arm'], packageTask('linux', 'arm', { minified: true }));
-
-gulp.task('vscode-win32-zip', ['optimize-vscode'], packageTask('win32', null, { zip: true }));
-gulp.task('vscode-darwin-zip', ['optimize-vscode'], packageTask('darwin', null, { zip: true }));
-gulp.task('vscode-linux-ia32-zip', ['optimize-vscode'], packageTask('linux', 'ia32', { zip: true }));
-gulp.task('vscode-linux-x64-zip', ['optimize-vscode'], packageTask('linux', 'x64', { zip: true }));
-gulp.task('vscode-linux-arm-zip', ['optimize-vscode'], packageTask('linux', 'arm', { zip: true }));
-
-gulp.task('vscode-win32-zip-min', ['minify-vscode'], packageTask('win32', null, { zip: true, minified: true }));
-gulp.task('vscode-darwin-zip-min', ['minify-vscode'], packageTask('darwin', null, { zip: true, minified: true }));
-gulp.task('vscode-linux-zip-ia32-min', ['minify-vscode'], packageTask('linux', 'ia32', { zip: true, minified: true }));
-gulp.task('vscode-linux-zip-x64-min', ['minify-vscode'], packageTask('linux', 'x64', { zip: true, minified: true }));
-gulp.task('vscode-linux-zip-arm-min', ['minify-vscode'], packageTask('linux', 'arm', { zip: true, minified: true }));
 
 // Sourcemaps
 

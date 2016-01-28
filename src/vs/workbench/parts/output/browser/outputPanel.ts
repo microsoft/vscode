@@ -77,6 +77,8 @@ export class OutputPanel extends StringEditor {
 		const options = super.getCodeEditorOptions();
 		options.wrappingColumn = 0;				// all log editors wrap
 		options.lineNumbers = false;				// all log editors hide line numbers
+		options.glyphMargin = false;
+		options.lineDecorationsWidth = 20;
 
 		return options;
 	}

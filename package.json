@@ -13,7 +13,7 @@
   "scripts": {
     "test": "node node_modules/mocha/bin/_mocha",
     "preinstall": "node build/npm/preinstall.js",
-    "postinstall": "npm --prefix extensions/vscode-api-tests/ install extensions/vscode-api-tests/"
+    "postinstall": "npm --prefix extensions/vscode-api-tests/ install extensions/vscode-api-tests/ && npm --prefix extensions/json/ install extensions/json/"
   },
   "dependencies": {
     "applicationinsights": "0.15.6",
@@ -26,7 +26,7 @@
     "iconv-lite": "^0.4.13",
     "sax": "^1.1.1",
     "semver": "^4.2.0",
-    "vscode-debugprotocol": "^1.3.0",
+    "vscode-debugprotocol": "^1.4.0",
     "vscode-textmate": "^1.0.9",
     "native-keymap": "^0.1.2",
     "weak": "^1.0.1",

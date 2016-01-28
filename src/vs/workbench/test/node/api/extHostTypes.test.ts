@@ -53,14 +53,14 @@ suite('ExtHostTypes', function() {
 		assert.throws(() => pos.character = -1);
 		assert.throws(() => pos.line = 12);
 
-		let [line, character] = pos.toJSON();
+		let {line, character} = pos.toJSON();
 		assert.equal(line, 0);
 		assert.equal(character, 0);
 	});
 
 	test('Position, toJSON', function() {
 		let pos = new types.Position(4, 2);
-		assertToJSON(pos, [4, 2])
+		assertToJSON(pos, { line: 4, character: 2 })
 	});
 
 	test('Position, isBefore(OrEqual)?', function() {
@@ -150,7 +150,7 @@ suite('ExtHostTypes', function() {
 	test('Range, toJSON', function() {
 
 		let range = new types.Range(1, 2, 3, 4);
-		assertToJSON(range, [[1, 2], [3, 4]]);
+		assertToJSON(range, [{ line: 1, character: 2 }, { line: 3, character: 4 }]);
 	});
 
 	test('Range, sorting', function() {
@@ -269,7 +269,7 @@ suite('ExtHostTypes', function() {
 		let range = new types.Range(1, 1, 2, 11);
 		let edit = new types.TextEdit(range, undefined);
 		assert.equal(edit.newText, '');
-		assertToJSON(edit, { range: [[1, 1], [2, 11]], newText: '' });
+		assertToJSON(edit, { range: [{ line: 1, character: 1 }, { line: 2, character: 11 }], newText: '' });
 
 		edit = new types.TextEdit(range, null);
 		assert.equal(edit.newText, '');
@@ -289,15 +289,15 @@ suite('ExtHostTypes', function() {
 		edit.set(a, [types.TextEdit.insert(new types.Position(0, 0), 'fff')]);
 		assert.ok(edit.has(a));
 		assert.equal(edit.size, 1);
-		assertToJSON(edit, [['file://a.ts', [{ range: [[0, 0], [0, 0]], newText: 'fff' }]]]);
+		assertToJSON(edit, [['file://a.ts', [{ range: [{ line: 0, character: 0 }, { line: 0, character: 0 }], newText: 'fff' }]]]);
 
 		edit.insert(b, new types.Position(1, 1), 'fff');
 		edit.delete(b, new types.Range(0, 0, 0, 0));
 		assert.ok(edit.has(b));
 		assert.equal(edit.size, 2);
 		assertToJSON(edit, [
-			['file://a.ts', [{ range: [[0, 0], [0, 0]], newText: 'fff' }]],
-			['file://b.ts', [{ range: [[1, 1], [1, 1]], newText: 'fff' }, { range: [[0, 0], [0, 0]], newText: '' }]]
+			['file://a.ts', [{ range: [{ line: 0, character: 0 }, { line: 0, character: 0 }], newText: 'fff' }]],
+			['file://b.ts', [{ range: [{ line: 1, character: 1 }, { line: 1, character: 1 }], newText: 'fff' }, { range: [{ line: 0, character: 0 }, { line: 0, character: 0 }], newText: '' }]]
 		]);
 
 		edit.set(b, undefined);
@@ -311,30 +311,30 @@ suite('ExtHostTypes', function() {
 
 	test('toJSON & stringify', function() {
 
-		assertToJSON(new types.Selection(3, 4, 2, 1), { start: [2, 1], end: [3, 4], anchor: [3, 4], active: [2, 1] });
+		assertToJSON(new types.Selection(3, 4, 2, 1), { start: { line: 2, character: 1 }, end: { line: 3, character: 4 }, anchor: { line: 3, character: 4 }, active: { line: 2, character: 1 } });
 
-		assertToJSON(new types.Location(types.Uri.file('u.ts'), new types.Range(1, 2, 3, 4)), { uri: 'file://u.ts', range: [[1, 2], [3, 4]] });
-		assertToJSON(new types.Location(types.Uri.file('u.ts'), new types.Position(3, 4)), { uri: 'file://u.ts', range: [[3, 4], [3, 4]] });
+		assertToJSON(new types.Location(types.Uri.file('u.ts'), new types.Range(1, 2, 3, 4)), { uri: 'file://u.ts', range: [{ line: 1, character: 2 }, { line: 3, character: 4 }] });
+		assertToJSON(new types.Location(types.Uri.file('u.ts'), new types.Position(3, 4)), { uri: 'file://u.ts', range: [{ line: 3, character: 4 }, { line: 3, character: 4 }] });
 
 		let diag = new types.Diagnostic(new types.Range(0, 1, 2, 3), 'hello');
-		assertToJSON(diag, { severity: 'Error', message: 'hello', range: [[0, 1], [2, 3]] });
+		assertToJSON(diag, { severity: 'Error', message: 'hello', range: [{ line: 0, character: 1 }, { line: 2, character: 3 }] });
 		diag.source = 'me'
-		assertToJSON(diag, { severity: 'Error', message: 'hello', range: [[0, 1], [2, 3]], source: 'me' });
+		assertToJSON(diag, { severity: 'Error', message: 'hello', range: [{ line: 0, character: 1 }, { line: 2, character: 3 }], source: 'me' });
 
-		assertToJSON(new types.DocumentHighlight(new types.Range(2, 3, 4, 5)), { range: [[2, 3], [4, 5]], kind: 'Text' });
-		assertToJSON(new types.DocumentHighlight(new types.Range(2, 3, 4, 5), types.DocumentHighlightKind.Read), { range: [[2, 3], [4, 5]], kind: 'Read' });
+		assertToJSON(new types.DocumentHighlight(new types.Range(2, 3, 4, 5)), { range: [{ line: 2, character: 3 }, { line: 4, character: 5 }], kind: 'Text' });
+		assertToJSON(new types.DocumentHighlight(new types.Range(2, 3, 4, 5), types.DocumentHighlightKind.Read), { range: [{ line: 2, character: 3 }, { line: 4, character: 5 }], kind: 'Read' });
 
 		assertToJSON(new types.SymbolInformation('test', types.SymbolKind.Boolean, new types.Range(0, 1, 2, 3)), {
 			name: 'test',
 			kind: 'Boolean',
 			location: {
-				range: [[0, 1], [2, 3]]
+				range: [{ line: 0, character: 1 }, { line: 2, character: 3 }]
 			}
 		});
 
-		assertToJSON(new types.CodeLens(new types.Range(7, 8, 9, 10)), { range: [[7, 8], [9, 10]] });
+		assertToJSON(new types.CodeLens(new types.Range(7, 8, 9, 10)), { range: [{ line: 7, character: 8 }, { line: 9, character: 10 }] });
 		assertToJSON(new types.CodeLens(new types.Range(7, 8, 9, 10), { command: 'id', title: 'title' }), {
-			range: [[7, 8], [9, 10]],
+			range: [{ line: 7, character: 8 }, { line: 9, character: 10 }],
 			command: { command: 'id', title: 'title' }
 		});
 

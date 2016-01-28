@@ -7,6 +7,8 @@
 
 import {ILanguageDef} from './types';
 
+import 'vs/languages/json/common/json.contribution';
+
 this.MonacoEditorLanguages = this.MonacoEditorLanguages || [];
 let MonacoEditorLanguages: ILanguageDef[] = this.MonacoEditorLanguages;
 

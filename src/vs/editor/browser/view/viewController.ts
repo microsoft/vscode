@@ -37,9 +37,10 @@ export class ViewController implements EditorBrowser.IViewController {
 		});
 	}
 
-	public replacePreviousChar(source: string, text: string): void {
+	public replacePreviousChar(source: string, text: string, replaceCharCnt:number): void {
 		this.configuration.handlerDispatcher.trigger(source, EditorCommon.Handler.ReplacePreviousChar, {
-			text: text
+			text: text,
+			replaceCharCnt: replaceCharCnt
 		});
 	}
 

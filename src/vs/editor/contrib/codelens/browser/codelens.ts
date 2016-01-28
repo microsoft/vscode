@@ -512,6 +512,9 @@ export class CodeLensContribution implements EditorCommon.IEditorContribution {
 	}
 
 	private renderCodeLensSymbols(symbols: ICodeLensData[]): void {
+		if (!this._editor.getModel()) {
+			return;
+		}
 		if (!symbols) {
 			symbols = [];
 		} else {

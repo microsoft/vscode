@@ -1300,8 +1300,9 @@ export class Cursor extends EventEmitter {
 	}
 
 	private _replacePreviousChar(ctx: IMultipleCursorOperationContext): boolean {
-		var text = ctx.eventData.text;
-		return this._invokeForAll(ctx,(cursorIndex, oneCursor, oneCtx) => OneCursorOp.replacePreviousChar(oneCursor, text, oneCtx));
+		let text = ctx.eventData.text;
+		let replaceCharCnt = ctx.eventData.replaceCharCnt;
+		return this._invokeForAll(ctx,(cursorIndex, oneCursor, oneCtx) => OneCursorOp.replacePreviousChar(oneCursor, text, replaceCharCnt, oneCtx));
 
 	}
 

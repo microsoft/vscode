@@ -10,6 +10,7 @@ import nls = require('vs/nls');
 import lifecycle = require('vs/base/common/lifecycle');
 import {Promise} from 'vs/base/common/winjs.base';
 import {Builder, $} from 'vs/base/browser/builder';
+import platform = require('vs/base/common/platform');
 import {IAction, IActionRunner, Action, ActionRunner} from 'vs/base/common/actions';
 import DOM = require('vs/base/browser/dom');
 import {EventType as CommonEventType} from 'vs/base/common/events';
@@ -114,6 +115,10 @@ export class BaseActionItem extends EventEmitter implements IActionItem {
 
 		this.builder.on(DOM.EventType.CLICK, (event: Event) => { this.onClick(event); });
 		this.builder.on(EventType.Tap, e => { this.onClick(e); });
+
+		if (platform.isMacintosh) {
+			this.builder.on(DOM.EventType.CONTEXT_MENU, (event: Event) => { this.onClick(event); }); // https://github.com/Microsoft/vscode/issues/1011
+		}
 
 		this.builder.on('mousedown', (e: MouseEvent) => {
 			if (e.button === 0 && this._action.enabled) {
@@ -223,7 +228,7 @@ export class ActionItem extends BaseActionItem {
 		super.render(container);
 
 		this.$e = $('a.action-label').appendTo(this.builder);
-		this.$e.attr({ role: 'menuitem' });
+		this.$e.attr({ role: 'button' });
 
 		if (this.options.label && this.options.keybinding) {
 			$('span.keybinding').text(this.options.keybinding).appendTo(this.builder);
@@ -372,6 +377,7 @@ export interface IActionBarOptions {
 	context?: any;
 	actionItemProvider?: IActionItemProvider;
 	actionRunner?: IActionRunner;
+	ariaLabel?: string;
 }
 
 let defaultOptions: IActionBarOptions = {
@@ -385,13 +391,8 @@ export interface IActionOptions extends IActionItemOptions {
 
 export class ActionBar extends EventEmitter implements IActionRunner {
 
-	private static nlsActionBarAccessibleLabel = nls.localize('actionBarAccessibleLabel', "Action Bar");
-
-	static DEFAULT_OPTIONS: IActionBarOptions = {
-		orientation: ActionsOrientation.HORIZONTAL
-	};
-
 	public options: IActionBarOptions;
+
 	private _actionRunner: IActionRunner;
 	private _context: any;
 
@@ -481,7 +482,7 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 		this.focusTracker = DOM.trackFocus(this.domNode);
 		this.focusTracker.addBlurListener((e: Event) => {
 			if (document.activeElement === this.domNode || !DOM.isAncestor(document.activeElement, this.domNode)) {
-				this.emit('blur', e);
+				this.emit(DOM.EventType.BLUR, e);
 				this.focusedItem = undefined;
 			}
 		});
@@ -490,12 +491,23 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 
 		this.actionsList = document.createElement('ul');
 		this.actionsList.className = 'actions-container';
-		this.actionsList.setAttribute('role', 'menu');
-		this.actionsList.setAttribute('aria-label', ActionBar.nlsActionBarAccessibleLabel);
+		this.actionsList.setAttribute('role', 'toolbar');
+		if (this.options.ariaLabel) {
+			this.actionsList.setAttribute('aria-label', this.options.ariaLabel);
+		}
+
 		this.domNode.appendChild(this.actionsList);
 
 		container = (container instanceof Builder) ? container.getHTMLElement() : container;
 		container.appendChild(this.domNode);
+	}
+
+	public setAriaLabel(label: string): void {
+		if (label) {
+			this.actionsList.setAttribute('aria-label', label);
+		} else{
+			this.actionsList.removeAttribute('aria-label');
+		}
 	}
 
 	private updateFocusedItem(): void {

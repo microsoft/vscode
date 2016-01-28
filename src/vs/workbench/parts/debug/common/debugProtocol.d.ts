@@ -144,14 +144,10 @@ declare module DebugProtocol {
 		/** Determines in what format paths are specified. Possible values are 'path' or 'uri'. The default is 'path', which is the native format. */
 		pathFormat?: string;
 	}
-	/** Response to Initialize request.
-	 *  It contains information about the features implemented by a debug adapter.
-	*/
+	/** Response to Initialize request. */
 	export interface InitializeResponse extends Response {
-		/** The debug adapter supports the configurationDoneRequest. */
-		supportsConfigurationDoneRequest?: boolean;
-		/** The debug adapter supports a (side effect free) evaluate request for data hovers. */
-		supportEvaluateForHovers?: boolean;
+		/** The capabilities of this debug adapter */
+		body?: Capabilites;
 	}
 
 	/** ConfigurationDone request; value of command field is "configurationDone".
@@ -447,6 +443,16 @@ declare module DebugProtocol {
 	}
 
 	//---- Types
+
+	/** Information about the capabilities of a debug adapter. */
+	export interface Capabilites {
+		/** The debug adapter supports the configurationDoneRequest. */
+		supportsConfigurationDoneRequest?: boolean;
+		/** The debug adapter supports functionBreakpoints. */
+		supportsFunctionBreakpoints?: boolean;
+		/** The debug adapter supports a (side effect free) evaluate request for data hovers. */
+		supportEvaluateForHovers?: boolean;
+	}
 
 	/** A structured message object. Used to return errors from requests. */
 	export interface Message {

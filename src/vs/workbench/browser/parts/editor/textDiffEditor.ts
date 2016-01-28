@@ -209,6 +209,7 @@ export class TextDiffEditor extends BaseTextEditor {
 			let readOnly = modifiedInput instanceof StringEditorInput || modifiedInput instanceof ResourceEditorInput;
 
 			options.readOnly = readOnly;
+			options.tabFocusMode = readOnly;
 		}
 
 		return options;

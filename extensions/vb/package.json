@@ -6,7 +6,7 @@
 	"contributes": {
 		"languages": [{
 			"id": "vb",
-			"extensions": [ ".vb", ".brs" ],
+			"extensions": [ ".vb", ".brs", ".vbs" ],
 			"aliases": [ "Visual Basic", "vb" ],
 			"configuration": "./vb.configuration.json"
 		}],

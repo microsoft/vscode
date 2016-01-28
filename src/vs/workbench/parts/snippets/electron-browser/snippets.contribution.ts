@@ -129,7 +129,7 @@ workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenSn
 	snippetsTracker.SnippetsTracker
 );
 
-let schemaId = 'local://schemas/snippets';
+let schemaId = 'vscode://schemas/snippets';
 let schema : IJSONSchema = {
 	'id': schemaId,
 	'default': { '{{snippetName}}': { 'prefix': '{{prefix}}', 'body': '{{snippet}}', 'description': '{{description}}' } },

@@ -16,6 +16,7 @@ import {IExpression, splitGlobAware} from 'vs/base/common/glob';
 import {isFunction} from 'vs/base/common/types';
 import URI from 'vs/base/common/uri';
 import strings = require('vs/base/common/strings');
+import paths = require('vs/base/common/paths');
 import dom = require('vs/base/browser/dom');
 import {IAction, Action, IActionRunner} from 'vs/base/common/actions';
 import {StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
@@ -25,7 +26,7 @@ import {FileLabel} from 'vs/base/browser/ui/filelabel/fileLabel';
 import {FindInput} from 'vs/base/browser/ui/findinput/findInput';
 import {LeftRightWidget, IRenderer} from 'vs/base/browser/ui/leftRightWidget/leftRightWidget';
 import {CountBadge} from 'vs/base/browser/ui/countBadge/countBadge';
-import {ITree, IElementCallback, IFilter, ISorter, IDataSource} from 'vs/base/parts/tree/browser/tree';
+import {ITree, IElementCallback, IFilter, ISorter, IDataSource, IAccessibilityProvider} from 'vs/base/parts/tree/browser/tree';
 import {Tree} from 'vs/base/parts/tree/browser/treeImpl';
 import {ClickBehavior, DefaultController} from 'vs/base/parts/tree/browser/treeDefaults';
 import {ActionsRenderer} from 'vs/base/parts/tree/browser/actionsRenderer';
@@ -125,9 +126,28 @@ export class SearchSorter implements ISorter {
 	public compare(tree: ITree, elementA: FileMatchOrMatch, elementB: FileMatchOrMatch): number {
 		if (elementA instanceof FileMatch && elementB instanceof FileMatch) {
 			return strings.localeCompare(elementA.resource().fsPath, elementB.resource().fsPath) || strings.localeCompare(elementA.name(), elementB.name());
+		}
 
-		} else if (elementA instanceof Match && elementB instanceof Match) {
+		if (elementA instanceof Match && elementB instanceof Match) {
 			return Range.compareRangesUsingStarts(elementA.range(), elementB.range());
+		}
+	}
+}
+
+export class SearchAccessibilityProvider implements IAccessibilityProvider {
+
+	constructor(@IWorkspaceContextService private contextService: IWorkspaceContextService) {
+	}
+
+	public getAriaLabel(tree: ITree, element: FileMatchOrMatch): string {
+		if (element instanceof FileMatch) {
+			const path = this.contextService.toWorkspaceRelativePath(element.resource()) || element.resource().fsPath;
+
+			return nls.localize('fileMatchAriaLabel', "{0} matches in file {1} of folder {2}", element.count(), element.name(), paths.dirname(path));
+		}
+
+		if (element instanceof Match) {
+			return element.text();
 		}
 	}
 }
@@ -747,7 +767,7 @@ export class SearchViewlet extends Viewlet {
 				if (keyboardEvent.keyCode === KeyCode.DownArrow) {
 					dom.EventHelper.stop(keyboardEvent);
 					if (this.showsFileTypes()) {
-						this.toggleFileTypes(true);
+						this.toggleFileTypes(true, true);
 					} else {
 						this.selectTreeIfNotSelected(keyboardEvent);
 					}
@@ -763,10 +783,10 @@ export class SearchViewlet extends Viewlet {
 		}).style({ position: 'relative' }).getHTMLElement();
 
 		this.queryDetails = builder.div({ 'class': ['query-details', 'separator'] }, (builder) => {
-			builder.div({ 'class': 'more', 'tabindex': 0, 'role': 'menuitem', 'title': nls.localize('moreSearch', "Toggle Search Details") })
+			builder.div({ 'class': 'more', 'tabindex': 0, 'role': 'button', 'title': nls.localize('moreSearch', "Toggle Search Details") })
 				.on(dom.EventType.CLICK, (e) => {
 					dom.EventHelper.stop(e);
-					this.toggleFileTypes();
+					this.toggleFileTypes(true);
 				}).on(dom.EventType.KEY_UP, (e: KeyboardEvent) => {
 					let event = new StandardKeyboardEvent(e);
 
@@ -844,6 +864,7 @@ export class SearchViewlet extends Viewlet {
 					actions: [this.instantiationService.createInstance(ConfigureGlobalExclusionsAction)]
 				});
 				this.inputPatternGlobalExclusions.inputElement.readOnly = true;
+				$(this.inputPatternGlobalExclusions.inputElement).attr('aria-readonly', 'true');
 				$(this.inputPatternGlobalExclusions.inputElement).addClass('disabled');
 			}).hide();
 		}).getHTMLElement();
@@ -861,8 +882,11 @@ export class SearchViewlet extends Viewlet {
 				renderer: renderer,
 				sorter: new SearchSorter(),
 				filter: new SearchFilter(),
-				controller: new SearchController()
-			});
+				controller: new SearchController(),
+				accessibilityProvider: this.instantiationService.createInstance(SearchAccessibilityProvider)
+			}, {
+					ariaLabel: nls.localize('treeAriaLabel', "Search Results")
+				});
 
 			this.toUnbind.push(() => renderer.dispose());
 
@@ -894,7 +918,7 @@ export class SearchViewlet extends Viewlet {
 		});
 
 		if (filePatterns !== '' || patternExclusions !== '' || patternIncludes !== '') {
-			this.toggleFileTypes(true, true);
+			this.toggleFileTypes(true, true, true);
 		}
 
 		this.configurationService.loadConfiguration().then((configuration) => {
@@ -1038,19 +1062,23 @@ export class SearchViewlet extends Viewlet {
 		return dom.hasClass(this.queryDetails, 'more');
 	}
 
-	public toggleFileTypes(show?: boolean, skipLayout?: boolean): void {
+	public toggleFileTypes(moveFocus?: boolean, show?: boolean, skipLayout?: boolean): void {
 		let cls = 'more';
 		show = typeof show === 'undefined' ? !dom.hasClass(this.queryDetails, cls) : Boolean(show);
 		skipLayout = Boolean(skipLayout);
 
 		if (show) {
 			dom.addClass(this.queryDetails, cls);
-			this.inputPatternIncludes.focus();
-			this.inputPatternIncludes.select();
+			if (moveFocus) {
+				this.inputPatternIncludes.focus();
+				this.inputPatternIncludes.select();
+			}
 		} else {
 			dom.removeClass(this.queryDetails, cls);
-			this.findInput.focus();
-			this.findInput.select();
+			if (moveFocus) {
+				this.findInput.focus();
+				this.findInput.select();
+			}
 		}
 
 		if (!skipLayout && this.size) {
@@ -1060,7 +1088,7 @@ export class SearchViewlet extends Viewlet {
 
 	public searchInFolder(resource: URI): void {
 		if (!this.showsFileTypes()) {
-			this.toggleFileTypes(true, false);
+			this.toggleFileTypes(true, true);
 		}
 
 		let workspaceRelativePath = this.contextService.toWorkspaceRelativePath(resource);

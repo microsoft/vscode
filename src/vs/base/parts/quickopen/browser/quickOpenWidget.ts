@@ -5,6 +5,7 @@
 'use strict';
 
 import 'vs/css!./quickopen';
+import nls = require('vs/nls');
 import {Promise} from 'vs/base/common/winjs.base';
 import platform = require('vs/base/common/platform');
 import browser = require('vs/base/browser/browser');
@@ -13,7 +14,7 @@ import types = require('vs/base/common/types');
 import errors = require('vs/base/common/errors');
 import uuid = require('vs/base/common/uuid');
 import {IQuickNavigateConfiguration, IAutoFocus, IContext, IModel, Mode} from 'vs/base/parts/quickopen/common/quickOpen';
-import {Filter, Renderer, DataSource, IModelProvider} from 'vs/base/parts/quickopen/browser/quickOpenViewer';
+import {Filter, Renderer, DataSource, IModelProvider, AccessibilityProvider} from 'vs/base/parts/quickopen/browser/quickOpenViewer';
 import {Dimension, Builder, $} from 'vs/base/browser/builder';
 import {ISelectionEvent, IFocusEvent, ITree, ContextMenuEvent} from 'vs/base/parts/tree/browser/tree';
 import {InputBox, MessageType} from 'vs/base/browser/ui/inputbox/inputBox';
@@ -125,11 +126,10 @@ export class QuickOpenWidget implements IModelProvider {
 				this.inputContainer = inputContainer;
 				this.inputBox = new InputBox(inputContainer.getHTMLElement(), null, {
 					placeholder: this.options.inputPlaceHolder || '',
-					ariaLabel: this.options.inputAriaLabel
+					ariaLabel: nls.localize('quickOpenAriaLabel', "Type to narrow down results, then press Tab to jump into the result list and make a pick.")
 				});
 				DOM.addDisposableListener(this.inputBox.inputElement, DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 					let keyboardEvent: StandardKeyboardEvent = new StandardKeyboardEvent(e);
-
 
 					// Do not handle Tab: It is used to navigate between elements without mouse
 					if (keyboardEvent.keyCode === KeyCode.Tab) {
@@ -172,13 +172,15 @@ export class QuickOpenWidget implements IModelProvider {
 					dataSource: new DataSource(this),
 					controller: new QuickOpenController({ clickBehavior: ClickBehavior.ON_MOUSE_UP }),
 					renderer: new Renderer(this),
-					filter: new Filter(this)
+					filter: new Filter(this),
+					accessibilityProvider: new AccessibilityProvider(this)
 				}, {
-						twistiePixels: 11,
-						indentPixels: 0,
-						alwaysFocused: true,
-						verticalScrollMode: 'visible'
-					});
+					twistiePixels: 11,
+					indentPixels: 0,
+					alwaysFocused: true,
+					verticalScrollMode: 'visible',
+					ariaLabel: nls.localize('treeAriaLabel', "Quick Picker")
+				});
 
 				// Handle Focus and Selection event
 				this.toUnbind.push(this.tree.addListener(EventType.FOCUS, (event: IFocusEvent) => {

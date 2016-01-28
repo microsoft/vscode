@@ -42,6 +42,17 @@ export class PluginScanner {
 				});
 				return null;
 			}
+			// This is a workaround to enable Salsa and avoid TS extension loading
+			// for JavaScript (see https://github.com/Microsoft/vscode/issues/2225)
+			if (pluginDescFromFile.name === 'typescript' && pluginDescFromFile.publisher === 'vscode' && (!!process.env['CODE_TSJS'] || !!process.env['VSCODE_TSJS'])) {
+				pluginDescFromFile.activationEvents = pluginDescFromFile.activationEvents || [];
+				if (pluginDescFromFile.activationEvents.indexOf('onLanguage:javascript') === -1) {
+					pluginDescFromFile.activationEvents.push('onLanguage:javascript');
+				}
+				if (pluginDescFromFile.activationEvents.indexOf('onLanguage:javascriptreact') === -1) {
+					pluginDescFromFile.activationEvents.push('onLanguage:javascriptreact');
+				}
+			}
 			return pluginDescFromFile;
 		}).then((pluginDescFromFile) => {
 			if (pluginDescFromFile === null) {
@@ -90,17 +101,29 @@ export class PluginScanner {
 		isBuiltin:boolean
 	) : TPromise<IPluginDescription[]>
 	{
-		return pfs.readDirsInDir(absoluteFolderPath)
-			.then(folders => TPromise.join(folders.map(f => this.scanPlugin(version, collector, paths.join(absoluteFolderPath, f), isBuiltin))))
-			.then(plugins => plugins.filter(item => item !== null))
-			.then(plugins => {
-				const pluginsById = values(groupBy(plugins, p => p.id));
-				return pluginsById.map(p => p.sort((a, b) => semver.rcompare(a.version, b.version))[0]);
-			})
-			.then(null, err => {
-				collector.error(absoluteFolderPath, err);
-				return [];
-			});
+		let obsolete = TPromise.as({});
+
+		if (!isBuiltin) {
+			obsolete = pfs.readFile(paths.join(absoluteFolderPath, '.obsolete'), 'utf8')
+				.then(raw => JSON.parse(raw))
+				.then(null, err => ({}));
+		}
+
+		return obsolete.then(obsolete => {
+			return pfs.readDirsInDir(absoluteFolderPath)
+				.then(folders => TPromise.join(folders.map(f => this.scanPlugin(version, collector, paths.join(absoluteFolderPath, f), isBuiltin))))
+				.then(plugins => plugins.filter(item => item !== null))
+				// TODO: align with extensionsService
+				.then(plugins => plugins.filter(p => !obsolete[`${ p.publisher }.${ p.name }-${ p.version }`]))
+				.then(plugins => {
+					const pluginsById = values(groupBy(plugins, p => p.id));
+					return pluginsById.map(p => p.sort((a, b) => semver.rcompare(a.version, b.version))[0]);
+				})
+				.then(null, err => {
+					collector.error(absoluteFolderPath, err);
+					return [];
+				});
+		});
 	}
 
 	/**

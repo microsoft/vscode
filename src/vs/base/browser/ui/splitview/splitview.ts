@@ -57,6 +57,7 @@ export interface IViewOptions {
 export class View extends ee.EventEmitter {
 
 	public size: number;
+
 	protected _sizing: ViewSizing;
 	protected _fixedSize: number;
 	protected _minimumSize: number;
@@ -172,6 +173,7 @@ export class HeaderView extends View {
 }
 
 export interface ICollapsibleViewOptions {
+	ariaHeaderLabel?: string;
 	fixedSize?: number;
 	minimumSize?: number;
 	headerSize?: number;
@@ -187,6 +189,7 @@ export class AbstractCollapsibleView extends HeaderView {
 
 	protected state: CollapsibleState;
 
+	private ariaHeaderLabel: string;
 	private headerClickListener: () => void;
 	private headerKeyListener: () => void;
 	private focusTracker: dom.IFocusTracker;
@@ -194,6 +197,7 @@ export class AbstractCollapsibleView extends HeaderView {
 	constructor(opts: ICollapsibleViewOptions) {
 		super(opts);
 
+		this.ariaHeaderLabel = opts && opts.ariaHeaderLabel;
 		this.changeState(types.isUndefined(opts.initialState) ? CollapsibleState.EXPANDED : opts.initialState);
 	}
 
@@ -205,10 +209,15 @@ export class AbstractCollapsibleView extends HeaderView {
 
 		// Keyboard access
 		this.header.setAttribute('tabindex', '0');
+		this.header.setAttribute('role', 'button');
+		if (this.ariaHeaderLabel) {
+			this.header.setAttribute('aria-label', this.ariaHeaderLabel);
+		}
+		this.header.setAttribute('aria-expanded', String(this.state === CollapsibleState.EXPANDED));
 		this.headerKeyListener = dom.addListener(this.header, dom.EventType.KEY_DOWN, (e) => {
 			let event = new StandardKeyboardEvent(e);
 			let eventHandled = false;
-			if (event.equals(CommonKeybindings.ENTER) || event.equals(CommonKeybindings.SPACE) || event.equals(CommonKeybindings.LEFT_ARROW) || event.equals(CommonKeybindings.RIGHT_ARROW)) {
+			if (event.equals(CommonKeybindings.ENTER) || event.equals(CommonKeybindings.SPACE) || (event.equals(CommonKeybindings.LEFT_ARROW) && this.state === CollapsibleState.EXPANDED) || (event.equals(CommonKeybindings.RIGHT_ARROW) && this.state === CollapsibleState.COLLAPSED)) {
 				this.toggleExpansion();
 				eventHandled = true;
 			} else if (event.equals(CommonKeybindings.ESCAPE)) {
@@ -232,7 +241,7 @@ export class AbstractCollapsibleView extends HeaderView {
 		});
 
 		this.focusTracker.addBlurListener(() => {
-			setTimeout(() => dom.removeClass(this.header, 'focused')); // delay to give other components a chance to react
+			dom.removeClass(this.header, 'focused');
 		});
 	}
 
@@ -283,6 +292,11 @@ export class AbstractCollapsibleView extends HeaderView {
 
 	protected changeState(state: CollapsibleState): void {
 		this.state = state;
+
+		if (this.header) {
+			this.header.setAttribute('aria-expanded', String(this.state === CollapsibleState.EXPANDED));
+		}
+
 		this.layoutHeader();
 	}
 

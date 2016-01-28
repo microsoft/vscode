@@ -43,7 +43,7 @@ var indentationFilter = [
 	'!**/vs/languages/sass/test/common/example.scss',
 	'!**/vs/languages/less/common/parser/less.grammar.txt',
 	'!**/vs/languages/css/common/buildscripts/css-schema.xml',
-	'!**/vs/languages/markdown/common/raw.marked.js',
+	'!**/vs/base/common/marked/raw.marked.js',
 	'!**/vs/base/common/winjs.base.raw.js',
 	'!**/vs/base/node/terminateProcess.sh',
 	'!**/vs/base/node/terminateProcess.sh',

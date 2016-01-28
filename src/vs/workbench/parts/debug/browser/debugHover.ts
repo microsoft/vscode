@@ -5,6 +5,7 @@
 
 import errors = require('vs/base/common/errors');
 import dom = require('vs/base/browser/dom');
+import * as nls from 'vs/nls';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { DefaultController, ICancelableEvent } from 'vs/base/parts/tree/browser/treeDefaults';
@@ -17,7 +18,8 @@ import viewer = require('vs/workbench/parts/debug/browser/debugViewer');
 const $ = dom.emmet;
 const debugTreeOptions = {
 	indentPixels: 6,
-	twistiePixels: 12
+	twistiePixels: 15,
+	ariaLabel: nls.localize('treeAriaLabel', "Debug Hover")
 };
 const MAX_ELEMENTS_SHOWN = 18;
 
@@ -30,7 +32,7 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 	private domNode: HTMLElement;
 	private isVisible: boolean;
 	private tree: ITree;
-	private showAtPosition: editorcommon.IPosition;
+	private showAtPosition: editorcommon.IEditorPosition;
 	private lastHoveringOver: string;
 	private highlightDecorations: string[];
 	private treeContainer: HTMLElement;
@@ -42,7 +44,7 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 		this.tree = new Tree(this.treeContainer, {
 			dataSource: new viewer.VariablesDataSource(this.debugService),
 			renderer: this.instantiationService.createInstance(VariablesHoverRenderer),
-			controller: new DebugHoverController()
+			controller: new DebugHoverController(editor)
 		}, debugTreeOptions);
 		this.tree.addListener2('item:expanded', () => {
 			this.layoutTree();
@@ -138,8 +140,8 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 		this.doShow(pos, variables[0]);
 	}
 
-	private doShow(position: editorcommon.IEditorPosition, expression: debug.IExpression): void {
-		if (expression.reference > 0) {
+	private doShow(position: editorcommon.IEditorPosition, expression: debug.IExpression, forceValueHover = false): void {
+		if (expression.reference > 0 && !forceValueHover) {
 			this.valueContainer.hidden = true;
 			this.treeContainer.hidden = false;
 			this.tree.setInput(expression).then(() => {
@@ -148,7 +150,8 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 		} else {
 			this.treeContainer.hidden = true;
 			this.valueContainer.hidden = false;
-			viewer.renderExpressionValue(expression, false, this.valueContainer);
+			viewer.renderExpressionValue(expression, false, this.valueContainer, false);
+			this.valueContainer.title = '';
 		}
 
 		this.showAtPosition = position;
@@ -162,11 +165,16 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 		while (navigator.next()) {
 			visibleElementsCount++;
 		}
-		const height = Math.min(visibleElementsCount, MAX_ELEMENTS_SHOWN) * 18;
 
-		if (this.treeContainer.clientHeight !== height) {
-			this.treeContainer.style.height = `${ height }px`;
-			this.tree.layout();
+		if (visibleElementsCount === 0) {
+			this.doShow(this.showAtPosition, this.tree.getInput(), true);
+		} else {
+			const height = Math.min(visibleElementsCount, MAX_ELEMENTS_SHOWN) * 18;
+
+			if (this.treeContainer.clientHeight !== height) {
+				this.treeContainer.style.height = `${ height }px`;
+				this.tree.layout();
+			}
 		}
 	}
 
@@ -194,11 +202,16 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 
 class DebugHoverController extends DefaultController {
 
+	constructor(private editor: editorbrowser.ICodeEditor) {
+		super();
+	}
+
 	/* protected */ public onLeftClick(tree: ITree, element: any, eventish: ICancelableEvent, origin: string = 'mouse'): boolean {
 		if (element.reference > 0) {
 			super.onLeftClick(tree, element, eventish, origin);
 			tree.clearFocus();
 			tree.deselect(element);
+			this.editor.focus();
 		}
 
 		return true;

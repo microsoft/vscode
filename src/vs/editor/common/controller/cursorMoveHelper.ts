@@ -25,6 +25,16 @@ export interface IConfiguration {
 	getIndentationOptions(): EditorCommon.IInternalIndentationOptions;
 }
 
+function isHighSurrogate(model, lineNumber, column) {
+	var code = model.getLineContent(lineNumber).charCodeAt(column - 1);
+	return 0xD800 <= code && code <= 0xDBFF;
+}
+
+function isLowSurrogate(model, lineNumber, column) {
+	var code = model.getLineContent(lineNumber).charCodeAt(column - 1);
+	return 0xDC00 <= code && code <= 0xDFFF;
+}
+
 export class CursorMoveHelper {
 
 	private configuration: IConfiguration;
@@ -36,7 +46,7 @@ export class CursorMoveHelper {
 	public getLeftOfPosition(model:ICursorMoveHelperModel, lineNumber:number, column:number): EditorCommon.IPosition {
 
 		if (column > model.getLineMinColumn(lineNumber)) {
-			column = column - 1;
+			column = column - (isLowSurrogate(model, lineNumber, column - 1) ? 2 : 1);
 		} else if (lineNumber > 1) {
 			lineNumber = lineNumber - 1;
 			column = model.getLineMaxColumn(lineNumber);
@@ -51,7 +61,7 @@ export class CursorMoveHelper {
 	public getRightOfPosition(model:ICursorMoveHelperModel, lineNumber:number, column:number): EditorCommon.IPosition {
 
 		if (column < model.getLineMaxColumn(lineNumber)) {
-			column = column + 1;
+			column = column + (isHighSurrogate(model, lineNumber, column) ? 2 : 1);
 		} else if (lineNumber < model.getLineCount()) {
 			lineNumber = lineNumber + 1;
 			column = model.getLineMinColumn(lineNumber);

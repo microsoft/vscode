@@ -34,9 +34,9 @@ export function toId(theme: BaseTheme): string {
 export function toLabel(theme: BaseTheme): string {
 	switch (theme) {
 		case BaseTheme.VS:
-			return nls.localize('theme.vs', 'Light');
+			return nls.localize('theme.vs', 'Light (Visual Studio)');
 		case BaseTheme.VS_DARK:
-			return nls.localize('theme.vs-dark', 'Dark');
+			return nls.localize('theme.vs-dark', 'Dark (Visual Studio)');
 	}
 	return nls.localize('theme.hc', 'High Contrast');
 }

@@ -116,7 +116,7 @@ export interface IViewZoneData {
 export interface IViewController {
 	paste(source:string, text:string, pasteOnNewLine:boolean): void;
 	type(source: string, text: string): void;
-	replacePreviousChar(source: string, text: string): void;
+	replacePreviousChar(source: string, text: string, replaceCharCnt:number): void;
 	cut(source:string): void;
 	moveTo(source:string, lineNumber:number, column:number): void;
 	moveToSelect(source:string, lineNumber:number, column:number): void;

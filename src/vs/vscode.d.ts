@@ -1000,6 +1000,35 @@ declare namespace vscode {
 	}
 
 	/**
+	 * An event emitter can be used to create and manage an [event](#Event) for others
+	 * to subscribe to. One emitter always owns one event.
+	 *
+	 * Use this class if you want to provide event from within your extension, for instance
+	 * inside a [TextDocumentContentProvider](#TextDocumentContentProvider) or when providing
+	 * API to other extensions.
+	 */
+	export class EventEmitter<T> {
+
+		/**
+		 * The event listeners can subscribe to.
+		 */
+		event: Event<T>;
+
+		/**
+		 * Notify all subscribers of the [event](EventEmitter#event). Failure
+		 * of one or more listener will not fail this function call.
+		 *
+		 * @param data The event object.
+		 */
+		fire(data?: T): void;
+
+		/**
+		 * Dispose this object and free resources.
+		 */
+		dispose(): void;
+	}
+
+	/**
 	 * A file system watcher notifies about changes to files and folders
 	 * on disk.
 	 *
@@ -1333,9 +1362,9 @@ declare namespace vscode {
 	}
 
 	/**
-	 * FormattedString can be used to render text with a tiny subset of markdown. FormattedString
-	 * is either a string that supports **bold** and __italic__ or a code-block that
-	 * provides a language and a code Snippet.
+	 * MarkedString can be used to render human readable text. It is either a markdown string
+	 * or a code-block that provides a language and a code snippet. Note that
+	 * markdown strings will be sanitized - that means html will be escaped.
 	 */
 	export type MarkedString = string | { language: string; value: string };
 
@@ -2010,6 +2039,32 @@ declare namespace vscode {
 	}
 
 	/**
+	 * Represents a collection of [completion items](#CompletionItem) to be presented
+	 * in the editor.
+	 */
+	export class CompletionList {
+
+		/**
+		 * This list it not complete. Further typing should result in recomputing
+		 * this list.
+		 */
+		isIncomplete: boolean;
+
+		/**
+		 * The completion items.
+		 */
+		items: CompletionItem[];
+
+		/**
+		 * Creates a new completion list.
+		 *
+		 * @param items The completion items.
+		 * @param isIncomplete The list is not complete.
+		 */
+		constructor(items?: CompletionItem[], isIncomplete?: boolean);
+	}
+
+	/**
 	 * The completion item provider interface defines the contract between extensions and
 	 * the [IntelliSense](https://code.visualstudio.com/docs/editor/editingevolved#_intellisense).
 	 *
@@ -2028,10 +2083,10 @@ declare namespace vscode {
 		 * @param document The document in which the command was invoked.
 		 * @param position The position at which the command was invoked.
 		 * @param token A cancellation token.
-		 * @return An array of completions or a thenable that resolves to such. The lack of a result can be
-		 * signaled by returning `undefined`, `null`, an empty array.
+		 * @return An array of completions, a [completion list](#CompletionList), or a thenable that resolves to either.
+		 * The lack of a result can be signaled by returning `undefined`, `null`, or an empty array.
 		 */
-		provideCompletionItems(document: TextDocument, position: Position, token: CancellationToken): CompletionItem[] | Thenable<CompletionItem[]>;
+		provideCompletionItems(document: TextDocument, position: Position, token: CancellationToken): CompletionItem[] | Thenable<CompletionItem[]> | CompletionList | Thenable<CompletionList>;
 
 		/**
 		 * Given a completion item fill in more data, like [doc-comment](#CompletionItem.documentation)
@@ -2443,10 +2498,19 @@ declare namespace vscode {
 
 		/**
 		 * Reveal this channel in the UI.
-		 * @param column @deprecated **This argument is deprecated.** The column in which to show the channel, default in [one](#ViewColumn.One).
+		 * @deprecated **This method is deprecated.**
+		 *
+		 * @param column The column in which to show the channel, default in [one](#ViewColumn.One).
 		 * @param preserveFocus When `true` the channel will not take focus.
 		 */
 		show(column?: ViewColumn, preserveFocus?: boolean): void;
+
+		/**
+		 * Reveal this channel in the UI.
+		 *
+		 * @param preserveFocus When `true` the channel will not take focus.
+		 */
+		show(preservceFocus?: boolean): void;
 
 		/**
 		 * Hide this channel from the UI.
@@ -2662,13 +2726,24 @@ declare namespace vscode {
 	export namespace env {
 
 		/**
+		 * Represents the preferred user-language, like `de-CH`, `fr`, or `en-US`.
+		 *
+		 * @readonly
+		 */
+		export let language: string;
+
+		/**
 		 * A unique identifier for the computer.
+		 *
+		 * @readonly
 		 */
 		export let machineId: string;
 
 		/**
 		 * A unique identifier for the current session.
 		 * Changes each time the editor is started.
+		 *
+		 * @readonly
 		 */
 		export let sessionId: string;
 	}

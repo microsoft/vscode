@@ -40,7 +40,6 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 		let binaryContainerElement = document.createElement('div');
 		binaryContainerElement.className = 'binary-container monaco-editor-background'; // Inherit the background color from selected theme'
 		this.binaryContainer = $(binaryContainerElement);
-		this.binaryContainer.tabindex(0); // enable focus support
 		parent.getHTMLElement().appendChild(this.binaryContainer.getHTMLElement());
 	}
 

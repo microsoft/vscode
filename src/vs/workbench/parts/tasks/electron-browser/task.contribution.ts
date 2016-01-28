@@ -814,7 +814,7 @@ if (Env.enableTasks) {
 	(<IWorkbenchContributionsRegistry>Registry.as(WorkbenchExtensions.Workbench)).registerWorkbenchContribution(TaskServiceParticipant);
 
 	// tasks.json validation
-	let schemaId = 'local://schemas/tasks';
+	let schemaId = 'vscode://schemas/tasks';
 	let schema : IJSONSchema =
 		{
 			'id': schemaId,
@@ -969,6 +969,11 @@ if (Env.enableTasks) {
 							'type': 'string',
 							'enum': ['error', 'warning', 'info'],
 							'description': nls.localize('JsonSchema.problemMatcher.severity', 'The default severity for captures problems. Is used if the pattern doesn\' define a match group for severity.')
+						},
+						'applyTo': {
+							'type': 'string',
+							'enum': ['allDocuments', 'openDocuments', 'closedDocuments'],
+							'description': nls.localize('JsonSchema.problemMatcher.applyTo', 'Controls if a problem reported on a text document is applied only to open, closed or all documents.')
 						},
 						'pattern': {
 							'$ref': '#/definitions/patternType',

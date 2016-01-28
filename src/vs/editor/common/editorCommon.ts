@@ -272,6 +272,7 @@ export function wrappingIndentFromString(wrappingIndent:string): WrappingIndent 
  * Configuration options for the editor. Common between configuring the editor and the options the editor has computed
  */
 export interface ICommonEditorOptions {
+	_screenReaderNVDA?: boolean;
 	/**
 	 * Control the rendering of line numbers.
 	 * If it is a function, it will be invoked when rendering a line number and the return value will be rendered.
@@ -583,6 +584,7 @@ export interface IEditorWrappingInfo {
  * Internal configuration options (transformed or computed) for the editor.
  */
 export interface IInternalEditorOptions {
+	_screenReaderNVDA: boolean;
 
 	// ---- Options that are transparent - get no massaging
 	lineNumbers:any;
@@ -667,51 +669,59 @@ export interface IInternalEditorOptions {
  * An event describing that the configuration of the editor has changed.
  */
 export interface IConfigurationChangedEvent {
-	layoutInfo:boolean;
-	stylingInfo:boolean;
-	wrappingInfo:boolean;
-	indentInfo:boolean;
-	observedOuterWidth:boolean;
-	observedOuterHeight:boolean;
-	lineHeight:boolean;
-	pageSize:boolean;
-	typicalHalfwidthCharacterWidth:boolean;
-	typicalFullwidthCharacterWidth:boolean;
-	fontSize:boolean;
-	lineNumbers:boolean;
-	selectOnLineNumbers:boolean;
-	glyphMargin:boolean;
-	revealHorizontalRightPadding:boolean;
-	roundedSelection:boolean;
-	theme:boolean;
-	readOnly:boolean;
-	scrollbar:boolean;
-	overviewRulerLanes:boolean;
-	cursorBlinking:boolean;
-	cursorStyle:boolean;
-	fontLigatures:boolean;
-	hideCursorInOverviewRuler:boolean;
-	scrollBeyondLastLine:boolean;
-	wrappingIndent:boolean;
+	_screenReaderNVDA: boolean;
+
+	// ---- Options that are transparent - get no massaging
+	lineNumbers: boolean;
+	selectOnLineNumbers: boolean;
+	glyphMargin: boolean;
+	revealHorizontalRightPadding: boolean;
+	roundedSelection: boolean;
+	theme: boolean;
+	readOnly: boolean;
+	scrollbar: boolean;
+	overviewRulerLanes: boolean;
+	cursorBlinking: boolean;
+	cursorStyle: boolean;
+	fontLigatures: boolean;
+	hideCursorInOverviewRuler: boolean;
+	scrollBeyondLastLine: boolean;
+	wrappingIndent: boolean;
 	wordWrapBreakBeforeCharacters: boolean;
 	wordWrapBreakAfterCharacters: boolean;
 	wordWrapBreakObtrusiveCharacters: boolean;
-	tabFocusMode:boolean;
-	stopLineTokenizationAfter:boolean;
-	stopRenderingLineAfter:boolean;
-	longLineBoundary:boolean;
-	forcedTokenizationBoundary:boolean;
-	hover:boolean;
-	contextmenu:boolean;
-	quickSuggestions:boolean;
-	quickSuggestionsDelay:boolean;
-	iconsInSuggestions:boolean;
-	autoClosingBrackets:boolean;
-	formatOnType:boolean;
-	suggestOnTriggerCharacters:boolean;
-	selectionHighlight:boolean;
+	tabFocusMode: boolean;
+	stopLineTokenizationAfter: boolean;
+	stopRenderingLineAfter: boolean;
+	longLineBoundary: boolean;
+	forcedTokenizationBoundary: boolean;
+
+	// ---- Options that are transparent - get no massaging
+	hover: boolean;
+	contextmenu: boolean;
+	quickSuggestions: boolean;
+	quickSuggestionsDelay: boolean;
+	iconsInSuggestions: boolean;
+	autoClosingBrackets: boolean;
+	formatOnType: boolean;
+	suggestOnTriggerCharacters: boolean;
+	selectionHighlight: boolean;
 	outlineMarkers: boolean;
 	referenceInfos: boolean;
+	renderWhitespace: boolean;
+
+	// ---- Options that are computed
+	layoutInfo: boolean;
+	stylingInfo: boolean;
+	wrappingInfo: boolean;
+	indentInfo: boolean;
+	observedOuterWidth: boolean;
+	observedOuterHeight: boolean;
+	lineHeight: boolean;
+	pageSize: boolean;
+	typicalHalfwidthCharacterWidth: boolean;
+	typicalFullwidthCharacterWidth: boolean;
+	fontSize: boolean;
 }
 
 /**

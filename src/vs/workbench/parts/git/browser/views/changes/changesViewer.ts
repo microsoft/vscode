@@ -400,7 +400,7 @@ export class Renderer implements tree.IRenderer {
 		}
 	}
 
-	private static statusToTitle(status: git.Status): string {
+	public static statusToTitle(status: git.Status): string {
 		switch (status) {
 			case git.Status.INDEX_MODIFIED:		return nls.localize('title-index-modified', "Modified in index");
 			case git.Status.MODIFIED:			return nls.localize('title-modified', "Modified");
@@ -642,6 +642,30 @@ export class DragAndDrop extends ActionContainer implements tree.IDragAndDrop {
 
 	private onError(error: any): void {
 		this.messageService.show(severity.Error, error);
+	}
+}
+
+export class AccessibilityProvider implements tree.IAccessibilityProvider {
+
+	public getAriaLabel(tree: tree.ITree, element: any): string {
+		if (element instanceof gitmodel.FileStatus) {
+			const fileStatus = <gitmodel.FileStatus>element;
+			const status = fileStatus.getStatus();
+			const path = fileStatus.getPath();
+			const lastSlashIndex = path.lastIndexOf('/');
+			const name = lastSlashIndex === -1 ? path : path.substr(lastSlashIndex + 1, path.length);
+			const folder = (lastSlashIndex === -1 ? '' : path.substr(0, lastSlashIndex));
+
+			return nls.localize('fileStatusAriaLabel', "File {0} in folder {1} has status: {2}", name, folder, Renderer.statusToTitle(status));
+		}
+
+		if (element instanceof gitmodel.StatusGroup) {
+			switch ( (<gitmodel.StatusGroup>element).getType()) {
+				case git.StatusType.INDEX: return nls.localize('ariaLabelStagedChanges', "Staged Changes");
+				case git.StatusType.WORKING_TREE: return nls.localize('ariaLabelChanges', "Changes");
+				case git.StatusType.MERGE: return nls.localize('ariaLabelMerge', "Merge");
+			}
+		}
 	}
 }
 

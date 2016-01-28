@@ -6,6 +6,7 @@
 'use strict';
 
 import 'vs/css!./media/activityBarPart';
+import nls = require('vs/nls');
 import {Promise} from 'vs/base/common/winjs.base';
 import {Builder, $} from 'vs/base/browser/builder';
 import {Action, IAction} from 'vs/base/common/actions';
@@ -118,7 +119,8 @@ export class ActivitybarPart extends Part implements IActivityService {
 		// Viewlet switcher is on top
 		this.viewletSwitcherBar = new ActionBar(div, {
 			actionItemProvider: (action: Action) => this.activityActionItems[action.id],
-			orientation: ActionsOrientation.VERTICAL
+			orientation: ActionsOrientation.VERTICAL,
+			ariaLabel: nls.localize('activityBarAriaLabel', "Active View Switcher")
 		});
 		this.viewletSwitcherBar.getContainer().addClass('position-top');
 

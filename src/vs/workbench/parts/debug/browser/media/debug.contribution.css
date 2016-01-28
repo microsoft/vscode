@@ -53,11 +53,13 @@
 	background: url('breakpoint-conditional.svg') center center no-repeat;
 }
 
-.monaco-editor .debug-top-stack-frame-glyph.debug-breakpoint-glyph {
+.monaco-editor .debug-top-stack-frame-glyph.debug-breakpoint-glyph,
+.monaco-editor .debug-top-stack-frame-glyph.debug-breakpoint-conditional-glyph {
 	background: url('current-and-breakpoint.svg') center center no-repeat;
 }
 
-.monaco-editor .debug-focused-stack-frame-glyph.debug-breakpoint-glyph {
+.monaco-editor .debug-focused-stack-frame-glyph.debug-breakpoint-glyph,
+.monaco-editor .debug-focused-stack-frame-glyph.debug-breakpoint-conditional-glyph {
 	background: url('stackframe-and-breakpoint.svg') center center no-repeat;
 }
 
@@ -262,11 +264,13 @@
 	background: url('stackframe-arrow-dark.svg') center center no-repeat;
 }
 
-.monaco-editor.vs-dark .debug-top-stack-frame-glyph.debug-breakpoint-glyph {
+.monaco-editor.vs-dark .debug-top-stack-frame-glyph.debug-breakpoint-glyph,
+.monaco-editor.vs-dark .debug-top-stack-frame-glyph.debug-breakpoint-conditional-glyph {
 	background: url('current-and-breakpoint-dark.svg') center center no-repeat;
 }
 
-.monaco-editor.vs-dark .debug-focused-stack-frame-glyph.debug-breakpoint-glyph {
+.monaco-editor.vs-dark .debug-focused-stack-frame-glyph.debug-breakpoint-glyph,
+.monaco-editor.vs-dark .debug-focused-stack-frame-glyph.debug-breakpoint-conditional-glyph {
 	background: url('stackframe-and-breakpoint-dark.svg') center center no-repeat;
 }
 

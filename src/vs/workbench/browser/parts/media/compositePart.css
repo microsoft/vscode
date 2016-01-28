@@ -1,0 +1,21 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-workbench > .part > .content > .composite {
+	height: 100%;
+}
+
+.monaco-workbench > .part > .composite.title {
+	display: block;
+}
+
+.monaco-workbench > .part > .composite.title > .title-label span {
+	color: #6f6f6f;
+	text-transform: uppercase;
+}
+
+.monaco-workbench.vs-dark > .part > .composite.title > .title-label span  {
+	color: #bbbbbb;
+}

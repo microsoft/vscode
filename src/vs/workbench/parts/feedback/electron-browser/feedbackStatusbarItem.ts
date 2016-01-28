@@ -20,7 +20,7 @@ class TwitterFeedbackService implements IFeedbackService {
 	private static TWITTER_URL: string = 'https://twitter.com/intent/tweet';
 
 	public submitFeedback(feedback: IFeedback): void {
-		var queryString = `?${feedback.sentiment === 1 ? 'hashtags=LoveVSCode&' : null}ref_src=twsrc%5Etfw&related=twitterapi%2Ctwitter&text=${feedback.feedback}&tw_p=tweetbutton&via=code`;
+		var queryString = `?${feedback.sentiment === 1 ? 'hashtags=HappyCoding&' : null}ref_src=twsrc%5Etfw&related=twitterapi%2Ctwitter&text=${feedback.feedback}&tw_p=tweetbutton&via=code`;
 		var url = TwitterFeedbackService.TWITTER_URL + queryString;
 		shell.openExternal(url);
 	}

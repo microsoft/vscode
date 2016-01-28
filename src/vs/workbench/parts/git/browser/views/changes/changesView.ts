@@ -169,11 +169,13 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 			renderer: renderer,
 			filter: new Viewer.Filter(),
 			sorter: new Viewer.Sorter(),
+			accessibilityProvider: new Viewer.AccessibilityProvider(),
 			dnd: dnd,
 			controller: controller
 		}, {
 			indentPixels: 0,
-			twistiePixels: 20
+			twistiePixels: 20,
+			ariaLabel: nls.localize('treeAriaLabel', "Changes View")
 		});
 
 		this.tree.setInput(this.gitService.getModel().getStatus());
@@ -200,7 +202,7 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 		this.currentDimension = dimension;
 
 		this.commitInputBox.layout();
-		var statusViewHeight = dimension.height - (this.commitInputBox.height + 10 /* margin */);
+		var statusViewHeight = dimension.height - (this.commitInputBox.height + 12 /* margin */);
 		this.$statusView.size(dimension.width, statusViewHeight);
 		this.tree.layout(statusViewHeight);
 
