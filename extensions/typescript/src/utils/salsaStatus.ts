@@ -35,9 +35,9 @@ export function show(message: string, tooltip: string, error: boolean) {
 	statusBarEntry = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, Number.MIN_VALUE);
 	statusBarEntry.text = message;
 	statusBarEntry.tooltip = tooltip;
-	let color = 'yellow';
+	let color = 'white';
 	if (error) {
-		color = 'red';
+		color = 'orange';
 	}
 	statusBarEntry.color = color;
 	statusBarEntry.show();
