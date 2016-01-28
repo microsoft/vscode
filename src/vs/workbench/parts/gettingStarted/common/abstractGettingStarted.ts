@@ -32,7 +32,7 @@ export abstract class AbstractGettingStarted implements IWorkbenchContribution {
 		}
 	}
 
-	private handleWelcome(): void {
+	protected handleWelcome(): void {
 		let firstStartup = !this.storageService.get(AbstractGettingStarted.hideWelcomeSettingskey);
 
 		if (firstStartup && this.welcomePageURL) {

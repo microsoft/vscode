@@ -14,4 +14,11 @@ export class ElectronGettingStarted extends AbstractGettingStarted implements IW
 	protected openExternal(url: string) {
 		shell.openExternal(url);
 	}
+
+	protected handleWelcome(): void {
+		//make sure the user is online, otherwise refer to the next run to show the welcome page
+		if(navigator.onLine) {
+			super.handleWelcome();
+		}
+	}
 }
