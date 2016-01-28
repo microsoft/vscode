@@ -137,6 +137,12 @@ export class StringEditor extends BaseTextEditor {
 
 		options.readOnly = isReadonly;
 
+		if (isReadonly) {
+			options.ariaLabel = nls.localize('readonlyEditorAriaLabel', "Readonly text editor");
+		} else {
+			options.ariaLabel = nls.localize('untitledFileEditorAriaLabel', "Untitled file text editor");
+		}
+
 		return options;
 	}
 

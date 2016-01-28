@@ -209,6 +209,12 @@ export class TextDiffEditor extends BaseTextEditor {
 			let readOnly = modifiedInput instanceof StringEditorInput || modifiedInput instanceof ResourceEditorInput;
 
 			options.readOnly = readOnly;
+
+			if (readOnly) {
+				options.ariaLabel = nls.localize('readonlyEditorAriaLabel', "Readonly text diff editor");
+			} else {
+				options.ariaLabel = nls.localize('editableEditorAriaLabel', "Text diff editor");
+			}
 		}
 
 		return options;

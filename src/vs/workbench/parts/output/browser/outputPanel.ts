@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import nls = require('vs/nls');
 import lifecycle = require('vs/base/common/lifecycle');
 import {TPromise} from 'vs/base/common/winjs.base';
 import {Action, IAction} from 'vs/base/common/actions';
@@ -75,10 +76,11 @@ export class OutputPanel extends StringEditor {
 
 	protected getCodeEditorOptions(): IEditorOptions {
 		const options = super.getCodeEditorOptions();
-		options.wrappingColumn = 0;				// all log editors wrap
-		options.lineNumbers = false;				// all log editors hide line numbers
+		options.wrappingColumn = 0;				// all output editors wrap
+		options.lineNumbers = false;				// all output editors hide line numbers
 		options.glyphMargin = false;
 		options.lineDecorationsWidth = 20;
+		options.ariaLabel = nls.localize('outputEditorAriaLabel', "Output panel");
 
 		return options;
 	}

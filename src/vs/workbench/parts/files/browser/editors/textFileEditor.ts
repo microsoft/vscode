@@ -12,6 +12,7 @@ import labels = require('vs/base/common/labels');
 import types = require('vs/base/common/types');
 import paths = require('vs/base/common/paths');
 import {Action} from 'vs/base/common/actions';
+import {IEditorOptions} from 'vs/editor/common/editorCommon';
 import {VIEWLET_ID, TEXT_FILE_EDITOR_ID, ITextFileService} from 'vs/workbench/parts/files/common/files';
 import {SaveErrorHandler} from 'vs/workbench/parts/files/browser/saveErrorHandler';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
@@ -251,6 +252,13 @@ export class TextFileEditor extends BaseTextEditor {
 		}, errors.onUnexpectedError);
 
 		return true; // in any case we handled it
+	}
+
+	protected getCodeEditorOptions(): IEditorOptions {
+		let options = super.getCodeEditorOptions();
+		options.ariaLabel = nls.localize('fileEditorAriaLabel', "Text file editor");
+
+		return options;
 	}
 
 	public supportsSplitEditor(): boolean {
