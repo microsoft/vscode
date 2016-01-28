@@ -81,6 +81,14 @@
 	outline-offset: -2px;
 }
 
+.monaco-shell.vs .monaco-tree.focused .monaco-tree-row.focused [tabindex="0"]:focus {
+	outline: 1px solid #007ACC; /* higher contrast color for focusable elements in a row that shows focus feedback */
+}
+
+.monaco-shell.vs-dark .monaco-tree.focused .monaco-tree-row.focused [tabindex="0"]:focus {
+	outline: 1px solid #007ACC; /* higher contrast color for focusable elements in a row that shows focus feedback */
+}
+
 .monaco-shell.vs .monaco-tree.focused.no-item-focus:focus {
 	outline: 1px solid rgba(0, 122, 204, 0.4); /* we still need to handle the empty tree or no focus item case */
 	outline-offset: -1px;
