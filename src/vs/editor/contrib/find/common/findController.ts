@@ -468,7 +468,7 @@ export class SelectHighlightsAction extends EditorAction {
 	static COMPAT_ID = 'editor.action.changeAll';
 
 	constructor(descriptor:EditorCommon.IEditorActionDescriptorData, editor:EditorCommon.ICommonCodeEditor, @INullService ns) {
-		let behaviour = Behaviour.WidgetFocus;
+		let behaviour = Behaviour.WidgetFocus | Behaviour.Writeable;
 		if (descriptor.id === SelectHighlightsAction.COMPAT_ID) {
 			behaviour |= Behaviour.ShowInContextMenu;
 		}
