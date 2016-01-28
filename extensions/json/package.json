@@ -3,7 +3,7 @@
 	"version": "0.1.0",
 	"publisher": "vscode",
 	"engines": {
-		"vscode": "*"
+		"vscode": "0.10.x"
 	},
 	"activationEvents": [
 		"onLanguage:json"
