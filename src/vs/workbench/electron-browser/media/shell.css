@@ -49,10 +49,6 @@
 
 /* START Keyboard Focus Indication Styles */
 
-.monaco-shell .synthetic-focus :focus {
-	outline: none !important;
-}
-
 .monaco-shell.vs [tabindex="0"]:focus,
 .monaco-shell.vs .synthetic-focus,
 .monaco-shell.vs input[type="button"]:focus,
@@ -108,6 +104,10 @@
 .monaco-shell.hc-black .monaco-tree.focused.no-item-focus:focus {
 	outline: 2px solid #DF740C; /* we still need to handle the empty tree or no focus item case */
 	outline-offset: -2px;
+}
+
+.monaco-shell .synthetic-focus :focus {
+	outline: 0 !important; /* elements within widgets that draw synthetic-focus should never show focus */
 }
 
 .monaco-shell .monaco-inputbox.info input[type="text"]:focus,
