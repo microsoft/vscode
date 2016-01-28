@@ -49,8 +49,12 @@
 
 /* START Keyboard Focus Indication Styles */
 
+.monaco-shell .synthetic-focus :focus {
+	outline: none !important;
+}
+
 .monaco-shell.vs [tabindex="0"]:focus,
-.monaco-shell.vs select:focus,
+.monaco-shell.vs .synthetic-focus,
 .monaco-shell.vs input[type="button"]:focus,
 .monaco-shell.vs input[type="submit"]:focus,
 .monaco-shell.vs input[type="text"]:focus, .monaco-shell.vs textarea:focus,
@@ -61,6 +65,7 @@
 }
 
 .monaco-shell.vs-dark [tabindex="0"]:focus,
+.monaco-shell.vs-dark .synthetic-focus,
 .monaco-shell.vs-dark select:focus,
 .monaco-shell.vs-dark input[type="button"]:focus,
 .monaco-shell.vs-dark input[type="submit"]:focus,
@@ -72,6 +77,7 @@
 }
 
 .monaco-shell.hc-black [tabindex="0"]:focus,
+.monaco-shell.hc-black .synthetic-focus,
 .monaco-shell.hc-black select:focus,
 .monaco-shell.hc-black input[type="button"]:focus,
 .monaco-shell.hc-black input[type="submit"]:focus,
