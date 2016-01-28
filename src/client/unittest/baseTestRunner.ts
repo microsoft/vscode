@@ -10,10 +10,12 @@ export abstract class BaseTestRunner {
     public Id: string;
     protected pythonSettings: settings.IPythonSettings;
     protected outputChannel: OutputChannel;
-    constructor(id: string, pythonSettings: settings.IPythonSettings, outputChannel: OutputChannel) {
+    private includeErrorAsResponse: boolean;
+    constructor(id: string, pythonSettings: settings.IPythonSettings, outputChannel: OutputChannel, includeErrorAsResponse: boolean = false) {
         this.Id = id;
         this.pythonSettings = pythonSettings;
         this.outputChannel = outputChannel;
+        this.includeErrorAsResponse = includeErrorAsResponse;
     }
 
     public runTests(filePath: string): Promise<any> {
@@ -25,7 +27,7 @@ export abstract class BaseTestRunner {
         var linterId = this.Id;
 
         return new Promise<any>((resolve, reject) => {
-            sendCommand(commandLine, workspace.rootPath).then(data => {
+            sendCommand(commandLine, workspace.rootPath, this.includeErrorAsResponse).then(data => {
                 outputChannel.append(data);
                 outputChannel.show();
             }, error=> {

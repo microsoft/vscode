@@ -7,7 +7,7 @@ import {OutputChannel} from 'vscode';
 
 export class PythonUnitTest extends baseTestRunner.BaseTestRunner {
     constructor(pythonSettings: settings.IPythonSettings, outputChannel: OutputChannel) {
-        super("unittest", pythonSettings, outputChannel);
+        super("unittest", pythonSettings, outputChannel, true);
     }
 
     public runTests(filePath: string = ""): Promise<any> {

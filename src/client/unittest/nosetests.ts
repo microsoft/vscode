@@ -7,7 +7,7 @@ import {OutputChannel} from 'vscode';
 
 export class NoseTests extends baseTestRunner.BaseTestRunner {
     constructor(pythonSettings: settings.IPythonSettings, outputChannel: OutputChannel) {
-        super("nosetests", pythonSettings, outputChannel);
+        super("nosetests", pythonSettings, outputChannel, true);
     }
 
     public runTests(filePath: string = ""): Promise<any> {
