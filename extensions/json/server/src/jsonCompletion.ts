@@ -107,10 +107,10 @@ export class JSONCompletion {
 				let isLast = properties.length === 0 || offset >= properties[properties.length - 1].start;
 				if (schema) {
 					// property proposals with schema
-					this.getPropertySuggestions(schema, doc, node, currentKey, addValue, isLast, collector);
-				} else if (node.parent) {
+					this.getPropertySuggestions(schema, doc, node, addValue, isLast, collector);
+				} else {
 					// property proposals without schema
-					this.getSchemaLessPropertySuggestions(doc, node, collector);
+					this.getSchemaLessPropertySuggestions(doc, node, currentKey, currentWord, isLast, collector);
 				}
 
 				let location = node.getNodeLocation();
@@ -134,7 +134,8 @@ export class JSONCompletion {
 			} else {
 				// value proposals without schema
 				this.getSchemaLessValueSuggestions(doc, node, offset, document, collector);
-			}
+			}	
+			
 			if (!node) {
 				this.contributions.forEach((contribution) => {
 					let collectPromise = contribution.collectDefaultSuggestions(textDocumentPosition.uri, collector);
@@ -162,7 +163,7 @@ export class JSONCompletion {
 		});
 	}
 
-	private getPropertySuggestions(schema: SchemaService.ResolvedSchema, doc: Parser.JSONDocument, node: Parser.ASTNode, currentWord: string, addValue: boolean, isLast: boolean, collector: ISuggestionsCollector): void {
+	private getPropertySuggestions(schema: SchemaService.ResolvedSchema, doc: Parser.JSONDocument, node: Parser.ASTNode, addValue: boolean, isLast: boolean, collector: ISuggestionsCollector): void {
 		let matchingSchemas: Parser.IApplicableSchema[] = [];
 		doc.validate(schema.schema, matchingSchemas, node.start);
 
@@ -179,29 +180,34 @@ export class JSONCompletion {
 		});
 	}
 
-	private getSchemaLessPropertySuggestions(doc: Parser.JSONDocument, node: Parser.ASTNode, collector: ISuggestionsCollector): void {
+	private getSchemaLessPropertySuggestions(doc: Parser.JSONDocument, node: Parser.ASTNode, currentKey: string, currentWord: string, isLast: boolean, collector: ISuggestionsCollector): void {
 		let collectSuggestionsForSimilarObject = (obj: Parser.ObjectASTNode) => {
 			obj.properties.forEach((p) => {
 				let key = p.key.value;
 				collector.add({ kind: CompletionItemKind.Property, label: key, insertText: this.getSnippetForSimilarProperty(key, p.value), documentation: '' });
 			});
 		};
-		if (node.parent.type === 'property') {
-			// if the object is a property value, check the tree for other objects that hang under a property of the same name
-			let parentKey = (<Parser.PropertyASTNode>node.parent).key.value;
-			doc.visit((n) => {
-				if (n.type === 'property' && (<Parser.PropertyASTNode>n).key.value === parentKey && (<Parser.PropertyASTNode>n).value && (<Parser.PropertyASTNode>n).value.type === 'object') {
-					collectSuggestionsForSimilarObject(<Parser.ObjectASTNode>(<Parser.PropertyASTNode>n).value);
-				}
-				return true;
-			});
-		} else if (node.parent.type === 'array') {
-			// if the object is in an array, use all other array elements as similar objects
-			(<Parser.ArrayASTNode>node.parent).items.forEach((n) => {
-				if (n.type === 'object' && n !== node) {
-					collectSuggestionsForSimilarObject(<Parser.ObjectASTNode>n);
-				}
-			});
+		if (node.parent) {
+			if (node.parent.type === 'property') {
+				// if the object is a property value, check the tree for other objects that hang under a property of the same name
+				let parentKey = (<Parser.PropertyASTNode>node.parent).key.value;
+				doc.visit((n) => {
+					if (n.type === 'property' && (<Parser.PropertyASTNode>n).key.value === parentKey && (<Parser.PropertyASTNode>n).value && (<Parser.PropertyASTNode>n).value.type === 'object') {
+						collectSuggestionsForSimilarObject(<Parser.ObjectASTNode>(<Parser.PropertyASTNode>n).value);
+					}
+					return true;
+				});
+			} else if (node.parent.type === 'array') {
+				// if the object is in an array, use all other array elements as similar objects
+				(<Parser.ArrayASTNode>node.parent).items.forEach((n) => {
+					if (n.type === 'object' && n !== node) {
+						collectSuggestionsForSimilarObject(<Parser.ObjectASTNode>n);
+					}
+				});
+			}
+		}
+		if (!currentKey && currentWord.length > 0) {
+			collector.add({ kind: CompletionItemKind.Property, label: JSON.stringify(currentWord), insertText: this.getSnippetForProperty(currentWord, null, true, isLast), documentation: '' });
 		}
 	}
 
@@ -403,35 +409,39 @@ export class JSONCompletion {
 			return result;
 		}
 		result += ': ';
-
-		let defaultVal = propertySchema.default;
-		if (typeof defaultVal !== 'undefined') {
-			result = result + this.getSnippetForValue(defaultVal);
-		} else if (propertySchema.enum && propertySchema.enum.length > 0) {
-			result = result + this.getSnippetForValue(propertySchema.enum[0]);
-		} else {
-			switch (propertySchema.type) {
-				case 'boolean':
-					result += '{{false}}';
-					break;
-				case 'string':
-					result += '"{{}}"';
-					break;
-				case 'object':
-					result += '{\n\t{{}}\n}';
-					break;
-				case 'array':
-					result += '[\n\t{{}}\n]';
-					break;
-				case 'number':
-					result += '{{0}}';
-					break;
-				case 'null':
-					result += '{{null}}';
-					break;
-				default:
-					return result;
+		
+		if (propertySchema) {
+			let defaultVal = propertySchema.default;
+			if (typeof defaultVal !== 'undefined') {
+				result = result + this.getSnippetForValue(defaultVal);
+			} else if (propertySchema.enum && propertySchema.enum.length > 0) {
+				result = result + this.getSnippetForValue(propertySchema.enum[0]);
+			} else {
+				switch (propertySchema.type) {
+					case 'boolean':
+						result += '{{false}}';
+						break;
+					case 'string':
+						result += '"{{}}"';
+						break;
+					case 'object':
+						result += '{\n\t{{}}\n}';
+						break;
+					case 'array':
+						result += '[\n\t{{}}\n]';
+						break;
+					case 'number':
+						result += '{{0}}';
+						break;
+					case 'null':
+						result += '{{null}}';
+						break;
+					default:
+						return result;
+				}
 			}
+		} else {
+			result += '{{0}}';
 		}
 		if (!isLast) {
 			result += ',';
