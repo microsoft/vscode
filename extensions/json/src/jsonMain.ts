@@ -51,14 +51,14 @@ export function activate(context: ExtensionContext) {
 	}
 
 	// Create the language client and start the client.
-	var client = new LanguageClient('JSON Server', serverOptions, clientOptions);
+	let client = new LanguageClient('JSON Server', serverOptions, clientOptions);
 	client.onNotification(TelemetryNotification.type, (e) => {
 		// to be done
 	});
 
 	// handle content request
 	client.onRequest(VSCodeContentRequest.type, (uriPath: string) => {
-		var uri = Uri.parse(uriPath);
+		let uri = Uri.parse(uriPath);
 		return workspace.openTextDocument(uri).then(doc => {
 			return doc.getText();
 		}, error => {
@@ -76,24 +76,24 @@ export function activate(context: ExtensionContext) {
 }
 
 function getSchemaAssociation(context: ExtensionContext) : ISchemaAssociations {
-	var associations : ISchemaAssociations = {};
+	let associations : ISchemaAssociations = {};
 	extensions.all.forEach(extension => {
-		var packageJSON = extension.packageJSON;
+		let packageJSON = extension.packageJSON;
 		if (packageJSON && packageJSON.contributes && packageJSON.contributes.jsonValidation) {
-			var jsonValidation = packageJSON.contributes.jsonValidation;
+			let jsonValidation = packageJSON.contributes.jsonValidation;
 			if (Array.isArray(jsonValidation)) {
 				jsonValidation.forEach(jv => {
-					var {fileMatch, url} = jv;
+					let {fileMatch, url} = jv;
 					if (fileMatch && url) {
 						if (url[0] === '.' && url[1] === '/') {
-							url = path.join(extension.extensionPath, url);
+							url = Uri.file(path.join(extension.extensionPath, url)).toString();
 						}
 						if (fileMatch[0] === '%') {
 							fileMatch = fileMatch.replace(/%APP_SETTINGS_HOME%/, '/User');
 						} else if (fileMatch.charAt(0) !== '/' && !fileMatch.match(/\w+:\/\//)) {
 							fileMatch = '/' + fileMatch;
 						}
-						var association = associations[fileMatch];
+						let association = associations[fileMatch];
 						if (!association) {
 							association = [];
 							associations[fileMatch] = association;
