@@ -272,7 +272,8 @@ export function wrappingIndentFromString(wrappingIndent:string): WrappingIndent 
  * Configuration options for the editor. Common between configuring the editor and the options the editor has computed
  */
 export interface ICommonEditorOptions {
-	_screenReaderNVDA?: boolean;
+	experimentalScreenReader?: boolean;
+	ariaLabel?: string;
 	/**
 	 * Control the rendering of line numbers.
 	 * If it is a function, it will be invoked when rendering a line number and the return value will be rendered.
@@ -584,7 +585,8 @@ export interface IEditorWrappingInfo {
  * Internal configuration options (transformed or computed) for the editor.
  */
 export interface IInternalEditorOptions {
-	_screenReaderNVDA: boolean;
+	experimentalScreenReader: boolean;
+	ariaLabel: string;
 
 	// ---- Options that are transparent - get no massaging
 	lineNumbers:any;
@@ -669,7 +671,8 @@ export interface IInternalEditorOptions {
  * An event describing that the configuration of the editor has changed.
  */
 export interface IConfigurationChangedEvent {
-	_screenReaderNVDA: boolean;
+	experimentalScreenReader: boolean;
+	ariaLabel: boolean;
 
 	// ---- Options that are transparent - get no massaging
 	lineNumbers: boolean;
@@ -2410,12 +2413,13 @@ export interface IDiffLineInformation {
 	equivalentLineNumber: number;
 }
 
-export var KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS = 'editorTextFocus';
-export var KEYBINDING_CONTEXT_EDITOR_FOCUS = 'editorFocus';
-export var KEYBINDING_CONTEXT_EDITOR_TAB_MOVES_FOCUS = 'editorTabMovesFocus';
-export var KEYBINDING_CONTEXT_EDITOR_HAS_MULTIPLE_SELECTIONS = 'editorHasMultipleSelections';
-export var KEYBINDING_CONTEXT_EDITOR_HAS_NON_EMPTY_SELECTION = 'editorHasSelection';
-export var KEYBINDING_CONTEXT_EDITOR_LANGUAGE_ID = 'editorLangId';
+export const KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS = 'editorTextFocus';
+export const KEYBINDING_CONTEXT_EDITOR_FOCUS = 'editorFocus';
+export const KEYBINDING_CONTEXT_EDITOR_TAB_MOVES_FOCUS = 'editorTabMovesFocus';
+export const KEYBINDING_CONTEXT_EDITOR_HAS_MULTIPLE_SELECTIONS = 'editorHasMultipleSelections';
+export const KEYBINDING_CONTEXT_EDITOR_HAS_NON_EMPTY_SELECTION = 'editorHasSelection';
+export const KEYBINDING_CONTEXT_EDITOR_LANGUAGE_ID = 'editorLangId';
+export const SHOW_ACCESSIBILITY_HELP_ACTION_ID = 'editor.action.showAccessibilityHelp';
 
 export interface IDispatcherEvent {
 	getSource(): string;

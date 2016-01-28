@@ -6,6 +6,7 @@ define([
 	'vs/editor/browser/widget/codeEditorWidget',
 	'vs/editor/browser/widget/diffEditorWidget',
 
+	'vs/editor/contrib/accessibility/browser/accessibility',
 	'vs/editor/contrib/clipboard/browser/clipboard',
 	'vs/editor/contrib/codelens/browser/codelens',
 	'vs/editor/contrib/color/browser/color',

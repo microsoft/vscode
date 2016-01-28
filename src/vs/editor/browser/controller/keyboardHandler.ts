@@ -21,6 +21,7 @@ import {CommonKeybindings} from 'vs/base/common/keyCodes';
 import Event, {Emitter} from 'vs/base/common/event';
 import {TextAreaHandler} from 'vs/editor/common/controller/textAreaHandler';
 import {ITextAreaWrapper, IClipboardEvent, IKeyboardEventWrapper, ISimpleModel, TextAreaStrategy} from 'vs/editor/common/controller/textAreaState';
+import {GlobalScreenReaderNVDA} from 'vs/editor/common/config/commonEditorConfig';
 
 class ClipboardEventWrapper implements IClipboardEvent {
 
@@ -261,6 +262,9 @@ export class KeyboardHandler extends ViewEventHandler implements Lifecycle.IDisp
 			DomUtils.StyleMutator.setTop(this.textArea.actual, 0);
 			DomUtils.removeClass(this.viewHelper.viewDomNode, 'ime-input');
 		}));
+		this._toDispose.push(GlobalScreenReaderNVDA.onChange((value) => {
+			this.textAreaHandler.setStrategy(this._getStrategy());
+		}));
 
 
 		this.context.addEventHandler(this);
@@ -274,7 +278,10 @@ export class KeyboardHandler extends ViewEventHandler implements Lifecycle.IDisp
 	}
 
 	private _getStrategy(): TextAreaStrategy {
-		if (this.context.configuration.editor._screenReaderNVDA) {
+		if (GlobalScreenReaderNVDA.getValue()) {
+			return TextAreaStrategy.NVDA;
+		}
+		if (this.context.configuration.editor.experimentalScreenReader) {
 			return TextAreaStrategy.NVDA;
 		}
 		return TextAreaStrategy.IENarrator;
@@ -288,7 +295,7 @@ export class KeyboardHandler extends ViewEventHandler implements Lifecycle.IDisp
 		// Give textarea same font size & line height as editor, for the IME case (when the textarea is visible)
 		DomUtils.StyleMutator.setFontSize(this.textArea.actual, this.context.configuration.editor.fontSize);
 		DomUtils.StyleMutator.setLineHeight(this.textArea.actual, this.context.configuration.editor.lineHeight);
-		if (e._screenReaderNVDA) {
+		if (e.experimentalScreenReader) {
 			this.textAreaHandler.setStrategy(this._getStrategy());
 		}
 		return false;

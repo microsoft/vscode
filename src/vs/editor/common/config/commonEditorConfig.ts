@@ -16,6 +16,28 @@ import {HandlerDispatcher} from 'vs/editor/common/controller/handlerDispatcher';
 import {EditorLayoutProvider} from 'vs/editor/common/viewLayout/editorLayoutProvider';
 import {Disposable} from 'vs/base/common/lifecycle';
 
+/**
+ * Experimental screen reader support toggle
+ */
+export class GlobalScreenReaderNVDA {
+
+	private static _value = false;
+	private static _onChange = new Emitter<boolean>();
+	public static onChange: Event<boolean> = GlobalScreenReaderNVDA._onChange.event;
+
+	public static getValue(): boolean {
+		return this._value;
+	}
+
+	public static setValue(value:boolean): void {
+		if (this._value === value) {
+			return;
+		}
+		this._value = value;
+		this._onChange.fire(this._value);
+	}
+}
+
 export class ConfigurationWithDefaults {
 
 	private _editor:EditorCommon.IEditorOptions;
@@ -150,7 +172,8 @@ class InternalEditorOptionsHelper {
 			scrollbar: scrollbar,
 			overviewRulerLanes: toInteger(opts.overviewRulerLanes, 0, 3),
 			cursorBlinking: opts.cursorBlinking,
-			_screenReaderNVDA: toBoolean(opts._screenReaderNVDA),
+			experimentalScreenReader: toBoolean(opts.experimentalScreenReader),
+			ariaLabel: String(opts.ariaLabel),
 			cursorStyle: opts.cursorStyle,
 			fontLigatures: toBoolean(opts.fontLigatures),
 			hideCursorInOverviewRuler: toBoolean(opts.hideCursorInOverviewRuler),
@@ -228,7 +251,8 @@ class InternalEditorOptionsHelper {
 
 	public static createConfigurationChangedEvent(prevOpts:EditorCommon.IInternalEditorOptions, newOpts:EditorCommon.IInternalEditorOptions): EditorCommon.IConfigurationChangedEvent {
 		return {
-			_screenReaderNVDA:				(prevOpts._screenReaderNVDA !== newOpts._screenReaderNVDA),
+			experimentalScreenReader:		(prevOpts.experimentalScreenReader !== newOpts.experimentalScreenReader),
+			ariaLabel:						(prevOpts.ariaLabel !== newOpts.ariaLabel),
 
 			lineNumbers:						(prevOpts.lineNumbers !== newOpts.lineNumbers),
 			selectOnLineNumbers:				(prevOpts.selectOnLineNumbers !== newOpts.selectOnLineNumbers),

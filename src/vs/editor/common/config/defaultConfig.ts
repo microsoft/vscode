@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as nls from 'vs/nls';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 
 export interface IConfiguration {
 	editor:EditorCommon.IEditorOptions;
@@ -16,7 +17,8 @@ class ConfigClass implements IConfiguration {
 
 	constructor() {
 		this.editor = {
-			_screenReaderNVDA: false,
+			experimentalScreenReader: false,
+			ariaLabel: nls.localize('editorViewAccessibleLabel', "Editor content"),
 			lineNumbers: true,
 			selectOnLineNumbers: true,
 			lineNumbersMinChars: 5,

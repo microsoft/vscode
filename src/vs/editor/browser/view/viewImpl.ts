@@ -4,8 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
-
 import Lifecycle = require('vs/base/common/lifecycle');
 import DomUtils = require('vs/base/browser/dom');
 import EventEmitter = require('vs/base/common/eventEmitter');
@@ -174,7 +172,7 @@ export class View extends ViewEventHandler implements EditorBrowser.IView, Lifec
 		this.textArea.setAttribute('autocorrect', 'off');
 		this.textArea.setAttribute('autocapitalize', 'off');
 		this.textArea.setAttribute('spellcheck', 'false');
-		this.textArea.setAttribute('aria-label', nls.localize('editorViewAccessibleLabel', "Editor content"));
+		this.textArea.setAttribute('aria-label', this.context.configuration.editor.ariaLabel);
 		this.textArea.setAttribute('role', 'textbox');
 		this.textArea.setAttribute('aria-multiline', 'true');
 		DomUtils.StyleMutator.setTop(this.textArea, 0);
@@ -430,6 +428,9 @@ export class View extends ViewEventHandler implements EditorBrowser.IView, Lifec
 	public onConfigurationChanged(e: EditorCommon.IConfigurationChangedEvent): boolean {
 		if (e.stylingInfo) {
 			Configuration.applyEditorStyling(this.domNode, this.context.configuration.editor.stylingInfo);
+		}
+		if (e.ariaLabel) {
+			this.textArea.setAttribute('aria-label', this.context.configuration.editor.ariaLabel);
 		}
 		return false;
 	}

@@ -122,7 +122,7 @@ export class KeybindingResolver {
 			if (KeybindingResolver.contextIsEntirelyIncluded(true, conflict.context, item.context)) {
 				// `item` completely overwrites `conflict`
 				if (this._shouldWarnOnConflict && isDefault) {
-					console.warn('Conflict detected, command `' + conflict.commandId + '` cannot be triggered by ' + Keybinding.toUserSettingsLabel(keypress));
+					console.warn('Conflict detected, command `' + conflict.commandId + '` cannot be triggered by ' + Keybinding.toUserSettingsLabel(keypress) + ' due to ' + item.command);
 				}
 				this._lookupMapUnreachable[conflict.commandId] = this._lookupMapUnreachable[conflict.commandId] || [];
 				this._lookupMapUnreachable[conflict.commandId].push(conflict.keybinding);

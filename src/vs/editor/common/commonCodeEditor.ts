@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import * as nls from 'vs/nls';
 import * as EditorCommon from 'vs/editor/common/editorCommon';
 import {TPromise} from 'vs/base/common/winjs.base';
 import * as Objects from 'vs/base/common/objects';
@@ -29,6 +30,7 @@ import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {EditorState} from 'vs/editor/common/core/editorState';
 import {IKeybindingScopeLocation, IKeybindingService, IKeybindingContextKey} from 'vs/platform/keybinding/common/keybindingService';
 import {CommonEditorConfiguration, IIndentationGuesser} from 'vs/editor/common/config/commonEditorConfig';
+import {DefaultConfig} from 'vs/editor/common/config/defaultConfig';
 
 var EDITOR_ID = 0;
 
@@ -105,6 +107,11 @@ export abstract class CommonCodeEditor extends EventEmitter.EventEmitter impleme
 			delete options.model;
 		}
 
+		if (typeof options.ariaLabel === 'undefined') {
+			options.ariaLabel = DefaultConfig.editor.ariaLabel;
+		}
+		options.ariaLabel += this._ariaLabelAppendMessage();
+
 		this._configuration = this._createConfiguration(options, (tabSize:number) => {
 			if (this.model) {
 				return this.model.guessIndentation(tabSize);
@@ -171,7 +178,18 @@ export abstract class CommonCodeEditor extends EventEmitter.EventEmitter impleme
 		return new EditorState(this, flags);
 	}
 
+	private _ariaLabelAppendMessage(): string {
+		let keybindings = this._keybindingService.lookupKeybindings(EditorCommon.SHOW_ACCESSIBILITY_HELP_ACTION_ID);
+		if (keybindings.length > 0) {
+			return nls.localize('showAccessibilityHelp', "Press {0} for more info.", this._keybindingService.getLabelFor(keybindings[0]));
+		}
+		return '';
+	}
+
 	public updateOptions(newOptions:EditorCommon.IEditorOptions): void {
+		if (typeof newOptions.ariaLabel !== 'undefined') {
+			newOptions.ariaLabel += this._ariaLabelAppendMessage();
+		}
 		this._configuration.updateOptions(newOptions);
 		if (this._configuration.editor.tabFocusMode) {
 			this._editorTabMovesFocusKey.set(true);
