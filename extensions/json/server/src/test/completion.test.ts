@@ -93,16 +93,14 @@ suite('JSON Completion', () => {
 				assertSuggestion(result, 'false');
 			}),
 			testSuggestionsFor('[ { "data": "foo" }, { "data": "bar" }, { "data": "/**/" } ]', '/**/', null, result => {
-				assert.strictEqual(result.length, 3);
+				assert.strictEqual(result.length, 2);
 				assertSuggestion(result, '"foo"');
 				assertSuggestion(result, '"bar"');
-				assertSuggestion(result, '"/**/"');
 			}),
 			testSuggestionsFor('[ { "data": "foo" }, { "data": "bar" }, { "data": "f/**/" } ]', '/**/', null, result => {
-				assert.strictEqual(result.length, 3);
+				assert.strictEqual(result.length, 2);
 				assertSuggestion(result, '"foo"');
 				assertSuggestion(result, '"bar"');
-				assertSuggestion(result, '"f/**/"');
 			}),
 			testSuggestionsFor('[ { "data": "foo" }, { "data": "bar" }, { "data": "xoo"/**/ } ]', '/**/', null, result => {
 				assert.strictEqual(result.length, 3);
