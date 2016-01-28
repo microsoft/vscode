@@ -80,6 +80,8 @@ export class QuickOpenWidget implements IModelProvider {
 	private currentInputToken: string;
 	private quickNavigateConfiguration: IQuickNavigateConfiguration;
 	private container: HTMLElement;
+	private treeElement: HTMLElement;
+	private inputElement: HTMLElement;
 	private usageLogger: IQuickOpenUsageLogger;
 	private layoutDimensions: Dimension;
 	private model: IModel<any>;
@@ -126,8 +128,15 @@ export class QuickOpenWidget implements IModelProvider {
 				this.inputContainer = inputContainer;
 				this.inputBox = new InputBox(inputContainer.getHTMLElement(), null, {
 					placeholder: this.options.inputPlaceHolder || '',
-					ariaLabel: nls.localize('quickOpenAriaLabel', "Type to narrow down results, then press Tab to jump into the result list and make a pick.")
+					ariaLabel: nls.localize('quickOpenAriaLabel', "Quick picker. Type to narrow down results.")
 				});
+
+				// ARIA
+				this.inputElement = this.inputBox.inputElement;
+				this.inputElement.setAttribute('role', 'combobox');
+				this.inputElement.setAttribute('aria-haspopup', 'false');
+				this.inputElement.setAttribute('aria-autocomplete', 'list');
+
 				DOM.addDisposableListener(this.inputBox.inputElement, DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 					let keyboardEvent: StandardKeyboardEvent = new StandardKeyboardEvent(e);
 
@@ -181,6 +190,8 @@ export class QuickOpenWidget implements IModelProvider {
 					verticalScrollMode: 'visible',
 					ariaLabel: nls.localize('treeAriaLabel', "Quick Picker")
 				});
+
+				this.treeElement = this.tree.getHTMLElement();
 
 				// Handle Focus and Selection event
 				this.toUnbind.push(this.tree.addListener(EventType.FOCUS, (event: IFocusEvent) => {
@@ -367,53 +378,13 @@ export class QuickOpenWidget implements IModelProvider {
 		}
 	}
 
-	/*private cycleThroughEntryGroups(entries:QuickOpenEntry[], focus:QuickOpenEntry, isShift:boolean):void {
-
-		// Return early if no entries present
-		if (entries.length === 0) {
-			return;
-		}
-
-		// Focus next/previous group if possible
-		let index = focus ? entries.indexOf(focus) : -1; // TODO@Ben should not make ordering assumptions
-		if (index >= 0) {
-			if (!isShift) {
-				for (let i = index + 1; i < entries.length; i++) {
-					let nextGroupEntry = entries[i];
-					if (nextGroupEntry instanceof QuickOpenEntryGroup && (<QuickOpenEntryGroup>nextGroupEntry).getGroupLabel()) {
-						this.tree.setFocus(nextGroupEntry);
-						return;
-					}
-				}
-			} else {
-				for (let i = index - 1; i >= 0; i--) {
-					if (entries[i] instanceof QuickOpenEntryGroup && (<QuickOpenEntryGroup>entries[i]).getGroupLabel()) {
-						this.tree.setFocus(entries[i]);
-						return;
-					}
-				}
-			}
-		}
-
-		// Focus first group unless shift is pressed
-		if (!isShift) {
-			this.tree.setFocus(entries[0]);
-			return;
-		}
-
-		// Focus last group entry otherwise
-		for (let i = entries.length - 1; i >= 0; i--) {
-			if (entries[i] instanceof QuickOpenEntryGroup && (<QuickOpenEntryGroup>entries[i]).getGroupLabel()) {
-				this.tree.setFocus(entries[i]);
-				return;
-			}
-		}
-	}*/
-
 	private elementFocused(value: any, event?: any): void {
 		if (!value || !this.isVisible()) {
 			return;
 		}
+
+		// ARIA
+		this.inputElement.setAttribute('aria-activedescendant', this.treeElement.getAttribute('aria-activedescendant'));
 
 		const context: IContext = { event: event, quickNavigateConfiguration: this.quickNavigateConfiguration };
 		this.model.runner.run(value, Mode.PREVIEW, context);
@@ -514,6 +485,10 @@ export class QuickOpenWidget implements IModelProvider {
 			if (this.currentInputToken === currentInputToken) {
 				this.tree.setInput(null).then(() => {
 					this.model = input;
+
+					// ARIA
+					this.inputElement.setAttribute('aria-haspopup', String(input && input.entries && input.entries.length > 0));
+
 					return this.tree.setInput(input);
 				}).done(() => {
 					// Indicate entries to tree
@@ -700,6 +675,9 @@ export class QuickOpenWidget implements IModelProvider {
 		// Clear input field and clear tree
 		this.inputBox.value = '';
 		this.tree.setInput(null);
+
+		// ARIA
+		this.inputElement.setAttribute('aria-haspopup', 'false');
 
 		// Reset Tree Height
 		this.treeContainer.style({ height: (this.options.minItemsToShow ? this.options.minItemsToShow * 22 : 0) + 'px' });
