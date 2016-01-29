@@ -139,7 +139,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 				label = '(Salsa !)';
 				tooltip = `${tooltip} does not support Salsa!`;
 			} else {
-				label = '(Salsa 💃)';
+				label = '(Salsa)';
 				tooltip = `${tooltip} does support Salsa.`;
 			}
 			SalsaStatus.show(label, tooltip, !versionOK);
