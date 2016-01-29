@@ -21,7 +21,7 @@ import {IEditorSelection, IEditor, EventType, IConfigurationChangedEvent, IModel
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {IFilesConfiguration} from 'vs/platform/files/common/files';
 import {Position} from 'vs/platform/editor/common/editor';
-import {DEFAULT_THEME_ID} from 'vs/platform/theme/common/themes';
+import {DEFAULT_THEME_ID} from 'vs/workbench/services/themes/node/themeService';
 import {IStorageService, StorageScope, StorageEvent, StorageEventType} from 'vs/platform/storage/common/storage';
 import {IConfigurationService, IConfigurationServiceEvent, ConfigurationServiceEventTypes} from 'vs/platform/configuration/common/configuration';
 import {IEventService} from 'vs/platform/event/common/event';

@@ -20,18 +20,20 @@ export let IThemeService = createDecorator<IThemeService>('themeService');
 
 export interface IThemeService {
 	serviceId: ServiceIdentifier<any>;
-	getTheme(themeId: string): TPromise<ITheme>;
-	loadThemeCSS(themeId: string): TPromise<boolean>;
-	getThemes(): TPromise<ITheme[]>;
+	loadTheme(themeId: string): TPromise<IThemeData>;
+	applyThemeCSS(themeId: string): TPromise<boolean>;
+	getThemes(): TPromise<IThemeData[]>;
 }
 
-export interface ITheme {
+export interface IThemeData {
 	id: string;
 	label: string;
 	description?: string;
 	path: string;
 	styleSheetContent?: string;
 }
+
+export const DEFAULT_THEME_ID = 'vs-dark vscode-theme-colorful-defaults-themes-dark_plus-tmTheme';
 
 // implementation
 
@@ -64,7 +66,7 @@ let themesExtPoint = PluginsRegistry.registerExtensionPoint<IThemeExtensionPoint
 export class ThemeService implements IThemeService {
 	serviceId = IThemeService;
 
-	private knownThemes: ITheme[];
+	private knownThemes: IThemeData[];
 
 	constructor(private pluginService: IPluginService) {
 		this.knownThemes = [];
@@ -76,7 +78,7 @@ export class ThemeService implements IThemeService {
 		});
 	}
 
-	public getTheme(themeId: string): TPromise<ITheme> {
+	public loadTheme(themeId: string): TPromise<IThemeData> {
 		return this.getThemes().then(allThemes => {
 			let themes = allThemes.filter(t => t.id === themeId);
 			if (themes.length > 0) {
@@ -86,16 +88,16 @@ export class ThemeService implements IThemeService {
 		});
 	}
 
-	public loadThemeCSS(themeId: string): TPromise<boolean> {
-		return this.getTheme(themeId).then(theme => {
+	public applyThemeCSS(themeId: string): TPromise<boolean> {
+		return this.loadTheme(themeId).then(theme => {
 			if (theme) {
-				return loadTheme(theme);
+				return applyTheme(theme);
 			}
 			return null;
 		});
 	}
 
-	public getThemes(): TPromise<ITheme[]> {
+	public getThemes(): TPromise<IThemeData[]> {
 		return this.pluginService.onReady().then(isReady => {
 			return this.knownThemes;
 		});
@@ -141,7 +143,7 @@ function toCssSelector(str: string) {
 	return str.replace(/[^_\-a-zA-Z0-9]/g, '-');
 }
 
-function loadTheme(theme: ITheme): TPromise<boolean> {
+function applyTheme(theme: IThemeData): TPromise<boolean> {
 	if (theme.styleSheetContent) {
 		_applyRules(theme.styleSheetContent);
 	}
