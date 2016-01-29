@@ -209,7 +209,7 @@ function packageTask(platform, arch, opts) {
 
 		var deps = gulp.src(depsSrc, { base: '.', dot: true })
 			.pipe(util.cleanNodeModule('fsevents', ['binding.gyp', 'fsevents.cc', 'build/**', 'src/**', 'test/**'], true))
-			.pipe(util.cleanNodeModule('alexandrudima-oniguruma', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], true))
+			.pipe(util.cleanNodeModule('oniguruma', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], true))
 			.pipe(util.cleanNodeModule('windows-mutex', ['binding.gyp', 'build/**', 'src/**'], true))
 			.pipe(util.cleanNodeModule('native-keymap', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], true))
 			.pipe(util.cleanNodeModule('weak', ['binding.gyp', 'build/**', 'src/**'], true));
