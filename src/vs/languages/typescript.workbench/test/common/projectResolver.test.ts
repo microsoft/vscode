@@ -229,11 +229,11 @@ suite('TS - Project Resolver', () => {
 		};
 
 		var files: { [n: string]: string } = Object.create(null);
-		files['jsconfig.json'] = '{}';
-		files['a.js'] = 'a';
-		files['b.js'] = 'b';
-		files['c.d.ts'] = 'c';
-		files['d.ts'] = 'd';
+		files['/jsconfig.json'] = '{}';
+		files['/a.js'] = 'a';
+		files['/b.js'] = 'b';
+		files['/c.d.ts'] = 'c';
+		files['/d.ts'] = 'd';
 
 		var resolver = instantiationService.createChild({
 			searchService: createSearchService(files),

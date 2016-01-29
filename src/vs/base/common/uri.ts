@@ -168,6 +168,8 @@ export default class URI {
 		path = path.replace(/%/g, '%25');
 		path = path.replace(/#/g, '%23');
 		path = path.replace(/\?/g, '%3F');
+		// makes sure something like 'C:/Users' isn't
+		// parsed as scheme='C', path='Users'
 		path = URI._driveLetter.test(path)
 			? '/' + path
 			: path;
@@ -178,7 +180,7 @@ export default class URI {
 		}
 
 		ret = ret.with('file', undefined,
-			decodeURIComponent(ret.path),
+			decodeURIComponent(ret.path[0] === '/' ? ret.path : '/' + ret.path), // path starts with slash
 			undefined, undefined);
 
 		return ret;
