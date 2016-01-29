@@ -59,7 +59,7 @@ export function formatAfterKeystroke(model: IModel, position: IPosition, ch: str
 
 CommonEditorRegistry.registerLanguageCommand('_executeFormatRangeProvider', function(accessor, args) {
 	const {resource, range, options} = args;
-	if (!URI.isURI(resource) || !Range.isIRange(range)) {
+	if (!(resource instanceof URI) || !Range.isIRange(range)) {
 		throw illegalArgument();
 	}
 	const model = accessor.get(IModelService).getModel(resource);
@@ -71,7 +71,7 @@ CommonEditorRegistry.registerLanguageCommand('_executeFormatRangeProvider', func
 
 CommonEditorRegistry.registerLanguageCommand('_executeFormatDocumentProvider', function(accessor, args) {
 	const {resource, options} = args;
-	if (!URI.isURI(resource)) {
+	if (!(resource instanceof URI)) {
 		throw illegalArgument('resource');
 	}
 	const model = accessor.get(IModelService).getModel(resource);

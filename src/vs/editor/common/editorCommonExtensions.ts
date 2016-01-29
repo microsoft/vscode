@@ -107,7 +107,7 @@ export module CommonEditorRegistry {
 		registerLanguageCommand(id, function(accessor, args) {
 
 			const {resource, position} = args;
-			if (!URI.isURI(resource) || !Position.isIPosition(position)) {
+			if (!(resource instanceof URI) || !Position.isIPosition(position)) {
 				throw illegalArgument();
 			}
 

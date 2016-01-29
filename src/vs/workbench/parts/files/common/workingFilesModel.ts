@@ -224,7 +224,7 @@ export class WorkingFilesModel implements IWorkingFilesModel {
 		let resource: uri;
 		if (arg1 instanceof WorkingFileEntry) {
 			resource = (<WorkingFileEntry>arg1).resource;
-		} else if (uri.isURI(arg1)) {
+		} else if (arg1 instanceof uri) {
 			resource = <uri>arg1;
 		} else {
 			resource = (<IFileStat>arg1).resource;

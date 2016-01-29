@@ -374,7 +374,7 @@ export class FileService implements files.IFileService {
 
 	private toAbsolutePath(arg1: uri | files.IFileStat): string {
 		let resource: uri;
-		if (uri.isURI(arg1)) {
+		if (arg1 instanceof uri) {
 			resource = <uri>arg1;
 		} else {
 			resource = (<files.IFileStat>arg1).resource;

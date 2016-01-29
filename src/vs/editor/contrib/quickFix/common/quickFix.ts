@@ -50,7 +50,7 @@ export function getQuickFixes(model: IModel, range: IRange): TPromise<IQuickFix2
 CommonEditorRegistry.registerLanguageCommand('_executeCodeActionProvider', function(accessor, args) {
 
 	const {resource, range} = args;
-	if (!URI.isURI(resource) || !Range.isIRange(range)) {
+	if (!(resource instanceof URI) || !Range.isIRange(range)) {
 		throw illegalArgument();
 	}
 

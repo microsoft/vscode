@@ -306,7 +306,7 @@ export class URL extends URI implements objects.IEqualable {
 			return false;
 		}
 
-		return ((other instanceof URL) || URI.isURI(other));
+		return (other instanceof URL || other instanceof URI);
 	}
 
 	public hashCode():number {
