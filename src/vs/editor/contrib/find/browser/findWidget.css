@@ -119,10 +119,10 @@
 	display: inline-block;
 	margin: 0 1px 0 3px;
 	padding: 2px 2px 0 2px;
-	position: relative;
 	min-width: 69px;
-	top: 1px;
-	height: 23px;
+	height: 25px;
+	vertical-align: middle;
+	box-sizing: border-box;
 	text-align: center;
 }
 
