@@ -11,7 +11,6 @@ import events = require('events');
 import electron = require('electron');
 import platform = require('vs/base/common/platform');
 import env = require('vs/workbench/electron-main/env');
-import storage = require('vs/workbench/electron-main/storage');
 import settings = require('vs/workbench/electron-main/settings');
 import {Win32AutoUpdaterImpl} from 'vs/workbench/electron-main/win32/auto-updater.win32';
 import {manager as Lifecycle} from 'vs/workbench/electron-main/lifecycle';
@@ -44,8 +43,6 @@ interface IAutoUpdater extends NodeJS.EventEmitter {
 }
 
 export class UpdateManager extends events.EventEmitter {
-
-	private static DEFAULT_UPDATE_CHANNEL = 'stable';
 
 	private _state: State;
 	private explicitState: ExplicitState;
@@ -133,14 +130,14 @@ export class UpdateManager extends events.EventEmitter {
 			return; // already initialized
 		}
 
-		const quality = env.quality || 'stable';
-		let feedUrl = UpdateManager.getUpdateFeedUrl(quality);
+		const channel = UpdateManager.getUpdateChannel();
+		const feedUrl = UpdateManager.getUpdateFeedUrl(channel);
 
 		if (!feedUrl) {
 			return; // updates not available
 		}
 
-		this._channel = quality;
+		this._channel = channel;
 		this._feedUrl = feedUrl;
 
 		this.raw.setFeedURL(feedUrl);
@@ -185,7 +182,16 @@ export class UpdateManager extends events.EventEmitter {
 		this.emit('change');
 	}
 
+	private static getUpdateChannel(): string {
+		const channel = settings.manager.getValue('update.channel') || 'default';
+		return channel === 'none' ? null : env.quality;
+	}
+
 	private static getUpdateFeedUrl(channel: string): string {
+		if (!channel) {
+			return null;
+		}
+
 		if (platform.isLinux) {
 			return null;
 		}
