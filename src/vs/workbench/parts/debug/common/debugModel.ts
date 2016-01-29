@@ -169,7 +169,7 @@ export class Expression implements debug.IExpression {
 
 	public set value(value: string) {
 		this._value = massageValue(value);
-		this.valueChanged = Expression.allValues[this.getId()] && Expression.allValues[this.getId()] !== value;
+		this.valueChanged = Expression.allValues[this.getId()] && Expression.allValues[this.getId()] !== Expression.DEFAULT_VALUE && Expression.allValues[this.getId()] !== value;
 		Expression.allValues[this.getId()] = value;
 	}
 
