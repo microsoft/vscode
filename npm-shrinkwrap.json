@@ -421,9 +421,9 @@
       "resolved": "https://registry.npmjs.org/vscode-debugprotocol/-/vscode-debugprotocol-1.5.0.tgz"
     },
     "vscode-textmate": {
-      "version": "1.0.9",
-      "from": "vscode-textmate@1.0.9",
-      "resolved": "https://registry.npmjs.org/vscode-textmate/-/vscode-textmate-1.0.9.tgz",
+      "version": "1.0.10",
+      "from": "vscode-textmate@1.0.10",
+      "resolved": "https://registry.npmjs.org/vscode-textmate/-/vscode-textmate-1.0.10.tgz",
       "dependencies": {
         "alexandrudima-oniguruma": {
           "version": "6.0.3",
