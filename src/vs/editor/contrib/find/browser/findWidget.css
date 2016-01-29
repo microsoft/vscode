@@ -124,6 +124,7 @@
 	vertical-align: middle;
 	box-sizing: border-box;
 	text-align: center;
+	line-height: 23px;
 }
 
 .monaco-editor .find-widget .button {
