@@ -160,7 +160,7 @@ export class TextAreaHandler extends Disposable {
 
 		this._register(this.textArea.onCompositionEnd(() => {
 			// console.log('onCompositionEnd: ' + this.textArea.getValue());
-			readFromTextArea();
+			// readFromTextArea();
 
 			this.lastCompositionEndTime = (new Date()).getTime();
 			if (!this.textareaIsShownAtCursor) {
