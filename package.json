@@ -1,7 +1,7 @@
 {
   "name": "Code",
   "version": "0.10.7",
-  "electronVersion": "0.36.6",
+  "electronVersion": "0.36.7",
   "author": {
     "name": "Microsoft Corporation"
   },
