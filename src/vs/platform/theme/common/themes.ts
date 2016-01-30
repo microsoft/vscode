@@ -12,8 +12,6 @@ export enum BaseTheme {
 	HIGH_CONTRAST
 }
 
-export var DEFAULT_THEME_ID = toId(BaseTheme.VS);
-
 export function getBaseThemes(includeHighContrast: boolean): BaseTheme[] {
 	if (includeHighContrast) {
 		return [BaseTheme.VS, BaseTheme.VS_DARK, BaseTheme.HIGH_CONTRAST];

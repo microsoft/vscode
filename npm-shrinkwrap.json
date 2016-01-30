@@ -421,14 +421,14 @@
       "resolved": "https://registry.npmjs.org/vscode-debugprotocol/-/vscode-debugprotocol-1.5.0.tgz"
     },
     "vscode-textmate": {
-      "version": "1.0.10",
-      "from": "vscode-textmate@1.0.10",
-      "resolved": "https://registry.npmjs.org/vscode-textmate/-/vscode-textmate-1.0.10.tgz",
+      "version": "1.0.11",
+      "from": "vscode-textmate@1.0.11",
+      "resolved": "https://registry.npmjs.org/vscode-textmate/-/vscode-textmate-1.0.11.tgz",
       "dependencies": {
-        "alexandrudima-oniguruma": {
-          "version": "6.0.3",
-          "from": "alexandrudima-oniguruma@>=6.0.0 <7.0.0",
-          "resolved": "https://registry.npmjs.org/alexandrudima-oniguruma/-/alexandrudima-oniguruma-6.0.3.tgz",
+        "oniguruma": {
+          "version": "6.0.1",
+          "from": "oniguruma@>=6.0.0 <7.0.0",
+          "resolved": "https://registry.npmjs.org/oniguruma/-/oniguruma-6.0.1.tgz",
           "dependencies": {
             "nan": {
               "version": "2.0.9",

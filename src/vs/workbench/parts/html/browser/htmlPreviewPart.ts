@@ -20,8 +20,8 @@ import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/edito
 import {ResourceEditorModel} from 'vs/workbench/common/editor/resourceEditorModel';
 import {Preferences} from 'vs/workbench/common/constants';
 import {HtmlInput} from 'vs/workbench/parts/html/common/htmlInput';
-import {DEFAULT_THEME_ID, isLightTheme} from 'vs/platform/theme/common/themes';
-
+import {isLightTheme} from 'vs/platform/theme/common/themes';
+import {DEFAULT_THEME_ID} from 'vs/workbench/services/themes/node/themeService';
 /**
  * An implementation of editor for showing HTML content in an IFrame by leveraging the IFrameEditorInput.
  */

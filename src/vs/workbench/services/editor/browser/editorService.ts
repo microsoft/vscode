@@ -132,7 +132,7 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 
 		// Support opening foreign resources (such as a http link that points outside of the workbench)
 		let resourceInput = <IResourceInput>input;
-		if (URI.isURI(resourceInput.resource)) {
+		if (resourceInput.resource instanceof URI) {
 			let schema = resourceInput.resource.scheme;
 			if (schema === network.schemas.http || schema === network.schemas.https) {
 				window.open(resourceInput.resource.toString());
@@ -242,7 +242,7 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 
 		// Base Text Editor Support for inmemory resources
 		let resourceInput = <IResourceInput>input;
-		if (URI.isURI(resourceInput.resource) && resourceInput.resource.scheme === network.schemas.inMemory) {
+		if (resourceInput.resource instanceof URI && resourceInput.resource.scheme === network.schemas.inMemory) {
 
 			// For in-memory resources we only support to resolve the input from the current active editor
 			// because the workbench does not track editor models by in memory URL. This concept is only
@@ -281,17 +281,17 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 		}
 
 		// Untitled file support
-		else if (URI.isURI(resourceInput.resource) && (resourceInput.resource.scheme === UntitledEditorInput.SCHEMA)) {
+		else if (resourceInput.resource instanceof URI && (resourceInput.resource.scheme === UntitledEditorInput.SCHEMA)) {
 			return TPromise.as<EditorInput>(this.untitledEditorService.createOrGet(resourceInput.resource));
 		}
 
 		// Base Text Editor Support for file resources
-		else if (this.fileInputDescriptor && URI.isURI(resourceInput.resource) && resourceInput.resource.scheme === network.schemas.file) {
+		else if (this.fileInputDescriptor && resourceInput.resource instanceof URI && resourceInput.resource.scheme === network.schemas.file) {
 			return this.createFileInput(resourceInput.resource, resourceInput.mime);
 		}
 
 		// Treat an URI as ResourceEditorInput
-		else if (URI.isURI(resourceInput.resource)) {
+		else if (resourceInput.resource instanceof URI) {
 			return TPromise.as(this.instantiationService.createInstance(ResourceEditorInput,
 				basename(resourceInput.resource.fsPath),
 				dirname(resourceInput.resource.fsPath),

@@ -40,7 +40,7 @@ import {AbstractKeybindingService} from 'vs/platform/keybinding/browser/keybindi
 import {IUntitledEditorService, UntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {WorkbenchEditorService} from 'vs/workbench/services/editor/browser/editorService';
 import {Position, Parts, IPartService} from 'vs/workbench/services/part/common/partService';
-import {DEFAULT_THEME_ID} from 'vs/platform/theme/common/themes';
+import {DEFAULT_THEME_ID} from 'vs/workbench/services/themes/node/themeService';
 import {IWorkspaceContextService as IWorkbenchWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {IStorageService, StorageScope, StorageEvent, StorageEventType} from 'vs/platform/storage/common/storage';
 import {IWorkspace, IConfiguration} from 'vs/platform/workspace/common/workspace';

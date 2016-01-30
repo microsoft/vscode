@@ -9,7 +9,6 @@ import 'vs/css!./inputBox';
 import * as Bal from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
 import * as browser from 'vs/base/browser/browserService';
-import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
 import {IHTMLContentElement} from 'vs/base/common/htmlContent';
 import {renderHtml} from 'vs/base/browser/htmlContentRenderer';
 import {IAction} from 'vs/base/common/actions';
@@ -71,7 +70,6 @@ export class InputBox extends Widget {
 	private showValidationMessage: boolean;
 	private state = 'idle';
 	private cachedHeight: number;
-	private disposables: IDisposable[] = [];
 
 	private _onDidChange = this._register(new Emitter<string>());
 	public onDidChange: Event<string> = this._onDidChange.event;
@@ -104,10 +102,9 @@ export class InputBox extends Widget {
 		this.input.setAttribute('autocorrect', 'off');
 		this.input.setAttribute('autocapitalize', 'off');
 		this.input.setAttribute('spellcheck', 'false');
-		this.disposables.push(
-			dom.addDisposableListener(this.input, dom.EventType.FOCUS, () => dom.addClass(this.element, 'synthetic-focus')),
-			dom.addDisposableListener(this.input, dom.EventType.BLUR, () => dom.removeClass(this.element, 'synthetic-focus')));
 
+		this.onfocus(this.input, () => dom.addClass(this.element, 'synthetic-focus'));
+		this.onblur(this.input, () => dom.removeClass(this.element, 'synthetic-focus'));
 
 		if (this.options.flexibleHeight) {
 			this.mirror = dom.append(wrapper, $('div.mirror'));
@@ -362,7 +359,6 @@ export class InputBox extends Widget {
 
 	public dispose(): void {
 		this._hideMessage();
-		this.disposables = disposeAll(this.disposables);
 
 		this.element = null;
 		this.input = null;

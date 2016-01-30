@@ -168,6 +168,8 @@ export default class URI {
 		path = path.replace(/%/g, '%25');
 		path = path.replace(/#/g, '%23');
 		path = path.replace(/\?/g, '%3F');
+		// makes sure something like 'C:/Users' isn't
+		// parsed as scheme='C', path='Users'
 		path = URI._driveLetter.test(path)
 			? '/' + path
 			: path;
@@ -178,7 +180,7 @@ export default class URI {
 		}
 
 		ret = ret.with('file', undefined,
-			decodeURIComponent(ret.path),
+			decodeURIComponent(ret.path[0] === '/' ? ret.path : '/' + ret.path), // path starts with slash
 			undefined, undefined);
 
 		return ret;
@@ -313,55 +315,6 @@ export default class URI {
 		result._formatted = data._formatted;
 		return result;
 	}
-
-	public static isURI(thing: any): thing is URI {
-		if (thing instanceof URI) {
-			return true;
-		}
-		if(!thing) {
-			return false;
-		}
-		if (typeof (<URI>thing).scheme !== 'string') {
-			return false;
-		}
-		if (typeof (<URI>thing).authority !== 'string') {
-			return false;
-		}
-		if (typeof (<URI>thing).fsPath !== 'string') {
-			return false;
-		}
-		if (typeof (<URI>thing).query !== 'string') {
-			return false;
-		}
-		if (typeof (<URI>thing).fragment !== 'string') {
-			return false;
-		}
-		if (typeof (<URI>thing).with !== 'function') {
-			return false;
-		}
-		if (typeof (<URI>thing).withScheme !== 'function') {
-			return false;
-		}
-		if (typeof (<URI>thing).withAuthority !== 'function') {
-			return false;
-		}
-		if (typeof (<URI>thing).withPath !== 'function') {
-			return false;
-		}
-		if (typeof (<URI>thing).withQuery !== 'function') {
-			return false;
-		}
-		if (typeof (<URI>thing).withFragment !== 'function') {
-			return false;
-		}
-		if (typeof (<URI>thing).toString !== 'function') {
-			return false;
-		}
-		if (typeof (<URI>thing).toJSON !== 'function') {
-			return false;
-		}
-		return true;
-	}
 }
 
 interface _ISerializedURI {
@@ -380,7 +333,7 @@ interface _ISerializedURI {
 marshalling.registerMarshallingContribution({
 
 	canSerialize: (obj:any): boolean => {
-		return URI.isURI(obj);
+		return obj instanceof URI;
 	},
 
 	serialize: (url: URI, serialize: (obj: any) => any): _ISerializedURI => {

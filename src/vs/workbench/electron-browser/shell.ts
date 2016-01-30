@@ -93,7 +93,7 @@ import {MainThreadModeServiceImpl} from 'vs/editor/common/services/modeServiceIm
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {IUntitledEditorService, UntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {CrashReporter} from 'vs/workbench/electron-browser/crashReporter';
-import {IThemeService, ThemeService} from 'vs/workbench/services/themes/node/themeService';
+import {IThemeService, ThemeService, DEFAULT_THEME_ID} from 'vs/workbench/services/themes/node/themeService';
 import { IServiceCtor, isServiceEvent } from 'vs/base/common/service';
 import { connect, Client } from 'vs/base/node/service.net';
 import { IExtensionsService } from 'vs/workbench/parts/extensions/common/extensions';
@@ -400,7 +400,7 @@ export class WorkbenchShell {
 		// Enable theme support
 		let themeId = this.storageService.get(Preferences.THEME, StorageScope.GLOBAL, null);
 		if (!themeId) {
-			themeId = themes.toId(themes.BaseTheme.VS_DARK);
+			themeId = DEFAULT_THEME_ID;
 			this.storageService.store(Preferences.THEME, themeId, StorageScope.GLOBAL);
 		}
 
@@ -432,11 +432,10 @@ export class WorkbenchShell {
 		if (!themes.getSyntaxThemeId(themeId)) {
 			applyTheme();
 		} else {
-			this.themeService.getTheme(themeId).then(theme => {
+			this.themeService.loadTheme(themeId).then(theme => {
 				if (theme) {
-					this.themeService.loadThemeCSS(themeId);
+					this.themeService.applyThemeCSS(themeId);
 					applyTheme();
-
 				}
 			}, error => {
 				errors.onUnexpectedError(error);

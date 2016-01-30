@@ -17,7 +17,7 @@ import workbenchActionRegistry = require('vs/workbench/common/actionRegistry');
 import Themes = require('vs/platform/theme/common/themes');
 import {IQuickOpenService, IPickOpenEntry} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {IThemeService, ITheme} from 'vs/workbench/services/themes/node/themeService';
+import {IThemeService, IThemeData, DEFAULT_THEME_ID} from 'vs/workbench/services/themes/node/themeService';
 
 import {ipcRenderer as ipc} from 'electron';
 
@@ -41,7 +41,7 @@ class SelectThemeAction extends actions.Action {
 	public run(): winjs.Promise {
 
 		return this.themeService.getThemes().then(contributedThemes => {
-			let currentTheme = this.storageService.get(Constants.Preferences.THEME, StorageScope.GLOBAL, Themes.DEFAULT_THEME_ID);
+			let currentTheme = this.storageService.get(Constants.Preferences.THEME, StorageScope.GLOBAL, DEFAULT_THEME_ID);
 			let selectedIndex = 0;
 
 			let picks: IPickOpenEntry[] = [];
@@ -49,7 +49,7 @@ class SelectThemeAction extends actions.Action {
 				picks.push({ label: Themes.toLabel(baseTheme), id: Themes.toId(baseTheme) });
 			});
 
-			let contributedThemesById : { [id:string]: ITheme } = {};
+			let contributedThemesById : { [id:string]: IThemeData } = {};
 			contributedThemes.forEach(theme => {
 				picks.push({ id: theme.id, label: theme.label, description: theme.description });
 				contributedThemes[theme.id] = theme;
@@ -72,7 +72,7 @@ class SelectThemeAction extends actions.Action {
 						ipc.send('vscode:changeTheme', themeId);
 					} else {
 						// before applying, check that it can be loaded
-						return this.themeService.loadThemeCSS(themeId).then(_ => {
+						return this.themeService.applyThemeCSS(themeId).then(_ => {
 							ipc.send('vscode:changeTheme', themeId);
 						}, error => {
 							this.messageService.show(Severity.Info, nls.localize('problemChangingTheme', "Problem loading theme: {0}", error.message));

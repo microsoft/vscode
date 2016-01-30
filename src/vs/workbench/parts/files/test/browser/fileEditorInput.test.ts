@@ -65,7 +65,7 @@ suite('Files - FileEditorInput', () => {
 		assert.strictEqual('file.js', input.getName());
 
 		assert.strictEqual(toResource('/foo/bar/file.js').fsPath, input.getResource().fsPath);
-		assert(URI.isURI(input.getResource()));
+		assert(input.getResource() instanceof URI);
 
 		input = instantiationService.createInstance(FileEditorInput, toResource('/foo/bar.html'), 'text/html', void 0);
 

@@ -45,7 +45,7 @@ export function getCodeLensData(model: IModel): TPromise<ICodeLensData[]> {
 CommonEditorRegistry.registerLanguageCommand('_executeCodeLensProvider', function(accessor, args) {
 
 	const {resource} = args;
-	if (!URI.isURI(resource)) {
+	if (!(resource instanceof URI)) {
 		throw illegalArgument();
 	}
 

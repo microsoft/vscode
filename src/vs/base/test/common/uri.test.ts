@@ -24,7 +24,7 @@ suite('URI', () => {
 		assert.equal(URI.file('c:/win/path/').fsPath.replace(/\\/g, '/'), 'c:/win/path/');
 		assert.equal(URI.file('C:/win/path').fsPath.replace(/\\/g, '/'), 'c:/win/path');
 		assert.equal(URI.file('/c:/win/path').fsPath.replace(/\\/g, '/'), 'c:/win/path');
-		assert.equal(URI.file('./c/win/path').fsPath.replace(/\\/g, '/'), './c/win/path');
+		assert.equal(URI.file('./c/win/path').fsPath.replace(/\\/g, '/'), '/./c/win/path');
 		assert.equal(URI.file('c:\\win\\path').fsPath.replace(/\\/g, '/'), 'c:/win/path');
 		assert.equal(URI.file('c:\\win/path').fsPath.replace(/\\/g, '/'), 'c:/win/path');
 	});
@@ -274,6 +274,21 @@ suite('URI', () => {
 		var value = URI.file('c:\\test\\drive');
 		assert.equal(value.path, '/c:/test/drive');
 		assert.equal(value.toString(), 'file:///c%3A/test/drive');
+	});
+
+	test('URI#file, always slash', () => {
+
+		var value = URI.file('a.file');
+		assert.equal(value.scheme, 'file');
+		assert.equal(value.authority, '');
+		assert.equal(value.path, '/a.file');
+		assert.equal(value.toString(), 'file:///a.file');
+
+		value = URI.parse(value.toString());
+		assert.equal(value.scheme, 'file');
+		assert.equal(value.authority, '');
+		assert.equal(value.path, '/a.file');
+		assert.equal(value.toString(), 'file:///a.file');
 	});
 
 	test('URI#file, disallow scheme', () => {

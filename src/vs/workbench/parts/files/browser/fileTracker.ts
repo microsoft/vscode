@@ -377,7 +377,7 @@ export class FileTracker implements IWorkbenchContribution {
 	private getMatchingFileEditorInputFromInput(input: EditorInput, updatedFiles: FileChangesEvent): FileEditorInput;
 	private getMatchingFileEditorInputFromInput(input: EditorInput, arg: any): FileEditorInput {
 		if (input instanceof FileEditorInput) {
-			if (URI.isURI(arg)) {
+			if (arg instanceof URI) {
 				let deletedResource = <URI>arg;
 				if (this.containsResource(input, deletedResource)) {
 					return input;

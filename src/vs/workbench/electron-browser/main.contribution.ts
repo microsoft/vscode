@@ -64,3 +64,19 @@ configurationRegistry.registerConfiguration({
 		}
 	}
 });
+
+// Configuration: Update
+configurationRegistry.registerConfiguration({
+	'id': 'update',
+	'order': 10,
+	'title': nls.localize('updateConfigurationTitle', "Update configuration"),
+	'type': 'object',
+	'properties': {
+		'update.channel': {
+			'type': 'string',
+			'enum': ['none', 'default'],
+			'default': 'default',
+			'description': nls.localize('updateChannel', "Configure the update channel to receive updates from. Requires a restart after change.")
+		}
+	}
+});
