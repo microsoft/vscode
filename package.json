@@ -2,7 +2,7 @@
     "name": "python",
     "displayName": "Python",
     "description": "Linting, Debugging, Intellisense, auto-completion, code formatting, snippets, and more.",
-    "version": "0.1.1",
+    "version": "0.1.2",
     "publisher": "donjayamanne",
     "license": "SEE LICENSE IN LICENSE or README.MD",
     "homepage": "https://github.com/DonJayamanne/pythonVSCode/blob/master/README.md",
@@ -222,9 +222,9 @@
                 },
                 "python.formatting.yapfPath": {
                     "type": "string",
-                    "default": "",
+                    "default": "yapf",
                     "description": "Path to yapf, you can use a custom version of yapf by modifying this setting to include the full path."
-                },
+                }, 
                 "python.autoComplete.extraPaths": {
                     "type": "array",
                     "default": [],

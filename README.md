@@ -78,6 +78,9 @@ Works on both Windows and Mac.
 
 ## Change Log
 
+### Version 0.1.2
+* Fixed autoformatting of code (falling over when using yapf8)
+
 ### Version 0.1.1
 * Added support for linting using flake8
 * Added support for unit testing using unittest and nosetest

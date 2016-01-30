@@ -68,7 +68,9 @@ export abstract class BaseLinter {
 
         return new Promise<ILintMessage[]>((resolve, reject) => {
             var fileDir = path.dirname(filePath);
-            sendCommand(commandLine, fileDir).then(data => {
+            sendCommand(commandLine, fileDir, true).then(data => {
+                outputChannel.clear();
+                outputChannel.append(data); 
                 var outputLines = data.split(/\r?\n/g);
                 var diagnostics: ILintMessage[] = [];
                 outputLines.filter((value, index) => index <= this.pythonSettings.linting.maxNumberOfProblems).forEach(line=> {

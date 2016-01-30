@@ -63,7 +63,7 @@ export class PythonSettings implements IPythonSettings {
             this.linting = lintingSettings;
         }
 
-        var formattingSettings = pythonSettings.get<IFormattingSettings>("linting");
+        var formattingSettings = pythonSettings.get<IFormattingSettings>("formatting");
         if (this.formatting) {
             Object.assign<IFormattingSettings, IFormattingSettings>(this.formatting, formattingSettings);
         }
