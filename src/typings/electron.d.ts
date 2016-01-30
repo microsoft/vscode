@@ -1278,6 +1278,7 @@ declare module Electron {
 			icon?: NativeImage;
 			noLink?: boolean;
 			cancelId?: number;
+			defaultId?: number;
 		}
 	}
 

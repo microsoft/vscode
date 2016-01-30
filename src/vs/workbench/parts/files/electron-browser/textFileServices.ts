@@ -11,7 +11,7 @@ import {Registry} from 'vs/platform/platform';
 import {IEditorModesRegistry, Extensions as ModesExtensions} from 'vs/editor/common/modes/modesRegistry';
 import paths = require('vs/base/common/paths');
 import strings = require('vs/base/common/strings');
-import {isWindows} from 'vs/base/common/platform';
+import {isWindows, isLinux} from 'vs/base/common/platform';
 import URI from 'vs/base/common/uri';
 import {Action} from 'vs/base/common/actions';
 import {UntitledEditorModel} from 'vs/workbench/common/editor/untitledEditorModel';
@@ -167,17 +167,20 @@ export class TextFileService extends AbstractTextFileService {
 
 		// Button order
 		// Windows: Save | Don't Save | Cancel
-		// Mac/Linux: Save | Cancel | Don't
+		// Mac: Save | Cancel | Don't Save
+		// Linux: Don't Save | Cancel | Save
 
 		const save = { label: resourcesToConfirm.length > 1 ? this.mnemonicLabel(nls.localize('saveAll', "&&Save All")) : this.mnemonicLabel(nls.localize('save', "&&Save")), result: ConfirmResult.SAVE };
 		const dontSave = { label: this.mnemonicLabel(nls.localize('dontSave', "Do&&n't Save")), result: ConfirmResult.DONT_SAVE };
 		const cancel = { label: nls.localize('cancel', "Cancel"), result: ConfirmResult.CANCEL };
 
-		const buttons = [save];
+		const buttons = [];
 		if (isWindows) {
-			buttons.push(dontSave, cancel);
+			buttons.push(save, dontSave, cancel);
+		} else if (isLinux) {
+			buttons.push(dontSave, cancel, save);
 		} else {
-			buttons.push(cancel, dontSave);
+			buttons.push(save, cancel, dontSave);
 		}
 
 		let opts: Electron.Dialog.ShowMessageBoxOptions = {
@@ -189,6 +192,10 @@ export class TextFileService extends AbstractTextFileService {
 			noLink: true,
 			cancelId: buttons.indexOf(cancel)
 		};
+
+		if (isLinux) {
+			opts.defaultId = 2;
+		}
 
 		const choice = remote.dialog.showMessageBox(remote.getCurrentWindow(), opts);
 
