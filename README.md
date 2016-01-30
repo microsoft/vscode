@@ -78,6 +78,9 @@ Works on both Windows and Mac.
 
 ## Change Log
 
+### Version 0.1.3
+* Fixed linting when using pylint
+
 ### Version 0.1.2
 * Fixed autoformatting of code (falling over when using yapf8)
 
