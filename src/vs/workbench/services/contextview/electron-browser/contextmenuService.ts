@@ -7,7 +7,7 @@
 
 import {TPromise} from 'vs/base/common/winjs.base';
 import severity from 'vs/base/common/severity';
-import actions = require('vs/base/common/actions');
+import {IAction} from 'vs/base/common/actions';
 import {Separator} from 'vs/base/browser/ui/actionbar/actionbar';
 import dom = require('vs/base/browser/dom');
 import {$} from 'vs/base/browser/builder';
@@ -37,7 +37,6 @@ export class ContextMenuService implements IContextMenuService {
 			}
 
 			let menu = new remote.Menu();
-			let actionToRun: actions.IAction = null;
 
 			actions.forEach(a => {
 				if (a instanceof Separator) {
@@ -52,7 +51,7 @@ export class ContextMenuService implements IContextMenuService {
 						accelerator,
 						enabled: a.enabled,
 						click: () => {
-							actionToRun = a;
+							this.runAction(a, delegate);
 						}
 					});
 
@@ -77,20 +76,19 @@ export class ContextMenuService implements IContextMenuService {
 			}
 
 			menu.popup(remote.getCurrentWindow(), Math.floor(x), Math.floor(y));
+		});
+	}
 
-			if (delegate.onHide) {
-				delegate.onHide(false);
-			}
+	private runAction(actionToRun: IAction, delegate: IContextMenuDelegate): void {
+		if (delegate.onHide) {
+			delegate.onHide(false);
+		}
 
-			if (!actionToRun) {
-				return;
-			}
+		this.telemetryService.publicLog('workbenchActionExecuted', { id: actionToRun.id, from: 'contextMenu' });
 
-			this.telemetryService.publicLog('workbenchActionExecuted', { id: actionToRun.id, from: 'contextMenu' });
+		const context = delegate.getActionsContext ? delegate.getActionsContext() : null;
+		const res = actionToRun.run(context) || TPromise.as(null);
 
-			const context = delegate.getActionsContext ? delegate.getActionsContext() : null;
-			return actionToRun.run(context) || TPromise.as(null);
-		})
-			.done(null, e => this.messageService.show(severity.Error, e));
+		res.done(null, e => this.messageService.show(severity.Error, e))
 	}
 }
