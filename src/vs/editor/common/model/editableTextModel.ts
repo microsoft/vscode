@@ -484,9 +484,7 @@ export class EditableTextModel extends TextModelWithDecorations implements Edito
 
 					this.emitModelContentChangedLinesDeletedEvent(spliceStart + 1, spliceStart + spliceCnt);
 					// this.emitModelContentChangedLinesInsertedEvent(startLineNumber + editingLinesCnt + 1, startLineNumber + insertingLinesCnt, newLinesContent.join('\n'));
-				}
-
-				if (editingLinesCnt < insertingLinesCnt) {
+				} else if (editingLinesCnt < insertingLinesCnt) {
 					// Must insert some lines
 
 					// Flush pending edits on last edited line
@@ -521,6 +519,8 @@ export class EditableTextModel extends TextModelWithDecorations implements Edito
 					this._lines[startLineNumber + insertingLinesCnt - 1].append(deferredEventsBuilder.changedMarkers, leftoverLine);
 
 					this.emitModelContentChangedLinesInsertedEvent(startLineNumber + editingLinesCnt + 1, startLineNumber + insertingLinesCnt, newLinesContent.join('\n'));
+				} else {
+					this.emitModelContentChangedLineChangedEvent(startLineNumber);
 				}
 
 				// console.log('~~~');
