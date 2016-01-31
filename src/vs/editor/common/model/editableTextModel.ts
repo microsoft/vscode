@@ -332,7 +332,9 @@ export class EditableTextModel extends TextModelWithDecorations implements Edito
 				deltaLines = 0,
 				adjustedLineNumbers = 0,
 				currentLineEdits: ILineEdit[] = [],
-				currentLineNumber = 0;
+				currentLineNumber = 0,
+				originalModelVersion = this.getVersionId(),
+				needDummyChangeEvent = true;
 
 			var adjustLineNumbers = (toLineNumber:number, delta:number): void => {
 				// console.log('adjustLineNumbers: ' + toLineNumber + ' by ' + delta + ', lines.length: ' + this._lines.length);
@@ -360,6 +362,8 @@ export class EditableTextModel extends TextModelWithDecorations implements Edito
 					// empty edit => ignore it
 					return;
 				}
+
+				needDummyChangeEvent = false;
 
 				currentLineEdits.push({
 					startColumn: startColumn,
@@ -483,8 +487,10 @@ export class EditableTextModel extends TextModelWithDecorations implements Edito
 					this.emitModelContentChangedLineChangedEvent(spliceStart);
 
 					this.emitModelContentChangedLinesDeletedEvent(spliceStart + 1, spliceStart + spliceCnt);
-					// this.emitModelContentChangedLinesInsertedEvent(startLineNumber + editingLinesCnt + 1, startLineNumber + insertingLinesCnt, newLinesContent.join('\n'));
-				} else if (editingLinesCnt < insertingLinesCnt) {
+					needDummyChangeEvent = false;
+				}
+
+				if (editingLinesCnt < insertingLinesCnt) {
 					// Must insert some lines
 
 					// Flush pending edits on last edited line
@@ -519,8 +525,7 @@ export class EditableTextModel extends TextModelWithDecorations implements Edito
 					this._lines[startLineNumber + insertingLinesCnt - 1].append(deferredEventsBuilder.changedMarkers, leftoverLine);
 
 					this.emitModelContentChangedLinesInsertedEvent(startLineNumber + editingLinesCnt + 1, startLineNumber + insertingLinesCnt, newLinesContent.join('\n'));
-				} else {
-					this.emitModelContentChangedLineChangedEvent(startLineNumber);
+					needDummyChangeEvent = false;
 				}
 
 				// console.log('~~~');
@@ -548,6 +553,9 @@ export class EditableTextModel extends TextModelWithDecorations implements Edito
 				this._emitContentChanged2(seqEdit.range.startLineNumber, seqEdit.range.startColumn, seqEdit.range.endLineNumber, seqEdit.range.endColumn, seqEdit.rangeLength, seqEdit.text, this._isUndoing, this._isRedoing);
 			}
 
+			if (needDummyChangeEvent && originalModelVersion < this.getVersionId()) {
+				this.emitModelContentChangedLineChangedEvent(baseLineNumber);
+			}
 
 			adjustLineNumbers(this._lines.length, deltaLines);
 		});
