@@ -20,7 +20,7 @@
 	position: absolute;
 	right: 0;
 	top: 0;
-	padding: 0 1em 0 0.4em;
+	padding: 0 0.8em 0 0.4em;
 }
 
 .monaco-tree .monaco-tree-row.focused > .content.actions > .primary-action-bar {
