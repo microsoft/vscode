@@ -125,7 +125,7 @@ class PluginHostProcessManager {
 		// Help in case we fail to start it
 		if (isDev) {
 			this.initializeTimer = setTimeout(() => {
-				const msg = config.env.debugBrkPluginHost ? nls.localize('pluginHostProcess.startupFailDebug', "Plugin host did not start in 10 seconds, it might be stopped on the first line and needs a debugger to continue.") : nls.localize('pluginHostProcess.startupFail', "Plugin host did not start in 10 seconds, that might be a problem.");
+				const msg = config.env.debugBrkPluginHost ? nls.localize('pluginHostProcess.startupFailDebug', "Extension host did not start in 10 seconds, it might be stopped on the first line and needs a debugger to continue.") : nls.localize('pluginHostProcess.startupFail', "Extension host did not start in 10 seconds, that might be a problem.");
 
 				this.messageService.show(Severity.Warning, msg);
 			}, 10000);
@@ -241,7 +241,7 @@ class PluginHostProcessManager {
 
 					this.lastPluginHostError = errorMessage;
 
-					this.messageService.show(Severity.Error, nls.localize('pluginHostProcess.error', "Error from the plugin host: {0}", errorMessage));
+					this.messageService.show(Severity.Error, nls.localize('pluginHostProcess.error', "Error from the extension host: {0}", errorMessage));
 				});
 
 				this.pluginHostProcessHandle.on('exit', (code: any, signal: any) => {
@@ -251,7 +251,7 @@ class PluginHostProcessManager {
 
 						// Unexpected termination
 						if (!this.isPluginDevelopmentHost) {
-							this.messageService.show(Severity.Error, nls.localize('pluginHostProcess.crash', "Plugin host terminated unexpectedly. Please restart VSCode to recover."));
+							this.messageService.show(Severity.Error, nls.localize('pluginHostProcess.crash', "Extension host terminated unexpectedly. Please restart VSCode to recover."));
 							console.error('Plugin host terminated unexpectedly. Code: ', code, ' Signal: ', signal);
 						}
 
