@@ -5,7 +5,6 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
-import {IMarshallingContribution} from 'vs/base/common/marshalling';
 
 export interface IManyHandler {
 	handle(rpcId:string, method:string, args:any[]): any;

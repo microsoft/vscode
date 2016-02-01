@@ -68,7 +68,7 @@ export function create(send: (obj: string) => void): IPluginsIPC {
 			bigHandler = _bigHandler;
 		},
 		handle: (rawmsg) => {
-			var msg = marshalling.demarshallObject(rawmsg);
+			var msg = marshalling.parse(rawmsg);
 
 			if (msg.seq) {
 				if (!pendingRPCReplies.hasOwnProperty(msg.seq)) {
@@ -133,7 +133,7 @@ export function create(send: (obj: string) => void): IPluginsIPC {
 	};
 
 	function marshallAndSend(msg:any): void {
-		send(marshalling.marshallObject(msg));
+		send(marshalling.stringify(msg));
 	}
 
 	function invokeHandler(rpcId:string, method:string, args:any[]): winjs.TPromise<any> {

@@ -22,14 +22,14 @@ suite('ExtHostTypes', function() {
 		let uri = URI.parse('file:///path/test.file');
 		let data = uri.toJSON();
 		assert.deepEqual(data, {
-			$isURI: true,
+			$mid: 1,
 			scheme: 'file',
 			authority: '',
 			path: '/path/test.file',
 			fsPath: '/path/test.file',
 			query: '',
 			fragment: '',
-			formatted: 'file:///path/test.file'
+			external: 'file:///path/test.file'
 		});
 	});
 

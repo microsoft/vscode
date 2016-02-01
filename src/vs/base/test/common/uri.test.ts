@@ -6,7 +6,7 @@
 
 import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
-import { serialize, deserialize } from 'vs/base/common/marshalling';
+import { parse, stringify } from 'vs/base/common/marshalling';
 import { normalize } from 'vs/base/common/paths';
 
 suite('URI', () => {
@@ -133,7 +133,7 @@ suite('URI', () => {
 
 	test('Bug 16793:# in folder name => mirror models get out of sync', () => {
 		var uri1 = URI.file('C:\\C#\\file.txt');
-		assert.equal(deserialize(serialize(uri1.toString())), uri1.toString());
+		assert.equal(parse(stringify(uri1)).toString(), uri1.toString());
 	});
 
 	test('URI#parse', () => {
@@ -353,7 +353,7 @@ suite('URI', () => {
 		// while (c-- > 0) {
 		for(let value of values) {
 			let data = value.toJSON();
-			let clone = URI._fromSerialized(data);
+			let clone = URI.revive(data);
 
 			assert.equal(clone.scheme, value.scheme);
 			assert.equal(clone.authority, value.authority);

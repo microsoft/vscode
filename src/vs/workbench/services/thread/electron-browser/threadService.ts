@@ -162,7 +162,7 @@ class PluginHostProcessManager {
 							window.clearTimeout(this.initializeTimer);
 						}
 
-						let initPayload = marshalling.serialize({
+						let initPayload = marshalling.stringify({
 							parentPid: process.pid,
 							contextService: {
 								workspace: this.contextService.getWorkspace(),

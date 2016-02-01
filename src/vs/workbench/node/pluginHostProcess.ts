@@ -10,6 +10,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { PluginHostMain, createServices, IInitData, exit } from 'vs/workbench/node/pluginHostMain';
 import { Client, connect } from 'vs/base/node/service.net';
 import { create as createIPC, IPluginsIPC } from 'vs/platform/plugins/common/ipcRemoteCom';
+import marshalling = require('vs/base/common/marshalling');
 
 interface IRendererConnection {
 	remoteCom: IPluginsIPC;
@@ -27,7 +28,10 @@ function connectToRenderer(): TPromise<IRendererConnection> {
 		const stats: number[] = [];
 
 		// Listen init data message
-		process.once('message', msg => {
+		process.once('message', raw => {
+
+			let msg = marshalling.parse(raw);
+
 			const remoteCom = createIPC(data => {
 				process.send(data);
 				stats.push(data.length);

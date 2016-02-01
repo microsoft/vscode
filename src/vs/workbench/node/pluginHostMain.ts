@@ -25,7 +25,6 @@ import {IInstantiationService } from 'vs/platform/instantiation/common/instantia
 import InstantiationService = require('vs/platform/instantiation/common/instantiationService');
 import {PluginHostPluginService} from 'vs/platform/plugins/common/nativePluginService';
 import {PluginHostThreadService} from 'vs/platform/thread/common/pluginHostThreadService';
-import marshalling = require('vs/base/common/marshalling');
 import {ExtHostTelemetryService} from 'vs/workbench/api/node/extHostTelemetry';
 import {BaseRequestService} from 'vs/platform/request/common/baseRequestService';
 import {BaseWorkspaceContextService} from 'vs/platform/workspace/common/baseWorkspaceContextService';
@@ -59,9 +58,7 @@ export function exit(code?: number) {
 }
 
 export function createServices(remoteCom: IPluginsIPC, initData: IInitData, sharedProcessClient: Client): IInstantiationService {
-	// the init data is not demarshalled
-	initData = marshalling.deserialize(initData);
-	
+
 	let contextService = new BaseWorkspaceContextService(initData.contextService.workspace, initData.contextService.configuration, initData.contextService.options);
 	let threadService = new PluginHostThreadService(remoteCom);
 	threadService.setInstantiationService(InstantiationService.create({ threadService: threadService }));

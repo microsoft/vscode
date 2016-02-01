@@ -120,11 +120,11 @@ export class WorkerServer {
 	}
 
 	public onmessage(msg:string): void {
-		this._onmessage(marshalling.parseAndDemarshallObject(msg));
+		this._onmessage(marshalling.parse(msg));
 	}
 
 	private _postMessage(msg:protocol.IServerMessage): void {
-		this._postSerializedMessage(marshalling.marshallObjectAndStringify(msg));
+		this._postSerializedMessage(marshalling.stringify(msg));
 	}
 
 	private _onmessage(msg:protocol.IClientMessage): void {

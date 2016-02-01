@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import marshalling = require('vs/base/common/marshalling');
 import platform = require('vs/base/common/platform');
 
 // see https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/encodeURIComponent
@@ -292,12 +291,12 @@ export default class URI {
 			fsPath: this.fsPath,
 			query: this.query,
 			fragment: this.fragment.replace(/URL_MARSHAL_REMOVE.*$/, ''), // TODO@Alex: implement derived resources (embedded mirror models) better
-			formatted: this.toString().replace(/#?URL_MARSHAL_REMOVE.*$/, ''), // TODO@Alex: implement derived resources (embedded mirror models) better
-			$isURI: true,
+			external: this.toString().replace(/#?URL_MARSHAL_REMOVE.*$/, ''), // TODO@Alex: implement derived resources (embedded mirror models) better
+			$mid: 1
 		};
 	}
 
-	static _fromSerialized(data: any): URI {
+	static revive(data: any): URI {
 		let result = new URI();
 		result._scheme = (<_ISerializedURI> data).scheme;
 		result._authority = (<_ISerializedURI> data).authority;
@@ -305,39 +304,19 @@ export default class URI {
 		result._query = (<_ISerializedURI> data).query;
 		result._fragment = (<_ISerializedURI> data).fragment;
 		result._fsPath = (<_ISerializedURI> data).fsPath;
-		result._formatted = (<_ISerializedURI>data).formatted;
+		result._formatted = (<_ISerializedURI>data).external;
 		URI._validate(result);
 		return result;
 	}
 }
 
 interface _ISerializedURI {
-	$isURI: boolean;
-
+	$mid: number;
 	scheme: string;
 	authority: string;
 	path: string;
 	fsPath: string;
 	query: string;
 	fragment: string;
-	formatted: string;
+	external: string;
 }
-
-marshalling.registerMarshallingContribution({
-
-	canSerialize: (obj:any): boolean => {
-		return obj instanceof URI;
-	},
-
-	serialize: (url: URI, serialize: (obj: any) => any): _ISerializedURI => {
-		return url.toJSON();
-	},
-
-	canDeserialize: (obj:_ISerializedURI): boolean => {
-		return obj.$isURI;
-	},
-
-	deserialize: (obj:_ISerializedURI, deserialize:(obj:any)=>any): any => {
-		return URI._fromSerialized(obj);
-	}
-});

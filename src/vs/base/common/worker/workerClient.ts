@@ -252,13 +252,13 @@ export class WorkerClient {
 	}
 
 	private _postMessage(msg:any): void {
-		this._worker.postMessage(marshalling.marshallObjectAndStringify(msg));
+		this._worker.postMessage(marshalling.stringify(msg));
 	}
 
 	private _onSerializedMessage(msg:string): void {
 		var message:protocol.IServerMessage = null;
 		try {
-			message = marshalling.parseAndDemarshallObject(msg);
+			message = marshalling.parse(msg);
 		} catch (e) {
 			// nothing
 		}
