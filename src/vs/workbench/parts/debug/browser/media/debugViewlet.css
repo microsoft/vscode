@@ -93,7 +93,7 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 	padding-right: 0.8em;
-	margin-right: 0.8em;
+	margin-right: 0.2em;
 }
 
 .debug-viewlet .debug-call-stack .stack-frame > .file {
