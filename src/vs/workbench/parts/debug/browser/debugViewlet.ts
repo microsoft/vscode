@@ -191,6 +191,7 @@ class CallStackView extends viewlet.CollapsibleViewletView {
 
 	private static MEMENTO = 'callstackview.memento';
 	private messageBox: HTMLDivElement;
+	private fullSize: number;
 
 	constructor(actionRunner: actions.IActionRunner, private settings: any,
 		@IMessageService messageService: IMessageService,
@@ -251,14 +252,19 @@ class CallStackView extends viewlet.CollapsibleViewletView {
 		}));
 		this.toDispose.push(this.debugService.getViewModel().addListener2(debug.ViewModelEvents.FOCUSED_STACK_FRAME_UPDATED, () => {
 			const focussedThread = this.debugService.getModel().getThreads()[this.debugService.getViewModel().getFocusedThreadId()];
+			const previouslyHidden = this.messageBox.hidden;
 			if (focussedThread && focussedThread.stoppedReason && focussedThread.stoppedReason !== 'step') {
 				this.messageBox.textContent = nls.localize('debugStopped', "Paused on {0}.", focussedThread.stoppedReason);
 				focussedThread.stoppedReason === 'exception' ? this.messageBox.classList.add('exception') : this.messageBox.classList.remove('exception');
 
 				this.messageBox.hidden = false;
-				return;
+			} else {
+				this.messageBox.hidden = true;
 			}
-			this.messageBox.hidden = true;
+
+			if (previouslyHidden !== this.messageBox.hidden) {
+				this.layoutBody(this.fullSize);
+			}
 		}));
 
 		this.toDispose.push(this.debugService.getViewModel().addListener2(debug.ViewModelEvents.FOCUSED_STACK_FRAME_UPDATED,() => {
@@ -276,6 +282,7 @@ class CallStackView extends viewlet.CollapsibleViewletView {
 	}
 
 	public layoutBody(size: number): void {
+		this.fullSize = size;
 		const sizeWithRespectToMessageBox = this.messageBox && !this.messageBox.hidden ? size - 27 : size;
 		super.layoutBody(sizeWithRespectToMessageBox);
 	}
