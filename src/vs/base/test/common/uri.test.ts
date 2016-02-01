@@ -352,7 +352,7 @@ suite('URI', () => {
 		// let c = 100000;
 		// while (c-- > 0) {
 		for(let value of values) {
-			let data = value._toSerialized();
+			let data = value.toJSON();
 			let clone = URI._fromSerialized(data);
 
 			assert.equal(clone.scheme, value.scheme);

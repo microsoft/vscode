@@ -17,6 +17,22 @@ function assertToJSON(a: any, expected: any) {
 
 suite('ExtHostTypes', function() {
 
+	test('URI, toJSON', function() {
+
+		let uri = URI.parse('file:///path/test.file');
+		let data = uri.toJSON();
+		assert.deepEqual(data, {
+			$isURI: true,
+			scheme: 'file',
+			authority: '',
+			path: '/path/test.file',
+			fsPath: '/path/test.file',
+			query: '',
+			fragment: '',
+			formatted: 'file:///path/test.file'
+		});
+	});
+
 	test('Disposable', function() {
 
 		let count = 0;
@@ -289,15 +305,15 @@ suite('ExtHostTypes', function() {
 		edit.set(a, [types.TextEdit.insert(new types.Position(0, 0), 'fff')]);
 		assert.ok(edit.has(a));
 		assert.equal(edit.size, 1);
-		assertToJSON(edit, [['file:///a.ts', [{ range: [{ line: 0, character: 0 }, { line: 0, character: 0 }], newText: 'fff' }]]]);
+		assertToJSON(edit, [[URI.parse('file:///a.ts').toJSON(), [{ range: [{ line: 0, character: 0 }, { line: 0, character: 0 }], newText: 'fff' }]]]);
 
 		edit.insert(b, new types.Position(1, 1), 'fff');
 		edit.delete(b, new types.Range(0, 0, 0, 0));
 		assert.ok(edit.has(b));
 		assert.equal(edit.size, 2);
 		assertToJSON(edit, [
-			['file:///a.ts', [{ range: [{ line: 0, character: 0 }, { line: 0, character: 0 }], newText: 'fff' }]],
-			['file:///b.ts', [{ range: [{ line: 1, character: 1 }, { line: 1, character: 1 }], newText: 'fff' }, { range: [{ line: 0, character: 0 }, { line: 0, character: 0 }], newText: '' }]]
+			[URI.parse('file:///a.ts').toJSON(), [{ range: [{ line: 0, character: 0 }, { line: 0, character: 0 }], newText: 'fff' }]],
+			[URI.parse('file:///b.ts').toJSON(), [{ range: [{ line: 1, character: 1 }, { line: 1, character: 1 }], newText: 'fff' }, { range: [{ line: 0, character: 0 }, { line: 0, character: 0 }], newText: '' }]]
 		]);
 
 		edit.set(b, undefined);
@@ -313,8 +329,8 @@ suite('ExtHostTypes', function() {
 
 		assertToJSON(new types.Selection(3, 4, 2, 1), { start: { line: 2, character: 1 }, end: { line: 3, character: 4 }, anchor: { line: 3, character: 4 }, active: { line: 2, character: 1 } });
 
-		assertToJSON(new types.Location(types.Uri.file('u.ts'), new types.Range(1, 2, 3, 4)), { uri: 'file:///u.ts', range: [{ line: 1, character: 2 }, { line: 3, character: 4 }] });
-		assertToJSON(new types.Location(types.Uri.file('u.ts'), new types.Position(3, 4)), { uri: 'file:///u.ts', range: [{ line: 3, character: 4 }, { line: 3, character: 4 }] });
+		assertToJSON(new types.Location(types.Uri.file('u.ts'), new types.Position(3, 4)), { uri: URI.parse('file:///u.ts').toJSON(), range: [{ line: 3, character: 4 }, { line: 3, character: 4 }] });
+		assertToJSON(new types.Location(types.Uri.file('u.ts'), new types.Range(1, 2, 3, 4)), { uri: URI.parse('file:///u.ts').toJSON(), range: [{ line: 1, character: 2 }, { line: 3, character: 4 }] });
 
 		let diag = new types.Diagnostic(new types.Range(0, 1, 2, 3), 'hello');
 		assertToJSON(diag, { severity: 'Error', message: 'hello', range: [{ line: 0, character: 1 }, { line: 2, character: 3 }] });
