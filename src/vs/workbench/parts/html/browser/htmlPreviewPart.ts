@@ -21,7 +21,7 @@ import {ResourceEditorModel} from 'vs/workbench/common/editor/resourceEditorMode
 import {Preferences} from 'vs/workbench/common/constants';
 import {HtmlInput} from 'vs/workbench/parts/html/common/htmlInput';
 import {isLightTheme} from 'vs/platform/theme/common/themes';
-import {DEFAULT_THEME_ID} from 'vs/workbench/services/themes/node/themeService';
+import {DEFAULT_THEME_ID} from 'vs/workbench/services/themes/common/themeService';
 /**
  * An implementation of editor for showing HTML content in an IFrame by leveraging the IFrameEditorInput.
  */

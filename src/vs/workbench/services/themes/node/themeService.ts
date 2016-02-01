@@ -12,32 +12,14 @@ import {IThemeExtensionPoint} from 'vs/platform/theme/common/themeExtensionPoint
 import {IPluginService} from 'vs/platform/plugins/common/plugins';
 import {PluginsRegistry, IMessageCollector} from 'vs/platform/plugins/common/pluginsRegistry';
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
+import {IThemeService, IThemeData, DEFAULT_THEME_ID} from 'vs/workbench/services/themes/common/themeService';
 
 import plist = require('vs/base/node/plist');
 import pfs = require('vs/base/node/pfs');
 
-export let IThemeService = createDecorator<IThemeService>('themeService');
-
-export interface IThemeService {
-	serviceId: ServiceIdentifier<any>;
-	loadTheme(themeId: string): TPromise<IThemeData>;
-	applyThemeCSS(themeId: string): TPromise<boolean>;
-	getThemes(): TPromise<IThemeData[]>;
-}
-
-export interface IThemeData {
-	id: string;
-	label: string;
-	description?: string;
-	path: string;
-	styleSheetContent?: string;
-}
-
-export const DEFAULT_THEME_ID = 'vs-dark vscode-theme-colorful-defaults-themes-dark_plus-tmTheme';
-
 // implementation
 
-let defaultBaseTheme = Themes.toId(Themes.BaseTheme.VS_DARK);
+let defaultBaseTheme = Themes.getBaseThemeId(DEFAULT_THEME_ID);
 
 let themesExtPoint = PluginsRegistry.registerExtensionPoint<IThemeExtensionPoint[]>('themes', {
 	description: nls.localize('vscode.extension.contributes.themes', 'Contributes textmate color themes.'),
