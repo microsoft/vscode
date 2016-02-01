@@ -24,6 +24,7 @@ import {IEditorModesRegistry, Extensions} from 'vs/editor/common/modes/modesRegi
 import MonarchCommonTypes = require('vs/editor/common/modes/monarch/monarchCommon');
 import {OnEnterSupport, IOnEnterSupportOptions} from 'vs/editor/common/modes/supports/onEnter';
 import {IDisposable, combinedDispose, empty as EmptyDisposable} from 'vs/base/common/lifecycle';
+import {AsyncDescriptor, createAsyncDescriptor0, createAsyncDescriptor1} from 'vs/platform/instantiation/common/descriptors';
 
 interface IModeConfigurationMap { [modeId: string]: any; }
 
@@ -203,11 +204,12 @@ export class ModeServiceImpl implements IModeService {
 	protected _createMode(modeId:string): TPromise<Modes.IMode> {
 		let activationEvent = 'onLanguage:' + modeId;
 
-		let compatModeAsyncDescriptor = LanguageExtensions.getCompatMode(modeId);
+		let compatModeData = LanguageExtensions.getCompatMode(modeId);
 
-		if (compatModeAsyncDescriptor) {
+		if (compatModeData) {
 			return this._pluginService.activateByEvent(activationEvent).then((_) => {
 				var modeDescriptor = this._createModeDescriptor(modeId);
+				let compatModeAsyncDescriptor = createAsyncDescriptor1<Modes.IModeDescriptor, Modes.IMode>(compatModeData.moduleId, compatModeData.ctorName);
 				return this._threadService.createInstance(compatModeAsyncDescriptor, modeDescriptor);
 			}).then((compatMode) => {
 				if (compatMode.configSupport) {
@@ -235,7 +237,7 @@ export class ModeServiceImpl implements IModeService {
 		var workerParticipants = modesRegistry.getWorkerParticipants(modeId);
 		return {
 			id: modeId,
-			workerParticipants: workerParticipants
+			workerParticipants: workerParticipants.map(p => createAsyncDescriptor0(p.moduleId, p.ctorName))
 		};
 	}
 
