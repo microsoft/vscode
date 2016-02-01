@@ -111,10 +111,13 @@
 	outline: 0 !important; /* elements within widgets that draw synthetic-focus should never show focus */
 }
 
+.monaco-shell .monaco-inputbox.info.synthetic-focus,
+.monaco-shell .monaco-inputbox.warning.synthetic-focus,
+.monaco-shell .monaco-inputbox.error.synthetic-focus,
 .monaco-shell .monaco-inputbox.info input[type="text"]:focus,
 .monaco-shell .monaco-inputbox.warning input[type="text"]:focus,
 .monaco-shell .monaco-inputbox.error input[type="text"]:focus {
-	outline: 0; /* outline is not going well with decoration */
+	outline: 0 !important; /* outline is not going well with decoration */
 }
 
 .monaco-shell .monaco-tree.focused:focus {
