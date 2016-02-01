@@ -1113,5 +1113,5 @@ export function removeTabIndexAndUpdateFocus(node: HTMLElement): void {
 		}
 	}
 
-	this.$e.removeAttribute('tabindex');
+	node.removeAttribute('tabindex');
 }
