@@ -171,6 +171,11 @@
 	margin-right: 12px;
 }
 
+.search-viewlet > .results > .monaco-tree .monaco-tree-row:hover .content .monaco-count-badge,
+.search-viewlet > .results > .monaco-tree.focused .monaco-tree-row.focused .content .monaco-count-badge {
+	display: none;
+}
+
 .vs .search-viewlet input.disabled,
 .vs .search-viewlet .file-types.disabled .monaco-inputbox {
 	background-color: #E1E1E1;

@@ -54,6 +54,11 @@
 	display: block;
 }
 
+.git-viewlet > .changes-view > .status-view > .monaco-tree .monaco-tree-row:hover .content .monaco-count-badge,
+.git-viewlet > .changes-view > .status-view > .monaco-tree.focused .monaco-tree-row.focused .content .monaco-count-badge {
+	display: none;
+}
+
 .git-viewlet > .changes-view > .status-view > .monaco-tree .monaco-tree-rows > .monaco-tree-row > .content:after,
 .git-viewlet > .changes-view > .status-view > .monaco-tree .monaco-tree-rows > .monaco-tree-row > .content:before {
 	border: none;
@@ -69,10 +74,6 @@
 .git-viewlet > .changes-view > .status-view > .monaco-tree .monaco-tree-row .count-badge-wrapper {
 	float: right;
 	padding-right: 12px;
-}
-
-.git-viewlet > .changes-view > .status-view > .monaco-tree .monaco-tree-row:hover .monaco-count-badge {
-	display: none;
 }
 
 .git-viewlet > .changes-view > .status-view > .monaco-tree .monaco-tree-row .status-group,
