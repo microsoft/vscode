@@ -15,7 +15,9 @@ import {StringEditor} from 'vs/workbench/browser/parts/editor/stringEditor';
 import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
 import {UntitledEditorInput} from 'vs/workbench/common/editor/untitledEditorInput';
 import {ResourceEditorInput} from 'vs/workbench/common/editor/resourceEditorInput';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import {IInstantiationService, ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
+import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
+import {KbExpr, IKeybindings} from 'vs/platform/keybinding/common/keybindingService';
 import {TextDiffEditor} from 'vs/workbench/browser/parts/editor/textDiffEditor';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {BinaryResourceDiffEditor} from 'vs/workbench/browser/parts/editor/binaryDiffEditor';
@@ -149,3 +151,29 @@ class IFrameEditorActionContributor extends EditorInputActionContributor {
 
 // Contribute to IFrame Editor Inputs
 actionBarRegistry.registerActionBarContributor(Scope.EDITOR, IFrameEditorActionContributor);
+
+// Register keybinding for "Next Change" & "Previous Change" in visible diff editor
+KeybindingsRegistry.registerCommandDesc({
+	id: 'workbench.action.compareEditor.nextChange',
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	context: KbExpr.has('textCompareEditorVisible'),
+	primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.RightArrow),
+	handler: accessor => navigateInDiffEditor(accessor, true)
+});
+
+KeybindingsRegistry.registerCommandDesc({
+	id: 'workbench.action.compareEditor.previousChange',
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	context: KbExpr.has('textCompareEditorVisible'),
+	primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.LeftArrow),
+	handler: accessor => navigateInDiffEditor(accessor, false)
+});
+
+function navigateInDiffEditor(accessor: ServicesAccessor, next: boolean): void {
+	let editorService = accessor.get(IWorkbenchEditorService);
+	const candidates = [editorService.getActiveEditor(), ...editorService.getVisibleEditors()].filter(e => e instanceof TextDiffEditor);
+
+	if (candidates.length > 0) {
+		next ? (<TextDiffEditor>candidates[0]).getDiffNavigator().next() : (<TextDiffEditor>candidates[0]).getDiffNavigator().previous();
+	}
+}

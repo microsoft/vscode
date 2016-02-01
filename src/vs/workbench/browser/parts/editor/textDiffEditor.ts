@@ -12,6 +12,7 @@ import {Builder} from 'vs/base/browser/builder';
 import {Action, IAction} from 'vs/base/common/actions';
 import {onUnexpectedError} from 'vs/base/common/errors';
 import types = require('vs/base/common/types');
+import {Position} from 'vs/platform/editor/common/editor';
 import {IDiffEditor} from 'vs/editor/browser/editorBrowser';
 import {IDiffEditorOptions, IEditorOptions} from 'vs/editor/common/editorCommon';
 import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
@@ -34,6 +35,7 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {IMessageService} from 'vs/platform/message/common/message';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IModeService} from 'vs/editor/common/services/modeService';
+import {IKeybindingService, IKeybindingContextKey} from 'vs/platform/keybinding/common/keybindingService';
 
 /**
  * The text editor that leverages the monaco diff text editor for the editing experience.
@@ -46,6 +48,8 @@ export class TextDiffEditor extends BaseTextEditor {
 	private nextDiffAction: NavigateAction;
 	private previousDiffAction: NavigateAction;
 
+	private textDiffEditorVisible: IKeybindingContextKey<boolean>;
+
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -55,9 +59,12 @@ export class TextDiffEditor extends BaseTextEditor {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IEventService eventService: IEventService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
-		@IModeService modeService: IModeService
+		@IModeService modeService: IModeService,
+		@IKeybindingService keybindingService: IKeybindingService
 	) {
 		super(TextDiffEditor.ID, telemetryService, instantiationService, contextService, storageService, messageService, configurationService, eventService, editorService, modeService);
+
+		this.textDiffEditorVisible = keybindingService.createKey<boolean>('textCompareEditorVisible', false);
 	}
 
 	public getTitle(): string {
@@ -249,6 +256,12 @@ export class TextDiffEditor extends BaseTextEditor {
 		super.clearInput();
 	}
 
+	public setVisible(visible: boolean, position: Position): TPromise<void> {
+		this.textDiffEditorVisible.set(visible);
+
+		return super.setVisible(visible, position);
+	}
+
 	public getDiffNavigator(): DiffNavigator {
 		return this.diffNavigator;
 	}
@@ -306,8 +319,8 @@ export class TextDiffEditor extends BaseTextEditor {
 }
 
 class NavigateAction extends Action {
-	static ID_NEXT = 'workbench.action.nextDiff';
-	static ID_PREV = 'workbench.action.previousDiff';
+	static ID_NEXT = 'workbench.action.compareEditor.nextChange';
+	static ID_PREV = 'workbench.action.compareEditor.previousChange';
 
 	private editor: TextDiffEditor;
 	private next: boolean;
