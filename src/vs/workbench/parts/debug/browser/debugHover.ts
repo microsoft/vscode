@@ -93,7 +93,7 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 
 
 		this.getExpression(namesToFind).done(expression => {
-			if (!expression) {
+			if (!expression || !expression.available) {
 				this.hide();
 				return;
 			}
@@ -115,7 +115,7 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 		}, errors.onUnexpectedError);
 	}
 
-	private getExpression(namesToFind: string[]): TPromise<debug.IExpression> {
+	private getExpression(namesToFind: string[]): TPromise<Expression> {
 		const session = this.debugService.getActiveSession();
 		const focusedStackFrame = this.debugService.getViewModel().getFocusedStackFrame();
 		if (session.capablities.supportsEvaluateForHovers) {
