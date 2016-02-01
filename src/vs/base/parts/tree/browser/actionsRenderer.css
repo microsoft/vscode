@@ -23,10 +23,16 @@
 	padding: 0 1em 0 0.4em;
 }
 
+.monaco-tree .monaco-tree-row.focused > .content.actions > .primary-action-bar {
+	width: 0; /* in order to support a11y with keyboard, we use width: 0 to hide the actions, which still allows to "Tab" into the actions */
+	display: block;
+}
+
 .monaco-tree .monaco-tree-row:hover:not(.highlighted) > .content.actions > .primary-action-bar,
 .monaco-tree.focused .monaco-tree-row.focused > .content.actions > .primary-action-bar,
 .monaco-tree .monaco-tree-row > .content.actions.more > .primary-action-bar {
-	display: inherit;
+	width: inherit;
+	display: block;
 }
 
 .monaco-tree .monaco-tree-row > .content.actions > .primary-action-bar .action-label {
