@@ -255,7 +255,6 @@ export class MessageList {
 				let messageContentElement: HTMLElement = <any>htmlRenderer.renderHtml({
 					tagName: 'span',
 					className: 'message-left-side',
-					role: 'alert',
 					formattedText: text
 				});
 
