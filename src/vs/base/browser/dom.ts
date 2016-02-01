@@ -1084,3 +1084,34 @@ export function hide(...elements: HTMLElement[]): void {
 		element.style.display = 'none';
 	}
 }
+
+function findParentWithAttribute (node:HTMLElement, attribute:string):HTMLElement {
+	while (node) {
+		if (node.hasAttribute(attribute)) {
+			return node;
+		}
+
+		node = <HTMLElement>node.parentNode;
+	}
+
+	return null;
+}
+
+export function removeTabIndexAndUpdateFocus(node: HTMLElement): void {
+	if (!node || !node.hasAttribute('tabIndex')) {
+		return;
+	}
+
+	// If we are the currently focused element and tabIndex is removed,
+	// standard DOM behavior is to move focus to the <body> element. We
+	// typically never want that, rather put focus to the closest element
+	// in the hierarchy of the parent DOM nodes.
+	if (document.activeElement === node) {
+		let parentFocusable = findParentWithAttribute(node.parentElement, 'tabIndex');
+		if (parentFocusable) {
+			parentFocusable.focus();
+		}
+	}
+
+	this.$e.removeAttribute('tabindex');
+}

@@ -295,7 +295,7 @@ export class ActionItem extends BaseActionItem {
 		} else {
 			this.builder.addClass('disabled');
 			this.$e.addClass('disabled');
-			this.$e.removeAttribute('tabindex');
+			DOM.removeTabIndexAndUpdateFocus(this.$e.getHTMLElement());
 		}
 	}
 
