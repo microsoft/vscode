@@ -77,10 +77,15 @@ export class OutputPanel extends StringEditor {
 	protected getCodeEditorOptions(): IEditorOptions {
 		const options = super.getCodeEditorOptions();
 		options.wrappingColumn = 0;				// all output editors wrap
-		options.lineNumbers = false;				// all output editors hide line numbers
+		options.lineNumbers = false;			// all output editors hide line numbers
 		options.glyphMargin = false;
 		options.lineDecorationsWidth = 20;
-		options.ariaLabel = nls.localize('outputEditorAriaLabel', "Output panel");
+
+		let input = this.getInput();
+		let ariaLabel: string;
+		let channel = this.outputService.getActiveChannel();
+
+		options.ariaLabel = channel ? nls.localize('outputPanelWithInputAriaLabel', "{0}. Output panel.", channel) : nls.localize('outputPanelAriaLabel', "Output panel.");
 
 		return options;
 	}

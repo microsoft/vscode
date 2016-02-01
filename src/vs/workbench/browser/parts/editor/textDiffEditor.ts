@@ -210,11 +210,15 @@ export class TextDiffEditor extends BaseTextEditor {
 
 			options.readOnly = readOnly;
 
+			let ariaLabel: string;
+			let inputName = input && input.getName();
 			if (readOnly) {
-				options.ariaLabel = nls.localize('readonlyEditorAriaLabel', "Readonly text diff editor");
+				ariaLabel = inputName ? nls.localize('readonlyEditorWithInputAriaLabel', "{0}. Readonly text compare editor.", inputName) : nls.localize('readonlyEditorAriaLabel', "Readonly text compare editor.");
 			} else {
-				options.ariaLabel = nls.localize('editableEditorAriaLabel', "Text diff editor");
+				ariaLabel = inputName ? nls.localize('editableEditorWithInputAriaLabel', "{0}. Text file compare editor.", inputName) : nls.localize('editableEditorAriaLabel', "Text file compare editor.");
 			}
+
+			options.ariaLabel = ariaLabel;
 		}
 
 		return options;
