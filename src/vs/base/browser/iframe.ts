@@ -18,18 +18,18 @@ export interface IWindowChainElement {
 	iframeElement: HTMLIFrameElement;
 }
 
-var hasDifferentOriginAncestorFlag:boolean = false;
-var sameOriginWindowChainCache:IWindowChainElement[] = null;
+let hasDifferentOriginAncestorFlag: boolean = false;
+let sameOriginWindowChainCache: IWindowChainElement[] = null;
 
-function getParentWindowIfSameOrigin(w:Window): Window {
+function getParentWindowIfSameOrigin(w: Window): Window {
 	if (!w.parent || w.parent === w) {
 		return null;
 	}
 
 	// Cannot really tell if we have access to the parent window unless we try to access something in it
 	try {
-		var location = w.location;
-		var parentLocation = w.parent.location;
+		let location = w.location;
+		let parentLocation = w.parent.location;
 		if (location.protocol !== parentLocation.protocol || location.hostname !== parentLocation.hostname || location.port !== parentLocation.port) {
 			hasDifferentOriginAncestorFlag = true;
 			return null;
@@ -42,10 +42,10 @@ function getParentWindowIfSameOrigin(w:Window): Window {
 	return w.parent;
 }
 
-function findIframeElementInParentWindow(parentWindow:Window, childWindow:Window): HTMLIFrameElement {
-	var parentWindowIframes = parentWindow.document.getElementsByTagName('iframe');
-	var iframe:HTMLIFrameElement;
-	for (var i = 0, len = parentWindowIframes.length; i < len; i++) {
+function findIframeElementInParentWindow(parentWindow: Window, childWindow: Window): HTMLIFrameElement {
+	let parentWindowIframes = parentWindow.document.getElementsByTagName('iframe');
+	let iframe: HTMLIFrameElement;
+	for (let i = 0, len = parentWindowIframes.length; i < len; i++) {
 		iframe = parentWindowIframes[i];
 		if (iframe.contentWindow === childWindow) {
 			return iframe;
@@ -62,7 +62,7 @@ function findIframeElementInParentWindow(parentWindow:Window, childWindow:Window
 export function getSameOriginWindowChain(): IWindowChainElement[] {
 	if (!sameOriginWindowChainCache) {
 		sameOriginWindowChainCache = [];
-		var w = window, parent:Window;
+		let w = window, parent: Window;
 		do {
 			parent = getParentWindowIfSameOrigin(w);
 			if (parent) {
@@ -96,7 +96,7 @@ export function hasDifferentOriginAncestor(): boolean {
 /**
  * Returns the position of `childWindow` relative to `ancestorWindow`
  */
-export function getPositionOfChildWindowRelativeToAncestorWindow(childWindow:Window, ancestorWindow:any) {
+export function getPositionOfChildWindowRelativeToAncestorWindow(childWindow: Window, ancestorWindow: any) {
 
 	if (!ancestorWindow || childWindow === ancestorWindow) {
 		return {
@@ -105,12 +105,12 @@ export function getPositionOfChildWindowRelativeToAncestorWindow(childWindow:Win
 		};
 	}
 
-	var top = 0, left = 0;
+	let top = 0, left = 0;
 
-	var windowChain = getSameOriginWindowChain();
+	let windowChain = getSameOriginWindowChain();
 
-	for (var i = 0; i < windowChain.length; i++) {
-		var windowChainEl = windowChain[i];
+	for (let i = 0; i < windowChain.length; i++) {
+		let windowChainEl = windowChain[i];
 
 		if (windowChainEl.window === ancestorWindow) {
 			break;
@@ -120,7 +120,7 @@ export function getPositionOfChildWindowRelativeToAncestorWindow(childWindow:Win
 			break;
 		}
 
-		var boundingRect = windowChainEl.iframeElement.getBoundingClientRect();
+		let boundingRect = windowChainEl.iframeElement.getBoundingClientRect();
 		top += boundingRect.top;
 		left += boundingRect.left;
 	}
@@ -129,4 +129,4 @@ export function getPositionOfChildWindowRelativeToAncestorWindow(childWindow:Win
 		top: top,
 		left: left
 	};
-}	
+}

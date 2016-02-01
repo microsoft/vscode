@@ -12,13 +12,13 @@ interface ISafeWindow {
 }
 
 interface ISafeDocument {
-	URL:string;
-	createElement(tagName:'div'):HTMLDivElement;
-	createElement(tagName:string):HTMLElement;
+	URL: string;
+	createElement(tagName: 'div'): HTMLDivElement;
+	createElement(tagName: string): HTMLElement;
 }
 
 interface INavigator {
-	userAgent:string;
+	userAgent: string;
 }
 
 interface ILocation {
@@ -26,18 +26,18 @@ interface ILocation {
 }
 
 interface IGlobalScope {
-	window:ISafeWindow;
-	navigator:INavigator;
-	parent:IGlobalScope;
-	document:ISafeDocument;
+	window: ISafeWindow;
+	navigator: INavigator;
+	parent: IGlobalScope;
+	document: ISafeDocument;
 	history: {
-		pushState:any
+		pushState: any
 	};
-	isTest:boolean;
+	isTest: boolean;
 	location: ILocation;
 }
 
-var globals = <IGlobalScope><any> (typeof self === 'object' ? self : global);
+const globals = <IGlobalScope><any>(typeof self === 'object' ? self : global);
 
 // MAC:
 // chrome: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_7_2) AppleWebKit/535.2 (KHTML, like Gecko) Chrome/15.0.874.100 Safari/535.2"
@@ -53,8 +53,8 @@ var globals = <IGlobalScope><any> (typeof self === 'object' ? self : global);
 // chrome: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/39.0.2171.71 Safari/537.36"
 // firefox: "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:34.0) Gecko/20100101 Firefox/34.0"
 
-var userAgent = globals.navigator ? globals.navigator.userAgent : '';
-var isTest = !!globals.isTest;
+const userAgent = globals.navigator ? globals.navigator.userAgent : '';
+const isTest = !!globals.isTest;
 
 // DOCUMENTED FOR FUTURE REFERENCE:
 // When running IE11 in IE10 document mode, the code below will identify the browser as being IE10,
@@ -77,6 +77,8 @@ export const canUseTranslate3d = !isIE9 && !isFirefox;
 
 export const enableEmptySelectionClipboard = isWebKit;
 
+let _disablePushState = false;
+
 /**
  * Returns if the browser supports the history.pushState function or not.
  */
@@ -84,7 +86,6 @@ export function canPushState() {
 	return (!_disablePushState && globals.history && globals.history.pushState);
 };
 
-var _disablePushState = false;
 /**
  * Helpful when we detect that pushing state does not work for some reason (e.g. FF prevents pushState for security reasons in some cases)
  */
@@ -104,11 +105,11 @@ export function hasCSSAnimationSupport() {
 		return false;
 	}
 
-	var supported = false;
-	var element = globals.document.createElement('div');
-	var properties = ['animationName', 'webkitAnimationName', 'msAnimationName', 'MozAnimationName', 'OAnimationName'];
-	for (var i = 0; i < properties.length; i++) {
-		var property = properties[i];
+	let supported = false;
+	let element = globals.document.createElement('div');
+	let properties = ['animationName', 'webkitAnimationName', 'msAnimationName', 'MozAnimationName', 'OAnimationName'];
+	for (let i = 0; i < properties.length; i++) {
+		let property = properties[i];
 		if (!types.isUndefinedOrNull(element.style[property]) || element.style.hasOwnProperty(property)) {
 			supported = true;
 			break;
@@ -127,14 +128,14 @@ export function hasCSSAnimationSupport() {
 /**
  * Returns if the browser supports the provided video mime type or not.
  */
-export function canPlayVideo(type:string) {
+export function canPlayVideo(type: string) {
 	if (!globals.document) {
 		return false;
 	}
 
-	var video:HTMLVideoElement = <HTMLVideoElement>globals.document.createElement('video');
+	let video: HTMLVideoElement = <HTMLVideoElement>globals.document.createElement('video');
 	if (video.canPlayType) {
-		var canPlay = video.canPlayType(type);
+		let canPlay = video.canPlayType(type);
 
 		return canPlay === 'maybe' || canPlay === 'probably';
 	}
@@ -145,14 +146,14 @@ export function canPlayVideo(type:string) {
 /**
  * Returns if the browser supports the provided audio mime type or not.
  */
-export function canPlayAudio(type:string) {
+export function canPlayAudio(type: string) {
 	if (!globals.document) {
 		return false;
 	}
 
-	var audio:HTMLAudioElement = <HTMLAudioElement>globals.document.createElement('audio');
+	let audio: HTMLAudioElement = <HTMLAudioElement>globals.document.createElement('audio');
 	if (audio.canPlayType) {
-		var canPlay = audio.canPlayType(type);
+		let canPlay = audio.canPlayType(type);
 
 		return canPlay === 'maybe' || canPlay === 'probably';
 	}
@@ -160,11 +161,11 @@ export function canPlayAudio(type:string) {
 	return false;
 }
 
-export function isInWebWorker():boolean {
-	return !globals.document && typeof((<any>globals).importScripts) !== 'undefined';
+export function isInWebWorker(): boolean {
+	return !globals.document && typeof ((<any>globals).importScripts) !== 'undefined';
 }
 
-export function supportsExecCommand(command:string): boolean {
+export function supportsExecCommand(command: string): boolean {
 	return (
 		(isIE11orEarlier || Platform.isNative)
 		&& document.queryCommandSupported(command)
