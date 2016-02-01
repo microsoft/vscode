@@ -25,16 +25,11 @@ export function registerMarshallingContribution(contribution:IMarshallingContrib
 	marshallingContributions.push(contribution);
 }
 
-var currentDynamicContrib:IMarshallingContribution = null;
-
 export function canSerialize(obj: any): boolean {
 	for (let contrib of marshallingContributions) {
 		if (contrib.canSerialize(obj)) {
 			return true;
 		}
-	}
-	if (currentDynamicContrib && currentDynamicContrib.canSerialize(obj)) {
-		return true;
 	}
 }
 
@@ -46,9 +41,6 @@ export function serialize(obj:any): any {
 				if (contrib.canSerialize(orig)) {
 					return contrib.serialize(orig, serialize);
 				}
-			}
-			if (currentDynamicContrib && currentDynamicContrib.canSerialize(orig)) {
-				return currentDynamicContrib.serialize(orig, serialize);
 			}
 		}
 		return undefined;
@@ -63,9 +55,6 @@ export function deserialize(obj:any): any {
 				if (contrib.canDeserialize(orig)) {
 					return contrib.deserialize(orig, deserialize);
 				}
-			}
-			if (currentDynamicContrib && currentDynamicContrib.canDeserialize(orig)) {
-				return currentDynamicContrib.deserialize(orig, deserialize);
 			}
 		}
 		return undefined;
@@ -116,24 +105,18 @@ registerMarshallingContribution({
 
 
 
-export function marshallObject(obj: any, dynamicContrib: IMarshallingContribution = null): string {
-	currentDynamicContrib = dynamicContrib;
-	const r = serialize(obj);
-	currentDynamicContrib = null;
-	return r;
+export function marshallObject(obj: any): string {
+	return serialize(obj);
 }
 
-export function marshallObjectAndStringify(obj: any, dynamicContrib: IMarshallingContribution = null): string {
-	return JSON.stringify(marshallObject(obj, dynamicContrib));
+export function marshallObjectAndStringify(obj: any): string {
+	return JSON.stringify(marshallObject(obj));
 }
 
-export function demarshallObject(data: any, dynamicContrib: IMarshallingContribution = null) {
-	currentDynamicContrib = dynamicContrib;
-	const r = deserialize(data);
-	currentDynamicContrib = null;
-	return r;
+export function demarshallObject(data: any) {
+	return deserialize(data);
 }
 
-export function parseAndDemarshallObject(serialized: string, dynamicContrib: IMarshallingContribution = null): any {
-	return demarshallObject(JSON.parse(serialized), dynamicContrib);
+export function parseAndDemarshallObject(serialized: string): any {
+	return demarshallObject(JSON.parse(serialized));
 }

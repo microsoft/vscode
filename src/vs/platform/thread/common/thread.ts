@@ -46,10 +46,6 @@ export interface IThreadService {
 
 	// --- END deprecated methods
 
-	createDynamicProxyFromMethods<T>(obj:T): IDynamicProxy<T>;
-	createDynamicProxyFromMembers<T>(obj:T, allowedMembers:string[]): IDynamicProxy<T>;
-	isProxyObject<T>(obj: T): boolean;
-
 	getRemotable<T>(ctor: instantiation.INewConstructorSignature0<T>): T;
 
 	registerRemotableInstance(ctor: any, instance: any): void;

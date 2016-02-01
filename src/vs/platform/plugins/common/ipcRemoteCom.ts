@@ -68,7 +68,7 @@ export function create(send: (obj: string) => void): IPluginsIPC {
 			bigHandler = _bigHandler;
 		},
 		handle: (rawmsg) => {
-			var msg = marshalling.demarshallObject(rawmsg, proxiesMarshalling);
+			var msg = marshalling.demarshallObject(rawmsg);
 
 			if (msg.seq) {
 				if (!pendingRPCReplies.hasOwnProperty(msg.seq)) {
@@ -132,10 +132,8 @@ export function create(send: (obj: string) => void): IPluginsIPC {
 		}
 	};
 
-	var proxiesMarshalling = new remote.ProxiesMarshallingContribution(r);
-
 	function marshallAndSend(msg:any): void {
-		send(marshalling.marshallObject(msg, proxiesMarshalling));
+		send(marshalling.marshallObject(msg));
 	}
 
 	function invokeHandler(rpcId:string, method:string, args:any[]): winjs.TPromise<any> {

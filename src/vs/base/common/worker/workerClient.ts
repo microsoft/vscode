@@ -49,7 +49,6 @@ export class WorkerClient {
 	private _lastTimerEvent:timer.ITimerEvent;
 
 	private _remoteCom: protocol.RemoteCom;
-	private _proxiesMarshalling: remote.ProxiesMarshallingContribution;
 	private _decodeMessageName: (msg: protocol.IClientMessage) => string;
 
 	public onModuleLoaded:TPromise<void>;
@@ -92,7 +91,6 @@ export class WorkerClient {
 		this.onModuleLoaded.then(null, () => this._onError('Worker failed to load ' + moduleId));
 
 		this._remoteCom = new protocol.RemoteCom(this);
-		this._proxiesMarshalling = new remote.ProxiesMarshallingContribution(this._remoteCom);
 	}
 
 	public getRemoteCom(): remote.IRemoteCom {
@@ -254,13 +252,13 @@ export class WorkerClient {
 	}
 
 	private _postMessage(msg:any): void {
-		this._worker.postMessage(marshalling.marshallObjectAndStringify(msg, this._proxiesMarshalling));
+		this._worker.postMessage(marshalling.marshallObjectAndStringify(msg));
 	}
 
 	private _onSerializedMessage(msg:string): void {
 		var message:protocol.IServerMessage = null;
 		try {
-			message = marshalling.parseAndDemarshallObject(msg, this._proxiesMarshalling);
+			message = marshalling.parseAndDemarshallObject(msg);
 		} catch (e) {
 			// nothing
 		}
