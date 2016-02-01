@@ -48,9 +48,8 @@ export interface IPluginStatus {
 export interface IPluginService {
 	serviceId: ServiceIdentifier<any>;
 
-	activateByEvent(activationEvent:string): TPromise<any>;
-	activateAndGet(pluginId:string): TPromise<any>;
-	activateAndGet<T>(pluginId:string): TPromise<T>;
+	activateByEvent(activationEvent:string): TPromise<void>;
+	activateAndGet(pluginId:string): TPromise<void>;
 	isActivated(pluginId:string): boolean;
 
 	/**
@@ -65,8 +64,6 @@ export interface IPluginService {
 	registrationDone(errors?:IMessage[]): void;
 
 	registerOneTimeActivationEventListener(activationEvent: string, listener: IActivationEventListener): void;
-
-	get(pluginId:string): any;
 
 	/**
 	 * Block on this signal any interactions with extensions.

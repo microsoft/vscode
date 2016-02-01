@@ -26,7 +26,7 @@ import {PromiseSource} from 'vs/base/common/async';
 import {AsyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
 import {BaseRequestService} from 'vs/platform/request/common/baseRequestService';
 import {IWorkspace} from 'vs/platform/workspace/common/workspace';
-import {AbstractPluginService} from 'vs/platform/plugins/common/abstractPluginService';
+import {AbstractPluginService, ActivatedPlugin} from 'vs/platform/plugins/common/abstractPluginService';
 import {ModeServiceImpl,ModeServiceWorkerHelper} from 'vs/editor/common/services/modeServiceImpl';
 import Severity from 'vs/base/common/severity';
 
@@ -51,7 +51,7 @@ export interface ICallback {
 	(something:any):void;
 }
 
-class WorkerPluginService extends AbstractPluginService {
+class WorkerPluginService extends AbstractPluginService<ActivatedPlugin> {
 
 	constructor() {
 		super(true);
@@ -75,6 +75,14 @@ class WorkerPluginService extends AbstractPluginService {
 
 	public deactivate(pluginId:string): void {
 		// nothing to do
+	}
+
+	protected _createFailedPlugin(): ActivatedPlugin {
+		throw new Error('unexpected');
+	}
+
+	protected _actualActivatePlugin(pluginDescription: IPluginDescription): TPromise<ActivatedPlugin> {
+		throw new Error('unexpected');
 	}
 
 }

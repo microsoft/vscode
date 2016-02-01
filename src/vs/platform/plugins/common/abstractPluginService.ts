@@ -16,15 +16,6 @@ import Severity from 'vs/base/common/severity';
 var hasOwnProperty = Object.hasOwnProperty;
 var global = this;
 
-export interface IPluginExports {
-	// $isPluginExports:boolean;
-}
-
-export interface IPluginModule {
-	activate(ctx: IPluginContext): WinJS.TPromise<IPluginExports>;
-	deactivate(): void;
-}
-
 export interface IPluginContext {
 	subscriptions: IDisposable[];
 	workspaceState: IPluginMemento;
@@ -38,33 +29,27 @@ export interface IPluginMemento {
 	update(key: string, value: any): Thenable<boolean>;
 }
 
-export class ActivatedPlugin {
+export abstract class ActivatedPlugin {
 	activationFailed: boolean;
-	module: IPluginModule;
-	exports: IPluginExports;
-	subscriptions: IDisposable[];
 
-	constructor(activationFailed: boolean, module: IPluginModule, exports: IPluginExports, subscriptions: IDisposable[]) {
+	constructor(activationFailed: boolean) {
 		this.activationFailed = activationFailed
-		this.module = module;
-		this.exports = exports;
-		this.subscriptions = subscriptions;
 	}
 }
 
-export interface IActivatedPluginMap {
-	[pluginId: string]: ActivatedPlugin;
+export interface IActivatedPluginMap<T extends ActivatedPlugin> {
+	[pluginId: string]: T;
 }
 
 interface IActivatingPluginMap {
-	[pluginId: string]: WinJS.TPromise<IPluginExports>;
+	[pluginId: string]: WinJS.TPromise<void>;
 }
 
-export abstract class AbstractPluginService implements IPluginService {
+export abstract class AbstractPluginService<T extends ActivatedPlugin> implements IPluginService {
 	public serviceId = IPluginService;
 
 	private activatingPlugins: IActivatingPluginMap;
-	protected activatedPlugins: IActivatedPluginMap;
+	protected activatedPlugins: IActivatedPluginMap<T>;
 	private _onReady: WinJS.TPromise<boolean>;
 	private _onReadyC: (v: boolean) => void;
 
@@ -105,12 +90,6 @@ export abstract class AbstractPluginService implements IPluginService {
 		return this._onReady;
 	}
 
-	public get(pluginId: string): IPluginExports {
-		if (!hasOwnProperty.call(this.activatedPlugins, pluginId)) {
-			throw new Error('Plugin `' + pluginId + '` is not known or not activated');
-		}
-		return this.activatedPlugins[pluginId].exports;
-	}
 
 	public getPluginsStatus(): { [id: string]: IPluginStatus } {
 		return null;
@@ -128,16 +107,14 @@ export abstract class AbstractPluginService implements IPluginService {
 		});
 	}
 
-	public activateAndGet(pluginId: string): WinJS.TPromise<IPluginExports> {
+	public activateAndGet(pluginId: string): WinJS.TPromise<void> {
 		return this._onReady.then(() => {
 			var desc = PluginsRegistry.getPluginDescription(pluginId);
 			if (!desc) {
 				throw new Error('Plugin `' + pluginId + '` is not known');
 			}
 
-			return this._activatePlugins([desc], 0).then(() => {
-				return this.get(pluginId);
-			});
+			return this._activatePlugins([desc], 0);
 		});
 	}
 
@@ -156,7 +133,7 @@ export abstract class AbstractPluginService implements IPluginService {
 			if (!depDesc) {
 				// Error condition 1: unknown dependency
 				this._showMessage(Severity.Error, nls.localize('unknownDep', "Extension `{1}` failed to activate. Reason: unknown dependency `{0}`.", depId, currentPlugin.id));
-				this.activatedPlugins[currentPlugin.id] = new ActivatedPlugin(true, { activate: undefined, deactivate: undefined }, {}, []);
+				this.activatedPlugins[currentPlugin.id] = this._createFailedPlugin();
 				return;
 			}
 
@@ -165,7 +142,7 @@ export abstract class AbstractPluginService implements IPluginService {
 				if (dep.activationFailed) {
 					// Error condition 2: a dependency has already failed activation
 					this._showMessage(Severity.Error, nls.localize('failedDep', "Extension `{1}` failed to activate. Reason: dependency `{0}` failed to activate.", depId, currentPlugin.id));
-					this.activatedPlugins[currentPlugin.id] = new ActivatedPlugin(true, { activate: undefined, deactivate: undefined }, {}, []);
+					this.activatedPlugins[currentPlugin.id] = this._createFailedPlugin();
 					return;
 				}
 			} else {
@@ -198,7 +175,7 @@ export abstract class AbstractPluginService implements IPluginService {
 			for (let i = 0, len = pluginDescriptions.length; i < len; i++) {
 				// Error condition 3: dependency loop
 				this._showMessage(Severity.Error, nls.localize('failedDep', "Extension `{0}` failed to activate. Reason: more than 10 levels of dependencies (most likely a dependency loop).", pluginDescriptions[i].id));
-				this.activatedPlugins[pluginDescriptions[i].id] = new ActivatedPlugin(true, { activate: undefined, deactivate: undefined }, {}, []);
+				this.activatedPlugins[pluginDescriptions[i].id] = this._createFailedPlugin();
 			}
 			return WinJS.TPromise.as(void 0);
 		}
@@ -232,9 +209,9 @@ export abstract class AbstractPluginService implements IPluginService {
 		});
 	}
 
-	protected _activatePlugin(pluginDescription: IPluginDescription): WinJS.TPromise<IPluginExports> {
+	protected _activatePlugin(pluginDescription: IPluginDescription): WinJS.TPromise<void> {
 		if (hasOwnProperty.call(this.activatedPlugins, pluginDescription.id)) {
-			return WinJS.TPromise.as(this.activatedPlugins[pluginDescription.id].exports);
+			return WinJS.TPromise.as(void 0);
 		}
 
 		if (hasOwnProperty.call(this.activatingPlugins, pluginDescription.id)) {
@@ -246,61 +223,18 @@ export abstract class AbstractPluginService implements IPluginService {
 			console.error('Activating extension `' + pluginDescription.id + '` failed: ', err.message);
 			console.log('Here is the error stack: ', err.stack);
 			// Treat the plugin as being empty
-			return new ActivatedPlugin(true, { activate: undefined, deactivate: undefined }, {}, []);
-		}).then((x) => {
+			return this._createFailedPlugin();
+		}).then((x:T) => {
 			this.activatedPlugins[pluginDescription.id] = x;
 			delete this.activatingPlugins[pluginDescription.id];
-			return x.exports;
 		});
 
 		return this.activatingPlugins[pluginDescription.id];
 	}
 
-	protected _actualActivatePlugin(pluginDescription: IPluginDescription): WinJS.TPromise<ActivatedPlugin> {
-		if (!pluginDescription.main) {
-			// Treat the plugin as being empty => NOT AN ERROR CASE
-			return WinJS.TPromise.as(new ActivatedPlugin(false, { activate: undefined, deactivate: undefined }, {}, []));
-		}
-		return this._loadPluginModule(pluginDescription).then((pluginModule) => {
-			return this._loadPluginContext(pluginDescription).then(context => {
-				return AbstractPluginService._callActivate(pluginModule, context);
-			});
-		});
-	}
+	protected abstract _createFailedPlugin(): T;
 
-	protected _loadPluginModule(pluginDescription: IPluginDescription): WinJS.TPromise<IPluginModule> {
-		return loadAMDModule<IPluginModule>(pluginDescription.main);
-	}
-
-	protected _loadPluginContext(pluginDescription: IPluginDescription): WinJS.TPromise<IPluginContext> {
-		return WinJS.TPromise.as(undefined);
-	}
-
-	private static _callActivate(pluginModule: IPluginModule, context: IPluginContext): WinJS.TPromise<ActivatedPlugin> {
-		// Make sure the plugin's surface is not undefined
-		pluginModule = pluginModule || {
-			activate: undefined,
-			deactivate: undefined
-		};
-
-		// let subscriptions:IDisposable[] = [];
-		return this._callActivateOptional(pluginModule, context).then((pluginExports) => {
-			return new ActivatedPlugin(false, pluginModule, pluginExports, context.subscriptions);
-		});
-	}
-
-	private static _callActivateOptional(pluginModule: IPluginModule, context: IPluginContext): WinJS.TPromise<IPluginExports> {
-		if (typeof pluginModule.activate === 'function') {
-			try {
-				return WinJS.TPromise.as(pluginModule.activate.apply(global, [context]));
-			} catch (err) {
-				return WinJS.TPromise.wrapError(err);
-			}
-		} else {
-			// No activate found => the module is the plugin's exports
-			return WinJS.TPromise.as<IPluginExports>(pluginModule);
-		}
-	}
+	protected abstract _actualActivatePlugin(pluginDescription: IPluginDescription): WinJS.TPromise<T>;
 }
 
 export function loadAMDModule<T>(moduleId: string): WinJS.TPromise<T> {
