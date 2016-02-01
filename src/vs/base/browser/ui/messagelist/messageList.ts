@@ -57,6 +57,7 @@ export class MessageList {
 	private messages: IMessageEntry[];
 	private messageListPurger: Promise;
 	private messageListContainer: Builder;
+	private ariaAlertContainer: Builder;
 
 	private containerElementId: string;
 	private options: IMessageListOptions;
@@ -74,6 +75,8 @@ export class MessageList {
 
 		this._onMessagesShowing = new Emitter<void>();
 		this._onMessagesCleared = new Emitter<void>();
+
+		this.ariaAlertContainer = $('.aria-alert-container').attr({ 'role': 'alert' }).appendTo(document.body);
 	}
 
 	public get onMessagesShowing(): Event<void> {
@@ -143,21 +146,33 @@ export class MessageList {
 		// Render
 		this.renderMessages(true, 1);
 
+		// Support in Screen Readers too
+		$(this.ariaAlertContainer).empty();
+		let alertText: string;
+		if (severity === Severity.Error) {
+			alertText = nls.localize('alertErrorMessage', "Error: {0}", message);
+		} else if (severity === Severity.Warning) {
+			alertText = nls.localize('alertWarningMessage', "Warning: {0}", message);
+		} else {
+			alertText = nls.localize('alertInfoMessage', "Info: {0}", message);
+		}
+
+		$('span').text(alertText).appendTo(this.ariaAlertContainer);
+
 		return () => {
 			this.hideMessage(id);
 		};
 	}
 
 	private renderMessages(animate: boolean, delta: number): void {
+		let container = withElementById(this.containerElementId);
+		if (!container) {
+			return; // Cannot build container for messages yet, return
+		}
 
 		// Lazily create, otherwise clear old
 		if (!this.messageListContainer) {
-			let container = withElementById(this.containerElementId);
-			if (container) {
-				this.messageListContainer = $('.global-message-list').appendTo(container);
-			} else {
-				return; // Cannot build container for messages yet, return
-			}
+			this.messageListContainer = $('.global-message-list').appendTo(container);
 		} else {
 			$(this.messageListContainer).empty();
 			$(this.messageListContainer).removeClass('transition');
@@ -192,10 +207,10 @@ export class MessageList {
 	}
 
 	private renderMessage(message: IMessageEntry, container: Builder, total: number, delta: number): void {
-
-		// Actions (if none provided, add one default action to hide message)
-		let messageActions = this.getMessageActions(message);
 		container.li({ class: 'message-list-entry message-list-entry-with-action' }, (li) => {
+
+			// Actions (if none provided, add one default action to hide message)
+			let messageActions = this.getMessageActions(message);
 			messageActions.forEach((action) => {
 				let clazz = (total > 1 || delta < 0) ? 'message-right-side multiple' : 'message-right-side';
 				li.div({ class: clazz }, (div) => {
@@ -244,7 +259,7 @@ export class MessageList {
 					formattedText: text
 				});
 
-				$(messageContentElement).attr({ role: 'alert' }).title(messageContentElement.textContent).appendTo(div);
+				$(messageContentElement).title(messageContentElement.textContent).appendTo(div);
 			});
 		});
 	}
