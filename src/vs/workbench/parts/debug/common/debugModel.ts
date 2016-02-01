@@ -33,6 +33,33 @@ function massageValue(value: string): string {
 	return value ? value.replace(/\n/g, '\\n').replace(/\r/g, '\\r').replace(/\t/g, '\\t') : value;
 }
 
+export function evaluateExpression(session: debug.IRawDebugSession, stackFrame: debug.IStackFrame, expression: Expression, context: string): TPromise<Expression> {
+	if (!session) {
+		expression.value = context === 'repl' ? nls.localize('startDebugFirst', "Please start a debug session to evaluate") : Expression.DEFAULT_VALUE;
+		expression.available = false;
+		expression.reference = 0;
+		return Promise.as(expression);
+	}
+
+	return session.evaluate({
+		expression: expression.name,
+		frameId: stackFrame ? stackFrame.frameId : undefined,
+		context
+	}).then(response => {
+		expression.value = response.body.result;
+		expression.available = true;
+		expression.reference = response.body.variablesReference;
+
+		return expression;
+	}, err => {
+		expression.value = err.message;
+		expression.available = false;
+		expression.reference = 0;
+
+		return expression;
+	});
+}
+
 const notPropertySyntax = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
 const arrayElementSyntax = /\[.*\]$/;
 
@@ -453,7 +480,7 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 	public addReplExpression(session: debug.IRawDebugSession, stackFrame: debug.IStackFrame, name: string): Promise {
 		const expression = new Expression(name, true);
 		this.replElements.push(expression);
-		return this.evaluateExpression(session, stackFrame, expression, true).then(() =>
+		return evaluateExpression(session, stackFrame, expression, 'repl').then(() =>
 			this.emit(debug.ModelEvents.REPL_ELEMENTS_UPDATED, expression)
 		);
 	}
@@ -531,7 +558,7 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 		const filtered = this.watchExpressions.filter(we => we.getId() === id);
 		if (filtered.length === 1) {
 			filtered[0].name = newName;
-			return this.evaluateExpression(session, stackFrame, filtered[0], false).then(() => {
+			return evaluateExpression(session, stackFrame, filtered[0], 'watch').then(() => {
 				this.emit(debug.ModelEvents.WATCH_EXPRESSIONS_UPDATED, filtered[0]);
 			});
 		}
@@ -546,36 +573,13 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 				return Promise.as(null);
 			}
 
-			return this.evaluateExpression(session, stackFrame, filtered[0], false).then(() => {
+			return evaluateExpression(session, stackFrame, filtered[0], 'watch').then(() => {
 				this.emit(debug.ModelEvents.WATCH_EXPRESSIONS_UPDATED, filtered[0]);
 			});
 		}
 
-		return Promise.join(this.watchExpressions.map(we => this.evaluateExpression(session, stackFrame, we, false))).then(() => {
+		return Promise.join(this.watchExpressions.map(we => evaluateExpression(session, stackFrame, we, 'watch'))).then(() => {
 			this.emit(debug.ModelEvents.WATCH_EXPRESSIONS_UPDATED);
-		});
-	}
-
-	private evaluateExpression(session: debug.IRawDebugSession, stackFrame: debug.IStackFrame, expression: Expression, fromRepl: boolean): Promise {
-		if (!session) {
-			expression.value = fromRepl ? nls.localize('startDebugFirst', "Please start a debug session to evaluate") : Expression.DEFAULT_VALUE;
-			expression.available = false;
-			expression.reference = 0;
-			return Promise.as(null);
-		}
-
-		return session.evaluate({
-			expression: expression.name,
-			frameId: stackFrame ? stackFrame.frameId : undefined,
-			context: fromRepl ? 'repl' : 'watch'
-		}).then(response => {
-			expression.value = response.body.result;
-			expression.available = true;
-			expression.reference = response.body.variablesReference;
-		}, err => {
-			expression.value = err.message;
-			expression.available = false;
-			expression.reference = 0;
 		});
 	}
 
