@@ -319,7 +319,7 @@ export class ConfigurationManager {
 			adapter.initialConfigurations.forEach(config => {
 				if (program && config.program) {
 					if (!path.isAbsolute(program)) {
-						program = '${workspaceRoot}' + (program.charAt(0) === '.' ? program.slice(1) : paths.sep + program);
+						program = path.join('${workspaceRoot}', program);
 					}
 
 					config.program = program;
