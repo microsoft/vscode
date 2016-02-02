@@ -3,130 +3,150 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export interface IRange {
+export interface IGroup {
 	count: number;
 	size: number;
 }
 
-enum SpliceState {
-	Searching
+export interface IRange {
+	start: number;
+	end: number;
+}
+
+export interface IRangedGroup {
+	range: IRange;
+	size: number;
+}
+
+export function intersect(one: IRange, other: IRange): IRange {
+	if (one.start >= other.end || other.start >= one.end) {
+		return null;
+	}
+
+	const start = Math.max(one.start, other.start);
+	const end = Math.min(one.end, other.end);
+
+	if (end - start <= 0) {
+		return null;
+	}
+
+	return { start, end };
+}
+
+export function groupIntersect(range: IRange, groups: IRangedGroup[]): IRangedGroup[] {
+	const result: IRangedGroup[] = [];
+
+	for (const r of groups) {
+		if (range.start >= r.range.end) {
+			continue;
+		}
+
+		if (range.end < r.range.start) {
+			break;
+		}
+
+		const intersection = intersect(range, r.range);
+
+		if (!intersection) {
+			continue;
+		}
+
+		result.push({
+			range: intersection,
+			size: r.size
+		});
+	}
+
+	return result;
+}
+
+function shift({ start, end }: IRange, much: number): IRange {
+	return { start: start + much, end: end + much };
+}
+
+function concat(...groups: IRangedGroup[][]): IRangedGroup[] {
+	return groups.reduce((r, g) => r.concat(g), [] as IRangedGroup[]);
 }
 
 export class RangeMap {
 
-	private _map: IRange[] = [];
-	private _count: number = 0;
-	private _length: number = 0;
+	private groups: IRangedGroup[] = [];
 
-	splice(index: number, deleteCount: number, ...ranges: IRange[]): void {
-		let count = 0, newCount = 0, firstRangeIndex = 0;
-		let firstRange: IRange = null;
+	splice(index: number, deleteCount: number, ...groups: IGroup[]): void {
+		const insertCount = groups.reduce((t, r) => t + r.count, 0);
+		const diff = insertCount - deleteCount;
 
-		for (const range of this._map) {
-			newCount = count + range.count;
+		const before = groupIntersect({ start: 0, end: index }, this.groups);
+		const after = groupIntersect({ start: index + deleteCount, end: Number.POSITIVE_INFINITY }, this.groups)
+			.map<IRangedGroup>(g => ({ range: shift(g.range, diff), size: g.size }));
 
-			if (index < newCount) {
-				firstRange = range;
-				break;
-			}
+		const middle = groups
+			.filter(g => g.count > 0 && g.size > 0)
+			.map<IRangedGroup>(g => {
+				const end = index + g.count;
+				const result = {
+					range: { start: index, end },
+					size: g.size
+				};
 
-			count = newCount;
-			firstRangeIndex++;
-		}
+				index = end;
+				return result;
+			});
 
-		let indexInFirstRange = index - count;
-		let range = firstRange;
-
-		while (range && deleteCount > 0) {
-			newCount = count + range.count;
-
-			let indexInRange = Math.max(index - count, 0);
-			let rangeDeleteCount = Math.min(range.count - indexInRange, deleteCount);
-
-			range.count -= rangeDeleteCount;
-			deleteCount -= rangeDeleteCount;
-			this._count -= rangeDeleteCount;
-			this._length -= rangeDeleteCount * range.size;
-
-			count = newCount;
-		}
-
-		// split the first range if neccessary
-		if (!firstRange) {
-			this._map = ranges.slice(0);
-		} else if (firstRange.count > indexInFirstRange) {
-			const leftovers = firstRange.count - indexInFirstRange;
-
-			this._map = [
-				...this._map.slice(0, firstRangeIndex),
-				{ count: indexInFirstRange, size: firstRange.size },
-				...ranges,
-				{ count: leftovers, size: firstRange.size },
-				...this._map.slice(firstRangeIndex + 1)
-			];
-
-			firstRangeIndex += 1;
-		} else {
-			this._map = [
-				...this._map.slice(0, firstRangeIndex + 1),
-				...ranges,
-				...this._map.slice(firstRangeIndex + 1)
-			];
-		}
-
-		for (const range of ranges) {
-			this._count += range.count;
-			this._length += range.size * range.count;
-		}
+		this.groups = concat(before, middle, after);
 	}
 
 	get count(): number {
-		return this._count;
-	}
+		const len = this.groups.length;
 
-	get length(): number {
-		return this._length;
-	}
-
-	indexAt(position: number): number {
-		let index = 0;
-		let size = 0;
-
-		for (const range of this._map) {
-			const newSize = size + (range.count * range.size);
-
-			if (position < newSize) {
-				return index + Math.floor((position - size) / range.size);
-			}
-
-			index += range.size;
-			size = newSize;
+		if (!len) {
+			return 0;
 		}
 
-		return -1;
+		return this.groups[len - 1].range.end;
 	}
 
-	positionAt(index: number): number {
-		let position = 0;
-		let count = 0;
-
-		for (const range of this._map) {
-			const newCount = count + range.count;
-
-			if (index < newCount) {
-				return position + ((index - count) * range.size);
-			}
-
-			position += range.count * range.size;
-			count = newCount;
-		}
-
-		return -1;
+	get size(): number {
+		return this.groups.reduce((t, g) => t + (g.size * (g.range.end - g.range.start)), 0);
 	}
+
+	// indexAt(position: number): number {
+	// 	let index = 0;
+	// 	let size = 0;
+
+	// 	for (const range of this._ranges) {
+	// 		const newSize = size + (range.count * range.size);
+
+	// 		if (position < newSize) {
+	// 			return index + Math.floor((position - size) / range.size);
+	// 		}
+
+	// 		index += range.size;
+	// 		size = newSize;
+	// 	}
+
+	// 	return -1;
+	// }
+
+	// positionAt(index: number): number {
+	// 	let position = 0;
+	// 	let count = 0;
+
+	// 	for (const range of this._ranges) {
+	// 		const newCount = count + range.count;
+
+	// 		if (index < newCount) {
+	// 			return position + ((index - count) * range.size);
+	// 		}
+
+	// 		position += range.count * range.size;
+	// 		count = newCount;
+	// 	}
+
+	// 	return -1;
+	// }
 
 	dispose() {
-		this._map = null;
-		this._count = null;
-		this._length = null;
+		this.groups = null;
 	}
 }
