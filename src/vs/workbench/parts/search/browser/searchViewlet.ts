@@ -1190,6 +1190,10 @@ export class SearchViewlet extends Viewlet {
 		this.disposeModel();
 		this.showEmptyStage();
 
+		let message = nls.localize('searchPressEscToCancel', "Searching... Press ESC to cancel");
+		let div = this.messages.empty().show().asContainer().div({ 'class': 'message', text: message });
+		div.italic();
+
 		let handledMatches: { [id: string]: boolean } = Object.create(null);
 		let autoExpand = (alwaysExpandIfOneResult: boolean) => {
 			// Auto-expand / collapse based on number of matches:
@@ -1219,6 +1223,9 @@ export class SearchViewlet extends Viewlet {
 		let onComplete = (completed?: ISearchComplete) => {
 			timerEvent.stop();
 			isDone = true;
+
+			// clear the "Press ESC to Cancel message"
+			this.messages.hide();
 
 			// Complete up to 100% as needed
 			if (completed) {
