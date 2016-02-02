@@ -145,8 +145,7 @@ export class Repl extends Panel {
 	public layout(dimension: builder.Dimension): void {
 		if (this.tree) {
 			this.renderer.setWidth(dimension.width - 20, this.characterWidthSurveyor.clientWidth / this.characterWidthSurveyor.textContent.length);
-			this.tree.layout(this.treeContainer.clientHeight);
-			this.tree.refresh().done(null, errors.onUnexpectedError);
+			this.tree.layout(dimension.height - 22);
 		}
 	}
 
