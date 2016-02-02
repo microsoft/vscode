@@ -17,7 +17,7 @@ import {Position} from 'vs/platform/editor/common/editor';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IStorageService, StorageEventType, StorageScope} from 'vs/platform/storage/common/storage';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {ResourceEditorModel} from 'vs/workbench/common/editor/resourceEditorModel';
+import {BaseTextEditorModel} from 'vs/workbench/common/editor/textEditorModel';
 import {Preferences} from 'vs/workbench/common/constants';
 import {HtmlInput} from 'vs/workbench/parts/html/common/htmlInput';
 import {isLightTheme} from 'vs/platform/theme/common/themes';
@@ -137,8 +137,8 @@ export class HtmlPreviewPart extends BaseEditor {
 			return TPromise.wrapError<void>('Invalid input');
 		}
 
-		return this._editorService.resolveEditorModel(input).then(model => {
-			if (model instanceof ResourceEditorModel) {
+		return this._editorService.resolveEditorModel({ resource: (<HtmlInput>input).getResource() }).then(model => {
+			if (model instanceof BaseTextEditorModel) {
 				this._model = model.textEditorModel
 			}
 
