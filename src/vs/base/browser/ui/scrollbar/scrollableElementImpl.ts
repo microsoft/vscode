@@ -5,48 +5,49 @@
 'use strict';
 
 import 'vs/css!./media/scrollbars';
+
 import DomUtils = require('vs/base/browser/dom');
 import {StandardMouseWheelEvent} from 'vs/base/browser/mouseEvent';
 import Platform = require('vs/base/common/platform');
-import {IOptions,IScrollbar,IDimensions,IMouseWheelEvent,visibilityFromString} from 'vs/base/browser/ui/scrollbar/common';
+import {IOptions, IScrollbar, IDimensions, IMouseWheelEvent, visibilityFromString} from 'vs/base/browser/ui/scrollbar/common';
 import {DomNodeScrollable} from 'vs/base/browser/ui/scrollbar/domNodeScrollable';
 import {HorizontalScrollbar} from 'vs/base/browser/ui/scrollbar/horizontalScrollbar';
 import {VerticalScrollbar} from 'vs/base/browser/ui/scrollbar/verticalScrollbar';
 import ScrollableElementInt = require('vs/base/browser/ui/scrollbar/scrollableElement');
-import {IDisposable,disposeAll} from 'vs/base/common/lifecycle';
+import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
 import {IScrollable} from 'vs/base/common/scrollable';
 
-var HIDE_TIMEOUT = 500;
-var SCROLL_WHEEL_SENSITIVITY = 50;
+const HIDE_TIMEOUT = 500;
+const SCROLL_WHEEL_SENSITIVITY = 50;
 
 export class ScrollableElement implements ScrollableElementInt.IScrollableElement {
 
-	private originalElement:HTMLElement;
-	private options:IOptions;
-	private scrollable:IScrollable;
-	public verticalScrollbarWidth:number;
-	public horizontalScrollbarHeight:number;
-	private verticalScrollbar:IScrollbar;
-	private horizontalScrollbar:IScrollbar;
-	private domNode:HTMLElement;
+	private originalElement: HTMLElement;
+	private options: IOptions;
+	private scrollable: IScrollable;
+	public verticalScrollbarWidth: number;
+	public horizontalScrollbarHeight: number;
+	private verticalScrollbar: IScrollbar;
+	private horizontalScrollbar: IScrollbar;
+	private domNode: HTMLElement;
 
-	private leftShadowDomNode:HTMLElement;
-	private topShadowDomNode:HTMLElement;
-	private topLeftShadowDomNode:HTMLElement;
-	private listenOnDomNode:HTMLElement;
+	private leftShadowDomNode: HTMLElement;
+	private topShadowDomNode: HTMLElement;
+	private topLeftShadowDomNode: HTMLElement;
+	private listenOnDomNode: HTMLElement;
 
-	private toDispose:IDisposable[];
-	private _mouseWheelToDispose:IDisposable[];
+	private toDispose: IDisposable[];
+	private _mouseWheelToDispose: IDisposable[];
 
-	private onElementDimensionsTimeout:number;
-	private onElementInternalDimensionsTimeout:number;
-	private isDragging:boolean;
-	private mouseIsOver:boolean;
+	private onElementDimensionsTimeout: number;
+	private onElementInternalDimensionsTimeout: number;
+	private isDragging: boolean;
+	private mouseIsOver: boolean;
 
-	private dimensions:IDimensions;
-	private hideTimeout:number;
+	private dimensions: IDimensions;
+	private hideTimeout: number;
 
-	constructor(element:HTMLElement, options:ScrollableElementInt.ICreationOptions, dimensions:ScrollableElementInt.IDimensions = null) {
+	constructor(element: HTMLElement, options: ScrollableElementInt.ICreationOptions, dimensions: ScrollableElementInt.IDimensions = null) {
 		this.originalElement = element;
 		this.originalElement.style.overflow = 'hidden';
 		this.options = this._createOptions(options);
@@ -95,8 +96,8 @@ export class ScrollableElement implements ScrollableElementInt.IScrollableElemen
 
 		this._mouseWheelToDispose = [];
 		this._setListeningToMouseWheel(this.options.handleMouseWheel);
-		this.toDispose.push(DomUtils.addDisposableListener(this.listenOnDomNode, 'mouseover', (e:MouseEvent) => this._onMouseOver(e)));
-		this.toDispose.push(DomUtils.addDisposableNonBubblingMouseOutListener(this.listenOnDomNode, (e:MouseEvent) => this._onMouseOut(e)));
+		this.toDispose.push(DomUtils.addDisposableListener(this.listenOnDomNode, 'mouseover', (e: MouseEvent) => this._onMouseOver(e)));
+		this.toDispose.push(DomUtils.addDisposableNonBubblingMouseOutListener(this.listenOnDomNode, (e: MouseEvent) => this._onMouseOut(e)));
 
 		this.onElementDimensionsTimeout = -1;
 		this.onElementInternalDimensionsTimeout = -1;
@@ -123,26 +124,26 @@ export class ScrollableElement implements ScrollableElementInt.IScrollableElemen
 		}
 	}
 
-	public getDomNode():HTMLElement {
+	public getDomNode(): HTMLElement {
 		return this.domNode;
 	}
 
-	public getOverviewRulerLayoutInfo():ScrollableElementInt.IOverviewRulerLayoutInfo {
+	public getOverviewRulerLayoutInfo(): ScrollableElementInt.IOverviewRulerLayoutInfo {
 		return {
 			parent: this.domNode,
 			insertBefore: this.verticalScrollbar.domNode,
 		};
 	}
 
-	private getVerticalSliderDomNode():HTMLElement {
+	private getVerticalSliderDomNode(): HTMLElement {
 		return this.verticalScrollbar.slider;
 	}
 
-	public delegateVerticalScrollbarMouseDown(browserEvent:MouseEvent): void {
+	public delegateVerticalScrollbarMouseDown(browserEvent: MouseEvent): void {
 		this.verticalScrollbar.delegateMouseDown(browserEvent);
 	}
 
-	public onElementDimensions(dimensions:ScrollableElementInt.IDimensions = null, synchronous:boolean = false): void {
+	public onElementDimensions(dimensions: ScrollableElementInt.IDimensions = null, synchronous: boolean = false): void {
 		if (synchronous) {
 			this.actualElementDimensions(dimensions);
 		} else {
@@ -152,7 +153,7 @@ export class ScrollableElement implements ScrollableElementInt.IScrollableElemen
 		}
 	}
 
-	private actualElementDimensions(dimensions:ScrollableElementInt.IDimensions = null): void {
+	private actualElementDimensions(dimensions: ScrollableElementInt.IDimensions = null): void {
 		this.onElementDimensionsTimeout = -1;
 		if (!dimensions) {
 			dimensions = {
@@ -165,7 +166,7 @@ export class ScrollableElement implements ScrollableElementInt.IScrollableElemen
 		this.horizontalScrollbar.onElementSize(this.dimensions.width);
 	}
 
-	public onElementInternalDimensions(synchronous:boolean = false): void {
+	public onElementInternalDimensions(synchronous: boolean = false): void {
 		if (synchronous) {
 			this.actualElementInternalDimensions();
 		} else {
@@ -181,7 +182,7 @@ export class ScrollableElement implements ScrollableElementInt.IScrollableElemen
 		this.verticalScrollbar.onElementScrollSize(this.scrollable.getScrollHeight());
 	}
 
-	public updateClassName(newClassName:string): void {
+	public updateClassName(newClassName: string): void {
 		this.options.className = newClassName;
 		// Defaults are different on Macs
 		if (Platform.isMacintosh) {
@@ -190,18 +191,18 @@ export class ScrollableElement implements ScrollableElementInt.IScrollableElemen
 		this.domNode.className = 'monaco-scrollable-element ' + this.options.className;
 	}
 
-	public updateOptions(newOptions:ScrollableElementInt.ICreationOptions):void {
+	public updateOptions(newOptions: ScrollableElementInt.ICreationOptions): void {
 		// only support handleMouseWheel changes for now
-		var massagedOptions = this._createOptions(newOptions);
+		let massagedOptions = this._createOptions(newOptions);
 		this.options.handleMouseWheel = massagedOptions.handleMouseWheel;
 		this.options.mouseWheelScrollSensitivity = massagedOptions.mouseWheelScrollSensitivity;
 		this._setListeningToMouseWheel(this.options.handleMouseWheel);
 	}
 
-// -------------------- mouse wheel scrolling --------------------
+	// -------------------- mouse wheel scrolling --------------------
 
-	private _setListeningToMouseWheel(shouldListen:boolean): void {
-		var isListening = (this._mouseWheelToDispose.length > 0);
+	private _setListeningToMouseWheel(shouldListen: boolean): void {
+		let isListening = (this._mouseWheelToDispose.length > 0);
 
 		if (isListening === shouldListen) {
 			// No change
@@ -213,8 +214,8 @@ export class ScrollableElement implements ScrollableElementInt.IScrollableElemen
 
 		// Start listening (if necessary)
 		if (shouldListen) {
-			var onMouseWheel = (browserEvent:MouseWheelEvent) => {
-				var e = new StandardMouseWheelEvent(browserEvent);
+			let onMouseWheel = (browserEvent: MouseWheelEvent) => {
+				let e = new StandardMouseWheelEvent(browserEvent);
 				this.onMouseWheel(e);
 			};
 
@@ -226,21 +227,21 @@ export class ScrollableElement implements ScrollableElementInt.IScrollableElemen
 	public onMouseWheel(e: IMouseWheelEvent): void {
 		if (Platform.isMacintosh && e.browserEvent && this.options.saveLastScrollTimeOnClassName) {
 			// Mark dom node with timestamp of wheel event
-			var target = <HTMLElement>e.browserEvent.target;
+			let target = <HTMLElement>e.browserEvent.target;
 			if (target && target.nodeType === 1) {
-				var r = DomUtils.findParentWithClass(target, this.options.saveLastScrollTimeOnClassName);
+				let r = DomUtils.findParentWithClass(target, this.options.saveLastScrollTimeOnClassName);
 				if (r) {
 					r.setAttribute('last-scroll-time', String(new Date().getTime()));
 				}
 			}
 		}
 
-		var desiredScrollTop = -1;
-		var desiredScrollLeft = -1;
+		let desiredScrollTop = -1;
+		let desiredScrollLeft = -1;
 
 		if (e.deltaY || e.deltaX) {
-			var deltaY = e.deltaY * this.options.mouseWheelScrollSensitivity;
-			var deltaX = e.deltaX * this.options.mouseWheelScrollSensitivity;
+			let deltaY = e.deltaY * this.options.mouseWheelScrollSensitivity;
+			let deltaX = e.deltaX * this.options.mouseWheelScrollSensitivity;
 
 			if (this.options.flipAxes) {
 				deltaY = e.deltaX;
@@ -258,14 +259,14 @@ export class ScrollableElement implements ScrollableElementInt.IScrollableElemen
 			}
 
 			if (deltaY) {
-				var currentScrollTop = this.scrollable.getScrollTop();
+				let currentScrollTop = this.scrollable.getScrollTop();
 				desiredScrollTop = this.verticalScrollbar.validateScrollPosition((desiredScrollTop !== -1 ? desiredScrollTop : currentScrollTop) - SCROLL_WHEEL_SENSITIVITY * deltaY);
 				if (desiredScrollTop === currentScrollTop) {
 					desiredScrollTop = -1;
 				}
 			}
 			if (deltaX) {
-				var currentScrollLeft = this.scrollable.getScrollLeft();
+				let currentScrollLeft = this.scrollable.getScrollLeft();
 				desiredScrollLeft = this.horizontalScrollbar.validateScrollPosition((desiredScrollLeft !== -1 ? desiredScrollLeft : currentScrollLeft) - SCROLL_WHEEL_SENSITIVITY * deltaX);
 				if (desiredScrollLeft === currentScrollLeft) {
 					desiredScrollLeft = -1;
@@ -289,23 +290,23 @@ export class ScrollableElement implements ScrollableElementInt.IScrollableElemen
 	}
 
 	private _onScroll(): void {
-		var scrollHeight = this.scrollable.getScrollHeight();
-		var scrollTop = this.scrollable.getScrollTop();
-		var scrollWidth = this.scrollable.getScrollWidth();
-		var scrollLeft = this.scrollable.getScrollLeft();
+		let scrollHeight = this.scrollable.getScrollHeight();
+		let scrollTop = this.scrollable.getScrollTop();
+		let scrollWidth = this.scrollable.getScrollWidth();
+		let scrollLeft = this.scrollable.getScrollLeft();
 
 		this.verticalScrollbar.onElementScrollPosition(scrollTop);
 		this.horizontalScrollbar.onElementScrollPosition(scrollLeft);
 
 		if (this.options.useShadows) {
-			var enableTop = scrollHeight > 0 && scrollTop > 0;
-			var enableLeft = this.options.useShadows && scrollWidth > 0 && scrollLeft > 0;
+			let enableTop = scrollHeight > 0 && scrollTop > 0;
+			let enableLeft = this.options.useShadows && scrollWidth > 0 && scrollLeft > 0;
 
 			if (this.topShadowDomNode) {
 				DomUtils.toggleClass(this.topShadowDomNode, 'top', enableTop);
 			}
 
-			if(this.topLeftShadowDomNode) {
+			if (this.topLeftShadowDomNode) {
 				DomUtils.toggleClass(this.topLeftShadowDomNode, 'top', enableTop);
 			}
 
@@ -321,7 +322,7 @@ export class ScrollableElement implements ScrollableElementInt.IScrollableElemen
 		this._reveal();
 	}
 
-// -------------------- fade in / fade out --------------------
+	// -------------------- fade in / fade out --------------------
 
 	public onDragStart(): void {
 		this.isDragging = true;
@@ -333,12 +334,12 @@ export class ScrollableElement implements ScrollableElementInt.IScrollableElemen
 		this._hide();
 	}
 
-	private _onMouseOut(e:MouseEvent): void {
+	private _onMouseOut(e: MouseEvent): void {
 		this.mouseIsOver = false;
 		this._hide();
 	}
 
-	private _onMouseOver(e:MouseEvent): void {
+	private _onMouseOver(e: MouseEvent): void {
 		this.mouseIsOver = true;
 		this._reveal();
 	}
@@ -363,11 +364,11 @@ export class ScrollableElement implements ScrollableElementInt.IScrollableElemen
 		this.hideTimeout = window.setTimeout(this._hide.bind(this), HIDE_TIMEOUT);
 	}
 
-// -------------------- size & layout --------------------
+	// -------------------- size & layout --------------------
 
-	private _computeDimensions(clientWidth:number, clientHeight:number): IDimensions {
-		var width = clientWidth;
-		var height = clientHeight;
+	private _computeDimensions(clientWidth: number, clientHeight: number): IDimensions {
+		let width = clientWidth;
+		let height = clientHeight;
 
 		return {
 			width: width,
@@ -375,16 +376,16 @@ export class ScrollableElement implements ScrollableElementInt.IScrollableElemen
 		};
 	}
 
-	private _createOptions(options:ScrollableElementInt.ICreationOptions): IOptions {
+	private _createOptions(options: ScrollableElementInt.ICreationOptions): IOptions {
 
-		function ensureValue<V>(source:any, prop:string, value:V) {
+		function ensureValue<V>(source: any, prop: string, value: V) {
 			if (source.hasOwnProperty(prop)) {
 				return <V>source[prop];
 			}
 			return value;
 		}
 
-		var result:IOptions = {
+		let result: IOptions = {
 			forbidTranslate3dUse: ensureValue(options, 'forbidTranslate3dUse', false),
 			className: ensureValue(options, 'className', ''),
 			useShadows: ensureValue(options, 'useShadows', true),

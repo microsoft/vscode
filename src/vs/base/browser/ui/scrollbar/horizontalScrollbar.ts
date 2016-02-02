@@ -13,10 +13,10 @@ import {IScrollable} from 'vs/base/common/scrollable';
 
 export class HorizontalScrollbar extends AbstractScrollbar {
 
-	private scrollable:IScrollable;
+	private scrollable: IScrollable;
 
-	constructor(scrollable:IScrollable, parent:IParent, options:IOptions) {
-		var s = new ScrollbarState(
+	constructor(scrollable: IScrollable, parent: IParent, options: IOptions) {
+		let s = new ScrollbarState(
 			(options.horizontalHasArrows ? options.arrowSize : 0),
 			(options.horizontal === Visibility.Hidden ? 0 : options.horizontalScrollbarSize),
 			(options.vertical === Visibility.Hidden ? 0 : options.verticalScrollbarSize)
@@ -26,8 +26,8 @@ export class HorizontalScrollbar extends AbstractScrollbar {
 
 		this._createDomNode();
 		if (options.horizontalHasArrows) {
-			var arrowDelta = (options.arrowSize - AbstractScrollbar.ARROW_IMG_SIZE) / 2;
-			var scrollbarDelta = (options.horizontalScrollbarSize - AbstractScrollbar.ARROW_IMG_SIZE) / 2;
+			let arrowDelta = (options.arrowSize - AbstractScrollbar.ARROW_IMG_SIZE) / 2;
+			let scrollbarDelta = (options.horizontalScrollbarSize - AbstractScrollbar.ARROW_IMG_SIZE) / 2;
 
 			this._createArrow('left-arrow', scrollbarDelta, arrowDelta, null, null, options.arrowSize, options.horizontalScrollbarSize, () => this._createMouseWheelEvent(1));
 			this._createArrow('right-arrow', scrollbarDelta, null, null, arrowDelta, options.arrowSize, options.horizontalScrollbarSize, () => this._createMouseWheelEvent(-1));
@@ -36,11 +36,11 @@ export class HorizontalScrollbar extends AbstractScrollbar {
 		this._createSlider(Math.floor((options.horizontalScrollbarSize - options.horizontalSliderSize) / 2), 0, null, options.horizontalSliderSize);
 	}
 
-	public _createMouseWheelEvent(sign:number) {
+	public _createMouseWheelEvent(sign: number) {
 		return new StandardMouseWheelEvent(null, sign, 0);
 	}
 
-	public _updateSlider(sliderSize:number, sliderPosition:number): void {
+	public _updateSlider(sliderSize: number, sliderPosition: number): void {
 		DomUtils.StyleMutator.setWidth(this.slider, sliderSize);
 		if (!this.forbidTranslate3dUse && Browser.canUseTranslate3d) {
 			DomUtils.StyleMutator.setTransform(this.slider, 'translate3d(' + sliderPosition + 'px, 0px, 0px)');
@@ -49,22 +49,22 @@ export class HorizontalScrollbar extends AbstractScrollbar {
 		}
 	}
 
-	public _renderDomNode(largeSize:number, smallSize:number): void {
+	public _renderDomNode(largeSize: number, smallSize: number): void {
 		DomUtils.StyleMutator.setWidth(this.domNode, largeSize);
 		DomUtils.StyleMutator.setHeight(this.domNode, smallSize);
 		DomUtils.StyleMutator.setLeft(this.domNode, 0);
 		DomUtils.StyleMutator.setBottom(this.domNode, 0);
 	}
 
-	public _mouseDownRelativePosition(e:StandardMouseEvent, domNodePosition:DomUtils.IDomNodePosition): number {
+	public _mouseDownRelativePosition(e: StandardMouseEvent, domNodePosition: DomUtils.IDomNodePosition): number {
 		return e.posx - domNodePosition.left;
 	}
 
-	public _sliderMousePosition(e:IMouseMoveEventData): number {
+	public _sliderMousePosition(e: IMouseMoveEventData): number {
 		return e.posx;
 	}
 
-	public _sliderOrthogonalMousePosition(e:IMouseMoveEventData): number {
+	public _sliderOrthogonalMousePosition(e: IMouseMoveEventData): number {
 		return e.posy;
 	}
 
@@ -72,7 +72,7 @@ export class HorizontalScrollbar extends AbstractScrollbar {
 		return this.scrollable.getScrollLeft();
 	}
 
-	public _setScrollPosition(scrollPosition:number) {
+	public _setScrollPosition(scrollPosition: number) {
 		this.scrollable.setScrollLeft(scrollPosition);
 	}
 }
