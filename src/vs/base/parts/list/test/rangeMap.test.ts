@@ -230,4 +230,105 @@ suite('RangeMap', () => {
 		assert.equal(rangeMap.size, 0);
 		assert.equal(rangeMap.count, 0);
 	});
+
+	test('insert & delete #2', () => {
+		rangeMap.splice(0, 0, { count: 10, size: 1 });
+		rangeMap.splice(2, 6);
+		assert.equal(rangeMap.count, 4);
+		assert.equal(rangeMap.size, 4);
+	});
+
+	test('insert & delete #3', () => {
+		rangeMap.splice(0, 0, { count: 10, size: 1 }, { count: 10, size: 2 });
+		rangeMap.splice(8, 4);
+		assert.equal(rangeMap.count, 16);
+		assert.equal(rangeMap.size, 24);
+	});
+
+	test('insert & delete #3', () => {
+		rangeMap.splice(0, 0, { count: 10, size: 1 }, { count: 10, size: 2 });
+		rangeMap.splice(5, 0, { count: 5, size: 3 });
+		assert.equal(rangeMap.count, 25);
+		assert.equal(rangeMap.size, 45);
+
+		rangeMap.splice(4, 7);
+		assert.equal(rangeMap.count, 18);
+		assert.equal(rangeMap.size, 28);
+	});
+
+	suite('indexAt, positionAt', () => {
+		test('empty', () => {
+			assert.equal(rangeMap.indexAt(0), -1);
+			assert.equal(rangeMap.indexAt(10), -1);
+			assert.equal(rangeMap.indexAt(-1), -1);
+			assert.equal(rangeMap.positionAt(0), -1);
+			assert.equal(rangeMap.positionAt(10), -1);
+			assert.equal(rangeMap.positionAt(-1), -1);
+		});
+
+		test('simple', () => {
+			rangeMap.splice(0, 0, { count: 1, size: 1 });
+			assert.equal(rangeMap.indexAt(0), 0);
+			assert.equal(rangeMap.indexAt(1), -1);
+			assert.equal(rangeMap.positionAt(0), 0);
+			assert.equal(rangeMap.positionAt(1), -1);
+		});
+
+		test('simple #2', () => {
+			rangeMap.splice(0, 0, { count: 1, size: 10 });
+			assert.equal(rangeMap.indexAt(0), 0);
+			assert.equal(rangeMap.indexAt(5), 0);
+			assert.equal(rangeMap.indexAt(9), 0);
+			assert.equal(rangeMap.indexAt(10), -1);
+			assert.equal(rangeMap.positionAt(0), 0);
+			assert.equal(rangeMap.positionAt(1), -1);
+		});
+
+		test('insert', () => {
+			rangeMap.splice(0, 0, { count: 10, size: 1 });
+			assert.equal(rangeMap.indexAt(0), 0);
+			assert.equal(rangeMap.indexAt(1), 1);
+			assert.equal(rangeMap.indexAt(5), 5);
+			assert.equal(rangeMap.indexAt(9), 9);
+			assert.equal(rangeMap.indexAt(10), -1);
+
+			rangeMap.splice(10, 0, { count: 10, size: 1 });
+			assert.equal(rangeMap.indexAt(10), 10);
+			assert.equal(rangeMap.indexAt(19), 19);
+			assert.equal(rangeMap.indexAt(20), -1);
+			assert.equal(rangeMap.positionAt(0), 0);
+			assert.equal(rangeMap.positionAt(1), 1);
+			assert.equal(rangeMap.positionAt(19), 19);
+			assert.equal(rangeMap.positionAt(20), -1);
+		});
+
+		test('delete', () => {
+			rangeMap.splice(0, 0, { count: 10, size: 1 });
+			rangeMap.splice(2, 6);
+
+			assert.equal(rangeMap.indexAt(0), 0);
+			assert.equal(rangeMap.indexAt(1), 1);
+			assert.equal(rangeMap.indexAt(3), 3);
+			assert.equal(rangeMap.indexAt(4), -1);
+			assert.equal(rangeMap.positionAt(0), 0);
+			assert.equal(rangeMap.positionAt(1), 1);
+			assert.equal(rangeMap.positionAt(3), 3);
+			assert.equal(rangeMap.positionAt(4), -1);
+		});
+
+		test('delete #2', () => {
+			rangeMap.splice(0, 0, { count: 10, size: 10 });
+			rangeMap.splice(2, 6);
+
+			assert.equal(rangeMap.indexAt(0), 0);
+			assert.equal(rangeMap.indexAt(1), 0);
+			assert.equal(rangeMap.indexAt(30), 3);
+			assert.equal(rangeMap.indexAt(40), -1);
+			assert.equal(rangeMap.positionAt(0), 0);
+			assert.equal(rangeMap.positionAt(1), 10);
+			assert.equal(rangeMap.positionAt(2), 20);
+			assert.equal(rangeMap.positionAt(3), 30);
+			assert.equal(rangeMap.positionAt(4), -1);
+		});
+	});
 });
