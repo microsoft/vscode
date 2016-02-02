@@ -84,7 +84,7 @@ function createSearchService(index:{ [n: string]: string } = Object.create(null)
 
 		for (var key in index) {
 			var resource = URI.file(key);
-			if (glob.match(query.includePattern, resource.fsPath)) {
+			if (glob.match(query.includePattern, resource.path)) {
 				results.push({
 					resource
 				});
@@ -106,13 +106,13 @@ function createFileService(index: { [n: string]: string } = Object.create(null))
 
 	function resolveContent(resource: URI): winjs.TPromise<Files.IContent> {
 
-		if (!index[resource.fsPath]) {
+		if (!index[resource.path]) {
 			return winjs.TPromise.as(null);
 		}
 
 		var result: Files.IContent = {
 			resource,
-			value: index[resource.fsPath],
+			value: index[resource.path],
 			charset: undefined,
 			etag: undefined,
 			mime: undefined,
@@ -125,10 +125,10 @@ function createFileService(index: { [n: string]: string } = Object.create(null))
 	function resolveContents(resources: URI[]): any {
 		var result: Files.IContent[] = [];
 		resources.forEach(resource => {
-			if (index[resource.fsPath]) {
+			if (index[resource.path]) {
 				result.push({
 					resource,
-					value: index[resource.fsPath],
+					value: index[resource.path],
 					charset: undefined,
 					etag: undefined,
 					mime: undefined,

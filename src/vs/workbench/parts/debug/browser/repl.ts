@@ -99,7 +99,7 @@ export class Repl extends Panel {
 		this.replInput = <HTMLInputElement>dom.append(replInputContainer, $('input.repl-input'));
 		this.replInput.type = 'text';
 
-		dom.addStandardDisposableListener(this.replInput, 'keydown', (e: dom.IKeyboardEvent) => {
+		this.toDispose.push(dom.addStandardDisposableListener(this.replInput, 'keydown', (e: dom.IKeyboardEvent) => {
 			let trimmedValue = this.replInput.value.trim();
 
 			if (e.equals(CommonKeybindings.ENTER) && trimmedValue) {
@@ -116,7 +116,10 @@ export class Repl extends Panel {
 					e.preventDefault();
 				}
 			}
-		});
+		}));
+		this.toDispose.push(dom.addStandardDisposableListener(this.replInput, dom.EventType.FOCUS, () => dom.addClass(replInputContainer, 'synthetic-focus'))),
+		this.toDispose.push(dom.addStandardDisposableListener(this.replInput, dom.EventType.BLUR, () => dom.removeClass(replInputContainer, 'synthetic-focus')));
+
 
 		this.characterWidthSurveyor = dom.append(container, $('.surveyor'));
 		this.characterWidthSurveyor.textContent = Repl.HALF_WIDTH_TYPICAL;

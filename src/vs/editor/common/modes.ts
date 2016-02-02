@@ -14,8 +14,9 @@ import {IDisposable} from 'vs/base/common/lifecycle';
 import {AsyncDescriptor0} from 'vs/platform/instantiation/common/descriptors';
 
 export interface IWorkerParticipantDescriptor {
-	modeId:string;
-	descriptor: AsyncDescriptor0<IWorkerParticipant>;
+	modeId: string;
+	moduleId: string;
+	ctorName: string;
 }
 
 export interface IWorkerParticipant {

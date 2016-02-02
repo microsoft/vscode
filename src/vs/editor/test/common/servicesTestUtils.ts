@@ -10,7 +10,7 @@ import {IModeService} from 'vs/editor/common/services/modeService';
 import {ModeServiceImpl} from 'vs/editor/common/services/modeServiceImpl';
 import {ModelServiceImpl} from 'vs/editor/common/services/modelServiceImpl';
 import {NULL_THREAD_SERVICE} from 'vs/platform/test/common/nullThreadService';
-import {AbstractPluginService} from 'vs/platform/plugins/common/abstractPluginService';
+import {AbstractPluginService, ActivatedPlugin} from 'vs/platform/plugins/common/abstractPluginService';
 import * as InstantiationService from 'vs/platform/instantiation/common/instantiationService';
 
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
@@ -103,12 +103,12 @@ export function createMockEditorWorkerServices(mockEditorWorkerServices: IMockEd
 }
 
 class MockModeService extends ModeServiceImpl {}
-class MockPluginService extends AbstractPluginService {
+class MockPluginService extends AbstractPluginService<ActivatedPlugin> {
 	constructor() {
 		super(true);
 	}
 
-	protected _showMessage(severity:Severity, msg:string): void {
+	protected _showMessage(severity: Severity, msg: string): void {
 		switch (severity) {
 			case Severity.Error:
 				console.error(msg);
@@ -124,11 +124,21 @@ class MockPluginService extends AbstractPluginService {
 		}
 	}
 
-	public deactivate(pluginId:string): void {
+	public deactivate(pluginId: string): void {
 		// nothing to do
 	}
+
+
+	protected _createFailedPlugin(): any {
+		throw new Error('not implemented');
+	}
+
+	protected _actualActivatePlugin(pluginDescription): any {
+		throw new Error('not implemented');
+	}
 }
-class MockModelService extends ModelServiceImpl {}
+
+class MockModelService extends ModelServiceImpl { }
 
 export function createMockModeService(): IModeService {
 	var threadService = NULL_THREAD_SERVICE;

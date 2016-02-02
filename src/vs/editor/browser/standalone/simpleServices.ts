@@ -20,8 +20,9 @@ import {IMessageService, IConfirmation} from 'vs/platform/message/common/message
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IKeybindingContextKey, IKeybindingItem, ICommandHandler, ICommandsMap} from 'vs/platform/keybinding/common/keybindingService';
-import {AbstractPluginService} from 'vs/platform/plugins/common/abstractPluginService';
+import {AbstractPluginService, ActivatedPlugin} from 'vs/platform/plugins/common/abstractPluginService';
 import {IOSupport} from 'vs/platform/keybinding/common/keybindingResolver';
+import {IPluginDescription} from 'vs/platform/plugins/common/plugins';
 import {PluginsRegistry, PluginsMessageCollector} from 'vs/platform/plugins/common/pluginsRegistry';
 
 export class SimpleEditor implements IEditor {
@@ -248,13 +249,10 @@ export class StandaloneKeybindingService extends KeybindingService.KeybindingSer
 	}
 }
 
-export class SimplePluginService extends AbstractPluginService {
+export class SimplePluginService extends AbstractPluginService<ActivatedPlugin> {
 
 	constructor() {
 		super(true);
-		PluginsRegistry.handleExtensionPoints((severity, source, message) => {
-			this.showMessage(severity, source, message);
-		});
 	}
 
 	protected _showMessage(severity:Severity, msg:string): void {
@@ -276,4 +274,13 @@ export class SimplePluginService extends AbstractPluginService {
 	public deactivate(pluginId:string): void {
 		// nothing to do
 	}
+
+	protected _createFailedPlugin(): ActivatedPlugin {
+		throw new Error('unexpected');
+	}
+
+	protected _actualActivatePlugin(pluginDescription: IPluginDescription): TPromise<ActivatedPlugin> {
+		throw new Error('unexpected');
+	}
+
 }

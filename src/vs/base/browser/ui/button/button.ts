@@ -70,7 +70,7 @@ export class Button extends EventEmitter {
 		} else {
 			this.$el.addClass('disabled');
 			this.$el.attr('aria-disabled', String(true));
-			this.$el.removeAttribute('tabIndex');
+			DOM.removeTabIndexAndUpdateFocus(this.$el.getHTMLElement());
 		}
 	}
 

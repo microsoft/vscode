@@ -163,63 +163,6 @@ export abstract class AbstractThreadService implements remote.IManyHandler {
 		return result;
 	}
 
-	public createDynamicProxyFromMethods<T>(obj:T): IDynamicProxy<T> {
-		let id = AbstractThreadService.generateDynamicProxyId();
-		let proxyDefinition = this._proxifyMethods(id, obj);
-		return new DynamicProxy(proxyDefinition, () => {
-			delete this._localObjMap[id];
-		});
-	}
-
-	public createDynamicProxyFromMembers<T>(obj:T, allowedMembers:string[]): IDynamicProxy<T> {
-		let id = AbstractThreadService.generateDynamicProxyId();
-		let proxyDefinition = this._proxifyMembers(id, obj, allowedMembers);
-		return new DynamicProxy(proxyDefinition, () => {
-			delete this._localObjMap[id];
-		});
-	}
-
-	private _proxifyMethods<T>(uniqueIdentifier: string, obj:T): T {
-		if (!Types.isObject(obj)) {
-			return null;
-		}
-		this._localObjMap[uniqueIdentifier] = obj;
-		var r: any = {
-			$__CREATE__PROXY__REQUEST: uniqueIdentifier
-		};
-		for (var prop in obj) {
-			if (typeof obj[prop] === 'function') {
-				r[prop] = obj[prop].bind(obj);
-			}
-		}
-		return r;
-	}
-
-	private _proxifyMembers<T>(uniqueIdentifier: string, obj:T, allowedMembers:string[]): T {
-		if (!Types.isObject(obj)) {
-			return null;
-		}
-		this._localObjMap[uniqueIdentifier] = obj;
-		var r: any = {
-			$__CREATE__PROXY__REQUEST: uniqueIdentifier
-		};
-		for (var prop in obj) {
-			if (allowedMembers.indexOf(prop) === -1) {
-				continue;
-			}
-			if (typeof obj[prop] === 'function') {
-				r[prop] = obj[prop].bind(obj);
-			} else {
-				r[prop] = obj[prop];
-			}
-		}
-		return r;
-	}
-
-	public isProxyObject<T>(obj: T): boolean {
-		return obj && !!((<any>obj).$__IS_REMOTE_OBJ);
-	}
-
 	getRemotable<T>(ctor: instantiation.INewConstructorSignature0<T>): T {
 		var id = Remotable.getId(ctor);
 		if (!id) {

@@ -6,7 +6,6 @@
 
 import errors = require('vs/base/common/errors');
 import objects = require('vs/base/common/objects');
-import marshalling = require('vs/base/common/marshalling');
 import hash = require('vs/base/common/hash');
 import instantiation = require('./instantiation');
 
@@ -198,45 +197,7 @@ export interface SyncDescriptor8<A1, A2, A3, A4, A5, A6, A7, A8, T> {
 	bind(a1: A1, a2: A2, a3: A3, a4: A4, a5: A5, a6: A6, a7: A7, a8: A8): SyncDescriptor0<T>;
 }
 
-export interface IAsyncDescriptor {
-	moduleName:string;
-	ctorName:string;
-}
-
-export interface ISerializedAsyncDescriptor {
-	$isAsyncDescriptor:boolean;
-	$moduleName:string;
-	$ctorName:string;
-	$staticArguments: any[];
-}
-
-marshalling.registerMarshallingContribution({
-
-	canSerialize: (obj:any): boolean => {
-		return obj instanceof AsyncDescriptor;
-	},
-
-	serialize: (asyncDescriptor:AsyncDescriptor<any>, serialize:(obj:any)=>any): ISerializedAsyncDescriptor => {
-		return {
-			$isAsyncDescriptor: true,
-			$moduleName: asyncDescriptor.moduleName,
-			$ctorName: asyncDescriptor.ctorName,
-			$staticArguments: serialize(asyncDescriptor.staticArguments())
-		};
-	},
-
-	canDeserialize: (obj:ISerializedAsyncDescriptor): boolean => {
-		return obj.$isAsyncDescriptor;
-	},
-
-	deserialize: (obj:ISerializedAsyncDescriptor, deserialize:(obj:any)=>any): any => {
-		var r = new AsyncDescriptor<any>(obj.$moduleName, obj.$ctorName);
-		r.appendStaticArguments(deserialize(obj.$staticArguments));
-		return r;
-	}
-});
-
-export class AsyncDescriptor<T> extends AbstractDescriptor<T> implements IAsyncDescriptor, objects.IEqualable {
+export class AsyncDescriptor<T> extends AbstractDescriptor<T> implements objects.IEqualable {
 
 	public static create<T>(moduleName:string, ctorName:string):AsyncDescriptor<T> {
 		return new AsyncDescriptor<T>(moduleName, ctorName);

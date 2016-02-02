@@ -1015,6 +1015,7 @@ export class WindowsManager {
 				if (result === 0) {
 					vscodeWindow.reload();
 				} else if (result === 2) {
+					this.onBeforeWindowClose(vscodeWindow); // 'close' event will not be fired on destroy(), so run it manually
 					vscodeWindow.win.destroy(); // make sure to destroy the window as it is unresponsive
 				}
 			});
@@ -1033,6 +1034,7 @@ export class WindowsManager {
 				if (result === 0) {
 					vscodeWindow.reload();
 				} else if (result === 1) {
+					this.onBeforeWindowClose(vscodeWindow); // 'close' event will not be fired on destroy(), so run it manually
 					vscodeWindow.win.destroy(); // make sure to destroy the window as it has crashed
 				}
 			});

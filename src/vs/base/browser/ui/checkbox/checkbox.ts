@@ -8,6 +8,7 @@
 import 'vs/css!./checkbox';
 
 import * as nls from 'vs/nls';
+import DOM = require('vs/base/browser/dom');
 import {KeyCode} from 'vs/base/common/keyCodes';
 import {Widget} from 'vs/base/browser/ui/widget';
 import {StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
@@ -90,7 +91,7 @@ export class Checkbox extends Widget {
 	}
 
 	public disable(): void {
-		this.domNode.removeAttribute('tabIndex');
+		DOM.removeTabIndexAndUpdateFocus(this.domNode);
 		this.domNode.setAttribute('aria-disabled', String(true));
 	}
 }

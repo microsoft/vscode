@@ -6,7 +6,7 @@
 
 import * as path from 'path';
 
-import {workspace, Disposable, ExtensionContext, extensions, Uri} from 'vscode';
+import {workspace, languages, Disposable, ExtensionContext, extensions, Uri} from 'vscode';
 import {LanguageClient, LanguageClientOptions, RequestType, SettingMonitor, ServerOptions, TransportKind, NotificationType} from 'vscode-languageclient';
 
 namespace TelemetryNotification {
@@ -73,6 +73,10 @@ export function activate(context: ExtensionContext) {
 	// Push the disposable to the context's subscriptions so that the
 	// client can be deactivated on extension deactivation
 	context.subscriptions.push(disposable);
+
+	languages.setLanguageConfiguration('json', {
+		wordPattern: /(-?\d*\.\d\w*)|([^\[\{\]\}\:\"\,\s]+)/g
+	});
 }
 
 function getSchemaAssociation(context: ExtensionContext) : ISchemaAssociations {

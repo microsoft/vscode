@@ -93,7 +93,8 @@ import {MainThreadModeServiceImpl} from 'vs/editor/common/services/modeServiceIm
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {IUntitledEditorService, UntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {CrashReporter} from 'vs/workbench/electron-browser/crashReporter';
-import {IThemeService, ThemeService, DEFAULT_THEME_ID} from 'vs/workbench/services/themes/node/themeService';
+import {IThemeService, DEFAULT_THEME_ID} from 'vs/workbench/services/themes/common/themeService';
+import {ThemeService} from 'vs/workbench/services/themes/node/themeService';
 import { IServiceCtor, isServiceEvent } from 'vs/base/common/service';
 import { connect, Client } from 'vs/base/node/service.net';
 import { IExtensionsService } from 'vs/workbench/parts/extensions/common/extensions';

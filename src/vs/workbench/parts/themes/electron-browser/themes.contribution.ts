@@ -17,7 +17,7 @@ import workbenchActionRegistry = require('vs/workbench/common/actionRegistry');
 import Themes = require('vs/platform/theme/common/themes');
 import {IQuickOpenService, IPickOpenEntry} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {IThemeService, IThemeData, DEFAULT_THEME_ID} from 'vs/workbench/services/themes/node/themeService';
+import {IThemeService, IThemeData, DEFAULT_THEME_ID} from 'vs/workbench/services/themes/common/themeService';
 
 import {ipcRenderer as ipc} from 'electron';
 

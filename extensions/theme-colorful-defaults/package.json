@@ -9,12 +9,12 @@
 	"contributes": {
 		"themes": [
 			{
-				"label": "Dark+ (default)",
+				"label": "Dark+ (default dark)",
 				"uiTheme": "vs-dark",
 				"path": "./themes/dark_plus.tmTheme"
 			},
 			{
-				"label": "Light+ (default)",
+				"label": "Light+ (default light)",
 				"uiTheme": "vs",
 				"path": "./themes/light_plus.tmTheme"
 			}

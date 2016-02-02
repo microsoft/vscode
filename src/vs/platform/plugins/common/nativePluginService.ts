@@ -7,8 +7,9 @@
 import {IPluginDescription, IMessage, IPluginStatus} from 'vs/platform/plugins/common/plugins';
 import {PluginsRegistry} from 'vs/platform/plugins/common/pluginsRegistry';
 import WinJS = require('vs/base/common/winjs.base');
+import {IDisposable} from 'vs/base/common/lifecycle';
 import {Remotable, IThreadService} from 'vs/platform/thread/common/thread';
-import {ActivatedPlugin, AbstractPluginService, IPluginModule, IPluginContext, IPluginMemento, loadAMDModule} from 'vs/platform/plugins/common/abstractPluginService';
+import {ActivatedPlugin, AbstractPluginService, IPluginContext, IPluginMemento, loadAMDModule} from 'vs/platform/plugins/common/abstractPluginService';
 import Severity from 'vs/base/common/severity';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
@@ -16,6 +17,7 @@ import {PluginHostStorage} from 'vs/platform/storage/common/remotable.storage';
 import * as paths from 'vs/base/common/paths';
 import {IWorkspaceContextService, IConfiguration} from 'vs/platform/workspace/common/workspace';
 import {disposeAll} from 'vs/base/common/lifecycle';
+var hasOwnProperty = Object.hasOwnProperty;
 
 class PluginMemento implements IPluginMemento {
 
@@ -57,8 +59,28 @@ class PluginMemento implements IPluginMemento {
 	}
 }
 
+/**
+ * Represents a failed extension in the ext host.
+ */
+export class MainProcessFailedPlugin extends ActivatedPlugin {
+	constructor() {
+		super(true);
+	}
+}
+
+/**
+ * Represents an extension that was successfully loaded or an
+ * empty extension in the ext host.
+ */
+export class MainProcessSuccessPlugin extends ActivatedPlugin {
+	constructor() {
+		super(false);
+	}
+}
+
+
 @Remotable.MainContext('MainProcessPluginService')
-export class MainProcessPluginService extends AbstractPluginService {
+export class MainProcessPluginService extends AbstractPluginService<ActivatedPlugin> {
 
 	private _threadService: IThreadService;
 	private _messageService: IMessageService;
@@ -90,6 +112,10 @@ export class MainProcessPluginService extends AbstractPluginService {
 		PluginsRegistry.handleExtensionPoints((severity, source, message) => {
 			this.showMessage(severity, source, message);
 		});
+	}
+
+	protected _createFailedPlugin() {
+		return new MainProcessFailedPlugin();
 	}
 
 	private getTelemetryActivationEvent(pluginDescription: IPluginDescription): any {
@@ -196,17 +222,46 @@ export class MainProcessPluginService extends AbstractPluginService {
 		this.registrationDone(messages);
 	}
 
-	public $onPluginActivatedInPluginHost(pluginId:string, pluginExports:any): void {
-		this.activatedPlugins[pluginId] = new ActivatedPlugin(false, { activate: undefined, deactivate: undefined}, pluginExports, []);
+	public $onPluginActivatedInPluginHost(pluginId:string): void {
+		this.activatedPlugins[pluginId] = new MainProcessSuccessPlugin();
 	}
 
-	public $onPluginActivationFailedInPluginHost(pluginId:string, err:any): void {
-		this.activatedPlugins[pluginId] = new ActivatedPlugin(true, { activate: undefined, deactivate: undefined}, {}, []);
+	public $onPluginActivationFailedInPluginHost(pluginId:string): void {
+		this.activatedPlugins[pluginId] = new MainProcessFailedPlugin();
+	}
+}
+
+export interface IPluginModule {
+	activate(ctx: IPluginContext): WinJS.TPromise<IPluginExports>;
+	deactivate(): void;
+}
+
+export interface IPluginExports {
+	// _pluginExportsBrand: any;
+}
+
+export class ExtHostPlugin extends ActivatedPlugin {
+
+	module: IPluginModule;
+	exports: IPluginExports;
+	subscriptions: IDisposable[];
+
+	constructor(activationFailed: boolean, module: IPluginModule, exports: IPluginExports, subscriptions: IDisposable[]) {
+		super(activationFailed);
+		this.module = module;
+		this.exports = exports;
+		this.subscriptions = subscriptions;
+	}
+}
+
+export class EmptyPlugin extends ExtHostPlugin {
+	constructor() {
+		super(false, { activate: undefined, deactivate: undefined }, undefined, []);
 	}
 }
 
 @Remotable.PluginHostContext('PluginHostPluginService')
-export class PluginHostPluginService extends AbstractPluginService {
+export class PluginHostPluginService extends AbstractPluginService<ExtHostPlugin> {
 
 	private _threadService: IThreadService;
 	private _storage: PluginHostStorage;
@@ -241,6 +296,13 @@ export class PluginHostPluginService extends AbstractPluginService {
 		}
 	}
 
+	public get(pluginId: string): IPluginExports {
+		if (!hasOwnProperty.call(this.activatedPlugins, pluginId)) {
+			throw new Error('Plugin `' + pluginId + '` is not known or not activated');
+		}
+		return this.activatedPlugins[pluginId].exports;
+	}
+
 	public deactivate(pluginId:string): void {
 		let plugin = this.activatedPlugins[pluginId];
 		if (!plugin) {
@@ -262,6 +324,10 @@ export class PluginHostPluginService extends AbstractPluginService {
 		} catch(err) {
 			// TODO: Do something with err if this is not the shutdown case
 		}
+	}
+
+	protected _createFailedPlugin() {
+		return new ExtHostPlugin(true, { activate: undefined, deactivate: undefined }, undefined, []);
 	}
 
 	// -- overwriting AbstractPluginService
@@ -297,23 +363,58 @@ export class PluginHostPluginService extends AbstractPluginService {
 
 	protected _actualActivatePlugin(pluginDescription: IPluginDescription): WinJS.TPromise<ActivatedPlugin> {
 
-		return super._actualActivatePlugin(pluginDescription).then((activatedPlugin) => {
-			let proxyObj = this._threadService.createDynamicProxyFromMethods(activatedPlugin.exports);
-			activatedPlugin.subscriptions.push(proxyObj);
-			this._proxy.$onPluginActivatedInPluginHost(pluginDescription.id, proxyObj.getProxyDefinition());
+		return this._superActualActivatePlugin(pluginDescription).then((activatedPlugin) => {
+			this._proxy.$onPluginActivatedInPluginHost(pluginDescription.id);
 			return activatedPlugin;
 		}, (err) => {
-			this._proxy.$onPluginActivationFailedInPluginHost(pluginDescription.id, err);
+			this._proxy.$onPluginActivationFailedInPluginHost(pluginDescription.id);
 			throw err;
 		});
+	}
+
+	private _superActualActivatePlugin(pluginDescription: IPluginDescription): WinJS.TPromise<ExtHostPlugin> {
+
+		if (!pluginDescription.main) {
+			// Treat the plugin as being empty => NOT AN ERROR CASE
+			return WinJS.TPromise.as(new EmptyPlugin());
+		}
+		return this._loadPluginModule(pluginDescription).then((pluginModule) => {
+			return this._loadPluginContext(pluginDescription).then(context => {
+				return PluginHostPluginService._callActivate(pluginModule, context);
+			});
+		});
+	}
+
+	private static _callActivate(pluginModule: IPluginModule, context: IPluginContext): WinJS.TPromise<ExtHostPlugin> {
+		// Make sure the plugin's surface is not undefined
+		pluginModule = pluginModule || {
+			activate: undefined,
+			deactivate: undefined
+		};
+
+		// let subscriptions:IDisposable[] = [];
+		return this._callActivateOptional(pluginModule, context).then((pluginExports) => {
+			return new ExtHostPlugin(false, pluginModule, pluginExports, context.subscriptions);
+		});
+	}
+
+	private static _callActivateOptional(pluginModule: IPluginModule, context: IPluginContext): WinJS.TPromise<IPluginExports> {
+		if (typeof pluginModule.activate === 'function') {
+			try {
+				return WinJS.TPromise.as(pluginModule.activate.apply(global, [context]));
+			} catch (err) {
+				return WinJS.TPromise.wrapError(err);
+			}
+		} else {
+			// No activate found => the module is the plugin's exports
+			return WinJS.TPromise.as<IPluginExports>(pluginModule);
+		}
 	}
 
 	// -- called by main thread
 
 	public $activatePluginInPluginHost(pluginDescription: IPluginDescription): WinJS.TPromise<void> {
-		return this._activatePlugin(pluginDescription).then(() => {
-			return null;
-		});
+		return this._activatePlugin(pluginDescription);
 	}
 
 }

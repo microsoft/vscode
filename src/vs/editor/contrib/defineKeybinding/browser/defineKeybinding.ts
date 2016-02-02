@@ -338,6 +338,7 @@ class DefineKeybindingWidget implements EditorBrowser.IOverlayWidget {
 
 		this._inputNode = document.createElement('input');
 		this._inputNode.className = 'input';
+		this._inputNode.type = 'text';
 		this._domNode.appendChild(this._inputNode);
 
 		this._outputNode = document.createElement('div');

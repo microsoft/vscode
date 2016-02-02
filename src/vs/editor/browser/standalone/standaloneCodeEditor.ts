@@ -36,7 +36,6 @@ import {IModelService} from 'vs/editor/common/services/modelService';
 import colorizer = require('vs/editor/browser/standalone/colorizer');
 import {IEditorModesRegistry, Extensions} from 'vs/editor/common/modes/modesRegistry';
 import {Registry} from 'vs/platform/platform';
-import {createAsyncDescriptor0} from 'vs/platform/instantiation/common/descriptors';
 import {LanguageExtensions, ILanguageExtensionPoint} from 'vs/editor/common/modes/languageExtensionPoint';
 import {AbstractKeybindingService} from 'vs/platform/keybinding/browser/keybindingServiceImpl';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
@@ -407,7 +406,7 @@ export function configureMode(modeId: string, options: any): void {
 
 export function registerWorkerParticipant(modeId:string, moduleName:string, ctorName:string): void {
 	var modeRegistry = <IEditorModesRegistry> Registry.as(Extensions.EditorModes);
-	modeRegistry.registerWorkerParticipant(modeId, createAsyncDescriptor0<Modes.IWorkerParticipant>(moduleName, ctorName));
+	modeRegistry.registerWorkerParticipant(modeId, moduleName, ctorName);
 }
 
 export function getAPI(): typeof vscode {

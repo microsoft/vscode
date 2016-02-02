@@ -5,9 +5,7 @@
 
 'use strict';
 
-import Builder = require('vs/base/browser/builder');
-
-var $ = Builder.$;
+import {$} from 'vs/base/browser/builder';
 
 /**
  * A helper that will execute a provided function when the provided HTMLElement receives
@@ -17,7 +15,7 @@ export class DelayedDragHandler {
 
 	private timeout: number;
 
-	constructor(container:HTMLElement, callback: () => void) {
+	constructor(container: HTMLElement, callback: () => void) {
 		$(container).on('dragover', () => {
 			if (!this.timeout) {
 				this.timeout = setTimeout(() => {

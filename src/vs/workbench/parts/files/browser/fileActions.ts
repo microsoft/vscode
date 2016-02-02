@@ -670,6 +670,7 @@ export class CreateFolderAction extends BaseCreateAction {
 export class BaseDeleteFileAction extends BaseFileAction {
 	private tree: ITree;
 	private useTrash: boolean;
+	private skipConfirm: boolean;
 
 	constructor(
 		id: string,
@@ -701,23 +702,25 @@ export class BaseDeleteFileAction extends BaseFileAction {
 		}
 
 		// Ask for Confirm
-		let confirm: IConfirmation;
-		if (this.useTrash) {
-			confirm = {
-				message: this.element.isDirectory ? nls.localize('confirmMoveTrashMessageFolder', "Are you sure you want to delete '{0}' and its contents?", this.element.name) : nls.localize('confirmMoveTrashMessageFile', "Are you sure you want to delete '{0}'?", this.element.name),
-				detail: isWindows ? nls.localize('undoBin', "You can restore from the recycle bin.") : nls.localize('undoTrash', "You can restore from the trash."),
-				primaryButton: isWindows ? nls.localize('deleteButtonLabelRecycleBin', "&&Move to Recycle Bin") : nls.localize('deleteButtonLabelTrash', "&&Move to Trash")
-			};
-		} else {
-			confirm = {
-				message: this.element.isDirectory ? nls.localize('confirmDeleteMessageFolder', "Are you sure you want to permanently delete '{0}' and its contents?", this.element.name) : nls.localize('confirmDeleteMessageFile', "Are you sure you want to permanently delete '{0}'?", this.element.name),
-				detail: nls.localize('irreversible', "This action is irreversible!"),
-				primaryButton: nls.localize('deleteButtonLabel', "&&Delete")
-			};
-		}
+		if (!this.skipConfirm) {
+			let confirm: IConfirmation;
+			if (this.useTrash) {
+				confirm = {
+					message: this.element.isDirectory ? nls.localize('confirmMoveTrashMessageFolder', "Are you sure you want to delete '{0}' and its contents?", this.element.name) : nls.localize('confirmMoveTrashMessageFile', "Are you sure you want to delete '{0}'?", this.element.name),
+					detail: isWindows ? nls.localize('undoBin', "You can restore from the recycle bin.") : nls.localize('undoTrash', "You can restore from the trash."),
+					primaryButton: isWindows ? nls.localize('deleteButtonLabelRecycleBin', "&&Move to Recycle Bin") : nls.localize('deleteButtonLabelTrash', "&&Move to Trash")
+				};
+			} else {
+				confirm = {
+					message: this.element.isDirectory ? nls.localize('confirmDeleteMessageFolder', "Are you sure you want to permanently delete '{0}' and its contents?", this.element.name) : nls.localize('confirmDeleteMessageFile', "Are you sure you want to permanently delete '{0}'?", this.element.name),
+					detail: nls.localize('irreversible', "This action is irreversible!"),
+					primaryButton: nls.localize('deleteButtonLabel', "&&Delete")
+				};
+			}
 
-		if (!this.messageService.confirm(confirm)) {
-			return Promise.as(null);
+			if (!this.messageService.confirm(confirm)) {
+				return Promise.as(null);
+			}
 		}
 
 		// Check if file is dirty in editor and save it to avoid data loss
@@ -747,7 +750,7 @@ export class BaseDeleteFileAction extends BaseFileAction {
 				// Allow to retry
 				let extraAction: Action;
 				if (this.useTrash) {
-					extraAction = new Action('permanentDelete', nls.localize('permDelete', "Delete Permanently"), null, true, () => { this.useTrash = false; return this.run(); });
+					extraAction = new Action('permanentDelete', nls.localize('permDelete', "Delete Permanently"), null, true, () => { this.useTrash = this.skipConfirm = true; return this.run(); });
 				}
 
 				this.onErrorWithRetry(error, () => this.run(), extraAction);

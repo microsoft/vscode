@@ -303,9 +303,7 @@ export class EditorPart extends Part implements IEditorPart {
 				// Build Container off-DOM
 				editorContainer = $().div({
 					'class': 'editor-container',
-					id: editorDescriptor.getId(),
-					'role': 'presentation',
-					'aria-label': nls.localize('editorAccessibleLabel', "Editor Container")
+					id: editorDescriptor.getId()
 				}, (div) => {
 					newlyCreatedEditorContainerBuilder = div;
 				});

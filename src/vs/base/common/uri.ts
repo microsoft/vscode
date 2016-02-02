@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import marshalling = require('vs/base/common/marshalling');
 import platform = require('vs/base/common/platform');
 
 // see https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/encodeURIComponent
@@ -285,66 +284,39 @@ export default class URI {
 	}
 
 	public toJSON(): any {
-		return this.toString();
-	}
-
-	public _toSerialized(): any {
-		// because network.URL extends this class it is important that
-		// it can refine/override this method
-
-		return {
-			$isURI: true,
-			_scheme: this._scheme,
-			_authority: this._authority,
-			_path: this._path,
-			_query: this._query,
-			_fragment: this._fragment.replace(/URL_MARSHAL_REMOVE.*$/, ''), // TODO@Alex: implement derived resources (embedded mirror models) better
-			_fsPath: this._fsPath,
-			_formatted: this._formatted && this._formatted.replace(/#?URL_MARSHAL_REMOVE.*$/, ''), // TODO@Alex: implement derived resources (embedded mirror models) better
+		return <_ISerializedURI> {
+			scheme: this.scheme,
+			authority: this.authority,
+			path: this.path,
+			fsPath: this.fsPath,
+			query: this.query,
+			fragment: this.fragment.replace(/URL_MARSHAL_REMOVE.*$/, ''), // TODO@Alex: implement derived resources (embedded mirror models) better
+			external: this.toString().replace(/#?URL_MARSHAL_REMOVE.*$/, ''), // TODO@Alex: implement derived resources (embedded mirror models) better
+			$mid: 1
 		};
 	}
 
-	static _fromSerialized(data: any): URI {
+	static revive(data: any): URI {
 		let result = new URI();
-		result._scheme = data._scheme;
-		result._authority = data._authority;
-		result._path = data._path;
-		result._query = data._query;
-		result._fragment = data._fragment;
-		result._fsPath = data._fsPath;
-		result._formatted = data._formatted;
+		result._scheme = (<_ISerializedURI> data).scheme;
+		result._authority = (<_ISerializedURI> data).authority;
+		result._path = (<_ISerializedURI> data).path;
+		result._query = (<_ISerializedURI> data).query;
+		result._fragment = (<_ISerializedURI> data).fragment;
+		result._fsPath = (<_ISerializedURI> data).fsPath;
+		result._formatted = (<_ISerializedURI>data).external;
+		URI._validate(result);
 		return result;
 	}
 }
 
 interface _ISerializedURI {
-	$isURI: boolean;
-
-	_scheme: string;
-	_authority: string;
-	_path: string;
-	_query: string;
-	_fragment: string;
-
-	_fsPath: string;
-	_formatted: string;
+	$mid: number;
+	scheme: string;
+	authority: string;
+	path: string;
+	fsPath: string;
+	query: string;
+	fragment: string;
+	external: string;
 }
-
-marshalling.registerMarshallingContribution({
-
-	canSerialize: (obj:any): boolean => {
-		return obj instanceof URI;
-	},
-
-	serialize: (url: URI, serialize: (obj: any) => any): _ISerializedURI => {
-		return url._toSerialized();
-	},
-
-	canDeserialize: (obj:_ISerializedURI): boolean => {
-		return obj.$isURI;
-	},
-
-	deserialize: (obj:_ISerializedURI, deserialize:(obj:any)=>any): any => {
-		return URI._fromSerialized(obj);
-	}
-});

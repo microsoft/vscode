@@ -80,7 +80,7 @@ export class ActivityActionItem extends BaseActionItem {
 		}
 
 		this.$badge = this.builder.div({ 'class': 'badge' }, (badge: Builder) => {
-			this.$badgeContent = badge.div({ 'class': 'badge-content', 'role': 'presentation' });
+			this.$badgeContent = badge.div({ 'class': 'badge-content' });
 		});
 
 		this.$badge.hide();

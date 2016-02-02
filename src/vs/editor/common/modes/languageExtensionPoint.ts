@@ -14,7 +14,6 @@ import {IPluginDescription} from 'vs/platform/plugins/common/plugins';
 import {PluginsRegistry, IExtensionPointUser, IMessageCollector} from 'vs/platform/plugins/common/pluginsRegistry';
 import Mime = require('vs/base/common/mime');
 import Errors = require('vs/base/common/errors');
-import {AsyncDescriptor1, createAsyncDescriptor1} from 'vs/platform/instantiation/common/descriptors';
 import {IMode, IModeDescriptor} from 'vs/editor/common/modes';
 import Event, {Emitter} from 'vs/base/common/event';
 
@@ -24,7 +23,7 @@ interface ILanguagePointData {
 	name2LanguageId: { [name: string]: string; };
 	name2Extensions: { [name: string]: string[]; };
 	id2Name: { [id: string]: string; };
-	compatModes: { [id: string]: AsyncDescriptor1<IModeDescriptor, IMode>; };
+	compatModes: { [id: string]: ICompatModeDescriptor; };
 	lowerName2Id: { [name: string]: string; };
 }
 
@@ -177,7 +176,12 @@ export interface ILanguageExtensionPointHandler {
 	extractModeIds(commaSeparatedMimetypesOrCommaSeparatedIdsOrName: string): string[];
 	getModeIdsFromLanguageName(languageName: string): string[];
 	getModeIdsFromFilenameOrFirstLine(filename: string, firstLine?:string): string[];
-	getCompatMode(modeId: string): AsyncDescriptor1<IModeDescriptor, IMode>;
+	getCompatMode(modeId: string): ICompatModeDescriptor;
+}
+
+export interface ICompatModeDescriptor {
+	moduleId: string;
+	ctorName: string;
 }
 
 class LanguageExtensionPointHandler implements IThreadSynchronizableObject<ILanguagePointData>, ILanguageExtensionPointHandler {
@@ -187,7 +191,7 @@ class LanguageExtensionPointHandler implements IThreadSynchronizableObject<ILang
 	private name2LanguageId: { [name: string]: string; };
 	private name2Extensions: { [name: string]: string[]; };
 	private id2Name: { [id: string]: string; };
-	private compatModes: { [id: string]: AsyncDescriptor1<IModeDescriptor, IMode>; };
+	private compatModes: { [id: string]: ICompatModeDescriptor; };
 	private lowerName2Id: { [name: string]: string; };
 	private id2ConfigurationFiles: { [id:string]: string[]; };
 
@@ -252,7 +256,10 @@ class LanguageExtensionPointHandler implements IThreadSynchronizableObject<ILang
 			mimetypes: def.mimetypes
 		});
 
-		this.compatModes[def.id] = createAsyncDescriptor1<IModeDescriptor, IMode>(def.moduleId, def.ctorName);
+		this.compatModes[def.id] = {
+			moduleId: def.moduleId,
+			ctorName: def.ctorName
+		};
 	}
 
 	public _handleLanguagesExtensionPointUsers(extensions:IExtensionPointUser<ILanguageExtensionPoint[]>[]): void {
@@ -471,7 +478,7 @@ class LanguageExtensionPointHandler implements IThreadSynchronizableObject<ILang
 		return this.extractModeIds(mimeTypes.join(','));
 	}
 
-	public getCompatMode(modeId: string): AsyncDescriptor1<IModeDescriptor, IMode> {
+	public getCompatMode(modeId: string): ICompatModeDescriptor {
 		return this.compatModes[modeId] || null;
 	}
 

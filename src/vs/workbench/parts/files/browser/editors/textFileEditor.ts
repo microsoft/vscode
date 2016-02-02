@@ -256,7 +256,10 @@ export class TextFileEditor extends BaseTextEditor {
 
 	protected getCodeEditorOptions(): IEditorOptions {
 		let options = super.getCodeEditorOptions();
-		options.ariaLabel = nls.localize('fileEditorAriaLabel', "Text file editor");
+
+		let input = this.getInput();
+		let inputName = input && input.getName();
+		options.ariaLabel = inputName ? nls.localize('fileEditorWithInputAriaLabel', "{0}. Text file editor.", inputName) : nls.localize('fileEditorAriaLabel', "Text file editor.");
 
 		return options;
 	}

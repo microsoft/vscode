@@ -811,8 +811,7 @@ export class QuickOpenWidget implements IModelProvider {
 
 		const relatedTarget = (<any>e).relatedTarget;
 		if (!this.quickNavigateConfiguration && DOM.isAncestor(relatedTarget, this.builder.getHTMLElement())) {
-			this.inputBox.focus(); // user clicked somewhere into quick open, so we restore focus to input
-			return;
+			return; // user clicked somewhere into quick open widget, do not close thereby
 		}
 
 		this.isLoosingFocus = true;
