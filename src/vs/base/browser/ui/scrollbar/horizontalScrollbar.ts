@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {AbstractScrollbar, ScrollbarState, IMouseMoveEventData} from 'vs/base/browser/ui/scrollbar/impl/abstractScrollbar';
+import {AbstractScrollbar, ScrollbarState, IMouseMoveEventData} from 'vs/base/browser/ui/scrollbar/abstractScrollbar';
 import {StandardMouseEvent, StandardMouseWheelEvent} from 'vs/base/browser/mouseEvent';
 import DomUtils = require('vs/base/browser/dom');
-import {IParent, IOptions, Visibility} from 'vs/base/browser/ui/scrollbar/impl/common';
+import {IParent, IOptions, Visibility} from 'vs/base/browser/ui/scrollbar/common';
 import Browser = require('vs/base/browser/browser');
 import {IScrollable} from 'vs/base/common/scrollable';
 

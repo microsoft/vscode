@@ -19,7 +19,7 @@ import Model = require('vs/base/parts/tree/browser/treeModel');
 import dnd = require('./treeDnd');
 import { IIterator, ArrayIterator, MappedIterator } from 'vs/base/common/iterator';
 import Scroll = require('vs/base/browser/ui/scrollbar/scrollableElement');
-import ScrollableElementImpl = require('vs/base/browser/ui/scrollbar/impl/scrollableElement');
+import ScrollableElementImpl = require('vs/base/browser/ui/scrollbar/scrollableElementImpl');
 import { HeightMap } from 'vs/base/parts/tree/browser/treeViewModel'
 import _ = require('vs/base/parts/tree/browser/tree');
 import { IViewItem } from 'vs/base/parts/tree/browser/treeViewModel';

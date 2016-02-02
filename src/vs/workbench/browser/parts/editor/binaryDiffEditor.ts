@@ -13,7 +13,7 @@ import {Sash, ISashEvent, IVerticalSashLayoutProvider} from 'vs/base/browser/ui/
 import {Dimension, Builder, $} from 'vs/base/browser/builder';
 import {ResourceViewer} from 'vs/base/browser/ui/resourceviewer/resourceViewer';
 import {IScrollableElement} from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import {ScrollableElement} from 'vs/base/browser/ui/scrollbar/impl/scrollableElement';
+import {ScrollableElement} from 'vs/base/browser/ui/scrollbar/scrollableElementImpl';
 import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {EditorInput, EditorOptions} from 'vs/workbench/common/editor';
 import {BinaryEditorModel} from 'vs/workbench/common/editor/binaryEditorModel';

@@ -6,7 +6,7 @@
 
 import DomUtils = require('vs/base/browser/dom');
 import {StandardMouseEvent} from 'vs/base/browser/mouseEvent';
-import {IMouseWheelEvent, IParent, Visibility, IScrollbar} from 'vs/base/browser/ui/scrollbar/impl/common';
+import {IMouseWheelEvent, IParent, Visibility, IScrollbar} from 'vs/base/browser/ui/scrollbar/common';
 import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
 import {GlobalMouseMoveMonitor, IStandardMouseMoveEventData, standardMouseMoveMerger} from 'vs/base/browser/globalMouseMoveMonitor';
 import Browser = require('vs/base/browser/browser');

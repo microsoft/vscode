@@ -5,7 +5,7 @@
 'use strict';
 
 import ScrollableElement = require('vs/base/browser/ui/scrollbar/scrollableElement');
-import ScrollableElementImpl = require('vs/base/browser/ui/scrollbar/impl/scrollableElement');
+import ScrollableElementImpl = require('vs/base/browser/ui/scrollbar/scrollableElementImpl');
 import DomUtils = require('vs/base/browser/dom');
 import Lifecycle = require('vs/base/common/lifecycle');
 import Objects = require('vs/base/common/objects');

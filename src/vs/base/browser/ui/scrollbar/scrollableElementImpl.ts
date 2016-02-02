@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import 'vs/css!./scrollbars';
+import 'vs/css!./media/scrollbars';
 import DomUtils = require('vs/base/browser/dom');
 import {StandardMouseWheelEvent} from 'vs/base/browser/mouseEvent';
 import Platform = require('vs/base/common/platform');
-import {IOptions,IScrollbar,IDimensions,IMouseWheelEvent,visibilityFromString} from 'vs/base/browser/ui/scrollbar/impl/common';
-import {DomNodeScrollable} from 'vs/base/browser/ui/scrollbar/impl/domNodeScrollable';
-import {HorizontalScrollbar} from 'vs/base/browser/ui/scrollbar/impl/horizontalScrollbar';
-import {VerticalScrollbar} from 'vs/base/browser/ui/scrollbar/impl/verticalScrollbar';
+import {IOptions,IScrollbar,IDimensions,IMouseWheelEvent,visibilityFromString} from 'vs/base/browser/ui/scrollbar/common';
+import {DomNodeScrollable} from 'vs/base/browser/ui/scrollbar/domNodeScrollable';
+import {HorizontalScrollbar} from 'vs/base/browser/ui/scrollbar/horizontalScrollbar';
+import {VerticalScrollbar} from 'vs/base/browser/ui/scrollbar/verticalScrollbar';
 import ScrollableElementInt = require('vs/base/browser/ui/scrollbar/scrollableElement');
 import {IDisposable,disposeAll} from 'vs/base/common/lifecycle';
 import {IScrollable} from 'vs/base/common/scrollable';

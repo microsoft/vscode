@@ -31,7 +31,7 @@ import URI from 'vs/base/common/uri';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { onUnexpectedError, isPromiseCanceledError, illegalArgument } from 'vs/base/common/errors';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/impl/scrollableElement';
+import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElementImpl';
 
 function completionGroupCompare(one: CompletionGroup, other: CompletionGroup): number {
 	return one.index - other.index;
