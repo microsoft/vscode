@@ -58,8 +58,8 @@ export class FindInput extends Widget {
 	public domNode: HTMLElement;
 	public inputBox:InputBox;
 
-	private _onDidOptionChange = this._register(new Emitter<void>());
-	public onDidOptionChange: Event<void> = this._onDidOptionChange.event;
+	private _onDidOptionChange = this._register(new Emitter<boolean>());
+	public onDidOptionChange: Event<boolean /* via keyboard */> = this._onDidOptionChange.event;
 
 	private _onKeyDown = this._register(new Emitter<StandardKeyboardEvent>());
 	public onKeyDown: Event<StandardKeyboardEvent> = this._onKeyDown.event;
@@ -212,9 +212,11 @@ export class FindInput extends Widget {
 			actionClassName: 'regex',
 			title: NLS_REGEX_CHECKBOX_LABEL + appendRegexLabel,
 			isChecked: false,
-			onChange: () => {
-				this._onDidOptionChange.fire();
-				this.inputBox.focus();
+			onChange: (viaKeyboard) => {
+				this._onDidOptionChange.fire(viaKeyboard);
+				if (!viaKeyboard) {
+					this.inputBox.focus();
+				}
 				this.setInputWidth();
 				this.validate();
 			}
@@ -223,9 +225,11 @@ export class FindInput extends Widget {
 			actionClassName: 'whole-word',
 			title: NLS_WHOLE_WORD_CHECKBOX_LABEL + appendWholeWordsLabel,
 			isChecked: false,
-			onChange: () => {
-				this._onDidOptionChange.fire();
-				this.inputBox.focus();
+			onChange: (viaKeyboard) => {
+				this._onDidOptionChange.fire(viaKeyboard);
+				if (!viaKeyboard) {
+					this.inputBox.focus();
+				}
 				this.setInputWidth();
 				this.validate();
 			}
@@ -234,9 +238,11 @@ export class FindInput extends Widget {
 			actionClassName: 'case-sensitive',
 			title: NLS_CASE_SENSITIVE_CHECKBOX_LABEL + appendCaseSensitiveLabel,
 			isChecked: false,
-			onChange: () => {
-				this._onDidOptionChange.fire();
-				this.inputBox.focus();
+			onChange: (viaKeyboard) => {
+				this._onDidOptionChange.fire(viaKeyboard);
+				if (!viaKeyboard) {
+					this.inputBox.focus();
+				}
 				this.setInputWidth();
 				this.validate();
 			},

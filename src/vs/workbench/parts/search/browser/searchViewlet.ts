@@ -573,9 +573,11 @@ class PatternInput {
 			actionClassName: 'pattern',
 			title: nls.localize('patternDescription', "Use Glob Patterns"),
 			isChecked: false,
-			onChange: () => {
+			onChange: (viaKeyboard) => {
 				this.onOptionChange(null);
-				this.inputBox.focus();
+				if (!viaKeyboard) {
+					this.inputBox.focus();
+				}
 				this.setInputWidth();
 
 				if (this.isGlobPattern()) {
@@ -772,8 +774,8 @@ export class SearchViewlet extends Viewlet {
 					}
 				}
 			});
-			this.findInput.onDidOptionChange(() => {
-				this.onQueryChanged(true);
+			this.findInput.onDidOptionChange((viaKeyboard) => {
+				this.onQueryChanged(true, viaKeyboard);
 			});
 			this.findInput.setValue(contentPattern);
 			this.findInput.setRegex(isRegex);
@@ -1099,7 +1101,7 @@ export class SearchViewlet extends Viewlet {
 		}
 	}
 
-	public onQueryChanged(rerunQuery: boolean): void {
+	public onQueryChanged(rerunQuery: boolean, preserveFocus?: boolean): void {
 
 		let isRegex = this.findInput.getRegex(),
 			isWholeWords = this.findInput.getWholeWords(),
@@ -1167,7 +1169,9 @@ export class SearchViewlet extends Viewlet {
 		this.queryBuilder.text(content, options)
 			.then(query => this.onQueryTriggered(query, patternExcludes, patternIncludes), errors.onUnexpectedError);
 
-		this.findInput.focus(); // focus back to input field
+		if (!preserveFocus) {
+			this.findInput.focus(); // focus back to input field
+		}
 	}
 
 	private onQueryTriggered(query: ISearchQuery, excludePattern: string, includePattern: string): void {

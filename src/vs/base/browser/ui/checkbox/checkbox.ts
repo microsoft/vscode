@@ -17,7 +17,7 @@ export interface ICheckboxOpts {
 	actionClassName: string;
 	title: string;
 	isChecked: boolean;
-	onChange: () => void;
+	onChange: (viaKeyboard: boolean) => void;
 	onKeyDown?: (e: StandardKeyboardEvent) => void;
 }
 
@@ -43,14 +43,14 @@ export class Checkbox extends Widget {
 
 		this.onclick(this.domNode, (ev) => {
 			this.checked = !this._checked;
-			this._opts.onChange();
+			this._opts.onChange(false);
 			ev.preventDefault();
 		});
 
 		this.onkeydown(this.domNode, (keyboardEvent) => {
 			if (keyboardEvent.keyCode === KeyCode.Space || keyboardEvent.keyCode === KeyCode.Enter) {
 				this.checked = !this._checked;
-				this._opts.onChange();
+				this._opts.onChange(true);
 				keyboardEvent.preventDefault();
 				return;
 			}
