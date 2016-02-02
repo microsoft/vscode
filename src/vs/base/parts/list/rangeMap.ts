@@ -76,14 +76,6 @@ function shift({ start, end }: IRange, much: number): IRange {
 }
 
 /**
- * Concatenates several collections of ranged groups into a single
- * collection.
- */
-function concat(...groups: IRangedGroup[][]): IRangedGroup[] {
-	return groups.reduce((r, g) => r.concat(g), [] as IRangedGroup[]);
-}
-
-/**
  * Consolidates a collection of ranged groups.
  *
  * Consolidation is the process of merging consecutive ranged groups
@@ -110,32 +102,41 @@ export function consolidate(groups: IRangedGroup[]): IRangedGroup[] {
 	return result;
 }
 
+/**
+ * Concatenates several collections of ranged groups into a single
+ * collection.
+ */
+function concat(...groups: IRangedGroup[][]): IRangedGroup[] {
+	return consolidate(groups.reduce((r, g) => r.concat(g), [] as IRangedGroup[]));
+}
+
 export class RangeMap {
 
 	private groups: IRangedGroup[] = [];
 
 	splice(index: number, deleteCount: number, ...groups: IGroup[]): void {
-		const insertCount = groups.reduce((t, r) => t + r.count, 0);
-		const diff = insertCount - deleteCount;
+		let diff = -deleteCount;
+		let index2 = index;
+
+		const middle = groups
+			.filter(g => g.count > 0 && g.size > 0)
+			.map<IRangedGroup>(g => {
+				const end = index2 + g.count;
+				const result = {
+					range: { start: index2, end },
+					size: g.size
+				};
+
+				diff += g.count;
+				index2 = end;
+				return result;
+			});
 
 		const before = groupIntersect({ start: 0, end: index }, this.groups);
 		const after = groupIntersect({ start: index + deleteCount, end: Number.POSITIVE_INFINITY }, this.groups)
 			.map<IRangedGroup>(g => ({ range: shift(g.range, diff), size: g.size }));
 
-		const middle = groups
-			.filter(g => g.count > 0 && g.size > 0)
-			.map<IRangedGroup>(g => {
-				const end = index + g.count;
-				const result = {
-					range: { start: index, end },
-					size: g.size
-				};
-
-				index = end;
-				return result;
-			});
-
-		this.groups = consolidate(concat(before, middle, after));
+		this.groups = concat(before, middle, after);
 	}
 
 	get count(): number {
