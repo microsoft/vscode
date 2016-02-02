@@ -1085,13 +1085,13 @@ export function hide(...elements: HTMLElement[]): void {
 	}
 }
 
-function findParentWithAttribute(node: HTMLElement, attribute: string): HTMLElement {
+function findParentWithAttribute(node: Node, attribute: string): HTMLElement {
 	while (node) {
-		if (node.hasAttribute(attribute)) {
+		if (node instanceof HTMLElement && node.hasAttribute(attribute)) {
 			return node;
 		}
 
-		node = <HTMLElement>node.parentNode;
+		node = node.parentNode;
 	}
 
 	return null;

@@ -34,6 +34,7 @@ import {GlyphMarginOverlay} from 'vs/editor/browser/viewParts/glyphMargin/glyphM
 import {LinesDecorationsOverlay} from 'vs/editor/browser/viewParts/linesDecorations/linesDecorations';
 import {LineNumbersOverlay} from 'vs/editor/browser/viewParts/lineNumbers/lineNumbers';
 import {ScrollDecorationViewPart} from 'vs/editor/browser/viewParts/scrollDecoration/scrollDecoration';
+import {Rulers} from 'vs/editor/browser/viewParts/rulers/rulers';
 // -- END VIEW PARTS
 
 import Browser = require('vs/base/browser/browser');
@@ -249,6 +250,9 @@ export class View extends ViewEventHandler implements EditorBrowser.IView, Lifec
 		this.overlayWidgets = new ViewOverlayWidgets(this.context);
 		this.viewParts.push(this.overlayWidgets);
 
+		var rulers = new Rulers(this.context, this.layoutProvider);
+		this.viewParts.push(rulers);
+
 		// -------------- Wire dom nodes up
 
 		this.linesContentContainer = this.layoutProvider.getScrollbarContainerDomNode();
@@ -260,6 +264,7 @@ export class View extends ViewEventHandler implements EditorBrowser.IView, Lifec
 		}
 
 		this.linesContent.appendChild(contentViewOverlays.getDomNode());
+		this.linesContent.appendChild(rulers.domNode);
 		this.linesContent.appendChild(this.viewZones.domNode);
 		this.linesContent.appendChild(this.viewLines.domNode);
 		this.linesContent.appendChild(this.contentWidgets.domNode);
