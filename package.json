@@ -85,7 +85,8 @@
     "typescript": "^1.7.3",
     "uglify-js": "2.4.8",
     "underscore": "^1.8.2",
-    "vinyl": "^0.4.5"
+    "vinyl": "^0.4.5",
+    "yargs": "^3.32.0"
   },
   "repository": {
     "type": "git",
