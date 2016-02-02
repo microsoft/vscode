@@ -307,7 +307,6 @@ export class RefreshAction extends Action {
 	}
 }
 
-
 export class SelectOrRemoveAction extends Action {
 
 	private selectMode: boolean;
@@ -431,7 +430,7 @@ interface IOptions {
 	placeholder?: string;
 	width?: number;
 	validation?: IInputValidator;
-	label?: string;
+	ariaLabel?: string;
 }
 
 class PatternInput {
@@ -442,7 +441,7 @@ class PatternInput {
 	private onOptionChange: (event: Event) => void;
 	private width: number;
 	private placeholder: string;
-	private label: string;
+	private ariaLabel: string;
 
 	private listenersToRemove: any[];
 	private pattern: Checkbox;
@@ -455,7 +454,7 @@ class PatternInput {
 		this.onOptionChange = null;
 		this.width = options.width || 100;
 		this.placeholder = options.placeholder || '';
-		this.label = options.label || nls.localize('defaultLabel', "input");
+		this.ariaLabel = options.ariaLabel || nls.localize('defaultLabel', "input");
 
 		this.listenersToRemove = [];
 		this.pattern = null;
@@ -563,7 +562,7 @@ class PatternInput {
 
 		this.inputBox = new InputBox(this.domNode, this.contextViewProvider, {
 			placeholder: this.placeholder || '',
-			ariaLabel: this.label || '',
+			ariaLabel: this.ariaLabel || '',
 			validationOptions: {
 				validation: null,
 				showMessage: true
@@ -802,7 +801,7 @@ export class SearchViewlet extends Viewlet {
 				builder.element('h4', { text: title });
 
 				this.inputPatternIncludes = new PatternInput(builder.getContainer(), this.contextViewService, {
-					label: nls.localize('label.includes', 'Includes')
+					ariaLabel: nls.localize('label.includes', 'Search Include Patterns')
 				});
 
 				this.inputPatternIncludes.setIsGlobPattern(includesUsePattern);
@@ -832,7 +831,7 @@ export class SearchViewlet extends Viewlet {
 				builder.element('h4', { text: title });
 
 				this.inputPatternExclusions = new PatternInput(builder.getContainer(), this.contextViewService, {
-					label: nls.localize('label.excludes', 'Excludes')
+					ariaLabel: nls.localize('label.excludes', 'Search Exclude Patterns')
 				});
 
 				this.inputPatternExclusions.setIsGlobPattern(exclusionsUsePattern);
@@ -861,7 +860,8 @@ export class SearchViewlet extends Viewlet {
 				builder.element('h4', { text: title });
 
 				this.inputPatternGlobalExclusions = new InputBox(builder.getContainer(), this.contextViewService, {
-					actions: [this.instantiationService.createInstance(ConfigureGlobalExclusionsAction)]
+					actions: [this.instantiationService.createInstance(ConfigureGlobalExclusionsAction)],
+					ariaLabel: nls.localize('label.global.excludes', 'Configured Search Exclude Patterns')
 				});
 				this.inputPatternGlobalExclusions.inputElement.readOnly = true;
 				$(this.inputPatternGlobalExclusions.inputElement).attr('aria-readonly', 'true');

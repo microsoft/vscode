@@ -285,12 +285,12 @@ export class FileRenderer extends ActionsRenderer implements IRenderer {
 		}
 
 		// Input field (when creating a new file or folder or renaming)
-
 		let inputBox = new InputBox(item.getHTMLElement(), this.contextViewService, {
 			validationOptions: {
 				validation: editableData.validator,
 				showMessage: true
-			}
+			},
+			ariaLabel: nls.localize('fileInputAriaLabel', "Type file name. Press Enter to confirm or Escape to cancel.")
 		});
 
 		let value = stat.name || '';

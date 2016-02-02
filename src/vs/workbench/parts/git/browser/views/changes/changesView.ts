@@ -135,6 +135,7 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 				showMessage: true,
 				validation: (): InputBox.IMessage => null
 			},
+			ariaLabel: nls.localize('commitMessageAriaLabel', "Type commit message (press {0} to commit)", ChangesView.COMMIT_KEYBINDING),
 			flexibleHeight: true
 		});
 

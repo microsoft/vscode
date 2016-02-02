@@ -73,14 +73,15 @@ export function renderVariable(tree: tree.ITree, variable: model.Variable, data:
 	}
 }
 
-function renderRenameBox(debugService: debug.IDebugService, contextViewService: IContextViewService, tree: tree.ITree, element: any, container: HTMLElement, placeholder: string): void {
+function renderRenameBox(debugService: debug.IDebugService, contextViewService: IContextViewService, tree: tree.ITree, element: any, container: HTMLElement, placeholder: string, ariaLabel: string): void {
 	let inputBoxContainer = dom.append(container, $('.inputBoxContainer'));
 	let inputBox = new inputbox.InputBox(inputBoxContainer, contextViewService, {
 		validationOptions: {
 			validation: null,
 			showMessage: false
 		},
-		placeholder: placeholder
+		placeholder: placeholder,
+		ariaLabel: ariaLabel
 	});
 
 	inputBox.value = element.name ? element.name : '';
@@ -577,7 +578,7 @@ export class WatchExpressionsRenderer implements tree.IRenderer {
 	private renderWatchExpression(tree: tree.ITree, watchExpression: debug.IExpression, data: IWatchExpressionTemplateData): void {
 		let selectedExpression = this.debugService.getViewModel().getSelectedExpression();
 		if ((selectedExpression instanceof model.Expression && selectedExpression.getId() === watchExpression.getId()) || (watchExpression instanceof model.Expression && !watchExpression.name)) {
-			renderRenameBox(this.debugService, this.contextViewService, tree, watchExpression, data.expression, nls.localize('watchExpressionPlaceholder', "Expression to watch"));
+			renderRenameBox(this.debugService, this.contextViewService, tree, watchExpression, data.expression, nls.localize('watchExpressionPlaceholder', "Expression to watch"), nls.localize('watchExpressionInputAriaLabel', "Type watch expression"));
 		}
 		data.actionBar.context = watchExpression;
 
@@ -828,7 +829,7 @@ export class BreakpointsRenderer implements tree.IRenderer {
 
 	private renderFunctionBreakpoint(tree: tree.ITree, functionBreakpoint: debug.IFunctionBreakpoint, data: IFunctionBreakpointTemplateData): void {
 		if (!functionBreakpoint.name) {
-			renderRenameBox(this.debugService, this.contextViewService, tree, functionBreakpoint, data.breakpoint, nls.localize('functionBreakpointPlaceholder', "Function to break on"));
+			renderRenameBox(this.debugService, this.contextViewService, tree, functionBreakpoint, data.breakpoint, nls.localize('functionBreakpointPlaceholder', "Function to break on"), nls.localize('functionBreakPointInputAriaLabel', "Type function breakpoint"));
 		} else {
 			this.debugService.getModel().areBreakpointsActivated() ? tree.removeTraits('disabled', [functionBreakpoint]) : tree.addTraits('disabled', [functionBreakpoint]);
 			data.name.textContent = functionBreakpoint.name;

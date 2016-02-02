@@ -37,7 +37,8 @@ export class CreateBranchActionItem extends ActionBar.BaseActionItem  {
 			validationOptions: {
 				showMessage: false,
 				validation: v => this.validate(v)
-			}
+			},
+			ariaLabel: nls.localize('newBranchAriaLabel', "Type branch name")
 		});
 
 		$(this.inputBox.inputElement).on('keyup', (e: KeyboardEvent) => this.onKeyUp(e));
