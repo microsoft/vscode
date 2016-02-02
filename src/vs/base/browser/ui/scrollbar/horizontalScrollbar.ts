@@ -4,30 +4,30 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {AbstractScrollbar, ScrollbarState, IMouseMoveEventData} from 'vs/base/browser/ui/scrollbar/abstractScrollbar';
+import * as Browser from 'vs/base/browser/browser';
+import {ARROW_IMG_SIZE, AbstractScrollbar, ScrollbarState, IMouseMoveEventData} from 'vs/base/browser/ui/scrollbar/abstractScrollbar';
 import {StandardMouseEvent, StandardMouseWheelEvent} from 'vs/base/browser/mouseEvent';
-import DomUtils = require('vs/base/browser/dom');
-import {IParent, IOptions, Visibility} from 'vs/base/browser/ui/scrollbar/common';
-import Browser = require('vs/base/browser/browser');
+import {IDomNodePosition, StyleMutator} from 'vs/base/browser/dom';
+import {IParent, IScrollableElementOptions, Visibility} from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import {IScrollable} from 'vs/base/common/scrollable';
 
 export class HorizontalScrollbar extends AbstractScrollbar {
 
-	private scrollable: IScrollable;
+	private _scrollable: IScrollable;
 
-	constructor(scrollable: IScrollable, parent: IParent, options: IOptions) {
+	constructor(scrollable: IScrollable, parent: IParent, options: IScrollableElementOptions) {
 		let s = new ScrollbarState(
 			(options.horizontalHasArrows ? options.arrowSize : 0),
 			(options.horizontal === Visibility.Hidden ? 0 : options.horizontalScrollbarSize),
 			(options.vertical === Visibility.Hidden ? 0 : options.verticalScrollbarSize)
 		);
 		super(options.forbidTranslate3dUse, parent, s, options.horizontal, 'horizontal');
-		this.scrollable = scrollable;
+		this._scrollable = scrollable;
 
 		this._createDomNode();
 		if (options.horizontalHasArrows) {
-			let arrowDelta = (options.arrowSize - AbstractScrollbar.ARROW_IMG_SIZE) / 2;
-			let scrollbarDelta = (options.horizontalScrollbarSize - AbstractScrollbar.ARROW_IMG_SIZE) / 2;
+			let arrowDelta = (options.arrowSize - ARROW_IMG_SIZE) / 2;
+			let scrollbarDelta = (options.horizontalScrollbarSize - ARROW_IMG_SIZE) / 2;
 
 			this._createArrow('left-arrow', scrollbarDelta, arrowDelta, null, null, options.arrowSize, options.horizontalScrollbarSize, () => this._createMouseWheelEvent(1));
 			this._createArrow('right-arrow', scrollbarDelta, null, null, arrowDelta, options.arrowSize, options.horizontalScrollbarSize, () => this._createMouseWheelEvent(-1));
@@ -36,43 +36,43 @@ export class HorizontalScrollbar extends AbstractScrollbar {
 		this._createSlider(Math.floor((options.horizontalScrollbarSize - options.horizontalSliderSize) / 2), 0, null, options.horizontalSliderSize);
 	}
 
-	public _createMouseWheelEvent(sign: number) {
+	protected _createMouseWheelEvent(sign: number) {
 		return new StandardMouseWheelEvent(null, sign, 0);
 	}
 
-	public _updateSlider(sliderSize: number, sliderPosition: number): void {
-		DomUtils.StyleMutator.setWidth(this.slider, sliderSize);
-		if (!this.forbidTranslate3dUse && Browser.canUseTranslate3d) {
-			DomUtils.StyleMutator.setTransform(this.slider, 'translate3d(' + sliderPosition + 'px, 0px, 0px)');
+	protected _updateSlider(sliderSize: number, sliderPosition: number): void {
+		StyleMutator.setWidth(this.slider, sliderSize);
+		if (!this._forbidTranslate3dUse && Browser.canUseTranslate3d) {
+			StyleMutator.setTransform(this.slider, 'translate3d(' + sliderPosition + 'px, 0px, 0px)');
 		} else {
-			DomUtils.StyleMutator.setLeft(this.slider, sliderPosition);
+			StyleMutator.setLeft(this.slider, sliderPosition);
 		}
 	}
 
-	public _renderDomNode(largeSize: number, smallSize: number): void {
-		DomUtils.StyleMutator.setWidth(this.domNode, largeSize);
-		DomUtils.StyleMutator.setHeight(this.domNode, smallSize);
-		DomUtils.StyleMutator.setLeft(this.domNode, 0);
-		DomUtils.StyleMutator.setBottom(this.domNode, 0);
+	protected _renderDomNode(largeSize: number, smallSize: number): void {
+		StyleMutator.setWidth(this.domNode, largeSize);
+		StyleMutator.setHeight(this.domNode, smallSize);
+		StyleMutator.setLeft(this.domNode, 0);
+		StyleMutator.setBottom(this.domNode, 0);
 	}
 
-	public _mouseDownRelativePosition(e: StandardMouseEvent, domNodePosition: DomUtils.IDomNodePosition): number {
+	protected _mouseDownRelativePosition(e: StandardMouseEvent, domNodePosition: IDomNodePosition): number {
 		return e.posx - domNodePosition.left;
 	}
 
-	public _sliderMousePosition(e: IMouseMoveEventData): number {
+	protected _sliderMousePosition(e: IMouseMoveEventData): number {
 		return e.posx;
 	}
 
-	public _sliderOrthogonalMousePosition(e: IMouseMoveEventData): number {
+	protected _sliderOrthogonalMousePosition(e: IMouseMoveEventData): number {
 		return e.posy;
 	}
 
-	public _getScrollPosition(): number {
-		return this.scrollable.getScrollLeft();
+	protected _getScrollPosition(): number {
+		return this._scrollable.getScrollLeft();
 	}
 
-	public _setScrollPosition(scrollPosition: number) {
-		this.scrollable.setScrollLeft(scrollPosition);
+	protected _setScrollPosition(scrollPosition: number) {
+		this._scrollable.setScrollLeft(scrollPosition);
 	}
 }

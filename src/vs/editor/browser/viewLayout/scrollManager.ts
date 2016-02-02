@@ -43,7 +43,7 @@ export class ScrollManager implements Lifecycle.IDisposable {
 
 		var configScrollbarOpts = this.configuration.editor.scrollbar;
 
-		var scrollbarOptions:ScrollableElement.ICreationOptions = {
+		var scrollbarOptions:ScrollableElement.IScrollableElementCreationOptions = {
 			scrollable: this.scrollable,
 			listenOnDomNode: viewDomNode,
 			vertical: configScrollbarOpts.vertical,

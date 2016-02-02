@@ -6,7 +6,7 @@
 
 import {IScrollable} from 'vs/base/common/scrollable';
 
-export interface ICreationOptions {
+export interface IScrollableElementCreationOptions {
 	/**
 	 * Prevent the scrollbar rendering from using translate3d. Defaults to false.
 	 */
@@ -164,7 +164,7 @@ export interface IScrollableElement {
 	 * Really this is Editor.IEditorScrollbarOptions, but base shouldn't
 	 * depend on Editor.
 	 */
-	updateOptions(newOptions: ICreationOptions): void;
+	updateOptions(newOptions: IScrollableElementCreationOptions): void;
 
 	getOverviewRulerLayoutInfo(): IOverviewRulerLayoutInfo;
 
@@ -174,4 +174,70 @@ export interface IScrollableElement {
 	 */
 	delegateVerticalScrollbarMouseDown(browserEvent: MouseEvent): void;
 
+}
+
+export interface IMouseWheelEvent {
+	browserEvent: MouseWheelEvent;
+	deltaX: number;
+	deltaY: number;
+	preventDefault(): void;
+	stopPropagation(): void;
+}
+
+export interface IScrollbar {
+	domNode: HTMLElement;
+	dispose(): void;
+	slider: HTMLElement;
+	onElementSize(size: number): void;
+	onElementScrollSize(scrollSize: number): void;
+	onElementScrollPosition(scrollPosition: number): void;
+	beginReveal(): void;
+	beginHide(): void;
+	delegateMouseDown(browserEvent: MouseEvent): void;
+	validateScrollPosition(scrollPosition: number): number;
+	setDesiredScrollPosition(scrollPosition: number): void;
+}
+
+export interface IParent {
+	onMouseWheel(mouseWheelEvent: IMouseWheelEvent): void;
+	onDragStart(): void;
+	onDragEnd(): void;
+}
+
+export enum Visibility {
+	Auto,
+	Hidden,
+	Visible
+};
+
+export function visibilityFromString(visibility: string): Visibility {
+	switch (visibility) {
+		case 'hidden':
+			return Visibility.Hidden;
+		case 'visible':
+			return Visibility.Visible;
+		default:
+			return Visibility.Auto;
+	}
+}
+
+export interface IScrollableElementOptions {
+	forbidTranslate3dUse: boolean;
+	className: string;
+	useShadows: boolean;
+	handleMouseWheel: boolean;
+	flipAxes: boolean;
+	mouseWheelScrollSensitivity: number;
+	arrowSize: number;
+	scrollable: IScrollable;
+	listenOnDomNode: HTMLElement;
+	horizontal: Visibility;
+	horizontalScrollbarSize: number;
+	horizontalSliderSize: number;
+	horizontalHasArrows: boolean;
+	vertical: Visibility;
+	verticalScrollbarSize: number;
+	verticalSliderSize: number;
+	verticalHasArrows: boolean;
+	saveLastScrollTimeOnClassName: string;
 }

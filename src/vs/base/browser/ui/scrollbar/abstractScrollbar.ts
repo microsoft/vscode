@@ -4,13 +4,31 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import DomUtils = require('vs/base/browser/dom');
+import * as Browser from 'vs/base/browser/browser';
+import * as Platform from 'vs/base/common/platform';
+import * as DomUtils from 'vs/base/browser/dom';
 import {StandardMouseEvent} from 'vs/base/browser/mouseEvent';
-import {IMouseWheelEvent, IParent, Visibility, IScrollbar} from 'vs/base/browser/ui/scrollbar/common';
-import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
+import {IMouseWheelEvent, IParent, Visibility, IScrollbar} from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import {Disposable} from 'vs/base/common/lifecycle';
 import {GlobalMouseMoveMonitor, IStandardMouseMoveEventData, standardMouseMoveMerger} from 'vs/base/browser/globalMouseMoveMonitor';
-import Browser = require('vs/base/browser/browser');
-import Platform = require('vs/base/common/platform');
+import {Widget} from 'vs/base/browser/ui/widget';
+import {TimeoutTimer, IntervalTimer} from 'vs/base/common/async';
+
+/**
+ * The arrow image size.
+ */
+export const ARROW_IMG_SIZE = 11;
+
+/**
+ * The orthogonal distance to the slider at which dragging "resets". This implements "snapping"
+ */
+const MOUSE_DRAG_RESET_DISTANCE = 140;
+
+/**
+ * The minimal size of the slider (such that it can still be clickable) -- it is artificially enlarged.
+ */
+const MINIMUM_SLIDER_SIZE = 20;
+
 
 export interface IMouseWheelEventFactory {
 	(): IMouseWheelEvent;
@@ -18,166 +36,163 @@ export interface IMouseWheelEventFactory {
 
 export class ScrollbarState {
 
-	static MINIMUM_SLIDER_SIZE = 20;
-
 	// --- immutable
-	private scrollbarSize: number;
-	private oppositeScrollbarSize: number;
-	private arrowSize: number;
+	private _scrollbarSize: number;
+	private _oppositeScrollbarSize: number;
+	private _arrowSize: number;
 
-	// --- letiables
-	private visibleSize: number;
-	private scrollSize: number;
-	private scrollPosition: number;
+	// --- variables
+	private _visibleSize: number;
+	private _scrollSize: number;
+	private _scrollPosition: number;
 
-	// --- computed letiables
+	// --- computed variables
 
 	/**
 	 * `visibleSize` - `oppositeScrollbarSize`
 	 */
-	private computedAvailableSize: number;
+	private _computedAvailableSize: number;
 
 	/**
 	 * `computedAvailableSize` - 2 * `arrowSize`
 	 */
-	private computedRepresentableSize: number;
+	private _computedRepresentableSize: number;
 
 	/**
 	 * `computedRepresentableSize` / `scrollSize`
 	 */
-	private computedRatio: number;
+	private _computedRatio: number;
 
 	/**
 	 * (`scrollSize` > `visibleSize`)
 	 */
-	private computedIsNeeded: boolean;
+	private _computedIsNeeded: boolean;
 
-	private computedSliderSize: number;
-	private computedSliderPosition: number;
+	private _computedSliderSize: number;
+	private _computedSliderPosition: number;
 
 	constructor(arrowSize: number, scrollbarSize: number, oppositeScrollbarSize: number) {
-		this.visibleSize = 0;
-		this.scrollSize = 0;
-		this.scrollPosition = 0;
-		this.scrollbarSize = scrollbarSize;
-		this.oppositeScrollbarSize = oppositeScrollbarSize;
-		this.arrowSize = arrowSize;
-		this.refreshComputedValues();
+		this._visibleSize = 0;
+		this._scrollSize = 0;
+		this._scrollPosition = 0;
+		this._scrollbarSize = scrollbarSize;
+		this._oppositeScrollbarSize = oppositeScrollbarSize;
+		this._arrowSize = arrowSize;
+		this._refreshComputedValues();
 	}
 
 	public setVisibleSize(visibleSize: number): boolean {
-		if (this.visibleSize !== visibleSize) {
-			this.visibleSize = visibleSize;
-			this.refreshComputedValues();
+		if (this._visibleSize !== visibleSize) {
+			this._visibleSize = visibleSize;
+			this._refreshComputedValues();
 			return true;
 		}
 		return false;
 	}
 
 	public setScrollSize(scrollSize: number): boolean {
-		if (this.scrollSize !== scrollSize) {
-			this.scrollSize = scrollSize;
-			this.refreshComputedValues();
+		if (this._scrollSize !== scrollSize) {
+			this._scrollSize = scrollSize;
+			this._refreshComputedValues();
 			return true;
 		}
 		return false;
 	}
 
 	public setScrollPosition(scrollPosition: number): boolean {
-		if (this.scrollPosition !== scrollPosition) {
-			this.scrollPosition = scrollPosition;
-			this.refreshComputedValues();
+		if (this._scrollPosition !== scrollPosition) {
+			this._scrollPosition = scrollPosition;
+			this._refreshComputedValues();
 			return true;
 		}
 		return false;
 	}
 
-	private refreshComputedValues(): void {
-		this.computedAvailableSize = Math.max(0, this.visibleSize - this.oppositeScrollbarSize);
-		this.computedRepresentableSize = Math.max(0, this.computedAvailableSize - 2 * this.arrowSize);
-		this.computedRatio = this.scrollSize > 0 ? (this.computedRepresentableSize / this.scrollSize) : 0;
-		this.computedIsNeeded = (this.scrollSize > this.visibleSize);
+	private _refreshComputedValues(): void {
+		this._computedAvailableSize = Math.max(0, this._visibleSize - this._oppositeScrollbarSize);
+		this._computedRepresentableSize = Math.max(0, this._computedAvailableSize - 2 * this._arrowSize);
+		this._computedRatio = this._scrollSize > 0 ? (this._computedRepresentableSize / this._scrollSize) : 0;
+		this._computedIsNeeded = (this._scrollSize > this._visibleSize);
 
-		if (!this.computedIsNeeded) {
-			this.computedSliderSize = this.computedRepresentableSize;
-			this.computedSliderPosition = 0;
+		if (!this._computedIsNeeded) {
+			this._computedSliderSize = this._computedRepresentableSize;
+			this._computedSliderPosition = 0;
 		} else {
-			this.computedSliderSize = Math.floor(this.visibleSize * this.computedRatio);
-			this.computedSliderPosition = Math.floor(this.scrollPosition * this.computedRatio);
+			this._computedSliderSize = Math.floor(this._visibleSize * this._computedRatio);
+			this._computedSliderPosition = Math.floor(this._scrollPosition * this._computedRatio);
 
-			if (this.computedSliderSize < ScrollbarState.MINIMUM_SLIDER_SIZE) {
+			if (this._computedSliderSize < MINIMUM_SLIDER_SIZE) {
 				// We must artificially increase the size of the slider, since the slider would be too small otherwise
 				// The effort is to keep the slider centered around the original position, but we must take into
 				// account the cases when the slider is too close to the top or too close to the bottom
 
-				let sliderArtificialOffset = (ScrollbarState.MINIMUM_SLIDER_SIZE - this.computedSliderSize) / 2;
-				this.computedSliderSize = ScrollbarState.MINIMUM_SLIDER_SIZE;
+				let sliderArtificialOffset = (MINIMUM_SLIDER_SIZE - this._computedSliderSize) / 2;
+				this._computedSliderSize = MINIMUM_SLIDER_SIZE;
 
-				this.computedSliderPosition -= sliderArtificialOffset;
+				this._computedSliderPosition -= sliderArtificialOffset;
 
-				if (this.computedSliderPosition + this.computedSliderSize > this.computedRepresentableSize) {
+				if (this._computedSliderPosition + this._computedSliderSize > this._computedRepresentableSize) {
 					// Slider is too close to the bottom, so we glue it to the bottom
-					this.computedSliderPosition = this.computedRepresentableSize - this.computedSliderSize;
+					this._computedSliderPosition = this._computedRepresentableSize - this._computedSliderSize;
 				}
 
-				if (this.computedSliderPosition < 0) {
+				if (this._computedSliderPosition < 0) {
 					// Slider is too close to the top, so we glue it to the top
-					this.computedSliderPosition = 0;
+					this._computedSliderPosition = 0;
 				}
 			}
 		}
 	}
 
 	public getArrowSize(): number {
-		return this.arrowSize;
+		return this._arrowSize;
 	}
 
 	public getRectangleLargeSize(): number {
-		return this.computedAvailableSize;
+		return this._computedAvailableSize;
 	}
 
 	public getRectangleSmallSize(): number {
-		return this.scrollbarSize;
+		return this._scrollbarSize;
 	}
 
 	public isNeeded(): boolean {
-		return this.computedIsNeeded;
+		return this._computedIsNeeded;
 	}
 
 	public getSliderSize(): number {
-		return this.computedSliderSize;
+		return this._computedSliderSize;
 	}
 
 	public getSliderPosition(): number {
-		return this.computedSliderPosition;
+		return this._computedSliderPosition;
 	}
 
 	public convertSliderPositionToScrollPosition(desiredSliderPosition: number): number {
-		return desiredSliderPosition / this.computedRatio;
+		return desiredSliderPosition / this._computedRatio;
 	}
 
 	public validateScrollPosition(desiredScrollPosition: number): number {
 		desiredScrollPosition = Math.round(desiredScrollPosition);
 		desiredScrollPosition = Math.max(desiredScrollPosition, 0);
-		desiredScrollPosition = Math.min(desiredScrollPosition, this.scrollSize - this.visibleSize);
-
+		desiredScrollPosition = Math.min(desiredScrollPosition, this._scrollSize - this._visibleSize);
 		return desiredScrollPosition;
 	}
 }
 
-class ScrollbarArrow {
-	private parent: IParent;
-	private mouseWheelEventFactory: IMouseWheelEventFactory;
+class ScrollbarArrow extends Widget {
+	private _parent: IParent;
+	private _mouseWheelEventFactory: IMouseWheelEventFactory;
 	public bgDomNode: HTMLElement;
 	public domNode: HTMLElement;
-	private toDispose: IDisposable[];
-	private interval: number;
-	private timeout: number;
-	private mouseMoveMonitor: GlobalMouseMoveMonitor<IStandardMouseMoveEventData>;
+	private _mousedownRepeatTimer: IntervalTimer;
+	private _mousedownScheduleRepeatTimer: TimeoutTimer;
+	private _mouseMoveMonitor: GlobalMouseMoveMonitor<IStandardMouseMoveEventData>;
 
 	constructor(className: string, top: number, left: number, bottom: number, right: number, bgWidth: number, bgHeight: number, mouseWheelEventFactory: IMouseWheelEventFactory, parent: IParent) {
-		this.parent = parent;
-		this.mouseWheelEventFactory = mouseWheelEventFactory;
+		super();
+		this._parent = parent;
+		this._mouseWheelEventFactory = mouseWheelEventFactory;
 
 		this.bgDomNode = document.createElement('div');
 		this.bgDomNode.className = 'arrow-background';
@@ -189,102 +204,74 @@ class ScrollbarArrow {
 		this.domNode = document.createElement('div');
 		this.domNode.className = className;
 		this.domNode.style.position = 'absolute';
-		setSize(this.domNode, AbstractScrollbar.ARROW_IMG_SIZE, AbstractScrollbar.ARROW_IMG_SIZE);
+		setSize(this.domNode, ARROW_IMG_SIZE, ARROW_IMG_SIZE);
 		setPosition(this.domNode, top, left, bottom, right);
 
-		this.mouseMoveMonitor = new GlobalMouseMoveMonitor<IStandardMouseMoveEventData>();
+		this._mouseMoveMonitor = this._register(new GlobalMouseMoveMonitor<IStandardMouseMoveEventData>());
+		this.onmousedown(this.bgDomNode, (e) => this._arrowMouseDown(e));
+		this.onmousedown(this.domNode, (e) => this._arrowMouseDown(e));
 
-		this.toDispose = [];
-		this.toDispose.push(DomUtils.addDisposableListener(this.bgDomNode, 'mousedown', (e: MouseEvent) => this._arrowMouseDown(e)));
-		this.toDispose.push(DomUtils.addDisposableListener(this.domNode, 'mousedown', (e: MouseEvent) => this._arrowMouseDown(e)));
-		this.toDispose.push(this.mouseMoveMonitor);
-		this.interval = -1;
-		this.timeout = -1;
+		this._mousedownRepeatTimer = this._register(new IntervalTimer());
+		this._mousedownScheduleRepeatTimer = this._register(new TimeoutTimer());
 	}
 
-	public dispose(): void {
-		this.toDispose = disposeAll(this.toDispose);
-		this._clearArrowTimers();
-	}
-
-	private _arrowMouseDown(browserEvent: MouseEvent): void {
+	private _arrowMouseDown(e: StandardMouseEvent): void {
 		let repeater = () => {
-			this.parent.onMouseWheel(this.mouseWheelEventFactory());
+			this._parent.onMouseWheel(this._mouseWheelEventFactory());
 		};
 
 		let scheduleRepeater = () => {
-			this.interval = window.setInterval(repeater, 1000 / 24);
+			this._mousedownRepeatTimer.cancelAndSet(repeater, 1000 / 24);
 		};
 
 		repeater();
-		this._clearArrowTimers();
-		this.timeout = window.setTimeout(scheduleRepeater, 200);
+		this._mousedownRepeatTimer.cancel();
+		this._mousedownScheduleRepeatTimer.cancelAndSet(scheduleRepeater, 200);
 
-		this.mouseMoveMonitor.startMonitoring(
+		this._mouseMoveMonitor.startMonitoring(
 			standardMouseMoveMerger,
 			(mouseMoveData: IStandardMouseMoveEventData) => {
 				/* Intentional empty */
 			},
 			() => {
-				this._clearArrowTimers();
+				this._mousedownRepeatTimer.cancel();
+				this._mousedownScheduleRepeatTimer.cancel();
 			}
 		);
 
-		let mouseEvent = new StandardMouseEvent(browserEvent);
-		mouseEvent.preventDefault();
-	}
-
-	private _clearArrowTimers(): void {
-		if (this.interval !== -1) {
-			window.clearInterval(this.interval);
-			this.interval = -1;
-		}
-		if (this.timeout !== -1) {
-			window.clearTimeout(this.timeout);
-			this.timeout = -1;
-		}
+		e.preventDefault();
 	}
 }
 
-class VisibilityController implements IDisposable {
-	private visibility: Visibility;
-	private visibleClassName: string;
-	private invisibleClassName: string;
-	private domNode: HTMLElement;
-	private shouldBeVisible: boolean;
-	private isNeeded: boolean;
-	private isVisible: boolean;
-	private fadeAwayTimeout: number;
+class VisibilityController extends Disposable {
+	private _visibility: Visibility;
+	private _visibleClassName: string;
+	private _invisibleClassName: string;
+	private _domNode: HTMLElement;
+	private _shouldBeVisible: boolean;
+	private _isNeeded: boolean;
+	private _isVisible: boolean;
+	private _revealTimer: TimeoutTimer;
 
 	constructor(visibility: Visibility, visibleClassName: string, invisibleClassName: string) {
-		this.visibility = visibility;
-		this.visibleClassName = visibleClassName;
-		this.invisibleClassName = invisibleClassName;
-		this.domNode = null;
-		this.isVisible = false;
-		this.isNeeded = false;
-		this.shouldBeVisible = false;
-		this.fadeAwayTimeout = -1;
-	}
-
-	public dispose(): void {
-		if (this.fadeAwayTimeout !== -1) {
-			window.clearTimeout(this.fadeAwayTimeout);
-			this.fadeAwayTimeout = -1;
-		}
-		if (this._revealTimeout !== -1) {
-			window.clearTimeout(this._revealTimeout);
-			this._revealTimeout = -1;
-		}
+		super();
+		this._visibility = visibility;
+		this._visibleClassName = visibleClassName;
+		this._invisibleClassName = invisibleClassName;
+		this._domNode = null;
+		this._isVisible = false;
+		this._isNeeded = false;
+		this._shouldBeVisible = false;
+		this._revealTimer = this._register(new TimeoutTimer());
 	}
 
 	// ----------------- Hide / Reveal
 
 	private applyVisibilitySetting(shouldBeVisible: boolean): boolean {
-		if (this.visibility === Visibility.Hidden) {
+		if (this._visibility === Visibility.Hidden) {
 			return false;
 		}
-		if (this.visibility === Visibility.Visible) {
+		if (this._visibility === Visibility.Visible) {
 			return true;
 		}
 		return shouldBeVisible;
@@ -293,22 +280,22 @@ class VisibilityController implements IDisposable {
 	public setShouldBeVisible(rawShouldBeVisible: boolean): void {
 		let shouldBeVisible = this.applyVisibilitySetting(rawShouldBeVisible);
 
-		if (this.shouldBeVisible !== shouldBeVisible) {
-			this.shouldBeVisible = shouldBeVisible;
+		if (this._shouldBeVisible !== shouldBeVisible) {
+			this._shouldBeVisible = shouldBeVisible;
 			this.ensureVisibility();
 		}
 	}
 
 	public setIsNeeded(isNeeded: boolean): void {
-		if (this.isNeeded !== isNeeded) {
-			this.isNeeded = isNeeded;
+		if (this._isNeeded !== isNeeded) {
+			this._isNeeded = isNeeded;
 			this.ensureVisibility();
 		}
 	}
 
 	public setDomNode(domNode: HTMLElement): void {
-		this.domNode = domNode;
-		this.domNode.className = this.invisibleClassName;
+		this._domNode = domNode;
+		this._domNode.className = this._invisibleClassName;
 
 		// Now that the flags & the dom node are in a consistent state, ensure the Hidden/Visible configuration
 		this.setShouldBeVisible(false);
@@ -316,50 +303,39 @@ class VisibilityController implements IDisposable {
 
 	public ensureVisibility(): void {
 
-		if (!this.isNeeded) {
+		if (!this._isNeeded) {
 			// Nothing to be rendered
 			this._hide(false);
 			return;
 		}
 
-		if (this.shouldBeVisible) {
+		if (this._shouldBeVisible) {
 			this._reveal();
 		} else {
 			this._hide(true);
 		}
 	}
 
-	private _revealTimeout: number = -1;
+
 	private _reveal(): void {
-		if (this.isVisible) {
+		if (this._isVisible) {
 			return;
 		}
-		this.isVisible = true;
-		// The CSS animation doesn't play otherwise
-		if (this._revealTimeout === -1) {
-			this._revealTimeout = window.setTimeout(() => {
-				this._revealTimeout = -1;
-				this.domNode.className = this.visibleClassName;
-			}, 0);
-		}
+		this._isVisible = true;
 
-		// Cancel the fade away timeout, if installed
-		if (this.fadeAwayTimeout !== -1) {
-			window.clearTimeout(this.fadeAwayTimeout);
-			this.fadeAwayTimeout = -1;
-		}
+		// The CSS animation doesn't play otherwise
+		this._revealTimer.setIfNotSet(() => {
+			this._domNode.className = this._visibleClassName;
+		}, 0);
 	}
 
 	private _hide(withFadeAway: boolean): void {
-		if (this._revealTimeout !== -1) {
-			window.clearTimeout(this._revealTimeout);
-			this._revealTimeout = -1;
-		}
-		if (!this.isVisible) {
+		this._revealTimer.cancel();
+		if (!this._isVisible) {
 			return;
 		}
-		this.isVisible = false;
-		this.domNode.className = this.invisibleClassName + (withFadeAway ? ' fade' : '');
+		this._isVisible = false;
+		this._domNode.className = this._invisibleClassName + (withFadeAway ? ' fade' : '');
 	}
 }
 
@@ -369,35 +345,24 @@ export interface IMouseMoveEventData {
 	posy: number;
 }
 
-export abstract class AbstractScrollbar implements IScrollbar {
+export abstract class AbstractScrollbar extends Widget implements IScrollbar {
 
-	static ARROW_IMG_SIZE = 11;
-	/**
-	 * The orthogonal distance to the slider at which dragging "resets". This implements "snapping"
-	 */
-	static MOUSE_DRAG_RESET_DISTANCE = 140;
-
-	protected forbidTranslate3dUse: boolean;
-	private parent: IParent;
-	private scrollbarState: ScrollbarState;
-	private visibilityController: VisibilityController;
-	private mouseMoveMonitor: GlobalMouseMoveMonitor<IStandardMouseMoveEventData>;
-
-	private toDispose: IDisposable[];
+	protected _forbidTranslate3dUse: boolean;
+	private _parent: IParent;
+	private _scrollbarState: ScrollbarState;
+	private _visibilityController: VisibilityController;
+	private _mouseMoveMonitor: GlobalMouseMoveMonitor<IStandardMouseMoveEventData>;
 
 	public domNode: HTMLElement;
 	public slider: HTMLElement;
 
 	constructor(forbidTranslate3dUse: boolean, parent: IParent, scrollbarState: ScrollbarState, visibility: Visibility, extraScrollbarClassName: string) {
-		this.forbidTranslate3dUse = forbidTranslate3dUse;
-		this.parent = parent;
-		this.scrollbarState = scrollbarState;
-		this.visibilityController = new VisibilityController(visibility, 'visible scrollbar ' + extraScrollbarClassName, 'invisible scrollbar ' + extraScrollbarClassName);
-		this.mouseMoveMonitor = new GlobalMouseMoveMonitor<IStandardMouseMoveEventData>();
-
-		this.toDispose = [];
-		this.toDispose.push(this.visibilityController);
-		this.toDispose.push(this.mouseMoveMonitor);
+		super();
+		this._forbidTranslate3dUse = forbidTranslate3dUse;
+		this._parent = parent;
+		this._scrollbarState = scrollbarState;
+		this._visibilityController = this._register(new VisibilityController(visibility, 'visible scrollbar ' + extraScrollbarClassName, 'invisible scrollbar ' + extraScrollbarClassName));
+		this._mouseMoveMonitor = this._register(new GlobalMouseMoveMonitor<IStandardMouseMoveEventData>());
 	}
 
 	// ----------------- initialize & clean-up
@@ -405,33 +370,32 @@ export abstract class AbstractScrollbar implements IScrollbar {
 	/**
 	 * Creates the container dom node for the scrollbar & hooks up the events
 	 */
-	public _createDomNode(): void {
+	protected _createDomNode(): void {
 		this.domNode = document.createElement('div');
-		if (!this.forbidTranslate3dUse && Browser.canUseTranslate3d) {
+		if (!this._forbidTranslate3dUse && Browser.canUseTranslate3d) {
 			// Put the worker reporter in its own layer
 			this.domNode.style.transform = 'translate3d(0px, 0px, 0px)';
 		}
 
-		this.visibilityController.setDomNode(this.domNode);
+		this._visibilityController.setDomNode(this.domNode);
 		this.domNode.style.position = 'absolute';
 
-		this.toDispose.push(DomUtils.addDisposableListener(this.domNode, 'mousedown', (e: MouseEvent) => this._domNodeMouseDown(e)));
+		this.onmousedown(this.domNode, (e) => this._domNodeMouseDown(e));
 	}
 
 	/**
 	 * Creates the dom node for an arrow & adds it to the container
 	 */
-	public _createArrow(className: string, top: number, left: number, bottom: number, right: number, bgWidth: number, bgHeight: number, mouseWheelEventFactory: IMouseWheelEventFactory): void {
-		let arrow = new ScrollbarArrow(className, top, left, bottom, right, bgWidth, bgHeight, mouseWheelEventFactory, this.parent);
+	protected _createArrow(className: string, top: number, left: number, bottom: number, right: number, bgWidth: number, bgHeight: number, mouseWheelEventFactory: IMouseWheelEventFactory): void {
+		let arrow = this._register(new ScrollbarArrow(className, top, left, bottom, right, bgWidth, bgHeight, mouseWheelEventFactory, this._parent));
 		this.domNode.appendChild(arrow.bgDomNode);
 		this.domNode.appendChild(arrow.domNode);
-		this.toDispose.push(arrow);
 	}
 
 	/**
 	 * Creates the slider dom node, adds it to the container & hooks up the events
 	 */
-	public _createSlider(top: number, left: number, width: number, height: number): void {
+	protected _createSlider(top: number, left: number, width: number, height: number): void {
 		this.slider = document.createElement('div');
 		this.slider.className = 'slider';
 		this.slider.style.position = 'absolute';
@@ -439,58 +403,50 @@ export abstract class AbstractScrollbar implements IScrollbar {
 		setSize(this.slider, width, height);
 		this.domNode.appendChild(this.slider);
 
-		this.toDispose.push(DomUtils.addDisposableListener(this.slider, 'mousedown', (e: MouseEvent) => this._sliderMouseDown(new StandardMouseEvent(e))));
-	}
-
-	/**
-	 * Clean-up
-	 */
-	public destroy(): void {
-		this.toDispose = disposeAll(this.toDispose);
+		this.onmousedown(this.slider, (e) => this._sliderMouseDown(e));
 	}
 
 	// ----------------- Update state
 
 	public onElementSize(visibleSize: number) {
-		if (this.scrollbarState.setVisibleSize(visibleSize)) {
-			this._renderDomNode(this.scrollbarState.getRectangleLargeSize(), this.scrollbarState.getRectangleSmallSize());
+		if (this._scrollbarState.setVisibleSize(visibleSize)) {
+			this._renderDomNode(this._scrollbarState.getRectangleLargeSize(), this._scrollbarState.getRectangleSmallSize());
 			this._renderSlider();
-			this.visibilityController.setIsNeeded(this.scrollbarState.isNeeded());
+			this._visibilityController.setIsNeeded(this._scrollbarState.isNeeded());
 		}
 	}
 
 	public onElementScrollSize(elementScrollSize: number): void {
-		if (this.scrollbarState.setScrollSize(elementScrollSize)) {
+		if (this._scrollbarState.setScrollSize(elementScrollSize)) {
 			this._renderSlider();
-			this.visibilityController.setIsNeeded(this.scrollbarState.isNeeded());
+			this._visibilityController.setIsNeeded(this._scrollbarState.isNeeded());
 		}
 	}
 
 	public onElementScrollPosition(elementScrollPosition: number): void {
-		if (this.scrollbarState.setScrollPosition(elementScrollPosition)) {
+		if (this._scrollbarState.setScrollPosition(elementScrollPosition)) {
 			this._renderSlider();
-			this.visibilityController.setIsNeeded(this.scrollbarState.isNeeded());
+			this._visibilityController.setIsNeeded(this._scrollbarState.isNeeded());
 		}
 	}
 
 	// ----------------- rendering
 
 	public beginReveal(): void {
-		this.visibilityController.setShouldBeVisible(true);
+		this._visibilityController.setShouldBeVisible(true);
 	}
 
 	public beginHide(): void {
-		this.visibilityController.setShouldBeVisible(false);
+		this._visibilityController.setShouldBeVisible(false);
 	}
 
 	private _renderSlider(): void {
-		this._updateSlider(this.scrollbarState.getSliderSize(), this.scrollbarState.getArrowSize() + this.scrollbarState.getSliderPosition());
+		this._updateSlider(this._scrollbarState.getSliderSize(), this._scrollbarState.getArrowSize() + this._scrollbarState.getSliderPosition());
 	}
 
 	// ----------------- DOM events
 
-	private _domNodeMouseDown(browserEvent: MouseEvent): void {
-		let e = new StandardMouseEvent(browserEvent);
+	private _domNodeMouseDown(e: StandardMouseEvent): void {
 		if (e.target !== this.domNode) {
 			return;
 		}
@@ -500,8 +456,8 @@ export abstract class AbstractScrollbar implements IScrollbar {
 	public delegateMouseDown(browserEvent: MouseEvent): void {
 		let e = new StandardMouseEvent(browserEvent);
 		let domTop = this.domNode.getClientRects()[0].top;
-		let sliderStart = domTop + this.scrollbarState.getSliderPosition();
-		let sliderStop = domTop + this.scrollbarState.getSliderPosition() + this.scrollbarState.getSliderSize();
+		let sliderStart = domTop + this._scrollbarState.getSliderPosition();
+		let sliderStop = domTop + this._scrollbarState.getSliderPosition() + this._scrollbarState.getSliderSize();
 		let mousePos = this._sliderMousePosition(e);
 		if (sliderStart <= mousePos && mousePos <= sliderStop) {
 			// Act as if it was a mouse down on the slider
@@ -514,8 +470,8 @@ export abstract class AbstractScrollbar implements IScrollbar {
 
 	private _onMouseDown(e: StandardMouseEvent): void {
 		let domNodePosition = DomUtils.getDomNodePosition(this.domNode);
-		let desiredSliderPosition = this._mouseDownRelativePosition(e, domNodePosition) - this.scrollbarState.getArrowSize() - this.scrollbarState.getSliderSize() / 2;
-		this.setDesiredScrollPosition(this.scrollbarState.convertSliderPositionToScrollPosition(desiredSliderPosition));
+		let desiredSliderPosition = this._mouseDownRelativePosition(e, domNodePosition) - this._scrollbarState.getArrowSize() - this._scrollbarState.getSliderSize() / 2;
+		this.setDesiredScrollPosition(this._scrollbarState.convertSliderPositionToScrollPosition(desiredSliderPosition));
 		this._sliderMouseDown(e);
 	}
 
@@ -523,36 +479,36 @@ export abstract class AbstractScrollbar implements IScrollbar {
 		if (e.leftButton) {
 			let initialMouseOrthogonalPosition = this._sliderOrthogonalMousePosition(e);
 			let initialScrollPosition = this._getScrollPosition();
-			let draggingDelta = this._sliderMousePosition(e) - this.scrollbarState.getSliderPosition();
+			let draggingDelta = this._sliderMousePosition(e) - this._scrollbarState.getSliderPosition();
 			DomUtils.toggleClass(this.slider, 'active', true);
 
-			this.mouseMoveMonitor.startMonitoring(
+			this._mouseMoveMonitor.startMonitoring(
 				standardMouseMoveMerger,
 				(mouseMoveData: IStandardMouseMoveEventData) => {
 					let mouseOrthogonalPosition = this._sliderOrthogonalMousePosition(mouseMoveData);
 					let mouseOrthogonalDelta = Math.abs(mouseOrthogonalPosition - initialMouseOrthogonalPosition);
 					// console.log(initialMouseOrthogonalPosition + ' -> ' + mouseOrthogonalPosition + ': ' + mouseOrthogonalDelta);
-					if (Platform.isWindows && mouseOrthogonalDelta > AbstractScrollbar.MOUSE_DRAG_RESET_DISTANCE) {
+					if (Platform.isWindows && mouseOrthogonalDelta > MOUSE_DRAG_RESET_DISTANCE) {
 						// The mouse has wondered away from the scrollbar => reset dragging
 						this.setDesiredScrollPosition(initialScrollPosition);
 					} else {
 						let desiredSliderPosition = this._sliderMousePosition(mouseMoveData) - draggingDelta;
-						this.setDesiredScrollPosition(this.scrollbarState.convertSliderPositionToScrollPosition(desiredSliderPosition));
+						this.setDesiredScrollPosition(this._scrollbarState.convertSliderPositionToScrollPosition(desiredSliderPosition));
 					}
 				},
 				() => {
 					DomUtils.toggleClass(this.slider, 'active', false);
-					this.parent.onDragEnd();
+					this._parent.onDragEnd();
 				}
 			);
 
 			e.preventDefault();
-			this.parent.onDragStart();
+			this._parent.onDragStart();
 		}
 	}
 
 	public validateScrollPosition(desiredScrollPosition: number): number {
-		return this.scrollbarState.validateScrollPosition(desiredScrollPosition);
+		return this._scrollbarState.validateScrollPosition(desiredScrollPosition);
 	}
 
 	public setDesiredScrollPosition(desiredScrollPosition: number): void {
@@ -565,56 +521,35 @@ export abstract class AbstractScrollbar implements IScrollbar {
 
 	// ----------------- Overwrite these
 
-	public _renderDomNode(largeSize: number, smallSize: number): void {
-	}
-
-	public _updateSlider(sliderSize: number, sliderPosition: number): void {
-	}
-
-	public _mouseDownRelativePosition(e: StandardMouseEvent, domNodePosition: DomUtils.IDomNodePosition): number {
-		return 0;
-	}
-
-	public _sliderMousePosition(e: IMouseMoveEventData): number {
-		return 0;
-	}
-
-	public _sliderOrthogonalMousePosition(e: IMouseMoveEventData): number {
-		return 0;
-	}
-
-	public _getScrollPosition(): number {
-		return 0;
-	}
-
-	public _setScrollPosition(elementScrollPosition: number): void {
-	}
-}
-
-function toPx(value) {
-	return value + 'px';
+	protected abstract _renderDomNode(largeSize: number, smallSize: number): void;
+	protected abstract _updateSlider(sliderSize: number, sliderPosition: number): void;
+	protected abstract _mouseDownRelativePosition(e: StandardMouseEvent, domNodePosition: DomUtils.IDomNodePosition): number;
+	protected abstract _sliderMousePosition(e: IMouseMoveEventData): number;
+	protected abstract _sliderOrthogonalMousePosition(e: IMouseMoveEventData): number;
+	protected abstract _getScrollPosition(): number;
+	protected abstract _setScrollPosition(elementScrollPosition: number): void;
 }
 
 function setPosition(domNode: HTMLElement, top: number, left: number, bottom: number, right: number) {
 	if (top !== null) {
-		domNode.style.top = toPx(top);
+		domNode.style.top = top + 'px';
 	}
 	if (left !== null) {
-		domNode.style.left = toPx(left);
+		domNode.style.left = left + 'px';
 	}
 	if (bottom !== null) {
-		domNode.style.bottom = toPx(bottom);
+		domNode.style.bottom = bottom + 'px';
 	}
 	if (right !== null) {
-		domNode.style.right = toPx(right);
+		domNode.style.right = right + 'px';
 	}
 }
 
 function setSize(domNode: HTMLElement, width: number, height: number) {
 	if (width !== null) {
-		domNode.style.width = toPx(width);
+		domNode.style.width = width + 'px';
 	}
 	if (height !== null) {
-		domNode.style.height = toPx(height);
+		domNode.style.height = height + 'px';
 	}
 }

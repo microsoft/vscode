@@ -8,7 +8,7 @@ import * as errors from 'vs/base/common/errors';
 import { Promise, TPromise, ValueCallback, ErrorCallback, ProgressCallback } from 'vs/base/common/winjs.base';
 import * as platform from 'vs/base/common/platform';
 import {CancellationToken, CancellationTokenSource} from 'vs/base/common/cancellation';
-
+import {Disposable} from 'vs/base/common/lifecycle';
 
 function isThenable<T>(obj: any): obj is Thenable<T> {
 	return obj && typeof (<Thenable<any>>obj).then === 'function';
@@ -431,6 +431,76 @@ export class Limiter<T> {
 		this.runningPromises--;
 		this.consume();
 	}
+}
+
+export class TimeoutTimer extends Disposable {
+	private _token: platform.TimeoutToken;
+
+	constructor() {
+		super();
+		this._token = -1;
+	}
+
+	public dispose(): void {
+		this.cancel();
+		super.dispose();
+	}
+
+	public cancel(): void {
+		if (this._token !== -1) {
+			platform.clearTimeout(this._token);
+			this._token = -1;
+		}
+	}
+
+	public cancelAndSet(runner: () => void, timeout:number): void {
+		this.cancel();
+		this._token = platform.setTimeout(() => {
+			this._token = -1;
+			runner();
+		}, timeout);
+	}
+
+	public setIfNotSet(runner: () => void, timeout: number): void {
+		if (this._token !== -1) {
+			// timer is already set
+			return;
+		}
+		this._token = platform.setTimeout(() => {
+			this._token = -1;
+			runner();
+		}, timeout);
+	}
+}
+
+export class IntervalTimer extends Disposable {
+	private _token: platform.IntervalToken;
+
+	constructor() {
+		super();
+		this._token = -1;
+	}
+
+	public dispose(): void {
+		this.cancel();
+		super.dispose();
+	}
+
+	public cancel(): void {
+		if (this._token !== -1) {
+			platform.clearInterval(this._token);
+			this._token = -1;
+		}
+	}
+
+	public cancelAndSet(runner: () => void, interval:number): void {
+		this.cancel();
+		this._token = platform.setInterval(() => {
+			runner();
+		}, interval);
+	}
+
+
 }
 
 export class RunOnceScheduler {

@@ -6,197 +6,186 @@
 
 import 'vs/css!./media/scrollbars';
 
-import DomUtils = require('vs/base/browser/dom');
-import {StandardMouseWheelEvent} from 'vs/base/browser/mouseEvent';
-import Platform = require('vs/base/common/platform');
-import {IOptions, IScrollbar, IDimensions, IMouseWheelEvent, visibilityFromString} from 'vs/base/browser/ui/scrollbar/common';
+import * as DomUtils from 'vs/base/browser/dom';
+import * as Platform from 'vs/base/common/platform';
+import {StandardMouseWheelEvent, StandardMouseEvent} from 'vs/base/browser/mouseEvent';
 import {DomNodeScrollable} from 'vs/base/browser/ui/scrollbar/domNodeScrollable';
 import {HorizontalScrollbar} from 'vs/base/browser/ui/scrollbar/horizontalScrollbar';
 import {VerticalScrollbar} from 'vs/base/browser/ui/scrollbar/verticalScrollbar';
-import ScrollableElementInt = require('vs/base/browser/ui/scrollbar/scrollableElement');
+import {
+		IScrollableElementOptions, IScrollbar, IDimensions, IMouseWheelEvent, visibilityFromString,
+		IScrollableElement, IScrollableElementCreationOptions, IOverviewRulerLayoutInfo
+	} from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
 import {IScrollable} from 'vs/base/common/scrollable';
+import {Widget} from 'vs/base/browser/ui/widget';
+import {TimeoutTimer} from 'vs/base/common/async';
 
 const HIDE_TIMEOUT = 500;
 const SCROLL_WHEEL_SENSITIVITY = 50;
 
-export class ScrollableElement implements ScrollableElementInt.IScrollableElement {
+export class ScrollableElement extends Widget implements IScrollableElement {
 
-	private originalElement: HTMLElement;
-	private options: IOptions;
-	private scrollable: IScrollable;
+	private _originalElement: HTMLElement;
+	private _options: IScrollableElementOptions;
+	private _scrollable: IScrollable;
 	public verticalScrollbarWidth: number;
 	public horizontalScrollbarHeight: number;
-	private verticalScrollbar: IScrollbar;
-	private horizontalScrollbar: IScrollbar;
-	private domNode: HTMLElement;
+	private _verticalScrollbar: IScrollbar;
+	private _horizontalScrollbar: IScrollbar;
+	private _domNode: HTMLElement;
 
-	private leftShadowDomNode: HTMLElement;
-	private topShadowDomNode: HTMLElement;
-	private topLeftShadowDomNode: HTMLElement;
-	private listenOnDomNode: HTMLElement;
+	private _leftShadowDomNode: HTMLElement;
+	private _topShadowDomNode: HTMLElement;
+	private _topLeftShadowDomNode: HTMLElement;
+	private _listenOnDomNode: HTMLElement;
 
-	private toDispose: IDisposable[];
 	private _mouseWheelToDispose: IDisposable[];
 
-	private onElementDimensionsTimeout: number;
-	private onElementInternalDimensionsTimeout: number;
-	private isDragging: boolean;
-	private mouseIsOver: boolean;
+	private _onElementDimensionsTimeout: TimeoutTimer;
+	private _onElementInternalDimensionsTimeout: TimeoutTimer;
+	private _isDragging: boolean;
+	private _mouseIsOver: boolean;
 
-	private dimensions: IDimensions;
-	private hideTimeout: number;
+	private _dimensions: IDimensions;
+	private _hideTimeout: TimeoutTimer;
 
-	constructor(element: HTMLElement, options: ScrollableElementInt.ICreationOptions, dimensions: ScrollableElementInt.IDimensions = null) {
-		this.originalElement = element;
-		this.originalElement.style.overflow = 'hidden';
-		this.options = this._createOptions(options);
+	constructor(element: HTMLElement, options: IScrollableElementCreationOptions, dimensions: IDimensions = null) {
+		super();
+		this._originalElement = element;
+		this._originalElement.style.overflow = 'hidden';
+		this._options = this._createOptions(options);
 
-		if (this.options.scrollable) {
-			this.scrollable = this.options.scrollable;
+		if (this._options.scrollable) {
+			this._scrollable = this._options.scrollable;
 		} else {
-			this.scrollable = new DomNodeScrollable(this.originalElement);
+			this._scrollable = this._register(new DomNodeScrollable(this._originalElement));
 		}
 
-		this.verticalScrollbarWidth = this.options.verticalScrollbarSize;
-		this.horizontalScrollbarHeight = this.options.horizontalScrollbarSize;
+		this.verticalScrollbarWidth = this._options.verticalScrollbarSize;
+		this.horizontalScrollbarHeight = this._options.horizontalScrollbarSize;
 
-		this.verticalScrollbar = new VerticalScrollbar(this.scrollable, this, this.options);
-		this.horizontalScrollbar = new HorizontalScrollbar(this.scrollable, this, this.options);
+		this._verticalScrollbar = this._register(new VerticalScrollbar(this._scrollable, this, this._options));
+		this._horizontalScrollbar = this._register(new HorizontalScrollbar(this._scrollable, this, this._options));
 
-		this.domNode = document.createElement('div');
-		this.domNode.className = 'monaco-scrollable-element ' + this.options.className;
-		this.domNode.setAttribute('role', 'presentation');
-		this.domNode.style.position = 'relative';
-		this.domNode.style.overflow = 'hidden';
-		this.domNode.appendChild(this.originalElement);
-		this.domNode.appendChild(this.horizontalScrollbar.domNode);
-		this.domNode.appendChild(this.verticalScrollbar.domNode);
+		this._domNode = document.createElement('div');
+		this._domNode.className = 'monaco-scrollable-element ' + this._options.className;
+		this._domNode.setAttribute('role', 'presentation');
+		this._domNode.style.position = 'relative';
+		this._domNode.style.overflow = 'hidden';
+		this._domNode.appendChild(this._originalElement);
+		this._domNode.appendChild(this._horizontalScrollbar.domNode);
+		this._domNode.appendChild(this._verticalScrollbar.domNode);
 
-		if (this.options.useShadows) {
-			this.leftShadowDomNode = document.createElement('div');
-			this.leftShadowDomNode.className = 'shadow';
-			this.domNode.appendChild(this.leftShadowDomNode);
+		if (this._options.useShadows) {
+			this._leftShadowDomNode = document.createElement('div');
+			this._leftShadowDomNode.className = 'shadow';
+			this._domNode.appendChild(this._leftShadowDomNode);
 		}
 
-		if (this.options.useShadows) {
-			this.topShadowDomNode = document.createElement('div');
-			this.topShadowDomNode.className = 'shadow';
-			this.domNode.appendChild(this.topShadowDomNode);
+		if (this._options.useShadows) {
+			this._topShadowDomNode = document.createElement('div');
+			this._topShadowDomNode.className = 'shadow';
+			this._domNode.appendChild(this._topShadowDomNode);
 
-			this.topLeftShadowDomNode = document.createElement('div');
-			this.topLeftShadowDomNode.className = 'shadow top-left-corner';
-			this.domNode.appendChild(this.topLeftShadowDomNode);
+			this._topLeftShadowDomNode = document.createElement('div');
+			this._topLeftShadowDomNode.className = 'shadow top-left-corner';
+			this._domNode.appendChild(this._topLeftShadowDomNode);
 		}
 
-		this.listenOnDomNode = this.options.listenOnDomNode || this.domNode;
+		this._listenOnDomNode = this._options.listenOnDomNode || this._domNode;
 
-		this.toDispose = [];
-		this.toDispose.push(this.scrollable.addScrollListener(() => this._onScroll()));
+
+		this._register(this._scrollable.addScrollListener(() => this._onScroll()));
 
 		this._mouseWheelToDispose = [];
-		this._setListeningToMouseWheel(this.options.handleMouseWheel);
-		this.toDispose.push(DomUtils.addDisposableListener(this.listenOnDomNode, 'mouseover', (e: MouseEvent) => this._onMouseOver(e)));
-		this.toDispose.push(DomUtils.addDisposableNonBubblingMouseOutListener(this.listenOnDomNode, (e: MouseEvent) => this._onMouseOut(e)));
+		this._setListeningToMouseWheel(this._options.handleMouseWheel);
 
-		this.onElementDimensionsTimeout = -1;
-		this.onElementInternalDimensionsTimeout = -1;
-		this.hideTimeout = -1;
-		this.isDragging = false;
-		this.mouseIsOver = false;
+		this.onmouseover(this._listenOnDomNode, (e) => this._onMouseOver(e));
+		this.onnonbubblingmouseout(this._listenOnDomNode, (e) => this._onMouseOut(e));
+
+		this._onElementDimensionsTimeout = this._register(new TimeoutTimer());
+		this._onElementInternalDimensionsTimeout = this._register(new TimeoutTimer());
+		this._hideTimeout = this._register(new TimeoutTimer());
+		this._isDragging = false;
+		this._mouseIsOver = false;
 
 		this.onElementDimensions(dimensions, true);
 		this.onElementInternalDimensions(true);
 	}
 
 	public dispose(): void {
-		this.toDispose = disposeAll(this.toDispose);
 		this._mouseWheelToDispose = disposeAll(this._mouseWheelToDispose);
-		this.verticalScrollbar.destroy();
-		this.horizontalScrollbar.destroy();
-		if (this.onElementDimensionsTimeout !== -1) {
-			window.clearTimeout(this.onElementDimensionsTimeout);
-			this.onElementDimensionsTimeout = -1;
-		}
-		if (this.onElementInternalDimensionsTimeout !== -1) {
-			window.clearTimeout(this.onElementInternalDimensionsTimeout);
-			this.onElementInternalDimensionsTimeout = -1;
-		}
+		super.dispose();
 	}
 
 	public getDomNode(): HTMLElement {
-		return this.domNode;
+		return this._domNode;
 	}
 
-	public getOverviewRulerLayoutInfo(): ScrollableElementInt.IOverviewRulerLayoutInfo {
+	public getOverviewRulerLayoutInfo(): IOverviewRulerLayoutInfo {
 		return {
-			parent: this.domNode,
-			insertBefore: this.verticalScrollbar.domNode,
+			parent: this._domNode,
+			insertBefore: this._verticalScrollbar.domNode,
 		};
 	}
 
-	private getVerticalSliderDomNode(): HTMLElement {
-		return this.verticalScrollbar.slider;
+	private _getVerticalSliderDomNode(): HTMLElement {
+		return this._verticalScrollbar.slider;
 	}
 
 	public delegateVerticalScrollbarMouseDown(browserEvent: MouseEvent): void {
-		this.verticalScrollbar.delegateMouseDown(browserEvent);
+		this._verticalScrollbar.delegateMouseDown(browserEvent);
 	}
 
-	public onElementDimensions(dimensions: ScrollableElementInt.IDimensions = null, synchronous: boolean = false): void {
+	public onElementDimensions(dimensions: IDimensions = null, synchronous: boolean = false): void {
 		if (synchronous) {
-			this.actualElementDimensions(dimensions);
+			this._actualElementDimensions(dimensions);
 		} else {
-			if (this.onElementDimensionsTimeout === -1) {
-				this.onElementDimensionsTimeout = window.setTimeout(() => this.actualElementDimensions(dimensions), 0);
-			}
+			this._onElementDimensionsTimeout.setIfNotSet(() => this._actualElementDimensions(dimensions), 0);
 		}
 	}
 
-	private actualElementDimensions(dimensions: ScrollableElementInt.IDimensions = null): void {
-		this.onElementDimensionsTimeout = -1;
+	private _actualElementDimensions(dimensions: IDimensions = null): void {
 		if (!dimensions) {
 			dimensions = {
-				width: this.domNode.clientWidth,
-				height: this.domNode.clientHeight
+				width: this._domNode.clientWidth,
+				height: this._domNode.clientHeight
 			};
 		}
-		this.dimensions = this._computeDimensions(dimensions.width, dimensions.height);
-		this.verticalScrollbar.onElementSize(this.dimensions.height);
-		this.horizontalScrollbar.onElementSize(this.dimensions.width);
+		this._dimensions = this._computeDimensions(dimensions.width, dimensions.height);
+		this._verticalScrollbar.onElementSize(this._dimensions.height);
+		this._horizontalScrollbar.onElementSize(this._dimensions.width);
 	}
 
 	public onElementInternalDimensions(synchronous: boolean = false): void {
 		if (synchronous) {
-			this.actualElementInternalDimensions();
+			this._actualElementInternalDimensions();
 		} else {
-			if (this.onElementInternalDimensionsTimeout === -1) {
-				this.onElementInternalDimensionsTimeout = window.setTimeout(() => this.actualElementInternalDimensions(), 0);
-			}
+			this._onElementInternalDimensionsTimeout.setIfNotSet(() => this._actualElementInternalDimensions(), 0);
 		}
 	}
 
-	private actualElementInternalDimensions(): void {
-		this.onElementInternalDimensionsTimeout = -1;
-		this.horizontalScrollbar.onElementScrollSize(this.scrollable.getScrollWidth());
-		this.verticalScrollbar.onElementScrollSize(this.scrollable.getScrollHeight());
+	private _actualElementInternalDimensions(): void {
+		this._horizontalScrollbar.onElementScrollSize(this._scrollable.getScrollWidth());
+		this._verticalScrollbar.onElementScrollSize(this._scrollable.getScrollHeight());
 	}
 
 	public updateClassName(newClassName: string): void {
-		this.options.className = newClassName;
+		this._options.className = newClassName;
 		// Defaults are different on Macs
 		if (Platform.isMacintosh) {
-			this.options.className += ' mac';
+			this._options.className += ' mac';
 		}
-		this.domNode.className = 'monaco-scrollable-element ' + this.options.className;
+		this._domNode.className = 'monaco-scrollable-element ' + this._options.className;
 	}
 
-	public updateOptions(newOptions: ScrollableElementInt.ICreationOptions): void {
+	public updateOptions(newOptions: IScrollableElementCreationOptions): void {
 		// only support handleMouseWheel changes for now
 		let massagedOptions = this._createOptions(newOptions);
-		this.options.handleMouseWheel = massagedOptions.handleMouseWheel;
-		this.options.mouseWheelScrollSensitivity = massagedOptions.mouseWheelScrollSensitivity;
-		this._setListeningToMouseWheel(this.options.handleMouseWheel);
+		this._options.handleMouseWheel = massagedOptions.handleMouseWheel;
+		this._options.mouseWheelScrollSensitivity = massagedOptions.mouseWheelScrollSensitivity;
+		this._setListeningToMouseWheel(this._options.handleMouseWheel);
 	}
 
 	// -------------------- mouse wheel scrolling --------------------
@@ -219,17 +208,17 @@ export class ScrollableElement implements ScrollableElementInt.IScrollableElemen
 				this.onMouseWheel(e);
 			};
 
-			this._mouseWheelToDispose.push(DomUtils.addDisposableListener(this.listenOnDomNode, 'mousewheel', onMouseWheel));
-			this._mouseWheelToDispose.push(DomUtils.addDisposableListener(this.listenOnDomNode, 'DOMMouseScroll', onMouseWheel));
+			this._mouseWheelToDispose.push(DomUtils.addDisposableListener(this._listenOnDomNode, 'mousewheel', onMouseWheel));
+			this._mouseWheelToDispose.push(DomUtils.addDisposableListener(this._listenOnDomNode, 'DOMMouseScroll', onMouseWheel));
 		}
 	}
 
 	public onMouseWheel(e: IMouseWheelEvent): void {
-		if (Platform.isMacintosh && e.browserEvent && this.options.saveLastScrollTimeOnClassName) {
+		if (Platform.isMacintosh && e.browserEvent && this._options.saveLastScrollTimeOnClassName) {
 			// Mark dom node with timestamp of wheel event
 			let target = <HTMLElement>e.browserEvent.target;
 			if (target && target.nodeType === 1) {
-				let r = DomUtils.findParentWithClass(target, this.options.saveLastScrollTimeOnClassName);
+				let r = DomUtils.findParentWithClass(target, this._options.saveLastScrollTimeOnClassName);
 				if (r) {
 					r.setAttribute('last-scroll-time', String(new Date().getTime()));
 				}
@@ -240,10 +229,10 @@ export class ScrollableElement implements ScrollableElementInt.IScrollableElemen
 		let desiredScrollLeft = -1;
 
 		if (e.deltaY || e.deltaX) {
-			let deltaY = e.deltaY * this.options.mouseWheelScrollSensitivity;
-			let deltaX = e.deltaX * this.options.mouseWheelScrollSensitivity;
+			let deltaY = e.deltaY * this._options.mouseWheelScrollSensitivity;
+			let deltaX = e.deltaX * this._options.mouseWheelScrollSensitivity;
 
-			if (this.options.flipAxes) {
+			if (this._options.flipAxes) {
 				deltaY = e.deltaX;
 				deltaX = e.deltaY;
 			}
@@ -259,15 +248,15 @@ export class ScrollableElement implements ScrollableElementInt.IScrollableElemen
 			}
 
 			if (deltaY) {
-				let currentScrollTop = this.scrollable.getScrollTop();
-				desiredScrollTop = this.verticalScrollbar.validateScrollPosition((desiredScrollTop !== -1 ? desiredScrollTop : currentScrollTop) - SCROLL_WHEEL_SENSITIVITY * deltaY);
+				let currentScrollTop = this._scrollable.getScrollTop();
+				desiredScrollTop = this._verticalScrollbar.validateScrollPosition((desiredScrollTop !== -1 ? desiredScrollTop : currentScrollTop) - SCROLL_WHEEL_SENSITIVITY * deltaY);
 				if (desiredScrollTop === currentScrollTop) {
 					desiredScrollTop = -1;
 				}
 			}
 			if (deltaX) {
-				let currentScrollLeft = this.scrollable.getScrollLeft();
-				desiredScrollLeft = this.horizontalScrollbar.validateScrollPosition((desiredScrollLeft !== -1 ? desiredScrollLeft : currentScrollLeft) - SCROLL_WHEEL_SENSITIVITY * deltaX);
+				let currentScrollLeft = this._scrollable.getScrollLeft();
+				desiredScrollLeft = this._horizontalScrollbar.validateScrollPosition((desiredScrollLeft !== -1 ? desiredScrollLeft : currentScrollLeft) - SCROLL_WHEEL_SENSITIVITY * deltaX);
 				if (desiredScrollLeft === currentScrollLeft) {
 					desiredScrollLeft = -1;
 				}
@@ -275,11 +264,11 @@ export class ScrollableElement implements ScrollableElementInt.IScrollableElemen
 
 			if (desiredScrollTop !== -1 || desiredScrollLeft !== -1) {
 				if (desiredScrollTop !== -1) {
-					this.verticalScrollbar.setDesiredScrollPosition(desiredScrollTop);
+					this._verticalScrollbar.setDesiredScrollPosition(desiredScrollTop);
 					desiredScrollTop = -1;
 				}
 				if (desiredScrollLeft !== -1) {
-					this.horizontalScrollbar.setDesiredScrollPosition(desiredScrollLeft);
+					this._horizontalScrollbar.setDesiredScrollPosition(desiredScrollLeft);
 					desiredScrollLeft = -1;
 				}
 			}
@@ -290,32 +279,32 @@ export class ScrollableElement implements ScrollableElementInt.IScrollableElemen
 	}
 
 	private _onScroll(): void {
-		let scrollHeight = this.scrollable.getScrollHeight();
-		let scrollTop = this.scrollable.getScrollTop();
-		let scrollWidth = this.scrollable.getScrollWidth();
-		let scrollLeft = this.scrollable.getScrollLeft();
+		let scrollHeight = this._scrollable.getScrollHeight();
+		let scrollTop = this._scrollable.getScrollTop();
+		let scrollWidth = this._scrollable.getScrollWidth();
+		let scrollLeft = this._scrollable.getScrollLeft();
 
-		this.verticalScrollbar.onElementScrollPosition(scrollTop);
-		this.horizontalScrollbar.onElementScrollPosition(scrollLeft);
+		this._verticalScrollbar.onElementScrollPosition(scrollTop);
+		this._horizontalScrollbar.onElementScrollPosition(scrollLeft);
 
-		if (this.options.useShadows) {
+		if (this._options.useShadows) {
 			let enableTop = scrollHeight > 0 && scrollTop > 0;
-			let enableLeft = this.options.useShadows && scrollWidth > 0 && scrollLeft > 0;
+			let enableLeft = this._options.useShadows && scrollWidth > 0 && scrollLeft > 0;
 
-			if (this.topShadowDomNode) {
-				DomUtils.toggleClass(this.topShadowDomNode, 'top', enableTop);
+			if (this._topShadowDomNode) {
+				DomUtils.toggleClass(this._topShadowDomNode, 'top', enableTop);
 			}
 
-			if (this.topLeftShadowDomNode) {
-				DomUtils.toggleClass(this.topLeftShadowDomNode, 'top', enableTop);
+			if (this._topLeftShadowDomNode) {
+				DomUtils.toggleClass(this._topLeftShadowDomNode, 'top', enableTop);
 			}
 
-			if (this.leftShadowDomNode) {
-				DomUtils.toggleClass(this.leftShadowDomNode, 'left', enableLeft);
+			if (this._leftShadowDomNode) {
+				DomUtils.toggleClass(this._leftShadowDomNode, 'left', enableLeft);
 			}
 
-			if (this.topLeftShadowDomNode) {
-				DomUtils.toggleClass(this.topLeftShadowDomNode, 'left', enableLeft);
+			if (this._topLeftShadowDomNode) {
+				DomUtils.toggleClass(this._topLeftShadowDomNode, 'left', enableLeft);
 			}
 		}
 
@@ -325,43 +314,40 @@ export class ScrollableElement implements ScrollableElementInt.IScrollableElemen
 	// -------------------- fade in / fade out --------------------
 
 	public onDragStart(): void {
-		this.isDragging = true;
+		this._isDragging = true;
 		this._reveal();
 	}
 
 	public onDragEnd(): void {
-		this.isDragging = false;
+		this._isDragging = false;
 		this._hide();
 	}
 
-	private _onMouseOut(e: MouseEvent): void {
-		this.mouseIsOver = false;
+	private _onMouseOut(e: StandardMouseEvent): void {
+		this._mouseIsOver = false;
 		this._hide();
 	}
 
-	private _onMouseOver(e: MouseEvent): void {
-		this.mouseIsOver = true;
+	private _onMouseOver(e: StandardMouseEvent): void {
+		this._mouseIsOver = true;
 		this._reveal();
 	}
 
 	private _reveal(): void {
-		this.verticalScrollbar.beginReveal();
-		this.horizontalScrollbar.beginReveal();
+		this._verticalScrollbar.beginReveal();
+		this._horizontalScrollbar.beginReveal();
 		this._scheduleHide();
 	}
 
 	private _hide(): void {
-		if (!this.mouseIsOver && !this.isDragging) {
-			this.verticalScrollbar.beginHide();
-			this.horizontalScrollbar.beginHide();
+		if (!this._mouseIsOver && !this._isDragging) {
+			this._verticalScrollbar.beginHide();
+			this._horizontalScrollbar.beginHide();
 		}
 	}
 
 	private _scheduleHide(): void {
-		if (this.hideTimeout !== -1) {
-			window.clearTimeout(this.hideTimeout);
-		}
-		this.hideTimeout = window.setTimeout(this._hide.bind(this), HIDE_TIMEOUT);
+		this._hideTimeout.cancelAndSet(() => this._hide(), HIDE_TIMEOUT);
 	}
 
 	// -------------------- size & layout --------------------
@@ -376,7 +362,7 @@ export class ScrollableElement implements ScrollableElementInt.IScrollableElemen
 		};
 	}
 
-	private _createOptions(options: ScrollableElementInt.ICreationOptions): IOptions {
+	private _createOptions(options: IScrollableElementCreationOptions): IScrollableElementOptions {
 
 		function ensureValue<V>(source: any, prop: string, value: V) {
 			if (source.hasOwnProperty(prop)) {
@@ -385,7 +371,7 @@ export class ScrollableElement implements ScrollableElementInt.IScrollableElemen
 			return value;
 		}
 
-		let result: IOptions = {
+		let result: IScrollableElementOptions = {
 			forbidTranslate3dUse: ensureValue(options, 'forbidTranslate3dUse', false),
 			className: ensureValue(options, 'className', ''),
 			useShadows: ensureValue(options, 'useShadows', true),
