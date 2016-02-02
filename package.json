@@ -59,7 +59,7 @@
     "gulp-rename": "^1.2.0",
     "gulp-sourcemaps": "^1.6.0",
     "gulp-symdest": "^1.0.0",
-    "gulp-tsb": "~1.7.3",
+    "gulp-tsb": "^1.10.0",
     "gulp-tslint": "^4.3.0",
     "gulp-uglify": "^1.4.1",
     "gulp-util": "^3.0.6",

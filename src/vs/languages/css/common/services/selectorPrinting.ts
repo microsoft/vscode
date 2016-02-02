@@ -31,8 +31,8 @@ export class Element implements IElement {
 		this.children.push(child);
 	}
 
-	public findRoot() : Element {
-		var curr = this;
+	public findRoot(): Element {
+		var curr: Element = this;
 		while (curr.parent && !(curr.parent instanceof RootElement)) {
 			curr = curr.parent;
 		}

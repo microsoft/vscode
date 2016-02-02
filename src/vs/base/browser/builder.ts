@@ -185,7 +185,7 @@ export class Builder implements IDisposable {
 		}
 
 		// Wrap Builders into MultiBuilder
-		let builders = [this];
+		let builders:Builder[] = [this];
 		if (obj instanceof MultiBuilder) {
 			for (let i = 0; i < (<MultiBuilder>obj).length; i++) {
 				builders.push((<MultiBuilder>obj).item(i));
@@ -1918,7 +1918,7 @@ export class MultiBuilder extends Builder {
 		// Mixin Builder functions to operate on all builders
 		let $outer = this;
 		let propertyFn = (prop: string) => {
-			(<any>$outer)[prop] = function() {
+			(<any>$outer)[prop] = function(): any {
 				let args = Array.prototype.slice.call(arguments);
 
 				let returnValues: any[];
