@@ -119,7 +119,7 @@ export class ReplExpressionsRenderer implements tree.IRenderer {
 	}
 
 	private getHeightForString(s: string): number {
-		if (!s || !s.length || this.width <= 0 || this.characterWidth <= 0) {
+		if (!s || !s.length || !this.width || this.width <= 0 || !this.characterWidth || this.characterWidth <= 0) {
 			return 18;
 		}
 		let realLength = 0;
