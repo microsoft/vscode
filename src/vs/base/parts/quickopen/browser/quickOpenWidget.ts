@@ -26,6 +26,7 @@ import {DefaultController, ClickBehavior} from 'vs/base/parts/tree/browser/treeD
 import DOM = require('vs/base/browser/dom');
 import {IActionProvider} from 'vs/base/parts/tree/browser/actionsRenderer';
 import {KeyCode} from 'vs/base/common/keyCodes';
+import {IDisposable,disposeAll} from 'vs/base/common/lifecycle';
 
 export interface IQuickOpenCallbacks {
 	onOk: () => void;
@@ -600,15 +601,13 @@ export class QuickOpenWidget implements IModelProvider {
 
 		// Otherwise return promise that only fulfills when the CSS transition has ended
 		return new Promise((c, e) => {
-			let unbind: { (): void; }[] = [];
+			let unbind: IDisposable[] = [];
 			let complete = false;
 			let completeHandler = () => {
 				if (!complete) {
 					complete = true;
 
-					while (unbind.length) {
-						unbind.pop()();
-					}
+					unbind = disposeAll(unbind);
 
 					c(null);
 				}

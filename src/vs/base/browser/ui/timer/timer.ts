@@ -7,7 +7,7 @@
 
 import 'vs/css!./timer';
 import {TimeKeeper, ITimerEvent, getTimeKeeper} from 'vs/base/common/timer';
-import {ListenerUnbind} from 'vs/base/common/eventEmitter';
+import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
 import DomUtils = require('vs/base/browser/dom');
 
 interface IUnmatchedStartTimerEvent {
@@ -17,7 +17,7 @@ interface IUnmatchedStartTimerEvent {
 
 export class TimeKeeperRenderer {
 
-	private listenersToRemove: ListenerUnbind[];
+	private listenersToRemove: IDisposable[];
 	private timeKeeper: TimeKeeper;
 	private outerDomNode: HTMLElement;
 	private domNode: HTMLElement;
@@ -50,10 +50,7 @@ export class TimeKeeperRenderer {
 	public destroy(): void {
 		document.body.removeChild(this.outerDomNode);
 		window.clearInterval(this.intervalTokenId);
-		this.listenersToRemove.forEach(function(element) {
-			element();
-		});
-		this.listenersToRemove = [];
+		this.listenersToRemove = disposeAll(this.listenersToRemove);
 	}
 
 	private _createDomNode(): HTMLElement {
@@ -64,14 +61,14 @@ export class TimeKeeperRenderer {
 		let cancel: HTMLInputElement = <HTMLInputElement>document.createElement('input');
 		cancel.type = 'button';
 		cancel.value = 'Clear';
-		this.listenersToRemove.push(DomUtils.addListener(cancel, 'click', () => this._onClear()));
+		this.listenersToRemove.push(DomUtils.addDisposableListener(cancel, 'click', () => this._onClear()));
 		this.outerDomNode.appendChild(cancel);
 
 		// Text filter
 		this.textFilterDomNode = <HTMLInputElement>document.createElement('input');
 		this.textFilterDomNode.type = 'text';
 		this.textFilterDomNode.className = 'textFilter';
-		this.listenersToRemove.push(DomUtils.addListener(this.textFilterDomNode, 'keydown', () => this.onTextFilterChange()));
+		this.listenersToRemove.push(DomUtils.addDisposableListener(this.textFilterDomNode, 'keydown', () => this.onTextFilterChange()));
 		this.textFilter = '';
 		this.outerDomNode.appendChild(document.createTextNode('Filter'));
 		this.outerDomNode.appendChild(this.textFilterDomNode);
@@ -81,7 +78,7 @@ export class TimeKeeperRenderer {
 		this.timeFilterDomNode.type = 'text';
 		this.timeFilterDomNode.value = '0';
 		this.timeFilterDomNode.className = 'timeFilter';
-		this.listenersToRemove.push(DomUtils.addListener(this.timeFilterDomNode, 'keydown', () => this.onTimeFilterChange()));
+		this.listenersToRemove.push(DomUtils.addDisposableListener(this.timeFilterDomNode, 'keydown', () => this.onTimeFilterChange()));
 		this.timeFilter = 0;
 		this.outerDomNode.appendChild(document.createTextNode('Hide time under'));
 		this.outerDomNode.appendChild(this.timeFilterDomNode);
@@ -89,7 +86,7 @@ export class TimeKeeperRenderer {
 		let hide: HTMLInputElement = <HTMLInputElement>document.createElement('input');
 		hide.type = 'button';
 		hide.value = 'Close';
-		this.listenersToRemove.push(DomUtils.addListener(hide, 'click', () => {
+		this.listenersToRemove.push(DomUtils.addDisposableListener(hide, 'click', () => {
 			this.onHide();
 		}));
 		this.outerDomNode.appendChild(hide);

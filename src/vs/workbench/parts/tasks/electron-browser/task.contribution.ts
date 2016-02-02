@@ -17,7 +17,7 @@ import * as Objects from 'vs/base/common/objects';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { Action } from 'vs/base/common/actions';
 import * as Dom from 'vs/base/browser/dom';
-import { IDisposable, cAll } from 'vs/base/common/lifecycle';
+import { IDisposable, disposeAll } from 'vs/base/common/lifecycle';
 import { EventEmitter, ListenerUnbind } from 'vs/base/common/eventEmitter';
 import * as Builder from 'vs/base/browser/builder';
 import URI from 'vs/base/common/uri';
@@ -324,7 +324,7 @@ class StatusBarItem implements statusbar.IStatusbarItem {
 
 	public render(container: HTMLElement): IDisposable {
 
-		let callOnDispose: Function[] = [],
+		let callOnDispose: IDisposable[] = [],
 			element = document.createElement('div'),
 			// icon = document.createElement('a'),
 			progress = document.createElement('div'),
@@ -362,7 +362,7 @@ class StatusBarItem implements statusbar.IStatusbarItem {
 //			this.outputService.showOutput(TaskService.OutputChannel, e.ctrlKey || e.metaKey, true);
 //		}));
 
-		callOnDispose.push(Dom.addListener(label, 'click', (e:MouseEvent) => {
+		callOnDispose.push(Dom.addDisposableListener(label, 'click', (e:MouseEvent) => {
 			this.quickOpenService.show('!');
 		}));
 
@@ -389,7 +389,7 @@ class StatusBarItem implements statusbar.IStatusbarItem {
 			updateLabel(this.markerService.getStatistics());
 		});
 
-		callOnDispose.push(this.taskService.addListener(TaskServiceEvents.Active, () => {
+		callOnDispose.push(this.taskService.addListener2(TaskServiceEvents.Active, () => {
 			this.activeCount++;
 			if (this.activeCount === 1) {
 				let index = 1;
@@ -406,7 +406,7 @@ class StatusBarItem implements statusbar.IStatusbarItem {
 			}
 		}));
 
-		callOnDispose.push(this.taskService.addListener(TaskServiceEvents.Inactive, (data:TaskServiceEventData) => {
+		callOnDispose.push(this.taskService.addListener2(TaskServiceEvents.Inactive, (data:TaskServiceEventData) => {
 			this.activeCount--;
 			if (this.activeCount === 0) {
 				$(progress).hide();
@@ -415,7 +415,7 @@ class StatusBarItem implements statusbar.IStatusbarItem {
 			}
 		}));
 
-		callOnDispose.push(this.taskService.addListener(TaskServiceEvents.Terminated, () => {
+		callOnDispose.push(this.taskService.addListener2(TaskServiceEvents.Terminated, () => {
 			if (this.activeCount !== 0) {
 				$(progress).hide();
 				if (this.intervalToken) {
@@ -429,7 +429,9 @@ class StatusBarItem implements statusbar.IStatusbarItem {
 		container.appendChild(element);
 
 		return {
-			dispose: () => cAll(callOnDispose)
+			dispose: () => {
+				callOnDispose = disposeAll(callOnDispose);
+			}
 		};
 	}
 }

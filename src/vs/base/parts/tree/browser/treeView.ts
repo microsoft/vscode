@@ -152,7 +152,7 @@ export class ViewItem implements IViewItem {
 
 	public needsRender: boolean;
 	public uri: string;
-	public unbindDragStart: () =>void;
+	public unbindDragStart: Lifecycle.IDisposable;
 	public loadingPromise: WinJS.Promise;
 
 	public _styles: any;
@@ -269,14 +269,14 @@ export class ViewItem implements IViewItem {
 
 		if (uri !== this.uri) {
 			if (this.unbindDragStart) {
-				this.unbindDragStart();
-				delete this.unbindDragStart;
+				this.unbindDragStart.dispose();
+				this.unbindDragStart = null;
 			}
 
 			if (uri) {
 				this.uri = uri;
 				this.draggable = true;
-				this.unbindDragStart = DOM.addListener(this.element, 'dragstart', (e) => {
+				this.unbindDragStart = DOM.addDisposableListener(this.element, 'dragstart', (e) => {
 					this.onDragStart(e);
 				});
 			} else {
@@ -321,7 +321,7 @@ export class ViewItem implements IViewItem {
 		}
 
 		if (this.unbindDragStart) {
-			this.unbindDragStart();
+			this.unbindDragStart.dispose();
 			this.unbindDragStart = null;
 		}
 
@@ -406,7 +406,7 @@ export class TreeView extends HeightMap implements IScrollable {
 	private modelListeners: { (): void; }[];
 	private model: Model.TreeModel;
 
-	private viewListeners: { (): void; }[];
+	private viewListeners: Lifecycle.IDisposable[];
 	private domNode: HTMLElement;
 	private wrapper: HTMLElement;
 	private rowsContainer: HTMLElement;
@@ -513,23 +513,23 @@ export class TreeView extends HeightMap implements IScrollable {
 		var focusTracker = DOM.trackFocus(this.domNode);
 		focusTracker.addFocusListener((e: FocusEvent) => this.onFocus(e));
 		focusTracker.addBlurListener((e: FocusEvent) => this.onBlur(e));
-		this.viewListeners.push(() => { focusTracker.dispose(); });
+		this.viewListeners.push(focusTracker);
 
-		this.viewListeners.push(DOM.addListener(this.domNode, 'keydown', (e) => this.onKeyDown(e)));
-		this.viewListeners.push(DOM.addListener(this.domNode, 'keyup', (e) => this.onKeyUp(e)));
-		this.viewListeners.push(DOM.addListener(this.domNode, 'mousedown', (e) => this.onMouseDown(e)));
-		this.viewListeners.push(DOM.addListener(this.domNode, 'mouseup', (e) => this.onMouseUp(e)));
-		this.viewListeners.push(DOM.addListener(this.wrapper, 'click', (e) => this.onClick(e)));
-		this.viewListeners.push(DOM.addListener(this.domNode, 'contextmenu', (e) => this.onContextMenu(e)));
-		this.viewListeners.push(DOM.addListener(this.wrapper, Touch.EventType.Tap, (e) => this.onTap(e)));
-		this.viewListeners.push(DOM.addListener(this.wrapper, Touch.EventType.Change, (e) => this.onTouchChange(e)));
+		this.viewListeners.push(DOM.addDisposableListener(this.domNode, 'keydown', (e) => this.onKeyDown(e)));
+		this.viewListeners.push(DOM.addDisposableListener(this.domNode, 'keyup', (e) => this.onKeyUp(e)));
+		this.viewListeners.push(DOM.addDisposableListener(this.domNode, 'mousedown', (e) => this.onMouseDown(e)));
+		this.viewListeners.push(DOM.addDisposableListener(this.domNode, 'mouseup', (e) => this.onMouseUp(e)));
+		this.viewListeners.push(DOM.addDisposableListener(this.wrapper, 'click', (e) => this.onClick(e)));
+		this.viewListeners.push(DOM.addDisposableListener(this.domNode, 'contextmenu', (e) => this.onContextMenu(e)));
+		this.viewListeners.push(DOM.addDisposableListener(this.wrapper, Touch.EventType.Tap, (e) => this.onTap(e)));
+		this.viewListeners.push(DOM.addDisposableListener(this.wrapper, Touch.EventType.Change, (e) => this.onTouchChange(e)));
 
 		if(Browser.isIE11orEarlier) {
-			this.viewListeners.push(DOM.addListener(this.wrapper, 'MSPointerDown', (e) => this.onMsPointerDown(e)));
-			this.viewListeners.push(DOM.addListener(this.wrapper, 'MSGestureTap', (e) => this.onMsGestureTap(e)));
+			this.viewListeners.push(DOM.addDisposableListener(this.wrapper, 'MSPointerDown', (e) => this.onMsPointerDown(e)));
+			this.viewListeners.push(DOM.addDisposableListener(this.wrapper, 'MSGestureTap', (e) => this.onMsGestureTap(e)));
 
 			// these events come too fast, we throttle them
-			this.viewListeners.push(DOM.addThrottledListener<IThrottledGestureEvent>(this.wrapper, 'MSGestureChange', (e) => this.onThrottledMsGestureChange(e), (lastEvent:IThrottledGestureEvent, event:MSGestureEvent): IThrottledGestureEvent => {
+			this.viewListeners.push(DOM.addDisposableThrottledListener<IThrottledGestureEvent>(this.wrapper, 'MSGestureChange', (e) => this.onThrottledMsGestureChange(e), (lastEvent:IThrottledGestureEvent, event:MSGestureEvent): IThrottledGestureEvent => {
 				event.stopPropagation();
 				event.preventDefault();
 
@@ -544,10 +544,10 @@ export class TreeView extends HeightMap implements IScrollable {
 			}));
 		}
 
-		this.viewListeners.push(DOM.addListener(window, 'dragover', (e) => this.onDragOver(e)));
-		this.viewListeners.push(DOM.addListener(window, 'drop', (e) => this.onDrop(e)));
-		this.viewListeners.push(DOM.addListener(window, 'dragend', (e) => this.onDragEnd(e)));
-		this.viewListeners.push(DOM.addListener(window, 'dragleave', (e) => this.onDragOver(e)));
+		this.viewListeners.push(DOM.addDisposableListener(window, 'dragover', (e) => this.onDragOver(e)));
+		this.viewListeners.push(DOM.addDisposableListener(window, 'drop', (e) => this.onDrop(e)));
+		this.viewListeners.push(DOM.addDisposableListener(window, 'dragend', (e) => this.onDragEnd(e)));
+		this.viewListeners.push(DOM.addDisposableListener(window, 'dragleave', (e) => this.onDragOver(e)));
 
 		this.wrapper.appendChild(this.rowsContainer);
 		this.domNode.appendChild(this.scrollableElement.getDomNode());
@@ -1647,10 +1647,7 @@ export class TreeView extends HeightMap implements IScrollable {
 		this.releaseModel();
 		this.modelListeners = null;
 
-		while (this.viewListeners.length) {
-			this.viewListeners.pop()();
-		}
-		this.viewListeners = null;
+		this.viewListeners = Lifecycle.disposeAll(this.viewListeners);
 
 		if (this.domNode.parentNode) {
 			this.domNode.parentNode.removeChild(this.domNode);

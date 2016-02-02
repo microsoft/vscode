@@ -166,7 +166,7 @@ class StatusBarEntryItem implements IStatusbarItem {
 	}
 
 	public render(el: HTMLElement): IDisposable {
-		let toDispose: { (): void; }[] = [];
+		let toDispose: IDisposable[] = [];
 		dom.addClass(el, 'statusbar-entry');
 
 		// Text Container
@@ -196,9 +196,7 @@ class StatusBarEntryItem implements IStatusbarItem {
 
 		return {
 			dispose: () => {
-				while (toDispose.length) {
-					toDispose.pop()();
-				}
+				toDispose = disposeAll(toDispose);
 			}
 		};
 	}

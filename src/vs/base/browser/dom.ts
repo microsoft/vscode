@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import * as mouseEvent from 'vs/base/browser/mouseEvent';
+import * as keyboardEvent from 'vs/base/browser/keyboardEvent';
 import {isChrome, isWebKit} from 'vs/base/browser/browser';
 import types = require('vs/base/common/types');
 import {EventEmitter} from 'vs/base/common/eventEmitter';
 import {IDisposable} from 'vs/base/common/lifecycle';
-import mouseEvent = require('vs/base/browser/mouseEvent');
-import keyboardEvent = require('vs/base/browser/keyboardEvent');
 import {onUnexpectedError} from 'vs/base/common/errors';
 import browserService = require('vs/base/browser/browserService');
 
@@ -268,16 +268,16 @@ function setTransform(domNode: HTMLElement, desiredValue: string): void {
 	}
 })();
 
-export function addListener(node: Element, type: string, handler: (event: any) => void, useCapture?: boolean): () => void;
-export function addListener(node: Window, type: string, handler: (event: any) => void, useCapture?: boolean): () => void;
-export function addListener(node: Document, type: string, handler: (event: any) => void, useCapture?: boolean): () => void;
-export function addListener(node: any, type: string, handler: (event: any) => void, useCapture?: boolean): () => void {
+function _addListener(node: Element, type: string, handler: (event: any) => void, useCapture?: boolean): () => void;
+function _addListener(node: Window, type: string, handler: (event: any) => void, useCapture?: boolean): () => void;
+function _addListener(node: Document, type: string, handler: (event: any) => void, useCapture?: boolean): () => void;
+function _addListener(node: any, type: string, handler: (event: any) => void, useCapture?: boolean): () => void {
 	let wrapHandler = function(e): void {
 		e = e || window.event;
 		handler(e);
 	};
 
-	if (types.isFunction(node.addEventListener)) {
+	if (typeof node.addEventListener === 'function') {
 		node.addEventListener(type, wrapHandler, useCapture || false);
 		return function() {
 			if (!wrapHandler) {
@@ -301,7 +301,7 @@ export function addDisposableListener(node: Element, type: string, handler: (eve
 export function addDisposableListener(node: Window, type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable;
 export function addDisposableListener(node: Document, type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable;
 export function addDisposableListener(node: any, type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable {
-	let dispose = addListener(node, type, handler, useCapture);
+	let dispose = _addListener(node, type, handler, useCapture);
 	return {
 		dispose: dispose
 	};
@@ -351,7 +351,7 @@ export let addStandardDisposableListener: IAddStandardDisposableListenerSignatur
 };
 
 export function addNonBubblingMouseOutListener(node: Element, handler: (event: any) => void): () => void {
-	return addListener(node, 'mouseout', (e: MouseEvent) => {
+	return _addListener(node, 'mouseout', (e: MouseEvent) => {
 		// Mouse out bubbles, so this is an attempt to ignore faux mouse outs coming from children elements
 		let toElement = <Node>(e.relatedTarget || e.toElement);
 		while (toElement && toElement !== node) {
@@ -548,7 +548,7 @@ function timeoutThrottledListener<R>(node: any, type: string, handler: (event: R
 		lastEvent = null;
 	};
 
-	let unbinder = addListener(node, type, function(e) {
+	let unbinder = _addListener(node, type, function(e) {
 		lastEvent = eventMerger(lastEvent, e);
 		let elapsedTime = (new Date()).getTime() - lastHandlerTime;
 
@@ -572,12 +572,12 @@ function timeoutThrottledListener<R>(node: any, type: string, handler: (event: R
 	};
 }
 
-export function addThrottledListener<R>(node: any, type: string, handler: (event: R) => void, eventMerger?: IEventMerger<R>, minimumTimeMs?: number): () => void {
+export function _addThrottledListener<R>(node: any, type: string, handler: (event: R) => void, eventMerger?: IEventMerger<R>, minimumTimeMs?: number): () => void {
 	return timeoutThrottledListener(node, type, handler, eventMerger, minimumTimeMs);
 }
 
 export function addDisposableThrottledListener<R>(node: any, type: string, handler: (event: R) => void, eventMerger?: IEventMerger<R>, minimumTimeMs?: number): IDisposable {
-	let dispose = addThrottledListener(node, type, handler, eventMerger, minimumTimeMs);
+	let dispose = _addThrottledListener(node, type, handler, eventMerger, minimumTimeMs);
 	return {
 		dispose: dispose
 	};
@@ -1031,8 +1031,8 @@ export function trackFocus(element: HTMLElement): IFocusTracker {
 	};
 
 	// bind
-	unbind.push(addListener(element, EventType.FOCUS, onFocus, true));
-	unbind.push(addListener(element, EventType.BLUR, onBlur, true));
+	unbind.push(_addListener(element, EventType.FOCUS, onFocus, true));
+	unbind.push(_addListener(element, EventType.BLUR, onBlur, true));
 
 	return result;
 }

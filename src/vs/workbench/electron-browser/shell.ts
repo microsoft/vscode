@@ -20,7 +20,7 @@ import objects = require('vs/base/common/objects');
 import dom = require('vs/base/browser/dom');
 import aria = require('vs/base/browser/ui/aria/aria');
 import {Emitter} from 'vs/base/common/event';
-import {IDisposable} from 'vs/base/common/lifecycle';
+import {disposeAll, IDisposable} from 'vs/base/common/lifecycle';
 import errors = require('vs/base/common/errors');
 import {ContextViewService} from 'vs/platform/contextview/browser/contextViewService';
 import {ContextMenuService} from 'vs/workbench/services/contextview/electron-browser/contextmenuService';
@@ -168,7 +168,7 @@ export class WorkbenchShell {
 	private keybindingService: WorkbenchKeybindingService;
 
 	private container: HTMLElement;
-	private toUnbind: { (): void; }[];
+	private toUnbind: IDisposable[];
 	private previousErrorValue: string;
 	private previousErrorTime: number;
 	private content: HTMLElement;
@@ -411,7 +411,7 @@ export class WorkbenchShell {
 
 		this.setTheme(themeId, false);
 
-		this.toUnbind.push(this.storageService.addListener(StorageEventType.STORAGE, (e: StorageEvent) => {
+		this.toUnbind.push(this.storageService.addListener2(StorageEventType.STORAGE, (e: StorageEvent) => {
 			if (e.key === Preferences.THEME) {
 				this.setTheme(e.newValue);
 			}
@@ -557,9 +557,7 @@ export class WorkbenchShell {
 		this.storageService.dispose();
 
 		// Listeners
-		while (this.toUnbind.length) {
-			this.toUnbind.pop()();
-		}
+		this.toUnbind = disposeAll(this.toUnbind);
 
 		// Container
 		$(this.container).empty();

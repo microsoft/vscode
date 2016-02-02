@@ -12,6 +12,7 @@ import browser = require('vs/base/browser/browser');
 import {Builder, $} from 'vs/base/browser/builder';
 import DOM = require('vs/base/browser/dom');
 import uuid = require('vs/base/common/uuid');
+import {IDisposable,disposeAll} from 'vs/base/common/lifecycle';
 
 const css_done = 'done';
 const css_active = 'active';
@@ -25,7 +26,7 @@ const css_progress_bit = 'progress-bit';
  */
 export class ProgressBar {
 
-	private toUnbind: { (): void; }[];
+	private toUnbind: IDisposable[];
 	private workedVal: number;
 	private element: Builder;
 	private animationRunning: boolean;
@@ -238,8 +239,6 @@ export class ProgressBar {
 	}
 
 	public dispose(): void {
-		while (this.toUnbind.length) {
-			this.toUnbind.pop()();
-		}
+		this.toUnbind = disposeAll(this.toUnbind);
 	}
 }

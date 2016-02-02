@@ -194,8 +194,8 @@ export class AbstractCollapsibleView extends HeaderView {
 	protected state: CollapsibleState;
 
 	private ariaHeaderLabel: string;
-	private headerClickListener: () => void;
-	private headerKeyListener: () => void;
+	private headerClickListener: lifecycle.IDisposable;
+	private headerKeyListener: lifecycle.IDisposable;
 	private focusTracker: dom.IFocusTracker;
 
 	constructor(opts: ICollapsibleViewOptions) {
@@ -218,7 +218,7 @@ export class AbstractCollapsibleView extends HeaderView {
 			this.header.setAttribute('aria-label', this.ariaHeaderLabel);
 		}
 		this.header.setAttribute('aria-expanded', String(this.state === CollapsibleState.EXPANDED));
-		this.headerKeyListener = dom.addListener(this.header, dom.EventType.KEY_DOWN, (e) => {
+		this.headerKeyListener = dom.addDisposableListener(this.header, dom.EventType.KEY_DOWN, (e) => {
 			let event = new StandardKeyboardEvent(e);
 			let eventHandled = false;
 			if (event.equals(CommonKeybindings.ENTER) || event.equals(CommonKeybindings.SPACE) || (event.equals(CommonKeybindings.LEFT_ARROW) && this.state === CollapsibleState.EXPANDED) || (event.equals(CommonKeybindings.RIGHT_ARROW) && this.state === CollapsibleState.COLLAPSED)) {
@@ -241,7 +241,7 @@ export class AbstractCollapsibleView extends HeaderView {
 		});
 
 		// Mouse access
-		this.headerClickListener = dom.addListener(this.header, dom.EventType.CLICK, () => this.toggleExpansion());
+		this.headerClickListener = dom.addDisposableListener(this.header, dom.EventType.CLICK, () => this.toggleExpansion());
 
 		// Track state of focus in header so that other components can adjust styles based on that
 		// (for example show or hide actions based on the state of being focused or not)
@@ -318,12 +318,12 @@ export class AbstractCollapsibleView extends HeaderView {
 
 	public dispose(): void {
 		if (this.headerClickListener) {
-			this.headerClickListener();
+			this.headerClickListener.dispose();
 			this.headerClickListener = null;
 		}
 
 		if (this.headerKeyListener) {
-			this.headerKeyListener();
+			this.headerKeyListener.dispose();
 			this.headerKeyListener = null;
 		}
 

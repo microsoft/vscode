@@ -17,7 +17,7 @@ class LightBulpWidget implements EditorBrowser.IContentWidget, lifecycle.IDispos
 	private domNode: HTMLElement;
 	private visible: boolean;
 	private onclick: (pos: EditorCommon.IPosition) => void;
-	private listenersToRemove:eventEmitter.ListenerUnbind[];
+	private toDispose:lifecycle.IDisposable[];
 
 	// Editor.IContentWidget.allowEditorOverflow
 	public allowEditorOverflow = true;
@@ -25,16 +25,13 @@ class LightBulpWidget implements EditorBrowser.IContentWidget, lifecycle.IDispos
 	constructor(editor: EditorBrowser.ICodeEditor, onclick: (pos: EditorCommon.IPosition) => void) {
 		this.editor = editor;
 		this.onclick = onclick;
-		this.listenersToRemove = [];
+		this.toDispose = [];
 		this.editor.addContentWidget(this);
 	}
 
 	public dispose(): void {
 		this.editor.removeContentWidget(this);
-		this.listenersToRemove.forEach((element) => {
-			element();
-		});
-		this.listenersToRemove = [];
+		this.toDispose = lifecycle.disposeAll(this.toDispose);
 	}
 
 	public getId(): string {
@@ -47,7 +44,7 @@ class LightBulpWidget implements EditorBrowser.IContentWidget, lifecycle.IDispos
 			this.domNode.style.width = '20px';
 			this.domNode.style.height = '20px';
 			this.domNode.className = 'lightbulp-glyph';
-			this.listenersToRemove.push(DomUtils.addListener(this.domNode, 'click',(e) => {
+			this.toDispose.push(DomUtils.addDisposableListener(this.domNode, 'click',(e) => {
 				this.editor.focus();
 				this.onclick(this.position);
 			}));

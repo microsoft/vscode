@@ -49,8 +49,6 @@ export class FindInput extends Widget {
 	private validation:IInputValidator;
 	private label:string;
 
-	private optionsKeyListener: () => void;
-
 	private regex:Checkbox;
 	private wholeWords:Checkbox;
 	private caseSensitive:Checkbox;
@@ -259,8 +257,7 @@ export class FindInput extends Widget {
 
 		// Arrow-Key support to navigate between options
 		let indexes = [this.caseSensitive.domNode, this.wholeWords.domNode, this.regex.domNode];
-		this.optionsKeyListener = dom.addListener(this.domNode, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
-			let event = new StandardKeyboardEvent(e);
+		this.onkeydown(this.domNode, (event: StandardKeyboardEvent) => {
 			if (event.equals(CommonKeybindings.LEFT_ARROW) || event.equals(CommonKeybindings.RIGHT_ARROW) || event.equals(CommonKeybindings.ESCAPE)) {
 				let index = indexes.indexOf(<HTMLElement>document.activeElement);
 				if (index >= 0) {
@@ -315,11 +312,6 @@ export class FindInput extends Widget {
 	}
 
 	public dispose(): void {
-		if (this.optionsKeyListener) {
-			this.optionsKeyListener();
-			this.optionsKeyListener = null;
-		}
-
 		super.dispose();
 	}
 }

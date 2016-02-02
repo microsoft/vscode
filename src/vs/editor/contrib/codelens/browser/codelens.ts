@@ -54,7 +54,7 @@ class CodeLensContentWidget implements EditorBrowser.IContentWidget {
 	private _id: string;
 
 	private _domNode: HTMLElement;
-	private _subscription: Function;
+	private _subscription: lifecycle.IDisposable;
 	private _symbolRange: EditorCommon.IEditorRange;
 	private _widgetPosition: EditorBrowser.IContentWidgetPosition;
 	private _editor: EditorBrowser.ICodeEditor;
@@ -73,7 +73,7 @@ class CodeLensContentWidget implements EditorBrowser.IContentWidget {
 		this._domNode.innerHTML = '&nbsp;';
 		dom.addClass(this._domNode, 'codelens-decoration');
 		dom.addClass(this._domNode, 'invisible-cl');
-		this._subscription = dom.addListener(this._domNode, 'click', e => {
+		this._subscription = dom.addDisposableListener(this._domNode, 'click', e => {
 			let element = <HTMLElement>e.target;
 			if (element.tagName === 'A' && element.id) {
 				let command = this._commands[element.id];
@@ -90,7 +90,7 @@ class CodeLensContentWidget implements EditorBrowser.IContentWidget {
 	}
 
 	public dispose(): void {
-		this._subscription();
+		this._subscription.dispose();
 		this._symbolRange = null;
 	}
 
