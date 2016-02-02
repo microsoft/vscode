@@ -8,6 +8,7 @@
 import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
 import * as types from 'vs/workbench/api/node/extHostTypes';
+import {isWindows} from 'vs/base/common/platform';
 
 function assertToJSON(a: any, expected: any) {
 	const raw = JSON.stringify(a);
@@ -26,7 +27,7 @@ suite('ExtHostTypes', function() {
 			scheme: 'file',
 			authority: '',
 			path: '/path/test.file',
-			fsPath: '/path/test.file',
+			fsPath: '/path/test.file'.replace('/', isWindows ? '\\' : '/'),
 			query: '',
 			fragment: '',
 			external: 'file:///path/test.file'
