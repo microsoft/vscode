@@ -186,8 +186,8 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 
 		let currentPick = defaultMessage;
 		let currentValidation = TPromise.as(true);
-		let inputDecoration: Severity;
-		let lastValue = options && options.value;
+		let currentDecoration: Severity;
+		let lastValue = options && options.value || '';
 
 		const init = (resolve: (value: IPickOpenEntry | TPromise<IPickOpenEntry>) => any, reject: (value: any) => any) => {
 
@@ -199,7 +199,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 				password: options.password,
 				placeHolder: options.placeHolder,
 				value: options.value,
-				inputDecoration: inputDecoration,
+				inputDecoration: currentDecoration,
 				onDidType: (value) => {
 					lastValue = value;
 
@@ -209,7 +209,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 						}
 						currentValidation = TPromise.timeout(100).then(() => {
 							return options.validateInput(value).then(message => {
-								inputDecoration = !!message ? Severity.Error : void 0;
+								currentDecoration = !!message ? Severity.Error : void 0;
 								let newPick = message || defaultMessage;
 								if (newPick !== currentPick) {
 									currentPick = newPick;
