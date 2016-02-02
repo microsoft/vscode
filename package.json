@@ -31,6 +31,7 @@
     "native-keymap": "^0.1.2",
     "weak": "^1.0.1",
     "winreg": "0.0.12",
+    "yargs": "^3.32.0",
     "yauzl": "^2.3.1"
   },
   "devDependencies": {
@@ -85,8 +86,7 @@
     "typescript": "^1.7.3",
     "uglify-js": "2.4.8",
     "underscore": "^1.8.2",
-    "vinyl": "^0.4.5",
-    "yargs": "^3.32.0"
+    "vinyl": "^0.4.5"
   },
   "repository": {
     "type": "git",
