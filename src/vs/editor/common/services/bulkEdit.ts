@@ -212,7 +212,7 @@ class BulkEditModel {
 				var textEditorModel = <IModel>model.textEditorModel,
 					task: EditTask;
 
-				if (textEditorModel.getAssociatedResource().toString() ===  this._sourceModel.toString()) {
+				if (this._sourceModel && textEditorModel.getAssociatedResource().toString() ===  this._sourceModel.toString()) {
 					this._sourceModelTask = new SourceModelEditTask(textEditorModel, this._sourceSelections);
 					task = this._sourceModelTask;
 				} else {
@@ -287,7 +287,7 @@ export function createBulkEdit(eventService: IEventService, editorService: IEdit
 		let uri: URI;
 		let selections: IEditorSelection[];
 
-		if (editor) {
+		if (editor && editor.getModel()) {
 			uri = editor.getModel().getAssociatedResource();
 			selections = editor.getSelections();
 		}

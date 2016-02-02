@@ -6,7 +6,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import {workspace, TextDocument, window, Position, Uri, EventEmitter, CancellationTokenSource, Disposable} from 'vscode';
+import {workspace, TextDocument, window, Position, Uri, EventEmitter, CancellationTokenSource, Disposable, WorkspaceEdit} from 'vscode';
 import {createRandomFile, deleteFile, cleanUp, pathEquals} from './utils';
 import {join, basename} from 'path';
 import * as fs from 'fs';
@@ -304,7 +304,8 @@ suite('workspace-namespace', () => {
 
 			return new Promise((resolve, reject) => {
 
-				workspace.onDidChangeTextDocument(event => {
+				let subscription = workspace.onDidChangeTextDocument(event => {
+					subscription.dispose();
 					assert.ok(event.document === doc);
 					assert.equal(event.document.getText(), 'call1');
 					resolve();
@@ -332,6 +333,15 @@ suite('workspace-namespace', () => {
 
 		return workspace.findFiles('*.js', null, 100, token).then((res) => {
 			assert.equal(res, void 0);
+		});
+	});
+
+	test('applyEdit', () => {
+
+		return workspace.openTextDocument(Uri.parse('untitled://' + join(workspace.rootPath, './new2.txt'))).then(doc => {
+			let edit = new WorkspaceEdit();
+			edit.insert(doc.uri, new Position(0, 0), new Array(1000).join('Hello World'));
+			return workspace.applyEdit(edit);
 		});
 	});
 });
