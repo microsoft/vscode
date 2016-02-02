@@ -269,11 +269,16 @@ export function wrappingIndentFromString(wrappingIndent:string): WrappingIndent 
 }
 
 /**
- * Configuration options for the editor. Common between configuring the editor and the options the editor has computed
+ * Configuration options for the editor.
  */
-export interface ICommonEditorOptions {
+export interface IEditorOptions {
 	experimentalScreenReader?: boolean;
 	ariaLabel?: string;
+	/**
+	 * Render vertical lines at the specified columns.
+	 * Defaults to empty array.
+	 */
+	rulers?: number[];
 	/**
 	 * Control the rendering of line numbers.
 	 * If it is a function, it will be invoked when rendering a line number and the return value will be rendered.
@@ -494,12 +499,6 @@ export interface ICommonEditorOptions {
 	 * Defaults to false.
 	 */
 	renderWhitespace?: boolean;
-}
-
-/**
- * Configuration options for the editor.
- */
-export interface IEditorOptions extends ICommonEditorOptions {
 	/**
 	 * Tab size in spaces. This is used for rendering and for editing.
 	 * 'auto' means the model attached to the editor will be scanned and this property will be guessed.
@@ -586,6 +585,7 @@ export interface IEditorWrappingInfo {
  */
 export interface IInternalEditorOptions {
 	experimentalScreenReader: boolean;
+	rulers: number[];
 	ariaLabel: string;
 
 	// ---- Options that are transparent - get no massaging
@@ -672,6 +672,7 @@ export interface IInternalEditorOptions {
  */
 export interface IConfigurationChangedEvent {
 	experimentalScreenReader: boolean;
+	rulers: boolean;
 	ariaLabel: boolean;
 
 	// ---- Options that are transparent - get no massaging
