@@ -18,6 +18,10 @@ export interface IRangedGroup {
 	size: number;
 }
 
+/**
+ * Returns the intersection between two ranges as a range itself.
+ * Returns `null` if the intersection is empty.
+ */
 export function intersect(one: IRange, other: IRange): IRange {
 	if (one.start >= other.end || other.start >= one.end) {
 		return null;
@@ -33,6 +37,10 @@ export function intersect(one: IRange, other: IRange): IRange {
 	return { start, end };
 }
 
+/**
+ * Returns the intersection between a ranged group and a range.
+ * Returns `[]` if the intersection is empty.
+ */
 export function groupIntersect(range: IRange, groups: IRangedGroup[]): IRangedGroup[] {
 	const result: IRangedGroup[] = [];
 
@@ -60,12 +68,46 @@ export function groupIntersect(range: IRange, groups: IRangedGroup[]): IRangedGr
 	return result;
 }
 
+/**
+ * Shifts a range by that `much`.
+ */
 function shift({ start, end }: IRange, much: number): IRange {
 	return { start: start + much, end: end + much };
 }
 
+/**
+ * Concatenates several collections of ranged groups into a single
+ * collection.
+ */
 function concat(...groups: IRangedGroup[][]): IRangedGroup[] {
 	return groups.reduce((r, g) => r.concat(g), [] as IRangedGroup[]);
+}
+
+/**
+ * Consolidates a collection of ranged groups.
+ *
+ * Consolidation is the process of merging consecutive ranged groups
+ * that share the same `size`.
+ */
+export function consolidate(groups: IRangedGroup[]): IRangedGroup[] {
+	const result: IRangedGroup[] = [];
+	let previousGroup: IRangedGroup = null;
+
+	for (const group of groups) {
+		const start = group.range.start;
+		const end = group.range.end;
+		const size = group.size;
+
+		if (previousGroup && size === previousGroup.size) {
+			previousGroup.range.end = end;
+			continue;
+		}
+
+		previousGroup = { range: { start, end }, size };
+		result.push(previousGroup);
+	}
+
+	return result;
 }
 
 export class RangeMap {
@@ -93,7 +135,7 @@ export class RangeMap {
 				return result;
 			});
 
-		this.groups = concat(before, middle, after);
+		this.groups = consolidate(concat(before, middle, after));
 	}
 
 	get count(): number {
@@ -110,41 +152,42 @@ export class RangeMap {
 		return this.groups.reduce((t, g) => t + (g.size * (g.range.end - g.range.start)), 0);
 	}
 
-	// indexAt(position: number): number {
-	// 	let index = 0;
-	// 	let size = 0;
+	indexAt(position: number): number {
+		let index = 0;
+		let size = 0;
 
-	// 	for (const range of this._ranges) {
-	// 		const newSize = size + (range.count * range.size);
+		for (const group of this.groups) {
+			const newSize = size + ((group.range.end - group.range.start) * group.size);
 
-	// 		if (position < newSize) {
-	// 			return index + Math.floor((position - size) / range.size);
-	// 		}
+			if (position < newSize) {
+				return index + Math.floor((position - size) / group.size);
+			}
 
-	// 		index += range.size;
-	// 		size = newSize;
-	// 	}
+			index += group.size;
+			size = newSize;
+		}
 
-	// 	return -1;
-	// }
+		return -1;
+	}
 
-	// positionAt(index: number): number {
-	// 	let position = 0;
-	// 	let count = 0;
+	positionAt(index: number): number {
+		let position = 0;
+		let count = 0;
 
-	// 	for (const range of this._ranges) {
-	// 		const newCount = count + range.count;
+		for (const group of this.groups) {
+			const groupCount = group.range.end - group.range.start;
+			const newCount = count + groupCount;
 
-	// 		if (index < newCount) {
-	// 			return position + ((index - count) * range.size);
-	// 		}
+			if (index < newCount) {
+				return position + ((index - count) * group.size);
+			}
 
-	// 		position += range.count * range.size;
-	// 		count = newCount;
-	// 	}
+			position += groupCount * group.size;
+			count = newCount;
+		}
 
-	// 	return -1;
-	// }
+		return -1;
+	}
 
 	dispose() {
 		this.groups = null;

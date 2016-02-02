@@ -4,7 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert = require('assert');
-import { RangeMap, intersect, groupIntersect, IRangedGroup } from '../rangeMap';
+import {
+	RangeMap,
+	intersect,
+	groupIntersect,
+	IRangedGroup,
+	consolidate
+} from '../rangeMap';
 
 suite('RangeMap', () => {
 	var rangeMap: RangeMap;
@@ -92,11 +98,56 @@ suite('RangeMap', () => {
 		);
 	});
 
-	// test('splice', () => {
-	// 	rangeMap.splice(0, 0, { count: 5, size: 1 });
-	// 	rangeMap.splice(2, 0, { count: 5, size: 2 });
-	// 	console.log(rangeMap.groups);
-	// });
+	test('consolidate', () => {
+		assert.deepEqual(consolidate([]), []);
+
+		assert.deepEqual(
+			consolidate([{ range: { start: 0, end: 10 }, size: 1 }]),
+			[{ range: { start: 0, end: 10 }, size: 1 }]
+		);
+
+		assert.deepEqual(
+			consolidate([
+				{ range: { start: 0, end: 10 }, size: 1 },
+				{ range: { start: 10, end: 20 }, size: 1 }
+			]),
+			[{ range: { start: 0, end: 20 }, size: 1 }]
+		);
+
+		assert.deepEqual(
+			consolidate([
+				{ range: { start: 0, end: 10 }, size: 1 },
+				{ range: { start: 10, end: 20 }, size: 1 },
+				{ range: { start: 20, end: 100 }, size: 1 }
+			]),
+			[{ range: { start: 0, end: 100 }, size: 1 }]
+		);
+
+		assert.deepEqual(
+			consolidate([
+				{ range: { start: 0, end: 10 }, size: 1 },
+				{ range: { start: 10, end: 20 }, size: 5 },
+				{ range: { start: 20, end: 30 }, size: 10 }
+			]),
+			[
+				{ range: { start: 0, end: 10 }, size: 1 },
+				{ range: { start: 10, end: 20 }, size: 5 },
+				{ range: { start: 20, end: 30 }, size: 10 }
+			]
+		);
+
+		assert.deepEqual(
+			consolidate([
+				{ range: { start: 0, end: 10 }, size: 1 },
+				{ range: { start: 10, end: 20 }, size: 2 },
+				{ range: { start: 20, end: 100 }, size: 2 }
+			]),
+			[
+				{ range: { start: 0, end: 10 }, size: 1 },
+				{ range: { start: 10, end: 100 }, size: 2 }
+			]
+		);
+	});
 
 	test('empty', () => {
 		assert.equal(rangeMap.size, 0);
