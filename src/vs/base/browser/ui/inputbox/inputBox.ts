@@ -6,11 +6,13 @@
 
 import 'vs/css!./inputBox';
 
+import nls = require('vs/nls');
 import * as Bal from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
 import * as browser from 'vs/base/browser/browserService';
 import {IHTMLContentElement} from 'vs/base/common/htmlContent';
 import {renderHtml} from 'vs/base/browser/htmlContentRenderer';
+import aria = require('vs/base/browser/ui/aria/aria');
 import {IAction} from 'vs/base/common/actions';
 import {ActionBar} from 'vs/base/browser/ui/actionbar/actionbar';
 import {IContextViewProvider, AnchorAlignment} from 'vs/base/browser/ui/contextview/contextview';
@@ -233,6 +235,18 @@ export class InputBox extends Widget {
 		dom.removeClass(this.element, 'warning');
 		dom.removeClass(this.element, 'error');
 		dom.addClass(this.element, this.classForType(message.type));
+
+		// ARIA Support
+		let alertText: string;
+		if (message.type === MessageType.ERROR) {
+			alertText = nls.localize('alertErrorMessage', "Error: {0}", message.content);
+		} else if (message.type === MessageType.WARNING) {
+			alertText = nls.localize('alertWarningMessage', "Warning: {0}", message.content);
+		} else {
+			alertText = nls.localize('alertInfoMessage', "Info: {0}", message.content);
+		}
+
+		aria.alert(alertText);
 
 		if (this.hasFocus() || force) {
 			this._showMessage();

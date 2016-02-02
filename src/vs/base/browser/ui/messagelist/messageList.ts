@@ -11,6 +11,7 @@ import {Promise} from 'vs/base/common/winjs.base';
 import {Builder, withElementById, $} from 'vs/base/browser/builder';
 import DOM = require('vs/base/browser/dom');
 import errors = require('vs/base/common/errors');
+import aria = require('vs/base/browser/ui/aria/aria');
 import types = require('vs/base/common/types');
 import Event, {Emitter} from 'vs/base/common/event';
 import {Action} from 'vs/base/common/actions';
@@ -57,7 +58,6 @@ export class MessageList {
 	private messages: IMessageEntry[];
 	private messageListPurger: Promise;
 	private messageListContainer: Builder;
-	private ariaAlertContainer: Builder;
 
 	private containerElementId: string;
 	private options: IMessageListOptions;
@@ -75,8 +75,6 @@ export class MessageList {
 
 		this._onMessagesShowing = new Emitter<void>();
 		this._onMessagesCleared = new Emitter<void>();
-
-		this.ariaAlertContainer = $('.aria-alert-container').attr({ 'role': 'alert' }).appendTo(document.body);
 	}
 
 	public get onMessagesShowing(): Event<void> {
@@ -147,7 +145,6 @@ export class MessageList {
 		this.renderMessages(true, 1);
 
 		// Support in Screen Readers too
-		$(this.ariaAlertContainer).empty();
 		let alertText: string;
 		if (severity === Severity.Error) {
 			alertText = nls.localize('alertErrorMessage', "Error: {0}", message);
@@ -157,7 +154,7 @@ export class MessageList {
 			alertText = nls.localize('alertInfoMessage', "Info: {0}", message);
 		}
 
-		$('span').text(alertText).appendTo(this.ariaAlertContainer);
+		aria.alert(alertText);
 
 		return () => {
 			this.hideMessage(id);

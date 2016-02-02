@@ -18,6 +18,7 @@ import {Promise, TPromise} from 'vs/base/common/winjs.base';
 import {Dimension, Builder, $} from 'vs/base/browser/builder';
 import objects = require('vs/base/common/objects');
 import dom = require('vs/base/browser/dom');
+import aria = require('vs/base/browser/ui/aria/aria');
 import {Emitter} from 'vs/base/common/event';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import errors = require('vs/base/common/errors');
@@ -191,6 +192,9 @@ export class WorkbenchShell {
 	}
 
 	private createContents(parent: Builder): Builder {
+
+		// ARIA
+		aria.setAlertContainer(document.body);
 
 		// Workbench Container
 		let workbenchContainer = $(parent).div();
