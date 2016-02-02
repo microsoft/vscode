@@ -74,7 +74,7 @@ export class FeedbackDropdown extends Dropdown {
 		});
 
 		this.$el.addClass('send-feedback');
-		this.$el.title(nls.localize('sendFeedback', "Send Feedback"));
+		this.$el.title(nls.localize('sendFeedback', "Tweet Feedback"));
 
 		this.feedbackService = options.feedbackService;
 
