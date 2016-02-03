@@ -11,6 +11,7 @@ global.vscodeStart = Date.now();
 var app = require('electron').app;
 var path = require('path');
 var process = require('process');
+var os = require('os');
 var fs = require('fs');
 
 // Change cwd if given via env variable
