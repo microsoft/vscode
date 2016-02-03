@@ -10,7 +10,7 @@ import {Builder, $} from 'vs/base/browser/builder';
 
 let ariaAlertContainer: Builder;
 export function setAlertContainer(parent: HTMLElement) {
-	ariaAlertContainer = $('.aria-alert-container').attr({ 'role': 'alert' }).appendTo(parent);
+	ariaAlertContainer = $('.aria-alert-container').attr({ 'role': 'alert', 'aria-atomic': 'true' }).appendTo(parent);
 }
 
 /**
