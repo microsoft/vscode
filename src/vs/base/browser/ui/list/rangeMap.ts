@@ -113,6 +113,7 @@ function concat(...groups: IRangedGroup[][]): IRangedGroup[] {
 export class RangeMap {
 
 	private groups: IRangedGroup[] = [];
+	private _size = 0;
 
 	splice(index: number, deleteCount: number, ...groups: IGroup[]): void {
 		let diff = -deleteCount;
@@ -137,8 +138,12 @@ export class RangeMap {
 			.map<IRangedGroup>(g => ({ range: shift(g.range, diff), size: g.size }));
 
 		this.groups = concat(before, middle, after);
+		this._size = this.groups.reduce((t, g) => t + (g.size * (g.range.end - g.range.start)), 0);
 	}
 
+	/**
+	 * Returns the number of items in the range map.
+	 */
 	get count(): number {
 		const len = this.groups.length;
 
@@ -149,10 +154,16 @@ export class RangeMap {
 		return this.groups[len - 1].range.end;
 	}
 
+	/**
+	 * Returns the sum of the sizes of all items in the range map.
+	 */
 	get size(): number {
-		return this.groups.reduce((t, g) => t + (g.size * (g.range.end - g.range.start)), 0);
+		return this._size;
 	}
 
+	/**
+	 * Returns index of the item at the given position.
+	 */
 	indexAt(position: number): number {
 		let index = 0;
 		let size = 0;
@@ -171,6 +182,9 @@ export class RangeMap {
 		return -1;
 	}
 
+	/**
+	 * Returns the start position of the item at the given index.
+	 */
 	positionAt(index: number): number {
 		let position = 0;
 		let count = 0;
