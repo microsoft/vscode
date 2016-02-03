@@ -859,23 +859,6 @@ export interface IFocusTracker {
 	dispose(): void;
 }
 
-export function selectTextInInputElement(textArea: HTMLTextAreaElement): void {
-	// F12 has detected in their automated tests that selecting throws sometimes,
-	// the root cause remains a mistery. Bug #378257 filled against IE.
-	try {
-		let scrollState: number[] = saveParentsScrollTop(textArea);
-		textArea.select();
-		if (textArea.setSelectionRange) {
-			// on iOS Safari, .select() moves caret to the end of the text instead of selecting
-			// see http://stackoverflow.com/questions/3272089/programmatically-selecting-text-in-an-input-field-on-ios-devices-mobile-safari
-			textArea.setSelectionRange(0, 9999);
-		}
-		restoreParentsScrollTop(textArea, scrollState);
-	} catch (e) {
-		// no-op
-	}
-}
-
 export function saveParentsScrollTop(node: Element): number[] {
 	let r: number[] = [];
 	for (let i = 0; node && node.nodeType === node.ELEMENT_NODE; i++) {
@@ -943,20 +926,6 @@ class FocusTracker extends Disposable implements IFocusTracker {
 export function trackFocus(element: HTMLElement): IFocusTracker {
 	return new FocusTracker(element);
 }
-
-export function removeScriptTags(html: string): string {
-	let div = document.createElement('div');
-	div.innerHTML = html;
-
-	let scripts = div.getElementsByTagName('script');
-	let i = scripts.length;
-
-	while (i--) {
-		scripts[i].parentNode.removeChild(scripts[i]);
-	}
-
-	return div.innerHTML;
-};
 
 export function append<T extends Node>(parent: HTMLElement, child: T): T {
 	parent.appendChild(child);
