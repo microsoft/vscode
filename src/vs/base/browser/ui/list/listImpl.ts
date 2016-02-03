@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/css!./list';
 import { IScrollable } from 'vs/base/common/scrollable';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -14,15 +15,16 @@ import { RangeMap } from './rangeMap';
 import { IScrollEvent, IDelegate, IRendererMap } from './list';
 import { RowCache, IRow } from './rowCache';
 
-interface IItem {
-	height: number;
+interface IItem<T> {
+	element: T;
+	size: number;
 	templateId: string;
 	row: IRow;
 }
 
 export class List<T> implements IScrollable {
 
-	private items: IItem[];
+	private items: IItem<T>[];
 	private rangeMap: RangeMap;
 	private cache: RowCache<T>;
 
@@ -40,7 +42,11 @@ export class List<T> implements IScrollable {
 	private _onScroll = new Emitter<IScrollEvent>();
 	onScroll: Event<IScrollEvent> = this._onScroll.event;
 
-	constructor(container: HTMLElement, delegate: IDelegate<T>, renderers: IRendererMap<T>) {
+	constructor(
+		container: HTMLElement,
+		private delegate: IDelegate<T>,
+		private renderers: IRendererMap<T>
+	) {
 		this.items = [];
 		this.rangeMap = new RangeMap();
 		this.cache = new RowCache(renderers);
@@ -64,6 +70,35 @@ export class List<T> implements IScrollable {
 
 		this.rowsContainer = document.createElement('div');
 		this.rowsContainer.className = 'monaco-list-rows';
+
+		this.wrapper.appendChild(this.rowsContainer);
+		this.domNode.appendChild(this.scrollableElement.getDomNode());
+		container.appendChild(this.domNode);
+
+		this._scrollTop = 0;
+		this._viewHeight = 0;
+		this.renderTop = 0;
+		this.renderHeight = 0;
+
+		this.layout();
+	}
+
+	splice(start: number, deleteCount: number, ...elements: T[]): void {
+		const inserted = elements.map<IItem<T>>(element => ({
+			element,
+			size: this.delegate.getHeight(element),
+			templateId: this.delegate.getTemplateId(element),
+			row: null
+		}));
+
+		this.rangeMap.splice(start, deleteCount, ...inserted);
+
+		const deleted = this.items.splice(start, deleteCount, ...inserted);
+		deleted.forEach(item => this.removeItemFromDOM(item));
+		inserted.forEach((_, index) => this.insertItemInDOM(start + index));
+
+		this.setScrollTop(this.scrollTop);
+		this.scrollableElement.onElementInternalDimensions();
 	}
 
 	layout(height?: number): void {
@@ -120,7 +155,7 @@ export class List<T> implements IScrollable {
 		return this._viewHeight;
 	}
 
-	private  set viewHeight(viewHeight: number) {
+	private set viewHeight(viewHeight: number) {
 		this.render(this.scrollTop, viewHeight);
 		this._viewHeight = viewHeight;
 	}
@@ -134,6 +169,10 @@ export class List<T> implements IScrollable {
 	}
 
 	// Render
+
+	private indexAfter(position: number): number {
+		return Math.min(this.rangeMap.indexAt(position) + 1, this.rangeMap.count);
+	}
 
 	private render(scrollTop: number, viewHeight: number): void {
 		const renderTop = Math.max(scrollTop, 0);
@@ -153,12 +192,12 @@ export class List<T> implements IScrollable {
 
 		// when view scrolls down, start unrendering from renderTop
 		for (i = this.rangeMap.indexAt(this.renderTop), stop = Math.min(this.rangeMap.indexAt(renderTop), this.indexAfter(thisRenderBottom)); i < stop; i++) {
-			this.removeItemFromDOM(i);
+			this.removeItemFromDOM(this.items[i]);
 		}
 
 		// when view scrolls up, start unrendering from either renderBottom this.renderTop
 		for (i = Math.max(this.indexAfter(renderBottom), this.rangeMap.indexAt(this.renderTop)), stop = this.indexAfter(thisRenderBottom); i < stop; i++) {
-			this.removeItemFromDOM(i);
+			this.removeItemFromDOM(this.items[i]);
 		}
 
 		const topPosition = this.rangeMap.positionAt(this.rangeMap.indexAt(renderTop));
@@ -171,11 +210,29 @@ export class List<T> implements IScrollable {
 		this.renderHeight = renderBottom - renderTop;
 	}
 
-	private indexAfter(position: number): number {
-		return Math.min(this.rangeMap.indexAt(position) + 1, this.rangeMap.size);
+	private isInView(index: number): boolean {
+		const item = this.items[index];
+		const top = this.rangeMap.positionAt(index);
+		return top < this.renderTop + this.renderHeight && top + item.size > this.renderTop;
+	}
+
+	private refreshItem(index: number): void {
+		if (index < 0) {
+			return;
+		}
+
+		if (this.isInView(index)) {
+			this.insertItemInDOM(index);
+		} else {
+			this.removeItemFromDOM(this.items[index]);
+		}
 	}
 
 	private insertItemInDOM(index: number): void {
+		if (index < 0) {
+			return;
+		}
+
 		const item = this.items[index];
 
 		if (!item.row) {
@@ -200,10 +257,8 @@ export class List<T> implements IScrollable {
 		this.renderItem(index);
 	}
 
-	private removeItemFromDOM(index: number): void {
-		const item = this.items[index];
-
-		if (!item.row) {
+	private removeItemFromDOM(item: IItem<T>): void {
+		if (!item || !item.row) {
 			return;
 		}
 
@@ -213,7 +268,11 @@ export class List<T> implements IScrollable {
 	}
 
 	private renderItem(index: number): void {
-		// TODO
+		const item = this.items[index];
+		const renderer = this.renderers[item.templateId];
+
+		item.row.domNode.style.height = `${ item.size }px`;
+		renderer.renderElement(item.element, item.row.templateData);
 	}
 
 	dispose() {

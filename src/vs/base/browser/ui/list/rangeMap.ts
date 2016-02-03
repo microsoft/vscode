@@ -161,17 +161,18 @@ export class RangeMap {
 		let size = 0;
 
 		for (const group of this.groups) {
-			const newSize = size + ((group.range.end - group.range.start) * group.size);
+			const count = group.range.end - group.range.start;
+			const newSize = size + (count * group.size);
 
 			if (position < newSize) {
 				return index + Math.floor((position - size) / group.size);
 			}
 
-			index += group.size;
+			index += count;
 			size = newSize;
 		}
 
-		return -1;
+		return index;
 	}
 
 	/**

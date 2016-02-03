@@ -44,7 +44,7 @@ export class RowCache<T> implements IDisposable {
 		let result = this.getTemplateCache(templateId).pop();
 
 		if (!result) {
-			const domNode = $('div');
+			const domNode = $('.monaco-list-row');
 			const content = append(domNode, $('.content'));
 			const renderer = this.renderers[templateId];
 			const templateData = renderer.renderTemplate(content);

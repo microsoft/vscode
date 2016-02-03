@@ -268,8 +268,8 @@ suite('RangeMap', () => {
 
 	suite('indexAt, positionAt', () => {
 		test('empty', () => {
-			assert.equal(rangeMap.indexAt(0), -1);
-			assert.equal(rangeMap.indexAt(10), -1);
+			assert.equal(rangeMap.indexAt(0), 0);
+			assert.equal(rangeMap.indexAt(10), 0);
 			assert.equal(rangeMap.indexAt(-1), -1);
 			assert.equal(rangeMap.positionAt(0), -1);
 			assert.equal(rangeMap.positionAt(10), -1);
@@ -279,7 +279,7 @@ suite('RangeMap', () => {
 		test('simple', () => {
 			rangeMap.splice(0, 0, one);
 			assert.equal(rangeMap.indexAt(0), 0);
-			assert.equal(rangeMap.indexAt(1), -1);
+			assert.equal(rangeMap.indexAt(1), 1);
 			assert.equal(rangeMap.positionAt(0), 0);
 			assert.equal(rangeMap.positionAt(1), -1);
 		});
@@ -289,7 +289,7 @@ suite('RangeMap', () => {
 			assert.equal(rangeMap.indexAt(0), 0);
 			assert.equal(rangeMap.indexAt(5), 0);
 			assert.equal(rangeMap.indexAt(9), 0);
-			assert.equal(rangeMap.indexAt(10), -1);
+			assert.equal(rangeMap.indexAt(10), 1);
 			assert.equal(rangeMap.positionAt(0), 0);
 			assert.equal(rangeMap.positionAt(1), -1);
 		});
@@ -300,12 +300,14 @@ suite('RangeMap', () => {
 			assert.equal(rangeMap.indexAt(1), 1);
 			assert.equal(rangeMap.indexAt(5), 5);
 			assert.equal(rangeMap.indexAt(9), 9);
-			assert.equal(rangeMap.indexAt(10), -1);
+			assert.equal(rangeMap.indexAt(10), 10);
+			assert.equal(rangeMap.indexAt(11), 10);
 
 			rangeMap.splice(10, 0, one, one, one, one, one, one, one, one, one, one);
 			assert.equal(rangeMap.indexAt(10), 10);
 			assert.equal(rangeMap.indexAt(19), 19);
-			assert.equal(rangeMap.indexAt(20), -1);
+			assert.equal(rangeMap.indexAt(20), 20);
+			assert.equal(rangeMap.indexAt(21), 20);
 			assert.equal(rangeMap.positionAt(0), 0);
 			assert.equal(rangeMap.positionAt(1), 1);
 			assert.equal(rangeMap.positionAt(19), 19);
@@ -319,7 +321,8 @@ suite('RangeMap', () => {
 			assert.equal(rangeMap.indexAt(0), 0);
 			assert.equal(rangeMap.indexAt(1), 1);
 			assert.equal(rangeMap.indexAt(3), 3);
-			assert.equal(rangeMap.indexAt(4), -1);
+			assert.equal(rangeMap.indexAt(4), 4);
+			assert.equal(rangeMap.indexAt(5), 4);
 			assert.equal(rangeMap.positionAt(0), 0);
 			assert.equal(rangeMap.positionAt(1), 1);
 			assert.equal(rangeMap.positionAt(3), 3);
@@ -333,7 +336,8 @@ suite('RangeMap', () => {
 			assert.equal(rangeMap.indexAt(0), 0);
 			assert.equal(rangeMap.indexAt(1), 0);
 			assert.equal(rangeMap.indexAt(30), 3);
-			assert.equal(rangeMap.indexAt(40), -1);
+			assert.equal(rangeMap.indexAt(40), 4);
+			assert.equal(rangeMap.indexAt(50), 4);
 			assert.equal(rangeMap.positionAt(0), 0);
 			assert.equal(rangeMap.positionAt(1), 10);
 			assert.equal(rangeMap.positionAt(2), 20);
