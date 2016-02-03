@@ -165,6 +165,10 @@ export class RangeMap {
 	 * Returns index of the item at the given position.
 	 */
 	indexAt(position: number): number {
+		if (position < 0) {
+			return -1;
+		}
+
 		let index = 0;
 		let size = 0;
 
@@ -186,6 +190,10 @@ export class RangeMap {
 	 * Returns the start position of the item at the given index.
 	 */
 	positionAt(index: number): number {
+		if (index < 0) {
+			return -1;
+		}
+
 		let position = 0;
 		let count = 0;
 
