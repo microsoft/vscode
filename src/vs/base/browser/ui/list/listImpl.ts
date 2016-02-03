@@ -95,10 +95,14 @@ export class List<T> implements IScrollable {
 
 		const deleted = this.items.splice(start, deleteCount, ...inserted);
 		deleted.forEach(item => this.removeItemFromDOM(item));
-		inserted.forEach((_, index) => this.insertItemInDOM(start + index));
+		inserted.forEach((_, index) => this.refreshItem(start + index));
 
 		this.setScrollTop(this.scrollTop);
 		this.scrollableElement.onElementInternalDimensions();
+	}
+
+	get length(): number {
+		return this.items.length;
 	}
 
 	layout(height?: number): void {
