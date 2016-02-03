@@ -6,7 +6,6 @@
 
 import Platform = require('vs/base/common/platform');
 import Browser = require('vs/base/browser/browser');
-import Hash = require('vs/base/common/bits/hash');
 import WinJS = require('vs/base/common/winjs.base');
 import Lifecycle = require('vs/base/common/lifecycle');
 import DOM = require('vs/base/browser/dom');
