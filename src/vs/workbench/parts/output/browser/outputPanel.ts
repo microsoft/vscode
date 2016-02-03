@@ -85,7 +85,7 @@ export class OutputPanel extends StringEditor {
 		let ariaLabel: string;
 		let channel = this.outputService.getActiveChannel();
 
-		options.ariaLabel = channel ? nls.localize('outputPanelWithInputAriaLabel', "{0}. Output panel.", channel) : nls.localize('outputPanelAriaLabel', "Output panel.");
+		options.ariaLabel = channel ? nls.localize('outputPanelWithInputAriaLabel', "{0}, Output panel", channel) : nls.localize('outputPanelAriaLabel', "Output panel");
 
 		return options;
 	}

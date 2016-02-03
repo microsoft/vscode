@@ -77,6 +77,7 @@ class VariablesView extends viewlet.CollapsibleViewletView {
 		this.tree = new treeimpl.Tree(this.treeContainer, {
 			dataSource: new viewer.VariablesDataSource(this.debugService),
 			renderer: this.instantiationService.createInstance(viewer.VariablesRenderer),
+			accessibilityProvider: new viewer.VariablesAccessibilityProvider(),
 			controller: new viewer.BaseDebugController(this.debugService, this.contextMenuService, new viewer.VariablesActionProvider(this.instantiationService))
 		}, debugTreeOptions(nls.localize('variablesAriaTreeLabel', "Debug Variables")));
 
@@ -145,6 +146,7 @@ class WatchExpressionsView extends viewlet.CollapsibleViewletView {
 		this.tree = new treeimpl.Tree(this.treeContainer, {
 			dataSource: new viewer.WatchExpressionsDataSource(this.debugService),
 			renderer: this.instantiationService.createInstance(viewer.WatchExpressionsRenderer, actionProvider, this.actionRunner),
+			accessibilityProvider: new viewer.WatchExpressionsAccessibilityProvider(),
 			controller: new viewer.WatchExpressionsController(this.debugService, this.contextMenuService, actionProvider)
 		}, debugTreeOptions(nls.localize('watchAriaTreeLabel', "Debug Watch Expressions")));
 
@@ -215,7 +217,8 @@ class CallStackView extends viewlet.CollapsibleViewletView {
 
 		this.tree = new treeimpl.Tree(this.treeContainer, {
 			dataSource: new viewer.CallStackDataSource(),
-			renderer: this.instantiationService.createInstance(viewer.CallStackRenderer)
+			renderer: this.instantiationService.createInstance(viewer.CallStackRenderer),
+			accessibilityProvider: this.instantiationService.createInstance(viewer.CallstackAccessibilityProvider)
 		}, debugTreeOptions(nls.localize('callStackAriaLabel', "Debug Call Stack")));
 
 		const debugModel = this.debugService.getModel();
@@ -332,6 +335,7 @@ class BreakpointsView extends viewlet.AdaptiveCollapsibleViewletView {
 		this.tree = new treeimpl.Tree(this.treeContainer, {
 			dataSource: new viewer.BreakpointsDataSource(),
 			renderer: this.instantiationService.createInstance(viewer.BreakpointsRenderer, actionProvider, this.actionRunner),
+			accessibilityProvider: this.instantiationService.createInstance(viewer.BreakpointsAccessibilityProvider),
 			controller: new viewer.BreakpointsController(this.debugService, this.contextMenuService, actionProvider),
 			sorter: {
 				compare(tree: tree.ITree, element: any, otherElement: any): number {
