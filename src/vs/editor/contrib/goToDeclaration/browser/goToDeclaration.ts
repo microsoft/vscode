@@ -36,25 +36,24 @@ import {FindReferencesController} from 'vs/editor/contrib/referenceSearch/browse
 import {IKeybindingService, IKeybindingContextKey} from 'vs/platform/keybinding/common/keybindingService';
 import {DeclarationRegistry, getDeclarationsAtPosition} from 'vs/editor/contrib/goToDeclaration/common/goToDeclaration';
 
+const DEFAULT_BEHAVIOR = Behaviour.WidgetFocus | Behaviour.ShowInContextMenu | Behaviour.UpdateOnCursorPositionChange;
+
 export abstract class GoToTypeAction extends EditorAction {
 
-	private _editorService: IEditorService;
-	private _messageService: IMessageService;
-
-	constructor(descriptor: EditorCommon.IEditorActionDescriptorData, editor: EditorCommon.ICommonCodeEditor,
-		messageService: IMessageService, telemetryService: ITelemetryService, editorService: IEditorService) {
-
-		super(descriptor, editor, Behaviour.WidgetFocus | Behaviour.ShowInContextMenu | Behaviour.UpdateOnCursorPositionChange);
-
-		this._messageService = messageService;
-		this._editorService = editorService;
+	constructor(
+		descriptor: EditorCommon.IEditorActionDescriptorData,
+		editor: EditorCommon.ICommonCodeEditor,
+		private _messageService: IMessageService,
+		private _editorService: IEditorService,
+		condition = DEFAULT_BEHAVIOR
+	) {
+		super(descriptor, editor, condition);
 	}
 
 	public run(): TPromise<any> {
-
-		var model = this.editor.getModel();
-		var position = this.editor.getPosition();
-		var promise = this._resolve(model.getAssociatedResource(), { lineNumber: position.lineNumber, column: position.column });
+		let model = this.editor.getModel();
+		let position = this.editor.getPosition();
+		let promise = this._resolve(model.getAssociatedResource(), { lineNumber: position.lineNumber, column: position.column });
 
 		return promise.then(references => {
 
@@ -77,7 +76,7 @@ export abstract class GoToTypeAction extends EditorAction {
 				return this._editorService.openEditor({
 					resource: references[0].resource,
 					options: { selection: references[0].range }
-				});
+				}, this.openToTheSide);
 
 			} else {
 				let controller = FindReferencesController.getController(this.editor);
@@ -91,6 +90,10 @@ export abstract class GoToTypeAction extends EditorAction {
 		});
 	}
 
+	protected get openToTheSide(): boolean {
+		return false;
+	}
+
 	protected abstract _resolve(resource: URI, position: EditorCommon.IPosition): TPromise<Modes.IReference[]>;
 
 	protected _showSingleReferenceInPeek() {
@@ -102,11 +105,13 @@ export class GoToTypeDeclarationActions extends GoToTypeAction {
 
 	public static ID = 'editor.action.goToTypeDeclaration';
 
-	constructor(descriptor: EditorCommon.IEditorActionDescriptorData, editor: EditorCommon.ICommonCodeEditor,
+	constructor(
+		descriptor: EditorCommon.IEditorActionDescriptorData,
+		editor: EditorCommon.ICommonCodeEditor,
 		@IMessageService messageService: IMessageService,
-		@ITelemetryService telemetryService: ITelemetryService, @IEditorService editorService: IEditorService) {
-
-		super(descriptor, editor, messageService, telemetryService, editorService);
+		@IEditorService editorService: IEditorService
+	) {
+		super(descriptor, editor, messageService, editorService);
 	}
 
 	public getGroupId(): string {
@@ -121,7 +126,8 @@ export class GoToTypeDeclarationActions extends GoToTypeAction {
 		if (!super.getEnablementState()) {
 			return false;
 		}
-		var model = this.editor.getModel(),
+
+		let model = this.editor.getModel(),
 			position = this.editor.getSelection().getStartPosition();
 
 		return model.getMode().typeDeclarationSupport.canFindTypeDeclaration(
@@ -131,7 +137,7 @@ export class GoToTypeDeclarationActions extends GoToTypeAction {
 	}
 
 	protected _resolve(resource: URI, position: EditorCommon.IPosition): TPromise<Modes.IReference[]> {
-		var typeDeclarationSupport = this.editor.getModel().getMode().typeDeclarationSupport;
+		let typeDeclarationSupport = this.editor.getModel().getMode().typeDeclarationSupport;
 		if (typeDeclarationSupport) {
 			return typeDeclarationSupport.findTypeDeclaration(<any>resource, position).then(value => [value]);
 		}
@@ -142,11 +148,13 @@ export class GoToDeclarationAction extends GoToTypeAction {
 
 	public static ID = 'editor.action.goToDeclaration';
 
-	constructor(descriptor: EditorCommon.IEditorActionDescriptorData, editor: EditorCommon.ICommonCodeEditor,
+	constructor(
+		descriptor: EditorCommon.IEditorActionDescriptorData,
+		editor: EditorCommon.ICommonCodeEditor,
 		@IMessageService messageService: IMessageService,
-		@ITelemetryService telemetryService: ITelemetryService, @IEditorService editorService: IEditorService) {
-
-		super(descriptor, editor, messageService, telemetryService, editorService);
+		@IEditorService editorService: IEditorService
+	) {
+		super(descriptor, editor, messageService, editorService, this.behaviour);
 	}
 
 	public getGroupId(): string {
@@ -162,7 +170,7 @@ export class GoToDeclarationAction extends GoToTypeAction {
 			return false;
 		}
 
-		var model = this.editor.getModel(),
+		let model = this.editor.getModel(),
 			position = this.editor.getSelection().getStartPosition();
 
 		return DeclarationRegistry.all(model).some(provider => {
@@ -172,8 +180,34 @@ export class GoToDeclarationAction extends GoToTypeAction {
 		});
 	}
 
+	protected get behaviour(): Behaviour {
+		return DEFAULT_BEHAVIOR;
+	}
+
 	protected _resolve(resource: URI, position: EditorCommon.IPosition): TPromise<Modes.IReference[]> {
 		return getDeclarationsAtPosition(this.editor.getModel(), this.editor.getPosition());
+	}
+}
+
+export class OpenDeclarationToTheSideAction extends GoToDeclarationAction {
+
+	public static ID = 'editor.action.openDeclarationToTheSide';
+
+	constructor(
+		descriptor: EditorCommon.IEditorActionDescriptorData,
+		editor: EditorCommon.ICommonCodeEditor,
+		@IMessageService messageService: IMessageService,
+		@IEditorService editorService: IEditorService
+	) {
+		super(descriptor, editor, messageService, editorService);
+	}
+
+	protected get behaviour(): Behaviour {
+		return Behaviour.WidgetFocus | Behaviour.UpdateOnCursorPositionChange;
+	}
+
+	protected get openToTheSide(): boolean {
+		return true;
 	}
 }
 
@@ -181,11 +215,13 @@ export class PreviewDeclarationAction extends GoToDeclarationAction {
 
 	public static ID = 'editor.action.previewDeclaration';
 
-	constructor(descriptor: EditorCommon.IEditorActionDescriptorData, editor: EditorCommon.ICommonCodeEditor,
+	constructor(
+		descriptor: EditorCommon.IEditorActionDescriptorData,
+		editor: EditorCommon.ICommonCodeEditor,
 		@IMessageService messageService: IMessageService,
-		@ITelemetryService telemetryService: ITelemetryService, @IEditorService editorService: IEditorService) {
-
-		super(descriptor, editor, messageService, telemetryService, editorService);
+		@IEditorService editorService: IEditorService
+	) {
+		super(descriptor, editor, messageService, editorService);
 	}
 
 	protected _showSingleReferenceInPeek() {
@@ -205,9 +241,6 @@ class GotoDefinitionWithMouseEditorContribution implements EditorCommon.IEditorC
 
 	private editor: EditorBrowser.ICodeEditor;
 	private toUnhook: EventEmitter.ListenerUnbind[];
-	private editorService: IEditorService;
-	private requestService: IRequestService;
-	private messageService: IMessageService;
 	private hasRequiredServices: boolean;
 	private decorations: string[];
 	private currentWordUnderMouse: EditorCommon.IWordAtPosition;
@@ -215,10 +248,12 @@ class GotoDefinitionWithMouseEditorContribution implements EditorCommon.IEditorC
 	private lastMouseMoveEvent: EditorBrowser.IMouseEvent;
 	private hasTriggerKeyOnMouseDown: boolean;
 
-	constructor(editor: EditorBrowser.ICodeEditor, @IRequestService requestService: IRequestService, @IMessageService messageService: IMessageService, @IEditorService editorService: IEditorService) {
-		this.editorService = editorService;
-		this.requestService = requestService;
-		this.messageService = messageService;
+	constructor(
+		editor: EditorBrowser.ICodeEditor,
+		@IRequestService private requestService: IRequestService,
+		@IMessageService private messageService: IMessageService,
+		@IEditorService private editorService: IEditorService
+	) {
 		this.hasRequiredServices = !!this.messageService && !!this.requestService && !!this.editorService;
 
 		this.toUnhook = [];
@@ -251,8 +286,8 @@ class GotoDefinitionWithMouseEditorContribution implements EditorCommon.IEditorC
 		}
 
 		// Find word at mouse position
-		var position = mouseEvent.target.position;
-		var word = position ? this.editor.getModel().getWordAtPosition(position) : null;
+		let position = mouseEvent.target.position;
+		let word = position ? this.editor.getModel().getWordAtPosition(position) : null;
 		if (!word) {
 			this.currentWordUnderMouse = null;
 			this.removeDecorations();
@@ -267,7 +302,7 @@ class GotoDefinitionWithMouseEditorContribution implements EditorCommon.IEditorC
 		this.currentWordUnderMouse = word;
 
 		// Find definition and decorate word if found
-		var state = this.editor.captureState(EditorCommon.CodeEditorStateFlag.Position, EditorCommon.CodeEditorStateFlag.Value, EditorCommon.CodeEditorStateFlag.Selection, EditorCommon.CodeEditorStateFlag.Scroll);
+		let state = this.editor.captureState(EditorCommon.CodeEditorStateFlag.Position, EditorCommon.CodeEditorStateFlag.Value, EditorCommon.CodeEditorStateFlag.Selection, EditorCommon.CodeEditorStateFlag.Scroll);
 		this.throttler.queue(() => {
 			return state.validate(this.editor)
 				? this.findDefinition(mouseEvent.target)
@@ -293,10 +328,10 @@ class GotoDefinitionWithMouseEditorContribution implements EditorCommon.IEditorC
 			else {
 				let result = results[0];
 				this.editorService.resolveEditorModel({ resource: result.resource }).then(model => {
-					var source: string;
+					let source: string;
 					if (model && model.textEditorModel) {
 
-						var from = Math.max(1, result.range.startLineNumber),
+						let from = Math.max(1, result.range.startLineNumber),
 							to: number,
 							editorModel: EditorCommon.IModel;
 
@@ -317,7 +352,7 @@ class GotoDefinitionWithMouseEditorContribution implements EditorCommon.IEditorC
 						}).trim();
 
 						// remove common leading whitespace
-						var min = Number.MAX_VALUE,
+						let min = Number.MAX_VALUE,
 							regexp = /^[ \t]*/,
 							match: RegExpExecArray,
 							contents: string;
@@ -351,12 +386,12 @@ class GotoDefinitionWithMouseEditorContribution implements EditorCommon.IEditorC
 	}
 
 	private addDecoration(range: EditorCommon.IRange, text: string, isCode: boolean): void {
-		var model = this.editor.getModel();
+		let model = this.editor.getModel();
 		if (!model) {
 			return;
 		}
 
-		var htmlMessage: HtmlContent.IHTMLContentElement = {
+		let htmlMessage: HtmlContent.IHTMLContentElement = {
 			tagName: 'div',
 			className: 'goto-definition-link-hover',
 			style: `tab-size: ${this.editor.getIndentationOptions().tabSize}`
@@ -367,7 +402,7 @@ class GotoDefinitionWithMouseEditorContribution implements EditorCommon.IEditorC
 			htmlMessage.children = [isCode ? tokenizeToHtmlContent(text, model.getMode()) : { tagName: 'span', text }];
 		}
 
-		var newDecorations = {
+		let newDecorations = {
 			range: range,
 			options: {
 				inlineClassName: 'goto-definition-link',
@@ -438,7 +473,7 @@ class GotoDefinitionWithMouseEditorContribution implements EditorCommon.IEditorC
 	}
 
 	private findDefinition(target: EditorBrowser.IMouseTarget): TPromise<Modes.IReference[]> {
-		var model = this.editor.getModel();
+		let model = this.editor.getModel();
 		if (!model) {
 			return TPromise.as(null);
 		}
@@ -447,15 +482,15 @@ class GotoDefinitionWithMouseEditorContribution implements EditorCommon.IEditorC
 	}
 
 	private gotoDefinition(target: EditorBrowser.IMouseTarget, sideBySide: boolean): TPromise<any> {
-		var state = this.editor.captureState(EditorCommon.CodeEditorStateFlag.Position, EditorCommon.CodeEditorStateFlag.Value, EditorCommon.CodeEditorStateFlag.Selection, EditorCommon.CodeEditorStateFlag.Scroll);
+		let state = this.editor.captureState(EditorCommon.CodeEditorStateFlag.Position, EditorCommon.CodeEditorStateFlag.Value, EditorCommon.CodeEditorStateFlag.Selection, EditorCommon.CodeEditorStateFlag.Scroll);
 
 		return this.findDefinition(target).then((results: Modes.IReference[]) => {
 			if (!results || !results.length || !state.validate(this.editor)) {
 				return;
 			}
 
-			var position = target.position;
-			var word = this.editor.getModel().getWordAtPosition(position);
+			let position = target.position;
+			let word = this.editor.getModel().getWordAtPosition(position);
 
 			// Find valid target (and not the same position as the current hovered word)
 			let validResults = results
@@ -504,16 +539,23 @@ CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(PreviewDecl
 	primary: KeyMod.Alt | KeyCode.F12,
 	linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.F10 },
 }));
-var goToDeclarationKb: number;
+
+let goToDeclarationKb: number;
 if (Platform.isWeb) {
 	goToDeclarationKb = KeyMod.CtrlCmd | KeyCode.F12;
 } else {
 	goToDeclarationKb = KeyCode.F12;
 }
+
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(GoToDeclarationAction, GoToDeclarationAction.ID, nls.localize('actions.goToDecl.label', "Go to Definition"), {
 	context: ContextKey.EditorTextFocus,
 	primary: goToDeclarationKb
 }));
+
+CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(OpenDeclarationToTheSideAction, OpenDeclarationToTheSideAction.ID, nls.localize('actions.goToDeclToSide.label', "Open Definition to the Side"), {
+	context: ContextKey.EditorTextFocus,
+	primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, goToDeclarationKb)
+}));
+
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(GoToTypeDeclarationActions, GoToTypeDeclarationActions.ID, nls.localize('actions.gotoTypeDecl.label', "Go to Type Definition")));
 EditorBrowserRegistry.registerEditorContribution(GotoDefinitionWithMouseEditorContribution);
-
