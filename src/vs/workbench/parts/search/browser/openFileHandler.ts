@@ -50,6 +50,10 @@ export class FileEntry extends EditorQuickOpenEntry {
 		return this.name;
 	}
 
+	public getAriaLabel(): string {
+		return nls.localize('entryAriaLabel', "{0}, file picker", this.getLabel());
+	}
+
 	public getDescription(): string {
 		return this.description;
 	}

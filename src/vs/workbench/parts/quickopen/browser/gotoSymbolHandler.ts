@@ -270,6 +270,10 @@ class SymbolEntry extends EditorQuickOpenEntryGroup {
 		return this.name;
 	}
 
+	public getAriaLabel(): string {
+		return nls.localize('entryAriaLabel', "{0}, symbols", this.getLabel());
+	}
+
 	public getIcon(): string {
 		return this.icon;
 	}

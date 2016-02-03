@@ -347,9 +347,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 				// Model
 				let model = new QuickOpenModel();
 				let entries = picks.map((e) => {
-
 					let entry = (<IPickOpenEntryItem>e);
-
 					if (entry.height && entry.render) {
 						return new PickOpenItem(entry.label, entry.description, entry.height, entry.render.bind(entry), () => progress(e));
 					}
@@ -807,7 +805,6 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 					if (!result || !result.entries.length) {
 						const model = new QuickOpenModel([new PlaceholderQuickOpenEntry(resolvedHandler.getEmptyLabel(value))]);
 						this.showModel(model, resolvedHandler.getAutoFocus(value));
-
 					} else {
 						this.showModel(result, resolvedHandler.getAutoFocus(value));
 					}

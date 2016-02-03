@@ -281,6 +281,10 @@ class CommandEntry extends QuickOpenEntry {
 		return this.command.aliases[0];
 	}
 
+	public getAriaLabel(): string {
+		return nls.localize('entryAriaLabel', "{0}, command", this.getLabel());
+	}
+
 	public run(mode: Mode, context: IContext): boolean {
 		if (mode === Mode.PREVIEW) {
 			return false;

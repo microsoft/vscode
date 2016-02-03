@@ -46,6 +46,10 @@ class SymbolEntry extends EditorQuickOpenEntry {
 		return this.name + this.parameters;
 	}
 
+	public getAriaLabel(): string {
+		return nls.localize('entryAriaLabel', "{0}, symbols picker", this.getLabel());
+	}
+
 	public getName(): string {
 		return this.name;
 	}

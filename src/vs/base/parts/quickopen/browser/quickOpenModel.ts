@@ -72,6 +72,13 @@ export class QuickOpenEntry {
 	}
 
 	/**
+	 * The label of the entry to use when a screen reader wants to read about the entry
+	 */
+	public getAriaLabel(): string {
+		return this.getLabel();
+	}
+
+	/**
 	 * Detail information about the entry that is optional and can be shown below the label
 	 */
 	public getDetail(): string {
@@ -368,6 +375,10 @@ export class QuickOpenEntryGroup extends QuickOpenEntry {
 		return this.entry ? this.entry.getLabel() : super.getLabel();
 	}
 
+	public getAriaLabel(): string {
+		return this.entry ? this.entry.getAriaLabel() : super.getAriaLabel();
+	}
+
 	public getDetail(): string {
 		return this.entry ? this.entry.getDetail() : super.getDetail();
 	}
@@ -650,7 +661,6 @@ export class QuickOpenModel implements
 	IFilter<QuickOpenEntry>,
 	IRunner<QuickOpenEntry>
 {
-
 	private _entries: QuickOpenEntry[];
 	private _dataSource: IDataSource<QuickOpenEntry>;
 	private _renderer: IRenderer<QuickOpenEntry>;
@@ -718,7 +728,12 @@ export class QuickOpenModel implements
 	}
 
 	getAriaLabel(entry: QuickOpenEntry): string {
-		return nls.localize('quickOpenAriaLabel', "{0}, quick picker", entry.getLabel());
+		const ariaLabel = entry.getAriaLabel();
+		if (ariaLabel) {
+			return nls.localize('quickOpenAriaLabelEntry', "{0}, picker", entry.getAriaLabel());
+		}
+
+		return nls.localize('quickOpenAriaLabel', "picker");
 	}
 
 	isVisible<T>(entry: QuickOpenEntry): boolean {

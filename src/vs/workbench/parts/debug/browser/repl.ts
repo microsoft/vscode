@@ -133,6 +133,7 @@ export class Repl extends Panel {
 		this.tree = new treeimpl.Tree(this.treeContainer, {
 			dataSource: new viewer.ReplExpressionsDataSource(this.debugService),
 			renderer: this.renderer,
+			accessibilityProvider: new viewer.ReplExpressionsAccessibilityProvider(),
 			controller: new viewer.ReplExpressionsController(this.debugService, this.contextMenuService, new viewer.ReplExpressionsActionProvider(this.instantiationService), this.replInput, false)
 		}, replTreeOptions);
 

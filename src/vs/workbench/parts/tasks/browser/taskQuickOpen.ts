@@ -32,6 +32,10 @@ class TaskEntry extends Model.QuickOpenEntry {
 		return this.task.name;
 	}
 
+	public getAriaLabel(): string {
+		return nls.localize('entryAriaLabel', "{0}, tasks", this.getLabel());
+	}
+
 	public run(mode:QuickOpen.Mode, context:Model.IContext):boolean {
 		if (mode === QuickOpen.Mode.PREVIEW) {
 			return false;

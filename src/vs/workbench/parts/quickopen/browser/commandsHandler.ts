@@ -65,6 +65,10 @@ class BaseCommandEntry extends QuickOpenEntryGroup {
 		return this.description;
 	}
 
+	public getAriaLabel(): string {
+		return nls.localize('entryAriaLabel', "{0}, commands", this.getLabel());
+	}
+
 	public getGroupLabel(): string {
 		return this.key;
 	}

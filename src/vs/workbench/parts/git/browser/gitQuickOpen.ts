@@ -39,6 +39,7 @@ class AbstractRefEntry extends model.QuickOpenEntry {
 	public getIcon(): string { return 'git'; }
 	public getLabel(): string { return this.head.name; }
 	public getDescription(): string { return ''; }
+	public getAriaLabel(): string { return nls.localize('refAriaLabel', "{0}, git", this.getLabel()); }
 
 	public run(mode: quickopen.Mode, context: model.IContext):boolean {
 		if (mode === quickopen.Mode.PREVIEW) {
@@ -97,6 +98,7 @@ class BranchEntry extends model.QuickOpenEntry {
 
 	public getIcon(): string { return 'git'; }
 	public getLabel(): string { return this.name; }
+	public getAriaLabel(): string { return nls.localize('branchAriaLabel', "{0}, git branch", this.getLabel()); }
 	public getDescription(): string { return nls.localize('createBranch', "Create branch {0}", this.name); }
 
 	public run(mode: quickopen.Mode, context: model.IContext):boolean {

@@ -416,6 +416,26 @@ export class ReplExpressionsRenderer implements tree.IRenderer {
 	}
 }
 
+export class ReplExpressionsAccessibilityProvider implements tree.IAccessibilityProvider {
+
+	public getAriaLabel(tree: tree.ITree, element: any): string {
+		if (element instanceof model.Variable) {
+			return nls.localize('replVariableAriaLabel', "Variable {0} has value {1}, read eval print loop, debug", (<model.Variable>element).name, (<model.Variable>element).value);
+		}
+		if (element instanceof model.Expression) {
+			return nls.localize('replExpressionAriaLabel', "Expression {0} has value {1}, read eval print loop, debug", (<model.Expression>element).name, (<model.Expression>element).value);
+		}
+		if (element instanceof model.ValueOutputElement) {
+			return nls.localize('replValueOutputAriaLabel', "{0}, read eval print loop, debug", (<model.ValueOutputElement>element).value);
+		}
+		if (element instanceof model.KeyValueOutputElement) {
+			return nls.localize('replKeyValueOutputAriaLabel', "Output variable {0} has value {1}, read eval print loop, debug", (<model.KeyValueOutputElement>element).key, (<model.KeyValueOutputElement>element).value);
+		}
+
+		return null;
+	}
+}
+
 export class ReplExpressionsActionProvider implements renderer.IActionProvider {
 
 	constructor(private instantiationService: IInstantiationService) {
