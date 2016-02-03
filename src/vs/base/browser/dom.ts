@@ -9,9 +9,10 @@ import * as keyboardEvent from 'vs/base/browser/keyboardEvent';
 import {isChrome, isWebKit} from 'vs/base/browser/browser';
 import types = require('vs/base/common/types');
 import {EventEmitter} from 'vs/base/common/eventEmitter';
-import {IDisposable} from 'vs/base/common/lifecycle';
+import {Disposable, IDisposable} from 'vs/base/common/lifecycle';
 import {onUnexpectedError} from 'vs/base/common/errors';
 import browserService = require('vs/base/browser/browserService');
+import {TimeoutTimer} from 'vs/base/common/async';
 
 export type IKeyboardEvent = keyboardEvent.IKeyboardEvent;
 export type IMouseEvent = mouseEvent.IMouseEvent;
@@ -178,45 +179,58 @@ export function toggleClass(node: HTMLElement, className: string, shouldHaveIt?:
 	}
 }
 
+class DomListener extends Disposable {
 
+	private _usedAddEventListener: boolean;
+	private _wrapHandler: (e: any) => void;
+	private _node: any;
+	private _type: string;
+	private _useCapture: boolean;
 
-function _addListener(node: Element, type: string, handler: (event: any) => void, useCapture?: boolean): () => void;
-function _addListener(node: Window, type: string, handler: (event: any) => void, useCapture?: boolean): () => void;
-function _addListener(node: Document, type: string, handler: (event: any) => void, useCapture?: boolean): () => void;
-function _addListener(node: any, type: string, handler: (event: any) => void, useCapture?: boolean): () => void {
-	let wrapHandler = function(e): void {
-		e = e || window.event;
-		handler(e);
-	};
+	constructor(node: Element|Window|Document, type: string, handler: (e: any) => void, useCapture?: boolean) {
+		super();
 
-	if (typeof node.addEventListener === 'function') {
-		node.addEventListener(type, wrapHandler, useCapture || false);
-		return function() {
-			if (!wrapHandler) {
-				// Already removed
-				return;
-			}
-			node.removeEventListener(type, wrapHandler, useCapture || false);
+		this._node = node;
+		this._type = type;
+		this._useCapture = (useCapture || false);
 
-			// Prevent leakers from holding on to the dom node or handler func
-			wrapHandler = null;
-			node = null;
-			handler = null;
+		this._wrapHandler = (e) => {
+			e = e || window.event;
+			handler(e);
 		};
+
+		if (typeof this._node.addEventListener === 'function') {
+			this._usedAddEventListener = true;
+			this._node.addEventListener(this._type, this._wrapHandler, this._useCapture);
+		} else {
+			this._usedAddEventListener = false;
+			this._node.attachEvent('on' + this._type, this._wrapHandler);
+		}
 	}
 
-	node.attachEvent('on' + type, wrapHandler);
-	return function() { node.detachEvent('on' + type, wrapHandler); };
+	public dispose(): void {
+		if (!this._wrapHandler) {
+			// Already disposed
+			return;
+		}
+
+		if (this._usedAddEventListener) {
+			this._node.removeEventListener(this._type, this._wrapHandler, this._useCapture);
+		} else {
+			this._node.detachEvent('on' + this._type, this._wrapHandler);
+		}
+
+		// Prevent leakers from holding on to the dom or handler func
+		this._node = null;
+		this._wrapHandler = null;
+	}
 }
 
 export function addDisposableListener(node: Element, type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable;
 export function addDisposableListener(node: Window, type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable;
 export function addDisposableListener(node: Document, type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable;
 export function addDisposableListener(node: any, type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable {
-	let dispose = _addListener(node, type, handler, useCapture);
-	return {
-		dispose: dispose
-	};
+	return new DomListener(node, type, handler, useCapture);
 }
 
 export interface IAddStandardDisposableListenerSignature {
@@ -262,8 +276,8 @@ export let addStandardDisposableListener: IAddStandardDisposableListenerSignatur
 	};
 };
 
-export function addNonBubblingMouseOutListener(node: Element, handler: (event: any) => void): () => void {
-	return _addListener(node, 'mouseout', (e: MouseEvent) => {
+export function addDisposableNonBubblingMouseOutListener(node: Element, handler: (event: MouseEvent) => void): IDisposable {
+	return addDisposableListener(node, 'mouseout', (e: MouseEvent) => {
 		// Mouse out bubbles, so this is an attempt to ignore faux mouse outs coming from children elements
 		let toElement = <Node>(e.relatedTarget || e.toElement);
 		while (toElement && toElement !== node) {
@@ -275,12 +289,6 @@ export function addNonBubblingMouseOutListener(node: Element, handler: (event: a
 
 		handler(e);
 	});
-}
-export function addDisposableNonBubblingMouseOutListener(node: Element, handler: (event: MouseEvent) => void): IDisposable {
-	let dispose = addNonBubblingMouseOutListener(node, handler);
-	return {
-		dispose: dispose
-	};
 }
 
 const _animationFrame = (function() {
@@ -450,49 +458,38 @@ const DEFAULT_EVENT_MERGER: IEventMerger<Event> = function(lastEvent: Event, cur
 	return currentEvent;
 };
 
-function timeoutThrottledListener<R>(node: any, type: string, handler: (event: R) => void, eventMerger: IEventMerger<R> = <any>DEFAULT_EVENT_MERGER, minimumTimeMs: number = MINIMUM_TIME_MS): () => void {
-	let lastEvent: R = null, lastHandlerTime = 0, timeout = -1;
+class TimeoutThrottledDomListener<R> extends Disposable {
 
-	function invokeHandler(): void {
-		timeout = -1;
-		lastHandlerTime = (new Date()).getTime();
-		handler(lastEvent);
-		lastEvent = null;
-	};
+	constructor(node: any, type: string, handler: (event: R) => void, eventMerger: IEventMerger<R> = <any>DEFAULT_EVENT_MERGER, minimumTimeMs: number = MINIMUM_TIME_MS) {
+		super();
 
-	let unbinder = _addListener(node, type, function(e) {
-		lastEvent = eventMerger(lastEvent, e);
-		let elapsedTime = (new Date()).getTime() - lastHandlerTime;
+		let lastEvent = null;
+		let lastHandlerTime = 0;
+		let timeout = this._register(new TimeoutTimer());
 
-		if (elapsedTime >= minimumTimeMs) {
-			if (timeout !== -1) {
-				window.clearTimeout(timeout);
+		let invokeHandler = () => {
+			lastHandlerTime = (new Date()).getTime();
+			handler(lastEvent);
+			lastEvent = null;
+		};
+
+		this._register(addDisposableListener(node, type, (e) => {
+
+			lastEvent = eventMerger(lastEvent, e);
+			let elapsedTime = (new Date()).getTime() - lastHandlerTime;
+
+			if (elapsedTime >= minimumTimeMs) {
+				timeout.cancel();
+				invokeHandler();
+			} else {
+				timeout.setIfNotSet(invokeHandler, minimumTimeMs - elapsedTime);
 			}
-			invokeHandler();
-		} else {
-			if (timeout === -1) {
-				timeout = window.setTimeout(invokeHandler, minimumTimeMs - elapsedTime);
-			}
-		}
-	});
-
-	return function() {
-		if (timeout !== -1) {
-			window.clearTimeout(timeout);
-		}
-		unbinder();
-	};
-}
-
-export function _addThrottledListener<R>(node: any, type: string, handler: (event: R) => void, eventMerger?: IEventMerger<R>, minimumTimeMs?: number): () => void {
-	return timeoutThrottledListener(node, type, handler, eventMerger, minimumTimeMs);
+		}));
+	}
 }
 
 export function addDisposableThrottledListener<R>(node: any, type: string, handler: (event: R) => void, eventMerger?: IEventMerger<R>, minimumTimeMs?: number): IDisposable {
-	let dispose = _addThrottledListener(node, type, handler, eventMerger, minimumTimeMs);
-	return {
-		dispose: dispose
-	};
+	return new TimeoutThrottledDomListener<R>(node, type, handler, eventMerger, minimumTimeMs);
 }
 
 export function getComputedStyle(el: HTMLElement): CSSStyleDeclaration {
@@ -857,8 +854,8 @@ export const EventHelper = {
 };
 
 export interface IFocusTracker {
-	addBlurListener(fn): () => void;
-	addFocusListener(fn): () => void;
+	addBlurListener(fn:()=>void): IDisposable;
+	addFocusListener(fn:()=>void): IDisposable;
 	dispose(): void;
 }
 
@@ -897,56 +894,54 @@ export function restoreParentsScrollTop(node: Element, state: number[]): void {
 	}
 }
 
-export function trackFocus(element: HTMLElement): IFocusTracker {
+class FocusTracker extends Disposable implements IFocusTracker {
 
-	let hasFocus: boolean = false, loosingFocus = false;
-	let eventEmitter = new EventEmitter(), unbind = [], result: IFocusTracker = null;
+	private _eventEmitter: EventEmitter;
 
-	// fill result
-	result = {
-		addFocusListener: function(fn) {
-			let h = eventEmitter.addListener('focus', fn);
-			unbind.push(h);
-			return h;
-		},
-		addBlurListener: function(fn) {
-			let h = eventEmitter.addListener('blur', fn);
-			unbind.push(h);
-			return h;
-		},
-		dispose: function() {
-			while (unbind.length > 0) {
-				unbind.pop()();
+	constructor(element: HTMLElement) {
+		super();
+
+		let hasFocus = false;
+		let loosingFocus = false;
+
+		this._eventEmitter = this._register(new EventEmitter());
+
+		let onFocus = (event) => {
+			loosingFocus = false;
+			if (!hasFocus) {
+				hasFocus = true;
+				this._eventEmitter.emit('focus', {});
 			}
-		}
-	};
+		};
 
-	let onFocus = function(event) {
-		loosingFocus = false;
-		if (!hasFocus) {
-			hasFocus = true;
-			eventEmitter.emit('focus', {});
-		}
-	};
+		let onBlur = (event) => {
+			if (hasFocus) {
+				loosingFocus = true;
+				window.setTimeout(() => {
+					if (loosingFocus) {
+						loosingFocus = false;
+						hasFocus = false;
+						this._eventEmitter.emit('blur', {});
+					}
+				}, 0);
+			}
+		};
 
-	let onBlur = function(event) {
-		if (hasFocus) {
-			loosingFocus = true;
-			window.setTimeout(function() {
-				if (loosingFocus) {
-					loosingFocus = false;
-					hasFocus = false;
-					eventEmitter.emit('blur', {});
-				}
-			}, 0);
-		}
-	};
+		this._register(addDisposableListener(element, EventType.FOCUS, onFocus, true));
+		this._register(addDisposableListener(element, EventType.BLUR, onBlur, true));
+	}
 
-	// bind
-	unbind.push(_addListener(element, EventType.FOCUS, onFocus, true));
-	unbind.push(_addListener(element, EventType.BLUR, onBlur, true));
+	public addFocusListener(fn:()=>void): IDisposable {
+		return this._eventEmitter.addListener2('focus', fn);
+	}
 
-	return result;
+	public addBlurListener(fn:()=>void): IDisposable {
+		return this._eventEmitter.addListener2('blur', fn);
+	}
+}
+
+export function trackFocus(element: HTMLElement): IFocusTracker {
+	return new FocusTracker(element);
 }
 
 export function removeScriptTags(html: string): string {

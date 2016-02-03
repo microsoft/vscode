@@ -511,8 +511,8 @@ export class TreeView extends HeightMap implements IScrollable {
 		this.rowsContainer.className = 'monaco-tree-rows';
 
 		var focusTracker = DOM.trackFocus(this.domNode);
-		focusTracker.addFocusListener((e: FocusEvent) => this.onFocus(e));
-		focusTracker.addBlurListener((e: FocusEvent) => this.onBlur(e));
+		focusTracker.addFocusListener(() => this.onFocus());
+		focusTracker.addBlurListener(() => this.onBlur());
 		this.viewListeners.push(focusTracker);
 
 		this.viewListeners.push(DOM.addDisposableListener(this.domNode, 'keydown', (e) => this.onKeyDown(e)));
@@ -1542,13 +1542,13 @@ export class TreeView extends HeightMap implements IScrollable {
 		delete this.dragAndDropMouseY;
 	}
 
-	private onFocus(e: FocusEvent): void {
+	private onFocus(): void {
 		if (!this.context.options.alwaysFocused) {
 			DOM.addClass(this.domNode, 'focused');
 		}
 	}
 
-	private onBlur(e: FocusEvent): void {
+	private onBlur(): void {
 		if (!this.context.options.alwaysFocused) {
 			DOM.removeClass(this.domNode, 'focused');
 		}
