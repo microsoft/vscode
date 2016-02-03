@@ -5,7 +5,6 @@
 'use strict';
 
 import EditorCommon = require('vs/editor/common/editorCommon');
-import keyboardController = require('vs/base/browser/keyboardController');
 import DomUtils = require('vs/base/browser/dom');
 import Platform = require('vs/base/common/platform');
 import Browser = require('vs/base/browser/browser');
@@ -132,11 +131,9 @@ class TextAreaWrapper extends Lifecycle.Disposable implements ITextAreaWrapper {
 		super();
 		this._textArea = textArea;
 
-		let kbController = this._register(new keyboardController.KeyboardController(this._textArea));
-		this._register(kbController.addListener2('keydown', (e) => this._onKeyDown.fire(new KeyboardEventWrapper(e))));
-		this._register(kbController.addListener2('keyup', (e) => this._onKeyUp.fire(new KeyboardEventWrapper(e))));
-		this._register(kbController.addListener2('keypress', (e) => this._onKeyPress.fire(new KeyboardEventWrapper(e))));
-
+		this._register(DomUtils.addStandardDisposableListener(this._textArea, 'keydown', (e) => this._onKeyDown.fire(new KeyboardEventWrapper(e))));
+		this._register(DomUtils.addStandardDisposableListener(this._textArea, 'keyup', (e) => this._onKeyUp.fire(new KeyboardEventWrapper(e))));
+		this._register(DomUtils.addStandardDisposableListener(this._textArea, 'keypress', (e) => this._onKeyPress.fire(new KeyboardEventWrapper(e))));
 		this._register(DomUtils.addDisposableListener(this._textArea, 'compositionstart', (e) => this._onCompositionStart.fire()));
 		this._register(DomUtils.addDisposableListener(this._textArea, 'compositionend', (e) => this._onCompositionEnd.fire()));
 		this._register(DomUtils.addDisposableListener(this._textArea, 'input', (e) => this._onInput.fire()));
