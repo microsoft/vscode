@@ -104,10 +104,8 @@ export class Thread implements debug.IThread {
 
 export class OutputElement implements debug.ITreeElement {
 
-	private id: string;
-
-	constructor(public grouped = false) {
-		this.id = uuid.generateUuid();
+	constructor(private id = uuid.generateUuid()) {
+		// noop
 	}
 
 	public getId(): string {
@@ -117,8 +115,8 @@ export class OutputElement implements debug.ITreeElement {
 
 export class ValueOutputElement extends OutputElement {
 
-	constructor(public value: string, public severity: severity, grouped = false, public category?: string, public counter:number = 1) {
-		super(grouped);
+	constructor(public value: string, public severity: severity, public category?: string, public counter:number = 1) {
+		super();
 	}
 }
 
@@ -129,8 +127,8 @@ export class KeyValueOutputElement extends OutputElement {
 	private children: debug.ITreeElement[];
 	private _valueName: string;
 
-	constructor(public key: string, public valueObj: any, public annotation?: string, grouped?: boolean) {
-		super(grouped);
+	constructor(public key: string, public valueObj: any, public annotation?: string) {
+		super();
 
 		this._valueName = null;
 	}
@@ -160,9 +158,9 @@ export class KeyValueOutputElement extends OutputElement {
 	public getChildren(): debug.ITreeElement[] {
 		if (!this.children) {
 			if (Array.isArray(this.valueObj)) {
-				this.children = (<any[]>this.valueObj).slice(0, KeyValueOutputElement.MAX_CHILDREN).map((v, index) => new KeyValueOutputElement(String(index), v, null, true));
+				this.children = (<any[]>this.valueObj).slice(0, KeyValueOutputElement.MAX_CHILDREN).map((v, index) => new KeyValueOutputElement(String(index), v, null));
 			} else if (types.isObject(this.valueObj)) {
-				this.children = Object.getOwnPropertyNames(this.valueObj).slice(0, KeyValueOutputElement.MAX_CHILDREN).map(key => new KeyValueOutputElement(key, this.valueObj[key], null, true));
+				this.children = Object.getOwnPropertyNames(this.valueObj).slice(0, KeyValueOutputElement.MAX_CHILDREN).map(key => new KeyValueOutputElement(key, this.valueObj[key], null));
 			} else {
 				this.children = [];
 			}
@@ -490,23 +488,22 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 	public logToRepl(value: any, severity?: severity): void {
 		let elements:OutputElement[] = [];
 		let previousOutput = this.replElements.length && (<ValueOutputElement>this.replElements[this.replElements.length - 1]);
-		let groupTogether = !!previousOutput && severity === previousOutput.severity;
 
 		// string message
 		if (typeof value === 'string') {
 			if (value && value.trim() && previousOutput && previousOutput.value === value && previousOutput.severity === severity) {
 				previousOutput.counter++; // we got the same output (but not an empty string when trimmed) so we just increment the counter
 			} else {
-				let lines = value.split('\n');
+				let lines = value.trim().split('\n');
 				lines.forEach((line, index) => {
-					elements.push(new ValueOutputElement(line, severity, groupTogether || index > 0));
+					elements.push(new ValueOutputElement(line, severity));
 				});
 			}
 		}
 
 		// key-value output
 		else {
-			elements.push(new KeyValueOutputElement(value.prototype, value, nls.localize('snapshotObj', "Only primitive values are shown for this object."), groupTogether));
+			elements.push(new KeyValueOutputElement(value.prototype, value, nls.localize('snapshotObj', "Only primitive values are shown for this object.")));
 		}
 
 		if (elements.length) {
@@ -518,7 +515,7 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 	public appendReplOutput(value: string, severity?: severity): void {
 		const elements: OutputElement[] = [];
 		let previousOutput = this.replElements.length && (<ValueOutputElement>this.replElements[this.replElements.length - 1]);
-		let lines = value.split('\n');
+		let lines = value.trim().split('\n');
 		let groupTogether = !!previousOutput && previousOutput.category === 'output' && severity === previousOutput.severity;
 
 		if (groupTogether) {
@@ -527,7 +524,7 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 
 		// fill in lines as output value elements
 		lines.forEach((line, index) => {
-			elements.push(new ValueOutputElement(line, severity, groupTogether || index > 0, 'output'));
+			elements.push(new ValueOutputElement(line, severity, 'output'));
 		});
 
 		this.replElements.push(...elements);

@@ -231,13 +231,6 @@ export class ReplExpressionsRenderer implements tree.IRenderer {
 			templateData.counter.className = 'counter';
 		}
 
-		// group
-		if (output.grouped) {
-			dom.addClass(templateData.container, 'grouped');
-		} else {
-			dom.removeClass(templateData.container, 'grouped');
-		}
-
 		// value
 		dom.clearNode(templateData.value);
 		let result = this.handleANSIOutput(output.value);
@@ -415,13 +408,6 @@ export class ReplExpressionsRenderer implements tree.IRenderer {
 		} else {
 			templateData.annotation.className = '';
 			templateData.annotation.title = '';
-		}
-
-		// group
-		if (output.grouped) {
-			dom.addClass(templateData.container, 'grouped');
-		} else {
-			dom.removeClass(templateData.container, 'grouped');
 		}
 	}
 
