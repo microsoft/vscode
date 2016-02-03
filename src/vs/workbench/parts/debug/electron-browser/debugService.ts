@@ -295,7 +295,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 	}
 
 	private onOutput(event: DebugProtocol.OutputEvent): void {
-		const outputSeverity = event.body.category === 'stderr' ? severity.Error : severity.Info;
+		const outputSeverity = event.body.category === 'stderr' ? severity.Error : event.body.category === 'console' ? severity.Warning : severity.Info;
 		this.appendReplOutput(event.body.output, outputSeverity);
 		this.revealRepl(true /* in background */).done(null, errors.onUnexpectedError);
 	}
