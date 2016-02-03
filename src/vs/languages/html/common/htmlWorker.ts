@@ -616,13 +616,13 @@ export class HTMLWorker extends AbstractModeWorker {
 						break;
 
 					case ATTRIB_NAME:
-						if (state === LinkDetectionState.LOOKING_FOR_HREF_OR_SRC) {
-							nextTokenEndIndex = tokens.getTokenEndIndex(i, lineContentLength);
-							tokenContent = lineContent.substring(tokens.getTokenStartIndex(i), nextTokenEndIndex).toLowerCase();
+						nextTokenEndIndex = tokens.getTokenEndIndex(i, lineContentLength);
+						tokenContent = lineContent.substring(tokens.getTokenStartIndex(i), nextTokenEndIndex).toLowerCase();
 
-							if (tokenContent === 'src' || tokenContent === 'href') {
-								state = LinkDetectionState.AFTER_HREF_OR_SRC;
-							}
+						if (tokenContent === 'src' || tokenContent === 'href') {
+							state = LinkDetectionState.AFTER_HREF_OR_SRC;
+						} else {
+							state = LinkDetectionState.LOOKING_FOR_HREF_OR_SRC;
 						}
 						break;
 
