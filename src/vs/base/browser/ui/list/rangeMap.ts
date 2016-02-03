@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export interface IGroup {
-	count: number;
+export interface IItem {
 	size: number;
 }
 
@@ -115,27 +114,16 @@ export class RangeMap {
 	private groups: IRangedGroup[] = [];
 	private _size = 0;
 
-	splice(index: number, deleteCount: number, ...groups: IGroup[]): void {
-		let diff = -deleteCount;
-		let index2 = index;
-
-		const middle = groups
-			.filter(g => g.count > 0 && g.size > 0)
-			.map<IRangedGroup>(g => {
-				const end = index2 + g.count;
-				const result = {
-					range: { start: index2, end },
-					size: g.size
-				};
-
-				diff += g.count;
-				index2 = end;
-				return result;
-			});
-
+	splice(index: number, deleteCount: number, ...items: IItem[]): void {
+		const diff = items.length - deleteCount;
 		const before = groupIntersect({ start: 0, end: index }, this.groups);
 		const after = groupIntersect({ start: index + deleteCount, end: Number.POSITIVE_INFINITY }, this.groups)
 			.map<IRangedGroup>(g => ({ range: shift(g.range, diff), size: g.size }));
+
+		const middle = items.map<IRangedGroup>((item, i) => ({
+			range: { start: index + i, end: index + i + 1 },
+			size: item.size
+		}));
 
 		this.groups = concat(before, middle, after);
 		this._size = this.groups.reduce((t, g) => t + (g.size * (g.range.end - g.range.start)), 0);
