@@ -12,7 +12,7 @@ import { isNumber } from 'vs/base/common/types';
 import * as dom from 'vs/base/browser/dom';
 import Severity from 'vs/base/common/severity';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { IAutoFocus, Mode, IModel, IDataSource, IRenderer, IRunner, IFilter, IContext } from 'vs/base/parts/quickopen/common/quickOpen';
+import { IAutoFocus, Mode, IModel, IDataSource, IRenderer, IRunner, IFilter, IContext, IAccessiblityProvider } from 'vs/base/parts/quickopen/common/quickOpen';
 import { since } from 'vs/base/common/dates';
 import { matchesContiguousSubString } from 'vs/base/common/filters';
 import { QuickOpenHandler } from 'vs/workbench/browser/quickopen';
@@ -162,6 +162,13 @@ class InstallRunner implements IRunner<IExtensionEntry> {
 	}
 }
 
+class AccessibilityProvider implements IAccessiblityProvider<IExtensionEntry> {
+
+	public getAriaLabel(entry: IExtensionEntry): string {
+		return nls.localize('extensionAriaLabel', "{0}, {1}, extensions picker", entry.extension.displayName, entry.extension.description);
+	}
+}
+
 class Renderer implements IRenderer<IExtensionEntry> {
 
 	constructor(
@@ -303,6 +310,7 @@ class LocalExtensionsModel implements IModel<IExtensionEntry> {
 
 	public dataSource = new DataSource();
 	public renderer: IRenderer<IExtensionEntry>;
+	public accessibilityProvider: IAccessiblityProvider<IExtensionEntry> = new AccessibilityProvider();
 	public runner = { run: () => false };
 	public entries: IExtensionEntry[];
 
@@ -339,6 +347,10 @@ export class LocalExtensionsHandler extends QuickOpenHandler {
 		this.modelPromise = null;
 	}
 
+	public getAriaLabel(): string {
+		return nls.localize('localExtensionsHandlerAriaLabel', "Type to narrow down the list of installed extensions");
+	}
+
 	getResults(input: string): TPromise<IModel<IExtensionEntry>> {
 		if (!this.modelPromise) {
 			this.modelPromise = this.extensionsService.getInstalled()
@@ -367,6 +379,7 @@ export class LocalExtensionsHandler extends QuickOpenHandler {
 class GalleryExtensionsModel implements IModel<IExtensionEntry> {
 
 	public dataSource = new DataSource();
+	public accessibilityProvider: IAccessiblityProvider<IExtensionEntry> = new AccessibilityProvider();
 	public renderer: IRenderer<IExtensionEntry>;
 	public runner: IRunner<IExtensionEntry>;
 	public entries: IExtensionEntry[];
@@ -413,6 +426,10 @@ export class GalleryExtensionsHandler extends QuickOpenHandler {
 		super();
 	}
 
+	public getAriaLabel(): string {
+		return nls.localize('galleryExtensionsHandlerAriaLabel', "Type to narrow down the list of extensions from the gallery");
+	}
+
 	getResults(input: string): TPromise<IModel<IExtensionEntry>> {
 		if (!this.modelPromise) {
 			this.telemetryService.publicLog('extensionGallery:open');
@@ -442,6 +459,7 @@ export class GalleryExtensionsHandler extends QuickOpenHandler {
 class OutdatedExtensionsModel implements IModel<IExtensionEntry> {
 
 	public dataSource = new DataSource();
+	public accessibilityProvider: IAccessiblityProvider<IExtensionEntry> = new AccessibilityProvider();
 	public renderer: IRenderer<IExtensionEntry>;
 	public runner: IRunner<IExtensionEntry>;
 	public entries: IExtensionEntry[];
@@ -483,6 +501,10 @@ export class OutdatedExtensionsHandler extends QuickOpenHandler {
 		@ITelemetryService private telemetryService: ITelemetryService
 	) {
 		super();
+	}
+
+	public getAriaLabel(): string {
+		return nls.localize('outdatedExtensionsHandlerAriaLabel', "Type to narrow down the list of outdated extensions");
 	}
 
 	getResults(input: string): TPromise<IModel<IExtensionEntry>> {

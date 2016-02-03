@@ -61,6 +61,8 @@ export class QuickOpenController extends DefaultController {
 	}
 }
 
+const DEFAULT_INPUT_ARIA_LABEL = nls.localize('quickOpenAriaLabel', "Quick picker. Type to narrow down results.");
+
 export class QuickOpenWidget implements IModelProvider {
 
 	public static MAX_WIDTH = 600;				// Max total width of quick open widget
@@ -129,7 +131,7 @@ export class QuickOpenWidget implements IModelProvider {
 				this.inputContainer = inputContainer;
 				this.inputBox = new InputBox(inputContainer.getHTMLElement(), null, {
 					placeholder: this.options.inputPlaceHolder || '',
-					ariaLabel: nls.localize('quickOpenAriaLabel', "Quick picker. Type to narrow down results.")
+					ariaLabel: DEFAULT_INPUT_ARIA_LABEL
 				});
 
 				// ARIA
@@ -722,13 +724,18 @@ export class QuickOpenWidget implements IModelProvider {
 		}
 	}
 
-	public setInput(input: IModel<any>, autoFocus: IAutoFocus): void {
+	public setInput(input: IModel<any>, autoFocus: IAutoFocus, ariaLabel?: string): void {
 		if (!this.isVisible()) {
 			return;
 		}
 
 		// Adapt tree height to entries and apply input
 		this.setInputAndLayout(input, autoFocus);
+
+		// Apply ARIA
+		if (this.inputBox) {
+			this.inputBox.setAriaLabel(ariaLabel || DEFAULT_INPUT_ARIA_LABEL);
+		}
 	}
 
 	public getInput(): IModel<any> {

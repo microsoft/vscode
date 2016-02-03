@@ -65,6 +65,10 @@ class MarkerEntry extends QuickOpenEntryItem {
 		this.setHidden(!labelHighlights && !descHighlights);
 	}
 
+	public getAriaLabel(): string {
+		return nls.localize('markerAriaLabel', "{0}, errors and warnings", this._label);
+	}
+
 	public getHeight(): number {
 		return 48;
 	}
@@ -167,6 +171,10 @@ export class MarkersHandler extends QuickOpenHandler {
 		this._editorService = editorService;
 		this._codeEditorService = codeEditorService;
 		this._contextService = contextService;
+	}
+
+	public getAriaLabel(): string {
+		return nls.localize('markersHandlerAriaLabel', "Type to narrow down errors and warnings");
 	}
 
 	public getResults(searchValue: string): TPromise<QuickOpenModel> {

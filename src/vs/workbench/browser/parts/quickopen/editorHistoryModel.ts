@@ -64,7 +64,7 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 	}
 
 	public getAriaLabel(): string {
-		return nls.localize('entryAriaLabel', "{0}, editor history", this.getLabel());
+		return nls.localize('entryAriaLabel', "{0}, recently opened", this.getLabel());
 	}
 
 	public getDescription(): string {

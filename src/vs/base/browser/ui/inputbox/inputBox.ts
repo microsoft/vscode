@@ -159,6 +159,18 @@ export class InputBox extends Widget {
 		}
 	}
 
+	public setAriaLabel(label: string): void {
+		this.ariaLabel = label;
+
+		if (this.input) {
+			if (label) {
+				this.input.setAttribute('aria-label', this.ariaLabel);
+			} else {
+				this.input.removeAttribute('aria-label');
+			}
+		}
+	}
+
 	public setContextViewProvider(contextViewProvider: IContextViewProvider): void {
 		this.contextViewProvider = contextViewProvider;
 	}

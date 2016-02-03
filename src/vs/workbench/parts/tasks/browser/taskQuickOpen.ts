@@ -60,6 +60,10 @@ export class QuickOpenHandler extends Quickopen.QuickOpenHandler {
 		this.taskService = taskService;
 	}
 
+	public getAriaLabel(): string {
+		return nls.localize('tasksAriaLabel', "Type the name of a task to run");
+	}
+
 	public getResults(input: string): TPromise<Model.QuickOpenModel> {
 		return this.taskService.tasks().then(tasks => tasks
 			.sort((a, b) => a.name.localeCompare(b.name))

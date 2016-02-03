@@ -217,7 +217,7 @@ class OutlineModel extends QuickOpenModel {
 		const result: { [type: string]: string } = Object.create(null);
 		result['method'] = nls.localize('method', "methods ({0})");
 		result['function'] = nls.localize('function', "functions ({0})");
-		result['constructor'] = <any> nls.localize('_constructor', "constructors ({0})");
+		result['constructor'] = <any>nls.localize('_constructor', "constructors ({0})");
 		result['variable'] = nls.localize('variable', "variables ({0})");
 		result['class'] = nls.localize('class', "classes ({0})");
 		result['interface'] = nls.localize('interface', "interfaces ({0})");
@@ -423,6 +423,10 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 		return nls.localize('noSymbolsFound', "No symbols found");
 	}
 
+	public getAriaLabel(): string {
+		return nls.localize('gotoSymbolHandlerAriaLabel', "Type to narrow down symbols of the currently active editor.");
+	}
+
 	public canRun(): boolean | string {
 		let canRun = false;
 
@@ -433,7 +437,6 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 			if (model && (<IDiffEditorModel>model).modified && (<IDiffEditorModel>model).original) {
 				model = (<IDiffEditorModel>model).modified; // Support for diff editor models
 			}
-
 
 			if (model && types.isFunction((<ITokenizedModel>model).getMode)) {
 				canRun = OutlineRegistry.has(<IModel>model);

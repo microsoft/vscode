@@ -176,6 +176,10 @@ export class GotoLineHandler extends QuickOpenHandler {
 		super();
 	}
 
+	public getAriaLabel(): string {
+		return nls.localize('gotoLineHandlerAriaLabel', "Type a line number to navigate to.");
+	}
+
 	public getResults(searchValue: string): TPromise<QuickOpenModel> {
 		searchValue = searchValue.trim();
 

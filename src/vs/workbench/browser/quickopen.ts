@@ -36,6 +36,13 @@ export class QuickOpenHandler {
 	}
 
 	/**
+	 * The ARIA label to apply when this quick open handler is active in quick open.
+	 */
+	public getAriaLabel(): string {
+		return null;
+	}
+
+	/**
 	 * Extra CSS class name to add to the quick open widget to do custom styling of entries.
 	 */
 	public getClass(): string {
